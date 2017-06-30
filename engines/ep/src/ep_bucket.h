@@ -81,6 +81,7 @@ public:
                            uint64_t purgeSeqno,
                            uint64_t maxCas,
                            int64_t hlcEpochSeqno,
+                           bool mightContainXattrs,
                            const std::string& collectionsManifest) override;
 
     ENGINE_ERROR_CODE statsVKey(const DocKey& key,

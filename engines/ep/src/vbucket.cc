@@ -152,6 +152,7 @@ VBucket::VBucket(id_type i,
                  uint64_t purgeSeqno,
                  uint64_t maxCas,
                  int64_t hlcEpochSeqno,
+                 bool mightContainXattrs,
                  const std::string& collectionsManifest)
     : ht(st, std::move(valFact), config.getHtSize(), config.getHtLocks()),
       checkpointManager(st,
@@ -196,7 +197,8 @@ VBucket::VBucket(id_type i,
       deferredDeletion(false),
       deferredDeletionCookie(nullptr),
       newSeqnoCb(std::move(newSeqnoCb)),
-      manifest(collectionsManifest) {
+      manifest(collectionsManifest),
+      mayContainXattrs(mightContainXattrs) {
     if (config.getConflictResolutionType().compare("lww") == 0) {
         conflictResolver.reset(new LastWriteWinsResolution());
     } else {
@@ -325,6 +327,7 @@ vbucket_state VBucket::getVBucketState() const {
                           persisted_range.end,
                           getMaxCas(),
                           hlc.getEpochSeqno(),
+                          mightContainXattrs(),
                           failovers->toJSON()};
 }
 
@@ -623,6 +626,10 @@ VBNotifyCtx VBucket::queueDirty(
     VBNotifyCtx notifyCtx;
 
     queued_item qi(v.toItem(false, getId()));
+
+    if (!mightContainXattrs() && mcbp::datatype::is_xattr(v.getDatatype())) {
+        setMightContainXattrs();
+    }
 
     if (isBackfillItem) {
         queueBackfillItem(qi, generateBySeqno);
@@ -1903,6 +1910,7 @@ void VBucket::_addStats(bool details, ADD_STAT add_stat, const void* c) {
         addStat("bloom_filter_key_count", getNumOfKeysInFilter(), add_stat, c);
         addStat("rollback_item_count", getRollbackItemCount(), add_stat, c);
         addStat("hp_vb_req_size", getHighPriorityChkSize(), add_stat, c);
+        addStat("might_contain_xattrs", mightContainXattrs(), add_stat, c);
         hlc.addStats(statPrefix, add_stat, c);
     }
 }

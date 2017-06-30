@@ -1111,19 +1111,7 @@ TEST_F(SingleThreadedEPBucketTest, pre_expiry_xattrs) {
 
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
-    cb::xattr::Blob blob;
-
-    //Add a few values
-    blob.set(to_const_byte_buffer("user"),
-             to_const_byte_buffer("{\"author\":\"bubba\"}"));
-    blob.set(to_const_byte_buffer("_sync"),
-             to_const_byte_buffer("{\"cas\":\"0xdeadbeefcafefeed\"}"));
-    blob.set(to_const_byte_buffer("meta"),
-             to_const_byte_buffer("{\"content-type\":\"text\"}"));
-
-    auto xattr_value = blob.finalize();
-
-    auto xattr_data = to_string(xattr_value);
+    auto xattr_data = createXattrValue("value");
 
     auto itm = store_item(vbid,
                           makeStoredDocKey("key"),
@@ -1175,7 +1163,7 @@ TEST_F(SingleThreadedEPBucketTest, pre_expiry_xattrs) {
 
 }
 
-class WarmupHLCEpochTest : public SingleThreadedKVBucketTest {
+class WarmupTest : public SingleThreadedKVBucketTest {
 public:
     /**
      * Test is currently using couchstore API directly to make the VB appear old
@@ -1236,7 +1224,7 @@ public:
     }
 };
 
-TEST_F(WarmupHLCEpochTest, warmup) {
+TEST_F(WarmupTest, hlcEpoch) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
     // Store an item, then make the VB appear old ready for warmup
@@ -1280,4 +1268,36 @@ TEST_F(WarmupHLCEpochTest, warmup) {
     ASSERT_EQ(ENGINE_SUCCESS, item2.getStatus());
     auto info2 = engine->getItemInfo(*item2.item);
     EXPECT_TRUE(info2.cas_is_hlc);
+}
+
+TEST_F(WarmupTest, mightContainXattrs) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // Store an item, then make the VB appear old ready for warmup
+    store_item(vbid, makeStoredDocKey("key1"), "value");
+    flush_vbucket_to_disk(vbid);
+    rewriteVBStateAs25x(vbid);
+
+    resetEngineAndWarmup();
+    {
+        auto vb = engine->getKVBucket()->getVBucket(vbid);
+        EXPECT_FALSE(vb->mightContainXattrs());
+
+        auto xattr_data = createXattrValue("value");
+
+        auto itm = store_item(vbid,
+                              makeStoredDocKey("key"),
+                              xattr_data,
+                              1,
+                              {cb::engine_errc::success},
+                              PROTOCOL_BINARY_DATATYPE_XATTR);
+
+        EXPECT_TRUE(vb->mightContainXattrs());
+
+        flush_vbucket_to_disk(vbid);
+    }
+    // Warmup - we should have xattr dirty
+    resetEngineAndWarmup();
+
+    EXPECT_TRUE(engine->getKVBucket()->getVBucket(vbid)->mightContainXattrs());
 }

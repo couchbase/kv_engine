@@ -71,6 +71,7 @@ public:
                            uint64_t purgeSeqno,
                            uint64_t maxCas,
                            int64_t hlcEpochSeqno,
+                           bool mightContainXattrs,
                            const std::string& collectionsManifest) override;
 
     /// Do nothing - no flusher to notify

@@ -137,6 +137,7 @@ public:
             uint64_t purgeSeqno = 0,
             uint64_t maxCas = 0,
             int64_t hlcEpochSeqno = HlcCasSeqnoUninitialised,
+            bool mightContainXattrs = false,
             const std::string& collectionsManifest = "");
 
     virtual ~VBucket();
@@ -1117,6 +1118,18 @@ public:
         return ht.getNumDeletedItems();
     }
 
+    /**
+     * Set that this VBucket might store documents with xattrs.
+     * Persistent vbucket will flush this to disk.
+     */
+    void setMightContainXattrs() {
+        mayContainXattrs.store(true);
+    }
+
+    bool mightContainXattrs() const {
+        return mayContainXattrs.load();
+    }
+
     static size_t getCheckpointFlushTimeout();
 
     /**
@@ -1655,6 +1668,13 @@ private:
 
     /// The VBucket collection state
     Collections::VB::Manifest manifest;
+
+    /**
+     * records if the vbucket has had xattrs documents written to it, note that
+     * rollback of data or delete of all the xattr documents does not undo the
+     * flag.
+     */
+    std::atomic<bool> mayContainXattrs;
 
     static std::atomic<size_t> chkFlushTimeout;
 

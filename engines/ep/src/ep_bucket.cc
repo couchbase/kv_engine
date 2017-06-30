@@ -230,6 +230,7 @@ VBucketPtr EPBucket::makeVBucket(VBucket::id_type id,
                                  uint64_t purgeSeqno,
                                  uint64_t maxCas,
                                  int64_t hlcEpochSeqno,
+                                 bool mightContainXattrs,
                                  const std::string& collectionsManifest) {
     auto flusherCb = std::make_shared<NotifyFlusherCB>(shard);
     // Not using make_shared or allocate_shared
@@ -253,6 +254,7 @@ VBucketPtr EPBucket::makeVBucket(VBucket::id_type id,
                                     purgeSeqno,
                                     maxCas,
                                     hlcEpochSeqno,
+                                    mightContainXattrs,
                                     collectionsManifest),
                       VBucket::DeferredDeleter(engine));
 }

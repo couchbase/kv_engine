@@ -2065,6 +2065,7 @@ ENGINE_ERROR_CODE CouchKVStore::readVBState(Db *db, uint16_t vbId) {
     uint64_t lastSnapEnd = 0;
     uint64_t maxCas = 0;
     int64_t hlcCasEpochSeqno = HlcCasSeqnoUninitialised;
+    bool mightContainXattrs = false;
 
     DbInfo info;
     errCode = couchstore_db_info(db, &info);
@@ -2118,6 +2119,9 @@ ENGINE_ERROR_CODE CouchKVStore::readVBState(Db *db, uint16_t vbId) {
                                 cJSON_GetObjectItem(jsonObj, "max_cas"));
         const std::string hlcCasEpoch =
                 getJSONObjString(cJSON_GetObjectItem(jsonObj, "hlc_epoch"));
+        mightContainXattrs = getJSONObjBool(
+                cJSON_GetObjectItem(jsonObj, "might_contain_xattrs"));
+
         cJSON *failover_json = cJSON_GetObjectItem(jsonObj, "failover_table");
         if (vb_state.compare("") == 0 || checkpoint_id.compare("") == 0
                 || max_deleted_seqno.compare("") == 0) {
@@ -2183,6 +2187,7 @@ ENGINE_ERROR_CODE CouchKVStore::readVBState(Db *db, uint16_t vbId) {
                                              lastSnapEnd,
                                              maxCas,
                                              hlcCasEpochSeqno,
+                                             mightContainXattrs,
                                              failovers);
 
     return couchErr2EngineErr(errCode);
@@ -2201,8 +2206,15 @@ couchstore_error_t CouchKVStore::saveVBState(Db *db,
     jsonState << ",\"snap_start\": \"" << vbState.lastSnapStart << "\""
               << ",\"snap_end\": \"" << vbState.lastSnapEnd << "\""
               << ",\"max_cas\": \"" << vbState.maxCas << "\""
-              << ",\"hlc_epoch\": \"" << vbState.hlcCasEpochSeqno << "\""
-              << "}";
+              << ",\"hlc_epoch\": \"" << vbState.hlcCasEpochSeqno << "\"";
+
+    if (vbState.mightContainXattrs) {
+        jsonState << ",\"might_contain_xattrs\": true";
+    } else {
+        jsonState << ",\"might_contain_xattrs\": false";
+    }
+
+    jsonState << "}";
 
     LocalDoc lDoc;
     lDoc.id.buf = (char *)"_local/vbstate";

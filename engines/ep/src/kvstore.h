@@ -127,6 +127,7 @@ struct vbucket_state {
                   uint64_t _lastSnapEnd,
                   uint64_t _maxCas,
                   int64_t _hlcCasEpochSeqno,
+                  bool _mightContainXattrs,
                   std::string _failovers)
         : state(_state),
           checkpointId(_chkid),
@@ -137,6 +138,7 @@ struct vbucket_state {
           lastSnapEnd(_lastSnapEnd),
           maxCas(_maxCas),
           hlcCasEpochSeqno(_hlcCasEpochSeqno),
+          mightContainXattrs(_mightContainXattrs),
           failovers(std::move(_failovers)) {
     }
 
@@ -164,6 +166,7 @@ struct vbucket_state {
         lastSnapEnd = 0;
         maxCas = 0;
         hlcCasEpochSeqno = HlcCasSeqnoUninitialised;
+        mightContainXattrs = false;
         failovers.clear();
     }
 
@@ -176,6 +179,7 @@ struct vbucket_state {
     uint64_t lastSnapEnd;
     uint64_t maxCas;
     int64_t hlcCasEpochSeqno;
+    bool mightContainXattrs;
     std::string failovers;
 };
 
@@ -1018,4 +1022,14 @@ inline const std::string getJSONObjString(const cJSON *i) {
                                     ") is not cJSON_String");
     }
     return i->valuestring;
+}
+
+inline const bool getJSONObjBool(const cJSON* i) {
+    if (i == nullptr) {
+        return false;
+    } else if (i->type != cJSON_True && i->type != cJSON_False) {
+        throw std::invalid_argument("getJSONObjBool: type of object (" +
+                                    std::to_string(i->type) + ") is not bool");
+    }
+    return i->type == cJSON_True;
 }

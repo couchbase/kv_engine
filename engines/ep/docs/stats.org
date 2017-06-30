@@ -531,6 +531,10 @@ The stats below are listed for each vbucket.
 | drift_behind_threshold        | The behind threshold in ns.                |
 | logical_clock_ticks           | How many times this vbucket's HLC has      |
 |                               | returned logical clock ticks.              |
+| might_contain_xattrs          | True if the vbucket might contain xattrs.  |
+|                               | True means that Xattrs were stored to the  |
+|                               | vbucket, note that the flag does not clear |
+|                               | itself if all xattrs were removed.         |
 
 For Ephemeral buckets, the following additional statistics are listed for
 each vbucket:

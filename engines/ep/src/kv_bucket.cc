@@ -2211,6 +2211,9 @@ int KVBucket::flushVBucket(uint16_t vbid) {
                     vb->setHLCEpochSeqno(range.start);
                 }
 
+                // Track if the VB has xattrs present
+                vbstate.mightContainXattrs = vb->mightContainXattrs();
+
                 // Do we need to trigger a persist of the state?
                 // If there are no "real" items to flush, and we encountered
                 // a set_vbucket_state meta-item.

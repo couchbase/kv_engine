@@ -798,6 +798,7 @@ void Warmup::createVBuckets(uint16_t shardId) {
                     vbs.purgeSeqno,
                     vbs.maxCas,
                     vbs.hlcCasEpochSeqno,
+                    vbs.mightContainXattrs,
                     config.isCollectionsPrototypeEnabled()
                             ? store.getROUnderlyingByShard(shardId)
                                       ->getCollectionsManifest(vbid)

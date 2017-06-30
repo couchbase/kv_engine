@@ -44,6 +44,7 @@ public:
               uint64_t purgeSeqno = 0,
               uint64_t maxCas = 0,
               int64_t hlcEpochSeqno = HlcCasSeqnoUninitialised,
+              bool mightContainXattrs = false,
               const std::string& collectionsManifest = "");
 
     ~EPVBucket();

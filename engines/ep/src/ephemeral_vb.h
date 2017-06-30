@@ -45,6 +45,7 @@ public:
                      vbucket_state_t initState = vbucket_state_dead,
                      uint64_t purgeSeqno = 0,
                      uint64_t maxCas = 0,
+                     bool mightContainXattrs = false,
                      const std::string& collectionsManifest = "");
 
     ENGINE_ERROR_CODE completeBGFetchForSingleItem(

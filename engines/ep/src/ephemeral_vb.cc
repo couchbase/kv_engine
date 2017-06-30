@@ -40,6 +40,7 @@ EphemeralVBucket::EphemeralVBucket(id_type i,
                                    vbucket_state_t initState,
                                    uint64_t purgeSeqno,
                                    uint64_t maxCas,
+                                   bool mightContainXattrs,
                                    const std::string& collectionsManifest)
     : VBucket(i,
               newState,
@@ -58,6 +59,7 @@ EphemeralVBucket::EphemeralVBucket(id_type i,
               purgeSeqno,
               maxCas,
               0, // Every item in ephemeral has a HLC cas
+              mightContainXattrs,
               collectionsManifest),
       seqList(std::make_unique<BasicLinkedList>(i, st)),
       backfillType(BackfillType::None) {

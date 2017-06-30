@@ -172,7 +172,7 @@ static void initialize_kv_store(KVStore* kvstore) {
     // simulate the setVbState by incrementing the rev
     kvstore->incrementRevision(0);
     vbucket_state state(
-            vbucket_state_active, 0, 0, 0, 0, 0, 0, 0, 0, failoverLog);
+            vbucket_state_active, 0, 0, 0, 0, 0, 0, 0, 0, false, failoverLog);
     // simulate the setVbState by incrementing the rev
     kvstore->incrementRevision(0);
     kvstore->snapshotVBucket(0, state,
@@ -370,6 +370,7 @@ TEST_F(CouchKVStoreTest, MB_17517MaxCasOfMinus1) {
                         /*lastSnapEnd*/ 0,
                         /*maxCas*/ -1,
                         /*hlcEpoch*/ 0,
+                        /*xattrs_present*/ false,
                         failoverLog);
     EXPECT_TRUE(kvstore.rw->snapshotVBucket(
             /*vbid*/ 0, state, VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT));
@@ -1192,8 +1193,17 @@ public:
         // simulate a setVBState - increment the rev and then persist the
         // state
         kvstore->incrementRevision(0);
-        vbucket_state state(
-                vbucket_state_active, 0, 0, 0, 0, 0, 0, 0, 0, failoverLog);
+        vbucket_state state(vbucket_state_active,
+                            0,
+                            0,
+                            0,
+                            0,
+                            0,
+                            0,
+                            0,
+                            0,
+                            false,
+                            failoverLog);
         // simulate a setVBState - increment the dbFile revision
         kvstore->incrementRevision(0);
         kvstore->snapshotVBucket(0, state,
