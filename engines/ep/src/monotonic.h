@@ -41,6 +41,15 @@ struct ThrowExceptionPolicy {
     }
 };
 
+// Default Monotonic OrdereReveredPolocy - use IgnorePolicy for Release builds,
+// and ThrowExceptionPolicy for Debug builds.
+template <class T>
+#if NDEBUG
+using DefaultOrderReversedPolicy = IgnorePolicy<T>;
+#else
+using DefaultOrderReversedPolicy = ThrowExceptionPolicy<T>;
+#endif
+
 /**
  * Monotonic is a class template for simple types T. It provides guarantee
  * of updating the class objects by only values that are greater than what is
@@ -56,7 +65,7 @@ struct ThrowExceptionPolicy {
  */
 template <typename T,
           template <class> class OrderReversedPolicy =
-                  IgnorePolicy>
+                  DefaultOrderReversedPolicy>
 class Monotonic : public OrderReversedPolicy<T> {
 public:
     Monotonic(const T val = std::numeric_limits<T>::min()) : val(val) {
@@ -100,7 +109,9 @@ private:
  * Variant of the Monotonic class, except that the type T is wrapped in
  * std::atomic, so all updates are atomic. T must be TriviallyCopyable.
  */
-template <typename T, template <class> class OrderReversedPolicy = IgnorePolicy>
+template <typename T,
+          template <class> class OrderReversedPolicy =
+                  DefaultOrderReversedPolicy>
 class AtomicMonotonic : public OrderReversedPolicy<T> {
 public:
     AtomicMonotonic(T val = std::numeric_limits<T>::min()) : val(val) {
