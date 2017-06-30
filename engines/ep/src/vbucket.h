@@ -1221,9 +1221,9 @@ protected:
      * @param isReplication true if issued by consumer (for replication)
      *
      * @return Result indicating the status of the operation and notification
-     *                info
+     *                info (if operation was successful).
      */
-    std::pair<MutationStatus, VBNotifyCtx> processSet(
+    std::pair<MutationStatus, boost::optional<VBNotifyCtx>> processSet(
             const HashTable::HashBucketLock& hbl,
             StoredValue*& v,
             Item& itm,
@@ -1248,9 +1248,9 @@ protected:
      *                    backfill queue
      *
      * @return Result indicating the status of the operation and notification
-     *                info
+     *                info (if the operation was successful).
      */
-    std::pair<AddStatus, VBNotifyCtx> processAdd(
+    std::pair<AddStatus, boost::optional<VBNotifyCtx>> processAdd(
             const HashTable::HashBucketLock& hbl,
             StoredValue*& v,
             Item& itm,
@@ -1277,16 +1277,16 @@ protected:
      *         v or different value if a new StoredValue is created for the
      *         update.
      *         status of the operation.
-     *         notification info.
+     *         notification info, if status was successful.
      */
-    std::tuple<MutationStatus, StoredValue*, VBNotifyCtx> processSoftDelete(
-            const HashTable::HashBucketLock& hbl,
-            StoredValue& v,
-            uint64_t cas,
-            const ItemMetaData& metadata,
-            const VBQueueItemCtx& queueItmCtx,
-            bool use_meta,
-            uint64_t bySeqno);
+    std::tuple<MutationStatus, StoredValue*, boost::optional<VBNotifyCtx>>
+    processSoftDelete(const HashTable::HashBucketLock& hbl,
+                      StoredValue& v,
+                      uint64_t cas,
+                      const ItemMetaData& metadata,
+                      const VBQueueItemCtx& queueItmCtx,
+                      bool use_meta,
+                      uint64_t bySeqno);
 
     /**
      * Delete a key (associated StoredValue) from ALL in-memory data structures

@@ -797,7 +797,7 @@ ENGINE_ERROR_CODE VBucket::set(Item& itm,
                                &preLinkDocumentContext);
 
     MutationStatus status;
-    VBNotifyCtx notifyCtx;
+    boost::optional<VBNotifyCtx> notifyCtx;
     std::tie(status, notifyCtx) = processSet(hbl,
                                              v,
                                              itm,
@@ -829,7 +829,7 @@ ENGINE_ERROR_CODE VBucket::set(Item& itm,
     // Even if the item was dirty, push it into the vbucket's open
     // checkpoint.
     case MutationStatus::WasClean:
-        notifyNewSeqno(notifyCtx);
+        notifyNewSeqno(*notifyCtx);
 
         itm.setBySeqno(v->getBySeqno());
         itm.setCas(v->getCas());
@@ -877,7 +877,7 @@ ENGINE_ERROR_CODE VBucket::replace(Item& itm,
         }
 
         MutationStatus mtype;
-        VBNotifyCtx notifyCtx;
+        boost::optional<VBNotifyCtx> notifyCtx;
         if (eviction == FULL_EVICTION && v->isTempInitialItem()) {
             mtype = MutationStatus::NeedBgFetch;
         } else {
@@ -914,7 +914,7 @@ ENGINE_ERROR_CODE VBucket::replace(Item& itm,
         // Even if the item was dirty, push it into the vbucket's open
         // checkpoint.
         case MutationStatus::WasClean:
-            notifyNewSeqno(notifyCtx);
+            notifyNewSeqno(*notifyCtx);
 
             itm.setBySeqno(v->getBySeqno());
             itm.setCas(v->getCas());
@@ -964,7 +964,7 @@ ENGINE_ERROR_CODE VBucket::addBackfillItem(Item& itm,
                                /*isBackfillItem*/ true,
                                nullptr /* No pre link should happen */);
     MutationStatus status;
-    VBNotifyCtx notifyCtx;
+    boost::optional<VBNotifyCtx> notifyCtx;
     std::tie(status, notifyCtx) = processSet(hbl,
                                              v,
                                              itm,
@@ -994,7 +994,7 @@ ENGINE_ERROR_CODE VBucket::addBackfillItem(Item& itm,
         // we unlock ht lock here because we want to avoid potential lock
         // inversions arising from notifyNewSeqno() call
         hbl.getHTLock().unlock();
-        notifyNewSeqno(notifyCtx);
+        notifyNewSeqno(*notifyCtx);
     } break;
     case MutationStatus::NeedBgFetch:
         throw std::logic_error(
@@ -1072,7 +1072,7 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(Item& itm,
                                /*isBackfillItem*/ false,
                                nullptr /* No pre link step needed */);
     MutationStatus status;
-    VBNotifyCtx notifyCtx;
+    boost::optional<VBNotifyCtx> notifyCtx;
     std::tie(status, notifyCtx) = processSet(hbl,
                                              v,
                                              itm,
@@ -1103,7 +1103,7 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(Item& itm,
         // we unlock ht lock here because we want to avoid potential lock
         // inversions arising from notifyNewSeqno() call
         hbl.getHTLock().unlock();
-        notifyNewSeqno(notifyCtx);
+        notifyNewSeqno(*notifyCtx);
     } break;
     case MutationStatus::NotFound:
         ret = ENGINE_KEY_ENOENT;
@@ -1179,7 +1179,7 @@ ENGINE_ERROR_CODE VBucket::deleteItem(const DocKey& key,
     }
 
     MutationStatus delrv;
-    VBNotifyCtx notifyCtx;
+    boost::optional<VBNotifyCtx> notifyCtx;
     if (v->isExpired(ep_real_time())) {
         std::tie(delrv, v, notifyCtx) = processExpiredItem(hbl, *v);
     } else {
@@ -1226,7 +1226,7 @@ ENGINE_ERROR_CODE VBucket::deleteItem(const DocKey& key,
             itemMeta->exptime = v->getExptime();
         }
 
-        notifyNewSeqno(notifyCtx);
+        notifyNewSeqno(*notifyCtx);
         seqno = static_cast<uint64_t>(v->getBySeqno());
         cas = v->getCas();
 
@@ -1332,7 +1332,7 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(const DocKey& key,
     }
 
     MutationStatus delrv;
-    VBNotifyCtx notifyCtx;
+    boost::optional<VBNotifyCtx> notifyCtx;
     if (!v) {
         if (eviction == FULL_EVICTION) {
             delrv = MutationStatus::NeedBgFetch;
@@ -1383,7 +1383,7 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(const DocKey& key,
         // we unlock ht lock here because we want to avoid potential lock
         // inversions arising from notifyNewSeqno() call
         hbl.getHTLock().unlock();
-        notifyNewSeqno(notifyCtx);
+        notifyNewSeqno(*notifyCtx);
         break;
     }
     case MutationStatus::NeedBgFetch:
@@ -1485,7 +1485,7 @@ ENGINE_ERROR_CODE VBucket::add(Item& itm,
                                /*isBackfillItem*/ false,
                                &preLinkDocumentContext);
     AddStatus status;
-    VBNotifyCtx notifyCtx;
+    boost::optional<VBNotifyCtx> notifyCtx;
     std::tie(status, notifyCtx) =
             processAdd(hbl, v, itm, maybeKeyExists, false, queueItmCtx);
 
@@ -1503,7 +1503,7 @@ ENGINE_ERROR_CODE VBucket::add(Item& itm,
         return ENGINE_EWOULDBLOCK;
     case AddStatus::Success:
     case AddStatus::UnDel:
-        notifyNewSeqno(notifyCtx);
+        notifyNewSeqno(*notifyCtx);
         itm.setBySeqno(v->getBySeqno());
         itm.setCas(v->getCas());
         break;
@@ -2005,7 +2005,7 @@ void VBucket::decrDirtyQueuePendingWrites(size_t decrementBy)
     } while (!dirtyQueuePendingWrites.compare_exchange_strong(oldVal, newVal));
 }
 
-std::pair<MutationStatus, VBNotifyCtx> VBucket::processSet(
+std::pair<MutationStatus, boost::optional<VBNotifyCtx>> VBucket::processSet(
         const HashTable::HashBucketLock& hbl,
         StoredValue*& v,
         Item& itm,
@@ -2024,7 +2024,7 @@ std::pair<MutationStatus, VBNotifyCtx> VBucket::processSet(
     }
 
     if (!hasMemoryForStoredValue(stats, itm, isReplication)) {
-        return {MutationStatus::NoMem, VBNotifyCtx()};
+        return {MutationStatus::NoMem, {}};
     }
 
     // bgFetch only in FE, only if the bloom-filter thinks the key may exist.
@@ -2032,7 +2032,7 @@ std::pair<MutationStatus, VBNotifyCtx> VBucket::processSet(
     if (eviction == FULL_EVICTION && maybeKeyExists &&
         (cas || storeIfStatus == cb::StoreIfStatus::GetItemInfo)) {
         if (!v || v->isTempInitialItem()) {
-            return {MutationStatus::NeedBgFetch, VBNotifyCtx()};
+            return {MutationStatus::NeedBgFetch, {}};
         }
     }
 
@@ -2049,13 +2049,13 @@ std::pair<MutationStatus, VBNotifyCtx> VBucket::processSet(
         }
         if (cas) {
             /* item has expired and cas value provided. Deny ! */
-            return {MutationStatus::NotFound, VBNotifyCtx()};
+            return {MutationStatus::NotFound, {}};
         }
     }
 
     if (v) {
         if (!allowExisting && !v->isTempItem() && !v->isDeleted()) {
-            return {MutationStatus::InvalidCas, VBNotifyCtx()};
+            return {MutationStatus::InvalidCas, {}};
         }
         if (v->isLocked(ep_current_time())) {
             /*
@@ -2063,7 +2063,7 @@ std::pair<MutationStatus, VBNotifyCtx> VBucket::processSet(
              * or no cas value is provided by the user
              */
             if (cas != v->getCas()) {
-                return {MutationStatus::IsLocked, VBNotifyCtx()};
+                return {MutationStatus::IsLocked, {}};
             }
             /* allow operation*/
             v->unlock();
@@ -2072,16 +2072,16 @@ std::pair<MutationStatus, VBNotifyCtx> VBucket::processSet(
                 // This is a temporary item which marks a key as non-existent;
                 // therefore specifying a non-matching CAS should be exposed
                 // as item not existing.
-                return {MutationStatus::NotFound, VBNotifyCtx()};
+                return {MutationStatus::NotFound, {}};
             }
             if ((v->isTempDeletedItem() || v->isDeleted()) && !itm.isDeleted()) {
                 // Existing item is deleted, and we are not replacing it with
                 // a (different) deleted value - return not existing.
-                return {MutationStatus::NotFound, VBNotifyCtx()};
+                return {MutationStatus::NotFound, {}};
             }
             // None of the above special cases; the existing item cannot be
             // modified with the specified CAS.
-            return {MutationStatus::InvalidCas, VBNotifyCtx()};
+            return {MutationStatus::InvalidCas, {}};
         }
         if (!hasMetaData) {
             itm.setRevSeqno(v->getRevSeqno() + 1);
@@ -2093,7 +2093,7 @@ std::pair<MutationStatus, VBNotifyCtx> VBucket::processSet(
              */
             if (cas && (v->isDeleted() || v->isTempDeletedItem()) &&
                 !itm.isDeleted()) {
-                return {MutationStatus::NotFound, VBNotifyCtx()};
+                return {MutationStatus::NotFound, {}};
             }
         }
 
@@ -2103,7 +2103,7 @@ std::pair<MutationStatus, VBNotifyCtx> VBucket::processSet(
                 updateStoredValue(hbl, *v, itm, queueItmCtx);
         return {status, notifyCtx};
     } else if (cas != 0) {
-        return {MutationStatus::NotFound, VBNotifyCtx()};
+        return {MutationStatus::NotFound, {}};
     } else {
         VBNotifyCtx notifyCtx;
         std::tie(v, notifyCtx) = addNewStoredValue(hbl, itm, queueItmCtx);
@@ -2115,7 +2115,7 @@ std::pair<MutationStatus, VBNotifyCtx> VBucket::processSet(
     }
 }
 
-std::pair<AddStatus, VBNotifyCtx> VBucket::processAdd(
+std::pair<AddStatus, boost::optional<VBNotifyCtx>> VBucket::processAdd(
         const HashTable::HashBucketLock& hbl,
         StoredValue*& v,
         Item& itm,
@@ -2131,19 +2131,19 @@ std::pair<AddStatus, VBNotifyCtx> VBucket::processAdd(
 
     if (v && !v->isDeleted() && !v->isExpired(ep_real_time()) &&
         !v->isTempItem()) {
-        return {AddStatus::Exists, VBNotifyCtx()};
+        return {AddStatus::Exists, {}};
     }
     if (!hasMemoryForStoredValue(stats, itm, isReplication)) {
-        return {AddStatus::NoMem, VBNotifyCtx()};
+        return {AddStatus::NoMem, {}};
     }
 
-    std::pair<AddStatus, VBNotifyCtx> rv = {AddStatus::Success, VBNotifyCtx()};
+    std::pair<AddStatus, VBNotifyCtx> rv = {AddStatus::Success, {}};
 
     if (v) {
         if (v->isTempInitialItem() && eviction == FULL_EVICTION &&
             maybeKeyExists) {
             // Need to figure out if an item exists on disk
-            return {AddStatus::BgFetch, VBNotifyCtx()};
+            return {AddStatus::BgFetch, {}};
         }
 
         rv.first = (v->isDeleted() || v->isExpired(ep_real_time()))
@@ -2190,7 +2190,7 @@ std::pair<AddStatus, VBNotifyCtx> VBucket::processAdd(
     return rv;
 }
 
-std::tuple<MutationStatus, StoredValue*, VBNotifyCtx>
+std::tuple<MutationStatus, StoredValue*, boost::optional<VBNotifyCtx>>
 VBucket::processSoftDelete(const HashTable::HashBucketLock& hbl,
                            StoredValue& v,
                            uint64_t cas,
@@ -2198,19 +2198,20 @@ VBucket::processSoftDelete(const HashTable::HashBucketLock& hbl,
                            const VBQueueItemCtx& queueItmCtx,
                            bool use_meta,
                            uint64_t bySeqno) {
+    boost::optional<VBNotifyCtx> empty;
     if (v.isTempInitialItem() && eviction == FULL_EVICTION) {
-        return std::make_tuple(MutationStatus::NeedBgFetch, &v, VBNotifyCtx());
+        return std::make_tuple(MutationStatus::NeedBgFetch, &v, empty);
     }
 
     if (v.isLocked(ep_current_time())) {
         if (cas != v.getCas()) {
-            return std::make_tuple(MutationStatus::IsLocked, &v, VBNotifyCtx());
+            return std::make_tuple(MutationStatus::IsLocked, &v, empty);
         }
         v.unlock();
     }
 
     if (cas != 0 && cas != v.getCas()) {
-        return std::make_tuple(MutationStatus::InvalidCas, &v, VBNotifyCtx());
+        return std::make_tuple(MutationStatus::InvalidCas, &v, empty);
     }
 
     /* allow operation */
