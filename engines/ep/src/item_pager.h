@@ -37,14 +37,6 @@ enum item_pager_phase {
 };
 
 /**
- * Item eviction policy
- */
-enum item_eviction_policy_t {
-    VALUE_ONLY, // Only evict an item's value.
-    FULL_EVICTION // Evict an item's key, metadata and value together.
-};
-
-/**
  * Dispatcher job responsible for periodically pushing data out of
  * memory.
  */

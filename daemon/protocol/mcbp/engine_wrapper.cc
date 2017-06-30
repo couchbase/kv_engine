@@ -113,19 +113,18 @@ ENGINE_ERROR_CODE bucket_store(McbpConnection* c,
     return ret;
 }
 
-cb::EngineErrorCasPair bucket_store_if(
-        McbpConnection* c,
-        item* item_,
-        uint64_t cas,
-        ENGINE_STORE_OPERATION operation,
-        std::function<bool(const item_info&)> filter,
-        DocumentState document_state) {
+cb::EngineErrorCasPair bucket_store_if(McbpConnection* c,
+                                       item* item_,
+                                       uint64_t cas,
+                                       ENGINE_STORE_OPERATION operation,
+                                       cb::StoreIfPredicate predicate,
+                                       DocumentState document_state) {
     auto ret = c->getBucketEngine()->store_if(c->getBucketEngineAsV0(),
                                               c->getCookie(),
                                               item_,
                                               cas,
                                               operation,
-                                              filter,
+                                              predicate,
                                               document_state);
     if (ret.status == cb::engine_errc::success) {
         using namespace cb::audit::document;

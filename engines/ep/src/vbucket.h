@@ -1130,6 +1130,10 @@ public:
         return mayContainXattrs.load();
     }
 
+    cb::vbucket_info getInfo() const {
+        return {mightContainXattrs()};
+    }
+
     static size_t getCheckpointFlushTimeout();
 
     /**
@@ -1205,6 +1209,7 @@ protected:
      * @param hasMetaData
      * @param queueItmCtx holds info needed to queue an item in chkpt or vb
      *                    backfill queue
+     * @param storeIfStatus the status of any conditional store predicate
      * @param maybeKeyExists true if bloom filter predicts that key may exist
      * @param isReplication true if issued by consumer (for replication)
      *
@@ -1219,7 +1224,7 @@ protected:
             bool allowExisting,
             bool hasMetaData,
             const VBQueueItemCtx& queueItmCtx,
-            cb::StoreIfPredicate predicate,
+            cb::StoreIfStatus storeIfStatus,
             bool maybeKeyExists = true,
             bool isReplication = false);
 
@@ -1624,6 +1629,15 @@ private:
      * @return new total size for this Bucket once Item is allocated
      */
     virtual size_t estimateNewMemoryUsage(EPStats& st, const Item& item) = 0;
+
+    /*
+     * Call the predicate with item_info from v (none if v is nullptr)
+     * @param predicate a function to call, must be initialised
+     * @param v the StoredValue (or nullptr if none in cache)
+     * @return how the caller should proceed (store_if semantics)
+     */
+    cb::StoreIfStatus callPredicate(cb::StoreIfPredicate predicate,
+                                    StoredValue* v);
 
     id_type                         id;
     std::atomic<vbucket_state_t>    state;

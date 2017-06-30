@@ -120,3 +120,11 @@ enum class HighPriorityVBReqStatus {
  * Value of vbucket's hlc seqno epoch before any data is stored
  */
 const int64_t HlcCasSeqnoUninitialised = -1;
+
+/**
+ * Item eviction policy
+ */
+enum item_eviction_policy_t {
+    VALUE_ONLY, // Only evict an item's value.
+    FULL_EVICTION // Evict an item's key, metadata and value together.
+};

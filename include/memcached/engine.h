@@ -10,6 +10,8 @@
 #include <sys/types.h>
 #include <utility>
 
+#include <boost/optional/optional.hpp>
+
 #include "memcached/allocator_hooks.h"
 #include "memcached/callback.h"
 #include "memcached/collections.h"
@@ -203,8 +205,14 @@ class ItemDeleter;
 typedef std::unique_ptr<item, ItemDeleter> unique_item_ptr;
 
 using EngineErrorItemPair = std::pair<cb::engine_errc, cb::unique_item_ptr>;
+enum class StoreIfStatus {
+    Continue,
+    Fail,
+    GetItemInfo // please get me the item_info
+};
 
-using StoreIfPredicate = std::function<bool(const item_info&)>;
+using StoreIfPredicate = std::function<StoreIfStatus(
+        const boost::optional<item_info>&, cb::vbucket_info)>;
 
 struct EngineErrorCasPair {
     engine_errc status;
@@ -481,13 +489,20 @@ typedef struct engine_interface_v1 {
      * @param item the item to store
      * @param cas the CAS value for conditional sets
      * @param operation the type of store operation to perform.
-     * @param predicate a function to run against any *existing* item, if the
-     *                  function returns false, store_if will fail with
-     *                  cb::engine_errc::predicate_failed. The function is
-     *                  optional, passing {} makes store_if act like store.
-     *                  Thus {} maybe more desirable than a function which
-     *                  returns true, because some buckets may need to fetch
-     *                  existing items from persisted storage.
+     * @param predicate a function that will be called from the engine the
+     *                  result of which determines how the store behaves.
+     *                  The function is given any existing item's item_info (as
+     *                  a boost::optional) and a cb::vbucket_info object. In the
+     *                  case that the optional item_info is not initialised the
+     *                  function can return cb::StoreIfStatus::GetInfo to
+     *                  request that the engine tries to get the item_info, the
+     *                  engine may ignore this return code if it knows better
+     *                  i.e. a memory only engine and no item_info can be
+     *                  fetched. The function can also return ::Fail if it
+     *                  wishes to fail the store_if (returning predicate_failed)
+     *                  or the predicate can return ::Continue and the rest of
+     *                  the store_if will execute (and possibly fail for other
+     *                  reasons).
      * @param document_state The state the document should have after
      *                       the update
      *

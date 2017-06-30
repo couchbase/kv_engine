@@ -314,7 +314,11 @@ void StoredValue::setValueImpl(const Item& itm) {
 /**
  * Get an item_info from the StoredValue
  */
-item_info StoredValue::getItemInfo(uint64_t vbuuid) const {
+boost::optional<item_info> StoredValue::getItemInfo(uint64_t vbuuid) const {
+    if (isTempItem()) {
+        return boost::none;
+    }
+
     item_info info;
     info.cas = cas;
     info.vbucket_uuid = vbuuid;

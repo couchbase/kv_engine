@@ -798,88 +798,176 @@ public:
     }
 };
 
+TEST_P(EPStoreEvictionBloomOnOffTest, store_if_throws) {
+    // You can't keep returning GetItemInfo
+    engine->getKVBucket()->getWarmup()->setComplete();
+
+    cb::StoreIfPredicate predicate = [](
+            const boost::optional<item_info>& existing,
+            cb::vbucket_info vb) -> cb::StoreIfStatus {
+        return cb::StoreIfStatus::GetItemInfo;
+    };
+
+    auto key = makeStoredDocKey("key");
+    auto item = make_item(vbid, key, "value2");
+
+    store_item(vbid, key, "value1");
+    flush_vbucket_to_disk(vbid);
+    evict_key(vbid, key);
+
+    if (::testing::get<0>(GetParam()) == "full_eviction") {
+        EXPECT_NO_THROW(engine->store_if(
+                nullptr, item, 0 /*cas*/, OPERATION_SET, predicate));
+        runBGFetcherTask();
+    }
+
+    // If the itemInfo exists, you can't ask for it again - so expect throw
+    EXPECT_THROW(engine->store_if(
+                         nullptr, item, 0 /*cas*/, OPERATION_SET, predicate),
+                 std::logic_error);
+}
+
 TEST_P(EPStoreEvictionBloomOnOffTest, store_if) {
     engine->getKVBucket()->getWarmup()->setComplete();
 
-    // Store 3 items.
-    // key1 will be stored with a always true predicate
-    // key2 will be stored with a predicate which is expected to fail
-    // key3 will be store with an empty predicate
-    auto key1 = makeStoredDocKey("key1");
-    auto key2 = makeStoredDocKey("key2");
-    auto key3 = makeStoredDocKey("key3");
-
-    store_item(vbid, key1, "value1");
-    store_item(vbid, key2, "value1");
-    store_item(vbid, key3, "value1");
-    flush_vbucket_to_disk(vbid, 3);
-
-    // Evict the keys so the FE mode will bgFetch and not be optimised away by
-    // the bloomfilter
-    evict_key(vbid, key1);
-    evict_key(vbid, key2);
-    evict_key(vbid, key3);
-
-    uint64_t cas = 0;
-    auto predicate1 = [](const item_info& existing) { return true; };
-
-    auto predicate2 = [](const item_info& existing) {
-        return existing.datatype == PROTOCOL_BINARY_RAW_BYTES;
+    struct TestData {
+        StoredDocKey key;
+        cb::StoreIfPredicate predicate;
+        cb::engine_errc expectedVEStatus;
+        cb::engine_errc expectedFEStatus;
+        cb::engine_errc actualStatus;
     };
 
-    // Now store_if and check the return codes
-    auto item1 = make_item(vbid, key1, "value2");
-    auto result1 =
-            engine->store_if(nullptr, item1, cas, OPERATION_SET, predicate1);
+    std::vector<TestData> testData;
+    cb::StoreIfPredicate predicate1 = [](
+            const boost::optional<item_info>& existing,
+            cb::vbucket_info vb) -> cb::StoreIfStatus {
+        return cb::StoreIfStatus::Continue;
+    };
+    cb::StoreIfPredicate predicate2 = [](
+            const boost::optional<item_info>& existing,
+            cb::vbucket_info vb) -> cb::StoreIfStatus {
+        return cb::StoreIfStatus::Fail;
+    };
+    cb::StoreIfPredicate predicate3 = [](
+            const boost::optional<item_info>& existing,
+            cb::vbucket_info vb) -> cb::StoreIfStatus {
+        if (existing.is_initialized()) {
+            return cb::StoreIfStatus::Continue;
+        }
+        return cb::StoreIfStatus::GetItemInfo;
+    };
+    cb::StoreIfPredicate predicate4 = [](
+            const boost::optional<item_info>& existing,
+            cb::vbucket_info vb) -> cb::StoreIfStatus {
+        if (existing.is_initialized()) {
+            return cb::StoreIfStatus::Fail;
+        }
+        return cb::StoreIfStatus::GetItemInfo;
+    };
 
-    auto item2 = make_item(vbid, key2, "value2");
-    auto result2 =
-            engine->store_if(nullptr, item2, cas, OPERATION_SET, predicate2);
+    testData.push_back({makeStoredDocKey("key1"),
+                        predicate1,
+                        cb::engine_errc::success,
+                        cb::engine_errc::success});
+    testData.push_back({makeStoredDocKey("key2"),
+                        predicate2,
+                        cb::engine_errc::predicate_failed,
+                        cb::engine_errc::predicate_failed});
+    testData.push_back({makeStoredDocKey("key3"),
+                        predicate3,
+                        cb::engine_errc::success,
+                        cb::engine_errc::would_block});
+    testData.push_back({makeStoredDocKey("key4"),
+                        predicate4,
+                        cb::engine_errc::predicate_failed,
+                        cb::engine_errc::would_block});
 
-    auto item3 = make_item(vbid, key3, "value2");
-    auto result3 = engine->store_if(nullptr, item3, cas, OPERATION_SET, {});
-
-    if (::testing::get<0>(GetParam()) == "value_only") {
-        EXPECT_EQ(cb::engine_errc::success, result1.status)
-                << "Expected store_if(key1) to succeed in VE mode";
-        EXPECT_EQ(cb::engine_errc::predicate_failed, result2.status)
-                << "Expected store_if(key2) to return predicate_failed in VE "
-                   "mode";
-        EXPECT_EQ(cb::engine_errc::success, result3.status)
-                << "Expected store_if(key3) to succeed in VE mode";
-
-    } else if (::testing::get<0>(GetParam()) == "full_eviction") {
-        // The stores have to go to disk so that the predicate can be ran
-        ASSERT_EQ(cb::engine_errc::would_block, result1.status)
-                << "Expected store_if(key1) to block in FE mode";
-
-        ASSERT_EQ(cb::engine_errc::would_block, result2.status)
-                << "Expected store_if(key2) to block in FE mode";
-
-        EXPECT_EQ(cb::engine_errc::success, result3.status)
-                << "Expected store_if(key3) to succeed in FE mode because "
-                   "there's no predicate";
-
-        runBGFetcherTask();
-
-        // key1/key2 will need store_if running again.
-
-        result1 = engine->store_if(
-                nullptr, item1, cas, OPERATION_SET, predicate1);
-
-        EXPECT_EQ(cb::engine_errc::success, result1.status)
-                << "Expected store_if to succeed";
-
-        result2 = engine->store_if(
-                nullptr, item2, cas, OPERATION_SET, predicate2);
-
-        EXPECT_EQ(cb::engine_errc::predicate_failed, result2.status)
-                << "Expected store_if to return predicate_failed in FE mode";
-
-    } else {
-        FAIL() << "Unhandled GetParam() value:"
-               << ::testing::get<0>(GetParam());
+    for (auto& test : testData) {
+        store_item(vbid, test.key, "value");
+        flush_vbucket_to_disk(vbid);
+        evict_key(vbid, test.key);
+        auto item = make_item(vbid, test.key, "new_value");
+        test.actualStatus = engine->store_if(nullptr,
+                                             item,
+                                             0 /*cas*/,
+                                             OPERATION_SET,
+                                             test.predicate)
+                                    .status;
+        if (test.actualStatus == cb::engine_errc::success) {
+            flush_vbucket_to_disk(vbid);
+        }
     }
+
+    for (size_t i = 0; i < testData.size(); i++) {
+        if (::testing::get<0>(GetParam()) == "value_only") {
+            EXPECT_EQ(testData[i].expectedVEStatus, testData[i].actualStatus)
+                    << "Failed value_only iteration " + std::to_string(i);
+        } else if (::testing::get<0>(GetParam()) == "full_eviction") {
+            EXPECT_EQ(testData[i].expectedFEStatus, testData[i].actualStatus)
+                    << "Failed full_eviction iteration " + std::to_string(i);
+        } else {
+            FAIL() << "Unhandled GetParam() value:"
+                   << ::testing::get<0>(GetParam());
+        }
+    }
+
+    if (::testing::get<0>(GetParam()) == "full_eviction") {
+        runBGFetcherTask();
+        for (size_t i = 0; i < testData.size(); i++) {
+            if (testData[i].actualStatus == cb::engine_errc::would_block) {
+                auto item = make_item(vbid, testData[i].key, "new_value");
+                auto status = engine->store_if(nullptr,
+                                               item,
+                                               0 /*cas*/,
+                                               OPERATION_SET,
+                                               testData[i].predicate);
+                // The second run should result the same as VE
+                EXPECT_EQ(testData[i].expectedVEStatus, status.status);
+            }
+        }
+    }
+}
+
+TEST_P(EPStoreEvictionBloomOnOffTest, store_if_fe_interleave) {
+    if (::testing::get<0>(GetParam()) != "full_eviction") {
+        return;
+    }
+    engine->getKVBucket()->getWarmup()->setComplete();
+
+    cb::StoreIfPredicate predicate = [](
+            const boost::optional<item_info>& existing,
+            cb::vbucket_info vb) -> cb::StoreIfStatus {
+        if (existing.is_initialized()) {
+            return cb::StoreIfStatus::Continue;
+        }
+        return cb::StoreIfStatus::GetItemInfo;
+    };
+
+    auto key = makeStoredDocKey("key");
+    auto item = make_item(vbid, key, "value2");
+
+    store_item(vbid, key, "value1");
+    flush_vbucket_to_disk(vbid);
+    evict_key(vbid, key);
+
+    EXPECT_EQ(
+            cb::engine_errc::would_block,
+            engine->store_if(nullptr, item, 0 /*cas*/, OPERATION_SET, predicate)
+                    .status);
+
+    // expect another store to the same key to be told the same, even though the
+    // first store has populated the store with a temp item
+    EXPECT_EQ(
+            cb::engine_errc::would_block,
+            engine->store_if(nullptr, item, 0 /*cas*/, OPERATION_SET, predicate)
+                    .status);
+
+    runBGFetcherTask();
+    EXPECT_EQ(
+            cb::engine_errc::success,
+            engine->store_if(nullptr, item, 0 /*cas*/, OPERATION_SET, predicate)
+                    .status);
 }
 
 struct PrintToStringCombinedName {

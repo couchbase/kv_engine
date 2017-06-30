@@ -676,11 +676,14 @@ public:
 };
 
 /**
- * Test the basic store_if (via engine) - a forced false predicate will allow
+ * Test the basic store_if (via engine) - a forced fail predicate will allow
  * add, but fail set/replace with predicate_failed
  */
 TEST_F(StoreIfTest, store_if_basic) {
-    cb::StoreIfPredicate pred = [](const item_info& existing) { return false; };
+    cb::StoreIfPredicate pred = [](const boost::optional<item_info>& existing,
+                                   cb::vbucket_info vb) -> cb::StoreIfStatus {
+        return cb::StoreIfStatus::Fail;
+    };
     auto item = make_item(vbid, {"key", DocNamespace::DefaultCollection}, "value", 0, 0);
     auto rv = engine->store_if(cookie, item, 0, OPERATION_ADD, pred);
     EXPECT_EQ(cb::engine_errc::success, rv.status);

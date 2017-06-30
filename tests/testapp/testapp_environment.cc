@@ -121,7 +121,9 @@ public:
 
 class EpBucketImpl : public TestBucketImpl {
 public:
-    EpBucketImpl() : dbPath("mc_testapp." + std::to_string(cb_getpid())) {
+    EpBucketImpl(bool fe)
+        : dbPath("mc_testapp." + std::to_string(cb_getpid())),
+          fullEviction(fe) {
         // Cleanup any files from a previous run still on disk.
         try {
             cb::io::rmrf(dbPath);
@@ -137,6 +139,10 @@ public:
     void setUpBucket(const std::string& name,
                      const std::string& config,
                      MemcachedConnection& conn) override {
+        std::string settings = "dbname=" + dbPath + "/" + name;
+        if (fullEviction) {
+            settings += ";item_eviction_policy=full_eviction";
+        }
         createEwbBucket(name,
                         "ep.so",
                         "dbname=" + dbPath + "/" + name,
@@ -204,6 +210,7 @@ public:
 
     /// Directory for any database files.
     const std::string dbPath;
+    bool fullEviction;
 };
 
 McdEnvironment::McdEnvironment(bool manageSSL_, std::string engineName)
@@ -215,10 +222,14 @@ McdEnvironment::McdEnvironment(bool manageSSL_, std::string engineName)
     if (engineName == "default") {
         testBucket = std::make_unique<DefaultBucketImpl>();
     } else if (engineName == "ep") {
-        testBucket = std::make_unique<EpBucketImpl>();
+        testBucket = std::make_unique<EpBucketImpl>(false /*full_eviction*/);
+    } else if (engineName == "ep_full_eviction") {
+        testBucket = std::make_unique<EpBucketImpl>(true /*full_eviction*/);
     } else {
-        throw std::invalid_argument("Unknown engine '" + engineName + "' "
-                  "Options are 'default' and 'ep'");
+        throw std::invalid_argument(
+                "Unknown engine '" + engineName +
+                "' "
+                "Options are 'default', 'ep' and 'ep_full_eviction'");
     }
 }
 

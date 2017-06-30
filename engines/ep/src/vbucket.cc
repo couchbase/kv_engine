@@ -720,6 +720,31 @@ MutationStatus VBucket::setFromInternal(Item& itm) {
     return ht.set(itm);
 }
 
+cb::StoreIfStatus VBucket::callPredicate(cb::StoreIfPredicate predicate,
+                                         StoredValue* v) {
+    cb::StoreIfStatus storeIfStatus = cb::StoreIfStatus::Continue;
+    if (v) {
+        auto info = v->getItemInfo(failovers->getLatestUUID());
+        storeIfStatus = predicate(info, getInfo());
+        // No no, you can't ask for it again
+        if (storeIfStatus == cb::StoreIfStatus::GetItemInfo &&
+            info.is_initialized()) {
+            throw std::logic_error(
+                    "VBucket::callPredicate invalid result of GetItemInfo");
+        }
+    } else {
+        storeIfStatus = predicate({/*no info*/}, getInfo());
+    }
+
+    if (storeIfStatus == cb::StoreIfStatus::GetItemInfo &&
+        eviction == VALUE_ONLY) {
+        // We're VE, if we don't have, we don't have it.
+        storeIfStatus = cb::StoreIfStatus::Continue;
+    }
+
+    return storeIfStatus;
+}
+
 ENGINE_ERROR_CODE VBucket::set(Item& itm,
                                const void* cookie,
                                EventuallyPersistentEngine& engine,
@@ -731,12 +756,14 @@ ENGINE_ERROR_CODE VBucket::set(Item& itm,
                                       hbl.getBucketNum(),
                                       WantsDeleted::Yes,
                                       TrackReference::No);
-    if (v) {
-        if (predicate &&
-            !predicate(v->getItemInfo(failovers->getLatestUUID()))) {
-            return ENGINE_PREDICATE_FAILED;
-        }
+
+    cb::StoreIfStatus storeIfStatus = cb::StoreIfStatus::Continue;
+    if (predicate &&
+        (storeIfStatus = callPredicate(predicate, v)) ==
+                cb::StoreIfStatus::Fail) {
+        return ENGINE_PREDICATE_FAILED;
     }
+
     if (v && v->isLocked(ep_current_time()) &&
         (getState() == vbucket_state_replica ||
          getState() == vbucket_state_pending)) {
@@ -745,9 +772,12 @@ ENGINE_ERROR_CODE VBucket::set(Item& itm,
 
     bool maybeKeyExists = true;
     // If we didn't find a valid item then check the bloom filter, but only
-    // if we're full-eviction with a CAS operation or a have a predicate to test
+    // if we're full-eviction with a CAS operation or a have a predicate that
+    // requires the item's info
     if ((v == nullptr || v->isTempInitialItem()) &&
-        (eviction == FULL_EVICTION) && ((itm.getCas() != 0) || predicate)) {
+        (eviction == FULL_EVICTION) &&
+        ((itm.getCas() != 0) ||
+         storeIfStatus == cb::StoreIfStatus::GetItemInfo)) {
         // Check Bloomfilter's prediction
         if (!maybeKeyExistsInFilter(itm.getKey())) {
             maybeKeyExists = false;
@@ -770,7 +800,7 @@ ENGINE_ERROR_CODE VBucket::set(Item& itm,
                                              /*allowExisting*/ true,
                                              /*hashMetaData*/ false,
                                              queueItmCtx,
-                                             predicate,
+                                             storeIfStatus,
                                              maybeKeyExists);
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
@@ -827,11 +857,15 @@ ENGINE_ERROR_CODE VBucket::replace(Item& itm,
                                       hbl.getBucketNum(),
                                       WantsDeleted::Yes,
                                       TrackReference::No);
+
+    cb::StoreIfStatus storeIfStatus = cb::StoreIfStatus::Continue;
+    if (predicate &&
+        (storeIfStatus = callPredicate(predicate, v)) ==
+                cb::StoreIfStatus::Fail) {
+        return ENGINE_PREDICATE_FAILED;
+    }
+
     if (v) {
-        if (predicate &&
-            !predicate(v->getItemInfo(failovers->getLatestUUID()))) {
-            return ENGINE_PREDICATE_FAILED;
-        }
         if (v->isDeleted() || v->isTempDeletedItem() ||
             v->isTempNonExistentItem()) {
             return ENGINE_KEY_ENOENT;
@@ -855,7 +889,7 @@ ENGINE_ERROR_CODE VBucket::replace(Item& itm,
                                                     /*allowExisting*/ true,
                                                     /*hasMetaData*/ false,
                                                     queueItmCtx,
-                                                    predicate);
+                                                    storeIfStatus);
         }
 
         ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
@@ -1962,7 +1996,7 @@ std::pair<MutationStatus, VBNotifyCtx> VBucket::processSet(
         bool allowExisting,
         bool hasMetaData,
         const VBQueueItemCtx& queueItmCtx,
-        cb::StoreIfPredicate predicate,
+        cb::StoreIfStatus storeIfStatus,
         bool maybeKeyExists,
         bool isReplication) {
     if (!hbl.getHTLock()) {
@@ -1976,9 +2010,10 @@ std::pair<MutationStatus, VBNotifyCtx> VBucket::processSet(
         return {MutationStatus::NoMem, VBNotifyCtx()};
     }
 
-    // bgFetch only in FE mode for CAS operations or store_if provided that the
-    // bloom filter thinks the key may exist (maybeKeyExists bool)
-    if (eviction == FULL_EVICTION && maybeKeyExists && (cas || predicate)) {
+    // bgFetch only in FE, only if the bloom-filter thinks the key may exist.
+    // But only for cas operations or if a store_if is requiring the item_info.
+    if (eviction == FULL_EVICTION && maybeKeyExists &&
+        (cas || storeIfStatus == cb::StoreIfStatus::GetItemInfo)) {
         if (!v || v->isTempInitialItem()) {
             return {MutationStatus::NeedBgFetch, VBNotifyCtx()};
         }

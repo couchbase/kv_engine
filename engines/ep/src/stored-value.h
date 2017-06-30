@@ -507,9 +507,12 @@ public:
      * Get an item_info from the StoredValue
      *
      * @param vbuuid a VB UUID to set in to the item_info
-     * @returns item_info populated with the StoredValue's state
+     * @returns item_info populated with the StoredValue's state if the
+     *                    StoredValue is not a temporary item (!::isTempItem()).
+     *                    If the object is a temporary item the optional is not
+     *                    initialised.
      */
-    item_info getItemInfo(uint64_t vbuuid) const;
+    boost::optional<item_info> getItemInfo(uint64_t vbuuid) const;
 
     void setNext(UniquePtr&& nextSv) {
         if (stale) {

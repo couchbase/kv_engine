@@ -11,6 +11,7 @@
 #endif
 
 #include "engine_error.h"
+#include "vbucket.h"
 
 /**
  * Time relative to server start. Smaller than time_t on 64-bit systems.
@@ -129,5 +130,12 @@ typedef struct {
 
 /* Value used to distinguish one bucket from another */
 typedef uint32_t bucket_id_t;
+
+namespace cb {
+struct vbucket_info {
+    /// has the vbucket has had xattr documents written to it
+    bool mayContainXattrs;
+};
+}
 
 #endif /* MEMCACHED_TYPES_H */

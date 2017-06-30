@@ -42,13 +42,9 @@ MutationCommandContext::MutationCommandContext(McbpConnection& c,
       state(State::ValidateInput),
       newitem(nullptr, cb::ItemDeleter{c.getBucketEngineAsV0()}),
       existing(nullptr, cb::ItemDeleter{c.getBucketEngineAsV0()}),
-      xattr_size(0) {
-    // MSVC2015 can't do this in the initializer list
-    if (c.selectedBucketIsXattrEnabled()) {
-        store_if_predicate = [](const item_info& existing) {
-            return !mcbp::datatype::is_xattr(existing.datatype);
-        };
-    }
+      xattr_size(0),
+      store_if_predicate(c.selectedBucketIsXattrEnabled() ? storeIfPredicate
+                                                          : nullptr) {
 }
 
 ENGINE_ERROR_CODE MutationCommandContext::step() {
@@ -232,8 +228,7 @@ ENGINE_ERROR_CODE MutationCommandContext::storeItem() {
         // Mark as success and we'll move to the next state
         ret.status = cb::engine_errc::success;
 
-        // We will re-enter the StoreItem state after the xattr merge. The next
-        // store_if skips the predicate check as the predicate is now empty
+        // Next time we store - we force it
         store_if_predicate = nullptr;
     } else if (ret.status == cb::engine_errc::not_stored) {
         // Need to remap error for add and replace
@@ -299,4 +294,20 @@ ENGINE_ERROR_CODE MutationCommandContext::reset() {
     xattr_size = 0;
     state = State::GetExistingItemToPreserveXattr;
     return ENGINE_SUCCESS;
+}
+
+// predicate so that we fail if any existing item has
+// an xattr datatype. In the case an item may not be in cache (existing
+// is not initialised) we force a fetch (return GetInfo) if the VB may
+// have xattr items in it.
+cb::StoreIfStatus MutationCommandContext::storeIfPredicate(
+        const boost::optional<item_info>& existing, cb::vbucket_info vb) {
+    if (existing.is_initialized()) {
+        if (mcbp::datatype::is_xattr(existing.value().datatype)) {
+            return cb::StoreIfStatus::Fail;
+        }
+    } else if (vb.mayContainXattrs) {
+        return cb::StoreIfStatus::GetItemInfo;
+    }
+    return cb::StoreIfStatus::Continue;
 }

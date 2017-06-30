@@ -61,7 +61,7 @@ cb::EngineErrorCasPair bucket_store_if(
         item* item_,
         uint64_t cas,
         ENGINE_STORE_OPERATION operation,
-        std::function<bool(const item_info&)> filter,
+        cb::StoreIfPredicate predicate,
         DocumentState document_state = DocumentState::Alive);
 
 ENGINE_ERROR_CODE bucket_remove(McbpConnection* c,

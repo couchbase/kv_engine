@@ -52,6 +52,10 @@ public:
                            protocol_binary_request_set* req,
                            const ENGINE_STORE_OPERATION op_);
 
+    /// this function is the predicate to pass to store_if
+    static cb::StoreIfStatus storeIfPredicate(
+            const boost::optional<item_info>& existing, cb::vbucket_info vb);
+
 protected:
     ENGINE_ERROR_CODE step() override;
 
@@ -133,7 +137,7 @@ private:
     /**
      * The predicate function to use for the mutation store, if xattrs are
      * enabled this is initialised to a predicate that will check the existing
-     * item's datatype.
+     * item's datatype or the vbucket xattr state.
      */
     cb::StoreIfPredicate store_if_predicate;
 };

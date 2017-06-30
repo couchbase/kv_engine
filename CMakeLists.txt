@@ -10,6 +10,7 @@ INCLUDE(CheckIncludeFiles)
 INCLUDE(CheckIncludeFileCXX)
 INCLUDE(CTest)
 INCLUDE(GenerateExportHeader)
+INCLUDE_DIRECTORIES(BEFORE ${BOOST_INCLUDE_DIR})
 
 # The test program expects to find the output files in
 # the root directory (that's how we built them earlier)

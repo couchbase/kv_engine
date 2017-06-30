@@ -657,9 +657,8 @@ static cb::EngineErrorCasPair default_store_if(ENGINE_HANDLE* handle,
                                                DocumentState document_state) {
     struct default_engine* engine = get_handle(handle);
 
-    bool allow_store = true;
     if (predicate) {
-        // Check for an existing item and call the predicate on it.
+        // Check for an existing item and call the item predicate on it.
         auto* it = get_real_item(item);
         auto* key = item_get_key(it);
         if (!key) {
@@ -670,6 +669,7 @@ static cb::EngineErrorCasPair default_store_if(ENGINE_HANDLE* handle,
                 item_get(engine, cookie, *key, DocStateFilter::Alive),
                 cb::ItemDeleter{handle});
 
+        cb::StoreIfStatus status;
         if (existing.get()) {
             item_info info;
             if (!get_item_info(handle, cookie, existing.get(), &info)) {
@@ -677,18 +677,26 @@ static cb::EngineErrorCasPair default_store_if(ENGINE_HANDLE* handle,
                         cb::engine_errc::failed,
                         "default_store_if: get_item_info failed");
             }
-            allow_store = predicate(info);
+            status = predicate(info, {true});
+        } else {
+            status = predicate(boost::none, {true});
+        }
+
+        switch (status) {
+        case cb::StoreIfStatus::Fail: {
+            return {cb::engine_errc::predicate_failed, 0};
+        }
+        case cb::StoreIfStatus::Continue:
+        case cb::StoreIfStatus::GetItemInfo: {
+            break;
+        }
         }
     }
 
-    if (allow_store) {
-        auto* it = get_real_item(item);
-        auto status =
-                store_item(engine, it, &cas, operation, cookie, document_state);
-        return {cb::engine_errc(status), cas};
-    }
-
-    return {cb::engine_errc::predicate_failed, 0};
+    auto* it = get_real_item(item);
+    auto status =
+            store_item(engine, it, &cas, operation, cookie, document_state);
+    return {cb::engine_errc(status), cas};
 }
 
 static ENGINE_ERROR_CODE default_flush(ENGINE_HANDLE* handle,
