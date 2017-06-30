@@ -950,6 +950,20 @@ void DcpProducer::closeStreamDueToVbStateChange(uint16_t vbucket,
     }
 }
 
+void DcpProducer::closeStreamDueToRollback(uint16_t vbucket) {
+    auto stream = findStream(vbucket);
+    if (stream) {
+        LOG(EXTENSION_LOG_INFO,
+            "%s (vb %" PRIu16
+            ") Rollback occurred,"
+            "closing %s stream (downstream must rollback too)",
+            logHeader(),
+            vbucket,
+            to_string(stream->getType()).c_str());
+        stream->setDead(END_STREAM_ROLLBACK);
+    }
+}
+
 bool DcpProducer::handleSlowStream(uint16_t vbid,
                                    const std::string &name) {
     if (supportsCursorDropping) {

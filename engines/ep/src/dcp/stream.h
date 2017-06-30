@@ -43,22 +43,6 @@ class Filter;
 }
 }
 
-enum end_stream_status_t {
-    //! The stream ended due to all items being streamed
-    END_STREAM_OK,
-    //! The stream closed early due to a close stream message
-    END_STREAM_CLOSED,
-    //! The stream closed early because the vbucket state changed
-    END_STREAM_STATE,
-    //! The stream closed early because the connection was disconnected
-    END_STREAM_DISCONNECTED,
-    //! The stream was closed early because it was too slow (currently unused,
-    //! but not deleted because it is part of the externally-visible API)
-    END_STREAM_SLOW,
-    //! The stream closed early due to backfill failure
-    END_STREAM_BACKFILL_FAIL
-};
-
 enum backfill_source_t {
     BACKFILL_FROM_MEMORY,
     BACKFILL_FROM_DISK

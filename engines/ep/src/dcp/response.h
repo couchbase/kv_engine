@@ -26,6 +26,25 @@
 #include "item.h"
 #include "systemevent.h"
 
+enum end_stream_status_t {
+    //! The stream ended due to all items being streamed
+    END_STREAM_OK,
+    //! The stream closed early due to a close stream message
+    END_STREAM_CLOSED,
+    //! The stream closed early because the vbucket state changed
+    END_STREAM_STATE,
+    //! The stream closed early because the connection was disconnected
+    END_STREAM_DISCONNECTED,
+    //! The stream was closed early because it was too slow (currently unused,
+    //! but not deleted because it is part of the externally-visible API)
+    END_STREAM_SLOW,
+    //! The stream closed early due to backfill failure
+    END_STREAM_BACKFILL_FAIL,
+    //! The stream closed early because the vbucket is rolling back and
+    //! downstream needs to reopen the stream and rollback too
+    END_STREAM_ROLLBACK
+};
+
 enum dcp_marker_flag_t {
     MARKER_FLAG_MEMORY = 0x01,
     MARKER_FLAG_DISK   = 0x02,
@@ -246,9 +265,20 @@ private:
 
 class StreamEndResponse : public DcpResponse {
 public:
-    StreamEndResponse(uint32_t opaque, uint32_t flags, uint16_t vbucket)
-        : DcpResponse(Event::StreamEnd, opaque), flags_(flags),
-          vbucket_(vbucket) {}
+    StreamEndResponse(uint32_t opaque,
+                      end_stream_status_t flags,
+                      uint16_t vbucket)
+        : DcpResponse(Event::StreamEnd, opaque),
+          flags_(statusToFlags(flags)),
+          vbucket_(vbucket) {
+    }
+
+    static uint32_t statusToFlags(end_stream_status_t status) {
+        if (status == END_STREAM_ROLLBACK) {
+            return END_STREAM_STATE;
+        }
+        return status;
+    }
 
     uint16_t getFlags() {
         return flags_;

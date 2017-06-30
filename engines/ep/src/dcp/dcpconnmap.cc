@@ -204,6 +204,16 @@ void DcpConnMap::vbucketStateChanged(uint16_t vbucket, vbucket_state_t state,
     }
 }
 
+void DcpConnMap::closeStreamsDueToRollback(uint16_t vbucket) {
+    LockHolder lh(connsLock);
+    for (auto& pair : map_) {
+        DcpProducer* producer = dynamic_cast<DcpProducer*>(pair.second.get());
+        if (producer) {
+            producer->closeStreamDueToRollback(vbucket);
+        }
+    }
+}
+
 bool DcpConnMap::handleSlowStream(uint16_t vbid,
                                   const std::string &name) {
     size_t lock_num = vbid % vbConnLockNum;

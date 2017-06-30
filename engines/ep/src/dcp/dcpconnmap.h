@@ -75,6 +75,13 @@ public:
     void vbucketStateChanged(uint16_t vbucket, vbucket_state_t state,
                              bool closeInboundStreams = true);
 
+    /**
+     * Close outbound (active) streams for a vbucket on vBucket rollback.
+     *
+     * @param vbucket the vbucket id
+     */
+    void closeStreamsDueToRollback(uint16_t vbucket);
+
     void shutdownAllConnections();
 
     bool isDeadConnectionsEmpty() {

@@ -1352,6 +1352,8 @@ const char* ActiveStream::getEndStreamStatusStr(end_stream_status_t status)
         return "The stream was closed early because it was too slow";
     case END_STREAM_BACKFILL_FAIL:
         return "The stream closed early due to backfill failure";
+    case END_STREAM_ROLLBACK:
+        return "The stream closed early because the vbucket rollback'ed";
     }
     std::string msg("Status unknown: " + std::to_string(status) +
                     "; this should not have happened!");

@@ -300,7 +300,7 @@ ENGINE_ERROR_CODE DcpConsumer::streamEnd(uint32_t opaque, uint16_t vbucket,
 
         try {
             err = stream->messageReceived(std::make_unique<StreamEndResponse>(
-                    opaque, flags, vbucket));
+                    opaque, static_cast<end_stream_status_t>(flags), vbucket));
         } catch (const std::bad_alloc&) {
             return ENGINE_ENOMEM;
         }
