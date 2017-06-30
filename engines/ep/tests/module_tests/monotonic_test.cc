@@ -93,3 +93,20 @@ TYPED_TEST(ThrowingMonotonicTest, Reset) {
     this->mono.reset(5);
     EXPECT_EQ(5, this->mono);
 }
+
+// Similar but testing WeaklyMonotonic (i.e. Identical is allowed).
+template <typename T>
+class WeaklyMonotonicTest : public MonotonicTest<T> {};
+
+using WeaklyMonotonicTypes =
+        ::testing::Types<WeaklyMonotonic<int, IgnorePolicy>,
+                         WeaklyAtomicMonotonic<int, IgnorePolicy>,
+                         WeaklyMonotonic<int, ThrowExceptionPolicy>,
+                         WeaklyAtomicMonotonic<int, ThrowExceptionPolicy>>;
+
+TYPED_TEST_CASE(WeaklyMonotonicTest, WeaklyMonotonicTypes);
+
+TYPED_TEST(WeaklyMonotonicTest, Identical) {
+    EXPECT_NO_THROW(this->mono = 1);
+    EXPECT_EQ(1, this->mono);
+}

@@ -18,6 +18,7 @@
 #pragma once
 
 #include <atomic>
+#include <functional>
 #include <limits>
 #include <stdexcept>
 #include <string>
@@ -34,9 +35,10 @@ struct IgnorePolicy {
 template <class T>
 struct ThrowExceptionPolicy {
     void nonMonotonic(const T& curValue, const T& newValue) {
-        throw std::logic_error("Monotonic<> invariant failed: new value (" +
+        throw std::logic_error(std::string("Monotonic<") + typeid(T).name() +
+                               "> invariant failed: new value (" +
                                std::to_string(newValue) +
-                               ") is not greater than current value (" +
+                               ") breaks invariant on current value (" +
                                std::to_string(curValue) + ")");
     }
 };
@@ -62,10 +64,12 @@ using DefaultOrderReversedPolicy = ThrowExceptionPolicy<T>;
  * @tparam T value type used to represent the value.
  * @tparam OrderReversePolicy Policy class which controls the behaviour if
  *         an operation would break the monotonic invariant.
+ * @tparam Invariant The invariant to maintain across updates.
  */
 template <typename T,
           template <class> class OrderReversedPolicy =
-                  DefaultOrderReversedPolicy>
+                  DefaultOrderReversedPolicy,
+          template <class> class Invariant = std::greater>
 class Monotonic : public OrderReversedPolicy<T> {
 public:
     Monotonic(const T val = std::numeric_limits<T>::min()) : val(val) {
@@ -75,7 +79,7 @@ public:
     }
 
     Monotonic& operator=(const Monotonic<T>& other) {
-        if (val < other.val) {
+        if (Invariant<T>()(other.val, val)) {
             val = other.val;
         } else {
             OrderReversedPolicy<T>::nonMonotonic(val, other);
@@ -84,7 +88,7 @@ public:
     }
 
     Monotonic& operator=(const T& v) {
-        if (val < v) {
+        if (Invariant<T>()(v, val)) {
             val = v;
         } else {
             OrderReversedPolicy<T>::nonMonotonic(val, v);
@@ -106,12 +110,23 @@ private:
 };
 
 /**
+ * A weakly increasing template type (allows the same existing value to be
+ * stored).
+ */
+template <class T,
+          template <class> class OrderReversedPolicy =
+                  DefaultOrderReversedPolicy>
+using WeaklyMonotonic =
+        Monotonic<T, OrderReversedPolicy, std::greater_equal>;
+
+/**
  * Variant of the Monotonic class, except that the type T is wrapped in
  * std::atomic, so all updates are atomic. T must be TriviallyCopyable.
  */
 template <typename T,
           template <class> class OrderReversedPolicy =
-                  DefaultOrderReversedPolicy>
+                  DefaultOrderReversedPolicy,
+          template <class> class Invariant = std::greater>
 class AtomicMonotonic : public OrderReversedPolicy<T> {
 public:
     AtomicMonotonic(T val = std::numeric_limits<T>::min()) : val(val) {
@@ -124,7 +139,7 @@ public:
     AtomicMonotonic& operator=(T desired) {
         while (true) {
             T current = val.load();
-            if (current < desired) {
+            if (Invariant<T>()(desired, current)) {
                 if (val.compare_exchange_weak(current, desired)) {
                     break;
                 }
@@ -156,3 +171,13 @@ public:
 private:
     std::atomic<T> val;
 };
+
+/**
+ * A weakly increasing atomic template type (allows the same existing value to be
+ * stored).
+ */
+template <class T,
+          template <class> class OrderReversedPolicy =
+                  DefaultOrderReversedPolicy>
+using WeaklyAtomicMonotonic =
+        AtomicMonotonic<T, OrderReversedPolicy, std::greater_equal>;
