@@ -70,7 +70,7 @@ int main(int, char **) {
 
     display("GIGANTOR", GIGANTOR);
     display("Stored Value", sizeof(StoredValue));
-
+    display("Ordered Stored Value", sizeof(OrderedStoredValue));
     display("Blob", sizeof(Blob));
     display("value_t", sizeof(value_t));
     display("HashTable", sizeof(HashTable));
