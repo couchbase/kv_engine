@@ -530,9 +530,13 @@ void CheckpointManager::setOpenCheckpointId_UNLOCKED(uint64_t id) {
         }
 
         checkpointList.back()->setId(id);
-        LOG(EXTENSION_LOG_INFO, "Set the current open checkpoint id to %" PRIu64
+        LOG(EXTENSION_LOG_INFO,
+            "Set the current open checkpoint id to %" PRIu64
             " for vbucket %d, bySeqno is %" PRId64 ", max is %" PRId64,
-            id, vbucketId, (*ckpt_start)->getBySeqno(), lastBySeqno);
+            id,
+            vbucketId,
+            (*ckpt_start)->getBySeqno(),
+            static_cast<int64_t>(lastBySeqno));
     }
 }
 
@@ -1382,7 +1386,7 @@ void CheckpointManager::clear_UNLOCKED(vbucket_state_t vbState, uint64_t seqno) 
     }
     checkpointList.clear();
     numItems = 0;
-    lastBySeqno = seqno;
+    lastBySeqno.reset(seqno);
     pCursorPreCheckpointId = 0;
 
     uint64_t checkpointId = vbState == vbucket_state_active ? 1 : 0;

@@ -23,6 +23,7 @@
 #include "callbacks.h"
 #include "ep_types.h"
 #include "item.h"
+#include "monotonic.h"
 #include "locks.h"
 #include "stats.h"
 
@@ -976,7 +977,7 @@ private:
     // Total number of items (including meta items) in /all/ checkpoints managed
     // by this object.
     std::atomic<size_t>      numItems;
-    int64_t                  lastBySeqno;
+    Monotonic<int64_t>       lastBySeqno;
     int64_t                  lastClosedChkBySeqno;
     std::list<Checkpoint*>   checkpointList;
     bool                     isCollapsedCheckpoint;
