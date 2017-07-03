@@ -581,6 +581,9 @@ public:
     void enableExpiryPager();
     void disableExpiryPager();
 
+    /// Wake up the expiry pager (if enabled), scheduling it for immediate run.
+    void wakeUpExpiryPager();
+
     void enableItemPager();
     void disableItemPager();
 

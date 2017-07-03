@@ -2547,6 +2547,13 @@ void KVBucket::disableExpiryPager() {
     }
 }
 
+void KVBucket::wakeUpExpiryPager() {
+    LockHolder lh(expiryPager.mutex);
+    if (expiryPager.enabled) {
+        ExecutorPool::get()->wake(expiryPager.task);
+    }
+}
+
 void KVBucket::enableItemPager() {
     ExecutorPool::get()->cancel(itemPagerTask->getId());
     ExecutorPool::get()->schedule(itemPagerTask);

@@ -171,8 +171,13 @@ protected:
     void SetUp() override {
         STBucketQuotaTest::SetUp();
 
-        // There is no item pager scheduled for ephemeral fail_new_data buckets.
-        if (std::get<1>(GetParam()) != "fail_new_data") {
+        // For Ephemeral fail_new_data buckets we have no item pager, instead
+        // the Expiry pager is used.
+        if (std::get<1>(GetParam()) == "fail_new_data") {
+            initializeExpiryPager();
+            ++initialNonIoTasks;
+        } else {
+            // Everyone else uses the ItemPager.
             scheduleItemPager();
             ++initialNonIoTasks;
             itemPagerScheduled = true;
@@ -196,25 +201,32 @@ protected:
 
     /**
      * Run the pager which is scheduled when the high watermark is reached
-     * (memoryCondition).
+     * (memoryCondition). This is either the ItemPager (for buckets where
+     * items can be paged out - Persistent or Ephemeral-auto_delete), or
+     * the Expiry pager (Ephemeral-fail_new_data).
+     * @param online_vb_count How many vBuckets are online (and hence should
+     *                        have ItemPager tasks run for each).
      */
     void runHighMemoryPager(size_t online_vb_count = 1) {
-        if (!itemPagerScheduled) {
-            return;
-        }
-
         auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
-
-        // Item pager consists of two Tasks - the parent ItemPager task,
-        // and then a per-vBucket task (via VCVBAdapter) - which there is
-        // just one of as we only have one vBucket online.
         ASSERT_EQ(0, lpNonioQ.getReadyQueueSize());
         ASSERT_EQ(initialNonIoTasks, lpNonioQ.getFutureQueueSize());
-        runNextTask(lpNonioQ, "Paging out items.");
-        ASSERT_EQ(0, lpNonioQ.getReadyQueueSize());
-        ASSERT_EQ(initialNonIoTasks + 1, lpNonioQ.getFutureQueueSize());
-        for (size_t ii = 0; ii < online_vb_count; ii++) {
-            runNextTask(lpNonioQ, "Item pager on vb 0");
+
+        if (itemPagerScheduled) {
+            // Item pager consists of two Tasks - the parent ItemPager task,
+            // and then a per-vBucket task (via VCVBAdapter) - which there is
+            // just one of as we only have one vBucket online.
+            runNextTask(lpNonioQ, "Paging out items.");
+            ASSERT_EQ(0, lpNonioQ.getReadyQueueSize());
+            ASSERT_EQ(initialNonIoTasks + 1, lpNonioQ.getFutureQueueSize());
+            for (size_t ii = 0; ii < online_vb_count; ii++) {
+                runNextTask(lpNonioQ, "Item pager on vb 0");
+            }
+        } else {
+            runNextTask(lpNonioQ, "Paging expired items.");
+            for (size_t ii = 0; ii < online_vb_count; ii++) {
+                runNextTask(lpNonioQ, "Expired item remover on vb 0");
+            }
         }
         // Once complete, should have the same number of tasks we initially
         // had.
@@ -307,12 +319,6 @@ TEST_P(STItemPagerTest, ExpiredItemsDeletedFirst) {
         auto key = makeStoredDocKey("key_" + std::to_string(ii));
         auto result = store->get(key, vbid, nullptr, get_options_t());
         EXPECT_EQ(ENGINE_SUCCESS, result.getStatus()) << "For key:" << key;
-    }
-
-    // MB-25105: The check at the end of the test currently fails due to MB-25105.
-    // Temporarily skip it until fixed.
-    if (std::get<1>(GetParam()) == "fail_new_data") {
-        return;
     }
 
     // Documents which had a TTL should be deleted. Note it's hard to check

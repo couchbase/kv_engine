@@ -56,6 +56,8 @@ public:
         return ENGINE_KEY_ENOENT;
     }
 
+    void attemptToFreeMemory() override;
+
     /**
      * Creates an EphemeralVBucket
      */

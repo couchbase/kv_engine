@@ -137,6 +137,26 @@ bool EphemeralBucket::initialize() {
     return true;
 }
 
+void EphemeralBucket::attemptToFreeMemory() {
+    // Call down to the base class; do to whatever it can to free memory.
+    KVBucket::attemptToFreeMemory();
+
+    // No-eviction Ephemeral buckets don't schedule the item pager, which
+    // normally handles deleting expired items (while looking for items to
+    // evict). Instead manually trigger the expiryPager now, to delete any
+    // expired items.
+    if (engine.getConfiguration().getEphemeralFullPolicy() == "fail_new_data") {
+        wakeUpExpiryPager();
+    }
+
+    // Additionally, wake up the tombstone purger to scan for and remove any
+    // tombstones in the HashTable / sequence list.
+    if (tombstonePurgerTask->getState() == TASK_SNOOZED) {
+        ExecutorPool::get()->wake(tombstonePurgerTask->getId());
+    }
+}
+
+
 VBucketPtr EphemeralBucket::makeVBucket(
         VBucket::id_type id,
         vbucket_state_t state,
