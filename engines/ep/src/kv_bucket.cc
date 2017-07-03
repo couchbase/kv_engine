@@ -2858,6 +2858,12 @@ ENGINE_ERROR_CODE KVBucket::rollback(uint16_t vbid, uint64_t rollbackSeqno) {
     }
 }
 
+void KVBucket::attemptToFreeMemory() {
+    if (itemPagerTask->getState() == TASK_SNOOZED) {
+        ExecutorPool::get()->wake(itemPagerTask->getId());
+    }
+}
+
 void KVBucket::runDefragmenterTask() {
     defragmenterTask->run();
 }

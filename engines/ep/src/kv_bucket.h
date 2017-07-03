@@ -687,11 +687,7 @@ public:
      */
     ENGINE_ERROR_CODE rollback(uint16_t vbid, uint64_t rollbackSeqno);
 
-    void wakeUpItemPager() {
-        if (itemPagerTask->getState() == TASK_SNOOZED) {
-            ExecutorPool::get()->wake(itemPagerTask->getId());
-        }
-    }
+    virtual void attemptToFreeMemory();
 
     void wakeUpCheckpointRemover() {
         if (chkTask->getState() == TASK_SNOOZED) {

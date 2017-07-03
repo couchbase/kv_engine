@@ -3065,7 +3065,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::memoryCondition() {
         ++stats.tmp_oom_errors;
         // Wake up the item pager task as memory usage
         // seems to have exceeded high water mark
-        getKVBucket()->wakeUpItemPager();
+        getKVBucket()->attemptToFreeMemory();
         return ENGINE_TMPFAIL;
     } else {
         if (getKVBucket()->getItemEvictionPolicy() == FULL_EVICTION) {

@@ -713,7 +713,13 @@ public:
     virtual ENGINE_ERROR_CODE rollback(uint16_t vbid,
                                        uint64_t rollbackSeqno) = 0;
 
-    virtual void wakeUpItemPager() = 0;
+    /**
+     * Attempt to free up currently in-use memory this bucket.
+     * Possible ways to free memory depend on the underlying bucket type and
+     * configuration, but examples include evicting resident values,
+     * checking for any expired items, etc.
+     */
+    virtual void attemptToFreeMemory() = 0;
 
     virtual void wakeUpCheckpointRemover() = 0;
 
