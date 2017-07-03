@@ -854,11 +854,6 @@ public:
         return lastBySeqno;
     }
 
-    int64_t getLastClosedChkBySeqno() {
-        LockHolder lh(queueLock);
-        return lastClosedChkBySeqno;
-    }
-
     int64_t nextBySeqno() {
         LockHolder lh(queueLock);
         return ++lastBySeqno;
@@ -978,7 +973,6 @@ private:
     // by this object.
     std::atomic<size_t>      numItems;
     Monotonic<int64_t>       lastBySeqno;
-    int64_t                  lastClosedChkBySeqno;
     std::list<Checkpoint*>   checkpointList;
     bool                     isCollapsedCheckpoint;
     uint64_t                 lastClosedCheckpointId;

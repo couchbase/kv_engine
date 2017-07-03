@@ -460,7 +460,6 @@ CheckpointManager::CheckpointManager(EPStats& st,
       vbucketId(vbucket),
       numItems(0),
       lastBySeqno(lastSeqno),
-      lastClosedChkBySeqno(lastSeqno),
       isCollapsedCheckpoint(false),
       pCursorPreCheckpointId(0),
       flusherCB(cb) {
@@ -639,7 +638,6 @@ bool CheckpointManager::closeOpenCheckpoint_UNLOCKED() {
     checkpointList.back()->queueDirty(qi, this);
     ++numItems;
     checkpointList.back()->setState(CHECKPOINT_CLOSED);
-    lastClosedChkBySeqno = checkpointList.back()->getHighSeqno();
     return true;
 }
 
