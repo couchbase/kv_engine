@@ -111,3 +111,36 @@ std::ostream& operator<<(std::ostream& os, cb::engine_errc ec) {
     cb::PrintTo(ec, &os);
     return os;
 }
+
+cb::engine_errc cb::to_engine_errc(ENGINE_ERROR_CODE eec) {
+    switch (eec) {
+        case ENGINE_SUCCESS: return cb::engine_errc::success;
+        case ENGINE_KEY_ENOENT: return cb::engine_errc::no_such_key;
+        case ENGINE_KEY_EEXISTS: return cb::engine_errc::key_already_exists;
+        case ENGINE_ENOMEM: return cb::engine_errc::no_memory;
+        case ENGINE_NOT_STORED: return cb::engine_errc::not_stored;
+        case ENGINE_EINVAL: return cb::engine_errc::invalid_arguments;
+        case ENGINE_ENOTSUP: return cb::engine_errc::not_supported;
+        case ENGINE_EWOULDBLOCK: return cb::engine_errc::would_block;
+        case ENGINE_E2BIG: return cb::engine_errc::too_big;
+        case ENGINE_WANT_MORE: return cb::engine_errc::want_more;
+        case ENGINE_DISCONNECT: return cb::engine_errc::disconnect;
+        case ENGINE_EACCESS: return cb::engine_errc::no_access;
+        case ENGINE_NOT_MY_VBUCKET: return cb::engine_errc::not_my_vbucket;
+        case ENGINE_TMPFAIL: return cb::engine_errc::temporary_failure;
+        case ENGINE_ERANGE: return cb::engine_errc::out_of_range;
+        case ENGINE_ROLLBACK: return cb::engine_errc::rollback;
+        case ENGINE_NO_BUCKET: return cb::engine_errc::no_bucket;
+        case ENGINE_EBUSY: return cb::engine_errc::too_busy;
+        case ENGINE_AUTH_STALE: return cb::engine_errc::authentication_stale;
+        case ENGINE_DELTA_BADVAL: return cb::engine_errc::delta_badval;
+        case ENGINE_LOCKED: return cb::engine_errc::locked;
+        case ENGINE_LOCKED_TMPFAIL: return cb::engine_errc::locked_tmpfail;
+        case ENGINE_UNKNOWN_COLLECTION: return cb::engine_errc::unknown_collection;
+        case ENGINE_FAILED: return cb::engine_errc::failed;
+        case ENGINE_PREDICATE_FAILED: return cb::engine_errc::predicate_failed;
+    }
+    throw std::invalid_argument(
+            "cb::to_engine_errc: invalid ENGINE_ERROR_CODE " +
+            std::to_string(eec));
+}

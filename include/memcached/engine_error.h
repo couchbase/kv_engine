@@ -175,3 +175,9 @@ template <>
 struct is_error_condition_enum<cb::engine_errc> : public true_type { };
 
 }
+
+namespace cb {
+// Backward compatibility - convert ENGINE_ERROR_CODE to engine_errc.
+ENGINE_UTILITIES_PUBLIC_API
+cb::engine_errc to_engine_errc(ENGINE_ERROR_CODE eec);
+}
