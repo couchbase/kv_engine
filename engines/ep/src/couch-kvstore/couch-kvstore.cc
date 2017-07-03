@@ -717,7 +717,7 @@ static int edit_docinfo_hook(DocInfo **info, const sized_buf *item) {
 
         // Now create a blank latest metadata.
         metadata = MetaDataFactory::createMetaData();
-        // Copy the metadata this will pull accross available V0 fields.
+        // Copy the metadata this will pull across available V0 fields.
         *metadata = *documentMetaData;
 
         // Setup flex code and datatype
@@ -732,7 +732,7 @@ static int edit_docinfo_hook(DocInfo **info, const sized_buf *item) {
     // this must be a pointer which cb_free() can deallocate
     char* buffer = static_cast<char*>(cb_calloc(1, sizeof(DocInfo) +
                              (*info)->id.size +
-                             MetaData::getMetaDataSize(MetaData::Version::V2)));
+                             MetaData::getMetaDataSize(MetaData::Version::V1)));
 
 
     DocInfo* docInfo = reinterpret_cast<DocInfo*>(buffer);
@@ -745,7 +745,7 @@ static int edit_docinfo_hook(DocInfo **info, const sized_buf *item) {
     std::memcpy(docInfo->id.buf, (*info)->id.buf, docInfo->id.size);
 
     // Correct the rev_meta pointer and fill it in.
-    docInfo->rev_meta.size = MetaData::getMetaDataSize(MetaData::Version::V2);
+    docInfo->rev_meta.size = MetaData::getMetaDataSize(MetaData::Version::V1);
     docInfo->rev_meta.buf = buffer + sizeof(DocInfo) + docInfo->id.size;
     metadata->copyToBuf(docInfo->rev_meta);
 
@@ -894,6 +894,11 @@ static int time_purge_hook(Db* d, DocInfo* info, sized_buf item, void* ctx_p) {
 }
 
 bool CouchKVStore::compactDB(compaction_ctx *hook_ctx) {
+    return compactDBInternal(hook_ctx, edit_docinfo_hook);
+}
+
+bool CouchKVStore::compactDBInternal(compaction_ctx* hook_ctx,
+                                     couchstore_docinfo_hook docinfo_hook) {
     if (isReadOnly()) {
         throw std::logic_error("CouchKVStore::compactDB: Cannot perform "
                         "on a read-only instance.");
@@ -902,7 +907,7 @@ bool CouchKVStore::compactDB(compaction_ctx *hook_ctx) {
                 this->configuration.getShardId());
 
     couchstore_compact_hook       hook = time_purge_hook;
-    couchstore_docinfo_hook      dhook = edit_docinfo_hook;
+    couchstore_docinfo_hook dhook = docinfo_hook;
     FileOpsInterface         *def_iops = statCollectingFileOpsCompaction.get();
     Db                      *compactdb = NULL;
     Db                       *targetDb = NULL;

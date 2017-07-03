@@ -575,6 +575,15 @@ protected:
 
     void removeCompactFile(const std::string &filename);
 
+    /**
+     * Perform compaction using the context and dhook call back.
+     * @param hook_ctx a context with information for the compaction process
+     * @param dhook a docinfo hook which will be called with each compacted key
+     * @return true indicating the compaction was successful.
+     */
+    bool compactDBInternal(compaction_ctx* hook_ctx,
+                           couchstore_docinfo_hook dhook);
+
     const std::string dbname;
 
     /**

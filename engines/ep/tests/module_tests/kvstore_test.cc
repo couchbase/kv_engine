@@ -120,16 +120,11 @@ void checkGetValue(GetValue& result,
     }
 }
 
-class BloomFilterCallback : public Callback<std::string&, bool&> {
-public:
-    BloomFilterCallback() {}
-    void callback(std::string& ra, bool& rb) override {}
-};
-
-class ExpiryCallback : public Callback<std::string&, uint64_t&> {
+class ExpiryCallback : public Callback<Item&, time_t&> {
 public:
     ExpiryCallback() {}
-    void callback(std::string& ra, uint64_t& rb) override {}
+    void callback(Item&, time_t&) override {
+    }
 };
 
 /**
@@ -329,11 +324,6 @@ TEST_F(CouchKVStoreTest, CompactStatsTest) {
     kvstore->set(item, wc);
 
     EXPECT_TRUE(kvstore->commit(nullptr /*no collections manifest*/));
-
-    std::shared_ptr<Callback<std::string&, bool&> >
-        filter(new BloomFilterCallback());
-    std::shared_ptr<Callback<std::string&, uint64_t&> >
-        expiry(new ExpiryCallback());
 
     compaction_ctx cctx;
     cctx.purge_before_seq = 0;
@@ -1165,6 +1155,11 @@ public:
         pendingReqsQ.push_back(req);
         return req;
     }
+
+    bool compactDBInternal(compaction_ctx* hook_ctx,
+                           couchstore_docinfo_hook dhook) {
+        return CouchKVStore::compactDBInternal(hook_ctx, dhook);
+    }
 };
 
 //
@@ -1493,6 +1488,126 @@ TEST_F(CouchstoreTest, testV2WriteRead) {
 
     // Commit it
     kvstore->commit(nullptr /*no collections manifest*/);
+
+    // Read back successful, the extra byte will of been dropped.
+    MockedGetCallback<GetValue> gc;
+    EXPECT_CALL(gc, status(ENGINE_SUCCESS));
+    EXPECT_CALL(gc, cas(htonll(0xf00fcafe11225566ull)));
+    EXPECT_CALL(gc, expTime(htonl(0xaa00bb11)));
+    EXPECT_CALL(gc, flags(0x01020304));
+    EXPECT_CALL(gc, datatype(protocol_binary_datatype_t(meta.ext2)));
+    GetValue gv = kvstore->get(key, 0);
+    gc.callback(gv);
+}
+
+static int testCompactionUpgradeHook(DocInfo** info, const sized_buf* item) {
+    // Examine the metadata of the doc, we expect that the first compaction
+    // upgraded us to V1
+    EXPECT_EQ(MetaDataFactory::createMetaData((*info)->rev_meta)
+                      ->getVersionInitialisedFrom(),
+              MetaData::Version::V1);
+    return 0;
+}
+
+TEST_F(CouchstoreTest, testV0CompactionUpgrade) {
+    // Ensure CAS, exptime and flags are set to something.
+    uint8_t datatype = PROTOCOL_BINARY_DATATYPE_JSON; // lies, but non-zero
+    StoredDocKey key = makeStoredDocKey("key");
+    Item item(key,
+              0x01020304 /*flags*/,
+              0xaa00bb11, /*expiry*/
+              "value",
+              5,
+              &datatype,
+              1, /*ext_meta is v1 extension*/
+              0xf00fcafe11225566ull);
+
+    EXPECT_NE(0, datatype); // make sure we writing non-zero values
+
+    // Write an item with forced (valid) V0 meta
+    MockCouchRequest::MetaData meta;
+    meta.cas = 0xf00fcafe11225566ull;
+    meta.expiry = 0xaa00bb11;
+    meta.flags = 0x01020304;
+
+    WriteCallback wc;
+    kvstore->begin();
+    auto request = kvstore->setAndReturnRequest(item, wc);
+
+    // Force the meta to be V0
+    request->writeMetaData(meta, MockCouchRequest::MetaData::sizeofV0);
+
+    // Commit it
+    kvstore->commit(nullptr /*no collections manifest*/);
+
+    compaction_ctx cctx;
+    cctx.purge_before_seq = 0;
+    cctx.purge_before_ts = 0;
+    cctx.curr_time = 0;
+    cctx.drop_deletes = 0;
+    cctx.db_file_id = 0;
+    cctx.expiryCallback = std::make_shared<ExpiryCallback>();
+    EXPECT_TRUE(kvstore->compactDB(&cctx));
+
+    // Now use the test dhook
+    EXPECT_TRUE(kvstore->compactDBInternal(&cctx, testCompactionUpgradeHook));
+
+    // Read back successful, the extra byte will of been dropped.
+    MockedGetCallback<GetValue> gc;
+    EXPECT_CALL(gc, status(ENGINE_SUCCESS));
+    EXPECT_CALL(gc, cas(htonll(0xf00fcafe11225566ull)));
+    EXPECT_CALL(gc, expTime(htonl(0xaa00bb11)));
+    EXPECT_CALL(gc, flags(0x01020304));
+    EXPECT_CALL(gc, datatype(protocol_binary_datatype_t(meta.ext2)));
+    GetValue gv = kvstore->get(key, 0);
+    gc.callback(gv);
+}
+
+TEST_F(CouchstoreTest, testV2CompactionUpgrade) {
+    // Ensure CAS, exptime and flags are set to something.
+    uint8_t datatype = PROTOCOL_BINARY_DATATYPE_JSON; // lies, but non-zero
+    StoredDocKey key = makeStoredDocKey("key");
+    Item item(key,
+              0x01020304 /*flags*/,
+              0xaa00bb11, /*expiry*/
+              "value",
+              5,
+              &datatype,
+              1, /*ext_meta is v1 extension*/
+              0xf00fcafe11225566ull);
+
+    EXPECT_NE(0, datatype); // make sure we writing non-zero values
+
+    // Write an item with forced (valid) V2 meta
+    MockCouchRequest::MetaData meta;
+    meta.cas = 0xf00fcafe11225566ull;
+    meta.expiry = 0xaa00bb11;
+    meta.flags = 0x01020304;
+    meta.ext1 = FLEX_META_CODE;
+    meta.ext2 = datatype;
+    meta.legacyDeleted = 1;
+
+    WriteCallback wc;
+    kvstore->begin();
+    auto request = kvstore->setAndReturnRequest(item, wc);
+
+    // Force the meta to be V2
+    request->writeMetaData(meta, MockCouchRequest::MetaData::sizeofV2);
+
+    // Commit it
+    kvstore->commit(nullptr /*no collections manifest*/);
+
+    compaction_ctx cctx;
+    cctx.purge_before_seq = 0;
+    cctx.purge_before_ts = 0;
+    cctx.curr_time = 0;
+    cctx.drop_deletes = 0;
+    cctx.db_file_id = 0;
+    cctx.expiryCallback = std::make_shared<ExpiryCallback>();
+    EXPECT_TRUE(kvstore->compactDB(&cctx));
+
+    // Now use the test dhook
+    EXPECT_TRUE(kvstore->compactDBInternal(&cctx, testCompactionUpgradeHook));
 
     // Read back successful, the extra byte will of been dropped.
     MockedGetCallback<GetValue> gc;
