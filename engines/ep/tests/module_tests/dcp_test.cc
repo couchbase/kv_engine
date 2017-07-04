@@ -23,6 +23,7 @@
  */
 
 #include "../mock/mock_dcp.h"
+#include "../mock/mock_dcp_conn_map.h"
 #include "../mock/mock_dcp_consumer.h"
 #include "../mock/mock_dcp_producer.h"
 #include "../mock/mock_stream.h"
@@ -36,36 +37,9 @@
 #include "evp_engine_test.h"
 #include "test_helpers.h"
 
-#include <gtest/gtest.h>
 #include <dcp/backfill_memory.h>
+#include <gtest/gtest.h>
 #include <xattr/utils.h>
-
-/*
- * Mock of the DcpConnMap class.  Wraps the real DcpConnMap, but exposes
- * normally protected methods publically for test purposes.
- */
-class MockDcpConnMap: public DcpConnMap {
-public:
-    MockDcpConnMap(EventuallyPersistentEngine &theEngine)
-    : DcpConnMap(theEngine)
-    {}
-
-    size_t getNumberOfDeadConnections() {
-        return deadConnections.size();
-    }
-
-    AtomicQueue<connection_t>& getPendingNotifications() {
-        return pendingNotifications;
-    }
-
-    void initialize(conn_notifier_type ntype) {
-        connNotifier_ = new ConnNotifier(ntype, *this);
-        // We do not create a ConnNotifierCallback task
-        // We do not create a ConnManager task
-        // The ConnNotifier is deleted in the DcpConnMap
-        // destructor
-    }
-};
 
 class DCPTest : public EventuallyPersistentEngineTest {
 protected:
