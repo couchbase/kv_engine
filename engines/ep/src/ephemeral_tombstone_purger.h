@@ -70,6 +70,7 @@
 #include "progress_tracker.h"
 #include "vb_visitors.h"
 
+class EphemeralBucket;
 class EphTombstoneStaleItemDeleter;
 
 /**
@@ -133,7 +134,8 @@ protected:
  */
 class EphTombstoneHTCleaner : public GlobalTask {
 public:
-    EphTombstoneHTCleaner(EventuallyPersistentEngine* e);
+    EphTombstoneHTCleaner(EventuallyPersistentEngine* e,
+                          EphemeralBucket& bucket);
 
     bool run() override;
 
@@ -151,6 +153,9 @@ private:
 
     /// Returns the underlying VBTombstonePurger instance.
     EphemeralVBucket::HTTombstonePurger& getPurgerVisitor();
+
+    /// The bucket we are associated with.
+    EphemeralBucket& bucket;
 
     /// Opaque marker indicating how far through the KVBucket we have visited.
     KVBucketIface::Position bucketPosition;

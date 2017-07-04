@@ -96,6 +96,11 @@ EphemeralBucket::EphemeralBucket(EventuallyPersistentEngine& theEngine)
        Note: This should not be confused with the eviction algorithm
              that we are going to use like NRU, FIFO etc. */
     eviction_policy = VALUE_ONLY;
+
+    // Create tombstone purger task; it will later be scheduled as necessary
+    // in initialize().
+    tombstonePurgerTask =
+            std::make_shared<EphTombstoneHTCleaner>(&engine, *this);
 }
 
 EphemeralBucket::~EphemeralBucket() {
@@ -117,7 +122,6 @@ bool EphemeralBucket::initialize() {
 
     // Tombstone purger - scheduled periodically as long as we have a
     // non-zero interval. Can be dynamically adjusted, so add config listeners.
-    tombstonePurgerTask = std::make_shared<EphTombstoneHTCleaner>(&engine);
     auto interval = config.getEphemeralMetadataPurgeInterval();
     if (interval > 0) {
         enableTombstonePurgerTask();

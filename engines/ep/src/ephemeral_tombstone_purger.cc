@@ -20,6 +20,7 @@
 #include "atomic.h"
 #include "ep_engine.h"
 #include "ep_time.h"
+#include "ephemeral_bucket.h"
 #include "ephemeral_vb.h"
 #include "seqlist.h"
 
@@ -68,27 +69,27 @@ void EphemeralVBucket::HTTombstonePurger::clearStats() {
     numPurgedItems = 0;
 }
 
-EphTombstoneHTCleaner::EphTombstoneHTCleaner(EventuallyPersistentEngine* e)
+EphTombstoneHTCleaner::EphTombstoneHTCleaner(EventuallyPersistentEngine* e,
+                                             EphemeralBucket& bucket)
     : GlobalTask(e,
                  TaskId::EphTombstoneHTCleaner,
                  e->getConfiguration().getEphemeralMetadataPurgeInterval(),
                  false),
-      bucketPosition(engine->getKVBucket()->endPosition()),
+      bucket(bucket),
+      bucketPosition(bucket.endPosition()),
       staleItemDeleterTask(std::make_shared<EphTombstoneStaleItemDeleter>(e)) {
     ExecutorPool::get()->schedule(staleItemDeleterTask);
 }
 
 bool EphTombstoneHTCleaner::run() {
-    auto* bucket = engine->getKVBucket();
-
     // Get our pause/resume visitor. If we didn't finish the previous pass,
     // then resume from where we last were, otherwise create a new visitor
     // starting from the beginning.
-    if (bucketPosition == bucket->endPosition()) {
+    if (bucketPosition == bucket.endPosition()) {
         prAdapter = std::make_unique<PauseResumeVBAdapter>(
                 std::make_unique<EphemeralVBucket::HTTombstonePurger>(
                         getDeletedPurgeAge()));
-        bucketPosition = bucket->startPosition();
+        bucketPosition = bucket.startPosition();
 
         LOG(EXTENSION_LOG_NOTICE /*INFO*/,
             "%s starting with purge age:%" PRIu64 "s",
@@ -103,11 +104,11 @@ bool EphTombstoneHTCleaner::run() {
 
     // (re)start visiting.
     auto start = ProcessClock::now();
-    bucketPosition = bucket->pauseResumeVisit(*prAdapter, bucketPosition);
+    bucketPosition = bucket.pauseResumeVisit(*prAdapter, bucketPosition);
     auto end = ProcessClock::now();
 
     // Check if the visitor completed a full pass.
-    bool completed = (bucketPosition == bucket->endPosition());
+    bool completed = (bucketPosition == bucket.endPosition());
 
     auto duration_ms =
             std::chrono::duration_cast<std::chrono::milliseconds>(end - start);

@@ -72,6 +72,13 @@ protected:
                          ";mem_high_wat=" + std::to_string(160 * 1024);
         STParameterizedBucketTest::SetUp();
 
+        // How many nonIO tasks we expect initially
+        // - 0 for persistent.
+        // - 1 for Ephemeral (EphTombstoneHTCleaner).
+        if (GetParam() == "ephemeral") {
+            ++initialNonIoTasks;
+        }
+
         // Sanity check - need memory tracker to be able to check our memory
         // usage.
         ASSERT_TRUE(MemoryTracker::trackingMemoryAllocations())
@@ -95,6 +102,9 @@ protected:
         uint64_t cas = 0;
         return engine->store(nullptr, &item, &cas, OPERATION_SET);
     }
+
+    /// Count of nonIO tasks we should initially have.
+    size_t initialNonIoTasks = 0;
 };
 
 /**
@@ -106,12 +116,13 @@ protected:
     void SetUp() override {
         STBucketQuotaTest::SetUp();
         createAndScheduleItemPager();
+        ++initialNonIoTasks;
 
         // Sanity check - should be no nonIO tasks ready to run, and one in
         // futureQ (ItemPager).
         auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
         EXPECT_EQ(0, lpNonioQ.getReadyQueueSize());
-        EXPECT_EQ(1, lpNonioQ.getFutureQueueSize());
+        EXPECT_EQ(initialNonIoTasks, lpNonioQ.getFutureQueueSize());
 
         // We shouldn't be able to schedule the Item Pager task yet as it's not
         // ready.
@@ -130,17 +141,17 @@ protected:
         // and then a per-vBucket task (via VCVBAdapter) - which there is
         // just one of as we only have one vBucket online.
         ASSERT_EQ(0, lpNonioQ.getReadyQueueSize());
-        ASSERT_EQ(1, lpNonioQ.getFutureQueueSize());
+        ASSERT_EQ(initialNonIoTasks, lpNonioQ.getFutureQueueSize());
         runNextTask(lpNonioQ, "Paging out items.");
         ASSERT_EQ(0, lpNonioQ.getReadyQueueSize());
-        ASSERT_EQ(2, lpNonioQ.getFutureQueueSize());
+        ASSERT_EQ(initialNonIoTasks + 1, lpNonioQ.getFutureQueueSize());
         for (size_t ii = 0; ii < online_vb_count; ii++) {
             runNextTask(lpNonioQ, "Item pager on vb 0");
         }
-        // Once complete, should jsut have a single 'Paging out items' task in
-        // the future queue.
+        // Once complete, should have the same number of tasks we initially
+        // had.
         ASSERT_EQ(0, lpNonioQ.getReadyQueueSize());
-        ASSERT_EQ(1, lpNonioQ.getFutureQueueSize());
+        ASSERT_EQ(initialNonIoTasks, lpNonioQ.getFutureQueueSize());
     }
 };
 
@@ -321,13 +332,16 @@ class STExpiryPagerTest : public STBucketQuotaTest {
 protected:
     void SetUp() override {
         STBucketQuotaTest::SetUp();
-        initializeExpiryPager();
 
-        // Sanity check - should be no nonIO tasks ready to run, and one in
-        // futureQ (ExpiryPager).
+        // Setup expiry pager - this adds one to the number of nonIO tasks
+        initializeExpiryPager();
+        ++initialNonIoTasks;
+
+        // Sanity check - should be no nonIO tasks ready to run, and initial
+        // count in futureQ.
         auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
         EXPECT_EQ(0, lpNonioQ.getReadyQueueSize());
-        EXPECT_EQ(1, lpNonioQ.getFutureQueueSize());
+        EXPECT_EQ(initialNonIoTasks, lpNonioQ.getFutureQueueSize());
     }
 
     void runExpiryPager() {
@@ -341,10 +355,10 @@ protected:
         auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
         runNextTask(lpNonioQ, "Paging expired items.");
         EXPECT_EQ(0, lpNonioQ.getReadyQueueSize());
-        EXPECT_EQ(2, lpNonioQ.getFutureQueueSize());
+        EXPECT_EQ(initialNonIoTasks + 1, lpNonioQ.getFutureQueueSize());
         runNextTask(lpNonioQ, "Expired item remover on vb 0");
         EXPECT_EQ(0, lpNonioQ.getReadyQueueSize());
-        EXPECT_EQ(1, lpNonioQ.getFutureQueueSize());
+        EXPECT_EQ(initialNonIoTasks, lpNonioQ.getFutureQueueSize());
     }
 };
 
