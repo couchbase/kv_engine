@@ -103,6 +103,52 @@ protected:
         return engine->store(nullptr, &item, &cas, OPERATION_SET);
     }
 
+    /**
+     * Write documents to the bucket until they fail with TMP_FAIL.
+     * Note this stores via external API (epstore) so we trigger the
+     * memoryCondition() code in the event of ENGINE_ENOMEM.
+     *
+     * @param vbid vBucket to write items to.
+     * @param expiry value for items. 0 == no TTL.
+     * @return number of documents written.
+     */
+    size_t populateUntilTmpFail(uint16_t vbid, rel_time_t ttl = 0) {
+        size_t count = 0;
+        const std::string value(512, 'x'); // 512B value to use for documents.
+        ENGINE_ERROR_CODE result;
+        const auto expiry = (ttl != 0) ? ep_abs_time(ttl) : time_t(0);
+        for (result = ENGINE_SUCCESS; result == ENGINE_SUCCESS; count++) {
+            auto key = makeStoredDocKey("xxx_" + std::to_string(count));
+            auto item = make_item(vbid, key, value, expiry);
+            // Set NRU of item to maximum; so will be a candidate for paging out
+            // straight away.
+            item.setNRUValue(MAX_NRU_VALUE);
+            result = storeItem(item);
+        }
+        EXPECT_EQ(ENGINE_TMPFAIL, result);
+        // Fixup count for last loop iteration.
+        --count;
+
+        auto& stats = engine->getEpStats();
+        EXPECT_GT(stats.getTotalMemoryUsed(), stats.getMaxDataSize() * 0.8)
+            << "Expected to exceed 80% of bucket quota after hitting TMPFAIL";
+        EXPECT_GT(stats.getTotalMemoryUsed(), stats.mem_low_wat.load())
+            << "Expected to exceed low watermark after hitting TMPFAIL";
+
+        // To ensure the Blobs can actually be removed from memory, they must have
+        // a ref-count of 1. This will not be the case if there's any open
+        // checkpoints hanging onto Items. Therefore force the creation of a new
+        // checkpoint.
+        store->getVBucket(vbid)->checkpointManager.createNewCheckpoint();
+
+        // Ensure items are flushed to disk (so we can evict them).
+        if (GetParam() == "persistent") {
+            store->flushVBucket(vbid);
+        }
+
+        return count;
+    }
+
     /// Count of nonIO tasks we should initially have.
     size_t initialNonIoTasks = 0;
 };
@@ -159,43 +205,12 @@ protected:
 // that items are successfully paged out.
 TEST_P(STItemPagerTest, ServerQuotaReached) {
 
-    // Fill bucket until we hit ENOMEM - note storing via external API
-    // (epstore) so we trigger the memoryCondition() code in the event of
-    // ENGINE_ENOMEM.
-    size_t count = 0;
-    const std::string value(512, 'x'); // 512B value to use for documents.
-    ENGINE_ERROR_CODE result;
-    for (result = ENGINE_SUCCESS; result == ENGINE_SUCCESS; count++) {
-        auto item = make_item(vbid,
-                              makeStoredDocKey("key_" + std::to_string(count)),
-                              value);
-        // Set NRU of item to maximum; so will be a candidate for paging out
-        // straight away.
-        item.setNRUValue(MAX_NRU_VALUE);
-        result = storeItem(item);
-    }
-    ASSERT_EQ(ENGINE_TMPFAIL, result);
+    size_t count = populateUntilTmpFail(vbid);
     ASSERT_GE(count, 50) << "Too few documents stored";
-
-    auto& stats = engine->getEpStats();
-    EXPECT_GT(stats.getTotalMemoryUsed(), stats.getMaxDataSize() * 0.8)
-        << "Expected to exceed 80% of bucket quota after hitting TMPFAIL";
-    EXPECT_GT(stats.getTotalMemoryUsed(), stats.mem_low_wat.load())
-        << "Expected to exceed low watermark after hitting TMPFAIL";
-
-    // To ensure the Blobs can actually be removed from memory, they must have
-    // a ref-count of 1. This will not be the case if there's any open
-    // checkpoints hanging onto Items. Therefore force the creation of a new
-    // checkpoint.
-    store->getVBucket(vbid)->checkpointManager.createNewCheckpoint();
-
-    // Ensure items are flushed to disk (so we can evict them).
-    if (GetParam() == "persistent") {
-        store->flushVBucket(vbid);
-    }
 
     runItemPager();
 
+    auto& stats = engine->getEpStats();
     EXPECT_LT(stats.getTotalMemoryUsed(), stats.mem_low_wat.load())
             << "Expected to be below low watermark after running item pager";
 }
@@ -221,14 +236,8 @@ TEST_P(STItemPagerTest, ExpiredItemsDeletedFirst) {
 
     // Fill bucket with items with a TTL of 1s until we hit ENOMEM. When
     // we run the pager, we expect these items to be deleted first.
-    size_t countB = countA;
-    ENGINE_ERROR_CODE result;
-    for (result = ENGINE_SUCCESS; result == ENGINE_SUCCESS; countB++) {
-        auto key = makeStoredDocKey("key_" + std::to_string(countB));
-        auto item = make_item(vbid, key, value, ep_abs_time(1));
-        result = storeItem(item);
-    }
-    ASSERT_EQ(ENGINE_TMPFAIL, result);
+    auto countB = populateUntilTmpFail(vbid, 1);
+
     ASSERT_GE(countB, 50)
         << "Expected at least 50 documents total before hitting high watermark";
 
@@ -248,8 +257,8 @@ TEST_P(STItemPagerTest, ExpiredItemsDeletedFirst) {
     }
 
     // Documents which had a TTL should be deleted:
-    for (size_t ii = countA; ii < countB; ii++) {
-        auto key = makeStoredDocKey("key_" + std::to_string(ii));
+    for (size_t ii = 0; ii < countB; ii++) {
+        auto key = makeStoredDocKey("xxx_" + std::to_string(ii));
         auto result = store->get(key, vbid, nullptr, get_options_t());
         EXPECT_EQ(ENGINE_KEY_ENOENT, result.getStatus()) << "For key:" << key;
     }
@@ -292,19 +301,7 @@ TEST_P(STEphemeralItemPagerTest, ReplicaNotPaged) {
             << "Expected at least 10 active items before hitting low watermark";
 
     // Populate vbid 1 (replica) until we reach the high watermark.
-    size_t replica_count = 0;
-    ENGINE_ERROR_CODE result;
-    do {
-        auto key = makeStoredDocKey("key_" + std::to_string(replica_count));
-        auto item = make_item(replica_vb, key, value);
-        // Set NRU of item to maximum; so will be a candidate for paging out
-        // straight away (not that replica Items /should/ get paged out in
-        // this test).
-        item.setNRUValue(MAX_NRU_VALUE);
-
-        result = storeItem(item);
-    } while (result == ENGINE_SUCCESS && ++replica_count);
-    ASSERT_EQ(ENGINE_TMPFAIL, result);
+    size_t replica_count = populateUntilTmpFail(replica_vb);
     ASSERT_GE(replica_count, 10)
         << "Expected at least 10 replica items before hitting high watermark";
 
