@@ -116,7 +116,8 @@ protected:
         size_t count = 0;
         const std::string value(512, 'x'); // 512B value to use for documents.
         ENGINE_ERROR_CODE result;
-        const auto expiry = (ttl != 0) ? ep_abs_time(ttl) : time_t(0);
+        const auto expiry =
+                (ttl != 0) ? ep_abs_time(ep_reltime(ttl)) : time_t(0);
         for (result = ENGINE_SUCCESS; result == ENGINE_SUCCESS; count++) {
             auto key = makeStoredDocKey("xxx_" + std::to_string(count));
             auto item = make_item(vbid, key, value, expiry);
@@ -244,24 +245,36 @@ TEST_P(STItemPagerTest, ExpiredItemsDeletedFirst) {
     // Advance time so when the pager runs it will find expired items.
     TimeTraveller billSPrestonEsq(2);
 
+    EXPECT_EQ(countA + countB, store->getVBucket(vbid)->getNumItems());
+
     runItemPager();
+
+    // Ensure deletes are flushed to disk (so any temp items removed from
+    // HashTable).
+    if (GetParam() == "persistent") {
+        store->flushVBucket(vbid);
+    }
 
     // Check which items remain. We should have deleted all of the items with
     // a TTL, as they should have been considered first).
 
-    // Initial documents should still exist:
+    // Initial documents should still exist. Note we need to use getMetaData
+    // here as get() would expire the item on access.
     for (size_t ii = 0; ii < countA; ii++) {
         auto key = makeStoredDocKey("key_" + std::to_string(ii));
         auto result = store->get(key, vbid, nullptr, get_options_t());
         EXPECT_EQ(ENGINE_SUCCESS, result.getStatus()) << "For key:" << key;
     }
 
-    // Documents which had a TTL should be deleted:
-    for (size_t ii = 0; ii < countB; ii++) {
-        auto key = makeStoredDocKey("xxx_" + std::to_string(ii));
-        auto result = store->get(key, vbid, nullptr, get_options_t());
-        EXPECT_EQ(ENGINE_KEY_ENOENT, result.getStatus()) << "For key:" << key;
-    }
+    // Documents which had a TTL should be deleted. Note it's hard to check
+    // the specific keys without triggering an expire-on-access (and hence
+    // doing the item pager's job for it). Therefore just check the count of
+    // items still existing (should have decreased by the number of items
+    // with TTLs) and expiry statistics.
+    EXPECT_EQ(countA, store->getVBucket(vbid)->getNumItems());
+    EXPECT_EQ(countB, stats.expired_pager);
+    EXPECT_EQ(0, stats.expired_access);
+    EXPECT_EQ(0, stats.expired_compactor);
 }
 
 /**
