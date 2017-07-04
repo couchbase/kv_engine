@@ -290,10 +290,64 @@ TEST_F(SingleThreadedEPBucketTest, MB22421_reregister_cursor) {
  * If it does then we have demonstrated that data is not lost.
  *
  */
-// @todo This test is currently disabled whilst MB-25056 remains unresolved.
-TEST_F(SingleThreadedEPBucketTest, DISABLED_MB22960_cursor_dropping_data_loss) {
-    // Records the number of times the callback function is invoked.
-    size_t callbackCount = 0;
+
+// This callback function is called every time a backfill is performed on
+// test MB22960_cursor_dropping_data_loss.
+void MB22960callbackBeforeRegisterCursor(
+        KVBucket* store,
+        MockActiveStreamWithOverloadedRegisterCursor* mock_stream,
+        VBucketPtr vb,
+        size_t& registerCursorCount) {
+    EXPECT_LE(registerCursorCount, 1);
+    // The test performs two backfills, and the callback is only required
+    // on the first, so that it can test what happens when checkpoints are
+    // moved forward during a backfill.
+    if (registerCursorCount == 0) {
+        bool new_ckpt_created;
+        CheckpointManager& ckpt_mgr = vb->checkpointManager;
+
+        //pendingBackfill has now been cleared
+        EXPECT_FALSE(mock_stream->public_getPendingBackfill())
+        << "pendingBackfill is not false";
+        // we are now in backfill mode
+        EXPECT_TRUE(mock_stream->public_isBackfillTaskRunning())
+        << "isBackfillRunning is not true";
+
+        //Add a doc and close previous checkpoint
+        auto item3 = make_item(vb->getId(), makeStoredDocKey("key3"), "value",
+                               0, PROTOCOL_BINARY_DATATYPE_JSON);
+        EXPECT_EQ(ENGINE_SUCCESS, store->set(item3, nullptr));
+        EXPECT_EQ(1, store->flushVBucket(vb->getId()));
+        ckpt_mgr.createNewCheckpoint();
+        EXPECT_EQ(3, ckpt_mgr.getNumCheckpoints());
+        EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
+
+        // Now remove the earlier checkpoint
+        EXPECT_EQ(1, ckpt_mgr.removeClosedUnrefCheckpoints(
+                *vb, new_ckpt_created));
+        EXPECT_EQ(2, ckpt_mgr.getNumCheckpoints());
+        EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
+
+        //Add a doc and close previous checkpoint
+        auto item4 = make_item(vb->getId(), makeStoredDocKey("key4"), "value",
+                               0, PROTOCOL_BINARY_DATATYPE_JSON);
+        EXPECT_EQ(ENGINE_SUCCESS, store->set(item4, nullptr));
+        EXPECT_EQ(1, store->flushVBucket(vb->getId()));
+        ckpt_mgr.createNewCheckpoint();
+        EXPECT_EQ(3, ckpt_mgr.getNumCheckpoints());
+        EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
+
+        // Now remove the earlier checkpoint
+        EXPECT_EQ(1, ckpt_mgr.removeClosedUnrefCheckpoints(
+                *vb, new_ckpt_created));
+        EXPECT_EQ(2, ckpt_mgr.getNumCheckpoints());
+        EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
+    }
+}
+
+TEST_F(SingleThreadedEPBucketTest, MB22960_cursor_dropping_data_loss) {
+    // Records the number of times ActiveStream::registerCursor is invoked.
+    size_t registerCursorCount = 0;
     // Make vbucket active.
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     auto vb = store->getVBuckets().getBucket(vbid);
@@ -327,52 +381,30 @@ TEST_F(SingleThreadedEPBucketTest, DISABLED_MB22960_cursor_dropping_data_loss) {
             static_cast<MockActiveStreamWithOverloadedRegisterCursor*>(
                     stream.get());
 
-    mock_stream->setCallback([mock_stream, this, vb, &callbackCount]() {
-       /**
-         * This callback function is called every time a backfill is performed.
-         * The test performs two backfills, and the callback is only required
-         * on the first.  As its used to test what happens when checkpoints
-         * are moved forward during a backfill.
-         */
-        callbackCount++;
-        if (callbackCount == 1) {
-            bool new_ckpt_created;
-            CheckpointManager& ckpt_mgr = vb->checkpointManager;
-
-            //pendingBackfill has now been cleared
-            EXPECT_FALSE(mock_stream->public_getPendingBackfill())
-            << "pendingBackfill is not false";
-            // we are now in backfill mode
-            EXPECT_TRUE(mock_stream->public_isBackfillTaskRunning())
-            << "isBackfillRunning is not true";
-
-            //Add a doc and close previous checkpoint
-            store_item(vbid, makeStoredDocKey("key3"), "value");
-            EXPECT_EQ(1, store->flushVBucket(vbid));
-            ckpt_mgr.createNewCheckpoint();
-            EXPECT_EQ(3, ckpt_mgr.getNumCheckpoints());
-            EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
-
-            // Now remove the earlier checkpoint
-            EXPECT_EQ(1, ckpt_mgr.removeClosedUnrefCheckpoints(
-                    *vb, new_ckpt_created));
-            EXPECT_EQ(2, ckpt_mgr.getNumCheckpoints());
-            EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
-
-            //Add a doc and close previous checkpoint
-            store_item(vbid, makeStoredDocKey("key4"), "value");
-            EXPECT_EQ(1, store->flushVBucket(vbid));
-            ckpt_mgr.createNewCheckpoint();
-            EXPECT_EQ(3, ckpt_mgr.getNumCheckpoints());
-            EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
-
-            // Now remove the earlier checkpoint
-            EXPECT_EQ(1, ckpt_mgr.removeClosedUnrefCheckpoints(
-                    *vb, new_ckpt_created));
-            EXPECT_EQ(2, ckpt_mgr.getNumCheckpoints());
-            EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
-        }
+    mock_stream->setCallbackBeforeRegisterCursor([this,
+                                                  mock_stream,
+                                                  vb,
+                                                  &registerCursorCount]() {
+        MB22960callbackBeforeRegisterCursor(
+                store,
+                mock_stream,
+                vb,
+                registerCursorCount);
     });
+
+    mock_stream->setCallbackAfterRegisterCursor(
+            [mock_stream, &registerCursorCount]() {
+                // This callback is called every time a backfill is performed.
+                // It is called immediately after completing
+                // ActiveStream::registerCursor.
+                registerCursorCount++;
+                if (registerCursorCount == 1) {
+                    EXPECT_TRUE(mock_stream->public_getPendingBackfill());
+                } else {
+                    EXPECT_EQ(2, registerCursorCount);
+                    EXPECT_FALSE(mock_stream->public_getPendingBackfill());
+                }
+            });
 
     EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
     mock_stream->transitionStateToBackfilling();
@@ -441,7 +473,7 @@ TEST_F(SingleThreadedEPBucketTest, DISABLED_MB22960_cursor_dropping_data_loss) {
     runNextTask(lpAuxioQ);
     runNextTask(lpAuxioQ);
     // Assert that the callback (and hence backfill) was only invoked twice
-    ASSERT_EQ(2, callbackCount);
+    ASSERT_EQ(2, registerCursorCount);
     // take snapshot marker off the ReadyQ
     resp = mock_stream->next();
     delete resp;
@@ -461,6 +493,208 @@ TEST_F(SingleThreadedEPBucketTest, DISABLED_MB22960_cursor_dropping_data_loss) {
     EXPECT_EQ(NULL, resp);
     EXPECT_EQ(2, ckpt_mgr.getNumCheckpoints());
     EXPECT_EQ(2, ckpt_mgr.getNumOfCursors());
+
+    // BackfillManagerTask
+    runNextTask(lpAuxioQ);
+}
+
+/* The following is a regression test for MB25056, which came about due the fix
+ * for MB22960 having a bug where it is set pendingBackfill to true too often.
+ *
+ * To demonstrate the issue we need:
+ *
+ * 1. vbucket state to be replica
+ *
+ * 2. checkpoint state to be similar to the following:
+ * CheckpointManager[0x10720d908] with numItems:3 checkpoints:1
+ *   Checkpoint[0x10723d2a0] with seqno:{2,4} state:CHECKPOINT_OPEN items:[
+ *   {1,empty,dummy_key}
+ *   {2,checkpoint_start,checkpoint_start}
+ *   {2,set,key2}
+ *   {4,set,key3}
+ * ]
+ *   connCursors:[
+ *       persistence: CheckpointCursor[0x7fff5ca0cf98] with name:persistence
+ *       currentCkpt:{id:1 state:CHECKPOINT_OPEN} currentPos:2 offset:2
+ *       ckptMetaItemsRead:1
+ *
+ *       test_producer: CheckpointCursor[0x7fff5ca0cf98] with name:test_producer
+ *       currentCkpt:{id:1 state:CHECKPOINT_OPEN} currentPos:1 offset:0
+ *       ckptMetaItemsRead:0
+ *   ]
+ *
+ * 3. active stream to the vbucket requesting start seqno=0 and end seqno=4
+ *
+ * The test behaviour is that we perform a backfill.  In markDiskSnapshot (which
+ * is invoked when we perform a backfill) we merge items in the open checkpoint.
+ * In the test below this means the snapshot {start, end} is originally {0, 2}
+ * but is extended to {0, 4}.
+ *
+ * We then call registerCursor with the lastProcessedSeqno of 2, which then
+ * calls through to registerCursorBySeqno and returns 4.  Given that
+ * 4 - 1 > 2 in the original fix for MB25056 we incorrectly set pendingBackfill
+ * to true.  However by checking if the seqno returned is the first in the
+ * checkpoint we can confirm whether a backfill is actually required, and hence
+ * whether pendingBackfill should be set to true.
+ *
+ * In this test the result is not the first seqno in the checkpoint and so
+ * pendingBackfill should be false.
+ */
+
+TEST_F(SingleThreadedEPBucketTest, MB25056_do_not_set_pendingBackfill_to_true) {
+    // Records the number of times registerCursor is invoked.
+    size_t registerCursorCount = 0;
+    // Make vbucket a replica.
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+    auto vb = store->getVBuckets().getBucket(vbid);
+    ASSERT_NE(nullptr, vb.get());
+    auto& ckpt_mgr = vb->checkpointManager;
+    EXPECT_EQ(1, ckpt_mgr.getNumCheckpoints());
+    EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
+
+    // Add an item and flush to vbucket
+    auto item = make_item(vbid, makeStoredDocKey("key1"), "value");
+    item.setCas(1);
+    uint64_t seqno;
+    store->setWithMeta(std::ref(item),
+                       0,
+                       &seqno,
+                       cookie,
+                       {vbucket_state_replica},
+                       CheckConflicts::No,
+                       /*allowExisting*/ true);
+    store->flushVBucket(vbid);
+
+    // Close the first checkpoint and create a second one
+    ckpt_mgr.createNewCheckpoint();
+
+    // Remove the first checkpoint
+    bool new_ckpt_created;
+    ckpt_mgr.removeClosedUnrefCheckpoints(*vb, new_ckpt_created);
+
+    // Add a second item and flush to bucket
+    auto item2 = make_item(vbid, makeStoredDocKey("key2"), "value");
+    item2.setCas(1);
+    store->setWithMeta(std::ref(item2),
+                       0,
+                       &seqno,
+                       cookie,
+                       {vbucket_state_replica},
+                       CheckConflicts::No,
+                       /*allowExisting*/ true);
+    store->flushVBucket(vbid);
+
+    // Add 2 further items to the second checkpoint.  As both have the key
+    // "key3" the first of the two items will be de-duplicated away.
+    // Do NOT flush to vbucket.
+    for (int ii = 0; ii < 2; ii++) {
+        auto item = make_item(vbid, makeStoredDocKey("key3"), "value");
+        item.setCas(1);
+        store->setWithMeta(std::ref(item),
+                           0,
+                           &seqno,
+                           cookie,
+                           {vbucket_state_replica},
+                           CheckConflicts::No,
+                           /*allowExisting*/ true);
+    }
+
+    // Create a Mock Dcp producer
+    mock_dcp_producer_t producer = new MockDcpProducer(*engine,
+                                                       cookie,
+                                                       "test_producer",
+                                                       /*flags*/ 0,
+                                                       {/*no json*/});
+    // Create a Mock Active Stream
+    stream_t stream = new MockActiveStreamWithOverloadedRegisterCursor(
+            static_cast<EventuallyPersistentEngine*>(engine.get()),
+            producer,
+            /*flags*/ 0,
+            /*opaque*/ 0,
+            *vb,
+            /*st_seqno*/ 0,
+            /*en_seqno*/ 4,
+            /*vb_uuid*/ 0xabcd,
+            /*snap_start_seqno*/ 0,
+            /*snap_end_seqno*/ ~0,
+            IncludeValue::Yes,
+            IncludeXattrs::Yes);
+
+    MockActiveStreamWithOverloadedRegisterCursor* mock_stream =
+            static_cast<MockActiveStreamWithOverloadedRegisterCursor*>(
+                    stream.get());
+
+    mock_stream->setCallbackBeforeRegisterCursor(
+            [mock_stream, this, vb, &registerCursorCount]() {
+                // This callback function is called every time a backfill is
+                // performed. It is called immediately prior to executing
+                // ActiveStream::registerCursor.
+                EXPECT_EQ(0, registerCursorCount);
+            });
+
+    mock_stream->setCallbackAfterRegisterCursor(
+            [mock_stream, &registerCursorCount]() {
+                // This callback function is called every time a backfill is
+                // performed. It is called immediately after completing
+                // ActiveStream::registerCursor.
+                // The key point of the test is pendingBackfill is set to false
+                registerCursorCount++;
+                EXPECT_EQ(1, registerCursorCount);
+                EXPECT_FALSE(mock_stream->public_getPendingBackfill());
+            });
+
+    // transitioning to Backfilling results in calling
+    // scheduleBackfill_UNLOCKED(false)
+    mock_stream->transitionStateToBackfilling();
+    // schedule the backfill
+    mock_stream->next();
+
+    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+    EXPECT_EQ(2, lpAuxioQ.getFutureQueueSize());
+    // backfill:create()
+    runNextTask(lpAuxioQ, "Backfilling items for a DCP Connection");
+    // backfill:scan()
+    runNextTask(lpAuxioQ, "Backfilling items for a DCP Connection");
+    // backfill:complete()
+    runNextTask(lpAuxioQ, "Backfilling items for a DCP Connection");
+    // backfill:finished()
+    runNextTask(lpAuxioQ, "Backfilling items for a DCP Connection");
+    // inMemoryPhase and pendingBackfill is true and so transitions to
+    // backfillPhase
+    // take snapshot marker off the ReadyQ
+    std::unique_ptr<DcpResponse> resp =
+            static_cast< std::unique_ptr<DcpResponse> >(mock_stream->next());
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+
+    // backfillPhase() - take doc "key1" off the ReadyQ
+    resp.reset(mock_stream->next());
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    EXPECT_EQ(std::string("key1"),
+              dynamic_cast<MutationResponse*>(resp.get())->
+              getItem()->getKey().c_str());
+
+    // backfillPhase - take doc "key2" off the ReadyQ
+    resp.reset(mock_stream->next());
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    EXPECT_EQ(std::string("key2"),
+              dynamic_cast<MutationResponse*>(resp.get())->
+              getItem()->getKey().c_str());
+
+    EXPECT_TRUE(mock_stream->isInMemory())
+            << "stream state should have transitioned to StreamInMemory";
+
+    resp.reset(mock_stream->next());
+    EXPECT_FALSE(resp);
+
+    EXPECT_EQ(1, ckpt_mgr.getNumCheckpoints());
+    EXPECT_EQ(2, ckpt_mgr.getNumOfCursors());
+    // Assert that registerCursor (and hence backfill) was only invoked once
+    ASSERT_EQ(1, registerCursorCount);
+
+    // ActiveStreamCheckpointProcessorTask
+    runNextTask(lpAuxioQ, "Process checkpoint(s) for DCP producer");
+    // BackfillManagerTask
+    runNextTask(lpAuxioQ, "Backfilling items for a DCP Connection");
 }
 
 /**

@@ -971,6 +971,32 @@ TYPED_TEST(CheckpointTest, CursorMovementReplicaMerge) {
                                      HasOperation(queue_op::checkpoint_start)));
 }
 
+// MB-25056 - Regression test replicating situation where the seqno returned by
+// registerCursorBySeqno minus one is greater than the input parameter
+// startBySeqno but a backfill is not required.
+TYPED_TEST(CheckpointTest, MB25056_backfill_not_required) {
+    std::vector<queued_item> items;
+    this->vbucket->setState(vbucket_state_replica);
+
+    ASSERT_TRUE(this->queueNewItem("key0"));
+    // Add duplicate items, which should cause de-duplication to occur.
+    for (unsigned int ii = 0; ii < MIN_CHECKPOINT_ITEMS; ii++) {
+        EXPECT_FALSE(this->queueNewItem("key0"));
+    }
+    // Add a number of non duplicate items to the same checkpoint
+    for (unsigned int ii = 1; ii < MIN_CHECKPOINT_ITEMS; ii++) {
+        EXPECT_TRUE(this->queueNewItem("key" + std::to_string(ii)));
+    }
+
+    // Register DCP replication cursor
+    std::string dcp_cursor(DCP_CURSOR_PREFIX);
+    // Request to register the cursor with a seqno that has been de-duped away
+    CursorRegResult result = this->manager->registerCursorBySeqno(
+            dcp_cursor.c_str(), 1005, MustSendCheckpointEnd::NO);
+    EXPECT_EQ(1011, result.first) << "Returned seqno is not expected value.";
+    EXPECT_FALSE(result.second) << "Backfill is unexpectedly required.";
+}
+
 //
 // It's critical that the HLC (CAS) is ordered with seqno generation
 // otherwise XDCR may drop a newer bySeqno mutation because the CAS is not

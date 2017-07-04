@@ -186,16 +186,22 @@ public:
       * the execution of the method ActiveStream::registerCursor.
       */
     virtual void registerCursor(CheckpointManager& chkptmgr,
-                                uint64_t startBySeqno) override {
-        callback();
-        ActiveStream::registerCursor(chkptmgr, startBySeqno);
-
+                                uint64_t lastProcessedSeqno) override {
+        callbackBeforeRegisterCursor();
+        ActiveStream::registerCursor(chkptmgr, lastProcessedSeqno);
+        callbackAfterRegisterCursor();
     }
 
     // Function that sets the callback function.  The callback is invoked at the
     // start of the overloaded registerCursor method.
-    void setCallback(std::function<void()> func) {
-        callback = func;
+    void setCallbackBeforeRegisterCursor(std::function<void()> func) {
+        callbackBeforeRegisterCursor = func;
+    }
+
+    // Function that sets the callback function.  The callback is invoked at the
+    // end of the overloaded registerCursor method.
+    void setCallbackAfterRegisterCursor(std::function<void()> func) {
+        callbackAfterRegisterCursor = func;
     }
 
     /**
@@ -203,7 +209,11 @@ public:
       * first invocation.  The function moves checkpoints forward, whilst in the
       * middle of performing a backfill.
       */
-    std::function<void()> callback;
+    std::function<void()> callbackBeforeRegisterCursor;
+
+    // The callback function which is used to check the state of
+    // pendingBackfill after the call to ActiveStream::registerCursor.
+    std::function<void()> callbackAfterRegisterCursor;
 };
 
 /* Mock of the PassiveStream class. Wraps the real PassiveStream, but exposes

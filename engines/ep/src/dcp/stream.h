@@ -339,12 +339,15 @@ protected:
 
     /**
      * Registers a cursor with a given CheckpointManager.
+     * The result of calling the function is that it sets the pendingBackfill
+     * flag, if another backfill is required.  It also sets the curChkSeqno to
+     * be at the position the new cursor is registered.
      *
      * @param chkptmgr  The CheckpointManager the cursor will be registered to.
-     * @param startBySeqno  The bySeqno from where to start retrieving items.
+     * @param lastProcessedSeqno  The last processed seqno.
      */
     virtual void registerCursor(CheckpointManager& chkptmgr,
-                                uint64_t startBySeqno);
+                                uint64_t lastProcessedSeqno);
 
 
     /* Indicates that a backfill has been scheduled and has not yet completed.

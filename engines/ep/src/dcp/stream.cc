@@ -364,13 +364,31 @@ DcpResponse* ActiveStream::next(std::lock_guard<std::mutex>& lh) {
 }
 
 void ActiveStream::registerCursor(CheckpointManager& chkptmgr,
-                                  uint64_t startBySeqno) {
+                                  uint64_t lastProcessedSeqno) {
     try {
         CursorRegResult result = chkptmgr.registerCursorBySeqno(
-                name_,
-                startBySeqno,
-                MustSendCheckpointEnd::NO);
-
+                name_, lastProcessedSeqno, MustSendCheckpointEnd::NO);
+        /*
+         * MB-22960:  Due to cursor dropping we re-register the replication
+         * cursor only during backfill when we mark the disk snapshot.  However
+         * by this point it is possible that the CheckpointManager no longer
+         * contains the next sequence number the replication stream requires
+         * (i.e. next one after the backfill seqnos).
+         *
+         * To avoid this data loss when we register the cursor we check to see
+         * if the result is greater than the lastProcessedSeqno + 1.
+         * If so we know we may have missed some items and may need to perform
+         * another backfill.
+         *
+         * We actually only need to do another backfill if the result is greater
+         * than the lastProcessedSeqno + 1 and registerCursorBySeqno returns
+         * true, indicating that the resulting seqno starts with the first item
+         * on a checkpoint.
+         */
+        const uint64_t nextRequiredSeqno = lastProcessedSeqno + 1;
+        if (result.first > nextRequiredSeqno && result.second) {
+            pendingBackfill = true;
+        }
         curChkSeqno = result.first;
     } catch(std::exception& error) {
         producer->getLogger().log(EXTENSION_LOG_WARNING,
