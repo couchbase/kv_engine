@@ -29,11 +29,15 @@
 /**
  * Test fixture for KVBucket tests running in single-threaded mode.
  *
- * Parameterised on the bucket_type (i.e. Ephemeral or Peristent).
+ * Parameterised on a pair of:
+ * - bucket_type (ephemeral of persistent)
+ * - ephemeral_full_policy (for specifying ephemeral auto-delete & fail_new_data
+ *   eviction modes). If empty then unused (persistent buckets).
  */
 class STParameterizedBucketTest
         : public SingleThreadedEPBucketTest,
-          public ::testing::WithParamInterface<std::string> {
+          public ::testing::WithParamInterface<
+                  std::tuple<std::string, std::string>> {
 protected:
     void SetUp() override;
 };
@@ -42,12 +46,16 @@ void STParameterizedBucketTest::SetUp() {
     if (!config_string.empty()) {
         config_string += ";";
     }
-    config_string += "bucket_type=" + GetParam();
+    config_string += "bucket_type=" + std::get<0>(GetParam());
+    auto ephFullPolicy = std::get<1>(GetParam());
+    if (!ephFullPolicy.empty()) {
+        config_string += ";ephemeral_full_policy=" + ephFullPolicy;
+    }
     SingleThreadedEPBucketTest::SetUp();
 }
 
 /**
- * Test fixture for bucket quota tests. Sets quota (max_size) to 128KB and
+ * Test fixture for bucket quota tests. Sets quota (max_size) to 200KB and
  * enables the MemoryTracker.
  *
  * NOTE: All the tests using this (including subclasses) require memory
@@ -75,7 +83,7 @@ protected:
         // How many nonIO tasks we expect initially
         // - 0 for persistent.
         // - 1 for Ephemeral (EphTombstoneHTCleaner).
-        if (GetParam() == "ephemeral") {
+        if (std::get<0>(GetParam()) == "ephemeral") {
             ++initialNonIoTasks;
         }
 
@@ -143,7 +151,7 @@ protected:
         store->getVBucket(vbid)->checkpointManager.createNewCheckpoint();
 
         // Ensure items are flushed to disk (so we can evict them).
-        if (GetParam() == "persistent") {
+        if (std::get<0>(GetParam()) == "persistent") {
             store->flushVBucket(vbid);
         }
 
@@ -162,11 +170,16 @@ class STItemPagerTest : public STBucketQuotaTest {
 protected:
     void SetUp() override {
         STBucketQuotaTest::SetUp();
-        scheduleItemPager();
-        ++initialNonIoTasks;
 
-        // Sanity check - should be no nonIO tasks ready to run, and one in
-        // futureQ (ItemPager).
+        // There is no item pager scheduled for ephemeral fail_new_data buckets.
+        if (std::get<1>(GetParam()) != "fail_new_data") {
+            scheduleItemPager();
+            ++initialNonIoTasks;
+            itemPagerScheduled = true;
+        }
+
+        // Sanity check - should be no nonIO tasks ready to run,
+        // and expected number in futureQ.
         auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
         EXPECT_EQ(0, lpNonioQ.getReadyQueueSize());
         EXPECT_EQ(initialNonIoTasks, lpNonioQ.getFutureQueueSize());
@@ -181,7 +194,15 @@ protected:
         }
     }
 
-    void runItemPager(size_t online_vb_count = 1) {
+    /**
+     * Run the pager which is scheduled when the high watermark is reached
+     * (memoryCondition).
+     */
+    void runHighMemoryPager(size_t online_vb_count = 1) {
+        if (!itemPagerScheduled) {
+            return;
+        }
+
         auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
 
         // Item pager consists of two Tasks - the parent ItemPager task,
@@ -199,7 +220,15 @@ protected:
         // had.
         ASSERT_EQ(0, lpNonioQ.getReadyQueueSize());
         ASSERT_EQ(initialNonIoTasks, lpNonioQ.getFutureQueueSize());
+
+        // Ensure any deletes are flushed to disk (so item counts are accurate).
+        if (std::get<0>(GetParam()) == "persistent") {
+            store->flushVBucket(vbid);
+        }
     }
+
+    /// Has the item pager been scheduled to run?
+    bool itemPagerScheduled = false;
 };
 
 // Test that the ItemPager is scheduled when the Server Quota is reached, and
@@ -209,11 +238,25 @@ TEST_P(STItemPagerTest, ServerQuotaReached) {
     size_t count = populateUntilTmpFail(vbid);
     ASSERT_GE(count, 50) << "Too few documents stored";
 
-    runItemPager();
+    runHighMemoryPager();
 
+    // For all configurations except ephemeral fail_new_data, memory usage
+    // should have dropped.
     auto& stats = engine->getEpStats();
-    EXPECT_LT(stats.getTotalMemoryUsed(), stats.mem_low_wat.load())
-            << "Expected to be below low watermark after running item pager";
+    auto vb = engine->getVBucket(vbid);
+    if (std::get<1>(GetParam()) == "fail_new_data") {
+        EXPECT_GT(stats.getTotalMemoryUsed(), stats.mem_low_wat.load())
+                << "Expected still to exceed low watermark after hitting "
+                   "TMPFAIL with fail_new_data bucket";
+        EXPECT_EQ(count, vb->getNumItems());
+    } else {
+        EXPECT_LT(stats.getTotalMemoryUsed(), stats.mem_low_wat.load())
+                << "Expected to be below low watermark after running item "
+                   "pager";
+        const auto numResidentItems =
+                vb->getNumItems() - vb->getNumNonResidentItems();
+        EXPECT_LT(numResidentItems, count);
+    }
 }
 
 // Test that when the server quota is reached, we delete items which have
@@ -247,11 +290,11 @@ TEST_P(STItemPagerTest, ExpiredItemsDeletedFirst) {
 
     EXPECT_EQ(countA + countB, store->getVBucket(vbid)->getNumItems());
 
-    runItemPager();
+    runHighMemoryPager();
 
     // Ensure deletes are flushed to disk (so any temp items removed from
     // HashTable).
-    if (GetParam() == "persistent") {
+    if (std::get<0>(GetParam()) == "persistent") {
         store->flushVBucket(vbid);
     }
 
@@ -264,6 +307,12 @@ TEST_P(STItemPagerTest, ExpiredItemsDeletedFirst) {
         auto key = makeStoredDocKey("key_" + std::to_string(ii));
         auto result = store->get(key, vbid, nullptr, get_options_t());
         EXPECT_EQ(ENGINE_SUCCESS, result.getStatus()) << "For key:" << key;
+    }
+
+    // MB-25105: The check at the end of the test currently fails due to MB-25105.
+    // Temporarily skip it until fixed.
+    if (std::get<1>(GetParam()) == "fail_new_data") {
+        return;
     }
 
     // Documents which had a TTL should be deleted. Note it's hard to check
@@ -322,16 +371,26 @@ TEST_P(STEphemeralItemPagerTest, ReplicaNotPaged) {
     // any paging out.
     store->setVBucketState(replica_vb, vbucket_state_replica, false);
 
-    runItemPager(2);
+    runHighMemoryPager(2);
 
     EXPECT_EQ(replica_count, store->getVBucket(replica_vb)->getNumItems())
         << "Replica count should be unchanged after Item Pager";
 
-    EXPECT_LT(stats.getTotalMemoryUsed(), stats.mem_low_wat.load())
-            << "Expected to be below low watermark after running item pager";
-
-    EXPECT_LT(store->getVBucket(active_vb)->getNumItems(), active_count)
-        << "Active count should have decreased after Item Pager";
+    // Expected active vb behaviour depends on the full policy:
+    if (std::get<1>(GetParam()) == "fail_new_data") {
+        EXPECT_GT(stats.getTotalMemoryUsed(), stats.mem_high_wat.load())
+                << "Expected to be above high watermark after running item "
+                   "pager (fail_new_data)";
+        EXPECT_EQ(store->getVBucket(active_vb)->getNumItems(), active_count)
+                << "Active count should be the same after Item Pager "
+                   "(fail_new_data)";
+    } else {
+        EXPECT_LT(stats.getTotalMemoryUsed(), stats.mem_low_wat.load())
+                << "Expected to be below low watermark after running item "
+                   "pager";
+        EXPECT_LT(store->getVBucket(active_vb)->getNumItems(), active_count)
+                << "Active count should have decreased after Item Pager";
+    }
 }
 
 /**
@@ -354,7 +413,7 @@ protected:
         EXPECT_EQ(initialNonIoTasks, lpNonioQ.getFutureQueueSize());
     }
 
-    void runExpiryPager() {
+    void wakeUpExpiryPager() {
         store->disableExpiryPager();
         store->enableExpiryPager();
         // Expiry pager consists of two Tasks - the parent ExpiryPager task,
@@ -386,7 +445,7 @@ TEST_P(STExpiryPagerTest, ExpiredItemsDeleted) {
         ASSERT_EQ(ENGINE_SUCCESS, storeItem(item));
     }
 
-    if (GetParam() == "persistent") {
+    if (std::get<0>(GetParam()) == "persistent") {
         EXPECT_EQ(3, store->flushVBucket(vbid));
     }
 
@@ -402,8 +461,8 @@ TEST_P(STExpiryPagerTest, ExpiredItemsDeleted) {
     // Sanity check - should still have all items present in VBucket.
     ASSERT_EQ(3, engine->getVBucket(vbid)->getNumItems());
 
-    runExpiryPager();
-    if (GetParam() == "persistent") {
+    wakeUpExpiryPager();
+    if (std::get<0>(GetParam()) == "persistent") {
         EXPECT_EQ(1, store->flushVBucket(vbid));
     }
 
@@ -433,8 +492,8 @@ TEST_P(STExpiryPagerTest, ExpiredItemsDeleted) {
     ASSERT_EQ(2, engine->getVBucket(vbid)->getNumItems())
         << "Should still have 2 items after time-travelling";
 
-    runExpiryPager();
-    if (GetParam() == "persistent") {
+    wakeUpExpiryPager();
+    if (std::get<0>(GetParam()) == "persistent") {
         EXPECT_EQ(1, store->flushVBucket(vbid));
     }
 
@@ -459,24 +518,25 @@ TEST_P(STExpiryPagerTest, ExpiredItemsDeleted) {
 // however we currently rely on jemalloc for accurate memory tracking; and
 // hence it is required currently.
 #if defined(HAVE_JEMALLOC)
+
+auto ephConfigValues = ::testing::Values(
+        std::make_tuple(std::string("ephemeral"), std::string("auto_delete")),
+        std::make_tuple(std::string("ephemeral"),
+                        std::string("fail_new_data")));
+
+auto allConfigValues = ::testing::Values(
+        std::make_tuple(std::string("ephemeral"), std::string("auto_delete")),
+        std::make_tuple(std::string("ephemeral"), std::string("fail_new_data")),
+        std::make_tuple(std::string("persistent"), std::string{}));
+
 INSTANTIATE_TEST_CASE_P(EphemeralOrPersistent,
                         STItemPagerTest,
-                        ::testing::Values("ephemeral", "persistent"),
-                        [](const ::testing::TestParamInfo<std::string>& info) {
-                            return info.param;
-                        });
+                        allConfigValues, );
 
 INSTANTIATE_TEST_CASE_P(EphemeralOrPersistent,
                         STExpiryPagerTest,
-                        ::testing::Values("ephemeral", "persistent"),
-                        [](const ::testing::TestParamInfo<std::string>& info) {
-                            return info.param;
-                        });
+                        allConfigValues, );
 
-INSTANTIATE_TEST_CASE_P(Ephemeral,
-                        STEphemeralItemPagerTest,
-                        ::testing::Values("ephemeral"),
-                        [](const ::testing::TestParamInfo<std::string>& info) {
-                            return info.param;
-                        });
+INSTANTIATE_TEST_CASE_P(Ephemeral, STEphemeralItemPagerTest, ephConfigValues, );
+
 #endif
