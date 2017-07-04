@@ -97,11 +97,11 @@ public:
                          get_options_t options);
 
     /**
-     * Creates the ItemPager task and adds it to the scheduler. Allows testing
+     * Schedules the ItemPager according to the current config. Allows testing
      * of the item pager from subclasses, without KVBucket having to grant
      * friendship to many different test classes.
      */
-    void createAndScheduleItemPager();
+    void scheduleItemPager();
 
     void initializeExpiryPager();
 

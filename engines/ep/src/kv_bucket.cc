@@ -466,6 +466,11 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
 
     xattrEnabled = config.isXattrEnabled();
 
+    // Always create the item pager; but initially disable, leaving scheduling
+    // up to the specific KVBucket subclasses.
+    itemPagerTask = std::make_shared<ItemPager>(&engine, stats);
+    disableItemPager();
+
     initializeWarmupTask();
 
     replicationThrottle = std::make_unique<ReplicationThrottle>(config, stats);
@@ -479,10 +484,6 @@ bool KVBucket::initialize() {
     }
 
     startWarmupTask();
-
-    // Always create the item pager; but leave scheduling up to the specific
-    // KVBucket subclasses.
-    itemPagerTask = std::make_shared<ItemPager>(&engine, stats);
 
     initializeExpiryPager(config);
 

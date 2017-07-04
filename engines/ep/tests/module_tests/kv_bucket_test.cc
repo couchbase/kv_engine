@@ -197,9 +197,7 @@ GetValue KVBucketTest::getInternal(const StoredDocKey& key,
     return store->getInternal(key, vbucket, cookie, allowedState, options);
 }
 
-void KVBucketTest::createAndScheduleItemPager() {
-    store->itemPagerTask =
-            std::make_shared<ItemPager>(engine.get(), engine->getEpStats());
+void KVBucketTest::scheduleItemPager() {
     ExecutorPool::get()->schedule(store->itemPagerTask);
 }
 

@@ -115,7 +115,7 @@ class STItemPagerTest : public STBucketQuotaTest {
 protected:
     void SetUp() override {
         STBucketQuotaTest::SetUp();
-        createAndScheduleItemPager();
+        scheduleItemPager();
         ++initialNonIoTasks;
 
         // Sanity check - should be no nonIO tasks ready to run, and one in
