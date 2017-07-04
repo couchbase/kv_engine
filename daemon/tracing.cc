@@ -92,6 +92,12 @@ void initializeTracing() {
         std::lock_guard<std::mutex> lg(task->getMutex());
         executorPool->schedule(task);
     }
+
+    // and begin tracing.
+    {
+        std::lock_guard<std::mutex> lh(configMutex);
+        PHOSPHOR_INSTANCE.start(lastConfig);
+    }
 }
 
 void deinitializeTracing() {

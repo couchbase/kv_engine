@@ -2721,7 +2721,6 @@ VBCBAdaptor::VBCBAdaptor(KVBucket* s,
 
 bool VBCBAdaptor::run(void) {
     if (!vbList.empty()) {
-        TRACE_EVENT("ep-engine/task", "VBCBAdaptor", vbList.front());
         currentvb.store(vbList.front());
         updateDescription();
         VBucketPtr vb = store->getVBucket(currentvb);
