@@ -914,6 +914,7 @@ form to describe when time was spent doing various things:
 | disk_vb_del                     | waiting for disk to delete a vbucket           |
 | disk_commit                     | waiting for a commit after a batch of updates  |
 | item_alloc_sizes                | Item allocation size counters (in bytes)       |
+| bg_batch_size                   | Batch size for background fetches              |
 | persistence_cursor_get_all_items| Time spent in fetching all items by            |
 |                                 | persistence cursor from checkpoint queues      |
 | dcp_cursors_get_all_items       | Time spent in fetching all items by all dcp    |

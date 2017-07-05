@@ -91,6 +91,7 @@ size_t BgFetcher::doFetch(VBucket::id_type vbId,
                         ProcessClock::now() - startTime)
                         .count(),
                 fetchedItems.size());
+       stats.getMultiBatchSizeHisto.add(fetchedItems.size());
     }
 
     return fetchedItems.size();

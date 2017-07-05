@@ -524,6 +524,11 @@ public:
     //! Histogram of item allocation sizes.
     Histogram<size_t> itemAllocSizeHisto;
 
+    /**
+     * Histogram of background fetch batch sizes
+     */
+    Histogram<size_t> getMultiBatchSizeHisto;
+
     //
     // Command timers
     //
@@ -673,6 +678,7 @@ public:
         diskVBDelHisto.reset();
         diskCommitHisto.reset();
         itemAllocSizeHisto.reset();
+        getMultiBatchSizeHisto.reset();
         dirtyAgeHisto.reset();
         mlogCompactorHisto.reset();
         getMultiHisto.reset();

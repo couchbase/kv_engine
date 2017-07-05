@@ -4134,6 +4134,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTimingStats(const void *cookie,
 
     add_casted_stat("item_alloc_sizes", stats.itemAllocSizeHisto,
                     add_stat, cookie);
+    add_casted_stat("bg_batch_size", stats.getMultiBatchSizeHisto, add_stat,
+                    cookie);
 
     // Checkpoint cursor stats
     add_casted_stat("persistence_cursor_get_all_items",
