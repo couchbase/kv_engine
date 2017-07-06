@@ -305,14 +305,11 @@ ENGINE_ERROR_CODE DcpConsumer::streamEnd(uint32_t opaque, uint16_t vbucket,
             return ENGINE_ENOMEM;
         }
 
+        // The item was buffered and will be processed later
         if (err == ENGINE_TMPFAIL) {
             notifyVbucketReady(vbucket);
+            return ENGINE_SUCCESS;
         }
-    }
-
-    // The item was buffered and will be processed later
-    if (err == ENGINE_TMPFAIL) {
-        return ENGINE_SUCCESS;
     }
 
     if (err != ENGINE_SUCCESS) {
@@ -379,15 +376,11 @@ ENGINE_ERROR_CODE DcpConsumer::mutation(uint32_t opaque,
             return ENGINE_ENOMEM;
         }
 
-
+        // The item was buffered and will be processed later
         if (err == ENGINE_TMPFAIL) {
             notifyVbucketReady(vbucket);
+            return ENGINE_SUCCESS;
         }
-    }
-
-    // The item was buffered and will be processed later
-    if (err == ENGINE_TMPFAIL) {
-        return ENGINE_SUCCESS;
     }
 
     const auto bytes = MutationResponse::mutationBaseMsgBytes + key.size() +
@@ -448,14 +441,11 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
             return ENGINE_ENOMEM;
         }
 
+        // The item was buffered and will be processed later
         if (err == ENGINE_TMPFAIL) {
             notifyVbucketReady(vbucket);
+            return ENGINE_SUCCESS;
         }
-    }
-
-    // The item was buffered and will be processed later
-    if (err == ENGINE_TMPFAIL) {
-        return ENGINE_SUCCESS;
     }
 
     const auto bytes = MutationResponse::mutationBaseMsgBytes + key.size() +
@@ -509,15 +499,11 @@ ENGINE_ERROR_CODE DcpConsumer::snapshotMarker(uint32_t opaque,
             return ENGINE_ENOMEM;
         }
 
-
+        // The item was buffered and will be processed later
         if (err == ENGINE_TMPFAIL) {
             notifyVbucketReady(vbucket);
+            return ENGINE_SUCCESS;
         }
-    }
-
-    // The item was buffered and will be processed later
-    if (err == ENGINE_TMPFAIL) {
-        return ENGINE_SUCCESS;
     }
 
     flowControl.incrFreedBytes(SnapshotMarker::baseMsgBytes);
@@ -558,14 +544,11 @@ ENGINE_ERROR_CODE DcpConsumer::setVBucketState(uint32_t opaque,
             return ENGINE_ENOMEM;
         }
 
+        // The item was buffered and will be processed later
         if (err == ENGINE_TMPFAIL) {
             notifyVbucketReady(vbucket);
+            return ENGINE_SUCCESS;
         }
-    }
-
-    // The item was buffered and will be processed later
-    if (err == ENGINE_TMPFAIL) {
-        return ENGINE_SUCCESS;
     }
 
     flowControl.incrFreedBytes(SetVBucketState::baseMsgBytes);
@@ -1253,11 +1236,12 @@ ENGINE_ERROR_CODE DcpConsumer::systemEvent(uint32_t opaque,
         } catch (const std::bad_alloc&) {
             return ENGINE_ENOMEM;
         }
-    }
 
-    if (err == ENGINE_TMPFAIL) {
-        notifyVbucketReady(vbucket);
-        return ENGINE_SUCCESS;
+        // The item was buffered and will be processed later
+        if (err == ENGINE_TMPFAIL) {
+            notifyVbucketReady(vbucket);
+            return ENGINE_SUCCESS;
+        }
     }
 
     flowControl.incrFreedBytes(SystemEventMessage::baseMsgBytes + key.size() +
