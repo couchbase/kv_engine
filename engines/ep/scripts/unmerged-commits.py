@@ -17,25 +17,27 @@ class bcolors:
         WARNING = ''
         ENDC = ''
 
-# Set of branches to check for unmerged patches. Ordered by ancestory;
+# Branches to check for unmerged patches. Each toplevel element is a series
+# of branches (ordered by ancestory) which should be merged into each other.
 # i.e. the oldest supported branch to the newest, which is the order
 # patches should be merged.
-branches = ['couchbase/3.0.x',
-            'couchbase/sherlock',
-            'couchbase/watson',
-            'couchbase/master']
+branches = (('couchbase/watson_ep',
+             'couchbase/master'),
+            ('couchbase/watson_mc',
+             'couchbase/master'))
 
 total_unmerged = 0
-for downstream, upstream in zip(branches, branches[1:]):
-    commits = subprocess.check_output(['git', 'cherry', '-v',
-                                       upstream, downstream])
-    count = len(commits.splitlines())
-    total_unmerged += count
-    if count > 0:
-        print((bcolors.HEADER +
-               "{} commits in '{}' not present in '{}':" +
-               bcolors.ENDC).format(count, downstream, upstream))
-        print(commits)
+for series in branches:
+    for downstream, upstream in zip(series, series[1:]):
+        commits = subprocess.check_output(['git', 'cherry', '-v',
+                                           upstream, downstream])
+        count = len(commits.splitlines())
+        total_unmerged += count
+        if count > 0:
+            print((bcolors.HEADER +
+                   "{} commits in '{}' not present in '{}':" +
+                   bcolors.ENDC).format(count, downstream, upstream))
+            print(commits)
 
 if total_unmerged:
     print((bcolors.WARNING + "Total of {} commits outstanding" +
