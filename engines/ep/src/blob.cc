@@ -45,7 +45,8 @@ Blob* Blob::New(const size_t len, uint8_t ext_len) {
 }
 
 Blob* Blob::Copy(const Blob& other) {
-    Blob* t = new (::operator new(other.getSize())) Blob(other);
+    Blob* t = new (::operator new(Blob::getAllocationSize(other.length())))
+            Blob(other);
     return t;
 }
 

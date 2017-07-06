@@ -21,6 +21,7 @@
 
 #include "config.h"
 
+#include "../../daemon/alloc_hooks.h"
 #include "hash_table.h"
 #include "stats.h"
 #include "stored_value_factories.h"
@@ -80,6 +81,56 @@ TYPED_TEST(ValueTest, getObjectSize) {
     EXPECT_EQ(this->getFixedSize() + /*key*/ 3 + /*len*/ 1 +
                       /*namespace*/ 1,
               this->sv->getObjectSize());
+}
+
+/* Disabled if jemalloc is not in use as this test relies upon
+ * the specific bin sizes used by jemalloc. Additionally, other
+ * AllocHooks don't necessarily implement get_allocation_size.
+ */
+#if defined(HAVE_JEMALLOC)
+TYPED_TEST(ValueTest, StoredValueReallocateGivesSameSize) {
+#else
+TYPED_TEST(ValueTest, DISABLED_StoredValueReallocateGivesSameSize) {
+#endif
+
+    /* MB-25143: Ensure reallocation doesn't allocate excess bytes
+     * Make an item with a value of size 179. This gives a blob.size of
+     * 179 + FLEX_DATA_OFFSET + ext_len
+     * 179 + 1 + 1 = 181
+     * sizeof(Blob) = 12, but two of those bytes are padding
+     * used for the data. Therefore, the allocation size for the blob is
+     * blob.size + sizeof(Blob) - 2
+     * 181 + 12 - 2 = 191
+     * Jemalloc has a bin of size 192, which should be chosen for
+     * the allocation of the blob.
+     * As noted in MB-25143, the reallocation done by the defragmenter
+     * overallocated by two bytes. This would push it over the bin size
+ */
+
+    auto sv = this->factory(
+            make_item(0,
+                      makeStoredDocKey(std::string(10, 'k').c_str()),
+                      std::string(179, 'v').c_str()),
+            {});
+
+    auto blob = sv->getValue();
+    ASSERT_EQ(193, blob->getSize());
+    int before = AllocHooks::get_allocation_size(blob.get());
+
+    /* While the initial bug in MB-25143 would only increase the size of
+     * the blob once, by two bytes, we iterate here to ensure that there
+     * is no slow increase with each reallocation. We would only see
+     * an increase in je_malloc_usable_size once a bin size is exceeded.
+     * ( in this case, the bin size is 192)
+     */
+    for (int i = 0; i < 100; ++i) {
+        sv->reallocate();
+
+        blob = sv->getValue();
+        int after = AllocHooks::get_allocation_size(blob.get());
+
+        EXPECT_EQ(before, after);
+    }
 }
 
 TYPED_TEST(ValueTest, metaDataSize) {
