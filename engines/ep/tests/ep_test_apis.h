@@ -193,8 +193,6 @@ void enable_traffic(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
 void evict_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                uint16_t vbucketId = 0, const char *msg = NULL,
                bool expectError = false);
-size_t estimateVBucketMove(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                           uint16_t vbid = 0, const char* tap_name = "");
 cb::EngineErrorItemPair gat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                             const char* key, uint16_t vb, uint32_t exp);
 bool get_item_info(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, item_info *info,
@@ -413,10 +411,6 @@ bool repeat_till_true(std::function<bool()> functor,
                       uint16_t max_repeat = 50,
                       std::chrono::microseconds sleepTime =
                               std::chrono::microseconds(1000 * 100));
-
-// Tap Operations
-void changeVBFilter(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, std::string name,
-                    std::map<uint16_t, uint64_t> &filtermap);
 
 // VBucket operations
 void vbucketDelete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vb,

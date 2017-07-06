@@ -318,7 +318,7 @@ void output_result(const std::string& name,
     }
 }
 /* Add a sentinel document (one with a the key SENTINEL_KEY).
- * This can be used by TAP / DCP streams to reliably detect the end of
+ * This can be used by DCP streams to reliably detect the end of
  * a run (sequence numbers are only supported by DCP, and
  * de-duplication complicates simply counting mutations).
  */
@@ -958,71 +958,6 @@ static void perf_dcp_client(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
     testHarness.destroy_cookie(cookie);
 }
 
-static void perf_tap_client(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
-                            int itemCount, const std::string& name) {
-    const void *cookie = testHarness.create_cookie();
-
-    testHarness.lock_cookie(cookie);
-    uint64_t backfill_age = htonll(0);
-    TAP_ITERATOR iter = h1->get_tap_iterator(h, cookie, name.c_str(),
-                                             name.size(),
-                                             TAP_CONNECT_FLAG_BACKFILL,
-                                             &backfill_age,
-                                             sizeof(backfill_age));
-    check(iter != NULL, "Failed to create a tap iterator");
-
-    bool done = false;
-
-    do {
-        item* item;
-        void* engine;
-        uint16_t nengine;
-        uint8_t ttl;
-        uint16_t flags;
-        uint32_t seqno;
-        uint16_t vbucket;
-        tap_event_t event = iter(h, cookie, &item, &engine, &nengine,
-                                 &ttl, &flags, &seqno, &vbucket);
-
-        switch (event) {
-        case TAP_MUTATION: {
-            testHarness.unlock_cookie(cookie);
-
-            // Check for sentinel
-            item_info info;
-            check(h1->get_item_info(h, NULL, item, &info),
-                  "Failed to get item info for TAP mutation");
-
-            if (strncmp(SENTINEL_KEY, reinterpret_cast<const char*>(info.key),
-                        info.nkey) == 0) {
-                done = true;
-            }
-            h1->release(h, NULL, item);
-            testHarness.lock_cookie(cookie);
-            break;
-        }
-        case TAP_DELETION:
-            h1->release(h, NULL, item);
-            break;
-
-        case TAP_OPAQUE:
-            break;
-
-        case TAP_PAUSE:
-            break;
-
-        default:
-            fprintf(stderr, "Unexpected TAP event type received: %d\n", event);
-            abort();
-            break;
-        }
-
-    } while (!done);
-
-    testHarness.unlock_cookie(cookie);
-    testHarness.destroy_cookie(cookie);
-}
-
 struct Ret_vals {
     Ret_vals(struct Handle_args _ha, size_t n) :
         ha(_ha)
@@ -1176,24 +1111,6 @@ static enum test_result perf_latency_dcp_impact(ENGINE_HANDLE *h,
     return result;
 }
 
-static enum test_result perf_latency_tap_impact(ENGINE_HANDLE *h,
-                                                ENGINE_HANDLE_V1 *h1) {
-    // Spin up a TAP replication background thread, then start the normal
-    // latency test.
-    const size_t num_docs = ITERATIONS;
-    // Perform 3 TAP-visible operations - add, replace, delete:
-    const size_t num_ops = num_docs * 3;
-
-    std::thread tap_thread{perf_tap_client, h, h1, num_ops, "TAP"};
-
-    enum test_result result = perf_latency(h, h1, "With background TAP",
-                                           num_docs);
-
-    tap_thread.join();
-
-    return result;
-}
-
 static void perf_stat_latency_core(ENGINE_HANDLE *h,
                                    ENGINE_HANDLE_V1 *h1,
                                    int key_prefix,
@@ -1224,17 +1141,6 @@ static void perf_stat_latency_core(ENGINE_HANDLE *h,
                  make_stat_pair(
                          "vkey_vb0",
                          {"vkey example_doc 0", StatRuntime::Fast, {}})});
-    }
-
-    if (isTapEnabled(h, h1)) {
-        // Include TAP-specific stats.
-        stat_tests.insert(
-                {make_stat_pair("tap", {"tap", StatRuntime::Fast, {}}),
-                 make_stat_pair("tapagg", {"tapagg _", StatRuntime::Fast, {}}),
-                 make_stat_pair("tap-vbtakeover",
-                                {"tap-vbtakeover 0 tap-connection",
-                                 StatRuntime::Fast,
-                                 {}})});
     }
 
     for (auto& stat : stat_tests) {
@@ -1452,11 +1358,6 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup, teardown,
                  "backend=couchdb;ht_size=393209",
                  prepare, cleanup),
-
-        TestCase("TAP impact on front-end latency", perf_latency_tap_impact,
-                 test_setup, teardown,
-                 "backend=couchdb;ht_size=393209",
-                 prepare_tap, cleanup),
 
         TestCase("Baseline Stat latency", perf_stat_latency_baseline,
                  test_setup, teardown,

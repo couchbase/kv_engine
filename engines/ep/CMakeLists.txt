@@ -411,15 +411,6 @@ SET_TARGET_PROPERTIES(ep_testsuite_dcp PROPERTIES PREFIX "")
 TARGET_LINK_LIBRARIES(ep_testsuite_dcp engine_utilities cbcompress JSON_checker dirutils platform ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
 ADD_DEPENDENCIES(ep_testsuite_dcp engine_testapp)
 
-ADD_LIBRARY(ep_testsuite_tap SHARED
-   tests/ep_testsuite_common.cc
-   tests/ep_testsuite_tap.cc
-   tests/ep_test_apis.cc
-   src/ext_meta_parser.cc)
-SET_TARGET_PROPERTIES(ep_testsuite_tap PROPERTIES PREFIX "")
-TARGET_LINK_LIBRARIES(ep_testsuite_tap engine_utilities JSON_checker dirutils platform ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
-ADD_DEPENDENCIES(ep_testsuite_tap engine_testapp)
-
 ADD_LIBRARY(ep_testsuite_checkpoint SHARED
    tests/ep_testsuite_common.cc
    tests/ep_testsuite_checkpoint.cc
@@ -563,9 +554,6 @@ ADD_TESTSUITE(ep_testsuite 1800)
 ADD_TESTSUITE(ep_testsuite_basic 600)
 
 ADD_TESTSUITE(ep_testsuite_dcp 1200)
-
-# TAP not supported for Ephemeral buckets.
-ADD_TESTSUITE(ep_testsuite_tap 180 SKIP_EPHEMERAL)
 
 ADD_TESTSUITE(ep_testsuite_checkpoint 120)
 

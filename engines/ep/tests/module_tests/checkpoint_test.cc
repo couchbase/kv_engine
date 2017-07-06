@@ -35,8 +35,8 @@
 #include <gtest/gtest.h>
 #include <valgrind/valgrind.h>
 
-#define NUM_TAP_THREADS 3
-#define NUM_TAP_THREADS_VG 2
+#define NUM_DCP_THREADS 3
+#define NUM_DCP_THREADS_VG 2
 #define NUM_SET_THREADS 4
 #define NUM_SET_THREADS_VG 2
 
@@ -44,7 +44,6 @@
 #define NUM_ITEMS_VG 10
 
 #define DCP_CURSOR_PREFIX "dcp-client-"
-#define TAP_CURSOR_PREFIX "tap-client-"
 
 /**
  * Dummy callback to replace the flusher callback.
@@ -162,7 +161,7 @@ static void launch_persistence_thread(void *arg) {
     EXPECT_TRUE(flush);
 }
 
-static void launch_tap_client_thread(void *arg) {
+static void launch_dcp_client_thread(void* arg) {
     struct thread_args *args = static_cast<struct thread_args *>(arg);
     args->gate.threadUp();
 
@@ -236,23 +235,23 @@ TYPED_TEST(CheckpointTest, basic_chk_test) {
     const size_t n_set_threads = RUNNING_ON_VALGRIND ? NUM_SET_THREADS_VG :
                                                        NUM_SET_THREADS;
 
-    const size_t n_tap_threads = RUNNING_ON_VALGRIND ? NUM_TAP_THREADS_VG :
-                                                       NUM_TAP_THREADS;
+    const size_t n_dcp_threads =
+            RUNNING_ON_VALGRIND ? NUM_DCP_THREADS_VG : NUM_DCP_THREADS;
 
-    std::vector<cb_thread_t> tap_threads(n_tap_threads);
+    std::vector<cb_thread_t> dcp_threads(n_dcp_threads);
     std::vector<cb_thread_t> set_threads(n_set_threads);
     cb_thread_t persistence_thread;
     cb_thread_t checkpoint_cleanup_thread;
     int rc(0);
 
-    const size_t n_threads{n_set_threads + n_tap_threads + 2};
+    const size_t n_threads{n_set_threads + n_dcp_threads + 2};
     ThreadGate gate{n_threads};
     thread_args t_args{this->vbucket.get(), this->manager.get(), {}, gate};
 
-    std::vector<thread_args> tap_t_args;
-    for (size_t i = 0; i < n_tap_threads; ++i) {
-        std::string name(TAP_CURSOR_PREFIX + std::to_string(i));
-        tap_t_args.emplace_back(thread_args{
+    std::vector<thread_args> dcp_t_args;
+    for (size_t i = 0; i < n_dcp_threads; ++i) {
+        std::string name(DCP_CURSOR_PREFIX + std::to_string(i));
+        dcp_t_args.emplace_back(thread_args{
                 this->vbucket.get(), this->manager.get(), name, gate});
         this->manager->registerCursor(
                 name, 1, false, MustSendCheckpointEnd::YES);
@@ -265,8 +264,9 @@ TYPED_TEST(CheckpointTest, basic_chk_test) {
                         launch_checkpoint_cleanup_thread, &t_args, 0);
     EXPECT_EQ(0, rc);
 
-    for (size_t i = 0; i < n_tap_threads; ++i) {
-        rc = cb_create_thread(&tap_threads[i], launch_tap_client_thread, &tap_t_args[i], 0);
+    for (size_t i = 0; i < n_dcp_threads; ++i) {
+        rc = cb_create_thread(
+                &dcp_threads[i], launch_dcp_client_thread, &dcp_t_args[i], 0);
         EXPECT_EQ(0, rc);
     }
 
@@ -295,11 +295,11 @@ TYPED_TEST(CheckpointTest, basic_chk_test) {
     rc = cb_join_thread(persistence_thread);
     EXPECT_EQ(0, rc);
 
-    for (size_t i = 0; i < n_tap_threads; ++i) {
-        rc = cb_join_thread(tap_threads[i]);
+    for (size_t i = 0; i < n_dcp_threads; ++i) {
+        rc = cb_join_thread(dcp_threads[i]);
         EXPECT_EQ(0, rc);
         std::stringstream name;
-        name << "tap-client-" << i;
+        name << "dcp-client-" << i;
         this->manager->removeCursor(name.str());
     }
 
@@ -831,11 +831,6 @@ TYPED_TEST(CheckpointTest, CursorMovement) {
     this->manager->registerCursorBySeqno(
             dcp_cursor.c_str(), 0, MustSendCheckpointEnd::NO);
 
-    /* Registor TAP cursor */
-    std::string tap_cursor(TAP_CURSOR_PREFIX + std::to_string(1));
-    this->manager->registerCursor(
-            tap_cursor, 1, false, MustSendCheckpointEnd::YES);
-
     /* Get items for persistence cursor */
     std::vector<queued_item> items;
     this->manager->getAllItemsForCursor(CheckpointManager::pCursorName, items);
@@ -847,18 +842,6 @@ TYPED_TEST(CheckpointTest, CursorMovement) {
     items.clear();
     this->manager->getAllItemsForCursor(dcp_cursor.c_str(), items);
     EXPECT_EQ(MIN_CHECKPOINT_ITEMS + 1, items.size());
-
-    /* Get items for TAP cursor */
-    int num_items = 0;
-    while(true) {
-        bool isLastItem = false;
-        qi = this->manager->nextItem(tap_cursor, isLastItem);
-        num_items++;
-        if (isLastItem) {
-            break;
-        }
-    }
-    EXPECT_EQ(MIN_CHECKPOINT_ITEMS + 1, num_items);
 
     uint64_t curr_open_chkpt_id = this->manager->getOpenCheckpointId_UNLOCKED();
 
@@ -891,14 +874,6 @@ TYPED_TEST(CheckpointTest, CursorMovement) {
     /* Expecting only 1 op_ckpt_start item */
     EXPECT_EQ(1, items.size());
     EXPECT_EQ(queue_op::checkpoint_start, items.at(0)->getOperation());
-
-    /* Get item for TAP cursor. We expect TAP to send op_ckpt_end of last
-       checkpoint. TAP unlike DCP cannot skip the op_ckpt_end message */
-    bool isLastItem = false;
-    qi = this->manager->nextItem(tap_cursor, isLastItem);
-    EXPECT_EQ(queue_op::checkpoint_end, qi->getOperation());
-    EXPECT_EQ(true, isLastItem);
-
 }
 
 // Test the checkpoint cursor movement for replica vBuckets (where we can

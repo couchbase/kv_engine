@@ -208,10 +208,6 @@ enum test_result prepare_full_eviction(engine_test_t *test);
  */
 enum test_result prepare_skip_broken_under_ephemeral(engine_test_t *test);
 
-/**
- * Prepare a test which is only applicable if TAP is enabled.
- */
-enum test_result prepare_tap(engine_test_t* test);
 
 // Default testcase cleanup function.
 void cleanup(engine_test_t *test, enum test_result result);
@@ -242,11 +238,6 @@ void destroy_buckets(std::vector<BucketHolder> &buckets);
 void check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                      const char* key, const char* val, size_t vlen,
                      uint16_t vbucket = 0);
-
-// Creates a TAP connection, returning the cookie associated with the
-// newly created connection.
-const void* createTapConn(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                          const char *name) CB_MUST_USE_RESULT;
 
 std::string get_dbname(const char* test_cfg);
 

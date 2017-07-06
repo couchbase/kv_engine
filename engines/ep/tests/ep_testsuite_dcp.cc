@@ -3518,6 +3518,8 @@ static enum test_result test_dcp_add_stream(ENGINE_HANDLE *h,
 
 static enum test_result test_consumer_backoff_stat(ENGINE_HANDLE *h,
                                                    ENGINE_HANDLE_V1 *h1) {
+    //@todo the replication_throttle_queue_cap stats needs to be moved from
+    // tap stats
     set_param(h, h1, protocol_binary_engine_param_tap,
               "replication_throttle_queue_cap", "10");
     checkeq(10, get_int_stat(h, h1, "ep_replication_throttle_queue_cap"),
@@ -5521,62 +5523,6 @@ static enum test_result test_mb17517_cas_minus_1_dcp(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-// Check that an incoming TAP mutation which has an invalid CAS is fixed up
-// by the engine.
-static enum test_result test_mb17517_cas_minus_1_tap(ENGINE_HANDLE *h,
-                                                     ENGINE_HANDLE_V1 *h1) {
-    const uint16_t vbucket = 0;
-    // Need a replica vBucket to send mutations into.
-    check(set_vbucket_state(h, h1, vbucket, vbucket_state_replica),
-          "Failed to set vbucket state.");
-
-    char eng_specific[9];
-    memset(eng_specific, 0, sizeof(eng_specific));
-
-    // Create two items via TAP.
-    std::string prefix{"bad_CAS_TAP"};
-    std::string value{"value"};
-    for (unsigned int ii = 0; ii < 2; ii++) {
-        std::string key{prefix + std::to_string(ii)};
-        checkeq(ENGINE_SUCCESS,
-                h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
-                               /*TTL*/1, /*tap_flags*/0, TAP_MUTATION,
-                               /*tap_seqno*/ii + 1,
-                               key.c_str(), key.size(), /*flags*/0, /*exptime*/0,
-                               /*CAS*/-1, PROTOCOL_BINARY_RAW_BYTES,
-                           value.c_str(), value.size(), vbucket),
-            "Expected tap_notify to succeed.");
-    }
-
-    // Ensure we have processed the mutations.
-    wait_for_stat_to_be(h, h1, "vb_replica_curr_items", 2);
-
-    // Delete one of the items.
-    std::string delete_key{prefix + "0"};
-    checkeq(ENGINE_SUCCESS,
-            h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
-                           /*TTL*/1, /*tap_flags*/0, TAP_DELETION,
-                           /*tap_seqno*/2, delete_key.c_str(),
-                           delete_key.size(), /*flags*/0, /*exptime*/0,
-                           /*CAS*/-1, PROTOCOL_BINARY_RAW_BYTES,
-                       value.c_str(), value.size(), vbucket),
-        "Expected tap_notify to succeed.");
-
-    // Ensure we have processed the deletion.
-    wait_for_stat_to_be(h, h1, "vb_replica_curr_items", 1);
-
-    // Flip vBucket to active so we can access the documents in it.
-    check(set_vbucket_state(h, h1, 0, vbucket_state_active),
-          "Failed to set vbucket state to active.");
-
-    // Check that a valid CAS was regenerated for the (non-deleted) mutation.
-    std::string key{prefix + "1"};
-    auto cas = get_CAS(h, h1, key);
-    checkne(~uint64_t(0), cas, "CAS via get() is still -1");
-
-    return SUCCESS;
-}
-
 /*
  * This test case creates and test multiple streams
  * between a single producer and consumer.
@@ -6316,8 +6262,6 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test dcp early termination", test_dcp_early_termination,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test MB-17517 CAS -1 DCP", test_mb17517_cas_minus_1_dcp,
-                 test_setup, teardown, NULL, prepare, cleanup),
-        TestCase("test MB-17517 CAS -1 TAP", test_mb17517_cas_minus_1_tap,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test dcp multiple streams", test_dcp_multiple_streams,
                  test_setup, teardown, NULL, prepare, cleanup),

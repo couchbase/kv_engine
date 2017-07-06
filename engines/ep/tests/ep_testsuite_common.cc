@@ -275,16 +275,6 @@ enum test_result prepare_skip_broken_under_ephemeral(engine_test_t *test) {
     return prepare_ep_bucket(test);
 }
 
-enum test_result prepare_tap(engine_test_t* test) {
-    // Ephemeral buckets don't support TAP.
-    if (std::string(test->cfg).find("bucket_type=ephemeral")
-            != std::string::npos) {
-        return SKIPPED;
-    }
-
-    // Perform whatever prep the "base class" function wants.
-    return prepare(test);
-}
 void cleanup(engine_test_t *test, enum test_result result) {
     (void)result;
     // Nuke the database files we created
@@ -429,18 +419,6 @@ void check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     check(memcmp(info.value[0].iov_base, val, vlen) == 0, "Data mismatch");
 }
 
-const void* createTapConn(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                          const char *name) {
-    const void *cookie = testHarness.create_cookie();
-    testHarness.lock_cookie(cookie);
-    TAP_ITERATOR iter = h1->get_tap_iterator(h, cookie, name,
-                                             strlen(name),
-                                             TAP_CONNECT_FLAG_DUMP, NULL,
-                                             0);
-    check(iter != NULL, "Failed to create a tap iterator");
-    return cookie;
-}
-
 bool isWarmupEnabled(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
     return get_bool_stat(h, h1, "ep_warmup");
 }
@@ -453,6 +431,8 @@ bool isEphemeralBucket(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
     return get_str_stat(h, h1, "ep_bucket_type") == "ephemeral";
 }
 
+// @todo - will be removed when test_mb19687_fixed is updated to not include TAP
+// stats
 bool isTapEnabled(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
     return get_bool_stat(h, h1, "ep_tap");
 }

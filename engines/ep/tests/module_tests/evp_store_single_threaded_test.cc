@@ -527,12 +527,11 @@ TEST_F(SingleThreadedEPBucketTest, test_mb22451) {
     producer->closeAllStreams();
 }
 
-/* Regression / reproducer test for MB-19695 - an exception is thrown
+/* Regression / reproducer test for MB-19815 - an exception is thrown
  * (and connection disconnected) if a couchstore file hasn't been re-created
- * yet when doTapVbTakeoverStats() is called as part of
- * tapNotify / TAP_OPAQUE_INITIAL_VBUCKET_STREAM.
+ * yet when doDcpVbTakeoverStats() is called.
  */
-TEST_F(SingleThreadedEPBucketTest, MB19695_doTapVbTakeoverStats) {
+TEST_F(SingleThreadedEPBucketTest, MB19815_doDcpVbTakeoverStats) {
     auto* task_executor = reinterpret_cast<SingleThreadedExecutorPool*>
         (ExecutorPool::get());
 
@@ -555,17 +554,13 @@ TEST_F(SingleThreadedEPBucketTest, MB19695_doTapVbTakeoverStats) {
     auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
     runNextTask(lpAuxioQ, "Removing (dead) vb:0 from memory and disk");
 
-    // [[3]] Ok, let's see if we can get TAP takeover stats. This will
-    // fail with MB-19695.
+    // [[3]] Ok, let's see if we can get DCP takeover stats.
     // Dummy callback to pass into the stats function below.
     auto dummy_cb = [](const char *key, const uint16_t klen,
                           const char *val, const uint32_t vlen,
                           const void *cookie) {};
-    std::string key{"MB19695_doTapVbTakeoverStats"};
-    EXPECT_NO_THROW(engine->public_doTapVbTakeoverStats
-                    (nullptr, dummy_cb, key, vbid));
+    std::string key{"MB19815_doDCPVbTakeoverStats"};
 
-    // Also check DCP variant (MB-19815)
     EXPECT_NO_THROW(engine->public_doDcpVbTakeoverStats
                     (nullptr, dummy_cb, key, vbid));
 

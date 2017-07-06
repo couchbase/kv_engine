@@ -360,28 +360,6 @@ protocol_binary_request_header* createPacket(uint8_t opcode,
     return req;
 }
 
-void changeVBFilter(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, std::string name,
-                    std::map<uint16_t, uint64_t> &filtermap) {
-    std::stringstream value;
-    uint16_t vbs = htons(filtermap.size());
-    std::map<uint16_t, uint64_t>::iterator it;
-
-    value.write((char*) &vbs, sizeof(uint16_t));
-    for (it = filtermap.begin(); it != filtermap.end(); ++it) {
-        uint16_t vb = htons(it->first);
-        uint64_t chkid = htonll(it->second);
-        value.write((char*) &vb, sizeof(uint16_t));
-        value.write((char*) &chkid, sizeof(uint64_t));
-    }
-
-    protocol_binary_request_header *request;
-    request = createPacket(PROTOCOL_BINARY_CMD_CHANGE_VB_FILTER, 0, 0, NULL, 0, name.c_str(),
-                       name.length(), value.str().data(), value.str().length());
-    check(h1->unknown_command(h, NULL, request, add_response, testHarness.doc_namespace) == ENGINE_SUCCESS,
-          "Failed to change the TAP VB filter.");
-    cb_free(request);
-}
-
 void createCheckpoint(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     protocol_binary_request_header *request = createPacket(PROTOCOL_BINARY_CMD_CREATE_CHECKPOINT);
     check(h1->unknown_command(h, NULL, request, add_response, testHarness.doc_namespace) == ENGINE_SUCCESS,
@@ -516,16 +494,6 @@ void evict_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                 msg, last_body.c_str());
         abort();
     }
-}
-
-size_t estimateVBucketMove(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                         uint16_t vbid, const char* tap_name) {
-    std::stringstream ss;
-    ss << "tap-vbtakeover " << vbid;
-    if (tap_name) {
-      ss << " " << tap_name;
-    }
-    return get_int_stat(h, h1, "estimate", ss.str().c_str());
 }
 
 ENGINE_ERROR_CODE checkpointPersistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,

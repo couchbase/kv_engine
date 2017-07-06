@@ -500,27 +500,6 @@ static enum test_result test_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
-static enum test_result test_restart_session_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    const void* cookie = createTapConn(h, h1, "tap_client_thread");
-    testHarness.unlock_cookie(cookie);
-    testHarness.destroy_cookie(cookie);
-
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              testHarness.get_current_testcase()->cfg,
-                              true, false);
-    wait_for_warmup_complete(h, h1);
-    cookie = createTapConn(h, h1, "tap_client_thread");
-
-    checkeq(ENGINE_SUCCESS, h1->get_stats(h, NULL, "tap", 3, add_stats),
-            "Failed to get stats.");
-    std::string val = vals["eq_tapq:tap_client_thread:backfill_completed"];
-    checkeq(0, strcmp(val.c_str(), "true"), "Don't expect the backfill upon restart");
-    testHarness.unlock_cookie(cookie);
-    testHarness.destroy_cookie(cookie);
-    return SUCCESS;
-}
-
 static enum test_result test_specialKeys(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
     ENGINE_ERROR_CODE ret;
@@ -1394,18 +1373,6 @@ static enum test_result test_vbucket_create(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     }
 
     return verify_vbucket_state(h, h1, 1, vbucket_state_active) ? SUCCESS : FAIL;
-}
-
-static enum test_result test_takeover_stats_race_with_vb_create_TAP(
-                                    ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    check(set_vbucket_state(h, h1, 1, vbucket_state_active),
-          "Failed to set vbucket state information");
-
-    checkeq(0,
-            get_int_stat(h, h1, "on_disk_deletes", "tap-vbtakeover 1"),
-            "Invalid number of on-disk deletes");
-
-    return SUCCESS;
 }
 
 static enum test_result test_takeover_stats_race_with_vb_create_DCP(
@@ -4094,16 +4061,6 @@ static enum test_result test_disk_gt_ram_rm_race(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_validate_engine_handle(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
-{
-    (void)h;
-    check(h1->unknown_command != NULL, "unknown_command member should be initialized to a non-NULL value");
-    check(h1->tap_notify != NULL, "tap_notify member should be initialized to a non-NULL value");
-    check(h1->get_tap_iterator != NULL, "get_tap_iterator member should be initialized to a non-NULL value");
-
-    return SUCCESS;
-}
-
 static enum test_result test_kill9_bucket(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     if (!isWarmupEnabled(h, h1)) {
         return SKIPPED;
@@ -6000,95 +5957,6 @@ static enum test_result test_multi_bucket_set_get(engine_test_t* test) {
     return SUCCESS;
 }
 
-// Regression test for MB-17517 - ensure that if an item is locked when TAP
-// attempts to stream it, it doesn't get a CAS of -1.
-static enum test_result test_mb17517_tap_with_locked_key(ENGINE_HANDLE *h,
-                                                         ENGINE_HANDLE_V1 *h1) {
-    const uint16_t vbid = 0;
-    // Store an item and immediately lock it.
-    item *it = NULL;
-    std::string key("key");
-    checkeq(store(h, h1, NULL, OPERATION_SET, key.c_str(), "value",
-                  &it, 0, vbid, 3600, PROTOCOL_BINARY_RAW_BYTES),
-            ENGINE_SUCCESS,
-            "Failed to store an item.");
-    h1->release(h, NULL, it);
-
-    uint32_t lock_timeout = 10;
-
-    checkeq(cb::engine_errc::success,
-            getl(h, h1, nullptr, key.c_str(), vbid, lock_timeout).first,
-            "Expected to be able to getl on first try");
-
-    wait_for_flusher_to_settle(h, h1);
-
-    // Create the TAP connection and try to get the items.
-    const void *cookie = testHarness.create_cookie();
-    testHarness.lock_cookie(cookie);
-    std::string name("test_mb17517_tap_with_locked_key");
-    TAP_ITERATOR iter = h1->get_tap_iterator(h, cookie, name.c_str(),
-                                             name.length(),
-                                             TAP_CONNECT_FLAG_DUMP, NULL, 0);
-    check(iter != NULL, "Failed to create a tap iterator");
-
-    void *engine_specific;
-    uint16_t nengine_specific;
-    uint8_t ttl;
-    uint16_t flags;
-    uint32_t seqno;
-    uint16_t vbucket;
-    tap_event_t event;
-
-    uint16_t unlikely_vbucket_identifier = 17293;
-
-    do {
-        vbucket = unlikely_vbucket_identifier;
-        event = iter(h, cookie, &it, &engine_specific,
-                     &nengine_specific, &ttl, &flags,
-                     &seqno, &vbucket);
-
-        switch (event) {
-        case TAP_PAUSE:
-            testHarness.waitfor_cookie(cookie);
-            break;
-        case TAP_OPAQUE:
-        case TAP_NOOP:
-            break;
-        case TAP_MUTATION: {
-            testHarness.unlock_cookie(cookie);
-
-            item_info info;
-            if (!h1->get_item_info(h, NULL, it, &info)) {
-                fprintf(stderr, "test_mb17517_tap_with_locked_key: "
-                        "get_item_info failed\n");
-                return FAIL;
-            }
-
-            // Check the CAS.
-            if (info.cas == ~0ull) {
-                fprintf(stderr, "test_mb17517_tap_with_locked_key: "
-                        "Got CAS of -1 in TAP_MUTATION\n");
-                return FAIL;
-            }
-            h1->release(h, NULL, it);
-            testHarness.lock_cookie(cookie);
-            break;
-        }
-        case TAP_DISCONNECT:
-            break;
-        default:
-            std::cerr << "Unexpected event:  " << event << std::endl;
-            return FAIL;
-        }
-
-    } while (event != TAP_DISCONNECT);
-
-    testHarness.unlock_cookie(cookie);
-    testHarness.destroy_cookie(cookie);
-
-    return SUCCESS;
-}
-
 static void force_vbstate_to_25x(std::string dbname, int vbucket) {
     std::string filename = dbname +
                            DIRECTORY_SEPARATOR_CHARACTER +
@@ -7502,9 +7370,6 @@ static enum test_result test_mb23640(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 const char *default_dbname = "./ep_testsuite";
 
 BaseTestCase testsuite_testcases[] = {
-        TestCase("validate engine handle", test_validate_engine_handle,
-                 NULL, teardown, NULL, prepare, cleanup),
-
         // ep-engine specific functionality
         TestCase("expiry pager settings", test_expiry_pager_settings,
                  test_setup, teardown, "exp_pager_enabled=false",
@@ -7682,8 +7547,6 @@ BaseTestCase testsuite_testcases[] = {
         // restart tests
         TestCase("test restart", test_restart, test_setup,
                  teardown, NULL, prepare, cleanup),
-        TestCase("test restart with session stats", test_restart_session_stats, test_setup,
-                 teardown, NULL, prepare_tap, cleanup),
         TestCase("set+get+restart+hit (bin)", test_restart_bin_val,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("flush+restart", test_flush_restart, test_setup,
@@ -7815,13 +7678,6 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test sync vbucket destroy restart",
                  test_sync_vbucket_destroy_restart, test_setup, teardown, NULL,
                  prepare, cleanup),
-        TestCase("test takeover stats race with vbucket create (TAP)",
-                 test_takeover_stats_race_with_vb_create_TAP,
-                 test_setup,
-                 teardown,
-                 NULL,
-                 prepare_tap,
-                 cleanup),
         TestCase("test takeover stats race with vbucket create (DCP)",
                  test_takeover_stats_race_with_vb_create_DCP,
                  test_setup,
@@ -7940,11 +7796,6 @@ BaseTestCase testsuite_testcases[] = {
 
         TestCaseV2("multi_bucket set/get ", test_multi_bucket_set_get, NULL,
                    teardown_v2, NULL, prepare, cleanup),
-
-        TestCase("test_mb17517_tap_with_locked_key",
-                 test_mb17517_tap_with_locked_key, test_setup, teardown, NULL,
-                 /*TAP not supported for non-EP buckets*/prepare_ep_bucket,
-                 cleanup),
 
         TestCase("test_mb19635_upgrade_from_25x",
                  test_mb19635_upgrade_from_25x, test_setup, teardown, NULL,

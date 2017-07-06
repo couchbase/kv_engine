@@ -130,23 +130,6 @@ TEST_P(SetParamTest, requirements_bucket_type) {
     }
 }
 
-TEST_F(EventuallyPersistentEngineTest, requirements_tap) {
-    Configuration& config = engine->getConfiguration();
-    config.setTap(true);
-
-    std::string msg;
-
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
-              engine->setTapParam("tap_keepalive", "0", msg))
-            << "tap is enabled but \"tap_keepalive\" could not be set";
-
-    config.setTap(false);
-
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL,
-              engine->setTapParam("tap_keepalive", "0", msg))
-            << "Setting \"tap_keepalive\" should be invalid if tap is disabled";
-}
-
 // Test cases which run for persistent and ephemeral buckets
 INSTANTIATE_TEST_CASE_P(EphemeralOrPersistent,
                         SetParamTest,
