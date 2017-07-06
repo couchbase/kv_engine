@@ -65,6 +65,7 @@ std::atomic<protocol_binary_response_status> last_status(
     static_cast<protocol_binary_response_status>(0));
 std::string last_key;
 std::string last_body;
+std::string last_ext;
 bool last_deleted_flag(false);
 std::atomic<uint8_t> last_conflict_resolution_mode(static_cast<uint8_t>(-1));
 std::atomic<uint64_t> last_cas(0);
@@ -161,11 +162,10 @@ bool add_response(const void *key, uint16_t keylen, const void *ext,
                   uint8_t extlen, const void *body, uint32_t bodylen,
                   uint8_t datatype, uint16_t status, uint64_t cas,
                   const void *cookie) {
-    (void)ext;
-    (void)extlen;
     (void)cookie;
     last_status.store(static_cast<protocol_binary_response_status>(status));
     last_body.assign(static_cast<const char*>(body), bodylen);
+    last_ext.assign(static_cast<const char*>(ext), extlen);
     last_key.assign(static_cast<const char*>(key), keylen);
     last_cas.store(cas);
     last_datatype.store(datatype);
@@ -193,6 +193,7 @@ bool add_response_get_meta(const void *key, uint16_t keylen, const void *ext,
             memcpy(&meta_datatype, ext_bytes + 20, 1);
         }
     }
+
     return add_response(key, keylen, ext, extlen, body, bodylen, meta_datatype,
                         status, cas, cookie);
 }
@@ -595,6 +596,17 @@ bool get_meta(ENGINE_HANDLE* h,
     } else {
         check(ret == ENGINE_SUCCESS,
               "Expected get_meta call to be successful");
+        if (!last_ext.empty()) {
+            if (metaVer == GetMetaVersion::V2) {
+                checkeq(static_cast<unsigned long>(21),
+                        static_cast<unsigned long>(last_ext.length()),
+                        "Expected extras length to be 21");
+            } else {
+                checkeq(static_cast<unsigned long>(20),
+                        static_cast<unsigned long>(last_ext.length()),
+                        "Expected extras length to be 20");
+            }
+        }
     }
     cb_free(req);
     if (last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {

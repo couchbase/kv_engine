@@ -62,6 +62,7 @@ const uint8_t dcp_mutation_base_msg_bytes = 55;
 extern std::atomic<protocol_binary_response_status> last_status;
 extern std::string last_key;
 extern std::string last_body;
+extern std::string last_ext;
 extern bool dump_stats;
 
 // TODO: make `vals` non-public
