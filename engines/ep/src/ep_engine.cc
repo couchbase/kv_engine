@@ -2736,7 +2736,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
     if (tap_event == TAP_MUTATION || tap_event == TAP_DELETION) {
-        if (!replicationThrottle->shouldProcess()) {
+        if (replicationThrottle->getStatus() ==
+            ReplicationThrottle::Status::Pause) {
             ++stats.replicationThrottled;
             if (connection->supportsAck()) {
                 ret = ENGINE_TMPFAIL;

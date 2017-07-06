@@ -41,8 +41,9 @@ bool ReplicationThrottle::hasSomeMemory() const {
     return memoryUsed <= (maxSize * stats.replicationThrottleThreshold);
 }
 
-bool ReplicationThrottle::shouldProcess() const {
-    return persistenceQueueSmallEnough() && hasSomeMemory();
+ReplicationThrottle::Status ReplicationThrottle::getStatus() const {
+    return (persistenceQueueSmallEnough() && hasSomeMemory()) ? Status::Process
+                                                              : Status::Pause;
 }
 
 void ReplicationThrottle::adjustWriteQueueCap(size_t totalItems) {

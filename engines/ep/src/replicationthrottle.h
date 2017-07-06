@@ -32,13 +32,15 @@ class Configuration;
  */
 class ReplicationThrottle {
 public:
+    /* Indicates the status of the replication throttle */
+    enum class Status { Process, Pause };
 
     ReplicationThrottle(Configuration &config, EPStats &s);
 
     /**
-     * If true, we should process incoming tap requests.
+     * @ return status of the replication throttle
      */
-    bool shouldProcess() const;
+    ReplicationThrottle::Status getStatus() const;
 
     void setCapPercent(size_t perc) { capPercent = perc; }
     void setQueueCap(ssize_t cap) { queueCap = cap; }

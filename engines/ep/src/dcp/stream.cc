@@ -1877,7 +1877,9 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(std::unique_ptr<DcpResponse> dc
         }
     }
 
-    if (engine->getReplicationThrottle().shouldProcess() && buffer.empty()) {
+    if (engine->getReplicationThrottle().getStatus() ==
+                ReplicationThrottle::Status::Process &&
+        buffer.empty()) {
         /* Process the response here itself rather than buffering it */
         ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
         switch (dcpResponse->getEvent()) {
