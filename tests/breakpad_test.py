@@ -21,7 +21,7 @@
 #  * A minidump file is successfully created.
 #  * The minidump can be converted to a core file.
 #  * The core file can be loaded into GDB
-#  * GDB can read various useful informaiton from the core dump.
+#  * GDB can read various useful information from the core dump.
 
 
 from __future__ import print_function
@@ -37,8 +37,9 @@ import tempfile
 import time
 import threading
 
-# Uncomment to enable debug logging
-#logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s',
+                    datefmt='%Y-%m-%dT%H:%M:%S',
+                    level=logging.INFO)
 
 minidump_dir=None
 
@@ -101,7 +102,7 @@ class Subprocess(object):
 
         thread.join(timeout)
         if thread.is_alive():
-            print("*** Timeout - terminating process " + self.args[0])
+            logging.error("Timeout - terminating process " + self.args[0])
             self.process.terminate()
             thread.join()
         return (self.process.returncode, self.stderrdata)
@@ -152,7 +153,8 @@ os.environ['MEMCACHED_CRASH_TEST'] = crash_mode
 args = [memcached_exe, "-C", os.path.abspath(config_file.name)]
 
 # Spawn memcached from a child thread.
-logging.debug('Spawning memcached as: "MEMCACHED_UNIT_TESTS=' +
+logging.info('Spawning memcached')
+logging.debug('"MEMCACHED_UNIT_TESTS=' +
               os.environ['MEMCACHED_UNIT_TESTS'] +
               ' MEMCACHED_CRASH_TEST=' +
               os.environ['MEMCACHED_CRASH_TEST'] + ' ' +
@@ -162,6 +164,7 @@ memcached = Subprocess(args)
 # Wait for memcached to initialise (and consequently crash due to loading
 # crash_engine).
 (status, stderrdata) = memcached.run(timeout=30)
+logging.info('Process exited with status ' + str(status))
 
 # Cleanup config_file (no longer needed).
 os.remove(config_file.name)
@@ -169,45 +172,46 @@ os.remove(rbac_file.name)
 
 # Check a message was written to stderr
 if 'Breakpad caught crash' not in stderrdata:
-    print("FAIL - No message written to stderr on crash.")
+    logging.error("FAIL - No message written to stderr on crash.")
     print_stderrdata(stderrdata)
     cleanup_and_exit(3)
 
 # Check the message includes the exception what() message (std::exception crash)
 if crash_mode == 'std_exception' and 'what():' not in stderrdata:
-    print("FAIL - No exception what() message written to stderr on crash.")
+    logging.error("FAIL - No exception what() message written to stderr on crash.")
     print_stderrdata(stderrdata)
     cleanup_and_exit(3)
 
 # Check the message also included a stack backtrace - we just check
 # for one known function.
 if 'recursive_crash_function' not in stderrdata:
-    print("FAIL - No stack backtrace written to stderr on crash.")
+    logging.error("FAIL - No stack backtrace written to stderr on crash.")
     print_stderrdata(stderrdata)
     cleanup_and_exit(3)
 
 # Check there is a minidump path in the output.
 m = re.search('Writing crash dump to ([\w\\\/\:\-.]+)', stderrdata)
 if not m:
-    print("FAIL - Unable to find crash filename in stderr.")
+    logging.error("FAIL - Unable to find crash filename in stderr.")
     print_stderrdata(stderrdata)
     cleanup_and_exit(4)
 
 # Check the minidump file exists on disk.
 minidump = m.group(1)
 if not os.path.exists(minidump):
-    print("FAIL - Minidump file '{0}' does not exist.".format(minidump))
+    logging.error("FAIL - Minidump file '{0}' does not exist.".format(minidump))
     print_stderrdata(stderrdata)
     cleanup_and_exit(5)
 
 # On Windows we don't have md2core or gdb; so skip these tests.
 if md2core_exe and gdb_exe:
+    logging.info("Analysing minidump file '" + minidump + "'")
     with tempfile.NamedTemporaryFile() as core_file:
         # Convert minidump to core file.
         try:
             subprocess.check_call([md2core_exe, minidump], stdout=core_file)
         except subprocess.CalledProcessError as e:
-            print("FAIL - minidump-2-core failed with return code {0}".format(
+            logging.error("FAIL - minidump-2-core failed with return code {0}".format(
                   e.returncode))
             os.remove(minidump)
             cleanup_and_exit(7)
@@ -216,17 +220,18 @@ if md2core_exe and gdb_exe:
         # (needed for any useful backtraces).
         # Shared libraries may change over time, but we explicitly asked for
         # crash_engine.so in the config so we should have that.
+        logging.info('GDB: Checking for shared library information')
         gdb_output = invoke_gdb(gdb_exe, memcached_exe, core_file,
                                 ['info shared'])
         m = re.search("^0x[0-9a-f]+\s+0x[0-9a-f]+\s+(\w+)\s+([^\s]+crash_engine\.so$)",
                       gdb_output, re.MULTILINE)
         if not m:
-            print("FAIL - GDB unable to show information for " +
+            logging.error("FAIL - GDB unable to show information for " +
                   "crash_engine.so shared library.")
             cleanup_and_exit(9)
 
         if not m.group(1).startswith('Yes'):
-            print("FAIL - GDB unable to read symbols for crash_engine.so " +
+            logging.error("FAIL - GDB unable to read symbols for crash_engine.so " +
                   "(tried path: '{0}').".format(m.group(2)))
             cleanup_and_exit(10)
 
@@ -234,6 +239,7 @@ if md2core_exe and gdb_exe:
         # received the SIGABRT pretty much anywhere so we can't check for a
         # particular trace. Instead we check that all frames but the first have
         # a useful-looking symbol (and not just a random address.)
+        logging.info('GDB: Checking for sensible backtrace')
         gdb_output = invoke_gdb(gdb_exe, memcached_exe, core_file,
                                 ['backtrace'])
         lines = gdb_output.splitlines()
@@ -255,7 +261,7 @@ if md2core_exe and gdb_exe:
                 # However allow unknown symbols if they are in system libraries.
                 so_name = m.group(1)
                 if not any(so_name.startswith(d) for d in ['/lib', '/usr/lib']):
-                    print(("FAIL - GDB unable to identify the symbol of " +
+                    logging.error(("FAIL - GDB unable to identify the symbol of " +
                            "frame {0} - found '{1}'.").format(i, frame))
                     print("=== GDB begin ===")
                     for line in lines:
@@ -265,22 +271,23 @@ if md2core_exe and gdb_exe:
 
         # Check we can read stack memory. Another tricky one as again we have
         # no idea where we crashed. Just ensure that we get *something* back
+        logging.info('GDB: Checking for readable stack memory')
         gdb_output = invoke_gdb(gdb_exe, memcached_exe, core_file,
                                 ['x/x $sp'])
         m = re.search('(0x[0-9a-f]+):\s(0x[0-9a-f]+)?', gdb_output)
         if not m:
-            print("FAIL - GDB failed to output memory disassembly when " +
+            logging.error("FAIL - GDB failed to output memory disassembly when " +
                   "attempting to examine stack.")
             cleanup_and_exit(12)
         if not m.group(2):
-            print("FAIL - GDB unable to examine stack memory " +
+            logging.error("FAIL - GDB unable to examine stack memory " +
                   "(tried address {0}).".format(m.group(1)))
             cleanup_and_exit(13)
 else:
     # Check the minidump file is non-zero in size.
     statinfo = os.stat(minidump)
     if statinfo.st_size == 0:
-        print("FAIL - minidump file '{0}' is zero bytes in size.".format(
+        logging.error("FAIL - minidump file '{0}' is zero bytes in size.".format(
               minidump))
         cleanup_and_exit(14)
 
@@ -288,5 +295,5 @@ else:
     os.remove(minidump)
 
 # Got to the end - that's a pass
-print("Pass")
+logging.info("Pass")
 cleanup_and_exit(0)
