@@ -28,6 +28,7 @@ struct mock_connstruct {
     cb_cond_t cond;
     int references;
     uint64_t num_io_notifications;
+    uint64_t num_processed_notifications;
 };
 
 struct mock_callbacks {

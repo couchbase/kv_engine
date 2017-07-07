@@ -63,7 +63,8 @@ mock_connstruct::mock_connstruct()
       handle_mutation_extras(true),
       handle_collections_support(false),
       references(1),
-      num_io_notifications(0) {
+      num_io_notifications(0),
+      num_processed_notifications(0) {
     cb_mutex_initialize(&mutex);
     cb_cond_initialize(&cond);
 }
@@ -538,7 +539,10 @@ void unlock_mock_cookie(const void *cookie) {
 
 void waitfor_mock_cookie(const void *cookie) {
     mock_connstruct *c = cookie_to_mock_object(cookie);
-    cb_cond_wait(&c->cond, &c->mutex);
+    while (c->num_processed_notifications == c->num_io_notifications) {
+        cb_cond_wait(&c->cond, &c->mutex);
+    }
+    c->num_processed_notifications = c->num_io_notifications;
 }
 
 void disconnect_mock_connection(struct mock_connstruct *c) {
