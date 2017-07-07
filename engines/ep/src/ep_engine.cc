@@ -1814,7 +1814,6 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
       kvBucket(nullptr),
       workload(NULL),
       workloadPriority(NO_BUCKET_PRIORITY),
-      replicationThrottle(NULL),
       getServerApiFunc(get_server_api),
       dcpConnMap_(NULL),
       dcpFlowControlManager_(NULL),
@@ -2050,7 +2049,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
 
     tapConnMap = new TapConnMap(*this);
     tapConfig = new TapConfig(*this);
-    replicationThrottle = new ReplicationThrottle(configuration, stats);
     TapConfig::addConfigChangeListener(*this);
 
     checkpointConfig = new CheckpointConfig(*this);
@@ -2736,7 +2734,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
     if (tap_event == TAP_MUTATION || tap_event == TAP_DELETION) {
-        if (replicationThrottle->getStatus() ==
+        if (getReplicationThrottle().getStatus() ==
             ReplicationThrottle::Status::Pause) {
             ++stats.replicationThrottled;
             if (connection->supportsAck()) {
@@ -6410,7 +6408,6 @@ EventuallyPersistentEngine::~EventuallyPersistentEngine() {
     LOG(EXTENSION_LOG_NOTICE, "~EPEngine: Deleted tapConnMap_.");
     delete tapConfig;
     delete checkpointConfig;
-    delete replicationThrottle;
 }
 
 const std::string& EpEngineTaskable::getName() const {

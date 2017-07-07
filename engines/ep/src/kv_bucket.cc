@@ -467,6 +467,8 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
     xattrEnabled = config.isXattrEnabled();
 
     initializeWarmupTask();
+
+    replicationThrottle = std::make_unique<ReplicationThrottle>(config, stats);
 }
 
 bool KVBucket::initialize() {

@@ -36,7 +36,6 @@ class DcpConnMap;
 class DcpFlowControlManager;
 class Producer;
 class TapConnMap;
-class ReplicationThrottle;
 class VBucketCountVisitor;
 
 extern "C" {
@@ -542,7 +541,14 @@ public:
 
     TapConfig &getTapConfig() { return *tapConfig; }
 
-    ReplicationThrottle &getReplicationThrottle() { return *replicationThrottle; }
+    /**
+     * Returns the replication throttle instance
+     *
+     * @return Ref to replication throttle
+     */
+    ReplicationThrottle& getReplicationThrottle() {
+        return getKVBucket()->getReplicationThrottle();
+    }
 
     CheckpointConfig &getCheckpointConfig() { return *checkpointConfig; }
 
@@ -974,7 +980,6 @@ protected:
     WorkLoadPolicy *workload;
     bucket_priority_t workloadPriority;
 
-    ReplicationThrottle *replicationThrottle;
     std::map<const void*, std::unique_ptr<Item>> lookups;
     std::unordered_map<const void*, ENGINE_ERROR_CODE> allKeysLookups;
     std::mutex lookupMutex;

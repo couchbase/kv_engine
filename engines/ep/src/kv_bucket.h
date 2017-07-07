@@ -29,6 +29,7 @@
 
 #include <deque>
 
+class ReplicationThrottle;
 class VBucketCountVisitor;
 namespace Collections {
 class Manager;
@@ -782,6 +783,15 @@ public:
 
     void setXattrEnabled(bool value);
 
+    /**
+     * Returns the replication throttle instance
+     *
+     * @return Ref to replication throttle
+     */
+    ReplicationThrottle& getReplicationThrottle() {
+        return *replicationThrottle;
+    }
+
 protected:
     // During the warmup phase we might want to enable external traffic
     // at a given point in time.. The LoadStorageKvPairCallback will be
@@ -916,6 +926,9 @@ protected:
      * threads.
      */
     Couchbase::RelaxedAtomic<bool> xattrEnabled;
+
+    /* Contains info about throttling the replication */
+    std::unique_ptr<ReplicationThrottle> replicationThrottle;
 
     friend class KVBucketTest;
 
