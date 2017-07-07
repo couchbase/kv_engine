@@ -92,6 +92,11 @@ protected:
                                             /*lastSnapStart*/ 0,
                                             /*lastSnapEnd*/ 0,
                                             callback));
+
+        // Sanity check initial state.
+        ASSERT_EQ(1, this->manager->getNumOfCursors());
+        ASSERT_EQ(0, this->manager->getNumOpenChkItems());
+        ASSERT_EQ(1, this->manager->getNumCheckpoints());
     }
 
     // Creates a new item with the given key and queues it into the checkpoint
@@ -312,7 +317,7 @@ TYPED_TEST(CheckpointTest, reset_checkpoint_id) {
     for (i = 0; i < 10; ++i) {
         EXPECT_TRUE(this->queueNewItem("key-" + std::to_string(i)));
     }
-    EXPECT_EQ(11, this->manager->getNumOpenChkItems());
+    EXPECT_EQ(10, this->manager->getNumOpenChkItems());
     EXPECT_EQ(10,
               this->manager->getNumItemsForCursor(
                       CheckpointManager::pCursorName));
@@ -355,7 +360,7 @@ TYPED_TEST(CheckpointTest, reset_checkpoint_id) {
 TYPED_TEST(CheckpointTest, CheckFixture) {
     // Should intially have a single cursor (persistence).
     EXPECT_EQ(1, this->manager->getNumOfCursors());
-    EXPECT_EQ(1, this->manager->getNumOpenChkItems());
+    EXPECT_EQ(0, this->manager->getNumOpenChkItems());
     for (auto& cursor : this->manager->getAllCursors()) {
         EXPECT_EQ(CheckpointManager::pCursorName, cursor.first);
     }
@@ -393,9 +398,8 @@ TYPED_TEST(CheckpointTest, OneOpenCkpt) {
                                           GenerateCas::Yes,
                                           /*preLinkDocCtx*/ nullptr));
     EXPECT_EQ(1, this->manager->getNumCheckpoints()); // Single open checkpoint.
-    // 1x op_checkpoint_start,
     // 1x op_set
-    EXPECT_EQ(2, this->manager->getNumOpenChkItems());
+    EXPECT_EQ(1, this->manager->getNumOpenChkItems());
     EXPECT_EQ(1001, qi->getBySeqno());
     EXPECT_EQ(20, qi->getRevSeqno());
     EXPECT_EQ(1,
@@ -414,7 +418,7 @@ TYPED_TEST(CheckpointTest, OneOpenCkpt) {
                                            GenerateCas::Yes,
                                            /*preLinkDocCtx*/ nullptr));
     EXPECT_EQ(1, this->manager->getNumCheckpoints());
-    EXPECT_EQ(2, this->manager->getNumOpenChkItems());
+    EXPECT_EQ(1, this->manager->getNumOpenChkItems());
     EXPECT_EQ(1002, qi2->getBySeqno());
     EXPECT_EQ(21, qi2->getRevSeqno());
     EXPECT_EQ(1,
@@ -433,7 +437,7 @@ TYPED_TEST(CheckpointTest, OneOpenCkpt) {
                                           GenerateCas::Yes,
                                           /*preLinkDocCtx*/ nullptr));
     EXPECT_EQ(1, this->manager->getNumCheckpoints());
-    EXPECT_EQ(3, this->manager->getNumOpenChkItems());
+    EXPECT_EQ(2, this->manager->getNumOpenChkItems());
     EXPECT_EQ(1003, qi3->getBySeqno());
     EXPECT_EQ(0, qi3->getRevSeqno());
     EXPECT_EQ(2,
@@ -468,7 +472,7 @@ TYPED_TEST(CheckpointTest, Delete) {
                                           /*preLinkDocCtx*/ nullptr));
 
     EXPECT_EQ(1, this->manager->getNumCheckpoints());  // Single open checkpoint.
-    EXPECT_EQ(2, this->manager->getNumOpenChkItems()); // 1x op_checkpoint_start, 1x op_del
+    EXPECT_EQ(1, this->manager->getNumOpenChkItems()); // 1x op_del
     EXPECT_EQ(1001, qi->getBySeqno());
     EXPECT_EQ(10, qi->getRevSeqno());
 
@@ -493,16 +497,15 @@ TYPED_TEST(CheckpointTest, OneOpenOneClosed) {
         EXPECT_TRUE(this->queueNewItem("key" + std::to_string(i)));
     }
     EXPECT_EQ(1, this->manager->getNumCheckpoints());
-    // 1x op_checkpoint_start,
     // 2x op_set
-    EXPECT_EQ(3, this->manager->getNumOpenChkItems());
+    EXPECT_EQ(2, this->manager->getNumOpenChkItems());
     const uint64_t ckpt_id1 = this->manager->getOpenCheckpointId();
 
     // Create a new checkpoint (closing the current open one).
     const uint64_t ckpt_id2 = this->manager->createNewCheckpoint();
     EXPECT_NE(ckpt_id1, ckpt_id2) << "New checkpoint ID should differ from old";
     EXPECT_EQ(ckpt_id1, this->manager->getLastClosedCheckpointId());
-    EXPECT_EQ(1, this->manager->getNumOpenChkItems()); // 1x op_checkpoint_start
+    EXPECT_EQ(0, this->manager->getNumOpenChkItems()); // no items yet
 
     // Add some items to the newly-opened checkpoint (note same keys as 1st
     // ckpt).
@@ -510,9 +513,8 @@ TYPED_TEST(CheckpointTest, OneOpenOneClosed) {
         EXPECT_TRUE(this->queueNewItem("key" + std::to_string(ii)));
     }
     EXPECT_EQ(2, this->manager->getNumCheckpoints());
-    // 1x op_checkpoint_start,
     // 2x op_set
-    EXPECT_EQ(3, this->manager->getNumOpenChkItems());
+    EXPECT_EQ(2, this->manager->getNumOpenChkItems());
 
     // Examine the items - should be 2 lots of two keys.
     EXPECT_EQ(4,
@@ -552,17 +554,10 @@ TYPED_TEST(CheckpointTest, ItemBasedCheckpointCreation) {
 
     this->createManager();
 
-    // Sanity check initial state.
-    EXPECT_EQ(1, this->manager->getNumOfCursors());
-    EXPECT_EQ(1, this->manager->getNumOpenChkItems());
-    EXPECT_EQ(1, this->manager->getNumCheckpoints());
-
     // Create one less than the number required to create a new checkpoint.
     queued_item qi;
     for (unsigned int ii = 0; ii < MIN_CHECKPOINT_ITEMS; ii++) {
-        EXPECT_EQ(
-                ii + 1,
-                this->manager->getNumOpenChkItems()); /* +1 for op_ckpt_start */
+        EXPECT_EQ(ii, this->manager->getNumOpenChkItems());
 
         EXPECT_TRUE(this->queueNewItem("key" + std::to_string(ii)));
         EXPECT_EQ(1, this->manager->getNumCheckpoints());
@@ -571,15 +566,12 @@ TYPED_TEST(CheckpointTest, ItemBasedCheckpointCreation) {
     // Add one more - should create a new checkpoint.
     EXPECT_TRUE(this->queueNewItem("key_epoch"));
     EXPECT_EQ(2, this->manager->getNumCheckpoints());
-    EXPECT_EQ(
-            2,
-            this->manager->getNumOpenChkItems()); // 1x op_ckpt_start, 1x op_set
+    EXPECT_EQ(1, this->manager->getNumOpenChkItems()); // 1x op_set
 
     // Fill up this checkpoint also - note loop for MIN_CHECKPOINT_ITEMS - 1
     for (unsigned int ii = 0; ii < MIN_CHECKPOINT_ITEMS - 1; ii++) {
-        EXPECT_EQ(ii + 2,
-                  this->manager->getNumOpenChkItems()); /* +2 op_ckpt_start,
-                                                           key_epoch */
+        EXPECT_EQ(ii + 1,
+                  this->manager->getNumOpenChkItems()); /* +1 initial set */
 
         EXPECT_TRUE(this->queueNewItem("key" + std::to_string(ii)));
 
@@ -590,7 +582,7 @@ TYPED_TEST(CheckpointTest, ItemBasedCheckpointCreation) {
     // new one.
     EXPECT_TRUE(this->queueNewItem("key_epoch2"));
     EXPECT_EQ(2, this->manager->getNumCheckpoints());
-    EXPECT_EQ(12, // 1x op_ckpt_start, 1x key_epoch, 9x key_X, 1x key_epoch2
+    EXPECT_EQ(11, // 1x key_epoch, 9x key_X, 1x key_epoch2
               this->manager->getNumOpenChkItems());
 
     // Fetch the items associated with the persistence cursor. This
@@ -608,14 +600,12 @@ TYPED_TEST(CheckpointTest, ItemBasedCheckpointCreation) {
 
     // Should still have the same number of checkpoints and open items.
     EXPECT_EQ(2, this->manager->getNumCheckpoints());
-    EXPECT_EQ(12, this->manager->getNumOpenChkItems());
+    EXPECT_EQ(11, this->manager->getNumOpenChkItems());
 
     // But adding a new item will create a new one.
     EXPECT_TRUE(this->queueNewItem("key_epoch3"));
     EXPECT_EQ(3, this->manager->getNumCheckpoints());
-    EXPECT_EQ(
-            2,
-            this->manager->getNumOpenChkItems()); // 1x op_ckpt_start, 1x op_set
+    EXPECT_EQ(1, this->manager->getNumOpenChkItems()); // 1x op_set
 }
 
 // Test checkpoint and cursor accounting - when checkpoints are closed the
@@ -626,9 +616,8 @@ TYPED_TEST(CheckpointTest, CursorOffsetOnCheckpointClose) {
         EXPECT_TRUE(this->queueNewItem("key" + std::to_string(i)));
     }
     EXPECT_EQ(1, this->manager->getNumCheckpoints());
-    // 1x op_checkpoint_start,
     // 2x op_set
-    EXPECT_EQ(3, this->manager->getNumOpenChkItems());
+    EXPECT_EQ(2, this->manager->getNumOpenChkItems());
 
     // Use the existing persistence cursor for this test:
     EXPECT_EQ(
@@ -650,8 +639,7 @@ TYPED_TEST(CheckpointTest, CursorOffsetOnCheckpointClose) {
 
     // Create a new checkpoint (closing the current open one).
     this->manager->createNewCheckpoint();
-    EXPECT_EQ(1, this->manager->getNumOpenChkItems())
-            << "Expected 1 item (1x op_checkpoint_start)";
+    EXPECT_EQ(0, this->manager->getNumOpenChkItems());
     EXPECT_EQ(2, this->manager->getNumCheckpoints());
     EXPECT_EQ(
             2,
@@ -756,11 +744,6 @@ TYPED_TEST(CheckpointTest, ItemsForCheckpointCursor) {
 
     this->createManager();
 
-    /* Sanity check initial state */
-    EXPECT_EQ(1, this->manager->getNumOfCursors());
-    EXPECT_EQ(1, this->manager->getNumOpenChkItems());
-    EXPECT_EQ(1, this->manager->getNumCheckpoints());
-
     /* Add items such that we have 2 checkpoints */
     queued_item qi;
     for (unsigned int ii = 0; ii < 2 * MIN_CHECKPOINT_ITEMS; ii++) {
@@ -770,8 +753,7 @@ TYPED_TEST(CheckpointTest, ItemsForCheckpointCursor) {
     /* Check if we have desired number of checkpoints and desired number of
        items */
     EXPECT_EQ(2, this->manager->getNumCheckpoints());
-    EXPECT_EQ(MIN_CHECKPOINT_ITEMS + 1, this->manager->getNumOpenChkItems());
-    /* MIN_CHECKPOINT_ITEMS items + op_ckpt_start */
+    EXPECT_EQ(MIN_CHECKPOINT_ITEMS, this->manager->getNumOpenChkItems());
 
     /* Register DCP replication cursor */
     std::string dcp_cursor(DCP_CURSOR_PREFIX + std::to_string(1));
@@ -808,11 +790,6 @@ TYPED_TEST(CheckpointTest, CursorMovement) {
 
     this->createManager();
 
-    /* Sanity check initial state */
-    EXPECT_EQ(1, this->manager->getNumOfCursors());
-    EXPECT_EQ(1, this->manager->getNumOpenChkItems());
-    EXPECT_EQ(1, this->manager->getNumCheckpoints());
-
     /* Add items such that we have 1 full (max items as per config) checkpoint.
        Adding another would open new checkpoint */
     queued_item qi;
@@ -823,8 +800,7 @@ TYPED_TEST(CheckpointTest, CursorMovement) {
     /* Check if we have desired number of checkpoints and desired number of
        items */
     EXPECT_EQ(1, this->manager->getNumCheckpoints());
-    EXPECT_EQ(MIN_CHECKPOINT_ITEMS + 1, this->manager->getNumOpenChkItems());
-    /* MIN_CHECKPOINT_ITEMS items + op_ckpt_start */
+    EXPECT_EQ(MIN_CHECKPOINT_ITEMS, this->manager->getNumOpenChkItems());
 
     /* Register DCP replication cursor */
     std::string dcp_cursor(DCP_CURSOR_PREFIX + std::to_string(1));
@@ -901,9 +877,7 @@ TYPED_TEST(CheckpointTest, CursorMovementReplicaMerge) {
     /* Check if we have desired number of checkpoints and desired number of
         items */
     EXPECT_EQ(1, this->manager->getNumCheckpoints());
-    // +1 for checkpoint_start.
-    EXPECT_EQ((MIN_CHECKPOINT_ITEMS / 2) + 1,
-              this->manager->getNumOpenChkItems());
+    EXPECT_EQ((MIN_CHECKPOINT_ITEMS / 2), this->manager->getNumOpenChkItems());
 
     // Register DCP replication cursor, which will be moved into the middle of
     // first checkpoint and then left there.
@@ -923,7 +897,7 @@ TYPED_TEST(CheckpointTest, CursorMovementReplicaMerge) {
     EXPECT_EQ(1, this->manager->getNumCheckpoints())
             << "Should still only have 1 checkpoint after adding "
                "MIN_CHECKPOINT_ITEMS total";
-    EXPECT_EQ(MIN_CHECKPOINT_ITEMS + 1, this->manager->getNumOpenChkItems());
+    EXPECT_EQ(MIN_CHECKPOINT_ITEMS, this->manager->getNumOpenChkItems());
 
     /* Get items for persistence cursor - this will move the persistence cursor
      * out of the initial checkpoint.
@@ -1021,11 +995,6 @@ TYPED_TEST(CheckpointTest, SeqnoAndHLCOrdering) {
     // persistenceEnabled:false
 
     this->createManager();
-
-    /* Sanity check initial state */
-    EXPECT_EQ(1, this->manager->getNumOfCursors());
-    EXPECT_EQ(1, this->manager->getNumOpenChkItems());
-    EXPECT_EQ(1, this->manager->getNumCheckpoints());
 
     std::vector<std::thread> threads;
 

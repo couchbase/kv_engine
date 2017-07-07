@@ -1444,12 +1444,12 @@ bool CheckpointManager::moveCursorToNextCheckpoint(CheckpointCursor &cursor) {
     return true;
 }
 
-size_t CheckpointManager::getNumOpenChkItems() {
+size_t CheckpointManager::getNumOpenChkItems() const {
     LockHolder lh(queueLock);
     if (checkpointList.empty()) {
         return 0;
     }
-    return checkpointList.back()->getNumItems() + 1;
+    return checkpointList.back()->getNumItems();
 }
 
 uint64_t CheckpointManager::checkOpenCheckpoint_UNLOCKED(bool forceCreation,

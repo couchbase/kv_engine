@@ -733,7 +733,10 @@ public:
         return numItems;
     }
 
-    size_t getNumOpenChkItems();
+    /**
+     * Returns the number of non-meta items in the currently open checkpoint.
+     */
+    size_t getNumOpenChkItems() const;
 
     size_t getNumCheckpoints() const;
 

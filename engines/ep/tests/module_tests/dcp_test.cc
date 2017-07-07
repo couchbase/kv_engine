@@ -486,8 +486,7 @@ TEST_P(StreamTest, test_mb17766) {
 TEST_P(StreamTest, MB17653_ItemsRemaining) {
     auto& manager = engine->getKVBucket()->getVBucket(vbid)->checkpointManager;
 
-    ASSERT_EQ(1, manager.getNumOpenChkItems())
-        << "Expected one item before population (checkpoint_start)";
+    ASSERT_EQ(0, manager.getNumOpenChkItems());
 
     // Create 10 mutations to the same key which, while increasing the high
     // seqno by 10 will result in de-duplication and hence only one actual
@@ -497,8 +496,8 @@ TEST_P(StreamTest, MB17653_ItemsRemaining) {
         store_item(vbid, "key", "value");
     }
 
-    ASSERT_EQ(2, manager.getNumOpenChkItems())
-        << "Expected 2 items after population (checkpoint_start & set)";
+    ASSERT_EQ(1, manager.getNumOpenChkItems())
+            << "Expected 1 items after population (set)";
 
     setup_dcp_stream();
 
