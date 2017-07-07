@@ -48,7 +48,6 @@ INCLUDE_DIRECTORIES(AFTER SYSTEM
                     ${gtest_SOURCE_DIR}/include
                     ${gmock_SOURCE_DIR}/include)
 
-CHECK_INCLUDE_FILES("alloca.h" HAVE_ALLOCA_H)
 CHECK_INCLUDE_FILES("arpa/inet.h" HAVE_ARPA_INET_H)
 CHECK_INCLUDE_FILES("unistd.h" HAVE_UNISTD_H)
 CHECK_INCLUDE_FILES("netdb.h" HAVE_NETDB_H)
