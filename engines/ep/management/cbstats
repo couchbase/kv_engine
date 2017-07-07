@@ -267,6 +267,9 @@ def ps_time_label(microseconds):
                                    time_str,
                                    centiseconds % 100)
 
+def no_label(s):
+    return str(s)
+
 def time_label(s):
     # -(2**64) -> '-inf'
     # 2**64 -> 'inf'
@@ -327,6 +330,7 @@ def histograms(mc, raw_stats):
             return 79
 
     special_labels = {'item_alloc_sizes': size_label,
+                      'bg_batch_size' : no_label,
                       'paged_out_time': sec_label}
 
     histodata = {}
