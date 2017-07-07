@@ -19,6 +19,7 @@
 #include "config.h"
 
 #include <mcbp/protocol/magic.h>
+#include <platform/platform.h>
 #include <platform/sized_buffer.h>
 
 #include <cstdint>

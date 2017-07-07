@@ -27,6 +27,7 @@
 #include <string>
 
 #include <memcached/allocator_hooks.h>
+#include <platform/platform.h>
 
 #include <atomic>
 

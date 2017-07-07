@@ -121,5 +121,4 @@ typedef unsigned int useconds_t;
 #include <sched.h>
 #endif
 
-#include <platform/platform.h>
 #endif /* SRC_CONFIG_STATIC_H */
