@@ -762,7 +762,13 @@ static enum test_result test_expiry_pager_settings(ENGINE_HANDLE *h,
     set_param(h, h1, protocol_binary_engine_param_flush,
               "exp_pager_initial_run_time", "3");
     std::string expected_time = "03:00";
-    std::string str = get_str_stat(h, h1, "ep_expiry_pager_task_time");
+    std::string str;
+    // [MB-21806] - Need to repeat the fetch as the set_param for
+    // "exp_pager_initial_run_time" schedules a task that sets the stats later
+    repeat_till_true([&]() {
+        str = get_str_stat(h, h1, "ep_expiry_pager_task_time");
+        return 0 == str.substr(11, 5).compare(expected_time);
+    });
     err_msg.assign("Updated time incorrect, expect: " +
                    expected_time + ", actual: " + str.substr(11, 5));
     checkeq(0, str.substr(11, 5).compare(expected_time), err_msg.c_str());
