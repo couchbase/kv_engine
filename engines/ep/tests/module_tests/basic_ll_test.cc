@@ -78,8 +78,7 @@ protected:
                       0,
                       val.data(),
                       val.length(),
-                      /*ext_meta*/ nullptr,
-                      /*ext_len*/ 0,
+                      PROTOCOL_BINARY_RAW_BYTES,
                       /*theCas*/ 0,
                       /*bySeqno*/ i);
             EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
@@ -133,8 +132,7 @@ protected:
                   0,
                   val.data(),
                   val.length(),
-                  /*ext_meta*/ nullptr,
-                  /*ext_len*/ 0,
+                  PROTOCOL_BINARY_RAW_BYTES,
                   /*theCas*/ 0,
                   /*bySeqno*/ seqno);
         EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
@@ -206,8 +204,7 @@ protected:
                  0,
                  val.data(),
                  val.length(),
-                 /*ext_meta*/ nullptr,
-                 /*ext_len*/ 0,
+                 PROTOCOL_BINARY_RAW_BYTES,
                  /*theCas*/ 0,
                  /*bySeqno*/ highSeqno + 1);
         auto* newSv = ht.unlocked_addNewStoredValue(hbl, itm);

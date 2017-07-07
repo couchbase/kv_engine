@@ -460,10 +460,9 @@ void KVBucket::deleteExpiredItem(Item& it,
                 // The payload is modified and contains data we should use
                 value_t value(
                         Blob::New(static_cast<char*>(info.value[0].iov_base),
-                                  info.value[0].iov_len,
-                                  &info.datatype,
-                                  1));
+                                  info.value[0].iov_len));
                 it.setValue(value);
+                it.setDataType(info.datatype);
             }
         }
 

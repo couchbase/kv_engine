@@ -1166,8 +1166,7 @@ static void populateMetaData(const Item& itm, uint8_t* meta, bool deletion) {
     if (deletion) {
         *(meta + forestMetaOffset(ext_meta)) = PROTOCOL_BINARY_RAW_BYTES;
     } else {
-        memcpy(meta + forestMetaOffset(ext_meta), itm.getExtMeta(),
-               itm.getExtMetaLen());
+        *(meta + forestMetaOffset(ext_meta)) = itm.getDataType();
     }
 }
 

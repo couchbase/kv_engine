@@ -354,9 +354,16 @@ ENGINE_ERROR_CODE DcpConsumer::mutation(uint32_t opaque,
     ENGINE_ERROR_CODE err = ENGINE_KEY_ENOENT;
     auto stream = findStream(vbucket);
     if (stream && stream->getOpaque() == opaque && stream->isActive()) {
-        queued_item item(new Item(key, flags, exptime, value.data(),
-                                  value.size(), &datatype, EXT_META_LEN, cas,
-                                  bySeqno, vbucket, revSeqno));
+        queued_item item(new Item(key,
+                                  flags,
+                                  exptime,
+                                  value.data(),
+                                  value.size(),
+                                  datatype,
+                                  cas,
+                                  bySeqno,
+                                  vbucket,
+                                  revSeqno));
 
         ExtendedMetaData *emd = NULL;
         if (meta.size() > 0) {
@@ -418,9 +425,16 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
     ENGINE_ERROR_CODE err = ENGINE_KEY_ENOENT;
     auto stream = findStream(vbucket);
     if (stream && stream->getOpaque() == opaque && stream->isActive()) {
-        queued_item item(new Item(key, 0, 0, value.data(), value.size(),
-                                  &datatype, EXT_META_LEN, cas, bySeqno,
-                                  vbucket, revSeqno));
+        queued_item item(new Item(key,
+                                  0,
+                                  0,
+                                  value.data(),
+                                  value.size(),
+                                  datatype,
+                                  cas,
+                                  bySeqno,
+                                  vbucket,
+                                  revSeqno));
         item->setDeleted();
 
         ExtendedMetaData *emd = NULL;

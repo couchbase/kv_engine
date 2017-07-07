@@ -26,9 +26,12 @@ Item make_item(uint16_t vbid,
                const std::string& value,
                uint32_t exptime,
                protocol_binary_datatype_t datatype) {
-    uint8_t ext_meta[EXT_META_LEN] = {datatype};
-    Item item(key, /*flags*/0, /*exp*/exptime, value.c_str(), value.size(),
-              ext_meta, sizeof(ext_meta));
+    Item item(key,
+              /*flags*/ 0,
+              /*exp*/ exptime,
+              value.c_str(),
+              value.size(),
+              datatype);
     item.setVBucketId(vbid);
     return item;
 }

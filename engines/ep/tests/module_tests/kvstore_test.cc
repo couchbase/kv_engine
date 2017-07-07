@@ -254,12 +254,17 @@ TEST_F(CouchKVStoreTest, CompressedTest) {
 
     kvstore->begin();
 
-    uint8_t datatype = PROTOCOL_BINARY_RAW_BYTES;
     WriteCallback wc;
     for (int i = 1; i <= 5; i++) {
         std::string key("key" + std::to_string(i));
         Item item(makeStoredDocKey(key),
-                  0, 0, "value", 5, &datatype, 1, 0, i);
+                  0,
+                  0,
+                  "value",
+                  5,
+                  PROTOCOL_BINARY_RAW_BYTES,
+                  0,
+                  i);
         kvstore->set(item, wc);
     }
 
@@ -521,8 +526,14 @@ protected:
     void generate_items(size_t count) {
         for(unsigned i(0); i < count; i++) {
             std::string key("key" + std::to_string(i));
-            items.push_back(Item(makeStoredDocKey(key), 0, 0, "value", 5,
-                                 nullptr, 0, 0, i + 1));
+            items.push_back(Item(makeStoredDocKey(key),
+                                 0,
+                                 0,
+                                 "value",
+                                 5,
+                                 PROTOCOL_BINARY_RAW_BYTES,
+                                 0,
+                                 i + 1));
         }
     }
 
@@ -1312,9 +1323,11 @@ TEST_F(CouchstoreTest, testV0MetaThings) {
     // via standard interfaces
     // Ensure CAS, exptime and flags are set to something.
     Item item(key,
-              0x01020304/*flags*/, 0xaa00bb11/*expiry*/,
-              "value", 5,
-              nullptr, 0,
+              0x01020304 /*flags*/,
+              0xaa00bb11 /*expiry*/,
+              "value",
+              5,
+              PROTOCOL_BINARY_RAW_BYTES,
               0xf00fcafe11225566ull);
 
     WriteCallback wc;
@@ -1339,9 +1352,11 @@ TEST_F(CouchstoreTest, testV1MetaThings) {
     uint8_t datatype = PROTOCOL_BINARY_DATATYPE_JSON; //lies, but non-zero
     StoredDocKey key = makeStoredDocKey("key");
     Item item(key,
-              0x01020304/*flags*/, 0xaa00bb11,/*expiry*/
-              "value", 5,
-              &datatype, 1, /*ext_meta is v1 extension*/
+              0x01020304 /*flags*/,
+              0xaa00bb11, /*expiry*/
+              "value",
+              5,
+              datatype,
               0xf00fcafe11225566ull);
     EXPECT_NE(0, datatype); // make sure we writing non-zero
     WriteCallback wc;
@@ -1418,9 +1433,11 @@ TEST_F(CouchstoreTest, testV0WriteReadWriteRead) {
     uint8_t datatype = PROTOCOL_BINARY_DATATYPE_JSON; //lies, but non-zero
     StoredDocKey key = makeStoredDocKey("key");
     Item item(key,
-              0x01020304/*flags*/, 0xaa00bb11,/*expiry*/
-              "value", 5,
-              &datatype, 1, /*ext_meta is v1 extension*/
+              0x01020304 /*flags*/,
+              0xaa00bb11, /*expiry*/
+              "value",
+              5,
+              datatype,
               0xf00fcafe11225566ull);
 
     EXPECT_NE(0, datatype); // make sure we writing non-zero values
@@ -1472,9 +1489,11 @@ TEST_F(CouchstoreTest, testV2WriteRead) {
     uint8_t datatype = PROTOCOL_BINARY_DATATYPE_JSON; //lies, but non-zero
     StoredDocKey key = makeStoredDocKey("key");
     Item item(key,
-              0x01020304/*flags*/, 0xaa00bb11,/*expiry*/
-              "value", 5,
-              &datatype, 1, /*ext_meta is v1 extension*/
+              0x01020304 /*flags*/,
+              0xaa00bb11, /*expiry*/
+              "value",
+              5,
+              datatype,
               0xf00fcafe11225566ull);
 
     EXPECT_NE(0, datatype); // make sure we writing non-zero values
@@ -1529,8 +1548,7 @@ TEST_F(CouchstoreTest, testV0CompactionUpgrade) {
               0xaa00bb11, /*expiry*/
               "value",
               5,
-              &datatype,
-              1, /*ext_meta is v1 extension*/
+              datatype,
               0xf00fcafe11225566ull);
 
     EXPECT_NE(0, datatype); // make sure we writing non-zero values
@@ -1583,8 +1601,7 @@ TEST_F(CouchstoreTest, testV2CompactionUpgrade) {
               0xaa00bb11, /*expiry*/
               "value",
               5,
-              &datatype,
-              1, /*ext_meta is v1 extension*/
+              datatype,
               0xf00fcafe11225566ull);
 
     EXPECT_NE(0, datatype); // make sure we writing non-zero values

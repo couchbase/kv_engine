@@ -785,7 +785,6 @@ static int notify_expired_item(DocInfo& info,
                                sized_buf item,
                                compaction_ctx& ctx,
                                time_t currtime) {
-    std::array<uint8_t, 1> ext_meta = {{metadata.getDataType()}};
     cb::char_buffer data;
     cb::compression::Buffer inflated;
 
@@ -815,8 +814,7 @@ static int notify_expired_item(DocInfo& info,
             metadata.getExptime(),
             data.buf,
             data.len,
-            &ext_meta[0],
-            EXT_META_LEN,
+            metadata.getDataType(),
             metadata.getCas(),
             info.db_seq,
             ctx.db_file_id,
@@ -1595,8 +1593,6 @@ couchstore_error_t CouchKVStore::fetchDoc(Db* db,
     }
 
     if (metaOnly == GetMetaOnly::Yes) {
-        uint8_t extMeta[EXT_META_LEN];
-        extMeta[0] = metadata->getDataType();
         // Collections: TODO: Permanently restore to stored namespace
         auto it = std::make_unique<Item>(
                 makeDocKey(docinfo->id,
@@ -1605,8 +1601,7 @@ couchstore_error_t CouchKVStore::fetchDoc(Db* db,
                 metadata->getExptime(),
                 nullptr,
                 docinfo->size,
-                extMeta,
-                EXT_META_LEN,
+                metadata->getDataType(),
                 metadata->getCas(),
                 docinfo->db_seq,
                 vbId);
@@ -1624,7 +1619,7 @@ couchstore_error_t CouchKVStore::fetchDoc(Db* db,
         Doc *doc = nullptr;
         size_t valuelen = 0;
         void* valuePtr = nullptr;
-        uint8_t extMeta = 0;
+        protocol_binary_datatype_t datatype = PROTOCOL_BINARY_RAW_BYTES;
         errCode = couchstore_open_doc_with_docinfo(db, docinfo, &doc,
                                                    DECOMPRESS_DOC_BODIES);
         if (errCode == COUCHSTORE_SUCCESS) {
@@ -1645,12 +1640,12 @@ couchstore_error_t CouchKVStore::fetchDoc(Db* db,
             if (metadata->getVersionInitialisedFrom() == MetaData::Version::V0) {
                 // This is a super old version of a couchstore file.
                 // Try to determine if the document is JSON or raw bytes
-                extMeta = determine_datatype(doc->data);
+                datatype = determine_datatype(doc->data);
             } else {
-                extMeta = metadata->getDataType();
+                datatype = metadata->getDataType();
             }
         } else if (errCode == COUCHSTORE_ERROR_DOC_NOT_FOUND && docinfo->deleted) {
-            extMeta = metadata->getDataType();
+            datatype = metadata->getDataType();
         } else {
             return errCode;
         }
@@ -1658,18 +1653,17 @@ couchstore_error_t CouchKVStore::fetchDoc(Db* db,
         try {
             // Collections: TODO: Restore to stored namespace
             auto it = std::make_unique<Item>(
-                            makeDocKey(docinfo->id,
-                                   configuration.shouldPersistDocNamespace()),
-                            metadata->getFlags(),
-                            metadata->getExptime(),
-                            valuePtr,
-                            valuelen,
-                            &extMeta,
-                            EXT_META_LEN,
-                            metadata->getCas(),
-                            docinfo->db_seq,
-                            vbId,
-                            docinfo->rev_seq);
+                    makeDocKey(docinfo->id,
+                               configuration.shouldPersistDocNamespace()),
+                    metadata->getFlags(),
+                    metadata->getExptime(),
+                    valuePtr,
+                    valuelen,
+                    datatype,
+                    metadata->getCas(),
+                    docinfo->db_seq,
+                    vbId,
+                    docinfo->rev_seq);
 
              if (docinfo->deleted) {
                  it->setDeleted();
@@ -1774,8 +1768,6 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
         }
     }
 
-    uint8_t extMeta = metadata->getDataType();
-    uint8_t extMetaLen = metadata->getFlexCode() == FLEX_META_CODE ? EXT_META_LEN : 0;
     // Collections: TODO: Permanently restore to stored namespace
     auto it = std::make_unique<Item>(
             DocKey(makeDocKey(key, sctx->config.shouldPersistDocNamespace())),
@@ -1783,8 +1775,7 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
             metadata->getExptime(),
             value.buf,
             value.size,
-            &extMeta,
-            extMetaLen,
+            metadata->getDataType(),
             metadata->getCas(),
             docinfo->db_seq, // return seq number being persisted on disk
             vbucketId,

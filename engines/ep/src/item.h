@@ -137,6 +137,7 @@ public:
          const uint32_t fl,
          const time_t exp,
          const value_t& val,
+         protocol_binary_datatype_t dtype = PROTOCOL_BINARY_RAW_BYTES,
          uint64_t theCas = 0,
          int64_t i = -1,
          uint16_t vbid = 0,
@@ -158,8 +159,7 @@ public:
          const time_t exp,
          const void* dta,
          const size_t nb,
-         uint8_t* ext_meta = NULL,
-         uint8_t ext_len = 0,
+         protocol_binary_datatype_t dtype = PROTOCOL_BINARY_RAW_BYTES,
          uint64_t theCas = 0,
          int64_t i = -1,
          uint16_t vbid = 0,
@@ -188,10 +188,6 @@ public:
         return value.get() ? value->getData() : NULL;
     }
 
-    const char *getBlob() const {
-        return value.get() ? value->getBlob() : NULL;
-    }
-
     const value_t &getValue() const {
         return value;
     }
@@ -209,7 +205,7 @@ public:
     }
 
     uint32_t getNBytes() const {
-        return value.get() ? static_cast<uint32_t>(value->vlength()) : 0;
+        return value.get() ? static_cast<uint32_t>(value->valueSize()) : 0;
     }
 
     size_t getValMemSize() const {
@@ -228,25 +224,12 @@ public:
         return metaData.cas;
     }
 
-    // @return the cached datatype
     protocol_binary_datatype_t getDataType() const {
         return datatype;
     }
 
     void setDataType(protocol_binary_datatype_t datatype_) {
-        if (haveExtMetaData()) {
-            value->setDataType(datatype_);
-        }
-        // update the cached datatype
         datatype = datatype_;
-    }
-
-    const char* getExtMeta() const {
-        return value.get() ? value->getExtMeta() : NULL;
-    }
-
-    uint8_t getExtMetaLen() const {
-        return value.get() ? value->getExtLen() : 0;
     }
 
     void setCas() {
@@ -259,9 +242,6 @@ public:
 
     void setValue(const value_t &v) {
         value.reset(v);
-        // update the cached datatype
-        datatype = value.get() ? value->getDataType() :
-                PROTOCOL_BINARY_RAW_BYTES;
     }
 
     void setFlags(uint32_t f) {
@@ -428,22 +408,14 @@ private:
      * Set the item's data. This is only used by constructors, so we
      * make it private.
      */
-    void setData(const char *dta, const size_t nb, uint8_t* ext_meta,
-                 uint8_t ext_len) {
+    void setData(const char* dta, const size_t nb) {
         Blob *data;
         if (dta == nullptr) {
-            data = Blob::New(nb, ext_meta, ext_len);
+            data = Blob::New(nb);
         } else {
-            data = Blob::New(dta, nb, ext_meta, ext_len);
+            data = Blob::New(dta, nb);
         }
         setValue(data);
-    }
-
-    /*
-     * @return boolean value of whether extended meta data exists for the item.
-     */
-    bool haveExtMetaData() const {
-        return (value.get() && value->getExtLen() > 0);
     }
 
     ItemMetaData metaData;

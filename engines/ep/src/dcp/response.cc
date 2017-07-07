@@ -73,7 +73,8 @@ uint32_t MutationResponse::getMessageSize() const {
     // If the item has xattributes then calculate the size of the xattributes
     if (mcbp::datatype::is_xattr(item_->getDataType())) {
         auto root = reinterpret_cast<const char*>(item_->getData());
-        const cb::const_char_buffer buffer{root, item_->getValue()->vlength()};
+        const cb::const_char_buffer buffer{root,
+                                           item_->getValue()->valueSize()};
         sz = cb::xattr::get_body_offset(buffer);
     }
 

@@ -1982,16 +1982,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::itemAllocate(
 
     time_t expiretime = (exptime == 0) ? 0 : ep_abs_time(ep_reltime(exptime));
 
-    uint8_t ext_meta[1];
-    uint8_t ext_len = EXT_META_LEN;
-    *(ext_meta) = datatype;
     *itm = new Item(key,
                     flags,
                     expiretime,
                     nullptr,
                     nbytes,
-                    ext_meta,
-                    ext_len,
+                    datatype,
                     0 /*cas*/,
                     -1 /*seq*/,
                     vbucket);
@@ -4402,14 +4398,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(
             cookie,
             datatype,
             {reinterpret_cast<const char*>(value.data()), value.size()});
-    uint8_t extMeta[1] = {uint8_t(datatype)};
     auto item = std::make_unique<Item>(key,
                                        itemMeta.flags,
                                        itemMeta.exptime,
                                        value.data(),
                                        value.size(),
-                                       extMeta,
-                                       EXT_META_LEN,
+                                       datatype,
                                        itemMeta.cas,
                                        -1,
                                        vbucket);
@@ -4761,12 +4755,15 @@ EventuallyPersistentEngine::returnMeta(const void* cookie,
         datatype = checkForDatatypeJson(
                 cookie, datatype, {reinterpret_cast<const char*>(dta), vallen});
 
-        uint8_t ext_meta[1];
-        uint8_t ext_len = EXT_META_LEN;
-        *(ext_meta) = datatype;
-        Item *itm = new Item(DocKey(keyPtr, keylen, docNamespace),
-                             flags, exp, dta, vallen, ext_meta,
-                             ext_len, cas, -1, vbucket);
+        Item* itm = new Item(DocKey(keyPtr, keylen, docNamespace),
+                             flags,
+                             exp,
+                             dta,
+                             vallen,
+                             datatype,
+                             cas,
+                             -1,
+                             vbucket);
 
         if (!itm) {
             return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,

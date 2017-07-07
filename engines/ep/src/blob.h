@@ -33,38 +33,20 @@ public:
      *
      * @param start the beginning of the data to copy into this blob
      * @param len the amount of data to copy in
-     * @param ext_meta pointer to the extended meta section to be added
-     * @param ext_len length of the extended meta section
      *
      * @return the new Blob instance
      */
-    static Blob* New(const char* start,
-                     const size_t len,
-                     uint8_t* ext_meta,
-                     uint8_t ext_len);
-
-    /**
-     * Create a new Blob of the given size, with ext_meta set to the specified
-     * extended metadata
-     *
-     * @param len the size of the blob
-     * @param ext_meta pointer to the extended meta section to be copied in.
-     * @param ext_len length of the extended meta section
-     *
-     * @return the new Blob instance
-     */
-    static Blob* New(const size_t len, uint8_t* ext_meta, uint8_t ext_len);
+    static Blob* New(const char* start, const size_t len);
 
     /**
      * Create a new Blob of the given size.
      * (Used for appends/prepends)
      *
      * @param len the size of the blob
-     * @param ext_len length of the extended meta section
      *
      * @return the new Blob instance
      */
-    static Blob* New(const size_t len, uint8_t ext_len);
+    static Blob* New(const size_t len);
 
     /**
      * Creates an exact copy of the specified Blob.
@@ -77,51 +59,14 @@ public:
      * Get the pointer to the contents of the Value part of this Blob.
      */
     const char* getData() const {
-        return data + FLEX_DATA_OFFSET + extMetaLen;
-    }
-
-    /**
-     * Get the pointer to the contents of Blob.
-     */
-    const char* getBlob() const {
         return data;
     }
 
     /**
-     * Return datatype stored in Value Blob.
+     * Get the size of this Blob's value.
      */
-    const protocol_binary_datatype_t getDataType() const {
-        return extMetaLen > 0
-                       ? protocol_binary_datatype_t(*(data + FLEX_DATA_OFFSET))
-                       : PROTOCOL_BINARY_RAW_BYTES;
-    }
-
-    /**
-     * Set datatype for the value Blob.
-     */
-    void setDataType(uint8_t datatype) {
-        data[FLEX_DATA_OFFSET] = char(datatype);
-    }
-
-    /**
-     * Return the pointer to exteneded metadata, stored in the Blob.
-     */
-    const char* getExtMeta() const {
-        return extMetaLen > 0 ? data + FLEX_DATA_OFFSET : NULL;
-    }
-
-    /**
-     * Get the length of this Blob value.
-     */
-    size_t length() const {
+    size_t valueSize() const {
         return size;
-    }
-
-    /**
-     * Get the length of just the value part in the Blob.
-     */
-    size_t vlength() const {
-        return size - extMetaLen - FLEX_DATA_OFFSET;
     }
 
     /**
@@ -131,13 +76,6 @@ public:
         return size + sizeof(Blob);
     }
 
-    /**
-     * Get extended meta data length, after subtracting the
-     * size of FLEX_META_CODE.
-     */
-    uint8_t getExtLen() const {
-        return extMetaLen;
-    }
 
     /**
      * Returns how old this Blob is (how many epochs have passed since it was
@@ -178,16 +116,10 @@ protected:
      *              the newly-created Blob.
      * @param len   Size of the data the Blob object will hold, and size of
      *              the data at {start}.
-     * @param ext_meta Pointer to any extended metadata, which will be copied
-     *                 into the newly created Blob.
-     * @param ext_len Size of the data pointed to by {ext_meta}
      */
-    explicit Blob(const char* start,
-                  const size_t len,
-                  uint8_t* ext_meta,
-                  uint8_t ext_len);
+    explicit Blob(const char* start, const size_t len);
 
-    explicit Blob(const size_t len, uint8_t ext_len);
+    explicit Blob(const size_t len);
 
     explicit Blob(const Blob& other);
 
@@ -196,12 +128,11 @@ protected:
     }
 
     const uint32_t size;
-    const uint8_t extMetaLen;
 
     // The age of this Blob, in terms of some unspecified units of time.
     uint8_t age;
-    // Pad Blob to 12 bytes by having an array of size 2.
-    char data[2];
+    // Pad Blob to 12 bytes by having an array of size 3.
+    char data[3];
 
     DISALLOW_ASSIGN(Blob);
 

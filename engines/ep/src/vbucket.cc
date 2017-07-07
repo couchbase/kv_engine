@@ -425,6 +425,7 @@ void VBucket::handlePreExpiry(StoredValue& v) {
                 itm->toItemInfo(failovers->getLatestUUID(), getHLCEpochSeqno());
         value_t new_val(Blob::Copy(*value));
         itm->setValue(new_val);
+        itm->setDataType(v.getDatatype());
 
         SERVER_HANDLE_V1* sapi = engine->getServerApi();
         /* TODO: In order to minimize allocations, the callback needs to
@@ -437,8 +438,7 @@ void VBucket::handlePreExpiry(StoredValue& v) {
                           v.getExptime(),
                           itm_info.value[0].iov_base,
                           itm_info.value[0].iov_len,
-                          &itm_info.datatype,
-                          sizeof(itm_info.datatype),
+                          itm_info.datatype,
                           v.getCas(),
                           v.getBySeqno(),
                           id,
@@ -2321,8 +2321,7 @@ VBucket::processExpiredItem(const HashTable::HashBucketLock& hbl,
      * only the system xattrs need to be stored.
      */
     value_t value = v.getValue();
-    bool onlyMarkDeleted =
-            value && mcbp::datatype::is_xattr(value->getDataType());
+    bool onlyMarkDeleted = value && mcbp::datatype::is_xattr(v.getDatatype());
     v.setRevSeqno(v.getRevSeqno() + 1);
     VBNotifyCtx notifyCtx;
     StoredValue* newSv;
@@ -2363,17 +2362,12 @@ TempAddStatus VBucket::addTempStoredValue(const HashTable::HashBucketLock& hbl,
                 std::to_string(getId()));
     }
 
-    uint8_t ext_meta[EXT_META_LEN] = {PROTOCOL_BINARY_RAW_BYTES};
-    static_assert(sizeof(ext_meta) == 1,
-                  "VBucket::addTempStoredValue(): expected "
-                  "EXT_META_LEN to be 1");
     Item itm(key,
              /*flags*/ 0,
              /*exp*/ 0,
              /*data*/ NULL,
              /*size*/ 0,
-             ext_meta,
-             sizeof(ext_meta),
+             PROTOCOL_BINARY_RAW_BYTES,
              0,
              StoredValue::state_temp_init);
 
@@ -2556,9 +2550,9 @@ std::unique_ptr<Item> VBucket::pruneXattrDocument(
     // Need to take a copy of the value, prune it, and add it back
 
     // Create work-space document
-    std::vector<uint8_t> workspace(v.getValue()->vlength());
+    std::vector<uint8_t> workspace(v.getValue()->valueSize());
     std::copy_n(v.getValue()->getData(),
-                v.getValue()->vlength(),
+                v.getValue()->valueSize(),
                 workspace.begin());
 
     // Now attach to the XATTRs in the document
@@ -2574,16 +2568,14 @@ std::unique_ptr<Item> VBucket::pruneXattrDocument(
         // Something remains - Create a Blob and copy-in just the XATTRs
         auto newValue =
                 Blob::New(reinterpret_cast<const char*>(prunedXattrs.data()),
-                          prunedXattrs.size(),
-                          const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(
-                                  v.getValue()->getExtMeta())),
-                          v.getValue()->getExtLen());
+                          prunedXattrs.size());
         auto rv = v.toItem(false, getId());
         rv->setCas(itemMeta.cas);
         rv->setFlags(itemMeta.flags);
         rv->setExpTime(itemMeta.exptime);
         rv->setRevSeqno(itemMeta.revSeqno);
         rv->setValue(newValue);
+        rv->setDataType(PROTOCOL_BINARY_DATATYPE_XATTR);
         return rv;
     } else {
         return {};

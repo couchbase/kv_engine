@@ -711,7 +711,7 @@ bool HashTable::unlocked_restoreValue(
 
     v.restoreValue(itm);
 
-    increaseCacheSize(v.getValue()->length());
+    increaseCacheSize(v.getValue()->valueSize());
     return true;
 }
 

@@ -84,9 +84,15 @@ void EventuallyPersistentEngineTest::TearDown() {
 void EventuallyPersistentEngineTest::store_item(uint16_t vbid,
                                                 const std::string& key,
                                                 const std::string& value) {
-    Item item(makeStoredDocKey(key), /*flags*/0, /*exp*/0, value.c_str(),
-              value.size(), nullptr/*extmeta*/, 0/*extlen*/, 0/*cas*/,
-              -1/*seqno*/, vbid);
+    Item item(makeStoredDocKey(key),
+              /*flags*/ 0,
+              /*exp*/ 0,
+              value.c_str(),
+              value.size(),
+              PROTOCOL_BINARY_RAW_BYTES,
+              0 /*cas*/,
+              -1 /*seqno*/,
+              vbid);
     uint64_t cas;
     EXPECT_EQ(ENGINE_SUCCESS,
               engine->store(NULL, &item, &cas, OPERATION_SET));

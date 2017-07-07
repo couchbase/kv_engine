@@ -74,8 +74,8 @@ public:
     void SetUp() {
         std::string valueData = R"({"json":"yes"})";
         std::string data = createXattrValue(valueData);
-        uint8_t ext_meta[EXT_META_LEN] = {PROTOCOL_BINARY_DATATYPE_JSON |
-                                          PROTOCOL_BINARY_DATATYPE_XATTR};
+        protocol_binary_datatype_t datatype = (PROTOCOL_BINARY_DATATYPE_JSON |
+                                               PROTOCOL_BINARY_DATATYPE_XATTR);
 
          item = std::make_unique<Item>(
                 makeStoredDocKey("key"),
@@ -83,8 +83,7 @@ public:
                 0,
                 data.data(),
                 data.size(),
-                ext_meta,
-                sizeof(ext_meta));
+                datatype);
         }
 };
 
@@ -106,16 +105,13 @@ TEST_F(ItemTest, getAndSetCachedDataType) {
     // Check that the datatype equals what we set it to
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_SNAPPY, item->getDataType());
 
-    uint8_t ext_meta[EXT_META_LEN] = {PROTOCOL_BINARY_DATATYPE_JSON};
     std::string jsonValueData = R"({"json":"yes"})";
 
-    auto blob = Blob::New(jsonValueData.c_str(),
-                          jsonValueData.size(),
-                          ext_meta,
-                          sizeof(ext_meta));
+    auto blob = Blob::New(jsonValueData.c_str(), jsonValueData.size());
 
     // Replace the item's blob with one that contains extended meta data
     item->setValue(blob);
+    item->setDataType(PROTOCOL_BINARY_DATATYPE_JSON);
 
     // Expect the cached datatype to be equal to the one in the new blob
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON,
@@ -184,7 +180,7 @@ TEST_F(ItemPruneTest, testPruneValueAndXattrs) {
 
 TEST_F(ItemPruneTest, testPruneValueWithNoXattrs) {
     std::string valueData = R"({"json":"yes"})";
-    uint8_t ext_meta[EXT_META_LEN] = {PROTOCOL_BINARY_DATATYPE_JSON};
+    protocol_binary_datatype_t datatype = PROTOCOL_BINARY_DATATYPE_JSON;
 
     item = std::make_unique<Item>(
             makeStoredDocKey("key"),
@@ -192,16 +188,15 @@ TEST_F(ItemPruneTest, testPruneValueWithNoXattrs) {
             0,
             const_cast<char*>(valueData.data()),
             valueData.size(),
-            ext_meta,
-            sizeof(ext_meta));
+            datatype);
 
     item->pruneValueAndOrXattrs(IncludeValue::No, IncludeXattrs::Yes);
 
-    auto datatype = item->getDataType();
-    EXPECT_FALSE(mcbp::datatype::is_json(datatype));
-    EXPECT_FALSE(mcbp::datatype::is_xattr(datatype));
-    EXPECT_FALSE(mcbp::datatype::is_snappy(datatype));
-    EXPECT_TRUE(mcbp::datatype::is_raw(datatype));
+    auto dtype = item->getDataType();
+    EXPECT_FALSE(mcbp::datatype::is_json(dtype));
+    EXPECT_FALSE(mcbp::datatype::is_xattr(dtype));
+    EXPECT_FALSE(mcbp::datatype::is_snappy(dtype));
+    EXPECT_TRUE(mcbp::datatype::is_raw(dtype));
 
     // should not have value
     EXPECT_EQ(0, item->getNBytes());

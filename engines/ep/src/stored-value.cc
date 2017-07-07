@@ -187,15 +187,11 @@ std::unique_ptr<Item> StoredValue::toItem(bool lck, uint16_t vbucket) const {
                                    getFlags(),
                                    getExptime(),
                                    value,
+                                   datatype,
                                    lck ? static_cast<uint64_t>(-1) : getCas(),
                                    bySeqno,
                                    vbucket,
                                    getRevSeqno());
-
-    // This is a partial item...
-    if (value.get() == nullptr) {
-        itm->setDataType(datatype);
-    }
 
     itm->setNRUValue(nru);
 
@@ -212,12 +208,12 @@ std::unique_ptr<Item> StoredValue::toItemKeyOnly(uint16_t vbucket) const {
                                    getFlags(),
                                    getExptime(),
                                    value_t{},
+                                   datatype,
                                    getCas(),
                                    getBySeqno(),
                                    vbucket,
                                    getRevSeqno());
 
-    itm->setDataType(datatype);
     itm->setNRUValue(nru);
 
     if (deleted) {
@@ -333,7 +329,7 @@ boost::optional<item_info> StoredValue::getItemInfo(uint64_t vbuuid) const {
     info.key = getKey().data();
     if (getValue()) {
         info.value[0].iov_base = const_cast<char*>(getValue()->getData());
-        info.value[0].iov_len = getValue()->vlength();
+        info.value[0].iov_len = getValue()->valueSize();
     }
     return info;
 }
@@ -382,11 +378,11 @@ std::ostream& operator<<(std::ostream& os, const StoredValue& sv) {
         os << " val:\"";
         const char* data = sv.getValue()->getData();
         // print up to first 40 bytes of value.
-        const size_t limit = std::min(size_t(40), sv.getValue()->vlength());
+        const size_t limit = std::min(size_t(40), sv.getValue()->valueSize());
         for (size_t ii = 0; ii < limit; ii++) {
             os << data[ii];
         }
-        if (limit < sv.getValue()->vlength()) {
+        if (limit < sv.getValue()->valueSize()) {
             os << " <cut>";
         }
         os << "\"";

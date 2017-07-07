@@ -21,67 +21,41 @@
 
 #include <cstring>
 
-Blob* Blob::New(const char* start,
-                const size_t len,
-                uint8_t* ext_meta,
-                uint8_t ext_len) {
-    size_t total_len = getAllocationSize(len + FLEX_DATA_OFFSET + ext_len);
-    Blob* t =
-            new (::operator new(total_len)) Blob(start, len, ext_meta, ext_len);
+Blob* Blob::New(const char* start, const size_t len) {
+    size_t total_len = getAllocationSize(len);
+    Blob* t = new (::operator new(total_len)) Blob(start, len);
     return t;
 }
 
-Blob* Blob::New(const size_t len, uint8_t* ext_meta, uint8_t ext_len) {
-    size_t total_len = getAllocationSize(len + FLEX_DATA_OFFSET + ext_len);
-    Blob* t =
-            new (::operator new(total_len)) Blob(NULL, len, ext_meta, ext_len);
-    return t;
-}
-
-Blob* Blob::New(const size_t len, uint8_t ext_len) {
-    size_t total_len = getAllocationSize(len + FLEX_DATA_OFFSET + ext_len);
-    Blob* t = new (::operator new(total_len)) Blob(len, ext_len);
+Blob* Blob::New(const size_t len) {
+    size_t total_len = getAllocationSize(len);
+    Blob* t = new (::operator new(total_len)) Blob(len);
     return t;
 }
 
 Blob* Blob::Copy(const Blob& other) {
-    Blob* t = new (::operator new(Blob::getAllocationSize(other.length())))
+    Blob* t = new (::operator new(Blob::getAllocationSize(other.valueSize())))
             Blob(other);
     return t;
 }
 
-Blob::Blob(const char* start,
-           const size_t len,
-           uint8_t* ext_meta,
-           uint8_t ext_len)
-    : size(static_cast<uint32_t>(len + FLEX_DATA_OFFSET + ext_len)),
-      extMetaLen(static_cast<uint8_t>(ext_len)),
-      age(0) {
-    *(data) = FLEX_META_CODE;
-    std::memcpy(data + FLEX_DATA_OFFSET, ext_meta, ext_len);
+Blob::Blob(const char* start, const size_t len)
+    : size(static_cast<uint32_t>(len)), age(0) {
     if (start != NULL) {
-        std::memcpy(data + FLEX_DATA_OFFSET + ext_len, start, len);
+        std::memcpy(data, start, len);
 #ifdef VALGRIND
     } else {
-        memset(data + FLEX_DATA_OFFSET + ext_len, 0, len);
+        memset(data, 0, len);
 #endif
     }
     ObjectRegistry::onCreateBlob(this);
 }
 
-Blob::Blob(const size_t len, uint8_t ext_len)
-    : size(static_cast<uint32_t>(len + FLEX_DATA_OFFSET + ext_len)),
-      extMetaLen(static_cast<uint8_t>(ext_len)),
-      age(0) {
-#ifdef VALGRIND
-    memset(data, 0, len);
-#endif
-    ObjectRegistry::onCreateBlob(this);
+Blob::Blob(const size_t len) : Blob(nullptr, len) {
 }
 
 Blob::Blob(const Blob& other)
     : size(other.size),
-      extMetaLen(other.extMetaLen),
       // While this is a copy, it is a new allocation therefore reset age.
       age(0) {
     std::memcpy(data, other.data, size);
@@ -89,7 +63,7 @@ Blob::Blob(const Blob& other)
 }
 
 const std::string Blob::to_s() const {
-    return std::string(data + extMetaLen + FLEX_DATA_OFFSET, vlength());
+    return std::string(data, valueSize());
 }
 
 Blob::~Blob() {

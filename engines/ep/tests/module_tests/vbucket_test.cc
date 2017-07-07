@@ -230,11 +230,11 @@ public:
 };
 
 TEST(BlobTest, basicAllocationSize){
-    EXPECT_EQ(BlobTest::getAllocationSize(10), 20);
+    EXPECT_EQ(BlobTest::getAllocationSize(10), 19);
 
-    // Expected to be 10 because the 2 bytes of the data member array will not
+    // Expected to be 9 because 3 bytes of the data member array will not
     // be allocated because they will not be used.
-    EXPECT_EQ(BlobTest::getAllocationSize(0), 10);
+    EXPECT_EQ(BlobTest::getAllocationSize(0), 9);
 }
 
 // Measure performance of VBucket::getBGFetchItems - queue and then get

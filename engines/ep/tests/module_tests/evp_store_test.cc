@@ -722,7 +722,7 @@ TEST_P(EPStoreEvictionTest, getDeletedItemWithNoValue) {
     // Ensure that the item is deleted and the value length is zero
     Item* itm = gv.item.get();
     value_t value = itm->getValue();
-    EXPECT_EQ(0, value->vlength());
+    EXPECT_EQ(0, value->valueSize());
     EXPECT_TRUE(itm->isDeleted());
 }
 

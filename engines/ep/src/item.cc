@@ -34,6 +34,7 @@ Item::Item(const DocKey& k,
            const uint32_t fl,
            const time_t exp,
            const value_t& val,
+           protocol_binary_datatype_t dtype,
            uint64_t theCas,
            int64_t i,
            uint16_t vbid,
@@ -47,13 +48,10 @@ Item::Item(const DocKey& k,
       vbucketId(vbid),
       op(k.getDocNamespace() == DocNamespace::System ? queue_op::system_event
                                                      : queue_op::set),
-      nru(nru_value) {
+      nru(nru_value),
+      datatype(dtype) {
     if (bySeqno == 0) {
         throw std::invalid_argument("Item(): bySeqno must be non-zero");
-    }
-    // Update the cached version of the datatype
-    if (haveExtMetaData()) {
-        datatype = value->getDataType();
     }
 
     ObjectRegistry::onCreateItem(this);
@@ -64,8 +62,7 @@ Item::Item(const DocKey& k,
            const time_t exp,
            const void* dta,
            const size_t nb,
-           uint8_t* ext_meta,
-           uint8_t ext_len,
+           protocol_binary_datatype_t dtype,
            uint64_t theCas,
            int64_t i,
            uint16_t vbid,
@@ -78,11 +75,12 @@ Item::Item(const DocKey& k,
       vbucketId(vbid),
       op(k.getDocNamespace() == DocNamespace::System ? queue_op::system_event
                                                      : queue_op::set),
-      nru(nru_value) {
+      nru(nru_value),
+      datatype(dtype) {
     if (bySeqno == 0) {
         throw std::invalid_argument("Item(): bySeqno must be non-zero");
     }
-    setData(static_cast<const char*>(dta), nb, ext_meta, ext_len);
+    setData(static_cast<const char*>(dta), nb);
 
     ObjectRegistry::onCreateItem(this);
 }
@@ -188,7 +186,6 @@ std::ostream& operator<<(std::ostream& os, const ItemMetaData& md) {
 
 bool operator==(const Blob& lhs, const Blob& rhs) {
     return (lhs.size == rhs.size) &&
-           (lhs.extMetaLen == rhs.extMetaLen) &&
            (lhs.age == rhs.age) &&
            (memcmp(lhs.data, rhs.data, lhs.size) == 0);
 }
@@ -196,7 +193,6 @@ bool operator==(const Blob& lhs, const Blob& rhs) {
 std::ostream& operator<<(std::ostream& os, const Blob& b) {
     os << "Blob[" << &b << "] with"
        << " size:" << b.size
-       << " extMetaLen:" << int(b.extMetaLen)
        << " age:" << int(b.age)
        << " data: <" << std::hex;
     // Print at most 40 bytes of the body.
@@ -228,8 +224,7 @@ bool Item::compressValue(float minCompressionRatio) {
                 // compression ratio isn't achieved.
                 return true;
             }
-            setData(deflated.data.get(), deflated.len,
-                    (uint8_t *)(getExtMeta()), getExtMetaLen());
+            setData(deflated.data.get(), deflated.len);
 
             datatype |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
             setDataType(datatype);
@@ -248,8 +243,7 @@ bool Item::decompressValue() {
         cb::compression::Buffer inflated;
         if (cb::compression::inflate(cb::compression::Algorithm::Snappy,
                                      getData(), getNBytes(), inflated)) {
-            setData(inflated.data.get(), inflated.len,
-                    (uint8_t *)(getExtMeta()), getExtMetaLen());
+            setData(inflated.data.get(), inflated.len);
             datatype &= ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
             setDataType(datatype);
         } else {
@@ -304,39 +298,31 @@ void Item::pruneValueAndOrXattrs(IncludeValue includeVal,
     }
 
     auto root = reinterpret_cast<const char*>(value->getData());
-    const cb::const_char_buffer buffer{root, value->vlength()};
+    const cb::const_char_buffer buffer{root, value->valueSize()};
     const auto sz = cb::xattr::get_body_offset(buffer);
-
-    char* extMeta = const_cast<char*>(value->getExtMeta());
 
     if (includeXattrs == IncludeXattrs::Yes) {
         if (mcbp::datatype::is_xattr(getDataType())) {
             // Want just the xattributes
-            setData(value->getData(),
-                    sz,
-                    reinterpret_cast<uint8_t*>(extMeta),
-                    value->getExtLen());
+            setData(value->getData(), sz);
             // Remove all other datatype flags as we're only sending the xattrs
             setDataType(PROTOCOL_BINARY_DATATYPE_XATTR);
         } else {
             // We don't want the value and there are no xattributes,
             // so just send the key
-            setData(nullptr, 0, nullptr, 0);
+            setData(nullptr, 0);
             setDataType(PROTOCOL_BINARY_RAW_BYTES);
         }
     } else if (includeVal == IncludeValue::Yes)  {
         // Want just the value, so remove xattributes if there are any
         if (mcbp::datatype::is_xattr(getDataType())) {
-            setData(value->getData() + sz,
-                value->vlength() - sz,
-                reinterpret_cast<uint8_t*>(extMeta),
-                value->getExtLen());
+            setData(value->getData() + sz, value->valueSize() - sz);
             // Clear the xattr datatype
             setDataType(getDataType() & ~PROTOCOL_BINARY_DATATYPE_XATTR);
         }
     } else {
         // Don't want the xattributes or value, so just send the key
-        setData(nullptr, 0, nullptr, 0);
+        setData(nullptr, 0);
         setDataType(PROTOCOL_BINARY_RAW_BYTES);
     }
 }

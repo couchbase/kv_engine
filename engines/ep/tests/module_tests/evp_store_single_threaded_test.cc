@@ -1699,5 +1699,5 @@ TEST_F(SingleThreadedEPBucketTest, mb25273) {
     EXPECT_TRUE(gv.item->isDeleted());
     EXPECT_EQ(0, gv.item->getFlags()); // flags also still zero
     EXPECT_EQ(3, gv.item->getCas());
-    EXPECT_EQ(value.size(), gv.item->getValue()->vlength());
+    EXPECT_EQ(value.size(), gv.item->getValue()->valueSize());
 }

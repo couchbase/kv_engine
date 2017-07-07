@@ -94,27 +94,27 @@ TYPED_TEST(ValueTest, DISABLED_StoredValueReallocateGivesSameSize) {
 #endif
 
     /* MB-25143: Ensure reallocation doesn't allocate excess bytes
-     * Make an item with a value of size 179. This gives a blob.size of
-     * 179 + FLEX_DATA_OFFSET + ext_len
-     * 179 + 1 + 1 = 181
-     * sizeof(Blob) = 12, but two of those bytes are padding
+     * Make an item with a value of size 182.
+     * sizeof(Blob) = 12, but three of those bytes are padding
      * used for the data. Therefore, the allocation size for the blob is
-     * blob.size + sizeof(Blob) - 2
-     * 181 + 12 - 2 = 191
+     * blob.size + sizeof(Blob) - 3
+     * 182 + 12 - 3 = 191
      * Jemalloc has a bin of size 192, which should be chosen for
      * the allocation of the blob.
      * As noted in MB-25143, the reallocation done by the defragmenter
      * overallocated by two bytes. This would push it over the bin size
- */
+     */
 
     auto sv = this->factory(
             make_item(0,
                       makeStoredDocKey(std::string(10, 'k').c_str()),
-                      std::string(179, 'v').c_str()),
+                      std::string(182, 'v').c_str()),
             {});
 
     auto blob = sv->getValue();
-    ASSERT_EQ(193, blob->getSize());
+    // @todo MB-25881: Due to a bug in getSize we don't account for the padding
+    // therefore assert it is +3 more than the value we want (191).
+    ASSERT_EQ(194, blob->getSize());
     int before = AllocHooks::get_allocation_size(blob.get());
 
     /* While the initial bug in MB-25143 would only increase the size of
@@ -142,7 +142,7 @@ TYPED_TEST(ValueTest, metaDataSize) {
 
 TYPED_TEST(ValueTest, valuelen) {
     // Check valuelen reports correctly.
-    EXPECT_EQ(/*value length*/ 5 + /*extmeta*/ 2, this->sv->valuelen())
+    EXPECT_EQ(/*value length*/ 5, this->sv->valuelen())
             << "valuelen() expected to be sum of raw value length + extended "
                "meta";
 }
@@ -151,7 +151,7 @@ TYPED_TEST(ValueTest, valuelenDeletedWithValue) {
     // Check valuelen reports correctly for a StoredValue just marked delete
     // (with xattrs deleted items can have value)
     this->sv->markDeleted();
-    EXPECT_EQ(/*value length*/ 5 + /*extmeta*/ 2, this->sv->valuelen())
+    EXPECT_EQ(/*value length*/ 5, this->sv->valuelen())
             << "valuelen() expected to be sum of raw value length + extended "
                "meta as we want to keep deleted body";
 }
@@ -168,7 +168,7 @@ TYPED_TEST(ValueTest, valuelenDeletedWithoutValue) {
 TYPED_TEST(ValueTest, size) {
     // Check size reports correctly.
     EXPECT_EQ(this->getFixedSize() + /*key*/ 3 + /*len*/ 1 +
-                      /*namespace*/ 1 + /*valuelen*/ 5 + /*extmeta*/ 2,
+              /*namespace*/ 1 + /*valuelen*/ 5,
               this->sv->size());
 }
 
@@ -193,7 +193,12 @@ TYPED_TEST(ValueTest, checkIfResident) {
 /// Check if the value is resident for a temporary
 /// item
 TYPED_TEST(ValueTest, checkIfTempItemIsResident) {
-    Item itm(makeStoredDocKey("k"), 0, 0, nullptr, 0,
+    Item itm(makeStoredDocKey("k"),
+             0,
+             0,
+             (const value_t) nullptr,
+             PROTOCOL_BINARY_RAW_BYTES,
+             0,
              StoredValue::state_temp_init);
     this->sv->setValue(itm);
     EXPECT_TRUE(this->sv->isTempItem());

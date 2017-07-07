@@ -62,14 +62,12 @@ protected:
     Item make_item(uint16_t vbid,
                    const std::string& key,
                    const std::string& value) {
-        uint8_t ext_meta[EXT_META_LEN] = {PROTOCOL_BINARY_DATATYPE_JSON};
         Item item({key, DocNamespace::DefaultCollection},
                   /*flags*/ 0,
                   /*exp*/ 0,
                   value.c_str(),
                   value.size(),
-                  ext_meta,
-                  sizeof(ext_meta));
+                  PROTOCOL_BINARY_DATATYPE_JSON);
         item.setVBucketId(vbid);
         return item;
     }

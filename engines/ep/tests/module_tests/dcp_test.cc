@@ -144,14 +144,14 @@ protected:
     std::unique_ptr<Item> makeItemWithXattrs() {
         std::string valueData = R"({"json":"yes"})";
         std::string data = createXattrValue(valueData);
-        uint8_t ext_meta[EXT_META_LEN] = {PROTOCOL_BINARY_DATATYPE_JSON |
-                                          PROTOCOL_BINARY_DATATYPE_XATTR};
+        protocol_binary_datatype_t datatype = (PROTOCOL_BINARY_DATATYPE_JSON |
+                                               PROTOCOL_BINARY_DATATYPE_XATTR);
         return std::make_unique<Item>(makeStoredDocKey("key"),
                                       /*flags*/0,
                                       /*exp*/0,
                                       data.c_str(),
                                       data.size(),
-                                      ext_meta, sizeof(ext_meta));
+                                      datatype);
     }
 
     /*
@@ -160,14 +160,13 @@ protected:
      */
     std::unique_ptr<Item> makeItemWithoutXattrs() {
             std::string valueData = R"({"json":"yes"})";
-            uint8_t ext_meta[EXT_META_LEN] = {PROTOCOL_BINARY_DATATYPE_JSON};
+            protocol_binary_datatype_t datatype = PROTOCOL_BINARY_DATATYPE_JSON;
             return std::make_unique<Item>(makeStoredDocKey("key"),
                                           /*flags*/0,
                                           /*exp*/0,
                                           valueData.c_str(),
                                           valueData.size(),
-                                          ext_meta,
-                                          sizeof(ext_meta));
+                                          datatype);
     }
 
     /* Add items onto the vbucket and wait for the checkpoint to be removed */
@@ -364,7 +363,7 @@ TEST_P(StreamTest, test_keyAndValueMessageSize) {
 TEST_P(StreamTest, test_keyAndValueExcludingXattrsMessageSize) {
     auto item = makeItemWithXattrs();
     auto root = const_cast<char*>(item->getData());
-    cb::byte_buffer buffer{(uint8_t*)root, item->getValue()->vlength()};
+    cb::byte_buffer buffer{(uint8_t*)root, item->getValue()->valueSize()};
     auto sz = cb::xattr::get_body_offset({
            reinterpret_cast<char*>(buffer.buf), buffer.len});
     auto keyAndValueMessageSize = MutationResponse::mutationBaseMsgBytes +
@@ -409,7 +408,7 @@ TEST_P(StreamTest,
 TEST_P(StreamTest, test_keyAndValueExcludingValueDataMessageSize) {
     auto item = makeItemWithXattrs();
     auto root = const_cast<char*>(item->getData());
-    cb::byte_buffer buffer{(uint8_t*)root, item->getValue()->vlength()};
+    cb::byte_buffer buffer{(uint8_t*)root, item->getValue()->valueSize()};
     auto sz = cb::xattr::get_body_offset({
            reinterpret_cast<char*>(buffer.buf), buffer.len});
     auto keyAndValueMessageSize = MutationResponse::mutationBaseMsgBytes +

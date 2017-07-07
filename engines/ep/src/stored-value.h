@@ -397,7 +397,7 @@ public:
         if (!value) {
             return 0;
         }
-        return value->length();
+        return value->valueSize();
     }
 
     /**
