@@ -808,8 +808,8 @@ static void dcp_stream_from_producer_conn(ENGINE_HANDLE* h,
     h1->dcp.buffer_acknowledgement(h, cookie, ++opaque, 0, bytes_read);
     checkeq((end - start + 1), num_mutations, "Invalid number of mutations");
     if (expSnapStart) {
-        checkeq(expSnapStart,
-                last_snap_start_seqno,
+        checkge(last_snap_start_seqno,
+                expSnapStart,
                 "Incorrect snap start seqno");
     }
 }
