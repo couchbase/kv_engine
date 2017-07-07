@@ -8,7 +8,6 @@
 #cmakedefine HAVE_POLL_H ${HAVE_POLL_H}
 #cmakedefine HAVE_SYS_SOCKET_H ${HAVE_SYS_SOCKET_H}
 #cmakedefine HAVE_SYS_TIME_H ${HAVE_SYS_TIME_H}
-#cmakedefine HAVE_SCHED_H ${HAVE_SCHED_H}
 #cmakedefine HAVE_UNISTD_H ${HAVE_UNISTD_H}
 
 /* various */

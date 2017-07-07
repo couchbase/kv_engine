@@ -19,6 +19,8 @@
 
 #include "atomic.h"
 
+#include <thread>
+
 SpinLock::SpinLock()
 {
     lck.clear();
@@ -36,7 +38,7 @@ void SpinLock::lock(void) {
    while (!tryAcquire()) {
       ++spin;
       if (spin > 64) {
-          sched_yield();
+          std::this_thread::yield();
       }
    }
 }

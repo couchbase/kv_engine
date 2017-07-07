@@ -93,7 +93,6 @@
 #pragma warning(disable: )
 */
 
-#define sched_yield() SwitchToThread()
 #if _MSC_VER < 1900
 #define snprintf _snprintf
 #endif
@@ -107,10 +106,6 @@ typedef unsigned int useconds_t;
 #undef ntohl
 #undef htons
 #undef htonl
-#endif
-
-#ifdef HAVE_SCHED_H
-#include <sched.h>
 #endif
 
 #endif /* SRC_CONFIG_STATIC_H */
