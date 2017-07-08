@@ -307,6 +307,13 @@ size_t BasicLinkedList::purgeTombstones() {
         it = purgeListElem(it);
         ++purgedCount;
     }
+#if 0
+    // TEMP - MB-25102 - skip purging the last element in the sequence list
+    // to prevent rebalance hanginf due to lack of high seqno item.
+
+    // Proper fix needed - should not dictate policy in this container - for
+    // example have the caller pass in the maximum seqno to purge.
+
     // Handle the last element.
     {
         std::lock_guard<std::mutex> writeGuard(getListWriteLock());
@@ -316,6 +323,7 @@ size_t BasicLinkedList::purgeTombstones() {
         purgeListElem(endIt);
         ++purgedCount;
     }
+#endif
 
     // Complete; reset the readRange.
     {

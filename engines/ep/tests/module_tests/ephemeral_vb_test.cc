@@ -472,13 +472,17 @@ TEST_F(EphTombstoneTest, ImmediateDeletedPurge) {
 
     // Delete the first item at 10s
     softDeleteOne(keys.at(0), MutationStatus::WasDirty);
-    ASSERT_EQ(2, vbucket->getNumItems());
+
+    setOne(makeStoredDocKey("last_key1"));
+    setOne(makeStoredDocKey("last_key2"));
+    int expectedItems = keys.size() - 1/*deleted key*/ + 2/*last_keys*/;
+    ASSERT_EQ(expectedItems, vbucket->getNumItems());
     ASSERT_EQ(1, vbucket->getNumInMemoryDeletes());
 
     // Purge 1/2: mark tombstones older than 0s as stale - key0 should be
     // immediately purged.
     EXPECT_EQ(1, mockEpheVB->markOldTombstonesStale(0));
-    EXPECT_EQ(2, vbucket->getNumItems());
+    EXPECT_EQ(expectedItems, vbucket->getNumItems());
     EXPECT_EQ(0, vbucket->getNumInMemoryDeletes());
     EXPECT_EQ(nullptr, findValue(keys.at(0)));
     EXPECT_NE(nullptr, findValue(keys.at(1)));
@@ -488,6 +492,7 @@ TEST_F(EphTombstoneTest, ImmediateDeletedPurge) {
     EXPECT_EQ(1, mockEpheVB->purgeStaleItems());
     EXPECT_EQ(4, vbucket->getPurgeSeqno())
             << "Should have purged up to 4th update (1st delete, after 3 sets)";
+    EXPECT_NE(vbucket->getPurgeSeqno(), vbucket->getHighSeqno());
 }
 
 // Check that alive, stale items have no constraint on age.
@@ -539,24 +544,34 @@ TEST_F(EphTombstoneTest, PurgeOutOfOrder) {
     // Delete the 3rd item.
     softDeleteOne(keys.at(2), MutationStatus::WasDirty);
 
+    setOne(makeStoredDocKey("last_key1"));
+    setOne(makeStoredDocKey("last_key2"));
+    int expectedItems = keys.size() - 1/*deleted key*/ + 2/*last_keys*/;
+
     // Run the tombstone purger.
     mockEpheVB->getLL()->resetReadRange();
     ASSERT_EQ(1, mockEpheVB->markOldTombstonesStale(0));
-    ASSERT_EQ(2, vbucket->getNumItems());
+    ASSERT_EQ(expectedItems, vbucket->getNumItems());
 
     EXPECT_EQ(1, mockEpheVB->purgeStaleItems());
     EXPECT_EQ(4, vbucket->getPurgeSeqno());
 
     // Delete the 1st item
     softDeleteOne(keys.at(0), MutationStatus::WasDirty);
+    --expectedItems;
+
+    setOne(makeStoredDocKey("last_key3"));
+    setOne(makeStoredDocKey("last_key4"));
+    expectedItems += 2;
 
     // Run the tombstone purger. This should succeed, but with
     // highestDeletedPurged unchanged.
     ASSERT_EQ(1, mockEpheVB->markOldTombstonesStale(0));
-    ASSERT_EQ(1, vbucket->getNumItems());
+    ASSERT_EQ(expectedItems, vbucket->getNumItems());
 
     EXPECT_EQ(1, mockEpheVB->purgeStaleItems());
-    EXPECT_EQ(5, vbucket->getPurgeSeqno());
+    EXPECT_EQ(7, vbucket->getPurgeSeqno());
+    EXPECT_NE(vbucket->getPurgeSeqno(), vbucket->getHighSeqno());
 }
 
 // Thread-safety test (intended to run via Valgrind / ASan / TSan) -
