@@ -35,6 +35,7 @@ public:
     SynchronousEPEngine(const std::string& extra_config);
 
     void setKVBucket(std::unique_ptr<KVBucket> store);
+    void setDcpConnMap(std::unique_ptr<DcpConnMap> dcpConnMap);
 
     /* Allow us to call normally protected methods */
 

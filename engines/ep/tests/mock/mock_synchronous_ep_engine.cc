@@ -46,7 +46,7 @@ SynchronousEPEngine::SynchronousEPEngine(const std::string& extra_config)
     workload = new WorkLoadPolicy(/*workers*/ 1, /*shards*/ 1);
 
     // dcpConnMap_ is needed by EPStore's constructor.
-    dcpConnMap_ = new DcpConnMap(*this);
+    dcpConnMap_ = std::make_unique<DcpConnMap>(*this);
 
     // tapConnMap is needed by queueDirty.
     tapConnMap = new TapConnMap(*this);
@@ -66,6 +66,11 @@ SynchronousEPEngine::SynchronousEPEngine(const std::string& extra_config)
 void SynchronousEPEngine::setKVBucket(std::unique_ptr<KVBucket> store) {
     cb_assert(kvBucket == nullptr);
     kvBucket = std::move(store);
+}
+
+void SynchronousEPEngine::setDcpConnMap(
+        std::unique_ptr<DcpConnMap> dcpConnMap) {
+    dcpConnMap_ = std::move(dcpConnMap);
 }
 
 void SynchronousEPEngine::initializeConnmaps() {

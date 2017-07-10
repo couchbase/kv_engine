@@ -1815,7 +1815,6 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
       workload(NULL),
       workloadPriority(NO_BUCKET_PRIORITY),
       getServerApiFunc(get_server_api),
-      dcpConnMap_(NULL),
       dcpFlowControlManager_(NULL),
       tapConnMap(NULL),
       tapConfig(NULL),
@@ -2031,7 +2030,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         return ENGINE_FAILED;
     }
 
-    dcpConnMap_ = new DcpConnMap(*this);
+    dcpConnMap_ = std::make_unique<DcpConnMap>(*this);
 
     /* Get the flow control policy */
     std::string flowCtlPolicy = configuration.getDcpFlowControlPolicy();
@@ -6401,7 +6400,7 @@ EventuallyPersistentEngine::~EventuallyPersistentEngine() {
     kvBucket.reset();
     LOG(EXTENSION_LOG_NOTICE, "~EPEngine: Deleted KvBucket.");
     delete workload;
-    delete dcpConnMap_;
+    dcpConnMap_.reset();
     LOG(EXTENSION_LOG_NOTICE, "~EPEngine: Deleted dcpConnMap_.");
     delete dcpFlowControlManager_;
     delete tapConnMap;

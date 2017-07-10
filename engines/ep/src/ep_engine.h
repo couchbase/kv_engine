@@ -989,7 +989,7 @@ protected:
         char buffer[sizeof(engine_info) + 10 * sizeof(feature_info) ];
     } info;
 
-    DcpConnMap *dcpConnMap_;
+    std::unique_ptr<DcpConnMap> dcpConnMap_;
     DcpFlowControlManager *dcpFlowControlManager_;
     TapConnMap *tapConnMap;
     TapConfig *tapConfig;
