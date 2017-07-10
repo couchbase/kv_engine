@@ -297,3 +297,11 @@ static void assoc_maintenance_thread(void *arg) {
         cb_mutex_exit(&global_assoc->lock);
     } while (!done);
 }
+
+bool assoc_expanding() {
+    cb_mutex_enter(&global_assoc->lock);
+    auto ret = global_assoc->expanding;
+    cb_mutex_exit(&global_assoc->lock);
+
+    return ret;
+}
