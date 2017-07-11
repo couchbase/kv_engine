@@ -13,6 +13,8 @@ ADD_TEST(NAME memcached-hostutils-test
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached-hostutils-test)
 
+ADD_LIBRARY(getpass STATIC
+            getpass.cc getpass.h)
 
 ADD_SUBDIRECTORY(cbsasladm)
 ADD_SUBDIRECTORY(cbtrace)

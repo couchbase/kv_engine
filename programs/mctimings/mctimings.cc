@@ -17,6 +17,7 @@
 
 #include "config.h"
 #include "programs/hostname_utils.h"
+#include "programs/getpass.h"
 
 #include <array>
 #include <cJSON.h>
@@ -379,10 +380,12 @@ static void request_stat_timings(MemcachedBinprotConnection& connection,
 
 void usage() {
     std::cerr << "Usage mctimings [-h host[:port]] [-p port] [-u user]"
-              << " [-P pass] [-b bucket] [-s] -v [opcode / stat_name]*" << std::endl
+              << " [-P pass] [-S passFromStdin] [-b bucket] [-s]"
+              << "-v [opcode / stat_name]*" << std::endl
               << std::endl
               << "Example:" << std::endl
-              << "    mctimings -h localhost:11210 -v GET SET";
+              << "    mctimings -h localhost:11210 -v GET SET"
+              << std::endl;
 }
 
 int main(int argc, char** argv) {
@@ -399,7 +402,7 @@ int main(int argc, char** argv) {
     /* Initialize the socket subsystem */
     cb_initialize_sockets();
 
-    while ((cmd = getopt(argc, argv, "46h:p:u:b:P:sv")) != EOF) {
+    while ((cmd = getopt(argc, argv, "46h:p:u:b:P:Ssv")) != EOF) {
         switch (cmd) {
         case '6' :
             family = AF_INET6;
@@ -412,6 +415,9 @@ int main(int argc, char** argv) {
             break;
         case 'p':
             port.assign(optarg);
+            break;
+        case 'S':
+            password.assign(getpass());
             break;
         case 'b' :
             bucket.assign(optarg);
@@ -431,6 +437,13 @@ int main(int argc, char** argv) {
         default:
             usage();
             return EXIT_FAILURE;
+        }
+    }
+
+    if (password.empty()) {
+        const char* env_password = std::getenv("CB_PASSWORD");
+        if (env_password) {
+            password = env_password;
         }
     }
 
