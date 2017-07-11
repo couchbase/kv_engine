@@ -30,6 +30,7 @@
 #include <sys/resource.h>
 
 #include <string>
+#include <thread>
 
 void wait_for_log_to_contain(FILE* log, const char* log_message) {
     // read() gives no guarantees of how the data will be chunked, so accumulate
@@ -65,8 +66,12 @@ void wait_for_log_to_contain(FILE* log, const char* log_message) {
 
 int main() {
 
-    // Timeout if takes longer than 30s.
-    alarm(30);
+    // Timeout (and dump core) if takes longer than 30s.
+    std::thread watchdog{[]() {
+        std::this_thread::sleep_for(std::chrono::seconds(30));
+        std::abort();
+    }};
+    watchdog.detach();
 
     // Clean out any old files.
     std::vector<std::string> files;
