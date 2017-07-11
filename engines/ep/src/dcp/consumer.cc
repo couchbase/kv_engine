@@ -842,8 +842,8 @@ process_items_error_t DcpConsumer::drainStreamsBufferedItems(SingleThreadedRCPtr
     uint32_t bytesProcessed = 0;
     size_t iterations = 0;
     do {
-        if (engine_.getReplicationThrottle().getStatus() ==
-            ReplicationThrottle::Status::Pause) {
+        if (engine_.getReplicationThrottle().getStatus() !=
+            ReplicationThrottle::Status::Process) {
             backoffs++;
             vbReady.pushUnique(stream->getVBucket());
             return cannot_process;

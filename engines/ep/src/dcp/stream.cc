@@ -1897,36 +1897,44 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(std::unique_ptr<DcpResponse> dc
         }
     }
 
-    if (engine->getReplicationThrottle().getStatus() ==
-                ReplicationThrottle::Status::Process &&
-        buffer.empty()) {
-        /* Process the response here itself rather than buffering it */
-        ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-        switch (dcpResponse->getEvent()) {
+    switch (engine->getReplicationThrottle().getStatus()) {
+    case ReplicationThrottle::Status::Disconnect:
+        consumer->getLogger().log(EXTENSION_LOG_WARNING,
+                                  "vb:%" PRIu16
+                                  "Disconnecting the connection as there is no "
+                                  "memory to complete replication",
+                                  vb_);
+        return ENGINE_DISCONNECT;
+    case ReplicationThrottle::Status::Process:
+        if (buffer.empty()) {
+            /* Process the response here itself rather than buffering it */
+            ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+            switch (dcpResponse->getEvent()) {
             case DcpResponse::Event::Mutation:
-                ret = processMutation(static_cast<MutationResponse*>(dcpResponse.get()));
+                ret = processMutation(
+                        static_cast<MutationResponse*>(dcpResponse.get()));
                 break;
             case DcpResponse::Event::Deletion:
             case DcpResponse::Event::Expiration:
-                ret = processDeletion(static_cast<MutationResponse*>(dcpResponse.get()));
+                ret = processDeletion(
+                        static_cast<MutationResponse*>(dcpResponse.get()));
                 break;
             case DcpResponse::Event::SnapshotMarker:
                 processMarker(static_cast<SnapshotMarker*>(dcpResponse.get()));
                 break;
             case DcpResponse::Event::SetVbucket:
-                processSetVBucketState(static_cast<SetVBucketState*>(dcpResponse.get()));
+                processSetVBucketState(
+                        static_cast<SetVBucketState*>(dcpResponse.get()));
                 break;
-            case DcpResponse::Event::StreamEnd:
-                {
-                    LockHolder lh(streamMutex);
-                    transitionState(StreamState::Dead);
-                }
-                break;
+            case DcpResponse::Event::StreamEnd: {
+                LockHolder lh(streamMutex);
+                transitionState(StreamState::Dead);
+            } break;
             case DcpResponse::Event::SystemEvent: {
-                    ret = processSystemEvent(*static_cast<SystemEventMessage*>(
-                            dcpResponse.get()));
-                    break;
-                }
+                ret = processSystemEvent(
+                        *static_cast<SystemEventMessage*>(dcpResponse.get()));
+                break;
+            }
             default:
                 consumer->getLogger().log(
                         EXTENSION_LOG_WARNING,
@@ -1935,10 +1943,16 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(std::unique_ptr<DcpResponse> dc
                         int(dcpResponse->getEvent()),
                         opaque_);
                 return ENGINE_DISCONNECT;
+            }
+            if (ret != ENGINE_TMPFAIL && ret != ENGINE_ENOMEM) {
+                return ret;
+            }
         }
-        if (ret != ENGINE_TMPFAIL && ret != ENGINE_ENOMEM) {
-            return ret;
-        }
+        break;
+    case ReplicationThrottle::Status::Pause:
+        /* Do nothing specific here, we buffer item for this case and
+           other cases below */
+        break;
     }
 
     // Only buffer if the stream is not dead

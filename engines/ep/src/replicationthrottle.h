@@ -28,19 +28,19 @@ class Configuration;
 
 /**
  * Monitors various internal state to report whether we should
- * throttle incoming tap.
+ * throttle incoming tap and DCP items.
  */
 class ReplicationThrottle {
 public:
     /* Indicates the status of the replication throttle */
-    enum class Status { Process, Pause };
+    enum class Status { Process, Pause, Disconnect };
 
-    ReplicationThrottle(Configuration &config, EPStats &s);
+    ReplicationThrottle(const Configuration& config, EPStats& s);
 
     /**
      * @ return status of the replication throttle
      */
-    ReplicationThrottle::Status getStatus() const;
+    virtual ReplicationThrottle::Status getStatus() const;
 
     void setCapPercent(size_t perc) { capPercent = perc; }
     void setQueueCap(ssize_t cap) { queueCap = cap; }
@@ -54,6 +54,20 @@ private:
     Couchbase::RelaxedAtomic<ssize_t> queueCap;
     Couchbase::RelaxedAtomic<size_t> capPercent;
     EPStats &stats;
+};
+
+/**
+ * Sub class of ReplicationThrottle which decides what should be done to
+ * throttle DCP replication, that is Pause or Disconnect, in Ephemeral buckets
+ */
+class ReplicationThrottleEphe : public ReplicationThrottle {
+public:
+    ReplicationThrottleEphe(const Configuration& config, EPStats& s);
+
+    ReplicationThrottle::Status getStatus() const override;
+
+private:
+    const Configuration& config;
 };
 
 #endif  // SRC_REPLICATIONTHROTTLE_H_

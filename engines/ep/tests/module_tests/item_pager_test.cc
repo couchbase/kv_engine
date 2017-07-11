@@ -525,12 +525,12 @@ TEST_P(STExpiryPagerTest, ExpiredItemsDeleted) {
 // hence it is required currently.
 #if defined(HAVE_JEMALLOC)
 
-auto ephConfigValues = ::testing::Values(
+static auto ephConfigValues = ::testing::Values(
         std::make_tuple(std::string("ephemeral"), std::string("auto_delete")),
         std::make_tuple(std::string("ephemeral"),
                         std::string("fail_new_data")));
 
-auto allConfigValues = ::testing::Values(
+static auto allConfigValues = ::testing::Values(
         std::make_tuple(std::string("ephemeral"), std::string("auto_delete")),
         std::make_tuple(std::string("ephemeral"), std::string("fail_new_data")),
         std::make_tuple(std::string("persistent"), std::string{}));

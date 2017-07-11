@@ -23,6 +23,7 @@
 #include "ephemeral_vb.h"
 #include "ephemeral_vb_count_visitor.h"
 #include "failover-table.h"
+#include "replicationthrottle.h"
 
 #include <platform/sized_buffer.h>
 
@@ -101,6 +102,9 @@ EphemeralBucket::EphemeralBucket(EventuallyPersistentEngine& theEngine)
     // in initialize().
     tombstonePurgerTask =
             std::make_shared<EphTombstoneHTCleaner>(&engine, *this);
+
+    replicationThrottle = std::make_unique<ReplicationThrottleEphe>(
+            engine.getConfiguration(), stats);
 }
 
 EphemeralBucket::~EphemeralBucket() {

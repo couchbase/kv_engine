@@ -848,16 +848,25 @@ TEST_P(CacheCallbackTest, CacheCallback_engine_enomem) {
 }
 
 class ConnectionTest : public DCPTest,
-                       public ::testing::WithParamInterface<std::string> {
+                       public ::testing::WithParamInterface<
+                               std::tuple<std::string, std::string>> {
 protected:
     void SetUp() override {
-        bucketType = GetParam();
+        bucketType = std::get<0>(GetParam());
         DCPTest::SetUp();
+        vbid = 0;
+        if (bucketType == "ephemeral") {
+            engine->getConfiguration().setEphemeralFullPolicy(
+                    std::get<1>(GetParam()));
+        }
     }
 
     ENGINE_ERROR_CODE set_vb_state(uint16_t vbid, vbucket_state_t state) {
         return engine->getKVBucket()->setVBucketState(vbid, state, true);
     }
+
+    /* vbucket associated with this connection */
+    uint16_t vbid;
 };
 
 ENGINE_ERROR_CODE mock_noop_return_engine_e2big(const void* cookie,uint32_t opaque) {
@@ -1766,6 +1775,91 @@ TEST_P(ConnectionTest, test_mb24424_mutationResponse) {
     destroy_mock_cookie(cookie);
 }
 
+TEST_P(ConnectionTest, ReplicateAfterThrottleThreshold) {
+    const void* cookie = create_mock_cookie();
+    const uint32_t opaque = 1;
+    const uint64_t snapStart = 1, snapEnd = 10;
+    const uint64_t bySeqno = snapStart;
+
+    /* Set up a consumer connection */
+    connection_t conn = new MockDcpConsumer(*engine, cookie, "test_consumer");
+    MockDcpConsumer* consumer = dynamic_cast<MockDcpConsumer*>(conn.get());
+
+    /* Replica vbucket */
+    ASSERT_EQ(ENGINE_SUCCESS, set_vb_state(vbid, vbucket_state_replica));
+
+    /* Passive stream */
+    ASSERT_EQ(ENGINE_SUCCESS,
+              consumer->addStream(/*opaque*/ 0,
+                                  vbid,
+                                  /*flags*/ 0));
+    MockPassiveStream* stream = static_cast<MockPassiveStream*>(
+            (consumer->getVbucketStream(vbid)).get());
+    ASSERT_TRUE(stream->isActive());
+
+    /* Send a snapshotMarker before sending items for replication */
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->snapshotMarker(opaque,
+                                       vbid,
+                                       snapStart,
+                                       snapEnd,
+                                       /* in-memory snapshot */ 0x1));
+
+    /* Send an item for replication */
+    const DocKey docKey{nullptr, 0, DocNamespace::DefaultCollection};
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->mutation(opaque,
+                                 docKey,
+                                 {}, // value
+                                 0, // priv bytes
+                                 PROTOCOL_BINARY_RAW_BYTES,
+                                 0, // cas
+                                 vbid,
+                                 0, // flags
+                                 bySeqno,
+                                 0, // rev seqno
+                                 0, // exptime
+                                 0, // locktime
+                                 {}, // meta
+                                 0)); // nru
+
+    /* Set 'replication threshold' to 0 to test the case when 'mem_used' goes
+     beyond the threshold */
+    engine->getConfiguration().setReplicationThrottleThreshold(0);
+
+    /* Send another item for replication */
+    auto ret = consumer->mutation(opaque,
+                                  docKey,
+                                  {}, // value
+                                  0, // priv bytes
+                                  PROTOCOL_BINARY_RAW_BYTES,
+                                  0, // cas
+                                  vbid,
+                                  0, // flags
+                                  bySeqno + 1,
+                                  0, // rev seqno
+                                  0, // exptime
+                                  0, // locktime
+                                  {}, // meta
+                                  0); // nru
+
+    if ((engine->getConfiguration().getBucketType() == "ephemeral") &&
+        (engine->getConfiguration().getEphemeralFullPolicy()) ==
+                "fail_new_data") {
+        /* Expect disconnect signal in Ephemeral with "fail_new_data" policy */
+        EXPECT_EQ(ENGINE_DISCONNECT, ret);
+    } else {
+        /* In 'couchbase' buckets we buffer the replica items and indirectly
+         throttle replication by not sending flow control acks to the
+         producer. Hence we do not drop the connection here */
+        EXPECT_EQ(ENGINE_SUCCESS, ret);
+    }
+
+    /* Close stream before deleting the connection */
+    EXPECT_EQ(ENGINE_SUCCESS, consumer->closeStream(opaque, vbid));
+
+    destroy_mock_cookie(cookie);
+}
 
 // Test cases which run in both Full and Value eviction
 INSTANTIATE_TEST_CASE_P(PersistentAndEphemeral,
@@ -1783,10 +1877,11 @@ INSTANTIATE_TEST_CASE_P(PersistentAndEphemeral,
                             return info.param;
                         });
 
-// Test cases which run in both Full and Value eviction
+static auto allConfigValues = ::testing::Values(
+        std::make_tuple(std::string("ephemeral"), std::string("auto_delete")),
+        std::make_tuple(std::string("ephemeral"), std::string("fail_new_data")),
+        std::make_tuple(std::string("persistent"), std::string{}));
+
 INSTANTIATE_TEST_CASE_P(PersistentAndEphemeral,
                         ConnectionTest,
-                        ::testing::Values("persistent", "ephemeral"),
-                        [](const ::testing::TestParamInfo<std::string>& info) {
-                            return info.param;
-                        });
+                        allConfigValues, );

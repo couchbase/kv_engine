@@ -472,8 +472,6 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
     disableItemPager();
 
     initializeWarmupTask();
-
-    replicationThrottle = std::make_unique<ReplicationThrottle>(config, stats);
 }
 
 bool KVBucket::initialize() {

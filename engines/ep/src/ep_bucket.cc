@@ -22,6 +22,7 @@
 #include "ep_vb.h"
 #include "failover-table.h"
 #include "flusher.h"
+#include "replicationthrottle.h"
 
 EPBucket::EPBucket(EventuallyPersistentEngine& theEngine)
     : KVBucket(theEngine) {
@@ -32,6 +33,8 @@ EPBucket::EPBucket(EventuallyPersistentEngine& theEngine)
     } else {
         eviction_policy = FULL_EVICTION;
     }
+    replicationThrottle = std::make_unique<ReplicationThrottle>(
+            engine.getConfiguration(), stats);
 }
 
 bool EPBucket::initialize() {

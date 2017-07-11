@@ -20,11 +20,12 @@
 #include "configuration.h"
 #include "replicationthrottle.h"
 
-ReplicationThrottle::ReplicationThrottle(Configuration &config, EPStats &s) :
-    queueCap(config.getReplicationThrottleQueueCap()),
-    capPercent(config.getReplicationThrottleCapPcnt()),
-    stats(s)
-{}
+ReplicationThrottle::ReplicationThrottle(const Configuration& config,
+                                         EPStats& s)
+    : queueCap(config.getReplicationThrottleQueueCap()),
+      capPercent(config.getReplicationThrottleCapPcnt()),
+      stats(s) {
+}
 
 bool ReplicationThrottle::persistenceQueueSmallEnough() const {
     size_t queueSize = stats.diskQueueSize.load();
@@ -58,4 +59,19 @@ void ReplicationThrottle::adjustWriteQueueCap(size_t totalItems) {
     }
     stats.replicationThrottleWriteQueueCap.store(throttleCap > qcap ? throttleCap :
                                          qcap);
+}
+
+ReplicationThrottleEphe::ReplicationThrottleEphe(const Configuration& config,
+                                                 EPStats& s)
+    : ReplicationThrottle(config, s), config(config) {
+}
+
+ReplicationThrottle::Status ReplicationThrottleEphe::getStatus() const {
+    ReplicationThrottle::Status status = ReplicationThrottle::getStatus();
+    if (status == Status::Pause) {
+        if (config.getEphemeralFullPolicy() == "fail_new_data") {
+            return Status::Disconnect;
+        }
+    }
+    return status;
 }
