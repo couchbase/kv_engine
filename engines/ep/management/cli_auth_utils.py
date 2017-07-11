@@ -1,11 +1,14 @@
 #!/usr/bin/env python
 
-import clitool
+import getpass
 import inspect
+import os
+import sys
+
+import clitool
 import mc_bin_client
 import memcacheConstants
-import sys
-import os
+
 
 def cmd_decorator(f):
     """Decorate a function with code to authenticate based on 1-3
@@ -35,7 +38,13 @@ def cmd_decorator(f):
 
         bucket = kwargs.pop('bucketName', None)
         username = kwargs.pop('username', None) or bucket
-        password = kwargs.pop('password', None)
+        cli_password = kwargs.pop('password', None)
+        stdin_password = (getpass.getpass()
+                          if kwargs.pop('passwordFromStdin', False)
+                          else None)
+        env_password = os.getenv("CB_PASSWORD", None)
+
+        password = cli_password or stdin_password or env_password
 
 
         if username is not None or password is not None:
@@ -83,5 +92,6 @@ def get_authed_clitool(extraUsage=""):
     c.addOption('-b', 'bucketName', 'the bucket to get stats from (Default: default)')
     c.addOption('-u', 'username', 'the user as which to authenticate (Default: bucketName)')
     c.addOption('-p', 'password', 'the password for the bucket if one exists')
+    c.addFlag('-S', 'passwordFromStdin', 'read password from stdin')
 
     return c
