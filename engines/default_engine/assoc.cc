@@ -53,7 +53,8 @@ struct assoc {
 };
 
 /* One hashtable for all */
-static struct assoc* global_assoc = NULL;
+static struct assoc* global_assoc = nullptr;
+static EXTENSION_LOGGER_DESCRIPTOR *logger = nullptr;
 
 /* assoc factory. returns one new assoc or NULL if out-of-memory */
 static struct assoc* assoc_consruct(int hashpower) {
@@ -79,8 +80,12 @@ ENGINE_ERROR_CODE assoc_init(struct default_engine *engine) {
     /*
         construct and save away one assoc for use by all buckets.
     */
-    if (global_assoc == NULL) {
+    if (global_assoc == nullptr) {
         global_assoc = assoc_consruct(16);
+        if (engine != nullptr) {
+            logger = static_cast<EXTENSION_LOGGER_DESCRIPTOR*>
+            (engine->server.extension->get_extension(EXTENSION_LOGGER));
+        }
     }
     return (global_assoc != NULL) ? ENGINE_SUCCESS : ENGINE_ENOMEM;
 }
@@ -185,11 +190,10 @@ static void assoc_expand(struct default_engine *engine) {
         if ((ret = cb_create_named_thread(&tid, assoc_maintenance_thread,
                                           engine, 1, "mc:assoc_maint")) != 0)
         {
-            EXTENSION_LOGGER_DESCRIPTOR *logger;
-            logger = static_cast<EXTENSION_LOGGER_DESCRIPTOR*>
-                (engine->server.extension->get_extension(EXTENSION_LOGGER));
-            logger->log(EXTENSION_LOG_WARNING, NULL,
-                        "Can't create thread: %s", cb_strerror().c_str());
+            if (logger != nullptr) {
+                logger->log(EXTENSION_LOG_WARNING, NULL,
+                            "Can't create thread: %s", cb_strerror().c_str());
+            }
             global_assoc->hashpower--;
             global_assoc->expanding = false;
             cb_free(global_assoc->primary_hashtable);
@@ -258,7 +262,6 @@ void assoc_delete(struct default_engine *engine, uint32_t hash, const hash_key *
 int hash_bulk_move = DEFAULT_HASH_BULK_MOVE;
 
 static void assoc_maintenance_thread(void *arg) {
-    struct default_engine *engine = static_cast<struct default_engine*>(arg);
     bool done = false;
     do {
         int ii;
@@ -284,12 +287,9 @@ static void assoc_maintenance_thread(void *arg) {
             if (global_assoc->expand_bucket == hashsize(global_assoc->hashpower - 1)) {
                 global_assoc->expanding = false;
                 cb_free(global_assoc->old_hashtable);
-                if (engine->config.verbose > 1) {
-                    EXTENSION_LOGGER_DESCRIPTOR *logger;
-                    logger = static_cast<EXTENSION_LOGGER_DESCRIPTOR*>
-                        (engine->server.extension->get_extension(EXTENSION_LOGGER));
+                if (logger != nullptr) {
                     logger->log(EXTENSION_LOG_INFO, NULL,
-                                "Hash table expansion done\n");
+                                "Hash table expansion done");
                 }
             }
         }
