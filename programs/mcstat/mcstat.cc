@@ -22,6 +22,47 @@
 #include <protocol/connection/client_mcbp_connection.h>
 #include <programs/hostname_utils.h>
 
+#ifndef WIN32
+#include <termios.h>
+#include <unistd.h>
+#endif
+
+void setEcho(bool enable) {
+#ifdef WIN32
+    HANDLE stdinHandle = GetStdHandle(STD_INPUT_HANDLE);
+    DWORD mode;
+    GetConsoleMode(stdinHandle, &mode);
+
+    if(!enable) {
+        mode &= ~ENABLE_ECHO_INPUT;
+    } else {
+        mode |= ENABLE_ECHO_INPUT;
+    }
+
+    SetConsoleMode(stdinHandle, mode);
+#else
+    struct termios tty;
+    tcgetattr(STDIN_FILENO, &tty);
+    if(!enable) {
+        tty.c_lflag &= ~ECHO;
+    } else {
+        tty.c_lflag |= ECHO;
+    }
+
+    (void) tcsetattr(STDIN_FILENO, TCSANOW, &tty);
+#endif
+}
+
+std::string getpass() {
+    std::cout << "Password: " << std::flush;
+    setEcho(false);
+    std::string password;
+    std::cin >> password;
+    setEcho(true);
+
+    return password;
+}
+
 /**
  * Request a stat from the server
  * @param sock socket connected to the server
@@ -88,6 +129,8 @@ static void usage() {
               << "  -b bucket    Bucket name" << std::endl
               << "  -P password  Password (if bucket is password-protected)"
               << std::endl
+              << "  -S stdin     Read password from stdin (if bucket is password-protected)"
+              << std::endl
               << "  -s           Connect to node securely (using SSL)"
               << std::endl
               << "  -j           Print result as JSON (unformatted)"
@@ -119,7 +162,7 @@ int main(int argc, char** argv) {
     /* Initialize the socket subsystem */
     cb_initialize_sockets();
 
-    while ((cmd = getopt(argc, argv, "46h:p:u:b:P:sjJC:K:")) != EOF) {
+    while ((cmd = getopt(argc, argv, "46h:p:u:b:P:SsjJC:K:")) != EOF) {
         switch (cmd) {
         case '6' :
             family = AF_INET6;
@@ -142,6 +185,9 @@ int main(int argc, char** argv) {
         case 'P':
             password.assign(optarg);
             break;
+        case 'S':
+            password.assign(getpass());
+            break;
         case 's':
             secure = true;
             break;
@@ -160,6 +206,13 @@ int main(int argc, char** argv) {
         default:
             usage();
             return EXIT_FAILURE;
+        }
+    }
+
+    if (password.empty()) {
+        const char* env_password = std::getenv("CB_PASSWORD");
+        if (env_password) {
+            password = env_password;
         }
     }
 
