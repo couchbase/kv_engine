@@ -43,7 +43,5 @@ int assoc_insert(struct default_engine *engine, uint32_t hash,
                  hash_item *item);
 void assoc_delete(struct default_engine *engine, uint32_t hash,
                   const hash_key* key);
-int start_assoc_maintenance_thread(struct default_engine *engine);
-void stop_assoc_maintenance_thread(struct default_engine *engine);
 
 #endif
