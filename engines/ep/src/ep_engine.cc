@@ -4957,21 +4957,6 @@ EventuallyPersistentEngine::resetReplicationChain(const void *cookie,
                         PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
 }
 
-/**
- * Structure holding getMeta command response fields
- */
-#pragma pack(1)
-
-struct GetMetaResponse {
-    uint32_t deleted;
-    uint32_t flags;
-    uint32_t expiry;
-    uint64_t seqno;
-    uint8_t  datatype;
-};
-
-#pragma pack()
-
 ENGINE_ERROR_CODE EventuallyPersistentEngine::getMeta(const void* cookie,
                                      protocol_binary_request_get_meta *request,
                                      ADD_RESPONSE response,
@@ -5012,22 +4997,34 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getMeta(const void* cookie,
         // 8-11  uint32_t expiry
         // 12-19 uint64_t seqno
         // 20    uint8_t  datatype (optional, based upon meta-version requested)
-        GetMetaResponse metaResponse{};
 
-        metaResponse.deleted = htonl(deleted);
-        metaResponse.flags = metadata.flags;
-        metaResponse.expiry = htonl(metadata.exptime);
-        metaResponse.seqno = htonll(metadata.revSeqno);
+        uint8_t meta[(3 * sizeof(uint32_t)) + sizeof(uint64_t) +
+                     sizeof(uint8_t)] = {};
+        deleted = htonl(deleted);
+        uint32_t flags = metadata.flags;
+        uint32_t exp = htonl(metadata.exptime);
+        uint64_t seqno = htonll(metadata.revSeqno);
+
+        uint32_t offset = 0;
+        memcpy(meta, &deleted, sizeof(deleted));
+        offset += sizeof(deleted);
+        memcpy(meta + offset, &flags, sizeof(flags));
+        offset += sizeof(flags);
+        memcpy(meta + offset, &exp, sizeof(exp));
+        offset += sizeof(exp);
+        memcpy(meta + offset, &seqno, sizeof(seqno));
+        offset += sizeof(seqno);
 
         if (fetchDatatype) {
-            metaResponse.datatype = datatype;
+            memcpy(meta + offset, &datatype, sizeof(datatype));
+            offset += sizeof(datatype);
         }
 
         rv = sendResponse(response,
                           nullptr /*key*/,
                           0 /*keylen*/,
-                          reinterpret_cast<uint8_t*>(&metaResponse) /*ext*/,
-                          sizeof(metaResponse) /*extlen*/,
+                          meta /*ext*/,
+                          offset /*extlen*/,
                           nullptr /*body*/,
                           0 /*bodylen*/,
                           PROTOCOL_BINARY_RAW_BYTES /*datatype*/,
