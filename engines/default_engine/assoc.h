@@ -1,39 +1,6 @@
 #ifndef ASSOC_H
 #define ASSOC_H
 
-struct assoc {
-   /* how many powers of 2's worth of buckets we use */
-   unsigned int hashpower;
-
-
-   /* Main hash table. This is where we look except during expansion. */
-   hash_item** primary_hashtable;
-
-   /*
-    * Previous hash table. During expansion, we look here for keys that haven't
-    * been moved over to the primary yet.
-    */
-   hash_item** old_hashtable;
-
-   /* Number of items in the hash table. */
-   unsigned int hash_items;
-
-   /* Flag: Are we in the middle of expanding now? */
-   bool expanding;
-
-   /*
-    * During expansion we migrate values with bucket granularity; this is how
-    * far we've gotten so far. Ranges from 0 .. hashsize(hashpower - 1) - 1.
-    */
-   unsigned int expand_bucket;
-
-
-   /*
-    * serialise access to the hashtable
-    */
-   cb_mutex_t lock;
-};
-
 /* associative array */
 ENGINE_ERROR_CODE assoc_init(struct default_engine *engine);
 void assoc_destroy(void);
