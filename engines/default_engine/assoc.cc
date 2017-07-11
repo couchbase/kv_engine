@@ -43,16 +43,13 @@ static struct assoc* assoc_consruct(int hashpower) {
 }
 
 ENGINE_ERROR_CODE assoc_init(struct default_engine *engine) {
-
     /*
         construct and save away one assoc for use by all buckets.
-        For flexibility, the assoc code accesses the assoc via the engine handle.
     */
     if (global_assoc == NULL) {
         global_assoc = assoc_consruct(16);
     }
-    engine->assoc = global_assoc;
-    return (engine->assoc != NULL) ? ENGINE_SUCCESS : ENGINE_ENOMEM;
+    return (global_assoc != NULL) ? ENGINE_SUCCESS : ENGINE_ENOMEM;
 }
 
 void assoc_destroy() {
@@ -71,13 +68,13 @@ hash_item *assoc_find(struct default_engine *engine, uint32_t hash, const hash_k
     unsigned int oldbucket;
     hash_item *ret = NULL;
     int depth = 0;
-    cb_mutex_enter(&engine->assoc->lock);
-    if (engine->assoc->expanding &&
-        (oldbucket = (hash & hashmask(engine->assoc->hashpower - 1))) >= engine->assoc->expand_bucket)
+    cb_mutex_enter(&global_assoc->lock);
+    if (global_assoc->expanding &&
+        (oldbucket = (hash & hashmask(global_assoc->hashpower - 1))) >= global_assoc->expand_bucket)
     {
-        it = engine->assoc->old_hashtable[oldbucket];
+        it = global_assoc->old_hashtable[oldbucket];
     } else {
-        it = engine->assoc->primary_hashtable[hash & hashmask(engine->assoc->hashpower)];
+        it = global_assoc->primary_hashtable[hash & hashmask(global_assoc->hashpower)];
     }
 
     while (it) {
@@ -93,7 +90,7 @@ hash_item *assoc_find(struct default_engine *engine, uint32_t hash, const hash_k
         ++depth;
     }
     MEMCACHED_ASSOC_FIND(hash_key_get_key(key), hash_key_get_key_len(key), depth);
-    cb_mutex_exit(&engine->assoc->lock);
+    cb_mutex_exit(&global_assoc->lock);
     return ret;
 }
 
@@ -108,12 +105,12 @@ static hash_item** _hashitem_before(struct default_engine *engine,
     hash_item **pos;
     unsigned int oldbucket;
 
-    if (engine->assoc->expanding &&
-        (oldbucket = (hash & hashmask(engine->assoc->hashpower - 1))) >= engine->assoc->expand_bucket)
+    if (global_assoc->expanding &&
+        (oldbucket = (hash & hashmask(global_assoc->hashpower - 1))) >= global_assoc->expand_bucket)
     {
-        pos = &engine->assoc->old_hashtable[oldbucket];
+        pos = &global_assoc->old_hashtable[oldbucket];
     } else {
-        pos = &engine->assoc->primary_hashtable[hash & hashmask(engine->assoc->hashpower)];
+        pos = &global_assoc->primary_hashtable[hash & hashmask(global_assoc->hashpower)];
     }
 
     while (*pos) {
@@ -138,18 +135,18 @@ static void assoc_maintenance_thread(void *arg);
     assoc->lock is assumed to be held by the caller.
 */
 static void assoc_expand(struct default_engine *engine) {
-    engine->assoc->old_hashtable = engine->assoc->primary_hashtable;
+    global_assoc->old_hashtable = global_assoc->primary_hashtable;
 
-    engine->assoc->primary_hashtable =
-        static_cast<hash_item**>(cb_calloc(hashsize(engine->assoc->hashpower + 1),
+    global_assoc->primary_hashtable =
+        static_cast<hash_item**>(cb_calloc(hashsize(global_assoc->hashpower + 1),
                                            sizeof(hash_item *)));
-    if (engine->assoc->primary_hashtable) {
+    if (global_assoc->primary_hashtable) {
         int ret = 0;
         cb_thread_t tid;
 
-        engine->assoc->hashpower++;
-        engine->assoc->expanding = true;
-        engine->assoc->expand_bucket = 0;
+        global_assoc->hashpower++;
+        global_assoc->expanding = true;
+        global_assoc->expand_bucket = 0;
 
         /* start a thread to do the expansion */
         if ((ret = cb_create_named_thread(&tid, assoc_maintenance_thread,
@@ -160,13 +157,13 @@ static void assoc_expand(struct default_engine *engine) {
                 (engine->server.extension->get_extension(EXTENSION_LOGGER));
             logger->log(EXTENSION_LOG_WARNING, NULL,
                         "Can't create thread: %s", cb_strerror().c_str());
-            engine->assoc->hashpower--;
-            engine->assoc->expanding = false;
-            cb_free(engine->assoc->primary_hashtable);
-            engine->assoc->primary_hashtable = engine->assoc->old_hashtable;
+            global_assoc->hashpower--;
+            global_assoc->expanding = false;
+            cb_free(global_assoc->primary_hashtable);
+            global_assoc->primary_hashtable = global_assoc->old_hashtable;
         }
     } else {
-        engine->assoc->primary_hashtable = engine->assoc->old_hashtable;
+        global_assoc->primary_hashtable = global_assoc->old_hashtable;
         /* Bad news, but we can keep running. */
     }
 }
@@ -177,46 +174,46 @@ int assoc_insert(struct default_engine *engine, uint32_t hash, hash_item *it) {
 
     cb_assert(assoc_find(engine, hash, item_get_key(it)) == 0);  /* shouldn't have duplicately named things defined */
 
-    cb_mutex_enter(&engine->assoc->lock);
-    if (engine->assoc->expanding &&
-        (oldbucket = (hash & hashmask(engine->assoc->hashpower - 1))) >= engine->assoc->expand_bucket)
+    cb_mutex_enter(&global_assoc->lock);
+    if (global_assoc->expanding &&
+        (oldbucket = (hash & hashmask(global_assoc->hashpower - 1))) >= global_assoc->expand_bucket)
     {
-        it->h_next = engine->assoc->old_hashtable[oldbucket];
-        engine->assoc->old_hashtable[oldbucket] = it;
+        it->h_next = global_assoc->old_hashtable[oldbucket];
+        global_assoc->old_hashtable[oldbucket] = it;
     } else {
-        it->h_next = engine->assoc->primary_hashtable[hash & hashmask(engine->assoc->hashpower)];
-        engine->assoc->primary_hashtable[hash & hashmask(engine->assoc->hashpower)] = it;
+        it->h_next = global_assoc->primary_hashtable[hash & hashmask(global_assoc->hashpower)];
+        global_assoc->primary_hashtable[hash & hashmask(global_assoc->hashpower)] = it;
     }
 
-    engine->assoc->hash_items++;
-    if (! engine->assoc->expanding && engine->assoc->hash_items > (hashsize(engine->assoc->hashpower) * 3) / 2) {
+    global_assoc->hash_items++;
+    if (! global_assoc->expanding && global_assoc->hash_items > (hashsize(global_assoc->hashpower) * 3) / 2) {
         assoc_expand(engine);
     }
-    cb_mutex_exit(&engine->assoc->lock);
-    MEMCACHED_ASSOC_INSERT(hash_key_get_key(item_get_key(it)), hash_key_get_key_len(item_get_key(it)), engine->assoc->hash_items);
+    cb_mutex_exit(&global_assoc->lock);
+    MEMCACHED_ASSOC_INSERT(hash_key_get_key(item_get_key(it)), hash_key_get_key_len(item_get_key(it)), global_assoc->hash_items);
     return 1;
 }
 
 void assoc_delete(struct default_engine *engine, uint32_t hash, const hash_key *key) {
-    cb_mutex_enter(&engine->assoc->lock);
+    cb_mutex_enter(&global_assoc->lock);
     hash_item **before = _hashitem_before(engine, hash, key);
 
     if (*before) {
         hash_item *nxt;
-        engine->assoc->hash_items--;
+        global_assoc->hash_items--;
         /* The DTrace probe cannot be triggered as the last instruction
          * due to possible tail-optimization by the compiler
          */
         MEMCACHED_ASSOC_DELETE(hash_key_get_key(key),
                                hash_key_get_key_len(key),
-                               engine->assoc->hash_items);
+                               global_assoc->hash_items);
         nxt = (*before)->h_next;
         (*before)->h_next = 0;   /* probably pointless, but whatever. */
         *before = nxt;
-        cb_mutex_exit(&engine->assoc->lock);
+        cb_mutex_exit(&global_assoc->lock);
         return;
     }
-    cb_mutex_exit(&engine->assoc->lock);
+    cb_mutex_exit(&global_assoc->lock);
     /* Note:  we never actually get here.  the callers don't delete things
        they can't find. */
     cb_assert(*before != 0);
@@ -232,28 +229,28 @@ static void assoc_maintenance_thread(void *arg) {
     bool done = false;
     do {
         int ii;
-        cb_mutex_enter(&engine->assoc->lock);
+        cb_mutex_enter(&global_assoc->lock);
 
-        for (ii = 0; ii < hash_bulk_move && engine->assoc->expanding; ++ii) {
+        for (ii = 0; ii < hash_bulk_move && global_assoc->expanding; ++ii) {
             hash_item *it, *next;
             int bucket;
 
-            for (it = engine->assoc->old_hashtable[engine->assoc->expand_bucket];
+            for (it = global_assoc->old_hashtable[global_assoc->expand_bucket];
                  NULL != it; it = next) {
                 next = it->h_next;
                 const hash_key* key = item_get_key(it);
                 bucket = crc32c(hash_key_get_key(key),
                                 hash_key_get_key_len(key),
-                                0) & hashmask(engine->assoc->hashpower);
-                it->h_next = engine->assoc->primary_hashtable[bucket];
-                engine->assoc->primary_hashtable[bucket] = it;
+                                0) & hashmask(global_assoc->hashpower);
+                it->h_next = global_assoc->primary_hashtable[bucket];
+                global_assoc->primary_hashtable[bucket] = it;
             }
 
-            engine->assoc->old_hashtable[engine->assoc->expand_bucket] = NULL;
-            engine->assoc->expand_bucket++;
-            if (engine->assoc->expand_bucket == hashsize(engine->assoc->hashpower - 1)) {
-                engine->assoc->expanding = false;
-                cb_free(engine->assoc->old_hashtable);
+            global_assoc->old_hashtable[global_assoc->expand_bucket] = NULL;
+            global_assoc->expand_bucket++;
+            if (global_assoc->expand_bucket == hashsize(global_assoc->hashpower - 1)) {
+                global_assoc->expanding = false;
+                cb_free(global_assoc->old_hashtable);
                 if (engine->config.verbose > 1) {
                     EXTENSION_LOGGER_DESCRIPTOR *logger;
                     logger = static_cast<EXTENSION_LOGGER_DESCRIPTOR*>
@@ -263,9 +260,9 @@ static void assoc_maintenance_thread(void *arg) {
                 }
             }
         }
-        if (!engine->assoc->expanding) {
+        if (!global_assoc->expanding) {
             done = true;
         }
-        cb_mutex_exit(&engine->assoc->lock);
+        cb_mutex_exit(&global_assoc->lock);
     } while (!done);
 }

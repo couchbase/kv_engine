@@ -106,7 +106,6 @@ struct default_engine {
     */
    bool initialized;
 
-   struct assoc* assoc;
    struct slabs slabs;
    struct items items;
 
