@@ -101,7 +101,7 @@ void assoc_destroy() {
     }
 }
 
-hash_item *assoc_find(struct default_engine *engine, uint32_t hash, const hash_key *key) {
+hash_item *assoc_find(uint32_t hash, const hash_key *key) {
     hash_item *it;
     unsigned int oldbucket;
     hash_item *ret = NULL;
@@ -137,9 +137,7 @@ hash_item *assoc_find(struct default_engine *engine, uint32_t hash, const hash_k
     the item wasn't found
     assoc->lock is assumed to be held by the caller.
 */
-static hash_item** _hashitem_before(struct default_engine *engine,
-                                    uint32_t hash,
-                                    const hash_key* key) {
+static hash_item** _hashitem_before(uint32_t hash, const hash_key* key) {
     hash_item **pos;
     unsigned int oldbucket;
 
@@ -172,7 +170,7 @@ static void assoc_maintenance_thread(void *arg);
     grows the hashtable to the next power of 2.
     assoc->lock is assumed to be held by the caller.
 */
-static void assoc_expand(struct default_engine *engine) {
+static void assoc_expand() {
     global_assoc->old_hashtable = global_assoc->primary_hashtable;
 
     global_assoc->primary_hashtable =
@@ -188,7 +186,7 @@ static void assoc_expand(struct default_engine *engine) {
 
         /* start a thread to do the expansion */
         if ((ret = cb_create_named_thread(&tid, assoc_maintenance_thread,
-                                          engine, 1, "mc:assoc_maint")) != 0)
+                                          nullptr, 1, "mc:assoc_maint")) != 0)
         {
             if (logger != nullptr) {
                 logger->log(EXTENSION_LOG_WARNING, NULL,
@@ -206,10 +204,10 @@ static void assoc_expand(struct default_engine *engine) {
 }
 
 /* Note: this isn't an assoc_update.  The key must not already exist to call this */
-int assoc_insert(struct default_engine *engine, uint32_t hash, hash_item *it) {
+int assoc_insert(uint32_t hash, hash_item *it) {
     unsigned int oldbucket;
 
-    cb_assert(assoc_find(engine, hash, item_get_key(it)) == 0);  /* shouldn't have duplicately named things defined */
+    cb_assert(assoc_find(hash, item_get_key(it)) == 0);  /* shouldn't have duplicately named things defined */
 
     cb_mutex_enter(&global_assoc->lock);
     if (global_assoc->expanding &&
@@ -224,16 +222,16 @@ int assoc_insert(struct default_engine *engine, uint32_t hash, hash_item *it) {
 
     global_assoc->hash_items++;
     if (! global_assoc->expanding && global_assoc->hash_items > (hashsize(global_assoc->hashpower) * 3) / 2) {
-        assoc_expand(engine);
+        assoc_expand();
     }
     cb_mutex_exit(&global_assoc->lock);
     MEMCACHED_ASSOC_INSERT(hash_key_get_key(item_get_key(it)), hash_key_get_key_len(item_get_key(it)), global_assoc->hash_items);
     return 1;
 }
 
-void assoc_delete(struct default_engine *engine, uint32_t hash, const hash_key *key) {
+void assoc_delete(uint32_t hash, const hash_key *key) {
     cb_mutex_enter(&global_assoc->lock);
-    hash_item **before = _hashitem_before(engine, hash, key);
+    hash_item **before = _hashitem_before(hash, key);
 
     if (*before) {
         hash_item *nxt;

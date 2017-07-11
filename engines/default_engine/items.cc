@@ -308,8 +308,7 @@ int do_item_link(struct default_engine *engine,
     it->iflag |= ITEM_LINKED;
     it->time = engine->server.core->get_current_time();
 
-    assoc_insert(engine, crc32c(hash_key_get_key(key),
-                                hash_key_get_key_len(key), 0),
+    assoc_insert(crc32c(hash_key_get_key(key), hash_key_get_key_len(key), 0),
                  it);
 
     cb_mutex_enter(&engine->stats.lock);
@@ -354,8 +353,7 @@ void do_item_unlink(struct default_engine *engine, hash_item *it) {
         engine->stats.curr_bytes -= ITEM_ntotal(engine, it);
         engine->stats.curr_items -= 1;
         cb_mutex_exit(&engine->stats.lock);
-        assoc_delete(engine, crc32c(hash_key_get_key(key),
-                                    hash_key_get_key_len(key), 0),
+        assoc_delete(crc32c(hash_key_get_key(key), hash_key_get_key_len(key), 0),
                      key);
         item_unlink_q(engine, it);
         if (it->refcount == 0 || engine->scrubber.force_delete) {
@@ -386,8 +384,8 @@ ENGINE_ERROR_CODE do_safe_item_unlink(struct default_engine* engine,
             engine->stats.curr_bytes -= ITEM_ntotal(engine, stored);
             engine->stats.curr_items -= 1;
             cb_mutex_exit(&engine->stats.lock);
-            assoc_delete(engine, crc32c(hash_key_get_key(key),
-                                        hash_key_get_key_len(key), 0),
+            assoc_delete(crc32c(hash_key_get_key(key),
+                                hash_key_get_key_len(key), 0),
                          key);
             item_unlink_q(engine, stored);
             if (stored->refcount == 0 || engine->scrubber.force_delete) {
@@ -545,8 +543,7 @@ hash_item* do_item_get(struct default_engine* engine,
                        const hash_key* key,
                        const DocStateFilter documentStateFilter) {
     rel_time_t current_time = engine->server.core->get_current_time();
-    hash_item *it = assoc_find(engine,
-                               crc32c(hash_key_get_key(key),
+    hash_item *it = assoc_find(crc32c(hash_key_get_key(key),
                                       hash_key_get_key_len(key), 0),
                                key);
     int was_found = 0;
