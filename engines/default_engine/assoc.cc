@@ -19,32 +19,41 @@
 #define hashsize(n) ((size_t)1<<(n))
 #define hashmask(n) (hashsize(n)-1)
 
-struct assoc {
+struct Assoc {
+    Assoc(unsigned int hp) : hashpower(hp) {
+        cb_mutex_initialize(&lock);
+        primary_hashtable =
+            static_cast<hash_item**>(cb_calloc(hashsize(hashpower),
+                                               sizeof(hash_item*)));
+        if (primary_hashtable == nullptr) {
+            throw std::bad_alloc();
+        }
+    }
+
     /* how many powers of 2's worth of buckets we use */
     unsigned int hashpower;
 
 
     /* Main hash table. This is where we look except during expansion. */
-    hash_item** primary_hashtable;
+    hash_item** primary_hashtable{nullptr};
 
     /*
      * Previous hash table. During expansion, we look here for keys that haven't
      * been moved over to the primary yet.
      */
-    hash_item** old_hashtable;
+    hash_item** old_hashtable{nullptr};
 
     /* Number of items in the hash table. */
-    unsigned int hash_items;
+    unsigned int hash_items{0};
 
     /* Flag: Are we in the middle of expanding now? */
-    bool expanding;
+    bool expanding{false};
 
     /*
      * During expansion we migrate values with bucket granularity; this is how
      * far we've gotten so far. Ranges from 0 .. hashsize(hashpower - 1) - 1.
      */
-    unsigned int expand_bucket;
-
+    unsigned int expand_bucket{0};
 
     /*
      * serialise access to the hashtable
@@ -53,27 +62,16 @@ struct assoc {
 };
 
 /* One hashtable for all */
-static struct assoc* global_assoc = nullptr;
+static struct Assoc* global_assoc = nullptr;
 static EXTENSION_LOGGER_DESCRIPTOR *logger = nullptr;
 
 /* assoc factory. returns one new assoc or NULL if out-of-memory */
-static struct assoc* assoc_consruct(int hashpower) {
-    struct assoc* new_assoc = NULL;
-    new_assoc = static_cast<struct assoc*>(cb_calloc(1, sizeof(struct assoc)));
-    if (new_assoc) {
-        new_assoc->hashpower = hashpower;
-        cb_mutex_initialize(&new_assoc->lock);
-        new_assoc->primary_hashtable =
-            static_cast<hash_item**>(cb_calloc(hashsize(hashpower),
-                                               sizeof(hash_item*)));
-
-        if (new_assoc->primary_hashtable == NULL) {
-            /* rollback and return NULL */
-            cb_free(new_assoc);
-            new_assoc = NULL;
-        }
+static struct Assoc* assoc_consruct(int hashpower) {
+    try {
+        return new Assoc(hashpower);
+    } catch (const std::bad_alloc&) {
+        return nullptr;
     }
-    return new_assoc;
 }
 
 ENGINE_ERROR_CODE assoc_init(struct default_engine *engine) {
@@ -91,13 +89,13 @@ ENGINE_ERROR_CODE assoc_init(struct default_engine *engine) {
 }
 
 void assoc_destroy() {
-    if (global_assoc != NULL) {
+    if (global_assoc != nullptr) {
         while (global_assoc->expanding) {
             usleep(250);
         }
         cb_free(global_assoc->primary_hashtable);
-        cb_free(global_assoc);
-        global_assoc = NULL;
+        delete global_assoc;
+        global_assoc = nullptr;
     }
 }
 
