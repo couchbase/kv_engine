@@ -60,16 +60,6 @@ static ENGINE_HANDLE* get_engine_from_handle(ENGINE_HANDLE* handle) {
     return reinterpret_cast<ENGINE_HANDLE*>(get_handle(handle)->the_engine);
 }
 
-static tap_event_t mock_tap_iterator(ENGINE_HANDLE* handle,
-                                     const void *cookie, item **itm,
-                                     void **es, uint16_t *nes, uint8_t *ttl,
-                                     uint16_t *flags, uint32_t *seqno,
-                                     uint16_t *vbucket) {
-   struct mock_engine *me = get_handle(handle);
-   return me->iterator((ENGINE_HANDLE*)me->the_engine, cookie, itm, es, nes,
-                       ttl, flags, seqno, vbucket);
-}
-
 static const engine_info* mock_get_info(ENGINE_HANDLE* handle) {
     struct mock_engine *me = get_handle(handle);
     return me->the_engine->get_info((ENGINE_HANDLE*)me->the_engine);
@@ -427,16 +417,6 @@ static bool mock_get_item_info(ENGINE_HANDLE *handle, const void *cookie,
     struct mock_engine *me = get_handle(handle);
     return me->the_engine->get_item_info((ENGINE_HANDLE*)me->the_engine,
                                          cookie, item, item_info);
-}
-
-static TAP_ITERATOR mock_get_tap_iterator(ENGINE_HANDLE* handle, const void* cookie,
-                                           const void* client, size_t nclient,
-                                           uint32_t flags,
-                                           const void* userdata, size_t nuserdata) {
-    struct mock_engine *me = get_handle(handle);
-    me->iterator = me->the_engine->get_tap_iterator((ENGINE_HANDLE*)me->the_engine, cookie,
-                                                    client, nclient, flags, userdata, nuserdata);
-    return (me->iterator != NULL) ? mock_tap_iterator : NULL;
 }
 
 static ENGINE_ERROR_CODE mock_dcp_step(ENGINE_HANDLE* handle,
@@ -858,7 +838,6 @@ static ENGINE_HANDLE_V1* create_bucket(bool initialize, const char* cfg) {
         mock_engine->me.get_stats = mock_get_stats;
         mock_engine->me.reset_stats = mock_reset_stats;
         mock_engine->me.unknown_command = mock_unknown_command;
-        mock_engine->me.get_tap_iterator = mock_get_tap_iterator;
         mock_engine->me.item_set_cas = mock_item_set_cas;
         mock_engine->me.get_item_info = mock_get_item_info;
         mock_engine->me.dcp.step = mock_dcp_step;
@@ -889,9 +868,6 @@ static ENGINE_HANDLE_V1* create_bucket(bool initialize, const char* cfg) {
 
         if (mock_engine->the_engine->unknown_command == NULL) {
             mock_engine->me.unknown_command = NULL;
-        }
-        if (mock_engine->the_engine->get_tap_iterator == NULL) {
-            mock_engine->me.get_tap_iterator = NULL;
         }
 
         if (initialize) {

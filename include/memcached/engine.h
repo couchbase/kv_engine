@@ -572,24 +572,6 @@ typedef struct engine_interface_v1 {
                                           ADD_RESPONSE response,
                                           DocNamespace doc_namespace);
 
-    /* TAP operations */
-
-    /**
-     * Get (or create) a Tap iterator for this connection.
-     * @param handle the engine handle
-     * @param cookie The connection cookie
-     * @param client The "name" of the client
-     * @param nclient The number of bytes in the client name
-     * @param flags Tap connection flags
-     * @param userdata Specific userdata the engine may know how to use
-     * @param nuserdata The size of the userdata
-     * @return a tap iterator to iterate through the event stream
-     */
-    TAP_ITERATOR (* get_tap_iterator)(ENGINE_HANDLE* handle, const void* cookie,
-                                      const void* client, size_t nclient,
-                                      uint32_t flags, const void* userdata,
-                                      size_t nuserdata);
-
     /**
      * Set the CAS id on an item.
      */

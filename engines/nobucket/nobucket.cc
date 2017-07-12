@@ -53,7 +53,6 @@ public:
         ENGINE_HANDLE_V1::store_if = store_if;
         ENGINE_HANDLE_V1::flush = flush;
         ENGINE_HANDLE_V1::unknown_command = unknown_command;
-        ENGINE_HANDLE_V1::get_tap_iterator = get_tap_iterator;
         ENGINE_HANDLE_V1::item_set_cas = item_set_cas;
         ENGINE_HANDLE_V1::get_item_info = get_item_info;
         ENGINE_HANDLE_V1::set_item_info = set_item_info;
@@ -219,12 +218,6 @@ private:
                               const item_info*) {
         throw std::logic_error("NoBucket::set_item_info: no items should have"
                                    " been allocated from this engine");
-    }
-
-    static TAP_ITERATOR get_tap_iterator(ENGINE_HANDLE*, const void*,
-                                         const void*, size_t, uint32_t,
-                                         const void*, size_t) {
-        return nullptr;
     }
 
     static ENGINE_ERROR_CODE dcp_step(ENGINE_HANDLE*, const void*,

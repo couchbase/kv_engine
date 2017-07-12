@@ -244,16 +244,6 @@ public:
 
     ENGINE_ERROR_CODE flush(const void *cookie);
 
-    uint16_t walkTapQueue(const void *cookie, item **itm, void **es,
-                          uint16_t *nes, uint8_t *ttl, uint16_t *flags,
-                          uint32_t *seqno, uint16_t *vbucket);
-
-    bool createTapQueue(const void *cookie,
-                        std::string &client,
-                        uint32_t flags,
-                        const void *userdata,
-                        size_t nuserdata);
-
     ENGINE_ERROR_CODE tapNotify(const void *cookie,
                                 void *engine_specific,
                                 uint16_t nengine,
@@ -282,11 +272,6 @@ public:
                                    uint32_t opaque,
                                    uint16_t vbucket,
                                    uint32_t flags);
-
-    ENGINE_ERROR_CODE ConnHandlerCheckPoint(TapConsumer *consumer,
-                                            uint8_t event,
-                                            uint16_t vbucket,
-                                            uint64_t checkpointId);
 
     ENGINE_ERROR_CODE getMeta(const void* cookie,
                               protocol_binary_request_get_meta *request,
@@ -700,16 +685,6 @@ protected:
     friend ENGINE_ERROR_CODE create_instance(uint64_t interface,
                                              GET_SERVER_API get_server_api,
                                              ENGINE_HANDLE **handle);
-    uint16_t doWalkTapQueue(const void *cookie, item **itm, void **es,
-                            uint16_t *nes, uint8_t *ttl, uint16_t *flags,
-                            uint32_t *seqno, uint16_t *vbucket,
-                            TapProducer *c, bool &retry);
-
-
-    ENGINE_ERROR_CODE processTapAck(const void *cookie,
-                                    uint32_t seqno,
-                                    uint16_t status,
-                                    const DocKey& key);
 
     /**
      * Report the state of a memory condition when out of memory.
@@ -812,10 +787,6 @@ protected:
             return false;
         }
     }
-
-    // Get the current tap connection for this cookie.
-    // If this method returns NULL, you should return TAP_DISCONNECT
-    TapProducer* getTapProducer(const void *cookie);
 
     // Initialize all required callbacks of this engine with the underlying
     // server.
