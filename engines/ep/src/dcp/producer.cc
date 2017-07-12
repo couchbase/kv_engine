@@ -243,8 +243,8 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
     }
 
     // check for mandatory noop
-    const auto noopFeaturesMask = DCP_OPEN_INCLUDE_XATTRS | DCP_OPEN_COLLECTIONS;
-    if (flags & noopFeaturesMask) {
+    const bool collectionsEnabled = filter->allowSystemEvents();
+    if ((includeXattrs == IncludeXattrs::Yes) || collectionsEnabled) {
         if (!noopCtx.enabled &&
             engine_.getConfiguration().isDcpNoopMandatoryForV5Features()) {
             LOG(EXTENSION_LOG_WARNING,

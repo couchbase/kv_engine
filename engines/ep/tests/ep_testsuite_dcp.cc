@@ -176,10 +176,13 @@ public:
 
     void run();
 
-    /* This method just opens a DCP connection. Note it does not open a stream
-       and does not call the dcp step function to get all the items from the
-       producer */
-    void openConnection();
+    /**
+     * This method just opens a DCP connection. Note it does not open a stream
+     * and does not call the dcp step function to get all the items from the
+     * producer.
+     * @param flags Flags to pass to DCP_OPEN.
+     */
+    void openConnection(uint32_t flags = DCP_OPEN_PRODUCER);
 
     /* This method opens a stream on an existing DCP connection.
        This does not call the dcp step function to get all the items from the
@@ -526,7 +529,7 @@ void TestDcpConsumer::run() {
     }
 }
 
-void TestDcpConsumer::openConnection() {
+void TestDcpConsumer::openConnection(uint32_t flags) {
     /* Reset any stale dcp data */
     clear_dcp_data();
 
@@ -534,7 +537,7 @@ void TestDcpConsumer::openConnection() {
 
     /* Set up Producer at server */
     checkeq(ENGINE_SUCCESS,
-            h1->dcp.open(h, cookie, ++opaque, 0, DCP_OPEN_PRODUCER, name, {}),
+            h1->dcp.open(h, cookie, ++opaque, 0, flags, name, {}),
             "Failed dcp producer open connection.");
 
     /* Set flow control buffer size */
@@ -1704,100 +1707,67 @@ static enum test_result test_dcp_consumer_noop(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_dcp_noop_mandatory(ENGINE_HANDLE* h,
-                                                ENGINE_HANDLE_V1* h1) {
+/**
+ * Creates a DCP producer stream with the specified values for noop_manditory,
+ * noop_enabled, and XATTRs enabled, and then attempts to open a stream,
+ * checking for the expectedResult code.
+ */
+static void test_dcp_noop_mandatory_combo(ENGINE_HANDLE* h,
+                                          ENGINE_HANDLE_V1* h1,
+                                          bool noopManditory,
+                                          bool enableNoop,
+                                          bool enableXAttrs,
+                                          ENGINE_ERROR_CODE expectedResult) {
     const void* cookie = testHarness.create_cookie();
 
-    /* set dcp_noop_mandatory=ON */
+    // Configure manditory noop as requested.
     set_param(h,
               h1,
               protocol_binary_engine_param_flush,
               "dcp_noop_mandatory_for_v5_features",
-              "true");
-    checkeq(true,
+              noopManditory ? "true" : "false");
+    checkeq(noopManditory,
             get_bool_stat(h, h1, "ep_dcp_noop_mandatory_for_v5_features"),
-            "dcp_noop_mandatory should be true");
+            "Incorrect value for dcp_noop_mandatory_for_v5_features");
 
+    // Create DCP consumer with requested flags.
+    TestDcpConsumer tdc("dcp_noop_manditory_test", cookie, h, h1);
+    uint32_t flags = DCP_OPEN_PRODUCER;
+    if (enableXAttrs) {
+        flags |= DCP_OPEN_INCLUDE_XATTRS;
+    }
+    tdc.openConnection(flags);
+
+    // Setup noop on the DCP connection.
+    checkeq(ENGINE_SUCCESS,
+            tdc.sendControlMessage("enable_noop",
+                                   enableNoop ? "true" : "false"),
+            "Failed to configure noop");
+
+    // Finally, attempt to create the stream and verify we get the expeced
+    // response.
     DcpStreamCtx ctx;
     ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
     ctx.seqno = {0, static_cast<uint64_t>(-1)};
-
-    std::string name("unittest");
-    TestDcpConsumer tdc(name.c_str(), cookie, h, h1);
-    tdc.openConnection();
-
-    /* Test Failure with noop=OFF and advancedFeatures=ON */
-    ctx.flags = DCP_OPEN_INCLUDE_XATTRS;
-    ctx.exp_err = ENGINE_ENOTSUP;
+    ctx.exp_err = expectedResult;
     tdc.addStreamCtx(ctx);
 
-    checkeq(ENGINE_SUCCESS,
-            tdc.sendControlMessage("enable_noop", "false"),
-            "Failed to disable noop");
-
     tdc.openStreams();
-    tdc.closeStreams(true);
 
-    /* Test Success with noop=ON and advancedFeatures=ON */
-    ctx.flags = DCP_OPEN_INCLUDE_XATTRS;
-    ctx.exp_err = ENGINE_SUCCESS;
-    tdc.addStreamCtx(ctx);
-
-    checkeq(ENGINE_SUCCESS,
-            tdc.sendControlMessage("enable_noop", "true"),
-            "Failed to enable noop");
-
-    tdc.openStreams();
-    tdc.closeStreams(true);
-
-    /* Test Success with noop=OFF and advancedFeatures=OFF */
-    ctx.flags = 0;
-    ctx.exp_err = ENGINE_SUCCESS;
-    tdc.addStreamCtx(ctx);
-
-    checkeq(ENGINE_SUCCESS,
-            tdc.sendControlMessage("enable_noop", "false"),
-            "Failed to disable noop");
-
-    tdc.openStreams();
-    tdc.closeStreams(true);
-
-    /* set dcp_noop_mandatory=OFF */
-    set_param(h,
-              h1,
-              protocol_binary_engine_param_flush,
-              "dcp_noop_mandatory_for_v5_features",
-              "false");
-    checkeq(false,
-            get_bool_stat(h, h1, "ep_dcp_noop_mandatory_for_v5_features"),
-            "dcp_noop_mandatory_for_v5_features should be false");
-
-    /* Test Success with noop=OFF and advancedFeatures=ON */
-    ctx.flags = DCP_OPEN_INCLUDE_XATTRS;
-    ctx.exp_err = ENGINE_SUCCESS;
-    tdc.addStreamCtx(ctx);
-
-    checkeq(ENGINE_SUCCESS,
-            tdc.sendControlMessage("enable_noop", "false"),
-            "Failed to disable noop");
-
-    tdc.openStreams();
-    tdc.closeStreams(true);
-
-    /* Test Success with noop=OFF and advancedFeatures=OFF */
-    ctx.flags = 0;
-    ctx.exp_err = ENGINE_SUCCESS;
-    tdc.addStreamCtx(ctx);
-
-    checkeq(ENGINE_SUCCESS,
-            tdc.sendControlMessage("enable_noop", "false"),
-            "Failed to disable noop");
-
-    tdc.openStreams();
-    tdc.closeStreams(true);
-
-    // destroy the cookie
     testHarness.destroy_cookie(cookie);
+}
+
+static enum test_result test_dcp_noop_mandatory(ENGINE_HANDLE* h,
+                                                ENGINE_HANDLE_V1* h1) {
+    // Test all combinations of {manditoryNoop, enable_noop, includeXAttr}
+    test_dcp_noop_mandatory_combo(h, h1, false, false, false, ENGINE_SUCCESS);
+    test_dcp_noop_mandatory_combo(h, h1, false, false, true, ENGINE_SUCCESS);
+    test_dcp_noop_mandatory_combo(h, h1, false, true, false, ENGINE_SUCCESS);
+    test_dcp_noop_mandatory_combo(h, h1, false, true, true, ENGINE_SUCCESS);
+    test_dcp_noop_mandatory_combo(h, h1, true, false, false, ENGINE_SUCCESS);
+    test_dcp_noop_mandatory_combo(h, h1, true, false, true, ENGINE_ENOTSUP);
+    test_dcp_noop_mandatory_combo(h, h1, true, true, false, ENGINE_SUCCESS);
+    test_dcp_noop_mandatory_combo(h, h1, true, true, true, ENGINE_SUCCESS);
 
     return SUCCESS;
 }

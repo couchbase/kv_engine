@@ -645,6 +645,9 @@ public:
         // Create the task object, but don't schedule
         producer->createCheckpointProcessorTask();
 
+        // Need to enable NOOP for XATTRS (and collections).
+        producer->setNoopEnabled(true);
+
         store->setVBucketState(replicaVB, vbucket_state_replica, false);
         ASSERT_EQ(ENGINE_SUCCESS,
                   consumer->addStream(/*opaque*/ 0,
@@ -1013,6 +1016,7 @@ TEST_F(CollectionsFilteredDcpErrorTest, error2) {
                                                  DCP_OPEN_COLLECTIONS,
                                                  buffer,
                                                  false /*startTask*/);
+    producer->setNoopEnabled(true);
 
     // Remove dairy
     store->setCollections(

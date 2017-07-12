@@ -104,6 +104,10 @@ protected:
                                        {/*no json*/},
                                        /*startTask*/ true);
 
+        if (includeXattrs == IncludeXattrs::Yes) {
+            producer->setNoopEnabled(true);
+        }
+
         vb0 = engine->getVBucket(vbid);
         ASSERT_NE(nullptr, vb0.get());
         EXPECT_TRUE(vb0) << "Failed to get valid VBucket object for id 0";
