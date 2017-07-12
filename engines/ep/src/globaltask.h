@@ -149,8 +149,8 @@ public:
         return state.load();
     }
 
-    bool setState(task_state_t tstate, task_state_t expected) {
-        return state.compare_exchange_strong(expected, tstate);
+    void setState(task_state_t tstate, task_state_t expected) {
+        state.compare_exchange_strong(expected, tstate);
     }
 
     Taskable& getTaskable() const {
