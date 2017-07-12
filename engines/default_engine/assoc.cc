@@ -10,10 +10,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <platform/cb_malloc.h>
 #include <platform/platform.h>
 #include <platform/crc32c.h>
 #include <platform/strerror.h>
+#include <vector>
 
 #include "default_engine_internal.h"
 
@@ -22,12 +22,7 @@
 
 struct Assoc {
     Assoc(unsigned int hp) : hashpower(hp) {
-        primary_hashtable =
-            static_cast<hash_item**>(cb_calloc(hashsize(hashpower),
-                                               sizeof(hash_item*)));
-        if (primary_hashtable == nullptr) {
-            throw std::bad_alloc();
-        }
+        primary_hashtable.resize(hashsize(hashpower));
     }
 
     /* how many powers of 2's worth of buckets we use */
@@ -35,13 +30,13 @@ struct Assoc {
 
 
     /* Main hash table. This is where we look except during expansion. */
-    hash_item** primary_hashtable{nullptr};
+    std::vector<hash_item*> primary_hashtable;
 
     /*
      * Previous hash table. During expansion, we look here for keys that haven't
      * been moved over to the primary yet.
      */
-    hash_item** old_hashtable{nullptr};
+    std::vector<hash_item*> old_hashtable;
 
     /* Number of items in the hash table. */
     unsigned int hash_items{0};
@@ -93,7 +88,6 @@ void assoc_destroy() {
         while (global_assoc->expanding) {
             usleep(250);
         }
-        cb_free(global_assoc->primary_hashtable);
         delete global_assoc;
         global_assoc = nullptr;
     }
@@ -168,35 +162,36 @@ static void assoc_maintenance_thread(void *arg);
     assoc->lock is assumed to be held by the caller.
 */
 static void assoc_expand() {
-    global_assoc->old_hashtable = global_assoc->primary_hashtable;
+    global_assoc->old_hashtable.swap(global_assoc->primary_hashtable);
 
-    global_assoc->primary_hashtable =
-        static_cast<hash_item**>(cb_calloc(hashsize(global_assoc->hashpower + 1),
-                                           sizeof(hash_item *)));
-    if (global_assoc->primary_hashtable) {
-        int ret = 0;
-        cb_thread_t tid;
-
-        global_assoc->hashpower++;
-        global_assoc->expanding = true;
-        global_assoc->expand_bucket = 0;
-
-        /* start a thread to do the expansion */
-        if ((ret = cb_create_named_thread(&tid, assoc_maintenance_thread,
-                                          nullptr, 1, "mc:assoc_maint")) != 0)
-        {
-            if (logger != nullptr) {
-                logger->log(EXTENSION_LOG_WARNING, NULL,
-                            "Can't create thread: %s", cb_strerror().c_str());
-            }
-            global_assoc->hashpower--;
-            global_assoc->expanding = false;
-            cb_free(global_assoc->primary_hashtable);
-            global_assoc->primary_hashtable = global_assoc->old_hashtable;
-        }
-    } else {
-        global_assoc->primary_hashtable = global_assoc->old_hashtable;
+    try {
+        global_assoc->primary_hashtable.resize(hashsize(global_assoc->hashpower + 1));
+    } catch (const std::bad_alloc&) {
+        global_assoc->primary_hashtable.swap(global_assoc->old_hashtable);
         /* Bad news, but we can keep running. */
+        return;
+    }
+
+    int ret = 0;
+    cb_thread_t tid;
+
+    global_assoc->hashpower++;
+    global_assoc->expanding = true;
+    global_assoc->expand_bucket = 0;
+
+    /* start a thread to do the expansion */
+    if ((ret = cb_create_named_thread(&tid, assoc_maintenance_thread,
+                                      nullptr, 1, "mc:assoc_maint")) != 0)
+    {
+        if (logger != nullptr) {
+            logger->log(EXTENSION_LOG_WARNING, NULL,
+                        "Can't create thread: %s", cb_strerror().c_str());
+        }
+        global_assoc->hashpower--;
+        global_assoc->expanding = false;
+        global_assoc->primary_hashtable.swap(global_assoc->old_hashtable);
+        global_assoc->old_hashtable.resize(0);
+        global_assoc->old_hashtable.shrink_to_fit();
     }
 }
 
@@ -278,7 +273,8 @@ static void assoc_maintenance_thread(void *arg) {
             global_assoc->expand_bucket++;
             if (global_assoc->expand_bucket == hashsize(global_assoc->hashpower - 1)) {
                 global_assoc->expanding = false;
-                cb_free(global_assoc->old_hashtable);
+                global_assoc->old_hashtable.resize(0);
+                global_assoc->old_hashtable.shrink_to_fit();
                 if (logger != nullptr) {
                     logger->log(EXTENSION_LOG_INFO, NULL,
                                 "Hash table expansion done");
