@@ -575,48 +575,6 @@ typedef struct engine_interface_v1 {
     /* TAP operations */
 
     /**
-     * Callback for all incoming TAP messages. It is up to the engine
-     * to determine what to do with the event. The core will create and send
-     * a TAP_ACK message if the flag section contains TAP_FLAG_SEND_ACK with
-     * the status byte mapped from the return code.
-     *
-     * @param handle the engine handle
-     * @param cookie identification for the tap stream
-     * @param engine_specific pointer to engine specific data (received)
-     * @param nengine_specific number of bytes of engine specific data
-     * @param ttl ttl for this item (Tap stream hops)
-     * @param tap_flags tap flags for this object
-     * @param tap_event the tap event from over the wire
-     * @param tap_seqno sequence number for this item
-     * @param key the key in the message
-     * @param nkey the number of bytes in the key
-     * @param flags the flags for the item
-     * @param exptime the expiry time for the object
-     * @param cas the cas for the item
-     * @param data the data for the item
-     * @param ndata the number of bytes in the object
-     * @param vbucket the virtual bucket for the object
-     * @return ENGINE_SUCCESS for success
-     */
-    ENGINE_ERROR_CODE (* tap_notify)(ENGINE_HANDLE* handle,
-                                     const void* cookie,
-                                     void* engine_specific,
-                                     uint16_t nengine,
-                                     uint8_t ttl,
-                                     uint16_t tap_flags,
-                                     tap_event_t tap_event,
-                                     uint32_t tap_seqno,
-                                     const void* key,
-                                     size_t nkey,
-                                     uint32_t flags,
-                                     uint32_t exptime,
-                                     uint64_t cas,
-                                     uint8_t datatype,
-                                     const void* data,
-                                     size_t ndata,
-                                     uint16_t vbucket);
-
-    /**
      * Get (or create) a Tap iterator for this connection.
      * @param handle the engine handle
      * @param cookie The connection cookie

@@ -1243,7 +1243,6 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
     ENGINE_HANDLE_V1::get_stats = get_stats;
     ENGINE_HANDLE_V1::reset_stats = reset_stats;
     ENGINE_HANDLE_V1::unknown_command = unknown_command;
-    ENGINE_HANDLE_V1::tap_notify = NULL;
     ENGINE_HANDLE_V1::get_tap_iterator = NULL;
     ENGINE_HANDLE_V1::item_set_cas = item_set_cas;
     ENGINE_HANDLE_V1::get_item_info = get_item_info;

@@ -429,40 +429,6 @@ static bool mock_get_item_info(ENGINE_HANDLE *handle, const void *cookie,
                                          cookie, item, item_info);
 }
 
-static ENGINE_ERROR_CODE mock_tap_notify(ENGINE_HANDLE* handle,
-                                        const void *cookie,
-                                        void *engine_specific,
-                                        uint16_t nengine,
-                                        uint8_t ttl,
-                                        uint16_t tap_flags,
-                                        tap_event_t tap_event,
-                                        uint32_t tap_seqno,
-                                        const void *key,
-                                        size_t nkey,
-                                        uint32_t flags,
-                                        uint32_t exptime,
-                                        uint64_t cas,
-                                        uint8_t datatype,
-                                        const void *data,
-                                        size_t ndata,
-                                        uint16_t vbucket) {
-
-    struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
-    auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->tap_notify,
-                               get_engine_from_handle(handle),
-                               static_cast<const void*>(c),
-                               engine_specific, nengine, ttl, tap_flags,
-                               tap_event, tap_seqno, key, nkey, flags,
-                               exptime, cas, datatype,
-                               data, ndata, vbucket);
-
-    ENGINE_ERROR_CODE ret = call_engine_and_handle_EWOULDBLOCK(handle, c, engine_fn);
-
-    check_and_destroy_mock_connstruct(c, cookie);
-    return ret;
-}
-
-
 static TAP_ITERATOR mock_get_tap_iterator(ENGINE_HANDLE* handle, const void* cookie,
                                            const void* client, size_t nclient,
                                            uint32_t flags,
@@ -892,7 +858,6 @@ static ENGINE_HANDLE_V1* create_bucket(bool initialize, const char* cfg) {
         mock_engine->me.get_stats = mock_get_stats;
         mock_engine->me.reset_stats = mock_reset_stats;
         mock_engine->me.unknown_command = mock_unknown_command;
-        mock_engine->me.tap_notify = mock_tap_notify;
         mock_engine->me.get_tap_iterator = mock_get_tap_iterator;
         mock_engine->me.item_set_cas = mock_item_set_cas;
         mock_engine->me.get_item_info = mock_get_item_info;
@@ -924,9 +889,6 @@ static ENGINE_HANDLE_V1* create_bucket(bool initialize, const char* cfg) {
 
         if (mock_engine->the_engine->unknown_command == NULL) {
             mock_engine->me.unknown_command = NULL;
-        }
-        if (mock_engine->the_engine->tap_notify == NULL) {
-            mock_engine->me.tap_notify = NULL;
         }
         if (mock_engine->the_engine->get_tap_iterator == NULL) {
             mock_engine->me.get_tap_iterator = NULL;
