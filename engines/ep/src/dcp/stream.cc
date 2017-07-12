@@ -1383,7 +1383,8 @@ void ActiveStream::transitionState(StreamState newState) {
         return;
     }
 
-    producer->getLogger().log(EXTENSION_LOG_NOTICE,
+    EXTENSION_LOG_LEVEL logLevel = getTransitionStateLogLevel(state_, newState);
+    producer->getLogger().log(logLevel,
                               "ActiveStream::transitionState: (vb %d) "
                               "Transitioning from %s to %s",
                               vb_,
@@ -1542,6 +1543,15 @@ bool ActiveStream::dropCheckpointCursor_UNLOCKED() {
     return vbucket->checkpointManager.removeCursor(name_);
 }
 
+EXTENSION_LOG_LEVEL ActiveStream::getTransitionStateLogLevel(
+        StreamState currState, StreamState newState) {
+    if ((currState == StreamState::Pending) ||
+        (newState == StreamState::Dead)) {
+        return EXTENSION_LOG_INFO;
+    }
+    return EXTENSION_LOG_NOTICE;
+}
+
 void ActiveStream::processSystemEvent(DcpResponse* response) {
     if (response->getEvent() == DcpResponse::Event::SystemEvent) {
         auto se = static_cast<SystemEventProducerMessage*>(response);
@@ -1661,7 +1671,7 @@ DcpResponse* NotifierStream::next() {
 }
 
 void NotifierStream::transitionState(StreamState newState) {
-    producer->getLogger().log(EXTENSION_LOG_NOTICE,
+    producer->getLogger().log(EXTENSION_LOG_INFO,
                               "NotifierStream::transitionState: (vb %d) "
                               "Transitioning from %s to %s",
                               vb_,
@@ -2425,7 +2435,7 @@ uint32_t PassiveStream::clearBuffer_UNLOCKED() {
 }
 
 bool PassiveStream::transitionState(StreamState newState) {
-    consumer->getLogger().log(EXTENSION_LOG_NOTICE,
+    consumer->getLogger().log(EXTENSION_LOG_INFO,
                               "PassiveStream::transitionState: (vb %d) "
                               "Transitioning from %s to %s",
                               vb_,

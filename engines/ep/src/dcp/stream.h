@@ -418,6 +418,18 @@ private:
      */
     bool dropCheckpointCursor_UNLOCKED();
 
+    /**
+     * Decides what log level must be used for (active) stream state
+     * transitions
+     *
+     * @param currState current state of the stream
+     * @param newState new state of the stream
+     *
+     * @return log level
+     */
+    EXTENSION_LOG_LEVEL getTransitionStateLogLevel(StreamState currState,
+                                                   StreamState newState);
+
     /* The last sequence number queued from disk or memory, but is yet to be
        snapshotted and put onto readyQ */
     std::atomic<uint64_t> lastReadSeqnoUnSnapshotted;
