@@ -6943,38 +6943,6 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                              "ep_ephemeral_metadata_purge_interval"});
     }
 
-    if (isTapEnabled(h, h1)) {
-        statsKeys["tap"] = {"ep_replication_throttle_queue_cap",
-                            "ep_replication_throttle_threshold",
-                            "ep_replication_throttled",
-                            "ep_tap_ack_grace_period",
-                            "ep_tap_ack_interval",
-                            "ep_tap_ack_window_size",
-                            "ep_tap_backoff_period",
-                            "ep_tap_bg_fetch_requeued",
-                            "ep_tap_bg_fetched",
-                            "ep_tap_bg_max_pending",
-                            "ep_tap_count",
-                            "ep_tap_deletes",
-                            "ep_tap_fg_fetched",
-                            "ep_tap_noop_interval",
-                            "ep_tap_queue_backfillremaining",
-                            "ep_tap_queue_backoff",
-                            "ep_tap_queue_drain",
-                            "ep_tap_queue_fill",
-                            "ep_tap_queue_itemondisk",
-                            "ep_tap_total_backlog_size",
-                            "ep_tap_total_fetched",
-                            "ep_tap_total_queue"};
-
-        statsKeys["tap-vbtakeover 0"] = {"name",
-                                         "status",
-                                         "estimate",
-                                         "on_disk_deletes",
-                                         "chk_items",
-                                         "vb_items"};
-    }
-
     bool error = false;
     for (const auto& entry : statsKeys) {
 

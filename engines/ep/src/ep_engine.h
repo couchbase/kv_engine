@@ -727,11 +727,9 @@ protected:
     ENGINE_ERROR_CODE doHashStats(const void *cookie, ADD_STAT add_stat);
     ENGINE_ERROR_CODE doCheckpointStats(const void *cookie, ADD_STAT add_stat,
                                         const char* stat_key, int nkey);
-    ENGINE_ERROR_CODE doTapStats(const void *cookie, ADD_STAT add_stat);
     ENGINE_ERROR_CODE doDcpStats(const void *cookie, ADD_STAT add_stat);
     ENGINE_ERROR_CODE doConnAggStats(const void *cookie, ADD_STAT add_stat,
-                                     const char *sep, size_t nsep,
-                                     conn_type_t connType);
+                                     const char *sep, size_t nsep);
     ENGINE_ERROR_CODE doTimingStats(const void *cookie, ADD_STAT add_stat);
     ENGINE_ERROR_CODE doSchedulerStats(const void *cookie, ADD_STAT add_stat);
     ENGINE_ERROR_CODE doRunTimeStats(const void *cookie, ADD_STAT add_stat);
@@ -739,10 +737,6 @@ protected:
     ENGINE_ERROR_CODE doTasksStats(const void* cookie, ADD_STAT add_stat);
     ENGINE_ERROR_CODE doKeyStats(const void *cookie, ADD_STAT add_stat,
                                  uint16_t vbid, const DocKey& key, bool validate=false);
-    ENGINE_ERROR_CODE doTapVbTakeoverStats(const void *cookie,
-                                           ADD_STAT add_stat,
-                                           std::string& key,
-                                           uint16_t vbid);
 
     ENGINE_ERROR_CODE doDcpVbTakeoverStats(const void *cookie,
                                            ADD_STAT add_stat,

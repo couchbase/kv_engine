@@ -3096,8 +3096,7 @@ struct ConnAggStatBuilder {
 static void showConnAggStat(const std::string &prefix,
                             ConnCounter *counter,
                             const void *cookie,
-                            ADD_STAT add_stat,
-                            conn_type_t conn_type) {
+                            ADD_STAT add_stat) {
 
     try {
         char statname[80] = {0};
@@ -3113,46 +3112,19 @@ static void showConnAggStat(const std::string &prefix,
         add_casted_stat(statname, counter->conn_queueBackoff,
                         add_stat, cookie);
 
-        if (conn_type == TAP_CONN) {
-            checked_snprintf(statname, sl, "%s:qlen", prefix.c_str());
-            add_casted_stat(statname, counter->conn_queue, add_stat, cookie);
+        checked_snprintf(statname, sl, "%s:producer_count", prefix.c_str());
+        add_casted_stat(statname, counter->totalProducers, add_stat, cookie);
 
-            checked_snprintf(statname, sl, "%s:fill", prefix.c_str());
-            add_casted_stat(statname, counter->conn_queueFill,
-                            add_stat, cookie);
+        checked_snprintf(statname, sl, "%s:items_sent", prefix.c_str());
+        add_casted_stat(statname, counter->conn_queueDrain, add_stat, cookie);
 
-            checked_snprintf(statname, sl, "%s:drain", prefix.c_str());
-            add_casted_stat(statname, counter->conn_queueDrain,
-                            add_stat, cookie);
+        checked_snprintf(statname, sl, "%s:items_remaining", prefix.c_str());
+        add_casted_stat(statname, counter->conn_queueRemaining, add_stat,
+                        cookie);
 
-            checked_snprintf(statname, sl, "%s:backfill_remaining",
-                             prefix.c_str());
-            add_casted_stat(statname, counter->conn_queueBackfillRemaining,
-                            add_stat, cookie);
+        checked_snprintf(statname, sl, "%s:total_bytes", prefix.c_str());
+        add_casted_stat(statname, counter->conn_totalBytes, add_stat, cookie);
 
-            checked_snprintf(statname, sl, "%s:itemondisk", prefix.c_str());
-            add_casted_stat(statname, counter->conn_queueItemOnDisk,
-                            add_stat, cookie);
-        }
-
-        if (conn_type == DCP_CONN) {
-            checked_snprintf(statname, sl, "%s:producer_count", prefix.c_str());
-            add_casted_stat(statname, counter->totalProducers, add_stat,
-                            cookie);
-
-            checked_snprintf(statname, sl, "%s:items_sent", prefix.c_str());
-            add_casted_stat(statname, counter->conn_queueDrain,
-                            add_stat, cookie);
-
-            checked_snprintf(statname, sl, "%s:items_remaining",
-                             prefix.c_str());
-            add_casted_stat(statname, counter->conn_queueRemaining,
-                            add_stat, cookie);
-
-            checked_snprintf(statname, sl, "%s:total_bytes", prefix.c_str());
-            add_casted_stat(statname, counter->conn_totalBytes,
-                            add_stat, cookie);
-        }
     } catch (std::exception& error) {
         LOG(EXTENSION_LOG_WARNING,
             "showConnAggStat: Failed to build stats: %s", error.what());
@@ -3163,8 +3135,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doConnAggStats(
                                                         const void *cookie,
                                                         ADD_STAT add_stat,
                                                         const char *sepPtr,
-                                                        size_t sep_len,
-                                                        conn_type_t connType) {
+                                                        size_t sep_len) {
     // In practice, this will be 1, but C++ doesn't let me use dynamic
     // array sizes.
     const size_t max_sep_len(8);
@@ -3176,92 +3147,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doConnAggStats(
 
     std::map<std::string, ConnCounter*> counters;
     ConnAggStatBuilder visitor(&counters, sep, sep_len);
-    if (connType == TAP_CONN) {
-        tapConnMap->each(visitor);
-    } else {
-        dcpConnMap_->each(visitor);
-    }
+    dcpConnMap_->each(visitor);
 
     std::map<std::string, ConnCounter*>::iterator it;
     for (it = counters.begin(); it != counters.end(); ++it) {
-        showConnAggStat(it->first, it->second, cookie, add_stat, connType);
+        showConnAggStat(it->first, it->second, cookie, add_stat);
         delete it->second;
-    }
-
-    return ENGINE_SUCCESS;
-}
-
-ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
-                                                         ADD_STAT add_stat) {
-    ConnCounter aggregator;
-    ConnStatBuilder tapVisitor(cookie, add_stat, aggregator);
-    tapConnMap->each(tapVisitor);
-
-    add_casted_stat("ep_tap_total_fetched", stats.numTapFetched,
-                    add_stat, cookie);
-    add_casted_stat("ep_tap_bg_max_pending", tapConfig->getBgMaxPending(),
-                    add_stat, cookie);
-    add_casted_stat("ep_tap_bg_fetched", stats.numTapBGFetched,
-                    add_stat, cookie);
-    add_casted_stat("ep_tap_bg_fetch_requeued", stats.numTapBGFetchRequeued,
-                    add_stat, cookie);
-    add_casted_stat("ep_tap_fg_fetched", stats.numTapFGFetched,
-                    add_stat, cookie);
-    add_casted_stat("ep_tap_deletes", stats.numTapDeletes, add_stat, cookie);
-    add_casted_stat("ep_replication_throttled", stats.replicationThrottled, add_stat, cookie);
-    add_casted_stat("ep_tap_noop_interval", tapConnMap->getNoopInterval(),
-                    add_stat, cookie);
-    add_casted_stat("ep_tap_count", aggregator.totalConns, add_stat, cookie);
-    add_casted_stat("ep_tap_total_queue", aggregator.conn_queue,
-                    add_stat, cookie);
-    add_casted_stat("ep_tap_queue_fill", aggregator.conn_queueFill,
-                    add_stat, cookie);
-    add_casted_stat("ep_tap_queue_drain", aggregator.conn_queueDrain,
-                    add_stat, cookie);
-    add_casted_stat("ep_tap_queue_backoff", aggregator.conn_queueBackoff,
-                    add_stat, cookie);
-    add_casted_stat("ep_tap_queue_backfillremaining",
-                    aggregator.conn_queueBackfillRemaining, add_stat, cookie);
-    add_casted_stat("ep_tap_queue_itemondisk", aggregator.conn_queueItemOnDisk,
-                    add_stat, cookie);
-    add_casted_stat("ep_tap_total_backlog_size",
-                    aggregator.conn_totalBacklogSize, add_stat, cookie);
-    add_casted_stat("ep_tap_ack_window_size", tapConfig->getAckWindowSize(),
-                    add_stat, cookie);
-    add_casted_stat("ep_tap_ack_interval", tapConfig->getAckInterval(),
-                    add_stat, cookie);
-    add_casted_stat("ep_tap_ack_grace_period", tapConfig->getAckGracePeriod(),
-                    add_stat, cookie);
-    add_casted_stat("ep_tap_backoff_period",
-                    tapConfig->getBackoffSleepTime(),
-                    add_stat, cookie);
-    add_casted_stat("ep_replication_throttle_threshold",
-                    stats.replicationThrottleThreshold * 100.0,
-                    add_stat, cookie);
-    add_casted_stat("ep_replication_throttle_queue_cap",
-                    stats.replicationThrottleWriteQueueCap, add_stat, cookie);
-
-    if (stats.tapBgNumOperations > 0) {
-        add_casted_stat("ep_tap_bg_num_samples", stats.tapBgNumOperations,
-                        add_stat, cookie);
-        add_casted_stat("ep_tap_bg_min_wait",
-                        stats.tapBgMinWait,
-                        add_stat, cookie);
-        add_casted_stat("ep_tap_bg_max_wait",
-                        stats.tapBgMaxWait,
-                        add_stat, cookie);
-        add_casted_stat("ep_tap_bg_wait_avg",
-                        stats.tapBgWait / stats.tapBgNumOperations,
-                        add_stat, cookie);
-        add_casted_stat("ep_tap_bg_min_load",
-                        stats.tapBgMinLoad,
-                        add_stat, cookie);
-        add_casted_stat("ep_tap_bg_max_load",
-                        stats.tapBgMaxLoad,
-                        add_stat, cookie);
-        add_casted_stat("ep_tap_bg_load_avg",
-                        stats.tapBgLoad / stats.tapBgNumOperations,
-                        add_stat, cookie);
     }
 
     return ENGINE_SUCCESS;
@@ -3667,17 +3558,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
     ENGINE_ERROR_CODE rv = ENGINE_KEY_ENOENT;
     if (stat_key == NULL) {
         rv = doEngineStats(cookie, add_stat);
-    } else if (nkey > 7 && cb_isPrefix(statKey, "tapagg ")) {
-        if (configuration.isTap()) {
-            rv = doConnAggStats(
-                    cookie, add_stat, stat_key + 7, nkey - 7, TAP_CONN);
-        }
     } else if (nkey > 7 && cb_isPrefix(statKey, "dcpagg ")) {
-        rv = doConnAggStats(cookie, add_stat, stat_key + 7, nkey - 7, DCP_CONN);
-    } else if (statKey == "tap") {
-        if (configuration.isTap()) {
-            rv = doTapStats(cookie, add_stat);
-        }
+        rv = doConnAggStats(cookie, add_stat, stat_key + 7, nkey - 7);
     } else if (statKey == "dcp") {
         rv = doDcpStats(cookie, add_stat);
     } else if (statKey == "hash") {
@@ -3758,17 +3640,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
     } else if (statKey == "config") {
         configuration.addStats(add_stat, cookie);
         rv = ENGINE_SUCCESS;
-    } else if (nkey > 15 && cb_isPrefix(statKey, "tap-vbtakeover") &&
-               configuration.isTap()) {
-        std::string tStream;
-        std::string vbid;
-        std::string buffer(statKey.substr(15, nkey - 15));
-        std::stringstream ss(buffer);
-        ss >> vbid;
-        ss >> tStream;
-        uint16_t vbucket_id(0);
-        parseUint16(vbid.c_str(), &vbucket_id);
-        rv = doTapVbTakeoverStats(cookie, add_stat, tStream, vbucket_id);
     } else if (nkey > 15 && cb_isPrefix(statKey, "dcp-vbtakeover")) {
         std::string tStream;
         std::string vbid;
@@ -5005,61 +4876,6 @@ EventuallyPersistentEngine::doDcpVbTakeoverStats(const void *cookie,
             "vb:%" PRIu16 " is not a DcpProducer", dcpName.c_str(), vbid);
         return ENGINE_KEY_ENOENT;
     }
-
-    return ENGINE_SUCCESS;
-}
-
-ENGINE_ERROR_CODE
-EventuallyPersistentEngine::doTapVbTakeoverStats(const void *cookie,
-                                                 ADD_STAT add_stat,
-                                                 std::string &key,
-                                                 uint16_t vbid) {
-    VBucketPtr vb = getVBucket(vbid);
-    if (!vb) {
-        return ENGINE_NOT_MY_VBUCKET;
-    }
-    std::string tapName("eq_tapq:");
-    tapName.append(key);
-    size_t vb_items = vb->getNumItems();
-
-    size_t del_items = 0;
-    try {
-        del_items = kvBucket->getRWUnderlying(vbid)->
-                                                getNumPersistedDeletes(vbid);
-    } catch (std::runtime_error& e) {
-        LOG(EXTENSION_LOG_WARNING,
-            "doTapVbTakeoverStats: exception while getting num persisted "
-            "deletes for vbucket:%" PRIu16 " - treating as 0 deletes. "
-            "Details: %s", vbid, e.what());
-    }
-
-    add_casted_stat("name", tapName, add_stat, cookie);
-
-    uint64_t total;
-    uint64_t chk_items;
-    if (key.length() == 0 || !tapConnMap->findByName(tapName)) {
-        chk_items = vb_items > 0 ?
-                    vb->checkpointManager.getNumOpenChkItems() : 0;
-        total = vb_items + del_items + chk_items;
-        add_casted_stat("status", "does_not_exist", add_stat, cookie);
-    } else {
-        if (tapConnMap->isBackfillCompleted(tapName)) {
-            chk_items = vb_items > 0 ?
-                vb->checkpointManager.getNumItemsForCursor(tapName) : 0;
-            total = chk_items;
-            add_casted_stat("status", "backfill completed", add_stat, cookie);
-        } else {
-            chk_items = vb_items > 0 ?
-                        vb->checkpointManager.getNumOpenChkItems() : 0;
-            total = vb_items + del_items + chk_items;
-            add_casted_stat("status", "backfilling", add_stat, cookie);
-        }
-    }
-
-    add_casted_stat("estimate", total, add_stat, cookie);
-    add_casted_stat("on_disk_deletes", del_items, add_stat, cookie);
-    add_casted_stat("chk_items", chk_items, add_stat, cookie);
-    add_casted_stat("vb_items", vb_items, add_stat, cookie);
 
     return ENGINE_SUCCESS;
 }
