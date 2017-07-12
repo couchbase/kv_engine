@@ -6,6 +6,7 @@
 #include "config.h"
 #include <fcntl.h>
 #include <errno.h>
+#include <mutex>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -21,7 +22,6 @@
 
 struct Assoc {
     Assoc(unsigned int hp) : hashpower(hp) {
-        cb_mutex_initialize(&lock);
         primary_hashtable =
             static_cast<hash_item**>(cb_calloc(hashsize(hashpower),
                                                sizeof(hash_item*)));
@@ -58,7 +58,7 @@ struct Assoc {
     /*
      * serialise access to the hashtable
      */
-    cb_mutex_t lock;
+    std::mutex mutex;
 };
 
 /* One hashtable for all */
@@ -104,7 +104,7 @@ hash_item *assoc_find(uint32_t hash, const hash_key *key) {
     unsigned int oldbucket;
     hash_item *ret = NULL;
     int depth = 0;
-    cb_mutex_enter(&global_assoc->lock);
+    std::lock_guard<std::mutex> guard(global_assoc->mutex);
     if (global_assoc->expanding &&
         (oldbucket = (hash & hashmask(global_assoc->hashpower - 1))) >= global_assoc->expand_bucket)
     {
@@ -126,7 +126,6 @@ hash_item *assoc_find(uint32_t hash, const hash_key *key) {
         ++depth;
     }
     MEMCACHED_ASSOC_FIND(hash_key_get_key(key), hash_key_get_key_len(key), depth);
-    cb_mutex_exit(&global_assoc->lock);
     return ret;
 }
 
@@ -207,7 +206,7 @@ int assoc_insert(uint32_t hash, hash_item *it) {
 
     cb_assert(assoc_find(hash, item_get_key(it)) == 0);  /* shouldn't have duplicately named things defined */
 
-    cb_mutex_enter(&global_assoc->lock);
+    std::lock_guard<std::mutex> guard(global_assoc->mutex);
     if (global_assoc->expanding &&
         (oldbucket = (hash & hashmask(global_assoc->hashpower - 1))) >= global_assoc->expand_bucket)
     {
@@ -222,13 +221,12 @@ int assoc_insert(uint32_t hash, hash_item *it) {
     if (! global_assoc->expanding && global_assoc->hash_items > (hashsize(global_assoc->hashpower) * 3) / 2) {
         assoc_expand();
     }
-    cb_mutex_exit(&global_assoc->lock);
     MEMCACHED_ASSOC_INSERT(hash_key_get_key(item_get_key(it)), hash_key_get_key_len(item_get_key(it)), global_assoc->hash_items);
     return 1;
 }
 
 void assoc_delete(uint32_t hash, const hash_key *key) {
-    cb_mutex_enter(&global_assoc->lock);
+    std::lock_guard<std::mutex> guard(global_assoc->mutex);
     hash_item **before = _hashitem_before(hash, key);
 
     if (*before) {
@@ -243,10 +241,8 @@ void assoc_delete(uint32_t hash, const hash_key *key) {
         nxt = (*before)->h_next;
         (*before)->h_next = 0;   /* probably pointless, but whatever. */
         *before = nxt;
-        cb_mutex_exit(&global_assoc->lock);
         return;
     }
-    cb_mutex_exit(&global_assoc->lock);
     /* Note:  we never actually get here.  the callers don't delete things
        they can't find. */
     cb_assert(*before != 0);
@@ -261,7 +257,7 @@ static void assoc_maintenance_thread(void *arg) {
     bool done = false;
     do {
         int ii;
-        cb_mutex_enter(&global_assoc->lock);
+        std::lock_guard<std::mutex> guard(global_assoc->mutex);
 
         for (ii = 0; ii < hash_bulk_move && global_assoc->expanding; ++ii) {
             hash_item *it, *next;
@@ -292,14 +288,10 @@ static void assoc_maintenance_thread(void *arg) {
         if (!global_assoc->expanding) {
             done = true;
         }
-        cb_mutex_exit(&global_assoc->lock);
     } while (!done);
 }
 
 bool assoc_expanding() {
-    cb_mutex_enter(&global_assoc->lock);
-    auto ret = global_assoc->expanding;
-    cb_mutex_exit(&global_assoc->lock);
-
-    return ret;
+    std::lock_guard<std::mutex> guard(global_assoc->mutex);
+    return global_assoc->expanding;
 }
