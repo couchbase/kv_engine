@@ -80,3 +80,11 @@ cb::const_byte_buffer to_const_byte_buffer(const char* s);
  * @return the string representation of the byte buffer
  */
 std::string to_string(cb::byte_buffer buf);
+
+/**
+ * Convert a const byte buffer into a string
+ *
+ * @param buf const byte buffer that needs to be converted to a string
+ * @return the string representation of the byte buffer
+ */
+std::string to_string(cb::const_byte_buffer buf);

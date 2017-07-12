@@ -177,3 +177,69 @@ TEST(XattrBlob, MB_22691) {
         EXPECT_FALSE(entry.empty()) << "Key: " << key << " is missing";
     }
 }
+
+TEST(XattrBlob, iterator_simple_checks) {
+    cb::xattr::Blob blob;
+    EXPECT_EQ(blob.begin(), blob.end());
+    std::vector<std::string> keys = {"key1", "key2", "key3"};
+    for (auto& k : keys) {
+        blob.set(k, k + ".value");
+    }
+    EXPECT_NE(blob.begin(), blob.end());
+
+    // Check some loop varieties
+    int iterations = 0;
+    for (auto itr = blob.begin(); itr != blob.end(); itr++) {
+        iterations++;
+    }
+    EXPECT_EQ(keys.size() * 1, iterations);
+    for (auto itr = blob.begin(); itr != blob.end(); ++itr) {
+        iterations++;
+    }
+    EXPECT_EQ(keys.size() * 2, iterations);
+    for (auto kv : blob) {
+        (void)kv;
+        iterations++;
+    }
+    EXPECT_EQ(keys.size() * 3, iterations);
+
+    // Check we get an end iterator when we keep increasing
+    auto itr = blob.begin();
+    for (const auto& k: keys) {
+        (void)k;
+        itr++;
+    }
+    itr++;
+    EXPECT_EQ(itr, blob.end());
+
+    auto kItr = keys.begin();
+    iterations = 0;
+    for (auto kv : blob) {
+        iterations++;
+        EXPECT_EQ(*kItr, to_string(kv.first));
+        EXPECT_EQ(*kItr + ".value", to_string(kv.second));
+        kItr++;
+    }
+}
+
+TEST(XattrBlob, iterator_insert) {
+    cb::xattr::Blob blob;
+    std::vector<std::string> keys = {"key1", "key2", "key3"};
+    for (auto& k : keys) {
+        blob.set(k, k + ".value");
+    }
+
+    auto kItr = keys.begin();
+    for (auto itr = blob.begin(); itr != blob.end(); itr++) {
+        if (to_string((*itr).first) == "key2") {
+            blob.set("inserted", "inserted.value");
+        }
+
+        if (kItr != keys.end()) {
+            EXPECT_EQ(*kItr, to_string((*itr).first));
+            kItr++;
+        } else {
+            EXPECT_EQ("inserted", to_string((*itr).first));
+        }
+    }
+}

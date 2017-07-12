@@ -156,6 +156,65 @@ public:
      */
     unique_cJSON_ptr to_json() const;
 
+    class iterator {
+    public:
+
+        iterator(const Blob& blob, size_t c)
+            : blob(blob), current(c) {
+        }
+
+        iterator& operator++() {
+            // Don't increment past the end
+            if (current == blob.blob.len) {
+                return *this;
+            }
+
+            const auto size = blob.read_length(current);
+            current += size;
+            current += 4;
+
+            // We're past the end, make this iterator match end()
+            if (current > blob.blob.len) {
+                current = blob.blob.len;
+            }
+            return *this;
+        }
+
+        iterator operator++(int) {
+            auto rv = *this;
+            ++*this;
+            return rv;
+        }
+
+        std::pair<cb::const_byte_buffer, cb::const_byte_buffer> operator*()
+                const {
+            auto* ptr = blob.blob.buf + current + 4;
+            cb::const_byte_buffer key{
+                    ptr, strlen(reinterpret_cast<const char*>(ptr))};
+            ptr = ptr + strlen(reinterpret_cast<const char*>(ptr)) + 1;
+            cb::const_byte_buffer value{
+                    ptr, strlen(reinterpret_cast<const char*>(ptr))};
+            return {key, value};
+        }
+
+        friend bool operator==(const iterator&, const iterator&);
+        friend bool operator!=(const iterator&, const iterator&);
+
+        const Blob& blob;
+        size_t current;
+    };
+
+    iterator begin() const {
+        if (blob.len == 0) {
+            return end();
+        }
+        return iterator(*this, 4);
+    }
+
+    iterator end() const {
+        return iterator(*this, blob.len);
+    }
+
 protected:
 
     /**
@@ -219,6 +278,13 @@ private:
     size_t alloc_size;
 };
 
+inline bool operator==(const Blob::iterator& lhs, const Blob::iterator& rhs) {
+    return lhs.current == rhs.current;
+}
+
+inline bool operator!=(const Blob::iterator& lhs, const Blob::iterator& rhs) {
+    return !(lhs == rhs);
+}
 
 }
 }
