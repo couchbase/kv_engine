@@ -251,7 +251,7 @@
             "type": "std::string"
         },
 	"dcp_noop_mandatory_for_v5_features": {
-            "default": "true",
+            "default": "false",
             "descr": "Forces clients to enable noop for v5 features",
             "type": "bool"
         },
