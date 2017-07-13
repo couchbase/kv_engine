@@ -3238,6 +3238,9 @@ static ENGINE_ERROR_CODE stat_topkeys_executor(const std::string& arg,
                                                McbpConnection& connection) {
     if (arg.empty()) {
         auto& bucket = all_buckets[connection.getBucketIndex()];
+        if (bucket.topkeys == nullptr) {
+            return ENGINE_NO_BUCKET;
+        }
         return bucket.topkeys->stats(&connection, mc_time_get_current_time(),
                                      append_stats);
     } else {
@@ -3262,6 +3265,9 @@ static ENGINE_ERROR_CODE stat_topkeys_json_executor(const std::string& arg,
             ret = ENGINE_ENOMEM;
         } else {
             auto& bucket = all_buckets[connection.getBucketIndex()];
+            if (bucket.topkeys == nullptr) {
+                return ENGINE_NO_BUCKET;
+            }
             ret = bucket.topkeys->json_stats(topkeys_doc,
                                              mc_time_get_current_time());
 
