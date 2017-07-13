@@ -428,3 +428,46 @@ TEST_P(StatsTest, TestTracingStats) {
     auto* enabled = cJSON_GetObjectItem(stats.get(), "log_is_enabled");
     EXPECT_NE(nullptr, enabled);
 }
+
+/**
+ * Subclass of StatsTest which doesn't have a default bucket; hence connections
+ * will intially not be associated with any bucket.
+ */
+class NoBucketStatsTest : public StatsTest {
+public:
+    static void SetUpTestCase() {
+        StatsTest::SetUpTestCase();
+    }
+
+    // Setup as usual, but delete the default bucket before starting the
+    // testcase and reconnect) so the user isn't associated with any bucket.
+    void SetUp() override {
+        StatsTest::SetUp();
+        DeleteTestBucket();
+        getConnection().reconnect();
+    }
+
+    // Reverse of above - re-create the default bucket to keep the parent
+    // classes happy.
+    void TearDown() override {
+        CreateTestBucket();
+        StatsTest::TearDown();
+    }
+};
+
+TEST_P(NoBucketStatsTest, TestTopkeysNoBucket) {
+    MemcachedConnection& conn = getConnection();
+    conn.authenticate("@admin", "password", "PLAIN");
+
+    // The actual request is expected fail with a nobucket exception.
+    EXPECT_THROW(conn.stats("topkeys"), std::runtime_error);
+}
+
+INSTANTIATE_TEST_CASE_P(TransportProtocols,
+                        NoBucketStatsTest,
+                        ::testing::Values(TransportProtocols::McbpPlain,
+                                          TransportProtocols::McbpIpv6Plain,
+                                          TransportProtocols::McbpSsl,
+                                          TransportProtocols::McbpIpv6Ssl
+                                         ),
+                        ::testing::PrintToStringParamName());
