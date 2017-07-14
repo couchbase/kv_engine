@@ -1155,10 +1155,6 @@ static ENGINE_ERROR_CODE processUnknownCommand(
         return h->observe(cookie, request, response, docNamespace);
     case PROTOCOL_BINARY_CMD_OBSERVE_SEQNO:
         return h->observe_seqno(cookie, request, response);
-    case PROTOCOL_BINARY_CMD_RESET_REPLICATION_CHAIN: {
-        rv = h->resetReplicationChain(cookie, request, response);
-        return rv;
-    }
     case PROTOCOL_BINARY_CMD_CHANGE_VB_FILTER: {
         rv = h->changeTapVBFilter(cookie, request, response);
         h->decrementSessionCtr();
@@ -4068,17 +4064,6 @@ EventuallyPersistentEngine::handleSeqnoCmds(const void *cookie,
                         NULL, 0,
                         PROTOCOL_BINARY_RAW_BYTES,
                         status, 0, cookie);
-}
-
-ENGINE_ERROR_CODE
-EventuallyPersistentEngine::resetReplicationChain(const void *cookie,
-                                           protocol_binary_request_header *req,
-                                           ADD_RESPONSE response) {
-    (void) req;
-    tapConnMap->resetReplicaChain();
-    return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
-                        PROTOCOL_BINARY_RAW_BYTES,
-                        PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
 }
 
 /**

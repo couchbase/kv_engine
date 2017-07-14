@@ -520,10 +520,6 @@ class MemcachedClient(object):
     def bucket_select(self, name):
         return self._doCmd(memcacheConstants.CMD_SELECT_BUCKET, name, '')
 
-    def reset_replication_chain(self):
-        """Reset the replication chain."""
-        return self._doCmd(memcacheConstants.CMD_RESET_REPLICATION_CHAIN, '', '', '', 0)
-
     def list_buckets(self):
         """Get the name of all buckets."""
         opaque, cas, data = self._doCmd(

@@ -319,8 +319,6 @@ const uint8_t PROTOCOL_BINARY_CMD_UNLOCK_KEY =
         uint8_t(cb::mcbp::Opcode::UnlockKey);
 const uint8_t PROTOCOL_BINARY_CMD_LAST_CLOSED_CHECKPOINT =
         uint8_t(cb::mcbp::Opcode::LastClosedCheckpoint);
-const uint8_t PROTOCOL_BINARY_CMD_RESET_REPLICATION_CHAIN =
-        uint8_t(cb::mcbp::Opcode::ResetReplicationChain);
 const uint8_t PROTOCOL_BINARY_CMD_GET_META = uint8_t(cb::mcbp::Opcode::GetMeta);
 const uint8_t PROTOCOL_BINARY_CMD_GETQ_META =
         uint8_t(cb::mcbp::Opcode::GetqMeta);

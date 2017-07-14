@@ -178,14 +178,6 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(PROTOCOL_BINARY_CMD_LAST_CLOSED_CHECKPOINT, require<Privilege::MetaRead>);
 
     /**
-     * Reset the replication chain from the node that receives
-     * this command. For example, given the replication chain,
-     * A->B->C, if A receives this command, it will reset all the
-     * replica vbuckets on B and C, which are replicated from A.
-     */
-    setup(PROTOCOL_BINARY_CMD_RESET_REPLICATION_CHAIN, require<Privilege::NodeManagement>);
-
-    /**
      * CMD_GET_META is used to retrieve the meta section for an item.
      */
     setup(PROTOCOL_BINARY_CMD_GET_META, require<Privilege::MetaRead>);
