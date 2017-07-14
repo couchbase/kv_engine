@@ -1090,7 +1090,6 @@ static ENGINE_ERROR_CODE processUnknownCommand(
     case PROTOCOL_BINARY_CMD_SET_PARAM:
     case PROTOCOL_BINARY_CMD_SET_VBUCKET:
     case PROTOCOL_BINARY_CMD_DEL_VBUCKET:
-    case PROTOCOL_BINARY_CMD_DEREGISTER_TAP_CLIENT:
     case PROTOCOL_BINARY_CMD_CHANGE_VB_FILTER:
     case PROTOCOL_BINARY_CMD_SET_CLUSTER_CONFIG:
     case PROTOCOL_BINARY_CMD_COMPACT_DB: {
@@ -1156,11 +1155,6 @@ static ENGINE_ERROR_CODE processUnknownCommand(
         return h->observe(cookie, request, response, docNamespace);
     case PROTOCOL_BINARY_CMD_OBSERVE_SEQNO:
         return h->observe_seqno(cookie, request, response);
-    case PROTOCOL_BINARY_CMD_DEREGISTER_TAP_CLIENT: {
-        rv = h->deregisterTapClient(cookie, request, response);
-        h->decrementSessionCtr();
-        return rv;
-    }
     case PROTOCOL_BINARY_CMD_RESET_REPLICATION_CHAIN: {
         rv = h->resetReplicationChain(cookie, request, response);
         return rv;
@@ -3870,39 +3864,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe_seqno(
                         PROTOCOL_BINARY_RAW_BYTES,
                         PROTOCOL_BINARY_RESPONSE_SUCCESS, 0,
                         cookie);
-}
-
-ENGINE_ERROR_CODE EventuallyPersistentEngine::deregisterTapClient(
-                                       const void *cookie,
-                                       protocol_binary_request_header *request,
-                                       ADD_RESPONSE response)
-{
-    uint64_t cas = ntohll(request->request.cas);
-
-    std::string tap_name = "eq_tapq:";
-    std::string cName((const char*)request->bytes + sizeof(request->bytes) +
-                      request->request.extlen, ntohs(request->request.keylen));
-    tap_name.append(cName);
-
-    // Close the tap connection for the registered TAP client and remove
-    // its checkpoint cursors.
-    bool rv = tapConnMap->closeConnectionByName(tap_name);
-    if (!rv) {
-        // If the tap connection is not found, we still need to remove
-        /// its checkpoint cursors.
-        const VBucketMap &vbuckets = getKVBucket()->getVBuckets();
-        for (VBucketMap::id_type vbid = 0; vbid < vbuckets.getSize(); ++vbid) {
-            VBucketPtr vb = vbuckets.getBucket(vbid);
-            if (!vb) {
-                continue;
-            }
-            vb->checkpointManager.removeCursor(tap_name);
-        }
-    }
-
-    return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
-                        PROTOCOL_BINARY_RAW_BYTES,
-                        PROTOCOL_BINARY_RESPONSE_SUCCESS, cas, cookie);
 }
 
 ENGINE_ERROR_CODE

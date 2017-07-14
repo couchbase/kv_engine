@@ -520,10 +520,6 @@ class MemcachedClient(object):
     def bucket_select(self, name):
         return self._doCmd(memcacheConstants.CMD_SELECT_BUCKET, name, '')
 
-    def deregister_tap_client(self, tap_name):
-        """Deregister the TAP client with a given name."""
-        return self._doCmd(memcacheConstants.CMD_DEREGISTER_TAP_CLIENT, tap_name, '', '', 0)
-
     def reset_replication_chain(self):
         """Reset the replication chain."""
         return self._doCmd(memcacheConstants.CMD_RESET_REPLICATION_CHAIN, '', '', '', 0)

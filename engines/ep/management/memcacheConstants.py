@@ -49,9 +49,6 @@ CMD_SET_PARAM = 0x82
 
 CMD_EVICT_KEY = 0x93
 
-# TAP client registration
-CMD_DEREGISTER_TAP_CLIENT = 0x9e
-
 # Reset replication chain
 CMD_RESET_REPLICATION_CHAIN = 0x9f
 

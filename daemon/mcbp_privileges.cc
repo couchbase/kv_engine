@@ -176,11 +176,6 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
      * Return the last closed checkpoint Id for a given VBucket.
      */
     setup(PROTOCOL_BINARY_CMD_LAST_CLOSED_CHECKPOINT, require<Privilege::MetaRead>);
-    /**
-     * Close the TAP connection for the registered TAP client and
-     * remove the checkpoint cursors from its registered vbuckets.
-     */
-    setup(PROTOCOL_BINARY_CMD_DEREGISTER_TAP_CLIENT, require<Privilege::Tap>);
 
     /**
      * Reset the replication chain from the node that receives
