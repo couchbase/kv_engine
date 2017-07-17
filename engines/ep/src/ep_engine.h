@@ -701,7 +701,6 @@ protected:
                stats.getMaxDataSize();
     }
 
-    friend class BGFetchCallback;
     friend class KVBucket;
     friend class EPBucket;
 

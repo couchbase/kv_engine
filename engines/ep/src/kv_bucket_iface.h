@@ -24,7 +24,6 @@
 
 /* Forward declarations */
 class ExtendedMetaData;
-class BGFetchCallback;
 class ConflictResolution;
 class DefragmenterTask;
 class Flusher;
