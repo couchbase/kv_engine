@@ -2354,18 +2354,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::memoryCondition() {
     }
 }
 
-void EventuallyPersistentEngine::queueBackfill(const VBucketFilter
-                                                             &backfillVBFilter,
-                                               Producer *tc)
-{
-    auto bfv = std::make_unique<BackFillVisitor>(
-            this, *tapConnMap, tc, backfillVBFilter);
-    getKVBucket()->visit(std::move(bfv),
-                         "Backfill task",
-                         TaskId::BackfillVisitorTask,
-                         1);
-}
-
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                                                            ADD_STAT add_stat) {
 

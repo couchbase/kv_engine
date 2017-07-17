@@ -306,12 +306,6 @@ public:
                                 ADD_RESPONSE response,
                                 DocNamespace docNamespace);
 
-    /**
-     * Visit the objects and add them to the tap/dcp connecitons queue.
-     * @todo this code should honor the backfill time!
-     */
-    void queueBackfill(const VBucketFilter &backfillVBFilter, Producer *tc);
-
     void setDCPPriority(const void* cookie, CONN_PRIORITY priority) {
         EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
         serverApi->cookie->set_priority(cookie, priority);

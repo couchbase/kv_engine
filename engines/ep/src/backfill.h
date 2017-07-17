@@ -67,36 +67,4 @@ private:
     hrtime_t                    connToken;
 };
 
-/**
- * VBucketVisitor to backfill a Producer. This visitor basically performs
- * backfill from memory for only resident items if it needs to schedule a
- * separate disk backfill task because of low resident ratio.
- *
- * The visitor will pause if the current backfill backlog for the corresponding
- * producer is greater than the threshold (5000 by default).
- */
-class BackFillVisitor : public VBucketVisitor {
-public:
-    BackFillVisitor(EventuallyPersistentEngine *e, TapConnMap &cm, Producer *tc,
-                    const VBucketFilter &backfillVBfilter);
-
-    virtual ~BackFillVisitor() {}
-
-    void visitBucket(VBucketPtr &vb) override;
-
-    void complete(void) override;
-
-private:
-
-    bool pauseVisitor() override;
-
-    bool checkValidity();
-
-    EventuallyPersistentEngine *engine;
-    TapConnMap &connMap;
-    const std::string name;
-    hrtime_t connToken;
-    bool valid;
-};
-
 #endif  // SRC_BACKFILL_H_
