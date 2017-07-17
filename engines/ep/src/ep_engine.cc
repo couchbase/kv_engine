@@ -19,7 +19,6 @@
 
 #include "ep_engine.h"
 
-#include "backfill.h"
 #include "collections/manager.h"
 #include "common.h"
 #include "connmap.h"

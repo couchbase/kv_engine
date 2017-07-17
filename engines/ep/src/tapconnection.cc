@@ -21,7 +21,6 @@
 
 #include <phosphor/phosphor.h>
 
-#include "backfill.h"
 #include "ep_engine.h"
 #include "ep_time.h"
 #include "tasks.h"
