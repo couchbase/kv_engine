@@ -135,7 +135,8 @@ class MemcachedClient(object):
             self.s.connect((host, port))
         self.s.setblocking(0)
         self.r=random.Random()
-        self.features = []
+        self.req_features = set()
+        self.features = set()
         self.error_map = None
         self.error_map_version = 1
 
@@ -217,9 +218,18 @@ class MemcachedClient(object):
         return self._doCmd(cmd, key, val, '', cas)
 
     def hello(self, name):
-        return self._doCmd(memcacheConstants.CMD_HELLO, name,
-                           struct.pack('>' + 'H' * len(self.features),
-                                       *self.features))
+        resp = self._doCmd(memcacheConstants.CMD_HELLO, name,
+                           struct.pack('>' + 'H' * len(self.req_features),
+                                       *self.req_features))
+        supported = resp[2]
+        for i in range(0, len(supported), struct.calcsize(">H")):
+            self.features.update(
+                struct.unpack_from(">H", supported, i))
+
+        if self.is_xerror_supported():
+            self.error_map = self.get_error_map()
+
+        return resp
 
     def append(self, key, value, cas=0):
         return self._cat(memcacheConstants.CMD_APPEND, key, cas, value)
@@ -541,5 +551,7 @@ class MemcachedClient(object):
         return errmap
 
     def enable_xerror(self):
-        self.features.append(memcacheConstants.FEATURE_XERROR)
-        self.error_map = self.get_error_map()
+        self.req_features.add(memcacheConstants.FEATURE_XERROR)
+
+    def is_xerror_supported(self):
+        return memcacheConstants.FEATURE_XERROR in self.features
