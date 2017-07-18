@@ -35,40 +35,47 @@
 void wait_for_log_to_contain(FILE* log, const char* log_message) {
     // read() gives no guarantees of how the data will be chunked, so accumulate
     // one lines' worth (up to \n) in a string.
+
+    fprintf(stderr, "Waiting for log file to contain: [%s]\n", log_message);
+
     std::string line;
     while (true) {
         char buffer[1024];
-        ssize_t bytes_read = fread(buffer, 1, sizeof(buffer), log);
-        if (bytes_read > 0) {
-            line.append(buffer, bytes_read);
-        } else if (bytes_read == 0) {
-            if (fseek(log, 0, SEEK_CUR) != 0) {
-                perror("fseek failed:");
+
+        auto* ptr = fgets(buffer, sizeof(buffer), log);
+        if (ptr == nullptr) {
+            if (feof(log)) {
+                clearerr(log);
+                std::this_thread::sleep_for(std::chrono::microseconds(10));
+            } else if (ferror(log)) {
+                perror("fgets failed");
                 abort();
             }
-            usleep(10);
         } else {
-            perror("fread failed:");
-            abort();
-        }
-
-        std::string::size_type pos;
-        while ((pos = line.find('\n')) != std::string::npos) {
-            if (line.find(log_message) != std::string::npos) {
-                // Pass - found the warning in our log about rotation.
-                return;
+            line.append(ptr);
+            if (line.back() == '\n') {
+                // We've got a complete line
+                if (line.find(log_message) != std::string::npos) {
+                    fprintf(stderr, "log file to contains: [%s]\n", log_message);
+                    return;
+                }
+                line.clear();
             }
-            // Discard the line we've already cheched.
-            line.erase(0, pos + 1);
         }
     }
 }
 
 int main() {
+#ifndef WIN32
+    unsetenv("CB_MAXIMIZE_LOGGER_CYCLE_SIZE");
+    unsetenv("CB_MAXIMIZE_LOGGER_BUFFER_SIZE");
+    unsetenv("CB_MINIMIZE_LOGGER_SLEEPTIME");
+#endif
 
     // Timeout (and dump core) if takes longer than 30s.
     std::thread watchdog{[]() {
         std::this_thread::sleep_for(std::chrono::seconds(30));
+        fprintf(stderr, "Watchdog timeout!\n");
         std::abort();
     }};
     watchdog.detach();
@@ -106,6 +113,8 @@ int main() {
     while ((log_file = fopen("log_test_emfile.000000.txt", "rb")) == nullptr) {
         usleep(10);
     }
+
+    wait_for_log_to_contain(log_file, "Restarting file logging");
 
     // Consume all available FD so we cannot open any more files
     // (i.e. rotation will fail).
