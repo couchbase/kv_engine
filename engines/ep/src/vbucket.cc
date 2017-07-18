@@ -1298,7 +1298,7 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(const DocKey& key,
                                      hbl.getBucketNum(),
                                      WantsDeleted::Yes,
                                      TrackReference::No);
-                v->setDeleted();
+                v->setTempDeleted();
             }
         }
     } else {
@@ -1312,10 +1312,10 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(const DocKey& key,
                                  hbl.getBucketNum(),
                                  WantsDeleted::Yes,
                                  TrackReference::No);
-            v->setDeleted();
+            v->setTempDeleted();
             v->setCas(cas);
         } else if (v->isTempInitialItem()) {
-            v->setDeleted();
+            v->setTempDeleted();
             v->setCas(cas);
         }
     }
@@ -1436,7 +1436,7 @@ void VBucket::deleteExpiredItem(const Item& it,
                                      hbl.getBucketNum(),
                                      WantsDeleted::Yes,
                                      TrackReference::No);
-                v->setDeleted();
+                v->setTempDeleted();
                 v->setRevSeqno(it.getRevSeqno());
                 ht.setValue(it, *v);
                 VBNotifyCtx notifyCtx;

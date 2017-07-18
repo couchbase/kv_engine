@@ -350,8 +350,8 @@ public:
         bySeqno = to;
     }
 
-    // Marks the stored item as deleted.
-    void setDeleted()
+    // Marks the stored item as temporarily deleted
+    void setTempDeleted()
     {
         bySeqno = state_deleted_key;
     }

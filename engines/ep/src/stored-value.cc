@@ -156,7 +156,7 @@ void StoredValue::restoreMeta(const Item& itm) {
     exptime = itm.getExptime();
     revSeqno = itm.getRevSeqno();
     if (itm.isDeleted()) {
-        setDeleted();
+        setTempDeleted();
     } else { /* Regular item with the full eviction */
         bySeqno = itm.getBySeqno();
         /* set it back to false as we created a temp item by setting it to true
