@@ -98,7 +98,8 @@ protected:
         // Test - rollback to seqno of item_v1 and verify that the previous value
         // of the item has been restored.
         store->setVBucketState(vbid, vbucket_state_replica, false);
-        ASSERT_EQ(ENGINE_SUCCESS, store->rollback(vbid, item_v1.getBySeqno()));
+        ASSERT_EQ(TaskStatus::Complete,
+                  store->rollback(vbid, item_v1.getBySeqno()));
         auto result = getInternal(
                 a, vbid, /*cookie*/ nullptr, vbucket_state_replica, {});
         ASSERT_EQ(ENGINE_SUCCESS, result.getStatus());
@@ -132,7 +133,8 @@ protected:
         // Test - rollback to seqno of item_v1 and verify that the previous value
         // of the item has been restored.
         store->setVBucketState(vbid, vbucket_state_replica, false);
-        ASSERT_EQ(ENGINE_SUCCESS, store->rollback(vbid, item_v1.getBySeqno()));
+        ASSERT_EQ(TaskStatus::Complete,
+                  store->rollback(vbid, item_v1.getBySeqno()));
         ASSERT_EQ(item_v1.getBySeqno(), store->getVBucket(vbid)->getHighSeqno());
 
         // a should have the value of 'old'
@@ -190,7 +192,7 @@ protected:
 
         // Rollback should succeed, but rollback to 0
         store->setVBucketState(vbid, vbucket_state_replica, false);
-        EXPECT_EQ(ENGINE_SUCCESS, store->rollback(vbid, rollback));
+        EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, rollback));
 
         // These keys should be gone after the rollback
         for (int i = 0; i < 3; i++) {
@@ -268,7 +270,7 @@ TEST_P(RollbackTest, RollbackToMiddleOfAnUnPersistedSnapshot) {
 
     /* do rollback */
     store->setVBucketState(vbid, vbucket_state_replica, false);
-    EXPECT_EQ(ENGINE_SUCCESS, store->rollback(vbid, rollbackReqSeqno));
+    EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, rollbackReqSeqno));
 
     /* confirm that we have rolled back to the disk snapshot */
     EXPECT_EQ(rollback_item.getBySeqno(),
@@ -295,8 +297,8 @@ TEST_P(RollbackTest, MB21784) {
     // Make the vbucket a replica
     store->setVBucketState(vbid, vbucket_state_replica, false);
     // Perform a rollback
-    EXPECT_EQ(ENGINE_SUCCESS, store->rollback(vbid, initial_seqno))
-        << "rollback did not return ENGINE_SUCCESS";
+    EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, initial_seqno))
+            << "rollback did not return success";
 
     // Assert the checkpointmanager clear function (called during rollback)
     // has set the opencheckpointid to one
@@ -325,6 +327,22 @@ TEST_P(RollbackTest, MB21784) {
     // Close stream
     ASSERT_EQ(ENGINE_SUCCESS, producer->closeStream(/*opaque*/0, vbid));
     engine->handleDisconnect(cookie);
+}
+
+TEST_P(RollbackTest, RollbackOnActive) {
+    /* Store 3 items */
+    const int numItems = 3;
+    for (int i = 0; i < numItems; i++) {
+        store_item(vbid,
+                   makeStoredDocKey("key_" + std::to_string(i)),
+                   "not rolled back");
+    }
+
+    /* Try to rollback on active (default state) vbucket */
+    EXPECT_EQ(TaskStatus::Abort,
+              store->rollback(vbid, numItems - 1 /*rollbackReqSeqno*/));
+
+    EXPECT_EQ(TaskStatus::Abort, store->rollback(vbid, 0 /*rollbackReqSeqno*/));
 }
 
 class RollbackDcpTest : public SingleThreadedEPBucketTest {
@@ -684,7 +702,7 @@ TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
     auto kvb = engine->getKVBucket();
 
     // Perform the rollback
-    EXPECT_EQ(ENGINE_SUCCESS, kvb->rollback(vbid, 0));
+    EXPECT_EQ(TaskStatus::Complete, kvb->rollback(vbid, 0));
 
     // The stream should now be dead
     EXPECT_FALSE(stream->isActive()) << "Stream should be dead";

@@ -709,8 +709,7 @@ public:
     virtual KVStore *getOneRWUnderlying(void) = 0;
 
     virtual item_eviction_policy_t getItemEvictionPolicy(void) const  = 0;
-    virtual ENGINE_ERROR_CODE rollback(uint16_t vbid,
-                                       uint64_t rollbackSeqno) = 0;
+    virtual TaskStatus rollback(uint16_t vbid, uint64_t rollbackSeqno) = 0;
 
     /**
      * Attempt to free up currently in-use memory this bucket.
