@@ -31,7 +31,6 @@
 #include "checkpoint_remover.h"
 #include "dcp/dcpconnmap.h"
 #include "flusher.h"
-#include "tapconnmap.h"
 #include "tests/mock/mock_global_task.h"
 #include "tests/module_tests/test_helpers.h"
 #include "vbucketdeletiontask.h"

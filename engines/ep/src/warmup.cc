@@ -26,7 +26,6 @@
 #define STATWRITER_NAMESPACE warmup
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
-#include "tapconnmap.h"
 #include "vbucket_bgfetch_item.h"
 
 #include <platform/make_unique.h>
@@ -742,7 +741,6 @@ void Warmup::initialize()
 
     std::map<std::string, std::string> session_stats;
     store.getOneROUnderlying()->getPersistedStats(session_stats);
-    store.getEPEngine().getTapConnMap().loadPrevSessionStats(session_stats);
 
 
     std::map<std::string, std::string>::const_iterator it =

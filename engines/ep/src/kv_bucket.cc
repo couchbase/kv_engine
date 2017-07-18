@@ -39,6 +39,7 @@
 #include "connmap.h"
 #include "dcp/dcpconnmap.h"
 #include "defragmenter.h"
+#include "ep_engine.h"
 #include "ep_time.h"
 #include "ext_meta_parser.h"
 #include "failover-table.h"
@@ -51,7 +52,6 @@
 #include "mutation_log.h"
 #include "replicationthrottle.h"
 #include "statwriter.h"
-#include "tapconnmap.h"
 #include "tasks.h"
 #include "vb_count_visitor.h"
 #include "vbucket_bgfetch_item.h"
@@ -2936,7 +2936,6 @@ void KVBucket::notifyFlusher(const uint16_t vbid) {
 }
 
 void KVBucket::notifyReplication(const uint16_t vbid, const int64_t bySeqno) {
-    engine.getTapConnMap().notifyVBConnections(vbid);
     engine.getDcpConnMap().notifyVBConnections(vbid, bySeqno);
 }
 

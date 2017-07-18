@@ -35,7 +35,6 @@ class StoredValue;
 class DcpConnMap;
 class DcpFlowControlManager;
 class Producer;
-class TapConnMap;
 class VBucketCountVisitor;
 
 extern "C" {
@@ -59,7 +58,6 @@ typedef void (*NOTIFY_IO_COMPLETE_T)(const void *cookie,
 
 // Forward decl
 class EventuallyPersistentEngine;
-class TapConnMap;
 
 /**
     To allow Engines to run tasks.
@@ -510,8 +508,6 @@ public:
 
     KVBucket* getKVBucket() { return kvBucket.get(); }
 
-    TapConnMap &getTapConnMap() { return *tapConnMap; }
-
     DcpConnMap &getDcpConnMap() { return *dcpConnMap_; }
 
     DcpFlowControlManager &getDcpFlowControlManager() {
@@ -949,7 +945,6 @@ protected:
 
     std::unique_ptr<DcpConnMap> dcpConnMap_;
     DcpFlowControlManager *dcpFlowControlManager_;
-    TapConnMap *tapConnMap;
     TapConfig *tapConfig;
     CheckpointConfig *checkpointConfig;
     std::string name;

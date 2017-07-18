@@ -22,7 +22,6 @@
 #include "ep_engine.h"
 #include "ep_time.h"
 #include "kv_bucket_iface.h"
-#include "tapconnmap.h"
 
 #include <cstdlib>
 #include <iostream>
@@ -113,10 +112,8 @@ public:
                 *vb, newCheckpointCreated);
         stats.itemsRemovedFromCheckpoints.fetch_add(removed);
         // If the new checkpoint is created, notify this event to the
-        // corresponding paused TAP & DCP connections.
+        // corresponding paused DCP connections.
         if (newCheckpointCreated) {
-            store.getEPEngine().getTapConnMap().notifyVBConnections(
-                                                                   vb->getId());
             store.getEPEngine().getDcpConnMap().notifyVBConnections(
                                         vb->getId(),
                                         vb->checkpointManager.getHighSeqno());

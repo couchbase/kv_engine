@@ -40,7 +40,6 @@
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
 #include "string_utils.h"
-#include "tapconnmap.h"
 #include "vb_count_visitor.h"
 #include "warmup.h"
 
@@ -1727,7 +1726,6 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
       workloadPriority(NO_BUCKET_PRIORITY),
       getServerApiFunc(get_server_api),
       dcpFlowControlManager_(NULL),
-      tapConnMap(NULL),
       tapConfig(NULL),
       checkpointConfig(NULL),
       trafficEnabled(false),
@@ -1955,7 +1953,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         dcpFlowControlManager_ = new DcpFlowControlManager(*this);
     }
 
-    tapConnMap = new TapConnMap(*this);
     tapConfig = new TapConfig(*this);
     TapConfig::addConfigChangeListener(*this);
 
@@ -1975,7 +1972,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         enableTraffic(true);
     }
 
-    tapConnMap->initialize(TAP_CONN_NOTIFIER);
     dcpConnMap_->initialize(DCP_CONN_NOTIFIER);
 
     // record engine initialization time
@@ -1998,9 +1994,6 @@ void EventuallyPersistentEngine::destroy(bool force) {
     // Warmup::cleanShutdown
     if (kvBucket) {
         kvBucket->snapshotStats();
-    }
-    if (tapConnMap) {
-        tapConnMap->shutdownAllConnections();
     }
     if (dcpConnMap_) {
         dcpConnMap_->shutdownAllConnections();
@@ -5161,7 +5154,6 @@ ConnHandler* EventuallyPersistentEngine::getConnHandler(const void *cookie) {
 }
 
 void EventuallyPersistentEngine::handleDisconnect(const void *cookie) {
-    tapConnMap->disconnect(cookie);
     dcpConnMap_->disconnect(cookie);
     /**
      * Decrement session_cas's counter, if the connection closes
@@ -5187,9 +5179,8 @@ void EventuallyPersistentEngine::handleDisconnect(const void *cookie) {
 }
 
 void EventuallyPersistentEngine::handleDeleteBucket(const void *cookie) {
-    LOG(EXTENSION_LOG_NOTICE, "Shutting down all TAP & DCP connections in "
+    LOG(EXTENSION_LOG_NOTICE, "Shutting down all DCP connections in "
             "preparation for bucket deletion.");
-    tapConnMap->shutdownAllConnections();
     dcpConnMap_->shutdownAllConnections();
 }
 
@@ -5372,8 +5363,6 @@ EventuallyPersistentEngine::~EventuallyPersistentEngine() {
     dcpConnMap_.reset();
     LOG(EXTENSION_LOG_NOTICE, "~EPEngine: Deleted dcpConnMap_.");
     delete dcpFlowControlManager_;
-    delete tapConnMap;
-    LOG(EXTENSION_LOG_NOTICE, "~EPEngine: Deleted tapConnMap_.");
     delete tapConfig;
     delete checkpointConfig;
 }

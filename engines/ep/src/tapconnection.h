@@ -36,7 +36,6 @@
 // forward decl
 class ConnHandler;
 class EventuallyPersistentEngine;
-class TapConnMap;
 class TapProducer;
 class CompleteBackfillOperation;
 class Dispatcher;
@@ -693,7 +692,6 @@ public:
     virtual void addStats(ADD_STAT add_stat, const void *c);
     virtual const char *getType() const { return "consumer"; };
     virtual void checkVBOpenCheckpoint(uint16_t);
-    void setBackfillPhase(bool isBackfill, uint16_t vbucket);
     bool isBackfillPhase(uint16_t vbucket);
     ENGINE_ERROR_CODE setVBucketState(uint32_t opaque, uint16_t vbucket,
                                       vbucket_state_t state);
@@ -897,7 +895,6 @@ public:
     void suspendedConnection(bool value);
 
     bool isTimeForNoop();
-    void setTimeForNoop();
 
     void completeBackfill() {
         LockHolder lh(queueLock);
@@ -973,7 +970,6 @@ public:
 protected:
     friend class EventuallyPersistentEngine;
     friend class ConnMap;
-    friend class TapConnMap;
     friend struct TapStatBuilder;
     friend struct TapAggStatBuilder;
     friend struct PopulateEventsBody;
@@ -1260,8 +1256,6 @@ protected:
         return mayCompleteDumpOrTakeover_UNLOCKED();
     }
 
-    ENGINE_ERROR_CODE processAck(uint32_t seqno, uint16_t status, const DocKey& key);
-
     /**
      * Is the tap ack window full?
      * @return true if the window is full and no more items should be sent
@@ -1318,10 +1312,6 @@ protected:
         return vbucketFilter(vbucket);
     }
 
-    /**
-     * Register the unified queue cursor for this producer.
-     */
-    void registerCursor(const std::map<uint16_t, uint64_t> &lastCheckpointIds);
 
     size_t getTapAckLogSize(void) {
         LockHolder lh(queueLock);
