@@ -692,66 +692,6 @@ void TapProducer::rollback() {
     opaqueMsgCounter.fetch_sub(opaque_msg_sent);
 }
 
-/**
- * ExecutorPool task to wake a tap or dcp connection.
- */
-class ResumeCallback : public GlobalTask {
-public:
-    ResumeCallback(EventuallyPersistentEngine& e, Producer* c, double sleepTime)
-        : GlobalTask(&e, TaskId::ResumeCallback, sleepTime),
-          engine(e),
-          conn(c),
-          descr("Resuming suspended tap connection: " + conn->getName()) {
-    }
-
-    bool run(void) {
-        TRACE_EVENT("ep-engine/task", "ResumeCallback",
-                     PHOSPHOR_PTR(conn.get()));
-        if (engine.getEpStats().isShutdown) {
-            return false;
-        }
-        TapProducer *cp = dynamic_cast<TapProducer*>(conn.get());
-        if (cp) {
-            cp->suspendedConnection(false);
-        }
-        return false;
-    }
-
-    cb::const_char_buffer getDescription() {
-        return descr;
-    }
-
-private:
-    EventuallyPersistentEngine &engine;
-    SingleThreadedRCPtr<ConnHandler> conn;
-    const std::string descr;
-};
-
-void TapProducer::suspendedConnection_UNLOCKED(bool value)
-{
-    if (value) {
-        const TapConfig &config = engine_.getTapConfig();
-        if (config.getBackoffSleepTime() > 0 && !isSuspended()) {
-            ExTask resTapTask = std::make_shared<ResumeCallback>(
-                    engine_, this, config.getBackoffSleepTime());
-            ExecutorPool::get()->schedule(resTapTask);
-            logger.log(EXTENSION_LOG_NOTICE, "Suspend for %.2f secs",
-                       config.getBackoffSleepTime());
-        } else {
-            // backoff disabled, or already in a suspended state
-            return;
-        }
-    } else {
-        logger.log(EXTENSION_LOG_NOTICE, "Unlocked from the suspended state");
-    }
-    setSuspended(value);
-}
-
-void TapProducer::suspendedConnection(bool value) {
-    LockHolder lh(queueLock);
-    suspendedConnection_UNLOCKED(value);
-}
-
 void TapProducer::reschedule_UNLOCKED(const std::list<TapLogElement>::iterator &iter)
 {
     switch (iter->event_) {

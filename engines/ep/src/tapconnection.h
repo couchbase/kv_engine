@@ -891,9 +891,6 @@ public:
 
     void aggregateQueueStats(ConnCounter& stats_aggregator);
 
-    void suspendedConnection_UNLOCKED(bool value);
-    void suspendedConnection(bool value);
-
     bool isTimeForNoop();
 
     void completeBackfill() {
