@@ -37,7 +37,6 @@ static const std::unordered_map<std::string, Privilege> privilegemap = {
         {"DcpConsumer", Privilege::DcpConsumer},
         {"DcpProducer", Privilege::DcpProducer},
         {"Tap", Privilege::Tap},
-        {"TapProducer", Privilege::Tap},
         {"TapConsumer", Privilege::Tap},
         {"MetaRead", Privilege::MetaRead},
         {"MetaWrite", Privilege::MetaWrite},
