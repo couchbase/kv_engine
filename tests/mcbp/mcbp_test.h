@@ -43,6 +43,10 @@ protected:
     McbpValidatorChains validatorChains;
     event_base* ev;
     McbpConnection connection;
+
+    // backing store which may be used for the request
+    protocol_binary_request_no_extras &request;
+    uint8_t blob[4096];
 };
 
 } // namespace test

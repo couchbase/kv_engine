@@ -32,7 +32,8 @@ namespace test {
 
 ValidatorTest::ValidatorTest()
     : ev(event_base_new()),
-      connection(-1, ev) {
+      connection(-1, ev),
+      request(*reinterpret_cast<protocol_binary_request_no_extras*>(blob)){
     settings.extensions.logger = get_stderr_logger();
 }
 
@@ -43,6 +44,9 @@ ValidatorTest::~ValidatorTest() {
 void ValidatorTest::SetUp() {
     settings.setXattrEnabled(true);
     McbpValidatorChains::initializeMcbpValidatorChains(validatorChains);
+    memset(request.bytes, 0, sizeof(request));
+    request.message.header.request.magic = PROTOCOL_BINARY_REQ;
+    request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
 }
 
 protocol_binary_response_status
@@ -123,7 +127,7 @@ public:
     }
 
     GetValidatorTest()
-        : request(*reinterpret_cast<protocol_binary_request_get*>(blob)),
+        : ValidatorTest(),
           bodylen(request.message.header.request.bodylen) {
         // empty
     }
@@ -142,9 +146,7 @@ protected:
         return ValidatorTest::validate(opcode, static_cast<void*>(&request));
     }
 
-    protocol_binary_request_get& request;
     uint32_t& bodylen;
-    uint8_t blob[sizeof(protocol_binary_request_get) + 1];
 };
 
 TEST_P(GetValidatorTest, CorrectMessage) {
@@ -241,20 +243,15 @@ INSTANTIATE_TEST_CASE_P(GetOpcodes,
 class AddValidatorTest : public ValidatorTest {
     virtual void SetUp() override {
         ValidatorTest::SetUp();
-        memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
         request.message.header.request.extlen = 8;
         request.message.header.request.keylen = htons(10);
         request.message.header.request.bodylen = htonl(20);
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
     }
 
 protected:
     int validate(protocol_binary_command opcode) {
         return ValidatorTest::validate(opcode, static_cast<void*>(&request));
     }
-
-    protocol_binary_request_add request;
 };
 
 TEST_F(AddValidatorTest, CorrectMessage) {
@@ -308,20 +305,15 @@ TEST_F(AddValidatorTest, InvalidCas) {
 class SetReplaceValidatorTest : public ValidatorTest {
     virtual void SetUp() override {
         ValidatorTest::SetUp();
-        memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
         request.message.header.request.extlen = 8;
         request.message.header.request.keylen = htons(10);
         request.message.header.request.bodylen = htonl(20);
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
     }
 
 protected:
     int validate(protocol_binary_command opcode) {
         return ValidatorTest::validate(opcode, static_cast<void*>(&request));
     }
-
-    protocol_binary_request_set request;
 };
 
 TEST_F(SetReplaceValidatorTest, CorrectMessage) {
@@ -399,20 +391,14 @@ TEST_F(SetReplaceValidatorTest, NoKey) {
 class AppendPrependValidatorTest : public ValidatorTest {
     virtual void SetUp() override {
         ValidatorTest::SetUp();
-        memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
-        request.message.header.request.extlen = 0;
         request.message.header.request.keylen = htons(10);
         request.message.header.request.bodylen = htonl(20);
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
     }
 
 protected:
     int validate(protocol_binary_command opcode) {
         return ValidatorTest::validate(opcode, static_cast<void*>(&request));
     }
-
-    protocol_binary_request_append request;
 };
 
 TEST_F(AppendPrependValidatorTest, CorrectMessage) {
@@ -490,20 +476,14 @@ TEST_F(AppendPrependValidatorTest, NoKey) {
 class DeleteValidatorTest : public ValidatorTest {
     virtual void SetUp() override {
         ValidatorTest::SetUp();
-        memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
-        request.message.header.request.extlen = 0;
         request.message.header.request.keylen = htons(10);
         request.message.header.request.bodylen = htonl(10);
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
     }
 
 protected:
     int validate(protocol_binary_command opcode) {
         return ValidatorTest::validate(opcode, static_cast<void*>(&request));
     }
-
-    protocol_binary_request_delete request;
 };
 
 TEST_F(DeleteValidatorTest, CorrectMessage) {
@@ -565,20 +545,15 @@ TEST_F(DeleteValidatorTest, InvalidDatatype) {
 class IncrementDecrementValidatorTest : public ValidatorTest {
     virtual void SetUp() override {
         ValidatorTest::SetUp();
-        memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
         request.message.header.request.extlen = 20;
         request.message.header.request.keylen = htons(10);
         request.message.header.request.bodylen = htonl(30);
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
     }
 
 protected:
     int validate(protocol_binary_command opcode) {
         return ValidatorTest::validate(opcode, static_cast<void*>(&request));
     }
-
-    protocol_binary_request_incr request;
 };
 
 TEST_F(IncrementDecrementValidatorTest, CorrectMessage) {
@@ -666,19 +641,10 @@ TEST_F(IncrementDecrementValidatorTest, InvalidDatatype) {
 
 // Test QUIT & QUITQ
 class QuitValidatorTest : public ValidatorTest {
-    virtual void SetUp() override {
-        ValidatorTest::SetUp();
-        memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
-    }
-
 protected:
     int validate(protocol_binary_command opcode) {
         return ValidatorTest::validate(opcode, static_cast<void*>(&request));
     }
-
-    protocol_binary_request_quit request;
 };
 
 TEST_F(QuitValidatorTest, CorrectMessage) {
@@ -740,19 +706,10 @@ TEST_F(QuitValidatorTest, InvalidDatatype) {
 
 // Test FLUSH & FLUSHQ
 class FlushValidatorTest : public ValidatorTest {
-    virtual void SetUp() override {
-        ValidatorTest::SetUp();
-        memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
-    }
-
 protected:
     int validate(protocol_binary_command opcode) {
         return ValidatorTest::validate(opcode, static_cast<void*>(&request));
     }
-
-    protocol_binary_request_flush request;
 };
 
 TEST_F(FlushValidatorTest, CorrectMessage) {
@@ -774,7 +731,7 @@ TEST_F(FlushValidatorTest, CorrectMessageWithTime) {
 TEST_F(FlushValidatorTest, CorrectMessageWithUnsupportedTime) {
     request.message.header.request.extlen = 4;
     request.message.header.request.bodylen = htonl(4);
-    request.message.body.expiration = 1;
+    *reinterpret_cast<uint32_t*>(request.bytes + sizeof(request.bytes)) = 1;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED,
               validate(PROTOCOL_BINARY_CMD_FLUSH));
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED,
@@ -833,20 +790,11 @@ TEST_F(FlushValidatorTest, InvalidDatatype) {
 
 // test Noop
 class NoopValidatorTest : public ValidatorTest {
-    virtual void SetUp() override {
-        ValidatorTest::SetUp();
-        memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
-    }
-
 protected:
     protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_NOOP,
                                        static_cast<void*>(&request));
     }
-
-    protocol_binary_request_noop request;
 };
 
 TEST_F(NoopValidatorTest, CorrectMessage) {
@@ -887,20 +835,11 @@ TEST_F(NoopValidatorTest, InvalidCas) {
 
 // test version
 class VersionValidatorTest : public ValidatorTest {
-    virtual void SetUp() override {
-        ValidatorTest::SetUp();
-        memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
-    }
-
 protected:
     protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_VERSION,
                                        static_cast<void*>(&request));
     }
-
-    protocol_binary_request_version request;
 };
 
 TEST_F(VersionValidatorTest, CorrectMessage) {
@@ -941,20 +880,11 @@ TEST_F(VersionValidatorTest, InvalidCas) {
 
 // test stat
 class StatValidatorTest : public ValidatorTest {
-    virtual void SetUp() override {
-        ValidatorTest::SetUp();
-        memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
-    }
-
 protected:
     protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_STAT,
                                        static_cast<void*>(&request));
     }
-
-    protocol_binary_request_stats request;
 };
 
 TEST_F(StatValidatorTest, CorrectMessage) {
@@ -997,11 +927,8 @@ TEST_F(StatValidatorTest, InvalidCas) {
 class VerbosityValidatorTest : public ValidatorTest {
     virtual void SetUp() override {
         ValidatorTest::SetUp();
-        memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
         request.message.header.request.extlen = 4;
         request.message.header.request.bodylen = htonl(4);
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
     }
 
 protected:
@@ -1009,8 +936,6 @@ protected:
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_VERBOSITY,
                                        static_cast<void*>(&request));
     }
-
-    protocol_binary_request_verbosity request;
 };
 
 TEST_F(VerbosityValidatorTest, CorrectMessage) {
@@ -1051,20 +976,11 @@ TEST_F(VerbosityValidatorTest, InvalidCas) {
 
 // test HELLO
 class HelloValidatorTest : public ValidatorTest {
-    virtual void SetUp() override {
-        ValidatorTest::SetUp();
-        memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
-    }
-
 protected:
     protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_HELLO,
                                        static_cast<void*>(&request));
     }
-
-    protocol_binary_request_hello request;
 };
 
 TEST_F(HelloValidatorTest, CorrectMessage) {
@@ -1114,20 +1030,11 @@ TEST_F(HelloValidatorTest, InvalidCas) {
 
 // test SASL_LIST_MECHS
 class SaslListMechValidatorTest : public ValidatorTest {
-    virtual void SetUp() override {
-        ValidatorTest::SetUp();
-        memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
-    }
-
 protected:
     protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_SASL_LIST_MECHS,
                                        static_cast<void*>(&request));
     }
-
-    protocol_binary_request_no_extras request;
 };
 
 TEST_F(SaslListMechValidatorTest, CorrectMessage) {
@@ -1170,19 +1077,14 @@ TEST_F(SaslListMechValidatorTest, InvalidCas) {
 class SaslAuthValidatorTest : public ValidatorTest {
     virtual void SetUp() override {
         ValidatorTest::SetUp();
-        memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
         request.message.header.request.keylen = htons(10);
         request.message.header.request.bodylen = htonl(10);
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
     }
 
 protected:
     int validate(protocol_binary_command opcode) {
         return ValidatorTest::validate(opcode, static_cast<void*>(&request));
     }
-
-    protocol_binary_request_no_extras request;
 };
 
 TEST_F(SaslAuthValidatorTest, CorrectMessage) {
@@ -1243,20 +1145,11 @@ TEST_F(SaslAuthValidatorTest, InvalidCas) {
 }
 
 class GetErrmapValidatorTest : public ValidatorTest {
-    virtual void SetUp() override {
-        ValidatorTest::SetUp();
-        memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
-    }
-
 protected:
     protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_GET_ERROR_MAP,
                                        static_cast<void*>(&request));
     }
-
-    protocol_binary_request_get_errmap request;
 };
 
 TEST_F(GetErrmapValidatorTest, CorrectMessage) {
@@ -1278,11 +1171,8 @@ TEST_F(GetErrmapValidatorTest, MissingBody) {
 class IoctlGetValidatorTest : public ValidatorTest {
     virtual void SetUp() override {
         ValidatorTest::SetUp();
-        memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
         request.message.header.request.keylen = htons(10);
         request.message.header.request.bodylen = htonl(10);
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
     }
 
 protected:
@@ -1293,8 +1183,6 @@ protected:
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_IOCTL_GET,
                                        static_cast<void*>(&request));
     }
-
-    protocol_binary_request_ioctl_get request;
 };
 
 TEST_F(IoctlGetValidatorTest, CorrectMessage) {
@@ -1340,11 +1228,8 @@ TEST_F(IoctlGetValidatorTest, InvalidBody) {
 class IoctlSetValidatorTest : public ValidatorTest {
     virtual void SetUp() override {
         ValidatorTest::SetUp();
-        memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
         request.message.header.request.keylen = htons(10);
         request.message.header.request.bodylen = htonl(10);
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
     }
 
 protected:
@@ -1356,8 +1241,6 @@ protected:
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_IOCTL_SET,
                                        static_cast<void*>(&request));
     }
-
-    protocol_binary_request_ioctl_set request;
 };
 
 TEST_F(IoctlSetValidatorTest, CorrectMessage) {
@@ -1408,11 +1291,8 @@ TEST_F(IoctlSetValidatorTest, ValidBody) {
 class AuditPutValidatorTest : public ValidatorTest {
     virtual void SetUp() override {
         ValidatorTest::SetUp();
-        memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
         request.message.header.request.extlen = 4;
         request.message.header.request.bodylen = htonl(10);
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
     }
 
 protected:
@@ -1420,8 +1300,6 @@ protected:
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_AUDIT_PUT,
                                        static_cast<void*>(&request));
     }
-
-    protocol_binary_request_audit_put request;
 };
 
 TEST_F(AuditPutValidatorTest, CorrectMessage) {
@@ -1462,20 +1340,11 @@ TEST_F(AuditPutValidatorTest, InvalidBody) {
 
 // Test audit_config_reload
 class AuditConfigReloadValidatorTest : public ValidatorTest {
-    virtual void SetUp() override {
-        ValidatorTest::SetUp();
-        memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
-    }
-
 protected:
     protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_AUDIT_CONFIG_RELOAD,
                                        static_cast<void*>(&request));
     }
-
-    protocol_binary_request_no_extras request;
 };
 
 TEST_F(AuditConfigReloadValidatorTest, CorrectMessage) {
@@ -1518,9 +1387,6 @@ TEST_F(AuditConfigReloadValidatorTest, InvalidBody) {
 class ShutdownValidatorTest : public ValidatorTest {
     virtual void SetUp() override {
         ValidatorTest::SetUp();
-        memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
         request.message.header.request.cas = 1;
     }
 
@@ -1529,8 +1395,6 @@ protected:
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_SHUTDOWN,
                                        static_cast<void*>(&request));
     }
-
-    protocol_binary_request_no_extras request;
 };
 
 TEST_F(ShutdownValidatorTest, CorrectMessage) {
@@ -1629,11 +1493,8 @@ TEST_F(DcpOpenValidatorTest, CorrectMessageValueCollections) {
 class DcpAddStreamValidatorTest : public ValidatorTest {
     virtual void SetUp() override {
         ValidatorTest::SetUp();
-        memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
         request.message.header.request.extlen = 4;
         request.message.header.request.bodylen = htonl(4);
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
     }
 
 protected:
@@ -1641,8 +1502,6 @@ protected:
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_DCP_ADD_STREAM,
                                        static_cast<void*>(&request));
     }
-
-    protocol_binary_request_dcp_add_stream request;
 };
 
 TEST_F(DcpAddStreamValidatorTest, CorrectMessage) {
@@ -1677,20 +1536,11 @@ TEST_F(DcpAddStreamValidatorTest, InvalidBody) {
 }
 
 class DcpCloseStreamValidatorTest : public ValidatorTest {
-    virtual void SetUp() override {
-        ValidatorTest::SetUp();
-        memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
-    }
-
 protected:
     protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_DCP_CLOSE_STREAM,
                                        static_cast<void*>(&request));
     }
-
-    protocol_binary_request_dcp_close_stream request;
 };
 
 TEST_F(DcpCloseStreamValidatorTest, CorrectMessage) {
@@ -1725,20 +1575,11 @@ TEST_F(DcpCloseStreamValidatorTest, InvalidBody) {
 }
 
 class DcpGetFailoverLogValidatorTest : public ValidatorTest {
-    virtual void SetUp() override {
-        ValidatorTest::SetUp();
-        memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
-    }
-
 protected:
     protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_DCP_GET_FAILOVER_LOG,
                                        static_cast<void*>(&request));
     }
-
-    protocol_binary_request_dcp_close_stream request;
 };
 
 TEST_F(DcpGetFailoverLogValidatorTest, CorrectMessage) {
@@ -1775,11 +1616,8 @@ TEST_F(DcpGetFailoverLogValidatorTest, InvalidBody) {
 class DcpStreamReqValidatorTest : public ValidatorTest {
     virtual void SetUp() override {
         ValidatorTest::SetUp();
-        memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
         request.message.header.request.extlen = 48;
         request.message.header.request.bodylen = htonl(48);
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
     }
 
 protected:
@@ -1787,8 +1625,6 @@ protected:
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_DCP_STREAM_REQ,
                                        static_cast<void*>(&request));
     }
-
-    protocol_binary_request_dcp_close_stream request;
 };
 
 TEST_F(DcpStreamReqValidatorTest, CorrectMessage) {
@@ -1825,11 +1661,8 @@ TEST_F(DcpStreamReqValidatorTest, InvalidDatatype) {
 class DcpStreamEndValidatorTest : public ValidatorTest {
     virtual void SetUp() override {
         ValidatorTest::SetUp();
-        memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
         request.message.header.request.extlen = 4;
         request.message.header.request.bodylen = htonl(4);
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
     }
 
 protected:
@@ -1837,8 +1670,6 @@ protected:
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_DCP_STREAM_END,
                                        static_cast<void*>(&request));
     }
-
-    protocol_binary_request_dcp_close_stream request;
 };
 
 TEST_F(DcpStreamEndValidatorTest, CorrectMessage) {
@@ -1875,11 +1706,8 @@ TEST_F(DcpStreamEndValidatorTest, InvalidBody) {
 class DcpSnapshotMarkerValidatorTest : public ValidatorTest {
     virtual void SetUp() override {
         ValidatorTest::SetUp();
-        memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
         request.message.header.request.extlen = 20;
         request.message.header.request.bodylen = htonl(20);
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
     }
 
 protected:
@@ -1887,8 +1715,6 @@ protected:
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER,
                                        static_cast<void*>(&request));
     }
-
-    protocol_binary_request_dcp_snapshot_marker request;
 };
 
 TEST_F(DcpSnapshotMarkerValidatorTest, CorrectMessage) {
@@ -2168,20 +1994,11 @@ TEST_P(DcpExpirationValidatorTest, InvalidBodylen) {
 }
 
 class DcpFlushValidatorTest : public ValidatorTest {
-    virtual void SetUp() override {
-        ValidatorTest::SetUp();
-        memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
-    }
-
 protected:
     protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_DCP_FLUSH,
                                        static_cast<void*>(&request));
     }
-
-    protocol_binary_request_dcp_close_stream request;
 };
 
 TEST_F(DcpFlushValidatorTest, CorrectMessage) {
@@ -2282,20 +2099,11 @@ TEST_F(DcpSetVbucketStateValidatorTest, IllegalValues) {
 }
 
 class DcpNoopValidatorTest : public ValidatorTest {
-    virtual void SetUp() override {
-        ValidatorTest::SetUp();
-        memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
-    }
-
 protected:
     protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_DCP_NOOP,
                                        static_cast<void*>(&request));
     }
-
-    protocol_binary_request_dcp_close_stream request;
 };
 
 TEST_F(DcpNoopValidatorTest, CorrectMessage) {
@@ -2332,11 +2140,8 @@ TEST_F(DcpNoopValidatorTest, InvalidBody) {
 class DcpBufferAckValidatorTest : public ValidatorTest {
     virtual void SetUp() override {
         ValidatorTest::SetUp();
-        memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
         request.message.header.request.extlen = 4;
         request.message.header.request.bodylen = htonl(4);
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
     }
 
 protected:
@@ -2345,8 +2150,6 @@ protected:
             PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT,
             static_cast<void*>(&request));
     }
-
-    protocol_binary_request_dcp_buffer_acknowledgement request;
 };
 
 TEST_F(DcpBufferAckValidatorTest, CorrectMessage) {
@@ -2383,12 +2186,8 @@ TEST_F(DcpBufferAckValidatorTest, InvalidBody) {
 class DcpControlValidatorTest : public ValidatorTest {
     virtual void SetUp() override {
         ValidatorTest::SetUp();
-        memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
-        request.message.header.request.extlen = 0;
         request.message.header.request.keylen = htons(4);
         request.message.header.request.bodylen = htonl(8);
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
     }
 
 protected:
@@ -2396,8 +2195,6 @@ protected:
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_DCP_CONTROL,
                                        static_cast<void*>(&request));
     }
-
-    protocol_binary_request_dcp_control request;
 };
 
 TEST_F(DcpControlValidatorTest, CorrectMessage) {
@@ -2435,10 +2232,7 @@ TEST_F(DcpControlValidatorTest, InvalidBody) {
 class ObserveSeqnoValidatorTest : public ValidatorTest {
     virtual void SetUp() override {
         ValidatorTest::SetUp();
-        memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
         request.message.header.request.bodylen = ntohl(8);
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
     }
 
 protected:
@@ -2446,8 +2240,6 @@ protected:
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_OBSERVE_SEQNO,
                                        static_cast<void*>(&request));
     }
-
-    protocol_binary_request_set_drift_counter_state request;
 };
 
 TEST_F(ObserveSeqnoValidatorTest, CorrectMessage) {
@@ -2484,11 +2276,8 @@ TEST_F(ObserveSeqnoValidatorTest, InvalidBody) {
 class SetDriftCounterStateValidatorTest : public ValidatorTest {
     virtual void SetUp() override {
         ValidatorTest::SetUp();
-        memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
         request.message.header.request.extlen = 9;
         request.message.header.request.bodylen = ntohl(9);
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
     }
 
 protected:
@@ -2497,8 +2286,6 @@ protected:
             PROTOCOL_BINARY_CMD_SET_DRIFT_COUNTER_STATE,
             static_cast<void*>(&request));
     }
-
-    protocol_binary_request_set_drift_counter_state request;
 };
 
 TEST_F(SetDriftCounterStateValidatorTest, CorrectMessage) {
@@ -2534,20 +2321,11 @@ TEST_F(SetDriftCounterStateValidatorTest, InvalidBody) {
 
 // Test get adjusted time
 class GetAdjustedTimeValidatorTest : public ValidatorTest {
-    virtual void SetUp() override {
-        ValidatorTest::SetUp();
-        memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
-    }
-
 protected:
     protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME,
                                        static_cast<void*>(&request));
     }
-
-    protocol_binary_request_get_adjusted_time request;
 };
 
 TEST_F(GetAdjustedTimeValidatorTest, CorrectMessage) {
@@ -2621,20 +2399,11 @@ std::ostream& operator<<(std::ostream& os, const RefreshOpcodes& o) {
 
 class RefreshValidatorTest : public ValidatorTest,
                              public ::testing::WithParamInterface<RefreshOpcodes> {
-    void SetUp() override {
-        ValidatorTest::SetUp();
-        memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
-    }
-
 protected:
     protocol_binary_response_status validate() {
         auto opcode = (protocol_binary_command)GetParam();
         return ValidatorTest::validate(opcode, static_cast<void*>(&request));
     }
-
-    protocol_binary_request_no_extras request;
 };
 
 INSTANTIATE_TEST_CASE_P(RefreshOpcodes,
@@ -2685,11 +2454,8 @@ TEST_P(RefreshValidatorTest, InvalidBody) {
 class CmdTimerValidatorTest : public ValidatorTest {
     virtual void SetUp() override {
         ValidatorTest::SetUp();
-        memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
         request.message.header.request.extlen = 1;
         request.message.header.request.bodylen = htonl(1);
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
     }
 
 protected:
@@ -2697,8 +2463,6 @@ protected:
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_GET_CMD_TIMER,
                                        static_cast<void*>(&request));
     }
-
-    protocol_binary_request_no_extras request;
 };
 
 TEST_F(CmdTimerValidatorTest, CorrectMessage) {
@@ -2739,20 +2503,11 @@ TEST_F(CmdTimerValidatorTest, InvalidBody) {
 
 // Test GetCtrlToken
 class GetCtrlTokenValidatorTest : public ValidatorTest {
-    virtual void SetUp() override {
-        ValidatorTest::SetUp();
-        memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
-    }
-
 protected:
     protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_GET_CTRL_TOKEN,
                                        static_cast<void*>(&request));
     }
-
-    protocol_binary_request_no_extras request;
 };
 
 TEST_F(GetCtrlTokenValidatorTest, CorrectMessage) {
@@ -2855,20 +2610,11 @@ TEST_F(SetCtrlTokenValidatorTest, InvalidBody) {
 
 // Test init complete
 class InitCompleteValidatorTest : public ValidatorTest {
-    virtual void SetUp() override {
-        ValidatorTest::SetUp();
-        memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
-    }
-
 protected:
     protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_INIT_COMPLETE,
                                        static_cast<void*>(&request));
     }
-
-    protocol_binary_request_no_extras request;
 };
 
 TEST_F(InitCompleteValidatorTest, CorrectMessage) {
@@ -2988,9 +2734,6 @@ TEST_F(GetAllVbSeqnoValidatorTest, InvalidVbucketState) {
 class GetLockedValidatorTest : public ValidatorTest {
     virtual void SetUp() override {
         ValidatorTest::SetUp();
-        memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
         request.message.header.request.keylen = htons(10);
         request.message.header.request.bodylen = htonl(10);
     }
@@ -3000,8 +2743,6 @@ protected:
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_GET_LOCKED,
                                        static_cast<void*>(&request));
     }
-
-    protocol_binary_request_getl request;
 };
 
 TEST_F(GetLockedValidatorTest, CorrectMessageDefaultTimeout) {
@@ -3055,9 +2796,6 @@ TEST_F(GetLockedValidatorTest, InvalidBodylen) {
 class UnlockValidatorTest : public ValidatorTest {
     virtual void SetUp() override {
         ValidatorTest::SetUp();
-        memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
         request.message.header.request.keylen = htons(10);
         request.message.header.request.bodylen = htonl(10);
         request.message.header.request.cas = 0xdeadbeef;
@@ -3068,8 +2806,6 @@ protected:
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_UNLOCK_KEY,
                                        static_cast<void*>(&request));
     }
-
-    protocol_binary_request_no_extras request;
 };
 
 TEST_F(UnlockValidatorTest, CorrectMessage) {
