@@ -65,6 +65,13 @@ TEST_F(SubdocSingleTest, Get_InvalidBody) {
     request.message.header.request.bodylen = htonl(0);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL,
               validate(PROTOCOL_BINARY_CMD_SUBDOC_GET));
+
+    // Make sure we detect if it won't fit in the packet (extlen + key + path
+    // is bigger than in the full packet
+    request.message.header.request.extlen = 7;
+    request.message.header.request.bodylen = htonl(10 + 5);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL,
+              validate(PROTOCOL_BINARY_CMD_SUBDOC_GET));
 }
 
 TEST_F(SubdocSingleTest, Get_InvalidPath) {
@@ -86,6 +93,7 @@ TEST_F(SubdocSingleTest, DictAdd_InvalidValue) {
 TEST_F(SubdocSingleTest, DictAdd_InvalidExtras) {
     // Extlen can be 3, 4, 7 or 8
     request.message.header.request.extlen = 5;
+    request.message.header.request.bodylen = htonl(100);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL,
               validate(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD));
 
@@ -93,6 +101,7 @@ TEST_F(SubdocSingleTest, DictAdd_InvalidExtras) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
               validate(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD));
 
+    request.message.header.request.bodylen = htonl(10 + 7 + 1);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL,
               validate(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS));
 }
