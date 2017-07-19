@@ -51,7 +51,8 @@ protected:
         return ValidatorTest::validate(opcode, static_cast<void*>(&request));
     }
 
-    protocol_binary_request_subdocument request;
+    protocol_binary_request_subdocument &request =
+        *reinterpret_cast<protocol_binary_request_subdocument*>(blob);
 };
 
 TEST_F(SubdocSingleTest, Get_Baseline) {
@@ -169,6 +170,9 @@ TEST_F(SubdocMultiLookupTest, InvalidKey) {
 TEST_F(SubdocMultiLookupTest, InvalidExtras) {
     std::vector<uint8_t> payload;
     request.encode(payload);
+
+    // add backing space for the extras
+    payload.resize(payload.size() + 4);
 
     auto* header =
         reinterpret_cast<protocol_binary_request_header*>(payload.data());

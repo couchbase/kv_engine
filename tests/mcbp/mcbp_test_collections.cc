@@ -28,14 +28,9 @@ class SetCollectionsValidator : public ValidatorTest {
 public:
     virtual void SetUp() override {
         ValidatorTest::SetUp();
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
         request.message.header.request.opcode =
             PROTOCOL_BINARY_CMD_COLLECTIONS_SET_MANIFEST;
         request.message.header.request.bodylen = htonl(10);
-    }
-
-    SetCollectionsValidator()
-        : request() {
     }
 
 protected:
@@ -44,8 +39,6 @@ protected:
             PROTOCOL_BINARY_CMD_COLLECTIONS_SET_MANIFEST,
             static_cast<void*>(&request));
     }
-
-    protocol_binary_collections_set_manifest request;
 };
 
 TEST_F(SetCollectionsValidator, CorrectMessage) {

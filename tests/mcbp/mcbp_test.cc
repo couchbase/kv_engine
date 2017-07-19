@@ -1450,7 +1450,7 @@ protected:
                                        static_cast<void*>(&request));
     }
 
-    protocol_binary_request_dcp_open request;
+    protocol_binary_request_dcp_open &request = *reinterpret_cast<protocol_binary_request_dcp_open*>(blob);
 };
 
 TEST_F(DcpOpenValidatorTest, CorrectMessage) {
@@ -1780,8 +1780,9 @@ public:
 
 protected:
     protocol_binary_response_status validate() {
+        std::copy(request.bytes, request.bytes + sizeof(request.bytes), blob);
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_DCP_MUTATION,
-                                       static_cast<void*>(&request));
+                                       static_cast<void*>(blob));
     }
 
     protocol_binary_request_dcp_mutation request;
@@ -1850,8 +1851,9 @@ public:
 
 protected:
     protocol_binary_response_status validate() {
+        std::copy(request.bytes, request.bytes + sizeof(request.bytes), blob);
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_DCP_DELETION,
-                                       static_cast<void*>(&request));
+                                       static_cast<void*>(blob));
     }
 
     protocol_binary_request_dcp_deletion request;
@@ -1955,8 +1957,9 @@ public:
 
 protected:
     protocol_binary_response_status validate() {
+        std::copy(request.bytes, request.bytes + sizeof(request.bytes), blob);
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_DCP_EXPIRATION,
-                                       static_cast<void*>(&request));
+                                       static_cast<void*>(blob));
     }
 
     protocol_binary_request_dcp_expiration request;
@@ -2050,7 +2053,8 @@ protected:
             static_cast<void*>(&request));
     }
 
-    protocol_binary_request_dcp_set_vbucket_state request;
+    protocol_binary_request_dcp_set_vbucket_state &request =
+       *reinterpret_cast<protocol_binary_request_dcp_set_vbucket_state*>(blob);
 };
 
 TEST_F(DcpSetVbucketStateValidatorTest, CorrectMessage) {
@@ -2564,7 +2568,8 @@ protected:
                                        static_cast<void*>(&request));
     }
 
-    protocol_binary_request_set_ctrl_token request;
+    protocol_binary_request_set_ctrl_token &request =
+        *reinterpret_cast<protocol_binary_request_set_ctrl_token*>(blob);
 };
 
 TEST_F(SetCtrlTokenValidatorTest, CorrectMessage) {
@@ -2663,7 +2668,8 @@ protected:
                                        static_cast<void*>(&request));
     }
 
-    protocol_binary_request_get_all_vb_seqnos request;
+    protocol_binary_request_get_all_vb_seqnos &request =
+        *reinterpret_cast<protocol_binary_request_get_all_vb_seqnos*>(blob);
 };
 
 TEST_F(GetAllVbSeqnoValidatorTest, CorrectMessageNoState) {
