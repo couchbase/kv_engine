@@ -97,14 +97,15 @@ ENGINE_ERROR_CODE RemoveCommandContext::allocateDeletedItem() {
     } else {
         datatype = PROTOCOL_BINARY_DATATYPE_XATTR;
     }
-    auto pair = bucket_allocate_ex(connection,
-                                   key,
-                                   xattr.size(),
-                                   xattr.size(), // Only system xattrs
-                                   existing_info.flags,
-                                   existing_info.exptime,
-                                   datatype,
-                                   vbucket);
+    auto pair =
+            bucket_allocate_ex(connection,
+                               key,
+                               xattr.size(),
+                               xattr.size(), // Only system xattrs
+                               0, // MB-25273: 0 flags when deleting the body
+                               existing_info.exptime,
+                               datatype,
+                               vbucket);
 
     deleted = std::move(pair.first);
     if (input_cas == 0) {
