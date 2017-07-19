@@ -2819,18 +2819,21 @@ KVStore *KVBucket::getOneRWUnderlying(void) {
     return vbMap.shards[EP_PRIMARY_SHARD]->getRWUnderlying();
 }
 
-ENGINE_ERROR_CODE KVBucket::rollback(uint16_t vbid, uint64_t rollbackSeqno) {
+TaskStatus KVBucket::rollback(uint16_t vbid, uint64_t rollbackSeqno) {
     std::unique_lock<std::mutex> vbset(vbsetMutex);
 
     std::unique_lock<std::mutex> vbMutexLh(vb_mutexes[vbid], std::try_to_lock);
 
     if (!vbMutexLh.owns_lock()) {
-        return ENGINE_TMPFAIL; // Reschedule a vbucket rollback task.
+        return TaskStatus::Reschedule; // Reschedule a vbucket rollback task.
     }
 
     VBucketPtr vb = vbMap.getBucket(vbid);
     if (!vb) {
-        return ENGINE_NOT_MY_VBUCKET;
+        LOG(EXTENSION_LOG_WARNING,
+            "vb:%" PRIu16 " Aborting rollback as the vbucket was not found",
+            vbid);
+        return TaskStatus::Abort;
     }
 
     ReaderLockHolder rlh(vb->getStateLock());
@@ -2849,7 +2852,7 @@ ENGINE_ERROR_CODE KVBucket::rollback(uint16_t vbid, uint64_t rollbackSeqno) {
                 rollbackUnpersistedItems(*vb, result.highSeqno);
                 vb->postProcessRollback(result, prevHighSeqno);
                 engine.getDcpConnMap().closeStreamsDueToRollback(vbid);
-                return ENGINE_SUCCESS;
+                return TaskStatus::Complete;
             }
         }
 
@@ -2857,11 +2860,18 @@ ENGINE_ERROR_CODE KVBucket::rollback(uint16_t vbid, uint64_t rollbackSeqno) {
             VBucketPtr newVb = vbMap.getBucket(vbid);
             newVb->incrRollbackItemCount(prevHighSeqno);
             engine.getDcpConnMap().closeStreamsDueToRollback(vbid);
-            return ENGINE_SUCCESS;
+            return TaskStatus::Complete;
         }
-        return ENGINE_NOT_MY_VBUCKET;
+        LOG(EXTENSION_LOG_WARNING,
+            "vb:%" PRIu16 " Aborting rollback as reset of the vbucket failed",
+            vbid);
+        return TaskStatus::Abort;
     } else {
-        return ENGINE_EINVAL;
+        LOG(EXTENSION_LOG_WARNING,
+            "vb:%" PRIu16 " Rollback not supported on the vbucket state %s",
+            vbid,
+            VBucket::toString(vb->getState()));
+        return TaskStatus::Abort;
     }
 }
 

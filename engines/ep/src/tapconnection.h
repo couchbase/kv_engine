@@ -38,7 +38,6 @@ class ConnHandler;
 class EventuallyPersistentEngine;
 class TapConnMap;
 class TapProducer;
-class BGFetchCallback;
 class CompleteBackfillOperation;
 class Dispatcher;
 class Item;
@@ -700,43 +699,6 @@ public:
                                       vbucket_state_t state);
 };
 
-
-/*
- * auxIODispatcher/GIO task that performs a background fetch on behalf
- * of TAP/DCP.
- */
-class BGFetchCallback : public GlobalTask {
-public:
-    BGFetchCallback(EventuallyPersistentEngine& e, const std::string &n,
-                    const DocKey& k, uint16_t vbid, hrtime_t token,
-                    double sleeptime = 0)
-        : GlobalTask(&e, TaskId::BGFetchCallback, sleeptime, false),
-          name(n),
-          key(k),
-          description(std::string("Fetching item from disk for tap: ") +
-                      key.c_str()),
-          epe(e),
-          init(gethrtime()),
-          connToken(token),
-          vbucket(vbid) {}
-
-    bool run();
-
-    cb::const_char_buffer getDescription() {
-        return description;
-    }
-
-private:
-    const std::string name;
-    const StoredDocKey key;
-    const std::string description;
-    EventuallyPersistentEngine& epe;
-    hrtime_t init;
-    hrtime_t connToken;
-    uint16_t vbucket;
-};
-
-
 class TapConsumer : public Consumer {
 public:
     TapConsumer(EventuallyPersistentEngine &e, const void *c,
@@ -964,13 +926,6 @@ public:
     void completeBGFetchJob(Item *item, uint16_t vbid, bool implicitEnqueue);
 
     /**
-     * Get the next item (e.g., checkpoint_start, checkpoint_end, tap_mutation, or
-     * tap_deletion) to be transmitted.
-     */
-    Item *getNextItem(const void *c, uint16_t *vbucket, uint16_t &ret,
-                      uint8_t &nru);
-
-    /**
      * Find out how many items are still remaining from backfill.
      */
     size_t getBackfillRemaining() {
@@ -1019,7 +974,6 @@ protected:
     friend class EventuallyPersistentEngine;
     friend class ConnMap;
     friend class TapConnMap;
-    friend class BGFetchCallback;
     friend struct TapStatBuilder;
     friend struct TapAggStatBuilder;
     friend struct PopulateEventsBody;
@@ -1305,16 +1259,6 @@ protected:
         LockHolder lh(queueLock);
         return mayCompleteDumpOrTakeover_UNLOCKED();
     }
-
-    /**
-     * Queue an item to be background fetched.
-     *
-     * @param key the item's key
-     * @param id the disk id of the item to fetch
-     * @param vb the vbucket ID
-     */
-    void queueBGFetch_UNLOCKED(const StoredDocKey& key, uint64_t id,
-                               uint16_t vb);
 
     ENGINE_ERROR_CODE processAck(uint32_t seqno, uint16_t status, const DocKey& key);
 

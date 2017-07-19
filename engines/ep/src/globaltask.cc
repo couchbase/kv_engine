@@ -21,13 +21,6 @@
 #include "ep_engine.h"
 
 // These static_asserts previously were in priority_test.cc
-static_assert(TaskPriority::MultiBGFetcherTask < TaskPriority::BGFetchCallback,
-              "MultiBGFetcherTask not less than BGFetchCallback");
-
-static_assert(TaskPriority::BGFetchCallback ==
-                      TaskPriority::VBucketMemoryAndDiskDeletionTask,
-              "BGFetchCallback not equal VBucketMemoryAndDiskDeletionTask");
-
 static_assert(TaskPriority::VKeyStatBGFetchTask < TaskPriority::FlusherTask,
               "VKeyStatBGFetchTask not less than FlusherTask");
 

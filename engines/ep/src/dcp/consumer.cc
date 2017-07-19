@@ -779,33 +779,35 @@ bool DcpConsumer::handleRollbackResponse(uint16_t vbid,
 
 bool DcpConsumer::doRollback(uint32_t opaque, uint16_t vbid,
                              uint64_t rollbackSeqno) {
-    ENGINE_ERROR_CODE err = engine_.getKVBucket()->rollback(vbid,
-                                                                 rollbackSeqno);
+    TaskStatus status = engine_.getKVBucket()->rollback(vbid, rollbackSeqno);
 
-    switch (err) {
-    case ENGINE_NOT_MY_VBUCKET:
-        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Rollback failed because the "
-                "vbucket was not found", logHeader(), vbid);
+    switch (status) {
+    case TaskStatus::Abort:
+        logger.log(EXTENSION_LOG_WARNING,
+                   "vb:%" PRIu16 " Rollback failed on the vbucket",
+                   vbid);
         return false;
 
-    case ENGINE_TMPFAIL:
+    case TaskStatus::Reschedule:
         return true; // Reschedule the rollback.
 
-    case ENGINE_SUCCESS:
-        // expected
-        break;
-
-    default:
-        throw std::logic_error("DcpConsumer::doRollback: Unexpected error "
-                "code from EpStore::rollback: " + std::to_string(err));
+    case TaskStatus::Complete: {
+        VBucketPtr vb = engine_.getVBucket(vbid);
+        if (!vb) {
+            logger.log(EXTENSION_LOG_WARNING,
+                       "vb:%" PRIu16
+                       " Aborting rollback task as the vbucket "
+                       "was deleted after rollback",
+                       vbid);
+            return false;
+        }
+        auto stream = findStream(vbid);
+        if (stream) {
+            stream->reconnectStream(vb, opaque, vb->getHighSeqno());
+        }
     }
-
-    VBucketPtr vb = engine_.getVBucket(vbid);
-    auto stream = findStream(vbid);
-    if (stream) {
-        stream->reconnectStream(vb, opaque, vb->getHighSeqno());
+        return false;
     }
-
     return false;
 }
 

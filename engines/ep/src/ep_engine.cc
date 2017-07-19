@@ -19,7 +19,6 @@
 
 #include "ep_engine.h"
 
-#include "backfill.h"
 #include "collections/manager.h"
 #include "common.h"
 #include "connmap.h"
@@ -1090,7 +1089,6 @@ static ENGINE_ERROR_CODE processUnknownCommand(
     case PROTOCOL_BINARY_CMD_SET_PARAM:
     case PROTOCOL_BINARY_CMD_SET_VBUCKET:
     case PROTOCOL_BINARY_CMD_DEL_VBUCKET:
-    case PROTOCOL_BINARY_CMD_CHANGE_VB_FILTER:
     case PROTOCOL_BINARY_CMD_SET_CLUSTER_CONFIG:
     case PROTOCOL_BINARY_CMD_COMPACT_DB: {
         if (h->getEngineSpecific(cookie) == NULL) {
@@ -1155,11 +1153,6 @@ static ENGINE_ERROR_CODE processUnknownCommand(
         return h->observe(cookie, request, response, docNamespace);
     case PROTOCOL_BINARY_CMD_OBSERVE_SEQNO:
         return h->observe_seqno(cookie, request, response);
-    case PROTOCOL_BINARY_CMD_CHANGE_VB_FILTER: {
-        rv = h->changeTapVBFilter(cookie, request, response);
-        h->decrementSessionCtr();
-        return rv;
-    }
     case PROTOCOL_BINARY_CMD_LAST_CLOSED_CHECKPOINT:
     case PROTOCOL_BINARY_CMD_CREATE_CHECKPOINT:
     case PROTOCOL_BINARY_CMD_CHECKPOINT_PERSISTENCE: {
@@ -2358,18 +2351,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::memoryCondition() {
         ++stats.oom_errors;
         return ENGINE_ENOMEM;
     }
-}
-
-void EventuallyPersistentEngine::queueBackfill(const VBucketFilter
-                                                             &backfillVBFilter,
-                                               Producer *tc)
-{
-    auto bfv = std::make_unique<BackFillVisitor>(
-            this, *tapConnMap, tc, backfillVBFilter);
-    getKVBucket()->visit(std::move(bfv),
-                         "Backfill task",
-                         TaskId::BackfillVisitorTask,
-                         1);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
@@ -4646,72 +4627,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
                                     0 /*bySeqno*/,
                                     extendedMetaData.get(),
                                     false /*isReplication*/);
-}
-
-ENGINE_ERROR_CODE
-EventuallyPersistentEngine::changeTapVBFilter(const void *cookie,
-                                       protocol_binary_request_header *request,
-                                              ADD_RESPONSE response) {
-    protocol_binary_request_no_extras *req =
-                                   (protocol_binary_request_no_extras*)request;
-
-    uint64_t cas = ntohll(req->message.header.request.cas);
-    uint16_t keylen = ntohs(req->message.header.request.keylen);
-    const char *ptr = ((char*)req) + sizeof(req->message.header);
-    std::string tap_name = "eq_tapq:";
-    tap_name.append(std::string(ptr, keylen));
-
-    protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
-    size_t nuserdata = ntohl(req->message.header.request.bodylen) - keylen;
-    uint16_t nvbuckets = 0;
-
-    if (nuserdata < sizeof(nvbuckets)) {
-        rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
-        setErrorContext(cookie, "Number of vbuckets is missing");
-    } else {
-        ptr += keylen;
-        memcpy(&nvbuckets, ptr, sizeof(nvbuckets));
-        nuserdata -= sizeof(nvbuckets);
-        ptr += sizeof(nvbuckets);
-        nvbuckets = ntohs(nvbuckets);
-        if (nvbuckets > 0) {
-            if (nuserdata <
-                ((sizeof(uint16_t) + sizeof(uint64_t)) * nvbuckets)) {
-                rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
-                setErrorContext(cookie,
-                                "Number of (vbucket id, checkpoint id) pair is "
-                                "not matched");
-            } else {
-                std::vector<uint16_t> vbuckets;
-                std::map<uint16_t, uint64_t> checkpointIds;
-                for (uint16_t i = 0; i < nvbuckets; ++i) {
-                    uint16_t vbid;
-                    uint64_t chkid;
-                    memcpy(&vbid, ptr, sizeof(vbid));
-                    ptr += sizeof(uint16_t);
-                    memcpy(&chkid, ptr, sizeof(chkid));
-                    ptr += sizeof(uint64_t);
-                    vbuckets.push_back(ntohs(vbid));
-                    checkpointIds[ntohs(vbid)] = ntohll(chkid);
-                }
-                if (!tapConnMap->changeVBucketFilter(tap_name, vbuckets,
-                                                     checkpointIds)) {
-                    rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
-                    setErrorContext(cookie, "TAP producer not exist!!!");
-                }
-            }
-        } else {
-            rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
-            setErrorContext(cookie,
-                            "Number of vbuckets should be greater than 0");
-        }
-    }
-
-    return sendResponse(response, NULL, 0, NULL, 0,
-                        NULL, 0,
-                        PROTOCOL_BINARY_RAW_BYTES,
-                        static_cast<uint16_t>(rv),
-                        cas, cookie);
 }
 
 ENGINE_ERROR_CODE

@@ -162,7 +162,6 @@ SET(COLLECTIONS_SOURCE src/collections/filter.cc
 ADD_LIBRARY(ep_objs OBJECT
             src/access_scanner.cc
             src/atomic.cc
-            src/backfill.cc
             src/bgfetcher.cc
             src/blob.cc
             src/bloomfilter.cc
