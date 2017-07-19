@@ -467,51 +467,6 @@ private:
     static std::atomic<uint64_t> counter_;
 };
 
-enum proto_checkpoint_state {
-    backfill,
-    checkpoint_start,
-    checkpoint_end,
-    checkpoint_end_synced
-};
-
-
-/**
- * Checkpoint state of each vbucket in TAP or DCP stream.
- */
-class CheckpointState {
-public:
-    CheckpointState() :
-        currentCheckpointId(0), lastSeqNum(0), bgResultSize(0),
-        bgJobIssued(0), bgJobCompleted(0), lastItem(false), state(backfill) {}
-
-    CheckpointState(uint16_t vb, uint64_t checkpointId, proto_checkpoint_state s) :
-        vbucket(vb), currentCheckpointId(checkpointId), lastSeqNum(0),
-        bgResultSize(0), bgJobIssued(0), bgJobCompleted(0),
-        lastItem(false), state(s) {}
-
-    bool isBgFetchCompleted(void) const {
-        return bgResultSize == 0 && (bgJobIssued - bgJobCompleted) == 0;
-    }
-
-    uint16_t vbucket;
-    // Id of the checkpoint that is currently referenced by the given TAP client's cursor.
-    uint64_t currentCheckpointId;
-    // Last sequence number sent to the slave.
-    uint32_t lastSeqNum;
-
-    // Number of bg-fetched items for a given vbucket, which are ready for streaming.
-    size_t bgResultSize;
-    // Number of bg-fetched jobs issued for a given vbucket.
-    size_t bgJobIssued;
-    // Number of bg-fetched jobs completed for a given vbucket
-    size_t bgJobCompleted;
-
-    // True if the TAP cursor reaches to the last item at its current checkpoint.
-    bool lastItem;
-    proto_checkpoint_state state;
-};
-
-
 /**
  * A class containing the config parameters for TAP module.
  */
