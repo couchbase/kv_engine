@@ -118,60 +118,6 @@ struct ConnCounter {
     size_t      conn_totalBacklogSize;
 };
 
-/**
- * Represents an item that has been sent over tap, but may need to be
- * rolled back if acks fail.
- */
-class TapLogElement {
-
-public:
-
-    TapLogElement(uint32_t seqno, const VBucketEvent &e)
-        : seqno_(seqno), event_(e.event), vbucket_(e.vbucket),
-          state_(e.state) { }
-
-    TapLogElement(uint32_t seqno, const queued_item &qi)
-    {
-        seqno_ = seqno;
-        event_ = TAP_MUTATION;
-        vbucket_ = qi->getVBucketId();
-        state_ = vbucket_state_active;
-        item_ = qi;
-
-        switch(item_->getOperation()) {
-        case queue_op::set:
-            event_ = TAP_MUTATION;
-            break;
-        case queue_op::del:
-            event_ = TAP_DELETION;
-            break;
-        case queue_op::flush:
-            event_ = TAP_FLUSH;
-            break;
-        case queue_op::empty:
-            // Ignored
-            break;
-        case queue_op::checkpoint_start:
-            event_ = TAP_CHECKPOINT_START;
-            break;
-        case queue_op::checkpoint_end:
-            event_ = TAP_CHECKPOINT_END;
-            break;
-        case queue_op::set_vbucket_state:
-        case queue_op::system_event:
-            // Ignored by TAP
-            break;
-        }
-    }
-
-    uint32_t seqno_;
-    uint16_t event_;
-    uint16_t vbucket_;
-
-    vbucket_state_t state_;
-    queued_item item_;
-};
-
 class ConnHandler : public RCValue {
 public:
     ConnHandler(EventuallyPersistentEngine& engine, const void* c,
