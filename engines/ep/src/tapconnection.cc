@@ -33,34 +33,6 @@
 
 std::atomic<uint64_t> ConnHandler::counter_(1);
 
-const short int TapEngineSpecific::sizeRevSeqno(8);
-const short int TapEngineSpecific::sizeExtra(1);
-const short int TapEngineSpecific::sizeTotal(9);
-
-void TapEngineSpecific::readSpecificData(uint16_t ev, void *engine_specific,
-                                         uint16_t nengine, uint64_t *seqnum,
-                                         uint8_t *extra)
-{
-    uint8_t ex;
-    if (ev == TAP_CHECKPOINT_START || ev == TAP_CHECKPOINT_END || ev == TAP_DELETION ||
-        ev == TAP_MUTATION)
-        {
-            if (nengine < sizeRevSeqno) {
-                throw std::invalid_argument("TapEngineSpecific::readSpecificData: "
-                        "nengine (which is " + std::to_string(nengine) +
-                        ") is less than sizeRevSeqno (which is " +
-                        std::to_string(sizeRevSeqno));
-            }
-            memcpy(seqnum, engine_specific, sizeRevSeqno);
-            *seqnum = ntohll(*seqnum);
-            if (ev == TAP_MUTATION && nengine == sizeTotal) {
-                uint8_t *dptr = (uint8_t *)engine_specific + sizeRevSeqno;
-                memcpy(&ex, (void *)dptr, sizeExtra);
-                *extra = ex;
-            }
-        }
-}
-
 class TapConfigChangeListener : public ValueChangedListener {
 public:
     TapConfigChangeListener(TapConfig &c) : config(c) {

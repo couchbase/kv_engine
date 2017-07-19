@@ -501,33 +501,6 @@ private:
 };
 
 /**
- * TAP stream ep-engine specific data payload
- */
-class TapEngineSpecific {
-public:
-
-    // size of item revision seq number
-    static const short int sizeRevSeqno;
-    // size of item specific extra data
-    static const short int sizeExtra;
-    // size of complete specific data
-    static const short int sizeTotal;
-
-    /**
-     * Read engine specific data for a given tap event type
-     *
-     * @param ev tap event
-     * @param engine_specific input tap engine specific data
-     * @param nengine size of input data (bytes)
-     * @param output sequence number
-     * @param extra additional item specific data
-     */
-    static void readSpecificData(uint16_t ev, void *engine_specific, uint16_t nengine,
-                                 uint64_t *seqnum, uint8_t *extra = NULL);
-};
-
-
-/**
  */
 class Consumer : public ConnHandler {
 private:
