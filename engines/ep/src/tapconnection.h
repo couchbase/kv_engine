@@ -52,30 +52,6 @@ struct PopulateEventsBody;
 #define MINIMUM_BACKFILL_RESIDENT_THRESHOLD 0.7
 #define DEFAULT_BACKFILL_RESIDENT_THRESHOLD 0.9
 
-/**
- * A tap event that represents a change to the state of a vbucket.
- *
- * The tap stream may include other events than data mutation events,
- * but the data structures in the TapProducer does only store a key
- * for the item to store. We don't want to add more data to those elements,
- * because that could potentially consume a lot of memory (the tap queue
- * may have a lot of elements).
- */
-class VBucketEvent {
-public:
-    /**
-     * Create a new instance of the VBucketEvent and initialize
-     * its members.
-     * @param ev Type of event
-     * @param b The bucket this event belongs to
-     * @param s The state change for this event
-     */
-    VBucketEvent(uint16_t ev, uint16_t b, vbucket_state_t s) :
-        event(ev), vbucket(b), state(s) {}
-    uint16_t event;
-    uint16_t vbucket;
-    vbucket_state_t state;
-};
 
 /**
  * Aggregator object to count all tap stats.
