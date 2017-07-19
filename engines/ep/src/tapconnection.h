@@ -534,43 +534,6 @@ public:
                                       vbucket_state_t state);
 };
 
-class TapConsumer : public Consumer {
-public:
-    TapConsumer(EventuallyPersistentEngine &e, const void *c,
-                const std::string &n);
-
-    ~TapConsumer() {}
-
-    ENGINE_ERROR_CODE mutation(uint32_t opaque,
-                               const DocKey& key,
-                               cb::const_byte_buffer value,
-                               size_t priv_bytes,
-                               uint8_t datatype,
-                               uint64_t cas,
-                               uint16_t vbucket,
-                               uint32_t flags,
-                               uint64_t by_seqno,
-                               uint64_t rev_seqno,
-                               uint32_t expiration,
-                               uint32_t lock_time,
-                               cb::const_byte_buffer meta,
-                               uint8_t nru) override;
-
-    ENGINE_ERROR_CODE deletion(uint32_t opaque,
-                               const DocKey& key,
-                               cb::const_byte_buffer value,
-                               size_t priv_bytes,
-                               uint8_t datatype,
-                               uint64_t cas,
-                               uint16_t vbucket,
-                               uint64_t by_seqno,
-                               uint64_t rev_seqno,
-                               cb::const_byte_buffer meta) override;
-
-    bool processCheckpointCommand(uint8_t event, uint16_t vbucket,
-                                  uint64_t checkpointId);
-};
-
 class Notifiable {
 public:
     Notifiable()
