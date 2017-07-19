@@ -23,7 +23,8 @@
 #include <event2/event.h>
 #include <memcached/protocol_binary.h>
 
-namespace BinaryProtocolValidator {
+namespace mcbp {
+namespace test {
 
 enum class GATOpcodes : uint8_t {
     GAT = PROTOCOL_BINARY_CMD_GAT,
@@ -133,4 +134,5 @@ INSTANTIATE_TEST_CASE_P(GATOpcodes,
                                           GATOpcodes::GATQ,
                                           GATOpcodes::TOUCH),
                         ::testing::PrintToStringParamName());
-} // namespace BinaryProtocolValidator
+} // namespace test
+} // namespace mcbp

@@ -22,7 +22,8 @@
 #include <memcached/protocol_binary.h>
 #include <utilities/protocol2text.h>
 
-namespace BinaryProtocolValidator {
+namespace mcbp {
+namespace test {
 
 enum class Opcodes : uint8_t {
     SetWithMeta = PROTOCOL_BINARY_CMD_SET_WITH_META,
@@ -130,4 +131,5 @@ INSTANTIATE_TEST_CASE_P(Opcodes,
                                           Opcodes::DelWithMeta,
                                           Opcodes::DelQWithMeta),
                         ::testing::PrintToStringParamName());
-}
+} // namespace test
+} // namespace mcbp

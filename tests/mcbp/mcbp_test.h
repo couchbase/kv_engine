@@ -27,7 +27,8 @@
 #include <daemon/mcbp_validators.h>
 #include <gtest/gtest.h>
 
-namespace BinaryProtocolValidator {
+namespace mcbp {
+namespace test {
 
 class ValidatorTest : public ::testing::Test {
 public:
@@ -44,4 +45,5 @@ protected:
     McbpConnection connection;
 };
 
-} // namespace BinaryProtocolValidator
+} // namespace test
+} // namespace mcbp
