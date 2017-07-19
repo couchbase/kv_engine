@@ -346,8 +346,6 @@ const uint8_t PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC =
         uint8_t(cb::mcbp::Opcode::EnableTraffic);
 const uint8_t PROTOCOL_BINARY_CMD_DISABLE_TRAFFIC =
         uint8_t(cb::mcbp::Opcode::DisableTraffic);
-const uint8_t PROTOCOL_BINARY_CMD_CHANGE_VB_FILTER =
-        uint8_t(cb::mcbp::Opcode::ChangeVbFilter);
 const uint8_t PROTOCOL_BINARY_CMD_CHECKPOINT_PERSISTENCE =
         uint8_t(cb::mcbp::Opcode::CheckpointPersistence);
 const uint8_t PROTOCOL_BINARY_CMD_RETURN_META =

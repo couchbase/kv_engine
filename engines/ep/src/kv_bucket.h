@@ -685,10 +685,14 @@ public:
      *
      * @param vbid The vbucket to rollback
      * @rollbackSeqno The seqno to rollback to.
-     * @return ENGINE_EINVAL if VB is not replica, ENGINE_NOT_MY_VBUCKET if vbid
-     *         is not managed by this instance or ENGINE_SUCCESS.
+     *
+     * @return TaskStatus::Complete upon successful rollback
+     *         TaskStatus::Abort if vbucket is not replica or
+     *                           if vbucket is not valid
+     *                           if vbucket reset and rollback fails
+     *         TaskStatus::Reschedule if you cannot get a lock on the vbucket
      */
-    ENGINE_ERROR_CODE rollback(uint16_t vbid, uint64_t rollbackSeqno);
+    TaskStatus rollback(uint16_t vbid, uint64_t rollbackSeqno);
 
     virtual void attemptToFreeMemory();
 

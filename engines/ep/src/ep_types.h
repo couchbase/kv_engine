@@ -128,3 +128,9 @@ enum item_eviction_policy_t {
     VALUE_ONLY, // Only evict an item's value.
     FULL_EVICTION // Evict an item's key, metadata and value together.
 };
+
+enum class TaskStatus {
+    Reschedule, /* Reschedule for later */
+    Complete, /* Complete in this run */
+    Abort /* Abort task immediately */
+};

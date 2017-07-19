@@ -207,10 +207,6 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(PROTOCOL_BINARY_CMD_DISABLE_TRAFFIC,
           require<Privilege::NodeManagement>);
     /**
-     * Command to change the vbucket filter for a given TAP producer.
-     */
-    setup(PROTOCOL_BINARY_CMD_CHANGE_VB_FILTER, require<Privilege::Tap>);
-    /**
      * Command to wait for the checkpoint persistence
      */
     setup(PROTOCOL_BINARY_CMD_CHECKPOINT_PERSISTENCE, require<Privilege::NodeManagement>);
