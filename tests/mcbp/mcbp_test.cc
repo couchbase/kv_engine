@@ -819,7 +819,7 @@ TEST_F(NoopValidatorTest, InvalidKeylen) {
 }
 
 TEST_F(NoopValidatorTest, InvalidBodylen) {
-    request.message.header.request.bodylen = 100;
+    request.message.header.request.bodylen = htonl(100);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
 
@@ -864,7 +864,7 @@ TEST_F(VersionValidatorTest, InvalidKeylen) {
 }
 
 TEST_F(VersionValidatorTest, InvalidBodylen) {
-    request.message.header.request.bodylen = 100;
+    request.message.header.request.bodylen = htonl(100);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
 
@@ -909,7 +909,7 @@ TEST_F(StatValidatorTest, InvalidExtlen) {
 }
 
 TEST_F(StatValidatorTest, InvalidBodylen) {
-    request.message.header.request.bodylen = 100;
+    request.message.header.request.bodylen = htonl(100);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
 
@@ -954,7 +954,7 @@ TEST_F(VerbosityValidatorTest, InvalidExtlen) {
 }
 
 TEST_F(VerbosityValidatorTest, InvalidBodylen) {
-    request.message.header.request.bodylen = 100;
+    request.message.header.request.bodylen = htonl(100);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
 
