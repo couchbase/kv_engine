@@ -359,17 +359,12 @@ static void EvpResetStats(ENGINE_HANDLE* handle, const void*) {
     acquireEngine(handle)->resetStats();
 }
 
-protocol_binary_response_status EventuallyPersistentEngine::setTapParam(
+protocol_binary_response_status EventuallyPersistentEngine::setReplicationParam(
         const char* keyz, const char* valz, std::string& msg) {
     protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
 
     try {
-        if (strcmp(keyz, "tap_keepalive") == 0) {
-            int v = std::stoi(valz);
-            validate(v, 0, MAX_TAP_KEEP_ALIVE);
-            getConfiguration().requirementsMetOrThrow("tap_keepalive");
-            setTapKeepAlive(static_cast<uint32_t>(v));
-        } else if (strcmp(keyz, "replication_throttle_threshold") == 0) {
+        if (strcmp(keyz, "replication_throttle_threshold") == 0) {
             getConfiguration().setReplicationThrottleThreshold(
                     std::stoull(valz));
         } else if (strcmp(keyz, "replication_throttle_queue_cap") == 0) {
@@ -767,8 +762,8 @@ protocol_binary_response_status EventuallyPersistentEngine::setParam(
     case protocol_binary_engine_param_flush:
         rv = setFlushParam(keyz, valz, msg);
         break;
-    case protocol_binary_engine_param_tap:
-        rv = setTapParam(keyz, valz, msg);
+    case protocol_binary_engine_param_replication:
+        rv = setReplicationParam(keyz, valz, msg);
         break;
     case protocol_binary_engine_param_checkpoint:
         rv = setCheckpointParam(keyz, valz, msg);

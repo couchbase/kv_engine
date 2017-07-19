@@ -19,8 +19,8 @@ def set_param(mc, type, key, val):
         engine_param = memcacheConstants.ENGINE_PARAM_CHECKPOINT
     elif type == 'flush_param':
         engine_param = memcacheConstants.ENGINE_PARAM_FLUSH
-    elif type == 'tap_param':
-        engine_param = memcacheConstants.ENGINE_PARAM_TAP
+    elif type == 'replication_param':
+        engine_param = memcacheConstants.ENGINE_PARAM_REPLICATION
     elif type == 'dcp_param':
         engine_param = memcacheConstants.ENGINE_PARAM_DCP
     elif type == 'vbucket_param':
@@ -220,8 +220,7 @@ Available params for "set":
     xattr_enabled                - Enabled/Disable xattr support for the specified bucket.
                                    Accepted input values are true or false.
 
-  Available params for "set tap_param":
-    tap_keepalive                    - Seconds to hold a named tap connection.
+  Available params for "set replication_param":
     replication_throttle_queue_cap   - Max disk write queue size to throttle
                                        replication streams ('infinite' means no
                                        cap).

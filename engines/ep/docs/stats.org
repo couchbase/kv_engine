@@ -164,7 +164,6 @@ For introductory information on stats within Couchbase, start with the
 |                                    | ejected                                |
 | ep_num_not_my_vbuckets             | Number of times Not My VBucket         |
 |                                    | exception happened during runtime      |
-| ep_tap_keepalive                   | Tap keepalive time                     |
 | ep_dbname                          | DB path                                |
 | ep_pending_ops                     | Number of ops awaiting pending         |
 |                                    | vbuckets                               |

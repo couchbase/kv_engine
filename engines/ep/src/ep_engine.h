@@ -440,10 +440,6 @@ public:
         return kvBucket->resetVBucket(vbid);
     }
 
-    void setTapKeepAlive(uint32_t to) {
-        configuration.setTapKeepalive((size_t)to);
-    }
-
     void setDeleteAll(bool enabled) {
         deleteAllEnabled = enabled;
     }
@@ -479,9 +475,9 @@ public:
                                                   const char* valz,
                                                   std::string& msg);
 
-    protocol_binary_response_status setTapParam(const char* keyz,
-                                                const char* valz,
-                                                std::string& msg);
+    protocol_binary_response_status setReplicationParam(const char* keyz,
+                                                        const char* valz,
+                                                        std::string& msg);
 
     protocol_binary_response_status setCheckpointParam(const char* keyz,
                                                        const char* valz,
