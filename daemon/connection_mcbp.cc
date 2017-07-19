@@ -29,33 +29,6 @@
 #include <platform/strerror.h>
 #include <platform/timeutils.h>
 
-/* cJSON uses double for all numbers, so only has 53 bits of precision.
- * Therefore encode 64bit integers as string.
- */
-static cJSON* json_create_uintptr(uintptr_t value) {
-    try {
-        char buffer[32];
-        checked_snprintf(buffer, sizeof(buffer), "0x%" PRIxPTR, value);
-        return cJSON_CreateString(buffer);
-    } catch (std::exception& e) {
-        return cJSON_CreateString("<Failed to convert pointer>");
-    }
-}
-
-static void json_add_uintptr_to_object(cJSON* obj, const char* name,
-                                       uintptr_t value) {
-    cJSON_AddItemToObject(obj, name, json_create_uintptr(value));
-}
-
-static void json_add_bool_to_object(cJSON* obj, const char* name, bool value) {
-    if (value) {
-        cJSON_AddTrueToObject(obj, name);
-    } else {
-        cJSON_AddFalseToObject(obj, name);
-    }
-}
-
-
 bool McbpConnection::unregisterEvent() {
     if (!registered_in_libevent) {
         LOG_WARNING(NULL,
@@ -883,8 +856,8 @@ void McbpConnection::runStateMachinery() {
  */
 static cJSON* to_json(const struct net_buf &buffer) {
     cJSON* json = cJSON_CreateObject();
-    json_add_uintptr_to_object(json, "buf", (uintptr_t)buffer.buf);
-    json_add_uintptr_to_object(json, "curr", (uintptr_t)buffer.curr);
+    cJSON_AddUintPtrToObject(json, "buf", (uintptr_t)buffer.buf);
+    cJSON_AddUintPtrToObject(json, "curr", (uintptr_t)buffer.curr);
     cJSON_AddNumberToObject(json, "size", buffer.size);
     cJSON_AddNumberToObject(json, "bytes", buffer.bytes);
     return json;
@@ -901,7 +874,7 @@ static cJSON* event_mask_to_json(const short mask) {
     cJSON* ret = cJSON_CreateObject();
     cJSON* array = cJSON_CreateArray();
 
-    json_add_uintptr_to_object(ret, "raw", mask);
+    cJSON_AddUintPtrToObject(ret, "raw", mask);
     if (mask & EV_READ) {
         cJSON_AddItemToArray(array, cJSON_CreateString("read"));
     }
@@ -922,11 +895,11 @@ static cJSON* event_mask_to_json(const short mask) {
 cJSON* McbpConnection::toJSON() const {
     cJSON* obj = Connection::toJSON();
     if (obj != nullptr) {
-        json_add_bool_to_object(obj, "sasl_enabled", saslAuthEnabled);
-        json_add_bool_to_object(obj, "dcp", isDCP());
-        json_add_bool_to_object(obj, "dcp_xattr_aware", isDcpXattrAware());
-        json_add_bool_to_object(obj, "dcp_no_value", isDcpNoValue());
-        json_add_uintptr_to_object(obj, "opaque", getOpaque());
+        cJSON_AddBoolToObject(obj, "sasl_enabled", saslAuthEnabled);
+        cJSON_AddBoolToObject(obj, "dcp", isDCP());
+        cJSON_AddBoolToObject(obj, "dcp_xattr_aware", isDcpXattrAware());
+        cJSON_AddBoolToObject(obj, "dcp_no_value", isDcpNoValue());
+        cJSON_AddUintPtrToObject(obj, "opaque", getOpaque());
         cJSON_AddNumberToObject(obj, "max_reqs_per_event",
                                 max_reqs_per_event);
         cJSON_AddNumberToObject(obj, "nevents", numEvents);
@@ -934,14 +907,14 @@ cJSON* McbpConnection::toJSON() const {
 
         const char* cmd_name = memcached_opcode_2_text(cmd);
         if (cmd_name == nullptr) {
-            json_add_uintptr_to_object(obj, "cmd", cmd);
+            cJSON_AddUintPtrToObject(obj, "cmd", cmd);
         } else {
             cJSON_AddStringToObject(obj, "cmd", cmd_name);
         }
 
         {
             cJSON* o = cJSON_CreateObject();
-            json_add_bool_to_object(o, "registered",
+            cJSON_AddBoolToObject(o, "registered",
                                     isRegisteredInLibevent());
             cJSON_AddItemToObject(o, "ev_flags", event_mask_to_json(ev_flags));
             cJSON_AddItemToObject(o, "which", event_mask_to_json(currentEvent));
@@ -976,8 +949,8 @@ cJSON* McbpConnection::toJSON() const {
             cJSON* array = cJSON_CreateArray();
             for (size_t ii = 0; ii < iovused; ++ii) {
                 cJSON* o = cJSON_CreateObject();
-                json_add_uintptr_to_object(o, "base", (uintptr_t)iov[ii].iov_base);
-                json_add_uintptr_to_object(o, "len", (uintptr_t)iov[ii].iov_len);
+                cJSON_AddUintPtrToObject(o, "base", (uintptr_t)iov[ii].iov_base);
+                cJSON_AddUintPtrToObject(o, "len", (uintptr_t)iov[ii].iov_len);
                 cJSON_AddItemToArray(array, o);
             }
             if (cJSON_GetArraySize(array) > 0) {
@@ -1007,10 +980,10 @@ cJSON* McbpConnection::toJSON() const {
             cJSON_AddNumberToObject(talloc, "size", temp_alloc.size());
             cJSON_AddItemToObject(obj, "temp_alloc_list", talloc);
         }
-        json_add_bool_to_object(obj, "noreply", noreply);
+        cJSON_AddBoolToObject(obj, "noreply", noreply);
         {
             cJSON* dy_buf = cJSON_CreateObject();
-            json_add_uintptr_to_object(dy_buf, "buffer",
+            cJSON_AddUintPtrToObject(dy_buf, "buffer",
                                        (uintptr_t)dynamicBuffer.getRoot());
             cJSON_AddNumberToObject(dy_buf, "size",
                                     (double)dynamicBuffer.getSize());
@@ -1021,9 +994,9 @@ cJSON* McbpConnection::toJSON() const {
         }
 
         /* @todo we should decode the binary header */
-        json_add_uintptr_to_object(obj, "cas", cas);
+        cJSON_AddUintPtrToObject(obj, "cas", cas);
         cJSON_AddNumberToObject(obj, "aiostat", aiostat);
-        json_add_bool_to_object(obj, "ewouldblock", ewouldblock);
+        cJSON_AddBoolToObject(obj, "ewouldblock", ewouldblock);
         cJSON_AddItemToObject(obj, "ssl", ssl.toJSON());
         cJSON_AddNumberToObject(obj, "total_recv", totalRecv);
         cJSON_AddNumberToObject(obj, "total_send", totalSend);

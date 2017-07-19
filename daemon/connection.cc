@@ -191,32 +191,6 @@ bool Connection::setTcpNoDelay(bool enable) {
     return true;
 }
 
-/* cJSON uses double for all numbers, so only has 53 bits of precision.
- * Therefore encode 64bit integers as string.
- */
-static cJSON* json_create_uintptr(uintptr_t value) {
-    try {
-        char buffer[32];
-        checked_snprintf(buffer, sizeof(buffer), "0x%" PRIxPTR, value);
-        return cJSON_CreateString(buffer);
-    } catch (std::exception& e) {
-        return cJSON_CreateString("<Failed to convert pointer>");
-    }
-}
-
-static void json_add_uintptr_to_object(cJSON* obj, const char* name,
-                                       uintptr_t value) {
-    cJSON_AddItemToObject(obj, name, json_create_uintptr(value));
-}
-
-static void json_add_bool_to_object(cJSON* obj, const char* name, bool value) {
-    if (value) {
-        cJSON_AddTrueToObject(obj, name);
-    } else {
-        cJSON_AddFalseToObject(obj, name);
-    }
-}
-
 std::string to_string(Protocol protocol) {
     switch (protocol) {
     case Protocol::Memcached:
@@ -228,7 +202,7 @@ std::string to_string(Protocol protocol) {
 
 cJSON* Connection::toJSON() const {
     cJSON* obj = cJSON_CreateObject();
-    json_add_uintptr_to_object(obj, "connection", (uintptr_t)this);
+    cJSON_AddUintPtrToObject(obj, "connection", (uintptr_t)this);
     if (socketDescriptor == INVALID_SOCKET) {
         cJSON_AddStringToObject(obj, "socket", "disconnected");
     } else {
@@ -239,28 +213,28 @@ cJSON* Connection::toJSON() const {
         cJSON_AddStringToObject(obj, "sockname", getSockname().c_str());
         cJSON_AddNumberToObject(obj, "parent_port", parent_port);
         cJSON_AddNumberToObject(obj, "bucket_index", getBucketIndex());
-        json_add_bool_to_object(obj, "internal", isInternal());
+        cJSON_AddBoolToObject(obj, "internal", isInternal());
         if (authenticated) {
             cJSON_AddStringToObject(obj, "username", username.c_str());
         }
         if (sasl_conn != NULL) {
-            json_add_uintptr_to_object(obj, "sasl_conn",
+            cJSON_AddUintPtrToObject(obj, "sasl_conn",
                                        (uintptr_t)sasl_conn.get());
         }
-        json_add_bool_to_object(obj, "nodelay", nodelay);
+        cJSON_AddBoolToObject(obj, "nodelay", nodelay);
         cJSON_AddNumberToObject(obj, "refcount", refcount);
 
         cJSON* features = cJSON_CreateObject();
-        json_add_bool_to_object(features, "mutation_extras",
+        cJSON_AddBoolToObject(features, "mutation_extras",
                                 isSupportsMutationExtras());
-        json_add_bool_to_object(features, "xerror", isXerrorSupport());
+        cJSON_AddBoolToObject(features, "xerror", isXerrorSupport());
 
         cJSON_AddItemToObject(obj, "features", features);
 
-        json_add_uintptr_to_object(obj, "engine_storage",
+        cJSON_AddUintPtrToObject(obj, "engine_storage",
                                    (uintptr_t)engine_storage);
-        json_add_uintptr_to_object(obj, "next", (uintptr_t)next);
-        json_add_uintptr_to_object(obj, "thread", (uintptr_t)thread.load(
+        cJSON_AddUintPtrToObject(obj, "next", (uintptr_t)next);
+        cJSON_AddUintPtrToObject(obj, "thread", (uintptr_t)thread.load(
             std::memory_order::memory_order_relaxed));
         cJSON_AddStringToObject(obj, "priority", to_string(priority));
 
