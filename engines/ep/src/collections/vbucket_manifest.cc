@@ -318,6 +318,22 @@ bool Collections::VB::Manifest::doesKeyContainValidCollection(
     return false;
 }
 
+bool Collections::VB::Manifest::doesKeyContainDeletingCollection(
+        const ::DocKey& key, int64_t seqno) const {
+    if (key.getDocNamespace() == DocNamespace::DefaultCollection &&
+        !defaultCollectionExists) {
+        return true;
+    } else if (key.getDocNamespace() == DocNamespace::Collections) {
+        const auto cKey = Collections::DocKey::make(key, separator);
+        auto itr = map.find({reinterpret_cast<const char*>(cKey.data()),
+                             cKey.getCollectionLen()});
+        if (itr != map.end()) {
+            return seqno <= itr->second->getEndSeqno();
+        }
+    }
+    return false;
+}
+
 std::unique_ptr<Item> Collections::VB::Manifest::createSystemEvent(
         SystemEvent se,
         cb::const_char_buffer collection,

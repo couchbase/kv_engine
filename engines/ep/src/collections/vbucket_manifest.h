@@ -91,6 +91,13 @@ public:
         }
 
         /**
+         * @return boolean - does the key/seqno represent a deleting collection
+         */
+        bool doesKeyContainDeletingCollection(::DocKey key, int64_t seqno) {
+            return manifest.doesKeyContainDeletingCollection(key, seqno);
+        }
+
+        /**
          * @returns a copy of the current separator
          */
         std::string getSeparator() const {
@@ -425,6 +432,12 @@ private:
      *   not be in the process of deletion.
      */
     bool doesKeyContainValidCollection(const ::DocKey& key) const;
+
+    /**
+     * @return boolean - does the key/seqno refer to a deleted collection?
+     */
+    bool doesKeyContainDeletingCollection(const ::DocKey& key,
+                                          int64_t seqno) const;
 
     /**
      * @returns the current separator

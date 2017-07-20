@@ -225,6 +225,17 @@ public:
         return ::testing::AssertionSuccess();
     }
 
+    ::testing::AssertionResult doesKeyContainDeletingCollection(DocKey key,
+                                                                int64_t seqno) {
+        if (!active.lock().doesKeyContainDeletingCollection(key, seqno)) {
+            return ::testing::AssertionFailure() << "active failed the key";
+        } else if (!replica.lock().doesKeyContainDeletingCollection(key,
+                                                                    seqno)) {
+            return ::testing::AssertionFailure() << "replica failed the key";
+        }
+        return ::testing::AssertionSuccess();
+    }
+
     bool isExclusiveOpen(const std::string& collection, uint32_t rev) {
         return active.isExclusiveOpen(collection, rev) &&
                replica.isExclusiveOpen(collection, rev);
@@ -250,6 +261,10 @@ public:
 
     MockVBManifest& getActiveManifest() {
         return active;
+    }
+
+    int64_t getLastSeqno() const {
+        return lastSeqno;
     }
 
 private:
@@ -294,6 +309,7 @@ private:
         getEventsFromCheckpoint(vbA, events);
         queued_item rv = events.back();
         for (const auto& qi : events) {
+            lastSeqno = qi->getBySeqno();
             if (qi->getOperation() == queue_op::system_event) {
                 auto dcpData = Collections::VB::Manifest::getSystemEventData(
                         {qi->getData(), qi->getNBytes()});
@@ -357,6 +373,7 @@ private:
     Configuration config;
     EPVBucket vbA;
     EPVBucket vbR;
+    int64_t lastSeqno;
 
     static const int64_t snapEnd{200};
 };
@@ -466,26 +483,48 @@ TEST_F(VBucketManifestTest, add_beginDelete_add) {
     // add vegetable
     EXPECT_TRUE(manifest.update(
             R"({"revision":0,"separator":"::","collections":["vegetable"]})"));
+    auto seqno = manifest.getLastSeqno();
     EXPECT_TRUE(manifest.checkSize(2));
     EXPECT_TRUE(manifest.isExclusiveOpen("vegetable", 0));
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
             {"vegetable::carrot", DocNamespace::Collections}));
 
+    // The first manifest.update has dropped default collection
+    EXPECT_TRUE(manifest.doesKeyContainDeletingCollection(
+            {"anykey", DocNamespace::DefaultCollection}, seqno));
+    // But vegetable is still good
+    EXPECT_FALSE(manifest.doesKeyContainDeletingCollection(
+            {"vegetable::carrot", DocNamespace::Collections}, seqno));
+
     // remove vegetable
     EXPECT_TRUE(manifest.update(
             R"({"revision":1,"separator":"::","collections":[]})"));
+    seqno = manifest.getLastSeqno();
     EXPECT_TRUE(manifest.checkSize(2));
     EXPECT_TRUE(manifest.isExclusiveDeleting("vegetable", 1));
     EXPECT_FALSE(manifest.doesKeyContainValidCollection(
             {"vegetable::carrot", DocNamespace::Collections}));
-    // add vegetable
+
+    // vegetable is now a deleting collection
+    EXPECT_TRUE(manifest.doesKeyContainDeletingCollection(
+            {"vegetable::carrot", DocNamespace::Collections}, seqno));
+
+    // add vegetable a second time
     EXPECT_TRUE(manifest.update(
             R"({"revision":2,"separator":"::","collections":["vegetable"]})"));
+    auto oldSeqno = seqno;
+    auto newSeqno = manifest.getLastSeqno();
     EXPECT_TRUE(manifest.checkSize(2));
     EXPECT_TRUE(manifest.isOpenAndDeleting("vegetable", 2));
 
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
             {"vegetable::carrot", DocNamespace::Collections}));
+
+    // Now we expect older vegetables to be deleting and newer not to be.
+    EXPECT_FALSE(manifest.doesKeyContainDeletingCollection(
+            {"vegetable::carrot", DocNamespace::Collections}, newSeqno));
+    EXPECT_TRUE(manifest.doesKeyContainDeletingCollection(
+            {"vegetable::carrot", DocNamespace::Collections}, oldSeqno));
 }
 
 TEST_F(VBucketManifestTest, add_beginDelete_delete) {
@@ -501,16 +540,21 @@ TEST_F(VBucketManifestTest, add_beginDelete_delete) {
     // remove vegetable
     EXPECT_TRUE(manifest.update(
             R"({"revision":1,"separator":"::","collections":[]})"));
+    auto seqno = manifest.getLastSeqno();
     EXPECT_TRUE(manifest.checkSize(2));
     EXPECT_TRUE(manifest.isExclusiveDeleting("vegetable", 1));
     EXPECT_FALSE(manifest.doesKeyContainValidCollection(
             {"vegetable::carrot", DocNamespace::Collections}));
+    EXPECT_TRUE(manifest.doesKeyContainDeletingCollection(
+            {"vegetable::carrot", DocNamespace::Collections}, seqno));
 
     // finally remove vegetable
     EXPECT_TRUE(manifest.completeDeletion("vegetable", 1));
     EXPECT_TRUE(manifest.checkSize(1));
     EXPECT_FALSE(manifest.doesKeyContainValidCollection(
             {"vegetable::carrot", DocNamespace::Collections}));
+    EXPECT_FALSE(manifest.doesKeyContainDeletingCollection(
+            {"vegetable::carrot", DocNamespace::Collections}, seqno));
 }
 
 TEST_F(VBucketManifestTest, add_beginDelete_add_delete) {
