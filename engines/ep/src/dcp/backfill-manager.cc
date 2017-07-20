@@ -150,6 +150,8 @@ void BackfillManager::schedule(VBucket& vb,
     if (engine.getDcpConnMap().canAddBackfillToActiveQ()) {
         activeBackfills.push_back(std::move(backfill));
     } else {
+        LOG(EXTENSION_LOG_NOTICE, "Backfill for %s vb:%d is pending",
+            stream->getName().c_str(), vb.getId());
         pendingBackfills.push_back(std::move(backfill));
     }
 

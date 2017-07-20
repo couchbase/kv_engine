@@ -22,7 +22,6 @@
 #include "dcp/dcpconnmap.h"
 #include "dcp/flow-control-manager.h"
 #include "replicationthrottle.h"
-#include "tapconnmap.h"
 
 #include <string>
 
@@ -48,9 +47,6 @@ SynchronousEPEngine::SynchronousEPEngine(const std::string& extra_config)
     // dcpConnMap_ is needed by EPStore's constructor.
     dcpConnMap_ = std::make_unique<DcpConnMap>(*this);
 
-    // tapConnMap is needed by queueDirty.
-    tapConnMap = new TapConnMap(*this);
-
     // checkpointConfig is needed by CheckpointManager (via EPStore).
     checkpointConfig = new CheckpointConfig(*this);
 
@@ -75,5 +71,4 @@ void SynchronousEPEngine::setDcpConnMap(
 
 void SynchronousEPEngine::initializeConnmaps() {
     dcpConnMap_->initialize(DCP_CONN_NOTIFIER);
-    tapConnMap->initialize(TAP_CONN_NOTIFIER);
 }

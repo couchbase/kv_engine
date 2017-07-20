@@ -221,7 +221,6 @@ ADD_LIBRARY(ep_objs OBJECT
             src/stored-value.cc
             src/systemevent.cc
             src/tapconnection.cc
-            src/tapconnmap.cc
             src/tasks.cc
             src/taskqueue.cc
             src/vb_count_visitor.cc

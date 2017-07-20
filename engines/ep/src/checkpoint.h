@@ -592,7 +592,6 @@ class CheckpointManager {
     friend class Checkpoint;
     friend class EventuallyPersistentEngine;
     friend class Consumer;
-    friend class TapConsumer;
 public:
 
     typedef std::shared_ptr<Callback<uint16_t> > FlusherCallback;

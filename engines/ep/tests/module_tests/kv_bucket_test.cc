@@ -32,7 +32,6 @@
 #include "flusher.h"
 #include "lambda_task.h"
 #include "replicationthrottle.h"
-#include "tapconnmap.h"
 #include "tasks.h"
 #include "tests/mock/mock_global_task.h"
 #include "tests/module_tests/test_helpers.h"
