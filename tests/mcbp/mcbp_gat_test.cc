@@ -27,105 +27,103 @@ namespace mcbp {
 namespace test {
 
 enum class GATOpcodes : uint8_t {
-    GAT = PROTOCOL_BINARY_CMD_GAT,
-    GATQ = PROTOCOL_BINARY_CMD_GATQ,
-    TOUCH = PROTOCOL_BINARY_CMD_TOUCH
+  GAT = PROTOCOL_BINARY_CMD_GAT,
+  GATQ = PROTOCOL_BINARY_CMD_GATQ,
+  TOUCH = PROTOCOL_BINARY_CMD_TOUCH
 };
 
-std::string to_string(const GATOpcodes& opcode) {
+std::string to_string(const GATOpcodes &opcode) {
 #ifdef JETBRAINS_CLION_IDE
-    // CLion don't properly parse the output when the
-    // output GATs written as the string instead of the
-    // number. This makes it harder to debug the tests
-    // so let's just disable it while we're waiting
-    // for them to supply a fix.
-    // See https://youtrack.jetbrains.com/issue/CPP-6039
-    return std::to_string(static_cast<int>(opcode));
+  // CLion don't properly parse the output when the
+  // output GATs written as the string instead of the
+  // number. This makes it harder to debug the tests
+  // so let's just disable it while we're waiting
+  // for them to supply a fix.
+  // See https://youtrack.jetbrains.com/issue/CPP-6039
+  return std::to_string(static_cast<int>(opcode));
 #else
-    switch (opcode) {
-    case GATOpcodes::GAT:
-        return "GAT";
-    case GATOpcodes::GATQ:
-        return "GATQ";
-    case GATOpcodes::TOUCH:
-        return "TOUCH";
-    }
-    throw std::invalid_argument("to_string(): unknown opcode");
+  switch (opcode) {
+  case GATOpcodes::GAT:
+    return "GAT";
+  case GATOpcodes::GATQ:
+    return "GATQ";
+  case GATOpcodes::TOUCH:
+    return "TOUCH";
+  }
+  throw std::invalid_argument("to_string(): unknown opcode");
 #endif
 }
 
-std::ostream& operator<<(std::ostream& os, const GATOpcodes& o) {
-    os << to_string(o);
-    return os;
+std::ostream &operator<<(std::ostream &os, const GATOpcodes &o) {
+  os << to_string(o);
+  return os;
 }
 
 // Test the validators for GAT, GATQ, GATK, GATKQ, GAT_META and GATQ_META
 class GATValidatorTest : public ValidatorTest,
                          public ::testing::WithParamInterface<GATOpcodes> {
 public:
-    virtual void SetUp() override {
-        ValidatorTest::SetUp();
-        request.message.header.request.extlen = 4;
-        request.message.header.request.keylen = htons(10);
-        request.message.header.request.bodylen = htonl(14);
-    }
+  virtual void SetUp() override {
+    ValidatorTest::SetUp();
+    request.message.header.request.extlen = 4;
+    request.message.header.request.keylen = htons(10);
+    request.message.header.request.bodylen = htonl(14);
+  }
 
-    GATValidatorTest()
-        : ValidatorTest(), bodylen(request.message.header.request.bodylen) {
-        // empty
-    }
+  GATValidatorTest()
+      : ValidatorTest(), bodylen(request.message.header.request.bodylen) {
+    // empty
+  }
 
 protected:
-    protocol_binary_response_status validateExtendedExtlen(uint8_t version) {
-        bodylen = htonl(ntohl(bodylen) + 1);
-        request.message.header.request.extlen = 1;
-        blob[sizeof(protocol_binary_request_gat)] = version;
-        return validate();
-    }
+  protocol_binary_response_status validateExtendedExtlen(uint8_t version) {
+    bodylen = htonl(ntohl(bodylen) + 1);
+    request.message.header.request.extlen = 1;
+    blob[sizeof(protocol_binary_request_gat)] = version;
+    return validate();
+  }
 
-    protocol_binary_response_status validate() {
-        auto opcode = (protocol_binary_command)GetParam();
-        return ValidatorTest::validate(opcode, static_cast<void*>(&request));
-    }
+  protocol_binary_response_status validate() {
+    auto opcode = (protocol_binary_command)GetParam();
+    return ValidatorTest::validate(opcode, static_cast<void *>(&request));
+  }
 
-    uint32_t& bodylen;
+  uint32_t &bodylen;
 };
 
 TEST_P(GATValidatorTest, CorrectMessage) {
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
+  EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
 }
 
 TEST_P(GATValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+  request.message.header.request.magic = 0;
+  EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
 
 TEST_P(GATValidatorTest, InvalidExtlen) {
-    bodylen = htonl(15);
-    request.message.header.request.extlen = 5;
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+  bodylen = htonl(15);
+  request.message.header.request.extlen = 5;
+  EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
 
 TEST_P(GATValidatorTest, NoKey) {
-    request.message.header.request.keylen = 0;
-    bodylen = ntohl(4);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+  request.message.header.request.keylen = 0;
+  bodylen = ntohl(4);
+  EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
 
 TEST_P(GATValidatorTest, InvalidDatatype) {
-    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+  request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+  EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
 
 TEST_P(GATValidatorTest, InvalidCas) {
-    request.message.header.request.cas = 1;
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+  request.message.header.request.cas = 1;
+  EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
 
-INSTANTIATE_TEST_CASE_P(GATOpcodes,
-                        GATValidatorTest,
-                        ::testing::Values(GATOpcodes::GAT,
-                                          GATOpcodes::GATQ,
+INSTANTIATE_TEST_CASE_P(GATOpcodes, GATValidatorTest,
+                        ::testing::Values(GATOpcodes::GAT, GATOpcodes::GATQ,
                                           GATOpcodes::TOUCH),
                         ::testing::PrintToStringParamName());
 } // namespace test
