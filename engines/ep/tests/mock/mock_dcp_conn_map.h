@@ -36,8 +36,8 @@ public:
         return pendingNotifications;
     }
 
-    void initialize(conn_notifier_type ntype) {
-        connNotifier_ = new ConnNotifier(ntype, *this);
+    void initialize() {
+        connNotifier_ = new ConnNotifier(*this);
         // We do not create a ConnNotifierCallback task
         // We do not create a ConnManager task
         // The ConnNotifier is deleted in the DcpConnMap

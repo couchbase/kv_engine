@@ -69,6 +69,6 @@ void SynchronousEPEngine::setDcpConnMap(
     dcpConnMap_ = std::move(dcpConnMap);
 }
 
-void SynchronousEPEngine::initializeConnmaps() {
-    dcpConnMap_->initialize(DCP_CONN_NOTIFIER);
+void SynchronousEPEngine::initializeConnmap() {
+    dcpConnMap_->initialize();
 }

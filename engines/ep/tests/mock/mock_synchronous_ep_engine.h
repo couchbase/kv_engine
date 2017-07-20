@@ -51,10 +51,10 @@ public:
     }
 
     /*
-     * Initialize the connmap objects, which creates tasks
+     * Initialize the connmap object, which creates tasks
      * so must be done after executorpool is created
      */
-    void initializeConnmaps();
+    void initializeConnmap();
 
     std::unique_ptr<KVBucket> public_makeBucket(Configuration& config) {
         return makeBucket(config);
