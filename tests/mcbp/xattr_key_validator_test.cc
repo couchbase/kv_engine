@@ -14,91 +14,92 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include <cctype>
 #include <gtest/gtest.h>
-#include <locale>
 #include <xattr/key_validator.h>
+#include <cctype>
+#include <locale>
 
 #include "daemon/subdocument_validators.h"
 #include <platform/sized_buffer.h>
 
 static bool is_valid_xattr_key(cb::const_char_buffer path) {
-  return is_valid_xattr_key(
-      {reinterpret_cast<const uint8_t *>(path.buf), path.len});
+    return is_valid_xattr_key(
+            {reinterpret_cast<const uint8_t*>(path.buf), path.len});
 }
 
 /**
  * Ensure that we don't accept empty keys
  */
 TEST(XattrKeyValidator, Empty) {
-  EXPECT_FALSE(is_valid_xattr_key({(uint8_t *)nullptr, 0}));
-  EXPECT_FALSE(is_valid_xattr_key({".", 1}));
+    EXPECT_FALSE(is_valid_xattr_key({(uint8_t*)nullptr, 0}));
+    EXPECT_FALSE(is_valid_xattr_key({".", 1}));
 }
 
 /**
  * Ensure that we accept keys without a dot (the path is empty)
  */
 TEST(XattrKeyValidator, FullXattr) {
-  std::string key = "mydata";
-  EXPECT_TRUE(is_valid_xattr_key({key.data(), key.size()}));
+    std::string key = "mydata";
+    EXPECT_TRUE(is_valid_xattr_key({key.data(), key.size()}));
 }
 
 /**
  * Ensure that we enforce the max limit
  */
 TEST(XattrKeyValidator, KeyLengthWithoutPath) {
-  std::string key = "The Three Strikes and You're Out";
-  for (auto ii = key.length(); ii > 0; --ii) {
-    if (ii >= SUBDOC_MAX_XATTR_LENGTH) {
-      EXPECT_FALSE(is_valid_xattr_key({key.data(), ii}));
-    } else {
-      EXPECT_TRUE(is_valid_xattr_key({key.data(), ii}));
+    std::string key = "The Three Strikes and You're Out";
+    for (auto ii = key.length(); ii > 0; --ii) {
+        if (ii >= SUBDOC_MAX_XATTR_LENGTH) {
+            EXPECT_FALSE(is_valid_xattr_key({key.data(), ii}));
+        } else {
+            EXPECT_TRUE(is_valid_xattr_key({key.data(), ii}));
+        }
     }
-  }
 }
 
 /**
  * Ensure that we enforce the max limit with a path element..
  */
 TEST(XattrKeyValidator, KeyLengthWithPath) {
-  std::string key = "The Three Strikes and You're Out";
-  for (auto ii = key.length(); ii > 1; --ii) {
-    // Just make a copy and inject a dot ;)
-    std::string copy = key;
-    const_cast<char *>(copy.data())[ii - 1] = '.';
-    if (ii > SUBDOC_MAX_XATTR_LENGTH) {
-      EXPECT_FALSE(is_valid_xattr_key({copy.data(), copy.size()}))
-          << "[" << copy << "]";
-    } else {
-      EXPECT_TRUE(is_valid_xattr_key({copy.data(), copy.size()}))
-          << "[" << copy << "]";
+    std::string key = "The Three Strikes and You're Out";
+    for (auto ii = key.length(); ii > 1; --ii) {
+        // Just make a copy and inject a dot ;)
+        std::string copy = key;
+        const_cast<char*>(copy.data())[ii - 1] = '.';
+        if (ii > SUBDOC_MAX_XATTR_LENGTH) {
+            EXPECT_FALSE(is_valid_xattr_key({copy.data(), copy.size()}))
+                    << "[" << copy << "]";
+        } else {
+            EXPECT_TRUE(is_valid_xattr_key({copy.data(), copy.size()}))
+                    << "[" << copy << "]";
+        }
     }
-  }
 }
 
 /**
  * Ensure that we accept keys with a path
  */
 TEST(XattrKeyValidator, PartialXattr) {
-  std::string key = "mydata.foobar";
-  EXPECT_TRUE(is_valid_xattr_key({key.data(), key.size()}));
+    std::string key = "mydata.foobar";
+    EXPECT_TRUE(is_valid_xattr_key({key.data(), key.size()}));
 }
 
 TEST(XattrKeyValidator, FullWithArrayIndex) {
-  std::string key = "mydata[0]";
-  EXPECT_TRUE(is_valid_xattr_key({key.data(), key.size()}));
+    std::string key = "mydata[0]";
+    EXPECT_TRUE(is_valid_xattr_key({key.data(), key.size()}));
 }
+
 
 /**
  * X-Keys starting with a leading underscore ('_', 0x5F) are considered system
  * Such keys must be at least two characters
  */
 TEST(XattrKeyValidator, SystemXattr) {
-  std::string key = "_sync";
-  EXPECT_TRUE(is_valid_xattr_key({key.data(), key.size()}));
+    std::string key = "_sync";
+    EXPECT_TRUE(is_valid_xattr_key({key.data(), key.size()}));
 
-  key = "_";
-  EXPECT_FALSE(is_valid_xattr_key({key.data(), key.size()}));
+    key = "_";
+    EXPECT_FALSE(is_valid_xattr_key({key.data(), key.size()}));
 }
 
 /**
@@ -106,11 +107,11 @@ TEST(XattrKeyValidator, SystemXattr) {
  * virtual xattrs
  */
 TEST(XattrKeyValidator, VirtualXattr) {
-  std::string key = "$document";
-  EXPECT_TRUE(is_valid_xattr_key({key.data(), key.size()}));
+    std::string key = "$document";
+    EXPECT_TRUE(is_valid_xattr_key({key.data(), key.size()}));
 
-  key = "$";
-  EXPECT_FALSE(is_valid_xattr_key({key.data(), key.size()}));
+    key = "$";
+    EXPECT_FALSE(is_valid_xattr_key({key.data(), key.size()}));
 }
 
 /**
@@ -119,17 +120,17 @@ TEST(XattrKeyValidator, VirtualXattr) {
  * lets just validate with all 7 bit ASCII characters.
  */
 TEST(XattrKeyValidator, AllCharachtersInXattr) {
-  std::vector<char> key(2);
-  key[0] = 'a';
+    std::vector<char> key(2);
+    key[0] = 'a';
 
-  // 0 is not allowed according to (should be using the two byte encoding)
-  key[1] = 0;
-  EXPECT_FALSE(is_valid_xattr_key({key.data(), key.size()}));
+    // 0 is not allowed according to (should be using the two byte encoding)
+    key[1] = 0;
+    EXPECT_FALSE(is_valid_xattr_key({key.data(), key.size()}));
 
-  for (int ii = 1; ii < 0x80; ++ii) {
-    key[1] = char(ii);
-    EXPECT_TRUE(is_valid_xattr_key({key.data(), key.size()})) << ii;
-  }
+    for (int ii = 1; ii < 0x80; ++ii) {
+        key[1] = char(ii);
+        EXPECT_TRUE(is_valid_xattr_key({key.data(), key.size()})) << ii;
+    }
 }
 
 /**
@@ -139,19 +140,19 @@ TEST(XattrKeyValidator, AllCharachtersInXattr) {
  *    * iscntrl()
  */
 TEST(XattrKeyValidator, RestrictedXattrPrefix) {
-  std::locale loc("C");
-  std::vector<char> key(2);
-  key[1] = 'b';
+    std::locale loc("C");
+    std::vector<char> key(2);
+    key[1] = 'b';
 
-  for (int ii = 0; ii < 0x80; ++ii) { // values over 0x80 == multibyte UTF8
-    key[0] = char(ii);
-    if ((std::ispunct(key[0], loc) && (key[0] != '_' && key[0] != '$')) ||
-        std::iscntrl(key[0], loc)) {
-      EXPECT_FALSE(is_valid_xattr_key({key.data(), key.size()}));
-    } else {
-      EXPECT_TRUE(is_valid_xattr_key({key.data(), key.size()}));
+    for (int ii = 0; ii < 0x80; ++ii) { // values over 0x80 == multibyte UTF8
+        key[0] = char(ii);
+        if ((std::ispunct(key[0], loc) && (key[0] != '_' && key[0] != '$')) ||
+            std::iscntrl(key[0], loc)) {
+            EXPECT_FALSE(is_valid_xattr_key({key.data(), key.size()}));
+        } else {
+            EXPECT_TRUE(is_valid_xattr_key({key.data(), key.size()}));
+        }
     }
-  }
 }
 
 /**
@@ -159,25 +160,31 @@ TEST(XattrKeyValidator, RestrictedXattrPrefix) {
  */
 
 static void testInvalidUtf(uint8_t magic, int nbytes) {
-  std::vector<uint8_t> data;
-  data.push_back(magic);
+    std::vector<uint8_t> data;
+    data.push_back(magic);
 
-  for (int ii = 0; ii < nbytes; ++ii) {
-    EXPECT_FALSE(is_valid_xattr_key({data.data(), data.size()}));
-    data.push_back(0xbf);
-  }
-  EXPECT_TRUE(is_valid_xattr_key({data.data(), data.size()}));
+    for (int ii = 0; ii < nbytes; ++ii) {
+        EXPECT_FALSE(is_valid_xattr_key({data.data(), data.size()}));
+        data.push_back(0xbf);
+    }
+    EXPECT_TRUE(is_valid_xattr_key({data.data(), data.size()}));
 
-  for (int ii = 1; ii < nbytes + 1; ++ii) {
-    data[ii] = 0xff;
-    EXPECT_FALSE(is_valid_xattr_key({data.data(), data.size()})) << ii;
-    data[ii] = 0xbf;
-    EXPECT_TRUE(is_valid_xattr_key({data.data(), data.size()})) << ii;
-  }
+    for (int ii = 1; ii < nbytes + 1; ++ii) {
+        data[ii] = 0xff;
+        EXPECT_FALSE(is_valid_xattr_key({data.data(), data.size()})) << ii;
+        data[ii] = 0xbf;
+        EXPECT_TRUE(is_valid_xattr_key({data.data(), data.size()})) << ii;
+    }
 }
 
-TEST(XattrKeyValidator, InvalidUTF8_2Bytes) { testInvalidUtf(0xDF, 1); }
+TEST(XattrKeyValidator, InvalidUTF8_2Bytes) {
+    testInvalidUtf(0xDF, 1);
+}
 
-TEST(XattrKeyValidator, InvalidUTF8_3Bytes) { testInvalidUtf(0xEF, 2); }
+TEST(XattrKeyValidator, InvalidUTF8_3Bytes) {
+    testInvalidUtf(0xEF, 2);
+}
 
-TEST(XattrKeyValidator, InvalidUTF8_4Bytes) { testInvalidUtf(0xF7, 3); }
+TEST(XattrKeyValidator, InvalidUTF8_4Bytes) {
+    testInvalidUtf(0xF7, 3);
+}

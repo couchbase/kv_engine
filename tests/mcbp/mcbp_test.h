@@ -32,22 +32,21 @@ namespace test {
 
 class ValidatorTest : public ::testing::Test {
 public:
-  ValidatorTest();
-  ~ValidatorTest();
+    ValidatorTest();
+    ~ValidatorTest();
 
-  virtual void SetUp() override;
+    virtual void SetUp() override;
 
 protected:
-  protocol_binary_response_status validate(protocol_binary_command opcode,
-                                           void *request);
+    protocol_binary_response_status validate(protocol_binary_command opcode, void* request);
 
-  McbpValidatorChains validatorChains;
-  event_base *ev;
-  McbpConnection connection;
+    McbpValidatorChains validatorChains;
+    event_base* ev;
+    McbpConnection connection;
 
-  // backing store which may be used for the request
-  protocol_binary_request_no_extras &request;
-  uint8_t blob[4096];
+    // backing store which may be used for the request
+    protocol_binary_request_no_extras &request;
+    uint8_t blob[4096];
 };
 
 } // namespace test
