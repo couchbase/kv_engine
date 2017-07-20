@@ -689,21 +689,6 @@ another colon.  For example, if your client is named, =slave1=, the
 | queue_itemondisk            | Number of items remaining on disk        | P  |
 | total_backlog_size          | Num of remaining items for replication   | P  |
 | total_noops                 | Number of NOOP messages sent             | P  |
-| num_checkpoint_end          | Number of chkpoint end operations        |  C |
-| num_checkpoint_end_failed   | Number of chkpoint end operations failed |  C |
-| num_checkpoint_start        | Number of chkpoint end operations        |  C |
-| num_checkpoint_start_failed | Number of chkpoint end operations failed |  C |
-| num_delete                  | Number of delete operations              |  C |
-| num_delete_failed           | Number of failed delete operations       |  C |
-| num_flush                   | Number of flush operations               |  C |
-| num_flush_failed            | Number of failed flush operations        |  C |
-| num_mutation                | Number of mutation operations            |  C |
-| num_mutation_failed         | Number of failed mutation operations     |  C |
-| num_opaque                  | Number of opaque operation               |  C |
-| num_opaque_failed           | Number of failed opaque operations       |  C |
-| num_vbucket_set             | Number of vbucket set operations         |  C |
-| num_vbucket_set_failed      | Number of failed vbucket set operations  |  C |
-| num_unknown                 | Number of unknown operations             |  C |
 
 ** Tap Aggregated Stats
 

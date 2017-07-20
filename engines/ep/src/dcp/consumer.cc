@@ -114,7 +114,7 @@ private:
 
 DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,
                          const std::string &name)
-    : Consumer(engine, cookie, name),
+    : ConnHandler(engine, cookie, name),
       lastMessageTime(ep_current_time()),
       opaqueCounter(0),
       processorTaskId(0),

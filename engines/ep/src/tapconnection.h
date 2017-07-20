@@ -497,39 +497,6 @@ private:
     EventuallyPersistentEngine &engine;
 };
 
-/**
- */
-class Consumer : public ConnHandler {
-private:
-    std::atomic<size_t> numDelete;
-    std::atomic<size_t> numDeleteFailed;
-    std::atomic<size_t> numFlush;
-    std::atomic<size_t> numFlushFailed;
-    std::atomic<size_t> numMutation;
-    std::atomic<size_t> numMutationFailed;
-    std::atomic<size_t> numOpaque;
-    std::atomic<size_t> numOpaqueFailed;
-    std::atomic<size_t> numVbucketSet;
-    std::atomic<size_t> numVbucketSetFailed;
-    std::atomic<size_t> numCheckpointStart;
-    std::atomic<size_t> numCheckpointStartFailed;
-    std::atomic<size_t> numCheckpointEnd;
-    std::atomic<size_t> numCheckpointEndFailed;
-    std::atomic<size_t> numUnknown;
-
-public:
-    Consumer(EventuallyPersistentEngine &theEngine, const void* cookie,
-             const std::string& name);
-    virtual ~Consumer() {
-    }
-    virtual void processedEvent(uint16_t event, ENGINE_ERROR_CODE ret);
-    virtual void addStats(ADD_STAT add_stat, const void *c);
-    virtual const char *getType() const { return "consumer"; };
-    virtual void checkVBOpenCheckpoint(uint16_t);
-    bool isBackfillPhase(uint16_t vbucket);
-    ENGINE_ERROR_CODE setVBucketState(uint32_t opaque, uint16_t vbucket,
-                                      vbucket_state_t state);
-};
 
 class Notifiable {
 public:
