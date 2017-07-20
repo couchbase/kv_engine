@@ -64,7 +64,9 @@ public:
      *
      * @return true if stream is in dead state; else false
      */
-    virtual bool isStreamDead() = 0;
+    bool isStreamDead() const {
+        return !stream->isActive();
+    }
 
     /**
      * Cancels the backfill

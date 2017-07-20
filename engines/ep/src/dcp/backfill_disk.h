@@ -72,10 +72,6 @@ public:
 
     backfill_status_t run() override;
 
-    bool isStreamDead() override {
-        return !stream->isActive();
-    }
-
     void cancel() override;
 
 private:

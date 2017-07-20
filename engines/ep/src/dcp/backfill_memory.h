@@ -40,10 +40,6 @@ public:
 
     backfill_status_t run() override;
 
-    bool isStreamDead() override {
-        return !stream->isActive();
-    }
-
     void cancel() override {
     }
 
@@ -70,10 +66,6 @@ public:
                               uint64_t endSeqno);
 
     backfill_status_t run() override;
-
-    bool isStreamDead() override {
-        return !stream->isActive();
-    }
 
     void cancel() override;
 
