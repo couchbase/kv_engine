@@ -65,6 +65,7 @@ struct thread_stats {
         rbufs_existing = 0;
         wbufs_allocated = 0;
         wbufs_loaned = 0;
+        wbufs_existing = 0;
 
         iovused_high_watermark = 0;
         msgused_high_watermark = 0;
@@ -106,6 +107,7 @@ struct thread_stats {
         rbufs_existing += other.rbufs_existing;
         wbufs_allocated += other.wbufs_allocated;
         wbufs_loaned += other.wbufs_loaned;
+        wbufs_existing += other.wbufs_existing;
 
         iovused_high_watermark.setIfGreater(other.iovused_high_watermark);
         msgused_high_watermark.setIfGreater(other.msgused_high_watermark);
@@ -174,6 +176,9 @@ struct thread_stats {
     Couchbase::RelaxedAtomic<uint64_t> wbufs_allocated;
     /* # of write buffers which could be loaned (and hence didn't need to be allocated). */
     Couchbase::RelaxedAtomic<uint64_t> wbufs_loaned;
+    /* # of write buffers which already existed (with partial data) on the connection
+       (and hence didn't need to be allocated). */
+    Couchbase::RelaxedAtomic<uint64_t> wbufs_existing;
 
     // Right now we're protecting both the "high watermark" variables
     // between the same mutex

@@ -26,6 +26,8 @@
 #include "runtime.h"
 #include "mcaudit.h"
 
+#include <platform/strerror.h>
+
 void McbpStateMachine::setCurrentTask(McbpConnection& connection, TaskFunction task) {
     // Moving to the same state is legal
     if (task == currentTask) {
@@ -64,9 +66,7 @@ void McbpStateMachine::setCurrentTask(McbpConnection& connection, TaskFunction t
             mcbp_collect_timings(&connection);
             connection.setStart(0);
         }
-        MEMCACHED_PROCESS_COMMAND_END(connection.getId(),
-                                      connection.write.buf,
-                                      connection.write.bytes);
+        MEMCACHED_PROCESS_COMMAND_END(connection.getId(), nullptr, 0);
     }
     currentTask = task;
 }
@@ -246,6 +246,12 @@ bool conn_new_cmd(McbpConnection *c) {
     }
 
     c->setStart(0);
+
+    if (!c->write->empty()) {
+        LOG_WARNING(c,
+                    "%u: Expected write buffer to be empty.. It's not! (%"
+                    PRIu64 ")", c->getId(), c->write->rsize());
+    }
 
     /*
      * In order to ensure that all clients will be served each
