@@ -78,24 +78,21 @@ ENGINE_ERROR_CODE dcp_message_system_event(const void* cookie,
     protocol_binary_request_dcp_system_event packet(
             opaque, vbucket, key.size(), eventData.size(), event, bySeqno);
 
+    // check if we've got enough space in our current buffer to fit
+    // this message.
+    if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
+        return ENGINE_E2BIG;
+    }
 
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    c->write->produce([&c, &packet, &key, &eventData, &ret](
-        void* ptr, size_t size) -> size_t {
-        if (size < sizeof(packet.bytes)) {
-            ret = ENGINE_E2BIG;
-            return 0;
-        }
+    // Add the header
+    c->addIov(c->write.curr, sizeof(packet.bytes));
+    memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
+    c->write.curr += sizeof(packet.bytes);
+    c->write.bytes += sizeof(packet.bytes);
 
-        std::copy(packet.bytes,
-                  packet.bytes + sizeof(packet.bytes),
-                  static_cast<uint8_t*>(ptr));
+    // Add the key and body
+    c->addIov(key.data(), key.size());
+    c->addIov(eventData.data(), eventData.size());
 
-        c->addIov(ptr, sizeof(packet.bytes));
-        c->addIov(key.data(), key.size());
-        c->addIov(eventData.data(), eventData.size());
-        return sizeof(packet.bytes);
-    });
-
-    return ret;
+    return ENGINE_SUCCESS;
 }

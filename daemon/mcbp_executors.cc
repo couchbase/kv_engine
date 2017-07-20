@@ -283,26 +283,6 @@ static void process_bin_noop_response(McbpConnection* c) {
  **                             DCP MESSAGE PRODUCERS                         **
  ******************************************************************************/
 
-static ENGINE_ERROR_CODE add_packet_to_pipe(McbpConnection* c,
-                                            cb::const_byte_buffer packet) {
-
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    c->write->produce([c, packet, &ret](void* ptr, size_t size) -> size_t {
-        if (size < packet.size()) {
-            ret = ENGINE_E2BIG;
-            return 0;
-        }
-
-        std::copy(packet.begin(),
-                  packet.end(),
-                  static_cast<uint8_t*>(ptr));
-        c->addIov(ptr, packet.size());
-        return packet.size();
-    });
-
-    return ret;
-}
-
 static ENGINE_ERROR_CODE dcp_message_get_failover_log(const void* void_cookie,
                                                       uint32_t opaque,
                                                       uint16_t vbucket) {
@@ -310,13 +290,24 @@ static ENGINE_ERROR_CODE dcp_message_get_failover_log(const void* void_cookie,
 
     c->setCmd(PROTOCOL_BINARY_CMD_DCP_GET_FAILOVER_LOG);
 
-    protocol_binary_request_dcp_get_failover_log packet = {};
+    protocol_binary_request_dcp_get_failover_log packet;
+    if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
+        /* We don't have room in the buffer */
+        return ENGINE_E2BIG;
+    }
+
+    memset(packet.bytes, 0, sizeof(packet.bytes));
     packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
     packet.message.header.request.opcode = (uint8_t)PROTOCOL_BINARY_CMD_DCP_GET_FAILOVER_LOG;
     packet.message.header.request.opaque = opaque;
     packet.message.header.request.vbucket = htons(vbucket);
 
-    return add_packet_to_pipe(c, {packet.bytes, sizeof(packet.bytes)});
+    memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
+    c->addIov(c->write.curr, sizeof(packet.bytes));
+    c->write.curr += sizeof(packet.bytes);
+    c->write.bytes += sizeof(packet.bytes);
+
+    return ENGINE_SUCCESS;
 }
 
 static ENGINE_ERROR_CODE dcp_message_stream_req(const void* void_cookie,
@@ -331,13 +322,20 @@ static ENGINE_ERROR_CODE dcp_message_stream_req(const void* void_cookie,
     auto* c = cookie2mcbp(void_cookie, __func__);
     c->setCmd(PROTOCOL_BINARY_CMD_DCP_STREAM_REQ);
 
-    protocol_binary_request_dcp_stream_req packet = {};
+    protocol_binary_request_dcp_stream_req packet;
+    if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
+        /* We don't have room in the buffer */
+        return ENGINE_E2BIG;
+    }
+
+    memset(packet.bytes, 0, sizeof(packet.bytes));
     packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
     packet.message.header.request.opcode = (uint8_t)PROTOCOL_BINARY_CMD_DCP_STREAM_REQ;
     packet.message.header.request.extlen = 48;
     packet.message.header.request.bodylen = htonl(48);
     packet.message.header.request.opaque = opaque;
     packet.message.header.request.vbucket = htons(vbucket);
+
     packet.message.body.flags = ntohl(flags);
     packet.message.body.start_seqno = ntohll(start_seqno);
     packet.message.body.end_seqno = ntohll(end_seqno);
@@ -345,7 +343,12 @@ static ENGINE_ERROR_CODE dcp_message_stream_req(const void* void_cookie,
     packet.message.body.snap_start_seqno = ntohll(snap_start_seqno);
     packet.message.body.snap_end_seqno = ntohll(snap_end_seqno);
 
-    return add_packet_to_pipe(c, {packet.bytes, sizeof(packet.bytes)});
+    memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
+    c->addIov(c->write.curr, sizeof(packet.bytes));
+    c->write.curr += sizeof(packet.bytes);
+    c->write.bytes += sizeof(packet.bytes);
+
+    return ENGINE_SUCCESS;
 }
 
 static ENGINE_ERROR_CODE dcp_message_add_stream_response(const void* void_cookie,
@@ -355,7 +358,13 @@ static ENGINE_ERROR_CODE dcp_message_add_stream_response(const void* void_cookie
     auto* c = cookie2mcbp(void_cookie, __func__);
 
     c->setCmd(PROTOCOL_BINARY_CMD_DCP_ADD_STREAM);
-    protocol_binary_response_dcp_add_stream packet = {};
+    protocol_binary_response_dcp_add_stream packet;
+    if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
+        /* We don't have room in the buffer */
+        return ENGINE_E2BIG;
+    }
+
+    memset(packet.bytes, 0, sizeof(packet.bytes));
     packet.message.header.response.magic = (uint8_t)PROTOCOL_BINARY_RES;
     packet.message.header.response.opcode = (uint8_t)PROTOCOL_BINARY_CMD_DCP_ADD_STREAM;
     packet.message.header.response.extlen = 4;
@@ -364,7 +373,12 @@ static ENGINE_ERROR_CODE dcp_message_add_stream_response(const void* void_cookie
     packet.message.header.response.opaque = opaque;
     packet.message.body.opaque = ntohl(dialogopaque);
 
-    return add_packet_to_pipe(c, {packet.bytes, sizeof(packet.bytes)});
+    memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
+    c->addIov(c->write.curr, sizeof(packet.bytes));
+    c->write.curr += sizeof(packet.bytes);
+    c->write.bytes += sizeof(packet.bytes);
+
+    return ENGINE_SUCCESS;
 }
 
 static ENGINE_ERROR_CODE dcp_message_marker_response(const void* void_cookie,
@@ -373,7 +387,13 @@ static ENGINE_ERROR_CODE dcp_message_marker_response(const void* void_cookie,
     auto* c = cookie2mcbp(void_cookie, __func__);
 
     c->setCmd(PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER);
-    protocol_binary_response_dcp_snapshot_marker packet = {};
+    protocol_binary_response_dcp_snapshot_marker packet;
+    if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
+        /* We don't have room in the buffer */
+        return ENGINE_E2BIG;
+    }
+
+    memset(packet.bytes, 0, sizeof(packet.bytes));
     packet.message.header.response.magic = (uint8_t)PROTOCOL_BINARY_RES;
     packet.message.header.response.opcode = (uint8_t)PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER;
     packet.message.header.response.extlen = 0;
@@ -381,7 +401,12 @@ static ENGINE_ERROR_CODE dcp_message_marker_response(const void* void_cookie,
     packet.message.header.response.bodylen = 0;
     packet.message.header.response.opaque = opaque;
 
-    return add_packet_to_pipe(c, {packet.bytes, sizeof(packet.bytes)});
+    memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
+    c->addIov(c->write.curr, sizeof(packet.bytes));
+    c->write.curr += sizeof(packet.bytes);
+    c->write.bytes += sizeof(packet.bytes);
+
+    return ENGINE_SUCCESS;
 }
 
 static ENGINE_ERROR_CODE dcp_message_set_vbucket_state_response(
@@ -392,7 +417,13 @@ static ENGINE_ERROR_CODE dcp_message_set_vbucket_state_response(
     auto* c = cookie2mcbp(void_cookie, __func__);
 
     c->setCmd(PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE);
-    protocol_binary_response_dcp_set_vbucket_state packet = {};
+    protocol_binary_response_dcp_set_vbucket_state packet;
+    if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
+        /* We don't have room in the buffer */
+        return ENGINE_E2BIG;
+    }
+
+    memset(packet.bytes, 0, sizeof(packet.bytes));
     packet.message.header.response.magic = (uint8_t)PROTOCOL_BINARY_RES;
     packet.message.header.response.opcode = (uint8_t)PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE;
     packet.message.header.response.extlen = 0;
@@ -400,7 +431,12 @@ static ENGINE_ERROR_CODE dcp_message_set_vbucket_state_response(
     packet.message.header.response.bodylen = 0;
     packet.message.header.response.opaque = opaque;
 
-    return add_packet_to_pipe(c, {packet.bytes, sizeof(packet.bytes)});
+    memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
+    c->addIov(c->write.curr, sizeof(packet.bytes));
+    c->write.curr += sizeof(packet.bytes);
+    c->write.bytes += sizeof(packet.bytes);
+
+    return ENGINE_SUCCESS;
 }
 
 static ENGINE_ERROR_CODE dcp_message_stream_end(const void* void_cookie,
@@ -410,8 +446,13 @@ static ENGINE_ERROR_CODE dcp_message_stream_end(const void* void_cookie,
     auto* c = cookie2mcbp(void_cookie, __func__);
 
     c->setCmd(PROTOCOL_BINARY_CMD_DCP_STREAM_END);
+    protocol_binary_request_dcp_stream_end packet;
+    if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
+        /* We don't have room in the buffer */
+        return ENGINE_E2BIG;
+    }
 
-    protocol_binary_request_dcp_stream_end packet = {};
+    memset(packet.bytes, 0, sizeof(packet.bytes));
     packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
     packet.message.header.request.opcode = (uint8_t)PROTOCOL_BINARY_CMD_DCP_STREAM_END;
     packet.message.header.request.extlen = 4;
@@ -420,7 +461,12 @@ static ENGINE_ERROR_CODE dcp_message_stream_end(const void* void_cookie,
     packet.message.header.request.vbucket = htons(vbucket);
     packet.message.body.flags = ntohl(flags);
 
-    return add_packet_to_pipe(c, {packet.bytes, sizeof(packet.bytes)});
+    memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
+    c->addIov(c->write.curr, sizeof(packet.bytes));
+    c->write.curr += sizeof(packet.bytes);
+    c->write.bytes += sizeof(packet.bytes);
+
+    return ENGINE_SUCCESS;
 }
 
 static ENGINE_ERROR_CODE dcp_message_marker(const void* void_cookie,
@@ -432,7 +478,13 @@ static ENGINE_ERROR_CODE dcp_message_marker(const void* void_cookie,
     auto* c = cookie2mcbp(void_cookie, __func__);
 
     c->setCmd(PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER);
-    protocol_binary_request_dcp_snapshot_marker packet = {};
+    protocol_binary_request_dcp_snapshot_marker packet;
+    if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
+        /* We don't have room in the buffer */
+        return ENGINE_E2BIG;
+    }
+
+    memset(packet.bytes, 0, sizeof(packet.bytes));
     packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
     packet.message.header.request.opcode = (uint8_t)PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER;
     packet.message.header.request.opaque = opaque;
@@ -443,7 +495,12 @@ static ENGINE_ERROR_CODE dcp_message_marker(const void* void_cookie,
     packet.message.body.end_seqno = htonll(end_seqno);
     packet.message.body.flags = htonl(flags);
 
-    return add_packet_to_pipe(c, {packet.bytes, sizeof(packet.bytes)});
+    memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
+    c->addIov(c->write.curr, sizeof(packet.bytes));
+    c->write.curr += sizeof(packet.bytes);
+    c->write.bytes += sizeof(packet.bytes);
+
+    return ENGINE_SUCCESS;
 }
 
 static ENGINE_ERROR_CODE dcp_message_flush(const void* void_cookie,
@@ -451,13 +508,24 @@ static ENGINE_ERROR_CODE dcp_message_flush(const void* void_cookie,
                                            uint16_t vbucket) {
     auto* c = cookie2mcbp(void_cookie, __func__);
     c->setCmd(PROTOCOL_BINARY_CMD_DCP_FLUSH);
-    protocol_binary_request_dcp_flush packet = {};
+    protocol_binary_request_dcp_flush packet;
+    if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
+        /* We don't have room in the buffer */
+        return ENGINE_E2BIG;
+    }
+
+    memset(packet.bytes, 0, sizeof(packet.bytes));
     packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
     packet.message.header.request.opcode = (uint8_t)PROTOCOL_BINARY_CMD_DCP_FLUSH;
     packet.message.header.request.opaque = opaque;
     packet.message.header.request.vbucket = htons(vbucket);
 
-    return add_packet_to_pipe(c, {packet.bytes, sizeof(packet.bytes)});
+    memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
+    c->addIov(c->write.curr, sizeof(packet.bytes));
+    c->write.curr += sizeof(packet.bytes);
+    c->write.bytes += sizeof(packet.bytes);
+
+    return ENGINE_SUCCESS;
 }
 
 static ENGINE_ERROR_CODE dcp_message_set_vbucket_state(const void* void_cookie,
@@ -466,12 +534,17 @@ static ENGINE_ERROR_CODE dcp_message_set_vbucket_state(const void* void_cookie,
                                                        vbucket_state_t state) {
     auto* c = cookie2mcbp(void_cookie, __func__);
     c->setCmd(PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE);
-    protocol_binary_request_dcp_set_vbucket_state packet = {};
+    protocol_binary_request_dcp_set_vbucket_state packet;
+    if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
+        /* We don't have room in the buffer */
+        return ENGINE_E2BIG;
+    }
 
     if (!is_valid_vbucket_state_t(state)) {
         return ENGINE_EINVAL;
     }
 
+    memset(packet.bytes, 0, sizeof(packet.bytes));
     packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
     packet.message.header.request.opcode = (uint8_t)PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE;
     packet.message.header.request.extlen = 1;
@@ -480,19 +553,35 @@ static ENGINE_ERROR_CODE dcp_message_set_vbucket_state(const void* void_cookie,
     packet.message.header.request.vbucket = htons(vbucket);
     packet.message.body.state = uint8_t(state);
 
-    return add_packet_to_pipe(c, {packet.bytes, sizeof(packet.bytes)});
+    memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
+    c->addIov(c->write.curr, sizeof(packet.bytes));
+    c->write.curr += sizeof(packet.bytes);
+    c->write.bytes += sizeof(packet.bytes);
+
+    return ENGINE_SUCCESS;
 }
 
 static ENGINE_ERROR_CODE dcp_message_noop(const void* void_cookie,
                                           uint32_t opaque) {
     auto* c = cookie2mcbp(void_cookie, __func__);
     c->setCmd(PROTOCOL_BINARY_CMD_DCP_NOOP);
-    protocol_binary_request_dcp_noop packet = {};
+    protocol_binary_request_dcp_noop packet;
+    if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
+        /* We don't have room in the buffer */
+        return ENGINE_E2BIG;
+    }
+
+    memset(packet.bytes, 0, sizeof(packet.bytes));
     packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
     packet.message.header.request.opcode = (uint8_t)PROTOCOL_BINARY_CMD_DCP_NOOP;
     packet.message.header.request.opaque = opaque;
 
-    return add_packet_to_pipe(c, {packet.bytes, sizeof(packet.bytes)});
+    memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
+    c->addIov(c->write.curr, sizeof(packet.bytes));
+    c->write.curr += sizeof(packet.bytes);
+    c->write.bytes += sizeof(packet.bytes);
+
+    return ENGINE_SUCCESS;
 }
 
 static ENGINE_ERROR_CODE dcp_message_buffer_acknowledgement(const void* void_cookie,
@@ -501,7 +590,13 @@ static ENGINE_ERROR_CODE dcp_message_buffer_acknowledgement(const void* void_coo
                                                             uint32_t buffer_bytes) {
     auto* c = cookie2mcbp(void_cookie, __func__);
     c->setCmd(PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT);
-    protocol_binary_request_dcp_buffer_acknowledgement packet = {};
+    protocol_binary_request_dcp_buffer_acknowledgement packet;
+    if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
+        /* We don't have room in the buffer */
+        return ENGINE_E2BIG;
+    }
+
+    memset(packet.bytes, 0, sizeof(packet.bytes));
     packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
     packet.message.header.request.opcode = (uint8_t)PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT;
     packet.message.header.request.extlen = 4;
@@ -510,7 +605,12 @@ static ENGINE_ERROR_CODE dcp_message_buffer_acknowledgement(const void* void_coo
     packet.message.header.request.bodylen = ntohl(4);
     packet.message.body.buffer_bytes = ntohl(buffer_bytes);
 
-    return add_packet_to_pipe(c, {packet.bytes, sizeof(packet.bytes)});
+    memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
+    c->addIov(c->write.curr, sizeof(packet.bytes));
+    c->write.curr += sizeof(packet.bytes);
+    c->write.bytes += sizeof(packet.bytes);
+
+    return ENGINE_SUCCESS;
 }
 
 static ENGINE_ERROR_CODE dcp_message_control(const void* void_cookie,
@@ -521,38 +621,34 @@ static ENGINE_ERROR_CODE dcp_message_control(const void* void_cookie,
                                              uint32_t nvalue) {
     auto* c = cookie2mcbp(void_cookie, __func__);
     c->setCmd(PROTOCOL_BINARY_CMD_DCP_CONTROL);
-    protocol_binary_request_dcp_control packet = {};
+    protocol_binary_request_dcp_control packet;
+    if (c->write.bytes + sizeof(packet.bytes) + nkey + nvalue >=
+        c->write.size) {
+        /* We don't have room in the buffer */
+        return ENGINE_E2BIG;
+    }
+
+    memset(packet.bytes, 0, sizeof(packet.bytes));
     packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
     packet.message.header.request.opcode = (uint8_t)PROTOCOL_BINARY_CMD_DCP_CONTROL;
     packet.message.header.request.opaque = opaque;
     packet.message.header.request.keylen = ntohs(nkey);
     packet.message.header.request.bodylen = ntohl(nvalue + nkey);
 
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    c->write->produce([&c, &packet, &key, &nkey, &value, &nvalue, &ret](
-                              void* ptr, size_t size) -> size_t {
-        if (size < (sizeof(packet.bytes) + nkey + nvalue)) {
-            ret = ENGINE_E2BIG;
-            return 0;
-        }
+    c->addIov(c->write.curr, sizeof(packet.bytes) + nkey + nvalue);
+    memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
+    c->write.curr += sizeof(packet.bytes);
+    c->write.bytes += sizeof(packet.bytes);
 
-        std::copy(packet.bytes,
-                  packet.bytes + sizeof(packet.bytes),
-                  static_cast<uint8_t*>(ptr));
+    memcpy(c->write.curr, key, nkey);
+    c->write.curr += nkey;
+    c->write.bytes += nkey;
 
-        std::copy(static_cast<const uint8_t*>(key),
-                  static_cast<const uint8_t*>(key) + nkey,
-                  static_cast<uint8_t*>(ptr) + sizeof(packet.bytes));
+    memcpy(c->write.curr, value, nvalue);
+    c->write.curr += nvalue;
+    c->write.bytes += nvalue;
 
-        std::copy(static_cast<const uint8_t*>(value),
-                  static_cast<const uint8_t*>(value) + nvalue,
-                  static_cast<uint8_t*>(ptr) + sizeof(packet.bytes) + nkey);
-
-        c->addIov(ptr, sizeof(packet.bytes) + nkey + nvalue);
-        return sizeof(packet.bytes) + nkey + nvalue;
-    });
-
-    return ret;
+    return ENGINE_SUCCESS;
 }
 
 void ship_mcbp_dcp_log(McbpConnection* c) {
@@ -581,6 +677,8 @@ void ship_mcbp_dcp_log(McbpConnection* c) {
     c->setStart(gethrtime());
 
     c->addMsgHdr(true);
+    c->write.bytes = 0;
+    c->write.curr = c->write.buf;
     c->setEwouldblock(false);
     ret = c->getBucketEngine()->dcp.step(c->getBucketEngineAsV0(), c->getCookie(),
                                          &producers);

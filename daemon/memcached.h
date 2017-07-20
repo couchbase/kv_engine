@@ -9,11 +9,10 @@
  * The main memcached header holding commonly used data
  * structures and function prototypes.
  */
-#include <cbsasl/cbsasl.h>
 #include <event.h>
-#include <platform/pipe.h>
 #include <platform/platform.h>
 #include <subdoc/operations.h>
+#include <cbsasl/cbsasl.h>
 
 #include <memcached/openssl.h>
 
@@ -84,11 +83,8 @@ struct LIBEVENT_THREAD {
     int index;                  /* index of this thread in the threads array */
     ThreadType type;      /* Type of IO this thread processes */
 
-    /** Shared read buffer for all connections serviced by this thread. */
-    struct net_buf read;
-
-    /** Shared write buffer for all connections serviced by this thread. */
-    std::unique_ptr<cb::Pipe> write;
+    struct net_buf read; /** Shared read buffer for all connections serviced by this thread. */
+    struct net_buf write; /** Shared write buffer for all connections serviced by this thread. */
 
     subdoc_OPERATION* subdoc_op; /** Shared sub-document operation for all
                                      connections serviced by this thread. */
