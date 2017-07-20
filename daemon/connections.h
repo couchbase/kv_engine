@@ -136,12 +136,6 @@ void conn_cleanup_engine_allocations(McbpConnection * c);
  */
 int signal_idle_clients(LIBEVENT_THREAD *me, int bucket_idx, bool logging);
 
-/**
- * Assert that none of the connections is assciated with
- * the given bucket (debug function).
- */
-void assert_no_associations(int bucket_idx);
-
 #ifndef WIN32
 /**
  * Signal handler for SIGUSR1 to dump the connection states
