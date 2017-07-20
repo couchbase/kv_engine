@@ -89,14 +89,6 @@ int signal_idle_clients(LIBEVENT_THREAD *me, int bucket_idx, bool logging)
     return connected;
 }
 
-void assert_no_associations(int bucket_idx)
-{
-    std::lock_guard<std::mutex> lock(connections.mutex);
-    for (auto* c : connections.conns) {
-        cb_assert(c->getBucketIndex() != bucket_idx);
-    }
-}
-
 void destroy_connections(void)
 {
     std::lock_guard<std::mutex> lock(connections.mutex);
