@@ -33,7 +33,6 @@ class KVBucket;
 class MutationLog;
 class PauseResumeVBVisitor;
 class PersistenceCallback;
-class Producer;
 class VBucketMap;
 class VBucketVisitor;
 class Warmup;

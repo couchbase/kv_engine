@@ -301,17 +301,6 @@ void ConnHandler::setLastWalkTime() {
     lastWalkTime.store(ep_current_time());
 }
 
-void Producer::addStats(ADD_STAT add_stat, const void *c) {
-    ConnHandler::addStats(add_stat, c);
-
-    addStat("paused", isPaused(), add_stat, c);
-    if (isPaused()) {
-        addStat("paused_reason", getPausedReason(), add_stat, c);
-    }
-    if (reconnects > 0) {
-        addStat("reconnects", reconnects, add_stat, c);
-    }
-}
 
 /******************************* Consumer **************************************/
 Consumer::Consumer(EventuallyPersistentEngine &engine, const void* cookie,

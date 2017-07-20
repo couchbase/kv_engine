@@ -2967,7 +2967,7 @@ struct ConnStatBuilder {
         ++aggregator.totalConns;
         tc->addStats(add_stat, cookie);
 
-        Producer *tp = dynamic_cast<Producer*>(tc.get());
+        DcpProducer *tp = dynamic_cast<DcpProducer*>(tc.get());
         if (tp) {
             ++aggregator.totalProducers;
             tp->aggregateQueueStats(aggregator);
@@ -3012,7 +3012,7 @@ struct ConnAggStatBuilder {
         ConnCounter counter;
 
         ++counter.totalConns;
-        if (dynamic_cast<Producer*>(c.get())) {
+        if (dynamic_cast<DcpProducer*>(c.get())) {
             ++counter.totalProducers;
         }
 
@@ -3134,8 +3134,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doDcpStats(const void *cookie,
                     add_stat, cookie);
     add_casted_stat("ep_dcp_items_remaining", aggregator.conn_queueRemaining,
                     add_stat, cookie);
-    add_casted_stat("ep_dcp_queue_backfillremaining",
-                    aggregator.conn_queueBackfillRemaining, add_stat, cookie);
     add_casted_stat("ep_dcp_num_running_backfills",
                     dcpConnMap_->getNumActiveSnoozingBackfills(), add_stat, cookie);
     add_casted_stat("ep_dcp_max_running_backfills",

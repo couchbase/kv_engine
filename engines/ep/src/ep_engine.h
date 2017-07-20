@@ -34,7 +34,6 @@
 class StoredValue;
 class DcpConnMap;
 class DcpFlowControlManager;
-class Producer;
 class VBucketCountVisitor;
 
 extern "C" {

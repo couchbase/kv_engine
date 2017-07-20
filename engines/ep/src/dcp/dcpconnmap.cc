@@ -339,7 +339,7 @@ void DcpConnMap::manageConnections() {
     std::list<connection_t>::iterator it;
     for (it = toNotify.begin(); it != toNotify.end(); ++it) {
         Notifiable *tp =
-            static_cast<Notifiable*>(static_cast<Producer*>((*it).get()));
+            static_cast<Notifiable*>(static_cast<DcpProducer*>((*it).get()));
         if (tp && (*it)->isReserved()) {
             engine.notifyIOComplete((*it)->getCookie(), ENGINE_SUCCESS);
             tp->setNotifySent(true);
@@ -355,7 +355,7 @@ void DcpConnMap::manageConnections() {
 }
 
 void DcpConnMap::removeVBConnections(connection_t &conn) {
-    Producer *tp = dynamic_cast<Producer*>(conn.get());
+    DcpProducer *tp = dynamic_cast<DcpProducer*>(conn.get());
     if (!tp) {
         return;
     }
