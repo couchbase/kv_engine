@@ -511,58 +511,78 @@ McbpConnection::TransmitResult McbpConnection::transmit() {
     }
 }
 
+/**
+ * To protect us from someone flooding a connection with bogus data causing
+ * the connection to eat up all available memory, break out and start
+ * looking at the data I've got after a number of reallocs...
+ */
 McbpConnection::TryReadResult McbpConnection::tryReadNetwork() {
-    // When we get here we've either got an empty buffer, or we've got
-    // a buffer with less than a packet header filled in.
-    // Lets just pack the buffer (which means moving the data from the
-    // end to the beginning of the buffer) and try to fill the buffer
-    //
-    // Verify that assumption!!!
-    if (read->rsize() >= sizeof(cb::mcbp::Request)) {
-        // The above don't hold true ;)
-        throw std::logic_error("tryReadNetwork: Expected the input buffer to be empty or contain a partial header");
-    }
+    TryReadResult gotdata = TryReadResult::NoDataReceived;
+    int res;
+    int num_allocs = 0;
 
-    // Pack the bytes to make sure that we can read as much as possible!
-    read->pack();
-
-    McbpConnection* c = this;
-    auto res = read->produce([c](cb::byte_buffer buffer) -> ssize_t {
-        return c->recv(reinterpret_cast<char*>(buffer.data()),
-                       buffer.size());
-    });
-
-    if (res > 0) {
-        get_thread_stats(this)->bytes_read += res;
-        return TryReadResult::DataReceived;
-    }
-
-    if (res == 0) {
-        if (isPipeConnection()) {
-            return TryReadResult::NoDataReceived;
+    if (read.curr != read.buf) {
+        if (read.bytes != 0) { /* otherwise there's nothing to copy */
+            memmove(read.buf, read.curr, read.bytes);
         }
-        LOG_INFO(this,
-                 "%u Closing connection as the other side closed the connection %s",
-                 getId(), getDescription().c_str());
-        return TryReadResult::SocketClosed;
+        read.curr = read.buf;
     }
 
-    if (res == -1) {
-        auto error = GetLastNetworkError();
-
-        if (is_blocking(error)) {
-            return TryReadResult::NoDataReceived;
+    while (1) {
+        int avail;
+        if (read.bytes >= read.size) {
+            if (num_allocs == 4) {
+                return gotdata;
+            }
+            ++num_allocs;
+            char* new_rbuf = reinterpret_cast<char*>(cb_realloc(read.buf,
+                                                             read.size * 2));
+            if (!new_rbuf) {
+                LOG_WARNING(this, "Couldn't realloc input buffer");
+                read.bytes = 0; /* ignore what we read */
+                setState(conn_closing);
+                return TryReadResult::MemoryError;
+            }
+            read.curr = read.buf = new_rbuf;
+            read.size *= 2;
         }
 
-        std::string errormsg = cb_strerror();
-        LOG_WARNING(this, "%u Closing connection (%p) %s due to read error: %s",
-                    getId(), getCookie(), getDescription().c_str(), errormsg.c_str());
-        return TryReadResult::SocketError;
-    }
+        avail = read.size - read.bytes;
+        res = recv(read.buf + read.bytes, avail);
+        if (res > 0) {
+            get_thread_stats(this)->bytes_read += res;
+            gotdata = TryReadResult::DataReceived;
+            read.bytes += res;
+            if (res == avail) {
+                continue;
+            } else {
+                break;
+            }
+        }
+        if (res == 0) {
+            if (isPipeConnection()) {
+                return TryReadResult::NoDataReceived;
+            }
+            LOG_INFO(this,
+                     "%u Closing connection as the other side closed the connection %s",
+                     getId(), getDescription().c_str());
+            return TryReadResult::SocketClosed;
+        }
+        if (res == -1) {
+            auto error = GetLastNetworkError();
 
-    throw std::logic_error(
-        "McbpConnection::tryReadNetwork(): Unknown return code: " +
-        std::to_string(res));
+            if (is_blocking(error)) {
+                break;
+            }
+
+            std::string errormsg = cb_strerror();
+            LOG_WARNING(this, "%u Closing connection (%p) %s due to read "
+                        "error: %s", getId(), getCookie(),
+                        getDescription().c_str(), errormsg.c_str());
+            return TryReadResult::SocketError;
+        }
+    }
+    return gotdata;
 }
 
 int McbpConnection::sslRead(char* dest, size_t nbytes) {
@@ -755,6 +775,7 @@ McbpConnection::McbpConnection(SOCKET sfd, event_base *b)
       currentEvent(0),
       ev_timeout_enabled(false),
       write_and_go(conn_new_cmd),
+      rlbytes(0),
       iov(IOV_LIST_INITIAL),
       iovused(0),
       msglist(),
@@ -786,7 +807,7 @@ McbpConnection::McbpConnection(SOCKET sfd,
                                event_base* b,
                                const ListeningPort& ifc)
     : Connection(sfd, b, ifc),
-      stateMachine(new McbpStateMachine(conn_waiting)),
+      stateMachine(new McbpStateMachine(conn_new_cmd)),
       dcp(false),
       dcpXattrAware(false),
       dcpNoValue(false),
@@ -799,6 +820,7 @@ McbpConnection::McbpConnection(SOCKET sfd,
       currentEvent(0),
       ev_timeout_enabled(false),
       write_and_go(conn_new_cmd),
+      rlbytes(0),
       iov(IOV_LIST_INITIAL),
       iovused(0),
       msglist(),
@@ -838,6 +860,8 @@ McbpConnection::McbpConnection(SOCKET sfd,
 }
 
 McbpConnection::~McbpConnection() {
+    cb_free(read.buf);
+
     releaseReservedItems();
     for (auto* ptr : temp_alloc) {
         cb_free(ptr);
@@ -861,6 +885,22 @@ void McbpConnection::runStateMachinery() {
                       stateMachine->getCurrentTaskName());
         } while (stateMachine->execute(*this));
     }
+}
+
+/**
+ * Convert a JSON representation of a net_buf
+ *
+ * @param buffer the buffer to convert
+ * @return the json representation of the buffer (caller is responsible
+ *         for calling cJSON_Delete()
+ */
+static cJSON* to_json(const struct net_buf &buffer) {
+    cJSON* json = cJSON_CreateObject();
+    json_add_uintptr_to_object(json, "buf", (uintptr_t)buffer.buf);
+    json_add_uintptr_to_object(json, "curr", (uintptr_t)buffer.curr);
+    cJSON_AddNumberToObject(json, "size", buffer.size);
+    cJSON_AddNumberToObject(json, "bytes", buffer.bytes);
+    return json;
 }
 
 /**
@@ -950,7 +990,7 @@ cJSON* McbpConnection::toJSON() const {
             cJSON_AddItemToObject(obj, "libevent", o);
         }
 
-        cJSON_AddItemToObject(obj, "read", to_json(read.get()).release());
+        cJSON_AddItemToObject(obj, "read", to_json(read));
         cJSON_AddItemToObject(obj, "write", to_json(write.get()).release());
 
         if (write_and_go != nullptr) {
@@ -958,6 +998,7 @@ cJSON* McbpConnection::toJSON() const {
                                     stateMachine->getTaskName(write_and_go));
 
         }
+        cJSON_AddNumberToObject(obj, "rlbytes", rlbytes);
 
         {
             cJSON* iovobj = cJSON_CreateObject();
