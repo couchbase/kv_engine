@@ -42,6 +42,17 @@ public:
      */
     virtual ReplicationThrottle::Status getStatus() const;
 
+    /**
+     * Returns if we should disconnect replication connection upon hitting
+     * ENOMEM during replication
+     *
+     * @return boolean indicating whether we should disconnect
+     */
+    virtual bool doDisconnectOnNoMem() const {
+        /* Base class we do not want to disconnect */
+        return false;
+    }
+
     void setCapPercent(size_t perc) { capPercent = perc; }
     void setQueueCap(ssize_t cap) { queueCap = cap; }
 
@@ -65,6 +76,8 @@ public:
     ReplicationThrottleEphe(const Configuration& config, EPStats& s);
 
     ReplicationThrottle::Status getStatus() const override;
+
+    bool doDisconnectOnNoMem() const override;
 
 private:
     const Configuration& config;

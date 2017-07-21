@@ -1827,9 +1827,9 @@ TEST_P(ConnectionTest, ReplicateAfterThrottleThreshold) {
                                  {}, // meta
                                  0)); // nru
 
-    /* Set 'replication threshold' to 0 to test the case when 'mem_used' goes
-     beyond the threshold */
-    engine->getConfiguration().setReplicationThrottleThreshold(0);
+    /* Set 'mem_used' beyond the 'replication threshold' */
+    EPStats& stats = engine->getEpStats();
+    stats.setMaxDataSize(stats.getTotalMemoryUsed());
 
     /* Send another item for replication */
     auto ret = consumer->mutation(opaque,
@@ -1856,6 +1856,98 @@ TEST_P(ConnectionTest, ReplicateAfterThrottleThreshold) {
         /* In 'couchbase' buckets we buffer the replica items and indirectly
          throttle replication by not sending flow control acks to the
          producer. Hence we do not drop the connection here */
+        EXPECT_EQ(ENGINE_SUCCESS, ret);
+    }
+
+    /* Close stream before deleting the connection */
+    EXPECT_EQ(ENGINE_SUCCESS, consumer->closeStream(opaque, vbid));
+
+    destroy_mock_cookie(cookie);
+}
+
+TEST_P(ConnectionTest, ReplicateJustBeforeThrottleThreshold) {
+    const void* cookie = create_mock_cookie();
+    const uint32_t opaque = 1;
+    const uint64_t snapStart = 1, snapEnd = 10;
+    const uint64_t bySeqno = snapStart;
+
+    /* Set up a consumer connection */
+    connection_t conn = new MockDcpConsumer(*engine, cookie, "test_consumer");
+    MockDcpConsumer* consumer = dynamic_cast<MockDcpConsumer*>(conn.get());
+
+    /* Replica vbucket */
+    ASSERT_EQ(ENGINE_SUCCESS, set_vb_state(vbid, vbucket_state_replica));
+
+    /* Passive stream */
+    ASSERT_EQ(ENGINE_SUCCESS,
+              consumer->addStream(/*opaque*/ 0,
+                                  vbid,
+                                  /*flags*/ 0));
+    MockPassiveStream* stream = static_cast<MockPassiveStream*>(
+            (consumer->getVbucketStream(vbid)).get());
+    ASSERT_TRUE(stream->isActive());
+
+    /* Send a snapshotMarker before sending items for replication */
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->snapshotMarker(opaque,
+                                       vbid,
+                                       snapStart,
+                                       snapEnd,
+                                       /* in-memory snapshot */ 0x1));
+
+    /* Send an item for replication */
+    const DocKey docKey{"mykey", DocNamespace::DefaultCollection};
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->mutation(opaque,
+                                 docKey,
+                                 {}, // value
+                                 0, // priv bytes
+                                 PROTOCOL_BINARY_RAW_BYTES,
+                                 0, // cas
+                                 vbid,
+                                 0, // flags
+                                 bySeqno,
+                                 0, // rev seqno
+                                 0, // exptime
+                                 0, // locktime
+                                 {}, // meta
+                                 0)); // nru
+
+    /* Set 'mem_used' just 1 byte less than the 'replication threshold'.
+       That is we are below 'replication threshold', but not enough space for
+       the new item */
+    EPStats& stats = engine->getEpStats();
+    stats.setMaxDataSize(stats.getTotalMemoryUsed() + 1);
+    /* Simpler to set the replication threshold to 1 and test, rather than
+       testing with maxData = (memUsed / replicationThrottleThreshold); that is,
+       we are avoiding a division */
+    engine->getConfiguration().setReplicationThrottleThreshold(100);
+
+    /* Send another item for replication */
+    auto ret = consumer->mutation(opaque,
+                                  docKey,
+                                  {}, // value
+                                  0, // priv bytes
+                                  PROTOCOL_BINARY_RAW_BYTES,
+                                  0, // cas
+                                  vbid,
+                                  0, // flags
+                                  bySeqno + 1,
+                                  0, // rev seqno
+                                  0, // exptime
+                                  0, // locktime
+                                  {}, // meta
+                                  0); // nru
+
+    if ((engine->getConfiguration().getBucketType() == "ephemeral") &&
+        (engine->getConfiguration().getEphemeralFullPolicy()) ==
+                "fail_new_data") {
+        /* Expect disconnect signal in Ephemeral with "fail_new_data" policy */
+        EXPECT_EQ(ENGINE_DISCONNECT, ret);
+    } else {
+        /* In 'couchbase' buckets we buffer the replica items and indirectly
+           throttle replication by not sending flow control acks to the
+           producer. Hence we do not drop the connection here */
         EXPECT_EQ(ENGINE_SUCCESS, ret);
     }
 
