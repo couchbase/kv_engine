@@ -3982,46 +3982,62 @@ void EventuallyPersistentStore::rollbackCheckpoint(RCPtr<VBucket> &vb,
     }
 }
 
-ENGINE_ERROR_CODE
-EventuallyPersistentStore::rollback(uint16_t vbid,
-                                    uint64_t rollbackSeqno) {
+TaskStatus EventuallyPersistentStore::rollback(uint16_t vbid,
+                                               uint64_t rollbackSeqno) {
     LockHolder vbset(vbsetMutex);
 
     LockHolder lh(vb_mutexes[vbid], true /*tryLock*/);
 
     if (!lh.islocked()) {
-        return ENGINE_TMPFAIL; // Reschedule a vbucket rollback task.
+        return TaskStatus::Reschedule; // Reschedule a vbucket rollback task.
     }
 
     RCPtr<VBucket> vb = vbMap.getBucket(vbid);
+    if (!vb) {
+        LOG(EXTENSION_LOG_WARNING,
+            "vb:%" PRIu16 " Aborting rollback as the vbucket was not found",
+            vbid);
+        return TaskStatus::Abort;
+    }
+
     ReaderLockHolder rlh(vb->getStateLock());
     if (vb->getState() == vbucket_state_replica) {
-        uint64_t prevHighSeqno = static_cast<uint64_t>
-                                        (vb->checkpointManager.getHighSeqno());
+        uint64_t prevHighSeqno =
+                static_cast<uint64_t>(vb->checkpointManager.getHighSeqno());
         if (rollbackSeqno != 0) {
             std::shared_ptr<Rollback> cb(new Rollback(engine));
-            KVStore* rwUnderlying = vbMap.getShardByVbId(vbid)->getRWUnderlying();
-            RollbackResult result = rwUnderlying->rollback(vbid, rollbackSeqno, cb);
+            KVStore* rwUnderlying =
+                    vbMap.getShardByVbId(vbid)->getRWUnderlying();
+            RollbackResult result =
+                    rwUnderlying->rollback(vbid, rollbackSeqno, cb);
 
             if (result.success) {
                 rollbackCheckpoint(vb, result.highSeqno);
                 vb->failovers->pruneEntries(result.highSeqno);
                 vb->checkpointManager.clear(vb, result.highSeqno);
-                vb->setPersistedSnapshot(result.snapStartSeqno, result.snapEndSeqno);
+                vb->setPersistedSnapshot(result.snapStartSeqno,
+                                         result.snapEndSeqno);
                 vb->incrRollbackItemCount(prevHighSeqno - result.highSeqno);
                 vb->checkpointManager.setOpenCheckpointId(1);
-                return ENGINE_SUCCESS;
+                return TaskStatus::Complete;
             }
         }
 
         if (resetVBucket_UNLOCKED(vbid, vbset)) {
             RCPtr<VBucket> newVb = vbMap.getBucket(vbid);
             newVb->incrRollbackItemCount(prevHighSeqno);
-            return ENGINE_SUCCESS;
+            return TaskStatus::Complete;
         }
-        return ENGINE_NOT_MY_VBUCKET;
+        LOG(EXTENSION_LOG_WARNING,
+            "vb:%" PRIu16 " Aborting rollback as reset of the vbucket failed",
+            vbid);
+        return TaskStatus::Abort;
     } else {
-        return ENGINE_EINVAL;
+        LOG(EXTENSION_LOG_WARNING,
+            "vb:%" PRIu16 " Rollback not supported on the vbucket state %s",
+            vbid,
+            VBucket::toString(vb->getState()));
+        return TaskStatus::Abort;
     }
 }
 
