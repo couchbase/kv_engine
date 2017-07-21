@@ -57,3 +57,9 @@ static inline std::string to_string(GenerateCas generateCas) {
             return "";
     }
 }
+
+enum class TaskStatus {
+    Reschedule, /* Reschedule for later */
+    Complete, /* Complete in this run */
+    Abort /* Abort task immediately */
+};

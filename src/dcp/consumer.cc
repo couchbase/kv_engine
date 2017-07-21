@@ -696,35 +696,37 @@ ENGINE_ERROR_CODE DcpConsumer::handleResponse(
     return ENGINE_DISCONNECT;
 }
 
-bool DcpConsumer::doRollback(uint32_t opaque, uint16_t vbid,
+bool DcpConsumer::doRollback(uint32_t opaque,
+                             uint16_t vbid,
                              uint64_t rollbackSeqno) {
-    ENGINE_ERROR_CODE err = engine_.getEpStore()->rollback(vbid, rollbackSeqno);
+    TaskStatus status = engine_.getEpStore()->rollback(vbid, rollbackSeqno);
 
-    switch (err) {
-    case ENGINE_NOT_MY_VBUCKET:
-        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Rollback failed because the "
-                "vbucket was not found", logHeader(), vbid);
-        return false;
-
-    case ENGINE_TMPFAIL:
+    switch (status) {
+    case TaskStatus::Reschedule:
         return true; // Reschedule the rollback.
-
-    case ENGINE_SUCCESS:
-        // expected
+    case TaskStatus::Abort:
+        logger.log(EXTENSION_LOG_WARNING,
+                   "vb:%" PRIu16 " Rollback failed on the vbucket",
+                   vbid);
         break;
-
-    default:
-        throw std::logic_error("DcpConsumer::doRollback: Unexpected error "
-                "code from EpStore::rollback: " + std::to_string(err));
+    case TaskStatus::Complete: {
+        RCPtr<VBucket> vb = engine_.getVBucket(vbid);
+        if (!vb) {
+            logger.log(EXTENSION_LOG_WARNING,
+                       "vb:%" PRIu16
+                       " Aborting rollback task as the vbucket "
+                       "was deleted after rollback",
+                       vbid);
+            break;
+        }
+        passive_stream_t stream = streams[vbid];
+        if (stream) {
+            stream->reconnectStream(vb, opaque, vb->getHighSeqno());
+        }
+        break;
     }
-
-    RCPtr<VBucket> vb = engine_.getVBucket(vbid);
-    passive_stream_t stream = streams[vbid];
-    if (stream) {
-        stream->reconnectStream(vb, opaque, vb->getHighSeqno());
     }
-
-    return false;
+    return false; // Do not reschedule the rollback
 }
 
 void DcpConsumer::addStats(ADD_STAT add_stat, const void *c) {
