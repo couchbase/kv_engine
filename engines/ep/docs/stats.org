@@ -272,34 +272,8 @@ For introductory information on stats within Couchbase, start with the
 |                                    | that we should start sending temp oom  |
 |                                    | or oom message when hitting            |
 | ep_pager_active_vb_pcnt            | Active vbuckets paging percentage      |
-| ep_tap_ack_grace_period            | The amount of time to wait for a tap   |
-|                                    | acks before disconnecting              |
-| ep_tap_ack_initial_sequence_number | The initial sequence number for a tap  |
-|                                    | ack when a tap stream is created       |
-| ep_tap_ack_interval                | The amount of messages a tap producer  |
-|                                    | should send before requesting an ack   |
-| ep_tap_ack_window_size             | The maximum amount of ack requests     |
-|                                    | that can be sent before the consumer   |
-|                                    | sends a response ack. When the window  |
-|                                    | is full the tap stream is paused.      |
-| ep_tap_backfill_resident           | The resident ratio for deciding how to |
-|                                    | do backfill. If under the ratio we     |
-|                                    | schedule full disk backfill. If above  |
-|                                    | the ratio then we do bg fetches for    |
-|                                    | non-resident items.                    |
-| ep_tap_backlog_limit               | The maximum amount of backfill items   |
-|                                    | that can be in memory waiting to be    |
-|                                    | sent to the tap consumer               |
-| ep_tap_backoff_period              | The number of seconds the tap          |
-|                                    | connection                             |
 | ep_tap_bg_fetch_requeued           | Number of times a tap bg fetch task is |
 |                                    | requeued                               |
-| ep_tap_bg_max_pending              | The maximum number of bg jobs a tap    |
-|                                    | connection may have                    |
-| ep_tap_noop_interval               | Number of seconds between a noop is    |
-|                                    | sent on an idle connection             |
-| ep_tap_requeue_sleep_time          | The amount of time to wait before a    |
-|                                    | failed tap item is requeued            |
 | ep_replication_throttle_cap_pcnt   | Percentage of total items in write     |
 |                                    | queue at which we throttle tap input   |
 | ep_replication_throttle_queue_cap  | Max size of a write queue to throttle  |
@@ -582,21 +556,12 @@ each vbucket:
 
 ** Tap stats
 
-| ep_tap_ack_grace_period          | The amount of time to wait for a tap acks |
-|                                  | before disconnecting                      |
-| ep_tap_ack_interval              | The amount of messages a tap producer     |
-|                                  | should send before requesting an ack      |
-| ep_tap_ack_window_size           | The maximum amount of ack requests that   |
-|                                  | can be sent before the consumer sends a   |
-|                                  | response ack. When the window is full the |
-|                                  | tap stream is paused                      |
+
 | ep_tap_queue_backfillremaining   | Number of items needing to be backfilled  |
 | ep_tap_total_backlog_size        | Number of remaining items for replication |
 | ep_tap_total_queue               | Sum of tap queue sizes on the current     |
 |                                  | tap queues                                |
 | ep_tap_total_fetched             | Sum of all tap messages sent              |
-| ep_tap_bg_max_pending            | The maximum number of bg jobs a tap       |
-|                                  | connection may have                       |
 | ep_tap_bg_fetched                | Number of tap disk fetches                |
 | ep_tap_bg_fetch_requeued         | Number of times a tap bg fetch task is    |
 |                                  | requeued                                  |
@@ -619,10 +584,6 @@ each vbucket:
 |                                  | be loaded from the persistence layer      |
 | ep_tap_bg_load_avg               | The average time (µs) for a tap item to   |
 |                                  | be loaded from the persistence layer      |
-| ep_tap_noop_interval             | The number of secs between a noop is      |
-|                                  | added to an idle connection               |
-| ep_tap_backoff_period            | The number of seconds the tap connection  |
-|                                  | should back off after receiving ETMPFAIL  |
 | ep_tap_queue_fill                | Total enqueued items                      |
 | ep_tap_queue_drain               | Total drained items                       |
 | ep_tap_queue_backoff             | Total back-off items                      |
