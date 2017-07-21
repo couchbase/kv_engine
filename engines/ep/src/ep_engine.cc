@@ -838,17 +838,7 @@ static ENGINE_ERROR_CODE setVBucket(EventuallyPersistentEngine* e,
     }
 
     uint16_t vb = ntohs(req->message.header.request.vbucket);
-    if (e->setVBucketState(vb, state, false) == ENGINE_ERANGE) {
-        e->setErrorContext(cookie, "VBucket number too big");
-        return sendResponse(response, NULL, 0, NULL, 0, NULL,
-                            0, PROTOCOL_BINARY_RAW_BYTES,
-                            PROTOCOL_BINARY_RESPONSE_ERANGE,
-                            cas, cookie);
-    }
-    return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
-                        PROTOCOL_BINARY_RAW_BYTES,
-                        PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                        cas, cookie);
+    return e->setVBucketState(cookie, response, vb, state, false, cas);
 }
 
 static ENGINE_ERROR_CODE delVBucket(EventuallyPersistentEngine* e,
@@ -5341,6 +5331,34 @@ std::unique_ptr<KVBucket> EventuallyPersistentEngine::makeBucket(
     throw std::invalid_argument(bucketType +
                                 " is not a recognized bucket "
                                 "type");
+}
+
+ENGINE_ERROR_CODE EventuallyPersistentEngine::setVBucketState(
+        const void* cookie,
+        ADD_RESPONSE response,
+        uint16_t vbid,
+        vbucket_state_t to,
+        bool transfer,
+        uint64_t cas) {
+    auto status = kvBucket->setVBucketState(vbid, to, transfer, cookie);
+
+    if (status == ENGINE_EWOULDBLOCK) {
+        return status;
+    } else if (status == ENGINE_ERANGE) {
+        setErrorContext(cookie, "VBucket number too big");
+    }
+
+    return sendResponse(response,
+                        NULL,
+                        0,
+                        NULL,
+                        0,
+                        NULL,
+                        0,
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        serverApi->cookie->engine_error2mcbp(cookie, status),
+                        cas,
+                        cookie);
 }
 
 EventuallyPersistentEngine::~EventuallyPersistentEngine() {

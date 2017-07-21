@@ -666,7 +666,6 @@ void LoadValueCallback::callback(CacheLookup &lookup)
 //                                                                          //
 //////////////////////////////////////////////////////////////////////////////
 
-
 Warmup::Warmup(KVBucket& st, Configuration& config_)
     : state(),
       store(st),
@@ -684,8 +683,8 @@ Warmup::Warmup(KVBucket& st, Configuration& config_)
       corruptAccessLog(false),
       warmupComplete(false),
       warmupOOMFailure(false),
-      estimatedWarmupCount(std::numeric_limits<size_t>::max())
-{
+      estimatedWarmupCount(std::numeric_limits<size_t>::max()),
+      createVBucketsComplete(false) {
 }
 
 void Warmup::addToTaskSet(size_t taskId) {
@@ -825,10 +824,37 @@ void Warmup::createVBuckets(uint16_t shardId) {
     }
 
     if (++threadtask_count == store.vbMap.getNumShards()) {
+        processCreateVBucketsComplete();
         transition(WarmupState::EstimateDatabaseItemCount);
     }
 }
 
+void Warmup::processCreateVBucketsComplete() {
+    std::unique_lock<std::mutex> lock(pendingSetVBStateCookiesMutex);
+    createVBucketsComplete = true;
+    if (!pendingSetVBStateCookies.empty()) {
+        LOG(EXTENSION_LOG_NOTICE,
+            "Warmup::processCreateVBucketsComplete unblocking %zu cookie(s)",
+            pendingSetVBStateCookies.size());
+        while (!pendingSetVBStateCookies.empty()) {
+            const void* c = pendingSetVBStateCookies.front();
+            pendingSetVBStateCookies.pop_front();
+            // drop lock to avoid lock inversion
+            lock.unlock();
+            store.getEPEngine().notifyIOComplete(c, ENGINE_SUCCESS);
+            lock.lock();
+        }
+    }
+}
+
+bool Warmup::shouldSetVBStateBlock(const void* cookie) {
+    std::lock_guard<std::mutex> lg(pendingSetVBStateCookiesMutex);
+    if (!createVBucketsComplete) {
+        pendingSetVBStateCookies.push_back(cookie);
+        return true;
+    }
+    return false;
+}
 
 void Warmup::scheduleEstimateDatabaseItemCount()
 {

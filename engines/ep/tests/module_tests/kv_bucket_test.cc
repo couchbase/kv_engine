@@ -36,6 +36,7 @@
 #include "tests/mock/mock_global_task.h"
 #include "tests/module_tests/test_helpers.h"
 #include "vbucketdeletiontask.h"
+#include "warmup.h"
 
 #include <platform/dirutils.h>
 #include <chrono>
@@ -57,6 +58,11 @@ void KVBucketTest::SetUp() {
     }
 
     initialise(config_string);
+
+    if (completeWarmup && engine->getKVBucket()->getWarmup()) {
+        engine->getKVBucket()->getWarmup()->setComplete();
+        engine->getKVBucket()->getWarmup()->processCreateVBucketsComplete();
+    }
 }
 
 void KVBucketTest::initialise(std::string config) {

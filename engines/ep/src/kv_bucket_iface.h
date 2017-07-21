@@ -421,13 +421,6 @@ public:
 
     virtual uint64_t getLastPersistedSeqno(uint16_t vb) = 0;
 
-    /* transfer should be set to true *only* if this vbucket is becoming master
-     * as the result of the previous master cleanly handing off control. */
-    virtual ENGINE_ERROR_CODE setVBucketState(uint16_t vbid,
-                                              vbucket_state_t state,
-                                              bool transfer,
-                                              bool notify_dcp = true) = 0;
-
     /**
      * Deletes a vbucket
      *

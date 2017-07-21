@@ -1427,11 +1427,17 @@ public:
         couchstore_free_db(handle);
     }
 
+    void resetEngineAndWarmup() {
+        resetEngineAndEnableWarmup();
+        // Now get the engine warmed up
+        runReadersUntilWarmedUp();
+    }
+
     /**
      * Destroy engine and replace it with a new engine that can be warmed up.
      * Finally, run warmup.
      */
-    void resetEngineAndWarmup() {
+    void resetEngineAndEnableWarmup() {
         shutdownAndPurgeTasks();
         std::string config = config_string;
 
@@ -1449,9 +1455,6 @@ public:
 
         engine->getKVBucket()->initializeWarmupTask();
         engine->getKVBucket()->startWarmupTask();
-
-        // Now get the engine warmed up
-        runReadersUntilWarmedUp();
     }
 };
 
@@ -1531,6 +1534,47 @@ TEST_F(WarmupTest, mightContainXattrs) {
     resetEngineAndWarmup();
 
     EXPECT_TRUE(engine->getKVBucket()->getVBucket(vbid)->mightContainXattrs());
+}
+
+TEST_F(WarmupTest, MB_25197) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // Store an item, then make the VB appear old ready for warmup
+    store_item(vbid, makeStoredDocKey("key1"), "value");
+    flush_vbucket_to_disk(vbid);
+
+    resetEngineAndEnableWarmup();
+
+    // Manually run the reader queue so that the warmup tasks execute whilst we
+    // perform setVbucketState calls
+    auto& readerQueue = *task_executor->getLpTaskQ()[READER_TASK_IDX];
+    EXPECT_EQ(nullptr, store->getVBuckets().getBucket(vbid));
+    auto notifications = get_number_of_mock_cookie_io_notifications(cookie);
+    while (engine->getKVBucket()->shouldSetVBStateBlock(cookie)) {
+        CheckedExecutor executor(task_executor, readerQueue);
+        // Do a setVBState but don't flush it through. This call should be
+        // failed ewouldblock whilst warmup has yet to attempt to create VBs.
+        EXPECT_EQ(ENGINE_EWOULDBLOCK,
+                  store->setVBucketState(vbid,
+                                         vbucket_state_active,
+                                         /*transfer*/ false,
+                                         cookie));
+        executor.runCurrentTask();
+    }
+
+    EXPECT_GT(get_number_of_mock_cookie_io_notifications(cookie),
+              notifications);
+    EXPECT_NE(nullptr, store->getVBuckets().getBucket(vbid));
+    EXPECT_EQ(ENGINE_SUCCESS,
+              store->setVBucketState(vbid,
+                                     vbucket_state_active,
+                                     /*transfer*/ false));
+
+    // finish warmup so the test can exit
+    while (engine->getKVBucket()->isWarmingUp()) {
+        CheckedExecutor executor(task_executor, readerQueue);
+        executor.runCurrentTask();
+    }
 }
 
 // Test that we can push a DCP_DELETION which pretends to be from a delete

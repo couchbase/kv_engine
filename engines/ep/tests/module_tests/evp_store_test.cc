@@ -751,9 +751,6 @@ TEST_P(EPStoreEvictionTest, memOverheadMemoryCondition) {
     auto& stats = engine->getEpStats();
     stats.memOverhead->store(config.getMaxSize() + 1);
 
-    //Set warmup complete to ensure that we don't hit
-    //degraded mode
-    engine->getKVBucket()->getWarmup()->setComplete();
     // Fill bucket until we hit ENOMEM - note storing via external
     // API (epstore) so we trigger the memoryCondition() code in the event of
     // ENGINE_ENOMEM.
@@ -799,8 +796,6 @@ public:
 
 TEST_P(EPStoreEvictionBloomOnOffTest, store_if_throws) {
     // You can't keep returning GetItemInfo
-    engine->getKVBucket()->getWarmup()->setComplete();
-
     cb::StoreIfPredicate predicate = [](
             const boost::optional<item_info>& existing,
             cb::vbucket_info vb) -> cb::StoreIfStatus {
@@ -827,8 +822,6 @@ TEST_P(EPStoreEvictionBloomOnOffTest, store_if_throws) {
 }
 
 TEST_P(EPStoreEvictionBloomOnOffTest, store_if) {
-    engine->getKVBucket()->getWarmup()->setComplete();
-
     struct TestData {
         StoredDocKey key;
         cb::StoreIfPredicate predicate;
@@ -932,7 +925,6 @@ TEST_P(EPStoreEvictionBloomOnOffTest, store_if_fe_interleave) {
     if (::testing::get<0>(GetParam()) != "full_eviction") {
         return;
     }
-    engine->getKVBucket()->getWarmup()->setComplete();
 
     cb::StoreIfPredicate predicate = [](
             const boost::optional<item_info>& existing,
