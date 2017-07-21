@@ -28,6 +28,7 @@
 #include "tests/mock/mock_global_task.h"
 #include "tests/module_tests/evp_store_single_threaded_test.h"
 #include "tests/module_tests/evp_store_test.h"
+#include "tests/module_tests/test_helpers.h"
 #include "tests/module_tests/thread_gate.h"
 
 #include <boost/optional/optional.hpp>
@@ -137,6 +138,43 @@ TEST_F(CollectionsTest, collections_basic) {
     gv = store->get(
             {"meat::beef", DocNamespace::Collections}, vbid, cookie, options);
     EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION, gv.getStatus());
+}
+
+// Test demonstrates issue logged as MB_25344, when we delete a collection
+// and then happen to perform a mutation against a new rev of the collection
+// we may encounter the key which is pending deletion and then fail when we
+// shouldn't. In this test the final add should logically work, but fails as the
+// old key is found.
+TEST_F(CollectionsTest, DISABLED_MB_25344) {
+    VBucketPtr vb = store->getVBucket(vbid);
+    // Add the dairy collection
+    vb->updateFromManifest(
+            {R"({"revision":1,)"
+             R"("separator":"::","collections":["$default","dairy"]})"});
+    // Trigger a flush to disk. Flushes the dairy create event.
+    flush_vbucket_to_disk(vbid, 1);
+
+    auto item = make_item(vbid, {"dairy::milk", DocNamespace::Collections}, "creamy", 0, 0);
+    EXPECT_EQ(ENGINE_SUCCESS, store->add(item, nullptr));
+    flush_vbucket_to_disk(vbid, 1);
+
+    // Now delete the dairy collection
+    vb->updateFromManifest(
+            {R"({"revision":2,)"
+             R"("separator":"::","collections":["$default"]})"});
+
+    // Re-add the dairy collection
+    vb->updateFromManifest(
+            {R"({"revision":3,)"
+             R"("separator":"::","collections":["$default","dairy"]})"});
+    // Trigger a flush to disk. Flushes the dairy create event.
+    flush_vbucket_to_disk(vbid, 1);
+
+    // Should be able to add the key again
+    // @todo when BG collection deletion exists, it should be disabled for this
+    // test, otherwise the test will be racey in whether the old key is in the
+    // cache.
+    EXPECT_EQ(ENGINE_SUCCESS, store->add(item, nullptr));
 }
 
 class CollectionsFlushTest : public CollectionsTest {
