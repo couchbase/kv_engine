@@ -284,7 +284,6 @@ ADD_EXECUTABLE(ep-engine_ep_unit_tests
                tests/module_tests/kv_bucket_test.cc
                tests/module_tests/memory_tracker_test.cc
                tests/module_tests/mock_hooks_api.cc
-               tests/module_tests/monotonic_test.cc
                tests/module_tests/mutation_log_test.cc
                tests/module_tests/mutex_test.cc
                tests/module_tests/stats_test.cc
