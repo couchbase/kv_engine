@@ -2287,14 +2287,8 @@ BaseTestCase testsuite_testcases[] = {
                  /* TODO RDB: implement getItemCount */
                  prepare_skip_broken_under_rocks,
                  cleanup),
-        TestCase("delete with value CAS",
-                 test_delete_with_value_cas,
-                 test_setup,
-                 teardown,
-                 NULL,
-                 /* TODO RDB: Enable after implementing persisted tombstones */
-                 prepare_skip_broken_under_rocks,
-                 cleanup),
+        TestCase("delete with value CAS", test_delete_with_value_cas,
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("set/delete", test_set_delete, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("set/delete (invalid cas)", test_set_delete_invalid_cas,

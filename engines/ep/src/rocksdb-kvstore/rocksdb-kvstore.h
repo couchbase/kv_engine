@@ -282,6 +282,8 @@ private:
                           const DocKey& key,
                           const std::string& value);
 
+    void storeItem(const Item& item);
+
     std::unique_ptr<rocksdb::WriteBatch> batch;
     rocksdb::WriteOptions writeOptions;
 

@@ -99,7 +99,11 @@ void RocksDBKVStore::rollback() {
 
 void RocksDBKVStore::adjustValBuffer(const size_t to) {
     // Save room for the flags, exp, etc...
-    size_t needed((sizeof(uint32_t) * 2) + to);
+    size_t needed(sizeof(ItemMetaData) +
+                  /* deleted flag */ sizeof(uint8_t) +
+                  /* bySeqno */ sizeof(uint64_t) +
+                  /* datatype */ sizeof(uint8_t) +
+                  /* value len */ sizeof(uint32_t) + to);
 
     if (valBuffer == NULL || valSize < needed) {
         void* buf = realloc(valBuffer, needed);
@@ -118,17 +122,24 @@ std::vector<vbucket_state*> RocksDBKVStore::listPersistedVbuckets() {
 }
 
 void RocksDBKVStore::set(const Item& itm, Callback<mutation_result>& cb) {
-    // TODO RDB: Consider using SliceParts to avoid copying if
-    // possible.
-    auto k = mkKeyStr(itm.getVBucketId(), itm.getKey());
-    auto v = mkValSlice(itm);
-
-    batch->Put(k, v);
+    storeItem(itm);
 
     // TODO RDB: This callback should not really be called until
     // after the batch is committed.
     std::pair<int, bool> p(1, true);
     cb.callback(p);
+}
+
+void RocksDBKVStore::storeItem(const Item& itm) {
+    // TODO RDB: Consider using SliceParts to avoid copying if
+    // possible.
+    uint16_t vbid = itm.getVBucketId();
+    auto k = mkKeyStr(vbid, itm.getKey());
+    auto v = mkValSlice(itm);
+
+    // TODO RDB: check status.
+    rocksdb::Status s = batch->Put(k, v);
+    cb_assert(s.ok());
 }
 
 GetValue RocksDBKVStore::get(const DocKey& key, uint16_t vb, bool fetchDelete) {
@@ -180,8 +191,10 @@ void RocksDBKVStore::reset(uint16_t vbucketId) {
 }
 
 void RocksDBKVStore::del(const Item& itm, Callback<int>& cb) {
-    auto k(mkKeyStr(itm.getVBucketId(), itm.getKey()));
-    batch->Delete(k);
+    // TODO RDB: Deleted items remain as tombstones, but are not yet
+    // expired - they will accumuate forever.
+    storeItem(itm);
+
     int rv(1);
     cb.callback(rv);
 }
@@ -262,15 +275,21 @@ rocksdb::Slice RocksDBKVStore::mkValSlice(const Item& item) {
     //    uint64_t           revSeqno     ] ItemMetaData
     //    uint32_t           flags        ]
     //    uint32_t           exptime      ]
+    // TODO RDB: Wasting a whole byte for deleted
+    //    uint8_t            deleted
     //    uint64_t           bySeqno
     //    uint8_t            datatype
     //    uint32_t           value_len
     //    uint8_t[value_len] value
-    //
-    adjustValBuffer(item.size());
+
+    adjustValBuffer(item.getNBytes());
     char* dest = valBuffer;
     std::memcpy(dest, &item.getMetaData(), sizeof(ItemMetaData));
     dest += sizeof(ItemMetaData);
+
+    uint8_t deleted = item.isDeleted();
+    std::memcpy(dest, &deleted, sizeof(deleted));
+    dest += sizeof(deleted);
 
     const int64_t bySeqno{item.getBySeqno()};
     std::memcpy(dest, &bySeqno, sizeof(bySeqno));
@@ -283,7 +302,9 @@ rocksdb::Slice RocksDBKVStore::mkValSlice(const Item& item) {
     const uint32_t valueLen = item.getNBytes();
     std::memcpy(dest, &valueLen, sizeof(valueLen));
     dest += sizeof(valueLen);
-    std::memcpy(dest, item.getValue()->getData(), valueLen);
+    if (valueLen) {
+        std::memcpy(dest, item.getValue()->getData(), valueLen);
+    }
     dest += valueLen;
 
     return rocksdb::Slice(valBuffer, dest - valBuffer);
@@ -302,6 +323,10 @@ std::unique_ptr<Item> RocksDBKVStore::grokValSlice(uint16_t vb,
     std::memcpy(&meta, src, sizeof(meta));
     src += sizeof(meta);
 
+    uint8_t deleted;
+    std::memcpy(&deleted, src, sizeof(deleted));
+    src += sizeof(deleted);
+
     int64_t bySeqno;
     std::memcpy(&bySeqno, src, sizeof(bySeqno));
     src += sizeof(bySeqno);
@@ -317,17 +342,23 @@ std::unique_ptr<Item> RocksDBKVStore::grokValSlice(uint16_t vb,
     uint8_t extMeta[EXT_META_LEN];
     extMeta[0] = datatype;
 
-    return std::make_unique<Item>(key,
-                                  meta.flags,
-                                  meta.exptime,
-                                  src,
-                                  valueLen,
-                                  extMeta,
-                                  EXT_META_LEN,
-                                  meta.cas,
-                                  bySeqno,
-                                  vb,
-                                  meta.revSeqno);
+    auto item = std::make_unique<Item>(key,
+                                       meta.flags,
+                                       meta.exptime,
+                                       src,
+                                       valueLen,
+                                       extMeta,
+                                       EXT_META_LEN,
+                                       meta.cas,
+                                       bySeqno,
+                                       vb,
+                                       meta.revSeqno);
+
+    if (deleted) {
+        item->setDeleted();
+    }
+
+    return item;
 }
 
 GetValue RocksDBKVStore::makeGetValue(uint16_t vb,
