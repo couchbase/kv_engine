@@ -1069,7 +1069,7 @@ TEST_P(ConnectionTest, test_maybesendnoop_not_sufficient_time_passed) {
 
 TEST_P(ConnectionTest, test_deadConnections) {
     MockDcpConnMap connMap(*engine);
-    connMap.initialize(DCP_CONN_NOTIFIER);
+    connMap.initialize();
     const void *cookie = create_mock_cookie();
     // Create a new Dcp producer
     dcp_producer_t producer = connMap.newProducer(cookie,
@@ -1089,7 +1089,7 @@ TEST_P(ConnectionTest, test_deadConnections) {
 
 TEST_P(ConnectionTest, test_mb23637_findByNameWithConnectionDoDisconnect) {
     MockDcpConnMap connMap(*engine);
-    connMap.initialize(DCP_CONN_NOTIFIER);
+    connMap.initialize();
     const void *cookie = create_mock_cookie();
     // Create a new Dcp producer
     dcp_producer_t producer = connMap.newProducer(cookie,
@@ -1115,7 +1115,7 @@ TEST_P(ConnectionTest, test_mb23637_findByNameWithConnectionDoDisconnect) {
 
 TEST_P(ConnectionTest, test_mb23637_findByNameWithDuplicateConnections) {
     MockDcpConnMap connMap(*engine);
-    connMap.initialize(DCP_CONN_NOTIFIER);
+    connMap.initialize();
     const void* cookie1 = create_mock_cookie();
     const void* cookie2 = create_mock_cookie();
     // Create a new Dcp producer
@@ -1155,7 +1155,7 @@ TEST_P(ConnectionTest, test_mb23637_findByNameWithDuplicateConnections) {
 
 TEST_P(ConnectionTest, test_mb17042_duplicate_name_producer_connections) {
     MockDcpConnMap connMap(*engine);
-    connMap.initialize(DCP_CONN_NOTIFIER);
+    connMap.initialize();
     const void* cookie1 = create_mock_cookie();
     const void* cookie2 = create_mock_cookie();
     // Create a new Dcp producer
@@ -1186,7 +1186,7 @@ TEST_P(ConnectionTest, test_mb17042_duplicate_name_producer_connections) {
 
 TEST_P(ConnectionTest, test_mb17042_duplicate_name_consumer_connections) {
     MockDcpConnMap connMap(*engine);
-    connMap.initialize(DCP_CONN_NOTIFIER);
+    connMap.initialize();
     struct mock_connstruct* cookie1 = (struct mock_connstruct*)create_mock_cookie();
     struct mock_connstruct* cookie2 = (struct mock_connstruct*)create_mock_cookie();
     // Create a new Dcp consumer
@@ -1211,7 +1211,7 @@ TEST_P(ConnectionTest, test_mb17042_duplicate_name_consumer_connections) {
 
 TEST_P(ConnectionTest, test_mb17042_duplicate_cookie_producer_connections) {
     MockDcpConnMap connMap(*engine);
-    connMap.initialize(DCP_CONN_NOTIFIER);
+    connMap.initialize();
     const void* cookie = create_mock_cookie();
     // Create a new Dcp producer
     dcp_producer_t producer = connMap.newProducer(cookie,
@@ -1239,7 +1239,7 @@ TEST_P(ConnectionTest, test_mb17042_duplicate_cookie_producer_connections) {
 
 TEST_P(ConnectionTest, test_mb17042_duplicate_cookie_consumer_connections) {
     MockDcpConnMap connMap(*engine);
-    connMap.initialize(DCP_CONN_NOTIFIER);
+    connMap.initialize();
     const void* cookie = create_mock_cookie();
     // Create a new Dcp consumer
     dcp_consumer_t consumer = connMap.newConsumer(cookie, "test_consumer1");
@@ -1382,7 +1382,7 @@ TEST_P(ConnectionTest, test_consumer_add_stream) {
 // connection has been disconnected (and closeAllStreams called) doesn't crash.
 TEST_P(ConnectionTest, test_mb20645_stats_after_closeAllStreams) {
     MockDcpConnMap connMap(*engine);
-    connMap.initialize(DCP_CONN_NOTIFIER);
+    connMap.initialize();
     const void *cookie = create_mock_cookie();
     // Create a new Dcp producer
     dcp_producer_t producer = connMap.newProducer(cookie,
@@ -1408,7 +1408,7 @@ TEST_P(ConnectionTest, test_mb20645_stats_after_closeAllStreams) {
 // time).
 TEST_P(ConnectionTest, test_mb20716_connmap_notify_on_delete) {
     MockDcpConnMap connMap(*engine);
-    connMap.initialize(DCP_CONN_NOTIFIER);
+    connMap.initialize();
     const void *cookie = create_mock_cookie();
     // Create a new Dcp producer.
     dcp_producer_t producer = connMap.newProducer(cookie,
@@ -1458,7 +1458,7 @@ TEST_P(ConnectionTest, test_mb20716_connmap_notify_on_delete) {
 // Consumer variant of above test.
 TEST_P(ConnectionTest, test_mb20716_connmap_notify_on_delete_consumer) {
     MockDcpConnMap connMap(*engine);
-    connMap.initialize(DCP_CONN_NOTIFIER);
+    connMap.initialize();
     const void *cookie = create_mock_cookie();
     // Create a new Dcp producer
     dcp_consumer_t consumer = connMap.newConsumer(cookie,
@@ -1594,7 +1594,7 @@ public:
     ConnMapNotifyTest(EventuallyPersistentEngine& engine)
         : connMap(new MockDcpConnMap(engine)),
           callbacks(0) {
-        connMap->initialize(DCP_CONN_NOTIFIER);
+        connMap->initialize();
 
         // Use 'this' instead of a mock cookie
         producer = connMap->newProducer(static_cast<void*>(this),

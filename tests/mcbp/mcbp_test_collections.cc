@@ -21,28 +21,24 @@
 /**
  * Test commands which are handled by the collections interface
  */
-namespace BinaryProtocolValidator {
+namespace mcbp {
+namespace test {
+
 class SetCollectionsValidator : public ValidatorTest {
 public:
     virtual void SetUp() override {
         ValidatorTest::SetUp();
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
         request.message.header.request.opcode =
-                PROTOCOL_BINARY_CMD_COLLECTIONS_SET_MANIFEST;
+            PROTOCOL_BINARY_CMD_COLLECTIONS_SET_MANIFEST;
         request.message.header.request.bodylen = htonl(10);
-    }
-
-    SetCollectionsValidator() : request() {
     }
 
 protected:
     protocol_binary_response_status validate() {
         return ValidatorTest::validate(
-                PROTOCOL_BINARY_CMD_COLLECTIONS_SET_MANIFEST,
-                static_cast<void*>(&request));
+            PROTOCOL_BINARY_CMD_COLLECTIONS_SET_MANIFEST,
+            static_cast<void*>(&request));
     }
-
-    protocol_binary_collections_set_manifest request;
 };
 
 TEST_F(SetCollectionsValidator, CorrectMessage) {
@@ -85,4 +81,6 @@ TEST_F(SetCollectionsValidator, InvalidBodylen) {
     request.message.header.request.bodylen = 0;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
-}
+
+} // namespace test
+} // namespace mcbp

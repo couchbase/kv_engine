@@ -134,19 +134,28 @@ static protocol_binary_response_status subdoc_validator(const Cookie& cookie,
     const uint16_t keylen = ntohs(header->request.keylen);
     const uint8_t extlen = header->request.extlen;
     const uint32_t bodylen = ntohl(header->request.bodylen);
+
+    if (bodylen < (sizeof(req->message.extras.subdoc_flags) +
+                   sizeof(req->message.extras.pathlen))) {
+        // the mandatory extra fields isn't present
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
     const protocol_binary_subdoc_flag subdoc_flags =
             static_cast<protocol_binary_subdoc_flag>(req->message.extras.subdoc_flags);
     const uint16_t pathlen = ntohs(req->message.extras.pathlen);
     const uint32_t valuelen = bodylen - keylen - extlen - pathlen;
-    const mcbp::subdoc::doc_flag doc_flags =
-            subdoc_decode_doc_flags(header, traits.path);
 
     if ((header->request.magic != PROTOCOL_BINARY_REQ) ||
-        (keylen == 0) ||
+        (keylen == 0) || (valuelen > bodylen) ||
         (pathlen > SUBDOC_PATH_MAX_LENGTH) ||
         (header->request.datatype != PROTOCOL_BINARY_RAW_BYTES)) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
+
+    const mcbp::subdoc::doc_flag doc_flags =
+        subdoc_decode_doc_flags(header, traits.path);
+
 
     // Now command-trait specific stuff:
 

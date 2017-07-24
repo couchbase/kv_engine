@@ -23,7 +23,8 @@
 #include <event2/event.h>
 #include <memcached/protocol_binary.h>
 
-namespace BinaryProtocolValidator {
+namespace mcbp {
+namespace test {
 
 enum class GATOpcodes : uint8_t {
     GAT = PROTOCOL_BINARY_CMD_GAT,
@@ -64,17 +65,13 @@ class GATValidatorTest : public ValidatorTest,
 public:
     virtual void SetUp() override {
         ValidatorTest::SetUp();
-        memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
         request.message.header.request.extlen = 4;
         request.message.header.request.keylen = htons(10);
         request.message.header.request.bodylen = htonl(14);
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
     }
 
     GATValidatorTest()
-        : request(*reinterpret_cast<protocol_binary_request_gat*>(blob)),
-          bodylen(request.message.header.request.bodylen) {
+        : ValidatorTest(), bodylen(request.message.header.request.bodylen) {
         // empty
     }
 
@@ -91,9 +88,7 @@ protected:
         return ValidatorTest::validate(opcode, static_cast<void*>(&request));
     }
 
-    protocol_binary_request_gat& request;
     uint32_t& bodylen;
-    uint8_t blob[sizeof(protocol_binary_request_gat) + 1];
 };
 
 TEST_P(GATValidatorTest, CorrectMessage) {
@@ -133,4 +128,5 @@ INSTANTIATE_TEST_CASE_P(GATOpcodes,
                                           GATOpcodes::GATQ,
                                           GATOpcodes::TOUCH),
                         ::testing::PrintToStringParamName());
-} // namespace BinaryProtocolValidator
+} // namespace test
+} // namespace mcbp

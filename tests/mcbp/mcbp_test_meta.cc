@@ -22,7 +22,8 @@
 #include <memcached/protocol_binary.h>
 #include <utilities/protocol2text.h>
 
-namespace BinaryProtocolValidator {
+namespace mcbp {
+namespace test {
 
 enum class Opcodes : uint8_t {
     SetWithMeta = PROTOCOL_BINARY_CMD_SET_WITH_META,
@@ -56,12 +57,9 @@ class MutationWithMetaTest : public ValidatorTest,
                              public ::testing::WithParamInterface<Opcodes> {
     virtual void SetUp() override {
         ValidatorTest::SetUp();
-        memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
         request.message.header.request.extlen = 24;
         request.message.header.request.keylen = htons(10);
         request.message.header.request.bodylen = htonl(512);
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
     }
 
 protected:
@@ -69,8 +67,6 @@ protected:
         auto opcode = (protocol_binary_command)GetParam();
         return ValidatorTest::validate(opcode, static_cast<void*>(&request));
     }
-
-    protocol_binary_request_set_with_meta request;
 };
 
 TEST_P(MutationWithMetaTest, CorrectMessage) {
@@ -130,4 +126,5 @@ INSTANTIATE_TEST_CASE_P(Opcodes,
                                           Opcodes::DelWithMeta,
                                           Opcodes::DelQWithMeta),
                         ::testing::PrintToStringParamName());
-}
+} // namespace test
+} // namespace mcbp

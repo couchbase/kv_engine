@@ -33,44 +33,23 @@
 
 // Forward declaration
 class ConnNotifier;
-class ConnHandler;
-class Consumer;
 class EventuallyPersistentEngine;
 
 /**
- * Connection notifier type.
- */
-enum conn_notifier_type {
-    TAP_CONN_NOTIFIER, //!< TAP connection notifier
-    DCP_CONN_NOTIFIER  //!< DCP connection notifier
-};
-
-/**
- * A collection of tap or dcp connections.
+ * A collection of dcp connections.
  */
 class ConnMap {
 public:
     ConnMap(EventuallyPersistentEngine &theEngine);
     virtual ~ConnMap();
 
-    void initialize(conn_notifier_type ntype);
-
-    Consumer *newConsumer(const void* c);
-
-    /**
-     * Disconnect a connection by its cookie.
-     */
-    virtual void disconnect(const void *cookie) = 0;
+    void initialize();
 
     /**
      * Purge dead connections or identify paused connections that should send
      * NOOP messages to their destinations.
      */
     virtual void manageConnections() = 0;
-
-    virtual connection_t findByName(const std::string &name) = 0;
-
-    virtual void shutdownAllConnections() = 0;
 
     /**
      * Returns true if a dead connections list is not maintained,
@@ -84,11 +63,6 @@ public:
      * Returns true if there are existing connections.
      */
     virtual bool isConnections() = 0;
-
-    void updateVBConnections(connection_t &conn,
-                             const std::vector<uint16_t> &vbuckets);
-
-    virtual void removeVBConnections(connection_t &conn);
 
     void addVBConnByVBId(connection_t &conn, int16_t vbid);
 
@@ -106,7 +80,6 @@ public:
     void notifyPausedConnection(connection_t conn, bool schedule = false);
 
     void notifyAllPausedConnections();
-    bool notificationQueueEmpty();
 
     EventuallyPersistentEngine& getEngine() {
         return engine;
@@ -115,11 +88,11 @@ public:
 protected:
 
     // Synchronises notifying and releasing connections.
-    // Guards modifications to connection_t objects in {map_} / {all}.
+    // Guards modifications to connection_t objects in {map_}.
     // See also: {connLock}
     std::mutex                                    releaseLock;
 
-    // Synchonises access to the {map_} and {all} members, i.e. adding
+    // Synchonises access to the {map_} members, i.e. adding
     // removing connections.
     // Actual modification of the underlying
     // ConnHandler objects is guarded by {releaseLock}.
@@ -127,7 +100,6 @@ protected:
 
     using CookieToConnectionMap = std::map<const void*, connection_t>;
     CookieToConnectionMap map_;
-    std::list<connection_t>                  all;
 
     SpinLock *vbConnLocks;
     std::vector<std::list<connection_t> > vbConns;
@@ -146,28 +118,23 @@ protected:
  */
 class ConnNotifier {
 public:
-    ConnNotifier(conn_notifier_type ntype, ConnMap &cm)
-        : notifier_type(ntype), connMap(cm), task(0),
-          pendingNotification(false)  { }
+    ConnNotifier(ConnMap &cm)
+            : connMap(cm),
+              task(0),
+              pendingNotification(false) {
+    }
 
     void start();
 
     void stop();
 
-    void wake();
-
     void notifyMutationEvent();
 
     bool notifyConnections();
 
-    conn_notifier_type getNotifierType() const {
-        return notifier_type;
-    }
-
 private:
     static const double DEFAULT_MIN_STIME;
 
-    conn_notifier_type notifier_type;
     ConnMap &connMap;
     std::atomic<size_t> task;
     std::atomic<bool> pendingNotification;

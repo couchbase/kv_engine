@@ -6814,16 +6814,16 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                           "ep_chk_persistence_timeout"});
 
         eng_stats.insert(eng_stats.end(),
-                         {"ep_commit_num",
-                          "ep_commit_time",
-                          "ep_commit_time_total",
-                          "ep_item_begin_failed",
-                          "ep_item_commit_failed",
-                          "ep_item_flush_expired",
-                          "ep_item_flush_failed",
-                          "ep_total_persisted",
-                          "ep_uncommitted_items",
-                          "ep_chk_persistence_timeout"});
+                         {"ep_tap_ack_grace_period",
+                          "ep_tap_ack_initial_sequence_number",
+                          "ep_tap_ack_interval",
+                          "ep_tap_ack_window_size",
+                          "ep_tap_backfill_resident",
+                          "ep_tap_backlog_limit",
+                          "ep_tap_backoff_period",
+                          "ep_tap_bg_max_pending",
+                          "ep_tap_noop_interval",
+                          "ep_tap_keepalive"});
 
         // Config variables only valid for persistent
         eng_stats.insert(eng_stats.end(),

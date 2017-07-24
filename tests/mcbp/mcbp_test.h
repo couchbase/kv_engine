@@ -27,7 +27,8 @@
 #include <daemon/mcbp_validators.h>
 #include <gtest/gtest.h>
 
-namespace BinaryProtocolValidator {
+namespace mcbp {
+namespace test {
 
 class ValidatorTest : public ::testing::Test {
 public:
@@ -42,6 +43,11 @@ protected:
     McbpValidatorChains validatorChains;
     event_base* ev;
     McbpConnection connection;
+
+    // backing store which may be used for the request
+    protocol_binary_request_no_extras &request;
+    uint8_t blob[4096];
 };
 
-} // namespace BinaryProtocolValidator
+} // namespace test
+} // namespace mcbp

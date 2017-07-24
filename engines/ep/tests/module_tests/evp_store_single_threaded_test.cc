@@ -1077,7 +1077,7 @@ class MB20054_SingleThreadedEPStoreTest : public SingleThreadedEPBucketTest {
 public:
     void SetUp() {
         SingleThreadedEPBucketTest::SetUp();
-        engine->initializeConnmaps();
+        engine->initializeConnmap();
     }
 
     void TearDown() {

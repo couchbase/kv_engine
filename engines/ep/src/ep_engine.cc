@@ -1972,7 +1972,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         enableTraffic(true);
     }
 
-    dcpConnMap_->initialize(DCP_CONN_NOTIFIER);
+    dcpConnMap_->initialize();
 
     // record engine initialization time
     startupTime.store(ep_real_time());
