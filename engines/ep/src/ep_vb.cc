@@ -292,21 +292,11 @@ ENGINE_ERROR_CODE EPVBucket::statsVKey(const DocKey& key,
         if (eviction == VALUE_ONLY) {
             return ENGINE_KEY_ENOENT;
         } else {
-            AddStatus rv = addTempStoredValue(hbl, key);
+            TempAddStatus rv = addTempStoredValue(hbl, key);
             switch (rv) {
-            case AddStatus::NoMem:
+            case TempAddStatus::NoMem:
                 return ENGINE_ENOMEM;
-            case AddStatus::Exists:
-            case AddStatus::UnDel:
-            case AddStatus::Success:
-            case AddStatus::AddTmpAndBgFetch:
-                // Since the hashtable bucket is locked, we shouldn't get here
-                throw std::logic_error(
-                        "VBucket::statsVKey: "
-                        "Invalid result from unlocked_addTempItem (" +
-                        std::to_string(static_cast<uint16_t>(rv)) + ")");
-
-            case AddStatus::BgFetch: {
+            case TempAddStatus::BgFetch: {
                 ++stats.numRemainingBgJobs;
                 ExecutorPool* iom = ExecutorPool::get();
                 ExTask task = std::make_shared<VKeyStatBGFetchTask>(
@@ -525,22 +515,11 @@ EPVBucket::addTempItemAndBGFetch(HashTable::HashBucketLock& hbl,
                                  int bgFetchDelay,
                                  bool metadataOnly,
                                  bool isReplication) {
-    AddStatus rv = addTempStoredValue(hbl, key, isReplication);
+    TempAddStatus rv = addTempStoredValue(hbl, key, isReplication);
     switch (rv) {
-    case AddStatus::NoMem:
+    case TempAddStatus::NoMem:
         return ENGINE_ENOMEM;
-
-    case AddStatus::Exists:
-    case AddStatus::UnDel:
-    case AddStatus::Success:
-    case AddStatus::AddTmpAndBgFetch:
-        // Since the hashtable bucket is locked, we shouldn't get here
-        throw std::logic_error(
-                "VBucket::addTempItemAndBGFetch: "
-                "Invalid result from addTempItem: " +
-                std::to_string(static_cast<uint16_t>(rv)));
-
-    case AddStatus::BgFetch:
+    case TempAddStatus::BgFetch:
         hbl.getHTLock().unlock();
         bgFetch(key, cookie, engine, bgFetchDelay, metadataOnly);
     }

@@ -66,7 +66,7 @@ AddStatus VBucketTest::addOne(const StoredDocKey& k, int expiry) {
     return public_processAdd(i);
 }
 
-AddStatus VBucketTest::addOneTemp(const StoredDocKey& k) {
+TempAddStatus VBucketTest::addOneTemp(const StoredDocKey& k) {
     auto hbl_sv = lockAndFind(k);
     return vbucket->addTempStoredValue(hbl_sv.first, k);
 }

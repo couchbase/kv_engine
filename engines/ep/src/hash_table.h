@@ -55,6 +55,14 @@ enum class AddStatus : uint16_t {
 };
 
 /**
+ * Result from temporary add operation.
+ */
+enum class TempAddStatus : uint8_t {
+    NoMem,  //No memory for operation
+    BgFetch //Schedule a background fetch
+};
+
+/**
  * A container of StoredValue instances.
  *
  * The HashTable class is an unordered, associative array which maps

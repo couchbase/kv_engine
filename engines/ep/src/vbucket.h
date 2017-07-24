@@ -1360,9 +1360,9 @@ protected:
      *
      * @return Result indicating the status of the operation
      */
-    AddStatus addTempStoredValue(const HashTable::HashBucketLock& hbl,
-                                 const DocKey& key,
-                                 bool isReplication = false);
+    TempAddStatus addTempStoredValue(const HashTable::HashBucketLock& hbl,
+                                     const DocKey& key,
+                                     bool isReplication = false);
 
     /**
      * Internal wrapper function around the callback to be called when a new

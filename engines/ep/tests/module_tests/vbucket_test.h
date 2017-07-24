@@ -56,7 +56,7 @@ protected:
 
     AddStatus addOne(const StoredDocKey& k, int expiry = 0);
 
-    AddStatus addOneTemp(const StoredDocKey& k);
+    TempAddStatus addOneTemp(const StoredDocKey& k);
 
     void addMany(std::vector<StoredDocKey>& keys, AddStatus expect);
 

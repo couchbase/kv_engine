@@ -191,7 +191,7 @@ TEST_F(EphemeralVBucketTest, AddItems) {
 
 TEST_F(EphemeralVBucketTest, AddTempItem) {
     /* Add temp item */
-    EXPECT_EQ(AddStatus::BgFetch, addOneTemp(makeStoredDocKey("one")));
+    EXPECT_EQ(TempAddStatus::BgFetch, addOneTemp(makeStoredDocKey("one")));
 
     /* hash table contains the temp item */
     EXPECT_EQ(1, vbucket->getNumTempItems());
@@ -209,7 +209,7 @@ TEST_F(EphemeralVBucketTest, AddTempItemAndUpdate) {
     const StoredDocKey k = makeStoredDocKey("one");
 
     /* Add temp item */
-    EXPECT_EQ(AddStatus::BgFetch, addOneTemp(k));
+    EXPECT_EQ(TempAddStatus::BgFetch, addOneTemp(k));
 
     /* Update the temp item (make it non-temp) */
     Item i(k, 0, /*expiry*/ 0, k.data(), k.size());
@@ -231,7 +231,7 @@ TEST_F(EphemeralVBucketTest, AddTempItemAndSoftDelete) {
     const StoredDocKey k = makeStoredDocKey("one");
 
     /* Add temp item */
-    EXPECT_EQ(AddStatus::BgFetch, addOneTemp(k));
+    EXPECT_EQ(TempAddStatus::BgFetch, addOneTemp(k));
 
     /* SoftDelete the temp item (make it non-temp) */
     softDeleteOne(k, MutationStatus::WasClean);

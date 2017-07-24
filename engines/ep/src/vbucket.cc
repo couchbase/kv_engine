@@ -1295,8 +1295,8 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(const DocKey& key,
             } else {
                 // Even though bloomfilter predicted that item doesn't exist
                 // on disk, we must put this delete on disk if the cas is valid.
-                AddStatus rv = addTempStoredValue(hbl, key, isReplication);
-                if (rv == AddStatus::NoMem) {
+                TempAddStatus rv = addTempStoredValue(hbl, key, isReplication);
+                if (rv == TempAddStatus::NoMem) {
                     return ENGINE_ENOMEM;
                 }
                 v = ht.unlocked_find(key,
@@ -1309,8 +1309,8 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(const DocKey& key,
     } else {
         if (!v) {
             // We should always try to persist a delete here.
-            AddStatus rv = addTempStoredValue(hbl, key, isReplication);
-            if (rv == AddStatus::NoMem) {
+            TempAddStatus rv = addTempStoredValue(hbl, key, isReplication);
+            if (rv == TempAddStatus::NoMem) {
                 return ENGINE_ENOMEM;
             }
             v = ht.unlocked_find(key,
@@ -1435,8 +1435,8 @@ void VBucket::deleteExpiredItem(const Item& it,
             // into the checkpoint queue, only if the bloomfilter
             // predicts that the item may exist on disk.
             if (maybeKeyExistsInFilter(key)) {
-                AddStatus rv = addTempStoredValue(hbl, key);
-                if (rv == AddStatus::NoMem) {
+                TempAddStatus rv = addTempStoredValue(hbl, key);
+                if (rv == TempAddStatus::NoMem) {
                     return;
                 }
                 v = ht.unlocked_find(key,
@@ -2297,9 +2297,9 @@ bool VBucket::deleteStoredValue(const HashTable::HashBucketLock& hbl,
     return true;
 }
 
-AddStatus VBucket::addTempStoredValue(const HashTable::HashBucketLock& hbl,
-                                      const DocKey& key,
-                                      bool isReplication) {
+TempAddStatus VBucket::addTempStoredValue(const HashTable::HashBucketLock& hbl,
+                                          const DocKey& key,
+                                          bool isReplication) {
     if (!hbl.getHTLock()) {
         throw std::invalid_argument(
                 "VBucket::addTempStoredValue: htLock not held for "
@@ -2322,7 +2322,7 @@ AddStatus VBucket::addTempStoredValue(const HashTable::HashBucketLock& hbl,
              StoredValue::state_temp_init);
 
     if (!hasMemoryForStoredValue(stats, itm, isReplication)) {
-        return AddStatus::NoMem;
+        return TempAddStatus::NoMem;
     }
 
     /* A 'temp initial item' is just added to the hash table. It is
@@ -2333,7 +2333,7 @@ AddStatus VBucket::addTempStoredValue(const HashTable::HashBucketLock& hbl,
     itm.setRevSeqno(v->getRevSeqno());
     v->setNRUValue(MAX_NRU_VALUE);
 
-    return AddStatus::BgFetch;
+    return TempAddStatus::BgFetch;
 }
 
 void VBucket::notifyNewSeqno(const VBNotifyCtx& notifyCtx) {
