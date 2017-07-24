@@ -26,7 +26,6 @@
 #include "dynamic_buffer.h"
 #include "executorpool.h"
 #include "log_macros.h"
-#include "net_buf.h"
 #include "settings.h"
 #include "timing_histogram.h"
 
@@ -85,7 +84,7 @@ struct LIBEVENT_THREAD {
     ThreadType type;      /* Type of IO this thread processes */
 
     /** Shared read buffer for all connections serviced by this thread. */
-    struct net_buf read;
+    std::unique_ptr<cb::Pipe> read;
 
     /** Shared write buffer for all connections serviced by this thread. */
     std::unique_ptr<cb::Pipe> write;

@@ -46,14 +46,10 @@ enum class BufferLoan {
 
 /** Function prototypes ******************************************************/
 
-static BufferLoan conn_loan_single_buffer(McbpConnection *c, struct net_buf *thread_buf,
-                                             struct net_buf *conn_buf);
 static BufferLoan conn_loan_single_buffer(McbpConnection& c,
                                           std::unique_ptr<cb::Pipe>& thread_buf,
                                           std::unique_ptr<cb::Pipe>& conn_buf);
 
-static void conn_return_single_buffer(Connection *c, struct net_buf *thread_buf,
-                                      struct net_buf *conn_buf);
 static void conn_return_single_buffer(McbpConnection& c,
                                       std::unique_ptr<cb::Pipe>& thread_buf,
                                       std::unique_ptr<cb::Pipe>& conn_buf);
@@ -261,8 +257,7 @@ static void conn_cleanup(Connection *c) {
     if (mcbpc != nullptr) {
         mcbpc->releaseTempAlloc();
 
-        mcbpc->read.curr = mcbpc->read.buf;
-        mcbpc->read.bytes = 0;
+        mcbpc->read->clear();
         mcbpc->write->clear();
 
         /* Return any buffers back to the thread; before we disassociate the
@@ -374,7 +369,7 @@ void conn_loan_buffers(Connection *connection) {
         return;
     }
 
-    auto res = conn_loan_single_buffer(c, &c->getThread()->read, &c->read);
+    auto res = conn_loan_single_buffer(*c, c->getThread()->read, c->read);
     auto *ts = get_thread_stats(c);
     if (res == BufferLoan::Allocated) {
         ts->rbufs_allocated++;
@@ -404,7 +399,7 @@ void conn_return_buffers(Connection *connection) {
 
     if (thread == nullptr) {
         // Connection already cleaned up - nothing to do.
-        cb_assert(c->read.buf == NULL);
+        cb_assert(!c->read);
         cb_assert(!c->write);
         return;
     }
@@ -414,7 +409,7 @@ void conn_return_buffers(Connection *connection) {
         return;
     }
 
-    conn_return_single_buffer(c, &thread->read, &c->read);
+    conn_return_single_buffer(*c, thread->read, c->read);
     conn_return_single_buffer(*c, thread->write, c->write);
 }
 
@@ -562,44 +557,6 @@ static BufferLoan conn_loan_single_buffer(McbpConnection& c,
     return BufferLoan::Allocated;
 }
 
-static BufferLoan conn_loan_single_buffer(McbpConnection* c,
-                                          struct net_buf* thread_buf,
-                                          struct net_buf* conn_buf) {
-    /* Already have a (partial) buffer - nothing to do. */
-    if (conn_buf->buf != NULL) {
-        return BufferLoan::Existing;
-    }
-
-    if (thread_buf->buf != NULL) {
-        /* Loan thread's buffer to connection. */
-        *conn_buf = *thread_buf;
-
-        thread_buf->buf = NULL;
-        thread_buf->size = 0;
-        return BufferLoan::Loaned;
-    } else {
-        /* Need to allocate a new buffer. */
-        conn_buf->buf = reinterpret_cast<char*>(cb_malloc(DATA_BUFFER_SIZE));
-        if (conn_buf->buf == NULL) {
-            /* Unable to alloc a buffer for the thread. Not much we can do here
-             * other than terminate the current connection.
-             */
-            if (settings.getVerbose()) {
-                LOG_WARNING(
-                        c,
-                        "%u: Failed to allocate new network buffer.. closing"
-                        " connection",
-                        c->getId());
-            }
-            c->setState(conn_closing);
-            return BufferLoan::Existing;
-        }
-        conn_buf->size = DATA_BUFFER_SIZE;
-        conn_buf->curr = conn_buf->buf;
-        conn_buf->bytes = 0;
-        return BufferLoan::Allocated;
-    }
-}
 
 /**
  * Return an empty read buffer back to the owning worker thread.
@@ -624,31 +581,6 @@ static void conn_return_single_buffer(McbpConnection& c,
     }
 
     // Partial data exists; leave the buffer with the connection
-}
-
-/**
- * Return an empty read buffer back to the owning worker thread.
- */
-static void conn_return_single_buffer(Connection *c, struct net_buf *thread_buf,
-                                      struct net_buf *conn_buf) {
-    if (conn_buf->buf == NULL) {
-        /* No buffer - nothing to do. */
-        return;
-    }
-
-    if ((conn_buf->curr == conn_buf->buf) && (conn_buf->bytes == 0)) {
-        /* Buffer clean, dispose of it. */
-        if (thread_buf->buf == NULL) {
-            /* Give back to thread. */
-            *thread_buf = *conn_buf;
-        } else {
-            cb_free(conn_buf->buf);
-        }
-        conn_buf->buf = conn_buf->curr = NULL;
-        conn_buf->size = 0;
-    } else {
-        /* Partial data exists; leave the buffer with the connection. */
-    }
 }
 
 ENGINE_ERROR_CODE apply_connection_trace_mask(const std::string& connid,
