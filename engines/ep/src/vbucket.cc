@@ -412,12 +412,17 @@ void VBucket::handlePreExpiry(StoredValue& v) {
          * value after pre-expiry is performed.
          */
         if (sapi->document->pre_expiry(itm_info)) {
-            char* extMeta = const_cast<char *>(v.getValue()->getExtMeta());
-            Item new_item(v.getKey(), v.getFlags(), v.getExptime(),
-                          itm_info.value[0].iov_base, itm_info.value[0].iov_len,
-                          reinterpret_cast<uint8_t*>(extMeta),
-                          v.getValue()->getExtLen(), v.getCas(),
-                          v.getBySeqno(), id, v.getRevSeqno(),
+            Item new_item(v.getKey(),
+                          v.getFlags(),
+                          v.getExptime(),
+                          itm_info.value[0].iov_base,
+                          itm_info.value[0].iov_len,
+                          &itm_info.datatype,
+                          sizeof(itm_info.datatype),
+                          v.getCas(),
+                          v.getBySeqno(),
+                          id,
+                          v.getRevSeqno(),
                           v.getNRUValue());
 
             new_item.setDeleted();
@@ -1341,9 +1346,11 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(const DocKey& key,
                                    backfill,
                                    nullptr /* No pre link step needed */);
 
-        // system xattrs must remain
+        // system xattrs must remain, however no need to prune xattrs if this is
+        // a replication call, the active has done this and we must just store
+        // what we're given
         std::unique_ptr<Item> itm;
-        if (mcbp::datatype::is_xattr(v->getDatatype()) &&
+        if (!isReplication && mcbp::datatype::is_xattr(v->getDatatype()) &&
             (itm = pruneXattrDocument(*v, itemMeta))) {
             std::tie(v, delrv, notifyCtx) =
                     updateStoredValue(hbl, *v, *itm, queueItmCtx);

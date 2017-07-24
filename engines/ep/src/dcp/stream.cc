@@ -2151,6 +2151,12 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
         return ENGINE_ERANGE;
     }
 
+    // The deleted value has a body, send it through the mutation path so we
+    // set the deleted item with a value
+    if (deletion->getItem()->getNBytes()) {
+        return processMutation(deletion);
+    }
+
     uint64_t delCas = 0;
     ENGINE_ERROR_CODE ret;
     ItemMetaData meta = deletion->getItem()->getMetaData();

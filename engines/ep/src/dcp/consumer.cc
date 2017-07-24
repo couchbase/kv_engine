@@ -777,20 +777,19 @@ bool DcpConsumer::handleRollbackResponse(uint16_t vbid,
     return true;
 }
 
-bool DcpConsumer::doRollback(uint32_t opaque, uint16_t vbid,
+bool DcpConsumer::doRollback(uint32_t opaque,
+                             uint16_t vbid,
                              uint64_t rollbackSeqno) {
     TaskStatus status = engine_.getKVBucket()->rollback(vbid, rollbackSeqno);
 
     switch (status) {
+    case TaskStatus::Reschedule:
+        return true; // Reschedule the rollback.
     case TaskStatus::Abort:
         logger.log(EXTENSION_LOG_WARNING,
                    "vb:%" PRIu16 " Rollback failed on the vbucket",
                    vbid);
-        return false;
-
-    case TaskStatus::Reschedule:
-        return true; // Reschedule the rollback.
-
+        break;
     case TaskStatus::Complete: {
         VBucketPtr vb = engine_.getVBucket(vbid);
         if (!vb) {
@@ -799,16 +798,16 @@ bool DcpConsumer::doRollback(uint32_t opaque, uint16_t vbid,
                        " Aborting rollback task as the vbucket "
                        "was deleted after rollback",
                        vbid);
-            return false;
+            break;
         }
         auto stream = findStream(vbid);
         if (stream) {
             stream->reconnectStream(vb, opaque, vb->getHighSeqno());
         }
+        break;
     }
-        return false;
     }
-    return false;
+    return false; // Do not reschedule the rollback
 }
 
 void DcpConsumer::addStats(ADD_STAT add_stat, const void *c) {

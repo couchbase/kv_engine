@@ -335,10 +335,6 @@ TEST_P(XattrTest, TestMacroExpansionAndIsolation) {
 }
 
 TEST_P(XattrTest, OperateOnDeletedItem) {
-    // TODO: MB-24378: Temporarily skipping this test.
-    TESTAPP__DOSKIP(GetTestBucket().getName() == "ep_engine",
-                    "MB-24378: OperateOnDeletedItem fails under ep");
-
     getConnection().remove(name, 0);
 
     // let's add an attribute to the deleted document

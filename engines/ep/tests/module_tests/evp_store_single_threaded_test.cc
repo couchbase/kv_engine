@@ -18,7 +18,9 @@
 #include "evp_store_single_threaded_test.h"
 #include "../mock/mock_dcp_consumer.h"
 #include "../mock/mock_dcp_producer.h"
+#include "../mock/mock_global_task.h"
 #include "../mock/mock_stream.h"
+#include "bgfetcher.h"
 #include "dcp/dcpconnmap.h"
 #include "ep_time.h"
 #include "evp_store_test.h"
@@ -1529,4 +1531,106 @@ TEST_F(WarmupTest, mightContainXattrs) {
     resetEngineAndWarmup();
 
     EXPECT_TRUE(engine->getKVBucket()->getVBucket(vbid)->mightContainXattrs());
+}
+
+// Test that we can push a DCP_DELETION which pretends to be from a delete
+// with xattrs, i.e. the delete has a value containing only system xattrs
+// The MB was created because this code would actually trigger an exception
+TEST_F(SingleThreadedEPBucketTest, mb25273) {
+    // We need a replica VB
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+
+    auto consumer = new MockDcpConsumer(*engine, cookie, "test_consumer");
+    int opaque = 1;
+    ASSERT_EQ(ENGINE_SUCCESS, consumer->addStream(opaque, vbid, /*flags*/ 0));
+
+    std::string key = "key";
+    std::string body = "body";
+
+    // Manually manage the xattr blob - later we will prune user keys
+    cb::xattr::Blob blob;
+
+    blob.set(to_const_byte_buffer("key1"),
+             to_const_byte_buffer("{\"author\":\"bubba\"}"));
+    blob.set(to_const_byte_buffer("_sync"),
+             to_const_byte_buffer("{\"cas\":\"0xdeadbeefcafefeed\"}"));
+
+    auto xattr_value = blob.finalize();
+
+    std::string data;
+    std::copy(xattr_value.buf,
+              xattr_value.buf + xattr_value.len,
+              std::back_inserter(data));
+    std::copy(
+            body.c_str(), body.c_str() + body.size(), std::back_inserter(data));
+
+    const DocKey docKey{key, DocNamespace::DefaultCollection};
+    cb::const_byte_buffer value{reinterpret_cast<const uint8_t*>(data.data()),
+                                data.size()};
+
+    // Send mutation in a single seqno snapshot
+    int64_t bySeqno = 1;
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->snapshotMarker(
+                      opaque, vbid, bySeqno, bySeqno, MARKER_FLAG_CHK));
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->mutation(opaque,
+                                 docKey,
+                                 value,
+                                 0, // priv bytes
+                                 PROTOCOL_BINARY_DATATYPE_XATTR,
+                                 2, // cas
+                                 vbid,
+                                 0xf1a95, // flags
+                                 bySeqno,
+                                 0, // rev seqno
+                                 0, // exptime
+                                 0, // locktime
+                                 {}, // meta
+                                 0)); // nru
+    EXPECT_EQ(1, store->flushVBucket(vbid));
+    bySeqno++;
+
+    // Send deletion in a single seqno snapshot and send a doc with only system
+    // xattrs to simulate what an active would send
+    blob.prune_user_keys();
+    value = blob.finalize();
+    EXPECT_NE(0, value.size());
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->snapshotMarker(
+                      opaque, vbid, bySeqno, bySeqno, MARKER_FLAG_CHK));
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->deletion(opaque,
+                                 docKey,
+                                 value,
+                                 /*priv_bytes*/ 0,
+                                 PROTOCOL_BINARY_DATATYPE_XATTR,
+                                 /*cas*/ 3,
+                                 vbid,
+                                 bySeqno,
+                                 /*revSeqno*/ 0,
+                                 /*meta*/ {}));
+    EXPECT_EQ(1, store->flushVBucket(vbid));
+    /* Close stream before deleting the connection */
+    ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(opaque, vbid));
+
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    get_options_t options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+            HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
+    auto gv = store->get(docKey, vbid, cookie, options);
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
+
+    // Manually run the bgfetch task.
+    MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
+    store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+    gv = store->get(docKey, vbid, cookie, GET_DELETED_VALUE);
+    ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus());
+
+    // check it's there and deleted with the expected value length
+    EXPECT_TRUE(gv.item->isDeleted());
+    EXPECT_EQ(0, gv.item->getFlags()); // flags also still zero
+    EXPECT_EQ(3, gv.item->getCas());
+    EXPECT_EQ(value.size(), gv.item->getValue()->vlength());
 }
