@@ -65,7 +65,7 @@ DcpConsumer *DcpConnMap::newConsumer(const void* cookie,
 
     const auto& iter = map_.find(cookie);
     if (iter != map_.end()) {
-        iter->second->setDisconnect(true);
+        iter->second->setDisconnect();
         LOG(EXTENSION_LOG_NOTICE,
             "Failed to create Dcp Consumer because connection "
             "(%p) already exists.", cookie);
@@ -82,7 +82,7 @@ DcpConsumer *DcpConnMap::newConsumer(const void* cookie,
                 "%s Disconnecting existing Dcp Consumer %p as it has the same "
                 "name as a new connection %p",
                 cookieToConn.second->logHeader(), cookieToConn.first, cookie);
-            cookieToConn.second->setDisconnect(true);
+            cookieToConn.second->setDisconnect();
         }
     }
 
@@ -136,7 +136,7 @@ DcpProducer* DcpConnMap::newProducer(const void* cookie,
 
     const auto& iter = map_.find(cookie);
     if (iter != map_.end()) {
-        iter->second->setDisconnect(true);
+        iter->second->setDisconnect();
         LOG(EXTENSION_LOG_NOTICE,
             "Failed to create Dcp Producer because connection "
             "(%p) already exists.", cookie);
@@ -153,7 +153,7 @@ DcpProducer* DcpConnMap::newProducer(const void* cookie,
                 "%s Disconnecting existing Dcp Producer %p as it has the same "
                 "name as a new connection %p",
                 cookieToConn.second->logHeader(), cookieToConn.first, cookie);
-            cookieToConn.second->setDisconnect(true);
+            cookieToConn.second->setDisconnect();
         }
     }
 
@@ -274,7 +274,7 @@ void DcpConnMap::disconnect(const void *cookie) {
             if (conn.get()) {
                 conn->getLogger().log(EXTENSION_LOG_NOTICE,
                                       "Removing connection %p", cookie);
-                conn->setDisconnect(true);
+                conn->setDisconnect();
                 map_.erase(itr);
             }
         }

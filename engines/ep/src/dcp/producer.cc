@@ -1092,16 +1092,12 @@ DcpResponse* DcpProducer::getNextItem() {
     return NULL;
 }
 
-void DcpProducer::setDisconnect(bool disconnect) {
-    ConnHandler::setDisconnect(disconnect);
+void DcpProducer::setDisconnect() {
+    ConnHandler::setDisconnect();
 
-    if (disconnect) {
-        streams.for_each(
-            [](StreamsMap::value_type& iter){
-                iter.second->setDead(END_STREAM_DISCONNECTED);
-            }
-        );
-    }
+    streams.for_each([](StreamsMap::value_type& iter) {
+        iter.second->setDead(END_STREAM_DISCONNECTED);
+    });
 }
 
 void DcpProducer::notifyStreamReady(uint16_t vbucket) {

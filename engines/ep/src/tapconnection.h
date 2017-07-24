@@ -323,8 +323,8 @@ public:
         return disconnect.load();
     }
 
-    virtual void setDisconnect(bool val) {
-        disconnect.store(val);
+    virtual void setDisconnect() {
+        disconnect.store(true);
     }
 
     static std::string getAnonName() {
