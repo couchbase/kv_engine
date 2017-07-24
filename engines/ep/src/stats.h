@@ -135,20 +135,7 @@ public:
         bgMaxLoad(0),
         vbucketDelMaxWalltime(0),
         vbucketDelTotWalltime(0),
-        numTapFetched(0),
-        numTapBGFetched(0),
-        numTapBGFetchRequeued(0),
-        numTapFGFetched(0),
-        numTapDeletes(0),
-        tapBgNumOperations(0),
-        replicationThrottled(0),
         replicationThrottleThreshold(0),
-        tapBgWait(0),
-        tapBgMinWait(0),
-        tapBgMaxWait(0),
-        tapBgLoad(0),
-        tapBgMinLoad(0),
-        tapBgMaxLoad(0),
         numOpsStore(0),
         numOpsDelete(0),
         numOpsGet(0),
@@ -422,47 +409,8 @@ public:
     //! Histogram of expiry pager run times
     Histogram<hrtime_t> expiryPagerHisto;
 
-    /* TAP related stats */
-    //! The total number of tap events sent (not including noops)
-    Counter numTapFetched;
-    //! Number of background fetched tap items
-    Counter numTapBGFetched;
-    //! Number of times a tap background fetch task is requeued
-    Counter numTapBGFetchRequeued;
-    //! Number of foreground fetched tap items
-    Counter numTapFGFetched;
-    //! Number of tap deletes.
-    Counter numTapDeletes;
-    //! The number of samples the tapBgWaitDelta and tapBgLoadDelta contains of
-    Counter tapBgNumOperations;
-    //! The number of tap notify messages throttled by replicationThrottle.
-    Counter replicationThrottled;
     //! Percentage of memory in use before we throttle replication input
     std::atomic<double> replicationThrottleThreshold;
-
-    /** The sum of the deltas (in usec) from a tap item was put in queue until
-     *  the dispatcher started the work for this item
-     */
-    std::atomic<hrtime_t> tapBgWait;
-    //! The shortest tap bg wait time
-    std::atomic<hrtime_t> tapBgMinWait;
-    //! The longest tap bg wait time
-    std::atomic<hrtime_t> tapBgMaxWait;
-
-    //! Histogram of tap background wait loads.
-    Histogram<hrtime_t> tapBgWaitHisto;
-
-    /** The sum of the deltas (in usec) from the dispatcher started to load
-     *  a tap item until was done
-     */
-    std::atomic<hrtime_t> tapBgLoad;
-    //! The shortest tap load time
-    std::atomic<hrtime_t> tapBgMinLoad;
-    //! The longest tap load time
-    std::atomic<hrtime_t> tapBgMaxLoad;
-
-    //! Histogram of tap background wait loads.
-    Histogram<hrtime_t> tapBgLoadHisto;
 
     //! The number of basic store (add, set, arithmetic, touch, etc.) operations
     Counter numOpsStore;
@@ -551,15 +499,6 @@ public:
     //! Histogram of arithmetic commands.
     Histogram<hrtime_t> arithCmdHisto;
 
-    //! Histogram of tap VBucket reset timings
-    Histogram<hrtime_t> tapVbucketResetHisto;
-
-    //! Histogram of tap mutation timings.
-    Histogram<hrtime_t> tapMutationHisto;
-
-    //! Histogram of tap vbucket set timings.
-    Histogram<hrtime_t> tapVbucketSetHisto;
-
     //! Time spent notifying completion of IO.
     Histogram<hrtime_t> notifyIOHisto;
 
@@ -626,21 +565,12 @@ public:
         bgMaxWait.store(0);
         bgMinLoad.store(999999999);
         bgMaxLoad.store(0);
-        tapBgNumOperations.store(0);
-        tapBgWait.store(0);
-        tapBgLoad.store(0);
-        tapBgMinWait.store(999999999);
-        tapBgMaxWait.store(0);
-        tapBgMinLoad.store(999999999);
-        tapBgMaxLoad.store(0);
-        replicationThrottled.store(0);
         oom_errors.store(0);
         tmp_oom_errors.store(0);
         pendingOps.store(0);
         pendingOpsTotal.store(0);
         pendingOpsMax.store(0);
         pendingOpsMaxDuration.store(0);
-        numTapFetched.store(0);
         vbucketDelMaxWalltime.store(0);
         vbucketDelTotWalltime.store(0);
 
@@ -658,17 +588,12 @@ public:
         checkpointRemoverHisto.reset();
         itemPagerHisto.reset();
         expiryPagerHisto.reset();
-        tapBgWaitHisto.reset();
-        tapBgLoadHisto.reset();
         getVbucketCmdHisto.reset();
         setVbucketCmdHisto.reset();
         delVbucketCmdHisto.reset();
         getCmdHisto.reset();
         storeCmdHisto.reset();
         arithCmdHisto.reset();
-        tapVbucketResetHisto.reset();
-        tapMutationHisto.reset();
-        tapVbucketSetHisto.reset();
         notifyIOHisto.reset();
         getStatsCmdHisto.reset();
         chkPersistenceHisto.reset();
