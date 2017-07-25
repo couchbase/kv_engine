@@ -26,6 +26,7 @@
 #include "tests/mock/mock_dcp_consumer.h"
 #include "tests/mock/mock_dcp_producer.h"
 #include "tests/mock/mock_global_task.h"
+#include "tests/module_tests/evp_store_single_threaded_test.h"
 #include "tests/module_tests/evp_store_test.h"
 #include "tests/module_tests/thread_gate.h"
 
@@ -72,8 +73,7 @@ TEST_F(CollectionsTest, namespace_separation) {
 
     // Manually run the BGFetcher task; to fetch the two outstanding
     // requests (for the same key).
-    MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
-    store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+    runBGFetcherTask();
 
     gv = store->get(
             {"$collections::create:meat1", DocNamespace::DefaultCollection},
@@ -447,34 +447,14 @@ TEST_F(CollectionsTest, checkpoint_consistency) {
     }
 }
 
-class CollectionsWarmupTest : public CollectionsTest {
+class CollectionsWarmupTest : public SingleThreadedKVBucketTest {
 public:
     void SetUp() override {
-        CollectionsTest::SetUp();
-
-        // Create a second engine which we will warmup in the test.
-        // Note we now create an EventuallyPersistentEngine as this engine will
-        // manage the warmup tasks itself.
-        ENGINE_HANDLE* h;
-        EXPECT_EQ(ENGINE_SUCCESS, create_instance(1, get_mock_server_api, &h))
-                << "Failed to create ep engine instance";
-        EXPECT_EQ(1, h->interface) << "Unexpected engine handle version";
-
-        epEngine.reset(reinterpret_cast<EventuallyPersistentEngine*>(h));
+        // Enable collections (which will enable namespace persistence).
+        config_string += "collections_prototype_enabled=true";
+        SingleThreadedKVBucketTest::SetUp();
+        setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     }
-
-    void TearDown() override {
-        epEngine->destroy(true);
-        destroy_mock_cookie(cookie);
-        destroy_mock_event_callbacks();
-        engine->getDcpConnMap().manageConnections();
-        ObjectRegistry::onSwitchThread(nullptr);
-        engine.reset();
-        epEngine.reset();
-        destroy_engine();
-    }
-
-    std::unique_ptr<EventuallyPersistentEngine> epEngine;
 };
 
 //
@@ -482,42 +462,30 @@ public:
 // persisted collection state and should have the collection accessible.
 //
 TEST_F(CollectionsWarmupTest, warmup) {
-    VBucketPtr vb = store->getVBucket(vbid);
+    {
+        auto vb = store->getVBucket(vbid);
 
-    // Add the meat collection *and* change the separator
-    vb->updateFromManifest(
-        {R"({"revision":1,"separator":"-+-","collections":["$default","meat"]})"});
+        // Add the meat collection *and* change the separator
+        vb->updateFromManifest(
+            {R"({"revision":1,"separator":"-+-","collections":["$default","meat"]})"});
 
-    // Trigger a flush to disk. Flushes the meat create event and a separator
-    // changed event.
-    flush_vbucket_to_disk(vbid, 2);
+        // Trigger a flush to disk. Flushes the meat create event and a separator
+        // changed event.
+        flush_vbucket_to_disk(vbid, 2);
 
-    // Now we can write to beef
-    store_item(vbid, {"meat-+-beef", DocNamespace::Collections}, "value");
-    // But not dairy
-    store_item(vbid,
-               {"dairy-+-milk", DocNamespace::Collections},
-               "value",
-               0,
-               {cb::engine_errc::unknown_collection});
+        // Now we can write to beef
+        store_item(vbid, {"meat-+-beef", DocNamespace::Collections}, "value");
+        // But not dairy
+        store_item(vbid,
+                   {"dairy-+-milk", DocNamespace::Collections},
+                   "value",
+                   0,
+                   {cb::engine_errc::unknown_collection});
 
-    flush_vbucket_to_disk(vbid, 1);
+        flush_vbucket_to_disk(vbid, 1);
+    } // VBucketPtr scope ends
 
-    ObjectRegistry::onSwitchThread(epEngine.get());
-
-    // Add dbname to config string and then initialise which will warmup
-    std::string config = config_string;
-    if (config.size() > 0) {
-        config += ";";
-    }
-    config += "couch_bucket=warmup_bucket;dbname=" + std::string(test_dbname);
-    EXPECT_EQ(ENGINE_SUCCESS, epEngine->initialize(config.c_str()))
-            << "Failed to initialize epEngine.";
-
-    // Wait for warmup to complete.
-    while (epEngine->getKVBucket()->isWarmingUp()) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    }
+    resetEngineAndWarmup();
 
     {
         Item item({"meat-+-beef", DocNamespace::Collections},
@@ -528,7 +496,7 @@ TEST_F(CollectionsWarmupTest, warmup) {
         item.setVBucketId(vbid);
         uint64_t cas;
         EXPECT_EQ(ENGINE_SUCCESS,
-                  epEngine->store(nullptr, &item, &cas, OPERATION_SET));
+                  engine->store(nullptr, &item, &cas, OPERATION_SET));
     }
     {
         Item item({"dairy-+-milk", DocNamespace::Collections},
@@ -539,7 +507,7 @@ TEST_F(CollectionsWarmupTest, warmup) {
         item.setVBucketId(vbid);
         uint64_t cas;
         EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
-                  epEngine->store(nullptr, &item, &cas, OPERATION_SET));
+                  engine->store(nullptr, &item, &cas, OPERATION_SET));
     }
 }
 

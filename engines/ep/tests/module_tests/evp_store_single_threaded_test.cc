@@ -134,6 +134,33 @@ void SingleThreadedKVBucketTest::runReadersUntilWarmedUp() {
     }
 }
 
+/**
+ * Destroy engine and replace it with a new engine that can be warmed up.
+ * Finally, run warmup.
+ */
+void SingleThreadedKVBucketTest::resetEngineAndWarmup() {
+    shutdownAndPurgeTasks();
+    std::string config = config_string;
+
+    // check if warmup=false needs replacing with warmup=true
+    size_t pos;
+    std::string warmupT = "warmup=true";
+    std::string warmupF = "warmup=false";
+    if ((pos = config.find(warmupF)) != std::string::npos) {
+        config.replace(pos, warmupF.size(), warmupT);
+    } else {
+        config += warmupT;
+    }
+
+    reinitialise(config);
+
+    engine->getKVBucket()->initializeWarmupTask();
+    engine->getKVBucket()->startWarmupTask();
+
+    // Now get the engine warmed up
+    runReadersUntilWarmedUp();
+}
+
 /*
  * The following test checks to see if we call handleSlowStream when in a
  * backfilling state, but the backfillTask is not running, we
@@ -1425,33 +1452,6 @@ public:
         couchstore_commit(handle);
         couchstore_close_file(handle);
         couchstore_free_db(handle);
-    }
-
-    /**
-     * Destroy engine and replace it with a new engine that can be warmed up.
-     * Finally, run warmup.
-     */
-    void resetEngineAndWarmup() {
-        shutdownAndPurgeTasks();
-        std::string config = config_string;
-
-        // check if warmup=false needs replacing with warmup=true
-        size_t pos;
-        std::string warmupT = "warmup=true";
-        std::string warmupF = "warmup=false";
-        if ((pos = config.find(warmupF)) != std::string::npos) {
-            config.replace(pos, warmupF.size(), warmupT);
-        } else {
-            config += warmupT;
-        }
-
-        reinitialise(config);
-
-        engine->getKVBucket()->initializeWarmupTask();
-        engine->getKVBucket()->startWarmupTask();
-
-        // Now get the engine warmed up
-        runReadersUntilWarmedUp();
     }
 };
 
