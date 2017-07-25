@@ -1806,7 +1806,7 @@ typedef protocol_binary_request_no_extras protocol_binary_request_select_bucket;
  */
 typedef enum {
     protocol_binary_engine_param_flush = 1, /* flusher-related param type */
-    protocol_binary_engine_param_tap, /* tap-related param type */
+    protocol_binary_engine_param_replication, /* replication param type */
     protocol_binary_engine_param_checkpoint, /* checkpoint-related param type */
     protocol_binary_engine_param_dcp, /* dcp param type */
     protocol_binary_engine_param_vbucket /* vbucket param type */

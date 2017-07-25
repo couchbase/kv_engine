@@ -47,7 +47,6 @@ struct PopulateEventsBody;
 
 
 
-#define MAX_TAP_KEEP_ALIVE 3600
 #define MAX_TAKEOVER_TAP_LOG_SIZE 10
 #define MINIMUM_BACKFILL_RESIDENT_THRESHOLD 0.7
 #define DEFAULT_BACKFILL_RESIDENT_THRESHOLD 0.9
@@ -60,7 +59,7 @@ struct ConnCounter {
     ConnCounter()
         : conn_queue(0), totalConns(0), totalProducers(0),
           conn_queueFill(0), conn_queueDrain(0), conn_totalBytes(0), conn_queueRemaining(0),
-          conn_queueBackoff(0), conn_queueBackfillRemaining(0), conn_queueItemOnDisk(0),
+          conn_queueBackoff(0), conn_queueItemOnDisk(0),
           conn_totalBacklogSize(0)
     {}
 
@@ -73,7 +72,6 @@ struct ConnCounter {
         conn_totalBytes += other.conn_totalBytes;
         conn_queueRemaining += other.conn_queueRemaining;
         conn_queueBackoff += other.conn_queueBackoff;
-        conn_queueBackfillRemaining += other.conn_queueBackfillRemaining;
         conn_queueItemOnDisk += other.conn_queueItemOnDisk;
         conn_totalBacklogSize += other.conn_totalBacklogSize;
 
@@ -89,7 +87,6 @@ struct ConnCounter {
     size_t      conn_totalBytes;
     size_t      conn_queueRemaining;
     size_t      conn_queueBackoff;
-    size_t      conn_queueBackfillRemaining;
     size_t      conn_queueItemOnDisk;
     size_t      conn_totalBacklogSize;
 };
@@ -609,64 +606,6 @@ private:
     std::atomic<bool> notificationScheduled;
         //! Flag indicating if the pending memcached connection is notified
     std::atomic<bool> notifySent;
-};
-
-class Producer : public ConnHandler, public Notifiable {
-public:
-    Producer(EventuallyPersistentEngine &engine, const void* cookie,
-             const std::string& name) :
-        ConnHandler(engine, cookie, name),
-        Notifiable(),
-        vbucketFilter(),
-        totalBackfillBacklogs(0),
-        reconnects(0) {}
-
-    virtual ~Producer() {
-    }
-
-    void addStats(ADD_STAT add_stat, const void *c);
-
-    bool isReconnected() const {
-        return reconnects > 0;
-    }
-
-    void reconnected() {
-        ++reconnects;
-    }
-
-    virtual bool isTimeForNoop() = 0;
-
-    virtual void setTimeForNoop() = 0;
-
-    const char *getType() const { return "producer"; }
-
-    virtual void clearQueues() = 0;
-
-    virtual size_t getBackfillQueueSize() = 0;
-
-    void incrBackfillRemaining(size_t incr) {
-        LockHolder lh(queueLock);
-        totalBackfillBacklogs += incr;
-    }
-
-    const VBucketFilter &getVBucketFilter() {
-        LockHolder lh(queueLock);
-        return vbucketFilter;
-    }
-
-protected:
-    friend class ConnMap;
-
-    //! Lock held during queue operations.
-    std::mutex queueLock;
-    //! Filter for the vbuckets we want.
-    VBucketFilter vbucketFilter;
-    //! Total backfill backlogs
-    size_t totalBackfillBacklogs;
-
-private:
-    //! Number of times this client reconnected
-    uint32_t reconnects;
 };
 
 #endif  // SRC_TAPCONNECTION_H_

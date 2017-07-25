@@ -21,47 +21,7 @@
 #include <iostream>
 #include <protocol/connection/client_mcbp_connection.h>
 #include <programs/hostname_utils.h>
-
-#ifndef WIN32
-#include <termios.h>
-#include <unistd.h>
-#endif
-
-void setEcho(bool enable) {
-#ifdef WIN32
-    HANDLE stdinHandle = GetStdHandle(STD_INPUT_HANDLE);
-    DWORD mode;
-    GetConsoleMode(stdinHandle, &mode);
-
-    if(!enable) {
-        mode &= ~ENABLE_ECHO_INPUT;
-    } else {
-        mode |= ENABLE_ECHO_INPUT;
-    }
-
-    SetConsoleMode(stdinHandle, mode);
-#else
-    struct termios tty;
-    tcgetattr(STDIN_FILENO, &tty);
-    if(!enable) {
-        tty.c_lflag &= ~ECHO;
-    } else {
-        tty.c_lflag |= ECHO;
-    }
-
-    (void) tcsetattr(STDIN_FILENO, TCSANOW, &tty);
-#endif
-}
-
-std::string getpass() {
-    std::cout << "Password: " << std::flush;
-    setEcho(false);
-    std::string password;
-    std::cin >> password;
-    setEcho(true);
-
-    return password;
-}
+#include <programs/getpass.h>
 
 /**
  * Request a stat from the server

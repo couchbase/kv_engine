@@ -651,13 +651,6 @@
                 "tap": true
             }
         },
-        "tap_keepalive": {
-            "default": "0",
-            "type": "size_t",
-            "requires": {
-                "tap": true
-            }
-        },
         "tap_noop_interval": {
             "default": "200",
             "descr": "Number of seconds between a noop is sent on an idle connection",

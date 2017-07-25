@@ -134,7 +134,7 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
                          uint32_t flags,
                          cb::const_byte_buffer jsonFilter,
                          bool startTask)
-    : Producer(e, cookie, name),
+    : ConnHandler(e, cookie, name),
       rejectResp(NULL),
       notifyOnly((flags & DCP_OPEN_NOTIFIER) != 0),
       lastSendTime(ep_current_time()),
@@ -860,7 +860,11 @@ void DcpProducer::scheduleBackfillManager(VBucket& vb,
 }
 
 void DcpProducer::addStats(ADD_STAT add_stat, const void *c) {
-    Producer::addStats(add_stat, c);
+    ConnHandler::addStats(add_stat, c);
+    addStat("paused", isPaused(), add_stat, c);
+    if (isPaused()) {
+        addStat("paused_reason", getPausedReason(), add_stat, c);
+    }
 
     addStat("items_sent", getItemsSent(), add_stat, c);
     addStat("items_remaining", getItemsRemaining(), add_stat, c);
@@ -929,7 +933,6 @@ void DcpProducer::aggregateQueueStats(ConnCounter& aggregator) {
     aggregator.conn_queueDrain += itemsSent;
     aggregator.conn_totalBytes += totalBytesSent;
     aggregator.conn_queueRemaining += getItemsRemaining();
-    aggregator.conn_queueBackfillRemaining += totalBackfillBacklogs;
 }
 
 void DcpProducer::notifySeqnoAvailable(uint16_t vbucket, uint64_t seqno) {
@@ -1164,25 +1167,12 @@ ENGINE_ERROR_CODE DcpProducer::maybeSendNoop(
     return ENGINE_FAILED;
 }
 
-bool DcpProducer::isTimeForNoop() {
-    // Not Implemented
-    return false;
-}
-
-void DcpProducer::setTimeForNoop() {
-    // Not Implemented
-}
-
 void DcpProducer::clearQueues() {
     streams.for_each(
         [](StreamsMap::value_type& iter) {
             iter.second->clear();
         }
     );
-}
-
-size_t DcpProducer::getBackfillQueueSize() {
-    return totalBackfillBacklogs;
 }
 
 size_t DcpProducer::getItemsSent() {

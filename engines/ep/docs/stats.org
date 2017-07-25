@@ -164,7 +164,6 @@ For introductory information on stats within Couchbase, start with the
 |                                    | ejected                                |
 | ep_num_not_my_vbuckets             | Number of times Not My VBucket         |
 |                                    | exception happened during runtime      |
-| ep_tap_keepalive                   | Tap keepalive time                     |
 | ep_dbname                          | DB path                                |
 | ep_pending_ops                     | Number of ops awaiting pending         |
 |                                    | vbuckets                               |
@@ -674,7 +673,6 @@ another colon.  For example, if your client is named, =slave1=, the
 | backfill_completed          | true if all items from backfill is       | P  |
 |                             | successfully transmitted to the client   | P  |
 | backfill_start_timestamp    | Timestamp of backfill start              | P  |
-| reconnects                  | Number of reconnects from this client    | P  |
 | backfill_age                | The age of the start of the backfill     | P  |
 | ack_seqno                   | The current tap ACK sequence number      | P  |
 | recv_ack_seqno              | Last receive tap ACK sequence number     | P  |

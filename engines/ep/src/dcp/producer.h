@@ -31,7 +31,7 @@ class Filter;
 class BackfillManager;
 class DcpResponse;
 
-class DcpProducer : public Producer {
+class DcpProducer : public ConnHandler, public Notifiable {
 public:
 
     /**
@@ -60,18 +60,18 @@ public:
                                     uint64_t end_seqno, uint64_t vbucket_uuid,
                                     uint64_t last_seqno, uint64_t next_seqno,
                                     uint64_t *rollback_seqno,
-                                    dcp_add_failover_log callback);
+                                    dcp_add_failover_log callback) override;
 
     ENGINE_ERROR_CODE getFailoverLog(uint32_t opaque, uint16_t vbucket,
-                                     dcp_add_failover_log callback);
+                                     dcp_add_failover_log callback) override;
 
-    ENGINE_ERROR_CODE step(struct dcp_message_producers* producers);
+    ENGINE_ERROR_CODE step(struct dcp_message_producers* producers) override;
 
     ENGINE_ERROR_CODE bufferAcknowledgement(uint32_t opaque, uint16_t vbucket,
-                                            uint32_t buffer_bytes);
+                                            uint32_t buffer_bytes) override;
 
     ENGINE_ERROR_CODE control(uint32_t opaque, const void* key, uint16_t nkey,
-                              const void* value, uint32_t nvalue);
+                              const void* value, uint32_t nvalue) override;
 
     /**
      * Sub-classes must implement a method that processes a response
@@ -81,15 +81,15 @@ public:
      * @returns true/false which will be converted to SUCCESS/DISCONNECT by the
      *          engine.
      */
-    bool handleResponse(protocol_binary_response_header* resp);
+    bool handleResponse(protocol_binary_response_header* resp) override;
 
-    void addStats(ADD_STAT add_stat, const void *c);
+    void addStats(ADD_STAT add_stat, const void *c) override;
 
     void addTakeoverStats(ADD_STAT add_stat, const void* c, const VBucket& vb);
 
-    void aggregateQueueStats(ConnCounter& aggregator);
+    void aggregateQueueStats(ConnCounter& aggregator) override;
 
-    void setDisconnect(bool disconnect);
+    void setDisconnect(bool disconnect) override;
 
     void notifySeqnoAvailable(uint16_t vbucket, uint64_t seqno);
 
@@ -104,11 +104,7 @@ public:
 
     void closeAllStreams();
 
-    const char *getType() const;
-
-    bool isTimeForNoop();
-
-    void setTimeForNoop();
+    const char *getType() const override;
 
     void clearQueues();
 
@@ -127,7 +123,7 @@ public:
      * @return ENGINE_SUCCESS upon a successful close
      *         ENGINE_NOT_MY_VBUCKET the vbucket stream doesn't exist
      */
-    ENGINE_ERROR_CODE closeStream(uint32_t opaque, uint16_t vbucket);
+    ENGINE_ERROR_CODE closeStream(uint32_t opaque, uint16_t vbucket) override;
 
     void notifyStreamReady(uint16_t vbucket);
 

@@ -75,3 +75,10 @@ ReplicationThrottle::Status ReplicationThrottleEphe::getStatus() const {
     }
     return status;
 }
+
+bool ReplicationThrottleEphe::doDisconnectOnNoMem() const {
+    if (config.getEphemeralFullPolicy() == "fail_new_data") {
+        return true;
+    }
+    return false;
+}

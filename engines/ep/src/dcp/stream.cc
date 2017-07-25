@@ -1954,6 +1954,13 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(std::unique_ptr<DcpResponse> dc
                         opaque_);
                 return ENGINE_DISCONNECT;
             }
+
+            if (ret == ENGINE_ENOMEM) {
+                if (engine->getReplicationThrottle().doDisconnectOnNoMem()) {
+                    return ENGINE_DISCONNECT;
+                }
+            }
+
             if (ret != ENGINE_TMPFAIL && ret != ENGINE_ENOMEM) {
                 return ret;
             }

@@ -6196,7 +6196,6 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                 "ep_dcp_max_running_backfills",
                 "ep_dcp_num_running_backfills",
                 "ep_dcp_producer_count",
-                "ep_dcp_queue_backfillremaining",
                 "ep_dcp_queue_fill",
                 "ep_dcp_total_bytes",
                 "ep_dcp_total_queue"
@@ -6822,8 +6821,7 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                           "ep_tap_backlog_limit",
                           "ep_tap_backoff_period",
                           "ep_tap_bg_max_pending",
-                          "ep_tap_noop_interval",
-                          "ep_tap_keepalive"});
+                          "ep_tap_noop_interval"});
 
         // Config variables only valid for persistent
         eng_stats.insert(eng_stats.end(),
@@ -6876,7 +6874,6 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                              "ep_tap_backlog_limit",
                              "ep_tap_backoff_period",
                              "ep_tap_bg_max_pending",
-                             "ep_tap_keepalive",
                              "ep_tap_noop_interval",
                              "ep_tap_requeue_sleep_time"});
     }
@@ -6945,7 +6942,6 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
 
     bool error = false;
     for (const auto& entry : statsKeys) {
-
         vals.clear();
         checkeq(ENGINE_SUCCESS,
                 h1->get_stats(h, nullptr, entry.first.empty() ?

@@ -45,7 +45,6 @@ memcached like this:
 |                                |        | tap backfill                               |
 | tap_noop_interval              | int    | Number of seconds between a noop is sent   |
 |                                |        | on an idle connection                      |
-| tap_keepalive                  | int    | Seconds to hold open named tap connections |
 | tap_bg_max_pending             | int    | Maximum number of pending bg fetch         |
 |                                |        | operations                                 |
 |                                |        | a tap queue may issue (before it must wait |
