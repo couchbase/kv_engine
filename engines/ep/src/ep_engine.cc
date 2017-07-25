@@ -1721,7 +1721,6 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
       workloadPriority(NO_BUCKET_PRIORITY),
       getServerApiFunc(get_server_api),
       dcpFlowControlManager_(NULL),
-      tapConfig(NULL),
       checkpointConfig(NULL),
       trafficEnabled(false),
       deleteAllEnabled(false),
@@ -1947,9 +1946,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         /* Flow control is not enabled */
         dcpFlowControlManager_ = new DcpFlowControlManager(*this);
     }
-
-    tapConfig = new TapConfig(*this);
-    TapConfig::addConfigChangeListener(*this);
 
     checkpointConfig = new CheckpointConfig(*this);
     CheckpointConfig::addConfigChangeListener(*this);
@@ -5356,7 +5352,6 @@ EventuallyPersistentEngine::~EventuallyPersistentEngine() {
     dcpConnMap_.reset();
     LOG(EXTENSION_LOG_NOTICE, "~EPEngine: Deleted dcpConnMap_.");
     delete dcpFlowControlManager_;
-    delete tapConfig;
     delete checkpointConfig;
 }
 

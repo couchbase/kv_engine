@@ -239,8 +239,6 @@ void EphemeralBucket::reconfigureForEphemeral(Configuration& config) {
     config.setBfilterEnabled(false);
     // Disable warmup - it is not applicable to Ephemeral buckets.
     config.setWarmup(false);
-    // Disable TAP - not supported for Ephemeral.
-    config.setTap(false);
 }
 
 size_t EphemeralBucket::getNumPersistedDeletes(uint16_t vbid) {
