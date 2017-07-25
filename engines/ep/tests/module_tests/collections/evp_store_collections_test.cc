@@ -130,9 +130,7 @@ TEST_F(CollectionsTest, collections_basic) {
             {"{\"revision\":2, "
              "\"separator\":\"::\",\"collections\":[\"$default\"]}"});
 
-    // Note that nothing is flushed because a begin delete doesn't generate
-    // an Item.
-    flush_vbucket_to_disk(vbid, 0);
+    flush_vbucket_to_disk(vbid, 1);
 
     // Access denied (although the item still exists)
     gv = store->get(
@@ -246,7 +244,7 @@ std::string CollectionsFlushTest::deleteCollectionAndFlush(
     VBucketPtr vb = store->getVBucket(vbid);
     storeItems(collection, DocNamespace::Collections, items);
     vb->updateFromManifest(json);
-    flush_vbucket_to_disk(vbid, items); // only flush items
+    flush_vbucket_to_disk(vbid, 1 + items); // begin delete + items
     return getManifest();
 }
 
@@ -547,6 +545,37 @@ TEST_F(CollectionsWarmupTest, warmup) {
         EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
                   engine->store(nullptr, &item, &cas, OPERATION_SET));
     }
+}
+
+// Check the highSeqno matches what we persist
+TEST_F(CollectionsWarmupTest, MB_25381) {
+    int64_t highSeqno = 0;
+    {
+        auto vb = store->getVBucket(vbid);
+
+        // Add the dairy collection *and* change the separator
+        vb->updateFromManifest(
+            {R"({"revision":1,"separator":"@","collections":["$default","dairy"]})"});
+
+        // Trigger a flush to disk. Flushes the dairy create event and a separator
+        // changed event.
+        flush_vbucket_to_disk(vbid, 2);
+
+        // Now we can write to dairy
+        store_item(vbid, {"dairy@milk", DocNamespace::Collections}, "creamy");
+
+        // Now delete the dairy collection
+        vb->updateFromManifest(
+            {R"({"revision":2,"separator":"@","collections":["$default"]})"});
+
+        flush_vbucket_to_disk(vbid, 2);
+
+        highSeqno = vb->getHighSeqno();
+    } // VBucketPtr scope ends
+    resetEngineAndWarmup();
+
+    auto vb = store->getVBucket(vbid);
+    EXPECT_EQ(highSeqno, vb->getHighSeqno());
 }
 
 TEST_F(CollectionsTest, test_dcp_consumer) {

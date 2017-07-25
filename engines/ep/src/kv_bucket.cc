@@ -2148,16 +2148,8 @@ int KVBucket::flushVBucket(uint16_t vbid) {
                     continue;
                 }
 
-                // Pass the Item through the SystemEventFlush which may filter
-                // the item away (return Skip).
-                if (sef.process(item) == ProcessStatus::Skip) {
-                    // The item has no further flushing actions i.e. we've
-                    // absorbed it in the process function.
-                    // Update stats and carry-on
-                    --stats.diskQueueSize;
-                    vb->doStatsForFlushing(*item, item->size());
-                    continue;
-                }
+                // SystemEventFlush needs to check the item
+                sef.process(item);
 
                 if (item->getOperation() == queue_op::set_vbucket_state) {
                     // No actual item explicitly persisted to (this op exists
