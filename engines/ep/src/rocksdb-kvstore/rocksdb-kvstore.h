@@ -50,6 +50,53 @@ private:
     EventuallyPersistentEngine* engine;
 };
 
+// Used to order the seqno Column Family to support iterating items by seqno
+class VbidSeqnoComparator : public rocksdb::Comparator {
+public:
+    int Compare(const rocksdb::Slice& a,
+                const rocksdb::Slice& b) const override {
+        const auto vbidA = *reinterpret_cast<const uint16_t*>(a.data());
+        const auto vbidB = *reinterpret_cast<const uint16_t*>(b.data());
+
+        const auto seqnoA =
+                *reinterpret_cast<const int64_t*>(a.data() + sizeof(uint16_t));
+        const auto seqnoB =
+                *reinterpret_cast<const int64_t*>(b.data() + sizeof(uint16_t));
+
+        if (vbidA < vbidB) {
+            return -1;
+        }
+        if (vbidA > vbidB) {
+            return +1;
+        }
+        if (seqnoA < seqnoB) {
+            return -1;
+        }
+        if (seqnoA > seqnoB) {
+            return +1;
+        }
+
+        return 0;
+    }
+
+    const char* Name() const override {
+        return "VbidSeqnoComparator";
+        /* Change this if the comparator implementation is altered
+         This is used to ensure the operator with which the DB was
+         created is the same as the one provided when opening the DB.
+         */
+    }
+    /* Additional functions which must be implemented but aren't required
+     *  to do anything, but could be properly implemented in the future
+     *  if beneficial.
+     */
+    void FindShortestSeparator(std::string*,
+                               const rocksdb::Slice&) const override {
+    }
+    void FindShortSuccessor(std::string*) const override {
+    }
+};
+
 /**
  * A persistence store based on rocksdb.
  */
@@ -256,11 +303,16 @@ private:
      * Direct access to the DB.
      */
     std::unique_ptr<rocksdb::DB> db;
-    char* keyBuffer;
+
+    std::unique_ptr<rocksdb::ColumnFamilyHandle> defaultFamilyHandle;
+    std::unique_ptr<rocksdb::ColumnFamilyHandle> seqnoFamilyHandle;
+    VbidSeqnoComparator vbidSeqnoComparator;
+
     char* valBuffer;
     size_t valSize;
 
     rocksdb::Options rdbOptions;
+    rocksdb::ColumnFamilyOptions seqnoCFOptions;
 
     void open();
 
@@ -269,6 +321,9 @@ private:
     std::string mkKeyStr(uint16_t, const DocKey& k);
     rocksdb::SliceParts mkKeySliceParts(uint16_t, const DocKey& k);
     void grokKeySlice(const rocksdb::Slice&, uint16_t*, std::string*);
+
+    std::string mkSeqnoStr(uint16_t vb, int64_t seqno);
+    void grokSeqnoSlice(const rocksdb::Slice&, uint16_t* vb, int64_t* seqno);
 
     void adjustValBuffer(const size_t);
 

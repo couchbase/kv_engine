@@ -42,6 +42,9 @@ RocksDBKVStore::~RocksDBKVStore() {
 
 void RocksDBKVStore::open() {
     rdbOptions.create_if_missing = true;
+    rdbOptions.create_missing_column_families = true;
+
+    seqnoCFOptions.comparator = &vbidSeqnoComparator;
 
     /* Use a listener to set the appropriate engine in the
      * flusher threads RocksDB creates. We need the flusher threads to
@@ -58,8 +61,18 @@ void RocksDBKVStore::open() {
     const std::string dbname =
             dbdir + "/rocksdb." + std::to_string(configuration.getShardId());
 
+    std::vector<rocksdb::ColumnFamilyDescriptor> families{
+            rocksdb::ColumnFamilyDescriptor(rocksdb::kDefaultColumnFamilyName,
+                                            rocksdb::ColumnFamilyOptions()),
+
+            rocksdb::ColumnFamilyDescriptor("vbid_seqno_to_key",
+                                            seqnoCFOptions)};
+
+    std::vector<rocksdb::ColumnFamilyHandle*> handles;
+
     rocksdb::DB* dbPtr;
-    rocksdb::Status s = rocksdb::DB::Open(rdbOptions, dbname, &dbPtr);
+    rocksdb::Status s =
+            rocksdb::DB::Open(rdbOptions, dbname, families, &handles, &dbPtr);
 
     if (s.ok()) {
         db.reset(dbPtr);
@@ -68,10 +81,15 @@ void RocksDBKVStore::open() {
                 "RocksDBKVStore::open: failed to open database '" + dbname +
                 "': " + s.ToString());
     }
+
+    defaultFamilyHandle.reset(handles[0]);
+    seqnoFamilyHandle.reset(handles[1]);
 }
 
 void RocksDBKVStore::close() {
     batch.reset();
+    defaultFamilyHandle.reset();
+    seqnoFamilyHandle.reset();
     db.reset();
 }
 
@@ -136,10 +154,13 @@ void RocksDBKVStore::storeItem(const Item& itm) {
     uint16_t vbid = itm.getVBucketId();
     auto k = mkKeyStr(vbid, itm.getKey());
     auto v = mkValSlice(itm);
+    auto seq = mkSeqnoStr(vbid, itm.getBySeqno());
 
     // TODO RDB: check status.
-    rocksdb::Status s = batch->Put(k, v);
-    cb_assert(s.ok());
+    rocksdb::Status s1 = batch->Put(k, v);
+    rocksdb::Status s2 = batch->Put(seqnoFamilyHandle.get(), seq, k);
+    cb_assert(s1.ok());
+    cb_assert(s2.ok());
 }
 
 GetValue RocksDBKVStore::get(const DocKey& key, uint16_t vb, bool fetchDelete) {
@@ -205,15 +226,27 @@ static bool matches_prefix(rocksdb::Slice s, size_t len, const char* p) {
 
 void RocksDBKVStore::delVBucket(uint16_t vb, uint64_t vb_version) {
     std::lock_guard<std::mutex> lg(writeLock);
-    std::unique_ptr<rocksdb::Iterator> it(
-            db->NewIterator(rocksdb::ReadOptions()));
+    rocksdb::WriteBatch delBatch;
+
     const char* prefix(reinterpret_cast<const char*>(&vb));
     std::string start(prefix, sizeof(vb));
-    rocksdb::WriteBatch delBatch;
-    for (it->Seek(start);
-         it->Valid() && matches_prefix(it->key(), sizeof(vb), prefix);
-         it->Next()) {
-        delBatch.Delete(it->key());
+
+    // We must delete both all the documents for the VB,
+    // and all the vbid:seqno=>vbid:key mappings
+    std::vector<rocksdb::ColumnFamilyHandle*> CFHandles{
+            defaultFamilyHandle.get(), seqnoFamilyHandle.get()};
+
+    // makes use of the fact that keys in both CFs are vbid prefixed
+    // if we move to a db per vb this will just be dropping the whole DB.
+    for (auto* handle : CFHandles) {
+        std::unique_ptr<rocksdb::Iterator> it(
+                db->NewIterator(rocksdb::ReadOptions(), handle));
+
+        for (it->Seek(start);
+             it->Valid() && matches_prefix(it->key(), sizeof(vb), prefix);
+             it->Next()) {
+            delBatch.Delete(handle, it->key());
+        }
     }
     rocksdb::Status s = db->Write(writeOptions, &delBatch);
     cb_assert(s.ok());
@@ -266,6 +299,26 @@ void RocksDBKVStore::grokKeySlice(const rocksdb::Slice& s,
     assert(s.size() > sizeof(uint16_t));
     std::memcpy(v, s.data(), sizeof(uint16_t));
     k->assign(s.data() + sizeof(uint16_t), s.size() - sizeof(uint16_t));
+}
+
+std::string RocksDBKVStore::mkSeqnoStr(uint16_t vbid, int64_t seqno) {
+    size_t size = sizeof(uint16_t) + sizeof(int64_t);
+
+    std::string buffer;
+    buffer.reserve(size);
+
+    buffer.append(reinterpret_cast<char*>(&vbid), sizeof(vbid));
+    buffer.append(reinterpret_cast<char*>(&seqno), sizeof(seqno));
+
+    return buffer;
+}
+
+void RocksDBKVStore::grokSeqnoSlice(const rocksdb::Slice& s,
+                                    uint16_t* vb,
+                                    int64_t* seqno) {
+    assert(s.size() == sizeof(uint16_t) + sizeof(int64_t));
+    std::memcpy(vb, s.data(), sizeof(uint16_t));
+    std::memcpy(seqno, s.data() + sizeof(uint16_t), sizeof(int64_t));
 }
 
 rocksdb::Slice RocksDBKVStore::mkValSlice(const Item& item) {
