@@ -52,8 +52,6 @@ SynchronousEPEngine::SynchronousEPEngine(const std::string& extra_config)
 
     dcpFlowControlManager_ = new DcpFlowControlManager(*this);
 
-    tapConfig = new TapConfig(*this);
-
     enableTraffic(true);
 
     maxItemSize = configuration.getMaxItemSize();

@@ -509,8 +509,6 @@ public:
         return *dcpFlowControlManager_;
     }
 
-    TapConfig &getTapConfig() { return *tapConfig; }
-
     /**
      * Returns the replication throttle instance
      *
@@ -940,7 +938,6 @@ protected:
 
     std::unique_ptr<DcpConnMap> dcpConnMap_;
     DcpFlowControlManager *dcpFlowControlManager_;
-    TapConfig *tapConfig;
     CheckpointConfig *checkpointConfig;
     std::string name;
     size_t maxItemSize;

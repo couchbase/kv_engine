@@ -29,14 +29,16 @@
 class DcpResponse;
 class StreamEndResponse;
 
-class DcpConsumer : public Consumer, public Notifiable {
+class DcpConsumer : public ConnHandler, public Notifiable {
 typedef std::map<uint32_t, std::pair<uint32_t, uint16_t> > opaque_map;
 public:
 
     DcpConsumer(EventuallyPersistentEngine &e, const void *cookie,
-                const std::string &n);
+                const std::string &name);
 
     virtual ~DcpConsumer();
+
+    const char *getType() const override { return "consumer"; };
 
     /*
      * Creates a PassiveStream.

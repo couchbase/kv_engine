@@ -6430,7 +6430,6 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                 "ep_replication_throttle_cap_pcnt",
                 "ep_replication_throttle_queue_cap",
                 "ep_replication_throttle_threshold",
-                "ep_tap",
                 "ep_time_synchronization",
                 "ep_uuid",
                 "ep_vb0",
@@ -6678,7 +6677,6 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                 "ep_storedval_num",
                 "ep_storedval_overhead",
                 "ep_storedval_size",
-                "ep_tap",
                 "ep_tap_bg_fetch_requeued",
                 "ep_tap_bg_fetched",
                 "ep_time_synchronization",
@@ -6812,17 +6810,6 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                           "ep_uncommitted_items",
                           "ep_chk_persistence_timeout"});
 
-        eng_stats.insert(eng_stats.end(),
-                         {"ep_tap_ack_grace_period",
-                          "ep_tap_ack_initial_sequence_number",
-                          "ep_tap_ack_interval",
-                          "ep_tap_ack_window_size",
-                          "ep_tap_backfill_resident",
-                          "ep_tap_backlog_limit",
-                          "ep_tap_backoff_period",
-                          "ep_tap_bg_max_pending",
-                          "ep_tap_noop_interval"});
-
         // Config variables only valid for persistent
         eng_stats.insert(eng_stats.end(),
                          {"ep_access_scanner_enabled",
@@ -6832,8 +6819,7 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                           "ep_alog_resident_ratio_threshold",
                           "ep_alog_sleep_time",
                           "ep_alog_task_time",
-                          "ep_item_eviction_policy",
-                          "ep_tap_requeue_sleep_time"});
+                          "ep_item_eviction_policy"});
 
         // 'diskinfo and 'diskinfo detail' keys should be present now.
         statsKeys["diskinfo"] = {"ep_db_data_size", "ep_db_file_size"};
@@ -6865,17 +6851,7 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                              "ep_alog_resident_ratio_threshold",
                              "ep_alog_sleep_time",
                              "ep_alog_task_time",
-                             "ep_item_eviction_policy",
-                             "ep_tap_ack_grace_period",
-                             "ep_tap_ack_initial_sequence_number",
-                             "ep_tap_ack_interval",
-                             "ep_tap_ack_window_size",
-                             "ep_tap_backfill_resident",
-                             "ep_tap_backlog_limit",
-                             "ep_tap_backoff_period",
-                             "ep_tap_bg_max_pending",
-                             "ep_tap_noop_interval",
-                             "ep_tap_requeue_sleep_time"});
+                             "ep_item_eviction_policy"});
     }
 
     if (isEphemeralBucket(h, h1)) {
