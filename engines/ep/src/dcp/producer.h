@@ -89,7 +89,7 @@ public:
 
     void aggregateQueueStats(ConnCounter& aggregator) override;
 
-    void setDisconnect(bool disconnect) override;
+    void setDisconnect() override;
 
     void notifySeqnoAvailable(uint16_t vbucket, uint64_t seqno);
 

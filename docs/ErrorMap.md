@@ -64,6 +64,8 @@ _Attributes_ are the most important part of the error map as they convey _how_
 an error code should be handled. An error code may have more than a single
 attribute.
 
+* `item-locked`: This attribute means that the error is related to operating on a locked document.
+
 * `item-only`: This attribute means that the error is related to a constraint
   failure regarding the item itself, i.e. the item does not exist, already exists,
   or its current value makes the current operation impossible. Retrying the
