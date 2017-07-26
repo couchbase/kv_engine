@@ -210,6 +210,12 @@ void KVBucketTest::initializeExpiryPager() {
     store->initializeExpiryPager(engine->getConfiguration());
 }
 
+void KVBucketTest::runBGFetcherTask() {
+    MockGlobalTask mockTask(engine->getTaskable(),
+                            TaskId::MultiBGFetcherTask);
+    store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+}
+
 /**
  * Create a del_with_meta packet with the key/body (body can be empty)
  */

@@ -106,6 +106,12 @@ public:
     void initializeExpiryPager();
 
     /**
+     * Convenience method to run the background fetcher task once (in the
+     * current thread).
+     */
+    void runBGFetcherTask();
+
+    /**
      * Effectively shutdown/restart. This destroys the test engine/store/cookie
      * and re-creates them.
      */

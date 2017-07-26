@@ -31,6 +31,4 @@
  * Test fixture for EPBucket unit tests.
  */
 class EPBucketTest : public KVBucketTest {
-public:
-    void runBGFetcherTask();
 };
