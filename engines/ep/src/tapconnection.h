@@ -232,6 +232,10 @@ public:
         addStat("pending_disconnect", disconnect.load(), add_stat, c);
         addStat("supports_ack", supportAck.load(), add_stat, c);
         addStat("reserved", reserved.load(), add_stat, c);
+        addStat("paused", isPaused(), add_stat, c);
+        if (isPaused()) {
+            addStat("paused_reason", getPausedReason(), add_stat, c);
+        }
     }
 
     virtual void aggregateQueueStats(ConnCounter& stats_aggregator) {
@@ -263,6 +267,27 @@ public:
         disconnect.store(true);
     }
 
+    // Pause the connection.
+    // @param reason why the connection was paused - for debugging / diagnostic
+    void pause(std::string reason = "unknown") {
+        std::lock_guard<std::mutex> guard(pausedReason.mutex);
+        paused.store(true);
+        pausedReason.string = reason;
+    }
+
+    std::string getPausedReason() const {
+        std::lock_guard<std::mutex> guard(pausedReason.mutex);
+        return pausedReason.string;
+    }
+
+    bool isPaused() {
+        return paused;
+    }
+
+    void unPause() {
+        paused.store(false);
+    }
+
 protected:
     EventuallyPersistentEngine &engine_;
     EPStats &stats;
@@ -289,85 +314,15 @@ private:
 
     //! Whether or not this connection supports acking
     std::atomic<bool> supportAck;
-};
 
+    //! Connection is temporarily paused?
+    std::atomic<bool> paused;
 
-
-class Notifiable {
-public:
-    Notifiable()
-      : suspended(false), paused(false),
-        notificationScheduled(false), notifySent(false) {}
-
-    virtual ~Notifiable() {}
-
-    bool isPaused() {
-        return paused;
-    }
-
-    /** Pause the connection.
-     *
-     * @param reason Why the connection was paused - for debugging / diagnostic
-     */
-    void pause(std::string reason = "unknown") {
-        paused.store(true);
-        {
-            std::lock_guard<std::mutex> guard(pausedReason.mutex);
-            pausedReason.string = reason;
-        }
-    }
-
-    void unPause() {
-        paused.store(false);
-    }
-
-    std::string getPausedReason() const {
-        std::lock_guard<std::mutex> guard(pausedReason.mutex);
-        return pausedReason.string;
-    }
-
-    bool isNotificationScheduled() {
-        return notificationScheduled;
-    }
-
-    bool setNotificationScheduled(bool val) {
-        bool inverse = !val;
-        return notificationScheduled.compare_exchange_strong(inverse, val);
-    }
-
-    bool setNotifySent(bool val) {
-        bool inverse = !val;
-        return notifySent.compare_exchange_strong(inverse, val);
-    }
-
-    bool sentNotify() {
-        return notifySent;
-    }
-
-    bool setSuspended(bool val) {
-        bool inverse = !val;
-        return suspended.compare_exchange_strong(inverse, val);
-    }
-
-    bool isSuspended() {
-        return suspended;
-    }
-
-private:
     //! Description of why the connection is paused.
     struct pausedReason {
         mutable std::mutex mutex;
         std::string string;
     } pausedReason;
-
-    //! Is this tap connection in a suspended state
-    std::atomic<bool> suspended;
-    //! Connection is temporarily paused?
-    std::atomic<bool> paused;
-    //! Flag indicating if the notification event is scheduled
-    std::atomic<bool> notificationScheduled;
-        //! Flag indicating if the pending memcached connection is notified
-    std::atomic<bool> notifySent;
 };
 
 #endif  // SRC_TAPCONNECTION_H_

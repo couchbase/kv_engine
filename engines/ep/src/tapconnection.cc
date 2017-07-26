@@ -40,7 +40,7 @@ ConnHandler::ConnHandler(EventuallyPersistentEngine& e, const void* c,
     reserved(false),
     created(ep_current_time()),
     disconnect(false),
-    supportAck(false) {}
+    paused(false) {}
 
 ENGINE_ERROR_CODE ConnHandler::addStream(uint32_t opaque, uint16_t,
                                          uint32_t flags) {

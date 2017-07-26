@@ -174,10 +174,8 @@ void ConnMap::notifyPausedConnection(connection_t conn, bool schedule) {
         return;
     }
 
-    Notifiable* tp = dynamic_cast<Notifiable*>(conn.get());
     if (schedule) {
-        if (tp && tp->isPaused() && conn->isReserved() &&
-            tp->setNotificationScheduled(true)) {
+        if (conn.get() && conn->isPaused() && conn->isReserved()) {
             pendingNotifications.push(conn);
             if (connNotifier_) {
                 // Wake up the connection notifier so that
@@ -187,9 +185,8 @@ void ConnMap::notifyPausedConnection(connection_t conn, bool schedule) {
         }
     } else {
         LockHolder rlh(releaseLock);
-        if (tp && tp->isPaused() && conn->isReserved()) {
+        if (conn.get() && conn->isPaused() && conn->isReserved()) {
             engine.notifyIOComplete(conn->getCookie(), ENGINE_SUCCESS);
-            tp->setNotifySent(true);
         }
     }
 }
@@ -201,13 +198,8 @@ void ConnMap::notifyAllPausedConnections() {
     LockHolder rlh(releaseLock);
     while (!queue.empty()) {
         connection_t &conn = queue.front();
-        Notifiable *tp = dynamic_cast<Notifiable*>(conn.get());
-        if (tp) {
-            tp->setNotificationScheduled(false);
-            if (tp->isPaused() && conn->isReserved()) {
-                engine.notifyIOComplete(conn->getCookie(), ENGINE_SUCCESS);
-                tp->setNotifySent(true);
-            }
+        if (conn.get() && conn->isPaused() && conn->isReserved()) {
+            engine.notifyIOComplete(conn->getCookie(), ENGINE_SUCCESS);
         }
         queue.pop();
     }

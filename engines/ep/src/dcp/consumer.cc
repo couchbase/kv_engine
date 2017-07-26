@@ -813,10 +813,6 @@ bool DcpConsumer::doRollback(uint32_t opaque,
 
 void DcpConsumer::addStats(ADD_STAT add_stat, const void *c) {
     ConnHandler::addStats(add_stat, c);
-    addStat("paused", isPaused(), add_stat, c);
-    if (isPaused()) {
-        addStat("paused_reason", getPausedReason(), add_stat, c);
-    }
 
     // Make a copy of all valid streams (under lock), and then call addStats
     // for each one. (Done in two stages to minmise how long we have the

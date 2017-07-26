@@ -31,7 +31,7 @@ class Filter;
 class BackfillManager;
 class DcpResponse;
 
-class DcpProducer : public ConnHandler, public Notifiable {
+class DcpProducer : public ConnHandler {
 public:
 
     /**
