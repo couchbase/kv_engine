@@ -427,6 +427,13 @@ using protocol_binary_datatype_t = uint8_t;
 #define PROTOCOL_BINARY_DATATYPE_XATTR uint8_t(cb::mcbp::Datatype::Xattr)
 
 /*
+ * Bitmask that defines datatypes that can only be valid when a document body
+ * exists. i.e. When the document is not soft-deleted
+ */
+#define BODY_ONLY_DATATYPE_MASK \
+    uint8_t(PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_SNAPPY);
+
+/*
  * Bitmask that defines the datatypes that can be resident in memory. For
  * example, DATATYPE_COMPRESSED is excluded as resident items are not
  * compressed.

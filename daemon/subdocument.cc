@@ -660,6 +660,7 @@ static protocol_binary_response_status subdoc_operate_wholedoc(
         return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 
     case PROTOCOL_BINARY_CMD_DELETE:
+        context.in_datatype &= ~BODY_ONLY_DATATYPE_MASK;
         spec.result.push_newdoc({nullptr, 0});
         return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 
