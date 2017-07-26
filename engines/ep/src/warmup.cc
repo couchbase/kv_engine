@@ -1330,10 +1330,9 @@ uint16_t Warmup::getNumKVStores()
         return 1;
     } else if (config.getBackend().compare("forestdb") == 0) {
         return config.getMaxNumShards();
+    } else if (config.getBackend().compare("rocksdb") == 0) {
+        return config.getMaxNumShards();
     }
-    // TODO vmx 2016-11-10: I guess there must be added something sensible
-    // for the leveldb backend here.
-
     return 0;
 }
 

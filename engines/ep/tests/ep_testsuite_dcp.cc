@@ -6295,13 +6295,9 @@ BaseTestCase testsuite_testcases[] = {
                  /* TODO RDB: implement getItemCount */
                  prepare_skip_broken_under_rocks,
                  cleanup),
-        TestCase("dcp persistence seqno",
-                 test_dcp_persistence_seqno,
-                 test_setup,
-                 teardown,
-                 NULL,
-                 /* TODO RDB: Enable after implementing vbstate save/restore */
-                 prepare_skip_broken_under_rocks,
+        TestCase("dcp persistence seqno", test_dcp_persistence_seqno, test_setup,
+                 teardown, NULL,
+                 prepare,
                  cleanup),
         TestCase("dcp persistence seqno for backfill items",
                  test_dcp_persistence_seqno_backfillItems,

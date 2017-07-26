@@ -304,15 +304,17 @@ private:
      */
     std::unique_ptr<rocksdb::DB> db;
 
+    VbidSeqnoComparator vbidSeqnoComparator;
     std::unique_ptr<rocksdb::ColumnFamilyHandle> defaultFamilyHandle;
     std::unique_ptr<rocksdb::ColumnFamilyHandle> seqnoFamilyHandle;
-    VbidSeqnoComparator vbidSeqnoComparator;
+    std::unique_ptr<rocksdb::ColumnFamilyHandle> localFamilyHandle;
 
     char* valBuffer;
     size_t valSize;
 
     rocksdb::Options rdbOptions;
     rocksdb::ColumnFamilyOptions seqnoCFOptions;
+    rocksdb::ColumnFamilyOptions localCFOptions;
 
     void open();
 
@@ -341,6 +343,14 @@ private:
 
     void storeItem(const Item& item);
 
+    void readVBState(uint16_t vbid);
+
+    bool saveVBState(const vbucket_state& vbState, uint16_t vbid);
+
+    int64_t readHighSeqnoFromDisk(uint16_t vbid);
+
+    std::string getVbstatePrefix();
+
     std::unique_ptr<rocksdb::WriteBatch> batch;
     rocksdb::WriteOptions writeOptions;
 
@@ -350,4 +360,6 @@ private:
     std::mutex writeLock;
 
     std::atomic<size_t> scanCounter; // atomic counter for generating scan id
+
+    Logger& logger;
 };

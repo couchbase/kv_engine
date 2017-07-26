@@ -21,11 +21,18 @@
 
 #include <string.h>
 #include <algorithm>
+#include <limits>
+
+#include "vbucket.h"
 
 static const size_t DEFAULT_VAL_SIZE(64 * 1024);
 
 RocksDBKVStore::RocksDBKVStore(KVStoreConfig& config)
-    : KVStore(config), valBuffer(NULL), valSize(0), scanCounter(0) {
+    : KVStore(config),
+      valBuffer(NULL),
+      valSize(0),
+      scanCounter(0),
+      logger(config.getLogger()) {
     cachedVBStates.reserve(configuration.getMaxVBuckets());
     cachedVBStates.assign(configuration.getMaxVBuckets(), nullptr);
 
@@ -65,7 +72,8 @@ void RocksDBKVStore::open() {
                                             rocksdb::ColumnFamilyOptions()),
 
             rocksdb::ColumnFamilyDescriptor("vbid_seqno_to_key",
-                                            seqnoCFOptions)};
+                                            seqnoCFOptions),
+            rocksdb::ColumnFamilyDescriptor("_local", localCFOptions)};
 
     std::vector<rocksdb::ColumnFamilyHandle*> handles;
 
@@ -83,12 +91,23 @@ void RocksDBKVStore::open() {
 
     defaultFamilyHandle.reset(handles[0]);
     seqnoFamilyHandle.reset(handles[1]);
+    localFamilyHandle.reset(handles[2]);
+
+    // Attempt to read persisted vb states
+    std::unique_ptr<rocksdb::Iterator> it(
+            db->NewIterator(rocksdb::ReadOptions(), localFamilyHandle.get()));
+    for (it->SeekToFirst(); it->Valid(); it->Next()) {
+        uint16_t vb = std::stoi(it->key().ToString().substr(
+                getVbstatePrefix().length(), std::string::npos));
+        readVBState(vb);
+    }
 }
 
 void RocksDBKVStore::close() {
     batch.reset();
     defaultFamilyHandle.reset();
     seqnoFamilyHandle.reset();
+    localFamilyHandle.reset();
     db.reset();
 }
 
@@ -132,10 +151,7 @@ void RocksDBKVStore::adjustValBuffer(const size_t to) {
 }
 
 std::vector<vbucket_state*> RocksDBKVStore::listPersistedVbuckets() {
-    // TODO RDB:  Something useful.
-    // std::map<std::pair<uint16_t, uint16_t>, vbucket_state> rv;
-    std::vector<vbucket_state*> rv;
-    return rv;
+    return cachedVBStates;
 }
 
 void RocksDBKVStore::set(const Item& itm, Callback<mutation_result>& cb) {
@@ -254,7 +270,32 @@ void RocksDBKVStore::delVBucket(uint16_t vb, uint64_t vb_version) {
 bool RocksDBKVStore::snapshotVBucket(uint16_t vbucketId,
                                      const vbucket_state& vbstate,
                                      VBStatePersist options) {
-    // TODO RDB:  Implement
+    // TODO RDB: Refactor out behaviour common to this and CouchKVStore
+    auto start = ProcessClock::now();
+
+    if (updateCachedVBState(vbucketId, vbstate) &&
+        (options == VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT ||
+         options == VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT)) {
+        if (!saveVBState(vbstate, vbucketId)) {
+            logger.log(EXTENSION_LOG_WARNING,
+                       "RocksDBKVStore::snapshotVBucket: saveVBState failed "
+                       "state:%s, vb:%" PRIu16,
+                       VBucket::toString(vbstate.state),
+                       vbucketId);
+            return false;
+        }
+    }
+
+    LOG(EXTENSION_LOG_DEBUG,
+        "RocksDBKVStore::snapshotVBucket: Snapshotted vbucket:%" PRIu16
+        " state:%s",
+        vbucketId,
+        vbstate.toJSON().c_str());
+
+    st.snapshotHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
+                                 ProcessClock::now() - start)
+                                 .count());
+
     return true;
 }
 
@@ -423,6 +464,189 @@ GetValue RocksDBKVStore::makeGetValue(uint16_t vb,
     rocksdb::Slice sval(value);
     return GetValue(
             grokValSlice(vb, key, sval, getMetaOnly), ENGINE_SUCCESS, -1, 0);
+}
+
+void RocksDBKVStore::readVBState(uint16_t vbid) {
+    // Largely copied from CouchKVStore
+    // TODO RDB: refactor out sections common to CouchKVStore
+    vbucket_state_t state = vbucket_state_dead;
+    uint64_t checkpointId = 0;
+    uint64_t maxDeletedSeqno = 0;
+    int64_t highSeqno = readHighSeqnoFromDisk(vbid);
+    std::string failovers;
+    uint64_t purgeSeqno = 0;
+    uint64_t lastSnapStart = 0;
+    uint64_t lastSnapEnd = 0;
+    uint64_t maxCas = 0;
+    int64_t hlcCasEpochSeqno = HlcCasSeqnoUninitialised;
+    bool mightContainXattrs = false;
+
+    std::string lDocKey = getVbstatePrefix() + std::to_string(vbid);
+    std::string statjson;
+
+    rocksdb::Status s = db->Get(rocksdb::ReadOptions(),
+                                localFamilyHandle.get(),
+                                lDocKey,
+                                &statjson);
+
+    if (!s.ok()) {
+        if (s.IsNotFound()) {
+            logger.log(EXTENSION_LOG_NOTICE,
+                       "RocksDBKVStore::readVBState: '_local/vbstate.%" PRIu16
+                       "' not found",
+                       vbid);
+        } else {
+            logger.log(EXTENSION_LOG_WARNING,
+                       "RocksDBKVStore::readVBState: error getting vbstate"
+                       " error:%s, vb:%" PRIu16,
+                       s.getState(),
+                       vbid);
+        }
+    } else {
+        cJSON* jsonObj = cJSON_Parse(statjson.c_str());
+        if (!jsonObj) {
+            logger.log(EXTENSION_LOG_WARNING,
+                       "RocksKVStore::readVBState: Failed to "
+                       "parse the vbstat json doc for vb:%" PRIu16 ", json:%s",
+                       vbid,
+                       statjson.c_str());
+        }
+
+        const std::string vb_state =
+                getJSONObjString(cJSON_GetObjectItem(jsonObj, "state"));
+        const std::string checkpoint_id =
+                getJSONObjString(cJSON_GetObjectItem(jsonObj, "checkpoint_id"));
+        const std::string max_deleted_seqno = getJSONObjString(
+                cJSON_GetObjectItem(jsonObj, "max_deleted_seqno"));
+        const std::string snapStart =
+                getJSONObjString(cJSON_GetObjectItem(jsonObj, "snap_start"));
+        const std::string snapEnd =
+                getJSONObjString(cJSON_GetObjectItem(jsonObj, "snap_end"));
+        const std::string maxCasValue =
+                getJSONObjString(cJSON_GetObjectItem(jsonObj, "max_cas"));
+        const std::string hlcCasEpoch =
+                getJSONObjString(cJSON_GetObjectItem(jsonObj, "hlc_epoch"));
+        mightContainXattrs = getJSONObjBool(
+                cJSON_GetObjectItem(jsonObj, "might_contain_xattrs"));
+
+        cJSON* failover_json = cJSON_GetObjectItem(jsonObj, "failover_table");
+        if (vb_state.compare("") == 0 || checkpoint_id.compare("") == 0 ||
+            max_deleted_seqno.compare("") == 0) {
+            logger.log(EXTENSION_LOG_WARNING,
+                       "RocksDBKVStore::readVBState: State"
+                       " JSON doc for vb:%" PRIu16
+                       " is in the wrong format:%s, "
+                       "vb state:%s, checkpoint id:%s and max deleted seqno:%s",
+                       vbid,
+                       statjson.c_str(),
+                       vb_state.c_str(),
+                       checkpoint_id.c_str(),
+                       max_deleted_seqno.c_str());
+        } else {
+            state = VBucket::fromString(vb_state.c_str());
+            maxDeletedSeqno = std::stoull(max_deleted_seqno);
+            checkpointId = std::stoull(checkpoint_id);
+
+            if (snapStart.compare("") == 0) {
+                lastSnapStart = highSeqno;
+            } else {
+                lastSnapStart = std::stoull(snapStart.c_str());
+            }
+
+            if (snapEnd.compare("") == 0) {
+                lastSnapEnd = highSeqno;
+            } else {
+                lastSnapEnd = std::stoull(snapEnd.c_str());
+            }
+
+            if (maxCasValue.compare("") != 0) {
+                maxCas = std::stoull(maxCasValue.c_str());
+            }
+
+            if (!hlcCasEpoch.empty()) {
+                hlcCasEpochSeqno = std::stoull(hlcCasEpoch);
+            }
+
+            if (failover_json) {
+                char* json = cJSON_PrintUnformatted(failover_json);
+                failovers.assign(json);
+                cJSON_Free(json);
+            }
+        }
+        cJSON_Delete(jsonObj);
+    }
+
+    delete cachedVBStates[vbid];
+    cachedVBStates[vbid] = new vbucket_state(state,
+                                             checkpointId,
+                                             maxDeletedSeqno,
+                                             highSeqno,
+                                             purgeSeqno,
+                                             lastSnapStart,
+                                             lastSnapEnd,
+                                             maxCas,
+                                             hlcCasEpochSeqno,
+                                             mightContainXattrs,
+                                             failovers);
+}
+
+bool RocksDBKVStore::saveVBState(const vbucket_state& vbState, uint16_t vbid) {
+    std::stringstream jsonState;
+
+    jsonState << "{\"state\": \"" << VBucket::toString(vbState.state) << "\""
+              << ",\"checkpoint_id\": \"" << vbState.checkpointId << "\""
+              << ",\"max_deleted_seqno\": \"" << vbState.maxDeletedSeqno
+              << "\"";
+    if (!vbState.failovers.empty()) {
+        jsonState << ",\"failover_table\": " << vbState.failovers;
+    }
+    jsonState << ",\"snap_start\": \"" << vbState.lastSnapStart << "\""
+              << ",\"snap_end\": \"" << vbState.lastSnapEnd << "\""
+              << ",\"max_cas\": \"" << vbState.maxCas << "\""
+              << ",\"hlc_epoch\": \"" << vbState.hlcCasEpochSeqno << "\"";
+
+    if (vbState.mightContainXattrs) {
+        jsonState << ",\"might_contain_xattrs\": true";
+    } else {
+        jsonState << ",\"might_contain_xattrs\": false";
+    }
+
+    jsonState << "}";
+
+    std::string lDocKey = getVbstatePrefix() + std::to_string(vbid);
+
+    rocksdb::Status s = db->Put(writeOptions,
+                                localFamilyHandle.get(),
+                                rocksdb::Slice(lDocKey),
+                                rocksdb::Slice(jsonState.str()));
+    return s.ok();
+}
+
+int64_t RocksDBKVStore::readHighSeqnoFromDisk(uint16_t vbid) {
+    rocksdb::Iterator* it =
+            db->NewIterator(rocksdb::ReadOptions(), seqnoFamilyHandle.get());
+
+    // Seek to the highest seqno=>key mapping stored for the vbid
+    std::string start = mkSeqnoStr(vbid, std::numeric_limits<int64_t>::max());
+    it->SeekForPrev(start);
+
+    if (it->Valid()) {
+        uint16_t vb;
+        int64_t seqno;
+
+        rocksdb::Slice seqnoSlice = it->key();
+        grokSeqnoSlice(seqnoSlice, &vb, &seqno);
+
+        if (vb == vbid) {
+            return seqno;
+        }
+    }
+
+    return 0;
+}
+
+std::string RocksDBKVStore::getVbstatePrefix() {
+    return "vbstate.";
 }
 
 ScanContext* RocksDBKVStore::initScanContext(
