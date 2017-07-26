@@ -462,10 +462,12 @@ public:
         return kvBucket->getVBucket(vbucket);
     }
 
-    ENGINE_ERROR_CODE setVBucketState(uint16_t vbid, vbucket_state_t to,
-                                      bool transfer) {
-        return kvBucket->setVBucketState(vbid, to, transfer);
-    }
+    ENGINE_ERROR_CODE setVBucketState(const void* cookie,
+                                      ADD_RESPONSE response,
+                                      uint16_t vbid,
+                                      vbucket_state_t to,
+                                      bool transfer,
+                                      uint64_t cas);
 
     protocol_binary_response_status setParam(
             protocol_binary_request_set_param* req, std::string& msg);

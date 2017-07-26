@@ -771,10 +771,23 @@ ENGINE_ERROR_CODE KVBucket::addBackfillItem(Item& itm,
 ENGINE_ERROR_CODE KVBucket::setVBucketState(uint16_t vbid,
                                             vbucket_state_t to,
                                             bool transfer,
-                                            bool notify_dcp) {
+                                            const void* cookie) {
+    // MB-25197: we shouldn't process setVBState if warmup hasn't yet loaded
+    // the vbucket state data.
+    if (cookie && shouldSetVBStateBlock(cookie)) {
+        LOG(EXTENSION_LOG_NOTICE,
+            "KVBucket::setVBucketState blocking vb:%" PRIu16
+            ", to:%s, transfer:%d, cookie:%p",
+            vbid,
+            VBucket::toString(to),
+            transfer,
+            cookie);
+        return ENGINE_EWOULDBLOCK;
+    }
+
     // Lock to prevent a race condition between a failed update and add.
     std::unique_lock<std::mutex> lh(vbsetMutex);
-    return setVBucketState_UNLOCKED(vbid, to, transfer, notify_dcp, lh);
+    return setVBucketState_UNLOCKED(vbid, to, transfer, true /*notifyDcp*/, lh);
 }
 
 ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(
@@ -2465,6 +2478,13 @@ bool KVBucket::maybeEnableTraffic()
 
 bool KVBucket::isWarmingUp() {
     return warmupTask && !warmupTask->isComplete();
+}
+
+bool KVBucket::shouldSetVBStateBlock(const void* cookie) {
+    if (warmupTask) {
+        return warmupTask->shouldSetVBStateBlock(cookie);
+    }
+    return false;
 }
 
 bool KVBucket::isWarmupOOMFailure() {

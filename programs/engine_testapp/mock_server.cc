@@ -572,3 +572,8 @@ int get_number_of_mock_cookie_references(const void *cookie) {
     cb_mutex_exit(&(ref_mutex));
     return numberOfReferences;
 }
+
+int get_number_of_mock_cookie_io_notifications(const void* cookie) {
+    mock_connstruct* c = cookie_to_mock_object(cookie);
+    return c->num_io_notifications;
+}

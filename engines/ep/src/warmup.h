@@ -140,12 +140,30 @@ public:
     size_t doWarmup(MutationLog &lf, const std::map<uint16_t,
                     vbucket_state> &vbmap, Callback<GetValue> &cb);
 
-    bool isComplete() { return warmupComplete.load(); }
+    bool isComplete() const {
+        return warmupComplete.load();
+    }
 
     bool setComplete() {
         bool inverse = false;
         return warmupComplete.compare_exchange_strong(inverse, true);
     }
+
+    /**
+     * Method checks with if a setVBState should block. setVBState should be
+     * blocked until warmup has processed any existing vb state and completed
+     * initialisation of the vbMap from disk data.
+     *
+     * @param cookie the callers cookie for later notification.
+     * @return true if setVBState should return EWOULDBLOCK
+     */
+    bool shouldSetVBStateBlock(const void* cookie);
+
+    /**
+     * Perform any notifications to any pending setVBState operations and mark
+     * that vbucket creation is complete.
+     */
+    void processCreateVBucketsComplete();
 
     bool setOOMFailure() {
         bool inverse = false;
@@ -215,6 +233,13 @@ private:
     std::atomic<bool> warmupComplete;
     std::atomic<bool> warmupOOMFailure;
     std::atomic<size_t> estimatedWarmupCount;
+
+    /// All of the cookies which need notifying when create-vbuckets is done
+    std::deque<const void*> pendingSetVBStateCookies;
+    /// flag to mark once warmup is passed createVbuckets
+    bool createVBucketsComplete;
+    /// A mutex which gives safe access to the cookies and state flag
+    std::mutex pendingSetVBStateCookiesMutex;
 
     DISALLOW_COPY_AND_ASSIGN(Warmup);
 };

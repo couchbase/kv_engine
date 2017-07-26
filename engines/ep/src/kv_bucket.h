@@ -349,13 +349,14 @@ public:
      * @param state desired state of the vbucket
      * @param transfer indicates that the vbucket is transferred to the active
      *                 post a failover and/or rebalance
-     * @param notify_dcp indicates whether we must consider closing DCP streams
-     *                    associated with the vbucket
+     * @param cookie under certain conditions we may use ewouldblock
      *
-     * return status of the operation
+     * @return status of the operation
      */
-    ENGINE_ERROR_CODE setVBucketState(uint16_t vbid, vbucket_state_t state,
-                                      bool transfer, bool notify_dcp = true);
+    ENGINE_ERROR_CODE setVBucketState(uint16_t vbid,
+                                      vbucket_state_t state,
+                                      bool transfer,
+                                      const void* cookie = nullptr);
 
     /**
      * Sets the vbucket or creates a vbucket with the desired state
@@ -631,6 +632,16 @@ public:
     }
 
     bool isWarmingUp();
+
+    /**
+     * Method checks with Warmup if a setVBState should block.
+     * On returning true, Warmup will have saved the cookie ready for
+     * IO notify complete.
+     * If there's no Warmup returns false
+     * @param cookie the callers cookie for later notification.
+     * @return true if setVBState should return EWOULDBLOCK
+     */
+    bool shouldSetVBStateBlock(const void* cookie);
 
     bool maybeEnableTraffic(void);
 

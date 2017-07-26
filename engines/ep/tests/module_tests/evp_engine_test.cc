@@ -68,7 +68,7 @@ void EventuallyPersistentEngineTest::SetUp() {
     }
 
     // Once warmup is complete, set VB to active.
-    engine->setVBucketState(vbid, vbucket_state_active, false);
+    engine->getKVBucket()->setVBucketState(vbid, vbucket_state_active, false);
 }
 
 void EventuallyPersistentEngineTest::TearDown() {

@@ -147,6 +147,22 @@ public:
 
     static const char test_dbname[];
 
+    /**
+     * The completeWarmup boolean is read by ::SetUp, if true the following
+     * method(s) are called
+     *  engine->getKVBucket()->getWarmup()->setComplete();
+     *
+     * The result is that it appears that warmup has completed, allowing tests
+     * to call certain methods which are guarded around isWarmupComplete.
+     *
+     * By default this is true and tests which actually want to work with warmup
+     * can disable this and genuinely warmup by invoking the appropriate methods
+     * and tasks.
+     */
+    void setCompleteWarmup(bool value) {
+        completeWarmup = value;
+    }
+
 private:
     /**
      * Initialise test objects - e.g. engine/store/cookie
@@ -157,6 +173,8 @@ private:
      * Destroy the test objects - e.g. engine/store/cookie
      */
     void destroy();
+
+    bool completeWarmup = true;
 
 public:
     std::string config_string;
