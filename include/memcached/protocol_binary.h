@@ -1913,6 +1913,29 @@ typedef protocol_binary_request_gat protocol_binary_request_getl;
 typedef protocol_binary_request_no_extras protocol_binary_request_get_meta;
 
 /**
+ * Structure holding getMeta command response fields
+ */
+#pragma pack(1)
+
+struct GetMetaResponse {
+    uint32_t deleted;
+    uint32_t flags;
+    uint32_t expiry;
+    uint64_t seqno;
+    uint8_t datatype;
+};
+
+#pragma pack()
+
+static_assert(sizeof(GetMetaResponse) == 21, "Incorrect compiler padding");
+
+/* Meta data versions for GET_META */
+enum class GetMetaVersion : uint8_t {
+    V1 = 1, // returns deleted, flags, expiry and seqno
+    V2 = 2, // The 'spock' version returns V1 + the datatype
+};
+
+/**
  * The response for CMD_SET_WITH_META does not carry any user-data and the
  * status of the operation is signalled in the status bits.
  */

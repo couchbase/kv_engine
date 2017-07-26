@@ -781,3 +781,24 @@ MutationInfo MemcachedBinprotConnection::mutateWithMeta(
 
     return response.getMutationInfo();
 }
+
+GetMetaResponse MemcachedBinprotConnection::getMeta(const std::string& key,
+                                                    uint16_t vbucket,
+                                                    uint64_t cas) {
+    BinprotGenericCommand cmd{PROTOCOL_BINARY_CMD_GET_META, key};
+    const std::vector<uint8_t> extras = {uint8_t(GetMetaVersion::V2)};
+    cmd.setExtras(extras);
+    sendCommand(cmd);
+    BinprotResponse resp;
+    recvResponse(resp);
+    if (!resp.isSuccess()) {
+        throw BinprotConnectionError("getMeta failed for: " + key,
+                                     resp.getStatus());
+    }
+
+    auto meta = *reinterpret_cast<const GetMetaResponse*>(resp.getPayload());
+    meta.deleted = ntohl(meta.deleted);
+    meta.expiry = ntohl(meta.expiry);
+    meta.seqno = ntohll(meta.seqno);
+    return meta;
+}

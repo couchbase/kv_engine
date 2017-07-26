@@ -566,6 +566,10 @@ public:
             uint32_t metaOption,
             std::vector<uint8_t> metaExtras = {}) = 0;
 
+    virtual GetMetaResponse getMeta(const std::string& key,
+                                    uint16_t vbucket,
+                                    uint64_t cas) = 0;
+
 protected:
     /**
      * Create a new instance of the MemcachedConnection

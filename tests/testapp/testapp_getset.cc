@@ -684,3 +684,17 @@ TEST_P(GetSetTest, TestPrepepndCompressedSourceAndData) {
     memset(expected.data() + input.size(), 'a', append.size());
     EXPECT_EQ(expected, stored.value);
 }
+
+TEST_P(GetSetTest, TestGetMeta) {
+    getConnection().mutate(document, 0, MutationType::Add);
+    auto meta = getConnection().getMeta(document.info.id, 0, 0);
+    EXPECT_EQ(0, meta.deleted);
+    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, meta.datatype);
+    EXPECT_EQ(0, meta.expiry);
+
+    document.info.datatype = cb::mcbp::Datatype::Raw;
+    getConnection().mutate(document, 0, MutationType::Replace);
+    meta = getConnection().getMeta(document.info.id, 0, 0);
+    EXPECT_EQ(0, meta.deleted);
+    EXPECT_EQ(PROTOCOL_BINARY_RAW_BYTES, meta.datatype);
+}
