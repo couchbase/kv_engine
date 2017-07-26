@@ -5989,12 +5989,9 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test dcp consumer noop", test_dcp_consumer_noop, test_setup,
                  teardown, nullptr, prepare, cleanup),
         TestCase("test dcp replica stream backfill",
-                 test_dcp_replica_stream_backfill,
-                 test_setup,
-                 teardown,
+                 test_dcp_replica_stream_backfill, test_setup, teardown,
                  "chk_remover_stime=1;max_checkpoints=2",
-                 /* TODO RDB: Enable after implementing RocksDBKVStore::scan */
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("test dcp replica stream in-memory",
                  test_dcp_replica_stream_in_memory, test_setup, teardown,
@@ -6022,15 +6019,12 @@ BaseTestCase testsuite_testcases[] = {
                  prepare_skip_broken_under_rocks,
                  cleanup),
         TestCase("test producer stream request (partial)",
-                 test_dcp_producer_stream_req_partial,
-                 test_setup,
-                 teardown,
+                 test_dcp_producer_stream_req_partial, test_setup, teardown,
                  /* set chk_period to essentially infinity so it won't run
                     during this test and create extra checkpoints we don't want.*/
                  "chk_remover_stime=1;chk_max_items=100;"
                  "chk_period=1000000",
-                 /* TODO RDB: Enable after implementing RocksDBKVStore::scan */
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("test producer stream request (full merged snapshots)",
                  test_dcp_producer_stream_req_full_merged_snapshots,
@@ -6382,13 +6376,8 @@ BaseTestCase testsuite_testcases[] = {
                  test_set_dcp_param, test_setup, teardown, NULL,
                  prepare, cleanup),
         TestCase("test MB-23863 backfill deleted value",
-                 test_dcp_producer_deleted_item_backfill,
-                 test_setup,
-                 teardown,
-                 NULL,
-                 /* TODO RDB: Enable after implementing RocksDBKVStore::scan */
-                 prepare_ep_bucket_skip_broken_under_rocks,
-                 cleanup),
+                 test_dcp_producer_deleted_item_backfill, test_setup, teardown,
+                 NULL, prepare_ep_bucket, cleanup),
         TestCase("test noop mandatory",test_dcp_noop_mandatory,
                  test_setup, teardown, NULL, prepare, cleanup),
 

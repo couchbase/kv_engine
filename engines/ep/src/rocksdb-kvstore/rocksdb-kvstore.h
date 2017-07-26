@@ -262,10 +262,7 @@ public:
                                  DocumentFilter options,
                                  ValueFilter valOptions) override;
 
-    scan_error_t scan(ScanContext* sctx) override {
-        // TODO vmx 2016-10-29: implement
-        return scan_success;
-    }
+    scan_error_t scan(ScanContext* sctx) override;
 
     void destroyScanContext(ScanContext* ctx) override {
         // TODO vmx 2016-10-29: implement

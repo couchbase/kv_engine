@@ -656,16 +656,133 @@ ScanContext* RocksDBKVStore::initScanContext(
         uint64_t startSeqno,
         DocumentFilter options,
         ValueFilter valOptions) {
-    // TODO RDB vmx 2016-10-29: implement
     size_t scanId = scanCounter++;
+    // As we cannot efficiently determine how many documents this scan will
+    // find, we approximate this value with the seqno difference + 1
+    // as scan is supposed to be inclusive at both ends,
+    // seqnos 2 to 4 covers 3 docs not 4 - 2 = 2
+
+    uint64_t endSeqno = cachedVBStates[vbid]->highSeqno;
     return new ScanContext(cb,
                            cl,
                            vbid,
                            scanId,
                            startSeqno,
-                           99999999,
+                           endSeqno,
                            options,
                            valOptions,
-                           999999,
+                           /* documentCount */ endSeqno - startSeqno + 1,
                            configuration);
+}
+
+scan_error_t RocksDBKVStore::scan(ScanContext* ctx) {
+    if (!ctx) {
+        return scan_failed;
+    }
+
+    if (ctx->lastReadSeqno == ctx->maxSeqno) {
+        return scan_success;
+    }
+
+    uint64_t start = ctx->startSeqno;
+    if (ctx->lastReadSeqno != 0) {
+        start = ctx->lastReadSeqno + 1;
+    }
+
+    GetMetaOnly isMetaOnly = ctx->valFilter == ValueFilter::KEYS_ONLY
+                                     ? GetMetaOnly::Yes
+                                     : GetMetaOnly::No;
+
+    rocksdb::ReadOptions snapshotOpts{rocksdb::ReadOptions()};
+    snapshotOpts.snapshot = db->GetSnapshot();
+
+    std::unique_ptr<rocksdb::Iterator> it(
+            db->NewIterator(snapshotOpts, seqnoFamilyHandle.get()));
+
+    std::string startStr = mkSeqnoStr(ctx->vbid, start);
+    it->Seek(startStr);
+
+    std::string endStr = mkSeqnoStr(ctx->vbid, ctx->maxSeqno);
+
+    auto isPastEnd = [&endStr, this](rocksdb::Slice seqSlice) {
+        return vbidSeqnoComparator.Compare(seqSlice, endStr) == 1;
+    };
+
+    for (; it->Valid() && !isPastEnd(it->key()); it->Next()) {
+        uint16_t vb;
+        int64_t seqno;
+
+        rocksdb::Slice seqnoSlice = it->key();
+        grokSeqnoSlice(seqnoSlice, &vb, &seqno);
+
+        rocksdb::Slice keySlice = it->value();
+
+        std::string valueStr;
+        rocksdb::Status s = db->Get(snapshotOpts, keySlice, &valueStr);
+
+        if (!s.ok()) {
+            // TODO RDB: Old seqnos are never removed from the db!
+            // If the item does not exist (s.isNotFound())
+            // the seqno => key mapping could be removed; not even
+            // a tombstone remains of that item.
+            continue;
+        }
+
+        rocksdb::Slice valSlice(valueStr);
+
+        // TODO RDB: Deal with collections
+        DocKey key(reinterpret_cast<const uint8_t*>(keySlice.data() +
+                                                    sizeof(uint16_t)),
+                   keySlice.size() - sizeof(uint16_t),
+                   DocNamespace::DefaultCollection);
+
+        std::unique_ptr<Item> itm =
+                grokValSlice(ctx->vbid, key, valSlice, isMetaOnly);
+
+        if (itm->getBySeqno() > seqno) {
+            // TODO RDB: Old seqnos are never removed from the db!
+            // If the item has a newer seqno now, the stale
+            // seqno => key mapping could be removed
+            continue;
+        } else if (itm->getBySeqno() < seqno) {
+            throw std::logic_error(
+                    "RocksDBKVStore::scan: index has a higher seqno"
+                    "than the document in a snapshot!");
+        }
+
+        bool includeDeletes =
+                (ctx->docFilter == DocumentFilter::NO_DELETES) ? false : true;
+        bool onlyKeys =
+                (ctx->valFilter == ValueFilter::KEYS_ONLY) ? true : false;
+
+        if (!includeDeletes && itm->getOperation() == queue_op::del) {
+            continue;
+        }
+        int64_t byseqno = itm->getBySeqno();
+        CacheLookup lookup(key, byseqno, ctx->vbid);
+        ctx->lookup->callback(lookup);
+
+        int status = ctx->lookup->getStatus();
+
+        if (status == ENGINE_KEY_EEXISTS) {
+            ctx->lastReadSeqno = byseqno;
+            continue;
+        } else if (status == ENGINE_ENOMEM) {
+            return scan_again;
+        }
+
+        GetValue rv(std::move(itm), ENGINE_SUCCESS, -1, onlyKeys);
+        ctx->callback->callback(rv);
+        status = ctx->callback->getStatus();
+
+        if (status == ENGINE_ENOMEM) {
+            return scan_again;
+        }
+
+        ctx->lastReadSeqno = byseqno;
+    }
+
+    cb_assert(it->status().ok()); // Check for any errors found during the scan
+
+    return scan_success;
 }
