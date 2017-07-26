@@ -116,6 +116,12 @@ bool EphemeralVBucket::pageOut(const HashTable::HashBucketLock& lh,
     return true;
 }
 
+bool EphemeralVBucket::areDeletedItemsAlwaysResident() const {
+    // Ephemeral buckets do keep all deleted items resident in memory.
+    // (We have nowhere else to store them, given there is no disk).
+    return true;
+}
+
 void EphemeralVBucket::addStats(bool details,
                                 ADD_STAT add_stat,
                                 const void* c) {

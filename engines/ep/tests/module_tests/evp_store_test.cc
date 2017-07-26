@@ -960,7 +960,8 @@ struct PrintToStringCombinedName {
     }
 };
 
-// Test cases which run in both Full and Value eviction
+// Test cases which run in both Full and Value eviction, and with bloomfilter
+// on and off.
 INSTANTIATE_TEST_CASE_P(FullAndValueEvictionBloomOnOff,
                         EPStoreEvictionBloomOnOffTest,
                         ::testing::Combine(::testing::Values("value_only",

@@ -374,6 +374,8 @@ static void subdoc_executor(McbpConnection& c, const void *packet,
     // possible bugs in our code ;)
     const int MAXIMUM_ATTEMPTS = 100;
 
+    c.logCommand();
+
     int attempts = 0;
     do {
         attempts++;

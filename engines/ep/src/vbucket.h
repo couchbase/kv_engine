@@ -535,6 +535,13 @@ public:
     // Applicable only for FULL EVICTION POLICY
     bool isResidentRatioUnderThreshold(float threshold);
 
+    /**
+     * Returns true if deleted items (aka tombstones) are always resident in
+     * memory (and hence we do not need to attempt a bgFetch if we try to
+     * access a deleted key which isn't found in memory).
+     */
+    virtual bool areDeletedItemsAlwaysResident() const = 0;
+
     virtual void addStats(bool details, ADD_STAT add_stat, const void* c) = 0;
 
     virtual KVShard* getShard() = 0;
@@ -1210,7 +1217,8 @@ protected:
      * @param queueItmCtx holds info needed to queue an item in chkpt or vb
      *                    backfill queue
      * @param storeIfStatus the status of any conditional store predicate
-     * @param maybeKeyExists true if bloom filter predicts that key may exist
+     * @param maybeKeyExists true if the key /may/ exist on disk (as an active,
+     *                       alive document). Only valid if `v` is null.
      * @param isReplication true if issued by consumer (for replication)
      *
      * @return Result indicating the status of the operation and notification

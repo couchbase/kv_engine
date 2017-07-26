@@ -79,6 +79,14 @@ public:
      */
     void flush_vbucket_to_disk(uint16_t vbid, int expected = 1);
 
+    /**
+     * Flush the given vBucket to disk if the bucket is peristent, otherwise
+     * do nothing.
+     * @param vbid vBucket to flush
+     * @param expected Expected number of items to be flushed.
+     */
+    void flushVBucketToDiskIfPersistent(uint16_t vbid, int expected = 1);
+
     /* Delete the given item from the given vbucket, verifying it was
      * successfully deleted.
      */
