@@ -219,6 +219,8 @@ public:
      */
     void notifyPaused(bool schedule);
 
+    void setDisconnect() override;
+
 protected:
     /**
      * Records when the consumer last received a message from producer.

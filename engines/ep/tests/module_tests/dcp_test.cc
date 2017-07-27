@@ -1923,6 +1923,107 @@ TEST_P(ConnectionTest, ReplicateJustBeforeThrottleThreshold) {
     sendConsumerMutationsNearThreshold(false);
 }
 
+/* Here we test how the Processor task in DCP consumer handles the scenario
+   where the memory usage is beyond the replication throttle threshold.
+   In case of Ephemeral buckets with 'fail_new_data' policy it is expected to
+   indicate close of the consumer conn and in other cases it is expected to
+   just defer processing. */
+TEST_P(ConnectionTest, ProcessReplicationBufferAfterThrottleThreshold) {
+    const void* cookie = create_mock_cookie();
+    const uint32_t opaque = 1;
+    const uint64_t snapStart = 1, snapEnd = 10;
+    const uint64_t bySeqno = snapStart;
+
+    /* Set up a consumer connection */
+    connection_t conn = new MockDcpConsumer(*engine, cookie, "test_consumer");
+    MockDcpConsumer* consumer = dynamic_cast<MockDcpConsumer*>(conn.get());
+
+    /* Replica vbucket */
+    ASSERT_EQ(ENGINE_SUCCESS, set_vb_state(vbid, vbucket_state_replica));
+
+    /* Passive stream */
+    ASSERT_EQ(ENGINE_SUCCESS,
+              consumer->addStream(/*opaque*/ 0,
+                                  vbid,
+                                  /*flags*/ 0));
+    MockPassiveStream* stream = static_cast<MockPassiveStream*>(
+            (consumer->getVbucketStream(vbid)).get());
+    ASSERT_TRUE(stream->isActive());
+
+    /* Send a snapshotMarker before sending items for replication */
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->snapshotMarker(opaque,
+                                       vbid,
+                                       snapStart,
+                                       snapEnd,
+                                       /* in-memory snapshot */ 0x1));
+
+    /* Simulate a situation where adding a mutation temporarily fails
+       and hence adds the mutation to a replication buffer. For that, we
+       set vbucket::takeover_backed_up to true */
+    engine->getKVBucket()->getVBucket(vbid)->setTakeoverBackedUpState(true);
+
+    /* Send an item for replication and expect it to be buffered */
+    const DocKey docKey{"mykey", DocNamespace::DefaultCollection};
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->mutation(opaque,
+                                 docKey,
+                                 {}, // value
+                                 0, // priv bytes
+                                 PROTOCOL_BINARY_RAW_BYTES,
+                                 0, // cas
+                                 vbid,
+                                 0, // flags
+                                 bySeqno,
+                                 0, // rev seqno
+                                 0, // exptime
+                                 0, // locktime
+                                 {}, // meta
+                                 0)); // nru
+    EXPECT_EQ(1, stream->getNumBufferItems());
+
+    /* Set back the vbucket::takeover_backed_up to false */
+    engine->getKVBucket()->getVBucket(vbid)->setTakeoverBackedUpState(false);
+
+    /* Set 'mem_used' beyond the 'replication threshold' */
+    EPStats& stats = engine->getEpStats();
+    /* Actually setting it well above also, as there can be a drop in memory
+       usage during testing */
+    stats.setMaxDataSize(stats.getTotalMemoryUsed() / 4);
+
+    std::unique_ptr<dcp_message_producers> dcpStepProducers(
+            get_dcp_producers(handle, engine_v1));
+    if ((engine->getConfiguration().getBucketType() == "ephemeral") &&
+        (engine->getConfiguration().getEphemeralFullPolicy()) ==
+                "fail_new_data") {
+        /* Make a call to the function that would be called by the processor
+           task here */
+        EXPECT_EQ(stop_processing, consumer->processBufferedItems());
+
+        /* Expect the connection to be notified */
+        EXPECT_FALSE(consumer->isPaused());
+
+        /* Expect disconnect signal in Ephemeral with "fail_new_data" policy */
+        EXPECT_EQ(ENGINE_DISCONNECT, consumer->step(dcpStepProducers.get()));
+    } else {
+        uint32_t backfoffs = consumer->getNumBackoffs();
+
+        /* Make a call to the function that would be called by the processor
+           task here */
+        EXPECT_EQ(more_to_process, consumer->processBufferedItems());
+        EXPECT_EQ(backfoffs + 1, consumer->getNumBackoffs());
+
+        /* In 'couchbase' buckets we buffer the replica items and indirectly
+           throttle replication by not sending flow control acks to the
+           producer. Hence we do not drop the connection here */
+        EXPECT_EQ(ENGINE_WANT_MORE, consumer->step(dcpStepProducers.get()));
+
+        /* Close stream before deleting the connection */
+        EXPECT_EQ(ENGINE_SUCCESS, consumer->closeStream(opaque, vbid));
+    }
+    destroy_mock_cookie(cookie);
+}
+
 // Test cases which run in both Full and Value eviction
 INSTANTIATE_TEST_CASE_P(PersistentAndEphemeral,
                         StreamTest,
