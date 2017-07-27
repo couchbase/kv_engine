@@ -53,7 +53,7 @@ public:
 
     // Stores an item into the given vbucket. Returns the item stored.
     Item store_item(uint16_t vbid,
-                    const StoredDocKey& key,
+                    const DocKey& key,
                     const std::string& value,
                     uint32_t exptime = 0,
                     const std::vector<cb::engine_errc>& expected =
@@ -90,15 +90,15 @@ public:
     /* Delete the given item from the given vbucket, verifying it was
      * successfully deleted.
      */
-    void delete_item(uint16_t vbid, const StoredDocKey& key);
+    void delete_item(uint16_t vbid, const DocKey& key);
 
     /* Evict the given key from memory according to the current eviction
      * strategy. Verifies it was successfully evicted.
      */
-    void evict_key(uint16_t vbid, const StoredDocKey& key);
+    void evict_key(uint16_t vbid, const DocKey& key);
 
     /// Exposes the normally-protected getInternal method from the store.
-    GetValue getInternal(const StoredDocKey& key,
+    GetValue getInternal(const DocKey& key,
                          uint16_t vbucket,
                          const void* cookie,
                          vbucket_state_t allowedState,

@@ -116,7 +116,7 @@ void KVBucketTest::reinitialise(std::string config) {
 }
 
 Item KVBucketTest::store_item(uint16_t vbid,
-                              const StoredDocKey& key,
+                              const DocKey& key,
                               const std::string& value,
                               uint32_t exptime,
                               const std::vector<cb::engine_errc>& expected,
@@ -174,7 +174,9 @@ void KVBucketTest::flush_vbucket_to_disk(uint16_t vbid, int expected) {
             << " seconds) waiting for "
                "warmup to complete while flushing VBucket.";
 
-    ASSERT_EQ(expected, result) << "Unexpected items in flush_vbucket_to_disk";
+    ASSERT_EQ(expected, result) << "Unexpected items (" << result
+                                << ") in flush_vbucket_to_disk(" << vbid << ", "
+                                << expected << ")";
 }
 
 void KVBucketTest::flushVBucketToDiskIfPersistent(uint16_t vbid, int expected) {
@@ -183,7 +185,7 @@ void KVBucketTest::flushVBucketToDiskIfPersistent(uint16_t vbid, int expected) {
     }
 }
 
-void KVBucketTest::delete_item(uint16_t vbid, const StoredDocKey& key) {
+void KVBucketTest::delete_item(uint16_t vbid, const DocKey& key) {
     uint64_t cas = 0;
     EXPECT_EQ(ENGINE_SUCCESS,
               store->deleteItem(key,
@@ -194,13 +196,13 @@ void KVBucketTest::delete_item(uint16_t vbid, const StoredDocKey& key) {
                                 /*mutation_descr_t*/ nullptr));
 }
 
-void KVBucketTest::evict_key(uint16_t vbid, const StoredDocKey& key) {
+void KVBucketTest::evict_key(uint16_t vbid, const DocKey& key) {
     const char* msg;
     EXPECT_EQ(ENGINE_SUCCESS, store->evictKey(key, vbid, &msg));
     EXPECT_STREQ("Ejected.", msg);
 }
 
-GetValue KVBucketTest::getInternal(const StoredDocKey& key,
+GetValue KVBucketTest::getInternal(const DocKey& key,
                                    uint16_t vbucket,
                                    const void* cookie,
                                    vbucket_state_t allowedState,
