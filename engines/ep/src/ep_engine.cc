@@ -2447,10 +2447,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     add_stat, cookie);
     add_casted_stat("ep_max_bg_remaining_jobs", epstats.maxRemainingBgJobs,
                     add_stat, cookie);
-    add_casted_stat("ep_tap_bg_fetched", stats.numTapBGFetched,
-                    add_stat, cookie);
-    add_casted_stat("ep_tap_bg_fetch_requeued", stats.numTapBGFetchRequeued,
-                    add_stat, cookie);
     add_casted_stat("ep_num_pager_runs", epstats.pagerRuns,
                     add_stat, cookie);
     add_casted_stat("ep_num_expiry_pager_runs", epstats.expiryPagerRuns,
@@ -3049,10 +3045,6 @@ static void showConnAggStat(const std::string &prefix,
         checked_snprintf(statname, sl, "%s:count", prefix.c_str());
         add_casted_stat(statname, counter->totalConns, add_stat, cookie);
 
-        checked_snprintf(statname, sl, "%s:total_backlog_size", prefix.c_str());
-        add_casted_stat(statname, counter->conn_totalBacklogSize,
-                        add_stat, cookie);
-
         checked_snprintf(statname, sl, "%s:backoff", prefix.c_str());
         add_casted_stat(statname, counter->conn_queueBackoff,
                         add_stat, cookie);
@@ -3228,8 +3220,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTimingStats(const void *cookie,
     add_casted_stat("bg_wait", stats.bgWaitHisto, add_stat, cookie);
     add_casted_stat("bg_load", stats.bgLoadHisto, add_stat, cookie);
     add_casted_stat("set_with_meta", stats.setWithMetaHisto, add_stat, cookie);
-    add_casted_stat("bg_tap_wait", stats.tapBgWaitHisto, add_stat, cookie);
-    add_casted_stat("bg_tap_load", stats.tapBgLoadHisto, add_stat, cookie);
     add_casted_stat("pending_ops", stats.pendingOpsHisto, add_stat, cookie);
 
     // Vbucket visitors
@@ -3251,11 +3241,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTimingStats(const void *cookie,
     add_casted_stat("del_vb_cmd", stats.delVbucketCmdHisto, add_stat, cookie);
     add_casted_stat("chk_persistence_cmd", stats.chkPersistenceHisto,
                     add_stat, cookie);
-    // Tap commands
-    add_casted_stat("tap_vb_set", stats.tapVbucketSetHisto, add_stat, cookie);
-    add_casted_stat("tap_vb_reset", stats.tapVbucketResetHisto,
-                    add_stat, cookie);
-    add_casted_stat("tap_mutation", stats.tapMutationHisto, add_stat, cookie);
     // Misc
     add_casted_stat("notify_io", stats.notifyIOHisto, add_stat, cookie);
     add_casted_stat("batch_read", stats.getMultiHisto, add_stat, cookie);

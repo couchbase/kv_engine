@@ -59,8 +59,7 @@ struct ConnCounter {
     ConnCounter()
         : conn_queue(0), totalConns(0), totalProducers(0),
           conn_queueFill(0), conn_queueDrain(0), conn_totalBytes(0), conn_queueRemaining(0),
-          conn_queueBackoff(0), conn_queueItemOnDisk(0),
-          conn_totalBacklogSize(0)
+          conn_queueBackoff(0), conn_queueItemOnDisk(0)
     {}
 
     ConnCounter& operator+=(const ConnCounter& other) {
@@ -73,7 +72,6 @@ struct ConnCounter {
         conn_queueRemaining += other.conn_queueRemaining;
         conn_queueBackoff += other.conn_queueBackoff;
         conn_queueItemOnDisk += other.conn_queueItemOnDisk;
-        conn_totalBacklogSize += other.conn_totalBacklogSize;
 
         return *this;
     }
@@ -88,7 +86,6 @@ struct ConnCounter {
     size_t      conn_queueRemaining;
     size_t      conn_queueBackoff;
     size_t      conn_queueItemOnDisk;
-    size_t      conn_totalBacklogSize;
 };
 
 class ConnHandler : public RCValue {

@@ -213,6 +213,8 @@ static ENGINE_ERROR_CODE server_stats(ADD_STAT add_stat_callback,
                  thread_stats.wbufs_allocated);
         add_stat(cookie, add_stat_callback, "wbufs_loaned",
                  thread_stats.wbufs_loaned);
+        add_stat(cookie, add_stat_callback, "wbufs_existing",
+                 thread_stats.wbufs_existing);
         add_stat(cookie, add_stat_callback, "iovused_high_watermark",
                  thread_stats.iovused_high_watermark);
         add_stat(cookie, add_stat_callback, "msgused_high_watermark",

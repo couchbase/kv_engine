@@ -15,10 +15,11 @@
  *   limitations under the License.
  */
 #include "arithmetic_context.h"
-#include "engine_wrapper.h"
-#include "../../mcbp.h"
+#include <daemon/mc_time.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>
+#include "../../mcbp.h"
+#include "engine_wrapper.h"
 
 ENGINE_ERROR_CODE ArithmeticCommandContext::getItem() {
     auto ret = bucket_get(&connection, key, vbucket);
@@ -151,12 +152,19 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::allocateNewItem() {
         datatype |= PROTOCOL_BINARY_DATATYPE_XATTR;
     }
 
-    auto pair = bucket_allocate_ex(connection, key,
+    // In order to be backwards compatible with old Couchbase server we
+    // continue to use the old expiry time:
+    auto expiry = oldItemInfo.exptime
+                          ? mc_time_convert_to_abs_time(oldItemInfo.exptime)
+                          : 0;
+    auto pair = bucket_allocate_ex(connection,
+                                   key,
                                    xattrsize + value.size(),
                                    priv_bytes,
                                    oldItemInfo.flags,
-                                   ntohl(request.message.body.expiration),
-                                   datatype, vbucket);
+                                   expiry,
+                                   datatype,
+                                   vbucket);
 
     newitem = std::move(pair.first);
     cb::byte_buffer body{static_cast<uint8_t*>(pair.second.value[0].iov_base),

@@ -134,9 +134,6 @@ For introductory information on stats within Couchbase, start with the
 | ep_bg_remaining_jobs               | Number of remaining bg fetch jobs      |
 | ep_max_bg_remaining_jobs           | Max number of remaining bg fetch jobs  |
 |                                    | that we have seen in the queue so far  |
-| ep_tap_bg_fetched                  | Number of tap disk fetches             |
-| ep_tap_bg_fetch_requeued           | Number of times a tap bg fetch task is |
-|                                    | requeued                               |
 | ep_num_pager_runs                  | Number of times we ran pager loops     |
 |                                    | to seek additional memory              |
 | ep_num_expiry_pager_runs           | Number of times we ran expiry pager    |
@@ -272,14 +269,12 @@ For introductory information on stats within Couchbase, start with the
 |                                    | that we should start sending temp oom  |
 |                                    | or oom message when hitting            |
 | ep_pager_active_vb_pcnt            | Active vbuckets paging percentage      |
-| ep_tap_bg_fetch_requeued           | Number of times a tap bg fetch task is |
-|                                    | requeued                               |
 | ep_replication_throttle_cap_pcnt   | Percentage of total items in write     |
-|                                    | queue at which we throttle tap input   |
+|                                    | queue at which we throttle dcp input   |
 | ep_replication_throttle_queue_cap  | Max size of a write queue to throttle  |
-|                                    | incoming tap input                     |
+|                                    | incoming dcp input                     |
 | ep_replication_throttle_threshold  | Percentage of max mem at which we      |
-|                                    | begin NAKing tap input                 |
+|                                    | begin NAKing dcp input                 |
 | ep_uncommitted_items               | The amount of items that have not been |
 |                                    | written to disk                        |
 | ep_warmup                          | Shows if warmup is enabled / disabled  |
@@ -554,124 +549,6 @@ each vbucket:
 | n:seq                         | seqno of nth failover entry in the         |
 |                               | failover table of this vbucket             |
 
-** Tap stats
-
-
-| ep_tap_queue_backfillremaining   | Number of items needing to be backfilled  |
-| ep_tap_total_backlog_size        | Number of remaining items for replication |
-| ep_tap_total_queue               | Sum of tap queue sizes on the current     |
-|                                  | tap queues                                |
-| ep_tap_total_fetched             | Sum of all tap messages sent              |
-| ep_tap_bg_fetched                | Number of tap disk fetches                |
-| ep_tap_bg_fetch_requeued         | Number of times a tap bg fetch task is    |
-|                                  | requeued                                  |
-| ep_tap_fg_fetched                | Number of tap memory fetches              |
-| ep_tap_deletes                   | Number of tap deletion messages sent      |
-| ep_replication_throttled         | Number of tap messages refused due to     |
-|                                  | throttling                                |
-| ep_tap_count                     | Number of tap connections                 |
-| ep_tap_bg_num_samples            | The number of tap bg fetch samples        |
-|                                  | included in the avg                       |
-| ep_tap_bg_min_wait               | The shortest time (µs) for a tap item     |
-|                                  | before it is serviced by the dispatcher   |
-| ep_tap_bg_max_wait               | The longest time (µs) for a tap item      |
-|                                  | before it is serviced by the dispatcher   |
-| ep_tap_bg_wait_avg               | The average wait time (µs) for a tap item |
-|                                  | before it is serviced by the dispatcher   |
-| ep_tap_bg_min_load               | The shortest time (µs) for a tap item to  |
-|                                  | be loaded from the persistence layer      |
-| ep_tap_bg_max_load               | The longest time (µs) for a tap item to   |
-|                                  | be loaded from the persistence layer      |
-| ep_tap_bg_load_avg               | The average time (µs) for a tap item to   |
-|                                  | be loaded from the persistence layer      |
-| ep_tap_queue_fill                | Total enqueued items                      |
-| ep_tap_queue_drain               | Total drained items                       |
-| ep_tap_queue_backoff             | Total back-off items                      |
-| ep_tap_queue_backfill            | Number of backfill remaining              |
-| ep_tap_queue_itemondisk          | Number of items remaining on disk         |
-| ep_replication_throttle_threshold| Percentage of memory in use before we     |
-|                                  | throttle tap streams                      |
-| ep_replication_throttle_queue_cap| Disk write queue cap to throttle          |
-|                                  | tap streams                               |
-
-
-*** Per Tap Client Stats
-
-Each stat begins with =ep_tapq:= followed by a unique /client_id/ and
-another colon.  For example, if your client is named, =slave1=, the
-=qlen= stat would be =ep_tapq:slave1:qlen=.
-
-| type                        | The kind of tap connection (producer or  | PC |
-|                             | consumer)                                |    |
-| created                     | Creation time for the tap connection     | PC |
-| supports_ack                | true if the connection use acks          | PC |
-| connected                   | true if this client is connected         | PC |
-| disconnects                 | Number of disconnects from this client   | PC |
-| reserved                    | true if the tap stream is reserved       | P  |
-| suspended                   | true if the tap stream is suspended      | P  |
-| qlen                        | Queue size for the given client_id       | P  |
-| qlen_high_pri               | High priority tap queue items            | P  |
-| qlen_low_pri                | Low priority tap queue items             | P  |
-| vb_filters                  | Size of connection vbucket filter set    | P  |
-| vb_filter                   | The content of the vbucket filter        | P  |
-| rec_fetched                 | Tap messages sent to the client          | P  |
-| rec_skipped                 | Number of messages skipped due to        | P  |
-|                             | tap reconnect with a different filter    | P  |
-| idle                        | True if this connection is idle          | P  |
-| has_queued_item             | True if there are any remaining items    | P  |
-|                             | from hash table or disk                  |    |
-| bg_result_size              | Number of ready background results       | P  |
-| bg_jobs_issued              | Number of background jobs started        | P  |
-| bg_jobs_completed           | Number of background jobs completed      | P  |
-| flags                       | Connection flags set by the client       | P  |
-| pending_disconnect          | true if we're hanging up on this client  | P  |
-| paused                      | true if this client is blocked           | P  |
-| paused_reason               | Description of why client is paused      | P  |
-| pending_backfill            | true if we're still backfilling keys     | P  |
-|                             | for this connection                      | P  |
-| pending_disk_backfill       | true if we're still backfilling keys     | P  |
-|                             | from disk for this connection            | P  |
-| backfill_completed          | true if all items from backfill is       | P  |
-|                             | successfully transmitted to the client   | P  |
-| backfill_start_timestamp    | Timestamp of backfill start              | P  |
-| backfill_age                | The age of the start of the backfill     | P  |
-| ack_seqno                   | The current tap ACK sequence number      | P  |
-| recv_ack_seqno              | Last receive tap ACK sequence number     | P  |
-| ack_log_size                | Tap ACK backlog size                     | P  |
-| ack_window_full             | true if our tap ACK window is full       | P  |
-| seqno_ack_requested         | The seqno of the ack message that the    | P  |
-|                             | producer is wants to get a response for  |    |
-| expires                     | When this ACK backlog expires            | P  |
-| queue_memory                | Memory used for tap queue                | P  |
-| queue_fill                  | Total queued items                       | P  |
-| queue_drain                 | Total drained items                      | P  |
-| queue_backoff               | Total back-off items                     | P  |
-| queue_backfillremaining     | Number of backfill remaining             | P  |
-| queue_itemondisk            | Number of items remaining on disk        | P  |
-| total_backlog_size          | Num of remaining items for replication   | P  |
-| total_noops                 | Number of NOOP messages sent             | P  |
-
-** Tap Aggregated Stats
-
-Aggregated tap stats allow named tap connections to be logically
-grouped and aggregated together by prefixes.
-
-For example, if all of your tap connections started with =rebalance_=
-or =replication_=, you could call =stats tapagg _= to request stats
-grouped by everything before the first =_= character, giving you a set
-for =rebalance= and a set for =replication=.
-
-*** Results
-
-| [prefix]:count              | Number of connections matching this prefix |
-| [prefix]:qlen               | Total length of queues with this prefix    |
-| [prefix]:backfill_remaining | Number of items needing to be backfilled   |
-| [prefix]:backoff            | Total number of backoff events             |
-| [prefix]:drain              | Total number of items drained              |
-| [prefix]:fill               | Total number of items filled               |
-| [prefix]:itemondisk         | Number of items remaining on disk          |
-| [prefix]:total_backlog_size | Num of remaining items for replication     |
-
 ** Dcp Stats
 
 Each stat begins with =ep_dcpq:= followed by a unique /client_id/ and
@@ -689,6 +566,8 @@ another colon.  For example, if your client is named, =slave1=, the
 | unacked_bytes      | The amount of bytes the consumer has processed but not acked|
 | type               | The connection type (producer, consumer, or notifier)       |
 | max_buffer_bytes   | Size of flow control buffer                                 |
+| paused             | true if this client is blocked                              |
+| paused_reason      | Description of why client is paused                         |
 
 ****Per Stream Stats
 
@@ -735,6 +614,8 @@ another colon.  For example, if your client is named, =slave1=, the
 | backfill_num_active   | Number of active (running) backfills                   |
 | backfill_num_snoozing | Number of snoozing (running) backfills                 |
 | backfill_num_pending  | Number of pending (not running) backfills              |
+| paused                | true if this client is blocked                         |
+| paused_reason         | Description of why client is paused                    |
 
 ****Per Stream Stats
 
@@ -781,8 +662,10 @@ set for =replication=.
 | [prefix]:items_remaining    | Total items remaining to be sent with this   |
 |                             | prefix                                       |
 | [prefix]:total_bytes        | Total number of bytes sent with this prefix  |
-| [prefix]:total_backlog_size | Total backfill items remaining to be sent    |
-|                             | with this prefix                             |
+| [prefix]:backoff            | Total number of backoff events               |
+
+** Dcp ConnMap Stats
+
 | ep_dcp_num_running_backfills| Total number of running backfills across all |
 |                             | dcp connections                              |
 | ep_dcp_max_running_backfills| Max running backfills we can have across all |
@@ -841,8 +724,6 @@ form to describe when time was spent doing various things:
 | checkpoint_remover              | checkpoint remover run times                   |
 | item_pager                      | item pager run times                           |
 | expiry_pager                    | expiry pager run times                         |
-| bg_tap_wait                     | tap bg fetches waiting in the dispatcher queue |
-| bg_tap_load                     | tap bg fetches waiting for disk                |
 | pending_ops                     | client connections blocked for operations      |
 |                                 | in pending vbuckets                            |
 | storage_age                     | Analogous to ep_storage_age in main stats      |
@@ -854,9 +735,6 @@ form to describe when time was spent doing various things:
 | set_vb_cmd                      | servicing vbucket set state commands           |
 | del_vb_cmd                      | servicing vbucket deletion commands            |
 | chk_persistence_cmd             | waiting for checkpoint persistence             |
-| tap_vb_set                      | servicing tap vbucket set state commands       |
-| tap_vb_reset                    | servicing tap vbucket reset commands           |
-| tap_mutation                    | servicing tap mutations                        |
 | notify_io                       | waking blocked connections                     |
 | paged_out_time                  | time (in seconds) objects are non-resident     |
 | disk_insert                     | waiting for disk to store a new item           |
@@ -908,8 +786,6 @@ IO and Non-IO tasks respectively:
 |                             | runtimes for access log compaction tasks |
 |-----------------------------+------------------------------------------|
 | AUXIO tasks                 |                                          |
-| tap_bg_fetcher_tasks        | histogram of scheduling overhead/task    |
-|                             | runtimes for tap background fetch tasks  |
 | access_scanner_tasks        | histogram of scheduling overhead/task    |
 |                             | runtimes for access scanner tasks        |
 | backfill_tasks              | histogram of scheduling overhead/task    |
@@ -931,9 +807,6 @@ IO and Non-IO tasks respectively:
 | tap_resume_tasks            | histogram of scheduling overhead/task    |
 |                             | runtimes for resume suspended tap        |
 |                             | connection tasks                         |
-| tapconnection_reaper_tasks  | histogram of scheduling overhead/task    |
-|                             | runtimes for tap/dcp connection reaper   |
-|                             | tasks                                    |
 | hashtable_resize_tasks      | histogram of scheduling overhead/task    |
 |                             | runtimes for hash table resizer tasks    |
 | pending_ops_tasks           | histogram of scheduling overhead/task    |
@@ -1286,14 +1159,7 @@ Reset Stats:
 | ep_pending_ops_total              |
 | ep_storage_age                    |
 | ep_storage_age_highwat            |
-| ep_tap_bg_load_avg                |
-| ep_tap_bg_max_load                |
-| ep_tap_bg_max_wait                |
-| ep_tap_bg_min_load                |
-| ep_tap_bg_min_wait                |
-| ep_tap_bg_wait_avg                |
 | ep_replication_throttled          |
-| ep_tap_total_fetched              |
 | ep_vbucket_del_max_walltime       |
 | pending_ops                       |
 
@@ -1301,8 +1167,6 @@ Reset Histograms:
 
 | bg_load                           |
 | bg_wait                           |
-| bg_tap_load                       |
-| bg_tap_wait                       |
 | chk_persistence_cmd               |
 | data_age                          |
 | del_vb_cmd                        |
@@ -1320,9 +1184,6 @@ Reset Histograms:
 | dcp_cursors_get_all_items         |
 | set_vb_cmd                        |
 | storage_age                       |
-| tap_mutation                      |
-| tap_vb_reset                      |
-| tap_vb_set                        |
 
 
 * Details

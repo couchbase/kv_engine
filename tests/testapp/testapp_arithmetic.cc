@@ -299,3 +299,36 @@ TEST_P(ArithmeticTest, TestDocWithXattr) {
         EXPECT_EQ("\"Trond Norbye\"", resp.getValue());
     }
 }
+
+TEST_P(ArithmeticTest, MB25402) {
+    // Increment and decrement should not update the expiry time on existing
+    // documents
+    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+
+    // Start by creating the counter without expiry time
+    conn.increment(name, 1, 0, 0, nullptr);
+    // increment the counter (which should already exists causing the expiry
+    // time to be ignored)
+    conn.increment(name, 1, 0, 3600, nullptr);
+
+    // Verify that the expiry time is still
+    BinprotSubdocMultiLookupCommand cmd;
+    cmd.setKey(name);
+    cmd.addGet("$document", SUBDOC_FLAG_XATTR_PATH);
+    conn.sendCommand(cmd);
+
+    BinprotSubdocMultiLookupResponse multiResp;
+    conn.recvResponse(multiResp);
+
+    auto& results = multiResp.getResults();
+
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, results[0].status);
+
+    // Ensure that we found all we expected and they're of the correct type:
+    unique_cJSON_ptr meta(cJSON_Parse(results[0].value.c_str()));
+    auto* obj = cJSON_GetObjectItem(meta.get(), "exptime");
+    EXPECT_NE(nullptr, obj);
+    EXPECT_EQ(cJSON_Number, obj->type);
+    EXPECT_EQ(0, obj->valueint);
+}
