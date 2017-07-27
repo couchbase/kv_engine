@@ -447,17 +447,24 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
     ExecutorPool::get()->unregisterTaskable(engine.getTaskable(),
                                             stats.forceShutdown);
 
+    LOG(EXTENSION_LOG_NOTICE, "Deleting vb_mutexes");
     delete [] vb_mutexes;
+    LOG(EXTENSION_LOG_NOTICE, "Deleting stats.schedulingHisto");
     delete [] stats.schedulingHisto;
+    LOG(EXTENSION_LOG_NOTICE, "Deleting stats.taskRuntimeHisto");
     delete [] stats.taskRuntimeHisto;
+    LOG(EXTENSION_LOG_NOTICE, "Deleting warmupTask");
     delete warmupTask;
+    LOG(EXTENSION_LOG_NOTICE, "Deleting storageProperties");
     delete storageProperties;
+    LOG(EXTENSION_LOG_NOTICE, "Deleting defragmenterTask");
     defragmenterTask.reset();
 
-    std::vector<MutationLog*>::iterator it;
-    for (it = accessLog.begin(); it != accessLog.end(); it++) {
-        delete *it;
+    for (size_t ii = 0; ii < accessLog.size(); ii++) {
+        LOG(EXTENSION_LOG_NOTICE, "Deleting accessLog %" PRIu64, uint64_t(ii));
+        delete accessLog[ii];
     }
+    LOG(EXTENSION_LOG_NOTICE, "~EventuallyPersistentStore done");
 }
 
 const Flusher* EventuallyPersistentStore::getFlusher(uint16_t shardId) {
