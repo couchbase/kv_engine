@@ -112,19 +112,17 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(PROTOCOL_BINARY_CMD_DEL_VBUCKET, require<Privilege::BucketManagement>);
     /* End VBucket commands */
 
-    /* MB-22394 - temporary disable TAP prior to its removal */
-#if 0
     /* TAP commands */
-    setup(PROTOCOL_BINARY_CMD_TAP_CONNECT, require<Privilege::Tap>);
-    setup(PROTOCOL_BINARY_CMD_TAP_MUTATION, require<Privilege::Tap>);
-    setup(PROTOCOL_BINARY_CMD_TAP_DELETE, require<Privilege::Tap>);
-    setup(PROTOCOL_BINARY_CMD_TAP_FLUSH, require<Privilege::Tap>);
-    setup(PROTOCOL_BINARY_CMD_TAP_OPAQUE, require<Privilege::Tap>);
-    setup(PROTOCOL_BINARY_CMD_TAP_VBUCKET_SET, require<Privilege::Tap>);
-    setup(PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_START, require<Privilege::Tap>);
-    setup(PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_END, require<Privilege::Tap>);
+    /* We want to return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED */
+    setup(PROTOCOL_BINARY_CMD_TAP_CONNECT, empty);
+    setup(PROTOCOL_BINARY_CMD_TAP_MUTATION, empty);
+    setup(PROTOCOL_BINARY_CMD_TAP_DELETE, empty);
+    setup(PROTOCOL_BINARY_CMD_TAP_FLUSH, empty);
+    setup(PROTOCOL_BINARY_CMD_TAP_OPAQUE, empty);
+    setup(PROTOCOL_BINARY_CMD_TAP_VBUCKET_SET, empty);
+    setup(PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_START, empty);
+    setup(PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_END, empty);
     /* End TAP */
-#endif
 
     /* Vbucket command to get the VBUCKET sequence numbers for all
      * vbuckets on the node */
