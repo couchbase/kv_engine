@@ -131,6 +131,10 @@ protected:
             << "Found an existing TAP cursor when attempting to register ours";
     }
 
+    void destroy_dcp_stream() {
+        producer.get()->closeStream(/*opaque*/ 0, vb0->getId());
+    }
+
     /*
      * Creates an item with the key \"key\", containing json data and xattrs.
      * @return a unique_ptr to a newly created item.
@@ -227,7 +231,7 @@ TEST_P(StreamTest, test_streamIsKeyOnlyTrue) {
 
     stream = dynamic_cast<MockDcpProducer*>(producer.get())->findStream(0);
     EXPECT_TRUE(dynamic_cast<ActiveStream*>(stream.get())->isKeyOnly());
-    producer.get()->closeAllStreams();
+    destroy_dcp_stream();
 }
 
 /*
@@ -253,7 +257,7 @@ TEST_P(StreamTest, test_streamIsKeyOnlyFalseBecauseOfIncludeValue) {
 
     stream = dynamic_cast<MockDcpProducer*>(producer.get())->findStream(0);
     EXPECT_FALSE(dynamic_cast<ActiveStream*>(stream.get())->isKeyOnly());
-    producer.get()->closeAllStreams();
+    destroy_dcp_stream();
 }
 
 /*
@@ -279,7 +283,7 @@ TEST_P(StreamTest, test_streamIsKeyOnlyFalseBecauseOfIncludeXattrs) {
 
     stream = dynamic_cast<MockDcpProducer*>(producer.get())->findStream(0);
     EXPECT_FALSE(dynamic_cast<ActiveStream*>(stream.get())->isKeyOnly());
-    producer.get()->closeAllStreams();
+    destroy_dcp_stream();
 }
 
 /*
@@ -298,7 +302,8 @@ TEST_P(StreamTest, test_keyOnlyMessageSize) {
             dynamic_cast<MockActiveStream*>(
                     stream.get())->public_makeResponseFromItem(qi);
 
-  EXPECT_EQ(keyOnlyMessageSize, dcpResponse->getMessageSize());
+    EXPECT_EQ(keyOnlyMessageSize, dcpResponse->getMessageSize());
+    destroy_dcp_stream();
 }
 
 /*
@@ -317,7 +322,8 @@ TEST_P(StreamTest, test_keyValueAndXattrsMessageSize) {
             dynamic_cast<MockActiveStream*>(
                     stream.get())->public_makeResponseFromItem(qi);
 
-  EXPECT_EQ(keyAndValueMessageSize, dcpResponse->getMessageSize());
+    EXPECT_EQ(keyAndValueMessageSize, dcpResponse->getMessageSize());
+    destroy_dcp_stream();
 }
 
 /*
@@ -337,6 +343,7 @@ TEST_P(StreamTest, test_keyAndValueMessageSize) {
                     stream.get())->public_makeResponseFromItem(qi);
 
     EXPECT_EQ(keyAndValueMessageSize, dcpResponse->getMessageSize());
+    destroy_dcp_stream();
 }
 
 /*
@@ -360,6 +367,7 @@ TEST_P(StreamTest, test_keyAndValueExcludingXattrsMessageSize) {
                     stream.get())->public_makeResponseFromItem(qi);
 
     EXPECT_EQ(keyAndValueMessageSize, dcpResponse->getMessageSize());
+    destroy_dcp_stream();
 }
 
 /*
@@ -380,6 +388,7 @@ TEST_P(StreamTest,
                     stream.get())->public_makeResponseFromItem(qi);
 
     EXPECT_EQ(keyAndValueMessageSize, dcpResponse->getMessageSize());
+    destroy_dcp_stream();
 }
 
 /*
@@ -403,6 +412,7 @@ TEST_P(StreamTest, test_keyAndValueExcludingValueDataMessageSize) {
                     stream.get())->public_makeResponseFromItem(qi);
 
     EXPECT_EQ(keyAndValueMessageSize, dcpResponse->getMessageSize());
+    destroy_dcp_stream();
 }
 
 /* MB-24159 - Test to confirm a dcp stream backfill from an ephemeral bucket
@@ -422,7 +432,7 @@ TEST_P(StreamTest, backfillGetsNoItems) {
                 std::dynamic_pointer_cast<EphemeralVBucket>(vb0));
         auto dcpbfm = DCPBackfillMemory(evb, aStream, 1, 1);
         dcpbfm.run();
-        producer.get()->closeAllStreams();
+        destroy_dcp_stream();
     }
 }
 
@@ -457,6 +467,7 @@ TEST_P(StreamTest, test_mb17766) {
     // Should finish with nextCheckpointItem() returning false.
     EXPECT_FALSE(mock_stream->public_nextCheckpointItem())
         << "nextCheckpointItem() after processing items should be false.";
+    destroy_dcp_stream();
 }
 
 // Check that the items remaining statistic is accurate and is unaffected
@@ -535,6 +546,7 @@ TEST_P(StreamTest, MB17653_ItemsRemaining) {
     } while (response);
     EXPECT_EQ(0, mock_stream->getItemsRemaining())
         << "Should have 0 items remaining after advancing cursor and draining readyQ";
+    destroy_dcp_stream();
 }
 
 TEST_P(StreamTest, test_mb18625) {
@@ -568,6 +580,7 @@ TEST_P(StreamTest, test_mb18625) {
     // Expect no other message to be queued after stream end message
     EXPECT_EQ(0, (mock_stream->public_readyQ()).size())
         << "Expected no more messages in the readyQ";
+    destroy_dcp_stream();
 }
 
 /* Stream items from a DCP backfill */
@@ -600,6 +613,7 @@ TEST_P(StreamTest, BackfillOnly) {
        updated correctly */
     EXPECT_EQ(numItems, mock_stream->getNumBackfillItemsRemaining());
 
+    destroy_dcp_stream();
     /* [TODO]: Expand the testcase to check if snapshot marker, all individual
                items are read correctly */
 }
@@ -658,6 +672,7 @@ TEST_P(StreamTest, BackfillSmallBuffer) {
 
     /* Read the other item */
     mock_stream->consumeBackfillItems(1);
+    destroy_dcp_stream();
 }
 
 TEST_P(StreamTest, CursorDroppingBasicBackfillState) {
@@ -685,6 +700,7 @@ TEST_P(StreamTest, CursorDroppingBasicBackfillState) {
             uSleepTime = decayingSleep(uSleepTime);
         }
     }
+    destroy_dcp_stream();
 }
 
 TEST_P(StreamTest, CursorDroppingBasicInMemoryState) {
@@ -698,6 +714,7 @@ TEST_P(StreamTest, CursorDroppingBasicInMemoryState) {
     mock_stream->transitionStateToBackfilling();
     mock_stream->transitionStateToInMemory();
     EXPECT_TRUE(mock_stream->public_handleSlowStream());
+    destroy_dcp_stream();
 }
 
 TEST_P(StreamTest, CursorDroppingBasicNotAllowedStates) {
@@ -721,6 +738,7 @@ TEST_P(StreamTest, CursorDroppingBasicNotAllowedStates) {
        to fail */
     mock_stream->transitionStateToTakeoverDead();
     EXPECT_FALSE(mock_stream->public_handleSlowStream());
+    destroy_dcp_stream();
 }
 
 class CacheCallbackTest : public StreamTest {
