@@ -427,6 +427,13 @@ using protocol_binary_datatype_t = uint8_t;
 #define PROTOCOL_BINARY_DATATYPE_XATTR uint8_t(cb::mcbp::Datatype::Xattr)
 
 /*
+ * Bitmask that defines datatypes that can only be valid when a document body
+ * exists. i.e. When the document is not soft-deleted
+ */
+#define BODY_ONLY_DATATYPE_MASK \
+    uint8_t(PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_SNAPPY);
+
+/*
  * Bitmask that defines the datatypes that can be resident in memory. For
  * example, DATATYPE_COMPRESSED is excluded as resident items are not
  * compressed.
@@ -1911,6 +1918,29 @@ typedef protocol_binary_request_gat protocol_binary_request_getl;
  * section for an item:
  */
 typedef protocol_binary_request_no_extras protocol_binary_request_get_meta;
+
+/**
+ * Structure holding getMeta command response fields
+ */
+#pragma pack(1)
+
+struct GetMetaResponse {
+    uint32_t deleted;
+    uint32_t flags;
+    uint32_t expiry;
+    uint64_t seqno;
+    uint8_t datatype;
+};
+
+#pragma pack()
+
+static_assert(sizeof(GetMetaResponse) == 21, "Incorrect compiler padding");
+
+/* Meta data versions for GET_META */
+enum class GetMetaVersion : uint8_t {
+    V1 = 1, // returns deleted, flags, expiry and seqno
+    V2 = 2, // The 'spock' version returns V1 + the datatype
+};
 
 /**
  * The response for CMD_SET_WITH_META does not carry any user-data and the

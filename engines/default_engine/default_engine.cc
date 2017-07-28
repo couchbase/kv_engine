@@ -918,6 +918,120 @@ static bool set_param(struct default_engine* e,
     return false;
 }
 
+static bool get_meta(struct default_engine* e,
+                     const void* cookie,
+                     protocol_binary_request_get_meta* request,
+                     ADD_RESPONSE response,
+                     DocNamespace doc_namespace) {
+    if (request->message.header.request.keylen == 0) {
+        return response(NULL,
+                        0,
+                        NULL,
+                        0,
+                        NULL,
+                        0,
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        PROTOCOL_BINARY_RESPONSE_EINVAL,
+                        0,
+                        cookie);
+    }
+
+    const uint8_t extlen = request->message.header.request.extlen;
+    const DocKey key((request->bytes + sizeof(request->bytes) + extlen),
+                     (size_t)ntohs(request->message.header.request.keylen),
+                     doc_namespace);
+    const uint16_t vbucket = ntohs(request->message.header.request.vbucket);
+
+    if (!handled_vbucket(e, vbucket)) {
+        return response(NULL,
+                        0,
+                        NULL,
+                        0,
+                        NULL,
+                        0,
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        uint16_t(cb::engine_errc::not_my_vbucket),
+                        0,
+                        cookie);
+    }
+
+    uint8_t version = 0;
+    bool fetchDatatype = true;
+
+    // Read the version if extlen is 1
+    if (extlen == 1) {
+        memcpy(&version,
+               request->bytes + sizeof(request->bytes),
+               sizeof(version));
+        fetchDatatype = (version == uint8_t(GetMetaVersion::V2));
+    }
+
+    uint32_t deleted = 0;
+
+    cb::unique_item_ptr ret(item_get(e,
+                                     cookie,
+                                     key.data(),
+                                     key.size(),
+                                     DocStateFilter::AliveOrDeleted),
+                            cb::ItemDeleter{&e->engine.interface});
+    if (!ret) {
+        response(NULL,
+                 0,
+                 NULL,
+                 0,
+                 NULL,
+                 0,
+                 PROTOCOL_BINARY_RAW_BYTES,
+                 uint16_t(cb::engine_errc::no_such_key),
+                 0,
+                 cookie);
+        return true;
+    }
+
+    item_info info;
+    if (!get_item_info(&e->engine.interface, cookie, ret.get(), &info)) {
+        throw cb::engine_error(cb::engine_errc::failed,
+                               "default_get_if: get_item_info failed");
+    }
+
+    if (info.document_state == DocumentState::Deleted) {
+        deleted |= GET_META_ITEM_DELETED_FLAG;
+    }
+
+    // GET META returns a packed structure
+    // 0-3   uint32_t deleted
+    // 4-7   uint32_t flags
+    // 8-11  uint32_t expiry
+    // 12-19 uint64_t seqno
+    // 20    uint8_t  datatype (optional, based upon meta-version requested)
+    GetMetaResponse metaResponse{};
+
+    metaResponse.deleted = htonl(deleted);
+    metaResponse.flags = info.flags;
+    metaResponse.expiry = htonl(info.exptime);
+    metaResponse.seqno = htonll(info.seqno);
+
+    if (fetchDatatype) {
+        metaResponse.datatype = info.datatype;
+    }
+
+    const uint8_t retExtlen =
+            fetchDatatype
+                    ? sizeof(metaResponse)
+                    : sizeof(metaResponse) - sizeof(metaResponse.datatype);
+
+    return response(nullptr /*key*/,
+                    0 /*keylen*/,
+                    reinterpret_cast<uint8_t*>(&metaResponse) /*ext*/,
+                    retExtlen,
+                    nullptr /*body*/,
+                    0 /*bodylen*/,
+                    PROTOCOL_BINARY_RAW_BYTES /*datatype*/,
+                    PROTOCOL_BINARY_RESPONSE_SUCCESS /*mcbp status*/,
+                    info.cas,
+                    cookie);
+}
+
 static ENGINE_ERROR_CODE default_unknown_command(ENGINE_HANDLE* handle,
                                                  const void* cookie,
                                                  protocol_binary_request_header *request,
@@ -950,6 +1064,14 @@ static ENGINE_ERROR_CODE default_unknown_command(ENGINE_HANDLE* handle,
                 cookie,
                 reinterpret_cast<protocol_binary_request_set_param*>(request),
                 response);
+        break;
+    case PROTOCOL_BINARY_CMD_GET_META:
+        sent = get_meta(
+                e,
+                cookie,
+                reinterpret_cast<protocol_binary_request_get_meta*>(request),
+                response,
+                doc_namespace);
         break;
     default:
         sent = response(NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,

@@ -56,7 +56,12 @@ typedef RCPtr<PassiveStream> passive_stream_t;
 class ConnHandler;
 typedef SingleThreadedRCPtr<ConnHandler> connection_t;
 
-enum process_items_error_t { all_processed, more_to_process, cannot_process };
+enum process_items_error_t {
+    all_processed,
+    more_to_process,
+    cannot_process,
+    stop_processing
+};
 
 /*
  * IncludeValue is used to state whether an active stream needs to send the

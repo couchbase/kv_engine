@@ -131,6 +131,10 @@ protected:
             << "Found an existing TAP cursor when attempting to register ours";
     }
 
+    void destroy_dcp_stream() {
+        producer.get()->closeStream(/*opaque*/ 0, vb0->getId());
+    }
+
     /*
      * Creates an item with the key \"key\", containing json data and xattrs.
      * @return a unique_ptr to a newly created item.
@@ -227,7 +231,7 @@ TEST_P(StreamTest, test_streamIsKeyOnlyTrue) {
 
     stream = dynamic_cast<MockDcpProducer*>(producer.get())->findStream(0);
     EXPECT_TRUE(dynamic_cast<ActiveStream*>(stream.get())->isKeyOnly());
-    producer.get()->closeAllStreams();
+    destroy_dcp_stream();
 }
 
 /*
@@ -253,7 +257,7 @@ TEST_P(StreamTest, test_streamIsKeyOnlyFalseBecauseOfIncludeValue) {
 
     stream = dynamic_cast<MockDcpProducer*>(producer.get())->findStream(0);
     EXPECT_FALSE(dynamic_cast<ActiveStream*>(stream.get())->isKeyOnly());
-    producer.get()->closeAllStreams();
+    destroy_dcp_stream();
 }
 
 /*
@@ -279,7 +283,7 @@ TEST_P(StreamTest, test_streamIsKeyOnlyFalseBecauseOfIncludeXattrs) {
 
     stream = dynamic_cast<MockDcpProducer*>(producer.get())->findStream(0);
     EXPECT_FALSE(dynamic_cast<ActiveStream*>(stream.get())->isKeyOnly());
-    producer.get()->closeAllStreams();
+    destroy_dcp_stream();
 }
 
 /*
@@ -298,7 +302,8 @@ TEST_P(StreamTest, test_keyOnlyMessageSize) {
             dynamic_cast<MockActiveStream*>(
                     stream.get())->public_makeResponseFromItem(qi);
 
-  EXPECT_EQ(keyOnlyMessageSize, dcpResponse->getMessageSize());
+    EXPECT_EQ(keyOnlyMessageSize, dcpResponse->getMessageSize());
+    destroy_dcp_stream();
 }
 
 /*
@@ -317,7 +322,8 @@ TEST_P(StreamTest, test_keyValueAndXattrsMessageSize) {
             dynamic_cast<MockActiveStream*>(
                     stream.get())->public_makeResponseFromItem(qi);
 
-  EXPECT_EQ(keyAndValueMessageSize, dcpResponse->getMessageSize());
+    EXPECT_EQ(keyAndValueMessageSize, dcpResponse->getMessageSize());
+    destroy_dcp_stream();
 }
 
 /*
@@ -337,6 +343,7 @@ TEST_P(StreamTest, test_keyAndValueMessageSize) {
                     stream.get())->public_makeResponseFromItem(qi);
 
     EXPECT_EQ(keyAndValueMessageSize, dcpResponse->getMessageSize());
+    destroy_dcp_stream();
 }
 
 /*
@@ -360,6 +367,7 @@ TEST_P(StreamTest, test_keyAndValueExcludingXattrsMessageSize) {
                     stream.get())->public_makeResponseFromItem(qi);
 
     EXPECT_EQ(keyAndValueMessageSize, dcpResponse->getMessageSize());
+    destroy_dcp_stream();
 }
 
 /*
@@ -380,6 +388,7 @@ TEST_P(StreamTest,
                     stream.get())->public_makeResponseFromItem(qi);
 
     EXPECT_EQ(keyAndValueMessageSize, dcpResponse->getMessageSize());
+    destroy_dcp_stream();
 }
 
 /*
@@ -403,6 +412,7 @@ TEST_P(StreamTest, test_keyAndValueExcludingValueDataMessageSize) {
                     stream.get())->public_makeResponseFromItem(qi);
 
     EXPECT_EQ(keyAndValueMessageSize, dcpResponse->getMessageSize());
+    destroy_dcp_stream();
 }
 
 /* MB-24159 - Test to confirm a dcp stream backfill from an ephemeral bucket
@@ -422,7 +432,7 @@ TEST_P(StreamTest, backfillGetsNoItems) {
                 std::dynamic_pointer_cast<EphemeralVBucket>(vb0));
         auto dcpbfm = DCPBackfillMemory(evb, aStream, 1, 1);
         dcpbfm.run();
-        producer.get()->closeAllStreams();
+        destroy_dcp_stream();
     }
 }
 
@@ -457,6 +467,7 @@ TEST_P(StreamTest, test_mb17766) {
     // Should finish with nextCheckpointItem() returning false.
     EXPECT_FALSE(mock_stream->public_nextCheckpointItem())
         << "nextCheckpointItem() after processing items should be false.";
+    destroy_dcp_stream();
 }
 
 // Check that the items remaining statistic is accurate and is unaffected
@@ -535,6 +546,7 @@ TEST_P(StreamTest, MB17653_ItemsRemaining) {
     } while (response);
     EXPECT_EQ(0, mock_stream->getItemsRemaining())
         << "Should have 0 items remaining after advancing cursor and draining readyQ";
+    destroy_dcp_stream();
 }
 
 TEST_P(StreamTest, test_mb18625) {
@@ -568,6 +580,7 @@ TEST_P(StreamTest, test_mb18625) {
     // Expect no other message to be queued after stream end message
     EXPECT_EQ(0, (mock_stream->public_readyQ()).size())
         << "Expected no more messages in the readyQ";
+    destroy_dcp_stream();
 }
 
 /* Stream items from a DCP backfill */
@@ -600,6 +613,7 @@ TEST_P(StreamTest, BackfillOnly) {
        updated correctly */
     EXPECT_EQ(numItems, mock_stream->getNumBackfillItemsRemaining());
 
+    destroy_dcp_stream();
     /* [TODO]: Expand the testcase to check if snapshot marker, all individual
                items are read correctly */
 }
@@ -658,6 +672,7 @@ TEST_P(StreamTest, BackfillSmallBuffer) {
 
     /* Read the other item */
     mock_stream->consumeBackfillItems(1);
+    destroy_dcp_stream();
 }
 
 TEST_P(StreamTest, CursorDroppingBasicBackfillState) {
@@ -685,6 +700,7 @@ TEST_P(StreamTest, CursorDroppingBasicBackfillState) {
             uSleepTime = decayingSleep(uSleepTime);
         }
     }
+    destroy_dcp_stream();
 }
 
 TEST_P(StreamTest, CursorDroppingBasicInMemoryState) {
@@ -698,6 +714,7 @@ TEST_P(StreamTest, CursorDroppingBasicInMemoryState) {
     mock_stream->transitionStateToBackfilling();
     mock_stream->transitionStateToInMemory();
     EXPECT_TRUE(mock_stream->public_handleSlowStream());
+    destroy_dcp_stream();
 }
 
 TEST_P(StreamTest, CursorDroppingBasicNotAllowedStates) {
@@ -721,6 +738,7 @@ TEST_P(StreamTest, CursorDroppingBasicNotAllowedStates) {
        to fail */
     mock_stream->transitionStateToTakeoverDead();
     EXPECT_FALSE(mock_stream->public_handleSlowStream());
+    destroy_dcp_stream();
 }
 
 class CacheCallbackTest : public StreamTest {
@@ -904,6 +922,24 @@ protected:
     ENGINE_ERROR_CODE set_vb_state(uint16_t vbid, vbucket_state_t state) {
         return engine->getKVBucket()->setVBucketState(vbid, state, true);
     }
+
+    /**
+     * Creates a consumer conn and sends items on the conn with memory usage
+     * near to replication threshold
+     *
+     * @param beyondThreshold indicates if the memory usage should above the
+     *                        threshold or just below it
+     */
+    void sendConsumerMutationsNearThreshold(bool beyondThreshold);
+
+    /**
+     * Creates a consumer conn and makes the consumer processor task run with
+     * memory usage near to replication threshold
+     *
+     * @param beyondThreshold indicates if the memory usage should above the
+     *                        threshold or just below it
+     */
+    void processConsumerMutationsNearThreshold(bool beyondThreshold);
 
     /* vbucket associated with this connection */
     uint16_t vbid;
@@ -1815,7 +1851,7 @@ TEST_P(ConnectionTest, test_mb24424_mutationResponse) {
     destroy_mock_cookie(cookie);
 }
 
-TEST_P(ConnectionTest, ReplicateAfterThrottleThreshold) {
+void ConnectionTest::sendConsumerMutationsNearThreshold(bool beyondThreshold) {
     const void* cookie = create_mock_cookie();
     const uint32_t opaque = 1;
     const uint64_t snapStart = 1, snapEnd = 10;
@@ -1865,99 +1901,18 @@ TEST_P(ConnectionTest, ReplicateAfterThrottleThreshold) {
 
     /* Set 'mem_used' beyond the 'replication threshold' */
     EPStats& stats = engine->getEpStats();
-    stats.setMaxDataSize(stats.getTotalMemoryUsed());
-
-    /* Send another item for replication */
-    auto ret = consumer->mutation(opaque,
-                                  docKey,
-                                  {}, // value
-                                  0, // priv bytes
-                                  PROTOCOL_BINARY_RAW_BYTES,
-                                  0, // cas
-                                  vbid,
-                                  0, // flags
-                                  bySeqno + 1,
-                                  0, // rev seqno
-                                  0, // exptime
-                                  0, // locktime
-                                  {}, // meta
-                                  0); // nru
-
-    if ((engine->getConfiguration().getBucketType() == "ephemeral") &&
-        (engine->getConfiguration().getEphemeralFullPolicy()) ==
-                "fail_new_data") {
-        /* Expect disconnect signal in Ephemeral with "fail_new_data" policy */
-        EXPECT_EQ(ENGINE_DISCONNECT, ret);
+    if (beyondThreshold) {
+        stats.setMaxDataSize(stats.getTotalMemoryUsed());
     } else {
-        /* In 'couchbase' buckets we buffer the replica items and indirectly
-         throttle replication by not sending flow control acks to the
-         producer. Hence we do not drop the connection here */
-        EXPECT_EQ(ENGINE_SUCCESS, ret);
+        /* Set 'mem_used' just 1 byte less than the 'replication threshold'.
+           That is we are below 'replication threshold', but not enough space
+           for  the new item */
+        stats.setMaxDataSize(stats.getTotalMemoryUsed() + 1);
+        /* Simpler to set the replication threshold to 1 and test, rather than
+           testing with maxData = (memUsed / replicationThrottleThreshold);
+           that is, we are avoiding a division */
+        engine->getConfiguration().setReplicationThrottleThreshold(100);
     }
-
-    /* Close stream before deleting the connection */
-    EXPECT_EQ(ENGINE_SUCCESS, consumer->closeStream(opaque, vbid));
-
-    destroy_mock_cookie(cookie);
-}
-
-TEST_P(ConnectionTest, ReplicateJustBeforeThrottleThreshold) {
-    const void* cookie = create_mock_cookie();
-    const uint32_t opaque = 1;
-    const uint64_t snapStart = 1, snapEnd = 10;
-    const uint64_t bySeqno = snapStart;
-
-    /* Set up a consumer connection */
-    connection_t conn = new MockDcpConsumer(*engine, cookie, "test_consumer");
-    MockDcpConsumer* consumer = dynamic_cast<MockDcpConsumer*>(conn.get());
-
-    /* Replica vbucket */
-    ASSERT_EQ(ENGINE_SUCCESS, set_vb_state(vbid, vbucket_state_replica));
-
-    /* Passive stream */
-    ASSERT_EQ(ENGINE_SUCCESS,
-              consumer->addStream(/*opaque*/ 0,
-                                  vbid,
-                                  /*flags*/ 0));
-    MockPassiveStream* stream = static_cast<MockPassiveStream*>(
-            (consumer->getVbucketStream(vbid)).get());
-    ASSERT_TRUE(stream->isActive());
-
-    /* Send a snapshotMarker before sending items for replication */
-    EXPECT_EQ(ENGINE_SUCCESS,
-              consumer->snapshotMarker(opaque,
-                                       vbid,
-                                       snapStart,
-                                       snapEnd,
-                                       /* in-memory snapshot */ 0x1));
-
-    /* Send an item for replication */
-    const DocKey docKey{"mykey", DocNamespace::DefaultCollection};
-    EXPECT_EQ(ENGINE_SUCCESS,
-              consumer->mutation(opaque,
-                                 docKey,
-                                 {}, // value
-                                 0, // priv bytes
-                                 PROTOCOL_BINARY_RAW_BYTES,
-                                 0, // cas
-                                 vbid,
-                                 0, // flags
-                                 bySeqno,
-                                 0, // rev seqno
-                                 0, // exptime
-                                 0, // locktime
-                                 {}, // meta
-                                 0)); // nru
-
-    /* Set 'mem_used' just 1 byte less than the 'replication threshold'.
-       That is we are below 'replication threshold', but not enough space for
-       the new item */
-    EPStats& stats = engine->getEpStats();
-    stats.setMaxDataSize(stats.getTotalMemoryUsed() + 1);
-    /* Simpler to set the replication threshold to 1 and test, rather than
-       testing with maxData = (memUsed / replicationThrottleThreshold); that is,
-       we are avoiding a division */
-    engine->getConfiguration().setReplicationThrottleThreshold(100);
 
     /* Send another item for replication */
     auto ret = consumer->mutation(opaque,
@@ -1991,6 +1946,163 @@ TEST_P(ConnectionTest, ReplicateJustBeforeThrottleThreshold) {
     EXPECT_EQ(ENGINE_SUCCESS, consumer->closeStream(opaque, vbid));
 
     destroy_mock_cookie(cookie);
+}
+
+/* Here we test how the DCP consumer handles the scenario where the memory
+   usage is beyond the replication throttle threshold.
+   In case of Ephemeral buckets with 'fail_new_data' policy it is expected to
+   indicate close of the consumer conn and in other cases it is expected to
+   just defer processing. */
+TEST_P(ConnectionTest, ReplicateAfterThrottleThreshold) {
+    sendConsumerMutationsNearThreshold(true);
+}
+
+/* Here we test how the DCP consumer handles the scenario where the memory
+   usage is just below the replication throttle threshold, but will go over the
+   threshold when it adds the new mutation from the processor buffer to the
+   hashtable.
+   In case of Ephemeral buckets with 'fail_new_data' policy it is expected to
+   indicate close of the consumer conn and in other cases it is expected to
+   just defer processing. */
+TEST_P(ConnectionTest, ReplicateJustBeforeThrottleThreshold) {
+    sendConsumerMutationsNearThreshold(false);
+}
+
+void ConnectionTest::processConsumerMutationsNearThreshold(
+        bool beyondThreshold) {
+    const void* cookie = create_mock_cookie();
+    const uint32_t opaque = 1;
+    const uint64_t snapStart = 1, snapEnd = 10;
+    const uint64_t bySeqno = snapStart;
+
+    /* Set up a consumer connection */
+    connection_t conn = new MockDcpConsumer(*engine, cookie, "test_consumer");
+    MockDcpConsumer* consumer = dynamic_cast<MockDcpConsumer*>(conn.get());
+
+    /* Replica vbucket */
+    ASSERT_EQ(ENGINE_SUCCESS, set_vb_state(vbid, vbucket_state_replica));
+
+    /* Passive stream */
+    ASSERT_EQ(ENGINE_SUCCESS,
+              consumer->addStream(/*opaque*/ 0,
+                                  vbid,
+                                  /*flags*/ 0));
+    MockPassiveStream* stream = static_cast<MockPassiveStream*>(
+            (consumer->getVbucketStream(vbid)).get());
+    ASSERT_TRUE(stream->isActive());
+
+    /* Send a snapshotMarker before sending items for replication */
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->snapshotMarker(opaque,
+                                       vbid,
+                                       snapStart,
+                                       snapEnd,
+                                       /* in-memory snapshot */ 0x1));
+
+    /* Simulate a situation where adding a mutation temporarily fails
+       and hence adds the mutation to a replication buffer. For that, we
+       set vbucket::takeover_backed_up to true */
+    engine->getKVBucket()->getVBucket(vbid)->setTakeoverBackedUpState(true);
+
+    /* Send an item for replication and expect it to be buffered */
+    const DocKey docKey{"mykey", DocNamespace::DefaultCollection};
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->mutation(opaque,
+                                 docKey,
+                                 {}, // value
+                                 0, // priv bytes
+                                 PROTOCOL_BINARY_RAW_BYTES,
+                                 0, // cas
+                                 vbid,
+                                 0, // flags
+                                 bySeqno,
+                                 0, // rev seqno
+                                 0, // exptime
+                                 0, // locktime
+                                 {}, // meta
+                                 0)); // nru
+    EXPECT_EQ(1, stream->getNumBufferItems());
+
+    /* Set back the vbucket::takeover_backed_up to false */
+    engine->getKVBucket()->getVBucket(vbid)->setTakeoverBackedUpState(false);
+
+    /* Set 'mem_used' beyond the 'replication threshold' */
+    EPStats& stats = engine->getEpStats();
+    if (beyondThreshold) {
+        /* Actually setting it well above also, as there can be a drop in memory
+           usage during testing */
+        stats.setMaxDataSize(stats.getTotalMemoryUsed() / 4);
+    } else {
+        /* set max size to a value just over */
+        stats.setMaxDataSize(stats.getTotalMemoryUsed() + 1);
+        /* Simpler to set the replication threshold to 1 and test, rather than
+           testing with maxData = (memUsed / replicationThrottleThreshold); that
+           is, we are avoiding a division */
+        engine->getConfiguration().setReplicationThrottleThreshold(100);
+    }
+
+    std::unique_ptr<dcp_message_producers> dcpStepProducers(
+            get_dcp_producers(handle, engine_v1));
+    if ((engine->getConfiguration().getBucketType() == "ephemeral") &&
+        (engine->getConfiguration().getEphemeralFullPolicy()) ==
+                "fail_new_data") {
+        /* Make a call to the function that would be called by the processor
+           task here */
+        EXPECT_EQ(stop_processing, consumer->processBufferedItems());
+
+        /* Expect the connection to be notified */
+        EXPECT_FALSE(consumer->isPaused());
+
+        /* Expect disconnect signal in Ephemeral with "fail_new_data" policy */
+        EXPECT_EQ(ENGINE_DISCONNECT, consumer->step(dcpStepProducers.get()));
+    } else {
+        uint32_t backfoffs = consumer->getNumBackoffs();
+
+        /* Make a call to the function that would be called by the processor
+           task here */
+        if (beyondThreshold) {
+            EXPECT_EQ(more_to_process, consumer->processBufferedItems());
+        } else {
+            EXPECT_EQ(cannot_process, consumer->processBufferedItems());
+        }
+
+        EXPECT_EQ(backfoffs + 1, consumer->getNumBackoffs());
+
+        /* In 'couchbase' buckets we buffer the replica items and indirectly
+           throttle replication by not sending flow control acks to the
+           producer. Hence we do not drop the connection here */
+        EXPECT_EQ(ENGINE_WANT_MORE, consumer->step(dcpStepProducers.get()));
+
+        /* Close stream before deleting the connection */
+        EXPECT_EQ(ENGINE_SUCCESS, consumer->closeStream(opaque, vbid));
+    }
+    destroy_mock_cookie(cookie);
+}
+
+/* Here we test how the Processor task in DCP consumer handles the scenario
+   where the memory usage is beyond the replication throttle threshold.
+   In case of Ephemeral buckets with 'fail_new_data' policy it is expected to
+   indicate close of the consumer conn and in other cases it is expected to
+   just defer processing. */
+TEST_P(ConnectionTest, ProcessReplicationBufferAfterThrottleThreshold) {
+    processConsumerMutationsNearThreshold(true);
+}
+
+/* Here we test how the Processor task in DCP consumer handles the scenario
+   where the memory usage is just below the replication throttle threshold,
+   but will go over the threshold when it adds the new mutation from the
+   processor buffer to the hashtable.
+   In case of Ephemeral buckets with 'fail_new_data' policy it is expected to
+   indicate close of the consumer conn and in other cases it is expected to
+   just defer processing. */
+TEST_P(ConnectionTest,
+       DISABLED_ProcessReplicationBufferJustBeforeThrottleThreshold) {
+    /* There are sporadic failures seen while testing this. The problem is
+       we need to have a memory usage just below max_size, so we need to
+       start at that point. But sometimes the memory usage goes further below
+       resulting in the test failure (a hang). Hence commenting out the test.
+       Can be run locally as and when needed. */
+    processConsumerMutationsNearThreshold(false);
 }
 
 // Test cases which run in both Full and Value eviction

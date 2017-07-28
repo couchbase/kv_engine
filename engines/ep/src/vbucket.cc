@@ -2027,6 +2027,13 @@ std::pair<MutationStatus, boost::optional<VBNotifyCtx>> VBucket::processSet(
         return {MutationStatus::NoMem, {}};
     }
 
+    if (v == nullptr && itm.isDeleted() && cas &&
+        !areDeletedItemsAlwaysResident()) {
+        // Request to perform a CAS operation on a deleted body which may
+        // not be resident. Need a bg_fetch to be able to perform this request.
+        return {MutationStatus::NeedBgFetch, VBNotifyCtx()};
+    }
+
     // bgFetch only in FE, only if the bloom-filter thinks the key may exist.
     // But only for cas operations or if a store_if is requiring the item_info.
     if (eviction == FULL_EVICTION && maybeKeyExists &&

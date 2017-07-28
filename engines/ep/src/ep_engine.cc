@@ -4004,23 +4004,6 @@ EventuallyPersistentEngine::handleSeqnoCmds(const void *cookie,
                         status, 0, cookie);
 }
 
-/**
- * Structure holding getMeta command response fields
- */
-#pragma pack(1)
-
-struct GetMetaResponse {
-    uint32_t deleted;
-    uint32_t flags;
-    uint32_t expiry;
-    uint64_t seqno;
-    uint8_t  datatype;
-};
-
-#pragma pack()
-
-static_assert(sizeof(GetMetaResponse) == 21, "Incorrect compiler padding");
-
 ENGINE_ERROR_CODE EventuallyPersistentEngine::getMeta(const void* cookie,
                                      protocol_binary_request_get_meta *request,
                                      ADD_RESPONSE response,

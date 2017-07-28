@@ -1038,6 +1038,12 @@ TEST_P(XattrTest, SetXattrAndDeleteBasic) {
     conn.recvResponse(multiResp);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
 
+    // Should now only be XATTR datatype
+    auto meta = conn.getMeta(name, 0, 0);
+    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, meta.datatype);
+    // Should also be marked as deleted
+    EXPECT_EQ(1, meta.deleted);
+
     auto resp = subdoc_get(sysXattr,
                            SUBDOC_FLAG_XATTR_PATH,
                            mcbp::subdoc::doc_flag::AccessDeleted);
@@ -1084,6 +1090,12 @@ TEST_P(XattrTest, SetXattrAndDeleteCheckUserXattrsDeleted) {
     conn.recvResponse(multiResp);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
 
+    // Should now only be XATTR datatype
+    auto meta = conn.getMeta(name, 0, 0);
+    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, meta.datatype);
+    // Should also be marked as deleted
+    EXPECT_EQ(1, meta.deleted);
+
     auto resp = subdoc_get("userXattr", SUBDOC_FLAG_XATTR_PATH);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, resp.getStatus());
 
@@ -1124,4 +1136,29 @@ TEST_P(XattrTest, SetXattrAndDeleteJustUserXattrs) {
     conn.sendCommand(cmd);
     conn.recvResponse(multiResp);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
+}
+
+TEST_P(XattrTest, TestXattrDeleteDatatypes) {
+    // See MB-25422. We test to make sure that the datatype of a document is
+    // correctly altered after a soft delete.
+    setBodyAndXattr(value, "55");
+    BinprotSubdocMultiMutationCommand cmd;
+    cmd.setKey(name);
+    cmd.addMutation(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+                    SUBDOC_FLAG_XATTR_PATH,
+                    sysXattr,
+                    xattrVal);
+    cmd.addMutation(PROTOCOL_BINARY_CMD_DELETE, SUBDOC_FLAG_NONE, "", "");
+    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    conn.sendCommand(cmd);
+
+    BinprotSubdocMultiMutationResponse multiResp;
+    conn.recvResponse(multiResp);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
+
+    // Should now only be XATTR datatype
+    auto meta = conn.getMeta(name, 0, 0);
+    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, meta.datatype);
+    // Should also be marked as deleted
+    EXPECT_EQ(1, meta.deleted);
 }

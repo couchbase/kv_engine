@@ -212,6 +212,10 @@ public:
                                 uint32_t metaOption,
                                 std::vector<uint8_t> metaExtras = {}) override;
 
+    GetMetaResponse getMeta(const std::string& key,
+                            uint16_t vbucket,
+                            uint64_t cas) override;
+
 protected:
     typedef std::unordered_set<uint16_t> Featureset;
 

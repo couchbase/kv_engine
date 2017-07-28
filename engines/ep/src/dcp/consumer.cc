@@ -70,6 +70,8 @@ public:
             case cannot_process:
                 sleepFor = 5.0;
                 break;
+            case stop_processing:
+                return false;
         }
 
         // Check if we've been notified of more work to do - if not then sleep;
@@ -847,22 +849,32 @@ process_items_error_t DcpConsumer::drainStreamsBufferedItems(SingleThreadedRCPtr
     uint32_t bytesProcessed = 0;
     size_t iterations = 0;
     do {
-        if (engine_.getReplicationThrottle().getStatus() !=
-            ReplicationThrottle::Status::Process) {
+        switch (engine_.getReplicationThrottle().getStatus()) {
+        case ReplicationThrottle::Status::Pause:
             backoffs++;
             vbReady.pushUnique(stream->getVBucket());
             return cannot_process;
+
+        case ReplicationThrottle::Status::Disconnect:
+            backoffs++;
+            vbReady.pushUnique(stream->getVBucket());
+            return stop_processing;
+
+        case ReplicationThrottle::Status::Process:
+            bytesProcessed = 0;
+            rval = stream->processBufferedMessages(
+                    bytesProcessed, processBufferedMessagesBatchSize);
+            if ((rval == cannot_process) || (rval == stop_processing)) {
+                backoffs++;
+            }
+            flowControl.incrFreedBytes(bytesProcessed);
+
+            // Notifying memcached on clearing items for flow control
+            notifyConsumerIfNecessary(false /*schedule*/);
+
+            iterations++;
+            break;
         }
-
-        bytesProcessed = 0;
-        rval = stream->processBufferedMessages(bytesProcessed,
-                                               processBufferedMessagesBatchSize);
-        flowControl.incrFreedBytes(bytesProcessed);
-
-        // Notifying memcached on clearing items for flow control
-        notifyConsumerIfNecessary(false/*schedule*/);
-
-        iterations++;
     } while (bytesProcessed > 0 &&
              rval == all_processed &&
              iterations <= yieldThreshold);
@@ -870,6 +882,9 @@ process_items_error_t DcpConsumer::drainStreamsBufferedItems(SingleThreadedRCPtr
     // The stream may not be done yet so must go back in the ready queue
     if (bytesProcessed > 0) {
         vbReady.pushUnique(stream->getVBucket());
+        if (rval == stop_processing) {
+            return stop_processing;
+        }
         rval = more_to_process; // Return more_to_process to force a snooze(0.0)
     }
 
@@ -889,11 +904,10 @@ process_items_error_t DcpConsumer::processBufferedItems() {
         process_ret = drainStreamsBufferedItems(stream,
                                                 processBufferedMessagesYieldThreshold);
 
-        if (process_ret == all_processed) {
+        switch (process_ret) {
+        case all_processed:
             return more_to_process;
-        }
-
-        if (process_ret == cannot_process) {
+        case cannot_process:
             // If items for current vbucket weren't processed,
             // re-add current vbucket
             if (vbReady.size() > 0) {
@@ -901,11 +915,14 @@ process_items_error_t DcpConsumer::processBufferedItems() {
                 process_ret = more_to_process;
             }
             vbReady.pushUnique(vbucket);
+            return process_ret;
+        case more_to_process:
+            return process_ret;
+        case stop_processing:
+            setDisconnect();
+            return process_ret;
         }
-
-        return process_ret;
     }
-
     return process_ret;
 }
 
@@ -933,6 +950,8 @@ std::string DcpConsumer::getProcessorTaskStatusStr() {
             return "MORE_TO_PROCESS";
         case cannot_process:
             return "CANNOT_PROCESS";
+        case stop_processing:
+            return "STOP_PROCESSING";
     }
 
     return "UNKNOWN";
@@ -1256,4 +1275,12 @@ ENGINE_ERROR_CODE DcpConsumer::systemEvent(uint32_t opaque,
     notifyConsumerIfNecessary(true /*schedule*/);
 
     return err;
+}
+
+void DcpConsumer::setDisconnect() {
+    ConnHandler::setDisconnect();
+
+    closeAllStreams();
+
+    notifyPaused(/*schedule*/ true);
 }

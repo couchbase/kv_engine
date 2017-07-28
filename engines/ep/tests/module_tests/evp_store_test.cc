@@ -42,12 +42,6 @@
 
 #include <thread>
 
-void EPBucketTest::runBGFetcherTask() {
-    MockGlobalTask mockTask(engine->getTaskable(),
-                            TaskId::MultiBGFetcherTask);
-    store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
-}
-
 // Verify that when handling a bucket delete with open DCP
 // connections, we don't deadlock when notifying the front-end
 // connection.
@@ -431,9 +425,7 @@ TEST_P(EPStoreEvictionTest, checkIfResidentAfterBgFetch) {
     GetValue gv = store->get(makeStoredDocKey("key"), vbid, cookie, options);
     EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
 
-    // Run the BGFetcher task
-    MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
-    store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+    runBGFetcherTask();
 
     // The Get should succeed in this case
     gv = store->get(makeStoredDocKey("key"), vbid, cookie, options);
@@ -678,9 +670,7 @@ TEST_P(EPStoreEvictionTest, getDeletedItemWithNoValue) {
     GetValue gv = store->get(makeStoredDocKey("key"), vbid, cookie, options);
     EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
 
-    // Run the BGFetcher task
-    MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
-    store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+    runBGFetcherTask();
 
     // The Get should succeed in this case
     gv = store->get(makeStoredDocKey("key"), vbid, cookie, options);
@@ -706,8 +696,7 @@ TEST_P(EPStoreEvictionTest, getDeletedItemWithValue) {
     // Trigger a flush to disk
     flush_vbucket_to_disk(vbid);
 
-    auto item = make_item(vbid, makeStoredDocKey("key"),
-                          "deletedvalue");
+    auto item = make_item(vbid, dockey, "deletedvalue");
     item.setDeleted();
     EXPECT_EQ(ENGINE_SUCCESS, store->set(item, nullptr));
     flush_vbucket_to_disk(vbid);
@@ -721,15 +710,13 @@ TEST_P(EPStoreEvictionTest, getDeletedItemWithValue) {
                                                        TRACK_STATISTICS |
                                                        GET_DELETED_VALUE);
 
-    GetValue gv = store->get(makeStoredDocKey("key"), vbid, cookie, options);
+    GetValue gv = store->get(dockey, vbid, cookie, options);
     EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
 
-    // Run the BGFetcher task
-    MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
-    store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+    runBGFetcherTask();
 
     // The Get should succeed in this case
-    gv = store->get(makeStoredDocKey("key"), vbid, cookie, options);
+    gv = store->get(dockey, vbid, cookie, options);
     EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
 
     // Ensure that the item is deleted and the value matches
@@ -973,7 +960,8 @@ struct PrintToStringCombinedName {
     }
 };
 
-// Test cases which run in both Full and Value eviction
+// Test cases which run in both Full and Value eviction, and with bloomfilter
+// on and off.
 INSTANTIATE_TEST_CASE_P(FullAndValueEvictionBloomOnOff,
                         EPStoreEvictionBloomOnOffTest,
                         ::testing::Combine(::testing::Values("value_only",

@@ -635,7 +635,7 @@
             "type": "size_t"
         },
         "dcp_ephemeral_backfill_type": {
-            "default": "none",
+            "default": "buffered",
             "descr": "Type of memory backfill done in Ephemeral buckets",
             "type": "std::string",
             "validator": {

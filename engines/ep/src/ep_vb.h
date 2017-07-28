@@ -83,6 +83,8 @@ public:
 
     bool pageOut(const HashTable::HashBucketLock& lh, StoredValue*& v) override;
 
+    bool areDeletedItemsAlwaysResident() const override;
+
     void addStats(bool details, ADD_STAT add_stat, const void* c) override;
 
     KVShard* getShard() override {

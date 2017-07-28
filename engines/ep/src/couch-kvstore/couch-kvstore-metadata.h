@@ -95,6 +95,12 @@ protected:
          */
 #pragma pack(1)
         uint64_t cas;
+
+        /**
+         * For Alive documents, the time it should expire. For Deleted
+         * documents, the time the document was deleted.
+         * Expressed as seconds since unix epoch (time_t).
+         */
         uint32_t exptime;
         uint32_t flags;
 #pragma pack()

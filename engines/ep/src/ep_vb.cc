@@ -341,6 +341,13 @@ void EPVBucket::completeStatsVKey(const DocKey& key, const GetValue& gcb) {
     }
 }
 
+bool EPVBucket::areDeletedItemsAlwaysResident() const {
+    // Persistent buckets do not keep all deleted items resident in memory.
+    // (They may be *temporarily* resident while a request is in flight asking
+    // for a deleted item).
+    return false;
+}
+
 void EPVBucket::addStats(bool details, ADD_STAT add_stat, const void* c) {
     _addStats(details, add_stat, c);
 

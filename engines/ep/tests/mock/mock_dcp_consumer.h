@@ -47,6 +47,10 @@ public:
         notifyVbucketReady(vbid);
     }
 
+    uint32_t getNumBackoffs() const {
+        return backoffs.load();
+    }
+
     /*
      * Creates a PassiveStream.
      * @return a SingleThreadedRCPtr to the newly created MockPassiveStream.

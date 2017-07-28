@@ -275,11 +275,13 @@ cb::engine_errc Connection::dropPrivilege(cb::rbac::Privilege privilege) {
 cb::rbac::PrivilegeAccess Connection::checkPrivilege(
         cb::rbac::Privilege privilege, Cookie& cookie) {
     cb::rbac::PrivilegeAccess ret;
+    unsigned int retries = 0;
+    const unsigned int max_retries = 100;
 
-    ret = privilegeContext.check(privilege);
-    if (ret == cb::rbac::PrivilegeAccess::Stale) {
-        // @todo refactor this so that we may run this through a
-        //       greenstack command context!
+    while ((ret = privilegeContext.check(privilege)) ==
+                   cb::rbac::PrivilegeAccess::Stale &&
+           retries < max_retries) {
+        ++retries;
         std::string command;
         auto* mcbp = dynamic_cast<McbpConnection*>(this);
         if (mcbp != nullptr) {
@@ -321,13 +323,24 @@ cb::rbac::PrivilegeAccess Connection::checkPrivilege(
                                    command + "]");
             return cb::rbac::PrivilegeAccess::Fail;
         }
+    }
 
-        ret = privilegeContext.check(privilege);
+    if (retries == max_retries) {
+        LOG_NOTICE(this,
+                   "%u: RBAC: Gave up rebuilding privilege context after %u "
+                   "times. Let the client handle the stale authentication "
+                   "context",
+                   getId(),
+                   retries);
+
+    } else if (retries > 1) {
+        LOG_NOTICE(this,
+                   "%u: RBAC: Had to rebuild privilege context %u times",
+                   getId(),
+                   retries);
     }
 
     if (ret == cb::rbac::PrivilegeAccess::Fail) {
-        // @todo refactor this so that we may run this through a
-        //       greenstack command context!
         std::string command;
         auto* mcbp = dynamic_cast<McbpConnection*>(this);
         if (mcbp != nullptr) {
@@ -338,8 +351,11 @@ cb::rbac::PrivilegeAccess Connection::checkPrivilege(
         const std::string context = privilegeContext.to_string();
 
         if (settings.isPrivilegeDebug()) {
-            audit_privilege_debug(this, command, all_buckets[bucketIndex].name,
-                                  privilege_string, context);
+            audit_privilege_debug(this,
+                                  command,
+                                  all_buckets[bucketIndex].name,
+                                  privilege_string,
+                                  context);
 
             LOG_NOTICE(this,
                        "%u: RBAC privilege debug: %s command: [%s] bucket: [%s] privilege: [%s] context: %s",
@@ -353,7 +369,8 @@ cb::rbac::PrivilegeAccess Connection::checkPrivilege(
             return cb::rbac::PrivilegeAccess::Ok;
         } else {
             LOG_NOTICE(nullptr,
-                       "%u RBAC %s missing privilege %s for %s in bucket:[%s] with context: "
+                       "%u RBAC %s missing privilege %s for %s in bucket:[%s] "
+                       "with context: "
                        "%s UUID:[%s]",
                        getId(),
                        getDescription().c_str(),

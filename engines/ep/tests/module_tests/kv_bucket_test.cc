@@ -177,6 +177,12 @@ void KVBucketTest::flush_vbucket_to_disk(uint16_t vbid, int expected) {
     ASSERT_EQ(expected, result) << "Unexpected items in flush_vbucket_to_disk";
 }
 
+void KVBucketTest::flushVBucketToDiskIfPersistent(uint16_t vbid, int expected) {
+    if (engine->getConfiguration().getBucketType() == "persistent") {
+        flush_vbucket_to_disk(vbid, expected);
+    }
+}
+
 void KVBucketTest::delete_item(uint16_t vbid, const StoredDocKey& key) {
     uint64_t cas = 0;
     EXPECT_EQ(ENGINE_SUCCESS,
@@ -208,6 +214,12 @@ void KVBucketTest::scheduleItemPager() {
 
 void KVBucketTest::initializeExpiryPager() {
     store->initializeExpiryPager(engine->getConfiguration());
+}
+
+void KVBucketTest::runBGFetcherTask() {
+    MockGlobalTask mockTask(engine->getTaskable(),
+                            TaskId::MultiBGFetcherTask);
+    store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
 }
 
 /**
@@ -469,6 +481,77 @@ TEST_P(KVBucketParamTest, SetCASDeleted) {
     }
 
     EXPECT_EQ(ENGINE_KEY_ENOENT, store->set(item2, cookie));
+}
+
+/**
+ * Regression test for MB-25398 - Test CAS set (deleted value) against a
+ * deleted, non-resident key.
+ */
+TEST_P(KVBucketParamTest, MB_25398_SetCASDeletedItem) {
+    auto key = makeStoredDocKey("key");
+    store_item(vbid, key, "value");
+
+    flushVBucketToDiskIfPersistent(vbid);
+
+    // delete it, retaining a value.
+    auto item = make_item(vbid, key, "deletedvalue");
+    item.setDeleted();
+    const auto inCAS = item.getCas();
+    ASSERT_EQ(ENGINE_SUCCESS, store->set(item, nullptr));
+    ASSERT_NE(inCAS, item.getCas());
+
+    // Flush, ensuring that the persistence callback runs and item is removed
+    // from the HashTable.
+    flushVBucketToDiskIfPersistent(vbid);
+
+    // Create a different deleted value (with an incorrect CAS).
+    auto item2 = make_item(vbid, key, "deletedvalue2");
+    item2.setDeleted();
+    item2.setCas(item.getCas() + 1);
+
+    if (engine->getConfiguration().getBucketType() == "persistent") {
+        // Deleted item won't be resident (after a flush), so expect to need to
+        // bgfetch.
+        EXPECT_EQ(ENGINE_EWOULDBLOCK, store->set(item2, nullptr));
+
+        runBGFetcherTask();
+    }
+
+    // Try with incorrect CAS.
+    EXPECT_EQ(ENGINE_KEY_EEXISTS, store->set(item2, nullptr));
+
+    // Try again, this time with correct CAS.
+    item2.setCas(item.getCas());
+    EXPECT_EQ(ENGINE_SUCCESS, store->set(item2, nullptr));
+}
+
+/**
+ * Negative variant of the regression test for MB-25398 - Test that a CAS set
+ * (deleted value) to a non-existent item fails.
+ */
+TEST_P(KVBucketParamTest, MB_25398_SetCASDeletedItemNegative) {
+    auto key = makeStoredDocKey("key");
+
+    flushVBucketToDiskIfPersistent(vbid, 0);
+
+    // Attempt to mutate a non-existent key (with a specific, incorrect CAS)
+    auto item2 = make_item(vbid, key, "deletedvalue");
+    item2.setDeleted();
+    item2.setCas(1234);
+
+    if (engine->getConfiguration().getBucketType() == "persistent") {
+        // Deleted item won't be resident (after a flush), so expect to need to
+        // bgfetch.
+        EXPECT_EQ(ENGINE_EWOULDBLOCK, store->set(item2, nullptr));
+        runBGFetcherTask();
+    }
+
+    // Try with a specific CAS.
+    EXPECT_EQ(ENGINE_KEY_ENOENT, store->set(item2, nullptr));
+
+    // Try with no CAS (wildcard) - should be possible to store.
+    item2.setCas(0);
+    EXPECT_EQ(ENGINE_SUCCESS, store->set(item2, nullptr));
 }
 
 // Add tests //////////////////////////////////////////////////////////////////

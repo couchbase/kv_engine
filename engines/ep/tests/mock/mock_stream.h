@@ -260,5 +260,10 @@ public:
         return PassiveStream::messageReceived(std::move(dcpResponse));
     }
 
+    size_t getNumBufferItems() const {
+        LockHolder lh(buffer.bufMutex);
+        return buffer.messages.size();
+    }
+
     uint32_t responseMessageSize;
 };
