@@ -896,6 +896,15 @@ protected:
      */
     void sendConsumerMutationsNearThreshold(bool beyondThreshold);
 
+    /**
+     * Creates a consumer conn and makes the consumer processor task run with
+     * memory usage near to replication threshold
+     *
+     * @param beyondThreshold indicates if the memory usage should above the
+     *                        threshold or just below it
+     */
+    void processConsumerMutationsNearThreshold(bool beyondThreshold);
+
     /* vbucket associated with this connection */
     uint16_t vbid;
 };
@@ -1923,12 +1932,8 @@ TEST_P(ConnectionTest, ReplicateJustBeforeThrottleThreshold) {
     sendConsumerMutationsNearThreshold(false);
 }
 
-/* Here we test how the Processor task in DCP consumer handles the scenario
-   where the memory usage is beyond the replication throttle threshold.
-   In case of Ephemeral buckets with 'fail_new_data' policy it is expected to
-   indicate close of the consumer conn and in other cases it is expected to
-   just defer processing. */
-TEST_P(ConnectionTest, ProcessReplicationBufferAfterThrottleThreshold) {
+void ConnectionTest::processConsumerMutationsNearThreshold(
+        bool beyondThreshold) {
     const void* cookie = create_mock_cookie();
     const uint32_t opaque = 1;
     const uint64_t snapStart = 1, snapEnd = 10;
@@ -1987,9 +1992,18 @@ TEST_P(ConnectionTest, ProcessReplicationBufferAfterThrottleThreshold) {
 
     /* Set 'mem_used' beyond the 'replication threshold' */
     EPStats& stats = engine->getEpStats();
-    /* Actually setting it well above also, as there can be a drop in memory
-       usage during testing */
-    stats.setMaxDataSize(stats.getTotalMemoryUsed() / 4);
+    if (beyondThreshold) {
+        /* Actually setting it well above also, as there can be a drop in memory
+           usage during testing */
+        stats.setMaxDataSize(stats.getTotalMemoryUsed() / 4);
+    } else {
+        /* set max size to a value just over */
+        stats.setMaxDataSize(stats.getTotalMemoryUsed() + 1);
+        /* Simpler to set the replication threshold to 1 and test, rather than
+           testing with maxData = (memUsed / replicationThrottleThreshold); that
+           is, we are avoiding a division */
+        engine->getConfiguration().setReplicationThrottleThreshold(100);
+    }
 
     std::unique_ptr<dcp_message_producers> dcpStepProducers(
             get_dcp_producers(handle, engine_v1));
@@ -2010,7 +2024,12 @@ TEST_P(ConnectionTest, ProcessReplicationBufferAfterThrottleThreshold) {
 
         /* Make a call to the function that would be called by the processor
            task here */
-        EXPECT_EQ(more_to_process, consumer->processBufferedItems());
+        if (beyondThreshold) {
+            EXPECT_EQ(more_to_process, consumer->processBufferedItems());
+        } else {
+            EXPECT_EQ(cannot_process, consumer->processBufferedItems());
+        }
+
         EXPECT_EQ(backfoffs + 1, consumer->getNumBackoffs());
 
         /* In 'couchbase' buckets we buffer the replica items and indirectly
@@ -2022,6 +2041,32 @@ TEST_P(ConnectionTest, ProcessReplicationBufferAfterThrottleThreshold) {
         EXPECT_EQ(ENGINE_SUCCESS, consumer->closeStream(opaque, vbid));
     }
     destroy_mock_cookie(cookie);
+}
+
+/* Here we test how the Processor task in DCP consumer handles the scenario
+   where the memory usage is beyond the replication throttle threshold.
+   In case of Ephemeral buckets with 'fail_new_data' policy it is expected to
+   indicate close of the consumer conn and in other cases it is expected to
+   just defer processing. */
+TEST_P(ConnectionTest, ProcessReplicationBufferAfterThrottleThreshold) {
+    processConsumerMutationsNearThreshold(true);
+}
+
+/* Here we test how the Processor task in DCP consumer handles the scenario
+   where the memory usage is just below the replication throttle threshold,
+   but will go over the threshold when it adds the new mutation from the
+   processor buffer to the hashtable.
+   In case of Ephemeral buckets with 'fail_new_data' policy it is expected to
+   indicate close of the consumer conn and in other cases it is expected to
+   just defer processing. */
+TEST_P(ConnectionTest,
+       DISABLED_ProcessReplicationBufferJustBeforeThrottleThreshold) {
+    /* There are sporadic failures seen while testing this. The problem is
+       we need to have a memory usage just below max_size, so we need to
+       start at that point. But sometimes the memory usage goes further below
+       resulting in the test failure (a hang). Hence commenting out the test.
+       Can be run locally as and when needed. */
+    processConsumerMutationsNearThreshold(false);
 }
 
 // Test cases which run in both Full and Value eviction

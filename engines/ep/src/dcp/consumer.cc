@@ -864,6 +864,9 @@ process_items_error_t DcpConsumer::drainStreamsBufferedItems(SingleThreadedRCPtr
             bytesProcessed = 0;
             rval = stream->processBufferedMessages(
                     bytesProcessed, processBufferedMessagesBatchSize);
+            if ((rval == cannot_process) || (rval == stop_processing)) {
+                backoffs++;
+            }
             flowControl.incrFreedBytes(bytesProcessed);
 
             // Notifying memcached on clearing items for flow control
@@ -879,6 +882,9 @@ process_items_error_t DcpConsumer::drainStreamsBufferedItems(SingleThreadedRCPtr
     // The stream may not be done yet so must go back in the ready queue
     if (bytesProcessed > 0) {
         vbReady.pushUnique(stream->getVBucket());
+        if (rval == stop_processing) {
+            return stop_processing;
+        }
         rval = more_to_process; // Return more_to_process to force a snooze(0.0)
     }
 

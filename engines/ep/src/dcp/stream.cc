@@ -1985,7 +1985,8 @@ process_items_error_t PassiveStream::processBufferedMessages(uint32_t& processed
     uint32_t count = 0;
     uint32_t message_bytes = 0;
     uint32_t total_bytes_processed = 0;
-    bool failed = false;
+    bool failed = false, noMem = false;
+
     while (count < batchSize && !buffer.messages.empty()) {
         ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
         /* If the stream is in dead state we should not process any remaining
@@ -2041,6 +2042,9 @@ process_items_error_t PassiveStream::processBufferedMessages(uint32_t& processed
 
         if (ret == ENGINE_TMPFAIL || ret == ENGINE_ENOMEM) {
             failed = true;
+            if (ret == ENGINE_ENOMEM) {
+                noMem = true;
+            }
         }
 
         // Re-acquire bufMutex so that
@@ -2064,6 +2068,9 @@ process_items_error_t PassiveStream::processBufferedMessages(uint32_t& processed
     processed_bytes = total_bytes_processed;
 
     if (failed) {
+        if (noMem && engine->getReplicationThrottle().doDisconnectOnNoMem()) {
+            return stop_processing;
+        }
         return cannot_process;
     }
 
