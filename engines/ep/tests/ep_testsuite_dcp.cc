@@ -6196,11 +6196,14 @@ BaseTestCase testsuite_testcases[] = {
                  nullptr,
                  prepare,
                  cleanup),
-        TestCase("dcp last items purged", test_dcp_last_items_purged, test_setup,
-                 teardown, NULL,
-                 /* [EPHE TODO]:: Ephemeral fails as purge_seqno doesn't match
-                    high seqno. This should work when we add Ephemeral purge */
-                 prepare_skip_broken_under_ephemeral,
+        TestCase("dcp last items purged",
+                 test_dcp_last_items_purged,
+                 test_setup,
+                 teardown,
+                 nullptr,
+                 /* In ephemeral buckets the test is run from module tests:
+                    EphTombstoneTest.ImmediateDeletedPurge() */
+                 prepare_ep_bucket,
                  cleanup),
         TestCase("dcp rollback after purge", test_dcp_rollback_after_purge,
                  test_setup, teardown, NULL,
