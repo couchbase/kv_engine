@@ -22,42 +22,40 @@
 #define LOGGER settings.extensions.logger->log
 
 // Detail should be printed if verbose > 2
-#define LOG_DETAIL(COOKIE, ...) \
-    do { \
-        if (settings.getVerbose() > 2) { \
+#define LOG_DETAIL(COOKIE, ...)                                \
+    do {                                                       \
+        if (settings.getVerbose() > 2) {                       \
             LOGGER(EXTENSION_LOG_DETAIL, COOKIE, __VA_ARGS__); \
-        } \
-    } while (0)
-
+        }                                                      \
+    } while (false)
 
 // Debug should be printed if verbose > 1
-#define LOG_DEBUG(COOKIE, ...) \
-    do { \
-        if (settings.getVerbose() > 1) { \
+#define LOG_DEBUG(COOKIE, ...)                                \
+    do {                                                      \
+        if (settings.getVerbose() > 1) {                      \
             LOGGER(EXTENSION_LOG_DEBUG, COOKIE, __VA_ARGS__); \
-        } \
-    } while (0)
-
+        }                                                     \
+    } while (false)
 
 // Info should be printed if verbose > 0
-#define LOG_INFO(COOKIE, ...) \
-    do { \
-        if (settings.getVerbose() > 0) { \
+#define LOG_INFO(COOKIE, ...)                                \
+    do {                                                     \
+        if (settings.getVerbose() > 0) {                     \
             LOGGER(EXTENSION_LOG_INFO, COOKIE, __VA_ARGS__); \
-        } \
-    } while (0)
+        }                                                    \
+    } while (false)
 
 // Notice should always be printed
-#define LOG_NOTICE(COOKIE, ...) \
-    do { \
+#define LOG_NOTICE(COOKIE, ...)                            \
+    do {                                                   \
         LOGGER(EXTENSION_LOG_NOTICE, COOKIE, __VA_ARGS__); \
-    } while (0)
+    } while (false)
 
 // Warnings should always be printed
-#define LOG_WARNING(COOKIE, ...) \
-    do { \
+#define LOG_WARNING(COOKIE, ...)                            \
+    do {                                                    \
         LOGGER(EXTENSION_LOG_WARNING, COOKIE, __VA_ARGS__); \
-    } while (0)
+    } while (false)
 
 /*
  * This macro records a fatal error to the log and
@@ -69,8 +67,8 @@
  * or the possbility of data corruption arises.
  */
 
-#define FATAL_ERROR(EXIT_STATUS, ...) \
-    do { \
+#define FATAL_ERROR(EXIT_STATUS, ...)                   \
+    do {                                                \
         LOGGER(EXTENSION_LOG_FATAL, NULL, __VA_ARGS__); \
-        exit(EXIT_STATUS); \
-    } while (0)
+        exit(EXIT_STATUS);                              \
+    } while (false)
