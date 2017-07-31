@@ -1940,6 +1940,31 @@ static void set_log_level(EXTENSION_LOG_LEVEL severity)
 }
 
 /**
+ * Resets the logger to the stderr logger and shuts down the previously
+ * active logger extension.
+ *
+ * Does nothing if the null, stderr or blackhole loggers are being used
+ */
+static void shutdown_logger() {
+    if (settings.extensions.logger == get_stderr_logger() ||
+        settings.extensions.logger == get_null_logger()) {
+        return;
+    }
+
+    // Testapp specifically loads a blackhole logger extension
+    if (settings.extensions.logger->get_name &&
+        settings.extensions.logger->get_name() == std::string("blackhole")) {
+        return;
+    }
+
+    auto* old_logger = settings.extensions.logger;
+    settings.extensions.logger = get_stderr_logger();
+    if (old_logger->shutdown != nullptr) {
+        old_logger->shutdown(/* force */ false);
+    }
+}
+
+/**
  * Callback the engines may call to get the public server interface
  * @return pointer to a structure containing the interface. The client should
  *         know the layout and perform the proper casts.
@@ -2912,6 +2937,9 @@ extern "C" int memcached_main(int argc, char **argv) {
 
     LOG_NOTICE(NULL, "Shutting down libevent");
     event_base_free(main_base);
+
+    LOG_NOTICE(NULL, "Shutting down logger extension");
+    shutdown_logger();
 
     LOG_NOTICE(NULL, "Shutdown complete.");
     return EXIT_SUCCESS;
