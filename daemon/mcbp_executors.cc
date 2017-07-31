@@ -994,6 +994,10 @@ static void rbac_refresh_executor(McbpConnection* c, void*) {
     c->obtainContext<RbacReloadCommandContext>(*c).drive();
 }
 
+static void no_support_executor(McbpConnection* c, void*) {
+    mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
+}
+
 std::array<mcbp_package_execute, 0x100>& get_mcbp_executors(void) {
     static std::array<mcbp_package_execute, 0x100> executors;
     std::fill(executors.begin(), executors.end(), nullptr);
@@ -1089,6 +1093,15 @@ std::array<mcbp_package_execute, 0x100>& get_mcbp_executors(void) {
     executors[PROTOCOL_BINARY_CMD_RBAC_REFRESH] = rbac_refresh_executor;
     executors[PROTOCOL_BINARY_CMD_COLLECTIONS_SET_MANIFEST] =
             collections_set_manifest_executor;
+
+    executors[PROTOCOL_BINARY_CMD_TAP_CONNECT] = no_support_executor;
+    executors[PROTOCOL_BINARY_CMD_TAP_MUTATION] = no_support_executor;
+    executors[PROTOCOL_BINARY_CMD_TAP_DELETE] = no_support_executor;
+    executors[PROTOCOL_BINARY_CMD_TAP_FLUSH] = no_support_executor;
+    executors[PROTOCOL_BINARY_CMD_TAP_OPAQUE] = no_support_executor;
+    executors[PROTOCOL_BINARY_CMD_TAP_VBUCKET_SET] = no_support_executor;
+    executors[PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_START] = no_support_executor;
+    executors[PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_END] = no_support_executor;
 
     return executors;
 }

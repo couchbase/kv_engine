@@ -1606,6 +1606,28 @@ TEST_P(McdTestappTest, Hello) {
                                   PROTOCOL_BINARY_RESPONSE_EINVAL);
 }
 
+// Test to ensure that if a Tap Connect is requested we respond with
+// PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED
+TEST_P(McdTestappTest, TapConnect) {
+    union {
+        protocol_binary_request_tap_connect request;
+        protocol_binary_response_no_extras response;
+        char bytes[1024];
+    } buffer;
+
+    memset(buffer.bytes, 0, sizeof(buffer.bytes));
+    auto len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
+                                PROTOCOL_BINARY_CMD_TAP_CONNECT,
+                                NULL, 0, NULL,0);
+
+     safe_send(buffer.bytes, len, false);
+     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+     mcbp_validate_response_header(&buffer.response,
+                                   PROTOCOL_BINARY_CMD_TAP_CONNECT,
+                                   PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
+     EXPECT_EQ(0u, buffer.response.message.header.response.bodylen);
+}
+
 static void set_feature(const protocol_binary_hello_features_t feature,
                         bool enable) {
 

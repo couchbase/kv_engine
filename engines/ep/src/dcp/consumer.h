@@ -29,7 +29,7 @@
 class DcpResponse;
 class StreamEndResponse;
 
-class DcpConsumer : public ConnHandler, public Notifiable {
+class DcpConsumer : public ConnHandler {
 typedef std::map<uint32_t, std::pair<uint32_t, uint16_t> > opaque_map;
 public:
 

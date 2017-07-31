@@ -320,8 +320,7 @@ void DcpConnMap::manageConnections() {
         std::map<const void*, connection_t>::iterator iter;
         for (iter = map_.begin(); iter != map_.end(); ++iter) {
             connection_t conn = iter->second;
-            Notifiable *tp = dynamic_cast<Notifiable*>(conn.get());
-            if (tp && (tp->isPaused() || conn->doDisconnect()) &&
+            if (conn.get() && (conn->isPaused() || conn->doDisconnect()) &&
                 conn->isReserved()) {
                 /**
                  * Note: We want to send a notify even if we have sent one
@@ -338,11 +337,8 @@ void DcpConnMap::manageConnections() {
     LockHolder rlh(releaseLock);
     std::list<connection_t>::iterator it;
     for (it = toNotify.begin(); it != toNotify.end(); ++it) {
-        Notifiable *tp =
-            static_cast<Notifiable*>(static_cast<DcpProducer*>((*it).get()));
-        if (tp && (*it)->isReserved()) {
+        if ((*it).get() && (*it)->isReserved()) {
             engine.notifyIOComplete((*it)->getCookie(), ENGINE_SUCCESS);
-            tp->setNotifySent(true);
         }
     }
 
