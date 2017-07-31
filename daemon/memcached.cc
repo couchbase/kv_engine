@@ -90,7 +90,7 @@ static EXTENSION_LOG_LEVEL get_log_level(void);
 /**
  * All of the buckets in couchbase is stored in this array.
  */
-static cb_mutex_t buckets_lock;
+static std::mutex buckets_lock;
 std::array<Bucket, COUCHBASE_MAX_NUM_BUCKETS + 1> all_buckets;
 
 static ENGINE_HANDLE* v1_handle_2_handle(ENGINE_HANDLE_V1* v1) {
@@ -102,7 +102,7 @@ const char* getBucketName(const Connection* c) {
 }
 
 void bucketsForEach(std::function<bool(Bucket&, void*)> fn, void *arg) {
-    cb_mutex_enter(&buckets_lock);
+    std::lock_guard<std::mutex> all_bucket_lock(buckets_lock);
     for (Bucket& bucket : all_buckets) {
         bool do_break = false;
         std::lock_guard<std::mutex> guard(bucket.mutex);
@@ -115,7 +115,6 @@ void bucketsForEach(std::function<bool(Bucket&, void*)> fn, void *arg) {
             break;
         }
     }
-    cb_mutex_exit(&buckets_lock);
 }
 
 protocol_binary_response_status Bucket::validateMcbpCommand(
@@ -253,7 +252,7 @@ static void populate_log_level(void*) {
     // we notify them (blocking bucket creation/deletion)
     auto val = get_log_level();
 
-    cb_mutex_enter(&buckets_lock);
+    std::lock_guard<std::mutex> all_bucket_lock(buckets_lock);
     for (auto& bucket : all_buckets) {
         std::lock_guard<std::mutex> guard(bucket.mutex);
         if (bucket.state == BucketState::Ready &&
@@ -262,7 +261,6 @@ static void populate_log_level(void*) {
                                          val);
         }
     }
-    cb_mutex_exit(&buckets_lock);
 }
 
 /* Perform all callbacks of a given type for the given connection. */
@@ -2080,7 +2078,7 @@ void CreateBucketThread::create() {
     size_t first_free = all_buckets.size();
     bool found = false;
 
-    cb_mutex_enter(&buckets_lock);
+    std::unique_lock<std::mutex> all_bucket_lock(buckets_lock);
     for (ii = 0; ii < all_buckets.size() && !found; ++ii) {
         std::lock_guard<std::mutex> guard(all_buckets[ii].mutex);
         if (first_free == all_buckets.size() &&
@@ -2122,7 +2120,7 @@ void CreateBucketThread::create() {
                         "%u Create bucket [%s] failed - out of memory",
                         connection.getId(), name.c_str());        }
     }
-    cb_mutex_exit(&buckets_lock);
+    all_bucket_lock.unlock();
 
     if (result != ENGINE_SUCCESS) {
         return;
@@ -2225,7 +2223,7 @@ void notify_thread_bucket_deletion(LIBEVENT_THREAD *me) {
 
 void DestroyBucketThread::destroy() {
     ENGINE_ERROR_CODE ret = ENGINE_KEY_ENOENT;
-    cb_mutex_enter(&buckets_lock);
+    std::unique_lock<std::mutex> all_bucket_lock(buckets_lock);
 
     /*
      * The destroy function will have access to a connection if the
@@ -2254,7 +2252,7 @@ void DestroyBucketThread::destroy() {
             break;
         }
     }
-    cb_mutex_exit(&buckets_lock);
+    all_bucket_lock.unlock();
 
     if (ret != ENGINE_SUCCESS) {
         auto code = engine_error_2_mcbp_protocol_error(ret);
@@ -2365,8 +2363,6 @@ void DestroyBucketThread::run() {
 }
 
 static void initialize_buckets(void) {
-    cb_mutex_initialize(&buckets_lock);
-
     int numthread = settings.getNumWorkerThreads() + 1;
     for (auto &b : all_buckets) {
         b.stats = new thread_stats[numthread];
@@ -2462,7 +2458,7 @@ void delete_all_buckets() {
         std::shared_ptr<Task> task;
         std::string name;
 
-        cb_mutex_enter(&buckets_lock);
+        std::unique_lock<std::mutex> all_bucket_lock(buckets_lock);
         /*
          * Start at one (not zero) because zero is reserved for "no bucket".
          * The "no bucket" has a state of BucketState::Ready but no name.
@@ -2481,7 +2477,7 @@ void delete_all_buckets() {
                 done = false;
             }
         }
-        cb_mutex_exit(&buckets_lock);
+        all_bucket_lock.unlock();
 
         if (task.get() != nullptr) {
             auto* dbt = reinterpret_cast<DestroyBucketTask*>(task.get());
