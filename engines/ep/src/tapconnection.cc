@@ -17,18 +17,11 @@
 
 #include "config.h"
 
-#include <limits>
-
 #include <phosphor/phosphor.h>
 
 #include "ep_engine.h"
 #include "ep_time.h"
-#include "tasks.h"
-#define STATWRITER_NAMESPACE tap
-#include "statwriter.h"
-#undef STATWRITER_NAMESPACE
 #include "tapconnection.h"
-#include "vbucket.h"
 
 
 ConnHandler::ConnHandler(EventuallyPersistentEngine& e, const void* c,

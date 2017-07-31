@@ -15,8 +15,7 @@
  *   limitations under the License.
  */
 
-#ifndef SRC_TAPCONNECTION_H_
-#define SRC_TAPCONNECTION_H_ 1
+#pragma once
 
 #include "config.h"
 
@@ -34,26 +33,11 @@
 #include "vbucket.h"
 
 // forward decl
-class ConnHandler;
 class EventuallyPersistentEngine;
-class CompleteBackfillOperation;
-class Dispatcher;
-class Item;
-class VBucketFilter;
-
-struct TapStatBuilder;
-struct TapAggStatBuilder;
-struct PopulateEventsBody;
-
-
-
-#define MAX_TAKEOVER_TAP_LOG_SIZE 10
-#define MINIMUM_BACKFILL_RESIDENT_THRESHOLD 0.7
-#define DEFAULT_BACKFILL_RESIDENT_THRESHOLD 0.9
 
 
 /**
- * Aggregator object to count all tap stats.
+ * Aggregator object to count stats.
  */
 struct ConnCounter {
     ConnCounter()
@@ -324,5 +308,3 @@ private:
         std::string string;
     } pausedReason;
 };
-
-#endif  // SRC_TAPCONNECTION_H_
