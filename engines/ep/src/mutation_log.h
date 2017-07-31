@@ -472,8 +472,12 @@ private:
     uint8_t            syncConfig;
     bool               readOnly;
 
+    friend std::ostream& operator<<(std::ostream& os, const MutationLog& mlog);
+
     DISALLOW_COPY_AND_ASSIGN(MutationLog);
 };
+
+std::ostream& operator<<(std::ostream& os, const MutationLog& mlog);
 
 /// @cond DETAILS
 
