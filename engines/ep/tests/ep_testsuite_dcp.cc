@@ -6205,11 +6205,14 @@ BaseTestCase testsuite_testcases[] = {
                     EphTombstoneTest.ImmediateDeletedPurge() */
                  prepare_ep_bucket,
                  cleanup),
-        TestCase("dcp rollback after purge", test_dcp_rollback_after_purge,
-                 test_setup, teardown, NULL,
-                 /* [EPHE TODO]:: Ephemeral fails as purge_seqno doesn't match
-                  high seqno. This should work when we add Ephemeral purge */
-                 prepare_skip_broken_under_ephemeral,
+        TestCase("dcp rollback after purge",
+                 test_dcp_rollback_after_purge,
+                 test_setup,
+                 teardown,
+                 nullptr,
+                 /* In ephemeral buckets the test is run from module tests:
+                    StreamTest.RollbackDueToPurge() */
+                 prepare_ep_bucket,
                  cleanup),
         TestCase("dcp erroneous mutations scenario", test_dcp_erroneous_mutations,
                  test_setup, teardown, NULL, prepare, cleanup),

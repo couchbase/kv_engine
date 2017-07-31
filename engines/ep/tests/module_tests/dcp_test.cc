@@ -35,6 +35,7 @@
 #include "dcp/stream.h"
 #include "ep_time.h"
 #include "evp_engine_test.h"
+#include "failover-table.h"
 #include "test_helpers.h"
 
 #include <dcp/backfill_memory.h>
@@ -738,6 +739,49 @@ TEST_P(StreamTest, CursorDroppingBasicNotAllowedStates) {
        to fail */
     mock_stream->transitionStateToTakeoverDead();
     EXPECT_FALSE(mock_stream->public_handleSlowStream());
+    destroy_dcp_stream();
+}
+
+TEST_P(StreamTest, RollbackDueToPurge) {
+    setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::No);
+
+    /* Store 4 items */
+    const int numItems = 4;
+    for (int i = 0; i <= numItems; ++i) {
+        store_item(vbid, std::string("key" + std::to_string(i)), "value");
+    }
+    uint64_t vbUuid = vb0->failovers->getLatestUUID();
+    uint64_t rollbackSeqno;
+    EXPECT_EQ(ENGINE_SUCCESS,
+              producer->streamRequest(/*flags*/ 0,
+                                      /*opaque*/ 0,
+                                      /*vbucket*/ 0,
+                                      /*start_seqno*/ numItems - 2,
+                                      /*end_seqno*/ numItems,
+                                      vbUuid,
+                                      /*snap_start*/ numItems - 2,
+                                      /*snap_end*/ numItems - 2,
+                                      &rollbackSeqno,
+                                      StreamTest::fakeDcpAddFailoverLog));
+    EXPECT_EQ(ENGINE_SUCCESS,
+              producer->closeStream(/*opaque*/ 0, vb0->getId()));
+
+    /* Set a purge_seqno > start_seqno */
+    vb0->setPurgeSeqno(numItems - 1);
+
+    /* Now we expect a rollback to 0 */
+    EXPECT_EQ(ENGINE_ROLLBACK,
+              producer->streamRequest(/*flags*/ 0,
+                                      /*opaque*/ 0,
+                                      /*vbucket*/ 0,
+                                      /*start_seqno*/ numItems - 2,
+                                      /*end_seqno*/ numItems,
+                                      vbUuid,
+                                      /*snap_start*/ numItems - 2,
+                                      /*snap_end*/ numItems - 2,
+                                      &rollbackSeqno,
+                                      StreamTest::fakeDcpAddFailoverLog));
+    EXPECT_EQ(0, rollbackSeqno);
     destroy_dcp_stream();
 }
 
