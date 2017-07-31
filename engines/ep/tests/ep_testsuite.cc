@@ -7589,9 +7589,14 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test vbucket create", test_vbucket_create,
                  test_setup, teardown, NULL, prepare, cleanup),
-        TestCase("test vbucket compact", test_vbucket_compact,
-                 test_setup, teardown, NULL,
-                 /* TODO Ephemeral: purge_seqno not updated correctly, but should be*/prepare_skip_broken_under_ephemeral,
+        TestCase("test vbucket compact",
+                 test_vbucket_compact,
+                 test_setup,
+                 teardown,
+                 nullptr,
+                 /* In ephemeral buckets we don't do compaction. We have
+                    module test 'EphTombstoneTest' to test tombstone purging */
+                 prepare_ep_bucket,
                  cleanup),
         TestCase("test compaction config", test_compaction_config,
                  test_setup, teardown, NULL, prepare, cleanup),
@@ -7750,9 +7755,14 @@ BaseTestCase testsuite_testcases[] = {
 
         TestCase("test_MB-19687_variable", test_mb19687_variable, test_setup, teardown, NULL,
                  prepare, cleanup),
-        TestCase("test vbucket compact no purge", test_vbucket_compact_no_purge,
-                 test_setup, teardown, NULL,
-                 /* TODO Ephemeral: purge_seqno not updated correctly, but should be*/prepare_skip_broken_under_ephemeral,
+        TestCase("test vbucket compact no purge",
+                 test_vbucket_compact_no_purge,
+                 test_setup,
+                 teardown,
+                 nullptr,
+                 /* In ephemeral buckets we don't do compaction. We have
+                    module test 'EphTombstoneTest' to test tombstone purging */
+                 prepare_ep_bucket,
                  cleanup),
 
         TestCase("test_MB-20697", test_mb20697, test_setup, teardown, NULL,

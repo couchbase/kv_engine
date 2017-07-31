@@ -262,12 +262,6 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
         return ENGINE_NOT_MY_VBUCKET;
     }
 
-    if (vb->checkpointManager.getOpenCheckpointId() == 0) {
-        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed because "
-            "this vbucket is in backfill state", logHeader(), vbucket);
-        return ENGINE_TMPFAIL;
-    }
-
     if (!notifyOnly && start_seqno > end_seqno) {
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed because "
             "the start seqno (%" PRIu64 ") is larger than the end seqno "
@@ -434,6 +428,15 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
             LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed because "
                     "this vbucket is in dead state", logHeader(), vbucket);
             return ENGINE_NOT_MY_VBUCKET;
+        }
+
+        // Given being in a backfill state is only a temporary failure
+        // we do all hard errors first.
+        if (vb->checkpointManager.getOpenCheckpointId() == 0) {
+            LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed"
+                    "because this vbucket is in backfill state",
+                    logHeader(), vbucket);
+            return ENGINE_TMPFAIL;
         }
 
         if (!notifyOnly) {

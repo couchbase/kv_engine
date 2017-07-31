@@ -541,7 +541,9 @@ void KVBucket::deinitialize() {
 }
 
 KVBucket::~KVBucket() {
+    LOG(EXTENSION_LOG_NOTICE, "Deleting vb_mutexes");
     delete [] vb_mutexes;
+    LOG(EXTENSION_LOG_NOTICE, "Deleting defragmenterTask");
     defragmenterTask.reset();
 }
 
