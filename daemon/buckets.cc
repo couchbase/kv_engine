@@ -18,10 +18,7 @@
 
 Bucket::Bucket(const Bucket& other)
 {
-    cb_mutex_enter(&other.mutex);
-
-    cb_mutex_initialize(&mutex);
-    cb_cond_initialize(&cond);
+    std::lock_guard<std::mutex> guard(other.mutex);
     clients = other.clients;
     state = other.state.load();
     type = other.type;
@@ -34,8 +31,6 @@ Bucket::Bucket(const Bucket& other)
     subjson_operation_times = other.subjson_operation_times;
     topkeys = other.topkeys;
     responseCounters = other.responseCounters;
-
-    cb_mutex_exit(&other.mutex);
 }
 
 namespace BucketValidator {

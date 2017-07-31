@@ -39,11 +39,13 @@ std::pair<ENGINE_ERROR_CODE, std::string> list_bucket(
 
     for (auto& bucket : all_buckets) {
         std::string bucketname;
-        cb_mutex_enter(&bucket.mutex);
-        if (bucket.state == BucketState::Ready) {
-            bucketname = bucket.name;
+
+        {
+            std::lock_guard<std::mutex> guard(bucket.mutex);
+            if (bucket.state == BucketState::Ready) {
+                bucketname = bucket.name;
+            }
         }
-        cb_mutex_exit(&bucket.mutex);
 
         if (bucketname.empty()) {
             // ignore this one

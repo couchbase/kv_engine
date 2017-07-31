@@ -62,13 +62,12 @@ std::pair<ENGINE_ERROR_CODE, std::string> get_cmd_timer(
     bool found = false;
     for (size_t ii = 1; ii < all_buckets.size() && !found; ++ii) {
         // Need the lock to get the bucket state and name
-        cb_mutex_enter(&all_buckets[ii].mutex);
+        std::lock_guard<std::mutex> guard(all_buckets[ii].mutex);
         if ((all_buckets[ii].state == BucketState::Ready) &&
             (bucket == all_buckets[ii].name)) {
             str = all_buckets[ii].timings.generate(opcode);
             found = true;
         }
-        cb_mutex_exit(&all_buckets[ii].mutex);
     }
 
     if (found) {

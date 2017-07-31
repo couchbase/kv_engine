@@ -105,13 +105,12 @@ void bucketsForEach(std::function<bool(Bucket&, void*)> fn, void *arg) {
     cb_mutex_enter(&buckets_lock);
     for (Bucket& bucket : all_buckets) {
         bool do_break = false;
-        cb_mutex_enter(&bucket.mutex);
+        std::lock_guard<std::mutex> guard(bucket.mutex);
         if (bucket.state == BucketState::Ready) {
             if (!fn(bucket, arg)) {
                 do_break = true;
             }
         }
-        cb_mutex_exit(&bucket.mutex);
         if (do_break) {
             break;
         }
@@ -190,17 +189,15 @@ static void set_stats_reset_time(void)
 
 void disassociate_bucket(Connection *c) {
     Bucket &b = all_buckets.at(c->getBucketIndex());
-    cb_mutex_enter(&b.mutex);
+    std::lock_guard<std::mutex> guard(b.mutex);
     b.clients--;
 
     c->setBucketIndex(0);
     c->setBucketEngine(nullptr);
 
     if (b.clients == 0 && b.state == BucketState::Destroying) {
-        cb_cond_signal(&b.cond);
+        b.cond.notify_one();
     }
-
-    cb_mutex_exit(&b.mutex);
 }
 
 bool associate_bucket(Connection *c, const char *name) {
@@ -213,22 +210,22 @@ bool associate_bucket(Connection *c, const char *name) {
     /* @todo add auth checks!!! */
     for (size_t ii = 1; ii < all_buckets.size() && !found; ++ii) {
         Bucket &b = all_buckets.at(ii);
-        cb_mutex_enter(&b.mutex);
+        std::lock_guard<std::mutex> guard(b.mutex);
         if (b.state == BucketState::Ready && strcmp(b.name, name) == 0) {
             b.clients++;
             c->setBucketIndex(ii);
             c->setBucketEngine(b.engine);
             found = true;
         }
-        cb_mutex_exit(&b.mutex);
     }
 
     if (!found) {
         /* Bucket not found, connect to the "no-bucket" */
         Bucket &b = all_buckets.at(0);
-        cb_mutex_enter(&b.mutex);
-        b.clients++;
-        cb_mutex_exit(&b.mutex);
+        {
+            std::lock_guard<std::mutex> guard(b.mutex);
+            b.clients++;
+        }
         c->setBucketIndex(0);
         c->setBucketEngine(b.engine);
     }
@@ -238,9 +235,10 @@ bool associate_bucket(Connection *c, const char *name) {
 
 void associate_initial_bucket(Connection *c) {
     Bucket &b = all_buckets.at(0);
-    cb_mutex_enter(&b.mutex);
-    b.clients++;
-    cb_mutex_exit(&b.mutex);
+    {
+        std::lock_guard<std::mutex> guard(b.mutex);
+        b.clients++;
+    }
 
     c->setBucketIndex(0);
     c->setBucketEngine(b.engine);
@@ -257,13 +255,12 @@ static void populate_log_level(void*) {
 
     cb_mutex_enter(&buckets_lock);
     for (auto& bucket : all_buckets) {
-        cb_mutex_enter(&bucket.mutex);
+        std::lock_guard<std::mutex> guard(bucket.mutex);
         if (bucket.state == BucketState::Ready &&
             bucket.engine->set_log_level != nullptr) {
             bucket.engine->set_log_level(reinterpret_cast<ENGINE_HANDLE*>(bucket.engine),
                                          val);
         }
-        cb_mutex_exit(&bucket.mutex);
     }
     cb_mutex_exit(&buckets_lock);
 }
@@ -910,9 +907,8 @@ cJSON *get_bucket_details(size_t idx)
 {
     cJSON* ret;
     Bucket &bucket = all_buckets.at(idx);
-    cb_mutex_enter(&bucket.mutex);
+    std::lock_guard<std::mutex> guard(bucket.mutex);
     ret = get_bucket_details_UNLOCKED(bucket, idx);
-    cb_mutex_exit(&bucket.mutex);
 
     return ret;
 }
@@ -2086,7 +2082,7 @@ void CreateBucketThread::create() {
 
     cb_mutex_enter(&buckets_lock);
     for (ii = 0; ii < all_buckets.size() && !found; ++ii) {
-        cb_mutex_enter(&all_buckets[ii].mutex);
+        std::lock_guard<std::mutex> guard(all_buckets[ii].mutex);
         if (first_free == all_buckets.size() &&
             all_buckets[ii].state == BucketState::None)
         {
@@ -2095,7 +2091,6 @@ void CreateBucketThread::create() {
         if (name == all_buckets[ii].name) {
             found = true;
         }
-        cb_mutex_exit(&all_buckets[ii].mutex);
     }
 
     if (found) {
@@ -2115,7 +2110,7 @@ void CreateBucketThread::create() {
          * split the creation of the bucket in two... so
          * we can release the global lock..
          */
-        cb_mutex_enter(&all_buckets[ii].mutex);
+        std::lock_guard<std::mutex> guard(all_buckets[ii].mutex);
         all_buckets[ii].state = BucketState::Creating;
         all_buckets[ii].type = type;
         strcpy(all_buckets[ii].name, name.c_str());
@@ -2126,7 +2121,6 @@ void CreateBucketThread::create() {
             LOG_WARNING(&connection,
                         "%u Create bucket [%s] failed - out of memory",
                         connection.getId(), name.c_str());        }
-        cb_mutex_exit(&all_buckets[ii].mutex);
     }
     cb_mutex_exit(&buckets_lock);
 
@@ -2143,9 +2137,10 @@ void CreateBucketThread::create() {
                             (ENGINE_HANDLE**)&bucket.engine,
                             settings.extensions.logger)) {
         auto* engine = bucket.engine;
-        cb_mutex_enter(&bucket.mutex);
-        bucket.state = BucketState::Initializing;
-        cb_mutex_exit(&bucket.mutex);
+        {
+            std::lock_guard<std::mutex> guard(bucket.mutex);
+            bucket.state = BucketState::Initializing;
+        }
 
         try {
             result = engine->initialize(v1_handle_2_handle(engine),
@@ -2161,36 +2156,37 @@ void CreateBucketThread::create() {
         }
 
         if (result == ENGINE_SUCCESS) {
-            cb_mutex_enter(&bucket.mutex);
-            bucket.state = BucketState::Ready;
-            cb_mutex_exit(&bucket.mutex);
+            {
+                std::lock_guard<std::mutex> guard(bucket.mutex);
+                bucket.state = BucketState::Ready;
+            }
             LOG_NOTICE(&connection,
                         "%u - Bucket [%s] created successfully",
                         connection.getId(), name.c_str());
         } else {
-            cb_mutex_enter(&bucket.mutex);
-            bucket.state = BucketState::Destroying;
-            cb_mutex_exit(&bucket.mutex);
+            {
+                std::lock_guard<std::mutex> guard(bucket.mutex);
+                bucket.state = BucketState::Destroying;
+            }
             engine->destroy(v1_handle_2_handle(engine), false);
-
-            cb_mutex_enter(&bucket.mutex);
+            std::lock_guard<std::mutex> guard(bucket.mutex);
             bucket.state = BucketState::None;
             bucket.name[0] = '\0';
             bucket.engine = nullptr;
             delete bucket.topkeys;
             bucket.topkeys = nullptr;
-            cb_mutex_exit(&bucket.mutex);
 
             result = ENGINE_NOT_STORED;
         }
     } else {
-        cb_mutex_enter(&bucket.mutex);
-        bucket.state = BucketState::None;
-        bucket.name[0] = '\0';
-        bucket.engine = nullptr;
-        delete bucket.topkeys;
-        bucket.topkeys = nullptr;
-        cb_mutex_exit(&bucket.mutex);
+        {
+            std::lock_guard<std::mutex> guard(bucket.mutex);
+            bucket.state = BucketState::None;
+            bucket.name[0] = '\0';
+            bucket.engine = nullptr;
+            delete bucket.topkeys;
+            bucket.topkeys = nullptr;
+        }
 
         LOG_WARNING(&connection,
                     "%u - Failed to create bucket [%s]: failed to create a "
@@ -2214,11 +2210,13 @@ void CreateBucketThread::run()
 void notify_thread_bucket_deletion(LIBEVENT_THREAD *me) {
     for (size_t ii = 0; ii < all_buckets.size(); ++ii) {
         bool destroy = false;
-        cb_mutex_enter(&all_buckets[ii].mutex);
-        if (all_buckets[ii].state == BucketState::Destroying) {
-            destroy = true;
+        {
+            std::lock_guard<std::mutex> guard(all_buckets[ii].mutex);
+            if (all_buckets[ii].state == BucketState::Destroying) {
+                destroy = true;
+            }
         }
-        cb_mutex_exit(&all_buckets[ii].mutex);
+
         if (destroy) {
             signal_idle_clients(me, ii, false);
         }
@@ -2242,7 +2240,7 @@ void DestroyBucketThread::destroy() {
 
     size_t idx = 0;
     for (size_t ii = 0; ii < all_buckets.size(); ++ii) {
-        cb_mutex_enter(&all_buckets[ii].mutex);
+        std::lock_guard<std::mutex> guard(all_buckets[ii].mutex);
         if (name == all_buckets[ii].name) {
             idx = ii;
             if (all_buckets[ii].state == BucketState::Ready) {
@@ -2252,7 +2250,6 @@ void DestroyBucketThread::destroy() {
                 ret = ENGINE_KEY_EEXISTS;
             }
         }
-        cb_mutex_exit(&all_buckets[ii].mutex);
         if (ret != ENGINE_KEY_ENOENT) {
             break;
         }
@@ -2284,22 +2281,29 @@ void DestroyBucketThread::destroy() {
     /* Let all of the worker threads start invalidating connections */
     threads_initiate_bucket_deletion();
 
-    /* Wait until all users disconnected... */
-    cb_mutex_enter(&all_buckets[idx].mutex);
-    while (all_buckets[idx].clients > 0) {
-        LOG_NOTICE(connection,
-                   "%u Delete bucket [%s]. Still waiting: %u clients connected",
-                   connection_id.c_str(), name.c_str(), all_buckets[idx].clients);
-        /* drop the lock and notify the worker threads */
-        cb_mutex_exit(&all_buckets[idx].mutex);
-        threads_notify_bucket_deletion();
-        cb_mutex_enter(&all_buckets[idx].mutex);
+    auto& bucket = all_buckets[idx];
 
-        cb_cond_timedwait(&all_buckets[idx].cond,
-                          &all_buckets[idx].mutex,
-                          1000);
+    /* Wait until all users disconnected... */
+    {
+        std::unique_lock<std::mutex> guard(bucket.mutex);
+
+        while (bucket.clients > 0) {
+            LOG_NOTICE(connection,
+                       "%u Delete bucket [%s]. Still waiting: %u clients "
+                       "connected",
+                       connection_id.c_str(),
+                       name.c_str(),
+                       bucket.clients);
+            /* drop the lock and notify the worker threads */
+            guard.unlock();
+            threads_notify_bucket_deletion();
+            guard.lock();
+
+            bucket.cond.wait_for(guard,
+                                 std::chrono::milliseconds(1000),
+                                 [&bucket] { return bucket.clients == 0; });
+        }
     }
-    cb_mutex_exit(&all_buckets[idx].mutex);
 
     /* Tell the worker threads to stop trying to invalidating connections */
     threads_complete_bucket_deletion();
@@ -2321,32 +2325,32 @@ void DestroyBucketThread::destroy() {
     LOG_NOTICE(connection, "%s Delete bucket [%s]. Shut down the bucket",
                connection_id.c_str(), name.c_str());
 
-    all_buckets[idx].engine->destroy
-        (v1_handle_2_handle(all_buckets[idx].engine), force);
+    bucket.engine->destroy(v1_handle_2_handle(bucket.engine), force);
 
     LOG_NOTICE(connection, "%s Delete bucket [%s]. Clean up allocated resources ",
                connection_id.c_str(), name.c_str());
 
     /* Clean up the stats... */
-    delete[]all_buckets[idx].stats;
+    delete[] bucket.stats;
     int numthread = settings.getNumWorkerThreads() + 1;
-    all_buckets[idx].stats = new thread_stats[numthread];
+    bucket.stats = new thread_stats[numthread];
 
     // Clear any registered event handlers
-    for (auto& handler : all_buckets[idx].engine_event_handlers) {
+    for (auto& handler : bucket.engine_event_handlers) {
         handler.clear();
     }
 
-    cb_mutex_enter(&all_buckets[idx].mutex);
-    all_buckets[idx].state = BucketState::None;
-    all_buckets[idx].engine = NULL;
-    all_buckets[idx].name[0] = '\0';
-    delete all_buckets[idx].topkeys;
-    all_buckets[idx].responseCounters.fill(0);
-    all_buckets[idx].topkeys = nullptr;
-    cb_mutex_exit(&all_buckets[idx].mutex);
+    {
+        std::lock_guard<std::mutex> guard(bucket.mutex);
+        bucket.state = BucketState::None;
+        bucket.engine = NULL;
+        bucket.name[0] = '\0';
+        delete bucket.topkeys;
+        bucket.responseCounters.fill(0);
+        bucket.topkeys = nullptr;
+    }
     // don't need lock because all timing data uses atomics
-    all_buckets[idx].timings.reset();
+    bucket.timings.reset();
 
     LOG_NOTICE(connection, "%s Delete bucket [%s] complete",
                connection_id.c_str(), name.c_str());
@@ -2389,19 +2393,20 @@ static void cleanup_buckets(void) {
 
         do {
             waiting = false;
-            cb_mutex_enter(&bucket.mutex);
-            switch (bucket.state.load()) {
-            case BucketState::Stopping:
-            case BucketState::Destroying:
-            case BucketState::Creating:
-            case BucketState::Initializing:
-                waiting = true;
-                break;
-            default:
-                /* Empty */
-                ;
+            {
+                std::lock_guard<std::mutex> guard(bucket.mutex);
+                switch (bucket.state.load()) {
+                case BucketState::Stopping:
+                case BucketState::Destroying:
+                case BucketState::Creating:
+                case BucketState::Initializing:
+                    waiting = true;
+                    break;
+                default:
+                        /* Empty */
+                        ;
+                }
             }
-            cb_mutex_exit(&bucket.mutex);
             if (waiting) {
                 usleep(250);
             }
@@ -2463,7 +2468,7 @@ void delete_all_buckets() {
          * The "no bucket" has a state of BucketState::Ready but no name.
          */
         for (size_t ii = 1; ii < all_buckets.size() && done; ++ii) {
-            cb_mutex_enter(&all_buckets[ii].mutex);
+            std::lock_guard<std::mutex> bucket_guard(all_buckets[ii].mutex);
             if (all_buckets[ii].state == BucketState::Ready) {
                 name.assign(all_buckets[ii].name);
                 LOG_NOTICE(nullptr,
@@ -2475,7 +2480,6 @@ void delete_all_buckets() {
                 executorPool->schedule(task, false);
                 done = false;
             }
-            cb_mutex_exit(&all_buckets[ii].mutex);
         }
         cb_mutex_exit(&buckets_lock);
 

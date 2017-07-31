@@ -17,10 +17,12 @@
 #pragma once
 
 #include <memcached/engine.h>
-#include <array>
-#include <cstring>
-#include <vector>
 #include <platform/thread.h>
+#include <array>
+#include <condition_variable>
+#include <cstring>
+#include <mutex>
+#include <vector>
 
 #include "connection.h"
 #include "cookie.h"
@@ -93,8 +95,6 @@ public:
           topkeys(nullptr)
     {
         std::memset(name, 0, sizeof(name));
-        cb_mutex_initialize(&mutex);
-        cb_cond_initialize(&cond);
 
         McbpValidatorChains::initializeMcbpValidatorChains(validatorChains);
     }
@@ -103,11 +103,6 @@ public:
      * consistent state is copied.
      */
     Bucket(const Bucket& other);
-
-    ~Bucket() {
-        cb_mutex_destroy(&mutex);
-        cb_cond_destroy(&cond);
-    }
 
     /**
      * Invoke the MCBP validator(s) for the given command
@@ -120,8 +115,8 @@ public:
     /**
      * Mutex protecting the state and refcount. (@todo move to std::mutex).
      */
-    mutable cb_mutex_t mutex;
-    mutable cb_cond_t cond;
+    mutable std::mutex mutex;
+    mutable std::condition_variable cond;
 
     /**
      * The number of clients currently connected to the bucket (performed
