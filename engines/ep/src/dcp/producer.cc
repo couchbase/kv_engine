@@ -473,7 +473,6 @@ ENGINE_ERROR_CODE DcpProducer::getFailoverLog(uint32_t opaque, uint16_t vbucket,
 }
 
 ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
-    setLastWalkTime();
 
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;

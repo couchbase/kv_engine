@@ -3021,7 +3021,7 @@ struct ConnAggStatBuilder {
     }
 
     void operator() (connection_t& tc) {
-        if (tc.get() && tc->isConnected()) {
+        if (tc.get()) {
             ConnCounter *aggregator = getTarget(tc);
             aggregate(tc, aggregator);
         }

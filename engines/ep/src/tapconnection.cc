@@ -31,23 +31,15 @@
 #include "vbucket.h"
 
 
-std::atomic<uint64_t> ConnHandler::counter_(1);
-
 ConnHandler::ConnHandler(EventuallyPersistentEngine& e, const void* c,
                          const std::string& n) :
     engine_(e),
     stats(engine_.getEpStats()),
-    supportCheckpointSync_(false),
     name(n),
     cookie(const_cast<void*>(c)),
     reserved(false),
-    connToken(gethrtime()),
     created(ep_current_time()),
-    lastWalkTime(0),
     disconnect(false),
-    connected(true),
-    numDisconnects(0),
-    expiryTime((rel_time_t)-1),
     supportAck(false) {}
 
 ENGINE_ERROR_CODE ConnHandler::addStream(uint32_t opaque, uint16_t,
@@ -216,14 +208,10 @@ const Logger& ConnHandler::getLogger() const {
     return logger;
 }
 
-void ConnHandler::releaseReference(bool force)
+void ConnHandler::releaseReference()
 {
     bool inverse = true;
-    if (force || reserved.compare_exchange_strong(inverse, false)) {
+    if (reserved.compare_exchange_strong(inverse, false)) {
         engine_.releaseCookie(cookie);
     }
-}
-
-void ConnHandler::setLastWalkTime() {
-    lastWalkTime.store(ep_current_time());
 }

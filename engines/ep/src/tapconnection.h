@@ -194,10 +194,6 @@ public:
                                           cb::const_byte_buffer key,
                                           cb::const_byte_buffer eventData);
 
-    EventuallyPersistentEngine& engine() {
-        return engine_;
-    }
-
     const char* logHeader() {
         return logger.prefix.c_str();
     }
@@ -208,22 +204,10 @@ public:
 
     const Logger& getLogger() const;
 
-    void releaseReference(bool force = false);
+    void releaseReference();
 
     void setSupportAck(bool ack) {
         supportAck.store(ack);
-    }
-
-    bool supportsAck() const {
-        return supportAck.load();
-    }
-
-    void setSupportCheckpointSync(bool checkpointSync) {
-        supportCheckpointSync_ = checkpointSync;
-    }
-
-    bool supportsCheckpointSync() const {
-        return supportCheckpointSync_;
     }
 
     virtual const char *getType() const = 0;
@@ -245,33 +229,17 @@ public:
     virtual void addStats(ADD_STAT add_stat, const void *c) {
         addStat("type", getType(), add_stat, c);
         addStat("created", created.load(), add_stat, c);
-        addStat("connected", connected.load(), add_stat, c);
         addStat("pending_disconnect", disconnect.load(), add_stat, c);
         addStat("supports_ack", supportAck.load(), add_stat, c);
         addStat("reserved", reserved.load(), add_stat, c);
-
-        if (numDisconnects > 0) {
-            addStat("disconnects", numDisconnects.load(), add_stat, c);
-        }
     }
 
     virtual void aggregateQueueStats(ConnCounter& stats_aggregator) {
         // Empty
     }
 
-    virtual void processedEvent(uint16_t event, ENGINE_ERROR_CODE ret) {
-        (void) event;
-        (void) ret;
-    }
-
     const std::string &getName() const {
         return name;
-    }
-
-    void setName(const std::string &n) {
-        // MB-23454: Explicitly copying the string to avoid buggy string COW
-        // leading to a data race being identified by ThreadSanitizer
-        name = std::string(n.begin(), n.end());
     }
 
     bool setReserved(bool r) {
@@ -287,35 +255,6 @@ public:
         return cookie.load();
     }
 
-    void setCookie(const void *c) {
-        cookie.store(const_cast<void*>(c));
-    }
-
-    void setExpiryTime(rel_time_t t) {
-        expiryTime = t;
-    }
-
-    rel_time_t getExpiryTime() {
-        return expiryTime;
-    }
-
-    void setLastWalkTime();
-
-    rel_time_t getLastWalkTime() {
-        return lastWalkTime.load();
-    }
-
-    void setConnected(bool s) {
-        if (!s) {
-            ++numDisconnects;
-        }
-        connected.store(s);
-    }
-
-    bool isConnected() {
-        return connected.load();
-    }
-
     bool doDisconnect() {
         return disconnect.load();
     }
@@ -324,22 +263,9 @@ public:
         disconnect.store(true);
     }
 
-    static std::string getAnonName() {
-        uint64_t nextConnId = counter_++;
-        std::stringstream s;
-        s << "eq_tapq:anon_";
-        s << nextConnId;
-        return s.str();
-    }
-
-    hrtime_t getConnectionToken() const {
-        return connToken;
-    }
-
 protected:
     EventuallyPersistentEngine &engine_;
     EPStats &stats;
-    bool supportCheckpointSync_;
 
     //! The logger for this connection
     Logger logger;
@@ -355,32 +281,14 @@ private:
     //! Whether or not the connection is reserved in the memcached layer
     std::atomic<bool> reserved;
 
-    //! Connection token created at connection instantiation time
-    hrtime_t connToken;
-
     //! Connection creation time
     std::atomic<rel_time_t> created;
-
-    //! The last time this connection's step function was called
-    std::atomic<rel_time_t> lastWalkTime;
 
     //! Should we disconnect as soon as possible?
     std::atomic<bool> disconnect;
 
-    //! Is this tap conenction connected?
-    std::atomic<bool> connected;
-
-    //! Number of times this connection was disconnected
-    std::atomic<size_t> numDisconnects;
-
-    //! when this tap conneciton expires.
-    rel_time_t expiryTime;
-
     //! Whether or not this connection supports acking
     std::atomic<bool> supportAck;
-
-    //! A counter used to generate unique names
-    static std::atomic<uint64_t> counter_;
 };
 
 
