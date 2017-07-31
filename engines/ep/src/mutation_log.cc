@@ -277,8 +277,14 @@ MutationLog::MutationLog(const std::string &path,
 }
 
 MutationLog::~MutationLog() {
+    std::stringstream ss;
+    ss << *this;
+    LOG(EXTENSION_LOG_NOTICE, "%s", ss.str().c_str());
+    LOG(EXTENSION_LOG_NOTICE, "MutationLog::~MutationLog flush");
     flush();
+    LOG(EXTENSION_LOG_NOTICE, "MutationLog::~MutationLog close");
     close();
+    LOG(EXTENSION_LOG_NOTICE, "MutationLog::~MutationLog done");
 }
 
 void MutationLog::disable() {
@@ -1068,4 +1074,20 @@ size_t MutationLogHarvester::total() {
         rv += itemsSeen[i];
     }
     return rv;
+}
+
+std::ostream& operator<<(std::ostream& out, const MutationLog& mlog) {
+    out << "MutationLog{logPath:" << mlog.logPath << ", "
+        << "blockSize:" << mlog.blockSize << ", "
+        << "blockPos:" << mlog.blockPos << ", "
+        << "file:" << mlog.file << ", "
+        << "disabled:" << mlog.disabled << ", "
+        << "entries:" << mlog.entries << ", "
+        << "entryBuffer:" << reinterpret_cast<void*>(mlog.entryBuffer.get())
+        << ", "
+        << "blockBuffer:" << reinterpret_cast<void*>(mlog.blockBuffer.get())
+        << ", "
+        << "syncConfig:" << int(mlog.syncConfig) << ", "
+        << "readOnly:" << mlog.readOnly << "}";
+    return out;
 }
