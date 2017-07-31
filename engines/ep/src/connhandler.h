@@ -26,6 +26,7 @@
 #include <string>
 #include <vector>
 
+#include "kv_bucket_iface.h"
 #include "logger.h"
 #include "statwriter.h"
 #include "utility.h"

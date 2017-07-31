@@ -20,9 +20,9 @@
 
 #include "config.h"
 
+#include "connhandler.h"
 #include "kv_bucket.h"
 #include "storeddockey.h"
-#include "tapconnection.h"
 #include "taskable.h"
 #include "vb_visitors.h"
 
@@ -240,23 +240,6 @@ public:
                                     cb::StoreIfPredicate predicate);
 
     ENGINE_ERROR_CODE flush(const void *cookie);
-
-    ENGINE_ERROR_CODE tapNotify(const void *cookie,
-                                void *engine_specific,
-                                uint16_t nengine,
-                                uint8_t ttl,
-                                uint16_t tap_flags,
-                                uint16_t tap_event,
-                                uint32_t tap_seqno,
-                                const void *key,
-                                size_t nkey,
-                                uint32_t flags,
-                                uint32_t exptime,
-                                uint64_t cas,
-                                uint8_t datatype,
-                                const void *data,
-                                size_t ndata,
-                                uint16_t vbucket);
 
     ENGINE_ERROR_CODE dcpOpen(const void* cookie,
                               uint32_t opaque,

@@ -21,8 +21,9 @@
 #include "config.h"
 
 #include "atomic_unordered_map.h"
+
+#include "connhandler.h"
 #include "dcp/flow-control.h"
-#include "tapconnection.h"
 
 #include <relaxed_atomic.h>
 

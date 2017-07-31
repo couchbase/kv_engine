@@ -26,9 +26,9 @@
 
 #include <phosphor/phosphor.h>
 
+#include "connhandler.h"
 #include "connmap.h"
 #include "executorthread.h"
-#include "tapconnection.h"
 #include "dcp/backfill-manager.h"
 #include "dcp/consumer.h"
 #include "dcp/producer.h"

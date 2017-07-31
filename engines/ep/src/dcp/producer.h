@@ -21,8 +21,9 @@
 #include "config.h"
 
 #include "atomic_unordered_map.h"
+
+#include "connhandler.h"
 #include "dcp/dcp-types.h"
-#include "tapconnection.h"
 
 namespace Collections {
 class Filter;

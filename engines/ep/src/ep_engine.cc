@@ -2939,7 +2939,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointStats(
 }
 
 /**
- * Function object to send stats for a single tap or dcp connection.
+ * Function object to send stats for a single dcp connection.
  */
 struct ConnStatBuilder {
     ConnStatBuilder(const void *c, ADD_STAT as, ConnCounter& tc)
