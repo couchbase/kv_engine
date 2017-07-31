@@ -20,9 +20,9 @@
 
 #include "config.h"
 
+#include "connhandler.h"
 #include "kv_bucket.h"
 #include "storeddockey.h"
-#include "tapconnection.h"
 #include "taskable.h"
 #include "vb_visitors.h"
 

@@ -19,9 +19,9 @@
 
 #include <phosphor/phosphor.h>
 
+#include "connhandler.h"
 #include "ep_engine.h"
 #include "ep_time.h"
-#include "tapconnection.h"
 
 
 ConnHandler::ConnHandler(EventuallyPersistentEngine& e, const void* c,

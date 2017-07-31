@@ -168,6 +168,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/checkpoint.cc
             src/checkpoint_remover.cc
             src/conflict_resolution.cc
+            src/connhandler.cc
             src/connmap.cc
             src/crc32.c
             src/dcp/backfill-manager.cc
@@ -220,7 +221,6 @@ ADD_LIBRARY(ep_objs OBJECT
             src/storeddockey.cc
             src/stored-value.cc
             src/systemevent.cc
-            src/tapconnection.cc
             src/tasks.cc
             src/taskqueue.cc
             src/vb_count_visitor.cc
