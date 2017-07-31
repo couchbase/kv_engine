@@ -173,13 +173,13 @@ SET_TESTS_PROPERTIES(memcached-stats-unit-tests PROPERTIES TIMEOUT 120)
 # Run the unit tests for the memcached binary protocol over a plain socket
 ADD_TEST(NAME memcached-mcbp-unit-tests-plain
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-        COMMAND memcached_testapp --gtest_filter=Transport/*/Plain:-*/BucketTest*)
+        COMMAND memcached_testapp --gtest_filter=Transport/McdTestappTest.*:-*Ssl)
 SET_TESTS_PROPERTIES(memcached-mcbp-unit-tests-plain PROPERTIES TIMEOUT 200)
 
 # Run the unit tests for the memcached binary protocol over SSL
 ADD_TEST(NAME memcached-mcbp-unit-tests-ssl
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-        COMMAND memcached_testapp --gtest_filter=Transport/*/SSL:-*/BucketTest*)
+        COMMAND memcached_testapp --gtest_filter=Transport/McdTestappTest.*/*Ssl)
 SET_TESTS_PROPERTIES(memcached-mcbp-unit-tests-ssl PROPERTIES TIMEOUT 400)
 
 # Run the RBAC tests
