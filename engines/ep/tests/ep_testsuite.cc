@@ -1981,7 +1981,6 @@ static enum test_result test_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
             h1->get_stats(h, NULL, NULL, 0, add_stats),
             "Failed to get stats.");
     check(vals.size() > 10, "Kind of expected more stats than that.");
-    check(vals.find("ep_version") != vals.end(), "Found no ep_version.");
 
     return SUCCESS;
 }
@@ -6690,7 +6689,6 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                 "ep_vb_total",
                 "ep_vbucket_del",
                 "ep_vbucket_del_fail",
-                "ep_version",
                 "ep_waitforwarmup",
                 "ep_warmup",
                 "ep_warmup_batch_size",

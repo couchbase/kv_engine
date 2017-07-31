@@ -2333,7 +2333,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     configuration.addStats(add_stat, cookie);
 
     EPStats &epstats = getEpStats();
-    add_casted_stat("ep_version", VERSION, add_stat, cookie);
     add_casted_stat("ep_storage_age",
                     epstats.dirtyAge, add_stat, cookie);
     add_casted_stat("ep_storage_age_highwat",
