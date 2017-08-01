@@ -165,6 +165,7 @@ Possible values of this two-byte field:
 | 0x00d0 | (Subdoc) The server don't know about the specified macro |
 | 0x00d1 | (Subdoc) The server don't know about the specified virtual attribute |
 | 0x00d2 | (Subdoc) Can't modify virtual attributes |
+| 0x00d3 | (Subdoc) One or more paths in a multi-path command failed on a deleted document |
 | 0x00d4 | (Subdoc) Invalid XATTR order (xattrs should come first) |
 
 In addition to the above defined status codes, the range 0xff00 - 0xffff

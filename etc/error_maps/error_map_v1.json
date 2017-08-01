@@ -341,6 +341,14 @@
                 "invalid-input"
             ]
         },
+        "d3": {
+            "name": "SUBDOC_MULTI_PATH_FAILURE_DELETED",
+            "desc": "Subdoc: One or more paths in a multi-path command failed on a deleted document",
+            "attrs": [
+                "subdoc",
+                "special-handling"
+            ]
+        },
         "d4": {
             "name": "SUBDOC_INVALID_XATTR_ORDER",
             "desc": "Subdoc: Invalid XATTR order (xattrs should come first)",
