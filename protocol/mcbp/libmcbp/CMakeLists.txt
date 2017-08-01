@@ -9,6 +9,7 @@ add_library(mcbp STATIC
             dump.cc
             gdb_dump_parser.cc
             lldb_dump_parser.cc
+            opcode_to_string.cc
             status_to_string.cc
             )
 target_link_libraries(mcbp mcd_util)
@@ -22,3 +23,9 @@ add_test(NAME mcbp_dump_parser_test
 add_executable(mcbp_packet_printer mcbp_packet_printer.cc)
 target_link_libraries(mcbp_packet_printer mcbp dirutils)
 install(TARGETS mcbp_packet_printer RUNTIME DESTINATION bin)
+
+add_executable(mcbp_opcode_test opcode_test.cc)
+target_link_libraries(mcbp_opcode_test mcbp gtest gtest_main)
+add_test(NAME mcbp_opcode_test
+         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+         COMMAND mcbp_opcode_test)

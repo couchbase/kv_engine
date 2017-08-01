@@ -16,6 +16,8 @@
  */
 #pragma once
 
+#include <string>
+
 namespace cb {
 namespace mcbp {
 
@@ -331,3 +333,17 @@ enum class Opcode : uint8_t {
 };
 } // namespace mcbp
 } // namespace cb
+
+/**
+ * Get a textual representation of the given opcode
+ *
+ * @throws std::invalid_argument for unknown opcodes
+ */
+std::string to_string(cb::mcbp::Opcode opcode);
+
+/**
+ * Convert a textual representation of an opcode to an Opcode
+ *
+ * @throws std::invalid_argument for unknown opcodes
+ */
+cb::mcbp::Opcode to_opcode(const std::string& string);

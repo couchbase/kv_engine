@@ -90,6 +90,10 @@ struct Response {
         return {buf.data() + buf.size(), getBodylen() - getKeylen() - extlen};
     }
 
+    Opcode getOpcode() const {
+        return Opcode(opcode);
+    }
+
     /**
      * Validate that the header is "sane" (correct magic, and extlen+keylen
      * doesn't exceed the body size)

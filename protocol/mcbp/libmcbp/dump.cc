@@ -228,7 +228,7 @@ protected:
         out << std::setfill('0');
         out << "    Field        (offset) (value)" << std::endl;
         out << "    Magic        (0)    : 0x" << (uint32_t(request.bytes[0]) & 0xff) << std::endl;
-        out << "    Opcode       (1)    : 0x" << std::setw(2) << (uint32_t(request.bytes[1]) & 0xff) << " (" << memcached_opcode_2_text(request.bytes[1]) << ")"  << std::endl;
+        out << "    Opcode       (1)    : 0x" << std::setw(2) << (uint32_t(request.bytes[1]) & 0xff) << " (" << to_string(request.request.getOpcode()) << ")"  << std::endl;
         out << "    Key length   (2,3)  : 0x" << std::setw(4) << (ntohs(request.request.keylen) & 0xffff) << std::endl;
         out << "    Extra length (4)    : 0x" << std::setw(2) << (uint32_t(request.bytes[4]) & 0xff) << std::endl;
         out << "    Data type    (5)    : 0x" << std::setw(2) << (uint32_t(request.bytes[5]) & 0xff) << std::endl;
@@ -439,7 +439,7 @@ protected:
 
         out << "    Field        (offset) (value)" << std::endl;
         out << "    Magic        (0)    : 0x" << (uint32_t(response.bytes[0]) & 0xff) << std::endl;
-        out << "    Opcode       (1)    : 0x" << std::setw(2) << (uint32_t(response.bytes[1]) & 0xff) << " (" << memcached_opcode_2_text(response.bytes[1]) << ")" << std::endl;
+        out << "    Opcode       (1)    : 0x" << std::setw(2) << (uint32_t(response.bytes[1]) & 0xff) << " (" << to_string(response.response.getOpcode()) << ")" << std::endl;
         out << "    Key length   (2,3)  : 0x" << std::setw(4) << (ntohs(response.response.keylen) & 0xffff) << std::endl;
         out << "    Extra length (4)    : 0x" << std::setw(2) << (uint32_t(response.bytes[4]) & 0xff) << std::endl;
         out << "    Data type    (5)    : 0x" << std::setw(2) << (uint32_t(response.bytes[5]) & 0xff) << std::endl;
