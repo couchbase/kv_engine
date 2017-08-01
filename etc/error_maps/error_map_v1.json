@@ -340,6 +340,14 @@
                 "subdoc",
                 "invalid-input"
             ]
+        },
+        "d4": {
+            "name": "SUBDOC_INVALID_XATTR_ORDER",
+            "desc": "Subdoc: Invalid XATTR order (xattrs should come first)",
+            "attrs": [
+                "subdoc",
+                "invalid-input"
+            ]
         }
     }
 }

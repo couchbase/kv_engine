@@ -160,6 +160,7 @@ Possible values of this two-byte field:
 | 0x00cb | (Subdoc) An invalid combination of commands was specified |
 | 0x00cc | (Subdoc) Specified key was successfully found, but one or more path operations failed. Examine the individual lookup_result (MULTI_LOOKUP) / mutation_result (MULTI_MUTATION) structures for details. |
 | 0x00cd | (Subdoc) Operation completed successfully on a deleted document |
+| 0x00d4 | (Subdoc) Invalid XATTR order (xattrs should come first) |
 
 In addition to the above defined status codes, the range 0xff00 - 0xffff
 is reserved for end-user applications (e.g. proxies). Couchbase itself will

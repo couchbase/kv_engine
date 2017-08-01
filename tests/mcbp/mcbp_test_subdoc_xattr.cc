@@ -292,7 +292,7 @@ TEST_F(SubdocXattrMultiLookupTest, XAttrCantBeLast) {
     request.addLookup({PROTOCOL_BINARY_CMD_SUBDOC_EXISTS,
                        SUBDOC_FLAG_XATTR_PATH,
                        "_sync.cas"});
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_XATTR_ORDER, validate());
 }
 
 TEST_F(SubdocXattrMultiLookupTest, XAttrKeyIsChecked) {
@@ -406,7 +406,7 @@ TEST_F(SubdocXattrMultiMutationTest, XAttrCantBeLast) {
                          SUBDOC_FLAG_XATTR_PATH,
                          "_sync.cas",
                          "{\"foo\" : \"bar\"}"});
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_XATTR_ORDER, validate());
 }
 
 TEST_F(SubdocXattrMultiMutationTest, XAttrKeyIsChecked) {

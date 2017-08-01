@@ -282,7 +282,9 @@ static const std::map<protocol_binary_response_status, std::string> statusmap {
     {PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_UNKNOWN_VATTR,
         "Subdoc: Unknown xattr virtual attribute"},
     {PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_CANT_MODIFY_VATTR,
-        "Subdoc: Can't modify virtual attributes"}
+        "Subdoc: Can't modify virtual attributes"},
+    {PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_XATTR_ORDER,
+        "Subdoc: Invalid XATTR order (xattrs should come first)"}
 };
 
 const char *memcached_status_2_text(protocol_binary_response_status status) {
