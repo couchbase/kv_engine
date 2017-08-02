@@ -60,7 +60,6 @@
 #include "settings.h"
 #include "subdocument.h"
 
-#include <algorithm>
 #include <cctype>
 #include <memcached/rbac.h>
 #include <platform/cb_malloc.h>
@@ -93,6 +92,52 @@ static bool authenticated(McbpConnection* c) {
     }
 
     return rv;
+}
+
+static void bin_read_chunk(McbpConnection* c, uint32_t chunk) {
+    ptrdiff_t offset;
+    c->setRlbytes(chunk);
+
+    /* Ok... do we have room for everything in our buffer? */
+    offset =
+        c->read.curr + sizeof(protocol_binary_request_header) - c->read.buf;
+    if (c->getRlbytes() > c->read.size - offset) {
+        size_t nsize = c->read.size;
+        size_t size = c->getRlbytes() + sizeof(protocol_binary_request_header);
+
+        while (size > nsize) {
+            nsize *= 2;
+        }
+
+        if (nsize != c->read.size) {
+            char* newm;
+            LOG_DEBUG(c, "%u: Need to grow buffer from %lu to %lu",
+                      c->getId(), (unsigned long)c->read.size,
+                      (unsigned long)nsize);
+            newm = reinterpret_cast<char*>(cb_realloc(c->read.buf, nsize));
+            if (newm == NULL) {
+                LOG_WARNING(c, "%u: Failed to grow buffer.. closing connection",
+                            c->getId());
+                c->setState(conn_closing);
+                return;
+            }
+
+            c->read.buf = newm;
+            /* rcurr should point to the same offset in the packet */
+            c->read.curr =
+                c->read.buf + offset - sizeof(protocol_binary_request_header);
+            c->read.size = (int)nsize;
+        }
+        if (c->read.buf != c->read.curr) {
+            memmove(c->read.buf, c->read.curr, c->read.bytes);
+            c->read.curr = c->read.buf;
+            LOG_DEBUG(c, "%u: Repack input buffer", c->getId());
+        }
+    }
+
+    // The input buffer is big enough to fit the entire packet.
+    // Go fetch the rest of the data
+    c->setState(conn_read_packet_body);
 }
 
 /* Just write an error message and disconnect the client */
@@ -1309,7 +1354,7 @@ static void dispatch_bin_command(McbpConnection* c) {
         c->setStart(gethrtime());
     }
 
-    MEMCACHED_PROCESS_COMMAND_START(c->getId(), nullptr, 0);
+    MEMCACHED_PROCESS_COMMAND_START(c->getId(), c->read.curr, c->read.bytes);
 
     /* binprot supports 16bit keys, but internals are still 8bit */
     if (keylen > KEY_MAX_LENGTH) {
@@ -1326,24 +1371,8 @@ static void dispatch_bin_command(McbpConnection* c) {
     if (c->binary_header.request.bodylen > settings.getMaxPacketSize()) {
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL);
         c->setWriteAndGo(conn_closing);
-        return;
-    }
-
-    if (c->isPacketAvailable()) {
-        // we've got the entire packet spooled up, just go execute
-        c->setState(conn_execute);
     } else {
-        // we need to allocate more memory!!
-        try {
-            size_t needed = sizeof(cb::mcbp::Request) + c->binary_header.request.bodylen;
-            c->read->ensureCapacity(needed - c->read->rsize());
-        } catch (const std::bad_alloc&) {
-            LOG_WARNING(c, "%u: Failed to grow buffer.. closing connection",
-                        c->getId());
-            c->setState(conn_closing);
-            return;
-        }
-        c->setState(conn_read_packet_body);
+        bin_read_chunk(c, c->binary_header.request.bodylen);
     }
 }
 
@@ -1359,22 +1388,22 @@ void mcbp_complete_packet(McbpConnection* c) {
 
 void try_read_mcbp_command(McbpConnection* c) {
     if (c == nullptr) {
-        throw std::logic_error("try_read_mcbp_command: Internal error, connection is not mcbp");
+        throw std::runtime_error("Internal eror, connection is not mcbp");
     }
+    cb_assert(c->read.curr <= (c->read.buf + c->read.size));
+    cb_assert(c->read.bytes >= sizeof(c->binary_header));
 
-    const protocol_binary_request_header* req = nullptr;
-    if (c->read->rsize() < sizeof(*req)) {
-        throw std::logic_error(
-                "try_read_mcbp_command: header not present (got " +
-                std::to_string(c->read->rsize()) + " of " +
-                std::to_string(sizeof(cb::mcbp::Request)) + ")");
+    /* Do we have the complete packet header? */
+#ifdef NEED_ALIGN
+    if (((long)(c->read.curr)) % 8 != 0) {
+        /* must realign input buffer */
+        memmove(c->read.buf, c->read.curr, c->read.bytes);
+        c->read.curr = c->read.buf;
+        LOG_DEBUG(c, "%d: Realign input buffer", c->sfd);
     }
-
-    c->read->consume([&req](cb::const_byte_buffer buffer) -> ssize_t {
-        using mcbp_header = protocol_binary_request_header;
-        req = reinterpret_cast<const mcbp_header*>(buffer.data());
-        return 0;
-    });
+#endif
+    protocol_binary_request_header* req;
+    req = (protocol_binary_request_header*)c->read.curr;
 
     if (settings.getVerbose() > 1) {
         /* Dump the packet before we convert it to host order */
@@ -1389,7 +1418,6 @@ void try_read_mcbp_command(McbpConnection* c) {
         }
     }
 
-    // Create a host-local-byte-order-copy of the header
     c->binary_header = *req;
     c->binary_header.request.keylen = ntohs(req->request.keylen);
     c->binary_header.request.bodylen = ntohl(req->request.bodylen);
@@ -1420,4 +1448,7 @@ void try_read_mcbp_command(McbpConnection* c) {
     c->setCAS(0);
 
     dispatch_bin_command(c);
+
+    c->read.bytes -= sizeof(c->binary_header);
+    c->read.curr += sizeof(c->binary_header);
 }

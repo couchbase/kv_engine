@@ -23,6 +23,7 @@
 #include "datatype.h"
 #include "dynamic_buffer.h"
 #include "log_macros.h"
+#include "net_buf.h"
 #include "settings.h"
 #include "sslcert.h"
 #include "statemachine_mcbp.h"
@@ -338,6 +339,14 @@ public:
 
     void setWriteAndGo(TaskFunction write_and_go) {
         McbpConnection::write_and_go = write_and_go;
+    }
+
+    uint32_t getRlbytes() const {
+        return rlbytes;
+    }
+
+    void setRlbytes(uint32_t rlbytes) {
+        McbpConnection::rlbytes = rlbytes;
     }
 
     /**
@@ -667,7 +676,7 @@ public:
      * Do we have any pending input data on this connection?
      */
     bool havePendingInputData() {
-        return (!read->empty() || ssl.havePendingInputData());
+        return (read.bytes > 0 || ssl.havePendingInputData());
     }
 
     /**
@@ -682,13 +691,8 @@ public:
 
     virtual void runEventLoop(short which) override;
 
-    /**
-     * Input buffer containing the data we've read of the socket. It is
-     * assigned to the connection when the connection is to be served, and
-     * returned to the thread context if the pipe is empty when we're done
-     * serving this connection.
-     */
-    std::unique_ptr<cb::Pipe> read;
+    /** Read buffer */
+    struct net_buf read;
 
     /** Write buffer */
     std::unique_ptr<cb::Pipe> write;
@@ -706,39 +710,8 @@ public:
      */
     static void* getPacket(const Cookie& cookie) {
         auto c = static_cast<McbpConnection*>(cookie.connection);
-        cb::const_byte_buffer avail;
-
-        c->read->consume([&avail](cb::const_byte_buffer buffer) -> ssize_t {
-            avail = buffer;
-            return 0;
-        });
-
-        return const_cast<void*>(static_cast<const void*>(avail.data()));
-    }
-
-    /**
-     * Check to see if the next packet to process is completely received
-     * and available in the input pipe.
-     *
-     * @return true if we've got the entire packet, false otherwise
-     */
-    bool isPacketAvailable() const {
-        bool available;
-        read->consume([&available](cb::const_byte_buffer buffer) -> ssize_t {
-            const auto* req = reinterpret_cast<const cb::mcbp::Request*>(buffer.data());
-
-            if (buffer.size() < sizeof(cb::mcbp::Request) ||
-                buffer.size() < (sizeof(cb::mcbp::Request) + req->getBodylen())) {
-
-                available = false;
-            } else {
-                available = true;
-            }
-
-            return 0;
-        });
-
-        return available;
+        return (c->read.curr -
+               (c->binary_header.request.bodylen + sizeof(c->binary_header)));
     }
 
     /**
@@ -816,6 +789,11 @@ protected:
 
     /** which state to go into after finishing current write */
     TaskFunction write_and_go;
+
+    /* read 'left' bytes - how many bytes of data remain to be read for the
+     * nread state
+     */
+    uint32_t rlbytes;
 
     /* data for the mwrite state */
     std::vector<iovec> iov;
