@@ -125,46 +125,37 @@ ENGINE_ERROR_CODE dcp_message_deletion(const void* void_cookie,
 
     packet.message.header.request.opcode = (uint8_t)PROTOCOL_BINARY_CMD_DCP_DELETION;
 
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    c->write->produce([&c, &packet, &info, &meta, &nmeta, &ret](
-        void* ptr, size_t size) -> size_t {
-
-        const size_t packetlen =
+    const size_t packetlen =
             protocol_binary_request_dcp_deletion::getHeaderLength(
-                c->isDcpCollectionAware());
+                    c->isDcpCollectionAware());
 
+    // check if we've got enough space in our current buffer to fit
+    // this message.
+    if (c->write.bytes + packetlen + nmeta >= c->write.size) {
+        return ENGINE_E2BIG;
+    }
 
-        if (size < (packetlen + nmeta)) {
-            ret = ENGINE_E2BIG;
-            return 0;
-        }
+    // Add the header
+    c->addIov(c->write.curr, packetlen);
+    memcpy(c->write.curr, packet.bytes, packetlen);
+    c->write.curr += packetlen;
+    c->write.bytes += packetlen;
 
-        std::copy(packet.bytes,
-                  packet.bytes + packetlen,
-                  static_cast<uint8_t*>(ptr));
+    // Add the key
+    c->addIov(info.key, info.nkey);
 
-        std::copy(static_cast<const uint8_t*>(meta),
-                  static_cast<const uint8_t*>(meta) + nmeta,
-                  static_cast<uint8_t*>(ptr) + packetlen);
+    // Add the optional payload (xattr)
+    if (info.nbytes > 0) {
+        c->addIov(info.value[0].iov_base, info.nbytes);
+    }
 
-        // Add the header
-        c->addIov(ptr, packetlen);
+    // Add the nmeta
+    if (nmeta > 0) {
+        memcpy(c->write.curr, meta, nmeta);
+        c->addIov(c->write.curr, nmeta);
+        c->write.curr += nmeta;
+        c->write.bytes += nmeta;
+    }
 
-        // Add the key
-        c->addIov(info.key, info.nkey);
-
-        // Add the optional payload (xattr)
-        if (info.nbytes > 0) {
-            c->addIov(info.value[0].iov_base, info.nbytes);
-        }
-
-        // Add the optional meta section
-        if (nmeta > 0) {
-            c->addIov(static_cast<char*>(ptr) + packetlen, nmeta);
-        }
-
-        return packetlen + nmeta;
-    });
-
-    return ret;
+    return ENGINE_SUCCESS;
 }

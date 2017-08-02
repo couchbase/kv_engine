@@ -35,7 +35,6 @@
 #include <memcached/openssl.h>
 #include <platform/cb_malloc.h>
 #include <platform/make_unique.h>
-#include <platform/pipe.h>
 #include <platform/sized_buffer.h>
 
 #include <chrono>
@@ -695,7 +694,7 @@ public:
     struct net_buf read;
 
     /** Write buffer */
-    std::unique_ptr<cb::Pipe> write;
+    struct net_buf write;
 
     const void* getCookie() const {
         return &cookie;
