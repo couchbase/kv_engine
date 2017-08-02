@@ -247,6 +247,7 @@ For introductory information on stats within Couchbase, start with the
 |                                    | pager task in GMT                      |
 | ep_flushall_enabled                | True if this bucket allows the use of  |
 |                                    | the flush_all command                  |
+| ep_fsync_after_every_n_bytes_written | If non-zero, perform an fsync after every N bytes written to disk |
 | ep_getl_default_timeout            | The default getl lock duration         |
 | ep_getl_max_timeout                | The maximum getl lock duration         |
 | ep_ht_locks                        | The amount of locks per vb hashtable   |

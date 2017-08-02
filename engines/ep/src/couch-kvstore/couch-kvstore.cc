@@ -953,6 +953,12 @@ bool CouchKVStore::compactDBInternal(compaction_ctx* hook_ctx,
         flags |= COUCHSTORE_OPEN_FLAG_UNBUFFERED;
     }
 
+    // Should automatic fsync() be configured for compaction?
+    const auto periodicSyncBytes = configuration.getPeriodicSyncBytes();
+    if (periodicSyncBytes != 0) {
+        flags |= couchstore_encode_periodic_sync_flags(periodicSyncBytes);
+    }
+
     // Perform COMPACTION of vbucket.couch.rev into vbucket.couch.rev.compact
     errCode = couchstore_compact_db_ex(compactdb, compact_file.c_str(), flags,
                                        hook, dhook, hook_ctx, def_iops);
