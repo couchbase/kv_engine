@@ -369,29 +369,23 @@ void conn_loan_buffers(Connection *connection) {
         return;
     }
 
+    auto res = conn_loan_single_buffer(*c, c->getThread()->read, c->read);
     auto *ts = get_thread_stats(c);
-    switch (conn_loan_single_buffer(*c, c->getThread()->read, c->read)) {
-    case BufferLoan::Existing:
-        ts->rbufs_existing++;
-        break;
-    case BufferLoan::Loaned:
-        ts->rbufs_loaned++;
-        break;
-    case BufferLoan::Allocated:
+    if (res == BufferLoan::Allocated) {
         ts->rbufs_allocated++;
-        break;
+    } else if (res == BufferLoan::Loaned) {
+        ts->rbufs_loaned++;
+    } else if (res == BufferLoan::Existing) {
+        ts->rbufs_existing++;
     }
 
-    switch (conn_loan_single_buffer(*c, c->getThread()->write, c->write)) {
-    case BufferLoan::Existing:
-        ts->wbufs_existing++;
-        break;
-    case BufferLoan::Loaned:
-        ts->wbufs_loaned++;
-        break;
-    case BufferLoan::Allocated:
+    res = conn_loan_single_buffer(*c, c->getThread()->write, c->write);
+    if (res == BufferLoan::Allocated) {
         ts->wbufs_allocated++;
-        break;
+    } else if (res == BufferLoan::Loaned) {
+        ts->wbufs_loaned++;
+    } else if (res == BufferLoan::Existing) {
+        ts->wbufs_existing++;
     }
 }
 
