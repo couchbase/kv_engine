@@ -32,10 +32,11 @@ Manifest::Manifest(const std::string& manifest)
     : defaultCollectionExists(false), separator(DefaultSeparator) {
     if (manifest.empty()) {
         // Empty manifest, initialise the manifest with the default collection
-        addCollectionEntry(DefaultCollectionIdentifier,
-                           0,
-                           0,
-                           StoredValue::state_collection_open);
+        addNewCollectionEntry(DefaultCollectionIdentifier,
+                              0,
+                              0,
+                              StoredValue::state_collection_open);
+        defaultCollectionExists = true;
         return;
     }
 
@@ -71,7 +72,12 @@ Manifest::Manifest(const std::string& manifest)
         int64_t startSeqno = std::stoll(getJsonEntry(collection, "startSeqno"));
         int64_t endSeqno = std::stoll(getJsonEntry(collection, "endSeqno"));
         std::string collectionName(getJsonEntry(collection, "name"));
-        addCollectionEntry(collectionName, revision, startSeqno, endSeqno);
+        auto& entry = addNewCollectionEntry(
+                collectionName, revision, startSeqno, endSeqno);
+
+        if (DefaultCollectionIdentifier == collectionName.c_str()) {
+            defaultCollectionExists = entry.isOpen();
+        }
     }
 }
 
@@ -107,6 +113,12 @@ void Manifest::addCollection(::VBucket& vb,
                              cb::const_char_buffer collection,
                              uint32_t revision,
                              OptionalSeqno optionalSeqno) {
+    // 1. Update the manifest, adding or updating an entry in the map. Specify a
+    //    non-zero start
+    auto& entry = addCollectionEntry(collection, revision);
+
+    // 2. Queue a system event, this will take a copy of the manifest ready
+    //    for persistence into the vb state file.
     auto seqno = queueSystemEvent(vb,
                                   SystemEvent::CreateCollection,
                                   collection,
@@ -122,41 +134,64 @@ void Manifest::addCollection(::VBucket& vb,
         revision,
         seqno);
 
-    addCollectionEntry(
-            collection, revision, seqno, StoredValue::state_collection_open);
+    // 3. Now patch the entry with the seqno of the system event, note the copy
+    //    of the manifest taken at step 1 gets the correct seqno when the system
+    //    event is flushed.
+    entry.setStartSeqno(seqno);
+    entry.setRevision(revision);
 }
 
-void Manifest::addCollectionEntry(cb::const_char_buffer collection,
-                                  uint32_t revision,
-                                  int64_t startSeqno,
-                                  int64_t endSeqno) {
+ManifestEntry& Manifest::addCollectionEntry(cb::const_char_buffer collection,
+                                            uint32_t revision) {
     auto itr = map.find(collection);
     if (itr == map.end()) {
-        auto m = std::make_unique<ManifestEntry>(
-                collection, revision, startSeqno, endSeqno);
-        map.emplace(m->getCharBuffer(), std::move(m));
+        if (collection == DefaultCollectionIdentifier) {
+            defaultCollectionExists = true;
+        }
+        // Add new collection with 0,-6 start,end. The caller will correct the
+        // seqno based on what the checkpoint manager returns.
+        return addNewCollectionEntry(
+                collection, revision, 0, StoredValue::state_collection_open);
     } else if (!itr->second->isOpen()) {
-        itr->second->setRevision(revision);
-        itr->second->setStartSeqno(startSeqno);
-    } else {
-        std::stringstream ss;
-        ss << *itr->second;
-        throw std::logic_error(
-                "VB::Manifest::addCollectionEntry: cannot add collection:" +
-                cb::to_string(collection) + ", startSeqno:" +
-                std::to_string(startSeqno) + ", endSeqno:" +
-                std::to_string(endSeqno) + " " + ss.str());
+        if (collection == DefaultCollectionIdentifier) {
+            defaultCollectionExists = true;
+        }
+        return *itr->second;
     }
 
-    if (collection == DefaultCollectionIdentifier) {
-        defaultCollectionExists = true;
+    std::stringstream ss;
+    ss << *itr->second;
+    throw std::logic_error(
+            "VB::Manifest::addCollectionEntry: cannot add collection:" +
+            cb::to_string(collection) + ", revision:" +
+            std::to_string(revision) + ", entry:" + ss.str());
+}
+
+ManifestEntry& Manifest::addNewCollectionEntry(cb::const_char_buffer collection,
+                                               uint32_t revision,
+                                               int64_t startSeqno,
+                                               int64_t endSeqno) {
+    // This method is only for when the map does not have the collection
+    if (map.count(collection) > 0) {
+        throw std::logic_error(
+                "Manifest::addNewCollectionEntry: already exists collection:" +
+                cb::to_string(collection) + ", revision:" +
+                std::to_string(revision) + ", startSeqno:" +
+                std::to_string(startSeqno) + ", endSeqno:" +
+                std::to_string(endSeqno));
     }
+    auto m = std::make_unique<ManifestEntry>(
+            collection, revision, startSeqno, endSeqno);
+    auto* newEntry = m.get();
+    map.emplace(m->getCharBuffer(), std::move(m));
+    return *newEntry;
 }
 
 void Manifest::beginCollectionDelete(::VBucket& vb,
                                      cb::const_char_buffer collection,
                                      uint32_t revision,
                                      OptionalSeqno optionalSeqno) {
+    auto& entry = beginDeleteCollectionEntry(collection, revision);
     auto seqno = queueSystemEvent(vb,
                                   SystemEvent::BeginDeleteCollection,
                                   collection,
@@ -173,27 +208,26 @@ void Manifest::beginCollectionDelete(::VBucket& vb,
         revision,
         seqno);
 
-    beginDeleteCollectionEntry(collection, revision, seqno);
+    entry.setEndSeqno(seqno);
+    entry.setRevision(revision);
 }
 
-void Manifest::beginDeleteCollectionEntry(cb::const_char_buffer collection,
-                                          uint32_t revision,
-                                          int64_t seqno) {
+ManifestEntry& Manifest::beginDeleteCollectionEntry(
+        cb::const_char_buffer collection, uint32_t revision) {
     auto itr = map.find(collection);
-    if (itr != map.end()) {
-        itr->second->setRevision(revision);
-        itr->second->setEndSeqno(seqno);
-    } else {
+    if (itr == map.end()) {
         throw std::logic_error(
                 "VB::Manifest::beginDeleteCollectionEntry: did not find "
                 "collection:" +
                 cb::to_string(collection) + ", revision:" +
-                std::to_string(revision) + ", seqno:" + std::to_string(seqno));
+                std::to_string(revision));
     }
 
     if (collection == DefaultCollectionIdentifier) {
         defaultCollectionExists = false;
     }
+
+    return *itr->second;
 }
 
 void Manifest::completeDeletion(::VBucket& vb,
@@ -216,6 +250,8 @@ void Manifest::completeDeletion(::VBucket& vb,
     }
 
     if (itr->second->isExclusiveDeleting()) {
+        map.erase(itr); // wipe out
+
         // When we find that the collection is not open, we can hard delete it.
         // This means we are purging it completely from the manifest and will
         // generate a JSON manifest without an entry for the collection.
@@ -224,8 +260,9 @@ void Manifest::completeDeletion(::VBucket& vb,
                          collection,
                          revision,
                          OptionalSeqno{/*none*/});
-        map.erase(itr);
     } else if (itr->second->isOpenAndDeleting()) {
+        itr->second->resetEndSeqno(); // just reset the end to our special seqno
+
         // When we find that the collection open and deleting we can soft delete
         // it. This means we are just adjusting the endseqno so that the entry
         // returns true for isExclusiveOpen()
@@ -234,7 +271,6 @@ void Manifest::completeDeletion(::VBucket& vb,
                          collection,
                          itr->second->getRevision(),
                          OptionalSeqno{/*none*/});
-        itr->second->resetEndSeqno(); // and reset the end to our special seqno
     } else {
         // This is an invalid request
         std::stringstream ss;

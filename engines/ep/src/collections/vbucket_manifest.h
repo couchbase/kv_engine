@@ -473,14 +473,28 @@ protected:
      * @param collection Name of the collection to add.
      * @param revision The revision of the Collections::Manifest triggering this
      *        add.
-     * @param startSeqno The seqno of an Item which represents the creation
-     *        event.
-     * @param endSeqno
+     * @return a non const reference to the new/updated ManifestEntry so the
+     *         caller can set the correct seqno.
      */
-    void addCollectionEntry(cb::const_char_buffer collection,
-                            uint32_t revision,
-                            int64_t startSeqno,
-                            int64_t endSeqno);
+    ManifestEntry& addCollectionEntry(cb::const_char_buffer collection,
+                                      uint32_t revision);
+
+    /**
+     * Add a collection entry to the manifest specifing the revision that it was
+     * seen in and the sequence number span covering it.
+     *
+     * @param collection Name of the collection to add.
+     * @param revision The revision of the Collections::Manifest triggering this
+     *        add.
+     * @param startSeqno The seqno where the collection begins
+     * @param endSeqno The seqno where it ends (can be the special open marker)
+     * @return a non const reference to the new ManifestEntry so the caller can
+     *         set the correct seqno.
+     */
+    ManifestEntry& addNewCollectionEntry(cb::const_char_buffer collection,
+                                         uint32_t revision,
+                                         int64_t startSeqno,
+                                         int64_t endSeqno);
 
     /**
      * Begin the deletion process by marking the collection entry with the seqno
@@ -491,12 +505,10 @@ protected:
      *
      * @param collection Name of the collection to delete.
      * @param revision Revision of the Manifest triggering the delete.
-     * @param seqno The seqno of the deleted event mutation for the collection
-     *        deletion,
+     * @return a reference to the updated ManifestEntry
      */
-    void beginDeleteCollectionEntry(cb::const_char_buffer collection,
-                                    uint32_t revision,
-                                    int64_t seqno);
+    ManifestEntry& beginDeleteCollectionEntry(cb::const_char_buffer collection,
+                                              uint32_t revision);
 
     /**
      * Processs a Collections::Manifest

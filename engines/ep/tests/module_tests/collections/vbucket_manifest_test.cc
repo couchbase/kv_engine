@@ -203,17 +203,34 @@ public:
                                                 uint32_t revision) {
         try {
             active.wlock().completeDeletion(vbA, collection, revision);
-            replica.wlock().completeDeletion(vbR, collection, revision);
+            lastCompleteDeletionArgs.collection = collection;
+            lastCompleteDeletionArgs.revision = revision;
         } catch (std::exception& e) {
             return ::testing::AssertionFailure()
                    << "Exception thrown for completeDeletion with e.what:"
                    << e.what();
         }
 
+        queued_item manifest;
+        try {
+            manifest = applyCheckpointEventsToReplica();
+        } catch (std::exception& e) {
+            return ::testing::AssertionFailure()
+                   << "completeDeletion: Exception thrown for replica update, "
+                      "e.what:"
+                   << e.what();
+        }
+
         // completeDeletion adds a new item without a seqno, which closes
         // the snapshot, re-open the snapshot so tests can continue.
         vbR.checkpointManager.updateCurrentSnapshotEnd(snapEnd);
-        return ::testing::AssertionSuccess();
+        if (active != replica) {
+            return ::testing::AssertionFailure()
+                   << "completeDeletion: active doesn't match replica active:\n"
+                   << active << " replica:\n"
+                   << replica;
+        }
+        return checkJson(*manifest);
     }
 
     ::testing::AssertionResult doesKeyContainValidCollection(DocKey key) {
@@ -339,8 +356,18 @@ private:
                 }
                 case SystemEvent::DeleteCollectionSoft:
                 case SystemEvent::DeleteCollectionHard:
-
-                    // Nothing todo for these events
+                    // DCP doesn't transmit these events, but to improve test
+                    // coverage call completeDeletion on the replica only in
+                    // response to these system events appearing in the
+                    // checkpoint. The data held in the system event isn't
+                    // suitable though for forming the arguments to the function
+                    // e.g. Delete hard, the serialised manifest doesn't have
+                    // the collection:rev we pass through, hence why we cache
+                    // the collection:rev data in lastCompleteDeletionArgs
+                    replica.wlock().completeDeletion(
+                            vbR,
+                            lastCompleteDeletionArgs.collection,
+                            lastCompleteDeletionArgs.revision);
                     break;
                 }
             }
@@ -374,6 +401,10 @@ private:
     EPVBucket vbA;
     EPVBucket vbR;
     int64_t lastSeqno;
+    struct LastCompleteDeletionArgs {
+        std::string collection;
+        uint32_t revision;
+    } lastCompleteDeletionArgs;
 
     static const int64_t snapEnd{200};
 };
