@@ -30,6 +30,7 @@
 #include <memcached/engine.h>
 #include <memcached/syslog.h>
 #include <memcached/isotime.h>
+#include <phosphor/phosphor.h>
 #include <platform/strerror.h>
 
 #include "extensions/protocol_extension.h"
@@ -767,6 +768,22 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
         cb_free(buffers[1].data);
         return EXTENSION_FATAL;
     }
+
+    /*
+     * MB-25521: If memcached is not gracefully shutdown (either via std::exit
+     * or via breakpad) then the file logger shutdown handler could cause a
+     * SEGV if it runs after phosphor is deinitialised. While this isn't the end
+     * of the world since it's an unclean shutdown anyway, it could cause
+     * confusion in understanding the underlying cause of the shutdown.
+     *
+     * Note: this is actually raceful because the thread we create above
+     * accesses phosphor as part of its creation.
+     *
+     * By explicitly accessing phosphor's TraceLog singleton before atexit is
+     * invoked we guarantee that phosphor will be deinitialised *after* the
+     * exit handler has been executed.
+     */
+    phosphor::TraceLog::getInstance();
     atexit(exit_handler);
 
     current_log_level = sapi->log->get_level();
