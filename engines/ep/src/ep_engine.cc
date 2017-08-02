@@ -4957,6 +4957,10 @@ EventuallyPersistentEngine::getAllKeys(const void* cookie,
                                 protocol_binary_request_get_keys *request,
                                 ADD_RESPONSE response,
                                 DocNamespace docNamespace) {
+    if (!getKVBucket()->isGetAllKeysSupported()) {
+        return ENGINE_ENOTSUP;
+    }
+
     {
         LockHolder lh(lookupMutex);
         auto it = allKeysLookups.find(cookie);

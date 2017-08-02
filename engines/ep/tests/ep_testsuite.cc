@@ -3566,9 +3566,28 @@ static enum test_result test_all_keys_api(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
                      reinterpret_cast<char*>(&count),
                      sizeof(count), start_key.c_str(), keylen, NULL, 0, 0x00);
 
-    checkeq(ENGINE_SUCCESS, h1->unknown_command(h, NULL, pkt1, add_response, testHarness.doc_namespace),
-            "Failed to get all_keys, sort: ascending");
-    cb_free(pkt1);
+    if (isPersistentBucket(h, h1)) {
+        checkeq(ENGINE_SUCCESS,
+                h1->unknown_command(h,
+                                    nullptr,
+                                    pkt1,
+                                    add_response,
+                                    testHarness.doc_namespace),
+                "Failed to get all_keys, sort: ascending");
+        cb_free(pkt1);
+    } else {
+        /* We intend to support PROTOCOL_BINARY_CMD_GET_KEYS in ephemeral
+           buckets in the future */
+        checkeq(ENGINE_ENOTSUP,
+                h1->unknown_command(h,
+                                    nullptr,
+                                    pkt1,
+                                    add_response,
+                                    testHarness.doc_namespace),
+                "Should return not supported");
+        cb_free(pkt1);
+        return SUCCESS;
+    }
 
     /* Check the keys. */
     size_t offset = 0;
@@ -3606,14 +3625,31 @@ static enum test_result test_all_keys_api_during_bucket_creation(
     check(set_vbucket_state(h, h1, 1, vbucket_state_active),
           "Failed set vbucket 1 state.");
 
-    ENGINE_ERROR_CODE err = h1->unknown_command(h, NULL, pkt1,
-                                                add_response,
-                                                testHarness.doc_namespace);
-    cb_free(pkt1);
+    if (isPersistentBucket(h, h1)) {
+        checkeq(ENGINE_SUCCESS,
+                h1->unknown_command(h,
+                                    nullptr,
+                                    pkt1,
+                                    add_response,
+                                    testHarness.doc_namespace),
+                "Unexpected return code from all_keys_api");
+        cb_free(pkt1);
+    } else {
+        /* We intend to support PROTOCOL_BINARY_CMD_GET_KEYS in ephemeral
+           buckets in the future */
+        checkeq(ENGINE_ENOTSUP,
+                h1->unknown_command(h,
+                                    nullptr,
+                                    pkt1,
+                                    add_response,
+                                    testHarness.doc_namespace),
+                "Should return not supported");
+        cb_free(pkt1);
+        return SUCCESS;
+    }
+
     start_persistence(h, h1);
 
-    checkeq(ENGINE_SUCCESS, err,
-            "Unexpected return code from all_keys_api");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Unexpected response status");
 
@@ -7462,15 +7498,17 @@ BaseTestCase testsuite_testcases[] = {
                  NULL, prepare, cleanup),
         TestCase("test ALL_KEYS api",
                  test_all_keys_api,
-                 test_setup, teardown,
-                 NULL,
-                 /* TODO Ephemeral: need to implement getAllKeys from HT */prepare_skip_broken_under_ephemeral,
+                 test_setup,
+                 teardown,
+                 nullptr,
+                 prepare,
                  cleanup),
         TestCase("test ALL_KEYS api during bucket creation",
                  test_all_keys_api_during_bucket_creation,
-                 test_setup, teardown,
-                 NULL,
-                 /* TODO Ephemeral: relies on stop_persistence which hangs*/prepare_skip_broken_under_ephemeral,
+                 test_setup,
+                 teardown,
+                 nullptr,
+                 prepare,
                  cleanup),
         TestCase("ep worker stats", test_worker_stats,
                  test_setup, teardown,
