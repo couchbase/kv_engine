@@ -17,16 +17,17 @@
 
 #pragma once
 
+#include <mcbp/protocol/feature.h>
 #include <bitset>
 
-#include "include/memcached/protocol_binary.h"
+#include <memcached/protocol_binary.h>
 
 class Datatype {
 public:
     /**
      * Check if the datatype is supported
      */
-    static bool isSupported(mcbp::Feature datatype);
+    static bool isSupported(cb::mcbp::Feature datatype);
 
     /**
      * Translate the mcbp::Feature:: input into the corresponding mcbp datatype
@@ -35,7 +36,7 @@ public:
      * @param datatype mcbp::Feature::JSON|XATTR|SNAPPY
      * @throws if datatype is not a Feature datatype.
      */
-    void enable(mcbp::Feature datatype);
+    void enable(cb::mcbp::Feature datatype);
 
     /**
      * Enabled all datatypes

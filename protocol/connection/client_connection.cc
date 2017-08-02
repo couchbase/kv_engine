@@ -823,7 +823,7 @@ void MemcachedConnection::applyFeatures(const std::string& agent,
                                         const Featureset& featureset) {
     BinprotHelloCommand command(agent);
     for (const auto& feature : featureset) {
-        command.enableFeature(mcbp::Feature(feature), true);
+        command.enableFeature(cb::mcbp::Feature(feature), true);
     }
 
     sendCommand(command);
@@ -841,7 +841,7 @@ void MemcachedConnection::applyFeatures(const std::string& agent,
     }
 }
 
-void MemcachedConnection::setFeature(mcbp::Feature feature, bool enabled) {
+void MemcachedConnection::setFeature(cb::mcbp::Feature feature, bool enabled) {
     Featureset currFeatures = effective_features;
     if (enabled) {
         currFeatures.insert(uint16_t(feature));
@@ -852,11 +852,9 @@ void MemcachedConnection::setFeature(mcbp::Feature feature, bool enabled) {
     applyFeatures("mcbp", currFeatures);
 
     if (enabled && !hasFeature(feature)) {
-        throw std::runtime_error("Failed to enable " +
-                                 mcbp::to_string(feature));
+        throw std::runtime_error("Failed to enable " + ::to_string(feature));
     } else if (!enabled && hasFeature(feature)) {
-        throw std::runtime_error("Failed to disable " +
-                                 mcbp::to_string(feature));
+        throw std::runtime_error("Failed to disable " + ::to_string(feature));
     }
 }
 

@@ -52,7 +52,7 @@ void ValidatorTest::SetUp() {
 protocol_binary_response_status
 ValidatorTest::validate(protocol_binary_command opcode, void* packet) {
     // Mockup a McbpConnection and Cookie for the validator chain
-    connection.enableDatatype(mcbp::Feature::XATTR);
+    connection.enableDatatype(cb::mcbp::Feature::XATTR);
     auto* req = reinterpret_cast<protocol_binary_request_header*>(packet);
     connection.binary_header = *req;
     connection.binary_header.request.keylen = ntohs(req->request.keylen);

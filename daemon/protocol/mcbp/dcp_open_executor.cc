@@ -26,8 +26,8 @@ void dcp_open_executor(McbpConnection* c, void* packet) {
     ENGINE_ERROR_CODE ret = c->getAiostat();
     c->setAiostat(ENGINE_SUCCESS);
     c->setEwouldblock(false);
-    c->enableDatatype(mcbp::Feature::SNAPPY);
-    c->enableDatatype(mcbp::Feature::JSON);
+    c->enableDatatype(cb::mcbp::Feature::SNAPPY);
+    c->enableDatatype(cb::mcbp::Feature::JSON);
 
     uint32_t flags = ntohl(req->message.body.flags);
     const bool dcpNotifier = (flags & DCP_OPEN_NOTIFIER);

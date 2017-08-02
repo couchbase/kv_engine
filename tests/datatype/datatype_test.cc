@@ -71,20 +71,22 @@ TEST(DatatypeTest, EnableDisable) {
 
 TEST(DatatypeTest, EnableFeatures) {
     Datatype datatype;
-    EXPECT_NO_THROW(datatype.enable(mcbp::Feature::XATTR));
-    EXPECT_NO_THROW(datatype.enable(mcbp::Feature::JSON));
-    EXPECT_NO_THROW(datatype.enable(mcbp::Feature::SNAPPY));
+    EXPECT_NO_THROW(datatype.enable(cb::mcbp::Feature::XATTR));
+    EXPECT_NO_THROW(datatype.enable(cb::mcbp::Feature::JSON));
+    EXPECT_NO_THROW(datatype.enable(cb::mcbp::Feature::SNAPPY));
 
-    EXPECT_THROW(datatype.enable(mcbp::Feature::TLS), std::invalid_argument);
-    EXPECT_THROW(datatype.enable(mcbp::Feature::MUTATION_SEQNO),
+    EXPECT_THROW(datatype.enable(cb::mcbp::Feature::TLS),
                  std::invalid_argument);
-    EXPECT_THROW(datatype.enable(mcbp::Feature::TCPDELAY),
+    EXPECT_THROW(datatype.enable(cb::mcbp::Feature::MUTATION_SEQNO),
                  std::invalid_argument);
-    EXPECT_THROW(datatype.enable(mcbp::Feature::SELECT_BUCKET),
+    EXPECT_THROW(datatype.enable(cb::mcbp::Feature::TCPDELAY),
                  std::invalid_argument);
-    EXPECT_THROW(datatype.enable(mcbp::Feature::COLLECTIONS),
+    EXPECT_THROW(datatype.enable(cb::mcbp::Feature::SELECT_BUCKET),
                  std::invalid_argument);
-    EXPECT_THROW(datatype.enable(mcbp::Feature::XERROR), std::invalid_argument);
+    EXPECT_THROW(datatype.enable(cb::mcbp::Feature::COLLECTIONS),
+                 std::invalid_argument);
+    EXPECT_THROW(datatype.enable(cb::mcbp::Feature::XERROR),
+                 std::invalid_argument);
 }
 
 TEST(DatatypeTest, Intersect0) {
@@ -100,7 +102,7 @@ TEST(DatatypeTest, Intersect0) {
 
 TEST(DatatypeTest, Intersect1) {
     Datatype datatype;
-    datatype.enable(mcbp::Feature::JSON);
+    datatype.enable(cb::mcbp::Feature::JSON);
 
     protocol_binary_datatype_t d1 = mcbp::datatype::highest;
     auto d2 = datatype.getIntersection(d1);
@@ -112,8 +114,8 @@ TEST(DatatypeTest, Intersect1) {
 
 TEST(DatatypeTest, Intersect2) {
     Datatype datatype;
-    datatype.enable(mcbp::Feature::JSON);
-    datatype.enable(mcbp::Feature::XATTR);
+    datatype.enable(cb::mcbp::Feature::JSON);
+    datatype.enable(cb::mcbp::Feature::XATTR);
 
     protocol_binary_datatype_t d1 = mcbp::datatype::highest;
     auto d2 = datatype.getIntersection(d1);
@@ -142,7 +144,7 @@ TEST(DatatypeTest, Raw0) {
 
 TEST(DatatypeTest, Raw1) {
     Datatype datatype;
-    datatype.enable(mcbp::Feature::JSON);
+    datatype.enable(cb::mcbp::Feature::JSON);
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, datatype.getRaw());
 }
 

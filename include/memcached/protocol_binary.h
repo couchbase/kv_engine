@@ -56,6 +56,7 @@
  */
 
 #include <mcbp/protocol/datatype.h>
+#include <mcbp/protocol/feature.h>
 #include <mcbp/protocol/magic.h>
 #include <mcbp/protocol/opcode.h>
 #include <mcbp/protocol/request.h>
@@ -1270,33 +1271,6 @@ typedef union {
 } protocol_binary_response_get_vbucket;
 
 /**
- * Definition of hello's features.
- * Note regarding JSON:0x1. Previously this was named DATATYPE and
- * implied that when supported all bits of the protocol datatype byte would
- * be valid. DATATYPE was never enabled and has been renamed as
- * JSON. Clients are now required negotiate individual datatypes
- * with the server using the feature DataType_* feature codes. Note XATTR
- * is linked with general xattr support and the ability to set the xattr
- * datatype bit using set_with_meta.
- */
-namespace mcbp {
-enum class Feature : uint16_t {
-    Invalid = 0x01, // Previously DATATYPE, now retired
-    TLS = 0x2,
-    TCPNODELAY = 0x03,
-    MUTATION_SEQNO = 0x04,
-    TCPDELAY = 0x05,
-    XATTR = 0x06, // enables xattr support and set_with_meta.datatype == xattr
-    XERROR = 0x07,
-    SELECT_BUCKET = 0x08,
-    COLLECTIONS = 0x09,
-    SNAPPY = 0x0a,
-    JSON = 0x0b
-};
-}
-using protocol_binary_hello_features_t = mcbp::Feature;
-
-/**
  * The HELLO command is used by the client and the server to agree
  * upon the set of features the other end supports. It is initiated
  * by the client by sending its agent string and the list of features
@@ -2410,35 +2384,6 @@ inline bool impliesMkdir_p(mcbp::subdoc::doc_flag a) {
     return hasAdd(a) || hasMkdoc(a);
 }
 } // namespace subdoc
-
-inline std::string to_string(const Feature& feature) {
-    switch (feature) {
-    case Feature::JSON:
-        return "JSON";
-    case Feature::TLS:
-        return "TLS";
-    case Feature::TCPDELAY:
-        return "TCP DELAY";
-    case Feature::TCPNODELAY:
-        return "TCP NODELAY";
-    case Feature::MUTATION_SEQNO:
-        return "Mutation seqno";
-    case Feature::XATTR:
-        return "XATTR";
-    case Feature::XERROR:
-        return "XERROR";
-    case Feature::SELECT_BUCKET:
-        return "Select Bucket";
-    case Feature::COLLECTIONS:
-        return "COLLECTIONS";
-    case Feature::SNAPPY:
-        return "SNAPPY";
-    case Feature::Invalid:
-        return "Invalid";
-    }
-    throw std::invalid_argument("mcbp::to_string: unknown feature: " +
-                                std::to_string(uint16_t(feature)));
-}
 } // namespace mcbp
 
 // Create a namespace to handle the Datatypes

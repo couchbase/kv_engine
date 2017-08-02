@@ -63,7 +63,7 @@ static time_t server_start_time = 0;
 // used in embedded mode to shutdown memcached
 extern void shutdown_server();
 
-std::set<protocol_binary_hello_features_t> enabled_hello_features;
+std::set<cb::mcbp::Feature> enabled_hello_features;
 
 int memcached_verbose = 0;
 // State variable if we're running the memcached server in a

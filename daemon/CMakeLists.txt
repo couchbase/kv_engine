@@ -210,6 +210,7 @@ TARGET_LINK_LIBRARIES(memcached_daemon
                       auditd
                       extmeta
                       mcd_util
+                      mcbp
                       cbsasl
                       cbcompress
                       engine_utilities

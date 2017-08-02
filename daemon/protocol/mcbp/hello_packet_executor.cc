@@ -58,60 +58,61 @@ void process_hello_packet_executor(McbpConnection* c, void* packet) {
     for (const auto& value : input) {
         bool added = false;
         const uint16_t in = ntohs(value);
-        const auto feature = mcbp::Feature(in);
+        const auto feature = cb::mcbp::Feature(in);
 
         switch (feature) {
-        case mcbp::Feature::Invalid:
-        case mcbp::Feature::TLS:
+        case cb::mcbp::Feature::Invalid:
+        case cb::mcbp::Feature::TLS:
             /* Not implemented */
             break;
-        case mcbp::Feature::TCPNODELAY:
-        case mcbp::Feature::TCPDELAY:
+        case cb::mcbp::Feature::TCPNODELAY:
+        case cb::mcbp::Feature::TCPDELAY:
             if (!tcpdelay_handled) {
-                c->setTcpNoDelay(feature == mcbp::Feature::TCPNODELAY);
+                c->setTcpNoDelay(feature == cb::mcbp::Feature::TCPNODELAY);
                 tcpdelay_handled = true;
                 added = true;
             }
             break;
 
-        case mcbp::Feature::MUTATION_SEQNO:
+        case cb::mcbp::Feature::MUTATION_SEQNO:
             if (!c->isSupportsMutationExtras()) {
                 c->setSupportsMutationExtras(true);
                 added = true;
             }
             break;
-        case mcbp::Feature::XATTR:
-            if ((Datatype::isSupported(mcbp::Feature::XATTR) || c->isInternal()) &&
+        case cb::mcbp::Feature::XATTR:
+            if ((Datatype::isSupported(cb::mcbp::Feature::XATTR) ||
+                 c->isInternal()) &&
                 !c->isXattrEnabled()) {
-                c->enableDatatype(mcbp::Feature::XATTR);
+                c->enableDatatype(cb::mcbp::Feature::XATTR);
                 added = true;
             }
             break;
-        case mcbp::Feature::JSON:
-            if (Datatype::isSupported(mcbp::Feature::JSON) &&
+        case cb::mcbp::Feature::JSON:
+            if (Datatype::isSupported(cb::mcbp::Feature::JSON) &&
                 !c->isJsonEnabled()) {
-                c->enableDatatype(mcbp::Feature::JSON);
+                c->enableDatatype(cb::mcbp::Feature::JSON);
                 added = true;
             }
             break;
-        case mcbp::Feature::SNAPPY:
-            if (Datatype::isSupported(mcbp::Feature::SNAPPY) &&
+        case cb::mcbp::Feature::SNAPPY:
+            if (Datatype::isSupported(cb::mcbp::Feature::SNAPPY) &&
                 !c->isSnappyEnabled()) {
-                c->enableDatatype(mcbp::Feature::SNAPPY);
+                c->enableDatatype(cb::mcbp::Feature::SNAPPY);
                 added = true;
             }
             break;
-        case mcbp::Feature::XERROR:
+        case cb::mcbp::Feature::XERROR:
             if (!c->isXerrorSupport()) {
                 c->setXerrorSupport(true);
                 added = true;
             }
             break;
-        case mcbp::Feature::SELECT_BUCKET:
+        case cb::mcbp::Feature::SELECT_BUCKET:
             // The select bucket is only informative ;-)
             added = true;
             break;
-        case mcbp::Feature::COLLECTIONS:
+        case cb::mcbp::Feature::COLLECTIONS:
             if (!c->isCollectionsSupported()) {
                 c->setCollectionsSupported(true);
                 added = true;
@@ -121,7 +122,7 @@ void process_hello_packet_executor(McbpConnection* c, void* packet) {
 
         if (added) {
             out.push_back(value);
-            log_buffer.append(mcbp::to_string(feature));
+            log_buffer.append(to_string(feature));
             log_buffer.append(", ");
         }
     }

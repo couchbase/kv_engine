@@ -301,7 +301,7 @@ protected:
 
             std::string text;
             try {
-                text = mcbp::to_string(mcbp::Feature(feature));
+                text = to_string(cb::mcbp::Feature(feature));
             } catch (...) {
                 text = std::to_string(feature);
             }
@@ -516,7 +516,7 @@ protected:
             feature = ntohs(feature);
             std::string text;
             try {
-                text = mcbp::to_string(mcbp::Feature(feature));
+                text = to_string(cb::mcbp::Feature(feature));
             } catch (...) {
                 text = std::to_string(feature);
             }

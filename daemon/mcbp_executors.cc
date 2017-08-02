@@ -1132,8 +1132,8 @@ std::array<mcbp_package_execute, 0x100>& get_mcbp_executors(void) {
 static void process_bin_dcp_response(McbpConnection* c) {
     ENGINE_ERROR_CODE ret = ENGINE_DISCONNECT;
 
-    c->enableDatatype(mcbp::Feature::SNAPPY);
-    c->enableDatatype(mcbp::Feature::JSON);
+    c->enableDatatype(cb::mcbp::Feature::SNAPPY);
+    c->enableDatatype(cb::mcbp::Feature::JSON);
 
     if (c->getBucketEngine()->dcp.response_handler != NULL) {
         auto* header = reinterpret_cast<protocol_binary_response_header*>(

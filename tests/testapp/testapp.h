@@ -66,7 +66,7 @@ extern in_port_t ssl_port;
 extern SOCKET sock_ssl;
 
 // Set of HELLO features which are currently enabled.
-extern std::set<protocol_binary_hello_features_t> enabled_hello_features;
+extern std::set<cb::mcbp::Feature> enabled_hello_features;
 
 class TestBucketImpl;
 

@@ -18,47 +18,47 @@
 #include "datatype.h"
 #include "settings.h"
 
-bool Datatype::isSupported(mcbp::Feature feature) {
+bool Datatype::isSupported(cb::mcbp::Feature feature) {
     switch (feature) {
-    case mcbp::Feature::XATTR:
+    case cb::mcbp::Feature::XATTR:
         return settings.isXattrEnabled();
-    case mcbp::Feature::JSON:
+    case cb::mcbp::Feature::JSON:
         return settings.isDatatypeJsonEnabled();
-    case mcbp::Feature::SNAPPY:
+    case cb::mcbp::Feature::SNAPPY:
         return settings.isDatatypeSnappyEnabled();
-    case mcbp::Feature::TLS:
-    case mcbp::Feature::TCPNODELAY:
-    case mcbp::Feature::MUTATION_SEQNO:
-    case mcbp::Feature::TCPDELAY:
-    case mcbp::Feature::XERROR:
-    case mcbp::Feature::SELECT_BUCKET:
-    case mcbp::Feature::COLLECTIONS:
-    case mcbp::Feature::Invalid:
+    case cb::mcbp::Feature::TLS:
+    case cb::mcbp::Feature::TCPNODELAY:
+    case cb::mcbp::Feature::MUTATION_SEQNO:
+    case cb::mcbp::Feature::TCPDELAY:
+    case cb::mcbp::Feature::XERROR:
+    case cb::mcbp::Feature::SELECT_BUCKET:
+    case cb::mcbp::Feature::COLLECTIONS:
+    case cb::mcbp::Feature::Invalid:
         throw std::invalid_argument("Datatype::isSupported invalid feature:" +
                                     std::to_string(int(feature)));
     }
     return false;
 }
 
-void Datatype::enable(mcbp::Feature feature) {
+void Datatype::enable(cb::mcbp::Feature feature) {
     switch (feature) {
-    case mcbp::Feature::XATTR:
+    case cb::mcbp::Feature::XATTR:
         enabled |= PROTOCOL_BINARY_DATATYPE_XATTR;
         break;
-    case mcbp::Feature::JSON:
+    case cb::mcbp::Feature::JSON:
         enabled |= PROTOCOL_BINARY_DATATYPE_JSON;
         break;
-    case mcbp::Feature::SNAPPY:
+    case cb::mcbp::Feature::SNAPPY:
         enabled |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
         break;
-    case mcbp::Feature::TLS:
-    case mcbp::Feature::TCPNODELAY:
-    case mcbp::Feature::MUTATION_SEQNO:
-    case mcbp::Feature::TCPDELAY:
-    case mcbp::Feature::XERROR:
-    case mcbp::Feature::SELECT_BUCKET:
-    case mcbp::Feature::COLLECTIONS:
-    case mcbp::Feature::Invalid:
+    case cb::mcbp::Feature::TLS:
+    case cb::mcbp::Feature::TCPNODELAY:
+    case cb::mcbp::Feature::MUTATION_SEQNO:
+    case cb::mcbp::Feature::TCPDELAY:
+    case cb::mcbp::Feature::XERROR:
+    case cb::mcbp::Feature::SELECT_BUCKET:
+    case cb::mcbp::Feature::COLLECTIONS:
+    case cb::mcbp::Feature::Invalid:
         throw std::invalid_argument("Datatype::enable invalid feature:" +
                                     std::to_string(int(feature)));
     }

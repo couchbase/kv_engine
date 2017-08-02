@@ -773,7 +773,7 @@ public:
     BinprotHelloCommand(const std::string& client_id) : BinprotCommandT() {
         setKey(client_id);
     }
-    BinprotHelloCommand& enableFeature(mcbp::Feature feature,
+    BinprotHelloCommand& enableFeature(cb::mcbp::Feature feature,
                                        bool enabled = true) {
         if (enabled) {
             features.insert(static_cast<uint8_t>(feature));
@@ -792,12 +792,12 @@ private:
 class BinprotHelloResponse : public BinprotResponse {
 public:
     void assign(std::vector<uint8_t>&& buf) override;
-    const std::vector<mcbp::Feature>& getFeatures() const {
+    const std::vector<cb::mcbp::Feature>& getFeatures() const {
         return features;
     }
 
 private:
-    std::vector<mcbp::Feature> features;
+    std::vector<cb::mcbp::Feature> features;
 };
 
 class BinprotCreateBucketCommand

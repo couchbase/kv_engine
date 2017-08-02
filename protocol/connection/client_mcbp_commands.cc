@@ -394,7 +394,7 @@ void BinprotHelloResponse::assign(std::vector<uint8_t>&& buf) {
                                                         getKey().size());
 
     for (; cur != end; ++cur) {
-        features.push_back(mcbp::Feature(htons(*cur)));
+        features.push_back(cb::mcbp::Feature(htons(*cur)));
     }
 }
 

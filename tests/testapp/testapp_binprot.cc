@@ -215,7 +215,7 @@ void mcbp_validate_response_header(protocol_binary_response_no_extras* response,
         }
     }
     bool mutation_seqno_enabled =
-            enabled_hello_features.count(mcbp::Feature::MUTATION_SEQNO) > 0;
+            enabled_hello_features.count(cb::mcbp::Feature::MUTATION_SEQNO) > 0;
     EXPECT_TRUE(mcbp_validate_response_header(header,
                                               protocol_binary_command(cmd),
                                               status,

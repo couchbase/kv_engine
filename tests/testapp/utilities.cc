@@ -266,7 +266,7 @@ int do_sasl_auth(BIO* bio, const char* user, const char* pass) {
 bool enable_tcp_nodelay(BIO *bio)
 {
     protocol_binary_request_hello request;
-    uint16_t feature = htons(uint16_t(mcbp::Feature::TCPNODELAY));
+    uint16_t feature = htons(uint16_t(cb::mcbp::Feature::TCPNODELAY));
     const char useragent[] = "mctools";
     memset(&request, 0, sizeof(request));
     request.message.header.request.magic = PROTOCOL_BINARY_REQ;

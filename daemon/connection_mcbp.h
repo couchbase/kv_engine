@@ -447,7 +447,7 @@ public:
      * @param feature mcbp::Feature::JSON|XATTR|SNAPPY
      * @throws if feature does not correspond to a datatype
      */
-    void enableDatatype(mcbp::Feature feature) {
+    void enableDatatype(cb::mcbp::Feature feature) {
         datatype.enable(feature);
     }
 

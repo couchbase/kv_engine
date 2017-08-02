@@ -596,7 +596,7 @@ public:
                             uint16_t vbucket,
                             uint64_t cas);
 
-    bool hasFeature(mcbp::Feature feature) const {
+    bool hasFeature(cb::mcbp::Feature feature) const {
         return effective_features.find(uint16_t(feature)) !=
                effective_features.end();
     }
@@ -604,23 +604,23 @@ public:
     unique_cJSON_ptr timings(uint8_t opcode, const std::string& bucket);
 
     void setDatatypeJson(bool enable) {
-        setFeature(mcbp::Feature::JSON, enable);
+        setFeature(cb::mcbp::Feature::JSON, enable);
     }
 
     void setDatatypeCompressed(bool enable) {
-        setFeature(mcbp::Feature::SNAPPY, enable);
+        setFeature(cb::mcbp::Feature::SNAPPY, enable);
     }
 
     void setMutationSeqnoSupport(bool enable) {
-        setFeature(mcbp::Feature::MUTATION_SEQNO, enable);
+        setFeature(cb::mcbp::Feature::MUTATION_SEQNO, enable);
     }
 
     void setXattrSupport(bool enable) {
-        setFeature(mcbp::Feature::XATTR, enable);
+        setFeature(cb::mcbp::Feature::XATTR, enable);
     }
 
     void setXerrorSupport(bool enable) {
-        setFeature(mcbp::Feature::XERROR, enable);
+        setFeature(cb::mcbp::Feature::XERROR, enable);
     }
 
     /**
@@ -694,7 +694,7 @@ protected:
      * @param feature Feature to enable or disable
      * @param enabled whether to enable or disable
      */
-    void setFeature(mcbp::Feature feature, bool enabled);
+    void setFeature(cb::mcbp::Feature feature, bool enabled);
 
     Featureset effective_features;
 };
