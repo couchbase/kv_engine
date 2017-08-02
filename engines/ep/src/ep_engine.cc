@@ -590,6 +590,9 @@ protocol_binary_response_status EventuallyPersistentEngine::setFlushParam(
             getConfiguration().setMemMergeCountThreshold(std::stoul(valz));
         } else if (strcmp(keyz, "mem_merge_bytes_threshold") == 0) {
             getConfiguration().setMemMergeBytesThreshold(std::stoul(valz));
+        } else if (strcmp(keyz, "fsync_after_every_n_bytes_written") == 0) {
+            getConfiguration().setFsyncAfterEveryNBytesWritten(
+                    std::stoull(valz));
         } else if (strcmp(keyz, "xattr_enabled") == 0) {
             getConfiguration().setXattrEnabled(cb_stob(valz));
         } else {

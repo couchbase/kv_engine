@@ -78,6 +78,12 @@ couchstore_error_t StatsOps::close(couchstore_error_info_t* errinfo,
     return sf->orig_ops->close(errinfo, sf->orig_handle);
 }
 
+couchstore_error_t StatsOps::set_periodic_sync(couch_file_handle h,
+                                               uint64_t period_bytes) {
+    StatFile* sf = reinterpret_cast<StatFile*>(h);
+    return sf->orig_ops->set_periodic_sync(sf->orig_handle, period_bytes);
+}
+
 ssize_t StatsOps::pread(couchstore_error_info_t* errinfo,
                         couch_file_handle h,
                         void* buf,

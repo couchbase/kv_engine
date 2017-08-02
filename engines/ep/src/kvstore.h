@@ -600,7 +600,31 @@ public:
         persistDocNamespace = value;
     }
 
+    uint64_t getPeriodicSyncBytes() const {
+        return periodicSyncBytes;
+    }
+
+    void setPeriodicSyncBytes(uint64_t bytes) {
+        periodicSyncBytes = bytes;
+    }
+
 private:
+    /// A listener class to update KVStore related configs at runtime.
+    class ConfigChangeListener : public ValueChangedListener {
+    public:
+        ConfigChangeListener(KVStoreConfig& c) : config(c) {
+        }
+
+        void sizeValueChanged(const std::string& key, size_t value) override {
+            if (key == "fsync_after_every_n_bytes_written") {
+                config.setPeriodicSyncBytes(value);
+            }
+        }
+
+    private:
+        KVStoreConfig& config;
+    };
+
     uint16_t maxVBuckets;
     uint16_t maxShards;
     std::string dbname;
@@ -609,6 +633,12 @@ private:
     Logger* logger;
     bool buffered;
     bool persistDocNamespace;
+
+    /**
+     * If non-zero, tell storage layer to issue a sync() operation after every
+     * N bytes written.
+     */
+    uint64_t periodicSyncBytes;
 };
 
 class IORequest {

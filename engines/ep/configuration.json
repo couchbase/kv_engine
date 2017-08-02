@@ -802,6 +802,11 @@
                 }
             }
         },
+        "fsync_after_every_n_bytes_written": {
+            "default": "16777216",
+            "descr": "Perform a file sync() operation after every N bytes written. Disabled if set to 0.",
+            "type" : "size_t"
+        },
         "time_synchronization": {
             "default": "disabled",
             "descr": "No longer supported. This config parameter has no effect.",
