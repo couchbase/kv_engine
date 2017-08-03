@@ -64,6 +64,9 @@ _Attributes_ are the most important part of the error map as they convey _how_
 an error code should be handled. An error code may have more than a single
 attribute.
 
+* `item-deleted`: This attribute means that the error is related to operating
+  on a soft-deleted document.
+
 * `item-locked`: This attribute means that the error is related to operating on a locked document.
 
 * `item-only`: This attribute means that the error is related to a constraint
@@ -103,6 +106,10 @@ attribute.
 * `subdoc`: The error is related to the subdocument subsystem.
 
 * `dcp`: The error is related to the DCP subsystem.
+
+* `success`: The operation was successful for those situations where the error
+  code is indicating successful (i.e. subdocument operations carried out on a
+  deleted document)
 
 
 ## Protocol
