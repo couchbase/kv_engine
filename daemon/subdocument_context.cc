@@ -222,10 +222,8 @@ cb::const_char_buffer SubdocCmdContext::get_document_vattr() {
                                 "seqno",
                                 to_hex_string(input_item_info.seqno).c_str());
 
-        time_t expiry =
-                input_item_info.exptime
-                        ? mc_time_convert_to_abs_time(input_item_info.exptime)
-                        : 0;
+        const auto& bucket = connection.getBucket();
+        auto expiry = bucket.getAbsoluteExpiryTime(input_item_info.exptime);
         cJSON_AddNumberToObject(doc.get(), "exptime", expiry);
 
         if (mcbp::datatype::is_xattr(input_item_info.datatype)) {
