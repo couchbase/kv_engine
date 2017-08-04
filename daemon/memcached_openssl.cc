@@ -20,6 +20,9 @@
 #include <memcached/openssl.h>
 #include <openssl/engine.h>
 #include <openssl/conf.h>
+
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+
 #include <mutex>
 
 static std::mutex *openssl_lock_cs;
@@ -36,18 +39,26 @@ static void openssl_locking_callback(int mode, int type, const char *, int)
         openssl_lock_cs[type].unlock();
     }
 }
+#endif
 
 void initialize_openssl() {
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
     CRYPTO_malloc_init();
     SSL_library_init();
+#else
+    OPENSSL_init_ssl(0, NULL);
+#endif
+
     SSL_load_error_strings();
     ERR_load_BIO_strings();
     OpenSSL_add_all_algorithms();
 
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
     openssl_lock_cs = new std::mutex[CRYPTO_num_locks()];
 
     CRYPTO_set_id_callback(get_thread_id);
     CRYPTO_set_locking_callback(openssl_locking_callback);
+#endif
 }
 
 void shutdown_openssl() {
@@ -60,6 +71,7 @@ void shutdown_openssl() {
     EVP_cleanup();
     CRYPTO_cleanup_all_ex_data();
 
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
     // per-thread cleanup:
     ERR_remove_state(0);
 
@@ -69,4 +81,5 @@ void shutdown_openssl() {
     sk_SSL_COMP_free(SSL_COMP_get_compression_methods());
 
     delete []openssl_lock_cs;
+#endif
 }
