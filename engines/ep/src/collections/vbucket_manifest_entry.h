@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include "collections/collections_types.h"
 #include "stored-value.h"
 
 #include <platform/make_unique.h>
@@ -41,13 +42,10 @@ namespace VB {
  */
 class ManifestEntry {
 public:
-    ManifestEntry(const cb::const_char_buffer& name,
-                  uint32_t rev,
-                  int64_t _startSeqno,
-                  int64_t _endSeqno)
-        : collectionName(
-                  std::make_unique<std::string>(name.data(), name.size())),
-          revision(rev),
+    ManifestEntry(Identifier identifier, int64_t _startSeqno, int64_t _endSeqno)
+        : collectionName(std::make_unique<std::string>(
+                  identifier.getName().data(), identifier.getName().size())),
+          uid(identifier.getUid()),
           startSeqno(-1),
           endSeqno(-1) {
         // Setters validate the start/end range is valid
@@ -58,21 +56,21 @@ public:
     ManifestEntry(const ManifestEntry& rhs)
         : collectionName(
                   std::make_unique<std::string>(rhs.collectionName->c_str())),
-          revision(rhs.revision),
+          uid(rhs.uid),
           startSeqno(rhs.startSeqno),
           endSeqno(rhs.endSeqno) {
     }
 
     ManifestEntry(ManifestEntry&& rhs)
         : collectionName(std::move(rhs.collectionName)),
-          revision(rhs.revision),
+          uid(rhs.uid),
           startSeqno(rhs.startSeqno),
           endSeqno(rhs.endSeqno) {
     }
 
     ManifestEntry& operator=(ManifestEntry&& rhs) {
         std::swap(collectionName, rhs.collectionName);
-        revision = rhs.revision;
+        uid = rhs.uid;
         startSeqno = rhs.startSeqno;
         endSeqno = rhs.endSeqno;
         return *this;
@@ -80,7 +78,7 @@ public:
 
     ManifestEntry& operator=(const ManifestEntry& rhs) {
         collectionName.reset(new std::string(rhs.collectionName->c_str()));
-        revision = rhs.revision;
+        uid = rhs.uid;
         startSeqno = rhs.startSeqno;
         endSeqno = rhs.endSeqno;
         return *this;
@@ -97,6 +95,10 @@ public:
     cb::const_char_buffer getCharBuffer() const {
         return cb::const_char_buffer(collectionName->data(),
                                      collectionName->size());
+    }
+
+    Identifier getIdentifier() const {
+        return {getCharBuffer(), getUid()};
     }
 
     int64_t getStartSeqno() const {
@@ -134,12 +136,12 @@ public:
         endSeqno = StoredValue::state_collection_open;
     }
 
-    uint32_t getRevision() const {
-        return revision;
+    uid_t getUid() const {
+        return uid;
     }
 
-    void setRevision(uint32_t rev) {
-        revision = rev;
+    void setUid(uid_t uid) {
+        this->uid = uid;
     }
 
     /**
@@ -203,9 +205,9 @@ private:
     std::unique_ptr<std::string> collectionName;
 
     /**
-     * The revision of the Collections::Manifest that this entry was added from
+     * The uid of the collection
      */
-    uint32_t revision;
+    uid_t uid;
 
     /**
      * Collection life-time is recorded as the seqno the collection was added

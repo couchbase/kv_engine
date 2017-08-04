@@ -22,13 +22,11 @@
 // Basic ManifestEntry construction checks
 TEST(ManifestEntry, test_getters) {
     std::string collection = "beer";
-    cb::const_char_buffer buf(collection);
-    Collections::VB::ManifestEntry m(buf,
-                                     100, // revision
+    Collections::VB::ManifestEntry m({collection, 100},
                                      1000, // start
                                      StoredValue::state_collection_open); // end
     EXPECT_EQ(1000, m.getStartSeqno());
-    EXPECT_EQ(100, m.getRevision());
+    EXPECT_EQ(100, m.getUid());
     EXPECT_EQ(StoredValue::state_collection_open, m.getEndSeqno());
     EXPECT_TRUE(m.isOpen());
     EXPECT_EQ("beer", m.getCollectionName());
@@ -39,11 +37,9 @@ TEST(ManifestEntry, test_getters) {
 // Check isDeleting changes state when end seqno is adjusted
 TEST(ManifestEntry, test_state) {
     std::string collection = "beer";
-    cb::const_char_buffer buf(collection);
 
     // Collection starts at seqno 1000
-    Collections::VB::ManifestEntry m(buf,
-                                     1, // revision
+    Collections::VB::ManifestEntry m({collection, 1},
                                      1000, // start
                                      StoredValue::state_collection_open); // end
     EXPECT_TRUE(m.isOpen());
@@ -70,8 +66,7 @@ TEST(ManifestEntry, exceptions) {
     cb::const_char_buffer buf(collection);
 
     // Collection starts at seqno 1000
-    Collections::VB::ManifestEntry m(buf,
-                                     1, // revision
+    Collections::VB::ManifestEntry m({collection, 1},
                                      1000, // start
                                      StoredValue::state_collection_open); // end
 
@@ -101,39 +96,38 @@ TEST(ManifestEntry, exceptions) {
     // the only negative value allowed should be state_collection_open
     EXPECT_NO_THROW(m.setEndSeqno(StoredValue::state_collection_open));
 
-    EXPECT_THROW(Collections::VB::ManifestEntry(buf, 1, 100, 100),
+    EXPECT_THROW(Collections::VB::ManifestEntry({collection, 1}, 100, 100),
                  std::invalid_argument);
 }
 
 TEST(ManifestEntry, construct_assign) {
     std::string collection = "beer";
-    cb::const_char_buffer buf(collection);
 
     // Collection starts at seqno 1000
-    Collections::VB::ManifestEntry entry1(buf, 5, 2, 9);
+    Collections::VB::ManifestEntry entry1({collection, 5}, 2, 9);
 
     //  Move entry1 to entry2
     Collections::VB::ManifestEntry entry2(std::move(entry1));
-    EXPECT_EQ(5, entry2.getRevision());
+    EXPECT_EQ(5, entry2.getUid());
     EXPECT_EQ(2, entry2.getStartSeqno());
     EXPECT_EQ(9, entry2.getEndSeqno());
     EXPECT_STREQ("beer", entry2.getCollectionName().c_str());
 
     // Take a copy of entry2
     Collections::VB::ManifestEntry entry3(entry2);
-    EXPECT_EQ(5, entry3.getRevision());
+    EXPECT_EQ(5, entry3.getUid());
     EXPECT_EQ(2, entry3.getStartSeqno());
     EXPECT_EQ(9, entry3.getEndSeqno());
     EXPECT_STREQ("beer", entry3.getCollectionName().c_str());
 
     // change entry2
-    entry2.setRevision(6);
+    entry2.setUid(6);
     entry2.setEndSeqno(10);
     entry2.setStartSeqno(3);
 
     // Now copy entry2 assign over entry3
     entry3 = entry2;
-    EXPECT_EQ(6, entry3.getRevision());
+    EXPECT_EQ(6, entry3.getUid());
     EXPECT_EQ(3, entry3.getStartSeqno());
     EXPECT_EQ(10, entry3.getEndSeqno());
     EXPECT_STREQ("beer", entry3.getCollectionName().c_str());
@@ -141,7 +135,7 @@ TEST(ManifestEntry, construct_assign) {
     // And move entry3 back to entry1
     entry1 = std::move(entry3);
 
-    EXPECT_EQ(6, entry1.getRevision());
+    EXPECT_EQ(6, entry1.getUid());
     EXPECT_EQ(3, entry1.getStartSeqno());
     EXPECT_EQ(10, entry1.getEndSeqno());
     EXPECT_STREQ("beer", entry1.getCollectionName().c_str());

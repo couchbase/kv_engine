@@ -22,6 +22,8 @@
 #include <string>
 #include <vector>
 
+#include "collections/collections_types.h"
+
 namespace Collections {
 
 /**
@@ -44,7 +46,11 @@ public:
      */
     Manifest(const std::string& json);
 
-    int getRevision() const {
+    /**
+     * Returns a uid_t as the current code is using revision as a uid.
+     * @todo change this, collections will have a uid in the JSON
+     */
+    uid_t getRevision() const {
         return revision;
     }
 

@@ -170,28 +170,28 @@ ProcessStatus SystemEventReplicate::process(const Item& item) {
 
 std::unique_ptr<SystemEventProducerMessage> SystemEventProducerMessage::make(
         uint32_t opaque, queued_item& item) {
-    std::pair<cb::const_char_buffer, cb::const_byte_buffer> dcpData;
     switch (SystemEvent(item->getFlags())) {
     case SystemEvent::CreateCollection:
     case SystemEvent::BeginDeleteCollection: {
-        dcpData = Collections::VB::Manifest::getSystemEventData(
+        auto dcpData = Collections::VB::Manifest::getSystemEventData(
                 {item->getData(), item->getNBytes()});
-        break;
+        // Note: constructor is private and make_unique is a pain to make friend
+        return std::unique_ptr<SystemEventProducerMessage>{
+                new SystemEventProducerMessage(
+                        opaque, item, dcpData.first, dcpData.second)};
     }
     case SystemEvent::CollectionsSeparatorChanged: {
-        dcpData = Collections::VB::Manifest::getSystemEventSeparatorData(
+        auto dcpData = Collections::VB::Manifest::getSystemEventSeparatorData(
                 {item->getData(), item->getNBytes()});
-        break;
+        // Note: constructor is private and make_unique is a pain to make friend
+        return std::unique_ptr<SystemEventProducerMessage>{
+                new SystemEventProducerMessage(opaque, item, dcpData, {})};
     }
     case SystemEvent::DeleteCollectionHard:
     case SystemEvent::DeleteCollectionSoft:
-        throw std::logic_error(
-                "SystemEventProducerMessage::make not valid for " +
-                std::to_string(item->getFlags()));
+        break;
     }
 
-    // Note: constructor is private and make_unique is a pain to add as a friend
-    return std::unique_ptr<SystemEventProducerMessage>{
-            new SystemEventProducerMessage(
-                    opaque, item, dcpData.first, dcpData.second)};
+    throw std::logic_error("SystemEventProducerMessage::make not valid for " +
+                           std::to_string(item->getFlags()));
 }

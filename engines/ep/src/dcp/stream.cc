@@ -2282,9 +2282,7 @@ ENGINE_ERROR_CODE PassiveStream::processSystemEvent(
 ENGINE_ERROR_CODE PassiveStream::processCreateCollection(
         VBucket& vb, const CollectionsEvent& event) {
     try {
-        vb.replicaAddCollection(event.getKey(),
-                                event.getRevision(),
-                                event.getBySeqno());
+        vb.replicaAddCollection(event.getCollection(), event.getBySeqno());
     } catch (std::exception& e) {
         LOG(EXTENSION_LOG_WARNING,
             "PassiveStream::processCreateCollection exception %s",
@@ -2297,8 +2295,7 @@ ENGINE_ERROR_CODE PassiveStream::processCreateCollection(
 ENGINE_ERROR_CODE PassiveStream::processBeginDeleteCollection(
         VBucket& vb, const CollectionsEvent& event) {
     try {
-        vb.replicaBeginDeleteCollection(event.getKey(),
-                                        event.getRevision(),
+        vb.replicaBeginDeleteCollection(event.getCollection(),
                                         event.getBySeqno());
     } catch (std::exception& e) {
         LOG(EXTENSION_LOG_WARNING,
@@ -2312,8 +2309,7 @@ ENGINE_ERROR_CODE PassiveStream::processBeginDeleteCollection(
 ENGINE_ERROR_CODE PassiveStream::processSeparatorChanged(
         VBucket& vb, const CollectionsEvent& event) {
     try {
-        vb.replicaChangeCollectionSeparator(
-                event.getKey(), event.getRevision(), event.getBySeqno());
+        vb.replicaChangeCollectionSeparator(event.getKey(), event.getBySeqno());
     } catch (std::exception& e) {
         LOG(EXTENSION_LOG_WARNING,
             "PassiveStream::processSeparatorChanged exception %s",

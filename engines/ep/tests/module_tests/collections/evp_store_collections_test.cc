@@ -191,7 +191,7 @@ private:
                                          const std::string& collection,
                                          int items);
     std::string completeDeletionAndFlush(const std::string& collection,
-                                         int revision,
+                                         Collections::uid_t uid,
                                          int items);
 
     std::string getManifest();
@@ -249,9 +249,9 @@ std::string CollectionsFlushTest::deleteCollectionAndFlush(
 }
 
 std::string CollectionsFlushTest::completeDeletionAndFlush(
-        const std::string& collection, int revision, int items) {
+        const std::string& collection, Collections::uid_t uid, int items) {
     VBucketPtr vb = store->getVBucket(vbid);
-    vb->completeDeletion(collection, revision);
+    vb->completeDeletion({collection, uid});
     storeItems("defaultcollection", DocNamespace::DefaultCollection, items);
     flush_vbucket_to_disk(vbid, 1 + items); // delete event + items
     return getManifest();
@@ -590,7 +590,7 @@ TEST_F(CollectionsTest, test_dcp_consumer) {
 
     std::string collection = "meat";
 
-    uint32_t revision = 4;
+    Collections::uid_t uid = 4;
     ASSERT_EQ(ENGINE_SUCCESS,
               consumer->snapshotMarker(/*opaque*/ 1,
                                        vbid,
@@ -613,8 +613,7 @@ TEST_F(CollectionsTest, test_dcp_consumer) {
                       /*seqno*/ 1,
                       {reinterpret_cast<const uint8_t*>(collection.data()),
                        collection.size()},
-                      {reinterpret_cast<const uint8_t*>(&revision),
-                       sizeof(uint32_t)}));
+                      {reinterpret_cast<const uint8_t*>(&uid), sizeof(uid)}));
 
     // We can now access the collection
     EXPECT_TRUE(vb->lockCollections().doesKeyContainValidCollection(
@@ -630,8 +629,7 @@ TEST_F(CollectionsTest, test_dcp_consumer) {
                       /*seqno*/ 2,
                       {reinterpret_cast<const uint8_t*>(collection.data()),
                        collection.size()},
-                      {reinterpret_cast<const uint8_t*>(&revision),
-                       sizeof(uint32_t)}));
+                      {reinterpret_cast<const uint8_t*>(&uid), sizeof(uid)}));
 
     // It's gone!
     EXPECT_FALSE(vb->lockCollections().doesKeyContainValidCollection(
@@ -778,7 +776,7 @@ TEST_F(CollectionsDcpTest, test_dcp) {
     vb->updateFromManifest(
             {R"({"revision":2,"separator":"::","collections":["$default"]})"});
 
-    vb->completeDeletion("meat", 2);
+    vb->completeDeletion({"meat", 2});
 
     producer->notifySeqnoAvailable(vb->getId(), vb->getHighSeqno());
 

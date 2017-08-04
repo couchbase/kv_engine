@@ -606,40 +606,35 @@ public:
     /**
      * Finalise the deletion of a collection (no items remain in the collection)
      *
-     * @param collection "string-view" name of the collection
-     * @param revision The Manifest revision which initiated the delete.
+     * @param identifier Identifier for the collection that has completed
+     *        deleting
      */
-    void completeDeletion(cb::const_char_buffer collection, uint32_t revision) {
-        manifest.wlock().completeDeletion(*this, collection, revision);
+    void completeDeletion(Collections::Identifier identifier) {
+        manifest.wlock().completeDeletion(*this, identifier);
     }
 
     /**
      * Add a collection to this vbucket with a pre-assigned seqno. I.e.
      * this VB is a replica.
      *
-     * @param collection collection name to add.
-     * @param revision revision of the collection to add.
+     * @param identifier Identifier for the collection to add.
      * @param bySeqno The seqno assigned to the collection create event.
      */
-    void replicaAddCollection(cb::const_char_buffer collection,
-                              uint32_t revision,
+    void replicaAddCollection(Collections::Identifier identifier,
                               int64_t bySeqno) {
-        manifest.wlock().replicaAdd(*this, collection, revision, bySeqno);
+        manifest.wlock().replicaAdd(*this, identifier, bySeqno);
     }
 
     /**
      * Delete a collection from this vbucket with a pre-assigned seqno. I.e.
      * this VB is a replica.
      *
-     * @param collection collection name to delete.
-     * @param revision revision of the manifest starting the delete.
+     * @param identifier Identifier for the collection to begin deleting.
      * @param bySeqno The seqno assigned to the collection delete event.
      */
-    void replicaBeginDeleteCollection(cb::const_char_buffer collection,
-                                      uint32_t revision,
+    void replicaBeginDeleteCollection(Collections::Identifier identifier,
                                       int64_t bySeqno) {
-        manifest.wlock().replicaBeginDelete(
-                *this, collection, revision, bySeqno);
+        manifest.wlock().replicaBeginDelete(*this, identifier, bySeqno);
     }
 
     /**
@@ -647,14 +642,11 @@ public:
      * this VB is a replica.
      *
      * @param separator The new separator.
-     * @param revision The revision which changed the separator.
      * @param bySeqno The seqno assigned to the change separator event.
      */
     void replicaChangeCollectionSeparator(cb::const_char_buffer separator,
-                                          uint32_t revision,
                                           int64_t bySeqno) {
-        manifest.wlock().replicaChangeSeparator(
-                *this, separator, revision, bySeqno);
+        manifest.wlock().replicaChangeSeparator(*this, separator, bySeqno);
     }
 
     /**

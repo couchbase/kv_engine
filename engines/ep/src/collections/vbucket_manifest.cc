@@ -32,8 +32,7 @@ Manifest::Manifest(const std::string& manifest)
     : defaultCollectionExists(false), separator(DefaultSeparator) {
     if (manifest.empty()) {
         // Empty manifest, initialise the manifest with the default collection
-        addNewCollectionEntry(DefaultCollectionIdentifier,
-                              0,
+        addNewCollectionEntry({DefaultCollectionIdentifier, 0},
                               0,
                               StoredValue::state_collection_open);
         defaultCollectionExists = true;
@@ -68,12 +67,12 @@ Manifest::Manifest(const std::string& manifest)
     // Iterate the collections and load-em up.
     for (int ii = 0; ii < cJSON_GetArraySize(jsonCollections); ii++) {
         auto collection = cJSON_GetArrayItem(jsonCollections, ii);
-        int revision = std::stoi(getJsonEntry(collection, "revision"));
+        uid_t uid = std::stoi(getJsonEntry(collection, "uid"));
         int64_t startSeqno = std::stoll(getJsonEntry(collection, "startSeqno"));
         int64_t endSeqno = std::stoll(getJsonEntry(collection, "endSeqno"));
         std::string collectionName(getJsonEntry(collection, "name"));
         auto& entry = addNewCollectionEntry(
-                collectionName, revision, startSeqno, endSeqno);
+                {collectionName, uid}, startSeqno, endSeqno);
 
         if (DefaultCollectionIdentifier == collectionName.c_str()) {
             defaultCollectionExists = entry.isOpen();
@@ -88,74 +87,67 @@ void Manifest::update(::VBucket& vb, const Collections::Manifest& manifest) {
     if (separator != manifest.getSeparator()) {
         changeSeparator(vb,
                         manifest.getSeparator(),
-                        manifest.getRevision(),
                         OptionalSeqno{/*no-seqno*/});
     }
 
     // Process additions to the manifest
     for (const auto& collection : additions) {
         addCollection(vb,
-                      collection,
-                      manifest.getRevision(),
+                      {collection, manifest.getRevision()},
                       OptionalSeqno{/*no-seqno*/});
     }
 
     // Process deletions to the manifest
     for (const auto& collection : deletions) {
         beginCollectionDelete(vb,
-                              collection,
-                              manifest.getRevision(),
+                              {collection, manifest.getRevision()},
                               OptionalSeqno{/*no-seqno*/});
     }
 }
 
 void Manifest::addCollection(::VBucket& vb,
-                             cb::const_char_buffer collection,
-                             uint32_t revision,
+                             Identifier identifier,
                              OptionalSeqno optionalSeqno) {
     // 1. Update the manifest, adding or updating an entry in the map. Specify a
     //    non-zero start
-    auto& entry = addCollectionEntry(collection, revision);
+    auto& entry = addCollectionEntry(identifier);
 
     // 2. Queue a system event, this will take a copy of the manifest ready
     //    for persistence into the vb state file.
-    auto seqno = queueSystemEvent(vb,
-                                  SystemEvent::CreateCollection,
-                                  collection,
-                                  revision,
-                                  optionalSeqno);
+    auto seqno = queueSystemEvent(
+            vb, SystemEvent::CreateCollection, identifier, optionalSeqno);
 
     LOG(EXTENSION_LOG_NOTICE,
-        "collections: vb:%" PRIu16 " adding collection:%.*s, revision:%" PRIu32
+        "collections: vb:%" PRIu16 " adding collection:%.*s, uid:%" PRIu32
         ", seqno:%" PRIu64,
         vb.getId(),
-        int(collection.size()),
-        collection.data(),
-        revision,
+        int(identifier.getName().size()),
+        identifier.getName().data(),
+        identifier.getUid(),
         seqno);
 
     // 3. Now patch the entry with the seqno of the system event, note the copy
     //    of the manifest taken at step 1 gets the correct seqno when the system
     //    event is flushed.
     entry.setStartSeqno(seqno);
-    entry.setRevision(revision);
 }
 
-ManifestEntry& Manifest::addCollectionEntry(cb::const_char_buffer collection,
-                                            uint32_t revision) {
-    auto itr = map.find(collection);
+ManifestEntry& Manifest::addCollectionEntry(Identifier identifier) {
+    auto itr = map.find(identifier.getName());
     if (itr == map.end()) {
-        if (collection == DefaultCollectionIdentifier) {
+        if (identifier.isDefaultCollection()) {
             defaultCollectionExists = true;
         }
         // Add new collection with 0,-6 start,end. The caller will correct the
         // seqno based on what the checkpoint manager returns.
         return addNewCollectionEntry(
-                collection, revision, 0, StoredValue::state_collection_open);
+                identifier, 0, StoredValue::state_collection_open);
     } else if (!itr->second->isOpen()) {
-        if (collection == DefaultCollectionIdentifier) {
+        if (identifier.isDefaultCollection()) {
             defaultCollectionExists = true;
         }
+
+        itr->second->setUid(identifier.getUid());
         return *itr->second;
     }
 
@@ -163,90 +155,76 @@ ManifestEntry& Manifest::addCollectionEntry(cb::const_char_buffer collection,
     ss << *itr->second;
     throw std::logic_error(
             "VB::Manifest::addCollectionEntry: cannot add collection:" +
-            cb::to_string(collection) + ", revision:" +
-            std::to_string(revision) + ", entry:" + ss.str());
+            to_string(identifier) + ", entry:" + ss.str());
 }
 
-ManifestEntry& Manifest::addNewCollectionEntry(cb::const_char_buffer collection,
-                                               uint32_t revision,
+ManifestEntry& Manifest::addNewCollectionEntry(Identifier identifier,
                                                int64_t startSeqno,
                                                int64_t endSeqno) {
     // This method is only for when the map does not have the collection
-    if (map.count(collection) > 0) {
+    if (map.count(identifier.getName()) > 0) {
         throw std::logic_error(
                 "Manifest::addNewCollectionEntry: already exists collection:" +
-                cb::to_string(collection) + ", revision:" +
-                std::to_string(revision) + ", startSeqno:" +
+                to_string(identifier) + ", startSeqno:" +
                 std::to_string(startSeqno) + ", endSeqno:" +
                 std::to_string(endSeqno));
     }
-    auto m = std::make_unique<ManifestEntry>(
-            collection, revision, startSeqno, endSeqno);
+    auto m = std::make_unique<ManifestEntry>(identifier, startSeqno, endSeqno);
     auto* newEntry = m.get();
     map.emplace(m->getCharBuffer(), std::move(m));
     return *newEntry;
 }
 
 void Manifest::beginCollectionDelete(::VBucket& vb,
-                                     cb::const_char_buffer collection,
-                                     uint32_t revision,
+                                     Identifier identifier,
                                      OptionalSeqno optionalSeqno) {
-    auto& entry = beginDeleteCollectionEntry(collection, revision);
-    auto seqno = queueSystemEvent(vb,
-                                  SystemEvent::BeginDeleteCollection,
-                                  collection,
-                                  revision,
-                                  optionalSeqno);
+    auto& entry = beginDeleteCollectionEntry(identifier);
+    auto seqno = queueSystemEvent(
+            vb, SystemEvent::BeginDeleteCollection, identifier, optionalSeqno);
 
     LOG(EXTENSION_LOG_NOTICE,
         "collections: vb:%" PRIu16
-        " begin delete of collection:%.*s, revision:%" PRIu32
-        ", seqno:%" PRIu64,
+        " begin delete of collection:%.*s, uid:%" PRIu32 ", seqno:%" PRIu64,
         vb.getId(),
-        int(collection.size()),
-        collection.data(),
-        revision,
+        int(identifier.getName().size()),
+        identifier.getName().data(),
+        identifier.getUid(),
         seqno);
 
     entry.setEndSeqno(seqno);
-    entry.setRevision(revision);
 }
 
-ManifestEntry& Manifest::beginDeleteCollectionEntry(
-        cb::const_char_buffer collection, uint32_t revision) {
-    auto itr = map.find(collection);
+ManifestEntry& Manifest::beginDeleteCollectionEntry(Identifier identifier) {
+    auto itr = map.find(identifier.getName());
     if (itr == map.end()) {
         throw std::logic_error(
                 "VB::Manifest::beginDeleteCollectionEntry: did not find "
                 "collection:" +
-                cb::to_string(collection) + ", revision:" +
-                std::to_string(revision));
+                to_string(identifier));
     }
 
-    if (collection == DefaultCollectionIdentifier) {
+    if (identifier.isDefaultCollection()) {
         defaultCollectionExists = false;
     }
 
     return *itr->second;
 }
 
-void Manifest::completeDeletion(::VBucket& vb,
-                                cb::const_char_buffer collection,
-                                uint32_t revision) {
-    auto itr = map.find(collection);
+void Manifest::completeDeletion(::VBucket& vb, Identifier identifier) {
+    auto itr = map.find(identifier.getName());
 
     LOG(EXTENSION_LOG_NOTICE,
         "collections: vb:%" PRIu16
-        " complete delete of collection:%.*s, revision:%" PRIu32,
+        " complete delete of collection:%.*s, uid:%" PRIu32,
         vb.getId(),
-        int(collection.size()),
-        collection.data(),
-        revision);
+        int(identifier.getName().size()),
+        identifier.getName().data(),
+        identifier.getUid());
 
     if (itr == map.end()) {
         throw std::logic_error(
                 "VB::Manifest::completeDeletion: could not find collection:" +
-                cb::to_string(collection));
+                to_string(identifier));
     }
 
     if (itr->second->isExclusiveDeleting()) {
@@ -257,8 +235,7 @@ void Manifest::completeDeletion(::VBucket& vb,
         // generate a JSON manifest without an entry for the collection.
         queueSystemEvent(vb,
                          SystemEvent::DeleteCollectionHard,
-                         collection,
-                         revision,
+                         identifier,
                          OptionalSeqno{/*none*/});
     } else if (itr->second->isOpenAndDeleting()) {
         itr->second->resetEndSeqno(); // just reset the end to our special seqno
@@ -268,8 +245,7 @@ void Manifest::completeDeletion(::VBucket& vb,
         // returns true for isExclusiveOpen()
         queueSystemEvent(vb,
                          SystemEvent::DeleteCollectionSoft,
-                         collection,
-                         itr->second->getRevision(),
+                         identifier,
                          OptionalSeqno{/*none*/});
     } else {
         // This is an invalid request
@@ -282,7 +258,6 @@ void Manifest::completeDeletion(::VBucket& vb,
 
 void Manifest::changeSeparator(::VBucket& vb,
                                cb::const_char_buffer newSeparator,
-                               uint32_t revision,
                                OptionalSeqno optionalSeqno) {
     // Can we change the separator? Only allowed to change if there are no
     // collections or the only collection is the default collection
@@ -308,7 +283,7 @@ void Manifest::changeSeparator(::VBucket& vb,
 
         // Queue an event so that the manifest is flushed and DCP can
         // replicate the change.
-        (void)queueSeparatorChanged(vb, revision, optionalSeqno);
+        (void)queueSeparatorChanged(vb, optionalSeqno);
     }
 }
 
@@ -373,11 +348,9 @@ bool Manifest::doesKeyContainDeletingCollection(const ::DocKey& key,
     return false;
 }
 
-std::unique_ptr<Item> Manifest::createSystemEvent(
-        SystemEvent se,
-        cb::const_char_buffer collection,
-        uint32_t revision,
-        OptionalSeqno seqno) const {
+std::unique_ptr<Item> Manifest::createSystemEvent(SystemEvent se,
+                                                  Identifier identifier,
+                                                  OptionalSeqno seqno) const {
     // Create an item (to be queued and written to disk) that represents
     // the update of a collection and allows the checkpoint to update
     // the _local document with a persisted version of this object (the entire
@@ -388,22 +361,22 @@ std::unique_ptr<Item> Manifest::createSystemEvent(
     auto item = SystemEventFactory::make(
             se,
             separator,
-            cb::to_string(collection) + separator + std::to_string(revision),
-            getSerialisedDataSize(collection),
+            cb::to_string(identifier.getName()) + separator +
+                    std::to_string(identifier.getUid()),
+            getSerialisedDataSize(identifier.getName()),
             seqno);
 
     // Quite rightly an Item's value is const, but in this case the Item is
     // owned only by the local scope so is safe to mutate (by const_cast force)
     populateWithSerialisedData(
             {const_cast<char*>(item->getData()), item->getNBytes()},
-            collection,
-            revision);
+            identifier);
 
     return item;
 }
 
 std::unique_ptr<Item> Manifest::createSeparatorChangedEvent(
-        uint32_t revision, OptionalSeqno seqno) const {
+        OptionalSeqno seqno) const {
     // Create an item (to be queued and written to disk) that represents
     // the change of the separator. The item always has the same key.
     // We serialise the state of this object  into the Item's value.
@@ -417,27 +390,23 @@ std::unique_ptr<Item> Manifest::createSeparatorChangedEvent(
     // Quite rightly an Item's value is const, but in this case the Item is
     // owned only by the local scope so is safe to mutate (by const_cast force)
     populateWithSerialisedData(
-            {const_cast<char*>(item->getData()), item->getNBytes()}, revision);
+            {const_cast<char*>(item->getData()), item->getNBytes()});
 
     return item;
 }
 
 int64_t Manifest::queueSystemEvent(::VBucket& vb,
                                    SystemEvent se,
-                                   cb::const_char_buffer collection,
-                                   uint32_t revision,
+                                   Identifier identifier,
                                    OptionalSeqno seq) const {
     // Create and transfer Item ownership to the VBucket
-    return vb.queueItem(
-            createSystemEvent(se, collection, revision, seq).release(), seq);
+    return vb.queueItem(createSystemEvent(se, identifier, seq).release(), seq);
 }
 
 int64_t Manifest::queueSeparatorChanged(::VBucket& vb,
-                                        uint32_t revision,
                                         OptionalSeqno seqno) const {
     // Create and transfer Item ownership to the VBucket
-    return vb.queueItem(createSeparatorChangedEvent(revision, seqno).release(),
-                        seqno);
+    return vb.queueItem(createSeparatorChangedEvent(seqno).release(), seqno);
 }
 
 size_t Manifest::getSerialisedDataSize(cb::const_char_buffer collection) const {
@@ -467,17 +436,16 @@ size_t Manifest::getSerialisedDataSize() const {
 }
 
 void Manifest::populateWithSerialisedData(cb::char_buffer out,
-                                          cb::const_char_buffer collection,
-                                          uint32_t revision) const {
-    auto* sMan = SerialisedManifest::make(out.data(), separator, revision, out);
+                                          Identifier identifier) const {
+    auto* sMan = SerialisedManifest::make(out.data(), separator, out);
     uint32_t itemCounter = 1; // always a final entry
     char* serial = sMan->getManifestEntryBuffer();
 
     const std::unique_ptr<ManifestEntry>* finalEntry = nullptr;
     for (const auto& collectionEntry : map) {
         // Check if we find the mutated entry in the map (so we know if we're
-        // deleting it)
-        if (collectionEntry.second->getCharBuffer() == collection) {
+        // mutating it)
+        if (collectionEntry.second->getCharBuffer() == identifier.getName()) {
             // If a collection in the map matches the collection being changed
             // save the iterator so we can use it when creating the final entry
             finalEntry = &collectionEntry.second;
@@ -494,20 +462,17 @@ void Manifest::populateWithSerialisedData(cb::char_buffer out,
         // delete
         finalSme =
                 SerialisedManifestEntry::make(serial, *finalEntry->get(), out);
-        finalSme->setRevision(revision);
     } else {
         // create
-        finalSme = SerialisedManifestEntry::make(
-                serial, revision, collection, out);
+        finalSme = SerialisedManifestEntry::make(serial, identifier, out);
     }
 
     sMan->setEntryCount(itemCounter);
     sMan->calculateFinalEntryOffest(finalSme);
 }
 
-void Manifest::populateWithSerialisedData(cb::char_buffer out,
-                                          uint32_t revision) const {
-    auto* sMan = SerialisedManifest::make(out.data(), separator, revision, out);
+void Manifest::populateWithSerialisedData(cb::char_buffer out) const {
+    auto* sMan = SerialisedManifest::make(out.data(), separator, out);
     char* serial = sMan->getManifestEntryBuffer();
 
     for (const auto& collectionEntry : map) {
@@ -611,15 +576,14 @@ Manifest::getSystemEventData(cb::const_char_buffer serialisedManifest) {
     const auto* sm = reinterpret_cast<const SerialisedManifest*>(
             serialisedManifest.data());
     const auto* sme = sm->getFinalManifestEntry();
-    return std::make_pair(sme->getCollectionName(), sm->getRevisionBuffer());
+    return std::make_pair(sme->getCollectionName(), sme->getUidBuffer());
 }
 
-std::pair<cb::const_char_buffer, cb::const_byte_buffer>
-Manifest::getSystemEventSeparatorData(
+cb::const_char_buffer Manifest::getSystemEventSeparatorData(
         cb::const_char_buffer serialisedManifest) {
     const auto* sm = reinterpret_cast<const SerialisedManifest*>(
             serialisedManifest.data());
-    return std::make_pair(sm->getSeparatorBuffer(), sm->getRevisionBuffer());
+    return sm->getSeparatorBuffer();
 }
 
 std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {

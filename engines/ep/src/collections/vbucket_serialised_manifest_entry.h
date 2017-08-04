@@ -67,10 +67,6 @@ public:
         return {getSeparatorPtr(), separatorLen};
     }
 
-    cb::const_byte_buffer getRevisionBuffer() const {
-        return {reinterpret_cast<const uint8_t*>(&revision), sizeof(revision)};
-    }
-
     /**
      * For code to locate the final entry this function is used to calculate
      * a byte offset so that getFinalManifestEntry can return the final entry
@@ -114,34 +110,30 @@ private:
     friend Collections::VB::Manifest;
     static SerialisedManifest* make(char* address,
                                     const std::string& separator,
-                                    uint32_t revision,
                                     cb::char_buffer out) {
-        return new (address) SerialisedManifest(separator, revision, out);
+        return new (address) SerialisedManifest(separator, out);
     }
 
     /**
      * Construct a SerialisedManifest to have 0 items and the separator string.
      *
      * @param separator The separator for the manifest
-     * @param revision The revision of the manifest which triggered the
-     *        creation of this serialised version.
      * @param out The buffer into which this object is being constructed
      * @throws length_error if the consruction would access outside of out
      */
     SerialisedManifest(const std::string& separator,
-                       uint32_t revision,
                        cb::char_buffer out) {
         if (!((out.data() + out.size()) >=
               (reinterpret_cast<char*>(this) +
                getObjectSize(separator.size())))) {
-            throw std::length_error("SerialisedManifest::tryConstruction with separator size " +
-                                    std::to_string(separator.size()) +
-                                    " exceeds the buffer of size " +
-                                    std::to_string(out.size()));
+            throw std::length_error(
+                    "SerialisedManifest::tryConstruction with separator.size " +
+                    std::to_string(separator.size()) +
+                    " exceeds the buffer of size " +
+                    std::to_string(out.size()));
         }
         itemCount = 0;
         separatorLen = separator.size();
-        this->revision = revision;
         finalEntryOffset = 0;
         std::copy_n(separator.data(), separator.size(), getSeparatorPtr());
     }
@@ -156,7 +148,6 @@ private:
 
     uint32_t itemCount;
     uint32_t separatorLen;
-    uint32_t revision;
     uint32_t finalEntryOffset;
 };
 
@@ -176,19 +167,26 @@ public:
         return getObjectSize(getCollectionNameLen());
     }
 
-    uint32_t getRevision() const {
-        return revision;
+    uid_t getUid() const {
+        return uid;
     }
 
-    void setRevision(uint32_t rev) {
-        revision = rev;
+    void setUid(uid_t uid) {
+        this->uid = uid;
     }
 
     /**
-     * @return the entry's collection name as a const byte buffer
+     * @return the entry's collection name as a const char buffer
      */
     cb::const_char_buffer getCollectionName() const {
         return {getCollectionNamePtr(), size_t(collectionNameLen)};
+    }
+
+    /**
+     * @return the entry's UID as a const byte buffer
+     */
+    cb::const_byte_buffer getUidBuffer() const {
+        return {reinterpret_cast<const uint8_t*>(&uid), sizeof(uid)};
     }
 
     size_t getCollectionNameLen() const {
@@ -238,29 +236,19 @@ private:
     }
 
     static SerialisedManifestEntry* make(char* address,
-                                         int32_t revision,
-                                         cb::const_char_buffer collection,
+                                         Identifier identifier,
                                          cb::char_buffer out) {
-        return new (address) SerialisedManifestEntry(revision, collection, out);
+        return new (address) SerialisedManifestEntry(identifier, out);
     }
 
     SerialisedManifestEntry(const Collections::VB::ManifestEntry& me,
                             cb::char_buffer out) {
-        tryConstruction(out,
-                        me.getRevision(),
-                        me.getStartSeqno(),
-                        me.getEndSeqno(),
-                        me.getCollectionName());
+        tryConstruction(
+                out, me.getIdentifier(), me.getStartSeqno(), me.getEndSeqno());
     }
 
-    SerialisedManifestEntry(int revision,
-                            cb::const_char_buffer collection,
-                            cb::char_buffer out) {
-        tryConstruction(out,
-                        revision,
-                        0,
-                        StoredValue::state_collection_open,
-                        collection);
+    SerialisedManifestEntry(Identifier identifier, cb::char_buffer out) {
+        tryConstruction(out, identifier, 0, StoredValue::state_collection_open);
     }
 
     /**
@@ -288,33 +276,32 @@ private:
      * the memory allocation represented by out.
      *
      * @param out The buffer we are writing to
-     * @param entryData The struct to update (which should be enclosed by out)
-     * @param revision Collections::Manifest revision that got us here
+     * @param identifier The Identifier of the collection to save in this entry
      * @param startSeqno The startSeqno value to be used
      * @param endSeqno The endSeqno value to be used
-     * @param collection The name of the collection to copy-in
      * @throws std::length_error if the function would write outside of out's
      *         bounds.
      */
     void tryConstruction(cb::char_buffer out,
-                         uint32_t revision,
+                         Identifier identifier,
                          int64_t startSeqno,
-                         int64_t endSeqno,
-                         cb::const_char_buffer collection) {
+                         int64_t endSeqno) {
         if (!((out.data() + out.size()) >=
               (reinterpret_cast<char*>(this) +
-               getObjectSize(collection.size())))) {
-            throw std::length_error("SerialisedManifestEntry::tryConstruction with collection size " +
-                                    std::to_string(collection.size()) +
-                                    " exceeds the buffer of size " +
-                                    std::to_string(out.size()));
+               getObjectSize(identifier.getName().size())))) {
+            throw std::length_error(
+                    "SerialisedManifestEntry::tryConstruction with collection "
+                    "size " +
+                    std::to_string(identifier.getName().size()) +
+                    " exceeds the buffer of size " +
+                    std::to_string(out.size()));
         }
-        this->revision = revision;
+        this->uid = identifier.getUid();
         this->startSeqno = startSeqno;
         this->endSeqno = endSeqno;
-        this->collectionNameLen = collection.size();
+        this->collectionNameLen = identifier.getName().size();
         std::memcpy(getCollectionNamePtr(),
-                    collection.data(),
+                    identifier.getName().data(),
                     this->collectionNameLen);
     }
 
@@ -330,13 +317,13 @@ private:
         std::string json =
                 R"({"name":")" +
                 std::string(getCollectionNamePtr(), collectionNameLen) +
-                R"(","revision":")" + std::to_string(revision) + "\"," +
+                R"(","uid":")" + std::to_string(uid) + "\"," +
                 R"("startSeqno":")" + std::to_string(_startSeqno) + "\"," +
                 R"("endSeqno":")" + std::to_string(_endSeqno) + "\"}";
         return json;
     }
 
-    uint32_t revision;
+    uid_t uid;
     int32_t collectionNameLen;
     int64_t startSeqno;
     int64_t endSeqno;

@@ -166,6 +166,7 @@ SET(CONFIG_SOURCE src/configuration.cc
 SET(COLLECTIONS_SOURCE src/collections/filter.cc
                        src/collections/manager.cc
                        src/collections/manifest.cc
+                       src/collections/collections_types.cc
                        src/collections/vbucket_filter.cc
                        src/collections/vbucket_manifest.cc
                        src/collections/vbucket_manifest_entry.cc)

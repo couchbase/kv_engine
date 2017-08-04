@@ -15,21 +15,13 @@
  *   limitations under the License.
  */
 
-#include "collections/vbucket_manifest_entry.h"
+#include "collections/collections_types.h"
 
-void Collections::VB::ManifestEntry::throwInvalidArg(
-        const std::string& prefix) {
-    std::stringstream ss;
-    ss << " " << *this;
-    throw std::invalid_argument(prefix + ss.str());
+namespace Collections {
+
+std::string to_string(Identifier identifier) {
+    return cb::to_string(identifier.getName()) + ":" +
+           std::to_string(identifier.getUid());
 }
 
-std::ostream& Collections::VB::operator<<(
-        std::ostream& os,
-        const Collections::VB::ManifestEntry& manifestEntry) {
-    os << "ManifestEntry: collection:" << manifestEntry.getCollectionName()
-       << ", uid:" << manifestEntry.getUid()
-       << ", startSeqno:" << manifestEntry.getStartSeqno()
-       << ", endSeqno:" << manifestEntry.getEndSeqno();
-    return os;
-}
+} // end namespace Collections

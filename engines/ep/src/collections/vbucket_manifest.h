@@ -174,13 +174,11 @@ public:
          * knowledge of the collection.
          *
          * @param vb The VBucket in which the deletion is occuring.
-         * @param collection The collection that is being deleted.
-         * @param revision The Manifest revision which initiated the delete.
+         * @param identifier Identifier of the collection that has finished
+         *        being deleted.
          */
-        void completeDeletion(::VBucket& vb,
-                              cb::const_char_buffer collection,
-                              uint32_t revision) {
-            manifest.completeDeletion(vb, collection, revision);
+        void completeDeletion(::VBucket& vb, Identifier identifier) {
+            manifest.completeDeletion(vb, identifier);
         }
 
         /**
@@ -189,16 +187,13 @@ public:
          * seqno assigned.
          *
          * @param vb The vbucket to add the collection to.
-         * @param collection Name of the new collection.
-         * @param revision Manifest revision which added the collection.
+         * @param identifier Identifier of the new collection.
          * @param startSeqno The start-seqno assigned to the collection.
          */
         void replicaAdd(::VBucket& vb,
-                        cb::const_char_buffer collection,
-                        uint32_t revision,
+                        Identifier identifier,
                         int64_t startSeqno) {
-            manifest.addCollection(
-                    vb, collection, revision, OptionalSeqno{startSeqno});
+            manifest.addCollection(vb, identifier, OptionalSeqno{startSeqno});
         }
 
         /**
@@ -207,16 +202,14 @@ public:
          * seqno assigned.
          *
          * @param vb The vbucket to begin collection deletion on.
-         * @param collection Name of the deleted collection.
-         * @param revision manifest revision which started the deletion.
+         * @param identifier Identifier of the deleted collection.
          * @param endSeqno The end-seqno assigned to the end collection.
          */
         void replicaBeginDelete(::VBucket& vb,
-                                cb::const_char_buffer collection,
-                                uint32_t revision,
+                                Identifier identifier,
                                 int64_t endSeqno) {
             manifest.beginCollectionDelete(
-                    vb, collection, revision, OptionalSeqno{endSeqno});
+                    vb, identifier, OptionalSeqno{endSeqno});
         }
 
         /**
@@ -226,16 +219,13 @@ public:
          *
          * @param vb The vbucket to begin collection deletion on.
          * @param separator The new separator.
-         * @param revision manifest revision which changed the separator.
          * @param seqno The seqno originally assigned to the active's system
          * event.
          */
         void replicaChangeSeparator(::VBucket& vb,
                                     cb::const_char_buffer separator,
-                                    uint32_t revision,
                                     int64_t seqno) {
-            manifest.changeSeparator(
-                    vb, separator, revision, OptionalSeqno{seqno});
+            manifest.changeSeparator(vb, separator, OptionalSeqno{seqno});
         }
 
         /**
@@ -330,12 +320,10 @@ public:
      *
      * @param serialisedManifest Serialised manifest data created by
      *        ::populateWithSerialisedData
-     * @returns a pair of buffers. The first buffer contains a pointer to
-     *          the separator, the second buffer contains the revision.
-     *          Both buffers are pointing to data inside of the input param.
+     * @returns A buffer that contains a pointer/size to the separator.
      */
-    static std::pair<cb::const_char_buffer, cb::const_byte_buffer>
-    getSystemEventSeparatorData(cb::const_char_buffer serialisedManifest);
+    static cb::const_char_buffer getSystemEventSeparatorData(
+            cb::const_char_buffer serialisedManifest);
 
 private:
 
@@ -368,28 +356,25 @@ private:
      * Add a collection to the manifest.
      *
      * @param vb The vbucket to add the collection to.
-     * @param collection Name of the new collection.
-     * @param revision manifest revision which added the collection.
+     * @param identifier Identifier of the new collection.
      * @param optionalSeqno Either a seqno to assign to the new collection or
      *        none (none means the checkpoint will assign a seqno).
      */
     void addCollection(::VBucket& vb,
-                       cb::const_char_buffer collection,
-                       uint32_t revision,
+                       Identifier identifier,
                        OptionalSeqno optionalSeqno);
 
     /**
      * Begin a delete of the collection.
      *
      * @param vb The vbucket to begin collection deletion on.
-     * @param collection Name of the deleted collection.
+     * @param identifier Identifier of the deleted collection.
      * @param revision manifest revision which started the deletion.
      * @param optionalSeqno Either a seqno to assign to the delete of the
      *        collection or none (none means the checkpoint assigns the seqno).
      */
     void beginCollectionDelete(::VBucket& vb,
-                               cb::const_char_buffer collection,
-                               uint32_t revision,
+                               Identifier identifier,
                                OptionalSeqno optionalSeqno);
 
     /**
@@ -397,13 +382,11 @@ private:
      *
      * @param vb The vbucket to begin collection deletion on.
      * @param separator The new separator.
-     * @param revision manifest revision which changed the separator.
      * @param optionalSeqno Either a seqno to assign to the change event or none
      *        (none means the checkpoint assigns the seqno).
      */
     void changeSeparator(::VBucket& vb,
                          cb::const_char_buffer separator,
-                         uint32_t revision,
                          OptionalSeqno optionalSeqno);
 
     /**
@@ -415,12 +398,10 @@ private:
      * the collection.
      *
      * @param vb The VBucket in which the deletion is occuring.
-     * @param collection The collection that is being deleted.
-     * @param revision The Manifest revision which initiated the delete.
+     * @param identifier Identifier of the collection that has finished being
+     *        deleted.
      */
-    void completeDeletion(::VBucket& vb,
-                          cb::const_char_buffer collection,
-                          uint32_t revision);
+    void completeDeletion(::VBucket& vb, Identifier identifier);
 
     /**
      * Does the key contain a valid collection?
@@ -455,7 +436,7 @@ private:
     }
 
     /**
-     * @returns true is the collection isOpen - false if not (or doesn't exist)
+     * @returns true if the collection isOpen - false if not (or doesn't exist)
      */
     bool isCollectionOpen(cb::const_char_buffer collection) const {
         auto itr = map.find(collection);
@@ -470,29 +451,23 @@ protected:
      * Add a collection entry to the manifest specifing the revision that it was
      * seen in and the sequence number for the point in 'time' it was created.
      *
-     * @param collection Name of the collection to add.
-     * @param revision The revision of the Collections::Manifest triggering this
-     *        add.
+     * @param identifier Identifier of the collection to add.
      * @return a non const reference to the new/updated ManifestEntry so the
      *         caller can set the correct seqno.
      */
-    ManifestEntry& addCollectionEntry(cb::const_char_buffer collection,
-                                      uint32_t revision);
+    ManifestEntry& addCollectionEntry(Identifier identifier);
 
     /**
      * Add a collection entry to the manifest specifing the revision that it was
      * seen in and the sequence number span covering it.
      *
-     * @param collection Name of the collection to add.
-     * @param revision The revision of the Collections::Manifest triggering this
-     *        add.
+     * @param identifier Identifier of the collection to add.
      * @param startSeqno The seqno where the collection begins
      * @param endSeqno The seqno where it ends (can be the special open marker)
      * @return a non const reference to the new ManifestEntry so the caller can
      *         set the correct seqno.
      */
-    ManifestEntry& addNewCollectionEntry(cb::const_char_buffer collection,
-                                         uint32_t revision,
+    ManifestEntry& addNewCollectionEntry(Identifier identifier,
                                          int64_t startSeqno,
                                          int64_t endSeqno);
 
@@ -503,12 +478,10 @@ protected:
      * After "begin" delete a collection can be added again or fully deleted
      * by the completeDeletion method.
      *
-     * @param collection Name of the collection to delete.
-     * @param revision Revision of the Manifest triggering the delete.
+     * @param identifier Identifier of the collection to delete.
      * @return a reference to the updated ManifestEntry
      */
-    ManifestEntry& beginDeleteCollectionEntry(cb::const_char_buffer collection,
-                                              uint32_t revision);
+    ManifestEntry& beginDeleteCollectionEntry(Identifier identifier);
 
     /**
      * Processs a Collections::Manifest
@@ -530,9 +503,7 @@ protected:
      * consumption by serialToJson
      *
      * @param se SystemEvent to create.
-     * @param collection The collection which is changing,
-     * @param revision Manifest revision triggering the update, this value will
-     *        be used for the JSON manifest update (as part of flushing).
+     * @param identifier The Identifier of the collection which is changing,
      * @param seqno An optional sequence number. If a seqno is specified, the
      *        returned item will have its bySeqno set to seqno.
      *
@@ -540,8 +511,7 @@ protected:
      *          SystemEvent.
      */
     std::unique_ptr<Item> createSystemEvent(SystemEvent se,
-                                            cb::const_char_buffer collection,
-                                            uint32_t revision,
+                                            Identifier identifier,
                                             OptionalSeqno seqno) const;
 
     /**
@@ -549,13 +519,12 @@ protected:
      * value will contain data for later consumption by serialToJson.
      *
      * @param separator The new separator
-     * @param revision The revision of the manifest triggering the change.
      *
      * @returns unique_ptr to a new Item that represents the requested
      *          SystemEvent.
      */
     std::unique_ptr<Item> createSeparatorChangedEvent(
-            uint32_t revision, OptionalSeqno seqno) const;
+            OptionalSeqno seqno) const;
 
     /**
      * Create an Item that carries a system event and queue it to the vb
@@ -563,8 +532,7 @@ protected:
      *
      * @param vb The vbucket onto which the Item is queued.
      * @param se The SystemEvent to create and queue.
-     * @param collection The name of the collection being added/deleted
-     * @param revision The revision of the manifest which triggered the update.
+     * @param identifier The Identifier of the collection being added/deleted
      * @param seqno An optional seqno which if set will be assigned to the
      *        system event
      *
@@ -572,8 +540,7 @@ protected:
      */
     int64_t queueSystemEvent(::VBucket& vb,
                              SystemEvent se,
-                             cb::const_char_buffer collection,
-                             uint32_t revision,
+                             Identifier identifier,
                              OptionalSeqno seqno) const;
 
     /**
@@ -581,11 +548,10 @@ protected:
      * and queue it to the vb checkpoint.
      *
      * @param vb The vbucket onto which the Item is queued.
-     * @param revision The revision id of the manifest which changed the
-     *        separator.
+     * @param seqno An optional seqno which if set will be assigned to the
+     *        system event
      */
     int64_t queueSeparatorChanged(::VBucket& vb,
-                                  uint32_t revision,
                                   OptionalSeqno seqno) const;
 
     /**
@@ -614,20 +580,17 @@ protected:
      *
      * @param out A buffer for the data to be written into.
      * @param revision The Manifest revision we are processing
-     * @param collection The collection being added/deleted
+     * @param identifier The Identifier of the collection being added/deleted
      */
     void populateWithSerialisedData(cb::char_buffer out,
-                                    cb::const_char_buffer collection,
-                                    uint32_t revision) const;
+                                    Identifier identifier) const;
 
     /**
      * Populate a buffer with the serialised state of this object.
      *
      * @param out A buffer for the data to be written into.
-     * @param revision The Manifest revision we are processing
      */
-    void populateWithSerialisedData(cb::char_buffer out,
-                                    uint32_t revision) const;
+    void populateWithSerialisedData(cb::char_buffer out) const;
 
     /**
      * @returns the string for the given key from the cJSON object.

@@ -20,6 +20,7 @@
 
 #include "config.h"
 
+#include "collections/collections_types.h"
 #include "dcp-types.h"
 #include "ep_types.h"
 #include "ext_meta_parser.h"
@@ -614,10 +615,12 @@ private:
 class CollectionsEvent {
 public:
     /**
-     * @throws invalid_argument if the message event data is not 4 bytes.
+     * @throws invalid_argument if the event data is not 0 or sizeof(uid_t).
      */
     CollectionsEvent(const SystemEventMessage& e) : event(e) {
-        if (event.getEventData().size() != sizeof(uint32_t)) {
+        // Must be 0 or sizeof(uid_t)
+        if (event.getEventData().size() &&
+            event.getEventData().size() != sizeof(Collections::uid_t)) {
             throw std::invalid_argument(
                     "CollectionsEvent::CollectionsEvent size invalid " +
                     std::to_string(event.getEventData().size()));
@@ -634,11 +637,12 @@ public:
     }
 
     /**
-     * @returns the revision of the collection stored in
-     *          SystemEventMessage::getEventData()
+     * @return the Collection::Collection data (key and uid)
      */
-    uint32_t getRevision() const {
-        return *reinterpret_cast<const uint32_t*>(event.getEventData().data());
+    Collections::Identifier getCollection() const {
+        return {getKey(),
+                *reinterpret_cast<const Collections::uid_t*>(
+                        event.getEventData().data())};
     }
 
     int64_t getBySeqno() const {

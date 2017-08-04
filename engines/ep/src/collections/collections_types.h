@@ -41,4 +41,35 @@ const char CouchstoreManifest[] = "_local/collections_manifest";
 // Length of the string excluding the zero terminator (i.e. strlen)
 const size_t CouchstoreManifestLen = sizeof(CouchstoreManifest) - 1;
 
+using uid_t = uint32_t;
+
+/**
+ * A collection may exist concurrently, where one maybe open and the others
+ * are in the process of being erased. This class carries the information for
+ * locating the correct "generation" of a collection.
+ */
+class Identifier {
+public:
+    Identifier(cb::const_char_buffer name, uid_t uid) : name(name), uid(uid) {
+    }
+
+    cb::const_char_buffer getName() const {
+        return name;
+    }
+
+    uid_t getUid() const {
+        return uid;
+    }
+
+    bool isDefaultCollection() const {
+        return getName() == DefaultCollectionIdentifier;
+    }
+
+private:
+    cb::const_char_buffer name;
+    uid_t uid;
+};
+
+std::string to_string(Identifier identifier);
+
 } // end namespace Collections
