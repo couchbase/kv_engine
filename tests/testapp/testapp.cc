@@ -1231,17 +1231,16 @@ MemcachedConnection& TestappTest::getAdminConnection() {
 
 MemcachedConnection& TestappTest::prepare(MemcachedConnection& connection) {
     connection.reconnect();
-    if (connection.getProtocol() == Protocol::Memcached) {
-        auto& c = dynamic_cast<MemcachedBinprotConnection&>(connection);
-        c.setDatatypeCompressed(true);
-        c.setDatatypeJson(true);
-        c.setMutationSeqnoSupport(true);
-        c.setXerrorSupport(true);
-        c.setXattrSupport(true);
-    } else {
-        throw std::logic_error(
-            "TestappClientTest::prepare: built without Greenstack support");
+    if (connection.getProtocol() != Protocol::Memcached) {
+        throw std::invalid_argument(
+                "TestappTest::prepare: Unsupported protocol");
     }
+    auto& c = dynamic_cast<MemcachedBinprotConnection&>(connection);
+    c.setDatatypeCompressed(true);
+    c.setDatatypeJson(true);
+    c.setMutationSeqnoSupport(true);
+    c.setXerrorSupport(true);
+    c.setXattrSupport(true);
     return connection;
 }
 

@@ -189,10 +189,6 @@ protected:
     /**
      * Create an extended attribute
      *
-     * This method doesn't really belong in this class (as it is supposed
-     * to work for greenstack as well, but we're going to need it from
-     * multiple tests so it can might as well live here..
-     *
      * @param path the full path to the attribute (including the key)
      * @param value The value to store
      * @param macro is this a macro for expansion or not
