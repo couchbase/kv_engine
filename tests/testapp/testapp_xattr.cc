@@ -16,6 +16,8 @@
  */
 #include "testapp_xattr.h"
 
+#include <array>
+
 // @todo add the other transport protocols
 INSTANTIATE_TEST_CASE_P(TransportProtocols,
     XattrTest,
@@ -34,7 +36,7 @@ TEST_P(XattrTest, GetXattrAndBody) {
     cmd.addGet(sysXattr, SUBDOC_FLAG_XATTR_PATH);
     cmd.addLookup("", PROTOCOL_BINARY_CMD_GET, SUBDOC_FLAG_NONE);
 
-    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    auto& conn = getConnection();
     conn.sendCommand(cmd);
 
     BinprotSubdocMultiLookupResponse multiResp;
@@ -78,7 +80,7 @@ TEST_P(XattrTest, SetXattrAndBodyNewDocWithExpiry) {
     // Jump forward in time to expire item
     adjust_memcached_clock(4, TimeType::Uptime);
 
-    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    auto& conn = getConnection();
     BinprotSubdocMultiLookupCommand getCmd;
     getCmd.setKey(name);
     getCmd.addLookup("", PROTOCOL_BINARY_CMD_GET);
@@ -117,7 +119,7 @@ TEST_P(XattrTest, SetXattrAndBodyInvalidFlags) {
         // Should not be able to set all XATTRs
         cmd.addMutation(PROTOCOL_BINARY_CMD_SET, flag, "", value);
 
-        auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+        auto& conn = getConnection();
         conn.sendCommand(cmd);
 
         BinprotSubdocMultiMutationResponse multiResp;
@@ -134,7 +136,7 @@ TEST_P(XattrTest, SetXattrAndBodyInvalidFlags) {
             PROTOCOL_BINARY_CMD_SET, SUBDOC_FLAG_NONE, "", value);
     cmd.addDocFlag(mcbp::subdoc::doc_flag::AccessDeleted);
 
-    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    auto& conn = getConnection();
     conn.sendCommand(cmd);
 
     BinprotSubdocMultiMutationResponse multiResp;
@@ -148,7 +150,7 @@ TEST_P(XattrTest, SetBodyInMultiLookup) {
     cmd.setKey(name);
     // Should not be able to put a set in a multi lookup
     cmd.addLookup("", PROTOCOL_BINARY_CMD_SET, SUBDOC_FLAG_NONE);
-    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    auto& conn = getConnection();
     conn.sendCommand(cmd);
 
     BinprotSubdocMultiLookupResponse multiResp;
@@ -164,7 +166,7 @@ TEST_P(XattrTest, GetBodyInMultiMutation) {
 
     // Should not be able to put a get in a multi multi-mutation
     cmd.addMutation(PROTOCOL_BINARY_CMD_GET, SUBDOC_FLAG_NONE, "", value);
-    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    auto& conn = getConnection();
     conn.sendCommand(cmd);
 
     BinprotSubdocMultiMutationResponse multiResp;
@@ -188,7 +190,7 @@ TEST_P(XattrTest, AddBodyAndXattr) {
     cmd.addMutation(PROTOCOL_BINARY_CMD_SET, SUBDOC_FLAG_NONE, "", value);
     cmd.addDocFlag(mcbp::subdoc::doc_flag::Add);
 
-    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    auto& conn = getConnection();
     conn.sendCommand(cmd);
 
     BinprotSubdocMultiMutationResponse multiResp;
@@ -212,7 +214,7 @@ TEST_P(XattrTest, AddBodyAndXattrAlreadyExistDoc) {
     cmd.addMutation(PROTOCOL_BINARY_CMD_SET, SUBDOC_FLAG_NONE, "", value);
     cmd.addDocFlag(mcbp::subdoc::doc_flag::Add);
 
-    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    auto& conn = getConnection();
     conn.sendCommand(cmd);
 
     BinprotSubdocMultiMutationResponse multiResp;
@@ -239,7 +241,7 @@ TEST_P(XattrTest, AddBodyAndXattrInvalidDocFlags) {
     cmd.addDocFlag(mcbp::subdoc::doc_flag::Add);
     cmd.addDocFlag(mcbp::subdoc::doc_flag::Mkdoc);
 
-    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    auto& conn = getConnection();
     conn.sendCommand(cmd);
 
     BinprotSubdocMultiMutationResponse multiResp;
@@ -377,7 +379,7 @@ TEST_P(XattrTest, MB_22319) {
                     SUBDOC_FLAG_XATTR_PATH,
                     "doc.author", "\"jones\"");
 
-    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    auto& conn = getConnection();
     conn.sendCommand(cmd);
 
     BinprotResponse resp;
@@ -699,7 +701,7 @@ TEST_P(XattrTest, Counter_PartialXattrSpec) {
 //  Verify that I can't do subdoc ops if it's not enabled by hello
 ////////////////////////////////////////////////////////////////////////
 TEST_P(XattrTest, VerifyNotEnabled) {
-    auto& conn = getMCBPConnection();
+    auto& conn = getConnection();
     conn.setXattrSupport(false);
 
     // All of the subdoc commands end up using the same method
@@ -762,7 +764,7 @@ TEST_P(XattrTest, MB_23882_VirtualXattrs) {
     cmd.addGet("$document.foobar", SUBDOC_FLAG_XATTR_PATH);
     cmd.addGet("_sync.eg", SUBDOC_FLAG_XATTR_PATH);
 
-    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    auto& conn = getConnection();
     conn.sendCommand(cmd);
 
     BinprotSubdocMultiLookupResponse multiResp;
@@ -840,7 +842,7 @@ TEST_P(XattrTest, MB_23882_VirtualXattrs_GetXattrAndBody) {
     cmd.addGet("$document.deleted", SUBDOC_FLAG_XATTR_PATH);
     cmd.addLookup("", PROTOCOL_BINARY_CMD_GET, SUBDOC_FLAG_NONE);
 
-    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    auto& conn = getConnection();
     conn.sendCommand(cmd);
 
     BinprotSubdocMultiLookupResponse multiResp;
@@ -858,7 +860,7 @@ TEST_P(XattrTest, MB_23882_VirtualXattrs_IsReadOnly) {
                     "$document.CAS", "foo");
     cmd.addMutation(PROTOCOL_BINARY_CMD_SET, SUBDOC_FLAG_NONE, "", value);
 
-    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    auto& conn = getConnection();
     conn.sendCommand(cmd);
 
     BinprotSubdocMultiMutationResponse multiResp;
@@ -872,7 +874,7 @@ TEST_P(XattrTest, MB_23882_VirtualXattrs_UnknownVattr) {
     cmd.setKey(name);
     cmd.addGet("$documents", SUBDOC_FLAG_XATTR_PATH); // should be $document
 
-    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    auto& conn = getConnection();
     conn.sendCommand(cmd);
 
     BinprotSubdocMultiMutationResponse multiResp;
@@ -891,7 +893,7 @@ TEST_P(XattrTest, MB24152_GetXattrAndBodyDeleted) {
     cmd.addGet(sysXattr, SUBDOC_FLAG_XATTR_PATH);
     cmd.addLookup("", PROTOCOL_BINARY_CMD_GET);
 
-    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    auto& conn = getConnection();
     conn.sendCommand(cmd);
 
     BinprotSubdocMultiLookupResponse multiResp;
@@ -915,7 +917,7 @@ TEST_P(XattrTest, MB24152_GetXattrAndBodyWithoutXattr) {
     cmd.addGet(sysXattr, SUBDOC_FLAG_XATTR_PATH);
     cmd.addLookup("", PROTOCOL_BINARY_CMD_GET);
 
-    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    auto& conn = getConnection();
     conn.sendCommand(cmd);
 
     BinprotSubdocMultiLookupResponse multiResp;
@@ -946,7 +948,7 @@ TEST_P(XattrTest, MB24152_GetXattrAndBodyDeletedAndEmpty) {
     cmd.addGet(sysXattr, SUBDOC_FLAG_XATTR_PATH);
     cmd.addLookup("", PROTOCOL_BINARY_CMD_GET);
 
-    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    auto& conn = getConnection();
     conn.sendCommand(cmd);
 
     BinprotSubdocMultiLookupResponse multiResp;
@@ -975,7 +977,7 @@ TEST_P(XattrTest, MB24152_GetXattrAndBodyNonJSON) {
     cmd.addGet(sysXattr, SUBDOC_FLAG_XATTR_PATH);
     cmd.addLookup("", PROTOCOL_BINARY_CMD_GET);
 
-    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    auto& conn = getConnection();
     conn.sendCommand(cmd);
 
     BinprotSubdocMultiLookupResponse multiResp;
@@ -1005,7 +1007,7 @@ TEST_P(XattrTest, MB23808_MultiPathFailureDeleted) {
     cmd.addGet(sysXattr, SUBDOC_FLAG_XATTR_PATH);
     cmd.addGet("_sync.non_existant", SUBDOC_FLAG_XATTR_PATH);
 
-    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    auto& conn = getConnection();
     conn.sendCommand(cmd);
 
     // We expect to successfully access the first (existing) XATTR; but not
@@ -1031,7 +1033,7 @@ TEST_P(XattrTest, SetXattrAndDeleteBasic) {
                     sysXattr,
                     xattrVal);
     cmd.addMutation(PROTOCOL_BINARY_CMD_DELETE, SUBDOC_FLAG_NONE, "", "");
-    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    auto& conn = getConnection();
     conn.sendCommand(cmd);
 
     BinprotSubdocMultiMutationResponse multiResp;
@@ -1083,7 +1085,7 @@ TEST_P(XattrTest, SetXattrAndDeleteCheckUserXattrsDeleted) {
                     "userXattr",
                     "66");
     cmd.addMutation(PROTOCOL_BINARY_CMD_DELETE, SUBDOC_FLAG_NONE, "", "");
-    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    auto& conn = getConnection();
     conn.sendCommand(cmd);
 
     BinprotSubdocMultiMutationResponse multiResp;
@@ -1124,7 +1126,7 @@ TEST_P(XattrTest, SetXattrAndDeleteJustUserXattrs) {
                     "66");
     cmd.addMutation(
             PROTOCOL_BINARY_CMD_SET, SUBDOC_FLAG_NONE, "", "{\"Field\": 88}");
-    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    auto& conn = getConnection();
     conn.sendCommand(cmd);
 
     BinprotSubdocMultiMutationResponse multiResp;
@@ -1149,7 +1151,7 @@ TEST_P(XattrTest, TestXattrDeleteDatatypes) {
                     sysXattr,
                     xattrVal);
     cmd.addMutation(PROTOCOL_BINARY_CMD_DELETE, SUBDOC_FLAG_NONE, "", "");
-    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    auto& conn = getConnection();
     conn.sendCommand(cmd);
 
     BinprotSubdocMultiMutationResponse multiResp;

@@ -1142,8 +1142,7 @@ void TestappTest::runCreateXattr(
         const std::string& value,
         bool macro,
         protocol_binary_response_status expectedStatus) {
-    auto& conn = getConnection();
-    auto& connection = dynamic_cast<MemcachedBinprotConnection&>(conn);
+    auto& connection = getConnection();
 
     BinprotSubdocCommand cmd;
     cmd.setOp(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD);
@@ -1174,8 +1173,7 @@ BinprotSubdocResponse TestappTest::runGetXattr(
         const std::string& path,
         bool deleted,
         protocol_binary_response_status expectedStatus) {
-    auto& conn = getConnection();
-    auto& connection = dynamic_cast<MemcachedBinprotConnection&>(conn);
+    auto& connection = getConnection();
 
     BinprotSubdocCommand cmd;
     cmd.setOp(PROTOCOL_BINARY_CMD_SUBDOC_GET);
@@ -1230,12 +1228,11 @@ MemcachedConnection& TestappTest::getAdminConnection() {
 
 MemcachedConnection& TestappTest::prepare(MemcachedConnection& connection) {
     connection.reconnect();
-    auto& c = dynamic_cast<MemcachedBinprotConnection&>(connection);
-    c.setDatatypeCompressed(true);
-    c.setDatatypeJson(true);
-    c.setMutationSeqnoSupport(true);
-    c.setXerrorSupport(true);
-    c.setXattrSupport(true);
+    connection.setDatatypeCompressed(true);
+    connection.setDatatypeJson(true);
+    connection.setMutationSeqnoSupport(true);
+    connection.setXerrorSupport(true);
+    connection.setXattrSupport(true);
     return connection;
 }
 

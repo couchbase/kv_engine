@@ -16,8 +16,6 @@
  */
 #include "client_connection_map.h"
 
-#include "client_mcbp_connection.h"
-
 /////////////////////////////////////////////////////////////////////////
 // Implementation of the ConnectionMap class
 /////////////////////////////////////////////////////////////////////////
@@ -102,15 +100,14 @@ void ConnectionMap::initialize(cJSON* ports) {
         bool useSsl = ssl->type == cJSON_True ? true : false;
 
         MemcachedConnection* connection;
-        if (strcmp(protocol->valuestring, "memcached") == 0) {
-            connection =
-                    new MemcachedBinprotConnection("", portval, family, useSsl);
-        } else {
+        if (strcmp(protocol->valuestring, "memcached") != 0) {
             throw std::logic_error(
                     "ConnectionMap::initialize: Invalid value passed for "
                     "protocol: " +
                     std::string(protocol->valuestring));
         }
+
+        connection = new MemcachedConnection("", portval, family, useSsl);
         connection->connect();
         connections.push_back(std::unique_ptr<MemcachedConnection>{connection});
     }

@@ -17,7 +17,6 @@
 
 #include "testapp.h"
 #include "testapp_client_test.h"
-#include <protocol/connection/client_mcbp_connection.h>
 
 #include <algorithm>
 #include <platform/compress.h>
@@ -65,8 +64,7 @@ INSTANTIATE_TEST_CASE_P(TransportProtocols,
                         ::testing::PrintToStringParamName());
 
 TEST_P(NoAutoselectDefaultBucketTest, NoAutoselect) {
-    auto& c = getAdminConnection();
-    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(c);
+    auto& conn = getAdminConnection();
 
     auto buckets = conn.listBuckets();
     for (auto& name : buckets) {
@@ -77,8 +75,7 @@ TEST_P(NoAutoselectDefaultBucketTest, NoAutoselect) {
     conn.createBucket("default", "", BucketType::Memcached);
 
     // Reconnect (to drop the admin credentials)
-    c = getConnection();
-    conn = dynamic_cast<MemcachedBinprotConnection&>(c);
+    conn = getConnection();
 
     BinprotGetCommand cmd;
     cmd.setKey(name);
@@ -92,7 +89,6 @@ TEST_P(NoAutoselectDefaultBucketTest, NoAutoselect) {
     // to this bucket ;)
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EACCESS, rsp.getStatus());
 
-    c = getAdminConnection();
-    conn = dynamic_cast<MemcachedBinprotConnection&>(c);
+    conn = getAdminConnection();
     conn.deleteBucket("default");
 }

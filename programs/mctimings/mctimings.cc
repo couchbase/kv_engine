@@ -19,13 +19,14 @@
 #include "programs/hostname_utils.h"
 #include "programs/getpass.h"
 
-#include <array>
 #include <cJSON.h>
-#include <cstdlib>
 #include <getopt.h>
-#include <iostream>
 #include <memcached/protocol_binary.h>
-#include <protocol/connection/client_mcbp_connection.h>
+#include <protocol/connection/client_connection.h>
+#include <protocol/connection/client_mcbp_commands.h>
+#include <array>
+#include <cstdlib>
+#include <iostream>
 #include <stdexcept>
 
 static uint32_t getValue(cJSON *root, const char *key) {
@@ -263,7 +264,7 @@ std::string opcode2string(uint8_t opcode) {
     return std::string(cmd);
 }
 
-static void request_cmd_timings(MemcachedBinprotConnection& connection,
+static void request_cmd_timings(MemcachedConnection& connection,
                                 const std::string bucket,
                                 uint8_t opcode,
                                 bool verbose,
@@ -326,10 +327,9 @@ static void request_cmd_timings(MemcachedBinprotConnection& connection,
     }
 }
 
-static void request_stat_timings(MemcachedBinprotConnection& connection,
+static void request_stat_timings(MemcachedConnection& connection,
                                  const std::string& key,
                                  bool verbose) {
-
     std::map<std::string, std::string> map;
     try {
         map = connection.statsMap(key);
@@ -455,10 +455,7 @@ int main(int argc, char** argv) {
         if (family == AF_UNSPEC) { // The user may have used -4 or -6
             family = fam;
         }
-        MemcachedBinprotConnection connection(host,
-                                              in_port,
-                                              family,
-                                              secure);
+        MemcachedConnection connection(host, in_port, family, secure);
 
         connection.connect();
 

@@ -17,10 +17,10 @@
 
 #include "testapp.h"
 #include "testapp_client_test.h"
-#include <protocol/connection/client_mcbp_connection.h>
 
-#include <algorithm>
 #include <platform/compress.h>
+#include <algorithm>
+#include <array>
 
 class LockTest : public TestappClientTest {
 public:
@@ -37,10 +37,6 @@ public:
     }
 
 protected:
-    MemcachedBinprotConnection& getMcbpConnection() {
-        return dynamic_cast<MemcachedBinprotConnection&>(getConnection());
-    }
-
     Document document;
 };
 
@@ -54,7 +50,7 @@ INSTANTIATE_TEST_CASE_P(TransportProtocols,
                         ::testing::PrintToStringParamName());
 
 TEST_P(LockTest, LockNonexistingDocument) {
-    auto& conn = getMcbpConnection();
+    auto& conn = getConnection();
 
     try {
         conn.get_and_lock(name, 0, 0);
@@ -65,7 +61,7 @@ TEST_P(LockTest, LockNonexistingDocument) {
 }
 
 TEST_P(LockTest, LockIncorrectVBucket) {
-    auto& conn = getMcbpConnection();
+    auto& conn = getConnection();
 
     try {
         conn.get_and_lock(name, 1, 0);
@@ -76,14 +72,14 @@ TEST_P(LockTest, LockIncorrectVBucket) {
 }
 
 TEST_P(LockTest, LockWithDefaultValue) {
-    auto& conn = getMcbpConnection();
+    auto& conn = getConnection();
 
     conn.mutate(document, 0, MutationType::Add);
     conn.get_and_lock(name, 0, 0);
 }
 
 TEST_P(LockTest, LockWithTimeValue) {
-    auto& conn = getMcbpConnection();
+    auto& conn = getConnection();
 
     conn.mutate(document, 0, MutationType::Add);
     conn.get_and_lock(name, 0, 5);
@@ -91,7 +87,7 @@ TEST_P(LockTest, LockWithTimeValue) {
 
 
 TEST_P(LockTest, LockLockedDocument) {
-    auto& conn = getMcbpConnection();
+    auto& conn = getConnection();
 
     conn.mutate(document, 0, MutationType::Add);
     conn.get_and_lock(name, 0, 0);
@@ -110,7 +106,7 @@ TEST_P(LockTest, LockLockedDocument) {
  * a locked item without XERROR enabled
  */
 TEST_P(LockTest, MB_22459_LockLockedDocument_WithoutXerror) {
-    auto& conn = getMcbpConnection();
+    auto& conn = getConnection();
     conn.setXerrorSupport(false);
 
     conn.mutate(document, 0, MutationType::Add);
@@ -125,7 +121,7 @@ TEST_P(LockTest, MB_22459_LockLockedDocument_WithoutXerror) {
 }
 
 TEST_P(LockTest, MutateLockedDocument) {
-    auto& conn = getMcbpConnection();
+    auto& conn = getConnection();
 
     conn.mutate(document, 0, MutationType::Add);
 
@@ -149,7 +145,7 @@ TEST_P(LockTest, MutateLockedDocument) {
 }
 
 TEST_P(LockTest, ArithmeticLockedDocument) {
-    auto& conn = getMcbpConnection();
+    auto& conn = getConnection();
 
     conn.arithmetic(name, 1);
     conn.get_and_lock(name, 0, 0);
@@ -165,7 +161,7 @@ TEST_P(LockTest, ArithmeticLockedDocument) {
 }
 
 TEST_P(LockTest, DeleteLockedDocument) {
-    auto& conn = getMcbpConnection();
+    auto& conn = getConnection();
 
     conn.mutate(document, 0, MutationType::Add);
     const auto locked = conn.get_and_lock(name, 0, 0);
@@ -181,7 +177,7 @@ TEST_P(LockTest, DeleteLockedDocument) {
 }
 
 TEST_P(LockTest, UnlockNoSuchDocument) {
-    auto& conn = getMcbpConnection();
+    auto& conn = getConnection();
     try {
         conn.unlock(name, 0, 0xdeadbeef);
         FAIL() << "The document should not exist";
@@ -191,7 +187,7 @@ TEST_P(LockTest, UnlockNoSuchDocument) {
 }
 
 TEST_P(LockTest, UnlockInvalidVBucket) {
-    auto& conn = getMcbpConnection();
+    auto& conn = getConnection();
     try {
         conn.unlock(name, 1, 0xdeadbeef);
         FAIL() << "The vbucket should not exist";
@@ -201,7 +197,7 @@ TEST_P(LockTest, UnlockInvalidVBucket) {
 }
 
 TEST_P(LockTest, UnlockWrongCas) {
-    auto& conn = getMcbpConnection();
+    auto& conn = getConnection();
     conn.mutate(document, 0, MutationType::Add);
     const auto locked = conn.get_and_lock(name, 0, 0);
 
@@ -215,7 +211,7 @@ TEST_P(LockTest, UnlockWrongCas) {
 }
 
 TEST_P(LockTest, UnlockThereIsNoCasWildcard) {
-    auto& conn = getMcbpConnection();
+    auto& conn = getConnection();
     conn.mutate(document, 0, MutationType::Add);
     const auto locked = conn.get_and_lock(name, 0, 0);
 
@@ -228,7 +224,7 @@ TEST_P(LockTest, UnlockThereIsNoCasWildcard) {
 }
 
 TEST_P(LockTest, UnlockSuccess) {
-    auto& conn = getMcbpConnection();
+    auto& conn = getConnection();
     conn.mutate(document, 0, MutationType::Add);
     const auto locked = conn.get_and_lock(name, 0, 0);
     conn.unlock(name, 0, locked.info.cas);
@@ -266,7 +262,7 @@ TEST_P(LockTest, MB_22778) {
                                          0x6e, 0x22, 0x3a, 0x6e, 0x75, 0x6c,
                                          0x6c, 0x7d}};
 
-    auto& conn = getMcbpConnection();
+    auto& conn = getConnection();
     Frame command;
     std::copy(store.begin(), store.end(), std::back_inserter(command.payload));
 

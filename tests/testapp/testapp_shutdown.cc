@@ -37,7 +37,7 @@ public:
             << std::endl
             << (exit(1), "");
 
-        auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getAdminConnection());
+        auto& conn = getAdminConnection();
 
         BinprotGenericCommand cmd(PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN);
         cmd.setExtrasValue(token);
@@ -65,7 +65,7 @@ protected:
 };
 
 TEST_F(ShutdownTest, ShutdownAllowed) {
-    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getAdminConnection());
+    auto& conn = getAdminConnection();
     BinprotGenericCommand cmd(PROTOCOL_BINARY_CMD_SHUTDOWN);
     cmd.setCas(token);
     conn.sendCommand(cmd);

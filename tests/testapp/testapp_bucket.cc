@@ -285,7 +285,7 @@ TEST_P(BucketTest, MB19748TestDeleteWhileConnShipLogAndFullWriteBuffer) {
 
     auto second_conn = conn.clone();
     second_conn->authenticate("@admin", "password", "PLAIN");
-    auto* mcbp_conn = dynamic_cast<MemcachedBinprotConnection*>(second_conn.get());
+    auto* mcbp_conn = second_conn.get();
 
     conn.createBucket("bucket", "default_engine.so", BucketType::EWouldBlock);
     second_conn->selectBucket("bucket");
@@ -418,10 +418,9 @@ TEST_P(BucketTest, TestNoAutoSelectOfBucketForNormalUser) {
     conn.authenticate("smith", "smithpassword", "PLAIN");
     BinprotGetCommand cmd;
     cmd.setKey(name);
-    auto& connection = dynamic_cast<MemcachedBinprotConnection&>(conn);
-    connection.sendCommand(cmd);
+    conn.sendCommand(cmd);
     BinprotResponse response;
-    connection.recvResponse(response);
+    conn.recvResponse(response);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_NO_BUCKET, response.getStatus());
 
     conn = getAdminConnection();

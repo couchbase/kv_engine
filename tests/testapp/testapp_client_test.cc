@@ -16,7 +16,6 @@
  */
 
 #include "testapp_client_test.h"
-#include <protocol/connection/client_mcbp_connection.h>
 
 MemcachedConnection& TestappClientTest::getConnection() {
     switch (GetParam()) {

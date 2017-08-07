@@ -65,7 +65,7 @@ public:
         reconfigure(memcached_cfg);
     }
 
-    void setClientCertData(MemcachedBinprotConnection& connection) {
+    void setClientCertData(MemcachedConnection& connection) {
         connection.setSslCertFile(SOURCE_ROOT + std::string("/tests/cert/client.pem"));
         connection.setSslKeyFile(SOURCE_ROOT + std::string("/tests/cert/client.key"));
     }
@@ -97,7 +97,7 @@ public:
 TEST_F(SslCertTest, LoginWhenDiabledWithoutCert) {
     reconfigure_client_cert_auth("disable", "", "", "");
 
-    MemcachedBinprotConnection connection("127.0.0.1", ssl_port, AF_INET, true);
+    MemcachedConnection connection("127.0.0.1", ssl_port, AF_INET, true);
     connection.connect();
     connection.authenticate("@admin", "password", "PLAIN");
 }
@@ -110,7 +110,7 @@ TEST_F(SslCertTest, LoginWhenDiabledWithoutCert) {
 TEST_F(SslCertTest, LoginWhenDiabledWithCert) {
     reconfigure_client_cert_auth("disable", "", "", "");
 
-    MemcachedBinprotConnection connection("127.0.0.1", ssl_port, AF_INET, true);
+    MemcachedConnection connection("127.0.0.1", ssl_port, AF_INET, true);
     setClientCertData(connection);
     connection.connect();
     connection.authenticate("@admin", "password", "PLAIN");
@@ -123,7 +123,7 @@ TEST_F(SslCertTest, LoginWhenDiabledWithCert) {
 TEST_F(SslCertTest, LoginEnabledWithoutCert) {
     reconfigure_client_cert_auth("enable", "subject.cn", "", " ");
 
-    MemcachedBinprotConnection connection("127.0.0.1", ssl_port, AF_INET, true);
+    MemcachedConnection connection("127.0.0.1", ssl_port, AF_INET, true);
     connection.connect();
     connection.authenticate("@admin", "password", "PLAIN");
 }
@@ -135,7 +135,7 @@ TEST_F(SslCertTest, LoginEnabledWithoutCert) {
 TEST_F(SslCertTest, LoginEnabledWithCertNoMapping) {
     reconfigure_client_cert_auth("enable", "", "", " ");
 
-    MemcachedBinprotConnection connection("127.0.0.1", ssl_port, AF_INET, true);
+    MemcachedConnection connection("127.0.0.1", ssl_port, AF_INET, true);
     setClientCertData(connection);
     connection.connect();
     connection.authenticate("@admin", "password", "PLAIN");
@@ -149,7 +149,7 @@ TEST_F(SslCertTest, LoginEnabledWithCertNoMapping) {
 TEST_F(SslCertTest, LoginEnabledWithCert) {
     reconfigure_client_cert_auth("enable", "subject.cn", "", " ");
 
-    MemcachedBinprotConnection connection("127.0.0.1", ssl_port, AF_INET, true);
+    MemcachedConnection connection("127.0.0.1", ssl_port, AF_INET, true);
     setClientCertData(connection);
     connection.connect();
     connection.setXerrorSupport(true);
@@ -179,7 +179,7 @@ TEST_F(SslCertTest, LoginEnabledWithCert) {
 TEST_F(SslCertTest, LoginWhenMandatoryWithoutCert) {
     reconfigure_client_cert_auth("mandatory", "subject.cn", "", " ");
 
-    MemcachedBinprotConnection connection("127.0.0.1", ssl_port, AF_INET, true);
+    MemcachedConnection connection("127.0.0.1", ssl_port, AF_INET, true);
     try {
         connection.connect();
         FAIL() << "It should not be possible to connect without certificate";
@@ -195,7 +195,7 @@ TEST_F(SslCertTest, LoginWhenMandatoryWithoutCert) {
 TEST_F(SslCertTest, LoginWhenMandatoryWithCert) {
     reconfigure_client_cert_auth("mandatory", "subject.cn", "", " ");
 
-    MemcachedBinprotConnection connection("127.0.0.1", ssl_port, AF_INET, true);
+    MemcachedConnection connection("127.0.0.1", ssl_port, AF_INET, true);
     setClientCertData(connection);
     connection.connect();
     connection.setXerrorSupport(true);
@@ -225,7 +225,7 @@ TEST_F(SslCertTest, LoginWhenMandatoryWithCert) {
 TEST_F(SslCertTest, LoginWhenMandatoryWithCertIncorrectMapping) {
     reconfigure_client_cert_auth("mandatory", "subject.cn", "Tr", "");
 
-    MemcachedBinprotConnection connection("127.0.0.1", ssl_port, AF_INET, true);
+    MemcachedConnection connection("127.0.0.1", ssl_port, AF_INET, true);
     setClientCertData(connection);
 
     // The certificate will be accepted, so the connection is established
@@ -248,7 +248,7 @@ TEST_F(SslCertTest, LoginWhenMandatoryWithCertIncorrectMapping) {
 TEST_F(SslCertTest, LoginWhenMandatoryWithCertShouldNotSupportSASL) {
     reconfigure_client_cert_auth("mandatory", "subject.cn", "", " ");
 
-    MemcachedBinprotConnection connection("127.0.0.1", ssl_port, AF_INET, true);
+    MemcachedConnection connection("127.0.0.1", ssl_port, AF_INET, true);
     setClientCertData(connection);
     connection.connect();
     connection.setXerrorSupport(true);

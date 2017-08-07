@@ -16,9 +16,10 @@
  */
 #include "config.h"
 
-#include "utilities.h"
+#include <protocol/connection/client_connection.h>
+#include <protocol/connection/client_mcbp_commands.h>
 #include "testapp_environment.h"
-#include "protocol/connection/client_mcbp_connection.h"
+#include "utilities.h"
 
 #include <cJSON_utils.h>
 #include <fstream>
@@ -41,9 +42,8 @@ void TestBucketImpl::createEwbBucket(const std::string& name,
 void TestBucketImpl::setXattrEnabled(MemcachedConnection& conn,
                                      const std::string& bucketName,
                                      bool value) {
-    auto& bconn = dynamic_cast<MemcachedBinprotConnection&>(conn);
-    bconn.authenticate("@admin", "password", "PLAIN");
-    bconn.selectBucket(bucketName);
+    conn.authenticate("@admin", "password", "PLAIN");
+    conn.selectBucket(bucketName);
 
     // Encode a set_flush_param (like cbepctl)
     BinprotGenericCommand cmd;
@@ -58,7 +58,7 @@ void TestBucketImpl::setXattrEnabled(MemcachedConnection& conn,
         cmd.setValue("false");
     }
 
-    bconn.executeCommand(cmd, resp);
+    conn.executeCommand(cmd, resp);
     ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
 }
 
@@ -148,14 +148,12 @@ public:
                         "dbname=" + dbPath + "/" + name,
                         conn);
 
-        auto& bconn = dynamic_cast<MemcachedBinprotConnection&>(conn);
-
         BinprotGenericCommand cmd;
         BinprotResponse resp;
 
         cmd.setOp(PROTOCOL_BINARY_CMD_SELECT_BUCKET);
         cmd.setKey(name);
-        bconn.executeCommand(cmd, resp);
+        conn.executeCommand(cmd, resp);
         ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
 
         cmd.clear();
@@ -164,7 +162,7 @@ public:
         cmd.setOp(PROTOCOL_BINARY_CMD_SET_VBUCKET);
         cmd.setExtrasValue<uint32_t>(htonl(1));
 
-        bconn.executeCommand(cmd, resp);
+        conn.executeCommand(cmd, resp);
         ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
 
         do {
@@ -172,7 +170,7 @@ public:
             resp.clear();
             cmd.setOp(PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC);
             // Enable traffic
-            bconn.executeCommand(cmd, resp);
+            conn.executeCommand(cmd, resp);
         } while (resp.getStatus() == PROTOCOL_BINARY_RESPONSE_ETMPFAIL);
 
         ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());

@@ -15,7 +15,7 @@
  *   limitations under the License.
  */
 
-#include <protocol/connection/client_mcbp_connection.h>
+#include <protocol/connection/client_mcbp_commands.h>
 #include "testapp.h"
 #include "testapp_client_test.h"
 
@@ -35,7 +35,7 @@ public:
      * using vattr for the lookup
      */
     void checkCas() {
-        auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+        auto& conn = getConnection();
         BinprotSubdocCommand cmd;
         cmd.setOp(PROTOCOL_BINARY_CMD_SUBDOC_GET);
         cmd.setKey(name);

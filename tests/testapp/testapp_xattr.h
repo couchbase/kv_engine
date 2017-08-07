@@ -155,7 +155,7 @@ protected:
             const std::string& value,
             protocol_binary_subdoc_flag flag = SUBDOC_FLAG_NONE,
             mcbp::subdoc::doc_flag docFlag = mcbp::subdoc::doc_flag::None) {
-        auto& conn = getMCBPConnection();
+        auto& conn = getConnection();
 
         BinprotSubdocCommand cmd;
         cmd.setOp(opcode);
@@ -182,10 +182,6 @@ protected:
                 PROTOCOL_BINARY_CMD_SUBDOC_GET, name, path, {}, flag, docFlag);
     }
 
-    MemcachedBinprotConnection& getMCBPConnection() {
-        return dynamic_cast<MemcachedBinprotConnection&>(getConnection());
-    }
-
     protocol_binary_response_status xattr_upsert(const std::string& path,
                                                  const std::string& value) {
         auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
@@ -205,7 +201,7 @@ protected:
      */
     BinprotSubdocMultiMutationResponse testBodyAndXattrCmd(
             BinprotSubdocMultiMutationCommand& cmd) {
-        auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+        auto& conn = getConnection();
         conn.sendCommand(cmd);
 
         BinprotSubdocMultiMutationResponse multiResp;

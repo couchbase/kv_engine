@@ -18,26 +18,25 @@
 
 #include <cbsasl/pwconv.h>
 #include <cbsasl/user.h>
-#include <cerrno>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
 #include <getopt.h>
-#include <iostream>
-#include <map>
 #include <memcached/protocol_binary.h>
 #include <platform/platform.h>
 #include <programs/hostname_utils.h>
 #include <protocol/connection/client_connection.h>
-#include <protocol/connection/client_mcbp_connection.h>
-#include <string>
+#include <protocol/connection/client_mcbp_commands.h>
 #include <utilities/protocol2text.h>
+#include <cerrno>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <iostream>
+#include <map>
+#include <string>
 
 /**
  * Handle cbsasl refresh
  */
-static int handle_refresh(int argc, char**,
-                          MemcachedBinprotConnection& connection) {
+static int handle_refresh(int argc, char**, MemcachedConnection& connection) {
     if (optind + 1 != argc) {
         std::cerr << "Error: cbsasl refresh don't take any arguments"
                   << std::endl;
@@ -180,10 +179,7 @@ int main(int argc, char **argv) {
                 family = fam;
             }
 
-            MemcachedBinprotConnection connection(host,
-                                                  in_port,
-                                                  family,
-                                                  secure);
+            MemcachedConnection connection(host, in_port, family, secure);
             connection.setSslCertFile(ssl_cert);
             connection.setSslKeyFile(ssl_key);
 

@@ -40,7 +40,7 @@ INSTANTIATE_TEST_CASE_P(TransportProtocols,
                         ::testing::PrintToStringParamName());
 
 TEST_P(DcpTest, TestDcpOpenCantBeProducerAndConsumer) {
-    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    auto& conn = getConnection();
 
     conn.sendCommand(BinprotDcpOpenCommand{"ewb_internal:1", 0,
                                            DCP_OPEN_PRODUCER |
@@ -53,7 +53,7 @@ TEST_P(DcpTest, TestDcpOpenCantBeProducerAndConsumer) {
 }
 
 TEST_P(DcpTest, TestDcpNotfierCantBeNoValue) {
-    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    auto& conn = getConnection();
 
     conn.sendCommand(BinprotDcpOpenCommand{"ewb_internal:1", 0,
                                            DCP_OPEN_NO_VALUE |
@@ -66,7 +66,7 @@ TEST_P(DcpTest, TestDcpNotfierCantBeNoValue) {
 }
 
 TEST_P(DcpTest, TestDcpNotfierCantIncludeXattrs) {
-    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    auto& conn = getConnection();
 
     conn.sendCommand(BinprotDcpOpenCommand{"ewb_internal:1", 0,
                                            DCP_OPEN_INCLUDE_XATTRS |
@@ -83,7 +83,7 @@ TEST_P(DcpTest, TestDcpNotfierCantIncludeXattrs) {
  * stripped / replaced with an error object
  */
 TEST_P(DcpTest, MB24145_RollbackShouldContainSeqno) {
-    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    auto& conn = getConnection();
 
     conn.sendCommand(BinprotDcpOpenCommand{"ewb_internal:1", 0,
                                            DCP_OPEN_PRODUCER});

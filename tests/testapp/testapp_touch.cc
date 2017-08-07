@@ -17,7 +17,6 @@
 
 #include "testapp.h"
 #include "testapp_client_test.h"
-#include <protocol/connection/client_mcbp_connection.h>
 
 #include <algorithm>
 #include <platform/compress.h>
@@ -39,8 +38,7 @@ public:
 protected:
     Document document;
 
-    size_t get_cmd_counter(const std::string& name,
-                           MemcachedBinprotConnection& conn);
+    size_t get_cmd_counter(const std::string& name, MemcachedConnection& conn);
 
     void testHit(bool quiet);
     void testMiss(bool quiet);
@@ -57,8 +55,7 @@ INSTANTIATE_TEST_CASE_P(TransportProtocols,
                         ::testing::PrintToStringParamName());
 
 size_t TouchTest::get_cmd_counter(const std::string& name,
-                                  MemcachedBinprotConnection& conn) {
-
+                                  MemcachedConnection& conn) {
     auto stats = conn.statsMap("");
     const auto iter = stats.find(name);
     if (iter != stats.cend()) {
@@ -69,7 +66,7 @@ size_t TouchTest::get_cmd_counter(const std::string& name,
 }
 
 void TouchTest::testHit(bool quiet) {
-    auto& conn = reinterpret_cast<MemcachedBinprotConnection&>(getConnection());
+    auto& conn = getConnection();
     const auto info = conn.mutate(document, 0, MutationType::Add);
 
     // Verify that we can set the expiry time to the same value without
@@ -104,7 +101,7 @@ void TouchTest::testHit(bool quiet) {
 }
 
 void TouchTest::testMiss(bool quiet) {
-    auto& conn = reinterpret_cast<MemcachedBinprotConnection&>(getConnection());
+    auto& conn = getConnection();
     const auto before = get_cmd_counter("get_misses", conn);
     BinprotGetAndTouchCommand cmd;
     cmd.setQuiet(quiet);
@@ -152,7 +149,7 @@ TEST_P(TouchTest, Gatq_Miss) {
 }
 
 TEST_P(TouchTest, Touch_Hit) {
-    auto& conn = reinterpret_cast<MemcachedBinprotConnection&>(getConnection());
+    auto& conn = getConnection();
     const auto info = conn.mutate(document, 0, MutationType::Add);
 
     // Verify that we can set the expiry time to the same value without
@@ -176,7 +173,7 @@ TEST_P(TouchTest, Touch_Hit) {
 }
 
 TEST_P(TouchTest, Touch_Miss) {
-    auto& conn = reinterpret_cast<MemcachedBinprotConnection&>(getConnection());
+    auto& conn = getConnection();
     BinprotTouchCommand cmd;
     cmd.setKey(name);
     cmd.setExpirytime(10);

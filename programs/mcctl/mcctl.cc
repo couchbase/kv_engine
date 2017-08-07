@@ -29,7 +29,7 @@
 #include <platform/platform.h>
 #include <programs/hostname_utils.h>
 #include <protocol/connection/client_connection.h>
-#include <protocol/connection/client_mcbp_connection.h>
+#include <protocol/connection/client_mcbp_commands.h>
 #include <utilities/protocol2text.h>
 
 #include <iostream>
@@ -45,8 +45,7 @@
  *
  * @param bio connection to the server.
  */
-static int get_verbosity(MemcachedBinprotConnection& connection)
-{
+static int get_verbosity(MemcachedConnection& connection) {
     auto stats = connection.stats("settings");
     if (stats) {
         auto* obj = cJSON_GetObjectItem(stats.get(), "verbosity");
@@ -84,9 +83,8 @@ static int get_verbosity(MemcachedBinprotConnection& connection)
  * @param bio connection to the server.
  * @param value value to set the property to.
  */
-static int set_verbosity(MemcachedBinprotConnection& connection,
-                         const std::string& value)
-{
+static int set_verbosity(MemcachedConnection& connection,
+                         const std::string& value) {
     std::size_t pos;
     uint32_t level = std::stoi(value, &pos);
     if (pos != value.size()) {
@@ -205,10 +203,7 @@ int main(int argc, char** argv) {
             family = fam;
         }
 
-        MemcachedBinprotConnection connection(host,
-                                              in_port,
-                                              family,
-                                              secure);
+        MemcachedConnection connection(host, in_port, family, secure);
         connection.setSslCertFile(ssl_cert);
         connection.setSslKeyFile(ssl_key);
 

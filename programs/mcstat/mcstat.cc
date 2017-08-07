@@ -17,11 +17,12 @@
 
 #include "config.h"
 
+#include <cJSON.h>
 #include <getopt.h>
-#include <iostream>
-#include <protocol/connection/client_mcbp_connection.h>
-#include <programs/hostname_utils.h>
 #include <programs/getpass.h>
+#include <programs/hostname_utils.h>
+#include <protocol/connection/client_connection.h>
+#include <iostream>
 
 /**
  * Request a stat from the server
@@ -29,7 +30,7 @@
  * @param key the name of the stat to receive (empty == ALL)
  * @param json if true print as json otherwise print old-style
  */
-static void request_stat(MemcachedBinprotConnection& connection,
+static void request_stat(MemcachedConnection& connection,
                          const std::string& key,
                          bool json,
                          bool format) {
@@ -184,10 +185,7 @@ int main(int argc, char** argv) {
         if (family == AF_UNSPEC) { // The user may have used -4 or -6
             family = fam;
         }
-        MemcachedBinprotConnection connection(host,
-                                              in_port,
-                                              family,
-                                              secure);
+        MemcachedConnection connection(host, in_port, family, secure);
         connection.setSslCertFile(ssl_cert);
         connection.setSslKeyFile(ssl_key);
 

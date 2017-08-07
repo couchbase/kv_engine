@@ -262,8 +262,6 @@ TEST_P(ArithmeticTest, TestDocWithXattr) {
     auto& conn = getConnection();
     EXPECT_EQ(0, conn.increment(name, 1));
 
-    auto& mcbp = dynamic_cast<MemcachedBinprotConnection&>(conn);
-
     // Add an xattr
     {
         BinprotSubdocCommand cmd;
@@ -272,10 +270,10 @@ TEST_P(ArithmeticTest, TestDocWithXattr) {
         cmd.setPath("meta.author");
         cmd.setValue("\"Trond Norbye\"");
         cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
-        mcbp.sendCommand(cmd);
+        conn.sendCommand(cmd);
 
         BinprotResponse resp;
-        mcbp.recvResponse(resp);
+        conn.recvResponse(resp);
         ASSERT_TRUE(resp.isSuccess())
                         << memcached_status_2_text(resp.getStatus());
     }
@@ -290,10 +288,10 @@ TEST_P(ArithmeticTest, TestDocWithXattr) {
         cmd.setKey(name);
         cmd.setPath("meta.author");
         cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH);
-        mcbp.sendCommand(cmd);
+        conn.sendCommand(cmd);
 
         BinprotSubdocResponse resp;
-        mcbp.recvResponse(resp);
+        conn.recvResponse(resp);
         ASSERT_TRUE(resp.isSuccess())
                         << memcached_status_2_text(resp.getStatus());
         EXPECT_EQ("\"Trond Norbye\"", resp.getValue());
@@ -303,7 +301,7 @@ TEST_P(ArithmeticTest, TestDocWithXattr) {
 TEST_P(ArithmeticTest, MB25402) {
     // Increment and decrement should not update the expiry time on existing
     // documents
-    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    auto& conn = getConnection();
 
     // Start by creating the counter without expiry time
     conn.increment(name, 1, 0, 0, nullptr);

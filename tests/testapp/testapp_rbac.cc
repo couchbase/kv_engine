@@ -21,7 +21,6 @@
 
 #include "testapp.h"
 #include "testapp_client_test.h"
-#include <protocol/connection/client_mcbp_connection.h>
 
 #include <algorithm>
 #include <platform/compress.h>
@@ -53,7 +52,7 @@ TEST_P(RbacTest, DontAllowUnknownUsers) {
 }
 
 TEST_P(RbacTest, ReloadRbacData_HaveAccess) {
-    auto& conn = reinterpret_cast<MemcachedBinprotConnection&>(getConnection());
+    auto& conn = getConnection();
     conn.authenticate("@admin", "password", "PLAIN");
     BinprotGenericCommand cmd(PROTOCOL_BINARY_CMD_RBAC_REFRESH, {}, {});
     conn.sendCommand(cmd);
@@ -64,7 +63,7 @@ TEST_P(RbacTest, ReloadRbacData_HaveAccess) {
 }
 
 TEST_P(RbacTest, ReloadRbacData_NoAccess) {
-    auto& conn = reinterpret_cast<MemcachedBinprotConnection&>(getConnection());
+    auto& conn = getConnection();
     conn.reconnect();
     conn.setXerrorSupport(true);
     BinprotGenericCommand cmd(PROTOCOL_BINARY_CMD_RBAC_REFRESH, {}, {});
@@ -76,7 +75,7 @@ TEST_P(RbacTest, ReloadRbacData_NoAccess) {
 }
 
 TEST_P(RbacTest, ReloadSasl_HaveAccess) {
-    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getAdminConnection());
+    auto& conn = getAdminConnection();
     BinprotGenericCommand cmd(PROTOCOL_BINARY_CMD_ISASL_REFRESH);
     BinprotResponse resp;
 
@@ -86,7 +85,7 @@ TEST_P(RbacTest, ReloadSasl_HaveAccess) {
 }
 
 TEST_P(RbacTest, ReloadSasl_NoAccess) {
-    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    auto& conn = getConnection();
     BinprotGenericCommand cmd(PROTOCOL_BINARY_CMD_ISASL_REFRESH);
 
     conn.sendCommand(cmd);
@@ -96,7 +95,7 @@ TEST_P(RbacTest, ReloadSasl_NoAccess) {
 }
 
 TEST_P(RbacTest, ScrubNoAccess) {
-    auto& c = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    auto& c = getConnection();
     c.authenticate("larry", "larrypassword", "PLAIN");
 
     BinprotGenericCommand command(PROTOCOL_BINARY_CMD_SCRUB);
@@ -109,7 +108,7 @@ TEST_P(RbacTest, ScrubNoAccess) {
 
 TEST_P(RbacTest, Scrub) {
     TESTAPP_SKIP_IF_UNSUPPORTED(PROTOCOL_BINARY_CMD_SCRUB);
-    auto& c = dynamic_cast<MemcachedBinprotConnection&>(getAdminConnection());
+    auto& c = getAdminConnection();
 
     c.selectBucket("default");
     BinprotGenericCommand command(PROTOCOL_BINARY_CMD_SCRUB);
@@ -125,7 +124,7 @@ TEST_P(RbacTest, Scrub) {
 }
 
 TEST_P(RbacTest, DropPrivilege) {
-    auto& c = dynamic_cast<MemcachedBinprotConnection&>(getAdminConnection());
+    auto& c = getAdminConnection();
     c.selectBucket("default");
     c.stats("");
     c.dropPrivilege(cb::rbac::Privilege::SimpleStats);
@@ -137,7 +136,7 @@ TEST_P(RbacTest, DropPrivilege) {
 }
 
 TEST_P(RbacTest, MB23909_ErrorIncudingErrorInfo) {
-    auto& conn = reinterpret_cast<MemcachedBinprotConnection&>(getConnection());
+    auto& conn = getConnection();
     conn.reconnect();
     conn.setXerrorSupport(true);
     BinprotGenericCommand cmd(PROTOCOL_BINARY_CMD_RBAC_REFRESH, {}, {});
@@ -191,29 +190,26 @@ public:
         conn.deleteBucket("rbac_test");
     }
 
-    MemcachedBinprotConnection& getROConnection() {
-        auto* c = smith_holder.get();
-        auto& smith = dynamic_cast<MemcachedBinprotConnection&>(*c);
+    MemcachedConnection& getROConnection() {
+        auto& smith = *smith_holder.get();
         smith.authenticate("smith", "smithpassword", "PLAIN");
         return prepare(smith);
     }
 
-    MemcachedBinprotConnection& getWOConnection() {
-        auto* c = jones_holder.get();
-        auto& jones = dynamic_cast<MemcachedBinprotConnection&>(*c);
+    MemcachedConnection& getWOConnection() {
+        auto& jones = *jones_holder.get();
         jones.authenticate("jones", "jonespassword", "PLAIN");
         return prepare(jones);
     }
 
-    MemcachedBinprotConnection& getRWConnection() {
-        auto* c = larry_holder.get();
-        auto& jones = dynamic_cast<MemcachedBinprotConnection&>(*c);
-        jones.authenticate("larry", "larrypassword", "PLAIN");
-        return prepare(jones);
+    MemcachedConnection& getRWConnection() {
+        auto& larry = *larry_holder.get();
+        larry.authenticate("larry", "larrypassword", "PLAIN");
+        return prepare(larry);
     }
 
 protected:
-    MutationInfo store(MemcachedBinprotConnection& conn, MutationType type) {
+    MutationInfo store(MemcachedConnection& conn, MutationType type) {
         Document document;
         document.info.cas = mcbp::cas::Wildcard;
         document.info.datatype = cb::mcbp::Datatype::JSON;
@@ -225,7 +221,7 @@ protected:
         return conn.mutate(document, 0, type);
     }
 
-    BinprotResponse createXattr(MemcachedBinprotConnection& conn,
+    BinprotResponse createXattr(MemcachedConnection& conn,
                                 const std::string& key,
                                 const std::string& value) {
         BinprotSubdocCommand cmd;
@@ -242,7 +238,7 @@ protected:
         return resp;
     }
 
-    BinprotResponse getXattr(MemcachedBinprotConnection& conn,
+    BinprotResponse getXattr(MemcachedConnection& conn,
                              const std::string& key) {
         BinprotSubdocCommand cmd;
         cmd.setOp(PROTOCOL_BINARY_CMD_SUBDOC_GET);
@@ -256,7 +252,7 @@ protected:
         return resp;
     }
 
-    MemcachedBinprotConnection& prepare(MemcachedBinprotConnection& c) {
+    MemcachedConnection& prepare(MemcachedConnection& c) {
         c.setDatatypeCompressed(true);
         c.setDatatypeJson(true);
         c.setMutationSeqnoSupport(true);
@@ -523,25 +519,24 @@ TEST_P(RbacRoleTest, DontAutoselectBucket) {
     conn.createBucket("larry", "", BucketType::Memcached);
     conn.authenticate("larry", "larrypassword", "PLAIN");
 
-    auto& c = dynamic_cast<MemcachedBinprotConnection&>(conn);
-    c.setDatatypeCompressed(true);
-    c.setDatatypeJson(true);
-    c.setMutationSeqnoSupport(true);
-    c.setXerrorSupport(true);
-    c.setXattrSupport(true);
+    conn.setDatatypeCompressed(true);
+    conn.setDatatypeJson(true);
+    conn.setMutationSeqnoSupport(true);
+    conn.setXerrorSupport(true);
+    conn.setXattrSupport(true);
 
     // If we try to run a get request it should return no bucket
     BinprotSubdocCommand cmd;
     cmd.setOp(PROTOCOL_BINARY_CMD_SUBDOC_GET);
     cmd.setKey("foo");
     cmd.setPath("doc.meta");
-    c.sendCommand(cmd);
+    conn.sendCommand(cmd);
 
     BinprotResponse resp;
-    c.recvResponse(resp);
+    conn.recvResponse(resp);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_NO_BUCKET, resp.getStatus());
 
-    c.reconnect();
+    conn.reconnect();
     conn = getAdminConnection();
     conn.deleteBucket("larry");
 }

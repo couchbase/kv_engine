@@ -22,7 +22,6 @@
 #include <cJSON_utils.h>
 
 #include "testapp_binprot.h"
-#include "protocol/connection/client_mcbp_connection.h"
 #include <memory>
 #include <stdint.h>
 #include <stdlib.h>
@@ -38,6 +37,7 @@
 
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_connection_map.h>
+#include <protocol/connection/client_mcbp_commands.h>
 
 #include "testapp_environment.h"
 

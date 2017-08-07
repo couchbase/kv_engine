@@ -18,12 +18,14 @@
 #include "testapp.h"
 #include "testapp_client_test.h"
 
+#include <array>
+
 class FlushTest : public TestappClientTest {
 protected:
     virtual void SetUp() {
         TestappClientTest::SetUp();
 
-        conn = static_cast<MemcachedBinprotConnection*>(&getAdminConnection());
+        conn = &getAdminConnection();
         conn->selectBucket("default");
 
         // Store our lone document
@@ -58,7 +60,7 @@ protected:
 
     const char *key = "test_flush";
     const uint16_t vbid = 0;
-    MemcachedBinprotConnection* conn = nullptr;
+    MemcachedConnection* conn = nullptr;
 };
 
 INSTANTIATE_TEST_CASE_P(TransportProtocols,

@@ -16,13 +16,15 @@
  */
 #include "config.h"
 #include "client_connection.h"
-#include "client_mcbp_connection.h"
 #include "cJSON_utils.h"
+#include "client_mcbp_commands.h"
 
 #include <cbsasl/cbsasl.h>
+#include <mcbp/mcbp.h>
 #include <memcached/protocol_binary.h>
 #include <platform/dirutils.h>
 #include <platform/strerror.h>
+
 #include <cerrno>
 #include <iostream>
 #include <limits>
@@ -30,6 +32,8 @@
 #include <stdexcept>
 #include <string>
 #include <system_error>
+
+static const bool packet_dump = getenv("COUCHBASE_PACKET_DUMP") != nullptr;
 
 /////////////////////////////////////////////////////////////////////////
 // Implementation of the MemcachedConnection class
@@ -60,6 +64,7 @@ MemcachedConnection::~MemcachedConnection() {
 }
 
 void MemcachedConnection::close() {
+    effective_features.clear();
     if (ssl) {
         if (bio != nullptr) {
             BIO_free_all(bio);
@@ -276,6 +281,9 @@ void MemcachedConnection::sendFrame(const Frame& frame) {
     } else {
         sendFramePlain(frame);
     }
+    if (packet_dump) {
+        cb::mcbp::dump(frame.payload.data(), std::cerr);
+    }
 }
 
 void MemcachedConnection::sendBuffer(cb::const_byte_buffer& buf) {
@@ -358,4 +366,755 @@ void MemcachedConnection::setSslKeyFile(const std::string& file) {
                                 "Can't use [" + path + "]");
     }
     ssl_key_file = path;
+}
+
+/////////////////////////////////////////////////////////////////////////
+// SASL related functions
+/////////////////////////////////////////////////////////////////////////
+struct my_sasl_ctx {
+    const char* username;
+    cbsasl_secret_t* secret;
+};
+
+static int sasl_get_username(void* context,
+                             int id,
+                             const char** result,
+                             unsigned int* len) {
+    struct my_sasl_ctx* ctx = reinterpret_cast<struct my_sasl_ctx*>(context);
+    if (!context || !result ||
+        (id != CBSASL_CB_USER && id != CBSASL_CB_AUTHNAME)) {
+        return CBSASL_BADPARAM;
+    }
+
+    *result = ctx->username;
+    if (len) {
+        *len = (unsigned int)strlen(*result);
+    }
+
+    return CBSASL_OK;
+}
+
+static int sasl_get_password(cbsasl_conn_t* conn,
+                             void* context,
+                             int id,
+                             cbsasl_secret_t** psecret) {
+    struct my_sasl_ctx* ctx = reinterpret_cast<struct my_sasl_ctx*>(context);
+    if (!conn || !psecret || id != CBSASL_CB_PASS || ctx == NULL) {
+        return CBSASL_BADPARAM;
+    }
+
+    *psecret = ctx->secret;
+    return CBSASL_OK;
+}
+
+static Frame to_frame(const BinprotCommand& command) {
+    Frame frame;
+    command.encode(frame.payload);
+    return frame;
+}
+
+std::unique_ptr<MemcachedConnection> MemcachedConnection::clone() {
+    auto* result = new MemcachedConnection(
+            this->host, this->port, this->family, this->ssl);
+    result->setSslCertFile(this->ssl_cert_file);
+    result->setSslKeyFile(this->ssl_key_file);
+    result->connect();
+    return std::unique_ptr<MemcachedConnection>{result};
+}
+
+void MemcachedConnection::recvFrame(Frame& frame) {
+    frame.reset();
+    // A memcached packet starts with a 24 byte fixed header
+    MemcachedConnection::read(frame, 24);
+
+    // Following the header is the full payload specified in the field
+    // bodylen. Luckily for us the bodylen is located at the same offset in
+    // both a request and a response message..
+    auto* req = reinterpret_cast<protocol_binary_request_header*>(
+            frame.payload.data());
+    const uint32_t bodylen = ntohl(req->request.bodylen);
+    const uint8_t magic = frame.payload.at(0);
+    const uint8_t REQUEST = uint8_t(PROTOCOL_BINARY_REQ);
+    const uint8_t RESPONSE = uint8_t(PROTOCOL_BINARY_RES);
+
+    if (magic != REQUEST && magic != RESPONSE) {
+        throw std::runtime_error("Invalid magic received: " +
+                                 std::to_string(magic));
+    }
+
+    MemcachedConnection::read(frame, bodylen);
+    if (packet_dump) {
+        cb::mcbp::dump(frame.payload.data(), std::cerr);
+    }
+
+    // fixup the length bits in the header to be in host local order:
+    if (magic == REQUEST) {
+        // The underlying buffer may hage been reallocated as part of read
+        req = reinterpret_cast<protocol_binary_request_header*>(
+                frame.payload.data());
+        req->request.keylen = ntohs(req->request.keylen);
+        req->request.bodylen = bodylen;
+    } else {
+        // The underlying buffer may hage been reallocated as part of read
+        auto* res = reinterpret_cast<protocol_binary_response_header*>(
+                frame.payload.data());
+        res->response.keylen = ntohs(res->response.keylen);
+        res->response.bodylen = bodylen;
+        res->response.status = ntohs(res->response.status);
+    }
+}
+
+void MemcachedConnection::sendCommand(const BinprotCommand& command) {
+    auto bufs = command.encode();
+
+    if (packet_dump) {
+        Frame frame;
+
+        if (!bufs.header.empty()) {
+            std::copy(bufs.header.begin(),
+                      bufs.header.end(),
+                      std::back_inserter(frame.payload));
+        }
+
+        for (auto& buf : bufs.bufs) {
+            std::copy(
+                    buf.begin(), buf.end(), std::back_inserter(frame.payload));
+        }
+
+        sendFrame(frame);
+    } else {
+        if (!bufs.header.empty()) {
+            cb::const_byte_buffer tmp_bb(bufs.header);
+            sendBuffer(tmp_bb);
+        }
+
+        for (auto& buf : bufs.bufs) {
+            sendBuffer(buf);
+        }
+    }
+}
+
+void MemcachedConnection::recvResponse(BinprotResponse& response) {
+    Frame frame;
+    recvFrame(frame);
+    response.assign(std::move(frame.payload));
+}
+
+void MemcachedConnection::authenticate(const std::string& username,
+                                       const std::string& password,
+                                       const std::string& mech) {
+    cbsasl_error_t err;
+    const char* data;
+    unsigned int len;
+    const char* chosenmech;
+    struct my_sasl_ctx context;
+    cbsasl_callback_t sasl_callbacks[4];
+    cbsasl_conn_t* client;
+
+    sasl_callbacks[0].id = CBSASL_CB_USER;
+    sasl_callbacks[0].proc = (int (*)(void)) & sasl_get_username;
+    sasl_callbacks[0].context = &context;
+    sasl_callbacks[1].id = CBSASL_CB_AUTHNAME;
+    sasl_callbacks[1].proc = (int (*)(void)) & sasl_get_username;
+    sasl_callbacks[1].context = &context;
+    sasl_callbacks[2].id = CBSASL_CB_PASS;
+    sasl_callbacks[2].proc = (int (*)(void)) & sasl_get_password;
+    sasl_callbacks[2].context = &context;
+    sasl_callbacks[3].id = CBSASL_CB_LIST_END;
+    sasl_callbacks[3].proc = NULL;
+    sasl_callbacks[3].context = NULL;
+
+    context.username = username.c_str();
+    std::vector<uint8_t> buffer(sizeof(context.secret->len) +
+                                password.length() + 10);
+    context.secret = reinterpret_cast<cbsasl_secret_t*>(buffer.data());
+    memcpy(context.secret->data, password.c_str(), password.length());
+    context.secret->len = password.length();
+
+    err = cbsasl_client_new(NULL, NULL, NULL, NULL, sasl_callbacks, 0, &client);
+    if (err != CBSASL_OK) {
+        throw std::runtime_error(std::string("cbsasl_client_new: ") +
+                                 std::to_string(err));
+    }
+    err = cbsasl_client_start(
+            client, mech.c_str(), NULL, &data, &len, &chosenmech);
+    if (err != CBSASL_OK) {
+        throw std::runtime_error(std::string("cbsasl_client_start (") +
+                                 std::string(chosenmech) + std::string("): ") +
+                                 std::to_string(err));
+    }
+
+    BinprotSaslAuthCommand authCommand;
+    authCommand.setChallenge(data, len);
+    authCommand.setMechanism(chosenmech);
+    sendCommand(authCommand);
+
+    BinprotResponse response;
+    recvResponse(response);
+
+    while (response.getStatus() == PROTOCOL_BINARY_RESPONSE_AUTH_CONTINUE) {
+        auto respdata = response.getData();
+        err = cbsasl_client_step(client,
+                                 reinterpret_cast<const char*>(respdata.data()),
+                                 respdata.size(),
+                                 NULL,
+                                 &data,
+                                 &len);
+        if (err != CBSASL_OK && err != CBSASL_CONTINUE) {
+            reconnect();
+            throw std::runtime_error(std::string("cbsasl_client_step: ") +
+                                     std::to_string(err));
+        }
+
+        BinprotSaslStepCommand stepCommand;
+        stepCommand.setMechanism(chosenmech);
+        stepCommand.setChallengeResponse(data, len);
+        sendCommand(stepCommand);
+        recvResponse(response);
+    }
+
+    cbsasl_dispose(&client);
+
+    if (!response.isSuccess()) {
+        throw ConnectionError("Authentication failed", response);
+    }
+}
+
+void MemcachedConnection::createBucket(const std::string& name,
+                                       const std::string& config,
+                                       const BucketType type) {
+    std::string module;
+    switch (type) {
+    case BucketType::Memcached:
+        module.assign("default_engine.so");
+        break;
+    case BucketType::EWouldBlock:
+        module.assign("ewouldblock_engine.so");
+        break;
+    case BucketType::Couchbase:
+        module.assign("ep.so");
+        break;
+    default:
+        throw std::runtime_error("Not implemented");
+    }
+
+    BinprotCreateBucketCommand command(name.c_str());
+    command.setConfig(module, config);
+    sendCommand(command);
+
+    BinprotResponse response;
+    recvResponse(response);
+
+    if (!response.isSuccess()) {
+        throw ConnectionError("Create bucket failed", response);
+    }
+}
+
+void MemcachedConnection::deleteBucket(const std::string& name) {
+    BinprotGenericCommand command(PROTOCOL_BINARY_CMD_DELETE_BUCKET, name);
+    sendCommand(command);
+    BinprotResponse response;
+    recvResponse(response);
+
+    if (!response.isSuccess()) {
+        throw ConnectionError("Delete bucket failed", response);
+    }
+}
+
+void MemcachedConnection::selectBucket(const std::string& name) {
+    BinprotGenericCommand command(PROTOCOL_BINARY_CMD_SELECT_BUCKET, name);
+    sendCommand(command);
+    BinprotResponse response;
+    recvResponse(response);
+
+    if (!response.isSuccess()) {
+        throw ConnectionError(
+                std::string("Select bucket [" + name + "] failed").c_str(),
+                response);
+    }
+}
+
+std::string MemcachedConnection::to_string() {
+    std::string ret("Memcached connection ");
+    ret.append(std::to_string(port));
+    if (family == AF_INET6) {
+        ret.append("[::1]:");
+    } else {
+        ret.append("127.0.0.1:");
+    }
+
+    ret.append(std::to_string(port));
+
+    if (ssl) {
+        ret.append(" ssl");
+    }
+
+    return ret;
+}
+
+std::vector<std::string> MemcachedConnection::listBuckets() {
+    BinprotGenericCommand command(PROTOCOL_BINARY_CMD_LIST_BUCKETS);
+    sendCommand(command);
+
+    BinprotResponse response;
+    recvResponse(response);
+
+    if (!response.isSuccess()) {
+        throw ConnectionError("List bucket failed", response);
+    }
+
+    std::vector<std::string> ret;
+
+    // the value contains a list of bucket names separated by space.
+    std::istringstream iss(response.getDataString());
+    std::copy(std::istream_iterator<std::string>(iss),
+              std::istream_iterator<std::string>(),
+              std::back_inserter(ret));
+
+    return ret;
+}
+
+Document MemcachedConnection::get(const std::string& id, uint16_t vbucket) {
+    BinprotGetCommand command;
+    command.setKey(id);
+    command.setVBucket(vbucket);
+    sendCommand(command);
+
+    BinprotGetResponse response;
+    recvResponse(response);
+
+    if (!response.isSuccess()) {
+        throw ConnectionError("Failed to get: " + id, response.getStatus());
+    }
+
+    Document ret;
+    ret.info.flags = response.getDocumentFlags();
+    ret.info.cas = response.getCas();
+    ret.info.id = id;
+    ret.info.datatype = cb::mcbp::Datatype(response.getDatatype());
+    ret.value.assign(response.getData().data(),
+                     response.getData().data() + response.getData().size());
+    return ret;
+}
+
+Frame MemcachedConnection::encodeCmdGet(const std::string& id,
+                                        uint16_t vbucket) {
+    BinprotGetCommand command;
+    command.setKey(id);
+    command.setVBucket(vbucket);
+    return to_frame(command);
+}
+
+MutationInfo MemcachedConnection::mutate(const DocumentInfo& info,
+                                         uint16_t vbucket,
+                                         cb::const_byte_buffer value,
+                                         MutationType type) {
+    BinprotMutationCommand command;
+    command.setDocumentInfo(info);
+    command.addValueBuffer(value);
+    command.setVBucket(vbucket);
+    command.setMutationType(type);
+    sendCommand(command);
+
+    BinprotMutationResponse response;
+    recvResponse(response);
+    if (!response.isSuccess()) {
+        throw ConnectionError("Failed to store " + info.id,
+                              response.getStatus());
+    }
+
+    return response.getMutationInfo();
+}
+
+std::map<std::string, std::string> MemcachedConnection::statsMap(
+        const std::string& subcommand) {
+    BinprotGenericCommand command(PROTOCOL_BINARY_CMD_STAT, subcommand);
+    sendCommand(command);
+
+    std::map<std::string, std::string> ret;
+    int counter = 0;
+
+    while (true) {
+        BinprotResponse response;
+        recvResponse(response);
+
+        if (!response.isSuccess()) {
+            throw ConnectionError("Stats failed", response);
+        }
+
+        if (!response.getBodylen()) {
+            break;
+        }
+
+        std::string key = response.getKeyString();
+
+        if (key.empty()) {
+            key = std::to_string(counter++);
+        }
+        ret.insert(std::make_pair(key, response.getDataString()));
+    }
+
+    return ret;
+}
+
+void MemcachedConnection::configureEwouldBlockEngine(const EWBEngineMode& mode,
+                                                     ENGINE_ERROR_CODE err_code,
+                                                     uint32_t value,
+                                                     const std::string& key) {
+    request_ewouldblock_ctl request;
+    memset(request.bytes, 0, sizeof(request.bytes));
+    request.message.header.request.magic = 0x80;
+    request.message.header.request.opcode = PROTOCOL_BINARY_CMD_EWOULDBLOCK_CTL;
+    request.message.header.request.extlen = 12;
+    request.message.header.request.keylen = ntohs((short)key.size());
+    request.message.header.request.bodylen = htonl(12 + key.size());
+    request.message.body.inject_error = htonl(err_code);
+    request.message.body.mode = htonl(static_cast<uint32_t>(mode));
+    request.message.body.value = htonl(value);
+
+    Frame frame;
+    frame.payload.resize(sizeof(request.bytes) + key.size());
+    memcpy(frame.payload.data(), request.bytes, sizeof(request.bytes));
+    memcpy(frame.payload.data() + sizeof(request.bytes),
+           key.data(),
+           key.size());
+    sendFrame(frame);
+
+    recvFrame(frame);
+    auto* bytes = frame.payload.data();
+    auto* rsp = reinterpret_cast<protocol_binary_response_no_extras*>(bytes);
+    auto& header = rsp->message.header.response;
+    if (header.status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        throw ConnectionError("Failed to configure ewouldblock engine",
+                              header.status);
+    }
+}
+
+void MemcachedConnection::reloadAuditConfiguration() {
+    BinprotGenericCommand command(PROTOCOL_BINARY_CMD_AUDIT_CONFIG_RELOAD);
+    sendCommand(command);
+    BinprotResponse response;
+    recvResponse(response);
+
+    if (!response.isSuccess()) {
+        throw ConnectionError("Failed to reload audit configuration", response);
+    }
+}
+
+void MemcachedConnection::hello(const std::string& userAgent,
+                                const std::string& userAgentVersion,
+                                const std::string& comment) {
+    applyFeatures(userAgent + " " + userAgentVersion, effective_features);
+
+    BinprotGenericCommand command(PROTOCOL_BINARY_CMD_SASL_LIST_MECHS);
+    sendCommand(command);
+
+    BinprotResponse response;
+    recvResponse(response);
+    if (!response.isSuccess()) {
+        throw ConnectionError("Failed to fetch sasl mechanisms", response);
+    }
+
+    saslMechanisms.assign(reinterpret_cast<const char*>(response.getPayload()),
+                          response.getBodylen());
+}
+
+void MemcachedConnection::applyFeatures(const std::string& agent,
+                                        const Featureset& featureset) {
+    BinprotHelloCommand command(agent);
+    for (const auto& feature : featureset) {
+        command.enableFeature(mcbp::Feature(feature), true);
+    }
+
+    sendCommand(command);
+
+    BinprotHelloResponse response;
+    recvResponse(response);
+
+    if (!response.isSuccess()) {
+        throw ConnectionError("Failed to say hello", response);
+    }
+
+    effective_features.clear();
+    for (const auto& feature : response.getFeatures()) {
+        effective_features.insert(uint16_t(feature));
+    }
+}
+
+void MemcachedConnection::setFeature(mcbp::Feature feature, bool enabled) {
+    Featureset currFeatures = effective_features;
+    if (enabled) {
+        currFeatures.insert(uint16_t(feature));
+    } else {
+        currFeatures.erase(uint16_t(feature));
+    }
+
+    applyFeatures("mcbp", currFeatures);
+
+    if (enabled && !hasFeature(feature)) {
+        throw std::runtime_error("Failed to enable " +
+                                 mcbp::to_string(feature));
+    } else if (!enabled && hasFeature(feature)) {
+        throw std::runtime_error("Failed to disable " +
+                                 mcbp::to_string(feature));
+    }
+}
+
+std::string MemcachedConnection::ioctl_get(const std::string& key) {
+    BinprotGenericCommand command(PROTOCOL_BINARY_CMD_IOCTL_GET, key);
+    sendCommand(command);
+
+    BinprotResponse response;
+    recvResponse(response);
+    if (!response.isSuccess()) {
+        throw ConnectionError("ioctl_get '" + key + "' failed", response);
+    }
+    return std::string(reinterpret_cast<const char*>(response.getPayload()),
+                       response.getBodylen());
+}
+
+void MemcachedConnection::ioctl_set(const std::string& key,
+                                    const std::string& value) {
+    BinprotGenericCommand command(PROTOCOL_BINARY_CMD_IOCTL_SET, key, value);
+    sendCommand(command);
+
+    BinprotResponse response;
+    recvResponse(response);
+    if (!response.isSuccess()) {
+        throw ConnectionError("ioctl_set '" + key + "' failed", response);
+    }
+}
+
+uint64_t MemcachedConnection::increment(const std::string& key,
+                                        uint64_t delta,
+                                        uint64_t initial,
+                                        rel_time_t exptime,
+                                        MutationInfo* info) {
+    return incr_decr(
+            PROTOCOL_BINARY_CMD_INCREMENT, key, delta, initial, exptime, info);
+}
+
+uint64_t MemcachedConnection::decrement(const std::string& key,
+                                        uint64_t delta,
+                                        uint64_t initial,
+                                        rel_time_t exptime,
+                                        MutationInfo* info) {
+    return incr_decr(
+            PROTOCOL_BINARY_CMD_DECREMENT, key, delta, initial, exptime, info);
+}
+
+uint64_t MemcachedConnection::incr_decr(protocol_binary_command opcode,
+                                        const std::string& key,
+                                        uint64_t delta,
+                                        uint64_t initial,
+                                        rel_time_t exptime,
+                                        MutationInfo* info) {
+    BinprotIncrDecrCommand command;
+    command.setOp(opcode)
+            .setKey(key)
+            .setDelta(delta)
+            .setInitialValue(initial)
+            .setExpiry(exptime);
+
+    sendCommand(command);
+
+    BinprotIncrDecrResponse response;
+    recvResponse(response);
+
+    if (!response.isSuccess()) {
+        if (opcode == PROTOCOL_BINARY_CMD_INCREMENT) {
+            throw ConnectionError("incr \"" + key + "\" failed.",
+                                  response.getStatus());
+        } else {
+            throw ConnectionError("decr \"" + key + "\" failed.",
+                                  response.getStatus());
+        }
+    }
+
+    if (info != nullptr) {
+        *info = response.getMutationInfo();
+    }
+    return response.getValue();
+}
+
+MutationInfo MemcachedConnection::remove(const std::string& key,
+                                         uint16_t vbucket,
+                                         uint64_t cas) {
+    BinprotRemoveCommand command;
+    command.setKey(key).setVBucket(vbucket);
+    command.setVBucket(vbucket);
+    command.setCas(cas);
+    sendCommand(command);
+
+    BinprotRemoveResponse response;
+    recvResponse(response);
+
+    if (!response.isSuccess()) {
+        throw ConnectionError("Failed to remove: " + key, response.getStatus());
+    }
+
+    return response.getMutationInfo();
+}
+
+Document MemcachedConnection::get_and_lock(const std::string& id,
+                                           uint16_t vbucket,
+                                           uint32_t lock_timeout) {
+    BinprotGetAndLockCommand command;
+    command.setKey(id);
+    command.setVBucket(vbucket);
+    command.setLockTimeout(lock_timeout);
+    sendCommand(command);
+
+    BinprotGetAndLockResponse response;
+    recvResponse(response);
+
+    if (!response.isSuccess()) {
+        throw ConnectionError("Failed to get: " + id, response.getStatus());
+    }
+
+    Document ret;
+    ret.info.flags = response.getDocumentFlags();
+    ret.info.cas = response.getCas();
+    ret.info.id = id;
+    ret.info.datatype = cb::mcbp::Datatype(response.getDatatype());
+    ret.value.assign(response.getData().data(),
+                     response.getData().data() + response.getData().size());
+    return ret;
+}
+
+void MemcachedConnection::unlock(const std::string& id,
+                                 uint16_t vbucket,
+                                 uint64_t cas) {
+    BinprotUnlockCommand command;
+    command.setKey(id);
+    command.setVBucket(vbucket);
+    command.setCas(cas);
+    sendCommand(command);
+
+    BinprotUnlockResponse response;
+    recvResponse(response);
+
+    if (!response.isSuccess()) {
+        throw ConnectionError("unlock(): " + id, response.getStatus());
+    }
+}
+
+unique_cJSON_ptr MemcachedConnection::timings(uint8_t opcode,
+                                              const std::string& bucket) {
+    return unique_cJSON_ptr();
+}
+
+void MemcachedConnection::dropPrivilege(cb::rbac::Privilege privilege) {
+    BinprotGenericCommand command(PROTOCOL_BINARY_CMD_DROP_PRIVILEGE,
+                                  cb::rbac::to_string(privilege));
+    sendCommand(command);
+
+    BinprotResponse response;
+    recvResponse(response);
+    if (!response.isSuccess()) {
+        throw ConnectionError("dropPrivilege \"" +
+                                      cb::rbac::to_string(privilege) +
+                                      "\" failed.",
+                              response.getStatus());
+    }
+}
+
+MutationInfo MemcachedConnection::mutateWithMeta(
+        Document& doc,
+        uint16_t vbucket,
+        uint64_t cas,
+        uint64_t seqno,
+        uint32_t metaOption,
+        std::vector<uint8_t> metaExtras) {
+    BinprotSetWithMetaCommand swm(
+            doc, vbucket, cas, seqno, metaOption, metaExtras);
+    sendCommand(swm);
+
+    BinprotMutationResponse response;
+    recvResponse(response);
+    if (!response.isSuccess()) {
+        throw ConnectionError("Failed to mutateWithMeta " + doc.info.id,
+                              response.getStatus());
+    }
+
+    return response.getMutationInfo();
+}
+
+GetMetaResponse MemcachedConnection::getMeta(const std::string& key,
+                                             uint16_t vbucket,
+                                             uint64_t cas) {
+    BinprotGenericCommand cmd{PROTOCOL_BINARY_CMD_GET_META, key};
+    const std::vector<uint8_t> extras = {uint8_t(GetMetaVersion::V2)};
+    cmd.setExtras(extras);
+    sendCommand(cmd);
+    BinprotResponse resp;
+    recvResponse(resp);
+    if (!resp.isSuccess()) {
+        throw ConnectionError("getMeta failed for: " + key, resp.getStatus());
+    }
+
+    auto meta = *reinterpret_cast<const GetMetaResponse*>(resp.getPayload());
+    meta.deleted = ntohl(meta.deleted);
+    meta.expiry = ntohl(meta.expiry);
+    meta.seqno = ntohll(meta.seqno);
+    return meta;
+}
+
+/////////////////////////////////////////////////////////////////////////
+// Implementation of the ConnectionError class
+/////////////////////////////////////////////////////////////////////////
+
+// Generates error msgs like ``<prefix>: ["<context>", ]<reason> (#<reason>)``
+static std::string formatMcbpExceptionMsg(const std::string& prefix,
+                                          uint16_t reason,
+                                          const std::string& context = "") {
+    // Format the error message
+    std::string errormessage(prefix);
+    errormessage.append(": ");
+
+    if (!context.empty()) {
+        errormessage.append("'");
+        errormessage.append(context);
+        errormessage.append("', ");
+    }
+
+    auto err = static_cast<protocol_binary_response_status>(reason);
+    errormessage.append(memcached_status_2_text(err));
+    errormessage.append(" (");
+    errormessage.append(std::to_string(reason));
+    errormessage.append(")");
+    return errormessage;
+}
+
+static std::string formatMcbpExceptionMsg(const std::string& prefix,
+                                          const BinprotResponse& response) {
+    std::string context;
+    // If the response was not a success and the datatype is json then there's
+    // probably a JSON error context that's been included with the response body
+    if (mcbp::datatype::is_json(response.getDatatype()) &&
+        !response.isSuccess()) {
+        unique_cJSON_ptr json =
+                unique_cJSON_ptr(cJSON_Parse(response.getDataString().c_str()));
+        if (json != nullptr && json->type == cJSON_Object) {
+            auto* error = cJSON_GetObjectItem(json.get(), "error");
+            if (error != nullptr && error->type == cJSON_Object) {
+                auto* ctx = cJSON_GetObjectItem(error, "context");
+                if (ctx != nullptr && ctx->type == cJSON_String) {
+                    context = ctx->valuestring;
+                }
+            }
+        }
+    }
+    return formatMcbpExceptionMsg(prefix, response.getStatus(), context);
+}
+
+ConnectionError::ConnectionError(const std::string& prefix, uint16_t reason)
+    : std::runtime_error(formatMcbpExceptionMsg(prefix, reason).c_str()),
+      reason(reason) {
+}
+
+ConnectionError::ConnectionError(const std::string& prefix,
+                                 const BinprotResponse& response)
+    : std::runtime_error(formatMcbpExceptionMsg(prefix, response).c_str()),
+      reason(response.getStatus()) {
 }

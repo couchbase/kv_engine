@@ -17,7 +17,6 @@
 
 #include "testapp.h"
 #include "testapp_client_test.h"
-#include <protocol/connection/client_mcbp_connection.h>
 
 #include <algorithm>
 #include <platform/compress.h>
@@ -39,7 +38,6 @@ protected:
 
 void RemoveTest::verify_MB_22553(const std::string& config) {
     auto& conn = getAdminConnection();
-    auto& connection = dynamic_cast<MemcachedBinprotConnection&>(conn);
 
     std::string name = "bucket-1";
     conn.createBucket(name, config, BucketType::Memcached);
@@ -57,10 +55,10 @@ void RemoveTest::verify_MB_22553(const std::string& config) {
         cmd.setValue("\"read-only\"");
         cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
 
-        connection.sendCommand(cmd);
+        conn.sendCommand(cmd);
 
         BinprotResponse resp;
-        connection.recvResponse(resp);
+        conn.recvResponse(resp);
         EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
     }
 
@@ -84,10 +82,10 @@ void RemoveTest::verify_MB_22553(const std::string& config) {
         cmd.setPath("verbosity");
         cmd.addPathFlags(SUBDOC_FLAG_NONE);
 
-        connection.sendCommand(cmd);
+        conn.sendCommand(cmd);
 
         BinprotSubdocResponse resp;
-        connection.recvResponse(resp);
+        conn.recvResponse(resp);
 
         EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, resp.getStatus())
                     << "MB-22553: doc with xattr is still accessible";

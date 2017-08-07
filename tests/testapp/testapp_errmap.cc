@@ -23,9 +23,6 @@ class ErrmapTest : public TestappClientTest {
 public:
     static bool validateJson(cJSON* json, size_t reqversion);
     static bool validateJson(const char* s, size_t n, size_t reqversion);
-    MemcachedBinprotConnection& getBinprotConnection() {
-        return dynamic_cast<MemcachedBinprotConnection&>(getConnection());
-    }
 };
 
 INSTANTIATE_TEST_CASE_P(TransportProtocols,
@@ -67,7 +64,7 @@ TEST_P(ErrmapTest, GetErrmapOk) {
     const uint16_t version = 1;
     cmd.setVersion(version);
 
-    getBinprotConnection().executeCommand(cmd, resp);
+    getConnection().executeCommand(cmd, resp);
 
     ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
     ASSERT_GT(resp.getBodylen(), 0);
@@ -81,7 +78,7 @@ TEST_P(ErrmapTest, GetErrmapAnyVersion) {
     const uint16_t version = 256;
 
     cmd.setVersion(version);
-    getBinprotConnection().executeCommand(cmd, resp);
+    getConnection().executeCommand(cmd, resp);
 
     ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
     ASSERT_GT(resp.getBodylen(), 0);
@@ -99,6 +96,6 @@ TEST_P(ErrmapTest, GetErrmapBadversion) {
     BinprotGetErrorMapCommand cmd;
     BinprotResponse resp;
     cmd.setVersion(0);
-    getBinprotConnection().executeCommand(cmd, resp);
+    getConnection().executeCommand(cmd, resp);
     ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, resp.getStatus());
 }
