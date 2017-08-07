@@ -25,6 +25,9 @@ import os
 import subprocess
 import sys
 
+# Python 2.6 doesn't have subprocess.check_output
+def check_output(args):
+    return subprocess.Popen(args, stdout=subprocess.PIPE).communicate()[0]
 
 parser = argparse.ArgumentParser(
     description='Dump a KV-Engine trace file as JSON.')
@@ -62,12 +65,12 @@ mcctl_args = [mcctl_bin,
               '-P', args.password]
 
 subprocess.check_call(mcctl_args + ['set', 'trace.stop'])
-uuid = subprocess.check_output(mcctl_args + ['get', 'trace.dump.begin'])
+uuid = check_output(mcctl_args + ['get', 'trace.dump.begin'])
 uuid = uuid.strip()
 
 # Repeatedly get chunks, until we get one with zero length.
 while True:
-    chunk = subprocess.check_output(
+    chunk = check_output(
         mcctl_args + ['get', 'trace.dump.chunk?id=' + uuid]).rstrip()
     if len(chunk) == 0:
         break
