@@ -139,8 +139,7 @@ object describing a single interface with the following properties:
 
     protocol      A string value specifying the protocol enabled
                   for this port. If not present the memcached binary
-                  protocol is used. Legal values: "greenstack" or
-                  "memcached"
+                  protocol is used. Legal values: "memcached"
 
 The *ssl* object contains the two *mandatory* attributes:
 
@@ -385,21 +384,6 @@ A Sample memcached.json:
                     "cert" : "/etc/memcached/cert"
                 },
                 "protocol" : "memcached"
-            },
-            {
-                "host" : "*",
-                "port" : 11210,
-                "IPv4" : true,
-                "IPv6" : true,
-                "maxconn" : 10000,
-                "backlog" : 1024,
-                "tcp_nodelay" : true,
-                "ssl" :
-                {
-                    "key" : "/etc/memcached/pkey",
-                    "cert" : "/etc/memcached/cert"
-                },
-                "protocol" : "greenstack"
             }
         ],
         "extensions" :

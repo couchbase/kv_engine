@@ -27,21 +27,6 @@
                 "cert" : "/etc/memcached/cert"
             },
             "protocol" : "memcached"
-        },
-        {
-            "host" : "*",
-            "port" : 11210,
-            "IPv4" : true,
-            "IPv6" : true,
-            "maxconn" : 10000,
-            "backlog" : 1024,
-            "tcp_nodelay" : true,
-            "ssl" :
-            {
-                "key" : "/etc/memcached/pkey",
-                "cert" : "/etc/memcached/cert"
-            },
-            "protocol" : "greenstack"
         }
     ],
     "extensions" :
