@@ -174,7 +174,7 @@ public:
                        StoredValue::UniquePtr ownedSv,
                        StoredValue* newSv) override;
 
-    size_t purgeTombstones() override;
+    size_t purgeTombstones(seqno_t purgeUpToSeqno) override;
 
     void updateNumDeletedItems(bool oldDeleted, bool newDeleted) override;
 

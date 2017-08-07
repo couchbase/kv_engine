@@ -395,6 +395,7 @@ TEST_F(EphTombstoneTest, ZeroElementPurge) {
     ASSERT_EQ(0, mockEpheVB->public_getNumListItems());
 
     EXPECT_EQ(0, mockEpheVB->markOldTombstonesStale(0));
+    EXPECT_EQ(0, mockEpheVB->purgeStaleItems());
 }
 
 // Check a seqList with one element is handled correctly.
@@ -405,12 +406,14 @@ TEST_F(EphTombstoneTest, OneElementPurge) {
     ASSERT_EQ(1, mockEpheVB->public_getNumListItems());
 
     EXPECT_EQ(0, mockEpheVB->markOldTombstonesStale(0));
+    EXPECT_EQ(0, mockEpheVB->purgeStaleItems());
 }
 
 // Check that nothing is purged if no items are stale.
 TEST_F(EphTombstoneTest, NoPurgeIfNoneStale) {
     // Run purger - nothing should be removed.
     EXPECT_EQ(0, mockEpheVB->markOldTombstonesStale(0));
+    EXPECT_EQ(0, mockEpheVB->purgeStaleItems());
     EXPECT_EQ(keys.size(), vbucket->getNumItems());
 }
 
@@ -426,6 +429,7 @@ TEST_F(EphTombstoneTest, NoPurgeIfNoneOldEnough) {
     // should be purged.
     TimeTraveller theTerminator(5);
     EXPECT_EQ(0, mockEpheVB->markOldTombstonesStale(10));
+    EXPECT_EQ(0, mockEpheVB->purgeStaleItems());
 
     EXPECT_EQ(2, vbucket->getNumItems());
     EXPECT_EQ(1, vbucket->getNumInMemoryDeletes());
@@ -465,6 +469,59 @@ TEST_F(EphTombstoneTest, OnePurgeIfDeletedItemOld) {
             << "Should have purged up to 4th update (1st delete, after 3 sets)";
 }
 
+/* Do not purge the last (back of the list) deleted stale item */
+TEST_F(EphTombstoneTest, DoNotPurgeLastDelete) {
+    /* Advance to non-zero time. */
+    TimeTraveller jamesCole(10);
+
+    /* Delete a key, it will be the last element in the sequence list */
+    softDeleteOne(keys.at(0), MutationStatus::WasDirty);
+    int expectedItems = keys.size() - 1 /*deleted key*/;
+    ASSERT_EQ(expectedItems, vbucket->getNumItems());
+    ASSERT_EQ(1, vbucket->getNumInMemoryDeletes());
+
+    /* Mark deleted items older than 0s as stale */
+    EXPECT_EQ(1, mockEpheVB->markOldTombstonesStale(0));
+    EXPECT_EQ(expectedItems, vbucket->getNumItems());
+    EXPECT_EQ(0, vbucket->getNumInMemoryDeletes());
+
+    /* Try to purge the stale delete, but it should not get purged as it is
+     the last element in the list */
+    EXPECT_EQ(0, mockEpheVB->purgeStaleItems());
+    EXPECT_EQ(0, vbucket->getPurgeSeqno())
+            << "Should not have purged the last list element";
+}
+
+/* Do not purge if stale item is the only item in the list */
+TEST_F(EphTombstoneTest, DoNotPurgeTheOnlyElement) {
+    /* Create a new empty VB (using parent class SetUp). */
+    EphemeralVBucketTest::SetUp();
+    const auto key = makeStoredDocKey("one");
+    ASSERT_EQ(MutationStatus::WasClean, setOne(key));
+    ASSERT_EQ(1, mockEpheVB->public_getNumListItems());
+
+    softDeleteOne(key, MutationStatus::WasDirty);
+    EXPECT_EQ(1, vbucket->getNumInMemoryDeletes());
+
+    /* Advance to non-zero time. */
+    TimeTraveller jamesCole(10);
+
+    /* Mark stale and then try to purge */
+    EXPECT_EQ(1, mockEpheVB->markOldTombstonesStale(0));
+    EXPECT_EQ(0, vbucket->getNumItems());
+    EXPECT_EQ(0, vbucket->getNumInMemoryDeletes());
+
+    /* Try to purge, but should be unsuccessful as the stale element is
+       the only element in the list and hence the last one */
+    EXPECT_EQ(0, mockEpheVB->purgeStaleItems());
+    EXPECT_EQ(0, vbucket->getPurgeSeqno());
+
+    /* Check that you can add another element to the list after the purge try
+       (to ensure that purgeStaleItems() did not screw up the list) */
+    ASSERT_EQ(MutationStatus::WasClean, setOne(makeStoredDocKey("two")));
+    ASSERT_EQ(2, mockEpheVB->public_getNumListItems());
+}
+
 // Check that deleted items can be purged immediately.
 TEST_F(EphTombstoneTest, ImmediateDeletedPurge) {
     // Advance to non-zero time.
@@ -474,8 +531,7 @@ TEST_F(EphTombstoneTest, ImmediateDeletedPurge) {
     softDeleteOne(keys.at(0), MutationStatus::WasDirty);
 
     setOne(makeStoredDocKey("last_key1"));
-    setOne(makeStoredDocKey("last_key2"));
-    int expectedItems = keys.size() - 1/*deleted key*/ + 2/*last_keys*/;
+    int expectedItems = keys.size() - 1 /*deleted key*/ + 1 /*last_key*/;
     ASSERT_EQ(expectedItems, vbucket->getNumItems());
     ASSERT_EQ(1, vbucket->getNumInMemoryDeletes());
 
@@ -545,8 +601,7 @@ TEST_F(EphTombstoneTest, PurgeOutOfOrder) {
     softDeleteOne(keys.at(2), MutationStatus::WasDirty);
 
     setOne(makeStoredDocKey("last_key1"));
-    setOne(makeStoredDocKey("last_key2"));
-    int expectedItems = keys.size() - 1/*deleted key*/ + 2/*last_keys*/;
+    int expectedItems = keys.size() - 1 /*deleted key*/ + 1 /*last_key*/;
 
     // Run the tombstone purger.
     mockEpheVB->getLL()->resetReadRange();
@@ -560,9 +615,8 @@ TEST_F(EphTombstoneTest, PurgeOutOfOrder) {
     softDeleteOne(keys.at(0), MutationStatus::WasDirty);
     --expectedItems;
 
-    setOne(makeStoredDocKey("last_key3"));
-    setOne(makeStoredDocKey("last_key4"));
-    expectedItems += 2;
+    setOne(makeStoredDocKey("last_key2"));
+    expectedItems += 1;
 
     // Run the tombstone purger. This should succeed, but with
     // highestDeletedPurged unchanged.
@@ -570,7 +624,7 @@ TEST_F(EphTombstoneTest, PurgeOutOfOrder) {
     ASSERT_EQ(expectedItems, vbucket->getNumItems());
 
     EXPECT_EQ(1, mockEpheVB->purgeStaleItems());
-    EXPECT_EQ(7, vbucket->getPurgeSeqno());
+    EXPECT_EQ(6, vbucket->getPurgeSeqno());
     EXPECT_NE(vbucket->getPurgeSeqno(), vbucket->getHighSeqno());
 }
 
