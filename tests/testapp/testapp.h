@@ -37,6 +37,8 @@
 #include "engines/ewouldblock_engine/ewouldblock_engine.h"
 
 #include <protocol/connection/client_connection.h>
+#include <protocol/connection/client_connection_map.h>
+
 #include "testapp_environment.h"
 
 enum class TransportProtocols {
