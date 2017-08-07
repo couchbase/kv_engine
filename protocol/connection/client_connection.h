@@ -86,38 +86,68 @@ enum class MutationType {
 
 std::string to_string(MutationType type);
 
+class BinprotResponse;
+
 class ConnectionError : public std::runtime_error {
 public:
-    explicit ConnectionError(const char* what_arg)
-        : std::runtime_error(what_arg) {
-        // Empty
+    ConnectionError(const std::string& prefix, uint16_t reason_);
+
+    ConnectionError(const std::string& prefix, const BinprotResponse& response);
+
+    uint16_t getReason() const {
+        return reason;
     }
 
-    virtual uint16_t getReason() const = 0;
+    Protocol getProtocol() const {
+        return Protocol::Memcached;
+    }
 
-    virtual Protocol getProtocol() const = 0;
+    bool isInvalidArguments() const {
+        return reason == PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
 
-    virtual bool isInvalidArguments() const = 0;
+    bool isAlreadyExists() const {
+        return reason == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS;
+    }
 
-    virtual bool isAlreadyExists() const = 0;
+    bool isNotFound() const {
+        return reason == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
+    }
 
-    virtual bool isNotMyVbucket() const = 0;
+    bool isNotMyVbucket() const {
+        return reason == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
+    }
 
-    virtual bool isNotFound() const = 0;
+    bool isNotStored() const {
+        return reason == PROTOCOL_BINARY_RESPONSE_NOT_STORED;
+    }
 
-    virtual bool isNotStored() const = 0;
+    bool isAccessDenied() const {
+        return reason == PROTOCOL_BINARY_RESPONSE_EACCESS;
+    }
 
-    virtual bool isAccessDenied() const = 0;
+    bool isDeltaBadval() const {
+        return reason == PROTOCOL_BINARY_RESPONSE_DELTA_BADVAL;
+    }
 
-    virtual bool isDeltaBadval() const = 0;
+    bool isAuthError() const {
+        return reason == PROTOCOL_BINARY_RESPONSE_AUTH_ERROR;
+    }
 
-    virtual bool isAuthError() const = 0;
+    bool isNotSupported() const {
+        return reason == PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
+    }
 
-    virtual bool isNotSupported() const = 0;
+    bool isLocked() const {
+        return reason == PROTOCOL_BINARY_RESPONSE_LOCKED;
+    }
 
-    virtual bool isLocked() const = 0;
+    bool isTemporaryFailure() const {
+        return reason == PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
+    }
 
-    virtual bool isTemporaryFailure() const = 0;
+private:
+    uint16_t reason;
 };
 
 /**

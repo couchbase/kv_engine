@@ -184,7 +184,7 @@ TEST_P(RemoveTest, RemoveWithXattr) {
             xattrOperationStatus) {
             FAIL() << "The user xattr should be gone!";
         }
-    } catch (const BinprotConnectionError& exp) {
+    } catch (const ConnectionError& exp) {
         EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT,
                   exp.getReason())
                     << memcached_status_2_text(

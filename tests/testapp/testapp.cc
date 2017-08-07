@@ -1197,7 +1197,7 @@ BinprotSubdocResponse TestappTest::runGetXattr(
     }
 
     if (status != expectedStatus) {
-        throw BinprotConnectionError("runGetXattr() failed: ", resp);
+        throw ConnectionError("runGetXattr() failed: ", resp);
     }
     return resp;
 }

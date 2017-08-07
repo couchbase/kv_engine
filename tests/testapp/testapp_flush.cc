@@ -38,7 +38,7 @@ protected:
     virtual void TearDown() {
         try {
             conn->remove(key, vbid, 0);
-        } catch (BinprotConnectionError& err) {
+        } catch (ConnectionError& err) {
             if (!err.isNotFound()) {
                 throw err;
             }

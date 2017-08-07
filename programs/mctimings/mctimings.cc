@@ -333,7 +333,7 @@ static void request_stat_timings(MemcachedBinprotConnection& connection,
     std::map<std::string, std::string> map;
     try {
         map = connection.statsMap(key);
-    } catch (const BinprotConnectionError& ex) {
+    } catch (const ConnectionError& ex) {
         if (ex.isNotFound()) {
             std::cerr <<"Cannot find statistic: " << key << std::endl;
         } else if (ex.isAccessDenied()) {

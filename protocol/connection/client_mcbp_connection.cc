@@ -73,7 +73,7 @@ static Frame to_frame(const BinprotCommand& command) {
 }
 
 /////////////////////////////////////////////////////////////////////////
-// Implementation of the BinprotConnectionError class
+// Implementation of the ConnectionError class
 /////////////////////////////////////////////////////////////////////////
 
 // Generates error msgs like ``<prefix>: ["<context>", ]<reason> (#<reason>)``
@@ -120,15 +120,14 @@ static std::string formatMcbpExceptionMsg(const std::string& prefix,
     return formatMcbpExceptionMsg(prefix, response.getStatus(), context);
 }
 
-BinprotConnectionError::BinprotConnectionError(const std::string& prefix,
-                                               uint16_t reason)
-    : ConnectionError(formatMcbpExceptionMsg(prefix, reason).c_str()),
+ConnectionError::ConnectionError(const std::string& prefix, uint16_t reason)
+    : std::runtime_error(formatMcbpExceptionMsg(prefix, reason).c_str()),
       reason(reason) {
 }
 
-BinprotConnectionError::BinprotConnectionError(const std::string& prefix,
-                                               const BinprotResponse& response)
-    : ConnectionError(formatMcbpExceptionMsg(prefix, response).c_str()),
+ConnectionError::ConnectionError(const std::string& prefix,
+                                 const BinprotResponse& response)
+    : std::runtime_error(formatMcbpExceptionMsg(prefix, response).c_str()),
       reason(response.getStatus()) {
 }
 
@@ -303,7 +302,7 @@ void MemcachedBinprotConnection::authenticate(const std::string& username,
     cbsasl_dispose(&client);
 
     if (!response.isSuccess()) {
-        throw BinprotConnectionError("Authentication failed", response);
+        throw ConnectionError("Authentication failed", response);
     }
 }
 
@@ -333,7 +332,7 @@ void MemcachedBinprotConnection::createBucket(const std::string& name,
     recvResponse(response);
 
     if (!response.isSuccess()) {
-        throw BinprotConnectionError("Create bucket failed", response);
+        throw ConnectionError("Create bucket failed", response);
     }
 }
 
@@ -344,7 +343,7 @@ void MemcachedBinprotConnection::deleteBucket(const std::string& name) {
     recvResponse(response);
 
     if (!response.isSuccess()) {
-        throw BinprotConnectionError("Delete bucket failed", response);
+        throw ConnectionError("Delete bucket failed", response);
     }
 }
 
@@ -355,9 +354,9 @@ void MemcachedBinprotConnection::selectBucket(const std::string& name) {
     recvResponse(response);
 
     if (!response.isSuccess()) {
-        throw BinprotConnectionError(
-            std::string("Select bucket [" + name + "] failed").c_str(),
-            response);
+        throw ConnectionError(
+                std::string("Select bucket [" + name + "] failed").c_str(),
+                response);
     }
 }
 
@@ -387,7 +386,7 @@ std::vector<std::string> MemcachedBinprotConnection::listBuckets() {
     recvResponse(response);
 
     if (!response.isSuccess()) {
-        throw BinprotConnectionError("List bucket failed", response);
+        throw ConnectionError("List bucket failed", response);
     }
 
     std::vector<std::string> ret;
@@ -412,8 +411,7 @@ Document MemcachedBinprotConnection::get(const std::string& id,
     recvResponse(response);
 
     if (!response.isSuccess()) {
-        throw BinprotConnectionError("Failed to get: " + id,
-                                     response.getStatus());
+        throw ConnectionError("Failed to get: " + id, response.getStatus());
     }
 
     Document ret;
@@ -448,8 +446,8 @@ MutationInfo MemcachedBinprotConnection::mutate(const DocumentInfo& info,
     BinprotMutationResponse response;
     recvResponse(response);
     if (!response.isSuccess()) {
-        throw BinprotConnectionError("Failed to store " + info.id,
-                                     response.getStatus());
+        throw ConnectionError("Failed to store " + info.id,
+                              response.getStatus());
     }
 
     return response.getMutationInfo();
@@ -468,7 +466,7 @@ std::map<std::string,std::string> MemcachedBinprotConnection::statsMap(
         recvResponse(response);
 
         if (!response.isSuccess()) {
-            throw BinprotConnectionError("Stats failed", response);
+            throw ConnectionError("Stats failed", response);
         }
 
         if (!response.getBodylen()) {
@@ -513,8 +511,8 @@ void MemcachedBinprotConnection::configureEwouldBlockEngine(
     auto* rsp = reinterpret_cast<protocol_binary_response_no_extras*>(bytes);
     auto& header = rsp->message.header.response;
     if (header.status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        throw BinprotConnectionError("Failed to configure ewouldblock engine",
-                                     header.status);
+        throw ConnectionError("Failed to configure ewouldblock engine",
+                              header.status);
     }
 }
 
@@ -525,8 +523,7 @@ void MemcachedBinprotConnection::reloadAuditConfiguration() {
     recvResponse(response);
 
     if (!response.isSuccess()) {
-        throw BinprotConnectionError("Failed to reload audit configuration",
-                                     response);
+        throw ConnectionError("Failed to reload audit configuration", response);
     }
 }
 
@@ -542,8 +539,7 @@ void MemcachedBinprotConnection::hello(const std::string& userAgent,
     BinprotResponse response;
     recvResponse(response);
     if (!response.isSuccess()) {
-        throw BinprotConnectionError("Failed to fetch sasl mechanisms",
-                                     response);
+        throw ConnectionError("Failed to fetch sasl mechanisms", response);
     }
 
     saslMechanisms.assign(reinterpret_cast<const char *>(response.getPayload()),
@@ -563,7 +559,7 @@ void MemcachedBinprotConnection::applyFeatures(const std::string& agent,
     recvResponse(response);
 
     if (!response.isSuccess()) {
-        throw BinprotConnectionError("Failed to say hello", response);
+        throw ConnectionError("Failed to say hello", response);
     }
 
     effective_features.clear();
@@ -599,8 +595,7 @@ std::string MemcachedBinprotConnection::ioctl_get(const std::string& key) {
     BinprotResponse response;
     recvResponse(response);
     if (!response.isSuccess()) {
-        throw BinprotConnectionError("ioctl_get '" + key + "' failed",
-                                     response);
+        throw ConnectionError("ioctl_get '" + key + "' failed", response);
     }
     return std::string(reinterpret_cast<const char *>(response.getPayload()),
                        response.getBodylen());
@@ -614,8 +609,7 @@ void MemcachedBinprotConnection::ioctl_set(const std::string& key,
     BinprotResponse response;
     recvResponse(response);
     if (!response.isSuccess()) {
-        throw BinprotConnectionError("ioctl_set '" + key + "' failed",
-                                     response);
+        throw ConnectionError("ioctl_set '" + key + "' failed", response);
     }
 }
 
@@ -658,11 +652,11 @@ uint64_t MemcachedBinprotConnection::incr_decr(protocol_binary_command opcode,
 
     if (!response.isSuccess()) {
         if (opcode == PROTOCOL_BINARY_CMD_INCREMENT) {
-            throw BinprotConnectionError("incr \"" + key + "\" failed.",
-                                         response.getStatus());
+            throw ConnectionError("incr \"" + key + "\" failed.",
+                                  response.getStatus());
         } else {
-            throw BinprotConnectionError("decr \"" + key + "\" failed.",
-                                         response.getStatus());
+            throw ConnectionError("decr \"" + key + "\" failed.",
+                                  response.getStatus());
         }
     }
 
@@ -685,8 +679,7 @@ MutationInfo MemcachedBinprotConnection::remove(const std::string& key,
     recvResponse(response);
 
     if (!response.isSuccess()) {
-        throw BinprotConnectionError("Failed to remove: " + key,
-                                     response.getStatus());
+        throw ConnectionError("Failed to remove: " + key, response.getStatus());
     }
 
     return response.getMutationInfo();
@@ -705,8 +698,7 @@ Document MemcachedBinprotConnection::get_and_lock(const std::string& id,
     recvResponse(response);
 
     if (!response.isSuccess()) {
-        throw BinprotConnectionError("Failed to get: " + id,
-                                     response.getStatus());
+        throw ConnectionError("Failed to get: " + id, response.getStatus());
     }
 
     Document ret;
@@ -733,7 +725,7 @@ void MemcachedBinprotConnection::unlock(const std::string& id,
     recvResponse(response);
 
     if (!response.isSuccess()) {
-        throw BinprotConnectionError("unlock(): " + id, response.getStatus());
+        throw ConnectionError("unlock(): " + id, response.getStatus());
     }
 }
 
@@ -755,9 +747,10 @@ void MemcachedBinprotConnection::dropPrivilege(cb::rbac::Privilege privilege) {
     BinprotResponse response;
     recvResponse(response);
     if (!response.isSuccess()) {
-        throw BinprotConnectionError(
-            "dropPrivilege \"" + cb::rbac::to_string(privilege) + "\" failed.",
-            response.getStatus());
+        throw ConnectionError("dropPrivilege \"" +
+                                      cb::rbac::to_string(privilege) +
+                                      "\" failed.",
+                              response.getStatus());
     }
 }
 
@@ -775,8 +768,8 @@ MutationInfo MemcachedBinprotConnection::mutateWithMeta(
     BinprotMutationResponse response;
     recvResponse(response);
     if (!response.isSuccess()) {
-        throw BinprotConnectionError("Failed to mutateWithMeta " + doc.info.id,
-                                     response.getStatus());
+        throw ConnectionError("Failed to mutateWithMeta " + doc.info.id,
+                              response.getStatus());
     }
 
     return response.getMutationInfo();
@@ -792,8 +785,7 @@ GetMetaResponse MemcachedBinprotConnection::getMeta(const std::string& key,
     BinprotResponse resp;
     recvResponse(resp);
     if (!resp.isSuccess()) {
-        throw BinprotConnectionError("getMeta failed for: " + key,
-                                     resp.getStatus());
+        throw ConnectionError("getMeta failed for: " + key, resp.getStatus());
     }
 
     auto meta = *reinterpret_cast<const GetMetaResponse*>(resp.getPayload());

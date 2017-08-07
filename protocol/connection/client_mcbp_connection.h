@@ -24,69 +24,6 @@
 #include "client_connection.h"
 #include "client_mcbp_commands.h"
 
-class BinprotConnectionError : public ConnectionError {
-public:
-    BinprotConnectionError(const std::string& prefix, uint16_t reason_);
-
-    BinprotConnectionError(const std::string& prefix,
-                           const BinprotResponse& response);
-
-    uint16_t getReason() const override {
-        return reason;
-    }
-
-    Protocol getProtocol() const override {
-        return Protocol::Memcached;
-    }
-
-    bool isInvalidArguments() const override {
-        return reason == PROTOCOL_BINARY_RESPONSE_EINVAL;
-    }
-
-    bool isAlreadyExists() const override {
-        return reason == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS;
-    }
-
-    bool isNotFound() const override {
-        return reason == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
-    }
-
-    bool isNotMyVbucket() const override {
-        return reason == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
-    }
-
-    bool isNotStored() const override {
-        return reason == PROTOCOL_BINARY_RESPONSE_NOT_STORED;
-    }
-
-    bool isAccessDenied() const override {
-        return reason == PROTOCOL_BINARY_RESPONSE_EACCESS;
-    }
-
-    bool isDeltaBadval() const override {
-        return reason == PROTOCOL_BINARY_RESPONSE_DELTA_BADVAL;
-    }
-
-    bool isAuthError() const override {
-        return reason == PROTOCOL_BINARY_RESPONSE_AUTH_ERROR;
-    }
-
-    bool isNotSupported() const override {
-        return reason == PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
-    }
-
-    bool isLocked() const override {
-        return reason == PROTOCOL_BINARY_RESPONSE_LOCKED;
-    }
-
-    bool isTemporaryFailure() const override {
-        return reason == PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
-    }
-
-private:
-    uint16_t reason;
-};
-
 class MemcachedBinprotConnection : public MemcachedConnection {
 public:
     MemcachedBinprotConnection(const std::string& host,
