@@ -34,19 +34,18 @@
 /////////////////////////////////////////////////////////////////////////
 // Implementation of the MemcachedConnection class
 /////////////////////////////////////////////////////////////////////////
-MemcachedConnection::MemcachedConnection(const std::string& host, in_port_t port,
+MemcachedConnection::MemcachedConnection(const std::string& host,
+                                         in_port_t port,
                                          sa_family_t family,
-                                         bool ssl, const Protocol& protocol)
+                                         bool ssl)
     : host(host),
       port(port),
       family(family),
       ssl(ssl),
-      protocol(protocol),
       context(nullptr),
       bio(nullptr),
       sock(INVALID_SOCKET),
       synchronous(false) {
-
     if (ssl) {
         char* env = getenv("COUCHBASE_SSL_CLIENT_CERT_PATH");
         if (env != nullptr) {

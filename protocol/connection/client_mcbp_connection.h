@@ -89,9 +89,11 @@ private:
 
 class MemcachedBinprotConnection : public MemcachedConnection {
 public:
-    MemcachedBinprotConnection(const std::string& host, in_port_t port,
-                               sa_family_t family, bool ssl)
-        : MemcachedConnection(host, port, family, ssl, Protocol::Memcached) {
+    MemcachedBinprotConnection(const std::string& host,
+                               in_port_t port,
+                               sa_family_t family,
+                               bool ssl)
+        : MemcachedConnection(host, port, family, ssl) {
     }
 
     std::unique_ptr<MemcachedConnection> clone() override;

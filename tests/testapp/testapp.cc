@@ -1143,7 +1143,6 @@ void TestappTest::runCreateXattr(
         bool macro,
         protocol_binary_response_status expectedStatus) {
     auto& conn = getConnection();
-    ASSERT_EQ(Protocol::Memcached, conn.getProtocol());
     auto& connection = dynamic_cast<MemcachedBinprotConnection&>(conn);
 
     BinprotSubdocCommand cmd;
@@ -1231,10 +1230,6 @@ MemcachedConnection& TestappTest::getAdminConnection() {
 
 MemcachedConnection& TestappTest::prepare(MemcachedConnection& connection) {
     connection.reconnect();
-    if (connection.getProtocol() != Protocol::Memcached) {
-        throw std::invalid_argument(
-                "TestappTest::prepare: Unsupported protocol");
-    }
     auto& c = dynamic_cast<MemcachedBinprotConnection&>(connection);
     c.setDatatypeCompressed(true);
     c.setDatatypeJson(true);

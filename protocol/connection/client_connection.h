@@ -156,10 +156,6 @@ public:
         return ssl;
     }
 
-    const Protocol& getProtocol() const {
-        return protocol;
-    }
-
     bool isSynchronous() const {
         return synchronous;
     }
@@ -579,12 +575,11 @@ protected:
      * @param family the socket family to connect as (AF_INET, AF_INET6
      *               or use AF_UNSPEC to just pick one)
      * @param ssl connect over SSL or not
-     * @param protocol the protocol the implementation is using
-     * @return
      */
-    MemcachedConnection(const std::string& host, in_port_t port,
-                        sa_family_t family, bool ssl,
-                        const Protocol& protocol);
+    MemcachedConnection(const std::string& host,
+                        in_port_t port,
+                        sa_family_t family,
+                        bool ssl);
 
     void read(Frame& frame, size_t bytes);
 
@@ -614,7 +609,6 @@ protected:
     bool ssl;
     std::string ssl_cert_file;
     std::string ssl_key_file;
-    Protocol protocol;
     SSL_CTX* context;
     BIO* bio;
     SOCKET sock;
