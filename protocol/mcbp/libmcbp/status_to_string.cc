@@ -139,6 +139,8 @@ std::string to_string(cb::mcbp::Status status) {
     case Status::SubdocMultiPathFailureDeleted:
         return "Subdoc: One or more paths in a multi-path command failed on a "
                "deleted document";
+    case Status::SubdocInvalidXattrOrder:
+        return "Subdoc: Invalid XATTR order (xattrs should come first)";
 
     // Following are here to keep compiler happy; either handled below or
     // will throw if invalid (e.g. COUNT).

@@ -94,6 +94,7 @@ ADD_LIBRARY(memcached_daemon STATIC
             memcached.cc
             memcached_openssl.cc
             memcached_openssl.h
+            net_buf.h
             parent_monitor.cc
             parent_monitor.h
             protocol/mcbp/appendprepend_context.cc

@@ -792,6 +792,11 @@ public:
 
     virtual const Collections::Manager& getCollectionsManager() const = 0;
 
+    /**
+     * @return true if the bucket supports 'get_all_keys'; else false
+     */
+    virtual bool isGetAllKeysSupported() const = 0;
+
 protected:
 
     // Methods called during warmup

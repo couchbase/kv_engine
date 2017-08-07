@@ -504,7 +504,7 @@ static protocol_binary_response_status subdoc_multi_validator(const Cookie& cook
         if (xattrs_allowed) {
             xattrs_allowed = is_xattr;
         } else if (is_xattr) {
-            return PROTOCOL_BINARY_RESPONSE_EINVAL;
+            return PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_XATTR_ORDER;
         } else if (is_isolationist) {
             return PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO;
         }

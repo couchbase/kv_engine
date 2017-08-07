@@ -15,6 +15,7 @@
  *   limitations under the License.
  */
 #include "buckets.h"
+#include "mc_time.h"
 
 Bucket::Bucket(const Bucket& other)
 {
@@ -31,6 +32,15 @@ Bucket::Bucket(const Bucket& other)
     subjson_operation_times = other.subjson_operation_times;
     topkeys = other.topkeys;
     responseCounters = other.responseCounters;
+}
+
+time_t Bucket::getAbsoluteExpiryTime(rel_time_t exptime) const {
+    // Couchbase style buckets returns the time in absolute time
+    if (type == BucketType::Couchstore) {
+        return exptime;
+    }
+
+    return exptime ? mc_time_convert_to_abs_time(exptime) : 0;
 }
 
 namespace BucketValidator {

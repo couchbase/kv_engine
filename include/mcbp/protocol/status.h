@@ -206,6 +206,12 @@ enum class Status : uint16_t {
      */
     SubdocMultiPathFailureDeleted = 0xd3,
 
+    /**
+     * According to the spec all xattr commands should come first,
+     * followed by the commands for the document body
+     */
+    SubdocInvalidXattrOrder = 0xd4,
+
     /*************************************************************************/
 
     /**

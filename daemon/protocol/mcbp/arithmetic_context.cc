@@ -154,9 +154,8 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::allocateNewItem() {
 
     // In order to be backwards compatible with old Couchbase server we
     // continue to use the old expiry time:
-    auto expiry = oldItemInfo.exptime
-                          ? mc_time_convert_to_abs_time(oldItemInfo.exptime)
-                          : 0;
+    const auto& bucket = connection.getBucket();
+    auto expiry = bucket.getAbsoluteExpiryTime(oldItemInfo.exptime);
     auto pair = bucket_allocate_ex(connection,
                                    key,
                                    xattrsize + value.size(),

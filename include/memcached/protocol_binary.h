@@ -159,6 +159,8 @@ const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_CANT_MODIFY_VATTR =
         uint16_t(cb::mcbp::Status::SubdocXattrCantModifyVattr);
 const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE_DELETED =
         uint16_t(cb::mcbp::Status::SubdocMultiPathFailureDeleted);
+const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_XATTR_ORDER =
+        uint16_t(cb::mcbp::Status::SubdocInvalidXattrOrder);
 
 using protocol_binary_command = uint8_t;
 

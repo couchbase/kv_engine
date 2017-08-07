@@ -392,31 +392,17 @@ McbpConnection::TransmitResult McbpConnection::transmit() {
         if (res > 0) {
             get_thread_stats(this)->bytes_written += res;
 
-            // We've written some of the data. Remove the completed iovec
-            // entries from the list of pending writes (and if the data was
-            // from our write buffer we should mark the section as unused)
+            /* We've written some of the data. Remove the completed
+               iovec entries from the list of pending writes. */
             while (m->msg_iovlen > 0 && res >= ssize_t(m->msg_iov->iov_len)) {
-                write->consume([&m](const void* ptr, size_t size) -> ssize_t {
-                    if (m->msg_iov->iov_base == ptr) {
-                        return size;
-                    }
-                    return 0;
-                });
-
                 res -= (ssize_t)m->msg_iov->iov_len;
                 m->msg_iovlen--;
                 m->msg_iov++;
             }
 
-            // Might have written just part of the last iovec entry; adjust it
-            // so the next write will do the rest.
+            /* Might have written just part of the last iovec entry;
+               adjust it so the next write will do the rest. */
             if (res > 0) {
-                write->consume([&m, &res](const void* ptr, size_t size) -> ssize_t {
-                    if (m->msg_iov->iov_base == ptr) {
-                        return res;
-                    }
-                    return 0;
-                });
                 m->msg_iov->iov_base = (void*)(
                     (unsigned char*)m->msg_iov->iov_base + res);
                 m->msg_iov->iov_len -= res;
@@ -484,56 +470,78 @@ McbpConnection::TransmitResult McbpConnection::transmit() {
     }
 }
 
+/**
+ * To protect us from someone flooding a connection with bogus data causing
+ * the connection to eat up all available memory, break out and start
+ * looking at the data I've got after a number of reallocs...
+ */
 McbpConnection::TryReadResult McbpConnection::tryReadNetwork() {
-    // When we get here we've either got an empty buffer, or we've got
-    // a buffer with less than a packet header filled in.
-    // Lets just pack the buffer (which means moving the data from the
-    // end to the beginning of the buffer) and try to fill the buffer
-    //
-    // Verify that assumption!!!
-    if (read->rsize() >= sizeof(cb::mcbp::Request)) {
-        // The above don't hold true ;)
-        throw std::logic_error("tryReadNetwork: Expected the input buffer to be empty or contain a partial header");
-    }
+    TryReadResult gotdata = TryReadResult::NoDataReceived;
+    int res;
+    int num_allocs = 0;
 
-    // Make sure we can fit the header into the input buffer
-    try {
-        read->ensureCapacity(sizeof(cb::mcbp::Request) - read->rsize());
-    } catch (const std::bad_alloc&) {
-        return TryReadResult::MemoryError;
-    }
-
-    McbpConnection* c = this;
-    const auto res = read->produce([c](cb::byte_buffer buffer) -> ssize_t {
-        return c->recv(reinterpret_cast<char*>(buffer.data()),
-                       buffer.size());
-    });
-
-    if (res > 0) {
-        get_thread_stats(this)->bytes_read += res;
-        return TryReadResult::DataReceived;
-    }
-
-    if (res == 0) {
-        if (isPipeConnection()) {
-            return TryReadResult::NoDataReceived;
+    if (read.curr != read.buf) {
+        if (read.bytes != 0) { /* otherwise there's nothing to copy */
+            memmove(read.buf, read.curr, read.bytes);
         }
-        LOG_INFO(this,
-                 "%u Closing connection as the other side closed the connection %s",
-                 getId(), getDescription().c_str());
-        return TryReadResult::SocketClosed;
+        read.curr = read.buf;
     }
 
-    const auto error = GetLastNetworkError();
-    if (is_blocking(error)) {
-        return TryReadResult::NoDataReceived;
-    }
+    while (1) {
+        int avail;
+        if (read.bytes >= read.size) {
+            if (num_allocs == 4) {
+                return gotdata;
+            }
+            ++num_allocs;
+            char* new_rbuf = reinterpret_cast<char*>(cb_realloc(read.buf,
+                                                             read.size * 2));
+            if (!new_rbuf) {
+                LOG_WARNING(this, "Couldn't realloc input buffer");
+                read.bytes = 0; /* ignore what we read */
+                setState(conn_closing);
+                return TryReadResult::MemoryError;
+            }
+            read.curr = read.buf = new_rbuf;
+            read.size *= 2;
+        }
 
-    std::string errormsg = cb_strerror(error);
-    LOG_WARNING(this, "%u Closing connection (%p) %s due to read "
-        "error: %s", getId(), getCookie(),
-                getDescription().c_str(), errormsg.c_str());
-    return TryReadResult::SocketError;
+        avail = read.size - read.bytes;
+        res = recv(read.buf + read.bytes, avail);
+        if (res > 0) {
+            get_thread_stats(this)->bytes_read += res;
+            gotdata = TryReadResult::DataReceived;
+            read.bytes += res;
+            if (res == avail) {
+                continue;
+            } else {
+                break;
+            }
+        }
+        if (res == 0) {
+            if (isPipeConnection()) {
+                return TryReadResult::NoDataReceived;
+            }
+            LOG_INFO(this,
+                     "%u Closing connection as the other side closed the connection %s",
+                     getId(), getDescription().c_str());
+            return TryReadResult::SocketClosed;
+        }
+        if (res == -1) {
+            auto error = GetLastNetworkError();
+
+            if (is_blocking(error)) {
+                break;
+            }
+
+            std::string errormsg = cb_strerror();
+            LOG_WARNING(this, "%u Closing connection (%p) %s due to read "
+                        "error: %s", getId(), getCookie(),
+                        getDescription().c_str(), errormsg.c_str());
+            return TryReadResult::SocketError;
+        }
+    }
+    return gotdata;
 }
 
 int McbpConnection::sslRead(char* dest, size_t nbytes) {
@@ -726,6 +734,7 @@ McbpConnection::McbpConnection(SOCKET sfd, event_base *b)
       currentEvent(0),
       ev_timeout_enabled(false),
       write_and_go(conn_new_cmd),
+      rlbytes(0),
       iov(IOV_LIST_INITIAL),
       iovused(0),
       msglist(),
@@ -757,7 +766,7 @@ McbpConnection::McbpConnection(SOCKET sfd,
                                event_base* b,
                                const ListeningPort& ifc)
     : Connection(sfd, b, ifc),
-      stateMachine(new McbpStateMachine(conn_waiting)),
+      stateMachine(new McbpStateMachine(conn_new_cmd)),
       dcp(false),
       dcpXattrAware(false),
       dcpNoValue(false),
@@ -770,6 +779,7 @@ McbpConnection::McbpConnection(SOCKET sfd,
       currentEvent(0),
       ev_timeout_enabled(false),
       write_and_go(conn_new_cmd),
+      rlbytes(0),
       iov(IOV_LIST_INITIAL),
       iovused(0),
       msglist(),
@@ -809,6 +819,9 @@ McbpConnection::McbpConnection(SOCKET sfd,
 }
 
 McbpConnection::~McbpConnection() {
+    cb_free(read.buf);
+    cb_free(write.buf);
+
     releaseReservedItems();
     for (auto* ptr : temp_alloc) {
         cb_free(ptr);
@@ -835,22 +848,19 @@ void McbpConnection::runStateMachinery() {
 }
 
 /**
- * Create a JSON representation of a pipe
+ * Convert a JSON representation of a net_buf
  *
- * @param pipe the pipe to get the information of
- * @return the json representation of the object
+ * @param buffer the buffer to convert
+ * @return the json representation of the buffer (caller is responsible
+ *         for calling cJSON_Delete()
  */
-static unique_cJSON_ptr to_json(cb::Pipe* buffer) {
-    if (buffer == nullptr) {
-        return unique_cJSON_ptr{cJSON_CreateString("nullptr")};
-    }
-
-    unique_cJSON_ptr ret(cJSON_CreateObject());
-    buffer->stats([&ret](const char* key, const char* value) {
-        cJSON_AddStringToObject(ret.get(), key, value);
-    });
-
-    return ret;
+static cJSON* to_json(const struct net_buf &buffer) {
+    cJSON* json = cJSON_CreateObject();
+    cJSON_AddUintPtrToObject(json, "buf", (uintptr_t)buffer.buf);
+    cJSON_AddUintPtrToObject(json, "curr", (uintptr_t)buffer.curr);
+    cJSON_AddNumberToObject(json, "size", buffer.size);
+    cJSON_AddNumberToObject(json, "bytes", buffer.bytes);
+    return json;
 }
 
 /**
@@ -921,14 +931,15 @@ cJSON* McbpConnection::toJSON() const {
             cJSON_AddItemToObject(obj, "libevent", o);
         }
 
-        cJSON_AddItemToObject(obj, "read", to_json(read.get()).release());
-        cJSON_AddItemToObject(obj, "write", to_json(write.get()).release());
+        cJSON_AddItemToObject(obj, "read", to_json(read));
+        cJSON_AddItemToObject(obj, "write", to_json(write));
 
         if (write_and_go != nullptr) {
             cJSON_AddStringToObject(obj, "write_and_go",
                                     stateMachine->getTaskName(write_and_go));
 
         }
+        cJSON_AddNumberToObject(obj, "rlbytes", rlbytes);
 
         {
             cJSON* iovobj = cJSON_CreateObject();
@@ -1150,23 +1161,8 @@ void McbpConnection::runEventLoop(short which) {
         }
     }
 
-    conn_return_buffers(this);
-    if (write && !dcp) {
-        // Add a simple sanity check. We should only have a write buffer
-        // connected when we're in:
-        //    * execute (we may have started to create data in the buffer)
-        //    * conn_send_data (we're currently sending the data)
-        //    * closing (we jumped directly from the above)
-        auto state = getState();
-        if (!(state == conn_execute || state == conn_send_data ||
-              state == conn_closing || state == conn_immediate_close)) {
-            LOG_WARNING(this,
-                        "%u: Expected write buffer to be released, but it's not. Current state: %s",
-                        getId(),
-                        stateMachine->getCurrentTaskName());
-
-        }
-    }
+    // MB-24634: Temporarily disabled
+    // conn_return_buffers(this);
 }
 
 void McbpConnection::initiateShutdown() {

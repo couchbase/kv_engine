@@ -187,6 +187,17 @@ public:
      * status is sent
      */
     std::array<ResponseCounter, size_t(cb::mcbp::Status::COUNT)> responseCounters;
+
+    /**
+     * Get the absolute expiry time from an item_info.
+     *
+     * The different engines store this in a different way in the item_info
+     * and this method hides that complexity.
+     *
+     * @param exptime The 32 bit relative time
+     * @return the absolute expiry time for the object
+     */
+    time_t getAbsoluteExpiryTime(rel_time_t exptime) const;
 };
 
 class Connection;

@@ -113,6 +113,10 @@ public:
      */
     void disableTombstonePurgerTask();
 
+    virtual bool isGetAllKeysSupported() const override {
+        return false;
+    }
+
     // Static methods /////////////////////////////////////////////////////////
 
     /** Apply necessary modifications to the Configuration for an Ephemeral

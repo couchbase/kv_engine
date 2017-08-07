@@ -103,4 +103,8 @@ public:
 
     void notifyNewSeqno(const uint16_t vbid,
                         const VBNotifyCtx& notifyCtx) override;
+
+    virtual bool isGetAllKeysSupported() const override {
+        return true;
+    }
 };

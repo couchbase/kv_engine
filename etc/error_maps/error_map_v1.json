@@ -5,7 +5,9 @@
         "0": {
             "name": "SUCCESS",
             "desc": "Success",
-            "attrs": []
+            "attrs": [
+                "success"
+            ]
         },
         "1": {
             "name": "KEY_ENOENT",
@@ -298,6 +300,8 @@
             "name": "SUBDOC_SUCCESS_DELETED",
             "desc": "Subdoc: Success, but the affected document was (and still is) deleted",
             "attrs": [
+                "item-deleted",
+                "success",
                 "subdoc"
             ]
         },
@@ -336,6 +340,23 @@
         "d2": {
             "name": "SUBDOC_XATTR_CANT_MODIFY_VATTR",
             "desc": "Subdoc: Can't modify virtual attributes",
+            "attrs": [
+                "subdoc",
+                "invalid-input"
+            ]
+        },
+        "d3": {
+            "name": "SUBDOC_MULTI_PATH_FAILURE_DELETED",
+            "desc": "Subdoc: One or more paths in a multi-path command failed on a deleted document",
+            "attrs": [
+                "item-deleted",
+                "subdoc",
+                "special-handling"
+            ]
+        },
+        "d4": {
+            "name": "SUBDOC_INVALID_XATTR_ORDER",
+            "desc": "Subdoc: Invalid XATTR order (xattrs should come first)",
             "attrs": [
                 "subdoc",
                 "invalid-input"
