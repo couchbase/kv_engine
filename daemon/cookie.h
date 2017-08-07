@@ -19,7 +19,7 @@
 #include <platform/uuid.h>
 #include <stdexcept>
 
-class Connection;
+class McbpConnection;
 
 /**
  * The Cookie class represents the cookie passed from the memcached core
@@ -31,9 +31,8 @@ class Connection;
  */
 class Cookie {
 public:
-    Cookie(Connection* conn)
-        : magic(0xdeadcafe),
-          connection(conn) { }
+    Cookie(McbpConnection& conn) : connection(conn) {
+    }
 
     void validate() const {
         if (magic != 0xdeadcafe) {
@@ -101,6 +100,9 @@ public:
      */
     const std::string& getErrorJson();
 
+    McbpConnection& connection;
+
+protected:
     /**
      * The magic byte is used for development only and will be removed when
      * we've successfully verified that we don't have any calls through the
@@ -110,10 +112,8 @@ public:
      * be that I've missed some places where we pass something else than
      * a new cookie. We want to track those errors as soon as possible.
      */
-    uint64_t magic;
-    Connection* const connection;
+    const uint64_t magic = 0xdeadcafe;
 
-protected:
     mutable std::string event_id;
     std::string error_context;
     /**

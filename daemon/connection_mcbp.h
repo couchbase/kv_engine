@@ -708,9 +708,9 @@ public:
      * Obtain a pointer to the packet for the Cookie's connection
      */
     static void* getPacket(const Cookie& cookie) {
-        auto c = static_cast<McbpConnection*>(cookie.connection);
-        return (c->read.curr -
-               (c->binary_header.request.bodylen + sizeof(c->binary_header)));
+        const auto& c = cookie.connection;
+        return (c.read.curr -
+                (c.binary_header.request.bodylen + sizeof(c.binary_header)));
     }
 
     /**

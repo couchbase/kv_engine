@@ -64,7 +64,7 @@ ValidatorTest::validate(protocol_binary_command opcode, void* packet) {
     connection.read.curr = static_cast<char*>(packet) +
                            (connection.binary_header.request.bodylen +
                             sizeof(connection.binary_header));
-    Cookie cookie(&connection);
+    Cookie cookie(connection);
     auto rv = validatorChains.invoke(opcode, cookie);
 
     return rv;

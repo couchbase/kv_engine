@@ -426,17 +426,11 @@ static void append_stats(const char* key, const uint16_t klen,
     size_t needed;
 
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
-    if (cookie->connection == nullptr) {
-        throw std::logic_error("append_stats: connection can't be null");
-    }
-    // Using dynamic cast to ensure a coredump when we implement this for
-    // Greenstack and fix it
-    auto* c = dynamic_cast<McbpConnection*>(cookie->connection);
     needed = vlen + klen + sizeof(protocol_binary_response_header);
-    if (!c->growDynamicBuffer(needed)) {
+    if (!cookie->connection.growDynamicBuffer(needed)) {
         return;
     }
-    append_bin_stats(key, klen, val, vlen, c);
+    append_bin_stats(key, klen, val, vlen, &cookie->connection);
 }
 
 

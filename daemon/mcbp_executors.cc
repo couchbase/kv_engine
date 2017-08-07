@@ -195,13 +195,7 @@ static ENGINE_ERROR_CODE default_unknown_command(
     ADD_RESPONSE response) {
 
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
-    if (cookie->connection == nullptr) {
-        throw std::logic_error("default_unknown_command: connection can't be null");
-    }
-    // Using dynamic cast to ensure a coredump when we implement this for
-    // Greenstack and fix it
-    auto* c = dynamic_cast<McbpConnection*>(cookie->connection);
-    return bucket_unknown_command(c, request, response);
+    return bucket_unknown_command(&cookie->connection, request, response);
 }
 
 struct request_lookup {

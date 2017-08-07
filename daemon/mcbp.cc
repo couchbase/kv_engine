@@ -64,11 +64,8 @@ static ENGINE_ERROR_CODE get_vb_map_cb(const void* void_cookie,
     char* buf;
 
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
-    if (cookie->connection == nullptr) {
-        throw std::runtime_error("get_vb_map_cb: cookie must represent connection");
-    }
 
-    McbpConnection* c = reinterpret_cast<McbpConnection*>(cookie->connection);
+    McbpConnection* c = &cookie->connection;
     protocol_binary_response_header header;
     size_t needed = sizeof(protocol_binary_response_header);
 
@@ -244,12 +241,8 @@ bool mcbp_response_handler(const void* key, uint16_t keylen,
     auto* ccookie = reinterpret_cast<const Cookie*>(void_cookie);
     auto* cookie = const_cast<Cookie*>(ccookie);
     cookie->validate();
-    if (cookie->connection == nullptr) {
-        throw std::runtime_error(
-            "mcbp_response_handler: cookie must represent connection");
-    }
 
-    McbpConnection* c = reinterpret_cast<McbpConnection*>(cookie->connection);
+    McbpConnection* c = &cookie->connection;
     cb::compression::Buffer buffer;
     cb::const_char_buffer payload(static_cast<const char*>(body), bodylen);
 

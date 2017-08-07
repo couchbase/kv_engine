@@ -30,8 +30,8 @@ class McbpDestroyBucketTask : public Task {
 public:
     McbpDestroyBucketTask(const std::string& name_,
                           bool force_,
-                          Connection* connection_)
-    : thread(name_, force_, connection_, this) {
+                          McbpConnection* connection_)
+        : thread(name_, force_, connection_, this) {
     }
 
     // start the bucket deletion
@@ -46,9 +46,8 @@ public:
 
     virtual void notifyExecutionComplete() override {
         if (thread.getConnection() != nullptr) {
-            // @todo i need to fix this for greenstack
-            Cookie cookie(thread.getConnection());
-            notify_io_complete(&cookie, thread.getResult());
+            notify_io_complete(&thread.getConnection()->getCookieObject(),
+                               thread.getResult());
         }
     }
 

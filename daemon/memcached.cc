@@ -281,14 +281,13 @@ void perform_callbacks(ENGINE_EVENT_TYPE type,
             throw std::invalid_argument("perform_callbacks: cookie is nullptr");
         }
         cookie->validate();
-        if (cookie->connection == nullptr) {
-            throw std::invalid_argument("perform_callbacks: connection is NULL");
-        }
-        const auto bucket_idx = cookie->connection->getBucketIndex();
+        const auto bucket_idx = cookie->connection.getBucketIndex();
         if (bucket_idx == -1) {
-            throw std::logic_error("perform_callbacks: connection (which is " +
-                        std::to_string(cookie->connection->getId()) + ") cannot be "
-                        "disconnected as it is not associated with a bucket");
+            throw std::logic_error(
+                    "perform_callbacks: connection (which is " +
+                    std::to_string(cookie->connection.getId()) +
+                    ") cannot be "
+                    "disconnected as it is not associated with a bucket");
         }
 
         for (auto& handler : all_buckets[bucket_idx].engine_event_handlers[type]) {
@@ -417,10 +416,7 @@ struct thread_stats *get_thread_stats(Connection *c) {
 void stats_reset(const void *void_cookie) {
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
     cookie->validate();
-    if (cookie->connection == nullptr) {
-        throw std::logic_error("stats_reset: connection can't be null");
-    }
-    auto* conn = dynamic_cast<McbpConnection*>(cookie->connection);
+    auto& conn = cookie->connection;
 
     {
         std::lock_guard<std::mutex> guard(stats_mutex);
@@ -428,8 +424,8 @@ void stats_reset(const void *void_cookie) {
     }
     stats.total_conns.reset();
     stats.rejected_conns.reset();
-    threadlocal_stats_reset(all_buckets[conn->getBucketIndex()].stats);
-    bucket_reset_stats(conn);
+    threadlocal_stats_reset(all_buckets[conn.getBucketIndex()].stats);
+    bucket_reset_stats(&conn);
 }
 
 static int get_number_of_worker_threads(void) {
@@ -711,30 +707,20 @@ bucket_id_t get_bucket_id(const void *void_cookie) {
      */
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
     cookie->validate();
-    if (cookie->connection == nullptr) {
-        throw std::logic_error("get_bucket_id: connection can't be null");
-    }
-    return bucket_id_t(cookie->connection->getBucketIndex());
+    return bucket_id_t(cookie->connection.getBucketIndex());
 }
 
 uint64_t get_connection_id(const void *void_cookie) {
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
     cookie->validate();
-    if (cookie->connection == nullptr) {
-        throw std::logic_error("get_connection_id: connection can't be null");
-    }
-    return uint64_t(cookie->connection);
+    return uint64_t(&cookie->connection);
 }
 
 std::pair<uint32_t, std::string> cookie_get_log_info(const void* void_cookie) {
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
     cookie->validate();
-    if (cookie->connection == nullptr) {
-        throw std::logic_error("get_log_prefix: connection can't be null");
-    }
-
-    return std::make_pair(cookie->connection->getId(),
-                          cookie->connection->getDescription());
+    return std::make_pair(cookie->connection.getId(),
+                          cookie->connection.getDescription());
 }
 
 void cookie_set_error_context(void* void_cookie,
@@ -755,29 +741,22 @@ static cb::rbac::PrivilegeAccess check_privilege(const void* void_cookie,
                                                  const cb::rbac::Privilege privilege) {
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
     cookie->validate();
-    if (cookie->connection == nullptr) {
-        throw std::logic_error("check_privilege: connection can't be null");
-    }
-
-    return cookie->connection->checkPrivilege(privilege,
-                                              const_cast<Cookie&>(*cookie));
+    return cookie->connection.checkPrivilege(privilege,
+                                             const_cast<Cookie&>(*cookie));
 }
 
 static protocol_binary_response_status engine_error2mcbp(const void* void_cookie,
                                                          ENGINE_ERROR_CODE code) {
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
     cookie->validate();
-    auto* connection = cookie->connection;
-    if (connection == nullptr) {
-        throw std::logic_error("engine_error2mcbp: connection can't be null");
-    }
+    auto& connection = cookie->connection;
 
-    ENGINE_ERROR_CODE status = connection->remapErrorCode(code);
+    ENGINE_ERROR_CODE status = connection.remapErrorCode(code);
     if (status == ENGINE_DISCONNECT) {
-        throw cb::engine_error(cb::engine_errc::disconnect,
-                               "engine_error2mcbp: " +
-                               std::to_string(connection->getId()) +
-                               ": Disconnect client");
+        throw cb::engine_error(
+                cb::engine_errc::disconnect,
+                "engine_error2mcbp: " + std::to_string(connection.getId()) +
+                        ": Disconnect client");
     }
 
     return engine_error_2_mcbp_protocol_error(status);
@@ -790,16 +769,7 @@ static ENGINE_ERROR_CODE pre_link_document(const void* void_cookie,
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
     cookie->validate();
 
-    if (cookie->connection == nullptr) {
-        throw std::logic_error("pre_link_document: connection can't be null");
-    }
-
-    auto* connection = dynamic_cast<McbpConnection*>(cookie->connection);
-    if (connection == nullptr) {
-        throw std::logic_error("pre_link_document: connection must be MCBP");
-    }
-
-    auto* context = connection->getCommandContext();
+    auto* context = cookie->connection.getCommandContext();
     if (context != nullptr) {
         return context->pre_link_document(info);
     }
@@ -1578,69 +1548,41 @@ static void store_engine_specific(const void *void_cookie,
 
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
     cookie->validate();
-    if (cookie->connection == nullptr) {
-        throw std::runtime_error("store_engine_specific: cookie must represent connection");
-    }
-    cookie->connection->setEngineStorage(engine_data);
+    cookie->connection.setEngineStorage(engine_data);
 }
 
 static void *get_engine_specific(const void *void_cookie) {
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
     cookie->validate();
-
-    if (cookie->connection == nullptr) {
-        throw std::runtime_error("get_engine_specific: cookie must represent connection");
-    }
-    return cookie->connection->getEngineStorage();
+    return cookie->connection.getEngineStorage();
 }
 
 static bool is_datatype_supported(const void* void_cookie,
                                   protocol_binary_datatype_t datatype) {
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
     cookie->validate();
-
-    if (cookie->connection == nullptr) {
-        throw std::runtime_error("is_datatype_supported: cookie must represent connection");
-    }
-    auto* mc = dynamic_cast<McbpConnection*>(cookie->connection);
-    if (mc && mc->isDatatypeEnabled(datatype)) {
-        return true;
-    }
-    return false;
+    return cookie->connection.isDatatypeEnabled(datatype);
 }
 
 static bool is_mutation_extras_supported(const void *void_cookie) {
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
     cookie->validate();
-
-    if (cookie->connection == nullptr) {
-        throw std::runtime_error("is_mutation_extras_supported: cookie must represent connection");
-    }
-    return cookie->connection->isSupportsMutationExtras();
+    return cookie->connection.isSupportsMutationExtras();
 }
 
 static bool is_collections_supported(const void* void_cookie) {
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
     cookie->validate();
-
-    if (cookie->connection == nullptr) {
-        throw std::runtime_error("is_collections_supported: cookie must represent connection");
-    }
-    return cookie->connection->isCollectionsSupported();
+    return cookie->connection.isCollectionsSupported();
 }
 
 static uint8_t get_opcode_if_ewouldblock_set(const void *void_cookie) {
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
     cookie->validate();
 
-    if (cookie->connection == nullptr) {
-        throw std::runtime_error("get_opcode_if_ewouldblock_set: cookie must represent connection");
-    }
-
     uint8_t opcode = PROTOCOL_BINARY_CMD_INVALID;
-    auto* mc = dynamic_cast<McbpConnection*>(cookie->connection);
-    if (mc != nullptr && mc->isEwouldblock()) {
-        opcode = mc->binary_header.request.opcode;
+    if (cookie->connection.isEwouldblock()) {
+        opcode = cookie->connection.binary_header.request.opcode;
     }
     return opcode;
 }
@@ -1657,11 +1599,7 @@ static ENGINE_ERROR_CODE reserve_cookie(const void *void_cookie) {
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
     cookie->validate();
 
-    if (cookie->connection == nullptr) {
-        throw std::runtime_error("reserve_cookie: cookie must represent connection");
-    }
-
-    cookie->connection->incrementRefcount();
+    cookie->connection.incrementRefcount();
     return ENGINE_SUCCESS;
 }
 
@@ -1673,11 +1611,7 @@ static ENGINE_ERROR_CODE release_cookie(const void *void_cookie) {
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
     cookie->validate();
 
-    if (cookie->connection == nullptr) {
-        throw std::runtime_error("release_cookie: cookie must represent connection");
-    }
-
-    Connection *c = cookie->connection;
+    Connection* c = &cookie->connection;
     int notify;
     LIBEVENT_THREAD *thr;
 
@@ -1711,11 +1645,7 @@ static void cookie_set_priority(const void* void_cookie, CONN_PRIORITY priority)
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
     cookie->validate();
 
-    if (cookie->connection == nullptr) {
-        throw std::runtime_error("reserve_cookie: cookie must represent connection");
-    }
-
-    auto* c = cookie->connection;
+    auto* c = &cookie->connection;
     switch (priority) {
     case CONN_PRIORITY_HIGH:
         c->setPriority(Connection::Priority::High);

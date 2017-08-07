@@ -85,9 +85,8 @@ static inline protocol_binary_response_status validate_xattr_section(
         }
     }
 
-    auto mcbpCon = static_cast<McbpConnection*>(cookie.connection);
-    if (!mcbpCon->selectedBucketIsXattrEnabled() ||
-        cookie.connection == nullptr || !mcbpCon->isXattrEnabled()) {
+    if (!cookie.connection.selectedBucketIsXattrEnabled() ||
+        !cookie.connection.isXattrEnabled()) {
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
 

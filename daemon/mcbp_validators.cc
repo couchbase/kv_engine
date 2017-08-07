@@ -28,23 +28,18 @@
 static inline bool may_accept_xattr(const Cookie& cookie) {
     auto* req = static_cast<protocol_binary_request_header*>(McbpConnection::getPacket(cookie));
     if (mcbp::datatype::is_xattr(req->request.datatype)) {
-        auto* conn = static_cast<McbpConnection*>(cookie.connection);
-        return conn->isXattrEnabled();
+        return cookie.connection.isXattrEnabled();
     }
 
     return true;
 }
 
 static inline bool may_accept_collections(const Cookie& cookie) {
-    auto* conn = static_cast<McbpConnection*>(cookie.connection);
-    return conn->isDcpCollectionAware();
+    return cookie.connection.isDcpCollectionAware();
 }
 
 static inline std::string get_peer_description(const Cookie& cookie) {
-    if (cookie.connection != nullptr) {
-        return cookie.connection->getDescription();
-    }
-    return "[unknown]";
+    return cookie.connection.getDescription();
 }
 
 /******************************************************************************
@@ -74,9 +69,8 @@ static protocol_binary_response_status dcp_open_validator(const Cookie& cookie)
 
     // We could do these tests before checking the packet, but
     // it feels cleaner to validate the packet first.
-    if (cookie.connection == nullptr ||
-        cookie.connection->getBucketEngine() == nullptr ||
-        cookie.connection->getBucketEngine()->dcp.open == nullptr) {
+    if (cookie.connection.getBucketEngine() == nullptr ||
+        cookie.connection.getBucketEngine()->dcp.open == nullptr) {
         // The attached bucket does not support DCP
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
@@ -86,16 +80,20 @@ static protocol_binary_response_status dcp_open_validator(const Cookie& cookie)
                       DCP_OPEN_COLLECTIONS;
 
     if (flags & ~mask) {
-        LOG_NOTICE(cookie.connection,
-                   "Client trying to open dcp stream with unknown flags (%08x) %s",
-                   flags, get_peer_description(cookie).c_str());
+        LOG_NOTICE(
+                &cookie.connection,
+                "Client trying to open dcp stream with unknown flags (%08x) %s",
+                flags,
+                get_peer_description(cookie).c_str());
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
     if ((flags & DCP_OPEN_NOTIFIER) && (flags & ~DCP_OPEN_NOTIFIER)) {
-        LOG_NOTICE(cookie.connection,
-                   "Invalid flags combination (%08x) specified for a DCP consumer %s",
-                   flags, get_peer_description(cookie).c_str());
+        LOG_NOTICE(&cookie.connection,
+                   "Invalid flags combination (%08x) specified for a DCP "
+                   "consumer %s",
+                   flags,
+                   get_peer_description(cookie).c_str());
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
@@ -116,9 +114,8 @@ static protocol_binary_response_status dcp_add_stream_validator(const Cookie& co
 
     // We could do these tests before checking the packet, but
     // it feels cleaner to validate the packet first.
-    if (cookie.connection == nullptr ||
-        cookie.connection->getBucketEngine() == nullptr ||
-        cookie.connection->getBucketEngine()->dcp.add_stream == nullptr) {
+    if (cookie.connection.getBucketEngine() == nullptr ||
+        cookie.connection.getBucketEngine()->dcp.add_stream == nullptr) {
         // The attached bucket does not support DCP
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
@@ -132,13 +129,15 @@ static protocol_binary_response_status dcp_add_stream_validator(const Cookie& co
     if (flags & ~mask) {
         if (flags & DCP_ADD_STREAM_FLAG_NO_VALUE) {
             // MB-22525 The NO_VALUE flag should be passed to DCP_OPEN
-            LOG_NOTICE(cookie.connection,
+            LOG_NOTICE(&cookie.connection,
                        "Client trying to add stream with NO VALUE %s",
                        get_peer_description(cookie).c_str());
         } else {
-            LOG_NOTICE(cookie.connection,
-                       "Client trying to add stream with unknown flags (%08x) %s",
-                       flags, get_peer_description(cookie).c_str());
+            LOG_NOTICE(
+                    &cookie.connection,
+                    "Client trying to add stream with unknown flags (%08x) %s",
+                    flags,
+                    get_peer_description(cookie).c_str());
         }
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
@@ -160,9 +159,8 @@ static protocol_binary_response_status dcp_close_stream_validator(const Cookie& 
 
     // We could do these tests before checking the packet, but
     // it feels cleaner to validate the packet first.
-    if (cookie.connection == nullptr ||
-        cookie.connection->getBucketEngine() == nullptr ||
-        cookie.connection->getBucketEngine()->dcp.close_stream == nullptr) {
+    if (cookie.connection.getBucketEngine() == nullptr ||
+        cookie.connection.getBucketEngine()->dcp.close_stream == nullptr) {
         // The attached bucket does not support DCP
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
@@ -183,9 +181,8 @@ static protocol_binary_response_status dcp_get_failover_log_validator(const Cook
 
     // We could do these tests before checking the packet, but
     // it feels cleaner to validate the packet first.
-    if (cookie.connection == nullptr ||
-        cookie.connection->getBucketEngine() == nullptr ||
-        cookie.connection->getBucketEngine()->dcp.get_failover_log == nullptr) {
+    if (cookie.connection.getBucketEngine() == nullptr ||
+        cookie.connection.getBucketEngine()->dcp.get_failover_log == nullptr) {
         // The attached bucket does not support DCP
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
@@ -206,9 +203,8 @@ static protocol_binary_response_status dcp_stream_req_validator(const Cookie& co
 
     // We could do these tests before checking the packet, but
     // it feels cleaner to validate the packet first.
-    if (cookie.connection == nullptr ||
-        cookie.connection->getBucketEngine() == nullptr ||
-        cookie.connection->getBucketEngine()->dcp.stream_req == nullptr) {
+    if (cookie.connection.getBucketEngine() == nullptr ||
+        cookie.connection.getBucketEngine()->dcp.stream_req == nullptr) {
         // The attached bucket does not support DCP
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
@@ -229,9 +225,8 @@ static protocol_binary_response_status dcp_stream_end_validator(const Cookie& co
 
     // We could do these tests before checking the packet, but
     // it feels cleaner to validate the packet first.
-    if (cookie.connection == nullptr ||
-        cookie.connection->getBucketEngine() == nullptr ||
-        cookie.connection->getBucketEngine()->dcp.stream_end == nullptr) {
+    if (cookie.connection.getBucketEngine() == nullptr ||
+        cookie.connection.getBucketEngine()->dcp.stream_end == nullptr) {
         // The attached bucket does not support DCP
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
@@ -252,9 +247,8 @@ static protocol_binary_response_status dcp_snapshot_marker_validator(const Cooki
 
     // We could do these tests before checking the packet, but
     // it feels cleaner to validate the packet first.
-    if (cookie.connection == nullptr ||
-        cookie.connection->getBucketEngine() == nullptr ||
-        cookie.connection->getBucketEngine()->dcp.snapshot_marker == nullptr) {
+    if (cookie.connection.getBucketEngine() == nullptr ||
+        cookie.connection.getBucketEngine()->dcp.snapshot_marker == nullptr) {
         // The attached bucket does not support DCP
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
@@ -283,9 +277,8 @@ static protocol_binary_response_status dcp_system_event_validator(
 
     // We could do these tests before checking the packet, but
     // it feels cleaner to validate the packet first.
-    if (cookie.connection == nullptr ||
-        cookie.connection->getBucketEngine() == nullptr ||
-        cookie.connection->getBucketEngine()->dcp.system_event == nullptr) {
+    if (cookie.connection.getBucketEngine() == nullptr ||
+        cookie.connection.getBucketEngine()->dcp.system_event == nullptr) {
         // The attached bucket does not support DCP
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
@@ -332,9 +325,8 @@ static protocol_binary_response_status dcp_mutation_validator(const Cookie& cook
 
     // We could do these tests before checking the packet, but
     // it feels cleaner to validate the packet first.
-    if (cookie.connection == nullptr ||
-        cookie.connection->getBucketEngine() == nullptr ||
-        cookie.connection->getBucketEngine()->dcp.mutation == nullptr) {
+    if (cookie.connection.getBucketEngine() == nullptr ||
+        cookie.connection.getBucketEngine()->dcp.mutation == nullptr) {
         // The attached bucket does not support DCP
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
@@ -368,9 +360,8 @@ static protocol_binary_response_status dcp_deletion_validator(const Cookie& cook
 
     // We could do these tests before checking the packet, but
     // it feels cleaner to validate the packet first.
-    if (cookie.connection == nullptr ||
-        cookie.connection->getBucketEngine() == nullptr ||
-        cookie.connection->getBucketEngine()->dcp.deletion == nullptr) {
+    if (cookie.connection.getBucketEngine() == nullptr ||
+        cookie.connection.getBucketEngine()->dcp.deletion == nullptr) {
         // The attached bucket does not support DCP
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
@@ -399,9 +390,8 @@ static protocol_binary_response_status dcp_expiration_validator(const Cookie& co
 
     // We could do these tests before checking the packet, but
     // it feels cleaner to validate the packet first.
-    if (cookie.connection == nullptr ||
-        cookie.connection->getBucketEngine() == nullptr ||
-        cookie.connection->getBucketEngine()->dcp.expiration == nullptr) {
+    if (cookie.connection.getBucketEngine() == nullptr ||
+        cookie.connection.getBucketEngine()->dcp.expiration == nullptr) {
         // The attached bucket does not support DCP
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
@@ -422,9 +412,8 @@ static protocol_binary_response_status dcp_flush_validator(const Cookie& cookie)
 
     // We could do these tests before checking the packet, but
     // it feels cleaner to validate the packet first.
-    if (cookie.connection == nullptr ||
-        cookie.connection->getBucketEngine() == nullptr ||
-        cookie.connection->getBucketEngine()->dcp.flush == nullptr) {
+    if (cookie.connection.getBucketEngine() == nullptr ||
+        cookie.connection.getBucketEngine()->dcp.flush == nullptr) {
         // The attached bucket does not support DCP
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
@@ -449,9 +438,8 @@ static protocol_binary_response_status dcp_set_vbucket_state_validator(const Coo
 
     // We could do these tests before checking the packet, but
     // it feels cleaner to validate the packet first.
-    if (cookie.connection == nullptr ||
-        cookie.connection->getBucketEngine() == nullptr ||
-        cookie.connection->getBucketEngine()->dcp.set_vbucket_state == nullptr) {
+    if (cookie.connection.getBucketEngine() == nullptr ||
+        cookie.connection.getBucketEngine()->dcp.set_vbucket_state == nullptr) {
         // The attached bucket does not support DCP
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
@@ -472,9 +460,8 @@ static protocol_binary_response_status dcp_noop_validator(const Cookie& cookie)
 
     // We could do these tests before checking the packet, but
     // it feels cleaner to validate the packet first.
-    if (cookie.connection == nullptr ||
-        cookie.connection->getBucketEngine() == nullptr ||
-        cookie.connection->getBucketEngine()->dcp.noop == nullptr) {
+    if (cookie.connection.getBucketEngine() == nullptr ||
+        cookie.connection.getBucketEngine()->dcp.noop == nullptr) {
         // The attached bucket does not support DCP
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
@@ -495,9 +482,9 @@ static protocol_binary_response_status dcp_buffer_acknowledgement_validator(cons
 
     // We could do these tests before checking the packet, but
     // it feels cleaner to validate the packet first.
-    if (cookie.connection == nullptr ||
-        cookie.connection->getBucketEngine() == nullptr ||
-        cookie.connection->getBucketEngine()->dcp.buffer_acknowledgement == nullptr) {
+    if (cookie.connection.getBucketEngine() == nullptr ||
+        cookie.connection.getBucketEngine()->dcp.buffer_acknowledgement ==
+                nullptr) {
         // The attached bucket does not support DCP
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
@@ -519,9 +506,8 @@ static protocol_binary_response_status dcp_control_validator(const Cookie& cooki
 
     // We could do these tests before checking the packet, but
     // it feels cleaner to validate the packet first.
-    if (cookie.connection == nullptr ||
-        cookie.connection->getBucketEngine() == nullptr ||
-        cookie.connection->getBucketEngine()->dcp.control == nullptr) {
+    if (cookie.connection.getBucketEngine() == nullptr ||
+        cookie.connection.getBucketEngine()->dcp.control == nullptr) {
         // The attached bucket does not support DCP
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
@@ -1249,9 +1235,8 @@ static protocol_binary_response_status collections_set_manifest_validator(
 
     // We could do these tests before checking the packet, but
     // it feels cleaner to validate the packet first.
-    if (cookie.connection == nullptr ||
-        cookie.connection->getBucketEngine() == nullptr ||
-        cookie.connection->getBucketEngine()->collections.set_manifest ==
+    if (cookie.connection.getBucketEngine() == nullptr ||
+        cookie.connection.getBucketEngine()->collections.set_manifest ==
                 nullptr) {
         // The attached bucket does not support collections
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;

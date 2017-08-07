@@ -23,21 +23,15 @@ using namespace cb::rbac;
 
 template <Privilege T>
 static PrivilegeAccess require(Cookie& cookie) {
-    if (cookie.connection == nullptr) {
-        throw std::logic_error("haveRead: cookie.connection can't be null");
-    }
-    return cookie.connection->checkPrivilege(T, cookie);
+    return cookie.connection.checkPrivilege(T, cookie);
 }
 
 static PrivilegeAccess requireInsertOrUpsert(Cookie& cookie) {
-    if (cookie.connection == nullptr) {
-        throw std::logic_error("insert: cookie.connection can't be null");
-    }
-    auto ret = cookie.connection->checkPrivilege(Privilege::Insert, cookie);
+    auto ret = cookie.connection.checkPrivilege(Privilege::Insert, cookie);
     if (ret == PrivilegeAccess::Ok) {
         return PrivilegeAccess::Ok;
     } else {
-        return cookie.connection->checkPrivilege(Privilege::Upsert, cookie);
+        return cookie.connection.checkPrivilege(Privilege::Upsert, cookie);
     }
 }
 

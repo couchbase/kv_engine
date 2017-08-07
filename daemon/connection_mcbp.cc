@@ -750,7 +750,7 @@ McbpConnection::McbpConnection(SOCKET sfd, event_base *b)
       commandContext(nullptr),
       totalRecv(0),
       totalSend(0),
-      cookie(this) {
+      cookie(*this) {
     memset(&binary_header, 0, sizeof(binary_header));
     memset(&event, 0, sizeof(event));
     memset(&read, 0, sizeof(read));
@@ -795,7 +795,7 @@ McbpConnection::McbpConnection(SOCKET sfd,
       commandContext(nullptr),
       totalRecv(0),
       totalSend(0),
-      cookie(this) {
+      cookie(*this) {
 
     if (ifc.protocol != Protocol::Memcached) {
         throw std::logic_error("Incorrect object for MCBP");

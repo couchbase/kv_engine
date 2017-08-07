@@ -368,7 +368,7 @@ public:
      */
     DestroyBucketThread(const std::string& name_,
                         bool force_,
-                        Connection* connection_,
+                        McbpConnection* connection_,
                         Task* task_)
         : Couchbase::Thread("mc:bucket_del"),
           name(name_),
@@ -382,7 +382,7 @@ public:
         waitForState(Couchbase::ThreadState::Zombie);
     }
 
-    Connection* getConnection() const {
+    McbpConnection* getConnection() const {
         return connection;
     }
 
@@ -402,7 +402,7 @@ private:
 
     std::string name;
     bool force;
-    Connection* connection;
+    McbpConnection* connection;
     Task* task;
     ENGINE_ERROR_CODE result;
 };
