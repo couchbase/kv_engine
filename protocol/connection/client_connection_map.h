@@ -34,15 +34,13 @@ public:
     /**
      * Get a connection object matching the given attributes
      *
-     * @param protocol The requested protocol (Greenstack / Memcached)
      * @param ssl If ssl should be enabled or not
      * @param family the network family (IPv4 / IPv6)
      * @param port (optional) The specific port number to use..
      * @return A connection object to use
      * @throws std::runtime_error if the request can't be served
      */
-    MemcachedConnection& getConnection(const Protocol& protocol,
-                                       bool ssl,
+    MemcachedConnection& getConnection(bool ssl,
                                        sa_family_t family = AF_INET,
                                        in_port_t port = 0);
 
@@ -59,7 +57,7 @@ public:
     /**
      * Do we have a connection matching the requested attributes
      */
-    bool contains(const Protocol& protocol, bool ssl, sa_family_t family);
+    bool contains(bool ssl, sa_family_t family);
 
 private:
     std::vector<std::unique_ptr<MemcachedConnection>> connections;

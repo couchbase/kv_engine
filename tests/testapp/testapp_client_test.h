@@ -64,17 +64,13 @@ public:
     MemcachedConnection& getConnection() override {
         switch (::testing::get<0>(GetParam())) {
         case TransportProtocols::McbpPlain:
-            return prepare(connectionMap.getConnection(
-                    Protocol::Memcached, false, AF_INET));
+            return prepare(connectionMap.getConnection(false, AF_INET));
         case TransportProtocols::McbpIpv6Plain:
-            return prepare(connectionMap.getConnection(
-                    Protocol::Memcached, false, AF_INET6));
+            return prepare(connectionMap.getConnection(false, AF_INET6));
         case TransportProtocols::McbpSsl:
-            return prepare(connectionMap.getConnection(
-                    Protocol::Memcached, true, AF_INET));
+            return prepare(connectionMap.getConnection(true, AF_INET));
         case TransportProtocols::McbpIpv6Ssl:
-            return prepare(connectionMap.getConnection(
-                    Protocol::Memcached, true, AF_INET6));
+            return prepare(connectionMap.getConnection(true, AF_INET6));
         }
         throw std::logic_error("Unknown transport");
     }

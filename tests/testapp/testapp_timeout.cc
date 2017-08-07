@@ -68,7 +68,7 @@ public:
 protected:
 
     void testit(bool admin) {
-        auto& conn = connectionMap.getConnection(Protocol::Memcached, false);
+        auto& conn = connectionMap.getConnection(false);
         conn.reconnect();
 
         if (admin) {

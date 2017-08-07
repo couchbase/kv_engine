@@ -131,7 +131,7 @@ std::string to_string(const TransportProtocols& transport) {
 
 void TestappTest::CreateTestBucket()
 {
-    auto& conn = connectionMap.getConnection(Protocol::Memcached, false);
+    auto& conn = connectionMap.getConnection(false);
 
     // Reconnect to the server so we know we're on a "fresh" connection
     // to the server (and not one that might have been cached by the

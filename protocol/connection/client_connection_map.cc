@@ -21,13 +21,11 @@
 /////////////////////////////////////////////////////////////////////////
 // Implementation of the ConnectionMap class
 /////////////////////////////////////////////////////////////////////////
-MemcachedConnection& ConnectionMap::getConnection(const Protocol& protocol,
-                                                  bool ssl,
+MemcachedConnection& ConnectionMap::getConnection(bool ssl,
                                                   sa_family_t family,
                                                   in_port_t port) {
     for (auto& conn : connections) {
-        if (conn->getProtocol() == protocol && conn->isSsl() == ssl &&
-            conn->getFamily() == family &&
+        if (conn->isSsl() == ssl && conn->getFamily() == family &&
             (port == 0 || conn->getPort() == port)) {
             return *conn.get();
         }
@@ -36,11 +34,9 @@ MemcachedConnection& ConnectionMap::getConnection(const Protocol& protocol,
     throw std::runtime_error("No connection matching the request");
 }
 
-bool ConnectionMap::contains(const Protocol& protocol,
-                             bool ssl,
-                             sa_family_t family) {
+bool ConnectionMap::contains(bool ssl, sa_family_t family) {
     try {
-        (void)getConnection(protocol, ssl, family, 0);
+        (void)getConnection(ssl, family, 0);
         return true;
     } catch (const std::runtime_error&) {
         return false;
@@ -106,13 +102,14 @@ void ConnectionMap::initialize(cJSON* ports) {
         bool useSsl = ssl->type == cJSON_True ? true : false;
 
         MemcachedConnection* connection;
-        if (strcmp(protocol->valuestring, "greenstack") == 0) {
-            throw std::logic_error(
-                    "ConnectionMap::initialize: built without greenstack "
-                    "support");
-        } else {
+        if (strcmp(protocol->valuestring, "memcached") == 0) {
             connection =
                     new MemcachedBinprotConnection("", portval, family, useSsl);
+        } else {
+            throw std::logic_error(
+                    "ConnectionMap::initialize: Invalid value passed for "
+                    "protocol: " +
+                    std::string(protocol->valuestring));
         }
         connection->connect();
         connections.push_back(std::unique_ptr<MemcachedConnection>{connection});

@@ -968,9 +968,7 @@ TEST_P(McdTestappTest, IOCTL_Set) {
 }
 
 TEST_P(McdTestappTest, IOCTL_Tracing) {
-    auto& conn = connectionMap.getConnection(Protocol::Memcached,
-                                             sock_is_ssl(),
-                                             AF_INET);
+    auto& conn = connectionMap.getConnection(sock_is_ssl(), AF_INET);
     conn.authenticate("@admin", "password", "PLAIN");
 
     // Disable trace so that we start from a known status

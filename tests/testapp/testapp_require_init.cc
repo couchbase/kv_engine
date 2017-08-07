@@ -65,7 +65,7 @@ protected:
      * to validate the shutdown command)
      */
     void setControlToken() {
-        auto& conn = connectionMap.getConnection(Protocol::Memcached, false);
+        auto& conn = connectionMap.getConnection(false);
         ASSERT_NO_THROW(conn.authenticate("@admin", "password", "PLAIN"));
 
         Frame frame;
@@ -91,7 +91,7 @@ protected:
     }
 
     void noop(bool success) {
-        auto& conn = connectionMap.getConnection(Protocol::Memcached, false);
+        auto& conn = connectionMap.getConnection(false);
         conn.reconnect();
 
         Frame frame;
@@ -122,17 +122,15 @@ TEST_F(RequireInitTest, NotYetInitialized) {
 
 TEST_F(RequireInitTest, UserPortsNotPresent) {
     // The SSL port is not marked as a management port
-    EXPECT_THROW(connectionMap.getConnection(Protocol::Memcached, true,
-                                             AF_INET),
+    EXPECT_THROW(connectionMap.getConnection(true, AF_INET),
                  std::runtime_error);
 
-    EXPECT_THROW(connectionMap.getConnection(Protocol::Memcached, true,
-                                             AF_INET6),
+    EXPECT_THROW(connectionMap.getConnection(true, AF_INET6),
                  std::runtime_error);
 }
 
 TEST_F(RequireInitTest, InitializeNotAuthorized) {
-    auto& conn = connectionMap.getConnection(Protocol::Memcached, false);
+    auto& conn = connectionMap.getConnection(false);
 
     Frame frame;
     mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_INIT_COMPLETE, NULL, 0, NULL,
@@ -153,7 +151,7 @@ TEST_F(RequireInitTest, InitializeNotAuthorized) {
 }
 
 TEST_F(RequireInitTest, InitializeWrongToken) {
-    auto& conn = connectionMap.getConnection(Protocol::Memcached, false);
+    auto& conn = connectionMap.getConnection(false);
     ASSERT_NO_THROW(conn.authenticate("@admin", "password", "PLAIN"));
 
     Frame frame;
@@ -175,7 +173,7 @@ TEST_F(RequireInitTest, InitializeWrongToken) {
 }
 
 TEST_F(RequireInitTest, InitializeSuccess) {
-    auto& conn = connectionMap.getConnection(Protocol::Memcached, false);
+    auto& conn = connectionMap.getConnection(false);
     ASSERT_NO_THROW(conn.authenticate("@admin", "password", "PLAIN"));
 
     Frame frame;
@@ -207,7 +205,7 @@ TEST_F(RequireInitTest, InitializeSuccess) {
     ASSERT_NO_THROW(portnumbers = loadJsonFile(portnumber_file));
     connectionMap.initialize(portnumbers.get());
     // And now we should have the SSL connection available
-    connectionMap.getConnection(Protocol::Memcached, true, AF_INET);
+    connectionMap.getConnection(true, AF_INET);
 
     EXPECT_EQ(0, remove(portnumber_file.c_str()));
 
