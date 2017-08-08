@@ -1236,12 +1236,6 @@ MemcachedConnection& TestappTest::prepare(MemcachedConnection& connection) {
     return connection;
 }
 
-INSTANTIATE_TEST_CASE_P(Transport,
-                        McdTestappTest,
-                        ::testing::Values(TransportProtocols::McbpPlain,
-                                          TransportProtocols::McbpSsl),
-                        ::testing::PrintToStringParamName());
-
 unique_cJSON_ptr TestappTest::memcached_cfg;
 std::string TestappTest::portnumber_file;
 std::string TestappTest::config_file;

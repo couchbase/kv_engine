@@ -521,17 +521,16 @@ INSTALL(TARGETS ep
 # Run the testapp get set tests against ep-engine
 ADD_TEST(NAME ep-engine-getset-unit-tests.value_eviction
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-        COMMAND memcached_testapp --gtest_filter=TransportProtocols/GetSetTest.* -E ep)
+        COMMAND memcached-get-set-tests -E ep)
 SET_TESTS_PROPERTIES(ep-engine-getset-unit-tests.value_eviction PROPERTIES TIMEOUT 400)
 ADD_TEST(NAME ep-engine-getset-unit-tests.full_eviction
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-        COMMAND memcached_testapp --gtest_filter=TransportProtocols/GetSetTest.* -E ep_full_eviction)
+        COMMAND memcached-get-set-tests -E ep_full_eviction)
 SET_TESTS_PROPERTIES(ep-engine-getset-unit-tests.full_eviction PROPERTIES TIMEOUT 400)
-
 
 ADD_TEST(NAME ep-engine-with-meta-unit-tests
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-        COMMAND memcached_testapp --gtest_filter=TransportProtocols/WithMetaTest.* -E ep)
+        COMMAND memcached-with-meta-tests -E ep)
 SET_TESTS_PROPERTIES(ep-engine-with-meta-unit-tests PROPERTIES TIMEOUT 400)
 
 # Defines a testsuite which runs in full and value eviction
