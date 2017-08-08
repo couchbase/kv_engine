@@ -237,7 +237,7 @@ protected:
     // stream, or an empty pointer if none found.
     SingleThreadedRCPtr<PassiveStream> findStream(uint16_t vbid);
 
-    DcpResponse* getNextItem();
+    std::unique_ptr<DcpResponse> getNextItem();
 
     /**
      * Check if the provided opaque id is one of the

@@ -608,7 +608,7 @@ ENGINE_ERROR_CODE DcpConsumer::step(struct dcp_message_producers* producers) {
         return ret;
     }
 
-    DcpResponse *resp = getNextItem();
+    auto resp = getNextItem();
     if (resp == NULL) {
         return ENGINE_SUCCESS;
     }
@@ -617,7 +617,7 @@ ENGINE_ERROR_CODE DcpConsumer::step(struct dcp_message_producers* producers) {
     switch (resp->getEvent()) {
         case DcpResponse::Event::AddStream:
         {
-            AddStreamResponse *as = static_cast<AddStreamResponse*>(resp);
+            AddStreamResponse* as = static_cast<AddStreamResponse*>(resp.get());
             ret = producers->add_stream_rsp(getCookie(), as->getOpaque(),
                                             as->getStreamOpaque(),
                                             as->getStatus());
@@ -625,7 +625,7 @@ ENGINE_ERROR_CODE DcpConsumer::step(struct dcp_message_producers* producers) {
         }
         case DcpResponse::Event::StreamReq:
         {
-            StreamRequest *sr = static_cast<StreamRequest*> (resp);
+            StreamRequest* sr = static_cast<StreamRequest*>(resp.get());
             ret = producers->stream_req(getCookie(), sr->getOpaque(),
                                         sr->getVBucket(), sr->getFlags(),
                                         sr->getStartSeqno(), sr->getEndSeqno(),
@@ -636,16 +636,16 @@ ENGINE_ERROR_CODE DcpConsumer::step(struct dcp_message_producers* producers) {
         }
         case DcpResponse::Event::SetVbucket:
         {
-            SetVBucketStateResponse* vs;
-            vs = static_cast<SetVBucketStateResponse*>(resp);
+            SetVBucketStateResponse* vs =
+                    static_cast<SetVBucketStateResponse*>(resp.get());
             ret = producers->set_vbucket_state_rsp(getCookie(), vs->getOpaque(),
                                                    vs->getStatus());
             break;
         }
         case DcpResponse::Event::SnapshotMarker:
         {
-            SnapshotMarkerResponse* mr;
-            mr = static_cast<SnapshotMarkerResponse*>(resp);
+            SnapshotMarkerResponse* mr =
+                    static_cast<SnapshotMarkerResponse*>(resp.get());
             ret = producers->marker_rsp(getCookie(), mr->getOpaque(),
                                         mr->getStatus());
             break;
@@ -656,7 +656,6 @@ ENGINE_ERROR_CODE DcpConsumer::step(struct dcp_message_producers* producers) {
             ret = ENGINE_DISCONNECT;
     }
     ObjectRegistry::onSwitchThread(epe);
-    delete resp;
 
     if (ret == ENGINE_SUCCESS) {
         return ENGINE_WANT_MORE;
@@ -957,7 +956,7 @@ std::string DcpConsumer::getProcessorTaskStatusStr() {
     return "UNKNOWN";
 }
 
-DcpResponse* DcpConsumer::getNextItem() {
+std::unique_ptr<DcpResponse> DcpConsumer::getNextItem() {
     LockHolder lh(readyMutex);
 
     unPause();
@@ -970,29 +969,29 @@ DcpResponse* DcpConsumer::getNextItem() {
             continue;
         }
 
-        DcpResponse* op = stream->next();
-        if (!op) {
+        auto response = stream->next();
+        if (!response) {
             continue;
         }
-        switch (op->getEvent()) {
-            case DcpResponse::Event::StreamReq:
-            case DcpResponse::Event::AddStream:
-            case DcpResponse::Event::SetVbucket:
-            case DcpResponse::Event::SnapshotMarker:
-                break;
-            default:
-                throw std::logic_error(
-                        std::string("DcpConsumer::getNextItem: ") + logHeader() +
-                        " is attempting to write an unexpected event: " +
-                        op->to_string());
+        switch (response->getEvent()) {
+        case DcpResponse::Event::StreamReq:
+        case DcpResponse::Event::AddStream:
+        case DcpResponse::Event::SetVbucket:
+        case DcpResponse::Event::SnapshotMarker:
+            break;
+        default:
+            throw std::logic_error(
+                    std::string("DcpConsumer::getNextItem: ") + logHeader() +
+                    " is attempting to write an unexpected event: " +
+                    response->to_string());
         }
 
         ready.push_back(vbucket);
-        return op;
+        return response;
     }
     pause("ready list empty");
 
-    return NULL;
+    return nullptr;
 }
 
 void DcpConsumer::notifyStreamReady(uint16_t vbucket) {

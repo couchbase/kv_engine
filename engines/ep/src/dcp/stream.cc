@@ -141,39 +141,34 @@ bool Stream::isTakeoverWait() const {
 
 void Stream::clear_UNLOCKED() {
     while (!readyQ.empty()) {
-        DcpResponse* resp = readyQ.front();
         popFromReadyQ();
-        delete resp;
     }
 }
 
-void Stream::pushToReadyQ(DcpResponse* resp) {
+void Stream::pushToReadyQ(std::unique_ptr<DcpResponse> resp) {
     /* expect streamMutex.ownsLock() == true */
     if (resp) {
-        if (queueResponse(resp)) {
-            readyQ.push(resp);
+        if (queueResponse(resp.get())) {
             if (!resp->isMetaEvent()) {
                 readyQ_non_meta_items++;
             }
             readyQueueMemory.fetch_add(resp->getMessageSize(),
                                        std::memory_order_relaxed);
-        } else {
-            delete resp;
-            return;
+            readyQ.push(std::move(resp));
         }
     }
 }
 
-void Stream::popFromReadyQ(void)
-{
+std::unique_ptr<DcpResponse> Stream::popFromReadyQ(void) {
     /* expect streamMutex.ownsLock() == true */
     if (!readyQ.empty()) {
-        const auto& front = readyQ.front();
+        auto front = std::move(readyQ.front());
+        readyQ.pop();
+
         if (!front->isMetaEvent()) {
             readyQ_non_meta_items--;
         }
         const uint32_t respSize = front->getMessageSize();
-        readyQ.pop();
 
         /* Decrement the readyQ size */
         if (respSize <= readyQueueMemory.load(std::memory_order_relaxed)) {
@@ -186,7 +181,11 @@ void Stream::popFromReadyQ(void)
                 readyQueueMemory.load(std::memory_order_relaxed), respSize);
             readyQueueMemory.store(0, std::memory_order_relaxed);
         }
+
+        return front;
     }
+
+    return nullptr;
 }
 
 uint64_t Stream::getReadyQueueMemory() {
@@ -324,13 +323,14 @@ ActiveStream::~ActiveStream() {
     transitionState(StreamState::Dead);
 }
 
-DcpResponse* ActiveStream::next() {
+std::unique_ptr<DcpResponse> ActiveStream::next() {
     std::lock_guard<std::mutex> lh(streamMutex);
     return next(lh);
 }
 
-DcpResponse* ActiveStream::next(std::lock_guard<std::mutex>& lh) {
-    DcpResponse* response = NULL;
+std::unique_ptr<DcpResponse> ActiveStream::next(
+        std::lock_guard<std::mutex>& lh) {
+    std::unique_ptr<DcpResponse> response;
 
     switch (state_.load()) {
         case StreamState::Pending:
@@ -447,8 +447,8 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
         producer->getLogger().log(EXTENSION_LOG_NOTICE,
             "(vb %" PRIu16 ") Sending disk snapshot with start seqno %" PRIu64
             " and end seqno %" PRIu64, vb_, startSeqno, endSeqno);
-        pushToReadyQ(new SnapshotMarker(opaque_, vb_, startSeqno, endSeqno,
-                                        MARKER_FLAG_DISK));
+        pushToReadyQ(std::make_unique<SnapshotMarker>(
+                opaque_, vb_, startSeqno, endSeqno, MARKER_FLAG_DISK));
         lastSentSnapEndSeqno.store(endSeqno, std::memory_order_relaxed);
 
         if (!(flags_ & DCP_ADD_STREAM_FLAG_DISKONLY)) {
@@ -486,7 +486,7 @@ bool ActiveStream::backfillReceived(std::unique_ptr<Item> itm,
             bufferedBackfill.items++;
             lastReadSeqno.store(uint64_t(*resp->getBySeqno()));
 
-            pushToReadyQ(resp.release());
+            pushToReadyQ(std::move(resp));
 
             lh.unlock();
             bool inverse = false;
@@ -606,8 +606,9 @@ void ActiveStream::setVBucketStateAckRecieved() {
     }
 }
 
-DcpResponse* ActiveStream::backfillPhase(std::lock_guard<std::mutex>& lh) {
-    DcpResponse* resp = nextQueuedItem();
+std::unique_ptr<DcpResponse> ActiveStream::backfillPhase(
+        std::lock_guard<std::mutex>& lh) {
+    auto resp = nextQueuedItem();
 
     if (resp) {
         /* It is ok to have recordBackfillManagerBytesSent() and
@@ -657,7 +658,7 @@ DcpResponse* ActiveStream::backfillPhase(std::lock_guard<std::mutex>& lh) {
     return resp;
 }
 
-DcpResponse* ActiveStream::inMemoryPhase() {
+std::unique_ptr<DcpResponse> ActiveStream::inMemoryPhase() {
     if (lastSentSeqno.load() >= end_seqno_) {
         endStream(END_STREAM_OK);
     } else if (readyQ.empty()) {
@@ -674,8 +675,7 @@ DcpResponse* ActiveStream::inMemoryPhase() {
     return nextQueuedItem();
 }
 
-DcpResponse* ActiveStream::takeoverSendPhase() {
-
+std::unique_ptr<DcpResponse> ActiveStream::takeoverSendPhase() {
     VBucketPtr vb = engine->getVBucket(vb_);
     if (vb && takeoverStart != 0 &&
         !vb->isTakeoverBackedUp() &&
@@ -700,20 +700,19 @@ DcpResponse* ActiveStream::takeoverSendPhase() {
         takeoverStart = 0;
     }
 
-    DcpResponse* resp = NULL;
     if (producer->bufferLogInsert(SetVBucketState::baseMsgBytes)) {
-        resp = new SetVBucketState(opaque_, vb_, takeoverState);
         transitionState(StreamState::TakeoverWait);
+        return std::make_unique<SetVBucketState>(opaque_, vb_, takeoverState);
     }
-    return resp;
+    return nullptr;
 }
 
-DcpResponse* ActiveStream::takeoverWaitPhase() {
+std::unique_ptr<DcpResponse> ActiveStream::takeoverWaitPhase() {
     return nextQueuedItem();
 }
 
-DcpResponse* ActiveStream::deadPhase() {
-    DcpResponse* resp = nextQueuedItem();
+std::unique_ptr<DcpResponse> ActiveStream::deadPhase() {
+    auto resp = nextQueuedItem();
     if (!resp) {
         producer->getLogger().log(EXTENSION_LOG_NOTICE,
                                   "(vb %" PRIu16 ") Stream closed, "
@@ -849,9 +848,9 @@ void ActiveStream::addTakeoverStats(ADD_STAT add_stat, const void *cookie,
     add_casted_stat("on_disk_deletes", del_items, add_stat, cookie);
 }
 
-DcpResponse* ActiveStream::nextQueuedItem() {
+std::unique_ptr<DcpResponse> ActiveStream::nextQueuedItem() {
     if (!readyQ.empty()) {
-        DcpResponse* response = readyQ.front();
+        auto& response = readyQ.front();
         if (producer->bufferLogInsert(response->getMessageSize())) {
             auto seqno = response->getBySeqno();
             if (seqno) {
@@ -865,12 +864,11 @@ DcpResponse* ActiveStream::nextQueuedItem() {
             }
 
             // See if the response is a system-event
-            processSystemEvent(response);
-            popFromReadyQ();
-            return response;
+            processSystemEvent(response.get());
+            return popFromReadyQ();
         }
     }
-    return NULL;
+    return nullptr;
 }
 
 bool ActiveStream::nextCheckpointItem() {
@@ -994,15 +992,12 @@ void ActiveStream::processItems(std::vector<queued_item>& items) {
             mark = true;
         }
 
-        std::deque<DcpResponse*> mutations;
-        std::vector<queued_item>::iterator itr = items.begin();
-        for (; itr != items.end(); ++itr) {
-            queued_item& qi = *itr;
-
+        std::deque<std::unique_ptr<DcpResponse>> mutations;
+        for (auto& qi : items) {
             if (SystemEventReplicate::process(*qi) == ProcessStatus::Continue) {
                 curChkSeqno = qi->getBySeqno();
                 lastReadSeqnoUnSnapshotted = qi->getBySeqno();
-                mutations.push_back(makeResponseFromItem(qi).release());
+                mutations.push_back(makeResponseFromItem(qi));
             } else if (qi->getOperation() == queue_op::checkpoint_start) {
                 /* if there are already other mutations, then they belong to the
                    previous checkpoint and hence we must create a snapshot and
@@ -1032,7 +1027,8 @@ void ActiveStream::processItems(std::vector<queued_item>& items) {
     producer->notifyStreamReady(vb_);
 }
 
-void ActiveStream::snapshot(std::deque<DcpResponse*>& items, bool mark) {
+void ActiveStream::snapshot(std::deque<std::unique_ptr<DcpResponse>>& items,
+                            bool mark) {
     if (items.empty()) {
         return;
     }
@@ -1046,9 +1042,6 @@ void ActiveStream::snapshot(std::deque<DcpResponse*>& items, bool mark) {
         // should be added on the stream's readyQ. We must drop items in case
         // we switch state from in-memory to backfill because we schedule
         // backfill from lastReadSeqno + 1
-        for (auto& item : items) {
-            delete item;
-        }
         items.clear();
         return;
     }
@@ -1089,13 +1082,13 @@ void ActiveStream::snapshot(std::deque<DcpResponse*>& items, bool mark) {
             snapStart = std::min(snap_start_seqno_, snapStart);
             firstMarkerSent = true;
         }
-        pushToReadyQ(new SnapshotMarker(opaque_, vb_, snapStart, snapEnd,
-                                        flags));
+        pushToReadyQ(std::make_unique<SnapshotMarker>(
+                opaque_, vb_, snapStart, snapEnd, flags));
         lastSentSnapEndSeqno.store(snapEnd, std::memory_order_relaxed);
     }
 
-    for (const auto& item : items) {
-        pushToReadyQ(item);
+    for (auto& item : items) {
+        pushToReadyQ(std::move(item));
     }
 }
 
@@ -1135,7 +1128,8 @@ void ActiveStream::endStream(end_stream_status_t reason) {
         }
         transitionState(StreamState::Dead);
         if (reason != END_STREAM_DISCONNECTED) {
-            pushToReadyQ(new StreamEndResponse(opaque_, reason, vb_));
+            pushToReadyQ(
+                    std::make_unique<StreamEndResponse>(opaque_, reason, vb_));
         }
         producer->getLogger().log(EXTENSION_LOG_NOTICE,
                                   "(vb %" PRIu16 ") Stream closing, "
@@ -1609,7 +1603,8 @@ NotifierStream::NotifierStream(EventuallyPersistentEngine* e,
     LockHolder lh(streamMutex);
     VBucketPtr vbucket = e->getVBucket(vb_);
     if (vbucket && static_cast<uint64_t>(vbucket->getHighSeqno()) > st_seqno) {
-        pushToReadyQ(new StreamEndResponse(opaque_, END_STREAM_OK, vb_));
+        pushToReadyQ(std::make_unique<StreamEndResponse>(
+                opaque_, END_STREAM_OK, vb_));
         transitionState(StreamState::Dead);
         itemsReady.store(true);
     }
@@ -1628,7 +1623,8 @@ uint32_t NotifierStream::setDead(end_stream_status_t status) {
     if (isActive()) {
         transitionState(StreamState::Dead);
         if (status != END_STREAM_DISCONNECTED) {
-            pushToReadyQ(new StreamEndResponse(opaque_, status, vb_));
+            pushToReadyQ(
+                    std::make_unique<StreamEndResponse>(opaque_, status, vb_));
             lh.unlock();
             bool inverse = false;
             if (itemsReady.compare_exchange_strong(inverse, true)) {
@@ -1642,7 +1638,8 @@ uint32_t NotifierStream::setDead(end_stream_status_t status) {
 void NotifierStream::notifySeqnoAvailable(uint64_t seqno) {
     std::unique_lock<std::mutex> lh(streamMutex);
     if (isActive() && start_seqno_ < seqno) {
-        pushToReadyQ(new StreamEndResponse(opaque_, END_STREAM_OK, vb_));
+        pushToReadyQ(std::make_unique<StreamEndResponse>(
+                opaque_, END_STREAM_OK, vb_));
         transitionState(StreamState::Dead);
         lh.unlock();
         bool inverse = false;
@@ -1652,22 +1649,19 @@ void NotifierStream::notifySeqnoAvailable(uint64_t seqno) {
     }
 }
 
-DcpResponse* NotifierStream::next() {
+std::unique_ptr<DcpResponse> NotifierStream::next() {
     LockHolder lh(streamMutex);
 
     if (readyQ.empty()) {
         itemsReady.store(false);
-        return NULL;
+        return nullptr;
     }
 
-    DcpResponse* response = readyQ.front();
+    auto& response = readyQ.front();
     if (producer->bufferLogInsert(response->getMessageSize())) {
-        popFromReadyQ();
-    } else {
-        response = NULL;
+        return popFromReadyQ();
     }
-
-    return response;
+    return nullptr;
 }
 
 void NotifierStream::transitionState(StreamState newState) {
@@ -1767,14 +1761,14 @@ void PassiveStream::streamRequest(uint64_t vb_uuid) {
 }
 
 void PassiveStream::streamRequest_UNLOCKED(uint64_t vb_uuid) {
-    pushToReadyQ(new StreamRequest(vb_,
-                                   opaque_,
-                                   flags_,
-                                   start_seqno_,
-                                   end_seqno_,
-                                   vb_uuid,
-                                   snap_start_seqno_,
-                                   snap_end_seqno_));
+    pushToReadyQ(std::make_unique<StreamRequest>(vb_,
+                                                 opaque_,
+                                                 flags_,
+                                                 start_seqno_,
+                                                 end_seqno_,
+                                                 vb_uuid,
+                                                 snap_start_seqno_,
+                                                 snap_end_seqno_));
 
     const char* type = (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER)
         ? "takeover stream" : "stream";
@@ -1829,7 +1823,8 @@ void PassiveStream::acceptStream(uint16_t status, uint32_t add_opaque) {
         } else {
             transitionState(StreamState::Dead);
         }
-        pushToReadyQ(new AddStreamResponse(add_opaque, opaque_, status));
+        pushToReadyQ(std::make_unique<AddStreamResponse>(
+                add_opaque, opaque_, status));
         lh.unlock();
         bool inverse = false;
         if (itemsReady.compare_exchange_strong(inverse, true)) {
@@ -1861,9 +1856,14 @@ void PassiveStream::reconnectStream(VBucketPtr &vb,
     {
         LockHolder lh(streamMutex);
         last_seqno.store(start_seqno);
-        pushToReadyQ(new StreamRequest(vb_, new_opaque, flags_, start_seqno,
-                                      end_seqno_, vb_uuid_, snap_start_seqno_,
-                                      snap_end_seqno_));
+        pushToReadyQ(std::make_unique<StreamRequest>(vb_,
+                                                     new_opaque,
+                                                     flags_,
+                                                     start_seqno,
+                                                     end_seqno_,
+                                                     vb_uuid_,
+                                                     snap_start_seqno_,
+                                                     snap_end_seqno_));
     }
     bool inverse = false;
     if (itemsReady.compare_exchange_strong(inverse, true)) {
@@ -2359,7 +2359,8 @@ void PassiveStream::processSetVBucketState(SetVBucketState* state) {
     engine->getKVBucket()->setVBucketState(vb_, state->getState(), true);
     {
         LockHolder lh (streamMutex);
-        pushToReadyQ(new SetVBucketStateResponse(opaque_, ENGINE_SUCCESS));
+        pushToReadyQ(std::make_unique<SetVBucketStateResponse>(opaque_,
+                                                               ENGINE_SUCCESS));
     }
     bool inverse = false;
     if (itemsReady.compare_exchange_strong(inverse, true)) {
@@ -2388,7 +2389,8 @@ void PassiveStream::handleSnapshotEnd(VBucketPtr& vb, uint64_t byseqno) {
         if (cur_snapshot_ack) {
             {
                 LockHolder lh(streamMutex);
-                pushToReadyQ(new SnapshotMarkerResponse(opaque_, ENGINE_SUCCESS));
+                pushToReadyQ(std::make_unique<SnapshotMarkerResponse>(
+                        opaque_, ENGINE_SUCCESS));
             }
             bool inverse = false;
             if (itemsReady.compare_exchange_strong(inverse, true)) {
@@ -2448,7 +2450,7 @@ void PassiveStream::addStats(ADD_STAT add_stat, const void *c) {
     }
 }
 
-DcpResponse* PassiveStream::next() {
+std::unique_ptr<DcpResponse> PassiveStream::next() {
     LockHolder lh(streamMutex);
 
     if (readyQ.empty()) {
@@ -2456,9 +2458,7 @@ DcpResponse* PassiveStream::next() {
         return NULL;
     }
 
-    DcpResponse* response = readyQ.front();
-    popFromReadyQ();
-    return response;
+    return popFromReadyQ();
 }
 
 uint32_t PassiveStream::clearBuffer_UNLOCKED() {

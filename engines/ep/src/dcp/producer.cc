@@ -135,7 +135,6 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
                          cb::const_byte_buffer jsonFilter,
                          bool startTask)
     : ConnHandler(e, cookie, name),
-      rejectResp(NULL),
       notifyOnly((flags & DCP_OPEN_NOTIFIER) != 0),
       lastSendTime(ep_current_time()),
       log(*this),
@@ -212,7 +211,6 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
 
 DcpProducer::~DcpProducer() {
     backfillMgr.reset();
-    delete rejectResp;
 
     if (checkpointCreatorTask) {
         ExecutorPool::get()->cancel(checkpointCreatorTask->getId());
@@ -490,10 +488,9 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
         return ret;
     }
 
-    DcpResponse *resp;
+    std::unique_ptr<DcpResponse> resp;
     if (rejectResp) {
-        resp = rejectResp;
-        rejectResp = NULL;
+        resp = std::move(rejectResp);
     } else {
         resp = getNextItem();
         if (!resp) {
@@ -502,13 +499,14 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
     }
 
     Item* itmCpy = nullptr;
-    auto* mutationResponse = dynamic_cast<MutationProducerResponse*>(resp);
-    if (mutationResponse != nullptr) {
+    auto* mutationResponse =
+            dynamic_cast<MutationProducerResponse*>(resp.get());
+    if (mutationResponse) {
         try {
             itmCpy = mutationResponse->getItemCopy();
             itmCpy->pruneValueAndOrXattrs(includeValue, includeXattrs);
         } catch (const std::bad_alloc&) {
-            rejectResp = resp;
+            rejectResp = std::move(resp);
             LOG(EXTENSION_LOG_WARNING,
                 "%s (vb %d) std::bad_alloc while trying to copy "
                 "item or prune copy with seqno:%" PRIu64 " before streaming it",
@@ -545,9 +543,11 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
     switch (resp->getEvent()) {
         case DcpResponse::Event::StreamEnd:
         {
-            StreamEndResponse *se = static_cast<StreamEndResponse*>(resp);
-            ret = producers->stream_end(getCookie(), se->getOpaque(),
-                                        se->getVbucket(), se->getFlags());
+            StreamEndResponse* se = static_cast<StreamEndResponse*>(resp.get());
+            ret = producers->stream_end(getCookie(),
+                                        se->getOpaque(),
+                                        se->getVbucket(),
+                                        se->getFlags());
             break;
         }
         case DcpResponse::Event::Mutation:
@@ -597,7 +597,7 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
         }
         case DcpResponse::Event::SnapshotMarker:
         {
-            SnapshotMarker *s = static_cast<SnapshotMarker*>(resp);
+            SnapshotMarker* s = static_cast<SnapshotMarker*>(resp.get());
             ret = producers->marker(getCookie(), s->getOpaque(),
                                     s->getVBucket(),
                                     s->getStartSeqno(),
@@ -607,14 +607,14 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
         }
         case DcpResponse::Event::SetVbucket:
         {
-            SetVBucketState *s = static_cast<SetVBucketState*>(resp);
+            SetVBucketState* s = static_cast<SetVBucketState*>(resp.get());
             ret = producers->set_vbucket_state(getCookie(), s->getOpaque(),
                                                s->getVBucket(), s->getState());
             break;
         }
         case DcpResponse::Event::SystemEvent: {
             SystemEventProducerMessage* s =
-                    static_cast<SystemEventProducerMessage*>(resp);
+                    static_cast<SystemEventProducerMessage*>(resp.get());
             ret = producers->system_event(
                     getCookie(),
                     s->getOpaque(),
@@ -639,9 +639,7 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
     ObjectRegistry::onSwitchThread(epe);
 
     if (ret == ENGINE_E2BIG) {
-        rejectResp = resp;
-    } else {
-        delete resp;
+        rejectResp = std::move(resp);
     }
 
     lastSendTime = ep_current_time();
@@ -1021,7 +1019,7 @@ const char* DcpProducer::getType() const {
     }
 }
 
-DcpResponse* DcpProducer::getNextItem() {
+std::unique_ptr<DcpResponse> DcpProducer::getNextItem() {
     do {
         unPause();
 
@@ -1032,7 +1030,6 @@ DcpResponse* DcpProducer::getNextItem() {
                 return NULL;
             }
 
-            DcpResponse* op = NULL;
             stream_t stream;
             {
                 stream = findStream(vbucket);
@@ -1041,42 +1038,43 @@ DcpResponse* DcpProducer::getNextItem() {
                 }
             }
 
-            op = stream->next();
+            auto response = stream->next();
 
-            if (!op) {
+            if (!response) {
                 // stream is empty, try another vbucket.
                 continue;
             }
 
-            switch (op->getEvent()) {
-                case DcpResponse::Event::SnapshotMarker:
-                case DcpResponse::Event::Mutation:
-                case DcpResponse::Event::Deletion:
-                case DcpResponse::Event::Expiration:
-                case DcpResponse::Event::StreamEnd:
-                case DcpResponse::Event::SetVbucket:
-                case DcpResponse::Event::SystemEvent:
-                    break;
-                default:
-                    throw std::logic_error(
-                            std::string("DcpProducer::getNextItem: "
-                            "Producer (") + logHeader() + ") is attempting to "
-                            "write an unexpected event:" +
-                            op->to_string());
+            switch (response->getEvent()) {
+            case DcpResponse::Event::SnapshotMarker:
+            case DcpResponse::Event::Mutation:
+            case DcpResponse::Event::Deletion:
+            case DcpResponse::Event::Expiration:
+            case DcpResponse::Event::StreamEnd:
+            case DcpResponse::Event::SetVbucket:
+            case DcpResponse::Event::SystemEvent:
+                break;
+            default:
+                throw std::logic_error(std::string("DcpProducer::getNextItem: "
+                                                   "Producer (") +
+                                       logHeader() +
+                                       ") is attempting to "
+                                       "write an unexpected event:" +
+                                       response->to_string());
             }
 
             ready.pushUnique(vbucket);
 
-            if (op->getEvent() == DcpResponse::Event::Mutation ||
-                op->getEvent() == DcpResponse::Event::Deletion ||
-                op->getEvent() == DcpResponse::Event::Expiration ||
-                op->getEvent() == DcpResponse::Event::SystemEvent) {
+            if (response->getEvent() == DcpResponse::Event::Mutation ||
+                response->getEvent() == DcpResponse::Event::Deletion ||
+                response->getEvent() == DcpResponse::Event::Expiration ||
+                response->getEvent() == DcpResponse::Event::SystemEvent) {
                 itemsSent++;
             }
 
-            totalBytesSent.fetch_add(op->getMessageSize());
+            totalBytesSent.fetch_add(response->getMessageSize());
 
-            return op;
+            return response;
         }
 
         // flag we are paused
@@ -1087,7 +1085,7 @@ DcpResponse* DcpProducer::getNextItem() {
         // paused = false, so reloop so we don't miss an operation.
     } while(!ready.empty());
 
-    return NULL;
+    return nullptr;
 }
 
 void DcpProducer::setDisconnect() {

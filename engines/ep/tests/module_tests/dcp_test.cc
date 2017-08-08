@@ -521,11 +521,11 @@ TEST_P(StreamTest, MB17653_ItemsRemaining) {
     ASSERT_NE(nullptr, response);
     EXPECT_TRUE(response->isMetaEvent()) << "Expected 1st item to be meta";
 
-    response.reset(mock_stream->public_nextQueuedItem());
+    response = mock_stream->public_nextQueuedItem();
     ASSERT_NE(nullptr, response);
     EXPECT_FALSE(response->isMetaEvent()) << "Expected 2nd item to be non-meta";
 
-    response.reset(mock_stream->public_nextQueuedItem());
+    response = mock_stream->public_nextQueuedItem();
     EXPECT_EQ(nullptr, response) << "Expected there to not be a 3rd item.";
 
     EXPECT_EQ(1, mock_stream->getItemsRemaining())
@@ -545,7 +545,7 @@ TEST_P(StreamTest, MB17653_ItemsRemaining) {
     // have no items left.
     mock_stream->nextCheckpointItemTask();
     do {
-        response.reset(mock_stream->public_nextQueuedItem());
+        response = mock_stream->public_nextQueuedItem();
     } while (response);
     EXPECT_EQ(0, mock_stream->getItemsRemaining())
         << "Should have 0 items remaining after advancing cursor and draining readyQ";
@@ -575,10 +575,9 @@ TEST_P(StreamTest, test_mb18625) {
     mock_stream->public_processItems(items);
 
     // Retrieve the next message in the stream's readyQ
-    DcpResponse *op = mock_stream->public_nextQueuedItem();
+    auto op = mock_stream->public_nextQueuedItem();
     EXPECT_EQ(DcpResponse::Event::StreamEnd, op->getEvent())
         << "Expected the STREAM_END message";
-    delete op;
 
     // Expect no other message to be queued after stream end message
     EXPECT_EQ(0, (mock_stream->public_readyQ()).size())

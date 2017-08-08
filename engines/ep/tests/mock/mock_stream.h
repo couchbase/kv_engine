@@ -70,11 +70,11 @@ public:
         return nextCheckpointItem();
     }
 
-    const std::queue<DcpResponse*>& public_readyQ() {
+    const std::queue<std::unique_ptr<DcpResponse>>& public_readyQ() {
         return readyQ;
     }
 
-    DcpResponse* public_nextQueuedItem() {
+    std::unique_ptr<DcpResponse> public_nextQueuedItem() {
         return nextQueuedItem();
     }
 
@@ -135,7 +135,6 @@ public:
         for (int items = 0; items < numItems;) {
             auto resp = backfillPhase(lh);
             if (resp) {
-                delete resp;
                 ++items;
             }
         }

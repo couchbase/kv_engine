@@ -94,7 +94,7 @@ public:
 
     virtual void addStats(ADD_STAT add_stat, const void *c);
 
-    virtual DcpResponse* next() = 0;
+    virtual std::unique_ptr<DcpResponse> next() = 0;
 
     virtual uint32_t setDead(end_stream_status_t status) = 0;
 
@@ -159,10 +159,10 @@ protected:
     void clear_UNLOCKED();
 
     /* To be called after getting streamMutex lock */
-    void pushToReadyQ(DcpResponse* resp);
+    void pushToReadyQ(std::unique_ptr<DcpResponse> resp);
 
     /* To be called after getting streamMutex lock */
-    void popFromReadyQ(void);
+    std::unique_ptr<DcpResponse> popFromReadyQ(void);
 
     uint64_t getReadyQueueMemory(void);
 
@@ -193,9 +193,9 @@ protected:
      * Ordered queue of DcpResponses to be sent on the stream.
      * Elements are added to this queue by reading from disk/memory etc, and
      * are removed when sending over the network to our peer.
-     * The readyQ owns the elements in it. TODO: Convert to unique_ptr<>
+     * The readyQ owns the elements in it.
      */
-    std::queue<DcpResponse*> readyQ;
+    std::queue<std::unique_ptr<DcpResponse>> readyQ;
 
     // Number of items in the readyQ that are not meta items. Used for
     // calculating getItemsRemaining(). Atomic so it can be safely read by
@@ -236,7 +236,7 @@ public:
 
     virtual ~ActiveStream();
 
-    DcpResponse* next();
+    std::unique_ptr<DcpResponse> next();
 
     void setActive() {
         LockHolder lh(streamMutex);
@@ -316,7 +316,7 @@ protected:
 
     bool nextCheckpointItem();
 
-    DcpResponse* nextQueuedItem();
+    std::unique_ptr<DcpResponse> nextQueuedItem();
 
     /**
      * @return a DcpResponse to represent the item. This will be either a
@@ -386,21 +386,21 @@ protected:
      */
     std::atomic<size_t> backfillRemaining;
 
-    DcpResponse* backfillPhase(std::lock_guard<std::mutex>& lh);
+    std::unique_ptr<DcpResponse> backfillPhase(std::lock_guard<std::mutex>& lh);
 
 private:
+    std::unique_ptr<DcpResponse> next(std::lock_guard<std::mutex>& lh);
 
-    DcpResponse* next(std::lock_guard<std::mutex>& lh);
+    std::unique_ptr<DcpResponse> inMemoryPhase();
 
-    DcpResponse* inMemoryPhase();
+    std::unique_ptr<DcpResponse> takeoverSendPhase();
 
-    DcpResponse* takeoverSendPhase();
+    std::unique_ptr<DcpResponse> takeoverWaitPhase();
 
-    DcpResponse* takeoverWaitPhase();
+    std::unique_ptr<DcpResponse> deadPhase();
 
-    DcpResponse* deadPhase();
-
-    void snapshot(std::deque<DcpResponse*>& snapshot, bool mark);
+    void snapshot(std::deque<std::unique_ptr<DcpResponse>>& snapshot,
+                  bool mark);
 
     void endStream(end_stream_status_t reason);
 
@@ -578,7 +578,7 @@ public:
 
     ~NotifierStream();
 
-    DcpResponse* next();
+    std::unique_ptr<DcpResponse> next();
 
     uint32_t setDead(end_stream_status_t status);
 
@@ -613,7 +613,7 @@ public:
     process_items_error_t processBufferedMessages(uint32_t &processed_bytes,
                                                   size_t batchSize);
 
-    DcpResponse* next();
+    std::unique_ptr<DcpResponse> next();
 
     uint32_t setDead(end_stream_status_t status);
 

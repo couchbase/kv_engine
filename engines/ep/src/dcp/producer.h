@@ -284,14 +284,15 @@ protected:
 
     Couchbase::RelaxedAtomic<rel_time_t> lastReceiveTime;
 
-    DcpResponse* getNextItem();
+    std::unique_ptr<DcpResponse> getNextItem();
 
     size_t getItemsRemaining();
     stream_t findStreamByVbid(uint16_t vbid);
 
     std::string priority;
 
-    DcpResponse *rejectResp; // stash response for retry if E2BIG was hit
+    // stash response for retry if E2BIG was hit
+    std::unique_ptr<DcpResponse> rejectResp;
 
     bool notifyOnly;
 

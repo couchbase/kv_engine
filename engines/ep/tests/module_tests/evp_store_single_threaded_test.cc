@@ -489,14 +489,11 @@ TEST_F(SingleThreadedEPBucketTest, MB22960_cursor_dropping_data_loss) {
     // inMemoryPhase and pendingBackfill is true and so transitions to
     // backfillPhase
     // take snapshot marker off the ReadyQ
-    DcpResponse* resp = mock_stream->next();
-    delete resp;
+    auto resp = mock_stream->next();
     // backfillPhase() - take doc "key1" off the ReadyQ
     resp = mock_stream->next();
-    delete resp;
     // backfillPhase - take doc "key2" off the ReadyQ
     resp = mock_stream->next();
-    delete resp;
     runNextTask(lpAuxioQ);
     runNextTask(lpAuxioQ);
     runNextTask(lpAuxioQ);
@@ -505,21 +502,18 @@ TEST_F(SingleThreadedEPBucketTest, MB22960_cursor_dropping_data_loss) {
     ASSERT_EQ(2, registerCursorCount);
     // take snapshot marker off the ReadyQ
     resp = mock_stream->next();
-    delete resp;
     // backfillPhase - take doc "key3" off the ReadyQ
     resp = mock_stream->next();
-    delete resp;
     // backfillPhase() - take doc "key4" off the ReadyQ
     // isBackfillTaskRunning is not running and ReadyQ is now empty so also
     // transitionState from StreamBackfilling to StreamInMemory
     resp = mock_stream->next();
-    delete resp;
     EXPECT_TRUE(mock_stream->isInMemory())
         << "stream state should have transitioned to StreamInMemory";
     // inMemoryPhase.  ReadyQ is empty and pendingBackfill is false and so
     // return NULL
     resp = mock_stream->next();
-    EXPECT_EQ(NULL, resp);
+    EXPECT_EQ(nullptr, resp);
     EXPECT_EQ(2, ckpt_mgr.getNumCheckpoints());
     EXPECT_EQ(2, ckpt_mgr.getNumOfCursors());
 
@@ -696,14 +690,14 @@ TEST_F(SingleThreadedEPBucketTest, MB25056_do_not_set_pendingBackfill_to_true) {
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
 
     // backfillPhase() - take doc "key1" off the ReadyQ
-    resp.reset(mock_stream->next());
+    resp = mock_stream->next();
     EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
     EXPECT_EQ(std::string("key1"),
               dynamic_cast<MutationResponse*>(resp.get())->
               getItem()->getKey().c_str());
 
     // backfillPhase - take doc "key2" off the ReadyQ
-    resp.reset(mock_stream->next());
+    resp = mock_stream->next();
     EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
     EXPECT_EQ(std::string("key2"),
               dynamic_cast<MutationResponse*>(resp.get())->
@@ -712,7 +706,7 @@ TEST_F(SingleThreadedEPBucketTest, MB25056_do_not_set_pendingBackfill_to_true) {
     EXPECT_TRUE(mock_stream->isInMemory())
             << "stream state should have transitioned to StreamInMemory";
 
-    resp.reset(mock_stream->next());
+    resp = mock_stream->next();
     EXPECT_FALSE(resp);
 
     EXPECT_EQ(1, ckpt_mgr.getNumCheckpoints());
