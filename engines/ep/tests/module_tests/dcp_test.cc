@@ -175,15 +175,17 @@ protected:
             std::string key("key" + std::to_string(i));
             store_item(vbid, key, "value");
         }
+        removeCheckpoint(numItems);
+    }
 
+    void removeCheckpoint(int numItems) {
         /* Create new checkpoint so that we can remove the current checkpoint
-         and force a backfill in the DCP stream */
+           and force a backfill in the DCP stream */
         auto& ckpt_mgr = vb0->checkpointManager;
         ckpt_mgr.createNewCheckpoint();
 
         /* Wait for removal of the old checkpoint, this also would imply that
-         the
-         items are persisted (in case of persistent buckets) */
+           the items are persisted (in case of persistent buckets) */
         {
             bool new_ckpt_created;
             std::chrono::microseconds uSleepTime(128);
@@ -673,6 +675,67 @@ TEST_P(StreamTest, BackfillSmallBuffer) {
 
     /* Read the other item */
     mock_stream->consumeBackfillItems(1);
+    destroy_dcp_stream();
+}
+
+/* Checks that DCP backfill in Ephemeral buckets does not have duplicates in
+ a snaphsot */
+TEST_P(StreamTest, EphemeralBackfillSnapshotHasNoDuplicates) {
+    if (bucketType != "ephemeral") {
+        return;
+    }
+    EphemeralVBucket* evb = dynamic_cast<EphemeralVBucket*>(vb0.get());
+
+    /* Add 4 items */
+    const int numItems = 4;
+    for (int i = 0; i < numItems; ++i) {
+        std::string key("key" + std::to_string(i));
+        store_item(vbid, key, "value");
+    }
+
+    /* Update "key1" before range read cursors are on vb */
+    store_item(vbid, "key1", "value1");
+
+    /* Add fake range read cursor on vb and update items */
+    {
+        auto itr = evb->makeRangeIterator(/*isBackfill*/ true);
+        /* update 'key2' and 'key3' */
+        store_item(vbid, "key2", "value1");
+        store_item(vbid, "key3", "value1");
+    }
+
+    /* update key2 once again with a range iterator again so that it has 2 stale
+     values */
+    {
+        auto itr = evb->makeRangeIterator(/*isBackfill*/ true);
+        /* update 'key2' */
+        store_item(vbid, "key2", "value1");
+    }
+
+    removeCheckpoint(numItems);
+
+    /* Set up a DCP stream for the backfill */
+    setup_dcp_stream();
+    MockActiveStream* mock_stream =
+            static_cast<MockActiveStream*>(stream.get());
+
+    /* We want the backfill task to run in a background thread */
+    ExecutorPool::get()->setNumAuxIO(1);
+    mock_stream->transitionStateToBackfilling();
+
+    /* Wait for the backfill task to complete */
+    {
+        std::chrono::microseconds uSleepTime(128);
+        uint64_t expLastReadSeqno = 4 /*numItems*/ + 4 /*num updates*/;
+        while (expLastReadSeqno !=
+               static_cast<uint64_t>(mock_stream->getLastReadSeqno())) {
+            uSleepTime = decayingSleep(uSleepTime);
+        }
+    }
+
+    /* Verify that only 4 items are read in the backfill (no duplicates) */
+    EXPECT_EQ(numItems, mock_stream->getNumBackfillItems());
+
     destroy_dcp_stream();
 }
 

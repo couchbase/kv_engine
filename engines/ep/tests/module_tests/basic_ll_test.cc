@@ -679,8 +679,10 @@ TEST_F(BasicLinkedListTest, RangeIteratorUpdateItemDuringRead) {
         /* itr is deleted */
     }
 
-    /* Now create new iterator and if we can read all elements */
-    expectedSeqno.push_back(numItems + 1);
+    /* Now create new iterator and if we can read all but duplicate elements */
+    seqno_t exp[] = {1, 3, 4};
+    expectedSeqno =
+            std::vector<seqno_t>(exp, exp + sizeof(exp) / sizeof(seqno_t));
 
     {
         auto itr = getRangeIterator();

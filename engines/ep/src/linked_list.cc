@@ -510,6 +510,17 @@ OrderedStoredValue& BasicLinkedList::RangeIteratorLL::operator*() const {
 
 BasicLinkedList::RangeIteratorLL& BasicLinkedList::RangeIteratorLL::
 operator++() {
+    do {
+        incrOperatorHelper();
+        if (curr() == end()) {
+            /* iterator has gone beyond the range, just return */
+            return *this;
+        }
+    } while (itrRangeContainsAnUpdatedVersion());
+    return *this;
+}
+
+void BasicLinkedList::RangeIteratorLL::incrOperatorHelper() {
     if (curr() >= end()) {
         throw std::out_of_range(
                 "BasicLinkedList::RangeIteratorLL::operator++()"
@@ -536,7 +547,7 @@ operator++() {
         /* Update the begin to end() so the client can see that the iteration
            has ended */
         itrRange.setBegin(end());
-        return *this;
+        return;
     }
 
     ++currIt;
@@ -550,6 +561,20 @@ operator++() {
 
     /* Also update the current range stored in the iterator obj */
     itrRange.setBegin(currIt->getBySeqno());
+}
 
-    return *this;
+bool BasicLinkedList::RangeIteratorLL::itrRangeContainsAnUpdatedVersion() {
+    /* Check if this OSV has been made stale and has been superseded by a
+       newer version. If it has, and the replacement is /also/ in the range
+       we are reading, we should skip this item to avoid duplicates */
+    StoredValue* replacement;
+    {
+        /* Writer and tombstone purger hold the 'list.writeLock' when they
+           change the pointer to the replacement OSV, and hence it would not be
+           safe to read the uniquePtr without preventing concurrent changes to
+           it */
+        std::lock_guard<std::mutex> writeGuard(list.getListWriteLock());
+        replacement = (*(*this)).getReplacementIfStale(writeGuard);
+    }
+    return (replacement != nullptr && replacement->getBySeqno() <= back());
 }
