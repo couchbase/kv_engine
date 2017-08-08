@@ -189,24 +189,20 @@ void mcbp_write_packet(McbpConnection* c, protocol_binary_response_status err) {
     c->setWriteAndGo(conn_new_cmd);
 }
 
-void mcbp_add_header(McbpConnection* c,
-                     uint16_t err,
-                     uint8_t ext_len,
-                     uint16_t key_len,
-                     uint32_t body_len,
-                     uint8_t datatype) {
+size_t mcbp_add_header(net_buf& write,
+                       uint8_t opcode,
+                       uint16_t err,
+                       uint8_t ext_len,
+                       uint16_t key_len,
+                       uint32_t body_len,
+                       uint8_t datatype,
+                       uint32_t opaque,
+                       uint64_t cas) {
     protocol_binary_response_header* header;
-
-    if (c == nullptr) {
-        throw std::invalid_argument(
-            "mcbp_add_header: 'c' must be non-NULL");
-    }
-
-    c->addMsgHdr(true);
-    header = (protocol_binary_response_header*)c->write.buf;
+    header = (protocol_binary_response_header*)write.buf;
 
     header->response.magic = (uint8_t)PROTOCOL_BINARY_RES;
-    header->response.opcode = c->binary_header.request.opcode;
+    header->response.opcode = opcode;
     header->response.keylen = (uint16_t)htons(key_len);
 
     header->response.extlen = ext_len;
@@ -214,22 +210,47 @@ void mcbp_add_header(McbpConnection* c,
     header->response.status = (uint16_t)htons(err);
 
     header->response.bodylen = htonl(body_len);
-    header->response.opaque = c->getOpaque();
-    header->response.cas = htonll(c->getCAS());
+    header->response.opaque = opaque;
+    header->response.cas = htonll(cas);
+    return sizeof(header->bytes);
+}
+
+void mcbp_add_header(McbpConnection* c,
+                     uint16_t err,
+                     uint8_t ext_len,
+                     uint16_t key_len,
+                     uint32_t body_len,
+                     uint8_t datatype) {
+    if (c == nullptr) {
+        throw std::invalid_argument("mcbp_add_header: 'c' must be non-NULL");
+    }
+
+    c->addMsgHdr(true);
+    const auto size = mcbp_add_header(c->write,
+                                      c->binary_header.request.opcode,
+                                      err,
+                                      ext_len,
+                                      key_len,
+                                      body_len,
+                                      datatype,
+                                      c->getOpaque(),
+                                      c->getCAS());
 
     if (settings.getVerbose() > 1) {
         char buffer[1024];
-        if (bytes_to_output_string(buffer, sizeof(buffer), c->getId(), false,
+        if (bytes_to_output_string(buffer,
+                                   sizeof(buffer),
+                                   c->getId(),
+                                   false,
                                    "Writing bin response:",
-                                   (const char*)header->bytes,
-                                   sizeof(header->bytes)) != -1) {
+                                   c->write.buf,
+                                   size) != -1) {
             LOG_DEBUG(c, "%s", buffer);
         }
     }
 
     ++c->getBucket().responseCounters[err];
-
-    c->addIov(c->write.buf, sizeof(header->response));
+    c->addIov(c->write.buf, size);
 }
 
 bool mcbp_response_handler(const void* key, uint16_t keylen,

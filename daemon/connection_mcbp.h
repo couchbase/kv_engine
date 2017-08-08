@@ -47,6 +47,21 @@
 #include "ssl_context.h"
 #include "task.h"
 
+/**
+ * Adjust a message header structure by "consuming" nbytes of data.
+ *
+ * The msghdr structure contains an io-vector of data to send, and
+ * by consuming data, we "rebuild" the io-vector by moving the
+ * base pointer to the iovector past all of the fully transferred
+ * elements, and move the last iov_base pointer the resulting bytes
+ * forward (and reduce the last iov_len the same number of bytes)
+ *
+ * @param m The message header structure to update
+ * @param nbytes The number of bytes to skip
+ * @return The number of bytes left in the first element in the io-vector
+ */
+size_t adjust_msghdr(struct msghdr* m, ssize_t nbytes);
+
 class McbpConnection : public Connection {
 public:
     McbpConnection() = delete;

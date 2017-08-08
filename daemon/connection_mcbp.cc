@@ -363,6 +363,33 @@ int McbpConnection::sendmsg(struct msghdr* m) {
     return res;
 }
 
+/**
+ * Adjust the msghdr by "removing" n bytes of data from it.
+ *
+ * @param m the msgheader to update
+ * @param nbytes
+ * @return the number of bytes left in the current iov entry
+ */
+size_t adjust_msghdr(struct msghdr* m, ssize_t nbytes) {
+    // We've written some of the data. Remove the completed
+    // iovec entries from the list of pending writes.
+    while (m->msg_iovlen > 0 && nbytes >= ssize_t(m->msg_iov->iov_len)) {
+        nbytes -= (ssize_t)m->msg_iov->iov_len;
+        m->msg_iovlen--;
+        m->msg_iov++;
+    }
+
+    // Might have written just part of the last iovec entry;
+    // adjust it so the next write will do the rest.
+    if (nbytes > 0) {
+        m->msg_iov->iov_base =
+                (void*)((unsigned char*)m->msg_iov->iov_base + nbytes);
+        m->msg_iov->iov_len -= nbytes;
+    }
+
+    return m->msg_iov->iov_len;
+}
+
 McbpConnection::TransmitResult McbpConnection::transmit() {
     if (ssl.isEnabled()) {
         // We use OpenSSL to write data into a buffer before we send it
@@ -396,39 +423,24 @@ McbpConnection::TransmitResult McbpConnection::transmit() {
         if (res > 0) {
             get_thread_stats(this)->bytes_written += res;
 
-            /* We've written some of the data. Remove the completed
-               iovec entries from the list of pending writes. */
-            while (m->msg_iovlen > 0 && res >= ssize_t(m->msg_iov->iov_len)) {
-                res -= (ssize_t)m->msg_iov->iov_len;
-                m->msg_iovlen--;
-                m->msg_iov++;
-            }
-
-            /* Might have written just part of the last iovec entry;
-               adjust it so the next write will do the rest. */
-            if (res > 0) {
-                m->msg_iov->iov_base = (void*)(
-                    (unsigned char*)m->msg_iov->iov_base + res);
-                m->msg_iov->iov_len -= res;
-            }
-
-            if (m->msg_iov->iov_len == 0) {
-               msgcurr++;
-               if (msgcurr == msglist.size()) {
-                   // We sent the final chunk of data.. In our SSL connections
-                   // we might however have data spooled in the SSL buffers
-                   // which needs to be drained before we may consider the
-                   // transmission complete (note that our sendmsg tried
-                   // to drain the buffers before returning).
-                   if (ssl.isEnabled() && ssl.morePendingOutput()) {
-                       if (ssl.hasError() || !updateEvent(EV_WRITE | EV_PERSIST)) {
-                           setState(conn_closing);
-                           return TransmitResult::HardError;
-                       }
-                       return TransmitResult::SoftError;
-                   }
-                   return TransmitResult::Complete;
-               }
+            if (adjust_msghdr(m, res) == 0) {
+                msgcurr++;
+                if (msgcurr == msglist.size()) {
+                    // We sent the final chunk of data.. In our SSL connections
+                    // we might however have data spooled in the SSL buffers
+                    // which needs to be drained before we may consider the
+                    // transmission complete (note that our sendmsg tried
+                    // to drain the buffers before returning).
+                    if (ssl.isEnabled() && ssl.morePendingOutput()) {
+                        if (ssl.hasError() ||
+                            !updateEvent(EV_WRITE | EV_PERSIST)) {
+                            setState(conn_closing);
+                            return TransmitResult::HardError;
+                        }
+                        return TransmitResult::SoftError;
+                    }
+                    return TransmitResult::Complete;
+                }
             }
 
             return TransmitResult::Incomplete;

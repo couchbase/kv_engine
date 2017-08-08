@@ -21,10 +21,33 @@
  * binary protocol
  */
 
-
 #include <memcached/protocol_binary.h>
 #include "connection_mcbp.h"
 #include "protocol/mcbp/engine_errc_2_mcbp.h"
+
+/**
+ * Add a header to the specified net buffer
+ *
+ * @param buffer where to add the header
+ * @param opcode the opcode to insert
+ * @param err The error code to use
+ * @param ext_len The length of the ext field
+ * @param key_len The length of the key field
+ * @param body_len THe length of the body field
+ * @param datatype The datatype to inject into the header
+ * @param opaque The opaque to add to the header
+ * @param cas The cas field
+ * @return The number of bytes written
+ */
+size_t mcbp_add_header(net_buf& buffer,
+                       uint8_t opcode,
+                       uint16_t err,
+                       uint8_t ext_len,
+                       uint16_t key_len,
+                       uint32_t body_len,
+                       uint8_t datatype,
+                       uint32_t opaque,
+                       uint64_t cas);
 
 /**
  * Add a header to the current memcached connection
