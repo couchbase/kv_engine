@@ -33,14 +33,7 @@
 #include "../utilities/subdoc_encoder.h"
 
 #include <unordered_map>
-
-static const int IterationCount = 5000;
-
-#ifdef THREAD_SANITIZER
-static const int ReductionFactor = 20;
-#else
-static const int ReductionFactor = 1;
-#endif
+#include <valgrind/valgrind.h>
 
 class SubdocPerfTest : public TestappTest {
 public:
@@ -49,7 +42,20 @@ public:
         // Performance test - disable ewouldblock_engine.
         ewouldblock_engine_configure(ENGINE_EWOULDBLOCK, EWBEngineMode::Next_N,
                                      0);
-        iterations = IterationCount / ReductionFactor;
+
+#ifdef THREAD_SANITIZER
+        // Reduce the iterations to 250 if we're running under Thread Sanitizer
+        // to avoid the test running too long
+        iterations = 250;
+#else
+        if (RUNNING_ON_VALGRIND == 0) {
+            iterations = 5000;
+        } else {
+            // Reduce the iterations to 100 if we're running under valgrind
+            // to avoid the test running too long
+            iterations = 100;
+        }
+#endif
     }
 
 protected:
