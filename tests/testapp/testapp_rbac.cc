@@ -173,6 +173,7 @@ TEST_P(RbacTest, MB23909_ErrorIncudingErrorInfo) {
 class RbacRoleTest : public TestappClientTest {
 public:
     void SetUp() override {
+        TestappClientTest::SetUp();
         auto& conn = getAdminConnection();
         conn.createBucket("rbac_test", "", BucketType::Memcached);
 
@@ -188,6 +189,7 @@ public:
         larry_holder.reset();
         auto& conn = getAdminConnection();
         conn.deleteBucket("rbac_test");
+        TestappClientTest::TearDown();
     }
 
     MemcachedConnection& getROConnection() {
@@ -295,7 +297,7 @@ TEST_P(RbacRoleTest, Arithmetic) {
     try {
         wo.arithmetic(name, 1, 0);
         FAIL() << "The write-only user should not be allowed to create keys";
-    } catch (ConnectionError& error) {
+    } catch (const ConnectionError& error) {
         EXPECT_TRUE(error.isAccessDenied());
     }
 
@@ -306,7 +308,7 @@ TEST_P(RbacRoleTest, Arithmetic) {
         wo.arithmetic(name, 1, 0);
         FAIL() << "The rw user user should not be allowed to create keys"
                << " the privilege set don't include upsert";
-    } catch (ConnectionError& error) {
+    } catch (const ConnectionError& error) {
         EXPECT_TRUE(error.isAccessDenied());
     }
 
@@ -320,7 +322,7 @@ TEST_P(RbacRoleTest, Arithmetic) {
         ro.arithmetic(name, 1);
         FAIL() << "The read-only user should not be allowed to perform "
                << "arithmetic operations";
-    } catch (ConnectionError& error) {
+    } catch (const ConnectionError& error) {
         EXPECT_TRUE(error.isAccessDenied());
     }
 
@@ -328,7 +330,7 @@ TEST_P(RbacRoleTest, Arithmetic) {
         wo.arithmetic(name, 1);
         FAIL() << "The write-only user should not be allowed to perform "
                << "arithmetic operations";
-    } catch (ConnectionError& error) {
+    } catch (const ConnectionError& error) {
         EXPECT_TRUE(error.isAccessDenied());
     }
 
@@ -339,7 +341,7 @@ TEST_P(RbacRoleTest, Arithmetic) {
         wo.arithmetic(name, 1, 0);
         FAIL() << "The rw user user should not be allowed to create keys"
                << " the privilege set don't include upsert";
-    } catch (ConnectionError& error) {
+    } catch (const ConnectionError& error) {
         EXPECT_TRUE(error.isAccessDenied());
     }
 }
