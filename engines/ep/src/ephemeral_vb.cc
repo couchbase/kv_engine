@@ -303,8 +303,19 @@ void EphemeralVBucket::queueBackfillItem(
 }
 
 size_t EphemeralVBucket::purgeStaleItems() {
-    // Iterate over the sequence list and delete any stale items
-    auto seqListPurged = seqList->purgeTombstones();
+    // Iterate over the sequence list and delete any stale items. But we do
+    // not want to delete the last element in the vbucket, hence we pass
+    // 'seqList->getHighSeqno() - 1'.
+    // Note: Even though highSeqno is present in the list we pass it as a param
+    //       because we want the list purgeTombstones() to be generic, that is,
+    //       should be aware of the constraint that last element should not be
+    //       deleted
+    if (seqList->getHighSeqno() < 2) {
+        /* not enough items to purge */
+        return 0;
+    }
+    auto seqListPurged = seqList->purgeTombstones(
+            static_cast<seqno_t>(seqList->getHighSeqno()) - 1);
 
     // Update stats and return.
     seqListPurgeCount += seqListPurged;

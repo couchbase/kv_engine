@@ -174,7 +174,7 @@ public:
                        StoredValue::UniquePtr ownedSv,
                        StoredValue* newSv) override;
 
-    size_t purgeTombstones() override;
+    size_t purgeTombstones(seqno_t purgeUpToSeqno) override;
 
     void updateNumDeletedItems(bool oldDeleted, bool newDeleted) override;
 
@@ -330,6 +330,9 @@ private:
 
         OrderedStoredValue& operator*() const override;
 
+        /* Duplicate items are not returned by the iterator. That is, if there
+           multiple copies of an item in the iterator range, then only the
+           latest is returned */
         RangeIteratorLL& operator++() override;
 
         seqno_t curr() const override {
@@ -368,6 +371,20 @@ private:
             /* could not lock and the list has items */
             return (!readLockHolder && (list.getHighSeqno() > 0));
         }
+
+        /**
+         * Helps to increment the iterator. Moves the iterator to the next
+         * element in the list
+         */
+        void incrOperatorHelper();
+
+        /**
+         * Indicates if there is a newer version of the curr item in the
+         * iterator range
+         *
+         * @return true if there is a newer version of item; else false
+         */
+        bool itrRangeContainsAnUpdatedVersion();
 
         /* Ref to BasicLinkedList object which is iterated by this iterator.
            By setting the member variables of the list obj appropriately we

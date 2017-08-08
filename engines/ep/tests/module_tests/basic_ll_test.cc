@@ -119,6 +119,41 @@ protected:
         basicLL->appendToList(lg, listWriteLg, *sv);
     }
 
+    void addStaleItem(const std::string& key, seqno_t seqno) {
+        const std::string val("data");
+
+        /* Get a fake sequence lock */
+        std::mutex fakeSeqLock;
+        std::lock_guard<std::mutex> lg(fakeSeqLock);
+
+        /* add an item */
+        StoredDocKey sKey = makeStoredDocKey(key);
+        Item item(sKey,
+                  0,
+                  0,
+                  val.data(),
+                  val.length(),
+                  /*ext_meta*/ nullptr,
+                  /*ext_len*/ 0,
+                  /*theCas*/ 0,
+                  /*bySeqno*/ seqno);
+        EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
+
+        OrderedStoredValue* sv =
+                ht.find(sKey, TrackReference::Yes, WantsDeleted::No)
+                        ->toOrderedStoredValue();
+        std::lock_guard<std::mutex> listWriteLg(basicLL->getListWriteLock());
+        basicLL->appendToList(lg, listWriteLg, *sv);
+        basicLL->updateHighSeqno(listWriteLg, *sv);
+
+        /* Mark stale */
+        {
+            auto hbl = ht.getLockedBucket(item.getKey());
+            auto ownedSV = ht.unlocked_release(hbl, item.getKey());
+            basicLL->markItemStale(listWriteLg, std::move(ownedSV), nullptr);
+        }
+    }
+
     /**
      * Updates an existing item with key == key and assigns it a seqno of
      * highSeqno + 1. To be called when there is no range read.
@@ -644,8 +679,10 @@ TEST_F(BasicLinkedListTest, RangeIteratorUpdateItemDuringRead) {
         /* itr is deleted */
     }
 
-    /* Now create new iterator and if we can read all elements */
-    expectedSeqno.push_back(numItems + 1);
+    /* Now create new iterator and if we can read all but duplicate elements */
+    seqno_t exp[] = {1, 3, 4};
+    expectedSeqno =
+            std::vector<seqno_t>(exp, exp + sizeof(exp) / sizeof(seqno_t));
 
     {
         auto itr = getRangeIterator();
@@ -748,4 +785,79 @@ TEST_F(BasicLinkedListTest, RangeReadStopsOnInvalidSeqno) {
     EXPECT_EQ(ENGINE_SUCCESS, std::get<0>(res));
     EXPECT_EQ(numItems, std::get<1>(res).size());
     EXPECT_EQ(numItems, std::get<2>(res));
+}
+
+/* 'EphemeralVBucket' (class that has the list) never calls the purge of last
+   element, but the list must support generic purge (that is purge until any
+   element). */
+TEST_F(BasicLinkedListTest, PurgeTillLast) {
+    const int numItems = 2;
+    const std::string keyPrefix("key");
+
+    /* Add 2 new items */
+    addNewItemsToList(1, keyPrefix, numItems);
+
+    /* Add a stale item */
+    addStaleItem("stale", numItems + 1);
+    EXPECT_EQ(numItems + 1, basicLL->getNumItems());
+    EXPECT_EQ(1, basicLL->getNumStaleItems());
+
+    /* Purge the last item */
+    EXPECT_EQ(1, basicLL->purgeTombstones(numItems + 1));
+    EXPECT_EQ(numItems, basicLL->getNumItems());
+    EXPECT_EQ(0, basicLL->getNumStaleItems());
+
+    /* Should be able to add elements to the list after the purger has run */
+    addNewItemsToList(
+            numItems + 2 /*startseqno*/, keyPrefix, 1 /*add one element*/);
+    std::vector<seqno_t> expectedSeqno = {1, 2, 4};
+    EXPECT_EQ(expectedSeqno, basicLL->getAllSeqnoForVerification());
+}
+
+/* 'EphemeralVBucket' (class that has the list) never calls the purge of the
+   only element, but the list must support generic purge (that is purge until
+   any element). */
+TEST_F(BasicLinkedListTest, PurgeTheOnlyElement) {
+    /* Add a stale item */
+    addStaleItem("stale", 1);
+    EXPECT_EQ(1, basicLL->getNumItems());
+    EXPECT_EQ(1, basicLL->getNumStaleItems());
+
+    /* Purge the only item */
+    EXPECT_EQ(1, basicLL->purgeTombstones(1));
+    EXPECT_EQ(0, basicLL->getNumItems());
+    EXPECT_EQ(0, basicLL->getNumStaleItems());
+
+    /* Should be able to add elements to the list after the purger has run */
+    addNewItemsToList(2 /*startseqno*/, "key", 1 /*add one element*/);
+    EXPECT_EQ(1, basicLL->getNumItems());
+}
+
+/* 'EphemeralVBucket' (class that has the list) never calls the purge of
+   elements beyond the last element, but the list must support generic purge
+   (that is purge until any element).
+   This is a negative test case which checks that 'purgeTombstones' completes
+   correctly even in the case of a wrong input */
+TEST_F(BasicLinkedListTest, PurgeBeyondLast) {
+    const int numItems = 2;
+    const std::string keyPrefix("key");
+
+    /* Add 2 new items */
+    addNewItemsToList(1, keyPrefix, numItems);
+
+    /* Add a stale item */
+    addStaleItem("stale", numItems + 1);
+    EXPECT_EQ(numItems + 1, basicLL->getNumItems());
+    EXPECT_EQ(1, basicLL->getNumStaleItems());
+
+    /* Purge beyond the last item */
+    EXPECT_EQ(1, basicLL->purgeTombstones(numItems + 1000));
+    EXPECT_EQ(numItems, basicLL->getNumItems());
+    EXPECT_EQ(0, basicLL->getNumStaleItems());
+
+    /* Should be able to add elements to the list after the purger has run */
+    addNewItemsToList(
+            numItems + 2 /*startseqno*/, keyPrefix, 1 /*add one element*/);
+    std::vector<seqno_t> expectedSeqno = {1, 2, 4};
+    EXPECT_EQ(expectedSeqno, basicLL->getAllSeqnoForVerification());
 }

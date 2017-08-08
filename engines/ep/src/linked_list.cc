@@ -224,7 +224,7 @@ void BasicLinkedList::markItemStale(std::lock_guard<std::mutex>& listWriteLg,
     v->toOrderedStoredValue()->markStale(listWriteLg, newSv);
 }
 
-size_t BasicLinkedList::purgeTombstones() {
+size_t BasicLinkedList::purgeTombstones(seqno_t purgeUpToSeqno) {
     // Purge items marked as stale from the seqList.
     //
     // Strategy - we try to ensure that this function does not block
@@ -257,42 +257,34 @@ size_t BasicLinkedList::purgeTombstones() {
 
     // Determine the start and end iterators.
     OrderedLL::iterator startIt;
-    OrderedLL::iterator endIt;
     {
         std::lock_guard<std::mutex> writeGuard(getListWriteLock());
         if (seqList.empty()) {
             // Nothing in sequence list - nothing to purge.
             return 0;
         }
-        // Determine the {start} and {end} iterator (inclusive). Note
-        // that (at most) one item is added to the seqList before its
-        // sequence number is set (as the seqno comes from Ckpt
-        // manager); if that is the case (such an item is guaranteed
-        // to not be stale), then move end to the previous item
-        // (i.e. we don't consider this "in-flight" item), as long as
-        // there is at least two elements.
+
+        // Determine the start
         startIt = seqList.begin();
-        endIt = std::prev(seqList.end());
-        // Need rangeLock for highSeqno & readRange
-        std::lock_guard<SpinLock> rangeGuard(rangeLock);
-        if ((startIt != endIt) && (!endIt->isStale(writeGuard))) {
-            endIt = std::prev(endIt);
+        if (startIt->getBySeqno() > purgeUpToSeqno) {
+            /* Nothing to purge */
+            return 0;
         }
-        readRange = SeqRange(startIt->getBySeqno(), endIt->getBySeqno());
+
+        // Update readRange
+        std::lock_guard<SpinLock> rangeGuard(rangeLock);
+        readRange = SeqRange(startIt->getBySeqno(), purgeUpToSeqno);
     }
 
     // Iterate across all but the last item in the seqList, looking
     // for stale items.
-    // Note the for() loop terminates one element before endIt - we
-    // actually want an inclusive iteration but as we are comparing
-    // essentially random addresses (and we don't want to 'touch' the
-    // element after endIt), we loop to one before endIt, then handle
-    // endIt explicilty at the end.
-    // Note(2): Iterator is manually incremented outside the for() loop as it
-    // is invalidated when we erase items.
     size_t purgedCount = 0;
     bool stale;
-    for (auto it = startIt; it != endIt;) {
+    for (auto it = startIt; it != seqList.end();) {
+        if (it->getBySeqno() > purgeUpToSeqno) {
+            break;
+        }
+
         {
             std::lock_guard<std::mutex> writeGuard(getListWriteLock());
             stale = it->isStale(writeGuard);
@@ -307,23 +299,6 @@ size_t BasicLinkedList::purgeTombstones() {
         it = purgeListElem(it);
         ++purgedCount;
     }
-#if 0
-    // TEMP - MB-25102 - skip purging the last element in the sequence list
-    // to prevent rebalance hanginf due to lack of high seqno item.
-
-    // Proper fix needed - should not dictate policy in this container - for
-    // example have the caller pass in the maximum seqno to purge.
-
-    // Handle the last element.
-    {
-        std::lock_guard<std::mutex> writeGuard(getListWriteLock());
-        stale = endIt->isStale(writeGuard);
-    }
-    if (stale) {
-        purgeListElem(endIt);
-        ++purgedCount;
-    }
-#endif
 
     // Complete; reset the readRange.
     {
@@ -535,6 +510,17 @@ OrderedStoredValue& BasicLinkedList::RangeIteratorLL::operator*() const {
 
 BasicLinkedList::RangeIteratorLL& BasicLinkedList::RangeIteratorLL::
 operator++() {
+    do {
+        incrOperatorHelper();
+        if (curr() == end()) {
+            /* iterator has gone beyond the range, just return */
+            return *this;
+        }
+    } while (itrRangeContainsAnUpdatedVersion());
+    return *this;
+}
+
+void BasicLinkedList::RangeIteratorLL::incrOperatorHelper() {
     if (curr() >= end()) {
         throw std::out_of_range(
                 "BasicLinkedList::RangeIteratorLL::operator++()"
@@ -561,7 +547,7 @@ operator++() {
         /* Update the begin to end() so the client can see that the iteration
            has ended */
         itrRange.setBegin(end());
-        return *this;
+        return;
     }
 
     ++currIt;
@@ -575,6 +561,20 @@ operator++() {
 
     /* Also update the current range stored in the iterator obj */
     itrRange.setBegin(currIt->getBySeqno());
+}
 
-    return *this;
+bool BasicLinkedList::RangeIteratorLL::itrRangeContainsAnUpdatedVersion() {
+    /* Check if this OSV has been made stale and has been superseded by a
+       newer version. If it has, and the replacement is /also/ in the range
+       we are reading, we should skip this item to avoid duplicates */
+    StoredValue* replacement;
+    {
+        /* Writer and tombstone purger hold the 'list.writeLock' when they
+           change the pointer to the replacement OSV, and hence it would not be
+           safe to read the uniquePtr without preventing concurrent changes to
+           it */
+        std::lock_guard<std::mutex> writeGuard(list.getListWriteLock());
+        replacement = (*(*this)).getReplacementIfStale(writeGuard);
+    }
+    return (replacement != nullptr && replacement->getBySeqno() <= back());
 }

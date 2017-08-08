@@ -325,10 +325,13 @@ public:
      * OSVs which can be purged are items which are outside the ReadRange and
      * are Stale.
      *
+     * @param purgeUpToSeqno Indicates the max seqno (inclusive) that could be
+     *                       purged
+     *
      * @return The number of items purged from the sequence list (and hence
      *         deleted).
      */
-    virtual size_t purgeTombstones() = 0;
+    virtual size_t purgeTombstones(seqno_t purgeUpToSeqno) = 0;
 
     /**
      * Updates the number of deleted items in the sequence list whenever
