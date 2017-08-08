@@ -36,10 +36,7 @@
 
 /**
  * The Frame class is used to represent all of the data included in the
- * protocol unit going over the wire. For the memcached binary protocol
- * this is either the full request or response as defined in
- * memcached/protocol_binary.h, and for greenstack this is the greenstack
- * frame as defined in libreenstack/Frame.h
+ * protocol unit going over the wire.
  */
 class Frame {
 public:
