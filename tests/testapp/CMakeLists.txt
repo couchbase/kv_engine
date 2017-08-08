@@ -185,7 +185,7 @@ SET_TESTS_PROPERTIES(memcached-mcbp-unit-tests-ssl PROPERTIES TIMEOUT 400)
 # Run the RBAC tests
 ADD_TEST(NAME memcached-rbac-tests
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-         COMMAND memcached_testapp --gtest_filter=TransportProtocols/RbacTest.*)
+         COMMAND memcached_testapp --gtest_filter=TransportProtocols/RbacTest.*:TransportProtocols/RbacRoleTest.*)
 SET_TESTS_PROPERTIES(memcached-rbac-tests PROPERTIES TIMEOUT 120)
 
 # Run the batch to verify remove
