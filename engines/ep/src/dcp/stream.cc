@@ -1911,8 +1911,8 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(std::unique_ptr<DcpResponse> dc
     case ReplicationThrottle::Status::Disconnect:
         consumer->getLogger().log(EXTENSION_LOG_WARNING,
                                   "vb:%" PRIu16
-                                  "Disconnecting the connection as there is no "
-                                  "memory to complete replication",
+                                  " Disconnecting the connection as there is "
+                                  "no memory to complete replication",
                                   vb_);
         return ENGINE_DISCONNECT;
     case ReplicationThrottle::Status::Process:
@@ -1957,6 +1957,13 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(std::unique_ptr<DcpResponse> dc
 
             if (ret == ENGINE_ENOMEM) {
                 if (engine->getReplicationThrottle().doDisconnectOnNoMem()) {
+                    consumer->getLogger().log(
+                            EXTENSION_LOG_WARNING,
+                            "vb:%" PRIu16
+                            " Disconnecting the connection as there is no "
+                            "memory to complete replication; process dcp "
+                            "event returned no memory",
+                            vb_);
                     return ENGINE_DISCONNECT;
                 }
             }
@@ -2069,6 +2076,13 @@ process_items_error_t PassiveStream::processBufferedMessages(uint32_t& processed
 
     if (failed) {
         if (noMem && engine->getReplicationThrottle().doDisconnectOnNoMem()) {
+            consumer->getLogger().log(
+                    EXTENSION_LOG_WARNING,
+                    "vb:%" PRIu16
+                    " Processor task indicating disconnection as "
+                    "there is no memory to complete replication; process dcp "
+                    "event returned no memory ",
+                    vb_);
             return stop_processing;
         }
         return cannot_process;
