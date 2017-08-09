@@ -853,6 +853,11 @@ process_items_error_t DcpConsumer::drainStreamsBufferedItems(SingleThreadedRCPtr
         case ReplicationThrottle::Status::Disconnect:
             backoffs++;
             vbReady.pushUnique(stream->getVBucket());
+            logger.log(EXTENSION_LOG_WARNING,
+                       "vb:%" PRIu16
+                       " Processor task indicating disconnection as "
+                       "there is no memory to complete replication",
+                       stream->getVBucket());
             return stop_processing;
 
         case ReplicationThrottle::Status::Process:
