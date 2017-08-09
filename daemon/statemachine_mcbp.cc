@@ -26,6 +26,8 @@
 #include "runtime.h"
 #include "mcaudit.h"
 
+#include <platform/strerror.h>
+
 void McbpStateMachine::setCurrentTask(McbpConnection& connection, TaskFunction task) {
     // Moving to the same state is legal
     if (task == currentTask) {
@@ -338,19 +340,20 @@ bool conn_read_packet_body(McbpConnection* c) {
 
     /*  now try reading from the socket */
     auto res = c->recv(c->read.curr, c->getRlbytes());
-    auto error = GetLastNetworkError();
     if (res > 0) {
         get_thread_stats(c)->bytes_read += res;
         c->read.curr += res;
         c->setRlbytes(c->getRlbytes() - res);
         return true;
     }
+
     if (res == 0) { /* end of stream */
         c->setState(conn_closing);
         return true;
     }
 
-    if (res == -1 && is_blocking(error)) {
+    auto error = GetLastNetworkError();
+    if (is_blocking(error)) {
         if (!c->updateEvent(EV_READ | EV_PERSIST)) {
             LOG_WARNING(c,
                         "%u: conn_read_packet_body - Unable to update libevent "
@@ -362,19 +365,21 @@ bool conn_read_packet_body(McbpConnection* c) {
             c->setState(conn_closing);
             return true;
         }
+
+        // We need to wait for more data to be available on the socket
+        // before we may proceed. Return false to stop the state machinery
         return false;
     }
 
-    /* otherwise we have a real error, on which we close the connection */
-    if (!is_closed_conn(error)) {
-        LOG_WARNING(c,
-                    "%u Failed to read, and not due to blocking:\n"
-                        "errno: %d %s \n"
-                        "rcurr=%lx rbuf=%lx rlbytes=%d rsize=%d\n",
-                    c->getId(), errno, strerror(errno),
-                    (long)c->read.curr, (long)c->read.buf,
-                    (int)c->getRlbytes(), (int)c->read.size);
-    }
+    // We have a "real" error on the socket.
+    std::string errormsg = cb_strerror(error);
+    LOG_WARNING(c,
+                "%u Closing connection (%p) %s due to read error: %s",
+                c->getId(),
+                c->getCookie(),
+                c->getDescription().c_str(),
+                errormsg.c_str());
+
     c->setState(conn_closing);
     return true;
 }
