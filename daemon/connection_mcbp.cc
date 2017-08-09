@@ -301,6 +301,10 @@ int McbpConnection::sslPreConnection() {
 }
 
 int McbpConnection::recv(char* dest, size_t nbytes) {
+    if (nbytes == 0) {
+        throw std::logic_error("McbpConnection::recv: Can't read 0 bytes");
+    }
+
     int res;
     if (ssl.isEnabled()) {
         ssl.drainBioRecvPipe(socketDescriptor);
