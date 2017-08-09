@@ -94,50 +94,56 @@ static bool authenticated(McbpConnection* c) {
     return rv;
 }
 
-static void bin_read_chunk(McbpConnection* c, uint32_t chunk) {
-    ptrdiff_t offset;
-    c->setRlbytes(chunk);
+/**
+ * The current implementation of the core require the entire input buffer
+ * to be present in (a continuous memory segment) before we can start
+ * executing the command.
+ *
+ * Validate that the current input buffer can fit the entire mcbp command.
+ *
+ * Note: rlbytes must be set before calling the method
+ *
+ * @param c The connection to check the input buffer.
+ */
+static void resize_input_buffer(McbpConnection& c) {
+    // We need to make sure that there is room in the input buffer to fit
+    // the entire packet
+    const ptrdiff_t offset = c.read.curr - c.read.buf;
+    const size_t needed = c.getRlbytes() + sizeof(c.binary_header);
 
-    /* Ok... do we have room for everything in our buffer? */
-    offset =
-        c->read.curr + sizeof(protocol_binary_request_header) - c->read.buf;
-    if (c->getRlbytes() > c->read.size - offset) {
-        size_t nsize = c->read.size;
-        size_t size = c->getRlbytes() + sizeof(protocol_binary_request_header);
-
-        while (size > nsize) {
+    if (needed > size_t(c.read.size - offset)) {
+        // No; we need a bigger buffer.
+        // Now that we reallocate we can move the data to the beginning
+        // of the new buffer. We don't want to allocate buffers of all
+        // kinds of sizes, so just keep on doubling the size of the
+        // buffer until we find a buffer which is big enough.
+        size_t nsize = c.read.size;
+        while (needed > nsize) {
             nsize *= 2;
         }
 
-        if (nsize != c->read.size) {
-            char* newm;
-            LOG_DEBUG(c, "%u: Need to grow buffer from %lu to %lu",
-                      c->getId(), (unsigned long)c->read.size,
+        if (nsize != c.read.size) {
+            LOG_DEBUG(&c,
+                      "%u: Need to grow buffer from %lu to %lu",
+                      c.getId(),
+                      (unsigned long)c.read.size,
                       (unsigned long)nsize);
-            newm = reinterpret_cast<char*>(cb_realloc(c->read.buf, nsize));
-            if (newm == NULL) {
-                LOG_WARNING(c, "%u: Failed to grow buffer.. closing connection",
-                            c->getId());
-                c->setState(conn_closing);
-                return;
+            auto* newm = reinterpret_cast<char*>(cb_realloc(c.read.buf, nsize));
+            if (newm == nullptr) {
+                throw std::bad_alloc();
             }
 
-            c->read.buf = newm;
-            /* rcurr should point to the same offset in the packet */
-            c->read.curr =
-                c->read.buf + offset - sizeof(protocol_binary_request_header);
-            c->read.size = (int)nsize;
+            c.read.buf = newm;
+            c.read.curr = c.read.buf + offset;
+            c.read.size = (int)nsize;
         }
-        if (c->read.buf != c->read.curr) {
-            memmove(c->read.buf, c->read.curr, c->read.bytes);
-            c->read.curr = c->read.buf;
-            LOG_DEBUG(c, "%u: Repack input buffer", c->getId());
+
+        if (c.read.curr != c.read.buf) {
+            memmove(c.read.buf, c.read.curr, c.read.bytes);
+            c.read.curr = c.read.buf;
+            LOG_DEBUG(&c, "%u: Repack input buffer", c.getId());
         }
     }
-
-    // The input buffer is big enough to fit the entire packet.
-    // Go fetch the rest of the data
-    c->setState(conn_read_packet_body);
 }
 
 /**
@@ -1374,14 +1380,6 @@ void try_read_mcbp_command(McbpConnection* c) {
     cb_assert(c->read.bytes >= sizeof(c->binary_header));
 
     /* Do we have the complete packet header? */
-#ifdef NEED_ALIGN
-    if (((long)(c->read.curr)) % 8 != 0) {
-        /* must realign input buffer */
-        memmove(c->read.buf, c->read.curr, c->read.bytes);
-        c->read.curr = c->read.buf;
-        LOG_DEBUG(c, "%d: Realign input buffer", c->sfd);
-    }
-#endif
     protocol_binary_request_header* req;
     req = (protocol_binary_request_header*)c->read.curr;
 
@@ -1442,7 +1440,39 @@ void try_read_mcbp_command(McbpConnection* c) {
         return;
     }
 
-    bin_read_chunk(c, c->binary_header.request.bodylen);
+    c->setRlbytes(c->binary_header.request.bodylen);
+    try {
+        resize_input_buffer(*c);
+    } catch (const std::bad_alloc&) {
+        LOG_WARNING(c,
+                    "%u: Failed to allocate input buffer for packet. Closing "
+                        "connection",
+                    c->getId());
+        c->getCookieObject().setErrorContext("Failed to allocate memory");
+        mcbp_write_packet(c, cb::mcbp::Status::Einternal);
+        c->setWriteAndGo(conn_closing);
+        return;
+    }
+
+    // The conn_read_packet_body method expects c->read.curr represent
+    // where we want to insert the data. Move past the header
     c->read.bytes -= sizeof(c->binary_header);
     c->read.curr += sizeof(c->binary_header);
+
+    // We might already have part of the body in our input buffer
+    if (c->getRlbytes() > 0 && c->read.bytes > 0) {
+        auto available = std::min(c->getRlbytes(), c->read.bytes);
+        c->setRlbytes(c->getRlbytes() - available);
+        c->read.curr += available;
+        c->read.bytes -= available;
+    }
+
+    if (c->isPacketAvailable()) {
+        // we've got the entire packet available so let's execute it
+        c->setState(conn_execute);
+    } else {
+        // The input buffer is big enough to fit the entire packet.
+        // Go fetch the rest of the data
+        c->setState(conn_read_packet_body);
+    }
 }

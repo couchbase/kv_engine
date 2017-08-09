@@ -319,31 +319,20 @@ bool conn_read_packet_body(McbpConnection* c) {
         return true;
     }
 
-    if (c->isPacketAvailable()) {
-        c->setState(conn_execute);
-        return true;
-    }
+    cb_assert(!c->isPacketAvailable());
+    cb_assert(c->read.bytes == 0);
 
-    /* first check if we have the bytes present in our input buffer */
-    if (c->read.bytes > 0) {
-        auto tocopy = std::min(c->getRlbytes(), c->read.bytes);
-        c->setRlbytes(c->getRlbytes() - tocopy);
-        c->read.curr += tocopy;
-        c->read.bytes -= tocopy;
-
-        if (c->isPacketAvailable()) {
-            // We've got all we need... go execute the command
-            c->setState(conn_execute);
-            return true;
-        }
-    }
-
-    /*  now try reading from the socket */
+    // Read the remaining bytes in the packet socket
     auto res = c->recv(c->read.curr, c->getRlbytes());
     if (res > 0) {
         get_thread_stats(c)->bytes_read += res;
         c->read.curr += res;
         c->setRlbytes(c->getRlbytes() - res);
+
+        if (c->isPacketAvailable()) {
+            c->setState(conn_execute);
+        }
+
         return true;
     }
 
