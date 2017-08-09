@@ -297,7 +297,7 @@ bool conn_execute(McbpConnection *c) {
         return true;
     }
 
-    if (c->getRlbytes() != 0) {
+    if (!c->isPacketAvailable()) {
         throw std::logic_error("conn_execute: Expecting more data (" +
                                std::to_string(c->getRlbytes()) + ")");
     }
@@ -319,7 +319,7 @@ bool conn_read_packet_body(McbpConnection* c) {
         return true;
     }
 
-    if (c->getRlbytes() == 0) {
+    if (c->isPacketAvailable()) {
         c->setState(conn_execute);
         return true;
     }
@@ -331,7 +331,7 @@ bool conn_read_packet_body(McbpConnection* c) {
         c->read.curr += tocopy;
         c->read.bytes -= tocopy;
 
-        if (c->getRlbytes() == 0) {
+        if (c->isPacketAvailable()) {
             // We've got all we need... go execute the command
             c->setState(conn_execute);
             return true;

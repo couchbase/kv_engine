@@ -728,6 +728,17 @@ public:
                 (c.binary_header.request.bodylen + sizeof(c.binary_header)));
     }
 
+
+    /**
+      * Check to see if the next packet to process is completely received
+      * and available in the input pipe.
+      *
+      * @return true if we've got the entire packet, false otherwise
+      */
+    bool isPacketAvailable() const {
+        return getRlbytes() == 0;
+    }
+
     /**
      *  Invoke the validator function(s) for the command
      */
