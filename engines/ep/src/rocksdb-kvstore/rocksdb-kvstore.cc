@@ -53,6 +53,12 @@ RocksDBKVStore::~RocksDBKVStore() {
 void RocksDBKVStore::open() {
     rdbOptions.create_if_missing = true;
     rdbOptions.create_missing_column_families = true;
+    rdbOptions.write_buffer_size =
+            1024 * 1024 * configuration.getWriteBufferSize();
+    rdbOptions.db_write_buffer_size =
+            1024 * 1024 * configuration.getDbWriteBufferSize();
+    rdbOptions.max_write_buffer_number =
+            configuration.getMaxWriteBufferNumber();
 
     seqnoCFOptions.comparator = &vbidSeqnoComparator;
 

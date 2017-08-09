@@ -807,6 +807,39 @@
             "descr": "Perform a file sync() operation after every N bytes written. Disabled if set to 0.",
             "type" : "size_t"
         },
+        "rocksdb_write_buffer_size": {
+            "default": "64",
+            "descr": "The maximum size in MB of a single memtable in rocksdb.",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 100000,
+                    "min": 0
+                }
+            }
+        },
+        "rocksdb_db_write_buffer_size": {
+            "default": "0",
+            "descr": "The maximum total size in MB of all memtables in rocksdb, per shard.",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 100000,
+                    "min": 0
+                }
+            }
+        },
+        "rocksdb_max_write_buffer_number": {
+            "default": "0",
+            "descr": "The maximum number of memtables in rocksdb before stalling writes, per shard.",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 100000,
+                    "min": 0
+                }
+            }
+        },
         "time_synchronization": {
             "default": "disabled",
             "descr": "No longer supported. This config parameter has no effect.",

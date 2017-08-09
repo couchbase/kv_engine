@@ -39,7 +39,10 @@ KVStoreConfig::KVStoreConfig(Configuration& config, uint16_t shardid)
                     config.getDbname(),
                     config.getBackend(),
                     shardid,
-                    config.isCollectionsPrototypeEnabled()) {
+                    config.isCollectionsPrototypeEnabled(),
+                    config.getRocksdbWriteBufferSize(),
+                    config.getRocksdbDbWriteBufferSize(),
+                    config.getRocksdbMaxWriteBufferNumber()) {
     setPeriodicSyncBytes(config.getFsyncAfterEveryNBytesWritten());
     config.addValueChangedListener("fsync_after_every_n_bytes_written",
                                    new ConfigChangeListener(*this));
@@ -50,7 +53,10 @@ KVStoreConfig::KVStoreConfig(uint16_t _maxVBuckets,
                              const std::string& _dbname,
                              const std::string& _backend,
                              uint16_t _shardId,
-                             bool _persistDocNamespace)
+                             bool _persistDocNamespace,
+                             size_t writeBufferSize,
+                             size_t dbWriteBufferSize,
+                             size_t maxWriteBufferNumber)
     : maxVBuckets(_maxVBuckets),
       maxShards(_maxShards),
       dbname(_dbname),
@@ -58,7 +64,10 @@ KVStoreConfig::KVStoreConfig(uint16_t _maxVBuckets,
       shardId(_shardId),
       logger(&global_logger),
       buffered(true),
-      persistDocNamespace(_persistDocNamespace) {
+      persistDocNamespace(_persistDocNamespace),
+      writeBufferSize(writeBufferSize),
+      dbWriteBufferSize(dbWriteBufferSize),
+      maxWriteBufferNumber(maxWriteBufferNumber) {
 }
 
 KVStoreConfig& KVStoreConfig::setLogger(Logger& _logger) {

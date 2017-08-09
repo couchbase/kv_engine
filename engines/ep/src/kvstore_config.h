@@ -44,7 +44,10 @@ public:
                   const std::string& _dbname,
                   const std::string& _backend,
                   uint16_t _shardId,
-                  bool persistDocNamespace);
+                  bool persistDocNamespace,
+                  size_t writeBufferSize = 0,
+                  size_t dbWriteBufferSize = 0,
+                  size_t maxWriteBufferNumber = 0);
 
     uint16_t getMaxVBuckets() const {
         return maxVBuckets;
@@ -108,6 +111,28 @@ public:
         periodicSyncBytes = bytes;
     }
 
+    /**
+     * RocksDB: The maximum size in MB of a single memtable.
+     */
+    size_t getWriteBufferSize() {
+        return writeBufferSize;
+    }
+
+    /**
+     * RocksDB: The maximum total size in MB of all memtables, per shard.
+     */
+    size_t getDbWriteBufferSize() {
+        return dbWriteBufferSize;
+    }
+
+    /**
+     * RocksDB: The maximum number of memtables before stalling writes, per
+     * shard.
+     */
+    size_t getMaxWriteBufferNumber() {
+        return maxWriteBufferNumber;
+    }
+
 private:
     class ConfigChangeListener;
 
@@ -125,4 +150,8 @@ private:
      * N bytes written.
      */
     uint64_t periodicSyncBytes;
+
+    size_t writeBufferSize;
+    size_t dbWriteBufferSize;
+    size_t maxWriteBufferNumber;
 };
