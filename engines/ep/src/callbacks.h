@@ -35,13 +35,13 @@ public:
 
     ~CacheLookup() {}
 
-    StoredDocKey& getKey() { return key; }
+    DocKey getKey() { return key; }
 
     int64_t getBySeqno() { return bySeqno; }
 
     uint16_t getVBucketId() { return vbid; }
 private:
-    StoredDocKey key;
+    DocKey key;
     int64_t bySeqno;
     uint16_t vbid;
 };
