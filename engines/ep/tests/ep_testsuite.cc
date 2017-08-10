@@ -3420,19 +3420,12 @@ static enum test_result test_worker_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
 
     std::set<std::string> tasklist;
     tasklist.insert("Running a flusher loop");
-    tasklist.insert("Snapshotting vbucket states for the shard");
-    tasklist.insert("Deleting VBucket");
     tasklist.insert("Updating stat snapshot on disk");
     tasklist.insert("Batching background fetch");
     tasklist.insert("Fetching item from disk for vkey stat");
     tasklist.insert("Fetching item from disk");
-    tasklist.insert("Loading TAP backfill from disk");
-    tasklist.insert("Tap connection notifier");
     tasklist.insert("Generating access log");
-    tasklist.insert("Fetching item from disk for tap");
     tasklist.insert("Snapshotting vbucket states");
-    tasklist.insert("Persisting a vbucket state for vbucket");
-    tasklist.insert("Reaping tap or dcp connection");
     tasklist.insert("Warmup - initialize");
     tasklist.insert("Warmup - creating vbuckets");
     tasklist.insert("Warmup - estimate item count");
@@ -7003,7 +6996,6 @@ static enum test_result test_mb19687_variable(ENGINE_HANDLE* h,
     std::map<std::string, std::vector<std::string> > statsKeys{
         {"dispatcher", {}}, // Depends on how how long the dispatcher ran..
 
-//        {"tapagg foo",      {}}, // tapagg takes a key and I need to have that tap stream
 //        {"dcpagg bar",      {}}, // dcpagg takes a key and I need to have that dcp stream
 
         {"key mykey",
