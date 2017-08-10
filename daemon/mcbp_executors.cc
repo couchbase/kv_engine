@@ -209,7 +209,7 @@ static void process_bin_noop_response(McbpConnection* c) {
 static ENGINE_ERROR_CODE add_packet_to_pipe(McbpConnection* c,
                                             cb::const_byte_buffer packet) {
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    c->write.produce([c, packet, &ret](cb::byte_buffer buffer) -> size_t {
+    c->write->produce([c, packet, &ret](cb::byte_buffer buffer) -> size_t {
         if (buffer.size() < packet.size()) {
             ret = ENGINE_E2BIG;
             return 0;
@@ -449,8 +449,8 @@ static ENGINE_ERROR_CODE dcp_message_control(const void* void_cookie,
     packet.message.header.request.bodylen = ntohl(nvalue + nkey);
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    c->write.produce([&c, &packet, &key, &nkey, &value, &nvalue, &ret](
-                             void* ptr, size_t size) -> size_t {
+    c->write->produce([&c, &packet, &key, &nkey, &value, &nvalue, &ret](
+                              void* ptr, size_t size) -> size_t {
         if (size < (sizeof(packet.bytes) + nkey + nvalue)) {
             ret = ENGINE_E2BIG;
             return 0;
@@ -1340,14 +1340,14 @@ void try_read_mcbp_command(McbpConnection* c) {
     }
 
     const protocol_binary_request_header* req = nullptr;
-    if (c->read.rsize() < sizeof(*req)) {
+    if (c->read->rsize() < sizeof(*req)) {
         throw std::logic_error(
                 "try_read_mcbp_command: header not present (got " +
-                std::to_string(c->read.rsize()) + " of " +
+                std::to_string(c->read->rsize()) + " of " +
                 std::to_string(sizeof(cb::mcbp::Request)) + ")");
     }
 
-    c->read.consume([&req](cb::const_byte_buffer buffer) -> ssize_t {
+    c->read->consume([&req](cb::const_byte_buffer buffer) -> ssize_t {
         using mcbp_header = protocol_binary_request_header;
         req = reinterpret_cast<const mcbp_header*>(buffer.data());
         return 0;
@@ -1419,7 +1419,7 @@ void try_read_mcbp_command(McbpConnection* c) {
         try {
             size_t needed = sizeof(cb::mcbp::Request) +
                             c->binary_header.request.bodylen;
-            c->read.ensureCapacity(needed - c->read.rsize());
+            c->read->ensureCapacity(needed - c->read->rsize());
         } catch (const std::bad_alloc&) {
             LOG_WARNING(c,
                         "%u: Failed to grow buffer.. closing connection",

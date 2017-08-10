@@ -435,7 +435,7 @@ McbpConnection::TransmitResult McbpConnection::transmit() {
         if (res > 0) {
             get_thread_stats(this)->bytes_written += res;
 
-            if (adjust_msghdr(write, m, res) == 0) {
+            if (adjust_msghdr(*write, m, res) == 0) {
                 msgcurr++;
                 if (msgcurr == msglist.size()) {
                     // We sent the final chunk of data.. In our SSL connections
@@ -508,7 +508,7 @@ McbpConnection::TryReadResult McbpConnection::tryReadNetwork() {
     // a buffer with less than a packet header filled in.
     //
     // Verify that assumption!!!
-    if (read.rsize() >= sizeof(cb::mcbp::Request)) {
+    if (read->rsize() >= sizeof(cb::mcbp::Request)) {
         // The above don't hold true ;)
         throw std::logic_error(
                 "tryReadNetwork: Expected the input buffer to be empty or "
@@ -517,13 +517,13 @@ McbpConnection::TryReadResult McbpConnection::tryReadNetwork() {
 
     // Make sure we can fit the header into the input buffer
     try {
-        read.ensureCapacity(sizeof(cb::mcbp::Request) - read.rsize());
+        read->ensureCapacity(sizeof(cb::mcbp::Request) - read->rsize());
     } catch (const std::bad_alloc&) {
         return TryReadResult::MemoryError;
     }
 
     McbpConnection* c = this;
-    const auto res = read.produce([c](cb::byte_buffer buffer) -> ssize_t {
+    const auto res = read->produce([c](cb::byte_buffer buffer) -> ssize_t {
         return c->recv(reinterpret_cast<char*>(buffer.data()), buffer.size());
     });
 
@@ -737,8 +737,6 @@ void McbpConnection::ensureIovSpace() {
 
 McbpConnection::McbpConnection(SOCKET sfd, event_base* b)
     : Connection(sfd, b),
-      read(DATA_BUFFER_SIZE),
-      write(DATA_BUFFER_SIZE),
       stateMachine(new McbpStateMachine(conn_immediate_close)),
       dcp(false),
       dcpXattrAware(false),
@@ -782,8 +780,6 @@ McbpConnection::McbpConnection(SOCKET sfd,
                                event_base* b,
                                const ListeningPort& ifc)
     : Connection(sfd, b, ifc),
-      read(DATA_BUFFER_SIZE),
-      write(DATA_BUFFER_SIZE),
       stateMachine(new McbpStateMachine(conn_new_cmd)),
       dcp(false),
       dcpXattrAware(false),
@@ -928,8 +924,13 @@ unique_cJSON_ptr McbpConnection::toJSON() const {
             cJSON_AddItemToObject(obj, "libevent", o);
         }
 
-        cJSON_AddItemToObject(obj, "read", read.to_json().release());
-        cJSON_AddItemToObject(obj, "write", write.to_json().release());
+        if (read) {
+            cJSON_AddItemToObject(obj, "read", read->to_json().release());
+        }
+
+        if (write) {
+            cJSON_AddItemToObject(obj, "write", write->to_json().release());
+        }
 
         if (write_and_go != nullptr) {
             cJSON_AddStringToObject(obj, "write_and_go",
@@ -1159,8 +1160,24 @@ void McbpConnection::runEventLoop(short which) {
         }
     }
 
-    // MB-24634: Temporarily disabled
-    // conn_return_buffers(this);
+    conn_return_buffers(this);
+    if (write && !dcp) {
+        // Add a simple sanity check. We should only have a write buffer
+        // connected when we're in:
+        //    * execute (we may have started to create data in the buffer)
+        //    * conn_send_data (we're currently sending the data)
+        //    * closing (we jumped directly from the above)
+        auto state = getState();
+        if (!(state == conn_execute || state == conn_send_data ||
+              state == conn_closing || state == conn_immediate_close)) {
+            // MB-26180: Change this to logging before releasing
+            throw std::logic_error(
+                    "McbpConnection::runEventLoop: " + std::to_string(getId()) +
+                    ": Expected write buffer to be released, "
+                    "but it's not. Current state: " +
+                    stateMachine->getCurrentTaskName());
+        }
+    }
 }
 
 void McbpConnection::initiateShutdown() {

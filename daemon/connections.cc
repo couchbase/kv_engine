@@ -46,6 +46,12 @@ enum class BufferLoan {
 
 /** Function prototypes ******************************************************/
 
+static BufferLoan loan_single_buffer(McbpConnection& c,
+                                     std::unique_ptr<cb::Pipe>& thread_buf,
+                                     std::unique_ptr<cb::Pipe>& conn_buf);
+static void maybe_return_single_buffer(McbpConnection& c,
+                                       std::unique_ptr<cb::Pipe>& thread_buf,
+                                       std::unique_ptr<cb::Pipe>& conn_buf);
 static void conn_destructor(Connection *c);
 static Connection *allocate_connection(SOCKET sfd,
                                        event_base *base,
@@ -261,6 +267,8 @@ static void conn_cleanup(Connection *c) {
     auto* mcbpc = dynamic_cast<McbpConnection*>(c);
     if (mcbpc != nullptr) {
         mcbpc->releaseTempAlloc();
+        mcbpc->read->clear();
+        mcbpc->write->clear();
         /* Return any buffers back to the thread; before we disassociate the
          * connection from the thread. Note we clear DCP status first, so
          * conn_return_buffers() will actually free the buffers.
@@ -365,6 +373,31 @@ void conn_loan_buffers(Connection *connection) {
     if (c == nullptr) {
         return;
     }
+
+    auto* ts = get_thread_stats(c);
+    switch (loan_single_buffer(*c, c->getThread()->read, c->read)) {
+    case BufferLoan::Existing:
+        ts->rbufs_existing++;
+        break;
+    case BufferLoan::Loaned:
+        ts->rbufs_loaned++;
+        break;
+    case BufferLoan::Allocated:
+        ts->rbufs_allocated++;
+        break;
+    }
+
+    switch (loan_single_buffer(*c, c->getThread()->write, c->write)) {
+    case BufferLoan::Existing:
+        ts->wbufs_existing++;
+        break;
+    case BufferLoan::Loaned:
+        ts->wbufs_loaned++;
+        break;
+    case BufferLoan::Allocated:
+        ts->wbufs_allocated++;
+        break;
+    }
 }
 
 void conn_return_buffers(Connection *connection) {
@@ -384,6 +417,9 @@ void conn_return_buffers(Connection *connection) {
         // DCP work differently - let them keep their buffers once allocated.
         return;
     }
+
+    maybe_return_single_buffer(*c, thread->read, c->read);
+    maybe_return_single_buffer(*c, thread->write, c->write);
 }
 
 /** Internal functions *******************************************************/
@@ -490,6 +526,58 @@ static void release_connection(Connection *c) {
 
     // Finally free it
     conn_destructor(c);
+}
+
+/**
+ * If the connection doesn't already have a populated conn_buff, ensure that
+ * it does by either loaning out the threads, or allocating a new one if
+ * necessary.
+ */
+static BufferLoan loan_single_buffer(McbpConnection& c,
+                                     std::unique_ptr<cb::Pipe>& thread_buf,
+                                     std::unique_ptr<cb::Pipe>& conn_buf) {
+    /* Already have a (partial) buffer - nothing to do. */
+    if (conn_buf) {
+        return BufferLoan::Existing;
+    }
+
+    // If the thread has a buffer, let's loan that to the connection
+    if (thread_buf) {
+        thread_buf.swap(conn_buf);
+        return BufferLoan::Loaned;
+    }
+
+    // Need to allocate a new buffer
+    try {
+        conn_buf = std::make_unique<cb::Pipe>(DATA_BUFFER_SIZE);
+    } catch (const std::bad_alloc&) {
+        // Unable to alloc a buffer for the thread. Not much we can do here
+        // other than terminate the current connection.
+        if (settings.getVerbose()) {
+            LOG_WARNING(&c,
+                        "%u: Failed to allocate new network buffer.. closing"
+                        " connection",
+                        c.getId());
+        }
+        c.setState(conn_closing);
+        return BufferLoan::Existing;
+    }
+
+    return BufferLoan::Allocated;
+}
+
+static void maybe_return_single_buffer(McbpConnection& c,
+                                       std::unique_ptr<cb::Pipe>& thread_buf,
+                                       std::unique_ptr<cb::Pipe>& conn_buf) {
+    if (conn_buf && conn_buf->empty()) {
+        // Buffer clean, dispose of it
+        if (thread_buf) {
+            // Already got a thread buffer.. release this one
+            conn_buf.reset();
+        } else {
+            conn_buf.swap(thread_buf);
+        }
+    }
 }
 
 ENGINE_ERROR_CODE apply_connection_trace_mask(const std::string& connid,

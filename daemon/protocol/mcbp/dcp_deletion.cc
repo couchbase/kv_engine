@@ -131,8 +131,8 @@ ENGINE_ERROR_CODE dcp_message_deletion(const void* void_cookie,
     packet.message.header.request.opcode = (uint8_t)PROTOCOL_BINARY_CMD_DCP_DELETION;
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    c->write.produce([&c, &packet, &info, &meta, &nmeta, &ret](
-                             cb::byte_buffer buffer) -> size_t {
+    c->write->produce([&c, &packet, &info, &meta, &nmeta, &ret](
+                              cb::byte_buffer buffer) -> size_t {
 
         const size_t packetlen =
                 protocol_binary_request_dcp_deletion::getHeaderLength(

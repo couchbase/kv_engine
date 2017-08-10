@@ -195,7 +195,7 @@ void mcbp_add_header(McbpConnection* c,
     }
 
     c->addMsgHdr(true);
-    const auto wbuf = mcbp_add_header(c->write,
+    const auto wbuf = mcbp_add_header(*c->write,
                                       c->binary_header.request.opcode,
                                       err,
                                       ext_len,

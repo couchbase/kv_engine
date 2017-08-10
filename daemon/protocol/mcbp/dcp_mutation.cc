@@ -77,8 +77,8 @@ ENGINE_ERROR_CODE dcp_message_mutation(const void* void_cookie,
                                                 collection_len);
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    c->write.produce([&c, &packet, &info, &buffer, &meta, &nmeta, &ret](
-                             cb::byte_buffer wbuf) -> size_t {
+    c->write->produce([&c, &packet, &info, &buffer, &meta, &nmeta, &ret](
+                              cb::byte_buffer wbuf) -> size_t {
 
         const size_t packetlen =
                 protocol_binary_request_dcp_mutation::getHeaderLength(

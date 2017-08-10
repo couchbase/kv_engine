@@ -43,6 +43,7 @@ ValidatorTest::~ValidatorTest() {
 
 void ValidatorTest::SetUp() {
     settings.setXattrEnabled(true);
+    connection.read.reset(new cb::Pipe);
     McbpValidatorChains::initializeMcbpValidatorChains(validatorChains);
     memset(request.bytes, 0, sizeof(request));
     request.message.header.request.magic = PROTOCOL_BINARY_REQ;
@@ -61,8 +62,8 @@ ValidatorTest::validate(protocol_binary_command opcode, void* packet) {
     connection.binary_header.request.cas = ntohll(req->request.cas);
 
     const size_t size = sizeof(*req) + connection.binary_header.request.bodylen;
-    connection.read.ensureCapacity(size);
-    connection.read.produce([size, req](cb::byte_buffer buffer) -> ssize_t {
+    connection.read->ensureCapacity(size);
+    connection.read->produce([size, req](cb::byte_buffer buffer) -> ssize_t {
         std::copy(req->bytes, req->bytes + size, buffer.begin());
         return size;
     });
@@ -70,7 +71,7 @@ ValidatorTest::validate(protocol_binary_command opcode, void* packet) {
     Cookie cookie(connection);
     auto rv = validatorChains.invoke(opcode, cookie);
 
-    connection.read.consume([](cb::const_byte_buffer buffer) -> ssize_t {
+    connection.read->consume([](cb::const_byte_buffer buffer) -> ssize_t {
         return buffer.size();
     });
     return rv;

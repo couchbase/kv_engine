@@ -109,7 +109,7 @@ static void reset_cmd_handler(McbpConnection *c) {
     c->resetCommandContext();
 
     c->shrinkBuffers();
-    if (c->read.rsize() >= sizeof(c->binary_header)) {
+    if (c->read->rsize() >= sizeof(c->binary_header)) {
         c->setState(conn_parse_cmd);
     } else if (c->isSslEnabled()) {
         c->setState(conn_read_packet_header);
@@ -141,8 +141,8 @@ bool conn_ship_log(McbpConnection *c) {
         return false;
     }
 
-    if (c->isReadEvent() || !c->read.empty()) {
-        if (c->read.rsize() >= sizeof(c->binary_header)) {
+    if (c->isReadEvent() || !c->read->empty()) {
+        if (c->read->rsize() >= sizeof(c->binary_header)) {
             try_read_mcbp_command(c);
         } else {
             c->setState(conn_read_packet_header);
@@ -214,7 +214,7 @@ bool conn_read_packet_header(McbpConnection* c) {
         }
         break;
     case McbpConnection::TryReadResult::DataReceived:
-        if (c->read.rsize() >= sizeof(c->binary_header)) {
+        if (c->read->rsize() >= sizeof(c->binary_header)) {
             c->setState(conn_parse_cmd);
         } else {
             c->setState(conn_waiting);
@@ -244,13 +244,13 @@ bool conn_new_cmd(McbpConnection *c) {
 
     c->setStart(0);
 
-    if (!c->write.empty()) {
+    if (!c->write->empty()) {
         LOG_WARNING(
                 c,
                 "%u: Expected write buffer to be empty.. It's not! (%" PRIu64
                 ")",
                 c->getId(),
-                c->write.rsize());
+                c->write->rsize());
     }
 
     /*
@@ -325,7 +325,7 @@ bool conn_execute(McbpConnection *c) {
     }
 
     // Consume the packet we just executed from the input buffer
-    c->read.consume([c](cb::const_byte_buffer buffer) -> ssize_t {
+    c->read->consume([c](cb::const_byte_buffer buffer) -> ssize_t {
         size_t size =
                 sizeof(c->binary_header) + c->binary_header.request.bodylen;
         if (size > buffer.size()) {
@@ -350,7 +350,7 @@ bool conn_read_packet_body(McbpConnection* c) {
     }
 
     // We need to get more data!!!
-    auto res = c->read.produce([c](cb::byte_buffer buffer) -> ssize_t {
+    auto res = c->read->produce([c](cb::byte_buffer buffer) -> ssize_t {
         return c->recv(reinterpret_cast<char*>(buffer.data()), buffer.size());
     });
 

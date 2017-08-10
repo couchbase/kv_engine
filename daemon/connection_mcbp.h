@@ -685,7 +685,7 @@ public:
      * Do we have any pending input data on this connection?
      */
     bool havePendingInputData() {
-        return (!read.empty() || ssl.havePendingInputData());
+        return (!read->empty() || ssl.havePendingInputData());
     }
 
     /**
@@ -706,10 +706,10 @@ public:
      * returned to the thread context if the pipe is empty when we're done
      * serving this connection.
      */
-    cb::Pipe read;
+    std::unique_ptr<cb::Pipe> read;
 
     /** Write buffer */
-    cb::Pipe write;
+    std::unique_ptr<cb::Pipe> write;
 
     const void* getCookie() const {
         return &cookie;
@@ -723,7 +723,7 @@ public:
      * Obtain a pointer to the packet for the Cookie's connection
      */
     static void* getPacket(const Cookie& cookie) {
-        auto avail = cookie.connection.read.rdata();
+        auto avail = cookie.connection.read->rdata();
         return const_cast<void*>(static_cast<const void*>(avail.data()));
     }
 
@@ -734,7 +734,7 @@ public:
       * @return true if we've got the entire packet, false otherwise
       */
     bool isPacketAvailable() const {
-        auto buffer = read.rdata();
+        auto buffer = read->rdata();
 
         if (buffer.size() < sizeof(cb::mcbp::Request)) {
             // we don't have the header, so we can't even look at the body

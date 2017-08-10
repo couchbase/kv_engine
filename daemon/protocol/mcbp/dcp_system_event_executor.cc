@@ -79,8 +79,8 @@ ENGINE_ERROR_CODE dcp_message_system_event(const void* cookie,
             opaque, vbucket, key.size(), eventData.size(), event, bySeqno);
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    c->write.produce([&c, &packet, &key, &eventData, &ret](
-                             cb::byte_buffer buffer) -> size_t {
+    c->write->produce([&c, &packet, &key, &eventData, &ret](
+                              cb::byte_buffer buffer) -> size_t {
         if (buffer.size() < sizeof(packet.bytes)) {
             ret = ENGINE_E2BIG;
             return 0;

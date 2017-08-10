@@ -77,8 +77,8 @@ public:
                         name.size() + // the name of the bucket
                         payload.second->size(); // The actual payload
 
-        conn.write.ensureCapacity(needed);
-        FrameBuilder<Request> builder(conn.write.wdata());
+        conn.write->ensureCapacity(needed);
+        FrameBuilder<Request> builder(conn.write->wdata());
         builder.setMagic(Magic::ServerRequest);
         builder.setDatatype(cb::mcbp::Datatype::JSON);
         builder.setOpcode(ServerOpcode::ClustermapChangeNotification);
@@ -95,8 +95,8 @@ public:
 
         // Inject our packet into the stream!
         conn.addMsgHdr(true);
-        conn.addIov(conn.write.wdata().data(), needed);
-        conn.write.produced(needed);
+        conn.addIov(conn.write->wdata().data(), needed);
+        conn.write->produced(needed);
 
         conn.setState(conn_send_data);
         conn.setWriteAndGo(conn_new_cmd);

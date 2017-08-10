@@ -84,6 +84,12 @@ struct LIBEVENT_THREAD {
     int index;                  /* index of this thread in the threads array */
     ThreadType type;      /* Type of IO this thread processes */
 
+    /** Shared read buffer for all connections serviced by this thread. */
+    std::unique_ptr<cb::Pipe> read;
+
+    /** Shared write buffer for all connections serviced by this thread. */
+    std::unique_ptr<cb::Pipe> write;
+
     subdoc_OPERATION* subdoc_op; /** Shared sub-document operation for all
                                      connections serviced by this thread. */
 
