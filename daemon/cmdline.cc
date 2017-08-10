@@ -17,8 +17,6 @@ static void usage(void) {
     printf("-h            print this help and exit\n");
     printf("\nEnvironment variables:\n");
     printf("MEMCACHED_PORT_FILENAME   File to write port information to\n");
-    printf("MEMCACHED_REQS_TAP_EVENT  Similar to \"reqs_per_event\" in\n"
-           "   the configuration file, but but for tap_ship_log\n");
 }
 
 struct Option {
