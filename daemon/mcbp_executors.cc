@@ -140,14 +140,6 @@ static void bin_read_chunk(McbpConnection* c, uint32_t chunk) {
     c->setState(conn_read_packet_body);
 }
 
-/* Just write an error message and disconnect the client */
-static void handle_binary_protocol_error(McbpConnection* c) {
-    mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL);
-    LOG_NOTICE(c, "%u: Protocol error (opcode %02x), close connection",
-               c->getId(), c->binary_header.request.opcode);
-    c->setWriteAndGo(conn_closing);
-}
-
 /**
  * Triggers topkeys_update (i.e., increments topkeys stats) if called by a
  * valid operation.
@@ -1415,57 +1407,37 @@ static inline bool is_initialized(McbpConnection* c, uint8_t opcode) {
     }
 }
 
-static void dispatch_bin_command(McbpConnection* c) {
-    uint16_t keylen = c->binary_header.request.keylen;
-
-    /* @trond this should be in the Connection-connect part.. */
-    /*        and in the select bucket */
-    if (c->getBucketEngine() == NULL) {
-        c->setBucketEngine(all_buckets[c->getBucketIndex()].engine);
-    }
-
+static cb::mcbp::Status validate_packet_execusion_constraints(
+        McbpConnection* c) {
     if (!is_initialized(c, c->binary_header.request.opcode)) {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_INITIALIZED);
-        c->setWriteAndGo(conn_closing);
-        return;
+        return cb::mcbp::Status::NotInitialized;
     }
 
     if (settings.isRequireSasl() && !authenticated(c)) {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR);
-        c->setWriteAndGo(conn_closing);
-        return;
+        return cb::mcbp::Status::AuthError;
     }
 
     if (invalid_datatype(c)) {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL);
-        c->setWriteAndGo(conn_closing);
-        return;
+        c->getCookieObject().setErrorContext("Invalid datatype provided");
+        return cb::mcbp::Status::Einval;
     }
-
-    if (c->getStart() == 0) {
-        c->setStart(gethrtime());
-    }
-
-    MEMCACHED_PROCESS_COMMAND_START(c->getId(), c->read.curr, c->read.bytes);
 
     /* binprot supports 16bit keys, but internals are still 8bit */
-    if (keylen > KEY_MAX_LENGTH) {
-        handle_binary_protocol_error(c);
-        return;
+    if (c->binary_header.request.keylen > KEY_MAX_LENGTH) {
+        c->getCookieObject().setErrorContext("Invalid key length");
+        return cb::mcbp::Status::Einval;
     }
-
-    c->setNoReply(false);
 
     /*
      * Protect ourself from someone trying to kill us by sending insanely
      * large packets.
      */
     if (c->binary_header.request.bodylen > settings.getMaxPacketSize()) {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL);
-        c->setWriteAndGo(conn_closing);
-    } else {
-        bin_read_chunk(c, c->binary_header.request.bodylen);
+        c->getCookieObject().setErrorContext("Packet is too big");
+        return cb::mcbp::Status::Einval;
     }
+
+    return cb::mcbp::Status::Success;
 }
 
 void mcbp_complete_packet(McbpConnection* c) {
@@ -1534,13 +1506,27 @@ void try_read_mcbp_command(McbpConnection* c) {
         return;
     }
 
+    if (c->getBucketEngine() == nullptr) {
+        throw std::logic_error(
+                "try_read_mcbp_command: Not connected to a bucket");
+    }
+
     c->addMsgHdr(true);
     c->setCmd(c->binary_header.request.opcode);
     /* clear the returned cas value */
     c->setCAS(0);
+    c->setNoReply(false);
+    c->setStart(gethrtime());
+    MEMCACHED_PROCESS_COMMAND_START(c->getId(), c->read.curr, c->read.bytes);
 
-    dispatch_bin_command(c);
+    auto reason = validate_packet_execusion_constraints(c);
+    if (reason != cb::mcbp::Status::Success) {
+        mcbp_write_packet(c, reason);
+        c->setWriteAndGo(conn_closing);
+        return;
+    }
 
+    bin_read_chunk(c, c->binary_header.request.bodylen);
     c->read.bytes -= sizeof(c->binary_header);
     c->read.curr += sizeof(c->binary_header);
 }
