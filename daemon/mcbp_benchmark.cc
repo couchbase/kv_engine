@@ -20,12 +20,38 @@
 #include <benchmark/benchmark.h>
 
 // Benchmark trying to format into the net_buf structure
-void McbpAddHeaderBenchmark(benchmark::State& state) {
-    net_buf buf;
-    char buffer[1024];
-    buf.buf = buffer;
+
+// Our pipe keeps track of the memory we read, so we need to benchmark
+// the time it takes to reset the pipe (so we know how much to subtract from
+// the pipe tests
+void PipeClearBenchmark(benchmark::State& state) {
+    cb::Pipe pipe(1024);
     while (state.KeepRunning()) {
-        mcbp_add_header(buf,
+        benchmark::DoNotOptimize(&pipe);
+        pipe.clear();
+    }
+}
+BENCHMARK(PipeClearBenchmark);
+
+// Benchmark the overhead of calling produced() to initialize data
+void PipeProducedAndClearBenchmark(benchmark::State& state) {
+    cb::Pipe pipe(100);
+    while (state.KeepRunning()) {
+        pipe.produced(24);
+        benchmark::DoNotOptimize(&pipe);
+        pipe.clear();
+        benchmark::DoNotOptimize(&pipe);
+    }
+}
+BENCHMARK(PipeProducedAndClearBenchmark);
+
+// Benchmark inserting into the pipe by using the wdata() and produced()
+// interface (without calling any lambda functions so that we can see if
+// that adds an extra overhead)
+void McbpAddHeaderBenchmark(benchmark::State& state) {
+    cb::Pipe pipe(1024);
+    while (state.KeepRunning()) {
+        mcbp_add_header(pipe,
                         PROTOCOL_BINARY_CMD_ADD,
                         0,
                         0,
@@ -34,7 +60,8 @@ void McbpAddHeaderBenchmark(benchmark::State& state) {
                         PROTOCOL_BINARY_RAW_BYTES,
                         0,
                         0);
-        benchmark::DoNotOptimize(&buf);
+        benchmark::DoNotOptimize(&pipe);
+        pipe.clear();
     }
 }
 BENCHMARK(McbpAddHeaderBenchmark);
@@ -95,17 +122,20 @@ void InitializeMsgHeaderBenchmark(benchmark::State& state) {
 }
 BENCHMARK(InitializeMsgHeaderBenchmark);
 
-// Benchmark the current implementation of just updating the message header
+// Benchmark the proposed implementation where we keep track of the
+// number of bytes processed from the input pipe
 void AdjustMsgHeaderBenchmark(benchmark::State& state) {
-    msghdr hdr{};
+    struct msghdr hdr {};
     std::array<iovec, 4> iov{};
-    uint8_t blob[1024];
+    cb::Pipe pipe(1024);
+    const uint8_t* rbuf = pipe.rdata().data();
 
     while (state.KeepRunning()) {
-        initialize_msg_header(iov, hdr, blob);
-        benchmark::DoNotOptimize(&hdr);
-        adjust_msghdr(&hdr, 24 + 4 + 50 + 199);
-        benchmark::DoNotOptimize(&hdr);
+        pipe.produced(24);
+        initialize_msg_header(iov, hdr, const_cast<uint8_t*>(rbuf));
+        benchmark::DoNotOptimize(&pipe);
+        adjust_msghdr(pipe, &hdr, 24 + 4 + 50 + 199);
+        benchmark::DoNotOptimize(&pipe);
     }
 }
 BENCHMARK(AdjustMsgHeaderBenchmark);

@@ -35,6 +35,7 @@
 #include <memcached/openssl.h>
 #include <platform/cb_malloc.h>
 #include <platform/make_unique.h>
+#include <platform/pipe.h>
 #include <platform/sized_buffer.h>
 
 #include <chrono>
@@ -56,11 +57,14 @@
  * elements, and move the last iov_base pointer the resulting bytes
  * forward (and reduce the last iov_len the same number of bytes)
  *
+ * @param pipe The pipe structure where we may have stored data pointed
+ *             to in the IO vector. We need to mark those as consumed
+ *             when we skip them in the IO vector.
  * @param m The message header structure to update
  * @param nbytes The number of bytes to skip
  * @return The number of bytes left in the first element in the io-vector
  */
-size_t adjust_msghdr(struct msghdr* m, ssize_t nbytes);
+size_t adjust_msghdr(cb::Pipe& pipe, struct msghdr* m, ssize_t nbytes);
 
 class McbpConnection : public Connection {
 public:
@@ -709,7 +713,7 @@ public:
     struct net_buf read;
 
     /** Write buffer */
-    struct net_buf write;
+    cb::Pipe write;
 
     const void* getCookie() const {
         return &cookie;

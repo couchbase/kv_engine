@@ -189,17 +189,17 @@ void mcbp_write_packet(McbpConnection* c, protocol_binary_response_status err) {
     c->setWriteAndGo(conn_new_cmd);
 }
 
-size_t mcbp_add_header(net_buf& write,
-                       uint8_t opcode,
-                       uint16_t err,
-                       uint8_t ext_len,
-                       uint16_t key_len,
-                       uint32_t body_len,
-                       uint8_t datatype,
-                       uint32_t opaque,
-                       uint64_t cas) {
-    protocol_binary_response_header* header;
-    header = (protocol_binary_response_header*)write.buf;
+cb::const_byte_buffer mcbp_add_header(cb::Pipe& pipe,
+                                      uint8_t opcode,
+                                      uint16_t err,
+                                      uint8_t ext_len,
+                                      uint16_t key_len,
+                                      uint32_t body_len,
+                                      uint8_t datatype,
+                                      uint32_t opaque,
+                                      uint64_t cas) {
+    auto wbuf = pipe.wdata();
+    auto* header = (protocol_binary_response_header*)wbuf.data();
 
     header->response.magic = (uint8_t)PROTOCOL_BINARY_RES;
     header->response.opcode = opcode;
@@ -212,7 +212,9 @@ size_t mcbp_add_header(net_buf& write,
     header->response.bodylen = htonl(body_len);
     header->response.opaque = opaque;
     header->response.cas = htonll(cas);
-    return sizeof(header->bytes);
+    pipe.produced(sizeof(header->bytes));
+
+    return {wbuf.data(), sizeof(header->bytes)};
 }
 
 void mcbp_add_header(McbpConnection* c,
@@ -226,7 +228,7 @@ void mcbp_add_header(McbpConnection* c,
     }
 
     c->addMsgHdr(true);
-    const auto size = mcbp_add_header(c->write,
+    const auto wbuf = mcbp_add_header(c->write,
                                       c->binary_header.request.opcode,
                                       err,
                                       ext_len,
@@ -243,14 +245,14 @@ void mcbp_add_header(McbpConnection* c,
                                    c->getId(),
                                    false,
                                    "Writing bin response:",
-                                   c->write.buf,
-                                   size) != -1) {
+                                   reinterpret_cast<const char*>(wbuf.data()),
+                                   wbuf.size()) != -1) {
             LOG_DEBUG(c, "%s", buffer);
         }
     }
 
     ++c->getBucket().responseCounters[err];
-    c->addIov(c->write.buf, size);
+    c->addIov(wbuf.data(), wbuf.size());
 }
 
 bool mcbp_response_handler(const void* key, uint16_t keylen,

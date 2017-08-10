@@ -28,7 +28,7 @@
 /**
  * Add a header to the specified net buffer
  *
- * @param buffer where to add the header
+ * @param pipe where to add the header
  * @param opcode the opcode to insert
  * @param err The error code to use
  * @param ext_len The length of the ext field
@@ -37,17 +37,17 @@
  * @param datatype The datatype to inject into the header
  * @param opaque The opaque to add to the header
  * @param cas The cas field
- * @return The number of bytes written
+ * @return the buffer we just updated
  */
-size_t mcbp_add_header(net_buf& buffer,
-                       uint8_t opcode,
-                       uint16_t err,
-                       uint8_t ext_len,
-                       uint16_t key_len,
-                       uint32_t body_len,
-                       uint8_t datatype,
-                       uint32_t opaque,
-                       uint64_t cas);
+cb::const_byte_buffer mcbp_add_header(cb::Pipe& pipe,
+                                      uint8_t opcode,
+                                      uint16_t err,
+                                      uint8_t ext_len,
+                                      uint16_t key_len,
+                                      uint32_t body_len,
+                                      uint8_t datatype,
+                                      uint32_t opaque,
+                                      uint64_t cas);
 
 /**
  * Add a header to the current memcached connection

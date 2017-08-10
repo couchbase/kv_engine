@@ -370,10 +370,16 @@ int McbpConnection::sendmsg(struct msghdr* m) {
  * @param nbytes
  * @return the number of bytes left in the current iov entry
  */
-size_t adjust_msghdr(struct msghdr* m, ssize_t nbytes) {
+size_t adjust_msghdr(cb::Pipe& pipe, struct msghdr* m, ssize_t nbytes) {
+    auto rbuf = pipe.rdata();
+
     // We've written some of the data. Remove the completed
     // iovec entries from the list of pending writes.
     while (m->msg_iovlen > 0 && nbytes >= ssize_t(m->msg_iov->iov_len)) {
+        if (rbuf.data() == static_cast<const uint8_t*>(m->msg_iov->iov_base)) {
+            pipe.consumed(m->msg_iov->iov_len);
+            rbuf = pipe.rdata();
+        }
         nbytes -= (ssize_t)m->msg_iov->iov_len;
         m->msg_iovlen--;
         m->msg_iov++;
@@ -382,6 +388,9 @@ size_t adjust_msghdr(struct msghdr* m, ssize_t nbytes) {
     // Might have written just part of the last iovec entry;
     // adjust it so the next write will do the rest.
     if (nbytes > 0) {
+        if (rbuf.data() == static_cast<const uint8_t*>(m->msg_iov->iov_base)) {
+            pipe.consumed(nbytes);
+        }
         m->msg_iov->iov_base =
                 (void*)((unsigned char*)m->msg_iov->iov_base + nbytes);
         m->msg_iov->iov_len -= nbytes;
@@ -423,7 +432,7 @@ McbpConnection::TransmitResult McbpConnection::transmit() {
         if (res > 0) {
             get_thread_stats(this)->bytes_written += res;
 
-            if (adjust_msghdr(m, res) == 0) {
+            if (adjust_msghdr(write, m, res) == 0) {
                 msgcurr++;
                 if (msgcurr == msglist.size()) {
                     // We sent the final chunk of data.. In our SSL connections
@@ -735,14 +744,16 @@ void McbpConnection::ensureIovSpace() {
     }
 }
 
-McbpConnection::McbpConnection(SOCKET sfd, event_base *b)
+McbpConnection::McbpConnection(SOCKET sfd, event_base* b)
     : Connection(sfd, b),
+      write(DATA_BUFFER_SIZE),
       stateMachine(new McbpStateMachine(conn_immediate_close)),
       dcp(false),
       dcpXattrAware(false),
       dcpNoValue(false),
       dcpCollectionAware(false),
-      max_reqs_per_event(settings.getRequestsPerEventNotification(EventPriority::Default)),
+      max_reqs_per_event(
+              settings.getRequestsPerEventNotification(EventPriority::Default)),
       numEvents(0),
       cmd(PROTOCOL_BINARY_CMD_INVALID),
       registered_in_libevent(false),
@@ -770,16 +781,6 @@ McbpConnection::McbpConnection(SOCKET sfd, event_base *b)
     memset(&binary_header, 0, sizeof(binary_header));
     memset(&event, 0, sizeof(event));
     memset(&read, 0, sizeof(read));
-    memset(&write, 0, sizeof(write));
-
-    write.buf = reinterpret_cast<char*>(cb_malloc(DATA_BUFFER_SIZE));
-    if (write.buf == nullptr) {
-        throw std::bad_alloc();
-    }
-    write.size = DATA_BUFFER_SIZE;
-    write.curr = write.buf;
-    write.bytes = 0;
-
     msglist.reserve(MSG_LIST_INITIAL);
 
     if (!initializeEvent()) {
@@ -791,12 +792,14 @@ McbpConnection::McbpConnection(SOCKET sfd,
                                event_base* b,
                                const ListeningPort& ifc)
     : Connection(sfd, b, ifc),
+      write(DATA_BUFFER_SIZE),
       stateMachine(new McbpStateMachine(conn_new_cmd)),
       dcp(false),
       dcpXattrAware(false),
       dcpNoValue(false),
       dcpCollectionAware(false),
-      max_reqs_per_event(settings.getRequestsPerEventNotification(EventPriority::Default)),
+      max_reqs_per_event(
+              settings.getRequestsPerEventNotification(EventPriority::Default)),
       numEvents(0),
       cmd(PROTOCOL_BINARY_CMD_INVALID),
       registered_in_libevent(false),
@@ -821,22 +824,12 @@ McbpConnection::McbpConnection(SOCKET sfd,
       totalRecv(0),
       totalSend(0),
       cookie(*this) {
-
     if (ifc.protocol != Protocol::Memcached) {
         throw std::logic_error("Incorrect object for MCBP");
     }
     memset(&binary_header, 0, sizeof(binary_header));
     memset(&event, 0, sizeof(event));
     memset(&read, 0, sizeof(read));
-    memset(&write, 0, sizeof(write));
-    write.buf = reinterpret_cast<char*>(cb_malloc(DATA_BUFFER_SIZE));
-    if (write.buf == nullptr) {
-        throw std::bad_alloc();
-    }
-    write.size = DATA_BUFFER_SIZE;
-    write.curr = write.buf;
-    write.bytes = 0;
-
     msglist.reserve(MSG_LIST_INITIAL);
 
     if (ifc.ssl.enabled) {
@@ -853,7 +846,6 @@ McbpConnection::McbpConnection(SOCKET sfd,
 
 McbpConnection::~McbpConnection() {
     cb_free(read.buf);
-    cb_free(write.buf);
 
     releaseReservedItems();
     for (auto* ptr : temp_alloc) {
@@ -965,7 +957,7 @@ cJSON* McbpConnection::toJSON() const {
         }
 
         cJSON_AddItemToObject(obj, "read", to_json(read));
-        cJSON_AddItemToObject(obj, "write", to_json(write));
+        cJSON_AddItemToObject(obj, "write", write.to_json().release());
 
         if (write_and_go != nullptr) {
             cJSON_AddStringToObject(obj, "write_and_go",

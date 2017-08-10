@@ -256,8 +256,6 @@ static void conn_cleanup(Connection *c) {
 
         mcbpc->read.curr = mcbpc->read.buf;
         mcbpc->read.bytes = 0;
-        mcbpc->write.curr = mcbpc->write.buf;
-        mcbpc->write.bytes = 0;
 
         /* Return any buffers back to the thread; before we disassociate the
          * connection from the thread. Note we clear DCP status first, so
@@ -390,7 +388,6 @@ void conn_return_buffers(Connection *connection) {
     if (thread == nullptr) {
         // Connection already cleaned up - nothing to do.
         cb_assert(c->read.buf == NULL);
-        cb_assert(c->write.buf == NULL);
         return;
     }
 

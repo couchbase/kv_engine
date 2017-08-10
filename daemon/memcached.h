@@ -9,10 +9,11 @@
  * The main memcached header holding commonly used data
  * structures and function prototypes.
  */
+#include <cbsasl/cbsasl.h>
 #include <event.h>
+#include <platform/pipe.h>
 #include <platform/platform.h>
 #include <subdoc/operations.h>
-#include <cbsasl/cbsasl.h>
 
 #include <memcached/openssl.h>
 

@@ -254,16 +254,19 @@ static void process_bin_noop_response(McbpConnection* c) {
 
 static ENGINE_ERROR_CODE add_packet_to_pipe(McbpConnection* c,
                                             cb::const_byte_buffer packet) {
-    if (c->write.bytes + packet.size() >= c->write.size) {
-        return ENGINE_E2BIG;
-    }
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+    c->write.produce([c, packet, &ret](cb::byte_buffer buffer) -> size_t {
+        if (buffer.size() < packet.size()) {
+            ret = ENGINE_E2BIG;
+            return 0;
+        }
 
-    std::copy(packet.begin(), packet.end(), c->write.curr);
-    c->addIov(c->write.curr, packet.size());
-    c->write.curr += packet.size();
-    c->write.bytes += packet.size();
+        std::copy(packet.begin(), packet.end(), buffer.begin());
+        c->addIov(buffer.data(), packet.size());
+        return packet.size();
+    });
 
-    return ENGINE_SUCCESS;
+    return ret;
 }
 
 static ENGINE_ERROR_CODE dcp_message_get_failover_log(const void* void_cookie,
@@ -484,34 +487,38 @@ static ENGINE_ERROR_CODE dcp_message_control(const void* void_cookie,
                                              uint32_t nvalue) {
     auto* c = cookie2mcbp(void_cookie, __func__);
     c->setCmd(PROTOCOL_BINARY_CMD_DCP_CONTROL);
-    protocol_binary_request_dcp_control packet;
-    if (c->write.bytes + sizeof(packet.bytes) + nkey + nvalue >=
-        c->write.size) {
-        /* We don't have room in the buffer */
-        return ENGINE_E2BIG;
-    }
-
-    memset(packet.bytes, 0, sizeof(packet.bytes));
+    protocol_binary_request_dcp_control packet = {};
     packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
     packet.message.header.request.opcode = (uint8_t)PROTOCOL_BINARY_CMD_DCP_CONTROL;
     packet.message.header.request.opaque = opaque;
     packet.message.header.request.keylen = ntohs(nkey);
     packet.message.header.request.bodylen = ntohl(nvalue + nkey);
 
-    c->addIov(c->write.curr, sizeof(packet.bytes) + nkey + nvalue);
-    memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
-    c->write.curr += sizeof(packet.bytes);
-    c->write.bytes += sizeof(packet.bytes);
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+    c->write.produce([&c, &packet, &key, &nkey, &value, &nvalue, &ret](
+                             void* ptr, size_t size) -> size_t {
+        if (size < (sizeof(packet.bytes) + nkey + nvalue)) {
+            ret = ENGINE_E2BIG;
+            return 0;
+        }
 
-    memcpy(c->write.curr, key, nkey);
-    c->write.curr += nkey;
-    c->write.bytes += nkey;
+        std::copy(packet.bytes,
+                  packet.bytes + sizeof(packet.bytes),
+                  static_cast<uint8_t*>(ptr));
 
-    memcpy(c->write.curr, value, nvalue);
-    c->write.curr += nvalue;
-    c->write.bytes += nvalue;
+        std::copy(static_cast<const uint8_t*>(key),
+                  static_cast<const uint8_t*>(key) + nkey,
+                  static_cast<uint8_t*>(ptr) + sizeof(packet.bytes));
 
-    return ENGINE_SUCCESS;
+        std::copy(static_cast<const uint8_t*>(value),
+                  static_cast<const uint8_t*>(value) + nvalue,
+                  static_cast<uint8_t*>(ptr) + sizeof(packet.bytes) + nkey);
+
+        c->addIov(ptr, sizeof(packet.bytes) + nkey + nvalue);
+        return sizeof(packet.bytes) + nkey + nvalue;
+    });
+
+    return ret;
 }
 
 void ship_mcbp_dcp_log(McbpConnection* c) {
@@ -540,8 +547,6 @@ void ship_mcbp_dcp_log(McbpConnection* c) {
     c->setStart(gethrtime());
 
     c->addMsgHdr(true);
-    c->write.bytes = 0;
-    c->write.curr = c->write.buf;
     c->setEwouldblock(false);
     ret = c->getBucketEngine()->dcp.step(c->getBucketEngineAsV0(), c->getCookie(),
                                          &producers);
