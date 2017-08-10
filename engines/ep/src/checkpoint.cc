@@ -202,7 +202,7 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &qi,
             // iterated over.
             for (auto& cursor : checkpointManager->connCursors) {
 
-                if (*(cursor.second.currentCheckpoint) == this) {
+                if ((*(cursor.second.currentCheckpoint)).get() == this) {
 
                     queued_item& cursor_item = *(cursor.second.currentPos);
 
@@ -471,14 +471,6 @@ CheckpointManager::CheckpointManager(EPStats& st,
     }
 }
 
-CheckpointManager::~CheckpointManager() {
-    std::list<Checkpoint*>::iterator it = checkpointList.begin();
-    while(it != checkpointList.end()) {
-        delete *it;
-        ++it;
-    }
-}
-
 uint64_t CheckpointManager::getOpenCheckpointId_UNLOCKED() {
     if (checkpointList.empty()) {
         return 0;
@@ -558,7 +550,7 @@ bool CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id,
         id, vbucketId, snapStartSeqno);
 
     bool was_empty = checkpointList.empty() ? true : false;
-    Checkpoint *checkpoint = new Checkpoint(stats, id, snapStartSeqno,
+    auto checkpoint = std::make_unique<Checkpoint>(stats, id, snapStartSeqno,
                                             snapEndSeqno, vbucketId);
     // Add a dummy item into the new checkpoint, so that any cursor referring
     // to the actual first
@@ -573,7 +565,7 @@ bool CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id,
     qi = createCheckpointItem(id, vbucketId, queue_op::checkpoint_start);
     checkpoint->queueDirty(qi, this);
     ++numItems;
-    checkpointList.push_back(checkpoint);
+    checkpointList.push_back(std::move(checkpoint));
 
     if (was_empty) {
         return true;
@@ -681,7 +673,7 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
     result.first = std::numeric_limits<uint64_t>::max();
     result.second = false;
 
-    std::list<Checkpoint*>::iterator itr = checkpointList.begin();
+    auto itr = checkpointList.begin();
     for (; itr != checkpointList.end(); ++itr) {
         uint64_t en = (*itr)->getHighSeqno();
         uint64_t st = (*itr)->getLowSeqno();
@@ -763,7 +755,7 @@ bool CheckpointManager::registerCursor_UNLOCKED(
     }
 
     bool found = false;
-    std::list<Checkpoint*>::iterator it = checkpointList.begin();
+    auto it = checkpointList.begin();
     for (; it != checkpointList.end(); ++it) {
         if (checkpointId == (*it)->getId()) {
             found = true;
@@ -836,7 +828,7 @@ bool CheckpointManager::registerCursor_UNLOCKED(
             // Set the cursor's position to the beginning of the checkpoint to
             // start with
             curr = (*it)->begin();
-            std::list<Checkpoint*>::iterator pos = checkpointList.begin();
+            auto pos = checkpointList.begin();
             for (; pos != it; ++pos) {
                 // Increment offset for all previous (closed) checkpoints, adding
                 // in the meta items.
@@ -878,9 +870,8 @@ bool CheckpointManager::removeCursor_UNLOCKED(const std::string &name) {
     // checkpoint. This won't
     // cause much overhead because the max number of checkpoints allowed per
     // vbucket is small.
-    std::list<Checkpoint*>::iterator cit = checkpointList.begin();
-    for (; cit != checkpointList.end(); ++cit) {
-        (*cit)->removeCursorName(name);
+    for (const auto& checkpoint : checkpointList) {
+        checkpoint->removeCursorName(name);
     }
 
     connCursors.erase(it);
@@ -965,7 +956,11 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(
     size_t numUnrefItems = 0;
     size_t numMetaItems = 0;
     size_t numCheckpointsRemoved = 0;
-    std::list<Checkpoint*> unrefCheckpointList;
+    // Checkpoints in the `unrefCheckpointList` have to be deleted before we
+    // return from this function. With smart pointers, deletion happens when
+    // `unrefCheckpointList` goes out of scope (i.e., when this function
+    // returns).
+    CheckpointList unrefCheckpointList;
     // Iterate through the current checkpoints (from oldest to newest), checking
     // if the checkpoint can be removed.
     auto it = checkpointList.begin();
@@ -975,7 +970,7 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(
          it != checkpointList.end() && std::next(it) != checkpointList.end();
          ++it) {
 
-        removeInvalidCursorsOnCheckpoint(*it);
+        removeInvalidCursorsOnCheckpoint((*it).get());
 
         // When we encounter the first checkpoint which has cursor(s) in it,
         // or if the persistence cursor is still operating, stop.
@@ -1023,11 +1018,6 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(
     }
     lh.unlock();
 
-    std::list<Checkpoint*>::iterator chkpoint_it = unrefCheckpointList.begin();
-    for (; chkpoint_it != unrefCheckpointList.end(); ++chkpoint_it) {
-        delete *chkpoint_it;
-    }
-
     return numUnrefItems;
 }
 
@@ -1039,7 +1029,7 @@ void CheckpointManager::removeInvalidCursorsOnCheckpoint(
     for (; cit != cursors.end(); ++cit) {
         cursor_index::iterator mit = connCursors.find(*cit);
         if (mit == connCursors.end() ||
-            pCheckpoint != *(mit->second.currentCheckpoint)) {
+            pCheckpoint != (*(mit->second.currentCheckpoint)).get()) {
             invalidCursorNames.push_back(*cit);
         }
     }
@@ -1051,14 +1041,14 @@ void CheckpointManager::removeInvalidCursorsOnCheckpoint(
 }
 
 void CheckpointManager::collapseClosedCheckpoints(
-                                      std::list<Checkpoint*> &collapsedChks) {
+        CheckpointList& collapsedChks) {
     // If there are one open checkpoint and more than one closed checkpoint,
     // collapse those
     // closed checkpoints into one checkpoint to reduce the memory overhead.
     if (checkpointList.size() > 2) {
         CursorIdToPositionMap slowCursors;
         std::set<std::string> fastCursors;
-        std::list<Checkpoint*>::iterator lastClosedChk = checkpointList.end();
+        auto lastClosedChk = checkpointList.end();
         --lastClosedChk; --lastClosedChk; // Move to the last closed chkpt.
         std::set<std::string>::iterator nitr =
                 (*lastClosedChk)->getCursorNameList().begin();
@@ -1080,11 +1070,12 @@ void CheckpointManager::collapseClosedCheckpoints(
 
         fastCursors.insert((*lastClosedChk)->getCursorNameList().begin(),
                            (*lastClosedChk)->getCursorNameList().end());
-        std::list<Checkpoint*>::reverse_iterator rit = checkpointList.rbegin();
+        auto rit = checkpointList.rbegin();
         ++rit; ++rit; //Move to the second last closed checkpoint.
         size_t numDuplicatedItems = 0, numMetaItems = 0;
         for (; rit != checkpointList.rend(); ++rit) {
-            size_t numAddedItems = (*lastClosedChk)->mergePrevCheckpoint(*rit);
+            size_t numAddedItems =
+                    (*lastClosedChk)->mergePrevCheckpoint((*rit).get());
             numDuplicatedItems += ((*rit)->getNumItems() - numAddedItems);
             numMetaItems += (*rit)->getNumMetaItems();
 
@@ -1109,9 +1100,9 @@ void CheckpointManager::collapseClosedCheckpoints(
 
         size_t total_items = numDuplicatedItems + numMetaItems;
         numItems.fetch_sub(total_items);
-        Checkpoint *pOpenCheckpoint = checkpointList.back();
-        const std::set<std::string> &openCheckpointCursors =
-                                    pOpenCheckpoint->getCursorNameList();
+        auto& openCheckpoint = checkpointList.back();
+        const std::set<std::string>& openCheckpointCursors =
+                openCheckpoint->getCursorNameList();
         fastCursors.insert(openCheckpointCursors.begin(),
                            openCheckpointCursors.end());
         std::set<std::string>::const_iterator cit = fastCursors.begin();
@@ -1143,7 +1134,7 @@ std::vector<std::string> CheckpointManager::getListOfCursorsToDrop() {
         num_checkpoints_to_unref = 2;
     }
 
-    std::list<Checkpoint*>::const_iterator it = checkpointList.begin();
+    auto it = checkpointList.begin();
     while (num_checkpoints_to_unref != 0 && it != checkpointList.end()) {
         if ((*it)->isEligibleToBeUnreferenced()) {
             const std::set<std::string> &cursors = (*it)->getCursorNameList();
@@ -1376,12 +1367,6 @@ void CheckpointManager::clear(VBucket& vb, uint64_t seqno) {
 }
 
 void CheckpointManager::clear_UNLOCKED(vbucket_state_t vbState, uint64_t seqno) {
-    std::list<Checkpoint*>::iterator it = checkpointList.begin();
-    // Remove all the checkpoints.
-    while(it != checkpointList.end()) {
-        delete *it;
-        ++it;
-    }
     checkpointList.clear();
     numItems = 0;
     lastBySeqno.reset(seqno);
@@ -1421,24 +1406,22 @@ void CheckpointManager::resetCursors(checkpointCursorInfoList &cursors) {
 }
 
 bool CheckpointManager::moveCursorToNextCheckpoint(CheckpointCursor &cursor) {
-    if ((*(cursor.currentCheckpoint))->getState() == CHECKPOINT_OPEN) {
+    auto& it = cursor.currentCheckpoint;
+    if ((*it)->getState() == CHECKPOINT_OPEN) {
         return false;
-    } else if ((*(cursor.currentCheckpoint))->getState() ==
-                                                           CHECKPOINT_CLOSED) {
-        std::list<Checkpoint*>::iterator currCheckpoint =
-                                                      cursor.currentCheckpoint;
-        if (++currCheckpoint == checkpointList.end()) {
+    } else if ((*it)->getState() == CHECKPOINT_CLOSED) {
+        if (std::next(it) == checkpointList.end()) {
             return false;
         }
     }
 
     // Remove the cursor's name from its current checkpoint.
-    (*(cursor.currentCheckpoint))->removeCursorName(cursor.name);
+    (*it)->removeCursorName(cursor.name);
     // Move the cursor to the next checkpoint.
-    ++(cursor.currentCheckpoint);
-    cursor.currentPos = (*(cursor.currentCheckpoint))->begin();
+    ++it;
+    cursor.currentPos = (*it)->begin();
     // Register the cursor's name to its new current checkpoint.
-    (*(cursor.currentCheckpoint))->registerCursorName(cursor.name);
+    (*it)->registerCursorName(cursor.name);
 
     // Reset metaItemOffset as we're entering a new checkpoint.
     cursor.setMetaItemOffset(0);
@@ -1502,19 +1485,22 @@ size_t CheckpointManager::getNumOfMetaItemsFromCursor(const CheckpointCursor &cu
 
     // For current checkpoint, number of meta item is the total meta items
     // for this checkpoint minus how many the cursor has already processed.
-    std::list<Checkpoint*>::const_iterator ckpt_it = cursor.currentCheckpoint;
-    if (cursor.currentCheckpoint != checkpointList.end()) {
-        meta_items = (*cursor.currentCheckpoint)->getNumMetaItems() -
-                cursor.getCurrentCkptMetaItemsRead();
+    CheckpointList::const_iterator ckpt_it = cursor.currentCheckpoint;
+    if (ckpt_it != checkpointList.end()) {
+        meta_items = (*ckpt_it)->getNumMetaItems() -
+                     cursor.getCurrentCkptMetaItemsRead();
     }
 
     // For remaining checkpoint(s), number of meta items is simply the total
     // meta items for that checkpoint.
     ++ckpt_it;
-    auto result =  std::accumulate(ckpt_it, checkpointList.end(), meta_items,
-                           [&cursor](size_t a, const Checkpoint* b) {
-        return a + b->getNumMetaItems();
-    });
+    auto result =
+            std::accumulate(ckpt_it,
+                            checkpointList.end(),
+                            meta_items,
+                            [](size_t a, const std::unique_ptr<Checkpoint>& b) {
+                                return a + b->getNumMetaItems();
+                            });
     return result;
 }
 
@@ -1659,7 +1645,7 @@ void CheckpointManager::checkAndAddNewCheckpoint(uint64_t id,
         return;
     }
 
-    std::list<Checkpoint*>::iterator it = checkpointList.begin();
+    auto it = checkpointList.begin();
     // Check if a checkpoint exists with ID >= id.
     while (it != checkpointList.end()) {
         if (id <= (*it)->getId()) {
@@ -1717,7 +1703,7 @@ void CheckpointManager::collapseCheckpoints(uint64_t id) {
         const bool cursor_on_chk_start = (*(itr.second.currentPos))->getOperation() ==
                 queue_op::checkpoint_start;
 
-        Checkpoint* chk = *(itr.second.currentCheckpoint);
+        auto& chk = *(itr.second.currentCheckpoint);
         auto key = (*(itr.second.currentPos))->getKey();
         cursorMap[itr.first] = CursorPosition{chk->getMutationIdForKey(key, isMetaItem),
                                               cursor_on_chk_start};
@@ -1731,10 +1717,10 @@ void CheckpointManager::collapseCheckpoints(uint64_t id) {
     // Collapse all checkpoints.
     for (; rit != checkpointList.rend(); ++rit) {
         size_t numAddedItems = checkpointList.back()->
-                               mergePrevCheckpoint(*rit);
+                               mergePrevCheckpoint((*rit).get());
         numDuplicatedItems += ((*rit)->getNumItems() - numAddedItems);
         numMetaItems += (*rit)->getNumMetaItems();
-        delete *rit;
+        (*rit).reset();
     }
     numItems.fetch_sub(numDuplicatedItems + numMetaItems);
 
@@ -1756,11 +1742,10 @@ void CheckpointManager::collapseCheckpoints(uint64_t id) {
     putCursorsInCollapsedChk(cursorMap, checkpointList.begin());
 }
 
-void CheckpointManager::
-putCursorsInCollapsedChk(CursorIdToPositionMap& cursors,
-                         const std::list<Checkpoint*>::iterator chkItr) {
+void CheckpointManager::putCursorsInCollapsedChk(
+        CursorIdToPositionMap& cursors, const CheckpointList::iterator chkItr) {
     size_t i;
-    Checkpoint *chk = *chkItr;
+    auto& chk = *chkItr;
     auto cit = chk->begin();
     auto last = chk->begin();
 
@@ -1911,9 +1896,8 @@ size_t CheckpointManager::getMemoryUsage_UNLOCKED() {
     }
 
     size_t memUsage = 0;
-    std::list<Checkpoint*>::const_iterator it = checkpointList.begin();
-    for (; it != checkpointList.end(); ++it) {
-        memUsage += (*it)->getMemConsumption();
+    for (const auto& checkpoint : checkpointList) {
+        memUsage += checkpoint->getMemConsumption();
     }
     return memUsage;
 }
@@ -1931,10 +1915,9 @@ size_t CheckpointManager::getMemoryUsageOfUnrefCheckpoints() {
     }
 
     size_t memUsage = 0;
-    std::list<Checkpoint*>::const_iterator it = checkpointList.begin();
-    for (; it != checkpointList.end(); ++it) {
-        if ((*it)->getNumberOfCursors() == 0) {
-            memUsage += (*it)->getMemConsumption();
+    for (const auto& checkpoint : checkpointList) {
+        if (checkpoint->getNumberOfCursors() == 0) {
+            memUsage += checkpoint->getMemConsumption();
         } else {
             break;
         }
@@ -2095,7 +2078,7 @@ std::ostream& operator <<(std::ostream& os, const CheckpointManager& m) {
     os << "CheckpointManager[" << &m << "] with numItems:"
        << m.getNumItems() << " checkpoints:" << m.checkpointList.size()
        << std::endl;
-    for (const auto* c : m.checkpointList) {
+    for (const auto& c : m.checkpointList) {
         os << "    " << *c << std::endl;
     }
     os << "    connCursors:[" << std::endl;

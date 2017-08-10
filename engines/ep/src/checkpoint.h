@@ -107,6 +107,10 @@ class CheckpointConfig;
 class PreLinkDocumentContext;
 class VBucket;
 
+// List of Checkpoints used by class CheckpointManager to store Checkpoints for
+// a given vBucket.
+using CheckpointList = std::list<std::unique_ptr<Checkpoint>>;
+
 /**
  * A checkpoint cursor, representing the current position in a Checkpoint
  * series.
@@ -155,18 +159,22 @@ public:
      * @param meta_items_read Count of meta_items already read for the
      *                        given checkpoint.
      */
-    CheckpointCursor(const std::string &n,
-                     std::list<Checkpoint*>::iterator checkpoint,
+    CheckpointCursor(const std::string& n,
+                     CheckpointList::iterator checkpoint,
                      CheckpointQueue::iterator pos,
                      size_t offset_,
                      size_t meta_items_read,
                      bool beginningOnChkCollapse,
-                     MustSendCheckpointEnd needsCheckpointEndMetaItem) :
-        name(n), currentCheckpoint(checkpoint), currentPos(pos), numVisits(0),
-        offset(offset_),
-        ckptMetaItemsRead(meta_items_read),
-        fromBeginningOnChkCollapse(beginningOnChkCollapse),
-        sendCheckpointEndMetaItem(needsCheckpointEndMetaItem) { }
+                     MustSendCheckpointEnd needsCheckpointEndMetaItem)
+        : name(n),
+          currentCheckpoint(checkpoint),
+          currentPos(pos),
+          numVisits(0),
+          offset(offset_),
+          ckptMetaItemsRead(meta_items_read),
+          fromBeginningOnChkCollapse(beginningOnChkCollapse),
+          sendCheckpointEndMetaItem(needsCheckpointEndMetaItem) {
+    }
 
     // We need to define the copy construct explicitly due to the fact
     // that std::atomic implicitly deleted the assignment operator
@@ -222,7 +230,7 @@ protected:
 
 private:
     std::string                      name;
-    std::list<Checkpoint*>::iterator currentCheckpoint;
+    CheckpointList::iterator currentCheckpoint;
     CheckpointQueue::iterator currentPos;
 
     // Number of times a cursor has been moved or processed.
@@ -605,8 +613,6 @@ public:
                       uint64_t lastSnapEnd,
                       FlusherCallback cb);
 
-    ~CheckpointManager();
-
     uint64_t getOpenCheckpointId_UNLOCKED();
     uint64_t getOpenCheckpointId();
 
@@ -947,14 +953,14 @@ private:
 
     bool isCheckpointCreationForHighMemUsage(const VBucket& vbucket);
 
-    void collapseClosedCheckpoints(std::list<Checkpoint*> &collapsedChks);
+    void collapseClosedCheckpoints(CheckpointList& collapsedChks);
 
     void collapseCheckpoints(uint64_t id);
 
     void resetCursors(bool resetPersistenceCursor = true);
 
     void putCursorsInCollapsedChk(CursorIdToPositionMap& cursors,
-                                  const std::list<Checkpoint*>::iterator chkItr);
+                                  const CheckpointList::iterator chkItr);
 
     queued_item createCheckpointItem(uint64_t id, uint16_t vbid,
                                      queue_op checkpoint_op);
@@ -973,7 +979,7 @@ private:
     // by this object.
     std::atomic<size_t>      numItems;
     Monotonic<int64_t>       lastBySeqno;
-    std::list<Checkpoint*>   checkpointList;
+    CheckpointList checkpointList;
     bool                     isCollapsedCheckpoint;
     uint64_t                 lastClosedCheckpointId;
     uint64_t                 pCursorPreCheckpointId;
