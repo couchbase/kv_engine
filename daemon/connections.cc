@@ -261,10 +261,6 @@ static void conn_cleanup(Connection *c) {
     auto* mcbpc = dynamic_cast<McbpConnection*>(c);
     if (mcbpc != nullptr) {
         mcbpc->releaseTempAlloc();
-
-        mcbpc->read.curr = mcbpc->read.buf;
-        mcbpc->read.bytes = 0;
-
         /* Return any buffers back to the thread; before we disassociate the
          * connection from the thread. Note we clear DCP status first, so
          * conn_return_buffers() will actually free the buffers.

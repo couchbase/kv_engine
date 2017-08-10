@@ -504,72 +504,60 @@ McbpConnection::TransmitResult McbpConnection::transmit() {
  * looking at the data I've got after a number of reallocs...
  */
 McbpConnection::TryReadResult McbpConnection::tryReadNetwork() {
-    TryReadResult gotdata = TryReadResult::NoDataReceived;
-    int res;
-    int num_allocs = 0;
-
-    if (read.curr != read.buf) {
-        if (read.bytes != 0) { /* otherwise there's nothing to copy */
-            memmove(read.buf, read.curr, read.bytes);
-        }
-        read.curr = read.buf;
+    // When we get here we've either got an empty buffer, or we've got
+    // a buffer with less than a packet header filled in.
+    //
+    // Verify that assumption!!!
+    if (read.rsize() >= sizeof(cb::mcbp::Request)) {
+        // The above don't hold true ;)
+        throw std::logic_error(
+                "tryReadNetwork: Expected the input buffer to be empty or "
+                "contain a partial header");
     }
 
-    while (1) {
-        int avail;
-        if (read.bytes >= read.size) {
-            if (num_allocs == 4) {
-                return gotdata;
-            }
-            ++num_allocs;
-            char* new_rbuf = reinterpret_cast<char*>(cb_realloc(read.buf,
-                                                             read.size * 2));
-            if (!new_rbuf) {
-                LOG_WARNING(this, "Couldn't realloc input buffer");
-                read.bytes = 0; /* ignore what we read */
-                setState(conn_closing);
-                return TryReadResult::MemoryError;
-            }
-            read.curr = read.buf = new_rbuf;
-            read.size *= 2;
-        }
-
-        avail = read.size - read.bytes;
-        res = recv(read.buf + read.bytes, avail);
-        if (res > 0) {
-            get_thread_stats(this)->bytes_read += res;
-            gotdata = TryReadResult::DataReceived;
-            read.bytes += res;
-            if (res == avail) {
-                continue;
-            } else {
-                break;
-            }
-        }
-        if (res == 0) {
-            if (isPipeConnection()) {
-                return TryReadResult::NoDataReceived;
-            }
-            LOG_INFO(this,
-                     "%u Closing connection as the other side closed the connection %s",
-                     getId(), getDescription().c_str());
-            return TryReadResult::SocketClosed;
-        }
-        if (res == -1) {
-            auto error = GetLastNetworkError();
-
-            if (is_blocking(error)) {
-                break;
-            }
-
-            std::string errormsg = cb_strerror();
-            LOG_WARNING(this, "%u Closing connection (%p) %s due to read "
-                        "error: %s", getId(), getCookie(),
-                        getDescription().c_str(), errormsg.c_str());
-            return TryReadResult::SocketError;
-        }
+    // Make sure we can fit the header into the input buffer
+    try {
+        read.ensureCapacity(sizeof(cb::mcbp::Request) - read.rsize());
+    } catch (const std::bad_alloc&) {
+        return TryReadResult::MemoryError;
     }
-    return gotdata;
+
+    McbpConnection* c = this;
+    const auto res = read.produce([c](cb::byte_buffer buffer) -> ssize_t {
+        return c->recv(reinterpret_cast<char*>(buffer.data()), buffer.size());
+    });
+
+    if (res > 0) {
+        get_thread_stats(this)->bytes_read += res;
+        return TryReadResult::DataReceived;
+    }
+
+    if (res == 0) {
+        if (isPipeConnection()) {
+            return TryReadResult::NoDataReceived;
+        }
+        LOG_INFO(this,
+                 "%u Closing connection as the other side closed the "
+                 "connection %s",
+                 getId(),
+                 getDescription().c_str());
+        return TryReadResult::SocketClosed;
+    }
+
+    const auto error = GetLastNetworkError();
+    if (is_blocking(error)) {
+        return TryReadResult::NoDataReceived;
+    }
+
+    std::string errormsg = cb_strerror(error);
+    LOG_WARNING(this,
+                "%u Closing connection (%p) %s due to read "
+                "error: %s",
+                getId(),
+                getCookie(),
+                getDescription().c_str(),
+                errormsg.c_str());
+    return TryReadResult::SocketError;
 }
 
 int McbpConnection::sslRead(char* dest, size_t nbytes) {
@@ -749,6 +737,7 @@ void McbpConnection::ensureIovSpace() {
 
 McbpConnection::McbpConnection(SOCKET sfd, event_base* b)
     : Connection(sfd, b),
+      read(DATA_BUFFER_SIZE),
       write(DATA_BUFFER_SIZE),
       stateMachine(new McbpStateMachine(conn_immediate_close)),
       dcp(false),
@@ -764,7 +753,6 @@ McbpConnection::McbpConnection(SOCKET sfd, event_base* b)
       currentEvent(0),
       ev_timeout_enabled(false),
       write_and_go(conn_new_cmd),
-      rlbytes(0),
       iov(IOV_LIST_INITIAL),
       iovused(0),
       msglist(),
@@ -783,14 +771,6 @@ McbpConnection::McbpConnection(SOCKET sfd, event_base* b)
       cookie(*this) {
     memset(&binary_header, 0, sizeof(binary_header));
     memset(&event, 0, sizeof(event));
-    read.buf = reinterpret_cast<char*>(cb_malloc(DATA_BUFFER_SIZE));
-    if (read.buf == nullptr) {
-        throw std::bad_alloc();
-    }
-    read.size = DATA_BUFFER_SIZE;
-    read.curr = read.buf;
-    read.bytes = 0;
-
     msglist.reserve(MSG_LIST_INITIAL);
 
     if (!initializeEvent()) {
@@ -802,6 +782,7 @@ McbpConnection::McbpConnection(SOCKET sfd,
                                event_base* b,
                                const ListeningPort& ifc)
     : Connection(sfd, b, ifc),
+      read(DATA_BUFFER_SIZE),
       write(DATA_BUFFER_SIZE),
       stateMachine(new McbpStateMachine(conn_new_cmd)),
       dcp(false),
@@ -817,7 +798,6 @@ McbpConnection::McbpConnection(SOCKET sfd,
       currentEvent(0),
       ev_timeout_enabled(false),
       write_and_go(conn_new_cmd),
-      rlbytes(0),
       iov(IOV_LIST_INITIAL),
       iovused(0),
       msglist(),
@@ -839,13 +819,6 @@ McbpConnection::McbpConnection(SOCKET sfd,
     }
     memset(&binary_header, 0, sizeof(binary_header));
     memset(&event, 0, sizeof(event));
-    read.buf = reinterpret_cast<char*>(cb_malloc(DATA_BUFFER_SIZE));
-    if (read.buf == nullptr) {
-        throw std::bad_alloc();
-    }
-    read.size = DATA_BUFFER_SIZE;
-    read.curr = read.buf;
-    read.bytes = 0;
     msglist.reserve(MSG_LIST_INITIAL);
 
     if (ifc.ssl.enabled) {
@@ -861,8 +834,6 @@ McbpConnection::McbpConnection(SOCKET sfd,
 }
 
 McbpConnection::~McbpConnection() {
-    cb_free(read.buf);
-
     releaseReservedItems();
     for (auto* ptr : temp_alloc) {
         cb_free(ptr);
@@ -886,22 +857,6 @@ void McbpConnection::runStateMachinery() {
                       stateMachine->getCurrentTaskName());
         } while (stateMachine->execute(*this));
     }
-}
-
-/**
- * Convert a JSON representation of a net_buf
- *
- * @param buffer the buffer to convert
- * @return the json representation of the buffer (caller is responsible
- *         for calling cJSON_Delete()
- */
-static cJSON* to_json(const struct net_buf &buffer) {
-    cJSON* json = cJSON_CreateObject();
-    cJSON_AddUintPtrToObject(json, "buf", (uintptr_t)buffer.buf);
-    cJSON_AddUintPtrToObject(json, "curr", (uintptr_t)buffer.curr);
-    cJSON_AddNumberToObject(json, "size", buffer.size);
-    cJSON_AddNumberToObject(json, "bytes", buffer.bytes);
-    return json;
 }
 
 /**
@@ -973,7 +928,7 @@ unique_cJSON_ptr McbpConnection::toJSON() const {
             cJSON_AddItemToObject(obj, "libevent", o);
         }
 
-        cJSON_AddItemToObject(obj, "read", to_json(read));
+        cJSON_AddItemToObject(obj, "read", read.to_json().release());
         cJSON_AddItemToObject(obj, "write", write.to_json().release());
 
         if (write_and_go != nullptr) {
@@ -981,7 +936,6 @@ unique_cJSON_ptr McbpConnection::toJSON() const {
                                     stateMachine->getTaskName(write_and_go));
 
         }
-        cJSON_AddNumberToObject(obj, "rlbytes", rlbytes);
 
         {
             cJSON* iovobj = cJSON_CreateObject();

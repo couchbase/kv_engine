@@ -108,13 +108,8 @@ static void reset_cmd_handler(McbpConnection *c) {
     c->getCookieObject().reset();
     c->resetCommandContext();
 
-    if (c->read.bytes == 0) {
-        /* Make the whole read buffer available. */
-        c->read.curr = c->read.buf;
-    }
-
     c->shrinkBuffers();
-    if (c->read.bytes >= sizeof(c->binary_header)) {
+    if (c->read.rsize() >= sizeof(c->binary_header)) {
         c->setState(conn_parse_cmd);
     } else if (c->isSslEnabled()) {
         c->setState(conn_read_packet_header);
@@ -146,8 +141,8 @@ bool conn_ship_log(McbpConnection *c) {
         return false;
     }
 
-    if (c->isReadEvent() || c->read.bytes > 0) {
-        if (c->read.bytes >= sizeof(c->binary_header)) {
+    if (c->isReadEvent() || !c->read.empty()) {
+        if (c->read.rsize() >= sizeof(c->binary_header)) {
             try_read_mcbp_command(c);
         } else {
             c->setState(conn_read_packet_header);
@@ -219,7 +214,7 @@ bool conn_read_packet_header(McbpConnection* c) {
         }
         break;
     case McbpConnection::TryReadResult::DataReceived:
-        if (c->read.bytes >= sizeof(c->binary_header)) {
+        if (c->read.rsize() >= sizeof(c->binary_header)) {
             c->setState(conn_parse_cmd);
         } else {
             c->setState(conn_waiting);
@@ -307,20 +302,40 @@ bool conn_execute(McbpConnection *c) {
     }
 
     if (!c->isPacketAvailable()) {
-        throw std::logic_error("conn_execute: Expecting more data (" +
-                               std::to_string(c->getRlbytes()) + ")");
+        throw std::logic_error(
+                "conn_execute: Internal error.. the input packet is not "
+                "completely in memory");
     }
 
     c->setEwouldblock(false);
-    bool block = false;
 
     mcbp_execute_packet(c);
 
     if (c->isEwouldblock()) {
         c->unregisterEvent();
-        block = true;
+        return false;
     }
-    return !block;
+
+    // We've executed the packet, and given that we're not blocking we
+    // we should move over to the next state. Just do a sanity check
+    // for that.
+    if (c->getState() == conn_execute) {
+        throw std::logic_error(
+                "conn_execute: Should leave conn_execute for !EWOULDBLOCK");
+    }
+
+    // Consume the packet we just executed from the input buffer
+    c->read.consume([c](cb::const_byte_buffer buffer) -> ssize_t {
+        size_t size =
+                sizeof(c->binary_header) + c->binary_header.request.bodylen;
+        if (size > buffer.size()) {
+            throw std::logic_error(
+                    "conn_execute: Not enough data in input buffer");
+        }
+        return size;
+    });
+
+    return true;
 }
 
 bool conn_read_packet_body(McbpConnection* c) {
@@ -328,15 +343,19 @@ bool conn_read_packet_body(McbpConnection* c) {
         return true;
     }
 
-    cb_assert(!c->isPacketAvailable());
-    cb_assert(c->read.bytes == 0);
+    if (c->isPacketAvailable()) {
+        throw std::logic_error(
+                "conn_read_packet_body: should not be called with the complete "
+                "packet available");
+    }
 
-    // Read the remaining bytes in the packet socket
-    auto res = c->recv(c->read.curr, c->getRlbytes());
+    // We need to get more data!!!
+    auto res = c->read.produce([c](cb::byte_buffer buffer) -> ssize_t {
+        return c->recv(reinterpret_cast<char*>(buffer.data()), buffer.size());
+    });
+
     if (res > 0) {
         get_thread_stats(c)->bytes_read += res;
-        c->read.curr += res;
-        c->setRlbytes(c->getRlbytes() - res);
 
         if (c->isPacketAvailable()) {
             c->setState(conn_execute);

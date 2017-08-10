@@ -73,58 +73,6 @@ std::array<bool, 0x100>&  topkey_commands = get_mcbp_topkeys();
 std::array<mcbp_package_execute, 0x100>& executors = get_mcbp_executors();
 
 /**
- * The current implementation of the core require the entire input buffer
- * to be present in (a continuous memory segment) before we can start
- * executing the command.
- *
- * Validate that the current input buffer can fit the entire mcbp command.
- *
- * Note: rlbytes must be set before calling the method
- *
- * @param c The connection to check the input buffer.
- */
-static void resize_input_buffer(McbpConnection& c) {
-    // We need to make sure that there is room in the input buffer to fit
-    // the entire packet
-    const ptrdiff_t offset = c.read.curr - c.read.buf;
-    const size_t needed = c.getRlbytes() + sizeof(c.binary_header);
-
-    if (needed > size_t(c.read.size - offset)) {
-        // No; we need a bigger buffer.
-        // Now that we reallocate we can move the data to the beginning
-        // of the new buffer. We don't want to allocate buffers of all
-        // kinds of sizes, so just keep on doubling the size of the
-        // buffer until we find a buffer which is big enough.
-        size_t nsize = c.read.size;
-        while (needed > nsize) {
-            nsize *= 2;
-        }
-
-        if (nsize != c.read.size) {
-            LOG_DEBUG(&c,
-                      "%u: Need to grow buffer from %lu to %lu",
-                      c.getId(),
-                      (unsigned long)c.read.size,
-                      (unsigned long)nsize);
-            auto* newm = reinterpret_cast<char*>(cb_realloc(c.read.buf, nsize));
-            if (newm == nullptr) {
-                throw std::bad_alloc();
-            }
-
-            c.read.buf = newm;
-            c.read.curr = c.read.buf + offset;
-            c.read.size = (int)nsize;
-        }
-
-        if (c.read.curr != c.read.buf) {
-            memmove(c.read.buf, c.read.curr, c.read.bytes);
-            c.read.curr = c.read.buf;
-            LOG_DEBUG(&c, "%u: Repack input buffer", c.getId());
-        }
-    }
-}
-
-/**
  * Triggers topkeys_update (i.e., increments topkeys stats) if called by a
  * valid operation.
  */
@@ -1386,14 +1334,24 @@ void mcbp_execute_packet(McbpConnection* c) {
 
 void try_read_mcbp_command(McbpConnection* c) {
     if (c == nullptr) {
-        throw std::runtime_error("Internal eror, connection is not mcbp");
+        throw std::logic_error(
+                "try_read_mcbp_command: Internal error, connection is not "
+                "mcbp");
     }
-    cb_assert(c->read.curr <= (c->read.buf + c->read.size));
-    cb_assert(c->read.bytes >= sizeof(c->binary_header));
 
-    /* Do we have the complete packet header? */
-    protocol_binary_request_header* req;
-    req = (protocol_binary_request_header*)c->read.curr;
+    const protocol_binary_request_header* req = nullptr;
+    if (c->read.rsize() < sizeof(*req)) {
+        throw std::logic_error(
+                "try_read_mcbp_command: header not present (got " +
+                std::to_string(c->read.rsize()) + " of " +
+                std::to_string(sizeof(cb::mcbp::Request)) + ")");
+    }
+
+    c->read.consume([&req](cb::const_byte_buffer buffer) -> ssize_t {
+        using mcbp_header = protocol_binary_request_header;
+        req = reinterpret_cast<const mcbp_header*>(buffer.data());
+        return 0;
+    });
 
     if (settings.getVerbose() > 1) {
         /* Dump the packet before we convert it to host order */
@@ -1408,6 +1366,7 @@ void try_read_mcbp_command(McbpConnection* c) {
         }
     }
 
+    // Create a host-local-byte-order-copy of the header
     c->binary_header = *req;
     c->binary_header.request.keylen = ntohs(req->request.keylen);
     c->binary_header.request.bodylen = ntohl(req->request.bodylen);
@@ -1443,7 +1402,7 @@ void try_read_mcbp_command(McbpConnection* c) {
     c->setCAS(0);
     c->setNoReply(false);
     c->setStart(gethrtime());
-    MEMCACHED_PROCESS_COMMAND_START(c->getId(), c->read.curr, c->read.bytes);
+    MEMCACHED_PROCESS_COMMAND_START(c->getId(), nullptr, 0);
 
     auto reason = validate_packet_execusion_constraints(c);
     if (reason != cb::mcbp::Status::Success) {
@@ -1452,39 +1411,22 @@ void try_read_mcbp_command(McbpConnection* c) {
         return;
     }
 
-    c->setRlbytes(c->binary_header.request.bodylen);
-    try {
-        resize_input_buffer(*c);
-    } catch (const std::bad_alloc&) {
-        LOG_WARNING(c,
-                    "%u: Failed to allocate input buffer for packet. Closing "
-                        "connection",
-                    c->getId());
-        c->getCookieObject().setErrorContext("Failed to allocate memory");
-        mcbp_write_packet(c, cb::mcbp::Status::Einternal);
-        c->setWriteAndGo(conn_closing);
-        return;
-    }
-
-    // The conn_read_packet_body method expects c->read.curr represent
-    // where we want to insert the data. Move past the header
-    c->read.bytes -= sizeof(c->binary_header);
-    c->read.curr += sizeof(c->binary_header);
-
-    // We might already have part of the body in our input buffer
-    if (c->getRlbytes() > 0 && c->read.bytes > 0) {
-        auto available = std::min(c->getRlbytes(), c->read.bytes);
-        c->setRlbytes(c->getRlbytes() - available);
-        c->read.curr += available;
-        c->read.bytes -= available;
-    }
-
     if (c->isPacketAvailable()) {
-        // we've got the entire packet available so let's execute it
+        // we've got the entire packet spooled up, just go execute
         c->setState(conn_execute);
     } else {
-        // The input buffer is big enough to fit the entire packet.
-        // Go fetch the rest of the data
+        // we need to allocate more memory!!
+        try {
+            size_t needed = sizeof(cb::mcbp::Request) +
+                            c->binary_header.request.bodylen;
+            c->read.ensureCapacity(needed - c->read.rsize());
+        } catch (const std::bad_alloc&) {
+            LOG_WARNING(c,
+                        "%u: Failed to grow buffer.. closing connection",
+                        c->getId());
+            c->setState(conn_closing);
+            return;
+        }
         c->setState(conn_read_packet_body);
     }
 }

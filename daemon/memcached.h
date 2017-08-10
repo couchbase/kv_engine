@@ -27,7 +27,6 @@
 #include "dynamic_buffer.h"
 #include "executorpool.h"
 #include "log_macros.h"
-#include "net_buf.h"
 #include "settings.h"
 #include "timing_histogram.h"
 

@@ -23,7 +23,6 @@
 #include "datatype.h"
 #include "dynamic_buffer.h"
 #include "log_macros.h"
-#include "net_buf.h"
 #include "settings.h"
 #include "sslcert.h"
 #include "statemachine_mcbp.h"
@@ -359,14 +358,6 @@ public:
         McbpConnection::write_and_go = write_and_go;
     }
 
-    uint32_t getRlbytes() const {
-        return rlbytes;
-    }
-
-    void setRlbytes(uint32_t rlbytes) {
-        McbpConnection::rlbytes = rlbytes;
-    }
-
     /**
      * Get the number of entries in use in the IO Vector
      */
@@ -694,7 +685,7 @@ public:
      * Do we have any pending input data on this connection?
      */
     bool havePendingInputData() {
-        return (read.bytes > 0 || ssl.havePendingInputData());
+        return (!read.empty() || ssl.havePendingInputData());
     }
 
     /**
@@ -709,8 +700,13 @@ public:
 
     virtual void runEventLoop(short which) override;
 
-    /** Read buffer */
-    struct net_buf read;
+    /**
+     * Input buffer containing the data we've read of the socket. It is
+     * assigned to the connection when the connection is to be served, and
+     * returned to the thread context if the pipe is empty when we're done
+     * serving this connection.
+     */
+    cb::Pipe read;
 
     /** Write buffer */
     cb::Pipe write;
@@ -727,11 +723,9 @@ public:
      * Obtain a pointer to the packet for the Cookie's connection
      */
     static void* getPacket(const Cookie& cookie) {
-        const auto& c = cookie.connection;
-        return (c.read.curr -
-                (c.binary_header.request.bodylen + sizeof(c.binary_header)));
+        auto avail = cookie.connection.read.rdata();
+        return const_cast<void*>(static_cast<const void*>(avail.data()));
     }
-
 
     /**
       * Check to see if the next packet to process is completely received
@@ -740,7 +734,17 @@ public:
       * @return true if we've got the entire packet, false otherwise
       */
     bool isPacketAvailable() const {
-        return getRlbytes() == 0;
+        auto buffer = read.rdata();
+
+        if (buffer.size() < sizeof(cb::mcbp::Request)) {
+            // we don't have the header, so we can't even look at the body
+            // length
+            return false;
+        }
+
+        const auto* req =
+                reinterpret_cast<const cb::mcbp::Request*>(buffer.data());
+        return buffer.size() >= sizeof(cb::mcbp::Request) + req->getBodylen();
     }
 
     /**
@@ -829,11 +833,6 @@ protected:
 
     /** which state to go into after finishing current write */
     TaskFunction write_and_go;
-
-    /* read 'left' bytes - how many bytes of data remain to be read for the
-     * nread state
-     */
-    uint32_t rlbytes;
 
     /* data for the mwrite state */
     std::vector<iovec> iov;
