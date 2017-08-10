@@ -39,9 +39,9 @@
                        |   |  ╱        ╲   |   Engine  | |  +------------------+  |  ╲          | |
 +-------+ DCP Consumer |   |    stdin    <-+-Interface-+->                        |   ───────▶  | |
 |KV-Node|----11209-----+-->|  ╲            |           | |  +------------------+  |   ────────  | |
-+-------+              |   |   ───────▶    |           | |  |    vbucket 1     |  |  ╱        ╲ | |                 +------------+
-                       |   |               |           | |  |                  |  |    Writer   | |-------TAP------>| TAP Client |
-                       |   |               |           | |  |  +############+  |  |  ╲      xN  | |                 +------------+
++-------+              |   |   ───────▶    |           | |  |    vbucket 1     |  |  ╱        ╲ | |
+                       |   |               |           | |  |                  |  |    Writer   | |
+                       |   |               |           | |  |  +############+  |  |  ╲      xN  | |
                        |   |               |           | |  |  # Hash-table |  |  |   ───────▶  | |
                        |   |               |           | |  |  +------------+  |  |   ────────  | |
                        |   |               |           | |  +------------------+  |  ╱        ╲ | |
@@ -96,7 +96,7 @@ If the connection is idle for a configurable (through
 automatically disconnected unless:
 
 * The connection authenticated as `_admin`
-* The connection is used for TAP or DCP
+* The connection is used for DCP
 
 ### Threads
 
@@ -199,7 +199,7 @@ read the rest of the packet as described above.
 Once the packet has been read the appropriate executor is run. There are two
 classes of executors request executors and response executors.
 
-Response executors are used primarily by TAP and DCP, both of which are a duplex
+Response executors are used primarily by DCP, which is a duplex
 protocol where either end may send a packet at any time. By comparison the
 'normal' client operations are entirely client driven where a client sends a
 packet and the server responds. It does not support out of order responses so
