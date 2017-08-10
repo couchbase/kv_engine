@@ -753,7 +753,7 @@ ENGINE_ERROR_CODE KVBucket::addBackfillItem(Item& itm,
     }
 
     // Obtain read-lock on VB state to ensure VB state changes are interlocked
-    // with this add-tapbackfill
+    // with this addBackfillItem
     ReaderLockHolder rlh(vb->getStateLock());
     if (vb->getState() == vbucket_state_dead ||
         vb->getState() == vbucket_state_active) {
@@ -1177,7 +1177,6 @@ void KVBucket::snapshotStats() {
     snapshot_stats_t snap;
     snap.engine = &engine;
     bool rv = engine.getStats(&snap, NULL, 0, add_stat) == ENGINE_SUCCESS &&
-              engine.getStats(&snap, "tap", 3, add_stat) == ENGINE_SUCCESS &&
               engine.getStats(&snap, "dcp", 3, add_stat) == ENGINE_SUCCESS;
 
     if (rv && stats.isShutdown) {
@@ -2113,7 +2112,7 @@ int KVBucket::flushVBucket(uint16_t vbid) {
             vb->rejectQueue.pop();
         }
 
-        // Append any 'backfill' items (mutations added by a TAP stream).
+        // Append any 'backfill' items (mutations added by a DCP stream).
         vb->getBackfillItems(items);
 
         // Append all items outstanding for the persistence cursor.
