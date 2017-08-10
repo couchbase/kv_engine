@@ -431,12 +431,6 @@ bool isEphemeralBucket(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
     return get_str_stat(h, h1, "ep_bucket_type") == "ephemeral";
 }
 
-// @todo - will be removed when test_mb19687_fixed is updated to not include TAP
-// stats
-bool isTapEnabled(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
-    return get_bool_stat(h, h1, "ep_tap");
-}
-
 void checkPersistentBucketTempItems(ENGINE_HANDLE* h,
                                     ENGINE_HANDLE_V1* h1,
                                     int exp) {

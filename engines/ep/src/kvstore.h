@@ -768,7 +768,7 @@ public:
 
 
     /**
-     * Get a list of all persisted engine and tap stats. This API is mainly
+     * Get a list of all persisted engine and DCP stats. This API is mainly
      * invoked during warmup to get the engine stats from the previous session.
      *
      * @param stats map instance where the engine stats from the previous

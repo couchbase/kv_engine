@@ -1094,16 +1094,7 @@ static protocol_binary_response_status shutdown_validator(const Cookie& cookie)
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static protocol_binary_response_status tap_validator(const Cookie& cookie) {
-    auto req = static_cast<protocol_binary_request_tap_no_extras*>(McbpConnection::getPacket(cookie));
-    auto bodylen = ntohl(req->message.header.request.bodylen);
-    auto enginelen = ntohs(req->message.body.tap.enginespecific_length);
-    if (sizeof(req->message.body) > bodylen ||
-        enginelen > bodylen) {
-        return PROTOCOL_BINARY_RESPONSE_EINVAL;
-    }
-    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
-}
+
 
 static protocol_binary_response_status get_meta_validator(const Cookie& cookie)
 {
@@ -1332,13 +1323,6 @@ void McbpValidatorChains::initializeMcbpValidatorChains(McbpValidatorChains& cha
     chains.push_unique(PROTOCOL_BINARY_CMD_DELETE_BUCKET, delete_bucket_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_SELECT_BUCKET, select_bucket_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS, get_all_vb_seqnos_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_TAP_MUTATION, tap_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_END, tap_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_START, tap_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_TAP_DELETE, tap_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_TAP_FLUSH, tap_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_TAP_OPAQUE, tap_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_TAP_VBUCKET_SET, tap_validator);
 
     chains.push_unique(PROTOCOL_BINARY_CMD_GET_META, get_meta_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_GETQ_META, get_meta_validator);

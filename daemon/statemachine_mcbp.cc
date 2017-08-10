@@ -124,13 +124,13 @@ static void reset_cmd_handler(McbpConnection *c) {
 }
 
 /**
- * Ship tap log to the other end. This state differs with all other states
+ * Ship DCP log to the other end. This state differs with all other states
  * in the way that it support full duplex dialog. We're listening to both read
  * and write events from libevent most of the time. If a read event occurs we
  * switch to the conn_read state to read and execute the input message (that would
  * be an ack message from the other side). If a write event occurs we continue to
- * send tap log to the other end.
- * @param c the tap connection to drive
+ * send DCP log to the other end.
+ * @param c the DCP connection to drive
  * @return true if we should continue to process work for this connection, false
  *              if we should start processing events for other connections.
  */
@@ -159,7 +159,7 @@ bool conn_ship_log(McbpConnection *c) {
         /* We have a finite number of messages in the input queue */
         /* so let's process all of them instead of backing off after */
         /* reading a subset of them. */
-        /* Why? Because we've got every time we're calling ship_tap_log */
+        /* Why? Because we've got every time we're calling ship_mcbp_dcp_log */
         /* we try to send a chunk of items.. This means that if we end */
         /* up in a situation where we're receiving a burst of nack messages */
         /* we'll only process a subset of messages in our input queue, */
@@ -267,7 +267,7 @@ bool conn_new_cmd(McbpConnection *c) {
          * response to arrive. Lets set up a _write_ notification,
          * since that'll most likely be true really soon.
          *
-         * DCP and TAP connections is different from normal
+         * DCP connections are different from normal
          * connections in the way that they may not even get data from
          * the other end so that they'll _have_ to wait for a write event.
          */
@@ -426,7 +426,7 @@ bool conn_pending_close(McbpConnection *c) {
               "Awaiting clients to release the cookie (pending close for %p)",
               (void*)c);
     /*
-     * tell the tap connection that we're disconnecting it now,
+     * tell the DCP connection that we're disconnecting it now,
      * but give it a grace period
      */
     perform_callbacks(ON_DISCONNECT, NULL, c->getCookie());

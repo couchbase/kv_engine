@@ -260,7 +260,7 @@ static void conn_cleanup(Connection *c) {
         mcbpc->write.bytes = 0;
 
         /* Return any buffers back to the thread; before we disassociate the
-         * connection from the thread. Note we clear TAP / UDP status first, so
+         * connection from the thread. Note we clear DCP status first, so
          * conn_return_buffers() will actually free the buffers.
          */
         mcbpc->setDCP(false);

@@ -394,7 +394,7 @@ public:
     }
 
     /**
-     * Process an item that is got from a backfill (TAP or DCP).
+     * Process an item from a DCP backfill.
      * It puts it onto a queue for persistence and/or generates a seqno and
      * updates stats
      *
@@ -675,7 +675,7 @@ public:
     CheckpointManager checkpointManager;
 
     // Struct for managing 'backfill' items - Items which have been added by
-    // an incoming TAP stream and need to be persisted to disk.
+    // an incoming DCP stream and need to be persisted to disk.
     struct {
         std::mutex mutex;
         std::queue<queued_item> items;
@@ -793,10 +793,10 @@ public:
 
     /**
      * Add an item directly into its vbucket rather than putting it on a
-     * checkpoint (backfill the item). The can happen during TAP or when a
+     * checkpoint (backfill the item). The can happen during DCP or when a
      * replica vbucket is receiving backfill items from active vbucket.
      *
-     * @param itm Item to be added/updated from TAP or DCP backfill. Upon
+     * @param itm Item to be added/updated from DCP backfill. Upon
      *            success, the itm revSeqno is updated
      * @param genBySeqno whether or not to generate sequence number
      *

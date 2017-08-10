@@ -25,7 +25,6 @@
 struct mock_engine {
     ENGINE_HANDLE_V1 me;
     ENGINE_HANDLE_V1 *the_engine;
-    TAP_ITERATOR iterator;
 };
 
 static bool color_enabled;

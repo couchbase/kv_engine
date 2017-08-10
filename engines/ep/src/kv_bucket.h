@@ -151,7 +151,7 @@ public:
                               cb::StoreIfPredicate predicate = {});
 
     /**
-     * Add an TAP backfill or DCP backfill item into its corresponding vbucket
+     * Add a DCP backfill item into its corresponding vbucket
      * @param item the item to be added
      * @param genBySeqno whether or not to generate sequence number
      * @return the result of the operation
@@ -647,7 +647,7 @@ public:
 
     /**
      * Checks the memory consumption.
-     * To be used by backfill tasks (tap & dcp).
+     * To be used by backfill tasks (DCP).
      */
     bool isMemoryUsageTooHigh();
 

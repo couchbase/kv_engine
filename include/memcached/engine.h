@@ -76,52 +76,6 @@ struct server_handle_v1_t {
     SERVER_DOCUMENT_API* document;
 };
 
-typedef enum {
-    TAP_MUTATION = 1,
-    TAP_DELETION,
-    TAP_FLUSH,
-    TAP_OPAQUE,
-    TAP_VBUCKET_SET,
-    TAP_ACK,
-    TAP_DISCONNECT,
-    TAP_NOOP,
-    TAP_PAUSE,
-    TAP_CHECKPOINT_START,
-    TAP_CHECKPOINT_END
-} tap_event_t;
-
-/**
- * An iterator for the tap stream.
- * The memcached core will keep on calling this function as long as a tap
- * client is connected to the server. Each event returned by the iterator
- * will be encoded in the binary protocol with the appropriate command opcode.
- *
- * If the engine needs to store extra information in the tap stream it should
- * do so by returning the data through the engine_specific pointer. This data
- * should be valid for the core to use (read only) until the next invocation
- * of the iterator, of if the connection is closed.
- *
- * @param handle the engine handle
- * @param cookie identification for the tap stream
- * @param item item to send returned here (check tap_event_t)
- * @param engine_specific engine specific data returned here
- * @param nengine_specific number of bytes of engine specific data
- * @param ttl ttl for this item (Tap stream hops)
- * @param flags tap flags for this object
- * @param seqno sequence number to send
- * @param vbucket the virtual bucket id
- * @return the tap event to send (or TAP_PAUSE if there isn't any events)
- */
-typedef tap_event_t (* TAP_ITERATOR)(ENGINE_HANDLE* handle,
-                                     const void* cookie,
-                                     item** item,
-                                     void** engine_specific,
-                                     uint16_t* nengine_specific,
-                                     uint8_t* ttl,
-                                     uint16_t* flags,
-                                     uint32_t* seqno,
-                                     uint16_t* vbucket);
-
 typedef ENGINE_ERROR_CODE (* engine_get_vb_map_cb)(const void* cookie,
                                                    const void* map,
                                                    size_t mapsize);
