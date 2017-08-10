@@ -383,6 +383,8 @@ void conn_loan_buffers(Connection *connection) {
         ts->wbufs_allocated++;
     } else if (res == BufferLoan::Loaned) {
         ts->wbufs_loaned++;
+    } else if (res == BufferLoan::Existing) {
+        ts->wbufs_existing++;
     }
 }
 
