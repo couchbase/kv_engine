@@ -591,7 +591,7 @@
         },
         "replication_throttle_cap_pcnt": {
             "default": "10",
-            "descr": "Percentage of total items in write queue at which we throttle tap input",
+            "descr": "Percentage of total items in write queue at which we throttle replication input",
             "type": "size_t",
             "validator": {
                 "range": {
@@ -602,7 +602,7 @@
         },
         "replication_throttle_queue_cap": {
             "default": "-1",
-            "descr": "Max size of a write queue to throttle incoming tap input.",
+            "descr": "Max size of a write queue to throttle incoming replication input.",
             "type": "ssize_t",
             "validator": {
                 "range": {
@@ -613,7 +613,7 @@
         },
         "replication_throttle_threshold": {
             "default": "99",
-            "descr": "Percentage of max mem at which we begin NAKing tap input.",
+            "descr": "Percentage of max mem at which we begin NAKing replication input.",
             "type": "size_t",
             "validator": {
                 "range": {
