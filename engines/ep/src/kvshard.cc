@@ -33,12 +33,18 @@ KVShard::KVShard(uint16_t id, KVBucket& kvBucket)
       vbuckets(kvConfig.getMaxVBuckets()),
       highPriorityCount(0) {
     const std::string backend = kvConfig.getBackend();
-
     if (backend == "couchdb") {
         auto stores = KVStoreFactory::create(kvConfig);
         rwStore = std::move(stores.rw);
         roStore = std::move(stores.ro);
-    } else {
+    }
+#ifdef EP_USE_ROCKSDB
+    else if (backend == "rocksdb") {
+        auto stores = KVStoreFactory::create(kvConfig);
+        rwStore = std::move(stores.rw);
+    }
+#endif
+    else {
         throw std::logic_error(
                 "KVShard::KVShard: "
                 "Invalid backend type '" +

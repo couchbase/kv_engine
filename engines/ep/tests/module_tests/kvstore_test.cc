@@ -1807,19 +1807,18 @@ TEST_F(CouchKVStoreMetaData, assignment) {
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, copy2->getDataType());
 }
 
+std::string couchAndForestTestParams[] = {
 #ifdef EP_USE_FORESTDB
-// Test cases which run on both Couchstore and ForestDB
-INSTANTIATE_TEST_CASE_P(CouchstoreAndForestDB,
-                        CouchAndForestTest,
-                        ::testing::Values("couchdb", "forestdb"),
-                        [] (const ::testing::TestParamInfo<std::string>& info) {
-                            return info.param;
-                        });
-#else
-INSTANTIATE_TEST_CASE_P(CouchstoreAndForestDB,
-                        CouchAndForestTest,
-                        ::testing::Values("couchdb"),
-                        [] (const ::testing::TestParamInfo<std::string>& info) {
-                            return info.param;
-                        });
+        "forestdb",
 #endif
+#ifdef EP_USE_ROCKSDB
+        "rocksdb",
+#endif
+        "couchdb"};
+
+INSTANTIATE_TEST_CASE_P(CouchstoreAndForestDB,
+                        CouchAndForestTest,
+                        ::testing::ValuesIn(couchAndForestTestParams),
+                        [](const ::testing::TestParamInfo<std::string>& info) {
+                            return info.param;
+                        });

@@ -26,6 +26,9 @@
 #ifdef EP_USE_FORESTDB
 #include "forest-kvstore/forest-kvstore.h"
 #endif
+#ifdef EP_USE_ROCKSDB
+#include "rocksdb-kvstore/rocksdb-kvstore.h"
+#endif
 #include "statwriter.h"
 #include "kvstore.h"
 #include "vbucket.h"
@@ -69,11 +72,19 @@ KVStoreConfig& KVStoreConfig::setBuffered(bool _buffered) {
 }
 
 KVStoreRWRO KVStoreFactory::create(KVStoreConfig& config) {
-    if (config.getBackend().compare("couchdb") == 0) {
+    std::string backend = config.getBackend();
+    if (backend == "couchdb") {
         auto rw = std::make_unique<CouchKVStore>(config);
         auto ro = rw->makeReadOnlyStore();
         return {rw.release(), ro.release()};
-    } else {
+    }
+#ifdef EP_USE_ROCKSDB
+    else if (backend == "rocksdb") {
+        auto rw = std::make_unique<RocksDBKVStore>(config);
+        return {rw.release(), nullptr};
+    }
+#endif
+    else {
         throw std::invalid_argument("KVStoreFactory::create unknown backend:" +
                                     config.getBackend());
     }

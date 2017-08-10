@@ -90,7 +90,8 @@
             "validator": {
                 "enum": [
                     "couchdb",
-                    "forestdb"
+                    "forestdb",
+                    "rocksdb"
                 ]
             }
         },

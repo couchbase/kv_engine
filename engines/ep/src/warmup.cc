@@ -1331,6 +1331,8 @@ uint16_t Warmup::getNumKVStores()
     } else if (config.getBackend().compare("forestdb") == 0) {
         return config.getMaxNumShards();
     }
+    // TODO vmx 2016-11-10: I guess there must be added something sensible
+    // for the leveldb backend here.
 
     return 0;
 }

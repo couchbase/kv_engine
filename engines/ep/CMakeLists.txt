@@ -14,6 +14,7 @@ INCLUDE(CheckTypeSize)
 INCLUDE(CTest)
 
 OPTION(EP_USE_FORESTDB "Enable support for ForestDB" OFF)
+OPTION(EP_USE_ROCKSDB "Enable support for RocksDB" OFF)
 
 INCLUDE_DIRECTORIES(BEFORE ${CMAKE_INSTALL_PREFIX}/include
                            ${CMAKE_CURRENT_SOURCE_DIR}
@@ -33,13 +34,23 @@ INCLUDE_DIRECTORIES(BEFORE ${CMAKE_INSTALL_PREFIX}/include
 
 INCLUDE_DIRECTORIES(AFTER ${Memcached_BINARY_DIR}/include)
 
+SET(EP_STORAGE_LIBS couchstore)
+
 IF (EP_USE_FORESTDB)
     INCLUDE_DIRECTORIES(AFTER ${ForestDB_SOURCE_DIR}/include)
     SET(FOREST_KVSTORE_SOURCE src/forest-kvstore/forest-kvstore.cc)
-    SET(EP_FORESTDB_LIB forestdb)
+    LIST(APPEND EP_STORAGE_LIBS forestdb)
     ADD_DEFINITIONS(-DEP_USE_FORESTDB=1)
     MESSAGE(STATUS "ep-engine: Using ForestDB")
 ENDIF (EP_USE_FORESTDB)
+
+IF (EP_USE_ROCKSDB)
+    INCLUDE_DIRECTORIES(AFTER ${ROCKSDB_INCLUDE_DIR})
+    SET(ROCKSDB_KVSTORE_SOURCE src/rocksdb-kvstore/rocksdb-kvstore.cc)
+    LIST(APPEND EP_STORAGE_LIBS ${ROCKSDB_LIBRARIES})
+    ADD_DEFINITIONS(-DEP_USE_ROCKSDB=1)
+    MESSAGE(STATUS "ep-engine: Using RocksDB")
+ENDIF (EP_USE_ROCKSDB)
 
 INCLUDE_DIRECTORIES(AFTER
                     ${gtest_SOURCE_DIR}/include
@@ -235,13 +246,14 @@ ADD_LIBRARY(ep_objs OBJECT
             ${KVSTORE_SOURCE}
             ${COUCH_KVSTORE_SOURCE}
             ${FOREST_KVSTORE_SOURCE}
+            ${ROCKSDB_KVSTORE_SOURCE}
             ${COLLECTIONS_SOURCE})
 SET_PROPERTY(TARGET ep_objs PROPERTY POSITION_INDEPENDENT_CODE 1)
 
 ADD_LIBRARY(ep SHARED $<TARGET_OBJECTS:ep_objs>)
 
 SET_TARGET_PROPERTIES(ep PROPERTIES PREFIX "")
-TARGET_LINK_LIBRARIES(ep cJSON JSON_checker couchstore ${EP_FORESTDB_LIB}
+TARGET_LINK_LIBRARIES(ep cJSON JSON_checker ${EP_STORAGE_LIBS}
                       engine_utilities dirutils cbcompress
                       platform phosphor xattr ${LIBEVENT_LIBRARIES})
 
@@ -306,10 +318,10 @@ TARGET_INCLUDE_DIRECTORIES(ep-engine_ep_unit_tests
         PUBLIC
         ${Couchstore_SOURCE_DIR})
 
-TARGET_LINK_LIBRARIES(ep-engine_ep_unit_tests couchstore cJSON dirutils
-                      engine_utilities ${EP_FORESTDB_LIB}
-                      gtest gmock JSON_checker mcd_util platform
-                      phosphor xattr cbcompress ${MALLOC_LIBRARIES})
+TARGET_LINK_LIBRARIES(ep-engine_ep_unit_tests ${EP_STORAGE_LIBS} cJSON
+                      dirutils engine_utilities gtest gmock
+                      JSON_checker mcd_util platform phosphor xattr
+                      cbcompress ${MALLOC_LIBRARIES})
 
 ADD_EXECUTABLE(ep-engine_atomic_ptr_test
   tests/module_tests/atomic_ptr_test.cc
@@ -353,9 +365,9 @@ ADD_EXECUTABLE(ep_engine_benchmarks
                benchmarks/defragmenter_bench.cc
                tests/module_tests/vbucket_test.cc)
 
-TARGET_LINK_LIBRARIES(ep_engine_benchmarks benchmark platform xattr couchstore
+TARGET_LINK_LIBRARIES(ep_engine_benchmarks benchmark platform xattr
         cJSON dirutils engine_utilities gtest gmock JSON_checker mcd_util
-        cbcompress ${MALLOC_LIBRARIES})
+        cbcompress ${MALLOC_LIBRARIES} ${EP_STORAGE_LIBS})
 TARGET_INCLUDE_DIRECTORIES(ep_engine_benchmarks PUBLIC
                            ${benchmark_SOURCE_DIR}/include
                            tests
@@ -375,9 +387,8 @@ TARGET_LINK_LIBRARIES(timing_tests platform)
 ADD_EXECUTABLE(ep-engine_sizes src/sizes.cc
                                $<TARGET_OBJECTS:ep_objs>)
 TARGET_LINK_LIBRARIES(ep-engine_sizes cJSON JSON_checker
-  engine_utilities couchstore
-  ${EP_FORESTDB_LIB} dirutils cbcompress platform phosphor xattr
-  ${LIBEVENT_LIBRARIES})
+  engine_utilities ${EP_STORAGE_LIBS} dirutils cbcompress platform
+  phosphor xattr ${LIBEVENT_LIBRARIES})
 
 ADD_LIBRARY(ep_testsuite SHARED
    tests/ep_testsuite.cc
@@ -387,7 +398,7 @@ ADD_LIBRARY(ep_testsuite SHARED
    tests/mock/mock_dcp.cc
    ${Memcached_SOURCE_DIR}/utilities/string_utilities.cc)
 SET_TARGET_PROPERTIES(ep_testsuite PROPERTIES PREFIX "")
-TARGET_LINK_LIBRARIES(ep_testsuite engine_utilities couchstore dirutils JSON_checker platform
+TARGET_LINK_LIBRARIES(ep_testsuite engine_utilities ${EP_STORAGE_LIBS} dirutils JSON_checker platform
                       xattr
                       ${LIBEVENT_LIBRARIES})
 ADD_DEPENDENCIES(ep_testsuite engine_testapp)
@@ -553,6 +564,15 @@ FUNCTION(ADD_TESTSUITE name timeout)
              COMMAND ${_cmdline} -v -e "bucket_type=ephemeral$<SEMICOLON>dbname=./${name}.ephemeral.db")
     SET_TESTS_PROPERTIES(${name}.ephemeral PROPERTIES TIMEOUT ${timeout})
   ENDIF()
+
+  IF (EP_USE_ROCKSDB)
+    ADD_TEST(NAME ${name}.value_eviction.rocksdb
+             COMMAND ${_cmdline} -v -e "dbname=./${name}.value_eviction.rocksdb$<SEMICOLON>backend=rocksdb")
+    ADD_TEST(NAME ${name}.full_eviction.rocksdb
+             COMMAND ${_cmdline} -v -e "item_eviction_policy=full_eviction$<SEMICOLON>dbname=./${name}.full_eviction.rocksdb$<SEMICOLON>backend=rocksdb")
+    SET_TESTS_PROPERTIES(${name}.value_eviction.rocksdb PROPERTIES TIMEOUT ${timeout})
+    SET_TESTS_PROPERTIES(${name}.full_eviction.rocksdb PROPERTIES TIMEOUT ${timeout})
+  ENDIF (EP_USE_ROCKSDB)
 ENDFUNCTION()
 
 ADD_TESTSUITE(ep_testsuite 1800)
