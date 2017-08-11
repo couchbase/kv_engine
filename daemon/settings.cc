@@ -39,7 +39,6 @@ Settings settings;
  */
 Settings::Settings()
     : num_threads(0),
-      require_sasl(false),
       bio_drain_buffer_sz(0),
       datatype_json(false),
       datatype_snappy(false),
@@ -215,25 +214,6 @@ static void handle_require_init(Settings& s, cJSON* obj) {
     } else {
         throw std::invalid_argument(
             "\"require_init\" must be a boolean value");
-    }
-}
-
-/**
- * Handle the "require_sasl" tag in the settings
- *
- *  The value must be a  value
- *
- * @param s the settings object to update
- * @param obj the object in the configuration
- */
-static void handle_require_sasl(Settings& s, cJSON* obj) {
-    if (obj->type == cJSON_True) {
-        s.setRequireSasl(true);
-    } else if (obj->type == cJSON_False) {
-        s.setRequireSasl(false);
-    } else {
-        throw std::invalid_argument(
-            "\"require_sasl\" must be a boolean value");
     }
 }
 
@@ -682,7 +662,6 @@ void Settings::reconfigure(const unique_cJSON_ptr& json) {
             {"interfaces", handle_interfaces},
             {"extensions", handle_extensions},
             {"require_init", handle_require_init},
-            {"require_sasl", handle_require_sasl},
             {"default_reqs_per_event", handle_reqs_event},
             {"reqs_per_event_high_priority", handle_reqs_event},
             {"reqs_per_event_med_priority", handle_reqs_event},
@@ -918,12 +897,6 @@ void Settings::updateSettings(const Settings& other, bool apply) {
     if (other.has.audit) {
         if (other.audit_file != audit_file) {
             throw std::invalid_argument("audit can't be changed dynamically");
-        }
-    }
-    if (other.has.require_sasl) {
-        if (other.require_sasl != require_sasl) {
-            throw std::invalid_argument(
-                "require_sasl can't be changed dynamically");
         }
     }
     if (other.has.bio_drain_buffer_sz) {

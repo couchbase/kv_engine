@@ -172,12 +172,6 @@ object describing a single extension with the following attributes:
 
 The *engine* parameter is no longer used and ignored.
 
-=== require_sasl
-
-The *require_sasl* attribute specify if performing SASL authentication
-is required or not. The value is a boolean value which is set to false
-by default.
-
 === default_reqs_per_event
 
 The *default_reqs_per_event* attribute is an integral value specifying
@@ -401,7 +395,6 @@ A Sample memcached.json:
             "module" : "bucket_engine.so",
             "config" : "admin=_admin;default_bucket_name=default;auto_create=false"
         },
-        "require_sasl" : false,
         "default_reqs_per_event" : 20,
         "reqs_per_event_high_priority" : 40,
         "reqs_per_event_med_priority" : 20,

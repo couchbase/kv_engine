@@ -541,7 +541,6 @@ static void settings_init(void) {
     settings.setVerbose(0);
     settings.setConnectionIdleTime(0); // Connection idle time disabled
     settings.setNumWorkerThreads(get_number_of_worker_threads());
-    settings.setRequireSasl(false);
     settings.extensions.logger = get_stderr_logger();
     settings.setDatatypeJsonEnabled(false);
     settings.setDatatypeSnappyEnabled(false);

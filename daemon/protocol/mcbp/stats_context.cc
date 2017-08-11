@@ -339,8 +339,6 @@ static void process_stat_settings(ADD_STAT add_stat_callback,
         add_stat(cookie, add_stat_callback, "auth_sasl_mechanisms", sasl_mechs);
     }
 
-    add_stat(cookie, add_stat_callback, "auth_required_sasl",
-             settings.isRequireSasl());
     {
         EXTENSION_DAEMON_DESCRIPTOR* ptr;
         for (ptr = settings.extensions.daemons; ptr != NULL; ptr = ptr->next) {

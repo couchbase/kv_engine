@@ -431,31 +431,6 @@ public:
     const std::string& getErrorMap(size_t version) const;
 
     /**
-     * Is SASL required or not
-     *
-     * When SASL is required all connections _MUST_ perform SASL authentication.
-     *
-     * @return true if the server is configured to always use SASL auth
-     */
-    bool isRequireSasl() const {
-        return require_sasl;
-    }
-
-    /**
-     * Set if SASL is required or not
-     *
-     * When SASL is required all connections _MUST_ perform SASL authentication.
-     *
-     * @param require_sasl true if the server should refuse to execute commands
-     *                     unless the connection performs a successful AUTH
-     */
-    void setRequireSasl(bool require_sasl) {
-        Settings::require_sasl = require_sasl;
-        has.require_sasl = true;
-        notify_changed("require_sasl");
-    }
-
-    /**
      * Get the verbosity level for the node
      *
      * @return the verbosity level
@@ -1050,11 +1025,6 @@ protected:
     std::string error_maps_dir;
 
     /**
-     * require SASL auth
-     */
-    bool require_sasl;
-
-    /**
      * level of versosity to log at.
      */
     std::atomic_int verbose;
@@ -1190,7 +1160,6 @@ public:
         bool interfaces;
         bool extensions;
         bool audit;
-        bool require_sasl;
         bool saslauthd_socketpath;
         bool reqs_per_event_high_priority;
         bool reqs_per_event_med_priority;

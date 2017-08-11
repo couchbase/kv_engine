@@ -159,7 +159,6 @@ TEST_P(StatsTest, TestSettings) {
               cJSON_GetObjectItem(stats.get(), "reqs_per_event_def_priority"));
     ASSERT_NE(nullptr, cJSON_GetObjectItem(stats.get(), "auth_enabled_sasl"));
     ASSERT_NE(nullptr, cJSON_GetObjectItem(stats.get(), "auth_sasl_engine"));
-    ASSERT_NE(nullptr, cJSON_GetObjectItem(stats.get(), "auth_required_sasl"));
 
     // skip extensions, loggers and daemons
 

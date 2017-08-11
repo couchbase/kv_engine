@@ -484,30 +484,6 @@ TEST_F(SettingsTest, RequireInit) {
     }
 }
 
-TEST_F(SettingsTest, RequireSasl) {
-    nonBooleanValuesShouldFail("require_sasl");
-
-    unique_cJSON_ptr obj(cJSON_CreateObject());
-    cJSON_AddTrueToObject(obj.get(), "require_sasl");
-    try {
-        Settings settings(obj);
-        EXPECT_TRUE(settings.isRequireSasl());
-        EXPECT_TRUE(settings.has.require_sasl);
-    } catch (std::exception& exception) {
-        FAIL() << exception.what();
-    }
-
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddFalseToObject(obj.get(), "require_sasl");
-    try {
-        Settings settings(obj);
-        EXPECT_FALSE(settings.isRequireSasl());
-        EXPECT_TRUE(settings.has.require_sasl);
-    } catch (std::exception& exception) {
-        FAIL() << exception.what();
-    }
-}
-
 TEST_F(SettingsTest, DefaultReqsPerEvent) {
     nonNumericValuesShouldFail("default_reqs_per_event");
 
@@ -1212,20 +1188,6 @@ TEST(SettingsUpdateTest, RequireInitIsNotDynamic) {
 
     // Changing it should fail
     updated.setRequireInit(!settings.isRequireInit());
-    EXPECT_THROW(settings.updateSettings(updated, false),
-                 std::invalid_argument);
-}
-
-TEST(SettingsUpdateTest, RequireSaslIsNotDynamic) {
-    Settings updated;
-    Settings settings;
-    // setting it to the same value should work
-    settings.setRequireSasl(true);
-    updated.setRequireSasl(settings.isRequireSasl());
-    EXPECT_NO_THROW(settings.updateSettings(updated, false));
-
-    // Changing it should fail
-    updated.setRequireSasl(!settings.isRequireSasl());
     EXPECT_THROW(settings.updateSettings(updated, false),
                  std::invalid_argument);
 }

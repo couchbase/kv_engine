@@ -71,29 +71,6 @@
 std::array<bool, 0x100>&  topkey_commands = get_mcbp_topkeys();
 std::array<mcbp_package_execute, 0x100>& executors = get_mcbp_executors();
 
-static bool authenticated(McbpConnection* c) {
-    bool rv;
-
-    switch (c->getCmd()) {
-    case PROTOCOL_BINARY_CMD_SASL_LIST_MECHS: /* FALLTHROUGH */
-    case PROTOCOL_BINARY_CMD_SASL_AUTH:       /* FALLTHROUGH */
-    case PROTOCOL_BINARY_CMD_SASL_STEP:       /* FALLTHROUGH */
-    case PROTOCOL_BINARY_CMD_VERSION:         /* FALLTHROUGH */
-    case PROTOCOL_BINARY_CMD_HELLO:
-        rv = true;
-        break;
-    default:
-        rv = c->isAuthenticated();
-    }
-
-    if (settings.getVerbose() > 1) {
-        LOG_DEBUG(c, "%u: authenticated() in cmd 0x%02x is %s",
-                  c->getId(), c->getCmd(), rv ? "true" : "false");
-    }
-
-    return rv;
-}
-
 /**
  * The current implementation of the core require the entire input buffer
  * to be present in (a continuous memory segment) before we can start
@@ -1333,10 +1310,6 @@ static cb::mcbp::Status validate_packet_execusion_constraints(
         McbpConnection* c) {
     if (!is_initialized(c, c->binary_header.request.opcode)) {
         return cb::mcbp::Status::NotInitialized;
-    }
-
-    if (settings.isRequireSasl() && !authenticated(c)) {
-        return cb::mcbp::Status::AuthError;
     }
 
     if (invalid_datatype(c)) {
