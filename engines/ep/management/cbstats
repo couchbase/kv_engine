@@ -343,6 +343,8 @@ def histograms(mc, raw_stats):
         label_func = time_label
         if k.endswith("Size") or k.endswith("Seek"):
             label_func = size_label
+        elif k.endswith("Count"):
+            label_func = no_label
         elif k in special_labels:
             label_func = special_labels[k]
 
