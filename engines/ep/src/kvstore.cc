@@ -270,14 +270,6 @@ void KVStore::addStats(ADD_STAT add_stat, const void *c) {
 }
 
 void KVStore::addTimingStats(ADD_STAT add_stat, const void *c) {
-
-    /* We don't support any timing stats for read-only instances
-     * at this point.
-     */
-    if (isReadOnly()) {
-        return;
-    }
-
     uint16_t shardId = configuration.getShardId();
     std::stringstream prefixStream;
 
