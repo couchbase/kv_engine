@@ -262,6 +262,18 @@ cb::EngineErrorItemPair bucket_allocate(McbpConnection* c,
                                   const rel_time_t exptime,
                                   uint8_t datatype,
                                   uint16_t vbucket) {
+
+    // MB-25650 - We've got a document of 0 byte value and claims to contain
+    //            xattrs.. that's not possible.
+    if (nbytes == 0 && !mcbp::datatype::is_raw(datatype)) {
+        LOG_INFO(c,
+                 "%u: %s: bucket_allocate: Can't set datatype to %s for a 0 sized body",
+                 c->getId(),
+                 c->getDescription().c_str(),
+                 mcbp::datatype::to_string(datatype).c_str());
+        return cb::makeEngineErrorItemPair(cb::engine_errc::invalid_arguments);
+    }
+
     auto ret = c->getBucketEngine()->allocate(c->getBucketEngineAsV0(),
                                               c->getCookie(),
                                               key,
@@ -287,6 +299,15 @@ std::pair<cb::unique_item_ptr, item_info> bucket_allocate_ex(McbpConnection& c,
                                                              const rel_time_t exptime,
                                                              uint8_t datatype,
                                                              uint16_t vbucket) {
+    // MB-25650 - We've got a document of 0 byte value and claims to contain
+    //            xattrs.. that's not possible.
+    if (nbytes == 0 && !mcbp::datatype::is_raw(datatype)) {
+        throw cb::engine_error(cb::engine_errc::invalid_arguments,
+                               "bucket_allocate_ex: Can't set datatype to " +
+                               mcbp::datatype::to_string(datatype) +
+                               " for a 0 sized body");
+    }
+
     try {
         return c.getBucketEngine()->allocate_ex(c.getBucketEngineAsV0(),
                                                 c.getCookie(),
