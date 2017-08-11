@@ -1335,7 +1335,7 @@ static cb::mcbp::Status validate_packet_execusion_constraints(
     return cb::mcbp::Status::Success;
 }
 
-void mcbp_complete_packet(McbpConnection* c) {
+void mcbp_execute_packet(McbpConnection* c) {
     if (c->binary_header.request.magic == PROTOCOL_BINARY_RES) {
         execute_response_packet(c);
     } else {

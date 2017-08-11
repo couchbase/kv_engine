@@ -305,7 +305,7 @@ bool conn_execute(McbpConnection *c) {
     c->setEwouldblock(false);
     bool block = false;
 
-    mcbp_complete_packet(c);
+    mcbp_execute_packet(c);
 
     if (c->isEwouldblock()) {
         c->unregisterEvent();
