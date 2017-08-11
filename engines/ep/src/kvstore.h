@@ -340,7 +340,9 @@ public:
       io_read_bytes(0),
       io_write_bytes(0),
       readSizeHisto(ExponentialGenerator<size_t>(1, 2), 25),
-      writeSizeHisto(ExponentialGenerator<size_t>(1, 2), 25) {
+      writeSizeHisto(ExponentialGenerator<size_t>(1, 2), 25),
+      getMultiFsReadHisto(ExponentialGenerator<uint32_t>(6, 1.2), 50),
+      getMultiFsReadPerDocHisto(ExponentialGenerator<uint32_t>(6, 1.2),50) {
     }
 
     KVStoreStats(const KVStoreStats &copyFrom) {}
@@ -366,6 +368,8 @@ public:
         commitHisto.reset();
         saveDocsHisto.reset();
         batchSize.reset();
+        getMultiFsReadHisto.reset();
+        getMultiFsReadPerDocHisto.reset();
         fsStats.reset();
     }
 
@@ -417,6 +421,15 @@ public:
     Histogram<size_t> batchSize;
     //Time spent in vbucket snapshot
     Histogram<hrtime_t> snapshotHisto;
+
+    // Count and histogram filesystem read()s per getMulti() request
+    size_t getMultiFsReadCount;
+    Histogram<uint32_t> getMultiFsReadHisto;
+
+    // Histogram of filesystem read()s per getMulti() request, divided by
+    // the number of documents fetched; gives an average read() count
+    // per fetched document.
+    Histogram<uint32_t> getMultiFsReadPerDocHisto;
 
     // Stats from the underlying OS file operations
     FileStats fsStats;

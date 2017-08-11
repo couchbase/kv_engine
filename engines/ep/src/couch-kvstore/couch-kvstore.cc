@@ -580,6 +580,16 @@ void CouchKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms) {
             item.second.value.setStatus(couchErr2EngineErr(errCode));
         }
     }
+
+    // If available, record how many reads() we did for this getMulti;
+    // and the average reads per document.
+    auto* stats = couchstore_get_db_filestats(db);
+    if (stats != nullptr) {
+        const auto readCount = stats->getReadCount();
+        st.getMultiFsReadHisto.add(readCount);
+        st.getMultiFsReadPerDocHisto.add(readCount / itms.size());
+    }
+
     closeDatabaseHandle(db);
     delete []ids;
 }

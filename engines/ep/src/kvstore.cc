@@ -290,6 +290,13 @@ void KVStore::addTimingStats(ADD_STAT add_stat, const void *c) {
     addStat(prefix, "writeSize",   st.writeSizeHisto,   add_stat, c);
     addStat(prefix, "bulkSize",    st.batchSize,        add_stat, c);
 
+    addStat(prefix, "getMultiFsReadCount", st.getMultiFsReadHisto, add_stat, c);
+    addStat(prefix,
+            "getMultiFsReadPerDocCount",
+            st.getMultiFsReadPerDocHisto,
+            add_stat,
+            c);
+
     //file ops stats
     addStat(prefix, "fsReadTime",  st.fsStats.readTimeHisto,  add_stat, c);
     addStat(prefix, "fsWriteTime", st.fsStats.writeTimeHisto, add_stat, c);

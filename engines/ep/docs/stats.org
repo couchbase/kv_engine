@@ -1046,6 +1046,8 @@ The following stats are available for the CouchStore database engine:
 | io_compaction_write_bytes | Number of bytes written (compaction only, includes Couchstore B-Tree and other overheads) |
 | block_cache_hits          | Number of block cache hits in buffer cache provided by underlying store                   |
 | block_cache_misses        | Number of block cache misses in buffer cache provided by underlying store                 |
+| getMultiFsReadCount       | Number of filesystem read()s per getMulti() request                                       |
+| getMultiFsReadPerDocCount | Number of filesystem read()s per getMulti() request, divided by the number of documents fetched; gives an average read() count per fetched document |
 
 ** KV Store Timing Stats
 
