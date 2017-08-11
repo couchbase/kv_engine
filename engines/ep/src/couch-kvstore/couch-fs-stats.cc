@@ -31,7 +31,9 @@ StatsOps::StatFile::StatFile(FileOpsInterface* _orig_ops,
                              cs_off_t _last_offs)
     : orig_ops(_orig_ops),
       orig_handle(_orig_handle),
-      last_offs(_last_offs) {
+      last_offs(_last_offs),
+      read_count_since_open(0),
+      write_count_since_open(0) {
 }
 
 couch_file_handle StatsOps::constructor(couchstore_error_info_t *errinfo) {
@@ -47,12 +49,24 @@ couchstore_error_t StatsOps::open(couchstore_error_info_t* errinfo,
                                   const char* path,
                                   int flags) {
     StatFile* sf = reinterpret_cast<StatFile*>(*h);
+    sf->read_count_since_open = 0;
+    sf->write_count_since_open = 0;
     return sf->orig_ops->open(errinfo, &sf->orig_handle, path, flags);
 }
 
 couchstore_error_t StatsOps::close(couchstore_error_info_t* errinfo,
                                    couch_file_handle h) {
     StatFile* sf = reinterpret_cast<StatFile*>(h);
+    // Add to histograms - we can have zero read (open, goto_eof and close for
+    // size; or on error); or zero write (read-only activity) - so only added if
+    // counts are non-zero.
+    if (sf->read_count_since_open > 0) {
+        stats.readCountHisto.add(sf->read_count_since_open);
+    }
+    if (sf->write_count_since_open > 0) {
+        stats.writeCountHisto.add(sf->write_count_since_open);
+    }
+
     return sf->orig_ops->close(errinfo, sf->orig_handle);
 }
 
@@ -72,6 +86,7 @@ ssize_t StatsOps::pread(couchstore_error_info_t* errinfo,
                                          sz, off);
     if (result > 0) {
         stats.totalBytesRead += result;
+        ++sf->read_count_since_open;
     }
     return result;
 }
@@ -88,6 +103,7 @@ ssize_t StatsOps::pwrite(couchstore_error_info_t*errinfo,
                                           sz, off);
     if (result > 0) {
         stats.totalBytesWritten += result;
+        ++sf->write_count_since_open;
     }
     return result;
 }

@@ -297,6 +297,8 @@ void KVStore::addTimingStats(ADD_STAT add_stat, const void *c) {
     addStat(prefix, "fsReadSize",  st.fsStats.readSizeHisto,  add_stat, c);
     addStat(prefix, "fsWriteSize", st.fsStats.writeSizeHisto, add_stat, c);
     addStat(prefix, "fsReadSeek",  st.fsStats.readSeekHisto,  add_stat, c);
+    addStat(prefix, "fsReadCount", st.fsStats.readCountHisto, add_stat, c);
+    addStat(prefix, "fsWriteCount", st.fsStats.writeCountHisto, add_stat, c);
 }
 
 void KVStore::optimizeWrites(std::vector<queued_item>& items) {

@@ -78,6 +78,11 @@ protected:
         FileOpsInterface* orig_ops;
         couch_file_handle orig_handle;
         cs_off_t last_offs;
+
+        /// Number of read() calls against this file since it was last opened.
+        size_t read_count_since_open;
+        /// Number of write() calls against this file since it was last opened.
+        size_t write_count_since_open;
     };
 };
 

@@ -283,6 +283,8 @@ public:
         readSeekHisto(ExponentialGenerator<size_t>(1, 2), 50),
         readSizeHisto(ExponentialGenerator<size_t>(1, 2), 25),
         writeSizeHisto(ExponentialGenerator<size_t>(1, 2), 25),
+        readCountHisto(ExponentialGenerator<uint32_t>(2, 1.333), 50),
+        writeCountHisto(ExponentialGenerator<uint32_t>(2, 1.333), 50),
         totalBytesRead(0),
         totalBytesWritten(0) { }
 
@@ -298,6 +300,10 @@ public:
     Histogram<size_t> writeSizeHisto;
     //Time spent in sync
     Histogram<hrtime_t> syncTimeHisto;
+    // Read count per open() / close() pair
+    Histogram<uint32_t> readCountHisto;
+    // Write count per open() / close() pair
+    Histogram<uint32_t> writeCountHisto;
 
     // total bytes read from disk.
     std::atomic<size_t> totalBytesRead;
@@ -311,6 +317,8 @@ public:
         writeTimeHisto.reset();
         writeSizeHisto.reset();
         syncTimeHisto.reset();
+        readCountHisto.reset();
+        writeCountHisto.reset();
         totalBytesRead = 0;
         totalBytesWritten = 0;
     }
