@@ -1,7 +1,9 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 import clitool
 import cli_auth_utils
+import codecs
 import datetime
 import inspect
 import itertools
@@ -28,12 +30,18 @@ BIG_VALUE = 2 ** 60
 SMALL_VALUE = - (2 ** 60)
 
 output_json = False
+force_utf8 = False
 
 def cmd(f):
     f = cli_auth_utils.cmd_decorator(f)
     def g(*args, **kwargs):
         global output_json
         output_json = kwargs.pop('json', None)
+        global force_utf8
+        force_utf8 = kwargs.pop('force_utf8', None)
+        if force_utf8:
+            sys.stdout = codecs.getwriter('utf-8')(sys.stdout)
+
         f(*args, **kwargs)
     return g
 
@@ -328,6 +336,9 @@ def histograms(mc, raw_stats):
         except:
             return 79
 
+    def useUTF8():
+        return force_utf8 or sys.stdout.encoding == 'UTF-8'
+
     special_labels = {'item_alloc_sizes': size_label,
                       'bg_batch_size' : no_label,
                       'paged_out_time': sec_label}
@@ -373,10 +384,22 @@ def histograms(mc, raw_stats):
             toprint  = "    %s : (%6.02f%%) %s" % \
                        (dp['label'].ljust(max_label_len), pcnt,
                        str(dp['value']).rjust(widestval))
+            print toprint,
 
+            # Render a horizontal bar to represent the size of this value.
+            # If available use UTF8 symbols as they give a higher resolution.
             remaining = termWidth() - len(toprint) - 2
             lpcnt = float(dp['value']) / total
-            print "%s %s" % (toprint, '#' * int(lpcnt * remaining))
+            bar_len = lpcnt * remaining;
+            whole_blocks = int(bar_len);
+            if useUTF8():
+                eighths = int((bar_len - whole_blocks) * 8)
+                spark_chars = u" ▏▎▍▌▋▊▉"
+                print "%s%s" % (u'█' * whole_blocks,
+                                spark_chars[eighths])
+            else:
+                print ('#' * whole_blocks)
+
         print "    %s : (%s)" % ("Avg".ljust(max_label_len),
                                 dp['lb_fun'](avg).rjust(7))
 
@@ -757,6 +780,7 @@ def main():
     c.addCommand('warmup', stats_warmup, 'warmup')
     c.addCommand('uuid', stats_uuid, 'uuid')
     c.addFlag('-j', 'json', 'output the results in json format')
+    c.addFlag('-8', 'force_utf8', 'Force use of UTF8 symbols in output')
 
     c.execute()
 
