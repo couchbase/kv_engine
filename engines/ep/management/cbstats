@@ -362,7 +362,7 @@ def histograms(mc, raw_stats):
         max_label_len = max([len(stat['label']) for stat in data_points])
         widestval = len(str(max([stat['value'] for stat in data_points])))
         total = sum([stat['value'] for stat in data_points])
-        avg = sum([((x['end'] - x['start']) * x['value']) for x in data_points]) / total
+        avg = sum([x['start'] * x['value'] for x in data_points]) / total
 
         print " %s (%d total)" % (name, total)
 
