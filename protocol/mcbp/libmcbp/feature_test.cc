@@ -29,7 +29,8 @@ const std::map<cb::mcbp::Feature, std::string> blueprint = {
          {cb::mcbp::Feature::SELECT_BUCKET, "Select Bucket"},
          {cb::mcbp::Feature::COLLECTIONS, "COLLECTIONS"},
          {cb::mcbp::Feature::SNAPPY, "SNAPPY"},
-         {cb::mcbp::Feature::JSON, "JSON"}}};
+         {cb::mcbp::Feature::JSON, "JSON"},
+         {cb::mcbp::Feature::Duplex, "Duplex"}}};
 
 TEST(to_string, LegalValues) {
     for (const auto& entry : blueprint) {

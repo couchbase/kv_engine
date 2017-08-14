@@ -34,6 +34,7 @@ bool Datatype::isSupported(cb::mcbp::Feature feature) {
     case cb::mcbp::Feature::SELECT_BUCKET:
     case cb::mcbp::Feature::COLLECTIONS:
     case cb::mcbp::Feature::Invalid:
+    case cb::mcbp::Feature::Duplex:
         throw std::invalid_argument("Datatype::isSupported invalid feature:" +
                                     std::to_string(int(feature)));
     }
@@ -51,6 +52,7 @@ void Datatype::enable(cb::mcbp::Feature feature) {
     case cb::mcbp::Feature::SNAPPY:
         enabled |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
         break;
+    case cb::mcbp::Feature::Duplex:
     case cb::mcbp::Feature::TLS:
     case cb::mcbp::Feature::TCPNODELAY:
     case cb::mcbp::Feature::MUTATION_SEQNO:

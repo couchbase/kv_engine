@@ -43,6 +43,8 @@ std::string to_string(cb::mcbp::Feature feature) {
         return "SNAPPY";
     case cb::mcbp::Feature::JSON:
         return "JSON";
+    case cb::mcbp::Feature::Duplex:
+        return "Duplex";
     }
 
     throw std::invalid_argument(

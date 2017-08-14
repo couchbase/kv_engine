@@ -42,7 +42,8 @@ enum class Feature : uint16_t {
     SELECT_BUCKET = 0x08,
     COLLECTIONS = 0x09,
     SNAPPY = 0x0a,
-    JSON = 0x0b
+    JSON = 0x0b,
+    Duplex = 0x0c
 };
 
 } // namespace mcbp

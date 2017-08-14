@@ -63,6 +63,7 @@ void process_hello_packet_executor(McbpConnection* c, void* packet) {
         switch (feature) {
         case cb::mcbp::Feature::Invalid:
         case cb::mcbp::Feature::TLS:
+        case cb::mcbp::Feature::Duplex:
             /* Not implemented */
             break;
         case cb::mcbp::Feature::TCPNODELAY:
