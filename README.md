@@ -47,6 +47,7 @@ built via the Couchbase
 
 * [Memcached Binary Protocol](docs/BinaryProtocol.md)
     * [SASL](docs/sasl.md)
+    * [Duplex mode](docs/Duplex.md)
 
 ### Policies / Guidelines
 
