@@ -1509,12 +1509,17 @@ The following features is defined:
 | 0x0006 | XATTR |
 | 0x0007 | XERROR |
 | 0x0008 | Select bucket |
-| 0x0009 | Duplex |
+| 0x0009 | Collections |
+| 0x000a | Snappy |
+| 0x000b | JSON |
+| 0x000c | Duplex |
 
 * `Datatype` - The client understands the 'non-null' values in the
   [datatype field](#data-types). The server expects the client to fill
    in the correct values in the datatype field, and accepts that the server
    returns the value encoded as specified in the datatype field.
+   This value is no longer used by the server and replaced with with
+   individual features for the various data types to use.
 * `TLS` - The client wants to TLS and send STARTTLS
 * `TCP Nodelay` - The client requests the server to set TCP NODELAY on the
   socket used by this connection.
@@ -1535,6 +1540,18 @@ The following features is defined:
                     (select bucket was a privileged command pre-spock. In
                     spock all users may run select bucket, but only to a
                     bucket they have access to).
+* `Collections` - The client wants to enable support for Collections
+* `Snappy` - The client wants to enable support for Snappy compression. A
+             client with support for Snappy compression must update the
+             datatype filed in the requests with the bit representing
+             SNAPPY when sending snappy compressed data to the server.
+             It _must_ be able to receive data from the server compressed
+             with SNAPPY identified by the bit being set in the datatype
+             field.
+* `JSON` - The client wants to enable support for JSON. The client _must_
+           set this bit when storing JSON documents on the server. The server
+           will set the appropriate bit in the datatype field when returning
+           such documents to the client.
 * `Duplex` - The client allows for full duplex on the socket. This means
              that the server may send requests back to the client.
              These messages is identified by the magic values of
