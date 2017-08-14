@@ -27,6 +27,9 @@
 #include "tests/mock/mock_synchronous_ep_engine.h"
 
 #include <gtest/gtest.h>
+#include <string_utilities.h>
+#include <xattr/blob.h>
+#include <xattr/utils.h>
 
 /**
  * Test fixture for KVBucket tests running in single-threaded mode.
@@ -573,7 +576,97 @@ TEST_P(STExpiryPagerTest, MB_25650) {
 
     ASSERT_EQ(ENGINE_SUCCESS, item.getStatus());
     EXPECT_TRUE(mcbp::datatype::is_xattr(item.item->getDataType()));
-    EXPECT_NE(0, item.item->getNBytes());
+    ASSERT_NE(0, item.item->getNBytes());
+    auto p = reinterpret_cast<const uint8_t*>(item.item->getData());
+    cb::xattr::Blob blob({const_cast<uint8_t*>(p), item.item->getNBytes()});
+
+    EXPECT_EQ(0, blob.get("user").size());
+    EXPECT_EQ(0, blob.get("meta").size());
+    ASSERT_NE(0, blob.get("_sync").size());
+    EXPECT_STREQ("{\"cas\":\"0xdeadbeefcafefeed\"}",
+                 reinterpret_cast<char*>(blob.get("_sync").data()));
+}
+
+// Test that when an expired system-xattr document is fetched with getMeta
+// deleteWithMeta can be successfully invoked
+TEST_P(STExpiryPagerTest, MB_25671) {
+    expiredItemsDeleted();
+    auto vb = store->getVBucket(vbid);
+
+    // key_1 has been expired
+    auto key_1 = makeStoredDocKey("key_1");
+    ItemMetaData metadata;
+    uint32_t deleted = 0;
+    uint8_t datatype = 0;
+
+    // ephemeral will succeed as there is nothing to fetch.
+    ENGINE_ERROR_CODE err = std::get<0>(GetParam()) == "persistent"
+                                    ? ENGINE_EWOULDBLOCK
+                                    : ENGINE_SUCCESS;
+
+    // Bring the deleted key back with a getMeta call
+    EXPECT_EQ(err,
+              store->getMetaData(
+                      key_1, vbid, cookie, metadata, deleted, datatype));
+    if (std::get<0>(GetParam()) == "persistent") {
+        runBGFetcherTask();
+        EXPECT_EQ(ENGINE_SUCCESS,
+                  store->getMetaData(
+                          key_1, vbid, cookie, metadata, deleted, datatype));
+    }
+
+    uint64_t cas = -1;
+    metadata.flags = 0xf00f0088;
+    metadata.cas = 0xbeeff00dcafe1234ull;
+    metadata.revSeqno = 0xdad;
+    metadata.exptime = 0xfeedface;
+    PermittedVBStates vbstates(vbucket_state_active);
+    auto deleteWithMeta = std::bind(&KVBucketIface::deleteWithMeta,
+                                    store,
+                                    key_1,
+                                    cas,
+                                    nullptr,
+                                    vbid,
+                                    cookie,
+                                    vbstates,
+                                    CheckConflicts::No,
+                                    metadata,
+                                    false,
+                                    GenerateBySeqno::No,
+                                    GenerateCas::No,
+                                    0,
+                                    nullptr,
+                                    false);
+    // Prior to the MB fix - this would crash.
+    EXPECT_EQ(err, deleteWithMeta());
+
+    get_options_t options =
+            static_cast<get_options_t>(QUEUE_BG_FETCH | GET_DELETED_VALUE);
+    if (std::get<0>(GetParam()) == "persistent") {
+        runBGFetcherTask();
+        EXPECT_EQ(ENGINE_SUCCESS, deleteWithMeta());
+        EXPECT_EQ(ENGINE_EWOULDBLOCK,
+                  store->get(key_1, vbid, nullptr, options).getStatus());
+        runBGFetcherTask();
+    }
+
+    auto item = store->get(key_1, vbid, nullptr, options);
+    ASSERT_EQ(ENGINE_SUCCESS, item.getStatus());
+    EXPECT_TRUE(item.item->isDeleted()) << "Not deleted " << *item.item;
+    ASSERT_NE(0, item.item->getNBytes()) << "No value " << *item.item;
+
+    auto p = reinterpret_cast<const uint8_t*>(item.item->getData());
+    cb::xattr::Blob blob({const_cast<uint8_t*>(p), item.item->getNBytes()});
+
+    EXPECT_EQ(0, blob.get("user").size());
+    EXPECT_EQ(0, blob.get("meta").size());
+    ASSERT_NE(0, blob.get("_sync").size());
+    EXPECT_STREQ("{\"cas\":\"0xdeadbeefcafefeed\"}",
+                 reinterpret_cast<char*>(blob.get("_sync").data()));
+    EXPECT_EQ(metadata.flags, item.item->getFlags());
+    EXPECT_EQ(metadata.exptime, item.item->getExptime());
+    EXPECT_EQ(metadata.cas, item.item->getCas());
+    EXPECT_EQ(metadata.revSeqno, item.item->getRevSeqno());
 }
 
 // TODO: Ideally all of these tests should run with or without jemalloc,
