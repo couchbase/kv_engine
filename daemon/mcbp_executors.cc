@@ -1286,15 +1286,37 @@ static void execute_response_packet(McbpConnection* c) {
     }
 }
 
+/**
+ * Check if the server is initialized or not for a given connection.
+ *
+ * The server should deny "normal" clients to execute commands until ns_server
+ * told us that it is done with all initialization code for this node and
+ * clients should be accepted.
+ *
+ * All clients should be able to try to run SASL authentication, so that
+ * we can allow @ns_server to connect
+ *
+ * Clients must be able to run HELLO to allow for XERROR
+ *
+ * @param c The client connection to requesting access
+ * @param opcode The requested access
+ * @return true if the server is considered initialized in this context
+ */
 static inline bool is_initialized(McbpConnection* c, uint8_t opcode) {
     if (c->isInternal() || is_server_initialized()) {
         return true;
     }
 
     switch (opcode) {
-    case PROTOCOL_BINARY_CMD_SASL_LIST_MECHS:
-    case PROTOCOL_BINARY_CMD_SASL_AUTH:
-    case PROTOCOL_BINARY_CMD_SASL_STEP:
+    case PROTOCOL_BINARY_CMD_HELLO:
+    // Clients should be able to enable xerror
+    // FALLTHROUGH
+    case PROTOCOL_BINARY_CMD_GET_ERROR_MAP:
+    // Clients should be able to fetch the errormap
+    // FALLTHROUGH
+    case PROTOCOL_BINARY_CMD_SASL_LIST_MECHS: // FALLTHROUGH
+    case PROTOCOL_BINARY_CMD_SASL_AUTH: // FALLTHROUGH
+    case PROTOCOL_BINARY_CMD_SASL_STEP: // FALLTHROUGH
         return true;
     default:
         return false;

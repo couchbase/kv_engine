@@ -132,6 +132,12 @@ TEST_F(RequireInitTest, UserPortsNotPresent) {
 TEST_F(RequireInitTest, InitializeNotAuthorized) {
     auto& conn = connectionMap.getConnection(false);
 
+    // We should be able to enable XERROR via hello
+    conn.setXerrorSupport(true);
+
+    // And the error map
+    conn.getErrorMap();
+
     Frame frame;
     mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_INIT_COMPLETE, NULL, 0, NULL,
                      0);
