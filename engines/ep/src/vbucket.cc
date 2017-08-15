@@ -1333,12 +1333,19 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(const DocKey& key,
 
     MutationStatus delrv;
     boost::optional<VBNotifyCtx> notifyCtx;
+    bool metaBgFetch = true;
     if (!v) {
         if (eviction == FULL_EVICTION) {
             delrv = MutationStatus::NeedBgFetch;
         } else {
             delrv = MutationStatus::NotFound;
         }
+    } else if (v->isTempDeletedItem() &&
+               mcbp::datatype::is_xattr(v->getDatatype()) && !v->isResident()) {
+        // MB-25671: A temp deleted xattr with no value must be fetched before
+        // the deleteWithMeta can be applied.
+        delrv = MutationStatus::NeedBgFetch;
+        metaBgFetch = false;
     } else {
         VBQueueItemCtx queueItmCtx(genBySeqno,
                                    generateCas,
@@ -1352,6 +1359,9 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(const DocKey& key,
         std::unique_ptr<Item> itm;
         if (!isReplication && mcbp::datatype::is_xattr(v->getDatatype()) &&
             (itm = pruneXattrDocument(*v, itemMeta))) {
+            // A new item has been generated and must be given a new seqno
+            queueItmCtx.genBySeqno = GenerateBySeqno::Yes;
+
             std::tie(v, delrv, notifyCtx) =
                     updateStoredValue(hbl, *v, *itm, queueItmCtx);
         } else {
@@ -1388,7 +1398,7 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(const DocKey& key,
     }
     case MutationStatus::NeedBgFetch:
         hbl.getHTLock().unlock();
-        bgFetch(key, cookie, engine, bgFetchDelay, true);
+        bgFetch(key, cookie, engine, bgFetchDelay, metaBgFetch);
         return ENGINE_EWOULDBLOCK;
     }
     return ENGINE_SUCCESS;
@@ -2530,15 +2540,13 @@ std::unique_ptr<Item> VBucket::pruneXattrDocument(
                           const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(
                                   v.getValue()->getExtMeta())),
                           v.getValue()->getExtLen());
-
-        return std::make_unique<Item>(v.getKey(),
-                                      itemMeta.flags,
-                                      itemMeta.exptime,
-                                      newValue,
-                                      itemMeta.cas,
-                                      v.getBySeqno(),
-                                      getId(),
-                                      itemMeta.revSeqno);
+        auto rv = v.toItem(false, getId());
+        rv->setCas(itemMeta.cas);
+        rv->setFlags(itemMeta.flags);
+        rv->setExpTime(itemMeta.exptime);
+        rv->setRevSeqno(itemMeta.revSeqno);
+        rv->setValue(newValue);
+        return rv;
     } else {
         return {};
     }
