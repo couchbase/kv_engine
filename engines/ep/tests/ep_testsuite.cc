@@ -24,13 +24,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <chrono>
 #include <condition_variable>
 #include <cstdlib>
-#include <chrono>
-#include <iostream>
 #include <iomanip>
+#include <iostream>
 #include <map>
 #include <mutex>
+#include <regex>
 #include <set>
 #include <sstream>
 #include <string>
@@ -6943,8 +6944,19 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                              "ep_ephemeral_metadata_purge_interval"});
     }
 
+    // In addition to the exact stat keys above, we also use regex patterns
+    // for variable keys:
+    std::map<std::string, std::vector<std::regex> > statsPatterns{
+            {"hash", {std::regex{"vb_0:histo_\\d+,\\d+"}}},
+            {"kvstore",
+             {std::regex{"ro_[0-3]:readTime_\\d+,\\d+"},
+              std::regex{"ro_[0-3]:readSize_\\d+,\\d+"},
+              std::regex{"rw_[0-3]:readTime_\\d+,\\d+"},
+              std::regex{"rw_[0-3]:readSize_\\d+,\\d+"}}}};
+
     bool error = false;
-    for (const auto& entry : statsKeys) {
+    for (auto& entry : statsKeys) {
+        // Fetch the statistics for each group.
         vals.clear();
         checkeq(ENGINE_SUCCESS,
                 h1->get_stats(h, nullptr, entry.first.empty() ?
@@ -6952,30 +6964,65 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                               entry.first.size(), add_stats),
                 (std::string("Failed to get stats: ") + entry.first).c_str());
 
-        std::unordered_set<std::string> accountedFor;
-        for (const auto& key : entry.second) {
-            auto iter = vals.find(key);
-            if (iter == vals.end()) {
-                error = true;
-                fprintf(stderr, "Missing stat:  %s from stat group %s\n",
-                        key.c_str(),
-                        entry.first.c_str());
-            } else {
-                accountedFor.insert(key);
-            }
+        // Extract the keys from the fetched stats, and sort them.
+        std::vector<std::string> actual;
+        std::transform(
+                vals.begin(),
+                vals.end(),
+                std::back_inserter(actual),
+                [](const statistic_map::value_type& v) { return v.first; });
+
+        // Also sort the expected keys (required for set_difference).
+        auto& expected = entry.second;
+        std::sort(expected.begin(), expected.end());
+
+        // (A) Find any missing stats - those expected (in statsKeys) but not
+        // found in actual.
+        std::vector<std::string> missing;
+        std::set_difference(expected.begin(),
+                            expected.end(),
+                            actual.begin(),
+                            actual.end(),
+                            std::inserter(missing, missing.begin()));
+
+        for (const auto& key : missing) {
+            error = true;
+            fprintf(stderr,
+                    "Missing stat:  %s from stat group %s\n",
+                    key.c_str(),
+                    entry.first.c_str());
         }
 
-        if (entry.second.size() != vals.size()) {
-            fprintf(stderr,
-                    "Incorrect number of stats returned for stat group %s - expected:%lu actual:%lu\n"
-                    " Unexpected stats:\n",
-                    entry.first.c_str(), (unsigned long)entry.second.size(),
-                    (unsigned long)vals.size());
-            error = true;
-            for (const auto& statPair : vals) {
-                if (accountedFor.count(statPair.first) == 0) {
-                    fprintf(stderr, "  \"%s\",\n", statPair.first.c_str());
+        // (B) Find any extra stats - those in actual which are not in expected.
+        std::vector<std::string> extra;
+        std::set_difference(actual.begin(),
+                            actual.end(),
+                            expected.begin(),
+                            expected.end(),
+                            std::inserter(extra, extra.begin()));
+
+        for (const auto& key : extra) {
+            // We have extra key(s) which don't exactly match `expected`; see if
+            // there's a regex which matches before
+            // reporting an error.
+            bool matched = false;
+            const auto& group = entry.first;
+            const auto patterns = statsPatterns.find(group);
+            if (patterns != statsPatterns.end()) {
+                // We have regex(s), see if any match.
+                for (const auto& pattern : patterns->second) {
+                    if (std::regex_match(key, pattern)) {
+                        matched = true;
+                        break;
+                    }
                 }
+            }
+            if (!matched) {
+                error = true;
+                fprintf(stderr,
+                        "Unexpected stat: %s from stat group %s\n",
+                        key.c_str(),
+                        entry.first.c_str());
             }
         }
     }

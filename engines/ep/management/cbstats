@@ -373,12 +373,26 @@ def histograms(mc, raw_stats):
         max_label_len = max([len(stat['label']) for stat in data_points])
         widestval = len(str(max([stat['value'] for stat in data_points])))
         total = sum([stat['value'] for stat in data_points])
+        if not total:
+            # No non-zero datapoints; skip this histogram.
+            continue
         avg = sum([x['start'] * x['value'] for x in data_points]) / total
 
         print " %s (%d total)" % (name, total)
 
         total_seen = 0
+        non_zero_dp_seen = False
         for dp in sorted(data_points, key=lambda x: x['start']):
+            # Omit any leading zero count data points until we have encountered at
+            # least one non-zero datapoint.
+            if not dp['value'] and not non_zero_dp_seen:
+                continue
+
+            # Omit any trailing zero count data points.
+            if total_seen == total:
+                continue
+
+            non_zero_dp_seen = True
             total_seen += dp['value']
             pcnt = (total_seen * 100.0) / total
             toprint  = "    %s : (%6.02f%%) %s" % \

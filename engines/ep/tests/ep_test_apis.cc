@@ -57,7 +57,7 @@ struct {
     /* HistogramStats<T>* is supported C++14 onwards.
      * Until then use a separate ptr for each type.
      */
-    HistogramStats<int>* histogram_stat_int_value;
+    HistogramStats<uint64_t>* histogram_stat_int_value;
 } get_stat_context;
 
 bool dump_stats = false;
@@ -281,7 +281,7 @@ void add_individual_histo_stat(const char *key, const uint16_t klen,
         if ((std::string::npos == pos2) || (pos1 >= pos2)) {
             throw std::invalid_argument("Malformed histogram stat: " + key_str);
         }
-        int start = std::stoi(std::string(key_str, pos1, pos2));
+        auto start = std::stoull(std::string(key_str, pos1, pos2));
 
         /* Move next to ',' for starting character of bin_end */
         pos1 = pos2 + 1;
@@ -290,7 +290,7 @@ void add_individual_histo_stat(const char *key, const uint16_t klen,
         if (pos1 >= pos2) {
             throw std::invalid_argument("Malformed histogram stat: " + key_str);
         }
-        int end = std::stoi(std::string(key_str, pos1, pos2));
+        auto end = std::stoull(std::string(key_str, pos1, pos2));
         get_stat_context.histogram_stat_int_value->add_bin(start, end,
                                                            std::stoull(val));
     }
@@ -1253,7 +1253,7 @@ uint64_t get_histo_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 {
     std::lock_guard<std::mutex> lh(get_stat_context.mutex);
 
-    get_stat_context.histogram_stat_int_value = new HistogramStats<int>();
+    get_stat_context.histogram_stat_int_value = new HistogramStats<uint64_t>();
     get_histo_stat(h, h1, statname, statkey);
 
     /* Get the necessary info from the histogram */
