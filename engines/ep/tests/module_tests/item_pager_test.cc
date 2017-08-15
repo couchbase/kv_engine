@@ -19,6 +19,8 @@
  * Unit tests for Item Paging / Expiration.
  */
 
+#include "../mock/mock_global_task.h"
+#include "bgfetcher.h"
 #include "ep_time.h"
 #include "evp_store_single_threaded_test.h"
 #include "test_helpers.h"
@@ -435,19 +437,24 @@ protected:
         EXPECT_EQ(0, lpNonioQ.getReadyQueueSize());
         EXPECT_EQ(initialNonIoTasks, lpNonioQ.getFutureQueueSize());
     }
+
+    void expiredItemsDeleted();
 };
 
-// Test that when the expiry pager runs, all expired items are deleted.
-TEST_P(STExpiryPagerTest, ExpiredItemsDeleted) {
-
+void STExpiryPagerTest::expiredItemsDeleted() {
     // Populate bucket with three documents - one with no expiry, one with an
     // expiry in 10 seconds, and one with an expiry in 20 seconds.
-    const std::string value(512, 'x'); // 512B value to use for documents.
+    std::string value = createXattrValue("body");
     for (size_t ii = 0; ii < 3; ii++) {
         auto key = makeStoredDocKey("key_" + std::to_string(ii));
         const uint32_t expiry =
                 ii > 0 ? ep_abs_time(ep_current_time() + ii * 10) : 0;
-        auto item = make_item(vbid, key, value, expiry);
+        auto item = make_item(
+                vbid,
+                key,
+                value,
+                expiry,
+                PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_XATTR);
         ASSERT_EQ(ENGINE_SUCCESS, storeItem(item));
     }
 
@@ -518,6 +525,55 @@ TEST_P(STExpiryPagerTest, ExpiredItemsDeleted) {
     EXPECT_EQ(ENGINE_KEY_ENOENT,
               store->get(key_2, vbid, nullptr, get_options_t()).getStatus())
     << "Key with TTL:20 should be removed.";
+}
+
+// Test that when the expiry pager runs, all expired items are deleted.
+TEST_P(STExpiryPagerTest, ExpiredItemsDeleted) {
+    expiredItemsDeleted();
+}
+
+// Test that when an expired system-xattr document is fetched with getMeta
+// it can be successfully expired again
+TEST_P(STExpiryPagerTest, MB_25650) {
+    expiredItemsDeleted();
+
+    auto key_1 = makeStoredDocKey("key_1");
+    ItemMetaData metadata;
+    uint32_t deleted;
+    uint8_t datatype;
+    store->getMetaData(key_1, vbid, cookie, metadata, deleted, datatype);
+    if (std::get<0>(GetParam()) == "persistent") {
+        // Manually run the bgfetch task.
+        MockGlobalTask mockTask(engine->getTaskable(),
+                                TaskId::MultiBGFetcherTask);
+        store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+    }
+
+    store->getMetaData(key_1, vbid, cookie, metadata, deleted, datatype);
+
+    // Original bug is that we would segfault running the pager here
+    wakeUpExpiryPager();
+
+    ENGINE_ERROR_CODE err = std::get<0>(GetParam()) == "persistent"
+                                    ? ENGINE_EWOULDBLOCK
+                                    : ENGINE_SUCCESS;
+    get_options_t options =
+            static_cast<get_options_t>(QUEUE_BG_FETCH | GET_DELETED_VALUE);
+    EXPECT_EQ(err, store->get(key_1, vbid, nullptr, options).getStatus())
+            << "Key with TTL:10 should be removed.";
+
+    // Verify that the xattr body still exists.
+    if (std::get<0>(GetParam()) == "persistent") {
+        // Manually run the bgfetch task.
+        MockGlobalTask mockTask(engine->getTaskable(),
+                                TaskId::MultiBGFetcherTask);
+        store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+    }
+    auto item = store->get(key_1, vbid, nullptr, GET_DELETED_VALUE);
+
+    ASSERT_EQ(ENGINE_SUCCESS, item.getStatus());
+    EXPECT_TRUE(mcbp::datatype::is_xattr(item.item->getDataType()));
+    EXPECT_NE(0, item.item->getNBytes());
 }
 
 // TODO: Ideally all of these tests should run with or without jemalloc,

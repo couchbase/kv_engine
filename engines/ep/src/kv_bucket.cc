@@ -586,17 +586,19 @@ void KVBucket::deleteExpiredItem(Item& it,
     VBucketPtr vb = getVBucket(it.getVBucketId());
 
     if (vb) {
-        auto info = it.toItemInfo(vb->failovers->getLatestUUID(),
-                                  vb->getHLCEpochSeqno());
-        if (engine.getServerApi()->document->pre_expiry(info)) {
-            // The payload is modified and contains data we should use
-            value_t value(Blob::New(static_cast<char*>(info.value[0].iov_base),
-                                    info.value[0].iov_len,
-                                    &info.datatype, 1));
-            it.setValue(value);
-        } else {
-            // We should drop the entire body
-            it.setValue({});
+        // Ignore items which have been created from temp items (negative seqno)
+        if (it.getBySeqno() >= 0) {
+            auto info = it.toItemInfo(vb->failovers->getLatestUUID(),
+                                      vb->getHLCEpochSeqno());
+            if (engine.getServerApi()->document->pre_expiry(info)) {
+                // The payload is modified and contains data we should use
+                value_t value(
+                        Blob::New(static_cast<char*>(info.value[0].iov_base),
+                                  info.value[0].iov_len,
+                                  &info.datatype,
+                                  1));
+                it.setValue(value);
+            }
         }
 
         // Obtain reader access to the VB state change lock so that
