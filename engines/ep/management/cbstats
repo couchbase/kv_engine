@@ -369,7 +369,7 @@ def histograms(mc, raw_stats):
                              'lb_fun': label_func,
                              'value' : int(v)})
     
-    for name, data_points in histodata.items():
+    for name, data_points in sorted(histodata.items()):
         max_label_len = max([len(stat['label']) for stat in data_points])
         widestval = len(str(max([stat['value'] for stat in data_points])))
         total = sum([stat['value'] for stat in data_points])
