@@ -231,6 +231,16 @@ static void test_stored_doc(MemcachedConnection& conn,
 }
 
 TEST_P(ArithmeticTest, TestOperateOnStoredDocument) {
+#ifdef THREAD_SANITIZER
+    // This test takes ~20 secs under Thread sanitizer, and it is
+    // mostly here in order to validate that we correctly detect if
+    // we can perform incr/decr on a document stored in the cache
+    // (depending on the content being a legal value or not)
+    // To speed up CV, just run the test once and not for IPv6 + SSL ipv4&6
+    if (GetParam() != TransportProtocols::McbpPlain) {
+        return;
+    }
+#endif
     auto& conn = getConnection();
 
     // It is "allowed" for the value to be padded with whitespace
