@@ -146,12 +146,11 @@ GetValue RocksDBKVStore::get(const DocKey& key, uint16_t vb, bool fetchDelete) {
     return getWithHeader(nullptr, key, vb, GetMetaOnly::No, fetchDelete);
 }
 
-GetValue RocksDBKVStore::getWithHeader(
-        void* dbHandle,
-        const DocKey& key,
-        uint16_t vb,
-        GetMetaOnly getMetaOnly, // TODO RDB: get meta only
-        bool fetchDelete) {
+GetValue RocksDBKVStore::getWithHeader(void* dbHandle,
+                                       const DocKey& key,
+                                       uint16_t vb,
+                                       GetMetaOnly getMetaOnly,
+                                       bool fetchDelete) {
     std::string k(mkKeyStr(vb, key));
     std::string value;
 
@@ -160,7 +159,7 @@ GetValue RocksDBKVStore::getWithHeader(
     if (!s.ok()) {
         return GetValue{NULL, ENGINE_KEY_ENOENT};
     }
-    return makeGetValue(vb, key, value);
+    return makeGetValue(vb, key, value, getMetaOnly);
 }
 
 void RocksDBKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t& itms) {
@@ -171,7 +170,8 @@ void RocksDBKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t& itms) {
         std::string value;
         rocksdb::Status s = db->Get(rocksdb::ReadOptions(), vbAndKey, &value);
         if (s.ok()) {
-            it.second.value = makeGetValue(vb, key, value);
+            it.second.value =
+                    makeGetValue(vb, key, value, it.second.isMetaOnly);
             GetValue* rv = &it.second.value;
             for (auto& fetch : it.second.bgfetched_list) {
                 fetch->value = rv;
@@ -312,7 +312,8 @@ rocksdb::Slice RocksDBKVStore::mkValSlice(const Item& item) {
 
 std::unique_ptr<Item> RocksDBKVStore::grokValSlice(uint16_t vb,
                                                    const DocKey& key,
-                                                   const rocksdb::Slice& s) {
+                                                   const rocksdb::Slice& s,
+                                                   GetMetaOnly getMetaOnly) {
     // Reverse of mkValSlice - deserialize back into an Item.
 
     assert(s.size() >= sizeof(ItemMetaData) + sizeof(uint64_t) +
@@ -342,11 +343,13 @@ std::unique_ptr<Item> RocksDBKVStore::grokValSlice(uint16_t vb,
     uint8_t extMeta[EXT_META_LEN];
     extMeta[0] = datatype;
 
+    bool includeValue = getMetaOnly == GetMetaOnly::No && valueLen;
+
     auto item = std::make_unique<Item>(key,
                                        meta.flags,
                                        meta.exptime,
-                                       src,
-                                       valueLen,
+                                       includeValue ? src : nullptr,
+                                       includeValue ? valueLen : 0,
                                        extMeta,
                                        EXT_META_LEN,
                                        meta.cas,
@@ -363,9 +366,11 @@ std::unique_ptr<Item> RocksDBKVStore::grokValSlice(uint16_t vb,
 
 GetValue RocksDBKVStore::makeGetValue(uint16_t vb,
                                       const DocKey& key,
-                                      const std::string& value) {
+                                      const std::string& value,
+                                      GetMetaOnly getMetaOnly) {
     rocksdb::Slice sval(value);
-    return GetValue(grokValSlice(vb, key, sval), ENGINE_SUCCESS, -1, 0);
+    return GetValue(
+            grokValSlice(vb, key, sval, getMetaOnly), ENGINE_SUCCESS, -1, 0);
 }
 
 ScanContext* RocksDBKVStore::initScanContext(

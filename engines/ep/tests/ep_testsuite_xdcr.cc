@@ -2513,15 +2513,8 @@ BaseTestCase testsuite_testcases[] = {
         // XDCR unit tests
         TestCase("get meta", test_get_meta, test_setup,
                  teardown, NULL, prepare, cleanup),
-        TestCase("get meta with extras",
-                 test_get_meta_with_extras,
-                 test_setup,
-                 teardown,
-                 NULL,
-                 /* TODO RDB: Enable after making getMeta with
-                  * isMetaOnly not return value */
-                 prepare_skip_broken_under_rocks,
-                 cleanup),
+        TestCase("get meta with extras", test_get_meta_with_extras,
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("get meta deleted", test_get_meta_deleted,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("get meta nonexistent", test_get_meta_nonexistent,

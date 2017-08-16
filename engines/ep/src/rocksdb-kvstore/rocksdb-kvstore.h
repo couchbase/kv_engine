@@ -276,11 +276,13 @@ private:
     rocksdb::SliceParts mkValSliceParts(const Item& item);
     std::unique_ptr<Item> grokValSlice(uint16_t vb,
                                        const DocKey& key,
-                                       const rocksdb::Slice& s);
+                                       const rocksdb::Slice& s,
+                                       GetMetaOnly getMetaOnly);
 
     GetValue makeGetValue(uint16_t vb,
                           const DocKey& key,
-                          const std::string& value);
+                          const std::string& value,
+                          GetMetaOnly getMetaOnly = GetMetaOnly::No);
 
     void storeItem(const Item& item);
 
