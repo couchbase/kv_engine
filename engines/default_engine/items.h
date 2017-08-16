@@ -1,6 +1,9 @@
 #include "memcached/types.h"
-#include <string.h>
-#include <stddef.h>
+
+#include <atomic>
+#include <cstddef>
+#include <cstring>
+
 #include "default_engine_internal.h"
 
 #ifndef ITEMS_H
@@ -50,7 +53,7 @@ typedef struct _hash_item {
     uint16_t refcount;
 
     /** Intermal flags used by the engine.*/
-    uint8_t iflag;
+    std::atomic<uint8_t> iflag;
 
     /** which slab class we're in */
     uint8_t slabs_clsid;

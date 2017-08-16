@@ -1110,9 +1110,21 @@ static bool get_item_info(ENGINE_HANDLE *handle, const void *cookie,
 {
     hash_item* it = (hash_item*)item;
     const hash_key* key = item_get_key(it);
-
     auto* engine = get_handle(handle);
-    if ((it->iflag & ITEM_LINKED) && it->locktime != 0 &&
+
+    // This may potentially open up for a race, but:
+    // 1) If the item isn't linked anymore we don't need to mask
+    //    the CAS anymore. (if the client tries to use that
+    //    CAS it'll fail with an invalid cas)
+    // 2) In production the memcached buckets don't use the
+    //    ZOMBIE state (and if we start doing that, it is only
+    //    the owner of the item pointer (the one bumping the
+    //    refcount initially) which would change this. Anyone else
+    //    would create a new item object and set the iflag
+    //    to deleted.
+    const auto iflag = it->iflag.load(std::memory_order_relaxed);
+
+    if ((iflag & ITEM_LINKED) && it->locktime != 0 &&
         it->locktime > engine->server.core->get_current_time()) {
         // This object is locked. According to docs/Document.md we should
         // return -1 in such cases to hide the real CAS for the other clients
@@ -1134,7 +1146,7 @@ static bool get_item_info(ENGINE_HANDLE *handle, const void *cookie,
     item_info->value[0].iov_base = item_get_data(it);
     item_info->value[0].iov_len = it->nbytes;
     item_info->datatype = it->datatype;
-    if (it->iflag & ITEM_ZOMBIE) {
+    if (iflag & ITEM_ZOMBIE) {
         item_info->document_state = DocumentState::Deleted;
     } else {
         item_info->document_state = DocumentState::Alive;
