@@ -84,7 +84,6 @@ struct LIBEVENT_THREAD {
     ThreadType type;      /* Type of IO this thread processes */
 
     struct net_buf read; /** Shared read buffer for all connections serviced by this thread. */
-    struct net_buf write; /** Shared write buffer for all connections serviced by this thread. */
 
     subdoc_OPERATION* subdoc_op; /** Shared sub-document operation for all
                                      connections serviced by this thread. */

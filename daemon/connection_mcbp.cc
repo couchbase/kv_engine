@@ -771,6 +771,15 @@ McbpConnection::McbpConnection(SOCKET sfd, event_base *b)
     memset(&event, 0, sizeof(event));
     memset(&read, 0, sizeof(read));
     memset(&write, 0, sizeof(write));
+
+    write.buf = reinterpret_cast<char*>(cb_malloc(DATA_BUFFER_SIZE));
+    if (write.buf == nullptr) {
+        throw std::bad_alloc();
+    }
+    write.size = DATA_BUFFER_SIZE;
+    write.curr = write.buf;
+    write.bytes = 0;
+
     msglist.reserve(MSG_LIST_INITIAL);
 
     if (!initializeEvent()) {
@@ -820,6 +829,14 @@ McbpConnection::McbpConnection(SOCKET sfd,
     memset(&event, 0, sizeof(event));
     memset(&read, 0, sizeof(read));
     memset(&write, 0, sizeof(write));
+    write.buf = reinterpret_cast<char*>(cb_malloc(DATA_BUFFER_SIZE));
+    if (write.buf == nullptr) {
+        throw std::bad_alloc();
+    }
+    write.size = DATA_BUFFER_SIZE;
+    write.curr = write.buf;
+    write.bytes = 0;
+
     msglist.reserve(MSG_LIST_INITIAL);
 
     if (ifc.ssl.enabled) {

@@ -377,15 +377,6 @@ void conn_loan_buffers(Connection *connection) {
     } else if (res == BufferLoan::Existing) {
         ts->rbufs_existing++;
     }
-
-    res = conn_loan_single_buffer(c, &c->getThread()->write, &c->write);
-    if (res == BufferLoan::Allocated) {
-        ts->wbufs_allocated++;
-    } else if (res == BufferLoan::Loaned) {
-        ts->wbufs_loaned++;
-    } else if (res == BufferLoan::Existing) {
-        ts->wbufs_existing++;
-    }
 }
 
 void conn_return_buffers(Connection *connection) {
@@ -409,7 +400,6 @@ void conn_return_buffers(Connection *connection) {
     }
 
     conn_return_single_buffer(c, &thread->read, &c->read);
-    conn_return_single_buffer(c, &thread->write, &c->write);
 }
 
 /** Internal functions *******************************************************/
