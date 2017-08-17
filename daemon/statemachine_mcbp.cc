@@ -116,6 +116,8 @@ static void reset_cmd_handler(McbpConnection *c) {
     c->shrinkBuffers();
     if (c->read.bytes >= sizeof(c->binary_header)) {
         c->setState(conn_parse_cmd);
+    } else if (c->isSslEnabled()) {
+        c->setState(conn_read_packet_header);
     } else {
         c->setState(conn_waiting);
     }
