@@ -64,16 +64,20 @@ public:
                               couch_file_handle handle, cs_off_t offset,
                               cs_off_t len,
                               couchstore_file_advice_t advice) override;
+    FHStats* get_stats(couch_file_handle handle) override;
     void destructor(couch_file_handle handle) override;
 
 protected:
     FileStats& stats;
     FileOpsInterface& wrapped_ops;
 
-    struct StatFile {
+    struct StatFile : public FileOpsInterface::FHStats {
         StatFile(FileOpsInterface* _orig_ops,
                  couch_file_handle _orig_handle,
                  cs_off_t _last_offs);
+
+        size_t getReadCount() override;
+        size_t getWriteCount() override;
 
         FileOpsInterface* orig_ops;
         couch_file_handle orig_handle;

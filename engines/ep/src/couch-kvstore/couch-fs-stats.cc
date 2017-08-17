@@ -36,6 +36,14 @@ StatsOps::StatFile::StatFile(FileOpsInterface* _orig_ops,
       write_count_since_open(0) {
 }
 
+size_t StatsOps::StatFile::getReadCount() {
+    return read_count_since_open;
+}
+
+size_t StatsOps::StatFile::getWriteCount() {
+    return write_count_since_open;
+}
+
 couch_file_handle StatsOps::constructor(couchstore_error_info_t *errinfo) {
     FileOpsInterface* orig_ops = &wrapped_ops;
     StatFile* sf = new StatFile(orig_ops,
@@ -128,6 +136,12 @@ couchstore_error_t StatsOps::advise(couchstore_error_info_t* errinfo,
                                     couchstore_file_advice_t adv) {
     StatFile* sf = reinterpret_cast<StatFile*>(h);
     return sf->orig_ops->advise(errinfo, sf->orig_handle, offs, len, adv);
+}
+
+FileOpsInterface::FHStats* StatsOps::get_stats(couch_file_handle h) {
+    // StatFile implements FHStats interface directly.
+    StatFile* sf = reinterpret_cast<StatFile*>(h);
+    return sf;
 }
 
 void StatsOps::destructor(couch_file_handle h) {
