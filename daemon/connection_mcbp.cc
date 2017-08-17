@@ -780,7 +780,14 @@ McbpConnection::McbpConnection(SOCKET sfd, event_base* b)
       cookie(*this) {
     memset(&binary_header, 0, sizeof(binary_header));
     memset(&event, 0, sizeof(event));
-    memset(&read, 0, sizeof(read));
+    read.buf = reinterpret_cast<char*>(cb_malloc(DATA_BUFFER_SIZE));
+    if (read.buf == nullptr) {
+        throw std::bad_alloc();
+    }
+    read.size = DATA_BUFFER_SIZE;
+    read.curr = read.buf;
+    read.bytes = 0;
+
     msglist.reserve(MSG_LIST_INITIAL);
 
     if (!initializeEvent()) {
@@ -829,7 +836,13 @@ McbpConnection::McbpConnection(SOCKET sfd,
     }
     memset(&binary_header, 0, sizeof(binary_header));
     memset(&event, 0, sizeof(event));
-    memset(&read, 0, sizeof(read));
+    read.buf = reinterpret_cast<char*>(cb_malloc(DATA_BUFFER_SIZE));
+    if (read.buf == nullptr) {
+        throw std::bad_alloc();
+    }
+    read.size = DATA_BUFFER_SIZE;
+    read.curr = read.buf;
+    read.bytes = 0;
     msglist.reserve(MSG_LIST_INITIAL);
 
     if (ifc.ssl.enabled) {

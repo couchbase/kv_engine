@@ -568,7 +568,6 @@ void threads_cleanup(void)
         safe_close(threads[ii].notify[1]);
         event_base_free(threads[ii].base);
 
-        cb_free(threads[ii].read.buf);
         subdoc_op_free(threads[ii].subdoc_op);
         delete threads[ii].validator;
         delete threads[ii].new_conn_queue;
