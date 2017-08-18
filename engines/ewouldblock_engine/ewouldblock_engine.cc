@@ -295,6 +295,16 @@ public:
             ewb->ENGINE_HANDLE_V1::item_set_cas = ewb->real_engine->item_set_cas;
             ewb->ENGINE_HANDLE_V1::set_item_info = ewb->real_engine->set_item_info;
         }
+
+        // Register a callback on DISCONNECT events, so we can delete
+        // any stale elements from connection_map when a connection
+        // DC's.
+        real_api->callback->register_callback(
+                reinterpret_cast<ENGINE_HANDLE*>(ewb),
+                ON_DISCONNECT,
+                handle_disconnect,
+                reinterpret_cast<ENGINE_HANDLE*>(ewb));
+
         return res;
     }
 
@@ -695,6 +705,22 @@ public:
         return ENGINE_SUCCESS;
     }
 
+    static void handle_disconnect(const void* cookie,
+                                  ENGINE_EVENT_TYPE type,
+                                  const void* event_data,
+                                  const void* cb_data) {
+        cb_assert(event_data == NULL);
+        EWB_Engine* ewb =
+                reinterpret_cast<EWB_Engine*>(const_cast<void*>(cb_data));
+        auto logger = ewb->gsa()->log->get_logger();
+        logger->log(EXTENSION_LOG_DEBUG, NULL, "EWB_Engine::handle_disconnect");
+
+        uint64_t id = ewb->get_connection_id(cookie);
+        {
+            std::lock_guard<std::mutex> guard(ewb->cookie_map_mutex);
+            ewb->connection_map.erase(id);
+        }
+    }
 
     GET_SERVER_API gsa;
     union {
