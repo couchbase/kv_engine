@@ -29,6 +29,8 @@
 #include "settings.h"
 #include "ssl_utils.h"
 
+#include <mcbp/mcbp.h>
+
 // the global entry of the settings object
 Settings settings;
 
@@ -574,6 +576,19 @@ static void handle_collections_prototype(Settings& s, cJSON* obj) {
     }
 }
 
+static void handle_opcode_attributes_override(Settings& s, cJSON* obj) {
+    if (obj->type == cJSON_NULL) {
+        s.setOpcodeAttributesOverride("");
+        return;
+    }
+
+    if (obj->type != cJSON_Object) {
+        throw std::invalid_argument(
+                R"("opcode_attributes_override" must be an object)");
+    }
+    s.setOpcodeAttributesOverride(to_string(obj));
+}
+
 /**
  * Handle the "extensions" tag in the settings
  *
@@ -684,7 +699,8 @@ void Settings::reconfigure(const unique_cJSON_ptr& json) {
             {"dedupe_nmvb_maps", handle_dedupe_nmvb_maps},
             {"xattr_enabled", handle_xattr_enabled},
             {"client_cert_auth", handle_client_cert_auth},
-            {"collections_prototype", handle_collections_prototype}};
+            {"collections_prototype", handle_collections_prototype},
+            {"opcode_attributes_override", handle_opcode_attributes_override}};
 
     cJSON* obj = json->child;
     while (obj != nullptr) {
@@ -882,6 +898,29 @@ interface::interface(const cJSON* json)
     }
 }
 
+void Settings::setOpcodeAttributesOverride(
+        const std::string& opcode_attributes_override) {
+    if (!opcode_attributes_override.empty()) {
+        unique_cJSON_ptr json(cJSON_Parse(opcode_attributes_override.c_str()));
+        if (!json) {
+            throw std::invalid_argument(
+                    "Settings::setOpcodeAttributesOverride: Invalid JSON "
+                    "provided");
+        }
+
+        // Verify the content...
+        cb::mcbp::sla::reconfigure(*json, false);
+    }
+
+    {
+        std::lock_guard<std::mutex> guard(
+                Settings::opcode_attributes_override.mutex);
+        Settings::opcode_attributes_override.value = opcode_attributes_override;
+        has.opcode_attributes_override = true;
+    }
+    notify_changed("opcode_attributes_override");
+}
+
 void Settings::updateSettings(const Settings& other, bool apply) {
     if (other.has.rbac_file) {
         if (other.rbac_file != rbac_file) {
@@ -1019,7 +1058,6 @@ void Settings::updateSettings(const Settings& other, bool apply) {
     if (!apply) {
         return;
     }
-
 
     // Ok, go ahead and update the settings!!
     if (other.has.verbose) {
@@ -1256,6 +1294,19 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                   saslauthd_socketpath.path.c_str(),
                   path.c_str());
             setSaslauthdSocketpath(path);
+        }
+    }
+
+    if (other.has.opcode_attributes_override) {
+        auto current = getOpcodeAttributesOverride();
+        auto proposed = other.getOpcodeAttributesOverride();
+
+        if (proposed != current) {
+            logit(EXTENSION_LOG_NOTICE,
+                  R"(Change opcode attributes from "%s" to "%s")",
+                  current.c_str(),
+                  proposed.c_str());
+            setOpcodeAttributesOverride(proposed);
         }
     }
 }

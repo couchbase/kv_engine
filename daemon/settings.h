@@ -987,6 +987,15 @@ public:
         notify_changed("collections_prototype");
     }
 
+    const std::string getOpcodeAttributesOverride() const {
+        std::lock_guard<std::mutex> guard(
+                Settings::opcode_attributes_override.mutex);
+        return std::string{opcode_attributes_override.value};
+    }
+
+    void setOpcodeAttributesOverride(
+            const std::string& opcode_attributes_override);
+
 protected:
 
     /**
@@ -1146,6 +1155,14 @@ protected:
      */
     std::atomic_bool collections_prototype;
 
+    /**
+     * Any settings to override opcode attributes
+     */
+    struct {
+        mutable std::mutex mutex;
+        std::string value;
+    } opcode_attributes_override;
+
 public:
     /**
      * Flags for each of the above config options, indicating if they were
@@ -1186,6 +1203,7 @@ public:
         bool error_maps;
         bool xattr_enabled;
         bool collections_prototype;
+        bool opcode_attributes_override;
     } has;
 
 protected:

@@ -11,9 +11,11 @@ add_library(mcbp STATIC
             gdb_dump_parser.cc
             lldb_dump_parser.cc
             opcode.cc
+            sla.cc
             status_to_string.cc
             )
-target_link_libraries(mcbp mcd_util)
+
+target_link_libraries(mcbp mcd_util dirutils cJSON)
 
 add_executable(mcbp_dump_parser_test mcbp_dump_parser_test.cc)
 target_link_libraries(mcbp_dump_parser_test mcbp gtest gtest_main)
@@ -36,3 +38,9 @@ target_link_libraries(mcbp_feature_test mcbp gtest gtest_main)
 add_test(NAME mcbp_feature_test
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND mcbp_feature_test)
+
+add_executable(mcbp_sla_test sla_test.cc)
+target_link_libraries(mcbp_sla_test mcbp gtest gtest_main)
+add_test(NAME mcbp_sla_test
+         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+         COMMAND mcbp_sla_test)

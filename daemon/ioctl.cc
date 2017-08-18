@@ -23,6 +23,8 @@
 #include "utilities/string_utilities.h"
 #include "tracing.h"
 
+#include <mcbp/mcbp.h>
+
 /*
  * Implement ioctl-style memcached commands (ioctl_get / ioctl_set).
  */
@@ -104,12 +106,23 @@ static ENGINE_ERROR_CODE setTraceConnection(Connection* c,
     return apply_connection_trace_mask(id->second, value);
 }
 
+ENGINE_ERROR_CODE ioctlGetMcbpSla(Connection* c,
+                                  const StrToStrMap& arguments,
+                                  std::string& value) {
+    if (!arguments.empty() || !value.empty()) {
+        return ENGINE_EINVAL;
+    }
+
+    value = to_string(cb::mcbp::sla::to_json(), false);
+    return ENGINE_SUCCESS;
+}
+
 static const std::unordered_map<std::string, GetCallbackFunc> ioctl_get_map{
         {"trace.config", ioctlGetTracingConfig},
         {"trace.status", ioctlGetTracingStatus},
         {"trace.dump.begin", ioctlGetTracingBeginDump},
         {"trace.dump.chunk", ioctlGetTracingDumpChunk},
-};
+        {"sla", ioctlGetMcbpSla}};
 
 ENGINE_ERROR_CODE ioctl_get_property(Connection* c,
                                      const std::string& key,
@@ -130,6 +143,30 @@ ENGINE_ERROR_CODE ioctl_get_property(Connection* c,
     return ENGINE_EINVAL;
 }
 
+static ENGINE_ERROR_CODE ioctlSetMcbpSla(Connection* c,
+                                         const StrToStrMap&,
+                                         const std::string& value) {
+    unique_cJSON_ptr doc(cJSON_Parse(value.c_str()));
+    if (!doc) {
+        return ENGINE_EINVAL;
+    }
+
+    try {
+        cb::mcbp::sla::reconfigure(*doc);
+    } catch (const std::invalid_argument& e) {
+        auto& connection = dynamic_cast<McbpConnection&>(*c);
+        connection.getCookieObject().getEventId();
+        LOG_NOTICE(c,
+                   "%u: Failed to set MCBP SLA. UUID:[%s]: %s",
+                   c->getId(),
+                   connection.getCookieObject().getEventId().c_str(),
+                   e.what());
+        return ENGINE_EINVAL;
+    }
+
+    return ENGINE_SUCCESS;
+}
+
 static const std::unordered_map<std::string, SetCallbackFunc> ioctl_set_map{
         {"jemalloc.prof.active", setJemallocProfActive},
         {"jemalloc.prof.dump", setJemallocProfDump},
@@ -139,7 +176,7 @@ static const std::unordered_map<std::string, SetCallbackFunc> ioctl_set_map{
         {"trace.start", ioctlSetTracingStart},
         {"trace.stop", ioctlSetTracingStop},
         {"trace.dump.clear", ioctlSetTracingClearDump},
-};
+        {"sla", ioctlSetMcbpSla}};
 
 ENGINE_ERROR_CODE ioctl_set_property(Connection* c,
                                      const std::string& key,

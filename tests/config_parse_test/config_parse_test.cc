@@ -1458,3 +1458,43 @@ TEST(SettingsUpdateTest, DedupeNmvbMapsIsDynamic) {
     EXPECT_NO_THROW(settings.updateSettings(updated, true));
     EXPECT_FALSE(settings.isDedupeNmvbMaps());
 }
+
+TEST(SettingsUpdateTest, OpcodeAttributesOverrideIsDynamic) {
+    Settings settings;
+    Settings updated;
+
+    // setting it to the same value should work
+    settings.setOpcodeAttributesOverride(R"({"version":1})");
+    updated.setOpcodeAttributesOverride(settings.getOpcodeAttributesOverride());
+    EXPECT_NO_THROW(settings.updateSettings(updated, false));
+
+    // Changing it should also work
+    updated.setOpcodeAttributesOverride(R"({"version":1, "comment":"foo"})");
+
+    // Dry-run
+    EXPECT_NO_THROW(settings.updateSettings(updated, false));
+    EXPECT_NE(updated.getOpcodeAttributesOverride(),
+              settings.getOpcodeAttributesOverride());
+
+    // with update
+    EXPECT_NO_THROW(settings.updateSettings(updated, true));
+    EXPECT_EQ(updated.getOpcodeAttributesOverride(),
+              settings.getOpcodeAttributesOverride());
+}
+
+TEST(SettingsUpdateTest, OpcodeAttributesMustBeValidFormat) {
+    Settings settings;
+
+    // It must be json containing "version"
+    EXPECT_THROW(settings.setOpcodeAttributesOverride("{}"),
+                 std::invalid_argument);
+
+    // it works if it contains a valid entry
+    settings.setOpcodeAttributesOverride(
+            R"({"version":1,"default": {"slow":500}})");
+
+    // Setting to an empty value means drop the previous content
+    settings.setOpcodeAttributesOverride("");
+    EXPECT_EQ("", settings.getOpcodeAttributesOverride());
+
+}

@@ -7,6 +7,7 @@ ADD_EXECUTABLE(memcached_cert_test ssl_cert_test.cc
 
 TARGET_LINK_LIBRARIES(memcached_cert_test
                       cJSON
+                      mcbp
                       platform
                       dirutils
                       gtest gtest_main

@@ -21,13 +21,14 @@
 #include "statemachine_mcbp.h"
 #include "mc_time.h"
 
-#include <cctype>
-#include <exception>
-#include <utilities/protocol2text.h>
+#include <mcbp/mcbp.h>
 #include <platform/cb_malloc.h>
 #include <platform/checked_snprintf.h>
 #include <platform/strerror.h>
 #include <platform/timeutils.h>
+#include <utilities/protocol2text.h>
+#include <cctype>
+#include <exception>
 
 bool McbpConnection::unregisterEvent() {
     if (!registered_in_libevent) {
@@ -1053,43 +1054,22 @@ const Protocol McbpConnection::getProtocol() const {
 
 void McbpConnection::maybeLogSlowCommand(
     const std::chrono::milliseconds& elapsed) const {
-
-    std::chrono::milliseconds limit(500);
-
-    switch (cmd) {
-    case PROTOCOL_BINARY_CMD_COMPACT_DB:
-        // We have no idea how slow this is, but just set a 30 minute
-        // threshold for now to avoid it popping up in the logs all of
-        // the times
-        limit = std::chrono::milliseconds(1800 * 1000);
-        break;
-    case PROTOCOL_BINARY_CMD_SEQNO_PERSISTENCE:
-        // This can also be slow (given it requires waiting for disk). Set
-        // to 30s for now.
-        limit = std::chrono::seconds(30);
-        break;
-    case PROTOCOL_BINARY_CMD_DELETE_BUCKET:
-        // All clients needs to be disconnected, and all internal tasks
-        // in the underlying bucket needs to be stopped. This may be
-        // slow, so lets bump the limit to 10 sec.
-        limit = std::chrono::seconds(10);
-        break;
-    }
+    auto opcode = cb::mcbp::Opcode(cmd);
+    const auto limit = cb::mcbp::sla::getSlowOpThreshold(cb::mcbp::Opcode(cmd));
 
     if (elapsed > limit) {
         hrtime_t timings((hrtime_t)elapsed.count());
-        timings *= 1000 * 1000; // convert from ms to ns
-
-        const char* opcode = memcached_opcode_2_text(cmd);
-        char opcode_s[16];
-        std::string details;
-
-        if (opcode == nullptr) {
+        std::string command;
+        try {
+            command = to_string(opcode);
+        } catch (const std::exception& e) {
+            char opcode_s[16];
             checked_snprintf(opcode_s, sizeof(opcode_s), "0x%X", cmd);
-            opcode = opcode_s;
+            command.assign(opcode_s);
         }
 
-        if (cmd == PROTOCOL_BINARY_CMD_STAT) {
+        std::string details;
+        if (opcode == cb::mcbp::Opcode::Stat) {
             // Log which stat command took a long time
             details.append(", key: ");
             auto key = getKey();
@@ -1106,11 +1086,14 @@ void McbpConnection::maybeLogSlowCommand(
             }
         }
 
-        LOG_WARNING(NULL, "%u: Slow %s operation on connection: %s (%s)%s"
+        LOG_WARNING(NULL,
+                    "%u: Slow %s operation on connection: %s (%s)%s"
                     " opaque:0x%08x",
-                    getId(), opcode,
+                    getId(),
+                    command.c_str(),
                     Couchbase::hrtime2text(timings).c_str(),
-                    getDescription().c_str(), details.c_str(),
+                    getDescription().c_str(),
+                    details.c_str(),
                     getOpaque());
     }
 }

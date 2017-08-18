@@ -373,6 +373,12 @@ cJSON* TestappTest::generate_config(uint16_t ssl_port)
     cJSON_AddStringToObject(root, "rbac_file",
                             mcd_env->getRbacFilename().c_str());
 
+    // Add an opcode_attributes_override element so that we know we can
+    // parse it if ns_server starts applying one ;-)
+    unique_cJSON_ptr kvattr(cJSON_Parse(
+            R"({"version":1,"EWB_CTL": {"slow":50}})"));
+    cJSON_AddItemToObject(root, "opcode_attributes_override", kvattr.release());
+
     return root;
 }
 

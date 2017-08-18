@@ -1,0 +1,13 @@
+{
+  "comment" : "This file should be applied after the first one",
+  "version": 1,
+  "default": {
+    "slow": 100
+  },
+  "get": {
+    "slow": 200
+  },
+  "set": {
+    "slow": 400
+  }
+}

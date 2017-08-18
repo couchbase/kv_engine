@@ -8,6 +8,7 @@ ADD_EXECUTABLE(memcached_config_parse_test config_parse_test.cc
 TARGET_LINK_LIBRARIES(memcached_config_parse_test
                       cJSON
                       JSON_checker
+                      mcbp
                       platform
                       dirutils
                       gtest gtest_main

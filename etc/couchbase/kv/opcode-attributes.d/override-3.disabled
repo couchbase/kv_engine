@@ -1,0 +1,7 @@
+{
+  "comment" : "This file should be ignored as it doesn't end with .json",
+  "version": 1,
+  "default": {
+    "slow": "1 ns"
+  }
+}

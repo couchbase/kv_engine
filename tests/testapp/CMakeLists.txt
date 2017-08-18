@@ -195,6 +195,11 @@ add_unit_test_suite(NAME touch
                     TIMEOUT 120
                     SOURCE testapp_touch.cc)
 
+# Run the tests to tune the MCBP SLA via an IOCTL
+add_unit_test_suite(NAME tune-mcbp-lsa
+                    TIMEOUT 100
+                    SOURCE testapp_tune_mcbp_sla.cc)
+
 # Run the XATTR tests
 add_unit_test_suite(NAME xattr
                     TIMEOUT 120

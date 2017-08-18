@@ -50,6 +50,7 @@
 #include "utilities/protocol2text.h"
 #include "utilities/terminate_handler.h"
 
+#include <mcbp/mcbp.h>
 #include <phosphor/phosphor.h>
 #include <platform/cb_malloc.h>
 #include <platform/dirutils.h>
@@ -469,6 +470,16 @@ static void saslauthd_socketpath_changed_listener(const std::string&, Settings &
     cb::sasl::saslauthd::set_socketpath(s.getSaslauthdSocketpath());
 }
 
+static void opcode_attributes_override_changed_listener(const std::string&,
+                                                        Settings& s) {
+    unique_cJSON_ptr json(cJSON_Parse(s.getOpcodeAttributesOverride().c_str()));
+    if (json) {
+        cb::mcbp::sla::reconfigure(settings.getRoot(), *json);
+    } else {
+        cb::mcbp::sla::reconfigure(settings.getRoot());
+    }
+}
+
 static void interfaces_changed_listener(const std::string&, Settings &s) {
     for (const auto& ifc : s.getInterfaces()) {
         auto* port = get_listening_port_instance(ifc.port);
@@ -638,6 +649,15 @@ static void update_settings_from_config(void)
 
         settings.setSaslauthdSocketpath(path);
     }
+
+    try {
+        cb::mcbp::sla::reconfigure(settings.getRoot());
+    } catch (const std::exception& e) {
+        FATAL_ERROR(EXIT_FAILURE, e.what());
+    }
+
+    settings.addChangeListener("opcode_attributes_override",
+                               opcode_attributes_override_changed_listener);
 }
 
 struct {

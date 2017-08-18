@@ -1,0 +1,16 @@
+{
+  "comment": "Default configuration file. Do not edit, but override the settings in opcode-attributes.d/",
+  "version": 1,
+  "default": {
+    "slow": "500 ms"
+  },
+  "compact_db": {
+    "slow": "30 m"
+  },
+  "delete_bucket": {
+    "slow": "10 s"
+  },
+  "seqno_persistence": {
+    "slow": "30 s"
+  }
+}

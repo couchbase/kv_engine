@@ -1,0 +1,7 @@
+{
+  "comment":"This file should be applied after override-1 and just set the default entry",
+  "version": 1,
+  "default": {
+    "slow": "1 h"
+  }
+}

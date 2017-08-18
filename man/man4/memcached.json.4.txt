@@ -343,6 +343,11 @@ the use of extended attributes on documents. It may be overridden by
 privileged connections to allow them to set up replication streams
 before users create them.
 
+=== opcode-attributes-override
+
+The *opcode-attributes-override* attribute is an object which follows
+the syntax outlined in etc/couchbase/kv/opcode-attributes.d/README.md
+
 == EXAMPLES
 
 A Sample memcached.json:
@@ -407,7 +412,13 @@ A Sample memcached.json:
         "sasl_mechanisms" : "SCRAM-SHA512 SCRAM-SHA256 SCRAM-SHA1",
         "saslauthd_socketpath" : "/var/run/saslauthd/mux",
         "dedupe_nmvb_maps" : true,
-        "xattr_enabled" : true
+        "xattr_enabled" : true,
+        "opcode-attributes-override": {
+           "version": 1,
+           "get": {
+              "slow": 200
+           }
+        }
     }
 
 == COPYRIGHT
