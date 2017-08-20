@@ -903,8 +903,10 @@ bool CouchKVStore::compactDBInternal(compaction_ctx* hook_ctx,
         throw std::logic_error("CouchKVStore::compactDB: Cannot perform "
                         "on a read-only instance.");
     }
-    TRACE_EVENT("ep-engine/couch-kvstore", "compactDB",
-                this->configuration.getShardId());
+    TRACE_EVENT1("ep-engine/couch-kvstore",
+                 "compactDB",
+                 "shard",
+                 this->configuration.getShardId());
 
     couchstore_compact_hook       hook = time_purge_hook;
     couchstore_docinfo_hook dhook = docinfo_hook;
@@ -1153,8 +1155,10 @@ StorageProperties CouchKVStore::getStorageProperties() {
 }
 
 bool CouchKVStore::commit(const Item* collectionsManifest) {
-    TRACE_EVENT("ep-engine/couch-kvstore", "commit",
-                this->configuration.getShardId());
+    TRACE_EVENT1("ep-engine/couch-kvstore",
+                 "commit",
+                 "shard",
+                 this->configuration.getShardId());
 
     if (isReadOnly()) {
         throw std::logic_error("CouchKVStore::commit: Not valid on a read-only "

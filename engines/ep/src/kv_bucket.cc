@@ -335,7 +335,9 @@ public:
     }
 
     bool run(void) {
-        TRACE_EVENT("ep-engine/task", "PendingOpsNotification",
+        TRACE_EVENT1("ep-engine/task",
+                     "PendingOpsNotification",
+                     "vb",
                      vbucket->getId());
         vbucket->fireAllOps(engine);
         return false;

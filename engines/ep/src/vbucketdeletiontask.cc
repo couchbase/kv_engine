@@ -41,8 +41,10 @@ cb::const_char_buffer VBucketMemoryDeletionTask::getDescription() {
 }
 
 bool VBucketMemoryDeletionTask::run() {
-    TRACE_EVENT(
-            "ep-engine/task", "VBucketMemoryDeletionTask", vbucket->getId());
+    TRACE_EVENT1("ep-engine/task",
+                 "VBucketMemoryDeletionTask",
+                 "vb",
+                 vbucket->getId());
 
     notifyAllPendingConnsFailed(true);
 
@@ -70,9 +72,10 @@ VBucketMemoryAndDiskDeletionTask::VBucketMemoryAndDiskDeletionTask(
 }
 
 bool VBucketMemoryAndDiskDeletionTask::run() {
-    TRACE_EVENT("ep-engine/task",
-                "VBucketMemoryAndDiskDeletionTask",
-                vbucket->getId());
+    TRACE_EVENT1("ep-engine/task",
+                 "VBucketMemoryAndDiskDeletionTask",
+                 "vb",
+                 vbucket->getId());
     notifyAllPendingConnsFailed(false);
 
     auto start = ProcessClock::now();

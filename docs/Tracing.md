@@ -7,7 +7,7 @@ Memcached is explicitly tooled using trace macros which log timestamps and
 some associated metadata (categories, names, arguments). An example of such a
 trace macro is given below:
 
-    TRACE_EVENT("category", "name", 12345, 67.89);
+    TRACE_EVENT2("category", "name", "arg1", 12345, "arg2," 67.89);
 
 The full selection of trace macros is documented in the
 [Phosphor header file](https://github.com/couchbase/phosphor/blob/master/include/phosphor/phosphor.h).

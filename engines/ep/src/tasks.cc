@@ -37,7 +37,8 @@ bool FlusherTask::run() {
 }
 
 bool CompactTask::run() {
-    TRACE_EVENT("ep-engine/task", "CompactTask", compactCtx.db_file_id);
+    TRACE_EVENT1(
+            "ep-engine/task", "CompactTask", "file_id", compactCtx.db_file_id);
     return engine->getKVBucket()->doCompact(&compactCtx, cookie);
 }
 
@@ -63,14 +64,24 @@ bool DeleteAllTask::run() {
 }
 
 bool VKeyStatBGFetchTask::run() {
-    TRACE_EVENT("ep-engine/task", "VKeyStatBGFetchTask", cookie, vbucket);
+    TRACE_EVENT2("ep-engine/task",
+                 "VKeyStatBGFetchTask",
+                 "cookie",
+                 cookie,
+                 "vb",
+                 vbucket);
     engine->getKVBucket()->completeStatsVKey(cookie, key, vbucket, bySeqNum);
     return false;
 }
 
 
 bool SingleBGFetcherTask::run() {
-    TRACE_EVENT("ep-engine/task", "SingleBGFetcherTask", cookie, vbucket);
+    TRACE_EVENT2("ep-engine/task",
+                 "SingleBGFetcherTask",
+                 "cookie",
+                 cookie,
+                 "vb",
+                 vbucket);
     engine->getKVBucket()->completeBGFetch(key, vbucket, cookie, init,
                                            metaFetch);
     return false;
