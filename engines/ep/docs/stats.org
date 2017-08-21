@@ -129,6 +129,7 @@ For introductory information on stats within Couchbase, start with the
 | ep_mem_tracker_enabled             | True if memory usage tracker is        |
 |                                    | enabled                                |
 | ep_bg_fetched                      | Number of items fetched from disk      |
+| ep_bg_fetch_avg_read_amplification | Average read amplification for all background fetch operations - ratio of read()s to documents fetched. |
 | ep_bg_meta_fetched                 | Number of meta items fetched from disk |
 | ep_bg_remaining_items              | Number of remaining bg fetch items     |
 | ep_bg_remaining_jobs               | Number of remaining bg fetch jobs      |

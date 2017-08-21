@@ -341,6 +341,7 @@ public:
       io_write_bytes(0),
       readSizeHisto(ExponentialGenerator<size_t>(1, 2), 25),
       writeSizeHisto(ExponentialGenerator<size_t>(1, 2), 25),
+      getMultiFsReadCount(0),
       getMultiFsReadHisto(ExponentialGenerator<uint32_t>(6, 1.2), 50),
       getMultiFsReadPerDocHisto(ExponentialGenerator<uint32_t>(6, 1.2),50) {
     }
@@ -368,6 +369,7 @@ public:
         commitHisto.reset();
         saveDocsHisto.reset();
         batchSize.reset();
+        getMultiFsReadCount = 0;
         getMultiFsReadHisto.reset();
         getMultiFsReadPerDocHisto.reset();
         fsStats.reset();

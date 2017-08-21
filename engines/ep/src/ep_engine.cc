@@ -2638,6 +2638,28 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                                  KVBucketIface::KVSOption::BOTH)) {
         add_casted_stat("ep_io_compaction_write_bytes",  value, add_stat, cookie);
     }
+
+    if (kvBucket->getKVStoreStat("io_bg_fetch_read_count",
+                                 value,
+                                 KVBucketIface::KVSOption::BOTH)) {
+        add_casted_stat("ep_io_bg_fetch_read_count", value, add_stat, cookie);
+        // Calculate read amplication (RA) in terms of disk reads:
+        // ratio of number of reads performed, compared to how many docs
+        // fetched.
+        //
+        // Note: An alternative definition would be in terms of *bytes* read -
+        // count of bytes read from disk compared to sizeof(key+meta+body) for
+        // for fetched documents. However this is potentially misleading given
+        // we perform IO buffering and always read in 4K sized chunks, so it
+        // would give very large values.
+        add_casted_stat(
+                "ep_bg_fetch_avg_read_amplification",
+                double(value) / (epstats.bg_fetched + epstats.bg_meta_fetched),
+                add_stat,
+                cookie);
+    }
+
+    // Specific to ForestDB:
     if (kvBucket->getKVStoreStat("Block_cache_hits", value,
                                  KVBucketIface::KVSOption::RW)) {
         add_casted_stat("ep_block_cache_hits", value, add_stat, cookie);

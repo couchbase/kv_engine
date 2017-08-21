@@ -2090,6 +2090,13 @@ static enum test_result test_io_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
             get_stat<uint64_t>(
                     h, h1, readBytesStatStr.str().c_str(), "kvstore"),
             "Expected reading the value back in to update the read bytes");
+
+    // For read amplification, exact value depends on couchstore file layout,
+    // but generally see a value of 2 here.
+    checkge(get_float_stat(h, h1, "ep_bg_fetch_avg_read_amplification"),
+            2.0f,
+            "Expected sensible bgFetch read amplification value");
+
     checkeq(1, get_int_stat(h, h1, "rw_0:io_num_write", "kvstore"),
             "Expected reading the value back in to not update the write counter");
     checkeq(exp_write_bytes,
@@ -6550,6 +6557,7 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                 "ep_bfilter_fp_prob",
                 "ep_bfilter_key_count",
                 "ep_bfilter_residency_threshold",
+                "ep_bg_fetch_avg_read_amplification",
                 "ep_bg_fetch_delay",
                 "ep_bg_fetched",
                 "ep_bg_meta_fetched",
@@ -6633,6 +6641,7 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                 "ep_ht_resize_interval",
                 "ep_ht_size",
                 "ep_initfile",
+                "ep_io_bg_fetch_read_count",
                 "ep_io_compaction_read_bytes",
                 "ep_io_compaction_write_bytes",
                 "ep_io_total_read_bytes",

@@ -586,6 +586,7 @@ void CouchKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms) {
     auto* stats = couchstore_get_db_filestats(db);
     if (stats != nullptr) {
         const auto readCount = stats->getReadCount();
+        st.getMultiFsReadCount += readCount;
         st.getMultiFsReadHisto.add(readCount);
         st.getMultiFsReadPerDocHisto.add(readCount / itms.size());
     }
@@ -1204,6 +1205,9 @@ bool CouchKVStore::getStat(const char* name, size_t& value)  {
         return true;
     } else if (strcmp("io_compaction_write_bytes", name) == 0) {
         value = st.fsStatsCompaction.totalBytesWritten;
+        return true;
+    } else if (strcmp("io_bg_fetch_read_count", name) == 0) {
+        value = st.getMultiFsReadCount;
         return true;
     }
 
