@@ -43,6 +43,7 @@ void process_hello_packet_executor(McbpConnection* c, void* packet) {
     c->setSupportsMutationExtras(false);
     c->setXerrorSupport(false);
     c->setCollectionsSupported(false);
+    c->setDuplexSupported(false);
 
     if (!key.empty()) {
         log_buffer.append("[");
@@ -63,7 +64,6 @@ void process_hello_packet_executor(McbpConnection* c, void* packet) {
         switch (feature) {
         case cb::mcbp::Feature::Invalid:
         case cb::mcbp::Feature::TLS:
-        case cb::mcbp::Feature::Duplex:
             /* Not implemented */
             break;
         case cb::mcbp::Feature::TCPNODELAY:
@@ -116,6 +116,12 @@ void process_hello_packet_executor(McbpConnection* c, void* packet) {
         case cb::mcbp::Feature::COLLECTIONS:
             if (!c->isCollectionsSupported()) {
                 c->setCollectionsSupported(true);
+                added = true;
+            }
+            break;
+        case cb::mcbp::Feature::Duplex:
+            if (!c->isDuplexSupported()) {
+                c->setDuplexSupported(true);
                 added = true;
             }
             break;

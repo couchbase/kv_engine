@@ -623,6 +623,10 @@ public:
         setFeature(cb::mcbp::Feature::XERROR, enable);
     }
 
+    void setDuplexSupport(bool enable) {
+        setFeature(cb::mcbp::Feature::Duplex, enable);
+    }
+
     /**
      * Get the error map from the server
      *

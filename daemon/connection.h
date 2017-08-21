@@ -364,6 +364,14 @@ public:
         }
     }
 
+    bool isDuplexSupported() const {
+        return duplex_support;
+    }
+
+    void setDuplexSupported(bool duplex_support) {
+        Connection::duplex_support = duplex_support;
+    }
+
     /**
      * Remap the current error code
      *
@@ -508,6 +516,12 @@ protected:
      * default collection mutations/deletions etc... when subscribed to DCP.
      */
     bool collections_support;
+
+    /**
+     * Is duplex mode supported by this client? (do the server allow sending
+     * commands)
+     */
+    bool duplex_support{false};
 
     /**
      * The total time this connection been on the CPU
