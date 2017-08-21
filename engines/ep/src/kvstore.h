@@ -278,37 +278,29 @@ struct KVStatsCtx{
 typedef struct KVStatsCtx kvstats_ctx;
 
 struct FileStats {
-public:
-    FileStats() :
-        readSeekHisto(ExponentialGenerator<size_t>(1, 2), 50),
-        readSizeHisto(ExponentialGenerator<size_t>(1, 2), 25),
-        writeSizeHisto(ExponentialGenerator<size_t>(1, 2), 25),
-        readCountHisto(ExponentialGenerator<uint32_t>(2, 1.333), 50),
-        writeCountHisto(ExponentialGenerator<uint32_t>(2, 1.333), 50),
-        totalBytesRead(0),
-        totalBytesWritten(0) { }
-
-    //Read time length
+    // Read time length
     Histogram<hrtime_t> readTimeHisto;
-    //Distance from last read
-    Histogram<size_t> readSeekHisto;
-    //Size of read
-    Histogram<size_t> readSizeHisto;
-    //Write time length
+    // Distance from last read
+    Histogram<size_t> readSeekHisto = {ExponentialGenerator<size_t>(1, 2), 50};
+    // Size of read
+    Histogram<size_t> readSizeHisto = {ExponentialGenerator<size_t>(1, 2), 25};
+    // Write time length
     Histogram<hrtime_t> writeTimeHisto;
-    //Write size
-    Histogram<size_t> writeSizeHisto;
-    //Time spent in sync
+    // Write size
+    Histogram<size_t> writeSizeHisto = {ExponentialGenerator<size_t>(1, 2), 25};
+    // Time spent in sync
     Histogram<hrtime_t> syncTimeHisto;
     // Read count per open() / close() pair
-    Histogram<uint32_t> readCountHisto;
+    Histogram<uint32_t> readCountHisto = {
+            ExponentialGenerator<uint32_t>(2, 1.333), 50};
     // Write count per open() / close() pair
-    Histogram<uint32_t> writeCountHisto;
+    Histogram<uint32_t> writeCountHisto = {
+            ExponentialGenerator<uint32_t>(2, 1.333), 50};
 
     // total bytes read from disk.
-    std::atomic<size_t> totalBytesRead;
+    std::atomic<size_t> totalBytesRead{0};
     // Total bytes written to disk.
-    std::atomic<size_t> totalBytesWritten;
+    std::atomic<size_t> totalBytesWritten{0};
 
     void reset() {
         readTimeHisto.reset();
