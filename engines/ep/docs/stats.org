@@ -1035,9 +1035,9 @@ The following stats are available for the CouchStore database engine:
 | failure_get               | Number of failed get operation                                                            |
 | failure_vbset             | Number of failed vbucket set operation                                                    |
 | save_documents            | Time spent in CouchStore save documents operation                                         |
-| io_num_read               | Number of io read operations                                                              |
+| io_bg_fetch_docs_read     | Number of documents (full and meta-only) fetched from disk                                |
+| io_bg_fetch_doc_bytes     | Number of bytes read while fetching documents (key + value + rev_meta)                    |
 | io_num_write              | Number of io write operations                                                             |
-| io_read_bytes             | Number of bytes read (key + values + rev_meta)                                            |
 | io_write_bytes            | Number of bytes written (key + values + rev_meta                                          |
 | io_total_read_bytes       | Number of bytes read (total, including Couchstore B-Tree and other overheads)             |
 | io_total_write_bytes      | Number of bytes written (total, including Couchstore B-Tree and other overheads)          |
@@ -1144,9 +1144,9 @@ Reset Stats:
 | ep_commit_time                    |
 | ep_flush_duration                 |
 | ep_flush_duration_highwat         |
-| ep_io_num_read                    |
+| ep_io_bg_fetch_docs_read          |
 | ep_io_num_write                   |
-| ep_io_read_bytes                  |
+| ep_io_bg_fetch_doc_bytes          |
 | ep_io_write_bytes                 |
 | ep_items_rm_from_checkpoints      |
 | ep_num_eject_failures             |

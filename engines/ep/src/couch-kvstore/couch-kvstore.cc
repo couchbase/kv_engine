@@ -1609,8 +1609,8 @@ couchstore_error_t CouchKVStore::fetchDoc(Db* db,
         }
         docValue = GetValue(std::move(it));
         // update ep-engine IO stats
-        ++st.io_num_read;
-        st.io_read_bytes += docinfo->id.size;
+        ++st.io_bg_fetch_docs_read;
+        st.io_bgfetch_doc_bytes += (docinfo->id.size + docinfo->rev_meta.size);
     } else {
         Doc *doc = nullptr;
         size_t valuelen = 0;
@@ -1672,8 +1672,9 @@ couchstore_error_t CouchKVStore::fetchDoc(Db* db,
         }
 
         // update ep-engine IO stats
-        ++st.io_num_read;
-        st.io_read_bytes += (docinfo->id.size + valuelen);
+        ++st.io_bg_fetch_docs_read;
+        st.io_bgfetch_doc_bytes +=
+                (docinfo->id.size + docinfo->rev_meta.size + valuelen);
 
         couchstore_free_document(doc);
     }

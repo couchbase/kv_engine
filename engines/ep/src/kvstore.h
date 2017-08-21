@@ -335,9 +335,9 @@ public:
       numDelFailure(0),
       numOpenFailure(0),
       numVbSetFailure(0),
-      io_num_read(0),
+      io_bg_fetch_docs_read(0),
       io_num_write(0),
-      io_read_bytes(0),
+      io_bgfetch_doc_bytes(0),
       io_write_bytes(0),
       readSizeHisto(ExponentialGenerator<size_t>(1, 2), 25),
       writeSizeHisto(ExponentialGenerator<size_t>(1, 2), 25),
@@ -389,12 +389,15 @@ public:
     Couchbase::RelaxedAtomic<size_t> numOpenFailure;
     Couchbase::RelaxedAtomic<size_t> numVbSetFailure;
 
-    //! Number of read related io operations
-    Couchbase::RelaxedAtomic<size_t> io_num_read;
+    /**
+     * Number of documents read (full and meta-only) from disk for background
+     * fetch operations.
+     */
+    Couchbase::RelaxedAtomic<size_t> io_bg_fetch_docs_read;
     //! Number of write related io operations
     Couchbase::RelaxedAtomic<size_t> io_num_write;
-    //! Number of bytes read
-    Couchbase::RelaxedAtomic<size_t> io_read_bytes;
+    //! Document bytes (key+meta+value) read for background fetch operations.
+    Couchbase::RelaxedAtomic<size_t> io_bgfetch_doc_bytes;
     //! Number of bytes written (key + value + application rev metadata)
     Couchbase::RelaxedAtomic<size_t> io_write_bytes;
 

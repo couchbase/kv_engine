@@ -817,7 +817,7 @@ GetValue ForestKVStore::docToItem(fdb_kvs_handle* kvsHandle, fdb_doc* rdoc,
         }
 
         /* update ep-engine IO stat read_bytes */
-        st.io_read_bytes += rdoc->keylen;
+        st.io_bgfetch_doc_bytes += rdoc->keylen;
     } else {
         size_t valuelen = rdoc->bodylen;
         void* valuePtr = rdoc->body;
@@ -837,13 +837,13 @@ GetValue ForestKVStore::docToItem(fdb_kvs_handle* kvsHandle, fdb_doc* rdoc,
                       (uint64_t)rdoc->seqnum, vbId);
 
         /* update ep-engine IO stat read_bytes */
-        st.io_read_bytes += (rdoc->keylen + valuelen);
+        st.io_bgfetch_doc_bytes += (rdoc->keylen + valuelen);
     }
 
     it->setRevSeqno(forestMetaData.rev_seqno);
 
     /* increment ep-engine IO stat num_read */
-    ++st.io_num_read;
+    ++st.io_bg_fetch_docs_read;
 
     return GetValue(it);
 }

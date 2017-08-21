@@ -253,9 +253,17 @@ void KVStore::addStats(ADD_STAT add_stat, const void *c) {
         addStat(prefix, "lastCommDocs",  st.docsCommitted,   add_stat, c);
     }
 
-    addStat(prefix, "io_num_read", st.io_num_read, add_stat, c);
+    addStat(prefix,
+            "io_bg_fetch_docs_read",
+            st.io_bg_fetch_docs_read,
+            add_stat,
+            c);
     addStat(prefix, "io_num_write", st.io_num_write, add_stat, c);
-    addStat(prefix, "io_read_bytes", st.io_read_bytes, add_stat, c);
+    addStat(prefix,
+            "io_bg_fetch_doc_bytes",
+            st.io_bgfetch_doc_bytes,
+            add_stat,
+            c);
     addStat(prefix, "io_write_bytes", st.io_write_bytes, add_stat, c);
 
     const size_t read = st.fsStats.totalBytesRead.load() +

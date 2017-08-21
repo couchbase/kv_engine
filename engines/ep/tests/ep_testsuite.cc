@@ -41,6 +41,7 @@
 #include <vector>
 
 #include "atomic.h"
+#include "couch-kvstore/couch-kvstore-metadata.h"
 #include "ep_test_apis.h"
 
 #include "ep_testsuite_common.h"
@@ -2023,7 +2024,7 @@ static enum test_result test_mem_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 }
 
 static enum test_result test_io_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    int exp_read_bytes = 4, exp_write_bytes;
+    int exp_write_bytes;
     std::string backend = get_str_stat(h, h1, "ep_backend");
     if (backend == "forestdb") {
         exp_write_bytes = 35; /* TBD: Do not hard code the value */
@@ -2035,47 +2036,59 @@ static enum test_result test_io_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     h1->reset_stats(h, NULL);
 
-    checkeq(0, get_int_stat(h, h1, "rw_0:io_num_read", "kvstore"),
-            "Expected reset stats to set io_num_read to zero");
+    checkeq(0,
+            get_int_stat(h, h1, "rw_0:io_bg_fetch_docs_read", "kvstore"),
+            "Expected reset stats to set io_bg_fetch_docs_read to zero");
     checkeq(0, get_int_stat(h, h1, "rw_0:io_num_write", "kvstore"),
             "Expected reset stats to set io_num_write to zero");
-    checkeq(0, get_int_stat(h, h1, "rw_0:io_read_bytes", "kvstore"),
-            "Expected reset stats to set io_read_bytes to zero");
+    checkeq(0,
+            get_int_stat(h, h1, "rw_0:io_bg_fetch_doc_bytes", "kvstore"),
+            "Expected reset stats to set io_bg_fetch_doc_bytes to zero");
     checkeq(0, get_int_stat(h, h1, "rw_0:io_write_bytes", "kvstore"),
             "Expected reset stats to set io_write_bytes to zero");
 
-    wait_for_persisted_value(h, h1, "a", "b\r\n");
-    checkeq(0, get_int_stat(h, h1, "rw_0:io_num_read", "kvstore"),
+    const std::string key("a");
+    const std::string value("b\r\n");
+    wait_for_persisted_value(h, h1, key.c_str(), value.c_str());
+    checkeq(0,
+            get_int_stat(h, h1, "rw_0:io_bg_fetch_docs_read", "kvstore"),
             "Expected storing one value to not change the read counter");
-    checkeq(0, get_int_stat(h, h1, "rw_0:io_read_bytes", "kvstore"),
-            "Expected storing one value to not change the read bytes");
+    checkeq(0,
+            get_int_stat(h, h1, "rw_0:io_bg_fetch_doc_bytes", "kvstore"),
+            "Expected storing one value to not change the bgfetch doc bytes");
     checkeq(1, get_int_stat(h, h1, "rw_0:io_num_write", "kvstore"),
             "Expected storing the key to update the write counter");
     checkeq(exp_write_bytes,
             get_int_stat(h, h1, "rw_0:io_write_bytes", "kvstore"),
             "Expected storing the key to update the write bytes");
 
-    evict_key(h, h1, "a", 0, "Ejected.");
+    evict_key(h, h1, key.c_str(), 0, "Ejected.");
 
-    check_key_value(h, h1, "a", "b\r\n", 3, 0);
+    check_key_value(h, h1, "a", value.c_str(), value.size(), 0);
 
     std::stringstream numReadStatStr;
     std::stringstream readBytesStatStr;
 
     if (backend == "couchdb") {
-        numReadStatStr << "ro_" << 0 << ":io_num_read";
-        readBytesStatStr << "ro_" << 0 << ":io_read_bytes";
+        numReadStatStr << "ro_" << 0 << ":io_bg_fetch_docs_read";
+        readBytesStatStr << "ro_" << 0 << ":io_bg_fetch_doc_bytes";
     } else if (backend == "forestdb") {
-        numReadStatStr << "rw_" << 0 << ":io_num_read";
+        numReadStatStr << "rw_" << 0 << ":io_bg_fetch_docs_read";
         readBytesStatStr << "rw_" << 0 << ":io_read_bytes";
     } else {
         cb_assert(false);
     }
 
-    checkeq(1, get_int_stat(h, h1, numReadStatStr.str().c_str(), "kvstore"),
+    checkeq(1,
+            get_int_stat(h, h1, numReadStatStr.str().c_str(), "kvstore"),
             "Expected reading the value back in to update the read counter");
+
+    const uint64_t exp_read_bytes =
+            key.size() + value.size() +
+            MetaData::getMetaDataSize(MetaData::Version::V1);
     checkeq(exp_read_bytes,
-            get_int_stat(h, h1, readBytesStatStr.str().c_str(), "kvstore"),
+            get_stat<uint64_t>(
+                    h, h1, readBytesStatStr.str().c_str(), "kvstore"),
             "Expected reading the value back in to update the read bytes");
     checkeq(1, get_int_stat(h, h1, "rw_0:io_num_write", "kvstore"),
             "Expected reading the value back in to not update the write counter");
@@ -6066,9 +6079,9 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                 "ro_0:failure_open",
                 "ro_0:io_compaction_read_bytes",
                 "ro_0:io_compaction_write_bytes",
-                "ro_0:io_num_read",
+                "ro_0:io_bg_fetch_docs_read",
                 "ro_0:io_num_write",
-                "ro_0:io_read_bytes",
+                "ro_0:io_bg_fetch_doc_bytes",
                 "ro_0:io_total_read_bytes",
                 "ro_0:io_total_write_bytes",
                 "ro_0:io_write_bytes",
@@ -6080,9 +6093,9 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                 "ro_1:failure_open",
                 "ro_1:io_compaction_read_bytes",
                 "ro_1:io_compaction_write_bytes",
-                "ro_1:io_num_read",
+                "ro_1:io_bg_fetch_docs_read",
                 "ro_1:io_num_write",
-                "ro_1:io_read_bytes",
+                "ro_1:io_bg_fetch_doc_bytes",
                 "ro_1:io_total_read_bytes",
                 "ro_1:io_total_write_bytes",
                 "ro_1:io_write_bytes",
@@ -6094,9 +6107,9 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                 "ro_2:failure_open",
                 "ro_2:io_compaction_read_bytes",
                 "ro_2:io_compaction_write_bytes",
-                "ro_2:io_num_read",
+                "ro_2:io_bg_fetch_docs_read",
                 "ro_2:io_num_write",
-                "ro_2:io_read_bytes",
+                "ro_2:io_bg_fetch_doc_bytes",
                 "ro_2:io_total_read_bytes",
                 "ro_2:io_total_write_bytes",
                 "ro_2:io_write_bytes",
@@ -6108,9 +6121,9 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                 "ro_3:failure_open",
                 "ro_3:io_compaction_read_bytes",
                 "ro_3:io_compaction_write_bytes",
-                "ro_3:io_num_read",
+                "ro_3:io_bg_fetch_docs_read",
                 "ro_3:io_num_write",
-                "ro_3:io_read_bytes",
+                "ro_3:io_bg_fetch_doc_bytes",
                 "ro_3:io_total_read_bytes",
                 "ro_3:io_total_write_bytes",
                 "ro_3:io_write_bytes",
@@ -6128,9 +6141,9 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                 "rw_0:failure_vbset",
                 "rw_0:io_compaction_read_bytes",
                 "rw_0:io_compaction_write_bytes",
-                "rw_0:io_num_read",
+                "rw_0:io_bg_fetch_docs_read",
                 "rw_0:io_num_write",
-                "rw_0:io_read_bytes",
+                "rw_0:io_bg_fetch_doc_bytes",
                 "rw_0:io_total_read_bytes",
                 "rw_0:io_total_write_bytes",
                 "rw_0:io_write_bytes",
@@ -6146,9 +6159,9 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                 "rw_1:failure_vbset",
                 "rw_1:io_compaction_read_bytes",
                 "rw_1:io_compaction_write_bytes",
-                "rw_1:io_num_read",
+                "rw_1:io_bg_fetch_docs_read",
                 "rw_1:io_num_write",
-                "rw_1:io_read_bytes",
+                "rw_1:io_bg_fetch_doc_bytes",
                 "rw_1:io_total_read_bytes",
                 "rw_1:io_total_write_bytes",
                 "rw_1:io_write_bytes",
@@ -6164,9 +6177,9 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                 "rw_2:failure_vbset",
                 "rw_2:io_compaction_read_bytes",
                 "rw_2:io_compaction_write_bytes",
-                "rw_2:io_num_read",
+                "rw_2:io_bg_fetch_docs_read",
                 "rw_2:io_num_write",
-                "rw_2:io_read_bytes",
+                "rw_2:io_bg_fetch_doc_bytes",
                 "rw_2:io_total_read_bytes",
                 "rw_2:io_total_write_bytes",
                 "rw_2:io_write_bytes",
@@ -6182,9 +6195,9 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                 "rw_3:failure_vbset",
                 "rw_3:io_compaction_read_bytes",
                 "rw_3:io_compaction_write_bytes",
-                "rw_3:io_num_read",
+                "rw_3:io_bg_fetch_docs_read",
                 "rw_3:io_num_write",
-                "rw_3:io_read_bytes",
+                "rw_3:io_bg_fetch_doc_bytes",
                 "rw_3:io_total_read_bytes",
                 "rw_3:io_total_write_bytes",
                 "rw_3:io_write_bytes",
