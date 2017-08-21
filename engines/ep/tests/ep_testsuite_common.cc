@@ -245,6 +245,31 @@ enum test_result prepare_ep_bucket(engine_test_t* test) {
     return prepare(test);
 }
 
+enum test_result prepare_ep_bucket_skip_broken_under_rocks(engine_test_t* test) {
+    std::string cfg{test->cfg};
+    if (cfg.find("backend=rocksdb") != std::string::npos) {
+        return SKIPPED;
+    }
+
+    // Perform whatever prep the ep bucket function wants.
+    return prepare_ep_bucket(test);
+}
+
+enum test_result prepare_skip_broken_under_rocks(engine_test_t* test) {
+    std::string cfg{test->cfg};
+    if (cfg.find("backend=rocksdb") != std::string::npos) {
+        return SKIPPED;
+    }
+
+    // Perform whatever prep the "base class" function wants.
+    return prepare(test);
+}
+
+enum test_result prepare_skip_broken_under_ephemeral_and_rocks(
+        engine_test_t* test) {
+    return prepare_ep_bucket_skip_broken_under_rocks(test);
+}
+
 enum test_result prepare_ephemeral_bucket(engine_test_t* test) {
     std::string cfg{test->cfg};
     if (cfg.find("bucket_type=ephemeral") == std::string::npos) {

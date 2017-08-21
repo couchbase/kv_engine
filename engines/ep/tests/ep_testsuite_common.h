@@ -188,6 +188,38 @@ enum test_result prepare(engine_test_t *test);
 enum test_result prepare_ep_bucket(engine_test_t* test);
 
 /**
+ * Prepare a test which is currently expected to fail when using
+ * RocksDBKVStore and so should be skipped.
+ * As RocksDBKVStore progresses these tests should be rechecked, as
+ * all applicable tests should eventually pass.
+ *
+ * NB: some tests may currently be marked with this but will never pass
+ * e.g., compaction tests as RocksDB's compaction model is different.
+ * Eventually, they should be marked as not applicable, and an
+ * equivalent test constructed exclusively for RocksDB.
+ */
+enum test_result prepare_skip_broken_under_rocks(engine_test_t* test);
+
+/**
+ * Prepare a test which is only applicable to a persistent bucket, but
+ * is currently expected to fail when using RocksDBKVStore and so should
+ * be skipped.
+ * As RocksDBKVStore progresses these tests should be rechecked, as
+ * all applicable tests should eventually pass.
+ */
+enum test_result prepare_ep_bucket_skip_broken_under_rocks(engine_test_t* test);
+
+/**
+ * Prepare a test which is currently expected to fail when either:
+ *  - using RocksDBKVStore in a persistend bucket
+ *  - using an Ephemeral bucket
+ * and so should be skipped.
+ * These tests should eventually pass in both cases.
+ */
+enum test_result prepare_skip_broken_under_ephemeral_and_rocks(
+        engine_test_t* test);
+
+/**
  * Prepare a test which is only applicable for ephemeral buckets
  * (EphemeralBucket) - for other types it should be skipped.
  */
