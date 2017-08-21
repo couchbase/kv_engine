@@ -47,6 +47,16 @@ public:
     }
 
     ~ThreadLocalPosix() {
+        // pthread_key_delete doesn't run the destructor so it must be manually
+        // invoked if the thread-local has been initialised on this thread.
+        void* v = pthread_getspecific(key);
+        if (v != nullptr) {
+            pthread_setspecific(key, nullptr);
+            if (dtor != nullptr) {
+                dtor(v);
+            }
+        }
+
         int rc = pthread_key_delete(key);
         if (rc != 0) {
             std::cerr << "~ThreadLocalPosix() - pthread_key_delete(): "
