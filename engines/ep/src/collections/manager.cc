@@ -47,15 +47,6 @@ cb::engine_error Collections::Manager::update(KVBucket& bucket,
                 "Collections::Manager::update manifest json invalid:" + json);
     }
 
-    // Validate manifest revision is increasing
-    if (newManifest->getRevision() <= current->getRevision()) {
-        return cb::engine_error(
-                cb::engine_errc::invalid_arguments,
-                "Collections::Manager::update manifest revision:" +
-                        std::to_string(current->getRevision()) + " json:" +
-                        json);
-    }
-
     current = std::move(newManifest);
 
     for (int i = 0; i < bucket.getVBuckets().getSize(); i++) {

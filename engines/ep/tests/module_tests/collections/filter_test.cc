@@ -64,8 +64,9 @@ public:
  */
 TEST_F(CollectionsFilterTest, junk_in) {
     Collections::Manifest m(
-            R"({"revision":0,"separator":"::",)"
-            R"("collections":["$default", "vegetable"]})");
+            R"({"separator":"::",)"
+            R"("collections":[{"name":"$default","uid":"0"},
+                              {"name":"vegetable","uid":"1"}]})");
 
     std::vector<std::string> inputs = {"{}",
                                        R"({"collections":1})",
@@ -87,8 +88,12 @@ TEST_F(CollectionsFilterTest, junk_in) {
  */
 TEST_F(CollectionsFilterTest, validation1) {
     Collections::Manifest m(
-            R"({"revision":0,"separator":"::",)"
-            R"("collections":["$default", "vegetable", "fruit", "meat", "dairy"]})");
+            R"({"separator":"::",)"
+            R"("collections":[{"name":"$default","uid":"0"},
+                              {"name":"vegetable","uid":"1"},
+                              {"name":"meat","uid":"3"},
+                              {"name":"fruit", "uid":"4"},
+                              {"name":"dairy","uid":"5"}]})");
 
     std::vector<std::string> inputs = {R"({"collections":["$default"]})",
                                        R"({"collections":["vegetable"]})",
@@ -109,7 +114,11 @@ TEST_F(CollectionsFilterTest, validation1) {
 TEST_F(CollectionsFilterTest, validation2) {
     Collections::Manifest m(
             R"({"revision":0,"separator":"::",)"
-            R"("collections":["$default", "vegetable", "fruit", "meat", "dairy"]})");
+            R"("collections":[{"name":"$default","uid":"0"},
+                              {"name":"vegetable","uid":"1"},
+                              {"name":"meat","uid":"3"},
+                              {"name":"fruit", "uid":"4"},
+                              {"name":"dairy","uid":"5"}]})");
 
     std::vector<std::string> inputs = {R"({"collections":["cheese"]})",
                                        R"({"collections":["fruit","beer"]})",
@@ -129,9 +138,11 @@ TEST_F(CollectionsFilterTest, validation2) {
 TEST_F(CollectionsFilterTest, validation_no_default) {
     // m does not include $default
     Collections::Manifest m(
-            R"({"revision":0,"separator":"::",)"
-            R"("collections":["vegetable", "fruit", "meat", "dairy"]})");
-
+            R"({"separator":"::",)"
+            R"("collections":[{"name":"vegetable","uid":"1"},
+                              {"name":"meat","uid":"3"},
+                              {"name":"fruit", "uid":"4"},
+                              {"name":"dairy","uid":"5"}]})");
     boost::optional<const std::string&> json;
     EXPECT_THROW(std::make_unique<Collections::Filter>(json, m),
                  std::logic_error);
@@ -143,8 +154,12 @@ TEST_F(CollectionsFilterTest, validation_no_default) {
  */
 TEST_F(CollectionsFilterTest, filter_basic1) {
     Collections::Manifest m(
-            R"({"revision":0,"separator":"$",)"
-            R"("collections":["$default", "vegetable", "fruit", "meat", "dairy"]})");
+            R"({"separator":"$",)"
+            R"("collections":[{"name":"$default","uid":"0"},
+                              {"name":"vegetable","uid":"1"},
+                              {"name":"meat","uid":"3"},
+                              {"name":"fruit", "uid":"4"},
+                              {"name":"dairy","uid":"5"}]})");
 
     std::string jsonFilter = R"({"collections":["$default", "fruit", "meat"]})";
     boost::optional<const std::string&> json(jsonFilter);
@@ -175,8 +190,12 @@ TEST_F(CollectionsFilterTest, filter_basic1) {
  */
 TEST_F(CollectionsFilterTest, filter_basic2) {
     Collections::Manifest m(
-            R"({"revision":0,"separator":"$",)"
-            R"("collections":["$default", "vegetable", "fruit", "meat", "dairy"]})");
+            R"({"separator":"$",)"
+            R"("collections":[{"name":"$default","uid":"0"},
+                              {"name":"vegetable","uid":"1"},
+                              {"name":"meat","uid":"3"},
+                              {"name":"fruit", "uid":"4"},
+                              {"name":"dairy","uid":"5"}]})");
 
     std::string jsonFilter; // empty string creates a pass through
     boost::optional<const std::string&> json(jsonFilter);
@@ -203,11 +222,17 @@ class CollectionsVBFilterTest : public CollectionsFilterTest {};
  */
 TEST_F(CollectionsVBFilterTest, deleted_collection) {
     Collections::Manifest m1(
-            R"({"revision":0,"separator":"$",)"
-            R"("collections":["$default", "vegetable", "fruit", "meat", "dairy"]})");
+            R"({"separator":"$",)"
+            R"("collections":[{"name":"$default","uid":"0"},
+                              {"name":"vegetable","uid":"1"},
+                              {"name":"meat","uid":"3"},
+                              {"name":"fruit", "uid":"4"},
+                              {"name":"dairy","uid":"5"}]})");
     Collections::Manifest m2(
-            R"({"revision":1,"separator":"$",)"
-            R"("collections":["$default", "meat", "dairy"]})");
+            R"({"separator":"$",)"
+            R"("collections":[{"name":"$default","uid":"0"},
+                              {"name":"meat","uid":"3"},
+                              {"name":"dairy","uid":"5"}]})");
 
     // Create the "producer" level filter so that we in theory produce at least
     // these collections
@@ -231,8 +256,12 @@ TEST_F(CollectionsVBFilterTest, deleted_collection) {
  */
 TEST_F(CollectionsVBFilterTest, basic_allow) {
     Collections::Manifest m(
-            R"({"revision":0,"separator":"$",)"
-            R"("collections":["$default", "vegetable", "fruit", "meat", "dairy"]})");
+            R"({"separator":"$",)"
+            R"("collections":[{"name":"$default","uid":"0"},
+                              {"name":"vegetable","uid":"1"},
+                              {"name":"meat","uid":"3"},
+                              {"name":"fruit", "uid":"4"},
+                              {"name":"dairy","uid":"5"}]})");
 
     std::string jsonFilter = R"({"collections":["$default", "fruit", "meat"]})";
     boost::optional<const std::string&> json(jsonFilter);
@@ -264,7 +293,9 @@ TEST_F(CollectionsVBFilterTest, basic_allow) {
  */
 TEST_F(CollectionsVBFilterTest, legacy_filter) {
     Collections::Manifest m(
-            R"({"revision":0,"separator":"$","collections":["$default", "meat"]})");
+            R"({"separator":"$",)"
+            R"("collections":[{"name":"$default","uid":"0"},
+                              {"name":"meat","uid":"3"}]})");
 
     boost::optional<const std::string&> json;
     Collections::Filter f(json, m);
@@ -283,7 +314,8 @@ TEST_F(CollectionsVBFilterTest, legacy_filter) {
  */
 TEST_F(CollectionsVBFilterTest, passthrough) {
     Collections::Manifest m(
-            R"({"revision":0,"separator":"$","collections":["meat"]})");
+            R"({"separator":"$",)"
+            R"("collections":[{"name":"meat","uid":"3"}]})");
     std::string filterJson; // empty string
     boost::optional<const std::string&> json(filterJson);
     Collections::Filter f(json, m);
@@ -305,8 +337,12 @@ TEST_F(CollectionsVBFilterTest, passthrough) {
  */
 TEST_F(CollectionsVBFilterTest, no_default) {
     Collections::Manifest m(
-            R"({"revision":0,"separator":"$",)"
-            R"("collections":["$default", "vegetable", "fruit", "meat", "dairy"]})");
+            R"({"separator":"$",)"
+            R"("collections":[{"name":"$default","uid":"0"},
+                              {"name":"vegetable","uid":"1"},
+                              {"name":"meat","uid":"3"},
+                              {"name":"fruit", "uid":"4"},
+                              {"name":"dairy","uid":"5"}]})");
     Collections::VB::Manifest vbm({});
     vbm.wlock().update(vb, m);
 
@@ -329,8 +365,11 @@ TEST_F(CollectionsVBFilterTest, no_default) {
  */
 TEST_F(CollectionsVBFilterTest, remove1) {
     Collections::Manifest m(
-            R"({"revision":0,"separator":"$",)"
-            R"("collections":["vegetable", "fruit", "meat", "dairy"]})");
+            R"({"separator":"$",)"
+            R"("collections":[{"name":"vegetable","uid":"1"},
+                              {"name":"meat","uid":"3"},
+                              {"name":"fruit", "uid":"4"},
+                              {"name":"dairy","uid":"5"}]})");
     Collections::VB::Manifest vbm({});
     vbm.wlock().update(vb, m);
 
@@ -355,8 +394,11 @@ TEST_F(CollectionsVBFilterTest, remove1) {
  */
 TEST_F(CollectionsVBFilterTest, remove2) {
     Collections::Manifest m(
-            R"({"revision":0,"separator":"$",)"
-            R"("collections":["$default", "fruit", "meat", "dairy"]})");
+            R"({"separator":"$",)"
+            R"("collections":[{"name":"$default","uid":"0"},
+                              {"name":"meat","uid":"3"},
+                              {"name":"fruit", "uid":"4"},
+                              {"name":"dairy","uid":"5"}]})");
     Collections::VB::Manifest vbm({});
     vbm.wlock().update(vb, m);
 
@@ -390,8 +432,11 @@ std::unique_ptr<SystemEventConsumerMessage> makeTestMessage(
  */
 TEST_F(CollectionsVBFilterTest, system_events1) {
     Collections::Manifest m(
-            R"({"revision":0,"separator":"$",)"
-            R"("collections":["$default", "fruit", "meat", "dairy"]})");
+            R"({"separator":"$",)"
+            R"("collections":[{"name":"$default","uid":"0"},
+                              {"name":"meat","uid":"3"},
+                              {"name":"fruit", "uid":"4"},
+                              {"name":"dairy","uid":"5"}]})");
     Collections::VB::Manifest vbm({});
     vbm.wlock().update(vb, m);
 
@@ -443,8 +488,11 @@ TEST_F(CollectionsVBFilterTest, system_events1) {
  */
 TEST_F(CollectionsVBFilterTest, system_events2) {
     Collections::Manifest m(
-            R"({"revision":0,"separator":"$",)"
-            R"("collections":["$default", "fruit", "meat", "dairy"]})");
+            R"({"separator":"$",)"
+            R"("collections":[{"name":"$default","uid":"0"},
+                              {"name":"meat","uid":"3"},
+                              {"name":"fruit", "uid":"4"},
+                              {"name":"dairy","uid":"5"}]})");
     Collections::VB::Manifest vbm({});
     vbm.wlock().update(vb, m);
 
@@ -497,8 +545,11 @@ TEST_F(CollectionsVBFilterTest, system_events2) {
  */
 TEST_F(CollectionsVBFilterTest, system_events3) {
     Collections::Manifest m(
-            R"({"revision":0,"separator":"$",)"
-            R"("collections":["$default", "fruit", "meat", "dairy"]})");
+            R"({"separator":"$",)"
+            R"("collections":[{"name":"$default","uid":"0"},
+                              {"name":"meat","uid":"3"},
+                              {"name":"fruit", "uid":"4"},
+                              {"name":"dairy","uid":"5"}]})");
     Collections::VB::Manifest vbm({});
     vbm.wlock().update(vb, m);
 

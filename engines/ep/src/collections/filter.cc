@@ -122,7 +122,7 @@ void Collections::Filter::addCollection(const char* collection,
                     "Filter::Filter: $default is not a known collection");
         }
     } else {
-        if (manifest.find({collection}) != manifest.end()) {
+        if (manifest.find(collection) != manifest.end()) {
             filter.push_back(collection);
         } else {
             throw std::invalid_argument("Filter::Filter: collection:" +

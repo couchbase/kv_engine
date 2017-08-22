@@ -82,7 +82,7 @@ Manifest::Manifest(const std::string& manifest)
 }
 
 void Manifest::update(::VBucket& vb, const Collections::Manifest& manifest) {
-    std::vector<std::string> additions, deletions;
+    std::vector<Collections::Manifest::Identifier> additions, deletions;
     std::tie(additions, deletions) = processManifest(manifest);
 
     if (separator != manifest.getSeparator()) {
@@ -91,18 +91,18 @@ void Manifest::update(::VBucket& vb, const Collections::Manifest& manifest) {
                         OptionalSeqno{/*no-seqno*/});
     }
 
-    // Process additions to the manifest
-    for (const auto& collection : additions) {
-        addCollection(vb,
-                      {collection, manifest.getRevision()},
-                      OptionalSeqno{/*no-seqno*/});
-    }
-
     // Process deletions to the manifest
     for (const auto& collection : deletions) {
         beginCollectionDelete(vb,
-                              {collection, manifest.getRevision()},
+                              {collection.getName(), collection.getUid()},
                               OptionalSeqno{/*no-seqno*/});
+    }
+
+    // Process additions to the manifest
+    for (const auto& collection : additions) {
+        addCollection(vb,
+                      {collection.getName(), collection.getUid()},
+                      OptionalSeqno{/*no-seqno*/});
     }
 }
 
@@ -119,7 +119,7 @@ void Manifest::addCollection(::VBucket& vb,
             vb, SystemEvent::CreateCollection, identifier, optionalSeqno);
 
     LOG(EXTENSION_LOG_NOTICE,
-        "collections: vb:%" PRIu16 " adding collection:%.*s, uid:%" PRIu32
+        "collections: vb:%" PRIu16 " adding collection:%.*s, uid:%" PRIu64
         ", seqno:%" PRIu64,
         vb.getId(),
         int(identifier.getName().size()),
@@ -185,7 +185,7 @@ void Manifest::beginCollectionDelete(::VBucket& vb,
 
     LOG(EXTENSION_LOG_NOTICE,
         "collections: vb:%" PRIu16
-        " begin delete of collection:%.*s, uid:%" PRIu32 ", seqno:%" PRIu64,
+        " begin delete of collection:%.*s, uid:%" PRIu64 ", seqno:%" PRIu64,
         vb.getId(),
         int(identifier.getName().size()),
         identifier.getName().data(),
@@ -216,7 +216,7 @@ void Manifest::completeDeletion(::VBucket& vb, Identifier identifier) {
 
     LOG(EXTENSION_LOG_NOTICE,
         "collections: vb:%" PRIu16
-        " complete delete of collection:%.*s, uid:%" PRIu32,
+        " complete delete of collection:%.*s, uid:%" PRIu64,
         vb.getId(),
         int(identifier.getName().size()),
         identifier.getName().data(),
@@ -290,17 +290,14 @@ void Manifest::changeSeparator(::VBucket& vb,
 
 Manifest::processResult Manifest::processManifest(
         const Collections::Manifest& manifest) const {
-    std::vector<std::string> additions, deletions;
+    std::vector<Collections::Manifest::Identifier> additions, deletions;
 
-    for (const auto& manifestEntry : map) {
-        // If the manifestEntry is open and not found in the new manifest it
-        // must be deleted.
-        if (manifestEntry.second->isOpen() &&
-            manifest.find(manifestEntry.second->getCollectionName()) ==
-                    manifest.end()) {
-            deletions.push_back(std::string(
-                    reinterpret_cast<const char*>(manifestEntry.first.data()),
-                    manifestEntry.first.size()));
+    for (const auto& entry : map) {
+        // If the entry is open and not found in the new manifest it must be
+        // deleted.
+        if (entry.second->isOpen() &&
+            manifest.find(entry.second->getIdentifier()) == manifest.end()) {
+            deletions.push_back(entry.second->getIdentifier());
         }
     }
 
@@ -308,10 +305,11 @@ Manifest::processResult Manifest::processManifest(
     for (const auto& m : manifest) {
         // if we don't find the collection, then it must be an addition.
         // if we do find a name match, then check if the collection is in the
-        //  process of being deleted.
-        auto itr = map.find(m);
+        //  process of being deleted or has a new UID
+        auto itr = map.find(m.getName());
 
-        if (itr == map.end() || !itr->second->isOpen()) {
+        if (itr == map.end() || !itr->second->isOpen() ||
+            itr->second->getUid() != m.getUid()) {
             additions.push_back(m);
         }
     }

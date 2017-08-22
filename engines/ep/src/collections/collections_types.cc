@@ -17,11 +17,18 @@
 
 #include "collections/collections_types.h"
 
+#include <iostream>
+
 namespace Collections {
 
-std::string to_string(Identifier identifier) {
+std::string to_string(const Identifier& identifier) {
     return cb::to_string(identifier.getName()) + ":" +
            std::to_string(identifier.getUid());
+}
+
+std::ostream& operator<<(std::ostream& os, const Identifier& identifier) {
+    os << to_string(identifier);
+    return os;
 }
 
 } // end namespace Collections

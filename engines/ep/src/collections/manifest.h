@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include <cJSON.h>
 #include <algorithm>
 #include <cstdint>
 #include <string>
@@ -35,6 +36,35 @@ namespace Collections {
  */
 class Manifest {
 public:
+    // Manfifest::Identifier stores/owns name
+    class Identifier : public IdentifierInterface<Identifier> {
+    public:
+        Identifier(const std::string& name, uid_t uid) : name(name), uid(uid) {
+        }
+
+        template <class T>
+        Identifier(const IdentifierInterface<T>& identifier)
+            : name(identifier.getName().data(), identifier.getName().size()),
+              uid(identifier.getUid()) {
+        }
+
+        cb::const_char_buffer getName() const {
+            return {name};
+        }
+
+        uid_t getUid() const {
+            return uid;
+        }
+
+        bool operator==(const Collections::Identifier& rhs) const {
+            return rhs.getName() == name.c_str() && rhs.getUid() == uid;
+        }
+
+    private:
+        std::string name;
+        uid_t uid;
+    };
+
     /*
      * Initialise the default manifest
      */
@@ -46,14 +76,6 @@ public:
      */
     Manifest(const std::string& json);
 
-    /**
-     * Returns a uid_t as the current code is using revision as a uid.
-     * @todo change this, collections will have a uid in the JSON
-     */
-    uid_t getRevision() const {
-        return revision;
-    }
-
     const std::string& getSeparator() const {
         return separator;
     }
@@ -62,11 +84,13 @@ public:
         return defaultCollectionExists;
     }
 
-    std::vector<std::string>::const_iterator begin() const {
+    using container = std::vector<Identifier>;
+
+    container::const_iterator begin() const {
         return collections.begin();
     }
 
-    std::vector<std::string>::const_iterator end() const {
+    container::const_iterator end() const {
         return collections.end();
     }
 
@@ -74,9 +98,23 @@ public:
         return collections.size();
     }
 
-    std::vector<std::string>::const_iterator find(
-            const std::string& collection) const {
-        return std::find(begin(), end(), collection);
+    /**
+     * Try and find an identifier in this Manifest (name/uid match)
+     * @return iterator to the matching entry or end() if not found.
+     */
+    container::const_iterator find(
+            const Collections::Identifier& identifier) const {
+        return std::find_if(
+                begin(), end(), [identifier](const Identifier& entry) {
+                    return entry == identifier;
+                });
+    }
+
+    /// @todo enhance filters with UIDs - this find remains for Filter code
+    container::const_iterator find(const char* name) const {
+        return std::find_if(begin(), end(), [name](const Identifier& entry) {
+            return entry.getName() == name;
+        });
     }
 
     /**
@@ -85,6 +123,45 @@ public:
     void dump() const;
 
 private:
+    /**
+     * Set defaultCollectionExists to true if name matches $default
+     * @param name C-string collection name
+     */
+    void enableDefaultCollection(const char* name);
+
+    /**
+     * Get json sub-object from the json object for key and check the type.
+     * @param json The parent object in which to find key.
+     * @param key The key to look for.
+     * @param expectedType The type the found object must be.
+     * @return A cJSON object for key.
+     * @throws std::invalid_argument if key is not found or the wrong type.
+     */
+    cJSON* getJsonObject(cJSON* json, const char* key, int expectedType);
+
+    /**
+     * Constructor helper function, throws invalid_argument with a string
+     * indicating if the cJSON struct is nullptr or not the expectedType.
+     *
+     * @param errorKey the JSON key associated with the cJSON struct
+     * @param cJsonHandle the struct handed back by cJSON functions
+     * @param expectedType the cJSON type we expect cJsonHandle to be
+     * @throws std::invalid_argument if cJsonHandle is null or !expectedType
+     */
+    static void throwIfNullOrWrongType(const std::string& errorKey,
+                                       cJSON* cJsonHandle,
+                                       int expectedType);
+
+    /**
+     * Constructor helper function for getting a uid from a C-string.
+     * A valid uid is a C-string where each character satisfies std::isxdigit
+     * and can be converted to a uid_t by std::strtoull.
+     *
+     * @param uid C-string uid
+     * @throws std::invalid_argument if uid is invalid
+     */
+    static uid_t convertUid(const char* uid);
+
     /**
      * Check if the C-string input has a length > 0 and < 250.
      *
@@ -96,16 +173,26 @@ private:
      * Check if the C-string represents a legal collection name.
      * Current validation is to ensure we block creation of _ prefixed
      * collections and only accept $default for $ prefixed names.
+     *
      * @param collection a C-string representing a collection name.
      */
     static bool validCollection(const char* collection);
 
     friend std::ostream& operator<<(std::ostream& os, const Manifest& manifest);
 
-    int revision;
     bool defaultCollectionExists;
     std::string separator;
-    std::vector<std::string> collections;
+    container collections;
+
+    // strings used in JSON parsing
+    static constexpr char const* SeparatorKey = "separator";
+    static constexpr int SeparatorType = cJSON_String;
+    static constexpr char const* CollectionsKey = "collections";
+    static constexpr int CollectionsType = cJSON_Array;
+    static constexpr char const* CollectionNameKey = "name";
+    static constexpr int CollectionNameType = cJSON_String;
+    static constexpr char const* CollectionUidKey = "uid";
+    static constexpr int CollectionUidType = cJSON_String;
 };
 
 std::ostream& operator<<(std::ostream& os, const Manifest& manifest);

@@ -19,93 +19,125 @@
 #include "collections/collections_types.h"
 
 #include <JSON_checker.h>
-#include <cJSON.h>
 #include <cJSON_utils.h>
 
+#include <cctype>
 #include <cstring>
 #include <iostream>
 
 namespace Collections {
 
 Manifest::Manifest()
-    : revision(0), defaultCollectionExists(true), separator(DefaultSeparator) {
-    collections.push_back(DefaultCollectionIdentifier.data());
+    : defaultCollectionExists(true), separator(DefaultSeparator) {
+    collections.push_back({DefaultCollectionIdentifier.data(), 0});
 }
 
-Manifest::Manifest(const std::string& json)
-    : revision(-1), defaultCollectionExists(false) {
+Manifest::Manifest(const std::string& json) : defaultCollectionExists(false) {
     if (!checkUTF8JSON(reinterpret_cast<const unsigned char*>(json.data()),
                        json.size())) {
-        throw std::invalid_argument("Manifest::Manifest input not valid json");
+        throw std::invalid_argument("Manifest::Manifest input not valid json:" +
+                                    json);
     }
 
     unique_cJSON_ptr cjson(cJSON_Parse(json.c_str()));
     if (!cjson) {
         throw std::invalid_argument(
-                "Manifest::Manifest cJSON cannot parse json");
+                "Manifest::Manifest cJSON cannot parse json:" + json);
     }
 
-    auto jsonRevision = cJSON_GetObjectItem(cjson.get(), "revision");
-    if (!jsonRevision || jsonRevision->type != cJSON_Number) {
-        throw std::invalid_argument(
-                "Manifest::Manifest cannot find valid "
-                "revision: " +
-                (!jsonRevision ? "nullptr"
-                               : std::to_string(jsonRevision->type)));
-    } else {
-        revision = jsonRevision->valueint;
-    }
+    auto* jsonSeparator =
+            getJsonObject(cjson.get(), SeparatorKey, SeparatorType);
 
-    auto jsonSeparator = cJSON_GetObjectItem(cjson.get(), "separator");
-    if (!jsonSeparator || jsonSeparator->type != cJSON_String) {
-        throw std::invalid_argument(
-                "Manifest::Manifest cannot find valid "
-                "separator: " +
-                (!jsonSeparator ? "nullptr"
-                                : std::to_string(jsonSeparator->type)));
-    } else if (validSeparator(jsonSeparator->valuestring)) {
+    if (validSeparator(jsonSeparator->valuestring)) {
         separator = jsonSeparator->valuestring;
     } else {
-        throw std::invalid_argument("Manifest::Manifest separator invalid " +
+        throw std::invalid_argument("Manifest::Manifest invalid separator:" +
                                     std::string(jsonSeparator->valuestring));
     }
 
-    auto jsonCollections = cJSON_GetObjectItem(cjson.get(), "collections");
-    if (!jsonCollections || jsonCollections->type != cJSON_Array) {
-        throw std::invalid_argument(
-                "Manifest::Manifest cannot find valid "
-                "collections: " +
-                (!jsonCollections ? "nullptr"
-                                  : std::to_string(jsonCollections->type)));
-    } else {
-        for (int ii = 0; ii < cJSON_GetArraySize(jsonCollections); ii++) {
-            auto collection = cJSON_GetArrayItem(jsonCollections, ii);
-            if (!collection || collection->type != cJSON_String) {
+    auto jsonCollections =
+            getJsonObject(cjson.get(), CollectionsKey, CollectionsType);
+
+    for (int ii = 0; ii < cJSON_GetArraySize(jsonCollections); ii++) {
+        auto collection = cJSON_GetArrayItem(jsonCollections, ii);
+        throwIfNullOrWrongType(
+                std::string(CollectionsKey) + ":" + std::to_string(ii),
+                collection,
+                cJSON_Object);
+
+        auto* name = getJsonObject(
+                collection, CollectionNameKey, CollectionNameType);
+        auto* uid =
+                getJsonObject(collection, CollectionUidKey, CollectionUidType);
+
+        if (validCollection(name->valuestring)) {
+            if (find(name->valuestring) != collections.end()) {
                 throw std::invalid_argument(
-                        "Manifest::Manifest cannot find "
-                        "valid collection for index " +
-                        std::to_string(ii) +
-                        (!collection ? " nullptr"
-                                     : std::to_string(collection->type)));
-            } else if (validCollection(collection->valuestring)) {
-                if (std::strncmp(collection->valuestring,
-                                 DefaultCollectionIdentifier.data(),
-                                 DefaultCollectionIdentifier.size()) == 0) {
-                    defaultCollectionExists = true;
-                }
-                collections.push_back(collection->valuestring);
-            } else {
-                throw std::invalid_argument(
-                        "Manifest::Manifest invalid collection name:" +
-                        std::string(collection->valuestring));
+                        "Manifest::Manifest duplicate collection name:" +
+                        std::string(name->valuestring));
             }
+            uid_t uidValue = convertUid(uid->valuestring);
+            enableDefaultCollection(name->valuestring);
+            collections.push_back({name->valuestring, uidValue});
+        } else {
+            throw std::invalid_argument(
+                    "Manifest::Manifest invalid collection name:" +
+                    std::string(name->valuestring));
         }
+    }
+}
+
+cJSON* Manifest::getJsonObject(cJSON* json, const char* key, int expectedType) {
+    auto* rv = cJSON_GetObjectItem(json, key);
+    throwIfNullOrWrongType(key, rv, expectedType);
+    return rv;
+}
+
+void Manifest::throwIfNullOrWrongType(const std::string& errorKey,
+                                      cJSON* cJsonHandle,
+                                      int expectedType) {
+    if (!cJsonHandle || cJsonHandle->type != expectedType) {
+        throw std::invalid_argument(
+                "Manifest: cannot find valid " + errorKey + ": " +
+                (!cJsonHandle
+                         ? "nullptr"
+                         : "wrong type:" + std::to_string(cJsonHandle->type)));
+    }
+}
+
+void Manifest::enableDefaultCollection(const char* name) {
+    if (std::strncmp(name,
+                     DefaultCollectionIdentifier.data(),
+                     DefaultCollectionIdentifier.size()) == 0) {
+        defaultCollectionExists = true;
     }
 }
 
 bool Manifest::validSeparator(const char* separator) {
     size_t size = std::strlen(separator);
-    return size > 0 && size <= 250;
+    return size > 0 && size <= 16;
+}
+
+uid_t Manifest::convertUid(const char* uid) {
+    if (std::strlen(uid) == 0 || std::strlen(uid) > 16) {
+        throw std::invalid_argument(
+                "Manifest::convertUid uid must be > 0 and <= 16 characters: "
+                "strlen(uid):" +
+                std::to_string(std::strlen(uid)));
+    }
+
+    // verify that the input characters satisfy isxdigit
+    for (size_t ii = 0; ii < std::strlen(uid); ii++) {
+        if (uid[ii] == 0) {
+            break;
+        } else if (!std::isxdigit(uid[ii])) {
+            throw std::invalid_argument("Manifest::convertUid: uid:" +
+                                        std::string(uid) + ", index:" +
+                                        std::to_string(ii) + " fails isxdigit");
+        }
+    }
+
+    return std::strtoull(uid, nullptr, 16);
 }
 
 bool Manifest::validCollection(const char* collection) {
@@ -125,12 +157,11 @@ void Manifest::dump() const {
 
 std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {
     os << "Collections::Manifest"
-       << ": revision:" << manifest.revision
        << ", defaultCollectionExists:" << manifest.defaultCollectionExists
        << ", separator:" << manifest.separator
        << ", collections.size:" << manifest.collections.size() << std::endl;
     for (const auto& entry : manifest.collections) {
-        os << "collection:" << entry << "\n";
+        os << "collection:{" << entry << "}\n";
     }
     return os;
 }

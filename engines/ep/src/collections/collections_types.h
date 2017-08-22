@@ -41,16 +41,45 @@ const char CouchstoreManifest[] = "_local/collections_manifest";
 // Length of the string excluding the zero terminator (i.e. strlen)
 const size_t CouchstoreManifestLen = sizeof(CouchstoreManifest) - 1;
 
-using uid_t = uint32_t;
+using uid_t = uint64_t;
+
+/**
+ * Interface definition for the a collection identifier - a pair of name and UID
+ * Forces compile time dispatch for the 3 required methods.
+ * getUid, getName and isDefaultCollection
+ */
+template <class T>
+class IdentifierInterface {
+public:
+    /// @returns the UID for this identifier
+    uid_t getUid() const {
+        return static_cast<const T*>(this)->getUid();
+    }
+
+    /// @returns the name for this identifier
+    cb::const_char_buffer getName() const {
+        return static_cast<const T*>(this)->getName();
+    }
+
+    /// @returns true if the identifer's name matches the default name
+    bool isDefaultCollection() const {
+        return getName() == DefaultCollectionIdentifier;
+    }
+};
 
 /**
  * A collection may exist concurrently, where one maybe open and the others
  * are in the process of being erased. This class carries the information for
  * locating the correct "generation" of a collection.
  */
-class Identifier {
+class Identifier : public IdentifierInterface<Identifier> {
 public:
     Identifier(cb::const_char_buffer name, uid_t uid) : name(name), uid(uid) {
+    }
+
+    template <class T>
+    Identifier(const IdentifierInterface<T>& identifier)
+        : name(identifier.getName()), uid(identifier.getUid()) {
     }
 
     cb::const_char_buffer getName() const {
@@ -61,15 +90,13 @@ public:
         return uid;
     }
 
-    bool isDefaultCollection() const {
-        return getName() == DefaultCollectionIdentifier;
-    }
-
 private:
     cb::const_char_buffer name;
     uid_t uid;
 };
 
-std::string to_string(Identifier identifier);
+std::string to_string(const Identifier& identifier);
+
+std::ostream& operator<<(std::ostream& os, const Identifier& identifier);
 
 } // end namespace Collections

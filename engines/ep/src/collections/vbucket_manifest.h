@@ -484,18 +484,20 @@ protected:
     ManifestEntry& beginDeleteCollectionEntry(Identifier identifier);
 
     /**
-     * Processs a Collections::Manifest
+     * Process a Collections::Manifest to determine if collections need adding
+     * or removing.
      *
      * This function returns two sets of collections. Those which are being
      * added and those which are being deleted.
      *
      * @param manifest The Manifest to compare with.
-     * @returns A pair of vector containing the required changes, first contains
-     *          collections that need adding whilst second contains those which
-     *          should be deleted.
+     * @returns A pair of vectors containing the required changes, first
+     *          contains collections that need adding whilst second contains
+     *          those which should be deleted.
      */
     using processResult =
-            std::pair<std::vector<std::string>, std::vector<std::string>>;
+            std::pair<std::vector<Collections::Manifest::Identifier>,
+                      std::vector<Collections::Manifest::Identifier>>;
     processResult processManifest(const Collections::Manifest& manifest) const;
 
     /**
