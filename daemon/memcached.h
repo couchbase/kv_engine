@@ -157,7 +157,7 @@ int is_listen_thread(void);
 
 void STATS_LOCK(void);
 void STATS_UNLOCK(void);
-void threadlocal_stats_reset(struct thread_stats *thread_stats);
+void threadlocal_stats_reset(std::vector<thread_stats>& thread_stats);
 
 void notify_io_complete(const void *cookie, ENGINE_ERROR_CODE status);
 void safe_close(SOCKET sfd);

@@ -120,8 +120,7 @@ static ENGINE_ERROR_CODE server_stats(ADD_STAT add_stat_callback,
     rel_time_t now = mc_time_get_current_time();
 
     struct thread_stats thread_stats;
-    thread_stats.aggregate(all_buckets[c->getBucketIndex()].stats,
-                           settings.getNumWorkerThreads());
+    thread_stats.aggregate(all_buckets[c->getBucketIndex()].stats);
 
     auto* cookie = c->getCookie();
 

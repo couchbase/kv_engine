@@ -407,10 +407,9 @@ static void stats_init(void) {
 }
 
 struct thread_stats *get_thread_stats(Connection *c) {
-    struct thread_stats *independent_stats;
     cb_assert(c->getThread()->index < (settings.getNumWorkerThreads() + 1));
-    independent_stats = all_buckets[c->getBucketIndex()].stats;
-    return &independent_stats[c->getThread()->index];
+    auto& independent_stats = all_buckets[c->getBucketIndex()].stats;
+    return &independent_stats.at(c->getThread()->index);
 }
 
 void stats_reset(const void *void_cookie) {
@@ -2258,9 +2257,7 @@ void DestroyBucketThread::destroy() {
                connection_id.c_str(), name.c_str());
 
     /* Clean up the stats... */
-    delete[] bucket.stats;
-    int numthread = settings.getNumWorkerThreads() + 1;
-    bucket.stats = new thread_stats[numthread];
+    threadlocal_stats_reset(bucket.stats);
 
     // Clear any registered event handlers
     for (auto& handler : bucket.engine_event_handlers) {
@@ -2294,7 +2291,7 @@ void DestroyBucketThread::run() {
 static void initialize_buckets(void) {
     int numthread = settings.getNumWorkerThreads() + 1;
     for (auto &b : all_buckets) {
-        b.stats = new thread_stats[numthread];
+        b.stats.resize(numthread);
     }
 
     // To make the life easier for us in the code, index 0
@@ -2341,8 +2338,6 @@ static void cleanup_buckets(void) {
             bucket.engine->destroy(v1_handle_2_handle(bucket.engine), false);
             delete bucket.topkeys;
         }
-
-        delete []bucket.stats;
     }
 }
 

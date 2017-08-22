@@ -492,9 +492,9 @@ void notify_dispatcher(void) {
 
 /******************************* GLOBAL STATS ******************************/
 
-void threadlocal_stats_reset(struct thread_stats *thread_stats) {
-    for (int ii = 0; ii < settings.getNumWorkerThreads(); ++ii) {
-        thread_stats[ii].reset();
+void threadlocal_stats_reset(std::vector<thread_stats>& thread_stats) {
+    for (auto& ii : thread_stats) {
+        ii.reset();
     }
 }
 

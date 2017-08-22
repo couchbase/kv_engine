@@ -28,6 +28,7 @@
 #include "cookie.h"
 #include "function_chain.h"
 #include "mcbp_validators.h"
+#include "stats.h"
 #include "timings.h"
 #include "topkeys.h"
 #include "task.h"
@@ -91,7 +92,6 @@ public:
         : clients(0),
           state(BucketState::None),
           type(BucketType::Unknown),
-          stats(nullptr),
           topkeys(nullptr)
     {
         std::memset(name, 0, sizeof(name));
@@ -156,9 +156,9 @@ public:
     ENGINE_HANDLE_V1 *engine; /* Pointer to the bucket */
 
     /**
-     * Statistics array, one per front-end thread.
+     * Statistics vector, one per front-end thread.
      */
-    struct thread_stats *stats;
+    std::vector<thread_stats> stats;
 
     /**
      * Command timing data

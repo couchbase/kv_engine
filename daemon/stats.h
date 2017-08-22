@@ -115,9 +115,9 @@ struct thread_stats {
         return *this;
     }
 
-    void aggregate(struct thread_stats *thread_stats, int num) {
-        for (int ii = 0; ii < num; ++ii) {
-            *this += thread_stats[ii];
+    void aggregate(const std::vector<thread_stats>& thread_stats) {
+        for (auto& ii : thread_stats) {
+            *this += ii;
         }
     }
 
