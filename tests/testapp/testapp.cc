@@ -300,10 +300,8 @@ std::string CERTIFICATE_PATH(const std::string& file) {
 }
 static std::string get_errmaps_dir() {
     std::string dir(SOURCE_ROOT);
-    dir += "/etc/error_maps";
-#ifdef WIN32
-    std::replace(dir.begin(), dir.end(), '/', '\\');
-#endif
+    dir += "/etc/couchbase/kv/error_maps";
+    cb::io::sanitizePath(dir);
     return dir;
 }
 

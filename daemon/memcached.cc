@@ -631,10 +631,8 @@ static void update_settings_from_config(void)
 
     if (settings.getErrorMapsDir().empty()) {
         // Set the error map dir.
-        std::string error_maps_dir(root + "/etc/error_maps");
-    #ifdef _WIN32
-        std::replace(error_maps_dir.begin(), error_maps_dir.end(), '/', '\\');
-    #endif
+        std::string error_maps_dir(root + "/etc/couchbase/kv/error_maps");
+        cb::io::sanitizePath(error_maps_dir);
         if (cb::io::isDirectory(error_maps_dir)) {
             settings.setErrorMapsDir(error_maps_dir);
         }
