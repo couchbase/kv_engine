@@ -157,13 +157,15 @@ bool operator==(const Item& lhs, const Item& rhs) {
 
 std::ostream& operator<<(std::ostream& os, const Item& i) {
     os << "Item[" << &i << "] with"
-       << " key:" << i.key << "\n"
-       << "\tvalue:" << *i.value << "\n"
-       << "\tmetadata:" << i.metaData << "\n"
-       << "\tbySeqno:" << i.bySeqno
-       << " queuedTime:" << i.queuedTime
-       << " vbucketId:" << i.vbucketId
-       << " op:" << to_string(i.op)
+       << " key:" << i.key << "\n";
+    if (i.value.get()) {
+        os << "\tvalue:" << *i.value << "\n";
+    } else {
+        os << "\tvalue:nullptr\n";
+    }
+    os << "\tmetadata:" << i.metaData << "\n"
+       << "\tbySeqno:" << i.bySeqno << " queuedTime:" << i.queuedTime
+       << " vbucketId:" << i.vbucketId << " op:" << to_string(i.op)
        << " nru:" << int(i.nru);
     return os;
 }
