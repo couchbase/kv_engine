@@ -74,6 +74,7 @@ void RocksDBKVStore::open() {
 }
 
 void RocksDBKVStore::close() {
+    batch.reset();
     db.reset();
 }
 
