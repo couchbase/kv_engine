@@ -176,9 +176,22 @@ static SERVER_HANDLE_V1 *get_wrapped_gsa() {
 class EWB_Engine : public ENGINE_HANDLE_V1 {
 
 private:
-    enum class Cmd { NONE, GET_INFO, ALLOCATE, REMOVE, GET, STORE,
-                     CAS, ARITHMETIC, LOCK, UNLOCK,
-                     FLUSH, GET_STATS, UNKNOWN_COMMAND };
+    enum class Cmd {
+        NONE,
+        GET_INFO,
+        ALLOCATE,
+        REMOVE,
+        GET,
+        STORE,
+        CAS,
+        ARITHMETIC,
+        LOCK,
+        UNLOCK,
+        FLUSH,
+        GET_STATS,
+        GET_META,
+        UNKNOWN_COMMAND
+    };
 
     const char* to_string(Cmd cmd);
 
@@ -449,6 +462,22 @@ public:
         } else {
             return ewb->real_engine->get_locked(
                     ewb->real_handle, cookie, key, vbucket, lock_timeout);
+        }
+    }
+
+    static cb::EngineErrorMetadataPair get_meta(ENGINE_HANDLE* handle,
+                                                const void* cookie,
+                                                const DocKey& key,
+                                                uint16_t vbucket) {
+        EWB_Engine* ewb = to_engine(handle);
+        ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
+        if (ewb->should_inject_error(Cmd::GET_META, cookie, err)) {
+            return std::make_pair(cb::engine_errc(err), item_info());
+        } else {
+            return ewb->real_engine->get_meta(ewb->real_handle,
+                                              cookie,
+                                              key,
+                                              vbucket);
         }
     }
 
@@ -1261,6 +1290,7 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
     ENGINE_HANDLE_V1::get = get;
     ENGINE_HANDLE_V1::get_if = get_if;
     ENGINE_HANDLE_V1::get_locked = get_locked;
+    ENGINE_HANDLE_V1::get_meta = get_meta;
     ENGINE_HANDLE_V1::get_and_touch = get_and_touch;
     ENGINE_HANDLE_V1::unlock = unlock;
     ENGINE_HANDLE_V1::store = store;
@@ -1755,6 +1785,8 @@ const char* EWB_Engine::to_string(const Cmd cmd) {
         return "NONE";
     case Cmd::GET_INFO:
         return "GET_INFO";
+    case Cmd::GET_META:
+        return "GET_META";
     case Cmd::ALLOCATE:
         return "ALLOCATE";
     case Cmd::REMOVE:

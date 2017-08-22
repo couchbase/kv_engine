@@ -254,6 +254,10 @@ public:
                               ADD_RESPONSE response,
                               DocNamespace docNamespace);
 
+    cb::EngineErrorMetadataPair getMeta(const void* cookie,
+                                        const DocKey& key,
+                                        uint16_t vbucket);
+
     ENGINE_ERROR_CODE setWithMeta(const void* cookie,
                                  protocol_binary_request_set_with_meta *request,
                                  ADD_RESPONSE response,

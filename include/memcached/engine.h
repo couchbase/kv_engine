@@ -158,6 +158,9 @@ class ItemDeleter;
 typedef std::unique_ptr<item, ItemDeleter> unique_item_ptr;
 
 using EngineErrorItemPair = std::pair<cb::engine_errc, cb::unique_item_ptr>;
+
+using EngineErrorMetadataPair = std::pair<engine_errc, item_info>;
+
 enum class StoreIfStatus {
     Continue,
     Fail,
@@ -331,6 +334,21 @@ typedef struct engine_interface_v1 {
                                    const DocKey& key,
                                    uint16_t vbucket,
                                    DocStateFilter documentStateFilter);
+
+    /**
+     * Retrieve metadata for a given item.
+     *
+     * @param handle the engine handle
+     * @param cookie The cookie provided by the frontend
+     * @param key the key to look up
+     * @param vbucket the virtual bucket id
+     *
+     * @return  Pair (ENGINE_SUCCESS, Metadata) if all goes well
+     */
+    cb::EngineErrorMetadataPair (*get_meta)(ENGINE_HANDLE* handle,
+                                            const void* cookie,
+                                            const DocKey& key,
+                                            uint16_t vbucket);
 
     /**
      * Optionally retrieve an item. Only non-deleted items may be fetched

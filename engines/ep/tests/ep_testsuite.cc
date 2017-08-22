@@ -835,24 +835,26 @@ static enum test_result test_expiry_with_xattr(ENGINE_HANDLE* h,
 
     testHarness.time_travel(11);
 
-    checkeq(true,
-            get_meta(h, h1, "test_expiry", true, GetMetaVersion::V2, cookie),
-            "Get meta command failed");
-    auto prev_revseqno = last_meta.revSeqno;
+    cb::EngineErrorMetadataPair errorMetaPair;
 
-    checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_XATTR),
-            last_datatype.load(), "Datatype is not XATTR");
+    check(get_meta(h, h1, "test_expiry", errorMetaPair, cookie),
+          "Get meta command failed");
+    auto prev_revseqno = errorMetaPair.second.seqno;
+
+    checkeq(PROTOCOL_BINARY_DATATYPE_XATTR,
+            errorMetaPair.second.datatype,
+            "Datatype is not XATTR");
 
     auto ret = get(h, h1, cookie, key, 0, DocStateFilter::AliveOrDeleted);
     checkeq(cb::engine_errc::success,
             ret.first,
             "Unable to get a deleted item");
 
-    checkeq(true,
-            get_meta(h, h1, "test_expiry", false, GetMetaVersion::V1, cookie),
-            "Get meta command failed");
+    check(get_meta(h, h1, "test_expiry", errorMetaPair, cookie),
+          "Get meta command failed");
 
-    checkeq(last_meta.revSeqno, prev_revseqno + 1,
+    checkeq(errorMetaPair.second.seqno,
+            prev_revseqno + 1,
             "rev seqno must have incremented by 1");
 
     /* Retrieve the item info and create a new blob out of the data */
@@ -4117,11 +4119,9 @@ static enum test_result test_revid(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
                 "Failed to store a value");
         h1->release(h, NULL, it);
 
-        check(get_meta(h, h1, "test_revid"), "Get meta failed");
-
-        checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
-                "Expected success");
-        checkeq(ii, last_meta.revSeqno, "Unexpected sequence number");
+        cb::EngineErrorMetadataPair erroMetaPair;
+        check(get_meta(h, h1, "test_revid", erroMetaPair), "Get meta failed");
+        checkeq(ii, erroMetaPair.second.seqno, "Unexpected sequence number");
     }
 
     return SUCCESS;
@@ -4129,14 +4129,20 @@ static enum test_result test_revid(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 
 static enum test_result test_regression_mb4314(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 {
-    ItemMetaData itm_meta;
-    check(!get_meta(h, h1, "test_regression_mb4314"), "Expected to get meta");
+    cb::EngineErrorMetadataPair errorMetaPair;
+    check(!get_meta(h, h1, "test_regression_mb4314", errorMetaPair),
+          "Expected get_meta() to fail");
 
-    itm_meta.flags = 0xdeadbeef;
-    itm_meta.exptime = 0;
-    itm_meta.revSeqno = 10;
-    itm_meta.cas = 0xdeadbeef;
-    set_with_meta(h, h1, "test_regression_mb4314", 22, NULL, 0, 0, &itm_meta, last_cas);
+    ItemMetaData itm_meta(0xdeadbeef, 10, 0xdeadbeef, 0);
+    set_with_meta(h,
+                  h1,
+                  "test_regression_mb4314",
+                  22,
+                  NULL,
+                  0,
+                  0,
+                  &itm_meta,
+                  errorMetaPair.second.cas);
 
     // Now try to read the item back:
     auto ret = get(h, h1, NULL, "test_regression_mb4314", 0);
@@ -4388,9 +4394,11 @@ static enum test_result test_observe_temp_item(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     wait_for_flusher_to_settle(h, h1);
     wait_for_stat_to_be(h, h1, "curr_items", 0);
 
-    check(get_meta(h, h1, k1), "Expected to get meta");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
-    check(last_deleted_flag, "Expected deleted flag to be set");
+    cb::EngineErrorMetadataPair errorMetaPair;
+
+    check(get_meta(h, h1, k1, errorMetaPair), "Expected to get meta");
+    check(errorMetaPair.second.document_state == DocumentState::Deleted,
+          "Expected deleted flag to be set");
     checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
 
     if (isPersistentBucket(h, h1)) {

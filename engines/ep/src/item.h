@@ -121,6 +121,10 @@ public:
 bool operator==(const ItemMetaData& lhs, const ItemMetaData& rhs);
 std::ostream& operator<<(std::ostream& os, const ItemMetaData& md);
 
+item_info to_item_info(const ItemMetaData& itemMeta,
+                       uint8_t datatype,
+                       uint32_t deleted);
+
 /**
  * The Item structure we use to pass information between the memcached
  * core and the backend. Please note that the kvstore don't store these

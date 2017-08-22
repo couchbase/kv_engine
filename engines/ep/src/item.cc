@@ -326,3 +326,18 @@ void Item::pruneValueAndOrXattrs(IncludeValue includeVal,
         setDataType(PROTOCOL_BINARY_RAW_BYTES);
     }
 }
+
+item_info to_item_info(const ItemMetaData& itemMeta,
+                       uint8_t datatype,
+                       uint32_t deleted) {
+    item_info info;
+    info.cas = itemMeta.cas;
+    info.datatype = datatype;
+    info.exptime = itemMeta.exptime;
+    info.flags = itemMeta.flags;
+    info.seqno = itemMeta.revSeqno;
+    info.document_state =
+            deleted ? DocumentState::Deleted : DocumentState::Alive;
+
+    return info;
+}

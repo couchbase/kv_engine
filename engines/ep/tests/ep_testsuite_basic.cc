@@ -540,18 +540,22 @@ static enum test_result test_getl_set_del_with_meta(ENGINE_HANDLE *h,
             getl(h, h1, nullptr, key, 0, 15).first,
             "Expected getl to succeed on key");
 
-    check(get_meta(h, h1, key), "Expected to get meta");
+    cb::EngineErrorMetadataPair errorMetaPair;
+    check(get_meta(h, h1, key, errorMetaPair), "Expected to get meta");
 
     //init some random metadata
-    ItemMetaData itm_meta;
-    itm_meta.revSeqno = 10;
-    itm_meta.cas = 0xdeadbeef;
-    itm_meta.exptime = time(NULL) + 300;
-    itm_meta.flags = 0xdeadbeef;
+    ItemMetaData itm_meta(0xdeadbeef, 10, 0xdeadbeef, time(NULL) + 300);
 
     //do a set with meta
-    set_with_meta(h, h1, key, strlen(key), newval, strlen(newval), 0,
-                  &itm_meta, last_cas);
+    set_with_meta(h,
+                  h1,
+                  key,
+                  strlen(key),
+                  newval,
+                  strlen(newval),
+                  0,
+                  &itm_meta,
+                  errorMetaPair.second.cas);
     checkeq(PROTOCOL_BINARY_RESPONSE_LOCKED, last_status.load(),
           "Expected item to be locked");
 
@@ -1001,26 +1005,26 @@ static enum test_result test_touch(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     check_key_value(h, h1, "mykey", "somevalue", strlen("somevalue"));
 
-    check(get_meta(h, h1, "mykey"), "Get meta failed");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
-            "Get meta failed");
+    cb::EngineErrorMetadataPair errorMetaPair;
 
-    uint64_t curr_cas = last_meta.cas;
-    time_t curr_exptime = last_meta.exptime;
-    uint64_t curr_revseqno = last_meta.revSeqno;
+    check(get_meta(h, h1, "mykey", errorMetaPair), "Get meta failed");
+
+    item_info currMeta = errorMetaPair.second;
 
     checkeq(ENGINE_SUCCESS,
             touch(h, h1, "mykey", 0, uint32_t(time(NULL) + 10)),
             "touch mykey");
-    check(last_cas != curr_cas, "touch should have returned an updated CAS");
+    check(last_cas != currMeta.cas,
+          "touch should have returned an updated CAS");
 
-    check(get_meta(h, h1, "mykey"), "Get meta failed");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
-            "Get meta failed");
+    check(get_meta(h, h1, "mykey", errorMetaPair), "Get meta failed");
 
-    check(last_meta.cas != curr_cas, "touch should have updated the CAS");
-    check(last_meta.exptime != curr_exptime, "touch should have updated the expiry time");
-    check(last_meta.revSeqno == curr_revseqno + 1, "touch should have incremented rev seqno");
+    check(errorMetaPair.second.cas != currMeta.cas,
+          "touch should have updated the CAS");
+    check(errorMetaPair.second.exptime != currMeta.exptime,
+          "touch should have updated the expiry time");
+    check(errorMetaPair.second.seqno == currMeta.seqno + 1,
+          "touch should have incremented rev seqno");
 
     // time-travel 9 secs..
     testHarness.time_travel(9);
@@ -1370,11 +1374,11 @@ static enum test_result test_delete_with_value_cas(ENGINE_HANDLE *h,
             store(h, h1, nullptr, OPERATION_SET, "key1", "somevalue", nullptr),
             "Failed set");
 
-    check(get_meta(h, h1, "key1"), "Get meta failed");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
-            last_status.load(), "Get meta failed");
+    cb::EngineErrorMetadataPair errorMetaPair;
 
-    uint64_t curr_revseqno = last_meta.revSeqno;
+    check(get_meta(h, h1, "key1", errorMetaPair), "Get meta failed");
+
+    uint64_t curr_revseqno = errorMetaPair.second.seqno;
 
     /* Store a deleted item first with CAS 0 */
     checkeq(ENGINE_SUCCESS,
@@ -1382,11 +1386,10 @@ static enum test_result test_delete_with_value_cas(ENGINE_HANDLE *h,
                   0, 0, 3600, 0x00, DocumentState::Deleted),
             "Failed delete with value");
 
-    check(get_meta(h, h1, "key1"), "Get meta failed");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
-            last_status.load(), "Get meta failed");
+    check(get_meta(h, h1, "key1", errorMetaPair), "Get meta failed");
 
-    checkeq(last_meta.revSeqno, curr_revseqno + 1,
+    checkeq(errorMetaPair.second.seqno,
+            curr_revseqno + 1,
             "rev seqno should have incremented");
 
     item *i = nullptr;
@@ -1400,11 +1403,9 @@ static enum test_result test_delete_with_value_cas(ENGINE_HANDLE *h,
 
     h1->release(h, nullptr, i);
 
-    check(get_meta(h, h1, "key2"), "Get meta failed");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
-            last_status.load(), "Get meta failed");
+    check(get_meta(h, h1, "key2", errorMetaPair), "Get meta failed");
 
-    curr_revseqno = last_meta.revSeqno;
+    curr_revseqno = errorMetaPair.second.seqno;
 
     /* Store a deleted item with the existing CAS value */
     checkeq(ENGINE_SUCCESS,
@@ -1414,14 +1415,13 @@ static enum test_result test_delete_with_value_cas(ENGINE_HANDLE *h,
 
     wait_for_flusher_to_settle(h, h1);
 
-    check(get_meta(h, h1, "key2"), "Get meta failed");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
-            last_status.load(), "Get meta failed");
+    check(get_meta(h, h1, "key2", errorMetaPair), "Get meta failed");
 
-    checkeq(last_meta.revSeqno, curr_revseqno + 1,
+    checkeq(errorMetaPair.second.seqno,
+            curr_revseqno + 1,
             "rev seqno should have incremented");
 
-    curr_revseqno = last_meta.revSeqno;
+    curr_revseqno = errorMetaPair.second.seqno;
 
     checkeq(ENGINE_SUCCESS,
             store(h, h1, nullptr, OPERATION_SET, "key2",
@@ -1438,14 +1438,13 @@ static enum test_result test_delete_with_value_cas(ENGINE_HANDLE *h,
 
     h1->release(h, nullptr, i);
 
-    check(get_meta(h, h1, "key2"), "Get meta failed");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
-            last_status.load(), "Get meta failed");
+    check(get_meta(h, h1, "key2", errorMetaPair), "Get meta failed");
 
-    checkeq(last_meta.revSeqno, curr_revseqno + 1,
+    checkeq(errorMetaPair.second.seqno,
+            curr_revseqno + 1,
             "rev seqno should have incremented");
 
-    curr_revseqno = last_meta.revSeqno;
+    curr_revseqno = errorMetaPair.second.seqno;
 
     // Attempt to Delete-with-value using incorrect CAS (should fail)
     const uint64_t incorrect_CAS = info.cas + 1;
@@ -1466,11 +1465,10 @@ static enum test_result test_delete_with_value_cas(ENGINE_HANDLE *h,
     auto ret = get(h, h1, nullptr, "key2", 0, DocStateFilter::AliveOrDeleted);
     checkeq(cb::engine_errc::success, ret.first, "Failed to get value");
 
-    check(get_meta(h, h1, "key2"), "Get meta failed");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
-            last_status.load(), "Get meta failed");
+    check(get_meta(h, h1, "key2", errorMetaPair), "Get meta failed");
 
-    checkeq(last_meta.revSeqno, curr_revseqno + 1,
+    checkeq(errorMetaPair.second.seqno,
+            curr_revseqno + 1,
             "rev seqno should have incremented");
 
     check(h1->get_item_info(h, nullptr, ret.second.get(), &info),

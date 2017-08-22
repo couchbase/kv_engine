@@ -431,8 +431,12 @@ void set_drift_counter_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 bool get_meta(ENGINE_HANDLE* h,
               ENGINE_HANDLE_V1* h1,
               const char* key,
-              bool reqExtMeta = false,
-              GetMetaVersion metaVer = GetMetaVersion::V1,
+              const void* cookie = nullptr);
+
+bool get_meta(ENGINE_HANDLE* h,
+              ENGINE_HANDLE_V1* h1,
+              const char* key,
+              cb::EngineErrorMetadataPair& out,
               const void* cookie = nullptr);
 
 void set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,

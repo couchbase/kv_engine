@@ -136,11 +136,6 @@ private:
 static void get_histo_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                   const char *statname, const char *statkey);
 
-extern "C" bool add_response_get_meta(const void *key, uint16_t keylen,
-                                      const void *ext, uint8_t extlen,
-                                      const void *body, uint32_t bodylen,
-                                      uint8_t datatype, uint16_t status,
-                                      uint64_t cas, const void *cookie);
 void encodeExt(char *buffer, uint32_t val);
 void encodeWithMetaExt(char *buffer, ItemMetaData *meta);
 
@@ -170,32 +165,6 @@ bool add_response(const void *key, uint16_t keylen, const void *ext,
     last_cas.store(cas);
     last_datatype.store(datatype);
     return true;
-}
-
-bool add_response_get_meta(const void *key, uint16_t keylen, const void *ext,
-                           uint8_t extlen, const void *body, uint32_t bodylen,
-                           uint8_t datatype, uint16_t status, uint64_t cas,
-                           const void *cookie) {
-    (void)cookie;
-    const uint8_t* ext_bytes = reinterpret_cast<const uint8_t*> (ext);
-    uint8_t meta_datatype = datatype;
-    if (ext && extlen > 0) {
-        uint32_t flags;
-        memcpy(&flags, ext_bytes, 4);
-        last_deleted_flag = ntohl(flags) & GET_META_ITEM_DELETED_FLAG;
-        memcpy(&last_meta.flags, ext_bytes + 4, 4);
-        memcpy(&last_meta.exptime, ext_bytes + 8, 4);
-        last_meta.exptime = ntohl(last_meta.exptime);
-        memcpy(&last_meta.revSeqno, ext_bytes + 12, 8);
-        last_meta.revSeqno = ntohll(last_meta.revSeqno);
-        last_meta.cas = cas;
-        if (extlen > 20) {
-            memcpy(&meta_datatype, ext_bytes + 20, 1);
-        }
-    }
-
-    return add_response(key, keylen, ext, extlen, body, bodylen, meta_datatype,
-                        status, cas, cookie);
 }
 
 bool add_response_set_del_meta(const void *key, uint16_t keylen, const void *ext,
@@ -575,43 +544,24 @@ cb::EngineErrorItemPair getl(ENGINE_HANDLE* h,
 bool get_meta(ENGINE_HANDLE* h,
               ENGINE_HANDLE_V1* h1,
               const char* key,
-              bool reqExtMeta,
-              GetMetaVersion metaVer,
               const void* cookie) {
-    protocol_binary_request_header *req;
-    if (reqExtMeta) {
-        req = createPacket(PROTOCOL_BINARY_CMD_GET_META, 0, 0,
-                           reinterpret_cast<char*>(&metaVer), sizeof(metaVer),
-                           key, strlen(key));
-    } else {
-        req = createPacket(PROTOCOL_BINARY_CMD_GET_META, 0, 0,
-                           NULL, 0, key, strlen(key));
-    }
+    cb::EngineErrorMetadataPair out;
 
-    ENGINE_ERROR_CODE ret = h1->unknown_command(h, cookie, req,
-                                                add_response_get_meta,
-                                                testHarness.doc_namespace);
-    if (ret == ENGINE_EWOULDBLOCK) {
-        last_status = static_cast<protocol_binary_response_status>(ENGINE_EWOULDBLOCK);
-    } else {
-        check(ret == ENGINE_SUCCESS,
-              "Expected get_meta call to be successful");
-        if (!last_ext.empty()) {
-            if (metaVer == GetMetaVersion::V2) {
-                checkeq(static_cast<unsigned long>(21),
-                        static_cast<unsigned long>(last_ext.length()),
-                        "Expected extras length to be 21");
-            } else {
-                checkeq(static_cast<unsigned long>(20),
-                        static_cast<unsigned long>(last_ext.length()),
-                        "Expected extras length to be 20");
-            }
-        }
-    }
-    cb_free(req);
-    if (last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+    return get_meta(h, h1, key, out, cookie);
+}
+
+bool get_meta(ENGINE_HANDLE* h,
+              ENGINE_HANDLE_V1* h1,
+              const char* key,
+              cb::EngineErrorMetadataPair& out,
+              const void* cookie) {
+    DocKey docKey(key, testHarness.doc_namespace);
+    out = h1->get_meta(h, cookie, docKey, /*vb*/ 0);
+
+    if (out.first == cb::engine_errc::success) {
         return true;
     }
+
     return false;
 }
 

@@ -1654,6 +1654,13 @@ static bool EvpGetItemInfo(ENGINE_HANDLE* handle, const void*,
     return true;
 }
 
+static cb::EngineErrorMetadataPair EvpGetMeta(ENGINE_HANDLE* handle,
+                                              const void* cookie,
+                                              const DocKey& key,
+                                              uint16_t vbucket) {
+    return acquireEngine(handle)->getMeta(cookie, key, vbucket);
+}
+
 static bool EvpSetItemInfo(ENGINE_HANDLE* handle, const void* cookie,
                            item* itm, const item_info* itm_info) {
     Item* it = reinterpret_cast<Item*>(itm);
@@ -1706,6 +1713,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
     ENGINE_HANDLE_V1::get_if = EvpGetIf;
     ENGINE_HANDLE_V1::get_and_touch = EvpGetAndTouch;
     ENGINE_HANDLE_V1::get_locked = EvpGetLocked;
+    ENGINE_HANDLE_V1::get_meta = EvpGetMeta;
     ENGINE_HANDLE_V1::unlock = EvpUnlock;
     ENGINE_HANDLE_V1::get_stats = EvpGetStats;
     ENGINE_HANDLE_V1::reset_stats = EvpResetStats;
@@ -4136,6 +4144,27 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getMeta(const void* cookie,
     }
 
     return rv;
+}
+
+cb::EngineErrorMetadataPair EventuallyPersistentEngine::getMeta(
+        const void* cookie, const DocKey& key, uint16_t vbucket) {
+    uint32_t deleted;
+    uint8_t datatype;
+    ItemMetaData itemMeta;
+    ENGINE_ERROR_CODE ret = kvBucket->getMetaData(
+            key, vbucket, cookie, itemMeta, deleted, datatype);
+
+    item_info metadata;
+
+    if (ret == ENGINE_SUCCESS) {
+        metadata = to_item_info(itemMeta, datatype, deleted);
+    } else if (ret == ENGINE_KEY_ENOENT || ret == ENGINE_NOT_MY_VBUCKET) {
+        if (isDegradedMode()) {
+            ret = ENGINE_TMPFAIL;
+        }
+    }
+
+    return std::make_pair(cb::engine_errc(ret), metadata);
 }
 
 protocol_binary_response_status

@@ -108,10 +108,11 @@ void check_and_destroy_mock_connstruct(struct mock_connstruct* c, const void* co
  * EWOULDBLOCK wrapper.
  * Will recall "engine_function" with EWOULDBLOCK retry logic.
  **/
-static cb::EngineErrorItemPair do_blocking_engine_call(
+template <typename T>
+static std::pair<cb::engine_errc, T> do_blocking_engine_call(
         ENGINE_HANDLE* handle,
         struct mock_connstruct* c,
-        std::function<cb::EngineErrorItemPair()> engine_function) {
+        std::function<std::pair<cb::engine_errc, T>()> engine_function) {
     c->nblocks = 0;
     cb_mutex_enter(&c->mutex);
 
@@ -122,7 +123,7 @@ static cb::EngineErrorItemPair do_blocking_engine_call(
         if (c->status == ENGINE_SUCCESS) {
             ret = engine_function();
         } else {
-            return cb::makeEngineErrorItemPair(cb::engine_errc(c->status));
+            return std::make_pair(cb::engine_errc(c->status), T());
         }
     }
     cb_mutex_exit(&c->mutex);
@@ -169,7 +170,8 @@ static cb::EngineErrorItemPair mock_allocate(ENGINE_HANDLE* handle,
                                datatype,
                                vbucket);
 
-    auto ret = do_blocking_engine_call(handle, c, engine_fn);
+    auto ret =
+            do_blocking_engine_call<cb::unique_item_ptr>(handle, c, engine_fn);
 
     check_and_destroy_mock_connstruct(c, cookie);
 
@@ -251,7 +253,8 @@ static cb::EngineErrorItemPair mock_get(ENGINE_HANDLE* handle,
                                vbucket,
                                documentStateFilter);
 
-    auto ret = do_blocking_engine_call(handle, c, engine_fn);
+    auto ret =
+            do_blocking_engine_call<cb::unique_item_ptr>(handle, c, engine_fn);
 
     check_and_destroy_mock_connstruct(c, cookie);
     return ret;
@@ -271,7 +274,8 @@ static cb::EngineErrorItemPair mock_get_if(ENGINE_HANDLE* handle,
                                vbucket,
                                filter);
 
-    auto ret = do_blocking_engine_call(handle, c, engine_fn);
+    auto ret =
+            do_blocking_engine_call<cb::unique_item_ptr>(handle, c, engine_fn);
     check_and_destroy_mock_connstruct(c, cookie);
     return ret;
 }
@@ -289,7 +293,8 @@ static cb::EngineErrorItemPair mock_get_and_touch(ENGINE_HANDLE* handle,
                                vbucket,
                                expiry_time);
 
-    auto ret = do_blocking_engine_call(handle, c, engine_fn);
+    auto ret =
+            do_blocking_engine_call<cb::unique_item_ptr>(handle, c, engine_fn);
     check_and_destroy_mock_connstruct(c, cookie);
     return ret;
 }
@@ -307,7 +312,25 @@ static cb::EngineErrorItemPair mock_get_locked(ENGINE_HANDLE* handle,
                                vbucket,
                                lock_timeout);
 
-    auto ret = do_blocking_engine_call(handle, c, engine_fn);
+    auto ret =
+            do_blocking_engine_call<cb::unique_item_ptr>(handle, c, engine_fn);
+
+    check_and_destroy_mock_connstruct(c, cookie);
+    return ret;
+}
+
+static cb::EngineErrorMetadataPair mock_get_meta(ENGINE_HANDLE* handle,
+                                                 const void* cookie,
+                                                 const DocKey& key,
+                                                 uint16_t vbucket) {
+    struct mock_connstruct* c = get_or_create_mock_connstruct(cookie);
+    auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->get_meta,
+                               get_engine_from_handle(handle),
+                               static_cast<const void*>(c),
+                               key,
+                               vbucket);
+
+    auto ret = do_blocking_engine_call<item_info>(handle, c, engine_fn);
 
     check_and_destroy_mock_connstruct(c, cookie);
     return ret;
@@ -847,6 +870,7 @@ static ENGINE_HANDLE_V1* create_bucket(bool initialize, const char* cfg) {
         mock_engine->me.get_if = mock_get_if;
         mock_engine->me.get_and_touch = mock_get_and_touch;
         mock_engine->me.get_locked = mock_get_locked;
+        mock_engine->me.get_meta = mock_get_meta;
         mock_engine->me.unlock = mock_unlock;
         mock_engine->me.store = mock_store;
         mock_engine->me.flush = mock_flush;

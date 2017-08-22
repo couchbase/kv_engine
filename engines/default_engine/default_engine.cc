@@ -79,6 +79,12 @@ static cb::EngineErrorItemPair default_get_locked(ENGINE_HANDLE* handle,
                                                   const DocKey& key,
                                                   uint16_t vbucket,
                                                   uint32_t lock_timeout);
+
+static cb::EngineErrorMetadataPair default_get_meta(ENGINE_HANDLE* handle,
+                                                    const void* cookie,
+                                                    const DocKey& key,
+                                                    uint16_t vbucket);
+
 static ENGINE_ERROR_CODE default_unlock(ENGINE_HANDLE* handle,
                                         const void* cookie,
                                         const DocKey& key,
@@ -183,6 +189,7 @@ void default_engine_constructor(struct default_engine* engine, bucket_id_t id)
     engine->engine.get = default_get;
     engine->engine.get_if = default_get_if;
     engine->engine.get_locked = default_get_locked;
+    engine->engine.get_meta = default_get_meta;
     engine->engine.get_and_touch = default_get_and_touch;
     engine->engine.unlock = default_unlock;
     engine->engine.get_stats = default_get_stats;
@@ -546,6 +553,36 @@ static cb::EngineErrorItemPair default_get_locked(ENGINE_HANDLE* handle,
     auto ret = item_get_locked(engine, cookie, &it, key.data(), key.size(),
                                lock_timeout);
     return cb::makeEngineErrorItemPair(cb::engine_errc(ret), it, handle);
+}
+
+static cb::EngineErrorMetadataPair default_get_meta(ENGINE_HANDLE* handle,
+                                                    const void* cookie,
+                                                    const DocKey& key,
+                                                    uint16_t vbucket) {
+    auto* engine_handle = get_handle(handle);
+
+    if (!handled_vbucket(engine_handle, vbucket)) {
+        return std::make_pair(cb::engine_errc::not_my_vbucket, item_info());
+    }
+
+    cb::unique_item_ptr item{item_get(engine_handle,
+                                      cookie,
+                                      key.data(),
+                                      key.size(),
+                                      DocStateFilter::AliveOrDeleted),
+                             cb::ItemDeleter(handle)};
+
+    if (!item) {
+        return std::make_pair(cb::engine_errc::no_such_key, item_info());
+    }
+
+    item_info info;
+    if (!get_item_info(handle, cookie, item.get(), &info)) {
+        throw cb::engine_error(cb::engine_errc::failed,
+                               "default_get_if: get_item_info failed");
+    }
+
+    return std::make_pair(cb::engine_errc::success, info);
 }
 
 static ENGINE_ERROR_CODE default_unlock(ENGINE_HANDLE* handle,
