@@ -45,10 +45,14 @@ static bool validate_macro(const cb::const_byte_buffer& value) {
 }
 
 static bool is_valid_virtual_xattr(cb::const_byte_buffer value) {
-    return ((value.len == cb::xattr::vattrs::DOCUMENT.size()) &&
-            std::memcmp(value.data(),
-                        cb::xattr::vattrs::DOCUMENT.data(),
-                        cb::xattr::vattrs::DOCUMENT.size()) == 0);
+    return (((value.len == cb::xattr::vattrs::DOCUMENT.size()) &&
+             std::memcmp(value.data(),
+                         cb::xattr::vattrs::DOCUMENT.data(),
+                         cb::xattr::vattrs::DOCUMENT.size()) == 0)) ||
+           (((value.len == cb::xattr::vattrs::XTOC.size()) &&
+             std::memcmp(value.data(),
+                         cb::xattr::vattrs::XTOC.data(),
+                         cb::xattr::vattrs::XTOC.size()) == 0));
 }
 
 /**

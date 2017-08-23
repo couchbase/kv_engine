@@ -274,6 +274,39 @@ cb::const_char_buffer SubdocCmdContext::get_document_vattr() {
     return cb::const_char_buffer(document_vattr.data(), document_vattr.size());
 }
 
+cb::const_char_buffer SubdocCmdContext::get_xtoc_vattr() {
+    if (!mcbp::datatype::is_xattr(in_datatype)) {
+        xtoc_vattr = R"({"$XTOC":[]})";
+        return cb::const_char_buffer(xtoc_vattr.data(), xtoc_vattr.size());
+    }
+    if (xtoc_vattr.empty()) {
+        unique_cJSON_ptr doc(cJSON_CreateObject());
+
+        const auto bodyoffset = cb::xattr::get_body_offset(in_doc);
+        cb::byte_buffer blob_buffer{(uint8_t*)in_doc.buf, (size_t)bodyoffset};
+        cb::xattr::Blob xattr_blob(blob_buffer);
+
+        unique_cJSON_ptr array(cJSON_CreateArray());
+        for (const std::pair<cb::const_byte_buffer, cb::const_byte_buffer>&
+                     kvPair : xattr_blob) {
+            bool isSystemXattr = cb::xattr::is_system_xattr(
+                    const_cast<cb::const_byte_buffer&>(kvPair.first));
+
+            if (xtocSemantics == XtocSemantics::All ||
+                (isSystemXattr && (xtocSemantics == XtocSemantics::System)) ||
+                (!isSystemXattr && (xtocSemantics == XtocSemantics::User))) {
+                cJSON_AddItemToArray(
+                        array.get(),
+                        cJSON_CreateString(to_string(kvPair.first).c_str()));
+            }
+        }
+
+        cJSON_AddItemToObject(doc.get(), "$XTOC", array.release());
+        xtoc_vattr = to_string(doc, false);
+    }
+    return cb::const_char_buffer(xtoc_vattr.data(), xtoc_vattr.size());
+}
+
 protocol_binary_response_status SubdocCmdContext::get_document_for_searching(
         uint64_t client_cas) {
     item_info& info = getInputItemInfo();

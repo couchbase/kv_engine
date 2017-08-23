@@ -110,6 +110,9 @@ TEST(XattrKeyValidator, VirtualXattr) {
     std::string key = "$document";
     EXPECT_TRUE(is_valid_xattr_key({key.data(), key.size()}));
 
+    key = "$XTOC";
+    EXPECT_TRUE(is_valid_xattr_key({key.data(), key.size()}));
+
     key = "$";
     EXPECT_FALSE(is_valid_xattr_key({key.data(), key.size()}));
 }

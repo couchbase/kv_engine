@@ -81,6 +81,15 @@ cb::const_char_buffer get_xattr(const cb::const_char_buffer& payload);
 static inline bool is_system_xattr(cb::const_byte_buffer& attr) {
     return *attr.data() == '_';
 }
+
+/**
+ * Check if the attribute is a virtual xattr or not
+ *
+ * @param attr the attribute to check (CAN'T BE EMPTY!)
+ */
+static inline bool is_vattr(cb::const_byte_buffer& attr) {
+    return *attr.data() == '$';
+}
 namespace macros {
 static cb::const_char_buffer CAS = {"\"${Mutation.CAS}\"", 17};
 static cb::const_char_buffer SEQNO = {"\"${Mutation.seqno}\"", 19};
@@ -88,6 +97,7 @@ static cb::const_char_buffer SEQNO = {"\"${Mutation.seqno}\"", 19};
 
 namespace vattrs {
 static cb::const_char_buffer DOCUMENT = {"$document", 9};
+static cb::const_char_buffer XTOC = {"$XTOC", 5};
 }
 }
 }

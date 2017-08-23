@@ -883,6 +883,84 @@ TEST_P(XattrTest, MB_23882_VirtualXattrs_UnknownVattr) {
               multiResp.getStatus());
 }
 
+TEST_P(XattrTest, MB_25786_XTOC_VattrAndBody) {
+    verify_xtoc_user_system_xattr();
+    auto& conn = getConnection();
+    BinprotSubdocMultiLookupResponse multiResp;
+    // Also check we can't use $XTOC if we can't read any xattrs
+    conn.dropPrivilege(cb::rbac::Privilege::SystemXattrRead);
+    conn.dropPrivilege(cb::rbac::Privilege::XattrRead);
+    BinprotSubdocMultiLookupCommand cmd;
+    cmd.setKey(name);
+    cmd.addGet("$XTOC", SUBDOC_FLAG_XATTR_PATH);
+    cmd.addLookup("", PROTOCOL_BINARY_CMD_GET, SUBDOC_FLAG_NONE);
+    conn.sendCommand(cmd);
+    conn.recvResponse(multiResp);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE,
+              multiResp.getStatus());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EACCESS,
+              multiResp.getResults()[0].status);
+    EXPECT_EQ("", multiResp.getResults()[0].value);
+}
+
+TEST_P(XattrTest, MB_25786_XTOC_Vattr_XattrReadPrivOnly) {
+    verify_xtoc_user_system_xattr();
+    BinprotSubdocMultiLookupCommand cmd;
+    cmd.setKey(name);
+    cmd.addGet("$XTOC", SUBDOC_FLAG_XATTR_PATH);
+    cmd.addLookup("", PROTOCOL_BINARY_CMD_GET, SUBDOC_FLAG_NONE);
+
+    auto& conn = getConnection();
+    BinprotSubdocMultiLookupResponse multiResp;
+
+    conn.dropPrivilege(cb::rbac::Privilege::SystemXattrRead);
+    multiResp.clear();
+    conn.sendCommand(cmd);
+    conn.recvResponse(multiResp);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+              multiResp.getResults()[0].status);
+    EXPECT_EQ(R"(["userXattr"])", multiResp.getResults()[0].value);
+}
+
+TEST_P(XattrTest, MB_25786_XTOC_Vattr_XattrSystemReadPrivOnly) {
+    verify_xtoc_user_system_xattr();
+    BinprotSubdocMultiLookupCommand cmd;
+    cmd.setKey(name);
+    cmd.addGet("$XTOC", SUBDOC_FLAG_XATTR_PATH);
+    cmd.addLookup("", PROTOCOL_BINARY_CMD_GET, SUBDOC_FLAG_NONE);
+
+    auto& conn = getConnection();
+    BinprotSubdocMultiLookupResponse multiResp;
+
+    conn.dropPrivilege(cb::rbac::Privilege::XattrRead);
+    multiResp.clear();
+    conn.sendCommand(cmd);
+    conn.recvResponse(multiResp);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+              multiResp.getResults()[0].status);
+    EXPECT_EQ(R"(["_sync"])", multiResp.getResults()[0].value);
+}
+
+TEST_P(XattrTest, MB_25786_XTOC_VattrNoXattrs) {
+    std::string value = R"({"Test":45})";
+    Document document;
+    document.info.cas = mcbp::cas::Wildcard;
+    document.info.datatype = cb::mcbp::Datatype::JSON;
+    document.info.flags = 0xcaffee;
+    document.info.id = name;
+    std::copy(value.begin(), value.end(), std::back_inserter(document.value));
+    getConnection().mutate(document, 0, MutationType::Set);
+    auto doc = getConnection().get(name, 0);
+
+    EXPECT_EQ(doc.value, document.value);
+
+    auto resp = subdoc_get("$XTOC", SUBDOC_FLAG_XATTR_PATH);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    EXPECT_EQ("[]", resp.getValue());
+}
+
 // Test that one can fetch both the body and an XATTR on a deleted document.
 TEST_P(XattrTest, MB24152_GetXattrAndBodyDeleted) {
     setBodyAndXattr(value, xattrVal);

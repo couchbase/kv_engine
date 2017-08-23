@@ -32,6 +32,9 @@
 
 enum class MutationSemantics : uint8_t { Add, Replace, Set };
 
+// Used to describe which xattr keys the xtoc vattr should return
+enum class XtocSemantics : uint8_t { None, User, System, All };
+
 /** Subdoc command context. An instance of this exists for the lifetime of
  *  each subdocument command, and it used to hold information which needs to
  *  persist across calls to subdoc_executor; for example when one or more
@@ -54,28 +57,30 @@ public:
     typedef std::vector<OperationSpec> Operations;
 
     SubdocCmdContext(McbpConnection& connection_, const SubdocCmdTraits traits_)
-      : connection(connection_),
-        traits(traits_),
-        in_doc(),
-        in_cas(0),
-        in_flags(0),
-        in_datatype(PROTOCOL_BINARY_RAW_BYTES),
-        in_document_state(DocumentState::Alive),
-        executed(false),
-        jroot_type(JSONSL_T_ROOT),
-        needs_new_doc(false),
-        vbucket_uuid(0),
-        sequence_no(0),
-        out_doc_len(0),
-        out_doc(),
-        response_val_len(0),
-        do_macro_expansion(false),
-        do_allow_deleted_docs(false),
-        do_delete_doc(false),
-        no_sys_xattrs(false),
-        mutationSemantics(MutationSemantics::Replace),
-        fetchedItem{nullptr, cb::ItemDeleter{connection.getBucketEngineAsV0()}},
-        currentPhase(Phase::XATTR) {
+        : connection(connection_),
+          traits(traits_),
+          in_doc(),
+          in_cas(0),
+          in_flags(0),
+          in_datatype(PROTOCOL_BINARY_RAW_BYTES),
+          in_document_state(DocumentState::Alive),
+          executed(false),
+          jroot_type(JSONSL_T_ROOT),
+          needs_new_doc(false),
+          vbucket_uuid(0),
+          sequence_no(0),
+          out_doc_len(0),
+          out_doc(),
+          response_val_len(0),
+          do_macro_expansion(false),
+          do_allow_deleted_docs(false),
+          do_delete_doc(false),
+          no_sys_xattrs(false),
+          mutationSemantics(MutationSemantics::Replace),
+          fetchedItem{nullptr,
+                      cb::ItemDeleter{connection.getBucketEngineAsV0()}},
+          xtocSemantics{XtocSemantics::None},
+          currentPhase(Phase::XATTR) {
         std::memset(&input_item_info, 0, sizeof(input_item_info));
     }
 
@@ -318,6 +323,12 @@ public:
      */
     cb::const_char_buffer get_document_vattr();
 
+    /*
+     * Get the xtoc document which contains a list of xattr keys that exist for
+     * the document.
+     */
+    cb::const_char_buffer get_xtoc_vattr();
+
     // This is the item info for the item we've fetched from the
     // database
     item_info& getInputItemInfo() {
@@ -343,6 +354,8 @@ public:
      * The result of subdoc_fetch.
      */
     cb::unique_item_ptr fetchedItem;
+
+    XtocSemantics xtocSemantics;
 
 private:
     // The item info representing the input document
@@ -372,4 +385,5 @@ private:
     std::vector<MacroPair> paddedMacros;
 
     std::string document_vattr;
+    std::string xtoc_vattr;
 }; // class SubdocCmdContext

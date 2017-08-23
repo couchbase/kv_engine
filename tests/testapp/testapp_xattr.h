@@ -245,6 +245,39 @@ protected:
         ASSERT_EQ(xattrValue, resp.getValue());
     }
 
+    void verify_xtoc_user_system_xattr() {
+        // Test to check that we can get both an xattr and the main body in
+        // subdoc multi-lookup
+        setBodyAndXattr(value, xattrVal);
+
+        // Sanity checks and setup done lets try the multi-lookup
+
+        BinprotSubdocMultiLookupCommand cmd;
+        cmd.setKey(name);
+        cmd.addGet("$XTOC", SUBDOC_FLAG_XATTR_PATH);
+        cmd.addLookup("", PROTOCOL_BINARY_CMD_GET, SUBDOC_FLAG_NONE);
+
+        auto& conn = getConnection();
+        conn.sendCommand(cmd);
+
+        BinprotSubdocMultiLookupResponse multiResp;
+        conn.recvResponse(multiResp);
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                  multiResp.getResults()[0].status);
+        EXPECT_EQ(R"(["_sync"])", multiResp.getResults()[0].value);
+        EXPECT_EQ(value, multiResp.getResults()[1].value);
+
+        xattr_upsert("userXattr", R"(["Test"])");
+        conn.sendCommand(cmd);
+        multiResp.clear();
+        conn.recvResponse(multiResp);
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                  multiResp.getResults()[0].status);
+        EXPECT_EQ(R"(["_sync","userXattr"])", multiResp.getResults()[0].value);
+    }
+
     std::string value = "{\"Field\":56}";
     const std::string sysXattr = "_sync.eg";
     const std::string xattrVal = "99";

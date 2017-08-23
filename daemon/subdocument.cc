@@ -120,9 +120,7 @@ static void create_single_path_context(SubdocCmdContext& context,
     if (xattr) {
         size_t xattr_keylen;
         is_valid_xattr_key({(const uint8_t*)path.buf, path.len}, xattr_keylen);
-        if (path.buf[0] != '$') {
-            context.set_xattr_key({(const uint8_t*)path.buf, xattr_keylen});
-        }
+        context.set_xattr_key({(const uint8_t*)path.buf, xattr_keylen});
     }
 
     if (flags & SUBDOC_FLAG_EXPAND_MACROS) {
@@ -225,9 +223,7 @@ static void create_multi_path_context(SubdocCmdContext& context,
         if (xattr) {
             size_t xattr_keylen;
             is_valid_xattr_key({(const uint8_t*)path.buf, path.len}, xattr_keylen);
-            if (path.buf[0] != '$') {
-                context.set_xattr_key({(const uint8_t*)path.buf, xattr_keylen});
-            }
+            context.set_xattr_key({(const uint8_t*)path.buf, xattr_keylen});
         }
 
         const SubdocCmdContext::Phase phase = xattr ?
@@ -582,11 +578,16 @@ subdoc_operate_one_path(SubdocCmdContext& context, SubdocCmdContext::OperationSp
 
     if (context.getCurrentPhase() == SubdocCmdContext::Phase::XATTR &&
         spec.path.buf[0] == '$') {
-        // This is a call to the "$document" (the validator stopped all of
-        // the other ones), so replace the document with
-        // the document virtual one..
-        auto doc = context.get_document_vattr();
-        op->set_doc(doc.data(), doc.size());
+        if (spec.path.buf[1] == 'd') {
+            // This is a call to the "$document" (the validator stopped all of
+            // the other ones), so replace the document with
+            // the document virtual one..
+            auto doc = context.get_document_vattr();
+            op->set_doc(doc.data(), doc.size());
+        } else if (spec.path.buf[1] == 'X') {
+            auto doc = context.get_xtoc_vattr();
+            op->set_doc(doc.data(), doc.size());
+        }
     }
 
     // ... and execute it.
@@ -784,10 +785,66 @@ static bool operate_single_doc(SubdocCmdContext& context,
     return true;
 }
 
+static ENGINE_ERROR_CODE validate_vattr_privilege(SubdocCmdContext& context) {
+    auto key = context.get_xattr_key();
+
+    // The $document vattr doesn't require any xattr permissions.
+
+    if (key.buf[1] == 'X') {
+        // In the xtoc case we want to see which privileges the connection has
+        // to determine which XATTRs we tell the user about
+
+        bool xattrRead = false;
+        auto access = context.connection.checkPrivilege(
+                cb::rbac::Privilege::XattrRead,
+                context.connection.getCookieObject());
+        switch (access) {
+        case cb::rbac::PrivilegeAccess::Ok:
+            xattrRead = true;
+            break;
+        case cb::rbac::PrivilegeAccess::Fail:
+            xattrRead = false;
+            break;
+        case cb::rbac::PrivilegeAccess::Stale:
+            return ENGINE_AUTH_STALE;
+        }
+
+        bool xattrSysRead = false;
+        access = context.connection.checkPrivilege(
+                cb::rbac::Privilege::SystemXattrRead,
+                context.connection.getCookieObject());
+        switch (access) {
+        case cb::rbac::PrivilegeAccess::Ok:
+            xattrSysRead = true;
+            break;
+        case cb::rbac::PrivilegeAccess::Fail:
+            xattrSysRead = false;
+            break;
+        case cb::rbac::PrivilegeAccess::Stale:
+            return ENGINE_AUTH_STALE;
+        }
+
+        if (xattrRead && xattrSysRead) {
+            context.xtocSemantics = XtocSemantics::All;
+        } else if (xattrRead) {
+            context.xtocSemantics = XtocSemantics::User;
+        } else if (xattrSysRead) {
+            context.xtocSemantics = XtocSemantics::System;
+        } else {
+            return ENGINE_EACCESS;
+        }
+    }
+    return ENGINE_SUCCESS;
+}
+
 static ENGINE_ERROR_CODE validate_xattr_privilege(SubdocCmdContext& context) {
     auto key = context.get_xattr_key();
     if (key.empty()) {
         return ENGINE_SUCCESS;
+    }
+
+    if (cb::xattr::is_vattr(key)) {
+        return validate_vattr_privilege(context);
     }
 
     cb::rbac::Privilege privilege;
