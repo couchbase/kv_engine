@@ -45,20 +45,6 @@ void bucket_reset_stats(McbpConnection* c) {
     c->getBucketEngine()->reset_stats(c->getBucketEngineAsV0(), c->getCookie());
 }
 
-ENGINE_ERROR_CODE bucket_get_engine_vb_map(McbpConnection* c,
-                                           engine_get_vb_map_cb callback) {
-    auto ret = c->getBucketEngine()->get_engine_vb_map(
-            c->getBucketEngineAsV0(), c->getCookie(), callback);
-    if (ret == ENGINE_DISCONNECT) {
-        LOG_INFO(c,
-                 "%u: %s bucket_get_engine_vb_map return ENGINE_DISCONNECT",
-                 c->getId(),
-                 c->getDescription().c_str());
-    }
-
-    return ret;
-}
-
 bool bucket_get_item_info(McbpConnection* c, const item* item_,
                           item_info* item_info_) {
     auto ret = c->getBucketEngine()->get_item_info(

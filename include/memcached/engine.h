@@ -565,19 +565,6 @@ typedef struct engine_interface_v1 {
                            item* item,
                            const item_info* itm_info);
 
-    /**
-     * Get the vbucket map stored in the engine
-     *
-     * @param handle the engine handle
-     * @param cookie The connection cookie
-     * @param callback a function the engine may call to "return" the
-     *                 buffer.
-     * @return ENGINE_SUCCESS for success
-     */
-    ENGINE_ERROR_CODE (* get_engine_vb_map)(ENGINE_HANDLE* handle,
-                                            const void* cookie,
-                                            engine_get_vb_map_cb callback);
-
     struct dcp_interface dcp;
 
     /**

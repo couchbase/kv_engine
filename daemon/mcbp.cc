@@ -25,85 +25,59 @@
 #include <include/memcached/protocol_binary.h>
 #include <platform/compress.h>
 
-static int get_clustermap_revno(const char *map, size_t mapsize) {
-    /* Try to locate the "rev": field in the map. Unfortunately
-     * we can't use the function strnstr because it's not available
-     * on all platforms
-     */
-    const std::string prefix = "\"rev\":";
-
-    if (mapsize == 0 || *map != '{' || mapsize < (prefix.length() + 1) ) {
-        /* This doesn't look like our cluster map */
-        return -1;
-    }
-    mapsize -= prefix.length();
-
-    for (size_t index = 1; index < mapsize; ++index) {
-        if (memcmp(map + index, prefix.data(), prefix.length()) == 0) {
-            index += prefix.length();
-            /* Found :-) */
-            while (isspace(map[index])) {
-                ++index;
-            }
-
-            if (!isdigit(map[index])) {
-                return -1;
-            }
-
-            return atoi(map + index);
-        }
+/**
+ * Send a not my vbucket response to the client. It should piggyback the
+ * current vbucket map unless the client knows it already (and is configured
+ * to do deduplication of these maps).
+ *
+ * @param c the connection to send the response to
+ * @return true if success, false if memory allocation fails.
+ */
+static bool send_not_my_vbucket(McbpConnection& c) {
+    auto pair = c.getBucket().clusterConfiguration.getConfiguration();
+    if (pair.first == -1L || (pair.first == long(c.getClustermapRevno()) &&
+                              settings.isDedupeNmvbMaps())) {
+        // We don't have a vbucket map, or we've already sent it to the
+        // client
+        mcbp_add_header(&c,
+                        PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
+                        0,
+                        0,
+                        0,
+                        PROTOCOL_BINARY_RAW_BYTES);
+        c.setState(conn_send_data);
+        c.setWriteAndGo(conn_new_cmd);
+        return true;
     }
 
-    /* not found */
-    return -1;
-}
+    protocol_binary_response_header* header;
+    const size_t needed = sizeof(*header) + pair.second->size();
 
-static ENGINE_ERROR_CODE get_vb_map_cb(const void* void_cookie,
-                                       const void* map,
-                                       size_t mapsize) {
-    char* buf;
-
-    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
-
-    McbpConnection* c = &cookie->connection;
-    protocol_binary_response_header header;
-    size_t needed = sizeof(protocol_binary_response_header);
-
-    if (settings.isDedupeNmvbMaps()) {
-        int revno = get_clustermap_revno(reinterpret_cast<const char*>(map),
-                                         mapsize);
-        if (revno == c->getClustermapRevno()) {
-            /* The client already have this map... */
-            mapsize = 0;
-        } else if (revno != -1) {
-            c->setClustermapRevno(revno);
-        }
+    if (!c.growDynamicBuffer(needed)) {
+        LOG_WARNING(&c,
+                    "<%d ERROR: Failed to allocate memory for response",
+                    c.getId());
+        return false;
     }
 
-    needed += mapsize;
-    if (!c->growDynamicBuffer(needed)) {
-        LOG_WARNING(c, "<%d ERROR: Failed to allocate memory for response",
-                    c->getId());
-        return ENGINE_ENOMEM;
-    }
+    auto& buffer = c.getDynamicBuffer();
+    auto* buf = buffer.getCurrent();
+    header = reinterpret_cast<protocol_binary_response_header*>(buf);
+    memset(header, 0, sizeof(*header));
 
-    auto& buffer = c->getDynamicBuffer();
-    buf = buffer.getCurrent();
-    memset(&header, 0, sizeof(header));
-
-    header.response.magic = (uint8_t)PROTOCOL_BINARY_RES;
-    header.response.opcode = c->binary_header.request.opcode;
-    header.response.status = (uint16_t)htons(
-        PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET);
-    header.response.bodylen = htonl((uint32_t)mapsize);
-    header.response.opaque = c->getOpaque();
-
-    memcpy(buf, header.bytes, sizeof(header.response));
-    buf += sizeof(header.response);
-    memcpy(buf, map, mapsize);
+    header->response.magic = (uint8_t)PROTOCOL_BINARY_RES;
+    header->response.opcode = c.binary_header.request.opcode;
+    header->response.status =
+            (uint16_t)htons(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET);
+    header->response.bodylen = htonl((uint32_t)pair.second->size());
+    header->response.opaque = c.getOpaque();
+    buf += sizeof(*header);
+    std::copy(pair.second->begin(), pair.second->end(), buf);
     buffer.moveOffset(needed);
 
-    return ENGINE_SUCCESS;
+    mcbp_write_and_free(&c, &c.getDynamicBuffer());
+    c.setClustermapRevno(int(pair.first));
+    return true;
 }
 
 void mcbp_write_response(McbpConnection* c,
@@ -156,17 +130,10 @@ void mcbp_write_packet(McbpConnection* c, protocol_binary_response_status err) {
         mcbp_write_response(c, NULL, 0, 0, 0);
         return;
     }
-    if ((err == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET) &&
-        (c->getBucketEngine()->get_engine_vb_map != nullptr)) {
-
-        ENGINE_ERROR_CODE ret;
-
-        ++c->getBucket().responseCounters[err];
-        ret = bucket_get_engine_vb_map(c, get_vb_map_cb);
-        if (ret == ENGINE_SUCCESS) {
-            mcbp_write_and_free(c, &c->getDynamicBuffer());
-        } else {
-            c->setState(conn_closing);
+    if (err == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET) {
+        if (!send_not_my_vbucket(*c)) {
+            throw std::runtime_error(
+                    "mcbp_write_packet: failed to send not my vbucket");
         }
         return;
     }
@@ -301,9 +268,10 @@ bool mcbp_response_handler(const void* key, uint16_t keylen,
     case PROTOCOL_BINARY_RESPONSE_SUCCESS:
     case PROTOCOL_BINARY_RESPONSE_SUBDOC_SUCCESS_DELETED:
     case PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE:
-    case PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET:
     case PROTOCOL_BINARY_RESPONSE_ROLLBACK:
         break;
+    case PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET:
+        return send_not_my_vbucket(*c);
     default:
         //
         payload = {error_json.data(), error_json.size()};

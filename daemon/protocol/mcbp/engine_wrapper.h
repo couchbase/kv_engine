@@ -41,9 +41,6 @@ void bucket_item_set_cas(McbpConnection* c, item* it, uint64_t cas);
 
 void bucket_reset_stats(McbpConnection* c);
 
-ENGINE_ERROR_CODE bucket_get_engine_vb_map(McbpConnection* c,
-                                           engine_get_vb_map_cb callback);
-
 bool bucket_get_item_info(McbpConnection* c, const item* item_,
                           item_info* item_info_);
 

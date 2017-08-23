@@ -1272,7 +1272,6 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
     ENGINE_HANDLE_V1::item_set_cas = item_set_cas;
     ENGINE_HANDLE_V1::get_item_info = get_item_info;
     ENGINE_HANDLE_V1::set_item_info = set_item_info;
-    ENGINE_HANDLE_V1::get_engine_vb_map = get_engine_vb_map;
     ENGINE_HANDLE_V1::set_log_level = NULL;
 
     ENGINE_HANDLE_V1::dcp = {};

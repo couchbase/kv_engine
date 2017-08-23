@@ -1076,7 +1076,6 @@ static ENGINE_ERROR_CODE processUnknownCommand(
     case PROTOCOL_BINARY_CMD_SET_PARAM:
     case PROTOCOL_BINARY_CMD_SET_VBUCKET:
     case PROTOCOL_BINARY_CMD_DEL_VBUCKET:
-    case PROTOCOL_BINARY_CMD_SET_CLUSTER_CONFIG:
     case PROTOCOL_BINARY_CMD_COMPACT_DB: {
         if (h->getEngineSpecific(cookie) == NULL) {
             uint64_t cas = ntohll(request->request.cas);
@@ -1193,17 +1192,6 @@ static ENGINE_ERROR_CODE processUnknownCommand(
         rv = h->handleTrafficControlCmd(cookie, request, response);
         return rv;
     }
-    case PROTOCOL_BINARY_CMD_SET_CLUSTER_CONFIG: {
-        rv = h->setClusterConfig(cookie,
-                                 reinterpret_cast<protocol_binary_request_set_cluster_config*>
-                                 (request), response);
-        h->decrementSessionCtr();
-        return rv;
-    }
-    case PROTOCOL_BINARY_CMD_GET_CLUSTER_CONFIG:
-        return h->getClusterConfig(cookie,
-                                   reinterpret_cast<protocol_binary_request_get_cluster_config*>
-                                   (request), response);
     case PROTOCOL_BINARY_CMD_COMPACT_DB: {
         rv = compactDB(h, cookie,
                        (protocol_binary_request_compact_db*)(request),
@@ -1677,17 +1665,6 @@ static bool EvpSetItemInfo(ENGINE_HANDLE* handle, const void* cookie,
     return true;
 }
 
-static ENGINE_ERROR_CODE EvpGetClusterConfig(ENGINE_HANDLE* handle,
-                                             const void* cookie,
-                                             engine_get_vb_map_cb callback) {
-    auto engine = acquireEngine(handle);
-    LockHolder lh(engine->clusterConfig.lock);
-    const char* config = engine->clusterConfig.config.data();
-    uint32_t len = engine->clusterConfig.config.size();
-    engine.reset(); // Want to release the engine before the callback
-    return callback(cookie, config, len);
-}
-
 static cb::engine_error EvpCollectionsSetManifest(ENGINE_HANDLE* handle,
                                                   cb::const_char_buffer json) {
     auto engine = acquireEngine(handle);
@@ -1708,8 +1685,7 @@ void LOG(EXTENSION_LOG_LEVEL severity, const char *fmt, ...) {
 
 EventuallyPersistentEngine::EventuallyPersistentEngine(
         GET_SERVER_API get_server_api)
-    : clusterConfig(),
-      kvBucket(nullptr),
+    : kvBucket(nullptr),
       workload(NULL),
       workloadPriority(NO_BUCKET_PRIORITY),
       getServerApiFunc(get_server_api),
@@ -1741,7 +1717,6 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
     ENGINE_HANDLE_V1::item_set_cas = EvpItemSetCas;
     ENGINE_HANDLE_V1::get_item_info = EvpGetItemInfo;
     ENGINE_HANDLE_V1::set_item_info = EvpSetItemInfo;
-    ENGINE_HANDLE_V1::get_engine_vb_map = EvpGetClusterConfig;
 
     ENGINE_HANDLE_V1::dcp.step = EvpDcpStep;
     ENGINE_HANDLE_V1::dcp.open = EvpDcpOpen;
@@ -4807,68 +4782,6 @@ EventuallyPersistentEngine::returnMeta(const void* cookie,
                         cookie);
 }
 
-ENGINE_ERROR_CODE
-EventuallyPersistentEngine::setClusterConfig(const void* cookie,
-                           protocol_binary_request_set_cluster_config *request,
-                           ADD_RESPONSE response) {
-
-    uint64_t cas = ntohll(request->message.header.request.cas);
-    uint32_t bodylen = ntohl(request->message.header.request.bodylen);
-    {
-        try {
-            LockHolder lh(clusterConfig.lock);
-            const uint8_t* body = request->bytes + sizeof(request->message.header);
-            clusterConfig.config.assign(body, body + bodylen);
-        } catch (std::bad_alloc& e) {
-            LOG(EXTENSION_LOG_WARNING,
-                "Failed to update cluster configuration - %s", e.what());
-            return sendResponse(response, nullptr, 0, nullptr, 0, nullptr, 0,
-                                PROTOCOL_BINARY_RAW_BYTES,
-                                PROTOCOL_BINARY_RESPONSE_ENOMEM, cas, cookie);
-        }
-    }
-
-    // clusterConfig is opaque to ep-engine, but it /should/ be in JSON, as
-    // that's what the clients expect. Attempt to parse it and log the revision.
-    bool found_rev = false;
-    unique_cJSON_ptr json(cJSON_Parse(clusterConfig.config.c_str()));
-    if (json) {
-        cJSON* rev = cJSON_GetObjectItem(json.get(), "rev");
-        if (rev) {
-            found_rev = true;
-            std::string rev_string = to_string(rev, false);
-            LOG(EXTENSION_LOG_NOTICE,
-                "Updated cluster configuration. New revision: %s",
-                rev_string.c_str());
-        }
-    }
-
-    if (!found_rev) {
-        // Failed to parse. Hail Mary time, let's just print the first 100
-        // bytes which hopefully includes helpful identifying information.
-        const int CONFIG_LIMIT = 100;
-        if (clusterConfig.config.size() > CONFIG_LIMIT) {
-            LOG(EXTENSION_LOG_WARNING, "Updated cluster configuration. "
-                "Failed to parse JSON config - first %d bytes: '%.*s'...\n",
-                CONFIG_LIMIT, CONFIG_LIMIT, clusterConfig.config.data());
-        }
-    }
-
-    return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
-                        PROTOCOL_BINARY_RAW_BYTES,
-                        PROTOCOL_BINARY_RESPONSE_SUCCESS, cas, cookie);
-}
-
-ENGINE_ERROR_CODE
-EventuallyPersistentEngine::getClusterConfig(const void* cookie,
-                            protocol_binary_request_get_cluster_config*,
-                            ADD_RESPONSE response) {
-    LockHolder lh(clusterConfig.lock);
-    return sendResponse(response, NULL, 0, NULL, 0, clusterConfig.config.data(),
-                        clusterConfig.config.size(), PROTOCOL_BINARY_RAW_BYTES,
-                        PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
-}
-
 /**
  * Callback class used by AllKeysAPI, for caching fetched keys
  *
@@ -5241,11 +5154,17 @@ void EventuallyPersistentEngine::updateDcpMinCompressionRatio(float value) {
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::sendNotMyVBucketResponse(
         ADD_RESPONSE response, const void* cookie, uint64_t cas) {
-    LockHolder lh(clusterConfig.lock);
-    return sendResponse(response, nullptr, 0, nullptr, 0,
-                        clusterConfig.config.data(),
-                        clusterConfig.config.size(), PROTOCOL_BINARY_RAW_BYTES,
-                        PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, cas, cookie);
+    return sendResponse(response,
+                        nullptr,
+                        0,
+                        nullptr,
+                        0,
+                        nullptr,
+                        0,
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
+                        cas,
+                        cookie);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::sendNotSupportedResponse(

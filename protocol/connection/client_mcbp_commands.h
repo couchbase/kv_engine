@@ -1372,3 +1372,31 @@ protected:
     uint32_t options;
     std::vector<uint8_t> meta;
 };
+
+class BinprotSetControlTokenCommand : public BinprotGenericCommand {
+public:
+    BinprotSetControlTokenCommand(uint64_t token_, uint64_t oldtoken)
+        : BinprotGenericCommand(PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN),
+          token(token_) {
+        setCas(htonll(cas));
+    }
+
+    void encode(std::vector<uint8_t>& buf) const override;
+
+protected:
+    const uint64_t token;
+};
+
+class BinprotSetClusterConfigCommand : public BinprotGenericCommand {
+public:
+    BinprotSetClusterConfigCommand(uint64_t token_, const std::string& config_)
+        : BinprotGenericCommand(PROTOCOL_BINARY_CMD_SET_CLUSTER_CONFIG),
+          config(config_) {
+        setCas(htonll(token_));
+    }
+
+    void encode(std::vector<uint8_t>& buf) const override;
+
+protected:
+    const std::string config;
+};

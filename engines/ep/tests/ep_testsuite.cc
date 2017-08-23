@@ -3487,65 +3487,6 @@ static enum test_result test_worker_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     return SUCCESS;
 }
 
-static enum test_result test_cluster_config(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed set vbucket 1 state.");
-    check(verify_vbucket_state(h, h1, 1, vbucket_state_active),
-                    "VBucket state not active");
-    uint64_t var = 1234;
-    protocol_binary_request_header *pkt1 =
-        createPacket(PROTOCOL_BINARY_CMD_SET_CLUSTER_CONFIG, 1, 0, NULL, 0, NULL, 0, (char*)&var, 8);
-    checkeq(ENGINE_SUCCESS,
-            h1->unknown_command(h, NULL, pkt1, add_response, testHarness.doc_namespace),
-            "Failed to set cluster configuration");
-    cb_free(pkt1);
-
-    protocol_binary_request_header *pkt2 =
-        createPacket(PROTOCOL_BINARY_CMD_GET_CLUSTER_CONFIG, 1, 0, NULL, 0, NULL, 0, NULL, 0);
-    checkeq(ENGINE_SUCCESS, h1->unknown_command(h, NULL, pkt2, add_response, testHarness.doc_namespace),
-            "Failed to get cluster configuration");
-    cb_free(pkt2);
-    if (last_body.compare(0, sizeof(var), reinterpret_cast<char*>(&var),
-                          sizeof(var)) != 0) {
-        return FAIL;
-    } else {
-        return SUCCESS;
-    }
-}
-
-static enum test_result test_not_my_vbucket_with_cluster_config(ENGINE_HANDLE *h,
-                                                                ENGINE_HANDLE_V1 *h1) {
-    uint64_t var = 4321;
-    protocol_binary_request_header *pkt1 =
-        createPacket(PROTOCOL_BINARY_CMD_SET_CLUSTER_CONFIG, 1, 0, NULL, 0, NULL, 0, (char*)&var, 8);
-    checkeq(ENGINE_SUCCESS, h1->unknown_command(h, NULL, pkt1, add_response, testHarness.doc_namespace),
-            "Failed to set cluster configuration");
-    cb_free(pkt1);
-
-    protocol_binary_request_header *pkt2 =
-        createPacket(PROTOCOL_BINARY_CMD_GET_VBUCKET, 1, 0, NULL, 0, NULL, 0, NULL, 0);
-    ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, pkt2,
-                                                add_response,
-                                                testHarness.doc_namespace);
-    checkeq(ENGINE_SUCCESS, ret, "Should've received not_my_vbucket/cluster config");
-    cb_free(pkt2);
-    if (last_body.compare(0, sizeof(var), reinterpret_cast<char*>(&var),
-                          sizeof(var)) != 0) {
-        return FAIL;
-    } else {
-        return SUCCESS;
-    }
-    check(verify_key(h, h1, "key", 2) == ENGINE_NOT_MY_VBUCKET, "Expected miss");
-    checkeq(ENGINE_SUCCESS,
-            h1->get_engine_vb_map(h, NULL, vb_map_response),
-            "Failed to recover cluster configuration");
-    if (last_body.compare(0, sizeof(var), reinterpret_cast<char*>(&var),
-                          sizeof(var)) != 0) {
-        return FAIL;
-    } else {
-        return SUCCESS;
-    }
-}
-
 static enum test_result test_all_keys_api(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     std::vector<std::string> keys;
     const int start_key_idx = 10, del_key_idx = 12, num_keys = 5,
@@ -7712,13 +7653,6 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup, teardown,
                  "max_num_shards=5;max_threads=14;max_num_auxio=1;max_num_nonio=4",
                  prepare, cleanup),
-        TestCase("test set/get cluster config", test_cluster_config,
-                 test_setup, teardown,
-                 NULL, prepare, cleanup),
-        TestCase("test NOT_MY_VBUCKET's clusterConfig response",
-                 test_not_my_vbucket_with_cluster_config,
-                 test_setup, teardown,
-                 NULL, prepare, cleanup),
         TestCase("test ALL_KEYS api",
                  test_all_keys_api,
                  test_setup,

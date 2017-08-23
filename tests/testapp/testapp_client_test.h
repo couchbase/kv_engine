@@ -25,6 +25,7 @@ class TestappClientTest
       public ::testing::WithParamInterface<TransportProtocols> {
 protected:
     MemcachedConnection& getConnection() override;
+    void setClusterSessionToken(uint64_t new_value);
 };
 
 enum class XattrSupport { Yes, No };

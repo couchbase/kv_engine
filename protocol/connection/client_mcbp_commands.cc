@@ -767,3 +767,13 @@ void BinprotSetWithMetaCommand::encode(std::vector<uint8_t>& buf) const {
     buf.insert(buf.end(), doc.value.begin(), doc.value.end());
     buf.insert(buf.end(), meta.begin(), meta.end());
 }
+
+void BinprotSetControlTokenCommand::encode(std::vector<uint8_t>& buf) const {
+    writeHeader(buf, 0, sizeof(token));
+    append(buf, token);
+}
+
+void BinprotSetClusterConfigCommand::encode(std::vector<uint8_t>& buf) const {
+    writeHeader(buf, config.size(), 0);
+    buf.insert(buf.end(), config.begin(), config.end());
+}

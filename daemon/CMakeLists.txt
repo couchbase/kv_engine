@@ -41,6 +41,8 @@ ADD_LIBRARY(memcached_daemon STATIC
             breakpad.h
             buckets.cc
             buckets.h
+            cluster_config.cc
+            cluster_config.h
             cmdline.cc
             cmdline.h
             config_parse.cc
@@ -103,6 +105,7 @@ ADD_LIBRARY(memcached_daemon STATIC
             protocol/mcbp/arithmetic_context.h
             protocol/mcbp/audit_configure_context.cc
             protocol/mcbp/audit_configure_context.h
+            protocol/mcbp/cluster_config_executor.cc
             protocol/mcbp/collections_set_manifest_executor.cc
             protocol/mcbp/command_context.h
             protocol/mcbp/create_remove_bucket_command_context.cc

@@ -377,6 +377,8 @@ cJSON* TestappTest::generate_config(uint16_t ssl_port)
             R"({"version":1,"EWB_CTL": {"slow":50}})"));
     cJSON_AddItemToObject(root, "opcode_attributes_override", kvattr.release());
 
+    cJSON_AddFalseToObject(root, "dedupe_nmvb_maps");
+
     return root;
 }
 

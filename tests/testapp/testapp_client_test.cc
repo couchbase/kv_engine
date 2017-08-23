@@ -31,6 +31,21 @@ MemcachedConnection& TestappClientTest::getConnection() {
     throw std::logic_error("Unknown transport");
 }
 
+void TestappClientTest::setClusterSessionToken(uint64_t nval) {
+    auto& conn = getAdminConnection();
+    BinprotResponse response;
+
+    conn.executeCommand(BinprotSetControlTokenCommand{nval, token}, response);
+
+    if (!response.isSuccess()) {
+        throw ConnectionError("TestappClientTest::setClusterSessionToken",
+                              response);
+    }
+    ASSERT_EQ(nval, ntohll(response.getCas()));
+
+    token = nval;
+}
+
 void TestappXattrClientTest::createXattr(const std::string& path,
                                          const std::string& value,
                                          bool macro) {

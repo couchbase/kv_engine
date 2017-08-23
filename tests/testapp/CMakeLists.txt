@@ -230,3 +230,9 @@ add_unit_test_suite(NAME subdoc-multipath
                     TIMEOUT 400
                     SOURCE testapp_subdoc_multipath.cc testapp_subdoc.cc)
 
+# Test that we correctly set and get cluster configuration (and that
+# the cluster configuration is piggybacked on a not-my-vbucket response
+# (and properly deduplicated)
+add_unit_test_suite(NAME cluster-config
+                    TIMEOUT 100
+                    SOURCE testapp_cluster_config.cc)

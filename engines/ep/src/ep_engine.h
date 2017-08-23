@@ -273,14 +273,6 @@ public:
                                  ADD_RESPONSE response,
                                  DocNamespace docNamespace);
 
-    ENGINE_ERROR_CODE setClusterConfig(const void* cookie,
-                            protocol_binary_request_set_cluster_config *request,
-                            ADD_RESPONSE response);
-
-    ENGINE_ERROR_CODE getClusterConfig(const void* cookie,
-                            protocol_binary_request_get_cluster_config *request,
-                            ADD_RESPONSE response);
-
     ENGINE_ERROR_CODE getAllKeys(const void* cookie,
                                 protocol_binary_request_get_keys *request,
                                 ADD_RESPONSE response,
@@ -557,11 +549,6 @@ public:
 
     bucket_priority_t getWorkloadPriority(void) const {return workloadPriority; }
     void setWorkloadPriority(bucket_priority_t p) { workloadPriority = p; }
-
-    struct clusterConfig {
-        std::string config;
-        std::mutex lock;
-    } clusterConfig;
 
     ENGINE_ERROR_CODE getRandomKey(const void *cookie,
                                    ADD_RESPONSE response);

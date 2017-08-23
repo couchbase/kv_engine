@@ -1105,6 +1105,11 @@ std::array<mcbp_package_execute, 0x100>& get_mcbp_executors(void) {
     executors[PROTOCOL_BINARY_CMD_COLLECTIONS_SET_MANIFEST] =
             collections_set_manifest_executor;
 
+    executors[PROTOCOL_BINARY_CMD_GET_CLUSTER_CONFIG] =
+            get_cluster_config_executor;
+    executors[PROTOCOL_BINARY_CMD_SET_CLUSTER_CONFIG] =
+            set_cluster_config_executor;
+
     executors[PROTOCOL_BINARY_CMD_TAP_CONNECT] = no_support_executor;
     executors[PROTOCOL_BINARY_CMD_TAP_MUTATION] = no_support_executor;
     executors[PROTOCOL_BINARY_CMD_TAP_DELETE] = no_support_executor;

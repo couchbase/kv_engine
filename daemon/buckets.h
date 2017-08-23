@@ -24,6 +24,7 @@
 #include <mutex>
 #include <vector>
 
+#include "cluster_config.h"
 #include "connection.h"
 #include "cookie.h"
 #include "function_chain.h"
@@ -198,6 +199,11 @@ public:
      * @return the absolute expiry time for the object
      */
     time_t getAbsoluteExpiryTime(rel_time_t exptime) const;
+
+    /**
+     * The cluster configuration for this bucket
+     */
+    ClusterConfiguration clusterConfiguration;
 };
 
 class Connection;
