@@ -593,6 +593,13 @@ TEST_F(HashTableTest, CopyItem) {
     StoredValue* replaceSv = ht.unlocked_find(
             copyKey, hbl.getBucketNum(), WantsDeleted::Yes, TrackReference::No);
 
+    /* Record some stats before 'replace by copy' */
+    auto metaDataMemBeforeCopy = ht.metaDataMemory.load();
+    auto datatypeCountsBeforeCopy = ht.datatypeCounts;
+    auto cacheSizeBeforeCopy = ht.cacheSize.load();
+    auto memSizeBeforeCopy = ht.memSize.load();
+    auto statsCurrSizeBeforeCopy = global_stats.currentSize.load();
+
     auto res = ht.unlocked_replaceByCopy(hbl, *replaceSv);
 
     /* Validate the copied contents */
@@ -603,6 +610,13 @@ TEST_F(HashTableTest, CopyItem) {
 
     /* Validate the HT count */
     EXPECT_EQ(numItems, ht.getNumItems());
+
+    /* Stats should be equal to that before 'replaceByCopy' */
+    EXPECT_EQ(metaDataMemBeforeCopy, ht.metaDataMemory.load());
+    EXPECT_EQ(datatypeCountsBeforeCopy, ht.datatypeCounts);
+    EXPECT_EQ(cacheSizeBeforeCopy, ht.cacheSize.load());
+    EXPECT_EQ(memSizeBeforeCopy, ht.memSize.load());
+    EXPECT_EQ(statsCurrSizeBeforeCopy, global_stats.currentSize.load());
 }
 
 /* Test copying a deleted element in HT */
@@ -626,7 +640,15 @@ TEST_F(HashTableTest, CopyDeletedItem) {
     ht.unlocked_softDelete(
             hbl.getHTLock(), *replaceSv, /* onlyMarkDeleted */ false);
     EXPECT_EQ(numItems, ht.getNumItems());
-    EXPECT_EQ(1, ht.getNumDeletedItems());
+    const int expNumDeletedItems = 1;
+    EXPECT_EQ(expNumDeletedItems, ht.getNumDeletedItems());
+
+    /* Record some stats before 'replace by copy' */
+    auto metaDataMemBeforeCopy = ht.metaDataMemory.load();
+    auto datatypeCountsBeforeCopy = ht.datatypeCounts;
+    auto cacheSizeBeforeCopy = ht.cacheSize.load();
+    auto memSizeBeforeCopy = ht.memSize.load();
+    auto statsCurrSizeBeforeCopy = global_stats.currentSize.load();
 
     /* Replace the StoredValue in the HT by its copy */
     auto res = ht.unlocked_replaceByCopy(hbl, *replaceSv);
@@ -639,6 +661,14 @@ TEST_F(HashTableTest, CopyDeletedItem) {
 
     /* Validate the HT count */
     EXPECT_EQ(numItems, ht.getNumItems());
+    EXPECT_EQ(expNumDeletedItems, ht.getNumDeletedItems());
+
+    /* Stats should be equal to that before 'replaceByCopy' */
+    EXPECT_EQ(metaDataMemBeforeCopy, ht.metaDataMemory.load());
+    EXPECT_EQ(datatypeCountsBeforeCopy, ht.datatypeCounts);
+    EXPECT_EQ(cacheSizeBeforeCopy, ht.cacheSize.load());
+    EXPECT_EQ(memSizeBeforeCopy, ht.memSize.load());
+    EXPECT_EQ(statsCurrSizeBeforeCopy, global_stats.currentSize.load());
 }
 
 // Check that an OSV which was deleted and then made alive again has the

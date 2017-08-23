@@ -362,11 +362,18 @@ HashTable::unlocked_replaceByCopy(const HashBucketLock& hbl,
     /* Copy the StoredValue and link it into the head of the bucket chain. */
     auto newSv = valFact->copyStoredValue(
             vToCopy, std::move(values[hbl.getBucketNum()]));
+    increaseMetaDataSize(stats, newSv->metaDataSize());
+    increaseCacheSize(newSv->size());
+
     if (newSv->isTempItem()) {
         ++numTempItems;
     } else {
         ++numItems;
         ++numTotalItems;
+        ++datatypeCounts[newSv->getDatatype()];
+    }
+    if (newSv->isDeleted()) {
+        ++numDeletedItems;
     }
     values[hbl.getBucketNum()] = std::move(newSv);
 
