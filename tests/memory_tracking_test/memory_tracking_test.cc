@@ -26,6 +26,10 @@
 
 #include <gtest/gtest.h>
 
+#if defined(HAVE_MALLOC_USABLE_SIZE)
+#include <malloc.h>
+#endif
+
 // Test pointer in global scope to prevent compiler optimizing malloc/free away
 // via DCE.
 char* p;
@@ -187,6 +191,30 @@ TEST_F(MemoryTrackerTest, Accounting) {
     AllocHooks::remove_delete_hook(DeleteHook);
 }
 
+/* Test that malloc_usable_size is correctly interposed when using a
+ * non-system allocator, as otherwise, our global new replacement could
+ * lead to memory being allocated with jemalloc, but the system
+ * malloc_usable_size being called with it.
+ * We compare the result of malloc_usable_size to the result of
+ * AllocHooks::get_allocation_size, which under jemalloc
+ * maps to je_malloc_usable_size.
+ * If these differ, or this test segfaults, it is suspicious and
+ * worth investigating.
+ * NB: ASAN is not helpful here as it does not work well with jemalloc
+ */
+#if defined(HAVE_MALLOC_USABLE_SIZE)
+TEST_F(MemoryTrackerTest, mallocUsableSize) {
+    // Allocate some data
+    auto* ptr = new char[1];
+
+    size_t allocHooksResult = AllocHooks::get_allocation_size(ptr);
+    size_t directCallResult = malloc_usable_size(ptr);
+
+    EXPECT_EQ(allocHooksResult, directCallResult);
+
+    delete[] ptr;
+}
+#endif
 
 int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);
