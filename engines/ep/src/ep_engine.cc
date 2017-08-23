@@ -3171,6 +3171,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(const void *cookie,
         add_casted_stat("key_vb_state", VBucket::toString(kstats.vb_state),
                         add_stat,
                         cookie);
+        add_casted_stat("key_is_resident", kstats.resident, add_stat, cookie);
         if (validate) {
             add_casted_stat("key_valid", valid.c_str(), add_stat, cookie);
         }

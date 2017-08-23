@@ -1775,6 +1775,8 @@ ENGINE_ERROR_CODE VBucket::getKeyStats(const DocKey& key,
         kstats.flags = v->getFlags();
         kstats.cas = v->getCas();
         kstats.vb_state = getState();
+        kstats.resident = v->isResident();
+
         return ENGINE_SUCCESS;
     } else {
         if (eviction == VALUE_ONLY) {

@@ -964,12 +964,10 @@ Note that tcmalloc stats are not available on some operating systems
 
 ** Stats Key and Vkey
 | key_cas                       | The keys current cas value             |KV|
-| key_data_age                  | How long the key has waited for its    |KV|
-|                               | value to be persisted (0 if clean)     |KV|
 | key_exptime                   | Expiration time from the epoch         |KV|
 | key_flags                     | Flags for this key                     |KV|
 | key_is_dirty                  | If the value is not yet persisted      |KV|
-| key_last_modified_time        | Last updated time                      |KV|
+| key_is_resident               | If the value is resident in memory     |KV|
 | key_valid                     | See description below                  | V|
 | key_vb_state                  | The vbucket state of this key          |KV|
 

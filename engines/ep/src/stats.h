@@ -652,6 +652,8 @@ struct key_stats {
     bool dirty;
     //! True if the item has been logically deleted
     bool logically_deleted;
+    //! True if the document is currently resident in memory.
+    bool resident;
 };
 
 #endif  // SRC_STATS_H_
