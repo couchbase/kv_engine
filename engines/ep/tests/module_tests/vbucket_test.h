@@ -18,10 +18,11 @@
 #include "config.h"
 
 #include "callbacks.h"
-#include "checkpoint.h"
+#include "checkpoint_config.h"
 #include "configuration.h"
 #include "hash_table.h"
 #include "item_pager.h"
+#include "stats.h"
 
 #include <gtest/gtest.h>
 

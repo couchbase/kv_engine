@@ -168,6 +168,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/bloomfilter.cc
             src/callbacks.cc
             src/checkpoint.cc
+            src/checkpoint_config.cc
             src/checkpoint_remover.cc
             src/conflict_resolution.cc
             src/connhandler.cc

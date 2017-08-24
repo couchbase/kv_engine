@@ -41,38 +41,6 @@ const char* to_string(enum checkpoint_state s) {
     return "<unknown>";
 }
 
-/**
- * A listener class to update checkpoint related configs at runtime.
- */
-class CheckpointConfigChangeListener : public ValueChangedListener {
-public:
-    CheckpointConfigChangeListener(CheckpointConfig &c) : config(c) { }
-    virtual ~CheckpointConfigChangeListener() { }
-
-    virtual void sizeValueChanged(const std::string &key, size_t value) {
-        if (key.compare("chk_period") == 0) {
-            config.setCheckpointPeriod(value);
-        } else if (key.compare("chk_max_items") == 0) {
-            config.setCheckpointMaxItems(value);
-        } else if (key.compare("max_checkpoints") == 0) {
-            config.setMaxCheckpoints(value);
-        }
-    }
-
-    virtual void booleanValueChanged(const std::string &key, bool value) {
-        if (key.compare("item_num_based_new_chk") == 0) {
-            config.allowItemNumBasedNewCheckpoint(value);
-        } else if (key.compare("keep_closed_chks") == 0) {
-            config.allowKeepClosedCheckpoints(value);
-        } else if (key.compare("enable_chk_merge") == 0) {
-            config.allowCheckpointMerge(value);
-        }
-    }
-
-private:
-    CheckpointConfig &config;
-};
-
 void CheckpointCursor::decrOffset(size_t decr) {
     if (offset >= decr) {
         offset.fetch_sub(decr);
@@ -1923,99 +1891,6 @@ size_t CheckpointManager::getMemoryUsageOfUnrefCheckpoints() {
         }
     }
     return memUsage;
-}
-
-void CheckpointConfig::addConfigChangeListener(
-                                         EventuallyPersistentEngine &engine) {
-    Configuration &configuration = engine.getConfiguration();
-    configuration.addValueChangedListener("chk_period",
-             new CheckpointConfigChangeListener(engine.getCheckpointConfig()));
-    configuration.addValueChangedListener("chk_max_items",
-             new CheckpointConfigChangeListener(engine.getCheckpointConfig()));
-    configuration.addValueChangedListener("max_checkpoints",
-             new CheckpointConfigChangeListener(engine.getCheckpointConfig()));
-    configuration.addValueChangedListener("item_num_based_new_chk",
-             new CheckpointConfigChangeListener(engine.getCheckpointConfig()));
-    configuration.addValueChangedListener("keep_closed_chks",
-             new CheckpointConfigChangeListener(engine.getCheckpointConfig()));
-    configuration.addValueChangedListener("enable_chk_merge",
-             new CheckpointConfigChangeListener(engine.getCheckpointConfig()));
-}
-
-CheckpointConfig::CheckpointConfig(EventuallyPersistentEngine &e) {
-    Configuration &config = e.getConfiguration();
-    checkpointPeriod = config.getChkPeriod();
-    checkpointMaxItems = config.getChkMaxItems();
-    maxCheckpoints = config.getMaxCheckpoints();
-    itemNumBasedNewCheckpoint = config.isItemNumBasedNewChk();
-    keepClosedCheckpoints = config.isKeepClosedChks();
-    enableChkMerge = config.isEnableChkMerge();
-    persistenceEnabled = config.getBucketType() == "persistent";
-}
-
-bool CheckpointConfig::validateCheckpointMaxItemsParam(size_t
-                                                       checkpoint_max_items) {
-    if (checkpoint_max_items < MIN_CHECKPOINT_ITEMS ||
-        checkpoint_max_items > MAX_CHECKPOINT_ITEMS) {
-        std::stringstream ss;
-        ss << "New checkpoint_max_items param value " << checkpoint_max_items
-           << " is not ranged between the min allowed value " <<
-           MIN_CHECKPOINT_ITEMS
-           << " and max value " << MAX_CHECKPOINT_ITEMS;
-        LOG(EXTENSION_LOG_WARNING, "%s", ss.str().c_str());
-        return false;
-    }
-    return true;
-}
-
-bool CheckpointConfig::validateCheckpointPeriodParam(
-                                                   size_t checkpoint_period) {
-    if (checkpoint_period < MIN_CHECKPOINT_PERIOD ||
-        checkpoint_period > MAX_CHECKPOINT_PERIOD) {
-        std::stringstream ss;
-        ss << "New checkpoint_period param value " << checkpoint_period
-           << " is not ranged between the min allowed value " <<
-              MIN_CHECKPOINT_PERIOD
-           << " and max value " << MAX_CHECKPOINT_PERIOD;
-        LOG(EXTENSION_LOG_WARNING, "%s\n", ss.str().c_str());
-        return false;
-    }
-    return true;
-}
-
-bool CheckpointConfig::validateMaxCheckpointsParam(size_t max_checkpoints) {
-    if (max_checkpoints < DEFAULT_MAX_CHECKPOINTS ||
-        max_checkpoints > MAX_CHECKPOINTS_UPPER_BOUND) {
-        std::stringstream ss;
-        ss << "New max_checkpoints param value " << max_checkpoints
-           << " is not ranged between the min allowed value " <<
-              DEFAULT_MAX_CHECKPOINTS
-           << " and max value " << MAX_CHECKPOINTS_UPPER_BOUND;
-        LOG(EXTENSION_LOG_WARNING, "%s\n", ss.str().c_str());
-        return false;
-    }
-    return true;
-}
-
-void CheckpointConfig::setCheckpointPeriod(size_t value) {
-    if (!validateCheckpointPeriodParam(value)) {
-        value = DEFAULT_CHECKPOINT_PERIOD;
-    }
-    checkpointPeriod = static_cast<rel_time_t>(value);
-}
-
-void CheckpointConfig::setCheckpointMaxItems(size_t value) {
-    if (!validateCheckpointMaxItemsParam(value)) {
-        value = DEFAULT_CHECKPOINT_ITEMS;
-    }
-    checkpointMaxItems = value;
-}
-
-void CheckpointConfig::setMaxCheckpoints(size_t value) {
-    if (!validateMaxCheckpointsParam(value)) {
-        value = DEFAULT_MAX_CHECKPOINTS;
-    }
-    maxCheckpoints = value;
 }
 
 void CheckpointManager::addStats(ADD_STAT add_stat, const void *cookie) {

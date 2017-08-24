@@ -21,6 +21,7 @@
 
 #include "bloomfilter.h"
 #include "checkpoint.h"
+#include "checkpoint_config.h"
 #include "collections/vbucket_manifest.h"
 #include "dcp/dcp-types.h"
 #include "hash_table.h"

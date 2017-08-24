@@ -73,11 +73,6 @@ struct index_entry {
 
 typedef struct {
     uint64_t start;
-    uint64_t end;
-} snapshot_range_t;
-
-typedef struct {
-    uint64_t start;
     snapshot_range_t range;
 } snapshot_info_t;
 
@@ -992,108 +987,5 @@ private:
 
 // Outputs a textual description of the CheckpointManager.
 std::ostream& operator<<(std::ostream& os, const CheckpointManager& m);
-
-/**
- * A class containing the config parameters for checkpoint.
- */
-
-class CheckpointConfig {
-public:
-    CheckpointConfig()
-        : checkpointPeriod(DEFAULT_CHECKPOINT_PERIOD),
-          checkpointMaxItems(DEFAULT_CHECKPOINT_ITEMS),
-          maxCheckpoints(DEFAULT_MAX_CHECKPOINTS),
-          itemNumBasedNewCheckpoint(true),
-          keepClosedCheckpoints(false),
-          enableChkMerge(false),
-          persistenceEnabled(true)
-    { /* empty */ }
-
-    CheckpointConfig(rel_time_t period, size_t max_items, size_t max_ckpts,
-                     bool item_based_new_ckpt, bool keep_closed_ckpts,
-                     bool enable_ckpt_merge, bool persistence_enabled)
-        : checkpointPeriod(period),
-          checkpointMaxItems(max_items),
-          maxCheckpoints(max_ckpts),
-          itemNumBasedNewCheckpoint(item_based_new_ckpt),
-          keepClosedCheckpoints(keep_closed_ckpts),
-          enableChkMerge(enable_ckpt_merge),
-          persistenceEnabled(persistence_enabled) {}
-
-    CheckpointConfig(EventuallyPersistentEngine &e);
-
-    rel_time_t getCheckpointPeriod() const {
-        return checkpointPeriod;
-    }
-
-    size_t getCheckpointMaxItems() const {
-        return checkpointMaxItems;
-    }
-
-    size_t getMaxCheckpoints() const {
-        return maxCheckpoints;
-    }
-
-    bool isItemNumBasedNewCheckpoint() const {
-        return itemNumBasedNewCheckpoint;
-    }
-
-    bool canKeepClosedCheckpoints() const {
-        return keepClosedCheckpoints;
-    }
-
-    bool isCheckpointMergeSupported() const {
-        return enableChkMerge;
-    }
-
-    bool isPersistenceEnabled() const {
-        return persistenceEnabled;
-    }
-
-protected:
-    friend class CheckpointConfigChangeListener;
-    friend class EventuallyPersistentEngine;
-
-    bool validateCheckpointMaxItemsParam(size_t checkpoint_max_items);
-    bool validateCheckpointPeriodParam(size_t checkpoint_period);
-    bool validateMaxCheckpointsParam(size_t max_checkpoints);
-
-    void setCheckpointPeriod(size_t value);
-    void setCheckpointMaxItems(size_t value);
-    void setMaxCheckpoints(size_t value);
-
-    void allowItemNumBasedNewCheckpoint(bool value) {
-        itemNumBasedNewCheckpoint = value;
-    }
-
-    void allowKeepClosedCheckpoints(bool value) {
-        keepClosedCheckpoints = value;
-    }
-
-    void allowCheckpointMerge(bool value) {
-        enableChkMerge = value;
-    }
-
-    static void addConfigChangeListener(EventuallyPersistentEngine &engine);
-
-private:
-    // Period of a checkpoint in terms of time in sec
-    rel_time_t checkpointPeriod;
-    // Number of max items allowed in each checkpoint
-    size_t checkpointMaxItems;
-    // Number of max checkpoints allowed
-    size_t     maxCheckpoints;
-    // Flag indicating if a new checkpoint is created once the number of items in the current
-    // checkpoint is greater than the max number allowed.
-    bool itemNumBasedNewCheckpoint;
-    // Flag indicating if closed checkpoints should be kept in memory if the current memory usage
-    // below the high water mark.
-    bool keepClosedCheckpoints;
-    // Flag indicating if merging closed checkpoints is enabled or not.
-    bool enableChkMerge;
-
-    // Flag indicating if persistence is enabled.
-    bool persistenceEnabled;
-};
 
 #endif  // SRC_CHECKPOINT_H_

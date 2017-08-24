@@ -46,6 +46,11 @@ std::string to_string(GenerateBySeqno generateBySeqno);
 std::string to_string(GenerateCas generateCas);
 std::string to_string(TrackCasDrift trackCasDrift);
 
+typedef struct {
+    uint64_t start;
+    uint64_t end;
+} snapshot_range_t;
+
 /**
  * The following options can be specified
  * for retrieving an item for get calls
