@@ -70,6 +70,8 @@ private:
 #include <queue>
 
 #include <atomic>
+
+#include "atomic.h"
 #include "threadlocal.h"
 #include "utility.h"
 

@@ -19,6 +19,8 @@
 
 #include "common.h"
 #include "couch-kvstore/couch-fs-stats.h"
+#include "kvstore.h"
+
 #include <platform/histogram.h>
 
 std::unique_ptr<FileOpsInterface> getCouchstoreStatsOps(

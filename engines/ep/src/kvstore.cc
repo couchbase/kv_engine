@@ -37,6 +37,43 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
+ScanContext::ScanContext(std::shared_ptr<Callback<GetValue>> cb,
+                         std::shared_ptr<Callback<CacheLookup>> cl,
+                         uint16_t vb,
+                         size_t id,
+                         uint64_t start,
+                         uint64_t end,
+                         DocumentFilter _docFilter,
+                         ValueFilter _valFilter,
+                         uint64_t _documentCount,
+                         const KVStoreConfig& _config)
+    : callback(cb),
+      lookup(cl),
+      lastReadSeqno(0),
+      startSeqno(start),
+      maxSeqno(end),
+      scanId(id),
+      vbid(vb),
+      docFilter(_docFilter),
+      valFilter(_valFilter),
+      documentCount(_documentCount),
+      logger(&global_logger),
+      config(_config) {
+}
+
+void FileStats::reset() {
+    readTimeHisto.reset();
+    readSeekHisto.reset();
+    readSizeHisto.reset();
+    writeTimeHisto.reset();
+    writeSizeHisto.reset();
+    syncTimeHisto.reset();
+    readCountHisto.reset();
+    writeCountHisto.reset();
+    totalBytesRead = 0;
+    totalBytesWritten = 0;
+}
+
 KVStoreRWRO KVStoreFactory::create(KVStoreConfig& config) {
     std::string backend = config.getBackend();
     if (backend == "couchdb") {
@@ -296,6 +333,38 @@ void KVStore::optimizeWrites(std::vector<queued_item>& items) {
     std::sort(items.begin(), items.end(), cq);
 }
 
+uint64_t KVStore::getLastPersistedSeqno(uint16_t vbid) {
+    vbucket_state* state = cachedVBStates[vbid];
+    if (state) {
+        return state->highSeqno;
+    }
+    return 0;
+}
+
+vbucket_state::vbucket_state(vbucket_state_t _state,
+                             uint64_t _chkid,
+                             uint64_t _maxDelSeqNum,
+                             int64_t _highSeqno,
+                             uint64_t _purgeSeqno,
+                             uint64_t _lastSnapStart,
+                             uint64_t _lastSnapEnd,
+                             uint64_t _maxCas,
+                             int64_t _hlcCasEpochSeqno,
+                             bool _mightContainXattrs,
+                             std::string _failovers)
+    : state(_state),
+      checkpointId(_chkid),
+      maxDeletedSeqno(_maxDelSeqNum),
+      highSeqno(_highSeqno),
+      purgeSeqno(_purgeSeqno),
+      lastSnapStart(_lastSnapStart),
+      lastSnapEnd(_lastSnapEnd),
+      maxCas(_maxCas),
+      hlcCasEpochSeqno(_hlcCasEpochSeqno),
+      mightContainXattrs(_mightContainXattrs),
+      failovers(std::move(_failovers)) {
+}
+
 std::string vbucket_state::toJSON() const {
     std::stringstream jsonState;
     jsonState << "{\"state\": \"" << VBucket::toString(state) << "\""
@@ -308,6 +377,31 @@ std::string vbucket_state::toJSON() const {
               << "}";
 
     return jsonState.str();
+}
+
+bool vbucket_state::needsToBePersisted(const vbucket_state& vbstate) {
+    /**
+     * The vbucket state information is to be persisted
+     * only if a change is detected in the state or the
+     * failovers fields.
+     */
+    if (state != vbstate.state || failovers.compare(vbstate.failovers) != 0) {
+        return true;
+    }
+    return false;
+}
+
+void vbucket_state::reset() {
+    checkpointId = 0;
+    maxDeletedSeqno = 0;
+    highSeqno = 0;
+    purgeSeqno = 0;
+    lastSnapStart = 0;
+    lastSnapEnd = 0;
+    maxCas = 0;
+    hlcCasEpochSeqno = HlcCasSeqnoUninitialised;
+    mightContainXattrs = false;
+    failovers.clear();
 }
 
 IORequest::IORequest(uint16_t vbId, MutationRequestCallback &cb , bool del,

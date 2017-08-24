@@ -25,7 +25,6 @@
 #include <string>
 
 #include "item.h"
-#include "kvstore.h"
 #include "stats.h"
 #include "vbucket.h"
 

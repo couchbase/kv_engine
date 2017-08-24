@@ -18,6 +18,8 @@
 #include "tests/wrapped_fileops_test.h"
 #include "src/couch-kvstore/couch-fs-stats.h"
 
+#include "kvstore.h"
+
 class TestStatsOps : public StatsOps {
 public:
     TestStatsOps(FileOpsInterface* ops)

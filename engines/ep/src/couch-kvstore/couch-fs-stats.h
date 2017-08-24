@@ -15,8 +15,7 @@
  *   limitations under the License.
  */
 
-#ifndef SRC_COUCH_KVSTORE_COUCH_FS_STATS_H_
-#define SRC_COUCH_KVSTORE_COUCH_FS_STATS_H_ 1
+#pragma once
 
 #include "config.h"
 
@@ -25,7 +24,8 @@
 
 #include <libcouchstore/couch_db.h>
 #include <platform/histogram.h>
-#include "kvstore.h"
+
+struct FileStats;
 
 /**
  * Returns an instance of StatsOps from a FileStats reference and
@@ -91,5 +91,3 @@ protected:
         size_t write_count_since_open;
     };
 };
-
-#endif  // SRC_COUCH_KVSTORE_COUCH_FS_STATS_H_

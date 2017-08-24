@@ -19,29 +19,27 @@
 
 #include "config.h"
 
-#include "atomic.h"
 #include "callbacks.h"
-#include "configuration.h"
-#include "ep_types.h"
-#include "logger.h"
 
 #include <platform/histogram.h>
 #include <platform/processclock.h>
 
-#include <cJSON.h>
+#include <relaxed_atomic.h>
+#include <atomic>
 #include <cstring>
 #include <list>
 #include <map>
-#include <relaxed_atomic.h>
 #include <string>
 #include <unordered_map>
-#include <utility>
 #include <vector>
 
 /* Forward declarations */
 class Item;
 class KVStore;
+class KVStoreConfig;
+class Logger;
 class PersistenceCallback;
+class RollbackCB;
 class RollbackResult;
 
 struct vb_bgfetch_item_ctx_t;
@@ -51,29 +49,11 @@ using vb_bgfetch_queue_t =
 
 enum class GetMetaOnly { Yes, No };
 
-const size_t CONFLICT_RES_META_LEN = 1;
-
-static const int MUTATION_FAILED = -1;
-static const int DOC_NOT_FOUND = 0;
-static const int MUTATION_SUCCESS = 1;
-
-static const int64_t INITIAL_DRIFT = -140737488355328; //lowest possible 48-bit integer
-
-/**
- * Compaction context to perform compaction
- */
-
-typedef struct {
-    uint64_t revSeqno;
-    std::string keyStr;
-} expiredItemCtx;
-
 typedef uint16_t DBFileId;
 
 typedef std::shared_ptr<Callback<uint16_t&, const DocKey&, bool&> > BloomFilterCBPtr;
 typedef std::shared_ptr<Callback<Item&, time_t&> > ExpiredItemsCBPtr;
 
-class KVStoreConfig;
 typedef struct {
     uint64_t purge_before_ts;
     uint64_t purge_before_seq;
@@ -101,12 +81,6 @@ typedef struct {
  */
 typedef std::pair<int, bool> mutation_result;
 
-typedef union {
-    Callback <mutation_result> *setCb;
-    Callback <int> *delCb;
-} MutationRequestCallback;
-
-
 class NoLookupCallback : public Callback<CacheLookup> {
 public:
     NoLookupCallback() {}
@@ -128,47 +102,13 @@ struct vbucket_state {
                   uint64_t _maxCas,
                   int64_t _hlcCasEpochSeqno,
                   bool _mightContainXattrs,
-                  std::string _failovers)
-        : state(_state),
-          checkpointId(_chkid),
-          maxDeletedSeqno(_maxDelSeqNum),
-          highSeqno(_highSeqno),
-          purgeSeqno(_purgeSeqno),
-          lastSnapStart(_lastSnapStart),
-          lastSnapEnd(_lastSnapEnd),
-          maxCas(_maxCas),
-          hlcCasEpochSeqno(_hlcCasEpochSeqno),
-          mightContainXattrs(_mightContainXattrs),
-          failovers(std::move(_failovers)) {
-    }
+                  std::string _failovers);
 
     std::string toJSON() const;
 
-    bool needsToBePersisted(const vbucket_state& vbstate) {
-        /**
-         * The vbucket state information is to be persisted
-         * only if a change is detected in the state or the
-         * failovers fields.
-         */
-        if (state != vbstate.state ||
-            failovers.compare(vbstate.failovers) != 0) {
-            return true;
-        }
-        return false;
-    }
+    bool needsToBePersisted(const vbucket_state& vbstate);
 
-    void reset() {
-        checkpointId = 0;
-        maxDeletedSeqno = 0;
-        highSeqno = 0;
-        purgeSeqno = 0;
-        lastSnapStart = 0;
-        lastSnapEnd = 0;
-        maxCas = 0;
-        hlcCasEpochSeqno = HlcCasSeqnoUninitialised;
-        mightContainXattrs = false;
-        failovers.clear();
-    }
+    void reset();
 
     vbucket_state_t state;
     uint64_t checkpointId;
@@ -228,22 +168,7 @@ public:
                 DocumentFilter _docFilter,
                 ValueFilter _valFilter,
                 uint64_t _documentCount,
-                const KVStoreConfig& _config)
-        : callback(cb),
-          lookup(cl),
-          lastReadSeqno(0),
-          startSeqno(start),
-          maxSeqno(end),
-          scanId(id),
-          vbid(vb),
-          docFilter(_docFilter),
-          valFilter(_valFilter),
-          documentCount(_documentCount),
-          logger(&global_logger),
-          config(_config) {
-    }
-
-    ~ScanContext() {}
+                const KVStoreConfig& _config);
 
     const std::shared_ptr<Callback<GetValue> > callback;
     const std::shared_ptr<Callback<CacheLookup> > lookup;
@@ -264,18 +189,6 @@ public:
 // First bool is true if an item exists in VB DB file.
 // second bool is true if the operation is SET (i.e., insert or update).
 typedef std::pair<bool, bool> kstat_entry_t;
-
-struct KVStatsCtx{
-    KVStatsCtx(const KVStoreConfig& _config)
-        : vbucket(std::numeric_limits<uint16_t>::max()), config(_config) {
-    }
-
-    uint16_t vbucket;
-    std::unordered_map<StoredDocKey, kstat_entry_t> keyStats;
-    const KVStoreConfig& config;
-};
-
-typedef struct KVStatsCtx kvstats_ctx;
 
 struct FileStats {
     // Read time length
@@ -302,18 +215,7 @@ struct FileStats {
     // Total bytes written to disk.
     std::atomic<size_t> totalBytesWritten{0};
 
-    void reset() {
-        readTimeHisto.reset();
-        readSeekHisto.reset();
-        readSizeHisto.reset();
-        writeTimeHisto.reset();
-        writeSizeHisto.reset();
-        syncTimeHisto.reset();
-        readCountHisto.reset();
-        writeCountHisto.reset();
-        totalBytesRead = 0;
-        totalBytesWritten = 0;
-    }
+    void reset();
 };
 
 /**
@@ -450,6 +352,7 @@ public:
  * value is a pair of string representation of the vbucket state and
  * its latest checkpoint Id persisted.
  */
+struct vbucket_state;
 typedef std::map<uint16_t, vbucket_state> vbucket_map_t;
 
 /**
@@ -526,49 +429,6 @@ private:
     PersistedDeletion persistedDeletions;
     EfficientGet efficientGet;
     ConcurrentWriteCompact concWriteCompact;
-};
-
-class RollbackCB;
-class Configuration;
-
-class IORequest {
-public:
-    IORequest(uint16_t vbId, MutationRequestCallback &cb, bool del,
-              const DocKey itmKey);
-
-    virtual ~IORequest() { }
-
-    bool isDelete() {
-        return deleteItem;
-    }
-
-    uint16_t getVBucketId() {
-        return vbucketId;
-    }
-
-    hrtime_t getDelta() {
-        return (gethrtime() - start)/1000;
-    }
-
-    Callback<mutation_result>* getSetCallback(void) {
-        return callback.setCb;
-    }
-
-    Callback<int>* getDelCallback(void) {
-        return callback.delCb;
-    }
-
-    const StoredDocKey& getKey(void) const {
-        return key;
-    }
-
-protected:
-    uint16_t vbucketId;
-    bool deleteItem;
-    MutationRequestCallback callback;
-    hrtime_t start;
-    StoredDocKey key;
-    size_t dataSize;
 };
 
 /**
@@ -798,13 +658,7 @@ public:
      */
     virtual void pendingTasks() = 0;
 
-    uint64_t getLastPersistedSeqno(uint16_t vbid) {
-        vbucket_state *state = cachedVBStates[vbid];
-        if (state) {
-            return state->highSeqno;
-        }
-        return 0;
-    }
+    uint64_t getLastPersistedSeqno(uint16_t vbid);
 
     bool isReadOnly(void) {
         return readOnly;
@@ -944,25 +798,3 @@ public:
 protected:
     void *dbHandle;
 };
-
-inline const std::string getJSONObjString(const cJSON *i) {
-    if (i == NULL) {
-        return "";
-    }
-    if (i->type != cJSON_String) {
-        throw std::invalid_argument("getJSONObjString: type of object (" +
-                                    std::to_string(i->type) +
-                                    ") is not cJSON_String");
-    }
-    return i->valuestring;
-}
-
-inline const bool getJSONObjBool(const cJSON* i) {
-    if (i == nullptr) {
-        return false;
-    } else if (i->type != cJSON_True && i->type != cJSON_False) {
-        throw std::invalid_argument("getJSONObjBool: type of object (" +
-                                    std::to_string(i->type) + ") is not bool");
-    }
-    return i->type == cJSON_True;
-}

@@ -20,6 +20,7 @@
 #include "rocksdb-kvstore.h"
 
 #include "kvstore_config.h"
+#include "kvstore_priv.h"
 
 #include <string.h>
 #include <algorithm>

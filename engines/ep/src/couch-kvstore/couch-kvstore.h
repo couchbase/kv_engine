@@ -19,7 +19,19 @@
 #define SRC_COUCH_KVSTORE_COUCH_KVSTORE_H_ 1
 
 #include "config.h"
+
+#include "atomicqueue.h"
+#include "configuration.h"
+#include "couch-kvstore/couch-fs-stats.h"
+#include "couch-kvstore/couch-kvstore-metadata.h"
+#include "item.h"
+#include "kvstore.h"
+#include "kvstore_priv.h"
 #include "libcouchstore/couch_db.h"
+#include "logger.h"
+
+#include <platform/histogram.h>
+#include <platform/strerror.h>
 #include <relaxed_atomic.h>
 
 #include <map>
@@ -27,15 +39,6 @@
 #include <string>
 #include <vector>
 
-#include "configuration.h"
-#include "couch-kvstore/couch-fs-stats.h"
-#include "couch-kvstore/couch-kvstore-metadata.h"
-#include <platform/histogram.h>
-#include <platform/strerror.h>
-#include "logger.h"
-#include "item.h"
-#include "kvstore.h"
-#include "atomicqueue.h"
 
 #define COUCHSTORE_NO_OPTIONS 0
 
