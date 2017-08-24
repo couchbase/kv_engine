@@ -26,8 +26,6 @@ static const size_t DEFAULT_VAL_SIZE(64 * 1024);
 
 RocksDBKVStore::RocksDBKVStore(KVStoreConfig& config)
     : KVStore(config), valBuffer(NULL), valSize(0), scanCounter(0) {
-    keyBuffer = static_cast<char*>(
-            calloc(1, sizeof(uint16_t) + std::numeric_limits<uint8_t>::max()));
     cachedVBStates.reserve(configuration.getMaxVBuckets());
     cachedVBStates.assign(configuration.getMaxVBuckets(), nullptr);
 
@@ -39,7 +37,6 @@ RocksDBKVStore::RocksDBKVStore(KVStoreConfig& config)
 
 RocksDBKVStore::~RocksDBKVStore() {
     close();
-    free(keyBuffer);
     free(valBuffer);
 }
 
@@ -123,8 +120,8 @@ std::vector<vbucket_state*> RocksDBKVStore::listPersistedVbuckets() {
 void RocksDBKVStore::set(const Item& itm, Callback<mutation_result>& cb) {
     // TODO RDB: Consider using SliceParts to avoid copying if
     // possible.
-    rocksdb::Slice k = mkKeySlice(itm.getVBucketId(), itm.getKey());
-    rocksdb::Slice v = mkValSlice(itm);
+    auto k = mkKeyStr(itm.getVBucketId(), itm.getKey());
+    auto v = mkValSlice(itm);
 
     batch->Put(k, v);
 
@@ -144,7 +141,7 @@ GetValue RocksDBKVStore::getWithHeader(
         uint16_t vb,
         GetMetaOnly getMetaOnly, // TODO RDB: get meta only
         bool fetchDelete) {
-    rocksdb::Slice k(mkKeySlice(vb, key));
+    std::string k(mkKeyStr(vb, key));
     std::string value;
 
     // TODO RDB: use a PinnableSlice to avoid some memcpy
@@ -159,7 +156,7 @@ void RocksDBKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t& itms) {
     // TODO RDB: RocksDB supports a multi get which we should use here.
     for (auto& it : itms) {
         auto& key = it.first;
-        rocksdb::Slice vbAndKey(mkKeySlice(vb, it.first));
+        std::string vbAndKey(mkKeyStr(vb, it.first));
         std::string value;
         rocksdb::Status s = db->Get(rocksdb::ReadOptions(), vbAndKey, &value);
         if (s.ok()) {
@@ -183,7 +180,7 @@ void RocksDBKVStore::reset(uint16_t vbucketId) {
 }
 
 void RocksDBKVStore::del(const Item& itm, Callback<int>& cb) {
-    rocksdb::Slice k(mkKeySlice(itm.getVBucketId(), itm.getKey()));
+    auto k(mkKeyStr(itm.getVBucketId(), itm.getKey()));
     batch->Delete(k);
     int rv(1);
     cb.callback(rv);
@@ -237,10 +234,17 @@ StorageProperties RocksDBKVStore::getStorageProperties(void) {
     return rv;
 }
 
-rocksdb::Slice RocksDBKVStore::mkKeySlice(uint16_t vbid, const DocKey& k) {
-    std::memcpy(keyBuffer, &vbid, sizeof(vbid));
-    std::memcpy(keyBuffer + sizeof(vbid), k.data(), k.size());
-    return rocksdb::Slice(keyBuffer, sizeof(vbid) + k.size());
+std::string RocksDBKVStore::mkKeyStr(uint16_t vbid, const DocKey& k) {
+    size_t headerSize = sizeof(uint16_t) + k.size();
+
+    std::string buffer;
+    buffer.reserve(headerSize);
+
+    buffer.append(reinterpret_cast<char*>(&vbid), sizeof(vbid));
+    buffer.append(const_cast<char*>(reinterpret_cast<const char*>(k.data())),
+                  k.size());
+
+    return buffer;
 }
 
 void RocksDBKVStore::grokKeySlice(const rocksdb::Slice& s,

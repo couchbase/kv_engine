@@ -266,7 +266,7 @@ private:
 
     void close();
 
-    rocksdb::Slice mkKeySlice(uint16_t, const DocKey& k);
+    std::string mkKeyStr(uint16_t, const DocKey& k);
     rocksdb::SliceParts mkKeySliceParts(uint16_t, const DocKey& k);
     void grokKeySlice(const rocksdb::Slice&, uint16_t*, std::string*);
 
