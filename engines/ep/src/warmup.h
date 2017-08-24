@@ -23,6 +23,7 @@
 #include "utility.h"
 
 #include <atomic>
+#include <deque>
 #include <map>
 #include <ostream>
 #include <string>

@@ -166,6 +166,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/bgfetcher.cc
             src/blob.cc
             src/bloomfilter.cc
+            src/callbacks.cc
             src/checkpoint.cc
             src/checkpoint_remover.cc
             src/conflict_resolution.cc

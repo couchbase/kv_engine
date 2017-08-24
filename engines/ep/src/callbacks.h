@@ -15,16 +15,14 @@
  *   limitations under the License.
  */
 
-#ifndef SRC_CALLBACKS_H_
-#define SRC_CALLBACKS_H_ 1
+#pragma once
 
 #include "config.h"
 
-#include "item.h"
-#include "locks.h"
-#include "storeddockey.h"
-#include "syncobject.h"
-#include "utility.h"
+#include <memcached/dockey.h>
+#include <memcached/engine_error.h>
+
+#include <memory>
 
 class Item;
 
@@ -51,16 +49,23 @@ private:
  */
 class GetValue {
 public:
-    GetValue() : id(-1), status(ENGINE_KEY_ENOENT), partial(false), nru(0xff) {
-    }
+    GetValue();
 
     explicit GetValue(std::unique_ptr<Item> v,
                       ENGINE_ERROR_CODE s = ENGINE_SUCCESS,
                       uint64_t i = -1,
                       bool incomplete = false,
-                      uint8_t _nru = 0xff)
-        : item(std::move(v)), id(i), status(s), partial(incomplete), nru(_nru) {
-    }
+                      uint8_t _nru = 0xff);
+
+    /// Cannot copy GetValues (cannot copy underlying Item).
+    GetValue(const GetValue&) = delete;
+    GetValue& operator=(const GetValue&&) = delete;
+
+    /// Can move GetValues
+    GetValue(GetValue&& other);
+    GetValue& operator=(GetValue&& other);
+
+    ~GetValue();
 
     /**
      * Engine code describing what happened.
@@ -125,5 +130,3 @@ private:
 
     int myStatus;
 };
-
-#endif  // SRC_CALLBACKS_H_

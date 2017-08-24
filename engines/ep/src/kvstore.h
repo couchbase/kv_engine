@@ -20,7 +20,10 @@
 #include "config.h"
 
 #include "callbacks.h"
+#include "storeddockey.h"
 
+#include <memcached/engine_common.h>
+#include <memcached/protocol_binary.h>
 #include <platform/histogram.h>
 #include <platform/processclock.h>
 
