@@ -25,10 +25,7 @@
 #include <vbucket.h>
 #include <JSON_checker.h>
 #include <locks.h>
-
-#define STATWRITER_NAMESPACE forestdb_engine
 #include "statwriter.h"
-#undef STATWRITER_NAMESPACE
 
 std::mutex ForestKVStore::initLock;
 int ForestKVStore::numGlobalFiles = 0;

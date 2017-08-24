@@ -36,9 +36,7 @@
 #include "memory_tracker.h"
 #include "replicationthrottle.h"
 #include "stats-info.h"
-#define STATWRITER_NAMESPACE core_engine
 #include "statwriter.h"
-#undef STATWRITER_NAMESPACE
 #include "string_utils.h"
 #include "vb_count_visitor.h"
 #include "warmup.h"

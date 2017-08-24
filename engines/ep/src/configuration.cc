@@ -25,10 +25,7 @@
 #ifdef AUTOCONF_BUILD
 #include "generated_configuration.cc"
 #endif
-
-#define STATWRITER_NAMESPACE config
 #include "statwriter.h"
-#undef STATWRITER_NAMESPACE
 
 // Used to get a name from a type to use in logging
 template <typename T>

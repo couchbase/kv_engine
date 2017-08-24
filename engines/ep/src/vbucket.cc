@@ -33,10 +33,7 @@
 #include "flusher.h"
 #include "pre_link_document_context.h"
 #include "vbucketdeletiontask.h"
-
-#define STATWRITER_NAMESPACE vbucket
 #include "statwriter.h"
-#undef STATWRITER_NAMESPACE
 #include "stored_value_factories.h"
 
 #include "vbucket.h"

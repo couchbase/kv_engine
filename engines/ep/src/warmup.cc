@@ -23,9 +23,7 @@
 #include "ep_vb.h"
 #include "failover-table.h"
 #include "mutation_log.h"
-#define STATWRITER_NAMESPACE warmup
 #include "statwriter.h"
-#undef STATWRITER_NAMESPACE
 #include "vbucket_bgfetch_item.h"
 
 #include <platform/make_unique.h>

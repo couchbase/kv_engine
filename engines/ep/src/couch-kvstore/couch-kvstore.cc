@@ -47,9 +47,7 @@
 #include "couch-kvstore/couch-kvstore.h"
 #include "ep_types.h"
 #include "kvstore_config.h"
-#define STATWRITER_NAMESPACE couchstore_engine
 #include "statwriter.h"
-#undef STATWRITER_NAMESPACE
 #include "vbucket.h"
 #include "vbucket_bgfetch_item.h"
 

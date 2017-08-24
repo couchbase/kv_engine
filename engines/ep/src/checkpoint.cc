@@ -26,9 +26,7 @@
 #include "ep_engine.h"
 #include "ep_time.h"
 #include "pre_link_document_context.h"
-#define STATWRITER_NAMESPACE checkpoint
 #include "statwriter.h"
-#undef STATWRITER_NAMESPACE
 #include "vbucket.h"
 
 const std::string CheckpointManager::pCursorName("persistence");

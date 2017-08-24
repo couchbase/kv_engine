@@ -15,23 +15,20 @@
  *   limitations under the License.
  */
 
-#ifndef SRC_STATWRITER_H_
-#define SRC_STATWRITER_H_ 1
+#pragma once
 
 #include "config.h"
 
-
-#include <atomic>
-#include <platform/histogram.h>
-#include <platform/sized_buffer.h>
 #include "objectregistry.h"
 
-#include <cstring>
 #include <memcached/engine_common.h>
+#include <platform/histogram.h>
+#include <platform/sized_buffer.h>
+
+#include <atomic>
+#include <cstring>
 
 class EventuallyPersistentEngine;
-
-namespace STATWRITER_NAMESPACE {
 
 inline void add_casted_stat(const char *k, const char *v,
                             ADD_STAT add_stat, const void *cookie) {
@@ -113,9 +110,3 @@ void add_prefixed_stat(P prefix, const char *nm, Histogram<T> &val,
 
     add_casted_stat(name.str().c_str(), val, add_stat, cookie);
 }
-
-}
-
-using namespace STATWRITER_NAMESPACE;
-
-#endif  // SRC_STATWRITER_H_

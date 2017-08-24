@@ -21,9 +21,7 @@
 
 #include "atomic.h"
 #include "failover-table.h"
-#define STATWRITER_NAMESPACE failovers
 #include "statwriter.h"
-#undef STATWRITER_NAMESPACE
 
 FailoverTable::FailoverTable(size_t capacity)
     : max_entries(capacity), erroneousEntriesErased(0), provider(true) {
