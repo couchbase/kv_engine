@@ -180,10 +180,6 @@ struct thread_stats {
         connection (and hence didn't need to be allocated). */
     Couchbase::RelaxedAtomic<uint64_t> wbufs_existing;
 
-    // Right now we're protecting both the "high watermark" variables
-    // between the same mutex
-    std::mutex mutex;
-
     /* Highest value iovsize has got to */
     Couchbase::RelaxedAtomic<int> iovused_high_watermark;
     /* High value Connection->msgused has got to */
