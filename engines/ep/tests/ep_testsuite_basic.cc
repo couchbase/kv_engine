@@ -2322,8 +2322,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  NULL,
-                 /* TODO RDB: vbucket deletion races with flusher
-                  * deVBucket should use its own batch */
+                 /* TODO RDB: implement getItemCount */
                  prepare_skip_broken_under_rocks,
                  cleanup),
         TestCase("non-resident decrementers",

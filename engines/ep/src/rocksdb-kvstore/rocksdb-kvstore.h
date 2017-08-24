@@ -285,5 +285,10 @@ private:
     std::unique_ptr<rocksdb::WriteBatch> batch;
     rocksdb::WriteOptions writeOptions;
 
+    // RocksDB does *not* need additional synchronisation around
+    // db->Write, but we need to prevent delVBucket racing with
+    // commit, potentially losing data.
+    std::mutex writeLock;
+
     std::atomic<size_t> scanCounter; // atomic counter for generating scan id
 };

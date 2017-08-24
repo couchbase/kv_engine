@@ -86,6 +86,7 @@ bool RocksDBKVStore::begin() {
 }
 
 bool RocksDBKVStore::commit(const Item* collectionsManifest) {
+    std::lock_guard<std::mutex> lg(writeLock);
     if (batch) {
         rocksdb::Status s = db->Write(writeOptions, batch.get());
         if (s.ok()) {
@@ -193,17 +194,19 @@ static bool matches_prefix(rocksdb::Slice s, size_t len, const char* p) {
 }
 
 void RocksDBKVStore::delVBucket(uint16_t vb, uint64_t vb_version) {
-    rocksdb::Iterator* it = db->NewIterator(rocksdb::ReadOptions());
+    std::lock_guard<std::mutex> lg(writeLock);
+    std::unique_ptr<rocksdb::Iterator> it(
+            db->NewIterator(rocksdb::ReadOptions()));
     const char* prefix(reinterpret_cast<const char*>(&vb));
     std::string start(prefix, sizeof(vb));
-    begin();
+    rocksdb::WriteBatch delBatch;
     for (it->Seek(start);
          it->Valid() && matches_prefix(it->key(), sizeof(vb), prefix);
          it->Next()) {
-        batch->Delete(it->key());
+        delBatch.Delete(it->key());
     }
-    delete it;
-    commit(nullptr); // TODO RDB: pass non-null for collections manifest.
+    rocksdb::Status s = db->Write(writeOptions, &delBatch);
+    cb_assert(s.ok());
 }
 
 bool RocksDBKVStore::snapshotVBucket(uint16_t vbucketId,
