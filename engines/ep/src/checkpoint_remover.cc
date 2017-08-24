@@ -43,14 +43,13 @@ public:
 
     void visitBucket(VBucketPtr &vb) override {
         bool newCheckpointCreated = false;
-        removed = vb->checkpointManager.removeClosedUnrefCheckpoints(
+        removed = vb->checkpointManager->removeClosedUnrefCheckpoints(
                 *vb, newCheckpointCreated);
         // If the new checkpoint is created, notify this event to the
         // corresponding paused DCP connections.
         if (newCheckpointCreated) {
             store->getEPEngine().getDcpConnMap().notifyVBConnections(
-                                        vb->getId(),
-                                        vb->checkpointManager.getHighSeqno());
+                    vb->getId(), vb->checkpointManager->getHighSeqno());
         }
 
         stats.itemsRemovedFromCheckpoints.fetch_add(removed);
@@ -111,7 +110,7 @@ void ClosedUnrefCheckpointRemoverTask::cursorDroppingIfNeeded(void) {
                     // vbucket's checkpoint manager, so as to unreference
                     // an estimated number of checkpoints.
                     std::vector<std::string> cursors =
-                                vb->checkpointManager.getListOfCursorsToDrop();
+                            vb->checkpointManager->getListOfCursorsToDrop();
                     std::vector<std::string>::iterator itr = cursors.begin();
                     for (; itr != cursors.end(); ++itr) {
                         if (memoryCleared < amountOfMemoryToClear) {

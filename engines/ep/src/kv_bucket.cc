@@ -714,7 +714,7 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(
              * to active, to maintain the correct snapshot sequence numbers
              * even in a failover scenario.
              */
-            vb->checkpointManager.resetSnapshotRange();
+            vb->checkpointManager->resetSnapshotRange();
         }
 
         if (to == vbucket_state_active && !transfer) {
@@ -763,7 +763,7 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(
 
         // The first checkpoint for active vbucket should start with id 2.
         uint64_t start_chk_id = (to == vbucket_state_active) ? 2 : 0;
-        newvb->checkpointManager.setOpenCheckpointId(start_chk_id);
+        newvb->checkpointManager->setOpenCheckpointId(start_chk_id);
 
         // Before adding the VB to the map increment the revision
         getRWUnderlying(vbid)->incrementRevision(vbid);
@@ -802,7 +802,7 @@ void KVBucket::scheduleVBStatePersist(VBucket::id_type vbid) {
         return;
     }
 
-    vb->checkpointManager.queueSetVBState(*vb);
+    vb->checkpointManager->queueSetVBState(*vb);
 }
 
 ENGINE_ERROR_CODE KVBucket::deleteVBucket(uint16_t vbid, const void* c) {
@@ -881,14 +881,14 @@ bool KVBucket::resetVBucket_UNLOCKED(uint16_t vbid,
         vbMap.dropVBucketAndSetupDeferredDeletion(vbid, nullptr /*no cookie*/);
 
         checkpointCursorInfoList cursors =
-                                        vb->checkpointManager.getAllCursors();
+                vb->checkpointManager->getAllCursors();
         // Delete and recreate the vbucket database file
         setVBucketState_UNLOCKED(vbid, vbstate,
                                  false/*transfer*/, true/*notifyDcp*/, vbset);
 
         // Copy the all cursors from the old vbucket into the new vbucket
         VBucketPtr newvb = vbMap.getBucket(vbid);
-        newvb->checkpointManager.resetCursors(cursors);
+        newvb->checkpointManager->resetCursors(cursors);
 
         rv = true;
     }
@@ -1638,7 +1638,7 @@ void KVBucket::reset() {
             {
                 LockHolder lh(vb_mutexes[vb->getId()]);
                 vb->ht.clear();
-                vb->checkpointManager.clear(vb->getState());
+                vb->checkpointManager->clear(vb->getState());
                 vb->resetStats();
                 vb->setPersistedSnapshot(0, 0);
             }
@@ -1864,7 +1864,7 @@ int KVBucket::flushVBucket(uint16_t vbid) {
         // Append all items outstanding for the persistence cursor.
         snapshot_range_t range;
         hrtime_t _begin_ = gethrtime();
-        range = vb->checkpointManager.getAllItemsForCursor(
+        range = vb->checkpointManager->getAllItemsForCursor(
                 CheckpointManager::pCursorName, items);
         stats.persistenceCursorGetItemsHisto.add((gethrtime() - _begin_) / 1000);
 
@@ -2021,14 +2021,15 @@ int KVBucket::flushVBucket(uint16_t vbid) {
 
         rwUnderlying->pendingTasks();
 
-        if (vb->checkpointManager.getNumCheckpoints() > 1) {
+        if (vb->checkpointManager->getNumCheckpoints() > 1) {
             wakeUpCheckpointRemover();
         }
 
         if (vb->rejectQueue.empty()) {
-            vb->checkpointManager.itemsPersisted();
+            vb->checkpointManager->itemsPersisted();
             uint64_t seqno = vb->getPersistenceSeqno();
-            uint64_t chkid = vb->checkpointManager.getPersistenceCursorPreChkId();
+            uint64_t chkid =
+                    vb->checkpointManager->getPersistenceCursorPreChkId();
             vb->notifyHighPriorityRequests(
                     engine, seqno, HighPriorityVBNotify::Seqno);
             vb->notifyHighPriorityRequests(
@@ -2597,8 +2598,8 @@ TaskStatus KVBucket::rollback(uint16_t vbid, uint64_t rollbackSeqno) {
 
     ReaderLockHolder rlh(vb->getStateLock());
     if (vb->getState() == vbucket_state_replica) {
-        uint64_t prevHighSeqno = static_cast<uint64_t>
-                                        (vb->checkpointManager.getHighSeqno());
+        uint64_t prevHighSeqno =
+                static_cast<uint64_t>(vb->checkpointManager->getHighSeqno());
         if (rollbackSeqno != 0) {
             RollbackResult result = doRollback(vbid, rollbackSeqno);
 

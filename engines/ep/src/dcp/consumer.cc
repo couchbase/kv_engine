@@ -216,7 +216,7 @@ ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque, uint16_t vbucket,
         return ENGINE_NOT_MY_VBUCKET;
     }
 
-    snapshot_info_t info = vb->checkpointManager.getSnapshotInfo();
+    snapshot_info_t info = vb->checkpointManager->getSnapshotInfo();
     if (info.range.end == info.start) {
         info.range.start = info.start;
     }

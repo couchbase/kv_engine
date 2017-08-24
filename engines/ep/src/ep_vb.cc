@@ -408,9 +408,9 @@ void EPVBucket::queueBackfillItem(queued_item& qi,
                                   const GenerateBySeqno generateBySeqno) {
     LockHolder lh(backfill.mutex);
     if (GenerateBySeqno::Yes == generateBySeqno) {
-        qi->setBySeqno(checkpointManager.nextBySeqno());
+        qi->setBySeqno(checkpointManager->nextBySeqno());
     } else {
-        checkpointManager.setBySeqno(qi->getBySeqno());
+        checkpointManager->setBySeqno(qi->getBySeqno());
     }
     backfill.items.push(qi);
     ++stats.diskQueueSize;

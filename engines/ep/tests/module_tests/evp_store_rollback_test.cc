@@ -303,7 +303,7 @@ TEST_P(RollbackTest, MB21784) {
     // Assert the checkpointmanager clear function (called during rollback)
     // has set the opencheckpointid to one
     auto vb = store->getVBucket(vbid);
-    auto& ckpt_mgr = vb->checkpointManager;
+    auto& ckpt_mgr = *vb->checkpointManager;
     EXPECT_EQ(1, ckpt_mgr.getOpenCheckpointId()) << "opencheckpointId not one";
 
     // Create a new Dcp producer, reserving its cookie.
@@ -639,7 +639,7 @@ TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
 
     EXPECT_EQ(1, store->flushVBucket(vbid));
 
-    auto& ckpt_mgr = vb->checkpointManager;
+    auto& ckpt_mgr = *vb->checkpointManager;
     ckpt_mgr.createNewCheckpoint();
     EXPECT_EQ(2, ckpt_mgr.getNumCheckpoints());
     EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());

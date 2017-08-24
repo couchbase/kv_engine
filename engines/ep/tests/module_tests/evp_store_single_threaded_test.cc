@@ -171,7 +171,7 @@ TEST_F(SingleThreadedEPBucketTest, MB22421_backfilling_but_task_finished) {
      setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
      auto vb = store->getVBuckets().getBucket(vbid);
      ASSERT_NE(nullptr, vb.get());
-     auto& ckpt_mgr = vb->checkpointManager;
+     auto& ckpt_mgr = *vb->checkpointManager;
 
      // Create a Mock Dcp producer
      mock_dcp_producer_t producer = new MockDcpProducer(*engine,
@@ -232,7 +232,7 @@ TEST_F(SingleThreadedEPBucketTest, MB22421_reregister_cursor) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     auto vb = store->getVBuckets().getBucket(vbid);
     ASSERT_NE(nullptr, vb.get());
-    auto& ckpt_mgr = vb->checkpointManager;
+    auto& ckpt_mgr = *vb->checkpointManager;
 
     // Create a Mock Dcp producer
     mock_dcp_producer_t producer = new MockDcpProducer(*engine,
@@ -333,7 +333,7 @@ void MB22960callbackBeforeRegisterCursor(
     // moved forward during a backfill.
     if (registerCursorCount == 0) {
         bool new_ckpt_created;
-        CheckpointManager& ckpt_mgr = vb->checkpointManager;
+        CheckpointManager& ckpt_mgr = *vb->checkpointManager;
 
         //pendingBackfill has now been cleared
         EXPECT_FALSE(mock_stream->public_getPendingBackfill())
@@ -381,7 +381,7 @@ TEST_F(SingleThreadedEPBucketTest, MB22960_cursor_dropping_data_loss) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     auto vb = store->getVBuckets().getBucket(vbid);
     ASSERT_NE(nullptr, vb.get());
-    auto& ckpt_mgr = vb->checkpointManager;
+    auto& ckpt_mgr = *vb->checkpointManager;
     EXPECT_EQ(1, ckpt_mgr.getNumCheckpoints());
     EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
 
@@ -571,7 +571,7 @@ TEST_F(SingleThreadedEPBucketTest, MB25056_do_not_set_pendingBackfill_to_true) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
     auto vb = store->getVBuckets().getBucket(vbid);
     ASSERT_NE(nullptr, vb.get());
-    auto& ckpt_mgr = vb->checkpointManager;
+    auto& ckpt_mgr = *vb->checkpointManager;
     EXPECT_EQ(1, ckpt_mgr.getNumCheckpoints());
     EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
 
@@ -935,7 +935,7 @@ TEST_F(SingleThreadedEPBucketTest, MB19892_BackfillNotDeleted) {
 
     // Force a new checkpoint.
     auto vb = store->getVBuckets().getBucket(vbid);
-    auto& ckpt_mgr = vb->checkpointManager;
+    auto& ckpt_mgr = *vb->checkpointManager;
     ckpt_mgr.createNewCheckpoint();
 
     // Directly flush the vbucket, ensuring data is on disk.
@@ -1125,7 +1125,7 @@ TEST_F(MB20054_SingleThreadedEPStoreTest, MB20054_onDeleteItem_during_bucket_del
 
     // Force a new checkpoint.
     VBucketPtr vb = store->getVBuckets().getBucket(vbid);
-    CheckpointManager& ckpt_mgr = vb->checkpointManager;
+    CheckpointManager& ckpt_mgr = *vb->checkpointManager;
     ckpt_mgr.createNewCheckpoint();
     auto lpWriterQ = task_executor->getLpTaskQ()[WRITER_TASK_IDX];
     EXPECT_EQ(0, lpWriterQ->getFutureQueueSize());

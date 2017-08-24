@@ -222,7 +222,7 @@ public:
 
         // completeDeletion adds a new item without a seqno, which closes
         // the snapshot, re-open the snapshot so tests can continue.
-        vbR.checkpointManager.updateCurrentSnapshotEnd(snapEnd);
+        vbR.checkpointManager->updateCurrentSnapshotEnd(snapEnd);
         if (active != replica) {
             return ::testing::AssertionFailure()
                    << "completeDeletion: active doesn't match replica active:\n"
@@ -293,7 +293,7 @@ private:
     static void getEventsFromCheckpoint(VBucket& vb,
                                         std::vector<queued_item>& events) {
         std::vector<queued_item> items;
-        vb.checkpointManager.getAllItemsForCursor(
+        vb.checkpointManager->getAllItemsForCursor(
                 CheckpointManager::pCursorName, items);
         for (const auto& qi : items) {
             if (qi->getOperation() == queue_op::system_event) {

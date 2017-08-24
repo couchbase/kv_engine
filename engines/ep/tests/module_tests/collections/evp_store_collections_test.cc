@@ -447,8 +447,8 @@ TEST_F(CollectionsTest, checkpoint_consistency) {
 
     // Now get the VB checkpoint and validate the collection/item ordering
     std::vector<queued_item> items;
-    vb->checkpointManager.getAllItemsForCursor(CheckpointManager::pCursorName,
-                                               items);
+    vb->checkpointManager->getAllItemsForCursor(CheckpointManager::pCursorName,
+                                                items);
 
     ASSERT_FALSE(items.empty());
     bool open = false;

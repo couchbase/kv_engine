@@ -430,7 +430,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
 
         // Given being in a backfill state is only a temporary failure
         // we do all hard errors first.
-        if (vb->checkpointManager.getOpenCheckpointId() == 0) {
+        if (vb->checkpointManager->getOpenCheckpointId() == 0) {
             LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed"
                     "because this vbucket is in backfill state",
                     logHeader(), vbucket);

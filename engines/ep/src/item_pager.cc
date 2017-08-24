@@ -108,15 +108,14 @@ public:
         update();
 
         bool newCheckpointCreated = false;
-        size_t removed = vb->checkpointManager.removeClosedUnrefCheckpoints(
+        size_t removed = vb->checkpointManager->removeClosedUnrefCheckpoints(
                 *vb, newCheckpointCreated);
         stats.itemsRemovedFromCheckpoints.fetch_add(removed);
         // If the new checkpoint is created, notify this event to the
         // corresponding paused DCP connections.
         if (newCheckpointCreated) {
             store.getEPEngine().getDcpConnMap().notifyVBConnections(
-                                        vb->getId(),
-                                        vb->checkpointManager.getHighSeqno());
+                    vb->getId(), vb->checkpointManager->getHighSeqno());
         }
 
         // fast path for expiry item pager

@@ -153,7 +153,7 @@ protected:
         // a ref-count of 1. This will not be the case if there's any open
         // checkpoints hanging onto Items. Therefore force the creation of a new
         // checkpoint.
-        store->getVBucket(vbid)->checkpointManager.createNewCheckpoint();
+        store->getVBucket(vbid)->checkpointManager->createNewCheckpoint();
 
         // Ensure items are flushed to disk (so we can evict them).
         if (std::get<0>(GetParam()) == "persistent") {

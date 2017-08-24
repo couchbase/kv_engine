@@ -295,9 +295,9 @@ EphemeralVBucket::makeRangeIterator(bool isBackfill) {
 void EphemeralVBucket::queueBackfillItem(
         queued_item& qi, const GenerateBySeqno generateBySeqno) {
     if (GenerateBySeqno::Yes == generateBySeqno) {
-        qi->setBySeqno(checkpointManager.nextBySeqno());
+        qi->setBySeqno(checkpointManager->nextBySeqno());
     } else {
-        checkpointManager.setBySeqno(qi->getBySeqno());
+        checkpointManager->setBySeqno(qi->getBySeqno());
     }
     ++stats.totalEnqueued;
     stats.memOverhead->fetch_add(sizeof(queued_item));

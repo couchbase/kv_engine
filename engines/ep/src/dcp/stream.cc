@@ -276,7 +276,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
 
     ReaderLockHolder rlh(vbucket.getStateLock());
     if (vbucket.getState() == vbucket_state_replica) {
-        snapshot_info_t info = vbucket.checkpointManager.getSnapshotInfo();
+        snapshot_info_t info = vbucket.checkpointManager->getSnapshotInfo();
         if (info.range.end > en_seqno) {
             end_seqno_ = info.range.end;
         }
@@ -430,7 +430,7 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
             if (end_seqno_ > endSeqno) {
                 /* We possibly have items in the open checkpoint
                    (incomplete snapshot) */
-                snapshot_info_t info = vb->checkpointManager.getSnapshotInfo();
+                snapshot_info_t info = vb->checkpointManager->getSnapshotInfo();
                 producer->getLogger().log(EXTENSION_LOG_NOTICE,
                     "(vb %" PRIu16 ") Merging backfill and memory snapshot for a "
                     "replica vbucket, backfill start seqno %" PRIu64 ", "
@@ -451,7 +451,7 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
         if (!(flags_ & DCP_ADD_STREAM_FLAG_DISKONLY)) {
             // Only re-register the cursor if we still need to get memory
             // snapshots
-            registerCursor(vb->checkpointManager, chkCursorSeqno);
+            registerCursor(*vb->checkpointManager, chkCursorSeqno);
         }
     }
     bool inverse = false;
@@ -819,8 +819,9 @@ void ActiveStream::addTakeoverStats(ADD_STAT add_stat, const void *cookie,
                     add_stat, cookie);
 
     size_t vb_items = vb.getNumItems();
-    size_t chk_items = vb_items > 0 ?
-                vb.checkpointManager.getNumItemsForCursor(name_) : 0;
+    size_t chk_items =
+            vb_items > 0 ? vb.checkpointManager->getNumItemsForCursor(name_)
+                         : 0;
 
     size_t del_items = 0;
     try {
@@ -870,7 +871,8 @@ std::unique_ptr<DcpResponse> ActiveStream::nextQueuedItem() {
 
 bool ActiveStream::nextCheckpointItem() {
     VBucketPtr vbucket = engine->getVBucket(vb_);
-    if (vbucket && vbucket->checkpointManager.getNumItemsForCursor(name_) > 0) {
+    if (vbucket &&
+        vbucket->checkpointManager->getNumItemsForCursor(name_) > 0) {
         // schedule this stream to build the next checkpoint
         producer->scheduleCheckpointProcessorTask(this);
         return true;
@@ -958,11 +960,11 @@ void ActiveStream::getOutstandingItems(VBucketPtr &vb,
     chkptItemsExtractionInProgress.store(true);
 
     hrtime_t _begin_ = gethrtime();
-    vb->checkpointManager.getAllItemsForCursor(name_, items);
+    vb->checkpointManager->getAllItemsForCursor(name_, items);
     engine->getEpStats().dcpCursorsGetItemsHisto.add(
                                             (gethrtime() - _begin_) / 1000);
 
-    if (vb->checkpointManager.getNumCheckpoints() > 1) {
+    if (vb->checkpointManager->getNumCheckpoints() > 1) {
         engine->getKVBucket()->wakeUpCheckpointRemover();
     }
 }
@@ -1191,8 +1193,9 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
     } else {
         try {
             std::tie(curChkSeqno, tryBackfill) =
-                    vbucket->checkpointManager.registerCursorBySeqno(
-                            name_, lastReadSeqno.load(),
+                    vbucket->checkpointManager->registerCursorBySeqno(
+                            name_,
+                            lastReadSeqno.load(),
                             MustSendCheckpointEnd::NO);
         } catch(std::exception& error) {
             producer->getLogger().log(EXTENSION_LOG_WARNING,
@@ -1270,11 +1273,12 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
              */
             try {
                 CursorRegResult result =
-                            vbucket->checkpointManager.registerCursorBySeqno(
-                            name_, lastReadSeqno.load(),
-                            MustSendCheckpointEnd::NO);
+                        vbucket->checkpointManager->registerCursorBySeqno(
+                                name_,
+                                lastReadSeqno.load(),
+                                MustSendCheckpointEnd::NO);
 
-                    curChkSeqno = result.first;
+                curChkSeqno = result.first;
             } catch (std::exception& error) {
                 producer->getLogger().log(EXTENSION_LOG_WARNING,
                                           "(vb %" PRIu16 ") Failed to register "
@@ -1466,7 +1470,7 @@ void ActiveStream::transitionState(StreamState newState) {
             {
                 VBucketPtr vb = engine->getVBucket(vb_);
                 if (vb) {
-                    vb->checkpointManager.removeCursor(name_);
+                    vb->checkpointManager->removeCursor(name_);
                 }
                 break;
             }
@@ -1490,8 +1494,8 @@ size_t ActiveStream::getItemsRemaining() {
     // Items remaining is the sum of:
     // (a) Items outstanding in checkpoints
     // (b) Items pending in our readyQ, excluding any meta items.
-    return vbucket->checkpointManager.getNumItemsForCursor(name_) +
-            readyQ_non_meta_items;
+    return vbucket->checkpointManager->getNumItemsForCursor(name_) +
+           readyQ_non_meta_items;
 }
 
 uint64_t ActiveStream::getLastReadSeqno() const {
@@ -1531,7 +1535,7 @@ bool ActiveStream::dropCheckpointCursor_UNLOCKED() {
         }
     }
     /* Drop the existing cursor */
-    return vbucket->checkpointManager.removeCursor(name_);
+    return vbucket->checkpointManager->removeCursor(name_);
 }
 
 EXTENSION_LOG_LEVEL ActiveStream::getTransitionStateLogLevel(
@@ -1835,7 +1839,7 @@ void PassiveStream::reconnectStream(VBucketPtr &vb,
                                     uint64_t start_seqno) {
     vb_uuid_ = vb->failovers->getLatestEntry().vb_uuid;
 
-    snapshot_info_t info = vb->checkpointManager.getSnapshotInfo();
+    snapshot_info_t info = vb->checkpointManager->getSnapshotInfo();
     if (info.range.end == info.start) {
         info.range.start = info.start;
     }
@@ -2325,19 +2329,19 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
             Snapshot::Disk : Snapshot::Memory);
 
     if (vb) {
+        auto& ckptMgr = *vb->checkpointManager;
         if (marker->getFlags() & MARKER_FLAG_DISK && vb->getHighSeqno() == 0) {
             vb->setBackfillPhase(true);
-            // calling checkpointManager.setBackfillPhase sets the
-            // openCheckpointId to zero
-            vb->checkpointManager.setBackfillPhase(cur_snapshot_start.load(),
-                                                   cur_snapshot_end.load());
+            // calling setBackfillPhase sets the openCheckpointId to zero.
+            ckptMgr.setBackfillPhase(cur_snapshot_start.load(),
+                                     cur_snapshot_end.load());
         } else {
             if (marker->getFlags() & MARKER_FLAG_CHK ||
-                    vb->checkpointManager.getOpenCheckpointId() == 0) {
-                vb->checkpointManager.createSnapshot(cur_snapshot_start.load(),
-                                                     cur_snapshot_end.load());
+                vb->checkpointManager->getOpenCheckpointId() == 0) {
+                ckptMgr.createSnapshot(cur_snapshot_start.load(),
+                                       cur_snapshot_end.load());
             } else {
-                vb->checkpointManager.updateCurrentSnapshotEnd(cur_snapshot_end.load());
+                ckptMgr.updateCurrentSnapshotEnd(cur_snapshot_end.load());
             }
             vb->setBackfillPhase(false);
         }
@@ -2363,19 +2367,20 @@ void PassiveStream::processSetVBucketState(SetVBucketState* state) {
 
 void PassiveStream::handleSnapshotEnd(VBucketPtr& vb, uint64_t byseqno) {
     if (byseqno == cur_snapshot_end.load()) {
+        auto& ckptMgr = *vb->checkpointManager;
         if (cur_snapshot_type.load() == Snapshot::Disk &&
                 vb->isBackfillPhase()) {
             vb->setBackfillPhase(false);
-            uint64_t id = vb->checkpointManager.getOpenCheckpointId() + 1;
-            vb->checkpointManager.checkAndAddNewCheckpoint(id, *vb);
+            const auto id = ckptMgr.getOpenCheckpointId() + 1;
+            ckptMgr.checkAndAddNewCheckpoint(id, *vb);
         } else {
             size_t mem_threshold = engine->getEpStats().mem_high_wat.load();
             size_t mem_used = engine->getEpStats().getTotalMemoryUsed();
             /* We want to add a new replica checkpoint if the mem usage is above
                high watermark (85%) */
             if (mem_threshold < mem_used) {
-                uint64_t id = vb->checkpointManager.getOpenCheckpointId() + 1;
-                vb->checkpointManager.checkAndAddNewCheckpoint(id, *vb);
+                const auto id = ckptMgr.getOpenCheckpointId() + 1;
+                ckptMgr.checkAndAddNewCheckpoint(id, *vb);
             }
         }
 

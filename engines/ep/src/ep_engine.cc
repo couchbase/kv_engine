@@ -2859,7 +2859,7 @@ public:
             checked_snprintf(buf, sizeof(buf), "vb_%d:state", vbid);
             add_casted_stat(buf, VBucket::toString(vb->getState()),
                             add_stat, cookie);
-            vb->checkpointManager.addStats(add_stat, cookie);
+            vb->checkpointManager->addStats(add_stat, cookie);
 
             auto result = eps->getLastPersistedCheckpointId(vbid);
             if (result.second) {
@@ -3383,7 +3383,7 @@ void EventuallyPersistentEngine::addSeqnoVbStats(const void *cookie,
     // reader lock for state should suffice here.
     uint64_t relHighSeqno = vb->getHighSeqno();
     if (vb->getState() != vbucket_state_active) {
-        snapshot_info_t info = vb->checkpointManager.getSnapshotInfo();
+        snapshot_info_t info = vb->checkpointManager->getSnapshotInfo();
         relHighSeqno = info.range.end;
     }
 
@@ -3851,13 +3851,20 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
     switch (req->request.opcode) {
     case PROTOCOL_BINARY_CMD_LAST_CLOSED_CHECKPOINT:
         {
-            uint64_t checkpointId = vb->checkpointManager.
-                                    getLastClosedCheckpointId();
-            checkpointId = htonll(checkpointId);
-            return sendResponse(response, NULL, 0, NULL, 0,
-                                &checkpointId, sizeof(checkpointId),
-                                PROTOCOL_BINARY_RAW_BYTES,
-                                status, 0, cookie);
+        uint64_t checkpointId =
+                vb->checkpointManager->getLastClosedCheckpointId();
+        checkpointId = htonll(checkpointId);
+        return sendResponse(response,
+                            NULL,
+                            0,
+                            NULL,
+                            0,
+                            &checkpointId,
+                            sizeof(checkpointId),
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            status,
+                            0,
+                            cookie);
         }
         break;
     case PROTOCOL_BINARY_CMD_CREATE_CHECKPOINT:
@@ -3867,7 +3874,7 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
         } else {
             // Create a new checkpoint, notifying flusher.
             const uint64_t checkpointId =
-                    htonll(vb->checkpointManager.createNewCheckpoint());
+                    htonll(vb->checkpointManager->createNewCheckpoint());
             getKVBucket()->wakeUpFlusher();
             const auto lastPersisted =
                     kvBucket->getLastPersistedCheckpointId(vb->getId());
@@ -4688,8 +4695,8 @@ EventuallyPersistentEngine::doDcpVbTakeoverStats(const void *cookie,
                 "persisted deletes for vbucket:%" PRIu16 " - treating as 0 "
                 "deletes. Details: %s", vbid, e.what());
         }
-        size_t chk_items = vb_items > 0 ?
-                           vb->checkpointManager.getNumOpenChkItems() : 0;
+        size_t chk_items =
+                vb_items > 0 ? vb->checkpointManager->getNumOpenChkItems() : 0;
         add_casted_stat("status", "does_not_exist", add_stat, cookie);
         add_casted_stat("on_disk_deletes", del_items, add_stat, cookie);
         add_casted_stat("vb_items", vb_items, add_stat, cookie);
@@ -5159,7 +5166,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
                     highSeqno = htonll(vb->getHighSeqno());
                 } else {
                     snapshot_info_t info =
-                                        vb->checkpointManager.getSnapshotInfo();
+                            vb->checkpointManager->getSnapshotInfo();
                     highSeqno = htonll(info.range.end);
                 }
                 auto offset = payload.size();

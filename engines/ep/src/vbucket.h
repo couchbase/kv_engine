@@ -636,7 +636,9 @@ public:
     static const vbucket_state_t DEAD;
 
     HashTable         ht;
-    CheckpointManager checkpointManager;
+
+    /// Manager of this vBucket's checkpoints. unique_ptr for pimpl.
+    std::unique_ptr<CheckpointManager> checkpointManager;
 
     // Struct for managing 'backfill' items - Items which have been added by
     // an incoming DCP stream and need to be persisted to disk.

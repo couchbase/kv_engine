@@ -92,7 +92,7 @@ TEST_F(SingleThreadedEphemeralBackfillTest, RangeIteratorVBDeleteRaceTest) {
     store_item(vbid, makeStoredDocKey("key1"), "value");
     store_item(vbid, makeStoredDocKey("key2"), "value");
 
-    auto& ckpt_mgr = vb->checkpointManager;
+    auto& ckpt_mgr = *vb->checkpointManager;
     ASSERT_EQ(1, ckpt_mgr.getNumCheckpoints());
 
     // make checkpoint to cause backfill later rather than straight to in-memory

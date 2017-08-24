@@ -125,11 +125,10 @@ protected:
                                       includeVal,
                                       includeXattrs);
 
-        EXPECT_FALSE(vb0->checkpointManager.registerCursor(
-                                                           producer->getName(),
-                                                           1, false,
-                                                           MustSendCheckpointEnd::NO))
-            << "Found an existing TAP cursor when attempting to register ours";
+        EXPECT_FALSE(vb0->checkpointManager->registerCursor(
+                producer->getName(), 1, false, MustSendCheckpointEnd::NO))
+                << "Found an existing TAP cursor when attempting to register "
+                   "ours";
     }
 
     void destroy_dcp_stream() {
@@ -181,7 +180,7 @@ protected:
     void removeCheckpoint(int numItems) {
         /* Create new checkpoint so that we can remove the current checkpoint
            and force a backfill in the DCP stream */
-        auto& ckpt_mgr = vb0->checkpointManager;
+        auto& ckpt_mgr = *vb0->checkpointManager;
         ckpt_mgr.createNewCheckpoint();
 
         /* Wait for removal of the old checkpoint, this also would imply that
@@ -476,7 +475,8 @@ TEST_P(StreamTest, test_mb17766) {
 // Check that the items remaining statistic is accurate and is unaffected
 // by de-duplication.
 TEST_P(StreamTest, MB17653_ItemsRemaining) {
-    auto& manager = engine->getKVBucket()->getVBucket(vbid)->checkpointManager;
+    auto& manager =
+            *(engine->getKVBucket()->getVBucket(vbid)->checkpointManager);
 
     ASSERT_EQ(0, manager.getNumOpenChkItems());
 
@@ -855,7 +855,7 @@ protected:
 
         /* Create new checkpoint so that we can remove the current checkpoint
          * and force a backfill in the DCP stream */
-        CheckpointManager& ckpt_mgr = vb0->checkpointManager;
+        CheckpointManager& ckpt_mgr = *vb0->checkpointManager;
         ckpt_mgr.createNewCheckpoint();
 
         /* Wait for removal of the old checkpoint, this also would imply that
@@ -1675,7 +1675,8 @@ TEST_P(ConnectionTest, test_mb21784) {
     ASSERT_EQ(ENGINE_SUCCESS, consumer->addStream(/*opaque*/0, vbid,
                                                   /*flags*/0));
     // Get the checkpointManager
-    auto& manager = engine->getKVBucket()->getVBucket(vbid)->checkpointManager;
+    auto& manager =
+            *(engine->getKVBucket()->getVBucket(vbid)->checkpointManager);
 
     // Because the vbucket was previously active it will have an
     // openCheckpointId of 2

@@ -140,7 +140,7 @@ VBucket::VBucket(id_type i,
                  uint64_t lastSnapStart,
                  uint64_t lastSnapEnd,
                  std::unique_ptr<FailoverTable> table,
-                 std::shared_ptr<Callback<id_type> > flusherCb,
+                 std::shared_ptr<Callback<id_type>> flusherCb,
                  std::unique_ptr<AbstractStoredValueFactory> valFact,
                  NewSeqnoCallback newSeqnoCb,
                  Configuration& config,
@@ -152,13 +152,13 @@ VBucket::VBucket(id_type i,
                  bool mightContainXattrs,
                  const std::string& collectionsManifest)
     : ht(st, std::move(valFact), config.getHtSize(), config.getHtLocks()),
-      checkpointManager(st,
-                        i,
-                        chkConfig,
-                        lastSeqno,
-                        lastSnapStart,
-                        lastSnapEnd,
-                        flusherCb),
+      checkpointManager(std::make_unique<CheckpointManager>(st,
+                                                            i,
+                                                            chkConfig,
+                                                            lastSeqno,
+                                                            lastSnapStart,
+                                                            lastSnapEnd,
+                                                            flusherCb)),
       failovers(std::move(table)),
       opsCreate(0),
       opsUpdate(0),
@@ -245,15 +245,15 @@ VBucket::~VBucket() {
 }
 
 int64_t VBucket::getHighSeqno() const {
-    return checkpointManager.getHighSeqno();
+    return checkpointManager->getHighSeqno();
 }
 
 size_t VBucket::getChkMgrMemUsage() const {
-    return checkpointManager.getMemoryUsage();
+    return checkpointManager->getMemoryUsage();
 }
 
 size_t VBucket::getChkMgrMemUsageOfUnrefCheckpoints() const {
-    return checkpointManager.getMemoryUsageOfUnrefCheckpoints();
+    return checkpointManager->getMemoryUsageOfUnrefCheckpoints();
 }
 
 void VBucket::fireAllOps(EventuallyPersistentEngine &engine,
@@ -322,8 +322,8 @@ void VBucket::setState_UNLOCKED(vbucket_state_t to,
     vbucket_state_t oldstate = state;
 
     if (to == vbucket_state_active &&
-        checkpointManager.getOpenCheckpointId() < 2) {
-        checkpointManager.setOpenCheckpointId(2);
+        checkpointManager->getOpenCheckpointId() < 2) {
+        checkpointManager->setOpenCheckpointId(2);
     }
 
     LOG(EXTENSION_LOG_NOTICE,
@@ -678,17 +678,17 @@ VBNotifyCtx VBucket::queueDirty(
         /* During backfill on a TAP receiver we need to update the snapshot
          range in the checkpoint. Has to be done here because in case of TAP
          backfill, above, we use vb.queueBackfillItem() instead of
-         vb.checkpointManager.queueDirty() */
+         vb.checkpointManager->queueDirty() */
         if (generateBySeqno == GenerateBySeqno::Yes) {
-            checkpointManager.resetSnapshotRange();
+            checkpointManager->resetSnapshotRange();
         }
     } else {
         notifyCtx.notifyFlusher =
-                checkpointManager.queueDirty(*this,
-                                             qi,
-                                             generateBySeqno,
-                                             generateCas,
-                                             preLinkDocumentContext);
+                checkpointManager->queueDirty(*this,
+                                              qi,
+                                              generateBySeqno,
+                                              generateCas,
+                                              preLinkDocumentContext);
         notifyCtx.notifyReplication = true;
         if (GenerateCas::Yes == generateCas) {
             v.setCas(qi->getCas());
@@ -1942,11 +1942,11 @@ bool VBucket::deleteKey(const DocKey& key) {
 void VBucket::postProcessRollback(const RollbackResult& rollbackResult,
                                   uint64_t prevHighSeqno) {
     failovers->pruneEntries(rollbackResult.highSeqno);
-    checkpointManager.clear(*this, rollbackResult.highSeqno);
+    checkpointManager->clear(*this, rollbackResult.highSeqno);
     setPersistedSnapshot(rollbackResult.snapStartSeqno,
                          rollbackResult.snapEndSeqno);
     incrRollbackItemCount(prevHighSeqno - rollbackResult.highSeqno);
-    checkpointManager.setOpenCheckpointId(1);
+    checkpointManager->setOpenCheckpointId(1);
 }
 
 void VBucket::dump() const {
@@ -2405,7 +2405,7 @@ void VBucket::notifyNewSeqno(const VBNotifyCtx& notifyCtx) {
 int64_t VBucket::queueItem(Item* item, OptionalSeqno seqno) {
     item->setVBucketId(id);
     queued_item qi(item);
-    checkpointManager.queueDirty(
+    checkpointManager->queueDirty(
             *this,
             qi,
             seqno ? GenerateBySeqno::No : GenerateBySeqno::Yes,
