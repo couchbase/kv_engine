@@ -27,6 +27,7 @@
 #include "hash_table.h"
 #include "kv_bucket.h"
 #include "mutation_log.h"
+#include "stats.h"
 #include "vb_count_visitor.h"
 
 #include <numeric>

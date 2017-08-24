@@ -589,17 +589,9 @@ public:
 
     bool isMetaDataResident(VBucketPtr &vb, const DocKey& key);
 
-    void logQTime(TaskId taskType, const ProcessClock::duration enqTime) {
-        const auto ns_count = std::chrono::duration_cast
-                <std::chrono::microseconds>(enqTime).count();
-        stats.schedulingHisto[static_cast<int>(taskType)].add(ns_count);
-    }
+    void logQTime(TaskId taskType, const ProcessClock::duration enqTime);
 
-    void logRunTime(TaskId taskType, const ProcessClock::duration runTime) {
-        const auto ns_count = std::chrono::duration_cast
-                <std::chrono::microseconds>(runTime).count();
-        stats.taskRuntimeHisto[static_cast<int>(taskType)].add(ns_count);
-    }
+    void logRunTime(TaskId taskType, const ProcessClock::duration runTime);
 
     bool multiBGFetchEnabled() {
         StorageProperties storeProp = getStorageProperties();
@@ -707,20 +699,7 @@ public:
         compactionExpMemThreshold = static_cast<double>(to) / 100.0;
     }
 
-    bool compactionCanExpireItems() {
-        // Process expired items only if memory usage is lesser than
-        // compaction_exp_mem_threshold and disk queue is small
-        // enough (marked by replication_throttle_queue_cap)
-
-        bool isMemoryUsageOk = (stats.getTotalMemoryUsed() <
-                          (stats.getMaxDataSize() * compactionExpMemThreshold));
-
-        size_t queueSize = stats.diskQueueSize.load();
-        bool isQueueSizeOk = ((stats.replicationThrottleWriteQueueCap == -1) ||
-             (queueSize < static_cast<size_t>(stats.replicationThrottleWriteQueueCap)));
-
-        return (isMemoryUsageOk && isQueueSizeOk);
-    }
+    bool compactionCanExpireItems();
 
     void setCursorDroppingLowerUpperThresholds(size_t maxSize);
 

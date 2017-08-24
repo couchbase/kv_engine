@@ -71,11 +71,6 @@ struct index_entry {
     int64_t mutation_id;
 };
 
-typedef struct {
-    uint64_t start;
-    snapshot_range_t range;
-} snapshot_info_t;
-
 /**
  * Flag indicating that we must send checkpoint end meta item for the cursor
  */
@@ -551,7 +546,7 @@ public:
      * Returns the memory held by all the queued items which includes
      * key, metadata and the blob.
      */
-    size_t getMemConsumption() {
+    size_t getMemConsumption() const {
         return effectiveMemUsage;
     }
 
@@ -795,14 +790,14 @@ public:
     /**
      * Return memory consumption of all the checkpoints managed
      */
-    size_t getMemoryUsage_UNLOCKED();
+    size_t getMemoryUsage_UNLOCKED() const;
 
-    size_t getMemoryUsage();
+    size_t getMemoryUsage() const;
 
     /**
      * Return memory consumption of unreferenced checkpoints
      */
-    size_t getMemoryUsageOfUnrefCheckpoints();
+    size_t getMemoryUsageOfUnrefCheckpoints() const;
 
     /**
      * Function returns a list of cursors to drop so as to unreference

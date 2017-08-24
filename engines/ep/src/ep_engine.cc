@@ -2004,6 +2004,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::itemAllocate(
     }
 }
 
+void EventuallyPersistentEngine::itemRelease(const void* cookie, item* itm) {
+    delete reinterpret_cast<Item*>(itm);
+}
+
 ENGINE_ERROR_CODE EventuallyPersistentEngine::flush(const void *cookie){
     if (!deleteAllEnabled) {
         return ENGINE_ENOTSUP;
@@ -3415,6 +3419,38 @@ void EventuallyPersistentEngine::addSeqnoVbStats(const void *cookie,
     } catch (std::exception& error) {
         LOG(EXTENSION_LOG_WARNING,
             "addSeqnoVbStats: error building stats: %s", error.what());
+    }
+}
+
+void EventuallyPersistentEngine::addLookupResult(const void* cookie,
+                                                 std::unique_ptr<Item> result) {
+    LockHolder lh(lookupMutex);
+    auto it = lookups.find(cookie);
+    if (it != lookups.end()) {
+        if (it->second != NULL) {
+            LOG(EXTENSION_LOG_DEBUG,
+                "Cleaning up old lookup result for '%s'",
+                it->second->getKey().data());
+        } else {
+            LOG(EXTENSION_LOG_DEBUG, "Cleaning up old null lookup result");
+        }
+        lookups.erase(it);
+    }
+    lookups[cookie] = std::move(result);
+}
+
+bool EventuallyPersistentEngine::fetchLookupResult(const void* cookie,
+                                                   std::unique_ptr<Item>& itm) {
+    // This will return *and erase* the lookup result for a connection.
+    // You look it up, you own it.
+    LockHolder lh(lookupMutex);
+    auto it = lookups.find(cookie);
+    if (it != lookups.end()) {
+        itm = std::move(it->second);
+        lookups.erase(it);
+        return true;
+    } else {
+        return false;
     }
 }
 

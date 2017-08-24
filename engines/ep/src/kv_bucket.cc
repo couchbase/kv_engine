@@ -501,6 +501,21 @@ bool KVBucket::isMetaDataResident(VBucketPtr &vb, const DocKey& key) {
     }
 }
 
+void KVBucket::logQTime(TaskId taskType, const ProcessClock::duration enqTime) {
+    const auto ns_count =
+            std::chrono::duration_cast<std::chrono::microseconds>(enqTime)
+                    .count();
+    stats.schedulingHisto[static_cast<int>(taskType)].add(ns_count);
+}
+
+void KVBucket::logRunTime(TaskId taskType,
+                          const ProcessClock::duration runTime) {
+    const auto ns_count =
+            std::chrono::duration_cast<std::chrono::microseconds>(runTime)
+                    .count();
+    stats.taskRuntimeHisto[static_cast<int>(taskType)].add(ns_count);
+}
+
 ENGINE_ERROR_CODE KVBucket::set(Item& itm,
                                 const void* cookie,
                                 cb::StoreIfPredicate predicate) {
@@ -2635,6 +2650,24 @@ bool KVBucket::runAccessScannerTask() {
 
 void KVBucket::runVbStatePersistTask(int vbid) {
     scheduleVBStatePersist(vbid);
+}
+
+bool KVBucket::compactionCanExpireItems() {
+    // Process expired items only if memory usage is lesser than
+    // compaction_exp_mem_threshold and disk queue is small
+    // enough (marked by replication_throttle_queue_cap)
+
+    bool isMemoryUsageOk =
+            (stats.getTotalMemoryUsed() <
+             (stats.getMaxDataSize() * compactionExpMemThreshold));
+
+    size_t queueSize = stats.diskQueueSize.load();
+    bool isQueueSizeOk =
+            ((stats.replicationThrottleWriteQueueCap == -1) ||
+             (queueSize <
+              static_cast<size_t>(stats.replicationThrottleWriteQueueCap)));
+
+    return (isMemoryUsageOk && isQueueSizeOk);
 }
 
 void KVBucket::setCursorDroppingLowerUpperThresholds(size_t maxSize) {

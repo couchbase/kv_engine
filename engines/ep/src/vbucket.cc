@@ -247,6 +247,18 @@ VBucket::~VBucket() {
     LOG(EXTENSION_LOG_INFO, "Destroying vbucket %d\n", id);
 }
 
+int64_t VBucket::getHighSeqno() const {
+    return checkpointManager.getHighSeqno();
+}
+
+size_t VBucket::getChkMgrMemUsage() const {
+    return checkpointManager.getMemoryUsage();
+}
+
+size_t VBucket::getChkMgrMemUsageOfUnrefCheckpoints() const {
+    return checkpointManager.getMemoryUsageOfUnrefCheckpoints();
+}
+
 void VBucket::fireAllOps(EventuallyPersistentEngine &engine,
                          ENGINE_ERROR_CODE code) {
     std::unique_lock<std::mutex> lh(pendingOpLock);
@@ -290,6 +302,17 @@ void VBucket::fireAllOps(EventuallyPersistentEngine &engine) {
     } else {
         fireAllOps(engine, ENGINE_NOT_MY_VBUCKET);
     }
+}
+
+void VBucket::getBackfillItems(std::vector<queued_item>& items) {
+    LockHolder lh(backfill.mutex);
+    size_t num_items = backfill.items.size();
+    while (!backfill.items.empty()) {
+        items.push_back(backfill.items.front());
+        backfill.items.pop();
+    }
+    stats.vbBackfillQueueSize.fetch_sub(num_items);
+    stats.memOverhead->fetch_sub(num_items * sizeof(queued_item));
 }
 
 void VBucket::setState(vbucket_state_t to) {
@@ -429,6 +452,22 @@ void VBucket::handlePreExpiry(StoredValue& v) {
             ht.setValue(new_item, v);
         }
     }
+}
+
+bool VBucket::addPendingOp(const void* cookie) {
+    LockHolder lh(pendingOpLock);
+    if (state != vbucket_state_pending) {
+        // State transitioned while we were waiting.
+        return false;
+    }
+    // Start a timer when enqueuing the first client.
+    if (pendingOps.empty()) {
+        pendingOpsStart = gethrtime();
+    }
+    pendingOps.push_back(cookie);
+    ++stats.pendingOps;
+    ++stats.pendingOpsTotal;
+    return true;
 }
 
 size_t VBucket::getNumNonResidentItems() const {

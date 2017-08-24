@@ -51,6 +51,11 @@ typedef struct {
     uint64_t end;
 } snapshot_range_t;
 
+typedef struct {
+    uint64_t start;
+    snapshot_range_t range;
+} snapshot_info_t;
+
 /**
  * The following options can be specified
  * for retrieving an item for get calls

@@ -148,17 +148,11 @@ public:
 
     virtual ~VBucket();
 
-    int64_t getHighSeqno() const {
-        return checkpointManager.getHighSeqno();
-    }
+    int64_t getHighSeqno() const;
 
-    size_t getChkMgrMemUsage() {
-        return checkpointManager.getMemoryUsage();
-    }
+    size_t getChkMgrMemUsage() const;
 
-    size_t getChkMgrMemUsageOfUnrefCheckpoints() {
-        return checkpointManager.getMemoryUsageOfUnrefCheckpoints();
-    }
+    size_t getChkMgrMemUsageOfUnrefCheckpoints() const;
 
     uint64_t getPurgeSeqno() const {
         return purge_seqno;
@@ -354,21 +348,7 @@ public:
      */
     void handlePreExpiry(StoredValue& v);
 
-    bool addPendingOp(const void *cookie) {
-        LockHolder lh(pendingOpLock);
-        if (state != vbucket_state_pending) {
-            // State transitioned while we were waiting.
-            return false;
-        }
-        // Start a timer when enqueuing the first client.
-        if (pendingOps.empty()) {
-            pendingOpsStart = gethrtime();
-        }
-        pendingOps.push_back(cookie);
-        ++stats.pendingOps;
-        ++stats.pendingOpsTotal;
-        return true;
-    }
+    bool addPendingOp(const void *cookie);
 
     void doStatsForQueueing(const Item& item, size_t itemBytes);
     void doStatsForFlushing(const Item& item, size_t itemBytes);
@@ -408,16 +388,7 @@ public:
     virtual void queueBackfillItem(queued_item& qi,
                                    const GenerateBySeqno generateBySeqno) = 0;
 
-    void getBackfillItems(std::vector<queued_item> &items) {
-        LockHolder lh(backfill.mutex);
-        size_t num_items = backfill.items.size();
-        while (!backfill.items.empty()) {
-            items.push_back(backfill.items.front());
-            backfill.items.pop();
-        }
-        stats.vbBackfillQueueSize.fetch_sub(num_items);
-        stats.memOverhead->fetch_sub(num_items * sizeof(queued_item));
-    }
+    void getBackfillItems(std::vector<queued_item> &items);
 
     bool isBackfillPhase() {
         return backfill.isBackfillPhase.load();

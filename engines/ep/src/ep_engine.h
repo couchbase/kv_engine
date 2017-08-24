@@ -23,6 +23,7 @@
 #include "connhandler.h"
 #include "kv_bucket.h"
 #include "storeddockey.h"
+#include "stats.h"
 #include "taskable.h"
 #include "vb_visitors.h"
 
@@ -142,12 +143,7 @@ public:
         return ret;
     }
 
-
-    void itemRelease(const void* cookie, item *itm)
-    {
-        (void)cookie;
-        delete (Item*)itm;
-    }
+    void itemRelease(const void* cookie, item *itm);
 
     ENGINE_ERROR_CODE get(const void* cookie,
                           item** itm,
@@ -706,35 +702,9 @@ protected:
     void addSeqnoVbStats(const void *cookie, ADD_STAT add_stat,
                                   const VBucketPtr &vb);
 
-    void addLookupResult(const void* cookie, std::unique_ptr<Item> result) {
-        LockHolder lh(lookupMutex);
-        auto it = lookups.find(cookie);
-        if (it != lookups.end()) {
-            if (it->second != NULL) {
-                LOG(EXTENSION_LOG_DEBUG,
-                    "Cleaning up old lookup result for '%s'",
-                    it->second->getKey().data());
-            } else {
-                LOG(EXTENSION_LOG_DEBUG, "Cleaning up old null lookup result");
-            }
-            lookups.erase(it);
-        }
-        lookups[cookie] = std::move(result);
-    }
+    void addLookupResult(const void* cookie, std::unique_ptr<Item> result);
 
-    bool fetchLookupResult(const void* cookie, std::unique_ptr<Item>& itm) {
-        // This will return *and erase* the lookup result for a connection.
-        // You look it up, you own it.
-        LockHolder lh(lookupMutex);
-        auto it = lookups.find(cookie);
-        if (it != lookups.end()) {
-            itm = std::move(it->second);
-            lookups.erase(it);
-            return true;
-        } else {
-            return false;
-        }
-    }
+    bool fetchLookupResult(const void* cookie, std::unique_ptr<Item>& itm);
 
     // Initialize all required callbacks of this engine with the underlying
     // server.

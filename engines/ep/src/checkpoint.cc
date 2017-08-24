@@ -1858,7 +1858,7 @@ void CheckpointManager::itemsPersisted() {
     }
 }
 
-size_t CheckpointManager::getMemoryUsage_UNLOCKED() {
+size_t CheckpointManager::getMemoryUsage_UNLOCKED() const {
     if (checkpointList.empty()) {
         return 0;
     }
@@ -1870,12 +1870,12 @@ size_t CheckpointManager::getMemoryUsage_UNLOCKED() {
     return memUsage;
 }
 
-size_t CheckpointManager::getMemoryUsage() {
+size_t CheckpointManager::getMemoryUsage() const {
     LockHolder lh(queueLock);
     return getMemoryUsage_UNLOCKED();
 }
 
-size_t CheckpointManager::getMemoryUsageOfUnrefCheckpoints() {
+size_t CheckpointManager::getMemoryUsageOfUnrefCheckpoints() const {
     LockHolder lh(queueLock);
 
     if (checkpointList.empty()) {
