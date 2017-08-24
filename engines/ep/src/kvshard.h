@@ -19,7 +19,7 @@
 
 #include "config.h"
 
-#include "kvstore.h"
+#include "kvstore_config.h"
 #include "utility.h"
 #include "vbucket.h"
 

@@ -146,7 +146,6 @@ ADD_CUSTOM_COMMAND(OUTPUT
                         genconfig
                   COMMENT "Generating code for configuration class")
 
-SET(KVSTORE_SOURCE src/kvstore.cc)
 SET(COUCH_KVSTORE_SOURCE src/couch-kvstore/couch-kvstore.cc
             src/couch-kvstore/couch-fs-stats.cc)
 SET(OBJECTREGISTRY_SOURCE src/objectregistry.cc)
@@ -205,6 +204,8 @@ ADD_LIBRARY(ep_objs OBJECT
             src/htresizer.cc
             src/item.cc
             src/item_pager.cc
+            src/kvstore.cc
+            src/kvstore_config.cc
             src/logger.cc
             src/kv_bucket.cc
             src/kvshard.cc
@@ -234,7 +235,6 @@ ADD_LIBRARY(ep_objs OBJECT
             ${OBJECTREGISTRY_SOURCE}
             ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.c
             ${CONFIG_SOURCE}
-            ${KVSTORE_SOURCE}
             ${COUCH_KVSTORE_SOURCE}
             ${FOREST_KVSTORE_SOURCE}
             ${ROCKSDB_KVSTORE_SOURCE}

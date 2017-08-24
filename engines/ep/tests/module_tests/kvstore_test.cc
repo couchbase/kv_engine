@@ -22,6 +22,7 @@
 #include "callbacks.h"
 #include "couch-kvstore/couch-kvstore.h"
 #include "kvstore.h"
+#include "kvstore_config.h"
 #include "src/internal.h"
 #include "tests/module_tests/test_helpers.h"
 #include "tests/test_fileops.h"

@@ -29,50 +29,13 @@
 #ifdef EP_USE_ROCKSDB
 #include "rocksdb-kvstore/rocksdb-kvstore.h"
 #endif
+#include "kvstore_config.h"
 #include "statwriter.h"
 #include "kvstore.h"
 #include "vbucket.h"
 #include <platform/dirutils.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-
-KVStoreConfig::KVStoreConfig(Configuration& config, uint16_t shardid)
-    : KVStoreConfig(config.getMaxVbuckets(),
-                    config.getMaxNumShards(),
-                    config.getDbname(),
-                    config.getBackend(),
-                    shardid,
-                    config.isCollectionsPrototypeEnabled()) {
-    setPeriodicSyncBytes(config.getFsyncAfterEveryNBytesWritten());
-    config.addValueChangedListener("fsync_after_every_n_bytes_written",
-                                   new ConfigChangeListener(*this));
-}
-
-KVStoreConfig::KVStoreConfig(uint16_t _maxVBuckets,
-                             uint16_t _maxShards,
-                             const std::string& _dbname,
-                             const std::string& _backend,
-                             uint16_t _shardId,
-                             bool _persistDocNamespace)
-    : maxVBuckets(_maxVBuckets),
-      maxShards(_maxShards),
-      dbname(_dbname),
-      backend(_backend),
-      shardId(_shardId),
-      logger(&global_logger),
-      buffered(true),
-      persistDocNamespace(_persistDocNamespace) {
-}
-
-KVStoreConfig& KVStoreConfig::setLogger(Logger& _logger) {
-    logger = &_logger;
-    return *this;
-}
-
-KVStoreConfig& KVStoreConfig::setBuffered(bool _buffered) {
-    buffered = _buffered;
-    return *this;
-}
 
 KVStoreRWRO KVStoreFactory::create(KVStoreConfig& config) {
     std::string backend = config.getBackend();

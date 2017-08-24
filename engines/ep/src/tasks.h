@@ -20,7 +20,6 @@
 #include "config.h"
 
 #include "globaltask.h"
-#include "kvstore.h"
 
 #include <platform/processclock.h>
 

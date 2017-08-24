@@ -182,9 +182,7 @@ public:
 
     void destroyInvalidVBuckets(bool);
 
-    size_t getNumShards() {
-        return configuration.getMaxShards();
-    }
+    size_t getNumShards();
 
     void optimizeWrites(std::vector<queued_item>&) {
     }

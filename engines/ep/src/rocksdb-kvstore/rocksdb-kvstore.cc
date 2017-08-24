@@ -19,6 +19,8 @@
 
 #include "rocksdb-kvstore.h"
 
+#include "kvstore_config.h"
+
 #include <string.h>
 #include <algorithm>
 #include <limits>
@@ -306,6 +308,10 @@ bool RocksDBKVStore::snapshotStats(const std::map<std::string, std::string>&) {
 
 void RocksDBKVStore::destroyInvalidVBuckets(bool) {
     // TODO RDB:  implement
+}
+
+size_t RocksDBKVStore::getNumShards() {
+    return configuration.getMaxShards();
 }
 
 StorageProperties RocksDBKVStore::getStorageProperties(void) {
