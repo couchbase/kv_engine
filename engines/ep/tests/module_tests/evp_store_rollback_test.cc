@@ -20,6 +20,7 @@
  */
 
 #include <engines/ep/tests/mock/mock_dcp_conn_map.h>
+#include "checkpoint.h"
 #include "dcp/dcpconnmap.h"
 #include "dcp/producer.h"
 #include "dcp/stream.h"

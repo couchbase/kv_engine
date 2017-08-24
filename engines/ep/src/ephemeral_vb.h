@@ -19,6 +19,7 @@
 
 #include "config.h"
 #include "seqlist.h"
+#include "stats.h"
 #include "vbucket.h"
 
 #include <boost/optional/optional.hpp>

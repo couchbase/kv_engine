@@ -18,6 +18,7 @@
 #include "collections/vbucket_manifest.h"
 #include "collections/manifest.h"
 #include "collections/vbucket_serialised_manifest_entry.h"
+#include "item.h"
 #include "vbucket.h"
 
 #include <JSON_checker.h>

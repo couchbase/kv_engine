@@ -19,6 +19,7 @@
 
 #include "ep_engine.h"
 
+#include "checkpoint.h"
 #include "collections/manager.h"
 #include "common.h"
 #include "connmap.h"

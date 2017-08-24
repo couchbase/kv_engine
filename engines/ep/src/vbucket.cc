@@ -17,14 +17,9 @@
 
 #include "config.h"
 
-#include <functional>
-#include <list>
-#include <set>
-#include <string>
-#include <vector>
-
 #include "atomic.h"
 #include "bgfetcher.h"
+#include "checkpoint.h"
 #include "conflict_resolution.h"
 #include "ep_engine.h"
 #include "ep_time.h"
@@ -32,14 +27,19 @@
 #include "failover-table.h"
 #include "flusher.h"
 #include "pre_link_document_context.h"
-#include "vbucketdeletiontask.h"
 #include "statwriter.h"
 #include "stored_value_factories.h"
-
 #include "vbucket.h"
+#include "vbucketdeletiontask.h"
 
 #include <xattr/blob.h>
 #include <xattr/utils.h>
+
+#include <functional>
+#include <list>
+#include <set>
+#include <string>
+#include <vector>
 
 /* Macros */
 const size_t MIN_CHK_FLUSH_TIMEOUT = 10; // 10 sec.

@@ -19,9 +19,10 @@
 
 #include "objectregistry.h"
 
-#include "threadlocal.h"
 #include "ep_engine.h"
+#include "item.h"
 #include "stored-value.h"
+#include "threadlocal.h"
 
 #if 1
 static ThreadLocal<EventuallyPersistentEngine*> *th;

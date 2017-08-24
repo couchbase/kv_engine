@@ -33,6 +33,7 @@
 #include <platform/make_unique.h>
 
 #include "access_scanner.h"
+#include "checkpoint.h"
 #include "checkpoint_remover.h"
 #include "collections/manager.h"
 #include "conflict_resolution.h"

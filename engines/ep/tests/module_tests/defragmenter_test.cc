@@ -17,9 +17,11 @@
 
 #include "defragmenter_test.h"
 
+#include "checkpoint.h"
 #include "daemon/alloc_hooks.h"
 #include "defragmenter.h"
 #include "defragmenter_visitor.h"
+#include "item.h"
 #include "vbucket.h"
 
 #include <valgrind/valgrind.h>

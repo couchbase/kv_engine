@@ -17,6 +17,7 @@
 
 #include "ephemeral_vb.h"
 
+#include "checkpoint.h"
 #include "dcp/backfill_memory.h"
 #include "ephemeral_tombstone_purger.h"
 #include "failover-table.h"

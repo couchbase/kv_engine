@@ -14,9 +14,13 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+
 #include "pre_link_document_context.h"
-#include <memcached/types.h>
+
 #include "ep_engine.h"
+#include "item.h"
+
+#include <memcached/types.h>
 
 void PreLinkDocumentContext::preLink(uint64_t cas, uint64_t seqno) {
     // The vbucket_uuid is currently not being used by the pre_link callback

@@ -17,8 +17,7 @@
 
 #include "config.h"
 
-#include <platform/checked_snprintf.h>
-
+#include "checkpoint.h"
 #include "collections/vbucket_filter.h"
 #include "dcp/backfill-manager.h"
 #include "dcp/backfill.h"
@@ -32,6 +31,8 @@
 #include "kvstore.h"
 #include "replicationthrottle.h"
 #include "statwriter.h"
+
+#include <platform/checked_snprintf.h>
 
 #include <memory>
 

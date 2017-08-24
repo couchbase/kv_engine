@@ -17,6 +17,7 @@
 
 #include "ephemeral_bucket_test.h"
 
+#include "checkpoint.h"
 #include "test_helpers.h"
 
 #include "../mock/mock_dcp_consumer.h"

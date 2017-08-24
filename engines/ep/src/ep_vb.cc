@@ -18,6 +18,7 @@
 #include "ep_vb.h"
 
 #include "bgfetcher.h"
+#include "checkpoint.h"
 #include "ep_engine.h"
 #include "executorpool.h"
 #include "failover-table.h"

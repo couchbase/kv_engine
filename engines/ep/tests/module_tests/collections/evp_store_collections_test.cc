@@ -19,6 +19,7 @@
  * Tests for Collection functionality in EPStore.
  */
 #include "bgfetcher.h"
+#include "checkpoint.h"
 #include "dcp/dcpconnmap.h"
 #include "kvstore.h"
 #include "programs/engine_testapp/mock_server.h"

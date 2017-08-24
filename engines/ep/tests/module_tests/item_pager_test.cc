@@ -21,6 +21,7 @@
 
 #include "../mock/mock_global_task.h"
 #include "bgfetcher.h"
+#include "checkpoint.h"
 #include "ep_time.h"
 #include "evp_store_single_threaded_test.h"
 #include "test_helpers.h"

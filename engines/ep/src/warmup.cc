@@ -17,6 +17,7 @@
 
 #include "warmup.h"
 
+#include "checkpoint.h"
 #include "common.h"
 #include "connmap.h"
 #include "ep_engine.h"

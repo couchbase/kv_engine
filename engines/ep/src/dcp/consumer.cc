@@ -17,6 +17,7 @@
 
 #include "dcp/consumer.h"
 
+#include "checkpoint.h"
 #include "dcp/dcpconnmap.h"
 #include "dcp/stream.h"
 #include "ep_engine.h"

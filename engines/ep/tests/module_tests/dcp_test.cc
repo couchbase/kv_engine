@@ -27,6 +27,7 @@
 #include "../mock/mock_dcp_consumer.h"
 #include "../mock/mock_dcp_producer.h"
 #include "../mock/mock_stream.h"
+#include "checkpoint.h"
 #include "connmap.h"
 #include "dcp/backfill_disk.h"
 #include "dcp/dcp-types.h"

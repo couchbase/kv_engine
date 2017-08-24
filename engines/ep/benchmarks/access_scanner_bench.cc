@@ -20,9 +20,11 @@
 #include <fakes/fake_executorpool.h>
 #include <mock/mock_synchronous_ep_engine.h>
 #include <programs/engine_testapp/mock_server.h>
+
 #include "benchmark_memory_tracker.h"
 #include "dcp/dcpconnmap.h"
 #include "ep_time.h"
+#include "item.h"
 
 class EngineFixture : public benchmark::Fixture {
 protected:

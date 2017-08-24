@@ -18,6 +18,7 @@
 #include "ep_bucket.h"
 
 #include "bgfetcher.h"
+#include "checkpoint.h"
 #include "ep_engine.h"
 #include "ep_vb.h"
 #include "failover-table.h"

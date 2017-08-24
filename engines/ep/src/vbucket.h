@@ -20,7 +20,6 @@
 #include "config.h"
 
 #include "bloomfilter.h"
-#include "checkpoint.h"
 #include "checkpoint_config.h"
 #include "collections/vbucket_manifest.h"
 #include "dcp/dcp-types.h"
@@ -30,14 +29,17 @@
 #include "kvstore.h"
 #include "monotonic.h"
 
+#include <memcached/engine.h>
 #include <platform/non_negative_counter.h>
 #include <relaxed_atomic.h>
 #include <atomic>
 #include <queue>
 
 class EPStats;
+class CheckpointManager;
 class ConflictResolution;
 class Configuration;
+class ItemMetaData;
 class PreLinkDocumentContext;
 class EventuallyPersistentEngine;
 class DCPBackfill;
