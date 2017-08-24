@@ -59,6 +59,21 @@ bool bucket_get_item_info(McbpConnection* c, const item* item_,
     return ret;
 }
 
+cb::EngineErrorMetadataPair bucket_get_meta(McbpConnection* c,
+                                            const DocKey& key,
+                                            uint16_t vbucket) {
+    auto ret = c->getBucketEngine()->get_meta(
+            c->getBucketEngineAsV0(), c->getCookie(), key, vbucket);
+    if (ret.first == cb::engine_errc::disconnect) {
+        LOG_INFO(c,
+                 "%u: %s bucket_get_meta return ENGINE_DISCONNECT",
+                 c->getId(),
+                 c->getDescription().c_str());
+    }
+
+    return ret;
+}
+
 bool bucket_set_item_info(McbpConnection* c, item* item_,
                           const item_info* item_info_) {
     auto ret = c->getBucketEngine()->set_item_info(

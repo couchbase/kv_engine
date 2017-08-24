@@ -45,6 +45,7 @@
 #include "protocol/mcbp/gat_context.h"
 #include "protocol/mcbp/get_context.h"
 #include "protocol/mcbp/get_locked_context.h"
+#include "protocol/mcbp/get_meta_context.h"
 #include "protocol/mcbp/mutation_context.h"
 #include "protocol/mcbp/rbac_reload_command_context.h"
 #include "protocol/mcbp/remove_context.h"
@@ -141,6 +142,11 @@ void update_topkeys(const DocKey& key, McbpConnection* c) {
 static void process_bin_get(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_get*>(packet);
     c->obtainContext<GetCommandContext>(*c, req).drive();
+}
+
+static void process_bin_get_meta(McbpConnection* c, void* packet) {
+    auto* req = reinterpret_cast<protocol_binary_request_get*>(packet);
+    c->obtainContext<GetMetaCommandContext>(*c, req).drive();
 }
 
 static void get_locked_executor(McbpConnection* c, void* packet) {
@@ -659,6 +665,27 @@ static void get_executor(McbpConnection* c, void* packet) {
     process_bin_get(c, packet);
 }
 
+static void get_meta_executor(McbpConnection* c, void* packet) {
+    switch (c->getCmd()) {
+    case PROTOCOL_BINARY_CMD_GET_META:
+        // McbpConnection::noreply already set to false in constructor
+        break;
+    case PROTOCOL_BINARY_CMD_GETQ_META:
+        c->setNoReply(true);
+        break;
+    default:
+        LOG_WARNING(c,
+                    "%u: get_meta_executor: cmd (which is %d) is not a valid "
+                    "GET_META "
+                    "variant - closing connection",
+                    c->getId(),
+                    c->getCmd());
+        c->setState(conn_closing);
+        return;
+    }
+
+    process_bin_get_meta(c, packet);
+}
 
 static void stat_executor(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_stats*>(packet);
@@ -1056,6 +1083,8 @@ std::array<mcbp_package_execute, 0x100>& get_mcbp_executors(void) {
     executors[PROTOCOL_BINARY_CMD_GETQ] = get_executor;
     executors[PROTOCOL_BINARY_CMD_GETK] = get_executor;
     executors[PROTOCOL_BINARY_CMD_GETKQ] = get_executor;
+    executors[PROTOCOL_BINARY_CMD_GET_META] = get_meta_executor;
+    executors[PROTOCOL_BINARY_CMD_GETQ_META] = get_meta_executor;
     executors[PROTOCOL_BINARY_CMD_GAT] = gat_executor;
     executors[PROTOCOL_BINARY_CMD_GATQ] = gat_executor;
     executors[PROTOCOL_BINARY_CMD_TOUCH] = gat_executor;

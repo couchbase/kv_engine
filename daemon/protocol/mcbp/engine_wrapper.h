@@ -44,6 +44,10 @@ void bucket_reset_stats(McbpConnection* c);
 bool bucket_get_item_info(McbpConnection* c, const item* item_,
                           item_info* item_info_);
 
+cb::EngineErrorMetadataPair bucket_get_meta(McbpConnection* c,
+                                            const DocKey& key,
+                                            uint16_t vbucket);
+
 bool bucket_set_item_info(McbpConnection* c, item* item_,
                           const item_info* item_info_);
 

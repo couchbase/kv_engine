@@ -73,6 +73,14 @@ public:
     uint32_t expiration;
     cb::mcbp::Datatype datatype;
     uint64_t cas;
+
+    DocumentInfo()
+        : id(""),
+          flags(0),
+          expiration(0),
+          datatype(cb::mcbp::Datatype::Raw),
+          cas(0) {
+    }
 };
 
 class Document {
@@ -626,7 +634,7 @@ public:
 
     GetMetaResponse getMeta(const std::string& key,
                             uint16_t vbucket,
-                            uint64_t cas);
+                            GetMetaVersion version);
 
     bool hasFeature(cb::mcbp::Feature feature) const {
         return effective_features.find(uint16_t(feature)) !=

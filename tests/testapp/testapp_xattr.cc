@@ -1119,7 +1119,7 @@ TEST_P(XattrTest, SetXattrAndDeleteBasic) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
 
     // Should now only be XATTR datatype
-    auto meta = conn.getMeta(name, 0, 0);
+    auto meta = conn.getMeta(name, 0, GetMetaVersion::V2);
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, meta.datatype);
     // Should also be marked as deleted
     EXPECT_EQ(1, meta.deleted);
@@ -1171,7 +1171,7 @@ TEST_P(XattrTest, SetXattrAndDeleteCheckUserXattrsDeleted) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
 
     // Should now only be XATTR datatype
-    auto meta = conn.getMeta(name, 0, 0);
+    auto meta = conn.getMeta(name, 0, GetMetaVersion::V2);
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, meta.datatype);
     // Should also be marked as deleted
     EXPECT_EQ(1, meta.deleted);
@@ -1237,7 +1237,7 @@ TEST_P(XattrTest, TestXattrDeleteDatatypes) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
 
     // Should now only be XATTR datatype
-    auto meta = conn.getMeta(name, 0, 0);
+    auto meta = conn.getMeta(name, 0, GetMetaVersion::V2);
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, meta.datatype);
     // Should also be marked as deleted
     EXPECT_EQ(1, meta.deleted);

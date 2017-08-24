@@ -685,15 +685,56 @@ TEST_P(GetSetTest, TestPrepepndCompressedSourceAndData) {
 }
 
 TEST_P(GetSetTest, TestGetMeta) {
+    document.info.datatype = cb::mcbp::Datatype::JSON;
     getConnection().mutate(document, 0, MutationType::Add);
-    auto meta = getConnection().getMeta(document.info.id, 0, 0);
+    auto meta =
+            getConnection().getMeta(document.info.id, 0, GetMetaVersion::V2);
     EXPECT_EQ(0, meta.deleted);
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, meta.datatype);
+    EXPECT_EQ(0, meta.expiry);
+    meta = getConnection().getMeta(document.info.id, 0, GetMetaVersion::V1);
+    EXPECT_EQ(0, meta.deleted);
+    EXPECT_NE(PROTOCOL_BINARY_DATATYPE_JSON, meta.datatype);
     EXPECT_EQ(0, meta.expiry);
 
     document.info.datatype = cb::mcbp::Datatype::Raw;
     getConnection().mutate(document, 0, MutationType::Replace);
-    meta = getConnection().getMeta(document.info.id, 0, 0);
+    meta = getConnection().getMeta(document.info.id, 0, GetMetaVersion::V2);
     EXPECT_EQ(0, meta.deleted);
     EXPECT_EQ(PROTOCOL_BINARY_RAW_BYTES, meta.datatype);
+}
+
+TEST_P(GetSetTest, TestGetMetaExpiry) {
+    // Case `expiry` <= `num_seconds_in_a_month`
+    // When we set `document.info.expiration` to a value less than the number
+    // of seconds in a month, the backend sets a `exptime` relative to `now`.
+    // Memcached internal clock could have up to 1-second delay compared to Real
+    // Time Clock. This is the scenario:
+    //
+    // RTC      0 ----- 1 ----- 2 ----- 3 -->
+    // MCC              0 ----- 1 ----- 2 ----- 3 -->
+    //
+    // That is why we would set `expected = now + seconds - 1`.
+    // But, while the following `EXPECT_GE` condition is always verified on
+    // local runs, it fails on Jenkins with `meta.expiry < expected` (usually
+    // with `meta.expiry` still behind of 1, suggesting that the Memcached
+    // clock could have up to 2-second delay compared to RTC, even if this
+    // should not be possible). This need more investigation.
+    // For now we allow MCC to be 2 seconds behind RTC, so
+    // `expected = now + seconds - 2` .
+    uint32_t seconds = 60;
+    document.info.expiration = seconds;
+    time_t now = time(nullptr);
+    getConnection().mutate(document, 0, MutationType::Add);
+    auto meta =
+            getConnection().getMeta(document.info.id, 0, GetMetaVersion::V1);
+    uint32_t expected = now + seconds - 2;
+    EXPECT_GE(meta.expiry, expected);
+    EXPECT_LE(meta.expiry, expected + 3);
+
+    // Case `expiry` > `num_seconds_in_a_month`
+    document.info.expiration = now + 60;
+    getConnection().mutate(document, 0, MutationType::Replace);
+    meta = getConnection().getMeta(document.info.id, 0, GetMetaVersion::V1);
+    EXPECT_EQ(meta.expiry, document.info.expiration);
 }

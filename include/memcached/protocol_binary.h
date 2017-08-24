@@ -1933,6 +1933,21 @@ struct GetMetaResponse {
     uint32_t expiry;
     uint64_t seqno;
     uint8_t datatype;
+
+    GetMetaResponse() : deleted(0), flags(0), expiry(0), seqno(0), datatype(0) {
+    }
+
+    GetMetaResponse(uint32_t deleted,
+                    uint32_t flags,
+                    uint32_t expiry,
+                    uint64_t seqno,
+                    uint8_t datatype)
+        : deleted(deleted),
+          flags(flags),
+          expiry(expiry),
+          seqno(seqno),
+          datatype(datatype) {
+    }
 };
 
 #pragma pack()
