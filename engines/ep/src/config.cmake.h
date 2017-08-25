@@ -35,8 +35,4 @@
 /* various */
 #define VERSION "${EP_ENGINE_VERSION}"
 
-#ifdef __GNUC__
-#define HAVE_GCC_ATOMICS 1
-#endif
-
 #include "config_static.h"
