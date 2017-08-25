@@ -23,7 +23,6 @@
 
 #define ITEMS_PER_ALLOC 64
 
-static char devnull[8192];
 extern std::atomic<bool> memcached_shutdown;
 
 /* An item in the connection queue. */
@@ -248,7 +247,18 @@ static int number_of_pending(Connection *c, Connection *list) {
 
 static void drain_notification_channel(evutil_socket_t fd)
 {
+    /* Every time we want to notify a thread, we send 1 byte to its
+     * notification pipe. When the thread wakes up, it tries to drain
+     * it's notification channel before executing any other events.
+     * Other threads (listener and other background threads) may notify
+     * this thread up to 512 times since the last time we checked the
+     * notification pipe, before we'll start draining the it again.
+     */
+
     int nread;
+    // Using a small size for devnull will avoid blowing up the stack
+    char devnull[512];
+
     while ((nread = recv(fd, devnull, sizeof(devnull), 0)) == (int)sizeof(devnull)) {
         /* empty */
     }
