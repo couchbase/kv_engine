@@ -154,7 +154,7 @@ backfill_status_t DCPBackfillMemoryBuffered::create() {
             rangeItr = std::move(*rangeItrOptional);
         } else {
             stream->getLogger().log(
-                    EXTENSION_LOG_WARNING,
+                    EXTENSION_LOG_INFO,
                     "vb:%" PRIu16
                     " Deferring backfill creation as another "
                     "range iterator is already on the sequence list",
@@ -243,7 +243,7 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
             /* Try backfill again later; here we do not snooze because we
                want to check if other backfills can be run by the
                backfillMgr */
-            stream->getLogger().log(EXTENSION_LOG_WARNING,
+            stream->getLogger().log(EXTENSION_LOG_INFO,
                                     "vb:%" PRIu16
                                     " Deferring backfill at seqno:%" PRIi64
                                     "as scan buffer or backfill buffer is full",
