@@ -816,12 +816,12 @@ ENGINE_ERROR_CODE KVBucket::deleteVBucket(uint16_t vbid, const void* c) {
 
     {
         std::unique_lock<std::mutex> vbSetLh(vbsetMutex);
-        // Obtain the vb_mutex for the VB to ensure we interlock with other
+        // Obtain a locked VBucket to ensure we interlock with other
         // threads that are manipulating the VB (particularly ones which may
         // try and change the disk revision e.g. deleteAll and compaction).
-        std::unique_lock<std::mutex> vbMutLh(vb_mutexes[vbid]);
+        auto lockedVB = getLockedVBucket(vbid);
 
-        vb->setState(vbucket_state_dead);
+        lockedVB->setState(vbucket_state_dead);
         engine.getDcpConnMap().vbucketStateChanged(vbid, vbucket_state_dead);
 
         // Drop the VB to begin the delete, the last holder of the VB will
@@ -862,33 +862,35 @@ uint16_t KVBucket::getDBFileId(const protocol_binary_request_compact_db& req) {
 }
 
 bool KVBucket::resetVBucket(uint16_t vbid) {
-    std::unique_lock<std::mutex> lh(vbsetMutex);
-    // Obtain the vb_mutex for the VB to ensure we interlock with other
+    std::unique_lock<std::mutex> vbsetLock(vbsetMutex);
+    // Obtain a locked VBucket to ensure we interlock with other
     // threads that are manipulating the VB (particularly ones which may
     // try and change the disk revision).
-    std::unique_lock<std::mutex> vbMutLh(vb_mutexes[vbid]);
-    return resetVBucket_UNLOCKED(vbid, lh, vbMutLh);
+    auto lockedVB = getLockedVBucket(vbid);
+    return resetVBucket_UNLOCKED(lockedVB, vbsetLock);
 }
 
-bool KVBucket::resetVBucket_UNLOCKED(uint16_t vbid,
-                                     std::unique_lock<std::mutex>& vbset,
-                                     std::unique_lock<std::mutex>& vbMutex) {
+bool KVBucket::resetVBucket_UNLOCKED(LockedVBucketPtr& vb,
+                                     std::unique_lock<std::mutex>& vbset) {
     bool rv(false);
 
-    VBucketPtr vb = vbMap.getBucket(vbid);
     if (vb) {
         vbucket_state_t vbstate = vb->getState();
 
-        vbMap.dropVBucketAndSetupDeferredDeletion(vbid, nullptr /*no cookie*/);
+        vbMap.dropVBucketAndSetupDeferredDeletion(vb->getId(),
+                                                  nullptr /*no cookie*/);
 
         checkpointCursorInfoList cursors =
                 vb->checkpointManager->getAllCursors();
         // Delete and recreate the vbucket database file
-        setVBucketState_UNLOCKED(vbid, vbstate,
-                                 false/*transfer*/, true/*notifyDcp*/, vbset);
+        setVBucketState_UNLOCKED(vb->getId(),
+                                 vbstate,
+                                 false /*transfer*/,
+                                 true /*notifyDcp*/,
+                                 vbset);
 
         // Copy the all cursors from the old vbucket into the new vbucket
-        VBucketPtr newvb = vbMap.getBucket(vbid);
+        VBucketPtr newvb = vbMap.getBucket(vb->getId());
         newvb->checkpointManager->resetCursors(cursors);
 
         rv = true;
@@ -1634,15 +1636,12 @@ ENGINE_ERROR_CODE KVBucket::deleteWithMeta(const DocKey& key,
 void KVBucket::reset() {
     auto buckets = vbMap.getBuckets();
     for (auto vbid : buckets) {
-        VBucketPtr vb = getVBucket(vbid);
+        auto vb = getLockedVBucket(vbid);
         if (vb) {
-            {
-                LockHolder lh(vb_mutexes[vb->getId()]);
-                vb->ht.clear();
-                vb->checkpointManager->clear(vb->getState());
-                vb->resetStats();
-                vb->setPersistedSnapshot(0, 0);
-            }
+            vb->ht.clear();
+            vb->checkpointManager->clear(vb->getState());
+            vb->resetStats();
+            vb->setPersistedSnapshot(0, 0);
             LOG(EXTENSION_LOG_NOTICE,
                 "KVBucket::reset(): Successfully flushed vb:%" PRIu16,
                 vbid);
@@ -1817,11 +1816,10 @@ void KVBucket::setDeleteAllComplete() {
 
 void KVBucket::flushOneDeleteAll() {
     for (VBucketMap::id_type i = 0; i < vbMap.getSize(); ++i) {
-        VBucketPtr vb = getVBucket(i);
+        auto vb = getLockedVBucket(i);
         // Reset the vBucket if it's non-null and not already in the middle of
         // being created / destroyed.
         if (vb && !(vb->isBucketCreation() || vb->isDeletionDeferred())) {
-            LockHolder lh(vb_mutexes[vb->getId()]);
             getRWUnderlying(vb->getId())->reset(i);
         }
     }
@@ -1844,13 +1842,11 @@ int KVBucket::flushVBucket(uint16_t vbid) {
     int items_flushed = 0;
     const hrtime_t flush_start = gethrtime();
 
-    VBucketPtr vb = vbMap.getBucket(vbid);
+    auto vb = getLockedVBucket(vbid, std::try_to_lock);
+    if (!vb.owns_lock()) { // Try another bucket if this one is locked
+        return RETRY_FLUSH_VBUCKET; // to avoid blocking flusher
+    }
     if (vb) {
-        std::unique_lock<std::mutex> lh(vb_mutexes[vbid], std::try_to_lock);
-        if (!lh.owns_lock()) { // Try another bucket if this one is locked
-            return RETRY_FLUSH_VBUCKET; // to avoid blocking flusher
-        }
-
         std::vector<queued_item> items;
         KVStore *rwUnderlying = getRWUnderlying(vbid);
 
@@ -1912,7 +1908,8 @@ int KVBucket::flushVBucket(uint16_t vbid) {
                 } else if (!prev || prev->getKey() != item->getKey()) {
                     prev = item.get();
                     ++items_flushed;
-                    PersistenceCallback *cb = flushOneDelOrSet(item, vb);
+                    PersistenceCallback* cb =
+                            flushOneDelOrSet(item, vb.getVB());
                     if (cb) {
                         pcbs.push_back(cb);
                     }
@@ -2583,14 +2580,13 @@ KVStore *KVBucket::getOneRWUnderlying(void) {
 TaskStatus KVBucket::rollback(uint16_t vbid, uint64_t rollbackSeqno) {
     std::unique_lock<std::mutex> vbset(vbsetMutex);
 
-    std::unique_lock<std::mutex> vbMutexLh(vb_mutexes[vbid], std::try_to_lock);
+    auto vb = getLockedVBucket(vbid, std::try_to_lock);
 
-    if (!vbMutexLh.owns_lock()) {
+    if (!vb.owns_lock()) {
         return TaskStatus::Reschedule; // Reschedule a vbucket rollback task.
     }
 
-    VBucketPtr vb = vbMap.getBucket(vbid);
-    if (!vb) {
+    if (!vb.getVB()) {
         LOG(EXTENSION_LOG_WARNING,
             "vb:%" PRIu16 " Aborting rollback as the vbucket was not found",
             vbid);
@@ -2617,7 +2613,7 @@ TaskStatus KVBucket::rollback(uint16_t vbid, uint64_t rollbackSeqno) {
             }
         }
 
-        if (resetVBucket_UNLOCKED(vbid, vbset, vbMutexLh)) {
+        if (resetVBucket_UNLOCKED(vb, vbset)) {
             VBucketPtr newVb = vbMap.getBucket(vbid);
             newVb->incrRollbackItemCount(prevHighSeqno);
             engine.getDcpConnMap().closeStreamsDueToRollback(vbid);

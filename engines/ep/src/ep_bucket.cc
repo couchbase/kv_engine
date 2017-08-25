@@ -392,7 +392,12 @@ bool EPBucket::doCompact(compaction_ctx* ctx, const void* cookie) {
      * the writer and compactor threads
      */
     if (concWriteCompact == false) {
-        VBucketPtr vb = getVBucket(vbid);
+        auto vb = getLockedVBucket(vbid, std::try_to_lock);
+        if (!vb.owns_lock()) {
+            // VB currently locked; try again later.
+            return true;
+        }
+
         if (!vb) {
             err = ENGINE_NOT_MY_VBUCKET;
             engine.storeEngineSpecific(cookie, NULL);
@@ -402,11 +407,6 @@ bool EPBucket::doCompact(compaction_ctx* ctx, const void* cookie) {
              */
             engine.decrementSessionCtr();
         } else {
-            std::unique_lock<std::mutex> lh(vb_mutexes[vbid], std::try_to_lock);
-            if (!lh.owns_lock()) {
-                return true;
-            }
-
             compactInternal(ctx);
         }
     } else {

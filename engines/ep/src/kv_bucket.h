@@ -340,6 +340,25 @@ public:
         return {vbMap.getBucket(vbid), std::move(lock)};
     }
 
+    /**
+     * Attempt to return a pointer to the given VBucket and the VBucket's mutex,
+     * if the mutex isn't already acquired.
+     * @param vbid VBucket ID to get.
+     * @return If the mutex was available then a pointer to the VBucket and
+     *         a lock on the mutex. If the mutex was already locked then returns
+     *         nullptr and a lock object which owns_lock() returns false.
+     *
+     * For correct usage, clients should call owns_lock() to check if they
+     * successfully acquired a locked VBucket.
+     */
+    LockedVBucketPtr getLockedVBucket(uint16_t vbid, std::try_to_lock_t) {
+        std::unique_lock<std::mutex> lock(vb_mutexes[vbid], std::try_to_lock);
+        if (!lock) {
+            return {{}, std::move(lock)};
+        }
+        return {vbMap.getBucket(vbid), std::move(lock)};
+    }
+
     std::pair<uint64_t, bool> getLastPersistedCheckpointId(uint16_t vb) {
         // No persistence at the KVBucket class level.
         return {0, false};
@@ -810,9 +829,8 @@ protected:
                          vbucket_state_t allowedState,
                          get_options_t options);
 
-    bool resetVBucket_UNLOCKED(uint16_t vbid,
-                               std::unique_lock<std::mutex>& vbset,
-                               std::unique_lock<std::mutex>& vbMutex);
+    bool resetVBucket_UNLOCKED(LockedVBucketPtr& vb,
+                               std::unique_lock<std::mutex>& vbset);
 
     /* Notify flusher of a new seqno being added in the vbucket */
     virtual void notifyFlusher(const uint16_t vbid);

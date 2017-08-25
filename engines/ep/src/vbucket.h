@@ -1697,8 +1697,25 @@ public:
         : vb(std::move(vb)), lock(std::move(lock)) {
     }
 
+    VBucket& operator*() const {
+        return *vb;
+    }
+
     VBucket* operator->() const {
         return vb.get();
+    }
+
+    explicit operator bool() const {
+        return vb.operator bool();
+    }
+
+    VBucketPtr& getVB() {
+        return vb;
+    }
+
+    /// Return true if this object owns the mutex.
+    bool owns_lock() const {
+        return lock.owns_lock();
     }
 
 private:
