@@ -49,9 +49,8 @@ void RocksDBKVStore::open() {
     /* Use a listener to set the appropriate engine in the
      * flusher threads RocksDB creates. We need the flusher threads to
      * account for news/deletes against the appropriate bucket. */
-    FlushStartListener* fsl =
-            new FlushStartListener(ObjectRegistry::getCurrentEngine());
-
+    auto fsl = std::make_shared<FlushStartListener>(
+            ObjectRegistry::getCurrentEngine());
     rdbOptions.listeners.emplace_back(fsl);
 
     const std::string dbdir = configuration.getDBName();
