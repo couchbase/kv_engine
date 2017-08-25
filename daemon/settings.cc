@@ -1246,7 +1246,9 @@ void Settings::updateSettings(const Settings& other, bool apply) {
     }
 
     if (other.has.saslauthd_socketpath) {
-        // @todo fixme
+        // @todo Once ns_server allows for changing the path we need to
+        //       make sure we properly populate this value all the way
+        //       down to cbsasl
         auto path = other.getSaslauthdSocketpath();
         if (path != saslauthd_socketpath.path) {
             logit(EXTENSION_LOG_NOTICE,
