@@ -69,7 +69,6 @@ struct server_handle_v1_t {
     SERVER_STAT_API* stat;
     SERVER_EXTENSION_API* extension;
     SERVER_CALLBACK_API* callback;
-    ENGINE_HANDLE* engine;
     SERVER_LOG_API* log;
     SERVER_COOKIE_API* cookie;
     ALLOCATOR_HOOKS_API* alloc_hooks;

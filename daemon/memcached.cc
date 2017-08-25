@@ -1973,11 +1973,6 @@ static SERVER_HANDLE_V1 *get_server_api(void)
         rv.document = &document_api;
     }
 
-    // @trondn fixme!!!
-    if (rv.engine == NULL) {
-        /* rv.engine = settings.engine.v0; */
-    }
-
     return &rv;
 }
 
