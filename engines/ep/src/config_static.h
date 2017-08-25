@@ -77,7 +77,6 @@
 #ifdef WIN32
 #include <winsock2.h>
 #include <ws2tcpip.h>
-#define SOCKETPAIR_AF AF_INET
 #define getppid() 2
 
 #include <io.h>
@@ -100,14 +99,7 @@
 #endif
 #define sleep(a) Sleep(a * 1000)
 #define random() (long)rand()
-
-/* TROND FIXME */
-#define IOV_MAX 1024
 typedef unsigned int useconds_t;
-#else
-#define INVALID_SOCKET -1
-#define SOCKET_ERROR -1
-#define SOCKETPAIR_AF AF_UNIX
 #endif
 
 #if defined(linux) || defined(__linux__) || defined(__linux)
