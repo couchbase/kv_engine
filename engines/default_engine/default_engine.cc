@@ -115,7 +115,6 @@ static ENGINE_ERROR_CODE default_unknown_command(ENGINE_HANDLE* handle,
                                                  ADD_RESPONSE response,
                                                  DocNamespace doc_namespace);
 
-
 union vbucket_info_adapter {
     char c;
     struct vbucket_info v;

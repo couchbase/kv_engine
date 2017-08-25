@@ -677,8 +677,24 @@ static ENGINE_ERROR_CODE mock_dcp_response_handler(ENGINE_HANDLE* handle,
 static cb::engine_error mock_collections_set_manifest(
         ENGINE_HANDLE* handle, cb::const_char_buffer json) {
     struct mock_engine* me = get_handle(handle);
+    if (me->the_engine->collections.set_manifest == nullptr) {
+        return cb::engine_error(
+                cb::engine_errc::not_supported,
+                "mock_collections_set_manifest: not supported by engine");
+    }
+
     return me->the_engine->collections.set_manifest(
             (ENGINE_HANDLE*)me->the_engine, json);
+}
+
+void mock_set_log_level(ENGINE_HANDLE* handle, EXTENSION_LOG_LEVEL level) {
+    if (get_handle(handle)->the_engine->set_log_level != nullptr) {
+        get_handle(handle)->the_engine->set_log_level(handle, level);
+    }
+}
+
+bool mock_isXattrEnabled(ENGINE_HANDLE* handle) {
+    return get_handle(handle)->the_engine->isXattrEnabled(handle);
 }
 
 EXTENSION_LOGGER_DESCRIPTOR *logger_descriptor = NULL;
@@ -856,8 +872,10 @@ static ENGINE_HANDLE_V1* create_bucket(bool initialize, const char* cfg) {
         mock_engine->me.dcp.buffer_acknowledgement = mock_dcp_buffer_acknowledgement;
         mock_engine->me.dcp.control = mock_dcp_control;
         mock_engine->me.dcp.response_handler = mock_dcp_response_handler;
+        mock_engine->me.set_log_level = mock_set_log_level;
         mock_engine->me.collections.set_manifest =
                 mock_collections_set_manifest;
+        mock_engine->me.isXattrEnabled = mock_isXattrEnabled;
 
         mock_engine->the_engine = (ENGINE_HANDLE_V1*)handle;
 
