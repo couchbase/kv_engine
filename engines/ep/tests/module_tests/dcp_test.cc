@@ -829,7 +829,7 @@ TEST_P(StreamTest, RollbackDueToPurge) {
               producer->closeStream(/*opaque*/ 0, vb0->getId()));
 
     /* Set a purge_seqno > start_seqno */
-    vb0->setPurgeSeqno(numItems - 1);
+    engine->getKVBucket()->getLockedVBucket(vbid)->setPurgeSeqno(numItems - 1);
 
     /* Now we expect a rollback to 0 */
     EXPECT_EQ(ENGINE_ROLLBACK,

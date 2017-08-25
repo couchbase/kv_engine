@@ -1680,3 +1680,24 @@ private:
 };
 
 using VBucketPtr = std::shared_ptr<VBucket>;
+
+/**
+ * Represents a locked VBucket that provides RAII semantics for the lock.
+ *
+ * Behaves like the underlying shared_ptr - i.e. `operator->` is overloaded
+ * to return the underlying VBucket.
+ */
+class LockedVBucketPtr {
+public:
+    LockedVBucketPtr(VBucketPtr vb, std::unique_lock<std::mutex>&& lock)
+        : vb(std::move(vb)), lock(std::move(lock)) {
+    }
+
+    VBucket* operator->() const {
+        return vb.get();
+    }
+
+private:
+    VBucketPtr vb;
+    std::unique_lock<std::mutex> lock;
+};

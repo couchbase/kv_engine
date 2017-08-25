@@ -328,6 +328,18 @@ public:
         return vbMap.getBucket(vbid);
     }
 
+    /**
+     * Return a pointer to the given VBucket, acquiring the appropriate VB
+     * mutex lock at the same time.
+     * @param vbid VBucket ID to get.
+     * @return A RAII-style handle which owns the correct VBucket mutex,
+     *         alongside a shared pointer to the requested VBucket.
+     */
+    LockedVBucketPtr getLockedVBucket(uint16_t vbid) {
+        std::unique_lock<std::mutex> lock(vb_mutexes[vbid]);
+        return {vbMap.getBucket(vbid), std::move(lock)};
+    }
+
     std::pair<uint64_t, bool> getLastPersistedCheckpointId(uint16_t vb) {
         // No persistence at the KVBucket class level.
         return {0, false};
