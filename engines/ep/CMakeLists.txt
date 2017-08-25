@@ -69,9 +69,6 @@ CHECK_INCLUDE_FILES("sys/socket.h" HAVE_SYS_SOCKET_H)
 CHECK_INCLUDE_FILES("sys/time.h" HAVE_SYS_TIME_H)
 CHECK_INCLUDE_FILES("netinet/in.h" HAVE_NETINET_IN_H)
 CHECK_INCLUDE_FILES("netinet/tcp.h" HAVE_NETINET_TCP_H)
-CHECK_INCLUDE_FILE_CXX("unordered_map" HAVE_UNORDERED_MAP)
-CHECK_INCLUDE_FILE_CXX("atomic" HAVE_ATOMIC)
-CHECK_INCLUDE_FILE_CXX("thread" HAVE_THREAD)
 
 # For debugging without compiler optimizations uncomment line below..
 #SET (CMAKE_BUILD_TYPE DEBUG)
