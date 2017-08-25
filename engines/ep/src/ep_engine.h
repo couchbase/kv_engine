@@ -249,11 +249,6 @@ public:
                                    uint16_t vbucket,
                                    uint32_t flags);
 
-    ENGINE_ERROR_CODE getMeta(const void* cookie,
-                              protocol_binary_request_get_meta *request,
-                              ADD_RESPONSE response,
-                              DocNamespace docNamespace);
-
     cb::EngineErrorMetadataPair getMeta(const void* cookie,
                                         const DocKey& key,
                                         uint16_t vbucket);

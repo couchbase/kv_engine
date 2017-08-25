@@ -1148,14 +1148,6 @@ static ENGINE_ERROR_CODE processUnknownCommand(
         rv = h->handleSeqnoCmds(cookie, request, response);
         return rv;
     }
-    case PROTOCOL_BINARY_CMD_GET_META:
-    case PROTOCOL_BINARY_CMD_GETQ_META: {
-        rv = h->getMeta(cookie,
-                        reinterpret_cast<protocol_binary_request_get_meta*>
-                        (request), response,
-                        docNamespace);
-        return rv;
-    }
     case PROTOCOL_BINARY_CMD_SET_WITH_META:
     case PROTOCOL_BINARY_CMD_SETQ_WITH_META:
     case PROTOCOL_BINARY_CMD_ADD_WITH_META:
@@ -4055,95 +4047,6 @@ EventuallyPersistentEngine::handleSeqnoCmds(const void *cookie,
                         NULL, 0,
                         PROTOCOL_BINARY_RAW_BYTES,
                         status, 0, cookie);
-}
-
-ENGINE_ERROR_CODE EventuallyPersistentEngine::getMeta(const void* cookie,
-                                     protocol_binary_request_get_meta *request,
-                                     ADD_RESPONSE response,
-                                     DocNamespace docNamespace)
-{
-    if (request->message.header.request.keylen == 0) {
-        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
-    }
-
-    uint8_t extlen = request->message.header.request.extlen;
-    DocKey key((request->bytes + sizeof(request->bytes) + extlen),
-               (size_t)ntohs(request->message.header.request.keylen),
-                docNamespace);
-    uint16_t vbucket = ntohs(request->message.header.request.vbucket);
-    uint8_t version = 0;
-    bool fetchDatatype = false;
-
-    // Read the version if extlen is 1
-    if (extlen == 1) {
-        memcpy(&version,
-               request->bytes + sizeof(request->bytes),
-               sizeof(version));
-        fetchDatatype = version == uint8_t(GetMetaVersion::V2);
-    }
-
-    ItemMetaData metadata;
-    uint32_t deleted = 0;
-    uint8_t datatype = PROTOCOL_BINARY_RAW_BYTES;
-    auto rv = kvBucket->getMetaData(
-            key, vbucket, cookie, metadata, deleted, datatype);
-
-    if (rv == ENGINE_SUCCESS) {
-        // GET META returns a packed structure
-        // 0-3   uint32_t deleted
-        // 4-7   uint32_t flags
-        // 8-11  uint32_t expiry
-        // 12-19 uint64_t seqno
-        // 20    uint8_t  datatype (optional, based upon meta-version requested)
-        GetMetaResponse metaResponse{};
-
-        metaResponse.deleted = htonl(deleted);
-        metaResponse.flags = metadata.flags;
-        metaResponse.expiry = htonl(metadata.exptime);
-        metaResponse.seqno = htonll(metadata.revSeqno);
-
-        if (fetchDatatype) {
-            metaResponse.datatype = datatype;
-        }
-
-        uint8_t extlen = fetchDatatype ? sizeof(metaResponse) :
-                         sizeof(metaResponse) - sizeof(metaResponse.datatype);
-
-        rv = sendResponse(response,
-                          nullptr /*key*/,
-                          0 /*keylen*/,
-                          reinterpret_cast<uint8_t*>(&metaResponse) /*ext*/,
-                          extlen,
-                          nullptr /*body*/,
-                          0 /*bodylen*/,
-                          PROTOCOL_BINARY_RAW_BYTES /*datatype*/,
-                          PROTOCOL_BINARY_RESPONSE_SUCCESS /*mcbp status*/,
-                          metadata.cas,
-                          cookie);
-    } else if (rv == ENGINE_NOT_MY_VBUCKET) {
-        rv = sendNotMyVBucketResponse(response, cookie, 0);
-    } else if (rv != ENGINE_EWOULDBLOCK) {
-        if (rv == ENGINE_KEY_ENOENT &&
-            request->message.header.request.opcode == PROTOCOL_BINARY_CMD_GETQ_META) {
-            rv = ENGINE_SUCCESS;
-        } else {
-            rv = sendResponse(response,
-                              nullptr,
-                              0,
-                              nullptr,
-                              0,
-                              nullptr,
-                              0,
-                              PROTOCOL_BINARY_RAW_BYTES,
-                              serverApi->cookie->engine_error2mcbp(cookie, rv),
-                              metadata.cas,
-                              cookie);
-        }
-    }
-
-    return rv;
 }
 
 cb::EngineErrorMetadataPair EventuallyPersistentEngine::getMeta(
