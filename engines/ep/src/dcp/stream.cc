@@ -232,7 +232,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
                            const std::string& n,
                            uint32_t flags,
                            uint32_t opaque,
-                           uint16_t vb,
+                           VBucket& vbucket,
                            uint64_t st_seqno,
                            uint64_t en_seqno,
                            uint64_t vb_uuid,
@@ -244,7 +244,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
     : Stream(n,
              flags,
              opaque,
-             vb,
+             vbucket.getId(),
              st_seqno,
              en_seqno,
              vb_uuid,
@@ -275,14 +275,11 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
         end_seqno_ = dcpMaxSeqno;
     }
 
-    VBucketPtr vbucket = engine->getVBucket(vb);
-    if (vbucket) {
-        ReaderLockHolder rlh(vbucket->getStateLock());
-        if (vbucket->getState() == vbucket_state_replica) {
-            snapshot_info_t info = vbucket->checkpointManager.getSnapshotInfo();
-            if (info.range.end > en_seqno) {
-                end_seqno_ = info.range.end;
-            }
+    ReaderLockHolder rlh(vbucket.getStateLock());
+    if (vbucket.getState() == vbucket_state_replica) {
+        snapshot_info_t info = vbucket.checkpointManager.getSnapshotInfo();
+        if (info.range.end > en_seqno) {
+            end_seqno_ = info.range.end;
         }
     }
 
@@ -290,7 +287,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
             EXTENSION_LOG_NOTICE,
             "(vb %" PRIu16 ") Creating %sstream with start seqno %" PRIu64
             " and end seqno %" PRIu64 "; requested end seqno was %" PRIu64,
-            vb,
+            vbucket.getId(),
             type,
             st_seqno,
             end_seqno_,
@@ -317,7 +314,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
     }
 
     // Finally obtain a copy of the current separator
-    currentSeparator = vbucket->getManifest().lock().getSeparator();
+    currentSeparator = vbucket.getManifest().lock().getSeparator();
 }
 
 ActiveStream::~ActiveStream() {
