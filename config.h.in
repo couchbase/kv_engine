@@ -108,10 +108,6 @@ typedef int SOCKET;
 #include <inttypes.h>
 #include <sys/types.h>
 
-#ifndef __cplusplus
-#include <stdbool.h>
-#endif
-
 #ifndef IOV_MAX
 # define IOV_MAX 1024
 #endif
