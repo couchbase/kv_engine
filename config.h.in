@@ -106,7 +106,6 @@ typedef int SOCKET;
 #ifndef IOV_MAX
 # define IOV_MAX 1024
 #endif
-#define SASL_ENABLED
 
 #define MEMCACHED_VERSION "${MEMCACHED_VERSION}"
 #define PRODUCT_VERSION "${PRODUCT_VERSION}"
