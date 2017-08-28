@@ -1043,25 +1043,24 @@ MutationInfo MemcachedConnection::mutateWithMeta(
     return response.getMutationInfo();
 }
 
-GetMetaResponse MemcachedConnection::getMeta(const std::string& key,
-                                             uint16_t vbucket,
-                                             GetMetaVersion version) {
+std::pair<protocol_binary_response_status, GetMetaResponse>
+MemcachedConnection::getMeta(const std::string& key,
+                             uint16_t vbucket,
+                             GetMetaVersion version) {
     BinprotGenericCommand cmd{PROTOCOL_BINARY_CMD_GET_META, key};
     const std::vector<uint8_t> extras = {uint8_t(version)};
     cmd.setExtras(extras);
     sendCommand(cmd);
     BinprotResponse resp;
     recvResponse(resp);
-    if (!resp.isSuccess()) {
-        throw ConnectionError("getMeta failed for: " + key, resp.getStatus());
-    }
 
     GetMetaResponse meta;
     memcpy(&meta, resp.getPayload(), resp.getBodylen());
     meta.deleted = ntohl(meta.deleted);
     meta.expiry = ntohl(meta.expiry);
     meta.seqno = ntohll(meta.seqno);
-    return meta;
+
+    return std::make_pair(resp.getStatus(), meta);
 }
 
 unique_cJSON_ptr MemcachedConnection::getErrorMap(uint16_t version) {

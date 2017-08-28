@@ -632,9 +632,8 @@ public:
                                 uint32_t metaOption,
                                 std::vector<uint8_t> metaExtras = {});
 
-    GetMetaResponse getMeta(const std::string& key,
-                            uint16_t vbucket,
-                            GetMetaVersion version);
+    std::pair<protocol_binary_response_status, GetMetaResponse> getMeta(
+            const std::string& key, uint16_t vbucket, GetMetaVersion version);
 
     bool hasFeature(cb::mcbp::Feature feature) const {
         return effective_features.find(uint16_t(feature)) !=

@@ -83,11 +83,16 @@ ENGINE_ERROR_CODE GetMetaCommandContext::sendResponse() {
 
     mcbp_write_and_free(&connection, &connection.getDynamicBuffer());
 
+    STATS_HIT(&connection, get);
+    update_topkeys(key, &connection);
+
     state = State::Done;
     return ENGINE_SUCCESS;
 }
 
 ENGINE_ERROR_CODE GetMetaCommandContext::noSuchItem() {
+    STATS_MISS(&connection, get);
+
     if (connection.isNoReply()) {
         auto& bucket = connection.getBucket();
         bucket.responseCounters[PROTOCOL_BINARY_RESPONSE_KEY_ENOENT]++;

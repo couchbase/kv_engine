@@ -35,6 +35,47 @@ TEST_P(StatsTest, TestDefaultStats) {
     EXPECT_NE(nullptr, cJSON_GetObjectItem(stats.get(), "pid"));
 }
 
+TEST_P(StatsTest, TestGetMeta) {
+    MemcachedConnection& conn = getConnection();
+
+    // Set a document
+    Document doc;
+    doc.info.cas = mcbp::cas::Wildcard;
+    doc.info.datatype = cb::mcbp::Datatype::JSON;
+    doc.info.flags = 0xcaffee;
+    doc.info.id = name;
+    char* ptr = cJSON_Print(memcached_cfg.get());
+    std::copy(ptr, ptr + strlen(ptr), std::back_inserter(doc.value));
+    cJSON_Free(ptr);
+    conn.mutate(doc, 0, MutationType::Set);
+
+    // Send 10 GET_META, this should increase the `cmd_get` and `get_hits` stats
+    for (int i = 0; i < 10; i++) {
+        auto meta = conn.getMeta(doc.info.id, 0, GetMetaVersion::V1);
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, meta.first);
+    }
+    auto stats = conn.stats("");
+    cJSON* cmd_get = cJSON_GetObjectItem(stats.get(), "cmd_get");
+    EXPECT_EQ(10, cmd_get->valueint);
+    cJSON* get_hits = cJSON_GetObjectItem(stats.get(), "get_hits");
+    EXPECT_EQ(10, get_hits->valueint);
+
+    // Now, send 10 GET_META for a document that does not exist, this should
+    // increase the `cmd_get` and `get_misses` stats, but not the `get_hits`
+    // stat
+    for (int i = 0; i < 10; i++) {
+        auto meta = conn.getMeta("no_key", 0, GetMetaVersion::V1);
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, meta.first);
+    }
+    stats = conn.stats("");
+    cmd_get = cJSON_GetObjectItem(stats.get(), "cmd_get");
+    EXPECT_EQ(20, cmd_get->valueint);
+    cJSON* get_misses = cJSON_GetObjectItem(stats.get(), "get_misses");
+    EXPECT_EQ(10, get_misses->valueint);
+    get_hits = cJSON_GetObjectItem(stats.get(), "get_hits");
+    EXPECT_EQ(10, get_hits->valueint);
+}
+
 TEST_P(StatsTest, StatsResetIsPrivileged) {
     MemcachedConnection& conn = getConnection();
     unique_cJSON_ptr stats;

@@ -1120,9 +1120,10 @@ TEST_P(XattrTest, SetXattrAndDeleteBasic) {
 
     // Should now only be XATTR datatype
     auto meta = conn.getMeta(name, 0, GetMetaVersion::V2);
-    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, meta.datatype);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, meta.first);
+    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, meta.second.datatype);
     // Should also be marked as deleted
-    EXPECT_EQ(1, meta.deleted);
+    EXPECT_EQ(1, meta.second.deleted);
 
     auto resp = subdoc_get(sysXattr,
                            SUBDOC_FLAG_XATTR_PATH,
@@ -1172,9 +1173,10 @@ TEST_P(XattrTest, SetXattrAndDeleteCheckUserXattrsDeleted) {
 
     // Should now only be XATTR datatype
     auto meta = conn.getMeta(name, 0, GetMetaVersion::V2);
-    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, meta.datatype);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, meta.first);
+    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, meta.second.datatype);
     // Should also be marked as deleted
-    EXPECT_EQ(1, meta.deleted);
+    EXPECT_EQ(1, meta.second.deleted);
 
     auto resp = subdoc_get("userXattr", SUBDOC_FLAG_XATTR_PATH);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, resp.getStatus());
@@ -1238,9 +1240,10 @@ TEST_P(XattrTest, TestXattrDeleteDatatypes) {
 
     // Should now only be XATTR datatype
     auto meta = conn.getMeta(name, 0, GetMetaVersion::V2);
-    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, meta.datatype);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, meta.first);
+    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, meta.second.datatype);
     // Should also be marked as deleted
-    EXPECT_EQ(1, meta.deleted);
+    EXPECT_EQ(1, meta.second.deleted);
 }
 
 /**

@@ -689,19 +689,22 @@ TEST_P(GetSetTest, TestGetMeta) {
     getConnection().mutate(document, 0, MutationType::Add);
     auto meta =
             getConnection().getMeta(document.info.id, 0, GetMetaVersion::V2);
-    EXPECT_EQ(0, meta.deleted);
-    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, meta.datatype);
-    EXPECT_EQ(0, meta.expiry);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, meta.first);
+    EXPECT_EQ(0, meta.second.deleted);
+    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, meta.second.datatype);
+    EXPECT_EQ(0, meta.second.expiry);
     meta = getConnection().getMeta(document.info.id, 0, GetMetaVersion::V1);
-    EXPECT_EQ(0, meta.deleted);
-    EXPECT_NE(PROTOCOL_BINARY_DATATYPE_JSON, meta.datatype);
-    EXPECT_EQ(0, meta.expiry);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, meta.first);
+    EXPECT_EQ(0, meta.second.deleted);
+    EXPECT_NE(PROTOCOL_BINARY_DATATYPE_JSON, meta.second.datatype);
+    EXPECT_EQ(0, meta.second.expiry);
 
     document.info.datatype = cb::mcbp::Datatype::Raw;
     getConnection().mutate(document, 0, MutationType::Replace);
     meta = getConnection().getMeta(document.info.id, 0, GetMetaVersion::V2);
-    EXPECT_EQ(0, meta.deleted);
-    EXPECT_EQ(PROTOCOL_BINARY_RAW_BYTES, meta.datatype);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, meta.first);
+    EXPECT_EQ(0, meta.second.deleted);
+    EXPECT_EQ(PROTOCOL_BINARY_RAW_BYTES, meta.second.datatype);
 }
 
 TEST_P(GetSetTest, TestGetMetaExpiry) {
@@ -728,13 +731,15 @@ TEST_P(GetSetTest, TestGetMetaExpiry) {
     getConnection().mutate(document, 0, MutationType::Add);
     auto meta =
             getConnection().getMeta(document.info.id, 0, GetMetaVersion::V1);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, meta.first);
     uint32_t expected = now + seconds - 2;
-    EXPECT_GE(meta.expiry, expected);
-    EXPECT_LE(meta.expiry, expected + 3);
+    EXPECT_GE(meta.second.expiry, expected);
+    EXPECT_LE(meta.second.expiry, expected + 3);
 
     // Case `expiry` > `num_seconds_in_a_month`
     document.info.expiration = now + 60;
     getConnection().mutate(document, 0, MutationType::Replace);
     meta = getConnection().getMeta(document.info.id, 0, GetMetaVersion::V1);
-    EXPECT_EQ(meta.expiry, document.info.expiration);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, meta.first);
+    EXPECT_EQ(meta.second.expiry, document.info.expiration);
 }
