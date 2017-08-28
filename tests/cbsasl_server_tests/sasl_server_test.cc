@@ -14,10 +14,7 @@
  *   limitations under the License.
  */
 #include "config.h"
-#include "cbsasl/pwfile.h"
-#include "cbsasl/util.h"
 #include <cbsasl/cbsasl.h>
-#include "cbsasl/cbsasl_internal.h"
 
 #include <algorithm>
 #include <array>
@@ -85,10 +82,6 @@ protected:
         mechanisms.append("SCRAM-SHA1 ");
 #endif
         mechanisms.append("PLAIN");
-    }
-
-    static void TearDownTestCase() {
-        free_user_ht();
     }
 
 protected:
