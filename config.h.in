@@ -55,11 +55,6 @@ typedef HANDLE pid_t;
 
 #else
 
-#if !defined(__cplusplus) && !defined(linux) && !defined(__GNUC__)
-typedef unsigned long long uint64_t;
-typedef long long int64_t;
-#endif
-
 #define closesocket(a) close(a)
 typedef int SOCKET;
 #define SOCKETPAIR_AF AF_UNIX
