@@ -43,7 +43,6 @@ function(add_unit_test_suite)
         MESSAGE(FATAL_ERROR "add_unit_test_suite: SOURCE must be specified")
     endif()
 
-    message(STATUS "Adding memcached-${arg_NAME}-tests from ${arg_SOURCE}")
     add_executable(memcached-${arg_NAME}-tests ${arg_SOURCE}
                    $<TARGET_OBJECTS:memcached_testapp_core>)
     target_compile_options(memcached-${arg_NAME}-tests PRIVATE ${CB_CXX_FLAGS_NO_OPTIMIZE})
