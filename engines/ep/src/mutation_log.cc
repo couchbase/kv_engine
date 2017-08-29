@@ -1061,6 +1061,11 @@ void MutationLogHarvester::apply(void *arg, mlCallbackWithQueue mlc) {
             }
         }
 
+        if (committed[vb].empty()) {
+            // No valid items for this vBucket; move to next.
+            continue;
+        }
+
         if (!mlc(vb, committed[vb], arg)) {
             return;
         }

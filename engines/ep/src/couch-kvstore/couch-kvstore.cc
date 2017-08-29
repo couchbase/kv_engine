@@ -531,6 +531,9 @@ GetValue CouchKVStore::getWithHeader(void* dbHandle,
 }
 
 void CouchKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms) {
+    if (itms.empty()) {
+        return;
+    }
     int numItems = itms.size();
     uint64_t fileRev = dbFileRevMap[vb];
 
