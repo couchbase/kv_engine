@@ -224,7 +224,7 @@ public:
                  const std::string& name,
                  uint32_t flags,
                  uint32_t opaque,
-                 uint16_t vb,
+                 VBucket& vbucket,
                  uint64_t st_seqno,
                  uint64_t en_seqno,
                  uint64_t vb_uuid,
