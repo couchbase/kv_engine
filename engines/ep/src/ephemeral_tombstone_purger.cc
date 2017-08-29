@@ -91,7 +91,7 @@ bool EphTombstoneHTCleaner::run() {
                         getDeletedPurgeAge()));
         bucketPosition = bucket.startPosition();
 
-        LOG(EXTENSION_LOG_NOTICE /*INFO*/,
+        LOG(EXTENSION_LOG_INFO,
             "%s starting with purge age:%" PRIu64 "s",
             getDescription().data(),
             uint64_t(getDeletedPurgeAge()));
@@ -121,7 +121,7 @@ bool EphTombstoneHTCleaner::run() {
 
     // Completed a full pass. Sleep ourselves, and wakeup the StaleItemDeleter
     // task to complete the purge.
-    LOG(EXTENSION_LOG_NOTICE /*INFO*/,
+    LOG(EXTENSION_LOG_INFO,
         "%s %s. Took %" PRIu64 " ms. Visited %" PRIu64 " items, marked %" PRIu64
         " items as stale. Sleeping for %" PRIu64 " seconds.",
         getDescription().data(),
