@@ -22,6 +22,7 @@
 #include "mc_time.h"
 
 #include <mcbp/mcbp.h>
+#include <phosphor/phosphor.h>
 #include <platform/cb_malloc.h>
 #include <platform/checked_snprintf.h>
 #include <platform/strerror.h>
@@ -1086,6 +1087,7 @@ void McbpConnection::maybeLogSlowCommand(
             }
         }
 
+        TRACE_INSTANT2("memcached/slow", "Slow cmd", "opcode", cmd, "connection_id", getId());
         LOG_WARNING(NULL,
                     "%u: Slow %s operation on connection: %s (%s)%s"
                     " opaque:0x%08x",
