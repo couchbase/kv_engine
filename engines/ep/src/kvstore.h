@@ -333,7 +333,7 @@ public:
     Histogram<hrtime_t> snapshotHisto;
 
     // Count and histogram filesystem read()s per getMulti() request
-    size_t getMultiFsReadCount;
+    Couchbase::RelaxedAtomic<size_t> getMultiFsReadCount;
     Histogram<uint32_t> getMultiFsReadHisto;
 
     // Histogram of filesystem read()s per getMulti() request, divided by
