@@ -45,6 +45,8 @@ std::string to_string(cb::mcbp::Feature feature) {
         return "JSON";
     case cb::mcbp::Feature::Duplex:
         return "Duplex";
+    case cb::mcbp::Feature::ClustermapChangeNotification:
+        return "Clustermap change notification";
     }
 
     throw std::invalid_argument(

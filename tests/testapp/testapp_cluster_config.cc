@@ -136,3 +136,22 @@ TEST_P(ClusterConfigTest, test_MB_17506_no_dedupe) {
 TEST_P(ClusterConfigTest, test_MB_17506_dedupe) {
     test_MB_17506(true);
 }
+
+TEST_P(ClusterConfigTest, Enable_CCCP_Push_Notifications) {
+    auto& conn = getConnection();
+    conn.setDuplexSupport(false);
+    conn.setClustermapChangeNotification(false);
+
+    try {
+        conn.setClustermapChangeNotification(true);
+        FAIL() << "It should not be possible to enable CCCP push notifications "
+                  "without duplex";
+    } catch (const std::runtime_error& e) {
+        EXPECT_STREQ("Failed to enable Clustermap change notification",
+                     e.what());
+    }
+
+    // With duplex we should we good to go
+    conn.setDuplexSupport(true);
+    conn.setClustermapChangeNotification(true);
+}

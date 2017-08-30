@@ -1513,6 +1513,7 @@ The following features is defined:
 | 0x000a | Snappy |
 | 0x000b | JSON |
 | 0x000c | Duplex |
+| 0x000d | Clustermap change notification |
 
 * `Datatype` - The client understands the 'non-null' values in the
   [datatype field](#data-types). The server expects the client to fill
@@ -1556,6 +1557,10 @@ The following features is defined:
              that the server may send requests back to the client.
              These messages is identified by the magic values of
              0x82 (request) and 0x83 (response).
+* `Clustermap change notification` - The client wants the server to
+  notify the client with new cluster maps whenever ns_server push
+  them to memcached. (note that this notification is subject to
+  deduplication of the vbucket map received as part of not my vbucket)
 
 Response:
 

@@ -43,7 +43,12 @@ enum class Feature : uint16_t {
     COLLECTIONS = 0x09,
     SNAPPY = 0x0a,
     JSON = 0x0b,
-    Duplex = 0x0c
+    Duplex = 0x0c,
+    /**
+     * Request the server to push any cluster maps stored by ns_server into
+     * one of the buckets the client have access to.
+     */
+    ClustermapChangeNotification = 0x0d
 };
 
 } // namespace mcbp

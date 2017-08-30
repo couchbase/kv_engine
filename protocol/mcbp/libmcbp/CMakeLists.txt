@@ -1,6 +1,7 @@
 add_library(mcbp STATIC
             ${Memcached_SOURCE_DIR}/include/mcbp/mcbp.h
             ${Memcached_SOURCE_DIR}/include/mcbp/protocol/datatype.h
+            ${Memcached_SOURCE_DIR}/include/mcbp/protocol/feature.h
             ${Memcached_SOURCE_DIR}/include/mcbp/protocol/framebuilder.h
             ${Memcached_SOURCE_DIR}/include/mcbp/protocol/magic.h
             ${Memcached_SOURCE_DIR}/include/mcbp/protocol/opcode.h

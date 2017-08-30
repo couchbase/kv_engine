@@ -372,6 +372,14 @@ public:
         Connection::duplex_support = duplex_support;
     }
 
+    bool isClustermapChangeNotificationSupported() const {
+        return cccp.load(std::memory_order_acquire);
+    }
+
+    void setClustermapChangeNotificationSupported(bool cccp) {
+        Connection::cccp.store(cccp, std::memory_order_release);
+    }
+
     /**
      * Remap the current error code
      *
@@ -522,6 +530,8 @@ protected:
      * commands)
      */
     bool duplex_support{false};
+
+    std::atomic_bool cccp{false};
 
     /**
      * The total time this connection been on the CPU

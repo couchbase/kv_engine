@@ -648,6 +648,10 @@ public:
         setFeature(cb::mcbp::Feature::Duplex, enable);
     }
 
+    void setClustermapChangeNotification(bool enable) {
+        setFeature(cb::mcbp::Feature::ClustermapChangeNotification, enable);
+    }
+
     /**
      * Get the error map from the server
      *

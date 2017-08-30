@@ -44,6 +44,7 @@ void process_hello_packet_executor(McbpConnection* c, void* packet) {
     c->setXerrorSupport(false);
     c->setCollectionsSupported(false);
     c->setDuplexSupported(false);
+    c->setClustermapChangeNotificationSupported(false);
 
     if (!key.empty()) {
         log_buffer.append("[");
@@ -122,6 +123,13 @@ void process_hello_packet_executor(McbpConnection* c, void* packet) {
         case cb::mcbp::Feature::Duplex:
             if (!c->isDuplexSupported()) {
                 c->setDuplexSupported(true);
+                added = true;
+            }
+            break;
+        case cb::mcbp::Feature::ClustermapChangeNotification:
+            if (!c->isClustermapChangeNotificationSupported() &&
+                c->isDuplexSupported()) {
+                c->setClustermapChangeNotificationSupported(true);
                 added = true;
             }
             break;
