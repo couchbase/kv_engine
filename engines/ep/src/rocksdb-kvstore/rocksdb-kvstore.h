@@ -262,10 +262,7 @@ public:
 
     scan_error_t scan(ScanContext* sctx) override;
 
-    void destroyScanContext(ScanContext* ctx) override {
-        // TODO vmx 2016-10-29: implement
-        delete ctx;
-    }
+    void destroyScanContext(ScanContext* ctx) override;
 
     bool persistCollectionsManifestItem(uint16_t vbid,
                                         const Item& manifestItem) override {
@@ -355,6 +352,18 @@ private:
     std::mutex writeLock;
 
     std::atomic<size_t> scanCounter; // atomic counter for generating scan id
+
+    struct SnapshotDeleter {
+        SnapshotDeleter(rocksdb::DB& db) : db(db) {
+        }
+        void operator()(const rocksdb::Snapshot* s) {
+            db.ReleaseSnapshot(s);
+        }
+        rocksdb::DB& db;
+    };
+    using SnapshotPtr =
+            std::unique_ptr<const rocksdb::Snapshot, SnapshotDeleter>;
+    std::map<size_t, SnapshotPtr> scanSnapshots;
 
     Logger& logger;
 };

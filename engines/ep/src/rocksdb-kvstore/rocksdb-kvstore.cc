@@ -670,6 +670,7 @@ ScanContext* RocksDBKVStore::initScanContext(
         DocumentFilter options,
         ValueFilter valOptions) {
     size_t scanId = scanCounter++;
+    scanSnapshots.emplace(scanId, SnapshotPtr(db->GetSnapshot(), *db));
     // As we cannot efficiently determine how many documents this scan will
     // find, we approximate this value with the seqno difference + 1
     // as scan is supposed to be inclusive at both ends,
@@ -707,7 +708,7 @@ scan_error_t RocksDBKVStore::scan(ScanContext* ctx) {
                                      : GetMetaOnly::No;
 
     rocksdb::ReadOptions snapshotOpts{rocksdb::ReadOptions()};
-    snapshotOpts.snapshot = db->GetSnapshot();
+    snapshotOpts.snapshot = scanSnapshots.at(ctx->scanId).get();
 
     std::unique_ptr<rocksdb::Iterator> it(
             db->NewIterator(snapshotOpts, seqnoFamilyHandle.get()));
@@ -798,4 +799,14 @@ scan_error_t RocksDBKVStore::scan(ScanContext* ctx) {
     cb_assert(it->status().ok()); // Check for any errors found during the scan
 
     return scan_success;
+}
+
+void RocksDBKVStore::destroyScanContext(ScanContext* ctx) {
+    // TODO RDB: Might be nice to have the snapshot in the ctx and
+    // release it on destruction
+    auto it = scanSnapshots.find(ctx->scanId);
+    if (it != scanSnapshots.end()) {
+        scanSnapshots.erase(it);
+    }
+    delete ctx;
 }
