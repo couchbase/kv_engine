@@ -141,14 +141,9 @@ class FailoverTable {
     void addStats(const void* cookie, uint16_t vbid, ADD_STAT add_stat);
 
     /**
-     * Adds the failover table to a response
-     *
-     * @param cookie the connection object requesting stats
-     * @param callback the callback used to add the failover table
+     * Returns a vector with the current failover table entries.
      */
-    ENGINE_ERROR_CODE addFailoverLog(const void* cookie,
-                                     dcp_add_failover_log callback);
-
+    std::vector<vbucket_failover_t> getFailoverLog();
 
     void replaceFailoverLog(uint8_t* bytes, uint32_t length);
 

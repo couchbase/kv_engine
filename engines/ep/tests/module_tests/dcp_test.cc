@@ -75,6 +75,7 @@ protected:
         DCPTest::SetUp();
         vb0 = engine->getVBucket(0);
         EXPECT_TRUE(vb0) << "Failed to get valid VBucket object for id 0";
+        callbackCount = 0;
     }
 
     void TearDown() override {
@@ -203,13 +204,19 @@ protected:
     static ENGINE_ERROR_CODE fakeDcpAddFailoverLog(vbucket_failover_t* entry,
                                                    size_t nentries,
                                                    const void *cookie) {
+        callbackCount++;
         return ENGINE_SUCCESS;
     }
 
+    // callbackCount needs to be static as its used inside of the static
+    // function fakeDcpAddFailoverLog.
+    static int callbackCount;
     mock_dcp_producer_t producer;
     stream_t stream;
     VBucketPtr vb0;
 };
+
+int StreamTest::callbackCount = 0;
 
 /*
  * Test that when have a producer with IncludeValue and IncludeXattrs both set
@@ -846,6 +853,39 @@ TEST_P(StreamTest, RollbackDueToPurge) {
                                       StreamTest::fakeDcpAddFailoverLog));
     EXPECT_EQ(0, rollbackSeqno);
     destroy_dcp_stream();
+}
+
+/*
+ * Test to ensure that when a streamRequest is made to a dead vbucket, we
+ * (1) return not my vbucket.
+ * (2) do not invoke the callback function (which is passed as parameter).
+ * The reason we don't want to invoke the callback function is that it will
+ * invoke mcbp_response_handler and so generate a response (ENGINE_SUCCESS) and
+ * then when we continue the execution of the streamRequest function we generate
+ * a second response (ENGINE_NOT_MY_VBUCKET).
+ */
+TEST_P(StreamTest, MB_25820_callback_not_invoked_on_dead_vb_stream_request) {
+    setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::No);
+    ASSERT_EQ(ENGINE_SUCCESS,
+              engine->getKVBucket()->setVBucketState(vbid,
+                                                     vbucket_state_dead,
+                                                     true));
+    uint64_t vbUuid = vb0->failovers->getLatestUUID();
+    uint64_t rollbackSeqno;
+    // Given the vbucket state is dead we should return not my vbucket.
+    EXPECT_EQ(ENGINE_NOT_MY_VBUCKET,
+              producer->streamRequest(/*flags*/ 0,
+                                      /*opaque*/ 0,
+                                      /*vbucket*/ 0,
+                                      /*start_seqno*/ 0,
+                                      /*end_seqno*/ 0,
+                                      vbUuid,
+                                      /*snap_start*/ 0,
+                                      /*snap_end*/ 0,
+                                      &rollbackSeqno,
+                                      StreamTest::fakeDcpAddFailoverLog));
+    // The callback function past to streamRequest should not be invoked.
+    ASSERT_EQ(0, callbackCount);
 }
 
 class CacheCallbackTest : public StreamTest {

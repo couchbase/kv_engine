@@ -274,28 +274,16 @@ void FailoverTable::addStats(const void* cookie, uint16_t vbid,
     }
 }
 
-ENGINE_ERROR_CODE FailoverTable::addFailoverLog(const void* cookie,
-                                                dcp_add_failover_log callback) {
+std::vector<vbucket_failover_t> FailoverTable::getFailoverLog() {
     std::lock_guard<std::mutex> lh(lock);
-    ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
-    size_t logsize = table.size();
-
-    vbucket_failover_t *logentries = new vbucket_failover_t[logsize];
-    vbucket_failover_t *logentry = logentries;
-
-    table_t::iterator itr;
-    for(itr = table.begin(); itr != table.end(); ++itr) {
-        logentry->uuid = itr->vb_uuid;
-        logentry->seqno = itr->by_seqno;
-        logentry++;
+    std::vector<vbucket_failover_t> result;
+    for (const auto& entry : table) {
+        vbucket_failover_t failoverEntry;
+        failoverEntry.uuid = entry.vb_uuid;
+        failoverEntry.seqno = entry.by_seqno;
+        result.push_back(failoverEntry);
     }
-
-    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
-    rv = callback(logentries, logsize, cookie);
-    ObjectRegistry::onSwitchThread(epe);
-    delete[] logentries;
-
-    return rv;
+    return result;
 }
 
 bool FailoverTable::loadFromJSON(cJSON *json) {
