@@ -32,10 +32,10 @@ def check_output(args):
 parser = argparse.ArgumentParser(
     description='Dump a KV-Engine trace file as JSON.')
 parser.add_argument('--mcctl', help='Path to mcctl binary')
-parser.add_argument('-H', '--hostname',
+parser.add_argument('-H', '--hostname', required=True,
                     help='host:port to connect to (e.g. localhost:11210)')
-parser.add_argument('-u', '--username', help='Username')
-parser.add_argument('-P', '--password', help='Password')
+parser.add_argument('-u', '--username', required=True, help='Username')
+parser.add_argument('-P', '--password', required=True, help='Password')
 parser.add_argument('-n', '--norestart', dest='restart', action='store_false',
                     help="Don't restart tracing after dumping the trace file")
 parser.add_argument('outfile', type=argparse.FileType('w'))
