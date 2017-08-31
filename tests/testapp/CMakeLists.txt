@@ -96,7 +96,7 @@ add_unit_test_suite(NAME require-init
 
 # Run the Arithmetic tests
 add_unit_test_suite(NAME arithmetic
-                    TIMEOUT 120
+                    TIMEOUT 240
                     SOURCE testapp_arithmetic.cc testapp_arithmetic.h)
 
 # Run the Audit tests
