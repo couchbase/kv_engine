@@ -25,7 +25,7 @@ namespace mcbp {
  * Defintion of the different command opcodes.
  * See section 3.3 Command Opcodes
  */
-enum class Opcode : uint8_t {
+enum class ClientOpcode : uint8_t {
     Get = 0x00,
     Set = 0x01,
     Add = 0x02,
@@ -331,6 +331,28 @@ enum class Opcode : uint8_t {
     /* Reserved for being able to signal invalid opcode */
     Invalid = 0xff
 };
+
+enum class ServerOpcode {
+    /**
+     * The client may subscribe to notifications for when the cluster
+     * map changes for the current bucket.
+     *
+     * To enable push notifications of cluster maps the client needs to
+     * hello with the feature ClustermapChangeNotification. The server will
+     * then send a ClustermapChangeNotification message every time the
+     * cluster map is changed. To save bandwidth (and the fact that
+     * there may be a race between the when the client is notified and
+     * the normal client ops) it will not be sent if the client received
+     * the clustermap as part of the NOT MY VBUCKET response.
+     *
+     * The packet format is still volatile, but:
+     *   revision number stored as an uint32_t in network byte order in extras
+     *   key is the bucket name
+     *   value is the actual cluster map
+     */
+    ClustermapChangeNotification = 0x01,
+};
+
 } // namespace mcbp
 } // namespace cb
 
@@ -339,11 +361,12 @@ enum class Opcode : uint8_t {
  *
  * @throws std::invalid_argument for unknown opcodes
  */
-std::string to_string(cb::mcbp::Opcode opcode);
+std::string to_string(cb::mcbp::ClientOpcode opcode);
+std::string to_string(cb::mcbp::ServerOpcode opcode);
 
 /**
  * Convert a textual representation of an opcode to an Opcode
  *
  * @throws std::invalid_argument for unknown opcodes
  */
-cb::mcbp::Opcode to_opcode(const std::string& string);
+cb::mcbp::ClientOpcode to_opcode(const std::string& string);

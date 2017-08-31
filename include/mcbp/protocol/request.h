@@ -61,12 +61,28 @@ struct Request {
         return Magic(magic);
     }
 
-    void setOpcode(Opcode opcode) {
+    void setOpcode(ClientOpcode opcode) {
+        setMagic(Magic::ClientRequest);
         Request::opcode = uint8_t(opcode);
     }
 
-    Opcode getOpcode() const {
-        return Opcode(opcode);
+    ClientOpcode getClientOpcode() const {
+        if (getMagic() != Magic::ClientRequest) {
+            throw std::logic_error("getClientOpcode: magic != client request");
+        }
+        return ClientOpcode(opcode);
+    }
+
+    void setOpcode(ServerOpcode opcode) {
+        setMagic(Magic::ServerRequest);
+        Request::opcode = uint8_t(opcode);
+    }
+
+    ServerOpcode getServerOpcode() const {
+        if (getMagic() != Magic::ServerRequest) {
+            throw std::logic_error("getServerOpcode: magic != server request");
+        }
+        return ServerOpcode(opcode);
     }
 
     void setKeylen(uint16_t value) {

@@ -52,7 +52,7 @@ public:
 };
 
 ENGINE_ERROR_CODE CreateRemoveBucketCommandContext::initial() {
-    if (request.getOpcode() == cb::mcbp::Opcode::CreateBucket) {
+    if (request.getClientOpcode() == cb::mcbp::ClientOpcode::CreateBucket) {
         state = State::Create;
     } else {
         state = State::Remove;

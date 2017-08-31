@@ -165,263 +165,290 @@ const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_XATTR_ORDER =
 
 using protocol_binary_command = uint8_t;
 
-const uint8_t PROTOCOL_BINARY_CMD_GET = uint8_t(cb::mcbp::Opcode::Get);
-const uint8_t PROTOCOL_BINARY_CMD_SET = uint8_t(cb::mcbp::Opcode::Set);
-const uint8_t PROTOCOL_BINARY_CMD_ADD = uint8_t(cb::mcbp::Opcode::Add);
-const uint8_t PROTOCOL_BINARY_CMD_REPLACE = uint8_t(cb::mcbp::Opcode::Replace);
-const uint8_t PROTOCOL_BINARY_CMD_DELETE = uint8_t(cb::mcbp::Opcode::Delete);
+const uint8_t PROTOCOL_BINARY_CMD_GET = uint8_t(cb::mcbp::ClientOpcode::Get);
+const uint8_t PROTOCOL_BINARY_CMD_SET = uint8_t(cb::mcbp::ClientOpcode::Set);
+const uint8_t PROTOCOL_BINARY_CMD_ADD = uint8_t(cb::mcbp::ClientOpcode::Add);
+const uint8_t PROTOCOL_BINARY_CMD_REPLACE =
+        uint8_t(cb::mcbp::ClientOpcode::Replace);
+const uint8_t PROTOCOL_BINARY_CMD_DELETE =
+        uint8_t(cb::mcbp::ClientOpcode::Delete);
 const uint8_t PROTOCOL_BINARY_CMD_INCREMENT =
-        uint8_t(cb::mcbp::Opcode::Increment);
+        uint8_t(cb::mcbp::ClientOpcode::Increment);
 const uint8_t PROTOCOL_BINARY_CMD_DECREMENT =
-        uint8_t(cb::mcbp::Opcode::Decrement);
-const uint8_t PROTOCOL_BINARY_CMD_QUIT = uint8_t(cb::mcbp::Opcode::Quit);
-const uint8_t PROTOCOL_BINARY_CMD_FLUSH = uint8_t(cb::mcbp::Opcode::Flush);
-const uint8_t PROTOCOL_BINARY_CMD_GETQ = uint8_t(cb::mcbp::Opcode::Getq);
-const uint8_t PROTOCOL_BINARY_CMD_NOOP = uint8_t(cb::mcbp::Opcode::Noop);
-const uint8_t PROTOCOL_BINARY_CMD_VERSION = uint8_t(cb::mcbp::Opcode::Version);
-const uint8_t PROTOCOL_BINARY_CMD_GETK = uint8_t(cb::mcbp::Opcode::Getk);
-const uint8_t PROTOCOL_BINARY_CMD_GETKQ = uint8_t(cb::mcbp::Opcode::Getkq);
-const uint8_t PROTOCOL_BINARY_CMD_APPEND = uint8_t(cb::mcbp::Opcode::Append);
-const uint8_t PROTOCOL_BINARY_CMD_PREPEND = uint8_t(cb::mcbp::Opcode::Prepend);
-const uint8_t PROTOCOL_BINARY_CMD_STAT = uint8_t(cb::mcbp::Opcode::Stat);
-const uint8_t PROTOCOL_BINARY_CMD_SETQ = uint8_t(cb::mcbp::Opcode::Setq);
-const uint8_t PROTOCOL_BINARY_CMD_ADDQ = uint8_t(cb::mcbp::Opcode::Addq);
+        uint8_t(cb::mcbp::ClientOpcode::Decrement);
+const uint8_t PROTOCOL_BINARY_CMD_QUIT = uint8_t(cb::mcbp::ClientOpcode::Quit);
+const uint8_t PROTOCOL_BINARY_CMD_FLUSH =
+        uint8_t(cb::mcbp::ClientOpcode::Flush);
+const uint8_t PROTOCOL_BINARY_CMD_GETQ = uint8_t(cb::mcbp::ClientOpcode::Getq);
+const uint8_t PROTOCOL_BINARY_CMD_NOOP = uint8_t(cb::mcbp::ClientOpcode::Noop);
+const uint8_t PROTOCOL_BINARY_CMD_VERSION =
+        uint8_t(cb::mcbp::ClientOpcode::Version);
+const uint8_t PROTOCOL_BINARY_CMD_GETK = uint8_t(cb::mcbp::ClientOpcode::Getk);
+const uint8_t PROTOCOL_BINARY_CMD_GETKQ =
+        uint8_t(cb::mcbp::ClientOpcode::Getkq);
+const uint8_t PROTOCOL_BINARY_CMD_APPEND =
+        uint8_t(cb::mcbp::ClientOpcode::Append);
+const uint8_t PROTOCOL_BINARY_CMD_PREPEND =
+        uint8_t(cb::mcbp::ClientOpcode::Prepend);
+const uint8_t PROTOCOL_BINARY_CMD_STAT = uint8_t(cb::mcbp::ClientOpcode::Stat);
+const uint8_t PROTOCOL_BINARY_CMD_SETQ = uint8_t(cb::mcbp::ClientOpcode::Setq);
+const uint8_t PROTOCOL_BINARY_CMD_ADDQ = uint8_t(cb::mcbp::ClientOpcode::Addq);
 const uint8_t PROTOCOL_BINARY_CMD_REPLACEQ =
-        uint8_t(cb::mcbp::Opcode::Replaceq);
-const uint8_t PROTOCOL_BINARY_CMD_DELETEQ = uint8_t(cb::mcbp::Opcode::Deleteq);
+        uint8_t(cb::mcbp::ClientOpcode::Replaceq);
+const uint8_t PROTOCOL_BINARY_CMD_DELETEQ =
+        uint8_t(cb::mcbp::ClientOpcode::Deleteq);
 const uint8_t PROTOCOL_BINARY_CMD_INCREMENTQ =
-        uint8_t(cb::mcbp::Opcode::Incrementq);
+        uint8_t(cb::mcbp::ClientOpcode::Incrementq);
 const uint8_t PROTOCOL_BINARY_CMD_DECREMENTQ =
-        uint8_t(cb::mcbp::Opcode::Decrementq);
-const uint8_t PROTOCOL_BINARY_CMD_QUITQ = uint8_t(cb::mcbp::Opcode::Quitq);
-const uint8_t PROTOCOL_BINARY_CMD_FLUSHQ = uint8_t(cb::mcbp::Opcode::Flushq);
-const uint8_t PROTOCOL_BINARY_CMD_APPENDQ = uint8_t(cb::mcbp::Opcode::Appendq);
+        uint8_t(cb::mcbp::ClientOpcode::Decrementq);
+const uint8_t PROTOCOL_BINARY_CMD_QUITQ =
+        uint8_t(cb::mcbp::ClientOpcode::Quitq);
+const uint8_t PROTOCOL_BINARY_CMD_FLUSHQ =
+        uint8_t(cb::mcbp::ClientOpcode::Flushq);
+const uint8_t PROTOCOL_BINARY_CMD_APPENDQ =
+        uint8_t(cb::mcbp::ClientOpcode::Appendq);
 const uint8_t PROTOCOL_BINARY_CMD_PREPENDQ =
-        uint8_t(cb::mcbp::Opcode::Prependq);
+        uint8_t(cb::mcbp::ClientOpcode::Prependq);
 const uint8_t PROTOCOL_BINARY_CMD_VERBOSITY =
-        uint8_t(cb::mcbp::Opcode::Verbosity);
-const uint8_t PROTOCOL_BINARY_CMD_TOUCH = uint8_t(cb::mcbp::Opcode::Touch);
-const uint8_t PROTOCOL_BINARY_CMD_GAT = uint8_t(cb::mcbp::Opcode::Gat);
-const uint8_t PROTOCOL_BINARY_CMD_GATQ = uint8_t(cb::mcbp::Opcode::Gatq);
-const uint8_t PROTOCOL_BINARY_CMD_HELLO = uint8_t(cb::mcbp::Opcode::Hello);
+        uint8_t(cb::mcbp::ClientOpcode::Verbosity);
+const uint8_t PROTOCOL_BINARY_CMD_TOUCH =
+        uint8_t(cb::mcbp::ClientOpcode::Touch);
+const uint8_t PROTOCOL_BINARY_CMD_GAT = uint8_t(cb::mcbp::ClientOpcode::Gat);
+const uint8_t PROTOCOL_BINARY_CMD_GATQ = uint8_t(cb::mcbp::ClientOpcode::Gatq);
+const uint8_t PROTOCOL_BINARY_CMD_HELLO =
+        uint8_t(cb::mcbp::ClientOpcode::Hello);
 const uint8_t PROTOCOL_BINARY_CMD_SASL_LIST_MECHS =
-        uint8_t(cb::mcbp::Opcode::SaslListMechs);
+        uint8_t(cb::mcbp::ClientOpcode::SaslListMechs);
 const uint8_t PROTOCOL_BINARY_CMD_SASL_AUTH =
-        uint8_t(cb::mcbp::Opcode::SaslAuth);
+        uint8_t(cb::mcbp::ClientOpcode::SaslAuth);
 const uint8_t PROTOCOL_BINARY_CMD_SASL_STEP =
-        uint8_t(cb::mcbp::Opcode::SaslStep);
+        uint8_t(cb::mcbp::ClientOpcode::SaslStep);
 const uint8_t PROTOCOL_BINARY_CMD_IOCTL_GET =
-        uint8_t(cb::mcbp::Opcode::IoctlGet);
+        uint8_t(cb::mcbp::ClientOpcode::IoctlGet);
 const uint8_t PROTOCOL_BINARY_CMD_IOCTL_SET =
-        uint8_t(cb::mcbp::Opcode::IoctlSet);
+        uint8_t(cb::mcbp::ClientOpcode::IoctlSet);
 const uint8_t PROTOCOL_BINARY_CMD_CONFIG_VALIDATE =
-        uint8_t(cb::mcbp::Opcode::ConfigValidate);
+        uint8_t(cb::mcbp::ClientOpcode::ConfigValidate);
 const uint8_t PROTOCOL_BINARY_CMD_CONFIG_RELOAD =
-        uint8_t(cb::mcbp::Opcode::ConfigReload);
+        uint8_t(cb::mcbp::ClientOpcode::ConfigReload);
 const uint8_t PROTOCOL_BINARY_CMD_AUDIT_PUT =
-        uint8_t(cb::mcbp::Opcode::AuditPut);
+        uint8_t(cb::mcbp::ClientOpcode::AuditPut);
 const uint8_t PROTOCOL_BINARY_CMD_AUDIT_CONFIG_RELOAD =
-        uint8_t(cb::mcbp::Opcode::AuditConfigReload);
+        uint8_t(cb::mcbp::ClientOpcode::AuditConfigReload);
 const uint8_t PROTOCOL_BINARY_CMD_SHUTDOWN =
-        uint8_t(cb::mcbp::Opcode::Shutdown);
-const uint8_t PROTOCOL_BINARY_CMD_RGET = uint8_t(cb::mcbp::Opcode::Rget);
-const uint8_t PROTOCOL_BINARY_CMD_RSET = uint8_t(cb::mcbp::Opcode::Rset);
-const uint8_t PROTOCOL_BINARY_CMD_RSETQ = uint8_t(cb::mcbp::Opcode::Rsetq);
-const uint8_t PROTOCOL_BINARY_CMD_RAPPEND = uint8_t(cb::mcbp::Opcode::Rappend);
+        uint8_t(cb::mcbp::ClientOpcode::Shutdown);
+const uint8_t PROTOCOL_BINARY_CMD_RGET = uint8_t(cb::mcbp::ClientOpcode::Rget);
+const uint8_t PROTOCOL_BINARY_CMD_RSET = uint8_t(cb::mcbp::ClientOpcode::Rset);
+const uint8_t PROTOCOL_BINARY_CMD_RSETQ =
+        uint8_t(cb::mcbp::ClientOpcode::Rsetq);
+const uint8_t PROTOCOL_BINARY_CMD_RAPPEND =
+        uint8_t(cb::mcbp::ClientOpcode::Rappend);
 const uint8_t PROTOCOL_BINARY_CMD_RAPPENDQ =
-        uint8_t(cb::mcbp::Opcode::Rappendq);
+        uint8_t(cb::mcbp::ClientOpcode::Rappendq);
 const uint8_t PROTOCOL_BINARY_CMD_RPREPEND =
-        uint8_t(cb::mcbp::Opcode::Rprepend);
+        uint8_t(cb::mcbp::ClientOpcode::Rprepend);
 const uint8_t PROTOCOL_BINARY_CMD_RPREPENDQ =
-        uint8_t(cb::mcbp::Opcode::Rprependq);
-const uint8_t PROTOCOL_BINARY_CMD_RDELETE = uint8_t(cb::mcbp::Opcode::Rdelete);
+        uint8_t(cb::mcbp::ClientOpcode::Rprependq);
+const uint8_t PROTOCOL_BINARY_CMD_RDELETE =
+        uint8_t(cb::mcbp::ClientOpcode::Rdelete);
 const uint8_t PROTOCOL_BINARY_CMD_RDELETEQ =
-        uint8_t(cb::mcbp::Opcode::Rdeleteq);
-const uint8_t PROTOCOL_BINARY_CMD_RINCR = uint8_t(cb::mcbp::Opcode::Rincr);
-const uint8_t PROTOCOL_BINARY_CMD_RINCRQ = uint8_t(cb::mcbp::Opcode::Rincrq);
-const uint8_t PROTOCOL_BINARY_CMD_RDECR = uint8_t(cb::mcbp::Opcode::Rdecr);
-const uint8_t PROTOCOL_BINARY_CMD_RDECRQ = uint8_t(cb::mcbp::Opcode::Rdecrq);
+        uint8_t(cb::mcbp::ClientOpcode::Rdeleteq);
+const uint8_t PROTOCOL_BINARY_CMD_RINCR =
+        uint8_t(cb::mcbp::ClientOpcode::Rincr);
+const uint8_t PROTOCOL_BINARY_CMD_RINCRQ =
+        uint8_t(cb::mcbp::ClientOpcode::Rincrq);
+const uint8_t PROTOCOL_BINARY_CMD_RDECR =
+        uint8_t(cb::mcbp::ClientOpcode::Rdecr);
+const uint8_t PROTOCOL_BINARY_CMD_RDECRQ =
+        uint8_t(cb::mcbp::ClientOpcode::Rdecrq);
 const uint8_t PROTOCOL_BINARY_CMD_SET_VBUCKET =
-        uint8_t(cb::mcbp::Opcode::SetVbucket);
+        uint8_t(cb::mcbp::ClientOpcode::SetVbucket);
 const uint8_t PROTOCOL_BINARY_CMD_GET_VBUCKET =
-        uint8_t(cb::mcbp::Opcode::GetVbucket);
+        uint8_t(cb::mcbp::ClientOpcode::GetVbucket);
 const uint8_t PROTOCOL_BINARY_CMD_DEL_VBUCKET =
-        uint8_t(cb::mcbp::Opcode::DelVbucket);
+        uint8_t(cb::mcbp::ClientOpcode::DelVbucket);
 const uint8_t PROTOCOL_BINARY_CMD_TAP_CONNECT =
-        uint8_t(cb::mcbp::Opcode::TapConnect);
+        uint8_t(cb::mcbp::ClientOpcode::TapConnect);
 const uint8_t PROTOCOL_BINARY_CMD_TAP_MUTATION =
-        uint8_t(cb::mcbp::Opcode::TapMutation);
+        uint8_t(cb::mcbp::ClientOpcode::TapMutation);
 const uint8_t PROTOCOL_BINARY_CMD_TAP_DELETE =
-        uint8_t(cb::mcbp::Opcode::TapDelete);
+        uint8_t(cb::mcbp::ClientOpcode::TapDelete);
 const uint8_t PROTOCOL_BINARY_CMD_TAP_FLUSH =
-        uint8_t(cb::mcbp::Opcode::TapFlush);
+        uint8_t(cb::mcbp::ClientOpcode::TapFlush);
 const uint8_t PROTOCOL_BINARY_CMD_TAP_OPAQUE =
-        uint8_t(cb::mcbp::Opcode::TapOpaque);
+        uint8_t(cb::mcbp::ClientOpcode::TapOpaque);
 const uint8_t PROTOCOL_BINARY_CMD_TAP_VBUCKET_SET =
-        uint8_t(cb::mcbp::Opcode::TapVbucketSet);
+        uint8_t(cb::mcbp::ClientOpcode::TapVbucketSet);
 const uint8_t PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_START =
-        uint8_t(cb::mcbp::Opcode::TapCheckpointStart);
+        uint8_t(cb::mcbp::ClientOpcode::TapCheckpointStart);
 const uint8_t PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_END =
-        uint8_t(cb::mcbp::Opcode::TapCheckpointEnd);
+        uint8_t(cb::mcbp::ClientOpcode::TapCheckpointEnd);
 const uint8_t PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS =
-        uint8_t(cb::mcbp::Opcode::GetAllVbSeqnos);
-const uint8_t PROTOCOL_BINARY_CMD_DCP_OPEN = uint8_t(cb::mcbp::Opcode::DcpOpen);
+        uint8_t(cb::mcbp::ClientOpcode::GetAllVbSeqnos);
+const uint8_t PROTOCOL_BINARY_CMD_DCP_OPEN =
+        uint8_t(cb::mcbp::ClientOpcode::DcpOpen);
 const uint8_t PROTOCOL_BINARY_CMD_DCP_ADD_STREAM =
-        uint8_t(cb::mcbp::Opcode::DcpAddStream);
+        uint8_t(cb::mcbp::ClientOpcode::DcpAddStream);
 const uint8_t PROTOCOL_BINARY_CMD_DCP_CLOSE_STREAM =
-        uint8_t(cb::mcbp::Opcode::DcpCloseStream);
+        uint8_t(cb::mcbp::ClientOpcode::DcpCloseStream);
 const uint8_t PROTOCOL_BINARY_CMD_DCP_STREAM_REQ =
-        uint8_t(cb::mcbp::Opcode::DcpStreamReq);
+        uint8_t(cb::mcbp::ClientOpcode::DcpStreamReq);
 const uint8_t PROTOCOL_BINARY_CMD_DCP_GET_FAILOVER_LOG =
-        uint8_t(cb::mcbp::Opcode::DcpGetFailoverLog);
+        uint8_t(cb::mcbp::ClientOpcode::DcpGetFailoverLog);
 const uint8_t PROTOCOL_BINARY_CMD_DCP_STREAM_END =
-        uint8_t(cb::mcbp::Opcode::DcpStreamEnd);
+        uint8_t(cb::mcbp::ClientOpcode::DcpStreamEnd);
 const uint8_t PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER =
-        uint8_t(cb::mcbp::Opcode::DcpSnapshotMarker);
+        uint8_t(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
 const uint8_t PROTOCOL_BINARY_CMD_DCP_MUTATION =
-        uint8_t(cb::mcbp::Opcode::DcpMutation);
+        uint8_t(cb::mcbp::ClientOpcode::DcpMutation);
 const uint8_t PROTOCOL_BINARY_CMD_DCP_DELETION =
-        uint8_t(cb::mcbp::Opcode::DcpDeletion);
+        uint8_t(cb::mcbp::ClientOpcode::DcpDeletion);
 const uint8_t PROTOCOL_BINARY_CMD_DCP_EXPIRATION =
-        uint8_t(cb::mcbp::Opcode::DcpExpiration);
+        uint8_t(cb::mcbp::ClientOpcode::DcpExpiration);
 const uint8_t PROTOCOL_BINARY_CMD_DCP_FLUSH =
-        uint8_t(cb::mcbp::Opcode::DcpFlush);
+        uint8_t(cb::mcbp::ClientOpcode::DcpFlush);
 const uint8_t PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE =
-        uint8_t(cb::mcbp::Opcode::DcpSetVbucketState);
-const uint8_t PROTOCOL_BINARY_CMD_DCP_NOOP = uint8_t(cb::mcbp::Opcode::DcpNoop);
+        uint8_t(cb::mcbp::ClientOpcode::DcpSetVbucketState);
+const uint8_t PROTOCOL_BINARY_CMD_DCP_NOOP =
+        uint8_t(cb::mcbp::ClientOpcode::DcpNoop);
 const uint8_t PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT =
-        uint8_t(cb::mcbp::Opcode::DcpBufferAcknowledgement);
+        uint8_t(cb::mcbp::ClientOpcode::DcpBufferAcknowledgement);
 const uint8_t PROTOCOL_BINARY_CMD_DCP_CONTROL =
-        uint8_t(cb::mcbp::Opcode::DcpControl);
+        uint8_t(cb::mcbp::ClientOpcode::DcpControl);
 const uint8_t PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT =
-        uint8_t(cb::mcbp::Opcode::DcpSystemEvent);
+        uint8_t(cb::mcbp::ClientOpcode::DcpSystemEvent);
 const uint8_t PROTOCOL_BINARY_CMD_STOP_PERSISTENCE =
-        uint8_t(cb::mcbp::Opcode::StopPersistence);
+        uint8_t(cb::mcbp::ClientOpcode::StopPersistence);
 const uint8_t PROTOCOL_BINARY_CMD_START_PERSISTENCE =
-        uint8_t(cb::mcbp::Opcode::StartPersistence);
+        uint8_t(cb::mcbp::ClientOpcode::StartPersistence);
 const uint8_t PROTOCOL_BINARY_CMD_SET_PARAM =
-        uint8_t(cb::mcbp::Opcode::SetParam);
+        uint8_t(cb::mcbp::ClientOpcode::SetParam);
 const uint8_t PROTOCOL_BINARY_CMD_GET_REPLICA =
-        uint8_t(cb::mcbp::Opcode::GetReplica);
+        uint8_t(cb::mcbp::ClientOpcode::GetReplica);
 const uint8_t PROTOCOL_BINARY_CMD_CREATE_BUCKET =
-        uint8_t(cb::mcbp::Opcode::CreateBucket);
+        uint8_t(cb::mcbp::ClientOpcode::CreateBucket);
 const uint8_t PROTOCOL_BINARY_CMD_DELETE_BUCKET =
-        uint8_t(cb::mcbp::Opcode::DeleteBucket);
+        uint8_t(cb::mcbp::ClientOpcode::DeleteBucket);
 const uint8_t PROTOCOL_BINARY_CMD_LIST_BUCKETS =
-        uint8_t(cb::mcbp::Opcode::ListBuckets);
+        uint8_t(cb::mcbp::ClientOpcode::ListBuckets);
 const uint8_t PROTOCOL_BINARY_CMD_SELECT_BUCKET =
-        uint8_t(cb::mcbp::Opcode::SelectBucket);
+        uint8_t(cb::mcbp::ClientOpcode::SelectBucket);
 const uint8_t PROTOCOL_BINARY_CMD_OBSERVE_SEQNO =
-        uint8_t(cb::mcbp::Opcode::ObserveSeqno);
-const uint8_t PROTOCOL_BINARY_CMD_OBSERVE = uint8_t(cb::mcbp::Opcode::Observe);
+        uint8_t(cb::mcbp::ClientOpcode::ObserveSeqno);
+const uint8_t PROTOCOL_BINARY_CMD_OBSERVE =
+        uint8_t(cb::mcbp::ClientOpcode::Observe);
 const uint8_t PROTOCOL_BINARY_CMD_EVICT_KEY =
-        uint8_t(cb::mcbp::Opcode::EvictKey);
+        uint8_t(cb::mcbp::ClientOpcode::EvictKey);
 const uint8_t PROTOCOL_BINARY_CMD_GET_LOCKED =
-        uint8_t(cb::mcbp::Opcode::GetLocked);
+        uint8_t(cb::mcbp::ClientOpcode::GetLocked);
 const uint8_t PROTOCOL_BINARY_CMD_UNLOCK_KEY =
-        uint8_t(cb::mcbp::Opcode::UnlockKey);
+        uint8_t(cb::mcbp::ClientOpcode::UnlockKey);
 const uint8_t PROTOCOL_BINARY_CMD_LAST_CLOSED_CHECKPOINT =
-        uint8_t(cb::mcbp::Opcode::LastClosedCheckpoint);
-const uint8_t PROTOCOL_BINARY_CMD_GET_META = uint8_t(cb::mcbp::Opcode::GetMeta);
+        uint8_t(cb::mcbp::ClientOpcode::LastClosedCheckpoint);
+const uint8_t PROTOCOL_BINARY_CMD_GET_META =
+        uint8_t(cb::mcbp::ClientOpcode::GetMeta);
 const uint8_t PROTOCOL_BINARY_CMD_GETQ_META =
-        uint8_t(cb::mcbp::Opcode::GetqMeta);
+        uint8_t(cb::mcbp::ClientOpcode::GetqMeta);
 const uint8_t PROTOCOL_BINARY_CMD_SET_WITH_META =
-        uint8_t(cb::mcbp::Opcode::SetWithMeta);
+        uint8_t(cb::mcbp::ClientOpcode::SetWithMeta);
 const uint8_t PROTOCOL_BINARY_CMD_SETQ_WITH_META =
-        uint8_t(cb::mcbp::Opcode::SetqWithMeta);
+        uint8_t(cb::mcbp::ClientOpcode::SetqWithMeta);
 const uint8_t PROTOCOL_BINARY_CMD_ADD_WITH_META =
-        uint8_t(cb::mcbp::Opcode::AddWithMeta);
+        uint8_t(cb::mcbp::ClientOpcode::AddWithMeta);
 const uint8_t PROTOCOL_BINARY_CMD_ADDQ_WITH_META =
-        uint8_t(cb::mcbp::Opcode::AddqWithMeta);
+        uint8_t(cb::mcbp::ClientOpcode::AddqWithMeta);
 const uint8_t PROTOCOL_BINARY_CMD_SNAPSHOT_VB_STATES =
-        uint8_t(cb::mcbp::Opcode::SnapshotVbStates);
+        uint8_t(cb::mcbp::ClientOpcode::SnapshotVbStates);
 const uint8_t PROTOCOL_BINARY_CMD_VBUCKET_BATCH_COUNT =
-        uint8_t(cb::mcbp::Opcode::VbucketBatchCount);
+        uint8_t(cb::mcbp::ClientOpcode::VbucketBatchCount);
 const uint8_t PROTOCOL_BINARY_CMD_DEL_WITH_META =
-        uint8_t(cb::mcbp::Opcode::DelWithMeta);
+        uint8_t(cb::mcbp::ClientOpcode::DelWithMeta);
 const uint8_t PROTOCOL_BINARY_CMD_DELQ_WITH_META =
-        uint8_t(cb::mcbp::Opcode::DelqWithMeta);
+        uint8_t(cb::mcbp::ClientOpcode::DelqWithMeta);
 const uint8_t PROTOCOL_BINARY_CMD_CREATE_CHECKPOINT =
-        uint8_t(cb::mcbp::Opcode::CreateCheckpoint);
+        uint8_t(cb::mcbp::ClientOpcode::CreateCheckpoint);
 const uint8_t PROTOCOL_BINARY_CMD_NOTIFY_VBUCKET_UPDATE =
-        uint8_t(cb::mcbp::Opcode::NotifyVbucketUpdate);
+        uint8_t(cb::mcbp::ClientOpcode::NotifyVbucketUpdate);
 const uint8_t PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC =
-        uint8_t(cb::mcbp::Opcode::EnableTraffic);
+        uint8_t(cb::mcbp::ClientOpcode::EnableTraffic);
 const uint8_t PROTOCOL_BINARY_CMD_DISABLE_TRAFFIC =
-        uint8_t(cb::mcbp::Opcode::DisableTraffic);
+        uint8_t(cb::mcbp::ClientOpcode::DisableTraffic);
 const uint8_t PROTOCOL_BINARY_CMD_CHECKPOINT_PERSISTENCE =
-        uint8_t(cb::mcbp::Opcode::CheckpointPersistence);
+        uint8_t(cb::mcbp::ClientOpcode::CheckpointPersistence);
 const uint8_t PROTOCOL_BINARY_CMD_RETURN_META =
-        uint8_t(cb::mcbp::Opcode::ReturnMeta);
+        uint8_t(cb::mcbp::ClientOpcode::ReturnMeta);
 const uint8_t PROTOCOL_BINARY_CMD_COMPACT_DB =
-        uint8_t(cb::mcbp::Opcode::CompactDb);
+        uint8_t(cb::mcbp::ClientOpcode::CompactDb);
 const uint8_t PROTOCOL_BINARY_CMD_SET_CLUSTER_CONFIG =
-        uint8_t(cb::mcbp::Opcode::SetClusterConfig);
+        uint8_t(cb::mcbp::ClientOpcode::SetClusterConfig);
 const uint8_t PROTOCOL_BINARY_CMD_GET_CLUSTER_CONFIG =
-        uint8_t(cb::mcbp::Opcode::GetClusterConfig);
+        uint8_t(cb::mcbp::ClientOpcode::GetClusterConfig);
 const uint8_t PROTOCOL_BINARY_CMD_GET_RANDOM_KEY =
-        uint8_t(cb::mcbp::Opcode::GetRandomKey);
+        uint8_t(cb::mcbp::ClientOpcode::GetRandomKey);
 const uint8_t PROTOCOL_BINARY_CMD_SEQNO_PERSISTENCE =
-        uint8_t(cb::mcbp::Opcode::SeqnoPersistence);
-const uint8_t PROTOCOL_BINARY_CMD_GET_KEYS = uint8_t(cb::mcbp::Opcode::GetKeys);
+        uint8_t(cb::mcbp::ClientOpcode::SeqnoPersistence);
+const uint8_t PROTOCOL_BINARY_CMD_GET_KEYS =
+        uint8_t(cb::mcbp::ClientOpcode::GetKeys);
 const uint8_t PROTOCOL_BINARY_CMD_COLLECTIONS_SET_MANIFEST =
-        uint8_t(cb::mcbp::Opcode::CollectionsSetManifest);
+        uint8_t(cb::mcbp::ClientOpcode::CollectionsSetManifest);
 const uint8_t PROTOCOL_BINARY_CMD_SET_DRIFT_COUNTER_STATE =
-        uint8_t(cb::mcbp::Opcode::SetDriftCounterState);
+        uint8_t(cb::mcbp::ClientOpcode::SetDriftCounterState);
 const uint8_t PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME =
-        uint8_t(cb::mcbp::Opcode::GetAdjustedTime);
+        uint8_t(cb::mcbp::ClientOpcode::GetAdjustedTime);
 const uint8_t PROTOCOL_BINARY_CMD_SUBDOC_GET =
-        uint8_t(cb::mcbp::Opcode::SubdocGet);
+        uint8_t(cb::mcbp::ClientOpcode::SubdocGet);
 const uint8_t PROTOCOL_BINARY_CMD_SUBDOC_EXISTS =
-        uint8_t(cb::mcbp::Opcode::SubdocExists);
+        uint8_t(cb::mcbp::ClientOpcode::SubdocExists);
 const uint8_t PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD =
-        uint8_t(cb::mcbp::Opcode::SubdocDictAdd);
+        uint8_t(cb::mcbp::ClientOpcode::SubdocDictAdd);
 const uint8_t PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT =
-        uint8_t(cb::mcbp::Opcode::SubdocDictUpsert);
+        uint8_t(cb::mcbp::ClientOpcode::SubdocDictUpsert);
 const uint8_t PROTOCOL_BINARY_CMD_SUBDOC_DELETE =
-        uint8_t(cb::mcbp::Opcode::SubdocDelete);
+        uint8_t(cb::mcbp::ClientOpcode::SubdocDelete);
 const uint8_t PROTOCOL_BINARY_CMD_SUBDOC_REPLACE =
-        uint8_t(cb::mcbp::Opcode::SubdocReplace);
+        uint8_t(cb::mcbp::ClientOpcode::SubdocReplace);
 const uint8_t PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST =
-        uint8_t(cb::mcbp::Opcode::SubdocArrayPushLast);
+        uint8_t(cb::mcbp::ClientOpcode::SubdocArrayPushLast);
 const uint8_t PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST =
-        uint8_t(cb::mcbp::Opcode::SubdocArrayPushFirst);
+        uint8_t(cb::mcbp::ClientOpcode::SubdocArrayPushFirst);
 const uint8_t PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT =
-        uint8_t(cb::mcbp::Opcode::SubdocArrayInsert);
+        uint8_t(cb::mcbp::ClientOpcode::SubdocArrayInsert);
 const uint8_t PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE =
-        uint8_t(cb::mcbp::Opcode::SubdocArrayAddUnique);
+        uint8_t(cb::mcbp::ClientOpcode::SubdocArrayAddUnique);
 const uint8_t PROTOCOL_BINARY_CMD_SUBDOC_COUNTER =
-        uint8_t(cb::mcbp::Opcode::SubdocCounter);
+        uint8_t(cb::mcbp::ClientOpcode::SubdocCounter);
 const uint8_t PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP =
-        uint8_t(cb::mcbp::Opcode::SubdocMultiLookup);
+        uint8_t(cb::mcbp::ClientOpcode::SubdocMultiLookup);
 const uint8_t PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION =
-        uint8_t(cb::mcbp::Opcode::SubdocMultiMutation);
+        uint8_t(cb::mcbp::ClientOpcode::SubdocMultiMutation);
 const uint8_t PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT =
-        uint8_t(cb::mcbp::Opcode::SubdocGetCount);
-const uint8_t PROTOCOL_BINARY_CMD_SCRUB = uint8_t(cb::mcbp::Opcode::Scrub);
+        uint8_t(cb::mcbp::ClientOpcode::SubdocGetCount);
+const uint8_t PROTOCOL_BINARY_CMD_SCRUB =
+        uint8_t(cb::mcbp::ClientOpcode::Scrub);
 const uint8_t PROTOCOL_BINARY_CMD_ISASL_REFRESH =
-        uint8_t(cb::mcbp::Opcode::IsaslRefresh);
+        uint8_t(cb::mcbp::ClientOpcode::IsaslRefresh);
 const uint8_t PROTOCOL_BINARY_CMD_SSL_CERTS_REFRESH =
-        uint8_t(cb::mcbp::Opcode::SslCertsRefresh);
+        uint8_t(cb::mcbp::ClientOpcode::SslCertsRefresh);
 const uint8_t PROTOCOL_BINARY_CMD_GET_CMD_TIMER =
-        uint8_t(cb::mcbp::Opcode::GetCmdTimer);
+        uint8_t(cb::mcbp::ClientOpcode::GetCmdTimer);
 const uint8_t PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN =
-        uint8_t(cb::mcbp::Opcode::SetCtrlToken);
+        uint8_t(cb::mcbp::ClientOpcode::SetCtrlToken);
 const uint8_t PROTOCOL_BINARY_CMD_GET_CTRL_TOKEN =
-        uint8_t(cb::mcbp::Opcode::GetCtrlToken);
+        uint8_t(cb::mcbp::ClientOpcode::GetCtrlToken);
 const uint8_t PROTOCOL_BINARY_CMD_INIT_COMPLETE =
-        uint8_t(cb::mcbp::Opcode::InitComplete);
+        uint8_t(cb::mcbp::ClientOpcode::InitComplete);
 const uint8_t PROTOCOL_BINARY_CMD_RBAC_REFRESH =
-        uint8_t(cb::mcbp::Opcode::RbacRefresh);
+        uint8_t(cb::mcbp::ClientOpcode::RbacRefresh);
 const uint8_t PROTOCOL_BINARY_CMD_ADJUST_TIMEOFDAY =
-        uint8_t(cb::mcbp::Opcode::AdjustTimeofday);
+        uint8_t(cb::mcbp::ClientOpcode::AdjustTimeofday);
 const uint8_t PROTOCOL_BINARY_CMD_EWOULDBLOCK_CTL =
-        uint8_t(cb::mcbp::Opcode::EwouldblockCtl);
+        uint8_t(cb::mcbp::ClientOpcode::EwouldblockCtl);
 const uint8_t PROTOCOL_BINARY_CMD_GET_ERROR_MAP =
-        uint8_t(cb::mcbp::Opcode::GetErrorMap);
+        uint8_t(cb::mcbp::ClientOpcode::GetErrorMap);
 const uint8_t PROTOCOL_BINARY_CMD_DROP_PRIVILEGE =
-        uint8_t(cb::mcbp::Opcode::DropPrivilege);
-const uint8_t PROTOCOL_BINARY_CMD_INVALID = uint8_t(cb::mcbp::Opcode::Invalid);
+        uint8_t(cb::mcbp::ClientOpcode::DropPrivilege);
+const uint8_t PROTOCOL_BINARY_CMD_INVALID =
+        uint8_t(cb::mcbp::ClientOpcode::Invalid);
 
 using protocol_binary_datatype_t = uint8_t;
 #define PROTOCOL_BINARY_RAW_BYTES uint8_t(cb::mcbp::Datatype::Raw)

@@ -1055,8 +1055,9 @@ const Protocol McbpConnection::getProtocol() const {
 
 void McbpConnection::maybeLogSlowCommand(
     const std::chrono::milliseconds& elapsed) const {
-    auto opcode = cb::mcbp::Opcode(cmd);
-    const auto limit = cb::mcbp::sla::getSlowOpThreshold(cb::mcbp::Opcode(cmd));
+    auto opcode = cb::mcbp::ClientOpcode(cmd);
+    const auto limit =
+            cb::mcbp::sla::getSlowOpThreshold(cb::mcbp::ClientOpcode(cmd));
 
     if (elapsed > limit) {
         hrtime_t timings((hrtime_t)elapsed.count());
@@ -1070,7 +1071,7 @@ void McbpConnection::maybeLogSlowCommand(
         }
 
         std::string details;
-        if (opcode == cb::mcbp::Opcode::Stat) {
+        if (opcode == cb::mcbp::ClientOpcode::Stat) {
             // Log which stat command took a long time
             details.append(", key: ");
             auto key = getKey();

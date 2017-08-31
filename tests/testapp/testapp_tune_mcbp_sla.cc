@@ -24,11 +24,11 @@
  */
 class TuneMcbpSla : public TestappClientTest {
 protected:
-    std::chrono::nanoseconds getSlowThreshold(cb::mcbp::Opcode opcode);
+    std::chrono::nanoseconds getSlowThreshold(cb::mcbp::ClientOpcode opcode);
 };
 
 std::chrono::nanoseconds TuneMcbpSla::getSlowThreshold(
-        cb::mcbp::Opcode opcode) {
+        cb::mcbp::ClientOpcode opcode) {
     auto& connection = getAdminConnection();
     unique_cJSON_ptr json(cJSON_Parse(connection.ioctl_get("sla").c_str()));
 
@@ -101,23 +101,23 @@ TEST_P(TuneMcbpSla, Update) {
     getAdminConnection().ioctl_set("sla",
                                    R"({"version":1, "default":{"slow":500}})");
     EXPECT_EQ(std::chrono::milliseconds(500),
-              getSlowThreshold(cb::mcbp::Opcode::Get));
+              getSlowThreshold(cb::mcbp::ClientOpcode::Get));
     EXPECT_EQ(std::chrono::milliseconds(500),
-              getSlowThreshold(cb::mcbp::Opcode::Set));
+              getSlowThreshold(cb::mcbp::ClientOpcode::Set));
 
     getAdminConnection().ioctl_set("sla",
                                    R"({"version":1, "set":{"slow":100}})");
 
     EXPECT_EQ(std::chrono::milliseconds(500),
-              getSlowThreshold(cb::mcbp::Opcode::Get));
+              getSlowThreshold(cb::mcbp::ClientOpcode::Get));
     EXPECT_EQ(std::chrono::milliseconds(100),
-              getSlowThreshold(cb::mcbp::Opcode::Set));
+              getSlowThreshold(cb::mcbp::ClientOpcode::Set));
 
     // Verify that setting default sets all of them
     getAdminConnection().ioctl_set("sla",
                                    R"({"version":1, "default":{"slow":500}})");
     EXPECT_EQ(std::chrono::milliseconds(500),
-              getSlowThreshold(cb::mcbp::Opcode::Get));
+              getSlowThreshold(cb::mcbp::ClientOpcode::Get));
     EXPECT_EQ(std::chrono::milliseconds(500),
-              getSlowThreshold(cb::mcbp::Opcode::Set));
+              getSlowThreshold(cb::mcbp::ClientOpcode::Set));
 }

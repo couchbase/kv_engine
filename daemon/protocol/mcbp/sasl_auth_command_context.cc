@@ -34,12 +34,12 @@ ENGINE_ERROR_CODE SaslAuthCommandContext::initial() {
     LOG_DEBUG(&connection, "%u: SASL auth with mech: '%s' with %d bytes of data",
               connection.getId(), mechanism.c_str(), v.size());
 
-    if (request.getOpcode() == cb::mcbp::Opcode::SaslAuth) {
+    if (request.getClientOpcode() == cb::mcbp::ClientOpcode::SaslAuth) {
         task = std::make_shared<StartSaslAuthTask>(connection.getCookieObject(),
                                                    connection,
                                                    mechanism,
                                                    challenge);
-    } else if (request.getOpcode() == cb::mcbp::Opcode::SaslStep) {
+    } else if (request.getClientOpcode() == cb::mcbp::ClientOpcode::SaslStep) {
         task = std::make_shared<StepSaslAuthTask>(connection.getCookieObject(),
                                                   connection,
                                                   mechanism,

@@ -137,7 +137,7 @@ void reconfigure(const std::string& root, const cJSON& override);
  * @param opcode the opcode to get get the threshold for
  * @return the number of nanoseconds for the threshold.
  */
-std::chrono::nanoseconds getSlowOpThreshold(cb::mcbp::Opcode opcode);
+std::chrono::nanoseconds getSlowOpThreshold(cb::mcbp::ClientOpcode opcode);
 
 /**
  * Get a JSON representation of the current SLA setting.

@@ -44,7 +44,8 @@ public:
           state(State::Flushing) {
         LOG_NOTICE(&connection, "%u: flush b:%s", connection.getId(),
                    connection.getBucket().name);
-        connection.setNoReply(req.getOpcode() == cb::mcbp::Opcode::Flushq);
+        connection.setNoReply(req.getClientOpcode() ==
+                              cb::mcbp::ClientOpcode::Flushq);
     }
 
 protected:

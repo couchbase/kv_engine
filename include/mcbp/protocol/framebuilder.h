@@ -45,7 +45,11 @@ public:
         getFrame()->setMagic(magic);
     }
 
-    void setOpcode(Opcode opcode) {
+    void setOpcode(ClientOpcode opcode) {
+        getFrame()->setOpcode(opcode);
+    }
+
+    void setOpcode(ServerOpcode opcode) {
         getFrame()->setOpcode(opcode);
     }
 

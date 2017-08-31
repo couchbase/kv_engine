@@ -60,7 +60,7 @@ unique_cJSON_ptr to_json() {
 
     for (unsigned int ii = 0; ii < threshold.size(); ++ii) {
         try {
-            auto opcode = cb::mcbp::Opcode(ii);
+            auto opcode = cb::mcbp::ClientOpcode(ii);
             std::string cmd = ::to_string(opcode);
             unique_cJSON_ptr obj(cJSON_CreateObject());
             auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -75,7 +75,7 @@ unique_cJSON_ptr to_json() {
     return ret;
 }
 
-std::chrono::nanoseconds getSlowOpThreshold(cb::mcbp::Opcode opcode) {
+std::chrono::nanoseconds getSlowOpThreshold(cb::mcbp::ClientOpcode opcode) {
     // This isn't really safe, but we don't want to use proper synchronization
     // in this case as it is part of the command execution for _all_ commands.
     // The _worst case_ scenario is that our reporting is incorrect while
@@ -238,7 +238,7 @@ void reconfigure(const cJSON& doc, bool apply) {
             continue;
         }
 
-        cb::mcbp::Opcode opcode;
+        cb::mcbp::ClientOpcode opcode;
         try {
             opcode = to_opcode(obj->string);
         } catch (const std::invalid_argument& e) {

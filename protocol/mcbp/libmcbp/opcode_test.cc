@@ -27,184 +27,184 @@
 
 using namespace cb::mcbp;
 
-const std::map<cb::mcbp::Opcode, std::string> blueprint = {
-        {{Opcode::Get, "GET"},
-         {Opcode::Set, "SET"},
-         {Opcode::Add, "ADD"},
-         {Opcode::Replace, "REPLACE"},
-         {Opcode::Delete, "DELETE"},
-         {Opcode::Increment, "INCREMENT"},
-         {Opcode::Decrement, "DECREMENT"},
-         {Opcode::Quit, "QUIT"},
-         {Opcode::Flush, "FLUSH"},
-         {Opcode::Getq, "GETQ"},
-         {Opcode::Noop, "NOOP"},
-         {Opcode::Version, "VERSION"},
-         {Opcode::Getk, "GETK"},
-         {Opcode::Getkq, "GETKQ"},
-         {Opcode::Append, "APPEND"},
-         {Opcode::Prepend, "PREPEND"},
-         {Opcode::Stat, "STAT"},
-         {Opcode::Setq, "SETQ"},
-         {Opcode::Addq, "ADDQ"},
-         {Opcode::Replaceq, "REPLACEQ"},
-         {Opcode::Deleteq, "DELETEQ"},
-         {Opcode::Incrementq, "INCREMENTQ"},
-         {Opcode::Decrementq, "DECREMENTQ"},
-         {Opcode::Quitq, "QUITQ"},
-         {Opcode::Flushq, "FLUSHQ"},
-         {Opcode::Appendq, "APPENDQ"},
-         {Opcode::Prependq, "PREPENDQ"},
-         {Opcode::Verbosity, "VERBOSITY"},
-         {Opcode::Touch, "TOUCH"},
-         {Opcode::Gat, "GAT"},
-         {Opcode::Gatq, "GATQ"},
-         {Opcode::Hello, "HELLO"},
-         {Opcode::SaslListMechs, "SASL_LIST_MECHS"},
-         {Opcode::SaslAuth, "SASL_AUTH"},
-         {Opcode::SaslStep, "SASL_STEP"},
-         {Opcode::IoctlGet, "IOCTL_GET"},
-         {Opcode::IoctlSet, "IOCTL_SET"},
-         {Opcode::ConfigValidate, "CONFIG_VALIDATE"},
-         {Opcode::ConfigReload, "CONFIG_RELOAD"},
-         {Opcode::AuditPut, "AUDIT_PUT"},
-         {Opcode::AuditConfigReload, "AUDIT_CONFIG_RELOAD"},
-         {Opcode::Shutdown, "SHUTDOWN"},
-         {Opcode::Rget, "RGET"},
-         {Opcode::Rset, "RSET"},
-         {Opcode::Rsetq, "RSETQ"},
-         {Opcode::Rappend, "RAPPEND"},
-         {Opcode::Rappendq, "RAPPENDQ"},
-         {Opcode::Rprepend, "RPREPEND"},
-         {Opcode::Rprependq, "RPREPENDQ"},
-         {Opcode::Rdelete, "RDELETE"},
-         {Opcode::Rdeleteq, "RDELETEQ"},
-         {Opcode::Rincr, "RINCR"},
-         {Opcode::Rincrq, "RINCRQ"},
-         {Opcode::Rdecr, "RDECR"},
-         {Opcode::Rdecrq, "RDECRQ"},
-         {Opcode::SetVbucket, "SET_VBUCKET"},
-         {Opcode::GetVbucket, "GET_VBUCKET"},
-         {Opcode::DelVbucket, "DEL_VBUCKET"},
-         {Opcode::TapConnect, "TAP_CONNECT"},
-         {Opcode::TapMutation, "TAP_MUTATION"},
-         {Opcode::TapDelete, "TAP_DELETE"},
-         {Opcode::TapFlush, "TAP_FLUSH"},
-         {Opcode::TapOpaque, "TAP_OPAQUE"},
-         {Opcode::TapVbucketSet, "TAP_VBUCKET_SET"},
-         {Opcode::TapCheckpointStart, "TAP_CHECKPOINT_START"},
-         {Opcode::TapCheckpointEnd, "TAP_CHECKPOINT_END"},
-         {Opcode::GetAllVbSeqnos, "GET_ALL_VB_SEQNOS"},
-         {Opcode::DcpOpen, "DCP_OPEN"},
-         {Opcode::DcpAddStream, "DCP_ADD_STREAM"},
-         {Opcode::DcpCloseStream, "DCP_CLOSE_STREAM"},
-         {Opcode::DcpStreamReq, "DCP_STREAM_REQ"},
-         {Opcode::DcpGetFailoverLog, "DCP_GET_FAILOVER_LOG"},
-         {Opcode::DcpStreamEnd, "DCP_STREAM_END"},
-         {Opcode::DcpSnapshotMarker, "DCP_SNAPSHOT_MARKER"},
-         {Opcode::DcpMutation, "DCP_MUTATION"},
-         {Opcode::DcpDeletion, "DCP_DELETION"},
-         {Opcode::DcpExpiration, "DCP_EXPIRATION"},
-         {Opcode::DcpFlush, "DCP_FLUSH"},
-         {Opcode::DcpSetVbucketState, "DCP_SET_VBUCKET_STATE"},
-         {Opcode::DcpNoop, "DCP_NOOP"},
-         {Opcode::DcpBufferAcknowledgement, "DCP_BUFFER_ACKNOWLEDGEMENT"},
-         {Opcode::DcpControl, "DCP_CONTROL"},
-         {Opcode::DcpSystemEvent, "DCP_SYSTEM_EVENT"},
-         {Opcode::StopPersistence, "STOP_PERSISTENCE"},
-         {Opcode::StartPersistence, "START_PERSISTENCE"},
-         {Opcode::SetParam, "SET_PARAM"},
-         {Opcode::GetReplica, "GET_REPLICA"},
-         {Opcode::CreateBucket, "CREATE_BUCKET"},
-         {Opcode::DeleteBucket, "DELETE_BUCKET"},
-         {Opcode::ListBuckets, "LIST_BUCKETS"},
-         {Opcode::SelectBucket, "SELECT_BUCKET"},
-         {Opcode::ObserveSeqno, "OBSERVE_SEQNO"},
-         {Opcode::Observe, "OBSERVE"},
-         {Opcode::EvictKey, "EVICT_KEY"},
-         {Opcode::GetLocked, "GET_LOCKED"},
-         {Opcode::UnlockKey, "UNLOCK_KEY"},
-         {Opcode::LastClosedCheckpoint, "LAST_CLOSED_CHECKPOINT"},
-         {Opcode::ResetReplicationChain, "RESET_REPLICATION_CHAIN"},
-         {Opcode::DeregisterTapClient, "DEREGISTER_TAP_CLIENT"},
-         {Opcode::GetMeta, "GET_META"},
-         {Opcode::GetqMeta, "GETQ_META"},
-         {Opcode::SetWithMeta, "SET_WITH_META"},
-         {Opcode::SetqWithMeta, "SETQ_WITH_META"},
-         {Opcode::AddWithMeta, "ADD_WITH_META"},
-         {Opcode::AddqWithMeta, "ADDQ_WITH_META"},
-         {Opcode::SnapshotVbStates, "SNAPSHOT_VB_STATES"},
-         {Opcode::VbucketBatchCount, "VBUCKET_BATCH_COUNT"},
-         {Opcode::DelWithMeta, "DEL_WITH_META"},
-         {Opcode::DelqWithMeta, "DELQ_WITH_META"},
-         {Opcode::CreateCheckpoint, "CREATE_CHECKPOINT"},
-         {Opcode::NotifyVbucketUpdate, "NOTIFY_VBUCKET_UPDATE"},
-         {Opcode::EnableTraffic, "ENABLE_TRAFFIC"},
-         {Opcode::DisableTraffic, "DISABLE_TRAFFIC"},
-         {Opcode::ChangeVbFilter, "CHANGE_VB_FILTER"},
-         {Opcode::CheckpointPersistence, "CHECKPOINT_PERSISTENCE"},
-         {Opcode::ReturnMeta, "RETURN_META"},
-         {Opcode::CompactDb, "COMPACT_DB"},
-         {Opcode::SetClusterConfig, "SET_CLUSTER_CONFIG"},
-         {Opcode::GetClusterConfig, "GET_CLUSTER_CONFIG"},
-         {Opcode::GetRandomKey, "GET_RANDOM_KEY"},
-         {Opcode::SeqnoPersistence, "SEQNO_PERSISTENCE"},
-         {Opcode::GetKeys, "GET_KEYS"},
-         {Opcode::CollectionsSetManifest, "COLLECTIONS_SET_MANIFEST"},
-         {Opcode::SetDriftCounterState, "SET_DRIFT_COUNTER_STATE"},
-         {Opcode::GetAdjustedTime, "GET_ADJUSTED_TIME"},
-         {Opcode::SubdocGet, "SUBDOC_GET"},
-         {Opcode::SubdocExists, "SUBDOC_EXISTS"},
-         {Opcode::SubdocDictAdd, "SUBDOC_DICT_ADD"},
-         {Opcode::SubdocDictUpsert, "SUBDOC_DICT_UPSERT"},
-         {Opcode::SubdocDelete, "SUBDOC_DELETE"},
-         {Opcode::SubdocReplace, "SUBDOC_REPLACE"},
-         {Opcode::SubdocArrayPushLast, "SUBDOC_ARRAY_PUSH_LAST"},
-         {Opcode::SubdocArrayPushFirst, "SUBDOC_ARRAY_PUSH_FIRST"},
-         {Opcode::SubdocArrayInsert, "SUBDOC_ARRAY_INSERT"},
-         {Opcode::SubdocArrayAddUnique, "SUBDOC_ARRAY_ADD_UNIQUE"},
-         {Opcode::SubdocCounter, "SUBDOC_COUNTER"},
-         {Opcode::SubdocMultiLookup, "SUBDOC_MULTI_LOOKUP"},
-         {Opcode::SubdocMultiMutation, "SUBDOC_MULTI_MUTATION"},
-         {Opcode::SubdocGetCount, "SUBDOC_GET_COUNT"},
-         {Opcode::Scrub, "SCRUB"},
-         {Opcode::IsaslRefresh, "ISASL_REFRESH"},
-         {Opcode::SslCertsRefresh, "SSL_CERTS_REFRESH"},
-         {Opcode::GetCmdTimer, "GET_CMD_TIMER"},
-         {Opcode::SetCtrlToken, "SET_CTRL_TOKEN"},
-         {Opcode::GetCtrlToken, "GET_CTRL_TOKEN"},
-         {Opcode::InitComplete, "INIT_COMPLETE"},
-         {Opcode::RbacRefresh, "RBAC_REFRESH"},
-         {Opcode::DropPrivilege, "DROP_PRIVILEGES"},
-         {Opcode::AdjustTimeofday, "ADJUST_TIMEOFDAY"},
-         {Opcode::EwouldblockCtl, "EWB_CTL"},
-         {Opcode::GetErrorMap, "GET_ERROR_MAP"}}};
+const std::map<cb::mcbp::ClientOpcode, std::string> client_blueprint = {
+        {{ClientOpcode::Get, "GET"},
+         {ClientOpcode::Set, "SET"},
+         {ClientOpcode::Add, "ADD"},
+         {ClientOpcode::Replace, "REPLACE"},
+         {ClientOpcode::Delete, "DELETE"},
+         {ClientOpcode::Increment, "INCREMENT"},
+         {ClientOpcode::Decrement, "DECREMENT"},
+         {ClientOpcode::Quit, "QUIT"},
+         {ClientOpcode::Flush, "FLUSH"},
+         {ClientOpcode::Getq, "GETQ"},
+         {ClientOpcode::Noop, "NOOP"},
+         {ClientOpcode::Version, "VERSION"},
+         {ClientOpcode::Getk, "GETK"},
+         {ClientOpcode::Getkq, "GETKQ"},
+         {ClientOpcode::Append, "APPEND"},
+         {ClientOpcode::Prepend, "PREPEND"},
+         {ClientOpcode::Stat, "STAT"},
+         {ClientOpcode::Setq, "SETQ"},
+         {ClientOpcode::Addq, "ADDQ"},
+         {ClientOpcode::Replaceq, "REPLACEQ"},
+         {ClientOpcode::Deleteq, "DELETEQ"},
+         {ClientOpcode::Incrementq, "INCREMENTQ"},
+         {ClientOpcode::Decrementq, "DECREMENTQ"},
+         {ClientOpcode::Quitq, "QUITQ"},
+         {ClientOpcode::Flushq, "FLUSHQ"},
+         {ClientOpcode::Appendq, "APPENDQ"},
+         {ClientOpcode::Prependq, "PREPENDQ"},
+         {ClientOpcode::Verbosity, "VERBOSITY"},
+         {ClientOpcode::Touch, "TOUCH"},
+         {ClientOpcode::Gat, "GAT"},
+         {ClientOpcode::Gatq, "GATQ"},
+         {ClientOpcode::Hello, "HELLO"},
+         {ClientOpcode::SaslListMechs, "SASL_LIST_MECHS"},
+         {ClientOpcode::SaslAuth, "SASL_AUTH"},
+         {ClientOpcode::SaslStep, "SASL_STEP"},
+         {ClientOpcode::IoctlGet, "IOCTL_GET"},
+         {ClientOpcode::IoctlSet, "IOCTL_SET"},
+         {ClientOpcode::ConfigValidate, "CONFIG_VALIDATE"},
+         {ClientOpcode::ConfigReload, "CONFIG_RELOAD"},
+         {ClientOpcode::AuditPut, "AUDIT_PUT"},
+         {ClientOpcode::AuditConfigReload, "AUDIT_CONFIG_RELOAD"},
+         {ClientOpcode::Shutdown, "SHUTDOWN"},
+         {ClientOpcode::Rget, "RGET"},
+         {ClientOpcode::Rset, "RSET"},
+         {ClientOpcode::Rsetq, "RSETQ"},
+         {ClientOpcode::Rappend, "RAPPEND"},
+         {ClientOpcode::Rappendq, "RAPPENDQ"},
+         {ClientOpcode::Rprepend, "RPREPEND"},
+         {ClientOpcode::Rprependq, "RPREPENDQ"},
+         {ClientOpcode::Rdelete, "RDELETE"},
+         {ClientOpcode::Rdeleteq, "RDELETEQ"},
+         {ClientOpcode::Rincr, "RINCR"},
+         {ClientOpcode::Rincrq, "RINCRQ"},
+         {ClientOpcode::Rdecr, "RDECR"},
+         {ClientOpcode::Rdecrq, "RDECRQ"},
+         {ClientOpcode::SetVbucket, "SET_VBUCKET"},
+         {ClientOpcode::GetVbucket, "GET_VBUCKET"},
+         {ClientOpcode::DelVbucket, "DEL_VBUCKET"},
+         {ClientOpcode::TapConnect, "TAP_CONNECT"},
+         {ClientOpcode::TapMutation, "TAP_MUTATION"},
+         {ClientOpcode::TapDelete, "TAP_DELETE"},
+         {ClientOpcode::TapFlush, "TAP_FLUSH"},
+         {ClientOpcode::TapOpaque, "TAP_OPAQUE"},
+         {ClientOpcode::TapVbucketSet, "TAP_VBUCKET_SET"},
+         {ClientOpcode::TapCheckpointStart, "TAP_CHECKPOINT_START"},
+         {ClientOpcode::TapCheckpointEnd, "TAP_CHECKPOINT_END"},
+         {ClientOpcode::GetAllVbSeqnos, "GET_ALL_VB_SEQNOS"},
+         {ClientOpcode::DcpOpen, "DCP_OPEN"},
+         {ClientOpcode::DcpAddStream, "DCP_ADD_STREAM"},
+         {ClientOpcode::DcpCloseStream, "DCP_CLOSE_STREAM"},
+         {ClientOpcode::DcpStreamReq, "DCP_STREAM_REQ"},
+         {ClientOpcode::DcpGetFailoverLog, "DCP_GET_FAILOVER_LOG"},
+         {ClientOpcode::DcpStreamEnd, "DCP_STREAM_END"},
+         {ClientOpcode::DcpSnapshotMarker, "DCP_SNAPSHOT_MARKER"},
+         {ClientOpcode::DcpMutation, "DCP_MUTATION"},
+         {ClientOpcode::DcpDeletion, "DCP_DELETION"},
+         {ClientOpcode::DcpExpiration, "DCP_EXPIRATION"},
+         {ClientOpcode::DcpFlush, "DCP_FLUSH"},
+         {ClientOpcode::DcpSetVbucketState, "DCP_SET_VBUCKET_STATE"},
+         {ClientOpcode::DcpNoop, "DCP_NOOP"},
+         {ClientOpcode::DcpBufferAcknowledgement, "DCP_BUFFER_ACKNOWLEDGEMENT"},
+         {ClientOpcode::DcpControl, "DCP_CONTROL"},
+         {ClientOpcode::DcpSystemEvent, "DCP_SYSTEM_EVENT"},
+         {ClientOpcode::StopPersistence, "STOP_PERSISTENCE"},
+         {ClientOpcode::StartPersistence, "START_PERSISTENCE"},
+         {ClientOpcode::SetParam, "SET_PARAM"},
+         {ClientOpcode::GetReplica, "GET_REPLICA"},
+         {ClientOpcode::CreateBucket, "CREATE_BUCKET"},
+         {ClientOpcode::DeleteBucket, "DELETE_BUCKET"},
+         {ClientOpcode::ListBuckets, "LIST_BUCKETS"},
+         {ClientOpcode::SelectBucket, "SELECT_BUCKET"},
+         {ClientOpcode::ObserveSeqno, "OBSERVE_SEQNO"},
+         {ClientOpcode::Observe, "OBSERVE"},
+         {ClientOpcode::EvictKey, "EVICT_KEY"},
+         {ClientOpcode::GetLocked, "GET_LOCKED"},
+         {ClientOpcode::UnlockKey, "UNLOCK_KEY"},
+         {ClientOpcode::LastClosedCheckpoint, "LAST_CLOSED_CHECKPOINT"},
+         {ClientOpcode::ResetReplicationChain, "RESET_REPLICATION_CHAIN"},
+         {ClientOpcode::DeregisterTapClient, "DEREGISTER_TAP_CLIENT"},
+         {ClientOpcode::GetMeta, "GET_META"},
+         {ClientOpcode::GetqMeta, "GETQ_META"},
+         {ClientOpcode::SetWithMeta, "SET_WITH_META"},
+         {ClientOpcode::SetqWithMeta, "SETQ_WITH_META"},
+         {ClientOpcode::AddWithMeta, "ADD_WITH_META"},
+         {ClientOpcode::AddqWithMeta, "ADDQ_WITH_META"},
+         {ClientOpcode::SnapshotVbStates, "SNAPSHOT_VB_STATES"},
+         {ClientOpcode::VbucketBatchCount, "VBUCKET_BATCH_COUNT"},
+         {ClientOpcode::DelWithMeta, "DEL_WITH_META"},
+         {ClientOpcode::DelqWithMeta, "DELQ_WITH_META"},
+         {ClientOpcode::CreateCheckpoint, "CREATE_CHECKPOINT"},
+         {ClientOpcode::NotifyVbucketUpdate, "NOTIFY_VBUCKET_UPDATE"},
+         {ClientOpcode::EnableTraffic, "ENABLE_TRAFFIC"},
+         {ClientOpcode::DisableTraffic, "DISABLE_TRAFFIC"},
+         {ClientOpcode::ChangeVbFilter, "CHANGE_VB_FILTER"},
+         {ClientOpcode::CheckpointPersistence, "CHECKPOINT_PERSISTENCE"},
+         {ClientOpcode::ReturnMeta, "RETURN_META"},
+         {ClientOpcode::CompactDb, "COMPACT_DB"},
+         {ClientOpcode::SetClusterConfig, "SET_CLUSTER_CONFIG"},
+         {ClientOpcode::GetClusterConfig, "GET_CLUSTER_CONFIG"},
+         {ClientOpcode::GetRandomKey, "GET_RANDOM_KEY"},
+         {ClientOpcode::SeqnoPersistence, "SEQNO_PERSISTENCE"},
+         {ClientOpcode::GetKeys, "GET_KEYS"},
+         {ClientOpcode::CollectionsSetManifest, "COLLECTIONS_SET_MANIFEST"},
+         {ClientOpcode::SetDriftCounterState, "SET_DRIFT_COUNTER_STATE"},
+         {ClientOpcode::GetAdjustedTime, "GET_ADJUSTED_TIME"},
+         {ClientOpcode::SubdocGet, "SUBDOC_GET"},
+         {ClientOpcode::SubdocExists, "SUBDOC_EXISTS"},
+         {ClientOpcode::SubdocDictAdd, "SUBDOC_DICT_ADD"},
+         {ClientOpcode::SubdocDictUpsert, "SUBDOC_DICT_UPSERT"},
+         {ClientOpcode::SubdocDelete, "SUBDOC_DELETE"},
+         {ClientOpcode::SubdocReplace, "SUBDOC_REPLACE"},
+         {ClientOpcode::SubdocArrayPushLast, "SUBDOC_ARRAY_PUSH_LAST"},
+         {ClientOpcode::SubdocArrayPushFirst, "SUBDOC_ARRAY_PUSH_FIRST"},
+         {ClientOpcode::SubdocArrayInsert, "SUBDOC_ARRAY_INSERT"},
+         {ClientOpcode::SubdocArrayAddUnique, "SUBDOC_ARRAY_ADD_UNIQUE"},
+         {ClientOpcode::SubdocCounter, "SUBDOC_COUNTER"},
+         {ClientOpcode::SubdocMultiLookup, "SUBDOC_MULTI_LOOKUP"},
+         {ClientOpcode::SubdocMultiMutation, "SUBDOC_MULTI_MUTATION"},
+         {ClientOpcode::SubdocGetCount, "SUBDOC_GET_COUNT"},
+         {ClientOpcode::Scrub, "SCRUB"},
+         {ClientOpcode::IsaslRefresh, "ISASL_REFRESH"},
+         {ClientOpcode::SslCertsRefresh, "SSL_CERTS_REFRESH"},
+         {ClientOpcode::GetCmdTimer, "GET_CMD_TIMER"},
+         {ClientOpcode::SetCtrlToken, "SET_CTRL_TOKEN"},
+         {ClientOpcode::GetCtrlToken, "GET_CTRL_TOKEN"},
+         {ClientOpcode::InitComplete, "INIT_COMPLETE"},
+         {ClientOpcode::RbacRefresh, "RBAC_REFRESH"},
+         {ClientOpcode::DropPrivilege, "DROP_PRIVILEGES"},
+         {ClientOpcode::AdjustTimeofday, "ADJUST_TIMEOFDAY"},
+         {ClientOpcode::EwouldblockCtl, "EWB_CTL"},
+         {ClientOpcode::GetErrorMap, "GET_ERROR_MAP"}}};
 
-TEST(to_string, LegalValues) {
-    for (auto& entry : blueprint) {
+TEST(ClientOpcode_to_string, LegalValues) {
+    for (auto& entry : client_blueprint) {
         EXPECT_EQ(entry.second, to_string(entry.first));
     }
 
-    EXPECT_THROW(to_string(Opcode::Invalid), std::invalid_argument);
+    EXPECT_THROW(to_string(ClientOpcode::Invalid), std::invalid_argument);
 }
 
-TEST(to_string, InvalidValues) {
+TEST(ClientOpcode_to_string, InvalidValues) {
     for (int ii = 0; ii < 0x100; ++ii) {
-        Opcode opcode = Opcode(ii);
-        if (blueprint.find(opcode) == blueprint.end()) {
+        ClientOpcode opcode = ClientOpcode(ii);
+        if (client_blueprint.find(opcode) == client_blueprint.end()) {
             EXPECT_THROW(to_string(opcode), std::invalid_argument);
         }
     }
 }
 
-TEST(to_string, CompatWithOldCode) {
+TEST(ClientOpcode_to_string, CompatWithOldCode) {
     // verify that we return the same strings as earlier
-    for (auto& entry : blueprint) {
-        if (entry.first == Opcode::AdjustTimeofday ||
-            entry.first == Opcode::EwouldblockCtl ||
-            entry.first == Opcode::ChangeVbFilter ||
-            entry.first == Opcode::DeregisterTapClient ||
-            entry.first == Opcode::ResetReplicationChain) {
+    for (auto& entry : client_blueprint) {
+        if (entry.first == ClientOpcode::AdjustTimeofday ||
+            entry.first == ClientOpcode::EwouldblockCtl ||
+            entry.first == ClientOpcode::ChangeVbFilter ||
+            entry.first == ClientOpcode::DeregisterTapClient ||
+            entry.first == ClientOpcode::ResetReplicationChain) {
             // Entries we didn't have in the old code..
             continue;
         }
@@ -214,18 +214,18 @@ TEST(to_string, CompatWithOldCode) {
     }
 }
 
-TEST(to_opcode, LegalValues) {
-    for (auto& entry : blueprint) {
+TEST(ClientOpcode_to_opcode, LegalValues) {
+    for (auto& entry : client_blueprint) {
         EXPECT_EQ(entry.first, to_opcode(entry.second));
     }
 }
 
-TEST(to_opcode, UnknownValues) {
+TEST(ClientOpcode_to_opcode, UnknownValues) {
     EXPECT_THROW(to_opcode("asdfasdf"), std::invalid_argument);
 }
 
-TEST(to_opcode, CaseDontMatter) {
-    for (auto& entry : blueprint) {
+TEST(ClientOpcode_to_opcode, CaseDontMatter) {
+    for (auto& entry : client_blueprint) {
         std::string lower;
         std::transform(entry.second.begin(),
                        entry.second.end(),
@@ -235,10 +235,26 @@ TEST(to_opcode, CaseDontMatter) {
     }
 }
 
-TEST(to_opcode, SpaceMayBeUsed) {
-    for (auto& entry : blueprint) {
+TEST(ClientOpcode_to_opcode, SpaceMayBeUsed) {
+    for (auto& entry : client_blueprint) {
         std::string input{entry.second};
         std::replace(input.begin(), input.end(), '_', ' ');
         EXPECT_EQ(entry.first, to_opcode(input));
+    }
+}
+
+const std::map<cb::mcbp::ServerOpcode, std::string> server_blueprint = {
+        {{ServerOpcode::ClustermapChangeNotification,
+          "ClustermapChangeNotification"}}};
+
+TEST(ServerOpcode, to_string) {
+    for (int ii = 0; ii < 0x100; ++ii) {
+        ServerOpcode opcode = ServerOpcode(ii);
+        const auto iter = server_blueprint.find(opcode);
+        if (iter == server_blueprint.end()) {
+            EXPECT_THROW(to_string(opcode), std::invalid_argument);
+        } else {
+            EXPECT_EQ(to_string(iter->first), iter->second);
+        }
     }
 }

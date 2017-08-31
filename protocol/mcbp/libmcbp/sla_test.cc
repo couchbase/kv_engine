@@ -151,73 +151,73 @@ TEST(McbpSlaReconfig, GetParseStringValues) {
             R"({"version":1,"get": {"slow": "1 ns"}})"));
     cb::mcbp::sla::reconfigure(*doc);
     EXPECT_EQ(std::chrono::nanoseconds(1),
-              cb::mcbp::sla::getSlowOpThreshold(cb::mcbp::Opcode::Get));
+              cb::mcbp::sla::getSlowOpThreshold(cb::mcbp::ClientOpcode::Get));
 
     doc.reset(cJSON_Parse(
             R"({"version":1,"get": {"slow": "2 nanoseconds"}})"));
     cb::mcbp::sla::reconfigure(*doc);
     EXPECT_EQ(std::chrono::nanoseconds(2),
-              cb::mcbp::sla::getSlowOpThreshold(cb::mcbp::Opcode::Get));
+              cb::mcbp::sla::getSlowOpThreshold(cb::mcbp::ClientOpcode::Get));
 
     doc.reset(cJSON_Parse(
             R"({"version":1,"get": {"slow": "1 us"}})"));
     cb::mcbp::sla::reconfigure(*doc);
     EXPECT_EQ(std::chrono::microseconds(1),
-              cb::mcbp::sla::getSlowOpThreshold(cb::mcbp::Opcode::Get));
+              cb::mcbp::sla::getSlowOpThreshold(cb::mcbp::ClientOpcode::Get));
 
     doc.reset(cJSON_Parse(
             R"({"version":1,"get": {"slow": "2 microseconds"}})"));
     cb::mcbp::sla::reconfigure(*doc);
     EXPECT_EQ(std::chrono::microseconds(2),
-              cb::mcbp::sla::getSlowOpThreshold(cb::mcbp::Opcode::Get));
+              cb::mcbp::sla::getSlowOpThreshold(cb::mcbp::ClientOpcode::Get));
 
     doc.reset(cJSON_Parse(
             R"({"version":1,"get": {"slow": "1 ms"}})"));
     cb::mcbp::sla::reconfigure(*doc);
     EXPECT_EQ(std::chrono::milliseconds(1),
-              cb::mcbp::sla::getSlowOpThreshold(cb::mcbp::Opcode::Get));
+              cb::mcbp::sla::getSlowOpThreshold(cb::mcbp::ClientOpcode::Get));
 
     doc.reset(cJSON_Parse(
             R"({"version":1,"get": {"slow": "2 milliseconds"}})"));
     cb::mcbp::sla::reconfigure(*doc);
     EXPECT_EQ(std::chrono::milliseconds(2),
-              cb::mcbp::sla::getSlowOpThreshold(cb::mcbp::Opcode::Get));
+              cb::mcbp::sla::getSlowOpThreshold(cb::mcbp::ClientOpcode::Get));
 
     doc.reset(cJSON_Parse(
             R"({"version":1,"get": {"slow": "1 s"}})"));
     cb::mcbp::sla::reconfigure(*doc);
     EXPECT_EQ(std::chrono::seconds(1),
-              cb::mcbp::sla::getSlowOpThreshold(cb::mcbp::Opcode::Get));
+              cb::mcbp::sla::getSlowOpThreshold(cb::mcbp::ClientOpcode::Get));
 
     doc.reset(cJSON_Parse(
             R"({"version":1,"get": {"slow": "2 seconds"}})"));
     cb::mcbp::sla::reconfigure(*doc);
     EXPECT_EQ(std::chrono::seconds(2),
-              cb::mcbp::sla::getSlowOpThreshold(cb::mcbp::Opcode::Get));
+              cb::mcbp::sla::getSlowOpThreshold(cb::mcbp::ClientOpcode::Get));
 
     doc.reset(cJSON_Parse(
             R"({"version":1,"get": {"slow": "1 m"}})"));
     cb::mcbp::sla::reconfigure(*doc);
     EXPECT_EQ(std::chrono::minutes(1),
-              cb::mcbp::sla::getSlowOpThreshold(cb::mcbp::Opcode::Get));
+              cb::mcbp::sla::getSlowOpThreshold(cb::mcbp::ClientOpcode::Get));
 
     doc.reset(cJSON_Parse(
             R"({"version":1,"get": {"slow": "2 minutes"}})"));
     cb::mcbp::sla::reconfigure(*doc);
     EXPECT_EQ(std::chrono::minutes(2),
-              cb::mcbp::sla::getSlowOpThreshold(cb::mcbp::Opcode::Get));
+              cb::mcbp::sla::getSlowOpThreshold(cb::mcbp::ClientOpcode::Get));
 
     doc.reset(cJSON_Parse(
             R"({"version":1,"get": {"slow": "1 h"}})"));
     cb::mcbp::sla::reconfigure(*doc);
     EXPECT_EQ(std::chrono::hours(1),
-              cb::mcbp::sla::getSlowOpThreshold(cb::mcbp::Opcode::Get));
+              cb::mcbp::sla::getSlowOpThreshold(cb::mcbp::ClientOpcode::Get));
 
     doc.reset(cJSON_Parse(
             R"({"version":1,"get": {"slow": "2 hours"}})"));
     cb::mcbp::sla::reconfigure(*doc);
     EXPECT_EQ(std::chrono::hours(2),
-              cb::mcbp::sla::getSlowOpThreshold(cb::mcbp::Opcode::Get));
+              cb::mcbp::sla::getSlowOpThreshold(cb::mcbp::ClientOpcode::Get));
 }
 
 TEST(McbpSlaReconfig, ReconfigureFiles) {
@@ -231,18 +231,18 @@ TEST(McbpSlaReconfig, ReconfigureFiles) {
     //   etc/couchbase/kv/opcode-attributes.d/override-3.disabled
 
     // We set a custom value for "delete_bucket" in our system default
-    EXPECT_EQ(
-            std::chrono::seconds(10),
-            cb::mcbp::sla::getSlowOpThreshold(cb::mcbp::Opcode::DeleteBucket));
+    EXPECT_EQ(std::chrono::seconds(10),
+              cb::mcbp::sla::getSlowOpThreshold(
+                      cb::mcbp::ClientOpcode::DeleteBucket));
 
     // We override the limit for "get" in override-1.json
     EXPECT_EQ(std::chrono::milliseconds(200),
-              cb::mcbp::sla::getSlowOpThreshold(cb::mcbp::Opcode::Get));
+              cb::mcbp::sla::getSlowOpThreshold(cb::mcbp::ClientOpcode::Get));
 
     // We override the default value with different values in both
     // override-1, 2 and 3 (the last one shouldn't be read). Verify that we
     // got the one from override-2
-    EXPECT_EQ(
-            std::chrono::hours(1),
-            cb::mcbp::sla::getSlowOpThreshold(cb::mcbp::Opcode::SelectBucket));
+    EXPECT_EQ(std::chrono::hours(1),
+              cb::mcbp::sla::getSlowOpThreshold(
+                      cb::mcbp::ClientOpcode::SelectBucket));
 }
