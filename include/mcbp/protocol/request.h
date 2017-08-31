@@ -17,8 +17,10 @@
 #pragma once
 
 #include "config.h"
+#include "datatype.h"
 
 #include <mcbp/protocol/magic.h>
+#include <mcbp/protocol/opcode.h>
 #include <platform/platform.h>
 #include <platform/sized_buffer.h>
 
@@ -45,20 +47,58 @@ struct Request {
     // Convenience methods to get/set the various fields in the header (in
     // the correct byteorder)
 
-    uint16_t getKeylen() const {
-        return ntohs(keylen);
+    void setMagic(Magic magic) {
+        if (magic == Magic::ClientRequest || magic == Magic::ServerRequest) {
+            Request::magic = uint8_t(magic);
+        } else {
+            throw std::invalid_argument(
+                    "Request::setMagic: Invalid magic specified: " +
+                    std::to_string(uint8_t(magic)));
+        }
+    }
+
+    Magic getMagic() const {
+        return Magic(magic);
+    }
+
+    void setOpcode(Opcode opcode) {
+        Request::opcode = uint8_t(opcode);
+    }
+
+    Opcode getOpcode() const {
+        return Opcode(opcode);
     }
 
     void setKeylen(uint16_t value) {
         keylen = htons(value);
     }
 
-    uint16_t getVBucket() const {
-        return ntohs(vbucket);
+    uint16_t getKeylen() const {
+        return ntohs(keylen);
+    }
+
+    void setExtlen(uint8_t extlen) {
+        Request::extlen = extlen;
+    }
+
+    uint8_t getExtlen() const {
+        return extlen;
+    }
+
+    void setDatatype(Datatype datatype) {
+        Request::datatype = uint8_t(datatype);
+    }
+
+    Datatype getDatatype() const {
+        return Datatype(datatype);
     }
 
     void setVBucket(uint16_t value) {
         vbucket = htons(value);
+    }
+
+    uint16_t getVBucket() const {
+        return ntohs(vbucket);
     }
 
     uint32_t getBodylen() const {
@@ -67,6 +107,14 @@ struct Request {
 
     void setBodylen(uint32_t value) {
         bodylen = htonl(value);
+    }
+
+    void setOpaque(uint32_t opaque) {
+        Request::opaque = opaque;
+    }
+
+    uint32_t getOpaque() const {
+        return opaque;
     }
 
     uint64_t getCas() const {
@@ -89,10 +137,6 @@ struct Request {
     cb::const_byte_buffer getValue() const {
         const auto buf = getKey();
         return {buf.data() + buf.size(), getBodylen() - getKeylen() - extlen};
-    }
-
-    Opcode getOpcode() const {
-        return Opcode(opcode);
     }
 
     /**

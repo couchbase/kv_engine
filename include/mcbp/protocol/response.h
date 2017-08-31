@@ -17,8 +17,10 @@
 #pragma once
 
 #include "config.h"
+#include "datatype.h"
 
 #include <mcbp/protocol/magic.h>
+#include <mcbp/protocol/opcode.h>
 #include <platform/sized_buffer.h>
 
 #include <cstdint>
@@ -44,12 +46,50 @@ struct Response {
     // Convenience methods to get/set the various fields in the header (in
     // the correct byteorder)
 
+    void setMagic(Magic magic) {
+        if (magic == Magic::ClientResponse || magic == Magic::ServerResponse) {
+            Response::magic = uint8_t(magic);
+        } else {
+            throw std::invalid_argument(
+                    "Response::setMagic: Invalid magic specified: " +
+                    std::to_string(uint8_t(magic)));
+        }
+    }
+
+    Magic getMagic() const {
+        return Magic(magic);
+    }
+
+    void setOpcode(Opcode opcode) {
+        Response::opcode = uint8_t(opcode);
+    }
+
+    Opcode getOpcode() const {
+        return Opcode(opcode);
+    }
+
     uint16_t getKeylen() const {
         return ntohs(keylen);
     }
 
     void setKeylen(uint16_t value) {
         keylen = htons(value);
+    }
+
+    uint8_t getExtlen() const {
+        return extlen;
+    }
+
+    void setExtlen(uint8_t extlen) {
+        Response::extlen = extlen;
+    }
+
+    void setDatatype(Datatype datatype) {
+        Response::datatype = uint8_t(datatype);
+    }
+
+    Datatype getDatatype() const {
+        return Datatype(datatype);
     }
 
     uint16_t getStatus() const {
@@ -66,6 +106,14 @@ struct Response {
 
     void setBodylen(uint32_t value) {
         bodylen = htonl(value);
+    }
+
+    void setOpaque(uint32_t opaque) {
+        Response::opaque = opaque;
+    }
+
+    uint32_t getOpaque() const {
+        return opaque;
     }
 
     uint64_t getCas() const {
@@ -88,10 +136,6 @@ struct Response {
     cb::const_byte_buffer getValue() const {
         const auto buf = getKey();
         return {buf.data() + buf.size(), getBodylen() - getKeylen() - extlen};
-    }
-
-    Opcode getOpcode() const {
-        return Opcode(opcode);
     }
 
     /**

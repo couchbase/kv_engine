@@ -1,6 +1,7 @@
 add_library(mcbp STATIC
             ${Memcached_SOURCE_DIR}/include/mcbp/mcbp.h
             ${Memcached_SOURCE_DIR}/include/mcbp/protocol/datatype.h
+            ${Memcached_SOURCE_DIR}/include/mcbp/protocol/framebuilder.h
             ${Memcached_SOURCE_DIR}/include/mcbp/protocol/magic.h
             ${Memcached_SOURCE_DIR}/include/mcbp/protocol/opcode.h
             ${Memcached_SOURCE_DIR}/include/mcbp/protocol/request.h
@@ -45,6 +46,12 @@ target_link_libraries(mcbp_feature_test mcbp gtest gtest_main)
 add_test(NAME mcbp_feature_test
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND mcbp_feature_test)
+
+add_executable(mcbp_framebuilder_test framebuilder_test.cc)
+target_link_libraries(mcbp_framebuilder_test mcbp gtest gtest_main)
+add_test(NAME mcbp_framebuilder_test
+         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+         COMMAND mcbp_framebuilder_test)
 
 add_executable(mcbp_sla_test sla_test.cc)
 target_link_libraries(mcbp_sla_test mcbp gtest gtest_main)
