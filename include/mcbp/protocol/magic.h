@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 
 namespace cb {
 namespace mcbp {
@@ -34,5 +35,14 @@ enum class Magic : uint8_t {
     /// Response packet from client to server
     ServerResponse = 0x83
 };
+
+/**
+ * Test to see if the provided magic value is a legal value or not
+ * (in the case it is generated from a uint8_t received over the network).
+ */
+bool is_legal(Magic magic);
+
 } // namespace mcbp
 } // namespace cb
+
+std::string to_string(cb::mcbp::Magic magic);

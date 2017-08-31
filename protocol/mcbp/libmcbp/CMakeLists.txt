@@ -10,6 +10,7 @@ add_library(mcbp STATIC
             feature.cc
             gdb_dump_parser.cc
             lldb_dump_parser.cc
+            magic.cc
             opcode.cc
             sla.cc
             status_to_string.cc
@@ -26,6 +27,12 @@ add_test(NAME mcbp_dump_parser_test
 add_executable(mcbp_packet_printer mcbp_packet_printer.cc)
 target_link_libraries(mcbp_packet_printer mcbp dirutils)
 install(TARGETS mcbp_packet_printer RUNTIME DESTINATION bin)
+
+add_executable(mcbp_magic_test magic_test.cc)
+target_link_libraries(mcbp_magic_test mcbp gtest gtest_main)
+add_test(NAME mcbp_magic_test
+         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+         COMMAND mcbp_magic_test)
 
 add_executable(mcbp_opcode_test opcode_test.cc)
 target_link_libraries(mcbp_opcode_test mcbp gtest gtest_main)
