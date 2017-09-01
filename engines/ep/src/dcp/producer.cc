@@ -339,12 +339,8 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
         return ENGINE_ROLLBACK;
     }
 
-    ENGINE_ERROR_CODE rv = vb->failovers->addFailoverLog(getCookie(), callback);
-    if (rv != ENGINE_SUCCESS) {
-        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Couldn't add failover log to "
-            "stream request due to error %d", logHeader(), vbucket, rv);
-        return rv;
-    }
+    std::vector<vbucket_failover_t> failoverEntries =
+            vb->failovers->getFailoverLog();
 
     if (flags & DCP_ADD_STREAM_FLAG_LATEST) {
         end_seqno = vb->getHighSeqno();
@@ -447,6 +443,17 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
         streams.insert(std::make_pair(vbucket, s));
     }
 
+    // See MB-25820:  Ensure that callback is called only after all other
+    // possible error cases have been tested.  This is to ensure we do not
+    // generate two responses for a single streamRequest.
+    ENGINE_ERROR_CODE rv = callback(failoverEntries.data(),
+                                    failoverEntries.size(),
+                                    getCookie());
+    if (rv != ENGINE_SUCCESS) {
+        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Couldn't add failover log to "
+            "stream request due to error %d", logHeader(), vbucket, rv);
+    }
+
     notifyStreamReady(vbucket);
 
     if (add_vb_conn_map) {
@@ -472,7 +479,11 @@ ENGINE_ERROR_CODE DcpProducer::getFailoverLog(uint32_t opaque, uint16_t vbucket,
         return ENGINE_NOT_MY_VBUCKET;
     }
 
-    return vb->failovers->addFailoverLog(getCookie(), callback);
+    std::vector<vbucket_failover_t> failoverEntries =
+            vb->failovers->getFailoverLog();
+    return callback(failoverEntries.data(),
+                    failoverEntries.size(),
+                    getCookie());
 }
 
 ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
