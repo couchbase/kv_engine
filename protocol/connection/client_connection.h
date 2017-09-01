@@ -44,6 +44,24 @@ public:
         payload.resize(0);
     }
 
+    cb::mcbp::Magic getMagic() const {
+        const auto magic(cb::mcbp::Magic(payload.at(0)));
+        if (!cb::mcbp::is_legal(magic)) {
+            throw std::invalid_argument(
+                    "Frame::getMagic: invalid magic provided in buffer");
+        }
+
+        return magic;
+    }
+
+    const cb::mcbp::Request* getRequest() const {
+        return reinterpret_cast<const cb::mcbp::Request*>(payload.data());
+    }
+
+    const cb::mcbp::Response* getResponse() const {
+        return reinterpret_cast<const cb::mcbp::Response*>(payload.data());
+    }
+
     std::vector<uint8_t> payload;
     typedef std::vector<uint8_t>::size_type size_type;
 };
@@ -417,8 +435,11 @@ public:
      * Receive the next frame on the connection
      *
      * @param frame the frame object to populate with the next frame
+     * @param make_length_fields_host_local set to true if bodylen and keylen
+     *                                      should be moved to host-local
+     *                                      byte order
      */
-    void recvFrame(Frame& frame);
+    void recvFrame(Frame& frame, bool make_length_fields_host_local = true);
 
     void sendCommand(const BinprotCommand& command);
 

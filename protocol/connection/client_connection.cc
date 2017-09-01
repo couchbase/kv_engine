@@ -422,7 +422,8 @@ std::unique_ptr<MemcachedConnection> MemcachedConnection::clone() {
     return std::unique_ptr<MemcachedConnection>{result};
 }
 
-void MemcachedConnection::recvFrame(Frame& frame) {
+void MemcachedConnection::recvFrame(Frame& frame,
+                                    bool make_length_fields_host_local) {
     frame.reset();
     // A memcached packet starts with a 24 byte fixed header
     MemcachedConnection::read(frame, 24);
@@ -433,13 +434,14 @@ void MemcachedConnection::recvFrame(Frame& frame) {
     auto* req = reinterpret_cast<protocol_binary_request_header*>(
             frame.payload.data());
     const uint32_t bodylen = ntohl(req->request.bodylen);
-    const uint8_t magic = frame.payload.at(0);
-    const uint8_t REQUEST = uint8_t(PROTOCOL_BINARY_REQ);
-    const uint8_t RESPONSE = uint8_t(PROTOCOL_BINARY_RES);
+    auto magic = cb::mcbp::Magic(frame.payload.at(0));
 
-    if (magic != REQUEST && magic != RESPONSE) {
+    if (magic != cb::mcbp::Magic::ClientRequest &&
+        magic != cb::mcbp::Magic::ClientResponse &&
+        magic != cb::mcbp::Magic::ServerRequest &&
+        magic != cb::mcbp::Magic::ServerResponse) {
         throw std::runtime_error("Invalid magic received: " +
-                                 std::to_string(magic));
+                                 std::to_string(frame.payload.at(0)));
     }
 
     MemcachedConnection::read(frame, bodylen);
@@ -447,20 +449,23 @@ void MemcachedConnection::recvFrame(Frame& frame) {
         cb::mcbp::dump(frame.payload.data(), std::cerr);
     }
 
-    // fixup the length bits in the header to be in host local order:
-    if (magic == REQUEST) {
-        // The underlying buffer may hage been reallocated as part of read
-        req = reinterpret_cast<protocol_binary_request_header*>(
-                frame.payload.data());
-        req->request.keylen = ntohs(req->request.keylen);
-        req->request.bodylen = bodylen;
-    } else {
-        // The underlying buffer may hage been reallocated as part of read
-        auto* res = reinterpret_cast<protocol_binary_response_header*>(
-                frame.payload.data());
-        res->response.keylen = ntohs(res->response.keylen);
-        res->response.bodylen = bodylen;
-        res->response.status = ntohs(res->response.status);
+    if (make_length_fields_host_local) {
+        // fixup the length bits in the header to be in host local order:
+        if (magic == cb::mcbp::Magic::ClientRequest ||
+            magic == cb::mcbp::Magic::ServerRequest) {
+            // The underlying buffer may hage been reallocated as part of read
+            req = reinterpret_cast<protocol_binary_request_header*>(
+                    frame.payload.data());
+            req->request.keylen = ntohs(req->request.keylen);
+            req->request.bodylen = bodylen;
+        } else {
+            // The underlying buffer may hage been reallocated as part of read
+            auto* res = reinterpret_cast<protocol_binary_response_header*>(
+                    frame.payload.data());
+            res->response.keylen = ntohs(res->response.keylen);
+            res->response.bodylen = bodylen;
+            res->response.status = ntohs(res->response.status);
+        }
     }
 }
 
