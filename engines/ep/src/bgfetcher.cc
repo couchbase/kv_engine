@@ -28,6 +28,8 @@
 #include "tasks.h"
 #include "vbucket_bgfetch_item.h"
 
+#include <phosphor/phosphor.h>
+
 const double BgFetcher::sleepInterval = MIN_SLEEP_TIME;
 
 BgFetcher::BgFetcher(KVBucket& s, KVShard& k)
@@ -60,6 +62,12 @@ void BgFetcher::notifyBGEvent(void) {
 
 size_t BgFetcher::doFetch(VBucket::id_type vbId,
                           vb_bgfetch_queue_t& itemsToFetch) {
+    TRACE_EVENT2("BgFetcher",
+                 "doFetch",
+                 "vbid",
+                 vbId,
+                 "#itemsToFetch",
+                 itemsToFetch.size());
     ProcessClock::time_point startTime(ProcessClock::now());
     LOG(EXTENSION_LOG_DEBUG,
         "BgFetcher is fetching data, vb:%" PRIu16 " numDocs:%" PRIu64 " "

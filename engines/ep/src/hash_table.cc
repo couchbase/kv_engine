@@ -21,6 +21,8 @@
 #include "stats.h"
 #include "stored_value_factories.h"
 
+#include <phosphor/phosphor.h>
+
 #include <cstring>
 
 static const ssize_t prime_size_table[] = {
@@ -178,6 +180,9 @@ void HashTable::resize(size_t newSize) {
     if (newSize == size) {
         return;
     }
+
+    TRACE_EVENT2(
+            "HashTable", "resize", "size", size.load(), "newSize", newSize);
 
     MultiLockHolder mlh(mutexes, n_locks);
     if (visitors.load() > 0) {

@@ -916,11 +916,6 @@ bool CouchKVStore::compactDBInternal(compaction_ctx* hook_ctx,
         throw std::logic_error("CouchKVStore::compactDB: Cannot perform "
                         "on a read-only instance.");
     }
-    TRACE_EVENT1("ep-engine/couch-kvstore",
-                 "compactDB",
-                 "shard",
-                 this->configuration.getShardId());
-
     couchstore_compact_hook       hook = time_purge_hook;
     couchstore_docinfo_hook dhook = docinfo_hook;
     FileOpsInterface         *def_iops = statCollectingFileOpsCompaction.get();
@@ -937,6 +932,8 @@ bool CouchKVStore::compactDBInternal(compaction_ctx* hook_ctx,
     uint64_t                   fileRev = dbFileRevMap[vbid];
     uint64_t                   new_rev = fileRev + 1;
     hook_ctx->config = &configuration;
+
+    TRACE_EVENT1("CouchKVStore", "compactDB", "vbid", vbid);
 
     // Open the source VBucket database file ...
     errCode = openDB(vbid,
@@ -1174,11 +1171,6 @@ StorageProperties CouchKVStore::getStorageProperties() {
 }
 
 bool CouchKVStore::commit(const Item* collectionsManifest) {
-    TRACE_EVENT1("ep-engine/couch-kvstore",
-                 "commit",
-                 "shard",
-                 this->configuration.getShardId());
-
     if (isReadOnly()) {
         throw std::logic_error("CouchKVStore::commit: Not valid on a read-only "
                         "object.");
@@ -1336,6 +1328,13 @@ scan_error_t CouchKVStore::scan(ScanContext* ctx) {
         return scan_success;
     }
 
+    TRACE_EVENT_START2("CouchKVStore",
+                       "scan",
+                       "vbid",
+                       ctx->vbid,
+                       "startSeqno",
+                       ctx->startSeqno);
+
     Db* db;
     {
         LockHolder lh(scanLock);
@@ -1358,6 +1357,10 @@ scan_error_t CouchKVStore::scan(ScanContext* ctx) {
                                          getDocFilter(ctx->docFilter),
                                          recordDbDumpC,
                                          static_cast<void*>(ctx));
+
+    TRACE_EVENT_END1(
+            "CouchKVStore", "scan", "lastReadSeqno", ctx->lastReadSeqno);
+
     if (errorCode != COUCHSTORE_SUCCESS) {
         if (errorCode == COUCHSTORE_ERROR_CANCEL) {
             return scan_again;
@@ -1817,6 +1820,13 @@ bool CouchKVStore::commit2couchstore(const Item* collectionsManifest) {
     uint16_t vbucket2flush = pendingCommitCnt
                                      ? pendingReqsQ[0]->getVBucketId()
                                      : collectionsManifest->getVBucketId();
+
+    TRACE_EVENT2("CouchKVStore",
+                 "commit2couchstore",
+                 "vbid",
+                 vbucket2flush,
+                 "pendingCommitCnt",
+                 pendingCommitCnt);
 
     // When an item and a manifest are present, vbucket2flush is read from the
     // item. Check it matches the manifest

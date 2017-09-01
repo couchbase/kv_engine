@@ -146,7 +146,7 @@ public:
     }
 
     bool run() {
-        TRACE_EVENT0("ep-engine/task", "WarmupKeyDump");
+        TRACE_EVENT1("ep-engine/task", "WarmupKeyDump", "shard", _shardId);
         _warmup->keyDumpforShard(_shardId);
         _warmup->removeFromTaskSet(uid);
         return false;

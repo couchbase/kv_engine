@@ -2784,6 +2784,7 @@ extern "C" int memcached_main(int argc, char **argv) {
     executorPool.reset(new ExecutorPool(size_t(settings.getNumWorkerThreads())));
 
     initializeTracing();
+    TRACE_GLOBAL0("memcached", "Started");
 
     /*
      * MB-20034.
