@@ -34,15 +34,6 @@ Bucket::Bucket(const Bucket& other)
     responseCounters = other.responseCounters;
 }
 
-time_t Bucket::getAbsoluteExpiryTime(rel_time_t exptime) const {
-    // Couchbase style buckets returns the time in absolute time
-    if (type == BucketType::Couchstore) {
-        return exptime;
-    }
-
-    return exptime ? mc_time_convert_to_abs_time(exptime) : 0;
-}
-
 namespace BucketValidator {
     bool validateBucketName(const std::string& name, std::string& errors) {
         if (name.empty()) {

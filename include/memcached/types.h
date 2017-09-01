@@ -90,8 +90,7 @@ struct item_info {
     uint64_t cas;
     uint64_t vbucket_uuid;
     uint64_t seqno;
-    rel_time_t exptime; /**< When the item will expire (relative to process
-                         * startup) */
+    time_t exptime; /**< When the item will expire (absolute time) */
     uint32_t nbytes; /**< The total size of the data (in bytes) */
     uint32_t flags; /**< Flags associated with the item (in network byte order)*/
     uint8_t datatype;

@@ -377,7 +377,7 @@ static enum test_result flush_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 static enum test_result get_item_info_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     DocKey key("get_item_info_test_key", test_harness.doc_namespace);
     uint64_t cas = 0;
-    const rel_time_t exp = 1;
+    const time_t exp = 1;
     item_info ii;
 
     auto ret =

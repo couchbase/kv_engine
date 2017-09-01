@@ -1137,7 +1137,11 @@ static bool get_item_info(ENGINE_HANDLE *handle, const void *cookie,
 
     item_info->vbucket_uuid = DEFAULT_ENGINE_VBUCKET_UUID;
     item_info->seqno = 0;
-    item_info->exptime = it->exptime;
+    if (it->exptime == 0) {
+        item_info->exptime = 0;
+    } else {
+        item_info->exptime = engine->server.core->abstime(it->exptime);
+    }
     item_info->nbytes = it->nbytes;
     item_info->flags = it->flags;
     item_info->nkey = hash_key_get_client_key_len(key);

@@ -41,9 +41,8 @@ the vbucket (with the vbucket uuid)
 
 ### Expiry time
 
-The exiration time is a 32 bit value representing the number of seconds from
-process startup for when the document will expire. The value *0* means never
-expire.
+The exiration time is time_t value representing the absolute time for
+when the document will expire. The value *0* means never expire.
 
 ### Number of bytes
 
