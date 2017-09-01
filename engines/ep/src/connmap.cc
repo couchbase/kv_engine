@@ -134,13 +134,10 @@ public:
     }
 
 private:
-    static const double sleepTime;
     EventuallyPersistentEngine *engine;
     ConnMap *connmap;
     size_t snoozeTime;
 };
-
-const double ConnManager::sleepTime = 1.0;
 
 ConnMap::ConnMap(EventuallyPersistentEngine &theEngine)
     :  engine(theEngine),
