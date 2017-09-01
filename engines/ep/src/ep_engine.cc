@@ -5334,7 +5334,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setVBucketState(
 }
 
 EventuallyPersistentEngine::~EventuallyPersistentEngine() {
-    kvBucket->deinitialize();
+    if (kvBucket) {
+        kvBucket->deinitialize();
+    }
     LOG(EXTENSION_LOG_NOTICE, "~EPEngine: Completed deinitialize.");
     kvBucket.reset();
     LOG(EXTENSION_LOG_NOTICE, "~EPEngine: Deleted KvBucket.");

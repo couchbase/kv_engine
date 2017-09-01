@@ -25,9 +25,8 @@
 
 #include <string>
 
-SynchronousEPEngine::SynchronousEPEngine(const std::string& extra_config)
+SynchronousEPEngine::SynchronousEPEngine(std::string extra_config)
     : EventuallyPersistentEngine(get_mock_server_api) {
-
     // Tests may need to create multiple failover table entries, so allow that
     maxFailoverEntries = 5;
 
