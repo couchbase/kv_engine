@@ -39,7 +39,6 @@ class GlobalTask;
  */
 class BgFetcher {
 public:
-    static const double sleepInterval;
     /**
      * Construct a BgFetcher
      *
@@ -84,6 +83,11 @@ public:
 
 private:
     size_t doFetch(VBucket::id_type vbId, vb_bgfetch_queue_t& items);
+
+    /// If the BGFetch task is currently snoozed (not scheduled to
+    /// run), wake it up. Has no effect the if the task has already
+    /// been woken.
+    void wakeUpTaskIfSnoozed();
 
     KVBucket* store;
     KVShard* shard;

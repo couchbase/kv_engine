@@ -106,10 +106,7 @@ private:
 class BgFetcher;
 class MultiBGFetcherTask : public GlobalTask {
 public:
-    MultiBGFetcherTask(EventuallyPersistentEngine *e, BgFetcher *b, bool sleeptime = 0,
-                        bool completeBeforeShutdown = false)
-        : GlobalTask(e, TaskId::MultiBGFetcherTask, sleeptime, completeBeforeShutdown),
-          bgfetcher(b) {}
+    MultiBGFetcherTask(EventuallyPersistentEngine* e, BgFetcher* b);
 
     bool run();
 

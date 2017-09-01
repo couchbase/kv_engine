@@ -17,9 +17,6 @@
 
 #include "config.h"
 
-#include <algorithm>
-#include <vector>
-
 #include "bgfetcher.h"
 #include "ep_engine.h"
 #include "executorthread.h"
@@ -30,18 +27,18 @@
 
 #include <phosphor/phosphor.h>
 
-const double BgFetcher::sleepInterval = MIN_SLEEP_TIME;
+#include <algorithm>
+#include <climits>
+#include <vector>
 
 BgFetcher::BgFetcher(KVBucket& s, KVShard& k)
     : BgFetcher(&s, &k, s.getEPEngine().getEpStats()) {
 }
 
 void BgFetcher::start() {
-    bool inverse = false;
-    pendingFetch.compare_exchange_strong(inverse, true);
     ExecutorPool* iom = ExecutorPool::get();
-    auto task = std::make_shared<MultiBGFetcherTask>(
-            &(store->getEPEngine()), this, false);
+    auto task =
+            std::make_shared<MultiBGFetcherTask>(&(store->getEPEngine()), this);
     this->setTaskId(task->getId());
     iom->schedule(task);
 }
@@ -54,8 +51,12 @@ void BgFetcher::stop() {
 
 void BgFetcher::notifyBGEvent(void) {
     ++stats.numRemainingBgItems;
-    bool inverse = false;
-    if (pendingFetch.compare_exchange_strong(inverse, true)) {
+    wakeUpTaskIfSnoozed();
+}
+
+void BgFetcher::wakeUpTaskIfSnoozed() {
+    bool expected = false;
+    if (pendingFetch.compare_exchange_strong(expected, true)) {
         ExecutorPool::get()->wake(taskId);
     }
 }
@@ -106,9 +107,23 @@ size_t BgFetcher::doFetch(VBucket::id_type vbId,
 }
 
 bool BgFetcher::run(GlobalTask *task) {
-    size_t num_fetched_items = 0;
-    bool inverse = true;
-    pendingFetch.compare_exchange_strong(inverse, false);
+    // Setup to snooze forever, and *then* clear the pending flag.
+    // The ordering of these two statements is important - if we were
+    // to clear the flag *before* snoozing, then we could have a Lost
+    // Wakeup (and sleep forever) - consider the following scenario:
+    //
+    //     Time   Reader Thread                   Frontend Thread
+    //            (notifyBGEvent)                 (BgFetcher::run)
+    //
+    //     1                                      pendingFetch = false
+    //     2      if (pendingFetch == false)
+    //     3          wake(task)
+    //     4                                      snooze(INT_MAX)  /* BAD */
+    //
+    // By clearing pendingFlag after the snooze() we ensure the wake()
+    // must happen after snooze().
+    task->snooze(INT_MAX);
+    pendingFetch.store(false);
 
     std::vector<uint16_t> bg_vbs(pendingVbs.size());
     {
@@ -117,6 +132,7 @@ bool BgFetcher::run(GlobalTask *task) {
         pendingVbs.clear();
     }
 
+    size_t num_fetched_items = 0;
     for (const uint16_t vbId : bg_vbs) {
         VBucketPtr vb = shard->getBucket(vbId);
         if (vb) {
@@ -126,8 +142,7 @@ bool BgFetcher::run(GlobalTask *task) {
                     LockHolder lh(queueMutex);
                     pendingVbs.insert(vbId);
                 }
-                bool inverse = false;
-                pendingFetch.compare_exchange_strong(inverse, true);
+                wakeUpTaskIfSnoozed();
                 continue;
             }
 
@@ -140,17 +155,6 @@ bool BgFetcher::run(GlobalTask *task) {
 
     stats.numRemainingBgItems.fetch_sub(num_fetched_items);
 
-    if (!pendingFetch.load()) {
-        // wait a bit until next fetch request arrives
-        double sleep = std::max(store->getBGFetchDelay(), sleepInterval);
-        task->snooze(sleep);
-
-        if (pendingFetch.load()) {
-            // check again a new fetch request could have arrived
-            // right before calling above snooze()
-            task->wakeUp();
-        }
-    }
     return true;
 }
 

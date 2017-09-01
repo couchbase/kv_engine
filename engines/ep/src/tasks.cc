@@ -66,6 +66,15 @@ bool StatSnap::run() {
     return true;
 }
 
+MultiBGFetcherTask::MultiBGFetcherTask(EventuallyPersistentEngine* e,
+                                       BgFetcher* b)
+    : GlobalTask(e,
+                 TaskId::MultiBGFetcherTask,
+                 /*sleeptime*/ INT_MAX,
+                 /*completeBeforeShutdown*/ false),
+      bgfetcher(b) {
+}
+
 bool MultiBGFetcherTask::run() {
     TRACE_EVENT0("ep-engine/task", "MultiBGFetcherTask");
     return bgfetcher->run(this);
