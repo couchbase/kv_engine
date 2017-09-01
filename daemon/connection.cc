@@ -18,6 +18,7 @@
 #include "mcaudit.h"
 #include "memcached.h"
 #include "runtime.h"
+#include "server_event.h"
 #include "statemachine_mcbp.h"
 
 #include <exception>
@@ -535,4 +536,8 @@ void Connection::addCpuTime(std::chrono::nanoseconds ns) {
     total_cpu_time += ns;
     min_sched_time = std::min(min_sched_time, ns);
     max_sched_time = std::max(min_sched_time, ns);
+}
+
+void Connection::enqueueServerEvent(std::unique_ptr<ServerEvent> event) {
+    server_events.push(std::move(event));
 }

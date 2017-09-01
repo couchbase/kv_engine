@@ -2,6 +2,7 @@
 #ifndef MEMCACHED_H
 #define MEMCACHED_H
 
+#include <functional>
 #include <mutex>
 #include <vector>
 
@@ -283,5 +284,7 @@ ENGINE_ERROR_CODE refresh_cbsasl(Connection *c);
  * to allow for out of order replies).
  */
 extern std::unique_ptr<ExecutorPool> executorPool;
+
+void iterate_all_connections(std::function<void(Connection&)> callback);
 
 #endif

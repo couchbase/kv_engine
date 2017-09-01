@@ -16,10 +16,11 @@
  */
 #include "config.h"
 #include "connections.h"
+#include "mc_time.h"
 #include "memcached.h"
 #include "runtime.h"
+#include "server_event.h"
 #include "statemachine_mcbp.h"
-#include "mc_time.h"
 
 #include <mcbp/mcbp.h>
 #include <phosphor/phosphor.h>
@@ -1158,10 +1159,28 @@ bool McbpConnection::shouldDelete() {
     return getState() == conn_destroyed;
 }
 
+bool McbpConnection::processServerEvents() {
+    if (server_events.empty()) {
+        return false;
+    }
+
+    const auto before = getState();
+
+    // We're waiting for the next command to arrive from the client
+    // and we've got a server event to process. Let's start
+    // processing the server events (which might toggle our state)
+    if (server_events.front()->execute(*this)) {
+        server_events.pop();
+    }
+
+    return getState() != before;
+}
+
 void McbpConnection::runEventLoop(short which) {
     conn_loan_buffers(this);
     currentEvent = which;
     numEvents = max_reqs_per_event;
+
     try {
         runStateMachinery();
     } catch (std::exception& e) {

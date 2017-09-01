@@ -82,6 +82,18 @@ int signal_idle_clients(LIBEVENT_THREAD *me, int bucket_idx, bool logging)
     return connected;
 }
 
+void iterate_thread_connections(LIBEVENT_THREAD* thread,
+                                std::function<void(Connection&)> callback) {
+    // Deny modifications to the connection map while we're iterating
+    // over it
+    std::lock_guard<std::mutex> lock(connections.mutex);
+    for (auto* c : connections.conns) {
+        if (c->getThread() == thread) {
+            callback(*c);
+        }
+    }
+}
+
 void destroy_connections(void)
 {
     std::lock_guard<std::mutex> lock(connections.mutex);

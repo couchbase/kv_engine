@@ -17,6 +17,7 @@
 #include "config.h"
 #include "memcached.h"
 #include "runtime.h"
+#include "server_event.h"
 #include "statemachine_mcbp.h"
 
 #include <exception>
@@ -106,6 +107,19 @@ void ListenConnection::disable() {
 }
 
 void ListenConnection::runEventLoop(short) {
+    if (!server_events.empty()) {
+        LOG_WARNING(this,
+                    "%u: ListenConnection::runEventLoop() - logic error. "
+                    "Listen connections do not support server events");
+        while (!server_events.empty()) {
+            LOG_NOTICE(this,
+                       "%u: Dropping event: %s",
+                       getId(),
+                       server_events.front()->getDescription().c_str());
+            server_events.pop();
+        }
+    }
+
     try {
         do {
             LOG_DEBUG(this, "%u - Running task: (conn_listening)", getId());

@@ -18,17 +18,11 @@
 /*
  * Connection management and event loop handling.
  */
-
-#ifndef CONNECTIONS_H
-#define CONNECTIONS_H
-
 #include "config.h"
 
 #include "memcached.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <functional>
 
 /* Destroy all connections and reset connection management */
 void destroy_connections(void);
@@ -164,8 +158,13 @@ void dump_connection_stat_signal_handler(evutil_socket_t, short, void *);
 ENGINE_ERROR_CODE apply_connection_trace_mask(const std::string &key,
                                               const std::string &mask);
 
-#ifdef __cplusplus
-} // extern "C"
-#endif
-
-#endif /* CONNECTIONS_H */
+/**
+ * Iterate over all of the connections and call the callback function
+ * for each of the connections.
+ *
+ * @param thread the thread to look at (must be locked)
+ * @param callback the callback function to be called for each of the
+ *                 connections
+ */
+void iterate_thread_connections(LIBEVENT_THREAD* thread,
+                                std::function<void(Connection&)> callback);

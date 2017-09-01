@@ -33,7 +33,7 @@
 class ClusterConfiguration {
 public:
     ClusterConfiguration()
-        : config(std::make_shared<std::string>()), revision(-1L) {
+        : config(std::make_shared<std::string>()), revision(-1) {
     }
 
     void setConfiguration(cb::const_char_buffer buffer);
@@ -44,7 +44,7 @@ public:
      * @return a pair where the first element is the revision number, and
      *         the second element is (a copy) of the configuration.
      */
-    std::pair<long, std::shared_ptr<std::string>> getConfiguration() const {
+    std::pair<int, std::shared_ptr<std::string>> getConfiguration() const {
         std::lock_guard<std::mutex> guard(mutex);
         return std::make_pair(revision, config);
     };
@@ -55,7 +55,7 @@ public:
      * @param buffer The cluster configuration provided by ns_server
      * @return the revision number for the cluster configuration
      */
-    static long getRevisionNumber(cb::const_char_buffer buffer);
+    static int getRevisionNumber(cb::const_char_buffer buffer);
 
 private:
     /**
@@ -75,5 +75,5 @@ private:
     /**
      * Cached revision so we don't have to parse it every time
      */
-    long revision;
+    int revision;
 };

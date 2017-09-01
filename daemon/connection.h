@@ -21,15 +21,17 @@
 #include "cookie.h"
 #include "settings.h"
 
-#include <chrono>
 #include <cJSON.h>
 #include <cbsasl/cbsasl.h>
 #include <memcached/rbac.h>
+#include <chrono>
+#include <queue>
 #include <string>
 
 struct LIBEVENT_THREAD;
 class ListeningPort;
 class Bucket;
+class ServerEvent;
 
 /**
  * The structure representing a connection in memcached.
@@ -408,6 +410,13 @@ public:
      */
     void addCpuTime(std::chrono::nanoseconds ns);
 
+    /**
+     * Enqueue a new server event
+     *
+     * @param event
+     */
+    void enqueueServerEvent(std::unique_ptr<ServerEvent> event);
+
 protected:
     Connection(SOCKET sfd, event_base* b);
 
@@ -532,6 +541,8 @@ protected:
     bool duplex_support{false};
 
     std::atomic_bool cccp{false};
+
+    std::queue<std::unique_ptr<ServerEvent>> server_events;
 
     /**
      * The total time this connection been on the CPU

@@ -188,7 +188,7 @@ bool conn_ship_log(McbpConnection *c) {
 }
 
 bool conn_waiting(McbpConnection *c) {
-    if (is_bucket_dying(c)) {
+    if (is_bucket_dying(c) || c->processServerEvents()) {
         return true;
     }
 
@@ -205,7 +205,7 @@ bool conn_waiting(McbpConnection *c) {
 }
 
 bool conn_read_packet_header(McbpConnection* c) {
-    if (is_bucket_dying(c)) {
+    if (is_bucket_dying(c) || c->processServerEvents()) {
         return true;
     }
 

@@ -22,8 +22,8 @@
 #include <stdexcept>
 
 void ClusterConfiguration::setConfiguration(cb::const_char_buffer buffer) {
-    long rev = getRevisionNumber(buffer);
-    if (rev == -1L) {
+    int rev = getRevisionNumber(buffer);
+    if (rev == -1) {
         throw std::invalid_argument(
                 "ClusterConfiguration::setConfiguration: Failed determine map "
                 "revision");
@@ -34,7 +34,7 @@ void ClusterConfiguration::setConfiguration(cb::const_char_buffer buffer) {
     config = std::make_shared<std::string>(buffer.begin(), buffer.end());
 }
 
-long ClusterConfiguration::getRevisionNumber(cb::const_char_buffer buffer) {
+int ClusterConfiguration::getRevisionNumber(cb::const_char_buffer buffer) {
     Subdoc::Operation operation;
     Subdoc::Result result;
     operation.set_code(Subdoc::Command::GET);
@@ -42,7 +42,7 @@ long ClusterConfiguration::getRevisionNumber(cb::const_char_buffer buffer) {
     operation.set_result_buf(&result);
 
     if (operation.op_exec("rev") != Subdoc::Error::SUCCESS) {
-        return -1L;
+        return -1;
     }
 
     auto loc = result.matchloc();
@@ -50,12 +50,12 @@ long ClusterConfiguration::getRevisionNumber(cb::const_char_buffer buffer) {
 
     try {
         std::size_t count;
-        auto ret = std::stol(value, &count);
+        auto ret = std::stoi(value, &count);
         if (count == loc.length) {
             return ret;
         }
     } catch (const std::exception&) {
     }
 
-    return -1L;
+    return -1;
 }

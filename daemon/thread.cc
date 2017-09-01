@@ -105,6 +105,15 @@ static void create_worker(void (*func)(void *), void *arg, cb_thread_t *id,
 
 /****************************** LIBEVENT THREADS *****************************/
 
+void iterate_all_connections(std::function<void(Connection&)> callback) {
+    for (int ii = 0; ii < nthreads; ++ii) {
+        LIBEVENT_THREAD* thr = threads + ii;
+        LOCK_THREAD(thr);
+        iterate_thread_connections(thr, callback);
+        UNLOCK_THREAD(thr);
+    }
+}
+
 bool create_notification_pipe(LIBEVENT_THREAD *me)
 {
     int j;

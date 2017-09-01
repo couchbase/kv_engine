@@ -155,3 +155,45 @@ TEST_P(ClusterConfigTest, Enable_CCCP_Push_Notifications) {
     conn.setDuplexSupport(true);
     conn.setClustermapChangeNotification(true);
 }
+
+TEST_P(ClusterConfigTest, CccpPushNotification) {
+    auto& conn = getAdminConnection();
+    conn.selectBucket("default");
+
+    auto second = conn.clone();
+
+    second->setDuplexSupport(true);
+    second->setClustermapChangeNotification(true);
+
+    BinprotResponse response;
+    conn.executeCommand(BinprotSetClusterConfigCommand{token, R"({"rev":666})"},
+                        response);
+
+    Frame frame;
+
+    // Setting a new config should cause the server to push a new config
+    // to me!
+    second->recvFrame(frame, false);
+    EXPECT_EQ(cb::mcbp::Magic::ServerRequest, frame.getMagic());
+
+    auto* request = frame.getRequest();
+
+    EXPECT_EQ(cb::mcbp::ServerOpcode::ClustermapChangeNotification,
+              request->getServerOpcode());
+    EXPECT_EQ(4, request->getExtlen());
+    auto extras = request->getExtdata();
+    uint32_t revno;
+    std::copy(extras.begin(), extras.end(), reinterpret_cast<uint8_t*>(&revno));
+    revno = ntohl(revno);
+    EXPECT_EQ(666, revno);
+
+    auto key = request->getKey();
+    const std::string bucket{reinterpret_cast<const char*>(key.data()),
+                             key.size()};
+    EXPECT_EQ("default", bucket);
+
+    auto value = request->getValue();
+    const std::string config{reinterpret_cast<const char*>(value.data()),
+                             value.size()};
+    EXPECT_EQ(R"({"rev":666})", config);
+}

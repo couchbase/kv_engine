@@ -35,8 +35,8 @@
  */
 static bool send_not_my_vbucket(McbpConnection& c) {
     auto pair = c.getBucket().clusterConfiguration.getConfiguration();
-    if (pair.first == -1L || (pair.first == long(c.getClustermapRevno()) &&
-                              settings.isDedupeNmvbMaps())) {
+    if (pair.first == -1 ||
+        (pair.first == c.getClustermapRevno() && settings.isDedupeNmvbMaps())) {
         // We don't have a vbucket map, or we've already sent it to the
         // client
         mcbp_add_header(&c,
@@ -76,7 +76,7 @@ static bool send_not_my_vbucket(McbpConnection& c) {
     buffer.moveOffset(needed);
 
     mcbp_write_and_free(&c, &c.getDynamicBuffer());
-    c.setClustermapRevno(int(pair.first));
+    c.setClustermapRevno(pair.first);
     return true;
 }
 

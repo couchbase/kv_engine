@@ -41,6 +41,8 @@ ADD_LIBRARY(memcached_daemon STATIC
             breakpad.h
             buckets.cc
             buckets.h
+            cccp_notification_task.cc
+            cccp_notification_task.h
             cluster_config.cc
             cluster_config.h
             cmdline.cc
@@ -172,6 +174,7 @@ ADD_LIBRARY(memcached_daemon STATIC
             runtime.h
             sasl_tasks.cc
             sasl_tasks.h
+            server_event.h
             session_cas.cc
             session_cas.h
             settings.cc

@@ -16,8 +16,11 @@
  */
 
 #include <daemon/buckets.h>
+#include <daemon/cccp_notification_task.h>
 #include <daemon/mcbp.h>
+#include <daemon/memcached.h>
 #include <daemon/session_cas.h>
+
 #include "executors.h"
 
 void get_cluster_config_executor(McbpConnection* c, void*) {
@@ -29,7 +32,7 @@ void get_cluster_config_executor(McbpConnection* c, void*) {
     }
 
     auto pair = c->getBucket().clusterConfiguration.getConfiguration();
-    if (pair.first == -1L) {
+    if (pair.first == -1) {
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
     } else {
         mcbp_response_handler(nullptr,
@@ -43,6 +46,7 @@ void get_cluster_config_executor(McbpConnection* c, void*) {
                               0,
                               c->getCookie());
         mcbp_write_and_free(c, &c->getDynamicBuffer());
+        c->setClustermapRevno(pair.first);
     }
 }
 
@@ -72,13 +76,24 @@ void set_cluster_config_executor(McbpConnection* c, void* packet) {
         c->setCAS(cas);
         mcbp_write_packet(c, cb::mcbp::Status::Success);
 
+        const long revision =
+                bucket.clusterConfiguration.getConfiguration().first;
+
         LOG_NOTICE(c,
                    "%u: %s Updated cluster configuration for bucket [%s]. New "
-                   "revision: %ul",
+                   "revision: %u",
                    c->getId(),
                    c->getDescription().c_str(),
                    bucket.name,
-                   bucket.clusterConfiguration.getConfiguration().first);
+                   revision);
+
+        // Start an executor job to walk through the connections and tell
+        // them to push new clustermaps
+        std::shared_ptr<Task> task;
+        task = std::make_shared<CccpNotificationTask>(c->getBucketIndex(),
+                                                      revision);
+        std::lock_guard<std::mutex> guard(task->getMutex());
+        executorPool->schedule(task, true);
     } catch (const std::invalid_argument& e) {
         LOG_WARNING(c,
                     "%u: %s Failed to update cluster configuration for bucket "

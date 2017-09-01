@@ -759,6 +759,17 @@ public:
 
     bool selectedBucketIsXattrEnabled() const;
 
+    /**
+     * Try to process some of the server events. This may _ONLY_ be performed
+     * after we've completely transferred the response for one command, and
+     * before we start executing the next one.
+     *
+     * @return true if processing server events set changed the path in the
+     *              state machine (and the current task should be
+     *              terminated immediately)
+     */
+    bool processServerEvents();
+
 protected:
     void runStateMachinery();
 
