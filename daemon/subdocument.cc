@@ -1191,7 +1191,7 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
     // Allocate a new item of this size.
     if (context.out_doc == NULL &&
         !(context.no_sys_xattrs && context.do_delete_doc)) {
-        item *new_doc;
+        item* new_doc = nullptr;
 
         if (ret == ENGINE_SUCCESS) {
             context.out_doc_len = context.in_doc.len;
@@ -1209,7 +1209,6 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
                 new_doc = r.second.release();
                 ret = ENGINE_SUCCESS;
             } else {
-                new_doc = nullptr;
                 ret = ENGINE_ERROR_CODE(r.first);
                 ret = context.connection.remapErrorCode(ret);
             }
