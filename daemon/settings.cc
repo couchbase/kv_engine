@@ -1262,9 +1262,9 @@ void Settings::updateSettings(const Settings& other, bool apply) {
 
         if (b2.getContent() != b1.getContent()) {
             logit(EXTENSION_LOG_NOTICE,
-                  "Change minidump content from %u to %u",
-                  b1.getContent(),
-                  b2.getContent());
+                  "Change minidump content from %s to %s",
+                  to_string(b1.getContent()).c_str(),
+                  to_string(b2.getContent()).c_str());
             b1.setContent(b2.getContent());
             changed = true;
         }
@@ -1537,4 +1537,13 @@ ClientCertAuth::ClientCertAuth(cJSON* obj) {
     ClientCertAuth::type = pathVal;
     ClientCertAuth::delimiter = delimiterVal;
     certUser.reset(createUser.release());
+}
+
+std::string to_string(BreakpadContent content) {
+    switch (content) {
+    case BreakpadContent::Default:
+        return "default";
+    }
+    throw std::invalid_argument("to_string(BeakpadContent): Invalid value: " +
+                                std::to_string(int(content)));
 }

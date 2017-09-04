@@ -108,6 +108,8 @@ enum class BreakpadContent {
     Default
 };
 
+std::string to_string(BreakpadContent content);
+
 /**
  * Settings for Breakpad crash catcher.
  */
@@ -116,10 +118,7 @@ public:
     /**
      * Default constructor initialize the object to be in a disabled state
      */
-    BreakpadSettings()
-        : enabled(false),
-          content(BreakpadContent::Default) {
-    }
+    BreakpadSettings() = default;
 
     /**
      * Initialize the Breakpad object from the specified JSON structure
@@ -134,7 +133,7 @@ public:
      * @param json The json to parse
      * @throws std::invalid_argument if the json dosn't look as expected
      */
-    BreakpadSettings(const cJSON* json);
+    explicit BreakpadSettings(const cJSON* json);
 
     bool isEnabled() const {
         return enabled;
@@ -161,9 +160,9 @@ public:
     }
 
 protected:
-    bool enabled;
+    bool enabled{false};
     std::string minidump_dir;
-    BreakpadContent content;
+    BreakpadContent content{BreakpadContent::Default};
 };
 
 enum class EventPriority {
