@@ -484,6 +484,30 @@ TEST_F(SettingsTest, RequireInit) {
     }
 }
 
+TEST_F(SettingsTest, TopkeysEnabled) {
+    nonBooleanValuesShouldFail("topkeys_enabled");
+
+    unique_cJSON_ptr obj(cJSON_CreateObject());
+    cJSON_AddTrueToObject(obj.get(), "topkeys_enabled");
+    try {
+        Settings settings(obj);
+        EXPECT_TRUE(settings.isTopkeysEnabled());
+        EXPECT_TRUE(settings.has.topkeys_enabled);
+    } catch (std::exception& exception) {
+        FAIL() << exception.what();
+    }
+
+    obj.reset(cJSON_CreateObject());
+    cJSON_AddFalseToObject(obj.get(), "topkeys_enabled");
+    try {
+        Settings settings(obj);
+        EXPECT_FALSE(settings.isTopkeysEnabled());
+        EXPECT_TRUE(settings.has.topkeys_enabled);
+    } catch (std::exception& exception) {
+        FAIL() << exception.what();
+    }
+}
+
 TEST_F(SettingsTest, DefaultReqsPerEvent) {
     nonNumericValuesShouldFail("default_reqs_per_event");
 

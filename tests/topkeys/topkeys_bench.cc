@@ -23,6 +23,7 @@
 class TopKeysTest : public ::testing::Test {
 protected:
     void SetUp() {
+        settings.setTopkeysEnabled(true);
         topkeys.reset(new TopKeys(10));
     }
 

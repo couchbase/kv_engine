@@ -171,8 +171,9 @@ bool TopKeys::Shard::updateKey(const cb::const_char_buffer& key,
     }
 }
 
-void TopKeys::updateKey(const void *key, size_t nkey,
-                        rel_time_t operation_time) {
+void TopKeys::doUpdateKey(const void* key,
+                          size_t nkey,
+                          rel_time_t operation_time) {
     cb_assert(key);
     cb_assert(nkey > 0);
 
@@ -245,9 +246,9 @@ static void tk_jsonfunc(const std::string& key, const topkey_item_t& it,
     cJSON_AddItemToArray(c->array, obj);
 }
 
-ENGINE_ERROR_CODE TopKeys::stats(const void *cookie,
-                                 const rel_time_t current_time,
-                                 ADD_STAT add_stat) {
+ENGINE_ERROR_CODE TopKeys::doStats(const void* cookie,
+                                   rel_time_t current_time,
+                                   ADD_STAT add_stat) {
     struct tk_context context(cookie, add_stat, current_time, nullptr);
 
     for (auto& shard : shards) {
@@ -267,9 +268,8 @@ ENGINE_ERROR_CODE TopKeys::stats(const void *cookie,
  *    ]
  * }
  */
-ENGINE_ERROR_CODE TopKeys::json_stats(cJSON *object,
-                                     const rel_time_t current_time) {
-
+ENGINE_ERROR_CODE TopKeys::do_json_stats(cJSON* object,
+                                         rel_time_t current_time) {
     cJSON *topkeys = cJSON_CreateArray();
     struct tk_context context(nullptr, nullptr, current_time, topkeys);
 

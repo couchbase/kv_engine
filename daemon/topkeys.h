@@ -16,6 +16,8 @@
  */
 #pragma once
 
+#include "settings.h"
+
 #include <array>
 #include <platform/cbassert.h>
 #include <platform/sized_buffer.h>
@@ -52,16 +54,24 @@ public:
      * @param mkeys Number of keys stored in each shard (i.e. up to
      * mkeys * SHARDS will be tracked).
      */
-    TopKeys(int mkeys);
+    explicit TopKeys(int mkeys);
     ~TopKeys();
 
-    void updateKey(const void *key,
-                   size_t nkey,
-                   rel_time_t operation_time);
+    void updateKey(const void* key, size_t nkey, rel_time_t operation_time) {
+        if (settings.isTopkeysEnabled()) {
+            doUpdateKey(key, nkey, operation_time);
+        }
+    }
 
-    ENGINE_ERROR_CODE stats(const void *cookie,
-                            const rel_time_t current_time,
-                            ADD_STAT add_stat);
+    ENGINE_ERROR_CODE stats(const void* cookie,
+                            rel_time_t current_time,
+                            ADD_STAT add_stat) {
+        if (settings.isTopkeysEnabled()) {
+            return doStats(cookie, current_time, add_stat);
+        }
+
+        return ENGINE_SUCCESS;
+    }
 
     /**
      * Passing a set of topkeys, and relevant context data will
@@ -77,9 +87,22 @@ public:
      *    ]
      * }
      */
-    ENGINE_ERROR_CODE json_stats(cJSON *object,
-                                 const rel_time_t current_time);
+    ENGINE_ERROR_CODE json_stats(cJSON* object, rel_time_t current_time) {
+        if (settings.isTopkeysEnabled()) {
+            return do_json_stats(object, current_time);
+        }
 
+        return ENGINE_SUCCESS;
+    }
+
+protected:
+    void doUpdateKey(const void* key, size_t nkey, rel_time_t operation_time);
+
+    ENGINE_ERROR_CODE doStats(const void* cookie,
+                              rel_time_t current_time,
+                              ADD_STAT add_stat);
+
+    ENGINE_ERROR_CODE do_json_stats(cJSON* object, rel_time_t current_time);
 
 private:
     // Number of shards the keyspace is broken into. Permits some level of

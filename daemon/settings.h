@@ -995,6 +995,16 @@ public:
     void setOpcodeAttributesOverride(
             const std::string& opcode_attributes_override);
 
+    bool isTopkeysEnabled() const {
+        return topkeys_enabled.load(std::memory_order_acquire);
+    }
+
+    void setTopkeysEnabled(bool enabled) {
+        Settings::topkeys_enabled.store(enabled, std::memory_order_release);
+        has.topkeys_enabled = true;
+        notify_changed("topkeys_enabled");
+    }
+
 protected:
 
     /**
@@ -1162,6 +1172,11 @@ protected:
         std::string value;
     } opcode_attributes_override;
 
+    /**
+     * Is topkeys enabled or not
+     */
+    std::atomic_bool topkeys_enabled{false};
+
 public:
     /**
      * Flags for each of the above config options, indicating if they were
@@ -1203,6 +1218,7 @@ public:
         bool xattr_enabled;
         bool collections_prototype;
         bool opcode_attributes_override;
+        bool topkeys_enabled;
     } has;
 
 protected:

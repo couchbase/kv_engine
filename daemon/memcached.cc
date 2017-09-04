@@ -611,6 +611,8 @@ static void settings_init(void) {
     if (getenv("COUCHBASE_ENABLE_PRIVILEGE_DEBUG") != nullptr) {
         settings.setPrivilegeDebug(true);
     }
+
+    settings.setTopkeysEnabled(true);
 }
 
 /**

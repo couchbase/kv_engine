@@ -220,6 +220,25 @@ static void handle_require_init(Settings& s, cJSON* obj) {
 }
 
 /**
+ * Handle the "topkeys_enabled" tag in the settings
+ *
+ *  The value must be a  value
+ *
+ * @param s the settings object to update
+ * @param obj the object in the configuration
+ */
+static void handle_topkeys_enabled(Settings& s, cJSON* obj) {
+    if (obj->type == cJSON_True) {
+        s.setTopkeysEnabled(true);
+    } else if (obj->type == cJSON_False) {
+        s.setTopkeysEnabled(false);
+    } else {
+        throw std::invalid_argument(
+                "\"topkeys_enabled\" must be a boolean value");
+    }
+}
+
+/**
  * Handle "default_reqs_per_event", "reqs_per_event_high_priority",
  * "reqs_per_event_med_priority" and "reqs_per_event_low_priority" tag in
  * the settings
@@ -700,7 +719,8 @@ void Settings::reconfigure(const unique_cJSON_ptr& json) {
             {"xattr_enabled", handle_xattr_enabled},
             {"client_cert_auth", handle_client_cert_auth},
             {"collections_prototype", handle_collections_prototype},
-            {"opcode_attributes_override", handle_opcode_attributes_override}};
+            {"opcode_attributes_override", handle_opcode_attributes_override},
+            {"topkeys_enabled", handle_topkeys_enabled}};
 
     cJSON* obj = json->child;
     while (obj != nullptr) {
@@ -1308,6 +1328,17 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                   proposed.c_str());
             setOpcodeAttributesOverride(proposed);
         }
+    }
+
+    if (other.has.topkeys_enabled) {
+        if (other.isTopkeysEnabled() != isTopkeysEnabled()) {
+            if (other.isTopkeysEnabled()) {
+                logit(EXTENSION_LOG_NOTICE, "Enable topkeys support");
+            } else {
+                logit(EXTENSION_LOG_NOTICE, "Disable topkeys support");
+            }
+        }
+        setTopkeysEnabled(other.isTopkeysEnabled());
     }
 }
 
