@@ -255,42 +255,6 @@ void bucket_release_item(McbpConnection* c, item* it) {
                                   c->getCookie(), it);
 }
 
-cb::EngineErrorItemPair bucket_allocate(McbpConnection* c,
-                                  const DocKey& key,
-                                  const size_t nbytes,
-                                  const int flags,
-                                  const rel_time_t exptime,
-                                  uint8_t datatype,
-                                  uint16_t vbucket) {
-
-    // MB-25650 - We've got a document of 0 byte value and claims to contain
-    //            xattrs.. that's not possible.
-    if (nbytes == 0 && !mcbp::datatype::is_raw(datatype)) {
-        LOG_INFO(c,
-                 "%u: %s: bucket_allocate: Can't set datatype to %s for a 0 sized body",
-                 c->getId(),
-                 c->getDescription().c_str(),
-                 mcbp::datatype::to_string(datatype).c_str());
-        return cb::makeEngineErrorItemPair(cb::engine_errc::invalid_arguments);
-    }
-
-    auto ret = c->getBucketEngine()->allocate(c->getBucketEngineAsV0(),
-                                              c->getCookie(),
-                                              key,
-                                              nbytes,
-                                              flags,
-                                              exptime,
-                                              datatype,
-                                              vbucket);
-    if (ret.first == cb::engine_errc::disconnect) {
-        LOG_INFO(c,
-                 "%u: %s bucket_allocate return ENGINE_DISCONNECT",
-                 c->getId(),
-                 c->getDescription().c_str());
-    }
-    return ret;
-}
-
 std::pair<cb::unique_item_ptr, item_info> bucket_allocate_ex(McbpConnection& c,
                                                              const DocKey& key,
                                                              const size_t nbytes,
@@ -306,6 +270,14 @@ std::pair<cb::unique_item_ptr, item_info> bucket_allocate_ex(McbpConnection& c,
                                "bucket_allocate_ex: Can't set datatype to " +
                                mcbp::datatype::to_string(datatype) +
                                " for a 0 sized body");
+    }
+
+    if (priv_nbytes > COUCHBASE_MAX_ITEM_PRIVILEGED_BYTES) {
+        throw cb::engine_error(cb::engine_errc::too_big,
+                               "bucket_allocate_ex: privileged bytes " +
+                               std::to_string(priv_nbytes) +
+                               " exeeds max limit of " + std::to_string(
+                                   COUCHBASE_MAX_ITEM_PRIVILEGED_BYTES));
     }
 
     try {

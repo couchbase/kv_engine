@@ -1134,26 +1134,35 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
     // Allocate a new item of this size.
     if (context.out_doc == NULL &&
         !(context.no_sys_xattrs && context.do_delete_doc)) {
-        item *new_doc;
+        item *new_doc = nullptr;
 
         if (ret == ENGINE_SUCCESS) {
             context.out_doc_len = context.in_doc.len;
             DocKey allocate_key(reinterpret_cast<const uint8_t*>(key),
                                 keylen, connection.getDocNamespace());
+
+            const size_t priv_bytes =
+                cb::xattr::get_system_xattr_size(context.in_datatype,
+                                                 context.in_doc);
+
             // Calculate the updated document length - use the last operation result.
-            auto r =  bucket_allocate(&connection,
-                                      allocate_key,
-                                      context.out_doc_len,
-                                      context.in_flags,
-                                      expiration,
-                                      context.in_datatype,
-                                      vbucket);
-            if (r.first == cb::engine_errc::success) {
-                new_doc = r.second.release();
-                ret = ENGINE_SUCCESS;
-            } else {
-                new_doc = nullptr;
-                ret = ENGINE_ERROR_CODE(r.first);
+            try {
+                auto r =  bucket_allocate_ex(connection,
+                                             allocate_key,
+                                             context.out_doc_len,
+                                             priv_bytes,
+                                             context.in_flags,
+                                             expiration,
+                                             context.in_datatype,
+                                             vbucket);
+                if (r.first) {
+                    new_doc = r.first.release();
+                    ret = ENGINE_SUCCESS;
+                } else {
+                    ret = ENGINE_ENOMEM;
+                }
+            } catch (const cb::engine_error& e) {
+                ret = ENGINE_ERROR_CODE(e.code().value());
                 ret = context.connection.remapErrorCode(ret);
             }
         }

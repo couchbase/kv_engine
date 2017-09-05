@@ -89,5 +89,16 @@ static cb::const_char_buffer SEQNO = {"\"${Mutation.seqno}\"", 19};
 namespace vattrs {
 static cb::const_char_buffer DOCUMENT = {"$document", 9};
 }
+
+/**
+ * Get the number of bytes the system xattrs contains in the provided
+ * document (which may not contain xattrs at all)
+ *
+ * @param datatype the datatype for the provided document
+ * @param doc the document to inspect
+ * @return the number of bytes of system xattrs
+ */
+XATTR_PUBLIC_API
+size_t get_system_xattr_size(uint8_t datatype, const cb::const_char_buffer doc);
 }
 }

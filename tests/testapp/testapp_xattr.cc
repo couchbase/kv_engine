@@ -1162,3 +1162,114 @@ TEST_P(XattrTest, TestXattrDeleteDatatypes) {
     // Should also be marked as deleted
     EXPECT_EQ(1, meta.deleted);
 }
+
+/**
+ * Users xattrs should be stored inside the user data, which means
+ * that if one tries to add xattrs to a document which is at the
+ * max size you can't add any additional xattrs
+ */
+TEST_P(XattrTest, mb25928_UserCantExceedDocumentLimit) {
+    if (!GetTestBucket().supportsPrivilegedBytes()) {
+        return;
+    }
+
+    auto& conn = getMCBPConnection();
+
+    std::vector<uint8_t> blob(GetTestBucket().getMaximumDocSize());
+    conn.store("mb25928", 0, blob);
+
+    std::string value;
+    value.resize(300);
+    std::fill(value.begin(), value.end(), 'a');
+    value.front() = '"';
+    value.back() = '"';
+
+    BinprotSubdocCommand cmd;
+    BinprotSubdocResponse resp;
+
+    cmd.setOp(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT);
+    cmd.setKey("mb25928");
+    cmd.setPath("user.long_string");
+    cmd.setValue(value);
+    cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+    cmd.addDocFlags(mcbp::subdoc::doc_flag::None);
+
+    conn.executeCommand(cmd, resp);
+    EXPECT_FALSE(resp.isSuccess());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_E2BIG, resp.getStatus());
+}
+
+/**
+ * System xattrs should be stored in a separate 1MB chunk (in addition to
+ * the users normal document limit). Verify that we can add a system xattr
+ * on a document which is at the max size
+ */
+TEST_P(XattrTest, mb25928_SystemCanExceedDocumentLimit) {
+    if (!GetTestBucket().supportsPrivilegedBytes()) {
+        return;
+    }
+
+    auto& conn = getMCBPConnection();
+
+    std::vector<uint8_t> blob(GetTestBucket().getMaximumDocSize());
+    conn.store("mb25928", 0, blob);
+
+    std::string value;
+    // Let it be almost 1MB (the internal length fields and keys
+    // is accounted for in the system space
+    value.resize(1024 * 1024 - 40);
+    std::fill(value.begin(), value.end(), 'a');
+    value.front() = '"';
+    value.back() = '"';
+
+    BinprotSubdocCommand cmd;
+    BinprotSubdocResponse resp;
+
+    cmd.setOp(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT);
+    cmd.setKey("mb25928");
+    cmd.setPath("_system.long_string");
+    cmd.setValue(value);
+    cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+    cmd.addDocFlags(mcbp::subdoc::doc_flag::None);
+
+    conn.executeCommand(cmd, resp);
+    EXPECT_TRUE(resp.isSuccess())
+                << "Expected to be able to store system xattrs";
+}
+
+/**
+ * System xattrs should be stored in a separate 1MB chunk (in addition to
+ * the users normal document limit). Verify that we can't add system xattrs
+ * which exceeds this limit.
+ */
+TEST_P(XattrTest, mb25928_SystemCantExceedSystemLimit) {
+    if (!GetTestBucket().supportsPrivilegedBytes()) {
+        return;
+    }
+
+    auto& conn = getMCBPConnection();
+
+    std::vector<uint8_t> blob(GetTestBucket().getMaximumDocSize());
+    conn.store("mb25928", 0, blob);
+
+    std::string value;
+    value.resize(1024 * 1024);
+    std::fill(value.begin(), value.end(), 'a');
+    value.front() = '"';
+    value.back() = '"';
+
+    BinprotSubdocCommand cmd;
+    BinprotSubdocResponse resp;
+
+    cmd.setOp(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT);
+    cmd.setKey("mb25928");
+    cmd.setPath("_system.long_string");
+    cmd.setValue(value);
+    cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+    cmd.addDocFlags(mcbp::subdoc::doc_flag::None);
+
+    conn.executeCommand(cmd, resp);
+    EXPECT_FALSE(resp.isSuccess());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_E2BIG, resp.getStatus())
+                << "The system space is max 1M";
+}

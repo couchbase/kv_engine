@@ -15,8 +15,11 @@
  *   limitations under the License.
  */
 #include "config.h"
+
 #include <cJSON_utils.h>
 #include <unordered_set>
+#include <memcached/protocol_binary.h>
+#include <xattr/blob.h>
 #include <xattr/key_validator.h>
 #include <xattr/utils.h>
 
@@ -142,6 +145,15 @@ const_char_buffer get_xattr(const cb::const_char_buffer& payload) {
 char_buffer get_xattr(const cb::char_buffer& payload) {
     const uint32_t* lenptr = reinterpret_cast<const uint32_t*>(payload.buf);
     return {payload.buf + sizeof(uint32_t), *lenptr};
+}
+
+size_t get_system_xattr_size(uint8_t datatype, const cb::const_char_buffer doc) {
+    if (!::mcbp::datatype::is_xattr(datatype)) {
+        return 0;
+    }
+
+    Blob blob({(uint8_t*)doc.data(), get_body_offset(doc)});
+    return blob.get_system_size();
 }
 
 }

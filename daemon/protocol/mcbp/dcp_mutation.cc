@@ -141,6 +141,9 @@ static inline ENGINE_ERROR_CODE do_dcp_mutation(McbpConnection* conn,
                                cb::xattr::get_body_offset(payload)};
         cb::xattr::Blob blob(buffer);
         priv_bytes = uint32_t(blob.get_system_size());
+        if (priv_bytes > COUCHBASE_MAX_ITEM_PRIVILEGED_BYTES) {
+            return ENGINE_E2BIG;
+        }
     }
 
     auto engine = conn->getBucketEngine();

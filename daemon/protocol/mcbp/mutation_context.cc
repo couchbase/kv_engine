@@ -42,7 +42,6 @@ MutationCommandContext::MutationCommandContext(McbpConnection& c,
       state(State::ValidateInput),
       newitem(nullptr, cb::ItemDeleter{c.getBucketEngineAsV0()}),
       existing(nullptr, cb::ItemDeleter{c.getBucketEngineAsV0()}),
-      xattr_size(0),
       store_if_predicate(c.selectedBucketIsXattrEnabled() ? storeIfPredicate
                                                           : nullptr) {
 }
@@ -162,6 +161,8 @@ ENGINE_ERROR_CODE MutationCommandContext::getExistingItemToPreserveXattr() {
         static_cast<const char*>(existing_info.value[0].iov_base),
         existing_info.value[0].iov_len};
     xattr_size = cb::xattr::get_body_offset(payload);
+    system_xattr_size = cb::xattr::get_system_xattr_size(existing_info.datatype,
+                                                         payload);
 
     state = State::AllocateNewItem;
 
@@ -173,14 +174,26 @@ ENGINE_ERROR_CODE MutationCommandContext::allocateNewItem() {
     if (xattr_size > 0) {
         dtype |= PROTOCOL_BINARY_DATATYPE_XATTR;
     }
-    auto ret = bucket_allocate(&connection, key, value.len + xattr_size,
-                               flags, expiration, dtype, vbucket);
 
-    if (ret.first != cb::engine_errc::success) {
-        return ENGINE_ERROR_CODE(ret.first);
+    item_info newitem_info;
+    try {
+        auto ret = bucket_allocate_ex(connection,
+                                      key,
+                                      value.len + xattr_size,
+                                      system_xattr_size,
+                                      flags,
+                                      expiration,
+                                      dtype,
+                                      vbucket);
+        if (!ret.first) {
+            return ENGINE_ENOMEM;
+        }
+
+        newitem = std::move(ret.first);
+        newitem_info = ret.second;
+    } catch (const cb::engine_error &e) {
+        return ENGINE_ERROR_CODE(e.code().value());
     }
-
-    newitem = std::move(ret.second);
 
     if (operation == OPERATION_ADD || input_cas != 0) {
         bucket_item_set_cas(&connection, newitem.get(), input_cas);
@@ -192,12 +205,7 @@ ENGINE_ERROR_CODE MutationCommandContext::allocateNewItem() {
         }
     }
 
-    item_info newitem_info;
-    if (!bucket_get_item_info(&connection, newitem.get(), &newitem_info)) {
-        return ENGINE_FAILED;
-    }
-
-    uint8_t* root = reinterpret_cast<uint8_t*>(newitem_info.value[0].iov_base);
+    auto* root = reinterpret_cast<uint8_t*>(newitem_info.value[0].iov_base);
     if (xattr_size > 0) {
         // Preserve the xattrs
         auto* ex = reinterpret_cast<uint8_t*>(existing_info.value[0].iov_base);
