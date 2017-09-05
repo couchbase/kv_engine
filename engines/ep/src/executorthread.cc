@@ -27,6 +27,8 @@
 #include "taskqueue.h"
 #include "ep_engine.h"
 
+#include <platform/timeutils.h>
+
 extern "C" {
     static void launch_executor_thread(void *arg) {
         ExecutorThread *executor = (ExecutorThread*) arg;
@@ -125,6 +127,20 @@ void ExecutorThread::run() {
             currentTask->getTaskable().logRunTime(currentTask->getTypeId(),
                                                   runtime);
             currentTask->updateRuntime(runtime);
+
+            // Check if exceeded expected duration; and if so log.
+            // Note: This is done before we call onSwitchThread(NULL)
+            // so the bucket name is included in the Log message.
+            if (runtime > currentTask->maxExpectedDuration()) {
+                auto description = currentTask->getDescription();
+                LOG(EXTENSION_LOG_WARNING,
+                    "Slow runtime for '%.*s' on thread %s: %s",
+                    int(description.size()),
+                    description.data(),
+                    getName().c_str(),
+                    Couchbase::hrtime2text(runtime.count()).c_str());
+            }
+
             if (engine) {
                 ObjectRegistry::onSwitchThread(NULL);
             }
