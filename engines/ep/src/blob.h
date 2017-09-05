@@ -73,7 +73,7 @@ public:
      * Get the size of this Blob instance.
      */
     size_t getSize() const {
-        return size + sizeof(Blob);
+        return size + sizeof(Blob) - paddingSize;
     }
 
 
@@ -110,6 +110,10 @@ public:
 
     ~Blob();
 
+private:
+    //Ensure Blob size of 12 bytes by padding by 3.
+    static constexpr int paddingSize{3};
+
 protected:
     /* Constructor.
      * @param start If non-NULL, pointer to array which will be copied into
@@ -131,8 +135,8 @@ protected:
 
     // The age of this Blob, in terms of some unspecified units of time.
     uint8_t age;
-    // Pad Blob to 12 bytes by having an array of size 3.
-    char data[3];
+    // Pad Blob to 12 bytes.
+    char data[paddingSize];
 
     DISALLOW_ASSIGN(Blob);
 

@@ -112,9 +112,7 @@ TYPED_TEST(ValueTest, DISABLED_StoredValueReallocateGivesSameSize) {
             {});
 
     auto blob = sv->getValue();
-    // @todo MB-25881: Due to a bug in getSize we don't account for the padding
-    // therefore assert it is +3 more than the value we want (191).
-    ASSERT_EQ(194, blob->getSize());
+    ASSERT_EQ(191, blob->getSize());
     int before = AllocHooks::get_allocation_size(blob.get());
 
     /* While the initial bug in MB-25143 would only increase the size of
