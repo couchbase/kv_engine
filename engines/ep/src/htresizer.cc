@@ -51,7 +51,8 @@ bool HashtableResizerTask::run(void) {
     auto pv = std::make_unique<ResizingVisitor>();
     store->visit(std::move(pv),
                  "Hashtable resizer",
-                 TaskId::HashtableResizerVisitorTask);
+                 TaskId::HashtableResizerVisitorTask,
+                 /*sleepTime*/ 0);
 
     snooze(engine->getConfiguration().getHtResizeInterval());
     return true;

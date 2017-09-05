@@ -306,7 +306,8 @@ bool ItemPager::run(void) {
                                                   &phase);
         kvBucket->visit(std::move(pv),
                         "Item pager",
-                        TaskId::ItemPagerVisitor);
+                        TaskId::ItemPagerVisitor,
+                        /*sleepTime*/ 0);
     }
 
     snooze(sleepTime);

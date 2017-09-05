@@ -466,7 +466,7 @@ public:
     size_t visit(std::unique_ptr<VBucketVisitor> visitor,
                  const char* lbl,
                  TaskId id,
-                 double sleepTime = 0);
+                 double sleepTime);
 
     Position pauseResumeVisit(PauseResumeVBVisitor& visitor,
                               Position& start_pos);
