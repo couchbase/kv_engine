@@ -382,6 +382,14 @@ public:
         Connection::cccp.store(cccp, std::memory_order_release);
     }
 
+    bool allowUnorderedExecution() const {
+        return allow_unordered_execution;
+    }
+
+    void setAllowUnorderedExecution(bool allow_unordered_execution) {
+        Connection::allow_unordered_execution = allow_unordered_execution;
+    }
+
     /**
      * Remap the current error code
      *
@@ -541,6 +549,8 @@ protected:
     bool duplex_support{false};
 
     std::atomic_bool cccp{false};
+
+    bool allow_unordered_execution{false};
 
     std::queue<std::unique_ptr<ServerEvent>> server_events;
 

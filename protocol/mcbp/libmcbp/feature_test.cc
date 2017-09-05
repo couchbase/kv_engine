@@ -32,7 +32,8 @@ const std::map<cb::mcbp::Feature, std::string> blueprint = {
          {cb::mcbp::Feature::JSON, "JSON"},
          {cb::mcbp::Feature::Duplex, "Duplex"},
          {cb::mcbp::Feature::ClustermapChangeNotification,
-          "Clustermap change notification"}}};
+          "Clustermap change notification"},
+         {cb::mcbp::Feature::UnorderedExecution, "Unordered execution"}}};
 
 TEST(to_string, LegalValues) {
     for (const auto& entry : blueprint) {

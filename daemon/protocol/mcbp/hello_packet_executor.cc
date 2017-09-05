@@ -133,6 +133,11 @@ void process_hello_packet_executor(McbpConnection* c, void* packet) {
                 added = true;
             }
             break;
+        case cb::mcbp::Feature::UnorderedExecution:
+            if (!c->allowUnorderedExecution()) {
+                c->setAllowUnorderedExecution(true);
+                added = true;
+            }
         }
 
         if (added) {

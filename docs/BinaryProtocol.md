@@ -1514,6 +1514,7 @@ The following features is defined:
 | 0x000b | JSON |
 | 0x000c | Duplex |
 | 0x000d | Clustermap change notification |
+| 0x000e | Unordered Execution |
 
 * `Datatype` - The client understands the 'non-null' values in the
   [datatype field](#data-types). The server expects the client to fill
@@ -1561,6 +1562,12 @@ The following features is defined:
   notify the client with new cluster maps whenever ns_server push
   them to memcached. (note that this notification is subject to
   deduplication of the vbucket map received as part of not my vbucket)
+* `UnorderedExecution` - The client allows the server to reorder the
+  execution of commands (and send the responses in any order back to
+  the client). Note that when UnorderedExecution is selected, the
+  client cannot switch buckets (to make it deterministic which bucket
+  the operation is executed. The current proposal does not include any
+  barriers or other synchronization primitives.).
 
 Response:
 

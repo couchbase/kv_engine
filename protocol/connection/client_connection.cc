@@ -1079,6 +1079,18 @@ unique_cJSON_ptr MemcachedConnection::getErrorMap(uint16_t version) {
     return unique_cJSON_ptr{cJSON_Parse(resp.getDataString().c_str())};
 }
 
+void MemcachedConnection::setUnorderedExecutionMode(ExecutionMode mode) {
+    switch (mode) {
+    case ExecutionMode::Ordered:
+        setFeature(cb::mcbp::Feature::UnorderedExecution, false);
+        return;
+    case ExecutionMode::Unordered:
+        setFeature(cb::mcbp::Feature::UnorderedExecution, true);
+        return;
+    }
+    throw std::invalid_argument("setUnorderedExecutionMode: Invalid mode");
+}
+
 /////////////////////////////////////////////////////////////////////////
 // Implementation of the ConnectionError class
 /////////////////////////////////////////////////////////////////////////

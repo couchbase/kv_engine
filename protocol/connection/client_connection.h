@@ -168,6 +168,17 @@ private:
 };
 
 /**
+ * The execution mode represents the mode the server executes commands
+ * retrieved over the network. In an Ordered mode (that's the default mode
+ * and how things was defined in the initial implementation of the binary
+ * protocol) the server must not start executing the next command before
+ * the execution of the current command is completed. In Unordered mode
+ * the server may start executing (and report the result back to the client)
+ * whenever it feels like.
+ */
+enum class ExecutionMode { Ordered, Unordered };
+
+/**
  * The MemcachedConnection class is an abstract class representing a
  * connection to memcached. The concrete implementations of the class
  * implements the Memcached binary protocol and Greenstack.
@@ -651,6 +662,8 @@ public:
     void setClustermapChangeNotification(bool enable) {
         setFeature(cb::mcbp::Feature::ClustermapChangeNotification, enable);
     }
+
+    void setUnorderedExecutionMode(ExecutionMode mode);
 
     /**
      * Get the error map from the server
