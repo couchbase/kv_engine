@@ -46,6 +46,8 @@ public:
 
     cb::const_char_buffer getDescription();
 
+    std::chrono::microseconds maxExpectedDuration();
+
 private:
     // A weak pointer to the backfill manager which owns this
     // task. The manager is owned by the DcpProducer, but we need to
@@ -84,6 +86,12 @@ bool BackfillManagerTask::run() {
 
 cb::const_char_buffer BackfillManagerTask::getDescription() {
     return "Backfilling items for a DCP Connection";
+}
+
+std::chrono::microseconds BackfillManagerTask::maxExpectedDuration() {
+    // Empirical evidence suggests this task runs under 100ms 99.999% of
+    // the time.
+    return std::chrono::milliseconds(100);
 }
 
 BackfillManager::BackfillManager(EventuallyPersistentEngine& e)

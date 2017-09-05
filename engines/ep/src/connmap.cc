@@ -56,6 +56,15 @@ public:
         return description;
     }
 
+    std::chrono::microseconds maxExpectedDuration() {
+        // In *theory* this should run very quickly (p50 of 64us); however
+        // there's evidence it sometimes takes much longer than that - p99.999
+        // of over 1s.
+        // Set slow limit to 1s initially to highlight the worst runtimes;
+        // consider reducing further when they are solved.
+        return std::chrono::seconds(1);
+    }
+
 private:
     ConnNotifier *connNotifier;
     const cb::const_char_buffer description;
@@ -131,6 +140,15 @@ public:
 
     cb::const_char_buffer getDescription() {
         return "Connection Manager";
+    }
+
+    std::chrono::microseconds maxExpectedDuration() {
+        // In *theory* this should run very quickly (p50 of <1ms); however
+        // there's evidence it sometimes takes much longer than that - p99.99
+        // of 10s.
+        // Set slow limit to 1s initially to highlight the worst runtimes;
+        // consider reducing further when they are solved.
+        return std::chrono::seconds(1);
     }
 
 private:

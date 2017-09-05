@@ -867,6 +867,10 @@ TEST_F(SingleThreadedEPBucketTest, MB20235_wake_and_work_count) {
         cb::const_char_buffer getDescription() {
             return "Test MB20235";
         }
+
+        std::chrono::microseconds maxExpectedDuration() {
+            return std::chrono::seconds(0);
+        }
     };
 
     auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];

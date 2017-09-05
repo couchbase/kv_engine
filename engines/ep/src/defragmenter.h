@@ -109,6 +109,8 @@ public:
 
     cb::const_char_buffer getDescription();
 
+    std::chrono::microseconds maxExpectedDuration();
+
     /// Maximum allocation size the defragmenter should consider
     static size_t getMaxValueSize(ALLOCATOR_HOOKS_API* alloc_hooks);
 

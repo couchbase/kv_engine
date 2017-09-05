@@ -379,6 +379,12 @@ public:
         return description;
     }
 
+    std::chrono::microseconds maxExpectedDuration() {
+        // Little data on how long this typically takes (rare operation).
+        // Somewhat arbitrary selection of 10s as being slow.
+        return std::chrono::seconds(10);
+    }
+
     bool run();
 
 private:

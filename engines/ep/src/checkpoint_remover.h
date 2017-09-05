@@ -50,6 +50,12 @@ public:
         return "Removing closed unreferenced checkpoints from memory";
     }
 
+    std::chrono::microseconds maxExpectedDuration() {
+        // Empirical evidence suggests this task runs under 25ms 99.99999% of
+        // the time.
+        return std::chrono::milliseconds(25);
+    }
+
 private:
     EventuallyPersistentEngine *engine;
     EPStats                   &stats;

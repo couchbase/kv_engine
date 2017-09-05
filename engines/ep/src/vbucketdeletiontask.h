@@ -41,6 +41,8 @@ public:
 
     cb::const_char_buffer getDescription();
 
+    std::chrono::microseconds maxExpectedDuration();
+
     bool run();
 
 protected:

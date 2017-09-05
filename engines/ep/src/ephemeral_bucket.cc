@@ -373,6 +373,14 @@ EphemeralBucket::NotifyHighPriorityReqTask::getDescription() {
     return "Ephemeral: Notify HighPriority Request";
 }
 
+std::chrono::microseconds
+EphemeralBucket::NotifyHighPriorityReqTask::maxExpectedDuration() {
+    // Typical (p50) duration is under 50us; however a long tail has been
+    // observed (p99.9 of 1s). Set initially to 1s; consider reducing
+    // when source of slowness has been identified.
+    return std::chrono::seconds(1);
+}
+
 void EphemeralBucket::NotifyHighPriorityReqTask::wakeup(
         std::map<const void*, ENGINE_ERROR_CODE> notifies) {
     {

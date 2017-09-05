@@ -2899,6 +2899,13 @@ public:
         return "checkpoint stats for all vbuckets";
     }
 
+    std::chrono::microseconds maxExpectedDuration() {
+        // Task needed to lookup "checkpoint" stats; so the runtime should only
+        // affects the particular stat request. However we don't want this to
+        // take /too/ long, so set limit of 100ms.
+        return std::chrono::milliseconds(100);
+    }
+
 private:
     EventuallyPersistentEngine *ep;
     const void *cookie;
@@ -4911,6 +4918,12 @@ public:
 
     cb::const_char_buffer getDescription() {
         return description;
+    }
+
+    std::chrono::microseconds maxExpectedDuration() {
+        // Duration will be a function of how many documents are fetched;
+        // however for simplicity just return a fixed "reasonable" duration.
+        return std::chrono::milliseconds(100);
     }
 
     bool run() {

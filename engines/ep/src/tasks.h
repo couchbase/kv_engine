@@ -50,6 +50,16 @@ public:
         return desc;
     }
 
+    std::chrono::microseconds maxExpectedDuration() {
+        // Flusher duration is likely to vary significantly; depending on
+        // number of documents to flush and speed/capacity of disk subsystem.
+        // As such, selecting a good maximum duration for all scenarios is hard.
+        // Choose a relatively generous value of 250ms - this should record
+        // any significantly slow executions without creating too much log
+        // noise.
+        return std::chrono::milliseconds(250);
+    }
+
 private:
     Flusher* flusher;
     std::string desc;
@@ -72,6 +82,12 @@ public:
 
     cb::const_char_buffer getDescription() {
         return desc;
+    }
+
+    std::chrono::microseconds maxExpectedDuration() {
+        // Empirical evidence suggests this task runs under 25ms 99.98% of
+        // the time.
+        return std::chrono::milliseconds(500);
     }
 
 private:
@@ -97,6 +113,15 @@ public:
         return "Updating stat snapshot on disk";
     }
 
+    std::chrono::microseconds maxExpectedDuration() {
+        // A background periodic Writer task; which no front-end operation
+        // depends on. However it does run on a writer thread; which we don't
+        // want to slow down persistTo times; so expect to complete quickly.
+        // p99.9 at 250ms.
+        // TODO: Consider moving this to AuxIO?
+        return std::chrono::milliseconds(250);
+    }
+
 private:
     bool runOnce;
 };
@@ -119,6 +144,17 @@ public:
         return "Batching background fetch";
     }
 
+    std::chrono::microseconds maxExpectedDuration() {
+        // Much like other disk tasks (e.g. Flusher), duration is likely to
+        // vary significantly; depending on number of documents to fetch and
+        // speed/capacity of disk subsystem. As such, selecting a good maximum
+        // duration for all scenarios is hard.
+        // Choose a relatively generous value of 250ms - this should record
+        // any significantly slow executions without creating too much log
+        // noise.
+        return std::chrono::milliseconds(250);
+    }
+
 private:
     BgFetcher *bgfetcher;
 };
@@ -133,6 +169,16 @@ public:
     }
 
     bool run();
+
+    std::chrono::microseconds maxExpectedDuration() {
+        // Flushing the entire Bucket can take a non-trivial amount of time;
+        // moreover it's a relatively rare event so there is limited historical
+        // information on it's typical runtime.
+        // Selecting 10s here as an expected duration - this could be low,
+        // but the relative (in)frequency of running this shouldn't pollute
+        // the logs too much even if it is too low.
+        return std::chrono::seconds(10);
+    }
 
     cb::const_char_buffer getDescription() {
         return "Performing flush_all operation.";
@@ -161,6 +207,16 @@ public:
 
     cb::const_char_buffer getDescription() {
         return description;
+    }
+
+    std::chrono::microseconds maxExpectedDuration() {
+        // Much like other disk tasks, duration is likely to
+        // vary significantly; depending on speed/capacity of disk subsystem.
+        // As such, selecting a good maximum duration for all scenarios is hard.
+        // Choose a relatively generous value of 250ms - this should record
+        // any significantly slow executions without creating too much log
+        // noise.
+        return std::chrono::milliseconds(250);
     }
 
 private:
@@ -204,6 +260,16 @@ public:
         return description;
     }
 
+    std::chrono::microseconds maxExpectedDuration() {
+        // Much like other disk tasks, duration is likely to
+        // vary significantly; depending on speed/capacity of disk subsystem.
+        // As such, selecting a good maximum duration for all scenarios is hard.
+        // Choose a relatively generous value of 250ms - this should record
+        // any significantly slow executions without creating too much log
+        // noise.
+        return std::chrono::milliseconds(250);
+    }
+
 private:
     const StoredDocKey key;
     const uint16_t vbucket;
@@ -222,6 +288,12 @@ public:
                     bool completeBeforeShutdown = false);
 
     bool run();
+
+    std::chrono::microseconds maxExpectedDuration() {
+        // Runtime should be very quick (lookup a few statistics; perform
+        // some calculation on them). p99.9 is <50us.
+        return std::chrono::milliseconds(1);
+    }
 
     cb::const_char_buffer getDescription() {
         return "Monitoring a workload pattern";

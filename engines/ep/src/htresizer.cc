@@ -49,10 +49,19 @@ HashtableResizerTask::HashtableResizerTask(KVBucketIface* s, double sleepTime)
 bool HashtableResizerTask::run(void) {
     TRACE_EVENT0("ep-engine/task", "HashtableResizerTask");
     auto pv = std::make_unique<ResizingVisitor>();
+
+    // [per-VBucket Task] While a Hashtable is resizing no user
+    // requests can be performed (the resizing process needs to
+    // acquire all HT locks). As such we are sensitive to the duration
+    // of this task - we want to log anything which has a
+    // non-negligible impact on frontend operations.
+    const auto maxExpectedDuration = std::chrono::milliseconds(50);
+
     store->visit(std::move(pv),
                  "Hashtable resizer",
                  TaskId::HashtableResizerVisitorTask,
-                 /*sleepTime*/ 0);
+                 /*sleepTime*/ 0,
+                 maxExpectedDuration);
 
     snooze(engine->getConfiguration().getHtResizeInterval());
     return true;

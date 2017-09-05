@@ -33,6 +33,10 @@ public:
         return description;
     }
 
+    std::chrono::microseconds maxExpectedDuration() {
+        return std::chrono::seconds(0);
+    }
+
     int order;
     const std::string description;
 };

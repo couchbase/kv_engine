@@ -134,6 +134,15 @@ cb::const_char_buffer DefragmenterTask::getDescription() {
     return "Memory defragmenter";
 }
 
+std::chrono::microseconds DefragmenterTask::maxExpectedDuration() {
+    // Defragmenter processes items in chunks, with each chunk constrained
+    // by a ChunkDuration runtime, so we expect to only take that long.
+    // However, the ProgressTracker used estimates the time remaining, so
+    // apply some headroom to that figure so we don't get inundated with
+    // spurious "slow tasks" which only just exceed the limit.
+    return getChunkDuration() * 10;
+}
+
 size_t DefragmenterTask::getSleepTime() const {
     return engine->getConfiguration().getDefragmenterInterval();
 }

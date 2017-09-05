@@ -65,6 +65,12 @@ public:
         return "Paging out items.";
     }
 
+    std::chrono::microseconds maxExpectedDuration() {
+        // Typically runs in single-digit milliseconds. Set max expected to
+        // 25ms - a "fair" timeslice for a task to take.
+        return std::chrono::milliseconds(25);
+    }
+
 private:
 
     EventuallyPersistentEngine     *engine;
@@ -98,6 +104,12 @@ public:
 
     cb::const_char_buffer getDescription() {
         return "Paging expired items.";
+    }
+
+    std::chrono::microseconds maxExpectedDuration() {
+        // Typically runs in single-digit milliseconds. Set max expected to
+        // 25ms - a "fair" timeslice for a task to take.
+        return std::chrono::milliseconds(25);
     }
 
 private:
