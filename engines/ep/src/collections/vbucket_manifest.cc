@@ -228,33 +228,13 @@ void Manifest::completeDeletion(::VBucket& vb, Identifier identifier) {
                 to_string(identifier));
     }
 
-    if (itr->second->isExclusiveDeleting()) {
+    auto se = itr->second->completeDeletion();
+
+    if (se == SystemEvent::DeleteCollectionHard) {
         map.erase(itr); // wipe out
-
-        // When we find that the collection is not open, we can hard delete it.
-        // This means we are purging it completely from the manifest and will
-        // generate a JSON manifest without an entry for the collection.
-        queueSystemEvent(vb,
-                         SystemEvent::DeleteCollectionHard,
-                         identifier,
-                         OptionalSeqno{/*none*/});
-    } else if (itr->second->isOpenAndDeleting()) {
-        itr->second->resetEndSeqno(); // just reset the end to our special seqno
-
-        // When we find that the collection open and deleting we can soft delete
-        // it. This means we are just adjusting the endseqno so that the entry
-        // returns true for isExclusiveOpen()
-        queueSystemEvent(vb,
-                         SystemEvent::DeleteCollectionSoft,
-                         identifier,
-                         OptionalSeqno{/*none*/});
-    } else {
-        // This is an invalid request
-        std::stringstream ss;
-        ss << *itr->second;
-        throw std::logic_error(
-                "VB::Manifest::completeDeletion: cannot delete:" + ss.str());
     }
+
+    queueSystemEvent(vb, se, identifier, OptionalSeqno{/*none*/});
 }
 
 void Manifest::changeSeparator(::VBucket& vb,

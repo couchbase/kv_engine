@@ -19,6 +19,7 @@
 
 #include "collections/collections_types.h"
 #include "stored-value.h"
+#include "systemevent.h"
 
 #include <platform/make_unique.h>
 #include <platform/sized_buffer.h>
@@ -109,9 +110,9 @@ public:
         // Enforcing that start/end are not the same, they should always be
         // separated because they represent start/end mutations.
         if (seqno < 0 || seqno <= startSeqno || seqno == endSeqno) {
-            throwInvalidArg(
-                    "ManifestEntry::setStartSeqno: cannot set startSeqno to " +
-                    std::to_string(seqno));
+            throwException<std::invalid_argument>(
+                    __FUNCTION__,
+                    "cannot set startSeqno to " + std::to_string(seqno));
         }
         startSeqno = seqno;
     }
@@ -125,9 +126,11 @@ public:
         // separated because they represent start/end mutations.
         if (seqno != StoredValue::state_collection_open &&
             (seqno <= endSeqno || seqno == startSeqno)) {
-            throwInvalidArg(
-                    "ManifestEntry::setEndSeqno: cannot set endSeqno to " +
-                    std::to_string(seqno));
+            throwException<std::invalid_argument>(
+                    __FUNCTION__,
+                    "cannot set "
+                    "endSeqno to " +
+                            std::to_string(seqno));
         }
         endSeqno = seqno;
     }
@@ -189,14 +192,40 @@ public:
         return !isOpen() && isDeleting();
     }
 
+    /**
+     * Inform the collection that all items of the collection up to endSeqno
+     * have been deleted.
+     *
+     * @return the correct SystemEvent for vbucket manifest management. If the
+     *         collection has been reopened, a soft delete, else hard.
+     */
+    SystemEvent completeDeletion();
+
 private:
     /**
-     * Throws std::invalid argument with a message that is prefix combined
-     * with a call to this objects ostream operator.
+     * Return a string for use in throwException, returns:
+     *   "VB::ManifestEntry::<thrower>:<error>, this:<ostream *this>"
      *
-     * @param prefix A prefix string for the exception message.
+     * @param thrower a string for who is throwing, typically __FUNCTION__
+     * @param error a string containing the error and useful data
+     * @returns string as per description above
      */
-    void throwInvalidArg(const std::string& prefix);
+    std::string getExceptionString(const std::string& thrower,
+                                   const std::string& error) const;
+
+    /**
+     * throw exception with the following error string:
+     *   "VB::ManifestEntry::<thrower>:<error>, this:<ostream *this>"
+     *
+     * @param thrower a string for who is throwing, typically __FUNCTION__
+     * @param error a string containing the error and useful data
+     * @throws exception
+     */
+    template <class exception>
+    [[noreturn]] void throwException(const std::string& thrower,
+                                     const std::string& error) const {
+        throw exception(getExceptionString(thrower, error));
+    }
 
     /**
      * An entry has a name that is heap allocated... this is due to the

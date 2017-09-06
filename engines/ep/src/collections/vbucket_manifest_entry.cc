@@ -17,11 +17,24 @@
 
 #include "collections/vbucket_manifest_entry.h"
 
-void Collections::VB::ManifestEntry::throwInvalidArg(
-        const std::string& prefix) {
+SystemEvent Collections::VB::ManifestEntry::completeDeletion() {
+    if (isExclusiveDeleting()) {
+        // All items from any generation of the collection gone, so delete the
+        // collection metadata
+        return SystemEvent::DeleteCollectionHard;
+    } else if (isOpenAndDeleting()) {
+        resetEndSeqno(); // reset the end to the special seqno and return soft
+        return SystemEvent::DeleteCollectionSoft;
+    }
+    throwException<std::logic_error>(__FUNCTION__, "invalid state");
+}
+
+std::string Collections::VB::ManifestEntry::getExceptionString(
+        const std::string& thrower, const std::string& error) const {
     std::stringstream ss;
-    ss << " " << *this;
-    throw std::invalid_argument(prefix + ss.str());
+    ss << "VB::ManifestEntry::" << thrower << ": " << error
+       << ", this:" << *this;
+    return ss.str();
 }
 
 std::ostream& Collections::VB::operator<<(
