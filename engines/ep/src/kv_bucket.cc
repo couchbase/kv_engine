@@ -579,14 +579,40 @@ protocol_binary_response_status KVBucket::evictKey(const DocKey& key,
     return vb->evictKey(key, msg);
 }
 
+void KVBucket::getValue(Item& it) {
+    auto gv =
+            getROUnderlying(it.getVBucketId())
+                    ->get(it.getKey(), it.getVBucketId(), true /*fetchDelete*/);
+
+    if (gv.getStatus() != ENGINE_SUCCESS) {
+        // Cannot continue to pre_expiry, log this failed get and return
+        LOG(EXTENSION_LOG_WARNING,
+            "KVBucket::getValue failed get for item vb:%" PRIu16
+            ", it.seqno:%" PRIi64 ", status:%d",
+            it.getVBucketId(),
+            it.getBySeqno(),
+            gv.getStatus());
+        return;
+    } else if (!gv.item->isDeleted()) {
+        it.setValue(gv.item->getValue());
+    }
+}
+
 void KVBucket::deleteExpiredItem(Item& it,
                                  time_t startTime,
                                  ExpireBy source) {
     VBucketPtr vb = getVBucket(it.getVBucketId());
 
     if (vb) {
-        // Ignore items which have been created from temp items (negative seqno)
-        if (it.getBySeqno() >= 0) {
+        // MB-25931: Empty XATTR items need their value before we can call
+        // pre_expiry. These occur because the value has been evicted.
+        if (mcbp::datatype::is_xattr(it.getDataType()) && it.getNBytes() == 0) {
+            getValue(it);
+        }
+
+        // Process positive seqnos (ignoring special *temp* items) and only
+        // those items with a value
+        if (it.getBySeqno() >= 0 && it.getNBytes()) {
             auto info = it.toItemInfo(vb->failovers->getLatestUUID(),
                                       vb->getHLCEpochSeqno());
             if (engine.getServerApi()->document->pre_expiry(info)) {

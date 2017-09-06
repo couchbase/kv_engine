@@ -540,26 +540,34 @@ TEST_P(STExpiryPagerTest, ExpiredItemsDeleted) {
 TEST_P(STExpiryPagerTest, MB_25650) {
     expiredItemsDeleted();
 
+    auto vb = store->getVBucket(0);
+
     auto key_1 = makeStoredDocKey("key_1");
     ItemMetaData metadata;
     uint32_t deleted;
     uint8_t datatype;
-    store->getMetaData(key_1, vbid, cookie, metadata, deleted, datatype);
+
+    ENGINE_ERROR_CODE err = std::get<0>(GetParam()) == "persistent"
+                                    ? ENGINE_EWOULDBLOCK
+                                    : ENGINE_SUCCESS;
+
+    // Bring document meta back into memory and run expiry on it
+    EXPECT_EQ(err,
+              store->getMetaData(
+                      key_1, vbid, cookie, metadata, deleted, datatype));
     if (std::get<0>(GetParam()) == "persistent") {
         // Manually run the bgfetch task.
         MockGlobalTask mockTask(engine->getTaskable(),
                                 TaskId::MultiBGFetcherTask);
         store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+        EXPECT_EQ(ENGINE_SUCCESS,
+                  store->getMetaData(
+                          key_1, vbid, cookie, metadata, deleted, datatype));
     }
-
-    store->getMetaData(key_1, vbid, cookie, metadata, deleted, datatype);
 
     // Original bug is that we would segfault running the pager here
     wakeUpExpiryPager();
 
-    ENGINE_ERROR_CODE err = std::get<0>(GetParam()) == "persistent"
-                                    ? ENGINE_EWOULDBLOCK
-                                    : ENGINE_SUCCESS;
     get_options_t options =
             static_cast<get_options_t>(QUEUE_BG_FETCH | GET_DELETED_VALUE);
     EXPECT_EQ(err, store->get(key_1, vbid, nullptr, options).getStatus())
@@ -667,6 +675,40 @@ TEST_P(STExpiryPagerTest, MB_25671) {
     EXPECT_EQ(metadata.exptime, item.item->getExptime());
     EXPECT_EQ(metadata.cas, item.item->getCas());
     EXPECT_EQ(metadata.revSeqno, item.item->getRevSeqno());
+}
+
+// Test that when a xattr value is ejected, we can still expire it. Previous
+// to the fix we crash because the item has no value in memory
+TEST_P(STExpiryPagerTest, MB_25931) {
+    if (std::get<0>(GetParam()) == "ephemeral") {
+        return;
+    }
+
+    std::string value = createXattrValue("body");
+    auto key = makeStoredDocKey("key_1");
+    auto item = make_item(
+            vbid,
+            key,
+            value,
+            ep_abs_time(ep_current_time() + 10),
+            PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_XATTR);
+    ASSERT_EQ(ENGINE_SUCCESS, storeItem(item));
+
+    EXPECT_EQ(1, store->flushVBucket(vbid));
+
+    const char* msg;
+    EXPECT_EQ(ENGINE_SUCCESS, store->evictKey(key, vbid, &msg));
+    EXPECT_STREQ("Ejected.", msg);
+
+    // Manually run the bgfetch task.
+    MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
+    store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+
+    TimeTraveller docBrown(15);
+
+    wakeUpExpiryPager();
+
+    EXPECT_EQ(1, store->flushVBucket(vbid));
 }
 
 // TODO: Ideally all of these tests should run with or without jemalloc,
