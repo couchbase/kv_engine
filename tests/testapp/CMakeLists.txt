@@ -31,7 +31,7 @@ target_compile_options(memcached_testapp_core PRIVATE ${CB_CXX_FLAGS_NO_OPTIMIZE
 # Create a function to generate the various test cases
 function(add_unit_test_suite)
     set(arg_TIMEOUT 120)
-    cmake_parse_arguments("arg" "" "NAME;TIMEOUT;OUTPUT" "SOURCE" ${ARGN})
+    cmake_parse_arguments("arg" "" "ENGINE;NAME;TIMEOUT;OUTPUT" "SOURCE" ${ARGN})
     if (NOT arg_NAME)
         MESSAGE(FATAL_ERROR "add_unit_test_suite: NAME must be specified")
     endif()
@@ -66,6 +66,13 @@ function(add_unit_test_suite)
                      ewouldblock_engine
                      memcached nobucket
                      testapp_extension)
+
+    if (arg_ENGINE)
+        add_test(NAME memcached-${arg_NAME}-${arg_ENGINE}-tests
+                 WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+                 COMMAND memcached-${arg_NAME}-tests ${arg_OUTPUT} -E ${arg_ENGINE})
+        set_tests_properties(memcached-${arg_NAME}-${arg_ENGINE}-tests PROPERTIES TIMEOUT ${arg_TIMEOUT})
+    endif()
     add_test(NAME memcached-${arg_NAME}-tests
              WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
              COMMAND memcached-${arg_NAME}-tests ${arg_OUTPUT})
@@ -96,6 +103,7 @@ add_unit_test_suite(NAME require-init
 
 # Run the Arithmetic tests
 add_unit_test_suite(NAME arithmetic
+                    ENGINE ep
                     TIMEOUT 240
                     SOURCE testapp_arithmetic.cc testapp_arithmetic.h)
 
@@ -120,6 +128,7 @@ add_unit_test_suite(NAME errmap
 
 # Run the Flush tests
 add_unit_test_suite(NAME flush
+                    ENGINE ep
                     TIMEOUT 120
                     SOURCE testapp_flush.cc)
 
@@ -130,11 +139,13 @@ add_unit_test_suite(NAME legacy-users
 
 # Run all of the lock tests
 add_unit_test_suite(NAME lock
+                    ENGINE ep
                     TIMEOUT 120
                     SOURCE testapp_lock.cc)
 
 # Run the Normal get set tests
 add_unit_test_suite(NAME get-set
+                    ENGINE ep
                     TIMEOUT 400
                     SOURCE testapp_getset.cc)
 
@@ -171,11 +182,13 @@ add_unit_test_suite(NAME legacy-ssl
 
 # Run the RBAC tests
 add_unit_test_suite(NAME rbac
+                    ENGINE ep
                     TIMEOUT 120
                     SOURCE testapp_rbac.cc)
 
 # Run the batch to verify remove
 add_unit_test_suite(NAME remove
+                    ENGINE ep
                     TIMEOUT 120
                     SOURCE testapp_remove.cc)
 
@@ -191,6 +204,7 @@ add_unit_test_suite(NAME connection-timeout
 
 # Run the touch related tests
 add_unit_test_suite(NAME touch
+                    ENGINE ep
                     TIMEOUT 120
                     SOURCE testapp_touch.cc)
 
@@ -201,15 +215,9 @@ add_unit_test_suite(NAME tune-mcbp-lsa
 
 # Run the XATTR tests
 add_unit_test_suite(NAME xattr
+                    ENGINE ep
                     TIMEOUT 120
                     SOURCE testapp_xattr.h testapp_xattr.cc)
-
-# Re-run all of the XATTR tests under ep-engine
-ADD_TEST(NAME memcached-system-xattr-tests
-         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-         COMMAND memcached-xattr-tests --gtest_filter=TransportProtocols/XattrTest.* -E ep)
-SET_TESTS_PROPERTIES(memcached-system-xattr-tests PROPERTIES TIMEOUT 120)
-
 
 # Run the SSL cert tests
 add_unit_test_suite(NAME ssl-cert-tests
@@ -217,6 +225,7 @@ add_unit_test_suite(NAME ssl-cert-tests
                     SOURCE testapp_cert_tests.cc)
 
 add_unit_test_suite(NAME with-meta
+                    ENGINE ep
                     TIMEOUT 120
                     SOURCE testapp_withmeta.cc)
 
