@@ -255,9 +255,9 @@ protected:
     SyncObject tMutex; // to serialize taskLocator, threadQ, numBuckets access
 
     std::atomic<uint16_t> numSleepers; // total number of sleeping threads
-    std::atomic<uint16_t> *curWorkers; // track # of active workers per TaskSet
-    std::atomic<uint16_t>* numWorkers; // and limit it to the value set here
-    std::atomic<size_t> *numReadyTasks; // number of ready tasks per task set
+    std::vector<std::atomic<uint16_t>> curWorkers; // track # of active workers per TaskSet
+    std::vector<std::atomic<uint16_t>> numWorkers; // and limit it to the value set here
+    std::vector<std::atomic<size_t>> numReadyTasks; // number of ready tasks per task set
 
     // Set of all known task owners
     std::set<void *> taskOwners;

@@ -140,11 +140,11 @@ private:
 };
 
 ConnMap::ConnMap(EventuallyPersistentEngine &theEngine)
-    :  engine(theEngine),
+    :  vbConnLocks(vbConnLockNum),
+       engine(theEngine),
        connNotifier_(nullptr) {
 
     Configuration &config = engine.getConfiguration();
-    vbConnLocks = new SpinLock[vbConnLockNum];
     size_t max_vbs = config.getMaxVbuckets();
     for (size_t i = 0; i < max_vbs; ++i) {
         vbConns.push_back(std::list<connection_t>());
@@ -159,7 +159,6 @@ void ConnMap::initialize() {
 }
 
 ConnMap::~ConnMap() {
-    delete [] vbConnLocks;
     if (connNotifier_) {
         connNotifier_->stop();
         delete connNotifier_;

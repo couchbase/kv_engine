@@ -40,12 +40,10 @@ public:
     /**
      * Acquire a series of locks.
      *
-     * @param m beginning of an array of locks
-     * @param n the number of locks to lock
+     * @param m reference to a vector of locks
      */
-    MultiLockHolder(std::mutex* m, size_t n)
-        : mutexes(m),
-          n_locks(n) {
+    MultiLockHolder(std::vector<std::mutex>& m)
+        : mutexes(m) {
         lock();
     }
 
@@ -58,8 +56,8 @@ private:
      * Relock the series after having manually unlocked it.
      */
     void lock() {
-        for (size_t i = 0; i < n_locks; i++) {
-            mutexes[i].lock();
+        for (auto& m : mutexes) {
+            m.lock();
         }
     }
 
@@ -67,13 +65,12 @@ private:
      * Manually unlock the series.
      */
     void unlock() {
-        for (size_t i = 0; i < n_locks; i++) {
-            mutexes[i].unlock();
+        for (auto& m : mutexes) {
+            m.unlock();
         }
     }
 
-    std::mutex* mutexes;
-    size_t n_locks;
+    std::vector<std::mutex>& mutexes;
 
     DISALLOW_COPY_AND_ASSIGN(MultiLockHolder);
 };

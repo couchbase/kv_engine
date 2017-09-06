@@ -101,7 +101,7 @@ protected:
     using CookieToConnectionMap = std::map<const void*, connection_t>;
     CookieToConnectionMap map_;
 
-    SpinLock *vbConnLocks;
+    std::vector<SpinLock> vbConnLocks;
     std::vector<std::list<connection_t> > vbConns;
 
     /* Handle to the engine who owns us */

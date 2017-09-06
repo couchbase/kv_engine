@@ -55,11 +55,9 @@ public:
     ExtendedMetaData()
           : data(nullptr),
             ret(ENGINE_SUCCESS),
-            len(0),
-            memoryAllocated(false) {}
+            len(0) {}
 
     ExtendedMetaData(const void *meta, uint16_t nmeta);
-    ~ExtendedMetaData();
 
     ENGINE_ERROR_CODE getStatus() {
         return ret;
@@ -79,7 +77,6 @@ private:
     const char* data;
     ENGINE_ERROR_CODE ret;
     uint16_t len;
-    bool memoryAllocated;
 };
 
 #endif  // SRC_EXT_META_PARSER_H_

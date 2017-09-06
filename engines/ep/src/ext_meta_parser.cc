@@ -23,14 +23,7 @@ ExtendedMetaData::ExtendedMetaData(const void *meta, uint16_t nmeta) {
     len = nmeta;
     data = static_cast<const char*>(meta);
     ret = ENGINE_SUCCESS;
-    memoryAllocated = false;
     decodeMeta();
-}
-
-ExtendedMetaData::~ExtendedMetaData() {
-    if (memoryAllocated) {
-        delete[] data;
-    }
 }
 
 void ExtendedMetaData::decodeMeta() {

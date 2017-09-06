@@ -9,6 +9,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include <vector>
 
 #ifndef __cplusplus
 #include <stdbool.h>
@@ -43,10 +44,9 @@ typedef struct allocator_stats {
     /* max bytes in resident pages mapped by the allocator*/
     size_t resident_size;
 
-    /* Array of additional allocator-specific statistics, of size
-       `ext_stats_size` */
-    allocator_ext_stat *ext_stats;
-    size_t ext_stats_size;
+    /* Vector of additional allocator-specific statistics */
+    std::vector<allocator_ext_stat> ext_stats;
+
 } allocator_stats;
 
 /**

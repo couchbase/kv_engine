@@ -946,13 +946,10 @@ static size_t get_mapped_bytes(void) {
     size_t mapped_bytes;
     allocator_stats stats = {0};
     ALLOCATOR_HOOKS_API* alloc_hooks = get_mock_server_api()->alloc_hooks;
-    stats.ext_stats_size = alloc_hooks->get_extra_stats_size();
-    stats.ext_stats = reinterpret_cast<allocator_ext_stat*>
-        (cb_calloc(stats.ext_stats_size, sizeof(allocator_ext_stat)));
+    stats.ext_stats.resize(alloc_hooks->get_extra_stats_size());
 
     alloc_hooks->get_allocator_stats(&stats);
     mapped_bytes = stats.fragmentation_size + stats.allocated_size;
-    cb_free(stats.ext_stats);
     return mapped_bytes;
 }
 

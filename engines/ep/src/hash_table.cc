@@ -53,7 +53,7 @@ HashTable::HashTable(EPStats& st,
       metaDataMemory(0),
       initialSize(initialSize),
       size(initialSize),
-      n_locks(locks),
+      mutexes(locks),
       stats(st),
       valFact(std::move(svFactory)),
       visitors(0),
@@ -61,7 +61,6 @@ HashTable::HashTable(EPStats& st,
       numResizes(0),
       numTempItems(0) {
     values.resize(size);
-    mutexes = new std::mutex[n_locks];
     activeState = true;
 }
 
@@ -77,7 +76,6 @@ HashTable::~HashTable() {
         usleep(100);
 #endif
     }
-    delete []mutexes;
 }
 
 void HashTable::clear(bool deactivate) {
@@ -88,7 +86,7 @@ void HashTable::clear(bool deactivate) {
                     "non-active object");
         }
     }
-    MultiLockHolder mlh(mutexes, n_locks);
+    MultiLockHolder mlh(mutexes);
     clear_UNLOCKED(deactivate);
 }
 
@@ -184,7 +182,7 @@ void HashTable::resize(size_t newSize) {
     TRACE_EVENT2(
             "HashTable", "resize", "size", size.load(), "newSize", newSize);
 
-    MultiLockHolder mlh(mutexes, n_locks);
+    MultiLockHolder mlh(mutexes);
     if (visitors.load() > 0) {
         // Do not allow a resize while any visitors are actually
         // processing.  The next attempt will have to pick it up.  New
@@ -492,8 +490,8 @@ void HashTable::visit(HashTableVisitor &visitor) {
     lh.unlock();
 
     size_t visited = 0;
-    for (int l = 0; isActive() && l < static_cast<int>(n_locks); l++) {
-        for (int i = l; i < static_cast<int>(size); i+= n_locks) {
+    for (int l = 0; isActive() && l < static_cast<int>(mutexes.size()); l++) {
+        for (int i = l; i < static_cast<int>(size); i+= mutexes.size()) {
             // (re)acquire mutex on each HashBucket, to minimise any impact
             // on front-end threads.
             HashBucketLock lh(i, mutexes[l]);
@@ -528,9 +526,9 @@ void HashTable::visitDepth(HashTableDepthVisitor &visitor) {
     size_t visited = 0;
     VisitorTracker vt(&visitors);
 
-    for (int l = 0; l < static_cast<int>(n_locks); l++) {
+    for (int l = 0; l < static_cast<int>(mutexes.size()); l++) {
         LockHolder lh(mutexes[l]);
-        for (int i = l; i < static_cast<int>(size); i+= n_locks) {
+        for (int i = l; i < static_cast<int>(size); i+= mutexes.size()) {
             size_t depth = 0;
             StoredValue* p = values[i].get();
             if (p) {
@@ -582,10 +580,10 @@ HashTable::Position HashTable::pauseResumeVisit(HashTableVisitor& visitor,
     lh.unlock();
 
     // Start from the requested lock number if in range.
-    size_t lock = (start_pos.lock < n_locks) ? start_pos.lock : 0;
+    size_t lock = (start_pos.lock < mutexes.size()) ? start_pos.lock : 0;
     size_t hash_bucket = 0;
 
-    for (; isActive() && !paused && lock < n_locks; lock++) {
+    for (; isActive() && !paused && lock < mutexes.size(); lock++) {
 
         // If the bucket position is *this* lock, then start from the
         // recorded bucket (as long as we haven't resized).
@@ -599,7 +597,7 @@ HashTable::Position HashTable::pauseResumeVisit(HashTableVisitor& visitor,
         // Iterate across all values in the hash buckets owned by this lock.
         // Note: we don't record how far into the bucket linked-list we
         // pause at; so any restart will begin from the next bucket.
-        for (; !paused && hash_bucket < size; hash_bucket += n_locks) {
+        for (; !paused && hash_bucket < size; hash_bucket += mutexes.size()) {
             HashBucketLock lh(hash_bucket, mutexes[lock]);
 
             StoredValue* v = values[hash_bucket].get();
@@ -627,7 +625,7 @@ HashTable::Position HashTable::pauseResumeVisit(HashTableVisitor& visitor,
 }
 
 HashTable::Position HashTable::endPosition() const  {
-    return HashTable::Position(size, n_locks, size);
+    return HashTable::Position(size, mutexes.size(), size);
 }
 
 bool HashTable::unlocked_ejectItem(StoredValue*& vptr,

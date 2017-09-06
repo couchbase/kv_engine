@@ -108,8 +108,7 @@ void MemoryTracker::connectHooks() {
         LOG(EXTENSION_LOG_NOTICE, "Memory allocation tracking disabled");
         return;
     }
-    stats.ext_stats_size = hooks_api.get_extra_stats_size();
-    stats.ext_stats = new allocator_ext_stat[stats.ext_stats_size]();
+    stats.ext_stats.resize(hooks_api.get_extra_stats_size());
 
     if (hooks_api.add_new_hook(&NewHook)) {
         LOG(EXTENSION_LOG_DEBUG, "Registered add hook");
@@ -138,7 +137,6 @@ MemoryTracker::~MemoryTracker() {
         shutdown_cv.notify_all();
         cb_join_thread(statsThreadId);
     }
-    delete[] stats.ext_stats;
     instance = NULL;
 }
 
@@ -148,10 +146,10 @@ void MemoryTracker::getAllocatorStats(std::map<std::string, size_t>
         return;
     }
 
-    for (size_t i = 0; i < stats.ext_stats_size; ++i) {
+    for (auto& ext_stat : stats.ext_stats) {
         alloc_stats.insert(std::pair<std::string, size_t>(
-                                                    stats.ext_stats[i].key,
-                                                    stats.ext_stats[i].value));
+                                                    ext_stat.key,
+                                                    ext_stat.value));
     }
     alloc_stats.insert(std::make_pair("total_allocated_bytes",
                                       stats.allocated_size));

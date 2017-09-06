@@ -334,7 +334,7 @@ public:
     public:
         /**
          * @param _mle A pointer to a buffer which contains a MutationLogEntry
-         * @param _destroye Set to true if the _mle buffer nust be deleted once
+         * @param _destroy Set to true if the _mle buffer must be deleted once
          *        the holder's life is complete.
          */
         MutationLogEntryHolder(const uint8_t* _mle, bool _destroy)

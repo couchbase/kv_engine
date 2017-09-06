@@ -24,8 +24,9 @@
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
 
 #include <mutex>
+#include <vector>
 
-static std::mutex *openssl_lock_cs;
+static std::vector<std::mutex> openssl_lock_cs;
 
 static unsigned long get_thread_id() {
     return (unsigned long)cb_thread_self();
@@ -54,7 +55,7 @@ void initialize_openssl() {
     OpenSSL_add_all_algorithms();
 
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
-    openssl_lock_cs = new std::mutex[CRYPTO_num_locks()];
+    openssl_lock_cs = std::vector<std::mutex>(CRYPTO_num_locks());
 
     CRYPTO_set_id_callback(get_thread_id);
     CRYPTO_set_locking_callback(openssl_locking_callback);
@@ -80,6 +81,5 @@ void shutdown_openssl() {
     // however we arn't that new...
     sk_SSL_COMP_free(SSL_COMP_get_compression_methods());
 
-    delete []openssl_lock_cs;
 #endif
 }

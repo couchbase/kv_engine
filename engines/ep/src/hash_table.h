@@ -190,7 +190,7 @@ public:
     size_t memorySize() {
         return sizeof(HashTable)
             + (size * sizeof(StoredValue*))
-            + (n_locks * sizeof(std::mutex));
+            + (mutexes.size() * sizeof(std::mutex));
     }
 
     /**
@@ -201,7 +201,7 @@ public:
     /**
      * Get the number of locks in this hash table.
      */
-    size_t getNumLocks(void) { return n_locks; }
+    size_t getNumLocks(void) { return mutexes.size(); }
 
     /**
      * Get the number of in-memory non-resident and resident items within
@@ -618,9 +618,8 @@ private:
     // The size of the hash table (number of buckets) - i.e. number of elements
     // in `values`
     std::atomic<size_t> size;
-    size_t               n_locks;
     table_type values;
-    std::mutex               *mutexes;
+    std::vector<std::mutex> mutexes;
     EPStats&             stats;
     std::unique_ptr<AbstractStoredValueFactory> valFact;
     std::atomic<size_t>       visitors;
@@ -638,7 +637,7 @@ private:
             throw std::logic_error("HashTable::mutexForBucket: Cannot call on a "
                     "non-active object");
         }
-        return bucket_num % n_locks;
+        return bucket_num % mutexes.size();
     }
 
     std::unique_ptr<Item> getRandomKeyFromSlot(int slot);

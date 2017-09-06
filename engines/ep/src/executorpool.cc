@@ -160,15 +160,13 @@ ExecutorPool::ExecutorPool(size_t maxThreads, size_t nTaskSets,
                            size_t maxAuxIO,   size_t maxNonIO) :
                   numTaskSets(nTaskSets), totReadyTasks(0),
                   isHiPrioQset(false), isLowPrioQset(false), numBuckets(0),
-                  numSleepers(0) {
+                  numSleepers(0), curWorkers(nTaskSets), numWorkers(nTaskSets),
+                  numReadyTasks(nTaskSets) {
     size_t numCPU = Couchbase::get_available_cpu_count();
     size_t numThreads = (size_t)((numCPU * 3)/4);
     numThreads = (numThreads < EP_MIN_NUM_THREADS) ?
                         EP_MIN_NUM_THREADS : numThreads;
     maxGlobalThreads = maxThreads ? maxThreads : numThreads;
-    curWorkers  = new std::atomic<uint16_t>[nTaskSets];
-    numWorkers = new std::atomic<uint16_t>[nTaskSets];
-    numReadyTasks  = new std::atomic<size_t>[nTaskSets];
     for (size_t i = 0; i < nTaskSets; i++) {
         curWorkers[i] = 0;
         numReadyTasks[i] = 0;
@@ -181,10 +179,6 @@ ExecutorPool::ExecutorPool(size_t maxThreads, size_t nTaskSets,
 
 ExecutorPool::~ExecutorPool(void) {
     _stopAndJoinThreads();
-
-    delete[] curWorkers;
-    delete[] numWorkers;
-    delete[] numReadyTasks;
 
     if (isHiPrioQset) {
         for (size_t i = 0; i < numTaskSets; i++) {

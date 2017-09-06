@@ -218,6 +218,7 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
       stats(engine.getEpStats()),
       vbMap(theEngine.getConfiguration(), *this),
       defragmenterTask(NULL),
+      vb_mutexes(engine.getConfiguration().getMaxVbuckets()),
       diskDeleteAll(false),
       bgFetchDelay(0),
       backfillMemoryThreshold(0.95),
@@ -246,9 +247,6 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
     }
 
     ExecutorPool::get()->registerTaskable(ObjectRegistry::getCurrentEngine()->getTaskable());
-
-    size_t num_vbs = config.getMaxVbuckets();
-    vb_mutexes = new std::mutex[num_vbs];
 
     *stats.memOverhead = sizeof(KVBucket);
 
@@ -408,7 +406,6 @@ void KVBucket::deinitialize() {
 
 KVBucket::~KVBucket() {
     LOG(EXTENSION_LOG_NOTICE, "Deleting vb_mutexes");
-    delete [] vb_mutexes;
     LOG(EXTENSION_LOG_NOTICE, "Deleting defragmenterTask");
     defragmenterTask.reset();
 }

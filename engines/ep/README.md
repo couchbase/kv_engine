@@ -23,7 +23,8 @@ A condition-variable is also available called `SyncObject`
 These primitives are managed via RAII wrappers - [locks.h](./src/locks.h).
 
 1. `LockHolder` - a deprecated alias for std::lock_guard
-2. `MultiLockHolder` - for acquiring an array of `std::mutex` or `SyncObject`.
+2. `MultiLockHolder` - for acquiring a reference to a vector of `std::mutex`
+                       or `SyncObject`.
 
 ### Mutex
 The general style is to create a `std::lock_guard` when you need to acquire a
@@ -51,7 +52,7 @@ void example2() {
 }
 ```
 
-A `MultiLockHolder` allows an array of locks to be conveniently acquired and
+A `MultiLockHolder` allows a vector of locks to be conveniently acquired and
 released, and similarly to `LockHolder` the caller can choose to manually
 lock/unlock at any time (with all locks locked/unlocked via one call).
 

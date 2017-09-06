@@ -167,12 +167,10 @@ size_t DefragmenterTask::getMappedBytes() {
     ALLOCATOR_HOOKS_API* alloc_hooks = engine->getServerApi()->alloc_hooks;
 
     allocator_stats stats = {0};
-    stats.ext_stats_size = alloc_hooks->get_extra_stats_size();
-    stats.ext_stats = new allocator_ext_stat[stats.ext_stats_size];
+    stats.ext_stats.resize(alloc_hooks->get_extra_stats_size());
     alloc_hooks->get_allocator_stats(&stats);
 
     size_t mapped_bytes = stats.fragmentation_size + stats.allocated_size;
-    delete[] stats.ext_stats;
     return mapped_bytes;
 }
 

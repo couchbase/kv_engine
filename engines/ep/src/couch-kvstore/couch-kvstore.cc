@@ -553,7 +553,7 @@ void CouchKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms) {
     }
 
     size_t idx = 0;
-    sized_buf *ids = new sized_buf[itms.size()];
+    std::vector<sized_buf> ids(itms.size());
     for (auto& item : itms) {
         if (configuration.shouldPersistDocNamespace()) {
             ids[idx] = {const_cast<char*>(reinterpret_cast<const char*>(
@@ -570,7 +570,7 @@ void CouchKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms) {
 
     GetMultiCbCtx ctx(*this, vb, itms);
 
-    errCode = couchstore_docinfos_by_id(db, ids, itms.size(),
+    errCode = couchstore_docinfos_by_id(db, ids.data(), itms.size(),
                                         0, getMultiCbC, &ctx);
     if (errCode != COUCHSTORE_SUCCESS) {
         st.numGetFailure += numItems;
@@ -594,7 +594,6 @@ void CouchKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms) {
     }
 
     closeDatabaseHandle(db);
-    delete []ids;
 }
 
 void CouchKVStore::del(const Item &itm,
@@ -635,7 +634,7 @@ std::vector<vbucket_state *> CouchKVStore::listPersistedVbuckets() {
 
 void CouchKVStore::getPersistedStats(std::map<std::string,
                                      std::string> &stats) {
-    char *buffer = NULL;
+    std::vector<char> buffer;
     std::string fname = dbname + "/stats.json";
     if (access(fname.c_str(), R_OK) == -1) {
         return ;
@@ -654,16 +653,15 @@ void CouchKVStore::getPersistedStats(std::map<std::string,
             return;
         }
         session_stats.seekg(0, std::ios::beg);
-        buffer = new char[flen + 1];
-        session_stats.read(buffer, flen);
+        buffer.resize(flen + 1);
+        session_stats.read(buffer.data(), flen);
         session_stats.close();
         buffer[flen] = '\0';
 
-        cJSON *json_obj = cJSON_Parse(buffer);
+        cJSON *json_obj = cJSON_Parse(buffer.data());
         if (!json_obj) {
             logger.log(EXTENSION_LOG_WARNING, "CouchKVStore::getPersistedStats:"
                        " Failed to parse the session stats json doc!!!");
-            delete[] buffer;
             return;
         }
 
@@ -685,8 +683,6 @@ void CouchKVStore::getPersistedStats(std::map<std::string,
                    "CouchKVStore::getPersistedStats: Failed to load the engine "
                    "session stats due to IO exception");
     }
-
-    delete[] buffer;
 }
 
 static std::string getDBFileName(const std::string &dbname,

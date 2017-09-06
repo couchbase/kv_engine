@@ -34,9 +34,7 @@
 static size_t get_mapped_bytes(void) {
     size_t mapped_bytes;
     allocator_stats stats = {0};
-    std::vector<allocator_ext_stat> extra_stats(AllocHooks::get_extra_stats_size());
-    stats.ext_stats_size = extra_stats.size();
-    stats.ext_stats = extra_stats.data();
+    stats.ext_stats.resize(AllocHooks::get_extra_stats_size());
 
     AllocHooks::get_allocator_stats(&stats);
     mapped_bytes = stats.fragmentation_size + stats.allocated_size;

@@ -871,9 +871,9 @@ protected:
     size_t                          compactionWriteQueueCap;
     float                           compactionExpMemThreshold;
 
-    /* Array of mutexes for each vbucket
+    /* Vector of mutexes for each vbucket
      * Used by flush operations: flushVB, deleteVB, compactVB, snapshotVB */
-    std::mutex                          *vb_mutexes;
+    std::vector<std::mutex>       vb_mutexes;
     std::deque<MutationLog>       accessLog;
 
     std::atomic<bool> diskDeleteAll;

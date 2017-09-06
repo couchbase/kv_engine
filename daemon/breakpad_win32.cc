@@ -59,17 +59,15 @@ static void create_breakpad(const std::string& minidump_dir) {
     // Takes a wchar_t* on Windows. Isn't the Breakpad API nice and
     // consistent? ;)
     size_t len = minidump_dir.length() + 1;
-    wchar_t* wc_minidump_dir = new wchar_t[len];
+    std::wstring wc_minidump_dir(len, '\0');
     size_t wlen = 0;
-    mbstowcs_s(&wlen, wc_minidump_dir, len, minidump_dir.c_str(), _TRUNCATE);
+    mbstowcs_s(&wlen, &wc_minidump_dir[0], len, minidump_dir.c_str(), _TRUNCATE);
 
-    handler = new ExceptionHandler(wc_minidump_dir, /*filter*/NULL,
+    handler = new ExceptionHandler(&wc_minidump_dir[0], /*filter*/NULL,
                                    dumpCallback, /*callback-context*/NULL,
                                    ExceptionHandler::HANDLER_ALL,
                                    MiniDumpNormal, /*pipe*/(wchar_t*) NULL,
-        /*custom_info*/NULL);
-
-    delete[] wc_minidump_dir;
+                                   /*custom_info*/NULL);
 }
 
 void initialize_breakpad(const BreakpadSettings& settings) {

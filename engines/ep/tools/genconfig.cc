@@ -509,13 +509,13 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    char *data = new char[st.st_size + 1];
+    std::vector<char> data(st.st_size + 1);
     data[st.st_size] = 0;
     ifstream input(file);
-    input.read(data, st.st_size);
+    input.read(data.data(), data.size());
     input.close();
 
-    cJSON *c = cJSON_Parse(data);
+    cJSON *c = cJSON_Parse(data.data());
     if (c == NULL) {
         cerr << "Failed to parse JSON.. probably syntax error" << endl;
         return 1;
@@ -545,7 +545,6 @@ int main(int argc, char **argv) {
     implfile.close();
 
     cJSON_Delete(c);
-    delete []data;
 
     return 0;
 }
