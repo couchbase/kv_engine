@@ -446,9 +446,12 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
     // See MB-25820:  Ensure that callback is called only after all other
     // possible error cases have been tested.  This is to ensure we do not
     // generate two responses for a single streamRequest.
+    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL,
+                                                                     true);
     ENGINE_ERROR_CODE rv = callback(failoverEntries.data(),
                                     failoverEntries.size(),
                                     getCookie());
+    ObjectRegistry::onSwitchThread(epe);
     if (rv != ENGINE_SUCCESS) {
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Couldn't add failover log to "
             "stream request due to error %d", logHeader(), vbucket, rv);
@@ -481,9 +484,14 @@ ENGINE_ERROR_CODE DcpProducer::getFailoverLog(uint32_t opaque, uint16_t vbucket,
 
     std::vector<vbucket_failover_t> failoverEntries =
             vb->failovers->getFailoverLog();
-    return callback(failoverEntries.data(),
-                    failoverEntries.size(),
-                    getCookie());
+
+    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL,
+                                                                     true);
+    ENGINE_ERROR_CODE rv = callback(failoverEntries.data(),
+                                    failoverEntries.size(),
+                                    getCookie());
+    ObjectRegistry::onSwitchThread(epe);
+    return rv;
 }
 
 ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
