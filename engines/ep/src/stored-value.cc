@@ -135,7 +135,7 @@ uint8_t StoredValue::getNRUValue() const {
 }
 
 void StoredValue::restoreValue(const Item& itm) {
-    if (isTempInitialItem()) {
+    if (isTempInitialItem() || isTempDeletedItem()) {
         cas = itm.getCas();
         flags = itm.getFlags();
         exptime = itm.getExptime();

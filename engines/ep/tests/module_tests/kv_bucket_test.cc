@@ -751,6 +751,84 @@ TEST_F(KVBucketTest, DataRaceInDoWorkerStat) {
     pool->cancel(task->getId());
 }
 
+// Test demonstrates MB-25948 with a subtle difference. In the MB the issue
+// says delete(key1), but in this test we use expiry. That is because using
+// ep-engine deleteItem doesn't do the system-xattr pruning (that's part of
+// memcached). So we use expiry which will use the pre_expiry hook to prune
+// the xattrs.
+TEST_P(KVBucketParamTest, MB_25948) {
+
+    // 1. Store key1 with an xattr value
+    auto key = makeStoredDocKey("key");
+
+    std::string value = createXattrValue("body");
+
+    Item item = store_item(0,
+                           key,
+                           value,
+                           1,
+                           {cb::engine_errc::success},
+                           PROTOCOL_BINARY_DATATYPE_XATTR);
+
+    TimeTraveller docBrown(20);
+
+    // 2. Force expiry of the item and flush the delete
+    get_options_t options =
+            static_cast<get_options_t>(QUEUE_BG_FETCH | GET_DELETED_VALUE);
+    auto doGet = [&]() { return store->get(key, vbid, nullptr, options); };
+    GetValue result = doGet();
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // 3. GetMeta for key1, retrieving the tombstone
+    ItemMetaData itemMeta;
+    uint32_t deleted = 0;
+    uint8_t datatype = 0;
+    auto doGetMetaData = [&]() {
+        return store->getMetaData(
+                key, vbid, cookie, itemMeta, deleted, datatype);
+    };
+
+    auto engineResult = doGetMetaData();
+
+    auto* shard = store->getVBucket(vbid)->getShard();
+    MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
+    if (engine->getConfiguration().getBucketType() == "persistent") {
+        EXPECT_EQ(ENGINE_EWOULDBLOCK, engineResult);
+        // Manually run the bgfetch task, and re-attempt getMetaData
+        shard->getBgFetcher()->run(&mockTask);
+
+        engineResult = doGetMetaData();
+    }
+    // Verify that GetMeta succeeded; and metadata is correct.
+    ASSERT_EQ(ENGINE_SUCCESS, engineResult);
+    ASSERT_TRUE(deleted);
+    ASSERT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, datatype);
+    ASSERT_EQ(item.getFlags(), itemMeta.flags);
+    // CAS and revSeqno not checked as changed when the document was expired.
+
+    // 4. Now get deleted value - we want to retrieve the _sync field.
+    result = doGet();
+
+    // Manually run the bgfetch task and retry the get()
+    if (engine->getConfiguration().getBucketType() == "persistent") {
+        ASSERT_EQ(ENGINE_EWOULDBLOCK, result.getStatus());
+        shard->getBgFetcher()->run(&mockTask);
+        result = doGet();
+    }
+    ASSERT_EQ(ENGINE_SUCCESS, result.getStatus());
+
+    auto p = reinterpret_cast<const uint8_t*>(result.item->getData());
+    cb::xattr::Blob blob({const_cast<uint8_t*>(p), result.item->getNBytes()});
+
+    // user and meta gone, _sync remains.
+    EXPECT_EQ(0, blob.get("user").size());
+    EXPECT_EQ(0, blob.get("meta").size());
+    ASSERT_NE(0, blob.get("_sync").size());
+    EXPECT_STREQ("{\"cas\":\"0xdeadbeefcafefeed\"}",
+                 reinterpret_cast<char*>(blob.get("_sync").data()));
+}
+
 class StoreIfTest : public KVBucketTest {
 public:
     void SetUp() override {

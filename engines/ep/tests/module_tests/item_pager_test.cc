@@ -653,9 +653,6 @@ TEST_P(STExpiryPagerTest, MB_25671) {
     if (std::get<0>(GetParam()) == "persistent") {
         runBGFetcherTask();
         EXPECT_EQ(ENGINE_SUCCESS, deleteWithMeta());
-        EXPECT_EQ(ENGINE_EWOULDBLOCK,
-                  store->get(key_1, vbid, nullptr, options).getStatus());
-        runBGFetcherTask();
     }
 
     auto item = store->get(key_1, vbid, nullptr, options);
