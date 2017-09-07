@@ -92,6 +92,17 @@ public:
      */
     void delete_item(uint16_t vbid, const DocKey& key);
 
+    /**
+     * Store and delete a given key
+     *
+     * @param vbid   vbucket id where the key needs to be stored
+     * @param key    key that needs to be stored and deleted
+     * @param value  value for the key
+     */
+    void storeAndDeleteItem(uint16_t vbid,
+                            const DocKey& key,
+                            std::string value);
+
     /* Evict the given key from memory according to the current eviction
      * strategy. Verifies it was successfully evicted.
      */
@@ -103,6 +114,25 @@ public:
                          const void* cookie,
                          vbucket_state_t allowedState,
                          get_options_t options);
+
+    /**
+     * Get the meta data for a given key
+     *
+     * @param vbid     vbucket id where the key needs to be stored
+     * @param key      key for which meta data needs to be retrieved
+     * @param cookie   cookie for the connection
+     * @param itemMeta meta data for the item
+     * @param deleted  whether deleted or not
+     * @param datatype datatype of the item
+     *
+     * @result engine error code signifying result of the operation
+     */
+    ENGINE_ERROR_CODE getMeta(uint16_t vbid,
+                              const DocKey key,
+                              const void* cookie,
+                              ItemMetaData& itemMeta,
+                              uint32_t& deleted,
+                              uint8_t& datatype);
 
     /**
      * Schedules the ItemPager according to the current config. Allows testing

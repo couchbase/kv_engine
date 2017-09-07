@@ -78,6 +78,13 @@ HashTable::~HashTable() {
     }
 }
 
+void HashTable::cleanupIfTemporaryItem(const HashBucketLock& hbl,
+                                       StoredValue& v) {
+    if (v.isTempDeletedItem() || v.isTempNonExistentItem()) {
+        unlocked_del(hbl, v.getKey());
+    }
+}
+
 void HashTable::clear(bool deactivate) {
     if (!deactivate) {
         // If not deactivating, assert we're already active.

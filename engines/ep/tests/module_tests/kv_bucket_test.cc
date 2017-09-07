@@ -753,6 +753,224 @@ TEST_F(KVBucketTest, DataRaceInDoWorkerStat) {
     pool->cancel(task->getId());
 }
 
+void KVBucketTest::storeAndDeleteItem(uint16_t vbid, const DocKey& key,
+                                      std::string value) {
+    Item item = store_item(vbid,
+                           key,
+                           value,
+                           0,
+                           {cb::engine_errc::success},
+                           PROTOCOL_BINARY_RAW_BYTES);
+
+    delete_item(vbid, key);
+    flushVBucketToDiskIfPersistent(vbid, 1);
+}
+
+ENGINE_ERROR_CODE KVBucketTest::getMeta(uint16_t vbid,
+                                        const DocKey key,
+                                        const void* cookie,
+                                        ItemMetaData& itemMeta,
+                                        uint32_t& deleted,
+                                        uint8_t& datatype) {
+    auto doGetMetaData = [&]() {
+        return store->getMetaData(
+                key, vbid, cookie, itemMeta, deleted, datatype);
+    };
+
+    auto engineResult = doGetMetaData();
+    auto* shard = store->getVBucket(vbid)->getShard();
+    MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
+    if (engine->getConfiguration().getBucketType() == "persistent") {
+        EXPECT_EQ(ENGINE_EWOULDBLOCK, engineResult);
+        // Manually run the bgfetch task, and re-attempt getMetaData
+        shard->getBgFetcher()->run(&mockTask);
+
+        engineResult = doGetMetaData();
+    }
+
+    return engineResult;
+}
+
+TEST_P(KVBucketParamTest, lockKeyTempDeletedTest) {
+    //This test is to check if the lockKey function will
+    //remove temporary deleted items from memory
+    auto key = makeStoredDocKey("key");
+    storeAndDeleteItem(vbid, key, std::string("value"));
+
+    ItemMetaData itemMeta;
+    uint32_t deleted = 0;
+    uint8_t datatype = 0;
+    auto engineResult = getMeta(vbid, key, cookie, itemMeta, deleted, datatype);
+
+    // Verify that GetMeta succeeded; and metadata is correct.
+    ASSERT_EQ(ENGINE_SUCCESS, engineResult);
+    ASSERT_TRUE(deleted);
+
+    int expTempItems = 0;
+    if (engine->getConfiguration().getBucketType() == "persistent") {
+        expTempItems = 1;
+    }
+
+    //Check that the temp item is removed for getLocked
+    EXPECT_EQ(expTempItems, store->getVBucket(vbid)->getNumTempItems());
+    GetValue gv = store->getLocked(key, vbid, ep_current_time(), 10, cookie);
+    EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+    EXPECT_EQ(0, store->getVBucket(vbid)->getNumTempItems());
+}
+
+TEST_P(KVBucketParamTest, unlockKeyTempDeletedTest) {
+    //This test is to check if the unlockKey function will
+    //remove temporary deleted items from memory
+    auto key = makeStoredDocKey("key");
+    std::string value("value");
+
+    Item itm = store_item(vbid,
+                          key,
+                          value,
+                          0,
+                          {cb::engine_errc::success},
+                          PROTOCOL_BINARY_RAW_BYTES);
+
+    GetValue gv = store->getAndUpdateTtl(key, vbid, cookie, ep_real_time());
+    EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+
+    gv = store->getLocked(key, vbid, ep_current_time(), 10, cookie);
+    EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+
+    itm.setCas(gv.item->getCas());
+    store->deleteExpiredItem(itm, ep_real_time() + 10, ExpireBy::Pager);
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    ItemMetaData itemMeta;
+    uint32_t deleted = 0;
+    uint8_t datatype = 0;
+    auto engineResult = getMeta(vbid, key, cookie, itemMeta, deleted, datatype);
+
+    // Verify that GetMeta succeeded; and metadata is correct.
+    ASSERT_EQ(ENGINE_SUCCESS, engineResult);
+    ASSERT_TRUE(deleted);
+
+    int expTempItems = 0;
+    if (engine->getConfiguration().getBucketType() == "persistent") {
+        expTempItems = 1;
+    }
+
+    //Check that the temp item is removed for unlockKey
+    EXPECT_EQ(expTempItems, store->getVBucket(vbid)->getNumTempItems());
+    EXPECT_EQ(ENGINE_KEY_ENOENT, store->unlockKey(key, vbid, 0,
+                                 ep_current_time()));
+    EXPECT_EQ(0, store->getVBucket(vbid)->getNumTempItems());
+}
+
+TEST_P(KVBucketParamTest, replaceTempDeletedTest) {
+    //This test is to check if the replace function will
+    //remove temporary deleted items from memory
+    auto key = makeStoredDocKey("key");
+    storeAndDeleteItem(vbid, key, std::string("value"));
+
+    ItemMetaData itemMeta;
+    uint32_t deleted = 0;
+    uint8_t datatype = 0;
+    auto engineResult = getMeta(vbid, key, cookie, itemMeta, deleted, datatype);
+    ASSERT_EQ(ENGINE_SUCCESS, engineResult);
+    ASSERT_TRUE(deleted);
+
+    int expTempItems = 0;
+    if (engine->getConfiguration().getBucketType() == "persistent") {
+        expTempItems = 1;
+    }
+
+    //Check that the temp item is removed for replace
+    EXPECT_EQ(expTempItems, store->getVBucket(vbid)->getNumTempItems());
+    auto replace_item = make_item(vbid, makeStoredDocKey("key"), "value2");
+    EXPECT_EQ(ENGINE_KEY_ENOENT, store->replace(replace_item, cookie));
+    EXPECT_EQ(0, store->getVBucket(vbid)->getNumTempItems());
+}
+
+TEST_P(KVBucketParamTest, statsVKeyTempDeletedTest) {
+    //This test is to check if the statsVKey function will
+    //remove temporary deleted items from memory
+    auto key = makeStoredDocKey("key");
+    storeAndDeleteItem(vbid, key, std::string("value"));
+
+    ItemMetaData itemMeta;
+    uint32_t deleted = 0;
+    uint8_t datatype = 0;
+    auto engineResult = getMeta(vbid, key, cookie, itemMeta, deleted, datatype);
+
+    // Verify that GetMeta succeeded; and metadata is correct.
+    ASSERT_EQ(ENGINE_SUCCESS, engineResult);
+    ASSERT_TRUE(deleted);
+
+    int expTempItems = 0;
+    ENGINE_ERROR_CODE expRetCode = ENGINE_ENOTSUP;
+    if (engine->getConfiguration().getBucketType() == "persistent") {
+        expTempItems = 1;
+        expRetCode = ENGINE_KEY_ENOENT;
+    }
+
+    //Check that the temp item is removed for statsVKey
+    EXPECT_EQ(expTempItems, store->getVBucket(vbid)->getNumTempItems());
+    EXPECT_EQ(expRetCode, store->statsVKey(key, vbid, cookie));
+    EXPECT_EQ(0, store->getVBucket(vbid)->getNumTempItems());
+}
+
+TEST_P(KVBucketParamTest, getAndUpdateTtlTempDeletedItemTest) {
+    //This test is to check if the getAndUpdateTtl function will
+    //remove temporary deleted items from memory
+    auto key = makeStoredDocKey("key");
+    storeAndDeleteItem(vbid, key, std::string("value"));
+
+    ItemMetaData itemMeta;
+    uint32_t deleted = 0;
+    uint8_t datatype = 0;
+    auto engineResult = getMeta(vbid, key, cookie, itemMeta, deleted, datatype);
+    // Verify that GetMeta succeeded; and metadata is correct.
+    ASSERT_EQ(ENGINE_SUCCESS, engineResult);
+    ASSERT_TRUE(deleted);
+
+    int expTempItems = 0;
+    if (engine->getConfiguration().getBucketType() == "persistent") {
+        expTempItems = 1;
+    }
+
+    //Check that the temp item is removed for getAndUpdateTtl
+    EXPECT_EQ(expTempItems, store->getVBucket(vbid)->getNumTempItems());
+    GetValue gv = store->getAndUpdateTtl(makeStoredDocKey("key"), vbid,
+                                         cookie, time(NULL));
+    EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+    EXPECT_EQ(0, store->getVBucket(vbid)->getNumTempItems());
+}
+
+TEST_P(KVBucketParamTest, validateKeyTempDeletedItemTest) {
+    //This test is to check if the getAndUpdateTtl function will
+    //remove temporary deleted items from memory
+    auto key = makeStoredDocKey("key");
+    storeAndDeleteItem(vbid, key, std::string("value"));
+
+    ItemMetaData itemMeta;
+    uint32_t deleted;
+    uint8_t datatype;
+    auto engineResult = getMeta(vbid, key, cookie, itemMeta, deleted, datatype);
+
+    // Verify that GetMeta succeeded; and metadata is correct.
+    ASSERT_EQ(ENGINE_SUCCESS, engineResult);
+    ASSERT_TRUE(deleted);
+
+    int expTempItems = 0;
+    if (engine->getConfiguration().getBucketType() == "persistent") {
+        expTempItems = 1;
+    }
+
+    //Check that the temp item is removed for validateKey
+    EXPECT_EQ(expTempItems, store->getVBucket(vbid)->getNumTempItems());
+    std::unique_ptr<Item> diskItem;
+    std::string result = store->validateKey(key, vbid, *diskItem);
+    EXPECT_STREQ("item_deleted", result.c_str());
+    EXPECT_EQ(0, store->getVBucket(vbid)->getNumTempItems());
+}
+
 // Test demonstrates MB-25948 with a subtle difference. In the MB the issue
 // says delete(key1), but in this test we use expiry. That is because using
 // ep-engine deleteItem doesn't do the system-xattr pruning (that's part of

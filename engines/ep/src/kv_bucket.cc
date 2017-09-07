@@ -1487,8 +1487,8 @@ ENGINE_ERROR_CODE KVBucket::unlockKey(const DocKey& key,
                                          QueueExpired::Yes);
 
     if (v) {
-        if (v->isDeleted() || v->isTempNonExistentItem() ||
-            v->isTempDeletedItem()) {
+        if (v->isLogicallyNonExistent()) {
+            vb->ht.cleanupIfTemporaryItem(hbl, *v);
             return ENGINE_KEY_ENOENT;
         }
         if (v->isLocked(currentTime)) {
@@ -1542,8 +1542,8 @@ std::string KVBucket::validateKey(const DocKey& key, uint16_t vbucket,
             hbl, key, WantsDeleted::Yes, TrackReference::No, QueueExpired::Yes);
 
     if (v) {
-        if (v->isDeleted() || v->isTempNonExistentItem() ||
-            v->isTempDeletedItem()) {
+        if (v->isLogicallyNonExistent()) {
+            vb->ht.cleanupIfTemporaryItem(hbl, *v);
             return "item_deleted";
         }
 

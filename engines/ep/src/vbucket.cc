@@ -907,8 +907,8 @@ ENGINE_ERROR_CODE VBucket::replace(Item& itm,
     }
 
     if (v) {
-        if (v->isDeleted() || v->isTempDeletedItem() ||
-            v->isTempNonExistentItem()) {
+        if (v->isLogicallyNonExistent()) {
+            ht.cleanupIfTemporaryItem(hbl, *v);
             return ENGINE_KEY_ENOENT;
         }
 
@@ -1563,8 +1563,8 @@ std::pair<MutationStatus, GetValue> VBucket::processGetAndUpdateTtl(
         StoredValue* v,
         time_t exptime) {
     if (v) {
-        if (v->isDeleted() || v->isTempDeletedItem() ||
-            v->isTempNonExistentItem()) {
+        if (v->isLogicallyNonExistent()) {
+            ht.cleanupIfTemporaryItem(hbl, *v);
             return {MutationStatus::NotFound, GetValue()};
         }
 
@@ -1811,8 +1811,12 @@ ENGINE_ERROR_CODE VBucket::getKeyStats(const DocKey& key,
                                      QueueExpired::Yes);
 
     if (v) {
-        if ((v->isDeleted() && wantsDeleted == WantsDeleted::No) ||
-            v->isTempNonExistentItem() || v->isTempDeletedItem()) {
+        if ((v->isDeleted() && wantsDeleted == WantsDeleted::No)) {
+            return ENGINE_KEY_ENOENT;
+        }
+
+        if (v->isTempNonExistentItem() || v->isTempDeletedItem()) {
+            deleteStoredValue(hbl, *v);
             return ENGINE_KEY_ENOENT;
         }
         if (eviction == FULL_EVICTION && v->isTempInitialItem()) {
@@ -1860,8 +1864,8 @@ GetValue VBucket::getLocked(const DocKey& key,
                                      QueueExpired::Yes);
 
     if (v) {
-        if (v->isDeleted() || v->isTempNonExistentItem() ||
-            v->isTempDeletedItem()) {
+        if (v->isLogicallyNonExistent()) {
+            ht.cleanupIfTemporaryItem(hbl, *v);
             return GetValue(NULL, ENGINE_KEY_ENOENT);
         }
 

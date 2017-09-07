@@ -237,6 +237,16 @@ public:
         numTotalItems = totalItems;
     }
 
+    /**
+     * Remove in case of a temporary item
+     *
+     * @param hbl Hash table lock
+     * @param v   Stored Value that needs to be cleaned up
+     *
+     */
+    void cleanupIfTemporaryItem(const HashBucketLock& hbl,
+                                StoredValue& v);
+
     void decrNumItems() {
         --numItems;
     }
