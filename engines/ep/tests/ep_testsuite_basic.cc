@@ -600,7 +600,7 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     testHarness.time_travel(16);
 
     /* lock's taken so this should fail */
-    checkeq(cb::engine_errc::temporary_failure,
+    checkeq(cb::engine_errc::locked_tmpfail,
             getl(h, h1, nullptr, key, vbucketId, expiration).first,
             "Expected to fail getl on second try");
 
@@ -763,7 +763,7 @@ static enum test_result test_unl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint64_t cas = info.cas;
 
     /* lock's taken unlocking with a random cas value should fail */
-    checkeq(ENGINE_TMPFAIL,
+    checkeq(ENGINE_LOCKED_TMPFAIL,
             unl(h, h1, nullptr, key, vbucketId),
             "Expected to fail getl on second try");
 

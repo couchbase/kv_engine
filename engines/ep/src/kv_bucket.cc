@@ -1753,6 +1753,7 @@ ENGINE_ERROR_CODE KVBucket::unlockKey(const DocKey& key,
                 v->unlock();
                 return ENGINE_SUCCESS;
             }
+            return ENGINE_LOCKED_TMPFAIL;
         }
         return ENGINE_TMPFAIL;
     } else {

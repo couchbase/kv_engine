@@ -100,8 +100,7 @@ TEST_P(LockTest, LockLockedDocument) {
         conn.get_and_lock(name, 0, 0);
         FAIL() << "it is not possible to lock a locked document";
     } catch (const ConnectionError& ex) {
-        // Depending on the engine; we may get LOCKED or ETMPFAIL.
-        EXPECT_TRUE(ex.isLocked() || ex.isTemporaryFailure());
+        EXPECT_TRUE(ex.isLocked());
     }
 }
 
@@ -209,8 +208,7 @@ TEST_P(LockTest, UnlockWrongCas) {
         conn.unlock(name, 0, locked.info.cas + 1);
         FAIL() << "The cas value should not match";
     } catch (const ConnectionError& ex) {
-        // Depending on the engine; we may get ALREADY_EXISTS or ETMPFAIL.
-        EXPECT_TRUE(ex.isAlreadyExists() || ex.isTemporaryFailure());
+        EXPECT_TRUE(ex.isAlreadyExists());
     }
 }
 
