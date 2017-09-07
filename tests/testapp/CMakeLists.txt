@@ -204,6 +204,16 @@ add_unit_test_suite(NAME xattr
                     TIMEOUT 120
                     SOURCE testapp_xattr.h testapp_xattr.cc)
 
+# Re-run the XATTR tests which require support for a special memory pool for
+# system xattrs under ep-engine
+#
+# Due to MB-25938 we can't run all of the tests through ep-engine
+ADD_TEST(NAME memcached-system-xattr-tests
+         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+         COMMAND memcached-xattr-tests --gtest_filter=TransportProtocols/XattrTest.mb* -E ep)
+SET_TESTS_PROPERTIES(memcached-system-xattr-tests PROPERTIES TIMEOUT 120)
+
+
 # Run the SSL cert tests
 add_unit_test_suite(NAME ssl-cert-tests
                     TIMEOUT 120

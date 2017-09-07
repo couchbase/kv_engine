@@ -32,7 +32,7 @@
  */
 class SynchronousEPEngine : public EventuallyPersistentEngine {
 public:
-    SynchronousEPEngine(const std::string& extra_config);
+    SynchronousEPEngine(std::string extra_config = {});
 
     void setKVBucket(std::unique_ptr<KVBucket> store);
     void setDcpConnMap(std::unique_ptr<DcpConnMap> dcpConnMap);

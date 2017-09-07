@@ -132,7 +132,10 @@ private:
     item_info existing_info;
 
     // The size of the xattr segment of the existing item
-    size_t xattr_size;
+    size_t xattr_size{0};
+
+    // The size of the system xattrs
+    size_t system_xattr_size {0};
 
     /**
      * The predicate function to use for the mutation store, if xattrs are

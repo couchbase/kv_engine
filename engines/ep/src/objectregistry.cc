@@ -160,7 +160,7 @@ void ObjectRegistry::onDeleteItem(const Item *pItem)
    if (verifyEngine(engine)) {
        EPStats &stats = engine->getEpStats();
        stats.memOverhead->fetch_sub(pItem->size() - pItem->getValMemSize());
-       ++(*stats.numItem);
+       --(*stats.numItem);
    }
 }
 

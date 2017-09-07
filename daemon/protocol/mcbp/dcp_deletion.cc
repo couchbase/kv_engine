@@ -54,11 +54,16 @@ void dcp_deletion_executor(McbpConnection* c, void* packet) {
         if (mcbp::datatype::is_xattr(datatype)) {
             priv_bytes = valuelen;
         }
-        ret = c->getBucketEngine()->dcp.deletion(c->getBucketEngineAsV0(),
-                                                 c->getCookie(), opaque,
-                                                 key, value, priv_bytes,
-                                                 datatype, cas, vbucket,
-                                                 by_seqno, rev_seqno, meta);
+
+        if (priv_bytes > COUCHBASE_MAX_ITEM_PRIVILEGED_BYTES) {
+            ret = ENGINE_E2BIG;
+        } else {
+            ret = c->getBucketEngine()->dcp.deletion(c->getBucketEngineAsV0(),
+                                                     c->getCookie(), opaque,
+                                                     key, value, priv_bytes,
+                                                     datatype, cas, vbucket,
+                                                     by_seqno, rev_seqno, meta);
+        }
     }
 
     switch (ret) {

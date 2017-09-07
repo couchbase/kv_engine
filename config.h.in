@@ -20,6 +20,7 @@
 #endif
 
 #define COUCHBASE_MAX_NUM_BUCKETS 100
+#define COUCHBASE_MAX_ITEM_PRIVILEGED_BYTES (1024*1024)
 
 #ifdef WIN32
 #include <winsock2.h>

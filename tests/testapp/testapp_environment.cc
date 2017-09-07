@@ -106,6 +106,10 @@ public:
         }
     }
 
+    bool supportsPrivilegedBytes() const override {
+        return false;
+    }
+
     bool canStoreCompressedItems() const override {
             return true;
     }
@@ -192,6 +196,10 @@ public:
         default:
             return true;
         }
+    }
+
+    bool supportsPrivilegedBytes() const override {
+        return true;
     }
 
     bool canStoreCompressedItems() const override {
