@@ -56,8 +56,7 @@ enum class SystemEvent : uint32_t {
      * completed the deletion of all items of a collection. The hard delete
      * carries data to the flusher so we can persist a JSON manifest that now
      * fully removes the collection and also deleted the special marker document
-     * created by CreateCollection. DeleteCollectionHard will also issue a
-     * delete of the corresponding CreateCollection event.
+     * created by CreateCollection.
      */
     DeleteCollectionHard,
 
@@ -66,9 +65,9 @@ enum class SystemEvent : uint32_t {
      * completed the deletion of all items of a collection *but*  a
      * collection of the same name was added back during the deletion. The soft
      * delete carries data to the flusher so we can persist a JSON manifest that
-     * only updates the end-seqno of the deleted collection entry.
-     * DeleteCollectionSoft will also issue a delete of the corresponding
-     * CreateCollection event.
+     * only updates the end-seqno of the deleted collection entry. The soft
+     * delete also deleted the special marker document created by
+     * CreateCollection.
      */
     DeleteCollectionSoft,
 
@@ -160,8 +159,11 @@ public:
      * const. This function may call setOperation on the shared item
      *
      * @param item an item from the flushers items to flush.
+     * @returns Skip if the flusher should not continue with the item or
+     *          Continue if the flusher can continue the rest of the flushing
+     *          function against the item.
      */
-    void process(const queued_item& item);
+    ProcessStatus process(const queued_item& item);
 
     /**
      * Determine the flushing action of the Item, knows about normal set/del

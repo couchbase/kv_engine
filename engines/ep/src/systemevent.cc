@@ -59,8 +59,7 @@ std::string SystemEventFactory::makeKey(SystemEvent se,
         break;
     }
     case SystemEvent::BeginDeleteCollection: {
-        key += collectionsSeparator + Collections::DeleteEventKey +
-               collectionsSeparator + keyExtra;
+        key += collectionsSeparator + Collections::DeleteEventKey + keyExtra;
         break;
     }
     case SystemEvent::CollectionsSeparatorChanged: {
@@ -87,19 +86,22 @@ mcbp::systemevent::id SystemEventFactory::mapToMcbp(SystemEvent se) {
     throw std::invalid_argument("SystemEventFactory::mapToMcbp unknown input se:" + std::to_string(int(se)));
 }
 
-void SystemEventFlush::process(const queued_item& item) {
+ProcessStatus SystemEventFlush::process(const queued_item& item) {
     if (item->getOperation() != queue_op::system_event) {
-        return;
+        return ProcessStatus::Continue;
     }
 
     switch (SystemEvent(item->getFlags())) {
     case SystemEvent::CreateCollection:
     case SystemEvent::DeleteCollectionHard:
     case SystemEvent::DeleteCollectionSoft:
-    case SystemEvent::BeginDeleteCollection:
     case SystemEvent::CollectionsSeparatorChanged: {
         saveCollectionsManifestItem(item); // Updates manifest
-        return;
+        return ProcessStatus::Continue; // And flushes an item
+    }
+    case SystemEvent::BeginDeleteCollection: {
+        saveCollectionsManifestItem(item); // Updates manifest
+        return ProcessStatus::Skip; // But skips flushing the item
     }
     }
 
@@ -115,9 +117,14 @@ bool SystemEventFlush::isUpsert(const Item& item) {
         // thus is an error if calling this method with such an event.
         switch (SystemEvent(item.getFlags())) {
         case SystemEvent::CreateCollection:
-        case SystemEvent::CollectionsSeparatorChanged:
-        case SystemEvent::BeginDeleteCollection: {
+        case SystemEvent::CollectionsSeparatorChanged: {
             return true;
+        }
+        case SystemEvent::BeginDeleteCollection: {
+            throw std::invalid_argument(
+                    "SystemEventFlush::isUpsert event " +
+                    to_string(SystemEvent(item.getFlags())) +
+                    " should neither delete or upsert ");
         }
         case SystemEvent::DeleteCollectionHard:
         case SystemEvent::DeleteCollectionSoft: {

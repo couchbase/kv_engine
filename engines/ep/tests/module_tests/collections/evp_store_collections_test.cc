@@ -132,7 +132,9 @@ TEST_F(CollectionsTest, collections_basic) {
     vb->updateFromManifest({R"({"separator":"::",
                  "collections":[{"name":"$default", "uid":"0"}]})"});
 
-    flush_vbucket_to_disk(vbid, 1);
+    // Note that nothing is flushed because a begin delete doesn't generate
+    // an Item.
+    flush_vbucket_to_disk(vbid, 0);
 
     // Access denied (although the item still exists)
     gv = store->get(
@@ -245,7 +247,7 @@ std::string CollectionsFlushTest::deleteCollectionAndFlush(
     VBucketPtr vb = store->getVBucket(vbid);
     storeItems(collection, DocNamespace::Collections, items);
     vb->updateFromManifest(json);
-    flush_vbucket_to_disk(vbid, 1 + items); // begin delete + items
+    flush_vbucket_to_disk(vbid, items); // only flush items
     return getManifest();
 }
 
@@ -552,7 +554,9 @@ TEST_F(CollectionsWarmupTest, warmup) {
     }
 }
 
-// Check the highSeqno matches what we persist
+// When a collection is deleted - an event enters the checkpoint which does not
+// enter the persisted seqno index - hence at the end of this test when we warm
+// up, expect the highSeqno to be less than before the warmup.
 TEST_F(CollectionsWarmupTest, MB_25381) {
     int64_t highSeqno = 0;
     {
@@ -574,14 +578,14 @@ TEST_F(CollectionsWarmupTest, MB_25381) {
         vb->updateFromManifest({R"({"separator":"@",
               "collections":[{"name":"$default", "uid":"0"}]})"});
 
-        flush_vbucket_to_disk(vbid, 2);
+        flush_vbucket_to_disk(vbid, 1);
 
         highSeqno = vb->getHighSeqno();
     } // VBucketPtr scope ends
     resetEngineAndWarmup();
 
     auto vb = store->getVBucket(vbid);
-    EXPECT_EQ(highSeqno, vb->getHighSeqno());
+    EXPECT_GT(highSeqno, vb->getHighSeqno());
 }
 
 TEST_F(CollectionsTest, test_dcp_consumer) {
