@@ -61,6 +61,11 @@ public:
         return "Warmup - initialize";
     }
 
+    std::chrono::microseconds maxExpectedDuration() {
+        // Typically takes single-digits ms.
+        return std::chrono::milliseconds(50);
+    }
+
     bool run() {
         TRACE_EVENT0("ep-engine/task", "WarmupInitialize");
         _warmup->initialize();
@@ -85,6 +90,11 @@ public:
 
     cb::const_char_buffer getDescription() {
         return _description;
+    }
+
+    std::chrono::microseconds maxExpectedDuration() {
+        // VB creation typically takes some 10s of milliseconds.
+        return std::chrono::milliseconds(100);
     }
 
     bool run() {
@@ -118,6 +128,12 @@ public:
         return _description;
     }
 
+    std::chrono::microseconds maxExpectedDuration() {
+        // Typically takes a few 10s of milliseconds (need to open kstore files
+        // and read statistics.
+        return std::chrono::milliseconds(100);
+    }
+
     bool run() {
         TRACE_EVENT0("ep-engine/task", "WarpupEstimateDatabaseItemCount");
         _warmup->estimateDatabaseItemCount(_shardId);
@@ -143,6 +159,14 @@ public:
 
     cb::const_char_buffer getDescription() {
         return _description;
+    }
+
+    std::chrono::microseconds maxExpectedDuration() {
+        // Runtime is a function of the number of keys in the database; can be
+        // many minutes in large datasets.
+        // Given this large variation; set max duration to a "way out" value
+        // which we don't expect to see.
+        return std::chrono::hours(1);
     }
 
     bool run() {
@@ -171,6 +195,13 @@ public:
         return "Warmup - check for access log";
     }
 
+    std::chrono::microseconds maxExpectedDuration() {
+        // Checking for the access log is a disk task (so can take a variable
+        // amount of time), however it should be relatively quick as we are
+        // just checking files exist.
+        return std::chrono::milliseconds(100);
+    }
+
     bool run() {
         TRACE_EVENT0("ep-engine/task", "WarmupCheckForAccessLog");
         _warmup->checkForAccessLog();
@@ -195,6 +226,14 @@ public:
 
     cb::const_char_buffer getDescription() {
         return _description;
+    }
+
+    std::chrono::microseconds maxExpectedDuration() {
+        // Runtime is a function of the number of keys in the access log files;
+        // can be many minutes in large datasets.
+        // Given this large variation; set max duration to a "way out" value
+        // which we don't expect to see.
+        return std::chrono::hours(1);
     }
 
     bool run() {
@@ -225,6 +264,15 @@ public:
         return _description;
     }
 
+    std::chrono::microseconds maxExpectedDuration() {
+        // Runtime is a function of the number of documents which can
+        // be held in RAM (and need to be laoded from disk),
+        // can be many minutes in large datasets.
+        // Given this large variation; set max duration to a "way out" value
+        // which we don't expect to see.
+        return std::chrono::hours(1);
+    }
+
     bool run() {
         TRACE_EVENT0("ep-engine/task", "WarmupLoadingKVPairs");
         _warmup->loadKVPairsforShard(_shardId);
@@ -253,6 +301,15 @@ public:
         return _description;
     }
 
+    std::chrono::microseconds maxExpectedDuration() {
+        // Runtime is a function of the number of documents which can
+        // be held in RAM (and need to be laoded from disk),
+        // can be many minutes in large datasets.
+        // Given this large variation; set max duration to a "way out" value
+        // which we don't expect to see.
+        return std::chrono::hours(1);
+    }
+
     bool run() {
         TRACE_EVENT0("ep-engine/task", "WarmupLoadingData");
         _warmup->loadDataforShard(_shardId);
@@ -276,6 +333,11 @@ public:
 
     cb::const_char_buffer getDescription() {
         return "Warmup - completion";
+    }
+
+    std::chrono::microseconds maxExpectedDuration() {
+        // This task should be very quick - just the final warmup steps.
+        return std::chrono::milliseconds(1);
     }
 
     bool run() {

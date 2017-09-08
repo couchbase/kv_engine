@@ -42,6 +42,8 @@ public:
 
     bool run();
     cb::const_char_buffer getDescription();
+    std::chrono::microseconds maxExpectedDuration();
+
     std::atomic<size_t> completedCount;
 
 private:

@@ -40,6 +40,11 @@ cb::const_char_buffer VBucketMemoryDeletionTask::getDescription() {
     return description;
 }
 
+std::chrono::microseconds VBucketMemoryDeletionTask::maxExpectedDuration() {
+    // p99.9 typically around 50ms.
+    return std::chrono::milliseconds(100);
+}
+
 bool VBucketMemoryDeletionTask::run() {
     TRACE_EVENT1("ep-engine/task",
                  "VBucketMemoryDeletionTask",

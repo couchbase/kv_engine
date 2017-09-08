@@ -140,6 +140,15 @@ cb::const_char_buffer EphTombstoneHTCleaner::getDescription() {
     return "Eph tombstone hashtable cleaner";
 }
 
+std::chrono::microseconds EphTombstoneHTCleaner::maxExpectedDuration() {
+    // Tombstone HT cleaner processes items in chunks, with each chunk
+    // constrained by a ChunkDuration runtime, so we expect to only take that
+    // long. However, the ProgressTracker used estimates the time remaining, so
+    // apply some headroom to that figure so we don't get inundated with
+    // spurious "slow tasks" which only just exceed the limit.
+    return getChunkDuration() * 10;
+}
+
 std::chrono::milliseconds EphTombstoneHTCleaner::getChunkDuration() const {
     return std::chrono::milliseconds(
             engine->getConfiguration().getEphemeralMetadataPurgeChunkDuration());
@@ -219,4 +228,13 @@ bool EphTombstoneStaleItemDeleter::run() {
 
 cb::const_char_buffer EphTombstoneStaleItemDeleter::getDescription() {
     return "Eph tombstone stale item deleter";
+}
+
+std::chrono::microseconds EphTombstoneStaleItemDeleter::maxExpectedDuration() {
+    // This currently needs to iterate the entire sequenceList for a VBucket;
+    // which can take multiple seconds - see MB-25920.
+    // Ideally this should be reduced, but in the interim set the maximum
+    // duration to a relatively generous limit of 10s (so as not to fill the
+    // logs with warnings).
+    return std::chrono::seconds(10);
 }

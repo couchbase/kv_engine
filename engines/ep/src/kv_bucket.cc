@@ -198,6 +198,12 @@ public:
         return description;
     }
 
+    std::chrono::microseconds maxExpectedDuration() {
+        // This should be a very fast operation (p50 under 10us), however we
+        // have observed long tails: p99.9 of 20ms; so use a threshold of 100ms.
+        return std::chrono::milliseconds(100);
+    }
+
     bool run(void) {
         TRACE_EVENT1("ep-engine/task",
                      "PendingOpsNotification",
@@ -2447,9 +2453,12 @@ void KVBucket::visit(VBucketVisitor &visitor)
 size_t KVBucket::visit(std::unique_ptr<VBucketVisitor> visitor,
                        const char* lbl,
                        TaskId id,
-                       double sleepTime) {
-    return ExecutorPool::get()->schedule(std::make_shared<VBCBAdaptor>(
-            this, id, std::move(visitor), lbl, sleepTime));
+                       double sleepTime,
+                       std::chrono::microseconds maxExpectedDuration) {
+    auto task = std::make_shared<VBCBAdaptor>(
+            this, id, std::move(visitor), lbl, sleepTime);
+    task->setMaxExpectedDuration(maxExpectedDuration);
+    return ExecutorPool::get()->schedule(task);
 }
 
 KVBucket::Position KVBucket::pauseResumeVisit(PauseResumeVBVisitor& visitor,
@@ -2489,6 +2498,7 @@ VBCBAdaptor::VBCBAdaptor(KVBucket* s,
       visitor(std::move(v)),
       label(l),
       sleepTime(sleep),
+      maxDuration(std::chrono::seconds::max()),
       currentvb(0) {
     updateDescription();
     const VBucketFilter& vbFilter = visitor->getVBucketFilter();

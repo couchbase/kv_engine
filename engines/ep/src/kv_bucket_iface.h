@@ -483,7 +483,8 @@ public:
     virtual size_t visit(std::unique_ptr<VBucketVisitor> visitor,
                          const char* lbl,
                          TaskId id,
-                         double sleepTime = 0) = 0;
+                         double sleepTime,
+                         std::chrono::microseconds maxExpectedDuration) = 0;
 
     /**
      * Visit the items in this epStore, starting the iteration from the

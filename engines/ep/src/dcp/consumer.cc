@@ -110,6 +110,12 @@ public:
         return description;
     }
 
+    std::chrono::microseconds maxExpectedDuration() {
+        // This should be a very fast operation (p50 under 10us), however we
+        // have observed long tails: p99.9 of 20ms; so use a threshold of 100ms.
+        return std::chrono::milliseconds(100);
+    }
+
 private:
     const connection_t conn;
     const std::string description;

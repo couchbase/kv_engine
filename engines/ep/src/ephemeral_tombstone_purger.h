@@ -141,6 +141,8 @@ public:
 
     cb::const_char_buffer getDescription() override;
 
+    std::chrono::microseconds maxExpectedDuration() override;
+
 private:
     /// How long should each chunk of HT cleaning run for?
     std::chrono::milliseconds getChunkDuration() const;
@@ -184,4 +186,6 @@ public:
     bool run() override;
 
     cb::const_char_buffer getDescription() override;
+
+    std::chrono::microseconds maxExpectedDuration() override;
 };

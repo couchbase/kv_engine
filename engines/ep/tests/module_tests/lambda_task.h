@@ -35,6 +35,11 @@ public:
         return "Lambda Task";
     }
 
+    std::chrono::microseconds maxExpectedDuration() override {
+        // Only used for testing; return an arbitrary large value.
+        return std::chrono::seconds(60);
+    }
+
 protected:
     std::function<bool()> func;
 };

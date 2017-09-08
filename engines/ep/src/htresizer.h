@@ -40,6 +40,14 @@ public:
         return "Adjusting hash table sizes.";
     }
 
+    std::chrono::microseconds maxExpectedDuration() {
+        // [per Bucket Task] This task doesn't do very much (most of the actual
+        // work to check and resize HashTables is delegated to the per-vBucket
+        // 'ResizingVisitor' tasks). As such we don't expect to execute for
+        // very long.
+        return std::chrono::milliseconds(10);
+    }
+
 private:
     KVBucketIface* store;
 };

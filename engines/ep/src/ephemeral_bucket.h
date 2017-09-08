@@ -158,6 +158,8 @@ private:
 
         cb::const_char_buffer getDescription() override;
 
+        std::chrono::microseconds maxExpectedDuration() override;
+
         /**
          * Adds the connections to be notified by the task and then wakes up
          * the task.

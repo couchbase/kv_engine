@@ -142,9 +142,13 @@ bool ClosedUnrefCheckpointRemoverTask::run(void) {
         KVBucketIface* kvBucket = engine->getKVBucket();
         auto pv =
                 std::make_unique<CheckpointVisitor>(kvBucket, stats, available);
+        // p99.999 is 10ms
+        auto maxExpectedDuration = std::chrono::milliseconds(10);
         kvBucket->visit(std::move(pv),
                         "Checkpoint Remover",
-                        TaskId::ClosedUnrefCheckpointRemoverVisitorTask);
+                        TaskId::ClosedUnrefCheckpointRemoverVisitorTask,
+                        /*sleepTime*/ 0,
+                        maxExpectedDuration);
     }
     snooze(sleepTime);
     return true;

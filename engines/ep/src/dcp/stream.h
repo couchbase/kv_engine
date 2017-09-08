@@ -513,6 +513,12 @@ public:
         return "Process checkpoint(s) for DCP producer";
     }
 
+    std::chrono::microseconds maxExpectedDuration() {
+        // Empirical evidence suggests this task runs under 100ms 99.9999% of
+        // the time.
+        return std::chrono::milliseconds(100);
+    }
+
     bool run();
     void schedule(const stream_t& stream);
     void wakeup();

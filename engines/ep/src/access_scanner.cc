@@ -317,13 +317,16 @@ bool AccessScanner::run() {
                                                               available,
                                                               *this,
                                                               maxStoredItems);
-                ExTask task = std::make_shared<VBCBAdaptor>(
+                auto task = std::make_shared<VBCBAdaptor>(
                         &store,
                         TaskId::AccessScannerVisitor,
                         std::move(pv),
                         "Item Access Scanner",
                         sleepTime,
                         true);
+
+                // p99.9 is typically ~200ms
+                task->setMaxExpectedDuration(std::chrono::milliseconds(500));
                 ExecutorPool::get()->schedule(task);
             }
         }
@@ -343,6 +346,14 @@ void AccessScanner::updateAlogTime(double sleepSecs) {
 
 cb::const_char_buffer AccessScanner::getDescription() {
     return "Generating access log";
+}
+
+std::chrono::microseconds AccessScanner::maxExpectedDuration() {
+    // The actual 'AccessScanner' task doesn't do very much (most of the actual
+    // work to generate the access logs is delegated to the per-vBucket
+    // 'ItemAccessVisitor' tasks). As such we don't expect to execute for
+    // very long.
+    return std::chrono::milliseconds(100);
 }
 
 void AccessScanner::deleteAlogFile(const std::string& fileName) {

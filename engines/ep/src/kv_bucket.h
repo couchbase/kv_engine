@@ -52,6 +52,15 @@ public:
         return description.text;
     }
 
+    /// Set the maximum expected duration for this task.
+    void setMaxExpectedDuration(std::chrono::microseconds duration) {
+        maxDuration = duration;
+    }
+
+    std::chrono::microseconds maxExpectedDuration() {
+        return maxDuration;
+    }
+
     bool run(void);
 
 private:
@@ -60,6 +69,7 @@ private:
     std::unique_ptr<VBucketVisitor> visitor;
     const char                 *label;
     double                      sleepTime;
+    std::chrono::microseconds maxDuration;
     std::atomic<uint16_t>       currentvb;
 
     struct {
@@ -477,7 +487,8 @@ public:
     size_t visit(std::unique_ptr<VBucketVisitor> visitor,
                  const char* lbl,
                  TaskId id,
-                 double sleepTime = 0);
+                 double sleepTime,
+                 std::chrono::microseconds maxExpectedDuration);
 
     Position pauseResumeVisit(PauseResumeVBVisitor& visitor,
                               Position& start_pos);

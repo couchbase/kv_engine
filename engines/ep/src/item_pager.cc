@@ -305,9 +305,15 @@ bool ItemPager::run(void) {
                                                   false,
                                                   bias,
                                                   &phase);
+
+        // p99.99 is ~50ms
+        const auto maxExpectedDuration = std::chrono::milliseconds(50);
+
         kvBucket->visit(std::move(pv),
                         "Item pager",
-                        TaskId::ItemPagerVisitor);
+                        TaskId::ItemPagerVisitor,
+                        /*sleepTime*/ 0,
+                        maxExpectedDuration);
     }
 
     snooze(sleepTime);
@@ -373,11 +379,16 @@ bool ExpiredItemPager::run(void) {
                                                   true,
                                                   1,
                                                   nullptr);
+
+        // p99.99 is ~50ms (same as ItemPager).
+        const auto maxExpectedDuration = std::chrono::milliseconds(50);
+
         // track spawned tasks for shutdown..
         kvBucket->visit(std::move(pv),
                         "Expired item remover",
                         TaskId::ExpiredItemPagerVisitor,
-                        10);
+                        10,
+                        maxExpectedDuration);
     }
     snooze(sleepTime);
     updateExpPagerTime(sleepTime);

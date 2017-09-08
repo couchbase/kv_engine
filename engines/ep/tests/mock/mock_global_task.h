@@ -36,6 +36,11 @@ public:
         return "MockGlobalTask";
     }
 
+    std::chrono::microseconds maxExpectedDuration() override {
+        // Shouldn't matter what this returns
+        return std::chrono::seconds(0);
+    }
+
     void snooze(const double secs) override {
     }
 };

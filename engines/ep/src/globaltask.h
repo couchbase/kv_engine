@@ -94,12 +94,32 @@ public:
     virtual cb::const_char_buffer getDescription() = 0;
 
     /**
-     * The maximum expected duration of this task. Any tasks taking longer than
-     * this to run will be logged as "slow".
+     * The maximum expected duration of a single execution of this task - i.e.
+     * how long should run() take.
+     * Any task executions taking longer than this to run will be logged as
+     * "slow".
+     *
+     * Exact values will vary significantly depending on the class of task;
+     * however here are some general principles:
+     *
+     *   1. Our scheduler is non-preemptive, so a long-running task *cannot* be
+     *      interrupted to allow another (possibly higher priority) task to run.
+     *      As such, tasks in general should aim to only run for a brief
+     *      duration at a time; for example at most 25ms (typical OS scheduler
+     *      time-slice).
+     *   2. Select a suitable limit for the given task - if a task is expected
+     *      to complete in 1us; it isn't very useful to specify a limit of 25ms
+     *      as we will fail to log any executions which are abnormally slow
+     *      (even if they arn't causing scheduling issues for other tasks).
+     *   3. Tasks which block other tasks while they run should aim to minimize
+     *      their runtime - 25ms would be a significant delay to add to
+     *      front-end operations if a particular task (e.g. HashTableResizer)
+     *      blocks FE operations while running.
+     *   4. One-off, startup tasks (e.g. Warmup) can take as long as necessary -
+     *      given they must run before we can operate their duration isn't
+     *      critical.
      */
-    virtual std::chrono::microseconds maxExpectedDuration() {
-        return std::chrono::microseconds(3600);
-    }
+    virtual std::chrono::microseconds maxExpectedDuration() = 0;
 
     /**
      * test if a task is dead
