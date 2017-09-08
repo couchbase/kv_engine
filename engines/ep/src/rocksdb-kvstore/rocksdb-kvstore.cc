@@ -446,9 +446,6 @@ std::unique_ptr<Item> RocksDBKVStore::grokValSlice(uint16_t vb,
     std::memcpy(&valueLen, src, sizeof(valueLen));
     src += sizeof(valueLen);
 
-    uint8_t extMeta[EXT_META_LEN];
-    extMeta[0] = datatype;
-
     bool includeValue = getMetaOnly == GetMetaOnly::No && valueLen;
 
     auto item = std::make_unique<Item>(key,
@@ -456,8 +453,7 @@ std::unique_ptr<Item> RocksDBKVStore::grokValSlice(uint16_t vb,
                                        meta.exptime,
                                        includeValue ? src : nullptr,
                                        includeValue ? valueLen : 0,
-                                       extMeta,
-                                       EXT_META_LEN,
+                                       datatype,
                                        meta.cas,
                                        bySeqno,
                                        vb,
