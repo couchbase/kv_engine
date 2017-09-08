@@ -42,14 +42,14 @@ Manifest::Manifest(const std::string& manifest)
 
     if (!checkUTF8JSON(reinterpret_cast<const unsigned char*>(manifest.data()),
                        manifest.size())) {
-        throw std::invalid_argument(
-                "VB::Manifest::Manifest input not valid json");
+        throwException<std::invalid_argument>(__FUNCTION__,
+                                              "input not valid json");
     }
 
     unique_cJSON_ptr cjson(cJSON_Parse(manifest.c_str()));
     if (!cjson) {
-        throw std::invalid_argument(
-                "VB::Manifest::Manifest cJSON cannot parse json");
+        throwException<std::invalid_argument>(__FUNCTION__,
+                                              "cJSON cannot parse json");
     }
 
     // Load the separator
@@ -58,11 +58,13 @@ Manifest::Manifest(const std::string& manifest)
     // Load the collections array
     auto jsonCollections = cJSON_GetObjectItem(cjson.get(), "collections");
     if (!jsonCollections || jsonCollections->type != cJSON_Array) {
-        throw std::invalid_argument(
-                "VB::Manifest::Manifest cannot find valid "
+        throwException<std::invalid_argument>(
+                __FUNCTION__,
+                "cannot find valid "
                 "collections: " +
-                (!jsonCollections ? "nullptr"
-                                  : std::to_string(jsonCollections->type)));
+                        (!jsonCollections
+                                 ? "nullptr"
+                                 : std::to_string(jsonCollections->type)));
     }
 
     // Iterate the collections and load-em up.
@@ -151,12 +153,8 @@ ManifestEntry& Manifest::addCollectionEntry(Identifier identifier) {
         itr->second->setUid(identifier.getUid());
         return *itr->second;
     }
-
-    std::stringstream ss;
-    ss << *itr->second;
-    throw std::logic_error(
-            "VB::Manifest::addCollectionEntry: cannot add collection:" +
-            to_string(identifier) + ", entry:" + ss.str());
+    throwException<std::logic_error>(
+            __FUNCTION__, "cannot add collection:" + to_string(identifier));
 }
 
 ManifestEntry& Manifest::addNewCollectionEntry(Identifier identifier,
@@ -164,11 +162,12 @@ ManifestEntry& Manifest::addNewCollectionEntry(Identifier identifier,
                                                int64_t endSeqno) {
     // This method is only for when the map does not have the collection
     if (map.count(identifier.getName()) > 0) {
-        throw std::logic_error(
-                "Manifest::addNewCollectionEntry: already exists collection:" +
-                to_string(identifier) + ", startSeqno:" +
-                std::to_string(startSeqno) + ", endSeqno:" +
-                std::to_string(endSeqno));
+        throwException<std::logic_error>(
+                __FUNCTION__,
+                "collection already exists, collection:" +
+                        to_string(identifier) + ", startSeqno:" +
+                        std::to_string(startSeqno) + ", endSeqno:" +
+                        std::to_string(endSeqno));
     }
     auto m = std::make_unique<ManifestEntry>(identifier, startSeqno, endSeqno);
     auto* newEntry = m.get();
@@ -198,10 +197,9 @@ void Manifest::beginCollectionDelete(::VBucket& vb,
 ManifestEntry& Manifest::beginDeleteCollectionEntry(Identifier identifier) {
     auto itr = map.find(identifier.getName());
     if (itr == map.end()) {
-        throw std::logic_error(
-                "VB::Manifest::beginDeleteCollectionEntry: did not find "
-                "collection:" +
-                to_string(identifier));
+        throwException<std::logic_error>(
+                __FUNCTION__,
+                "did not find collection:" + to_string(identifier));
     }
 
     if (identifier.isDefaultCollection()) {
@@ -223,9 +221,9 @@ void Manifest::completeDeletion(::VBucket& vb, Identifier identifier) {
         identifier.getUid());
 
     if (itr == map.end()) {
-        throw std::logic_error(
-                "VB::Manifest::completeDeletion: could not find collection:" +
-                to_string(identifier));
+        throwException<std::logic_error>(
+                __FUNCTION__,
+                "could not find collection:" + to_string(identifier));
     }
 
     auto se = itr->second->completeDeletion();
@@ -243,12 +241,10 @@ void Manifest::changeSeparator(::VBucket& vb,
     // Can we change the separator? Only allowed to change if there are no
     // collections or the only collection is the default collection
     if (cannotChangeSeparator()) {
-        std::stringstream ss;
-        ss << *this;
-        throw std::logic_error(
-                "VB::Manifest::changeSeparator cannot change "
-                "separator to " +
-                cb::to_string(newSeparator) + " " + ss.str());
+        throwException<std::logic_error>(__FUNCTION__,
+                                         "cannot change "
+                                         "separator to " +
+                                                 cb::to_string(newSeparator));
     } else {
         LOG(EXTENSION_LOG_NOTICE,
             "collections: vb:%" PRIu16
@@ -527,9 +523,11 @@ std::string Manifest::serialToJson(cb::const_char_buffer buffer) {
 const char* Manifest::getJsonEntry(cJSON* cJson, const char* key) {
     auto jsonEntry = cJSON_GetObjectItem(cJson, key);
     if (!jsonEntry || jsonEntry->type != cJSON_String) {
-        throw std::invalid_argument(
-                "VB::Manifest::getJsonEntry(" + std::string(key) + ") : " +
-                (!jsonEntry ? "nullptr" : std::to_string(jsonEntry->type)));
+        throwException<std::invalid_argument>(
+                __FUNCTION__,
+                "null or not string, key:" + std::string(key) + ") : " +
+                        (!jsonEntry ? "nullptr"
+                                    : std::to_string(jsonEntry->type)));
     }
     return jsonEntry->valuestring;
 }
@@ -563,6 +561,13 @@ cb::const_char_buffer Manifest::getSystemEventSeparatorData(
     const auto* sm = reinterpret_cast<const SerialisedManifest*>(
             serialisedManifest.data());
     return sm->getSeparatorBuffer();
+}
+
+std::string Manifest::getExceptionString(const std::string& thrower,
+                                         const std::string& error) const {
+    std::stringstream ss;
+    ss << "VB::Manifest:" << thrower << ": " << error << ", this:" << *this;
+    return ss.str();
 }
 
 std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {

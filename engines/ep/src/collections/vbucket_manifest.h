@@ -605,6 +605,31 @@ protected:
     bool cannotChangeSeparator() const;
 
     /**
+     * Return a string for use in throwException, returns:
+     *   "VB::Manifest::<thrower>:<error>, this:<ostream *this>"
+     *
+     * @param thrower a string for who is throwing, typically __FUNCTION__
+     * @param error a string containing the error and useful data
+     * @returns string as per description above
+     */
+    std::string getExceptionString(const std::string& thrower,
+                                   const std::string& error) const;
+
+    /**
+     * throw exception with the following error string:
+     *   "VB::Manifest::<thrower>:<error>, this:<ostream *this>"
+     *
+     * @param thrower a string for who is throwing, typically __FUNCTION__
+     * @param error a string containing the error and useful data
+     * @throws exception
+     */
+    template <class exception>
+    [[noreturn]] void throwException(const std::string& thrower,
+                                     const std::string& error) const {
+        throw exception(getExceptionString(thrower, error));
+    }
+
+    /**
      * The current set of collections
      */
     container map;
