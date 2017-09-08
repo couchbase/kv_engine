@@ -550,6 +550,14 @@ public:
     void deleteExpiredItems(std::list<Item>&, ExpireBy);
 
     /**
+     * Get the value for the Item
+     * If the value is already deleted no update occurs
+     * If a value can be retrieved then it is updated via setValue
+     * @param it reference to an Item which maybe updated
+     */
+    void getValue(Item& it);
+
+    /**
      * Get the memoized storage properties from the DB.kv
      */
     const StorageProperties getStorageProperties() const {

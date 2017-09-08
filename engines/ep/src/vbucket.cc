@@ -1667,13 +1667,28 @@ GetValue VBucket::getInternal(const DocKey& key,
     StoredValue* v = fetchValidValue(
             hbl, key, WantsDeleted::Yes, trackReference, QueueExpired::Yes);
     if (v) {
+        // If SV is deleted and user didn't request deleted items then return
+        // ENOENT.
         if (v->isDeleted() && !getDeletedValue) {
             return GetValue();
         }
+
+        // If SV is a temp deleted item (i.e. marker added after a BgFetch to
+        // note that the item has been deleted), *but* the user requested
+        // full deleted items, then we need to fetch the complete deleted item
+        // (including body) from disk.
+        if (v->isTempDeletedItem() && getDeletedValue && !metadataOnly) {
+            const auto queueBgFetch =
+                    (bgFetchRequired) ? QueueBgFetch::Yes : QueueBgFetch::No;
+            return getInternalNonResident(
+                    key, cookie, engine, bgFetchDelay, queueBgFetch, *v);
+        }
+
+        // If SV is otherwise a temp non-existent (i.e. a marker added after a
+        // BgFetch to note that no such item exists) or temp deleted, then we
+        // should cleanup the SV (if requested) before returning ENOENT (so we
+        // don't keep temp items in HT).
         if (v->isTempDeletedItem() || v->isTempNonExistentItem()) {
-            // Delete a temp non-existent item to ensure that
-            // if the get were issued over an item that doesn't
-            // exist, then we dont preserve a temp item.
             if (options & DELETE_TEMP) {
                 deleteStoredValue(hbl, *v);
             }
