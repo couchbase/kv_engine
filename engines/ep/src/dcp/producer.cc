@@ -933,17 +933,22 @@ void DcpProducer::addTakeoverStats(ADD_STAT add_stat, const void* c,
         if (stream->isTypeActive()) {
             ActiveStream* as = static_cast<ActiveStream*>(stream.get());
             as->addTakeoverStats(add_stat, c, vb);
-        } else {
-            LOG(EXTENSION_LOG_WARNING, "%s (vb:%" PRIu16 ") "
-                "DcpProducer::addTakeoverStats Stream type is %s and not the "
-                "expected Active",
-                logHeader(), vb.getId(), to_string(stream->getType()).c_str());
+            return;
         }
+        LOG(EXTENSION_LOG_WARNING, "%s (vb:%" PRIu16 ") "
+            "DcpProducer::addTakeoverStats Stream type is %s and not the "
+            "expected Active",
+            logHeader(), vb.getId(), to_string(stream->getType()).c_str());
     } else {
         LOG(EXTENSION_LOG_NOTICE, "%s (vb:%" PRIu16 ") "
             "DcpProducer::addTakeoverStats Unable to find stream",
             logHeader(), vb.getId());
     }
+    // Error path - return status of does_not_exist to ensure rebalance does not
+    // hang.
+    add_casted_stat("status", "does_not_exist", add_stat, c);
+    add_casted_stat("estimate", 0, add_stat, c);
+    add_casted_stat("backfillRemaining", 0, add_stat, c);
 }
 
 void DcpProducer::aggregateQueueStats(ConnCounter& aggregator) {

@@ -19,6 +19,9 @@
  * Unit test for stats
  */
 
+#include "dcp/dcpconnmap.h"
+#include "dcp/producer.h"
+#include "dcp/stream.h"
 #include "stats_test.h"
 #include "evp_store_single_threaded_test.h"
 #include "tasks.h"
@@ -83,6 +86,59 @@ TEST_F(StatTest, vbucket_seqno_stats_test) {
             Pair(vbucket + ":last_persisted_snap_start", "0"),
             Pair(vbucket + ":last_persisted_snap_end", "0")));
 }
+
+// Test that if we request takeover stats for stream that does not exist we
+// return does_not_exist.
+TEST_F(StatTest, vbucket_takeover_stats_no_stream) {
+    // Create a new Dcp producer, reserving its cookie.
+    get_mock_server_api()->cookie->reserve(cookie);
+    dcp_producer_t producer = engine->getDcpConnMap().newProducer(cookie,
+                                                     "test_producer",
+                                                     /*flags*/ 0,
+                                                     {/*no json*/});
+
+    const std::string stat = "dcp-vbtakeover " + std::to_string(vbid) +
+            " test_producer";;
+    auto vals = get_stat(stat.c_str());
+    EXPECT_EQ("does_not_exist", vals["status"]);
+    EXPECT_EQ(0, std::stoi(vals["estimate"]));
+    EXPECT_EQ(0, std::stoi(vals["backfillRemaining"]));
+}
+
+// Test that if we request takeover stats for stream that is not active we
+// return does_not_exist.
+TEST_F(StatTest, vbucket_takeover_stats_stream_not_active) {
+    // Create a new Dcp producer, reserving its cookie.
+    get_mock_server_api()->cookie->reserve(cookie);
+    dcp_producer_t producer = engine->getDcpConnMap().newProducer(cookie,
+                                                     "test_producer",
+                                                     DCP_OPEN_NOTIFIER,
+                                                     {/*no json*/});
+
+    uint64_t rollbackSeqno;
+    const std::string stat = "dcp-vbtakeover " + std::to_string(vbid) +
+            " test_producer";;
+    ASSERT_EQ(ENGINE_SUCCESS, producer->streamRequest(/*flags*/ 0,
+                                          /*opaque*/ 0,
+                                          /*vbucket*/ vbid,
+                                          /*start_seqno*/ 0,
+                                          /*end_seqno*/ 0,
+                                          /*vb_uuid*/ 0,
+                                          /*snap_start*/ 0,
+                                          /*snap_end*/ 0,
+                                          &rollbackSeqno,
+                                          fakeDcpAddFailoverLog));
+
+    // Ensure its a notifier connection - this means that streams requested will
+    // not be active
+    ASSERT_EQ("notifier", std::string(producer->getType()));
+    auto vals = get_stat(stat.c_str());
+    EXPECT_EQ("does_not_exist", vals["status"]);
+    EXPECT_EQ(0, std::stoi(vals["estimate"]));
+    EXPECT_EQ(0, std::stoi(vals["backfillRemaining"]));
+    producer.get()->closeStream(/*opaque*/ 0, vbid);
+}
+
 
 TEST_P(DatatypeStatTest, datatypesInitiallyZero) {
     // Check that the datatype stats initialise to 0

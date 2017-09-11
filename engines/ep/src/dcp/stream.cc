@@ -792,17 +792,11 @@ void ActiveStream::addTakeoverStats(ADD_STAT add_stat, const void *cookie,
 
     add_casted_stat("name", name_, add_stat, cookie);
     if (!isActive()) {
-        /**
-         *  There is not a legitimate case where the stream is already dead.
-         *  ns-server cleans-up old streams towards the end of a vbucket move.
-         *
-         *  But just in case it does happen: log the event and return status of
-         *  does_not_exist to ensure rebalance does not hang.
-         */
         producer->getLogger().log(EXTENSION_LOG_WARNING,
                                   "(vb %" PRIu16 ") "
                                   "ActiveStream::addTakeoverStats: Stream has "
                                   "status StreamDead", vb_);
+        // Return status of does_not_exist to ensure rebalance does not hang.
         add_casted_stat("status", "does_not_exist", add_stat, cookie);
         add_casted_stat("estimate", 0, add_stat, cookie);
         add_casted_stat("backfillRemaining", 0, add_stat, cookie);
