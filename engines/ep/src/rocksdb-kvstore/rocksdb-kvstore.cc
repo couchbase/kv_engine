@@ -36,8 +36,7 @@ RocksDBKVStore::RocksDBKVStore(KVStoreConfig& config)
       valSize(0),
       scanCounter(0),
       logger(config.getLogger()) {
-    cachedVBStates.reserve(configuration.getMaxVBuckets());
-    cachedVBStates.assign(configuration.getMaxVBuckets(), nullptr);
+    cachedVBStates.resize(configuration.getMaxVBuckets());
 
     writeOptions.sync = true;
 
@@ -160,7 +159,11 @@ void RocksDBKVStore::adjustValBuffer(const size_t to) {
 }
 
 std::vector<vbucket_state*> RocksDBKVStore::listPersistedVbuckets() {
-    return cachedVBStates;
+    std::vector<vbucket_state*> result;
+    for (const auto& vb : cachedVBStates) {
+        result.emplace_back(vb.get());
+    }
+    return result;
 }
 
 void RocksDBKVStore::set(const Item& itm, Callback<mutation_result>& cb) {
@@ -585,18 +588,17 @@ void RocksDBKVStore::readVBState(uint16_t vbid) {
         cJSON_Delete(jsonObj);
     }
 
-    delete cachedVBStates[vbid];
-    cachedVBStates[vbid] = new vbucket_state(state,
-                                             checkpointId,
-                                             maxDeletedSeqno,
-                                             highSeqno,
-                                             purgeSeqno,
-                                             lastSnapStart,
-                                             lastSnapEnd,
-                                             maxCas,
-                                             hlcCasEpochSeqno,
-                                             mightContainXattrs,
-                                             failovers);
+    cachedVBStates[vbid] = std::make_unique<vbucket_state>(state,
+                                                           checkpointId,
+                                                           maxDeletedSeqno,
+                                                           highSeqno,
+                                                           purgeSeqno,
+                                                           lastSnapStart,
+                                                           lastSnapEnd,
+                                                           maxCas,
+                                                           hlcCasEpochSeqno,
+                                                           mightContainXattrs,
+                                                           failovers);
 }
 
 bool RocksDBKVStore::saveVBState(const vbucket_state& vbState, uint16_t vbid) {

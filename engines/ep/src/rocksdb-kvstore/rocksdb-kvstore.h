@@ -205,7 +205,7 @@ public:
     }
 
     vbucket_state* getVBucketState(uint16_t vbucketId) override {
-        return cachedVBStates[vbucketId];
+        return cachedVBStates[vbucketId].get();
     }
 
     size_t getNumPersistedDeletes(uint16_t vbid) override {

@@ -169,13 +169,6 @@ public:
     CouchKVStore(KVStoreConfig& config, FileOpsInterface& ops);
 
     /**
-     * Copy constructor
-     *
-     * @param from the source kvstore instance
-     */
-    CouchKVStore(const CouchKVStore &from);
-
-    /**
      * Deconstructor
      */
     ~CouchKVStore();

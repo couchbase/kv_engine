@@ -107,8 +107,7 @@ void KVStore::createDataDir(const std::string& dbname) {
 }
 
 bool KVStore::updateCachedVBState(uint16_t vbid, const vbucket_state& newState) {
-
-    vbucket_state *vbState = cachedVBStates[vbid];
+    vbucket_state* vbState = getVBucketState(vbid);
 
     bool state_change_detected = true;
     if (vbState != nullptr) {
@@ -134,7 +133,7 @@ bool KVStore::updateCachedVBState(uint16_t vbid, const vbucket_state& newState) 
         vbState->hlcCasEpochSeqno = newState.hlcCasEpochSeqno;
         vbState->mightContainXattrs = newState.mightContainXattrs;
     } else {
-        cachedVBStates[vbid] = new vbucket_state(newState);
+        cachedVBStates[vbid] = std::make_unique<vbucket_state>(newState);
         if (cachedVBStates[vbid]->state != vbucket_state_dead) {
             cachedValidVBCount++;
         }
@@ -334,7 +333,7 @@ void KVStore::optimizeWrites(std::vector<queued_item>& items) {
 }
 
 uint64_t KVStore::getLastPersistedSeqno(uint16_t vbid) {
-    vbucket_state* state = cachedVBStates[vbid];
+    vbucket_state* state = getVBucketState(vbid);
     if (state) {
         return state->highSeqno;
     }

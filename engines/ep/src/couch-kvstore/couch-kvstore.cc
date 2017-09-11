@@ -295,7 +295,6 @@ CouchKVStore::CouchKVStore(KVStoreConfig& config,
 
     // init db file map with default revision number, 1
     numDbFiles = configuration.getMaxVBuckets();
-    cachedVBStates.reserve(numDbFiles);
 
     // pre-allocate lookup maps (vectors) given we have a relatively
     // small, fixed number of vBuckets.
@@ -303,7 +302,7 @@ CouchKVStore::CouchKVStore(KVStoreConfig& config,
     cachedDeleteCount.assign(numDbFiles, Couchbase::RelaxedAtomic<size_t>(-1));
     cachedFileSize.assign(numDbFiles, Couchbase::RelaxedAtomic<uint64_t>(0));
     cachedSpaceUsed.assign(numDbFiles, Couchbase::RelaxedAtomic<uint64_t>(0));
-    cachedVBStates.assign(numDbFiles, nullptr);
+    cachedVBStates.resize(numDbFiles);
 
     initialize();
 }
@@ -314,25 +313,6 @@ CouchKVStore::CouchKVStore(KVStoreConfig& config, FileOpsInterface& ops)
                    false /*readonly*/,
                    fileRevMap,
                    config.getMaxVBuckets()) {
-}
-
-CouchKVStore::CouchKVStore(const CouchKVStore& copyFrom)
-    : KVStore(copyFrom),
-      dbname(copyFrom.dbname),
-      dbFileRevMap(copyFrom.dbFileRevMap),
-      fileRevMap(copyFrom.fileRevMap.size()),
-      numDbFiles(copyFrom.numDbFiles),
-      intransaction(false),
-      logger(copyFrom.logger),
-      base_ops(copyFrom.base_ops) {
-    // std::atomic needs to be manually copied (not copy constructor)
-    for (size_t ii = 0; ii < fileRevMap.size(); ii++) {
-        fileRevMap[ii].store(copyFrom.fileRevMap[ii].load());
-    }
-    createDataDir(dbname);
-    statCollectingFileOps = getCouchstoreStatsOps(st.fsStats, base_ops);
-    statCollectingFileOpsCompaction = getCouchstoreStatsOps(
-        st.fsStatsCompaction, base_ops);
 }
 
 /**
@@ -390,23 +370,15 @@ void CouchKVStore::initialize() {
 
 CouchKVStore::~CouchKVStore() {
     close();
-
-    for (std::vector<vbucket_state *>::iterator it = cachedVBStates.begin();
-         it != cachedVBStates.end(); it++) {
-        vbucket_state *vbstate = *it;
-        if (vbstate) {
-            delete vbstate;
-            *it = NULL;
-        }
-    }
 }
+
 void CouchKVStore::reset(uint16_t vbucketId) {
     if (isReadOnly()) {
         throw std::logic_error("CouchKVStore::reset: Not valid on a read-only "
                         "object.");
     }
 
-    vbucket_state *state = cachedVBStates[vbucketId];
+    vbucket_state* state = getVBucketState(vbucketId);
     if (state) {
         state->reset();
 
@@ -629,7 +601,11 @@ void CouchKVStore::delVBucket(uint16_t vbucket, uint64_t fileRev) {
 }
 
 std::vector<vbucket_state *> CouchKVStore::listPersistedVbuckets() {
-    return cachedVBStates;
+    std::vector<vbucket_state*> result;
+    for (const auto& vb : cachedVBStates) {
+        result.emplace_back(vb.get());
+    }
+    return result;
 }
 
 void CouchKVStore::getPersistedStats(std::map<std::string,
@@ -1022,7 +998,7 @@ bool CouchKVStore::compactDBInternal(compaction_ctx* hook_ctx,
     cachedSpaceUsed[vbid] = info.space_used;
 
     // also update cached state with dbinfo
-    vbucket_state *state = cachedVBStates[vbid];
+    vbucket_state* state = getVBucketState(vbid);
     if (state) {
         state->highSeqno = info.last_sequence;
         state->purgeSeqno = info.purge_seq;
@@ -1041,7 +1017,7 @@ bool CouchKVStore::compactDBInternal(compaction_ctx* hook_ctx,
 }
 
 vbucket_state * CouchKVStore::getVBucketState(uint16_t vbucketId) {
-    return cachedVBStates[vbucketId];
+    return cachedVBStates[vbucketId].get();
 }
 
 bool CouchKVStore::setVBucketState(uint16_t vbucketId,
@@ -1135,7 +1111,7 @@ bool CouchKVStore::snapshotVBucket(uint16_t vbucketId,
     if (updateCachedVBState(vbucketId, vbstate) &&
          (options == VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT ||
           options == VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT)) {
-        vbucket_state *vbs = cachedVBStates[vbucketId];
+        vbucket_state* vbs = getVBucketState(vbucketId);
         if (!setVBucketState(vbucketId, *vbs, options)) {
             logger.log(EXTENSION_LOG_WARNING,
                        "CouchKVStore::snapshotVBucket: setVBucketState failed "
@@ -1918,7 +1894,7 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid,
                    uint64_t(docs.size()));
         return errCode;
     } else {
-        vbucket_state *state = cachedVBStates[vbid];
+        vbucket_state* state = getVBucketState(vbid);
         if (state == nullptr) {
             throw std::logic_error(
                     "CouchKVStore::saveDocs: cachedVBStates[" +
@@ -2201,18 +2177,17 @@ ENGINE_ERROR_CODE CouchKVStore::readVBState(Db *db, uint16_t vbId) {
         couchstore_free_local_document(ldoc);
     }
 
-    delete cachedVBStates[vbId];
-    cachedVBStates[vbId] = new vbucket_state(state,
-                                             checkpointId,
-                                             maxDeletedSeqno,
-                                             highSeqno,
-                                             purgeSeqno,
-                                             lastSnapStart,
-                                             lastSnapEnd,
-                                             maxCas,
-                                             hlcCasEpochSeqno,
-                                             mightContainXattrs,
-                                             failovers);
+    cachedVBStates[vbId] = std::make_unique<vbucket_state>(state,
+                                                           checkpointId,
+                                                           maxDeletedSeqno,
+                                                           highSeqno,
+                                                           purgeSeqno,
+                                                           lastSnapStart,
+                                                           lastSnapEnd,
+                                                           maxCas,
+                                                           hlcCasEpochSeqno,
+                                                           mightContainXattrs,
+                                                           failovers);
 
     return couchErr2EngineErr(errCode);
 }
@@ -2634,7 +2609,7 @@ RollbackResult CouchKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,
         return RollbackResult(false, 0, 0, 0);
     }
 
-    vbucket_state *vb_state = cachedVBStates[vbid];
+    vbucket_state* vb_state = getVBucketState(vbid);
     return RollbackResult(true, vb_state->highSeqno,
                           vb_state->lastSnapStart, vb_state->lastSnapEnd);
 }

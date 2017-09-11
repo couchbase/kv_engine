@@ -734,7 +734,7 @@ protected:
     KVStoreStats st;
     KVStoreConfig& configuration;
     bool readOnly;
-    std::vector<vbucket_state *> cachedVBStates;
+    std::vector<std::unique_ptr<vbucket_state>> cachedVBStates;
     /* non-deleted docs in each file, indexed by vBucket.
        RelaxedAtomic to allow stats access without lock. */
     std::vector<Couchbase::RelaxedAtomic<size_t>> cachedDocCount;
