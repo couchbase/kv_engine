@@ -298,7 +298,7 @@ void KVStore::addTimingStats(ADD_STAT add_stat, const void *c) {
     addStat(prefix, "save_documents", st.saveDocsHisto, add_stat, c);
     addStat(prefix, "writeTime",   st.writeTimeHisto,   add_stat, c);
     addStat(prefix, "writeSize",   st.writeSizeHisto,   add_stat, c);
-    addStat(prefix, "bulkSize",    st.batchSize,        add_stat, c);
+    addStat(prefix, "saveDocCount",   st.batchSize,     add_stat, c);
 
     addStat(prefix, "getMultiFsReadCount", st.getMultiFsReadHisto, add_stat, c);
     addStat(prefix,

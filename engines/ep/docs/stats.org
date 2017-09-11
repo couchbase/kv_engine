@@ -1066,7 +1066,7 @@ rw_<Shard number>: indicating the times spent doing various things:
 | save_documents        | time spent in persisting documents in storage  |
 | writeTime             | time spent in writing to storage subsystem     |
 | writeSize             | sizes of writes given to storage subsystem     |
-| bulkSize              | batch sizes of the save documents calls        |
+| saveDocCount          | batch sizes of the save documents calls        |
 | fsReadTime            | time spent in doing filesystem reads           |
 | fsWriteTime           | time spent in doing filesystem writes          |
 | fsSyncTime            | time spent in doing filesystem sync operations |
