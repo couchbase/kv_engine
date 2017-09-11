@@ -634,8 +634,8 @@ bool RocksDBKVStore::saveVBState(const vbucket_state& vbState, uint16_t vbid) {
 }
 
 int64_t RocksDBKVStore::readHighSeqnoFromDisk(uint16_t vbid) {
-    rocksdb::Iterator* it =
-            db->NewIterator(rocksdb::ReadOptions(), seqnoFamilyHandle.get());
+    std::unique_ptr<rocksdb::Iterator> it(
+            db->NewIterator(rocksdb::ReadOptions(), seqnoFamilyHandle.get()));
 
     // Seek to the highest seqno=>key mapping stored for the vbid
     std::string start = mkSeqnoStr(vbid, std::numeric_limits<int64_t>::max());
