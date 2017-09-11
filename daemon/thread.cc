@@ -181,16 +181,7 @@ static void setup_dispatcher(struct event_base *main_base,
  */
 static void setup_thread(LIBEVENT_THREAD *me) {
     me->type = ThreadType::GENERAL;
-
-    if (settings.isStdinListen()) {
-        // can't use epoll for stdin listening
-        struct event_config *cfg = event_config_new();
-        event_config_avoid_method(cfg, "epoll");
-        me->base = event_base_new_with_config(cfg);
-        event_config_free(cfg);
-    } else {
-        me->base = event_base_new();
-    }
+    me->base = event_base_new();
 
     if (! me->base) {
         FATAL_ERROR(EXIT_FAILURE, "Can't allocate event base");
@@ -281,13 +272,7 @@ static void drain_notification_channel(evutil_socket_t fd)
 void dispatch_new_connections(LIBEVENT_THREAD* me) {
     std::unique_ptr<ConnectionQueueItem> item;
     while ((item = me->new_conn_queue->pop()) != nullptr) {
-        Connection* c = nullptr;
-        if (item->sfd == fileno(stdin)) {
-            c = conn_pipe_new(item->sfd, me->base, me);
-        } else {
-            c = conn_new(item->sfd, item->parent_port, me->base, me);
-        }
-        if (c == nullptr) {
+        if (conn_new(item->sfd, item->parent_port, me->base, me) == nullptr) {
             LOG_WARNING(nullptr, "Failed to dispatch event for socket %ld",
                         long(item->sfd));
             safe_close(item->sfd);

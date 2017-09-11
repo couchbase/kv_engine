@@ -242,13 +242,6 @@ public:
     /**
      * @todo this should be pushed down to MCBP, doesn't apply to everyone else
      */
-    virtual bool isPipeConnection() {
-        return false;
-    }
-
-    /**
-     * @todo this should be pushed down to MCBP, doesn't apply to everyone else
-     */
     virtual bool isSupportsMutationExtras() const {
         return true;
     }

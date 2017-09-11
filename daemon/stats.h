@@ -285,8 +285,7 @@ struct stats {
     std::vector<ListeningPort> listening_ports;
 };
 
-
-
+class Connection;
 struct thread_stats *get_thread_stats(Connection *c);
 
 /*

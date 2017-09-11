@@ -793,50 +793,6 @@ public:
     }
 
     /**
-     * Should the server listen on stdin for commands or not
-     * (This is used for unit testing)
-     *
-     * @return true if the node should listen on clients on stdin
-     */
-    bool isStdinListen() const {
-        return stdin_listen;
-    }
-
-    /**
-     * Set if the node should listen for commands on stdin or not
-     *
-     * @param stdin_listen true if commands should be accepted on stdin
-     */
-    void setStdinListen(bool stdin_listen) {
-        Settings::stdin_listen = stdin_listen;
-        has.stdin_listen = true;
-        notify_changed("stdin_listen");
-    }
-
-    /**
-     * Should the process exit when the connection close
-     * (This is used for testing)
-     *
-     * @return true if the process should exit on connection close
-     */
-    bool isExitOnConnectionClose() const {
-        return exit_on_connection_close;
-    }
-
-    /**
-     * Set if the process should exit on connection close or not
-     * (This is used for testing)
-     *
-     * @param exit_on_connection_close true if the process should exit on
-     *                                 connection close
-     */
-    void setExitOnConnectionClose(bool exit_on_connection_close) {
-        Settings::exit_on_connection_close = exit_on_connection_close;
-        has.exit_on_connection_close = true;
-        notify_changed("exit_on_connection_close");
-    }
-
-    /**
      * Get the list of available SASL Mechanisms
      *
      * @return all SASL mechanisms the client may use
@@ -1116,17 +1072,6 @@ protected:
     int topkeys_size;
 
     /**
-     * Listen on stdin (reply to stdout)
-     */
-    bool stdin_listen;
-
-    /**
-     * When *any* connection closes, terminate the process.
-     * Intended for afl-fuzz runs.
-     */
-    bool exit_on_connection_close;
-
-    /**
      * The available sasl mechanism list
      */
     std::string sasl_mechanisms;
@@ -1209,8 +1154,6 @@ public:
         bool ssl_minimum_protocol;
         bool client_cert_auth;
         bool topkeys_size;
-        bool stdin_listen;
-        bool exit_on_connection_close;
         bool sasl_mechanisms;
         bool ssl_sasl_mechanisms;
         bool dedupe_nmvb_maps;

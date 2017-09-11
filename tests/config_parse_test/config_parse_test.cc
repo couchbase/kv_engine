@@ -814,54 +814,6 @@ TEST_F(SettingsTest, max_packet_size) {
     }
 }
 
-TEST_F(SettingsTest, StdinListen) {
-    nonBooleanValuesShouldFail("stdin_listen");
-
-    unique_cJSON_ptr obj(cJSON_CreateObject());
-    cJSON_AddTrueToObject(obj.get(), "stdin_listen");
-    try {
-        Settings settings(obj);
-        EXPECT_TRUE(settings.isStdinListen());
-        EXPECT_TRUE(settings.has.stdin_listen);
-    } catch (std::exception& exception) {
-        FAIL() << exception.what();
-    }
-
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddFalseToObject(obj.get(), "stdin_listen");
-    try {
-        Settings settings(obj);
-        EXPECT_FALSE(settings.isStdinListen());
-        EXPECT_TRUE(settings.has.stdin_listen);
-    } catch (std::exception& exception) {
-        FAIL() << exception.what();
-    }
-}
-
-TEST_F(SettingsTest, ExitOnConnectionClose) {
-    nonBooleanValuesShouldFail("exit_on_connection_close");
-
-    unique_cJSON_ptr obj(cJSON_CreateObject());
-    cJSON_AddTrueToObject(obj.get(), "exit_on_connection_close");
-    try {
-        Settings settings(obj);
-        EXPECT_TRUE(settings.isExitOnConnectionClose());
-        EXPECT_TRUE(settings.has.exit_on_connection_close);
-    } catch (std::exception& exception) {
-        FAIL() << exception.what();
-    }
-
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddFalseToObject(obj.get(), "exit_on_connection_close");
-    try {
-        Settings settings(obj);
-        EXPECT_FALSE(settings.isExitOnConnectionClose());
-        EXPECT_TRUE(settings.has.exit_on_connection_close);
-    } catch (std::exception& exception) {
-        FAIL() << exception.what();
-    }
-}
-
 TEST_F(SettingsTest, SaslMechanisms) {
     nonStringValuesShouldFail("sasl_mechanisms");
 
@@ -1422,34 +1374,6 @@ TEST(SettingsUpdateTest, MaxPacketSizeIsDynamic) {
     EXPECT_NO_THROW(settings.updateSettings(updated));
     EXPECT_EQ(updated.getMaxPacketSize(),
               settings.getMaxPacketSize());
-}
-
-TEST(SettingsUpdateTest, StdinListenIsNotDynamic) {
-    Settings settings;
-    Settings updated;
-    // setting it to the same value should work
-    settings.setStdinListen(true);
-    updated.setStdinListen(settings.isStdinListen());
-    EXPECT_NO_THROW(settings.updateSettings(updated, false));
-
-    // changing it should not work
-    updated.setStdinListen(!settings.isStdinListen());
-    EXPECT_THROW(settings.updateSettings(updated, false),
-                 std::invalid_argument);
-}
-
-TEST(SettingsUpdateTest, ExitOnConnectionCloseIsNotDynamic) {
-    Settings settings;
-    Settings updated;
-    // setting it to the same value should work
-    settings.setExitOnConnectionClose(true);
-    updated.setExitOnConnectionClose(settings.isExitOnConnectionClose());
-    EXPECT_NO_THROW(settings.updateSettings(updated, false));
-
-    // changing it should not work
-    updated.setExitOnConnectionClose(!settings.isExitOnConnectionClose());
-    EXPECT_THROW(settings.updateSettings(updated, false),
-                 std::invalid_argument);
 }
 
 TEST(SettingsUpdateTest, SaslMechanismsIsNotDynamic) {

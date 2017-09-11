@@ -25,6 +25,7 @@
 
 #include <daemon/connection_mcbp.h>
 #include <daemon/mcbp_validators.h>
+#include <daemon/stats.h>
 #include <gtest/gtest.h>
 
 namespace mcbp {
@@ -41,6 +42,7 @@ protected:
     protocol_binary_response_status validate(protocol_binary_command opcode, void* request);
 
     McbpValidatorChains validatorChains;
+    ListeningPort listeningport;
     event_base* ev;
     McbpConnection connection;
 

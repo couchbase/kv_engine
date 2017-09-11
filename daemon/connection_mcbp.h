@@ -68,7 +68,6 @@ size_t adjust_msghdr(cb::Pipe& pipe, struct msghdr* m, ssize_t nbytes);
 class McbpConnection : public Connection {
 public:
     McbpConnection() = delete;
-    McbpConnection(SOCKET sfd, event_base* b);
 
     McbpConnection(SOCKET sfd, event_base* b, const ListeningPort& ifc);
 
@@ -295,7 +294,7 @@ public:
      *
      * @return the number of bytes read, or -1 for an error
      */
-    virtual int recv(char* dest, size_t nbytes);
+    int recv(char* dest, size_t nbytes);
 
     /**
      * Send data over the socket
@@ -303,8 +302,7 @@ public:
      * @param m the message header to send
      * @return the number of bytes sent, or -1 for an error
      */
-    virtual int sendmsg(struct msghdr* m);
-
+    int sendmsg(struct msghdr* m);
 
     enum class TransmitResult {
         /** All done writing. */
@@ -962,30 +960,4 @@ protected:
      * connections after they've been established.
      */
     bool saslAuthEnabled = true;
-};
-
-/*
-    A connection on a pipe not a sockect
-
-    This subclass doesn't do much, but should be expanded where exising
-    logic in Connection breaks for a pipe.
-*/
-class PipeConnection : public McbpConnection {
-public:
-    PipeConnection() = delete;
-    /*
-     * Construct connection and set peername to be "pipe" and sockname to be
-     * "pipe".
-     */
-    PipeConnection(SOCKET sfd, event_base* b);
-
-    ~PipeConnection();
-
-    virtual int sendmsg(struct msghdr* m) override;
-
-    virtual int recv(char* dest, size_t nbytes) override;
-
-    virtual bool isPipeConnection() override {
-        return true;
-    }
 };

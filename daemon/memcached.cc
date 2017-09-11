@@ -1412,10 +1412,6 @@ static int server_sockets(bool management) {
         }
     }
 
-    if (settings.isStdinListen()) {
-        dispatch_conn_new(fileno(stdin), 0);
-    }
-
     return ret;
 }
 

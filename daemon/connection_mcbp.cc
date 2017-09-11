@@ -533,9 +533,6 @@ McbpConnection::TryReadResult McbpConnection::tryReadNetwork() {
     }
 
     if (res == 0) {
-        if (isPipeConnection()) {
-            return TryReadResult::NoDataReceived;
-        }
         LOG_INFO(this,
                  "%u Closing connection as the other side closed the "
                  "connection %s",
@@ -732,47 +729,6 @@ void McbpConnection::ensureIovSpace() {
     for (ii = 0, iovnum = 0; ii < msglist.size(); ii++) {
         msglist[ii].msg_iov = &iov[iovnum];
         iovnum += msglist[ii].msg_iovlen;
-    }
-}
-
-McbpConnection::McbpConnection(SOCKET sfd, event_base* b)
-    : Connection(sfd, b),
-      stateMachine(new McbpStateMachine(conn_immediate_close)),
-      dcp(false),
-      dcpXattrAware(false),
-      dcpNoValue(false),
-      dcpCollectionAware(false),
-      max_reqs_per_event(
-              settings.getRequestsPerEventNotification(EventPriority::Default)),
-      numEvents(0),
-      cmd(PROTOCOL_BINARY_CMD_INVALID),
-      registered_in_libevent(false),
-      ev_flags(0),
-      currentEvent(0),
-      ev_timeout_enabled(false),
-      write_and_go(conn_new_cmd),
-      iov(IOV_LIST_INITIAL),
-      iovused(0),
-      msglist(),
-      msgcurr(0),
-      msgbytes(0),
-      noreply(false),
-      supports_datatype(false),
-      supports_mutation_extras(false),
-      start(0),
-      cas(0),
-      aiostat(ENGINE_SUCCESS),
-      ewouldblock(false),
-      commandContext(nullptr),
-      totalRecv(0),
-      totalSend(0),
-      cookie(*this) {
-    memset(&binary_header, 0, sizeof(binary_header));
-    memset(&event, 0, sizeof(event));
-    msglist.reserve(MSG_LIST_INITIAL);
-
-    if (!initializeEvent()) {
-        throw std::runtime_error("Failed to initialize event structure");
     }
 }
 
@@ -1099,18 +1055,6 @@ bool McbpConnection::includeErrorStringInResponseBody(
     }
 }
 
-PipeConnection::PipeConnection(SOCKET sfd, event_base* b)
-    : McbpConnection(sfd, b) {
-    peername = "pipe";
-    sockname = "pipe";
-}
-
-PipeConnection::~PipeConnection() {
-    if (settings.isExitOnConnectionClose()) {
-        exit(0);
-    }
-}
-
 bool McbpConnection::shouldDelete() {
     return getState() == conn_destroyed;
 }
@@ -1291,28 +1235,4 @@ bool McbpConnection::selectedBucketIsXattrEnabled() const {
                bucketEngine->isXattrEnabled(getBucketEngineAsV0());
     }
     return settings.isXattrEnabled();
-}
-
-int PipeConnection::sendmsg(struct msghdr* m) {
-    int res = 0;
-    // Windows and POSIX safe, manually write the scatter/gather
-    for (size_t ii = 0; ii < size_t(m->msg_iovlen); ii++) {
-        auto nw = ::write(fileno(stdout),
-                          m->msg_iov[ii].iov_base,
-                          m->msg_iov[ii].iov_len);
-        if (nw == -1) {
-            if (res == 0) {
-                return -1;
-            }
-            break;
-        } else {
-            res += nw;
-        }
-    }
-
-    return res;
-}
-
-int PipeConnection::recv(char* dest, size_t nbytes) {
-    return (int)::read(socketDescriptor, dest, nbytes);
 }

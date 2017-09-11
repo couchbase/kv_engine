@@ -51,8 +51,6 @@ Settings::Settings()
       max_packet_size(0),
       require_init(false),
       topkeys_size(0),
-      stdin_listen(false),
-      exit_on_connection_close(false),
       maxconns(0) {
 
     verbose.store(0);
@@ -432,44 +430,6 @@ static void handle_max_packet_size(Settings& s, cJSON* obj) {
 }
 
 /**
- * Handle the "stdin_listen" tag in the settings
- *
- *  The value must be a boolean value
- *
- * @param s the settings object to update
- * @param obj the object in the configuration
- */
-static void handle_stdin_listen(Settings& s, cJSON* obj) {
-    if (obj->type == cJSON_True) {
-        s.setStdinListen(true);
-    } else if (obj->type == cJSON_False) {
-        s.setStdinListen(false);
-    } else {
-        throw std::invalid_argument(
-            "\"stdin_listen\" must be a boolean value");
-    }
-}
-
-/**
- * Handle the "exit_on_connection_close" tag in the settings
- *
- *  The value must be a boolean value
- *
- * @param s the settings object to update
- * @param obj the object in the configuration
- */
-static void handle_exit_on_connection_close(Settings& s, cJSON* obj) {
-    if (obj->type == cJSON_True) {
-        s.setExitOnConnectionClose(true);
-    } else if (obj->type == cJSON_False) {
-        s.setExitOnConnectionClose(false);
-    } else {
-        throw std::invalid_argument(
-            "\"exit_on_connection_close\" must be a boolean value");
-    }
-}
-
-/**
  * Handle the "saslauthd_socketpath" tag in the settings
  *
  * The value must be a string
@@ -710,8 +670,6 @@ void Settings::reconfigure(const unique_cJSON_ptr& json) {
             {"ssl_minimum_protocol", handle_ssl_minimum_protocol},
             {"breakpad", handle_breakpad},
             {"max_packet_size", handle_max_packet_size},
-            {"stdin_listen", handle_stdin_listen},
-            {"exit_on_connection_close", handle_exit_on_connection_close},
             {"saslauthd_socketpath", handle_saslauthd_socketpath},
             {"sasl_mechanisms", handle_sasl_mechanisms},
             {"ssl_sasl_mechanisms", handle_ssl_sasl_mechanisms},
@@ -991,18 +949,6 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         if (other.topkeys_size != topkeys_size) {
             throw std::invalid_argument(
                 "topkeys_size can't be changed dynamically");
-        }
-    }
-    if (other.has.stdin_listen) {
-        if (other.stdin_listen != stdin_listen) {
-            throw std::invalid_argument(
-                "stdin_listen can't be changed dynamically");
-        }
-    }
-    if (other.has.exit_on_connection_close) {
-        if (other.exit_on_connection_close != exit_on_connection_close) {
-            throw std::invalid_argument(
-                "exit_on_connection_close can't be changed dynamically");
         }
     }
     if (other.has.sasl_mechanisms) {

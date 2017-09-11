@@ -63,7 +63,6 @@ static ListenConnection* allocate_listen_connection(SOCKET sfd,
                                                     sa_family_t family,
                                                     const struct interface& interf);
 
-static Connection *allocate_pipe_connection(int fd, event_base *base);
 static void release_connection(Connection *c);
 
 /** External functions *******************************************************/
@@ -234,24 +233,6 @@ Connection* conn_new(const SOCKET sfd, in_port_t parent_port,
     }
 
     return c;
-}
-
-/*
-    Pipe input
-*/
-Connection* conn_pipe_new(const int fd,
-                          struct event_base *base,
-                          LIBEVENT_THREAD* thread) {
-    Connection *c = allocate_pipe_connection(fd, base);
-
-    stats.total_conns++;
-    c->incrementRefcount();
-    c->setThread(thread);
-    associate_initial_bucket(c);
-    MEMCACHED_CONN_ALLOCATE(c->getId());
-
-    return c;
-
 }
 
 void conn_cleanup_engine_allocations(McbpConnection * c) {
@@ -482,34 +463,6 @@ static ListenConnection* allocate_listen_connection(SOCKET sfd,
 
     delete ret;
     return NULL;
-}
-
-
-/**
- * Allocate a PipeConnection and add it to the conections list.
- *
- * Returns a pointer to the newly-allocated Connection else NULL if failed.
- */
-static Connection *allocate_pipe_connection(int fd, event_base *base) {
-    Connection *ret = nullptr;
-
-    try {
-        ret = new PipeConnection(static_cast<SOCKET>(fd), base);
-
-        std::lock_guard<std::mutex> lock(connections.mutex);
-        connections.conns.push_back(ret);
-        stats.conn_structs++;
-        return ret;
-    } catch (std::bad_alloc) {
-        LOG_WARNING(nullptr, "Failed to allocate memory for PipeConnection");
-    } catch (std::exception& error) {
-        LOG_WARNING(nullptr, "Failed to create connection: %s", error.what());
-    } catch (...) {
-        LOG_WARNING(nullptr, "Failed to create connection");
-    }
-
-    delete ret;
-    return nullptr;
 }
 
 /** Release a connection; removing it from the connection list management

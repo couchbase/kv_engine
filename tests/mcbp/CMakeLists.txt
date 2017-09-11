@@ -4,6 +4,7 @@ add_executable(memcached_mcbp_test
                mcbp_gat_test.cc
                mcbp_test.cc
                mcbp_test_collections.cc
+               mcbp_test_main.cc
                mcbp_test_meta.cc
                mcbp_test_subdoc.cc
                mcbp_test_subdoc_xattr.cc
@@ -12,8 +13,7 @@ add_executable(memcached_mcbp_test
                xattr_key_validator_test.cc
                ${PROJECT_SOURCE_DIR}/utilities/protocol2text.cc
                ${PROJECT_SOURCE_DIR}/protocol/connection/client_mcbp_commands.cc)
-target_link_libraries(memcached_mcbp_test memcached_daemon platform
-                      gtest gtest_main)
+target_link_libraries(memcached_mcbp_test memcached_daemon platform gtest)
 add_test(NAME memcached_mcbp_test COMMAND memcached_mcbp_test)
 
 # GTest can be slow to compile (due to all the template / macro

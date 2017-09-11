@@ -31,10 +31,10 @@ namespace mcbp {
 namespace test {
 
 ValidatorTest::ValidatorTest()
-    : ev(event_base_new()),
-      connection(-1, ev),
-      request(*reinterpret_cast<protocol_binary_request_no_extras*>(blob)){
-    settings.extensions.logger = get_stderr_logger();
+    : listeningport(0, "localhost", false, 0, false, Protocol::Memcached),
+      ev(event_base_new()),
+      connection(-1, ev, listeningport),
+      request(*reinterpret_cast<protocol_binary_request_no_extras*>(blob)) {
 }
 
 ValidatorTest::~ValidatorTest() {

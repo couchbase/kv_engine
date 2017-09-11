@@ -87,13 +87,6 @@ ListenConnection* conn_new_server(const SOCKET sfd,
                                   struct event_base* base);
 
 /*
- * Creates a new connection to a pipe, e.g. stdin.
- */
-Connection *conn_pipe_new(const int fd,
-                          struct event_base *base,
-                          LIBEVENT_THREAD* thread);
-
-/*
  * Closes a connection. Afterwards the connection is invalid (can no longer
  * be used), but it's memory is still allocated. See conn_destructor() to
  * actually free it's resources.

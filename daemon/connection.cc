@@ -132,6 +132,14 @@ static std::string sockaddr_to_string(const struct sockaddr_storage* addr,
 }
 
 void Connection::resolveConnectionName(bool listening) {
+    if (socketDescriptor == INVALID_SOCKET) {
+        // Our unit tests run without a socket connected, and we don't
+        // want them to flood the console with error messages
+        peername = "[invalid]";
+        sockname = "[invalid]";
+        return;
+    }
+
     int err;
     try {
         if (listening) {
@@ -168,6 +176,15 @@ void Connection::resolveConnectionName(bool listening) {
 }
 
 bool Connection::setTcpNoDelay(bool enable) {
+    if (socketDescriptor == INVALID_SOCKET) {
+        // Our unit test run without a connected socket (and there is
+        // no point of running setsockopt on an invalid socket and
+        // get the error message from there).. But we don't want them
+        // (the unit tests) to flood the console with error messages
+        // that setsockopt failed
+        return false;
+    }
+
     int flags = enable ? 1 : 0;
 
 #if defined(WIN32)

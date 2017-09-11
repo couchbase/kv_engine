@@ -206,12 +206,7 @@ bool conn_read_packet_header(McbpConnection* c) {
 
     switch (c->tryReadNetwork()) {
     case McbpConnection::TryReadResult::NoDataReceived:
-        if (settings.isExitOnConnectionClose()) {
-            // No more data, proceed to close which will exit the process
-            c->setState(conn_closing);
-        } else {
-            c->setState(conn_waiting);
-        }
+        c->setState(conn_waiting);
         break;
     case McbpConnection::TryReadResult::DataReceived:
         if (c->read->rsize() >= sizeof(c->binary_header)) {
@@ -277,10 +272,6 @@ bool conn_new_cmd(McbpConnection *c) {
          */
         if (c->havePendingInputData() || c->isDCP()) {
             short flags = EV_WRITE | EV_PERSIST;
-            // pipe requires EV_READ forcing to ensure we can read until EOF
-            if (c->isPipeConnection()) {
-                flags |= EV_READ;
-            }
             if (!c->updateEvent(flags)) {
                 LOG_WARNING(c, "%u: conn_new_cmd - Unable to update "
                             "libevent settings, closing connection (%p) %s",
@@ -468,9 +459,8 @@ bool conn_immediate_close(McbpConnection *c) {
         port_instance = get_listening_port_instance(c->getParentPort());
         if (port_instance) {
             --port_instance->curr_conns;
-        } else if(!c->isPipeConnection()) {
-            throw std::logic_error("null port_instance and connection "
-                                       "is not a pipe");
+        } else {
+            throw std::logic_error("null port_instance");
         }
     }
 
