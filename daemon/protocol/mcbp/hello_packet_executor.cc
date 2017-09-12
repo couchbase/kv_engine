@@ -66,6 +66,11 @@ void process_hello_packet_executor(McbpConnection* c, void* packet) {
         case cb::mcbp::Feature::Invalid:
         case cb::mcbp::Feature::TLS:
             /* Not implemented */
+            LOG_NOTICE(nullptr,
+                       "%u: %s requested unupported feature %s",
+                       c->getId(),
+                       c->getDescription().c_str(),
+                       to_string(feature).c_str());
             break;
         case cb::mcbp::Feature::TCPNODELAY:
         case cb::mcbp::Feature::TCPDELAY:
