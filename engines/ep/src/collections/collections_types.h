@@ -43,6 +43,16 @@ const size_t CouchstoreManifestLen = sizeof(CouchstoreManifest) - 1;
 using uid_t = uint64_t;
 
 /**
+ * Return a uid from a C-string.
+ * A valid uid is a C-string where each character satisfies std::isxdigit
+ * and can be converted to a uid_t by std::strtoull.
+ *
+ * @param uid C-string uid
+ * @throws std::invalid_argument if uid is invalid
+ */
+uid_t makeUid(const char* uid);
+
+/**
  * Interface definition for the a collection identifier - a pair of name and UID
  * Forces compile time dispatch for the 3 required methods.
  * getUid, getName and isDefaultCollection

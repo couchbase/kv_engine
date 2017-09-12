@@ -153,16 +153,6 @@ private:
                                        int expectedType);
 
     /**
-     * Constructor helper function for getting a uid from a C-string.
-     * A valid uid is a C-string where each character satisfies std::isxdigit
-     * and can be converted to a uid_t by std::strtoull.
-     *
-     * @param uid C-string uid
-     * @throws std::invalid_argument if uid is invalid
-     */
-    static uid_t convertUid(const char* uid);
-
-    /**
      * Check if the C-string input has a length > 0 and < 250.
      *
      * @param separator a C-string representing the separator.

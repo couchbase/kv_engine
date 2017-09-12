@@ -21,7 +21,6 @@
 #include <JSON_checker.h>
 #include <cJSON_utils.h>
 
-#include <cctype>
 #include <cstring>
 #include <iostream>
 
@@ -76,7 +75,7 @@ Manifest::Manifest(const std::string& json) : defaultCollectionExists(false) {
                         "Manifest::Manifest duplicate collection name:" +
                         std::string(name->valuestring));
             }
-            uid_t uidValue = convertUid(uid->valuestring);
+            uid_t uidValue = makeUid(uid->valuestring);
             enableDefaultCollection(name->valuestring);
             collections.push_back({name->valuestring, uidValue});
         } else {
@@ -116,28 +115,6 @@ void Manifest::enableDefaultCollection(const char* name) {
 bool Manifest::validSeparator(const char* separator) {
     size_t size = std::strlen(separator);
     return size > 0 && size <= 16;
-}
-
-uid_t Manifest::convertUid(const char* uid) {
-    if (std::strlen(uid) == 0 || std::strlen(uid) > 16) {
-        throw std::invalid_argument(
-                "Manifest::convertUid uid must be > 0 and <= 16 characters: "
-                "strlen(uid):" +
-                std::to_string(std::strlen(uid)));
-    }
-
-    // verify that the input characters satisfy isxdigit
-    for (size_t ii = 0; ii < std::strlen(uid); ii++) {
-        if (uid[ii] == 0) {
-            break;
-        } else if (!std::isxdigit(uid[ii])) {
-            throw std::invalid_argument("Manifest::convertUid: uid:" +
-                                        std::string(uid) + ", index:" +
-                                        std::to_string(ii) + " fails isxdigit");
-        }
-    }
-
-    return std::strtoull(uid, nullptr, 16);
 }
 
 bool Manifest::validCollection(const char* collection) {

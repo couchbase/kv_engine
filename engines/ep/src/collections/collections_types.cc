@@ -17,9 +17,33 @@
 
 #include "collections/collections_types.h"
 
+#include <cctype>
+#include <cstring>
 #include <iostream>
 
 namespace Collections {
+
+uid_t makeUid(const char* uid) {
+    if (std::strlen(uid) == 0 || std::strlen(uid) > 16) {
+        throw std::invalid_argument(
+                "Collections::convertUid uid must be > 0 and <= 16 characters: "
+                "strlen(uid):" +
+                std::to_string(std::strlen(uid)));
+    }
+
+    // verify that the input characters satisfy isxdigit
+    for (size_t ii = 0; ii < std::strlen(uid); ii++) {
+        if (uid[ii] == 0) {
+            break;
+        } else if (!std::isxdigit(uid[ii])) {
+            throw std::invalid_argument("Collections::convertUid: uid:" +
+                                        std::string(uid) + ", index:" +
+                                        std::to_string(ii) + " fails isxdigit");
+        }
+    }
+
+    return std::strtoull(uid, nullptr, 16);
+}
 
 std::string to_string(const Identifier& identifier) {
     return cb::to_string(identifier.getName()) + ":" +

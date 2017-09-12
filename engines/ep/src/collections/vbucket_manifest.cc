@@ -71,7 +71,7 @@ Manifest::Manifest(const std::string& manifest)
     // Iterate the collections and load-em up.
     for (int ii = 0; ii < cJSON_GetArraySize(jsonCollections); ii++) {
         auto collection = cJSON_GetArrayItem(jsonCollections, ii);
-        uid_t uid = std::stoi(getJsonEntry(collection, "uid"));
+        uid_t uid = makeUid(getJsonEntry(collection, "uid"));
         int64_t startSeqno = std::stoll(getJsonEntry(collection, "startSeqno"));
         int64_t endSeqno = std::stoll(getJsonEntry(collection, "endSeqno"));
         std::string collectionName(getJsonEntry(collection, "name"));

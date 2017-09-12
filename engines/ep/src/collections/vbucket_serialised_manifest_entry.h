@@ -306,13 +306,13 @@ private:
      * @return A std::string JSON object for this object.
      */
     std::string toJson(int64_t _startSeqno, int64_t _endSeqno) const {
-        std::string json =
-                R"({"name":")" +
-                std::string(getCollectionNamePtr(), collectionNameLen) +
-                R"(","uid":")" + std::to_string(uid) + "\"," +
-                R"("startSeqno":")" + std::to_string(_startSeqno) + "\"," +
-                R"("endSeqno":")" + std::to_string(_endSeqno) + "\"}";
-        return json;
+        std::stringstream json;
+        json << R"({"name":")"
+             << std::string(getCollectionNamePtr(), collectionNameLen)
+             << R"(","uid":")" << std::hex << uid << "\"," << std::dec
+             << R"("startSeqno":")" << _startSeqno << "\","
+             << R"("endSeqno":")" << _endSeqno << "\"}";
+        return json.str();
     }
 
     int32_t collectionNameLen;
