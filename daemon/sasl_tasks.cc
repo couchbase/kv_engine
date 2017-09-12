@@ -136,9 +136,6 @@ void SaslAuthTask::notifyExecutionComplete() {
     // Perform the appropriate logging for each error code
     switch (error) {
     case CBSASL_OK:
-        LOG_INFO(&connection, "%u: Client %s authenticated as %s",
-                 connection.getId(), connection.getPeername().c_str(),
-                 connection.getUsername());
         break;
     case CBSASL_CONTINUE:
         LOG_DEBUG(&connection, "%u: SASL CONTINUE",
