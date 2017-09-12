@@ -334,9 +334,6 @@ TARGET_INCLUDE_DIRECTORIES(ep-engine_couch-fs-stats_test
         ${Couchstore_SOURCE_DIR}/src)
 TARGET_LINK_LIBRARIES(ep-engine_couch-fs-stats_test gtest gtest_main gmock platform)
 
-ADD_EXECUTABLE(ep-engine_hrtime_test tests/module_tests/hrtime_test.cc)
-TARGET_LINK_LIBRARIES(ep-engine_hrtime_test platform)
-
 ADD_EXECUTABLE(ep-engine_misc_test tests/module_tests/misc_test.cc)
 TARGET_LINK_LIBRARIES(ep-engine_misc_test platform)
 
@@ -371,7 +368,6 @@ TARGET_INCLUDE_DIRECTORIES(ep_engine_benchmarks PUBLIC
 ADD_TEST(NAME ep-engine_atomic_ptr_test COMMAND ep-engine_atomic_ptr_test)
 ADD_TEST(NAME ep-engine_couch-fs-stats_test COMMAND ep-engine_couch-fs-stats_test)
 ADD_TEST(NAME ep-engine_ep_unit_tests COMMAND ep-engine_ep_unit_tests)
-ADD_TEST(NAME ep-engine_hrtime_test COMMAND ep-engine_hrtime_test)
 ADD_TEST(NAME ep-engine_misc_test COMMAND ep-engine_misc_test)
 
 ADD_LIBRARY(timing_tests SHARED tests/module_tests/timing_tests.cc)

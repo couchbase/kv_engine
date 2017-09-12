@@ -19,6 +19,7 @@
 
 #include "common.h"
 #include "tasks.h"
+#include <platform/timeutils.h>
 
 #include <stdlib.h>
 
@@ -34,7 +35,7 @@ bool Flusher::stop(bool isForceShutdown) {
 }
 
 void Flusher::wait(void) {
-    hrtime_t startt(gethrtime());
+    auto startt = ProcessClock::now();
     while (_state != State::Stopped) {
         if (!ExecutorPool::get()->wake(taskId)) {
             std::stringstream ss;
@@ -44,11 +45,11 @@ void Flusher::wait(void) {
         }
         usleep(1000);
     }
-    hrtime_t endt(gethrtime());
-    if ((endt - startt) > 1000) {
+    auto endt = ProcessClock::now();
+    if ((endt - startt).count() > 1000) {
         LOG(EXTENSION_LOG_NOTICE,
             "Flusher::wait: had to wait %s for shutdown\n",
-            hrtime2text(endt - startt).c_str());
+            cb::time2text(endt - startt).c_str());
     }
 }
 

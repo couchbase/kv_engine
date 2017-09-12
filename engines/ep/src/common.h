@@ -142,35 +142,4 @@ inline bool parseUint64(const char *str, uint64_t *out) {
     return false;
 }
 
-/**
- * Convert a time (in ns) to a human readable form...
- * @param time the time in nanoseconds
- * @return a string representation of the timestamp
- */
-inline std::string hrtime2text(hrtime_t time) {
-   const char * const extensions[] = { " ns", " usec", " ms", " s", NULL };
-   int id = 0;
-
-   while (time > 9999) {
-      ++id;
-      time /= 1000;
-      if (extensions[id + 1] == NULL) {
-         break;
-      }
-   }
-
-   std::stringstream ss;
-   if (extensions[id + 1] == NULL && time > 599) {
-       int hour = static_cast<int>(time / 3600);
-       time -= hour * 3600;
-       int min = static_cast<int>(time / 60);
-       time -= min * 60;
-       ss << hour << "h:" << min << "m:" << time << "s";
-   } else {
-       ss << time << extensions[id];
-   }
-
-   return ss.str();
-}
-
 #endif  // SRC_COMMON_H_

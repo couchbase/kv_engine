@@ -1062,7 +1062,7 @@ void McbpConnection::maybeLogSlowCommand(
             cb::mcbp::sla::getSlowOpThreshold(cb::mcbp::ClientOpcode(cmd));
 
     if (elapsed > limit) {
-        hrtime_t timings((hrtime_t)elapsed.count());
+        std::chrono::nanoseconds timings(elapsed);
         std::string command;
         try {
             command = to_string(opcode);
@@ -1096,7 +1096,7 @@ void McbpConnection::maybeLogSlowCommand(
                     " opaque:0x%08x",
                     getId(),
                     command.c_str(),
-                    Couchbase::hrtime2text(timings).c_str(),
+                    cb::time2text(timings).c_str(),
                     getDescription().c_str(),
                     details.c_str(),
                     getOpaque());

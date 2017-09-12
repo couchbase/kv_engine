@@ -138,7 +138,7 @@ void ExecutorThread::run() {
                     int(description.size()),
                     description.data(),
                     getName().c_str(),
-                    Couchbase::hrtime2text(runtime.count()).c_str());
+                    cb::time2text(runtime).c_str());
             }
 
             if (engine) {

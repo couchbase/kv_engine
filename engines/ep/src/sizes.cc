@@ -26,6 +26,7 @@
 #include "common.h"
 #include "dcp/stream.h"
 #include <platform/histogram.h>
+#include <platform/timeutils.h>
 #include "item.h"
 #include "stored-value.h"
 #include "vbucket.h"
@@ -50,11 +51,11 @@ struct histo_for_inner {
 template <>
 struct histo_for_inner<hrtime_t> {
     void operator()(const std::unique_ptr<HistogramBin<hrtime_t>>& bin) {
+        using std::chrono::nanoseconds;
         const std::string endtext(bin->end()
-                                  == std::numeric_limits<hrtime_t>::max()
-                                  ? "inf"
-                                  : hrtime2text(bin->end()));
-        std::cout << "   " << hrtime2text(bin->start())
+                 == std::numeric_limits<hrtime_t>::max() ?
+                 "inf" : cb::time2text(nanoseconds(bin->end())));
+        std::cout << "   " << cb::time2text(nanoseconds(bin->start()))
                   << " - " << endtext << std::endl;
     }
 };

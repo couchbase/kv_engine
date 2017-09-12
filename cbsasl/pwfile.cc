@@ -19,6 +19,7 @@
 #include "pwconv.h"
 
 #include <mutex>
+#include <platform/processclock.h>
 #include <platform/timeutils.h>
 #include <sstream>
 
@@ -59,13 +60,13 @@ bool find_user(const std::string& username, cb::sasl::User& user) {
 
 cbsasl_error_t parse_user_db(const std::string content, bool file) {
     try {
-        auto start = gethrtime();
+        auto start = cb::ProcessClock::now();
         std::unique_ptr<cb::sasl::PasswordDatabase> db(
             new cb::sasl::PasswordDatabase(content, file));
 
         std::string logmessage(
             "Loading [" + content + "] took " +
-            Couchbase::hrtime2text(gethrtime() - start));
+            cb::time2text(ProcessClock::now() - start));
         logging::log(logging::Level::Debug, logmessage);
         pwmgr.swap(db);
     } catch (std::exception& e) {

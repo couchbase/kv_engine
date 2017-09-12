@@ -28,6 +28,7 @@
 #include "vbucket_bgfetch_item.h"
 
 #include <platform/make_unique.h>
+#include <platform/timeutils.h>
 
 #include <limits>
 #include <string>
@@ -645,7 +646,8 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
             epstore.getWarmup()->setWarmupTime();
             epstore.warmupCompleted();
             LOG(EXTENSION_LOG_NOTICE, "Warmup completed in %s",
-                    hrtime2text(epstore.getWarmup()->getTime()).c_str());
+                cb::time2text(std::chrono::nanoseconds(
+                        epstore.getWarmup()->getTime())).c_str());
 
         }
         LOG(EXTENSION_LOG_NOTICE,
@@ -1020,7 +1022,7 @@ void Warmup::checkForAccessLog()
 {
     metadata.store(gethrtime() - startTime);
     LOG(EXTENSION_LOG_NOTICE, "metadata loaded in %s",
-        hrtime2text(metadata.load()).c_str());
+        cb::time2text(std::chrono::nanoseconds(metadata.load())).c_str());
 
     if (store.maybeEnableTraffic()) {
         transition(WarmupState::Done);
@@ -1061,7 +1063,7 @@ void Warmup::loadingAccessLog(uint16_t shardId)
 {
     LoadStorageKVPairCallback load_cb(store, true, state.getState());
     bool success = false;
-    hrtime_t stTime = gethrtime();
+    auto stTime = ProcessClock::now();
     if (store.accessLog[shardId].exists()) {
         try {
             store.accessLog[shardId].open();
@@ -1102,7 +1104,7 @@ void Warmup::loadingAccessLog(uint16_t shardId)
         LOG(EXTENSION_LOG_NOTICE,
             "%" PRIu64 " items loaded from access log, completed in %s",
             uint64_t(numItems),
-            hrtime2text((gethrtime() - stTime) / 1000).c_str());
+            cb::time2text(ProcessClock::now() - stTime).c_str());
     } else {
         size_t estimatedCount= store.getEPEngine().getEpStats().warmedUpKeys;
         setEstimatedWarmupCount(estimatedCount);
@@ -1130,35 +1132,35 @@ size_t Warmup::doWarmup(MutationLog &lf, const std::map<uint16_t,
     // To constrain the number of elements from the access log we have to keep
     // alive (there may be millions of items per-vBucket), process it
     // a batch at a time.
-    hrtime_t log_load_duration{};
-    hrtime_t log_apply_duration{};
+    std::chrono::nanoseconds log_load_duration{};
+    std::chrono::nanoseconds log_apply_duration{};
     WarmupCookie cookie(&store, cb);
 
     auto alog_iter = lf.begin();
     do {
         // Load a chunk of the access log file
-        hrtime_t start = gethrtime();
+        auto start = ProcessClock::now();
         alog_iter = harvester.loadBatch(alog_iter, config.getWarmupBatchSize());
-        log_load_duration += (gethrtime() - start);
+        log_load_duration += (ProcessClock::now() - start);
 
         // .. then apply it to the store.
-        hrtime_t apply_start = gethrtime();
+        auto apply_start = ProcessClock::now();
         if (store.multiBGFetchEnabled()) {
             harvester.apply(&cookie, &batchWarmupCallback);
         } else {
             harvester.apply(&cookie, &warmupCallback);
         }
-        log_apply_duration += (gethrtime() - apply_start);
+        log_apply_duration += (ProcessClock::now() - apply_start);
     } while (alog_iter != lf.end());
 
     size_t total = harvester.total();
     setEstimatedWarmupCount(total);
     LOG(EXTENSION_LOG_DEBUG, "Completed log read in %s with %ld entries",
-        hrtime2text(log_load_duration).c_str(), total);
+        cb::time2text(log_load_duration).c_str(), total);
 
     LOG(EXTENSION_LOG_DEBUG,
         "Populated log in %s with(l: %ld, s: %ld, e: %ld)",
-        hrtime2text(log_apply_duration).c_str(), cookie.loaded, cookie.skipped,
+        cb::time2text(log_apply_duration).c_str(), cookie.loaded, cookie.skipped,
         cookie.error);
 
     return cookie.loaded;
@@ -1265,7 +1267,7 @@ void Warmup::done()
         setWarmupTime();
         store.warmupCompleted();
         LOG(EXTENSION_LOG_NOTICE, "warmup completed in %s",
-                                   hrtime2text(warmup.load()).c_str());
+            cb::time2text(std::chrono::nanoseconds(warmup.load())).c_str());
     }
 }
 
