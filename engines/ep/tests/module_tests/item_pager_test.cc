@@ -674,13 +674,12 @@ TEST_P(STExpiryPagerTest, MB_25671) {
     EXPECT_EQ(metadata.revSeqno, item.item->getRevSeqno());
 }
 
+/// Subclass for expiry tests only applicable to persistent buckets.
+class STPersistentExpiryPagerTest : public STExpiryPagerTest {};
+
 // Test that when a xattr value is ejected, we can still expire it. Previous
 // to the fix we crash because the item has no value in memory
-TEST_P(STExpiryPagerTest, MB_25931) {
-    if (std::get<0>(GetParam()) == "ephemeral") {
-        return;
-    }
-
+TEST_P(STPersistentExpiryPagerTest, MB_25931) {
     std::string value = createXattrValue("body");
     auto key = makeStoredDocKey("key_1");
     auto item = make_item(
@@ -708,6 +707,50 @@ TEST_P(STExpiryPagerTest, MB_25931) {
     EXPECT_EQ(1, store->flushVBucket(vbid));
 }
 
+// Test that expiring a non-resident item works (and item counts are correct).
+TEST_P(STPersistentExpiryPagerTest, MB_25991_ExpiryNonResident) {
+    // Populate bucket with a TTL'd document, and then evict that document.
+    auto key = makeStoredDocKey("key");
+    auto expiry = ep_abs_time(ep_current_time() + 5);
+    auto item = make_item(vbid, key, "value", expiry);
+    ASSERT_EQ(ENGINE_SUCCESS, storeItem(item));
+
+    if (std::get<0>(GetParam()) == "persistent") {
+        EXPECT_EQ(1, store->flushVBucket(vbid));
+    }
+
+    // Sanity check - should have not hit high watermark (otherwise the
+    // item pager will run automatically and aggressively delete items).
+    auto& stats = engine->getEpStats();
+    EXPECT_LE(stats.getTotalMemoryUsed(), stats.getMaxDataSize() * 0.8)
+            << "Expected to not have exceeded 80% of bucket quota";
+
+    // Evict key so it is no longer resident.
+    evict_key(vbid, key);
+
+    // Move time forward by 11s, so key should be expired.
+    TimeTraveller tedTheodoreLogan(11);
+
+    // Sanity check - should still have item present (and non-resident)
+    // in VBucket.
+    ASSERT_EQ(1, engine->getVBucket(vbid)->getNumItems());
+    ASSERT_EQ(1, engine->getVBucket(vbid)->getNumNonResidentItems());
+
+    wakeUpExpiryPager();
+    if (std::get<0>(GetParam()) == "persistent") {
+        EXPECT_EQ(1, store->flushVBucket(vbid));
+    }
+
+    EXPECT_EQ(0, engine->getVBucket(vbid)->getNumItems())
+            << "Should have 0 items after running expiry pager";
+    EXPECT_EQ(0, engine->getVBucket(vbid)->getNumNonResidentItems())
+            << "Should have 0 non-resident items after running expiry pager";
+
+    // Check our item - should not exist.
+    auto result = store->get(key, vbid, nullptr, get_options_t());
+    EXPECT_EQ(ENGINE_KEY_ENOENT, result.getStatus());
+}
+
 // TODO: Ideally all of these tests should run with or without jemalloc,
 // however we currently rely on jemalloc for accurate memory tracking; and
 // hence it is required currently.
@@ -723,6 +766,9 @@ static auto allConfigValues = ::testing::Values(
         std::make_tuple(std::string("ephemeral"), std::string("fail_new_data")),
         std::make_tuple(std::string("persistent"), std::string{}));
 
+static auto persistentConfigValues = ::testing::Values(
+        std::make_tuple(std::string("persistent"), std::string{}));
+
 INSTANTIATE_TEST_CASE_P(EphemeralOrPersistent,
                         STItemPagerTest,
                         allConfigValues, );
@@ -730,6 +776,10 @@ INSTANTIATE_TEST_CASE_P(EphemeralOrPersistent,
 INSTANTIATE_TEST_CASE_P(EphemeralOrPersistent,
                         STExpiryPagerTest,
                         allConfigValues, );
+
+INSTANTIATE_TEST_CASE_P(Persistent,
+                        STPersistentExpiryPagerTest,
+                        persistentConfigValues, );
 
 INSTANTIATE_TEST_CASE_P(Ephemeral, STEphemeralItemPagerTest, ephConfigValues, );
 
