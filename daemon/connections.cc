@@ -332,13 +332,11 @@ void connection_stats(ADD_STAT add_stats, const void* cookie, const int64_t fd) 
     std::lock_guard<std::mutex> lock(connections.mutex);
     for (auto *c : connections.conns) {
         if (c->getSocketDescriptor() == fd || fd == -1) {
-            cJSON* stats = c->toJSON();
+            auto stats = c->toJSON();
             // no key, JSON value contains all properties of the connection.
-            char *stats_str = cJSON_PrintUnformatted(stats);
-            add_stats(nullptr, 0, stats_str, (uint32_t)strlen(stats_str),
+            auto stats_str = to_string(stats, false);
+            add_stats(nullptr, 0, stats_str.data(), uint32_t(stats_str.size()),
                       cookie);
-            cJSON_Free(stats_str);
-            cJSON_Delete(stats);
         }
     }
 }
@@ -354,11 +352,9 @@ void dump_connection_stat_signal_handler(evutil_socket_t, short, void *) {
     std::lock_guard<std::mutex> lock(connections.mutex);
     for (auto *c : connections.conns) {
         try {
-            cJSON* json = c->toJSON();
-            char* info = cJSON_PrintUnformatted(json);
-            LOG_NOTICE(c, "Connection: %s", info);
-            cJSON_Free(info);
-            cJSON_Delete(json);
+            auto json = c->toJSON();
+            auto info = to_string(json, false);
+            LOG_NOTICE(c, "Connection: %s", info.c_str());
         } catch (const std::bad_alloc&) {
             LOG_NOTICE(c, "Failed to allocate memory to dump info for %u",
                        c->getId());

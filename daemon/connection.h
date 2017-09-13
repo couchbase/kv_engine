@@ -177,9 +177,8 @@ public:
 
     /**
      * Create a cJSON representation of the members of the connection
-     * Caller is responsible for freeing the result with cJSON_Delete().
      */
-    virtual cJSON* toJSON() const;
+    virtual unique_cJSON_ptr toJSON() const;
 
     /**
      * Enable or disable TCP NoDelay on the underlying socket

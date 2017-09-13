@@ -933,8 +933,9 @@ static cJSON* event_mask_to_json(const short mask) {
     return ret;
 }
 
-cJSON* McbpConnection::toJSON() const {
-    cJSON* obj = Connection::toJSON();
+unique_cJSON_ptr McbpConnection::toJSON() const {
+    auto ret = Connection::toJSON();
+    cJSON* obj = ret.get();
     if (obj != nullptr) {
         cJSON_AddBoolToObject(obj, "sasl_enabled", saslAuthEnabled);
         cJSON_AddBoolToObject(obj, "dcp", isDCP());
@@ -1047,7 +1048,7 @@ cJSON* McbpConnection::toJSON() const {
                 mcbp::datatype::to_string(datatype.getRaw()).c_str());
     }
 
-    return obj;
+    return ret;
 }
 
 const Protocol McbpConnection::getProtocol() const {
@@ -1234,12 +1235,10 @@ void McbpConnection::signalIfIdle(bool logbusy, int workerthread) {
         }
         event_active(&event, EV_WRITE, 0);
     } else if (logbusy) {
-        auto* js = toJSON();
-        char* details = cJSON_PrintUnformatted(js);
-
-        LOG_NOTICE(NULL, "Worker thread %u: %s", workerthread, details);
-        cJSON_Free(details);
-        cJSON_Delete(js);
+        unique_cJSON_ptr json(toJSON());
+        auto details = to_string(json, false);
+        LOG_NOTICE(
+                nullptr, "Worker thread %u: %s", workerthread, details.c_str());
     }
 }
 

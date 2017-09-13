@@ -142,7 +142,7 @@ public:
         McbpConnection::dcpNoValue = dcpNoValue;
     }
 
-    virtual cJSON* toJSON() const override;
+    unique_cJSON_ptr toJSON() const override;
 
 
     virtual const Protocol getProtocol() const override;

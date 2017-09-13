@@ -201,8 +201,9 @@ std::string to_string(Protocol protocol) {
     return "unknown protocol: " + std::to_string(int(protocol));
 }
 
-cJSON* Connection::toJSON() const {
-    cJSON* obj = cJSON_CreateObject();
+unique_cJSON_ptr Connection::toJSON() const {
+    unique_cJSON_ptr ret(cJSON_CreateObject());
+    cJSON* obj = ret.get();
     cJSON_AddUintPtrToObject(obj, "connection", (uintptr_t)this);
     if (socketDescriptor == INVALID_SOCKET) {
         cJSON_AddStringToObject(obj, "socket", "disconnected");
@@ -255,7 +256,7 @@ cJSON* Connection::toJSON() const {
                                 "max_sched_time",
                                 std::to_string(max_sched_time.count()).c_str());
     }
-    return obj;
+    return ret;
 }
 
 void Connection::restartAuthentication() {
