@@ -474,6 +474,10 @@ StoredValue::UniquePtr HashTable::unlocked_release(
     return released;
 }
 
+void HashTable::dump() const {
+    std::cerr << *this << std::endl;
+}
+
 void HashTable::visit(HashTableVisitor &visitor) {
     if ((numItems.load() + numTempItems.load()) == 0 || !isActive()) {
         return;
@@ -764,6 +768,8 @@ std::ostream& operator<<(std::ostream& os, const HashTable& ht) {
     os << "HashTable[" << &ht << "] with"
        << " numInMemory:" << ht.getNumInMemoryItems()
        << " numDeleted:" << ht.getNumDeletedItems()
+       << " numNonResident:" << ht.getNumInMemoryNonResItems()
+       << " numTemp:" << ht.getNumTempItems()
        << " values: " << std::endl;
     for (const auto& chain : ht.values) {
         if (chain) {
