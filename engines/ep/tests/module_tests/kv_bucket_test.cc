@@ -196,7 +196,8 @@ void KVBucketTest::delete_item(uint16_t vbid, const StoredDocKey& key) {
 
 void KVBucketTest::evict_key(uint16_t vbid, const StoredDocKey& key) {
     const char* msg;
-    EXPECT_EQ(ENGINE_SUCCESS, store->evictKey(key, vbid, &msg));
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+              store->evictKey(key, vbid, &msg));
     EXPECT_STREQ("Ejected.", msg);
 }
 
