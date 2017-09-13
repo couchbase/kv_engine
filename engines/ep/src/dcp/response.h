@@ -589,10 +589,6 @@ public:
         return key;
     }
 
-    cb::const_byte_buffer getEventData() const override {
-        return eventData;
-    }
-
     /**
      * @returns a size representing approximately the memory used, in this case
      * the item's size.
@@ -601,23 +597,57 @@ public:
         return item->size();
     }
 
-private:
+protected:
     SystemEventProducerMessage(uint32_t opaque,
                                queued_item& itm,
-                               cb::const_char_buffer _key,
-                               cb::const_byte_buffer _eventData)
-        : SystemEventMessage(opaque),
-          key(_key),
-          eventData(_eventData),
-          item(itm) {
+                               cb::const_char_buffer _key)
+        : SystemEventMessage(opaque), key(_key), item(itm) {
     }
 
     // This refers to the key of the event which is in the item body
     cb::const_char_buffer key;
 
-    // This refers to the eventData which is in the item body
-    cb::const_byte_buffer eventData;
     queued_item item;
+};
+
+class CollectionsProducerMessage : public SystemEventProducerMessage {
+public:
+    CollectionsProducerMessage(uint32_t opaque,
+                               queued_item& itm,
+                               cb::const_char_buffer key,
+                               cb::const_byte_buffer eventData)
+        : SystemEventProducerMessage(opaque, itm, key) {
+        if (eventData.size() != sizeof(uid)) {
+            throw std::invalid_argument(
+                    "CreateCollectionProducerMessage invalid eventData size:" +
+                    std::to_string(eventData.size()));
+        }
+
+        uid = htonll((*reinterpret_cast<const Collections::uid_t*>(
+                eventData.data())));
+    }
+
+    cb::const_byte_buffer getEventData() const override {
+        return {reinterpret_cast<const uint8_t*>(&uid), sizeof(uid)};
+    }
+
+private:
+    /// The uid stored in network byte order ready for sending
+    Collections::uid_t uid;
+};
+
+class ChangeSeparatorProducerMessage : public SystemEventProducerMessage {
+public:
+     ChangeSeparatorProducerMessage(uint32_t opaque,
+                                    queued_item& itm,
+                                    cb::const_char_buffer key)
+         : SystemEventProducerMessage(opaque, itm, key) {
+     }
+
+     cb::const_byte_buffer getEventData() const override {
+         // no event data.
+         return {};
+     }
 };
 
 /**
@@ -626,43 +656,60 @@ private:
  */
 class CollectionsEvent {
 public:
+    int64_t getBySeqno() const {
+        return *event.getBySeqno();
+    }
+
+protected:
     /**
-     * @throws invalid_argument if the event data is not 0 or sizeof(uid_t).
+     * @throws invalid_argument if the event data is not expectedSize
      */
-    CollectionsEvent(const SystemEventMessage& e) : event(e) {
-        // Must be 0 or sizeof(uid_t)
-        if (event.getEventData().size() &&
-            event.getEventData().size() != sizeof(Collections::uid_t)) {
+    CollectionsEvent(const SystemEventMessage& e, size_t expectedSize)
+        : event(e) {
+        if (event.getEventData().size() != expectedSize) {
             throw std::invalid_argument(
-                    "CollectionsEvent::CollectionsEvent size invalid " +
+                    "CollectionsEvent::CollectionsEvent invalid size "
+                    "expectedSize:" +
+                    std::to_string(expectedSize) + ", size:" +
                     std::to_string(event.getEventData().size()));
         }
     }
 
-    /**
-     * Retrieve the key of the collections event
-     * If e == ChangeSeparator, then the key is the separator string
-     * If e == Create/BeginDeleteCollection, then the key is the collection name
-     */
-    const cb::const_char_buffer getKey() const {
-        return event.getKey();
+    Collections::uid_t getUid() const {
+        return ntohll(*reinterpret_cast<const Collections::uid_t*>(
+                event.getEventData().data()));
+    }
+
+    const SystemEventMessage& event;
+};
+
+class CreateOrDeleteCollectionEvent : public CollectionsEvent {
+public:
+    CreateOrDeleteCollectionEvent(const SystemEventMessage& e)
+        : CollectionsEvent(e, sizeof(Collections::uid_t)) {
     }
 
     /**
      * @return the Collection::Collection data (key and uid)
      */
     Collections::Identifier getCollection() const {
-        return {getKey(),
-                *reinterpret_cast<const Collections::uid_t*>(
-                        event.getEventData().data())};
+        return {event.getKey(), getUid()};
+    }
+};
+
+class ChangeSeparatorCollectionEvent : public CollectionsEvent {
+public:
+    ChangeSeparatorCollectionEvent(const SystemEventMessage& e)
+        : CollectionsEvent(e, 0) {
     }
 
-    int64_t getBySeqno() const {
-        return *event.getBySeqno();
+    /**
+     * @return separator from the event
+     */
+    const cb::const_char_buffer getSeparator() const {
+        return event.getKey();
     }
 
-private:
-    const SystemEventMessage& event;
 };
 
 #endif  // SRC_DCP_RESPONSE_H_

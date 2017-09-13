@@ -132,16 +132,16 @@ std::unique_ptr<SystemEventProducerMessage> SystemEventProducerMessage::make(
         auto dcpData = Collections::VB::Manifest::getSystemEventData(
                 {item->getData(), item->getNBytes()});
         // Note: constructor is private and make_unique is a pain to make friend
-        return std::unique_ptr<SystemEventProducerMessage>{
-                new SystemEventProducerMessage(
+        return std::unique_ptr<CollectionsProducerMessage>{
+                new CollectionsProducerMessage(
                         opaque, item, dcpData.first, dcpData.second)};
     }
     case SystemEvent::CollectionsSeparatorChanged: {
         auto dcpData = Collections::VB::Manifest::getSystemEventSeparatorData(
                 {item->getData(), item->getNBytes()});
         // Note: constructor is private and make_unique is a pain to make friend
-        return std::unique_ptr<SystemEventProducerMessage>{
-                new SystemEventProducerMessage(opaque, item, dcpData, {})};
+        return std::unique_ptr<ChangeSeparatorProducerMessage>{
+                new ChangeSeparatorProducerMessage(opaque, item, dcpData)};
     }
     case SystemEvent::DeleteCollectionHard:
     case SystemEvent::DeleteCollectionSoft:

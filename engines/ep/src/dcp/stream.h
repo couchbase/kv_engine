@@ -670,8 +670,8 @@ protected:
      * @param vb Vbucket onto which the collection is created.
      * @param event The collection system event creating the collection.
      */
-    ENGINE_ERROR_CODE processCreateCollection(VBucket& vb,
-                                              const CollectionsEvent& event);
+    ENGINE_ERROR_CODE processCreateCollection(
+            VBucket& vb, const CreateOrDeleteCollectionEvent& event);
 
     /**
      * Process a begin delete collection event.
@@ -680,7 +680,7 @@ protected:
      * @param event The collection system event deleting the collection.
      */
     ENGINE_ERROR_CODE processBeginDeleteCollection(
-            VBucket& vb, const CollectionsEvent& event);
+            VBucket& vb, const CreateOrDeleteCollectionEvent& event);
 
     /**
      * Process a collections change separator event.
@@ -688,8 +688,8 @@ protected:
      * @param vb Vbucket which we apply the delete on.
      * @param event The collection system event changing the separator.
      */
-    ENGINE_ERROR_CODE processSeparatorChanged(VBucket& vb,
-                                              const CollectionsEvent& event);
+    ENGINE_ERROR_CODE processSeparatorChanged(
+            VBucket& vb, const ChangeSeparatorCollectionEvent& event);
 
     void handleSnapshotEnd(VBucketPtr& vb, uint64_t byseqno);
 
