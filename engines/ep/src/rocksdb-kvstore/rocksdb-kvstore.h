@@ -97,6 +97,9 @@ public:
     }
 };
 
+class RocksRequest;
+struct KVStatsCtx;
+
 /**
  * A persistence store based on rocksdb.
  */
@@ -301,9 +304,6 @@ private:
     std::unique_ptr<rocksdb::ColumnFamilyHandle> seqnoFamilyHandle;
     std::unique_ptr<rocksdb::ColumnFamilyHandle> localFamilyHandle;
 
-    char* valBuffer;
-    size_t valSize;
-
     rocksdb::Options rdbOptions;
     rocksdb::ColumnFamilyOptions defaultCFOptions;
     rocksdb::ColumnFamilyOptions seqnoCFOptions;
@@ -320,37 +320,55 @@ private:
     std::string mkSeqnoStr(uint16_t vb, int64_t seqno);
     void grokSeqnoSlice(const rocksdb::Slice&, uint16_t* vb, int64_t* seqno);
 
-    void adjustValBuffer(const size_t);
-
-    rocksdb::Slice mkValSlice(const Item& item);
-    rocksdb::SliceParts mkValSliceParts(const Item& item);
-    std::unique_ptr<Item> grokValSlice(uint16_t vb,
-                                       const DocKey& key,
-                                       const rocksdb::Slice& s,
-                                       GetMetaOnly getMetaOnly);
+    std::unique_ptr<Item> makeItem(uint16_t vb,
+                                   const DocKey& key,
+                                   const rocksdb::Slice& s,
+                                   GetMetaOnly getMetaOnly);
 
     GetValue makeGetValue(uint16_t vb,
                           const DocKey& key,
                           const std::string& value,
                           GetMetaOnly getMetaOnly = GetMetaOnly::No);
 
-    void storeItem(const Item& item);
-
     void readVBState(uint16_t vbid);
 
-    bool saveVBState(const vbucket_state& vbState, uint16_t vbid);
+    rocksdb::Status saveVBState(const vbucket_state& vbState, uint16_t vbid);
+
+    rocksdb::Status saveDocs(
+            uint16_t vbid,
+            const Item* collectionsManifest,
+            const std::vector<std::unique_ptr<RocksRequest>>& commitBatch);
+
+    rocksdb::Status addRequestToWriteBatch(rocksdb::WriteBatch& batch,
+                                           RocksRequest* request);
+
+    void commitCallback(
+            KVStatsCtx& statsCtx,
+            rocksdb::Status status,
+            const std::vector<std::unique_ptr<RocksRequest>>& commitBatch);
 
     int64_t readHighSeqnoFromDisk(uint16_t vbid);
 
     std::string getVbstatePrefix();
 
-    std::unique_ptr<rocksdb::WriteBatch> batch;
+    // Used for queueing mutation requests (in `set` and `del`) and flushing
+    // them to disk (in `commit`).
+    std::vector<std::unique_ptr<RocksRequest>> pendingReqs;
+
     rocksdb::WriteOptions writeOptions;
 
     // RocksDB does *not* need additional synchronisation around
     // db->Write, but we need to prevent delVBucket racing with
     // commit, potentially losing data.
     std::mutex writeLock;
+
+    // This variable is used to verify that the KVStore API is used correctly
+    // when RocksDB is used as store. "Correctly" means that the caller must
+    // use the API in the following way:
+    //      - begin() x1
+    //      - set() / del() xN
+    //      - commit()
+    bool in_transaction;
 
     std::atomic<size_t> scanCounter; // atomic counter for generating scan id
 

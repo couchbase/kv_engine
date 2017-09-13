@@ -220,32 +220,9 @@ protected:
     std::string data_dir;
 };
 
-/// Test fixture for tests which run on both Couchstore and ForestDB.
-class CouchAndForestTest : public KVStoreTest,
-                           public ::testing::WithParamInterface<std::string> {
-};
-
 /// Test fixture for tests which run only on Couchstore.
 class CouchKVStoreTest : public KVStoreTest {
 };
-
-/* Test basic set / get of a document */
-TEST_P(CouchAndForestTest, BasicTest) {
-    KVStoreConfig config(
-            1024, 4, data_dir, GetParam(), 0, false /*persistnamespace*/);
-    auto kvstore = setup_kv_store(config);
-
-    kvstore->begin();
-    StoredDocKey key = makeStoredDocKey("key");
-    Item item(key, 0, 0, "value", 5);
-    WriteCallback wc;
-    kvstore->set(item, wc);
-
-    EXPECT_TRUE(kvstore->commit(nullptr /*no collections manifest*/));
-
-    GetValue gv = kvstore->get(key, 0);
-    checkGetValue(gv);
-}
 
 TEST_F(CouchKVStoreTest, CompressedTest) {
     KVStoreConfig config(
@@ -1825,7 +1802,104 @@ TEST_F(CouchKVStoreMetaData, assignment) {
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, copy2->getDataType());
 }
 
-std::string couchAndForestTestParams[] = {
+class PersistenceCallbacks : public Callback<mutation_result>,
+                             public Callback<int> {
+public:
+    virtual ~PersistenceCallbacks() {
+    }
+
+    // SET callback.
+    virtual void callback(mutation_result& result) = 0;
+
+    // DEL callback.
+    // @param value number of items that the underlying storage has deleted
+    virtual void callback(int& value) = 0;
+};
+
+class MockPersistenceCallbacks : public PersistenceCallbacks {
+public:
+    MOCK_METHOD1(callback, void(mutation_result& result));
+    MOCK_METHOD1(callback, void(int& value));
+};
+
+// Test fixture for tests which run on all KVStore implementations (Couchstore,
+// ForestDB and RocksDB).
+// The string parameter represents the KVStore implementation that each test
+// of this class will use (e.g., "couchdb", "forestdb" and "rocksdb").
+class KVStoreParamTest : public KVStoreTest,
+                         public ::testing::WithParamInterface<std::string> {
+protected:
+    void SetUp() override {
+        KVStoreTest::SetUp();
+        Configuration config;
+        config.setDbname(data_dir);
+        // `GetParam` returns the string parameter representing the KVStore
+        // implementation
+        config.setBackend(GetParam());
+        kvstoreConfig = std::make_unique<KVStoreConfig>(config, 0 /*shardId*/);
+        kvstore = setup_kv_store(*kvstoreConfig);
+    }
+
+    std::unique_ptr<KVStoreConfig> kvstoreConfig;
+    std::unique_ptr<KVStore> kvstore;
+};
+
+// Test basic set / get of a document
+TEST_P(KVStoreParamTest, BasicTest) {
+    kvstore->begin();
+    StoredDocKey key = makeStoredDocKey("key");
+    Item item(key, 0, 0, "value", 5);
+    WriteCallback wc;
+    kvstore->set(item, wc);
+
+    EXPECT_TRUE(kvstore->commit(nullptr /*no collections manifest*/));
+
+    GetValue gv = kvstore->get(key, 0);
+    checkGetValue(gv);
+}
+
+TEST_P(KVStoreParamTest, TestPersistenceCallbacksForSet) {
+    kvstore->begin();
+
+    // Expect that the SET callback will not be called just after `set`
+    MockPersistenceCallbacks mpc;
+    mutation_result result = std::make_pair(1, true);
+    EXPECT_CALL(mpc, callback(result)).Times(0);
+
+    auto key = makeStoredDocKey("key");
+    Item item(key, 0, 0, "value", 5);
+    kvstore->set(item, mpc);
+
+    // Expect that the SET callback will be called once after `commit`
+    EXPECT_CALL(mpc, callback(result)).Times(1);
+
+    EXPECT_TRUE(kvstore->commit(nullptr /*no collections manifest*/));
+}
+
+TEST_P(KVStoreParamTest, TestPersistenceCallbacksForDel) {
+    // Store an item
+    auto key = makeStoredDocKey("key");
+    Item item(key, 0, 0, "value", 5);
+    MockPersistenceCallbacks mpc;
+    kvstore->begin();
+    kvstore->set(item, mpc);
+    kvstore->commit(nullptr /*no collections manifest*/);
+
+    kvstore->begin();
+
+    // Expect that the DEL callback will not be called just after `del`
+    int delCount = 1;
+    EXPECT_CALL(mpc, callback(delCount)).Times(0);
+
+    kvstore->del(item, mpc);
+
+    // Expect that the DEL callback will be called once after `commit`
+    EXPECT_CALL(mpc, callback(delCount)).Times(1);
+
+    EXPECT_TRUE(kvstore->commit(nullptr /*no collections manifest*/));
+}
+
+std::string kvstoreTestParams[] = {
 #ifdef EP_USE_FORESTDB
         "forestdb",
 #endif
@@ -1834,9 +1908,9 @@ std::string couchAndForestTestParams[] = {
 #endif
         "couchdb"};
 
-INSTANTIATE_TEST_CASE_P(CouchstoreAndForestDB,
-                        CouchAndForestTest,
-                        ::testing::ValuesIn(couchAndForestTestParams),
+INSTANTIATE_TEST_CASE_P(KVStoreParam,
+                        KVStoreParamTest,
+                        ::testing::ValuesIn(kvstoreTestParams),
                         [](const ::testing::TestParamInfo<std::string>& info) {
                             return info.param;
                         });

@@ -19,6 +19,8 @@
 
 #include "rocksdb-kvstore.h"
 
+#include "ep_time.h"
+
 #include "kvstore_config.h"
 #include "kvstore_priv.h"
 
@@ -30,25 +32,122 @@
 
 #include "vbucket.h"
 
-static const size_t DEFAULT_VAL_SIZE(64 * 1024);
+namespace rockskv {
+// MetaData is used to serialize and de-serialize metadata respectively when
+// writing a Document mutation request to RocksDB and when reading a Document
+// from RocksDB.
+class MetaData {
+public:
+    MetaData()
+        : deleted(0),
+          version(0),
+          datatype(0),
+          flags(0),
+          valueSize(0),
+          exptime(0),
+          cas(0),
+          revSeqno(0),
+          bySeqno(0){};
+    MetaData(bool deleted,
+             uint8_t version,
+             uint8_t datatype,
+             uint32_t flags,
+             uint32_t valueSize,
+             time_t exptime,
+             uint64_t cas,
+             uint64_t revSeqno,
+             int64_t bySeqno)
+        : deleted(deleted),
+          version(version),
+          datatype(datatype),
+          flags(flags),
+          valueSize(valueSize),
+          exptime(exptime),
+          cas(cas),
+          revSeqno(revSeqno),
+          bySeqno(bySeqno){};
+
+// The `#pragma pack(1)` directive and the order of members are to keep
+// the size of MetaData as small as possible and uniform across different
+// platforms.
+#pragma pack(1)
+    uint8_t deleted : 1;
+    uint8_t version : 7;
+    uint8_t datatype;
+    uint32_t flags;
+    uint32_t valueSize;
+    time_t exptime;
+    uint64_t cas;
+    uint64_t revSeqno;
+    int64_t bySeqno;
+#pragma pack()
+};
+} // namespace rockskv
+
+/**
+ * Class representing a document to be persisted in RocksDB.
+ */
+class RocksRequest : public IORequest {
+public:
+    /**
+     * Constructor
+     *
+     * @param item Item instance to be persisted
+     * @param callback Persistence Callback
+     * @param del Flag indicating if it is an item deletion or not
+     */
+    RocksRequest(const Item& item, MutationRequestCallback& callback)
+        : IORequest(item.getVBucketId(),
+                    callback,
+                    item.isDeleted(),
+                    item.getKey()),
+          docBody(item.getValue()) {
+        docMeta = rockskv::MetaData(
+                item.isDeleted(),
+                0,
+                item.getDataType(),
+                item.getFlags(),
+                item.getNBytes(),
+                item.isDeleted() ? ep_real_time() : item.getExptime(),
+                item.getCas(),
+                item.getRevSeqno(),
+                item.getBySeqno());
+    }
+
+    const rockskv::MetaData& getDocMeta() {
+        return docMeta;
+    }
+
+    // Get a rocksdb::Slice wrapping the Document MetaData
+    rocksdb::Slice getDocMetaSlice() {
+        return rocksdb::Slice(reinterpret_cast<char*>(&docMeta),
+                              sizeof(docMeta));
+    }
+
+    // Get a rocksdb::Slice wrapping the Document Body
+    rocksdb::Slice getDocBodySlice() {
+        const char* data = docBody ? docBody->getData() : nullptr;
+        size_t size = docBody ? docBody->valueSize() : 0;
+        return rocksdb::Slice(data, size);
+    }
+
+private:
+    rockskv::MetaData docMeta;
+    value_t docBody;
+};
 
 RocksDBKVStore::RocksDBKVStore(KVStoreConfig& config)
     : KVStore(config),
-      valBuffer(NULL),
-      valSize(0),
+      in_transaction(false),
       scanCounter(0),
       logger(config.getLogger()) {
     cachedVBStates.resize(configuration.getMaxVBuckets());
-
     writeOptions.sync = true;
-
-    adjustValBuffer(DEFAULT_VAL_SIZE);
     open();
 }
 
 RocksDBKVStore::~RocksDBKVStore() {
     close();
-    free(valBuffer);
 }
 
 void RocksDBKVStore::open() {
@@ -157,49 +256,131 @@ void RocksDBKVStore::open() {
 }
 
 void RocksDBKVStore::close() {
-    batch.reset();
     defaultFamilyHandle.reset();
     seqnoFamilyHandle.reset();
     localFamilyHandle.reset();
     db.reset();
+    in_transaction = false;
 }
 
 bool RocksDBKVStore::begin() {
-    if (!batch) {
-        batch = std::make_unique<rocksdb::WriteBatch>();
-    }
-    return bool(batch);
+    in_transaction = true;
+    return in_transaction;
 }
 
 bool RocksDBKVStore::commit(const Item* collectionsManifest) {
-    std::lock_guard<std::mutex> lg(writeLock);
-    if (batch) {
-        rocksdb::Status s = db->Write(writeOptions, batch.get());
-        if (s.ok()) {
-            batch.reset();
+    // This behaviour is to replicate the one in Couchstore.
+    // If `commit` is called when not in transaction, just return true.
+    if (!in_transaction) {
+        return true;
+    }
+
+    if (pendingReqs.size() == 0) {
+        in_transaction = false;
+        return true;
+    }
+
+    // Swap `pendingReqs` with the temporary `commitBatch` so that we can
+    // shorten the scope of the lock.
+    std::vector<std::unique_ptr<RocksRequest>> commitBatch;
+    {
+        std::lock_guard<std::mutex> lock(writeLock);
+        std::swap(pendingReqs, commitBatch);
+    }
+
+    bool success = true;
+    auto vbid = commitBatch[0]->getVBucketId();
+    KVStatsCtx statsCtx(configuration);
+    statsCtx.vbucket = vbid;
+
+    // Flush all documents to disk
+    auto status = saveDocs(vbid, collectionsManifest, commitBatch);
+    if (!status.ok()) {
+        logger.log(EXTENSION_LOG_WARNING,
+                   "RocksDBKVStore::commit: saveDocs error:%d, "
+                   "vb:%" PRIu16,
+                   status.code(),
+                   vbid);
+        success = false;
+    }
+
+    commitCallback(statsCtx, status, commitBatch);
+
+    // This behaviour is to replicate the one in Couchstore.
+    // Set `in_transanction = false` only if `commit` is successful.
+    if (success) {
+        in_transaction = false;
+    }
+
+    return success;
+}
+
+static int getMutationStatus(rocksdb::Status status) {
+    switch (status.code()) {
+    case rocksdb::Status::Code::kOk:
+        return MUTATION_SUCCESS;
+    case rocksdb::Status::Code::kNotFound:
+        // This return value causes ep-engine to drop the failed flush
+        return DOC_NOT_FOUND;
+    case rocksdb::Status::Code::kBusy:
+        // This return value causes ep-engine to keep re-queueing the failed
+        // flush
+        return MUTATION_FAILED;
+    default:
+        throw std::runtime_error(
+                std::string("getMutationStatus: RocksDB error:") +
+                std::string(status.getState()));
+    }
+}
+
+void RocksDBKVStore::commitCallback(
+        KVStatsCtx& kvctx,
+        rocksdb::Status status,
+        const std::vector<std::unique_ptr<RocksRequest>>& commitBatch) {
+    for (const auto& request : commitBatch) {
+        auto dataSize = request->getDocMetaSlice().size() +
+                        request->getDocBodySlice().size();
+        const auto& key = request->getKey();
+        /* update ep stats */
+        ++st.io_num_write;
+        st.io_write_bytes += (key.size() + dataSize);
+
+        auto rv = getMutationStatus(status);
+        if (request->isDelete()) {
+            if (status.code()) {
+                ++st.numDelFailure;
+            } else {
+                st.delTimeHisto.add(request->getDelta() / 1000);
+            }
+            if (rv != -1) {
+                // TODO: Should set `rv` to 1 or 0 depending on if this is a
+                // delete to an existing (1) or non-existing (0) item. However,
+                // to achieve this we would need to perform a Get to RocksDB
+                // which is costly. For now just assume that the item did exist.
+                rv = 1;
+            }
+            request->getDelCallback()->callback(rv);
+        } else {
+            if (status.code()) {
+                ++st.numSetFailure;
+            } else {
+                st.writeTimeHisto.add(request->getDelta() / 1000);
+                st.writeSizeHisto.add(dataSize + key.size());
+            }
+            // TODO: Should set `mr.second` to true or false depending on if
+            // this is an insertion (true) or an update of an existing item
+            // (false). However, to achieve this we would need to perform a Get
+            // to RocksDB which is costly. For now just assume that the item
+            // did not exist.
+            mutation_result mr = std::make_pair(1, true);
+            request->getSetCallback()->callback(mr);
         }
     }
-    return !batch;
 }
 
 void RocksDBKVStore::rollback() {
-    batch.reset();
-}
-
-void RocksDBKVStore::adjustValBuffer(const size_t to) {
-    // Save room for the flags, exp, etc...
-    size_t needed(sizeof(ItemMetaData) +
-                  /* deleted flag */ sizeof(uint8_t) +
-                  /* bySeqno */ sizeof(uint64_t) +
-                  /* datatype */ sizeof(uint8_t) +
-                  /* value len */ sizeof(uint32_t) + to);
-
-    if (valBuffer == NULL || valSize < needed) {
-        void* buf = realloc(valBuffer, needed);
-        if (buf) {
-            valBuffer = static_cast<char*>(buf);
-            valSize = needed;
-        }
+    if (in_transaction) {
+        in_transaction = false;
     }
 }
 
@@ -211,28 +392,15 @@ std::vector<vbucket_state*> RocksDBKVStore::listPersistedVbuckets() {
     return result;
 }
 
-void RocksDBKVStore::set(const Item& itm, Callback<mutation_result>& cb) {
-    storeItem(itm);
-
-    // TODO RDB: This callback should not really be called until
-    // after the batch is committed.
-    std::pair<int, bool> p(1, true);
-    cb.callback(p);
-}
-
-void RocksDBKVStore::storeItem(const Item& itm) {
-    // TODO RDB: Consider using SliceParts to avoid copying if
-    // possible.
-    uint16_t vbid = itm.getVBucketId();
-    auto k = mkKeyStr(vbid, itm.getKey());
-    auto v = mkValSlice(itm);
-    auto seq = mkSeqnoStr(vbid, itm.getBySeqno());
-
-    // TODO RDB: check status.
-    rocksdb::Status s1 = batch->Put(k, v);
-    rocksdb::Status s2 = batch->Put(seqnoFamilyHandle.get(), seq, k);
-    cb_assert(s1.ok());
-    cb_assert(s2.ok());
+void RocksDBKVStore::set(const Item& item, Callback<mutation_result>& cb) {
+    if (!in_transaction) {
+        throw std::logic_error(
+                "RocksDBKVStore::set: in_transaction must be true to perform a "
+                "set operation.");
+    }
+    MutationRequestCallback callback;
+    callback.setCb = &cb;
+    pendingReqs.push_back(std::make_unique<RocksRequest>(item, callback));
 }
 
 GetValue RocksDBKVStore::get(const DocKey& key, uint16_t vb, bool fetchDelete) {
@@ -283,13 +451,17 @@ void RocksDBKVStore::reset(uint16_t vbucketId) {
     }
 }
 
-void RocksDBKVStore::del(const Item& itm, Callback<int>& cb) {
-    // TODO RDB: Deleted items remain as tombstones, but are not yet
-    // expired - they will accumuate forever.
-    storeItem(itm);
-
-    int rv(1);
-    cb.callback(rv);
+void RocksDBKVStore::del(const Item& item, Callback<int>& cb) {
+    if (!in_transaction) {
+        throw std::logic_error(
+                "RocksDBKVStore::del: in_transaction must be true to perform a "
+                "delete operation.");
+    }
+    // TODO: Deleted items remain as tombstones, but are not yet expired,
+    // they will accumuate forever.
+    MutationRequestCallback callback;
+    callback.delCb = &cb;
+    pendingReqs.push_back(std::make_unique<RocksRequest>(item, callback));
 }
 
 static bool matches_prefix(rocksdb::Slice s, size_t len, const char* p) {
@@ -333,7 +505,7 @@ bool RocksDBKVStore::snapshotVBucket(uint16_t vbucketId,
     if (updateCachedVBState(vbucketId, vbstate) &&
         (options == VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT ||
          options == VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT)) {
-        if (!saveVBState(vbstate, vbucketId)) {
+        if (!saveVBState(vbstate, vbucketId).ok()) {
             logger.log(EXTENSION_LOG_WARNING,
                        "RocksDBKVStore::snapshotVBucket: saveVBState failed "
                        "state:%s, vb:%" PRIu16,
@@ -422,92 +594,32 @@ void RocksDBKVStore::grokSeqnoSlice(const rocksdb::Slice& s,
     std::memcpy(seqno, s.data() + sizeof(uint16_t), sizeof(int64_t));
 }
 
-rocksdb::Slice RocksDBKVStore::mkValSlice(const Item& item) {
-    // Serialize an Item to the format to write to RocksDB.
-    // Using the following layout:
-    //    uint64_t           cas          ]
-    //    uint64_t           revSeqno     ] ItemMetaData
-    //    uint32_t           flags        ]
-    //    uint32_t           exptime      ]
-    // TODO RDB: Wasting a whole byte for deleted
-    //    uint8_t            deleted
-    //    uint64_t           bySeqno
-    //    uint8_t            datatype
-    //    uint32_t           value_len
-    //    uint8_t[value_len] value
+std::unique_ptr<Item> RocksDBKVStore::makeItem(uint16_t vb,
+                                               const DocKey& key,
+                                               const rocksdb::Slice& s,
+                                               GetMetaOnly getMetaOnly) {
+    assert(s.size() >= sizeof(rockskv::MetaData));
 
-    adjustValBuffer(item.getNBytes());
-    char* dest = valBuffer;
-    std::memcpy(dest, &item.getMetaData(), sizeof(ItemMetaData));
-    dest += sizeof(ItemMetaData);
+    const char* data = s.data();
 
-    uint8_t deleted = item.isDeleted();
-    std::memcpy(dest, &deleted, sizeof(deleted));
-    dest += sizeof(deleted);
+    rockskv::MetaData meta;
+    std::memcpy(&meta, data, sizeof(meta));
+    data += sizeof(meta);
 
-    const int64_t bySeqno{item.getBySeqno()};
-    std::memcpy(dest, &bySeqno, sizeof(bySeqno));
-    dest += sizeof(uint64_t);
-
-    const uint8_t datatype{item.getDataType()};
-    std::memcpy(dest, &datatype, sizeof(datatype));
-    dest += sizeof(uint8_t);
-
-    const uint32_t valueLen = item.getNBytes();
-    std::memcpy(dest, &valueLen, sizeof(valueLen));
-    dest += sizeof(valueLen);
-    if (valueLen) {
-        std::memcpy(dest, item.getValue()->getData(), valueLen);
-    }
-    dest += valueLen;
-
-    return rocksdb::Slice(valBuffer, dest - valBuffer);
-}
-
-std::unique_ptr<Item> RocksDBKVStore::grokValSlice(uint16_t vb,
-                                                   const DocKey& key,
-                                                   const rocksdb::Slice& s,
-                                                   GetMetaOnly getMetaOnly) {
-    // Reverse of mkValSlice - deserialize back into an Item.
-
-    assert(s.size() >= sizeof(ItemMetaData) + sizeof(uint64_t) +
-                               sizeof(uint8_t) + sizeof(uint32_t));
-
-    ItemMetaData meta;
-    const char* src = s.data();
-    std::memcpy(&meta, src, sizeof(meta));
-    src += sizeof(meta);
-
-    uint8_t deleted;
-    std::memcpy(&deleted, src, sizeof(deleted));
-    src += sizeof(deleted);
-
-    int64_t bySeqno;
-    std::memcpy(&bySeqno, src, sizeof(bySeqno));
-    src += sizeof(bySeqno);
-
-    uint8_t datatype;
-    std::memcpy(&datatype, src, sizeof(datatype));
-    src += sizeof(datatype);
-
-    uint32_t valueLen;
-    std::memcpy(&valueLen, src, sizeof(valueLen));
-    src += sizeof(valueLen);
-
-    bool includeValue = getMetaOnly == GetMetaOnly::No && valueLen;
+    bool includeValue = getMetaOnly == GetMetaOnly::No && meta.valueSize;
 
     auto item = std::make_unique<Item>(key,
                                        meta.flags,
                                        meta.exptime,
-                                       includeValue ? src : nullptr,
-                                       includeValue ? valueLen : 0,
-                                       datatype,
+                                       includeValue ? data : nullptr,
+                                       includeValue ? meta.valueSize : 0,
+                                       meta.datatype,
                                        meta.cas,
-                                       bySeqno,
+                                       meta.bySeqno,
                                        vb,
                                        meta.revSeqno);
 
-    if (deleted) {
+    if (meta.deleted) {
         item->setDeleted();
     }
 
@@ -520,7 +632,7 @@ GetValue RocksDBKVStore::makeGetValue(uint16_t vb,
                                       GetMetaOnly getMetaOnly) {
     rocksdb::Slice sval(value);
     return GetValue(
-            grokValSlice(vb, key, sval, getMetaOnly), ENGINE_SUCCESS, -1, 0);
+            makeItem(vb, key, sval, getMetaOnly), ENGINE_SUCCESS, -1, 0);
 }
 
 void RocksDBKVStore::readVBState(uint16_t vbid) {
@@ -646,7 +758,8 @@ void RocksDBKVStore::readVBState(uint16_t vbid) {
                                                            failovers);
 }
 
-bool RocksDBKVStore::saveVBState(const vbucket_state& vbState, uint16_t vbid) {
+rocksdb::Status RocksDBKVStore::saveVBState(const vbucket_state& vbState,
+                                            uint16_t vbid) {
     std::stringstream jsonState;
 
     jsonState << "{\"state\": \"" << VBucket::toString(vbState.state) << "\""
@@ -675,7 +788,126 @@ bool RocksDBKVStore::saveVBState(const vbucket_state& vbState, uint16_t vbid) {
                                 localFamilyHandle.get(),
                                 rocksdb::Slice(lDocKey),
                                 rocksdb::Slice(jsonState.str()));
-    return s.ok();
+    return s;
+}
+
+rocksdb::Status RocksDBKVStore::saveDocs(
+        uint16_t vbid,
+        const Item* collectionsManifest,
+        const std::vector<std::unique_ptr<RocksRequest>>& commitBatch) {
+    auto reqsSize = commitBatch.size();
+    if (reqsSize == 0) {
+        st.docsCommitted = 0;
+        return rocksdb::Status::OK();
+    }
+
+    auto& vbstate = cachedVBStates[vbid];
+    if (vbstate == nullptr) {
+        throw std::logic_error("RocksDBKVStore::saveDocs: cachedVBStates[" +
+                               std::to_string(vbid) + "] is NULL");
+    }
+
+    rocksdb::Status status;
+    int64_t maxDBSeqno = 0;
+    rocksdb::WriteBatch batch;
+
+    for (const auto& request : commitBatch) {
+        int64_t bySeqno = request->getDocMeta().bySeqno;
+        maxDBSeqno = std::max(maxDBSeqno, bySeqno);
+
+        status = addRequestToWriteBatch(batch, request.get());
+        if (!status.ok()) {
+            logger.log(EXTENSION_LOG_WARNING,
+                       "RocksDBKVStore::saveDocs: addRequestToWriteBatch "
+                       "error:%d, vb:%" PRIu16,
+                       status.code(),
+                       vbid);
+            return status;
+        }
+    }
+
+    status = saveVBState(*vbstate, vbid);
+    if (!status.ok()) {
+        logger.log(EXTENSION_LOG_WARNING,
+                   "RocksDBKVStore::saveDocs: saveVBState error:%d",
+                   status.code());
+        return status;
+    }
+
+    auto begin = ProcessClock::now();
+    status = db->Write(writeOptions, &batch);
+    st.commitHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
+                               ProcessClock::now() - begin)
+                               .count());
+    if (!status.ok()) {
+        logger.log(EXTENSION_LOG_WARNING,
+                   "RocksDBKVStore::saveDocs: rocksdb::DB::Write error:%d, "
+                   "vb:%" PRIu16,
+                   status.code(),
+                   vbid);
+        return status;
+    }
+
+    st.batchSize.add(reqsSize);
+    st.docsCommitted = reqsSize;
+
+    // Check and update last seqno
+    int64_t lastSeqno = readHighSeqnoFromDisk(vbid);
+    if (maxDBSeqno != lastSeqno) {
+        logger.log(EXTENSION_LOG_WARNING,
+                   "RocksDBKVStore::saveDocs: Seqno in db header (%" PRIu64
+                   ") is not matched with what was persisted (%" PRIu64
+                   ") for vb:%" PRIu16,
+                   lastSeqno,
+                   maxDBSeqno,
+                   vbid);
+    }
+    vbstate->highSeqno = lastSeqno;
+
+    return rocksdb::Status::OK();
+}
+
+rocksdb::Status RocksDBKVStore::addRequestToWriteBatch(
+        rocksdb::WriteBatch& batch, RocksRequest* request) {
+    uint16_t vbid = request->getVBucketId();
+
+    auto key = mkKeyStr(vbid, request->getKey());
+    rocksdb::Slice keySlice(key);
+    rocksdb::SliceParts keySliceParts(&keySlice, 1);
+
+    rocksdb::Slice docSlices[] = {request->getDocMetaSlice(),
+                                  request->getDocBodySlice()};
+    rocksdb::SliceParts valueSliceParts(docSlices, 2);
+
+    auto bySeqno = mkSeqnoStr(vbid, request->getDocMeta().bySeqno);
+    // We use the `saveDocsHisto` to track the time spent on
+    // `rocksdb::WriteBatch::Put()`.
+    auto begin = ProcessClock::now();
+    auto status = batch.Put(keySliceParts, valueSliceParts);
+    if (!status.ok()) {
+        logger.log(EXTENSION_LOG_WARNING,
+                   "RocksDBKVStore::saveDocs: rocksdb::WriteBatch::Put "
+                   "[ColumnFamily: \'default\']  error:%d, "
+                   "vb:%" PRIu16,
+                   status.code(),
+                   vbid);
+        return status;
+    }
+    status = batch.Put(seqnoFamilyHandle.get(), bySeqno, key);
+    if (!status.ok()) {
+        logger.log(EXTENSION_LOG_WARNING,
+                   "RocksDBKVStore::saveDocs: rocksdb::WriteBatch::Put "
+                   "[ColumnFamily: \'seqno\']  error:%d, "
+                   "vb:%" PRIu16,
+                   status.code(),
+                   vbid);
+        return status;
+    }
+    st.saveDocsHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
+                                 ProcessClock::now() - begin)
+                                 .count());
+
+    return rocksdb::Status::OK();
 }
 
 int64_t RocksDBKVStore::readHighSeqnoFromDisk(uint16_t vbid) {
@@ -794,7 +1026,7 @@ scan_error_t RocksDBKVStore::scan(ScanContext* ctx) {
                    DocNamespace::DefaultCollection);
 
         std::unique_ptr<Item> itm =
-                grokValSlice(ctx->vbid, key, valSlice, isMetaOnly);
+                makeItem(ctx->vbid, key, valSlice, isMetaOnly);
 
         if (itm->getBySeqno() > seqno) {
             // TODO RDB: Old seqnos are never removed from the db!
