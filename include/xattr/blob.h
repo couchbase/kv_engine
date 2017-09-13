@@ -75,9 +75,9 @@ public:
           alloc_size(size) {}
 
     /**
-     * You can't copy the blob
+     * Create a (deep) copy of the Blob (allocate a new backing store)
      */
-    Blob(const Blob&) = delete;
+    Blob(const Blob& other);
 
     /**
      * Get the value for a given key located in the blob

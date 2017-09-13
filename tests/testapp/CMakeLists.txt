@@ -218,11 +218,10 @@ ADD_TEST(NAME memcached-xattr-tests
          COMMAND memcached_testapp --gtest_filter=TransportProtocols/XattrTest.*)
 SET_TESTS_PROPERTIES(memcached-xattr-tests PROPERTIES TIMEOUT 120)
 
-# Re-run the XATTR tests which require support for a special memory pool for
-# system xattrs under ep-engine
+# Re-run all of the XATTR tests under ep-engine
 ADD_TEST(NAME memcached-system-xattr-tests
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-         COMMAND memcached_testapp --gtest_filter=TransportProtocols/XattrTest.mb* -E ep)
+         COMMAND memcached_testapp --gtest_filter=TransportProtocols/XattrTest.* -E ep)
 SET_TESTS_PROPERTIES(memcached-system-xattr-tests PROPERTIES TIMEOUT 120)
 
 

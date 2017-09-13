@@ -23,6 +23,14 @@
 namespace cb {
 namespace xattr {
 
+Blob::Blob(const Blob& other)
+    : allocator(default_allocator),
+      alloc_size(other.blob.size()) {
+    allocator.reset(new uint8_t[alloc_size]);
+    blob = { allocator.get(), alloc_size };
+    std::copy(other.blob.begin(), other.blob.end(), blob.begin());
+}
+
 cb::byte_buffer Blob::get(const cb::const_byte_buffer& key) const {
     try {
         size_t current = 4;
