@@ -1190,7 +1190,7 @@ void Settings::updateSettings(const Settings& other, bool apply) {
     if (other.has.xattr_enabled) {
         if (other.xattr_enabled != xattr_enabled) {
             logit(EXTENSION_LOG_NOTICE,
-                  "%s xattr",
+                  "%s XATTR",
                   other.xattr_enabled.load() ? "Enable" : "Disable");
             setXattrEnabled(other.xattr_enabled.load());
         }
