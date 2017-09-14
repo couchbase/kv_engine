@@ -1826,9 +1826,7 @@ private:
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     resetStats();
-    if (config != NULL) {
-        LOG(EXTENSION_LOG_NOTICE, "EPEngine::initialize: parsing config:\"%s\"",
-            config);
+    if (config != nullptr) {
         if (!configuration.parseConfiguration(config, serverApi)) {
             LOG(EXTENSION_LOG_WARNING, "Failed to parse the configuration config "
                 "during bucket initialization.  config=%s", config);
@@ -1837,6 +1835,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     }
 
     name = configuration.getCouchBucket();
+
+    if (config != nullptr) {
+        LOG(EXTENSION_LOG_NOTICE,
+            R"(EPEngine::initialize: using configuration:"%s")",
+            config);
+    }
+
     maxFailoverEntries = configuration.getMaxFailoverEntries();
 
     // Start updating the variables from the config!
