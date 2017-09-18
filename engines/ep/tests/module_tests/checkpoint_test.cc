@@ -104,7 +104,7 @@ protected:
     bool queueNewItem(const std::string& key) {
         queued_item qi{new Item(makeStoredDocKey(key),
                                 this->vbucket->getId(),
-                                queue_op::set,
+                                queue_op::mutation,
                                 /*revSeq*/ 0,
                                 /*bySeq*/ 0)};
         return this->manager->queueDirty(*this->vbucket,
@@ -205,8 +205,11 @@ static void launch_set_thread(void *arg) {
     int i(0);
     for (i = 0; i < NUM_ITEMS; ++i) {
         std::string key = "key-" + std::to_string(i);
-        queued_item qi(new Item(makeStoredDocKey(key), args->vbucket->getId(),
-                                queue_op::set, 0, 0));
+        queued_item qi(new Item(makeStoredDocKey(key),
+                                args->vbucket->getId(),
+                                queue_op::mutation,
+                                0,
+                                0));
         args->checkpoint_manager->queueDirty(*args->vbucket,
                                              qi,
                                              GenerateBySeqno::Yes,
@@ -336,7 +339,7 @@ TYPED_TEST(CheckpointTest, reset_checkpoint_id) {
     // Check that the next 10 items are all SET operations.
     for(itemPos = 1; itemPos < 11; ++itemPos) {
         queued_item qi = items.at(itemPos);
-        EXPECT_EQ(queue_op::set, qi->getOperation());
+        EXPECT_EQ(queue_op::mutation, qi->getOperation());
         size_t mid = qi->getBySeqno();
         EXPECT_GT(mid, lastMutationId);
         lastMutationId = qi->getBySeqno();
@@ -386,7 +389,7 @@ TYPED_TEST(CheckpointTest, OneOpenCkpt) {
     // Queue a set operation.
     queued_item qi(new Item(makeStoredDocKey("key1"),
                             this->vbucket->getId(),
-                            queue_op::set,
+                            queue_op::mutation,
                             /*revSeq*/ 20,
                             /*bySeq*/ 0));
 
@@ -409,7 +412,7 @@ TYPED_TEST(CheckpointTest, OneOpenCkpt) {
     // Adding the same key again shouldn't increase the size.
     queued_item qi2(new Item(makeStoredDocKey("key1"),
                              this->vbucket->getId(),
-                             queue_op::set,
+                             queue_op::mutation,
                              /*revSeq*/ 21,
                              /*bySeq*/ 0));
     EXPECT_FALSE(this->manager->queueDirty(*this->vbucket,
@@ -428,7 +431,7 @@ TYPED_TEST(CheckpointTest, OneOpenCkpt) {
     // Adding a different key should increase size.
     queued_item qi3(new Item(makeStoredDocKey("key2"),
                              this->vbucket->getId(),
-                             queue_op::set,
+                             queue_op::mutation,
                              /*revSeq*/ 0,
                              /*bySeq*/ 0));
     EXPECT_TRUE(this->manager->queueDirty(*this->vbucket,
@@ -453,8 +456,8 @@ TYPED_TEST(CheckpointTest, OneOpenCkpt) {
     EXPECT_EQ(3, items.size());
     EXPECT_THAT(items,
                 testing::ElementsAre(HasOperation(queue_op::checkpoint_start),
-                                     HasOperation(queue_op::set),
-                                     HasOperation(queue_op::set)));
+                                     HasOperation(queue_op::mutation),
+                                     HasOperation(queue_op::mutation)));
 }
 
 // Test that enqueuing a single delete works.
@@ -462,9 +465,10 @@ TYPED_TEST(CheckpointTest, Delete) {
     // Enqueue a single delete.
     queued_item qi{new Item{makeStoredDocKey("key1"),
                             this->vbucket->getId(),
-                            queue_op::del,
+                            queue_op::mutation,
                             /*revSeq*/ 10,
                             /*byseq*/ 0}};
+    qi->setDeleted();
     EXPECT_TRUE(this->manager->queueDirty(*this->vbucket,
                                           qi,
                                           GenerateBySeqno::Yes,
@@ -483,10 +487,11 @@ TYPED_TEST(CheckpointTest, Delete) {
 
     EXPECT_EQ(0, result.start);
     EXPECT_EQ(1001, result.end);
-    EXPECT_EQ(2, items.size());
+    ASSERT_EQ(2, items.size());
     EXPECT_THAT(items,
                 testing::ElementsAre(HasOperation(queue_op::checkpoint_start),
-                                     HasOperation(queue_op::del)));
+                                     HasOperation(queue_op::mutation)));
+    EXPECT_TRUE(items[1]->isDeleted());
 }
 
 
@@ -530,12 +535,12 @@ TYPED_TEST(CheckpointTest, OneOpenOneClosed) {
     EXPECT_EQ(7, items.size());
     EXPECT_THAT(items,
                 testing::ElementsAre(HasOperation(queue_op::checkpoint_start),
-                                     HasOperation(queue_op::set),
-                                     HasOperation(queue_op::set),
+                                     HasOperation(queue_op::mutation),
+                                     HasOperation(queue_op::mutation),
                                      HasOperation(queue_op::checkpoint_end),
                                      HasOperation(queue_op::checkpoint_start),
-                                     HasOperation(queue_op::set),
-                                     HasOperation(queue_op::set)));
+                                     HasOperation(queue_op::mutation),
+                                     HasOperation(queue_op::mutation)));
 }
 
 // Test the automatic creation of checkpoints based on the number of items.
@@ -958,11 +963,11 @@ TYPED_TEST(CheckpointTest, CursorMovementReplicaMerge) {
     // EXPECT_THAT maxes out at 10 elements).
     std::vector<queued_item> items_a(items.begin(), items.begin() + 5);
     // Remainder of first checkpoint.
-    EXPECT_THAT(items_a, testing::Each(HasOperation(queue_op::set)));
+    EXPECT_THAT(items_a, testing::Each(HasOperation(queue_op::mutation)));
 
     // Second checkpoint's data- 10x set.
     std::vector<queued_item> items_b(items.begin() + 5, items.begin() + 15);
-    EXPECT_THAT(items_b, testing::Each(HasOperation(queue_op::set)));
+    EXPECT_THAT(items_b, testing::Each(HasOperation(queue_op::mutation)));
 
     // end of second checkpoint and start of third.
     std::vector<queued_item> items_c(items.begin() + 15, items.end());
@@ -1035,7 +1040,7 @@ TYPED_TEST(CheckpointTest, SeqnoAndHLCOrdering) {
                 queued_item qi(
                         new Item(makeStoredDocKey(key + std::to_string(item)),
                                  this->vbucket->getId(),
-                                 queue_op::set,
+                                 queue_op::mutation,
                                  /*revSeq*/ 0,
                                  /*bySeq*/ 0));
                 EXPECT_TRUE(

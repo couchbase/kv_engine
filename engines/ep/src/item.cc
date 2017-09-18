@@ -46,8 +46,9 @@ Item::Item(const DocKey& k,
       bySeqno(i),
       queuedTime(ep_current_time()),
       vbucketId(vbid),
+      deleted(false),
       op(k.getDocNamespace() == DocNamespace::System ? queue_op::system_event
-                                                     : queue_op::set),
+                                                     : queue_op::mutation),
       nru(nru_value),
       datatype(dtype) {
     if (bySeqno == 0) {
@@ -73,8 +74,9 @@ Item::Item(const DocKey& k,
       bySeqno(i),
       queuedTime(ep_current_time()),
       vbucketId(vbid),
+      deleted(false),
       op(k.getDocNamespace() == DocNamespace::System ? queue_op::system_event
-                                                     : queue_op::set),
+                                                     : queue_op::mutation),
       nru(nru_value),
       datatype(dtype) {
     if (bySeqno == 0) {
@@ -96,6 +98,7 @@ Item::Item(const DocKey& k,
       bySeqno(bySeq),
       queuedTime(ep_current_time()),
       vbucketId(vb),
+      deleted(false),
       op(o),
       nru(nru_value) {
     if (bySeqno < 0) {
@@ -112,6 +115,7 @@ Item::Item(const Item& other)
       bySeqno(other.bySeqno.load()),
       queuedTime(other.queuedTime),
       vbucketId(other.vbucketId),
+      deleted(other.deleted),
       op(other.op),
       nru(other.nru),
       datatype(other.datatype) {
@@ -124,14 +128,20 @@ Item::~Item() {
 
 std::string to_string(queue_op op) {
     switch(op) {
-        case queue_op::set: return "set";
-        case queue_op::del: return "del";
-        case queue_op::flush: return "flush";
-        case queue_op::empty: return "empty";
-        case queue_op::checkpoint_start: return "checkpoint_start";
-        case queue_op::checkpoint_end: return "checkpoint_end";
-        case queue_op::set_vbucket_state: return "set_vbucket_state";
-        case queue_op::system_event: return "system_event";
+    case queue_op::mutation:
+        return "mutation";
+    case queue_op::flush:
+        return "flush";
+    case queue_op::empty:
+        return "empty";
+    case queue_op::checkpoint_start:
+        return "checkpoint_start";
+    case queue_op::checkpoint_end:
+        return "checkpoint_end";
+    case queue_op::set_vbucket_state:
+        return "set_vbucket_state";
+    case queue_op::system_event:
+        return "system_event";
     }
     return "<" +
             std::to_string(static_cast<std::underlying_type<queue_op>::type>(op)) +

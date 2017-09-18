@@ -292,65 +292,68 @@ size_t Checkpoint::mergePrevCheckpoint(Checkpoint *pPrevCheckpoint) {
             ++rit) {
         const auto key = (*rit)->getKey();
         switch ((*rit)->getOperation()) {
-            case queue_op::set:
-            case queue_op::del:
-                // For the two 'normal' operations, re-insert into the current
-                // checkpoint if the key isn't already present (if it is already
-                // present then it must be an older revision and hence we can
-                // safely discard it).
-                if (keyIndex.find(key) == keyIndex.end()) {
-                    // Skip the first two meta items (empty & checkpoint start).
-                    auto pos = std::next(toWrite.begin(), 2);
-                    toWrite.insert(pos, *rit);
-                    index_entry entry = {--pos, static_cast<int64_t>(pPrevCheckpoint->
-                                                    getMutationIdForKey(key, false))};
-                    keyIndex[key] = entry;
-                    newEntryMemOverhead += key.size() + sizeof(index_entry);
-                    ++numItems;
-                    ++numNewItems;
+        case queue_op::mutation:
+            // For the 'normal' operation, re-insert into the current
+            // checkpoint if the key isn't already present (if it is already
+            // present then it must be an older revision and hence we can
+            // safely discard it).
+            if (keyIndex.find(key) == keyIndex.end()) {
+                // Skip the first two meta items (empty & checkpoint start).
+                auto pos = std::next(toWrite.begin(), 2);
+                toWrite.insert(pos, *rit);
+                index_entry entry = {
+                        --pos,
+                        static_cast<int64_t>(
+                                pPrevCheckpoint->getMutationIdForKey(key,
+                                                                     false))};
+                keyIndex[key] = entry;
+                newEntryMemOverhead += key.size() + sizeof(index_entry);
+                ++numItems;
+                ++numNewItems;
 
-                    // Update new checkpoint's memory usage
-                    incrementMemConsumption((*rit)->size());
-                }
-                break;
+                // Update new checkpoint's memory usage
+                incrementMemConsumption((*rit)->size());
+            }
+            break;
 
-            case queue_op::flush:
-                // Should expect to see any `flush` items actually queued.
-                throw std::logic_error("Checkpoint::mergePrevCheckpoint: "
-                        "Unexpected flush item in checkpoint");
-                break;
+        case queue_op::flush:
+            // Should expect to see any `flush` items actually queued.
+            throw std::logic_error(
+                    "Checkpoint::mergePrevCheckpoint: "
+                    "Unexpected flush item in checkpoint");
+            break;
 
-            case queue_op::empty:
-                // Empty will be the first item in the checkpoint (and handled
-                // already above) - ignore.
-                break;
+        case queue_op::empty:
+            // Empty will be the first item in the checkpoint (and handled
+            // already above) - ignore.
+            break;
 
-            case queue_op::checkpoint_start:
-                // Similarly - handled in prologue of this method - ignore.
-                break;
+        case queue_op::checkpoint_start:
+            // Similarly - handled in prologue of this method - ignore.
+            break;
 
-            case queue_op::checkpoint_end:
-                // Can also ignore checkpoint_end.
-                break;
+        case queue_op::checkpoint_end:
+            // Can also ignore checkpoint_end.
+            break;
 
-            case queue_op::set_vbucket_state:
-            case queue_op::system_event:
-                // Need to re-insert these into the correct place in the index.
-                if (metaKeyIndex.find(key) == metaKeyIndex.end()) {
-                    // Skip the first two meta items (empty & checkpoint start).
-                    auto pos = std::next(toWrite.begin(), 2);
-                    toWrite.insert(pos, *rit);
-                    auto mutationId = static_cast<int64_t>(
-                            pPrevCheckpoint->getMutationIdForKey(key, true));
-                    metaKeyIndex[key] = {--pos, mutationId};
-                    newEntryMemOverhead += key.size() + sizeof(index_entry);
-                    ++numMetaItems;
-                    ++numNewItems;
+        case queue_op::set_vbucket_state:
+        case queue_op::system_event:
+            // Need to re-insert these into the correct place in the index.
+            if (metaKeyIndex.find(key) == metaKeyIndex.end()) {
+                // Skip the first two meta items (empty & checkpoint start).
+                auto pos = std::next(toWrite.begin(), 2);
+                toWrite.insert(pos, *rit);
+                auto mutationId = static_cast<int64_t>(
+                        pPrevCheckpoint->getMutationIdForKey(key, true));
+                metaKeyIndex[key] = {--pos, mutationId};
+                newEntryMemOverhead += key.size() + sizeof(index_entry);
+                ++numMetaItems;
+                ++numNewItems;
 
-                    // Update new checkpoint's memory usage
-                    incrementMemConsumption((*rit)->size());
-                }
-                break;
+                // Update new checkpoint's memory usage
+                incrementMemConsumption((*rit)->size());
+            }
+            break;
         }
     }
 
@@ -406,9 +409,9 @@ std::ostream& operator <<(std::ostream& os, const Checkpoint& c) {
        << " state:" << to_string(c.getState())
        << " items:[" << std::endl;
     for (const auto& e : c.toWrite) {
-        os << "\t{" << e->getBySeqno() << ","
-           << to_string(e->getOperation()) << ","
-           << e->getKey().c_str() << "}" << std::endl;
+        os << "\t{" << e->getBySeqno() << "," << to_string(e->getOperation());
+        e->isDeleted() ? os << "[d]," : os << ",";
+        os  << e->getKey().c_str() << "}" << std::endl;
     }
     os << "]";
     return os;

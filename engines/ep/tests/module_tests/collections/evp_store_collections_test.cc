@@ -461,7 +461,7 @@ TEST_F(CollectionsTest, checkpoint_consistency) {
     boost::optional<int64_t> seqno{};
     for (const auto& item : items) {
         if (!(item->getOperation() == queue_op::system_event ||
-              item->getOperation() == queue_op::set)) {
+              item->getOperation() == queue_op::mutation)) {
             // Ignore all the checkpoint start/end stuff
             continue;
         }
@@ -482,7 +482,7 @@ TEST_F(CollectionsTest, checkpoint_consistency) {
             std::strstr(item->getKey().c_str(), "fruit")) {
             open = false;
         }
-        if (item->getOperation() == queue_op::set) {
+        if (item->getOperation() == queue_op::mutation) {
             EXPECT_TRUE(open);
         }
         seqno = item->getBySeqno();

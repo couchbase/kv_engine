@@ -35,14 +35,14 @@
 /// The set of possible operations which can be queued into a checkpoint.
 enum class queue_op : uint8_t {
     /// Set a document key to a given value. Sets to the same key can (and
-    /// typically are) de-duplicated - only the most recent queue_op::set in a
-    /// checkpoint will be kept. This means that there's no guarantee that
-    /// clients will see all intermediate values of a key.
-    set,
-
-    /// Delete a key. Deletes can be de-duplicated with respect to queue_op::set -
-    /// set(key) followed by del(key) will result in just del(key).
-    del,
+    /// typically are) de-duplicated - only the most recent queue_op::mutation
+    /// in a checkpoint will be kept. This means that there's no guarantee that
+    /// clients will see all intermediate values of a key. A mutation can also
+    /// be a delete (if setDeleted is called), a mutation can be a typical
+    /// deletion where an entire key/value is removed or a delete with value
+    /// where the key is logically deleted, but some value data remains - xattrs
+    /// do just that to preserve system-xattrs.
+    mutation,
 
     /// (meta item) Testing only op, used to mark the end of a test.
     /// TODO: Remove this, it shouldn't be necessary / included just to support
@@ -81,6 +81,7 @@ enum class queue_op : uint8_t {
     /// by the system, possibly orginating from a user's action.
     /// The flags field of system_event describes the detail along with the key
     /// which must at least be unique per event type.
+    /// A system_event can also be deleted.
     system_event
 };
 
@@ -301,11 +302,23 @@ public:
     }
 
     bool isDeleted() const {
-        return op == queue_op::del;
+        return deleted;
     }
 
     void setDeleted() {
-        op = queue_op::del;
+        switch (op) {
+        case queue_op::mutation:
+        case queue_op::system_event:
+            deleted = true;
+            break;
+        case queue_op::flush:
+        case queue_op::empty:
+        case queue_op::checkpoint_start:
+        case queue_op::checkpoint_end:
+        case queue_op::set_vbucket_state:
+            throw std::logic_error("Item::setDeleted cannot delete " +
+                                   to_string(op));
+        }
     }
 
     uint32_t getQueuedTime(void) const { return queuedTime; }
@@ -319,17 +332,15 @@ public:
      */
     bool shouldPersist() const {
         switch (op) {
-            case queue_op::set:
-            case queue_op::del:
-                return true;
-            case queue_op::flush:
-            case queue_op::empty:
-            case queue_op::checkpoint_start:
-            case queue_op::checkpoint_end:
-                return false;
-            case queue_op::system_event:
-            case queue_op::set_vbucket_state:
-                return true;
+        case queue_op::mutation:
+        case queue_op::system_event:
+        case queue_op::set_vbucket_state:
+            return true;
+        case queue_op::flush:
+        case queue_op::empty:
+        case queue_op::checkpoint_start:
+        case queue_op::checkpoint_end:
+            return false;
         }
         // Silence GCC warning
         return false;
@@ -348,16 +359,15 @@ public:
 
     bool isCheckPointMetaItem() const {
         switch (op) {
-            case queue_op::set:
-            case queue_op::del:
-            case queue_op::system_event:
-                return false;
-            case queue_op::flush:
-            case queue_op::empty:
-            case queue_op::checkpoint_start:
-            case queue_op::checkpoint_end:
-            case queue_op::set_vbucket_state:
-                return true;
+        case queue_op::mutation:
+        case queue_op::system_event:
+            return false;
+        case queue_op::flush:
+        case queue_op::empty:
+        case queue_op::checkpoint_start:
+        case queue_op::checkpoint_end:
+        case queue_op::set_vbucket_state:
+            return true;
         }
         // Silence GCC warning
         return false;
@@ -433,6 +443,7 @@ private:
     std::atomic<int64_t> bySeqno;
     uint32_t queuedTime;
     uint16_t vbucketId;
+    bool deleted;
     queue_op op;
     uint8_t nru  : 2;
 
@@ -456,6 +467,17 @@ std::ostream& operator<<(std::ostream& os, const Item& item);
 
 typedef SingleThreadedRCPtr<Item> queued_item;
 using UniqueItemPtr = std::unique_ptr<Item>;
+
+// If you're reading this because this assert has failed because you've
+// increased Item, ask yourself do you really need to? Can you use padding or
+// bit-fields to reduce the size?
+// If you've reduced Item size, thanks! Please update the assert with the new
+// size.
+// Note the assert is written as we see std::string (member of the StoredDocKey)
+// differing. This totals 96 or 104 (string being 24 or 32).
+static_assert(sizeof(Item) == sizeof(std::string) + 72,
+              "sizeof Item may have an effect on run-time memory consumption, "
+              "please avoid increasing it");
 
 /**
  * Order QueuedItem objects by their keys and by sequence numbers.

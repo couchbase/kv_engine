@@ -280,7 +280,7 @@ enum queue_dirty_t {
  *
  * Each Checkpoint consists of an ordered series of queued_item items, each
  * of which either represents a 'real' user operation
- * (queue_op::set & queue_op::del), or one of a range of meta-items
+ * (queue_op::mutation), or one of a range of meta-items
  * (queue_op::checkpoint_start, queue_op::checkpoint_end, ...).
  *
  * A checkpoint may either be Open or Closed. Open checkpoints can still have
@@ -337,10 +337,10 @@ enum queue_dirty_t {
  * after the first call to CheckpointManager::incrCursor() the cursor
  * dereferences to the checkpoint_start element.
  *
- * Note that sequence numbers are only unique for normal operations (set & del) -
- * for meta-items like checkpoint start/end they share the same sequence number
- * as the associated op - for checkpoint_start that is the ID of the following
- * op, for checkpoint_end the ID of the proceeding op.
+ * Note that sequence numbers are only unique for normal operations (mutation)
+ * and system events - for meta-items like checkpoint start/end they share the
+ * same sequence number as the associated op - for checkpoint_start that is the
+ * ID of the following op, for checkpoint_end the ID of the proceeding op.
  */
 class Checkpoint {
 public:

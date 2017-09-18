@@ -1060,7 +1060,7 @@ scan_error_t RocksDBKVStore::scan(ScanContext* ctx) {
         bool onlyKeys =
                 (ctx->valFilter == ValueFilter::KEYS_ONLY) ? true : false;
 
-        if (!includeDeletes && itm->getOperation() == queue_op::del) {
+        if (!includeDeletes && itm->isDeleted()) {
             continue;
         }
         int64_t byseqno = itm->getBySeqno();
