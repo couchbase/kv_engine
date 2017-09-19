@@ -236,6 +236,9 @@ std::shared_ptr<PassiveStream> DcpConsumer::makePassiveStream(
 ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque,
                                          Vbid vbucket,
                                          uint32_t flags) {
+    TRACE_EVENT2(
+            "DcpConsumer", "addStream", "vbid", vbucket.get(), "flags", flags);
+
     lastMessageTime = ep_current_time();
     LockHolder lh(readyMutex);
     if (doDisconnect()) {
@@ -318,6 +321,13 @@ ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque,
 ENGINE_ERROR_CODE DcpConsumer::closeStream(uint32_t opaque,
                                            Vbid vbucket,
                                            cb::mcbp::DcpStreamId sid) {
+    TRACE_EVENT2("DcpConsumer",
+                 "closeStream",
+                 "opaque",
+                 opaque,
+                 "vbid",
+                 vbucket.get());
+
     lastMessageTime = ep_current_time();
     if (doDisconnect()) {
         removeStream(vbucket);
@@ -349,6 +359,9 @@ ENGINE_ERROR_CODE DcpConsumer::closeStream(uint32_t opaque,
 ENGINE_ERROR_CODE DcpConsumer::streamEnd(uint32_t opaque,
                                          Vbid vbucket,
                                          uint32_t flags) {
+    TRACE_EVENT2(
+            "DcpConsumer", "streamEnd", "vbid", vbucket.get(), "flags", flags);
+
     lastMessageTime = ep_current_time();
     UpdateFlowControl ufc(*this, StreamEndResponse::baseMsgBytes);
     if (doDisconnect()) {
@@ -779,6 +792,13 @@ ENGINE_ERROR_CODE DcpConsumer::noop(uint32_t opaque) {
 ENGINE_ERROR_CODE DcpConsumer::setVBucketState(uint32_t opaque,
                                                Vbid vbucket,
                                                vbucket_state_t state) {
+    TRACE_EVENT2("DcpConsumer",
+                 "setVBucketState",
+                 "vbid",
+                 vbucket.get(),
+                 "state",
+                 int(state));
+
     lastMessageTime = ep_current_time();
     UpdateFlowControl ufc(*this, SetVBucketState::baseMsgBytes);
     if (doDisconnect()) {
@@ -956,6 +976,13 @@ bool DcpConsumer::handleResponse(const protocol_binary_response_header* resp) {
         Vbid vbid = oitr->second.second;
         const auto status = response.getStatus();
         const auto value = response.getValue();
+
+        TRACE_EVENT2("DcpConsumer",
+                     "dcp_stream_req response",
+                     "opaque",
+                     opaque,
+                     "status",
+                     uint16_t(status));
 
         if (status == cb::mcbp::Status::Rollback) {
             if (value.size() != sizeof(uint64_t)) {
