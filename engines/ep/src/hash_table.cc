@@ -294,10 +294,12 @@ MutationStatus HashTable::unlocked_updateStoredValue(
         ++numDeletedItems;
     }
 
-    // If the item we are replacing is resident then we need to make sure we
-    // appropriately alter the datatype stats.
-    if (v.getDatatype() != itm.getDataType()) {
+    // Update datatype counts (which only count non-temp, non-deleted
+    // documents).
+    if (!v.isDeleted() && !v.isTempItem()) {
         --datatypeCounts[v.getDatatype()];
+    }
+    if (!itm.isDeleted()) {
         ++datatypeCounts[itm.getDataType()];
     }
 
@@ -331,10 +333,11 @@ StoredValue* HashTable::unlocked_addNewStoredValue(const HashBucketLock& hbl,
     } else {
         ++numItems;
         ++numTotalItems;
-        ++datatypeCounts[v->getDatatype()];
     }
     if (v->isDeleted()) {
         ++numDeletedItems;
+    } else {
+        ++datatypeCounts[v->getDatatype()];
     }
     values[hbl.getBucketNum()] = std::move(v);
 
@@ -370,10 +373,11 @@ HashTable::unlocked_replaceByCopy(const HashBucketLock& hbl,
     } else {
         ++numItems;
         ++numTotalItems;
-        ++datatypeCounts[newSv->getDatatype()];
     }
     if (newSv->isDeleted()) {
         ++numDeletedItems;
+    } else {
+        ++datatypeCounts[newSv->getDatatype()];
     }
     values[hbl.getBucketNum()] = std::move(newSv);
 
@@ -388,7 +392,9 @@ void HashTable::unlocked_softDelete(const std::unique_lock<std::mutex>& htLock,
         decrNumNonResidentItems();
     }
 
-    --datatypeCounts[v.getDatatype()];
+    if (!alreadyDeleted) {
+        --datatypeCounts[v.getDatatype()];
+    }
 
     if (onlyMarkDeleted) {
         v.markDeleted();
@@ -466,9 +472,10 @@ StoredValue::UniquePtr HashTable::unlocked_release(
     } else {
         decrNumItems();
         decrNumTotalItems();
-        --datatypeCounts[released->getDatatype()];
         if (released->isDeleted()) {
             --numDeletedItems;
+        } else {
+            --datatypeCounts[released->getDatatype()];
         }
     }
     return released;
