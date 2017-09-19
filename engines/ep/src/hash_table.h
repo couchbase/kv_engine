@@ -653,7 +653,9 @@ private:
     cb::NonNegativeCounter<size_t> numDeletedItems;
     std::atomic<size_t> numEjects;
     std::atomic<size_t>       numResizes;
-    std::atomic<size_t>       numTempItems;
+
+    /// Count of items where StoredValue::isTempItem() is true.
+    cb::NonNegativeCounter<size_t> numTempItems;
 
     //! Memory consumed by items in this hashtable.
     std::atomic<size_t> memSize;
