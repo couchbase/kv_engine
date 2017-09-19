@@ -11,10 +11,12 @@ INCLUDE(CheckIncludeFiles)
 INCLUDE(CheckLibraryExists)
 INCLUDE(CheckSymbolExists)
 INCLUDE(CheckTypeSize)
+INCLUDE(CMakeDependentOption)
 INCLUDE(CTest)
 
 OPTION(EP_USE_FORESTDB "Enable support for ForestDB" OFF)
-OPTION(EP_USE_ROCKSDB "Enable support for RocksDB" OFF)
+CMAKE_DEPENDENT_OPTION(EP_USE_ROCKSDB "Enable support for RocksDB" ON 
+        "ROCKSDB_INCLUDE_DIR;ROCKSDB_LIBRARIES" OFF)
 
 INCLUDE_DIRECTORIES(BEFORE ${CMAKE_INSTALL_PREFIX}/include
                            ${CMAKE_CURRENT_SOURCE_DIR}
