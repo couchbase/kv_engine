@@ -415,7 +415,8 @@ void VBucket::addStat(const char *nm, const T &val, ADD_STAT add_stat,
     }
 }
 
-void VBucket::handlePreExpiry(StoredValue& v) {
+void VBucket::handlePreExpiry(const std::unique_lock<std::mutex>& hbl,
+                              StoredValue& v) {
     value_t value = v.getValue();
     if (value) {
         std::unique_ptr<Item> itm(v.toItem(false, id));
@@ -446,7 +447,7 @@ void VBucket::handlePreExpiry(StoredValue& v) {
                           v.getNRUValue());
 
             new_item.setDeleted();
-            ht.setValue(new_item, v);
+            ht.unlocked_updateStoredValue(hbl, v, new_item);
         }
     }
 }
@@ -727,7 +728,7 @@ StoredValue* VBucket::fetchValidValue(HashTable::HashBucketLock& hbl,
             if (queueExpired == QueueExpired::Yes &&
                 getState() == vbucket_state_active) {
                 incExpirationStat(ExpireBy::Access);
-                handlePreExpiry(*v);
+                handlePreExpiry(hbl.getHTLock(), *v);
                 VBNotifyCtx notifyCtx;
                 std::tie(std::ignore, v, notifyCtx) =
                         processExpiredItem(hbl, *v);
@@ -1467,7 +1468,7 @@ void VBucket::deleteExpiredItem(const Item& it,
             }
         } else if (v->isExpired(startTime) && !v->isDeleted()) {
             VBNotifyCtx notifyCtx;
-            ht.setValue(it, *v);
+            ht.unlocked_updateStoredValue(hbl.getHTLock(), *v, it);
             std::tie(std::ignore, std::ignore, notifyCtx) =
                     processExpiredItem(hbl, *v);
             // we unlock ht lock here because we want to avoid potential lock
@@ -1491,7 +1492,7 @@ void VBucket::deleteExpiredItem(const Item& it,
                                      TrackReference::No);
                 v->setTempDeleted();
                 v->setRevSeqno(it.getRevSeqno());
-                ht.setValue(it, *v);
+                ht.unlocked_updateStoredValue(hbl.getHTLock(), *v, it);
                 VBNotifyCtx notifyCtx;
                 std::tie(std::ignore, std::ignore, notifyCtx) =
                         processExpiredItem(hbl, *v);
