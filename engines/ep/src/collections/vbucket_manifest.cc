@@ -31,7 +31,10 @@ namespace Collections {
 namespace VB {
 
 Manifest::Manifest(const std::string& manifest)
-    : defaultCollectionExists(false), separator(DefaultSeparator) {
+    : defaultCollectionExists(false),
+      separator(DefaultSeparator),
+      greatestEndSeqno(StoredValue::state_collection_open),
+      nDeletingCollections(0) {
     if (manifest.empty()) {
         // Empty manifest, initialise the manifest with the default collection
         addNewCollectionEntry({DefaultCollectionIdentifier, 0},
@@ -176,6 +179,11 @@ ManifestEntry& Manifest::addNewCollectionEntry(Identifier identifier,
     auto m = std::make_unique<ManifestEntry>(identifier, startSeqno, endSeqno);
     auto* newEntry = m.get();
     map.emplace(m->getCharBuffer(), std::move(m));
+
+    if (newEntry->isDeleting()) {
+        trackEndSeqno(endSeqno);
+    }
+
     return *newEntry;
 }
 
@@ -203,6 +211,8 @@ void Manifest::beginCollectionDelete(::VBucket& vb,
     }
 
     entry.setEndSeqno(seqno);
+
+    trackEndSeqno(seqno);
 }
 
 ManifestEntry& Manifest::beginDeleteCollectionEntry(Identifier identifier) {
@@ -237,6 +247,11 @@ void Manifest::completeDeletion(::VBucket& vb,
 
     if (se == SystemEvent::DeleteCollectionHard) {
         map.erase(itr); // wipe out
+    }
+
+    nDeletingCollections--;
+    if (nDeletingCollections == 0) {
+        greatestEndSeqno = StoredValue::state_collection_open;
     }
 
     queueSystemEvent(vb,
@@ -319,27 +334,29 @@ bool Manifest::doesKeyContainValidCollection(const ::DocKey& key) const {
 }
 
 bool Manifest::isLogicallyDeleted(const ::DocKey& key, int64_t seqno) const {
-    switch (key.getDocNamespace()) {
-    case DocNamespace::DefaultCollection:
-        return !defaultCollectionExists;
-    case DocNamespace::Collections: {
-        const auto cKey = Collections::DocKey::make(key, separator);
-        auto itr = map.find(cKey.getCollection());
-        if (itr != map.end()) {
-            return seqno <= itr->second->getEndSeqno();
-        }
-        break;
-    }
-    case DocNamespace::System: {
-        const auto cKey = Collections::DocKey::make(key, separator);
-        if (cKey.getCollection() == SystemEventPrefix) {
-            auto itr = map.find(cKey.getKey());
+    // Only do the searching/scanning work for keys in the deleted range.
+    if (seqno <= greatestEndSeqno) {
+        switch (key.getDocNamespace()) {
+        case DocNamespace::DefaultCollection:
+            return !defaultCollectionExists;
+        case DocNamespace::Collections: {
+            const auto cKey = Collections::DocKey::make(key, separator);
+            auto itr = map.find(cKey.getCollection());
             if (itr != map.end()) {
                 return seqno <= itr->second->getEndSeqno();
             }
+            break;
         }
-        break;
-    }
+        case DocNamespace::System: {
+            const auto cKey = Collections::DocKey::make(key, separator);
+            if (cKey.getCollection() == SystemEventPrefix) {
+                auto itr = map.find(cKey.getKey());
+                if (itr != map.end()) {
+                    return seqno <= itr->second->getEndSeqno();
+                }
+            }
+        }
+        }
     }
     return false;
 }
@@ -601,6 +618,14 @@ const char* Manifest::getJsonEntry(cJSON* cJson, const char* key) {
     return jsonEntry->valuestring;
 }
 
+void Manifest::trackEndSeqno(int64_t seqno) {
+    nDeletingCollections++;
+    if (seqno > greatestEndSeqno ||
+        greatestEndSeqno == StoredValue::state_collection_open) {
+        greatestEndSeqno = seqno;
+    }
+}
+
 bool Manifest::cannotChangeSeparator() const {
     // If any non-default collection exists that isOpen, cannot change separator
     for (const auto& manifestEntry : map) {
@@ -643,6 +668,8 @@ std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {
     os << "VB::Manifest"
        << ": defaultCollectionExists:" << manifest.defaultCollectionExists
        << ", separator:" << manifest.separator
+       << ", greatestEndSeqno:" << manifest.greatestEndSeqno
+       << ", nDeletingCollections:" << manifest.nDeletingCollections
        << ", map.size:" << manifest.map.size() << std::endl;
     for (auto& m : manifest.map) {
         os << *m.second << std::endl;

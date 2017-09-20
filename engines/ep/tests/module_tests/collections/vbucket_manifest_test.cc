@@ -112,6 +112,34 @@ public:
         return !(*this == rhs);
     }
 
+    int64_t getGreatestEndSeqno() const {
+        std::lock_guard<cb::ReaderLock> readLock(rwlock.reader());
+        return greatestEndSeqno;
+    }
+
+    size_t getNumDeletingCollections() const {
+        std::lock_guard<cb::ReaderLock> readLock(rwlock.reader());
+        return nDeletingCollections;
+    }
+
+    bool isGreatestEndSeqnoCorrect() const {
+        std::lock_guard<cb::ReaderLock> readLock(rwlock.reader());
+        // If this is zero greatestEnd should not be a seqno
+        if (nDeletingCollections == 0) {
+            return greatestEndSeqno == StoredValue::state_collection_open;
+        }
+        return greatestEndSeqno >= 0;
+    }
+
+    bool isNumDeletingCollectionsoCorrect() const {
+        std::lock_guard<cb::ReaderLock> readLock(rwlock.reader());
+        // If this is zero greatestEnd should not be a seqno
+        if (greatestEndSeqno != StoredValue::state_collection_open) {
+            return nDeletingCollections > 0;
+        }
+        return nDeletingCollections == 0;
+    }
+
 protected:
     bool exists_UNLOCKED(Collections::Identifier identifier) const {
         auto itr = map.find(identifier.getName());
@@ -199,6 +227,16 @@ public:
                    << active << " replica:\n"
                    << replica;
         }
+
+        auto rv = checkNumDeletingCollections();
+        if (rv != ::testing::AssertionSuccess()) {
+            return rv;
+        }
+        rv = checkGreatestEndSeqno();
+        if (rv != ::testing::AssertionSuccess()) {
+            return rv;
+        }
+
         return checkJson(*manifest);
     }
 
@@ -246,9 +284,13 @@ public:
 
     ::testing::AssertionResult isLogicallyDeleted(DocKey key, int64_t seqno) {
         if (!active.lock().isLogicallyDeleted(key, seqno)) {
-            return ::testing::AssertionFailure() << "active failed the key";
+            return ::testing::AssertionFailure()
+                   << "active failed the key seqno:" << seqno << "\n"
+                   << active;
         } else if (!replica.lock().isLogicallyDeleted(key, seqno)) {
-            return ::testing::AssertionFailure() << "replica failed the key";
+            return ::testing::AssertionFailure()
+                   << "replica failed the key seqno:" << seqno << "\n"
+                   << replica;
         }
         return ::testing::AssertionSuccess();
     }
@@ -290,6 +332,54 @@ public:
 
     int64_t getLastSeqno() const {
         return lastSeqno;
+    }
+
+    ::testing::AssertionResult checkGreatestEndSeqno(int64_t expectedSeqno) {
+        if (active.getGreatestEndSeqno() != expectedSeqno) {
+            return ::testing::AssertionFailure()
+                   << "active failed expectedSeqno:" << expectedSeqno << "\n"
+                   << active;
+        } else if (replica.getGreatestEndSeqno() != expectedSeqno) {
+            return ::testing::AssertionFailure()
+                   << "replica failed expectedSeqno:" << expectedSeqno << "\n"
+                   << replica;
+        }
+        return ::testing::AssertionSuccess();
+    }
+
+    ::testing::AssertionResult checkNumDeletingCollections(size_t expected) {
+        if (active.getNumDeletingCollections() != expected) {
+            return ::testing::AssertionFailure()
+                   << "active failed expected:" << expected << "\n"
+                   << active;
+        } else if (replica.getNumDeletingCollections() != expected) {
+            return ::testing::AssertionFailure()
+                   << "replica failed expected:" << expected << "\n"
+                   << replica;
+        }
+        return ::testing::AssertionSuccess();
+    }
+
+    ::testing::AssertionResult checkNumDeletingCollections() {
+        if (!active.isNumDeletingCollectionsoCorrect()) {
+            return ::testing::AssertionFailure()
+                   << "checkNumDeletingCollections active failed " << active;
+        } else if (!replica.isNumDeletingCollectionsoCorrect()) {
+            return ::testing::AssertionFailure()
+                   << "checkNumDeletingCollections replica failed " << replica;
+        }
+        return ::testing::AssertionSuccess();
+    }
+
+    ::testing::AssertionResult checkGreatestEndSeqno() {
+        if (!active.isGreatestEndSeqnoCorrect()) {
+            return ::testing::AssertionFailure()
+                   << "checkGreatestEndSeqno active failed " << active;
+        } else if (!replica.isGreatestEndSeqnoCorrect()) {
+            return ::testing::AssertionFailure()
+                   << "checkGreatestEndSeqno replica failed " << replica;
+        }
+        return ::testing::AssertionSuccess();
     }
 
 private:
@@ -549,15 +639,16 @@ TEST_F(VBucketManifestTest, add_beginDelete_add) {
     // add vegetable
     EXPECT_TRUE(manifest.update(
             R"({"separator":"::","collections":[{"name":"vegetable","uid":"1"}]})"));
-    auto seqno = manifest.getLastSeqno();
+    auto seqno = manifest.getLastSeqno(); // seqno of the vegetable addition
     EXPECT_TRUE(manifest.checkSize(2));
     EXPECT_TRUE(manifest.isExclusiveOpen({"vegetable", 1}));
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
             {"vegetable::carrot", DocNamespace::Collections}));
 
-    // The first manifest.update has dropped default collection
+    // The first manifest.update has dropped default collection and added
+    // vegetable - test $default key with a seqno it could of existed with
     EXPECT_TRUE(manifest.isLogicallyDeleted(
-            {"anykey", DocNamespace::DefaultCollection}, seqno));
+            {"anykey", DocNamespace::DefaultCollection}, seqno - 1));
     // But vegetable is still good
     EXPECT_FALSE(manifest.isLogicallyDeleted(
             {"vegetable::carrot", DocNamespace::Collections}, seqno));
@@ -827,4 +918,78 @@ TEST_F(VBucketManifestTest, replica_add_remove_completeDelete) {
 
     // Finish removal of vegetable
     EXPECT_TRUE(manifest.completeDeletion({"vegetable", 1}));
+}
+
+class VBucketManifestTestEndSeqno : public VBucketManifestTest {};
+
+TEST_F(VBucketManifestTestEndSeqno, singleAdd) {
+    EXPECT_TRUE(
+            manifest.checkGreatestEndSeqno(StoredValue::state_collection_open));
+    EXPECT_TRUE(manifest.checkNumDeletingCollections(0));
+    EXPECT_TRUE(manifest.update(
+            R"({"separator":"::","collections":[{"name":"$default","uid":"0"},)"
+            R"(                                 {"name":"vegetable","uid":"1"}]})"));
+    EXPECT_TRUE(
+            manifest.checkGreatestEndSeqno(StoredValue::state_collection_open));
+    EXPECT_TRUE(manifest.checkNumDeletingCollections(0));
+    EXPECT_FALSE(manifest.isLogicallyDeleted(
+            {"vegetable::sprout", DocNamespace::Collections}, 1));
+}
+
+TEST_F(VBucketManifestTestEndSeqno, singleDelete) {
+    EXPECT_TRUE(
+            manifest.checkGreatestEndSeqno(StoredValue::state_collection_open));
+    EXPECT_TRUE(manifest.checkNumDeletingCollections(0));
+    EXPECT_TRUE(manifest.update( // no collections left
+            R"({"separator":"::","collections":[]})"));
+    EXPECT_TRUE(manifest.checkGreatestEndSeqno(1));
+    EXPECT_TRUE(manifest.checkNumDeletingCollections(1));
+    EXPECT_TRUE(manifest.isLogicallyDeleted(
+            {"vegetable::sprout", DocNamespace::DefaultCollection}, 1));
+    EXPECT_FALSE(manifest.isLogicallyDeleted(
+            {"vegetable::sprout", DocNamespace::DefaultCollection}, 2));
+    EXPECT_TRUE(manifest.completeDeletion({"$default", 0}));
+    EXPECT_TRUE(
+            manifest.checkGreatestEndSeqno(StoredValue::state_collection_open));
+    EXPECT_TRUE(manifest.checkNumDeletingCollections(0));
+}
+
+TEST_F(VBucketManifestTestEndSeqno, addDeleteAdd) {
+    EXPECT_TRUE(
+            manifest.checkGreatestEndSeqno(StoredValue::state_collection_open));
+    EXPECT_TRUE(manifest.checkNumDeletingCollections(0));
+
+    // Add
+    EXPECT_TRUE(manifest.update(
+            R"({"separator":"::","collections":[{"name":"$default","uid":"0"},)"
+            R"(                                 {"name":"vegetable","uid":"1"}]})"));
+
+    // Delete
+    EXPECT_TRUE(manifest.update(
+            R"({"separator":"::","collections":[{"name":"$default","uid":"0"}]})"));
+
+    EXPECT_TRUE(manifest.checkGreatestEndSeqno(2));
+    EXPECT_TRUE(manifest.checkNumDeletingCollections(1));
+    EXPECT_TRUE(manifest.isLogicallyDeleted(
+            {"vegetable::sprout", DocNamespace::Collections}, 1));
+
+    EXPECT_FALSE(manifest.isLogicallyDeleted(
+            {"vegetable::sprout", DocNamespace::Collections}, 3));
+
+    EXPECT_TRUE(manifest.update(
+            R"({"separator":"::","collections":[{"name":"$default","uid":"0"},)"
+            R"(                                 {"name":"vegetable","uid":"2"}]})"));
+
+    EXPECT_TRUE(manifest.checkGreatestEndSeqno(2));
+    EXPECT_TRUE(manifest.checkNumDeletingCollections(1));
+    EXPECT_TRUE(manifest.isLogicallyDeleted(
+            {"vegetable::sprout", DocNamespace::Collections}, 1));
+
+    EXPECT_FALSE(manifest.isLogicallyDeleted(
+            {"vegetable::sprout", DocNamespace::Collections}, 3));
+
+    EXPECT_TRUE(manifest.completeDeletion({"vegetable", 1}));
+    EXPECT_TRUE(
+            manifest.checkGreatestEndSeqno(StoredValue::state_collection_open));
+    EXPECT_TRUE(manifest.checkNumDeletingCollections(0));
 }

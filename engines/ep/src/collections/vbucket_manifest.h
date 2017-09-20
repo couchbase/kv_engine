@@ -23,8 +23,9 @@
 #include "collections/vbucket_manifest_entry.h"
 #include "systemevent.h"
 
-#include <platform/sized_buffer.h>
+#include <platform/non_negative_counter.h>
 #include <platform/rwlock.h>
+#include <platform/sized_buffer.h>
 
 #include <mutex>
 #include <unordered_map>
@@ -652,6 +653,12 @@ protected:
     bool cannotChangeSeparator() const;
 
     /**
+     * Update greatestEndSeqno if the seqno is larger
+     * @param seqno an endSeqno for a deleted collection
+     */
+    void trackEndSeqno(int64_t seqno);
+
+    /**
      * Return a string for use in throwException, returns:
      *   "VB::Manifest::<thrower>:<error>, this:<ostream *this>"
      *
@@ -690,6 +697,21 @@ protected:
      * The collection separator
      */
     std::string separator;
+
+    /**
+     * A key below this seqno might be logically deleted and should be checked
+     * against the manifest. This member will be set to
+     * StoredValue::state_collection_open when no collections are being deleted
+     * and the greatestEndSeqno has no use (all collections exclusively open)
+     */
+    int64_t greatestEndSeqno;
+
+    /**
+     * The manifest tracks how many collections are being deleted so we know
+     * when greatestEndSeqno can be set to StoredValue::state_collection_open
+     */
+    cb::NonNegativeCounter<size_t, cb::ThrowExceptionUnderflowPolicy>
+            nDeletingCollections;
 
     /**
      * shared lock to allow concurrent readers and safe updates
