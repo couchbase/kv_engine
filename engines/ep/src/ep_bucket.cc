@@ -352,6 +352,12 @@ void EPBucket::compactInternal(compaction_ctx* ctx) {
     ExpiredItemsCBPtr expiry(new ExpiredItemsCallback(*this));
     ctx->expiryCallback = expiry;
 
+    ctx->collectionsEraser = std::bind(&KVBucket::collectionsEraseKey,
+                                       this,
+                                       uint16_t(ctx->db_file_id),
+                                       std::placeholders::_1,
+                                       std::placeholders::_2);
+
     KVShard* shard = vbMap.getShardByVbId(ctx->db_file_id);
     KVStore* store = shard->getRWUnderlying();
     bool result = store->compactDB(ctx);

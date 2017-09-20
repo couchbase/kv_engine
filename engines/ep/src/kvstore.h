@@ -68,6 +68,7 @@ typedef struct {
     uint32_t curr_time;
     BloomFilterCBPtr bloomFilterCallback;
     ExpiredItemsCBPtr expiryCallback;
+    std::function<bool(const DocKey, int64_t)> collectionsEraser;
 } compaction_ctx;
 
 /**

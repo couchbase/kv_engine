@@ -815,6 +815,21 @@ public:
         return *replicationThrottle;
     }
 
+    /**
+     * Perform actions for erasing keys based on a vbucket's collection's
+     * manifest. This method examines key@bySeqno against the vbucket's (vbid)
+     * collections manifest to determine if the key should be erased. Once the
+     * code has processed all keys of the collection, the manifest is updated
+     * to finalise the deleted collection.
+     *
+     * @param vbid the vbucket the key belongs too.
+     * @param key the key to examine.
+     * @param bySeqno the seqno for the key.
+     * @return true if the collection manifest for the vbucket determines the
+     *         key at bySeqno is part of a deleted collection.
+     */
+    bool collectionsEraseKey(uint16_t vbid, const DocKey key, int64_t bySeqno);
+
 protected:
     // During the warmup phase we might want to enable external traffic
     // at a given point in time.. The LoadStorageKvPairCallback will be

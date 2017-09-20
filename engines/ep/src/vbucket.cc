@@ -2610,6 +2610,16 @@ std::unique_ptr<Item> VBucket::pruneXattrDocument(
     }
 }
 
+void VBucket::removeKey(const DocKey& key, int64_t bySeqno) {
+    auto hbl = ht.getLockedBucket(key);
+    StoredValue* v = fetchValidValue(
+            hbl, key, WantsDeleted::No, TrackReference::No, QueueExpired::Yes);
+
+    if (v && v->isResident() && v->getBySeqno() == bySeqno) {
+        ht.unlocked_del(hbl, v->getKey());
+    }
+}
+
 void VBucket::DeferredDeleter::operator()(VBucket* vb) const {
     // If the vbucket is marked as deleting then we must schedule task to
     // perform the resource destruction (memory/disk).

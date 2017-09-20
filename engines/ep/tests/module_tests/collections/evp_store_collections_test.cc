@@ -188,7 +188,6 @@ private:
                                          const std::string& collection,
                                          int items);
     std::string completeDeletionAndFlush(const std::string& collection,
-                                         Collections::uid_t uid,
                                          int items);
 
     void storeItems(const std::string& collection, DocNamespace ns, int items);
@@ -244,9 +243,9 @@ std::string CollectionsFlushTest::deleteCollectionAndFlush(
 }
 
 std::string CollectionsFlushTest::completeDeletionAndFlush(
-        const std::string& collection, Collections::uid_t uid, int items) {
+        const std::string& collection, int items) {
     VBucketPtr vb = store->getVBucket(vbid);
-    vb->completeDeletion({collection, uid});
+    vb->completeDeletion(collection);
     storeItems("defaultcollection", DocNamespace::DefaultCollection, items);
     flush_vbucket_to_disk(vbid, items); // just the items
     return getManifest(vbid);
@@ -303,7 +302,6 @@ void CollectionsFlushTest::collectionsFlusher(int items) {
              std::bind(&CollectionsFlushTest::completeDeletionAndFlush,
                        this,
                        "meat",
-                       2,
                        items),
              std::bind(&CollectionsFlushTest::cannotWrite, _1, "meat")},
 
@@ -338,7 +336,6 @@ void CollectionsFlushTest::collectionsFlusher(int items) {
              std::bind(&CollectionsFlushTest::completeDeletionAndFlush,
                        this,
                        "fruit",
-                       4,
                        items),
              std::bind(&CollectionsFlushTest::canWrite, _1, "fruit")}};
 
@@ -455,7 +452,7 @@ TEST_F(CollectionsWarmupTest, MB_25381) {
         flush_vbucket_to_disk(vbid, 2);
 
         // This pushes an Item which doesn't flush but has consumed a seqno
-        vb->completeDeletion({"dairy", 1});
+        vb->completeDeletion("dairy");
 
         flush_vbucket_to_disk(vbid, 0); // 0 items but has written _local
 

@@ -814,6 +814,16 @@ static int time_purge_hook(Db* d, DocInfo* info, sized_buf item, void* ctx_p) {
     if (info->rev_meta.size >= MetaData::getMetaDataSize(MetaData::Version::V0)) {
         auto metadata = MetaDataFactory::createMetaData(info->rev_meta);
         uint32_t exptime = metadata->getExptime();
+
+        // Is the collections eraser installed?
+        if (ctx->collectionsEraser &&
+            ctx->collectionsEraser(
+                    makeDocKey(info->id,
+                               ctx->config->shouldPersistDocNamespace()),
+                    int64_t(info->db_seq))) {
+            return COUCHSTORE_COMPACT_DROP_ITEM;
+        }
+
         if (info->deleted) {
             if (info->db_seq != infoDb.last_sequence) {
                 if (ctx->drop_deletes) { // all deleted items must be dropped ...

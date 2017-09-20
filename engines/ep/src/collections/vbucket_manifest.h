@@ -102,6 +102,20 @@ public:
         }
 
         /**
+         * Function intended for use by the KVBucketr collection's eraser code.
+         *
+         * @return if the key indicates that we've now hit the end of
+         *         a deleted collection and should call completeDeletion, then
+         *         the return value is initialised with the collection which is
+         *         to be deleted. If the key does not indicate the end, the
+         *         return value is an empty char buffer.
+         */
+        boost::optional<cb::const_char_buffer> shouldCompleteDeletion(
+                ::DocKey key) const {
+            return manifest.shouldCompleteDeletion(key);
+        }
+
+        /**
          * @returns a copy of the current separator
          */
         std::string getSeparator() const {
@@ -127,13 +141,20 @@ public:
         }
 
         /**
+         * @return true if the collection exists in the internal container
+         */
+        bool exists(cb::const_char_buffer collection) const {
+            return manifest.exists(collection);
+        }
+
+        /**
          * Dump the manifest to std::cerr
          */
         void dump() {
             std::cerr << manifest << std::endl;
         }
 
-    private:
+    protected:
         friend std::ostream& operator<<(std::ostream& os,
                                         const Manifest::ReadHandle& readHandle);
         std::unique_lock<cb::ReaderLock> readLock;
@@ -177,12 +198,11 @@ public:
          * completeDeletion may just update the state or fully drop all
          * knowledge of the collection.
          *
-         * @param vb The VBucket in which the deletion is occuring.
-         * @param identifier Identifier of the collection that has finished
-         *        being deleted.
+         * @param vb The VBucket in which the deletion is occurring.
+         * @param collection The collection that has finished being deleted.
          */
-        void completeDeletion(::VBucket& vb, Identifier identifier) {
-            manifest.completeDeletion(vb, identifier);
+        void completeDeletion(::VBucket& vb, cb::const_char_buffer collection) {
+            manifest.completeDeletion(vb, collection);
         }
 
         /**
@@ -400,7 +420,7 @@ private:
      * @param identifier Identifier of the collection that has finished being
      *        deleted.
      */
-    void completeDeletion(::VBucket& vb, Identifier identifier);
+    void completeDeletion(::VBucket& vb, cb::const_char_buffer collection);
 
     /**
      * Does the key contain a valid collection?
@@ -421,6 +441,20 @@ private:
      * @return true if the key belongs to a deleted collection.
      */
     bool isLogicallyDeleted(const ::DocKey& key, int64_t seqno) const;
+
+    /**
+     * Function intended for use by the collection eraser code, checking
+     * keys/seqno in seqno order.
+     *
+     * @return if the key@seqno indicates that we've now hit the end of
+     *         a deleted collection and should call completeDeletion, then
+     *         the return value is initialised with the collection of the
+     *         key (the value to which we pass to completeDeletion). If the
+     *         key@seqno does not indicate the end, the return value is an
+     *         empty char buffer.
+     */
+    boost::optional<cb::const_char_buffer> shouldCompleteDeletion(
+            const ::DocKey& key) const;
 
     /**
      * @returns the current separator
@@ -446,6 +480,13 @@ private:
             return itr->second->isOpen();
         }
         return false;
+    }
+
+    /**
+     * @return true if the collection exists in the internal container
+     */
+    bool exists(cb::const_char_buffer collection) const {
+        return map.count(collection) > 0;
     }
 
 protected:

@@ -581,11 +581,10 @@ public:
     /**
      * Finalise the deletion of a collection (no items remain in the collection)
      *
-     * @param identifier Identifier for the collection that has completed
-     *        deleting
+     * @param collection Name of the collection that has completed deleting
      */
-    void completeDeletion(Collections::Identifier identifier) {
-        manifest.wlock().completeDeletion(*this, identifier);
+    void completeDeletion(cb::const_char_buffer collection) {
+        manifest.wlock().completeDeletion(*this, collection);
     }
 
     /**
@@ -1116,6 +1115,14 @@ public:
     cb::vbucket_info getInfo() const {
         return {mightContainXattrs()};
     }
+
+    /**
+     * If the key@bySeqno is found, remove it from the hash table
+     *
+     * @param key The key to look for
+     * @param bySeqno The seqno of the key to remove
+     */
+    void removeKey(const DocKey& key, int64_t bySeqno);
 
     static size_t getCheckpointFlushTimeout();
 

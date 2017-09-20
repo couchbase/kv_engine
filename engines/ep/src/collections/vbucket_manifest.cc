@@ -216,31 +216,34 @@ ManifestEntry& Manifest::beginDeleteCollectionEntry(Identifier identifier) {
     return *itr->second;
 }
 
-void Manifest::completeDeletion(::VBucket& vb, Identifier identifier) {
-    auto itr = map.find(identifier.getName());
+void Manifest::completeDeletion(::VBucket& vb,
+                                cb::const_char_buffer collection) {
+    auto itr = map.find(collection);
 
     LOG(EXTENSION_LOG_NOTICE,
-        "collections: vb:%" PRIu16
-        " complete delete of collection:%.*s, uid:%" PRIu64,
+        "collections: vb:%" PRIu16 " complete delete of collection:%.*s",
         vb.getId(),
-        int(identifier.getName().size()),
-        identifier.getName().data(),
-        identifier.getUid());
+        int(collection.size()),
+        collection.data());
 
     if (itr == map.end()) {
         throwException<std::logic_error>(
                 __FUNCTION__,
-                "could not find collection:" + to_string(identifier));
+                "could not find collection:" + cb::to_string(collection));
     }
 
     auto se = itr->second->completeDeletion();
+    auto uid = itr->second->getUid();
 
     if (se == SystemEvent::DeleteCollectionHard) {
         map.erase(itr); // wipe out
     }
 
-    queueSystemEvent(
-            vb, se, identifier, false /*delete*/, OptionalSeqno{/*none*/});
+    queueSystemEvent(vb,
+                     se,
+                     {collection, uid},
+                     false /*delete*/,
+                     OptionalSeqno{/*none*/});
 }
 
 void Manifest::changeSeparator(::VBucket& vb,
@@ -339,6 +342,31 @@ bool Manifest::isLogicallyDeleted(const ::DocKey& key, int64_t seqno) const {
     }
     }
     return false;
+}
+
+boost::optional<cb::const_char_buffer> Manifest::shouldCompleteDeletion(
+        const ::DocKey& key) const {
+    // If this is a SystemEvent key then...
+    if (key.getDocNamespace() == DocNamespace::System) {
+        const auto cKey = Collections::DocKey::make(key, separator);
+        // 1. Check it's a collection's event
+        if (cKey.getCollection() == SystemEventPrefix) {
+            // 2. Lookup the collection entry
+            auto itr = map.find(cKey.getKey());
+            if (itr == map.end()) {
+                throwException<std::logic_error>(
+                        __FUNCTION__,
+                        "SystemEvent found which didn't match a collection " +
+                                cb::to_string(cKey.getKey()));
+            }
+
+            // 3. If this collection is deleting, return the collection name.
+            if (itr->second->isDeleting()) {
+                return {cKey.getKey()};
+            }
+        }
+    }
+    return {};
 }
 
 std::unique_ptr<Item> Manifest::createSystemEvent(SystemEvent se,

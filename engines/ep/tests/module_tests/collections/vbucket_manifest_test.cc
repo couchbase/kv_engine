@@ -205,7 +205,7 @@ public:
     ::testing::AssertionResult completeDeletion(
             Collections::Identifier identifier) {
         try {
-            active.wlock().completeDeletion(vbA, identifier);
+            active.wlock().completeDeletion(vbA, identifier.getName());
             lastCompleteDeletionArgs = identifier;
         } catch (std::exception& e) {
             return ::testing::AssertionFailure()
@@ -368,8 +368,8 @@ private:
                     // e.g. Delete hard, the serialised manifest doesn't have
                     // the collection:rev we pass through, hence why we cache
                     // the collection:rev data in lastCompleteDeletionArgs
-                    replica.wlock().completeDeletion(vbR,
-                                                     lastCompleteDeletionArgs);
+                    replica.wlock().completeDeletion(
+                            vbR, lastCompleteDeletionArgs.getName());
                     break;
                 }
             }
@@ -619,8 +619,6 @@ TEST_F(VBucketManifestTest, add_beginDelete_delete) {
     EXPECT_TRUE(manifest.checkSize(1));
     EXPECT_FALSE(manifest.doesKeyContainValidCollection(
             {"vegetable::carrot", DocNamespace::Collections}));
-    EXPECT_FALSE(manifest.isLogicallyDeleted(
-            {"vegetable::carrot", DocNamespace::Collections}, seqno));
 }
 
 TEST_F(VBucketManifestTest, add_beginDelete_add_delete) {

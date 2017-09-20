@@ -2770,3 +2770,32 @@ bool KVBucket::isXattrEnabled() const {
 void KVBucket::setXattrEnabled(bool value) {
     xattrEnabled = value;
 }
+
+bool KVBucket::collectionsEraseKey(uint16_t vbid,
+                                   const DocKey key,
+                                   int64_t bySeqno) {
+    auto vb = getVBucket(vbid);
+    boost::optional<cb::const_char_buffer> completedCollection;
+    if (!vb) {
+        return false;
+    }
+
+    { // collections read lock scope
+        auto collectionsRHandle = vb->lockCollections();
+        if (collectionsRHandle.isLogicallyDeleted(key, bySeqno)) {
+            vb->removeKey(key, bySeqno);
+        } else {
+            return false;
+        }
+
+        // Now determine if the key represents the end of a collection
+        completedCollection = collectionsRHandle.shouldCompleteDeletion(key);
+    } // read lock dropped as we may need the write lock in next block
+
+    // If a collection was returned, notify that all keys have been removed
+    if (completedCollection.is_initialized()) {
+        // completeDeletion obtains write access to the manifest
+        vb->completeDeletion(completedCollection.get());
+    }
+    return true;
+}
