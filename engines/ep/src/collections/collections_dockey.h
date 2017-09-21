@@ -41,10 +41,10 @@ public:
     static DocKey make(const ::DocKey& key, const std::string& separator) {
         const uint8_t* collection = findCollection(key, separator);
         if (collection) {
-            return DocKey(key, collection - key.data());
+            return DocKey(key, collection - key.data(), separator.size());
         } else {
             // No collection found, not an error - ok for DefaultNamespace.
-            return DocKey(key, 0);
+            return DocKey(key, 0, 0);
         }
     }
 
@@ -55,9 +55,39 @@ public:
         return collectionLen;
     }
 
+    /**
+     * @return how the length of the separator used in creating this
+     */
+    size_t getSeparatorLen() const {
+        return separatorLen;
+    }
+
+    /**
+     * @return const_char_buffer representing the collection part of the DocKey
+     */
+    cb::const_char_buffer getCollection() const {
+        return {reinterpret_cast<const char*>(data()), getCollectionLen()};
+    }
+
+    /**
+     * @return const_char_buffer representing the 'key' part of the DocKey
+     */
+    cb::const_char_buffer getKey() const {
+        return {reinterpret_cast<const char*>(data() + getCollectionLen() +
+                                              getSeparatorLen()),
+                size() - getCollectionLen() - getSeparatorLen()};
+    }
+
 private:
-    DocKey(const ::DocKey& key, size_t _collectionLen)
-        : ::DocKey(key), collectionLen(_collectionLen) {
+    DocKey(const ::DocKey& key, size_t _collectionLen, size_t _separatorLen)
+        : ::DocKey(key),
+          collectionLen(_collectionLen),
+          separatorLen(_separatorLen) {
+        if (_separatorLen > std::numeric_limits<uint8_t>::max()) {
+            throw std::invalid_argument(
+                    "Collections::DocKey invalid separatorLen:" +
+                    std::to_string(_separatorLen));
+        }
     }
 
     /**
@@ -83,6 +113,7 @@ private:
     }
 
     uint8_t collectionLen;
+    uint8_t separatorLen;
 };
 } // end namespace Collections
 

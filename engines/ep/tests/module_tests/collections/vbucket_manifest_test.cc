@@ -244,12 +244,10 @@ public:
         return ::testing::AssertionSuccess();
     }
 
-    ::testing::AssertionResult doesKeyContainDeletingCollection(DocKey key,
-                                                                int64_t seqno) {
-        if (!active.lock().doesKeyContainDeletingCollection(key, seqno)) {
+    ::testing::AssertionResult isLogicallyDeleted(DocKey key, int64_t seqno) {
+        if (!active.lock().isLogicallyDeleted(key, seqno)) {
             return ::testing::AssertionFailure() << "active failed the key";
-        } else if (!replica.lock().doesKeyContainDeletingCollection(key,
-                                                                    seqno)) {
+        } else if (!replica.lock().isLogicallyDeleted(key, seqno)) {
             return ::testing::AssertionFailure() << "replica failed the key";
         }
         return ::testing::AssertionSuccess();
@@ -558,10 +556,10 @@ TEST_F(VBucketManifestTest, add_beginDelete_add) {
             {"vegetable::carrot", DocNamespace::Collections}));
 
     // The first manifest.update has dropped default collection
-    EXPECT_TRUE(manifest.doesKeyContainDeletingCollection(
+    EXPECT_TRUE(manifest.isLogicallyDeleted(
             {"anykey", DocNamespace::DefaultCollection}, seqno));
     // But vegetable is still good
-    EXPECT_FALSE(manifest.doesKeyContainDeletingCollection(
+    EXPECT_FALSE(manifest.isLogicallyDeleted(
             {"vegetable::carrot", DocNamespace::Collections}, seqno));
 
     // remove vegetable
@@ -574,7 +572,7 @@ TEST_F(VBucketManifestTest, add_beginDelete_add) {
             {"vegetable::carrot", DocNamespace::Collections}));
 
     // vegetable is now a deleting collection
-    EXPECT_TRUE(manifest.doesKeyContainDeletingCollection(
+    EXPECT_TRUE(manifest.isLogicallyDeleted(
             {"vegetable::carrot", DocNamespace::Collections}, seqno));
 
     // add vegetable a second time
@@ -589,9 +587,9 @@ TEST_F(VBucketManifestTest, add_beginDelete_add) {
             {"vegetable::carrot", DocNamespace::Collections}));
 
     // Now we expect older vegetables to be deleting and newer not to be.
-    EXPECT_FALSE(manifest.doesKeyContainDeletingCollection(
+    EXPECT_FALSE(manifest.isLogicallyDeleted(
             {"vegetable::carrot", DocNamespace::Collections}, newSeqno));
-    EXPECT_TRUE(manifest.doesKeyContainDeletingCollection(
+    EXPECT_TRUE(manifest.isLogicallyDeleted(
             {"vegetable::carrot", DocNamespace::Collections}, oldSeqno));
 }
 
@@ -613,7 +611,7 @@ TEST_F(VBucketManifestTest, add_beginDelete_delete) {
     EXPECT_TRUE(manifest.isExclusiveDeleting({"vegetable", 1}));
     EXPECT_FALSE(manifest.doesKeyContainValidCollection(
             {"vegetable::carrot", DocNamespace::Collections}));
-    EXPECT_TRUE(manifest.doesKeyContainDeletingCollection(
+    EXPECT_TRUE(manifest.isLogicallyDeleted(
             {"vegetable::carrot", DocNamespace::Collections}, seqno));
 
     // finally remove vegetable
@@ -621,7 +619,7 @@ TEST_F(VBucketManifestTest, add_beginDelete_delete) {
     EXPECT_TRUE(manifest.checkSize(1));
     EXPECT_FALSE(manifest.doesKeyContainValidCollection(
             {"vegetable::carrot", DocNamespace::Collections}));
-    EXPECT_FALSE(manifest.doesKeyContainDeletingCollection(
+    EXPECT_FALSE(manifest.isLogicallyDeleted(
             {"vegetable::carrot", DocNamespace::Collections}, seqno));
 }
 

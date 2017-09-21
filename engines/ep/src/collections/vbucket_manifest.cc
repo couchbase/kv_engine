@@ -315,18 +315,28 @@ bool Manifest::doesKeyContainValidCollection(const ::DocKey& key) const {
     return false;
 }
 
-bool Manifest::doesKeyContainDeletingCollection(const ::DocKey& key,
-                                                int64_t seqno) const {
-    if (key.getDocNamespace() == DocNamespace::DefaultCollection &&
-        !defaultCollectionExists) {
-        return true;
-    } else if (key.getDocNamespace() == DocNamespace::Collections) {
+bool Manifest::isLogicallyDeleted(const ::DocKey& key, int64_t seqno) const {
+    switch (key.getDocNamespace()) {
+    case DocNamespace::DefaultCollection:
+        return !defaultCollectionExists;
+    case DocNamespace::Collections: {
         const auto cKey = Collections::DocKey::make(key, separator);
-        auto itr = map.find({reinterpret_cast<const char*>(cKey.data()),
-                             cKey.getCollectionLen()});
+        auto itr = map.find(cKey.getCollection());
         if (itr != map.end()) {
             return seqno <= itr->second->getEndSeqno();
         }
+        break;
+    }
+    case DocNamespace::System: {
+        const auto cKey = Collections::DocKey::make(key, separator);
+        if (cKey.getCollection() == SystemEventPrefix) {
+            auto itr = map.find(cKey.getKey());
+            if (itr != map.end()) {
+                return seqno <= itr->second->getEndSeqno();
+            }
+        }
+        break;
+    }
     }
     return false;
 }

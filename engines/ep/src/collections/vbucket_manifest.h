@@ -91,10 +91,14 @@ public:
         }
 
         /**
-         * @return boolean - does the key/seqno represent a deleting collection
+         * Given a key and it's seqno, the manifest can determine if that key
+         * is logically deleted - that is part of a collection which is in the
+         * process of being erased.
+         *
+         * @return true if the key belongs to a deleted collection.
          */
-        bool doesKeyContainDeletingCollection(::DocKey key, int64_t seqno) {
-            return manifest.doesKeyContainDeletingCollection(key, seqno);
+        bool isLogicallyDeleted(::DocKey key, int64_t seqno) const {
+            return manifest.isLogicallyDeleted(key, seqno);
         }
 
         /**
@@ -410,10 +414,13 @@ private:
     bool doesKeyContainValidCollection(const ::DocKey& key) const;
 
     /**
-     * @return boolean - does the key/seqno refer to a deleted collection?
+     * Given a key and it's seqno, the manifest can determine if that key
+     * is logically deleted - that is part of a collection which is in the
+     * process of being erased.
+     *
+     * @return true if the key belongs to a deleted collection.
      */
-    bool doesKeyContainDeletingCollection(const ::DocKey& key,
-                                          int64_t seqno) const;
+    bool isLogicallyDeleted(const ::DocKey& key, int64_t seqno) const;
 
     /**
      * @returns the current separator
