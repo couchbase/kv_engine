@@ -2187,7 +2187,7 @@ static enum test_result test_bg_meta_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     evict_key(h, h1, "k1", 0, "Ejected.");
     checkeq(ENGINE_SUCCESS,
             del(h, h1, "k2", 0, 0), "Failed remove with value.");
-    wait_for_stat_to_be(h, h1, "curr_items", 1);
+    wait_for_flusher_to_settle(h, h1);
 
     checkeq(0, get_int_stat(h, h1, "ep_bg_fetched"), "Expected bg_fetched to be 0");
     checkeq(0, get_int_stat(h, h1, "ep_bg_meta_fetched"), "Expected bg_meta_fetched to be 0");

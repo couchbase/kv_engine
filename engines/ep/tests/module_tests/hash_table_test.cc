@@ -342,6 +342,8 @@ protected:
           itemSize(16 * 1024),
           item(key, 0, 0, std::string(itemSize, 'x').data(), itemSize),
           evictionPolicy(GetParam()) {
+        // Assign a valid sequence number.
+        item.setBySeqno(10);
     }
 
     void SetUp() override {
@@ -407,12 +409,120 @@ TEST_P(HashTableStatsTest, SizeEject) {
 TEST_P(HashTableStatsTest, EjectFlush) {
     EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
 
+    EXPECT_EQ(1, ht.getNumItems());
+    EXPECT_EQ(1, ht.getNumInMemoryItems());
+    EXPECT_EQ(0, ht.getNumInMemoryNonResItems());
+    EXPECT_EQ(0, ht.getNumTempItems());
+    EXPECT_EQ(0, ht.getNumDeletedItems());
+
     StoredValue* v(ht.find(key, TrackReference::Yes, WantsDeleted::No));
     EXPECT_TRUE(v);
     v->markClean();
     EXPECT_TRUE(ht.unlocked_ejectItem(v, evictionPolicy));
 
+    EXPECT_EQ(1, ht.getNumItems());
+    if (evictionPolicy == VALUE_ONLY) {
+        EXPECT_EQ(1, ht.getNumInMemoryItems());
+        EXPECT_EQ(1, ht.getNumInMemoryNonResItems());
+    } else {
+        // In full-eviction, ejectItem() also ejects the metadata; hence will
+        // have 0 items in memory.
+        EXPECT_EQ(0, ht.getNumInMemoryItems());
+        EXPECT_EQ(0, ht.getNumInMemoryNonResItems());
+    }
+    EXPECT_EQ(0, ht.getNumTempItems());
+    EXPECT_EQ(0, ht.getNumDeletedItems());
+
     ht.clear();
+}
+
+/**
+ * MB-26126: Check that NumNonResident item counts are correct when restoring
+ * a Deleted value to an metadata-only StoredValue.
+ */
+TEST_P(HashTableStatsTest, TempDeletedRestore) {
+    // Add (deleted) item; then remove from HT.
+    item.setDeleted();
+    ASSERT_EQ(MutationStatus::WasClean, ht.set(item));
+    StoredValue* v = ht.find(key, TrackReference::Yes, WantsDeleted::Yes);
+    ASSERT_NE(nullptr, v);
+    v->markClean();
+    { // Locking scope.
+        auto hbl = ht.getLockedBucket(key);
+        ht.unlocked_del(hbl, key);
+    }
+
+    // Restore as temporary initial item (simulating bg_fetch).
+    Item tempInitItem(
+            key, 0, 0, nullptr, 0, nullptr, 0, 0, StoredValue::state_temp_init);
+    {
+        // Locking scope.
+        auto hbl = ht.getLockedBucket(key);
+        auto* sv = ht.unlocked_addNewStoredValue(hbl, tempInitItem);
+        ASSERT_NE(nullptr, sv);
+
+        // Restore the metadata for the (deleted) item.
+        ht.unlocked_restoreMeta(hbl.getHTLock(), item, *sv);
+
+        // Check counts:
+        EXPECT_EQ(0, ht.getNumItems())
+                << "Deleted, meta shouldn't be counted in numItems";
+        EXPECT_EQ(0, ht.getNumInMemoryItems())
+                << "Deleted, meta shouldn't be counted as in-memory";
+        EXPECT_EQ(0, ht.getNumInMemoryNonResItems())
+                << "Deleted, meta shouldn't be counted as non-resident";
+        EXPECT_EQ(1, ht.getNumTempItems())
+                << "Deleted, meta should count as temp items";
+        EXPECT_EQ(0, ht.getNumDeletedItems())
+                << "Deleted, meta shouldn't count as deleted items";
+
+        // Now restore the whole (deleted) value.
+        EXPECT_TRUE(ht.unlocked_restoreValue(hbl.getHTLock(), item, *sv));
+    }
+
+    // Check counts:
+    EXPECT_EQ(1, ht.getNumItems())
+            << "Deleted items should be counted in numItems";
+    EXPECT_EQ(1, ht.getNumInMemoryItems())
+            << "Deleted items should be counted as in-memory";
+    EXPECT_EQ(0, ht.getNumInMemoryNonResItems())
+            << "Deleted items shouldn't be counted as non-resident";
+    EXPECT_EQ(0, ht.getNumTempItems())
+            << "Deleted shouldn't count as temp items";
+    EXPECT_EQ(1, ht.getNumDeletedItems())
+            << "Deleted items should count as deleted items";
+
+    // Cleanup, all counts should become zero.
+    del(ht, key);
+}
+
+/// Check counts for a soft-deleted item.
+TEST_P(HashTableStatsTest, SoftDelete) {
+    ASSERT_EQ(MutationStatus::WasClean, ht.set(item));
+
+    {
+        // Mark the item as deleted. Locking scope.
+        auto hbl = ht.getLockedBucket(key);
+        auto* sv = ht.unlocked_find(
+                key, hbl.getBucketNum(), WantsDeleted::No, TrackReference::No);
+        ASSERT_NE(nullptr, sv);
+        ht.unlocked_softDelete(hbl.getHTLock(), *sv, /*onlyMarkDeleted*/ true);
+    }
+
+    // Check counts:
+    EXPECT_EQ(1, ht.getNumItems())
+            << "Deleted items should be counted in numItems";
+    EXPECT_EQ(1, ht.getNumInMemoryItems())
+            << "Deleted items should be counted as in-memory";
+    EXPECT_EQ(0, ht.getNumInMemoryNonResItems())
+            << "Deleted items shouldn't be counted as non-resident";
+    EXPECT_EQ(0, ht.getNumTempItems())
+            << "Deleted shouldn't count as temp items";
+    EXPECT_EQ(1, ht.getNumDeletedItems())
+            << "Deleted items should count as deleted items";
+
+    // Cleanup, all counts should become zero.
+    del(ht, key);
 }
 
 INSTANTIATE_TEST_CASE_P(

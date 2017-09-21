@@ -704,7 +704,7 @@ bool HashTable::unlocked_restoreValue(
         return false;
     }
 
-    if (v.isTempInitialItem()) { // Regular item with the full eviction
+    if (v.isTempItem()) {
         --numTempItems;
         ++numItems;
         /* set it back to false as we created a temp item by setting it to true
@@ -716,6 +716,16 @@ bool HashTable::unlocked_restoreValue(
     }
 
     v.restoreValue(itm);
+
+    if (v.isDeleted()) {
+        ++numDeletedItems;
+        // We have restored a deleted item. This doesn't count as an alive
+        // item, however it does contribute to the total number of documents
+        // in the HashTable, hence we need to also increment numTotalItems.
+        // Note: at the vBucket level we determine the number of (alive) items
+        // as (numTotal - numDeleted).
+        ++numTotalItems;
+    }
 
     increaseCacheSize(v.getValue()->length());
     return true;

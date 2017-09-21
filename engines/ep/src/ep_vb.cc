@@ -255,9 +255,9 @@ void EPVBucket::notifyAllPendingConnsFailed(EventuallyPersistentEngine& e) {
 
 size_t EPVBucket::getNumItems() const {
     if (eviction == VALUE_ONLY) {
-        return ht.getNumInMemoryItems();
+        return ht.getNumInMemoryItems() - ht.getNumDeletedItems();
     } else {
-        return ht.getNumItems();
+        return ht.getNumItems() - ht.getNumDeletedItems();
     }
 }
 
