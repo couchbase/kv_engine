@@ -295,11 +295,6 @@ public:
     }
 
 private:
-    static std::string itemToJson(const Item& item) {
-        cb::const_char_buffer buffer(item.getData(), item.getNBytes());
-        return Collections::VB::Manifest::serialToJson(
-                SystemEvent(item.getFlags()), buffer, item.getBySeqno());
-    }
 
     static void getEventsFromCheckpoint(VBucket& vb,
                                         std::vector<queued_item>& events) {
@@ -346,14 +341,15 @@ private:
                         dcpData.second.data());
 
                 switch (SystemEvent(qi->getFlags())) {
-                case SystemEvent::CreateCollection: {
-                    replica.wlock().replicaAdd(
-                            vbR, {dcpData.first, uid}, qi->getBySeqno());
-                    break;
-                }
-                case SystemEvent::BeginDeleteCollection: {
-                    replica.wlock().replicaBeginDelete(
-                            vbR, {dcpData.first, uid}, qi->getBySeqno());
+                case SystemEvent::Collection: {
+                    if (qi->isDeleted()) {
+                        // A deleted create means beginDelete collection
+                        replica.wlock().replicaBeginDelete(
+                                vbR, {dcpData.first, uid}, qi->getBySeqno());
+                    } else {
+                        replica.wlock().replicaAdd(
+                                vbR, {dcpData.first, uid}, qi->getBySeqno());
+                    }
                     break;
                 }
                 case SystemEvent::CollectionsSeparatorChanged: {
@@ -391,7 +387,8 @@ private:
      * @returns gtest assertion fail (with details) or success
      */
     ::testing::AssertionResult checkJson(const Item& manifest) {
-        MockVBManifest newManifest(itemToJson(manifest));
+        MockVBManifest newManifest(
+                Collections::VB::Manifest::serialToJson(manifest));
         if (active != newManifest) {
             return ::testing::AssertionFailure() << "manifest mismatch\n"
                                                  << "generated\n"

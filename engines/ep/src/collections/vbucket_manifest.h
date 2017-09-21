@@ -281,23 +281,18 @@ public:
 
     /**
      * Return a std::string containing a JSON representation of a
-     * VBucket::Manifest. The input data should be a previously serialised
-     * object, i.e. the input to this function is the output of
-     * populateWithSerialisedData.
+     * VBucket::Manifest. The input is an Item previously created for an event
+     * with the value being a serialised binary blob which is turned into JSON.
      *
-     * The function also corrects the seqno of the entry which initiated a
-     * manifest update (i.e. a collection create or delete). This is because at
-     * the time of serialisation, the collection SystemEvent Item did not have a
-     * seqno.
+     * When the Item was created it did not have a seqno for the collection
+     * entry being modified, this function will return JSON data with the
+     * missing seqno 'patched' with the Item's seqno.
      *
-     * @param se The SystemEvent triggering the JSON generation.
-     * @param buffer The raw data to process.
-     * @param finalEntrySeqno The correct seqno to use for the final entry of
-     *        the serialised data.
+     * @param collectionsEventItem an Item created to represent a collection
+     *        event. The value of which is converted to JSON.
+     * @return JSON representation of the Item's value.
      */
-    static std::string serialToJson(SystemEvent se,
-                                    cb::const_char_buffer buffer,
-                                    int64_t finalEntrySeqno);
+    static std::string serialToJson(const Item& collectionsEventItem);
 
     /**
      * Get the system event data from a SystemEvent, that is the information
@@ -505,7 +500,8 @@ protected:
      * consumption by serialToJson
      *
      * @param se SystemEvent to create.
-     * @param identifier The Identifier of the collection which is changing,
+     * @param identifier The Identifier of the collection which is changing.
+     * @param deleted If the Item should be marked deleted.
      * @param seqno An optional sequence number. If a seqno is specified, the
      *        returned item will have its bySeqno set to seqno.
      *
@@ -514,6 +510,7 @@ protected:
      */
     std::unique_ptr<Item> createSystemEvent(SystemEvent se,
                                             Identifier identifier,
+                                            bool deleted,
                                             OptionalSeqno seqno) const;
 
     /**
@@ -534,15 +531,17 @@ protected:
      *
      * @param vb The vbucket onto which the Item is queued.
      * @param se The SystemEvent to create and queue.
-     * @param identifier The Identifier of the collection being added/deleted
+     * @param identifier The Identifier of the collection being added/deleted.
+     * @param deleted If the Item created should be marked as deleted.
      * @param seqno An optional seqno which if set will be assigned to the
-     *        system event
+     *        system event.
      *
      * @returns The sequence number of the queued Item.
      */
     int64_t queueSystemEvent(::VBucket& vb,
                              SystemEvent se,
                              Identifier identifier,
+                             bool deleted,
                              OptionalSeqno seqno) const;
 
     /**

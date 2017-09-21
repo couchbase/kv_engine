@@ -29,27 +29,19 @@ class SystemEventMessage;
 /// underlying size of uint32_t as this is to be stored in the Item flags field.
 enum class SystemEvent : uint32_t {
     /**
-     * The CreateCollection system event is generated when a VBucket receives
-     * knowledge of a new collection. The event's purpose is to carry data
-     * to the flusher so we can persist a new collections JSON manifest that
-     * includes the new collection and also to persist a special marker document
-     * allowing DCP backfills to re-transmit collection creation at the correct
-     * point in "seqno-time". This event will also be used to generate
-     * DCP messages to inform consumers of the new collection (for in-memory
-     * streaming).
+     * The Collection system event represents the beginning or end of a
+     * collection. Each Collection system event has a key which contains the
+     * collection name. When the event is queued in a checkpoint or stored on
+     * disk the seqno of that item states that this is the point when that
+     * collection became accessible unless that queued/stored item is deleted,
+     * then it represent when that collection became inaccesible (logically
+     * deleted).
+     *
+     * A Collection system event when queued into a checkpoint carries with it
+     * a value, the value is used to maintain a per vbucket JSON collection's
+     * manifest (for persisted buckets).
      */
-    CreateCollection,
-
-    /**
-     * The BeginDeleteCollection system event is generated when a VBucket
-     * receives a manifest that removes a collection. The event's purpose is to
-     * carry data to the flusher so we can persist a new collections JSON
-     * manifest that indicates the collection is now in the process of being
-     * removed. This is indicated by changing the end-seqno of a collection's
-     * entry. BeginDeleteCollection also informs DCP clients that the collection
-     * is now deleted (no more data can be written to it).
-     */
-    BeginDeleteCollection,
+    Collection,
 
     /**
      * The DeleteCollectionHard system event is generated when a VBucket has
@@ -82,10 +74,8 @@ enum class SystemEvent : uint32_t {
 
 static inline std::string to_string(const SystemEvent se) {
     switch (se) {
-    case SystemEvent::CreateCollection:
-        return "CreateCollection";
-    case SystemEvent::BeginDeleteCollection:
-        return "BeginDeleteCollection";
+    case SystemEvent::Collection:
+        return "Collection";
     case SystemEvent::DeleteCollectionHard:
         return "DeleteCollectionHard";
     case SystemEvent::DeleteCollectionSoft:
@@ -116,12 +106,6 @@ public:
                                       const std::string& keyExtra,
                                       size_t itemSize,
                                       OptionalSeqno seqno);
-
-    /**
-     * Map the internal ep-engine SystemEvent IDs to mcbp values.
-     * Internally there are more events than the outside world will know about.
-     */
-    static mcbp::systemevent::id mapToMcbp(SystemEvent se);
 
 private:
     static std::string makeKey(SystemEvent se,
@@ -164,15 +148,6 @@ public:
      *          function against the item.
      */
     ProcessStatus process(const queued_item& item);
-
-    /**
-     * Determine the flushing action of the Item, knows about normal set/del
-     * and how to flush SystemEvent Items
-     *
-     * @param item An Item to determine if it should result in an upsert.
-     * @returns true if the Item is an upsert (add or update) of the Item
-     */
-    static bool isUpsert(const Item& item);
 
 private:
     /**

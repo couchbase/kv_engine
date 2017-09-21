@@ -2226,13 +2226,9 @@ couchstore_error_t CouchKVStore::saveCollectionsManifest(
     lDoc.id.buf = const_cast<char*>(Collections::CouchstoreManifest);
     lDoc.id.size = Collections::CouchstoreManifestLen;
 
-    // Convert the Item value into JSON
-    cb::const_char_buffer buffer(collectionsManifest.getData(),
-                                 collectionsManifest.getNBytes());
-    std::string state = Collections::VB::Manifest::serialToJson(
-            SystemEvent(collectionsManifest.getFlags()),
-            buffer,
-            collectionsManifest.getBySeqno());
+    // Convert the Item into JSON
+    std::string state =
+            Collections::VB::Manifest::serialToJson(collectionsManifest);
 
     lDoc.json.buf = const_cast<char*>(state.c_str());
     lDoc.json.size = state.size();

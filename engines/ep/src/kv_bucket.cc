@@ -2124,6 +2124,7 @@ PersistenceCallback* KVBucket::flushOneDelOrSet(const queued_item &qi,
     }
 
     int64_t bySeqno = qi->getBySeqno();
+    bool deleted = qi->isDeleted();
     rel_time_t queued(qi->getQueuedTime());
 
     int dirtyAge = ep_current_time() - queued;
@@ -2133,7 +2134,7 @@ PersistenceCallback* KVBucket::flushOneDelOrSet(const queued_item &qi,
                                          stats.dirtyAgeHighWat.load()));
 
     KVStore *rwUnderlying = getRWUnderlying(qi->getVBucketId());
-    if (SystemEventFlush::isUpsert(*qi)) {
+    if (!deleted) {
         // TODO: Need to separate disk_insert from disk_update because
         // bySeqno doesn't give us that information.
         BlockTimer timer(bySeqno == -1 ?

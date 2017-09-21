@@ -21,7 +21,7 @@
 #include <gtest/gtest.h>
 
 TEST(SystemEventTest, make) {
-    auto value = SystemEventFactory::make(SystemEvent::CreateCollection,
+    auto value = SystemEventFactory::make(SystemEvent::Collection,
                                           "::",
                                           "SUFFIX",
                                           0,
@@ -29,10 +29,10 @@ TEST(SystemEventTest, make) {
     EXPECT_EQ(queue_op::system_event, value->getOperation());
     EXPECT_EQ(0, value->getNBytes());
     EXPECT_NE(nullptr, strstr(value->getKey().c_str(), "SUFFIX"));
-    EXPECT_EQ(uint32_t(SystemEvent::CreateCollection), value->getFlags());
+    EXPECT_EQ(uint32_t(SystemEvent::Collection), value->getFlags());
     EXPECT_EQ(-1, value->getBySeqno());
 
-    value = SystemEventFactory::make(SystemEvent::CreateCollection,
+    value = SystemEventFactory::make(SystemEvent::Collection,
                                      "::",
                                      "SUFFIX",
                                      100,
@@ -40,26 +40,5 @@ TEST(SystemEventTest, make) {
     EXPECT_EQ(queue_op::system_event, value->getOperation());
     EXPECT_EQ(100, value->getNBytes());
     EXPECT_NE(nullptr, strstr(value->getKey().c_str(), "SUFFIX"));
-    EXPECT_EQ(uint32_t(SystemEvent::CreateCollection), value->getFlags());
-
-    value = SystemEventFactory::make(SystemEvent::BeginDeleteCollection,
-                                     "SUFFIX",
-                                     "::",
-                                     100,
-                                     OptionalSeqno(/*none*/));
-    EXPECT_EQ(queue_op::system_event, value->getOperation());
-    EXPECT_EQ(100, value->getNBytes());
-    EXPECT_NE(nullptr, strstr(value->getKey().c_str(), "SUFFIX"));
-    EXPECT_EQ(uint32_t(SystemEvent::BeginDeleteCollection), value->getFlags());
-
-    value = SystemEventFactory::make(SystemEvent::BeginDeleteCollection,
-                                     "SUFFIX",
-                                     "::",
-                                     100,
-                                     OptionalSeqno(122));
-    EXPECT_EQ(queue_op::system_event, value->getOperation());
-    EXPECT_EQ(100, value->getNBytes());
-    EXPECT_NE(nullptr, strstr(value->getKey().c_str(), "SUFFIX"));
-    EXPECT_EQ(uint32_t(SystemEvent::BeginDeleteCollection), value->getFlags());
-    EXPECT_EQ(122, value->getBySeqno());
+    EXPECT_EQ(uint32_t(SystemEvent::Collection), value->getFlags());
 }

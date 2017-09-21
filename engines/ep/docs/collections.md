@@ -58,11 +58,14 @@ A SystemEvent is a 'special' Item owned by the server, but queued into the
 user's data stream. The SystemEvent allows the flusher and DCP to trigger
 specific actions that will be ordered with the user's data stream.
 
+A SystemEvent can be created and for some use-cases, deleted. For collections
+the end of a collection is denoted by a deleted Collection event.
+
 ```
                           ●
                           │
  ┌───────────────────────┐│
- │   CreateCollection    ├┤
+ │      Collection       ├┤
  └───────────────────────┘▼
                      .─────────.
                     /           \
@@ -75,9 +78,9 @@ specific actions that will be ordered with the user's data stream.
                           │                                       │
                           │                                       │
 ┌────────────────────────┐│                                       │┌─────────────────────────┐
-│ BeginDeleteCollection  ├┤                                       ├┤  DeleteCollectionSoft   │
+│  Collection [deleted]  ├┤                                       ├┤  DeleteCollectionSoft   │
 └────────────────────────┘▼          ┌───────────────────────┐    │└─────────────────────────┘
-                    .─────────.      │   CreateCollection    │   .─────────.
+                    .─────────.      │       Collection      │   .─────────.
                    /           \     └───────────┬───────────┘  /           \
                   :  exclusive  : ───────────────┴───────────▶ :  open and   :
                   :  deleting   :                              :  deleting   :
@@ -116,144 +119,157 @@ sequence number life-time of a collection.
 ## VBucket JSON manifest
 
 The code refers to a serialised JSON VB manifest. This is a persisted copy of
-the VB::Manifest which can be used to quickly recover a VBucket's collection
-state following a restart.
+the VB::Manifest which can be used to recover a VBucket's collection state
+following a restart.
 
 The VB::Manifest is also recording the sequence number of the system-events and
 uses those values to track a collection's life time. A VBucket JSON manifest
-looks like the following (although we don't store a formatted document).
+looks like the following (although we don't store a white space formatted
+document).
 
 ```
 {
   "separator":"::",
    "collections":[
-      {"name":"$default","revision":"0","start_seqno":"1","end_seqno":"-6"},
-      {"name":"fruit","revision":"1","start_seqno":"13012","end_seqno":"-6"},
+      {"name":"$default","uid":"0","start_seqno":"1","end_seqno":"-6"},
+      {"name":"fruit","uid":"1","start_seqno":"13012","end_seqno":"-6"},
     ]
 }
 ```
 
-### SystemEvent keys
+## SystemEvents
 
-The SystemEvents are Item's and thus have keys, they also trigger actions by the
-flusher and DCP as follows, consider the life of the fruit collection which is
-created at revision 1, deleted at revision 2 and created again at revision 3.
+The SystemEvents are represented by the Item object. We weave SystemEvents into
+the Checkpoint allowing DCP and the Flusher to see the event and then respond to
+it, or ignore it. A SystemEvent Item can also be marked as deleted which
+collections utilises for marking the logical delete of a collection.
 
-* `CreateCollection` key = `$collection::create:fruit1`
-* `BeginDeleteCollection` key = `$collection::delete:fruit1`
-* `DeleteCollectionSoft` key = `$collection::create:fruit1`
-* `DeleteCollectionHard` key = `$collection::create:fruit1`
-* The second create of `fruit` key = `$collection::create:fruit3`
+A SystemEvent is a special case of Item and is identified primarily by the
+operation member being set to "queue_op::system_event". The type of the
+SystemEvent is stored in the flags field as an int.
+
+### SystemEvent Identification
+
+Consider the 'fruit' collection.
+
+* Creating a fruit collection generates the following Item.
+  * event = `SystemEvent::Collection`, key = `$collection::fruit`, deleted = false
+  * The value must at least store the UID of the collection.
+* Logically deleting the fruit collection generates the following Item.
+  * event = `SystemEvent::Collection`, key = `$collection::fruit`, deleted = true
+* If all data of a collection is deleted but the collection has been added back (with a new UID)
+  * event = `SystemEvent::DeleteCollectionSoft`, key = `$collection::fruit`, deleted = false
+* If all data of a collection is deleted
+  * event = `SystemEvent::DeleteCollectionHard`, key = `$collection::fruit`, deleted = false
 
 ### SystemEvent flushing actions
 
-* `CreateCollection`
-  * Stores a document called `$collection::create:fruit1`
-  * Updates the _local/collections_manifest (A JSON copy of the VB::Manifest)
-* `BeginDeleteCollection`
-  * Updates the _local/collections_manifest (A JSON copy of the VB::Manifest)
+SystemEvents are treated differently by the flusher.
+
+* `Collection`
+  * Sets or Deletes a document called `$collection::fruit` with a value that at least contains the UID
+  * Updates the `_local/collections_manifest` (A JSON copy of the VB::Manifest)
 * `DeleteCollectionSoft`
-* Deletes a document called `$collection::create:fruit1`
-  * Updates the _local/collections_manifest (A JSON copy of the VB::Manifest)
+  * Updates the `_local/collections_manifest` (A JSON copy of the VB::Manifest) so that the collection remains but now with no endSeqno
 * `DeleteCollectionHard`
-* Deletes a document called `$collection::create:fruit1`
-  * Updates the _local/collections_manifest (A JSON copy of the VB::Manifest)
+  * Updates the `_local/collections_manifest` (A JSON copy of the VB::Manifest) so that the collection metadata is all gone
 
 ### SystemEvent DCP actions
 
-* `CreateCollection`
-  * Sends DcpSystem event message containing CreateCollection, collection="fruit" and revision="1"
-* `BeginDeleteCollection`
-  * Nothing
+SystemEvents are treated differently by the ActiveStream.
+
+* `Collection`
+  * `!isDeleted` Sends DcpSystem event message containing mcbp::CreateCollection, `key="fruit"` and `value="$UID"` (the value of UID)
+  * `isDeleted` Sends DcpSystem event message containing mcbp::DeleteCollection, `key="fruit"` and `value="$UID"` (the value of UID)
 * `DeleteCollectionSoft`
-  * Sends DcpSystem event message containing DeleteCollection, collection="fruit" and revision="1"
+  * Ignored by DCP
 * `DeleteCollectionHard`
-  * Sends DcpSystem event message containing DeleteCollection, collection="fruit" and revision="1"
+  * Ignored by DCP
 
 ## Examples
 
 ### create/delete
 
 1. Start with `$default=exclusive open`
-2. Receive (assume VB high-seqno = 200)
+2. Receive (assume VB high-seqno is 200)
 
-   `{"revision":1 "separator":"::","collections":[{"$default", "fruit"}]}`
+   `{"separator":"::","collections":[{"name":"$default", "uid":"0"}, {"name":"fruit","uid":"1"}]}`
 
   * `$default=exclusive open, fruit=exclusive open`
-  * stored a document `$collection::create:fruit1` at seqno 201
+  * stores a document `$collection::fruit` at seqno 201 with a value at least containing 1.
   * _local/collections_manifest
    ```
   {"collections":[
-      {"name":"$default","revision":"0","start_seqno":"1","end_seqno":"-6"},
-      {"name":"fruit","revision":"1","start_seqno":"201","end_seqno":"-6"}]}
+      {"name":"$default","uid":"0","start_seqno":"1","end_seqno":"-6"},
+      {"name":"fruit","uid":"1","start_seqno":"201","end_seqno":"-6"}]}
    ```
-3. Receive (assume VB high-seqno = 430)
+3. Receive (assume VB high-seqno is now 430)
 
-   `{"revision":2 "separator":"::","collections":[{"$default"}]}`
+   `{"separator":"::","collections":[{"name":"$default", "uid":"0"}]}`
 
   * `$default=exclusive open, fruit=exclusive deleting`
-  * note BeginCollectionDeletion will trigger a background scrub of the collection's items.
+  * note the creation of a deleted(SystemEvent::Collection) will trigger a background scrub of the collection's items.
   * _local/collections_manifest
    ```
   {"collections":[
-      {"name":"$default","revision":"0","start_seqno":"1","end_seqno":"-6"},
-      {"name":"fruit","revision":"1","start_seqno":"201","end_seqno":"431"}]}
+      {"name":"$default","uid":"0","start_seqno":"1","end_seqno":"-6"},
+      {"name":"fruit","uid":"1","start_seqno":"201","end_seqno":"431"}]}
+   ```
 
-4. When the background delete of fruit is complete and assuming VB high-seqno = 561
+4. When the background delete of fruit is complete and assuming VB high-seqno is now 561
 
-  * `$default=exclusive open'
-  * Deleted a document `$collection::create:fruit1` at seqno 562
-  * _local/collections_manifest
+  * `$default=exclusive open`
+  * _local/collections_manifest (now fruit is deleted 'hard')
    ```
   {"collections":[
-      {"name":"$default","revision":"0","start_seqno":"1","end_seqno":"-6"}]}
+      {"name":"$default","uid":"0","start_seqno":"1","end_seqno":"-6"}]}
+   ```
 
 ### create/delete/create
 
 1. Start with `$default=exclusive open`
-2. Receive (assume VB high-seqno = 836)
+2. Receive (assume VB high-seqno is 836)
 
-   `{"revision":1 "separator":"::","collections":[{"$default", "fruit"}]}`
+   `{"separator":"::","collections":[{"name":"$default", "uid":"0"}, {"name":"fruit","uid":"1"}]}`
 
   * `$default=exclusive open, fruit=exclusive open`
-  * stored a document `$collection::create:fruit1` at seqno 837
+  * stored a document `$collection::fruit` at seqno 837
   * _local/collections_manifest
    ```
   {"collections":[
-      {"name":"$default","revision":"0","start_seqno":"1","end_seqno":"-6"},
-      {"name":"fruit","revision":"1","start_seqno":"837","end_seqno":"-6"}]}
+      {"name":"$default","uid":"0","start_seqno":"1","end_seqno":"-6"},
+      {"name":"fruit","uid":"1","start_seqno":"837","end_seqno":"-6"}]}
    ```
 3. Receive (assume VB high-seqno = 919)
 
-   `{"revision":2 "separator":"::","collections":[{"$default"}]}`
+   `{"separator":"::","collections":[{"name":"$default", "uid":"0"}]}`
 
   * `$default=exclusive open, fruit=exclusive deleting`
-  * note BeginCollectionDeletion will trigger a background scrub of the collection's items.
+  * note the creation of a deleted(SystemEvent::Collection) will trigger a background scrub of the collection's items.
   * _local/collections_manifest
    ```
   {"collections":[
-      {"name":"$default","revision":"0","start_seqno":"1","end_seqno":"-6"},
-      {"name":"fruit","revision":"1","start_seqno":"837","end_seqno":"920"}]}
-
+      {"name":"$default","uid":"0","start_seqno":"1","end_seqno":"-6"},
+      {"name":"fruit","uid":"1","start_seqno":"837","end_seqno":"920"}]}
+   ```
 4. Receive (before the background delete completes, VB high-seqno = 1617)
 
-   `{"revision":3 "separator":"::","collections":[{"$default", "fruit"}]}`
+   `{"separator":"::","collections":[{"name":"$default", "uid":"0"}, {"name":"fruit","uid":"2"}]}`
 
   * `$default=exclusive open, fruit=open and deleting`
-  * stored a document `$collection::create:fruit3` at seqno 1618
+  * store a document `$collection::fruit` at seqno 1618 with value at least containing the UID of 2
   * _local/collections_manifest
    ```
   {"collections":[
-      {"name":"$default","revision":"0","start_seqno":"1","end_seqno":"-6"},
-      {"name":"fruit","revision":"3","start_seqno":"1618","end_seqno":"920"}]}
+      {"name":"$default","uid":"0","start_seqno":"1","end_seqno":"-6"},
+      {"name":"fruit","uid":"3","start_seqno":"1618","end_seqno":"920"}]}
    ```
 5. When the background delete of fruit is complete and assuming VB high-seqno = 2010
 
   * `$default=exclusive open, fruit=exclusive open`
-  * Deleted a document `$collection::create:fruit1` at seqno 2011
-  * _local/collections_manifest
+  * _local/collections_manifest (now fruit is deleted 'soft')
    ```
   {"collections":[
-      {"name":"$default","revision":"0","start_seqno":"1","end_seqno":"-6"},
-      {"name":"fruit","revision":"3","start_seqno":"1618","end_seqno":"-6"}]}
+      {"name":"$default","uid":"0","start_seqno":"1","end_seqno":"-6"},
+      {"name":"fruit","uid":"3","start_seqno":"1618","end_seqno":"-6"}]}
    ```

@@ -16,6 +16,7 @@
  */
 
 #include "collections/vbucket_manifest.h"
+#include "checkpoint.h"
 #include "collections/manifest.h"
 #include "collections/vbucket_serialised_manifest_entry.h"
 #include "item.h"
@@ -117,8 +118,11 @@ void Manifest::addCollection(::VBucket& vb,
 
     // 2. Queue a system event, this will take a copy of the manifest ready
     //    for persistence into the vb state file.
-    auto seqno = queueSystemEvent(
-            vb, SystemEvent::CreateCollection, identifier, optionalSeqno);
+    auto seqno = queueSystemEvent(vb,
+                                  SystemEvent::Collection,
+                                  identifier,
+                                  false /*deleted*/,
+                                  optionalSeqno);
 
     LOG(EXTENSION_LOG_NOTICE,
         "collections: vb:%" PRIu16 " adding collection:%.*s, uid:%" PRIu64
@@ -179,8 +183,11 @@ void Manifest::beginCollectionDelete(::VBucket& vb,
                                      Identifier identifier,
                                      OptionalSeqno optionalSeqno) {
     auto& entry = beginDeleteCollectionEntry(identifier);
-    auto seqno = queueSystemEvent(
-            vb, SystemEvent::BeginDeleteCollection, identifier, optionalSeqno);
+    auto seqno = queueSystemEvent(vb,
+                                  SystemEvent::Collection,
+                                  identifier,
+                                  true /*deleted*/,
+                                  optionalSeqno);
 
     LOG(EXTENSION_LOG_NOTICE,
         "collections: vb:%" PRIu16
@@ -191,19 +198,19 @@ void Manifest::beginCollectionDelete(::VBucket& vb,
         identifier.getUid(),
         seqno);
 
+    if (identifier.isDefaultCollection()) {
+        defaultCollectionExists = false;
+    }
+
     entry.setEndSeqno(seqno);
 }
 
 ManifestEntry& Manifest::beginDeleteCollectionEntry(Identifier identifier) {
     auto itr = map.find(identifier.getName());
     if (itr == map.end()) {
-        throwException<std::logic_error>(
-                __FUNCTION__,
-                "did not find collection:" + to_string(identifier));
-    }
-
-    if (identifier.isDefaultCollection()) {
-        defaultCollectionExists = false;
+            throwException<std::logic_error>(
+                    __FUNCTION__,
+                    "did not find collection:" + to_string(identifier));
     }
 
     return *itr->second;
@@ -232,7 +239,8 @@ void Manifest::completeDeletion(::VBucket& vb, Identifier identifier) {
         map.erase(itr); // wipe out
     }
 
-    queueSystemEvent(vb, se, identifier, OptionalSeqno{/*none*/});
+    queueSystemEvent(
+            vb, se, identifier, false /*delete*/, OptionalSeqno{/*none*/});
 }
 
 void Manifest::changeSeparator(::VBucket& vb,
@@ -325,6 +333,7 @@ bool Manifest::doesKeyContainDeletingCollection(const ::DocKey& key,
 
 std::unique_ptr<Item> Manifest::createSystemEvent(SystemEvent se,
                                                   Identifier identifier,
+                                                  bool deleted,
                                                   OptionalSeqno seqno) const {
     // Create an item (to be queued and written to disk) that represents
     // the update of a collection and allows the checkpoint to update
@@ -336,8 +345,7 @@ std::unique_ptr<Item> Manifest::createSystemEvent(SystemEvent se,
     auto item = SystemEventFactory::make(
             se,
             separator,
-            cb::to_string(identifier.getName()) + separator +
-                    std::to_string(identifier.getUid()),
+            cb::to_string(identifier.getName()),
             getSerialisedDataSize(identifier.getName()),
             seqno);
 
@@ -346,6 +354,10 @@ std::unique_ptr<Item> Manifest::createSystemEvent(SystemEvent se,
     populateWithSerialisedData(
             {const_cast<char*>(item->getData()), item->getNBytes()},
             identifier);
+
+    if (deleted) {
+        item->setDeleted();
+    }
 
     return item;
 }
@@ -373,9 +385,18 @@ std::unique_ptr<Item> Manifest::createSeparatorChangedEvent(
 int64_t Manifest::queueSystemEvent(::VBucket& vb,
                                    SystemEvent se,
                                    Identifier identifier,
+                                   bool deleted,
                                    OptionalSeqno seq) const {
     // Create and transfer Item ownership to the VBucket
-    return vb.queueItem(createSystemEvent(se, identifier, seq).release(), seq);
+    auto rv = vb.queueItem(
+            createSystemEvent(se, identifier, deleted, seq).release(), seq);
+
+    // If seq is not set, then this is an active vbucket queueing the event.
+    // Collection events will end the CP so they don't de-dep.
+    if (!seq.is_initialized()) {
+        vb.checkpointManager->createNewCheckpoint();
+    }
+    return rv;
 }
 
 int64_t Manifest::queueSeparatorChanged(::VBucket& vb,
@@ -459,9 +480,11 @@ void Manifest::populateWithSerialisedData(cb::char_buffer out) const {
     sMan->setEntryCount(map.size());
 }
 
-std::string Manifest::serialToJson(SystemEvent se,
-                                   cb::const_char_buffer buffer,
-                                   int64_t finalEntrySeqno) {
+std::string Manifest::serialToJson(const Item& collectionsEventItem) {
+    cb::const_char_buffer buffer(collectionsEventItem.getData(),
+                                 collectionsEventItem.getNBytes());
+    const auto se = SystemEvent(collectionsEventItem.getFlags());
+
     if (se == SystemEvent::CollectionsSeparatorChanged) {
         return serialToJson(buffer);
     }
@@ -472,6 +495,7 @@ std::string Manifest::serialToJson(SystemEvent se,
 
     std::string json = R"({"separator":")" + sMan->getSeparator() + R"(","collections":[)";
     if (sMan->getEntryCount() > 1) {
+        // Iterate and produce an comma separated list
         for (uint32_t ii = 1; ii < sMan->getEntryCount(); ii++) {
             const auto* sme =
                     reinterpret_cast<const SerialisedManifestEntry*>(serial);
@@ -482,15 +506,22 @@ std::string Manifest::serialToJson(SystemEvent se,
                 json += ",";
             }
         }
-        const auto* sme =
-                reinterpret_cast<const SerialisedManifestEntry*>(serial);
+
+        // DeleteCollectionHard removes this last entry so no comma
         if (se != SystemEvent::DeleteCollectionHard) {
-            json += "," + sme->toJson(se, finalEntrySeqno);
+            json += ",";
         }
-    } else {
-        const auto* sme =
-                reinterpret_cast<const SerialisedManifestEntry*>(serial);
-        json += sme->toJson(se, finalEntrySeqno);
+    }
+
+    const auto* sme = reinterpret_cast<const SerialisedManifestEntry*>(serial);
+    // Last entry is the collection which changed. How did it change?
+    if (se == SystemEvent::Collection) {
+        // Collection start/end (create/delete)
+        json += sme->toJsonCreateOrDelete(collectionsEventItem.isDeleted(),
+                                          collectionsEventItem.getBySeqno());
+    } else if (se == SystemEvent::DeleteCollectionSoft) {
+        // Collection delete completed, but collection has been recreated
+        json += sme->toJsonResetEnd();
     }
 
     json += "]}";

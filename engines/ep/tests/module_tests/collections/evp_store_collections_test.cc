@@ -37,22 +37,35 @@
 #include <functional>
 #include <thread>
 
-class CollectionsTest : public EPBucketTest {
+class CollectionsTest : public SingleThreadedKVBucketTest {
 public:
     void SetUp() override {
         // Enable collections (which will enable namespace persistence).
         config_string += "collections_prototype_enabled=true";
-        EPBucketTest::SetUp();
+        SingleThreadedKVBucketTest::SetUp();
         // Start vbucket as active to allow us to store items directly to it.
         store->setVBucketState(vbid, vbucket_state_active, false);
     }
+
+    std::string getManifest(uint16_t vb) const {
+        return store->getVBucket(vb)
+                ->getShard()
+                ->getRWUnderlying()
+                ->getCollectionsManifest(vbid);
+    }
 };
 
+// This test stores a key which matches what collections internally uses, but
+// in a different namespace.
 TEST_F(CollectionsTest, namespace_separation) {
-    store_item(
-            vbid,
-            {"$collections::create::meat::1", DocNamespace::DefaultCollection},
-            "value");
+    // Use the event factory to get an event which we'll borrow the key from
+    auto se = SystemEventFactory::make(
+            SystemEvent::Collection, "::", "meat", 0, {});
+    DocKey key(se->getKey().data(),
+               se->getKey().size(),
+               DocNamespace::DefaultCollection);
+
+    store_item(vbid, key, "value");
     VBucketPtr vb = store->getVBucket(vbid);
     // Add the meat collection
     vb->updateFromManifest({R"({"separator":"::",
@@ -62,28 +75,18 @@ TEST_F(CollectionsTest, namespace_separation) {
     flush_vbucket_to_disk(vbid, 2);
 
     // evict and load - should not see the system key for create collections
-    evict_key(
-            vbid,
-            {"$collections::create::meat::1", DocNamespace::DefaultCollection});
+    evict_key(vbid, key);
     get_options_t options = static_cast<get_options_t>(
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
             HIDE_LOCKED_CAS | TRACK_STATISTICS);
-    GetValue gv = store->get(
-            {"$collections::create::meat::1", DocNamespace::DefaultCollection},
-            vbid,
-            cookie,
-            options);
+    GetValue gv = store->get(key, vbid, cookie, options);
     EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
 
     // Manually run the BGFetcher task; to fetch the two outstanding
     // requests (for the same key).
     runBGFetcherTask();
 
-    gv = store->get(
-            {"$collections::create::meat::1", DocNamespace::DefaultCollection},
-            vbid,
-            cookie,
-            options);
+    gv = store->get(key, vbid, cookie, options);
     EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
     EXPECT_EQ(0, strncmp("value", gv.item->getData(), gv.item->getNBytes()));
 }
@@ -132,9 +135,8 @@ TEST_F(CollectionsTest, collections_basic) {
     vb->updateFromManifest({R"({"separator":"::",
                  "collections":[{"name":"$default", "uid":"0"}]})"});
 
-    // Note that nothing is flushed because a begin delete doesn't generate
-    // an Item.
-    flush_vbucket_to_disk(vbid, 0);
+    // We should have deleted the create marker
+    flush_vbucket_to_disk(vbid, 1);
 
     // Access denied (although the item still exists)
     gv = store->get(
@@ -197,8 +199,6 @@ private:
                                          Collections::uid_t uid,
                                          int items);
 
-    std::string getManifest();
-
     void storeItems(const std::string& collection, DocNamespace ns, int items);
 
     /**
@@ -239,7 +239,7 @@ std::string CollectionsFlushTest::createCollectionAndFlush(
     vb->updateFromManifest(json);
     storeItems(collection, DocNamespace::Collections, items);
     flush_vbucket_to_disk(vbid, 1 + items); // create event + items
-    return getManifest();
+    return getManifest(vbid);
 }
 
 std::string CollectionsFlushTest::deleteCollectionAndFlush(
@@ -247,8 +247,8 @@ std::string CollectionsFlushTest::deleteCollectionAndFlush(
     VBucketPtr vb = store->getVBucket(vbid);
     storeItems(collection, DocNamespace::Collections, items);
     vb->updateFromManifest(json);
-    flush_vbucket_to_disk(vbid, items); // only flush items
-    return getManifest();
+    flush_vbucket_to_disk(vbid, 1 + items); // del(create event) + items
+    return getManifest(vbid);
 }
 
 std::string CollectionsFlushTest::completeDeletionAndFlush(
@@ -256,13 +256,8 @@ std::string CollectionsFlushTest::completeDeletionAndFlush(
     VBucketPtr vb = store->getVBucket(vbid);
     vb->completeDeletion({collection, uid});
     storeItems("defaultcollection", DocNamespace::DefaultCollection, items);
-    flush_vbucket_to_disk(vbid, 1 + items); // delete event + items
-    return getManifest();
-}
-
-std::string CollectionsFlushTest::getManifest() {
-    VBucketPtr vb = store->getVBucket(vbid);
-    return vb->getShard()->getRWUnderlying()->getCollectionsManifest(vbid);
+    flush_vbucket_to_disk(vbid, items); // just the items
+    return getManifest(vbid);
 }
 
 bool CollectionsFlushTest::canWrite(const std::string& jsonManifest,
@@ -376,119 +371,6 @@ TEST_F(CollectionsFlushTest, collections_flusher_with_items) {
     collectionsFlusher(3);
 }
 
-class CollectionsThreadTest {
-public:
-    CollectionsThreadTest(CollectionsTest& t,
-                          VBucket& vbucket,
-                          int sets,
-                          int collectionLoops)
-        : test(t),
-          vb(vbucket),
-          setCount(sets),
-          createDeleteCount(collectionLoops),
-          threadGate(2) {
-    }
-
-    // Create and delete a collection over and over
-    void createDeleteCollection() {
-        threadGate.threadUp();
-        Collections::uid_t uid = 1;
-        for (int iterations = 0; iterations < createDeleteCount; iterations++) {
-            std::stringstream uidStr;
-            uidStr << std::hex << uid;
-            vb.updateFromManifest(
-                    {R"({"separator":"::",)"
-                     R"("collections":[{"name":"fruit", "uid":")" +
-                     uidStr.str() + R"("}]})"});
-
-            uid++;
-
-            vb.updateFromManifest({R"({"separator":"::",)"
-                                   R"("collections":[]})"});
-        }
-    }
-
-    // Keep setting documents in the collection, expect SUCCESS or
-    // UNKNOWN_COLLECTION
-    void setDocuments() {
-        threadGate.threadUp();
-        for (int iterations = 0; iterations < setCount; iterations++) {
-            StoredDocKey key("fruit::key" + std::to_string(iterations),
-                             DocNamespace::Collections);
-            test.store_item(vb.getId(),
-                            key,
-                            "value",
-                            0,
-                            {cb::engine_errc::success,
-                             cb::engine_errc::unknown_collection});
-        }
-    }
-
-    void run() {
-        t1 = std::thread(&CollectionsThreadTest::createDeleteCollection, this);
-        t2 = std::thread(&CollectionsThreadTest::setDocuments, this);
-        t1.join();
-        t2.join();
-    }
-
-private:
-    CollectionsTest& test;
-    VBucket& vb;
-    int setCount;
-    int createDeleteCount;
-    ThreadGate threadGate;
-    std::thread t1;
-    std::thread t2;
-};
-
-//
-// Test that a vbucket's checkpoint is correctly ordered with collection
-// events and documents. I.e. a document must never be found before the create
-// or after a delete.
-//
-TEST_F(CollectionsTest, checkpoint_consistency) {
-    VBucketPtr vb = store->getVBucket(vbid);
-    CollectionsThreadTest threadTest(*this, *vb, 256, 256);
-    threadTest.run();
-
-    // Now get the VB checkpoint and validate the collection/item ordering
-    std::vector<queued_item> items;
-    vb->checkpointManager->getAllItemsForCursor(CheckpointManager::pCursorName,
-                                                items);
-
-    ASSERT_FALSE(items.empty());
-    bool open = false;
-    boost::optional<int64_t> seqno{};
-    for (const auto& item : items) {
-        if (!(item->getOperation() == queue_op::system_event ||
-              item->getOperation() == queue_op::mutation)) {
-            // Ignore all the checkpoint start/end stuff
-            continue;
-        }
-        if (seqno) {
-            EXPECT_LT(seqno.value(), item->getBySeqno());
-        }
-        // If this is a CreateCollection on fruit, open = true
-        if (item->getOperation() == queue_op::system_event &&
-            SystemEvent::CreateCollection == SystemEvent(item->getFlags()) &&
-            std::strstr(item->getKey().c_str(), "fruit")) {
-            open = true;
-        }
-        // If this is a BeginDeleteCollection on fruit, open = false (i.e.
-        // ignore delete of $default)
-        if (item->getOperation() == queue_op::system_event &&
-            SystemEvent::BeginDeleteCollection ==
-                    SystemEvent(item->getFlags()) &&
-            std::strstr(item->getKey().c_str(), "fruit")) {
-            open = false;
-        }
-        if (item->getOperation() == queue_op::mutation) {
-            EXPECT_TRUE(open);
-        }
-        seqno = item->getBySeqno();
-    }
-}
-
 class CollectionsWarmupTest : public SingleThreadedKVBucketTest {
 public:
     void SetUp() override {
@@ -578,7 +460,12 @@ TEST_F(CollectionsWarmupTest, MB_25381) {
         vb->updateFromManifest({R"({"separator":"@",
               "collections":[{"name":"$default", "uid":"0"}]})"});
 
-        flush_vbucket_to_disk(vbid, 1);
+        flush_vbucket_to_disk(vbid, 2);
+
+        // This pushes an Item which doesn't flush but has consumed a seqno
+        vb->completeDeletion({"dairy", 1});
+
+        flush_vbucket_to_disk(vbid, 0); // 0 items but has written _local
 
         highSeqno = vb->getHighSeqno();
     } // VBucketPtr scope ends
@@ -723,6 +610,11 @@ public:
     }
 
     void TearDown() override {
+        teardown();
+        SingleThreadedKVBucketTest::TearDown();
+    }
+
+    void teardown() {
         destroy_mock_cookie(cookieC);
         destroy_mock_cookie(cookieP);
         consumer->closeAllStreams();
@@ -730,11 +622,59 @@ public:
         producer->closeAllStreams();
         producer.reset();
         consumer.reset();
-        EPBucketTest::TearDown();
+    }
+
+    void notifyAndStepToCheckpoint(bool fromMemory = true) {
+        auto vb = store->getVBucket(vbid);
+        ASSERT_NE(nullptr, vb.get());
+
+        if (fromMemory) {
+            producer->notifySeqnoAvailable(vbid, vb->getHighSeqno());
+
+            // Step which will notify the snapshot task
+            EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+
+            EXPECT_EQ(1, producer->getCheckpointSnapshotTask().queueSize());
+
+            // Now call run on the snapshot task to move checkpoint into DCP
+            // stream
+            producer->getCheckpointSnapshotTask().run();
+        } else {
+            // Run a backfill
+            auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+            // backfill:create()
+            runNextTask(lpAuxioQ);
+            // backfill:scan()
+            runNextTask(lpAuxioQ);
+            // backfill:complete()
+            runNextTask(lpAuxioQ);
+            // backfill:finished()
+            runNextTask(lpAuxioQ);
+        }
+
+        // Next step which will process a snapshot marker and then the caller
+        // should now be able to step through the checkpoint
+        EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+        EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER, dcp_last_op);
+    }
+
+    void testDcpCreateDelete(int expectedCreates,
+                             int expectedDeletes,
+                             bool fromMemory = true);
+
+    void resetEngineAndWarmup() {
+        teardown();
+        SingleThreadedKVBucketTest::resetEngineAndWarmup();
+        producers = get_dcp_producers(
+                reinterpret_cast<ENGINE_HANDLE*>(engine.get()),
+                reinterpret_cast<ENGINE_HANDLE_V1*>(engine.get()));
+        cookieC = create_mock_cookie();
+        cookieP = create_mock_cookie();
     }
 
     static const uint16_t replicaVB{1};
     static SingleThreadedRCPtr<MockDcpConsumer> consumer;
+    static mcbp::systemevent::id dcp_last_system_event;
 
     /*
      * DCP callback method to push SystemEvents on to the consumer
@@ -751,6 +691,7 @@ public:
         dcp_last_op = PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT;
         dcp_last_key.assign(reinterpret_cast<const char*>(key.data()),
                             key.size());
+        dcp_last_system_event = event;
         return consumer->systemEvent(
                 opaque, replicaVB, event, bySeqno, key, eventData);
     }
@@ -768,6 +709,7 @@ public:
 };
 
 SingleThreadedRCPtr<MockDcpConsumer> CollectionsDcpTest::consumer;
+mcbp::systemevent::id CollectionsDcpTest::dcp_last_system_event;
 
 /*
  * test_dcp connects a producer and consumer to test that collections created
@@ -784,29 +726,12 @@ TEST_F(CollectionsDcpTest, test_dcp) {
               "collections":[{"name":"$default", "uid":"0"},
                              {"name":"meat","uid":"1"}]})"});
 
-    // remove meat
-    vb->updateFromManifest({R"({"separator":"::",
-              "collections":[{"name":"$default", "uid":"0"}]})"});
-
-    vb->completeDeletion({"meat", 2});
-
-    producer->notifySeqnoAvailable(vb->getId(), vb->getHighSeqno());
-
-    // Step which will notify the snapshot task
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
-
-    EXPECT_EQ(1, producer->getCheckpointSnapshotTask().queueSize());
-
-    // Now call run on the snapshot task to move checkpoint into DCP stream
-    producer->getCheckpointSnapshotTask().run();
-
-    // Next step which will process a snapshot marker
-    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    notifyAndStepToCheckpoint();
 
     VBucketPtr replica = store->getVBucket(replicaVB);
 
     // 1. Replica does not know about meat
-    EXPECT_FALSE(vb->lockCollections().doesKeyContainValidCollection(
+    EXPECT_FALSE(replica->lockCollections().doesKeyContainValidCollection(
             {"meat::bacon", DocNamespace::Collections}));
 
     // Now step the producer to transfer the collection creation
@@ -816,15 +741,174 @@ TEST_F(CollectionsDcpTest, test_dcp) {
     EXPECT_TRUE(replica->lockCollections().doesKeyContainValidCollection(
             {"meat::bacon", DocNamespace::Collections}));
 
+    // remove meat
+    vb->updateFromManifest({R"({"separator":"::",
+              "collections":[{"name":"$default", "uid":"0"}]})"});
+
+    notifyAndStepToCheckpoint();
+
     // Now step the producer to transfer the collection deletion
     EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
 
-    // 3. Replica does now blocking access to meat
+    // 3. Replica now blocking access to meat
     EXPECT_FALSE(replica->lockCollections().doesKeyContainValidCollection(
             {"meat::bacon", DocNamespace::Collections}));
 
     // Now step the producer, no more collection events
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+}
+
+void CollectionsDcpTest::testDcpCreateDelete(int expectedCreates,
+                                             int expectedDeletes,
+                                             bool fromMemory) {
+    notifyAndStepToCheckpoint(fromMemory);
+
+    int creates = 0, deletes = 0;
+    // step until done
+    while (ENGINE_WANT_MORE == producer->step(producers.get())) {
+        if (dcp_last_op == PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT) {
+            switch (dcp_last_system_event) {
+            case mcbp::systemevent::id::CreateCollection:
+                creates++;
+                break;
+            case mcbp::systemevent::id::DeleteCollection:
+                deletes++;
+                break;
+            case mcbp::systemevent::id::CollectionsSeparatorChanged: {
+                EXPECT_FALSE(true);
+                break;
+            }
+            }
+        }
+    }
+
+    EXPECT_EQ(expectedCreates, creates);
+    EXPECT_EQ(expectedDeletes, deletes);
+
+    // Finally check that the active and replica have the same manifest, our
+    // BeginDeleteCollection should of contained enough information to form
+    // an equivalent manifest
+    EXPECT_EQ(getManifest(vbid), getManifest(vbid + 1));
+}
+
+// Test that a create/delete don't dedup (collections creates new checkpoints)
+TEST_F(CollectionsDcpTest, test_dcp_create_delete) {
+    VBucketPtr vb = store->getVBucket(vbid);
+    // Create dairy
+    vb->updateFromManifest({R"({"separator":"::",
+              "collections":[{"name":"$default", "uid":"0"},
+                             {"name":"fruit","uid":"1"},
+                             {"name":"dairy","uid":"1"}]})"});
+
+    // Mutate dairy
+    const int items = 3;
+    for (int ii = 0; ii < items; ii++) {
+        std::string key = "dairy::" + std::to_string(ii);
+        store_item(vbid, {key, DocNamespace::Collections}, "value");
+    }
+
+    // Delete dairy
+    vb->updateFromManifest({R"({"separator":"::",
+              "collections":[{"name":"$default", "uid":"0"},
+                             {"name":"fruit","uid":"1"}]})"});
+
+    // Persist everything ready for warmup and check.
+    // Flusher will merge create/delete and we only flush the delete
+    flush_vbucket_to_disk(0, items + 2);
+
+    // We will see create fruit/dairy and delete dairy (from another CP)
+    testDcpCreateDelete(2, 1);
+
+    /*
+        @todo enable disk part of this test. Logically deleted collections are
+        still streaming from backfill, meaning we send delete with no create to
+        replica triggering an exception.
+
+        resetEngineAndWarmup();
+
+        createDcpObjects({}, true); // from disk
+
+        // Streamed from disk, one create and one delete
+        testDcpCreateDelete(1, 1, false);
+    */
+}
+
+// Test that a create/delete don't dedup (collections creates new checkpoints)
+TEST_F(CollectionsDcpTest, test_dcp_create_delete_create) {
+    {
+        VBucketPtr vb = store->getVBucket(vbid);
+        // Create dairy
+        vb->updateFromManifest({R"({"separator":"::",
+              "collections":[{"name":"$default", "uid":"0"},
+                             {"name":"dairy","uid":"1"}]})"});
+
+        // Mutate dairy
+        const int items = 3;
+        for (int ii = 0; ii < items; ii++) {
+            std::string key = "dairy::" + std::to_string(ii);
+            store_item(vbid, {key, DocNamespace::Collections}, "value");
+        }
+
+        // Delete dairy
+        vb->updateFromManifest(
+                {R"({"separator":"::","collections":[{"name":"$default", "uid":"0"}]})"});
+
+        // Create dairy (new uid)
+        vb->updateFromManifest({R"({"separator":"::",
+              "collections":[{"name":"$default", "uid":"0"},
+                             {"name":"dairy","uid":"2"}]})"});
+
+        // Persist everything ready for warmup and check.
+        // Flusher will merge create/delete and we only flush the delete
+        flush_vbucket_to_disk(0, items + 1);
+
+        // Should see 2x create dairy and 1x delete dairy
+        testDcpCreateDelete(2, 1);
+    }
+
+    resetEngineAndWarmup();
+
+    createDcpObjects({}, true /* from disk*/);
+
+    // Streamed from disk, we won't see the 2x create event (only 1) or the
+    // intermediate delete
+    testDcpCreateDelete(1, 0, false);
+}
+
+// Test that a create/delete/create don't dedup
+TEST_F(CollectionsDcpTest, test_dcp_create_delete_create2) {
+    {
+        VBucketPtr vb = store->getVBucket(vbid);
+        // Create dairy
+        vb->updateFromManifest({R"({"separator":"::",
+              "collections":[{"name":"$default", "uid":"0"},
+                             {"name":"dairy","uid":"1"}]})"});
+
+        // Mutate dairy
+        const int items = 3;
+        for (int ii = 0; ii < items; ii++) {
+            std::string key = "dairy::" + std::to_string(ii);
+            store_item(vbid, {key, DocNamespace::Collections}, "value");
+        }
+
+        // Delete dairy/create dairy in one update
+        vb->updateFromManifest({R"({"separator":"::",
+              "collections":[{"name":"$default", "uid":"0"},
+                             {"name":"dairy","uid":"2"}]})"});
+
+        // Persist everything ready for warmup and check.
+        // Flusher will merge create/delete and we only flush the delete
+        flush_vbucket_to_disk(0, items + 1);
+
+        testDcpCreateDelete(2, 1);
+    }
+
+    resetEngineAndWarmup();
+
+    createDcpObjects({}, true /* from disk*/);
+
+    // Streamed from disk, we won't see the first create or delete
+    testDcpCreateDelete(1, 0, false);
 }
 
 TEST_F(CollectionsDcpTest, test_dcp_separator) {
@@ -839,22 +923,10 @@ TEST_F(CollectionsDcpTest, test_dcp_separator) {
               "collections":[{"name":"$default", "uid":"0"},
                              {"name":"meat","uid":"1"}]})"});
 
-    producer->notifySeqnoAvailable(vb->getId(), vb->getHighSeqno());
-
-    // Step which will notify the snapshot task
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
-
     // The producer should start with the old separator
     EXPECT_EQ("::", producer->getCurrentSeparatorForStream(vbid));
 
-    EXPECT_EQ(1, producer->getCheckpointSnapshotTask().queueSize());
-
-    // Now call run on the snapshot task to move checkpoint into DCP stream
-    // this will trigger the stream to update the separator
-    producer->getCheckpointSnapshotTask().run();
-
-    // Next step which should process a snapshot marker
-    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    notifyAndStepToCheckpoint();
 
     VBucketPtr replica = store->getVBucket(replicaVB);
 
@@ -900,22 +972,11 @@ TEST_F(CollectionsDcpTest, test_dcp_separator_many) {
 
     // All the changes will be collapsed into one update and we will expect
     // to see , as the separator once DCP steps through the checkpoint
-    producer->notifySeqnoAvailable(vb->getId(), vb->getHighSeqno());
-
-    // Step which will notify the snapshot task
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
 
     // The producer should start with the initial separator
     EXPECT_EQ("::", producer->getCurrentSeparatorForStream(vbid));
 
-    EXPECT_EQ(1, producer->getCheckpointSnapshotTask().queueSize());
-
-    // Now call run on the snapshot task to move checkpoint into DCP stream
-    // this will trigger the stream to update the separator
-    producer->getCheckpointSnapshotTask().run();
-
-    // Next step which should process a snapshot marker
-    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    notifyAndStepToCheckpoint();
 
     auto replica = store->getVBucket(replicaVB);
 
@@ -1024,7 +1085,7 @@ public:
     void TearDown() override {
         destroy_mock_cookie(cookieP);
         producer.reset();
-        EPBucketTest::TearDown();
+        SingleThreadedKVBucketTest::TearDown();
     }
 
 protected:
@@ -1117,6 +1178,19 @@ TEST_F(CollectionsFilteredDcpTest, filtering) {
     // Setup filtered DCP
     createDcpObjects(R"({"collections":["dairy"]})", true);
 
+    // MB-24572, this notify an step gets us to an empty checkpoint as a create
+    // was dropped.
+    notifyAndStepToCheckpoint();
+
+    // MB-24572, an extra step is needed to get past the next empty checkpoint
+    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER, dcp_last_op);
+
+    // SystemEvent createCollection
+    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT, dcp_last_op);
+    EXPECT_EQ("dairy", dcp_last_key);
+
     // Store collection documents
     std::array<std::string, 2> expectedKeys = {{"dairy::one", "dairy::two"}};
     store_item(vbid, {"meat::one", DocNamespace::Collections}, "value");
@@ -1128,24 +1202,7 @@ TEST_F(CollectionsFilteredDcpTest, filtering) {
     auto vb0Stream = producer->findStream(0);
     ASSERT_NE(nullptr, vb0Stream.get());
 
-    producer->notifySeqnoAvailable(vb->getId(), vb->getHighSeqno());
-
-    // Step which will notify the snapshot task
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
-
-    EXPECT_EQ(1, producer->getCheckpointSnapshotTask().queueSize());
-
-    // Now call run on the snapshot task to move checkpoint into DCP stream
-    producer->getCheckpointSnapshotTask().run();
-
-    // snapshot marker
-    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
-    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER, dcp_last_op);
-
-    // SystemEvent createCollection
-    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
-    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT, dcp_last_op);
-    EXPECT_EQ("dairy", dcp_last_key);
+    notifyAndStepToCheckpoint();
 
     // Now step DCP to transfer keys, only two keys are expected as all "meat"
     // keys are filtered
@@ -1170,6 +1227,14 @@ TEST_F(CollectionsFilteredDcpTest, default_only) {
     // Setup DCP
     createDcpObjects({/*no filter*/}, false /*don't know about collections*/);
 
+    // MB-24572, this notify an step gets us to an empty checkpoint as a create
+    // was dropped.
+    notifyAndStepToCheckpoint();
+
+    // MB-24572, an extra step is needed to get past the next empty checkpoint
+    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER, dcp_last_op);
+
     // Store collection documents and one default collection document
     store_item(vbid, {"meat::one", DocNamespace::Collections}, "value");
     store_item(vbid, {"dairy::one", DocNamespace::Collections}, "value");
@@ -1180,19 +1245,8 @@ TEST_F(CollectionsFilteredDcpTest, default_only) {
     auto vb0Stream = producer->findStream(0);
     ASSERT_NE(nullptr, vb0Stream.get());
 
-    producer->notifySeqnoAvailable(vb->getId(), vb->getHighSeqno());
-
-    // Step which will notify the snapshot task
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
-
-    EXPECT_EQ(1, producer->getCheckpointSnapshotTask().queueSize());
-
-    // Now call run on the snapshot task to move checkpoint into DCP stream
-    producer->getCheckpointSnapshotTask().run();
-
-    // snapshot marker
-    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
-    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER, dcp_last_op);
+    // Now step into the items of which we expect to see only anykey
+    notifyAndStepToCheckpoint();
 
     EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
     EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_MUTATION, dcp_last_op);
@@ -1216,34 +1270,23 @@ TEST_F(CollectionsFilteredDcpTest, stream_closes) {
     auto vb0Stream = producer->findStream(0);
     ASSERT_NE(nullptr, vb0Stream.get());
 
-    // Perform a delete of meat via the bucket level (filters are worked out
-    // from the bucket manifest)
-    store->setCollections({R"({"separator": "::",
-              "collections":[{"name":"$default", "uid":"0"}]})"});
-
-    producer->notifySeqnoAvailable(vb->getId(), vb->getHighSeqno());
+    notifyAndStepToCheckpoint();
 
     // Now step DCP to transfer system events. We expect that the stream will
     // close once we transfer DeleteCollection
-
-    EXPECT_NE(nullptr, consumer->getVbucketStream(1).get());
-
-    // Step which will notify the snapshot task
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
-
-    EXPECT_EQ(1, producer->getCheckpointSnapshotTask().queueSize());
-
-    // Now call run on the snapshot task to move checkpoint into DCP stream
-    producer->getCheckpointSnapshotTask().run();
-
-    // Next step which will process a snapshot marker
-    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
 
     // Now step the producer to transfer the collection creation
     EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
 
     // Not dead yet...
     EXPECT_TRUE(vb0Stream->isActive());
+
+    // Perform a delete of meat via the bucket level (filters are worked out
+    // from the bucket manifest)
+    store->setCollections({R"({"separator": "::",
+              "collections":[{"name":"$default", "uid":"0"}]})"});
+
+    notifyAndStepToCheckpoint();
 
     // Now step the producer to transfer the collection deletion
     EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));

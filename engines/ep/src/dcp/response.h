@@ -551,7 +551,7 @@ public:
      * of item
      *
      * @return a SystemEventMessage unique pointer constructed from the
-    *          queued_item data.
+     *         queued_item data.
      */
     static std::unique_ptr<SystemEventProducerMessage> make(uint32_t opaque,
                                                             queued_item& item);
@@ -562,7 +562,19 @@ public:
     }
 
     mcbp::systemevent::id getSystemEvent() const override {
-        return SystemEventFactory::mapToMcbp(SystemEvent(item->getFlags()));
+        mcbp::systemevent::id rv;
+        // Map a deleted Collection to be an explicit BeginDelete event
+        if (SystemEvent(item->getFlags()) == SystemEvent::Collection) {
+            rv = item->isDeleted() ? mcbp::systemevent::id::DeleteCollection
+                                   : mcbp::systemevent::id::CreateCollection;
+        } else if (SystemEvent(item->getFlags()) ==
+                   SystemEvent::CollectionsSeparatorChanged) {
+            rv = mcbp::systemevent::id::CollectionsSeparatorChanged;
+        } else {
+            throw std::logic_error("getSystemEvent incorrect event:" +
+                                   std::to_string(item->getFlags()));
+        }
+        return rv;
     }
 
     OptionalSeqno getBySeqno() const override {

@@ -50,16 +50,13 @@ std::string SystemEventFactory::makeKey(SystemEvent se,
                                         const std::string& keyExtra) {
     std::string key = Collections::SystemEventPrefix;
     switch (se) {
-    case SystemEvent::CreateCollection:
+    case SystemEvent::Collection:
+        key += collectionsSeparator + keyExtra;
+        break;
     case SystemEvent::DeleteCollectionSoft:
     case SystemEvent::DeleteCollectionHard: {
-        // These all operate on the same key
-        key += collectionsSeparator + Collections::CreateEventKey +
+        key += collectionsSeparator + Collections::DeleteEventKey +
                collectionsSeparator + keyExtra;
-        break;
-    }
-    case SystemEvent::BeginDeleteCollection: {
-        key += collectionsSeparator + Collections::DeleteEventKey + keyExtra;
         break;
     }
     case SystemEvent::CollectionsSeparatorChanged: {
@@ -70,36 +67,19 @@ std::string SystemEventFactory::makeKey(SystemEvent se,
     return key;
 }
 
-mcbp::systemevent::id SystemEventFactory::mapToMcbp(SystemEvent se) {
-    switch (se) {
-    case SystemEvent::CreateCollection:
-        return mcbp::systemevent::id::CreateCollection;
-    case SystemEvent::BeginDeleteCollection:
-        return mcbp::systemevent::id::DeleteCollection;
-    case SystemEvent::CollectionsSeparatorChanged:
-        return mcbp::systemevent::id::CollectionsSeparatorChanged;
-    case SystemEvent::DeleteCollectionSoft:
-    case SystemEvent::DeleteCollectionHard:
-        break;
-    }
-
-    throw std::invalid_argument("SystemEventFactory::mapToMcbp unknown input se:" + std::to_string(int(se)));
-}
-
 ProcessStatus SystemEventFlush::process(const queued_item& item) {
     if (item->getOperation() != queue_op::system_event) {
         return ProcessStatus::Continue;
     }
 
     switch (SystemEvent(item->getFlags())) {
-    case SystemEvent::CreateCollection:
-    case SystemEvent::DeleteCollectionHard:
-    case SystemEvent::DeleteCollectionSoft:
+    case SystemEvent::Collection:
     case SystemEvent::CollectionsSeparatorChanged: {
         saveCollectionsManifestItem(item); // Updates manifest
         return ProcessStatus::Continue; // And flushes an item
     }
-    case SystemEvent::BeginDeleteCollection: {
+    case SystemEvent::DeleteCollectionHard:
+    case SystemEvent::DeleteCollectionSoft: {
         saveCollectionsManifestItem(item); // Updates manifest
         return ProcessStatus::Skip; // But skips flushing the item
     }
@@ -107,35 +87,6 @@ ProcessStatus SystemEventFlush::process(const queued_item& item) {
 
     throw std::invalid_argument("SystemEventFlush::process unknown event " +
                                 std::to_string(item->getFlags()));
-}
-
-bool SystemEventFlush::isUpsert(const Item& item) {
-    if (item.getOperation() == queue_op::system_event) {
-        // CreateCollection, CollectionsSeparatorChanged and DeleteCollection*
-        // are the only valid events.(returning true/false)
-        // The ::process function should of skipped BeginDeleteCollection and
-        // thus is an error if calling this method with such an event.
-        switch (SystemEvent(item.getFlags())) {
-        case SystemEvent::CreateCollection:
-        case SystemEvent::CollectionsSeparatorChanged: {
-            return true;
-        }
-        case SystemEvent::BeginDeleteCollection: {
-            throw std::invalid_argument(
-                    "SystemEventFlush::isUpsert event " +
-                    to_string(SystemEvent(item.getFlags())) +
-                    " should neither delete or upsert ");
-        }
-        case SystemEvent::DeleteCollectionHard:
-        case SystemEvent::DeleteCollectionSoft: {
-            return false;
-        }
-        }
-    } else {
-        return !item.isDeleted();
-    }
-    throw std::invalid_argument("SystemEventFlush::isUpsert unknown event " +
-                                std::to_string(item.getFlags()));
 }
 
 const Item* SystemEventFlush::getCollectionsManifestItem() const {
@@ -159,10 +110,9 @@ ProcessStatus SystemEventReplicate::process(const Item& item) {
             return ProcessStatus::Continue;
         } else {
             switch (SystemEvent(item.getFlags())) {
-            case SystemEvent::CreateCollection:
-            case SystemEvent::BeginDeleteCollection:
+            case SystemEvent::Collection:
             case SystemEvent::CollectionsSeparatorChanged:
-                // Create, BeginDelete and change separator all replicate
+                // Collection and change separator events both replicate
                 return ProcessStatus::Continue;
             case SystemEvent::DeleteCollectionHard:
             case SystemEvent::DeleteCollectionSoft: {
@@ -178,8 +128,7 @@ ProcessStatus SystemEventReplicate::process(const Item& item) {
 std::unique_ptr<SystemEventProducerMessage> SystemEventProducerMessage::make(
         uint32_t opaque, queued_item& item) {
     switch (SystemEvent(item->getFlags())) {
-    case SystemEvent::CreateCollection:
-    case SystemEvent::BeginDeleteCollection: {
+    case SystemEvent::Collection: {
         auto dcpData = Collections::VB::Manifest::getSystemEventData(
                 {item->getData(), item->getNBytes()});
         // Note: constructor is private and make_unique is a pain to make friend

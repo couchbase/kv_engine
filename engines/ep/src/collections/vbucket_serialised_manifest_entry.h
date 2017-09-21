@@ -206,24 +206,16 @@ public:
         return toJson(startSeqno, endSeqno);
     }
 
-    std::string toJson(SystemEvent se, int64_t correctedSeqno) const {
-        switch (se) {
-        case SystemEvent::BeginDeleteCollection:
+    std::string toJsonCreateOrDelete(bool isCollectionDelete,
+                                     int64_t correctedSeqno) const {
+        if (isCollectionDelete) {
             return toJson(startSeqno, correctedSeqno);
-        case SystemEvent::CreateCollection:
-            return toJson(correctedSeqno, endSeqno);
-        case SystemEvent::DeleteCollectionHard:
-            return std::string(); // return nothing - collection gone
-        case SystemEvent::DeleteCollectionSoft:
-            return toJson(startSeqno, StoredValue::state_collection_open);
-        case SystemEvent::CollectionsSeparatorChanged:
-            return std::string(); // return nothing - no effect on entries
         }
+        return toJson(correctedSeqno, endSeqno);
+    }
 
-        throw std::invalid_argument(
-                "SerialisedManifestEntry::toJson invalid event " +
-                to_string(se));
-        return {};
+    std::string toJsonResetEnd() const {
+        return toJson(startSeqno, StoredValue::state_collection_open);
     }
 
 private:
@@ -323,8 +315,8 @@ private:
         return json;
     }
 
-    uid_t uid;
     int32_t collectionNameLen;
+    uid_t uid;
     int64_t startSeqno;
     int64_t endSeqno;
 };
