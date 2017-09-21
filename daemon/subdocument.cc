@@ -930,12 +930,16 @@ static bool do_xattr_delete_phase(SubdocCmdContext& context) {
     cb::byte_buffer blob_buffer{(uint8_t*)context.in_doc.buf,
                                 (size_t)bodyoffset};
 
-    cb::xattr::Blob xattr_blob(blob_buffer);
+    const cb::xattr::Blob xattr_blob(blob_buffer);
+
+    // The backing store for the blob is currently witin the actual
+    // document.. create a copy we can use for replace.
+    cb::xattr::Blob copy(xattr_blob);
 
     // Remove the user xattrs so we're just left with system xattrs
-    xattr_blob.prune_user_keys();
+    copy.prune_user_keys();
 
-    const auto new_xattr = xattr_blob.finalize();
+    const auto new_xattr = copy.finalize();
     replace_xattrs(new_xattr, context, bodyoffset, bodysize);
 
     return true;
@@ -999,7 +1003,7 @@ static bool do_xattr_phase(SubdocCmdContext& context) {
     cb::byte_buffer blob_buffer{(uint8_t*)context.in_doc.buf,
                                     (size_t)bodyoffset};
 
-    cb::xattr::Blob xattr_blob(blob_buffer);
+    const cb::xattr::Blob xattr_blob(blob_buffer);
     auto key = context.get_xattr_key();
     auto value_buf = xattr_blob.get(key);
 
@@ -1055,15 +1059,19 @@ static bool do_xattr_phase(SubdocCmdContext& context) {
     // As a temporary solution we did create a full JSON doc for the
     // xattr key, so we should strip off the key and just store the value.
 
+    // The backing store for the blob is currently witin the actual
+    // document.. create a copy we can use for replace.
+    cb::xattr::Blob copy(xattr_blob);
+
     if (document.len > key.len) {
         const char* start = strchr(document.buf, ':') + 1;
         const char* end = document.buf + document.len - 1;
 
-        xattr_blob.set(key, {(const uint8_t*)start, size_t(end - start)});
+        copy.set(key, {(const uint8_t*)start, size_t(end - start)});
     } else {
-        xattr_blob.remove(key);
+        copy.remove(key);
     }
-    const auto new_xattr = xattr_blob.finalize();
+    const auto new_xattr = copy.finalize();
     replace_xattrs(new_xattr, context, bodyoffset, bodysize);
 
     return true;

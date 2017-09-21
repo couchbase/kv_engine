@@ -348,7 +348,8 @@ public:
      *
      * @param v the stored value
      */
-    void handlePreExpiry(StoredValue& v);
+    void handlePreExpiry(const std::unique_lock<std::mutex>& hbl,
+                         StoredValue& v);
 
     bool addPendingOp(const void *cookie);
 
