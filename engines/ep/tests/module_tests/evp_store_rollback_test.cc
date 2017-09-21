@@ -33,16 +33,10 @@
 #include "tests/module_tests/test_helpers.h"
 
 class RollbackTest : public EPBucketTest,
-                     public ::testing::WithParamInterface<
-                             std::tuple<std::string, std::string>> {
+                     public ::testing::WithParamInterface<std::string>
+{
     void SetUp() override {
         EPBucketTest::SetUp();
-        if (std::get<1>(GetParam()) == "pending") {
-            vbStateAtRollback = vbucket_state_pending;
-        } else {
-            vbStateAtRollback = vbucket_state_replica;
-        }
-
         // Start vbucket as active to allow us to store items directly to it.
         store->setVBucketState(vbid, vbucket_state_active, false);
 
@@ -104,11 +98,11 @@ protected:
 
         // Test - rollback to seqno of item_v1 and verify that the previous value
         // of the item has been restored.
-        store->setVBucketState(vbid, vbStateAtRollback, false);
+        store->setVBucketState(vbid, vbucket_state_replica, false);
         ASSERT_EQ(TaskStatus::Complete,
                   store->rollback(vbid, item_v1.getBySeqno()));
-        auto result =
-                getInternal(a, vbid, /*cookie*/ nullptr, vbStateAtRollback, {});
+        auto result = getInternal(
+                a, vbid, /*cookie*/ nullptr, vbucket_state_replica, {});
         ASSERT_EQ(ENGINE_SUCCESS, result.getStatus());
         EXPECT_EQ(item_v1, *result.item)
                 << "Fetched item after rollback should match item_v1";
@@ -139,7 +133,7 @@ protected:
 
         // Test - rollback to seqno of item_v1 and verify that the previous value
         // of the item has been restored.
-        store->setVBucketState(vbid, vbStateAtRollback, false);
+        store->setVBucketState(vbid, vbucket_state_replica, false);
         ASSERT_EQ(TaskStatus::Complete,
                   store->rollback(vbid, item_v1.getBySeqno()));
         ASSERT_EQ(item_v1.getBySeqno(), store->getVBucket(vbid)->getHighSeqno());
@@ -198,7 +192,7 @@ protected:
 
 
         // Rollback should succeed, but rollback to 0
-        store->setVBucketState(vbid, vbStateAtRollback, false);
+        store->setVBucketState(vbid, vbucket_state_replica, false);
         EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, rollback));
 
         // These keys should be gone after the rollback
@@ -223,7 +217,6 @@ protected:
 
 protected:
     int64_t initial_seqno;
-    vbucket_state_t vbStateAtRollback;
 };
 
 TEST_P(RollbackTest, RollbackAfterMutation) {
@@ -277,7 +270,7 @@ TEST_P(RollbackTest, RollbackToMiddleOfAnUnPersistedSnapshot) {
     auto item_v2 = store_item(vbid, makeStoredDocKey("rollback-cp-2"), "gone");
 
     /* do rollback */
-    store->setVBucketState(vbid, vbStateAtRollback, false);
+    store->setVBucketState(vbid, vbucket_state_replica, false);
     EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, rollbackReqSeqno));
 
     /* confirm that we have rolled back to the disk snapshot */
@@ -353,9 +346,7 @@ TEST_P(RollbackTest, RollbackOnActive) {
     EXPECT_EQ(TaskStatus::Abort, store->rollback(vbid, 0 /*rollbackReqSeqno*/));
 }
 
-class RollbackDcpTest : public SingleThreadedEPBucketTest,
-                        public ::testing::WithParamInterface<
-                                std::tuple<std::string, std::string>> {
+class RollbackDcpTest : public SingleThreadedEPBucketTest {
 public:
     RollbackDcpTest()
         : cookie(create_mock_cookie()),
@@ -364,12 +355,6 @@ public:
 
     void SetUp() override {
         SingleThreadedEPBucketTest::SetUp();
-        if (std::get<1>(GetParam()) == "pending") {
-            vbStateAtRollback = vbucket_state_pending;
-        } else {
-            vbStateAtRollback = vbucket_state_replica;
-        }
-
         store->setVBucketState(vbid, vbucket_state_active, false);
         consumer = new MockDcpConsumer(*engine, cookie, "test_consumer");
         vb = store->getVBucket(vbid);
@@ -459,7 +444,7 @@ public:
             vb->failovers->createEntry(items * (ii + 1));
         }
 
-        store->setVBucketState(vbid, vbStateAtRollback, false);
+        store->setVBucketState(vbid, vbucket_state_replica, false);
     }
 
     uint64_t addStream(int nitems) {
@@ -504,7 +489,6 @@ public:
     SingleThreadedRCPtr<MockDcpConsumer> consumer;
     std::unique_ptr<dcp_message_producers> producers;
     VBucketPtr vb;
-    vbucket_state_t vbStateAtRollback;
 };
 
 RollbackDcpTest::StreamRequestData RollbackDcpTest::streamRequestData = {};
@@ -515,7 +499,7 @@ RollbackDcpTest::StreamRequestData RollbackDcpTest::streamRequestData = {};
  *    with new data.
  * 2. The second rollback to 0 response triggers a rollback to 0.
  */
-TEST_P(RollbackDcpTest, test_rollback_zero) {
+TEST_F(RollbackDcpTest, test_rollback_zero) {
     const int items = 40;
     const int flushes = 1;
     const int nitems = items * flushes;
@@ -565,7 +549,7 @@ TEST_P(RollbackDcpTest, test_rollback_zero) {
  * 2. The second rollback response is non-zero, and the consumer accepts that
  *    and rolls back to the rollbackPoint and requests a stream for it.
  */
-TEST_P(RollbackDcpTest, test_rollback_nonzero) {
+TEST_F(RollbackDcpTest, test_rollback_nonzero) {
     const int items = 10;
     const int flushes = 4;
     const int nitems = items * flushes;
@@ -729,20 +713,10 @@ TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
             << "stream should have received a STREAM_END";
 }
 
-static auto allConfigValues = ::testing::Values(
-        std::make_tuple(std::string("value_only"), std::string("replica")),
-        std::make_tuple(std::string("full_eviction"), std::string("replica")),
-        std::make_tuple(std::string("value_only"), std::string("pending")),
-        std::make_tuple(std::string("full_eviction"), std::string("pending")));
-
-// Test cases which run in both Full and Value eviction on replica and pending
-// vbucket states
-INSTANTIATE_TEST_CASE_P(FullAndValueEvictionOnReplicaAndPending,
+// Test cases which run in both Full and Value eviction
+INSTANTIATE_TEST_CASE_P(FullAndValueEviction,
                         RollbackTest,
-                        allConfigValues, );
-
-// Test cases which run in both Full and Value eviction on replica and pending
-// vbucket states
-INSTANTIATE_TEST_CASE_P(FullAndValueEvictionOnReplicaAndPending,
-                        RollbackDcpTest,
-                        allConfigValues, );
+                        ::testing::Values("value_only", "full_eviction"),
+                        [] (const ::testing::TestParamInfo<std::string>& info) {
+                            return info.param;
+                        });

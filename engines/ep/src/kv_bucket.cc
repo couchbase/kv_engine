@@ -2626,8 +2626,7 @@ TaskStatus KVBucket::rollback(uint16_t vbid, uint64_t rollbackSeqno) {
     }
 
     ReaderLockHolder rlh(vb->getStateLock());
-    if ((vb->getState() == vbucket_state_replica) ||
-        (vb->getState() == vbucket_state_pending)) {
+    if (vb->getState() == vbucket_state_replica) {
         uint64_t prevHighSeqno =
                 static_cast<uint64_t>(vb->checkpointManager->getHighSeqno());
         if (rollbackSeqno != 0) {
