@@ -331,14 +331,17 @@ TEST_F(HashTableTest, PoisonKey) {
 }
 
 // Test fixture for HashTable statistics tests.
-class HashTableStatsTest : public HashTableTest {
+class HashTableStatsTest
+        : public HashTableTest,
+          public ::testing::WithParamInterface<item_eviction_policy_t> {
 protected:
     HashTableStatsTest()
         : ht(stats, makeFactory(), 5, 1),
           initialSize(0),
           key(makeStoredDocKey("somekey")),
           itemSize(16 * 1024),
-          item(key, 0, 0, std::string(itemSize, 'x').data(), itemSize) {
+          item(key, 0, 0, std::string(itemSize, 'x').data(), itemSize),
+          evictionPolicy(GetParam()) {
     }
 
     void SetUp() override {
@@ -346,12 +349,27 @@ protected:
         ASSERT_EQ(0, ht.memSize.load());
         ASSERT_EQ(0, ht.cacheSize.load());
         initialSize = stats.currentSize.load();
+
+        EXPECT_EQ(0, ht.getNumItems());
+        EXPECT_EQ(0, ht.getNumInMemoryItems());
+        EXPECT_EQ(0, ht.getNumInMemoryNonResItems());
+        EXPECT_EQ(0, ht.getNumTempItems());
+        EXPECT_EQ(0, ht.getNumDeletedItems());
     }
 
     void TearDown() override {
         EXPECT_EQ(0, ht.memSize.load());
         EXPECT_EQ(0, ht.cacheSize.load());
         EXPECT_EQ(initialSize, stats.currentSize.load());
+
+        if (evictionPolicy == VALUE_ONLY) {
+            // Only check is zero for ValueOnly; under full eviction getNumItems
+            // return the total number of items (including those fully evicted).
+            EXPECT_EQ(0, ht.getNumItems());
+        }
+        EXPECT_EQ(0, ht.getNumInMemoryItems());
+        EXPECT_EQ(0, ht.getNumTempItems());
+        EXPECT_EQ(0, ht.getNumDeletedItems());
     }
 
     EPStats stats;
@@ -360,43 +378,57 @@ protected:
     const StoredDocKey key;
     const size_t itemSize;
     Item item;
+    const item_eviction_policy_t evictionPolicy;
 };
 
-TEST_F(HashTableStatsTest, Size) {
+TEST_P(HashTableStatsTest, Size) {
     EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
 
     del(ht, key);
 }
 
-TEST_F(HashTableStatsTest, SizeFlush) {
+TEST_P(HashTableStatsTest, SizeFlush) {
     EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
 
     ht.clear();
 }
 
-TEST_F(HashTableStatsTest, SizeEject) {
+TEST_P(HashTableStatsTest, SizeEject) {
     EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
 
-    item_eviction_policy_t policy = VALUE_ONLY;
     StoredValue* v(ht.find(key, TrackReference::Yes, WantsDeleted::No));
     EXPECT_TRUE(v);
     v->markClean();
-    EXPECT_TRUE(ht.unlocked_ejectItem(v, policy));
+    EXPECT_TRUE(ht.unlocked_ejectItem(v, evictionPolicy));
 
     del(ht, key);
 }
 
-TEST_F(HashTableStatsTest, EjectFlush) {
+TEST_P(HashTableStatsTest, EjectFlush) {
     EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
 
-    item_eviction_policy_t policy = VALUE_ONLY;
     StoredValue* v(ht.find(key, TrackReference::Yes, WantsDeleted::No));
     EXPECT_TRUE(v);
     v->markClean();
-    EXPECT_TRUE(ht.unlocked_ejectItem(v, policy));
+    EXPECT_TRUE(ht.unlocked_ejectItem(v, evictionPolicy));
 
     ht.clear();
 }
+
+INSTANTIATE_TEST_CASE_P(
+        ValueAndFullEviction,
+        HashTableStatsTest,
+        ::testing::Values(VALUE_ONLY, FULL_EVICTION),
+        [](const ::testing::TestParamInfo<item_eviction_policy_t>& info) {
+            switch (info.param) {
+            case VALUE_ONLY:
+                return "VALUE_ONLY";
+            case FULL_EVICTION:
+                return "FULL_EVICTION";
+            }
+            throw std::invalid_argument("Unknown eviction_policy:" +
+                                        std::to_string(info.param));
+        });
 
 TEST_F(HashTableTest, ItemAge) {
     // Setup
