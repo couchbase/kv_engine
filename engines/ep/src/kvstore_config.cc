@@ -40,9 +40,8 @@ KVStoreConfig::KVStoreConfig(Configuration& config, uint16_t shardid)
                     config.getBackend(),
                     shardid,
                     config.isCollectionsPrototypeEnabled(),
-                    config.getRocksdbWriteBufferSize(),
-                    config.getRocksdbDbWriteBufferSize(),
-                    config.getRocksdbMaxWriteBufferNumber()) {
+                    config.getRocksdbOptions(),
+                    config.getRocksdbCfOptions()) {
     setPeriodicSyncBytes(config.getFsyncAfterEveryNBytesWritten());
     config.addValueChangedListener("fsync_after_every_n_bytes_written",
                                    new ConfigChangeListener(*this));
@@ -54,9 +53,8 @@ KVStoreConfig::KVStoreConfig(uint16_t _maxVBuckets,
                              const std::string& _backend,
                              uint16_t _shardId,
                              bool _persistDocNamespace,
-                             size_t writeBufferSize,
-                             size_t dbWriteBufferSize,
-                             size_t maxWriteBufferNumber)
+                             const std::string& rocksDBOptions_,
+                             const std::string& rocksDBCFOptions_)
     : maxVBuckets(_maxVBuckets),
       maxShards(_maxShards),
       dbname(_dbname),
@@ -65,9 +63,15 @@ KVStoreConfig::KVStoreConfig(uint16_t _maxVBuckets,
       logger(&global_logger),
       buffered(true),
       persistDocNamespace(_persistDocNamespace),
-      writeBufferSize(writeBufferSize),
-      dbWriteBufferSize(dbWriteBufferSize),
-      maxWriteBufferNumber(maxWriteBufferNumber) {
+      rocksDBOptions(rocksDBOptions_),
+      rocksDBCFOptions(rocksDBCFOptions_) {
+    // We pass RocksDB Options (through `configuration.json` and the
+    // `-e "<config>"` command line argument for tests) as comma-separated
+    // <option>=<value> pairs, but RocksDB can parse only semicolon-separated
+    // option strings. We cannot use directly the semicolon because
+    // `-e "<config>"` already uses it as separator in the `<config>` string.
+    std::replace(rocksDBOptions.begin(), rocksDBOptions.end(), ',', ';');
+    std::replace(rocksDBCFOptions.begin(), rocksDBCFOptions.end(), ',', ';');
 }
 
 KVStoreConfig& KVStoreConfig::setLogger(Logger& _logger) {

@@ -22,6 +22,8 @@
 #include "kvstore_config.h"
 #include "kvstore_priv.h"
 
+#include <rocksdb/convenience.h>
+
 #include <string.h>
 #include <algorithm>
 #include <limits>
@@ -50,14 +52,27 @@ RocksDBKVStore::~RocksDBKVStore() {
 }
 
 void RocksDBKVStore::open() {
+    // The RocksDB Options is a set of DBOptions and ColumnFamilyOptions.
+    // Together they cover all RocksDB available parameters.
+    auto status = rocksdb::GetDBOptionsFromString(
+            rocksdb::Options(), configuration.getRocksDBOptions(), &rdbOptions);
+    if (!status.ok()) {
+        throw std::invalid_argument(
+                std::string("RocksDBKVStore::open: GetDBOptionsFromString "
+                            "error: ") +
+                status.getState());
+    }
+    status = rocksdb::GetColumnFamilyOptionsFromString(
+            rdbOptions, configuration.getRocksDBCFOptions(), &rdbOptions);
+    if (!status.ok()) {
+        throw std::invalid_argument(
+                std::string("RocksDBKVStore::open: "
+                            "GetColumnFamilyOptionsFromString error: ") +
+                status.getState());
+    }
+
     rdbOptions.create_if_missing = true;
     rdbOptions.create_missing_column_families = true;
-    rdbOptions.write_buffer_size =
-            1024 * 1024 * configuration.getWriteBufferSize();
-    rdbOptions.db_write_buffer_size =
-            1024 * 1024 * configuration.getDbWriteBufferSize();
-    rdbOptions.max_write_buffer_number =
-            configuration.getMaxWriteBufferNumber();
 
     seqnoCFOptions.comparator = &vbidSeqnoComparator;
 

@@ -807,38 +807,15 @@
             "descr": "Perform a file sync() operation after every N bytes written. Disabled if set to 0.",
             "type" : "size_t"
         },
-        "rocksdb_write_buffer_size": {
-            "default": "64",
-            "descr": "The maximum size in MB of a single memtable in rocksdb.",
-            "type": "size_t",
-            "validator": {
-                "range": {
-                    "max": 100000,
-                    "min": 0
-                }
-            }
+        "rocksdb_options": {
+            "default": "db_write_buffer_size=0",
+            "descr": "RocksDB Options, comma separated.",
+            "type": "std::string"
         },
-        "rocksdb_db_write_buffer_size": {
-            "default": "0",
-            "descr": "The maximum total size in MB of all memtables in rocksdb, per shard.",
-            "type": "size_t",
-            "validator": {
-                "range": {
-                    "max": 100000,
-                    "min": 0
-                }
-            }
-        },
-        "rocksdb_max_write_buffer_number": {
-            "default": "0",
-            "descr": "The maximum number of memtables in rocksdb before stalling writes, per shard.",
-            "type": "size_t",
-            "validator": {
-                "range": {
-                    "max": 100000,
-                    "min": 0
-                }
-            }
+        "rocksdb_cf_options": {
+            "default": "write_buffer_size=67108864,max_write_buffer_number=0",
+            "descr": "RocksDB Column Family Options, comma separated.",
+            "type": "std::string"
         },
         "time_synchronization": {
             "default": "disabled",

@@ -45,9 +45,8 @@ public:
                   const std::string& _backend,
                   uint16_t _shardId,
                   bool persistDocNamespace,
-                  size_t writeBufferSize = 0,
-                  size_t dbWriteBufferSize = 0,
-                  size_t maxWriteBufferNumber = 0);
+                  const std::string& rocksDBOptions_ = "",
+                  const std::string& rocksDBCFOptions_ = "");
 
     uint16_t getMaxVBuckets() const {
         return maxVBuckets;
@@ -111,26 +110,18 @@ public:
         periodicSyncBytes = bytes;
     }
 
-    /**
-     * RocksDB: The maximum size in MB of a single memtable.
+    /*
+     * Return the RocksDB Database level options.
      */
-    size_t getWriteBufferSize() {
-        return writeBufferSize;
+    const std::string& getRocksDBOptions() {
+        return rocksDBOptions;
     }
 
-    /**
-     * RocksDB: The maximum total size in MB of all memtables, per shard.
+    /*
+     * Return the RocksDB Column Family level options.
      */
-    size_t getDbWriteBufferSize() {
-        return dbWriteBufferSize;
-    }
-
-    /**
-     * RocksDB: The maximum number of memtables before stalling writes, per
-     * shard.
-     */
-    size_t getMaxWriteBufferNumber() {
-        return maxWriteBufferNumber;
+    const std::string& getRocksDBCFOptions() {
+        return rocksDBCFOptions;
     }
 
 private:
@@ -151,7 +142,10 @@ private:
      */
     uint64_t periodicSyncBytes;
 
-    size_t writeBufferSize;
-    size_t dbWriteBufferSize;
-    size_t maxWriteBufferNumber;
+    // RocksDB Database level options. Semicolon-separated `<option>=<value>`
+    // pairs.
+    std::string rocksDBOptions;
+    // RocksDB Column Family level options. Semicolon-separated
+    // `<option>=<value>` pairs.
+    std::string rocksDBCFOptions;
 };
