@@ -330,71 +330,52 @@ TEST_F(HashTableTest, PoisonKey) {
     EXPECT_EQ(1, count(h));
 }
 
-TEST_F(HashTableTest, SizeStats) {
-    global_stats.reset();
-    HashTable ht(global_stats, makeFactory(), 5, 1);
-    ASSERT_EQ(0, ht.memSize.load());
-    ASSERT_EQ(0, ht.cacheSize.load());
-    size_t initialSize = global_stats.currentSize.load();
+// Test fixture for HashTable statistics tests.
+class HashTableStatsTest : public HashTableTest {
+protected:
+    HashTableStatsTest()
+        : ht(stats, makeFactory(), 5, 1),
+          initialSize(0),
+          key(makeStoredDocKey("somekey")),
+          itemSize(16 * 1024),
+          item(key, 0, 0, std::string(itemSize, 'x').data(), itemSize) {
+    }
 
-    StoredDocKey k = makeStoredDocKey("somekey");
-    const size_t itemSize(16 * 1024);
-    char *someval(static_cast<char*>(cb_calloc(1, itemSize)));
-    EXPECT_TRUE(someval);
+    void SetUp() override {
+        global_stats.reset();
+        ASSERT_EQ(0, ht.memSize.load());
+        ASSERT_EQ(0, ht.cacheSize.load());
+        initialSize = stats.currentSize.load();
+    }
 
-    Item i(k, 0, 0, someval, itemSize);
+    void TearDown() override {
+        EXPECT_EQ(0, ht.memSize.load());
+        EXPECT_EQ(0, ht.cacheSize.load());
+        EXPECT_EQ(initialSize, stats.currentSize.load());
+    }
 
-    EXPECT_EQ(MutationStatus::WasClean, ht.set(i));
+    EPStats stats;
+    HashTable ht;
+    size_t initialSize;
+    const StoredDocKey key;
+    const size_t itemSize;
+    Item item;
+};
 
-    del(ht, k);
+TEST_F(HashTableStatsTest, Size) {
+    EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
 
-    EXPECT_EQ(0, ht.memSize.load());
-    EXPECT_EQ(0, ht.cacheSize.load());
-    EXPECT_EQ(initialSize, global_stats.currentSize.load());
-
-    cb_free(someval);
+    del(ht, key);
 }
 
-TEST_F(HashTableTest, SizeStatsFlush) {
-    global_stats.reset();
-    HashTable ht(global_stats, makeFactory(), 5, 1);
-    ASSERT_EQ(0, ht.memSize.load());
-    ASSERT_EQ(0, ht.cacheSize.load());
-    size_t initialSize = global_stats.currentSize.load();
-
-    StoredDocKey k = makeStoredDocKey("somekey");
-    const size_t itemSize(16 * 1024);
-    char *someval(static_cast<char*>(cb_calloc(1, itemSize)));
-    EXPECT_TRUE(someval);
-
-    Item i(k, 0, 0, someval, itemSize);
-
-    EXPECT_EQ(MutationStatus::WasClean, ht.set(i));
+TEST_F(HashTableStatsTest, SizeFlush) {
+    EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
 
     ht.clear();
-
-    EXPECT_EQ(0, ht.memSize.load());
-    EXPECT_EQ(0, ht.cacheSize.load());
-    EXPECT_EQ(initialSize, global_stats.currentSize.load());
-
-    cb_free(someval);
 }
 
-TEST_F(HashTableTest, SizeStatsEject) {
-    global_stats.reset();
-    HashTable ht(global_stats, makeFactory(), 5, 1);
-    ASSERT_EQ(0, ht.memSize.load());
-    ASSERT_EQ(0, ht.cacheSize.load());
-    size_t initialSize = global_stats.currentSize.load();
-
-    StoredDocKey key = makeStoredDocKey("somekey");
-    const size_t itemSize(16 * 1024);
-    char *someval(static_cast<char*>(cb_calloc(1, itemSize)));
-    EXPECT_TRUE(someval);
-
-    Item i(key, 0, 0, someval, itemSize);
-
-    EXPECT_EQ(MutationStatus::WasClean, ht.set(i));
+TEST_F(HashTableStatsTest, SizeEject) {
+    EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
 
     item_eviction_policy_t policy = VALUE_ONLY;
     StoredValue* v(ht.find(key, TrackReference::Yes, WantsDeleted::No));
@@ -403,29 +384,10 @@ TEST_F(HashTableTest, SizeStatsEject) {
     EXPECT_TRUE(ht.unlocked_ejectItem(v, policy));
 
     del(ht, key);
-
-    EXPECT_EQ(0, ht.memSize.load());
-    EXPECT_EQ(0, ht.cacheSize.load());
-    EXPECT_EQ(initialSize, global_stats.currentSize.load());
-
-    cb_free(someval);
 }
 
-TEST_F(HashTableTest, SizeStatsEjectFlush) {
-    global_stats.reset();
-    HashTable ht(global_stats, makeFactory(), 5, 1);
-    ASSERT_EQ(0, ht.memSize.load());
-    ASSERT_EQ(0, ht.cacheSize.load());
-    size_t initialSize = global_stats.currentSize.load();
-
-    StoredDocKey key = makeStoredDocKey("somekey");
-    const size_t itemSize(16 * 1024);
-    char *someval(static_cast<char*>(cb_calloc(1, itemSize)));
-    EXPECT_TRUE(someval);
-
-    Item i(key, 0, 0, someval, itemSize);
-
-    EXPECT_EQ(MutationStatus::WasClean, ht.set(i));
+TEST_F(HashTableStatsTest, EjectFlush) {
+    EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
 
     item_eviction_policy_t policy = VALUE_ONLY;
     StoredValue* v(ht.find(key, TrackReference::Yes, WantsDeleted::No));
@@ -434,12 +396,6 @@ TEST_F(HashTableTest, SizeStatsEjectFlush) {
     EXPECT_TRUE(ht.unlocked_ejectItem(v, policy));
 
     ht.clear();
-
-    EXPECT_EQ(0, ht.memSize.load());
-    EXPECT_EQ(0, ht.cacheSize.load());
-    EXPECT_EQ(initialSize, global_stats.currentSize.load());
-
-    cb_free(someval);
 }
 
 TEST_F(HashTableTest, ItemAge) {
