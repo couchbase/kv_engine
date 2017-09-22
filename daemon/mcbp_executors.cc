@@ -498,7 +498,7 @@ void ship_mcbp_dcp_log(McbpConnection* c) {
 
     // Begin timing DCP, each dcp callback needs to set the c->cmd for the timing
     // to be recorded.
-    c->setStart(gethrtime());
+    c->setStart(ProcessClock::now());
 
     c->addMsgHdr(true);
     c->setEwouldblock(false);
@@ -1346,7 +1346,7 @@ void try_read_mcbp_command(McbpConnection* c) {
     /* clear the returned cas value */
     c->setCAS(0);
     c->setNoReply(false);
-    c->setStart(gethrtime());
+    c->setStart(ProcessClock::now());
     MEMCACHED_PROCESS_COMMAND_START(c->getId(), nullptr, 0);
 
     auto reason = validate_packet_execusion_constraints(c);

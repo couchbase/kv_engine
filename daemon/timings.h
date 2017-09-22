@@ -37,7 +37,7 @@ public:
     Timings(const Timings&) = delete;
 
     void reset(void);
-    void collect(const uint8_t opcode, const hrtime_t nsec);
+    void collect(const uint8_t opcode, const std::chrono::nanoseconds nsec);
     void sample(std::chrono::seconds sample_interval);
     std::string generate(const uint8_t opcode);
     uint64_t get_aggregated_mutation_stats();

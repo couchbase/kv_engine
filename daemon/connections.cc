@@ -266,7 +266,7 @@ static void conn_cleanup(Connection *c) {
     cb_assert(c->getNext() == nullptr);
     c->setSocketDescriptor(INVALID_SOCKET);
     if (mcbpc != nullptr) {
-        mcbpc->setStart(0);
+        mcbpc->setStart(ProcessClock::time_point());
         mcbpc->disableSSL();
     }
 }

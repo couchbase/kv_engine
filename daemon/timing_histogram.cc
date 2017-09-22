@@ -17,13 +17,15 @@
 
 #include "timing_histogram.h"
 
+#include <cJSON.h>
+#include <cJSON_utils.h>
 #include <platform/platform.h>
+
 #include <atomic>
+#include <chrono>
 #include <functional>
 #include <sstream>
 #include <string>
-#include <cJSON.h>
-#include <cJSON_utils.h>
 
 TimingHistogram::TimingHistogram() {
     reset();
@@ -105,28 +107,31 @@ void TimingHistogram::reset(void) {
 }
 
 void TimingHistogram::add(const hrtime_t nsec) {
-    hrtime_t us = nsec / 1000;
-    hrtime_t ms = us / 1000;
-    hrtime_t hs = ms / 500;
+    using namespace std::chrono;
+    using halfseconds = duration<long long, std::ratio<1, 2>>;
 
-    if (us == 0) {
+    auto us = duration_cast<microseconds>(nanoseconds(nsec));
+    auto ms = duration_cast<milliseconds>(us);
+    auto hs = duration_cast<halfseconds>(ms);
+
+    if (us.count() == 0) {
         ns++;
-    } else if (us < 1000) {
-        usec[us / 10]++;
-    } else if (ms < 50) {
-        msec[ms]++;
-    } else if (hs < 10) {
-        halfsec[hs]++;
+    } else if (us.count() < 1000) {
+        usec[us.count() / 10]++;
+    } else if (ms.count() < 50) {
+        msec[ms.count()]++;
+    } else if (hs.count() < 10) {
+        halfsec[hs.count()]++;
     } else {
         // [5-9], [10-19], [20-39], [40-79], [80-inf].
-        hrtime_t sec = hs / 2;
-        if (sec < 10) {
+        auto sec = duration_cast<seconds>(hs);
+        if (sec.count() < 10) {
             wayout[0]++;
-        } else if (sec < 20) {
+        } else if (sec.count() < 20) {
             wayout[1]++;
-        } else if (sec < 40) {
+        } else if (sec.count() < 40) {
             wayout[2]++;
-        } else if (sec < 80) {
+        } else if (sec.count() < 80) {
             wayout[3]++;
         } else {
             wayout[4]++;

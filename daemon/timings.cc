@@ -42,11 +42,12 @@ void Timings::reset(void) {
     }
 }
 
-void Timings::collect(const uint8_t opcode, const hrtime_t nsec) {
-    timings[opcode].add(nsec);
+void Timings::collect(const uint8_t opcode,
+                      const std::chrono::nanoseconds nsec) {
+    timings[opcode].add(nsec.count());
     auto& interval = interval_counters[opcode];
     interval.count++;
-    interval.duration_ns += nsec;
+    interval.duration_ns += nsec.count();
 }
 
 std::string Timings::generate(const uint8_t opcode) {

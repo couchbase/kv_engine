@@ -97,9 +97,9 @@ void mcbp_write_response(McbpConnection* c,
         c->setState(McbpStateMachine::State::send_data);
         c->setWriteAndGo(McbpStateMachine::State::new_cmd);
     } else {
-        if (c->getStart() != 0) {
+        if (c->getStart() != ProcessClock::time_point()) {
             mcbp_collect_timings(reinterpret_cast<McbpConnection*>(c));
-            c->setStart(0);
+            c->setStart(ProcessClock::time_point());
         }
         // The responseCounter is updated here as this is non-responding code
         // hence mcbp_add_header will not be called (which is what normally
@@ -327,8 +327,7 @@ bool mcbp_response_handler(const void* key, uint16_t keylen,
 }
 
 void mcbp_collect_timings(const McbpConnection* c) {
-    hrtime_t now = gethrtime();
-    const hrtime_t elapsed_ns = now - c->getStart();
+    const auto elapsed_ns = ProcessClock::now() - c->getStart();
     // aggregated timing for all buckets
     all_buckets[0].timings.collect(c->getCmd(), elapsed_ns);
 
@@ -343,6 +342,7 @@ void mcbp_collect_timings(const McbpConnection* c) {
     }
 
     // Log operations taking longer than 0.5s
-    const hrtime_t elapsed_ms = elapsed_ns / (1000 * 1000);
-    c->maybeLogSlowCommand(std::chrono::milliseconds(elapsed_ms));
+    const auto elapsed_ms =
+            std::chrono::duration_cast<std::chrono::milliseconds>(elapsed_ns);
+    c->maybeLogSlowCommand(elapsed_ms);
 }

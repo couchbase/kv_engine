@@ -522,11 +522,11 @@ public:
         return dynamicBuffer;
     }
 
-    hrtime_t getStart() const {
+    ProcessClock::time_point getStart() const {
         return start;
     }
 
-    void setStart(hrtime_t start) {
+    void setStart(ProcessClock::time_point start) {
         McbpConnection::start = start;
     }
 
@@ -875,7 +875,7 @@ protected:
      * The high resolution timer value for when we started executing the
      * current command.
      */
-    hrtime_t start = 0;
+    ProcessClock::time_point start;
 
     /** the cas to return */
     uint64_t cas = 0;

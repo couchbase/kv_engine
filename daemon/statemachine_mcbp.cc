@@ -94,7 +94,7 @@ void McbpStateMachine::setCurrentState(State task) {
 
         if (task == State::read_packet_header) {
             // If we're starting to read data, reset any running timers
-            connection.setStart(0);
+            connection.setStart(ProcessClock::time_point());
         }
     }
 
@@ -107,9 +107,9 @@ void McbpStateMachine::setCurrentState(State task) {
     }
 
     if (task == State::send_data) {
-        if (connection.getStart() != 0) {
+        if (connection.getStart() != ProcessClock::time_point()) {
             mcbp_collect_timings(&connection);
-            connection.setStart(0);
+            connection.setStart(ProcessClock::time_point());
         }
         MEMCACHED_PROCESS_COMMAND_END(connection.getId(), nullptr, 0);
     }
@@ -311,7 +311,7 @@ bool conn_new_cmd(McbpConnection& connection) {
         return true;
     }
 
-    c->setStart(0);
+    c->setStart(ProcessClock::time_point());
 
     if (!c->write->empty()) {
         LOG_WARNING(
