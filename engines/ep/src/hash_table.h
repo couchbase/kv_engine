@@ -198,6 +198,10 @@ public:
     /**
      * Get the number of in-memory non-resident and resident items within
      * this hash table.
+     * - Includes items which are marked as deleted (but held in memory).
+     * - Does *not* include temporary items - as such the actual number of
+     *   HashTable slots occupied is the sum of getNumInMemoryItems() and
+     *   getNumTempItems()
      */
     size_t getNumInMemoryItems() const {
         return numItems;
@@ -641,6 +645,9 @@ private:
     std::atomic<size_t>       visitors;
 
     std::atomic<size_t> numTotalItems;
+
+    /// Count of alive & deleted, in-memory non-resident and resident items.
+    /// Excludes temporary items.
     cb::NonNegativeCounter<size_t> numItems;
     cb::NonNegativeCounter<size_t> numNonResidentItems;
     cb::NonNegativeCounter<size_t> numDeletedItems;
