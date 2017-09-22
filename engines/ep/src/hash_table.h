@@ -644,7 +644,7 @@ private:
     std::unique_ptr<AbstractStoredValueFactory> valFact;
     std::atomic<size_t>       visitors;
 
-    std::atomic<size_t> numTotalItems;
+    cb::NonNegativeCounter<size_t> numTotalItems;
 
     /// Count of alive & deleted, in-memory non-resident and resident items.
     /// Excludes temporary items.
