@@ -113,7 +113,7 @@ public:
 
     size_t getItemsSent();
 
-    size_t getTotalBytes();
+    size_t getTotalBytesSent();
 
     std::vector<uint16_t> getVBVector(void);
 
