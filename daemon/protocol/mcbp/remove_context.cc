@@ -217,9 +217,13 @@ ENGINE_ERROR_CODE RemoveCommandContext::rebuildXattr() {
                 existing_info.value[0].iov_len
             });
 
-        cb::xattr::Blob blob({static_cast<uint8_t*>(existing_info.value[0].iov_base),
-                             size}, xattr_buffer);
-
+        // We can't modify the item as when we try to replace the item it
+        // may fail due to a race condition. Create a temporary copy of the
+        // current value
+        auto* ptr = static_cast<uint8_t*>(existing_info.value[0].iov_base);
+        xattr_buffer.reset(new uint8_t[size]);
+        std::copy(ptr, ptr + size, xattr_buffer.get());
+        cb::xattr::Blob blob({xattr_buffer.get(), size}, xattr_buffer);
         blob.prune_user_keys();
         xattr = blob.finalize();
     }
