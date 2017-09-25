@@ -1872,7 +1872,7 @@ GetValue VBucket::getLocked(const DocKey& key,
 
         // if v is locked return error
         if (v->isLocked(currentTime)) {
-            return GetValue(NULL, ENGINE_TMPFAIL);
+            return GetValue(NULL, ENGINE_LOCKED_TMPFAIL);
         }
 
         // If the value is not resident, wait for it...
