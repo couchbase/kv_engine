@@ -930,8 +930,17 @@ static ENGINE_ERROR_CODE do_item_unlock(struct default_engine* engine,
 
     if (item->cas != cas) {
         // Invalid CAS value
+        auto ret = ENGINE_KEY_EEXISTS;
+
+        if (item->locktime != 0 &&
+            item->locktime > engine->server.core->get_current_time()) {
+            // To be in line with ep-engine we should return ENGINE_LOCKED
+            // when trying to unlock a locked value with the wrong cas
+            ret = ENGINE_LOCKED;
+        }
+
         do_item_release(engine, item);
-        return ENGINE_KEY_EEXISTS;
+        return ret;
     }
 
     if (item->refcount == 1) {

@@ -204,7 +204,7 @@ TEST_P(LockTest, UnlockWrongCas) {
         conn.unlock(name, 0, locked.info.cas + 1);
         FAIL() << "The cas value should not match";
     } catch (const ConnectionError& ex) {
-        EXPECT_TRUE(ex.isAlreadyExists());
+        EXPECT_TRUE(ex.isLocked());
     }
 }
 
