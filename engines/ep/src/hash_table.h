@@ -284,7 +284,9 @@ public:
     /**
      * Get the number of temp. items within this hash table.
      */
-    size_t getNumTempItems(void) { return numTempItems; }
+    size_t getNumTempItems() const {
+        return numTempItems;
+    }
 
     /**
      * Automatically resize to fit the current data.
@@ -598,12 +600,23 @@ public:
     StoredValue::UniquePtr unlocked_release(const HashBucketLock& hbl,
                                                   const DocKey& key);
 
+    /**
+     * Dump a representation of the HashTable to stderr.
+     */
+    void dump() const;
+
     std::atomic<uint64_t>     maxDeletedRevSeqno;
     std::atomic<size_t>       numTotalItems;
     cb::NonNegativeCounter<size_t> numNonResidentItems;
     cb::NonNegativeCounter<size_t> numDeletedItems;
+
+    /**
+     * Number of documents of a given datatype. Includes alive (non-deleted),
+     * resident documents.
+     */
     std::array<cb::NonNegativeCounter<size_t>, mcbp::datatype::highest + 1>
             datatypeCounts;
+
     std::atomic<size_t>       numEjects;
     //! Memory consumed by items in this hashtable.
     std::atomic<size_t>       memSize;

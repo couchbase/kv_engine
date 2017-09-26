@@ -330,117 +330,105 @@ TEST_F(HashTableTest, PoisonKey) {
     EXPECT_EQ(1, count(h));
 }
 
-TEST_F(HashTableTest, SizeStats) {
-    global_stats.reset();
-    HashTable ht(global_stats, makeFactory(), 5, 1);
-    ASSERT_EQ(0, ht.memSize.load());
-    ASSERT_EQ(0, ht.cacheSize.load());
-    size_t initialSize = global_stats.currentSize.load();
+// Test fixture for HashTable statistics tests.
+class HashTableStatsTest
+        : public HashTableTest,
+          public ::testing::WithParamInterface<item_eviction_policy_t> {
+protected:
+    HashTableStatsTest()
+        : ht(stats, makeFactory(), 5, 1),
+          initialSize(0),
+          key(makeStoredDocKey("somekey")),
+          itemSize(16 * 1024),
+          item(key, 0, 0, std::string(itemSize, 'x').data(), itemSize),
+          evictionPolicy(GetParam()) {
+    }
 
-    StoredDocKey k = makeStoredDocKey("somekey");
-    const size_t itemSize(16 * 1024);
-    char *someval(static_cast<char*>(cb_calloc(1, itemSize)));
-    EXPECT_TRUE(someval);
+    void SetUp() override {
+        global_stats.reset();
+        ASSERT_EQ(0, ht.memSize.load());
+        ASSERT_EQ(0, ht.cacheSize.load());
+        initialSize = stats.currentSize.load();
 
-    Item i(k, 0, 0, someval, itemSize);
+        EXPECT_EQ(0, ht.getNumItems());
+        EXPECT_EQ(0, ht.getNumInMemoryItems());
+        EXPECT_EQ(0, ht.getNumInMemoryNonResItems());
+        EXPECT_EQ(0, ht.getNumTempItems());
+        EXPECT_EQ(0, ht.getNumDeletedItems());
+    }
 
-    EXPECT_EQ(MutationStatus::WasClean, ht.set(i));
+    void TearDown() override {
+        EXPECT_EQ(0, ht.memSize.load());
+        EXPECT_EQ(0, ht.cacheSize.load());
+        EXPECT_EQ(initialSize, stats.currentSize.load());
 
-    del(ht, k);
+        if (evictionPolicy == VALUE_ONLY) {
+            // Only check is zero for ValueOnly; under full eviction getNumItems
+            // return the total number of items (including those fully evicted).
+            EXPECT_EQ(0, ht.getNumItems());
+        }
+        EXPECT_EQ(0, ht.getNumInMemoryItems());
+        EXPECT_EQ(0, ht.getNumTempItems());
+        EXPECT_EQ(0, ht.getNumDeletedItems());
+    }
 
-    EXPECT_EQ(0, ht.memSize.load());
-    EXPECT_EQ(0, ht.cacheSize.load());
-    EXPECT_EQ(initialSize, global_stats.currentSize.load());
+    EPStats stats;
+    HashTable ht;
+    size_t initialSize;
+    const StoredDocKey key;
+    const size_t itemSize;
+    Item item;
+    const item_eviction_policy_t evictionPolicy;
+};
 
-    cb_free(someval);
-}
-
-TEST_F(HashTableTest, SizeStatsFlush) {
-    global_stats.reset();
-    HashTable ht(global_stats, makeFactory(), 5, 1);
-    ASSERT_EQ(0, ht.memSize.load());
-    ASSERT_EQ(0, ht.cacheSize.load());
-    size_t initialSize = global_stats.currentSize.load();
-
-    StoredDocKey k = makeStoredDocKey("somekey");
-    const size_t itemSize(16 * 1024);
-    char *someval(static_cast<char*>(cb_calloc(1, itemSize)));
-    EXPECT_TRUE(someval);
-
-    Item i(k, 0, 0, someval, itemSize);
-
-    EXPECT_EQ(MutationStatus::WasClean, ht.set(i));
-
-    ht.clear();
-
-    EXPECT_EQ(0, ht.memSize.load());
-    EXPECT_EQ(0, ht.cacheSize.load());
-    EXPECT_EQ(initialSize, global_stats.currentSize.load());
-
-    cb_free(someval);
-}
-
-TEST_F(HashTableTest, SizeStatsEject) {
-    global_stats.reset();
-    HashTable ht(global_stats, makeFactory(), 5, 1);
-    ASSERT_EQ(0, ht.memSize.load());
-    ASSERT_EQ(0, ht.cacheSize.load());
-    size_t initialSize = global_stats.currentSize.load();
-
-    StoredDocKey key = makeStoredDocKey("somekey");
-    const size_t itemSize(16 * 1024);
-    char *someval(static_cast<char*>(cb_calloc(1, itemSize)));
-    EXPECT_TRUE(someval);
-
-    Item i(key, 0, 0, someval, itemSize);
-
-    EXPECT_EQ(MutationStatus::WasClean, ht.set(i));
-
-    item_eviction_policy_t policy = VALUE_ONLY;
-    StoredValue* v(ht.find(key, TrackReference::Yes, WantsDeleted::No));
-    EXPECT_TRUE(v);
-    v->markClean();
-    EXPECT_TRUE(ht.unlocked_ejectItem(v, policy));
+TEST_P(HashTableStatsTest, Size) {
+    EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
 
     del(ht, key);
-
-    EXPECT_EQ(0, ht.memSize.load());
-    EXPECT_EQ(0, ht.cacheSize.load());
-    EXPECT_EQ(initialSize, global_stats.currentSize.load());
-
-    cb_free(someval);
 }
 
-TEST_F(HashTableTest, SizeStatsEjectFlush) {
-    global_stats.reset();
-    HashTable ht(global_stats, makeFactory(), 5, 1);
-    ASSERT_EQ(0, ht.memSize.load());
-    ASSERT_EQ(0, ht.cacheSize.load());
-    size_t initialSize = global_stats.currentSize.load();
+TEST_P(HashTableStatsTest, SizeFlush) {
+    EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
 
-    StoredDocKey key = makeStoredDocKey("somekey");
-    const size_t itemSize(16 * 1024);
-    char *someval(static_cast<char*>(cb_calloc(1, itemSize)));
-    EXPECT_TRUE(someval);
+    ht.clear();
+}
 
-    Item i(key, 0, 0, someval, itemSize);
+TEST_P(HashTableStatsTest, SizeEject) {
+    EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
 
-    EXPECT_EQ(MutationStatus::WasClean, ht.set(i));
-
-    item_eviction_policy_t policy = VALUE_ONLY;
     StoredValue* v(ht.find(key, TrackReference::Yes, WantsDeleted::No));
     EXPECT_TRUE(v);
     v->markClean();
-    EXPECT_TRUE(ht.unlocked_ejectItem(v, policy));
+    EXPECT_TRUE(ht.unlocked_ejectItem(v, evictionPolicy));
+
+    del(ht, key);
+}
+
+TEST_P(HashTableStatsTest, EjectFlush) {
+    EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
+
+    StoredValue* v(ht.find(key, TrackReference::Yes, WantsDeleted::No));
+    EXPECT_TRUE(v);
+    v->markClean();
+    EXPECT_TRUE(ht.unlocked_ejectItem(v, evictionPolicy));
 
     ht.clear();
-
-    EXPECT_EQ(0, ht.memSize.load());
-    EXPECT_EQ(0, ht.cacheSize.load());
-    EXPECT_EQ(initialSize, global_stats.currentSize.load());
-
-    cb_free(someval);
 }
+
+INSTANTIATE_TEST_CASE_P(
+        ValueAndFullEviction,
+        HashTableStatsTest,
+        ::testing::Values(VALUE_ONLY, FULL_EVICTION),
+        [](const ::testing::TestParamInfo<item_eviction_policy_t>& info) {
+            switch (info.param) {
+            case VALUE_ONLY:
+                return "VALUE_ONLY";
+            case FULL_EVICTION:
+                return "FULL_EVICTION";
+            }
+            throw std::invalid_argument("Unknown eviction_policy:" +
+                                        std::to_string(info.param));
+        });
 
 TEST_F(HashTableTest, ItemAge) {
     // Setup

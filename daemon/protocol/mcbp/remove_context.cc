@@ -217,11 +217,23 @@ ENGINE_ERROR_CODE RemoveCommandContext::rebuildXattr() {
                 existing_info.value[0].iov_len
             });
 
-        cb::xattr::Blob blob({static_cast<uint8_t*>(existing_info.value[0].iov_base),
-                             size}, xattr_buffer);
-
+        // We can't modify the item as when we try to replace the item it
+        // may fail due to a race condition. Create a temporary copy of the
+        // current value. Given that we're only going to (potentially) remove
+        // data in the xattr blob, it will only _shrink_ in size so we
+        // don't need to pass on the allocator to the blob
+        auto* ptr = static_cast<uint8_t*>(existing_info.value[0].iov_base);
+        xattr_buffer.reset(new uint8_t[size]);
+        std::copy(ptr, ptr + size, xattr_buffer.get());
+        cb::xattr::Blob blob({xattr_buffer.get(), size});
         blob.prune_user_keys();
         xattr = blob.finalize();
+        if (xattr.data() != xattr_buffer.get()) {
+            throw std::logic_error(
+                    "RemoveCommandContext::rebuildXattr: Internal error. No "
+                    "reallocations should happend when pruning user "
+                    "attributes");
+        }
     }
 
     if (xattr.size() > 0) {
