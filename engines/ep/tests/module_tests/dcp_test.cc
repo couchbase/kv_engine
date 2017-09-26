@@ -243,6 +243,91 @@ TEST_P(StreamTest, test_streamIsKeyOnlyTrue) {
     destroy_dcp_stream();
 }
 
+ENGINE_ERROR_CODE mock_mutation_return_engine_e2big(const void* cookie,
+                                                    uint32_t opaque,
+                                                    item* itm,
+                                                    uint16_t vbucket,
+                                                    uint64_t by_seqno,
+                                                    uint64_t rev_seqno,
+                                                    uint32_t lock_time,
+                                                    const void* meta,
+                                                    uint16_t nmeta,
+                                                    uint8_t nru,
+                                                    uint8_t collection_len) {
+    Item* item = reinterpret_cast<Item*>(itm);
+    delete item;
+    return ENGINE_E2BIG;
+}
+
+/*
+ * Test to verify the number of items and the total bytes sent
+ * by the producer under normal and error conditions
+ */
+TEST_P(StreamTest, test_verifyProducerStats) {
+    VBucketPtr vb = engine->getKVBucket()->getVBucket(vbid);
+    setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::No);
+    store_item(vbid, "key1", "value1");
+    store_item(vbid, "key2", "value2");
+    auto producers = get_dcp_producers(reinterpret_cast<ENGINE_HANDLE*>(engine),
+                                       reinterpret_cast<ENGINE_HANDLE_V1*>(engine));
+    uint64_t rollbackSeqno;
+    auto err = producer->streamRequest(/*flags*/0,
+                                       /*opaque*/0,
+                                       /*vbucket*/0,
+                                       /*start_seqno*/0,
+                                       /*end_seqno*/~0,
+                                       /*vb_uuid*/0,
+                                       /*snap_start*/0,
+                                       /*snap_end*/~0,
+                                       &rollbackSeqno,
+                                       StreamTest::fakeDcpAddFailoverLog);
+
+    EXPECT_EQ(ENGINE_SUCCESS, err);
+    producer->notifySeqnoAvailable(vbid, vb->getHighSeqno());
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+
+    EXPECT_EQ(1, producer->getCheckpointSnapshotTask().queueSize());
+
+    producer->getCheckpointSnapshotTask().run();
+
+    /* Stream the snapshot marker first */
+    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    EXPECT_EQ(0, producer->getItemsSent());
+
+    uint64_t totalBytes = producer->getTotalBytesSent();
+    EXPECT_GT(totalBytes, 0);
+
+    /* Stream the first mutation. This should increment the
+     * number of items and the total bytes sent.
+     */
+    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    EXPECT_EQ(1, producer->getItemsSent());
+    EXPECT_GT(producer->getTotalBytesSent(), totalBytes);
+    totalBytes = producer->getTotalBytesSent();
+
+    /* Now simulate a failure while trying to stream the next
+     * mutation.
+     */
+    auto mutation_callback = producers->mutation;
+    producers->mutation = mock_mutation_return_engine_e2big;
+
+    EXPECT_EQ(ENGINE_E2BIG, producer->step(producers.get()));
+
+    /* The number of items total bytes sent should remain the same */
+    EXPECT_EQ(1, producer->getItemsSent());
+    EXPECT_EQ(producer->getTotalBytesSent(), totalBytes);
+    totalBytes = producer->getTotalBytesSent();
+
+    /* Now stream the mutation again and the stats should have incremented */
+    producers->mutation = mutation_callback;
+
+    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    EXPECT_EQ(2, producer->getItemsSent());
+    EXPECT_GT(producer->getTotalBytesSent(), totalBytes);
+
+    destroy_dcp_stream();
+}
+
 /*
  * Test that when have a producer with IncludeValue set to Yes and IncludeXattrs
  * set to No an active stream created via a streamRequest returns false for

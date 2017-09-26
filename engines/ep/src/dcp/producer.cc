@@ -663,6 +663,16 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
         rejectResp = std::move(resp);
     }
 
+    if (ret == ENGINE_SUCCESS) {
+        if (resp->getEvent() == DcpResponse::Event::Mutation ||
+            resp->getEvent() == DcpResponse::Event::Deletion ||
+            resp->getEvent() == DcpResponse::Event::Expiration ||
+            resp->getEvent() == DcpResponse::Event::SystemEvent) {
+            itemsSent++;
+        }
+        totalBytesSent.fetch_add(resp->getMessageSize());
+    }
+
     lastSendTime = ep_current_time();
     return (ret == ENGINE_SUCCESS) ? ENGINE_WANT_MORE : ret;
 }
@@ -1090,15 +1100,6 @@ std::unique_ptr<DcpResponse> DcpProducer::getNextItem() {
             }
 
             ready.pushUnique(vbucket);
-
-            if (response->getEvent() == DcpResponse::Event::Mutation ||
-                response->getEvent() == DcpResponse::Event::Deletion ||
-                response->getEvent() == DcpResponse::Event::Expiration ||
-                response->getEvent() == DcpResponse::Event::SystemEvent) {
-                itemsSent++;
-            }
-
-            totalBytesSent.fetch_add(response->getMessageSize());
 
             return response;
         }
