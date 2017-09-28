@@ -282,7 +282,7 @@ static SubdocCmdContext* subdoc_create_context(McbpConnection& c,
         }
 
         return context.release();
-    } catch (std::bad_alloc&) {
+    } catch (const std::bad_alloc&) {
         return nullptr;
     }
 }

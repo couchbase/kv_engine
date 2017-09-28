@@ -2086,11 +2086,11 @@ void CreateBucketThread::create() {
         try {
             result = engine->initialize(v1_handle_2_handle(engine),
                                         config.c_str());
-        } catch (std::runtime_error& e) {
+        } catch (const std::runtime_error& e) {
             LOG_WARNING(&connection, "%u - Failed to create bucket [%s]: %s",
                         connection.getId(), name.c_str(), e.what());
             result = ENGINE_FAILED;
-        } catch (std::bad_alloc& e) {
+        } catch (const std::bad_alloc& e) {
             LOG_WARNING(&connection, "%u - Failed to create bucket [%s]: %s",
                         connection.getId(), name.c_str(), e.what());
             result = ENGINE_ENOMEM;
@@ -2679,7 +2679,7 @@ extern "C" int memcached_main(int argc, char **argv) {
     /* Parse command line arguments */
     try {
         parse_arguments(argc, argv);
-    } catch (std::exception& exception) {
+    } catch (const std::exception& exception) {
         FATAL_ERROR(EXIT_FAILURE, "Failed to initialize server: %s",
                     exception.what());
     }
@@ -2732,7 +2732,7 @@ extern "C" int memcached_main(int argc, char **argv) {
                settings.getErrorMapsDir().c_str());
     try {
         settings.loadErrorMaps(settings.getErrorMapsDir());
-    } catch (std::exception& e) {
+    } catch (const std::exception& e) {
         FATAL_ERROR(EXIT_FAILURE, "Failed to load error maps: %s", e.what());
     }
 

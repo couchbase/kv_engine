@@ -408,7 +408,7 @@ static void handle_ssl_minimum_protocol(Settings& s, cJSON* obj) {
 
     try {
         decode_ssl_protocol(obj->valuestring);
-    } catch (std::exception& e) {
+    } catch (const std::exception& e) {
         throw std::invalid_argument(
             "\"ssl_minimum_protocol\"" + std::string(e.what()));
     }

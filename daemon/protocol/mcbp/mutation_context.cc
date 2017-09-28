@@ -109,7 +109,7 @@ ENGINE_ERROR_CODE MutationCommandContext::validateInput() {
             if (validator->validate(ptr, value.len)) {
                 datatype = PROTOCOL_BINARY_DATATYPE_JSON;
             }
-        } catch (std::bad_alloc&) {
+        } catch (const std::bad_alloc&) {
             return ENGINE_ENOMEM;
         }
     }

@@ -74,7 +74,7 @@ void list_bucket_executor(McbpConnection* c, void*) {
     std::pair<ENGINE_ERROR_CODE, std::string> ret;
     try {
         ret = list_bucket(*c);
-    } catch (std::bad_alloc&) {
+    } catch (const std::bad_alloc&) {
         ret.first = ENGINE_ENOMEM;
     }
 

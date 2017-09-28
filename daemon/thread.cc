@@ -207,7 +207,7 @@ static void setup_thread(LIBEVENT_THREAD *me) {
 
     try {
         me->new_conn_queue = new ConnectionQueue;
-    } catch (std::bad_alloc&) {
+    } catch (const std::bad_alloc&) {
         FATAL_ERROR(EXIT_FAILURE, "Failed to allocate memory for connection queue");
     }
 
@@ -486,7 +486,7 @@ void dispatch_conn_new(SOCKET sfd, int parent_port) {
         std::unique_ptr<ConnectionQueueItem> item(
             new ConnectionQueueItem(sfd, parent_port));
         thread->new_conn_queue->push(item);
-    } catch (std::bad_alloc& e) {
+    } catch (const std::bad_alloc& e) {
         LOG_WARNING(nullptr,
                     "dispatch_conn_new: Failed to dispatch new connection: %s",
                     e.what());

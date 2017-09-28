@@ -185,7 +185,7 @@ void McbpConnection::shrinkBuffers() {
         try {
             msglist.resize(MSG_LIST_INITIAL);
             msglist.shrink_to_fit();
-        } catch (std::bad_alloc) {
+        } catch (const std::bad_alloc&) {
             LOG_WARNING(this,
                         "%u: Failed to shrink msglist down to %"
                             PRIu64
@@ -198,7 +198,7 @@ void McbpConnection::shrinkBuffers() {
         try {
             iov.resize(IOV_LIST_INITIAL);
             iov.shrink_to_fit();
-        } catch (std::bad_alloc) {
+        } catch (const std::bad_alloc&) {
             LOG_WARNING(this,
                         "%u: Failed to shrink iov down to %"
                             PRIu64
@@ -1139,7 +1139,7 @@ void McbpConnection::runEventLoop(short which) {
 
     try {
         runStateMachinery();
-    } catch (std::exception& e) {
+    } catch (const std::exception& e) {
         LOG_WARNING(this,
                     "%d: exception occurred in runloop - closing connection: %s",
                     getId(), e.what());
@@ -1152,7 +1152,7 @@ void McbpConnection::runEventLoop(short which) {
          */
         try {
             runStateMachinery();
-        } catch (std::exception& e) {
+        } catch (const std::exception& e) {
             LOG_WARNING(this,
                     "%d: exception occurred in runloop whilst"
                     "attempting to close connection: %s",

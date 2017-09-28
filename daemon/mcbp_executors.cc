@@ -809,7 +809,7 @@ static void ioctl_get_executor(McbpConnection* c, void* packet) {
             } else {
                 mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
             }
-        } catch (std::exception& e) {
+        } catch (const std::exception& e) {
             LOG_WARNING(c, "ioctl_get_executor: Failed to format response: %s",
                         e.what());
             mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);

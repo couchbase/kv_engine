@@ -160,7 +160,7 @@ void Connection::resolveConnectionName(bool listening) {
             sockname = sockaddr_to_string(&sock, sock_len);
         }
         updateDescription();
-    } catch (std::bad_alloc& e) {
+    } catch (const std::bad_alloc& e) {
         LOG_WARNING(NULL,
                     "Connection::resolveConnectionName: failed to allocate memory: %s",
                     e.what());

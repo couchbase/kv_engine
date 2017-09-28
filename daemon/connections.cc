@@ -447,9 +447,9 @@ static Connection *allocate_connection(SOCKET sfd,
         connections.conns.push_back(ret);
         stats.conn_structs++;
         return ret;
-    } catch (std::bad_alloc) {
+    } catch (const std::bad_alloc&) {
         LOG_WARNING(NULL, "Failed to allocate memory for connection");
-    } catch (std::exception& error) {
+    } catch (const std::exception& error) {
         LOG_WARNING(NULL, "Failed to create connection: %s", error.what());
     } catch (...) {
         LOG_WARNING(NULL, "Failed to create connection");
@@ -472,9 +472,9 @@ static ListenConnection* allocate_listen_connection(SOCKET sfd,
         connections.conns.push_back(ret);
         stats.conn_structs++;
         return ret;
-    } catch (std::bad_alloc) {
+    } catch (const std::bad_alloc&) {
         LOG_WARNING(NULL, "Failed to allocate memory for listen connection");
-    } catch (std::exception& error) {
+    } catch (const std::exception& error) {
         LOG_WARNING(NULL, "Failed to create connection: %s", error.what());
     } catch (...) {
         LOG_WARNING(NULL, "Failed to create connection");

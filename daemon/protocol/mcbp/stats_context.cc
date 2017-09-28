@@ -246,7 +246,7 @@ static ENGINE_ERROR_CODE server_stats(ADD_STAT add_stat_callback,
                  "total_resp_errors",
                  total_resp_errors);
 
-    } catch (std::bad_alloc&) {
+    } catch (const std::bad_alloc&) {
         return ENGINE_ENOMEM;
     }
 
@@ -314,7 +314,7 @@ static void process_stat_settings(ADD_STAT add_stat_callback,
                 add_stat(cookie, add_stat_callback, interface, "false");
             }
         }
-    } catch (std::exception& error) {
+    } catch (const std::exception& error) {
         LOG_WARNING(nullptr, "process_stats_settings: Error building stats: %s",
                     error.what());
     }
@@ -742,7 +742,7 @@ static ENGINE_ERROR_CODE stat_responses_json_executor(
                      json_str.size(),
                      connection.getCookie());
         return ENGINE_SUCCESS;
-    } catch (std::bad_alloc e) {
+    } catch (const std::bad_alloc&) {
         return ENGINE_ENOMEM;
     }
 }

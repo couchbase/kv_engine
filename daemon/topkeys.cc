@@ -183,7 +183,7 @@ void TopKeys::doUpdateKey(const void* key,
         const size_t key_hash = hash_fn(key_buf);
 
         getShard(key_hash).updateKey(key_buf, key_hash, operation_time);
-    } catch (std::bad_alloc) {
+    } catch (const std::bad_alloc&) {
         // Failed to increment topkeys, continue...
     }
 }

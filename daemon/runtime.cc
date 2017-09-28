@@ -71,7 +71,7 @@ void set_ssl_protocol_mask(const std::string& mask) {
             LOG_NOTICE(nullptr, "Setting SSL minimum protocol to: %s",
                        mask.c_str());
         }
-    } catch (std::invalid_argument& e) {
+    } catch (const std::invalid_argument& e) {
         LOG_WARNING(nullptr, "Invalid SSL protocol specified: %s",
                     mask.c_str());
 
