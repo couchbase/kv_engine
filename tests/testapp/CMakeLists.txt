@@ -32,6 +32,7 @@ list(APPEND TESTAPP_SOURCES
      testapp_lock.cc
      testapp_no_autoselect_default_bucket.cc
      testapp_rbac.cc
+     testapp_regression.cc
      testapp_remove.cc
      testapp_require_init.cc
      testapp_sasl.cc
@@ -243,3 +244,9 @@ ADD_TEST(NAME memcached-no-autoselect-default-bucket-tests
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_testapp --gtest_filter=TransportProtocols/NoAutoselectDefaultBucketTest.*)
 SET_TESTS_PROPERTIES(memcached-no-autoselect-default-bucket-tests PROPERTIES TIMEOUT 120)
+
+# Test regressions
+ADD_TEST(NAME memcached-regression-tests
+         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+         COMMAND memcached_testapp --gtest_filter=TransportProtocols/RegressionTest.*)
+SET_TESTS_PROPERTIES(memcached-regression-tests PROPERTIES TIMEOUT 60)
