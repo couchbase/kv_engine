@@ -26,8 +26,17 @@
 void get_cluster_config_executor(McbpConnection* c, void*) {
     auto& bucket = c->getBucket();
     if (bucket.type == BucketType::NoBucket) {
-        c->getCookieObject().setErrorContext("No bucket selected");
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NO_BUCKET);
+        if (c->isXerrorSupport()) {
+            c->getCookieObject().setErrorContext("No bucket selected");
+            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NO_BUCKET);
+        } else {
+            LOG_NOTICE(c,
+                       "%u: Can't get cluster configuration without "
+                       "selecting a bucket. Disconnecting %s",
+                       c->getId(),
+                       c->getDescription().c_str());
+            c->setState(conn_closing);
+        }
         return;
     }
 
@@ -53,8 +62,17 @@ void get_cluster_config_executor(McbpConnection* c, void*) {
 void set_cluster_config_executor(McbpConnection* c, void* packet) {
     auto& bucket = c->getBucket();
     if (bucket.type == BucketType::NoBucket) {
-        c->getCookieObject().setErrorContext("No bucket selected");
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NO_BUCKET);
+        if (c->isXerrorSupport()) {
+            c->getCookieObject().setErrorContext("No bucket selected");
+            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NO_BUCKET);
+        } else {
+            LOG_NOTICE(c,
+                       "%u: Can't set cluster configuration without "
+                       "selecting a bucket. Disconnecting %s",
+                       c->getId(),
+                       c->getDescription().c_str());
+            c->setState(conn_closing);
+        }
         return;
     }
 
