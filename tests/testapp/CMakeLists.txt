@@ -220,7 +220,7 @@ add_unit_test_suite(NAME xattr
                     SOURCE testapp_xattr.h testapp_xattr.cc)
 
 # Run the SSL cert tests
-add_unit_test_suite(NAME ssl-cert-tests
+add_unit_test_suite(NAME ssl-cert
                     TIMEOUT 120
                     SOURCE testapp_cert_tests.cc)
 
