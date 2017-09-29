@@ -71,6 +71,12 @@ void RocksDBKVStore::open() {
                 status.getState());
     }
 
+    // Set the provided `RocksDBCFOptions` as the base configuration for all
+    // Column Families.
+    defaultCFOptions = rocksdb::ColumnFamilyOptions(rdbOptions);
+    seqnoCFOptions = rocksdb::ColumnFamilyOptions(rdbOptions);
+    localCFOptions = rocksdb::ColumnFamilyOptions(rdbOptions);
+
     rdbOptions.create_if_missing = true;
     rdbOptions.create_missing_column_families = true;
 
@@ -92,7 +98,7 @@ void RocksDBKVStore::open() {
 
     std::vector<rocksdb::ColumnFamilyDescriptor> families{
             rocksdb::ColumnFamilyDescriptor(rocksdb::kDefaultColumnFamilyName,
-                                            rocksdb::ColumnFamilyOptions()),
+                                            defaultCFOptions),
 
             rocksdb::ColumnFamilyDescriptor("vbid_seqno_to_key",
                                             seqnoCFOptions),

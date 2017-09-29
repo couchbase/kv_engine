@@ -305,6 +305,7 @@ private:
     size_t valSize;
 
     rocksdb::Options rdbOptions;
+    rocksdb::ColumnFamilyOptions defaultCFOptions;
     rocksdb::ColumnFamilyOptions seqnoCFOptions;
     rocksdb::ColumnFamilyOptions localCFOptions;
 
