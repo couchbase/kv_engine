@@ -1732,8 +1732,10 @@ static enum test_result test_mb3169(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     evict_key(h, h1, "delete", 0, "Ejected.");
     evict_key(h, h1, "get", 0, "Ejected.");
 
-    checkeq(3, get_int_stat(h, h1, "ep_num_non_resident"),
-            "Expected four items to be resident");
+    checkeq(3, get_int_stat(h, h1, "curr_items"), "Expected 3 items");
+    checkeq(3,
+            get_int_stat(h, h1, "ep_num_non_resident"),
+            "Expected all items to be resident");
 
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, "set", "value2", &i, 0, 0),
@@ -1741,17 +1743,22 @@ static enum test_result test_mb3169(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     h1->release(h, NULL, i);
     wait_for_flusher_to_settle(h, h1);
 
+    checkeq(3, get_int_stat(h, h1, "curr_items"), "Expected 3 items");
     checkeq(2, get_int_stat(h, h1, "ep_num_non_resident"),
           "Expected mutation to mark item resident");
 
     checkeq(ENGINE_SUCCESS, del(h, h1, "delete", 0, 0),
             "Delete failed");
 
+    wait_for_flusher_to_settle(h, h1);
+
+    checkeq(2, get_int_stat(h, h1, "curr_items"), "Expected 2 items after del");
     checkeq(1, get_int_stat(h, h1, "ep_num_non_resident"),
             "Expected delete to remove non-resident item");
 
     check_key_value(h, h1, "get", "getvalue", 8);
 
+    checkeq(2, get_int_stat(h, h1, "curr_items"), "Expected 2 items after get");
     checkeq(0, get_int_stat(h, h1, "ep_num_non_resident"),
             "Expected all items to be resident");
     return SUCCESS;
