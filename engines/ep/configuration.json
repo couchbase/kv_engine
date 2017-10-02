@@ -713,9 +713,9 @@
             "dynamic": false,
             "type": "bool"
         },
-        "dcp_value_compression_enabled": {
+        "enable_dcp_consumer_snappy_compression": {
             "default": "false",
-            "desr": "Whether or not dcp producer should compress value before transmitting",
+            "desr": "whether the DCP consumer should request the DCP producer to send compressed documents",
             "dynamic": false,
             "type": "bool"
         },

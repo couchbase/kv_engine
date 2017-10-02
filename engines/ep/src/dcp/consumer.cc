@@ -148,7 +148,7 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,
     pendingSendNoopInterval = config.isDcpEnableNoop();
     pendingSetPriority = true;
     pendingEnableExtMetaData = true;
-    pendingEnableValueCompression = config.isDcpValueCompressionEnabled();
+    pendingEnableValueCompression = config.isEnableDcpConsumerSnappyCompression();
     pendingSupportCursorDropping = true;
 
     ExTask task = std::make_shared<Processor>(&engine, this, 1);
