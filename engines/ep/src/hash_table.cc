@@ -837,6 +837,7 @@ void HashTable::setValue(const Item& itm, StoredValue& v) {
 
 std::ostream& operator<<(std::ostream& os, const HashTable& ht) {
     os << "HashTable[" << &ht << "] with"
+       << " numItems:" << ht.getNumItems()
        << " numInMemory:" << ht.getNumInMemoryItems()
        << " numDeleted:" << ht.getNumDeletedItems()
        << " numNonResident:" << ht.getNumInMemoryNonResItems()
