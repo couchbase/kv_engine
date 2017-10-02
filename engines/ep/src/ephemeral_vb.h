@@ -28,7 +28,6 @@ class EphemeralVBucket : public VBucket {
 public:
     class CountVisitor;
     class HTTombstonePurger;
-    class HTCleaner;
     class StaleItemDeleter;
 
     EphemeralVBucket(id_type i,
