@@ -39,7 +39,6 @@ void ProgressTracker::setDeadline(ProcessClock::time_point new_deadline) {
  * only calling gethrtime() periodically to check our rate.
  */
 bool ProgressTracker::shouldContinueVisiting(size_t visited_items) {
-
     // Grab time if we haven't already got it.
     if (need_initial_time) {
         next_visit_count_check = visited_items + INITIAL_VISIT_COUNT_CHECK;
@@ -48,57 +47,52 @@ bool ProgressTracker::shouldContinueVisiting(size_t visited_items) {
         need_initial_time = false;
     }
 
-    bool should_continue = true;
-
     if (visited_items < next_visit_count_check
         || visited_items == previous_visited) {
         // Not yet reached enough items to check time; ok to continue.
         return true;
-    } else {
-        // First check if the deadline has been exceeded; if so need to pause.
-        const auto now = ProcessClock::now();
-        if (now >= deadline) {
-            should_continue = false;
-        } else {
-            // Not yet exceeded. Estimate how many more items we can visit
-            // before it is exceeded.
-
-            // Calculate time delta since last check. In the worst case,
-            // visiting items *may* take less time than a single period of
-            // our "high" resolution clock (e.g. some platforms only have
-            // microsecond-level precision).
-            // Therefore to prevent successive time measurements being
-            // identical (and hence time_delta being zero, ultimately
-            // triggering a div-by-zero error), add the minimum duration of the
-            // clock to the delta.
-            const auto time_delta =
-                    (now - previous_time) + ProcessClock::duration(1);
-
-            const size_t visited_delta = visited_items - previous_visited;
-            // Calculate time for one item. Similar to above, ensure this is
-            // always at least a nonzero value (by adding the clock min
-            // duration) to prevent div-by-zero.
-            const auto time_per_item =
-                    (time_delta / visited_delta) + ProcessClock::duration(1);
-
-            const auto time_remaining = (deadline - now);
-            const size_t est_items_to_deadline = time_remaining / time_per_item;
-
-            // If there isn't sufficient time to visit our minimum, pause now.
-            if (est_items_to_deadline < MINIMUM_VISIT_COUNT_BEFORE_PAUSE) {
-                should_continue = false;
-            } else {
-                // Update the previous counts
-                previous_time = now;
-                previous_visited = visited_items;
-
-                // Schedule next check after 50% of the estimated number of items
-                // to deadline.
-                next_visit_count_check =
-                        visited_items + (est_items_to_deadline / 2);
-            }
-        }
     }
 
-    return should_continue;
+    // First check if the deadline has been exceeded; if so need to pause.
+    const auto now = ProcessClock::now();
+    if (now >= deadline) {
+        return false;
+    }
+
+    // Not yet exceeded. Estimate how many more items we can visit
+    // before it is exceeded.
+
+    // Calculate time delta since last check. In the worst case,
+    // visiting items *may* take less time than a single period of
+    // our "high" resolution clock (e.g. some platforms only have
+    // microsecond-level precision).
+    // Therefore to prevent successive time measurements being
+    // identical (and hence time_delta being zero, ultimately
+    // triggering a div-by-zero error), add the minimum duration of the
+    // clock to the delta.
+    const auto time_delta = (now - previous_time) + ProcessClock::duration(1);
+
+    const size_t visited_delta = visited_items - previous_visited;
+    // Calculate time for one item. Similar to above, ensure this is
+    // always at least a nonzero value (by adding the clock min
+    // duration) to prevent div-by-zero.
+    const auto time_per_item =
+            (time_delta / visited_delta) + ProcessClock::duration(1);
+
+    const auto time_remaining = (deadline - now);
+    const size_t est_items_to_deadline = time_remaining / time_per_item;
+
+    // If there isn't sufficient time to visit our minimum, pause now.
+    if (est_items_to_deadline < MINIMUM_VISIT_COUNT_BEFORE_PAUSE) {
+        return false;
+    }
+
+    // Update the previous counts
+    previous_time = now;
+    previous_visited = visited_items;
+
+    // Schedule next check after 50% of the estimated number of items
+    // to deadline.
+    next_visit_count_check = visited_items + (est_items_to_deadline / 2);
+    return true;
 }
