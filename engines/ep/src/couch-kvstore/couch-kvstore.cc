@@ -197,22 +197,8 @@ couchstore_content_meta_flags CouchRequest::getContentMeta(const Item& it) {
         rval = COUCH_DOC_NON_JSON_MODE;
     }
 
-    if (mcbp::datatype::is_snappy(it.getDataType())) {
-        // We are currently using couchstore in a mode where it will try to
-        // compress documents iff COUCH_DOC_IS_COMPRESSED is specified.
-        // This would cause a conflict if we tried to store a document which
-        // is already compressed.
-        //
-        // Luckily for us we don't support keeping objects compressed in
-        // memory yet, so this won't happen. Let's throw an exception
-        // to make sure that we fix this when we're going to support
-        // compressed objects.
-        throw std::logic_error(
-            "CouchRequest::getContentMeta: can't store compressed items");
-    }
-
-    if (it.getNBytes() > 0) {
-        // Don't try to compress empty bodies ;-)
+    if (it.getNBytes() > 0 && !mcbp::datatype::is_snappy(it.getDataType())) {
+        //Compress only if a value exists and is not already compressed
         rval |= COUCH_DOC_IS_COMPRESSED;
     }
 
