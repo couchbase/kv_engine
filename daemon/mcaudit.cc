@@ -25,24 +25,23 @@
 #include <memcached/audit_interface.h>
 #include <cJSON.h>
 #include <memcached/isotime.h>
-#include <relaxed_atomic.h>
 
-static Couchbase::RelaxedAtomic<bool> audit_enabled;
+static std::atomic_bool audit_enabled{false};
 
 static const int First = MEMCACHED_AUDIT_OPENED_DCP_CONNECTION;
 static const int Last = MEMCACHED_AUDIT_DOCUMENT_DELETE;
 
-static std::array<Couchbase::RelaxedAtomic<bool>, Last - First + 1> events;
+static std::array<std::atomic_bool, Last - First + 1> events;
 
 static bool isEnabled(uint32_t id) {
-    if (!audit_enabled) {
+    if (!audit_enabled.load(std::memory_order_consume)) {
         // Global switch is off.. All events are disabled
         return false;
     }
 
     if (id >= First && id <= Last) {
         // This is one of ours
-        return events[id - First];
+        return events[id - First].load(std::memory_order_consume);
     }
 
     // we don't have information about this id... let the underlying event
@@ -51,18 +50,25 @@ static bool isEnabled(uint32_t id) {
 }
 
 void setEnabled(uint32_t id, bool enable) {
+    bool expected = !enable;
+
     if (id == 0) {
-        LOG_NOTICE(nullptr, "Audit changed from: %s to: %s",
-                   audit_enabled ? "enabled" : "disabled",
-                   enable ? "enabled" : "disabled");
-        audit_enabled.store(enable);
+        if (audit_enabled.compare_exchange_strong(expected, enable)) {
+            LOG_NOTICE(nullptr,
+                       "Audit changed from: %s to: %s",
+                       !enable ? "enabled" : "disabled",
+                       enable ? "enabled" : "disabled");
+        }
     }
 
     if (id >= First && id <= Last) {
-        LOG_INFO(nullptr, "Audit descriptor %u changed from: %s to: %s",
-                 id, events[id - First] ? "enabled" : "disabled",
-                 enable ? "enabled" : "disabled");
-        events[id - First] = enable;
+        if (events[id - First].compare_exchange_strong(expected, enable)) {
+            LOG_INFO(nullptr,
+                     "Audit descriptor %u changed from: %s to: %s",
+                     id,
+                     expected ? "enabled" : "disabled",
+                     enable ? "enabled" : "disabled");
+        }
     }
 }
 
