@@ -183,7 +183,7 @@ public:
     ~Item();
 
     /* Snappy compress value and update datatype */
-    bool compressValue(float minCompressionRatio = 1.0);
+    bool compressValue();
 
     /* Snappy uncompress value and update datatype */
     bool decompressValue();

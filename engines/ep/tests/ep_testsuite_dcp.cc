@@ -2743,18 +2743,10 @@ static test_result test_dcp_cursor_dropping_backfill(ENGINE_HANDLE *h,
 static test_result test_dcp_value_compression(ENGINE_HANDLE *h,
                                               ENGINE_HANDLE_V1 *h1) {
 
-    checkeq((float)0.85,
-            get_float_stat(h, h1, "ep_dcp_min_compression_ratio"),
-            "Unexpected dcp_min_compression_ratio");
-
-    // Set dcp_min_compression_ratio to infinite, which means
-    // a DCP producer would ship the doc no matter what the
-    // achieved compressed length is.
-    set_param(h, h1, protocol_binary_engine_param_flush,
-              "dcp_min_compression_ratio",
-              std::to_string(std::numeric_limits<float>::max()).c_str());
-
-    std::string originalValue("{\"FOO\":\"BAR\"}");
+    /* Create a JSON document that has a lot of redundant data */
+    std::string originalValue("{\"product\": \"car\",\"price\": \"100\"},"
+                              "{\"product\": \"bus\",\"price\": \"1000\"},"
+                              "{\"product\": \"Train\",\"price\": \"100000\"}");
 
     checkeq(storeCasVb11(h, h1, NULL, OPERATION_SET, "key",
                          originalValue.c_str(), originalValue.length(),

@@ -545,8 +545,7 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
              * indicates that the value isn't compressed already.
              */
             uint32_t sizeBefore = itmCpy->getNBytes();
-            if (!itmCpy->compressValue(
-                            engine_.getDcpConnMap().getMinCompressionRatio())) {
+            if (!itmCpy->compressValue()) {
                 LOG(EXTENSION_LOG_WARNING,
                     "%s Failed to snappy compress an uncompressed value!",
                     logHeader());

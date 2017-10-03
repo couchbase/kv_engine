@@ -211,7 +211,7 @@ std::ostream& operator<<(std::ostream& os, const Blob& b) {
     return os;
 }
 
-bool Item::compressValue(float minCompressionRatio) {
+bool Item::compressValue() {
     auto datatype = getDataType();
     if (!mcbp::datatype::is_snappy(datatype)) {
         // Attempt compression only if datatype indicates
@@ -219,9 +219,9 @@ bool Item::compressValue(float minCompressionRatio) {
         cb::compression::Buffer deflated;
         if (cb::compression::deflate(cb::compression::Algorithm::Snappy,
                                      getData(), getNBytes(), deflated)) {
-            if (deflated.len > minCompressionRatio * getNBytes()) {
-                // No point doing the compression if the desired
-                // compression ratio isn't achieved.
+            if (deflated.len > getNBytes()) {
+                //No point doing the compression if the deflated length
+                //is greater than the original length 
                 return true;
             }
             setData(deflated.data.get(), deflated.len);
