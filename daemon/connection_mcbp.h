@@ -196,12 +196,6 @@ public:
     /* This is where the binary header goes */
     protocol_binary_request_header binary_header;
 
-    // Returns true if a string representation of the specified status code
-    // should be included in the response body (in addition to in the reponse
-    // header) for the current command.
-    bool includeErrorStringInResponseBody(
-        protocol_binary_response_status err) const;
-
     /**
      * Decrement the number of events to process and return the new value
      */
