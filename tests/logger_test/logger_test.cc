@@ -31,6 +31,18 @@
 
 class LoggerTest : public ::testing::Test {
 protected:
+#ifndef WIN32
+    /**
+     * There is a few environemnt variables which affects how the logger
+     * works.. Unset all of them before running the unit tests
+     */
+    static void SetUpTestCase() {
+        unsetenv("CB_MINIMIZE_LOGGER_SLEEPTIME");
+        unsetenv("CB_MAXIMIZE_LOGGER_CYCLE_SIZE");
+        unsetenv("CB_MAXIMIZE_LOGGER_BUFFER_SIZE");
+    }
+#endif
+
     virtual void SetUp() {
         files = cb::io::findFilesWithPrefix("logger_test");
 
@@ -65,7 +77,7 @@ TEST_F(LoggerTest, MessageSizeBigWithNewLine) {
     logger->shutdown(false);
 
     files = cb::io::findFilesWithPrefix("logger_test");
-    cb_assert(files.size() == 1);
+    EXPECT_EQ(1, files.size());
     remove_files(files);
 }
 
@@ -80,7 +92,7 @@ TEST_F(LoggerTest, MessageSizeBigWithNoNewLine) {
     logger->shutdown(false);
 
     files = cb::io::findFilesWithPrefix("logger_test");
-    cb_assert(files.size() == 1);
+    EXPECT_EQ(1, files.size());
     remove_files(files);
 }
 
@@ -90,7 +102,7 @@ TEST_F(LoggerTest, MessageSizeSmallWithNewLine) {
     logger->shutdown(false);
 
     files = cb::io::findFilesWithPrefix("logger_test");
-    cb_assert(files.size() == 1);
+    EXPECT_EQ(1, files.size());
     remove_files(files);
 }
 
@@ -100,7 +112,7 @@ TEST_F(LoggerTest, MessageSizeSmallWithNoNewLine) {
     logger->shutdown(false);
 
     files = cb::io::findFilesWithPrefix("logger_test");
-    cb_assert(files.size() == 1);
+    EXPECT_EQ(1, files.size());
     remove_files(files);
 }
 
@@ -124,7 +136,7 @@ TEST_F(LoggerTest, Rotate) {
     // on MacOSX I'm logging 97 bytes in my timezone (summertime), but
     // on Windows it turned out to be a much longer timezone name etc..
     // I'm assuming that we should end up with 90+ files..
-    cb_assert(files.size() >= 90);
+    EXPECT_LT(90, files.size());
     remove_files(files);
 }
 
@@ -136,7 +148,7 @@ static bool my_fgets(char *buffer, size_t buffsize, FILE *fp) {
         if (*(--end) == '\r') {
             *end = '\0';
         }
-    return true;
+        return true;
     } else {
         return false;
     }
