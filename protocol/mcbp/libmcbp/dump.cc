@@ -202,7 +202,7 @@ public:
 
 protected:
 
-    virtual void dumpPacketInfo(std::ostream& out) const override {
+    void dumpPacketInfo(std::ostream& out) const override {
         uint32_t bodylen = ntohl(request.request.bodylen);
 
         out << "        Total " << sizeof(request) + bodylen << " bytes";
@@ -242,20 +242,20 @@ protected:
         out.flags(std::ios::dec);
     }
 
-    virtual void dumpExtras(std::ostream &out) const override {
+    void dumpExtras(std::ostream &out) const override {
         McbpFrame::dumpExtras(request.bytes + sizeof(request.bytes),
                           request.request.extlen,
                           out);
     }
 
-    virtual void dumpKey(std::ostream &out) const override {
+    void dumpKey(std::ostream &out) const override {
         McbpFrame::dumpKey(
             request.bytes + sizeof(request.bytes) + request.request.extlen,
             ntohs(request.request.keylen),
             out);
     }
 
-    virtual void dumpValue(std::ostream &out) const override {
+    void dumpValue(std::ostream &out) const override {
 
     }
 
@@ -270,14 +270,14 @@ public:
     }
 
 protected:
-    virtual void dumpExtras(std::ostream& out) const override {
+    void dumpExtras(std::ostream& out) const override {
         if (request.request.extlen != 0) {
             throw std::logic_error(
                 "HelloRequest::dumpExtras(): extlen must be 0");
         }
     }
 
-    virtual void dumpValue(std::ostream& out) const override {
+    void dumpValue(std::ostream& out) const override {
         uint32_t bodylen = ntohl(request.request.bodylen);
         uint16_t keylen = ntohs(request.request.keylen);
         bodylen -= keylen;
@@ -351,7 +351,7 @@ protected:
         return options;
     }
 
-    virtual void dumpExtras(std::ostream& out) const override {
+    void dumpExtras(std::ostream& out) const override {
         if (request.request.extlen < 24) {
             throw std::logic_error(
                     "SetWithMetaRequest::dumpExtras(): extlen must be at lest "
@@ -415,7 +415,7 @@ public:
 
 protected:
 
-    virtual void dumpPacketInfo(std::ostream& out) const override {
+    void dumpPacketInfo(std::ostream& out) const override {
         uint32_t bodylen = ntohl(response.response.bodylen);
         out << "        Total " << sizeof(response) + bodylen << " bytes";
         if (bodylen > 0) {
@@ -456,20 +456,20 @@ protected:
         out.flags(std::ios::dec);
     }
 
-    virtual void dumpExtras(std::ostream &out) const override {
+    void dumpExtras(std::ostream &out) const override {
         McbpFrame::dumpExtras(response.bytes + sizeof(response.bytes),
                           response.response.extlen,
                           out);
     }
 
-    virtual void dumpKey(std::ostream &out) const override {
+    void dumpKey(std::ostream &out) const override {
         McbpFrame::dumpKey(
             response.bytes + sizeof(response.bytes) + response.response.extlen,
             ntohs(response.response.keylen),
             out);
     }
 
-    virtual void dumpValue(std::ostream &out) const override {
+    void dumpValue(std::ostream &out) const override {
 
     }
 
@@ -484,21 +484,21 @@ public:
     }
 
 protected:
-    virtual void dumpExtras(std::ostream& out) const override {
+    void dumpExtras(std::ostream& out) const override {
         if (response.response.extlen != 0) {
             throw std::logic_error(
                 "HelloResponse::dumpExtras(): extlen must be 0");
         }
     }
 
-    virtual void dumpKey(std::ostream& out) const override {
+    void dumpKey(std::ostream& out) const override {
         if (response.response.keylen != 0) {
             throw std::logic_error(
                 "HelloResponse::dumpKey(): keylen must be 0");
         }
     }
 
-    virtual void dumpValue(std::ostream& out) const override {
+    void dumpValue(std::ostream& out) const override {
         uint32_t bodylen = ntohl(response.response.bodylen);
 
         if ((bodylen % 2) != 0) {
@@ -540,21 +540,21 @@ public:
     }
 
 protected:
-    virtual void dumpExtras(std::ostream& out) const override {
+    void dumpExtras(std::ostream& out) const override {
         if (response.response.extlen != 0) {
             throw std::logic_error(
                 "ListBucketsResponse::dumpExtras(): extlen must be 0");
         }
     }
 
-    virtual void dumpKey(std::ostream& out) const override {
+    void dumpKey(std::ostream& out) const override {
         if (response.response.keylen != 0) {
             throw std::logic_error(
                 "ListBucketsResponse::dumpKey(): keylen must be 0");
         }
     }
 
-    virtual void dumpValue(std::ostream& out) const override {
+    void dumpValue(std::ostream& out) const override {
         const char* payload = reinterpret_cast<const char*>(response.bytes) +
                                                 sizeof(response.bytes);
         std::string buckets(payload, ntohl(response.response.bodylen));

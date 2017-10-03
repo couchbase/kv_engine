@@ -29,7 +29,7 @@ public:
     ConfigureEvent(const char* configfile, const void* c)
         : cookie(c), file(configfile) {}
 
-    virtual bool process(Audit& audit) override;
+    bool process(Audit& audit) override;
 
     virtual ~ConfigureEvent() {}
 

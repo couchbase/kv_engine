@@ -42,13 +42,13 @@ public:
 
     ListenConnection(const ListenConnection&) = delete;
 
-    virtual const Protocol getProtocol() const override;
+    const Protocol getProtocol() const override;
 
     void enable();
 
     void disable();
 
-    virtual void runEventLoop(short) override;
+    void runEventLoop(short) override;
 
     bool isManagement() const {
         return management;

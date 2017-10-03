@@ -79,7 +79,7 @@ public:
           docFlags(mcbp::subdoc::doc_flag::None) {
     }
 
-    virtual void SetUp() override {
+    void SetUp() override {
         ValidatorTest::SetUp();
 
         if (!needPayload()) {
@@ -260,7 +260,7 @@ public:
         request.setKey("Document");
     }
 
-    virtual void SetUp() override {
+    void SetUp() override {
         ValidatorTest::SetUp();
     }
 
@@ -369,7 +369,7 @@ public:
         request.setKey("Document");
     }
 
-    virtual void SetUp() override {
+    void SetUp() override {
         ValidatorTest::SetUp();
     }
 

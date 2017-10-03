@@ -71,15 +71,14 @@ public:
 
     McbpConnection(SOCKET sfd, event_base* b, const ListeningPort& ifc);
 
-    virtual ~McbpConnection();
+    ~McbpConnection() override;
 
 
-    virtual void initiateShutdown() override;
+    void initiateShutdown() override;
 
-    virtual void signalIfIdle(bool logbusy, int workerthread) override;
+    void signalIfIdle(bool logbusy, int workerthread) override;
 
-
-    virtual void setPriority(const Priority& priority) override;
+    void setPriority(const Priority& priority) override;
 
     void setState(TaskFunction next_state);
 
@@ -91,7 +90,7 @@ public:
         return stateMachine->getCurrentTaskName();
     }
 
-    virtual bool isDCP() const override {
+    bool isDCP() const override {
         return dcp;
     }
 
@@ -143,7 +142,7 @@ public:
     unique_cJSON_ptr toJSON() const override;
 
 
-    virtual const Protocol getProtocol() const override;
+    const Protocol getProtocol() const override;
 
     /**
      * Log the current connection if its execution time exceeds the
@@ -493,7 +492,7 @@ public:
         return datatype.isXattrEnabled();
     }
 
-    virtual bool isSupportsMutationExtras() const override {
+    bool isSupportsMutationExtras() const override {
         return supports_mutation_extras;
     }
 
@@ -688,9 +687,9 @@ public:
      */
     bool tryAuthFromSslCert(const std::string& userName);
 
-    virtual bool shouldDelete() override;
+    bool shouldDelete() override;
 
-    virtual void runEventLoop(short which) override;
+    void runEventLoop(short which) override;
 
     /**
      * Input buffer containing the data we've read of the socket. It is

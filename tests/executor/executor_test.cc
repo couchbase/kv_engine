@@ -50,7 +50,7 @@ public:
 
     }
 
-    virtual Status execute() override {
+    Status execute() override {
         ++runcount;
         if (runcount < max) {
             cond.notify_one();
@@ -61,7 +61,7 @@ public:
     }
 
 
-    virtual void notifyExecutionComplete() override {
+    void notifyExecutionComplete() override {
         executionComplete.store(true);
         cond.notify_one();
     }
@@ -216,7 +216,7 @@ public:
         executionComplete.store(false);
     }
 
-    virtual Status periodicExecute() override {
+    Status periodicExecute() override {
         ++runcount;
         if (runcount < max) {
             cond.notify_one();
@@ -226,7 +226,7 @@ public:
         return Status::Finished;
     }
 
-    virtual void notifyExecutionComplete() override {
+    void notifyExecutionComplete() override {
         executionComplete.store(true);
         cond.notify_one();
     }

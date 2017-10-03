@@ -98,15 +98,15 @@ public:
         setEnabled(isMechanismSupported());
     }
 
-    virtual UniqueMechanismBackend createServerBackend(cbsasl_conn_t& conn) override {
+    UniqueMechanismBackend createServerBackend(cbsasl_conn_t& conn) override {
         return UniqueMechanismBackend(new ScramSha512ServerBackend(conn));
     }
 
-    virtual UniqueMechanismBackend createClientBackend(cbsasl_conn_t& conn) override {
+    UniqueMechanismBackend createClientBackend(cbsasl_conn_t& conn) override {
         return UniqueMechanismBackend(new ScramSha512ClientBackend(conn));
     }
 
-    virtual bool isMechanismSupported() override {
+    bool isMechanismSupported() override {
         return cb::crypto::isSupported(cb::crypto::Algorithm::SHA512);
     }
 };
@@ -118,15 +118,15 @@ public:
         setEnabled(isMechanismSupported());
     }
 
-    virtual UniqueMechanismBackend createServerBackend(cbsasl_conn_t& conn) override {
+    UniqueMechanismBackend createServerBackend(cbsasl_conn_t& conn) override {
         return UniqueMechanismBackend(new ScramSha256ServerBackend(conn));
     }
 
-    virtual UniqueMechanismBackend createClientBackend(cbsasl_conn_t& conn) override {
+    UniqueMechanismBackend createClientBackend(cbsasl_conn_t& conn) override {
         return UniqueMechanismBackend(new ScramSha256ClientBackend(conn));
     }
 
-    virtual bool isMechanismSupported() override {
+    bool isMechanismSupported() override {
         return cb::crypto::isSupported(cb::crypto::Algorithm::SHA256);
     }
 };
@@ -138,15 +138,15 @@ public:
         setEnabled(isMechanismSupported());
     }
 
-    virtual UniqueMechanismBackend createServerBackend(cbsasl_conn_t& conn) override {
+    UniqueMechanismBackend createServerBackend(cbsasl_conn_t& conn) override {
         return UniqueMechanismBackend(new ScramSha1ServerBackend(conn));
     }
 
-    virtual UniqueMechanismBackend createClientBackend(cbsasl_conn_t& conn) override {
+    UniqueMechanismBackend createClientBackend(cbsasl_conn_t& conn) override {
         return UniqueMechanismBackend(new ScramSha1ClientBackend(conn));
     }
 
-    virtual bool isMechanismSupported() override {
+    bool isMechanismSupported() override {
         return cb::crypto::isSupported(cb::crypto::Algorithm::SHA1);
     }
 };
@@ -156,15 +156,15 @@ public:
     PlainMechInfo()
         : MechInfo(MECH_NAME_PLAIN, true, Mechanism::PLAIN) { }
 
-    virtual UniqueMechanismBackend createServerBackend(cbsasl_conn_t& conn) override {
+    UniqueMechanismBackend createServerBackend(cbsasl_conn_t& conn) override {
         return UniqueMechanismBackend(new PlainServerBackend(conn));
     }
 
-    virtual UniqueMechanismBackend createClientBackend(cbsasl_conn_t& conn) override {
+    UniqueMechanismBackend createClientBackend(cbsasl_conn_t& conn) override {
         return UniqueMechanismBackend(new PlainClientBackend(conn));
     }
 
-    virtual bool isMechanismSupported() override {
+    bool isMechanismSupported() override {
         return true;
     }
 };

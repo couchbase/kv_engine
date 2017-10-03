@@ -33,7 +33,7 @@ namespace test {
 
 // Single-path subdocument API commands
 class SubdocSingleTest : public ValidatorTest {
-    virtual void SetUp() override {
+    void SetUp() override {
         ValidatorTest::SetUp();
         memset(&request, 0, sizeof(request));
         request.message.header.request.magic = PROTOCOL_BINARY_REQ;
@@ -108,7 +108,7 @@ TEST_F(SubdocSingleTest, DictAdd_InvalidExtras) {
 }
 
 class SubdocMultiLookupTest : public ValidatorTest {
-    virtual void SetUp() override {
+    void SetUp() override {
         ValidatorTest::SetUp();
 
         // Setup basic, correct header.
@@ -271,7 +271,7 @@ TEST_F(SubdocMultiLookupTest, InvalidLocationFlags) {
 /*** MULTI_MUTATION **********************************************************/
 
 class SubdocMultiMutationTest : public ValidatorTest {
-    virtual void SetUp() override {
+    void SetUp() override {
         ValidatorTest::SetUp();
 
         // Setup basic, correct header.

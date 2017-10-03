@@ -26,7 +26,7 @@ namespace test {
 
 class SetCollectionsValidator : public ValidatorTest {
 public:
-    virtual void SetUp() override {
+    void SetUp() override {
         ValidatorTest::SetUp();
         request.message.header.request.opcode =
             PROTOCOL_BINARY_CMD_COLLECTIONS_SET_MANIFEST;

@@ -40,11 +40,11 @@ public:
         thread.start();
     }
 
-    virtual Status execute() override {
+    Status execute() override {
         return Status::Finished;
     }
 
-    virtual void notifyExecutionComplete() override {
+    void notifyExecutionComplete() override {
         if (thread.getConnection() != nullptr) {
             notify_io_complete(&thread.getConnection()->getCookieObject(),
                                thread.getResult());

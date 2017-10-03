@@ -108,7 +108,7 @@ public:
           engine(engine_) {}
 
 protected:
-    virtual void run() override;
+    void run() override;
 
 protected:
     EWB_Engine& engine;
@@ -139,7 +139,7 @@ public:
     }
 
 protected:
-    virtual void run() override;
+    void run() override;
 
 private:
     EWB_Engine& engine;

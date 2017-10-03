@@ -63,7 +63,7 @@ std::ostream& operator<<(std::ostream& os, const GATOpcodes& o) {
 class GATValidatorTest : public ValidatorTest,
                          public ::testing::WithParamInterface<GATOpcodes> {
 public:
-    virtual void SetUp() override {
+    void SetUp() override {
         ValidatorTest::SetUp();
         request.message.header.request.extlen = 4;
         request.message.header.request.keylen = htons(10);

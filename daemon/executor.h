@@ -85,7 +85,7 @@ public:
     size_t futureqSize() const;
 
 protected:
-    virtual void run() override;
+    void run() override;
 
     /**
      * Is shutdown requested?

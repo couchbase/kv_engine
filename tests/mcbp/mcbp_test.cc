@@ -123,7 +123,7 @@ std::ostream& operator<<(std::ostream& os, const GetOpcodes& o) {
 class GetValidatorTest : public ValidatorTest,
                          public ::testing::WithParamInterface<GetOpcodes> {
 public:
-    virtual void SetUp() override {
+    void SetUp() override {
         ValidatorTest::SetUp();
         memset(&request, 0, sizeof(request));
         request.message.header.request.magic = PROTOCOL_BINARY_REQ;
@@ -248,7 +248,7 @@ INSTANTIATE_TEST_CASE_P(GetOpcodes,
 
 // Test ADD & ADDQ
 class AddValidatorTest : public ValidatorTest {
-    virtual void SetUp() override {
+    void SetUp() override {
         ValidatorTest::SetUp();
         request.message.header.request.extlen = 8;
         request.message.header.request.keylen = htons(10);
@@ -310,7 +310,7 @@ TEST_F(AddValidatorTest, InvalidCas) {
 
 // Test SET, SETQ, REPLACE, REPLACEQ
 class SetReplaceValidatorTest : public ValidatorTest {
-    virtual void SetUp() override {
+    void SetUp() override {
         ValidatorTest::SetUp();
         request.message.header.request.extlen = 8;
         request.message.header.request.keylen = htons(10);
@@ -396,7 +396,7 @@ TEST_F(SetReplaceValidatorTest, NoKey) {
 
 // Test Append[q] and Prepend[q]
 class AppendPrependValidatorTest : public ValidatorTest {
-    virtual void SetUp() override {
+    void SetUp() override {
         ValidatorTest::SetUp();
         request.message.header.request.keylen = htons(10);
         request.message.header.request.bodylen = htonl(20);
@@ -481,7 +481,7 @@ TEST_F(AppendPrependValidatorTest, NoKey) {
 
 // Test DELETE & DELETEQ
 class DeleteValidatorTest : public ValidatorTest {
-    virtual void SetUp() override {
+    void SetUp() override {
         ValidatorTest::SetUp();
         request.message.header.request.keylen = htons(10);
         request.message.header.request.bodylen = htonl(10);
@@ -550,7 +550,7 @@ TEST_F(DeleteValidatorTest, InvalidDatatype) {
 
 // Test INCREMENT[q] and DECREMENT[q]
 class IncrementDecrementValidatorTest : public ValidatorTest {
-    virtual void SetUp() override {
+    void SetUp() override {
         ValidatorTest::SetUp();
         request.message.header.request.extlen = 20;
         request.message.header.request.keylen = htons(10);
@@ -932,7 +932,7 @@ TEST_F(StatValidatorTest, InvalidCas) {
 
 // test verbosity
 class VerbosityValidatorTest : public ValidatorTest {
-    virtual void SetUp() override {
+    void SetUp() override {
         ValidatorTest::SetUp();
         request.message.header.request.extlen = 4;
         request.message.header.request.bodylen = htonl(4);
@@ -1082,7 +1082,7 @@ TEST_F(SaslListMechValidatorTest, InvalidCas) {
 
 // test SASL_AUTH
 class SaslAuthValidatorTest : public ValidatorTest {
-    virtual void SetUp() override {
+    void SetUp() override {
         ValidatorTest::SetUp();
         request.message.header.request.keylen = htons(10);
         request.message.header.request.bodylen = htonl(10);
@@ -1176,7 +1176,7 @@ TEST_F(GetErrmapValidatorTest, MissingBody) {
 
 // test IOCTL_GET
 class IoctlGetValidatorTest : public ValidatorTest {
-    virtual void SetUp() override {
+    void SetUp() override {
         ValidatorTest::SetUp();
         request.message.header.request.keylen = htons(10);
         request.message.header.request.bodylen = htonl(10);
@@ -1233,7 +1233,7 @@ TEST_F(IoctlGetValidatorTest, InvalidBody) {
 
 // test IOCTL_SET
 class IoctlSetValidatorTest : public ValidatorTest {
-    virtual void SetUp() override {
+    void SetUp() override {
         ValidatorTest::SetUp();
         request.message.header.request.keylen = htons(10);
         request.message.header.request.bodylen = htonl(10);
@@ -1296,7 +1296,7 @@ TEST_F(IoctlSetValidatorTest, ValidBody) {
 
 // test AUDIT_PUT
 class AuditPutValidatorTest : public ValidatorTest {
-    virtual void SetUp() override {
+    void SetUp() override {
         ValidatorTest::SetUp();
         request.message.header.request.extlen = 4;
         request.message.header.request.bodylen = htonl(10);
@@ -1392,7 +1392,7 @@ TEST_F(AuditConfigReloadValidatorTest, InvalidBody) {
 
 // Test shutdown
 class ShutdownValidatorTest : public ValidatorTest {
-    virtual void SetUp() override {
+    void SetUp() override {
         ValidatorTest::SetUp();
         request.message.header.request.cas = 1;
     }
@@ -1441,7 +1441,7 @@ TEST_F(ShutdownValidatorTest, InvalidBody) {
 }
 
 class DcpOpenValidatorTest : public ValidatorTest {
-    virtual void SetUp() override {
+    void SetUp() override {
         ValidatorTest::SetUp();
         memset(&request, 0, sizeof(request));
         request.message.header.request.magic = PROTOCOL_BINARY_REQ;
@@ -1498,7 +1498,7 @@ TEST_F(DcpOpenValidatorTest, CorrectMessageValueCollections) {
 }
 
 class DcpAddStreamValidatorTest : public ValidatorTest {
-    virtual void SetUp() override {
+    void SetUp() override {
         ValidatorTest::SetUp();
         request.message.header.request.extlen = 4;
         request.message.header.request.bodylen = htonl(4);
@@ -1621,7 +1621,7 @@ TEST_F(DcpGetFailoverLogValidatorTest, InvalidBody) {
 }
 
 class DcpStreamReqValidatorTest : public ValidatorTest {
-    virtual void SetUp() override {
+    void SetUp() override {
         ValidatorTest::SetUp();
         request.message.header.request.extlen = 48;
         request.message.header.request.bodylen = htonl(48);
@@ -1666,7 +1666,7 @@ TEST_F(DcpStreamReqValidatorTest, InvalidDatatype) {
 // }
 
 class DcpStreamEndValidatorTest : public ValidatorTest {
-    virtual void SetUp() override {
+    void SetUp() override {
         ValidatorTest::SetUp();
         request.message.header.request.extlen = 4;
         request.message.header.request.bodylen = htonl(4);
@@ -1711,7 +1711,7 @@ TEST_F(DcpStreamEndValidatorTest, InvalidBody) {
 }
 
 class DcpSnapshotMarkerValidatorTest : public ValidatorTest {
-    virtual void SetUp() override {
+    void SetUp() override {
         ValidatorTest::SetUp();
         request.message.header.request.extlen = 20;
         request.message.header.request.bodylen = htonl(20);
@@ -1780,7 +1780,7 @@ public:
                   0 /*collectionLen*/) {
     }
 
-    virtual void SetUp() override {
+    void SetUp() override {
         ValidatorTest::SetUp();
         connection.setDcpCollectionAware(GetParam());
     }
@@ -1851,7 +1851,7 @@ public:
             (uint8_t)PROTOCOL_BINARY_CMD_DCP_DELETION;
     }
 
-    virtual void SetUp() override {
+    void SetUp() override {
         ValidatorTest::SetUp();
         connection.setDcpCollectionAware(GetParam());
     }
@@ -1957,7 +1957,7 @@ public:
             (uint8_t)PROTOCOL_BINARY_CMD_DCP_EXPIRATION;
     }
 
-    virtual void SetUp() override {
+    void SetUp() override {
         ValidatorTest::SetUp();
         connection.setDcpCollectionAware(GetParam());
     }
@@ -2043,7 +2043,7 @@ TEST_F(DcpFlushValidatorTest, InvalidBody) {
 }
 
 class DcpSetVbucketStateValidatorTest : public ValidatorTest {
-    virtual void SetUp() override {
+    void SetUp() override {
         ValidatorTest::SetUp();
         memset(&request, 0, sizeof(request));
         request.message.header.request.magic = PROTOCOL_BINARY_REQ;
@@ -2149,7 +2149,7 @@ TEST_F(DcpNoopValidatorTest, InvalidBody) {
 }
 
 class DcpBufferAckValidatorTest : public ValidatorTest {
-    virtual void SetUp() override {
+    void SetUp() override {
         ValidatorTest::SetUp();
         request.message.header.request.extlen = 4;
         request.message.header.request.bodylen = htonl(4);
@@ -2195,7 +2195,7 @@ TEST_F(DcpBufferAckValidatorTest, InvalidBody) {
 }
 
 class DcpControlValidatorTest : public ValidatorTest {
-    virtual void SetUp() override {
+    void SetUp() override {
         ValidatorTest::SetUp();
         request.message.header.request.keylen = htons(4);
         request.message.header.request.bodylen = htonl(8);
@@ -2241,7 +2241,7 @@ TEST_F(DcpControlValidatorTest, InvalidBody) {
 
 // Test observe seqno
 class ObserveSeqnoValidatorTest : public ValidatorTest {
-    virtual void SetUp() override {
+    void SetUp() override {
         ValidatorTest::SetUp();
         request.message.header.request.bodylen = ntohl(8);
     }
@@ -2285,7 +2285,7 @@ TEST_F(ObserveSeqnoValidatorTest, InvalidBody) {
 
 // Test set drift counter state
 class SetDriftCounterStateValidatorTest : public ValidatorTest {
-    virtual void SetUp() override {
+    void SetUp() override {
         ValidatorTest::SetUp();
         request.message.header.request.extlen = 9;
         request.message.header.request.bodylen = ntohl(9);
@@ -2463,7 +2463,7 @@ TEST_P(RefreshValidatorTest, InvalidBody) {
 
 // Test CmdTimer
 class CmdTimerValidatorTest : public ValidatorTest {
-    virtual void SetUp() override {
+    void SetUp() override {
         ValidatorTest::SetUp();
         request.message.header.request.extlen = 1;
         request.message.header.request.bodylen = htonl(1);
@@ -2559,7 +2559,7 @@ TEST_F(GetCtrlTokenValidatorTest, InvalidBody) {
 
 // Test SetCtrlToken
 class SetCtrlTokenValidatorTest : public ValidatorTest {
-    virtual void SetUp() override {
+    void SetUp() override {
         ValidatorTest::SetUp();
         memset(&request, 0, sizeof(request));
         request.message.header.request.magic = PROTOCOL_BINARY_REQ;
@@ -2662,7 +2662,7 @@ TEST_F(InitCompleteValidatorTest, InvalidBody) {
 
 // PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS
 class GetAllVbSeqnoValidatorTest : public ValidatorTest {
-    virtual void SetUp() override {
+    void SetUp() override {
         ValidatorTest::SetUp();
         memset(&request, 0, sizeof(request));
         request.message.header.request.magic = PROTOCOL_BINARY_REQ;
@@ -2745,7 +2745,7 @@ TEST_F(GetAllVbSeqnoValidatorTest, InvalidVbucketState) {
 
 // PROTOCOL_BINARY_CMD_GET_LOCKED
 class GetLockedValidatorTest : public ValidatorTest {
-    virtual void SetUp() override {
+    void SetUp() override {
         ValidatorTest::SetUp();
         request.message.header.request.keylen = htons(10);
         request.message.header.request.bodylen = htonl(10);
@@ -2807,7 +2807,7 @@ TEST_F(GetLockedValidatorTest, InvalidBodylen) {
 
 // PROTOCOL_BINARY_CMD_UNLOCK
 class UnlockValidatorTest : public ValidatorTest {
-    virtual void SetUp() override {
+    void SetUp() override {
         ValidatorTest::SetUp();
         request.message.header.request.keylen = htons(10);
         request.message.header.request.bodylen = htonl(10);

@@ -470,7 +470,7 @@ public:
         return flags;
     }
 
-    virtual void encode(std::vector<uint8_t>& buf) const override;
+    void encode(std::vector<uint8_t>& buf) const override;
 
 private:
     std::string path;
@@ -485,12 +485,13 @@ public:
     const std::string& getValue() const {
         return value;
     }
-    virtual void clear() override {
+
+    void clear() override {
         BinprotResponse::clear();
         value.clear();
     }
 
-    virtual void assign(std::vector<uint8_t>&& srcbuf) override;
+    void assign(std::vector<uint8_t>&& srcbuf) override;
 
     bool operator==(const BinprotSubdocResponse& other) const {
         bool rv = getStatus() == other.getStatus();
@@ -722,12 +723,12 @@ public:
         return results;
     }
 
-    virtual void clear() override {
+    void clear() override {
         BinprotResponse::clear();
         results.clear();
     }
 
-    virtual void assign(std::vector<uint8_t>&& srcbuf) override;
+    void assign(std::vector<uint8_t>&& srcbuf) override;
 
 protected:
     std::vector<LookupResult> results;
@@ -915,7 +916,7 @@ protected:
 
 class BinprotGetCmdTimerResponse : public BinprotResponse {
 public:
-    virtual void assign(std::vector<uint8_t>&& buf) override;
+    void assign(std::vector<uint8_t>&& buf) override;
 
     cJSON* getTimings() const {
         return timings.get();
@@ -1016,7 +1017,7 @@ private:
 
 class BinprotMutationResponse : public BinprotResponse {
 public:
-    virtual void assign(std::vector<uint8_t>&& buf) override;
+    void assign(std::vector<uint8_t>&& buf) override;
 
     const MutationInfo& getMutationInfo() const {
         return mutation_info;
@@ -1057,7 +1058,7 @@ public:
         return value;
     }
 
-    virtual void assign(std::vector<uint8_t>&& buf) override;
+    void assign(std::vector<uint8_t>&& buf) override;
 
 private:
     uint64_t value = 0;

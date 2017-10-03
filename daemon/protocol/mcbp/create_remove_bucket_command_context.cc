@@ -39,11 +39,11 @@ public:
         thread.start();
     }
 
-    virtual Status execute() override {
+    Status execute() override {
         return Status::Finished;
     }
 
-    virtual void notifyExecutionComplete() override {
+    void notifyExecutionComplete() override {
         notify_io_complete(mcbpconnection.getCookie(), thread.getResult());
     }
 

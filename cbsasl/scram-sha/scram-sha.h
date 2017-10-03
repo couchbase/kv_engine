@@ -125,15 +125,15 @@ public:
                           const Mechanism& mech,
                           const cb::crypto::Algorithm algo);
 
-    virtual cbsasl_error_t start(const char* input,
-                                 unsigned inputlen, const char** output,
-                                 unsigned* outputlen) override;
+    cbsasl_error_t start(const char* input,
+                         unsigned inputlen, const char** output,
+                         unsigned* outputlen) override;
 
-    virtual cbsasl_error_t step(const char* input,
-                                unsigned inputlen, const char** output,
-                                unsigned* outputlen) override;
+    cbsasl_error_t step(const char* input,
+                        unsigned inputlen, const char** output,
+                        unsigned* outputlen) override;
 
-    virtual void getSaltedPassword(std::vector<uint8_t>& dest) override {
+    void getSaltedPassword(std::vector<uint8_t>& dest) override {
         const auto& pw = user.getPassword(mechanism).getPassword();
         std::copy(pw.begin(), pw.end(), std::back_inserter(dest));
     }
@@ -188,19 +188,19 @@ public:
                           const Mechanism& mech,
                           const cb::crypto::Algorithm algo);
 
-    virtual cbsasl_error_t start(const char* input,
-                                 unsigned inputlen, const char** output,
-                                 unsigned* outputlen) override;
+    cbsasl_error_t start(const char* input,
+                         unsigned inputlen, const char** output,
+                         unsigned* outputlen) override;
 
-    virtual cbsasl_error_t step(const char* input,
-                                unsigned inputlen, const char** output,
-                                unsigned* outputlen) override;
+    cbsasl_error_t step(const char* input,
+                        unsigned inputlen, const char** output,
+                        unsigned* outputlen) override;
 
 protected:
 
     bool generateSaltedPassword(const char *ptr, int len);
 
-    virtual void getSaltedPassword(std::vector<uint8_t>& dest) override {
+    void getSaltedPassword(std::vector<uint8_t>& dest) override {
         if (saltedPassword.empty()) {
             throw std::logic_error("getSaltedPassword called before salted "
                                        "password is initialized");

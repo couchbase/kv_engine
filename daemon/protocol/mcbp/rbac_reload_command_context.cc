@@ -28,7 +28,7 @@ public:
         // Empty
     }
 
-    virtual Status execute() override {
+    Status execute() override {
         try {
             LOG_NOTICE(nullptr,
                        "%u: Loading RBAC configuration from [%s] %s",
@@ -54,7 +54,7 @@ public:
         return Status::Finished;
     }
 
-    virtual void notifyExecutionComplete() override {
+    void notifyExecutionComplete() override {
         notify_io_complete(connection.getCookie(), status);
     }
 

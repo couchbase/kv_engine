@@ -40,7 +40,7 @@ public:
                  const std::string& mechanism_,
                  const std::string& challenge_);
 
-    virtual void notifyExecutionComplete() override;
+    void notifyExecutionComplete() override;
 
 
     cbsasl_error_t getError() const {

@@ -327,7 +327,7 @@ static char environment[1024];
 class EncryptedDatabaseTest : public ::testing::Test {
 public:
 
-    virtual void SetUp() override {
+    void SetUp() override {
         unique_cJSON_ptr meta(cJSON_CreateObject());
         cJSON_AddStringToObject(meta.get(), "cipher", "AES_256_cbc");
         std::string blob;
@@ -355,7 +355,7 @@ public:
         filename = generateTempFile("./cryptfile.XXXXXX");
     }
 
-    virtual void TearDown() override {
+    void TearDown() override {
 #ifdef _MSC_VER
         checked_snprintf(environment, sizeof(environment),
                          "COUCHBASE_CBSASL_SECRETS=");
