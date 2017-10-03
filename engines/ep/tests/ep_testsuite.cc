@@ -3716,6 +3716,11 @@ static enum test_result test_curr_items_dead(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
     // Now completely delete it.
     check(set_vbucket_state(h, h1, 0, vbucket_state_dead),
           "Failed set vbucket 0 state to dead (2)");
+    wait_for_flusher_to_settle(h, h1);
+    checkeq(uint64_t(0),
+            get_stat<uint64_t>(h, h1, "ep_queue_size"),
+            "ep_queue_size is not zero after setting to dead (2)");
+
     vbucketDelete(h, h1, 0);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Expected success deleting vbucket.");
