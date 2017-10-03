@@ -1853,7 +1853,6 @@ void KVBucket::flushOneDeleteAll() {
         }
     }
 
-    --stats.diskQueueSize;
     setDeleteAllComplete();
 }
 

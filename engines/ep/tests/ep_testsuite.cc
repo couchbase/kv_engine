@@ -3667,6 +3667,9 @@ static enum test_result test_curr_items_flush(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
 
     // Verify initial case.
     verify_curr_items(h, h1, 0, "init");
+    checkeq(uint64_t(0),
+            get_stat<uint64_t>(h, h1, "ep_queue_size"),
+            "initial ep_queue_size is not zero");
 
     // Store some items
     write_items(h, h1, 3);
@@ -3678,6 +3681,10 @@ static enum test_result test_curr_items_flush(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
             "Failed to flush");
     set_degraded_mode(h, h1, nullptr, false);
     verify_curr_items(h, h1, 0, "flush");
+
+    checkeq(uint64_t(0),
+            get_stat<uint64_t>(h, h1, "ep_queue_size"),
+            "final ep_queue_size is not zero");
 
     return SUCCESS;
 }

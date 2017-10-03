@@ -352,9 +352,11 @@ int get_int_stat_or_default(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
  * Templated function prototype to return a stat of the given type.
  * Should replace above uses of get_XXX_stat with this.
  */
-template<typename T>
-T get_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statname,
-           const char *statkey);
+template <typename T>
+T get_stat(ENGINE_HANDLE* h,
+           ENGINE_HANDLE_V1* h1,
+           const char* statname,
+           const char* statkey = nullptr);
 
 // Explicit template instantiations declarations of get_stat<T>
 template<>
