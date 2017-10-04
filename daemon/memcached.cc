@@ -566,7 +566,6 @@ static void settings_init(void) {
      */
     settings.setMaxPacketSize(30 * 1024 * 1024);
 
-    settings.setRequireInit(false);
     settings.setDedupeNmvbMaps(false);
 
     char *tmp = getenv("MEMCACHED_TOP_KEYS");
@@ -1420,7 +1419,7 @@ static void create_listen_sockets(bool management) {
         FATAL_ERROR(EX_OSERR, "Failed to create listening socket");
     }
 
-    if (management && !settings.isRequireInit()) {
+    if (management) {
         // the client is not expecting us to update the port set at
         // later time, so enable all ports immediately
         if (server_sockets(false)) {
@@ -2688,8 +2687,6 @@ extern "C" int memcached_main(int argc, char **argv) {
         settings.setXattrEnabled(true);
     }
 
-    set_server_initialized(!settings.isRequireInit());
-
     /* Initialize breakpad crash catcher with our just-parsed settings. */
     initialize_breakpad(settings.getBreakpadSettings());
 
@@ -2806,12 +2803,7 @@ extern "C" int memcached_main(int argc, char **argv) {
 
     if (!memcached_shutdown) {
         /* enter the event loop */
-        if (settings.isRequireInit()) {
-            LOG_NOTICE(nullptr,
-                       "Accepting management clients to initialize buckets");
-        } else {
-            LOG_NOTICE(nullptr, "Initialization complete. Accepting clients.");
-        }
+        LOG_NOTICE(nullptr, "Initialization complete. Accepting clients.");
         service_online = true;
         event_base_loop(main_base, 0);
         service_online = false;

@@ -766,20 +766,6 @@ static void get_ctrl_token_executor(McbpConnection* c, void*) {
     mcbp_write_and_free(c, &c->getDynamicBuffer());
 }
 
-static void init_complete_executor(McbpConnection* c, void* packet) {
-    auto* init = reinterpret_cast<protocol_binary_request_init_complete*>(packet);
-    uint64_t cas = ntohll(init->message.header.request.cas);;
-
-    if (session_cas.increment_session_counter(cas)) {
-        set_server_initialized(true);
-        session_cas.decrement_session_counter();
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
-        perform_callbacks(ON_INIT_COMPLETE, nullptr, nullptr);
-    } else {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
-    }
-}
-
 static void ioctl_get_executor(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_ioctl_set*>(packet);
     ENGINE_ERROR_CODE ret = c->getAiostat();
@@ -1046,7 +1032,6 @@ std::array<mcbp_package_execute, 0x100>& get_mcbp_executors(void) {
     executors[PROTOCOL_BINARY_CMD_GET_CMD_TIMER] = get_cmd_timer_executor;
     executors[PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN] = set_ctrl_token_executor;
     executors[PROTOCOL_BINARY_CMD_GET_CTRL_TOKEN] = get_ctrl_token_executor;
-    executors[PROTOCOL_BINARY_CMD_INIT_COMPLETE] = init_complete_executor;
     executors[PROTOCOL_BINARY_CMD_IOCTL_GET] = ioctl_get_executor;
     executors[PROTOCOL_BINARY_CMD_IOCTL_SET] = ioctl_set_executor;
     executors[PROTOCOL_BINARY_CMD_CONFIG_VALIDATE] = config_validate_executor;
@@ -1256,49 +1241,8 @@ static void execute_response_packet(McbpConnection* c) {
     }
 }
 
-/**
- * Check if the server is initialized or not for a given connection.
- *
- * The server should deny "normal" clients to execute commands until ns_server
- * told us that it is done with all initialization code for this node and
- * clients should be accepted.
- *
- * All clients should be able to try to run SASL authentication, so that
- * we can allow @ns_server to connect
- *
- * Clients must be able to run HELLO to allow for XERROR
- *
- * @param c The client connection to requesting access
- * @param opcode The requested access
- * @return true if the server is considered initialized in this context
- */
-static inline bool is_initialized(McbpConnection* c, uint8_t opcode) {
-    if (c->isInternal() || is_server_initialized()) {
-        return true;
-    }
-
-    switch (opcode) {
-    case PROTOCOL_BINARY_CMD_HELLO:
-    // Clients should be able to enable xerror
-    // FALLTHROUGH
-    case PROTOCOL_BINARY_CMD_GET_ERROR_MAP:
-    // Clients should be able to fetch the errormap
-    // FALLTHROUGH
-    case PROTOCOL_BINARY_CMD_SASL_LIST_MECHS: // FALLTHROUGH
-    case PROTOCOL_BINARY_CMD_SASL_AUTH: // FALLTHROUGH
-    case PROTOCOL_BINARY_CMD_SASL_STEP: // FALLTHROUGH
-        return true;
-    default:
-        return false;
-    }
-}
-
 static cb::mcbp::Status validate_packet_execusion_constraints(
         McbpConnection* c) {
-    if (!is_initialized(c, c->binary_header.request.opcode)) {
-        return cb::mcbp::Status::NotInitialized;
-    }
-
     if (invalid_datatype(c)) {
         c->getCookieObject().setErrorContext("Invalid datatype provided");
         return cb::mcbp::Status::Einval;

@@ -289,9 +289,6 @@ enum class ClientOpcode : uint8_t {
     SetCtrlToken = 0xf4,
     GetCtrlToken = 0xf5,
 
-    /* ns_server - memcached internal communication */
-    InitComplete = 0xf6,
-
     /* Refresh the RBAC database */
     RbacRefresh = 0xf7,
 

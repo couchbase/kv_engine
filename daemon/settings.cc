@@ -49,7 +49,6 @@ Settings::Settings()
       reqs_per_event_low_priority(0),
       default_reqs_per_event(00),
       max_packet_size(0),
-      require_init(false),
       topkeys_size(0),
       maxconns(0) {
 
@@ -196,25 +195,6 @@ static void handle_threads(Settings& s, cJSON* obj) {
     }
 
     s.setNumWorkerThreads(obj->valueint);
-}
-
-/**
- * Handle the "require_init" tag in the settings
- *
- *  The value must be a  value
- *
- * @param s the settings object to update
- * @param obj the object in the configuration
- */
-static void handle_require_init(Settings& s, cJSON* obj) {
-    if (obj->type == cJSON_True) {
-        s.setRequireInit(true);
-    } else if (obj->type == cJSON_False) {
-        s.setRequireInit(false);
-    } else {
-        throw std::invalid_argument(
-            "\"require_init\" must be a boolean value");
-    }
 }
 
 /**
@@ -655,7 +635,6 @@ void Settings::reconfigure(const unique_cJSON_ptr& json) {
             {"threads", handle_threads},
             {"interfaces", handle_interfaces},
             {"extensions", handle_extensions},
-            {"require_init", handle_require_init},
             {"default_reqs_per_event", handle_reqs_event},
             {"reqs_per_event_high_priority", handle_reqs_event},
             {"reqs_per_event_med_priority", handle_reqs_event},
@@ -937,12 +916,6 @@ void Settings::updateSettings(const Settings& other, bool apply) {
     if (other.has.root) {
         if (other.root != root) {
             throw std::invalid_argument("root can't be changed dynamically");
-        }
-    }
-    if (other.has.require_init) {
-        if (other.require_init != require_init) {
-            throw std::invalid_argument(
-                "require_init can't be changed dynamically");
         }
     }
     if (other.has.topkeys_size) {

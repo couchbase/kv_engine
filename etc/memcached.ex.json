@@ -7,7 +7,6 @@
             "minidump_dir" : "/opt/couchbase/var/crash",
             "content" : "default"
         },
-    "require_init" : true,
     "audit_file" : "/opt/couchbase/etc/security/audit.json",
     "ssl_cipher_list" : "HIGH",
     "threads" : 4,

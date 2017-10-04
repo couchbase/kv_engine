@@ -653,30 +653,6 @@ public:
     }
 
     /**
-     * Should the server wait for an init message before opening up all
-     * non-management tagged interfaces (and disconnect all "non-admin"
-     * clients
-     *
-     * @return true if the system should wait for init complete message
-     */
-    bool isRequireInit() const {
-        return require_init;
-    }
-
-    /**
-     * Set the mode if the server should allow all clients immediately or
-     * wait for ns_server to notify the note that it is done initializing
-     * the buckets etc.
-     *
-     * @param require_init true if the node require an init complete message
-     */
-    void setRequireInit(bool require_init) {
-        Settings::require_init = require_init;
-        has.require_init = true;
-        notify_changed("require_init");
-    }
-
-    /**
      * Get the configured socket path for Saslauthd
      */
     std::string getSaslauthdSocketpath() const {
@@ -1047,11 +1023,6 @@ protected:
     uint32_t max_packet_size;
 
     /**
-     * Require init message from ns_server
-     */
-    bool require_init;
-
-    /**
      * The SSL cipher list to use
      */
     std::string ssl_cipher_list;
@@ -1149,7 +1120,6 @@ public:
         bool root;
         bool breakpad;
         bool max_packet_size;
-        bool require_init;
         bool ssl_cipher_list;
         bool ssl_minimum_protocol;
         bool client_cert_auth;

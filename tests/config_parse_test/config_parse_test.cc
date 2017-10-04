@@ -460,30 +460,6 @@ TEST_F(SettingsTest, Extensions) {
     }
 }
 
-TEST_F(SettingsTest, RequireInit) {
-    nonBooleanValuesShouldFail("require_init");
-
-    unique_cJSON_ptr obj(cJSON_CreateObject());
-    cJSON_AddTrueToObject(obj.get(), "require_init");
-    try {
-        Settings settings(obj);
-        EXPECT_TRUE(settings.isRequireInit());
-        EXPECT_TRUE(settings.has.require_init);
-    } catch (std::exception& exception) {
-        FAIL() << exception.what();
-    }
-
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddFalseToObject(obj.get(), "require_init");
-    try {
-        Settings settings(obj);
-        EXPECT_FALSE(settings.isRequireInit());
-        EXPECT_TRUE(settings.has.require_init);
-    } catch (std::exception& exception) {
-        FAIL() << exception.what();
-    }
-}
-
 TEST_F(SettingsTest, TopkeysEnabled) {
     nonBooleanValuesShouldFail("topkeys_enabled");
 
@@ -1150,20 +1126,6 @@ TEST(SettingsUpdateTest, ExtensionsDifferentArraysSizeShouldFail) {
     settings.addPendingExtension(ext);
     EXPECT_NO_THROW(settings.updateSettings(updated, false));
     settings.addPendingExtension(ext);
-    EXPECT_THROW(settings.updateSettings(updated, false),
-                 std::invalid_argument);
-}
-
-TEST(SettingsUpdateTest, RequireInitIsNotDynamic) {
-    Settings updated;
-    Settings settings;
-    // setting it to the same value should work
-    settings.setRequireInit(true);
-    updated.setRequireInit(settings.isRequireInit());
-    EXPECT_NO_THROW(settings.updateSettings(updated, false));
-
-    // Changing it should fail
-    updated.setRequireInit(!settings.isRequireInit());
     EXPECT_THROW(settings.updateSettings(updated, false),
                  std::invalid_argument);
 }

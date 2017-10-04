@@ -2620,46 +2620,6 @@ TEST_F(SetCtrlTokenValidatorTest, InvalidBody) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
 
-// Test init complete
-class InitCompleteValidatorTest : public ValidatorTest {
-protected:
-    protocol_binary_response_status validate() {
-        return ValidatorTest::validate(PROTOCOL_BINARY_CMD_INIT_COMPLETE,
-                                       static_cast<void*>(&request));
-    }
-};
-
-TEST_F(InitCompleteValidatorTest, CorrectMessage) {
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
-}
-
-TEST_F(InitCompleteValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
-}
-
-TEST_F(InitCompleteValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 2;
-    request.message.header.request.bodylen = htonl(2);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
-}
-
-TEST_F(InitCompleteValidatorTest, InvalidKey) {
-    request.message.header.request.keylen = 10;
-    request.message.header.request.bodylen = htonl(10);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
-}
-
-TEST_F(InitCompleteValidatorTest, InvalidDatatype) {
-    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
-}
-
-TEST_F(InitCompleteValidatorTest, InvalidBody) {
-    request.message.header.request.bodylen = htonl(4);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
-}
-
 // PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS
 class GetAllVbSeqnoValidatorTest : public ValidatorTest {
     void SetUp() override {

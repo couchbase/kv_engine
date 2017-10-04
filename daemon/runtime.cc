@@ -28,16 +28,6 @@
 #include <memcached/openssl.h>
 
 
-static std::atomic<bool> server_initialized;
-
-bool is_server_initialized(void) {
-    return server_initialized.load(std::memory_order_acquire);
-}
-
-void set_server_initialized(bool enable) {
-    server_initialized.store(enable, std::memory_order_release);
-}
-
 static std::string ssl_cipher_list;
 static std::mutex ssl_cipher_list_mutex;
 

@@ -143,21 +143,6 @@ ENGINE_ERROR_CODE SaslAuthCommandContext::authBadParameters() {
 ENGINE_ERROR_CODE SaslAuthCommandContext::authFailure() {
     state = State::Done;
 
-    if (!is_server_initialized()) {
-        auto ret = PROTOCOL_BINARY_RESPONSE_NOT_INITIALIZED;
-        if (!connection.isXerrorSupport()) {
-            ret = PROTOCOL_BINARY_RESPONSE_AUTH_ERROR;
-        }
-        LOG_WARNING(&connection,
-                    "%u: SASL AUTH failure during initialization. "
-                        "UUID: [%s]",
-                    connection.getId(),
-                    connection.getCookieObject().getEventId().c_str());
-        mcbp_write_packet(&connection, ret);
-        connection.setWriteAndGo(conn_closing);
-        return ENGINE_SUCCESS;
-    }
-
     auto auth_task = reinterpret_cast<SaslAuthTask*>(task.get());
     if (auth_task->getError() == CBSASL_NOUSER ||
         auth_task->getError() == CBSASL_PWERR) {

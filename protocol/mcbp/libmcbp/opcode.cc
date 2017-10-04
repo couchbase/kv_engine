@@ -315,8 +315,6 @@ std::string to_string(cb::mcbp::ClientOpcode opcode) {
         return "SET_CTRL_TOKEN";
     case ClientOpcode::GetCtrlToken:
         return "GET_CTRL_TOKEN";
-    case ClientOpcode::InitComplete:
-        return "INIT_COMPLETE";
     case ClientOpcode::RbacRefresh:
         return "RBAC_REFRESH";
     case ClientOpcode::DropPrivilege:

@@ -173,7 +173,6 @@ const std::map<cb::mcbp::ClientOpcode, std::string> client_blueprint = {
          {ClientOpcode::GetCmdTimer, "GET_CMD_TIMER"},
          {ClientOpcode::SetCtrlToken, "SET_CTRL_TOKEN"},
          {ClientOpcode::GetCtrlToken, "GET_CTRL_TOKEN"},
-         {ClientOpcode::InitComplete, "INIT_COMPLETE"},
          {ClientOpcode::RbacRefresh, "RBAC_REFRESH"},
          {ClientOpcode::DropPrivilege, "DROP_PRIVILEGES"},
          {ClientOpcode::AdjustTimeofday, "ADJUST_TIMEOFDAY"},

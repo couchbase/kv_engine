@@ -64,12 +64,13 @@ const Protocol ListenConnection::getProtocol() const {
 
 void ListenConnection::enable() {
     if (!registered_in_libevent) {
-        if (management || is_server_initialized()) {
-            LOG_NOTICE(this, "%u Listen on %s", getId(), getSockname().c_str());
-            if (listen(getSocketDescriptor(), backlog) == SOCKET_ERROR) {
-                LOG_WARNING(this, "%u: Failed to listen on %s: %s",
-                            getId(), getSockname().c_str(), strerror(errno));
-            }
+        LOG_NOTICE(this, "%u Listen on %s", getId(), getSockname().c_str());
+        if (listen(getSocketDescriptor(), backlog) == SOCKET_ERROR) {
+            LOG_WARNING(this,
+                        "%u: Failed to listen on %s: %s",
+                        getId(),
+                        getSockname().c_str(),
+                        strerror(errno));
         }
 
         if (event_add(ev.get(), NULL) == -1) {

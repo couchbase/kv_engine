@@ -94,13 +94,6 @@ add_unit_test_suite(NAME ssl-utilities
 # Roughly calibrated to be 2x what the expected time is on the
 # slowest Jenkins platform/config.
 
-
-
-# Run the tests to verify require-init
-add_unit_test_suite(NAME require-init
-                    TIMEOUT 200
-                    SOURCE testapp_require_init.cc)
-
 # Run the Arithmetic tests
 add_unit_test_suite(NAME arithmetic
                     ENGINE ep

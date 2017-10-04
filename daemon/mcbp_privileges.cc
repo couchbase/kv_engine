@@ -282,9 +282,6 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN, require<Privilege::SessionManagement>);
     setup(PROTOCOL_BINARY_CMD_GET_CTRL_TOKEN, require<Privilege::SessionManagement>);
 
-    /* ns_server - memcached internal communication */
-    setup(PROTOCOL_BINARY_CMD_INIT_COMPLETE, require<Privilege::NodeManagement>);
-
     // Drop a privilege from the effective set
     setup(PROTOCOL_BINARY_CMD_DROP_PRIVILEGE, empty);
 

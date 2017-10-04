@@ -435,8 +435,6 @@ const uint8_t PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN =
         uint8_t(cb::mcbp::ClientOpcode::SetCtrlToken);
 const uint8_t PROTOCOL_BINARY_CMD_GET_CTRL_TOKEN =
         uint8_t(cb::mcbp::ClientOpcode::GetCtrlToken);
-const uint8_t PROTOCOL_BINARY_CMD_INIT_COMPLETE =
-        uint8_t(cb::mcbp::ClientOpcode::InitComplete);
 const uint8_t PROTOCOL_BINARY_CMD_RBAC_REFRESH =
         uint8_t(cb::mcbp::ClientOpcode::RbacRefresh);
 const uint8_t PROTOCOL_BINARY_CMD_ADJUST_TIMEOFDAY =
@@ -1997,13 +1995,6 @@ typedef union {
     } message;
     uint8_t bytes[sizeof(protocol_binary_request_header) + 12];
 } protocol_binary_request_return_meta;
-
-/**
- * Message format for CMD_INIT_COMPLETE
- */
-typedef protocol_binary_request_no_extras protocol_binary_request_init_complete;
-typedef protocol_binary_response_no_extras
-        protocol_binary_response_init_complete;
 
 /**
  * Message format for CMD_SET_CONFIG
