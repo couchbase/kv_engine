@@ -481,6 +481,60 @@ StoredValue::UniquePtr HashTable::unlocked_release(
     return released;
 }
 
+MutationStatus HashTable::insertFromWarmup(
+        Item& itm,
+        bool eject,
+        bool keyMetaDataOnly,
+        item_eviction_policy_t evictionPolicy) {
+    auto hbl = getLockedBucket(itm.getKey());
+    auto* v = unlocked_find(itm.getKey(),
+                            hbl.getBucketNum(),
+                            WantsDeleted::Yes,
+                            TrackReference::No);
+
+    if (v == NULL) {
+        v = unlocked_addNewStoredValue(hbl, itm);
+
+        // TODO: Would be faster if we just skipped creating the value in the
+        // first place instead of adding it to the Item and then discarding it
+        // in markNotResident.
+        if (keyMetaDataOnly) {
+            v->markNotResident();
+            ++numNonResidentItems;
+        }
+        /* We need to decrNumTotalItems because ht.numTotalItems is already
+         set by warmup when it estimated the item count from disk */
+        decrNumTotalItems();
+        v->setNewCacheItem(false);
+    } else {
+        if (keyMetaDataOnly) {
+            // We don't have a better error code ;)
+            return MutationStatus::InvalidCas;
+        }
+
+        // Verify that the CAS isn't changed
+        if (v->getCas() != itm.getCas()) {
+            if (v->getCas() == 0) {
+                v->setCas(itm.getCas());
+                v->setFlags(itm.getFlags());
+                v->setExptime(itm.getExptime());
+                v->setRevSeqno(itm.getRevSeqno());
+            } else {
+                return MutationStatus::InvalidCas;
+            }
+        }
+        unlocked_updateStoredValue(hbl.getHTLock(), *v, itm);
+    }
+
+    v->markClean();
+
+    if (eject && !keyMetaDataOnly) {
+        unlocked_ejectItem(v, evictionPolicy);
+    }
+
+    return MutationStatus::NotFound;
+}
+
 void HashTable::dump() const {
     std::cerr << *this << std::endl;
 }

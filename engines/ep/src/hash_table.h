@@ -583,6 +583,24 @@ public:
                                                   const DocKey& key);
 
     /**
+     * Insert an item during Warmup into the HashTable.
+     * TODO: Consider splitting into the different primitive operations
+     * occuring,
+     * and exposing those methods individually. It is likely that will reduce
+     * duplication with other HashTable functions.
+     *
+     * @param itm Item to insert
+     * @param eject Should the item be immediately ejected?
+     * @param keyMetaDataOnly Is the item being inserted metadata-only?
+     * @param evictionPolicy What eviction policy should be used if eject is
+     * true?
+     */
+    MutationStatus insertFromWarmup(Item& itm,
+                                    bool eject,
+                                    bool keyMetaDataOnly,
+                                    item_eviction_policy_t evictionPolicy);
+
+    /**
      * Dump a representation of the HashTable to stderr.
      */
     void dump() const;

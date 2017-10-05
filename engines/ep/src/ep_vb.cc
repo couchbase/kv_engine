@@ -627,47 +627,5 @@ MutationStatus EPVBucket::insertFromWarmup(Item& itm,
         return MutationStatus::NoMem;
     }
 
-    auto hbl = ht.getLockedBucket(itm.getKey());
-    StoredValue* v = ht.unlocked_find(itm.getKey(),
-                                      hbl.getBucketNum(),
-                                      WantsDeleted::Yes,
-                                      TrackReference::No);
-
-    if (v == NULL) {
-        v = ht.unlocked_addNewStoredValue(hbl, itm);
-        if (keyMetaDataOnly) {
-            v->markNotResident();
-            ++(ht.numNonResidentItems);
-        }
-        /* We need to decrNumTotalItems because ht.numTotalItems is already
-         set by warmup when it estimated the item count from disk */
-        ht.decrNumTotalItems();
-        v->setNewCacheItem(false);
-    } else {
-        if (keyMetaDataOnly) {
-            // We don't have a better error code ;)
-            return MutationStatus::InvalidCas;
-        }
-
-        // Verify that the CAS isn't changed
-        if (v->getCas() != itm.getCas()) {
-            if (v->getCas() == 0) {
-                v->setCas(itm.getCas());
-                v->setFlags(itm.getFlags());
-                v->setExptime(itm.getExptime());
-                v->setRevSeqno(itm.getRevSeqno());
-            } else {
-                return MutationStatus::InvalidCas;
-            }
-        }
-        ht.unlocked_updateStoredValue(hbl.getHTLock(), *v, itm);
-    }
-
-    v->markClean();
-
-    if (eject && !keyMetaDataOnly) {
-        ht.unlocked_ejectItem(v, eviction);
-    }
-
-    return MutationStatus::NotFound;
+    return ht.insertFromWarmup(itm, eject, keyMetaDataOnly, eviction);
 }
