@@ -42,13 +42,7 @@ HashTable::HashTable(EPStats& st,
                      std::unique_ptr<AbstractStoredValueFactory> svFactory,
                      size_t initialSize,
                      size_t locks)
-    : maxDeletedRevSeqno(0),
-      numTotalItems(0),
-      numNonResidentItems(0),
-      numDeletedItems(0),
-      datatypeCounts(),
-      numEjects(0),
-      memSize(0),
+    : datatypeCounts(),
       cacheSize(0),
       metaDataMemory(0),
       initialSize(initialSize),
@@ -57,9 +51,15 @@ HashTable::HashTable(EPStats& st,
       stats(st),
       valFact(std::move(svFactory)),
       visitors(0),
+      numTotalItems(0),
       numItems(0),
+      numNonResidentItems(0),
+      numDeletedItems(0),
+      numEjects(0),
       numResizes(0),
-      numTempItems(0) {
+      numTempItems(0),
+      memSize(0),
+      maxDeletedRevSeqno(0) {
     values.resize(size);
     activeState = true;
 }

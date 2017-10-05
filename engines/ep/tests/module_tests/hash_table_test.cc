@@ -348,7 +348,7 @@ protected:
 
     void SetUp() override {
         global_stats.reset();
-        ASSERT_EQ(0, ht.memSize.load());
+        ASSERT_EQ(0, ht.getItemMemory());
         ASSERT_EQ(0, ht.cacheSize.load());
         initialSize = stats.currentSize.load();
 
@@ -360,7 +360,7 @@ protected:
     }
 
     void TearDown() override {
-        EXPECT_EQ(0, ht.memSize.load());
+        EXPECT_EQ(0, ht.getItemMemory());
         EXPECT_EQ(0, ht.cacheSize.load());
         EXPECT_EQ(initialSize, stats.currentSize.load());
 
@@ -701,7 +701,7 @@ TEST_F(HashTableTest, CopyItem) {
     auto metaDataMemBeforeCopy = ht.metaDataMemory.load();
     auto datatypeCountsBeforeCopy = ht.datatypeCounts;
     auto cacheSizeBeforeCopy = ht.cacheSize.load();
-    auto memSizeBeforeCopy = ht.memSize.load();
+    auto memSizeBeforeCopy = ht.getItemMemory();
     auto statsCurrSizeBeforeCopy = global_stats.currentSize.load();
 
     auto res = ht.unlocked_replaceByCopy(hbl, *replaceSv);
@@ -719,7 +719,7 @@ TEST_F(HashTableTest, CopyItem) {
     EXPECT_EQ(metaDataMemBeforeCopy, ht.metaDataMemory.load());
     EXPECT_EQ(datatypeCountsBeforeCopy, ht.datatypeCounts);
     EXPECT_EQ(cacheSizeBeforeCopy, ht.cacheSize.load());
-    EXPECT_EQ(memSizeBeforeCopy, ht.memSize.load());
+    EXPECT_EQ(memSizeBeforeCopy, ht.getItemMemory());
     EXPECT_EQ(statsCurrSizeBeforeCopy, global_stats.currentSize.load());
 }
 
@@ -751,7 +751,7 @@ TEST_F(HashTableTest, CopyDeletedItem) {
     auto metaDataMemBeforeCopy = ht.metaDataMemory.load();
     auto datatypeCountsBeforeCopy = ht.datatypeCounts;
     auto cacheSizeBeforeCopy = ht.cacheSize.load();
-    auto memSizeBeforeCopy = ht.memSize.load();
+    auto memSizeBeforeCopy = ht.getItemMemory();
     auto statsCurrSizeBeforeCopy = global_stats.currentSize.load();
 
     /* Replace the StoredValue in the HT by its copy */
@@ -771,7 +771,7 @@ TEST_F(HashTableTest, CopyDeletedItem) {
     EXPECT_EQ(metaDataMemBeforeCopy, ht.metaDataMemory.load());
     EXPECT_EQ(datatypeCountsBeforeCopy, ht.datatypeCounts);
     EXPECT_EQ(cacheSizeBeforeCopy, ht.cacheSize.load());
-    EXPECT_EQ(memSizeBeforeCopy, ht.memSize.load());
+    EXPECT_EQ(memSizeBeforeCopy, ht.getItemMemory());
     EXPECT_EQ(statsCurrSizeBeforeCopy, global_stats.currentSize.load());
 }
 

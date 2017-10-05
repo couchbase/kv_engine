@@ -2817,7 +2817,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashStats(const void *cookie,
                 checked_snprintf(buf, sizeof(buf), "vb_%d:resized", vbid);
                 add_casted_stat(buf, vb->ht.getNumResizes(), add_stat, cookie);
                 checked_snprintf(buf, sizeof(buf), "vb_%d:mem_size", vbid);
-                add_casted_stat(buf, vb->ht.memSize, add_stat, cookie);
+                add_casted_stat(buf, vb->ht.getItemMemory(), add_stat, cookie);
                 checked_snprintf(buf, sizeof(buf), "vb_%d:mem_size_counted",
                                  vbid);
                 add_casted_stat(buf, depthVisitor.memUsed, add_stat, cookie);
