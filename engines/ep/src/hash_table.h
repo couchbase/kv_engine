@@ -605,11 +605,6 @@ public:
      */
     void dump() const;
 
-    std::atomic<uint64_t>     maxDeletedRevSeqno;
-    std::atomic<size_t>       numTotalItems;
-    cb::NonNegativeCounter<size_t> numNonResidentItems;
-    cb::NonNegativeCounter<size_t> numDeletedItems;
-
     /**
      * Number of documents of a given datatype. Includes alive (non-deleted),
      * resident documents.
@@ -617,9 +612,6 @@ public:
     std::array<cb::NonNegativeCounter<size_t>, mcbp::datatype::highest + 1>
             datatypeCounts;
 
-    std::atomic<size_t>       numEjects;
-    //! Memory consumed by items in this hashtable.
-    std::atomic<size_t>       memSize;
     //! Cache size.
     std::atomic<size_t>       cacheSize;
     //! Meta-data size.
@@ -647,9 +639,19 @@ private:
     EPStats&             stats;
     std::unique_ptr<AbstractStoredValueFactory> valFact;
     std::atomic<size_t>       visitors;
+
+    std::atomic<size_t> numTotalItems;
     cb::NonNegativeCounter<size_t> numItems;
+    cb::NonNegativeCounter<size_t> numNonResidentItems;
+    cb::NonNegativeCounter<size_t> numDeletedItems;
+    std::atomic<size_t> numEjects;
     std::atomic<size_t>       numResizes;
     std::atomic<size_t>       numTempItems;
+
+    //! Memory consumed by items in this hashtable.
+    std::atomic<size_t> memSize;
+
+    std::atomic<uint64_t> maxDeletedRevSeqno;
     bool                 activeState;
 
     int getBucketForHash(int h) {

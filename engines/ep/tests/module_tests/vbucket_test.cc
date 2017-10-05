@@ -450,7 +450,7 @@ TEST_P(VBucketTest, updateDeletedItem) {
 
 TEST_P(VBucketTest, SizeStatsSoftDel) {
     this->global_stats.reset();
-    ASSERT_EQ(0, this->vbucket->ht.memSize.load());
+    ASSERT_EQ(0, this->vbucket->ht.getItemMemory());
     ASSERT_EQ(0, this->vbucket->ht.cacheSize.load());
     size_t initialSize = this->global_stats.currentSize.load();
 
@@ -468,7 +468,7 @@ TEST_P(VBucketTest, SizeStatsSoftDel) {
               this->public_processSoftDelete(k, nullptr, 0));
     this->public_deleteStoredValue(k);
 
-    EXPECT_EQ(0, this->vbucket->ht.memSize.load());
+    EXPECT_EQ(0, this->vbucket->ht.getItemMemory());
     EXPECT_EQ(0, this->vbucket->ht.cacheSize.load());
     EXPECT_EQ(initialSize, this->global_stats.currentSize.load());
 
@@ -477,7 +477,7 @@ TEST_P(VBucketTest, SizeStatsSoftDel) {
 
 TEST_P(VBucketTest, SizeStatsSoftDelFlush) {
     this->global_stats.reset();
-    ASSERT_EQ(0, this->vbucket->ht.memSize.load());
+    ASSERT_EQ(0, this->vbucket->ht.getItemMemory());
     ASSERT_EQ(0, this->vbucket->ht.cacheSize.load());
     size_t initialSize = this->global_stats.currentSize.load();
 
@@ -495,7 +495,7 @@ TEST_P(VBucketTest, SizeStatsSoftDelFlush) {
               this->public_processSoftDelete(k, nullptr, 0));
     this->vbucket->ht.clear();
 
-    EXPECT_EQ(0, this->vbucket->ht.memSize.load());
+    EXPECT_EQ(0, this->vbucket->ht.getItemMemory());
     EXPECT_EQ(0, this->vbucket->ht.cacheSize.load());
     EXPECT_EQ(initialSize, this->global_stats.currentSize.load());
 
