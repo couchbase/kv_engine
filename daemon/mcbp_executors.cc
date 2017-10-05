@@ -164,7 +164,7 @@ static void process_bin_unknown_packet(McbpConnection* c, void* packet) {
                            mcbp_response_handler);
     }
 
-
+    ret = c->remapErrorCode(ret);
     switch (ret) {
     case ENGINE_SUCCESS: {
         if (c->getDynamicBuffer().getRoot() != nullptr) {

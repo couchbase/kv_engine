@@ -179,6 +179,12 @@ add_unit_test_suite(NAME rbac
                     TIMEOUT 120
                     SOURCE testapp_rbac.cc)
 
+# Run the regression tests
+add_unit_test_suite(NAME regression
+                    ENGINE ep
+                    TIMEOUT 60
+                    SOURCE testapp_regression.cc)
+
 # Run the batch to verify remove
 add_unit_test_suite(NAME remove
                     ENGINE ep
