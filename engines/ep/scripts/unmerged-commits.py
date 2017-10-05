@@ -22,8 +22,10 @@ class bcolors:
 # i.e. the oldest supported branch to the newest, which is the order
 # patches should be merged.
 branches = (('couchbase/watson_ep',
-             'couchbase/master'),
+             'couchbase/spock'),
             ('couchbase/watson_mc',
+             'couchbase/spock'),
+            ('couchbase/spock',
              'couchbase/master'))
 
 total_unmerged = 0
