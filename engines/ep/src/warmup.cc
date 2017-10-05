@@ -941,7 +941,7 @@ void Warmup::estimateDatabaseItemCount(uint16_t shardId)
                                                         getItemCount(vbid);
         VBucketPtr vb = store.getVBucket(vbid);
         if (vb) {
-            vb->ht.numTotalItems = vbItemCount;
+            vb->ht.setNumTotalItems(vbItemCount);
         }
         item_count += vbItemCount;
     }
