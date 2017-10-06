@@ -333,15 +333,6 @@ public:
     MutationStatus set(Item& val);
 
     /**
-     * Set item into StoredValue
-     *
-     * @param itm the Item to store
-     * @param   v the stored value in which itm needs
-     *            to be stored
-     */
-    void setValue(const Item& itm, StoredValue& v);
-
-    /**
      * Updates an existing StoredValue in the HT.
      * Assumes that HT bucket lock is grabbed.
      *
@@ -640,6 +631,20 @@ public:
     std::atomic<size_t>       metaDataMemory;
 
 private:
+    /**
+     * Set item into StoredValue.
+     * WARNING: Correct use of this method requires care, it directly updates
+     * the state of a StoredValue without updating the related HashTable
+     * counters, callers are responsible for ensuring the various counters
+     * (numDeletedItems, numNonResident, etc) are correct after calling this
+     * method.
+     *
+     * @param itm the Item to store
+     * @param   v the stored value in which itm needs
+     *            to be stored
+     */
+    void setValue(const Item& itm, StoredValue& v);
+
     // The container for actually holding the StoredValues.
     using table_type = std::vector<StoredValue::UniquePtr>;
 
