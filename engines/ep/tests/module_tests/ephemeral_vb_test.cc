@@ -825,3 +825,66 @@ TEST_F(EphemeralVBucketTest, SnapshotHasNoDuplicatesWithMultipleStale) {
     EXPECT_EQ(numItems * (updateIterations + 1),
               std::get<2>(res)); // extended end of readRange
 }
+
+// Check that tombstone purger runs fine in pause-resume mode
+TEST_F(EphTombstoneTest, PurgePauseResume) {
+    // Delete the second item
+    softDeleteOne(keys.at(1), MutationStatus::WasDirty);
+    ASSERT_EQ(keys.size() - 1, vbucket->getNumItems());
+    ASSERT_EQ(1, vbucket->getNumInMemoryDeletes());
+
+    // Add one key as we do not purge the last element
+    setOne(makeStoredDocKey("last_key"));
+
+    // Advance time to 30s
+    TimeTraveller looper(30);
+
+    // Purge 1/2: mark tombstones older than 10s as stale
+    EXPECT_EQ(1, mockEpheVB->markOldTombstonesStale(10));
+    EXPECT_EQ(keys.size(), vbucket->getNumItems());
+    EXPECT_EQ(nullptr, findValue(keys.at(1)));
+
+    // Purge 2/2: delete the stale item. Set the max purge duration to 0 to
+    //            simulate pause-resume
+    int numPurged = 0, numPaused = -1;
+    while (numPurged != 1) {
+        numPurged += mockEpheVB->purgeStaleItems([]() { return true; });
+        ++numPaused;
+    }
+    EXPECT_EQ(keys.size() + 1, vbucket->getPurgeSeqno())
+            << "Should have purged up to 4th update (1st delete, after 3 sets)";
+    EXPECT_GE(numPaused, 1)
+            << "Test expected to simulate atleast one pause-resume";
+}
+
+TEST_F(EphTombstoneTest, PurgePauseResumeWithUpdateAtPausedPoint) {
+    // Delete any stale items. Set the max purge duration to 0 to
+    // simulate pause-resume
+    int numPurged = 0, numPaused = -1;
+    while (numPurged != 1) {
+        numPurged += mockEpheVB->purgeStaleItems([]() { return true; });
+        if (numPaused == -1) {
+            // Delete the second item, we actually moving the element at
+            // the paused point to end.
+            softDeleteOne(keys.at(1), MutationStatus::WasDirty);
+            ASSERT_EQ(keys.size() - 1, vbucket->getNumItems());
+            ASSERT_EQ(1, vbucket->getNumInMemoryDeletes());
+
+            // Add one key as we do not purge the last element
+            setOne(makeStoredDocKey("last_key"));
+
+            // Advance time to 30s
+            TimeTraveller looper(30);
+
+            // mark tombstones older than 10s as stale
+            EXPECT_EQ(1, mockEpheVB->markOldTombstonesStale(10));
+            EXPECT_EQ(keys.size(), vbucket->getNumItems());
+            EXPECT_EQ(nullptr, findValue(keys.at(1)));
+        }
+        ++numPaused;
+    }
+    EXPECT_EQ(keys.size() + 1, vbucket->getPurgeSeqno())
+            << "Should have purged up to 4th update (1st delete, after 3 sets)";
+    EXPECT_GE(numPaused, 1)
+            << "Test expected to simulate atleast one pause-resume";
+}

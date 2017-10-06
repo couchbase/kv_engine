@@ -327,11 +327,21 @@ public:
      *
      * @param purgeUpToSeqno Indicates the max seqno (inclusive) that could be
      *                       purged
+     * @param shouldPause Callback function that indicates if tombstone purging
+     *                    should pause. This is called for every element in the
+     *                    sequence list when we iterate over the list during the
+     *                    purge. The caller should decide if the purge should
+     *                    continue or if it should be paused (in case it is
+     *                    running for a long time). By default, we assume that
+     *                    the tombstone purging need not be paused at all
      *
      * @return The number of items purged from the sequence list (and hence
      *         deleted).
      */
-    virtual size_t purgeTombstones(seqno_t purgeUpToSeqno) = 0;
+    virtual size_t purgeTombstones(seqno_t purgeUpToSeqno,
+                                   std::function<bool()> shouldPause = []() {
+                                       return false;
+                                   }) = 0;
 
     /**
      * Updates the number of deleted items in the sequence list whenever

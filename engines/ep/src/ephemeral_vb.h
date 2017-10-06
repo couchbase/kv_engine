@@ -159,9 +159,20 @@ public:
                            const GenerateBySeqno generateBySeqno) override;
 
     /** Purge any stale items in this VBucket's sequenceList.
+     *
+     * @param shouldPause Callback function that indicates if tombstone purging
+     *                    should pause. This is called for every element in the
+     *                    sequence list when we iterate over the list during the
+     *                    purge. The caller should decide if the purge should
+     *                    continue or if it should be paused (in case it is
+     *                    running for a long time). By default, we assume that
+     *                    the tombstone purging need not be paused at all
+     *
      * @return Number of items purged.
      */
-    size_t purgeStaleItems();
+    size_t purgeStaleItems(std::function<bool()> shouldPauseCbk = []() {
+        return false;
+    });
 
     void setupDeferredDeletion(const void* cookie) override;
 

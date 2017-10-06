@@ -304,7 +304,7 @@ void EphemeralVBucket::queueBackfillItem(
     stats.memOverhead->fetch_add(sizeof(queued_item));
 }
 
-size_t EphemeralVBucket::purgeStaleItems() {
+size_t EphemeralVBucket::purgeStaleItems(std::function<bool()> shouldPauseCbk) {
     // Iterate over the sequence list and delete any stale items. But we do
     // not want to delete the last element in the vbucket, hence we pass
     // 'seqList->getHighSeqno() - 1'.
@@ -317,7 +317,7 @@ size_t EphemeralVBucket::purgeStaleItems() {
         return 0;
     }
     auto seqListPurged = seqList->purgeTombstones(
-            static_cast<seqno_t>(seqList->getHighSeqno()) - 1);
+            static_cast<seqno_t>(seqList->getHighSeqno()) - 1, shouldPauseCbk);
 
     // Update stats and return.
     seqListPurgeCount += seqListPurged;

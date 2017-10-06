@@ -32,7 +32,8 @@ BasicLinkedList::BasicLinkedList(uint16_t vbucketId, EPStats& st)
       numStaleItems(0),
       numDeletedItems(0),
       vbid(vbucketId),
-      st(st) {
+      st(st),
+      pausedPurgePoint(seqList.end()) {
 }
 
 BasicLinkedList::~BasicLinkedList() {
@@ -75,7 +76,13 @@ SequenceList::UpdateStatus BasicLinkedList::updateListElem(
     /* Since there is no other reads or writes happenning in this range, we can
        move the item to the end of the list */
     auto it = seqList.iterator_to(v);
-    seqList.erase(it);
+    /* If the list is being updated at 'pausedPurgePoint', then we must save
+       the new 'pausedPurgePoint' */
+    if (pausedPurgePoint == it) {
+        pausedPurgePoint = seqList.erase(it);
+    } else {
+        seqList.erase(it);
+    }
     seqList.push_back(v);
 
     return UpdateStatus::Success;
@@ -224,7 +231,8 @@ void BasicLinkedList::markItemStale(std::lock_guard<std::mutex>& listWriteLg,
     v->toOrderedStoredValue()->markStale(listWriteLg, newSv);
 }
 
-size_t BasicLinkedList::purgeTombstones(seqno_t purgeUpToSeqno) {
+size_t BasicLinkedList::purgeTombstones(seqno_t purgeUpToSeqno,
+                                        std::function<bool()> shouldPause) {
     // Purge items marked as stale from the seqList.
     //
     // Strategy - we try to ensure that this function does not block
@@ -265,7 +273,13 @@ size_t BasicLinkedList::purgeTombstones(seqno_t purgeUpToSeqno) {
         }
 
         // Determine the start
-        startIt = seqList.begin();
+        if (pausedPurgePoint != seqList.end()) {
+            // resume
+            startIt = pausedPurgePoint;
+            pausedPurgePoint = seqList.end();
+        } else {
+            startIt = seqList.begin();
+        }
         if (startIt->getBySeqno() > purgeUpToSeqno) {
             /* Nothing to purge */
             return 0;
@@ -292,12 +306,16 @@ size_t BasicLinkedList::purgeTombstones(seqno_t purgeUpToSeqno) {
         // Only stale items are purged.
         if (!stale) {
             ++it;
-            continue;
+        } else {
+            // Checks pass, remove from list and delete.
+            it = purgeListElem(it);
+            ++purgedCount;
         }
 
-        // Checks pass, remove from list and delete.
-        it = purgeListElem(it);
-        ++purgedCount;
+        if (shouldPause()) {
+            pausedPurgePoint = it;
+            break;
+        }
     }
 
     // Complete; reset the readRange.
