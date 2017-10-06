@@ -174,7 +174,10 @@ public:
                        StoredValue::UniquePtr ownedSv,
                        StoredValue* newSv) override;
 
-    size_t purgeTombstones(seqno_t purgeUpToSeqno) override;
+    size_t purgeTombstones(seqno_t purgeUpToSeqno,
+                           std::function<bool()> shouldPause = []() {
+                               return false;
+                           }) override;
 
     void updateNumDeletedItems(bool oldDeleted, bool newDeleted) override;
 
@@ -304,6 +307,9 @@ private:
 
     /* Ep engine stats handle to track stats */
     EPStats& st;
+
+    /* Point at which the tombstone purging was paused */
+    OrderedLL::iterator pausedPurgePoint;
 
     friend std::ostream& operator<<(std::ostream& os,
                                     const BasicLinkedList& ll);

@@ -861,3 +861,122 @@ TEST_F(BasicLinkedListTest, PurgeBeyondLast) {
     std::vector<seqno_t> expectedSeqno = {1, 2, 4};
     EXPECT_EQ(expectedSeqno, basicLL->getAllSeqnoForVerification());
 }
+
+TEST_F(BasicLinkedListTest, PurgePauseResume) {
+    const int numItems = 4, numPurgeItems = 2;
+    const std::string keyPrefix("key");
+
+    /* Add some (numItems/2) new items */
+    addNewItemsToList(1, keyPrefix, numItems / 2);
+
+    /* Add a stale item */
+    addStaleItem("stale", numItems / 2 + 1);
+
+    /* Add some more (numItems/2) new items */
+    addNewItemsToList(
+            1 + 1 /* one stale item */ + numItems / 2, keyPrefix, numItems / 2);
+
+    /* Add another stale item at the end */
+    addStaleItem("stale", 1 + numItems + 1 /* one stale item */);
+
+    ASSERT_EQ(numItems + numPurgeItems, basicLL->getNumItems());
+    ASSERT_EQ(numPurgeItems, basicLL->getNumStaleItems());
+
+    /* Purge the list. Set the max purge duration to 0 so that tombstone
+     purging will pause */
+    int purged = 0, numPaused = -1;
+
+    /* Expect all items to be purged and atleast one pause-resume */
+    while (purged != numPurgeItems) {
+        purged += basicLL->purgeTombstones(numItems + numPurgeItems,
+                                           []() { return true; });
+        ++numPaused;
+    }
+    EXPECT_EQ(0, basicLL->getNumStaleItems());
+    EXPECT_GE(numPaused, 1);
+    EXPECT_EQ(numItems, basicLL->getNumItems());
+
+    /* Should be able to add elements to the list after the purger has run */
+    addNewItemsToList(numItems + numPurgeItems + 1 /*startseqno*/,
+                      keyPrefix,
+                      1 /*add one element*/);
+    std::vector<seqno_t> expectedSeqno = {1, 2, 4, 5, 7};
+    EXPECT_EQ(expectedSeqno, basicLL->getAllSeqnoForVerification());
+}
+
+TEST_F(BasicLinkedListTest, PurgePauseResumeWithUpdate) {
+    const int numItems = 2, numPurgeItems = 1;
+    const std::string keyPrefix("key");
+
+    /* Add a new item */
+    addNewItemsToList(1 /*seqno*/, keyPrefix, 1);
+
+    /* Add a stale item */
+    addStaleItem("stale", 2 /*seqno*/);
+
+    /* Add another item */
+    addNewItemsToList(3 /*seqno*/, keyPrefix, 1);
+
+    ASSERT_EQ(numItems + numPurgeItems, basicLL->getNumItems());
+    ASSERT_EQ(numPurgeItems, basicLL->getNumStaleItems());
+
+    /* Purge the list. Set the max purge duration to 0 so that tombstone
+     purging will pause */
+    int purged = 0, numPaused = -1;
+
+    /* Expect all items to be purged and atleast one pause-resume */
+    while (purged != numPurgeItems) {
+        purged += basicLL->purgeTombstones(numItems + numPurgeItems,
+                                           []() { return true; });
+        if (numPaused == -1) {
+            /* During one pause, update some list element (last element here) */
+            updateItem(numItems + numPurgeItems /*high seqno*/,
+                       std::string("key3"));
+        }
+        ++numPaused;
+    }
+    EXPECT_EQ(0, basicLL->getNumStaleItems());
+    EXPECT_GE(numPaused, 1);
+    EXPECT_EQ(numItems, basicLL->getNumItems());
+}
+
+TEST_F(BasicLinkedListTest, PurgePauseResumeWithUpdateAtPausedPoint) {
+    const int numItems = 4, numPurgeItems = 2;
+    const std::string keyPrefix("key");
+
+    /* Add some (numItems/2) new items */
+    addNewItemsToList(1, keyPrefix, numItems / 2);
+
+    /* Add a stale item */
+    addStaleItem("stale", numItems / 2 + 1);
+
+    /* Add some more (numItems/2) new items */
+    addNewItemsToList(
+            1 + 1 /* one stale item */ + numItems / 2, keyPrefix, numItems / 2);
+
+    /* Add another stale item at the end */
+    addStaleItem("stale", 1 + numItems + 1 /* one stale item */);
+
+    ASSERT_EQ(numItems + numPurgeItems, basicLL->getNumItems());
+    ASSERT_EQ(numPurgeItems, basicLL->getNumStaleItems());
+
+    /* Purge the list. Set the max purge duration to 0 so that tombstone
+     purging will pause */
+    int purged = 0, numPaused = -1;
+
+    /* Expect all items to be purged and atleast one pause-resume */
+    while (purged != numPurgeItems) {
+        purged += basicLL->purgeTombstones(numItems + numPurgeItems,
+                                           []() { return true; });
+        if (numPaused == -1) {
+            /* After first call to purgeTombstones() we know that the list is
+             paused at seqno 2. Update that element */
+            updateItem(numItems + numPurgeItems /*high seqno*/,
+                       std::string("key2"));
+        }
+        ++numPaused;
+    }
+    EXPECT_EQ(0, basicLL->getNumStaleItems());
+    EXPECT_GE(numPaused, 1);
+    EXPECT_EQ(numItems, basicLL->getNumItems());
+}
