@@ -566,7 +566,8 @@ TEST_F(HashTableTest, ItemAge) {
     // Check changing age when new value is used.
     Item item2(key, 0, 0, "value2", strlen("value2"));
     item2.getValue()->incrementAge();
-    ht.setValue(item2, *v);
+    auto hbl = ht.getLockedBucket(key);
+    ht.unlocked_updateStoredValue(hbl.getHTLock(), *v, item2);
     EXPECT_EQ(1, v->getValue()->getAge());
 }
 
