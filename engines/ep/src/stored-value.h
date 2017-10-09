@@ -545,21 +545,29 @@ public:
     /*
      * Values of the bySeqno attribute used by temporarily created StoredValue
      * objects.
-     * state_deleted_key: represents an item that's deleted from memory but
-     *                    present in the persistent store.
-     * state_non_existent_key: represents a non existent item
-     * state_collection_open: a special value used by collections to help
-     *  represent a collections life-time in sequence-numbers (start to end).
-     *  If a collection has no end, it's termed open and has an end
-     *  sequence-number of StoredValue::state_collection_open. We do not
-     *  actually assign this value to StoredValue objects, but it's here in
-     *  this "number space" of special sequence numbers to help ensure it's
-     *  different to the other special sequence numbers we define.
-     *
      */
+
+    /// Represents an item that's deleted from memory but present on disk.
     static const int64_t state_deleted_key;
+
+    /// Represents a non existent item
     static const int64_t state_non_existent_key;
+
+    /**
+     * Represents a placeholder item created to mark that a bg fetch operation
+     * is pending.
+     */
     static const int64_t state_temp_init;
+
+    /**
+     * A special value used by collections to help represent a collections
+     * life-time in sequence-numbers (start to end). If a collection has no
+     * end, it's termed open and has an end sequence-number of
+     * StoredValue::state_collection_open. We do not actually assign this
+     * value to StoredValue objects, but it's here in this "number space" of
+     * special sequence numbers to help ensure it's different to the other
+     * special sequence numbers we define.
+     */
     static const int64_t state_collection_open;
 
     /**
