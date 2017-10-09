@@ -210,6 +210,7 @@ TEST_F(EphemeralVBucketTest, AddTempItemAndUpdate) {
 
     /* Add temp item */
     EXPECT_EQ(AddStatus::BgFetch, addOneTemp(k));
+    ASSERT_EQ(0, vbucket->getNumItems());
 
     /* Update the temp item (make it non-temp) */
     Item i(k, 0, /*expiry*/ 0, k.data(), k.size());
@@ -232,6 +233,7 @@ TEST_F(EphemeralVBucketTest, AddTempItemAndSoftDelete) {
 
     /* Add temp item */
     EXPECT_EQ(AddStatus::BgFetch, addOneTemp(k));
+    ASSERT_EQ(1, vbucket->getNumTempItems());
 
     /* SoftDelete the temp item (make it non-temp) */
     softDeleteOne(k, MutationStatus::WasClean);

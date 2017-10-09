@@ -365,6 +365,14 @@ public:
     }
 
     /**
+     * Marks that the item's sequence number is pending (valid, non-temp; but
+     * final value not yet known.
+     */
+    void setPendingSeqno() {
+        bySeqno = state_pending_seqno;
+    }
+
+    /**
      * Is this a temporary item created for processing a get-meta request?
      */
     bool isTempItem() const {
@@ -538,6 +546,15 @@ public:
      * Values of the bySeqno attribute used by temporarily created StoredValue
      * objects.
      */
+
+    /**
+     * Represents the state when a StoredValue is in the process of having its
+     * seqno updated (and so _will be_ non-temporary; but we don't yet have the
+     * new sequence number. This is unfortunately required due to limitations
+     * in sequence number generation; where we need delete an item in the
+     * HashTable before we know what its sequence number is going to be.
+     */
+    static const int64_t state_pending_seqno;
 
     /// Represents an item that's deleted from memory but present on disk.
     static const int64_t state_deleted_key;

@@ -614,18 +614,35 @@ public:
 
 private:
     /**
-     * Set item into StoredValue.
-     * WARNING: Correct use of this method requires care, it directly updates
-     * the state of a StoredValue without updating the related HashTable
-     * counters, callers are responsible for ensuring the various counters
-     * (numDeletedItems, numNonResident, etc) are correct after calling this
-     * method.
+     * Update HashTable statistics before modifying a StoredValue.
      *
-     * @param itm the Item to store
-     * @param   v the stored value in which itm needs
-     *            to be stored
+     * This function should be called before modifying *any* StoredValue object,
+     * if modifying it may affect any of the HashTable counts.
+     * For example, before we remove a StoredValue we must decrement any counts
+     * which it matches; or before we change its datatype we must decrement the
+     * count of the old datatype.
+     *
+     * It is typically paired with statsPrologue if modifying an existing SV.
+     * It will be used by itself if removing a SV (as there will be no SV
+     * after to call statsEpilogue() with).
+     *
+     * See also: statsEpilogue().
+     * @param sv StoredValue which is about to be modified.
      */
-    void setValue(const Item& itm, StoredValue& v);
+    void statsPrologue(const StoredValue& sv);
+
+    /**
+     * Update HashTable statistics after modifying a StoredValue.
+     *
+     * This function should be called after modifying *any* StoredValue object,
+     * if modifying it may affect any of the HashTable counts.
+     * For example, if the datatype of a StoredValue may have changed; then
+     * datatypeCounts needs to be updated.
+     *
+     * See also: statsPrologue().
+     * @param sv StoredValue which has just been modified.
+     */
+    void statsEpilogue(const StoredValue& sv);
 
     // The container for actually holding the StoredValues.
     using table_type = std::vector<StoredValue::UniquePtr>;
