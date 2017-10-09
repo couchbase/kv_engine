@@ -817,6 +817,11 @@
             "descr": "RocksDB Column Family Options, comma separated.",
             "type": "std::string"
         },
+        "rocksdb_bbt_options": {
+            "default": "",
+            "descr": "RocksDB Block Based Table Options, comma separated.",
+            "type": "std::string"
+        },
         "time_synchronization": {
             "default": "disabled",
             "descr": "No longer supported. This config parameter has no effect.",

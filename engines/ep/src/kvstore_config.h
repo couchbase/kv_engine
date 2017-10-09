@@ -46,7 +46,8 @@ public:
                   uint16_t _shardId,
                   bool persistDocNamespace,
                   const std::string& rocksDBOptions_ = "",
-                  const std::string& rocksDBCFOptions_ = "");
+                  const std::string& rocksDBCFOptions_ = "",
+                  const std::string& rocksDbBBTOptions_ = "");
 
     uint16_t getMaxVBuckets() const {
         return maxVBuckets;
@@ -124,6 +125,13 @@ public:
         return rocksDBCFOptions;
     }
 
+    /*
+     * Return the RocksDB Block Based Table options.
+     */
+    const std::string& getRocksDbBBTOptions() {
+        return rocksDbBBTOptions;
+    }
+
 private:
     class ConfigChangeListener;
 
@@ -148,4 +156,7 @@ private:
     // RocksDB Column Family level options. Semicolon-separated
     // `<option>=<value>` pairs.
     std::string rocksDBCFOptions;
+    // RocksDB Block Based Table options. Semicolon-separated
+    // `<option>=<value>` pairs.
+    std::string rocksDbBBTOptions;
 };

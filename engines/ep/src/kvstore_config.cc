@@ -41,7 +41,8 @@ KVStoreConfig::KVStoreConfig(Configuration& config, uint16_t shardid)
                     shardid,
                     config.isCollectionsPrototypeEnabled(),
                     config.getRocksdbOptions(),
-                    config.getRocksdbCfOptions()) {
+                    config.getRocksdbCfOptions(),
+                    config.getRocksdbBbtOptions()) {
     setPeriodicSyncBytes(config.getFsyncAfterEveryNBytesWritten());
     config.addValueChangedListener("fsync_after_every_n_bytes_written",
                                    new ConfigChangeListener(*this));
@@ -54,7 +55,8 @@ KVStoreConfig::KVStoreConfig(uint16_t _maxVBuckets,
                              uint16_t _shardId,
                              bool _persistDocNamespace,
                              const std::string& rocksDBOptions_,
-                             const std::string& rocksDBCFOptions_)
+                             const std::string& rocksDBCFOptions_,
+                             const std::string& rocksDbBBTOptions_)
     : maxVBuckets(_maxVBuckets),
       maxShards(_maxShards),
       dbname(_dbname),
@@ -64,7 +66,8 @@ KVStoreConfig::KVStoreConfig(uint16_t _maxVBuckets,
       buffered(true),
       persistDocNamespace(_persistDocNamespace),
       rocksDBOptions(rocksDBOptions_),
-      rocksDBCFOptions(rocksDBCFOptions_) {
+      rocksDBCFOptions(rocksDBCFOptions_),
+      rocksDbBBTOptions(rocksDbBBTOptions_) {
     // We pass RocksDB Options (through `configuration.json` and the
     // `-e "<config>"` command line argument for tests) as comma-separated
     // <option>=<value> pairs, but RocksDB can parse only semicolon-separated
@@ -72,6 +75,7 @@ KVStoreConfig::KVStoreConfig(uint16_t _maxVBuckets,
     // `-e "<config>"` already uses it as separator in the `<config>` string.
     std::replace(rocksDBOptions.begin(), rocksDBOptions.end(), ',', ';');
     std::replace(rocksDBCFOptions.begin(), rocksDBCFOptions.end(), ',', ';');
+    std::replace(rocksDbBBTOptions.begin(), rocksDbBBTOptions.end(), ',', ';');
 }
 
 KVStoreConfig& KVStoreConfig::setLogger(Logger& _logger) {

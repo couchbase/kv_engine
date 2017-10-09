@@ -170,6 +170,22 @@ void RocksDBKVStore::open() {
                 status.getState());
     }
 
+    // RocksDB ColumnFamilyOptions provide advanced options for the
+    // Block Based Table file format, which is the default format for SST files.
+    rocksdb::BlockBasedTableOptions table_options;
+    status = rocksdb::GetBlockBasedTableOptionsFromString(
+            rocksdb::BlockBasedTableOptions(),
+            configuration.getRocksDbBBTOptions(),
+            &table_options);
+    if (!status.ok()) {
+        throw std::invalid_argument(
+                std::string("RocksDBKVStore::open: "
+                            "GetBlockBasedTableOptionsFromString error: ") +
+                status.getState());
+    }
+    rdbOptions.table_factory.reset(
+            rocksdb::NewBlockBasedTableFactory(table_options));
+
     // The `max_background_compactions` or `max_background_flushes` options
     // are deprecated but still available in case the RocksDB default is not
     // optimal. We need the following further configuration for applying them.
