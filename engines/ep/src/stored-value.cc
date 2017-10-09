@@ -26,6 +26,7 @@
 
 #include <platform/cb_malloc.h>
 
+const int64_t StoredValue::state_pending_seqno = -2;
 const int64_t StoredValue::state_deleted_key = -3;
 const int64_t StoredValue::state_non_existent_key = -4;
 const int64_t StoredValue::state_temp_init = -5;
@@ -277,6 +278,7 @@ bool StoredValue::deleteImpl() {
 
     resetValue();
     setDatatype(PROTOCOL_BINARY_RAW_BYTES);
+    setPendingSeqno();
 
     deleted = true;
     markDirty();

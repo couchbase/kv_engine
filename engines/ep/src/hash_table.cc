@@ -287,34 +287,13 @@ MutationStatus HashTable::unlocked_updateStoredValue(
 
     MutationStatus status =
             v.isDirty() ? MutationStatus::WasDirty : MutationStatus::WasClean;
-    if (!v.isResident() && !v.isDeleted() && !v.isTempItem()) {
-        decrNumNonResidentItems();
-    }
 
-    if (v.isTempItem()) {
-        --numTempItems;
-        ++numItems;
-        ++numTotalItems;
-    }
-
-    if (v.isDeleted() && !itm.isDeleted()) {
-        --numDeletedItems;
-    }
-    if (!v.isDeleted() && itm.isDeleted()) {
-        ++numDeletedItems;
-    }
-
-    // Update datatype counts (which only count non-temp, non-deleted
-    // documents).
-    if (!v.isDeleted() && !v.isTempItem()) {
-        --datatypeCounts[v.getDatatype()];
-    }
-    if (!itm.isDeleted()) {
-        ++datatypeCounts[itm.getDataType()];
-    }
+    statsPrologue(v);
 
     /* setValue() will mark v as undeleted if required */
-    setValue(itm, v);
+    v.setValue(itm);
+
+    statsEpilogue(v);
 
     return status;
 }
@@ -335,23 +314,55 @@ StoredValue* HashTable::unlocked_addNewStoredValue(const HashBucketLock& hbl,
 
     // Create a new StoredValue and link it into the head of the bucket chain.
     auto v = (*valFact)(itm, std::move(values[hbl.getBucketNum()]));
-    increaseMetaDataSize(stats, v->metaDataSize());
-    increaseCacheSize(v->size());
 
-    if (v->isTempItem()) {
+    statsEpilogue(*v);
+
+    values[hbl.getBucketNum()] = std::move(v);
+    return values[hbl.getBucketNum()].get();
+}
+
+void HashTable::statsPrologue(const StoredValue& v) {
+    // Decrease all statistics which sv matches.
+    reduceMetaDataSize(stats, v.metaDataSize());
+    reduceCacheSize(v.size());
+
+    if (!v.isResident() && !v.isDeleted() && !v.isTempItem()) {
+        decrNumNonResidentItems();
+    }
+
+    if (v.isTempItem()) {
+        --numTempItems;
+    } else {
+        --numItems;
+        --numTotalItems;
+        if (v.isDeleted()) {
+            --numDeletedItems;
+        } else {
+            --datatypeCounts[v.getDatatype()];
+        }
+    }
+}
+
+void HashTable::statsEpilogue(const StoredValue& v) {
+    // After performing updates to sv; increase all statistics which sv matches.
+    increaseMetaDataSize(stats, v.metaDataSize());
+    increaseCacheSize(v.size());
+
+    if (!v.isResident() && !v.isDeleted() && !v.isTempItem()) {
+        ++numNonResidentItems;
+    }
+
+    if (v.isTempItem()) {
         ++numTempItems;
     } else {
         ++numItems;
         ++numTotalItems;
+        if (v.isDeleted()) {
+            ++numDeletedItems;
+        } else {
+            ++datatypeCounts[v.getDatatype()];
+        }
     }
-    if (v->isDeleted()) {
-        ++numDeletedItems;
-    } else {
-        ++datatypeCounts[v->getDatatype()];
-    }
-    values[hbl.getBucketNum()] = std::move(v);
-
-    return values[hbl.getBucketNum()].get();
 }
 
 std::pair<StoredValue*, StoredValue::UniquePtr>
@@ -375,53 +386,26 @@ HashTable::unlocked_replaceByCopy(const HashBucketLock& hbl,
     /* Copy the StoredValue and link it into the head of the bucket chain. */
     auto newSv = valFact->copyStoredValue(
             vToCopy, std::move(values[hbl.getBucketNum()]));
-    increaseMetaDataSize(stats, newSv->metaDataSize());
-    increaseCacheSize(newSv->size());
 
-    if (newSv->isTempItem()) {
-        ++numTempItems;
-    } else {
-        ++numItems;
-        ++numTotalItems;
-    }
-    if (newSv->isDeleted()) {
-        ++numDeletedItems;
-    } else {
-        ++datatypeCounts[newSv->getDatatype()];
-    }
+    // Adding a new item into the HashTable; update stats.
+    statsEpilogue(*newSv);
+
     values[hbl.getBucketNum()] = std::move(newSv);
-
     return {values[hbl.getBucketNum()].get(), std::move(releasedSv)};
 }
 
 void HashTable::unlocked_softDelete(const std::unique_lock<std::mutex>& htLock,
                                     StoredValue& v,
                                     bool onlyMarkDeleted) {
-    const bool alreadyDeleted = v.isDeleted();
-    if (!v.isResident() && !v.isDeleted() && !v.isTempItem()) {
-        decrNumNonResidentItems();
-    }
-
-    if (!alreadyDeleted) {
-        --datatypeCounts[v.getDatatype()];
-    }
+    statsPrologue(v);
 
     if (onlyMarkDeleted) {
         v.markDeleted();
     } else {
-        if (v.isTempItem()) {
-            --numTempItems;
-            ++numItems;
-            ++numTotalItems;
-        }
-        size_t len = v.valuelen();
-        if (v.del()) {
-            reduceCacheSize(len);
-        }
+        v.del();
     }
-    if (!alreadyDeleted) {
-        ++numDeletedItems;
-    }
+
+    statsEpilogue(v);
 }
 
 StoredValue* HashTable::unlocked_find(const DocKey& key,
@@ -474,20 +458,9 @@ StoredValue::UniquePtr HashTable::unlocked_release(
                 "not found in HashTable; possibly HashTable leak");
     }
 
-    // Update statistics now the item has been removed.
-    reduceCacheSize(released->size());
-    reduceMetaDataSize(stats, released->metaDataSize());
-    if (released->isTempItem()) {
-        --numTempItems;
-    } else {
-        decrNumItems();
-        decrNumTotalItems();
-        if (released->isDeleted()) {
-            --numDeletedItems;
-        } else {
-            --datatypeCounts[released->getDatatype()];
-        }
-    }
+    // Update statistics for the item which is now gone.
+    statsPrologue(*released);
+
     return released;
 }
 
@@ -837,12 +810,6 @@ void HashTable::increaseMetaDataSize(EPStats& st, size_t by) {
 void HashTable::reduceMetaDataSize(EPStats &st, size_t by) {
     metaDataMemory.fetch_sub(by);
     st.currentSize.fetch_sub(by);
-}
-
-void HashTable::setValue(const Item& itm, StoredValue& v) {
-    reduceCacheSize(v.size());
-    v.setValue(itm);
-    increaseCacheSize(v.size());
 }
 
 std::ostream& operator<<(std::ostream& os, const HashTable& ht) {
