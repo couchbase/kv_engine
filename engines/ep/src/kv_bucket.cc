@@ -1213,9 +1213,14 @@ void KVBucket::completeBGFetchMulti(uint16_t vbId,
             engine.notifyIOComplete(fetched_item->cookie, status);
         }
         LOG(EXTENSION_LOG_DEBUG,
-            "EP Store completes %" PRIu64 " of batched background fetch "
+            "EP Store completes %" PRIu64
+            " of batched background fetch "
             "for vBucket = %d endTime = %" PRIu64,
-            uint64_t(fetchedItems.size()), vbId, gethrtime()/1000000);
+            uint64_t(fetchedItems.size()),
+            vbId,
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                    ProcessClock::now().time_since_epoch())
+                    .count());
     } else {
         for (const auto& item : fetchedItems) {
             engine.notifyIOComplete(item.second->cookie,
@@ -1861,7 +1866,7 @@ int KVBucket::flushVBucket(uint16_t vbid) {
     }
 
     int items_flushed = 0;
-    const hrtime_t flush_start = gethrtime();
+    const auto flush_start = ProcessClock::now();
 
     auto vb = getLockedVBucket(vbid, std::try_to_lock);
     if (!vb.owns_lock()) { // Try another bucket if this one is locked
@@ -1881,10 +1886,12 @@ int KVBucket::flushVBucket(uint16_t vbid) {
 
         // Append all items outstanding for the persistence cursor.
         snapshot_range_t range;
-        hrtime_t _begin_ = gethrtime();
+        auto _begin_ = ProcessClock::now();
         range = vb->checkpointManager->getAllItemsForCursor(
                 CheckpointManager::pCursorName, items);
-        stats.persistenceCursorGetItemsHisto.add((gethrtime() - _begin_) / 1000);
+        stats.persistenceCursorGetItemsHisto.add(
+                std::chrono::duration_cast<std::chrono::microseconds>(
+                        ProcessClock::now() - _begin_));
 
         if (!items.empty()) {
             while (!rwUnderlying->begin()) {
@@ -2026,8 +2033,11 @@ int KVBucket::flushVBucket(uint16_t vbid) {
                 }
             }
 
-            hrtime_t flush_end = gethrtime();
-            uint64_t trans_time = (flush_end - flush_start) / 1000000;
+            auto flush_end = ProcessClock::now();
+            uint64_t trans_time =
+                    std::chrono::duration_cast<std::chrono::milliseconds>(
+                            flush_end - flush_start)
+                            .count();
 
             lastTransTimePerItem.store((items_flushed == 0) ? 0 :
                                        static_cast<double>(trans_time) /
@@ -2075,7 +2085,7 @@ int KVBucket::flushVBucket(uint16_t vbid) {
 void KVBucket::commit(KVStore& kvstore, const Item* collectionsManifest) {
     std::list<PersistenceCallback*>& pcbs = kvstore.getPersistenceCbList();
     BlockTimer timer(&stats.diskCommitHisto, "disk_commit", stats.timingLog);
-    hrtime_t commit_start = gethrtime();
+    auto commit_start = ProcessClock::now();
 
     while (!kvstore.commit(collectionsManifest)) {
         ++stats.commitFailed;
@@ -2090,8 +2100,10 @@ void KVBucket::commit(KVStore& kvstore, const Item* collectionsManifest) {
     }
 
     ++stats.flusherCommits;
-    hrtime_t commit_end = gethrtime();
-    uint64_t commit_time = (commit_end - commit_start) / 1000000;
+    auto commit_end = ProcessClock::now();
+    auto commit_time = std::chrono::duration_cast<std::chrono::milliseconds>(
+                               commit_end - commit_start)
+                               .count();
     stats.commit_time.store(commit_time);
     stats.cumulativeCommitTime.fetch_add(commit_time);
 }

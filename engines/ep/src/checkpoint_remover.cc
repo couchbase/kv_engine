@@ -37,10 +37,14 @@ public:
     /**
      * Construct a CheckpointVisitor.
      */
-    CheckpointVisitor(KVBucketIface* s, EPStats &st,
-                      std::atomic<bool> &sfin)
-        : store(s), stats(st), removed(0), taskStart(gethrtime()),
-          wasHighMemoryUsage(s->isMemoryUsageTooHigh()), stateFinalizer(sfin) {}
+    CheckpointVisitor(KVBucketIface* s, EPStats& st, std::atomic<bool>& sfin)
+        : store(s),
+          stats(st),
+          removed(0),
+          taskStart(ProcessClock::now()),
+          wasHighMemoryUsage(s->isMemoryUsageTooHigh()),
+          stateFinalizer(sfin) {
+    }
 
     void visitBucket(VBucketPtr &vb) override {
         bool newCheckpointCreated = false;
@@ -66,7 +70,9 @@ public:
         bool inverse = false;
         stateFinalizer.compare_exchange_strong(inverse, true);
 
-        stats.checkpointRemoverHisto.add((gethrtime() - taskStart) / 1000);
+        stats.checkpointRemoverHisto.add(
+                std::chrono::duration_cast<std::chrono::microseconds>(
+                        ProcessClock::now() - taskStart));
 
         // Wake up any sleeping backfill tasks if the memory usage is lowered
         // below the high watermark as a result of checkpoint removal.
@@ -79,7 +85,7 @@ private:
     KVBucketIface* store;
     EPStats                   &stats;
     size_t                     removed;
-    hrtime_t                   taskStart;
+    ProcessClock::time_point   taskStart;
     bool                       wasHighMemoryUsage;
     std::atomic<bool>         &stateFinalizer;
 };

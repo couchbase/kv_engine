@@ -68,8 +68,9 @@ public:
         return vbucketId;
     }
 
-    hrtime_t getDelta() {
-        return (gethrtime() - start) / 1000;
+    std::chrono::microseconds getDelta() {
+        return std::chrono::duration_cast<std::chrono::microseconds>(
+                ProcessClock::now() - start);
     }
 
     Callback<mutation_result>* getSetCallback(void) {
@@ -88,7 +89,7 @@ protected:
     uint16_t vbucketId;
     bool deleteItem;
     MutationRequestCallback callback;
-    hrtime_t start;
+    ProcessClock::time_point start;
     StoredDocKey key;
     size_t dataSize;
 };

@@ -30,6 +30,7 @@
 #include "monotonic.h"
 
 #include <memcached/engine.h>
+#include <platform/atomic_duration.h>
 #include <platform/non_negative_counter.h>
 #include <relaxed_atomic.h>
 #include <atomic>
@@ -95,7 +96,7 @@ struct HighPriorityVBEntry {
     HighPriorityVBEntry(const void* c,
                         uint64_t idNum,
                         HighPriorityVBNotify reqType)
-        : cookie(c), id(idNum), reqType(reqType), start(gethrtime()) {
+        : cookie(c), id(idNum), reqType(reqType), start(ProcessClock::now()) {
     }
 
     const void* cookie;
@@ -103,7 +104,7 @@ struct HighPriorityVBEntry {
     HighPriorityVBNotify reqType;
 
     /* for stats (histogram) */
-    hrtime_t start;
+    ProcessClock::time_point start;
 };
 
 typedef std::unique_ptr<Callback<const uint16_t, const VBNotifyCtx&>>
@@ -1124,7 +1125,7 @@ public:
      */
     void removeKey(const DocKey& key, int64_t bySeqno);
 
-    static size_t getCheckpointFlushTimeout();
+    static std::chrono::seconds getCheckpointFlushTimeout();
 
     /**
      * Set the memory threshold on the current bucket quota for accepting a
@@ -1595,7 +1596,7 @@ private:
      */
     void incExpirationStat(ExpireBy source);
 
-    void adjustCheckpointFlushTimeout(size_t wall_time);
+    void adjustCheckpointFlushTimeout(std::chrono::seconds wall_time);
 
     /**
      * Given a StoredValue with XATTRs - prune the user keys so only system keys
@@ -1637,7 +1638,7 @@ private:
     vbucket_state_t                 initialState;
     std::mutex                           pendingOpLock;
     std::vector<const void*>        pendingOps;
-    hrtime_t                        pendingOpsStart;
+    ProcessClock::time_point        pendingOpsStart;
     WeaklyMonotonic<uint64_t>       purge_seqno;
     std::atomic<bool>               takeover_backed_up;
 
@@ -1682,7 +1683,7 @@ private:
      */
     std::atomic<bool> mayContainXattrs;
 
-    static std::atomic<size_t> chkFlushTimeout;
+    static cb::AtomicDuration chkFlushTimeout;
 
     static double mutationMemThreshold;
 

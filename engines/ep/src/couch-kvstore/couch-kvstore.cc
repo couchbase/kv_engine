@@ -437,7 +437,7 @@ GetValue CouchKVStore::getWithHeader(void* dbHandle,
                                      GetMetaOnly getMetaOnly,
                                      bool fetchDelete) {
     Db *db = (Db *)dbHandle;
-    hrtime_t start = gethrtime();
+    auto start = ProcessClock::now();
     DocInfo *docInfo = NULL;
     sized_buf id;
     GetValue rv;
@@ -473,7 +473,9 @@ GetValue CouchKVStore::getWithHeader(void* dbHandle,
         }
 
         // record stats
-        st.readTimeHisto.add((gethrtime() - start) / 1000);
+        st.readTimeHisto.add(
+                std::chrono::duration_cast<std::chrono::microseconds>(
+                        ProcessClock::now() - start));
         if (errCode == COUCHSTORE_SUCCESS) {
             st.readSizeHisto.add(key.size() + rv.item->getNBytes());
         }
@@ -888,7 +890,7 @@ bool CouchKVStore::compactDBInternal(compaction_ctx* hook_ctx,
     Db                      *compactdb = NULL;
     Db                       *targetDb = NULL;
     couchstore_error_t         errCode = COUCHSTORE_SUCCESS;
-    hrtime_t                     start = gethrtime();
+    ProcessClock::time_point     start = ProcessClock::now();
     std::string                 dbfile;
     std::string           compact_file;
     std::string               new_file;
@@ -1007,7 +1009,8 @@ bool CouchKVStore::compactDBInternal(compaction_ctx* hook_ctx,
     // Removing the stale couch file
     unlinkCouchFile(vbid, fileRev);
 
-    st.compactHisto.add((gethrtime() - start) / 1000);
+    st.compactHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
+            ProcessClock::now() - start));
 
     return true;
 }
@@ -1102,7 +1105,7 @@ bool CouchKVStore::snapshotVBucket(uint16_t vbucketId,
         return false;
     }
 
-    hrtime_t start = gethrtime();
+    auto start = ProcessClock::now();
 
     if (updateCachedVBState(vbucketId, vbstate) &&
          (options == VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT ||
@@ -1122,7 +1125,8 @@ bool CouchKVStore::snapshotVBucket(uint16_t vbucketId,
         vbucketId,
         vbstate.toJSON().c_str());
 
-    st.snapshotHisto.add((gethrtime() - start) / 1000);
+    st.snapshotHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
+            ProcessClock::now() - start));
 
     return true;
 }
@@ -1917,14 +1921,16 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid,
                                       readDocInfos,
                                       &kvctx);
 
-            hrtime_t cs_begin = gethrtime();
+            auto cs_begin = ProcessClock::now();
             uint64_t flags = COMPRESS_DOC_BODIES | COUCHSTORE_SEQUENCE_AS_IS;
             errCode = couchstore_save_documents(db.getDb(),
                                                 docs.data(),
                                                 docinfos.data(),
                                                 (unsigned)docs.size(),
                                                 flags);
-            st.saveDocsHisto.add((gethrtime() - cs_begin) / 1000);
+            st.saveDocsHisto.add(
+                    std::chrono::duration_cast<std::chrono::microseconds>(
+                            ProcessClock::now() - cs_begin));
             if (errCode != COUCHSTORE_SUCCESS) {
                 logger.log(EXTENSION_LOG_WARNING,
                            "CouchKVStore::saveDocs: couchstore_save_documents "
@@ -1950,9 +1956,11 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid,
             saveCollectionsManifest(*db.getDb(), *collectionsManifest);
         }
 
-        hrtime_t cs_begin = gethrtime();
+        auto cs_begin = ProcessClock::now();
         errCode = couchstore_commit(db.getDb());
-        st.commitHisto.add((gethrtime() - cs_begin) / 1000);
+        st.commitHisto.add(
+                std::chrono::duration_cast<std::chrono::microseconds>(
+                        ProcessClock::now() - cs_begin));
         if (errCode) {
             logger.log(
                     EXTENSION_LOG_WARNING,
@@ -2028,7 +2036,9 @@ void CouchKVStore::commitCallback(std::vector<CouchRequest *> &committedReqs,
             if (errCode) {
                 ++st.numDelFailure;
             } else {
-                st.delTimeHisto.add(committedReqs[index]->getDelta() / 1000);
+                st.delTimeHisto.add(
+                        std::chrono::duration_cast<std::chrono::milliseconds>(
+                                committedReqs[index]->getDelta()));
             }
             committedReqs[index]->getDelCallback()->callback(rv);
         } else {
@@ -2038,7 +2048,9 @@ void CouchKVStore::commitCallback(std::vector<CouchRequest *> &committedReqs,
             if (errCode) {
                 ++st.numSetFailure;
             } else {
-                st.writeTimeHisto.add(committedReqs[index]->getDelta() / 1000);
+                st.writeTimeHisto.add(
+                        std::chrono::duration_cast<std::chrono::milliseconds>(
+                                committedReqs[index]->getDelta()));
                 st.writeSizeHisto.add(dataSize + keySize);
             }
             mutation_result p(rv, insertion);
@@ -2330,8 +2342,7 @@ int CouchKVStore::getMultiCb(Db *db, DocInfo *docinfo, void *ctx) {
         fetch->value = &bg_itm_ctx.value;
         st.readTimeHisto.add(
                 std::chrono::duration_cast<std::chrono::microseconds>(
-                        ProcessClock::now() - fetch->initTime)
-                        .count());
+                        ProcessClock::now() - fetch->initTime));
         if (errCode == COUCHSTORE_SUCCESS) {
             st.readSizeHisto.add(bg_itm_ctx.value.item->getKey().size() +
                                  bg_itm_ctx.value.item->getNBytes());

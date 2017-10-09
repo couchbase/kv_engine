@@ -624,7 +624,7 @@ public:
     void resetAccessScannerStartTime();
 
     void resetAccessScannerTasktime() {
-        accessScanner.lastTaskRuntime = gethrtime();
+        accessScanner.lastTaskRuntime = ProcessClock::now();
     }
 
     void setAllBloomFilters(bool to);
@@ -929,12 +929,16 @@ protected:
         bool enabled;
     } expiryPager;
     struct ALogTask {
-        ALogTask() : sleeptime(0), task(0), lastTaskRuntime(gethrtime()),
-                     enabled(true) {}
+        ALogTask()
+            : sleeptime(0),
+              task(0),
+              lastTaskRuntime(ProcessClock::now()),
+              enabled(true) {
+        }
         std::mutex mutex;
         size_t sleeptime;
         size_t task;
-        hrtime_t lastTaskRuntime;
+        ProcessClock::time_point lastTaskRuntime;
         bool enabled;
     } accessScanner;
     struct ResidentRatio {

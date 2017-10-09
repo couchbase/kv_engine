@@ -20,6 +20,7 @@
 #include "config.h"
 
 #include <memcached/engine.h>
+#include <platform/processclock.h>
 #include <stdio.h>
 #include <string.h>
 #include <utility>
@@ -387,7 +388,7 @@ public:
     }
 
     static uint64_t nextCas(void) {
-        return gethrtime() + (++casCounter);
+        return ProcessClock::now().time_since_epoch().count() + (++casCounter);
     }
 
     /* Returns true if the specified CAS is valid */

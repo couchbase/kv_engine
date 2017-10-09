@@ -313,25 +313,25 @@ public:
      * failure should be tracked in MC-engine  */
 
     // How long it takes us to complete a read
-    Histogram<hrtime_t> readTimeHisto;
+    MicrosecondHistogram readTimeHisto;
     // How big are our reads?
     Histogram<size_t> readSizeHisto;
     // How long it takes us to complete a write
-    Histogram<hrtime_t> writeTimeHisto;
+    MicrosecondHistogram writeTimeHisto;
     // How big are our writes?
     Histogram<size_t> writeSizeHisto;
     // Time spent in delete() calls.
-    Histogram<hrtime_t> delTimeHisto;
+    MicrosecondHistogram delTimeHisto;
     // Time spent in commit
-    Histogram<hrtime_t> commitHisto;
+    MicrosecondHistogram commitHisto;
     // Time spent in compaction
-    Histogram<hrtime_t> compactHisto;
+    MicrosecondHistogram compactHisto;
     // Time spent in saving documents to disk
-    Histogram<hrtime_t> saveDocsHisto;
+    MicrosecondHistogram saveDocsHisto;
     // Batch size while saving documents
     Histogram<size_t> batchSize;
     //Time spent in vbucket snapshot
-    Histogram<hrtime_t> snapshotHisto;
+    MicrosecondHistogram snapshotHisto;
 
     // Count and histogram filesystem read()s per getMulti() request
     Couchbase::RelaxedAtomic<size_t> getMultiFsReadCount;

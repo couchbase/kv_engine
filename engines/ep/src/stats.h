@@ -392,16 +392,16 @@ public:
     std::atomic<hrtime_t> vbucketDelTotWalltime;
 
     //! Histogram of setWithMeta latencies.
-    Histogram<hrtime_t> setWithMetaHisto;
+    MicrosecondHistogram setWithMetaHisto;
 
     //! Histogram of access scanner run times
-    Histogram<hrtime_t> accessScannerHisto;
+    MicrosecondHistogram accessScannerHisto;
     //! Historgram of checkpoint remover run times
-    Histogram<hrtime_t> checkpointRemoverHisto;
+    MicrosecondHistogram checkpointRemoverHisto;
     //! Histogram of item pager run times
-    Histogram<hrtime_t> itemPagerHisto;
+    MicrosecondHistogram itemPagerHisto;
     //! Histogram of expiry pager run times
-    Histogram<hrtime_t> expiryPagerHisto;
+    MicrosecondHistogram expiryPagerHisto;
 
     //! Percentage of memory in use before we throttle replication input
     std::atomic<double> replicationThrottleThreshold;
@@ -500,7 +500,7 @@ public:
     Histogram<hrtime_t> getStatsCmdHisto;
 
     //! Histogram of wait_for_checkpoint_persistence command
-    Histogram<hrtime_t> chkPersistenceHisto;
+    MicrosecondHistogram chkPersistenceHisto;
 
     //
     // DB timers.
@@ -525,7 +525,7 @@ public:
     Histogram<hrtime_t> mlogCompactorHisto;
 
     //! Historgram of batch reads
-    Histogram<hrtime_t> getMultiHisto;
+    MicrosecondHistogram getMultiHisto;
 
     // ! Histograms of various task wait times, one per Task.
     std::vector<MicrosecondHistogram> schedulingHisto;
@@ -534,8 +534,8 @@ public:
     std::vector<MicrosecondHistogram> taskRuntimeHisto;
 
     //! Checkpoint Cursor histograms
-    Histogram<hrtime_t> persistenceCursorGetItemsHisto;
-    Histogram<hrtime_t> dcpCursorsGetItemsHisto;
+    MicrosecondHistogram persistenceCursorGetItemsHisto;
+    MicrosecondHistogram dcpCursorsGetItemsHisto;
 
     //! Reset all stats to reasonable values.
     void reset() {

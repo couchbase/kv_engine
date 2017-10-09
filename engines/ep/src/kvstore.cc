@@ -413,5 +413,5 @@ IORequest::IORequest(uint16_t vbId, MutationRequestCallback &cb , bool del,
         callback.setCb = cb.setCb;
     }
 
-    start = gethrtime();
+    start = ProcessClock::now();
 }

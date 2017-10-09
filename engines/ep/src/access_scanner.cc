@@ -46,7 +46,7 @@ public:
           store(_store),
           stats(_stats),
           startTime(ep_real_time()),
-          taskStart(gethrtime()),
+          taskStart(ProcessClock::now()),
           shardID(sh),
           stateFinalizer(sfin),
           as(aS),
@@ -124,7 +124,9 @@ public:
             log.reset();
             stats.alogRuntime.store(ep_real_time() - startTime);
             stats.alogNumItems.store(num_items);
-            stats.accessScannerHisto.add((gethrtime() - taskStart) / 1000);
+            stats.accessScannerHisto.add(
+                    std::chrono::duration_cast<std::chrono::microseconds>(
+                            ProcessClock::now() - taskStart));
 
             if (num_items == 0) {
                 LOG(EXTENSION_LOG_NOTICE, "The new access log file is empty. "
@@ -194,7 +196,7 @@ private:
     KVBucket& store;
     EPStats& stats;
     rel_time_t startTime;
-    hrtime_t taskStart;
+    ProcessClock::time_point taskStart;
     std::string prev;
     std::string next;
     std::string name;

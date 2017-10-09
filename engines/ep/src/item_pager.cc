@@ -64,16 +64,28 @@ public:
      * @param bias active vbuckets eviction probability bias multiplier (0-1)
      * @param phase pointer to an item_pager_phase to be set
      */
-    PagingVisitor(KVBucketIface& s, EPStats &st, double pcnt,
-                  std::shared_ptr<std::atomic<bool>> &sfin, pager_type_t caller,
-                  bool pause, double bias,
-                  std::atomic<item_pager_phase>* phase) :
-        store(s), stats(st), percent(pcnt),
-        activeBias(bias), ejected(0),
-        startTime(ep_real_time()), stateFinalizer(sfin), owner(caller),
-        canPause(pause), completePhase(true),
-        wasHighMemoryUsage(s.isMemoryUsageTooHigh()),
-        taskStart(gethrtime()), pager_phase(phase) {}
+    PagingVisitor(KVBucketIface& s,
+                  EPStats& st,
+                  double pcnt,
+                  std::shared_ptr<std::atomic<bool>>& sfin,
+                  pager_type_t caller,
+                  bool pause,
+                  double bias,
+                  std::atomic<item_pager_phase>* phase)
+        : store(s),
+          stats(st),
+          percent(pcnt),
+          activeBias(bias),
+          ejected(0),
+          startTime(ep_real_time()),
+          stateFinalizer(sfin),
+          owner(caller),
+          canPause(pause),
+          completePhase(true),
+          wasHighMemoryUsage(s.isMemoryUsageTooHigh()),
+          taskStart(ProcessClock::now()),
+          pager_phase(phase) {
+    }
 
     bool visit(const HashTable::HashBucketLock& lh, StoredValue& v) override {
         // Delete expired items for an active vbucket.
@@ -177,7 +189,9 @@ public:
     void complete() override {
         update();
 
-        hrtime_t elapsed_time = (gethrtime() - taskStart) / 1000;
+        auto elapsed_time =
+                std::chrono::duration_cast<std::chrono::microseconds>(
+                        ProcessClock::now() - taskStart);
         if (owner == ITEM_PAGER) {
             stats.itemPagerHisto.add(elapsed_time);
         } else if (owner == EXPIRY_PAGER) {
@@ -251,7 +265,7 @@ private:
     bool canPause;
     bool completePhase;
     bool wasHighMemoryUsage;
-    hrtime_t taskStart;
+    ProcessClock::time_point taskStart;
     std::atomic<item_pager_phase>* pager_phase;
     VBucketPtr currentBucket;
 };

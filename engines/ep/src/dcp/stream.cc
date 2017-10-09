@@ -954,10 +954,11 @@ void ActiveStream::getOutstandingItems(VBucketPtr &vb,
     // Commencing item processing - set guard flag.
     chkptItemsExtractionInProgress.store(true);
 
-    hrtime_t _begin_ = gethrtime();
+    auto _begin_ = ProcessClock::now();
     vb->checkpointManager->getAllItemsForCursor(name_, items);
     engine->getEpStats().dcpCursorsGetItemsHisto.add(
-                                            (gethrtime() - _begin_) / 1000);
+            std::chrono::duration_cast<std::chrono::microseconds>(
+                    ProcessClock::now() - _begin_));
 
     if (vb->checkpointManager->getNumCheckpoints() > 1) {
         engine->getKVBucket()->wakeUpCheckpointRemover();

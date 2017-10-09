@@ -97,10 +97,9 @@ size_t BgFetcher::doFetch(VBucket::id_type vbId,
         store->completeBGFetchMulti(vbId, fetchedItems, startTime);
         stats.getMultiHisto.add(
                 std::chrono::duration_cast<std::chrono::microseconds>(
-                        ProcessClock::now() - startTime)
-                        .count(),
+                        ProcessClock::now() - startTime),
                 fetchedItems.size());
-       stats.getMultiBatchSizeHisto.add(fetchedItems.size());
+        stats.getMultiBatchSizeHisto.add(fetchedItems.size());
     }
 
     return fetchedItems.size();

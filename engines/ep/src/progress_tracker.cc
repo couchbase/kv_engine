@@ -35,8 +35,8 @@ void ProgressTracker::setDeadline(ProcessClock::time_point new_deadline) {
 /* There is a time-based deadline on how many items should be visited before we
  * pause, however reading time can be an expensive operation (especially on
  * virtualised platforms). Therefore instead of reading the time on every item
- * we use the rate of visiting (items/sec) to estimate when we expect to complete,
- * only calling gethrtime() periodically to check our rate.
+ * we use the rate of visiting (items/sec) to estimate when we expect to
+ * complete, only calling ProcessClock::now() periodically to check our rate.
  */
 bool ProgressTracker::shouldContinueVisiting(size_t visited_items) {
     // Grab time if we haven't already got it.

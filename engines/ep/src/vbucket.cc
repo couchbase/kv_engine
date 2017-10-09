@@ -42,11 +42,11 @@
 #include <vector>
 
 /* Macros */
-const size_t MIN_CHK_FLUSH_TIMEOUT = 10; // 10 sec.
-const size_t MAX_CHK_FLUSH_TIMEOUT = 30; // 30 sec.
+const auto MIN_CHK_FLUSH_TIMEOUT = std::chrono::seconds(10);
+const auto MAX_CHK_FLUSH_TIMEOUT = std::chrono::seconds(30);
 
 /* Statics definitions */
-std::atomic<size_t> VBucket::chkFlushTimeout(MIN_CHK_FLUSH_TIMEOUT);
+cb::AtomicDuration VBucket::chkFlushTimeout(MIN_CHK_FLUSH_TIMEOUT);
 double VBucket::mutationMemThreshold = 0.9;
 
 VBucketFilter VBucketFilter::filter_diff(const VBucketFilter &other) const {
@@ -203,7 +203,7 @@ VBucket::VBucket(id_type i,
     }
 
     backfill.isBackfillPhase = false;
-    pendingOpsStart = 0;
+    pendingOpsStart = ProcessClock::time_point();
     stats.memOverhead->fetch_add(sizeof(VBucket)
                                 + ht.memorySize() + sizeof(CheckpointManager));
     LOG(EXTENSION_LOG_NOTICE,
@@ -260,18 +260,21 @@ void VBucket::fireAllOps(EventuallyPersistentEngine &engine,
                          ENGINE_ERROR_CODE code) {
     std::unique_lock<std::mutex> lh(pendingOpLock);
 
-    if (pendingOpsStart > 0) {
-        hrtime_t now = gethrtime();
+    if (pendingOpsStart > ProcessClock::time_point()) {
+        auto now = ProcessClock::now();
         if (now > pendingOpsStart) {
-            hrtime_t d = (now - pendingOpsStart) / 1000;
+            auto d = std::chrono::duration_cast<std::chrono::microseconds>(
+                             now - pendingOpsStart)
+                             .count();
             stats.pendingOpsHisto.add(d);
-            atomic_setIfBigger(stats.pendingOpsMaxDuration, d);
+            atomic_setIfBigger(stats.pendingOpsMaxDuration,
+                               std::make_unsigned<hrtime_t>::type(d));
         }
     } else {
         return;
     }
 
-    pendingOpsStart = 0;
+    pendingOpsStart = ProcessClock::time_point();
     stats.pendingOps.fetch_sub(pendingOps.size());
     atomic_setIfBigger(stats.pendingOpsMax, pendingOps.size());
 
@@ -460,7 +463,7 @@ bool VBucket::addPendingOp(const void* cookie) {
     }
     // Start a timer when enqueuing the first client.
     if (pendingOps.empty()) {
-        pendingOpsStart = gethrtime();
+        pendingOpsStart = ProcessClock::now();
     }
     pendingOps.push_back(cookie);
     ++stats.pendingOps;
@@ -2502,12 +2505,15 @@ std::map<const void*, ENGINE_ERROR_CODE> VBucket::getHighPriorityNotifications(
 
         std::string logStr(to_string(notifyType));
 
-        hrtime_t wall_time(gethrtime() - entry->start);
-        size_t spent = wall_time / 1000000000;
+        auto wall_time = ProcessClock::now() - entry->start;
+        auto spent =
+                std::chrono::duration_cast<std::chrono::seconds>(wall_time);
         if (entry->id <= idNum) {
             toNotify[entry->cookie] = ENGINE_SUCCESS;
-            stats.chkPersistenceHisto.add(wall_time / 1000);
-            adjustCheckpointFlushTimeout(wall_time / 1000000000);
+            stats.chkPersistenceHisto.add(
+                    std::chrono::duration_cast<std::chrono::microseconds>(
+                            wall_time));
+            adjustCheckpointFlushTimeout(spent);
             LOG(EXTENSION_LOG_NOTICE,
                 "Notified the completion of %s "
                 "for vbucket %" PRIu16 ", Check for: %" PRIu64
@@ -2557,8 +2563,8 @@ std::map<const void*, ENGINE_ERROR_CODE> VBucket::tmpFailAndGetAllHpNotifies(
     return toNotify;
 }
 
-void VBucket::adjustCheckpointFlushTimeout(size_t wall_time) {
-    size_t middle = (MIN_CHK_FLUSH_TIMEOUT + MAX_CHK_FLUSH_TIMEOUT) / 2;
+void VBucket::adjustCheckpointFlushTimeout(std::chrono::seconds wall_time) {
+    auto middle = (MIN_CHK_FLUSH_TIMEOUT + MAX_CHK_FLUSH_TIMEOUT) / 2;
 
     if (wall_time <= MIN_CHK_FLUSH_TIMEOUT) {
         chkFlushTimeout = MIN_CHK_FLUSH_TIMEOUT;
@@ -2569,8 +2575,9 @@ void VBucket::adjustCheckpointFlushTimeout(size_t wall_time) {
     }
 }
 
-size_t VBucket::getCheckpointFlushTimeout() {
-    return chkFlushTimeout;
+std::chrono::seconds VBucket::getCheckpointFlushTimeout() {
+    return std::chrono::duration_cast<std::chrono::seconds>(
+            chkFlushTimeout.load());
 }
 
 std::unique_ptr<Item> VBucket::pruneXattrDocument(

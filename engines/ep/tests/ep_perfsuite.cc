@@ -366,45 +366,45 @@ static void perf_latency_core(ENGINE_HANDLE *h,
 
     // Create (add)
     for (auto& key : keys) {
-        const hrtime_t start = gethrtime();
+        const auto start = ProcessClock::now();
         checkeq(cb::engine_errc::success,
                 storeCasVb11(h, h1, cookie, OPERATION_ADD, key.c_str(),
                              data.c_str(), data.length(), 0, 0,
                              /*vBucket*/0, 0, 0).first,
                 "Failed to add a value");
-        const hrtime_t end = gethrtime();
-        add_timings.push_back(end - start);
+        const auto end = ProcessClock::now();
+        add_timings.push_back((end - start).count());
     }
 
     // Get
     for (auto& key : keys) {
-        const hrtime_t start = gethrtime();
+        const auto start = ProcessClock::now();
         auto ret = get(h, h1, cookie, key, 0);
         checkeq(cb::engine_errc::success, ret.first, "Failed to get a value");
-        const hrtime_t end = gethrtime();
-        get_timings.push_back(end - start);
+        const auto end = ProcessClock::now();
+        get_timings.push_back((end - start).count());
     }
 
     // Update (Replace)
     for (auto& key : keys) {
-        const hrtime_t start = gethrtime();
+        const auto start = ProcessClock::now();
         checkeq(cb::engine_errc::success,
                 storeCasVb11(h, h1, cookie, OPERATION_REPLACE, key.c_str(),
                              data.c_str(), data.length(), 0, 0,
                              /*vBucket*/0, 0, 0).first,
                 "Failed to replace a value");
-        const hrtime_t end = gethrtime();
-        replace_timings.push_back(end - start);
+        const auto end = ProcessClock::now();
+        replace_timings.push_back((end - start).count());
     }
 
     // Delete
     for (auto& key : keys) {
-        const hrtime_t start = gethrtime();
+        const auto start = ProcessClock::now();
         checkeq(ENGINE_SUCCESS,
                 del(h, h1, key.c_str(), 0, 0, cookie),
                 "Failed to delete a value");
-        const hrtime_t end = gethrtime();
-        delete_timings.push_back(end - start);
+        const auto end = ProcessClock::now();
+        delete_timings.push_back((end - start).count());
     }
 
     testHarness.destroy_cookie(cookie);
@@ -784,7 +784,7 @@ static void perf_load_client(ENGINE_HANDLE* h,
                              0, vbid).first,
                 cb::engine_errc::success,
                 "Failed set.");
-        insertTimes.push_back(gethrtime());
+        insertTimes.push_back(ProcessClock::now().time_since_epoch().count());
     }
 
     add_sentinel_doc(h, h1, vbid);
@@ -823,13 +823,13 @@ static void perf_background_sets(ENGINE_HANDLE* h,
         if (ii == count) {
             ii = 0;
         }
-        const hrtime_t start = gethrtime();
+        const auto start = ProcessClock::now();
         checkeq(storeCasVb11(h, h1, cookie, OPERATION_SET, keys[ii].c_str(),
                              vals[ii].data(), vals[ii].size(), /*flags*/9258,
                              0, vbid).first,
                 cb::engine_errc::success, "Failed set.");
-        const hrtime_t end = gethrtime();
-        insertTimes.push_back(end - start);
+        const auto end = ProcessClock::now();
+        insertTimes.push_back((end - start).count());
         ++ii;
     }
 
@@ -915,7 +915,8 @@ static void perf_dcp_client(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
                         done = true;
                         break;
                     }
-                    recv_timings.push_back(gethrtime());
+                    recv_timings.push_back(
+                            ProcessClock::now().time_since_epoch().count());
                     bytes_received.push_back(dcp_last_value.length());
                     bytes_read += dcp_last_packet_size;
                     if (pending_marker_ack && dcp_last_byseqno == marker_end) {
@@ -1146,7 +1147,7 @@ static void perf_stat_latency_core(ENGINE_HANDLE *h,
     for (auto& stat : stat_tests) {
         if (stat.second.runtime == statRuntime) {
             for (int ii = 0; ii < iterations; ii++) {
-                hrtime_t start = gethrtime();
+                auto start = ProcessClock::now();
                 if (stat.first.compare("engine") == 0) {
                     checkeq(ENGINE_SUCCESS,
                             h1->get_stats(h, cookie, nullptr, 0, add_stats),
@@ -1163,8 +1164,8 @@ static void perf_stat_latency_core(ENGINE_HANDLE *h,
                                     .c_str());
                 }
 
-                hrtime_t end = gethrtime();
-                stat.second.timings.push_back(end - start);
+                auto end = ProcessClock::now();
+                stat.second.timings.push_back((end - start).count());
             }
         }
     }

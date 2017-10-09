@@ -584,8 +584,7 @@ bool RocksDBKVStore::snapshotVBucket(uint16_t vbucketId,
         vbstate.toJSON().c_str());
 
     st.snapshotHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
-                                 ProcessClock::now() - start)
-                                 .count());
+            ProcessClock::now() - start));
 
     return true;
 }
@@ -871,8 +870,7 @@ rocksdb::Status RocksDBKVStore::saveDocs(
     auto begin = ProcessClock::now();
     status = db.rdb->Write(writeOptions, &batch);
     st.commitHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
-                               ProcessClock::now() - begin)
-                               .count());
+            ProcessClock::now() - begin));
     if (!status.ok()) {
         logger.log(EXTENSION_LOG_WARNING,
                    "RocksDBKVStore::saveDocs: rocksdb::DB::Write error:%d, "
@@ -939,8 +937,7 @@ rocksdb::Status RocksDBKVStore::addRequestToWriteBatch(
         return status;
     }
     st.saveDocsHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
-                                 ProcessClock::now() - begin)
-                                 .count());
+            ProcessClock::now() - begin));
 
     return rocksdb::Status::OK();
 }

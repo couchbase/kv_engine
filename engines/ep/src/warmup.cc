@@ -733,14 +733,10 @@ Warmup::Warmup(KVBucket& st, Configuration& config_)
     : state(),
       store(st),
       config(config_),
-      startTime(0),
-      metadata(0),
-      warmup(0),
       shardVbStates(store.vbMap.getNumShards()),
       threadtask_count(0),
       shardKeyDumpStatus(store.vbMap.getNumShards()),
       shardVbIds(store.vbMap.getNumShards()),
-      estimateTime(0),
       estimatedItemCount(std::numeric_limits<size_t>::max()),
       cleanShutdown(true),
       corruptAccessLog(false),
@@ -799,7 +795,10 @@ void Warmup::scheduleInitialize()
 
 void Warmup::initialize()
 {
-    startTime.store(gethrtime());
+    {
+        std::lock_guard<std::mutex> lock(warmupStart.mutex);
+        warmupStart.time = ProcessClock::now();
+    }
 
     std::map<std::string, std::string> session_stats;
     store.getOneROUnderlying()->getPersistedStats(session_stats);
@@ -922,7 +921,7 @@ bool Warmup::shouldSetVBStateBlock(const void* cookie) {
 void Warmup::scheduleEstimateDatabaseItemCount()
 {
     threadtask_count = 0;
-    estimateTime = 0;
+    estimateTime.store(ProcessClock::duration::zero());
     estimatedItemCount = 0;
     for (size_t i = 0; i < store.vbMap.shards.size(); i++) {
         ExTask task = std::make_shared<WarmupEstimateDatabaseItemCount>(
@@ -933,7 +932,7 @@ void Warmup::scheduleEstimateDatabaseItemCount()
 
 void Warmup::estimateDatabaseItemCount(uint16_t shardId)
 {
-    hrtime_t st = gethrtime();
+    auto st = ProcessClock::now();
     size_t item_count = 0;
 
     for (const auto vbid : shardVbIds[shardId]) {
@@ -947,7 +946,7 @@ void Warmup::estimateDatabaseItemCount(uint16_t shardId)
     }
 
     estimatedItemCount.fetch_add(item_count);
-    estimateTime.fetch_add(gethrtime() - st);
+    estimateTime.fetch_add(ProcessClock::now() - st);
 
     if (++threadtask_count == store.vbMap.getNumShards()) {
         if (store.getItemEvictionPolicy() == VALUE_ONLY) {
@@ -1020,7 +1019,10 @@ void Warmup::scheduleCheckForAccessLog()
 
 void Warmup::checkForAccessLog()
 {
-    metadata.store(gethrtime() - startTime);
+    {
+        std::lock_guard<std::mutex> lock(warmupStart.mutex);
+        metadata.store(ProcessClock::now() - warmupStart.time);
+    }
     LOG(EXTENSION_LOG_NOTICE, "metadata loaded in %s",
         cb::time2text(std::chrono::nanoseconds(metadata.load())).c_str());
 
@@ -1330,6 +1332,8 @@ void Warmup::addStat(const char *nm, const T &val, ADD_STAT add_stat,
 
 void Warmup::addStats(ADD_STAT add_stat, const void *c) const
 {
+    using namespace std::chrono;
+
     EPStats& stats = store.getEPEngine().getEpStats();
     addStat(NULL, "enabled", add_stat, c);
     const char* stateName = state.toString();
@@ -1349,23 +1353,32 @@ void Warmup::addStats(ADD_STAT add_stat, const void *c) const
             c);
     addStat("min_item_threshold", stats.warmupNumReadCap * 100.0, add_stat, c);
 
-    hrtime_t md_time = metadata.load();
-    if (md_time > 0) {
-        addStat("keys_time", md_time / 1000, add_stat, c);
+    auto md_time = metadata.load();
+    if (md_time > md_time.zero()) {
+        addStat("keys_time",
+                duration_cast<microseconds>(md_time).count(),
+                add_stat,
+                c);
     }
 
-    hrtime_t w_time = warmup.load();
-    if (w_time > 0) {
-        addStat("time", w_time / 1000, add_stat, c);
+    auto w_time = warmup.load();
+    if (w_time > w_time.zero()) {
+        addStat("time",
+                duration_cast<microseconds>(w_time).count(),
+                add_stat,
+                c);
     }
 
     size_t itemCount = estimatedItemCount.load();
     if (itemCount == std::numeric_limits<size_t>::max()) {
         addStat("estimated_key_count", "unknown", add_stat, c);
     } else {
-        hrtime_t e_time = estimateTime.load();
-        if (e_time != 0) {
-            addStat("estimate_time", e_time / 1000, add_stat, c);
+        auto e_time = estimateTime.load();
+        if (e_time != e_time.zero()) {
+            addStat("estimate_time",
+                    duration_cast<microseconds>(e_time).count(),
+                    add_stat,
+                    c);
         }
         addStat("estimated_key_count", itemCount, add_stat, c);
     }

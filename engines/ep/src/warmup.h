@@ -31,6 +31,8 @@
 #include <vector>
 
 #include <phosphor/phosphor.h>
+#include <platform/atomic_duration.h>
+#include <platform/processclock.h>
 
 class Configuration;
 class EPStats;
@@ -132,10 +134,14 @@ public:
 
     void addStats(ADD_STAT add_stat, const void *c) const;
 
-    hrtime_t getTime(void) { return warmup; }
+    ProcessClock::duration getTime() {
+        return warmup.load();
+    }
 
-    void setWarmupTime(void) {
-        warmup.store(gethrtime() + gethrtime_period() - startTime);
+    void setWarmupTime() {
+        std::lock_guard<std::mutex> lock(warmupStart.mutex);
+        warmup.store(ProcessClock::now() - warmupStart.time +
+                     ProcessClock::duration(1));
     }
 
     size_t doWarmup(MutationLog &lf, const std::map<uint16_t,
@@ -215,9 +221,17 @@ private:
     std::mutex taskSetMutex;
     std::unordered_set<size_t> taskSet;
 
-    std::atomic<hrtime_t> startTime;
-    std::atomic<hrtime_t> metadata;
-    std::atomic<hrtime_t> warmup;
+    // Stores the time when the warmup process has started.
+    // Lock the mutex when reading from or writing to the time member,
+    // in order to synchronise access from multiple threads.
+    struct {
+        std::mutex mutex;
+        ProcessClock::time_point time;
+    } warmupStart;
+
+    // Time it took to load metadata and complete warmup, stored atomically.
+    cb::AtomicDuration metadata;
+    cb::AtomicDuration warmup;
 
     std::vector<std::map<uint16_t, vbucket_state>> shardVbStates;
     std::atomic<size_t> threadtask_count;
@@ -227,7 +241,7 @@ private:
     /// contains all vBucket IDs which are present for the given shard.
     std::vector<std::vector<uint16_t>> shardVbIds;
 
-    std::atomic<hrtime_t> estimateTime;
+    cb::AtomicDuration estimateTime;
     std::atomic<size_t> estimatedItemCount;
     bool cleanShutdown;
     bool corruptAccessLog;

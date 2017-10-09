@@ -20,10 +20,11 @@
 
 #include "config.h"
 
-#include <functional>
-#include <mutex>
+#include <platform/processclock.h>
 #include <platform/rwlock.h>
+#include <functional>
 #include <iostream>
+#include <mutex>
 #include <sstream>
 #include <stdexcept>
 
@@ -150,12 +151,12 @@ public:
      *  @param name_ A name for this mutex, used in log messages.
      */
     LockTimer(typename T::mutex_type& m, const char* name_)
-        : name(name_),
-          start(gethrtime()),
-          lock_holder(m) {
-
-        acquired = gethrtime();
-        const uint64_t msec = (acquired - start) / 1000000;
+        : name(name_), start(ProcessClock::now()), lock_holder(m) {
+        acquired = ProcessClock::now();
+        const uint64_t msec =
+                std::chrono::duration_cast<std::chrono::milliseconds>(acquired -
+                                                                      start)
+                        .count();
         if (msec > ACQUIRE_MS) {
             LOG(EXTENSION_LOG_WARNING,
                 "LockHolder<%s> Took too long to acquire lock: %" PRIu64 " ms",
@@ -182,8 +183,11 @@ public:
 private:
 
     void check_held_duration() {
-        const hrtime_t released = gethrtime();
-        const uint64_t msec = (released - acquired) / 1000000;
+        const auto released = ProcessClock::now();
+        const uint64_t msec =
+                std::chrono::duration_cast<std::chrono::milliseconds>(released -
+                                                                      acquired)
+                        .count();
         if (msec > HELD_MS) {
             LOG(EXTENSION_LOG_WARNING, "LockHolder<%s> Held lock for too long: "
                     "%" PRIu64 " ms", name, msec);
@@ -193,10 +197,10 @@ private:
     const char* name;
 
     // Time when lock acquisition started.
-    hrtime_t start;
+    ProcessClock::time_point start;
 
     // Time when we completed acquiring the lock.
-    hrtime_t acquired;
+    ProcessClock::time_point acquired;
 
     // The underlying 'real' lock holder we are wrapping.
     T lock_holder;

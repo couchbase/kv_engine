@@ -2385,7 +2385,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
         add_casted_stat("ep_uncommitted_items",
                         epstats.flusher_todo, add_stat, cookie);
         add_casted_stat("ep_chk_persistence_timeout",
-                        VBucket::getCheckpointFlushTimeout(),
+                        VBucket::getCheckpointFlushTimeout().count(),
                         add_stat,
                         cookie);
     }
@@ -2572,9 +2572,14 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
         } else {
             add_casted_stat("ep_warmup_thread", "running", add_stat, cookie);
         }
-        if (wp->getTime() > 0) {
-            add_casted_stat("ep_warmup_time", wp->getTime() / 1000,
-                            add_stat, cookie);
+        if (wp->getTime() > wp->getTime().zero()) {
+            add_casted_stat(
+                    "ep_warmup_time",
+                    std::chrono::duration_cast<std::chrono::microseconds>(
+                            wp->getTime())
+                            .count(),
+                    add_stat,
+                    cookie);
         }
         add_casted_stat("ep_warmup_oom", epstats.warmOOM, add_stat, cookie);
         add_casted_stat("ep_warmup_dups", epstats.warmDups, add_stat, cookie);
@@ -4255,11 +4260,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
 
 
     void *startTimeC = getEngineSpecific(cookie);
-    hrtime_t startTime;
+    ProcessClock::time_point startTime;
     if (startTimeC) {
-        startTime = *(static_cast<hrtime_t *> (startTimeC));
+        startTime = ProcessClock::time_point(
+                ProcessClock::duration(*(static_cast<hrtime_t*>(startTimeC))));
     } else {
-        startTime = gethrtime();
+        startTime = ProcessClock::now();
     }
 
     bool allowExisting = (opcode == PROTOCOL_BINARY_CMD_SET_WITH_META ||
@@ -4295,8 +4301,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     cas = 0;
     if (ret == ENGINE_SUCCESS) {
         ++stats.numOpsSetMeta;
-        hrtime_t endTime(gethrtime());
-        hrtime_t elapsed = (endTime - startTime) / 1000;
+        auto endTime = ProcessClock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(
+                endTime - startTime);
         stats.setWithMetaHisto.add(elapsed);
         cas = commandCas;
     } else if (ret == ENGINE_ENOMEM) {
