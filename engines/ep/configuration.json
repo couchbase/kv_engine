@@ -317,9 +317,17 @@
                 "bucket_type": "ephemeral"
             }
         },
-        "ephemeral_metadata_purge_chunk_duration": {
+        "ephemeral_metadata_mark_stale_chunk_duration": {
             "default": "20",
-            "descr": "Maximum time (in ms) ephemeral metadata purge task will run for before being paused (and resumed at the next ephemeral_metadata_purge_interval).",
+            "descr": "Maximum time (in ms) ephemeral hash table cleaner task will run for before being paused (and resumed at the next ephemeral_metadata_purge_interval).",
+            "type": "size_t",
+            "requires": {
+                "bucket_type": "ephemeral"
+            }
+        },
+        "ephemeral_metadata_purge_stale_chunk_duration": {
+            "default": "20",
+            "descr": "Maximum time (in ms) ephemeral stale metadata purge task will run for before being paused (and resumed at the next ephemeral_metadata_purge_interval).",
             "type": "size_t",
             "requires": {
                 "bucket_type": "ephemeral"

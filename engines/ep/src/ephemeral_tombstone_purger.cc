@@ -77,7 +77,8 @@ EphTombstoneHTCleaner::EphTombstoneHTCleaner(EventuallyPersistentEngine* e,
                  false),
       bucket(bucket),
       bucketPosition(bucket.endPosition()),
-      staleItemDeleterTask(std::make_shared<EphTombstoneStaleItemDeleter>(e)) {
+      staleItemDeleterTask(
+              std::make_shared<EphTombstoneStaleItemDeleter>(e, bucket)) {
     ExecutorPool::get()->schedule(staleItemDeleterTask);
 }
 
@@ -151,7 +152,8 @@ std::chrono::microseconds EphTombstoneHTCleaner::maxExpectedDuration() {
 
 std::chrono::milliseconds EphTombstoneHTCleaner::getChunkDuration() const {
     return std::chrono::milliseconds(
-            engine->getConfiguration().getEphemeralMetadataPurgeChunkDuration());
+            engine->getConfiguration()
+                    .getEphemeralMetadataMarkStaleChunkDuration());
 }
 
 size_t EphTombstoneHTCleaner::getSleepTime() const {
@@ -174,54 +176,109 @@ EphTombstoneHTCleaner::getPurgerVisitor() {
  * Visitor which is responsible for scanning sequence list for stale items
  * and deleting them.
  */
-class EphemeralVBucket::StaleItemDeleter : public VBucketVisitor {
+class EphemeralVBucket::StaleItemDeleter : public PauseResumeVBVisitor {
 public:
     StaleItemDeleter() {
     }
 
-    void visitBucket(VBucketPtr& vb) override {
-        auto* vbucket = dynamic_cast<EphemeralVBucket*>(vb.get());
+    bool visit(VBucket& vb) override {
+        auto* vbucket = dynamic_cast<EphemeralVBucket*>(&vb);
         if (!vbucket) {
             throw std::invalid_argument(
                     "StaleItemDeleter::visitBucket: Called with a "
                     "non-Ephemeral bucket");
         }
-        numItemsDeleted += vbucket->purgeStaleItems();
+
+        /// The lambda function passed indicates if the "StaleItemDeleter"
+        /// should be paused. It can be called by the module(s) implementing the
+        /// purge at the desired granularity
+        numItemsDeleted += vbucket->purgeStaleItems([this]() {
+            shouldContinueVisiting =
+                    progressTracker.shouldContinueVisiting(numVisitedItems++);
+            return !(shouldContinueVisiting);
+        });
+        return shouldContinueVisiting;
     }
 
     size_t getNumItemsDeleted() const {
         return numItemsDeleted;
     }
 
+    void setDeadline(ProcessClock::time_point deadline) {
+        progressTracker.setDeadline(deadline);
+    }
+
+    void clearStats() {
+        numItemsDeleted = 0;
+        numVisitedItems = 0;
+        shouldContinueVisiting = true;
+    }
+
 protected:
     /// Count of how many items have been deleted for all visited vBuckets.
     size_t numItemsDeleted = 0;
+
+    /// Estimates how far we have got, and when we should pause.
+    ProgressTracker progressTracker;
+
+    /// Count of how many items have been visited.
+    size_t numVisitedItems = 0;
+
+    /// Indicates if the VB visitor should continue visiting other vbuckets in
+    /// the current run
+    bool shouldContinueVisiting = true;
 };
 
 EphTombstoneStaleItemDeleter::EphTombstoneStaleItemDeleter(
-        EventuallyPersistentEngine* e)
-    : GlobalTask(e, TaskId::EphTombstoneStaleItemDeleter, INT_MAX, false) {
+        EventuallyPersistentEngine* e, EphemeralBucket& bucket)
+    : GlobalTask(e, TaskId::EphTombstoneStaleItemDeleter, INT_MAX, false),
+      bucket(bucket),
+      bucketPosition(bucket.endPosition()) {
 }
 
 bool EphTombstoneStaleItemDeleter::run() {
-    LOG(EXTENSION_LOG_INFO, "%s starting", getDescription().data());
+    // Get our pause/resume visitor. If we didn't finish the previous pass,
+    // then resume from where we last were, otherwise create a new visitor
+    // starting from the beginning.
+    if (bucketPosition == bucket.endPosition()) {
+        staleItemDeleteVbVisitor =
+                std::make_unique<EphemeralVBucket::StaleItemDeleter>();
+        bucketPosition = bucket.startPosition();
+
+        LOG(EXTENSION_LOG_INFO, "%s starting", getDescription().data());
+    }
 
     // Create a StaleItemDeleter, and run across all VBuckets.
+    staleItemDeleteVbVisitor->setDeadline(ProcessClock::now() +
+                                          getChunkDuration());
+    staleItemDeleteVbVisitor->clearStats();
+
     auto start = ProcessClock::now();
-    EphemeralVBucket::StaleItemDeleter deleter;
-    engine->getKVBucket()->visit(deleter);
+    bucketPosition =
+            bucket.pauseResumeVisit(*staleItemDeleteVbVisitor, bucketPosition);
     auto end = ProcessClock::now();
+
+    // Check if the visitor completed a full pass.
+    bool completed = (bucketPosition == bucket.endPosition());
 
     auto duration_ms =
             std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
+    if (!completed) {
+        // Schedule to run again asap - note this still yields to the scheduler
+        // if there are any higher priority tasks which want to run.
+        return true;
+    }
+
     LOG(EXTENSION_LOG_INFO,
-        "%s completed. Deleted %" PRIu64 " items. Took %" PRIu64 "ms.",
+        "%s %s. Deleted %" PRIu64 " items. Took %" PRIu64 "ms.",
         getDescription().data(),
-        uint64_t(deleter.getNumItemsDeleted()),
+        completed ? "completed" : "paused",
+        uint64_t(staleItemDeleteVbVisitor->getNumItemsDeleted()),
         uint64_t(duration_ms.count()));
 
-    // Sleep forever - rely on the HTCleaner task to wake us.
+    // Completed a full pass, sleep forever - rely on the HTCleaner task to
+    // wake us.
     snooze(INT_MAX);
     return true;
 }
@@ -231,10 +288,17 @@ cb::const_char_buffer EphTombstoneStaleItemDeleter::getDescription() {
 }
 
 std::chrono::microseconds EphTombstoneStaleItemDeleter::maxExpectedDuration() {
-    // This currently needs to iterate the entire sequenceList for a VBucket;
-    // which can take multiple seconds - see MB-25920.
-    // Ideally this should be reduced, but in the interim set the maximum
-    // duration to a relatively generous limit of 10s (so as not to fill the
-    // logs with warnings).
-    return std::chrono::seconds(10);
+    // Stale item deleter purges tombstone items in chunks, with each chunk
+    // constrained by a ChunkDuration runtime, so we expect to only take that
+    // long. However, the ProgressTracker used estimates the time remaining, so
+    // apply some headroom to that figure so we don't get inundated with
+    // spurious "slow tasks" which only just exceed the limit.
+    return getChunkDuration() * 10;
+}
+
+std::chrono::milliseconds EphTombstoneStaleItemDeleter::getChunkDuration()
+        const {
+    return std::chrono::milliseconds(
+            engine->getConfiguration()
+                    .getEphemeralMetadataPurgeStaleChunkDuration());
 }
