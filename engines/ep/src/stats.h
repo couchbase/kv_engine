@@ -372,7 +372,7 @@ public:
     std::atomic<hrtime_t> bgMaxWait;
 
     //! Histogram of background wait times.
-    Histogram<hrtime_t> bgWaitHisto;
+    MicrosecondHistogram bgWaitHisto;
 
     /** The sum of the deltas (in usec) from the dispatcher started to load
      *  item until was done
@@ -384,7 +384,7 @@ public:
     std::atomic<hrtime_t> bgMaxLoad;
 
     //! Histogram of background wait loads.
-    Histogram<hrtime_t> bgLoadHisto;
+    MicrosecondHistogram bgLoadHisto;
 
     //! Max wall time of deleting a vbucket
     std::atomic<hrtime_t> vbucketDelMaxWalltime;
@@ -516,7 +516,7 @@ public:
     Histogram<hrtime_t> diskDelHisto;
 
     //! Histogram of execution time of disk vbucket deletions
-    Histogram<hrtime_t> diskVBDelHisto;
+    MicrosecondHistogram diskVBDelHisto;
 
     //! Histogram of disk commits
     Histogram<hrtime_t> diskCommitHisto;

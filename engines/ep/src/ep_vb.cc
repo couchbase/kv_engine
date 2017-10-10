@@ -538,22 +538,25 @@ void EPVBucket::updateBGStats(const ProcessClock::time_point init,
                               const ProcessClock::time_point start,
                               const ProcessClock::time_point stop) {
     ++stats.bgNumOperations;
-    hrtime_t waitNs =
-            std::chrono::duration_cast<std::chrono::nanoseconds>(start - init)
-                    .count();
-    hrtime_t w = waitNs / 1000;
+    auto waitNs =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(start - init);
+    auto w = static_cast<hrtime_t>(
+            std::chrono::duration_cast<std::chrono::microseconds>(waitNs)
+                    .count());
     BlockTimer::log(waitNs, "bgwait", stats.timingLog);
-    stats.bgWaitHisto.add(w);
+    stats.bgWaitHisto.add(
+            std::chrono::duration_cast<std::chrono::microseconds>(waitNs));
     stats.bgWait.fetch_add(w);
     atomic_setIfLess(stats.bgMinWait, w);
     atomic_setIfBigger(stats.bgMaxWait, w);
 
-    hrtime_t lNs =
-            std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start)
-                    .count();
-    hrtime_t l = lNs / 1000;
+    auto lNs =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
+    auto l = static_cast<hrtime_t>(
+            std::chrono::duration_cast<std::chrono::microseconds>(lNs).count());
     BlockTimer::log(lNs, "bgload", stats.timingLog);
-    stats.bgLoadHisto.add(l);
+    stats.bgLoadHisto.add(
+            std::chrono::duration_cast<std::chrono::microseconds>(lNs));
     stats.bgLoad.fetch_add(l);
     atomic_setIfLess(stats.bgMinLoad, l);
     atomic_setIfBigger(stats.bgMaxLoad, l);
