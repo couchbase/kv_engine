@@ -181,11 +181,27 @@ private:
  */
 class EphTombstoneStaleItemDeleter : public GlobalTask {
 public:
-    EphTombstoneStaleItemDeleter(EventuallyPersistentEngine* e);
+    EphTombstoneStaleItemDeleter(EventuallyPersistentEngine* e,
+                                 EphemeralBucket& bucket);
 
     bool run() override;
 
     cb::const_char_buffer getDescription() override;
 
     std::chrono::microseconds maxExpectedDuration() override;
+
+private:
+    /// How long should each chunk of stale item deleter run for?
+    std::chrono::milliseconds getChunkDuration() const;
+
+    /// The bucket we are associated with.
+    EphemeralBucket& bucket;
+
+    /// Opaque marker indicating how far through the KVBucket we have visited.
+    KVBucketIface::Position bucketPosition;
+
+    /// Vb visitor instance that deletes the stale items by visiting all
+    /// vbuckets one by one
+    std::unique_ptr<EphemeralVBucket::StaleItemDeleter>
+            staleItemDeleteVbVisitor;
 };

@@ -752,6 +752,20 @@ TEST_F(KVBucketTest, DataRaceInDoWorkerStat) {
     pool->cancel(task->getId());
 }
 
+void KVBucketTest::storeAndDeleteItem(uint16_t vbid,
+                                      const DocKey& key,
+                                      std::string value) {
+    Item item = store_item(vbid,
+                           key,
+                           value,
+                           0,
+                           {cb::engine_errc::success},
+                           PROTOCOL_BINARY_RAW_BYTES);
+
+    delete_item(vbid, key);
+    flushVBucketToDiskIfPersistent(vbid, 1);
+}
+
 // Test demonstrates MB-25948 with a subtle difference. In the MB the issue
 // says delete(key1), but in this test we use expiry. That is because using
 // ep-engine deleteItem doesn't do the system-xattr pruning (that's part of

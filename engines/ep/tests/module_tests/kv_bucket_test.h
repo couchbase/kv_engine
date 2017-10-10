@@ -92,6 +92,17 @@ public:
      */
     void delete_item(uint16_t vbid, const StoredDocKey& key);
 
+    /**
+     * Store and delete a given key
+     *
+     * @param vbid   vbucket id where the key needs to be stored
+     * @param key    key that needs to be stored and deleted
+     * @param value  value for the key
+     */
+    void storeAndDeleteItem(uint16_t vbid,
+                            const DocKey& key,
+                            std::string value);
+
     /* Evict the given key from memory according to the current eviction
      * strategy. Verifies it was successfully evicted.
      */

@@ -17,6 +17,7 @@
 
 #include "ephemeral_bucket_test.h"
 
+#include "ephemeral_bucket.h"
 #include "test_helpers.h"
 
 #include "../mock/mock_dcp_consumer.h"
@@ -176,4 +177,78 @@ TEST_F(SingleThreadedEphemeralBackfillTest, RangeIteratorVBDeleteRaceTest) {
     // Now the backfill is gone, the evb can be deleted
     EXPECT_TRUE(
             task_executor->isTaskScheduled(NONIO_TASK_IDX, vbDeleteTaskName));
+}
+
+class SingleThreadedEphemeralPurgerTest : public SingleThreadedKVBucketTest {
+protected:
+    void SetUp() override {
+        config_string +=
+                "bucket_type=ephemeral;"
+                "max_vbuckets=" + std::to_string(numVbs) + ";"
+                "ephemeral_metadata_purge_age=0;"
+                "ephemeral_metadata_purge_stale_chunk_duration=0";
+        SingleThreadedKVBucketTest::SetUp();
+
+        /* Set up 4 vbuckets */
+        for (int vbid = 0; vbid < numVbs; ++vbid) {
+            setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+        }
+    }
+
+    bool checkAllPurged(uint64_t expPurgeUpto) {
+        for (int vbid = 0; vbid < numVbs; ++vbid) {
+            if (store->getVBucket(vbid)->getPurgeSeqno() < expPurgeUpto) {
+                return false;
+            }
+        }
+        return true;
+    }
+    const int numVbs = 4;
+};
+
+TEST_F(SingleThreadedEphemeralPurgerTest, manu) {
+    /* Set 100 item in all vbuckets. We need hundred items atleast because
+       our ProgressTracker checks whether to pause only after
+       INITIAL_VISIT_COUNT_CHECK = 100 */
+    const int numItems = 100;
+    for (int vbid = 0; vbid < numVbs; ++vbid) {
+        for (int i = 0; i < numItems; ++i) {
+            const std::string key("key" + std::to_string(vbid) +
+                                  std::to_string(i));
+            store_item(vbid, makeStoredDocKey(key), "value");
+        }
+    }
+
+    /* Add and delete an item in every vbucket */
+    for (int vbid = 0; vbid < numVbs; ++vbid) {
+        const std::string key("keydelete" + std::to_string(vbid));
+        storeAndDeleteItem(vbid, makeStoredDocKey(key), "value");
+    }
+
+    /* We have added an item at seqno 100 and deleted it immediately */
+    const uint64_t expPurgeUpto = numItems + 2;
+
+    /* Add another item as we do not purge last element in the list */
+    for (int vbid = 0; vbid < numVbs; ++vbid) {
+        const std::string key("afterdelete" + std::to_string(vbid));
+        store_item(vbid, makeStoredDocKey(key), "value");
+    }
+
+    /* Run the HTCleaner task, so that we can wake up the stale item deleter */
+    EphemeralBucket* bucket = dynamic_cast<EphemeralBucket*>(store);
+    bucket->enableTombstonePurgerTask();
+    bucket->attemptToFreeMemory(); // this wakes up the HTCleaner task
+
+    auto& lpAuxioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    runNextTask(lpAuxioQ, "Eph tombstone hashtable cleaner");
+
+    /* Run the EphTombstoneStaleItemDeleter task. It we expect it to pause
+       and resume atleast once. We run it, until it purges all the deleted
+       across all the vbuckets */
+    int numPaused = -1;
+    while (!checkAllPurged(expPurgeUpto)) {
+        runNextTask(lpAuxioQ, "Eph tombstone stale item deleter");
+        ++numPaused;
+    }
+    EXPECT_GE(numPaused, 1);
 }
