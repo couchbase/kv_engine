@@ -531,18 +531,14 @@ bool KVBucket::isMetaDataResident(VBucketPtr &vb, const DocKey& key) {
 }
 
 void KVBucket::logQTime(TaskId taskType, const ProcessClock::duration enqTime) {
-    const auto ns_count =
-            std::chrono::duration_cast<std::chrono::microseconds>(enqTime)
-                    .count();
-    stats.schedulingHisto[static_cast<int>(taskType)].add(ns_count);
+    auto ms = std::chrono::duration_cast<std::chrono::microseconds>(enqTime);
+    stats.schedulingHisto[static_cast<int>(taskType)].add(ms);
 }
 
 void KVBucket::logRunTime(TaskId taskType,
                           const ProcessClock::duration runTime) {
-    const auto ns_count =
-            std::chrono::duration_cast<std::chrono::microseconds>(runTime)
-                    .count();
-    stats.taskRuntimeHisto[static_cast<int>(taskType)].add(ns_count);
+    auto ms = std::chrono::duration_cast<std::chrono::microseconds>(runTime);
+    stats.taskRuntimeHisto[static_cast<int>(taskType)].add(ms);
 }
 
 ENGINE_ERROR_CODE KVBucket::set(Item& itm,

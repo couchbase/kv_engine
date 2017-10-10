@@ -47,12 +47,6 @@ static const hrtime_t ONE_SECOND(1000000);
  */
 class EPStats {
 public:
-
-    // Histogram of ProcessClock::duration; as a unsigned value
-    // (negative durations don't make sense).
-    using ProcessDurationHistogram =
-            Histogram<std::make_unsigned<ProcessClock::duration::rep>::type>;
-
     // Thread-safe type for counting occurances of discrete,
     // non-negative entities (# events, sizes).  Relaxed memory
     // ordering (no ordeing or synchronization).
@@ -534,10 +528,10 @@ public:
     Histogram<hrtime_t> getMultiHisto;
 
     // ! Histograms of various task wait times, one per Task.
-    std::vector<ProcessDurationHistogram> schedulingHisto;
+    std::vector<MicrosecondHistogram> schedulingHisto;
 
     // ! Histograms of various task run times, one per Task.
-    std::vector<ProcessDurationHistogram> taskRuntimeHisto;
+    std::vector<MicrosecondHistogram> taskRuntimeHisto;
 
     //! Checkpoint Cursor histograms
     Histogram<hrtime_t> persistenceCursorGetItemsHisto;

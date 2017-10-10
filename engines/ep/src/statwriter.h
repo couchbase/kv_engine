@@ -84,6 +84,16 @@ struct histo_stat_adder {
     ADD_STAT add_stat;
     const void *cookie;
 };
+
+// Specialization for chrono::microseconds - needs count() calling to get
+// a raw integer which can be printed.
+template <>
+inline void histo_stat_adder<std::chrono::microseconds>::operator()(
+        const std::unique_ptr<HistogramBin<std::chrono::microseconds>>& b) {
+    std::stringstream ss;
+    ss << prefix << "_" << b->start().count() << "," << b->end().count();
+    add_casted_stat(ss.str().c_str(), b->count(), add_stat, cookie);
+}
 /// @endcond
 
 template <typename T>
