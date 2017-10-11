@@ -556,7 +556,7 @@ public:
      */
     virtual size_t getNumItems() const = 0;
 
-    size_t getNumNonResidentItems() const;
+    virtual size_t getNumNonResidentItems() const = 0;
 
     size_t getNumTempItems(void) {
         return ht.getNumTempItems();
