@@ -1422,69 +1422,71 @@ static enum test_result test_takeover_stats_num_persisted_deletes(
 
 static enum test_result test_vbucket_compact(ENGINE_HANDLE *h,
                                              ENGINE_HANDLE_V1 *h1) {
-    const char *key = "Carss";
-    const char *value = "pollute";
-    if (!verify_vbucket_missing(h, h1, 0)) {
-        fprintf(stderr, "vbucket wasn't missing.\n");
-        return FAIL;
-    }
-
-    if (!set_vbucket_state(h, h1, 0, vbucket_state_active)) {
-        fprintf(stderr, "set state failed.\n");
-        return FAIL;
-    }
-
-    check(verify_vbucket_state(h, h1, 0, vbucket_state_active),
-            "VBucket state not active");
+    const char* exp_key = "Carss";
+    const char* exp_value = "pollute";
+    const char* non_exp_key = "trees";
+    const char* non_exp_value = "cleanse";
 
     // Set two keys - one to be expired and other to remain...
+    // Set expiring key
     item *itm = NULL;
     checkeq(ENGINE_SUCCESS,
-            store(h, h1, NULL, OPERATION_SET, key, value, &itm),
-            "Failed set.");
+            store(h, h1, NULL, OPERATION_SET, exp_key, exp_value, &itm),
+            "Failed to set expiring key");
     h1->release(h, NULL, itm);
-
-    check_key_value(h, h1, key, value, strlen(value));
+    check_key_value(h, h1, exp_key, exp_value, strlen(exp_value));
 
     // Set a non-expiring key...
     checkeq(ENGINE_SUCCESS,
-            store(h, h1, NULL, OPERATION_SET, "trees", "cleanse", &itm),
-            "Failed set.");
+            store(h, h1, NULL, OPERATION_SET, non_exp_key, non_exp_value, &itm),
+            "Failed to set non-expiring key");
     h1->release(h, NULL, itm);
+    check_key_value(h, h1, non_exp_key, non_exp_value, strlen(non_exp_value));
 
-    check_key_value(h, h1, "trees", "cleanse", strlen("cleanse"));
+    // Touch expiring key with an expire time
+    const int exp_time = 11;
+    checkeq(ENGINE_SUCCESS,
+            touch(h, h1, exp_key, 0, exp_time),
+            "Touch expiring key failed");
 
-    checkeq(ENGINE_SUCCESS, touch(h, h1, key, 0, 11), "touch Carss");
+    // Move beyond expire time
+    testHarness.time_travel(exp_time + 1);
 
-    testHarness.time_travel(12);
     // Wait for the item to be expired
     wait_for_stat_to_be(h, h1, "vb_active_expired", 1);
+    const int exp_purge_seqno =
+            get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
+
+    // non_exp_key and its value should be intact...
+    checkeq(ENGINE_SUCCESS,
+            verify_key(h, h1, non_exp_key),
+            "key trees should be found.");
+    // exp_key should have disappeared...
+    ENGINE_ERROR_CODE val = verify_key(h, h1, exp_key);
+    checkeq(ENGINE_KEY_ENOENT, val, "Key Carss has not expired.");
 
     // Store a dummy item since we do not purge the item with highest seqno
     checkeq(ENGINE_SUCCESS,
-            store(h, h1, NULL, OPERATION_SET, "dummykey", "dummyvalue", &itm,
-                  0, 0, 0),
-            "Error setting.");
+            store(h, h1, NULL, OPERATION_SET, "dummykey", "dummyvalue", &itm),
+            "Error setting dummy key");
     h1->release(h, NULL, itm);
-
     wait_for_flusher_to_settle(h, h1);
 
     checkeq(0, get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno"),
             "purge_seqno not found to be zero before compaction");
 
     // Compaction on VBucket
-    compact_db(h, h1, 0, 0, 2, 3, 1);
-
+    compact_db(
+            h,
+            h1,
+            0 /* vbucket_id */,
+            0 /* db_file_id */,
+            2 /* purge_before_ts */,
+            exp_purge_seqno - 1 /* purge_before_seq */,
+            1 /* drop deletes (forces purge irrespective purge_before_seq) */);
     wait_for_stat_to_be(h, h1, "ep_pending_compactions", 0);
-
-    // the key tree and its value should be intact...
-    checkeq(ENGINE_SUCCESS, verify_key(h, h1, "trees"),
-            "key trees should be found.");
-    // the key Carrs should have disappeared...
-    ENGINE_ERROR_CODE val = verify_key(h, h1, "Carss");
-    checkeq(ENGINE_KEY_ENOENT, val, "Key Carss has not expired.");
-
-    checkeq(4, get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno"),
+    checkeq(exp_purge_seqno,
+            get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno"),
             "purge_seqno didn't match expected value");
 
     return SUCCESS;
