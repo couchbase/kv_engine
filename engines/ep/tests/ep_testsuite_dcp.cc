@@ -2304,12 +2304,9 @@ static enum test_result test_dcp_producer_keep_stream_open(ENGINE_HANDLE *h,
                                         ":num_streams");
     wait_for_stat_to_be(h, h1, stat_stream_count.c_str(), 1, "dcp");
 
-    /* Wait for the dcp stream to send upto highest seqno we have */
-    std::string stat_stream_last_sent_seqno("eq_dcpq:" + conn_name + ":stream_"
-                                            + std::to_string(vb) +
-                                            "_last_sent_seqno");
-    wait_for_stat_to_be(h, h1, stat_stream_last_sent_seqno.c_str(), num_items,
-                        "dcp");
+    /* Wait for the dcp test client to receive upto highest seqno we have */
+    Couchbase::RelaxedAtomic<uint64_t> exp_items(num_items);
+    wait_for_val_to_be("dcp_last_sent_seqno", dcp_last_byseqno, exp_items);
 
     /* Check if the stream is still open after sending out latest items */
     std::string stat_stream_state("eq_dcpq:" + conn_name + ":stream_" +
@@ -2408,12 +2405,9 @@ static enum test_result test_dcp_producer_keep_stream_open_replica(
                                         ":num_streams");
     wait_for_stat_to_be(h, h1, stat_stream_count.c_str(), 1, "dcp");
 
-    /* Wait for the dcp stream to send upto highest seqno we have */
-    std::string stat_stream_last_sent_seqno("eq_dcpq:" + conn_name1 + ":stream_"
-                                            + std::to_string(vb) +
-                                            "_last_sent_seqno");
-    wait_for_stat_to_be(h, h1, stat_stream_last_sent_seqno.c_str(),
-                        3 * num_items, "dcp");
+    /* Wait for the dcp test client to receive upto highest seqno we have */
+    Couchbase::RelaxedAtomic<uint64_t> exp_items(3 * num_items);
+    wait_for_val_to_be("dcp_last_sent_seqno", dcp_last_byseqno, exp_items);
 
     /* Check if correct snap end seqno is sent */
     std::string stat_stream_last_sent_snap_end_seqno("eq_dcpq:" + conn_name1 +
@@ -2445,7 +2439,7 @@ static enum test_result test_dcp_producer_stream_cursor_movement(
                                                         ENGINE_HANDLE *h,
                                                         ENGINE_HANDLE_V1 *h1) {
     const std::string conn_name("unittest");
-    const int num_items = 30, vb = 0;
+    const int num_items = 30;
     uint64_t curr_chkpt_id = 0;
     for (int j = 0; j < num_items; ++j) {
         if (j % 10 == 0) {
@@ -2490,12 +2484,9 @@ static enum test_result test_dcp_producer_stream_cursor_movement(
                                         ":num_streams");
     wait_for_stat_to_be(h, h1, stat_stream_count.c_str(), 1, "dcp");
 
-    /* Wait for the dcp stream to send upto highest seqno we have */
-    std::string stat_stream_last_sent_seqno("eq_dcpq:" + conn_name + ":stream_"
-                                            + std::to_string(vb) +
-                                            "_last_sent_seqno");
-    wait_for_stat_to_be(h, h1, stat_stream_last_sent_seqno.c_str(), num_items,
-                        "dcp");
+    /* Wait for the dcp test client to receive upto highest seqno we have */
+    Couchbase::RelaxedAtomic<uint64_t> exp_items(num_items);
+    wait_for_val_to_be("dcp_last_sent_seqno", dcp_last_byseqno, exp_items);
 
     /* Wait for new open (empty) checkpoint to be added */
     wait_for_stat_to_be(h, h1, "vb_0:open_checkpoint_id", curr_chkpt_id + 1,

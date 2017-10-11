@@ -17,6 +17,7 @@
 
 #include "config.h"
 
+#include <relaxed_atomic.h>
 #include <stdlib.h>
 
 #include "item.h"
@@ -37,7 +38,7 @@ uint64_t dcp_last_end_seqno;
 uint64_t dcp_last_vbucket_uuid;
 uint64_t dcp_last_snap_start_seqno;
 uint64_t dcp_last_snap_end_seqno;
-uint64_t dcp_last_byseqno;
+Couchbase::RelaxedAtomic<uint64_t> dcp_last_byseqno;
 uint64_t dcp_last_revseqno;
 uint8_t dcp_last_collection_len;
 std::string dcp_last_meta;

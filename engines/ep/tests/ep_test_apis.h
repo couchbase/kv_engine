@@ -22,6 +22,7 @@
 
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
+#include <relaxed_atomic.h>
 
 #include <map>
 #include <string>
@@ -90,7 +91,7 @@ extern uint64_t dcp_last_start_seqno;
 extern uint64_t dcp_last_end_seqno;
 extern uint64_t dcp_last_vbucket_uuid;
 extern uint64_t dcp_last_high_seqno;
-extern uint64_t dcp_last_byseqno;
+extern Couchbase::RelaxedAtomic<uint64_t> dcp_last_byseqno;
 extern uint64_t dcp_last_revseqno;
 extern uint64_t dcp_last_snap_start_seqno;
 extern uint64_t dcp_last_snap_end_seqno;
@@ -561,6 +562,31 @@ void wait_for_stat_to_be(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
             break;
         }
         accumulator.incrementAndAbortIfLimitReached(current, sleepTime);
+        decayingSleep(&sleepTime);
+    }
+}
+
+/**
+ * Function that does an exponential wait for a 'val' to reach 'expected'
+ *
+ * @param val_description description for debug log purpose
+ * @param val reference to the variable which is waited upon
+ * @param expected final value of 'val'
+ * @param max_wait_time_in_secs max wait time; default 60 seconds
+ */
+template <typename T>
+void wait_for_val_to_be(const char* val_description,
+                        T& val,
+                        const T expected,
+                        const time_t max_wait_time_in_secs = 60) {
+    useconds_t sleepTime = 128;
+    WaitTimeAccumulator<T> accumulator(
+            "to be", val_description, nullptr, expected, max_wait_time_in_secs);
+    for (;;) {
+        if (val == expected) {
+            break;
+        }
+        accumulator.incrementAndAbortIfLimitReached(val, sleepTime);
         decayingSleep(&sleepTime);
     }
 }
