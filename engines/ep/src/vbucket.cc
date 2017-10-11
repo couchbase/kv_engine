@@ -471,18 +471,6 @@ bool VBucket::addPendingOp(const void* cookie) {
     return true;
 }
 
-size_t VBucket::getNumNonResidentItems() const {
-    if (eviction == VALUE_ONLY) {
-        return ht.getNumInMemoryNonResItems();
-    } else {
-        size_t num_items = ht.getNumItems();
-        size_t num_res_items = ht.getNumInMemoryItems() -
-                               ht.getNumInMemoryNonResItems();
-        return num_items > num_res_items ? (num_items - num_res_items) : 0;
-    }
-}
-
-
 uint64_t VBucket::getPersistenceCheckpointId() const {
     return persistenceCheckpointId.load();
 }

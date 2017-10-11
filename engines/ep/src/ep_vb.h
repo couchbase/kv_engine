@@ -71,6 +71,8 @@ public:
 
     size_t getNumItems() const override;
 
+    size_t getNumNonResidentItems() const override;
+
     ENGINE_ERROR_CODE statsVKey(const DocKey& key,
                                 const void* cookie,
                                 EventuallyPersistentEngine& engine,
