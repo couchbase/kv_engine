@@ -165,6 +165,7 @@ public:
 
     void testDcpCreateDelete(int expectedCreates,
                              int expectedDeletes,
+                             int expectedMutations,
                              bool fromMemory = true);
 
     void resetEngineAndWarmup() {
@@ -327,10 +328,11 @@ TEST_F(CollectionsDcpTest, test_dcp) {
 
 void CollectionsDcpTest::testDcpCreateDelete(int expectedCreates,
                                              int expectedDeletes,
+                                             int expectedMutations,
                                              bool fromMemory) {
     notifyAndStepToCheckpoint(fromMemory);
 
-    int creates = 0, deletes = 0;
+    int creates = 0, deletes = 0, mutations = 0;
     // step until done
     while (ENGINE_WANT_MORE == producer->step(producers.get())) {
         if (dcp_last_op == PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT) {
@@ -346,11 +348,14 @@ void CollectionsDcpTest::testDcpCreateDelete(int expectedCreates,
                 break;
             }
             }
+        } else if (dcp_last_op == PROTOCOL_BINARY_CMD_DCP_MUTATION) {
+            mutations++;
         }
     }
 
     EXPECT_EQ(expectedCreates, creates);
     EXPECT_EQ(expectedDeletes, deletes);
+    EXPECT_EQ(expectedMutations, mutations);
 
     // Finally check that the active and replica have the same manifest, our
     // BeginDeleteCollection should of contained enough information to form
@@ -360,47 +365,52 @@ void CollectionsDcpTest::testDcpCreateDelete(int expectedCreates,
 
 // Test that a create/delete don't dedup (collections creates new checkpoints)
 TEST_F(CollectionsDcpTest, test_dcp_create_delete) {
-    VBucketPtr vb = store->getVBucket(vbid);
-    // Create dairy
-    vb->updateFromManifest({R"({"separator":"::",
+    const int items = 3;
+    {
+        VBucketPtr vb = store->getVBucket(vbid);
+        // Create dairy
+        vb->updateFromManifest({R"({"separator":"::",
               "collections":[{"name":"$default", "uid":"0"},
                              {"name":"fruit","uid":"1"},
                              {"name":"dairy","uid":"1"}]})"});
 
-    // Mutate dairy
-    const int items = 3;
-    for (int ii = 0; ii < items; ii++) {
-        std::string key = "dairy::" + std::to_string(ii);
-        store_item(vbid, {key, DocNamespace::Collections}, "value");
-    }
+        // Mutate dairy
+        for (int ii = 0; ii < items; ii++) {
+            std::string key = "dairy::" + std::to_string(ii);
+            store_item(vbid, {key, DocNamespace::Collections}, "value");
+        }
 
-    // Delete dairy
-    vb->updateFromManifest({R"({"separator":"::",
+        // Mutate fruit
+        for (int ii = 0; ii < items; ii++) {
+            std::string key = "fruit::" + std::to_string(ii);
+            store_item(vbid, {key, DocNamespace::Collections}, "value");
+        }
+
+        // Delete dairy
+        vb->updateFromManifest({R"({"separator":"::",
               "collections":[{"name":"$default", "uid":"0"},
                              {"name":"fruit","uid":"1"}]})"});
 
-    // Persist everything ready for warmup and check.
-    // Flusher will merge create/delete and we only flush the delete
-    flush_vbucket_to_disk(0, items + 2);
+        // Persist everything ready for warmup and check.
+        // Flusher will merge create/delete and we only flush the delete
+        flush_vbucket_to_disk(0, (2 * items) + 2);
 
-    // We will see create fruit/dairy and delete dairy (from another CP)
-    testDcpCreateDelete(2, 1);
+        // We will see create fruit/dairy and delete dairy (from another CP)
+        // In-memory stream will also see all 2*items mutations (ordered with
+        // create
+        // and delete)
+        testDcpCreateDelete(2, 1, (2 * items));
+    }
 
-    /*
-        @todo enable disk part of this test. Logically deleted collections are
-        still streaming from backfill, meaning we send delete with no create to
-        replica triggering an exception.
+    resetEngineAndWarmup();
 
-        resetEngineAndWarmup();
+    createDcpObjects({}, true); // from disk
 
-        createDcpObjects({}, true); // from disk
+    // Streamed from disk, one create (create of fruit) and items of fruit
+    testDcpCreateDelete(1, 0, items, false);
 
-        // Streamed from disk, one create and one delete
-        testDcpCreateDelete(1, 1, false);
-
-        EXPECT_TRUE(store->getVBucket(vbid)
-            ->lockCollections().isCollectionOpen("fruit"));
-    */
+    EXPECT_TRUE(store->getVBucket(vbid)->lockCollections().isCollectionOpen(
+            "fruit"));
 }
 
 // Test that a create/delete don't dedup (collections creates new checkpoints)
@@ -433,16 +443,16 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_create) {
         flush_vbucket_to_disk(0, items + 1);
 
         // Should see 2x create dairy and 1x delete dairy
-        testDcpCreateDelete(2, 1);
+        testDcpCreateDelete(2, 1, items);
     }
 
     resetEngineAndWarmup();
 
     createDcpObjects({}, true /* from disk*/);
 
-    // Streamed from disk, we won't see the 2x create event (only 1) or the
-    // intermediate delete
-    testDcpCreateDelete(1, 0, false);
+    // Streamed from disk, we won't see the 2x create events or the intermediate
+    // delete. So check DCP sends only 1 collection create.
+    testDcpCreateDelete(1, 0, 0, false);
 
     EXPECT_TRUE(store->getVBucket(vbid)->lockCollections().isCollectionOpen(
             "dairy"));
@@ -473,7 +483,7 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_create2) {
         // Flusher will merge create/delete and we only flush the delete
         flush_vbucket_to_disk(0, items + 1);
 
-        testDcpCreateDelete(2, 1);
+        testDcpCreateDelete(2, 1, 3);
     }
 
     resetEngineAndWarmup();
@@ -481,7 +491,7 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_create2) {
     createDcpObjects({}, true /* from disk*/);
 
     // Streamed from disk, we won't see the first create or delete
-    testDcpCreateDelete(1, 0, false);
+    testDcpCreateDelete(1, 0, 0, false);
 
     EXPECT_TRUE(store->getVBucket(vbid)->lockCollections().isCollectionOpen(
             "dairy"));
