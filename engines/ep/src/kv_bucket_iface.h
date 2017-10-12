@@ -642,15 +642,6 @@ public:
      */
     virtual bool isMemoryUsageTooHigh() = 0;
 
-    /**
-     * Flushes all items waiting for persistence in a given vbucket
-     * @param vbid The id of the vbucket to flush
-     * @return The number of items flushed
-     */
-    virtual int flushVBucket(uint16_t vbid) = 0;
-
-    virtual void commit(KVStore& kvstore, const Item* collectionsManifest) = 0;
-
     virtual void addKVStoreStats(ADD_STAT add_stat, const void* cookie) = 0;
 
     virtual void addKVStoreTimingStats(ADD_STAT add_stat,
@@ -786,10 +777,6 @@ protected:
 
     virtual void warmupCompleted() = 0;
     virtual void stopWarmup(void) = 0;
-
-    virtual void flushOneDeleteAll(void) = 0;
-    virtual PersistenceCallback* flushOneDelOrSet(const queued_item &qi,
-                                                  VBucketPtr &vb) = 0;
 
     virtual GetValue getInternal(const DocKey& key, uint16_t vbucket,
                                  const void *cookie,

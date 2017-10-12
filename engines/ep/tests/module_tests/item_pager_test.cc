@@ -158,7 +158,7 @@ protected:
 
         // Ensure items are flushed to disk (so we can evict them).
         if (std::get<0>(GetParam()) == "persistent") {
-            store->flushVBucket(vbid);
+            getEPBucket().flushVBucket(vbid);
         }
 
         return count;
@@ -241,7 +241,7 @@ protected:
 
         // Ensure any deletes are flushed to disk (so item counts are accurate).
         if (std::get<0>(GetParam()) == "persistent") {
-            store->flushVBucket(vbid);
+            getEPBucket().flushVBucket(vbid);
         }
     }
 
@@ -313,7 +313,7 @@ TEST_P(STItemPagerTest, ExpiredItemsDeletedFirst) {
     // Ensure deletes are flushed to disk (so any temp items removed from
     // HashTable).
     if (std::get<0>(GetParam()) == "persistent") {
-        store->flushVBucket(vbid);
+        getEPBucket().flushVBucket(vbid);
     }
 
     // Check which items remain. We should have deleted all of the items with
@@ -463,7 +463,7 @@ void STExpiryPagerTest::expiredItemsDeleted() {
     }
 
     if (std::get<0>(GetParam()) == "persistent") {
-        EXPECT_EQ(3, store->flushVBucket(vbid));
+        EXPECT_EQ(3, getEPBucket().flushVBucket(vbid));
     }
 
     // Sanity check - should have not hit high watermark (otherwise the
@@ -480,7 +480,7 @@ void STExpiryPagerTest::expiredItemsDeleted() {
 
     wakeUpExpiryPager();
     if (std::get<0>(GetParam()) == "persistent") {
-        EXPECT_EQ(1, store->flushVBucket(vbid));
+        EXPECT_EQ(1, getEPBucket().flushVBucket(vbid));
     }
 
     EXPECT_EQ(2, engine->getVBucket(vbid)->getNumItems())
@@ -511,7 +511,7 @@ void STExpiryPagerTest::expiredItemsDeleted() {
 
     wakeUpExpiryPager();
     if (std::get<0>(GetParam()) == "persistent") {
-        EXPECT_EQ(1, store->flushVBucket(vbid));
+        EXPECT_EQ(1, getEPBucket().flushVBucket(vbid));
     }
 
     // Should only be 1 item remaining.
@@ -691,7 +691,7 @@ TEST_P(STPersistentExpiryPagerTest, MB_25931) {
             PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_XATTR);
     ASSERT_EQ(ENGINE_SUCCESS, storeItem(item));
 
-    EXPECT_EQ(1, store->flushVBucket(vbid));
+    EXPECT_EQ(1, getEPBucket().flushVBucket(vbid));
 
     const char* msg;
     EXPECT_EQ(ENGINE_SUCCESS, store->evictKey(key, vbid, &msg));
@@ -705,7 +705,7 @@ TEST_P(STPersistentExpiryPagerTest, MB_25931) {
 
     wakeUpExpiryPager();
 
-    EXPECT_EQ(1, store->flushVBucket(vbid));
+    EXPECT_EQ(1, getEPBucket().flushVBucket(vbid));
 }
 
 // Test that expiring a non-resident item works (and item counts are correct).
@@ -717,7 +717,7 @@ TEST_P(STPersistentExpiryPagerTest, MB_25991_ExpiryNonResident) {
     ASSERT_EQ(ENGINE_SUCCESS, storeItem(item));
 
     if (std::get<0>(GetParam()) == "persistent") {
-        EXPECT_EQ(1, store->flushVBucket(vbid));
+        EXPECT_EQ(1, getEPBucket().flushVBucket(vbid));
     }
 
     // Sanity check - should have not hit high watermark (otherwise the
@@ -739,7 +739,7 @@ TEST_P(STPersistentExpiryPagerTest, MB_25991_ExpiryNonResident) {
 
     wakeUpExpiryPager();
     if (std::get<0>(GetParam()) == "persistent") {
-        EXPECT_EQ(1, store->flushVBucket(vbid));
+        EXPECT_EQ(1, getEPBucket().flushVBucket(vbid));
     }
 
     EXPECT_EQ(0, engine->getVBucket(vbid)->getNumItems())

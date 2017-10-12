@@ -60,7 +60,7 @@ class RollbackTest : public EPBucketTest,
                                   "dummy");
             ASSERT_EQ(ii, res.getBySeqno());
         }
-        ASSERT_EQ(dummy_elements, store->flushVBucket(vbid));
+        ASSERT_EQ(dummy_elements, getEPBucket().flushVBucket(vbid));
         initial_seqno = dummy_elements;
     }
 
@@ -86,7 +86,7 @@ protected:
         StoredDocKey a = makeStoredDocKey("key");
         auto item_v1 = store_item(vbid, a, "1");
         ASSERT_EQ(initial_seqno + 1, item_v1.getBySeqno());
-        ASSERT_EQ(1, store->flushVBucket(vbid));
+        ASSERT_EQ(1, getEPBucket().flushVBucket(vbid));
         uint64_t cas = item_v1.getCas();
         ASSERT_EQ(ENGINE_SUCCESS,
                   store->deleteItem(a,
@@ -96,7 +96,7 @@ protected:
                                     /*itemMeta*/ nullptr,
                                     /*mutation_descr_t*/ nullptr));
         if (flush_before_rollback) {
-            ASSERT_EQ(1, store->flushVBucket(vbid));
+            ASSERT_EQ(1, getEPBucket().flushVBucket(vbid));
         }
         // Sanity-check - item should no longer exist.
         EXPECT_EQ(ENGINE_KEY_ENOENT,
@@ -114,7 +114,7 @@ protected:
                 << "Fetched item after rollback should match item_v1";
 
         if (!flush_before_rollback) {
-            EXPECT_EQ(0, store->flushVBucket(vbid));
+            EXPECT_EQ(0, getEPBucket().flushVBucket(vbid));
         }
     }
 
@@ -125,7 +125,7 @@ protected:
         StoredDocKey a = makeStoredDocKey("a");
         auto item_v1 = store_item(vbid, a, "old");
         ASSERT_EQ(initial_seqno + 1, item_v1.getBySeqno());
-        ASSERT_EQ(1, store->flushVBucket(vbid));
+        ASSERT_EQ(1, getEPBucket().flushVBucket(vbid));
 
         auto item2 = store_item(vbid, a, "new");
         ASSERT_EQ(initial_seqno + 2, item2.getBySeqno());
@@ -134,7 +134,7 @@ protected:
         store_item(vbid, key, "meh");
 
         if (flush_before_rollback) {
-            EXPECT_EQ(2, store->flushVBucket(vbid));
+            EXPECT_EQ(2, getEPBucket().flushVBucket(vbid));
         }
 
         // Test - rollback to seqno of item_v1 and verify that the previous value
@@ -161,7 +161,7 @@ protected:
 
         if (!flush_before_rollback) {
             // The rollback should of wiped out any keys waiting for persistence
-            EXPECT_EQ(0, store->flushVBucket(vbid));
+            EXPECT_EQ(0, getEPBucket().flushVBucket(vbid));
         }
     }
 
@@ -179,21 +179,21 @@ protected:
         }
         // the roll back function will rewind disk to key7.
         auto rollback_item = store_item(vbid, makeStoredDocKey("key7"), "dontcare");
-        ASSERT_EQ(7, store->flushVBucket(vbid));
+        ASSERT_EQ(7, getEPBucket().flushVBucket(vbid));
 
         // every key past this point will be lost from disk in a mid-point.
         auto item_v1 = store_item(vbid, makeStoredDocKey("rollback-cp-1"), "keep-me");
         auto item_v2 = store_item(vbid, makeStoredDocKey("rollback-cp-2"), "rollback to me");
         store_item(vbid, makeStoredDocKey("rollback-cp-3"), "i'm gone");
         auto rollback = item_v2.getBySeqno(); // ask to rollback to here.
-        ASSERT_EQ(3, store->flushVBucket(vbid));
+        ASSERT_EQ(3, getEPBucket().flushVBucket(vbid));
 
         for (int i = 0; i < 3; i++) {
             store_item(vbid, makeStoredDocKey("anotherkey_" + std::to_string(i)), "dontcare");
         }
 
         if (flush_before_rollback) {
-            ASSERT_EQ(3, store->flushVBucket(vbid));
+            ASSERT_EQ(3, getEPBucket().flushVBucket(vbid));
         }
 
 
@@ -265,7 +265,7 @@ TEST_P(RollbackTest, RollbackToMiddleOfAnUnPersistedSnapshot) {
     auto rollback_item =
             store_item(vbid, makeStoredDocKey("key11"), "rollback pt");
 
-    ASSERT_EQ(numItems + 1, store->flushVBucket(vbid));
+    ASSERT_EQ(numItems + 1, getEPBucket().flushVBucket(vbid));
 
     /* Keys to be lost in rollback */
     auto item_v1 = store_item(
@@ -654,7 +654,7 @@ TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
      * */
     store_item(vbid, makeStoredDocKey("key"), "value");
 
-    EXPECT_EQ(1, store->flushVBucket(vbid));
+    EXPECT_EQ(1, getEPBucket().flushVBucket(vbid));
 
     auto& ckpt_mgr = *vb->checkpointManager;
     ckpt_mgr.createNewCheckpoint();
