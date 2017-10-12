@@ -1715,6 +1715,7 @@ public:
                         ++vbucket->opsCreate;
                         vbucket->incrMetaDataDisk(*queuedItem);
                     } else { // Update in full eviction mode.
+                        vbucket->ht.decrNumTotalItems();
                         ++vbucket->opsUpdate;
                     }
 
@@ -1784,10 +1785,6 @@ public:
                 "DELETE on vb:%" PRIu16, queuedItem->getVBucketId());
             redirty();
         }
-    }
-
-    VBucketPtr& getVBucket() {
-        return vbucket;
     }
 
 private:
@@ -2085,22 +2082,6 @@ void KVBucket::commit(KVStore& kvstore, const Item* collectionsManifest) {
         LOG(EXTENSION_LOG_WARNING,
             "KVBucket::commit: kvstore.commit failed!!! Retry in 1 sec...");
         sleep(1);
-    }
-
-    //Update the total items in the case of full eviction
-    if (getItemEvictionPolicy() == FULL_EVICTION) {
-        std::unordered_set<uint16_t> vbSet;
-        for (auto pcbIter : pcbs) {
-            PersistenceCallback *pcb = pcbIter;
-            VBucketPtr& vb = pcb->getVBucket();
-            uint16_t vbid = vb->getId();
-            auto found = vbSet.find(vbid);
-            if (found == vbSet.end()) {
-                vbSet.insert(vbid);
-                vb->ht.setNumTotalItems(
-                        getRWUnderlying(vbid)->getItemCount(vbid));
-            }
-        }
     }
 
     while (!pcbs.empty()) {
