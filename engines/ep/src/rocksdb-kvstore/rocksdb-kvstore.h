@@ -55,20 +55,9 @@ class VbidSeqnoComparator : public rocksdb::Comparator {
 public:
     int Compare(const rocksdb::Slice& a,
                 const rocksdb::Slice& b) const override {
-        const auto vbidA = *reinterpret_cast<const uint16_t*>(a.data());
-        const auto vbidB = *reinterpret_cast<const uint16_t*>(b.data());
+        const auto seqnoA = *reinterpret_cast<const int64_t*>(a.data());
+        const auto seqnoB = *reinterpret_cast<const int64_t*>(b.data());
 
-        const auto seqnoA =
-                *reinterpret_cast<const int64_t*>(a.data() + sizeof(uint16_t));
-        const auto seqnoB =
-                *reinterpret_cast<const int64_t*>(b.data() + sizeof(uint16_t));
-
-        if (vbidA < vbidB) {
-            return -1;
-        }
-        if (vbidA > vbidB) {
-            return +1;
-        }
         if (seqnoA < seqnoB) {
             return -1;
         }
@@ -98,6 +87,7 @@ public:
 };
 
 class RocksRequest;
+class KVRocksDB;
 struct KVStatsCtx;
 
 /**
@@ -294,31 +284,56 @@ public:
     }
 
 private:
-    /**
-     * Direct access to the DB.
-     */
-    std::unique_ptr<rocksdb::DB> db;
+    // This is used for synchonization in `openDB` to avoid that we open two
+    // `rocksdb::DB` instances on the same DB (e.g., this would be possible
+    // when we `Flush` and `Warmup` run in parallel).
+    std::mutex openDBMutex;
+    // We cannot open two `rocksdb::DB` instances on the same DB.
+    // From the RocksDB documentation:
+    //     "A database may only be opened by one process at a time. The rocksdb
+    //      implementation acquires a lock from the operating system to prevent
+    //      misuse. Within a single process, the same rocksdb::DB object may be
+    //      safely shared by multiple concurrent threads".
+    // Thus, we put an entry in this vector at position `vbid` when we `openDB`
+    // for a VBucket for the first time. Then, further calls to `openDB(vbid)`
+    // return the pointer stored in this vector. An entry is removed only when
+    // `delVBucket(vbid)`.
+    std::vector<std::unique_ptr<KVRocksDB>> vbDB;
 
     VbidSeqnoComparator vbidSeqnoComparator;
-    std::unique_ptr<rocksdb::ColumnFamilyHandle> defaultFamilyHandle;
-    std::unique_ptr<rocksdb::ColumnFamilyHandle> seqnoFamilyHandle;
-    std::unique_ptr<rocksdb::ColumnFamilyHandle> localFamilyHandle;
 
     rocksdb::Options rdbOptions;
     rocksdb::ColumnFamilyOptions defaultCFOptions;
     rocksdb::ColumnFamilyOptions seqnoCFOptions;
     rocksdb::ColumnFamilyOptions localCFOptions;
 
-    void open();
+    /*
+     * This function returns an instance of `KVRocksDB` for the given `vbid`.
+     * The DB for `vbid` is created if it does not exist.
+     *
+     * @param vbid vbucket id for the vbucket DB to open
+     */
+    const KVRocksDB& openDB(uint16_t vbid);
 
-    void close();
+    /*
+     * The DB for each VBucket is created in a separated subfolder of
+     * `configuration.getDBName()`. This function returns the path of the DB
+     * subfolder for the given `vbid`.
+     *
+     * @param vbid vbucket id for the vbucket DB subfolder to return
+     */
+    std::string getVBDBSubdir(uint16_t vbid);
 
-    std::string mkKeyStr(uint16_t, const DocKey& k);
-    rocksdb::SliceParts mkKeySliceParts(uint16_t, const DocKey& k);
-    void grokKeySlice(const rocksdb::Slice&, uint16_t*, std::string*);
+    /*
+     * This function returns a vector of Vbucket IDs that already exist on
+     * disk. The function considers only the Vbuckets managed by the current
+     * Shard.
+     */
+    std::vector<uint16_t> discoverVBuckets();
 
-    std::string mkSeqnoStr(uint16_t vb, int64_t seqno);
-    void grokSeqnoSlice(const rocksdb::Slice&, uint16_t* vb, int64_t* seqno);
+    rocksdb::Slice getKeySlice(const DocKey& key);
+    rocksdb::Slice getSeqnoSlice(const int64_t& seqno);
+    int64_t getNumericSeqno(const rocksdb::Slice& seqnoSlice);
 
     std::unique_ptr<Item> makeItem(uint16_t vb,
                                    const DocKey& key,
@@ -330,16 +345,18 @@ private:
                           const std::string& value,
                           GetMetaOnly getMetaOnly = GetMetaOnly::No);
 
-    void readVBState(uint16_t vbid);
+    void readVBState(const KVRocksDB& db);
 
-    rocksdb::Status saveVBState(const vbucket_state& vbState, uint16_t vbid);
+    rocksdb::Status saveVBState(const KVRocksDB& db,
+                                const vbucket_state& vbState);
 
     rocksdb::Status saveDocs(
             uint16_t vbid,
             const Item* collectionsManifest,
             const std::vector<std::unique_ptr<RocksRequest>>& commitBatch);
 
-    rocksdb::Status addRequestToWriteBatch(rocksdb::WriteBatch& batch,
+    rocksdb::Status addRequestToWriteBatch(const KVRocksDB& db,
+                                           rocksdb::WriteBatch& batch,
                                            RocksRequest* request);
 
     void commitCallback(
@@ -347,9 +364,9 @@ private:
             rocksdb::Status status,
             const std::vector<std::unique_ptr<RocksRequest>>& commitBatch);
 
-    int64_t readHighSeqnoFromDisk(uint16_t vbid);
+    int64_t readHighSeqnoFromDisk(const KVRocksDB& db);
 
-    std::string getVbstatePrefix();
+    std::string getVbstateKey();
 
     // Used for queueing mutation requests (in `set` and `del`) and flushing
     // them to disk (in `commit`).

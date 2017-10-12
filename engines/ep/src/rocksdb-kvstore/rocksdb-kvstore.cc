@@ -26,6 +26,7 @@
 
 #include <rocksdb/convenience.h>
 
+#include <stdio.h>
 #include <string.h>
 #include <algorithm>
 #include <limits>
@@ -136,21 +137,60 @@ private:
     value_t docBody;
 };
 
+using RDBPtr = std::unique_ptr<rocksdb::DB>;
+// RocksDB docs suggest to "Use `rocksdb::DB::DestroyColumnFamilyHandle()` to
+// close a column family instead of deleting the column family handle directly"
+struct ColumnFamilyDeleter {
+    ColumnFamilyDeleter(rocksdb::DB& db) : db(db) {
+    }
+    void operator()(rocksdb::ColumnFamilyHandle* cfh) {
+        db.DestroyColumnFamilyHandle(cfh);
+    }
+
+private:
+    rocksdb::DB& db;
+};
+using ColumnFamilyPtr =
+        std::unique_ptr<rocksdb::ColumnFamilyHandle, ColumnFamilyDeleter>;
+
+// The `KVRocksDB` class is a wrapper around an instance of `rocksdb::DB` and
+// the linked Column Family pointers (which are usually used together).
+// Also, this class guarantees that all resources are released when the
+// `rocksdb::DB` instance is destroyed. From RocksDB docs:
+//     "Before delete DB, you have to close All column families by calling
+//      DestroyColumnFamilyHandle() with all the handles."
+class KVRocksDB {
+public:
+    KVRocksDB(rocksdb::DB* rdb,
+              rocksdb::ColumnFamilyHandle* defaultCFH,
+              rocksdb::ColumnFamilyHandle* seqnoCFH,
+              rocksdb::ColumnFamilyHandle* localCFH,
+              uint16_t vbid)
+        : rdb(RDBPtr(rdb)),
+          defaultCFH(ColumnFamilyPtr(defaultCFH, *rdb)),
+          seqnoCFH(ColumnFamilyPtr(seqnoCFH, *rdb)),
+          localCFH(ColumnFamilyPtr(localCFH, *rdb)),
+          vbid(vbid) {
+    }
+
+    const RDBPtr rdb;
+    const ColumnFamilyPtr defaultCFH;
+    const ColumnFamilyPtr seqnoCFH;
+    const ColumnFamilyPtr localCFH;
+    const uint16_t vbid;
+};
+
 RocksDBKVStore::RocksDBKVStore(KVStoreConfig& config)
     : KVStore(config),
+      vbDB(configuration.getMaxVBuckets()),
       in_transaction(false),
       scanCounter(0),
       logger(config.getLogger()) {
     cachedVBStates.resize(configuration.getMaxVBuckets());
     writeOptions.sync = true;
-    open();
-}
 
-RocksDBKVStore::~RocksDBKVStore() {
-    close();
-}
+    createDataDir(configuration.getDBName());
 
-void RocksDBKVStore::open() {
     // The RocksDB Options is a set of DBOptions and ColumnFamilyOptions.
     // Together they cover all RocksDB available parameters.
     auto status = rocksdb::GetDBOptionsFromString(
@@ -228,55 +268,75 @@ void RocksDBKVStore::open() {
             ObjectRegistry::getCurrentEngine());
     rdbOptions.listeners.emplace_back(fsl);
 
-    const std::string dbdir = configuration.getDBName();
+    // Read persisted VBs state
+    auto vbids = discoverVBuckets();
+    for (auto vbid : vbids) {
+        auto& db = openDB(vbid);
+        readVBState(db);
+        // Update stats
+        ++st.numLoadedVb;
+    }
+}
 
-    cb::io::mkdirp(dbdir);
+RocksDBKVStore::~RocksDBKVStore() {
+    in_transaction = false;
+}
 
-    const std::string dbname =
-            dbdir + "/rocksdb." + std::to_string(configuration.getShardId());
+const KVRocksDB& RocksDBKVStore::openDB(uint16_t vbid) {
+    // This lock is to avoid 2 different threads (e.g., `Flush` and
+    // `Warmup`) to open multiple `rocksdb::DB` instances on the same DB.
+    std::lock_guard<std::mutex> lg(openDBMutex);
+
+    if (vbDB[vbid]) {
+        return *vbDB[vbid];
+    }
+
+    auto dbname = getVBDBSubdir(vbid);
 
     std::vector<rocksdb::ColumnFamilyDescriptor> families{
             rocksdb::ColumnFamilyDescriptor(rocksdb::kDefaultColumnFamilyName,
                                             defaultCFOptions),
-
             rocksdb::ColumnFamilyDescriptor("vbid_seqno_to_key",
                                             seqnoCFOptions),
             rocksdb::ColumnFamilyDescriptor("_local", localCFOptions)};
 
     std::vector<rocksdb::ColumnFamilyHandle*> handles;
 
-    rocksdb::DB* dbPtr;
-    rocksdb::Status s =
-            rocksdb::DB::Open(rdbOptions, dbname, families, &handles, &dbPtr);
-
-    if (s.ok()) {
-        db.reset(dbPtr);
-    } else {
+    rocksdb::DB* db;
+    auto status =
+            rocksdb::DB::Open(rdbOptions, dbname, families, &handles, &db);
+    if (!status.ok()) {
         throw std::runtime_error(
                 "RocksDBKVStore::open: failed to open database '" + dbname +
-                "': " + s.ToString());
+                "': " + status.getState());
     }
 
-    defaultFamilyHandle.reset(handles[0]);
-    seqnoFamilyHandle.reset(handles[1]);
-    localFamilyHandle.reset(handles[2]);
+    vbDB[vbid] = std::make_unique<KVRocksDB>(
+            db, handles[0], handles[1], handles[2], vbid);
 
-    // Attempt to read persisted vb states
-    std::unique_ptr<rocksdb::Iterator> it(
-            db->NewIterator(rocksdb::ReadOptions(), localFamilyHandle.get()));
-    for (it->SeekToFirst(); it->Valid(); it->Next()) {
-        uint16_t vb = std::stoi(it->key().ToString().substr(
-                getVbstatePrefix().length(), std::string::npos));
-        readVBState(vb);
-    }
+    return *vbDB[vbid];
 }
 
-void RocksDBKVStore::close() {
-    defaultFamilyHandle.reset();
-    seqnoFamilyHandle.reset();
-    localFamilyHandle.reset();
-    db.reset();
-    in_transaction = false;
+std::string RocksDBKVStore::getVBDBSubdir(uint16_t vbid) {
+    return configuration.getDBName() + "/rocksdb." + std::to_string(vbid);
+}
+
+std::vector<uint16_t> RocksDBKVStore::discoverVBuckets() {
+    std::vector<uint16_t> vbids;
+    auto vbDirs =
+            cb::io::findFilesContaining(configuration.getDBName(), "rocksdb.");
+    for (auto& dir : vbDirs) {
+        size_t lastDotIndex = dir.rfind(".");
+        size_t vbidLength = dir.size() - lastDotIndex - 1;
+        std::string vbidStr = dir.substr(lastDotIndex + 1, vbidLength);
+        uint16_t vbid = atoi(vbidStr.c_str());
+        // Take in account only VBuckets managed by this Shard
+        if ((vbid % configuration.getMaxShards()) ==
+            configuration.getShardId()) {
+            vbids.push_back(vbid);
+        }
+    }
+    return vbids;
 }
 
 bool RocksDBKVStore::begin() {
@@ -428,11 +488,11 @@ GetValue RocksDBKVStore::getWithHeader(void* dbHandle,
                                        uint16_t vb,
                                        GetMetaOnly getMetaOnly,
                                        bool fetchDelete) {
-    std::string k(mkKeyStr(vb, key));
     std::string value;
-
+    auto& db = openDB(vb);
     // TODO RDB: use a PinnableSlice to avoid some memcpy
-    rocksdb::Status s = db->Get(rocksdb::ReadOptions(), k, &value);
+    rocksdb::Slice keySlice = getKeySlice(key);
+    rocksdb::Status s = db.rdb->Get(rocksdb::ReadOptions(), keySlice, &value);
     if (!s.ok()) {
         return GetValue{NULL, ENGINE_KEY_ENOENT};
     }
@@ -443,9 +503,11 @@ void RocksDBKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t& itms) {
     // TODO RDB: RocksDB supports a multi get which we should use here.
     for (auto& it : itms) {
         auto& key = it.first;
-        std::string vbAndKey(mkKeyStr(vb, it.first));
+        rocksdb::Slice keySlice = getKeySlice(key);
         std::string value;
-        rocksdb::Status s = db->Get(rocksdb::ReadOptions(), vbAndKey, &value);
+        auto& db = openDB(vb);
+        rocksdb::Status s =
+                db.rdb->Get(rocksdb::ReadOptions(), keySlice, &value);
         if (s.ok()) {
             it.second.value =
                     makeGetValue(vb, key, value, it.second.isMetaOnly);
@@ -462,9 +524,7 @@ void RocksDBKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t& itms) {
 }
 
 void RocksDBKVStore::reset(uint16_t vbucketId) {
-    if (db) {
-        // TODO RDB:  Implement.
-    }
+    // TODO RDB:  Implement.
 }
 
 void RocksDBKVStore::del(const Item& item, Callback<int>& cb) {
@@ -480,36 +540,21 @@ void RocksDBKVStore::del(const Item& item, Callback<int>& cb) {
     pendingReqs.push_back(std::make_unique<RocksRequest>(item, callback));
 }
 
-static bool matches_prefix(rocksdb::Slice s, size_t len, const char* p) {
-    return s.size() >= len && std::memcmp(p, s.data(), len) == 0;
-}
-
-void RocksDBKVStore::delVBucket(uint16_t vb, uint64_t vb_version) {
+void RocksDBKVStore::delVBucket(uint16_t vbid, uint64_t vb_version) {
     std::lock_guard<std::mutex> lg(writeLock);
-    rocksdb::WriteBatch delBatch;
-
-    const char* prefix(reinterpret_cast<const char*>(&vb));
-    std::string start(prefix, sizeof(vb));
-
-    // We must delete both all the documents for the VB,
-    // and all the vbid:seqno=>vbid:key mappings
-    std::vector<rocksdb::ColumnFamilyHandle*> CFHandles{
-            defaultFamilyHandle.get(), seqnoFamilyHandle.get()};
-
-    // makes use of the fact that keys in both CFs are vbid prefixed
-    // if we move to a db per vb this will just be dropping the whole DB.
-    for (auto* handle : CFHandles) {
-        std::unique_ptr<rocksdb::Iterator> it(
-                db->NewIterator(rocksdb::ReadOptions(), handle));
-
-        for (it->Seek(start);
-             it->Valid() && matches_prefix(it->key(), sizeof(vb), prefix);
-             it->Next()) {
-            delBatch.Delete(handle, it->key());
-        }
+    // TODO: check if needs lock on `openDBMutex`. We should not need (e.g.,
+    // there was no synchonization between this and `commit`), but we could
+    // have an error if we destroy `vbDB[vbid]` while the same DB is used
+    // somewhere else. Also, from RocksDB docs:
+    //     "Calling DestroyDB() on a live DB is an undefined behavior."
+    vbDB[vbid].reset();
+    // Just destroy the DB in the sub-folder for vbid
+    auto dbname = getVBDBSubdir(vbid);
+    auto status = rocksdb::DestroyDB(dbname, rdbOptions);
+    if (!status.ok()) {
+        throw std::runtime_error("RocksDBKVStore::open: DestroyDB '" + dbname +
+                                 "' failed: " + status.getState());
     }
-    rocksdb::Status s = db->Write(writeOptions, &delBatch);
-    cb_assert(s.ok());
 }
 
 bool RocksDBKVStore::snapshotVBucket(uint16_t vbucketId,
@@ -521,7 +566,8 @@ bool RocksDBKVStore::snapshotVBucket(uint16_t vbucketId,
     if (updateCachedVBState(vbucketId, vbstate) &&
         (options == VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT ||
          options == VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT)) {
-        if (!saveVBState(vbstate, vbucketId).ok()) {
+        auto& db = openDB(vbucketId);
+        if (!saveVBState(db, vbstate).ok()) {
             logger.log(EXTENSION_LOG_WARNING,
                        "RocksDBKVStore::snapshotVBucket: saveVBState failed "
                        "state:%s, vb:%" PRIu16,
@@ -569,45 +615,20 @@ StorageProperties RocksDBKVStore::getStorageProperties(void) {
     return rv;
 }
 
-std::string RocksDBKVStore::mkKeyStr(uint16_t vbid, const DocKey& k) {
-    size_t headerSize = sizeof(uint16_t) + k.size();
-
-    std::string buffer;
-    buffer.reserve(headerSize);
-
-    buffer.append(reinterpret_cast<char*>(&vbid), sizeof(vbid));
-    buffer.append(const_cast<char*>(reinterpret_cast<const char*>(k.data())),
-                  k.size());
-
-    return buffer;
+rocksdb::Slice RocksDBKVStore::getKeySlice(const DocKey& key) {
+    return rocksdb::Slice(reinterpret_cast<const char*>(key.data()),
+                          key.size());
 }
 
-void RocksDBKVStore::grokKeySlice(const rocksdb::Slice& s,
-                                  uint16_t* v,
-                                  std::string* k) {
-    assert(s.size() > sizeof(uint16_t));
-    std::memcpy(v, s.data(), sizeof(uint16_t));
-    k->assign(s.data() + sizeof(uint16_t), s.size() - sizeof(uint16_t));
+rocksdb::Slice RocksDBKVStore::getSeqnoSlice(const int64_t& seqno) {
+    return rocksdb::Slice(reinterpret_cast<const char*>(&seqno), sizeof(seqno));
 }
 
-std::string RocksDBKVStore::mkSeqnoStr(uint16_t vbid, int64_t seqno) {
-    size_t size = sizeof(uint16_t) + sizeof(int64_t);
-
-    std::string buffer;
-    buffer.reserve(size);
-
-    buffer.append(reinterpret_cast<char*>(&vbid), sizeof(vbid));
-    buffer.append(reinterpret_cast<char*>(&seqno), sizeof(seqno));
-
-    return buffer;
-}
-
-void RocksDBKVStore::grokSeqnoSlice(const rocksdb::Slice& s,
-                                    uint16_t* vb,
-                                    int64_t* seqno) {
-    assert(s.size() == sizeof(uint16_t) + sizeof(int64_t));
-    std::memcpy(vb, s.data(), sizeof(uint16_t));
-    std::memcpy(seqno, s.data() + sizeof(uint16_t), sizeof(int64_t));
+int64_t RocksDBKVStore::getNumericSeqno(const rocksdb::Slice& seqnoSlice) {
+    assert(seqnoSlice.size() == sizeof(int64_t));
+    int64_t seqno;
+    std::memcpy(&seqno, seqnoSlice.data(), seqnoSlice.size());
+    return seqno;
 }
 
 std::unique_ptr<Item> RocksDBKVStore::makeItem(uint16_t vb,
@@ -651,13 +672,13 @@ GetValue RocksDBKVStore::makeGetValue(uint16_t vb,
             makeItem(vb, key, sval, getMetaOnly), ENGINE_SUCCESS, -1, 0);
 }
 
-void RocksDBKVStore::readVBState(uint16_t vbid) {
+void RocksDBKVStore::readVBState(const KVRocksDB& db) {
     // Largely copied from CouchKVStore
     // TODO RDB: refactor out sections common to CouchKVStore
     vbucket_state_t state = vbucket_state_dead;
     uint64_t checkpointId = 0;
     uint64_t maxDeletedSeqno = 0;
-    int64_t highSeqno = readHighSeqnoFromDisk(vbid);
+    int64_t highSeqno = readHighSeqnoFromDisk(db);
     std::string failovers;
     uint64_t purgeSeqno = 0;
     uint64_t lastSnapStart = 0;
@@ -666,35 +687,32 @@ void RocksDBKVStore::readVBState(uint16_t vbid) {
     int64_t hlcCasEpochSeqno = HlcCasSeqnoUninitialised;
     bool mightContainXattrs = false;
 
-    std::string lDocKey = getVbstatePrefix() + std::to_string(vbid);
-    std::string statjson;
-
-    rocksdb::Status s = db->Get(rocksdb::ReadOptions(),
-                                localFamilyHandle.get(),
-                                lDocKey,
-                                &statjson);
-
-    if (!s.ok()) {
-        if (s.IsNotFound()) {
+    auto key = getVbstateKey();
+    std::string vbstate;
+    auto vbid = db.vbid;
+    auto status = db.rdb->Get(
+            rocksdb::ReadOptions(), db.localCFH.get(), key, &vbstate);
+    if (!status.ok()) {
+        if (status.IsNotFound()) {
             logger.log(EXTENSION_LOG_NOTICE,
                        "RocksDBKVStore::readVBState: '_local/vbstate.%" PRIu16
                        "' not found",
                        vbid);
         } else {
             logger.log(EXTENSION_LOG_WARNING,
-                       "RocksDBKVStore::readVBState: error getting vbstate"
-                       " error:%s, vb:%" PRIu16,
-                       s.getState(),
+                       "RocksDBKVStore::readVBState: error getting vbstate "
+                       "error:%s, vb:%" PRIu16,
+                       status.getState(),
                        vbid);
         }
     } else {
-        cJSON* jsonObj = cJSON_Parse(statjson.c_str());
+        cJSON* jsonObj = cJSON_Parse(vbstate.c_str());
         if (!jsonObj) {
             logger.log(EXTENSION_LOG_WARNING,
-                       "RocksKVStore::readVBState: Failed to "
-                       "parse the vbstat json doc for vb:%" PRIu16 ", json:%s",
+                       "RocksKVStore::readVBState: Failed to parse the vbstat "
+                       "json doc for vb:%" PRIu16 ", json:%s",
                        vbid,
-                       statjson.c_str());
+                       vbstate.c_str());
         }
 
         const std::string vb_state =
@@ -723,7 +741,7 @@ void RocksDBKVStore::readVBState(uint16_t vbid) {
                        " is in the wrong format:%s, "
                        "vb state:%s, checkpoint id:%s and max deleted seqno:%s",
                        vbid,
-                       statjson.c_str(),
+                       vbstate.c_str(),
                        vb_state.c_str(),
                        checkpoint_id.c_str(),
                        max_deleted_seqno.c_str());
@@ -774,8 +792,8 @@ void RocksDBKVStore::readVBState(uint16_t vbid) {
                                                            failovers);
 }
 
-rocksdb::Status RocksDBKVStore::saveVBState(const vbucket_state& vbState,
-                                            uint16_t vbid) {
+rocksdb::Status RocksDBKVStore::saveVBState(const KVRocksDB& db,
+                                            const vbucket_state& vbState) {
     std::stringstream jsonState;
 
     jsonState << "{\"state\": \"" << VBucket::toString(vbState.state) << "\""
@@ -798,13 +816,11 @@ rocksdb::Status RocksDBKVStore::saveVBState(const vbucket_state& vbState,
 
     jsonState << "}";
 
-    std::string lDocKey = getVbstatePrefix() + std::to_string(vbid);
+    auto key = getVbstateKey();
+    auto status =
+            db.rdb->Put(writeOptions, db.localCFH.get(), key, jsonState.str());
 
-    rocksdb::Status s = db->Put(writeOptions,
-                                localFamilyHandle.get(),
-                                rocksdb::Slice(lDocKey),
-                                rocksdb::Slice(jsonState.str()));
-    return s;
+    return status;
 }
 
 rocksdb::Status RocksDBKVStore::saveDocs(
@@ -827,11 +843,13 @@ rocksdb::Status RocksDBKVStore::saveDocs(
     int64_t maxDBSeqno = 0;
     rocksdb::WriteBatch batch;
 
+    auto& db = openDB(vbid);
+
     for (const auto& request : commitBatch) {
         int64_t bySeqno = request->getDocMeta().bySeqno;
         maxDBSeqno = std::max(maxDBSeqno, bySeqno);
 
-        status = addRequestToWriteBatch(batch, request.get());
+        status = addRequestToWriteBatch(db, batch, request.get());
         if (!status.ok()) {
             logger.log(EXTENSION_LOG_WARNING,
                        "RocksDBKVStore::saveDocs: addRequestToWriteBatch "
@@ -842,7 +860,7 @@ rocksdb::Status RocksDBKVStore::saveDocs(
         }
     }
 
-    status = saveVBState(*vbstate, vbid);
+    status = saveVBState(db, *vbstate);
     if (!status.ok()) {
         logger.log(EXTENSION_LOG_WARNING,
                    "RocksDBKVStore::saveDocs: saveVBState error:%d",
@@ -851,7 +869,7 @@ rocksdb::Status RocksDBKVStore::saveDocs(
     }
 
     auto begin = ProcessClock::now();
-    status = db->Write(writeOptions, &batch);
+    status = db.rdb->Write(writeOptions, &batch);
     st.commitHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
                                ProcessClock::now() - begin)
                                .count());
@@ -868,7 +886,7 @@ rocksdb::Status RocksDBKVStore::saveDocs(
     st.docsCommitted = reqsSize;
 
     // Check and update last seqno
-    int64_t lastSeqno = readHighSeqnoFromDisk(vbid);
+    int64_t lastSeqno = readHighSeqnoFromDisk(db);
     if (maxDBSeqno != lastSeqno) {
         logger.log(EXTENSION_LOG_WARNING,
                    "RocksDBKVStore::saveDocs: Seqno in db header (%" PRIu64
@@ -884,18 +902,19 @@ rocksdb::Status RocksDBKVStore::saveDocs(
 }
 
 rocksdb::Status RocksDBKVStore::addRequestToWriteBatch(
-        rocksdb::WriteBatch& batch, RocksRequest* request) {
+        const KVRocksDB& db,
+        rocksdb::WriteBatch& batch,
+        RocksRequest* request) {
     uint16_t vbid = request->getVBucketId();
 
-    auto key = mkKeyStr(vbid, request->getKey());
-    rocksdb::Slice keySlice(key);
+    rocksdb::Slice keySlice = getKeySlice(request->getKey());
     rocksdb::SliceParts keySliceParts(&keySlice, 1);
 
     rocksdb::Slice docSlices[] = {request->getDocMetaSlice(),
                                   request->getDocBodySlice()};
     rocksdb::SliceParts valueSliceParts(docSlices, 2);
 
-    auto bySeqno = mkSeqnoStr(vbid, request->getDocMeta().bySeqno);
+    rocksdb::Slice bySeqnoSlice = getSeqnoSlice(request->getDocMeta().bySeqno);
     // We use the `saveDocsHisto` to track the time spent on
     // `rocksdb::WriteBatch::Put()`.
     auto begin = ProcessClock::now();
@@ -909,7 +928,7 @@ rocksdb::Status RocksDBKVStore::addRequestToWriteBatch(
                    vbid);
         return status;
     }
-    status = batch.Put(seqnoFamilyHandle.get(), bySeqno, key);
+    status = batch.Put(db.seqnoCFH.get(), bySeqnoSlice, keySlice);
     if (!status.ok()) {
         logger.log(EXTENSION_LOG_WARNING,
                    "RocksDBKVStore::saveDocs: rocksdb::WriteBatch::Put "
@@ -926,31 +945,24 @@ rocksdb::Status RocksDBKVStore::addRequestToWriteBatch(
     return rocksdb::Status::OK();
 }
 
-int64_t RocksDBKVStore::readHighSeqnoFromDisk(uint16_t vbid) {
+int64_t RocksDBKVStore::readHighSeqnoFromDisk(const KVRocksDB& db) {
     std::unique_ptr<rocksdb::Iterator> it(
-            db->NewIterator(rocksdb::ReadOptions(), seqnoFamilyHandle.get()));
+            db.rdb->NewIterator(rocksdb::ReadOptions(), db.seqnoCFH.get()));
 
     // Seek to the highest seqno=>key mapping stored for the vbid
-    std::string start = mkSeqnoStr(vbid, std::numeric_limits<int64_t>::max());
-    it->SeekForPrev(start);
+    auto maxSeqno = std::numeric_limits<int64_t>::max();
+    rocksdb::Slice maxSeqnoSlice = getSeqnoSlice(maxSeqno);
+    it->SeekForPrev(maxSeqnoSlice);
 
-    if (it->Valid()) {
-        uint16_t vb;
-        int64_t seqno;
-
-        rocksdb::Slice seqnoSlice = it->key();
-        grokSeqnoSlice(seqnoSlice, &vb, &seqno);
-
-        if (vb == vbid) {
-            return seqno;
-        }
+    if (!it->Valid()) {
+        return 0;
     }
 
-    return 0;
+    return getNumericSeqno(it->key());
 }
 
-std::string RocksDBKVStore::getVbstatePrefix() {
-    return "vbstate.";
+std::string RocksDBKVStore::getVbstateKey() {
+    return "vbstate";
 }
 
 ScanContext* RocksDBKVStore::initScanContext(
@@ -961,7 +973,9 @@ ScanContext* RocksDBKVStore::initScanContext(
         DocumentFilter options,
         ValueFilter valOptions) {
     size_t scanId = scanCounter++;
-    scanSnapshots.emplace(scanId, SnapshotPtr(db->GetSnapshot(), *db));
+    auto& db = openDB(vbid);
+    scanSnapshots.emplace(scanId, SnapshotPtr(db.rdb->GetSnapshot(), *db.rdb));
+
     // As we cannot efficiently determine how many documents this scan will
     // find, we approximate this value with the seqno difference + 1
     // as scan is supposed to be inclusive at both ends,
@@ -989,9 +1003,9 @@ scan_error_t RocksDBKVStore::scan(ScanContext* ctx) {
         return scan_success;
     }
 
-    uint64_t start = ctx->startSeqno;
+    auto startSeqno = ctx->startSeqno;
     if (ctx->lastReadSeqno != 0) {
-        start = ctx->lastReadSeqno + 1;
+        startSeqno = ctx->lastReadSeqno + 1;
     }
 
     GetMetaOnly isMetaOnly = ctx->valFilter == ValueFilter::KEYS_ONLY
@@ -1001,29 +1015,34 @@ scan_error_t RocksDBKVStore::scan(ScanContext* ctx) {
     rocksdb::ReadOptions snapshotOpts{rocksdb::ReadOptions()};
     snapshotOpts.snapshot = scanSnapshots.at(ctx->scanId).get();
 
+    rocksdb::Slice startSeqnoSlice = getSeqnoSlice(startSeqno);
+    auto& db = openDB(ctx->vbid);
     std::unique_ptr<rocksdb::Iterator> it(
-            db->NewIterator(snapshotOpts, seqnoFamilyHandle.get()));
+            db.rdb->NewIterator(snapshotOpts, db.seqnoCFH.get()));
+    if (!it) {
+        throw std::logic_error(
+                "RocksDBKVStore::scan: rocksdb::Iterator to Seqno Column "
+                "Family is nullptr");
+    }
+    it->Seek(startSeqnoSlice);
 
-    std::string startStr = mkSeqnoStr(ctx->vbid, start);
-    it->Seek(startStr);
-
-    std::string endStr = mkSeqnoStr(ctx->vbid, ctx->maxSeqno);
-
-    auto isPastEnd = [&endStr, this](rocksdb::Slice seqSlice) {
-        return vbidSeqnoComparator.Compare(seqSlice, endStr) == 1;
+    rocksdb::Slice endSeqnoSlice = getSeqnoSlice(ctx->maxSeqno);
+    auto isPastEnd = [&endSeqnoSlice, this](rocksdb::Slice seqSlice) {
+        return vbidSeqnoComparator.Compare(seqSlice, endSeqnoSlice) == 1;
     };
 
+// GCC is giving "warning: '<anonymous>' may be used uninitialized in this
+// function [-Wmaybe-uninitialized]" on the `for` loop.
+// This is a temporary solution.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
     for (; it->Valid() && !isPastEnd(it->key()); it->Next()) {
-        uint16_t vb;
-        int64_t seqno;
+#pragma GCC diagnostic pop
 
-        rocksdb::Slice seqnoSlice = it->key();
-        grokSeqnoSlice(seqnoSlice, &vb, &seqno);
-
+        auto seqno = getNumericSeqno(it->key());
         rocksdb::Slice keySlice = it->value();
-
         std::string valueStr;
-        rocksdb::Status s = db->Get(snapshotOpts, keySlice, &valueStr);
+        auto s = db.rdb->Get(snapshotOpts, keySlice, &valueStr);
 
         if (!s.ok()) {
             // TODO RDB: Old seqnos are never removed from the db!
@@ -1036,9 +1055,8 @@ scan_error_t RocksDBKVStore::scan(ScanContext* ctx) {
         rocksdb::Slice valSlice(valueStr);
 
         // TODO RDB: Deal with collections
-        DocKey key(reinterpret_cast<const uint8_t*>(keySlice.data() +
-                                                    sizeof(uint16_t)),
-                   keySlice.size() - sizeof(uint16_t),
+        DocKey key(reinterpret_cast<const uint8_t*>(keySlice.data()),
+                   keySlice.size(),
                    DocNamespace::DefaultCollection);
 
         std::unique_ptr<Item> itm =

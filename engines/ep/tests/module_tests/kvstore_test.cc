@@ -168,22 +168,26 @@ protected:
 };
 
 // Initializes a KVStore
-static void initialize_kv_store(KVStore* kvstore) {
+static void initialize_kv_store(KVStore* kvstore, uint16_t vbid = 0) {
     std::string failoverLog("");
     // simulate the setVbState by incrementing the rev
-    kvstore->incrementRevision(0);
+    kvstore->incrementRevision(vbid);
     vbucket_state state(
             vbucket_state_active, 0, 0, 0, 0, 0, 0, 0, 0, false, failoverLog);
     // simulate the setVbState by incrementing the rev
-    kvstore->incrementRevision(0);
-    kvstore->snapshotVBucket(0, state,
-                            VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT);
+    kvstore->incrementRevision(vbid);
+    kvstore->snapshotVBucket(
+            vbid, state, VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT);
 }
 
 // Creates and initializes a KVStore with the given config
-static std::unique_ptr<KVStore> setup_kv_store(KVStoreConfig& config) {
+static std::unique_ptr<KVStore> setup_kv_store(KVStoreConfig& config,
+                                               std::vector<uint16_t> vbids = {
+                                                       0}) {
     auto kvstore = KVStoreFactory::create(config);
-    initialize_kv_store(kvstore.rw.get());
+    for (auto vbid : vbids) {
+        initialize_kv_store(kvstore.rw.get(), vbid);
+    }
     return std::move(kvstore.rw);
 }
 
@@ -1899,6 +1903,48 @@ TEST_P(KVStoreParamTest, TestPersistenceCallbacksForDel) {
     EXPECT_CALL(mpc, callback(delCount)).Times(1);
 
     EXPECT_TRUE(kvstore->commit(nullptr /*no collections manifest*/));
+}
+
+TEST_P(KVStoreParamTest, TestOneDBPerVBucket) {
+    WriteCallback wc;
+    std::string value = "value";
+    std::vector<uint16_t> vbids = {0, 1};
+
+    // For this test we need to initialize both VBucket 0 and VBucket 1.
+    // In the case of RocksDB we need to release DBs already opened in `kvstore`
+    if (kvstoreConfig->getBackend() == "rocksdb") {
+        kvstore.reset();
+    }
+    kvstore = setup_kv_store(*kvstoreConfig, vbids);
+
+    // Store an item into each VBucket DB
+    for (auto vbid : vbids) {
+        kvstore->begin();
+        Item item(makeStoredDocKey("key-" + std::to_string(vbid)),
+                  0 /*flags*/,
+                  0 /*exptime*/,
+                  value.c_str(),
+                  value.size(),
+                  PROTOCOL_BINARY_RAW_BYTES,
+                  0 /*cas*/,
+                  -1 /*bySeqno*/,
+                  vbid);
+        kvstore->set(item, wc);
+        kvstore->commit(nullptr /*no collections manifest*/);
+    }
+
+    // Check that each item has been stored in the right VBucket DB
+    for (auto vbid : vbids) {
+        GetValue gv = kvstore->get(
+                makeStoredDocKey("key-" + std::to_string(vbid)), vbid);
+        checkGetValue(gv);
+    }
+
+    // Check that an item is not found in a different VBucket DB
+    GetValue gv = kvstore->get(makeStoredDocKey("key-0"), 1 /*vbid*/);
+    checkGetValue(gv, ENGINE_KEY_ENOENT);
+    gv = kvstore->get(makeStoredDocKey("key-1"), 0 /*vbid*/);
+    checkGetValue(gv, ENGINE_KEY_ENOENT);
 }
 
 std::string kvstoreTestParams[] = {
