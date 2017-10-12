@@ -793,12 +793,13 @@ TEST_P(EPStoreEvictionTest, memOverheadMemoryCondition) {
     size_t count = 0;
     const std::string value(512, 'x'); // 512B value to use for documents.
     ENGINE_ERROR_CODE result;
+    auto dummyCookie = std::make_unique<mock_connstruct>();
     for (result = ENGINE_SUCCESS; result == ENGINE_SUCCESS; count++) {
         auto item = make_item(vbid,
                               makeStoredDocKey("key_" + std::to_string(count)),
                               value);
         uint64_t cas;
-        result = engine->store(nullptr, &item, cas, OPERATION_SET);
+        result = engine->store(dummyCookie.get(), &item, cas, OPERATION_SET);
     }
 
     if (GetParam() == "value_only") {

@@ -17,6 +17,7 @@
 #pragma once
 
 #include "dynamic_buffer.h"
+#include "tracing/tracer.h"
 
 #include <cJSON_utils.h>
 #include <daemon/protocol/mcbp/command_context.h>
@@ -406,7 +407,22 @@ public:
         return start;
     }
 
+    bool isTracingEnabled() const {
+        return enableTracing;
+    }
+
+    void setTracingEnabled(bool enable) {
+        enableTracing = enable;
+    }
+
+    cb::tracing::Tracer& getTracer() {
+        return tracer;
+    }
+
 protected:
+    bool enableTracing = false;
+    cb::tracing::Tracer tracer;
+
     /**
      * The connection object this cookie is bound to
      */

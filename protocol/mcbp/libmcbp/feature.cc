@@ -49,6 +49,8 @@ std::string to_string(cb::mcbp::Feature feature) {
         return "Clustermap change notification";
     case cb::mcbp::Feature::UnorderedExecution:
         return "Unordered execution";
+    case cb::mcbp::Feature::Tracing:
+        return "Tracing";
     }
 
     throw std::invalid_argument(

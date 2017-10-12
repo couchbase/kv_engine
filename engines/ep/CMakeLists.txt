@@ -25,6 +25,7 @@ INCLUDE_DIRECTORIES(BEFORE ${CMAKE_INSTALL_PREFIX}/include
                            ${Platform_SOURCE_DIR}/external
                            ${Memcached_SOURCE_DIR}
                            ${Memcached_SOURCE_DIR}/utilities
+                           ${Memcached_SOURCE_DIR}/tracing
                            ${Memcached_SOURCE_DIR}/include
                            ${Couchstore_SOURCE_DIR}/include
                            ${phosphor_SOURCE_DIR}/include
@@ -239,7 +240,8 @@ ADD_LIBRARY(ep SHARED $<TARGET_OBJECTS:ep_objs>)
 SET_TARGET_PROPERTIES(ep PROPERTIES PREFIX "")
 TARGET_LINK_LIBRARIES(ep cJSON JSON_checker ${EP_STORAGE_LIBS}
                       engine_utilities dirutils cbcompress
-                      platform phosphor xattr ${LIBEVENT_LIBRARIES})
+                      mcd_util platform phosphor xattr mcd_tracing
+                      ${LIBEVENT_LIBRARIES})
 
 # Single executable containing all class-level unit tests involving
 # EventuallyPersistentEngine driven by GoogleTest.
@@ -310,7 +312,7 @@ TARGET_INCLUDE_DIRECTORIES(ep-engine_ep_unit_tests
 
 TARGET_LINK_LIBRARIES(ep-engine_ep_unit_tests ${EP_STORAGE_LIBS} cJSON
                       dirutils engine_utilities gtest gmock
-                      JSON_checker mcd_util platform phosphor xattr
+                      JSON_checker mcd_util mcd_tracing platform phosphor xattr
                       cbcompress ${MALLOC_LIBRARIES})
 
 ADD_EXECUTABLE(ep-engine_atomic_ptr_test
@@ -358,7 +360,7 @@ ADD_EXECUTABLE(ep_engine_benchmarks
 
 TARGET_LINK_LIBRARIES(ep_engine_benchmarks benchmark platform xattr
         cJSON dirutils engine_utilities gtest gmock JSON_checker mcd_util
-        cbcompress ${MALLOC_LIBRARIES} ${EP_STORAGE_LIBS})
+        mcd_tracing cbcompress ${MALLOC_LIBRARIES} ${EP_STORAGE_LIBS})
 TARGET_INCLUDE_DIRECTORIES(ep_engine_benchmarks PUBLIC
                            ${benchmark_SOURCE_DIR}/include
                            tests
@@ -377,8 +379,8 @@ TARGET_LINK_LIBRARIES(timing_tests platform)
 ADD_EXECUTABLE(ep-engine_sizes src/sizes.cc
                                $<TARGET_OBJECTS:ep_objs>)
 TARGET_LINK_LIBRARIES(ep-engine_sizes cJSON JSON_checker
-  engine_utilities ${EP_STORAGE_LIBS} dirutils cbcompress platform
-  phosphor xattr ${LIBEVENT_LIBRARIES})
+  engine_utilities ${EP_STORAGE_LIBS} dirutils cbcompress platform mcd_util
+  mcd_tracing phosphor xattr ${LIBEVENT_LIBRARIES})
 
 ADD_LIBRARY(ep_testsuite SHARED
    tests/ep_testsuite.cc

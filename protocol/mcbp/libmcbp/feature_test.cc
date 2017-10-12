@@ -33,7 +33,8 @@ const std::map<cb::mcbp::Feature, std::string> blueprint = {
          {cb::mcbp::Feature::Duplex, "Duplex"},
          {cb::mcbp::Feature::ClustermapChangeNotification,
           "Clustermap change notification"},
-         {cb::mcbp::Feature::UnorderedExecution, "Unordered execution"}}};
+         {cb::mcbp::Feature::UnorderedExecution, "Unordered execution"},
+         {cb::mcbp::Feature::Tracing, "Tracing"}}};
 
 TEST(to_string, LegalValues) {
     for (const auto& entry : blueprint) {

@@ -37,6 +37,7 @@ bool Datatype::isSupported(cb::mcbp::Feature feature) {
     case cb::mcbp::Feature::Duplex:
     case cb::mcbp::Feature::ClustermapChangeNotification:
     case cb::mcbp::Feature::UnorderedExecution:
+    case cb::mcbp::Feature::Tracing:
         throw std::invalid_argument("Datatype::isSupported invalid feature:" +
                                     std::to_string(int(feature)));
     }
@@ -65,6 +66,7 @@ void Datatype::enable(cb::mcbp::Feature feature) {
     case cb::mcbp::Feature::Invalid:
     case cb::mcbp::Feature::ClustermapChangeNotification:
     case cb::mcbp::Feature::UnorderedExecution:
+    case cb::mcbp::Feature::Tracing:
         throw std::invalid_argument("Datatype::enable invalid feature:" +
                                     std::to_string(int(feature)));
     }

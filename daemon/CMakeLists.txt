@@ -219,6 +219,7 @@ ADD_DEPENDENCIES(memcached_daemon generate_audit_descriptors)
 TARGET_LINK_LIBRARIES(memcached_daemon
                       auditd
                       mcd_util
+                      mcd_tracing
                       mcbp
                       cbsasl
                       cbcompress

@@ -8,8 +8,9 @@
 #include <atomic>
 #include <string>
 
-struct mock_connstruct {
+#include "tracing/tracer.h"
 
+struct mock_connstruct : cb::tracing::Traceable {
     mock_connstruct();
 
     uint64_t magic;
@@ -29,6 +30,8 @@ struct mock_connstruct {
     int references;
     uint64_t num_io_notifications;
     uint64_t num_processed_notifications;
+
+    ~mock_connstruct();
 };
 
 struct mock_callbacks {

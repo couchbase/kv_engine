@@ -26,6 +26,8 @@
 
 #include <string>
 
+#include "tracing/tracetypes.h"
+
 typedef struct {
     /**
      * The current time.
@@ -316,6 +318,31 @@ struct SERVER_DOCUMENT_API {
      * @throws std::logic_error if the data has grown
      */
     bool (*pre_expiry)(item_info& itm_info);
+};
+
+struct SERVER_TRACING_API {
+    /**
+     * check whether tracing is enabled on this cookie
+     */
+    bool (*is_tracing_enabled)(gsl::not_null<const void*> cookie);
+
+    /**
+     * begin tracing on the specified trace code
+     */
+    void (*begin_trace)(gsl::not_null<const void*> cookie,
+                        cb::tracing::TraceCode tracecode);
+
+    /**
+     * end trace on the specified trace code
+     */
+    void (*end_trace)(gsl::not_null<const void*> cookie,
+                      cb::tracing::TraceCode tracecode);
+
+    /**
+     * enable/disable tracing
+     */
+    void (*set_tracing_enabled)(gsl::not_null<const void*> cookie,
+                                bool enabled);
 };
 
 #ifdef WIN32

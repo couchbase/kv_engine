@@ -54,7 +54,11 @@ enum class Feature : uint16_t {
      * of commands (@todo this should "disable" select bucket as that won't
      * give the user deterministic behavior)
      */
-    UnorderedExecution = 0x0e
+    UnorderedExecution = 0x0e,
+    /**
+     * Tell the server to enable tracing of function calls
+     */
+    Tracing = 0x0f,
 };
 
 } // namespace mcbp

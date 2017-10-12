@@ -1,23 +1,25 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 
-#include "mock_server.h"
-
 #include "config.h"
-#include <stdlib.h>
-#include <string.h>
-#include <atomic>
-#include <time.h>
+
 #include <memcached/allocator_hooks.h>
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
 #include <memcached/extension.h>
 #include <memcached/extension_loggers.h>
 #include <memcached/server_api.h>
-#include "daemon/alloc_hooks.h"
-#include "daemon/protocol/mcbp/engine_errc_2_mcbp.h"
-#include "daemon/doc_pre_expiry.h"
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>
+#include <atomic>
+#include <iostream>
+
+#include "daemon/alloc_hooks.h"
+#include "daemon/doc_pre_expiry.h"
+#include "daemon/protocol/mcbp/engine_errc_2_mcbp.h"
+#include "mock_server.h"
 
 #include <array>
 #include <list>
@@ -67,6 +69,19 @@ mock_connstruct::mock_connstruct()
       num_processed_notifications(0) {
     cb_mutex_initialize(&mutex);
     cb_cond_initialize(&cond);
+}
+
+mock_connstruct::~mock_connstruct() {
+    if (isTracingEnabled()) {
+        auto data = to_string(tracer, true);
+        // DEBUGCODE
+        if (!data.empty()) {
+            std::cout << "[tracedata.begin:\n"
+                      << data << "\n"
+                      << to_string(tracer, false) << "\ntracedata.end]"
+                      << std::endl;
+        }
+    }
 }
 
 /* Forward declarations */
@@ -405,6 +420,41 @@ void mock_init_alloc_hooks() {
     AllocHooks::initialize();
 }
 
+// Begin -  Tracing api
+static bool is_tracing_enabled(gsl::not_null<const void*> void_cookie) {
+    auto* cookie = reinterpret_cast<mock_connstruct*>(
+            const_cast<void*>(void_cookie.get()));
+    return cookie->isTracingEnabled();
+}
+
+static void begin_trace(gsl::not_null<const void*> void_cookie,
+                        cb::tracing::TraceCode tracecode) {
+    auto* cookie = reinterpret_cast<mock_connstruct*>(
+            const_cast<void*>(void_cookie.get()));
+    if (!cookie->isTracingEnabled()) {
+        return;
+    }
+    cookie->getTracer().begin(tracecode);
+}
+
+static void end_trace(gsl::not_null<const void*> void_cookie,
+                      cb::tracing::TraceCode tracecode) {
+    auto* cookie = reinterpret_cast<mock_connstruct*>(
+            const_cast<void*>(void_cookie.get()));
+    if (!cookie->isTracingEnabled()) {
+        return;
+    }
+    cookie->getTracer().end(tracecode);
+}
+
+static void set_tracing_enabled(gsl::not_null<const void*> void_cookie,
+                                bool enabled) {
+    auto* cookie = reinterpret_cast<mock_connstruct*>(
+            const_cast<void*>(void_cookie.get()));
+    cookie->setTracingEnabled(enabled);
+}
+// End -  Tracing api
+
 SERVER_HANDLE_V1 *get_mock_server_api(void)
 {
    static SERVER_CORE_API core_api;
@@ -416,7 +466,7 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
    static ALLOCATOR_HOOKS_API hooks_api;
    static SERVER_HANDLE_V1 rv;
    static SERVER_DOCUMENT_API document_api;
-
+   static SERVER_TRACING_API tracing_api;
    static int init;
    if (!init) {
       init = 1;
@@ -470,6 +520,11 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
       document_api.pre_link = mock_pre_link_document;
       document_api.pre_expiry = document_pre_expiry;
 
+      tracing_api.is_tracing_enabled = is_tracing_enabled;
+      tracing_api.begin_trace = begin_trace;
+      tracing_api.end_trace = end_trace;
+      tracing_api.set_tracing_enabled = set_tracing_enabled;
+
       rv.interface = 1;
       rv.core = &core_api;
       rv.stat = &server_stat_api;
@@ -479,6 +534,7 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
       rv.cookie = &server_cookie_api;
       rv.alloc_hooks = &hooks_api;
       rv.document = &document_api;
+      rv.tracing = &tracing_api;
    }
 
    return &rv;

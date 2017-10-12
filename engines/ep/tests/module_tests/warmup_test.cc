@@ -24,10 +24,10 @@
 
 #include "ep_engine.h"
 
-#include <platform/sized_buffer.h>
-
-#include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include <gtest/gtest.h>
+#include <platform/sized_buffer.h>
+#include "tracing/trace_helpers.h"
 
 class WarmupDisabledTest : public EventuallyPersistentEngineTest {
 
@@ -38,7 +38,7 @@ class WarmupDisabledTest : public EventuallyPersistentEngineTest {
 };
 
 // Mock implementation of an ADD_STAT callback.
-class MockAddStat {
+class MockAddStat : public cb::tracing::Traceable {
 public:
     MOCK_CONST_METHOD2(Callback, void(std::string key, std::string value));
 
@@ -55,7 +55,6 @@ public:
 
 // Check we get the expected stats (i.e. none) when Warmup is disabled.
 TEST_F(WarmupDisabledTest, Stats) {
-
     std::string key{"warmup"};
     MockAddStat add_stat;
     EXPECT_CALL(add_stat, Callback("ep_warmup", ::testing::_)).Times(0);

@@ -54,6 +54,7 @@
 #include <platform/make_unique.h>
 #include <platform/platform.h>
 #include <platform/processclock.h>
+#include <tracing/trace_helpers.h>
 #include <xattr/utils.h>
 
 #include <cstdio>
@@ -66,6 +67,8 @@
 #include <stdarg.h>
 #include <string>
 #include <vector>
+
+using cb::tracing::TraceCode;
 
 static size_t percentOf(size_t val, double percent) {
     return static_cast<size_t>(static_cast<double>(val) * percent);
@@ -2028,6 +2031,7 @@ void EventuallyPersistentEngine::itemRelease(item* itm) {
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::flush(const void *cookie){
+    TRACE_SCOPE(serverApi, cookie, TraceCode::FLUSH);
     if (!deleteAllEnabled) {
         return ENGINE_ENOTSUP;
     }
@@ -2067,6 +2071,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get_and_touch(const void* co
                                                            const DocKey& key,
                                                            uint16_t vbucket,
                                                            uint32_t exptime) {
+    TRACE_SCOPE(serverApi, cookie, TraceCode::GAT);
     auto* handle = reinterpret_cast<ENGINE_HANDLE*>(this);
 
     time_t expiry_time = exptime;
@@ -2108,7 +2113,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get_if(const void* cookie,
                                                        const DocKey& key,
                                                        uint16_t vbucket,
                                                        std::function<bool(const item_info&)>filter) {
-
+    TRACE_SCOPE(serverApi, cookie, TraceCode::GETIF);
     auto* handle = reinterpret_cast<ENGINE_HANDLE*>(this);
 
     // Fetch an item from the hashtable (without trying to schedule a bg-fetch
@@ -2186,7 +2191,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::get_locked(const void* cookie,
                                                          const DocKey& key,
                                                          uint16_t vbucket,
                                                          uint32_t lock_timeout) {
-
+    TRACE_SCOPE(serverApi, cookie, TraceCode::GETLOCKED);
     auto default_timeout = static_cast<uint32_t>(getGetlDefaultTimeout());
 
     if (lock_timeout == 0) {
@@ -2214,6 +2219,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::unlock(const void* cookie,
                                                      const DocKey& key,
                                                      uint16_t vbucket,
                                                      uint64_t cas) {
+    TRACE_SCOPE(serverApi, cookie, TraceCode::UNLOCK);
     return kvBucket->unlockKey(key, vbucket, cas, ep_current_time());
 }
 
@@ -2223,6 +2229,7 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::store_if(
         uint64_t cas,
         ENGINE_STORE_OPERATION operation,
         cb::StoreIfPredicate predicate) {
+    TRACE_SCOPE(serverApi, cookie, TraceCode::STOREIF);
     BlockTimer timer(&stats.storeCmdHisto);
     ENGINE_ERROR_CODE status;
     switch (operation) {
@@ -2287,6 +2294,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::store(
         item* itm,
         uint64_t& cas,
         ENGINE_STORE_OPERATION operation) {
+    TRACE_SCOPE(serverApi, cookie, TraceCode::STORE);
     Item& item = static_cast<Item&>(*static_cast<Item*>(itm));
     auto rv = store_if(cookie, item, cas, operation, {});
     cas = rv.cas;
@@ -3690,6 +3698,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
                                                        const char* stat_key,
                                                        int nkey,
                                                        ADD_STAT add_stat) {
+    TRACE_SCOPE(serverApi, cookie, TraceCode::GETSTATS);
     BlockTimer timer(&stats.getStatsCmdHisto);
     if (stat_key != NULL) {
         LOG(EXTENSION_LOG_DEBUG, "stats %.*s", nkey, stat_key);
@@ -3836,6 +3845,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(
                                        protocol_binary_request_header *request,
                                        ADD_RESPONSE response,
                                        DocNamespace docNamespace) {
+    TRACE_SCOPE(serverApi, cookie, TraceCode::OBSERVE);
     protocol_binary_request_no_extras *req =
         (protocol_binary_request_no_extras*)request;
 
@@ -4229,6 +4239,7 @@ EventuallyPersistentEngine::handleSeqnoCmds(const void *cookie,
 
 cb::EngineErrorMetadataPair EventuallyPersistentEngine::getMeta(
         const void* cookie, const DocKey& key, uint16_t vbucket) {
+    TRACE_SCOPE(serverApi, cookie, TraceCode::GETMETA);
     uint32_t deleted;
     uint8_t datatype;
     ItemMetaData itemMeta;
@@ -4329,6 +4340,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
                                 ADD_RESPONSE response,
                                 DocNamespace docNamespace)
 {
+    TRACE_SCOPE(serverApi, cookie, TraceCode::SETWITHMETA);
     // revid_nbytes, flags and exptime is mandatory fields.. and we need a key
     uint8_t extlen = request->message.header.request.extlen;
     uint16_t keylen = ntohs(request->message.header.request.keylen);

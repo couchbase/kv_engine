@@ -54,6 +54,7 @@
 #include "replicationthrottle.h"
 #include "statwriter.h"
 #include "tasks.h"
+#include "trace_helpers.h"
 #include "vb_count_visitor.h"
 #include "vbucket.h"
 #include "vbucket_bgfetch_item.h"
@@ -930,26 +931,25 @@ bool KVBucket::resetVBucket_UNLOCKED(LockedVBucketPtr& vb,
 
 extern "C" {
 
-    typedef struct {
-        EventuallyPersistentEngine* engine;
-        std::map<std::string, std::string> smap;
-    } snapshot_stats_t;
+struct snapshot_stats_t : cb::tracing::Traceable {
+    EventuallyPersistentEngine* engine;
+    std::map<std::string, std::string> smap;
+};
 
-    static void add_stat(const char* key,
-                         const uint16_t klen,
-                         const char* val,
-                         const uint32_t vlen,
-                         gsl::not_null<const void*> cookie) {
-        if (cookie == nullptr) {
-            throw std::invalid_argument("add_stat: cookie is NULL");
-        }
-        void* ptr = const_cast<void*>(cookie.get());
-        snapshot_stats_t* snap = static_cast<snapshot_stats_t*>(ptr);
-        ObjectRegistry::onSwitchThread(snap->engine);
-
-        std::string k(key, klen);
-        std::string v(val, vlen);
-        snap->smap.insert(std::pair<std::string, std::string>(k, v));
+static void add_stat(const char* key,
+                     const uint16_t klen,
+                     const char* val,
+                     const uint32_t vlen,
+                     gsl::not_null<const void*> cookie) {
+    if (cookie == nullptr) {
+        throw std::invalid_argument("add_stat: cookie is NULL");
+    }
+    void* ptr = const_cast<void*>(cookie.get());
+    snapshot_stats_t* snap = static_cast<snapshot_stats_t*>(ptr);
+    ObjectRegistry::onSwitchThread(snap->engine);
+    std::string k(key, klen);
+    std::string v(val, vlen);
+    snap->smap.insert(std::pair<std::string, std::string>(k, v));
     }
 }
 
@@ -960,8 +960,7 @@ void KVBucket::snapshotStats() {
               engine.getStats(&snap, "dcp", 3, add_stat) == ENGINE_SUCCESS;
 
     if (rv && stats.isShutdown) {
-        snap.smap["ep_force_shutdown"] = stats.forceShutdown ?
-                                                              "true" : "false";
+        snap.smap["ep_force_shutdown"] = stats.forceShutdown ? "true" : "false";
         std::stringstream ss;
         ss << ep_real_time();
         snap.smap["ep_shutdown_time"] = ss.str();
@@ -1183,6 +1182,7 @@ void KVBucket::completeBGFetch(const DocKey& key,
                                const void* cookie,
                                ProcessClock::time_point init,
                                bool isMeta) {
+    TRACE_SCOPE(engine.serverApi, cookie, cb::tracing::TraceCode::BGFETCH);
     ProcessClock::time_point startTime(ProcessClock::now());
     // Go find the data
     GetValue gcb = getROUnderlying(vbucket)->get(key, vbucket, isMeta);
@@ -1247,7 +1247,6 @@ GetValue KVBucket::getInternal(const DocKey& key,
                                const void *cookie,
                                vbucket_state_t allowedState,
                                get_options_t options) {
-
     vbucket_state_t disallowedState = (allowedState == vbucket_state_active) ?
         vbucket_state_replica : vbucket_state_active;
     VBucketPtr vb = getVBucket(vbucket);

@@ -47,6 +47,7 @@ void process_hello_packet_executor(Cookie& cookie) {
     connection.setCollectionsSupported(false);
     connection.setDuplexSupported(false);
     connection.setClustermapChangeNotificationSupported(false);
+    connection.getCookieObject().setTracingEnabled(false);
 
     if (!key.empty()) {
         log_buffer.append("[");
@@ -146,7 +147,14 @@ void process_hello_packet_executor(Cookie& cookie) {
                 connection.setAllowUnorderedExecution(true);
                 added = true;
             }
-        }
+            break;
+
+        case cb::mcbp::Feature::Tracing:
+            connection.getCookieObject().setTracingEnabled(true);
+            added = true;
+            break;
+
+        } // end switch
 
         if (added) {
             out.push_back(value);

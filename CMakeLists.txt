@@ -179,6 +179,7 @@ ADD_SUBDIRECTORY(testsuite)
 ADD_SUBDIRECTORY(auditd)
 ADD_SUBDIRECTORY(xattr)
 ADD_SUBDIRECTORY(daemon)
+ADD_SUBDIRECTORY(tracing)
 
 CONFIGURE_FILE(tests/cert/testapp.pem tests/cert/testapp.pem COPYONLY)
 CONFIGURE_FILE(tests/cert/testapp.cert tests/cert/testapp.cert COPYONLY)
