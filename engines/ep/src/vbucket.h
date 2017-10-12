@@ -1135,6 +1135,17 @@ public:
      */
     static void setMutationMemoryThreshold(double memThreshold);
 
+    /**
+     * Check if this StoredValue has become logically non-existent.
+     * By logically non-existent, the item has been deleted
+     * or doesn't exist
+     *
+     * @param v StoredValue to check
+     * @return true if the item is logically non-existent,
+     *         false otherwise
+     */
+    static bool isLogicallyNonExistent(const StoredValue& v);
+
     std::queue<queued_item> rejectQueue;
     std::unique_ptr<FailoverTable> failovers;
 

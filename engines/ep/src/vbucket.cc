@@ -899,7 +899,7 @@ ENGINE_ERROR_CODE VBucket::replace(Item& itm,
     }
 
     if (v) {
-        if (v->isLogicallyNonExistent()) {
+        if (isLogicallyNonExistent(*v)) {
             ht.cleanupIfTemporaryItem(hbl, *v);
             return ENGINE_KEY_ENOENT;
         }
@@ -1555,7 +1555,7 @@ std::pair<MutationStatus, GetValue> VBucket::processGetAndUpdateTtl(
         StoredValue* v,
         time_t exptime) {
     if (v) {
-        if (v->isLogicallyNonExistent()) {
+        if (isLogicallyNonExistent(*v)) {
             ht.cleanupIfTemporaryItem(hbl, *v);
             return {MutationStatus::NotFound, GetValue()};
         }
@@ -1856,7 +1856,7 @@ GetValue VBucket::getLocked(const DocKey& key,
                                      QueueExpired::Yes);
 
     if (v) {
-        if (v->isLogicallyNonExistent()) {
+        if (isLogicallyNonExistent(*v)) {
             ht.cleanupIfTemporaryItem(hbl, *v);
             return GetValue(NULL, ENGINE_KEY_ENOENT);
         }
@@ -2613,6 +2613,10 @@ void VBucket::removeKey(const DocKey& key, int64_t bySeqno) {
     if (v && v->isResident() && v->getBySeqno() == bySeqno) {
         ht.unlocked_del(hbl, v->getKey());
     }
+}
+
+bool VBucket::isLogicallyNonExistent(const StoredValue& v) {
+    return v.isDeleted() || v.isTempDeletedItem() || v.isTempNonExistentItem();
 }
 
 void VBucket::DeferredDeleter::operator()(VBucket* vb) const {

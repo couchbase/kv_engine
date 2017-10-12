@@ -131,10 +131,6 @@ uint8_t StoredValue::incrNRUValue() {
     return ret;
 }
 
-bool StoredValue::isLogicallyNonExistent() const {
-    return (isDeleted() || isTempDeletedItem() || isTempNonExistentItem());
-}
-
 uint8_t StoredValue::getNRUValue() const {
     return nru;
 }

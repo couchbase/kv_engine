@@ -178,16 +178,6 @@ public:
     }
 
     /**
-     * Check if this item has become logically non-existent.
-     * By logically non-existent, the item has been deleted
-     * or doesn't exist
-     *
-     * @return true if the item is logically non-existent,
-     *         false otherwise
-     */
-    bool isLogicallyNonExistent () const;
-
-    /**
      * True if this item is for the given key.
      *
      * @param k the key we're checking

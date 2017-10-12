@@ -1488,7 +1488,7 @@ ENGINE_ERROR_CODE KVBucket::unlockKey(const DocKey& key,
                                          QueueExpired::Yes);
 
     if (v) {
-        if (v->isLogicallyNonExistent()) {
+        if (VBucket::isLogicallyNonExistent(*v)) {
             vb->ht.cleanupIfTemporaryItem(hbl, *v);
             return ENGINE_KEY_ENOENT;
         }
@@ -1544,7 +1544,7 @@ std::string KVBucket::validateKey(const DocKey& key, uint16_t vbucket,
             hbl, key, WantsDeleted::Yes, TrackReference::No, QueueExpired::Yes);
 
     if (v) {
-        if (v->isLogicallyNonExistent()) {
+        if (VBucket::isLogicallyNonExistent(*v)) {
             vb->ht.cleanupIfTemporaryItem(hbl, *v);
             return "item_deleted";
         }
