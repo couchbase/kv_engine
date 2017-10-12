@@ -1457,7 +1457,8 @@ static enum test_result test_vbucket_compact(ENGINE_HANDLE *h,
     checkeq(ENGINE_SUCCESS, touch(h, h1, key, 0, 11), "touch Carss");
 
     testHarness.time_travel(12);
-    wait_for_flusher_to_settle(h, h1);
+    // Wait for the item to be expired
+    wait_for_stat_to_be(h, h1, "vb_active_expired", 1);
 
     // Store a dummy item since we do not purge the item with highest seqno
     checkeq(ENGINE_SUCCESS,
