@@ -18,12 +18,25 @@
 #include "flusher.h"
 
 #include "common.h"
+#include "ep_bucket.h"
 #include "tasks.h"
 
-#include <stdlib.h>
+#include <platform/timeutils.h>
 
+#include <stdlib.h>
 #include <sstream>
 
+Flusher::Flusher(EPBucket* st, KVShard* k)
+    : store(st),
+      _state(State::Initializing),
+      taskId(0),
+      minSleepTime(0.1),
+      forceShutdownReceived(false),
+      doHighPriority(false),
+      numHighPriority(0),
+      pendingMutation(false),
+      shard(k) {
+}
 
 bool Flusher::stop(bool isForceShutdown) {
     forceShutdownReceived = isForceShutdown;

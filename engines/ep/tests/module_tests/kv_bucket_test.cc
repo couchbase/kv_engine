@@ -161,7 +161,7 @@ void KVBucketTest::flush_vbucket_to_disk(uint16_t vbid, int expected) {
     // Need to retry as warmup may not have completed.
     bool flush_successful = false;
     do {
-        result = store->flushVBucket(vbid);
+        result = dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
         if (result != RETRY_FLUSH_VBUCKET) {
             flush_successful = true;
             break;

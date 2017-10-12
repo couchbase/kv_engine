@@ -25,7 +25,6 @@
 #include <queue>
 #include <string>
 
-#include "kv_bucket.h"
 #include "executorthread.h"
 #include "utility.h"
 
@@ -35,6 +34,7 @@
 const double DEFAULT_MIN_SLEEP_TIME = MIN_SLEEP_TIME;
 const double DEFAULT_MAX_SLEEP_TIME = 10.0;
 
+class EPBucket;
 class KVShard;
 
 /**
@@ -42,17 +42,7 @@ class KVShard;
  */
 class Flusher {
 public:
-    Flusher(KVBucket* st, KVShard* k)
-        : store(st),
-          _state(State::Initializing),
-          taskId(0),
-          minSleepTime(0.1),
-          forceShutdownReceived(false),
-          doHighPriority(false),
-          numHighPriority(0),
-          pendingMutation(false),
-          shard(k) {
-    }
+    Flusher(EPBucket* st, KVShard* k);
 
     ~Flusher() {
         if (_state != State::Stopped) {
@@ -108,7 +98,7 @@ private:
         return lpVbs.empty() && hpVbs.empty() && !pendingMutation.load();
     }
 
-    KVBucket* store;
+    EPBucket* store;
     std::atomic<State> _state;
 
     // Used for serializaling attempts to start the flusher from

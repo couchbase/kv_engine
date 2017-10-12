@@ -293,7 +293,7 @@ TEST_P(DatatypeStatTest, datatypeEviction) {
             "jsonXattrDoc");
     auto vals = get_stat(nullptr);
     EXPECT_EQ(1, std::stoi(vals["ep_active_datatype_json,xattr"]));
-    store->flushVBucket(0);
+    getEPBucket().flushVBucket(0);
     const char* msg;
     store->evictKey(key, 0, &msg);
     vals = get_stat(nullptr);
@@ -329,10 +329,10 @@ TEST_P(DatatypeStatTest, MB23892) {
             "jsonXattrDoc");
     auto vals = get_stat(nullptr);
     EXPECT_EQ(1, std::stoi(vals["ep_active_datatype_json,xattr"]));
-    store->flushVBucket(0);
+    getEPBucket().flushVBucket(0);
     const char* msg;
     store->evictKey(key, 0, &msg);
-    store->flushVBucket(0);
+    getEPBucket().flushVBucket(0);
     setDatatypeItem(store, cookie, PROTOCOL_BINARY_DATATYPE_JSON, "jsonXattrDoc", "[1]");
 }
 

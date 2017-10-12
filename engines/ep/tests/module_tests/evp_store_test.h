@@ -31,4 +31,8 @@
  * Test fixture for EPBucket unit tests.
  */
 class EPBucketTest : public KVBucketTest {
+protected:
+    EPBucket& getEPBucket() {
+        return dynamic_cast<EPBucket&>(*store);
+    }
 };

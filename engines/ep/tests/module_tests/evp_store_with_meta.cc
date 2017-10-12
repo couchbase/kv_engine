@@ -1154,7 +1154,7 @@ TEST_F(WithMetaTest, xattrPruneUserKeysOnDelete1) {
                                    value);
     EXPECT_EQ(ENGINE_SUCCESS,
               callEngine(PROTOCOL_BINARY_CMD_SET_WITH_META, swm));
-    EXPECT_EQ(1, store->flushVBucket(vbid));
+    EXPECT_EQ(1, getEPBucket().flushVBucket(vbid));
 
     itemMeta.revSeqno++; // make delete succeed
     auto dwm = buildWithMeta(
@@ -1162,7 +1162,7 @@ TEST_F(WithMetaTest, xattrPruneUserKeysOnDelete1) {
     EXPECT_EQ(ENGINE_SUCCESS,
               callEngine(PROTOCOL_BINARY_CMD_DEL_WITH_META, dwm));
 
-    EXPECT_EQ(1, store->flushVBucket(vbid));
+    EXPECT_EQ(1, getEPBucket().flushVBucket(vbid));
 
     auto options = get_options_t(QUEUE_BG_FETCH | GET_DELETED_VALUE);
     auto result = store->get(key, vbid, nullptr, options);
@@ -1222,7 +1222,7 @@ TEST_F(WithMetaTest, xattrPruneUserKeysOnDelete2) {
                                    data);
     EXPECT_EQ(ENGINE_SUCCESS,
               callEngine(PROTOCOL_BINARY_CMD_SET_WITH_META, swm));
-    EXPECT_EQ(1, store->flushVBucket(vbid));
+    EXPECT_EQ(1, getEPBucket().flushVBucket(vbid));
 
     itemMeta.revSeqno++; // make delete succeed
     auto dwm = buildWithMeta(
@@ -1230,7 +1230,7 @@ TEST_F(WithMetaTest, xattrPruneUserKeysOnDelete2) {
     EXPECT_EQ(ENGINE_SUCCESS,
               callEngine(PROTOCOL_BINARY_CMD_DEL_WITH_META, dwm));
 
-    EXPECT_EQ(1, store->flushVBucket(vbid));
+    EXPECT_EQ(1, getEPBucket().flushVBucket(vbid));
 
     auto options = get_options_t(QUEUE_BG_FETCH | GET_DELETED_VALUE);
     auto result = store->get(key, vbid, nullptr, options);

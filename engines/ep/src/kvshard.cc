@@ -47,7 +47,11 @@ KVShard::KVShard(uint16_t id, KVBucket& kvBucket)
 
     if (kvBucket.getEPEngine().getConfiguration().getBucketType() ==
         "persistent") {
-        flusher = std::make_unique<Flusher>(&kvBucket, this);
+        // Ideally this should be dynamic_cast; however when the KVShard
+        // constructor runs it's still in the context of EPBucket's constructor
+        // and hence we cannot dynamic_cast<> yet...
+        auto& ep = static_cast<EPBucket&>(kvBucket);
+        flusher = std::make_unique<Flusher>(&ep, this);
         bgFetcher = std::make_unique<BgFetcher>(kvBucket, *this);
     }
 }

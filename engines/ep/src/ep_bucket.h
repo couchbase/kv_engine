@@ -38,6 +38,15 @@ public:
 
     void reset() override;
 
+    /**
+     * Flushes all items waiting for persistence in a given vbucket
+     * @param vbid The id of the vbucket to flush
+     * @return The number of items flushed
+     */
+    int flushVBucket(uint16_t vbid);
+
+    void commit(KVStore& kvstore, const Item* collectionsManifest);
+
     /// Start the Flusher for all shards in this bucket.
     void startFlusher();
 
@@ -124,6 +133,11 @@ public:
     }
 
 protected:
+    void flushOneDeleteAll();
+
+    PersistenceCallback* flushOneDelOrSet(const queued_item& qi,
+                                          VBucketPtr& vb);
+
     /**
      * Compaction of a database file
      *

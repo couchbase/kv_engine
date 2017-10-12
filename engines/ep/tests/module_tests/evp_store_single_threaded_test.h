@@ -87,8 +87,8 @@ protected:
  * Test fixture for single-threaded tests on EPBucket.
  */
 class SingleThreadedEPBucketTest : public SingleThreadedKVBucketTest {
-    // Note this class is currently identical to it's parent class as the
-    // default bucket_type in configuration.json is EPBucket, therefore
-    // SingleThreadedKVBucketTest already defaults to creating EPBucket.
-    // Introducing this subclass to just make the name more descriptive.
+protected:
+    EPBucket& getEPBucket() {
+        return dynamic_cast<EPBucket&>(*store);
+    }
 };

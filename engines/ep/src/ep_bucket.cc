@@ -19,9 +19,11 @@
 
 #include "bgfetcher.h"
 #include "ep_engine.h"
+#include "ep_time.h"
 #include "ep_vb.h"
 #include "failover-table.h"
 #include "flusher.h"
+#include "persistence_callback.h"
 #include "replicationthrottle.h"
 #include "tasks.h"
 
@@ -207,6 +209,253 @@ void EPBucket::reset() {
     vbMap.getShard(EP_PRIMARY_SHARD)->getFlusher()->notifyFlushEvent();
 }
 
+int EPBucket::flushVBucket(uint16_t vbid) {
+    KVShard *shard = vbMap.getShardByVbId(vbid);
+    if (diskDeleteAll && !deleteAllTaskCtx.delay) {
+        if (shard->getId() == EP_PRIMARY_SHARD) {
+            flushOneDeleteAll();
+        } else {
+            // disk flush is pending just return
+            return 0;
+        }
+    }
+
+    int items_flushed = 0;
+    const hrtime_t flush_start = gethrtime();
+
+    VBucketPtr vb = vbMap.getBucket(vbid);
+    if (vb) {
+        std::unique_lock<std::mutex> lh(vb_mutexes[vbid], std::try_to_lock);
+        if (!lh.owns_lock()) { // Try another bucket if this one is locked
+            return RETRY_FLUSH_VBUCKET; // to avoid blocking flusher
+        }
+
+        std::vector<queued_item> items;
+        KVStore *rwUnderlying = getRWUnderlying(vbid);
+
+        while (!vb->rejectQueue.empty()) {
+            items.push_back(vb->rejectQueue.front());
+            vb->rejectQueue.pop();
+        }
+
+        // Append any 'backfill' items (mutations added by a DCP stream).
+        vb->getBackfillItems(items);
+
+        // Append all items outstanding for the persistence cursor.
+        snapshot_range_t range;
+        hrtime_t _begin_ = gethrtime();
+        range = vb->checkpointManager.getAllItemsForCursor(
+                CheckpointManager::pCursorName, items);
+        stats.persistenceCursorGetItemsHisto.add((gethrtime() - _begin_) / 1000);
+
+        if (!items.empty()) {
+            while (!rwUnderlying->begin()) {
+                ++stats.beginFailed;
+                LOG(EXTENSION_LOG_WARNING, "Failed to start a transaction!!! "
+                    "Retry in 1 sec ...");
+                sleep(1);
+            }
+            rwUnderlying->optimizeWrites(items);
+
+            Item *prev = NULL;
+            auto vbstate = vb->getVBucketState();
+            uint64_t maxSeqno = 0;
+            range.start = std::max(range.start, vbstate.lastSnapStart);
+
+            bool mustCheckpointVBState = false;
+            std::list<PersistenceCallback*>& pcbs = rwUnderlying->getPersistenceCbList();
+
+            SystemEventFlush sef;
+
+            for (const auto& item : items) {
+
+                if (!item->shouldPersist()) {
+                    continue;
+                }
+
+                // Pass the Item through the SystemEventFlush which may filter
+                // the item away (return Skip).
+                if (sef.process(item) == ProcessStatus::Skip) {
+                    // The item has no further flushing actions i.e. we've
+                    // absorbed it in the process function.
+                    // Update stats and carry-on
+                    --stats.diskQueueSize;
+                    vb->doStatsForFlushing(*item, item->size());
+                    continue;
+                }
+
+                if (item->getOperation() == queue_op::set_vbucket_state) {
+                    // No actual item explicitly persisted to (this op exists
+                    // to ensure a commit occurs with the current vbstate);
+                    // flag that we must trigger a snapshot even if there are
+                    // no 'real' items in the checkpoint.
+                    mustCheckpointVBState = true;
+
+                    // Update queuing stats how this item has logically been
+                    // processed.
+                    --stats.diskQueueSize;
+                    vb->doStatsForFlushing(*item, item->size());
+
+                } else if (!prev || prev->getKey() != item->getKey()) {
+                    prev = item.get();
+                    ++items_flushed;
+                    PersistenceCallback *cb = flushOneDelOrSet(item, vb);
+                    if (cb) {
+                        pcbs.push_back(cb);
+                    }
+
+                    maxSeqno = std::max(maxSeqno, (uint64_t)item->getBySeqno());
+                    vbstate.maxCas = std::max(vbstate.maxCas, item->getCas());
+                    if (item->isDeleted()) {
+                        vbstate.maxDeletedSeqno =
+                                std::max(vbstate.maxDeletedSeqno,
+                                         item->getRevSeqno());
+                    }
+                    ++stats.flusher_todo;
+
+                } else {
+                    // Item is the same key as the previous[1] one - don't need
+                    // to flush to disk.
+                    // [1] Previous here really means 'next' - optimizeWrites()
+                    //     above has actually re-ordered items such that items
+                    //     with the same key are ordered from high->low seqno.
+                    //     This means we only write the highest (i.e. newest)
+                    //     item for a given key, and discard any duplicate,
+                    //     older items.
+                    --stats.diskQueueSize;
+                    vb->doStatsForFlushing(*item, item->size());
+                }
+            }
+
+
+            {
+                ReaderLockHolder rlh(vb->getStateLock());
+                if (vb->getState() == vbucket_state_active) {
+                    if (maxSeqno) {
+                        range.start = maxSeqno;
+                        range.end = maxSeqno;
+                    }
+                }
+
+                // Update VBstate based on the changes we have just made,
+                // then tell the rwUnderlying the 'new' state
+                // (which will persisted as part of the commit() below).
+                vbstate.lastSnapStart = range.start;
+                vbstate.lastSnapEnd = range.end;
+
+                // Track the lowest seqno written in spock and record it as
+                // the HLC epoch, a seqno which we can be sure the value has a
+                // HLC CAS.
+                vbstate.hlcCasEpochSeqno = vb->getHLCEpochSeqno();
+                if (vbstate.hlcCasEpochSeqno == HlcCasSeqnoUninitialised) {
+                    vbstate.hlcCasEpochSeqno = range.start;
+                    vb->setHLCEpochSeqno(range.start);
+                }
+
+                // Track if the VB has xattrs present
+                vbstate.mightContainXattrs = vb->mightContainXattrs();
+
+                // Do we need to trigger a persist of the state?
+                // If there are no "real" items to flush, and we encountered
+                // a set_vbucket_state meta-item.
+                auto options = VBStatePersist::VBSTATE_CACHE_UPDATE_ONLY;
+                if ((items_flushed == 0) && mustCheckpointVBState) {
+                    options = VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT;
+                }
+
+                if (rwUnderlying->snapshotVBucket(vb->getId(), vbstate,
+                                                  options) != true) {
+                    return RETRY_FLUSH_VBUCKET;
+                }
+
+                if (vb->setBucketCreation(false)) {
+                    LOG(EXTENSION_LOG_INFO, "VBucket %" PRIu16 " created", vbid);
+                }
+            }
+
+            /* Perform an explicit commit to disk if the commit
+             * interval reaches zero and if there is a non-zero number
+             * of items to flush.
+             * Or if there is a manifest item
+             */
+            if (items_flushed > 0 || sef.getCollectionsManifestItem()) {
+                commit(*rwUnderlying, sef.getCollectionsManifestItem());
+
+                // Now the commit is complete, vBucket file must exist.
+                if (vb->setBucketCreation(false)) {
+                    LOG(EXTENSION_LOG_INFO, "VBucket %" PRIu16 " created", vbid);
+                }
+            }
+
+            hrtime_t flush_end = gethrtime();
+            uint64_t trans_time = (flush_end - flush_start) / 1000000;
+
+            lastTransTimePerItem.store((items_flushed == 0) ? 0 :
+                                       static_cast<double>(trans_time) /
+                                       static_cast<double>(items_flushed));
+            stats.cumulativeFlushTime.fetch_add(trans_time);
+            stats.flusher_todo.store(0);
+            stats.totalPersistVBState++;
+
+            if (vb->rejectQueue.empty()) {
+                vb->setPersistedSnapshot(range.start, range.end);
+                uint64_t highSeqno = rwUnderlying->getLastPersistedSeqno(vbid);
+                if (highSeqno > 0 &&
+                    highSeqno != vb->getPersistenceSeqno()) {
+                    vb->setPersistenceSeqno(highSeqno);
+                }
+            }
+        }
+
+        rwUnderlying->pendingTasks();
+
+        if (vb->checkpointManager.getNumCheckpoints() > 1) {
+            wakeUpCheckpointRemover();
+        }
+
+        if (vb->rejectQueue.empty()) {
+            vb->checkpointManager.itemsPersisted();
+            uint64_t seqno = vb->getPersistenceSeqno();
+            uint64_t chkid = vb->checkpointManager.getPersistenceCursorPreChkId();
+            vb->notifyHighPriorityRequests(
+                    engine, seqno, HighPriorityVBNotify::Seqno);
+            vb->notifyHighPriorityRequests(
+                    engine, chkid, HighPriorityVBNotify::ChkPersistence);
+            if (chkid > 0 && chkid != vb->getPersistenceCheckpointId()) {
+                vb->setPersistenceCheckpointId(chkid);
+            }
+        } else {
+            return RETRY_FLUSH_VBUCKET;
+        }
+    }
+
+    return items_flushed;
+}
+
+void EPBucket::commit(KVStore& kvstore, const Item* collectionsManifest) {
+    std::list<PersistenceCallback*>& pcbs = kvstore.getPersistenceCbList();
+    BlockTimer timer(&stats.diskCommitHisto, "disk_commit", stats.timingLog);
+    hrtime_t commit_start = gethrtime();
+
+    while (!kvstore.commit(collectionsManifest)) {
+        ++stats.commitFailed;
+        LOG(EXTENSION_LOG_WARNING,
+            "KVBucket::commit: kvstore.commit failed!!! Retry in 1 sec...");
+        sleep(1);
+    }
+
+    while (!pcbs.empty()) {
+         delete pcbs.front();
+         pcbs.pop_front();
+    }
+
+    ++stats.flusherCommits;
+    hrtime_t commit_end = gethrtime();
+    uint64_t commit_time = (commit_end - commit_start) / 1000000;
+    stats.commit_time.store(commit_time);
+    stats.cumulativeCommitTime.fetch_add(commit_time);
+}
+
 void EPBucket::startFlusher() {
     for (const auto& shard : vbMap.shards) {
         shard->getFlusher()->start();
@@ -342,6 +591,60 @@ ENGINE_ERROR_CODE EPBucket::scheduleCompaction(uint16_t vbid,
         c.drop_deletes);
 
     return ENGINE_EWOULDBLOCK;
+}
+
+void EPBucket::flushOneDeleteAll() {
+    for (VBucketMap::id_type i = 0; i < vbMap.getSize(); ++i) {
+        VBucketPtr vb = getVBucket(i);
+        // Reset the vBucket if it's non-null and not already in the middle of
+        // being created / destroyed.
+        if (vb && !(vb->isBucketCreation() || vb->isDeletionDeferred())) {
+            LockHolder lh(vb_mutexes[vb->getId()]);
+            getRWUnderlying(vb->getId())->reset(i);
+        }
+    }
+
+    --stats.diskQueueSize;
+    setDeleteAllComplete();
+}
+
+PersistenceCallback* EPBucket::flushOneDelOrSet(const queued_item &qi,
+                                                VBucketPtr &vb) {
+
+    if (!vb) {
+        --stats.diskQueueSize;
+        return NULL;
+    }
+
+    int64_t bySeqno = qi->getBySeqno();
+    rel_time_t queued(qi->getQueuedTime());
+
+    int dirtyAge = ep_current_time() - queued;
+    stats.dirtyAgeHisto.add(dirtyAge * 1000000);
+    stats.dirtyAge.store(dirtyAge);
+    stats.dirtyAgeHighWat.store(std::max(stats.dirtyAge.load(),
+                                         stats.dirtyAgeHighWat.load()));
+
+    KVStore *rwUnderlying = getRWUnderlying(qi->getVBucketId());
+    if (SystemEventFlush::isUpsert(*qi)) {
+        // TODO: Need to separate disk_insert from disk_update because
+        // bySeqno doesn't give us that information.
+        BlockTimer timer(bySeqno == -1 ?
+                         &stats.diskInsertHisto : &stats.diskUpdateHisto,
+                         bySeqno == -1 ? "disk_insert" : "disk_update",
+                         stats.timingLog);
+        PersistenceCallback *cb =
+            new PersistenceCallback(qi, vb, stats, qi->getCas());
+        rwUnderlying->set(*qi, *cb);
+        return cb;
+    } else {
+        BlockTimer timer(&stats.diskDelHisto, "disk_delete",
+                         stats.timingLog);
+        PersistenceCallback *cb =
+            new PersistenceCallback(qi, vb, stats, 0);
+        rwUnderlying->del(*qi, *cb);
+        return cb;
+    }
 }
 
 void EPBucket::compactInternal(compaction_ctx* ctx) {
