@@ -2086,8 +2086,9 @@ TEST_P(ConnectionTest, test_mb24424_mutationResponse) {
 void ConnectionTest::sendConsumerMutationsNearThreshold(bool beyondThreshold) {
     const void* cookie = create_mock_cookie();
     const uint32_t opaque = 1;
-    const uint64_t snapStart = 1, snapEnd = 10;
-    const uint64_t bySeqno = snapStart;
+    const uint64_t snapStart = 1;
+    const uint64_t snapEnd = std::numeric_limits<uint64_t>::max();
+    uint64_t bySeqno = snapStart;
 
     /* Set up a consumer connection */
     connection_t conn = new MockDcpConsumer(*engine, cookie, "test_consumer");
@@ -2146,32 +2147,50 @@ void ConnectionTest::sendConsumerMutationsNearThreshold(bool beyondThreshold) {
         engine->getConfiguration().setReplicationThrottleThreshold(100);
     }
 
-    /* Send another item for replication */
-    auto ret = consumer->mutation(opaque,
-                                  docKey,
-                                  {}, // value
-                                  0, // priv bytes
-                                  PROTOCOL_BINARY_RAW_BYTES,
-                                  0, // cas
-                                  vbid,
-                                  0, // flags
-                                  bySeqno + 1,
-                                  0, // rev seqno
-                                  0, // exptime
-                                  0, // locktime
-                                  {}, // meta
-                                  0); // nru
-
     if ((engine->getConfiguration().getBucketType() == "ephemeral") &&
         (engine->getConfiguration().getEphemeralFullPolicy()) ==
                 "fail_new_data") {
         /* Expect disconnect signal in Ephemeral with "fail_new_data" policy */
-        EXPECT_EQ(ENGINE_DISCONNECT, ret);
+        while (1) {
+            /* Keep sending items till the memory usage goes above the
+               threshold and the connection is disconnected */
+            if (ENGINE_DISCONNECT ==
+                consumer->mutation(opaque,
+                                   docKey,
+                                   {}, // value
+                                   0, // priv bytes
+                                   PROTOCOL_BINARY_RAW_BYTES,
+                                   0, // cas
+                                   vbid,
+                                   0, // flags
+                                   ++bySeqno,
+                                   0, // rev seqno
+                                   0, // exptime
+                                   0, // locktime
+                                   {}, // meta
+                                   0)) {
+                break;
+            }
+        }
     } else {
         /* In 'couchbase' buckets we buffer the replica items and indirectly
            throttle replication by not sending flow control acks to the
            producer. Hence we do not drop the connection here */
-        EXPECT_EQ(ENGINE_SUCCESS, ret);
+        EXPECT_EQ(ENGINE_SUCCESS,
+                  consumer->mutation(opaque,
+                                     docKey,
+                                     {}, // value
+                                     0, // priv bytes
+                                     PROTOCOL_BINARY_RAW_BYTES,
+                                     0, // cas
+                                     vbid,
+                                     0, // flags
+                                     bySeqno + 1,
+                                     0, // rev seqno
+                                     0, // exptime
+                                     0, // locktime
+                                     {}, // meta
+                                     0)); // nru
     }
 
     /* Close stream before deleting the connection */
