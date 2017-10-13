@@ -2323,16 +2323,13 @@ int CouchKVStore::getMultiCb(Db *db, DocInfo *docinfo, void *ctx) {
     vb_bgfetch_item_ctx_t& bg_itm_ctx = (*qitr).second;
     GetMetaOnly meta_only = bg_itm_ctx.isMetaOnly;
 
-    GetValue returnVal;
-    couchstore_error_t errCode = cbCtx->cks.fetchDoc(db, docinfo, returnVal,
-                                                     cbCtx->vbId, meta_only);
+    couchstore_error_t errCode = cbCtx->cks.fetchDoc(
+            db, docinfo, bg_itm_ctx.value, cbCtx->vbId, meta_only);
     if (errCode != COUCHSTORE_SUCCESS && (meta_only == GetMetaOnly::No)) {
         st.numGetFailure++;
     }
 
-    bg_itm_ctx.value = std::move(returnVal);
-
-    returnVal.setStatus(cbCtx->cks.couchErr2EngineErr(errCode));
+    bg_itm_ctx.value.setStatus(cbCtx->cks.couchErr2EngineErr(errCode));
 
     bool return_val_ownership_transferred = false;
     for (auto& fetch : bg_itm_ctx.bgfetched_list) {

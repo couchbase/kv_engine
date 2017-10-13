@@ -701,6 +701,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, get_docinfo_by_id) {
         EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(3).RetiresOnSaturation();
         gv = kvstore->get(items.front().getKey(), 0);
     }
+    EXPECT_EQ(ENGINE_TMPFAIL, gv.getStatus());
 }
 
 /**
@@ -722,6 +723,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, get_open_doc_with_docinfo) {
         EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(5).RetiresOnSaturation();
         gv = kvstore->get(items.front().getKey(), 0);
     }
+    EXPECT_EQ(ENGINE_TMPFAIL, gv.getStatus());
 }
 
 /**
@@ -745,6 +747,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, getMulti_docinfos_by_id) {
         kvstore->getMulti(0, itms);
 
     }
+    EXPECT_EQ(ENGINE_TMPFAIL, itms[items.at(0).getKey()].value.getStatus());
 }
 
 
@@ -766,6 +769,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, getMulti_open_doc_with_docinfo) {
 
         EXPECT_EQ(1, kvstore->getKVStoreStat().numGetFailure);
     }
+    EXPECT_EQ(ENGINE_TMPFAIL, itms[items.at(0).getKey()].value.getStatus());
 }
 
 /**
