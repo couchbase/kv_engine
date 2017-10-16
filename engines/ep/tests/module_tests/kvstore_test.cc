@@ -1880,11 +1880,13 @@ TEST_P(KVStoreParamTest, TestPersistenceCallbacksForDel) {
     // Store an item
     auto key = makeStoredDocKey("key");
     Item item(key, 0, 0, "value", 5);
-    MockPersistenceCallbacks mpc;
+    // Use NiceMock to suppress the GMock warning that the `set` callback is
+    // called but not considered in any EXCPECT_CALL (GMock warning is
+    // "Uninteresting mock function call".)
+    NiceMock<MockPersistenceCallbacks> mpc;
     kvstore->begin();
     kvstore->set(item, mpc);
     kvstore->commit(nullptr /*no collections manifest*/);
-
     kvstore->begin();
 
     // Expect that the DEL callback will not be called just after `del`
