@@ -3088,6 +3088,9 @@ static void showConnAggStat(const std::string &prefix,
         checked_snprintf(statname, sl, "%s:total_bytes", prefix.c_str());
         add_casted_stat(statname, counter->conn_totalBytes, add_stat, cookie);
 
+        checked_snprintf(statname, sl, "%s:total_uncompressed_data_size", prefix.c_str());
+        add_casted_stat(statname, counter->conn_totalUncompressedDataSize, add_stat, cookie);
+
     } catch (std::exception& error) {
         LOG(EXTENSION_LOG_WARNING,
             "showConnAggStat: Failed to build stats: %s", error.what());
@@ -3130,6 +3133,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doDcpStats(const void *cookie,
     add_casted_stat("ep_dcp_count", aggregator.totalConns, add_stat, cookie);
     add_casted_stat("ep_dcp_producer_count", aggregator.totalProducers, add_stat, cookie);
     add_casted_stat("ep_dcp_total_bytes", aggregator.conn_totalBytes, add_stat, cookie);
+    add_casted_stat("ep_dcp_total_uncompressed_data_size", aggregator.conn_totalUncompressedDataSize,
+                    add_stat, cookie);
     add_casted_stat("ep_dcp_total_queue", aggregator.conn_queue,
                     add_stat, cookie);
     add_casted_stat("ep_dcp_queue_fill", aggregator.conn_queueFill,

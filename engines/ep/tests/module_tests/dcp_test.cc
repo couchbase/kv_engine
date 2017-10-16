@@ -260,6 +260,117 @@ ENGINE_ERROR_CODE mock_mutation_return_engine_e2big(const void* cookie,
 }
 
 /*
+ * Test to verify the number of items, total bytes sent and total data size
+ * by the producer when DCP compression is enabled
+ */
+TEST_P(StreamTest, test_verifyProducerCompressionStats) {
+    VBucketPtr vb = engine->getKVBucket()->getVBucket(vbid);
+    setup_dcp_stream();
+    std::string compressibleValue("{\"product\": \"car\",\"price\": \"100\"},"
+                                  "{\"product\": \"bus\",\"price\": \"1000\"},"
+                                  "{\"product\": \"Train\",\"price\": \"100000\"}");
+    std::string regularValue("{\"product\": \"car\",\"price\": \"100\"}");
+
+    std::string compressCtrlMsg("enable_value_compression");
+    std::string compressCtrlValue("true");
+
+    ASSERT_EQ(ENGINE_SUCCESS, producer->control(0, compressCtrlMsg.c_str(),
+                                                compressCtrlMsg.size(),
+                                                compressCtrlValue.c_str(),
+                                                compressCtrlValue.size()));
+    ASSERT_TRUE(producer->isValueCompressionEnabled());
+
+    store_item(vbid, "key1", compressibleValue.c_str());
+    store_item(vbid, "key2", regularValue.c_str());
+    store_item(vbid, "key3", compressibleValue.c_str());
+
+    auto producers = get_dcp_producers(reinterpret_cast<ENGINE_HANDLE*>(engine),
+                                       reinterpret_cast<ENGINE_HANDLE_V1*>(engine));
+
+    uint64_t rollbackSeqno;
+    auto err = producer->streamRequest(/*flags*/0,
+                                       /*opaque*/0,
+                                       /*vbucket*/0,
+                                       /*start_seqno*/0,
+                                       /*end_seqno*/~0,
+                                       /*vb_uuid*/0,
+                                       /*snap_start*/0,
+                                       /*snap_end*/~0,
+                                       &rollbackSeqno,
+                                       StreamTest::fakeDcpAddFailoverLog);
+
+    ASSERT_EQ(ENGINE_SUCCESS, err);
+    producer->notifySeqnoAvailable(vbid, vb->getHighSeqno());
+
+    ASSERT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    ASSERT_EQ(1, producer->getCheckpointSnapshotTask().queueSize());
+    producer->getCheckpointSnapshotTask().run();
+
+    /* Stream the snapshot marker first */
+    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    EXPECT_EQ(0, producer->getItemsSent());
+
+    uint64_t totalBytesSent = producer->getTotalBytesSent();
+    uint64_t totalUncompressedDataSize = producer->getTotalUncompressedDataSize();
+    EXPECT_GT(totalBytesSent, 0);
+    EXPECT_GT(totalUncompressedDataSize, 0);
+
+    /* Stream the first mutation. This should increment the
+     * number of items, total bytes sent and total data size.
+     * Since this is a compressible document, the total bytes
+     * sent should be incremented by a lesser value than the
+     * total data size.
+     */
+    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    EXPECT_EQ(1, producer->getItemsSent());
+    EXPECT_GT(producer->getTotalBytesSent(), totalBytesSent);
+    EXPECT_GT(producer->getTotalUncompressedDataSize(), totalUncompressedDataSize);
+    EXPECT_LT(producer->getTotalBytesSent() - totalBytesSent,
+              producer->getTotalUncompressedDataSize() - totalUncompressedDataSize);
+
+    totalBytesSent = producer->getTotalBytesSent();
+    totalUncompressedDataSize = producer->getTotalUncompressedDataSize();
+
+    /*
+     * Now stream the second mutation. This should increment the
+     * number of items and the total bytes sent. In this case,
+     * the total data size should be incremented by exactly the
+     * same amount as the total bytes sent
+     */
+    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    EXPECT_EQ(2, producer->getItemsSent());
+    EXPECT_GT(producer->getTotalBytesSent(), totalBytesSent);
+    EXPECT_GT(producer->getTotalUncompressedDataSize(), totalUncompressedDataSize);
+    EXPECT_EQ(producer->getTotalBytesSent() - totalBytesSent,
+              producer->getTotalUncompressedDataSize() - totalUncompressedDataSize);
+
+    totalBytesSent = producer->getTotalBytesSent();
+    totalUncompressedDataSize = producer->getTotalUncompressedDataSize();
+
+    /*
+     * Disable value compression on the producer side and stream a
+     * compressible document. This should result in an increase in
+     * total bytes. Even though the document is compressible, the
+     * total data size and the total bytes sent would be incremented
+     * by exactly the same amount
+     */
+    compressCtrlValue.assign("false");
+    ASSERT_EQ(ENGINE_SUCCESS, producer->control(0, compressCtrlMsg.c_str(),
+                                                compressCtrlMsg.size(),
+                                                compressCtrlValue.c_str(),
+                                                compressCtrlValue.size()));
+    ASSERT_FALSE(producer->isValueCompressionEnabled());
+    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    EXPECT_EQ(3, producer->getItemsSent());
+    EXPECT_GT(producer->getTotalBytesSent(), totalBytesSent);
+    EXPECT_GT(producer->getTotalUncompressedDataSize(), totalUncompressedDataSize);
+    EXPECT_EQ(producer->getTotalBytesSent() - totalBytesSent,
+              producer->getTotalUncompressedDataSize() - totalUncompressedDataSize);
+
+    destroy_dcp_stream();
+}
+
+/*
  * Test to verify the number of items and the total bytes sent
  * by the producer under normal and error conditions
  */

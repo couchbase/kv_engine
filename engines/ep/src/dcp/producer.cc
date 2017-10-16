@@ -27,6 +27,7 @@
 #include "dcp/dcpconnmap.h"
 #include "ep_engine.h"
 #include "failover-table.h"
+#include "snappy-c.h"
 
 #include <memcached/server_api.h>
 #include <vector>
@@ -142,6 +143,7 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
       log(*this),
       itemsSent(0),
       totalBytesSent(0),
+      totalUncompressedDataSize(0),
       includeValue(((flags & DCP_OPEN_NO_VALUE) != 0) ?
               IncludeValue::No : IncludeValue::Yes),
       includeXattrs(((flags & DCP_OPEN_INCLUDE_XATTRS) != 0) ?
@@ -520,8 +522,12 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
     }
 
     Item* itmCpy = nullptr;
+    uint32_t sizeBefore = 0;
+    uint32_t sizeAfter = 0;
     auto* mutationResponse =
             dynamic_cast<MutationProducerResponse*>(resp.get());
+    totalUncompressedDataSize.fetch_add(resp->getMessageSize());
+
     if (mutationResponse) {
         try {
             itmCpy = mutationResponse->getItemCopy();
@@ -544,16 +550,25 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
              * Compression will obviously be done only if the datatype
              * indicates that the value isn't compressed already.
              */
-            uint32_t sizeBefore = itmCpy->getNBytes();
+            sizeBefore = itmCpy->getNBytes();
             if (!itmCpy->compressValue()) {
                 LOG(EXTENSION_LOG_WARNING,
                     "%s Failed to snappy compress an uncompressed value!",
                     logHeader());
             }
-            uint32_t sizeAfter = itmCpy->getNBytes();
+            sizeAfter = itmCpy->getNBytes();
 
             if (sizeAfter < sizeBefore) {
                 log.acknowledge(sizeBefore - sizeAfter);
+            }
+
+            if (mcbp::datatype::is_snappy(itmCpy->getDataType())) {
+                size_t inflated_length = 0;
+                if (snappy_uncompressed_length(itmCpy->getData(), itmCpy->getNBytes(),
+                                               &inflated_length) == SNAPPY_OK) {
+                    totalUncompressedDataSize.fetch_add(inflated_length -
+                                                        itmCpy->getNBytes());
+                }
             }
         }
     }
@@ -669,7 +684,12 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
             resp->getEvent() == DcpResponse::Event::SystemEvent) {
             itemsSent++;
         }
-        totalBytesSent.fetch_add(resp->getMessageSize());
+
+        size_t bytesSent = resp->getMessageSize();
+        if (mutationResponse && enableValueCompression) {
+            bytesSent -= (sizeBefore - sizeAfter);
+        }
+        totalBytesSent.fetch_add(bytesSent);
     }
 
     lastSendTime = ep_current_time();
@@ -895,6 +915,10 @@ void DcpProducer::addStats(ADD_STAT add_stat, const void *c) {
     addStat("items_sent", getItemsSent(), add_stat, c);
     addStat("items_remaining", getItemsRemaining(), add_stat, c);
     addStat("total_bytes_sent", getTotalBytesSent(), add_stat, c);
+    if (enableValueCompression) {
+        addStat("total_uncompressed_data_size", getTotalUncompressedDataSize(),
+                add_stat, c);
+    }
     addStat("last_sent_time", lastSendTime, add_stat, c);
     addStat("last_receive_time", lastReceiveTime, add_stat, c);
     addStat("noop_enabled", noopCtx.enabled, add_stat, c);
@@ -963,6 +987,7 @@ void DcpProducer::addTakeoverStats(ADD_STAT add_stat, const void* c,
 void DcpProducer::aggregateQueueStats(ConnCounter& aggregator) {
     aggregator.conn_queueDrain += itemsSent;
     aggregator.conn_totalBytes += totalBytesSent;
+    aggregator.conn_totalUncompressedDataSize += totalUncompressedDataSize;
     aggregator.conn_queueRemaining += getItemsRemaining();
 }
 
@@ -1213,6 +1238,10 @@ size_t DcpProducer::getItemsRemaining() {
 
 size_t DcpProducer::getTotalBytesSent() {
     return totalBytesSent;
+}
+
+size_t DcpProducer::getTotalUncompressedDataSize() {
+    return totalUncompressedDataSize;
 }
 
 std::vector<uint16_t> DcpProducer::getVBVector() {

@@ -6282,6 +6282,7 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                 "ep_dcp_producer_count",
                 "ep_dcp_queue_fill",
                 "ep_dcp_total_bytes",
+                "ep_dcp_total_uncompressed_data_size",
                 "ep_dcp_total_queue"
             }
         },

@@ -43,7 +43,8 @@ class EventuallyPersistentEngine;
 struct ConnCounter {
     ConnCounter()
         : conn_queue(0), totalConns(0), totalProducers(0),
-          conn_queueFill(0), conn_queueDrain(0), conn_totalBytes(0), conn_queueRemaining(0),
+          conn_queueFill(0), conn_queueDrain(0), conn_totalBytes(0),
+          conn_totalUncompressedDataSize(0), conn_queueRemaining(0),
           conn_queueBackoff(0), conn_queueItemOnDisk(0)
     {}
 
@@ -54,6 +55,7 @@ struct ConnCounter {
         conn_queueFill += other.conn_queueFill;
         conn_queueDrain += other.conn_queueDrain;
         conn_totalBytes += other.conn_totalBytes;
+        conn_totalUncompressedDataSize += other.conn_totalUncompressedDataSize;
         conn_queueRemaining += other.conn_queueRemaining;
         conn_queueBackoff += other.conn_queueBackoff;
         conn_queueItemOnDisk += other.conn_queueItemOnDisk;
@@ -68,6 +70,7 @@ struct ConnCounter {
     size_t      conn_queueFill;
     size_t      conn_queueDrain;
     size_t      conn_totalBytes;
+    size_t      conn_totalUncompressedDataSize;
     size_t      conn_queueRemaining;
     size_t      conn_queueBackoff;
     size_t      conn_queueItemOnDisk;

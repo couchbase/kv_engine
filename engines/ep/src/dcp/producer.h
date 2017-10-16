@@ -115,6 +115,8 @@ public:
 
     size_t getTotalBytesSent();
 
+    size_t getTotalUncompressedDataSize();
+
     std::vector<uint16_t> getVBVector(void);
 
     /**
@@ -317,6 +319,7 @@ protected:
 
     std::atomic<size_t> itemsSent;
     std::atomic<size_t> totalBytesSent;
+    std::atomic<size_t> totalUncompressedDataSize;
 
     ExTask checkpointCreatorTask;
     static const std::chrono::seconds defaultDcpNoopTxInterval;
