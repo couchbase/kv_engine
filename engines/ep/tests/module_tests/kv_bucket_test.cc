@@ -754,7 +754,8 @@ TEST_F(KVBucketTest, DataRaceInDoWorkerStat) {
     pool->cancel(task->getId());
 }
 
-void KVBucketTest::storeAndDeleteItem(uint16_t vbid, const DocKey& key,
+void KVBucketTest::storeAndDeleteItem(uint16_t vbid,
+                                      const DocKey& key,
                                       std::string value) {
     Item item = store_item(vbid,
                            key,
