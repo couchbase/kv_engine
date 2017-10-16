@@ -34,17 +34,30 @@ namespace test {
 class ValidatorTest : public ::testing::Test {
 public:
     ValidatorTest();
-    ~ValidatorTest();
-
-    virtual void SetUp() override;
+    void SetUp() override;
 
 protected:
-    protocol_binary_response_status validate(protocol_binary_command opcode, void* request);
+    /**
+     * Validate that the provided packet is correctly encoded
+     *
+     * @param opcode The opcode for the packet
+     * @param request The packet to validate
+     */
+    protocol_binary_response_status validate(protocol_binary_command opcode,
+                                             void* request);
 
     McbpValidatorChains validatorChains;
-    ListeningPort listeningport;
-    event_base* ev;
-    McbpConnection connection;
+
+    /**
+     * Create a mock connection which doesn't own a socket and isn't bound
+     * to libevent
+     */
+    class MockConnection : public McbpConnection {
+    public:
+        MockConnection() : McbpConnection() {
+        }
+    };
+    MockConnection connection;
 
     // backing store which may be used for the request
     protocol_binary_request_no_extras &request;

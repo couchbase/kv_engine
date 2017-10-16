@@ -66,9 +66,13 @@
 size_t adjust_msghdr(cb::Pipe& pipe, struct msghdr* m, ssize_t nbytes);
 
 class McbpConnection : public Connection {
-public:
-    McbpConnection() = delete;
+protected:
+    /**
+     * Protected constructor so that it may only be used by MockSubclasses
+     */
+    McbpConnection();
 
+public:
     McbpConnection(SOCKET sfd, event_base* b, const ListeningPort& ifc);
 
     ~McbpConnection() override;
@@ -193,7 +197,7 @@ public:
 
     /* Binary protocol stuff */
     /* This is where the binary header goes */
-    protocol_binary_request_header binary_header;
+    protocol_binary_request_header binary_header = {};
 
     /**
      * Decrement the number of events to process and return the new value
@@ -785,59 +789,61 @@ protected:
     std::unique_ptr<McbpStateMachine> stateMachine;
 
     /** Is this connection used by a DCP connection? */
-    bool dcp;
+    bool dcp = false;
 
     /** Is this DCP channel XAttrAware */
-    bool dcpXattrAware;
+    bool dcpXattrAware = false;
 
     /** Shuld values be stripped off? */
-    bool dcpNoValue;
+    bool dcpNoValue = false;
 
     /** Is this DCP channel collection aware? */
-    bool dcpCollectionAware;
+    bool dcpCollectionAware = false;
 
-    int max_reqs_per_event; /** The maximum requests we can process in a worker
-                                thread timeslice */
+    /** The maximum requests we can process in a worker thread timeslice */
+    int max_reqs_per_event =
+            settings.getRequestsPerEventNotification(EventPriority::Default);
+
     /**
      * number of events this connection can process in a single worker
      * thread timeslice
      */
-    int numEvents;
+    int numEvents = 0;
 
     /** current command being processed */
-    uint8_t cmd;
+    uint8_t cmd = PROTOCOL_BINARY_CMD_INVALID;
 
     // Members related to libevent
 
     /** Is the connection currently registered in libevent? */
-    bool registered_in_libevent;
+    bool registered_in_libevent = false;
     /** The libevent object */
-    struct event event;
+    struct event event = {};
     /** The current flags we've registered in libevent */
-    short ev_flags;
+    short ev_flags = 0;
     /** which events were just triggered */
-    short currentEvent;
+    short currentEvent = 0;
     /** When we inserted the object in libevent */
     rel_time_t ev_insert_time;
     /** Do we have an event timeout or not */
-    bool ev_timeout_enabled;
+    bool ev_timeout_enabled = false;
     /** If ev_timeout_enabled is true, the current timeout in libevent */
     rel_time_t ev_timeout;
 
     /** which state to go into after finishing current write */
-    TaskFunction write_and_go;
+    TaskFunction write_and_go = conn_new_cmd;
 
     /* data for the mwrite state */
     std::vector<iovec> iov;
     /** number of elements used in iov[] */
-    size_t iovused;
+    size_t iovused = 0;
 
     /** The message list being used for transfer */
     std::vector<struct msghdr> msglist;
     /** element in msglist[] being transmitted now */
-    size_t msgcurr;
+    size_t msgcurr = 0;
     /** number of bytes in current msg */
-    int msgbytes;
+    int msgbytes = 0;
 
     /**
      * List of items we've reserved during the command (should call
@@ -854,20 +860,20 @@ protected:
     std::vector<char*> temp_alloc;
 
     /** True if the reply should not be sent (unless there is an error) */
-    bool noreply;
+    bool noreply = false;
 
     /**
      * If the client enabled the datatype support the response packet
      * will contain the datatype as set for the object
      */
-    bool supports_datatype;
+    bool supports_datatype = false;
 
     /**
      * If the client enabled the mutation seqno feature each mutation
      * command will return the vbucket UUID and sequence number for the
      * mutation.
      */
-    bool supports_mutation_extras;
+    bool supports_mutation_extras = false;
 
     /**
      * The dynamic buffer is used to format output packets to be sent on
@@ -879,20 +885,20 @@ protected:
      * The high resolution timer value for when we started executing the
      * current command.
      */
-    hrtime_t start;
+    hrtime_t start = 0;
 
     /** the cas to return */
-    uint64_t cas;
+    uint64_t cas = 0;
 
     /**
      * The status for the async io operation
      */
-    ENGINE_ERROR_CODE aiostat;
+    ENGINE_ERROR_CODE aiostat = ENGINE_SUCCESS;
 
     /**
      * Is this connection currently in an "ewouldblock" state?
      */
-    bool ewouldblock;
+    bool ewouldblock = false;
 
     /**
      *  command-specific context - for use by command executors to maintain
@@ -942,9 +948,9 @@ protected:
     int sslPreConnection();
 
     // Total number of bytes received on the network
-    size_t totalRecv;
+    size_t totalRecv = 0;
     // Total number of bytes sent to the network
-    size_t totalSend;
+    size_t totalSend = 0;
 
     Cookie cookie;
 

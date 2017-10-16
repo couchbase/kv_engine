@@ -732,46 +732,23 @@ void McbpConnection::ensureIovSpace() {
     }
 }
 
+McbpConnection::McbpConnection()
+    : Connection(INVALID_SOCKET, nullptr),
+      stateMachine(new McbpStateMachine(conn_new_cmd)),
+      cookie(*this) {
+}
+
 McbpConnection::McbpConnection(SOCKET sfd,
                                event_base* b,
                                const ListeningPort& ifc)
     : Connection(sfd, b, ifc),
       stateMachine(new McbpStateMachine(conn_new_cmd)),
-      dcp(false),
-      dcpXattrAware(false),
-      dcpNoValue(false),
-      dcpCollectionAware(false),
-      max_reqs_per_event(
-              settings.getRequestsPerEventNotification(EventPriority::Default)),
-      numEvents(0),
-      cmd(PROTOCOL_BINARY_CMD_INVALID),
-      registered_in_libevent(false),
-      ev_flags(0),
-      currentEvent(0),
-      ev_timeout_enabled(false),
-      write_and_go(conn_new_cmd),
-      iov(IOV_LIST_INITIAL),
-      iovused(0),
-      msglist(),
-      msgcurr(0),
-      msgbytes(0),
-      noreply(false),
-      supports_datatype(false),
-      supports_mutation_extras(false),
-      start(0),
-      cas(0),
-      aiostat(ENGINE_SUCCESS),
-      ewouldblock(false),
-      commandContext(nullptr),
-      totalRecv(0),
-      totalSend(0),
       cookie(*this) {
     if (ifc.protocol != Protocol::Memcached) {
         throw std::logic_error("Incorrect object for MCBP");
     }
-    memset(&binary_header, 0, sizeof(binary_header));
-    memset(&event, 0, sizeof(event));
     msglist.reserve(MSG_LIST_INITIAL);
+    iov.resize(IOV_LIST_INITIAL);
 
     if (ifc.ssl.enabled) {
         if (!enableSSL(ifc.ssl.cert, ifc.ssl.key)) {

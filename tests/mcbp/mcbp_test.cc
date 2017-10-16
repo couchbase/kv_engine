@@ -31,19 +31,11 @@ namespace mcbp {
 namespace test {
 
 ValidatorTest::ValidatorTest()
-    : listeningport(0, "localhost", false, 0, false, Protocol::Memcached),
-      ev(event_base_new()),
-      connection(-1, ev, listeningport),
-      request(*reinterpret_cast<protocol_binary_request_no_extras*>(blob)) {
-}
-
-ValidatorTest::~ValidatorTest() {
-    event_base_free(ev);
+    : request(*reinterpret_cast<protocol_binary_request_no_extras*>(blob)) {
 }
 
 void ValidatorTest::SetUp() {
     settings.setXattrEnabled(true);
-    connection.read.reset(new cb::Pipe);
     McbpValidatorChains::initializeMcbpValidatorChains(validatorChains);
     memset(request.bytes, 0, sizeof(request));
     request.message.header.request.magic = PROTOCOL_BINARY_REQ;
