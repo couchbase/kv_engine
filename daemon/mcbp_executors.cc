@@ -1092,7 +1092,7 @@ static void process_bin_dcp_response(McbpConnection* c) {
 
     if (c->getBucketEngine()->dcp.response_handler != NULL) {
         auto* header = reinterpret_cast<protocol_binary_response_header*>(
-                c->getPacket(c->getCookieObject()));
+                c->getCookieObject().getPacketAsVoidPtr());
         ret = c->getBucketEngine()->dcp.response_handler
             (c->getBucketEngineAsV0(), c->getCookie(), header);
         ret = c->remapErrorCode(ret);
@@ -1163,7 +1163,8 @@ static void execute_request_packet(McbpConnection* c) {
     static McbpPrivilegeChains privilegeChains;
     protocol_binary_response_status result;
 
-    char* packet = static_cast<char*>(c->getPacket(c->getCookieObject()));
+    char* packet =
+            static_cast<char*>(c->getCookieObject().getPacketAsVoidPtr());
     auto opcode = static_cast<protocol_binary_command>(c->binary_header.request.opcode);
     auto executor = executors[opcode];
 

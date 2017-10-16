@@ -110,6 +110,25 @@ public:
         return connection;
     }
 
+    /**
+     * Get the packet for this command / response packet
+     *
+     * @return the byte buffer containing the packet
+     * @throws std::logic_error if the packet isn't available
+     */
+    virtual cb::const_byte_buffer getPacket() const;
+
+    /**
+     * All of the (current) packet validators expects a void* and I don't
+     * want to refactor all of them at this time.. Create a convenience
+     * methods for now
+     *
+     * @return the current packet as a void pointer..
+     */
+    void* getPacketAsVoidPtr() const {
+        return const_cast<void*>(static_cast<const void*>(getPacket().data()));
+    }
+
 protected:
     /**
      * The connection object this cookie is bound to

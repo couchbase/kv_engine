@@ -131,7 +131,8 @@ static inline protocol_binary_response_status validate_xattr_section(
 
 static protocol_binary_response_status subdoc_validator(const Cookie& cookie,
                                                         const SubdocCmdTraits traits) {
-    auto req = reinterpret_cast<const protocol_binary_request_subdocument*>(McbpConnection::getPacket(cookie));
+    auto req = reinterpret_cast<const protocol_binary_request_subdocument*>(
+            cookie.getPacketAsVoidPtr());
     const protocol_binary_request_header* header = &req->message.header;
     // Extract the various fields from the header.
     const uint16_t keylen = ntohs(header->request.keylen);
@@ -418,7 +419,8 @@ static protocol_binary_response_status is_valid_multipath_spec(
 static protocol_binary_response_status subdoc_multi_validator(const Cookie& cookie,
                                                               const SubdocMultiCmdTraits traits)
 {
-    auto req = static_cast<protocol_binary_request_header*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_header*>(
+            cookie.getPacketAsVoidPtr());
 
     // 1. Check simple static values.
 
@@ -467,8 +469,9 @@ static protocol_binary_response_status subdoc_multi_validator(const Cookie& cook
     //    the packet. Let's force the client to sort all of the xattrs
     //    operations _first_.
     bool xattrs_allowed = true;
-    const char* const body_ptr = reinterpret_cast<const char*>(McbpConnection::getPacket(cookie)) +
-                                 sizeof(*req);
+    const char* const body_ptr =
+            reinterpret_cast<const char*>(cookie.getPacketAsVoidPtr()) +
+            sizeof(*req);
     const size_t keylen = ntohs(req->request.keylen);
     const size_t bodylen = ntohl(req->request.bodylen);
     size_t body_validated = keylen + req->request.extlen;

@@ -26,7 +26,8 @@
 #include "xattr/utils.h"
 
 static inline bool may_accept_xattr(const Cookie& cookie) {
-    auto* req = static_cast<protocol_binary_request_header*>(McbpConnection::getPacket(cookie));
+    auto* req = static_cast<protocol_binary_request_header*>(
+            cookie.getPacketAsVoidPtr());
     if (mcbp::datatype::is_xattr(req->request.datatype)) {
         return cookie.getConnection().isXattrEnabled();
     }
@@ -47,7 +48,8 @@ static inline std::string get_peer_description(const Cookie& cookie) {
  *****************************************************************************/
 static protocol_binary_response_status dcp_open_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_dcp_open*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_dcp_open*>(
+            cookie.getPacketAsVoidPtr());
 
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != 8 ||
@@ -102,7 +104,8 @@ static protocol_binary_response_status dcp_open_validator(const Cookie& cookie)
 
 static protocol_binary_response_status dcp_add_stream_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_dcp_add_stream*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_dcp_add_stream*>(
+            cookie.getPacketAsVoidPtr());
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != 4 ||
         req->message.header.request.keylen != 0 ||
@@ -147,7 +150,8 @@ static protocol_binary_response_status dcp_add_stream_validator(const Cookie& co
 
 static protocol_binary_response_status dcp_close_stream_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_dcp_close_stream*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_dcp_close_stream*>(
+            cookie.getPacketAsVoidPtr());
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != 0 ||
         req->message.header.request.keylen != 0 ||
@@ -170,7 +174,8 @@ static protocol_binary_response_status dcp_close_stream_validator(const Cookie& 
 
 static protocol_binary_response_status dcp_get_failover_log_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_dcp_get_failover_log*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_dcp_get_failover_log*>(
+            cookie.getPacketAsVoidPtr());
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != 0 ||
         req->message.header.request.keylen != 0 ||
@@ -193,7 +198,8 @@ static protocol_binary_response_status dcp_get_failover_log_validator(const Cook
 
 static protocol_binary_response_status dcp_stream_req_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_dcp_stream_req*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_dcp_stream_req*>(
+            cookie.getPacketAsVoidPtr());
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != 5*sizeof(uint64_t) + 2*sizeof(uint32_t) ||
         req->message.header.request.keylen != 0 ||
@@ -215,7 +221,8 @@ static protocol_binary_response_status dcp_stream_req_validator(const Cookie& co
 
 static protocol_binary_response_status dcp_stream_end_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_dcp_stream_end*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_dcp_stream_end*>(
+            cookie.getPacketAsVoidPtr());
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != 4 ||
         req->message.header.request.keylen != 0 ||
@@ -237,7 +244,8 @@ static protocol_binary_response_status dcp_stream_end_validator(const Cookie& co
 
 static protocol_binary_response_status dcp_snapshot_marker_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_dcp_snapshot_marker*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_dcp_snapshot_marker*>(
+            cookie.getPacketAsVoidPtr());
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != 20 ||
         req->message.header.request.keylen != 0 ||
@@ -262,7 +270,7 @@ static protocol_binary_response_status dcp_system_event_validator(
         const Cookie& cookie) {
     // keylen + bodylen > ??
     auto req = static_cast<protocol_binary_request_dcp_system_event*>(
-            McbpConnection::getPacket(cookie));
+            cookie.getPacketAsVoidPtr());
     auto bodylen = ntohl(req->message.header.request.bodylen);
     auto keylen = ntohs(req->message.header.request.keylen);
     auto extlen = req->message.header.request.extlen;
@@ -301,7 +309,8 @@ static bool is_valid_xattr_blob(const protocol_binary_request_header& header) {
 
 static protocol_binary_response_status dcp_mutation_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_dcp_mutation*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_dcp_mutation*>(
+            cookie.getPacketAsVoidPtr());
     const auto datatype = req->message.header.request.datatype;
 
     const uint32_t extlen{req->message.header.request.extlen};
@@ -338,7 +347,8 @@ static protocol_binary_response_status dcp_mutation_validator(const Cookie& cook
 
 static protocol_binary_response_status dcp_deletion_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_dcp_deletion*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_dcp_deletion*>(
+            cookie.getPacketAsVoidPtr());
     const auto datatype = req->message.header.request.datatype;
 
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
@@ -373,7 +383,8 @@ static protocol_binary_response_status dcp_deletion_validator(const Cookie& cook
 
 static protocol_binary_response_status dcp_expiration_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_dcp_deletion*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_dcp_deletion*>(
+            cookie.getPacketAsVoidPtr());
     uint16_t klen = ntohs(req->message.header.request.keylen);
     uint32_t bodylen = ntohl(req->message.header.request.bodylen) - klen;
     bodylen -= req->message.header.request.extlen;
@@ -403,7 +414,8 @@ static protocol_binary_response_status dcp_expiration_validator(const Cookie& co
 
 static protocol_binary_response_status dcp_flush_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_dcp_flush*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_dcp_flush*>(
+            cookie.getPacketAsVoidPtr());
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != 0 ||
         req->message.header.request.keylen != 0 ||
@@ -425,7 +437,8 @@ static protocol_binary_response_status dcp_flush_validator(const Cookie& cookie)
 
 static protocol_binary_response_status dcp_set_vbucket_state_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_dcp_set_vbucket_state*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_dcp_set_vbucket_state*>(
+            cookie.getPacketAsVoidPtr());
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != 1 ||
         req->message.header.request.keylen != 0 ||
@@ -452,7 +465,8 @@ static protocol_binary_response_status dcp_set_vbucket_state_validator(const Coo
 
 static protocol_binary_response_status dcp_noop_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_dcp_noop*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_dcp_noop*>(
+            cookie.getPacketAsVoidPtr());
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != 0 ||
         req->message.header.request.keylen != 0 ||
@@ -474,7 +488,8 @@ static protocol_binary_response_status dcp_noop_validator(const Cookie& cookie)
 
 static protocol_binary_response_status dcp_buffer_acknowledgement_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_dcp_buffer_acknowledgement*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_dcp_buffer_acknowledgement*>(
+            cookie.getPacketAsVoidPtr());
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != 4 ||
         req->message.header.request.keylen != 0 ||
@@ -497,7 +512,8 @@ static protocol_binary_response_status dcp_buffer_acknowledgement_validator(cons
 
 static protocol_binary_response_status dcp_control_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_dcp_control*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_dcp_control*>(
+            cookie.getPacketAsVoidPtr());
     uint16_t nkey = ntohs(req->message.header.request.keylen);
     uint32_t nval = ntohl(req->message.header.request.bodylen) - nkey;
 
@@ -520,7 +536,8 @@ static protocol_binary_response_status dcp_control_validator(const Cookie& cooki
 
 static protocol_binary_response_status configuration_refresh_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_no_extras*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_no_extras*>(
+            cookie.getPacketAsVoidPtr());
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != 0 ||
         req->message.header.request.keylen != 0 ||
@@ -535,7 +552,8 @@ static protocol_binary_response_status configuration_refresh_validator(const Coo
 
 static protocol_binary_response_status verbosity_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_no_extras*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_no_extras*>(
+            cookie.getPacketAsVoidPtr());
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != 4 ||
         req->message.header.request.keylen != 0 ||
@@ -550,7 +568,8 @@ static protocol_binary_response_status verbosity_validator(const Cookie& cookie)
 
 static protocol_binary_response_status hello_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_no_extras*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_no_extras*>(
+            cookie.getPacketAsVoidPtr());
     uint32_t len = ntohl(req->message.header.request.bodylen);
     len -= ntohs(req->message.header.request.keylen);
 
@@ -566,7 +585,8 @@ static protocol_binary_response_status hello_validator(const Cookie& cookie)
 
 static protocol_binary_response_status version_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_no_extras*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_no_extras*>(
+            cookie.getPacketAsVoidPtr());
 
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != 0 ||
@@ -582,7 +602,8 @@ static protocol_binary_response_status version_validator(const Cookie& cookie)
 
 static protocol_binary_response_status quit_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_no_extras*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_no_extras*>(
+            cookie.getPacketAsVoidPtr());
 
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != 0 ||
@@ -598,7 +619,8 @@ static protocol_binary_response_status quit_validator(const Cookie& cookie)
 
 static protocol_binary_response_status sasl_list_mech_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_no_extras*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_no_extras*>(
+            cookie.getPacketAsVoidPtr());
 
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != 0 ||
@@ -614,7 +636,8 @@ static protocol_binary_response_status sasl_list_mech_validator(const Cookie& co
 
 static protocol_binary_response_status sasl_auth_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_no_extras*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_no_extras*>(
+            cookie.getPacketAsVoidPtr());
 
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != 0 ||
@@ -629,7 +652,8 @@ static protocol_binary_response_status sasl_auth_validator(const Cookie& cookie)
 
 static protocol_binary_response_status noop_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_no_extras*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_no_extras*>(
+            cookie.getPacketAsVoidPtr());
 
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != 0 ||
@@ -645,7 +669,8 @@ static protocol_binary_response_status noop_validator(const Cookie& cookie)
 
 static protocol_binary_response_status flush_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_no_extras*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_no_extras*>(
+            cookie.getPacketAsVoidPtr());
     uint8_t extlen = req->message.header.request.extlen;
     uint32_t bodylen = ntohl(req->message.header.request.bodylen);
 
@@ -659,7 +684,8 @@ static protocol_binary_response_status flush_validator(const Cookie& cookie)
 
     if (extlen == 4) {
         // We don't support delayed flush anymore
-        auto *req = reinterpret_cast<protocol_binary_request_flush*>(McbpConnection::getPacket(cookie));
+        auto* req = reinterpret_cast<protocol_binary_request_flush*>(
+                cookie.getPacketAsVoidPtr());
         if (req->message.body.expiration != 0) {
             return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
         }
@@ -677,7 +703,8 @@ static protocol_binary_response_status flush_validator(const Cookie& cookie)
 
 static protocol_binary_response_status add_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_no_extras*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_no_extras*>(
+            cookie.getPacketAsVoidPtr());
     /* Must have extras and key, may have value */
     auto datatype = req->message.header.request.datatype;
 
@@ -694,7 +721,8 @@ static protocol_binary_response_status add_validator(const Cookie& cookie)
 
 static protocol_binary_response_status set_replace_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_no_extras*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_no_extras*>(
+            cookie.getPacketAsVoidPtr());
     /* Must have extras and key, may have value */
     auto datatype = req->message.header.request.datatype;
 
@@ -710,7 +738,8 @@ static protocol_binary_response_status set_replace_validator(const Cookie& cooki
 
 static protocol_binary_response_status append_prepend_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_no_extras*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_no_extras*>(
+            cookie.getPacketAsVoidPtr());
     /* Must not have extras, must have key, may have value */
     auto datatype = req->message.header.request.datatype;
 
@@ -726,7 +755,8 @@ static protocol_binary_response_status append_prepend_validator(const Cookie& co
 
 static protocol_binary_response_status get_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_no_extras*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_no_extras*>(
+            cookie.getPacketAsVoidPtr());
     uint16_t klen = ntohs(req->message.header.request.keylen);
     uint32_t blen = ntohl(req->message.header.request.bodylen);
 
@@ -743,7 +773,7 @@ static protocol_binary_response_status get_validator(const Cookie& cookie)
 
 static protocol_binary_response_status gat_validator(const Cookie& cookie) {
     auto req = static_cast<protocol_binary_request_no_extras*>(
-            McbpConnection::getPacket(cookie));
+            cookie.getPacketAsVoidPtr());
     uint32_t klen = ntohs(req->message.header.request.keylen);
     uint32_t blen = ntohl(req->message.header.request.bodylen);
 
@@ -760,7 +790,8 @@ static protocol_binary_response_status gat_validator(const Cookie& cookie) {
 
 static protocol_binary_response_status delete_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_no_extras*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_no_extras*>(
+            cookie.getPacketAsVoidPtr());
     uint16_t klen = ntohs(req->message.header.request.keylen);
     uint32_t blen = ntohl(req->message.header.request.bodylen);
 
@@ -776,7 +807,8 @@ static protocol_binary_response_status delete_validator(const Cookie& cookie)
 
 static protocol_binary_response_status stat_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_no_extras*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_no_extras*>(
+            cookie.getPacketAsVoidPtr());
     uint16_t klen = ntohs(req->message.header.request.keylen);
     uint32_t blen = ntohl(req->message.header.request.bodylen);
 
@@ -792,7 +824,8 @@ static protocol_binary_response_status stat_validator(const Cookie& cookie)
 
 static protocol_binary_response_status arithmetic_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_no_extras*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_no_extras*>(
+            cookie.getPacketAsVoidPtr());
     uint16_t klen = ntohs(req->message.header.request.keylen);
     uint32_t blen = ntohl(req->message.header.request.bodylen);
     uint8_t extlen = req->message.header.request.extlen;
@@ -809,7 +842,8 @@ static protocol_binary_response_status arithmetic_validator(const Cookie& cookie
 
 static protocol_binary_response_status get_cmd_timer_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_no_extras*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_no_extras*>(
+            cookie.getPacketAsVoidPtr());
     uint16_t klen = ntohs(req->message.header.request.keylen);
     uint32_t blen = ntohl(req->message.header.request.bodylen);
     uint8_t extlen = req->message.header.request.extlen;
@@ -826,7 +860,8 @@ static protocol_binary_response_status get_cmd_timer_validator(const Cookie& coo
 
 static protocol_binary_response_status set_ctrl_token_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_set_ctrl_token*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_set_ctrl_token*>(
+            cookie.getPacketAsVoidPtr());
 
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != sizeof(uint64_t) ||
@@ -842,7 +877,8 @@ static protocol_binary_response_status set_ctrl_token_validator(const Cookie& co
 
 static protocol_binary_response_status get_ctrl_token_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_no_extras*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_no_extras*>(
+            cookie.getPacketAsVoidPtr());
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != 0 ||
         req->message.header.request.keylen != 0 ||
@@ -857,7 +893,8 @@ static protocol_binary_response_status get_ctrl_token_validator(const Cookie& co
 
 static protocol_binary_response_status ioctl_get_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_ioctl_get*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_ioctl_get*>(
+            cookie.getPacketAsVoidPtr());
     uint16_t klen = ntohs(req->message.header.request.keylen);
     uint32_t blen = ntohl(req->message.header.request.bodylen);
 
@@ -874,7 +911,8 @@ static protocol_binary_response_status ioctl_get_validator(const Cookie& cookie)
 
 static protocol_binary_response_status ioctl_set_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_ioctl_set*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_ioctl_set*>(
+            cookie.getPacketAsVoidPtr());
     uint16_t klen = ntohs(req->message.header.request.keylen);
     size_t vallen = ntohl(req->message.header.request.bodylen) - klen;
 
@@ -892,7 +930,8 @@ static protocol_binary_response_status ioctl_set_validator(const Cookie& cookie)
 
 static protocol_binary_response_status audit_put_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_audit_put*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_audit_put*>(
+            cookie.getPacketAsVoidPtr());
 
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != 4 ||
@@ -907,7 +946,8 @@ static protocol_binary_response_status audit_put_validator(const Cookie& cookie)
 
 static protocol_binary_response_status audit_config_reload_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_no_extras*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_no_extras*>(
+            cookie.getPacketAsVoidPtr());
 
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != 0 ||
@@ -922,7 +962,8 @@ static protocol_binary_response_status audit_config_reload_validator(const Cooki
 
 static protocol_binary_response_status observe_seqno_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_no_extras*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_no_extras*>(
+            cookie.getPacketAsVoidPtr());
     uint32_t bodylen = ntohl(req->message.header.request.bodylen);
 
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
@@ -937,7 +978,8 @@ static protocol_binary_response_status observe_seqno_validator(const Cookie& coo
 
 static protocol_binary_response_status get_adjusted_time_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_get_adjusted_time*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_get_adjusted_time*>(
+            cookie.getPacketAsVoidPtr());
 
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != 0 ||
@@ -952,7 +994,8 @@ static protocol_binary_response_status get_adjusted_time_validator(const Cookie&
 
 static protocol_binary_response_status set_drift_counter_state_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_set_drift_counter_state*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_set_drift_counter_state*>(
+            cookie.getPacketAsVoidPtr());
 
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != sizeof(uint8_t) + sizeof(int64_t) ||
@@ -971,7 +1014,8 @@ static protocol_binary_response_status set_drift_counter_state_validator(const C
  */
 static protocol_binary_response_status create_bucket_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_no_extras*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_no_extras*>(
+            cookie.getPacketAsVoidPtr());
 
     uint16_t klen = ntohs(req->message.header.request.keylen);
     uint32_t blen = ntohl(req->message.header.request.bodylen);
@@ -992,7 +1036,8 @@ static protocol_binary_response_status create_bucket_validator(const Cookie& coo
 
 static protocol_binary_response_status list_bucket_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_no_extras*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_no_extras*>(
+            cookie.getPacketAsVoidPtr());
 
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.keylen != 0 ||
@@ -1007,7 +1052,8 @@ static protocol_binary_response_status list_bucket_validator(const Cookie& cooki
 
 static protocol_binary_response_status delete_bucket_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_no_extras*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_no_extras*>(
+            cookie.getPacketAsVoidPtr());
 
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.keylen == 0 ||
@@ -1022,7 +1068,8 @@ static protocol_binary_response_status delete_bucket_validator(const Cookie& coo
 
 static protocol_binary_response_status select_bucket_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_no_extras*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_no_extras*>(
+            cookie.getPacketAsVoidPtr());
 
     uint16_t klen = ntohs(req->message.header.request.keylen);
     uint32_t blen = ntohl(req->message.header.request.bodylen);
@@ -1039,7 +1086,8 @@ static protocol_binary_response_status select_bucket_validator(const Cookie& coo
 
 static protocol_binary_response_status get_all_vb_seqnos_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_get_all_vb_seqnos*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_get_all_vb_seqnos*>(
+            cookie.getPacketAsVoidPtr());
     uint16_t klen = ntohs(req->message.header.request.keylen);
     uint32_t blen = ntohl(req->message.header.request.bodylen);
     uint8_t extlen = req->message.header.request.extlen;
@@ -1070,7 +1118,8 @@ static protocol_binary_response_status get_all_vb_seqnos_validator(const Cookie&
 
 static protocol_binary_response_status shutdown_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_no_extras*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_no_extras*>(
+            cookie.getPacketAsVoidPtr());
 
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != 0 ||
@@ -1087,7 +1136,8 @@ static protocol_binary_response_status shutdown_validator(const Cookie& cookie)
 
 static protocol_binary_response_status get_meta_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_no_extras*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_no_extras*>(
+            cookie.getPacketAsVoidPtr());
     uint32_t extlen = req->message.header.request.extlen;
     uint32_t klen = ntohs(req->message.header.request.keylen);
     uint32_t blen = ntohl(req->message.header.request.bodylen);
@@ -1112,7 +1162,8 @@ static protocol_binary_response_status get_meta_validator(const Cookie& cookie)
 }
 
 static protocol_binary_response_status mutate_with_meta_validator(const Cookie& cookie) {
-    auto req = static_cast<protocol_binary_request_get_meta*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_get_meta*>(
+            cookie.getPacketAsVoidPtr());
 
     const uint32_t extlen = req->message.header.request.extlen;
     const uint32_t keylen = ntohs(req->message.header.request.keylen);
@@ -1152,7 +1203,8 @@ static protocol_binary_response_status mutate_with_meta_validator(const Cookie& 
 }
 
 static protocol_binary_response_status get_errmap_validator(const Cookie& cookie) {
-    const auto& hdr = *static_cast<const protocol_binary_request_header*>(McbpConnection::getPacket(cookie));
+    const auto& hdr = *static_cast<const protocol_binary_request_header*>(
+            cookie.getPacketAsVoidPtr());
     if (hdr.request.magic == PROTOCOL_BINARY_REQ &&
             ntohl(hdr.request.bodylen) == 2 &&
             hdr.request.cas == 0 &&
@@ -1168,7 +1220,8 @@ static protocol_binary_response_status get_errmap_validator(const Cookie& cookie
 
 static protocol_binary_response_status get_locked_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_no_extras*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_no_extras*>(
+            cookie.getPacketAsVoidPtr());
     uint32_t extlen = req->message.header.request.extlen;
     uint32_t klen = ntohs(req->message.header.request.keylen);
     uint32_t blen = ntohl(req->message.header.request.bodylen);
@@ -1185,7 +1238,8 @@ static protocol_binary_response_status get_locked_validator(const Cookie& cookie
 
 static protocol_binary_response_status unlock_validator(const Cookie& cookie)
 {
-    auto req = static_cast<protocol_binary_request_no_extras*>(McbpConnection::getPacket(cookie));
+    auto req = static_cast<protocol_binary_request_no_extras*>(
+            cookie.getPacketAsVoidPtr());
     uint32_t extlen = req->message.header.request.extlen;
     uint32_t klen = ntohs(req->message.header.request.keylen);
     uint32_t blen = ntohl(req->message.header.request.bodylen);
@@ -1204,7 +1258,7 @@ static protocol_binary_response_status unlock_validator(const Cookie& cookie)
 static protocol_binary_response_status collections_set_manifest_validator(
         const Cookie& cookie) {
     auto packet = static_cast<protocol_binary_collections_set_manifest*>(
-            McbpConnection::getPacket(cookie));
+            cookie.getPacketAsVoidPtr());
     auto& req = packet->message.header.request;
 
     if (req.magic != PROTOCOL_BINARY_REQ || req.keylen != 0 ||

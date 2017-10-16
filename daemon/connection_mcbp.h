@@ -174,7 +174,7 @@ public:
      * @return the buffer to the key.
      */
     cb::const_char_buffer getKey() const {
-        auto *pkt = reinterpret_cast<const char *>(getPacket(cookie));
+        auto* pkt = reinterpret_cast<const char*>(cookie.getPacketAsVoidPtr());
         cb::const_char_buffer ret;
         ret.len = binary_header.request.keylen;
         ret.buf = pkt + sizeof binary_header.bytes + binary_header.request.extlen;
@@ -712,10 +712,12 @@ public:
 
     /**
      * Obtain a pointer to the packet for the Cookie's connection
+     *
+     * Deprecated: use Cookie::getPacket instead
      */
-    static void* getPacket(const Cookie& cookie) {
-        auto avail = cookie.getConnection().read->rdata();
-        return const_cast<void*>(static_cast<const void*>(avail.data()));
+    static void* getPacket(const Cookie& cookie) CB_ATTR_DEPRECATED {
+        auto packet = cookie.getPacket();
+        return const_cast<void*>(static_cast<const void*>(packet.data()));
     }
 
     /**

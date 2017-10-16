@@ -16,6 +16,8 @@
  */
 
 #include "cookie.h"
+#include "connection_mcbp.h"
+
 #include <cJSON_utils.h>
 
 const std::string& Cookie::getErrorJson() {
@@ -35,4 +37,23 @@ const std::string& Cookie::getErrorJson() {
     cJSON_AddItemToObject(root.get(), "error", error.release());
     json_message = to_string(root, false);
     return json_message;
+}
+
+cb::const_byte_buffer Cookie::getPacket() const {
+    auto buffer = connection.read->rdata();
+
+    if (buffer.size() < sizeof(cb::mcbp::Request)) {
+        // we don't have the header, so we can't even look at the body
+        // length
+        throw std::logic_error("Cookie::getPacket(): header not available");
+    }
+
+    const auto* req = reinterpret_cast<const cb::mcbp::Request*>(buffer.data());
+    const size_t packetsize = sizeof(cb::mcbp::Request) + req->getBodylen();
+
+    if (buffer.size() < packetsize) {
+        throw std::logic_error("Cookie::getPacket(): Body not available");
+    }
+
+    return cb::const_byte_buffer{buffer.data(), packetsize};
 }

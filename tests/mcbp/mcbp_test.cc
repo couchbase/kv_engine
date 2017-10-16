@@ -50,6 +50,25 @@ void ValidatorTest::SetUp() {
     request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
 }
 
+/**
+ * Mock the cookie class and override the getPacket method so that we
+ * may use the buffer directly instead of having to insert it into the read/
+ * write buffers of the underlying connection
+ */
+class MockCookie : public Cookie {
+public:
+    MockCookie(McbpConnection& connection, cb::const_byte_buffer buffer)
+        : Cookie(connection), packet(buffer) {
+    }
+
+    cb::const_byte_buffer getPacket() const override {
+        return packet;
+    }
+
+private:
+    const cb::const_byte_buffer packet;
+};
+
 protocol_binary_response_status
 ValidatorTest::validate(protocol_binary_command opcode, void* packet) {
     // Mockup a McbpConnection and Cookie for the validator chain
@@ -62,19 +81,9 @@ ValidatorTest::validate(protocol_binary_command opcode, void* packet) {
     connection.binary_header.request.cas = ntohll(req->request.cas);
 
     const size_t size = sizeof(*req) + connection.binary_header.request.bodylen;
-    connection.read->ensureCapacity(size);
-    connection.read->produce([size, req](cb::byte_buffer buffer) -> ssize_t {
-        std::copy(req->bytes, req->bytes + size, buffer.begin());
-        return size;
-    });
-
-    Cookie cookie(connection);
-    auto rv = validatorChains.invoke(opcode, cookie);
-
-    connection.read->consume([](cb::const_byte_buffer buffer) -> ssize_t {
-        return buffer.size();
-    });
-    return rv;
+    cb::const_byte_buffer buffer{static_cast<uint8_t*>(packet), size};
+    MockCookie cookie(connection, buffer);
+    return validatorChains.invoke(opcode, cookie);
 }
 
 enum class GetOpcodes : uint8_t {
