@@ -28,7 +28,7 @@
 
 #include <platform/strerror.h>
 
-void McbpStateMachine::setCurrentTask(McbpConnection& connection, TaskFunction task) {
+void McbpStateMachine::setCurrentTask(TaskFunction task) {
     // Moving to the same state is legal
     if (task == currentTask) {
         return;
@@ -129,7 +129,8 @@ static void reset_cmd_handler(McbpConnection *c) {
  * @return true if we should continue to process work for this connection, false
  *              if we should start processing events for other connections.
  */
-bool conn_ship_log(McbpConnection *c) {
+bool conn_ship_log(McbpConnection& connection) {
+    auto* c = &connection;
     if (is_bucket_dying(c)) {
         return true;
     }
@@ -182,7 +183,8 @@ bool conn_ship_log(McbpConnection *c) {
     return cont;
 }
 
-bool conn_waiting(McbpConnection *c) {
+bool conn_waiting(McbpConnection& connection) {
+    auto* c = &connection;
     if (is_bucket_dying(c) || c->processServerEvents()) {
         return true;
     }
@@ -199,7 +201,8 @@ bool conn_waiting(McbpConnection *c) {
     return false;
 }
 
-bool conn_read_packet_header(McbpConnection* c) {
+bool conn_read_packet_header(McbpConnection& connection) {
+    auto* c = &connection;
     if (is_bucket_dying(c) || c->processServerEvents()) {
         return true;
     }
@@ -227,12 +230,14 @@ bool conn_read_packet_header(McbpConnection* c) {
     return true;
 }
 
-bool conn_parse_cmd(McbpConnection *c) {
+bool conn_parse_cmd(McbpConnection& connection) {
+    auto* c = &connection;
     try_read_mcbp_command(c);
     return !c->isEwouldblock();
 }
 
-bool conn_new_cmd(McbpConnection *c) {
+bool conn_new_cmd(McbpConnection& connection) {
+    auto* c = &connection;
     if (is_bucket_dying(c)) {
         return true;
     }
@@ -287,7 +292,8 @@ bool conn_new_cmd(McbpConnection *c) {
     return true;
 }
 
-bool conn_execute(McbpConnection *c) {
+bool conn_execute(McbpConnection& connection) {
+    auto* c = &connection;
     if (is_bucket_dying(c)) {
         return true;
     }
@@ -329,7 +335,8 @@ bool conn_execute(McbpConnection *c) {
     return true;
 }
 
-bool conn_read_packet_body(McbpConnection* c) {
+bool conn_read_packet_body(McbpConnection& connection) {
+    auto* c = &connection;
     if (is_bucket_dying(c)) {
         return true;
     }
@@ -392,7 +399,8 @@ bool conn_read_packet_body(McbpConnection* c) {
     return true;
 }
 
-bool conn_send_data(McbpConnection* c) {
+bool conn_send_data(McbpConnection& connection) {
+    auto* c = &connection;
     bool ret = true;
 
     switch (c->transmit()) {
@@ -426,7 +434,8 @@ bool conn_send_data(McbpConnection* c) {
     return ret;
 }
 
-bool conn_pending_close(McbpConnection *c) {
+bool conn_pending_close(McbpConnection& connection) {
+    auto* c = &connection;
     if (!c->isSocketClosed()) {
         throw std::logic_error("conn_pending_close: socketDescriptor must be closed");
     }
@@ -447,7 +456,8 @@ bool conn_pending_close(McbpConnection *c) {
     return true;
 }
 
-bool conn_immediate_close(McbpConnection *c) {
+bool conn_immediate_close(McbpConnection& connection) {
+    auto* c = &connection;
     ListeningPort *port_instance;
     if (!c->isSocketClosed()) {
         throw std::logic_error("conn_immediate_close: socketDescriptor must be closed");
@@ -471,7 +481,8 @@ bool conn_immediate_close(McbpConnection *c) {
     return false;
 }
 
-bool conn_closing(McbpConnection *c) {
+bool conn_closing(McbpConnection& connection) {
+    auto* c = &connection;
     // Delete any attached command context
     c->resetCommandContext();
 
@@ -494,6 +505,6 @@ bool conn_closing(McbpConnection *c) {
 /** sentinal state used to represent a 'destroyed' connection which will
  *  actually be freed at the end of the event loop. Always returns false.
  */
-bool conn_destroyed(McbpConnection*) {
+bool conn_destroyed(McbpConnection&) {
     return false;
 }

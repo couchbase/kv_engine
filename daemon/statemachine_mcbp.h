@@ -18,7 +18,7 @@
 
 class McbpConnection;
 
-typedef bool (* TaskFunction)(McbpConnection* connection);
+typedef bool (*TaskFunction)(McbpConnection& connection);
 
 /**
  * The state machinery for the Memcached Binary Protocol.
@@ -27,20 +27,18 @@ class McbpStateMachine {
 public:
     McbpStateMachine() = delete;
 
-    McbpStateMachine(TaskFunction task)
-        : currentTask(task) {
-
+    McbpStateMachine(McbpConnection& connection_, TaskFunction task)
+        : currentTask(task), connection(connection_) {
     }
 
     /**
      * Execute the current task function
      *
-     * @param connection the associated connection
      * @return the return value from the task function (true to continue
      *         execution, false otherwise)
      */
-    bool execute(McbpConnection& connection) {
-        return currentTask(&connection);
+    bool execute() {
+        return currentTask(connection);
     }
 
     /**
@@ -62,11 +60,10 @@ public:
      *
      * This validates the requested state transition is valid.
      *
-     * @param connection the associated connection
      * @param task the new task function
      * @throws std::logical_error for illegal state transitions
      */
-    void setCurrentTask(McbpConnection& connection, TaskFunction task);
+    void setCurrentTask(TaskFunction task);
 
     /**
      * Get the name of a given task
@@ -76,6 +73,7 @@ public:
 
 protected:
     TaskFunction currentTask;
+    McbpConnection& connection;
 };
 
 /**
@@ -96,7 +94,7 @@ protected:
  * @return true if the state machinery should continue to process events
  *              for this connection, false if we're done
  */
-bool conn_new_cmd(McbpConnection* c);
+bool conn_new_cmd(McbpConnection& c);
 
 /**
  * Set up a read event for the connection
@@ -109,7 +107,7 @@ bool conn_new_cmd(McbpConnection* c);
  * @return true if the next state is conn_closing, false otherwise (blocked
  *              waiting for a socket event)
  */
-bool conn_waiting(McbpConnection* c);
+bool conn_waiting(McbpConnection& c);
 
 /**
  * conn_read_packet_header tries to read from the network and fill the
@@ -124,7 +122,7 @@ bool conn_waiting(McbpConnection* c);
  * @param c the connection object
  * @return true always
  */
-bool conn_read_packet_header(McbpConnection* c);
+bool conn_read_packet_header(McbpConnection& c);
 
 /**
  * conn_parse_cmd parse the command header, and make a host-local copy of
@@ -141,7 +139,7 @@ bool conn_read_packet_header(McbpConnection* c);
  * @return true if the state machinery should continue to process events
  *              for this connection, false if we're done
  */
-bool conn_parse_cmd(McbpConnection* c);
+bool conn_parse_cmd(McbpConnection& c);
 
 /**
  * Make sure that the entire packet is available
@@ -155,7 +153,7 @@ bool conn_parse_cmd(McbpConnection* c);
  * @return true if the state machinery should continue to process events
  *              for this connection, false if we're done
  */
-bool conn_read_packet_body(McbpConnection* c);
+bool conn_read_packet_body(McbpConnection& c);
 
 /**
  * start closing a connection
@@ -168,7 +166,7 @@ bool conn_read_packet_body(McbpConnection* c);
  * @param c the connection object
  * @return true always
  */
-bool conn_closing(McbpConnection* c);
+bool conn_closing(McbpConnection& c);
 
 /**
  * Wait until all references to the connection is released
@@ -180,7 +178,7 @@ bool conn_closing(McbpConnection* c);
  * @param c the connection object
  * @return true if all references is gone. false otherwise
  */
-bool conn_pending_close(McbpConnection* c);
+bool conn_pending_close(McbpConnection& c);
 
 /**
  * Close sockets and notify everyone with ON_DISCONNECT
@@ -192,7 +190,7 @@ bool conn_pending_close(McbpConnection* c);
  * @param c the connection object
  * @return false - always
  */
-bool conn_immediate_close(McbpConnection* c);
+bool conn_immediate_close(McbpConnection& c);
 
 /**
  * The sentinel state for a connection object
@@ -200,7 +198,7 @@ bool conn_immediate_close(McbpConnection* c);
  * @param c not used
  * @return false - always
  */
-bool conn_destroyed(McbpConnection* c);
+bool conn_destroyed(McbpConnection& c);
 
 /**
  * Execute the current command
@@ -215,7 +213,7 @@ bool conn_destroyed(McbpConnection* c);
  * @return true if the state machinery should continue to process events
  *              for this connection, false if we're blocked
  */
-bool conn_execute(McbpConnection *c);
+bool conn_execute(McbpConnection& c);
 
 /**
  * Send data to the client
@@ -230,7 +228,7 @@ bool conn_execute(McbpConnection *c);
  * @return true if the state machinery should continue to process events
  *              for this connection, false if we're done
  */
-bool conn_send_data(McbpConnection* c);
+bool conn_send_data(McbpConnection& c);
 
 /**
  * conn_ship_log is the state where the DCP connection end up in the "idle"
@@ -248,4 +246,4 @@ bool conn_send_data(McbpConnection* c);
  * @return true if the state machinery should continue to process events
  *              for this connection, false if we're done
  */
-bool conn_ship_log(McbpConnection* c);
+bool conn_ship_log(McbpConnection& c);

@@ -734,7 +734,7 @@ void McbpConnection::ensureIovSpace() {
 
 McbpConnection::McbpConnection()
     : Connection(INVALID_SOCKET, nullptr),
-      stateMachine(new McbpStateMachine(conn_new_cmd)),
+      stateMachine(new McbpStateMachine(*this, conn_new_cmd)),
       cookie(*this) {
 }
 
@@ -742,7 +742,7 @@ McbpConnection::McbpConnection(SOCKET sfd,
                                event_base* b,
                                const ListeningPort& ifc)
     : Connection(sfd, b, ifc),
-      stateMachine(new McbpStateMachine(conn_new_cmd)),
+      stateMachine(new McbpStateMachine(*this, conn_new_cmd)),
       cookie(*this) {
     if (ifc.protocol != Protocol::Memcached) {
         throw std::logic_error("Incorrect object for MCBP");
@@ -770,7 +770,7 @@ McbpConnection::~McbpConnection() {
 }
 
 void McbpConnection::setState(TaskFunction next_state) {
-    stateMachine->setCurrentTask(*this, next_state);
+    stateMachine->setCurrentTask(next_state);
 }
 
 void McbpConnection::runStateMachinery() {
@@ -779,12 +779,12 @@ void McbpConnection::runStateMachinery() {
             // @todo we should have a TRACE scope!!
             LOGGER(EXTENSION_LOG_NOTICE, this, "%u - Running task: (%s)",
                    getId(), stateMachine->getCurrentTaskName());
-        } while (stateMachine->execute(*this));
+        } while (stateMachine->execute());
     } else {
         do {
             LOG_DEBUG(this, "%u - Running task: (%s)", getId(),
                       stateMachine->getCurrentTaskName());
-        } while (stateMachine->execute(*this));
+        } while (stateMachine->execute());
     }
 }
 
