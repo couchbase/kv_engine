@@ -23,5 +23,5 @@ McbpConnection* cookie2mcbp(const void* void_cookie, const char* function) {
                                     ": cookie is nullptr");
     }
     cookie->validate();
-    return &cookie->connection;
+    return &cookie->getConnection();
 }

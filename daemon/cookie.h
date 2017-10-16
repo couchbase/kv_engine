@@ -100,9 +100,22 @@ public:
      */
     const std::string& getErrorJson();
 
-    McbpConnection& connection;
+    /**
+     * Get the connection object the cookie is bound to.
+     *
+     * A cookie is bound to the conneciton at create time, and will never
+     * switch connections
+     */
+    McbpConnection& getConnection() const {
+        return connection;
+    }
 
 protected:
+    /**
+     * The connection object this cookie is bound to
+     */
+    McbpConnection& connection;
+
     /**
      * The magic byte is used for development only and will be removed when
      * we've successfully verified that we don't have any calls through the

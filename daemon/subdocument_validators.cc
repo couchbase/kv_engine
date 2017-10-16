@@ -89,8 +89,8 @@ static inline protocol_binary_response_status validate_xattr_section(
         }
     }
 
-    if (!cookie.connection.selectedBucketIsXattrEnabled() ||
-        !cookie.connection.isXattrEnabled()) {
+    if (!cookie.getConnection().selectedBucketIsXattrEnabled() ||
+        !cookie.getConnection().isXattrEnabled()) {
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
 

@@ -428,10 +428,10 @@ static void append_stats(const char* key, const uint16_t klen,
 
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
     needed = vlen + klen + sizeof(protocol_binary_response_header);
-    if (!cookie->connection.growDynamicBuffer(needed)) {
+    if (!cookie->getConnection().growDynamicBuffer(needed)) {
         return;
     }
-    append_bin_stats(key, klen, val, vlen, &cookie->connection);
+    append_bin_stats(key, klen, val, vlen, &cookie->getConnection());
 }
 
 

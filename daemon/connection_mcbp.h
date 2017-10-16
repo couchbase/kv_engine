@@ -714,7 +714,7 @@ public:
      * Obtain a pointer to the packet for the Cookie's connection
      */
     static void* getPacket(const Cookie& cookie) {
-        auto avail = cookie.connection.read->rdata();
+        auto avail = cookie.getConnection().read->rdata();
         return const_cast<void*>(static_cast<const void*>(avail.data()));
     }
 

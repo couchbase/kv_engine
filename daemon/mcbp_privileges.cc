@@ -23,15 +23,15 @@ using namespace cb::rbac;
 
 template <Privilege T>
 static PrivilegeAccess require(Cookie& cookie) {
-    return cookie.connection.checkPrivilege(T, cookie);
+    return cookie.getConnection().checkPrivilege(T, cookie);
 }
 
 static PrivilegeAccess requireInsertOrUpsert(Cookie& cookie) {
-    auto ret = cookie.connection.checkPrivilege(Privilege::Insert, cookie);
+    auto ret = cookie.getConnection().checkPrivilege(Privilege::Insert, cookie);
     if (ret == PrivilegeAccess::Ok) {
         return PrivilegeAccess::Ok;
     } else {
-        return cookie.connection.checkPrivilege(Privilege::Upsert, cookie);
+        return cookie.getConnection().checkPrivilege(Privilege::Upsert, cookie);
     }
 }
 

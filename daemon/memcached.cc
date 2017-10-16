@@ -282,11 +282,11 @@ void perform_callbacks(ENGINE_EVENT_TYPE type,
             throw std::invalid_argument("perform_callbacks: cookie is nullptr");
         }
         cookie->validate();
-        const auto bucket_idx = cookie->connection.getBucketIndex();
+        const auto bucket_idx = cookie->getConnection().getBucketIndex();
         if (bucket_idx == -1) {
             throw std::logic_error(
                     "perform_callbacks: connection (which is " +
-                    std::to_string(cookie->connection.getId()) +
+                    std::to_string(cookie->getConnection().getId()) +
                     ") cannot be "
                     "disconnected as it is not associated with a bucket");
         }
@@ -416,7 +416,7 @@ struct thread_stats *get_thread_stats(Connection *c) {
 void stats_reset(const void *void_cookie) {
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
     cookie->validate();
-    auto& conn = cookie->connection;
+    auto& conn = cookie->getConnection();
 
     {
         std::lock_guard<std::mutex> guard(stats_mutex);
@@ -724,20 +724,20 @@ bucket_id_t get_bucket_id(const void *void_cookie) {
      */
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
     cookie->validate();
-    return bucket_id_t(cookie->connection.getBucketIndex());
+    return bucket_id_t(cookie->getConnection().getBucketIndex());
 }
 
 uint64_t get_connection_id(const void *void_cookie) {
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
     cookie->validate();
-    return uint64_t(&cookie->connection);
+    return uint64_t(&cookie->getConnection());
 }
 
 std::pair<uint32_t, std::string> cookie_get_log_info(const void* void_cookie) {
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
     cookie->validate();
-    return std::make_pair(cookie->connection.getId(),
-                          cookie->connection.getDescription());
+    return std::make_pair(cookie->getConnection().getId(),
+                          cookie->getConnection().getDescription());
 }
 
 void cookie_set_error_context(void* void_cookie,
@@ -758,15 +758,15 @@ static cb::rbac::PrivilegeAccess check_privilege(const void* void_cookie,
                                                  const cb::rbac::Privilege privilege) {
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
     cookie->validate();
-    return cookie->connection.checkPrivilege(privilege,
-                                             const_cast<Cookie&>(*cookie));
+    return cookie->getConnection().checkPrivilege(privilege,
+                                                  const_cast<Cookie&>(*cookie));
 }
 
 static protocol_binary_response_status engine_error2mcbp(const void* void_cookie,
                                                          ENGINE_ERROR_CODE code) {
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
     cookie->validate();
-    auto& connection = cookie->connection;
+    auto& connection = cookie->getConnection();
 
     ENGINE_ERROR_CODE status = connection.remapErrorCode(code);
     if (status == ENGINE_DISCONNECT) {
@@ -786,7 +786,7 @@ static ENGINE_ERROR_CODE pre_link_document(const void* void_cookie,
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
     cookie->validate();
 
-    auto* context = cookie->connection.getCommandContext();
+    auto* context = cookie->getConnection().getCommandContext();
     if (context != nullptr) {
         return context->pre_link_document(info);
     }
@@ -1561,32 +1561,32 @@ static void store_engine_specific(const void *void_cookie,
 
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
     cookie->validate();
-    cookie->connection.setEngineStorage(engine_data);
+    cookie->getConnection().setEngineStorage(engine_data);
 }
 
 static void *get_engine_specific(const void *void_cookie) {
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
     cookie->validate();
-    return cookie->connection.getEngineStorage();
+    return cookie->getConnection().getEngineStorage();
 }
 
 static bool is_datatype_supported(const void* void_cookie,
                                   protocol_binary_datatype_t datatype) {
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
     cookie->validate();
-    return cookie->connection.isDatatypeEnabled(datatype);
+    return cookie->getConnection().isDatatypeEnabled(datatype);
 }
 
 static bool is_mutation_extras_supported(const void *void_cookie) {
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
     cookie->validate();
-    return cookie->connection.isSupportsMutationExtras();
+    return cookie->getConnection().isSupportsMutationExtras();
 }
 
 static bool is_collections_supported(const void* void_cookie) {
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
     cookie->validate();
-    return cookie->connection.isCollectionsSupported();
+    return cookie->getConnection().isCollectionsSupported();
 }
 
 static uint8_t get_opcode_if_ewouldblock_set(const void *void_cookie) {
@@ -1594,8 +1594,8 @@ static uint8_t get_opcode_if_ewouldblock_set(const void *void_cookie) {
     cookie->validate();
 
     uint8_t opcode = PROTOCOL_BINARY_CMD_INVALID;
-    if (cookie->connection.isEwouldblock()) {
-        opcode = cookie->connection.binary_header.request.opcode;
+    if (cookie->getConnection().isEwouldblock()) {
+        opcode = cookie->getConnection().binary_header.request.opcode;
     }
     return opcode;
 }
@@ -1612,7 +1612,7 @@ static ENGINE_ERROR_CODE reserve_cookie(const void *void_cookie) {
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
     cookie->validate();
 
-    cookie->connection.incrementRefcount();
+    cookie->getConnection().incrementRefcount();
     return ENGINE_SUCCESS;
 }
 
@@ -1624,7 +1624,7 @@ static ENGINE_ERROR_CODE release_cookie(const void *void_cookie) {
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
     cookie->validate();
 
-    Connection* c = &cookie->connection;
+    Connection* c = &cookie->getConnection();
     int notify;
     LIBEVENT_THREAD *thr;
 
@@ -1658,7 +1658,7 @@ static void cookie_set_priority(const void* void_cookie, CONN_PRIORITY priority)
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
     cookie->validate();
 
-    auto* c = &cookie->connection;
+    auto* c = &cookie->getConnection();
     switch (priority) {
     case CONN_PRIORITY_HIGH:
         c->setPriority(Connection::Priority::High);

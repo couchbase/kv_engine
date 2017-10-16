@@ -431,7 +431,7 @@ void notify_io_complete(const void *void_cookie, ENGINE_ERROR_CODE status)
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
     cookie->validate();
 
-    LIBEVENT_THREAD* thr = cookie->connection.getThread();
+    LIBEVENT_THREAD* thr = cookie->getConnection().getThread();
     if (thr == nullptr) {
         throw std::runtime_error(
             "notify_io_complete: connection should be bound to a thread");
@@ -441,12 +441,12 @@ void notify_io_complete(const void *void_cookie, ENGINE_ERROR_CODE status)
 
     LOG_DEBUG(NULL,
               "Got notify from %u, status 0x%x",
-              cookie->connection.getId(),
+              cookie->getConnection().getId(),
               status);
 
     LOCK_THREAD(thr);
-    cookie->connection.setAiostat(status);
-    notify = add_conn_to_pending_io_list(&cookie->connection);
+    cookie->getConnection().setAiostat(status);
+    notify = add_conn_to_pending_io_list(&cookie->getConnection());
     UNLOCK_THREAD(thr);
 
     /* kick the thread in the butt */

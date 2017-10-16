@@ -124,7 +124,7 @@ static ENGINE_ERROR_CODE default_unknown_command(
     ADD_RESPONSE response) {
 
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
-    return bucket_unknown_command(&cookie->connection, request, response);
+    return bucket_unknown_command(&cookie->getConnection(), request, response);
 }
 
 struct request_lookup {

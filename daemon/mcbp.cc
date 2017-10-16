@@ -232,7 +232,7 @@ bool mcbp_response_handler(const void* key, uint16_t keylen,
     auto* cookie = const_cast<Cookie*>(ccookie);
     cookie->validate();
 
-    McbpConnection* c = &cookie->connection;
+    McbpConnection* c = &cookie->getConnection();
     cb::compression::Buffer buffer;
     cb::const_char_buffer payload(static_cast<const char*>(body), bodylen);
 
