@@ -5156,21 +5156,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::sendNotMyVBucketResponse(
                         cookie);
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::sendNotSupportedResponse(
-        ADD_RESPONSE response, const void* cookie) {
-    return sendResponse(response,
-                        nullptr,
-                        0,
-                        nullptr,
-                        0,
-                        nullptr,
-                        0,
-                        PROTOCOL_BINARY_RAW_BYTES,
-                        PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED,
-                        0,
-                        cookie);
-}
-
 /**
  * Call the response callback and return the appropriate value so that
  * the core knows what to do..
