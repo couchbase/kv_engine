@@ -565,8 +565,9 @@ bool get_meta(ENGINE_HANDLE* h,
     return false;
 }
 
-void observe(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-             std::map<std::string, uint16_t> obskeys) {
+ENGINE_ERROR_CODE observe(ENGINE_HANDLE* h,
+                          ENGINE_HANDLE_V1* h1,
+                          std::map<std::string, uint16_t> obskeys) {
     std::stringstream value;
     std::map<std::string, uint16_t>::iterator it;
     for (it = obskeys.begin(); it != obskeys.end(); ++it) {
@@ -580,13 +581,17 @@ void observe(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     protocol_binary_request_header *request;
     request = createPacket(PROTOCOL_BINARY_CMD_OBSERVE, 0, 0, NULL, 0, NULL, 0,
                            value.str().data(), value.str().length());
-    check(h1->unknown_command(h, NULL, request, add_response, testHarness.doc_namespace) == ENGINE_SUCCESS,
-          "Observe call failed");
+
+    auto ret = h1->unknown_command(
+            h, nullptr, request, add_response, testHarness.doc_namespace);
     cb_free(request);
+    return ret;
 }
 
-void observe_seqno(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                   uint16_t vb_id, uint64_t uuid) {
+ENGINE_ERROR_CODE observe_seqno(ENGINE_HANDLE* h,
+                                ENGINE_HANDLE_V1* h1,
+                                uint16_t vb_id,
+                                uint64_t uuid) {
     protocol_binary_request_header *request;
     uint64_t vb_uuid = htonll(uuid);
     std::stringstream data;
@@ -594,9 +599,10 @@ void observe_seqno(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
     request = createPacket(PROTOCOL_BINARY_CMD_OBSERVE_SEQNO, vb_id, 0, NULL, 0,
                            NULL, 0, data.str().data(), data.str().length());
-    check(h1->unknown_command(h, NULL, request, add_response, testHarness.doc_namespace) == ENGINE_SUCCESS,
-          "Observe_seqno call failed");
+    auto ret = h1->unknown_command(
+            h, NULL, request, add_response, testHarness.doc_namespace);
     cb_free(request);
+    return ret;
 }
 
 void get_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
@@ -766,11 +772,19 @@ void add_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                     cookie, nmeta);
 }
 
-void return_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
-                 const size_t keylen, const char *val, const size_t vallen,
-                 const uint32_t vb, const uint64_t cas, const uint32_t flags,
-                 const uint32_t exp, const uint32_t type, uint8_t datatype,
-                 const void *cookie) {
+static ENGINE_ERROR_CODE return_meta(ENGINE_HANDLE* h,
+                                     ENGINE_HANDLE_V1* h1,
+                                     const char* key,
+                                     const size_t keylen,
+                                     const char* val,
+                                     const size_t vallen,
+                                     const uint32_t vb,
+                                     const uint64_t cas,
+                                     const uint32_t flags,
+                                     const uint32_t exp,
+                                     const uint32_t type,
+                                     uint8_t datatype,
+                                     const void* cookie) {
     char ext[12];
     encodeExt(ext, type);
     encodeExt(ext + 4, flags);
@@ -778,32 +792,87 @@ void return_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
     protocol_binary_request_header *pkt;
     pkt = createPacket(PROTOCOL_BINARY_CMD_RETURN_META, vb, cas, ext, 12, key, keylen, val,
                        vallen, datatype);
-    check(h1->unknown_command(h, cookie, pkt, add_response_ret_meta, testHarness.doc_namespace)
-              == ENGINE_SUCCESS, "Expected to be able to store ret meta");
+    auto ret = h1->unknown_command(
+            h, cookie, pkt, add_response_ret_meta, testHarness.doc_namespace);
     cb_free(pkt);
+
+    return ret;
 }
 
-void set_ret_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
-                  const size_t keylen, const char *val, const size_t vallen,
-                  const uint32_t vb, const uint64_t cas, const uint32_t flags,
-                  const uint32_t exp, uint8_t datatype, const void *cookie) {
-    return_meta(h, h1, key, keylen, val, vallen, vb, cas, flags, exp,
-                SET_RET_META, datatype, cookie);
+ENGINE_ERROR_CODE set_ret_meta(ENGINE_HANDLE* h,
+                               ENGINE_HANDLE_V1* h1,
+                               const char* key,
+                               const size_t keylen,
+                               const char* val,
+                               const size_t vallen,
+                               const uint32_t vb,
+                               const uint64_t cas,
+                               const uint32_t flags,
+                               const uint32_t exp,
+                               uint8_t datatype,
+                               const void* cookie) {
+    return return_meta(h,
+                       h1,
+                       key,
+                       keylen,
+                       val,
+                       vallen,
+                       vb,
+                       cas,
+                       flags,
+                       exp,
+                       SET_RET_META,
+                       datatype,
+                       cookie);
 }
 
-void add_ret_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
-                  const size_t keylen, const char *val, const size_t vallen,
-                  const uint32_t vb, const uint64_t cas, const uint32_t flags,
-                  const uint32_t exp, uint8_t datatype, const void *cookie) {
-    return_meta(h, h1, key, keylen, val, vallen, vb, cas, flags, exp,
-                ADD_RET_META, datatype, cookie);
+ENGINE_ERROR_CODE add_ret_meta(ENGINE_HANDLE* h,
+                               ENGINE_HANDLE_V1* h1,
+                               const char* key,
+                               const size_t keylen,
+                               const char* val,
+                               const size_t vallen,
+                               const uint32_t vb,
+                               const uint64_t cas,
+                               const uint32_t flags,
+                               const uint32_t exp,
+                               uint8_t datatype,
+                               const void* cookie) {
+    return return_meta(h,
+                       h1,
+                       key,
+                       keylen,
+                       val,
+                       vallen,
+                       vb,
+                       cas,
+                       flags,
+                       exp,
+                       ADD_RET_META,
+                       datatype,
+                       cookie);
 }
 
-void del_ret_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
-                  const size_t keylen, const uint32_t vb, const uint64_t cas,
-                  const void *cookie) {
-    return_meta(h, h1, key, keylen, NULL, 0, vb, cas, 0, 0,
-                DEL_RET_META, 0x00, cookie);
+ENGINE_ERROR_CODE del_ret_meta(ENGINE_HANDLE* h,
+                               ENGINE_HANDLE_V1* h1,
+                               const char* key,
+                               const size_t keylen,
+                               const uint32_t vb,
+                               const uint64_t cas,
+                               const void* cookie) {
+    return return_meta(h,
+                       h1,
+                       key,
+                       keylen,
+                       NULL,
+                       0,
+                       vb,
+                       cas,
+                       0,
+                       0,
+                       DEL_RET_META,
+                       0x00,
+                       cookie);
 }
 
 void disable_traffic(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
@@ -975,15 +1044,20 @@ void compact_db(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     cb_free(pkt);
 }
 
-void vbucketDelete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vb,
-                   const char* args) {
+ENGINE_ERROR_CODE vbucketDelete(ENGINE_HANDLE* h,
+                                ENGINE_HANDLE_V1* h1,
+                                uint16_t vb,
+                                const char* args) {
     uint32_t argslen = args ? strlen(args) : 0;
     protocol_binary_request_header *pkt =
         createPacket(PROTOCOL_BINARY_CMD_DEL_VBUCKET, vb, 0, NULL, 0, NULL, 0,
                      args, argslen);
-    check(h1->unknown_command(h, NULL, pkt, add_response, testHarness.doc_namespace) == ENGINE_SUCCESS,
-          "Failed to request delete bucket");
+
+    auto ret = h1->unknown_command(
+            h, NULL, pkt, add_response, testHarness.doc_namespace);
     cb_free(pkt);
+
+    return ret;
 }
 
 ENGINE_ERROR_CODE verify_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,

@@ -159,8 +159,12 @@ public:
                                        value,
                                        {},
                                        options);
-        EXPECT_EQ(ENGINE_SUCCESS, callEngine(op, swm));
-        EXPECT_EQ(expectedResponseStatus, getAddResponseStatus());
+        if (expectedResponseStatus == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET) {
+            EXPECT_EQ(ENGINE_NOT_MY_VBUCKET, callEngine(op, swm));
+        } else {
+            EXPECT_EQ(ENGINE_SUCCESS, callEngine(op, swm));
+            EXPECT_EQ(expectedResponseStatus, getAddResponseStatus());
+        }
     }
 
     /**
@@ -511,14 +515,12 @@ TEST_P(AllWithMetaTest, nmvb) {
                                    {1, 0, 0, 0},
                                    key,
                                    value);
-    EXPECT_EQ(ENGINE_SUCCESS, callEngine(GetParam(), swm));
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, getAddResponseStatus());
+    EXPECT_EQ(ENGINE_NOT_MY_VBUCKET, callEngine(GetParam(), swm));
 
     // Set a dead VB
     EXPECT_EQ(ENGINE_SUCCESS,
               store->setVBucketState(vbid + 1, vbucket_state_dead, false));
-    EXPECT_EQ(ENGINE_SUCCESS, callEngine(GetParam(), swm));
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, getAddResponseStatus());
+    EXPECT_EQ(ENGINE_NOT_MY_VBUCKET, callEngine(GetParam(), swm));
 
     // update the VB in the packet to the pending one
     auto packet = reinterpret_cast<protocol_binary_request_header*>(swm.data());

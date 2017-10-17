@@ -797,7 +797,7 @@ static ENGINE_ERROR_CODE getVBucket(EventuallyPersistentEngine* e,
     uint16_t vbucket = ntohs(req->message.header.request.vbucket);
     VBucketPtr vb = e->getVBucket(vbucket);
     if (!vb) {
-        return e->sendNotMyVBucketResponse(response, cookie, 0);
+        return ENGINE_NOT_MY_VBUCKET;
     } else {
         vbucket_state_t state = (vbucket_state_t)ntohl(vb->getState());
         return sendResponse(response, NULL, 0, NULL, 0, &state,
@@ -918,13 +918,21 @@ static ENGINE_ERROR_CODE delVBucket(EventuallyPersistentEngine* e,
         res = PROTOCOL_BINARY_RESPONSE_EINTERNAL;
     }
 
-    if (err != ENGINE_NOT_MY_VBUCKET) {
-        return sendResponse(response, NULL, 0, NULL, 0, NULL,
-                            0, PROTOCOL_BINARY_RAW_BYTES,
-                            res, cas, cookie);
-    } else {
-        return e->sendNotMyVBucketResponse(response, cookie, cas);
+    if (err == ENGINE_NOT_MY_VBUCKET) {
+        return err;
     }
+
+    return sendResponse(response,
+                        NULL,
+                        0,
+                        NULL,
+                        0,
+                        NULL,
+                        0,
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        res,
+                        cas,
+                        cookie);
 }
 
 static ENGINE_ERROR_CODE getReplicaCmd(EventuallyPersistentEngine* e,
@@ -1042,13 +1050,21 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
         break;
     }
 
-    if (err != ENGINE_NOT_MY_VBUCKET) {
-        return sendResponse(response, NULL, 0, NULL, 0, NULL,
-                            0, PROTOCOL_BINARY_RAW_BYTES,
-                            res, cas, cookie);
-    } else {
-        return e->sendNotMyVBucketResponse(response, cookie, cas);
+    if (err == ENGINE_NOT_MY_VBUCKET) {
+        return err;
     }
+
+    return sendResponse(response,
+                        NULL,
+                        0,
+                        NULL,
+                        0,
+                        NULL,
+                        0,
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        res,
+                        cas,
+                        cookie);
 }
 
 static ENGINE_ERROR_CODE processUnknownCommand(
@@ -1229,7 +1245,7 @@ static ENGINE_ERROR_CODE processUnknownCommand(
                           cookie);
         delete itm;
     } else if (rv == ENGINE_NOT_MY_VBUCKET) {
-        return h->sendNotMyVBucketResponse(response, cookie, 0);
+        return rv;
     } else {
         msg_size = (msg_size > 0 || msg == NULL) ? msg_size : strlen(msg);
         rv = sendResponse(response, NULL, 0, NULL, 0,
@@ -3722,7 +3738,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(
         } else if (rv == ENGINE_KEY_ENOENT) {
             keystatus = OBS_STATE_NOT_FOUND;
         } else if (rv == ENGINE_NOT_MY_VBUCKET) {
-            return sendNotMyVBucketResponse(response, cookie, 0);
+            return ENGINE_NOT_MY_VBUCKET;
         } else if (rv == ENGINE_EWOULDBLOCK) {
             return rv;
         } else {
@@ -3785,12 +3801,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe_seqno(
     VBucketPtr vb = kvBucket->getVBucket(vb_id);
 
     if (!vb) {
-        return sendNotMyVBucketResponse(response, cookie, 0);
+        return ENGINE_NOT_MY_VBUCKET;
     }
 
     ReaderLockHolder rlh(vb->getStateLock());
     if (vb->getState() == vbucket_state_dead) {
-        return sendNotMyVBucketResponse(response, cookie, 0);
+        return ENGINE_NOT_MY_VBUCKET;
     }
 
     //Check if the vb uuid matches with the latest entry
@@ -3852,7 +3868,7 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
     VBucketPtr vb = getVBucket(vbucket);
 
     if (!vb) {
-        return sendNotMyVBucketResponse(response, cookie, 0);
+        return ENGINE_NOT_MY_VBUCKET;
     }
 
     int16_t status = PROTOCOL_BINARY_RESPONSE_SUCCESS;
@@ -3878,7 +3894,7 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
         break;
     case PROTOCOL_BINARY_CMD_CREATE_CHECKPOINT:
         if (vb->getState() != vbucket_state_active) {
-            return sendNotMyVBucketResponse(response, cookie, 0);
+            return ENGINE_NOT_MY_VBUCKET;
 
         } else {
             // Create a new checkpoint, notifying flusher.
@@ -3991,7 +4007,7 @@ EventuallyPersistentEngine::handleSeqnoCmds(const void *cookie,
     VBucketPtr vb = getVBucket(vbucket);
 
     if (!vb) {
-        return sendNotMyVBucketResponse(response, cookie, 0);
+        return ENGINE_NOT_MY_VBUCKET;
     }
 
     int16_t status = PROTOCOL_BINARY_RESPONSE_SUCCESS;
@@ -4304,7 +4320,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     }
 
     if (ret == ENGINE_NOT_MY_VBUCKET) {
-        return sendNotMyVBucketResponse(response, cookie, cas);
+        return ret;
     }
 
     if (ret == ENGINE_SUCCESS && isMutationExtrasSupported(cookie)) {
@@ -4502,7 +4518,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
     }
 
     if (ret == ENGINE_NOT_MY_VBUCKET) {
-        return sendNotMyVBucketResponse(response, cookie, cas);
+        return ret;
     }
 
     if (ret == ENGINE_SUCCESS && isMutationExtrasSupported(cookie)) {
@@ -4744,9 +4760,7 @@ EventuallyPersistentEngine::returnMeta(const void* cookie,
                             PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
     }
 
-    if (ret == ENGINE_NOT_MY_VBUCKET) {
-        return sendNotMyVBucketResponse(response, cookie, cas);
-    } else if (ret == ENGINE_EWOULDBLOCK) {
+    if (ret == ENGINE_NOT_MY_VBUCKET || ret == ENGINE_EWOULDBLOCK) {
         return ret;
     } else if (ret != ENGINE_SUCCESS) {
         auto rc = serverApi->cookie->engine_error2mcbp(cookie, ret);
@@ -5139,21 +5153,6 @@ void EventuallyPersistentEngine::updateDcpMinCompressionRatio(float value) {
     if (dcpConnMap_) {
         dcpConnMap_->updateMinCompressionRatioForProducers(value);
     }
-}
-
-ENGINE_ERROR_CODE EventuallyPersistentEngine::sendNotMyVBucketResponse(
-        ADD_RESPONSE response, const void* cookie, uint64_t cas) {
-    return sendResponse(response,
-                        nullptr,
-                        0,
-                        nullptr,
-                        0,
-                        nullptr,
-                        0,
-                        PROTOCOL_BINARY_RAW_BYTES,
-                        PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
-                        cas,
-                        cookie);
 }
 
 /**

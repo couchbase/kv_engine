@@ -593,14 +593,6 @@ public:
 
     void updateDcpMinCompressionRatio(float value);
 
-    /**
-     * Sends a not-my-vbucket response, using the specified response callback.
-     * to the specified connection via it's cookie.
-     */
-    ENGINE_ERROR_CODE sendNotMyVBucketResponse(ADD_RESPONSE response,
-                                               const void* cookie,
-                                               uint64_t cas);
-
     EpEngineTaskable& getTaskable() {
         return taskable;
     }

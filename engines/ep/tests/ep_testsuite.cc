@@ -1251,11 +1251,10 @@ static enum test_result test_get_replica_active_state(ENGINE_HANDLE *h,
                                                       ENGINE_HANDLE_V1 *h1) {
     protocol_binary_request_header *pkt;
     pkt = prepare_get_replica(h, h1, vbucket_state_active);
-    checkeq(ENGINE_SUCCESS,
-            h1->unknown_command(h, NULL, pkt, add_response, testHarness.doc_namespace),
+    checkeq(ENGINE_NOT_MY_VBUCKET,
+            h1->unknown_command(
+                    h, NULL, pkt, add_response, testHarness.doc_namespace),
             "Get Replica Failed");
-    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, last_status.load(),
-            "Expected PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET response.");
 
     cb_free(pkt);
     return SUCCESS;
@@ -1280,12 +1279,10 @@ static enum test_result test_get_replica_dead_state(ENGINE_HANDLE *h,
                                                     ENGINE_HANDLE_V1 *h1) {
     protocol_binary_request_header *pkt;
     pkt = prepare_get_replica(h, h1, vbucket_state_dead);
-    checkeq(ENGINE_SUCCESS,
-            h1->unknown_command(h, NULL, pkt, add_response, testHarness.doc_namespace),
+    checkeq(ENGINE_NOT_MY_VBUCKET,
+            h1->unknown_command(
+                    h, NULL, pkt, add_response, testHarness.doc_namespace),
             "Get Replica Failed");
-    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, last_status.load(),
-            "Expected PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET response.");
-
     cb_free(pkt);
     return SUCCESS;
 }
@@ -1333,11 +1330,10 @@ static enum test_result test_get_replica_invalid_key(ENGINE_HANDLE *h,
     protocol_binary_request_header *pkt;
     bool makeinvalidkey = true;
     pkt = prepare_get_replica(h, h1, vbucket_state_replica, makeinvalidkey);
-    checkeq(ENGINE_SUCCESS,
-            h1->unknown_command(h, NULL, pkt, add_response, testHarness.doc_namespace),
+    checkeq(ENGINE_NOT_MY_VBUCKET,
+            h1->unknown_command(
+                    h, NULL, pkt, add_response, testHarness.doc_namespace),
             "Get Replica Failed");
-    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, last_status.load(),
-            "Expected PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET response.");
     cb_free(pkt);
     return SUCCESS;
 }
@@ -1651,15 +1647,14 @@ static enum test_result vbucket_destroy(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     check(set_vbucket_state(h, h1, 1, vbucket_state_active),
           "Failed to set vbucket state.");
 
-    vbucketDelete(h, h1, 2, value);
-    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
-            last_status.load(),
-            "Expected failure deleting non-existent bucket.");
+    checkeq(ENGINE_NOT_MY_VBUCKET,
+            vbucketDelete(h, h1, 2, value),
+            "Expected NMVB");
 
     check(set_vbucket_state(h, h1, 1, vbucket_state_dead),
           "Failed set set vbucket 1 state.");
 
-    vbucketDelete(h, h1, 1, value);
+    checkeq(ENGINE_SUCCESS, vbucketDelete(h, h1, 1, value), "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Expected failure deleting non-existent bucket.");
 
@@ -1705,7 +1700,7 @@ static enum test_result test_vbucket_destroy_stats(ENGINE_HANDLE *h,
           "Failed set set vbucket 1 state.");
 
     int vbucketDel = get_int_stat(h, h1, "ep_vbucket_del");
-    vbucketDelete(h, h1, 1);
+    checkeq(ENGINE_SUCCESS, vbucketDelete(h, h1, 1), "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
             last_status.load(),
             "Expected failure deleting non-existent bucket.");
@@ -1755,7 +1750,7 @@ static enum test_result vbucket_destroy_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_
     check(set_vbucket_state(h, h1, 1, vbucket_state_dead),
           "Failed set set vbucket 1 state.");
 
-    vbucketDelete(h, h1, 1, value);
+    checkeq(ENGINE_SUCCESS, vbucketDelete(h, h1, 1, value), "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Expected failure deleting non-existent bucket.");
 
@@ -2823,8 +2818,20 @@ static enum test_result test_datatype_with_unknown_command(ENGINE_HANDLE *h,
             info.datatype, "Invalid datatype, when setWithMeta");
 
     //SET_RETURN_META
-    set_ret_meta(h, h1, "foo1", 4, val, strlen(val), 0, 0, 0, 0, datatype,
-                 cookie);
+    checkeq(ENGINE_SUCCESS,
+            set_ret_meta(h,
+                         h1,
+                         "foo1",
+                         4,
+                         val,
+                         strlen(val),
+                         0,
+                         0,
+                         0,
+                         0,
+                         datatype,
+                         cookie),
+            "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Expected set returing meta to succeed");
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
@@ -3072,7 +3079,7 @@ static enum test_result test_access_scanner(ENGINE_HANDLE *h,
              ") should exist (got errno:" + std::to_string(errno)).c_str());
 
     /* Increase resident ratio by deleting items */
-    vbucketDelete(h, h1, 0);
+    checkeq(ENGINE_SUCCESS, vbucketDelete(h, h1, 0), "Expected success");
     check(set_vbucket_state(h, h1, 0, vbucket_state_active),
           "Failed to set VB0 state.");
 
@@ -3724,7 +3731,7 @@ static enum test_result test_curr_items_dead(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
             get_stat<uint64_t>(h, h1, "ep_queue_size"),
             "ep_queue_size is not zero after setting to dead (2)");
 
-    vbucketDelete(h, h1, 0);
+    checkeq(ENGINE_SUCCESS, vbucketDelete(h, h1, 0), "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Expected success deleting vbucket.");
     verify_curr_items(h, h1, 0, "del vbucket");
@@ -3838,7 +3845,7 @@ static enum test_result test_duplicate_items_disk(ENGINE_HANDLE *h, ENGINE_HANDL
     // don't need to explicitly set the vbucket state to dead as this is
     // done as part of the vbucketDelete. See KVBucket::deleteVBucket
     int vb_del_num = get_int_stat(h, h1, "ep_vbucket_del");
-    vbucketDelete(h, h1, 1);
+    checkeq(ENGINE_SUCCESS, vbucketDelete(h, h1, 1), "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Failure deleting dead bucket.");
     check(verify_vbucket_missing(h, h1, 1),
@@ -4188,7 +4195,7 @@ static enum test_result test_mb3466(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 
 static enum test_result test_observe_no_data(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     std::map<std::string, uint16_t> obskeys;
-    observe(h, h1, obskeys);
+    checkeq(ENGINE_SUCCESS, observe(h, h1, obskeys), "expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     return SUCCESS;
 }
@@ -4201,7 +4208,9 @@ static enum test_result test_observe_seqno_basic_tests(ENGINE_HANDLE *h,
     //Check the output when there is no data in the vbucket
     uint64_t vb_uuid = get_ull_stat(h, h1, "vb_1:0:id", "failovers");
     uint64_t high_seqno = get_int_stat(h, h1, "vb_1:high_seqno", "vbucket-seqno");
-    observe_seqno(h, h1, 1, vb_uuid);
+    checkeq(ENGINE_SUCCESS,
+            observe_seqno(h, h1, 1, vb_uuid),
+            "Expected success");
 
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
             last_status.load(),
@@ -4238,7 +4247,9 @@ static enum test_result test_observe_seqno_basic_tests(ENGINE_HANDLE *h,
         total_persisted = high_seqno;
     }
 
-    observe_seqno(h, h1, 1, vb_uuid);
+    checkeq(ENGINE_SUCCESS,
+            observe_seqno(h, h1, 1, vb_uuid),
+            "Expected success");
 
     check_observe_seqno(
             false, bucket_type, 0, 1, vb_uuid, total_persisted, high_seqno);
@@ -4257,7 +4268,9 @@ static enum test_result test_observe_seqno_basic_tests(ENGINE_HANDLE *h,
     }
 
     high_seqno = get_int_stat(h, h1, "vb_1:high_seqno", "vbucket-seqno");
-    observe_seqno(h, h1, 1, vb_uuid);
+    checkeq(ENGINE_SUCCESS,
+            observe_seqno(h, h1, 1, vb_uuid),
+            "Expected success");
 
     if (!isPersistentBucket(h, h1)) {
         /* if bucket is not persistent then total_persisted == high_seqno */
@@ -4274,7 +4287,9 @@ static enum test_result test_observe_seqno_basic_tests(ENGINE_HANDLE *h,
         total_persisted = high_seqno;
     }
 
-    observe_seqno(h, h1, 1, vb_uuid);
+    checkeq(ENGINE_SUCCESS,
+            observe_seqno(h, h1, 1, vb_uuid),
+            "Expected success");
 
     check_observe_seqno(
             false, bucket_type, 0, 1, vb_uuid, total_persisted, high_seqno);
@@ -4312,7 +4327,9 @@ static enum test_result test_observe_seqno_failover(ENGINE_HANDLE *h,
 
     uint64_t new_vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
 
-    observe_seqno(h, h1, 0, vb_uuid);
+    checkeq(ENGINE_SUCCESS,
+            observe_seqno(h, h1, 0, vb_uuid),
+            "Expected success");
 
     const auto bucket_type =
             isPersistentBucket(h, h1) ? BucketType::EP : BucketType::Ephemeral;
@@ -4334,9 +4351,9 @@ static enum test_result test_observe_seqno_error(ENGINE_HANDLE *h,
 
     //not my vbucket test
     uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
-    observe_seqno(h, h1, 10, vb_uuid);
-    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, last_status.load(),
-          "Expected not my vbucket");
+    checkeq(ENGINE_NOT_MY_VBUCKET,
+            observe_seqno(h, h1, 10, vb_uuid),
+            "Expected NMVB");
 
     //invalid uuid for vbucket
     vb_uuid = 0xdeadbeef;
@@ -4371,7 +4388,7 @@ static enum test_result test_observe_single_key(ENGINE_HANDLE *h, ENGINE_HANDLE_
     // Do an observe
     std::map<std::string, uint16_t> obskeys;
     obskeys["key"] = 0;
-    observe(h, h1, obskeys);
+    checkeq(ENGINE_SUCCESS, observe(h, h1, obskeys), "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
     // Check that the key is not persisted
@@ -4427,7 +4444,7 @@ static enum test_result test_observe_temp_item(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     // Do an observe
     std::map<std::string, uint16_t> obskeys;
     obskeys["key"] = 0;
-    observe(h, h1, obskeys);
+    checkeq(ENGINE_SUCCESS, observe(h, h1, obskeys), "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
     // Check that the key is not found
@@ -4492,7 +4509,7 @@ static enum test_result test_observe_multi_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     obskeys["key1"] = 0;
     obskeys["key2"] = 1;
     obskeys["key3"] = 1;
-    observe(h, h1, obskeys);
+    checkeq(ENGINE_SUCCESS, observe(h, h1, obskeys), "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
     // Check the result
@@ -4569,7 +4586,7 @@ static enum test_result test_multiple_observes(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     // Do observe
     std::map<std::string, uint16_t> obskeys;
     obskeys["key1"] = 0;
-    observe(h, h1, obskeys);
+    checkeq(ENGINE_SUCCESS, observe(h, h1, obskeys), "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
     const int expected_persisted = isPersistentBucket(h, h1)
@@ -4591,7 +4608,7 @@ static enum test_result test_multiple_observes(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     // Do another observe
     obskeys.clear();
     obskeys["key2"] = 0;
-    observe(h, h1, obskeys);
+    checkeq(ENGINE_SUCCESS, observe(h, h1, obskeys), "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
     memcpy(&vb, last_body.data(), sizeof(uint16_t));
@@ -4637,7 +4654,7 @@ static enum test_result test_observe_with_not_found(ENGINE_HANDLE *h, ENGINE_HAN
     obskeys["key1"] = 0;
     obskeys["key2"] = 0;
     obskeys["key3"] = 1;
-    observe(h, h1, obskeys);
+    checkeq(ENGINE_SUCCESS, observe(h, h1, obskeys), "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
     // Check the result
@@ -4688,8 +4705,10 @@ static enum test_result test_observe_errors(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
 
     // Check not my vbucket error
     obskeys["key"] = 1;
-    observe(h, h1, obskeys);
-    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, last_status.load(), "Expected not my vbucket");
+
+    checkeq(ENGINE_NOT_MY_VBUCKET,
+            observe(h, h1, obskeys),
+            "Expected not my vbucket");
 
     // Check invalid packets
     protocol_binary_request_header *pkt;
@@ -4965,7 +4984,9 @@ static enum test_result test_multiple_transactions(ENGINE_HANDLE *h,
 static enum test_result test_set_ret_meta(ENGINE_HANDLE *h,
                                           ENGINE_HANDLE_V1 *h1) {
     // Check that set without cas succeeds
-    set_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 0, 0);
+    checkeq(ENGINE_SUCCESS,
+            set_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 0, 0),
+            "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected set returing meta to succeed");
     checkeq(1, get_int_stat(h, h1, "ep_num_ops_set_ret_meta"),
@@ -4977,7 +4998,18 @@ static enum test_result test_set_ret_meta(ENGINE_HANDLE *h,
     check(last_meta.revSeqno == 1, "Invalid result for seqno");
 
     // Check that set with correct cas succeeds
-    set_ret_meta(h, h1, "key", 3, "value", 5, 0, last_meta.cas, 10, 1735689600);
+    checkeq(ENGINE_SUCCESS,
+            set_ret_meta(h,
+                         h1,
+                         "key",
+                         3,
+                         "value",
+                         5,
+                         0,
+                         last_meta.cas,
+                         10,
+                         1735689600),
+            "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected set returing meta to succeed");
     checkeq(2, get_int_stat(h, h1, "ep_num_ops_set_ret_meta"),
@@ -4989,7 +5021,9 @@ static enum test_result test_set_ret_meta(ENGINE_HANDLE *h,
     check(last_meta.revSeqno == 2, "Invalid result for seqno");
 
     // Check that updating an item with no cas succeeds
-    set_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 5, 0);
+    checkeq(ENGINE_SUCCESS,
+            set_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 5, 0),
+            "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected set returing meta to succeed");
     checkeq(3, get_int_stat(h, h1, "ep_num_ops_set_ret_meta"),
@@ -5001,7 +5035,10 @@ static enum test_result test_set_ret_meta(ENGINE_HANDLE *h,
     check(last_meta.revSeqno == 3, "Invalid result for seqno");
 
     // Check that updating an item with the wrong cas fails
-    set_ret_meta(h, h1, "key", 3, "value", 5, 0, last_meta.cas + 1, 5, 0);
+    checkeq(ENGINE_SUCCESS,
+            set_ret_meta(
+                    h, h1, "key", 3, "value", 5, 0, last_meta.cas + 1, 5, 0),
+            "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
           "Expected set returing meta to fail");
     checkeq(3, get_int_stat(h, h1, "ep_num_ops_set_ret_meta"),
@@ -5013,7 +5050,9 @@ static enum test_result test_set_ret_meta(ENGINE_HANDLE *h,
 static enum test_result test_set_ret_meta_error(ENGINE_HANDLE *h,
                                                 ENGINE_HANDLE_V1 *h1) {
     // Check invalid packet constructions
-    set_ret_meta(h, h1, "", 0, "value", 5, 0);
+    checkeq(ENGINE_SUCCESS,
+            set_ret_meta(h, h1, "", 0, "value", 5, 0),
+            "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
           "Expected set returing meta to succeed");
 
@@ -5028,29 +5067,31 @@ static enum test_result test_set_ret_meta_error(ENGINE_HANDLE *h,
 
     // Check tmp fail errors
     disable_traffic(h, h1);
-    set_ret_meta(h, h1, "key", 3, "value", 5, 0);
+    checkeq(ENGINE_SUCCESS,
+            set_ret_meta(h, h1, "key", 3, "value", 5, 0),
+            "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_ETMPFAIL, last_status.load(),
           "Expected set returing meta to fail");
     enable_traffic(h, h1);
 
     // Check not my vbucket errors
-    set_ret_meta(h, h1, "key", 3, "value", 5, 1);
-    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, last_status.load(),
-          "Expected set returing meta to fail");
+    checkeq(ENGINE_NOT_MY_VBUCKET,
+            set_ret_meta(h, h1, "key", 3, "value", 5, 1),
+            "Expected NMVB");
 
     check(set_vbucket_state(h, h1, 1, vbucket_state_replica),
           "Failed to set vbucket state.");
-    set_ret_meta(h, h1, "key", 3, "value", 5, 1);
-    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, last_status.load(),
-          "Expected set returing meta to fail");
-    vbucketDelete(h, h1, 1);
+    checkeq(ENGINE_NOT_MY_VBUCKET,
+            set_ret_meta(h, h1, "key", 3, "value", 5, 1),
+            "Expected NMVB");
+    checkeq(ENGINE_SUCCESS, vbucketDelete(h, h1, 1), "Expected success");
 
     check(set_vbucket_state(h, h1, 1, vbucket_state_dead),
           "Failed to set vbucket state.");
-    set_ret_meta(h, h1, "key", 3, "value", 5, 1);
-    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, last_status.load(),
-          "Expected set returing meta to fail");
-    vbucketDelete(h, h1, 1);
+    checkeq(ENGINE_NOT_MY_VBUCKET,
+            set_ret_meta(h, h1, "key", 3, "value", 5, 1),
+            "Expected NMVB");
+    checkeq(ENGINE_SUCCESS, vbucketDelete(h, h1, 1), "Expected success");
 
     return SUCCESS;
 }
@@ -5058,12 +5099,16 @@ static enum test_result test_set_ret_meta_error(ENGINE_HANDLE *h,
 static enum test_result test_add_ret_meta(ENGINE_HANDLE *h,
                                           ENGINE_HANDLE_V1 *h1) {
     // Check that add with cas fails
-    add_ret_meta(h, h1, "key", 3, "value", 5, 0, 10, 0, 0);
+    checkeq(ENGINE_SUCCESS,
+            add_ret_meta(h, h1, "key", 3, "value", 5, 0, 10, 0, 0),
+            "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_NOT_STORED, last_status.load(),
           "Expected set returing meta to fail");
 
     // Check that add without cas succeeds.
-    add_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 0, 0);
+    checkeq(ENGINE_SUCCESS,
+            add_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 0, 0),
+            "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected set returing meta to succeed");
     checkeq(1, get_int_stat(h, h1, "ep_num_ops_set_ret_meta"),
@@ -5075,12 +5120,16 @@ static enum test_result test_add_ret_meta(ENGINE_HANDLE *h,
     check(last_meta.revSeqno == 1, "Invalid result for seqno");
 
     // Check that re-adding a key fails
-    add_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 0, 0);
+    checkeq(ENGINE_SUCCESS,
+            add_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 0, 0),
+            "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_NOT_STORED, last_status.load(),
           "Expected set returing meta to fail");
 
     // Check that adding a key with flags and exptime returns the correct values
-    add_ret_meta(h, h1, "key2", 4, "value", 5, 0, 0, 10, 1735689600);
+    checkeq(ENGINE_SUCCESS,
+            add_ret_meta(h, h1, "key2", 4, "value", 5, 0, 0, 10, 1735689600),
+            "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected set returing meta to succeed");
     checkeq(2, get_int_stat(h, h1, "ep_num_ops_set_ret_meta"),
@@ -5097,7 +5146,9 @@ static enum test_result test_add_ret_meta(ENGINE_HANDLE *h,
 static enum test_result test_add_ret_meta_error(ENGINE_HANDLE *h,
                                                 ENGINE_HANDLE_V1 *h1) {
     // Check invalid packet constructions
-    add_ret_meta(h, h1, "", 0, "value", 5, 0);
+    checkeq(ENGINE_SUCCESS,
+            add_ret_meta(h, h1, "", 0, "value", 5, 0),
+            "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
           "Expected add returing meta to succeed");
 
@@ -5112,29 +5163,31 @@ static enum test_result test_add_ret_meta_error(ENGINE_HANDLE *h,
 
     // Check tmp fail errors
     disable_traffic(h, h1);
-    add_ret_meta(h, h1, "key", 3, "value", 5, 0);
+    checkeq(ENGINE_SUCCESS,
+            add_ret_meta(h, h1, "key", 3, "value", 5, 0),
+            "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_ETMPFAIL, last_status.load(),
           "Expected add returing meta to fail");
     enable_traffic(h, h1);
 
     // Check not my vbucket errors
-    add_ret_meta(h, h1, "key", 3, "value", 5, 1);
-    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, last_status.load(),
-          "Expected add returing meta to fail");
+    checkeq(ENGINE_NOT_MY_VBUCKET,
+            add_ret_meta(h, h1, "key", 3, "value", 5, 1),
+            "Expected NMVB");
 
     check(set_vbucket_state(h, h1, 1, vbucket_state_replica),
           "Failed to set vbucket state.");
-    add_ret_meta(h, h1, "key", 3, "value", 5, 1);
-    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, last_status.load(),
-          "Expected add returing meta to fail");
-    vbucketDelete(h, h1, 1);
+    checkeq(ENGINE_NOT_MY_VBUCKET,
+            add_ret_meta(h, h1, "key", 3, "value", 5, 1),
+            "Expected NMVB");
+    checkeq(ENGINE_SUCCESS, vbucketDelete(h, h1, 1), "Expected success");
 
     check(set_vbucket_state(h, h1, 1, vbucket_state_dead),
           "Failed to add vbucket state.");
-    add_ret_meta(h, h1, "key", 3, "value", 5, 1);
-    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, last_status.load(),
-          "Expected add returing meta to fail");
-    vbucketDelete(h, h1, 1);
+    checkeq(ENGINE_NOT_MY_VBUCKET,
+            add_ret_meta(h, h1, "key", 3, "value", 5, 1),
+            "Expected NMVB");
+    checkeq(ENGINE_SUCCESS, vbucketDelete(h, h1, 1), "Expected success");
 
     return SUCCESS;
 }
@@ -5142,17 +5195,23 @@ static enum test_result test_add_ret_meta_error(ENGINE_HANDLE *h,
 static enum test_result test_del_ret_meta(ENGINE_HANDLE *h,
                                           ENGINE_HANDLE_V1 *h1) {
     // Check that deleting a non-existent key fails
-    del_ret_meta(h, h1, "key", 3, 0, 0);
+    checkeq(ENGINE_SUCCESS,
+            del_ret_meta(h, h1, "key", 3, 0, 0),
+            "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, last_status.load(),
           "Expected set returing meta to fail");
 
     // Check that deleting a non-existent key with a cas fails
-    del_ret_meta(h, h1, "key", 3, 0, 10);
+    checkeq(ENGINE_SUCCESS,
+            del_ret_meta(h, h1, "key", 3, 0, 10),
+            "Expeced success");
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, last_status.load(),
           "Expected set returing meta to fail");
 
     // Check that deleting a key with no cas succeeds
-    add_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 0, 0);
+    checkeq(ENGINE_SUCCESS,
+            add_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 0, 0),
+            "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected set returing meta to succeed");
 
@@ -5161,7 +5220,9 @@ static enum test_result test_del_ret_meta(ENGINE_HANDLE *h,
     check(last_meta.cas != 0, "Invalid result for cas");
     check(last_meta.revSeqno == 1, "Invalid result for seqno");
 
-    del_ret_meta(h, h1, "key", 3, 0, 0);
+    checkeq(ENGINE_SUCCESS,
+            del_ret_meta(h, h1, "key", 3, 0, 0),
+            "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected set returing meta to succeed");
     checkeq(1, get_int_stat(h, h1, "ep_num_ops_del_ret_meta"),
@@ -5173,7 +5234,9 @@ static enum test_result test_del_ret_meta(ENGINE_HANDLE *h,
     check(last_meta.revSeqno == 2, "Invalid result for seqno");
 
     // Check that deleting a key with a cas succeeds.
-    add_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 10, 1735689600);
+    checkeq(ENGINE_SUCCESS,
+            add_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 10, 1735689600),
+            "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected set returing meta to succeed");
 
@@ -5182,7 +5245,9 @@ static enum test_result test_del_ret_meta(ENGINE_HANDLE *h,
     check(last_meta.cas != 0, "Invalid result for cas");
     check(last_meta.revSeqno == 3, "Invalid result for seqno");
 
-    del_ret_meta(h, h1, "key", 3, 0, last_meta.cas);
+    checkeq(ENGINE_SUCCESS,
+            del_ret_meta(h, h1, "key", 3, 0, last_meta.cas),
+            "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected set returing meta to succeed");
     checkeq(2, get_int_stat(h, h1, "ep_num_ops_del_ret_meta"),
@@ -5194,7 +5259,9 @@ static enum test_result test_del_ret_meta(ENGINE_HANDLE *h,
     check(last_meta.revSeqno == 4, "Invalid result for seqno");
 
     // Check that deleting a key with the wrong cas fails
-    add_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 0, 0);
+    checkeq(ENGINE_SUCCESS,
+            add_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 0, 0),
+            "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected set returing meta to succeed");
 
@@ -5203,7 +5270,9 @@ static enum test_result test_del_ret_meta(ENGINE_HANDLE *h,
     check(last_meta.cas != 0, "Invalid result for cas");
     check(last_meta.revSeqno == 5, "Invalid result for seqno");
 
-    del_ret_meta(h, h1, "key", 3, 0, last_meta.cas + 1);
+    checkeq(ENGINE_SUCCESS,
+            del_ret_meta(h, h1, "key", 3, 0, last_meta.cas + 1),
+            "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
           "Expected set returing meta to fail");
     checkeq(2, get_int_stat(h, h1, "ep_num_ops_del_ret_meta"),
@@ -5215,7 +5284,7 @@ static enum test_result test_del_ret_meta(ENGINE_HANDLE *h,
 static enum test_result test_del_ret_meta_error(ENGINE_HANDLE *h,
                                                 ENGINE_HANDLE_V1 *h1) {
     // Check invalid packet constructions
-    del_ret_meta(h, h1, "", 0, 0);
+    checkeq(ENGINE_SUCCESS, del_ret_meta(h, h1, "", 0, 0), "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
           "Expected add returing meta to succeed");
 
@@ -5231,29 +5300,31 @@ static enum test_result test_del_ret_meta_error(ENGINE_HANDLE *h,
 
     // Check tmp fail errors
     disable_traffic(h, h1);
-    del_ret_meta(h, h1, "key", 3, 0);
+    checkeq(ENGINE_SUCCESS,
+            del_ret_meta(h, h1, "key", 3, 0),
+            "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_ETMPFAIL, last_status.load(),
           "Expected add returing meta to fail");
     enable_traffic(h, h1);
 
     // Check not my vbucket errors
-    del_ret_meta(h, h1, "key", 3, 1);
-    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, last_status.load(),
-          "Expected add returing meta to fail");
+    checkeq(ENGINE_NOT_MY_VBUCKET,
+            del_ret_meta(h, h1, "key", 3, 1, 0, nullptr),
+            "Expected NMVB");
 
     check(set_vbucket_state(h, h1, 1, vbucket_state_replica),
           "Failed to set vbucket state.");
-    del_ret_meta(h, h1, "key", 3, 1);
-    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, last_status.load(),
-          "Expected add returing meta to fail");
-    vbucketDelete(h, h1, 1);
+    checkeq(ENGINE_NOT_MY_VBUCKET,
+            del_ret_meta(h, h1, "key", 3, 1, 0, nullptr),
+            "Expected NMVB");
+    checkeq(ENGINE_SUCCESS, vbucketDelete(h, h1, 1), "Expected success");
 
     check(set_vbucket_state(h, h1, 1, vbucket_state_dead),
           "Failed to add vbucket state.");
-    del_ret_meta(h, h1, "key", 3, 1);
-    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, last_status.load(),
-          "Expected add returing meta to fail");
-    vbucketDelete(h, h1, 1);
+    checkeq(ENGINE_NOT_MY_VBUCKET,
+            del_ret_meta(h, h1, "key", 3, 1, 0, nullptr),
+            "Expected NMVB");
+    checkeq(ENGINE_SUCCESS, vbucketDelete(h, h1, 1), "Expected success");
 
     return SUCCESS;
 }
@@ -5604,7 +5675,7 @@ static enum test_result test_observe_with_item_eviction(ENGINE_HANDLE *h,
     obskeys["key1"] = 0;
     obskeys["key2"] = 1;
     obskeys["key3"] = 1;
-    observe(h, h1, obskeys);
+    checkeq(ENGINE_SUCCESS, observe(h, h1, obskeys), "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
     // Check the result
@@ -7255,7 +7326,7 @@ static enum test_result test_mb20943_complete_pending_ops_on_vbucket_delete(
     // Wait until spawned thread has locked the cookie.
     cv.wait(lk, [&ready]{return ready;});
     lk.unlock();
-    vbucketDelete(h, h1, 1);
+    checkeq(ENGINE_SUCCESS, vbucketDelete(h, h1, 1), "Expected success");
     // Wait for the thread to finish, which will occur when the thread has been
     // notified.
     notify_waiter.join();

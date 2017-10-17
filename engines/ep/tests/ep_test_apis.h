@@ -211,10 +211,13 @@ cb::EngineErrorItemPair getl(ENGINE_HANDLE* h,
 
 void get_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
                  uint16_t vb);
-void observe(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-             std::map<std::string, uint16_t> obskeys);
-void observe_seqno(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vb_id ,
-                   uint64_t uuid);
+ENGINE_ERROR_CODE observe(ENGINE_HANDLE* h,
+                          ENGINE_HANDLE_V1* h1,
+                          std::map<std::string, uint16_t> obskeys);
+ENGINE_ERROR_CODE observe_seqno(ENGINE_HANDLE* h,
+                                ENGINE_HANDLE_V1* h1,
+                                uint16_t vb_id,
+                                uint64_t uuid);
 
 protocol_binary_request_header*
 prepare_get_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
@@ -417,8 +420,10 @@ bool repeat_till_true(std::function<bool()> functor,
                               std::chrono::microseconds(1000 * 100));
 
 // VBucket operations
-void vbucketDelete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vb,
-                   const char* args = NULL);
+ENGINE_ERROR_CODE vbucketDelete(ENGINE_HANDLE* h,
+                                ENGINE_HANDLE_V1* h1,
+                                uint16_t vb,
+                                const char* args = NULL);
 
 void compact_db(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                 const uint16_t vbid,
@@ -471,30 +476,39 @@ void del_with_meta(ENGINE_HANDLE* h,
                    protocol_binary_datatype_t datatype = 0,
                    const std::vector<char>& value = {} /*optional value*/);
 
-void return_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
-                 const size_t keylen, const char *val, const size_t vallen,
-                 const uint32_t vb, const uint64_t cas, const uint32_t flags,
-                 const uint32_t exp, const uint32_t type,
-                 uint8_t datatype = PROTOCOL_BINARY_RAW_BYTES,
-                 const void *cookie = nullptr);
+ENGINE_ERROR_CODE set_ret_meta(ENGINE_HANDLE* h,
+                               ENGINE_HANDLE_V1* h1,
+                               const char* key,
+                               const size_t keylen,
+                               const char* val,
+                               const size_t vallen,
+                               const uint32_t vb,
+                               const uint64_t cas = 0,
+                               const uint32_t flags = 0,
+                               const uint32_t exp = 0,
+                               uint8_t datatype = PROTOCOL_BINARY_RAW_BYTES,
+                               const void* cookie = nullptr);
 
-void set_ret_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
-                  const size_t keylen, const char *val, const size_t vallen,
-                  const uint32_t vb, const uint64_t cas = 0,
-                  const uint32_t flags = 0, const uint32_t exp = 0,
-                  uint8_t datatype = PROTOCOL_BINARY_RAW_BYTES,
-                  const void *cookie = nullptr);
+ENGINE_ERROR_CODE add_ret_meta(ENGINE_HANDLE* h,
+                               ENGINE_HANDLE_V1* h1,
+                               const char* key,
+                               const size_t keylen,
+                               const char* val,
+                               const size_t vallen,
+                               const uint32_t vb,
+                               const uint64_t cas = 0,
+                               const uint32_t flags = 0,
+                               const uint32_t exp = 0,
+                               uint8_t datatype = PROTOCOL_BINARY_RAW_BYTES,
+                               const void* cookie = nullptr);
 
-void add_ret_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
-                  const size_t keylen, const char *val, const size_t vallen,
-                  const uint32_t vb, const uint64_t cas = 0,
-                  const uint32_t flags = 0, const uint32_t exp = 0,
-                  uint8_t datatype = PROTOCOL_BINARY_RAW_BYTES,
-                  const void *cookie = nullptr);
-
-void del_ret_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
-                  const size_t keylen, const uint32_t vb,
-                  const uint64_t cas = 0, const void *cookie = nullptr);
+ENGINE_ERROR_CODE del_ret_meta(ENGINE_HANDLE* h,
+                               ENGINE_HANDLE_V1* h1,
+                               const char* key,
+                               const size_t keylen,
+                               const uint32_t vb,
+                               const uint64_t cas = 0,
+                               const void* cookie = nullptr);
 
 void set_degraded_mode(ENGINE_HANDLE *h,
                        ENGINE_HANDLE_V1 *h1,
