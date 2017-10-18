@@ -733,17 +733,13 @@ void McbpConnection::ensureIovSpace() {
 }
 
 McbpConnection::McbpConnection()
-    : Connection(INVALID_SOCKET, nullptr),
-      stateMachine(new McbpStateMachine(*this)),
-      cookie(*this) {
+    : Connection(INVALID_SOCKET, nullptr), stateMachine(*this), cookie(*this) {
 }
 
 McbpConnection::McbpConnection(SOCKET sfd,
                                event_base* b,
                                const ListeningPort& ifc)
-    : Connection(sfd, b, ifc),
-      stateMachine(new McbpStateMachine(*this)),
-      cookie(*this) {
+    : Connection(sfd, b, ifc), stateMachine(*this), cookie(*this) {
     if (ifc.protocol != Protocol::Memcached) {
         throw std::logic_error("Incorrect object for MCBP");
     }
@@ -770,7 +766,7 @@ McbpConnection::~McbpConnection() {
 }
 
 void McbpConnection::setState(McbpStateMachine::State next_state) {
-    stateMachine->setCurrentState(next_state);
+    stateMachine.setCurrentState(next_state);
 }
 
 void McbpConnection::runStateMachinery() {
@@ -781,15 +777,15 @@ void McbpConnection::runStateMachinery() {
                    this,
                    "%u - Running task: (%s)",
                    getId(),
-                   stateMachine->getCurrentStateName());
-        } while (stateMachine->execute());
+                   stateMachine.getCurrentStateName());
+        } while (stateMachine.execute());
     } else {
         do {
             LOG_DEBUG(this,
                       "%u - Running task: (%s)",
                       getId(),
-                      stateMachine->getCurrentStateName());
-        } while (stateMachine->execute());
+                      stateMachine.getCurrentStateName());
+        } while (stateMachine.execute());
     }
 }
 
@@ -871,7 +867,7 @@ unique_cJSON_ptr McbpConnection::toJSON() const {
         }
 
         cJSON_AddStringToObject(
-                obj, "write_and_go", stateMachine->getStateName(write_and_go));
+                obj, "write_and_go", stateMachine.getStateName(write_and_go));
 
         {
             cJSON* iovobj = cJSON_CreateObject();
@@ -1050,7 +1046,7 @@ void McbpConnection::initiateShutdown() {
 }
 
 void McbpConnection::signalIfIdle(bool logbusy, int workerthread) {
-    if (!isEwouldblock() && stateMachine->isIdleState()) {
+    if (!isEwouldblock() && stateMachine.isIdleState()) {
         // Raise a 'fake' write event to ensure the connection has an
         // event delivered (for example if its sendQ is full).
         if (!registered_in_libevent) {

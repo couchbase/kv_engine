@@ -87,11 +87,11 @@ public:
     void setState(McbpStateMachine::State next_state);
 
     McbpStateMachine::State getState() const {
-        return stateMachine->getCurrentState();
+        return stateMachine.getCurrentState();
     }
 
     const char* getStateName() const {
-        return stateMachine->getCurrentStateName();
+        return stateMachine.getCurrentStateName();
     }
 
     bool isDCP() const override {
@@ -786,7 +786,7 @@ protected:
     /**
      * The state machine we're currently using
      */
-    std::unique_ptr<McbpStateMachine> stateMachine;
+    McbpStateMachine stateMachine;
 
     /** Is this connection used by a DCP connection? */
     bool dcp = false;
