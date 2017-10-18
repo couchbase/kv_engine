@@ -715,16 +715,6 @@ public:
     }
 
     /**
-     * Obtain a pointer to the packet for the Cookie's connection
-     *
-     * Deprecated: use Cookie::getPacket instead
-     */
-    static void* getPacket(const Cookie& cookie) CB_ATTR_DEPRECATED {
-        auto packet = cookie.getPacket();
-        return const_cast<void*>(static_cast<const void*>(packet.data()));
-    }
-
-    /**
       * Check to see if the next packet to process is completely received
       * and available in the input pipe.
       *
