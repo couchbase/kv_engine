@@ -24,6 +24,7 @@
 #include <platform/platform.h>
 #include <platform/sized_buffer.h>
 
+#include <cctype>
 #include <cstdint>
 
 namespace cb {
@@ -144,6 +145,24 @@ struct Request {
     cb::const_byte_buffer getKey() const {
         return {reinterpret_cast<const uint8_t*>(this) + sizeof(*this) + extlen,
                 getKeylen()};
+    }
+
+    /**
+     * Get a printable version of the key (non-printable characters replaced
+     * with a '.'
+     */
+    std::string getPrintableKey() const {
+        const auto key = getKey();
+
+        std::string buffer{reinterpret_cast<const char*>(key.data()),
+                           key.size()};
+        for (auto& ii : buffer) {
+            if (!std::isgraph(ii)) {
+                ii = '.';
+            }
+        }
+
+        return buffer;
     }
 
     cb::const_byte_buffer getExtdata() const {
