@@ -826,7 +826,6 @@ unique_cJSON_ptr McbpConnection::toJSON() const {
         cJSON_AddBoolToObject(obj, "dcp", isDCP());
         cJSON_AddBoolToObject(obj, "dcp_xattr_aware", isDcpXattrAware());
         cJSON_AddBoolToObject(obj, "dcp_no_value", isDcpNoValue());
-        cJSON_AddUintPtrToObject(obj, "opaque", getOpaque());
         cJSON_AddNumberToObject(obj, "max_reqs_per_event",
                                 max_reqs_per_event);
         cJSON_AddNumberToObject(obj, "nevents", numEvents);
