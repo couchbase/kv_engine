@@ -1041,23 +1041,6 @@ void McbpConnection::runEventLoop(short which) {
     }
 
     conn_return_buffers(this);
-    if (write && !dcp) {
-        // Add a simple sanity check. We should only have a write buffer
-        // connected when we're in:
-        //    * execute (we may have started to create data in the buffer)
-        //    * conn_send_data (we're currently sending the data)
-        //    * closing (we jumped directly from the above)
-        auto state = getState();
-        if (!(state == conn_execute || state == conn_send_data ||
-              state == conn_closing || state == conn_immediate_close)) {
-            // MB-26180: Change this to logging before releasing
-            throw std::logic_error(
-                    "McbpConnection::runEventLoop: " + std::to_string(getId()) +
-                    ": Expected write buffer to be released, "
-                    "but it's not. Current state: " +
-                    stateMachine->getCurrentTaskName());
-        }
-    }
 }
 
 void McbpConnection::initiateShutdown() {
