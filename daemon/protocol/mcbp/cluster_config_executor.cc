@@ -35,7 +35,7 @@ void get_cluster_config_executor(McbpConnection* c, void*) {
                        "selecting a bucket. Disconnecting %s",
                        c->getId(),
                        c->getDescription().c_str());
-            c->setState(conn_closing);
+            c->setState(McbpStateMachine::State::closing);
         }
         return;
     }
@@ -71,7 +71,7 @@ void set_cluster_config_executor(McbpConnection* c, void* packet) {
                        "selecting a bucket. Disconnecting %s",
                        c->getId(),
                        c->getDescription().c_str());
-            c->setState(conn_closing);
+            c->setState(McbpStateMachine::State::closing);
         }
         return;
     }

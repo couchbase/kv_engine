@@ -111,7 +111,7 @@ void get_cmd_timer_executor(McbpConnection* c, void* packet) {
     c->logResponse(ret.first);
 
     if (ret.first == ENGINE_DISCONNECT) {
-        c->setState(conn_closing);
+        c->setState(McbpStateMachine::State::closing);
     } else {
         mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret.first));
     }

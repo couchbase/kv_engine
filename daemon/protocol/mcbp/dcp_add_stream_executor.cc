@@ -38,10 +38,10 @@ void dcp_add_stream_executor(McbpConnection* c, void* packet) {
     switch (ret) {
     case ENGINE_SUCCESS:
         c->setDCP(true);
-        c->setState(conn_ship_log);
+        c->setState(McbpStateMachine::State::ship_log);
         break;
     case ENGINE_DISCONNECT:
-        c->setState(conn_closing);
+        c->setState(McbpStateMachine::State::closing);
         break;
 
     case ENGINE_EWOULDBLOCK:

@@ -35,11 +35,11 @@ void dcp_flush_executor(McbpConnection* c, void* packet) {
 
     switch (ret) {
     case ENGINE_SUCCESS:
-        c->setState(conn_new_cmd);
+        c->setState(McbpStateMachine::State::new_cmd);
         break;
 
     case ENGINE_DISCONNECT:
-        c->setState(conn_closing);
+        c->setState(McbpStateMachine::State::closing);
         break;
 
     case ENGINE_EWOULDBLOCK:

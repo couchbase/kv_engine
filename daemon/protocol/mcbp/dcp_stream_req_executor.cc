@@ -39,7 +39,7 @@ void dcp_stream_req_executor(McbpConnection* c, void* packet) {
                     "%u: dcp_stream_req_executor: Unexpected AIO stat"
                         " result ROLLBACK. Shutting down DCP connection",
                     c->getId());
-        c->setState(conn_closing);
+        c->setState(McbpStateMachine::State::closing);
         return;
     }
 
@@ -82,7 +82,7 @@ void dcp_stream_req_executor(McbpConnection* c, void* packet) {
         break;
 
     case ENGINE_DISCONNECT:
-        c->setState(conn_closing);
+        c->setState(McbpStateMachine::State::closing);
         break;
 
     case ENGINE_EWOULDBLOCK:

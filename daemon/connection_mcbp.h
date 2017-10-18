@@ -84,14 +84,14 @@ public:
 
     void setPriority(const Priority& priority) override;
 
-    void setState(TaskFunction next_state);
+    void setState(McbpStateMachine::State next_state);
 
-    TaskFunction getState() const {
-        return stateMachine->getCurrentTask();
+    McbpStateMachine::State getState() const {
+        return stateMachine->getCurrentState();
     }
 
     const char* getStateName() const {
-        return stateMachine->getCurrentTaskName();
+        return stateMachine->getCurrentStateName();
     }
 
     bool isDCP() const override {
@@ -345,11 +345,11 @@ public:
      */
     TryReadResult tryReadNetwork();
 
-    const TaskFunction getWriteAndGo() const {
+    const McbpStateMachine::State getWriteAndGo() const {
         return write_and_go;
     }
 
-    void setWriteAndGo(TaskFunction write_and_go) {
+    void setWriteAndGo(McbpStateMachine::State write_and_go) {
         McbpConnection::write_and_go = write_and_go;
     }
 
@@ -831,7 +831,7 @@ protected:
     rel_time_t ev_timeout;
 
     /** which state to go into after finishing current write */
-    TaskFunction write_and_go = conn_new_cmd;
+    McbpStateMachine::State write_and_go = McbpStateMachine::State::new_cmd;
 
     /* data for the mwrite state */
     std::vector<iovec> iov;

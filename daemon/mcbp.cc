@@ -45,8 +45,8 @@ static bool send_not_my_vbucket(McbpConnection& c) {
                         0,
                         0,
                         PROTOCOL_BINARY_RAW_BYTES);
-        c.setState(conn_send_data);
-        c.setWriteAndGo(conn_new_cmd);
+        c.setState(McbpStateMachine::State::send_data);
+        c.setWriteAndGo(McbpStateMachine::State::new_cmd);
         return true;
     }
 
@@ -94,8 +94,8 @@ void mcbp_write_response(McbpConnection* c,
                         dlen,
                         PROTOCOL_BINARY_RAW_BYTES);
         c->addIov(d, dlen);
-        c->setState(conn_send_data);
-        c->setWriteAndGo(conn_new_cmd);
+        c->setState(McbpStateMachine::State::send_data);
+        c->setWriteAndGo(McbpStateMachine::State::new_cmd);
     } else {
         if (c->getStart() != 0) {
             mcbp_collect_timings(reinterpret_cast<McbpConnection*>(c));
@@ -105,21 +105,21 @@ void mcbp_write_response(McbpConnection* c,
         // hence mcbp_add_header will not be called (which is what normally
         // updates the responseCounters).
         ++c->getBucket().responseCounters[PROTOCOL_BINARY_RESPONSE_SUCCESS];
-        c->setState(conn_new_cmd);
+        c->setState(McbpStateMachine::State::new_cmd);
     }
 }
 
 void mcbp_write_and_free(McbpConnection* c, DynamicBuffer* buf) {
     if (buf->getRoot() == nullptr) {
-        c->setState(conn_closing);
+        c->setState(McbpStateMachine::State::closing);
     } else {
         if (!c->pushTempAlloc(buf->getRoot())) {
-            c->setState(conn_closing);
+            c->setState(McbpStateMachine::State::closing);
             return;
         }
         c->addIov(buf->getRoot(), buf->getOffset());
-        c->setState(conn_send_data);
-        c->setWriteAndGo(conn_new_cmd);
+        c->setState(McbpStateMachine::State::send_data);
+        c->setWriteAndGo(McbpStateMachine::State::new_cmd);
 
         buf->takeOwnership();
     }
@@ -152,8 +152,8 @@ void mcbp_write_packet(McbpConnection* c, protocol_binary_response_status err) {
     if (!payload.empty()) {
         c->addIov(payload.data(), payload.size());
     }
-    c->setState(conn_send_data);
-    c->setWriteAndGo(conn_new_cmd);
+    c->setState(McbpStateMachine::State::send_data);
+    c->setWriteAndGo(McbpStateMachine::State::new_cmd);
 }
 
 cb::const_byte_buffer mcbp_add_header(cb::Pipe& pipe,

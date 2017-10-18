@@ -106,7 +106,7 @@ void dcp_open_executor(McbpConnection* c, void* packet) {
     }
 
     case ENGINE_DISCONNECT:
-        c->setState(conn_closing);
+        c->setState(McbpStateMachine::State::closing);
         break;
 
     case ENGINE_EWOULDBLOCK:

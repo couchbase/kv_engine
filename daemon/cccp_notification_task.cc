@@ -98,8 +98,8 @@ public:
         conn.addIov(conn.write->wdata().data(), needed);
         conn.write->produced(needed);
 
-        conn.setState(conn_send_data);
-        conn.setWriteAndGo(conn_new_cmd);
+        conn.setState(McbpStateMachine::State::send_data);
+        conn.setWriteAndGo(McbpStateMachine::State::new_cmd);
         return true;
     }
 };

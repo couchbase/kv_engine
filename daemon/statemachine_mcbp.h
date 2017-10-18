@@ -18,18 +18,149 @@
 
 class McbpConnection;
 
-typedef bool (*TaskFunction)(McbpConnection& connection);
-
 /**
  * The state machinery for the Memcached Binary Protocol.
  */
 class McbpStateMachine {
 public:
+    enum class State {
+        /**
+         * new_cmd is the initial state for a connection object, and the
+         * initial state for the processing a new command. It is used to
+         * prepare the connection object for handling the next command. It
+         * is also the state where the connection object would back off the
+         * CPU after servicing n number of requests (to avoid starvation of
+         * other connections bound to the same worker thread).
+         *
+         * possible next state:
+         *   * closing - if the bucket is currently being deleted
+         *   * parse_cmd - if the input buffer contains the next header
+         *   * waiting - we need more data
+         *   * ship_log - (for DCP connections)
+         */
+        new_cmd,
+
+        /**
+         * Set up a read event for the connection
+         *
+         * possible next state:
+         *   * closing - if the bucket is currently being deleted
+         *   * read_packet_header - the bucket isn't being deleted
+         */
+        waiting,
+
+        /**
+         * read_packet_header tries to read from the network and fill the
+         * input buffer.
+         *
+         * possible next state:
+         *   * closing - if the bucket is currently being deleted
+         *   * waiting - if we failed to read more data from the network
+         *               (DCP connections will enter ship_log)
+         *   * parse_cmd - if the entire packet header is available
+         */
+        read_packet_header,
+
+        /**
+         * parse_cmd parse the command header, and make a host-local copy of
+         * the packet header in c->binary_header for convenience
+         *
+         * possible next state:
+         *   * closing - if the bucket is currently being deleted (or protocol
+         *               error)
+         *   * read_packet_body - to fetch the rest of the data in the packet
+         *   * send_data - if an error occurs and we want to tell the user
+         *                 about the error before disconnecting.
+         */
+        parse_cmd,
+
+        /**
+         * Make sure that the entire packet is available
+         *
+         * possible next state:
+         *   * closing - if the bucket is currently being deleted (or protocol
+         *               error)
+         *   * execute - the entire packet is available in memory
+         */
+        read_packet_body,
+
+        /**
+         * Execute the current command
+         *
+         * possible next state:
+         *   * closing - if the bucket is currently being deleted (or protocol
+         *               error)
+         *   * send_data - If there is data to send
+         *   * new_cmd - for "no-reply" commands
+         */
+        execute,
+
+        /**
+         * Send data to the client
+         *
+         * possible next state:
+         *   * closing - if the bucket is currently being deleted (or network
+         *               errors)
+         *   * new_cmd - All data sent and we should start at the next command
+         *   * ship_log - DCP connections
+         */
+        send_data,
+
+        /**
+         * ship_log is the state where the DCP connection end up in the "idle"
+         * state to allow it to either process an incomming packet from the
+         * other end, or start filling in the data from the underlying engine
+         * to ship to the other end
+         *
+         * possible next state:
+         *   * closing - if the bucket is currently being deleted
+         *   * read_packet_header - to process input packet
+         *   * read_packet_body - to process input packet
+         *   * send_data - send the data from the engine
+         */
+        ship_log,
+
+        /**
+         * start closing a connection
+         *
+         * possible next state:
+         *   * immediate_close - no one else is holding a reference to the
+         *                       connection
+         *   * pending_close - someone is holding a reference to the connection
+         */
+        closing,
+
+        /**
+         * Wait until all references to the connection is released
+         *
+         * possible next state:
+         *   * immediate_close - no one else is holding a reference to the
+         *                       connection
+         */
+        pending_close,
+
+        /**
+         * Close sockets and notify everyone with ON_DISCONNECT
+         * disassociate the bucket and release all engine allocations
+         *
+         * next state:
+         *    * destroyed
+         */
+        immediate_close,
+
+        /**
+         * The sentinel state for a connection object
+         */
+        destroyed
+    };
+
     McbpStateMachine() = delete;
 
-    McbpStateMachine(McbpConnection& connection_, TaskFunction task)
-        : currentTask(task), connection(connection_) {
+    explicit McbpStateMachine(McbpConnection& connection_)
+        : currentState(State::new_cmd), connection(connection_) {
     }
+
+    bool isIdleState() const;
 
     /**
      * Execute the current task function
@@ -37,213 +168,38 @@ public:
      * @return the return value from the task function (true to continue
      *         execution, false otherwise)
      */
-    bool execute() {
-        return currentTask(connection);
-    }
+    bool execute();
 
     /**
-     * Get the current task function (for debug purposes)
+     * Get the current state (for debug purposes)
      */
-    TaskFunction getCurrentTask() const {
-        return currentTask;
+    State getCurrentState() const {
+        return currentState;
     }
 
     /**
-     * Get the name of the current task (for debug purposes)
+     * Get the name of the current state (for debug purposes)
      */
-    const char* getCurrentTaskName() const {
-        return getTaskName(currentTask);
+    const char* getCurrentStateName() const {
+        return getStateName(currentState);
     }
 
     /**
-     * Set the current task function
+     * Set the current state
      *
      * This validates the requested state transition is valid.
      *
      * @param task the new task function
      * @throws std::logical_error for illegal state transitions
      */
-    void setCurrentTask(TaskFunction task);
+    void setCurrentState(State state);
 
     /**
-     * Get the name of a given task
+     * Get the name of a given state
      */
-    const char* getTaskName(TaskFunction task) const;
-
+    const char* getStateName(State state) const;
 
 protected:
-    TaskFunction currentTask;
+    State currentState;
     McbpConnection& connection;
 };
-
-/**
- * conn_new_cmd is the initial state for a connection object, and the
- * initial state for the processing a new command. It is used to prepare
- * the connection object for handling the next command. It is also the state
- * where the connection object would back off the CPU after servicing n number
- * of requests (to avoid starvation of other connections bound to the same
- * worker thread).
- *
- * possible next state:
- *   * conn_closing - if the bucket is currently being deleted
- *   * conn_parse_cmd - if the input buffer contains the next header
- *   * conn_waiting - we need more data
- *   * conn_ship_log - (for DCP connections)
- *
- * @param c the connection object
- * @return true if the state machinery should continue to process events
- *              for this connection, false if we're done
- */
-bool conn_new_cmd(McbpConnection& c);
-
-/**
- * Set up a read event for the connection
- *
- * possible next state:
- *   * conn_closing - if the bucket is currently being deleted
- *   * conn_read_packet_header - the bucket isn't being deleted
- *
- * @param c the connection object
- * @return true if the next state is conn_closing, false otherwise (blocked
- *              waiting for a socket event)
- */
-bool conn_waiting(McbpConnection& c);
-
-/**
- * conn_read_packet_header tries to read from the network and fill the
- * input buffer.
- *
- * possible next state:
- *   * conn_closing - if the bucket is currently being deleted
- *   * conn_waiting - if we failed to read more data from the network
- *                    (DCP connections will enter conn_ship_log)
- *   * conn_parse_cmd - if the entire packet header is available
- *
- * @param c the connection object
- * @return true always
- */
-bool conn_read_packet_header(McbpConnection& c);
-
-/**
- * conn_parse_cmd parse the command header, and make a host-local copy of
- * the packet header in c->binary_header for convenience
- *
- * possible next state:
- *   * conn_closing - if the bucket is currently being deleted (or protocol
- *                    error)
- *   * conn_read_packet_body - to fetch the rest of the data in the packet
- *   * conn_send_data - if an error occurs and we want to tell the user
- *                      about the error before disconnecting.
- *
- * @param c the connection object
- * @return true if the state machinery should continue to process events
- *              for this connection, false if we're done
- */
-bool conn_parse_cmd(McbpConnection& c);
-
-/**
- * Make sure that the entire packet is available
- *
- * possible next state:
- *   * conn_closing - if the bucket is currently being deleted (or protocol
- *                    error)
- *   * conn_execute - the entire packet is available in memory
- *
- * @param c the connection object
- * @return true if the state machinery should continue to process events
- *              for this connection, false if we're done
- */
-bool conn_read_packet_body(McbpConnection& c);
-
-/**
- * start closing a connection
- *
- * possible next state:
- *   * conn_immediate_close - no one else is holding a reference to the
- *                            connection
- *   * conn_pending_close - someone is holding a reference to the connection
- *
- * @param c the connection object
- * @return true always
- */
-bool conn_closing(McbpConnection& c);
-
-/**
- * Wait until all references to the connection is released
- *
- * possible next state:
- *   * conn_immediate_close - no one else is holding a reference to the
- *                            connection
- *
- * @param c the connection object
- * @return true if all references is gone. false otherwise
- */
-bool conn_pending_close(McbpConnection& c);
-
-/**
- * Close sockets and notify everyone with ON_DISCONNECT
- * disassociate the bucket and release all engine allocations
- *
- * next state:
- *    * conn_destroyed
- *
- * @param c the connection object
- * @return false - always
- */
-bool conn_immediate_close(McbpConnection& c);
-
-/**
- * The sentinel state for a connection object
- *
- * @param c not used
- * @return false - always
- */
-bool conn_destroyed(McbpConnection& c);
-
-/**
- * Execute the current command
- *
- * possible next state:
- *   * conn_closing - if the bucket is currently being deleted (or protocol
- *                    error)
- *   * conn_send_data - If there is data to send
- *   * conn_new_cmd - for "no-reply" commands
- *
- * @param c the connection object
- * @return true if the state machinery should continue to process events
- *              for this connection, false if we're blocked
- */
-bool conn_execute(McbpConnection& c);
-
-/**
- * Send data to the client
- *
- * possible next state:
- *   * conn_closing - if the bucket is currently being deleted (or network
- *                    errors)
- *   * conn_new_cmd - All data sent and we should start at the next command
- *   * conn_ship_log - DCP connections
- *
- * @param c the connection object
- * @return true if the state machinery should continue to process events
- *              for this connection, false if we're done
- */
-bool conn_send_data(McbpConnection& c);
-
-/**
- * conn_ship_log is the state where the DCP connection end up in the "idle"
- * state to allow it to either process an incomming packet from the other end,
- * or start filling in the data from the underlying engine to ship to the
- * other end
- *
- * possible next state:
- *   * conn_closing - if the bucket is currently being deleted
- *   * conn_read_packet_header - to process input packet
- *   * conn_read_packet_body - to process input packet
- *   * conn_send_data - send the data from the engine
- *
- * @param c the connection object
- * @return true if the state machinery should continue to process events
- *              for this connection, false if we're done
- */
-bool conn_ship_log(McbpConnection& c);

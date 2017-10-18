@@ -96,7 +96,7 @@ ENGINE_ERROR_CODE GetMetaCommandContext::noSuchItem() {
     if (connection.isNoReply()) {
         auto& bucket = connection.getBucket();
         bucket.responseCounters[PROTOCOL_BINARY_RESPONSE_KEY_ENOENT]++;
-        connection.setState(conn_new_cmd);
+        connection.setState(McbpStateMachine::State::new_cmd);
     } else {
         if (request->message.header.request.opcode !=
             PROTOCOL_BINARY_CMD_GETQ_META) {

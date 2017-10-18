@@ -99,7 +99,7 @@ void list_bucket_executor(McbpConnection* c, void*) {
     c->logResponse(ret.first);
 
     if (ret.first == ENGINE_DISCONNECT) {
-        c->setState(conn_closing);
+        c->setState(McbpStateMachine::State::closing);
     } else {
         mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret.first));
     }

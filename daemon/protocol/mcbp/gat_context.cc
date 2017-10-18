@@ -124,7 +124,7 @@ ENGINE_ERROR_CODE GatCommandContext::sendResponse() {
     connection.addIov(&info.flags, sizeof(info.flags));
     // Add the value
     connection.addIov(payload.buf, payload.len);
-    connection.setState(conn_send_data);
+    connection.setState(McbpStateMachine::State::send_data);
     cb::audit::document::add(connection, cb::audit::document::Operation::Read);
     state = State::Done;
     return ENGINE_SUCCESS;
@@ -135,7 +135,7 @@ ENGINE_ERROR_CODE GatCommandContext::noSuchItem() {
     if (connection.isNoReply()) {
         ++connection.getBucket()
                     .responseCounters[PROTOCOL_BINARY_RESPONSE_KEY_ENOENT];
-        connection.setState(conn_new_cmd);
+        connection.setState(McbpStateMachine::State::new_cmd);
     } else {
         mcbp_write_packet(&connection, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
     }

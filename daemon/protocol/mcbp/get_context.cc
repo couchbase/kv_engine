@@ -106,7 +106,7 @@ ENGINE_ERROR_CODE GetCommandContext::sendResponse() {
     }
 
     connection.addIov(payload.buf, payload.len);
-    connection.setState(conn_send_data);
+    connection.setState(McbpStateMachine::State::send_data);
     cb::audit::document::add(connection, cb::audit::document::Operation::Read);
 
     STATS_HIT(&connection, get);
@@ -126,7 +126,7 @@ ENGINE_ERROR_CODE GetCommandContext::noSuchItem() {
     if (connection.isNoReply()) {
         ++connection.getBucket()
                   .responseCounters[PROTOCOL_BINARY_RESPONSE_KEY_ENOENT];
-        connection.setState(conn_new_cmd);
+        connection.setState(McbpStateMachine::State::new_cmd);
     } else {
         if (shouldSendKey()) {
             mcbp_add_header(&connection,
@@ -135,7 +135,7 @@ ENGINE_ERROR_CODE GetCommandContext::noSuchItem() {
                             uint32_t(key.size()),
                             PROTOCOL_BINARY_RAW_BYTES);
             connection.addIov(key.data(), key.size());
-            connection.setState(conn_send_data);
+            connection.setState(McbpStateMachine::State::send_data);
         } else {
             mcbp_write_packet(&connection, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
         }

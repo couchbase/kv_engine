@@ -173,7 +173,7 @@ static void process_bin_unknown_packet(McbpConnection* c, void* packet) {
             ++c->getBucket().responseCounters[PROTOCOL_BINARY_RESPONSE_SUCCESS];
             mcbp_write_and_free(c, &c->getDynamicBuffer());
         } else {
-            c->setState(conn_new_cmd);
+            c->setState(McbpStateMachine::State::new_cmd);
         }
         update_topkeys(DocKey(req->bytes + sizeof(c->binary_header.request) +
                                       c->binary_header.request.extlen,
@@ -186,7 +186,7 @@ static void process_bin_unknown_packet(McbpConnection* c, void* packet) {
         c->setEwouldblock(true);
         break;
     case ENGINE_DISCONNECT:
-        c->setState(conn_closing);
+        c->setState(McbpStateMachine::State::closing);
         break;
     default:
         /* Release the dynamic buffer.. it may be partial.. */
@@ -199,7 +199,7 @@ static void process_bin_unknown_packet(McbpConnection* c, void* packet) {
  * We received a noop response.. just ignore it
  */
 static void process_bin_noop_response(McbpConnection* c) {
-    c->setState(conn_new_cmd);
+    c->setState(McbpStateMachine::State::new_cmd);
 }
 
 /*******************************************************************************
@@ -510,12 +510,12 @@ void ship_mcbp_dcp_log(McbpConnection* c) {
     } else if (ret == ENGINE_WANT_MORE) {
         /* The engine got more data it wants to send */
         ret = ENGINE_SUCCESS;
-        c->setState(conn_send_data);
-        c->setWriteAndGo(conn_ship_log);
+        c->setState(McbpStateMachine::State::send_data);
+        c->setWriteAndGo(McbpStateMachine::State::ship_log);
     }
 
     if (ret != ENGINE_SUCCESS) {
-        c->setState(conn_closing);
+        c->setState(McbpStateMachine::State::closing);
     }
 }
 
@@ -606,7 +606,7 @@ static void get_executor(McbpConnection* c, void* packet) {
         LOG_WARNING(c,
                     "%u: get_executor: cmd (which is %d) is not a valid GET "
                         "variant - closing connection", c->getCmd());
-        c->setState(conn_closing);
+        c->setState(McbpStateMachine::State::closing);
         return;
     }
 
@@ -628,7 +628,7 @@ static void get_meta_executor(McbpConnection* c, void* packet) {
                     "variant - closing connection",
                     c->getId(),
                     c->getCmd());
-        c->setState(conn_closing);
+        c->setState(McbpStateMachine::State::closing);
         return;
     }
 
@@ -667,11 +667,11 @@ static void version_executor(McbpConnection* c, void*) {
 
 static void quit_executor(McbpConnection* c, void*) {
     mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    c->setWriteAndGo(conn_closing);
+    c->setWriteAndGo(McbpStateMachine::State::closing);
 }
 
 static void quitq_executor(McbpConnection* c, void*) {
-    c->setState(conn_closing);
+    c->setState(McbpStateMachine::State::closing);
 }
 
 static void sasl_list_mech_executor(McbpConnection* c, void*) {
@@ -806,7 +806,7 @@ static void ioctl_get_executor(McbpConnection* c, void* packet) {
         c->setEwouldblock(true);
         break;
     case ENGINE_DISCONNECT:
-        c->setState(conn_closing);
+        c->setState(McbpStateMachine::State::closing);
         break;
     default:
         mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
@@ -881,7 +881,7 @@ static void config_validate_executor(McbpConnection* c, void* packet) {
                     "%u: Failed to allocate buffer of size %"
                         PRIu64 " to validate config. Shutting down connection",
                     c->getId(), vallen + 1);
-        c->setState(conn_closing);
+        c->setState(McbpStateMachine::State::closing);
         return;
     }
 
@@ -1099,9 +1099,9 @@ static void process_bin_dcp_response(McbpConnection* c) {
     }
 
     if (ret == ENGINE_DISCONNECT) {
-        c->setState(conn_closing);
+        c->setState(McbpStateMachine::State::closing);
     } else {
-        c->setState(conn_ship_log);
+        c->setState(McbpStateMachine::State::ship_log);
     }
 }
 
@@ -1178,7 +1178,7 @@ static void execute_request_packet(McbpConnection* c) {
         audit_command_access_failed(c);
 
         if (c->remapErrorCode(ENGINE_EACCESS) == ENGINE_DISCONNECT) {
-            c->setState(conn_closing);
+            c->setState(McbpStateMachine::State::closing);
             return;
         } else {
             mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS);
@@ -1198,7 +1198,7 @@ static void execute_request_packet(McbpConnection* c) {
                        c->getId(), memcached_opcode_2_text(opcode), result);
             audit_invalid_packet(c);
             mcbp_write_packet(c, result);
-            c->setWriteAndGo(conn_closing);
+            c->setWriteAndGo(McbpStateMachine::State::closing);
             return;
         }
 
@@ -1210,7 +1210,7 @@ static void execute_request_packet(McbpConnection* c) {
         return;
     case cb::rbac::PrivilegeAccess::Stale:
         if (c->remapErrorCode(ENGINE_AUTH_STALE) == ENGINE_DISCONNECT) {
-            c->setState(conn_closing);
+            c->setState(McbpStateMachine::State::closing);
         } else {
             mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_STALE);
         }
@@ -1221,7 +1221,7 @@ static void execute_request_packet(McbpConnection* c) {
                 "%u: execute_request_packet: res (which is %d) is not a valid "
                 "AuthResult - closing connection",
                 res);
-    c->setState(conn_closing);
+    c->setState(McbpStateMachine::State::closing);
 }
 
 /**
@@ -1238,7 +1238,7 @@ static void execute_response_packet(McbpConnection* c) {
                    "%u: Unsupported response packet received with opcode: %02x",
                    c->getId(),
                    c->binary_header.request.opcode);
-        c->setState(conn_closing);
+        c->setState(McbpStateMachine::State::closing);
     }
 }
 
@@ -1332,7 +1332,7 @@ void try_read_mcbp_command(McbpConnection* c) {
                         (unsigned int)c->binary_header.request.opcode);
 
         }
-        c->setState(conn_closing);
+        c->setState(McbpStateMachine::State::closing);
         return;
     }
 
@@ -1352,13 +1352,13 @@ void try_read_mcbp_command(McbpConnection* c) {
     auto reason = validate_packet_execusion_constraints(c);
     if (reason != cb::mcbp::Status::Success) {
         mcbp_write_packet(c, reason);
-        c->setWriteAndGo(conn_closing);
+        c->setWriteAndGo(McbpStateMachine::State::closing);
         return;
     }
 
     if (c->isPacketAvailable()) {
         // we've got the entire packet spooled up, just go execute
-        c->setState(conn_execute);
+        c->setState(McbpStateMachine::State::execute);
     } else {
         // we need to allocate more memory!!
         try {
@@ -1369,9 +1369,9 @@ void try_read_mcbp_command(McbpConnection* c) {
             LOG_WARNING(c,
                         "%u: Failed to grow buffer.. closing connection",
                         c->getId());
-            c->setState(conn_closing);
+            c->setState(McbpStateMachine::State::closing);
             return;
         }
-        c->setState(conn_read_packet_body);
+        c->setState(McbpStateMachine::State::read_packet_body);
     }
 }

@@ -56,7 +56,7 @@ void SteppableCommandContext::drive() {
         connection.setEwouldblock(true);
         return;
     case ENGINE_DISCONNECT:
-        connection.setState(conn_closing);
+        connection.setState(McbpStateMachine::State::closing);
         return;
     default:
         mcbp_write_packet(&connection, engine_error_2_mcbp_protocol_error(ret));

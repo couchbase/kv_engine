@@ -182,7 +182,7 @@ ENGINE_ERROR_CODE RemoveCommandContext::sendResponse() {
     if (connection.isNoReply()) {
         ++connection.getBucket()
                   .responseCounters[PROTOCOL_BINARY_RESPONSE_SUCCESS];
-        connection.setState(conn_new_cmd);
+        connection.setState(McbpStateMachine::State::new_cmd);
         return ENGINE_SUCCESS;
     }
 

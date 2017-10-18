@@ -28,9 +28,54 @@
 
 #include <platform/strerror.h>
 
-void McbpStateMachine::setCurrentTask(TaskFunction task) {
+static bool conn_new_cmd(McbpConnection& connection);
+static bool conn_waiting(McbpConnection& connection);
+static bool conn_read_packet_header(McbpConnection& connection);
+static bool conn_parse_cmd(McbpConnection& connection);
+static bool conn_read_packet_body(McbpConnection& connection);
+static bool conn_closing(McbpConnection& connection);
+static bool conn_pending_close(McbpConnection& connection);
+static bool conn_immediate_close(McbpConnection& connection);
+static bool conn_destroyed(McbpConnection& connection);
+static bool conn_execute(McbpConnection& connection);
+static bool conn_send_data(McbpConnection& connection);
+static bool conn_ship_log(McbpConnection& connection);
+
+typedef bool (*TaskFunction)(McbpConnection& connection);
+
+static TaskFunction stateToFunc(McbpStateMachine::State state) {
+    switch (state) {
+    case McbpStateMachine::State::new_cmd:
+        return conn_new_cmd;
+    case McbpStateMachine::State::waiting:
+        return conn_waiting;
+    case McbpStateMachine::State::read_packet_header:
+        return conn_read_packet_header;
+    case McbpStateMachine::State::parse_cmd:
+        return conn_parse_cmd;
+    case McbpStateMachine::State::read_packet_body:
+        return conn_read_packet_body;
+    case McbpStateMachine::State::closing:
+        return conn_closing;
+    case McbpStateMachine::State::pending_close:
+        return conn_pending_close;
+    case McbpStateMachine::State::immediate_close:
+        return conn_immediate_close;
+    case McbpStateMachine::State::destroyed:
+        return conn_destroyed;
+    case McbpStateMachine::State::execute:
+        return conn_execute;
+    case McbpStateMachine::State::send_data:
+        return conn_send_data;
+    case McbpStateMachine::State::ship_log:
+        return conn_ship_log;
+    }
+    throw std::invalid_argument("stateToFunc(): invalid state");
+}
+
+void McbpStateMachine::setCurrentState(State task) {
     // Moving to the same state is legal
-    if (task == currentTask) {
+    if (task == currentState) {
         return;
     }
 
@@ -42,64 +87,88 @@ void McbpStateMachine::setCurrentTask(TaskFunction task) {
          * read from the network / engine
          */
 
-        if (task == conn_waiting) {
+        if (task == State::waiting) {
             connection.setCurrentEvent(EV_WRITE);
-            task = conn_ship_log;
+            task = State::ship_log;
         }
 
-        if (task == conn_read_packet_header) {
+        if (task == State::read_packet_header) {
             // If we're starting to read data, reset any running timers
             connection.setStart(0);
         }
     }
 
-    if (settings.getVerbose() > 2 || task == conn_closing) {
+    if (settings.getVerbose() > 2 || task == State::closing) {
         LOG_DETAIL(this,
-                   "%u: going from %s to %s\n",
+                   "%u: going from %s to %s",
                    connection.getId(),
-                   getTaskName(currentTask),
-                   getTaskName(task));
+                   getStateName(currentState),
+                   getStateName(task));
     }
 
-    if (task == conn_send_data) {
+    if (task == State::send_data) {
         if (connection.getStart() != 0) {
             mcbp_collect_timings(&connection);
             connection.setStart(0);
         }
         MEMCACHED_PROCESS_COMMAND_END(connection.getId(), nullptr, 0);
     }
-    currentTask = task;
+    currentState = task;
 }
 
-const char* McbpStateMachine::getTaskName(TaskFunction task) const {
-    if (task == conn_new_cmd) {
-        return "conn_new_cmd";
-    } else if (task == conn_waiting) {
-        return "conn_waiting";
-    } else if (task == conn_read_packet_header) {
-        return "conn_read_packet_header";
-    } else if (task == conn_parse_cmd) {
-        return "conn_parse_cmd";
-    } else if (task == conn_read_packet_body) {
-        return "conn_read_packet_body";
-    } else if (task == conn_execute) {
-        return "conn_execute";
-    } else if (task == conn_closing) {
-        return "conn_closing";
-    } else if (task == conn_send_data) {
-        return "conn_send_data";
-    } else if (task == conn_ship_log) {
-        return "conn_ship_log";
-    } else if (task == conn_pending_close) {
-        return "conn_pending_close";
-    } else if (task == conn_immediate_close) {
-        return "conn_immediate_close";
-    } else if (task == conn_destroyed) {
-        return "conn_destroyed";
-    } else {
-        throw std::invalid_argument(
-                "McbpStateMachine::getTaskName: Unknown task");
+const char* McbpStateMachine::getStateName(State state) const {
+    switch (state) {
+    case McbpStateMachine::State::new_cmd:
+        return "new_cmd";
+    case McbpStateMachine::State::waiting:
+        return "waiting";
+    case McbpStateMachine::State::read_packet_header:
+        return "read_packet_header";
+    case McbpStateMachine::State::parse_cmd:
+        return "parse_cmd";
+    case McbpStateMachine::State::read_packet_body:
+        return "read_packet_body";
+    case McbpStateMachine::State::closing:
+        return "closing";
+    case McbpStateMachine::State::pending_close:
+        return "pending_close";
+    case McbpStateMachine::State::immediate_close:
+        return "immediate_close";
+    case McbpStateMachine::State::destroyed:
+        return "destroyed";
+    case McbpStateMachine::State::execute:
+        return "execute";
+    case McbpStateMachine::State::send_data:
+        return "send_data";
+    case McbpStateMachine::State::ship_log:
+        return "ship_log";
     }
+
+    return "McbpStateMachine::getStateName: Invalid state";
+}
+
+bool McbpStateMachine::isIdleState() const {
+    switch (currentState) {
+    case State::read_packet_header:
+    case State::read_packet_body:
+    case State::waiting:
+    case State::new_cmd:
+    case State::ship_log:
+    case State::send_data:
+        return true;
+    case State::parse_cmd:
+    case State::closing:
+    case State::pending_close:
+    case State::immediate_close:
+    case State::destroyed:
+    case State::execute:
+        return false;
+    }
+    throw std::logic_error("McbpStateMachine::isIdleState: Invalid state");
+}
+
+bool McbpStateMachine::execute() {
+    return stateToFunc(currentState)(connection);
 }
 
 static void reset_cmd_handler(McbpConnection *c) {
@@ -110,11 +179,11 @@ static void reset_cmd_handler(McbpConnection *c) {
 
     c->shrinkBuffers();
     if (c->read->rsize() >= sizeof(c->binary_header)) {
-        c->setState(conn_parse_cmd);
+        c->setState(McbpStateMachine::State::parse_cmd);
     } else if (c->isSslEnabled()) {
-        c->setState(conn_read_packet_header);
+        c->setState(McbpStateMachine::State::read_packet_header);
     } else {
-        c->setState(conn_waiting);
+        c->setState(McbpStateMachine::State::waiting);
     }
 }
 
@@ -146,7 +215,7 @@ bool conn_ship_log(McbpConnection& connection) {
         if (c->read->rsize() >= sizeof(c->binary_header)) {
             try_read_mcbp_command(c);
         } else {
-            c->setState(conn_read_packet_header);
+            c->setState(McbpStateMachine::State::read_packet_header);
         }
 
         /* we're going to process something.. let's proceed */
@@ -177,7 +246,7 @@ bool conn_ship_log(McbpConnection& connection) {
         LOG_WARNING(c, "%u: conn_ship_log - Unable to update libevent "
                     "settings, closing connection (%p) %s", c->getId(),
                     c->getCookie(), c->getDescription().c_str());
-        c->setState(conn_closing);
+        c->setState(McbpStateMachine::State::closing);
     }
 
     return cont;
@@ -194,10 +263,10 @@ bool conn_waiting(McbpConnection& connection) {
                     "settings with (EV_READ | EV_PERSIST), closing connection "
                     "(%p) %s",
                     c->getId(), c->getCookie(), c->getDescription().c_str());
-        c->setState(conn_closing);
+        c->setState(McbpStateMachine::State::closing);
         return true;
     }
-    c->setState(conn_read_packet_header);
+    c->setState(McbpStateMachine::State::read_packet_header);
     return false;
 }
 
@@ -209,18 +278,18 @@ bool conn_read_packet_header(McbpConnection& connection) {
 
     switch (c->tryReadNetwork()) {
     case McbpConnection::TryReadResult::NoDataReceived:
-        c->setState(conn_waiting);
+        c->setState(McbpStateMachine::State::waiting);
         break;
     case McbpConnection::TryReadResult::DataReceived:
         if (c->read->rsize() >= sizeof(c->binary_header)) {
-            c->setState(conn_parse_cmd);
+            c->setState(McbpStateMachine::State::parse_cmd);
         } else {
-            c->setState(conn_waiting);
+            c->setState(McbpStateMachine::State::waiting);
         }
         break;
     case McbpConnection::TryReadResult::SocketClosed:
     case McbpConnection::TryReadResult::SocketError:
-        c->setState(conn_closing);
+        c->setState(McbpStateMachine::State::closing);
         break;
     case McbpConnection::TryReadResult::MemoryError: /* Failed to allocate more memory */
         /* State already set by try_read_network */
@@ -282,7 +351,7 @@ bool conn_new_cmd(McbpConnection& connection) {
                             "libevent settings, closing connection (%p) %s",
                             c->getId(), c->getCookie(),
                             c->getDescription().c_str());
-                c->setState(conn_closing);
+                c->setState(McbpStateMachine::State::closing);
                 return true;
             }
         }
@@ -316,7 +385,7 @@ bool conn_execute(McbpConnection& connection) {
     // We've executed the packet, and given that we're not blocking we
     // we should move over to the next state. Just do a sanity check
     // for that.
-    if (c->getState() == conn_execute) {
+    if (c->getState() == McbpStateMachine::State::execute) {
         throw std::logic_error(
                 "conn_execute: Should leave conn_execute for !EWOULDBLOCK");
     }
@@ -356,14 +425,14 @@ bool conn_read_packet_body(McbpConnection& connection) {
         get_thread_stats(c)->bytes_read += res;
 
         if (c->isPacketAvailable()) {
-            c->setState(conn_execute);
+            c->setState(McbpStateMachine::State::execute);
         }
 
         return true;
     }
 
     if (res == 0) { /* end of stream */
-        c->setState(conn_closing);
+        c->setState(McbpStateMachine::State::closing);
         return true;
     }
 
@@ -377,7 +446,7 @@ bool conn_read_packet_body(McbpConnection& connection) {
                         c->getId(),
                         c->getCookie(),
                         c->getDescription().c_str());
-            c->setState(conn_closing);
+            c->setState(McbpStateMachine::State::closing);
             return true;
         }
 
@@ -395,7 +464,7 @@ bool conn_read_packet_body(McbpConnection& connection) {
                 c->getDescription().c_str(),
                 errormsg.c_str());
 
-    c->setState(conn_closing);
+    c->setState(McbpStateMachine::State::closing);
     return true;
 }
 
@@ -452,7 +521,7 @@ bool conn_pending_close(McbpConnection& connection) {
         return false;
     }
 
-    c->setState(conn_immediate_close);
+    c->setState(McbpStateMachine::State::immediate_close);
     return true;
 }
 
@@ -495,9 +564,9 @@ bool conn_closing(McbpConnection& connection) {
     conn_cleanup_engine_allocations(c);
 
     if (c->getRefcount() > 1 || c->isEwouldblock()) {
-        c->setState(conn_pending_close);
+        c->setState(McbpStateMachine::State::pending_close);
     } else {
-        c->setState(conn_immediate_close);
+        c->setState(McbpStateMachine::State::immediate_close);
     }
     return true;
 }

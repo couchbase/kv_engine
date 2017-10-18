@@ -41,7 +41,7 @@ void dcp_noop_executor(McbpConnection* c, void*) {
         break;
 
     case ENGINE_DISCONNECT:
-        c->setState(conn_closing);
+        c->setState(McbpStateMachine::State::closing);
         break;
 
     case ENGINE_EWOULDBLOCK:

@@ -38,7 +38,7 @@ void dcp_close_stream_executor(McbpConnection* c, void* packet) {
         break;
 
     case ENGINE_DISCONNECT:
-        c->setState(conn_closing);
+        c->setState(McbpStateMachine::State::closing);
         break;
 
     case ENGINE_EWOULDBLOCK:

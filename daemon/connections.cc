@@ -278,7 +278,7 @@ void conn_close(McbpConnection *c) {
     if (!c->isSocketClosed()) {
         throw std::logic_error("conn_cleanup: socketDescriptor must be closed");
     }
-    if (c->getState() != conn_immediate_close) {
+    if (c->getState() != McbpStateMachine::State::immediate_close) {
         throw std::logic_error("conn_cleanup: Connection:state (which is " +
                                std::string(c->getStateName()) +
                                ") must be conn_immediate_close");
@@ -300,7 +300,7 @@ void conn_close(McbpConnection *c) {
     if (c->getThread() != nullptr) {
         throw std::logic_error("conn_close: failed to disassociate connection from thread");
     }
-    c->setState(conn_destroyed);
+    c->setState(McbpStateMachine::State::destroyed);
 }
 
 ListeningPort *get_listening_port_instance(const in_port_t port) {
@@ -512,7 +512,7 @@ static BufferLoan loan_single_buffer(McbpConnection& c,
                         " connection",
                         c.getId());
         }
-        c.setState(conn_closing);
+        c.setState(McbpStateMachine::State::closing);
         return BufferLoan::Existing;
     }
 

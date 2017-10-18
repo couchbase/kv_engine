@@ -410,7 +410,7 @@ McbpConnection::TransmitResult McbpConnection::transmit() {
         ssl.drainBioSendPipe(socketDescriptor);
         if (ssl.morePendingOutput()) {
             if (ssl.hasError() || !updateEvent(EV_WRITE | EV_PERSIST)) {
-                setState(conn_closing);
+                setState(McbpStateMachine::State::closing);
                 return TransmitResult::HardError;
             }
             return TransmitResult::SoftError;
@@ -446,7 +446,7 @@ McbpConnection::TransmitResult McbpConnection::transmit() {
                     if (ssl.isEnabled() && ssl.morePendingOutput()) {
                         if (ssl.hasError() ||
                             !updateEvent(EV_WRITE | EV_PERSIST)) {
-                            setState(conn_closing);
+                            setState(McbpStateMachine::State::closing);
                             return TransmitResult::HardError;
                         }
                         return TransmitResult::SoftError;
@@ -460,7 +460,7 @@ McbpConnection::TransmitResult McbpConnection::transmit() {
 
         if (res == -1 && is_blocking(error)) {
             if (!updateEvent(EV_WRITE | EV_PERSIST)) {
-                setState(conn_closing);
+                setState(McbpStateMachine::State::closing);
                 return TransmitResult::HardError;
             }
             return TransmitResult::SoftError;
@@ -491,7 +491,7 @@ McbpConnection::TransmitResult McbpConnection::transmit() {
             }
         }
 
-        setState(conn_closing);
+        setState(McbpStateMachine::State::closing);
         return TransmitResult::HardError;
     } else {
         return TransmitResult::Complete;
@@ -734,7 +734,7 @@ void McbpConnection::ensureIovSpace() {
 
 McbpConnection::McbpConnection()
     : Connection(INVALID_SOCKET, nullptr),
-      stateMachine(new McbpStateMachine(*this, conn_new_cmd)),
+      stateMachine(new McbpStateMachine(*this)),
       cookie(*this) {
 }
 
@@ -742,7 +742,7 @@ McbpConnection::McbpConnection(SOCKET sfd,
                                event_base* b,
                                const ListeningPort& ifc)
     : Connection(sfd, b, ifc),
-      stateMachine(new McbpStateMachine(*this, conn_new_cmd)),
+      stateMachine(new McbpStateMachine(*this)),
       cookie(*this) {
     if (ifc.protocol != Protocol::Memcached) {
         throw std::logic_error("Incorrect object for MCBP");
@@ -769,21 +769,26 @@ McbpConnection::~McbpConnection() {
     }
 }
 
-void McbpConnection::setState(TaskFunction next_state) {
-    stateMachine->setCurrentTask(next_state);
+void McbpConnection::setState(McbpStateMachine::State next_state) {
+    stateMachine->setCurrentState(next_state);
 }
 
 void McbpConnection::runStateMachinery() {
     if (isTraceEnabled()) {
         do {
             // @todo we should have a TRACE scope!!
-            LOGGER(EXTENSION_LOG_NOTICE, this, "%u - Running task: (%s)",
-                   getId(), stateMachine->getCurrentTaskName());
+            LOGGER(EXTENSION_LOG_NOTICE,
+                   this,
+                   "%u - Running task: (%s)",
+                   getId(),
+                   stateMachine->getCurrentStateName());
         } while (stateMachine->execute());
     } else {
         do {
-            LOG_DEBUG(this, "%u - Running task: (%s)", getId(),
-                      stateMachine->getCurrentTaskName());
+            LOG_DEBUG(this,
+                      "%u - Running task: (%s)",
+                      getId(),
+                      stateMachine->getCurrentStateName());
         } while (stateMachine->execute());
     }
 }
@@ -865,11 +870,8 @@ unique_cJSON_ptr McbpConnection::toJSON() const {
             cJSON_AddItemToObject(obj, "write", write->to_json().release());
         }
 
-        if (write_and_go != nullptr) {
-            cJSON_AddStringToObject(obj, "write_and_go",
-                                    stateMachine->getTaskName(write_and_go));
-
-        }
+        cJSON_AddStringToObject(
+                obj, "write_and_go", stateMachine->getStateName(write_and_go));
 
         {
             cJSON* iovobj = cJSON_CreateObject();
@@ -992,7 +994,7 @@ void McbpConnection::maybeLogSlowCommand(
 }
 
 bool McbpConnection::shouldDelete() {
-    return getState() == conn_destroyed;
+    return getState() == McbpStateMachine::State ::destroyed;
 }
 
 bool McbpConnection::processServerEvents() {
@@ -1023,7 +1025,7 @@ void McbpConnection::runEventLoop(short which) {
         LOG_WARNING(this,
                     "%d: exception occurred in runloop - closing connection: %s",
                     getId(), e.what());
-        setState(conn_closing);
+        setState(McbpStateMachine::State::closing);
         /*
          * In addition to setting the state to conn_closing
          * we need to move execution foward by executing
@@ -1044,15 +1046,11 @@ void McbpConnection::runEventLoop(short which) {
 }
 
 void McbpConnection::initiateShutdown() {
-    setState(conn_closing);
+    setState(McbpStateMachine::State::closing);
 }
 
 void McbpConnection::signalIfIdle(bool logbusy, int workerthread) {
-    auto state = getState();
-    if (!isEwouldblock() &&
-        (state == conn_read_packet_header || state == conn_read_packet_body ||
-         state == conn_waiting || state == conn_new_cmd ||
-         state == conn_ship_log || state == conn_send_data)) {
+    if (!isEwouldblock() && stateMachine->isIdleState()) {
         // Raise a 'fake' write event to ensure the connection has an
         // event delivered (for example if its sendQ is full).
         if (!registered_in_libevent) {
@@ -1060,12 +1058,12 @@ void McbpConnection::signalIfIdle(bool logbusy, int workerthread) {
             if (!registerEvent()) {
                 LOG_WARNING(this, "McbpConnection::signalIfIdle: Unable to "
                                   "registerEvent.  Setting state to conn_closing");
-                setState(conn_closing);
+                setState(McbpStateMachine::State::closing);
             }
         } else if (!updateEvent(EV_READ | EV_WRITE | EV_PERSIST)) {
             LOG_WARNING(this, "McbpConnection::signalIfIdle: Unable to "
                               "updateEvent.  Setting state to conn_closing");
-            setState(conn_closing);
+            setState(McbpStateMachine::State::closing);
         }
         event_active(&event, EV_WRITE, 0);
     } else if (logbusy) {

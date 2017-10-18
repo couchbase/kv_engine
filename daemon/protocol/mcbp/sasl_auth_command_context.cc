@@ -126,8 +126,8 @@ ENGINE_ERROR_CODE SaslAuthCommandContext::authContinue() {
                     payload.size(),
                     PROTOCOL_BINARY_RAW_BYTES);
     connection.addIov(payload.data(), payload.size());
-    connection.setState(conn_send_data);
-    connection.setWriteAndGo(conn_new_cmd);
+    connection.setState(McbpStateMachine::State::send_data);
+    connection.setWriteAndGo(McbpStateMachine::State::new_cmd);
 
     state = State::Done;
     return ENGINE_SUCCESS;
