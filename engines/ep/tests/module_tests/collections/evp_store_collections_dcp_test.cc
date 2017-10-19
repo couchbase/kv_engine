@@ -130,21 +130,25 @@ public:
         consumer.reset();
     }
 
-    void notifyAndStepToCheckpoint(bool fromMemory = true) {
+    void runCheckpointProcessor() {
+        // Step which will notify the snapshot task
+        EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+
+        EXPECT_EQ(1, producer->getCheckpointSnapshotTask().queueSize());
+
+        // Now call run on the snapshot task to move checkpoint into DCP
+        // stream
+        producer->getCheckpointSnapshotTask().run();
+    }
+
+    void notifyAndStepToCheckpoint(bool expectSnapshot = true,
+                                   bool fromMemory = true) {
         auto vb = store->getVBucket(vbid);
         ASSERT_NE(nullptr, vb.get());
 
         if (fromMemory) {
             producer->notifySeqnoAvailable(vbid, vb->getHighSeqno());
-
-            // Step which will notify the snapshot task
-            EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
-
-            EXPECT_EQ(1, producer->getCheckpointSnapshotTask().queueSize());
-
-            // Now call run on the snapshot task to move checkpoint into DCP
-            // stream
-            producer->getCheckpointSnapshotTask().run();
+            runCheckpointProcessor();
         } else {
             // Run a backfill
             auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
@@ -160,8 +164,12 @@ public:
 
         // Next step which will process a snapshot marker and then the caller
         // should now be able to step through the checkpoint
-        EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
-        EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER, dcp_last_op);
+        if (expectSnapshot) {
+            EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+            EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER, dcp_last_op);
+        } else {
+            EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+        }
     }
 
     void testDcpCreateDelete(int expectedCreates,
@@ -332,7 +340,7 @@ void CollectionsDcpTest::testDcpCreateDelete(int expectedCreates,
                                              int expectedDeletes,
                                              int expectedMutations,
                                              bool fromMemory) {
-    notifyAndStepToCheckpoint(fromMemory);
+    notifyAndStepToCheckpoint(true /* expect a snapshot*/, fromMemory);
 
     int creates = 0, deletes = 0, mutations = 0;
     // step until done
@@ -703,13 +711,7 @@ TEST_F(CollectionsFilteredDcpTest, filtering) {
     // Setup filtered DCP
     createDcpObjects(R"({"collections":["dairy"]})", true);
 
-    // MB-24572, this notify an step gets us to an empty checkpoint as a create
-    // was dropped.
     notifyAndStepToCheckpoint();
-
-    // MB-24572, an extra step is needed to get past the next empty checkpoint
-    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
-    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER, dcp_last_op);
 
     // SystemEvent createCollection
     EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
@@ -738,6 +740,62 @@ TEST_F(CollectionsFilteredDcpTest, filtering) {
     }
     // And no more
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+
+    flush_vbucket_to_disk(vbid, 7);
+
+    vb.reset();
+
+    // Now stream back from disk and check filtering
+    resetEngineAndWarmup();
+
+    // In order to create a filter, a manifest needs to be set
+    store->setCollections({R"({"separator": ":",
+              "collections":[{"name":"$default", "uid":"0"},
+                             {"name":"meat", "uid":"1"},
+                             {"name":"dairy", "uid":"2"}]})"});
+
+    createDcpObjects(R"({"collections":["dairy"]})", true);
+
+    // Streamed from disk
+    // 1 create - create of dairy
+    // 2 mutations in the dairy collection
+    testDcpCreateDelete(1, 0, 2, false);
+}
+
+// Check that when filtering is on, we don't send snapshots for fully filtered
+// snapshots
+TEST_F(CollectionsFilteredDcpTest, MB_24572) {
+    VBucketPtr vb = store->getVBucket(vbid);
+
+    // Perform a create of meat/dairy via the bucket level (filters are
+    // worked out from the bucket manifest)
+    store->setCollections({R"({"separator": ":",
+              "collections":[{"name":"$default", "uid":"0"},
+                             {"name":"meat", "uid":"1"},
+                             {"name":"dairy", "uid":"2"}]})"});
+    // Setup filtered DCP
+    createDcpObjects(R"({"collections":["dairy"]})", true);
+
+    // Store collection documents
+    store_item(vbid, {"meat::one", DocNamespace::Collections}, "value");
+    store_item(vbid, {"meat::two", DocNamespace::Collections}, "value");
+    store_item(vbid, {"meat::three", DocNamespace::Collections}, "value");
+
+    notifyAndStepToCheckpoint();
+
+    // SystemEvent createCollection for dairy is expected
+    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT, dcp_last_op);
+    EXPECT_EQ("dairy", dcp_last_key);
+
+    // And no more for this stream - no meat
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+
+    // and new mutations?
+    store_item(vbid, {"meat::one1", DocNamespace::Collections}, "value");
+    store_item(vbid, {"meat::two2", DocNamespace::Collections}, "value");
+    store_item(vbid, {"meat::three3", DocNamespace::Collections}, "value");
+    notifyAndStepToCheckpoint(false /* no checkpoint should be generated*/);
 }
 
 TEST_F(CollectionsFilteredDcpTest, default_only) {
@@ -751,14 +809,6 @@ TEST_F(CollectionsFilteredDcpTest, default_only) {
                              {"name":"dairy", "uid":"2"}]})"});
     // Setup DCP
     createDcpObjects({/*no filter*/}, false /*don't know about collections*/);
-
-    // MB-24572, this notify an step gets us to an empty checkpoint as a create
-    // was dropped.
-    notifyAndStepToCheckpoint();
-
-    // MB-24572, an extra step is needed to get past the next empty checkpoint
-    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
-    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER, dcp_last_op);
 
     // Store collection documents and one default collection document
     store_item(vbid, {"meat:one", DocNamespace::Collections}, "value");

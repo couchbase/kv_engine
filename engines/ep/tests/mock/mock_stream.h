@@ -52,8 +52,9 @@ public:
                        snap_end_seqno,
                        includeValue,
                        includeXattrs,
-                       std::make_unique<Collections::VB::Filter>(
-                               p->getFilter(), vb.getManifest())) {
+
+                       p->getFilter(),
+                       vb.getManifest()) {
     }
 
     // Expose underlying protected ActiveStream methods as public

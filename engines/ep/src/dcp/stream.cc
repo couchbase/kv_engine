@@ -149,14 +149,12 @@ void Stream::clear_UNLOCKED() {
 void Stream::pushToReadyQ(std::unique_ptr<DcpResponse> resp) {
     /* expect streamMutex.ownsLock() == true */
     if (resp) {
-        if (queueResponse(resp.get())) {
-            if (!resp->isMetaEvent()) {
-                readyQ_non_meta_items++;
-            }
-            readyQueueMemory.fetch_add(resp->getMessageSize(),
-                                       std::memory_order_relaxed);
-            readyQ.push(std::move(resp));
+        if (!resp->isMetaEvent()) {
+            readyQ_non_meta_items++;
         }
+        readyQueueMemory.fetch_add(resp->getMessageSize(),
+                                   std::memory_order_relaxed);
+        readyQ.push(std::move(resp));
     }
 }
 
@@ -240,7 +238,8 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
                            uint64_t snap_end_seqno,
                            IncludeValue includeVal,
                            IncludeXattrs includeXattrs,
-                           std::unique_ptr<Collections::VB::Filter> filter)
+                           const Collections::Filter& filter,
+                           const Collections::VB::Manifest& manifest)
     : Stream(n,
              flags,
              opaque,
@@ -268,7 +267,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
       chkptItemsExtractionInProgress(false),
       includeValue(includeVal),
       includeXattributes(includeXattrs),
-      filter(std::move(filter)) {
+      filter(filter, manifest) {
     const char* type = "";
     if (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER) {
         type = "takeover ";
@@ -489,7 +488,7 @@ bool ActiveStream::backfillReceived(std::unique_ptr<Item> itm,
 
     if (itm->shouldReplicate()) {
         std::unique_lock<std::mutex> lh(streamMutex);
-        if (isBackfilling()) {
+        if (isBackfilling() && filter.allow(*itm)) {
             queued_item qi(std::move(itm));
             std::unique_ptr<DcpResponse> resp(makeResponseFromItem(qi));
             auto producer = producerPtr.lock();
@@ -824,7 +823,7 @@ void ActiveStream::addStats(ADD_STAT add_stat, const void *c) {
             "ActiveStream::addStats: Failed to build stats: %s", error.what());
     }
 
-    filter->addStats(add_stat, c, name_, vb_);
+    filter.addStats(add_stat, c, name_, vb_);
 }
 
 void ActiveStream::addTakeoverStats(ADD_STAT add_stat, const void *cookie,
@@ -1118,7 +1117,9 @@ void ActiveStream::processItems(std::vector<queued_item>& items) {
             if (SystemEventReplicate::process(*qi) == ProcessStatus::Continue) {
                 curChkSeqno = qi->getBySeqno();
                 lastReadSeqnoUnSnapshotted = qi->getBySeqno();
-                mutations.push_back(makeResponseFromItem(qi));
+                if (filter.allow(*qi)) {
+                    mutations.push_back(makeResponseFromItem(qi));
+                }
             } else if (qi->getOperation() == queue_op::checkpoint_start) {
                 /* if there are already other mutations, then they belong to the
                    previous checkpoint and hence we must create a snapshot and
@@ -1732,28 +1733,13 @@ void ActiveStream::processSystemEvent(DcpResponse* response) {
         if (se->getSystemEvent() == mcbp::systemevent::id::CollectionsSeparatorChanged) {
             currentSeparator =
                     std::string(se->getKey().data(), se->getKey().size());
-        } else if (se->getSystemEvent() == mcbp::systemevent::id::DeleteCollection &&
-                   filter->remove(se->getKey())) {
+        } else if (se->getSystemEvent() ==
+                           mcbp::systemevent::id::DeleteCollection &&
+                   filter.remove(se->getKey())) {
             // Filter empty, so endStream
             endStream(END_STREAM_CLOSED);
         }
     }
-}
-
-bool ActiveStream::queueResponse(DcpResponse* resp) const {
-    if ((resp->getEvent() == DcpResponse::Event::Mutation ||
-         resp->getEvent() == DcpResponse::Event::Deletion ||
-         resp->getEvent() == DcpResponse::Event::Expiration)) {
-        auto m = static_cast<MutationResponse*>(resp);
-        if (filter->allow(m->getItem()->getKey())) {
-            return true;
-        } else {
-            return false;
-        }
-    } else if (resp->getEvent() == DcpResponse::Event::SystemEvent) {
-        return filter->allowSystemEvent(static_cast<SystemEventMessage*>(resp));
-    }
-    return true;
 }
 
 void ActiveStream::notifyStreamReady(bool force) {
@@ -1785,8 +1771,7 @@ NotifierStream::NotifierStream(EventuallyPersistentEngine* e,
                                uint64_t en_seqno,
                                uint64_t vb_uuid,
                                uint64_t snap_start_seqno,
-                               uint64_t snap_end_seqno,
-                               std::unique_ptr<Collections::VB::Filter> filter)
+                               uint64_t snap_end_seqno)
     : Stream(name,
              flags,
              opaque,
@@ -1797,8 +1782,7 @@ NotifierStream::NotifierStream(EventuallyPersistentEngine* e,
              snap_start_seqno,
              snap_end_seqno,
              Type::Notifier),
-      producerPtr(p),
-      filter(std::move(filter)) {
+      producerPtr(p) {
     LockHolder lh(streamMutex);
     VBucketPtr vbucket = e->getVBucket(vb_);
     if (vbucket && static_cast<uint64_t>(vbucket->getHighSeqno()) > st_seqno) {
@@ -1893,23 +1877,8 @@ void NotifierStream::transitionState(StreamState newState) {
     state_ = newState;
 }
 
-bool NotifierStream::queueResponse(DcpResponse* resp) const {
-    if ((resp->getEvent() == DcpResponse::Event::Mutation ||
-         resp->getEvent() == DcpResponse::Event::Deletion ||
-         resp->getEvent() == DcpResponse::Event::Expiration)) {
-        auto m = static_cast<MutationResponse*>(resp);
-        if (filter->allow(m->getItem()->getKey())) {
-            return true;
-        } else {
-            return false;
-        }
-    }
-    return true;
-}
-
 void NotifierStream::addStats(ADD_STAT add_stat, const void* c) {
     Stream::addStats(add_stat, c);
-    filter->addStats(add_stat, c, name_, vb_);
 }
 
 void NotifierStream::log(EXTENSION_LOG_LEVEL severity,

@@ -66,31 +66,28 @@ Collections::VB::Filter::Filter(const Collections::Filter& filter,
 
     // All collections dropped
     if (this->filter.empty() && !defaultAllowed) {
-        throw std::invalid_argument("VB::Filter::Filter: nothing to filter");
+        throw EmptyException();
     }
 }
 
-bool Collections::VB::Filter::allow(::DocKey key) const {
+bool Collections::VB::Filter::allow(const Item& item) const {
     // passthrough, everything is allowed.
     if (passthrough) {
         return true;
     }
 
     // The presence of $default is a simple check against defaultAllowed
-    if (key.getDocNamespace() == DocNamespace::DefaultCollection &&
+    if (item.getKey().getDocNamespace() == DocNamespace::DefaultCollection &&
         defaultAllowed) {
         return true;
-    } else if (key.getDocNamespace() == DocNamespace::Collections &&
+    } else if (item.getKey().getDocNamespace() == DocNamespace::Collections &&
                !filter.empty()) {
         // Collections require a look up in the filter
-        const auto cKey = Collections::DocKey::make(key, separator);
-        return filter.count({reinterpret_cast<const char*>(cKey.data()),
-                             cKey.getCollectionLen()}) > 0;
-    } else if (key.getDocNamespace() == DocNamespace::System) {
-        // ::allow should only be called for the Default or Collection namespace
-        throw std::invalid_argument(
-                "Collections::VB::Filter::allow namespace system invalid:" +
-                std::to_string(int(key.getDocNamespace())));
+        const auto cKey = Collections::DocKey::make(item.getKey(), separator);
+        return filter.count(cKey.getCollection());
+    } else if (item.getKey().getDocNamespace() == DocNamespace::System &&
+               systemEventsAllowed) {
+        return allowSystemEvent(item);
     }
     return false;
 }
@@ -111,29 +108,33 @@ bool Collections::VB::Filter::remove(cb::const_char_buffer collection) {
     return filter.empty() && !defaultAllowed;
 }
 
-bool Collections::VB::Filter::allowSystemEvent(
-        SystemEventMessage* response) const {
-    switch (response->getSystemEvent()) {
-    case mcbp::systemevent::id::CreateCollection:
-    case mcbp::systemevent::id::DeleteCollection: {
-        if ((response->getKey() == DefaultCollectionIdentifier &&
-             defaultAllowed) ||
+bool Collections::VB::Filter::allowSystemEvent(const Item& item) const {
+    switch (SystemEvent(item.getFlags())) {
+    case SystemEvent::Collection: {
+        const auto cKey = Collections::DocKey::make(item.getKey(), separator);
+        if ((cKey.getKey() == DefaultCollectionIdentifier && defaultAllowed) ||
             passthrough) {
             return true;
         } else {
             // These events are sent only if they relate to a collection in the
             // filter
-            return filter.count(response->getKey()) > 0;
+            return filter.count(cKey.getKey()) > 0;
         }
     }
-    case mcbp::systemevent::id::CollectionsSeparatorChanged:
+    case SystemEvent::DeleteCollectionHard:
+    case SystemEvent::DeleteCollectionSoft: {
+        return false;
+    }
+    case SystemEvent::CollectionsSeparatorChanged: {
         // The separator changed event is sent if system events are allowed
         return systemEventsAllowed;
     }
-    throw std::invalid_argument(
-            "SystemEventReplicate::filter event:" +
-            std::to_string(int(response->getSystemEvent())) +
-            " should not be present in SystemEventMessage");
+    default: {
+        throw std::invalid_argument(
+                "VB::Filter::allowSystemEvent:: event unknown:" +
+                std::to_string(int(item.getFlags())));
+    }
+    }
 }
 
 void Collections::VB::Filter::addStats(ADD_STAT add_stat,

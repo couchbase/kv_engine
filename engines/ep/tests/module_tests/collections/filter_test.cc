@@ -248,7 +248,7 @@ TEST_F(CollectionsVBFilterTest, deleted_collection) {
 
     // Construction will fail as the filter would not match anything valid
     EXPECT_THROW(std::make_unique<Collections::VB::Filter>(f, vbm),
-                 std::invalid_argument);
+                 Collections::VB::Filter::EmptyException);
 }
 
 /**
@@ -273,18 +273,21 @@ TEST_F(CollectionsVBFilterTest, basic_allow) {
     Collections::VB::Filter vbf(f, vbm);
 
     // Yes to these guys
-    EXPECT_TRUE(vbf.allow({"anykey", DocNamespace::DefaultCollection}));
-    EXPECT_TRUE(vbf.allow({"fruit$apple", DocNamespace::Collections}));
-    EXPECT_TRUE(vbf.allow({"meat$bacon", DocNamespace::Collections}));
+    EXPECT_TRUE(vbf.allow(
+            {{"anykey", DocNamespace::DefaultCollection}, 0, 0, nullptr, 0}));
+    EXPECT_TRUE(vbf.allow(
+            {{"fruit$apple", DocNamespace::Collections}, 0, 0, nullptr, 0}));
+    EXPECT_TRUE(vbf.allow(
+            {{"meat$bacon", DocNamespace::Collections}, 0, 0, nullptr, 0}));
 
     // No to these keys
-    EXPECT_FALSE(vbf.allow({"dairy$milk", DocNamespace::Collections}));
-    EXPECT_FALSE(vbf.allow({"vegetable$cabbage", DocNamespace::Collections}));
-
-    // There's no need yet to call the filter with DocKey's in system space, so
-    // it throws
-    EXPECT_THROW(vbf.allow({"meat$bacon", DocNamespace::System}),
-                 std::invalid_argument);
+    EXPECT_FALSE(vbf.allow(
+            {{"dairy$milk", DocNamespace::Collections}, 0, 0, nullptr, 0}));
+    EXPECT_FALSE(vbf.allow({{"vegetable$cabbage", DocNamespace::Collections},
+                            0,
+                            0,
+                            nullptr,
+                            0}));
 }
 
 /**
@@ -305,8 +308,10 @@ TEST_F(CollectionsVBFilterTest, legacy_filter) {
 
     Collections::VB::Filter vbf(f, vbm);
     // Legacy would only allow default
-    EXPECT_TRUE(vbf.allow({"anykey", DocNamespace::DefaultCollection}));
-    EXPECT_FALSE(vbf.allow({"fruit$apple", DocNamespace::Collections}));
+    EXPECT_TRUE(vbf.allow(
+            {{"anykey", DocNamespace::DefaultCollection}, 0, 0, nullptr, 0}));
+    EXPECT_FALSE(vbf.allow(
+            {{"fruit$apple", DocNamespace::Collections}, 0, 0, nullptr, 0}));
 }
 
 /**
@@ -325,11 +330,16 @@ TEST_F(CollectionsVBFilterTest, passthrough) {
 
     // Everything is allowed (even junk, which isn't the filter's job to police)
     Collections::VB::Filter vbf(f, vbm);
-    EXPECT_TRUE(vbf.allow({"anykey", DocNamespace::DefaultCollection}));
-    EXPECT_TRUE(vbf.allow({"fruit$apple", DocNamespace::Collections}));
-    EXPECT_TRUE(vbf.allow({"meat$steak", DocNamespace::Collections}));
-    EXPECT_TRUE(vbf.allow({"dairy$milk", DocNamespace::Collections}));
-    EXPECT_TRUE(vbf.allow({"JUNK!!", DocNamespace::Collections}));
+    EXPECT_TRUE(vbf.allow(
+            {{"anykey", DocNamespace::DefaultCollection}, 0, 0, nullptr, 0}));
+    EXPECT_TRUE(vbf.allow(
+            {{"fruit$apple", DocNamespace::Collections}, 0, 0, nullptr, 0}));
+    EXPECT_TRUE(vbf.allow(
+            {{"meat$steak", DocNamespace::Collections}, 0, 0, nullptr, 0}));
+    EXPECT_TRUE(vbf.allow(
+            {{"dairy$milk", DocNamespace::Collections}, 0, 0, nullptr, 0}));
+    EXPECT_TRUE(vbf.allow(
+            {{"JUNK!!", DocNamespace::Collections}, 0, 0, nullptr, 0}));
 }
 
 /**
@@ -352,11 +362,16 @@ TEST_F(CollectionsVBFilterTest, no_default) {
 
     // Now filter!
     Collections::VB::Filter vbf(f, vbm);
-    EXPECT_FALSE(vbf.allow({"anykey", DocNamespace::DefaultCollection}));
-    EXPECT_TRUE(vbf.allow({"fruit$apple", DocNamespace::Collections}));
-    EXPECT_TRUE(vbf.allow({"meat$steak", DocNamespace::Collections}));
-    EXPECT_FALSE(vbf.allow({"dairy$milk", DocNamespace::Collections}));
-    EXPECT_FALSE(vbf.allow({"JUNK!!", DocNamespace::Collections}));
+    EXPECT_FALSE(vbf.allow(
+            {{"anykey", DocNamespace::DefaultCollection}, 0, 0, nullptr, 0}));
+    EXPECT_TRUE(vbf.allow(
+            {{"fruit$apple", DocNamespace::Collections}, 0, 0, nullptr, 0}));
+    EXPECT_TRUE(vbf.allow(
+            {{"meat$steak", DocNamespace::Collections}, 0, 0, nullptr, 0}));
+    EXPECT_FALSE(vbf.allow(
+            {{"dairy$milk", DocNamespace::Collections}, 0, 0, nullptr, 0}));
+    EXPECT_FALSE(vbf.allow(
+            {{"JUNK!!", DocNamespace::Collections}, 0, 0, nullptr, 0}));
 }
 
 /**
@@ -378,13 +393,17 @@ TEST_F(CollectionsVBFilterTest, remove1) {
 
     Collections::Filter f(json, m);
     Collections::VB::Filter vbf(f, vbm);
-    EXPECT_TRUE(vbf.allow({"fruit$apple", DocNamespace::Collections}));
+    EXPECT_TRUE(vbf.allow(
+            {{"fruit$apple", DocNamespace::Collections}, 0, 0, nullptr, 0}));
     EXPECT_FALSE(vbf.remove("fruit"));
-    EXPECT_FALSE(vbf.allow({"fruit$apple", DocNamespace::Collections}));
+    EXPECT_FALSE(vbf.allow(
+            {{"fruit$apple", DocNamespace::Collections}, 0, 0, nullptr, 0}));
 
-    EXPECT_TRUE(vbf.allow({"meat$steak", DocNamespace::Collections}));
+    EXPECT_TRUE(vbf.allow(
+            {{"meat$steak", DocNamespace::Collections}, 0, 0, nullptr, 0}));
     EXPECT_TRUE(vbf.remove("meat"));
-    EXPECT_FALSE(vbf.allow({"meat$apple", DocNamespace::Collections}));
+    EXPECT_FALSE(vbf.allow(
+            {{"meat$apple", DocNamespace::Collections}, 0, 0, nullptr, 0}));
 }
 
 /**
@@ -407,36 +426,29 @@ TEST_F(CollectionsVBFilterTest, remove2) {
 
     Collections::Filter f(json, m);
     Collections::VB::Filter vbf(f, vbm);
-    EXPECT_TRUE(vbf.allow({"anykey", DocNamespace::DefaultCollection}));
+    EXPECT_TRUE(vbf.allow(
+            {{"anykey", DocNamespace::DefaultCollection}, 0, 0, nullptr, 0}));
     EXPECT_FALSE(vbf.remove("$default"));
-    EXPECT_FALSE(vbf.allow({"anykey", DocNamespace::DefaultCollection}));
+    EXPECT_FALSE(vbf.allow(
+            {{"anykey", DocNamespace::DefaultCollection}, 0, 0, nullptr, 0}));
 
-    EXPECT_TRUE(vbf.allow({"meat$steak", DocNamespace::Collections}));
+    EXPECT_TRUE(vbf.allow(
+            {{"meat$steak", DocNamespace::Collections}, 0, 0, nullptr, 0}));
     EXPECT_TRUE(vbf.remove("meat"));
-    EXPECT_FALSE(vbf.allow({"meat$apple", DocNamespace::Collections}));
-}
-
-std::unique_ptr<SystemEventConsumerMessage> makeTestMessage(
-        const std::string name, mcbp::systemevent::id ev, const int* rev) {
-    cb::const_byte_buffer n{reinterpret_cast<const uint8_t*>(name.data()),
-                            name.size()};
-    cb::const_byte_buffer r{reinterpret_cast<const uint8_t*>(rev), sizeof(int)};
-    return std::make_unique<SystemEventConsumerMessage>(
-            0, ev, 0 /*seq*/, 0 /*vb*/, n, r);
+    EXPECT_FALSE(vbf.allow(
+            {{"meat$apple", DocNamespace::Collections}, 0, 0, nullptr, 0}));
 }
 
 /**
- * System events are checked by a different interface (allowSystemEvent)
- * Test that a filter allows the right events, this is a passthrough filter
- * so everything is allowed.
+ * Test that a filter allows the right system events.
+ * This test creates a passthrough filter so everything is allowed.
  */
 TEST_F(CollectionsVBFilterTest, system_events1) {
     Collections::Manifest m(
             R"({"separator":"$",)"
             R"("collections":[{"name":"$default","uid":"0"},
                               {"name":"meat","uid":"3"},
-                              {"name":"fruit", "uid":"4"},
-                              {"name":"dairy","uid":"5"}]})");
+                              {"name":"fruit", "uid":"4"}]})");
     Collections::VB::Manifest vbm({});
     vbm.wlock().update(vb, m);
 
@@ -446,45 +458,28 @@ TEST_F(CollectionsVBFilterTest, system_events1) {
     Collections::Filter f(json, m);
     Collections::VB::Filter vbf(f, vbm);
 
-    int rev = 0;
-    // create and delete of meat is allowed by the meat filter
-    std::string name = "meat";
-    EXPECT_TRUE(vbf.allowSystemEvent(
-            makeTestMessage(name, mcbp::systemevent::id::CreateCollection, &rev)
-                    .get()));
-    EXPECT_TRUE(vbf.allowSystemEvent(
-            makeTestMessage(name, mcbp::systemevent::id::DeleteCollection, &rev)
-                    .get()));
+    // meat system event is allowed by the meat filter
+    EXPECT_TRUE(vbf.allow(*SystemEventFactory::make(
+            SystemEvent::Collection, "$", "meat", 0, {})));
 
-    // create and delete of $default is allowed by the filter
-    name = "$default";
-    EXPECT_TRUE(vbf.allowSystemEvent(
-            makeTestMessage(name, mcbp::systemevent::id::CreateCollection, &rev)
-                    .get()));
-    EXPECT_TRUE(vbf.allowSystemEvent(
-            makeTestMessage(name, mcbp::systemevent::id::DeleteCollection, &rev)
-                    .get()));
+    // $default system event is allowed by the filter
+    EXPECT_TRUE(vbf.allow(*SystemEventFactory::make(
+            SystemEvent::Collection, "$", "$default", 0, {})));
 
-    // create and delete of dairy is not allowed by the filter
-    name = "dairy";
-    EXPECT_TRUE(vbf.allowSystemEvent(
-            makeTestMessage(name, mcbp::systemevent::id::CreateCollection, &rev)
-                    .get()));
-    EXPECT_TRUE(vbf.allowSystemEvent(
-            makeTestMessage(name, mcbp::systemevent::id::DeleteCollection, &rev)
-                    .get()));
+    // dairy system event is allowed even though dairy doesn't exist in the
+    // manifest, we wouldn't actually create this event as dairy isn't present
+    // but this just shows the passthrough interface at work.
+    EXPECT_TRUE(vbf.allow(*SystemEventFactory::make(
+            SystemEvent::Collection, "$", "dairy", 0, {})));
 
     // A change of separator is also allowed
-    EXPECT_TRUE(vbf.allowSystemEvent(
-            makeTestMessage(name,
-                            mcbp::systemevent::id::CollectionsSeparatorChanged,
-                            &rev)
-                    .get()));
+    EXPECT_TRUE(vbf.allow(*SystemEventFactory::make(
+            SystemEvent::CollectionsSeparatorChanged, "$", "::", 0, {})));
 }
 
 /**
- * System events are checked by a different interface (allowSystemEvent)
- * Test that a filter allows the right events
+ * Test that a filter allows the right system events.
+ * This test creates a filter where only matching events are allowed
  */
 TEST_F(CollectionsVBFilterTest, system_events2) {
     Collections::Manifest m(
@@ -496,52 +491,34 @@ TEST_F(CollectionsVBFilterTest, system_events2) {
     Collections::VB::Manifest vbm({});
     vbm.wlock().update(vb, m);
 
+    // only events for default and meat are allowed
     std::string jsonFilter = R"({"collections":["$default", "meat"]})";
     boost::optional<const std::string&> json(jsonFilter);
 
     Collections::Filter f(json, m);
     Collections::VB::Filter vbf(f, vbm);
 
-    int rev = 0;
-    // create and delete of meat is allowed by the meat filter
-    std::string name = "meat";
-    EXPECT_TRUE(vbf.allowSystemEvent(
-            makeTestMessage(name, mcbp::systemevent::id::CreateCollection, &rev)
-                    .get()));
-    EXPECT_TRUE(vbf.allowSystemEvent(
-            makeTestMessage(name, mcbp::systemevent::id::DeleteCollection, &rev)
-                    .get()));
+    // meat system event is allowed by the meat filter
+    EXPECT_TRUE(vbf.allow(*SystemEventFactory::make(
+            SystemEvent::Collection, "$", "meat", 0, {})));
 
-    // create and delete of $default is allowed by the filter
-    name = "$default";
-    EXPECT_TRUE(vbf.allowSystemEvent(
-            makeTestMessage(name, mcbp::systemevent::id::CreateCollection, &rev)
-                    .get()));
-    EXPECT_TRUE(vbf.allowSystemEvent(
-            makeTestMessage(name, mcbp::systemevent::id::DeleteCollection, &rev)
-                    .get()));
+    // $default system event is allowed by the filter
+    EXPECT_TRUE(vbf.allow(*SystemEventFactory::make(
+            SystemEvent::Collection, "$", "$default", 0, {})));
 
-    // create and delete of dairy is not allowed by the filter
-    name = "dairy";
-    EXPECT_FALSE(vbf.allowSystemEvent(
-            makeTestMessage(name, mcbp::systemevent::id::CreateCollection, &rev)
-                    .get()));
-    EXPECT_FALSE(vbf.allowSystemEvent(
-            makeTestMessage(name, mcbp::systemevent::id::DeleteCollection, &rev)
-                    .get()));
+    // dairy system event is not allowed by the filter
+    EXPECT_FALSE(vbf.allow(*SystemEventFactory::make(
+            SystemEvent::Collection, "$", "dairy", 0, {})));
 
     // A change of separator is also allowed
-    EXPECT_TRUE(vbf.allowSystemEvent(
-            makeTestMessage(name,
-                            mcbp::systemevent::id::CollectionsSeparatorChanged,
-                            &rev)
-                    .get()));
+    EXPECT_TRUE(vbf.allow(*SystemEventFactory::make(
+            SystemEvent::CollectionsSeparatorChanged, "$", "::", 0, {})));
 }
 
 /**
- * System events are checked by a different interface
- * Test that a legacy filter denies all system events, they shouldn't be sent
- * to legacy clients.
+ * Test that a filter allows the right system events.
+ * This test creates a 'legacy' filter, one which an old DCP client would be
+ * attached to - no system events at all are allowed.
  */
 TEST_F(CollectionsVBFilterTest, system_events3) {
     Collections::Manifest m(
@@ -559,17 +536,12 @@ TEST_F(CollectionsVBFilterTest, system_events3) {
     Collections::VB::Filter vbf(f, vbm);
 
     // All system events dropped by this empty/legacy filter
-    std::string name = "meat";
-    int rev = 0;
-    EXPECT_FALSE(vbf.allowSystemEvent(
-            makeTestMessage(name, mcbp::systemevent::id::CreateCollection, &rev)
-                    .get()));
-    EXPECT_FALSE(vbf.allowSystemEvent(
-            makeTestMessage(name, mcbp::systemevent::id::DeleteCollection, &rev)
-                    .get()));
-    EXPECT_FALSE(vbf.allowSystemEvent(
-            makeTestMessage(name,
-                            mcbp::systemevent::id::CollectionsSeparatorChanged,
-                            &rev)
-                    .get()));
+    EXPECT_FALSE(vbf.allow(*SystemEventFactory::make(
+            SystemEvent::Collection, "$", "meat", 0, {})));
+    EXPECT_FALSE(vbf.allow(*SystemEventFactory::make(
+            SystemEvent::Collection, "$", "$default", 0, {})));
+    EXPECT_FALSE(vbf.allow(*SystemEventFactory::make(
+            SystemEvent::Collection, "$", "dairy", 0, {})));
+    EXPECT_FALSE(vbf.allow(*SystemEventFactory::make(
+            SystemEvent::CollectionsSeparatorChanged, "$", "::", 0, {})));
 }

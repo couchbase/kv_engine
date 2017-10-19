@@ -26,6 +26,7 @@
 #include <unordered_map>
 
 class SystemEventMessage;
+class Item;
 
 namespace Collections {
 
@@ -48,8 +49,11 @@ class Manifest;
  * Note: There is no locking on a VB::Filter as at the moment it is constructed
  * and then is not mutable.
  */
+
 class Filter {
 public:
+    class EmptyException : public std::exception {};
+
     /**
      * Construct a Collections::VB::Filter using the producer's
      * Collections::Filter and the vbucket's collections manifest.
@@ -69,9 +73,10 @@ public:
            const ::Collections::VB::Manifest& manifest);
 
     /**
+     * @param item an Item to check against the filter
      * @returns if the filter allows key based on the filter contents
      */
-    bool allow(::DocKey key) const;
+    bool allow(const Item& item) const;
 
     /**
      * Attempt to remove the collection from the filter, no-op if the filter
@@ -81,15 +86,6 @@ public:
      * @returns true if the filter is empty
      */
     bool remove(cb::const_char_buffer collection);
-
-    /**
-     * Does the filter allow the system event? I.e. a "meat,dairy" filter
-     * shouldn't allow delete events for the "fruit" collection.
-     *
-     * @param response a SystemEventMessage to check
-     * @param return true if the filter says this event should be allowed
-     */
-    bool allowSystemEvent(SystemEventMessage* response) const;
 
     /**
      * Add statistics for this filter, currently just depicts the object's state
@@ -104,7 +100,16 @@ public:
      */
     void dump() const;
 
-private:
+protected:
+    /**
+     * Does the filter allow the system event? I.e. a "meat,dairy" filter
+     * shouldn't allow delete events for the "fruit" collection.
+     *
+     * @param item a SystemEventMessage to check
+     * @param return true if the filter says this event should be allowed
+     */
+    bool allowSystemEvent(const Item& item) const;
+
     using Container = ::std::unordered_map<cb::const_char_buffer,
                                            std::unique_ptr<std::string>>;
     Container filter;

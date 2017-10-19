@@ -375,20 +375,6 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
         return ENGINE_ERANGE;
     }
 
-    // Create the filter for the stream
-    std::unique_ptr<Collections::VB::Filter> vbFilter;
-    try {
-        vbFilter = std::make_unique<Collections::VB::Filter>(*filter,
-                                                             vb->getManifest());
-    } catch(std::exception& e) {
-        LOG(EXTENSION_LOG_INFO,
-            "%s (vb %d) Stream request filter failed construction e.what:%s",
-            logHeader(),
-            vbucket,
-            e.what());
-        return ENGINE_UNKNOWN_COLLECTION;
-    }
-
     std::shared_ptr<Stream> s;
     if (notifyOnly) {
         s = std::make_shared<NotifierStream>(&engine_,
@@ -401,23 +387,31 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
                                              end_seqno,
                                              vbucket_uuid,
                                              snap_start_seqno,
-                                             snap_end_seqno,
-                                             std::move(vbFilter));
+                                             snap_end_seqno);
     } else {
-        s = std::make_shared<ActiveStream>(&engine_,
-                                           shared_from_this(),
-                                           getName(),
-                                           flags,
-                                           opaque,
-                                           *vb,
-                                           start_seqno,
-                                           end_seqno,
-                                           vbucket_uuid,
-                                           snap_start_seqno,
-                                           snap_end_seqno,
-                                           includeValue,
-                                           includeXattrs,
-                                           std::move(vbFilter));
+        try {
+            s = std::make_shared<ActiveStream>(&engine_,
+                                               shared_from_this(),
+                                               getName(),
+                                               flags,
+                                               opaque,
+                                               *vb,
+                                               start_seqno,
+                                               end_seqno,
+                                               vbucket_uuid,
+                                               snap_start_seqno,
+                                               snap_end_seqno,
+                                               includeValue,
+                                               includeXattrs,
+                                               *filter,
+                                               vb->getManifest());
+        } catch (Collections::VB::Filter::EmptyException& e) {
+            LOG(EXTENSION_LOG_WARNING,
+                "%s (vb %d) Stream request failed, constructed filter is empty",
+                logHeader(),
+                vbucket);
+            return ENGINE_UNKNOWN_COLLECTION;
+        }
     }
 
     {
