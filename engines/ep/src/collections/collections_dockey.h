@@ -102,7 +102,12 @@ private:
             return nullptr;
         }
 
-        auto rv = std::search(key.data(),
+        // SystemEvent Doc keys all start with $ (SystemEventFactory::make does)
+        // this. The collections separator could legally be $, so we need to
+        // ensure we skip character 0 to correctly split the key.
+        const int start = key.getDocNamespace() == DocNamespace::System ? 1 : 0;
+
+        auto rv = std::search(key.data() + start,
                               key.data() + key.size(),
                               separator.begin(),
                               separator.end());
