@@ -235,14 +235,6 @@ public:
         return numItems;
     }
 
-    void setNumTotalItems(size_t totalItems) {
-        numTotalItems = totalItems;
-    }
-
-    size_t getNumTotalItems() const {
-        return numTotalItems;
-    }
-
     /**
      * Remove in case of a temporary item
      *
@@ -255,14 +247,6 @@ public:
 
     void decrNumItems() {
         --numItems;
-    }
-
-    void incrNumTotalItems() {
-        ++numTotalItems;
-    }
-
-    void decrNumTotalItems() {
-        --numTotalItems;
     }
 
     void decrNumNonResidentItems() {
@@ -688,8 +672,6 @@ private:
     EPStats&             stats;
     std::unique_ptr<AbstractStoredValueFactory> valFact;
     std::atomic<size_t>       visitors;
-
-    cb::NonNegativeCounter<size_t> numTotalItems;
 
     /// Count of alive & deleted, in-memory non-resident and resident items.
     /// Excludes temporary items.

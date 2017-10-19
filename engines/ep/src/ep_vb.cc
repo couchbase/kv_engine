@@ -258,15 +258,27 @@ size_t EPVBucket::getNumItems() const {
     if (eviction == VALUE_ONLY) {
         return ht.getNumInMemoryItems() - ht.getNumDeletedItems();
     } else {
-        return ht.getNumTotalItems() - ht.getNumDeletedItems();
+        return onDiskTotalItems;
     }
+}
+
+void EPVBucket::setNumTotalItems(size_t totalItems) {
+    onDiskTotalItems = totalItems;
+}
+
+void EPVBucket::incrNumTotalItems() {
+    ++onDiskTotalItems;
+}
+
+void EPVBucket::decrNumTotalItems() {
+    --onDiskTotalItems;
 }
 
 size_t EPVBucket::getNumNonResidentItems() const {
     if (eviction == VALUE_ONLY) {
         return ht.getNumInMemoryNonResItems();
     } else {
-        size_t num_items = ht.getNumTotalItems();
+        size_t num_items = onDiskTotalItems;
         size_t num_res_items =
                 ht.getNumInMemoryItems() - ht.getNumInMemoryNonResItems();
         return num_items > num_res_items ? (num_items - num_res_items) : 0;

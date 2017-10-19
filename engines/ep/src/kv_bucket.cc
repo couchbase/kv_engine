@@ -2388,7 +2388,7 @@ bool KVBucket::collectionsEraseKey(uint16_t vbid,
             switch (key.getDocNamespace()) {
             case DocNamespace::DefaultCollection:
             case DocNamespace::Collections:
-                vb->ht.decrNumTotalItems();
+                vb->decrNumTotalItems();
                 break;
             case DocNamespace::System:
                 break;

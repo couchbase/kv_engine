@@ -159,6 +159,21 @@ public:
         return 0;
     }
 
+    void incrNumTotalItems() override {
+        throw std::logic_error(
+                "EphemeralVBucket::incrNumTotalItems not supported");
+    }
+
+    void decrNumTotalItems() override {
+        throw std::logic_error(
+                "EphemeralVBucket::decrNumTotalItems not supported");
+    }
+
+    void setNumTotalItems(size_t items) override {
+        throw std::logic_error(
+                "EphemeralVBucket::setNumTotalItems not supported");
+    }
+
     void queueBackfillItem(queued_item& qi,
                            const GenerateBySeqno generateBySeqno) override;
 

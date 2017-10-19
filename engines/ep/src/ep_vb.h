@@ -71,6 +71,12 @@ public:
 
     size_t getNumItems() const override;
 
+    void setNumTotalItems(size_t items) override;
+
+    void incrNumTotalItems() override;
+
+    void decrNumTotalItems() override;
+
     size_t getNumNonResidentItems() const override;
 
     ENGINE_ERROR_CODE statsVKey(const DocKey& key,
@@ -220,6 +226,14 @@ private:
     size_t estimateNewMemoryUsage(EPStats& st, const Item& item) override {
         return st.getTotalMemoryUsed() + StoredValue::getRequiredStorage(item);
     }
+
+    /**
+     * Total number of alive (non-deleted) items on-disk in this vBucket.
+     * Initially populated during warmup as the number of items on disk;
+     * then incremented / decremented by persistence callbacks as new
+     * items are created & old items deleted.
+     */
+    cb::NonNegativeCounter<size_t> onDiskTotalItems;
 
     /* Indicates if multiple bg fetches are handled in a single bg fetch task */
     const bool multiBGFetchEnabled;
