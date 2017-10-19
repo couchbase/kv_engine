@@ -2014,7 +2014,6 @@ static enum test_result test_dcp_producer_stream_req_backfill(ENGINE_HANDLE *h,
         write_items(h, h1, batch_items, start_seqno);
     }
 
-    verify_curr_items(h, h1, num_items, "Wrong amount of items");
     wait_for_stat_to_be_gte(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
 
     const void *cookie = testHarness.create_cookie();
@@ -4366,14 +4365,11 @@ static enum test_result test_dcp_consumer_mutate(ENGINE_HANDLE *h,
 
 static enum test_result test_dcp_consumer_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     // Store an item
-    item *i = NULL;
     checkeq(ENGINE_SUCCESS,
-            store(h, h1, NULL, OPERATION_ADD,"key", "value", &i),
+            store(h, h1, NULL, OPERATION_ADD, "key", "value", nullptr),
             "Failed to fail to store an item.");
-    h1->release(h, NULL, i);
-    verify_curr_items(h, h1, 1, "one item stored");
-
     wait_for_flusher_to_settle(h, h1);
+    verify_curr_items(h, h1, 1, "one item stored");
 
     check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
           "Failed to set vbucket state.");

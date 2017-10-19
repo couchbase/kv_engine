@@ -258,7 +258,7 @@ size_t EPVBucket::getNumItems() const {
     if (eviction == VALUE_ONLY) {
         return ht.getNumInMemoryItems() - ht.getNumDeletedItems();
     } else {
-        return ht.getNumItems() - ht.getNumDeletedItems();
+        return ht.getNumTotalItems() - ht.getNumDeletedItems();
     }
 }
 
@@ -266,7 +266,7 @@ size_t EPVBucket::getNumNonResidentItems() const {
     if (eviction == VALUE_ONLY) {
         return ht.getNumInMemoryNonResItems();
     } else {
-        size_t num_items = ht.getNumItems();
+        size_t num_items = ht.getNumTotalItems();
         size_t num_res_items =
                 ht.getNumInMemoryItems() - ht.getNumInMemoryNonResItems();
         return num_items > num_res_items ? (num_items - num_res_items) : 0;

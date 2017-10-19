@@ -51,9 +51,9 @@ void PersistenceCallback::callback(mutation_result& value) {
                 if (value.second) {
                     // Insert in value-only or full eviction mode.
                     ++vbucket->opsCreate;
+                    vbucket->ht.incrNumTotalItems();
                     vbucket->incrMetaDataDisk(*queuedItem);
                 } else { // Update in full eviction mode.
-                    vbucket->ht.decrNumTotalItems();
                     ++vbucket->opsUpdate;
                 }
 

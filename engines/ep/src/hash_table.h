@@ -230,15 +230,17 @@ public:
     /**
      * Get the number of non-resident and resident items managed by
      * this hash table. Includes items marked as deleted.
-     * Note that this will be equal to numItems if
-     * VALUE_ONLY_EVICTION is chosen as a cache management.
      */
-    size_t getNumItems(void) const {
-        return numTotalItems;
+    size_t getNumItems() const {
+        return numItems;
     }
 
     void setNumTotalItems(size_t totalItems) {
         numTotalItems = totalItems;
+    }
+
+    size_t getNumTotalItems() const {
+        return numTotalItems;
     }
 
     /**
@@ -253,6 +255,10 @@ public:
 
     void decrNumItems() {
         --numItems;
+    }
+
+    void incrNumTotalItems() {
+        ++numTotalItems;
     }
 
     void decrNumTotalItems() {

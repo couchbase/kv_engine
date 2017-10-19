@@ -1915,7 +1915,6 @@ void VBucket::deletedOnDiskCbk(const Item& queuedItem, bool deleted) {
     //  1. Item is existent in hashtable, and deleted flag is true
     //  2. rev seqno of queued item matches rev seqno of hash table item
     if (v && v->isDeleted() && (queuedItem.getRevSeqno() == v->getRevSeqno())) {
-        bool newCacheItem = v->isNewCacheItem();
         bool isDeleted = deleteStoredValue(hbl, *v);
         if (!isDeleted) {
             throw std::logic_error(
@@ -1924,11 +1923,8 @@ void VBucket::deletedOnDiskCbk(const Item& queuedItem, bool deleted) {
                     std::to_string(v->getBySeqno()) + "' from bucket " +
                     std::to_string(hbl.getBucketNum()));
         }
-        if (newCacheItem && deleted) {
-            // Need to decrement the item counter again for an item that
-            // exists on DB file, but not in memory (i.e., full eviction),
-            // because we created the temp item in memory and incremented
-            // the item counter when a deletion is pushed in the queue.
+        if (deleted) {
+            // Removed an item from disk - decrement the count of total items.
             ht.decrNumTotalItems();
         }
 
