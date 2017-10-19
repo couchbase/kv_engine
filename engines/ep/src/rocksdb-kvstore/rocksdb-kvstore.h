@@ -332,7 +332,7 @@ private:
     std::vector<uint16_t> discoverVBuckets();
 
     rocksdb::Slice getKeySlice(const DocKey& key);
-    rocksdb::Slice getSeqnoSlice(const int64_t& seqno);
+    rocksdb::Slice getSeqnoSlice(const int64_t* seqno);
     int64_t getNumericSeqno(const rocksdb::Slice& seqnoSlice);
 
     std::unique_ptr<Item> makeItem(uint16_t vb,

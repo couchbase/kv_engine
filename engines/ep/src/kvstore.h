@@ -167,8 +167,8 @@ public:
                 std::shared_ptr<Callback<CacheLookup>> cl,
                 uint16_t vb,
                 size_t id,
-                uint64_t start,
-                uint64_t end,
+                int64_t start,
+                int64_t end,
                 DocumentFilter _docFilter,
                 ValueFilter _valFilter,
                 uint64_t _documentCount,
@@ -177,9 +177,9 @@ public:
     const std::shared_ptr<Callback<GetValue> > callback;
     const std::shared_ptr<Callback<CacheLookup> > lookup;
 
-    uint64_t lastReadSeqno;
-    const uint64_t startSeqno;
-    const uint64_t maxSeqno;
+    int64_t lastReadSeqno;
+    const int64_t startSeqno;
+    const int64_t maxSeqno;
     const size_t scanId;
     const uint16_t vbid;
     const DocumentFilter docFilter;

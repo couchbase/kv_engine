@@ -619,8 +619,8 @@ rocksdb::Slice RocksDBKVStore::getKeySlice(const DocKey& key) {
                           key.size());
 }
 
-rocksdb::Slice RocksDBKVStore::getSeqnoSlice(const int64_t& seqno) {
-    return rocksdb::Slice(reinterpret_cast<const char*>(&seqno), sizeof(seqno));
+rocksdb::Slice RocksDBKVStore::getSeqnoSlice(const int64_t* seqno) {
+    return rocksdb::Slice(reinterpret_cast<const char*>(seqno), sizeof(*seqno));
 }
 
 int64_t RocksDBKVStore::getNumericSeqno(const rocksdb::Slice& seqnoSlice) {
@@ -912,7 +912,7 @@ rocksdb::Status RocksDBKVStore::addRequestToWriteBatch(
                                   request->getDocBodySlice()};
     rocksdb::SliceParts valueSliceParts(docSlices, 2);
 
-    rocksdb::Slice bySeqnoSlice = getSeqnoSlice(request->getDocMeta().bySeqno);
+    rocksdb::Slice bySeqnoSlice = getSeqnoSlice(&request->getDocMeta().bySeqno);
     // We use the `saveDocsHisto` to track the time spent on
     // `rocksdb::WriteBatch::Put()`.
     auto begin = ProcessClock::now();
@@ -948,7 +948,7 @@ int64_t RocksDBKVStore::readHighSeqnoFromDisk(const KVRocksDB& db) {
 
     // Seek to the highest seqno=>key mapping stored for the vbid
     auto maxSeqno = std::numeric_limits<int64_t>::max();
-    rocksdb::Slice maxSeqnoSlice = getSeqnoSlice(maxSeqno);
+    rocksdb::Slice maxSeqnoSlice = getSeqnoSlice(&maxSeqno);
     it->SeekForPrev(maxSeqnoSlice);
 
     if (!it->Valid()) {
@@ -1012,7 +1012,7 @@ scan_error_t RocksDBKVStore::scan(ScanContext* ctx) {
     rocksdb::ReadOptions snapshotOpts{rocksdb::ReadOptions()};
     snapshotOpts.snapshot = scanSnapshots.at(ctx->scanId).get();
 
-    rocksdb::Slice startSeqnoSlice = getSeqnoSlice(startSeqno);
+    rocksdb::Slice startSeqnoSlice = getSeqnoSlice(&startSeqno);
     auto& db = openDB(ctx->vbid);
     std::unique_ptr<rocksdb::Iterator> it(
             db.rdb->NewIterator(snapshotOpts, db.seqnoCFH.get()));
@@ -1023,19 +1023,12 @@ scan_error_t RocksDBKVStore::scan(ScanContext* ctx) {
     }
     it->Seek(startSeqnoSlice);
 
-    rocksdb::Slice endSeqnoSlice = getSeqnoSlice(ctx->maxSeqno);
+    rocksdb::Slice endSeqnoSlice = getSeqnoSlice(&ctx->maxSeqno);
     auto isPastEnd = [&endSeqnoSlice, this](rocksdb::Slice seqSlice) {
         return vbidSeqnoComparator.Compare(seqSlice, endSeqnoSlice) == 1;
     };
 
-// GCC is giving "warning: '<anonymous>' may be used uninitialized in this
-// function [-Wmaybe-uninitialized]" on the `for` loop.
-// This is a temporary solution.
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
     for (; it->Valid() && !isPastEnd(it->key()); it->Next()) {
-#pragma GCC diagnostic pop
-
         auto seqno = getNumericSeqno(it->key());
         rocksdb::Slice keySlice = it->value();
         std::string valueStr;
