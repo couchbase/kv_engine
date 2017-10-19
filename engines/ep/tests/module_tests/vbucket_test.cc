@@ -517,7 +517,17 @@ TEST_P(VBucketEvictionTest, EjectionResidentCount) {
     EXPECT_EQ(MutationStatus::WasClean,
               this->public_processSet(item, item.getCas()));
 
-    EXPECT_EQ(1, this->vbucket->getNumItems());
+    switch (eviction_policy) {
+    case VALUE_ONLY:
+        // We have accurate VBucket counts in value eviction:
+        EXPECT_EQ(1, this->vbucket->getNumItems());
+        break;
+    case FULL_EVICTION:
+        // In Full Eviction the vBucket count isn't accurate until the
+        // flusher completes - hence just check count in HashTable.
+        EXPECT_EQ(1, this->vbucket->ht.getNumItems());
+        break;
+    }
     EXPECT_EQ(0, this->vbucket->getNumNonResidentItems());
 
     // TODO-MT: Should acquire lock really (ok given this is currently
@@ -530,10 +540,19 @@ TEST_P(VBucketEvictionTest, EjectionResidentCount) {
     EXPECT_TRUE(this->vbucket->ht.unlocked_ejectItem(stored_item,
                                                      eviction_policy));
 
-    // After ejection, should still have 1 item in VBucket, but also have
-    // 1 non-resident item.
-    EXPECT_EQ(1, this->vbucket->getNumItems());
-    EXPECT_EQ(1, this->vbucket->getNumNonResidentItems());
+    switch (eviction_policy) {
+    case VALUE_ONLY:
+        // After ejection, should still have 1 item in HashTable (meta-only),
+        // and VBucket count should also be 1.
+        EXPECT_EQ(1, this->vbucket->getNumItems());
+        EXPECT_EQ(1, this->vbucket->getNumNonResidentItems());
+        break;
+    case FULL_EVICTION:
+        // In Full eviction should be no items in HashTable (we fully
+        // evicted it).
+        EXPECT_EQ(0, this->vbucket->ht.getNumItems());
+        break;
+    }
 }
 
 // Regression test for MB-21448 - if an attempt is made to perform a CAS

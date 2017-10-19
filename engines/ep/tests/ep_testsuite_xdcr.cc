@@ -296,6 +296,7 @@ static enum test_result test_get_meta_with_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, key1, "someothervalue", &i),
             "Failed set.");
+    wait_for_flusher_to_settle(h, h1);
 
     checkeq(1, get_int_stat(h, h1, "curr_items"), "Expected single curr_items");
     checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expected zero temp_items");
@@ -944,6 +945,7 @@ static enum test_result test_set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, key, val, &i),
             "Failed set.");
+    wait_for_flusher_to_settle(h, h1);
 
     // get metadata for the key
     check(get_meta(h, h1, key), "Expected to get meta");
@@ -1119,6 +1121,8 @@ static enum test_result test_set_with_meta_deleted(ENGINE_HANDLE *h, ENGINE_HAND
     // do set with meta with the correct cas value. should pass.
     set_with_meta(h, h1, key, keylen, newVal, newValLen, 0, &itm_meta, cas_for_set);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    wait_for_flusher_to_settle(h, h1);
+
     // check the stat
     checkeq(1, get_int_stat(h, h1, "ep_num_ops_set_meta"), "Expect some ops");
     checkeq(0, get_int_stat(h, h1, "ep_num_ops_get_meta_on_set_meta"),
@@ -1172,6 +1176,8 @@ static enum test_result test_set_with_meta_nonexistent(ENGINE_HANDLE *h, ENGINE_
     // do set with meta with the correct cas value. should pass.
     set_with_meta(h, h1, key, keylen, val, valLen, 0, &itm_meta, cas_for_set);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    wait_for_flusher_to_settle(h, h1);
+
     // check the stat
     checkeq(1, get_int_stat(h, h1, "ep_num_ops_set_meta"), "Expect some ops");
     checkeq(1, get_int_stat(h, h1, "curr_items"), "Expected single curr_items");

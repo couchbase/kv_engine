@@ -290,6 +290,13 @@ bool StoredValue::deleteImpl() {
 }
 
 void StoredValue::setValueImpl(const Item& itm) {
+    if (isDeleted() && !itm.isDeleted()) {
+        // Transitioning from deleted -> alive - this should be considered
+        // a new cache item as it is increasing the number of (alive) items
+        // in the vBucket.
+        setNewCacheItem(true);
+    }
+
     setDeletedPriv(itm.isDeleted());
     flags = itm.getFlags();
     datatype = itm.getDataType();

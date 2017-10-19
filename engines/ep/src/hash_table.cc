@@ -324,7 +324,6 @@ void HashTable::statsPrologue(const StoredValue& v) {
         --numTempItems;
     } else {
         --numItems;
-        --numTotalItems;
         if (v.isDeleted()) {
             --numDeletedItems;
         } else {
@@ -346,7 +345,6 @@ void HashTable::statsEpilogue(const StoredValue& v) {
         ++numTempItems;
     } else {
         ++numItems;
-        ++numTotalItems;
         if (v.isDeleted()) {
             ++numDeletedItems;
         } else {
@@ -475,9 +473,6 @@ MutationStatus HashTable::insertFromWarmup(
             v->markNotResident();
             ++numNonResidentItems;
         }
-        /* We need to decrNumTotalItems because ht.numTotalItems is already
-         set by warmup when it estimated the item count from disk */
-        decrNumTotalItems();
         v->setNewCacheItem(false);
     } else {
         if (keyMetaDataOnly) {
@@ -746,12 +741,6 @@ bool HashTable::unlocked_restoreValue(
 
     if (v.isDeleted()) {
         ++numDeletedItems;
-        // We have restored a deleted item. This doesn't count as an alive
-        // item, however it does contribute to the total number of documents
-        // in the HashTable, hence we need to also increment numTotalItems.
-        // Note: at the vBucket level we determine the number of (alive) items
-        // as (numTotal - numDeleted).
-        ++numTotalItems;
     }
 
     increaseCacheSize(v.getValue()->length());

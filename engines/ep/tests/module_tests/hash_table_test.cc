@@ -420,15 +420,19 @@ TEST_P(HashTableStatsTest, EjectFlush) {
     v->markClean();
     EXPECT_TRUE(ht.unlocked_ejectItem(v, evictionPolicy));
 
-    EXPECT_EQ(1, ht.getNumItems());
-    if (evictionPolicy == VALUE_ONLY) {
+    switch (evictionPolicy) {
+    case VALUE_ONLY:
+        EXPECT_EQ(1, ht.getNumItems());
         EXPECT_EQ(1, ht.getNumInMemoryItems());
         EXPECT_EQ(1, ht.getNumInMemoryNonResItems());
-    } else {
+        break;
+    case FULL_EVICTION:
         // In full-eviction, ejectItem() also ejects the metadata; hence will
-        // have 0 items in memory.
+        // have 0 items in HashTable.
+        EXPECT_EQ(0, ht.getNumItems());
         EXPECT_EQ(0, ht.getNumInMemoryItems());
         EXPECT_EQ(0, ht.getNumInMemoryNonResItems());
+        break;
     }
     EXPECT_EQ(0, ht.getNumTempItems());
     EXPECT_EQ(0, ht.getNumDeletedItems());

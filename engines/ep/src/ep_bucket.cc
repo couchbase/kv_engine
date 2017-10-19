@@ -596,12 +596,16 @@ ENGINE_ERROR_CODE EPBucket::scheduleCompaction(uint16_t vbid,
 void EPBucket::flushOneDeleteAll() {
     for (VBucketMap::id_type i = 0; i < vbMap.getSize(); ++i) {
         VBucketPtr vb = getVBucket(i);
+        if (!vb) {
+            continue;
+        }
         // Reset the vBucket if it's non-null and not already in the middle of
         // being created / destroyed.
-        if (vb && !(vb->isBucketCreation() || vb->isDeletionDeferred())) {
-            LockHolder lh(vb_mutexes[vb->getId()]);
+        if (!(vb->isBucketCreation() || vb->isDeletionDeferred())) {
             getRWUnderlying(vb->getId())->reset(i);
         }
+        // Reset disk item count.
+        vb->ht.setNumTotalItems(0);
     }
 
     --stats.diskQueueSize;
@@ -909,12 +913,7 @@ public:
         if (gcb.getStatus() == ENGINE_SUCCESS) {
             UniqueItemPtr it(std::move(gcb.item));
             if (it->isDeleted()) {
-                bool ret = vb->deleteKey(it->getKey());
-                if (!ret) {
-                    setStatus(ENGINE_KEY_ENOENT);
-                } else {
-                    setStatus(ENGINE_SUCCESS);
-                }
+                removeDeletedDoc(*vb, it->getKey());
             } else {
                 MutationStatus mtype = vb->setFromInternal(*it);
 
@@ -923,17 +922,26 @@ public:
                 }
             }
         } else if (gcb.getStatus() == ENGINE_KEY_ENOENT) {
-            bool ret = vb->deleteKey(itm->getKey());
-            if (!ret) {
-                setStatus(ENGINE_KEY_ENOENT);
-            } else {
-                setStatus(ENGINE_SUCCESS);
-            }
+            removeDeletedDoc(*vb, itm->getKey());
         } else {
             LOG(EXTENSION_LOG_WARNING,
                 "EPDiskRollbackCB::callback:Unexpected Error Status: %d",
                 gcb.getStatus());
         }
+    }
+
+    /// Remove a deleted-on-disk document from the VBucket's hashtable.
+    void removeDeletedDoc(VBucket& vb, const DocKey& key) {
+        if (vb.deleteKey(key)) {
+            setStatus(ENGINE_SUCCESS);
+        } else {
+            // Document didn't exist in memory - may have been deleted in since
+            // the checkpoint.
+            setStatus(ENGINE_KEY_ENOENT);
+        }
+        // Irrespective of if the in-memory delete succeeded; the document
+        // doesn't exist on disk; so decrement the item count.
+        vb.ht.decrNumTotalItems();
     }
 
 private:

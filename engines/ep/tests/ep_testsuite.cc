@@ -253,6 +253,7 @@ static int checkCurrItemsAfterShutdown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
         keys.push_back(key);
     }
 
+    // Check preconditions.
     checkeq(0, get_int_stat(h, h1, "ep_total_persisted"),
             "Expected ep_total_persisted equals 0");
     checkeq(0, get_int_stat(h, h1, "curr_items"),
@@ -279,11 +280,15 @@ static int checkCurrItemsAfterShutdown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
     checkeq(0, get_int_stat(h, h1, "ep_total_persisted"),
             "Incorrect ep_total_persisted, expected 0");
-    std::stringstream ss;
-    ss << "Incorrect curr_items, expected " << numItems2Load;
-    std::string errmsg(ss.str());
-    checkeq(numItems2Load, get_int_stat(h, h1, "curr_items"),
-            errmsg.c_str());
+
+    // Can only check curr_items in value_only eviction; full-eviction
+    // relies on persistence to complete (via flusher) to update count.
+    const auto evictionPolicy = get_str_stat(h, h1, "ep_item_eviction_policy");
+    if (evictionPolicy == "value_only") {
+        checkeq(numItems2Load,
+                get_int_stat(h, h1, "curr_items"),
+                "Expected curr_items to reflect item count");
+    }
 
     // resume flusher before shutdown + warmup
     pkt = createPacket(PROTOCOL_BINARY_CMD_START_PERSISTENCE);
