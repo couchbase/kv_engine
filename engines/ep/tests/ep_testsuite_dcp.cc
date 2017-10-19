@@ -2114,7 +2114,10 @@ static enum test_result test_dcp_producer_disk_backfill_limits(ENGINE_HANDLE *h,
         }
     }
     checkeq(exp_backfill_task_runs,
-            get_histo_stat(h, h1, "BackfillManagerTask", "runtimes",
+            get_histo_stat(h,
+                           h1,
+                           "BackfillManagerTask[auxIO]",
+                           "runtimes",
                            Histo_stat_info::TOTAL_COUNT),
             "backfill_tasks did not run expected number of times");
 

@@ -3326,14 +3326,20 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTimingStats(const void *cookie,
     return ENGINE_SUCCESS;
 }
 
+static std::string getTaskDescrForStats(TaskId id) {
+    return std::string(GlobalTask::getTaskName(id)) + "[" +
+           to_string(GlobalTask::getTaskType(id)) + "]";
+}
+
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doSchedulerStats(const void
                                                                 *cookie,
                                                                 ADD_STAT
                                                                 add_stat) {
     for (TaskId id : GlobalTask::allTaskIds) {
-        add_casted_stat(GlobalTask::getTaskName(id),
+        add_casted_stat(getTaskDescrForStats(id).c_str(),
                         stats.schedulingHisto[static_cast<int>(id)],
-                        add_stat, cookie);
+                        add_stat,
+                        cookie);
     }
 
     return ENGINE_SUCCESS;
@@ -3344,9 +3350,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doRunTimeStats(const void
                                                                 ADD_STAT
                                                                 add_stat) {
     for (TaskId id : GlobalTask::allTaskIds) {
-        add_casted_stat(GlobalTask::getTaskName(id),
+        add_casted_stat(getTaskDescrForStats(id).c_str(),
                         stats.taskRuntimeHisto[static_cast<int>(id)],
-                        add_stat, cookie);
+                        add_stat,
+                        cookie);
     }
 
     return ENGINE_SUCCESS;
