@@ -1880,7 +1880,7 @@ void VBucket::deletedOnDiskCbk(const Item& queuedItem, bool deleted) {
         }
         if (deleted) {
             // Removed an item from disk - decrement the count of total items.
-            ht.decrNumTotalItems();
+            decrNumTotalItems();
         }
 
         /**

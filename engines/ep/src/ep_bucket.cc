@@ -605,7 +605,7 @@ void EPBucket::flushOneDeleteAll() {
             getRWUnderlying(vb->getId())->reset(i);
         }
         // Reset disk item count.
-        vb->ht.setNumTotalItems(0);
+        vb->setNumTotalItems(0);
     }
 
     --stats.diskQueueSize;
@@ -941,7 +941,7 @@ public:
         }
         // Irrespective of if the in-memory delete succeeded; the document
         // doesn't exist on disk; so decrement the item count.
-        vb.ht.decrNumTotalItems();
+        vb.decrNumTotalItems();
     }
 
 private:

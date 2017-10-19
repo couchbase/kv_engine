@@ -49,7 +49,6 @@ HashTable::HashTable(EPStats& st,
       stats(st),
       valFact(std::move(svFactory)),
       visitors(0),
-      numTotalItems(0),
       numItems(0),
       numNonResidentItems(0),
       numDeletedItems(0),
@@ -110,7 +109,6 @@ void HashTable::clear_UNLOCKED(bool deactivate) {
     stats.currentSize.fetch_sub(clearedMemSize - clearedValSize);
 
     datatypeCounts.fill(0);
-    numTotalItems.store(0);
     numItems.store(0);
     numTempItems.store(0);
     numNonResidentItems.store(0);
