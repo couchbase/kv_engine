@@ -52,17 +52,6 @@ public:
                std::string::npos;
     }
 
-    ::testing::AssertionResult checkNumItems(size_t expected) const {
-        // @todo remove full-eviction skipping - full eveniction item count
-        // comes from dbinfo which is fixed in a simpler patch.
-        if (isFullEviction() || expected == vb->getNumItems()) {
-            return ::testing::AssertionSuccess();
-        }
-
-        return ::testing::AssertionFailure()
-               << expected << " does not match numItems:" << vb->getNumItems();
-    }
-
     VBucketPtr vb;
 };
 
@@ -95,7 +84,7 @@ TEST_P(CollectionsEraserTest, basic) {
 
     runEraser();
 
-    EXPECT_TRUE(checkNumItems(0));
+    EXPECT_EQ(0, vb->getNumItems());
 
     EXPECT_FALSE(vb->lockCollections().exists("dairy"));
 }
@@ -132,7 +121,7 @@ TEST_P(CollectionsEraserTest, basic_2_collections) {
 
     runEraser();
 
-    EXPECT_TRUE(checkNumItems(0));
+    EXPECT_EQ(0, vb->getNumItems());
 
     EXPECT_FALSE(vb->lockCollections().exists("dairy"));
     EXPECT_FALSE(vb->lockCollections().exists("fruit"));
@@ -170,7 +159,7 @@ TEST_P(CollectionsEraserTest, basic_3_collections) {
 
     runEraser();
 
-    EXPECT_TRUE(checkNumItems(2));
+    EXPECT_EQ(2, vb->getNumItems());
 
     EXPECT_TRUE(vb->lockCollections().exists("dairy"));
     EXPECT_FALSE(vb->lockCollections().exists("fruit"));
@@ -198,7 +187,7 @@ TEST_P(CollectionsEraserTest, default_Destroy) {
 
     runEraser();
 
-    EXPECT_TRUE(checkNumItems(0));
+    EXPECT_EQ(0, vb->getNumItems());
 
     // Add default back - so we don't get collection unknown errors
     vb->updateFromManifest(
