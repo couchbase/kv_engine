@@ -192,8 +192,7 @@ void DcpConnMap::shutdownAllConnections() {
 void DcpConnMap::vbucketStateChanged(uint16_t vbucket, vbucket_state_t state,
                                      bool closeInboundStreams) {
     LockHolder lh(connsLock);
-    std::map<const void*, connection_t>::iterator itr = map_.begin();
-    for (; itr != map_.end(); ++itr) {
+    for (auto itr = map_.begin(); itr != map_.end(); ++itr) {
         DcpProducer* producer = dynamic_cast<DcpProducer*> (itr->second.get());
         if (producer) {
             producer->closeStreamDueToVbStateChange(vbucket, state);
@@ -268,7 +267,7 @@ void DcpConnMap::disconnect(const void *cookie) {
     connection_t conn;
     {
         LockHolder lh(connsLock);
-        std::map<const void*, connection_t>::iterator itr(map_.find(cookie));
+        auto itr(map_.find(cookie));
         if (itr != map_.end()) {
             conn = itr->second;
             if (conn.get()) {
@@ -317,8 +316,7 @@ void DcpConnMap::manageConnections() {
         }
 
         // Collect the list of connections that need to be signaled.
-        std::map<const void*, connection_t>::iterator iter;
-        for (iter = map_.begin(); iter != map_.end(); ++iter) {
+        for (auto iter = map_.begin(); iter != map_.end(); ++iter) {
             connection_t conn = iter->second;
             if (conn.get() && (conn->isPaused() || conn->doDisconnect()) &&
                 conn->isReserved()) {
@@ -385,8 +383,7 @@ void DcpConnMap::notifyVBConnections(uint16_t vbid, uint64_t bySeqno) {
 
 void DcpConnMap::notifyBackfillManagerTasks() {
     LockHolder lh(connsLock);
-    std::map<const void*, connection_t>::iterator itr = map_.begin();
-    for (; itr != map_.end(); ++itr) {
+    for (auto itr = map_.begin(); itr != map_.end(); ++itr) {
         DcpProducer* producer = dynamic_cast<DcpProducer*> (itr->second.get());
         if (producer) {
             producer->notifyBackfillManager();
