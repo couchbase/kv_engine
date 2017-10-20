@@ -206,7 +206,7 @@ protected:
     const int numVbs = 4;
 };
 
-TEST_F(SingleThreadedEphemeralPurgerTest, manu) {
+TEST_F(SingleThreadedEphemeralPurgerTest, PurgeAcrossAllVbuckets) {
     /* Set 100 item in all vbuckets. We need hundred items atleast because
        our ProgressTracker checks whether to pause only after
        INITIAL_VISIT_COUNT_CHECK = 100 */
@@ -240,15 +240,14 @@ TEST_F(SingleThreadedEphemeralPurgerTest, manu) {
     bucket->attemptToFreeMemory(); // this wakes up the HTCleaner task
 
     auto& lpAuxioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
-    runNextTask(lpAuxioQ, "Eph tombstone hashtable cleaner");
-
-    /* Run the EphTombstoneStaleItemDeleter task. It we expect it to pause
-       and resume atleast once. We run it, until it purges all the deleted
-       across all the vbuckets */
-    int numPaused = -1;
+    /* Run the HTCleaner and EphTombstoneStaleItemDeleter tasks. We expect
+       pause and resume of EphTombstoneStaleItemDeleter atleast once and we run
+       until all the deleted items across all the vbuckets are purged */
+    int numPaused = 0;
     while (!checkAllPurged(expPurgeUpto)) {
-        runNextTask(lpAuxioQ, "Eph tombstone stale item deleter");
+        runNextTask(lpAuxioQ);
         ++numPaused;
     }
-    EXPECT_GE(numPaused, 1);
+    EXPECT_GT(numPaused, 2 /* 1 run of 'HTCleaner' and more than 1 run of
+                              'EphTombstoneStaleItemDeleter' */);
 }
