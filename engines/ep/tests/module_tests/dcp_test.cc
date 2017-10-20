@@ -66,7 +66,22 @@ protected:
 
         EventuallyPersistentEngineTest::TearDown();
     }
+
+    /*
+     * Fake callback emulating dcp_add_failover_log
+     */
+    static ENGINE_ERROR_CODE fakeDcpAddFailoverLog(vbucket_failover_t* entry,
+                                                   size_t nentries,
+                                                   const void* cookie) {
+        callbackCount++;
+        return ENGINE_SUCCESS;
+    }
+
+    // callbackCount needs to be static as its used inside of the static
+    // function fakeDcpAddFailoverLog.
+    static int callbackCount;
 };
+int DCPTest::callbackCount = 0;
 
 class StreamTest : public DCPTest,
                    public ::testing::WithParamInterface<std::string> {
@@ -197,25 +212,10 @@ protected:
         }
     }
 
-    /*
-     * Fake callback emulating dcp_add_failover_log
-     */
-    static ENGINE_ERROR_CODE fakeDcpAddFailoverLog(vbucket_failover_t* entry,
-                                                   size_t nentries,
-                                                   const void *cookie) {
-        callbackCount++;
-        return ENGINE_SUCCESS;
-    }
-
-    // callbackCount needs to be static as its used inside of the static
-    // function fakeDcpAddFailoverLog.
-    static int callbackCount;
     mock_dcp_producer_t producer;
     stream_t stream;
     VBucketPtr vb0;
 };
-
-int StreamTest::callbackCount = 0;
 
 /*
  * Test that when have a producer with IncludeValue and IncludeXattrs both set
@@ -225,16 +225,16 @@ int StreamTest::callbackCount = 0;
 TEST_P(StreamTest, test_streamIsKeyOnlyTrue) {
     setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::No);
     uint64_t rollbackSeqno;
-    auto err = producer->streamRequest(/*flags*/0,
-                                       /*opaque*/0,
-                                       /*vbucket*/0,
-                                       /*start_seqno*/0,
-                                       /*end_seqno*/0,
-                                       /*vb_uuid*/0,
-                                       /*snap_start*/0,
-                                       /*snap_end*/0,
+    auto err = producer->streamRequest(/*flags*/ 0,
+                                       /*opaque*/ 0,
+                                       /*vbucket*/ 0,
+                                       /*start_seqno*/ 0,
+                                       /*end_seqno*/ 0,
+                                       /*vb_uuid*/ 0,
+                                       /*snap_start*/ 0,
+                                       /*snap_end*/ 0,
                                        &rollbackSeqno,
-                                       StreamTest::fakeDcpAddFailoverLog);
+                                       DCPTest::fakeDcpAddFailoverLog);
     ASSERT_EQ(ENGINE_SUCCESS, err)
         << "stream request did not return ENGINE_SUCCESS";
 
@@ -288,16 +288,16 @@ TEST_P(StreamTest, test_verifyProducerCompressionStats) {
                                        reinterpret_cast<ENGINE_HANDLE_V1*>(engine));
 
     uint64_t rollbackSeqno;
-    auto err = producer->streamRequest(/*flags*/0,
-                                       /*opaque*/0,
-                                       /*vbucket*/0,
-                                       /*start_seqno*/0,
-                                       /*end_seqno*/~0,
-                                       /*vb_uuid*/0,
-                                       /*snap_start*/0,
-                                       /*snap_end*/~0,
+    auto err = producer->streamRequest(/*flags*/ 0,
+                                       /*opaque*/ 0,
+                                       /*vbucket*/ 0,
+                                       /*start_seqno*/ 0,
+                                       /*end_seqno*/ ~0,
+                                       /*vb_uuid*/ 0,
+                                       /*snap_start*/ 0,
+                                       /*snap_end*/ ~0,
                                        &rollbackSeqno,
-                                       StreamTest::fakeDcpAddFailoverLog);
+                                       DCPTest::fakeDcpAddFailoverLog);
 
     ASSERT_EQ(ENGINE_SUCCESS, err);
     producer->notifySeqnoAvailable(vbid, vb->getHighSeqno());
@@ -382,16 +382,16 @@ TEST_P(StreamTest, test_verifyProducerStats) {
     auto producers = get_dcp_producers(reinterpret_cast<ENGINE_HANDLE*>(engine),
                                        reinterpret_cast<ENGINE_HANDLE_V1*>(engine));
     uint64_t rollbackSeqno;
-    auto err = producer->streamRequest(/*flags*/0,
-                                       /*opaque*/0,
-                                       /*vbucket*/0,
-                                       /*start_seqno*/0,
-                                       /*end_seqno*/~0,
-                                       /*vb_uuid*/0,
-                                       /*snap_start*/0,
-                                       /*snap_end*/~0,
+    auto err = producer->streamRequest(/*flags*/ 0,
+                                       /*opaque*/ 0,
+                                       /*vbucket*/ 0,
+                                       /*start_seqno*/ 0,
+                                       /*end_seqno*/ ~0,
+                                       /*vb_uuid*/ 0,
+                                       /*snap_start*/ 0,
+                                       /*snap_end*/ ~0,
                                        &rollbackSeqno,
-                                       StreamTest::fakeDcpAddFailoverLog);
+                                       DCPTest::fakeDcpAddFailoverLog);
 
     EXPECT_EQ(ENGINE_SUCCESS, err);
     producer->notifySeqnoAvailable(vbid, vb->getHighSeqno());
@@ -447,16 +447,16 @@ TEST_P(StreamTest, test_verifyProducerStats) {
 TEST_P(StreamTest, test_streamIsKeyOnlyFalseBecauseOfIncludeValue) {
     setup_dcp_stream(0, IncludeValue::Yes, IncludeXattrs::No);
     uint64_t rollbackSeqno;
-    auto err = producer->streamRequest(/*flags*/0,
-                                       /*opaque*/0,
-                                       /*vbucket*/0,
-                                       /*start_seqno*/0,
-                                       /*end_seqno*/0,
-                                       /*vb_uuid*/0,
-                                       /*snap_start*/0,
-                                       /*snap_end*/0,
+    auto err = producer->streamRequest(/*flags*/ 0,
+                                       /*opaque*/ 0,
+                                       /*vbucket*/ 0,
+                                       /*start_seqno*/ 0,
+                                       /*end_seqno*/ 0,
+                                       /*vb_uuid*/ 0,
+                                       /*snap_start*/ 0,
+                                       /*snap_end*/ 0,
                                        &rollbackSeqno,
-                                       StreamTest::fakeDcpAddFailoverLog);
+                                       DCPTest::fakeDcpAddFailoverLog);
     ASSERT_EQ(ENGINE_SUCCESS, err)
         << "stream request did not return ENGINE_SUCCESS";
 
@@ -473,16 +473,16 @@ TEST_P(StreamTest, test_streamIsKeyOnlyFalseBecauseOfIncludeValue) {
 TEST_P(StreamTest, test_streamIsKeyOnlyFalseBecauseOfIncludeXattrs) {
     setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::Yes);
     uint64_t rollbackSeqno;
-    auto err = producer->streamRequest(/*flags*/0,
-                                       /*opaque*/0,
-                                       /*vbucket*/0,
-                                       /*start_seqno*/0,
-                                       /*end_seqno*/0,
-                                       /*vb_uuid*/0,
-                                       /*snap_start*/0,
-                                       /*snap_end*/0,
+    auto err = producer->streamRequest(/*flags*/ 0,
+                                       /*opaque*/ 0,
+                                       /*vbucket*/ 0,
+                                       /*start_seqno*/ 0,
+                                       /*end_seqno*/ 0,
+                                       /*vb_uuid*/ 0,
+                                       /*snap_start*/ 0,
+                                       /*snap_end*/ 0,
                                        &rollbackSeqno,
-                                       StreamTest::fakeDcpAddFailoverLog);
+                                       DCPTest::fakeDcpAddFailoverLog);
     ASSERT_EQ(ENGINE_SUCCESS, err)
         << "stream request did not return ENGINE_SUCCESS";
 
@@ -1027,7 +1027,7 @@ TEST_P(StreamTest, RollbackDueToPurge) {
                                       /*snap_start*/ numItems - 2,
                                       /*snap_end*/ numItems - 2,
                                       &rollbackSeqno,
-                                      StreamTest::fakeDcpAddFailoverLog));
+                                      DCPTest::fakeDcpAddFailoverLog));
     EXPECT_EQ(ENGINE_SUCCESS,
               producer->closeStream(/*opaque*/ 0, vb0->getId()));
 
@@ -1045,7 +1045,7 @@ TEST_P(StreamTest, RollbackDueToPurge) {
                                       /*snap_start*/ numItems - 2,
                                       /*snap_end*/ numItems - 2,
                                       &rollbackSeqno,
-                                      StreamTest::fakeDcpAddFailoverLog));
+                                      DCPTest::fakeDcpAddFailoverLog));
     EXPECT_EQ(0, rollbackSeqno);
     destroy_dcp_stream();
 }
@@ -1078,7 +1078,7 @@ TEST_P(StreamTest, MB_25820_callback_not_invoked_on_dead_vb_stream_request) {
                                       /*snap_start*/ 0,
                                       /*snap_end*/ 0,
                                       &rollbackSeqno,
-                                      StreamTest::fakeDcpAddFailoverLog));
+                                      DCPTest::fakeDcpAddFailoverLog));
     // The callback function past to streamRequest should not be invoked.
     ASSERT_EQ(0, callbackCount);
 }
