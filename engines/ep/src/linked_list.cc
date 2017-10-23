@@ -300,6 +300,14 @@ size_t BasicLinkedList::purgeTombstones(seqno_t purgeUpToSeqno,
         }
 
         {
+            // As we move past the items in the list, increment the begin of
+            // 'readRange' to reduce the window of creating stale items during
+            // updates
+            std::lock_guard<SpinLock> rangeGuard(rangeLock);
+            readRange.setBegin(it->getBySeqno());
+        }
+
+        {
             std::lock_guard<std::mutex> writeGuard(getListWriteLock());
             stale = it->isStale(writeGuard);
         }

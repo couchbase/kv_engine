@@ -859,6 +859,37 @@ TEST_F(BasicLinkedListTest, PurgeBeyondLast) {
     EXPECT_EQ(expectedSeqno, basicLL->getAllSeqnoForVerification());
 }
 
+TEST_F(BasicLinkedListTest, UpdateDuringPurge) {
+    const int numItems = 2;
+    const std::string keyPrefix("key");
+
+    /* Add 2 new items */
+    addNewItemsToList(1, keyPrefix, numItems);
+
+    /* Start the purger, in between send an update. Update is done at a point
+       (first key here) in the linked list that is already visited by
+       the purger, hence we do not expect the update to create a stale copy of
+       the updated item */
+    bool sendUpdateOnce = true;
+    bool afterFirst = false;
+    basicLL->purgeTombstones(numItems, [&]() {
+        /* By sending the update in the callback, we are simulating a
+           scenario where an update happens in between the purge */
+        if (sendUpdateOnce && afterFirst) {
+            sendUpdateOnce = false;
+            /* update first key */
+            updateItem(numItems, keyPrefix + std::to_string(1));
+        }
+        afterFirst = true;
+        return false;
+    });
+
+    /* Update should succeed */
+    EXPECT_EQ(numItems + 1, basicLL->getHighSeqno());
+    /* Update should not create stale items */
+    EXPECT_EQ(0, basicLL->getNumStaleItems());
+}
+
 TEST_F(BasicLinkedListTest, PurgePauseResume) {
     const int numItems = 4, numPurgeItems = 2;
     const std::string keyPrefix("key");
