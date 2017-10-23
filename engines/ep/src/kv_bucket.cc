@@ -2033,6 +2033,14 @@ int KVBucket::flushVBucket(uint16_t vbid) {
                 }
             }
 
+            if (vb->rejectQueue.empty()) {
+                vb->setPersistedSnapshot(range.start, range.end);
+                uint64_t highSeqno = rwUnderlying->getLastPersistedSeqno(vbid);
+                if (highSeqno > 0 && highSeqno != vb->getPersistenceSeqno()) {
+                    vb->setPersistenceSeqno(highSeqno);
+                }
+            }
+
             auto flush_end = ProcessClock::now();
             uint64_t trans_time =
                     std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -2045,15 +2053,6 @@ int KVBucket::flushVBucket(uint16_t vbid) {
             stats.cumulativeFlushTime.fetch_add(trans_time);
             stats.flusher_todo.store(0);
             stats.totalPersistVBState++;
-
-            if (vb->rejectQueue.empty()) {
-                vb->setPersistedSnapshot(range.start, range.end);
-                uint64_t highSeqno = rwUnderlying->getLastPersistedSeqno(vbid);
-                if (highSeqno > 0 &&
-                    highSeqno != vb->getPersistenceSeqno()) {
-                    vb->setPersistenceSeqno(highSeqno);
-                }
-            }
         }
 
         rwUnderlying->pendingTasks();
