@@ -87,7 +87,7 @@ public:
          * - If the key applies to a collection, the collection must exist and
          *   must not be in the process of deletion.
          */
-        bool doesKeyContainValidCollection(::DocKey key) {
+        bool doesKeyContainValidCollection(::DocKey key) const {
             return manifest.doesKeyContainValidCollection(key);
         }
 
@@ -151,7 +151,7 @@ public:
         /**
          * Dump the manifest to std::cerr
          */
-        void dump() {
+        void dump() const {
             std::cerr << manifest << std::endl;
         }
 
