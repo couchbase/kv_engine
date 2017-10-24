@@ -508,18 +508,18 @@ public:
      * Clear the dynamic buffer
      */
     void clearDynamicBuffer() {
-        dynamicBuffer.clear();
+        cookie.clearDynamicBuffer();
     }
 
     /**
      * Grow the dynamic buffer to
      */
     bool growDynamicBuffer(size_t needed) {
-        return dynamicBuffer.grow(needed);
+        return cookie.growDynamicBuffer(needed);
     }
 
     DynamicBuffer& getDynamicBuffer() {
-        return dynamicBuffer;
+        return cookie.getDynamicBuffer();
     }
 
     ProcessClock::time_point getStart() const {
@@ -864,12 +864,6 @@ protected:
      * mutation.
      */
     bool supports_mutation_extras = false;
-
-    /**
-     * The dynamic buffer is used to format output packets to be sent on
-     * the wire.
-     */
-    DynamicBuffer dynamicBuffer;
 
     /**
      * The high resolution timer value for when we started executing the

@@ -16,6 +16,8 @@
  */
 #pragma once
 
+#include "dynamic_buffer.h"
+
 #include <platform/uuid.h>
 #include <stdexcept>
 
@@ -123,6 +125,24 @@ public:
     }
 
     /**
+     *
+     * Clear the dynamic buffer
+     */
+    void clearDynamicBuffer() {
+        dynamicBuffer.clear();
+    }
+
+    /**
+     * Grow the dynamic buffer to
+     */
+    bool growDynamicBuffer(size_t needed) {
+        return dynamicBuffer.grow(needed);
+    }
+
+    DynamicBuffer& getDynamicBuffer() {
+        return dynamicBuffer;
+    }
+    /**
      * The cookie is created for every command we want to execute, but in
      * some cases we don't want to (or can't) get the entire packet content
      * in memory (for instance if a client tries to send us a 2GB packet we
@@ -218,4 +238,10 @@ protected:
      * The input packet used in this command context
      */
     cb::const_byte_buffer packet;
+
+    /**
+     * The dynamic buffer is used to format output packets to be sent on
+     * the wire.
+     */
+    DynamicBuffer dynamicBuffer;
 };

@@ -209,7 +209,7 @@ void McbpConnection::shrinkBuffers() {
 
     // The DynamicBuffer is only occasionally used - free the whole thing
     // if it's still allocated.
-    dynamicBuffer.clear();
+    cookie.clearDynamicBuffer();
 }
 
 bool McbpConnection::tryAuthFromSslCert(const std::string& userName) {
@@ -908,17 +908,6 @@ unique_cJSON_ptr McbpConnection::toJSON() const {
             cJSON_AddItemToObject(obj, "temp_alloc_list", talloc);
         }
         cJSON_AddBoolToObject(obj, "noreply", noreply);
-        {
-            cJSON* dy_buf = cJSON_CreateObject();
-            cJSON_AddUintPtrToObject(dy_buf, "buffer",
-                                       (uintptr_t)dynamicBuffer.getRoot());
-            cJSON_AddNumberToObject(dy_buf, "size",
-                                    (double)dynamicBuffer.getSize());
-            cJSON_AddNumberToObject(dy_buf, "offset",
-                                    (double)dynamicBuffer.getOffset());
-
-            cJSON_AddItemToObject(obj, "DynamicBuffer", dy_buf);
-        }
 
         /* @todo we should decode the binary header */
         cJSON_AddUintPtrToObject(obj, "cas", cas);
