@@ -1031,7 +1031,7 @@ static enum test_result perf_dcp_latency_and_bandwidth(ENGINE_HANDLE *h,
             single_dcp_latency_bw_test(h, h1, /*vb*/0, item_count, typeOfData,
                                        "As_is", /*opaque*/0xFFFFFF00, false);
     all_timings.push_back({"As_is", &as_is_results.first});
-    all_sizes.push_back({"As_s", &as_is_results.second});
+    all_sizes.push_back({"As_is", &as_is_results.second});
 
     // For Loader & DCP client to get documents compressed from vbucket 1
     auto compress_results =
