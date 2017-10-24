@@ -936,7 +936,7 @@ void DcpProducer::addStats(ADD_STAT add_stat, const void *c) {
     // Possible that the producer has had its streams closed and hence doesn't
     // have a backfill manager anymore.
     if (backfillMgr) {
-        backfillMgr->addStats(this, add_stat, c);
+        backfillMgr->addStats(*this, add_stat, c);
     }
 
     log.addStats(add_stat, c);

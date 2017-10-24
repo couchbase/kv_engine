@@ -58,7 +58,7 @@ public:
 
     virtual ~BackfillManager();
 
-    void addStats(connection_t conn, ADD_STAT add_stat, const void *c);
+    void addStats(DcpProducer& conn, ADD_STAT add_stat, const void* c);
 
     void schedule(VBucket& vb,
                   const active_stream_t& stream,
