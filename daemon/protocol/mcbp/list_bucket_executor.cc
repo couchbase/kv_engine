@@ -69,11 +69,12 @@ std::pair<ENGINE_ERROR_CODE, std::string> list_bucket(
     return std::make_pair(ENGINE_SUCCESS, blob);
 }
 
-void list_bucket_executor(McbpConnection* c, void*) {
-    c->logCommand();
+void list_bucket_executor(Cookie& cookie) {
+    auto& connection = cookie.getConnection();
+    connection.logCommand();
     std::pair<ENGINE_ERROR_CODE, std::string> ret;
     try {
-        ret = list_bucket(*c);
+        ret = list_bucket(connection);
     } catch (const std::bad_alloc&) {
         ret.first = ENGINE_ENOMEM;
     }
@@ -88,19 +89,21 @@ void list_bucket_executor(McbpConnection* c, void*) {
                                   PROTOCOL_BINARY_RAW_BYTES,
                                   PROTOCOL_BINARY_RESPONSE_SUCCESS,
                                   0,
-                                  c->getCookie())) {
-            c->logResponse(ret.first);
-            mcbp_write_and_free(c, &c->getDynamicBuffer());
+                                  connection.getCookie())) {
+            connection.logResponse(ret.first);
+            mcbp_write_and_free(&connection, &connection.getDynamicBuffer());
             return;
         }
         ret.first = ENGINE_ENOMEM;
     }
-    ret.first = c->remapErrorCode(ret.first);
-    c->logResponse(ret.first);
+    ret.first = connection.remapErrorCode(ret.first);
+    connection.logResponse(ret.first);
 
+    ret.first = connection.remapErrorCode(ret.first);
     if (ret.first == ENGINE_DISCONNECT) {
-        c->setState(McbpStateMachine::State::closing);
+        connection.setState(McbpStateMachine::State::closing);
     } else {
-        mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret.first));
+        mcbp_write_packet(cookie,
+                          cb::mcbp::to_status(cb::engine_errc(ret.first)));
     }
 }

@@ -2682,6 +2682,7 @@ extern "C" int memcached_main(int argc, char **argv) {
     update_settings_from_config();
 
     cb::rbac::initialize();
+    initialize_protocol_handlers();
 
     if (getenv("COUCHBASE_FORCE_ENABLE_XATTR") != nullptr) {
         settings.setXattrEnabled(true);

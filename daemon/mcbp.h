@@ -85,6 +85,10 @@ inline void mcbp_write_packet(McbpConnection* c, cb::mcbp::Status status) {
     mcbp_write_packet(c, uint16_t(status));
 }
 
+inline void mcbp_write_packet(Cookie& cookie, cb::mcbp::Status status) {
+    mcbp_write_packet(&cookie.getConnection(), status);
+}
+
 bool mcbp_response_handler(const void* key, uint16_t keylen,
                            const void* ext, uint8_t extlen,
                            const void* body, uint32_t bodylen,
@@ -94,3 +98,5 @@ bool mcbp_response_handler(const void* key, uint16_t keylen,
 
 /* set up a connection to write a DynamicBuffer then free it once sent. */
 void mcbp_write_and_free(McbpConnection* c, DynamicBuffer* buf);
+
+void initialize_protocol_handlers();

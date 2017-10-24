@@ -23,26 +23,27 @@
 
 #include "executors.h"
 
-void get_cluster_config_executor(McbpConnection* c, void*) {
-    auto& bucket = c->getBucket();
+void get_cluster_config_executor(Cookie& cookie) {
+    auto& connection = cookie.getConnection();
+    auto& bucket = connection.getBucket();
     if (bucket.type == BucketType::NoBucket) {
-        if (c->isXerrorSupport()) {
-            c->getCookieObject().setErrorContext("No bucket selected");
-            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NO_BUCKET);
+        if (connection.isXerrorSupport()) {
+            connection.getCookieObject().setErrorContext("No bucket selected");
+            mcbp_write_packet(cookie, cb::mcbp::Status::NoBucket);
         } else {
-            LOG_NOTICE(c,
+            LOG_NOTICE(&connection,
                        "%u: Can't get cluster configuration without "
                        "selecting a bucket. Disconnecting %s",
-                       c->getId(),
-                       c->getDescription().c_str());
-            c->setState(McbpStateMachine::State::closing);
+                       connection.getId(),
+                       connection.getDescription().c_str());
+            connection.setState(McbpStateMachine::State::closing);
         }
         return;
     }
 
-    auto pair = c->getBucket().clusterConfiguration.getConfiguration();
+    auto pair = bucket.clusterConfiguration.getConfiguration();
     if (pair.first == -1) {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
+        mcbp_write_packet(cookie, cb::mcbp::Status::KeyEnoent);
     } else {
         mcbp_response_handler(nullptr,
                               0,
@@ -53,36 +54,38 @@ void get_cluster_config_executor(McbpConnection* c, void*) {
                               PROTOCOL_BINARY_RAW_BYTES,
                               PROTOCOL_BINARY_RESPONSE_SUCCESS,
                               0,
-                              c->getCookie());
-        mcbp_write_and_free(c, &c->getDynamicBuffer());
-        c->setClustermapRevno(pair.first);
+                              static_cast<const void*>(&cookie));
+        mcbp_write_and_free(&connection, &cookie.getDynamicBuffer());
+        connection.setClustermapRevno(pair.first);
     }
 }
 
-void set_cluster_config_executor(McbpConnection* c, void* packet) {
-    auto& bucket = c->getBucket();
+void set_cluster_config_executor(Cookie& cookie) {
+    auto& connection = cookie.getConnection();
+    auto& bucket = connection.getBucket();
     if (bucket.type == BucketType::NoBucket) {
-        if (c->isXerrorSupport()) {
-            c->getCookieObject().setErrorContext("No bucket selected");
-            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NO_BUCKET);
+        if (connection.isXerrorSupport()) {
+            connection.getCookieObject().setErrorContext("No bucket selected");
+            mcbp_write_packet(cookie, cb::mcbp::Status::NoBucket);
         } else {
-            LOG_NOTICE(c,
+            LOG_NOTICE(&connection,
                        "%u: Can't set cluster configuration without "
                        "selecting a bucket. Disconnecting %s",
-                       c->getId(),
-                       c->getDescription().c_str());
-            c->setState(McbpStateMachine::State::closing);
+                       connection.getId(),
+                       connection.getDescription().c_str());
+            connection.setState(McbpStateMachine::State::closing);
         }
         return;
     }
 
     // First validate that the provided configuration is a valid payload
-    const auto* req = reinterpret_cast<const cb::mcbp::Request*>(packet);
+    const auto* req = reinterpret_cast<const cb::mcbp::Request*>(
+            cookie.getPacketAsVoidPtr());
     auto cas = req->getCas();
 
     // verify that this is a legal session cas:
     if (!session_cas.increment_session_counter(cas)) {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
+        mcbp_write_packet(cookie, cb::mcbp::Status::KeyEexists);
         return;
     }
 
@@ -91,47 +94,47 @@ void set_cluster_config_executor(McbpConnection* c, void* packet) {
         cb::const_char_buffer conf{
                 reinterpret_cast<const char*>(payload.data()), payload.size()};
         bucket.clusterConfiguration.setConfiguration(conf);
-        c->setCAS(cas);
-        mcbp_write_packet(c, cb::mcbp::Status::Success);
+        connection.setCAS(cas);
+        mcbp_write_packet(cookie, cb::mcbp::Status::Success);
 
         const long revision =
                 bucket.clusterConfiguration.getConfiguration().first;
 
-        LOG_NOTICE(c,
+        LOG_NOTICE(&connection,
                    "%u: %s Updated cluster configuration for bucket [%s]. New "
                    "revision: %u",
-                   c->getId(),
-                   c->getDescription().c_str(),
+                   connection.getId(),
+                   connection.getDescription().c_str(),
                    bucket.name,
                    revision);
 
         // Start an executor job to walk through the connections and tell
         // them to push new clustermaps
         std::shared_ptr<Task> task;
-        task = std::make_shared<CccpNotificationTask>(c->getBucketIndex(),
-                                                      revision);
+        task = std::make_shared<CccpNotificationTask>(
+                connection.getBucketIndex(), revision);
         std::lock_guard<std::mutex> guard(task->getMutex());
         executorPool->schedule(task, true);
     } catch (const std::invalid_argument& e) {
-        LOG_WARNING(c,
+        LOG_WARNING(&connection,
                     "%u: %s Failed to update cluster configuration for bucket "
                     "[%s] - %s",
-                    c->getId(),
-                    c->getDescription().c_str(),
+                    connection.getId(),
+                    connection.getDescription().c_str(),
                     bucket.name,
                     e.what());
-        c->getCookieObject().setErrorContext(e.what());
-        mcbp_write_packet(c, cb::mcbp::Status::Einval);
+        cookie.setErrorContext(e.what());
+        mcbp_write_packet(cookie, cb::mcbp::Status::Einval);
     } catch (const std::exception& e) {
-        LOG_WARNING(c,
+        LOG_WARNING(&connection,
                     "%u: %s Failed to update cluster configuration for bucket "
                     "[%s] - %s",
-                    c->getId(),
-                    c->getDescription().c_str(),
+                    connection.getId(),
+                    connection.getDescription().c_str(),
                     bucket.name,
                     e.what());
-        c->getCookieObject().setErrorContext(e.what());
-        mcbp_write_packet(c, cb::mcbp::Status::Einternal);
+        cookie.setErrorContext(e.what());
+        mcbp_write_packet(cookie, cb::mcbp::Status::Einternal);
     }
 
     session_cas.decrement_session_counter();

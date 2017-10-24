@@ -18,8 +18,10 @@
 #include <daemon/mcbp.h>
 #include "executors.h"
 
-void process_hello_packet_executor(McbpConnection* c, void* packet) {
-    auto* req = reinterpret_cast<protocol_binary_request_hello*>(packet);
+void process_hello_packet_executor(Cookie& cookie) {
+    auto& connection = cookie.getConnection();
+    auto* req = reinterpret_cast<protocol_binary_request_hello*>(
+            cookie.getPacketAsVoidPtr());
     std::string log_buffer;
     log_buffer.reserve(512);
     log_buffer.append("HELO ");
@@ -39,12 +41,12 @@ void process_hello_packet_executor(McbpConnection* c, void* packet) {
      * Disable all features the hello packet may enable, so that
      * the client can toggle features on/off during a connection
      */
-    c->disableAllDatatypes();
-    c->setSupportsMutationExtras(false);
-    c->setXerrorSupport(false);
-    c->setCollectionsSupported(false);
-    c->setDuplexSupported(false);
-    c->setClustermapChangeNotificationSupported(false);
+    connection.disableAllDatatypes();
+    connection.setSupportsMutationExtras(false);
+    connection.setXerrorSupport(false);
+    connection.setCollectionsSupported(false);
+    connection.setDuplexSupported(false);
+    connection.setClustermapChangeNotificationSupported(false);
 
     if (!key.empty()) {
         log_buffer.append("[");
@@ -68,50 +70,51 @@ void process_hello_packet_executor(McbpConnection* c, void* packet) {
             /* Not implemented */
             LOG_NOTICE(nullptr,
                        "%u: %s requested unupported feature %s",
-                       c->getId(),
-                       c->getDescription().c_str(),
+                       connection.getId(),
+                       connection.getDescription().c_str(),
                        to_string(feature).c_str());
             break;
         case cb::mcbp::Feature::TCPNODELAY:
         case cb::mcbp::Feature::TCPDELAY:
             if (!tcpdelay_handled) {
-                c->setTcpNoDelay(feature == cb::mcbp::Feature::TCPNODELAY);
+                connection.setTcpNoDelay(feature ==
+                                         cb::mcbp::Feature::TCPNODELAY);
                 tcpdelay_handled = true;
                 added = true;
             }
             break;
 
         case cb::mcbp::Feature::MUTATION_SEQNO:
-            if (!c->isSupportsMutationExtras()) {
-                c->setSupportsMutationExtras(true);
+            if (!connection.isSupportsMutationExtras()) {
+                connection.setSupportsMutationExtras(true);
                 added = true;
             }
             break;
         case cb::mcbp::Feature::XATTR:
             if ((Datatype::isSupported(cb::mcbp::Feature::XATTR) ||
-                 c->isInternal()) &&
-                !c->isXattrEnabled()) {
-                c->enableDatatype(cb::mcbp::Feature::XATTR);
+                 connection.isInternal()) &&
+                !connection.isXattrEnabled()) {
+                connection.enableDatatype(cb::mcbp::Feature::XATTR);
                 added = true;
             }
             break;
         case cb::mcbp::Feature::JSON:
             if (Datatype::isSupported(cb::mcbp::Feature::JSON) &&
-                !c->isJsonEnabled()) {
-                c->enableDatatype(cb::mcbp::Feature::JSON);
+                !connection.isJsonEnabled()) {
+                connection.enableDatatype(cb::mcbp::Feature::JSON);
                 added = true;
             }
             break;
         case cb::mcbp::Feature::SNAPPY:
             if (Datatype::isSupported(cb::mcbp::Feature::SNAPPY) &&
-                !c->isSnappyEnabled()) {
-                c->enableDatatype(cb::mcbp::Feature::SNAPPY);
+                !connection.isSnappyEnabled()) {
+                connection.enableDatatype(cb::mcbp::Feature::SNAPPY);
                 added = true;
             }
             break;
         case cb::mcbp::Feature::XERROR:
-            if (!c->isXerrorSupport()) {
-                c->setXerrorSupport(true);
+            if (!connection.isXerrorSupport()) {
+                connection.setXerrorSupport(true);
                 added = true;
             }
             break;
@@ -120,27 +123,27 @@ void process_hello_packet_executor(McbpConnection* c, void* packet) {
             added = true;
             break;
         case cb::mcbp::Feature::COLLECTIONS:
-            if (!c->isCollectionsSupported()) {
-                c->setCollectionsSupported(true);
+            if (!connection.isCollectionsSupported()) {
+                connection.setCollectionsSupported(true);
                 added = true;
             }
             break;
         case cb::mcbp::Feature::Duplex:
-            if (!c->isDuplexSupported()) {
-                c->setDuplexSupported(true);
+            if (!connection.isDuplexSupported()) {
+                connection.setDuplexSupported(true);
                 added = true;
             }
             break;
         case cb::mcbp::Feature::ClustermapChangeNotification:
-            if (!c->isClustermapChangeNotificationSupported() &&
-                c->isDuplexSupported()) {
-                c->setClustermapChangeNotificationSupported(true);
+            if (!connection.isClustermapChangeNotificationSupported() &&
+                connection.isDuplexSupported()) {
+                connection.setClustermapChangeNotificationSupported(true);
                 added = true;
             }
             break;
         case cb::mcbp::Feature::UnorderedExecution:
-            if (!c->allowUnorderedExecution()) {
-                c->setAllowUnorderedExecution(true);
+            if (!connection.allowUnorderedExecution()) {
+                connection.setAllowUnorderedExecution(true);
                 added = true;
             }
         }
@@ -153,15 +156,19 @@ void process_hello_packet_executor(McbpConnection* c, void* packet) {
     }
 
     if (out.empty()) {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
+        mcbp_write_packet(cookie, cb::mcbp::Status::Success);
     } else {
-        mcbp_response_handler(nullptr, 0, nullptr, 0,
+        mcbp_response_handler(nullptr,
+                              0,
+                              nullptr,
+                              0,
                               out.data(),
                               uint32_t(2 * out.size()),
                               PROTOCOL_BINARY_RAW_BYTES,
                               PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                              0, c->getCookie());
-        mcbp_write_and_free(c, &c->getDynamicBuffer());
+                              0,
+                              static_cast<const void*>(&cookie));
+        mcbp_write_and_free(&connection, &cookie.getDynamicBuffer());
     }
 
     // Trim off the trailing whitespace (and potentially comma)
@@ -170,6 +177,9 @@ void process_hello_packet_executor(McbpConnection* c, void* packet) {
         log_buffer.resize(log_buffer.size() - 1);
     }
 
-    LOG_NOTICE(c, "%u: %s %s", c->getId(), log_buffer.c_str(),
-               c->getDescription().c_str());
+    LOG_NOTICE(&connection,
+               "%u: %s %s",
+               connection.getId(),
+               log_buffer.c_str(),
+               connection.getDescription().c_str());
 }

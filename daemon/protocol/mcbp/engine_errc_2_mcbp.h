@@ -31,6 +31,12 @@ namespace mcbp {
 protocol_binary_response_status to_status(cb::engine_errc code);
 }
 
+namespace cb {
+namespace mcbp {
+Status to_status(cb::engine_errc code);
+}
+} // namespace cb
+
 /**
  * Convert an error code generated from the storage engine to the corresponding
  * error code used by the protocol layer.

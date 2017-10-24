@@ -24,13 +24,13 @@
  * @param c the connection which should select the bucket
  * @param packet the incomming packet
  */
-void select_bucket_executor(McbpConnection* c, void* packet);
+void select_bucket_executor(Cookie& cookie);
 
-void list_bucket_executor(McbpConnection* c, void*);
+void list_bucket_executor(Cookie& cookie);
 
-void get_cmd_timer_executor(McbpConnection* c, void* packet);
+void get_cmd_timer_executor(Cookie& cookie);
 
-void process_hello_packet_executor(McbpConnection* c, void* packet);
+void process_hello_packet_executor(Cookie& cookie);
 
 // DCP executor
 void dcp_add_stream_executor(McbpConnection* c, void* packet);
@@ -49,7 +49,7 @@ void dcp_stream_req_executor(McbpConnection* c, void* packet);
 // Collections
 void collections_set_manifest_executor(McbpConnection* c, void* packet);
 
-void drop_privilege_executor(McbpConnection* c, void* packet);
+void drop_privilege_executor(Cookie&);
 
-void get_cluster_config_executor(McbpConnection* c, void* packet);
-void set_cluster_config_executor(McbpConnection* c, void* packet);
+void get_cluster_config_executor(Cookie&);
+void set_cluster_config_executor(Cookie&);

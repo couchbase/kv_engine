@@ -47,9 +47,10 @@ ENGINE_ERROR_CODE select_bucket(McbpConnection& connection) {
     }
 }
 
-void select_bucket_executor(McbpConnection* c, void*) {
-    c->logCommand();
-    auto ret = select_bucket(*c);
-    c->logResponse(ret);
-    mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
+void select_bucket_executor(Cookie& cookie) {
+    auto& connection = cookie.getConnection();
+    connection.logCommand();
+    auto ret = connection.remapErrorCode(select_bucket(connection));
+    connection.logResponse(ret);
+    mcbp_write_packet(cookie, cb::mcbp::to_status(cb::engine_errc(ret)));
 }

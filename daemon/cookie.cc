@@ -124,3 +124,19 @@ const cb::mcbp::Response& Cookie::getResponse(PacketContent content) const {
 
     throw std::invalid_argument("Cookie::getResponse(): Invalid packet type");
 }
+
+const ENGINE_ERROR_CODE Cookie::getAiostat() const {
+    return connection.getAiostat();
+}
+
+void Cookie::setAiostat(const ENGINE_ERROR_CODE& aiostat) {
+    connection.setAiostat(aiostat);
+}
+
+bool Cookie::isEwouldblock() const {
+    return connection.isEwouldblock();
+}
+
+void Cookie::setEwouldblock(bool ewouldblock) {
+    connection.setEwouldblock(ewouldblock);
+}

@@ -88,32 +88,42 @@ void update_topkeys(const DocKey& key, McbpConnection* c) {
     }
 }
 
-static void process_bin_get(McbpConnection* c, void* packet) {
-    auto* req = reinterpret_cast<protocol_binary_request_get*>(packet);
-    c->obtainContext<GetCommandContext>(*c, req).drive();
+static void process_bin_get(Cookie& cookie) {
+    auto& connection = cookie.getConnection();
+    auto* req = reinterpret_cast<protocol_binary_request_get*>(
+            cookie.getPacketAsVoidPtr());
+    connection.obtainContext<GetCommandContext>(connection, req).drive();
 }
 
-static void process_bin_get_meta(McbpConnection* c, void* packet) {
-    auto* req = reinterpret_cast<protocol_binary_request_get*>(packet);
-    c->obtainContext<GetMetaCommandContext>(*c, req).drive();
+static void process_bin_get_meta(Cookie& cookie) {
+    auto& connection = cookie.getConnection();
+    auto* req = reinterpret_cast<protocol_binary_request_get*>(
+            cookie.getPacketAsVoidPtr());
+    connection.obtainContext<GetMetaCommandContext>(connection, req).drive();
 }
 
-static void get_locked_executor(McbpConnection* c, void* packet) {
-    auto* req = reinterpret_cast<protocol_binary_request_getl*>(packet);
-    c->obtainContext<GetLockedCommandContext>(*c, req).drive();
+static void get_locked_executor(Cookie& cookie) {
+    auto& connection = cookie.getConnection();
+    auto* req = reinterpret_cast<protocol_binary_request_getl*>(
+            cookie.getPacketAsVoidPtr());
+    connection.obtainContext<GetLockedCommandContext>(connection, req).drive();
 }
 
-static void unlock_executor(McbpConnection* c, void* packet) {
-    auto* req = reinterpret_cast<protocol_binary_request_no_extras*>(packet);
-    c->obtainContext<UnlockCommandContext>(*c, req).drive();
+static void unlock_executor(Cookie& cookie) {
+    auto& connection = cookie.getConnection();
+    auto* req = reinterpret_cast<protocol_binary_request_no_extras*>(
+            cookie.getPacketAsVoidPtr());
+    connection.obtainContext<UnlockCommandContext>(connection, req).drive();
 }
 
-static void gat_executor(McbpConnection* c, void* packet) {
-    if (c->getCmd() == PROTOCOL_BINARY_CMD_GATQ) {
-        c->setNoReply(true);
+static void gat_executor(Cookie& cookie) {
+    auto& connection = cookie.getConnection();
+    if (connection.getCmd() == PROTOCOL_BINARY_CMD_GATQ) {
+        connection.setNoReply(true);
     }
-    auto* req = reinterpret_cast<protocol_binary_request_gat*>(packet);
-    c->obtainContext<GatCommandContext>(*c, *req).drive();
+    auto* req = reinterpret_cast<protocol_binary_request_gat*>(
+            cookie.getPacketAsVoidPtr());
+    connection.obtainContext<GatCommandContext>(connection, *req).drive();
 }
 
 
@@ -151,48 +161,52 @@ void setup_mcbp_lookup_cmd(
     request_handlers[cmd].callback = new_handler;
 }
 
-static void process_bin_unknown_packet(McbpConnection* c, void* packet) {
-    auto* req = reinterpret_cast<protocol_binary_request_header*>(packet);
-    ENGINE_ERROR_CODE ret = c->getAiostat();
-    c->setAiostat(ENGINE_SUCCESS);
-    c->setEwouldblock(false);
+static void process_bin_unknown_packet(Cookie& cookie) {
+    auto* req = reinterpret_cast<protocol_binary_request_header*>(
+            cookie.getPacketAsVoidPtr());
+    auto& connection = cookie.getConnection();
+
+    ENGINE_ERROR_CODE ret = cookie.getAiostat();
+    cookie.setAiostat(ENGINE_SUCCESS);
+    cookie.setEwouldblock(false);
 
     if (ret == ENGINE_SUCCESS) {
-        struct request_lookup* rq =
-            request_handlers + c->binary_header.request.opcode;
+        struct request_lookup* rq = request_handlers + req->request.opcode;
         ret = rq->callback(rq->descriptor,
-                           c->getBucketEngineAsV0(), c->getCookie(), req,
+                           connection.getBucketEngineAsV0(),
+                           static_cast<const void*>(&cookie),
+                           req,
                            mcbp_response_handler);
     }
 
-    ret = c->remapErrorCode(ret);
+    ret = cookie.getConnection().remapErrorCode(ret);
     switch (ret) {
     case ENGINE_SUCCESS: {
-        if (c->getDynamicBuffer().getRoot() != nullptr) {
+        if (cookie.getDynamicBuffer().getRoot() != nullptr) {
             // We assume that if the underlying engine returns a success then
             // it is sending a success to the client.
-            ++c->getBucket().responseCounters[PROTOCOL_BINARY_RESPONSE_SUCCESS];
-            mcbp_write_and_free(c, &c->getDynamicBuffer());
+            ++connection.getBucket()
+                      .responseCounters[PROTOCOL_BINARY_RESPONSE_SUCCESS];
+            mcbp_write_and_free(&connection, &cookie.getDynamicBuffer());
         } else {
-            c->setState(McbpStateMachine::State::new_cmd);
+            connection.setState(McbpStateMachine::State::new_cmd);
         }
-        update_topkeys(DocKey(req->bytes + sizeof(c->binary_header.request) +
-                                      c->binary_header.request.extlen,
-                              c->binary_header.request.keylen,
-                              c->getDocNamespace()),
-                       c);
+        update_topkeys(DocKey(req->bytes + sizeof(*req) + req->request.extlen,
+                              ntohs(req->request.keylen),
+                              connection.getDocNamespace()),
+                       &connection);
         break;
     }
     case ENGINE_EWOULDBLOCK:
-        c->setEwouldblock(true);
+        cookie.setEwouldblock(true);
         break;
     case ENGINE_DISCONNECT:
-        c->setState(McbpStateMachine::State::closing);
+        connection.setState(McbpStateMachine::State::closing);
         break;
     default:
-        /* Release the dynamic buffer.. it may be partial.. */
-        c->clearDynamicBuffer();
-        mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
+        // Release the dynamic buffer.. it may be partial..
+        cookie.clearDynamicBuffer();
+        mcbp_write_packet(&connection, engine_error_2_mcbp_protocol_error(ret));
     }
 }
 
@@ -520,305 +534,367 @@ void ship_mcbp_dcp_log(McbpConnection* c) {
     }
 }
 
-static void add_set_replace_executor(McbpConnection* c, void* packet,
+static void add_set_replace_executor(Cookie& cookie,
                                      ENGINE_STORE_OPERATION store_op) {
-    auto* req = reinterpret_cast<protocol_binary_request_set*>(packet);
-    c->obtainContext<MutationCommandContext>(*c, req, store_op).drive();
+    auto& connection = cookie.getConnection();
+    auto* req = reinterpret_cast<protocol_binary_request_set*>(
+            cookie.getPacketAsVoidPtr());
+    connection.obtainContext<MutationCommandContext>(connection, req, store_op)
+            .drive();
 }
 
-
-static void add_executor(McbpConnection* c, void* packet) {
-    c->setNoReply(false);
-    add_set_replace_executor(c, packet, OPERATION_ADD);
+static void add_executor(Cookie& cookie) {
+    auto& connection = cookie.getConnection();
+    connection.setNoReply(false);
+    add_set_replace_executor(cookie, OPERATION_ADD);
 }
 
-static void addq_executor(McbpConnection* c, void* packet) {
-    c->setNoReply(true);
-    add_set_replace_executor(c, packet, OPERATION_ADD);
+static void addq_executor(Cookie& cookie) {
+    auto& connection = cookie.getConnection();
+    connection.setNoReply(true);
+    add_set_replace_executor(cookie, OPERATION_ADD);
 }
 
-static void set_executor(McbpConnection* c, void* packet) {
-    c->setNoReply(false);
-    add_set_replace_executor(c, packet, OPERATION_SET);
+static void set_executor(Cookie& cookie) {
+    auto& connection = cookie.getConnection();
+    connection.setNoReply(false);
+    add_set_replace_executor(cookie, OPERATION_SET);
 }
 
-static void setq_executor(McbpConnection* c, void* packet) {
-    c->setNoReply(true);
-    add_set_replace_executor(c, packet, OPERATION_SET);
+static void setq_executor(Cookie& cookie) {
+    auto& connection = cookie.getConnection();
+    connection.setNoReply(true);
+    add_set_replace_executor(cookie, OPERATION_SET);
 }
 
-static void replace_executor(McbpConnection* c, void* packet) {
-    c->setNoReply(false);
-    add_set_replace_executor(c, packet, OPERATION_REPLACE);
+static void replace_executor(Cookie& cookie) {
+    auto& connection = cookie.getConnection();
+    connection.setNoReply(false);
+    add_set_replace_executor(cookie, OPERATION_REPLACE);
 }
 
-static void replaceq_executor(McbpConnection* c, void* packet) {
-    c->setNoReply(true);
-    add_set_replace_executor(c, packet, OPERATION_REPLACE);
+static void replaceq_executor(Cookie& cookie) {
+    auto& connection = cookie.getConnection();
+    connection.setNoReply(true);
+    add_set_replace_executor(cookie, OPERATION_REPLACE);
 }
 
-static void append_prepend_executor(McbpConnection* c,
-                                    void* packet,
-                                    const AppendPrependCommandContext::Mode mode) {
-    auto* req = reinterpret_cast<protocol_binary_request_append*>(packet);
-    c->obtainContext<AppendPrependCommandContext>(*c, req, mode).drive();
+static void append_prepend_executor(
+        Cookie& cookie, const AppendPrependCommandContext::Mode mode) {
+    auto& connection = cookie.getConnection();
+    auto* req = reinterpret_cast<protocol_binary_request_append*>(
+            cookie.getPacketAsVoidPtr());
+    connection.obtainContext<AppendPrependCommandContext>(connection, req, mode)
+            .drive();
 }
 
-static void append_executor(McbpConnection* c, void* packet) {
-    c->setNoReply(false);
-    append_prepend_executor(c, packet,
-                            AppendPrependCommandContext::Mode::Append);
+static void append_executor(Cookie& cookie) {
+    auto& connection = cookie.getConnection();
+    connection.setNoReply(false);
+    append_prepend_executor(cookie, AppendPrependCommandContext::Mode::Append);
 }
 
-static void appendq_executor(McbpConnection* c, void* packet) {
-    c->setNoReply(true);
-    append_prepend_executor(c, packet,
-                            AppendPrependCommandContext::Mode::Append);
+static void appendq_executor(Cookie& cookie) {
+    auto& connection = cookie.getConnection();
+    connection.setNoReply(true);
+    append_prepend_executor(cookie, AppendPrependCommandContext::Mode::Append);
 }
 
-static void prepend_executor(McbpConnection* c, void* packet) {
-    c->setNoReply(false);
-    append_prepend_executor(c, packet,
-                            AppendPrependCommandContext::Mode::Prepend);
+static void prepend_executor(Cookie& cookie) {
+    auto& connection = cookie.getConnection();
+    connection.setNoReply(false);
+    append_prepend_executor(cookie, AppendPrependCommandContext::Mode::Prepend);
 }
 
-static void prependq_executor(McbpConnection* c, void* packet) {
-    c->setNoReply(true);
-    append_prepend_executor(c, packet,
-                            AppendPrependCommandContext::Mode::Prepend);
+static void prependq_executor(Cookie& cookie) {
+    auto& connection = cookie.getConnection();
+    connection.setNoReply(true);
+    append_prepend_executor(cookie, AppendPrependCommandContext::Mode::Prepend);
 }
 
-
-static void get_executor(McbpConnection* c, void* packet) {
-    switch (c->getCmd()) {
+static void get_executor(Cookie& cookie) {
+    auto& connection = cookie.getConnection();
+    switch (connection.getCmd()) {
     case PROTOCOL_BINARY_CMD_GETQ:
-        c->setNoReply(true);
+        connection.setNoReply(true);
         break;
     case PROTOCOL_BINARY_CMD_GET:
-        c->setNoReply(false);
+        connection.setNoReply(false);
         break;
     case PROTOCOL_BINARY_CMD_GETKQ:
-        c->setNoReply(true);
+        connection.setNoReply(true);
         break;
     case PROTOCOL_BINARY_CMD_GETK:
-        c->setNoReply(false);
+        connection.setNoReply(false);
         break;
     default:
-        LOG_WARNING(c,
+        LOG_WARNING(&connection,
                     "%u: get_executor: cmd (which is %d) is not a valid GET "
-                        "variant - closing connection", c->getCmd());
-        c->setState(McbpStateMachine::State::closing);
+                    "variant - closing connection",
+                    connection.getCmd());
+        connection.setState(McbpStateMachine::State::closing);
         return;
     }
 
-    process_bin_get(c, packet);
+    process_bin_get(cookie);
 }
 
-static void get_meta_executor(McbpConnection* c, void* packet) {
-    switch (c->getCmd()) {
+static void get_meta_executor(Cookie& cookie) {
+    auto& connection = cookie.getConnection();
+    switch (connection.getCmd()) {
     case PROTOCOL_BINARY_CMD_GET_META:
         // McbpConnection::noreply already set to false in constructor
         break;
     case PROTOCOL_BINARY_CMD_GETQ_META:
-        c->setNoReply(true);
+        connection.setNoReply(true);
         break;
     default:
-        LOG_WARNING(c,
+        LOG_WARNING(&connection,
                     "%u: get_meta_executor: cmd (which is %d) is not a valid "
                     "GET_META "
                     "variant - closing connection",
-                    c->getId(),
-                    c->getCmd());
-        c->setState(McbpStateMachine::State::closing);
+                    connection.getId(),
+                    connection.getCmd());
+        connection.setState(McbpStateMachine::State::closing);
         return;
     }
 
-    process_bin_get_meta(c, packet);
+    process_bin_get_meta(cookie);
 }
 
-static void stat_executor(McbpConnection* c, void* packet) {
-    auto* req = reinterpret_cast<protocol_binary_request_stats*>(packet);
-    c->obtainContext<StatsCommandContext>(*c, *req).drive();
+static void stat_executor(Cookie& cookie) {
+    auto& connection = cookie.getConnection();
+    auto* req = reinterpret_cast<protocol_binary_request_stats*>(
+            cookie.getPacketAsVoidPtr());
+    connection.obtainContext<StatsCommandContext>(connection, *req).drive();
 }
 
-static void isasl_refresh_executor(McbpConnection* c, void* packet) {
-    c->obtainContext<SaslRefreshCommandContext>(*c).drive();
+static void isasl_refresh_executor(Cookie& cookie) {
+    auto& connection = cookie.getConnection();
+    connection.obtainContext<SaslRefreshCommandContext>(connection).drive();
 }
 
-static void ssl_certs_refresh_executor(McbpConnection* c, void* packet) {
+static void ssl_certs_refresh_executor(Cookie& cookie) {
     // MB-22464 - We don't cache the SSL certificates in memory
-    mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    mcbp_write_packet(cookie, cb::mcbp::Status::Success);
 }
 
-static void verbosity_executor(McbpConnection* c, void* packet) {
-    auto* req = reinterpret_cast<protocol_binary_request_verbosity*>(packet);
+static void verbosity_executor(Cookie& cookie) {
+    auto* req = reinterpret_cast<protocol_binary_request_verbosity*>(
+            cookie.getPacketAsVoidPtr());
     uint32_t level = (uint32_t)ntohl(req->message.body.level);
     if (level > MAX_VERBOSITY_LEVEL) {
         level = MAX_VERBOSITY_LEVEL;
     }
     settings.setVerbose(static_cast<int>(level));
     perform_callbacks(ON_LOG_LEVEL, NULL, NULL);
-    mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    mcbp_write_packet(cookie, cb::mcbp::Status::Success);
 }
 
-static void version_executor(McbpConnection* c, void*) {
-    mcbp_write_response(c, get_server_version(), 0, 0,
+static void version_executor(Cookie& cookie) {
+    mcbp_write_response(&cookie.getConnection(),
+                        get_server_version(),
+                        0,
+                        0,
                         (uint32_t)strlen(get_server_version()));
 }
 
-static void quit_executor(McbpConnection* c, void*) {
-    mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    c->setWriteAndGo(McbpStateMachine::State::closing);
+static void quit_executor(Cookie& cookie) {
+    mcbp_write_packet(cookie, cb::mcbp::Status::Success);
+    cookie.getConnection().setWriteAndGo(McbpStateMachine::State::closing);
 }
 
-static void quitq_executor(McbpConnection* c, void*) {
-    c->setState(McbpStateMachine::State::closing);
+static void quitq_executor(Cookie& cookie) {
+    cookie.getConnection().setState(McbpStateMachine::State::closing);
 }
 
-static void sasl_list_mech_executor(McbpConnection* c, void*) {
-    if (!c->isSaslAuthEnabled()) {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
+static void sasl_list_mech_executor(Cookie& cookie) {
+    auto& connection = cookie.getConnection();
+    if (!connection.isSaslAuthEnabled()) {
+        mcbp_write_packet(cookie, cb::mcbp::Status::NotSupported);
         return;
     }
 
-    if (c->isSslEnabled() && settings.has.ssl_sasl_mechanisms) {
+    if (connection.isSslEnabled() && settings.has.ssl_sasl_mechanisms) {
         const auto& mechs = settings.getSslSaslMechanisms();
-        mcbp_write_response(c, mechs.data(), 0, 0, mechs.size());
-    } else if (!c->isSslEnabled() && settings.has.sasl_mechanisms) {
+        mcbp_write_response(&connection, mechs.data(), 0, 0, mechs.size());
+    } else if (!connection.isSslEnabled() && settings.has.sasl_mechanisms) {
         const auto& mechs = settings.getSaslMechanisms();
-        mcbp_write_response(c, mechs.data(), 0, 0, mechs.size());
+        mcbp_write_response(&connection, mechs.data(), 0, 0, mechs.size());
     } else {
         /*
          * The administrator did not configure any SASL mechanisms.
          * Go ahead and use whatever we've got in cbsasl
          */
-        const char* result_string = NULL;
+        const char* result_string = nullptr;
         unsigned int string_length = 0;
 
-        auto ret = cbsasl_listmech(c->getSaslConn(), nullptr, nullptr, " ",
-                                   nullptr, &result_string, &string_length,
+        auto ret = cbsasl_listmech(connection.getSaslConn(),
+                                   nullptr,
+                                   nullptr,
+                                   " ",
+                                   nullptr,
+                                   &result_string,
+                                   &string_length,
                                    nullptr);
 
         if (ret == CBSASL_OK) {
-            mcbp_write_response(c, (char*)result_string, 0, 0, string_length);
+            mcbp_write_response(
+                    &connection, (char*)result_string, 0, 0, string_length);
         } else {
             /* Perhaps there's a better error for this... */
-            LOG_WARNING(c, "%u: Failed to list SASL mechanisms: %s", c->getId(),
-                        cbsasl_strerror(c->getSaslConn(), ret));
-            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR);
-            return;
+            LOG_WARNING(&connection,
+                        "%u: Failed to list SASL mechanisms: %s",
+                        connection.getId(),
+                        cbsasl_strerror(connection.getSaslConn(), ret));
+            mcbp_write_packet(cookie, cb::mcbp::Status::AuthError);
         }
     }
 }
 
-static void sasl_auth_executor(McbpConnection* c, void* packet) {
-    auto* req = reinterpret_cast<cb::mcbp::Request*>(packet);
-    c->obtainContext<SaslAuthCommandContext>(*c, *req).drive();
+static void sasl_auth_executor(Cookie& cookie) {
+    auto& connection = cookie.getConnection();
+    auto* req =
+            reinterpret_cast<cb::mcbp::Request*>(cookie.getPacketAsVoidPtr());
+    connection.obtainContext<SaslAuthCommandContext>(connection, *req).drive();
 }
 
-static void noop_executor(McbpConnection* c, void*) {
-    mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
+static void noop_executor(Cookie& cookie) {
+    mcbp_write_packet(cookie, cb::mcbp::Status::Success);
 }
 
-static void flush_executor(McbpConnection* c, void* packet) {
-    auto* req = reinterpret_cast<cb::mcbp::Request*>(packet);
-    c->obtainContext<FlushCommandContext>(*c, *req).drive();
+static void flush_executor(Cookie& cookie) {
+    auto& connection = cookie.getConnection();
+    auto* req =
+            reinterpret_cast<cb::mcbp::Request*>(cookie.getPacketAsVoidPtr());
+    connection.obtainContext<FlushCommandContext>(connection, *req).drive();
 }
 
-static void delete_executor(McbpConnection* c, void* packet) {
-    if (c->getCmd() == PROTOCOL_BINARY_CMD_DELETEQ) {
-        c->setNoReply(true);
+static void delete_executor(Cookie& cookie) {
+    auto& connection = cookie.getConnection();
+    if (connection.getCmd() == PROTOCOL_BINARY_CMD_DELETEQ) {
+        connection.setNoReply(true);
     }
 
-    auto* req = reinterpret_cast<protocol_binary_request_delete*>(packet);
-    c->obtainContext<RemoveCommandContext>(*c, req).drive();
+    auto* req = reinterpret_cast<protocol_binary_request_delete*>(
+            cookie.getPacketAsVoidPtr());
+    connection.obtainContext<RemoveCommandContext>(connection, req).drive();
 }
 
-static void arithmetic_executor(McbpConnection* c, void* packet) {
-    auto* req = reinterpret_cast<protocol_binary_request_incr*>(packet);
-    c->obtainContext<ArithmeticCommandContext>(*c, *req).drive();
+static void arithmetic_executor(Cookie& cookie) {
+    auto& connection = cookie.getConnection();
+    auto* req = reinterpret_cast<protocol_binary_request_incr*>(
+            cookie.getPacketAsVoidPtr());
+    connection.obtainContext<ArithmeticCommandContext>(connection, *req)
+            .drive();
 }
 
-static void arithmeticq_executor(McbpConnection* c, void* packet) {
-    c->setNoReply(true);
-    arithmetic_executor(c, packet);
+static void arithmeticq_executor(Cookie& cookie) {
+    auto& connection = cookie.getConnection();
+    connection.setNoReply(true);
+    arithmetic_executor(cookie);
 }
 
-static void set_ctrl_token_executor(McbpConnection* c, void* packet) {
-    auto* req = reinterpret_cast<protocol_binary_request_set_ctrl_token*>(packet);
+static void set_ctrl_token_executor(Cookie& cookie) {
+    auto& connection = cookie.getConnection();
+    auto* req = reinterpret_cast<protocol_binary_request_set_ctrl_token*>(
+            cookie.getPacketAsVoidPtr());
     uint64_t casval = ntohll(req->message.header.request.cas);
     uint64_t newval = ntohll(req->message.body.new_cas);
     uint64_t value;
 
     auto ret = session_cas.cas(newval, casval, value);
-    mcbp_response_handler(NULL, 0, NULL, 0, NULL, 0,
+    mcbp_response_handler(NULL,
+                          0,
+                          NULL,
+                          0,
+                          NULL,
+                          0,
                           PROTOCOL_BINARY_RAW_BYTES,
                           engine_error_2_mcbp_protocol_error(ret),
-                          value, c->getCookie());
+                          value,
+                          static_cast<const void*>(&cookie));
 
-    mcbp_write_and_free(c, &c->getDynamicBuffer());
+    mcbp_write_and_free(&connection, &cookie.getDynamicBuffer());
 }
 
-static void get_ctrl_token_executor(McbpConnection* c, void*) {
-    mcbp_response_handler(NULL, 0, NULL, 0, NULL, 0,
+static void get_ctrl_token_executor(Cookie& cookie) {
+    auto& connection = cookie.getConnection();
+    mcbp_response_handler(NULL,
+                          0,
+                          NULL,
+                          0,
+                          NULL,
+                          0,
                           PROTOCOL_BINARY_RAW_BYTES,
                           PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                          session_cas.getCasValue(), c->getCookie());
-    mcbp_write_and_free(c, &c->getDynamicBuffer());
+                          session_cas.getCasValue(),
+                          static_cast<const void*>(&cookie));
+    mcbp_write_and_free(&connection, &cookie.getDynamicBuffer());
 }
 
-static void ioctl_get_executor(McbpConnection* c, void* packet) {
-    auto* req = reinterpret_cast<protocol_binary_request_ioctl_set*>(packet);
-    ENGINE_ERROR_CODE ret = c->getAiostat();
-    c->setAiostat(ENGINE_SUCCESS);
-    c->setEwouldblock(false);
+static void ioctl_get_executor(Cookie& cookie) {
+    auto& connection = cookie.getConnection();
+    auto* req = reinterpret_cast<protocol_binary_request_ioctl_set*>(
+            cookie.getPacketAsVoidPtr());
+    ENGINE_ERROR_CODE ret = cookie.getAiostat();
+    cookie.setAiostat(ENGINE_SUCCESS);
+    cookie.setEwouldblock(false);
 
     std::string value;
     if (ret == ENGINE_SUCCESS) {
-        const char* key_ptr =
+        const auto* key_ptr =
                 reinterpret_cast<const char*>(req->bytes + sizeof(req->bytes));
         size_t keylen = ntohs(req->message.header.request.keylen);
         const std::string key(key_ptr, keylen);
 
-        ret = ioctl_get_property(c, key, value);
+        ret = ioctl_get_property(&connection, key, value);
     }
 
-    ret = c->remapErrorCode(ret);
+    ret = connection.remapErrorCode(ret);
     switch (ret) {
     case ENGINE_SUCCESS:
         try {
-            if (mcbp_response_handler(NULL, 0, NULL, 0,
-                                      value.data(), value.size(),
+            if (mcbp_response_handler(nullptr,
+                                      0,
+                                      nullptr,
+                                      0,
+                                      value.data(),
+                                      value.size(),
                                       PROTOCOL_BINARY_RAW_BYTES,
-                                      PROTOCOL_BINARY_RESPONSE_SUCCESS, 0,
-                                      c->getCookie())) {
-                mcbp_write_and_free(c, &c->getDynamicBuffer());
+                                      PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                                      0,
+                                      static_cast<const void*>(&cookie))) {
+                mcbp_write_and_free(&connection, &cookie.getDynamicBuffer());
             } else {
-                mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
+                mcbp_write_packet(cookie, cb::mcbp::Status::Enomem);
             }
         } catch (const std::exception& e) {
-            LOG_WARNING(c, "ioctl_get_executor: Failed to format response: %s",
+            LOG_WARNING(&connection,
+                        "ioctl_get_executor: Failed to format response: %s",
                         e.what());
-            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
+            mcbp_write_packet(cookie, cb::mcbp::Status::Enomem);
         }
         break;
     case ENGINE_EWOULDBLOCK:
-        c->setAiostat(ENGINE_EWOULDBLOCK);
-        c->setEwouldblock(true);
+        cookie.setAiostat(ENGINE_EWOULDBLOCK);
+        cookie.setEwouldblock(true);
         break;
     case ENGINE_DISCONNECT:
-        c->setState(McbpStateMachine::State::closing);
+        connection.setState(McbpStateMachine::State::closing);
         break;
     default:
-        mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
+        mcbp_write_packet(cookie, cb::mcbp::to_status(cb::engine_errc(ret)));
     }
 }
 
-static void ioctl_set_executor(McbpConnection* c, void* packet) {
-    auto* req = reinterpret_cast<protocol_binary_request_ioctl_set*>(packet);
+static void ioctl_set_executor(Cookie& cookie) {
+    auto& connection = cookie.getConnection();
+    auto* req = reinterpret_cast<protocol_binary_request_ioctl_set*>(
+            cookie.getPacketAsVoidPtr());
 
-    const char* key_ptr = reinterpret_cast<const char*>(
-        req->bytes + sizeof(req->bytes));
+    const auto* key_ptr =
+            reinterpret_cast<const char*>(req->bytes + sizeof(req->bytes));
     size_t keylen = ntohs(req->message.header.request.keylen);
     const std::string key(key_ptr, keylen);
 
@@ -826,29 +902,30 @@ static void ioctl_set_executor(McbpConnection* c, void* packet) {
     size_t vallen = ntohl(req->message.header.request.bodylen) - keylen;
     const std::string value(val_ptr, vallen);
 
+    ENGINE_ERROR_CODE status = ioctl_set_property(&connection, key, value);
 
-    ENGINE_ERROR_CODE status = ioctl_set_property(c, key, value);
-
-    mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(status));
+    mcbp_write_packet(cookie, cb::mcbp::to_status(cb::engine_errc(status)));
 }
 
-static void config_validate_executor(McbpConnection* c, void* packet) {
+static void config_validate_executor(Cookie& cookie) {
+    auto& connection = cookie.getConnection();
     const char* val_ptr = NULL;
     cJSON* errors = NULL;
-    auto* req = reinterpret_cast<protocol_binary_request_ioctl_set*>(packet);
+    auto* req = reinterpret_cast<protocol_binary_request_ioctl_set*>(
+            cookie.getPacketAsVoidPtr());
 
     size_t keylen = ntohs(req->message.header.request.keylen);
     size_t vallen = ntohl(req->message.header.request.bodylen) - keylen;
 
     /* Key not yet used, must be zero length. */
     if (keylen != 0) {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL);
+        mcbp_write_packet(cookie, cb::mcbp::Status::Einval);
         return;
     }
 
     /* must have non-zero length config */
     if (vallen == 0 || vallen > CONFIG_VALIDATE_MAX_LENGTH) {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL);
+        mcbp_write_packet(cookie, cb::mcbp::Status::Einval);
         return;
     }
 
@@ -860,53 +937,62 @@ static void config_validate_executor(McbpConnection* c, void* packet) {
         errors = cJSON_CreateArray();
 
         if (validate_proposed_config_changes(val_buffer.c_str(), errors)) {
-            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
+            mcbp_write_packet(cookie, cb::mcbp::Status::Success);
         } else {
             /* problem(s). Send the errors back to the client. */
             char* error_string = cJSON_PrintUnformatted(errors);
-            if (mcbp_response_handler(NULL, 0, NULL, 0, error_string,
+            if (mcbp_response_handler(NULL,
+                                      0,
+                                      NULL,
+                                      0,
+                                      error_string,
                                       (uint32_t)strlen(error_string),
                                       PROTOCOL_BINARY_RAW_BYTES,
-                                      PROTOCOL_BINARY_RESPONSE_EINVAL, 0,
-                                      c->getCookie())) {
-                mcbp_write_and_free(c, &c->getDynamicBuffer());
+                                      PROTOCOL_BINARY_RESPONSE_EINVAL,
+                                      0,
+                                      static_cast<const void*>(&cookie))) {
+                mcbp_write_and_free(&connection, &cookie.getDynamicBuffer());
             } else {
-                mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
+                mcbp_write_packet(cookie, cb::mcbp::Status::Enomem);
             }
             cJSON_Free(error_string);
         }
 
         cJSON_Delete(errors);
     } catch (const std::bad_alloc&) {
-        LOG_WARNING(c,
-                    "%u: Failed to allocate buffer of size %"
-                        PRIu64 " to validate config. Shutting down connection",
-                    c->getId(), vallen + 1);
-        c->setState(McbpStateMachine::State::closing);
+        LOG_WARNING(&connection,
+                    "%u: Failed to allocate buffer of size %" PRIu64
+                    " to validate config. Shutting down connection",
+                    connection.getId(),
+                    vallen + 1);
+        connection.setState(McbpStateMachine::State::closing);
         return;
     }
 
 }
 
-static void config_reload_executor(McbpConnection* c, void*) {
+static void config_reload_executor(Cookie& cookie) {
+    auto& connection = cookie.getConnection();
     // We need to audit that the privilege debug mode changed and
     // in order to do that we need the "connection" object so we can't
     // do this by using the common "changed_listener"-interface.
     bool old_priv_debug = settings.isPrivilegeDebug();
     reload_config_file();
     if (settings.isPrivilegeDebug() != old_priv_debug) {
-        audit_set_privilege_debug_mode(c, settings.isPrivilegeDebug());
+        audit_set_privilege_debug_mode(&connection,
+                                       settings.isPrivilegeDebug());
     }
-    mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    mcbp_write_packet(cookie, cb::mcbp::Status::Success);
 }
 
-static void audit_config_reload_executor(McbpConnection* c, void*) {
-    c->obtainContext<AuditConfigureCommandContext>(*c).drive();
+static void audit_config_reload_executor(Cookie& cookie) {
+    auto& connection = cookie.getConnection();
+    connection.obtainContext<AuditConfigureCommandContext>(connection).drive();
 }
 
-static void audit_put_executor(McbpConnection* c, void* packet) {
-
-    auto* req = reinterpret_cast<const protocol_binary_request_audit_put*>(packet);
+static void audit_put_executor(Cookie& cookie) {
+    auto* req = reinterpret_cast<const protocol_binary_request_audit_put*>(
+            cookie.getPacketAsVoidPtr());
     const void* payload = req->bytes + sizeof(req->message.header) +
                           req->message.header.request.extlen;
 
@@ -914,9 +1000,9 @@ static void audit_put_executor(McbpConnection* c, void* packet) {
                                   req->message.header.request.extlen;
 
     if (mc_audit_event(ntohl(req->message.body.id), payload, payload_length)) {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
+        mcbp_write_packet(cookie, cb::mcbp::Status::Success);
     } else {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
+        mcbp_write_packet(cookie, cb::mcbp::Status::Einternal);
     }
 }
 
@@ -925,53 +1011,58 @@ static void audit_put_executor(McbpConnection* c, void* packet) {
  *    key: bucket name
  *    body: module\nconfig
  */
-static void create_bucket_executor(McbpConnection* c, void* packet) {
-    auto* req = static_cast<cb::mcbp::Request*>(packet);
-    c->obtainContext<CreateRemoveBucketCommandContext>(*c, *req).drive();
+static void create_bucket_executor(Cookie& cookie) {
+    auto& connection = cookie.getConnection();
+    auto* req = static_cast<cb::mcbp::Request*>(cookie.getPacketAsVoidPtr());
+    connection.obtainContext<CreateRemoveBucketCommandContext>(connection, *req)
+            .drive();
 }
 
-static void delete_bucket_executor(McbpConnection* c, void* packet) {
-    auto* req = static_cast<cb::mcbp::Request*>(packet);
-    c->obtainContext<CreateRemoveBucketCommandContext>(*c, *req).drive();
+static void delete_bucket_executor(Cookie& cookie) {
+    auto& connection = cookie.getConnection();
+    auto* req = static_cast<cb::mcbp::Request*>(cookie.getPacketAsVoidPtr());
+    connection.obtainContext<CreateRemoveBucketCommandContext>(connection, *req)
+            .drive();
 }
 
-static void get_errmap_executor(McbpConnection *c, void *packet) {
-    auto const *req = reinterpret_cast<protocol_binary_request_get_errmap*>(packet);
+static void get_errmap_executor(Cookie& cookie) {
+    auto const* req = reinterpret_cast<protocol_binary_request_get_errmap*>(
+            cookie.getPacketAsVoidPtr());
     uint16_t version = ntohs(req->message.body.version);
     auto const& ss = settings.getErrorMap(version);
     if (ss.empty()) {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
+        mcbp_write_packet(cookie, cb::mcbp::Status::KeyEnoent);
     } else {
-        mcbp_response_handler(NULL, 0, NULL, 0, ss.data(), ss.size(),
+        mcbp_response_handler(NULL,
+                              0,
+                              NULL,
+                              0,
+                              ss.data(),
+                              ss.size(),
                               PROTOCOL_BINARY_RAW_BYTES,
                               PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                              0, c->getCookie());
-        mcbp_write_and_free(c, &c->getDynamicBuffer());
+                              0,
+                              static_cast<const void*>(&cookie));
+        mcbp_write_and_free(&cookie.getConnection(),
+                            &cookie.getDynamicBuffer());
     }
 }
 
-static void shutdown_executor(McbpConnection* c, void* packet) {
-    auto req = reinterpret_cast<protocol_binary_request_shutdown*>(packet);
+static void shutdown_executor(Cookie& cookie) {
+    auto req = reinterpret_cast<protocol_binary_request_shutdown*>(
+            cookie.getPacketAsVoidPtr());
     uint64_t cas = ntohll(req->message.header.request.cas);
 
     if (session_cas.increment_session_counter(cas)) {
         shutdown_server();
         session_cas.decrement_session_counter();
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
+        mcbp_write_packet(cookie, cb::mcbp::Status::Success);
     } else {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
+        mcbp_write_packet(cookie, cb::mcbp::Status::KeyEexists);
     }
 }
 
-static void rbac_refresh_executor(McbpConnection* c, void*) {
-    c->obtainContext<RbacReloadCommandContext>(*c).drive();
-}
-
-static void no_support_executor(McbpConnection* c, void*) {
-    mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
-}
-
-std::array<mcbp_package_execute, 0x100>& get_mcbp_executors(void) {
+std::array<mcbp_package_execute, 0x100>& get_mcbp_executors() {
     static std::array<mcbp_package_execute, 0x100> executors;
     std::fill(executors.begin(), executors.end(), nullptr);
 
@@ -991,55 +1082,6 @@ std::array<mcbp_package_execute, 0x100>& get_mcbp_executors(void) {
     executors[PROTOCOL_BINARY_CMD_DCP_STREAM_END] = dcp_stream_end_executor;
     executors[PROTOCOL_BINARY_CMD_DCP_STREAM_REQ] = dcp_stream_req_executor;
     executors[PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT] = dcp_system_event_executor;
-    executors[PROTOCOL_BINARY_CMD_ISASL_REFRESH] = isasl_refresh_executor;
-    executors[PROTOCOL_BINARY_CMD_SSL_CERTS_REFRESH] = ssl_certs_refresh_executor;
-    executors[PROTOCOL_BINARY_CMD_VERBOSITY] = verbosity_executor;
-    executors[PROTOCOL_BINARY_CMD_HELLO] = process_hello_packet_executor;
-    executors[PROTOCOL_BINARY_CMD_VERSION] = version_executor;
-    executors[PROTOCOL_BINARY_CMD_QUIT] = quit_executor;
-    executors[PROTOCOL_BINARY_CMD_QUITQ] = quitq_executor;
-    executors[PROTOCOL_BINARY_CMD_SASL_LIST_MECHS] = sasl_list_mech_executor;
-    executors[PROTOCOL_BINARY_CMD_SASL_AUTH] = sasl_auth_executor;
-    executors[PROTOCOL_BINARY_CMD_SASL_STEP] = sasl_auth_executor;
-    executors[PROTOCOL_BINARY_CMD_NOOP] = noop_executor;
-    executors[PROTOCOL_BINARY_CMD_FLUSH] = flush_executor;
-    executors[PROTOCOL_BINARY_CMD_FLUSHQ] = flush_executor;
-    executors[PROTOCOL_BINARY_CMD_SETQ] = setq_executor;
-    executors[PROTOCOL_BINARY_CMD_SET] = set_executor;
-    executors[PROTOCOL_BINARY_CMD_ADDQ] = addq_executor;
-    executors[PROTOCOL_BINARY_CMD_ADD] = add_executor;
-    executors[PROTOCOL_BINARY_CMD_REPLACEQ] = replaceq_executor;
-    executors[PROTOCOL_BINARY_CMD_REPLACE] = replace_executor;
-    executors[PROTOCOL_BINARY_CMD_APPENDQ] = appendq_executor;
-    executors[PROTOCOL_BINARY_CMD_APPEND] = append_executor;
-    executors[PROTOCOL_BINARY_CMD_PREPENDQ] = prependq_executor;
-    executors[PROTOCOL_BINARY_CMD_PREPEND] = prepend_executor;
-    executors[PROTOCOL_BINARY_CMD_GET] = get_executor;
-    executors[PROTOCOL_BINARY_CMD_GETQ] = get_executor;
-    executors[PROTOCOL_BINARY_CMD_GETK] = get_executor;
-    executors[PROTOCOL_BINARY_CMD_GETKQ] = get_executor;
-    executors[PROTOCOL_BINARY_CMD_GET_META] = get_meta_executor;
-    executors[PROTOCOL_BINARY_CMD_GETQ_META] = get_meta_executor;
-    executors[PROTOCOL_BINARY_CMD_GAT] = gat_executor;
-    executors[PROTOCOL_BINARY_CMD_GATQ] = gat_executor;
-    executors[PROTOCOL_BINARY_CMD_TOUCH] = gat_executor;
-    executors[PROTOCOL_BINARY_CMD_DELETE] = delete_executor;
-    executors[PROTOCOL_BINARY_CMD_DELETEQ] = delete_executor;
-    executors[PROTOCOL_BINARY_CMD_STAT] = stat_executor;
-    executors[PROTOCOL_BINARY_CMD_INCREMENT] = arithmetic_executor;
-    executors[PROTOCOL_BINARY_CMD_INCREMENTQ] = arithmeticq_executor;
-    executors[PROTOCOL_BINARY_CMD_DECREMENT] = arithmetic_executor;
-    executors[PROTOCOL_BINARY_CMD_DECREMENTQ] = arithmeticq_executor;
-    executors[PROTOCOL_BINARY_CMD_GET_CMD_TIMER] = get_cmd_timer_executor;
-    executors[PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN] = set_ctrl_token_executor;
-    executors[PROTOCOL_BINARY_CMD_GET_CTRL_TOKEN] = get_ctrl_token_executor;
-    executors[PROTOCOL_BINARY_CMD_IOCTL_GET] = ioctl_get_executor;
-    executors[PROTOCOL_BINARY_CMD_IOCTL_SET] = ioctl_set_executor;
-    executors[PROTOCOL_BINARY_CMD_CONFIG_VALIDATE] = config_validate_executor;
-    executors[PROTOCOL_BINARY_CMD_CONFIG_RELOAD] = config_reload_executor;
-    executors[PROTOCOL_BINARY_CMD_AUDIT_PUT] = audit_put_executor;
-    executors[PROTOCOL_BINARY_CMD_AUDIT_CONFIG_RELOAD] = audit_config_reload_executor;
-    executors[PROTOCOL_BINARY_CMD_SHUTDOWN] = shutdown_executor;
     executors[PROTOCOL_BINARY_CMD_SUBDOC_GET] = subdoc_get_executor;
     executors[PROTOCOL_BINARY_CMD_SUBDOC_EXISTS] = subdoc_exists_executor;
     executors[PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD] = subdoc_dict_add_executor;
@@ -1055,34 +1097,102 @@ std::array<mcbp_package_execute, 0x100>& get_mcbp_executors(void) {
     executors[PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION] = subdoc_multi_mutation_executor;
     executors[PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT] = subdoc_get_count_executor;
 
-    executors[PROTOCOL_BINARY_CMD_CREATE_BUCKET] = create_bucket_executor;
-    executors[PROTOCOL_BINARY_CMD_LIST_BUCKETS] = list_bucket_executor;
-    executors[PROTOCOL_BINARY_CMD_DELETE_BUCKET] = delete_bucket_executor;
-    executors[PROTOCOL_BINARY_CMD_SELECT_BUCKET] = select_bucket_executor;
-    executors[PROTOCOL_BINARY_CMD_GET_ERROR_MAP] = get_errmap_executor;
-    executors[PROTOCOL_BINARY_CMD_GET_LOCKED] = get_locked_executor;
-    executors[PROTOCOL_BINARY_CMD_UNLOCK_KEY] = unlock_executor;
-
-    executors[PROTOCOL_BINARY_CMD_DROP_PRIVILEGE] = drop_privilege_executor;
-    executors[PROTOCOL_BINARY_CMD_RBAC_REFRESH] = rbac_refresh_executor;
     executors[PROTOCOL_BINARY_CMD_COLLECTIONS_SET_MANIFEST] =
             collections_set_manifest_executor;
 
-    executors[PROTOCOL_BINARY_CMD_GET_CLUSTER_CONFIG] =
+    return executors;
+}
+
+static void rbac_refresh_executor(Cookie& cookie) {
+    auto& connection = cookie.getConnection();
+    connection.obtainContext<RbacReloadCommandContext>(connection).drive();
+}
+
+static void no_support_executor(Cookie& cookie) {
+    mcbp_write_packet(cookie, cb::mcbp::Status::NotSupported);
+}
+
+using HandlerFunction = std::function<void(Cookie&)>;
+std::array<HandlerFunction, 0x100> handlers;
+
+void initialize_protocol_handlers() {
+    for (auto& handler : handlers) {
+        handler = process_bin_unknown_packet;
+    }
+
+    handlers[PROTOCOL_BINARY_CMD_ISASL_REFRESH] = isasl_refresh_executor;
+    handlers[PROTOCOL_BINARY_CMD_SSL_CERTS_REFRESH] =
+            ssl_certs_refresh_executor;
+    handlers[PROTOCOL_BINARY_CMD_VERBOSITY] = verbosity_executor;
+    handlers[PROTOCOL_BINARY_CMD_HELLO] = process_hello_packet_executor;
+    handlers[PROTOCOL_BINARY_CMD_VERSION] = version_executor;
+    handlers[PROTOCOL_BINARY_CMD_QUIT] = quit_executor;
+    handlers[PROTOCOL_BINARY_CMD_QUITQ] = quitq_executor;
+    handlers[PROTOCOL_BINARY_CMD_SASL_LIST_MECHS] = sasl_list_mech_executor;
+    handlers[PROTOCOL_BINARY_CMD_SASL_AUTH] = sasl_auth_executor;
+    handlers[PROTOCOL_BINARY_CMD_SASL_STEP] = sasl_auth_executor;
+    handlers[PROTOCOL_BINARY_CMD_NOOP] = noop_executor;
+    handlers[PROTOCOL_BINARY_CMD_FLUSH] = flush_executor;
+    handlers[PROTOCOL_BINARY_CMD_FLUSHQ] = flush_executor;
+    handlers[PROTOCOL_BINARY_CMD_SETQ] = setq_executor;
+    handlers[PROTOCOL_BINARY_CMD_SET] = set_executor;
+    handlers[PROTOCOL_BINARY_CMD_ADDQ] = addq_executor;
+    handlers[PROTOCOL_BINARY_CMD_ADD] = add_executor;
+    handlers[PROTOCOL_BINARY_CMD_REPLACEQ] = replaceq_executor;
+    handlers[PROTOCOL_BINARY_CMD_REPLACE] = replace_executor;
+    handlers[PROTOCOL_BINARY_CMD_APPENDQ] = appendq_executor;
+    handlers[PROTOCOL_BINARY_CMD_APPEND] = append_executor;
+    handlers[PROTOCOL_BINARY_CMD_PREPENDQ] = prependq_executor;
+    handlers[PROTOCOL_BINARY_CMD_PREPEND] = prepend_executor;
+    handlers[PROTOCOL_BINARY_CMD_GET] = get_executor;
+    handlers[PROTOCOL_BINARY_CMD_GETQ] = get_executor;
+    handlers[PROTOCOL_BINARY_CMD_GETK] = get_executor;
+    handlers[PROTOCOL_BINARY_CMD_GETKQ] = get_executor;
+    handlers[PROTOCOL_BINARY_CMD_GET_META] = get_meta_executor;
+    handlers[PROTOCOL_BINARY_CMD_GETQ_META] = get_meta_executor;
+    handlers[PROTOCOL_BINARY_CMD_GAT] = gat_executor;
+    handlers[PROTOCOL_BINARY_CMD_GATQ] = gat_executor;
+    handlers[PROTOCOL_BINARY_CMD_TOUCH] = gat_executor;
+    handlers[PROTOCOL_BINARY_CMD_DELETE] = delete_executor;
+    handlers[PROTOCOL_BINARY_CMD_DELETEQ] = delete_executor;
+    handlers[PROTOCOL_BINARY_CMD_STAT] = stat_executor;
+    handlers[PROTOCOL_BINARY_CMD_INCREMENT] = arithmetic_executor;
+    handlers[PROTOCOL_BINARY_CMD_INCREMENTQ] = arithmeticq_executor;
+    handlers[PROTOCOL_BINARY_CMD_DECREMENT] = arithmetic_executor;
+    handlers[PROTOCOL_BINARY_CMD_DECREMENTQ] = arithmeticq_executor;
+    handlers[PROTOCOL_BINARY_CMD_GET_CMD_TIMER] = get_cmd_timer_executor;
+    handlers[PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN] = set_ctrl_token_executor;
+    handlers[PROTOCOL_BINARY_CMD_GET_CTRL_TOKEN] = get_ctrl_token_executor;
+    handlers[PROTOCOL_BINARY_CMD_IOCTL_GET] = ioctl_get_executor;
+    handlers[PROTOCOL_BINARY_CMD_IOCTL_SET] = ioctl_set_executor;
+    handlers[PROTOCOL_BINARY_CMD_CONFIG_VALIDATE] = config_validate_executor;
+    handlers[PROTOCOL_BINARY_CMD_CONFIG_RELOAD] = config_reload_executor;
+    handlers[PROTOCOL_BINARY_CMD_AUDIT_PUT] = audit_put_executor;
+    handlers[PROTOCOL_BINARY_CMD_AUDIT_CONFIG_RELOAD] =
+            audit_config_reload_executor;
+    handlers[PROTOCOL_BINARY_CMD_SHUTDOWN] = shutdown_executor;
+    handlers[PROTOCOL_BINARY_CMD_CREATE_BUCKET] = create_bucket_executor;
+    handlers[PROTOCOL_BINARY_CMD_LIST_BUCKETS] = list_bucket_executor;
+    handlers[PROTOCOL_BINARY_CMD_DELETE_BUCKET] = delete_bucket_executor;
+    handlers[PROTOCOL_BINARY_CMD_SELECT_BUCKET] = select_bucket_executor;
+    handlers[PROTOCOL_BINARY_CMD_GET_ERROR_MAP] = get_errmap_executor;
+    handlers[PROTOCOL_BINARY_CMD_GET_LOCKED] = get_locked_executor;
+    handlers[PROTOCOL_BINARY_CMD_UNLOCK_KEY] = unlock_executor;
+    handlers[PROTOCOL_BINARY_CMD_DROP_PRIVILEGE] = drop_privilege_executor;
+    handlers[PROTOCOL_BINARY_CMD_RBAC_REFRESH] = rbac_refresh_executor;
+    handlers[PROTOCOL_BINARY_CMD_GET_CLUSTER_CONFIG] =
             get_cluster_config_executor;
-    executors[PROTOCOL_BINARY_CMD_SET_CLUSTER_CONFIG] =
+    handlers[PROTOCOL_BINARY_CMD_SET_CLUSTER_CONFIG] =
             set_cluster_config_executor;
 
-    executors[PROTOCOL_BINARY_CMD_TAP_CONNECT] = no_support_executor;
-    executors[PROTOCOL_BINARY_CMD_TAP_MUTATION] = no_support_executor;
-    executors[PROTOCOL_BINARY_CMD_TAP_DELETE] = no_support_executor;
-    executors[PROTOCOL_BINARY_CMD_TAP_FLUSH] = no_support_executor;
-    executors[PROTOCOL_BINARY_CMD_TAP_OPAQUE] = no_support_executor;
-    executors[PROTOCOL_BINARY_CMD_TAP_VBUCKET_SET] = no_support_executor;
-    executors[PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_START] = no_support_executor;
-    executors[PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_END] = no_support_executor;
-
-    return executors;
+    handlers[PROTOCOL_BINARY_CMD_TAP_CONNECT] = no_support_executor;
+    handlers[PROTOCOL_BINARY_CMD_TAP_MUTATION] = no_support_executor;
+    handlers[PROTOCOL_BINARY_CMD_TAP_DELETE] = no_support_executor;
+    handlers[PROTOCOL_BINARY_CMD_TAP_FLUSH] = no_support_executor;
+    handlers[PROTOCOL_BINARY_CMD_TAP_OPAQUE] = no_support_executor;
+    handlers[PROTOCOL_BINARY_CMD_TAP_VBUCKET_SET] = no_support_executor;
+    handlers[PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_START] = no_support_executor;
+    handlers[PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_END] = no_support_executor;
 }
 
 static void process_bin_dcp_response(McbpConnection* c) {
@@ -1168,6 +1278,7 @@ static void execute_request_packet(McbpConnection* c) {
             static_cast<char*>(c->getCookieObject().getPacketAsVoidPtr());
     auto opcode = static_cast<protocol_binary_command>(c->binary_header.request.opcode);
     auto executor = executors[opcode];
+    auto& cookie = c->getCookieObject();
 
     const auto res = privilegeChains.invoke(opcode, c->getCookieObject());
     switch (res) {
@@ -1206,7 +1317,7 @@ static void execute_request_packet(McbpConnection* c) {
         if (executor != NULL) {
             executor(c, packet);
         } else {
-            process_bin_unknown_packet(c, packet);
+            handlers[opcode](cookie);
         }
         return;
     case cb::rbac::PrivilegeAccess::Stale:

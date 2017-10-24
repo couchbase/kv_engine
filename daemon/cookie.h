@@ -18,6 +18,7 @@
 
 #include "dynamic_buffer.h"
 
+#include <memcached/types.h>
 #include <platform/uuid.h>
 #include <stdexcept>
 
@@ -208,6 +209,26 @@ public:
      */
     const cb::mcbp::Response& getResponse(
             PacketContent content = PacketContent::Header) const;
+
+    /**
+     * Get the current status of the asynchrous IO
+     */
+    const ENGINE_ERROR_CODE getAiostat() const;
+
+    /**
+     * Set the status code for the async IO
+     */
+    void setAiostat(const ENGINE_ERROR_CODE& aiostat);
+
+    /**
+     * Is the current cookie blocked?
+     */
+    bool isEwouldblock() const;
+
+    /**
+     * Set the ewouldblock status for the cookie
+     */
+    void setEwouldblock(bool ewouldblock);
 
 protected:
     /**

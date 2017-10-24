@@ -18,20 +18,21 @@
 #include <daemon/connection_mcbp.h>
 #include <daemon/mcbp.h>
 
-void drop_privilege_executor(McbpConnection* c, void* packet) {
-    c->logCommand();
-    auto* request = reinterpret_cast<cb::mcbp::DropPrivilegeRequest*>(packet);
+void drop_privilege_executor(Cookie& cookie) {
+    cookie.getConnection().logCommand();
+    auto* request = reinterpret_cast<cb::mcbp::DropPrivilegeRequest*>(
+            cookie.getPacketAsVoidPtr());
 
     cb::engine_errc status;
     try {
         const auto key = request->getKey();
         std::string priv{reinterpret_cast<const char*>(key.data()), key.size()};
         auto privilege = cb::rbac::to_privilege(priv);
-        status = c->dropPrivilege(privilege);
+        status = cookie.getConnection().dropPrivilege(privilege);
     } catch (const std::invalid_argument&) {
         // Invalid name of privilege
         status = cb::engine_errc::no_such_key;
     }
 
-    mcbp_write_packet(c, mcbp::to_status(status));
+    mcbp_write_packet(cookie, cb::mcbp::to_status(status));
 }
