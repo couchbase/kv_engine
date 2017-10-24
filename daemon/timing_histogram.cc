@@ -106,11 +106,11 @@ void TimingHistogram::reset(void) {
     total.reset();
 }
 
-void TimingHistogram::add(const hrtime_t nsec) {
+void TimingHistogram::add(const std::chrono::nanoseconds nsec) {
     using namespace std::chrono;
     using halfseconds = duration<long long, std::ratio<1, 2>>;
 
-    auto us = duration_cast<microseconds>(nanoseconds(nsec));
+    auto us = duration_cast<microseconds>(nsec);
     auto ms = duration_cast<milliseconds>(us);
     auto hs = duration_cast<halfseconds>(ms);
 

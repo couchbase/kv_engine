@@ -438,9 +438,9 @@ public:
     //! Histogram of block padding sizes.
     Histogram<uint32_t> paddingHisto;
     //! Flush time histogram.
-    Histogram<hrtime_t> flushTimeHisto;
+    MicrosecondHistogram flushTimeHisto;
     //! Sync time histogram.
-    Histogram<hrtime_t> syncTimeHisto;
+    MicrosecondHistogram syncTimeHisto;
     //! Size of the log
     std::atomic<size_t> logSize;
 

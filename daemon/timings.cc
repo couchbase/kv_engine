@@ -44,7 +44,7 @@ void Timings::reset(void) {
 
 void Timings::collect(const uint8_t opcode,
                       const std::chrono::nanoseconds nsec) {
-    timings[opcode].add(nsec.count());
+    timings[opcode].add(nsec);
     auto& interval = interval_counters[opcode];
     interval.count++;
     interval.duration_ns += nsec.count();

@@ -17,8 +17,9 @@
 #pragma once
 
 #include <platform/platform.h>
-#include <array>
 #include <relaxed_atomic.h>
+#include <array>
+#include <chrono>
 #include <string>
 
 /** Records timings of some event, accumulating them in a histogram.
@@ -40,7 +41,7 @@ public:
     TimingHistogram& operator+=(const TimingHistogram& other);
 
     void reset(void);
-    void add(const hrtime_t nsec);
+    void add(const std::chrono::nanoseconds nsec);
     std::string to_string(void);
     uint32_t get_ns();
     uint32_t get_usec(const uint8_t index);

@@ -630,9 +630,9 @@ PersistenceCallback* EPBucket::flushOneDelOrSet(const queued_item &qi,
     bool deleted = qi->isDeleted();
     rel_time_t queued(qi->getQueuedTime());
 
-    int dirtyAge = ep_current_time() - queued;
-    stats.dirtyAgeHisto.add(dirtyAge * 1000000);
-    stats.dirtyAge.store(dirtyAge);
+    auto dirtyAge = std::chrono::seconds(ep_current_time() - queued);
+    stats.dirtyAgeHisto.add(dirtyAge);
+    stats.dirtyAge.store(static_cast<rel_time_t>(dirtyAge.count()));
     stats.dirtyAgeHighWat.store(std::max(stats.dirtyAge.load(),
                                          stats.dirtyAgeHighWat.load()));
 

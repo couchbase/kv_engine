@@ -160,8 +160,8 @@ void run_event_loop(Connection* c, short which) {
     const auto stop = ProcessClock::now();
 
     using namespace std::chrono;
-    const auto ns = duration_cast<nanoseconds>(stop - start).count();
-    c->addCpuTime(stop - start);
+    const auto ns = duration_cast<nanoseconds>(stop - start);
+    c->addCpuTime(ns);
 
     auto* thread = c->getThread();
     if (thread != nullptr) {

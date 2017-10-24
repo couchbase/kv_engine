@@ -71,11 +71,12 @@ inline void add_casted_stat(const char* k,
 /**
  * Convert a histogram into a bunch of calls to add stats.
  */
-template <typename T>
+template <typename T, template <class> class Limits>
 struct histo_stat_adder {
     histo_stat_adder(const char *k, ADD_STAT a, const void *c)
         : prefix(k), add_stat(a), cookie(c) {}
-    void operator() (const std::unique_ptr<HistogramBin<T>>& b) {
+
+    void operator()(const std::unique_ptr<HistogramBin<T, Limits>>& b) {
         std::stringstream ss;
         ss << prefix << "_" << b->start() << "," << b->end();
         add_casted_stat(ss.str().c_str(), b->count(), add_stat, cookie);
@@ -85,21 +86,24 @@ struct histo_stat_adder {
     const void *cookie;
 };
 
-// Specialization for chrono::microseconds - needs count() calling to get
+// Specialization for UnsignedMicroseconds - needs count() calling to get
 // a raw integer which can be printed.
 template <>
-inline void histo_stat_adder<std::chrono::microseconds>::operator()(
-        const std::unique_ptr<HistogramBin<std::chrono::microseconds>>& b) {
+inline void histo_stat_adder<UnsignedMicroseconds, cb::duration_limits>::
+operator()(const MicrosecondHistogram::value_type& b) {
     std::stringstream ss;
     ss << prefix << "_" << b->start().count() << "," << b->end().count();
+
     add_casted_stat(ss.str().c_str(), b->count(), add_stat, cookie);
 }
 /// @endcond
 
-template <typename T>
-void add_casted_stat(const char *k, const Histogram<T> &v,
-                            ADD_STAT add_stat, const void *cookie) {
-    histo_stat_adder<T> a(k, add_stat, cookie);
+template <typename T, template <class> class Limits>
+void add_casted_stat(const char* k,
+                     const Histogram<T, Limits>& v,
+                     ADD_STAT add_stat,
+                     const void* cookie) {
+    histo_stat_adder<T, Limits> a(k, add_stat, cookie);
     std::for_each(v.begin(), v.end(), a);
 }
 
@@ -112,9 +116,12 @@ void add_prefixed_stat(P prefix, const char *nm, T val,
     add_casted_stat(name.str().c_str(), val, add_stat, cookie);
 }
 
-template <typename P, typename T>
-void add_prefixed_stat(P prefix, const char *nm, Histogram<T> &val,
-                  ADD_STAT add_stat, const void *cookie) {
+template <typename P, typename T, template <class> class Limits>
+void add_prefixed_stat(P prefix,
+                       const char* nm,
+                       Histogram<T, Limits>& val,
+                       ADD_STAT add_stat,
+                       const void* cookie) {
     std::stringstream name;
     name << prefix << ":" << nm;
 

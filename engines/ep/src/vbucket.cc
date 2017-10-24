@@ -264,11 +264,10 @@ void VBucket::fireAllOps(EventuallyPersistentEngine &engine,
         auto now = ProcessClock::now();
         if (now > pendingOpsStart) {
             auto d = std::chrono::duration_cast<std::chrono::microseconds>(
-                             now - pendingOpsStart)
-                             .count();
+                    now - pendingOpsStart);
             stats.pendingOpsHisto.add(d);
             atomic_setIfBigger(stats.pendingOpsMaxDuration,
-                               std::make_unsigned<hrtime_t>::type(d));
+                               std::make_unsigned<hrtime_t>::type(d.count()));
         }
     } else {
         return;

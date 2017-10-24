@@ -40,7 +40,7 @@
 #define DEFAULT_MAX_DATA_SIZE (std::numeric_limits<size_t>::max())
 #endif
 
-static const hrtime_t ONE_SECOND(1000000);
+static constexpr std::chrono::seconds ONE_SECOND(1);
 
 /**
  * Global engine stats container.
@@ -52,122 +52,132 @@ public:
     // ordering (no ordeing or synchronization).
     using Counter = Couchbase::RelaxedAtomic<size_t>;
 
-    EPStats() :
-        warmedUpKeys(0),
-        warmedUpValues(0),
-        warmDups(0),
-        warmOOM(0),
-        warmupMemUsedCap(0),
-        warmupNumReadCap(0),
-        replicationThrottleWriteQueueCap(0),
-        diskQueueSize(0),
-        vbBackfillQueueSize(0),
-        flusher_todo(0),
-        flusherCommits(0),
-        cumulativeFlushTime(0),
-        cumulativeCommitTime(0),
-        tooYoung(0),
-        tooOld(0),
-        totalPersisted(0),
-        totalPersistVBState(0),
-        totalEnqueued(0),
-        flushFailed(0),
-        flushExpired(0),
-        expired_access(0),
-        expired_compactor(0),
-        expired_pager(0),
-        beginFailed(0),
-        commitFailed(0),
-        dirtyAge(0),
-        dirtyAgeHighWat(0),
-        commit_time(0),
-        vbucketDeletions(0),
-        vbucketDeletionFail(0),
-        mem_low_wat(0),
-        mem_low_wat_percent(0),
-        mem_high_wat(0),
-        mem_high_wat_percent(0),
-        cursorDroppingLThreshold(0),
-        cursorDroppingUThreshold(0),
-        cursorsDropped(0),
-        pagerRuns(0),
-        expiryPagerRuns(0),
-        itemsRemovedFromCheckpoints(0),
-        numValueEjects(0),
-        numFailedEjects(0),
-        numNotMyVBuckets(0),
-        currentSize(0),
-        numBlob(0),
-        blobOverhead(0),
-        totalValueSize(0),
-        numStoredVal(0),
-        totalStoredValSize(0),
-        storedValOverhead(0),
-        memOverhead(0),
-        numItem(0),
-        totalMemory(0),
-        memoryTrackerEnabled(false),
-        forceShutdown(false),
-        oom_errors(0),
-        tmp_oom_errors(0),
-        pendingOps(0),
-        pendingOpsTotal(0),
-        pendingOpsMax(0),
-        pendingOpsMaxDuration(0),
-        pendingCompactions(0),
-        bg_fetched(0),
-        bg_meta_fetched(0),
-        numRemainingBgItems(0),
-        numRemainingBgJobs(0),
-        bgNumOperations(0),
-        maxRemainingBgJobs(0),
-        bgWait(0),
-        bgMinWait(0),
-        bgMaxWait(0),
-        bgLoad(0),
-        bgMinLoad(0),
-        bgMaxLoad(0),
-        vbucketDelMaxWalltime(0),
-        vbucketDelTotWalltime(0),
-        replicationThrottleThreshold(0),
-        numOpsStore(0),
-        numOpsDelete(0),
-        numOpsGet(0),
-        numOpsGetMeta(0),
-        numOpsSetMeta(0),
-        numOpsDelMeta(0),
-        numOpsSetMetaResolutionFailed(0),
-        numOpsDelMetaResolutionFailed(0),
-        numOpsSetRetMeta(0),
-        numOpsDelRetMeta(0),
-        numOpsGetMetaOnSetWithMeta(0),
-        mlogCompactorRuns(0),
-        alogRuns(0),
-        accessScannerSkips(0),
-        alogNumItems(0),
-        alogTime(0),
-        alogRuntime(0),
-        expPagerTime(0),
-        isShutdown(false),
-        rollbackCount(0),
-        defragNumVisited(0),
-        defragNumMoved(0),
-        dirtyAgeHisto(GrowingWidthGenerator<hrtime_t>(0, ONE_SECOND, 1.4), 25),
-        diskCommitHisto(GrowingWidthGenerator<hrtime_t>(0, ONE_SECOND, 1.4), 25),
-        mlogCompactorHisto(GrowingWidthGenerator<hrtime_t>(0, ONE_SECOND, 1.4), 25),
-        timingLog(NULL),
-        mem_merge_count_threshold(1),
-        mem_merge_bytes_threshold(0),
-        localMemCounter([](void* ptr) -> void {
-                if (ptr != nullptr) {
-                    // This HAS to be a non-bucket deallocation
-                    // or else the callbacks could try to update counters
-                    // that no longer exist
-                    SystemAllocationGuard system_alloc_guard;
-                    delete (TLMemCounter*)ptr;
-                }
-            }),
-        maxDataSize(DEFAULT_MAX_DATA_SIZE) {}
+    EPStats()
+        : warmedUpKeys(0),
+          warmedUpValues(0),
+          warmDups(0),
+          warmOOM(0),
+          warmupMemUsedCap(0),
+          warmupNumReadCap(0),
+          replicationThrottleWriteQueueCap(0),
+          diskQueueSize(0),
+          vbBackfillQueueSize(0),
+          flusher_todo(0),
+          flusherCommits(0),
+          cumulativeFlushTime(0),
+          cumulativeCommitTime(0),
+          tooYoung(0),
+          tooOld(0),
+          totalPersisted(0),
+          totalPersistVBState(0),
+          totalEnqueued(0),
+          flushFailed(0),
+          flushExpired(0),
+          expired_access(0),
+          expired_compactor(0),
+          expired_pager(0),
+          beginFailed(0),
+          commitFailed(0),
+          dirtyAge(0),
+          dirtyAgeHighWat(0),
+          commit_time(0),
+          vbucketDeletions(0),
+          vbucketDeletionFail(0),
+          mem_low_wat(0),
+          mem_low_wat_percent(0),
+          mem_high_wat(0),
+          mem_high_wat_percent(0),
+          cursorDroppingLThreshold(0),
+          cursorDroppingUThreshold(0),
+          cursorsDropped(0),
+          pagerRuns(0),
+          expiryPagerRuns(0),
+          itemsRemovedFromCheckpoints(0),
+          numValueEjects(0),
+          numFailedEjects(0),
+          numNotMyVBuckets(0),
+          currentSize(0),
+          numBlob(0),
+          blobOverhead(0),
+          totalValueSize(0),
+          numStoredVal(0),
+          totalStoredValSize(0),
+          storedValOverhead(0),
+          memOverhead(0),
+          numItem(0),
+          totalMemory(0),
+          memoryTrackerEnabled(false),
+          forceShutdown(false),
+          oom_errors(0),
+          tmp_oom_errors(0),
+          pendingOps(0),
+          pendingOpsTotal(0),
+          pendingOpsMax(0),
+          pendingOpsMaxDuration(0),
+          pendingCompactions(0),
+          bg_fetched(0),
+          bg_meta_fetched(0),
+          numRemainingBgItems(0),
+          numRemainingBgJobs(0),
+          bgNumOperations(0),
+          maxRemainingBgJobs(0),
+          bgWait(0),
+          bgMinWait(0),
+          bgMaxWait(0),
+          bgLoad(0),
+          bgMinLoad(0),
+          bgMaxLoad(0),
+          vbucketDelMaxWalltime(0),
+          vbucketDelTotWalltime(0),
+          replicationThrottleThreshold(0),
+          numOpsStore(0),
+          numOpsDelete(0),
+          numOpsGet(0),
+          numOpsGetMeta(0),
+          numOpsSetMeta(0),
+          numOpsDelMeta(0),
+          numOpsSetMetaResolutionFailed(0),
+          numOpsDelMetaResolutionFailed(0),
+          numOpsSetRetMeta(0),
+          numOpsDelRetMeta(0),
+          numOpsGetMetaOnSetWithMeta(0),
+          mlogCompactorRuns(0),
+          alogRuns(0),
+          accessScannerSkips(0),
+          alogNumItems(0),
+          alogTime(0),
+          alogRuntime(0),
+          expPagerTime(0),
+          isShutdown(false),
+          rollbackCount(0),
+          defragNumVisited(0),
+          defragNumMoved(0),
+          dirtyAgeHisto(GrowingWidthGenerator<UnsignedMicroseconds,
+                                              cb::duration_limits>(
+                                ONE_SECOND.zero(), ONE_SECOND, 1.4),
+                        25),
+          diskCommitHisto(GrowingWidthGenerator<UnsignedMicroseconds,
+                                                cb::duration_limits>(
+                                  ONE_SECOND.zero(), ONE_SECOND, 1.4),
+                          25),
+          mlogCompactorHisto(GrowingWidthGenerator<UnsignedMicroseconds,
+                                                   cb::duration_limits>(
+                                     ONE_SECOND.zero(), ONE_SECOND, 1.4),
+                             25),
+          timingLog(NULL),
+          mem_merge_count_threshold(1),
+          mem_merge_bytes_threshold(0),
+          localMemCounter([](void* ptr) -> void {
+              if (ptr != nullptr) {
+                  // This HAS to be a non-bucket deallocation
+                  // or else the callbacks could try to update counters
+                  // that no longer exist
+                  SystemAllocationGuard system_alloc_guard;
+                  delete (TLMemCounter*)ptr;
+              }
+          }),
+          maxDataSize(DEFAULT_MAX_DATA_SIZE) {
+    }
 
     ~EPStats() {
         delete timingLog;
@@ -344,7 +354,7 @@ public:
     std::atomic<hrtime_t> pendingOpsMaxDuration;
 
     //! Histogram of pending operation wait times.
-    Histogram<hrtime_t> pendingOpsHisto;
+    MicrosecondHistogram pendingOpsHisto;
 
     //! Number of pending vbucket compaction requests
     Counter pendingCompactions;
@@ -461,7 +471,7 @@ public:
     Counter defragNumMoved;
 
     //! Histogram of queue processing dirty age.
-    Histogram<hrtime_t> dirtyAgeHisto;
+    MicrosecondHistogram dirtyAgeHisto;
 
     //! Histogram of item allocation sizes.
     Histogram<size_t> itemAllocSizeHisto;
@@ -476,28 +486,28 @@ public:
     //
 
     //! Histogram of getvbucket timings
-    Histogram<hrtime_t> getVbucketCmdHisto;
+    MicrosecondHistogram getVbucketCmdHisto;
 
     //! Histogram of setvbucket timings
-    Histogram<hrtime_t> setVbucketCmdHisto;
+    MicrosecondHistogram setVbucketCmdHisto;
 
     //! Histogram of delvbucket timings
-    Histogram<hrtime_t> delVbucketCmdHisto;
+    MicrosecondHistogram delVbucketCmdHisto;
 
     //! Histogram of get commands.
-    Histogram<hrtime_t> getCmdHisto;
+    MicrosecondHistogram getCmdHisto;
 
     //! Histogram of store commands.
-    Histogram<hrtime_t> storeCmdHisto;
+    MicrosecondHistogram storeCmdHisto;
 
     //! Histogram of arithmetic commands.
-    Histogram<hrtime_t> arithCmdHisto;
+    MicrosecondHistogram arithCmdHisto;
 
     //! Time spent notifying completion of IO.
-    Histogram<hrtime_t> notifyIOHisto;
+    MicrosecondHistogram notifyIOHisto;
 
     //! Histogram of get_stats commands.
-    Histogram<hrtime_t> getStatsCmdHisto;
+    MicrosecondHistogram getStatsCmdHisto;
 
     //! Histogram of wait_for_checkpoint_persistence command
     MicrosecondHistogram chkPersistenceHisto;
@@ -507,22 +517,22 @@ public:
     //
 
     //! Histogram of insert disk writes
-    Histogram<hrtime_t> diskInsertHisto;
+    MicrosecondHistogram diskInsertHisto;
 
     //! Histogram of update disk writes
-    Histogram<hrtime_t> diskUpdateHisto;
+    MicrosecondHistogram diskUpdateHisto;
 
     //! Histogram of delete disk writes
-    Histogram<hrtime_t> diskDelHisto;
+    MicrosecondHistogram diskDelHisto;
 
     //! Histogram of execution time of disk vbucket deletions
     MicrosecondHistogram diskVBDelHisto;
 
     //! Histogram of disk commits
-    Histogram<hrtime_t> diskCommitHisto;
+    MicrosecondHistogram diskCommitHisto;
 
     //! Histogram of mutation log compactor
-    Histogram<hrtime_t> mlogCompactorHisto;
+    MicrosecondHistogram mlogCompactorHisto;
 
     //! Historgram of batch reads
     MicrosecondHistogram getMultiHisto;

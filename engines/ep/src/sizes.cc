@@ -35,11 +35,11 @@ static void display(const char *name, size_t size) {
     std::cout << name << "\t" << size << std::endl;
 }
 
-template <typename T>
+template <typename T, template <class> class Traits>
 struct histo_for_inner {
-    void operator()(const std::unique_ptr<HistogramBin<T>>& bin) {
+    void operator()(const std::unique_ptr<HistogramBin<T, Traits>>& bin) {
         std::cout << "   " << bin->start() << " - ";
-        if (bin->end() == std::numeric_limits<T>::max()) {
+        if (bin->end() == Traits<T>::max()) {
             std::cout << "inf";
         } else {
             std::cout << bin->end();
@@ -48,22 +48,10 @@ struct histo_for_inner {
     }
 };
 
-template <>
-struct histo_for_inner<hrtime_t> {
-    void operator()(const std::unique_ptr<HistogramBin<hrtime_t>>& bin) {
-        using std::chrono::nanoseconds;
-        const std::string endtext(bin->end()
-                 == std::numeric_limits<hrtime_t>::max() ?
-                 "inf" : cb::time2text(nanoseconds(bin->end())));
-        std::cout << "   " << cb::time2text(nanoseconds(bin->start()))
-                  << " - " << endtext << std::endl;
-    }
-};
-
-template <typename T>
-static void display(const char *name, const Histogram<T> &histo) {
+template <typename T, template <class> class Traits>
+static void display(const char* name, const Histogram<T, Traits>& histo) {
     std::cout << name << std::endl;
-    std::for_each(histo.begin(), histo.end(), histo_for_inner<T>());
+    std::for_each(histo.begin(), histo.end(), histo_for_inner<T, Traits>());
 }
 
 int main(int, char **) {
@@ -84,8 +72,9 @@ int main(int, char **) {
     display("CheckpointConfig", sizeof(CheckpointConfig));
     display("Histogram<whatever>", sizeof(Histogram<size_t>));
     display("HistogramBin<size_t>", sizeof(HistogramBin<size_t>));
-    display("HistogramBin<hrtime_t>", sizeof(HistogramBin<hrtime_t>));
     display("HistogramBin<int>", sizeof(HistogramBin<int>));
+    display("HistogramBin<microseconds>",
+            sizeof(MicrosecondHistogram::bin_type));
     display("AtomicUnorderedMap<uint32_t, SingleThreadedRCPtr<Stream>>",
             sizeof(AtomicUnorderedMap<uint32_t, SingleThreadedRCPtr<Stream>>));
 
