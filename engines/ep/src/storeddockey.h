@@ -41,6 +41,12 @@ class SerialisedDocKey;
 class StoredDocKey : public DocKeyInterface<StoredDocKey> {
 public:
     /**
+     * Construct empty - required for some std containers
+     */
+    StoredDocKey() : keydata() {
+    }
+
+    /**
      * Create a StoredDocKey from key to key+nkey in docNamespace.
      * @param key pointer to key data
      * @param nkey byte length of key (which will be copied in)
@@ -112,6 +118,13 @@ public:
      */
     const uint8_t* getDocNameSpacedData() const {
         return reinterpret_cast<const uint8_t*>(keydata.data());
+    }
+
+    /**
+     * @return true if StoredDocKey was constructed empty from StoredDocKey()
+     */
+    bool empty() const {
+        return keydata.empty();
     }
 
     /**

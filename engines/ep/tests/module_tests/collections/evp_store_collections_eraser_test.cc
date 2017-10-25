@@ -243,6 +243,68 @@ TEST_P(CollectionsEraserTest, default_Destroy) {
     EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
 }
 
+// Demonstrate MB_26455. Here we trigger collection erasing after a separator
+// change, the code processing the old items can no longer determine which
+// collection they belong too and fails to remove the items
+TEST_P(CollectionsEraserTest, MB_26455) {
+    const int items = 3;
+    std::vector<std::string> separators = {
+            "::", "*", "**", "***", "-=-=-=-=-="};
+
+    for (size_t n = 0; n < separators.size(); n++) {
+        // change sep
+        std::string manifest =
+                R"({"separator":")" + separators.at(n) +
+                R"(","collections":[{"name":"$default", "uid":"0"}]})";
+        vb->updateFromManifest({manifest});
+
+        // add fruit
+        manifest = R"({"separator":")" + separators.at(n) +
+                   R"(","collections":[{"name":"$default", "uid":"0"},)" +
+                   R"({"name":"fruit", "uid":")" + std::to_string(n) +
+                   R"("}]})";
+
+        vb->updateFromManifest({manifest});
+
+        // Mutate fruit
+        const int items = 3;
+        for (int ii = 0; ii < items; ii++) {
+            std::string key = "fruit" + separators.at(n) + std::to_string(ii);
+            store_item(vbid, {key, DocNamespace::Collections}, "value");
+        }
+
+        // expect change_separator + create_collection + items
+        flush_vbucket_to_disk(vbid, 2 + items);
+
+        // Drop fruit
+        manifest = R"({"separator":")" + separators.at(n) +
+                   R"(","collections":[{"name":"$default", "uid":"0"}]})";
+        vb->updateFromManifest({manifest});
+
+        flush_vbucket_to_disk(vbid, 1);
+    }
+
+    EXPECT_EQ(items * separators.size(), vb->getNumItems());
+
+    // Eraser will fail to delete keys of the original fruit as it will be using
+    // the new separator and will never split the key correctly.
+    runEraser();
+
+    // All items erased
+    EXPECT_EQ(0, vb->getNumItems());
+
+    // Expected items on disk (the separator change keys)
+    EXPECT_EQ(separators.size(),
+              store->getROUnderlying(vbid)->getItemCount(vbid));
+
+    // Eraser should of generated some deletes of the now defunct separator
+    // change keys
+    flush_vbucket_to_disk(vbid, separators.size() - 1);
+
+    // Expect 1 item on disk (the last separator change key)
+    EXPECT_EQ(1, store->getROUnderlying(vbid)->getItemCount(vbid));
+}
+
 struct PrintTestName {
     std::string operator()(
             const ::testing::TestParamInfo<std::string>& info) const {

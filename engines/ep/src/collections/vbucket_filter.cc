@@ -96,7 +96,7 @@ void Collections::VB::Filter::remove(const Item& item) {
         return;
     }
 
-    const auto cKey = Collections::DocKey::make(item.getKey(), separator);
+    const auto cKey = Collections::DocKey::make(item.getKey());
     if (cKey.getKey() == DefaultCollectionIdentifier) {
         defaultAllowed = false;
     } else {
@@ -115,7 +115,7 @@ bool Collections::VB::Filter::allowSystemEvent(const Item& item) const {
 
     switch (SystemEvent(item.getFlags())) {
     case SystemEvent::Collection: {
-        const auto cKey = Collections::DocKey::make(item.getKey(), separator);
+        const auto cKey = Collections::DocKey::make(item.getKey());
         if ((cKey.getKey() == DefaultCollectionIdentifier && defaultAllowed) ||
             passthrough) {
             return true;

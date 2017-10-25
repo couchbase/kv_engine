@@ -17,6 +17,8 @@
 
 #pragma once
 
+#include <memcached/dockey.h>
+
 #include "atomic.h"
 #include "ep_types.h"
 
@@ -102,14 +104,14 @@ public:
      *        the seqno value set as its bySeqno.
      */
     static std::unique_ptr<Item> make(SystemEvent se,
-                                      const std::string& collectionsSeparator,
                                       const std::string& keyExtra,
                                       size_t itemSize,
                                       OptionalSeqno seqno);
 
+    static std::unique_ptr<Item> make(const DocKey& key, SystemEvent se);
+
 private:
     static std::string makeKey(SystemEvent se,
-                               const std::string& collectionsSeparator,
                                const std::string& keyExtra);
 };
 

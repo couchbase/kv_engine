@@ -22,7 +22,6 @@
 
 TEST(SystemEventTest, make) {
     auto value = SystemEventFactory::make(SystemEvent::Collection,
-                                          "::",
                                           "SUFFIX",
                                           0,
                                           OptionalSeqno(/*none*/));
@@ -33,7 +32,6 @@ TEST(SystemEventTest, make) {
     EXPECT_EQ(-1, value->getBySeqno());
 
     value = SystemEventFactory::make(SystemEvent::Collection,
-                                     "::",
                                      "SUFFIX",
                                      100,
                                      OptionalSeqno(/*none*/));

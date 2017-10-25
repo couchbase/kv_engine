@@ -24,8 +24,8 @@
 TEST(CollectionDocKeyTest, make) {
     auto key1 = makeStoredDocKey("beer::bud", DocNamespace::Collections);
     auto key2 = makeStoredDocKey("beerbud", DocNamespace::Collections);
-    auto key3 = makeStoredDocKey("$collections$beer", DocNamespace::System);
-    auto key4 = makeStoredDocKey("$collections$$default", DocNamespace::System);
+    auto key3 = makeStoredDocKey("$collections:beer", DocNamespace::System);
+    auto key4 = makeStoredDocKey("$collections:$default", DocNamespace::System);
 
     EXPECT_EQ(strlen("beer"),
               Collections::DocKey::make(key1, "::").getCollectionLen());
@@ -48,13 +48,13 @@ TEST(CollectionDocKeyTest, make) {
               Collections::DocKey::make(key1, "longerthanthekey")
                       .getCollectionLen());
 
-    // Check that system keys which have a $ prefix work when the separator is $
+    // Check that system keys can be split up
     EXPECT_EQ(strlen(Collections::SystemEventPrefix),
-              Collections::DocKey::make(key3, "$").getCollectionLen());
+              Collections::DocKey::make(key3).getCollectionLen());
     EXPECT_EQ(cb::const_char_buffer("beer"),
-              Collections::DocKey::make(key3, "$").getKey());
+              Collections::DocKey::make(key3).getKey());
     EXPECT_EQ(strlen(Collections::SystemEventPrefix),
-              Collections::DocKey::make(key4, "$").getCollectionLen());
+              Collections::DocKey::make(key4).getCollectionLen());
     EXPECT_EQ(cb::const_char_buffer("$default"),
-              Collections::DocKey::make(key4, "$").getKey());
+              Collections::DocKey::make(key4).getKey());
 }

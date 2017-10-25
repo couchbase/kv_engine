@@ -288,13 +288,14 @@ void Manifest::changeSeparator(::VBucket& vb,
             optionalSeqno.is_initialized() ? "true" : "false",
             vb.isBackfillPhase() ? "true" : "false");
 
+        std::string oldSeparator = separator;
         // Change the separator then queue the event so the new separator
         // is recorded in the serialised manifest
         separator = std::string(newSeparator.data(), newSeparator.size());
 
         // Queue an event so that the manifest is flushed and DCP can
         // replicate the change.
-        (void)queueSeparatorChanged(vb, optionalSeqno);
+        (void)queueSeparatorChanged(vb, oldSeparator, optionalSeqno);
     }
 }
 
@@ -343,6 +344,11 @@ bool Manifest::doesKeyContainValidCollection(const ::DocKey& key) const {
 
 Manifest::container::const_iterator Manifest::getManifestEntry(
         const ::DocKey& key) const {
+    return getManifestEntry(key, separator);
+}
+
+Manifest::container::const_iterator Manifest::getManifestEntry(
+        const ::DocKey& key, const std::string& separator) const {
     cb::const_char_buffer identifier;
     if (defaultCollectionExists &&
         key.getDocNamespace() == DocNamespace::DefaultCollection) {
@@ -351,7 +357,7 @@ Manifest::container::const_iterator Manifest::getManifestEntry(
         const auto cKey = Collections::DocKey::make(key, separator);
         identifier = cKey.getCollection();
     } else if (key.getDocNamespace() == DocNamespace::System) {
-        const auto cKey = Collections::DocKey::make(key, separator);
+        const auto cKey = Collections::DocKey::make(key);
 
         if (cKey.getCollection() == SystemEventPrefix) {
             identifier = cKey.getKey();
@@ -367,6 +373,12 @@ Manifest::container::const_iterator Manifest::getManifestEntry(
 }
 
 bool Manifest::isLogicallyDeleted(const ::DocKey& key, int64_t seqno) const {
+    return isLogicallyDeleted(key, seqno, separator);
+}
+
+bool Manifest::isLogicallyDeleted(const ::DocKey& key,
+                                  int64_t seqno,
+                                  const std::string& separator) const {
     // Only do the searching/scanning work for keys in the deleted range.
     if (seqno <= greatestEndSeqno) {
         switch (key.getDocNamespace()) {
@@ -381,7 +393,7 @@ bool Manifest::isLogicallyDeleted(const ::DocKey& key, int64_t seqno) const {
             break;
         }
         case DocNamespace::System: {
-            const auto cKey = Collections::DocKey::make(key, separator);
+            const auto cKey = Collections::DocKey::make(key);
             if (cKey.getCollection() == SystemEventPrefix) {
                 auto itr = map.find(cKey.getKey());
                 if (itr != map.end()) {
@@ -412,7 +424,7 @@ boost::optional<cb::const_char_buffer> Manifest::shouldCompleteDeletion(
         const ::DocKey& key) const {
     // If this is a SystemEvent key then...
     if (key.getDocNamespace() == DocNamespace::System) {
-        const auto cKey = Collections::DocKey::make(key, separator);
+        const auto cKey = Collections::DocKey::make(key);
         // 1. Check it's a collection's event
         if (cKey.getCollection() == SystemEventPrefix) {
             // 2. Lookup the collection entry
@@ -446,7 +458,6 @@ std::unique_ptr<Item> Manifest::createSystemEvent(SystemEvent se,
 
     auto item = SystemEventFactory::make(
             se,
-            separator,
             cb::to_string(identifier.getName()),
             getSerialisedDataSize(identifier.getName()),
             seqno);
@@ -465,16 +476,16 @@ std::unique_ptr<Item> Manifest::createSystemEvent(SystemEvent se,
 }
 
 std::unique_ptr<Item> Manifest::createSeparatorChangedEvent(
+        int64_t highSeqno,
         OptionalSeqno seqno) const {
     // Create an item (to be queued and written to disk) that represents
     // the change of the separator. The item always has the same key.
     // We serialise the state of this object  into the Item's value.
-    auto item =
-            SystemEventFactory::make(SystemEvent::CollectionsSeparatorChanged,
-                                     separator,
-                                     {/*empty string*/},
-                                     getSerialisedDataSize(),
-                                     seqno);
+    auto item = SystemEventFactory::make(
+            SystemEvent::CollectionsSeparatorChanged,
+            std::to_string(highSeqno) + SystemSeparator + separator,
+            getSerialisedDataSize(),
+            seqno);
 
     // Quite rightly an Item's value is const, but in this case the Item is
     // owned only by the local scope so is safe to mutate (by const_cast force)
@@ -502,9 +513,12 @@ int64_t Manifest::queueSystemEvent(::VBucket& vb,
 }
 
 int64_t Manifest::queueSeparatorChanged(::VBucket& vb,
+                                        const std::string& oldSeparator,
                                         OptionalSeqno seqno) const {
     // Create and transfer Item ownership to the VBucket
-    return vb.queueItem(createSeparatorChangedEvent(seqno).release(), seqno);
+    return vb.queueItem(
+            createSeparatorChangedEvent(vb.getHighSeqno(), seqno).release(),
+            seqno);
 }
 
 size_t Manifest::getSerialisedDataSize(cb::const_char_buffer collection) const {

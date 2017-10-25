@@ -435,7 +435,7 @@ TEST_F(CollectionsVBFilterTest, remove1) {
 
     // Process a deletion of fruit
     Item deleteFruit{
-            {"$collections$fruit", DocNamespace::System}, 0, 0, nullptr, 0};
+            {"$collections:fruit", DocNamespace::System}, 0, 0, nullptr, 0};
     deleteFruit.setDeleted();
     EXPECT_TRUE(vbf.checkAndUpdate(deleteFruit));
 
@@ -447,7 +447,7 @@ TEST_F(CollectionsVBFilterTest, remove1) {
 
     // Process a deletion of meat
     Item deleteMeat{
-            {"$collections$meat", DocNamespace::System}, 0, 0, nullptr, 0};
+            {"$collections:meat", DocNamespace::System}, 0, 0, nullptr, 0};
     deleteMeat.setDeleted();
     EXPECT_TRUE(vbf.checkAndUpdate(deleteMeat));
     EXPECT_TRUE(vbf.empty()); // now empty
@@ -478,7 +478,7 @@ TEST_F(CollectionsVBFilterTest, remove2) {
             {{"anykey", DocNamespace::DefaultCollection}, 0, 0, nullptr, 0}));
     // Process a deletion of $default
     Item deleteDefault{
-            {"$collections$$default", DocNamespace::System}, 0, 0, nullptr, 0};
+            {"$collections:$default", DocNamespace::System}, 0, 0, nullptr, 0};
     deleteDefault.setDeleted();
     EXPECT_TRUE(vbf.checkAndUpdate(deleteDefault));
     EXPECT_FALSE(vbf.checkAndUpdate(
@@ -488,7 +488,7 @@ TEST_F(CollectionsVBFilterTest, remove2) {
             {{"meat$steak", DocNamespace::Collections}, 0, 0, nullptr, 0}));
     // Process a deletion of meat
     Item deleteMeat{
-            {"$collections$meat", DocNamespace::System}, 0, 0, nullptr, 0};
+            {"$collections:meat", DocNamespace::System}, 0, 0, nullptr, 0};
     deleteMeat.setDeleted();
     EXPECT_TRUE(vbf.checkAndUpdate(deleteMeat));
     EXPECT_FALSE(vbf.checkAndUpdate(
@@ -519,22 +519,22 @@ TEST_F(CollectionsVBFilterTest, system_events1) {
     Collections::VB::Filter vbf(f, vbm);
 
     // meat system event is allowed by the meat filter
-    EXPECT_TRUE(vbf.checkAndUpdate(*SystemEventFactory::make(
-            SystemEvent::Collection, "$", "meat", 0, {})));
+    EXPECT_TRUE(vbf.checkAndUpdate(
+            *SystemEventFactory::make(SystemEvent::Collection, "meat", 0, {})));
 
     // $default system event is allowed by the filter
     EXPECT_TRUE(vbf.checkAndUpdate(*SystemEventFactory::make(
-            SystemEvent::Collection, "$", "$default", 0, {})));
+            SystemEvent::Collection, "$default", 0, {})));
 
     // dairy system event is allowed even though dairy doesn't exist in the
     // manifest, we wouldn't actually create this event as dairy isn't present
     // but this just shows the passthrough interface at work.
     EXPECT_TRUE(vbf.checkAndUpdate(*SystemEventFactory::make(
-            SystemEvent::Collection, "$", "dairy", 0, {})));
+            SystemEvent::Collection, "dairy", 0, {})));
 
     // A change of separator is also allowed
     EXPECT_TRUE(vbf.checkAndUpdate(*SystemEventFactory::make(
-            SystemEvent::CollectionsSeparatorChanged, "$", "::", 0, {})));
+            SystemEvent::CollectionsSeparatorChanged, "::", 0, {})));
 }
 
 /**
@@ -559,20 +559,20 @@ TEST_F(CollectionsVBFilterTest, system_events2) {
     Collections::VB::Filter vbf(f, vbm);
 
     // meat system event is allowed by the meat filter
-    EXPECT_TRUE(vbf.checkAndUpdate(*SystemEventFactory::make(
-            SystemEvent::Collection, "$", "meat", 0, {})));
+    EXPECT_TRUE(vbf.checkAndUpdate(
+            *SystemEventFactory::make(SystemEvent::Collection, "meat", 0, {})));
 
     // $default system event is allowed by the filter
     EXPECT_TRUE(vbf.checkAndUpdate(*SystemEventFactory::make(
-            SystemEvent::Collection, "$", "$default", 0, {})));
+            SystemEvent::Collection, "$default", 0, {})));
 
     // dairy system event is not allowed by the filter
     EXPECT_FALSE(vbf.checkAndUpdate(*SystemEventFactory::make(
-            SystemEvent::Collection, "$", "dairy", 0, {})));
+            SystemEvent::Collection, "dairy", 0, {})));
 
     // A change of separator is also allowed
     EXPECT_TRUE(vbf.checkAndUpdate(*SystemEventFactory::make(
-            SystemEvent::CollectionsSeparatorChanged, "$", "::", 0, {})));
+            SystemEvent::CollectionsSeparatorChanged, "::", 0, {})));
 }
 
 /**
@@ -596,12 +596,12 @@ TEST_F(CollectionsVBFilterTest, system_events3) {
     Collections::VB::Filter vbf(f, vbm);
 
     // All system events dropped by this empty/legacy filter
+    EXPECT_FALSE(vbf.checkAndUpdate(
+            *SystemEventFactory::make(SystemEvent::Collection, "meat", 0, {})));
     EXPECT_FALSE(vbf.checkAndUpdate(*SystemEventFactory::make(
-            SystemEvent::Collection, "$", "meat", 0, {})));
+            SystemEvent::Collection, "$default", 0, {})));
     EXPECT_FALSE(vbf.checkAndUpdate(*SystemEventFactory::make(
-            SystemEvent::Collection, "$", "$default", 0, {})));
+            SystemEvent::Collection, "dairy", 0, {})));
     EXPECT_FALSE(vbf.checkAndUpdate(*SystemEventFactory::make(
-            SystemEvent::Collection, "$", "dairy", 0, {})));
-    EXPECT_FALSE(vbf.checkAndUpdate(*SystemEventFactory::make(
-            SystemEvent::CollectionsSeparatorChanged, "$", "::", 0, {})));
+            SystemEvent::CollectionsSeparatorChanged, "::", 0, {})));
 }

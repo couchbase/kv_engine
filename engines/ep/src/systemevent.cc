@@ -25,11 +25,10 @@
 
 std::unique_ptr<Item> SystemEventFactory::make(
         SystemEvent se,
-        const std::string& collectionsSeparator,
         const std::string& keyExtra,
         size_t itemSize,
         OptionalSeqno seqno) {
-    std::string key = makeKey(se, collectionsSeparator, keyExtra);
+    std::string key = makeKey(se, keyExtra);
 
     auto item = std::make_unique<Item>(DocKey(key, DocNamespace::System),
                                        uint32_t(se) /*flags*/,
@@ -44,23 +43,41 @@ std::unique_ptr<Item> SystemEventFactory::make(
     return item;
 }
 
+std::unique_ptr<Item> SystemEventFactory::make(const DocKey& key,
+                                               SystemEvent se) {
+    if (key.getDocNamespace() != DocNamespace::System) {
+        throw std::invalid_argument(
+                "SystemEventFactory::::make cannot use key with namespace: " +
+                std::to_string(int(key.getDocNamespace())));
+    }
+
+    auto item = std::make_unique<Item>(key,
+                                       uint32_t(se) /*flags*/,
+                                       0 /*exptime*/,
+                                       nullptr, /*no data to copy-in*/
+                                       0);
+
+    return item;
+}
+
 // Build a key using the separator so we can split it if needed
 std::string SystemEventFactory::makeKey(SystemEvent se,
-                                        const std::string& collectionsSeparator,
                                         const std::string& keyExtra) {
-    std::string key = Collections::SystemEventPrefix;
+    std::string key;
     switch (se) {
     case SystemEvent::Collection:
-        key += collectionsSeparator + keyExtra;
+        // $collection:<collection-name>
+        key = Collections::SystemEventPrefixWithSeparator + keyExtra;
         break;
     case SystemEvent::DeleteCollectionSoft:
     case SystemEvent::DeleteCollectionHard: {
-        key += collectionsSeparator + Collections::DeleteEventKey +
-               collectionsSeparator + keyExtra;
+        // $collections:delete:<collection-name>
+        key = Collections::DeleteKey + keyExtra;
         break;
     }
     case SystemEvent::CollectionsSeparatorChanged: {
-        key += collectionsSeparator + Collections::SeparatorChangedKey;
+        // $collections_separator:<key-extra>
+        key = Collections::SeparatorChangePrefixWithSeparator + keyExtra;
         break;
     }
     }
@@ -73,9 +90,14 @@ ProcessStatus SystemEventFlush::process(const queued_item& item) {
     }
 
     switch (SystemEvent(item->getFlags())) {
-    case SystemEvent::Collection:
-    case SystemEvent::CollectionsSeparatorChanged: {
+    case SystemEvent::Collection: {
         saveCollectionsManifestItem(item); // Updates manifest
+        return ProcessStatus::Continue; // And flushes an item
+    }
+    case SystemEvent::CollectionsSeparatorChanged: {
+        if (!item->isDeleted()) {
+            saveCollectionsManifestItem(item); // Updates manifest
+        }
         return ProcessStatus::Continue; // And flushes an item
     }
     case SystemEvent::DeleteCollectionHard:

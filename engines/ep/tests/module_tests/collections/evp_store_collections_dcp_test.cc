@@ -566,6 +566,64 @@ TEST_F(CollectionsDcpTest, test_dcp_separator_many) {
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
 }
 
+// Test that a create/delete don't dedup (collections creates new checkpoints)
+TEST_F(CollectionsDcpTest, MB_26455) {
+    const int items = 3;
+    {
+        auto vb = store->getVBucket(vbid);
+
+        std::vector<std::string> separators = {
+                "::", "*", "**", "***", "-=-=-=-=-="};
+
+        for (size_t n = 0; n < separators.size(); n++) {
+            // change sep
+            std::string manifest =
+                    R"({"separator":")" + separators.at(n) +
+                    R"(","collections":[{"name":"$default", "uid":"0"}]})";
+            vb->updateFromManifest({manifest});
+
+            // add fruit
+            manifest = R"({"separator":")" + separators.at(n) +
+                       R"(","collections":[{"name":"$default", "uid":"0"},)" +
+                       R"({"name":"fruit", "uid":")" + std::to_string(n) +
+                       R"("}]})";
+
+            vb->updateFromManifest({manifest});
+
+            // Mutate fruit
+            for (int ii = 0; ii < items; ii++) {
+                std::string key =
+                        "fruit" + separators.at(n) + std::to_string(ii);
+                store_item(vbid, {key, DocNamespace::Collections}, "value");
+            }
+
+            // expect change_separator + create_collection + items
+            flush_vbucket_to_disk(vbid, 2 + items);
+
+            if (n < (separators.size() - 1)) {
+                // Drop fruit, except for the last 'generation'
+                manifest =
+                        R"({"separator":")" + separators.at(n) +
+                        R"(","collections":[{"name":"$default", "uid":"0"}]})";
+                vb->updateFromManifest({manifest});
+
+                flush_vbucket_to_disk(vbid, 1);
+            }
+        }
+    }
+
+    resetEngineAndWarmup();
+
+    // Stream again!
+    createDcpObjects({}, true);
+
+    // Streamed from disk, one create (create of fruit) and items of fruit
+    testDcpCreateDelete(1, 0, items, false /*fromMemory*/);
+
+    EXPECT_TRUE(store->getVBucket(vbid)->lockCollections().isCollectionOpen(
+            "fruit"));
+}
+
 class CollectionsFilteredDcpErrorTest : public SingleThreadedKVBucketTest {
 public:
     CollectionsFilteredDcpErrorTest() : cookieP(create_mock_cookie()) {

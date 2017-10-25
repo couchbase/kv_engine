@@ -1528,7 +1528,7 @@ TEST_P(CacheCallbackTest, CacheCallback_key_eexists) {
     CacheCallback callback(*engine, stream);
 
     stream->transitionStateToBackfilling();
-    CacheLookup lookup(docKey, /*BySeqno*/ 1, vbid);
+    CacheLookup lookup(docKey, /*BySeqno*/ 1, vbid, {});
     callback.callback(lookup);
 
     /* Invoking callback should result in backfillReceived being called on
@@ -1554,7 +1554,7 @@ TEST_P(CacheCallbackTest, CacheCallback_engine_success) {
 
     stream->transitionStateToBackfilling();
     // Passing in wrong BySeqno - should be 1, but passing in 0
-    CacheLookup lookup(docKey, /*BySeqno*/ 0, vbid);
+    CacheLookup lookup(docKey, /*BySeqno*/ 0, vbid, {});
     callback.callback(lookup);
 
     /* Invoking callback should result in backfillReceived NOT being called on
@@ -1585,7 +1585,7 @@ TEST_P(CacheCallbackTest, CacheCallback_engine_success_not_resident) {
     CacheCallback callback(*engine, stream);
 
     stream->transitionStateToBackfilling();
-    CacheLookup lookup(docKey, /*BySeqno*/ 1, vbid);
+    CacheLookup lookup(docKey, /*BySeqno*/ 1, vbid, {});
     // Make the key non-resident by evicting the key
     const char* msg;
     engine->evictKey(docKey, vbid, &msg);
@@ -1621,7 +1621,7 @@ TEST_P(CacheCallbackTest, CacheCallback_engine_enomem) {
     CacheCallback callback(*engine, stream);
 
     stream->transitionStateToBackfilling();
-    CacheLookup lookup(docKey, /*BySeqno*/ 1, vbid);
+    CacheLookup lookup(docKey, /*BySeqno*/ 1, vbid, {});
     callback.callback(lookup);
 
     /* Invoking callback should result in backfillReceived being called on

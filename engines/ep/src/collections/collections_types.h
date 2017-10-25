@@ -29,10 +29,14 @@ static cb::const_char_buffer DefaultCollectionIdentifier(
 // The default separator we will use for identifying collections in keys.
 const char* const DefaultSeparator = ":";
 
-// SystemEvent keys
+// SystemEvent keys or parts which will be made into keys
+const char* const SystemSeparator = ":"; // Note this never changes
 const char* const SystemEventPrefix = "$collections";
-const char* const DeleteEventKey = "delete";
-const char* const SeparatorChangedKey = "separator";
+const char* const SystemEventPrefixWithSeparator = "$collections:";
+const char* const SeparatorChangePrefix = "$collections_separator";
+const char* const SeparatorChangePrefixWithSeparator =
+        "$collections_separator:";
+const char* const DeleteKey = "$collections:delete:";
 
 // Couchstore private file name for manifest data
 const char CouchstoreManifest[] = "_local/collections_manifest";

@@ -28,8 +28,12 @@ class Item;
 
 class CacheLookup {
 public:
-    CacheLookup(const DocKey& k, int64_t s, uint16_t vb) :
-        key(k), bySeqno(s), vbid(vb) {}
+    CacheLookup(const DocKey& k,
+                int64_t s,
+                uint16_t vb,
+                const std::string& separator)
+        : key(k), bySeqno(s), vbid(vb), separator(separator) {
+    }
 
     ~CacheLookup() {}
 
@@ -38,10 +42,16 @@ public:
     int64_t getBySeqno() { return bySeqno; }
 
     uint16_t getVBucketId() { return vbid; }
+
+    const std::string& getSeparator() const {
+        return separator;
+    }
+
 private:
     DocKey key;
     int64_t bySeqno;
     uint16_t vbid;
+    const std::string& separator;
 };
 
 /**

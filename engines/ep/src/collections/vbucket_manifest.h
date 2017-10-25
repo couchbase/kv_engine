@@ -102,6 +102,12 @@ public:
             return manifest.isLogicallyDeleted(key, seqno);
         }
 
+        bool isLogicallyDeleted(::DocKey key,
+                                int64_t seqno,
+                                const std::string& separator) const {
+            return manifest.isLogicallyDeleted(key, seqno, separator);
+        }
+
         /**
          * Function intended for use by the KVBucketr collection's eraser code.
          *
@@ -197,6 +203,13 @@ public:
     public:
         CachingReadHandle(const Manifest& m, cb::RWLock& lock, ::DocKey key)
             : ReadHandle(m, lock), itr(m.getManifestEntry(key)), key(key) {
+        }
+
+        CachingReadHandle(const Manifest& m,
+                          cb::RWLock& lock,
+                          ::DocKey key,
+                          const std::string& separator)
+            : ReadHandle(m, lock), itr(m.getManifestEntry(key, separator)), key(key) {
         }
 
         /**
@@ -387,6 +400,10 @@ public:
         return {*this, rwlock, key};
     }
 
+    CachingReadHandle lock(::DocKey key, const std::string& separator) const {
+        return {*this, rwlock, key, separator};
+    }
+
     WriteHandle wlock() {
         return {*this, rwlock};
     }
@@ -543,6 +560,15 @@ private:
                             int64_t seqno) const;
 
     /**
+     * Variant of isLogicallyDeleted where the caller specifies the separator.
+     *
+     * @return true if the key belongs to a deleted collection.
+     */
+    bool isLogicallyDeleted(const ::DocKey& key,
+                            int64_t seqno,
+                            const std::string& separator) const;
+
+    /**
      * Function intended for use by the collection eraser code, checking
      * keys/seqno in seqno order.
      *
@@ -598,6 +624,13 @@ private:
      * return map.end() for unknown collections.
      */
     container::const_iterator getManifestEntry(const ::DocKey& key) const;
+
+    /**
+     * Get a manifest entry for the collection associated with the key. Can
+     * return map.end() for unknown collections.
+     */
+    container::const_iterator getManifestEntry(
+            const ::DocKey& key, const std::string& separator) const;
 
 protected:
     /**
@@ -675,12 +708,14 @@ protected:
      * Create a SystemEvent Item for a Separator Changed. The Item's
      * value will contain data for later consumption by serialToJson.
      *
-     * @param separator The new separator
-     *
+     * @param highSeqno the current high-seqno which gets mixed into the items
+     *        key
+     * @param seqno optional-seqno, defined when event is driven by DCP
      * @returns unique_ptr to a new Item that represents the requested
      *          SystemEvent.
      */
     std::unique_ptr<Item> createSeparatorChangedEvent(
+            int64_t highSeqno,
             OptionalSeqno seqno) const;
 
     /**
@@ -711,6 +746,7 @@ protected:
      *        system event
      */
     int64_t queueSeparatorChanged(::VBucket& vb,
+                                  const std::string& oldSeparator,
                                   OptionalSeqno seqno) const;
 
     /**

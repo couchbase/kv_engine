@@ -18,6 +18,8 @@
 #include <memcached/dockey.h>
 #include <gsl/gsl>
 
+#include "collections/collections_types.h"
+
 #pragma once
 
 namespace Collections {
@@ -40,6 +42,10 @@ public:
      * Factory method to create a Collections::DocKey from a DocKey
      */
     static DocKey make(const ::DocKey& key, const std::string& separator) {
+        if (key.getDocNamespace() == DocNamespace::System) {
+            throw std::invalid_argument(
+                    "DocKey::make incorrect use of SystemKey");
+        }
         const uint8_t* collection = findCollection(key, separator);
         if (collection) {
             return DocKey(key,
@@ -50,6 +56,11 @@ public:
             return DocKey(key, 0, 0);
         }
     }
+
+    /**
+     * Factory method to create a Collections::DocKey from a DocKey
+     */
+    static Collections::DocKey make(const ::DocKey& key);
 
     /**
      * @return how many bytes of the key are a collection

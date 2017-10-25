@@ -52,8 +52,7 @@ public:
 // in a different namespace.
 TEST_F(CollectionsTest, namespace_separation) {
     // Use the event factory to get an event which we'll borrow the key from
-    auto se = SystemEventFactory::make(
-            SystemEvent::Collection, ":", "meat", 0, {});
+    auto se = SystemEventFactory::make(SystemEvent::Collection, "meat", 0, {});
     DocKey key(se->getKey().data(),
                se->getKey().size(),
                DocNamespace::DefaultCollection);
