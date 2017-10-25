@@ -521,47 +521,19 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
         }
     }
 
-    Item* itmCpy = nullptr;
-    uint32_t sizeBefore = 0;
-    uint32_t sizeAfter = 0;
-    auto* mutationResponse =
-            dynamic_cast<MutationProducerResponse*>(resp.get());
+    std::unique_ptr<Item> itmCpy;
     totalUncompressedDataSize.fetch_add(resp->getMessageSize());
 
+    auto* mutationResponse =
+            dynamic_cast<MutationProducerResponse*>(resp.get());
     if (mutationResponse) {
-        try {
-            itmCpy = mutationResponse->getItemCopy();
-            itmCpy->pruneValueAndOrXattrs(includeValue, includeXattrs);
-        } catch (const std::bad_alloc&) {
-            rejectResp = std::move(resp);
-            LOG(EXTENSION_LOG_WARNING,
-                "%s (vb %d) std::bad_alloc while trying to copy "
-                "item or prune copy with seqno:%" PRIu64 " before streaming it",
-                logHeader(),
-                mutationResponse->getVBucket(),
-                *mutationResponse->getBySeqno());
-            return ENGINE_ENOMEM;
-        }
-
+        itmCpy = std::make_unique<Item>(*mutationResponse->getItem());
         if (enableValueCompression) {
             /**
-             * If value compression is enabled, the producer will need
-             * to snappy-compress the document before transmitting.
-             * Compression will obviously be done only if the datatype
-             * indicates that the value isn't compressed already.
+             * Retrieve the uncompressed length if the document is compressed.
+             * This is to account for the total number of bytes if the data
+             * was sent as uncompressed
              */
-            sizeBefore = itmCpy->getNBytes();
-            if (!itmCpy->compressValue()) {
-                LOG(EXTENSION_LOG_WARNING,
-                    "%s Failed to snappy compress an uncompressed value!",
-                    logHeader());
-            }
-            sizeAfter = itmCpy->getNBytes();
-
-            if (sizeAfter < sizeBefore) {
-                log.acknowledge(sizeBefore - sizeAfter);
-            }
-
             if (mcbp::datatype::is_snappy(itmCpy->getDataType())) {
                 size_t inflated_length = 0;
                 if (snappy_uncompressed_length(itmCpy->getData(), itmCpy->getNBytes(),
@@ -598,7 +570,7 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
             ret = producers->mutation(
                     getCookie(),
                     mutationResponse->getOpaque(),
-                    itmCpy,
+                    itmCpy.release(),
                     mutationResponse->getVBucket(),
                     *mutationResponse->getBySeqno(),
                     mutationResponse->getRevSeqno(),
@@ -621,7 +593,7 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
             }
             ret = producers->deletion(getCookie(),
                                       mutationResponse->getOpaque(),
-                                      itmCpy,
+                                      itmCpy.release(),
                                       mutationResponse->getVBucket(),
                                       *mutationResponse->getBySeqno(),
                                       mutationResponse->getRevSeqno(),
@@ -685,11 +657,7 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
             itemsSent++;
         }
 
-        size_t bytesSent = resp->getMessageSize();
-        if (mutationResponse && enableValueCompression) {
-            bytesSent -= (sizeBefore - sizeAfter);
-        }
-        totalBytesSent.fetch_add(bytesSent);
+        totalBytesSent.fetch_add(resp->getMessageSize());
     }
 
     lastSendTime = ep_current_time();

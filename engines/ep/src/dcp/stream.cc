@@ -969,8 +969,30 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
         queued_item& item) {
     if (item->getOperation() != queue_op::system_event) {
         auto cKey = Collections::DocKey::make(item->getKey(), currentSeparator);
+        std::unique_ptr<Item> finalItem = std::make_unique<Item>(*item);
+        finalItem->pruneValueAndOrXattrs(includeValue, includeXattributes);
+
+        if (isCompressionEnabled()) {
+            if (!finalItem->compressValue()) {
+                LOG(EXTENSION_LOG_WARNING,
+                    "Failed to snappy compress an uncompressed value");
+            }
+        } else {
+            if (!finalItem->decompressValue()) {
+                LOG(EXTENSION_LOG_WARNING,
+                    "Failed to snappy uncompress a compressed value");
+            }
+        }
+
+        /**
+         * Create a mutation response to be placed in the ready queue.
+         * Note that once an item has been placed in the ready queue
+         * as compressed, it will be sent out as compressed even if the
+         * client explicitly changes the setting to request uncompressed
+         * values.
+         */
         return std::make_unique<MutationProducerResponse>(
-                item,
+                queued_item(std::move(finalItem)),
                 opaque_,
                 includeValue,
                 includeXattributes,

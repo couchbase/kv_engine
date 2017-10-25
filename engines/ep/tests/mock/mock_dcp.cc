@@ -45,6 +45,7 @@ std::string dcp_last_meta;
 std::string dcp_last_value;
 std::string dcp_last_key;
 vbucket_state_t dcp_last_vbucket_state;
+protocol_binary_datatype_t dcp_last_datatype;
 
 static ENGINE_HANDLE *engine_handle = nullptr;
 static ENGINE_HANDLE_V1 *engine_handle_v1 = nullptr;
@@ -201,6 +202,7 @@ static ENGINE_ERROR_CODE mock_mutation(const void* cookie,
                            item->getNBytes() + nmeta;
 
     dcp_last_collection_len = collectionLen;
+    dcp_last_datatype = item->getDataType();
     if (engine_handle_v1 && engine_handle) {
         engine_handle_v1->release(engine_handle, NULL, item);
     }

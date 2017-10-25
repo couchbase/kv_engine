@@ -99,6 +99,7 @@ extern std::string dcp_last_meta;
 extern std::string dcp_last_value;
 extern std::string dcp_last_key;
 extern vbucket_state_t dcp_last_vbucket_state;
+extern protocol_binary_datatype_t dcp_last_datatype;
 
 /* This is an enum class to indicate what stats are required from the
    HistogramStats. */

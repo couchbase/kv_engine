@@ -27,6 +27,8 @@
 #include "item.h"
 #include "systemevent.h"
 
+#include <platform/make_unique.h>
+
 enum end_stream_status_t {
     //! The stream ended due to all items being streamed
     END_STREAM_OK,
@@ -378,9 +380,8 @@ public:
         return item_;
     }
 
-    /// @return pointer to copy of the item.
-    Item* getItemCopy() {
-        return new Item(*item_);
+    std::unique_ptr<Item> getItemCopy() {
+        return std::make_unique<Item>(*item_);
     }
 
     uint16_t getVBucket() {
@@ -418,7 +419,7 @@ public:
     static const uint32_t mutationBaseMsgBytes = 55;
     static const uint32_t deletionBaseMsgBytes = 42;
 
-private:
+protected:
     queued_item item_;
 
     // Whether the response should contain the value

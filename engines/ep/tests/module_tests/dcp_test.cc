@@ -41,6 +41,7 @@
 
 #include <dcp/backfill_memory.h>
 #include <gtest/gtest.h>
+#include <platform/compress.h>
 #include <xattr/utils.h>
 
 class DCPTest : public EventuallyPersistentEngineTest {
@@ -184,6 +185,33 @@ protected:
                                           datatype);
     }
 
+    std::unique_ptr<Item> makeCompressibleItem(StoredDocKey key, bool shouldCompress) {
+        std::string valueData("{\"product\": \"car\",\"price\": \"100\"},"
+                              "{\"product\": \"bus\",\"price\": \"1000\"},"
+                              "{\"product\": \"Train\",\"price\": \"100000\"}");
+        protocol_binary_datatype_t datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+
+        if (shouldCompress) {
+            cb::compression::Buffer output;
+            EXPECT_TRUE(cb::compression::deflate(cb::compression::Algorithm::Snappy,
+                        valueData.c_str(), valueData.length(), output));
+            datatype |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
+            return std::make_unique<Item>(key,
+                                          /*flags*/0,
+                                          /*exp*/0,
+                                          output.data.get(),
+                                          output.len,
+                                          datatype);
+        }
+
+        return std::make_unique<Item>(key,
+                                      /*flags*/0,
+                                      /*exp*/0,
+                                      valueData.c_str(),
+                                      valueData.length(),
+                                      datatype);
+    }
+
     /* Add items onto the vbucket and wait for the checkpoint to be removed */
     void addItemsAndRemoveCheckpoint(int numItems) {
         for (int i = 0; i < numItems; ++i) {
@@ -259,6 +287,159 @@ ENGINE_ERROR_CODE mock_mutation_return_engine_e2big(const void* cookie,
     Item* item = reinterpret_cast<Item*>(itm);
     delete item;
     return ENGINE_E2BIG;
+}
+
+std::string decompressValue(std::string compressedValue) {
+    cb::compression::Buffer buffer;
+    if (!cb::compression::inflate(cb::compression::Algorithm::Snappy,
+                                  compressedValue.c_str(), compressedValue.length(),
+                                  buffer)) {
+        return {};
+    }
+
+    return std::string(buffer.data.get(), buffer.len);
+}
+
+extern std::string dcp_last_value;
+extern uint32_t dcp_last_packet_size;
+extern protocol_binary_datatype_t dcp_last_datatype;
+
+/**
+ * Test to verify DCP compression/decompression. There are 4 cases that are being
+ * tested
+ *
+ * 1. Add a compressed item and stream a compressed item
+ * 2. Add an uncompressed item and stream a compressed item
+ * 3. Add a compressed item and stream an uncompressed item
+ * 4. Add an uncompressed item and stream an uncompressed item
+ */
+TEST_P(StreamTest, test_verifyDCPCompression) {
+    VBucketPtr vb = engine->getKVBucket()->getVBucket(vbid);
+    auto item1 = makeCompressibleItem(makeStoredDocKey("key1"), true);
+    auto item2 = makeCompressibleItem(makeStoredDocKey("key2"), false);
+    auto item3 = makeCompressibleItem(makeStoredDocKey("key3"), true);
+    auto item4 = makeCompressibleItem(makeStoredDocKey("key4"), false);
+
+    setup_dcp_stream(0, IncludeValue::Yes, IncludeXattrs::Yes);
+
+    std::string compressCtrlMsg("enable_value_compression");
+    std::string compressCtrlValue("true");
+
+    ASSERT_EQ(ENGINE_SUCCESS, producer->control(0, compressCtrlMsg.c_str(),
+                                                compressCtrlMsg.size(),
+                                                compressCtrlValue.c_str(),
+                                                compressCtrlValue.size()));
+    ASSERT_TRUE(producer->isValueCompressionEnabled());
+
+    auto producers = get_dcp_producers(reinterpret_cast<ENGINE_HANDLE*>(engine),
+                                       reinterpret_cast<ENGINE_HANDLE_V1*>(engine));
+
+    EXPECT_EQ(ENGINE_SUCCESS, engine->getKVBucket()->set(*item1, nullptr));
+    EXPECT_EQ(ENGINE_SUCCESS, engine->getKVBucket()->set(*item2, nullptr));
+
+    uint32_t keyAndSnappyValueMessageSize = MutationResponse::mutationBaseMsgBytes +
+             item1->getKey().size() + item1->getNBytes();
+
+    queued_item qi(std::move(item1));
+    std::unique_ptr<DcpResponse> dcpResponse = stream->public_makeResponseFromItem(qi);
+    EXPECT_EQ(keyAndSnappyValueMessageSize, dcpResponse->getMessageSize());
+
+    uint64_t rollbackSeqno;
+    auto err = producer->streamRequest(/*flags*/ 0,
+                                       /*opaque*/ 0,
+                                       /*vbucket*/ 0,
+                                       /*start_seqno*/ 0,
+                                       /*end_seqno*/ ~0,
+                                       /*vb_uuid*/ 0,
+                                       /*snap_start*/ 0,
+                                       /*snap_end*/ ~0,
+                                       &rollbackSeqno,
+                                       DCPTest::fakeDcpAddFailoverLog);
+
+    ASSERT_EQ(ENGINE_SUCCESS, err);
+    producer->notifySeqnoAvailable(vbid, vb->getHighSeqno());
+    ASSERT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    ASSERT_EQ(1, producer->getCheckpointSnapshotTask().queueSize());
+    producer->getCheckpointSnapshotTask().run();
+
+    /* Stream the snapshot marker first */
+    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    EXPECT_EQ(0, producer->getItemsSent());
+
+    /* Stream the first mutation */
+    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    std::string value(qi->getValue()->getData(), qi->getValue()->valueSize());
+    EXPECT_STREQ(dcp_last_value.c_str(), value.c_str());
+    EXPECT_STREQ(decompressValue(value).c_str(),
+                 decompressValue(dcp_last_value).c_str());
+    EXPECT_EQ(dcp_last_packet_size, keyAndSnappyValueMessageSize);
+    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_SNAPPY,
+              dcp_last_datatype);
+
+    uint32_t keyAndValueMessageSize = MutationResponse::mutationBaseMsgBytes +
+             item2->getKey().size() + item2->getNBytes();
+    qi.reset(std::move(item2));
+    dcpResponse = stream->public_makeResponseFromItem(qi);
+    EXPECT_LT(dcpResponse->getMessageSize(), keyAndValueMessageSize);
+
+    /* Stream the second mutation */
+    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+
+    value.assign(qi->getValue()->getData(), qi->getValue()->valueSize());
+    EXPECT_STRNE(dcp_last_value.c_str(), value.c_str());
+    EXPECT_STREQ(value.c_str(), decompressValue(dcp_last_value).c_str());
+    EXPECT_LT(dcp_last_packet_size, keyAndValueMessageSize);
+    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_SNAPPY,
+              dcp_last_datatype);
+
+    /* Disable compression */
+    compressCtrlValue.assign("false");
+    ASSERT_EQ(ENGINE_SUCCESS, producer->control(0, compressCtrlMsg.c_str(),
+                                                compressCtrlMsg.size(),
+                                                compressCtrlValue.c_str(),
+                                                compressCtrlValue.size()));
+    ASSERT_FALSE(producer->isValueCompressionEnabled());
+
+    EXPECT_EQ(ENGINE_SUCCESS, engine->getKVBucket()->set(*item3, nullptr));
+    EXPECT_EQ(ENGINE_SUCCESS, engine->getKVBucket()->set(*item4, nullptr));
+
+    producer->notifySeqnoAvailable(vbid, vb->getHighSeqno());
+    ASSERT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    ASSERT_EQ(1, producer->getCheckpointSnapshotTask().queueSize());
+    producer->getCheckpointSnapshotTask().run();
+
+    /* Stream the snapshot marker */
+    ASSERT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+
+    /* Stream the 3rd mutation */
+    ASSERT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+
+    keyAndSnappyValueMessageSize = MutationResponse::mutationBaseMsgBytes +
+             item3->getKey().size() + item3->getNBytes();
+    qi.reset(std::move(item3));
+    dcpResponse = stream->public_makeResponseFromItem(qi);
+    EXPECT_GT(dcpResponse->getMessageSize(), keyAndSnappyValueMessageSize);
+
+    value.assign(qi->getValue()->getData(), qi->getValue()->valueSize());
+    EXPECT_STRNE(dcp_last_value.c_str(), value.c_str());
+    EXPECT_GT(dcp_last_packet_size, keyAndSnappyValueMessageSize);
+    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, dcp_last_datatype);
+
+    keyAndValueMessageSize = MutationResponse::mutationBaseMsgBytes +
+            item4->getKey().size() + item4->getNBytes();
+    qi.reset(std::move(item4));
+    dcpResponse = stream->public_makeResponseFromItem(qi);
+    EXPECT_EQ(dcpResponse->getMessageSize(), keyAndValueMessageSize);
+
+    /* Stream the 4th mutation */
+    ASSERT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+
+    value.assign(qi->getValue()->getData(), qi->getValue()->valueSize());
+    EXPECT_STREQ(dcp_last_value.c_str(), value.c_str());
+    EXPECT_EQ(dcp_last_packet_size, keyAndValueMessageSize);
+    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, dcp_last_datatype);
+
+    destroy_dcp_stream();
 }
 
 /*
