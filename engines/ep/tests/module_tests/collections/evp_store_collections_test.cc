@@ -464,6 +464,80 @@ TEST_F(CollectionsWarmupTest, MB_25381) {
     EXPECT_GT(highSeqno, vb->getHighSeqno());
 }
 
+//
+// Create a collection then create a second engine which will warmup from the
+// persisted collection state and should have the collection accessible.
+//
+TEST_F(CollectionsWarmupTest, warmupIgnoreLogicallyDeleted) {
+    {
+        auto vb = store->getVBucket(vbid);
+
+        // Add the meat collection
+        vb->updateFromManifest({R"({"separator":"::",
+              "collections":[{"name":"$default", "uid":"0"},
+                             {"name":"meat","uid":"1"}]})"});
+
+        // Trigger a flush to disk. Flushes the meat create event
+        flush_vbucket_to_disk(vbid, 1);
+        const int nitems = 10;
+        for (int ii = 0; ii < nitems; ii++) {
+            // Now we can write to beef
+            std::string key = "meat::" + std::to_string(ii);
+            store_item(vbid, {key, DocNamespace::Collections}, "value");
+        }
+
+        flush_vbucket_to_disk(vbid, nitems);
+
+        // Remove the meat collection
+        vb->updateFromManifest({R"({"separator":"::",
+              "collections":[{"name":"$default", "uid":"0"}]})"});
+
+        flush_vbucket_to_disk(vbid, 1);
+
+        EXPECT_EQ(nitems, vb->ht.getNumInMemoryItems());
+    } // VBucketPtr scope ends
+
+    resetEngineAndWarmup();
+
+    EXPECT_EQ(0, store->getVBucket(vbid)->ht.getNumInMemoryItems());
+}
+
+//
+// Create a collection then create a second engine which will warmup from the
+// persisted collection state and should have the collection accessible.
+//
+TEST_F(CollectionsWarmupTest, warmupIgnoreLogicallyDeletedDefault) {
+    {
+        auto vb = store->getVBucket(vbid);
+
+        // Add the meat collection
+        vb->updateFromManifest({R"({"separator":"::",
+              "collections":[{"name":"$default", "uid":"0"},
+                             {"name":"meat","uid":"1"}]})"});
+
+        // Trigger a flush to disk. Flushes the meat create event
+        flush_vbucket_to_disk(vbid, 1);
+        const int nitems = 10;
+        for (int ii = 0; ii < nitems; ii++) {
+            std::string key = "key" + std::to_string(ii);
+            store_item(vbid, {key, DocNamespace::DefaultCollection}, "value");
+        }
+
+        flush_vbucket_to_disk(vbid, nitems);
+
+        // Remove the default collection
+        vb->updateFromManifest({R"({"separator":"::",
+              "collections":[{"name":"meat", "uid":"1"}]})"});
+
+        flush_vbucket_to_disk(vbid, 1);
+
+        EXPECT_EQ(nitems, vb->ht.getNumInMemoryItems());
+    } // VBucketPtr scope ends
+
+    resetEngineAndWarmup();
+
+    EXPECT_EQ(0, store->getVBucket(vbid)->ht.getNumInMemoryItems());
+}
 
 class CollectionsManagerTest : public CollectionsTest {};
 
