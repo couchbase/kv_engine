@@ -39,21 +39,88 @@ const std::string& Cookie::getErrorJson() {
     return json_message;
 }
 
-cb::const_byte_buffer Cookie::getPacket() const {
-    auto buffer = connection.read->rdata();
+void Cookie::setPacket(PacketContent content, cb::const_byte_buffer buffer) {
+    switch (content) {
+    case PacketContent::Header:
+        if (buffer.size() != sizeof(cb::mcbp::Request)) {
+            throw std::invalid_argument(
+                    "Cookie::setPacket(): Incorrect packet size");
+        }
+        packet = buffer;
+        return;
+    case PacketContent::Full:
+        if (buffer.size() < sizeof(cb::mcbp::Request)) {
+            // we don't have the header, so we can't even look at the body
+            // length
+            throw std::logic_error(
+                    "Cookie::setPacket(): packet must contain header");
+        }
 
-    if (buffer.size() < sizeof(cb::mcbp::Request)) {
-        // we don't have the header, so we can't even look at the body
-        // length
-        throw std::logic_error("Cookie::getPacket(): header not available");
+        const auto* req =
+                reinterpret_cast<const cb::mcbp::Request*>(buffer.data());
+        const size_t packetsize = sizeof(cb::mcbp::Request) + req->getBodylen();
+
+        if (buffer.size() != packetsize) {
+            throw std::logic_error("Cookie::setPacket(): Body not available");
+        }
+
+        packet = buffer;
+        return;
+    }
+    throw std::logic_error("Cookie::setPacket(): Invalid content provided");
+}
+
+cb::const_byte_buffer Cookie::getPacket(PacketContent content) const {
+    if (packet.empty()) {
+        throw std::logic_error("Cookie::getPacket(): packet not available");
     }
 
-    const auto* req = reinterpret_cast<const cb::mcbp::Request*>(buffer.data());
-    const size_t packetsize = sizeof(cb::mcbp::Request) + req->getBodylen();
+    switch (content) {
+    case PacketContent::Header:
+        return cb::const_byte_buffer{packet.data(), sizeof(cb::mcbp::Request)};
+    case PacketContent::Full:
+        const auto* req =
+                reinterpret_cast<const cb::mcbp::Request*>(packet.data());
+        const size_t packetsize = sizeof(cb::mcbp::Request) + req->getBodylen();
 
-    if (buffer.size() < packetsize) {
-        throw std::logic_error("Cookie::getPacket(): Body not available");
+        if (packet.size() != packetsize) {
+            throw std::logic_error("Cookie::getPacket(): Body not available");
+        }
+
+        return packet;
     }
 
-    return cb::const_byte_buffer{buffer.data(), packetsize};
+    throw std::invalid_argument(
+            "Cookie::getPacket(): Invalid content requested");
+}
+
+const cb::mcbp::Request& Cookie::getRequest(PacketContent content) const {
+    cb::const_byte_buffer packet = getPacket(content);
+    const auto* ret = reinterpret_cast<const cb::mcbp::Request*>(packet.data());
+    switch (ret->getMagic()) {
+    case cb::mcbp::Magic::ClientRequest:
+    case cb::mcbp::Magic::ServerRequest:
+        return *ret;
+    case cb::mcbp::Magic::ClientResponse:
+    case cb::mcbp::Magic::ServerResponse:
+        throw std::logic_error("Cookie::getRequest(): Packet is response");
+    }
+
+    throw std::invalid_argument("Cookie::getRequest(): Invalid packet type");
+}
+
+const cb::mcbp::Response& Cookie::getResponse(PacketContent content) const {
+    cb::const_byte_buffer packet = getPacket(content);
+    const auto* ret =
+            reinterpret_cast<const cb::mcbp::Response*>(packet.data());
+    switch (ret->getMagic()) {
+    case cb::mcbp::Magic::ClientRequest:
+    case cb::mcbp::Magic::ServerRequest:
+        throw std::logic_error("Cookie::getRequest(): Packet is resquest");
+    case cb::mcbp::Magic::ClientResponse:
+    case cb::mcbp::Magic::ServerResponse:
+        return *ret;
+    }
+
+    throw std::invalid_argument("Cookie::getResponse(): Invalid packet type");
 }

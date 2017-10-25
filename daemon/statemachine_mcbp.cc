@@ -425,6 +425,14 @@ bool conn_read_packet_body(McbpConnection& connection) {
         get_thread_stats(c)->bytes_read += res;
 
         if (c->isPacketAvailable()) {
+            auto& cookie = connection.getCookieObject();
+            auto input = c->read->rdata();
+            const auto* req =
+                    reinterpret_cast<const cb::mcbp::Request*>(input.data());
+            cookie.setPacket(Cookie::PacketContent::Full,
+                             cb::const_byte_buffer{input.data(),
+                                                   sizeof(cb::mcbp::Request) +
+                                                           req->getBodylen()});
             c->setState(McbpStateMachine::State::execute);
         }
 

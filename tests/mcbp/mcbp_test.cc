@@ -50,15 +50,9 @@ void ValidatorTest::SetUp() {
 class MockCookie : public Cookie {
 public:
     MockCookie(McbpConnection& connection, cb::const_byte_buffer buffer)
-        : Cookie(connection), packet(buffer) {
+        : Cookie(connection) {
+        setPacket(PacketContent::Full, buffer);
     }
-
-    cb::const_byte_buffer getPacket() const override {
-        return packet;
-    }
-
-private:
-    const cb::const_byte_buffer packet;
 };
 
 protocol_binary_response_status

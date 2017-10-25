@@ -19,11 +19,22 @@
 #include <platform/uuid.h>
 #include <stdexcept>
 
+// Forward decl
+namespace cb {
+namespace mcbp {
+struct Request;
+struct Response;
+} // namespace mcbp
+} // namespace cb
+
 class McbpConnection;
 
 /**
  * The Cookie class represents the cookie passed from the memcached core
  * down through the engine interface to the engine.
+ *
+ * A cookie represents a single command context, and contains the packet
+ * it is about to execute.
  *
  * By passing a common class as the cookie our notification model may
  * know what the argument is and provide it's own logic depending on
@@ -31,7 +42,7 @@ class McbpConnection;
  */
 class Cookie {
 public:
-    Cookie(McbpConnection& conn) : connection(conn) {
+    explicit Cookie(McbpConnection& conn) : connection(conn) {
     }
 
     void validate() const {
@@ -49,6 +60,7 @@ public:
         event_id.clear();
         error_context.clear();
         json_message.clear();
+        packet = {};
     }
 
     /**
@@ -111,12 +123,31 @@ public:
     }
 
     /**
+     * The cookie is created for every command we want to execute, but in
+     * some cases we don't want to (or can't) get the entire packet content
+     * in memory (for instance if a client tries to send us a 2GB packet we
+     * want to just keep the header and disconnect the client instead).
+     */
+    enum class PacketContent { Header, Full };
+
+    /**
+     * Set the packet used by this command context.
+     *
+     * Note that the cookie does not _own_ the actual packet content,
+     * as we don't want to perform an extra memory copy (the actual data
+     * may belong to the network IO buffer code).
+     */
+    void setPacket(PacketContent content, cb::const_byte_buffer buffer);
+
+    /**
      * Get the packet for this command / response packet
      *
+     * @param content do you want the entire packet or not
      * @return the byte buffer containing the packet
      * @throws std::logic_error if the packet isn't available
      */
-    virtual cb::const_byte_buffer getPacket() const;
+    cb::const_byte_buffer getPacket(
+            PacketContent content = PacketContent::Full) const;
 
     /**
      * All of the (current) packet validators expects a void* and I don't
@@ -128,6 +159,35 @@ public:
     void* getPacketAsVoidPtr() const {
         return const_cast<void*>(static_cast<const void*>(getPacket().data()));
     }
+
+    /**
+     * Get the packet as a request packet
+     *
+     * @param content if we want just the header or the entire request
+     *                available. In some cases we want to inspect the packet
+     *                header before requiring the entire packet to be read
+     *                off disk (ex: someone ship a 2GB packet and we don't want
+     *                to read all of that into an in-memory buffer)
+     * @return the packet if it is a request
+     * @throws std::invalid_argument if the packet is of an invalid type
+     * @throws std::logic_error if the packet is a response
+     */
+    const cb::mcbp::Request& getRequest(
+            PacketContent content = PacketContent::Header) const;
+
+    /**
+     * Get the packet as a response packet
+     *
+     * @param content if we want just the header or the entire response
+     *                available. In some cases we want to inspect the packet
+     *                header before requiring the entire packet to be read
+     *                off disk (ex: someone ship a 2GB packet and we don't want
+     *                to read all of that into an in-memory buffer)
+     * @return the packet if it is a response, or nullptr if it is a requests
+     * @throws std::invalid_argument if the packet is of an invalid type
+     */
+    const cb::mcbp::Response& getResponse(
+            PacketContent content = PacketContent::Header) const;
 
 protected:
     /**
@@ -153,4 +213,9 @@ protected:
      * transferred to the client.
      */
     std::string json_message;
+
+    /**
+     * The input packet used in this command context
+     */
+    cb::const_byte_buffer packet;
 };

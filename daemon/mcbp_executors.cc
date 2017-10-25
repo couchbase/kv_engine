@@ -61,13 +61,14 @@
 #include "settings.h"
 #include "subdocument.h"
 
-#include <cctype>
+#include <memcached/protocol_binary.h>
 #include <memcached/rbac.h>
 #include <platform/cb_malloc.h>
 #include <platform/checked_snprintf.h>
 #include <platform/compress.h>
 #include <snappy-c.h>
 #include <utilities/protocol2text.h>
+#include <cctype>
 
 std::array<bool, 0x100>&  topkey_commands = get_mcbp_topkeys();
 std::array<mcbp_package_execute, 0x100>& executors = get_mcbp_executors();
@@ -1284,39 +1285,41 @@ void try_read_mcbp_command(McbpConnection* c) {
                 "mcbp");
     }
 
-    const protocol_binary_request_header* req = nullptr;
-    if (c->read->rsize() < sizeof(*req)) {
+    auto input = c->read->rdata();
+    if (input.size() < sizeof(cb::mcbp::Request)) {
         throw std::logic_error(
                 "try_read_mcbp_command: header not present (got " +
                 std::to_string(c->read->rsize()) + " of " +
                 std::to_string(sizeof(cb::mcbp::Request)) + ")");
     }
-
-    c->read->consume([&req](cb::const_byte_buffer buffer) -> ssize_t {
-        using mcbp_header = protocol_binary_request_header;
-        req = reinterpret_cast<const mcbp_header*>(buffer.data());
-        return 0;
-    });
+    auto& cookie = c->getCookieObject();
+    cookie.setPacket(
+            Cookie::PacketContent::Header,
+            cb::const_byte_buffer{input.data(), sizeof(cb::mcbp::Request)});
 
     if (settings.getVerbose() > 1) {
         /* Dump the packet before we convert it to host order */
         char buffer[1024];
         ssize_t nw;
-        nw = bytes_to_output_string(buffer, sizeof(buffer), c->getId(),
-                                    true, "Read binary protocol data:",
-                                    (const char*)req->bytes,
-                                    sizeof(req->bytes));
+        nw = bytes_to_output_string(buffer,
+                                    sizeof(buffer),
+                                    c->getId(),
+                                    true,
+                                    "Read binary protocol data:",
+                                    (const char*)input.data(),
+                                    sizeof(cb::mcbp::Request));
         if (nw != -1) {
             LOG_DEBUG(c, "%s", buffer);
         }
     }
 
     // Create a host-local-byte-order-copy of the header
-    c->binary_header = *req;
-    c->binary_header.request.keylen = ntohs(req->request.keylen);
-    c->binary_header.request.bodylen = ntohl(req->request.bodylen);
-    c->binary_header.request.vbucket = ntohs(req->request.vbucket);
-    c->binary_header.request.cas = ntohll(req->request.cas);
+    const auto& req = cookie.getRequest();
+    memcpy(c->binary_header.bytes, &req, sizeof(c->binary_header));
+    c->binary_header.request.keylen = req.getKeylen();
+    c->binary_header.request.bodylen = req.getBodylen();
+    c->binary_header.request.vbucket = req.getVBucket();
+    c->binary_header.request.cas = req.getCas();
 
     if (c->binary_header.request.magic != PROTOCOL_BINARY_REQ &&
         !(c->binary_header.request.magic == PROTOCOL_BINARY_RES &&
@@ -1347,7 +1350,8 @@ void try_read_mcbp_command(McbpConnection* c) {
     c->setCAS(0);
     c->setNoReply(false);
     c->setStart(ProcessClock::now());
-    MEMCACHED_PROCESS_COMMAND_START(c->getId(), nullptr, 0);
+    MEMCACHED_PROCESS_COMMAND_START(
+            c->getId(), &req, sizeof(cb::mcbp::Request));
 
     auto reason = validate_packet_execusion_constraints(c);
     if (reason != cb::mcbp::Status::Success) {
@@ -1358,6 +1362,10 @@ void try_read_mcbp_command(McbpConnection* c) {
 
     if (c->isPacketAvailable()) {
         // we've got the entire packet spooled up, just go execute
+        cookie.setPacket(Cookie::PacketContent::Full,
+                         cb::const_byte_buffer{
+                                 input.data(),
+                                 sizeof(cb::mcbp::Request) + req.getBodylen()});
         c->setState(McbpStateMachine::State::execute);
     } else {
         // we need to allocate more memory!!
@@ -1365,6 +1373,9 @@ void try_read_mcbp_command(McbpConnection* c) {
             size_t needed = sizeof(cb::mcbp::Request) +
                             c->binary_header.request.bodylen;
             c->read->ensureCapacity(needed - c->read->rsize());
+            cookie.setPacket(Cookie::PacketContent::Header,
+                             cb::const_byte_buffer{c->read->rdata().data(),
+                                                   sizeof(cb::mcbp::Request)});
         } catch (const std::bad_alloc&) {
             LOG_WARNING(c,
                         "%u: Failed to grow buffer.. closing connection",
