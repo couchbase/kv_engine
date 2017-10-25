@@ -17,14 +17,12 @@
 #include "config.h"
 #include "statemachine_mcbp.h"
 
-#include "protocol/mcbp/engine_wrapper.h"
-#include "memcached.h"
+#include "connections.h"
+#include "mcaudit.h"
 #include "mcbp.h"
 #include "mcbp_executors.h"
-#include "connections.h"
+#include "protocol/mcbp/ship_dcp_log.h"
 #include "sasl_tasks.h"
-#include "runtime.h"
-#include "mcaudit.h"
 
 #include <platform/strerror.h>
 
@@ -233,7 +231,7 @@ bool conn_ship_log(McbpConnection& connection) {
     } else if (c->isWriteEvent()) {
         if (c->decrementNumEvents() >= 0) {
             c->setEwouldblock(false);
-            ship_mcbp_dcp_log(c);
+            ship_dcp_log(connection);
             if (c->isEwouldblock()) {
                 mask = EV_READ | EV_PERSIST;
             } else {
