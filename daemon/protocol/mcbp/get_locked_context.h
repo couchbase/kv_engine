@@ -37,33 +37,12 @@ public:
         Done
     };
 
-
-    /**
-     * Pick out the lock timeout from the input message. This is an optional
-     * field, and if not present it should be passed as 0 to the underlying
-     * engine which would use the buckets default. (it is refactored as a
-     * separate member function to make the code easier to read ;-)
-     *
-     * @param req the input message
-     * @return The lock timeout value.
-     */
-    static inline uint32_t get_exptime(const protocol_binary_request_getl& req) {
-        if (req.message.header.request.extlen == 0) {
-            return 0;
-        }
-
-        return ntohl(req.message.body.expiration);
-    }
-
-    GetLockedCommandContext(McbpConnection& c,
-                            protocol_binary_request_getl* req)
-        : SteppableCommandContext(c),
-          key(req->bytes + sizeof(req->message.header.bytes) + req->message.header.request.extlen,
-              ntohs(req->message.header.request.keylen),
-              c.getDocNamespace()),
-          vbucket(ntohs(req->message.header.request.vbucket)),
-          lock_timeout(get_exptime(*req)),
-          it(nullptr, cb::ItemDeleter{c.getBucketEngineAsV0()}),
+    explicit GetLockedCommandContext(Cookie& cookie)
+        : SteppableCommandContext(cookie),
+          key(cookie.getRequestKey()),
+          vbucket(cookie.getRequest().getVBucket()),
+          lock_timeout(
+                  get_exptime(cookie.getRequest(Cookie::PacketContent::Full))),
           state(State::GetAndLockItem) {
     }
 
@@ -118,6 +97,30 @@ protected:
     ENGINE_ERROR_CODE sendResponse();
 
 private:
+    /**
+     * Pick out the lock timeout from the input message. This is an optional
+     * field, and if not present it should be passed as 0 to the underlying
+     * engine which would use the buckets default. (it is refactored as a
+     * separate member function to make the code easier to read ;-)
+     *
+     * @param req the input message
+     * @return The lock timeout value.
+     */
+    static uint32_t get_exptime(const cb::mcbp::Request& request) {
+        auto extras = request.getExtdata();
+        if (extras.empty()) {
+            return 0;
+        }
+
+        if (extras.size() != sizeof(uint32_t)) {
+            throw std::invalid_argument(
+                    "GetLockedCommandContext: Invalid extdata size");
+        }
+
+        const auto* exp = reinterpret_cast<const uint32_t*>(extras.data());
+        return ntohl(*exp);
+    }
+
     const DocKey key;
     const uint16_t vbucket;
     const uint32_t lock_timeout;

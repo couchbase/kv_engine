@@ -27,12 +27,8 @@
  */
 class StatsCommandContext : public SteppableCommandContext {
 public:
-
-    StatsCommandContext(McbpConnection& c,
-                        const protocol_binary_request_stats& req)
-        : SteppableCommandContext(c),
-          key{req.bytes + sizeof(req.bytes) + req.message.header.request.extlen,
-              ntohs(req.message.header.request.keylen)} {
+    explicit StatsCommandContext(Cookie& cookie)
+        : SteppableCommandContext(cookie), key(cookie.getRequest().getKey()) {
     }
 
 protected:

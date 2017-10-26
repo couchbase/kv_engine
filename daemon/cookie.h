@@ -19,6 +19,7 @@
 #include "dynamic_buffer.h"
 
 #include <daemon/protocol/mcbp/command_context.h>
+#include <memcached/dockey.h>
 #include <memcached/types.h>
 #include <platform/uuid.h>
 
@@ -201,6 +202,15 @@ public:
      */
     const cb::mcbp::Request& getRequest(
             PacketContent content = PacketContent::Header) const;
+
+    /**
+     * Get the key from the request
+     *
+     * @return the key from the request
+     * @throws std::invalid_argument if the packet is of an invalid type
+     * @throws std::logic_error if the packet is a response
+     */
+    const DocKey getRequestKey() const;
 
     /**
      * Get the packet as a response packet

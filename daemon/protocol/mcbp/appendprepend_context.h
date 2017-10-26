@@ -61,8 +61,8 @@ public:
 
     AppendPrependCommandContext(McbpConnection& c,
                                 protocol_binary_request_append* req,
-                                const Mode &mode_)
-        : SteppableCommandContext(c),
+                                const Mode& mode_)
+        : SteppableCommandContext(c.getCookieObject()),
           mode(mode_),
           key(req->bytes + sizeof(req->bytes),
               ntohs(req->message.header.request.keylen),
@@ -74,7 +74,6 @@ public:
           olditem(nullptr, cb::ItemDeleter{c.getBucketEngineAsV0()}),
           newitem(nullptr, cb::ItemDeleter{c.getBucketEngineAsV0()}),
           state(State::GetItem) {
-
         auto datatype = req->message.header.request.datatype;
         if (mcbp::datatype::is_snappy(datatype)) {
             state = State::InflateInputData;

@@ -149,3 +149,8 @@ void Cookie::sendResponse(cb::mcbp::Status status) {
 void Cookie::sendResponse(cb::engine_errc code) {
     sendResponse(cb::mcbp::to_status(code));
 }
+
+const DocKey Cookie::getRequestKey() const {
+    auto key = getRequest().getKey();
+    return DocKey{key.data(), key.size(), connection.getDocNamespace()};
+}

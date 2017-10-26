@@ -46,8 +46,10 @@ public:
         AuthFailure,
         Done };
 
-    SaslAuthCommandContext(McbpConnection& c, cb::mcbp::Request& req)
-        : SteppableCommandContext(c), request(req), state(State::Initial) {
+    explicit SaslAuthCommandContext(Cookie& cookie)
+        : SteppableCommandContext(cookie),
+          request(cookie.getRequest(Cookie::PacketContent::Full)),
+          state(State::Initial) {
     }
 
 protected:

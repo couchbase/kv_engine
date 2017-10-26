@@ -18,8 +18,8 @@
 #include <daemon/mcbp.h>
 #include <daemon/stats.h>
 
-SteppableCommandContext::SteppableCommandContext(McbpConnection& c)
-    : connection(c) {
+SteppableCommandContext::SteppableCommandContext(Cookie& cookie_)
+    : cookie(cookie_), connection(cookie.getConnection()) {
     connection.logCommand();
 }
 

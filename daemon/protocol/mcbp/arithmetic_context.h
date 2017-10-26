@@ -67,7 +67,7 @@ public:
 
     ArithmeticCommandContext(McbpConnection& c,
                              const protocol_binary_request_incr& req)
-        : SteppableCommandContext(c),
+        : SteppableCommandContext(c.getCookieObject()),
           key(req.bytes + sizeof(req.bytes),
               ntohs(req.message.header.request.keylen),
               c.getDocNamespace()),

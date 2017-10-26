@@ -30,8 +30,8 @@ class RbacReloadCommandContext : public SteppableCommandContext {
 public:
     enum class State { Reload, Done };
 
-    RbacReloadCommandContext(McbpConnection& c)
-        : SteppableCommandContext(c), state(State::Reload) {
+    explicit RbacReloadCommandContext(Cookie& cookie)
+        : SteppableCommandContext(cookie) {
     }
 
 protected:
@@ -55,6 +55,6 @@ protected:
     void done();
 
 private:
-    State state;
+    State state = State::Reload;
     std::shared_ptr<Task> task;
 };

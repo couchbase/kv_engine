@@ -38,7 +38,7 @@ public:
         Done
     };
 
-    GatCommandContext(McbpConnection& c, const protocol_binary_request_gat& req);
+    explicit GatCommandContext(Cookie& cookie);
 
 protected:
     /**
@@ -104,6 +104,8 @@ protected:
     ENGINE_ERROR_CODE sendResponse();
 
 private:
+    uint32_t getExptime(Cookie& cookie);
+
     const DocKey key;
     const uint16_t vbucket;
     const uint32_t exptime;

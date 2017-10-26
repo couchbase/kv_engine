@@ -53,19 +53,16 @@ public:
         Done
     };
 
-    RemoveCommandContext(McbpConnection& c,
-                         protocol_binary_request_delete* req)
-        : SteppableCommandContext(c),
-          key(req->bytes + sizeof(req->bytes),
-              ntohs(req->message.header.request.keylen),
-              c.getDocNamespace()),
-          vbucket(ntohs(req->message.header.request.vbucket)),
-          input_cas(ntohll(req->message.header.request.cas)),
+    RemoveCommandContext(Cookie& cookie, const cb::mcbp::Request& req)
+        : SteppableCommandContext(cookie),
+          key(cookie.getRequestKey()),
+          vbucket(req.getVBucket()),
+          input_cas(req.getCas()),
           state(State::GetItem),
-          deleted(nullptr, cb::ItemDeleter{c.getBucketEngineAsV0()}),
-          existing(nullptr, cb::ItemDeleter{c.getBucketEngineAsV0()}),
           mutation_descr{} {
-
+        if (req.getClientOpcode() == cb::mcbp::ClientOpcode::Deleteq) {
+            cookie.getConnection().setNoReply(true);
+        }
     }
 
 protected:

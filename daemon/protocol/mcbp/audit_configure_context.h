@@ -36,8 +36,8 @@ public:
         /// Send the response back to the client
         Done };
 
-    AuditConfigureCommandContext(McbpConnection& c)
-        : SteppableCommandContext(c), state(State::Configuring) {
+    explicit AuditConfigureCommandContext(Cookie& cookie)
+        : SteppableCommandContext(cookie) {
     }
 
 protected:
@@ -61,5 +61,5 @@ protected:
     void done();
 
 private:
-    State state;
+    State state = State::Configuring;
 };

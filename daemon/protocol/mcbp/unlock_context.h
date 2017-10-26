@@ -35,14 +35,11 @@ public:
         Done
     };
 
-    UnlockCommandContext(McbpConnection& c,
-                            protocol_binary_request_no_extras* req)
-        : SteppableCommandContext(c),
-          key(req->bytes + sizeof(req->bytes),
-              ntohs(req->message.header.request.keylen),
-              c.getDocNamespace()),
-          vbucket(ntohs(req->message.header.request.vbucket)),
-          cas(ntohll(req->message.header.request.cas)),
+    explicit UnlockCommandContext(Cookie& cookie)
+        : SteppableCommandContext(cookie),
+          key(cookie.getRequestKey()),
+          vbucket(cookie.getRequest().getVBucket()),
+          cas(cookie.getRequest().getCas()),
           state(State::Unlock) {
     }
 

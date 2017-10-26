@@ -21,6 +21,7 @@
 
 // Forward declaration
 class McbpConnection;
+class Cookie;
 
 /**
  * The steppable command context is an iterface to a command context
@@ -31,10 +32,9 @@ class McbpConnection;
  */
 class SteppableCommandContext : public CommandContext {
 public:
-    SteppableCommandContext(McbpConnection& c);
+    explicit SteppableCommandContext(Cookie& cookie_);
 
-    virtual ~SteppableCommandContext() {
-    }
+    ~SteppableCommandContext() override = default;
 
     /**
      * Drive the state machine as far as possible and handle the
@@ -53,8 +53,13 @@ protected:
     virtual ENGINE_ERROR_CODE step() = 0;
 
     /**
-     * The connection this command context is bound to (it is used to send
-     * response / set ewouldblock etc
+     * The cookie executing this command
+     */
+    Cookie& cookie;
+
+    /**
+     * The connection this command context is bound to (deprecated, and
+     * should be removed (it is part of the cookie))
      */
     McbpConnection& connection;
 };

@@ -30,8 +30,7 @@ public:
     // state does
     enum class State : uint8_t { GetItemMeta, NoSuchItem, SendResponse, Done };
 
-    GetMetaCommandContext(McbpConnection& c,
-                          protocol_binary_request_get_meta* req);
+    explicit GetMetaCommandContext(Cookie& cookie);
 
 protected:
     /**
@@ -84,6 +83,5 @@ private:
     State state;
 
     item_info info;
-    protocol_binary_request_get_meta* const request;
     bool fetchDatatype;
 };

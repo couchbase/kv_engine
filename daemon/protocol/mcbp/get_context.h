@@ -37,14 +37,10 @@ public:
         Done
     };
 
-    GetCommandContext(McbpConnection& c,
-                      protocol_binary_request_get* req)
-        : SteppableCommandContext(c),
-          key(req->bytes + sizeof(req->bytes),
-              ntohs(req->message.header.request.keylen),
-              c.getDocNamespace()),
-          vbucket(ntohs(req->message.header.request.vbucket)),
-          it(nullptr, cb::ItemDeleter{c.getBucketEngineAsV0()}),
+    explicit GetCommandContext(Cookie& cookie)
+        : SteppableCommandContext(cookie),
+          key(cookie.getRequestKey()),
+          vbucket(cookie.getRequest().getVBucket()),
           state(State::GetItem) {
     }
 

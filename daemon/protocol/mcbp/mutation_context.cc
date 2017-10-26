@@ -26,7 +26,7 @@
 MutationCommandContext::MutationCommandContext(McbpConnection& c,
                                                protocol_binary_request_set* req,
                                                const ENGINE_STORE_OPERATION op_)
-    : SteppableCommandContext(c),
+    : SteppableCommandContext(c.getCookieObject()),
       operation(req->message.header.request.cas == 0 ? op_ : OPERATION_CAS),
       key(req->bytes + sizeof(req->bytes),
           ntohs(req->message.header.request.keylen),

@@ -35,8 +35,10 @@ public:
     // there for the notification from the task
     enum class State { Initial, Create, Remove, Done };
 
-    CreateRemoveBucketCommandContext(McbpConnection& c, cb::mcbp::Request& req)
-        : SteppableCommandContext(c), request(req), state(State::Initial) {
+    explicit CreateRemoveBucketCommandContext(Cookie& cookie)
+        : SteppableCommandContext(cookie),
+          request(cookie.getRequest(Cookie::PacketContent::Full)),
+          state(State::Initial) {
     }
 
 protected:

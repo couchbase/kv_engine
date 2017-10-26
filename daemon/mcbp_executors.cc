@@ -89,41 +89,23 @@ void update_topkeys(const DocKey& key, McbpConnection* c) {
 }
 
 static void process_bin_get(Cookie& cookie) {
-    auto& connection = cookie.getConnection();
-    auto* req = reinterpret_cast<protocol_binary_request_get*>(
-            cookie.getPacketAsVoidPtr());
-    cookie.obtainContext<GetCommandContext>(connection, req).drive();
+    cookie.obtainContext<GetCommandContext>(cookie).drive();
 }
 
 static void process_bin_get_meta(Cookie& cookie) {
-    auto& connection = cookie.getConnection();
-    auto* req = reinterpret_cast<protocol_binary_request_get*>(
-            cookie.getPacketAsVoidPtr());
-    cookie.obtainContext<GetMetaCommandContext>(connection, req).drive();
+    cookie.obtainContext<GetMetaCommandContext>(cookie).drive();
 }
 
 static void get_locked_executor(Cookie& cookie) {
-    auto& connection = cookie.getConnection();
-    auto* req = reinterpret_cast<protocol_binary_request_getl*>(
-            cookie.getPacketAsVoidPtr());
-    cookie.obtainContext<GetLockedCommandContext>(connection, req).drive();
+    cookie.obtainContext<GetLockedCommandContext>(cookie).drive();
 }
 
 static void unlock_executor(Cookie& cookie) {
-    auto& connection = cookie.getConnection();
-    auto* req = reinterpret_cast<protocol_binary_request_no_extras*>(
-            cookie.getPacketAsVoidPtr());
-    cookie.obtainContext<UnlockCommandContext>(connection, req).drive();
+    cookie.obtainContext<UnlockCommandContext>(cookie).drive();
 }
 
 static void gat_executor(Cookie& cookie) {
-    auto& connection = cookie.getConnection();
-    if (connection.getCmd() == PROTOCOL_BINARY_CMD_GATQ) {
-        connection.setNoReply(true);
-    }
-    auto* req = reinterpret_cast<protocol_binary_request_gat*>(
-            cookie.getPacketAsVoidPtr());
-    cookie.obtainContext<GatCommandContext>(connection, *req).drive();
+    cookie.obtainContext<GatCommandContext>(cookie).drive();
 }
 
 
@@ -227,38 +209,23 @@ static void add_set_replace_executor(Cookie& cookie,
 }
 
 static void add_executor(Cookie& cookie) {
+    auto& req = cookie.getRequest(Cookie::PacketContent::Full);
     auto& connection = cookie.getConnection();
-    connection.setNoReply(false);
-    add_set_replace_executor(cookie, OPERATION_ADD);
-}
-
-static void addq_executor(Cookie& cookie) {
-    auto& connection = cookie.getConnection();
-    connection.setNoReply(true);
+    connection.setNoReply(req.isQuiet());
     add_set_replace_executor(cookie, OPERATION_ADD);
 }
 
 static void set_executor(Cookie& cookie) {
+    auto& req = cookie.getRequest(Cookie::PacketContent::Full);
     auto& connection = cookie.getConnection();
-    connection.setNoReply(false);
-    add_set_replace_executor(cookie, OPERATION_SET);
-}
-
-static void setq_executor(Cookie& cookie) {
-    auto& connection = cookie.getConnection();
-    connection.setNoReply(true);
+    connection.setNoReply(req.isQuiet());
     add_set_replace_executor(cookie, OPERATION_SET);
 }
 
 static void replace_executor(Cookie& cookie) {
+    auto& req = cookie.getRequest(Cookie::PacketContent::Full);
     auto& connection = cookie.getConnection();
-    connection.setNoReply(false);
-    add_set_replace_executor(cookie, OPERATION_REPLACE);
-}
-
-static void replaceq_executor(Cookie& cookie) {
-    auto& connection = cookie.getConnection();
-    connection.setNoReply(true);
+    connection.setNoReply(req.isQuiet());
     add_set_replace_executor(cookie, OPERATION_REPLACE);
 }
 
@@ -272,53 +239,23 @@ static void append_prepend_executor(
 }
 
 static void append_executor(Cookie& cookie) {
+    auto& req = cookie.getRequest(Cookie::PacketContent::Full);
     auto& connection = cookie.getConnection();
-    connection.setNoReply(false);
-    append_prepend_executor(cookie, AppendPrependCommandContext::Mode::Append);
-}
-
-static void appendq_executor(Cookie& cookie) {
-    auto& connection = cookie.getConnection();
-    connection.setNoReply(true);
+    connection.setNoReply(req.isQuiet());
     append_prepend_executor(cookie, AppendPrependCommandContext::Mode::Append);
 }
 
 static void prepend_executor(Cookie& cookie) {
+    auto& req = cookie.getRequest(Cookie::PacketContent::Full);
     auto& connection = cookie.getConnection();
-    connection.setNoReply(false);
-    append_prepend_executor(cookie, AppendPrependCommandContext::Mode::Prepend);
-}
-
-static void prependq_executor(Cookie& cookie) {
-    auto& connection = cookie.getConnection();
-    connection.setNoReply(true);
+    connection.setNoReply(req.isQuiet());
     append_prepend_executor(cookie, AppendPrependCommandContext::Mode::Prepend);
 }
 
 static void get_executor(Cookie& cookie) {
+    auto& req = cookie.getRequest(Cookie::PacketContent::Full);
     auto& connection = cookie.getConnection();
-    switch (connection.getCmd()) {
-    case PROTOCOL_BINARY_CMD_GETQ:
-        connection.setNoReply(true);
-        break;
-    case PROTOCOL_BINARY_CMD_GET:
-        connection.setNoReply(false);
-        break;
-    case PROTOCOL_BINARY_CMD_GETKQ:
-        connection.setNoReply(true);
-        break;
-    case PROTOCOL_BINARY_CMD_GETK:
-        connection.setNoReply(false);
-        break;
-    default:
-        LOG_WARNING(&connection,
-                    "%u: get_executor: cmd (which is %d) is not a valid GET "
-                    "variant - closing connection",
-                    connection.getCmd());
-        connection.setState(McbpStateMachine::State::closing);
-        return;
-    }
-
+    connection.setNoReply(req.isQuiet());
     process_bin_get(cookie);
 }
 
@@ -346,15 +283,11 @@ static void get_meta_executor(Cookie& cookie) {
 }
 
 static void stat_executor(Cookie& cookie) {
-    auto& connection = cookie.getConnection();
-    auto* req = reinterpret_cast<protocol_binary_request_stats*>(
-            cookie.getPacketAsVoidPtr());
-    cookie.obtainContext<StatsCommandContext>(connection, *req).drive();
+    cookie.obtainContext<StatsCommandContext>(cookie).drive();
 }
 
 static void isasl_refresh_executor(Cookie& cookie) {
-    auto& connection = cookie.getConnection();
-    cookie.obtainContext<SaslRefreshCommandContext>(connection).drive();
+    cookie.obtainContext<SaslRefreshCommandContext>(cookie).drive();
 }
 
 static void ssl_certs_refresh_executor(Cookie& cookie) {
@@ -436,10 +369,7 @@ static void sasl_list_mech_executor(Cookie& cookie) {
 }
 
 static void sasl_auth_executor(Cookie& cookie) {
-    auto& connection = cookie.getConnection();
-    auto* req =
-            reinterpret_cast<cb::mcbp::Request*>(cookie.getPacketAsVoidPtr());
-    cookie.obtainContext<SaslAuthCommandContext>(connection, *req).drive();
+    cookie.obtainContext<SaslAuthCommandContext>(cookie).drive();
 }
 
 static void noop_executor(Cookie& cookie) {
@@ -447,21 +377,13 @@ static void noop_executor(Cookie& cookie) {
 }
 
 static void flush_executor(Cookie& cookie) {
-    auto& connection = cookie.getConnection();
-    auto* req =
-            reinterpret_cast<cb::mcbp::Request*>(cookie.getPacketAsVoidPtr());
-    cookie.obtainContext<FlushCommandContext>(connection, *req).drive();
+    cookie.obtainContext<FlushCommandContext>(cookie).drive();
 }
 
 static void delete_executor(Cookie& cookie) {
-    auto& connection = cookie.getConnection();
-    if (connection.getCmd() == PROTOCOL_BINARY_CMD_DELETEQ) {
-        connection.setNoReply(true);
-    }
-
-    auto* req = reinterpret_cast<protocol_binary_request_delete*>(
-            cookie.getPacketAsVoidPtr());
-    cookie.obtainContext<RemoveCommandContext>(connection, req).drive();
+    cookie.obtainContext<RemoveCommandContext>(
+                  cookie, cookie.getRequest(Cookie::PacketContent::Full))
+            .drive();
 }
 
 static void arithmetic_executor(Cookie& cookie) {
@@ -654,22 +576,20 @@ static void config_validate_executor(Cookie& cookie) {
 }
 
 static void config_reload_executor(Cookie& cookie) {
-    auto& connection = cookie.getConnection();
     // We need to audit that the privilege debug mode changed and
     // in order to do that we need the "connection" object so we can't
     // do this by using the common "changed_listener"-interface.
-    bool old_priv_debug = settings.isPrivilegeDebug();
+    const bool old_priv_debug = settings.isPrivilegeDebug();
     reload_config_file();
     if (settings.isPrivilegeDebug() != old_priv_debug) {
-        audit_set_privilege_debug_mode(&connection,
+        audit_set_privilege_debug_mode(&cookie.getConnection(),
                                        settings.isPrivilegeDebug());
     }
     cookie.sendResponse(cb::mcbp::Status::Success);
 }
 
 static void audit_config_reload_executor(Cookie& cookie) {
-    auto& connection = cookie.getConnection();
-    cookie.obtainContext<AuditConfigureCommandContext>(connection).drive();
+    cookie.obtainContext<AuditConfigureCommandContext>(cookie).drive();
 }
 
 static void audit_put_executor(Cookie& cookie) {
@@ -688,23 +608,8 @@ static void audit_put_executor(Cookie& cookie) {
     }
 }
 
-/**
- * The create bucket contains message have the following format:
- *    key: bucket name
- *    body: module\nconfig
- */
-static void create_bucket_executor(Cookie& cookie) {
-    auto& connection = cookie.getConnection();
-    auto* req = static_cast<cb::mcbp::Request*>(cookie.getPacketAsVoidPtr());
-    cookie.obtainContext<CreateRemoveBucketCommandContext>(connection, *req)
-            .drive();
-}
-
-static void delete_bucket_executor(Cookie& cookie) {
-    auto& connection = cookie.getConnection();
-    auto* req = static_cast<cb::mcbp::Request*>(cookie.getPacketAsVoidPtr());
-    cookie.obtainContext<CreateRemoveBucketCommandContext>(connection, *req)
-            .drive();
+static void create_remove_bucket_executor(Cookie& cookie) {
+    cookie.obtainContext<CreateRemoveBucketCommandContext>(cookie).drive();
 }
 
 static void get_errmap_executor(Cookie& cookie) {
@@ -731,11 +636,7 @@ static void get_errmap_executor(Cookie& cookie) {
 }
 
 static void shutdown_executor(Cookie& cookie) {
-    auto req = reinterpret_cast<protocol_binary_request_shutdown*>(
-            cookie.getPacketAsVoidPtr());
-    uint64_t cas = ntohll(req->message.header.request.cas);
-
-    if (session_cas.increment_session_counter(cas)) {
+    if (session_cas.increment_session_counter(cookie.getRequest().getCas())) {
         shutdown_server();
         session_cas.decrement_session_counter();
         cookie.sendResponse(cb::mcbp::Status::Success);
@@ -786,8 +687,7 @@ std::array<mcbp_package_execute, 0x100>& get_mcbp_executors() {
 }
 
 static void rbac_refresh_executor(Cookie& cookie) {
-    auto& connection = cookie.getConnection();
-    cookie.obtainContext<RbacReloadCommandContext>(connection).drive();
+    cookie.obtainContext<RbacReloadCommandContext>(cookie).drive();
 }
 
 static void no_support_executor(Cookie& cookie) {
@@ -816,15 +716,15 @@ void initialize_protocol_handlers() {
     handlers[PROTOCOL_BINARY_CMD_NOOP] = noop_executor;
     handlers[PROTOCOL_BINARY_CMD_FLUSH] = flush_executor;
     handlers[PROTOCOL_BINARY_CMD_FLUSHQ] = flush_executor;
-    handlers[PROTOCOL_BINARY_CMD_SETQ] = setq_executor;
+    handlers[PROTOCOL_BINARY_CMD_SETQ] = set_executor;
     handlers[PROTOCOL_BINARY_CMD_SET] = set_executor;
-    handlers[PROTOCOL_BINARY_CMD_ADDQ] = addq_executor;
+    handlers[PROTOCOL_BINARY_CMD_ADDQ] = add_executor;
     handlers[PROTOCOL_BINARY_CMD_ADD] = add_executor;
-    handlers[PROTOCOL_BINARY_CMD_REPLACEQ] = replaceq_executor;
+    handlers[PROTOCOL_BINARY_CMD_REPLACEQ] = replace_executor;
     handlers[PROTOCOL_BINARY_CMD_REPLACE] = replace_executor;
-    handlers[PROTOCOL_BINARY_CMD_APPENDQ] = appendq_executor;
+    handlers[PROTOCOL_BINARY_CMD_APPENDQ] = append_executor;
     handlers[PROTOCOL_BINARY_CMD_APPEND] = append_executor;
-    handlers[PROTOCOL_BINARY_CMD_PREPENDQ] = prependq_executor;
+    handlers[PROTOCOL_BINARY_CMD_PREPENDQ] = prepend_executor;
     handlers[PROTOCOL_BINARY_CMD_PREPEND] = prepend_executor;
     handlers[PROTOCOL_BINARY_CMD_GET] = get_executor;
     handlers[PROTOCOL_BINARY_CMD_GETQ] = get_executor;
@@ -853,9 +753,9 @@ void initialize_protocol_handlers() {
     handlers[PROTOCOL_BINARY_CMD_AUDIT_CONFIG_RELOAD] =
             audit_config_reload_executor;
     handlers[PROTOCOL_BINARY_CMD_SHUTDOWN] = shutdown_executor;
-    handlers[PROTOCOL_BINARY_CMD_CREATE_BUCKET] = create_bucket_executor;
+    handlers[PROTOCOL_BINARY_CMD_CREATE_BUCKET] = create_remove_bucket_executor;
     handlers[PROTOCOL_BINARY_CMD_LIST_BUCKETS] = list_bucket_executor;
-    handlers[PROTOCOL_BINARY_CMD_DELETE_BUCKET] = delete_bucket_executor;
+    handlers[PROTOCOL_BINARY_CMD_DELETE_BUCKET] = create_remove_bucket_executor;
     handlers[PROTOCOL_BINARY_CMD_SELECT_BUCKET] = select_bucket_executor;
     handlers[PROTOCOL_BINARY_CMD_GET_ERROR_MAP] = get_errmap_executor;
     handlers[PROTOCOL_BINARY_CMD_GET_LOCKED] = get_locked_executor;

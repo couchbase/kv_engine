@@ -22,21 +22,17 @@
 #include <daemon/mcbp.h>
 #include <xattr/utils.h>
 
-GetMetaCommandContext::GetMetaCommandContext(
-        McbpConnection& c, protocol_binary_request_get_meta* req)
-    : SteppableCommandContext(c),
-      key(req->bytes + sizeof(req->bytes) + req->message.header.request.extlen,
-          ntohs(req->message.header.request.keylen),
-          c.getDocNamespace()),
-      vbucket(ntohs(req->message.header.request.vbucket)),
+GetMetaCommandContext::GetMetaCommandContext(Cookie& cookie)
+    : SteppableCommandContext(cookie),
+      key(cookie.getRequestKey()),
+      vbucket(cookie.getRequest().getVBucket()),
       state(State::GetItemMeta),
       info(),
-      request(req),
       fetchDatatype(false) {
+    auto extras = cookie.getRequest(Cookie::PacketContent::Full).getExtdata();
     // Read the version if extlen is 1
-    if (request->message.header.request.extlen == 1) {
-        uint8_t version = request->bytes[sizeof(request->bytes)];
-        fetchDatatype = (version == uint8_t(GetMetaVersion::V2));
+    if (extras.size() == 1 && *extras.data() == uint8_t(GetMetaVersion::V2)) {
+        fetchDatatype = true;
     }
 }
 
@@ -98,9 +94,9 @@ ENGINE_ERROR_CODE GetMetaCommandContext::noSuchItem() {
         bucket.responseCounters[PROTOCOL_BINARY_RESPONSE_KEY_ENOENT]++;
         connection.setState(McbpStateMachine::State::new_cmd);
     } else {
-        if (request->message.header.request.opcode !=
-            PROTOCOL_BINARY_CMD_GETQ_META) {
-            mcbp_write_packet(&connection, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
+        auto& req = cookie.getRequest();
+        if (req.getClientOpcode() != cb::mcbp::ClientOpcode::GetqMeta) {
+            cookie.sendResponse(cb::mcbp::Status::KeyEnoent);
         }
     }
 

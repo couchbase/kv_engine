@@ -34,9 +34,8 @@ public:
             Done
     };
 
-    SaslRefreshCommandContext(McbpConnection& c)
-        : SteppableCommandContext(c),
-          state(State::Refresh) {
+    explicit SaslRefreshCommandContext(Cookie& cookie)
+        : SteppableCommandContext(cookie) {
     }
 
 protected:
@@ -61,5 +60,5 @@ protected:
     void done();
 
 private:
-    State state;
+    State state = State::Refresh;
 };

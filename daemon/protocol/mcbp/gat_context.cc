@@ -22,17 +22,26 @@
 #include <xattr/utils.h>
 #include <daemon/mcaudit.h>
 
-GatCommandContext::GatCommandContext(McbpConnection& c,
-                                     const protocol_binary_request_gat& req)
-    : SteppableCommandContext(c),
-      key(req.bytes + sizeof(req.bytes),
-          ntohs(req.message.header.request.keylen),
-          c.getDocNamespace()),
-      vbucket(ntohs(req.message.header.request.vbucket)),
-      exptime(ntohl(req.message.body.expiration)),
-      it(nullptr, cb::ItemDeleter{c.getBucketEngineAsV0()}),
+uint32_t GatCommandContext::getExptime(Cookie& cookie) {
+    auto extras = cookie.getRequest(Cookie::PacketContent::Full).getExtdata();
+    if (extras.size() != sizeof(uint32_t)) {
+        throw std::invalid_argument("GatCommandContext: Invalid extdata size");
+    }
+
+    const auto* exp = reinterpret_cast<const uint32_t*>(extras.data());
+    return ntohl(*exp);
+}
+
+GatCommandContext::GatCommandContext(Cookie& cookie)
+    : SteppableCommandContext(cookie),
+      key(cookie.getRequestKey()),
+      vbucket(cookie.getRequest().getVBucket()),
+      exptime(getExptime(cookie)),
       info{},
       state(State::GetAndTouchItem) {
+    if (cookie.getRequest().getClientOpcode() == cb::mcbp::ClientOpcode::Gatq) {
+        connection.setNoReply(true);
+    }
 }
 
 ENGINE_ERROR_CODE GatCommandContext::getAndTouchItem() {
