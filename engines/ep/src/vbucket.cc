@@ -1035,17 +1035,19 @@ ENGINE_ERROR_CODE VBucket::addBackfillItem(Item& itm,
     return ret;
 }
 
-ENGINE_ERROR_CODE VBucket::setWithMeta(Item& itm,
-                                       uint64_t cas,
-                                       uint64_t* seqno,
-                                       const void* cookie,
-                                       EventuallyPersistentEngine& engine,
-                                       int bgFetchDelay,
-                                       CheckConflicts checkConflicts,
-                                       bool allowExisting,
-                                       GenerateBySeqno genBySeqno,
-                                       GenerateCas genCas,
-                                       bool isReplication) {
+ENGINE_ERROR_CODE VBucket::setWithMeta(
+        Item& itm,
+        uint64_t cas,
+        uint64_t* seqno,
+        const void* cookie,
+        EventuallyPersistentEngine& engine,
+        int bgFetchDelay,
+        CheckConflicts checkConflicts,
+        bool allowExisting,
+        GenerateBySeqno genBySeqno,
+        GenerateCas genCas,
+        bool isReplication,
+        const Collections::VB::Manifest::CachingReadHandle& readHandle) {
     auto hbl = ht.getLockedBucket(itm.getKey());
     StoredValue* v = ht.unlocked_find(itm.getKey(),
                                       hbl.getBucketNum(),
@@ -1053,6 +1055,15 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(Item& itm,
                                       TrackReference::No);
 
     bool maybeKeyExists = true;
+
+    // Effectively ignore logically deleted keys, they cannot stop the op
+    if (v && readHandle.isLogicallyDeleted(v->getBySeqno())) {
+        // v is not really here, operate like it's not and skip conflict checks
+        checkConflicts = CheckConflicts::No;
+        // And ensure ADD_W_META works like SET_W_META, just overwrite existing
+        allowExisting = true;
+    }
+
     if (checkConflicts == CheckConflicts::Yes) {
         if (v) {
             if (v->isTempInitialItem()) {

@@ -819,20 +819,23 @@ public:
      * @param genCas
      * @param isReplication set to true if we are to use replication
      *                      throttle threshold
+     * @param readHandle Reader access to the Item's collection data.
      *
      * @return the result of the store operation
      */
-    ENGINE_ERROR_CODE setWithMeta(Item& itm,
-                                  uint64_t cas,
-                                  uint64_t* seqno,
-                                  const void* cookie,
-                                  EventuallyPersistentEngine& engine,
-                                  int bgFetchDelay,
-                                  CheckConflicts checkConflicts,
-                                  bool allowExisting,
-                                  GenerateBySeqno genBySeqno,
-                                  GenerateCas genCas,
-                                  bool isReplication);
+    ENGINE_ERROR_CODE setWithMeta(
+            Item& itm,
+            uint64_t cas,
+            uint64_t* seqno,
+            const void* cookie,
+            EventuallyPersistentEngine& engine,
+            int bgFetchDelay,
+            CheckConflicts checkConflicts,
+            bool allowExisting,
+            GenerateBySeqno genBySeqno,
+            GenerateCas genCas,
+            bool isReplication,
+            const Collections::VB::Manifest::CachingReadHandle& readHandle);
 
     /**
      * Delete an item in the vbucket

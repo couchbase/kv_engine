@@ -239,6 +239,19 @@ TEST_F(CollectionsTest, MB_25344) {
                                     0,
                                     nullptr,
                                     false));
+
+    // Prior to making setWithMeta isLogicallyDeleted aware, this would conflict
+    // with the dead key - it should succeed
+    EXPECT_EQ(ENGINE_SUCCESS,
+              store->setWithMeta(item2,
+                                 0,
+                                 nullptr,
+                                 nullptr,
+                                 {vbucket_state_active},
+                                 CheckConflicts::Yes,
+                                 false,
+                                 GenerateBySeqno::Yes,
+                                 GenerateCas::No));
 }
 
 // Test demonstrates issue logged as MB_25344, when we delete a collection

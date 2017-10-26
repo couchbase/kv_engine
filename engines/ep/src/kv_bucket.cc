@@ -1402,8 +1402,8 @@ ENGINE_ERROR_CODE KVBucket::setWithMeta(Item& itm,
     }
 
     { // collections read scope
-        auto collectionsRHandle = vb->lockCollections();
-        if (!collectionsRHandle.doesKeyContainValidCollection(itm.getKey())) {
+        auto collectionsRHandle = vb->lockCollections(itm.getKey());
+        if (!collectionsRHandle.valid()) {
             return ENGINE_UNKNOWN_COLLECTION;
         }
 
@@ -1417,7 +1417,8 @@ ENGINE_ERROR_CODE KVBucket::setWithMeta(Item& itm,
                                allowExisting,
                                genBySeqno,
                                genCas,
-                               isReplication);
+                               isReplication,
+                               collectionsRHandle);
     }
 }
 
