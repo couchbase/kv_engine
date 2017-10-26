@@ -1661,7 +1661,7 @@ ENGINE_ERROR_CODE KVBucket::deleteWithMeta(const DocKey& key,
         }
     } else if (vb->isTakeoverBackedUp()) {
         LOG(EXTENSION_LOG_DEBUG,
-            "(vb %u) Returned TMPFAIL to a setWithMeta op"
+            "(vb %u) Returned TMPFAIL to a deleteWithMeta op"
             ", becuase takeover is lagging",
             vb->getId());
         return ENGINE_TMPFAIL;
