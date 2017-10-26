@@ -1497,10 +1497,12 @@ void VBucket::deleteExpiredItem(const Item& it,
     incExpirationStat(source);
 }
 
-ENGINE_ERROR_CODE VBucket::add(Item& itm,
-                               const void* cookie,
-                               EventuallyPersistentEngine& engine,
-                               const int bgFetchDelay) {
+ENGINE_ERROR_CODE VBucket::add(
+        Item& itm,
+        const void* cookie,
+        EventuallyPersistentEngine& engine,
+        int bgFetchDelay,
+        const Collections::VB::Manifest::CachingReadHandle& readHandle) {
     auto hbl = ht.getLockedBucket(itm.getKey());
     StoredValue* v = ht.unlocked_find(itm.getKey(),
                                       hbl.getBucketNum(),
@@ -1524,8 +1526,8 @@ ENGINE_ERROR_CODE VBucket::add(Item& itm,
                                &preLinkDocumentContext);
     AddStatus status;
     boost::optional<VBNotifyCtx> notifyCtx;
-    std::tie(status, notifyCtx) =
-            processAdd(hbl, v, itm, maybeKeyExists, false, queueItmCtx);
+    std::tie(status, notifyCtx) = processAdd(
+            hbl, v, itm, maybeKeyExists, false, queueItmCtx, readHandle);
 
     switch (status) {
     case AddStatus::NoMem:
@@ -2191,16 +2193,16 @@ std::pair<AddStatus, boost::optional<VBNotifyCtx>> VBucket::processAdd(
         Item& itm,
         bool maybeKeyExists,
         bool isReplication,
-        const VBQueueItemCtx& queueItmCtx) {
+        const VBQueueItemCtx& queueItmCtx,
+        const Collections::VB::Manifest::CachingReadHandle& readHandle) {
     if (!hbl.getHTLock()) {
         throw std::invalid_argument(
                 "VBucket::processAdd: htLock not held for "
                 "VBucket " +
                 std::to_string(getId()));
     }
-
     if (v && !v->isDeleted() && !v->isExpired(ep_real_time()) &&
-        !v->isTempItem()) {
+        !v->isTempItem() && !readHandle.isLogicallyDeleted(v->getBySeqno())) {
         return {AddStatus::Exists, {}};
     }
     if (!hasMemoryForStoredValue(stats, itm, isReplication)) {

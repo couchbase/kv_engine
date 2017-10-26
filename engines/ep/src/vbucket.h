@@ -932,13 +932,16 @@ public:
      * @param cookie the cookie representing the client to store the item
      * @param engine Reference to ep engine
      * @param bgFetchDelay
+     * @param readHandle Reader access to the Item's collection data.
      *
      * @return the result of the operation
      */
-    ENGINE_ERROR_CODE add(Item& itm,
-                          const void* cookie,
-                          EventuallyPersistentEngine& engine,
-                          int bgFetchDelay);
+    ENGINE_ERROR_CODE add(
+            Item& itm,
+            const void* cookie,
+            EventuallyPersistentEngine& engine,
+            int bgFetchDelay,
+            const Collections::VB::Manifest::CachingReadHandle& readHandle);
 
     /**
      * Retrieve a value, but update its TTL first
@@ -1259,6 +1262,7 @@ protected:
      * @param isReplication true if issued by consumer (for replication)
      * @param queueItmCtx holds info needed to queue an item in chkpt or vb
      *                    backfill queue
+     * @param readHandle Reader access to the Item's collection data.
      *
      * @return Result indicating the status of the operation and notification
      *                info (if the operation was successful).
@@ -1269,7 +1273,8 @@ protected:
             Item& itm,
             bool maybeKeyExists,
             bool isReplication,
-            const VBQueueItemCtx& queueItmCtx);
+            const VBQueueItemCtx& queueItmCtx,
+            const Collections::VB::Manifest::CachingReadHandle& readHandle);
 
     /**
      * This function checks cas, eviction policy and other partition

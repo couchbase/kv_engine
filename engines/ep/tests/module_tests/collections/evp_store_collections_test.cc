@@ -141,7 +141,7 @@ TEST_F(CollectionsTest, collections_basic) {
 // we may encounter the key which is pending deletion and then fail when we
 // shouldn't. In this test the final add should logically work, but fails as the
 // old key is found.
-TEST_F(CollectionsTest, DISABLED_MB_25344) {
+TEST_F(CollectionsTest, MB_25344) {
     VBucketPtr vb = store->getVBucket(vbid);
     // Add the dairy collection
     vb->updateFromManifest({R"({"separator":"::",
@@ -150,11 +150,12 @@ TEST_F(CollectionsTest, DISABLED_MB_25344) {
     // Trigger a flush to disk. Flushes the dairy create event.
     flush_vbucket_to_disk(vbid, 1);
 
-    auto item = make_item(vbid, {"dairy::milk", DocNamespace::Collections}, "creamy", 0, 0);
-    EXPECT_EQ(ENGINE_SUCCESS, store->add(item, nullptr));
+    auto item1 = make_item(
+            vbid, {"dairy::milk", DocNamespace::Collections}, "creamy", 0, 0);
+    EXPECT_EQ(ENGINE_SUCCESS, store->add(item1, nullptr));
     flush_vbucket_to_disk(vbid, 1);
 
-    // Now delete the dairy collection
+    // Delete the dairy collection (so all dairy keys become logically deleted)
     vb->updateFromManifest({R"({"separator":"::",
                  "collections":[{"name":"$default", "uid":"0"}]})"});
 
@@ -162,14 +163,13 @@ TEST_F(CollectionsTest, DISABLED_MB_25344) {
     vb->updateFromManifest({R"({"separator":"::",
                  "collections":[{"name":"$default", "uid":"0"},
                                 {"name":"dairy", "uid":"2"}]})"});
+
     // Trigger a flush to disk. Flushes the dairy create event.
     flush_vbucket_to_disk(vbid, 1);
 
-    // Should be able to add the key again
-    // @todo when BG collection deletion exists, it should be disabled for this
-    // test, otherwise the test will be racey in whether the old key is in the
-    // cache.
-    EXPECT_EQ(ENGINE_SUCCESS, store->add(item, nullptr));
+    // Expect that we can add item1 again, even though it is still present
+    item1.setCas(0);
+    EXPECT_EQ(ENGINE_SUCCESS, store->add(item1, nullptr));
 }
 
 class CollectionsFlushTest : public CollectionsTest {

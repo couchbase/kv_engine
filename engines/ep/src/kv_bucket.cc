@@ -610,12 +610,12 @@ ENGINE_ERROR_CODE KVBucket::add(Item &itm, const void *cookie)
     }
 
     { // collections read-lock scope
-        auto collectionsRHandle = vb->lockCollections();
-        if (!collectionsRHandle.doesKeyContainValidCollection(itm.getKey())) {
+        auto collectionsRHandle = vb->lockCollections(itm.getKey());
+        if (!collectionsRHandle.valid()) {
             return ENGINE_UNKNOWN_COLLECTION;
-        } // now hold collections read access for the duration of the set
+        } // now hold collections read access for the duration of the add
 
-        return vb->add(itm, cookie, engine, bgFetchDelay);
+        return vb->add(itm, cookie, engine, bgFetchDelay, collectionsRHandle);
     }
 }
 
