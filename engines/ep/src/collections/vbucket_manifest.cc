@@ -344,8 +344,16 @@ Manifest::container::const_iterator Manifest::getManifestEntry(
         identifier = {reinterpret_cast<const char*>(cKey.data()),
                       cKey.getCollectionLen()};
     } else if (key.getDocNamespace() == DocNamespace::System) {
-        throwException<std::invalid_argument>(__FUNCTION__,
-                                              "Use of system key invalid");
+        const auto cKey = Collections::DocKey::make(key, separator);
+
+        if (cKey.getCollection() == SystemEventPrefix) {
+            identifier = cKey.getKey();
+        } else {
+            std::string sysKey(reinterpret_cast<const char*>(key.data()),
+                               key.size());
+            throwException<std::invalid_argument>(
+                    __FUNCTION__, "Use of system key invalid, key:" + sysKey);
+        }
     }
 
     return map.find(identifier);

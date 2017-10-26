@@ -1657,26 +1657,32 @@ GetValue VBucket::getAndUpdateTtl(const DocKey& key,
     return gv;
 }
 
-GetValue VBucket::getInternal(const DocKey& key,
-                              const void* cookie,
-                              EventuallyPersistentEngine& engine,
-                              int bgFetchDelay,
-                              get_options_t options,
-                              bool diskFlushAll,
-                              GetKeyOnly getKeyOnly) {
+GetValue VBucket::getInternal(
+        const void* cookie,
+        EventuallyPersistentEngine& engine,
+        int bgFetchDelay,
+        get_options_t options,
+        bool diskFlushAll,
+        GetKeyOnly getKeyOnly,
+        const Collections::VB::Manifest::CachingReadHandle& readHandle) {
     const TrackReference trackReference = (options & TRACK_REFERENCE)
                                                   ? TrackReference::Yes
                                                   : TrackReference::No;
     const bool metadataOnly = (options & ALLOW_META_ONLY);
     const bool getDeletedValue = (options & GET_DELETED_VALUE);
     const bool bgFetchRequired = (options & QUEUE_BG_FETCH);
-    auto hbl = ht.getLockedBucket(key);
-    StoredValue* v = fetchValidValue(
-            hbl, key, WantsDeleted::Yes, trackReference, QueueExpired::Yes);
+    auto hbl = ht.getLockedBucket(readHandle.getKey());
+    StoredValue* v = fetchValidValue(hbl,
+                                     readHandle.getKey(),
+                                     WantsDeleted::Yes,
+                                     trackReference,
+                                     QueueExpired::Yes);
     if (v) {
-        // If SV is deleted and user didn't request deleted items then return
-        // ENOENT.
-        if (v->isDeleted() && !getDeletedValue) {
+        // 1 If SV is deleted and user didn't request deleted items
+        // 2 (or) If collection says this key is gone.
+        // then return ENOENT.
+        if ((v->isDeleted() && !getDeletedValue) ||
+            readHandle.isLogicallyDeleted(v->getBySeqno())) {
             return GetValue();
         }
 
@@ -1687,8 +1693,12 @@ GetValue VBucket::getInternal(const DocKey& key,
         if (v->isTempDeletedItem() && getDeletedValue && !metadataOnly) {
             const auto queueBgFetch =
                     (bgFetchRequired) ? QueueBgFetch::Yes : QueueBgFetch::No;
-            return getInternalNonResident(
-                    key, cookie, engine, bgFetchDelay, queueBgFetch, *v);
+            return getInternalNonResident(readHandle.getKey(),
+                                          cookie,
+                                          engine,
+                                          bgFetchDelay,
+                                          queueBgFetch,
+                                          *v);
         }
 
         // If SV is otherwise a temp non-existent (i.e. a marker added after a
@@ -1707,8 +1717,12 @@ GetValue VBucket::getInternal(const DocKey& key,
             auto queueBgFetch = (bgFetchRequired) ?
                     QueueBgFetch::Yes :
                     QueueBgFetch::No;
-            return getInternalNonResident(
-                    key, cookie, engine, bgFetchDelay, queueBgFetch, *v);
+            return getInternalNonResident(readHandle.getKey(),
+                                          cookie,
+                                          engine,
+                                          bgFetchDelay,
+                                          queueBgFetch,
+                                          *v);
         }
 
         // Should we hide (return -1) for the items' CAS?
@@ -1730,11 +1744,15 @@ GetValue VBucket::getInternal(const DocKey& key,
             return GetValue();
         }
 
-        if (maybeKeyExistsInFilter(key)) {
+        if (maybeKeyExistsInFilter(readHandle.getKey())) {
             ENGINE_ERROR_CODE ec = ENGINE_EWOULDBLOCK;
             if (bgFetchRequired) { // Full eviction and need a bg fetch.
-                ec = addTempItemAndBGFetch(
-                        hbl, key, cookie, engine, bgFetchDelay, metadataOnly);
+                ec = addTempItemAndBGFetch(hbl,
+                                           readHandle.getKey(),
+                                           cookie,
+                                           engine,
+                                           bgFetchDelay,
+                                           metadataOnly);
             }
             return GetValue(NULL, ec, -1, true);
         } else {

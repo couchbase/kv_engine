@@ -42,6 +42,14 @@ public:
     void callback(CacheLookup& lookup);
 
 private:
+    /**
+     * Attempt to perform the get of lookup
+     *
+     * @return nothing if lookup is logically deleted, else return a GetValue
+     *         by performing a vb::get with lookup::getKey.
+     */
+    boost::optional<GetValue> get(VBucket& vb, CacheLookup& lookup);
+
     EventuallyPersistentEngine& engine_;
     std::shared_ptr<ActiveStream> stream_;
 };

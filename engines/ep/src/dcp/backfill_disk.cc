@@ -50,6 +50,25 @@ CacheCallback::CacheCallback(EventuallyPersistentEngine& e,
     }
 }
 
+// Do a get and restrict the collections lock scope to just these checks.
+boost::optional<GetValue> CacheCallback::get(VBucket& vb, CacheLookup& lookup) {
+    auto collectionsRHandle = vb.lockCollections(lookup.getKey());
+    // Check with collections if this key should be loaded, status EEXISTS is
+    // the only way to inform the scan to not continue with this key.
+    if (collectionsRHandle.isLogicallyDeleted(lookup.getBySeqno())) {
+        return {};
+    }
+
+    return vb.getInternal(nullptr,
+                          engine_,
+                          0,
+                          /*options*/ NONE,
+                          /*diskFlushAll*/ false,
+                          stream_->isKeyOnly() ? VBucket::GetKeyOnly::Yes
+                                               : VBucket::GetKeyOnly::No,
+                          collectionsRHandle);
+}
+
 void CacheCallback::callback(CacheLookup& lookup) {
     VBucketPtr vb =
             engine_.getKVBucket()->getVBucket(lookup.getVBucketId());
@@ -58,36 +77,26 @@ void CacheCallback::callback(CacheLookup& lookup) {
         return;
     }
 
-    // Check with collections if this key should be loaded, status EEXISTS is
-    // the only way to inform the scan to not continue with this key.
-    if (vb->lockCollections().isLogicallyDeleted(lookup.getKey(),
-                                                 lookup.getBySeqno())) {
-        setStatus(ENGINE_KEY_EEXISTS);
-        return;
-    }
+    auto optionalGv = get(*vb, lookup);
+    if (optionalGv.is_initialized()) {
+        auto& gv = optionalGv.get();
 
-    GetValue gv = vb->getInternal(lookup.getKey(),
-                                  nullptr,
-                                  engine_,
-                                  0,
-                                  /*options*/ NONE,
-                                  /*diskFlushAll*/ false,
-                                  stream_->isKeyOnly() ?
-                                          VBucket::GetKeyOnly::Yes :
-                                          VBucket::GetKeyOnly::No);
-    if (gv.getStatus() == ENGINE_SUCCESS) {
-        if (gv.item->getBySeqno() == lookup.getBySeqno()) {
-            if (stream_->backfillReceived(std::move(gv.item),
-                                          BACKFILL_FROM_MEMORY,
-                                          /*force */false)) {
-                setStatus(ENGINE_KEY_EEXISTS);
+        if (gv.getStatus() == ENGINE_SUCCESS) {
+            if (gv.item->getBySeqno() == lookup.getBySeqno()) {
+                if (stream_->backfillReceived(std::move(gv.item),
+                                              BACKFILL_FROM_MEMORY,
+                                              /*force */ false)) {
+                    setStatus(ENGINE_KEY_EEXISTS);
+                    return;
+                }
+                setStatus(ENGINE_ENOMEM); // Pause the backfill
                 return;
             }
-            setStatus(ENGINE_ENOMEM); // Pause the backfill
-            return;
         }
+        setStatus(ENGINE_SUCCESS);
+    } else {
+        setStatus(ENGINE_KEY_EEXISTS);
     }
-    setStatus(ENGINE_SUCCESS);
 }
 
 DiskCallback::DiskCallback(std::shared_ptr<ActiveStream> s) : stream_(s) {

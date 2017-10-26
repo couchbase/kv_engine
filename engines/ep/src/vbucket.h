@@ -976,23 +976,24 @@ public:
     /**
      * Get metadata and value for a given key
      *
-     * @param key key for which metadata and value should be retrieved
      * @param cookie the cookie representing the client
      * @param engine Reference to ep engine
      * @param bgFetchDelay
      * @param options flags indicating some retrieval related info
      * @param diskFlushAll
      * @param getKeyOnly if GetKeyOnly::Yes we want only the key
+     * @param readHandle Reader access to the requested key's collection data.
      *
      * @return the result of the operation
      */
-    GetValue getInternal(const DocKey& key,
-                         const void* cookie,
-                         EventuallyPersistentEngine& engine,
-                         int bgFetchDelay,
-                         get_options_t options,
-                         bool diskFlushAll,
-                         GetKeyOnly getKeyOnly);
+    GetValue getInternal(
+            const void* cookie,
+            EventuallyPersistentEngine& engine,
+            int bgFetchDelay,
+            get_options_t options,
+            bool diskFlushAll,
+            GetKeyOnly getKeyOnly,
+            const Collections::VB::Manifest::CachingReadHandle& readHandle);
 
     /**
      * Retrieve the meta data for given key

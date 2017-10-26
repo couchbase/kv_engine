@@ -191,6 +191,57 @@ TEST_F(CollectionsTest, MB_25344) {
               store->unlockKey(item2.getKey(), vbid, 0, ep_current_time()));
 }
 
+// Test demonstrates issue logged as MB_25344, when we delete a collection
+// and then happen to perform a mutation against a new rev of the collection
+// we may encounter the key which is pending deletion and then fail when we
+// shouldn't. In this test the final get should fail even though it does find
+// a matching key
+TEST_F(CollectionsTest, MB_25344_get) {
+    VBucketPtr vb = store->getVBucket(vbid);
+    // Add the dairy collection
+    vb->updateFromManifest({R"({"separator":"::",
+                 "collections":[{"name":"$default", "uid":"0"},
+                                {"name":"dairy", "uid":"1"}]})"});
+    // Trigger a flush to disk. Flushes the dairy create event.
+    flush_vbucket_to_disk(vbid, 1);
+
+    auto item1 = make_item(
+            vbid, {"dairy::milk", DocNamespace::Collections}, "creamy", 0, 0);
+    EXPECT_EQ(ENGINE_SUCCESS, store->add(item1, nullptr));
+    flush_vbucket_to_disk(vbid, 1);
+
+    // Delete the dairy collection (so all dairy keys become logically deleted)
+    vb->updateFromManifest({R"({"separator":"::",
+                 "collections":[{"name":"$default", "uid":"0"}]})"});
+
+    // Re-add the dairy collection
+    vb->updateFromManifest({R"({"separator":"::",
+                 "collections":[{"name":"$default", "uid":"0"},
+                                {"name":"dairy", "uid":"2"}]})"});
+
+    // Trigger a flush to disk. Flushes the dairy create event.
+    flush_vbucket_to_disk(vbid, 1);
+
+    // The dairy:2 collection is empty
+    get_options_t options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+            HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
+
+    // Get deleted can't get it
+    auto gv = store->get(
+            {"dairy::milk", DocNamespace::Collections}, vbid, cookie, options);
+    EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+
+    options = static_cast<get_options_t>(QUEUE_BG_FETCH | HONOR_STATES |
+                                         TRACK_REFERENCE | DELETE_TEMP |
+                                         HIDE_LOCKED_CAS | TRACK_STATISTICS);
+
+    // Normal Get can't get it
+    gv = store->get(
+            {"dairy::milk", DocNamespace::Collections}, vbid, cookie, options);
+    EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+}
+
 class CollectionsFlushTest : public CollectionsTest {
 public:
     void SetUp() override {

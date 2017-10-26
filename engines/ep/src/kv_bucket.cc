@@ -1273,18 +1273,18 @@ GetValue KVBucket::getInternal(const DocKey& key,
     }
 
     { // collections read scope
-        auto collectionsRHandle = vb->lockCollections();
-        if (!collectionsRHandle.doesKeyContainValidCollection(key)) {
+        auto collectionsRHandle = vb->lockCollections(key);
+        if (!collectionsRHandle.valid()) {
             return GetValue(NULL, ENGINE_UNKNOWN_COLLECTION);
         }
 
-        return vb->getInternal(key,
-                               cookie,
+        return vb->getInternal(cookie,
                                engine,
                                bgFetchDelay,
                                options,
                                diskDeleteAll,
-                               VBucket::GetKeyOnly::No);
+                               VBucket::GetKeyOnly::No,
+                               collectionsRHandle);
     }
 }
 

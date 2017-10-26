@@ -339,10 +339,25 @@ void MB22960callbackBeforeRegisterCursor(
         EXPECT_TRUE(mock_stream.public_isBackfillTaskRunning())
                 << "isBackfillRunning is not true";
 
-        //Add a doc and close previous checkpoint
-        auto item3 = make_item(vb->getId(), makeStoredDocKey("key3"), "value",
-                               0, PROTOCOL_BINARY_DATATYPE_JSON);
-        EXPECT_EQ(ENGINE_SUCCESS, store->set(item3, nullptr));
+        // This method is bypassing store->set to avoid a test only lock
+        // inversion with collections read locks
+        queued_item qi1(new Item(makeStoredDocKey("key3"),
+                                 0,
+                                 0,
+                                 "v",
+                                 1,
+                                 PROTOCOL_BINARY_RAW_BYTES,
+                                 0,
+                                 -1,
+                                 vb->getId()));
+
+        // queue an Item and close previous checkpoint
+        vb->checkpointManager->queueDirty(*vb,
+                                          qi1,
+                                          GenerateBySeqno::Yes,
+                                          GenerateCas::Yes,
+                                          /*preLinkDocCtx*/ nullptr);
+
         EXPECT_EQ(1, store->flushVBucket(vb->getId()));
         ckpt_mgr.createNewCheckpoint();
         EXPECT_EQ(3, ckpt_mgr.getNumCheckpoints());
@@ -354,10 +369,23 @@ void MB22960callbackBeforeRegisterCursor(
         EXPECT_EQ(2, ckpt_mgr.getNumCheckpoints());
         EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
 
-        //Add a doc and close previous checkpoint
-        auto item4 = make_item(vb->getId(), makeStoredDocKey("key4"), "value",
-                               0, PROTOCOL_BINARY_DATATYPE_JSON);
-        EXPECT_EQ(ENGINE_SUCCESS, store->set(item4, nullptr));
+        queued_item qi2(new Item(makeStoredDocKey("key3"),
+                                 0,
+                                 0,
+                                 "v",
+                                 1,
+                                 PROTOCOL_BINARY_RAW_BYTES,
+                                 0,
+                                 -1,
+                                 vb->getId()));
+
+        // queue an Item and close previous checkpoint
+        vb->checkpointManager->queueDirty(*vb,
+                                          qi2,
+                                          GenerateBySeqno::Yes,
+                                          GenerateCas::Yes,
+                                          /*preLinkDocCtx*/ nullptr);
+
         EXPECT_EQ(1, store->flushVBucket(vb->getId()));
         ckpt_mgr.createNewCheckpoint();
         EXPECT_EQ(3, ckpt_mgr.getNumCheckpoints());
