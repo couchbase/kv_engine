@@ -1480,8 +1480,8 @@ ENGINE_ERROR_CODE KVBucket::unlockKey(const DocKey& key,
         return ENGINE_NOT_MY_VBUCKET;
     }
 
-    auto collectionsRHandle = vb->lockCollections();
-    if (!collectionsRHandle.doesKeyContainValidCollection(key)) {
+    auto collectionsRHandle = vb->lockCollections(key);
+    if (!collectionsRHandle.valid()) {
         return ENGINE_UNKNOWN_COLLECTION;
     }
 
@@ -1493,7 +1493,7 @@ ENGINE_ERROR_CODE KVBucket::unlockKey(const DocKey& key,
                                          QueueExpired::Yes);
 
     if (v) {
-        if (VBucket::isLogicallyNonExistent(*v)) {
+        if (VBucket::isLogicallyNonExistent(*v, collectionsRHandle)) {
             vb->ht.cleanupIfTemporaryItem(hbl, *v);
             return ENGINE_KEY_ENOENT;
         }

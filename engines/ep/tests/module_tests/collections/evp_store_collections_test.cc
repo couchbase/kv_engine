@@ -19,6 +19,7 @@
  * Tests for Collection functionality in EPStore.
  */
 #include "bgfetcher.h"
+#include "ep_time.h"
 #include "kvstore.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "tests/mock/mock_global_task.h"
@@ -184,6 +185,10 @@ TEST_F(CollectionsTest, MB_25344) {
     EXPECT_EQ(ENGINE_KEY_ENOENT,
               store->deleteItem(
                       item2.getKey(), cas, vbid, nullptr, nullptr, nullptr));
+
+    // Unlock should fail enoent rather than an unlock error
+    EXPECT_EQ(ENGINE_KEY_ENOENT,
+              store->unlockKey(item2.getKey(), vbid, 0, ep_current_time()));
 }
 
 class CollectionsFlushTest : public CollectionsTest {
