@@ -248,6 +248,13 @@ TEST_F(CollectionsTest, MB_25344_get) {
                           10,
                           cookie);
     EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+
+    // Same for getAndUpdateTtl
+    gv = store->getAndUpdateTtl({"dairy::milk", DocNamespace::Collections},
+                                vbid,
+                                cookie,
+                                ep_current_time() + 20);
+    EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
 }
 
 class CollectionsFlushTest : public CollectionsTest {

@@ -950,19 +950,20 @@ public:
     /**
      * Retrieve a value, but update its TTL first
      *
-     * @param key the key to fetch
      * @param cookie the connection cookie
      * @param engine Reference to ep engine
      * @param bgFetchDelay
      * @param exptime the new expiry time for the object
+     * @param readHandle Reader access to the key's collection data.
      *
      * @return a GetValue representing the result of the request
      */
-    GetValue getAndUpdateTtl(const DocKey& key,
-                             const void* cookie,
-                             EventuallyPersistentEngine& engine,
-                             int bgFetchDelay,
-                             time_t exptime);
+    GetValue getAndUpdateTtl(
+            const void* cookie,
+            EventuallyPersistentEngine& engine,
+            int bgFetchDelay,
+            time_t exptime,
+            const Collections::VB::Manifest::CachingReadHandle& readHandle);
     /**
      * Queue an Item to the checkpoint and return its seqno
      *
@@ -1233,9 +1234,9 @@ protected:
      */
     std::pair<MutationStatus, GetValue> processGetAndUpdateTtl(
             HashTable::HashBucketLock& hbl,
-            const DocKey& key,
             StoredValue* v,
-            time_t exptime);
+            time_t exptime,
+            const Collections::VB::Manifest::CachingReadHandle& readHandle);
     /**
      * This function checks cas, expiry and other partition (vbucket) related
      * rules before setting an item into other in-memory structure like HT,

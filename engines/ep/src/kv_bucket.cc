@@ -1439,12 +1439,13 @@ GetValue KVBucket::getAndUpdateTtl(const DocKey& key, uint16_t vbucket,
     }
 
     { // collections read scope
-        auto collectionsRHandle = vb->lockCollections();
-        if (!collectionsRHandle.doesKeyContainValidCollection(key)) {
+        auto collectionsRHandle = vb->lockCollections(key);
+        if (!collectionsRHandle.valid()) {
             return GetValue(NULL, ENGINE_UNKNOWN_COLLECTION);
         }
 
-        return vb->getAndUpdateTtl(key, cookie, engine, bgFetchDelay, exptime);
+        return vb->getAndUpdateTtl(
+                cookie, engine, bgFetchDelay, exptime, collectionsRHandle);
     }
 }
 

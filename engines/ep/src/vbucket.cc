@@ -1566,11 +1566,11 @@ ENGINE_ERROR_CODE VBucket::add(
 
 std::pair<MutationStatus, GetValue> VBucket::processGetAndUpdateTtl(
         HashTable::HashBucketLock& hbl,
-        const DocKey& key,
         StoredValue* v,
-        time_t exptime) {
+        time_t exptime,
+        const Collections::VB::Manifest::CachingReadHandle& readHandle) {
     if (v) {
-        if (isLogicallyNonExistent(*v)) {
+        if (isLogicallyNonExistent(*v, readHandle)) {
             ht.cleanupIfTemporaryItem(hbl, *v);
             return {MutationStatus::NotFound, GetValue()};
         }
@@ -1617,7 +1617,7 @@ std::pair<MutationStatus, GetValue> VBucket::processGetAndUpdateTtl(
         if (eviction == VALUE_ONLY) {
             return {MutationStatus::NotFound, GetValue()};
         } else {
-            if (maybeKeyExistsInFilter(key)) {
+            if (maybeKeyExistsInFilter(readHandle.getKey())) {
                 return {MutationStatus::NeedBgFetch, GetValue()};
             } else {
                 // As bloomfilter predicted that item surely doesn't exist
@@ -1628,28 +1628,33 @@ std::pair<MutationStatus, GetValue> VBucket::processGetAndUpdateTtl(
     }
 }
 
-GetValue VBucket::getAndUpdateTtl(const DocKey& key,
-                                  const void* cookie,
-                                  EventuallyPersistentEngine& engine,
-                                  int bgFetchDelay,
-                                  time_t exptime) {
-    auto hbl = ht.getLockedBucket(key);
+GetValue VBucket::getAndUpdateTtl(
+        const void* cookie,
+        EventuallyPersistentEngine& engine,
+        int bgFetchDelay,
+        time_t exptime,
+        const Collections::VB::Manifest::CachingReadHandle& readHandle) {
+    auto hbl = ht.getLockedBucket(readHandle.getKey());
     StoredValue* v = fetchValidValue(hbl,
-                                     key,
+                                     readHandle.getKey(),
                                      WantsDeleted::Yes,
                                      TrackReference::Yes,
                                      QueueExpired::Yes);
     GetValue gv;
     MutationStatus status;
-    std::tie(status, gv) = processGetAndUpdateTtl(hbl, key, v, exptime);
+    std::tie(status, gv) = processGetAndUpdateTtl(hbl, v, exptime, readHandle);
 
     if (status == MutationStatus::NeedBgFetch) {
         if (v) {
-            bgFetch(key, cookie, engine, bgFetchDelay);
+            bgFetch(readHandle.getKey(), cookie, engine, bgFetchDelay);
             return GetValue(nullptr, ENGINE_EWOULDBLOCK, v->getBySeqno());
         } else {
-            ENGINE_ERROR_CODE ec = addTempItemAndBGFetch(
-                    hbl, key, cookie, engine, bgFetchDelay, false);
+            ENGINE_ERROR_CODE ec = addTempItemAndBGFetch(hbl,
+                                                         readHandle.getKey(),
+                                                         cookie,
+                                                         engine,
+                                                         bgFetchDelay,
+                                                         false);
             return GetValue(NULL, ec, -1, true);
         }
     }
