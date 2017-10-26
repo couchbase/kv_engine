@@ -240,6 +240,14 @@ TEST_F(CollectionsTest, MB_25344_get) {
     gv = store->get(
             {"dairy::milk", DocNamespace::Collections}, vbid, cookie, options);
     EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+
+    // Same for getLocked
+    gv = store->getLocked({"dairy::milk", DocNamespace::Collections},
+                          vbid,
+                          ep_current_time(),
+                          10,
+                          cookie);
+    EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
 }
 
 class CollectionsFlushTest : public CollectionsTest {

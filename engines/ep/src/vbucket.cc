@@ -1875,21 +1875,22 @@ ENGINE_ERROR_CODE VBucket::getKeyStats(const DocKey& key,
     }
 }
 
-GetValue VBucket::getLocked(const DocKey& key,
-                            rel_time_t currentTime,
-                            uint32_t lockTimeout,
-                            const void* cookie,
-                            EventuallyPersistentEngine& engine,
-                            int bgFetchDelay) {
-    auto hbl = ht.getLockedBucket(key);
+GetValue VBucket::getLocked(
+        rel_time_t currentTime,
+        uint32_t lockTimeout,
+        const void* cookie,
+        EventuallyPersistentEngine& engine,
+        int bgFetchDelay,
+        const Collections::VB::Manifest::CachingReadHandle& readHandle) {
+    auto hbl = ht.getLockedBucket(readHandle.getKey());
     StoredValue* v = fetchValidValue(hbl,
-                                     key,
+                                     readHandle.getKey(),
                                      WantsDeleted::Yes,
                                      TrackReference::Yes,
                                      QueueExpired::Yes);
 
     if (v) {
-        if (isLogicallyNonExistent(*v)) {
+        if (isLogicallyNonExistent(*v, readHandle)) {
             ht.cleanupIfTemporaryItem(hbl, *v);
             return GetValue(NULL, ENGINE_KEY_ENOENT);
         }
@@ -1902,7 +1903,7 @@ GetValue VBucket::getLocked(const DocKey& key,
         // If the value is not resident, wait for it...
         if (!v->isResident()) {
             if (cookie) {
-                bgFetch(key, cookie, engine, bgFetchDelay);
+                bgFetch(readHandle.getKey(), cookie, engine, bgFetchDelay);
             }
             return GetValue(NULL, ENGINE_EWOULDBLOCK, -1, true);
         }
@@ -1923,9 +1924,14 @@ GetValue VBucket::getLocked(const DocKey& key,
             return GetValue(NULL, ENGINE_KEY_ENOENT);
 
         case FULL_EVICTION:
-            if (maybeKeyExistsInFilter(key)) {
-                ENGINE_ERROR_CODE ec = addTempItemAndBGFetch(
-                        hbl, key, cookie, engine, bgFetchDelay, false);
+            if (maybeKeyExistsInFilter(readHandle.getKey())) {
+                ENGINE_ERROR_CODE ec =
+                        addTempItemAndBGFetch(hbl,
+                                              readHandle.getKey(),
+                                              cookie,
+                                              engine,
+                                              bgFetchDelay,
+                                              false);
                 return GetValue(NULL, ec, -1, true);
             } else {
                 // As bloomfilter predicted that item surely doesn't exist
