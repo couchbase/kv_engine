@@ -98,8 +98,6 @@ ENGINE_ERROR_CODE bucket_unlock(McbpConnection& c,
                                 uint16_t vbucket,
                                 uint64_t cas);
 
-void bucket_release_item(McbpConnection* c, item* it);
-
 std::pair<cb::unique_item_ptr, item_info> bucket_allocate_ex(McbpConnection& c,
                                                              const DocKey& key,
                                                              const size_t nbytes,

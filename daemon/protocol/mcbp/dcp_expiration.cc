@@ -96,6 +96,6 @@ ENGINE_ERROR_CODE dcp_message_expiration(const void* void_cookie,
      * code. Add it back once we have people calling the method
      */
     auto* c = cookie2mcbp(void_cookie, __func__);
-    bucket_release_item(c, it);
+    cb::unique_item_ptr item(it, cb::ItemDeleter{c->getBucketEngineAsV0()});
     return ENGINE_ENOTSUP;
 }
