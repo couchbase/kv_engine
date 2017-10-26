@@ -137,7 +137,7 @@ ENGINE_ERROR_CODE RemoveCommandContext::storeItem() {
         // Response includes vbucket UUID and sequence number
         mutation_descr.vbucket_uuid = info.vbucket_uuid;
         mutation_descr.seqno = info.seqno;
-        connection.setCAS(info.cas);
+        connection.getCookieObject().setCas(info.cas);
 
         state = State::SendResponse;
     } else if (ret == ENGINE_KEY_EEXISTS && input_cas == 0) {
@@ -155,7 +155,7 @@ ENGINE_ERROR_CODE RemoveCommandContext::removeItem() {
                              vbucket, &mutation_descr);
 
     if (ret == ENGINE_SUCCESS) {
-        connection.setCAS(new_cas);
+        connection.getCookieObject().setCas(new_cas);
         state = State::SendResponse;
     } else if (ret == ENGINE_KEY_EEXISTS && input_cas == 0) {
         // Cas collision and the caller specified the CAS wildcard.. retry
@@ -192,12 +192,15 @@ ENGINE_ERROR_CODE RemoveCommandContext::sendResponse() {
         mutation_descr.vbucket_uuid = htonll(mutation_descr.vbucket_uuid);
         mutation_descr.seqno = htonll(mutation_descr.seqno);
 
-        if (!mcbp_response_handler(nullptr, 0, // no key
-                                   &mutation_descr, sizeof(mutation_descr),
-                                   nullptr, 0, // no value
+        if (!mcbp_response_handler(nullptr,
+                                   0, // no key
+                                   &mutation_descr,
+                                   sizeof(mutation_descr),
+                                   nullptr,
+                                   0, // no value
                                    PROTOCOL_BINARY_RAW_BYTES,
                                    PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                                   connection.getCAS(),
+                                   connection.getCookieObject().getCas(),
                                    connection.getCookie())) {
             return ENGINE_FAILED;
         }

@@ -530,15 +530,6 @@ public:
         McbpConnection::start = start;
     }
 
-    uint64_t getCAS() const {
-        return cas;
-    }
-
-    void setCAS(uint64_t cas) {
-        McbpConnection::cas = cas;
-    }
-
-
     const ENGINE_ERROR_CODE& getAiostat() const {
         return aiostat;
     }
@@ -870,9 +861,6 @@ protected:
      * current command.
      */
     ProcessClock::time_point start;
-
-    /** the cas to return */
-    uint64_t cas = 0;
 
     /**
      * The status for the async io operation

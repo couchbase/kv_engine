@@ -46,7 +46,7 @@ ENGINE_ERROR_CODE GatCommandContext::getAndTouchItem() {
         }
 
         // Set the cas value (will be copied to the response message)
-        connection.setCAS(info.cas);
+        connection.getCookieObject().setCas(info.cas);
         payload.buf = static_cast<const char*>(info.value[0].iov_base);
         payload.len = info.value[0].iov_len;
 
@@ -112,7 +112,7 @@ ENGINE_ERROR_CODE GatCommandContext::sendResponse() {
 
     uint32_t bodylen = sizeof(info.flags) + payload.len;
     // Set the CAS to add into the header
-    connection.setCAS(info.cas);
+    connection.getCookieObject().setCas(info.cas);
     mcbp_add_header(&connection,
                     PROTOCOL_BINARY_RESPONSE_SUCCESS,
                     sizeof(info.flags),

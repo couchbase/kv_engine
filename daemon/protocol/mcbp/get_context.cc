@@ -91,7 +91,7 @@ ENGINE_ERROR_CODE GetCommandContext::sendResponse() {
     }
 
     // Set the CAS to add into the header
-    connection.setCAS(info.cas);
+    connection.getCookieObject().setCas(info.cas);
     mcbp_add_header(&connection,
                     PROTOCOL_BINARY_RESPONSE_SUCCESS,
                     sizeof(info.flags),

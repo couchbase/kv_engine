@@ -91,7 +91,7 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::storeNewItem() {
     auto ret = bucket_store(&connection, newitem.get(), &ncas, OPERATION_ADD);
 
     if (ret == ENGINE_SUCCESS) {
-        connection.setCAS(ncas);
+        connection.getCookieObject().setCas(ncas);
         state = State::SendResult;
     } else if (ret == ENGINE_KEY_EEXISTS && cas == 0) {
         state = State::Reset;
@@ -187,7 +187,7 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::storeItem() {
     auto ret = bucket_store(&connection, newitem.get(), &ncas, OPERATION_CAS);
 
     if (ret == ENGINE_SUCCESS) {
-        connection.setCAS(ncas);
+        connection.getCookieObject().setCas(ncas);
         state = State::SendResult;
     } else if (ret == ENGINE_KEY_EEXISTS && cas == 0) {
         state = State::Reset;
@@ -229,23 +229,29 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::sendResult() {
         extras.seqno = htonll(newItemInfo.seqno);
         result = ntohll(result);
 
-        if (!mcbp_response_handler(nullptr, 0,
-                                   &extras, sizeof(extras),
-                                   &result, sizeof(result),
+        if (!mcbp_response_handler(nullptr,
+                                   0,
+                                   &extras,
+                                   sizeof(extras),
+                                   &result,
+                                   sizeof(result),
                                    PROTOCOL_BINARY_RAW_BYTES,
                                    PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                                   connection.getCAS(),
+                                   connection.getCookieObject().getCas(),
                                    connection.getCookie())) {
             return ENGINE_FAILED;
         }
     } else {
         result = htonll(result);
-        if (!mcbp_response_handler(nullptr, 0,
-                                   nullptr, 0,
-                                   &result, sizeof(result),
+        if (!mcbp_response_handler(nullptr,
+                                   0,
+                                   nullptr,
+                                   0,
+                                   &result,
+                                   sizeof(result),
                                    PROTOCOL_BINARY_RAW_BYTES,
                                    PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                                   connection.getCAS(),
+                                   connection.getCookieObject().getCas(),
                                    connection.getCookie())) {
             return ENGINE_FAILED;
         }

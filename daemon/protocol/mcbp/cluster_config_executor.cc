@@ -94,7 +94,7 @@ void set_cluster_config_executor(Cookie& cookie) {
         cb::const_char_buffer conf{
                 reinterpret_cast<const char*>(payload.data()), payload.size()};
         bucket.clusterConfiguration.setConfiguration(conf);
-        connection.setCAS(cas);
+        cookie.setCas(cas);
         mcbp_write_packet(cookie, cb::mcbp::Status::Success);
 
         const long revision =

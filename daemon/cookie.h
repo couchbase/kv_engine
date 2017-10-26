@@ -64,6 +64,7 @@ public:
         error_context.clear();
         json_message.clear();
         packet = {};
+        cas = 0;
     }
 
     /**
@@ -230,6 +231,21 @@ public:
      */
     void setEwouldblock(bool ewouldblock);
 
+    /**
+     *
+     * @return
+     */
+    uint64_t getCas() const {
+        return cas;
+    }
+
+    /**
+     * Set the CAS value to inject into the response packet
+     */
+    void setCas(uint64_t cas) {
+        Cookie::cas = cas;
+    }
+
 protected:
     /**
      * The connection object this cookie is bound to
@@ -265,4 +281,7 @@ protected:
      * the wire.
      */
     DynamicBuffer dynamicBuffer;
+
+    /** The cas to return back to the client */
+    uint64_t cas = 0;
 };

@@ -1184,7 +1184,7 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
     if (!context.traits.is_mutator) {
         // No update required - just make sure we have the correct cas to use
         // for response.
-        connection.setCAS(context.in_cas);
+        connection.getCookieObject().setCas(context.in_cas);
         return ENGINE_SUCCESS;
     }
 
@@ -1311,7 +1311,7 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
             }
         }
 
-        connection.setCAS(new_cas);
+        connection.getCookieObject().setCas(new_cas);
         break;
 
     case ENGINE_KEY_EEXISTS:

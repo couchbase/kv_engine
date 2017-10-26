@@ -910,7 +910,6 @@ unique_cJSON_ptr McbpConnection::toJSON() const {
         cJSON_AddBoolToObject(obj, "noreply", noreply);
 
         /* @todo we should decode the binary header */
-        cJSON_AddUintPtrToObject(obj, "cas", cas);
         cJSON_AddNumberToObject(obj, "aiostat", aiostat);
         cJSON_AddBoolToObject(obj, "ewouldblock", ewouldblock);
         cJSON_AddItemToObject(obj, "ssl", ssl.toJSON());

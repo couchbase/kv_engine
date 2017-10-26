@@ -203,7 +203,7 @@ void mcbp_add_header(McbpConnection* c,
                                       body_len,
                                       datatype,
                                       c->getOpaque(),
-                                      c->getCAS());
+                                      c->getCookieObject().getCas());
 
     if (settings.getVerbose() > 1) {
         char buffer[1024];

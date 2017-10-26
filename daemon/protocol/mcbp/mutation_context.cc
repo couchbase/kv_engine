@@ -227,7 +227,7 @@ ENGINE_ERROR_CODE MutationCommandContext::storeItem() {
                                operation,
                                store_if_predicate);
     if (ret.status == cb::engine_errc::success) {
-        connection.setCAS(ret.cas);
+        connection.getCookieObject().setCas(ret.cas);
         state = State::SendResponse;
     } else if (ret.status == cb::engine_errc::predicate_failed) {
         // predicate failed because xattrs are present
@@ -279,12 +279,15 @@ ENGINE_ERROR_CODE MutationCommandContext::sendResponse() {
         extras.vbucket_uuid = htonll(newitem_info.vbucket_uuid);
         extras.seqno = htonll(newitem_info.seqno);
 
-        if (!mcbp_response_handler(nullptr, 0,
-                                   &extras, sizeof(extras),
-                                   nullptr, 0,
+        if (!mcbp_response_handler(nullptr,
+                                   0,
+                                   &extras,
+                                   sizeof(extras),
+                                   nullptr,
+                                   0,
                                    PROTOCOL_BINARY_RAW_BYTES,
                                    PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                                   connection.getCAS(),
+                                   connection.getCookieObject().getCas(),
                                    connection.getCookie())) {
             return ENGINE_FAILED;
         }

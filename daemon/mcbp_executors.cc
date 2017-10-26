@@ -1141,7 +1141,7 @@ void try_read_mcbp_command(McbpConnection* c) {
     c->addMsgHdr(true);
     c->setCmd(c->binary_header.request.opcode);
     /* clear the returned cas value */
-    c->setCAS(0);
+    cookie.setCas(0);
     c->setNoReply(false);
     c->setStart(ProcessClock::now());
     MEMCACHED_PROCESS_COMMAND_START(
