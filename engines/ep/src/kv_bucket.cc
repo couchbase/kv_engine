@@ -642,12 +642,17 @@ ENGINE_ERROR_CODE KVBucket::replace(Item& itm,
     }
 
     { // collections read-lock scope
-        auto collectionsRHandle = vb->lockCollections();
-        if (!collectionsRHandle.doesKeyContainValidCollection(itm.getKey())) {
+        auto collectionsRHandle = vb->lockCollections(itm.getKey());
+        if (!collectionsRHandle.valid()) {
             return ENGINE_UNKNOWN_COLLECTION;
         } // now hold collections read access for the duration of the set
 
-        return vb->replace(itm, cookie, engine, bgFetchDelay, predicate);
+        return vb->replace(itm,
+                           cookie,
+                           engine,
+                           bgFetchDelay,
+                           predicate,
+                           collectionsRHandle);
     }
 }
 

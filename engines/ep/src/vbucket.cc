@@ -880,11 +880,13 @@ ENGINE_ERROR_CODE VBucket::set(Item& itm,
     return ret;
 }
 
-ENGINE_ERROR_CODE VBucket::replace(Item& itm,
-                                   const void* cookie,
-                                   EventuallyPersistentEngine& engine,
-                                   const int bgFetchDelay,
-                                   cb::StoreIfPredicate predicate) {
+ENGINE_ERROR_CODE VBucket::replace(
+        Item& itm,
+        const void* cookie,
+        EventuallyPersistentEngine& engine,
+        const int bgFetchDelay,
+        cb::StoreIfPredicate predicate,
+        const Collections::VB::Manifest::CachingReadHandle& readHandle) {
     auto hbl = ht.getLockedBucket(itm.getKey());
     StoredValue* v = ht.unlocked_find(itm.getKey(),
                                       hbl.getBucketNum(),
@@ -899,7 +901,7 @@ ENGINE_ERROR_CODE VBucket::replace(Item& itm,
     }
 
     if (v) {
-        if (isLogicallyNonExistent(*v)) {
+        if (isLogicallyNonExistent(*v, readHandle)) {
             ht.cleanupIfTemporaryItem(hbl, *v);
             return ENGINE_KEY_ENOENT;
         }
@@ -2615,6 +2617,14 @@ void VBucket::removeKey(const DocKey& key, int64_t bySeqno) {
 
 bool VBucket::isLogicallyNonExistent(const StoredValue& v) {
     return v.isDeleted() || v.isTempDeletedItem() || v.isTempNonExistentItem();
+}
+
+bool VBucket::isLogicallyNonExistent(
+        const StoredValue& v,
+        const Collections::VB::Manifest::CachingReadHandle& readHandle) {
+    return v.isDeleted() || v.isTempDeletedItem() ||
+           v.isTempNonExistentItem() ||
+           readHandle.isLogicallyDeleted(v.getBySeqno());
 }
 
 void VBucket::DeferredDeleter::operator()(VBucket* vb) const {

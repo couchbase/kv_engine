@@ -767,14 +767,17 @@ public:
      * @param bgFetchDelay
      * @param predicate a function to call which if returns true, the replace
      *        will succeed. The function is called against any existing item.
+     * @param readHandle Reader access to the Item's collection data.
      *
      * @return ENGINE_ERROR_CODE status notified to be to the front end
      */
-    ENGINE_ERROR_CODE replace(Item& itm,
-                              const void* cookie,
-                              EventuallyPersistentEngine& engine,
-                              int bgFetchDelay,
-                              cb::StoreIfPredicate predicate);
+    ENGINE_ERROR_CODE replace(
+            Item& itm,
+            const void* cookie,
+            EventuallyPersistentEngine& engine,
+            int bgFetchDelay,
+            cb::StoreIfPredicate predicate,
+            const Collections::VB::Manifest::CachingReadHandle& readHandle);
 
     /**
      * Add an item directly into its vbucket rather than putting it on a
@@ -1158,13 +1161,28 @@ public:
     /**
      * Check if this StoredValue has become logically non-existent.
      * By logically non-existent, the item has been deleted
-     * or doesn't exist
+     * or doesn't exist. This version is temporary until all users are moved
+     * to the collection aware version below.
      *
      * @param v StoredValue to check
      * @return true if the item is logically non-existent,
      *         false otherwise
      */
     static bool isLogicallyNonExistent(const StoredValue& v);
+
+    /**
+     * Check if this StoredValue has become logically non-existent.
+     * By logically non-existent, the item has been deleted
+     * or doesn't exist
+     *
+     * @param v StoredValue to check
+     * @param readHandle a ReadHandle for safe reading of collection data
+     * @return true if the item is logically non-existent,
+     *         false otherwise
+     */
+    static bool isLogicallyNonExistent(
+            const StoredValue& v,
+            const Collections::VB::Manifest::CachingReadHandle& readHandle);
 
     std::queue<queued_item> rejectQueue;
     std::unique_ptr<FailoverTable> failovers;

@@ -155,6 +155,11 @@ TEST_F(CollectionsTest, MB_25344) {
     EXPECT_EQ(ENGINE_SUCCESS, store->add(item1, nullptr));
     flush_vbucket_to_disk(vbid, 1);
 
+    auto item2 = make_item(
+            vbid, {"dairy::cream", DocNamespace::Collections}, "creamy", 0, 0);
+    EXPECT_EQ(ENGINE_SUCCESS, store->add(item2, nullptr));
+    flush_vbucket_to_disk(vbid, 1);
+
     // Delete the dairy collection (so all dairy keys become logically deleted)
     vb->updateFromManifest({R"({"separator":"::",
                  "collections":[{"name":"$default", "uid":"0"}]})"});
@@ -170,6 +175,9 @@ TEST_F(CollectionsTest, MB_25344) {
     // Expect that we can add item1 again, even though it is still present
     item1.setCas(0);
     EXPECT_EQ(ENGINE_SUCCESS, store->add(item1, nullptr));
+
+    // Replace should fail
+    EXPECT_EQ(ENGINE_KEY_ENOENT, store->replace(item2, nullptr));
 }
 
 class CollectionsFlushTest : public CollectionsTest {
