@@ -2655,10 +2655,6 @@ void VBucket::removeKey(const DocKey& key, int64_t bySeqno) {
     }
 }
 
-bool VBucket::isLogicallyNonExistent(const StoredValue& v) {
-    return v.isDeleted() || v.isTempDeletedItem() || v.isTempNonExistentItem();
-}
-
 bool VBucket::isLogicallyNonExistent(
         const StoredValue& v,
         const Collections::VB::Manifest::CachingReadHandle& readHandle) {

@@ -195,6 +195,13 @@ TEST_F(CollectionsTest, MB_25344) {
             store->validateKey(
                     {"meat::sausage", DocNamespace::Collections}, vbid, item2));
     EXPECT_EQ("item_deleted", store->validateKey(item2.getKey(), vbid, item2));
+
+    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
+              store->statsVKey({"meat::sausage", DocNamespace::Collections},
+                               vbid,
+                               cookie));
+    EXPECT_EQ(ENGINE_KEY_ENOENT,
+              store->statsVKey(item2.getKey(), vbid, cookie));
 }
 
 // Test demonstrates issue logged as MB_25344, when we delete a collection

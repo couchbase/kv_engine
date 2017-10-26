@@ -277,6 +277,11 @@ ENGINE_ERROR_CODE EPVBucket::statsVKey(const DocKey& key,
                                        const void* cookie,
                                        EventuallyPersistentEngine& engine,
                                        const int bgFetchDelay) {
+    auto readHandle = lockCollections(key);
+    if (!readHandle.valid()) {
+        return ENGINE_UNKNOWN_COLLECTION;
+    }
+
     auto hbl = ht.getLockedBucket(key);
     StoredValue* v = fetchValidValue(hbl,
                                      key,
@@ -285,7 +290,7 @@ ENGINE_ERROR_CODE EPVBucket::statsVKey(const DocKey& key,
                                      QueueExpired::Yes);
 
     if (v) {
-        if (VBucket::isLogicallyNonExistent(*v)) {
+        if (VBucket::isLogicallyNonExistent(*v, readHandle)) {
             ht.cleanupIfTemporaryItem(hbl, *v);
             return ENGINE_KEY_ENOENT;
         }

@@ -1165,18 +1165,6 @@ public:
     /**
      * Check if this StoredValue has become logically non-existent.
      * By logically non-existent, the item has been deleted
-     * or doesn't exist. This version is temporary until all users are moved
-     * to the collection aware version below.
-     *
-     * @param v StoredValue to check
-     * @return true if the item is logically non-existent,
-     *         false otherwise
-     */
-    static bool isLogicallyNonExistent(const StoredValue& v);
-
-    /**
-     * Check if this StoredValue has become logically non-existent.
-     * By logically non-existent, the item has been deleted
      * or doesn't exist
      *
      * @param v StoredValue to check
