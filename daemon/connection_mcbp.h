@@ -547,75 +547,6 @@ public:
     }
 
     /**
-     *  Get the command context stored for this command
-     */
-    CommandContext* getCommandContext() const {
-        return commandContext.get();
-    }
-
-    /**
-     * Get the command context stored for this command as
-     * the given type or make it if it doesn't exist
-     *
-     * @tparam ContextType CommandContext type to create
-     * @return the context object
-     * @throws std::logic_error if the object is the wrong type
-     */
-    template <typename ContextType, typename... Args>
-    ContextType& obtainContext(Args&&... args) {
-        auto* context = commandContext.get();
-        if (context == nullptr) {
-            auto* ret = new ContextType(std::forward<Args>(args)...);
-            commandContext.reset(ret);
-            return *ret;
-        }
-        auto* ret = dynamic_cast<ContextType*>(context);
-        if (ret == nullptr) {
-            throw std::logic_error(
-                    std::string("McbpConnection::obtainContext<") +
-                    typeid(ContextType).name() +
-                    ">(): context is not the requested type");
-        }
-        return *ret;
-    }
-
-    /**
-     * Get the command context which SHOULD be a steppable command context
-     *
-     * @return the context object
-     * @throws std::logic_error if the object is non-existent or the wrong type
-     */
-    SteppableCommandContext& getSteppableCommandContext() const {
-        auto* context = commandContext.get();
-        if (context == nullptr) {
-            throw std::logic_error(
-                "McbpConnection::getSteppableCommandContext(): context should not be nullptr");
-        }
-        auto* ret = dynamic_cast<SteppableCommandContext*>(context);
-        if (ret == nullptr) {
-            throw std::logic_error(
-                "McbpConnection::getSteppableCommandContext(): context is not steppable");
-        }
-        return *ret;
-    }
-
-    /**
-     *  Set the command context stored for this command
-     */
-    void setCommandContext(CommandContext* cmd_context) {
-        McbpConnection::commandContext.reset(cmd_context);
-    }
-
-    /**
-     * Reset the command context
-     *
-     * Release the allocated resources and set the command context to nullptr
-     */
-    void resetCommandContext() {
-        commandContext.reset();
-    }
-
-    /**
      * Log the start of processing a command received from the client in the
      * generic form which (may change over time, but currently it) looks like:
      *
@@ -871,16 +802,6 @@ protected:
      * Is this connection currently in an "ewouldblock" state?
      */
     bool ewouldblock = false;
-
-    /**
-     *  command-specific context - for use by command executors to maintain
-     *  additional state while executing a command. For example
-     *  a command may want to maintain some temporary state between retries
-     *  due to engine returning EWOULDBLOCK.
-     *
-     *  Between each command this is deleted and reset to nullptr.
-     */
-    std::unique_ptr<CommandContext> commandContext;
 
     /**
      * The SSL context used by this connection (if enabled)

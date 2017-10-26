@@ -18,8 +18,11 @@
 
 #include "dynamic_buffer.h"
 
+#include <daemon/protocol/mcbp/command_context.h>
 #include <memcached/types.h>
 #include <platform/uuid.h>
+
+#include <memory>
 #include <stdexcept>
 
 // Forward decl
@@ -66,6 +69,7 @@ public:
         json_message.clear();
         packet = {};
         cas = 0;
+        commandContext.reset();
     }
 
     /**
@@ -260,6 +264,40 @@ public:
      */
     void sendResponse(cb::engine_errc code);
 
+    /**
+     * Get the command context stored for this command as
+     * the given type or make it if it doesn't exist
+     *
+     * @tparam ContextType CommandContext type to create
+     * @return the context object
+     * @throws std::logic_error if the object is the wrong type
+     */
+    template <typename ContextType, typename... Args>
+    ContextType& obtainContext(Args&&... args) {
+        auto* context = commandContext.get();
+        if (context == nullptr) {
+            auto* ret = new ContextType(std::forward<Args>(args)...);
+            commandContext.reset(ret);
+            return *ret;
+        }
+        auto* ret = dynamic_cast<ContextType*>(context);
+        if (ret == nullptr) {
+            throw std::logic_error(
+                    std::string("McbpConnection::obtainContext<") +
+                    typeid(ContextType).name() +
+                    ">(): context is not the requested type");
+        }
+        return *ret;
+    }
+
+    CommandContext* getCommandContext() {
+        return commandContext.get();
+    }
+
+    void setCommandContext(CommandContext* ctx = nullptr) {
+        commandContext.reset(ctx);
+    }
+
 protected:
     /**
      * The connection object this cookie is bound to
@@ -298,4 +336,14 @@ protected:
 
     /** The cas to return back to the client */
     uint64_t cas = 0;
+
+    /**
+     *  command-specific context - for use by command executors to maintain
+     *  additional state while executing a command. For example
+     *  a command may want to maintain some temporary state between retries
+     *  due to engine returning EWOULDBLOCK.
+     *
+     *  Between each command this is deleted and reset to nullptr.
+     */
+    std::unique_ptr<CommandContext> commandContext;
 };

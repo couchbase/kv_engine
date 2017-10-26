@@ -379,7 +379,8 @@ static void subdoc_executor(McbpConnection& c, const void *packet,
         // 0. If we don't already have a command context, allocate one
         // (we may already have one if this is an auto_retry or a re-execution
         // due to EWOULDBLOCK).
-        auto* context = dynamic_cast<SubdocCmdContext*>(c.getCommandContext());
+        auto* context = dynamic_cast<SubdocCmdContext*>(
+                c.getCookieObject().getCommandContext());
         if (context == nullptr) {
             cb::const_char_buffer value_buf{value, vallen};
             context = subdoc_create_context(
@@ -388,7 +389,7 @@ static void subdoc_executor(McbpConnection& c, const void *packet,
                 mcbp_write_packet(&c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
                 return;
             }
-            c.setCommandContext(context);
+            c.getCookieObject().setCommandContext(context);
         }
 
         // 1. Attempt to fetch from the engine the document to operate on. Only
@@ -412,7 +413,7 @@ static void subdoc_executor(McbpConnection& c, const void *packet,
                 // state, so start from the beginning again.
                 ret = ENGINE_SUCCESS;
 
-                c.resetCommandContext();
+                c.getCookieObject().setCommandContext();
                 continue;
             } else {
                 // No auto-retry - return status back to client and return.

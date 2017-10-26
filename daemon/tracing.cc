@@ -184,13 +184,13 @@ ENGINE_ERROR_CODE ioctlGetTracingDumpChunk(Connection* c,
                                            const StrToStrMap& arguments,
                                            std::string& value) {
     auto& connection = dynamic_cast<McbpConnection&>(*c);
+    auto& cookie = connection.getCookieObject();
 
     // If we have a context then we already generated the chunk
-    auto* ctx =
-            dynamic_cast<ChunkBuilderContext*>(connection.getCommandContext());
+    auto* ctx = dynamic_cast<ChunkBuilderContext*>(cookie.getCommandContext());
     if (ctx != nullptr) {
         value = std::move(ctx->task->getChunk());
-        connection.resetCommandContext();
+        cookie.setCommandContext();
         return ENGINE_SUCCESS;
     }
 
@@ -240,9 +240,9 @@ ENGINE_ERROR_CODE ioctlGetTracingDumpChunk(Connection* c,
         // ChunkBuilderTask assumes the lock above is already held
         auto task = std::make_shared<ChunkBuilderTask>(
                 connection, dump, std::move(lck), chunk_size);
-        connection.setCommandContext(new ChunkBuilderContext{task});
+        cookie.setCommandContext(new ChunkBuilderContext{task});
 
-        connection.setEwouldblock(true);
+        cookie.setEwouldblock(true);
         std::lock_guard<std::mutex> guard(task->getMutex());
         std::shared_ptr<Task> basicTask = task;
         executorPool->schedule(basicTask, true);

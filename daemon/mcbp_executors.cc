@@ -92,28 +92,28 @@ static void process_bin_get(Cookie& cookie) {
     auto& connection = cookie.getConnection();
     auto* req = reinterpret_cast<protocol_binary_request_get*>(
             cookie.getPacketAsVoidPtr());
-    connection.obtainContext<GetCommandContext>(connection, req).drive();
+    cookie.obtainContext<GetCommandContext>(connection, req).drive();
 }
 
 static void process_bin_get_meta(Cookie& cookie) {
     auto& connection = cookie.getConnection();
     auto* req = reinterpret_cast<protocol_binary_request_get*>(
             cookie.getPacketAsVoidPtr());
-    connection.obtainContext<GetMetaCommandContext>(connection, req).drive();
+    cookie.obtainContext<GetMetaCommandContext>(connection, req).drive();
 }
 
 static void get_locked_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
     auto* req = reinterpret_cast<protocol_binary_request_getl*>(
             cookie.getPacketAsVoidPtr());
-    connection.obtainContext<GetLockedCommandContext>(connection, req).drive();
+    cookie.obtainContext<GetLockedCommandContext>(connection, req).drive();
 }
 
 static void unlock_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
     auto* req = reinterpret_cast<protocol_binary_request_no_extras*>(
             cookie.getPacketAsVoidPtr());
-    connection.obtainContext<UnlockCommandContext>(connection, req).drive();
+    cookie.obtainContext<UnlockCommandContext>(connection, req).drive();
 }
 
 static void gat_executor(Cookie& cookie) {
@@ -123,7 +123,7 @@ static void gat_executor(Cookie& cookie) {
     }
     auto* req = reinterpret_cast<protocol_binary_request_gat*>(
             cookie.getPacketAsVoidPtr());
-    connection.obtainContext<GatCommandContext>(connection, *req).drive();
+    cookie.obtainContext<GatCommandContext>(connection, *req).drive();
 }
 
 
@@ -222,7 +222,7 @@ static void add_set_replace_executor(Cookie& cookie,
     auto& connection = cookie.getConnection();
     auto* req = reinterpret_cast<protocol_binary_request_set*>(
             cookie.getPacketAsVoidPtr());
-    connection.obtainContext<MutationCommandContext>(connection, req, store_op)
+    cookie.obtainContext<MutationCommandContext>(connection, req, store_op)
             .drive();
 }
 
@@ -267,7 +267,7 @@ static void append_prepend_executor(
     auto& connection = cookie.getConnection();
     auto* req = reinterpret_cast<protocol_binary_request_append*>(
             cookie.getPacketAsVoidPtr());
-    connection.obtainContext<AppendPrependCommandContext>(connection, req, mode)
+    cookie.obtainContext<AppendPrependCommandContext>(connection, req, mode)
             .drive();
 }
 
@@ -349,12 +349,12 @@ static void stat_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
     auto* req = reinterpret_cast<protocol_binary_request_stats*>(
             cookie.getPacketAsVoidPtr());
-    connection.obtainContext<StatsCommandContext>(connection, *req).drive();
+    cookie.obtainContext<StatsCommandContext>(connection, *req).drive();
 }
 
 static void isasl_refresh_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
-    connection.obtainContext<SaslRefreshCommandContext>(connection).drive();
+    cookie.obtainContext<SaslRefreshCommandContext>(connection).drive();
 }
 
 static void ssl_certs_refresh_executor(Cookie& cookie) {
@@ -439,7 +439,7 @@ static void sasl_auth_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
     auto* req =
             reinterpret_cast<cb::mcbp::Request*>(cookie.getPacketAsVoidPtr());
-    connection.obtainContext<SaslAuthCommandContext>(connection, *req).drive();
+    cookie.obtainContext<SaslAuthCommandContext>(connection, *req).drive();
 }
 
 static void noop_executor(Cookie& cookie) {
@@ -450,7 +450,7 @@ static void flush_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
     auto* req =
             reinterpret_cast<cb::mcbp::Request*>(cookie.getPacketAsVoidPtr());
-    connection.obtainContext<FlushCommandContext>(connection, *req).drive();
+    cookie.obtainContext<FlushCommandContext>(connection, *req).drive();
 }
 
 static void delete_executor(Cookie& cookie) {
@@ -461,15 +461,14 @@ static void delete_executor(Cookie& cookie) {
 
     auto* req = reinterpret_cast<protocol_binary_request_delete*>(
             cookie.getPacketAsVoidPtr());
-    connection.obtainContext<RemoveCommandContext>(connection, req).drive();
+    cookie.obtainContext<RemoveCommandContext>(connection, req).drive();
 }
 
 static void arithmetic_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
     auto* req = reinterpret_cast<protocol_binary_request_incr*>(
             cookie.getPacketAsVoidPtr());
-    connection.obtainContext<ArithmeticCommandContext>(connection, *req)
-            .drive();
+    cookie.obtainContext<ArithmeticCommandContext>(connection, *req).drive();
 }
 
 static void arithmeticq_executor(Cookie& cookie) {
@@ -670,7 +669,7 @@ static void config_reload_executor(Cookie& cookie) {
 
 static void audit_config_reload_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
-    connection.obtainContext<AuditConfigureCommandContext>(connection).drive();
+    cookie.obtainContext<AuditConfigureCommandContext>(connection).drive();
 }
 
 static void audit_put_executor(Cookie& cookie) {
@@ -697,14 +696,14 @@ static void audit_put_executor(Cookie& cookie) {
 static void create_bucket_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
     auto* req = static_cast<cb::mcbp::Request*>(cookie.getPacketAsVoidPtr());
-    connection.obtainContext<CreateRemoveBucketCommandContext>(connection, *req)
+    cookie.obtainContext<CreateRemoveBucketCommandContext>(connection, *req)
             .drive();
 }
 
 static void delete_bucket_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
     auto* req = static_cast<cb::mcbp::Request*>(cookie.getPacketAsVoidPtr());
-    connection.obtainContext<CreateRemoveBucketCommandContext>(connection, *req)
+    cookie.obtainContext<CreateRemoveBucketCommandContext>(connection, *req)
             .drive();
 }
 
@@ -788,7 +787,7 @@ std::array<mcbp_package_execute, 0x100>& get_mcbp_executors() {
 
 static void rbac_refresh_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
-    connection.obtainContext<RbacReloadCommandContext>(connection).drive();
+    cookie.obtainContext<RbacReloadCommandContext>(connection).drive();
 }
 
 static void no_support_executor(Cookie& cookie) {

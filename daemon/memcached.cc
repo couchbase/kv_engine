@@ -783,10 +783,10 @@ static ENGINE_ERROR_CODE pre_link_document(const void* void_cookie,
                                            item_info& info) {
     // Sanity check that people aren't calling the method with a bogus
     // cookie
-    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
+    auto* cookie = reinterpret_cast<Cookie*>(const_cast<void*>(void_cookie));
     cookie->validate();
 
-    auto* context = cookie->getConnection().getCommandContext();
+    auto* context = cookie->getCommandContext();
     if (context != nullptr) {
         return context->pre_link_document(info);
     }

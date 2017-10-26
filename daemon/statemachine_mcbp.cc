@@ -173,7 +173,6 @@ static void reset_cmd_handler(McbpConnection *c) {
     c->setCmd(-1);
 
     c->getCookieObject().reset();
-    c->resetCommandContext();
 
     c->shrinkBuffers();
     if (c->read->rsize() >= sizeof(c->binary_header)) {
@@ -559,7 +558,7 @@ bool conn_immediate_close(McbpConnection& connection) {
 bool conn_closing(McbpConnection& connection) {
     auto* c = &connection;
     // Delete any attached command context
-    c->resetCommandContext();
+    c->getCookieObject().reset();
 
     /* We don't want any network notifications anymore.. */
     c->unregisterEvent();
