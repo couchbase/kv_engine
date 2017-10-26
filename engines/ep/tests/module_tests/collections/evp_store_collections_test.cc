@@ -189,6 +189,12 @@ TEST_F(CollectionsTest, MB_25344) {
     // Unlock should fail enoent rather than an unlock error
     EXPECT_EQ(ENGINE_KEY_ENOENT,
               store->unlockKey(item2.getKey(), vbid, 0, ep_current_time()));
+
+    EXPECT_EQ(
+            "collection_unknown",
+            store->validateKey(
+                    {"meat::sausage", DocNamespace::Collections}, vbid, item2));
+    EXPECT_EQ("item_deleted", store->validateKey(item2.getKey(), vbid, item2));
 }
 
 // Test demonstrates issue logged as MB_25344, when we delete a collection

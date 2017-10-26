@@ -1549,12 +1549,18 @@ ENGINE_ERROR_CODE KVBucket::getKeyStats(const DocKey& key,
 std::string KVBucket::validateKey(const DocKey& key, uint16_t vbucket,
                                   Item &diskItem) {
     VBucketPtr vb = getVBucket(vbucket);
+
+    auto collectionsRHandle = vb->lockCollections(key);
+    if (!collectionsRHandle.valid()) {
+        return "collection_unknown";
+    }
+
     auto hbl = vb->ht.getLockedBucket(key);
     StoredValue* v = vb->fetchValidValue(
             hbl, key, WantsDeleted::Yes, TrackReference::No, QueueExpired::Yes);
 
     if (v) {
-        if (VBucket::isLogicallyNonExistent(*v)) {
+        if (VBucket::isLogicallyNonExistent(*v, collectionsRHandle)) {
             vb->ht.cleanupIfTemporaryItem(hbl, *v);
             return "item_deleted";
         }
