@@ -826,7 +826,6 @@ public:
     /**
      * Delete an item in the vbucket
      *
-     * @param key key to be deleted
      * @param[in,out] cas value to match; new cas after logical delete
      * @param cookie the cookie representing the client to store the item
      * @param engine Reference to ep engine
@@ -837,16 +836,18 @@ public:
      * @param[out] mutInfo Info to uniquely identify (and order) the delete
      *                     seq. A NULL pointer indicates no info needs to be
      *                     returned.
+     * @param readHandle Reader access to the affected key's collection data.
      *
      * @return the result of the operation
      */
-    ENGINE_ERROR_CODE deleteItem(const DocKey& key,
-                                 uint64_t& cas,
-                                 const void* cookie,
-                                 EventuallyPersistentEngine& engine,
-                                 int bgFetchDelay,
-                                 ItemMetaData* itemMeta,
-                                 mutation_descr_t* mutInfo);
+    ENGINE_ERROR_CODE deleteItem(
+            uint64_t& cas,
+            const void* cookie,
+            EventuallyPersistentEngine& engine,
+            int bgFetchDelay,
+            ItemMetaData* itemMeta,
+            mutation_descr_t* mutInfo,
+            const Collections::VB::Manifest::CachingReadHandle& readHandle);
 
     /**
      * Delete an item in the vbucket from a non-front end operation (DCP, XDCR)

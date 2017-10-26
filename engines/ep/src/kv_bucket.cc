@@ -1592,13 +1592,18 @@ ENGINE_ERROR_CODE KVBucket::deleteItem(const DocKey& key,
         return ENGINE_TMPFAIL;
     }
     { // collections read scope
-        auto collectionsRHandle = vb->lockCollections();
-        if (!collectionsRHandle.doesKeyContainValidCollection(key)) {
+        auto collectionsRHandle = vb->lockCollections(key);
+        if (!collectionsRHandle.valid()) {
             return ENGINE_UNKNOWN_COLLECTION;
         }
 
-        return vb->deleteItem(
-                key, cas, cookie, engine, bgFetchDelay, itemMeta, mutInfo);
+        return vb->deleteItem(cas,
+                              cookie,
+                              engine,
+                              bgFetchDelay,
+                              itemMeta,
+                              mutInfo,
+                              collectionsRHandle);
     }
 }
 

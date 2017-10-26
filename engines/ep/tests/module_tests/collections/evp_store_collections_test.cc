@@ -178,6 +178,12 @@ TEST_F(CollectionsTest, MB_25344) {
 
     // Replace should fail
     EXPECT_EQ(ENGINE_KEY_ENOENT, store->replace(item2, nullptr));
+
+    // Delete should fail
+    uint64_t cas = 0;
+    EXPECT_EQ(ENGINE_KEY_ENOENT,
+              store->deleteItem(
+                      item2.getKey(), cas, vbid, nullptr, nullptr, nullptr));
 }
 
 class CollectionsFlushTest : public CollectionsTest {

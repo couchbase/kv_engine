@@ -1158,25 +1158,33 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(Item& itm,
     return ret;
 }
 
-ENGINE_ERROR_CODE VBucket::deleteItem(const DocKey& key,
-                                      uint64_t& cas,
-                                      const void* cookie,
-                                      EventuallyPersistentEngine& engine,
-                                      const int bgFetchDelay,
-                                      ItemMetaData* itemMeta,
-                                      mutation_descr_t* mutInfo) {
-    auto hbl = ht.getLockedBucket(key);
-    StoredValue* v = ht.unlocked_find(
-            key, hbl.getBucketNum(), WantsDeleted::Yes, TrackReference::No);
+ENGINE_ERROR_CODE VBucket::deleteItem(
+        uint64_t& cas,
+        const void* cookie,
+        EventuallyPersistentEngine& engine,
+        const int bgFetchDelay,
+        ItemMetaData* itemMeta,
+        mutation_descr_t* mutInfo,
+        const Collections::VB::Manifest::CachingReadHandle& readHandle) {
+    auto hbl = ht.getLockedBucket(readHandle.getKey());
+    StoredValue* v = ht.unlocked_find(readHandle.getKey(),
+                                      hbl.getBucketNum(),
+                                      WantsDeleted::Yes,
+                                      TrackReference::No);
 
-    if (!v || v->isDeleted() || v->isTempItem()) {
+    if (!v || v->isDeleted() || v->isTempItem() ||
+        readHandle.isLogicallyDeleted(v->getBySeqno())) {
         if (eviction == VALUE_ONLY) {
             return ENGINE_KEY_ENOENT;
         } else { // Full eviction.
             if (!v) { // Item might be evicted from cache.
-                if (maybeKeyExistsInFilter(key)) {
-                    return addTempItemAndBGFetch(
-                            hbl, key, cookie, engine, bgFetchDelay, true);
+                if (maybeKeyExistsInFilter(readHandle.getKey())) {
+                    return addTempItemAndBGFetch(hbl,
+                                                 readHandle.getKey(),
+                                                 cookie,
+                                                 engine,
+                                                 bgFetchDelay,
+                                                 true);
                 } else {
                     // As bloomfilter predicted that item surely doesn't
                     // exist on disk, return ENOENT for deleteItem().
@@ -1184,7 +1192,11 @@ ENGINE_ERROR_CODE VBucket::deleteItem(const DocKey& key,
                 }
             } else if (v->isTempInitialItem()) {
                 hbl.getHTLock().unlock();
-                bgFetch(key, cookie, engine, bgFetchDelay, true);
+                bgFetch(readHandle.getKey(),
+                        cookie,
+                        engine,
+                        bgFetchDelay,
+                        true);
                 return ENGINE_EWOULDBLOCK;
             } else { // Non-existent or deleted key.
                 if (v->isTempNonExistentItem() || v->isTempDeletedItem()) {
