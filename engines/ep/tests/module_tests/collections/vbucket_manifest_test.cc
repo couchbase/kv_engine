@@ -382,8 +382,6 @@ public:
         return ::testing::AssertionSuccess();
     }
 
-private:
-
     static void getEventsFromCheckpoint(VBucket& vb,
                                         std::vector<queued_item>& events) {
         std::vector<queued_item> items;
@@ -992,4 +990,53 @@ TEST_F(VBucketManifestTestEndSeqno, addDeleteAdd) {
     EXPECT_TRUE(
             manifest.checkGreatestEndSeqno(StoredValue::state_collection_open));
     EXPECT_TRUE(manifest.checkNumDeletingCollections(0));
+}
+
+class VBucketManifestCachingReadHandle : public VBucketManifestTest {};
+
+TEST_F(VBucketManifestCachingReadHandle, basic) {
+    // Add
+    EXPECT_TRUE(manifest.update(
+            R"({"separator":"::","collections":[{"name":"$default","uid":"0"},)"
+            R"(                                 {"name":"vegetable","uid":"1"}]})"));
+
+    {
+        auto rh = manifest.active.lock(
+                {"vegetable::v1", DocNamespace::Collections});
+        EXPECT_TRUE(rh.valid());
+        EXPECT_EQ(DocNamespace::Collections, rh.getKey().getDocNamespace());
+        EXPECT_STREQ("vegetable::v1",
+                     reinterpret_cast<const char*>(rh.getKey().data()));
+    }
+
+    {
+        auto rh =
+                manifest.active.lock({"fruit::v1", DocNamespace::Collections});
+        EXPECT_FALSE(rh.valid());
+
+        // cached the key
+        EXPECT_EQ(DocNamespace::Collections, rh.getKey().getDocNamespace());
+        EXPECT_STREQ("fruit::v1",
+                     reinterpret_cast<const char*>(rh.getKey().data()));
+    }
+    EXPECT_TRUE(manifest.update(
+            R"({"separator":"::","collections":[{"name":"$default","uid":"0"}]})"));
+
+    {
+        auto rh = manifest.active.lock(
+                {"vegetable::v1", DocNamespace::Collections});
+        EXPECT_FALSE(rh.valid());
+
+        EXPECT_EQ(DocNamespace::Collections, rh.getKey().getDocNamespace());
+        EXPECT_STREQ("vegetable::v1",
+                     reinterpret_cast<const char*>(rh.getKey().data()));
+    }
+    {
+        auto rh =
+                manifest.active.lock({"fruit::v1", DocNamespace::Collections});
+        EXPECT_FALSE(rh.valid());
+        EXPECT_EQ(DocNamespace::Collections, rh.getKey().getDocNamespace());
+        EXPECT_STREQ("fruit::v1",
+                     reinterpret_cast<const char*>(rh.getKey().data()));
+    }
 }

@@ -569,6 +569,22 @@ public:
     }
 
     /**
+     * Obtain a caching read handle for the collections manifest.
+     * The returned handle will lookup the collection associated with key
+     * and cache the internal iterator so that future usage of
+     * isLogicallyDeleted doesn't need to re-scan and lookup. This is different
+     * to a plain ReadHandle which provides more functionality (more methods
+     * for the caller), but may result in extra lookups and key-scans.
+     * @param key A key to use for constructing the read handle.
+     * @return a CachingReadHandle which the caller should test is valid with
+     *         CachingReadHandle::valid
+     */
+    Collections::VB::Manifest::CachingReadHandle lockCollections(
+            const DocKey& key) const {
+        return manifest.lock(key);
+    }
+
+    /**
      * Update the Collections::VB::Manifest and the VBucket.
      * Adds SystemEvents for the create and delete of collections into the
      * checkpoint.

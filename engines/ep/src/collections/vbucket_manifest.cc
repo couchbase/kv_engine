@@ -333,6 +333,24 @@ bool Manifest::doesKeyContainValidCollection(const ::DocKey& key) const {
     return false;
 }
 
+Manifest::container::const_iterator Manifest::getManifestEntry(
+        const ::DocKey& key) const {
+    cb::const_char_buffer identifier;
+    if (defaultCollectionExists &&
+        key.getDocNamespace() == DocNamespace::DefaultCollection) {
+        identifier = DefaultCollectionIdentifier;
+    } else if (key.getDocNamespace() == DocNamespace::Collections) {
+        const auto cKey = Collections::DocKey::make(key, separator);
+        identifier = {reinterpret_cast<const char*>(cKey.data()),
+                      cKey.getCollectionLen()};
+    } else if (key.getDocNamespace() == DocNamespace::System) {
+        throwException<std::invalid_argument>(__FUNCTION__,
+                                              "Use of system key invalid");
+    }
+
+    return map.find(identifier);
+}
+
 bool Manifest::isLogicallyDeleted(const ::DocKey& key, int64_t seqno) const {
     // Only do the searching/scanning work for keys in the deleted range.
     if (seqno <= greatestEndSeqno) {
@@ -357,6 +375,20 @@ bool Manifest::isLogicallyDeleted(const ::DocKey& key, int64_t seqno) const {
             }
         }
         }
+    }
+    return false;
+}
+
+bool Manifest::isLogicallyDeleted(const container::const_iterator entry,
+                                  int64_t seqno) const {
+    if (entry == map.end()) {
+        throwException<std::invalid_argument>(
+                __FUNCTION__,
+                "iterator is invalid, seqno:" + std::to_string(seqno));
+    }
+
+    if (seqno <= greatestEndSeqno) {
+        return seqno <= entry->second->getEndSeqno();
     }
     return false;
 }
@@ -680,7 +712,19 @@ std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {
 
 std::ostream& operator<<(std::ostream& os,
                          const Manifest::ReadHandle& readHandle) {
-    os << readHandle.manifest;
+    os << "VB::Manifest::ReadHandle: manifest:" << readHandle.manifest;
+    return os;
+}
+
+std::ostream& operator<<(std::ostream& os,
+                         const Manifest::CachingReadHandle& readHandle) {
+    os << "VB::Manifest::CachingReadHandle: itr:";
+    if (readHandle.iteratorValid()) {
+        os << *readHandle.itr->second;
+    } else {
+        os << "end";
+    }
+    os << ", manifest:" << readHandle.manifest;
     return os;
 }
 

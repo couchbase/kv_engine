@@ -163,6 +163,98 @@ public:
     };
 
     /**
+     * Map from a 'string_view' to an entry.
+     * The key points to data stored in the value (which is actually a pointer
+     * to a value to remove issues where objects move).
+     * Using the string_view as the key allows faster lookups, the caller
+     * need not heap allocate.
+     */
+    using container = ::std::unordered_map<cb::const_char_buffer,
+                                           std::unique_ptr<ManifestEntry>>;
+
+    /**
+     * CachingReadHandle provides a limited set of functions to allow various
+     * functional paths in KV-engine to perform collection 'legality' checks
+     * with minimal key scans and map lookups.
+     *
+     * The pattern is that the caller creates a CachingReadHandle and during
+     * creation of the object, the key is scanned for a collection and then
+     * an attempt to find a manifest entry is made, the result of which is
+     * stored.
+     *
+     * The caller next can check if the read handle represents a valid
+     * collection, allowing code to return 'unknown_collection'.
+     *
+     * Finally a caller can pass a seqno into the isLogicallyDeleted function
+     * to test if that seqno is a logically deleted key. The seqno should have
+     * been found by searching for the key used during in construction.
+     *
+     * Privately inherited from ReadHandle so we have a readlock/manifest
+     * without exposing the ReadHandle public methods that don't quite fit in
+     * this class.
+     */
+    class CachingReadHandle : private ReadHandle {
+    public:
+        CachingReadHandle(const Manifest& m, cb::RWLock& lock, ::DocKey key)
+            : ReadHandle(m, lock), itr(m.getManifestEntry(key)), key(key) {
+        }
+
+        /**
+         * @return true if the key used in construction is associated with a
+         *         valid and open collection.
+         */
+        bool valid() const {
+            if (iteratorValid()) {
+                return itr->second->isOpen();
+            }
+            return false;
+        }
+
+        /**
+         * @return the key used in construction
+         */
+        ::DocKey getKey() const {
+            return key;
+        }
+
+        /**
+         * @return true if the seqno is logically deleted. Return of true would
+         *         mean that this seqno is below the start seqno of the
+         *         collection used in construction of this read handle instance.
+         */
+        bool isLogicallyDeleted(int64_t seqno) const {
+            return manifest.isLogicallyDeleted(itr, seqno);
+        }
+
+        /**
+         * Dump the manifest to std::cerr
+         */
+        void dump() {
+            std::cerr << manifest << std::endl;
+        }
+
+    protected:
+        bool iteratorValid() const {
+            return itr != manifest.end();
+        }
+
+        friend std::ostream& operator<<(
+                std::ostream& os,
+                const Manifest::CachingReadHandle& readHandle);
+
+        /**
+         * An iterator for the key's collection, or end if the key has no valid
+         * collection.
+         */
+        container::const_iterator itr;
+
+        /**
+         * The key used in construction of this handle.
+         */
+        ::DocKey key;
+    };
+
+    /**
      * RAII write locking for access and updates to the Manifest.
      */
     class WriteHandle {
@@ -266,17 +358,8 @@ public:
     };
 
     friend ReadHandle;
+    friend CachingReadHandle;
     friend WriteHandle;
-
-    /**
-     * Map from a 'string_view' to an entry.
-     * The key points to data stored in the value (which is actually a pointer
-     * to a value to remove issues where objects move).
-     * Using the string_view as the key allows faster lookups, the caller
-     * need not heap allocate.
-     */
-    using container = ::std::unordered_map<cb::const_char_buffer,
-                                           std::unique_ptr<ManifestEntry>>;
 
     /**
      * Construct a VBucket::Manifest from a JSON string or an empty string.
@@ -298,6 +381,10 @@ public:
 
     ReadHandle lock() const {
         return {*this, rwlock};
+    }
+
+    CachingReadHandle lock(::DocKey key) const {
+        return {*this, rwlock, key};
     }
 
     WriteHandle wlock() {
@@ -434,6 +521,7 @@ private:
      */
     bool doesKeyContainValidCollection(const ::DocKey& key) const;
 
+
     /**
      * Given a key and it's seqno, the manifest can determine if that key
      * is logically deleted - that is part of a collection which is in the
@@ -442,6 +530,17 @@ private:
      * @return true if the key belongs to a deleted collection.
      */
     bool isLogicallyDeleted(const ::DocKey& key, int64_t seqno) const;
+
+    /**
+     * Perform the job of isLogicallyDeleted, but with an iterator for the
+     * manifest container instead of a key. This means no new key scan and
+     * map lookup is performed.
+     *
+     *  @return true if the seqno/entry represents a logically deleted
+     *          collection.
+     */
+    bool isLogicallyDeleted(const container::const_iterator entry,
+                            int64_t seqno) const;
 
     /**
      * Function intended for use by the collection eraser code, checking
@@ -489,6 +588,16 @@ private:
     bool exists(cb::const_char_buffer collection) const {
         return map.count(collection) > 0;
     }
+
+    container::const_iterator end() const {
+        return map.end();
+    }
+
+    /**
+     * Get a manifest entry for the collection associated with the key. Can
+     * return map.end() for unknown collections.
+     */
+    container::const_iterator getManifestEntry(const ::DocKey& key) const;
 
 protected:
     /**
