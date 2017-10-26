@@ -212,6 +212,13 @@ TEST_F(CollectionsTest, MB_25344) {
               store->getKeyStats(
                       item2.getKey(), vbid, nullptr, ks, WantsDeleted::Yes));
     EXPECT_TRUE(ks.logically_deleted);
+
+    uint32_t deleted = 0;
+    uint8_t dtype = 0;
+    ItemMetaData meta;
+    EXPECT_EQ(ENGINE_KEY_ENOENT,
+              store->getMetaData(
+                      item2.getKey(), vbid, nullptr, meta, deleted, dtype));
 }
 
 // Test demonstrates issue logged as MB_25344, when we delete a collection

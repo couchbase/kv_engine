@@ -1348,13 +1348,18 @@ ENGINE_ERROR_CODE KVBucket::getMetaData(const DocKey& key,
     }
 
     { // collections read scope
-        auto collectionsRHandle = vb->lockCollections();
-        if (!collectionsRHandle.doesKeyContainValidCollection(key)) {
+        auto collectionsRHandle = vb->lockCollections(key);
+        if (!collectionsRHandle.valid()) {
             return ENGINE_UNKNOWN_COLLECTION;
         }
 
-        return vb->getMetaData(
-                key, cookie, engine, bgFetchDelay, metadata, deleted, datatype);
+        return vb->getMetaData(cookie,
+                               engine,
+                               bgFetchDelay,
+                               collectionsRHandle,
+                               metadata,
+                               deleted,
+                               datatype);
     }
 }
 

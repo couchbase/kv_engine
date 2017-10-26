@@ -1768,26 +1768,31 @@ GetValue VBucket::getInternal(
     }
 }
 
-ENGINE_ERROR_CODE VBucket::getMetaData(const DocKey& key,
-                                       const void* cookie,
-                                       EventuallyPersistentEngine& engine,
-                                       int bgFetchDelay,
-                                       ItemMetaData& metadata,
-                                       uint32_t& deleted,
-                                       uint8_t& datatype) {
+ENGINE_ERROR_CODE VBucket::getMetaData(
+        const void* cookie,
+        EventuallyPersistentEngine& engine,
+        int bgFetchDelay,
+        const Collections::VB::Manifest::CachingReadHandle& readHandle,
+        ItemMetaData& metadata,
+        uint32_t& deleted,
+        uint8_t& datatype) {
     deleted = 0;
-    auto hbl = ht.getLockedBucket(key);
-    StoredValue* v = ht.unlocked_find(
-            key, hbl.getBucketNum(), WantsDeleted::Yes, TrackReference::No);
+    auto hbl = ht.getLockedBucket(readHandle.getKey());
+    StoredValue* v = ht.unlocked_find(readHandle.getKey(),
+                                      hbl.getBucketNum(),
+                                      WantsDeleted::Yes,
+                                      TrackReference::No);
 
     if (v) {
         stats.numOpsGetMeta++;
         if (v->isTempInitialItem()) {
             // Need bg meta fetch.
-            bgFetch(key, cookie, engine, bgFetchDelay, true);
+            bgFetch(readHandle.getKey(), cookie, engine, bgFetchDelay, true);
             return ENGINE_EWOULDBLOCK;
         } else if (v->isTempNonExistentItem()) {
             metadata.cas = v->getCas();
+            return ENGINE_KEY_ENOENT;
+        } else if (readHandle.isLogicallyDeleted(v->getBySeqno())) {
             return ENGINE_KEY_ENOENT;
         } else {
             if (v->isTempDeletedItem() || v->isDeleted() ||
@@ -1817,9 +1822,13 @@ ENGINE_ERROR_CODE VBucket::getMetaData(const DocKey& key,
         // Schedule this bgFetch only if the key is predicted to be may-be
         // existent on disk by the bloomfilter.
 
-        if (maybeKeyExistsInFilter(key)) {
-            return addTempItemAndBGFetch(
-                    hbl, key, cookie, engine, bgFetchDelay, true);
+        if (maybeKeyExistsInFilter(readHandle.getKey())) {
+            return addTempItemAndBGFetch(hbl,
+                                         readHandle.getKey(),
+                                         cookie,
+                                         engine,
+                                         bgFetchDelay,
+                                         true);
         } else {
             stats.numOpsGetMeta++;
             return ENGINE_KEY_ENOENT;

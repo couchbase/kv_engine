@@ -999,10 +999,10 @@ public:
     /**
      * Retrieve the meta data for given key
      *
-     * @param key the key to get the meta data for
      * @param cookie the connection cookie
      * @param engine Reference to ep engine
      * @param bgFetchDelay Delay in secs before we run the bgFetch task
+     * @param readHandle Reader access to the key's collection data.
      * @param[out] metadata meta information returned to the caller
      * @param[out] deleted specifies the caller whether or not the key is
      *                     deleted
@@ -1010,13 +1010,14 @@ public:
      *
      * @return the result of the operation
      */
-    ENGINE_ERROR_CODE getMetaData(const DocKey& key,
-                                  const void* cookie,
-                                  EventuallyPersistentEngine& engine,
-                                  int bgFetchDelay,
-                                  ItemMetaData& metadata,
-                                  uint32_t& deleted,
-                                  uint8_t& datatype);
+    ENGINE_ERROR_CODE getMetaData(
+            const void* cookie,
+            EventuallyPersistentEngine& engine,
+            int bgFetchDelay,
+            const Collections::VB::Manifest::CachingReadHandle& readHandle,
+            ItemMetaData& metadata,
+            uint32_t& deleted,
+            uint8_t& datatype);
 
     /**
      * Looks up the key stats for the given {vbucket, key}.
