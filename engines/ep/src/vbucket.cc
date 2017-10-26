@@ -1827,21 +1827,24 @@ ENGINE_ERROR_CODE VBucket::getMetaData(const DocKey& key,
     }
 }
 
-ENGINE_ERROR_CODE VBucket::getKeyStats(const DocKey& key,
-                                       const void* cookie,
-                                       EventuallyPersistentEngine& engine,
-                                       int bgFetchDelay,
-                                       struct key_stats& kstats,
-                                       WantsDeleted wantsDeleted) {
-    auto hbl = ht.getLockedBucket(key);
+ENGINE_ERROR_CODE VBucket::getKeyStats(
+        const void* cookie,
+        EventuallyPersistentEngine& engine,
+        int bgFetchDelay,
+        struct key_stats& kstats,
+        WantsDeleted wantsDeleted,
+        const Collections::VB::Manifest::CachingReadHandle& readHandle) {
+    auto hbl = ht.getLockedBucket(readHandle.getKey());
     StoredValue* v = fetchValidValue(hbl,
-                                     key,
+                                     readHandle.getKey(),
                                      WantsDeleted::Yes,
                                      TrackReference::Yes,
                                      QueueExpired::Yes);
 
     if (v) {
-        if ((v->isDeleted() && wantsDeleted == WantsDeleted::No)) {
+        if ((v->isDeleted() ||
+             readHandle.isLogicallyDeleted(v->getBySeqno())) &&
+            wantsDeleted == WantsDeleted::No) {
             return ENGINE_KEY_ENOENT;
         }
 
@@ -1851,10 +1854,12 @@ ENGINE_ERROR_CODE VBucket::getKeyStats(const DocKey& key,
         }
         if (eviction == FULL_EVICTION && v->isTempInitialItem()) {
             hbl.getHTLock().unlock();
-            bgFetch(key, cookie, engine, bgFetchDelay, true);
+            bgFetch(readHandle.getKey(), cookie, engine, bgFetchDelay, true);
             return ENGINE_EWOULDBLOCK;
         }
-        kstats.logically_deleted = v->isDeleted();
+        kstats.logically_deleted =
+                v->isDeleted() ||
+                readHandle.isLogicallyDeleted(v->getBySeqno());
         kstats.dirty = v->isDirty();
         kstats.exptime = v->getExptime();
         kstats.flags = v->getFlags();
@@ -1867,9 +1872,13 @@ ENGINE_ERROR_CODE VBucket::getKeyStats(const DocKey& key,
         if (eviction == VALUE_ONLY) {
             return ENGINE_KEY_ENOENT;
         } else {
-            if (maybeKeyExistsInFilter(key)) {
-                return addTempItemAndBGFetch(
-                        hbl, key, cookie, engine, bgFetchDelay, true);
+            if (maybeKeyExistsInFilter(readHandle.getKey())) {
+                return addTempItemAndBGFetch(hbl,
+                                             readHandle.getKey(),
+                                             cookie,
+                                             engine,
+                                             bgFetchDelay,
+                                             true);
             } else {
                 // If bgFetch were false, or bloomfilter predicted that
                 // item surely doesn't exist on disk, return ENOENT for

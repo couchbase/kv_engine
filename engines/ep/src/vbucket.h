@@ -1021,7 +1021,6 @@ public:
     /**
      * Looks up the key stats for the given {vbucket, key}.
      *
-     * @param key The key to lookup
      * @param cookie The client's cookie
      * @param engine Reference to ep engine
      * @param bgFetchDelay
@@ -1029,15 +1028,17 @@ public:
      * @param wantsDeleted If yes then return keystats even if the item is
      *                     marked as deleted. If no then will return
      *                     ENGINE_KEY_ENOENT for deleted items.
+     * @param readHandle Reader access to the key's collection data.
      *
      * @return the result of the operation
      */
-    ENGINE_ERROR_CODE getKeyStats(const DocKey& key,
-                                  const void* cookie,
-                                  EventuallyPersistentEngine& engine,
-                                  int bgFetchDelay,
-                                  struct key_stats& kstats,
-                                  WantsDeleted wantsDeleted);
+    ENGINE_ERROR_CODE getKeyStats(
+            const void* cookie,
+            EventuallyPersistentEngine& engine,
+            int bgFetchDelay,
+            struct key_stats& kstats,
+            WantsDeleted wantsDeleted,
+            const Collections::VB::Manifest::CachingReadHandle& readHandle);
 
     /**
      * Gets a locked item for a given key.

@@ -1536,13 +1536,17 @@ ENGINE_ERROR_CODE KVBucket::getKeyStats(const DocKey& key,
     }
 
     { // collections read scope
-        auto collectionsRHandle = vb->lockCollections();
-        if (!collectionsRHandle.doesKeyContainValidCollection(key)) {
+        auto collectionsRHandle = vb->lockCollections(key);
+        if (!collectionsRHandle.valid()) {
             return ENGINE_UNKNOWN_COLLECTION;
         }
 
-        return vb->getKeyStats(
-                key, cookie, engine, bgFetchDelay, kstats, wantsDeleted);
+        return vb->getKeyStats(cookie,
+                               engine,
+                               bgFetchDelay,
+                               kstats,
+                               wantsDeleted,
+                               collectionsRHandle);
 }
 }
 

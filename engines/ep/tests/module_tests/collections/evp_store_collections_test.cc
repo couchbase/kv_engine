@@ -202,6 +202,16 @@ TEST_F(CollectionsTest, MB_25344) {
                                cookie));
     EXPECT_EQ(ENGINE_KEY_ENOENT,
               store->statsVKey(item2.getKey(), vbid, cookie));
+
+    // GetKeyStats
+    struct key_stats ks;
+    EXPECT_EQ(ENGINE_KEY_ENOENT,
+              store->getKeyStats(
+                      item2.getKey(), vbid, nullptr, ks, WantsDeleted::No));
+    EXPECT_EQ(ENGINE_SUCCESS,
+              store->getKeyStats(
+                      item2.getKey(), vbid, nullptr, ks, WantsDeleted::Yes));
+    EXPECT_TRUE(ks.logically_deleted);
 }
 
 // Test demonstrates issue logged as MB_25344, when we delete a collection
