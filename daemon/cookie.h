@@ -27,6 +27,7 @@ namespace cb {
 namespace mcbp {
 struct Request;
 struct Response;
+enum class Status : uint16_t;
 } // namespace mcbp
 } // namespace cb
 
@@ -245,6 +246,19 @@ public:
     void setCas(uint64_t cas) {
         Cookie::cas = cas;
     }
+
+    /**
+     * Send a response without a message payload back to the client.
+     *
+     * @param status The status message to fill into the message.
+     */
+    void sendResponse(cb::mcbp::Status status);
+
+    /**
+     * Map the engine error code over to the correct status message
+     * and send the appropriate packet back to the client.
+     */
+    void sendResponse(cb::engine_errc code);
 
 protected:
     /**

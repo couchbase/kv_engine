@@ -103,7 +103,6 @@ void list_bucket_executor(Cookie& cookie) {
     if (ret.first == ENGINE_DISCONNECT) {
         connection.setState(McbpStateMachine::State::closing);
     } else {
-        mcbp_write_packet(cookie,
-                          cb::mcbp::to_status(cb::engine_errc(ret.first)));
+        cookie.sendResponse(cb::mcbp::to_status(cb::engine_errc(ret.first)));
     }
 }

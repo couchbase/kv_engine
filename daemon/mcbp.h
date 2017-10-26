@@ -81,14 +81,6 @@ void mcbp_write_response(McbpConnection* c,
 
 void mcbp_write_packet(McbpConnection* c, protocol_binary_response_status err);
 
-inline void mcbp_write_packet(McbpConnection* c, cb::mcbp::Status status) {
-    mcbp_write_packet(c, uint16_t(status));
-}
-
-inline void mcbp_write_packet(Cookie& cookie, cb::mcbp::Status status) {
-    mcbp_write_packet(&cookie.getConnection(), status);
-}
-
 bool mcbp_response_handler(const void* key, uint16_t keylen,
                            const void* ext, uint8_t extlen,
                            const void* body, uint32_t bodylen,

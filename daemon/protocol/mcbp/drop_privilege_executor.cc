@@ -34,5 +34,5 @@ void drop_privilege_executor(Cookie& cookie) {
         status = cb::engine_errc::no_such_key;
     }
 
-    mcbp_write_packet(cookie, cb::mcbp::to_status(status));
+    cookie.sendResponse(status);
 }

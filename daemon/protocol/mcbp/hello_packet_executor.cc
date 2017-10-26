@@ -156,7 +156,7 @@ void process_hello_packet_executor(Cookie& cookie) {
     }
 
     if (out.empty()) {
-        mcbp_write_packet(cookie, cb::mcbp::Status::Success);
+        cookie.sendResponse(cb::mcbp::Status::Success);
     } else {
         mcbp_response_handler(nullptr,
                               0,

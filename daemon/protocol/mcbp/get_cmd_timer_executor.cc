@@ -116,5 +116,5 @@ void get_cmd_timer_executor(Cookie& cookie) {
         return;
     }
 
-    mcbp_write_packet(cookie, cb::mcbp::to_status(cb::engine_errc(ret.first)));
+    cookie.sendResponse(cb::engine_errc(ret.first));
 }

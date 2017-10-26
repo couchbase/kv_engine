@@ -206,7 +206,7 @@ static void process_bin_unknown_packet(Cookie& cookie) {
     default:
         // Release the dynamic buffer.. it may be partial..
         cookie.clearDynamicBuffer();
-        mcbp_write_packet(&connection, engine_error_2_mcbp_protocol_error(ret));
+        cookie.sendResponse(cb::engine_errc(ret));
     }
 }
 
@@ -359,7 +359,7 @@ static void isasl_refresh_executor(Cookie& cookie) {
 
 static void ssl_certs_refresh_executor(Cookie& cookie) {
     // MB-22464 - We don't cache the SSL certificates in memory
-    mcbp_write_packet(cookie, cb::mcbp::Status::Success);
+    cookie.sendResponse(cb::mcbp::Status::Success);
 }
 
 static void verbosity_executor(Cookie& cookie) {
@@ -371,7 +371,7 @@ static void verbosity_executor(Cookie& cookie) {
     }
     settings.setVerbose(static_cast<int>(level));
     perform_callbacks(ON_LOG_LEVEL, NULL, NULL);
-    mcbp_write_packet(cookie, cb::mcbp::Status::Success);
+    cookie.sendResponse(cb::mcbp::Status::Success);
 }
 
 static void version_executor(Cookie& cookie) {
@@ -383,7 +383,7 @@ static void version_executor(Cookie& cookie) {
 }
 
 static void quit_executor(Cookie& cookie) {
-    mcbp_write_packet(cookie, cb::mcbp::Status::Success);
+    cookie.sendResponse(cb::mcbp::Status::Success);
     cookie.getConnection().setWriteAndGo(McbpStateMachine::State::closing);
 }
 
@@ -394,7 +394,7 @@ static void quitq_executor(Cookie& cookie) {
 static void sasl_list_mech_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
     if (!connection.isSaslAuthEnabled()) {
-        mcbp_write_packet(cookie, cb::mcbp::Status::NotSupported);
+        cookie.sendResponse(cb::mcbp::Status::NotSupported);
         return;
     }
 
@@ -430,7 +430,7 @@ static void sasl_list_mech_executor(Cookie& cookie) {
                         "%u: Failed to list SASL mechanisms: %s",
                         connection.getId(),
                         cbsasl_strerror(connection.getSaslConn(), ret));
-            mcbp_write_packet(cookie, cb::mcbp::Status::AuthError);
+            cookie.sendResponse(cb::mcbp::Status::AuthError);
         }
     }
 }
@@ -443,7 +443,7 @@ static void sasl_auth_executor(Cookie& cookie) {
 }
 
 static void noop_executor(Cookie& cookie) {
-    mcbp_write_packet(cookie, cb::mcbp::Status::Success);
+    cookie.sendResponse(cb::mcbp::Status::Success);
 }
 
 static void flush_executor(Cookie& cookie) {
@@ -550,13 +550,13 @@ static void ioctl_get_executor(Cookie& cookie) {
                                       static_cast<const void*>(&cookie))) {
                 mcbp_write_and_free(&connection, &cookie.getDynamicBuffer());
             } else {
-                mcbp_write_packet(cookie, cb::mcbp::Status::Enomem);
+                cookie.sendResponse(cb::mcbp::Status::Enomem);
             }
         } catch (const std::exception& e) {
             LOG_WARNING(&connection,
                         "ioctl_get_executor: Failed to format response: %s",
                         e.what());
-            mcbp_write_packet(cookie, cb::mcbp::Status::Enomem);
+            cookie.sendResponse(cb::mcbp::Status::Enomem);
         }
         break;
     case ENGINE_EWOULDBLOCK:
@@ -567,7 +567,7 @@ static void ioctl_get_executor(Cookie& cookie) {
         connection.setState(McbpStateMachine::State::closing);
         break;
     default:
-        mcbp_write_packet(cookie, cb::mcbp::to_status(cb::engine_errc(ret)));
+        cookie.sendResponse(cb::mcbp::to_status(cb::engine_errc(ret)));
     }
 }
 
@@ -587,7 +587,7 @@ static void ioctl_set_executor(Cookie& cookie) {
 
     ENGINE_ERROR_CODE status = ioctl_set_property(&connection, key, value);
 
-    mcbp_write_packet(cookie, cb::mcbp::to_status(cb::engine_errc(status)));
+    cookie.sendResponse(cb::mcbp::to_status(cb::engine_errc(status)));
 }
 
 static void config_validate_executor(Cookie& cookie) {
@@ -602,13 +602,13 @@ static void config_validate_executor(Cookie& cookie) {
 
     /* Key not yet used, must be zero length. */
     if (keylen != 0) {
-        mcbp_write_packet(cookie, cb::mcbp::Status::Einval);
+        cookie.sendResponse(cb::mcbp::Status::Einval);
         return;
     }
 
     /* must have non-zero length config */
     if (vallen == 0 || vallen > CONFIG_VALIDATE_MAX_LENGTH) {
-        mcbp_write_packet(cookie, cb::mcbp::Status::Einval);
+        cookie.sendResponse(cb::mcbp::Status::Einval);
         return;
     }
 
@@ -620,7 +620,7 @@ static void config_validate_executor(Cookie& cookie) {
         errors = cJSON_CreateArray();
 
         if (validate_proposed_config_changes(val_buffer.c_str(), errors)) {
-            mcbp_write_packet(cookie, cb::mcbp::Status::Success);
+            cookie.sendResponse(cb::mcbp::Status::Success);
         } else {
             /* problem(s). Send the errors back to the client. */
             char* error_string = cJSON_PrintUnformatted(errors);
@@ -636,7 +636,7 @@ static void config_validate_executor(Cookie& cookie) {
                                       static_cast<const void*>(&cookie))) {
                 mcbp_write_and_free(&connection, &cookie.getDynamicBuffer());
             } else {
-                mcbp_write_packet(cookie, cb::mcbp::Status::Enomem);
+                cookie.sendResponse(cb::mcbp::Status::Enomem);
             }
             cJSON_Free(error_string);
         }
@@ -665,7 +665,7 @@ static void config_reload_executor(Cookie& cookie) {
         audit_set_privilege_debug_mode(&connection,
                                        settings.isPrivilegeDebug());
     }
-    mcbp_write_packet(cookie, cb::mcbp::Status::Success);
+    cookie.sendResponse(cb::mcbp::Status::Success);
 }
 
 static void audit_config_reload_executor(Cookie& cookie) {
@@ -683,9 +683,9 @@ static void audit_put_executor(Cookie& cookie) {
                                   req->message.header.request.extlen;
 
     if (mc_audit_event(ntohl(req->message.body.id), payload, payload_length)) {
-        mcbp_write_packet(cookie, cb::mcbp::Status::Success);
+        cookie.sendResponse(cb::mcbp::Status::Success);
     } else {
-        mcbp_write_packet(cookie, cb::mcbp::Status::Einternal);
+        cookie.sendResponse(cb::mcbp::Status::Einternal);
     }
 }
 
@@ -714,7 +714,7 @@ static void get_errmap_executor(Cookie& cookie) {
     uint16_t version = ntohs(req->message.body.version);
     auto const& ss = settings.getErrorMap(version);
     if (ss.empty()) {
-        mcbp_write_packet(cookie, cb::mcbp::Status::KeyEnoent);
+        cookie.sendResponse(cb::mcbp::Status::KeyEnoent);
     } else {
         mcbp_response_handler(NULL,
                               0,
@@ -739,9 +739,9 @@ static void shutdown_executor(Cookie& cookie) {
     if (session_cas.increment_session_counter(cas)) {
         shutdown_server();
         session_cas.decrement_session_counter();
-        mcbp_write_packet(cookie, cb::mcbp::Status::Success);
+        cookie.sendResponse(cb::mcbp::Status::Success);
     } else {
-        mcbp_write_packet(cookie, cb::mcbp::Status::KeyEexists);
+        cookie.sendResponse(cb::mcbp::Status::KeyEexists);
     }
 }
 
@@ -792,7 +792,7 @@ static void rbac_refresh_executor(Cookie& cookie) {
 }
 
 static void no_support_executor(Cookie& cookie) {
-    mcbp_write_packet(cookie, cb::mcbp::Status::NotSupported);
+    cookie.sendResponse(cb::mcbp::Status::NotSupported);
 }
 
 using HandlerFunction = std::function<void(Cookie&)>;
@@ -976,7 +976,7 @@ static void execute_request_packet(McbpConnection* c) {
             c->setState(McbpStateMachine::State::closing);
             return;
         } else {
-            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS);
+            cookie.sendResponse(cb::mcbp::Status::Eaccess);
         }
 
         return;
@@ -992,7 +992,7 @@ static void execute_request_packet(McbpConnection* c) {
                            "closing connection",
                        c->getId(), memcached_opcode_2_text(opcode), result);
             audit_invalid_packet(c);
-            mcbp_write_packet(c, result);
+            cookie.sendResponse(cb::mcbp::Status(result));
             c->setWriteAndGo(McbpStateMachine::State::closing);
             return;
         }
@@ -1007,7 +1007,7 @@ static void execute_request_packet(McbpConnection* c) {
         if (c->remapErrorCode(ENGINE_AUTH_STALE) == ENGINE_DISCONNECT) {
             c->setState(McbpStateMachine::State::closing);
         } else {
-            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_STALE);
+            cookie.sendResponse(cb::mcbp::Status::AuthStale);
         }
         return;
     }
@@ -1149,7 +1149,7 @@ void try_read_mcbp_command(McbpConnection* c) {
 
     auto reason = validate_packet_execusion_constraints(c);
     if (reason != cb::mcbp::Status::Success) {
-        mcbp_write_packet(c, reason);
+        cookie.sendResponse(reason);
         c->setWriteAndGo(McbpStateMachine::State::closing);
         return;
     }

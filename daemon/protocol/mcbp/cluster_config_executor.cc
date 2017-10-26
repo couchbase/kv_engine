@@ -29,7 +29,7 @@ void get_cluster_config_executor(Cookie& cookie) {
     if (bucket.type == BucketType::NoBucket) {
         if (connection.isXerrorSupport()) {
             connection.getCookieObject().setErrorContext("No bucket selected");
-            mcbp_write_packet(cookie, cb::mcbp::Status::NoBucket);
+            cookie.sendResponse(cb::mcbp::Status::NoBucket);
         } else {
             LOG_NOTICE(&connection,
                        "%u: Can't get cluster configuration without "
@@ -43,7 +43,7 @@ void get_cluster_config_executor(Cookie& cookie) {
 
     auto pair = bucket.clusterConfiguration.getConfiguration();
     if (pair.first == -1) {
-        mcbp_write_packet(cookie, cb::mcbp::Status::KeyEnoent);
+        cookie.sendResponse(cb::mcbp::Status::KeyEnoent);
     } else {
         mcbp_response_handler(nullptr,
                               0,
@@ -66,7 +66,7 @@ void set_cluster_config_executor(Cookie& cookie) {
     if (bucket.type == BucketType::NoBucket) {
         if (connection.isXerrorSupport()) {
             connection.getCookieObject().setErrorContext("No bucket selected");
-            mcbp_write_packet(cookie, cb::mcbp::Status::NoBucket);
+            cookie.sendResponse(cb::mcbp::Status::NoBucket);
         } else {
             LOG_NOTICE(&connection,
                        "%u: Can't set cluster configuration without "
@@ -85,7 +85,7 @@ void set_cluster_config_executor(Cookie& cookie) {
 
     // verify that this is a legal session cas:
     if (!session_cas.increment_session_counter(cas)) {
-        mcbp_write_packet(cookie, cb::mcbp::Status::KeyEexists);
+        cookie.sendResponse(cb::mcbp::Status::KeyEexists);
         return;
     }
 
@@ -95,7 +95,7 @@ void set_cluster_config_executor(Cookie& cookie) {
                 reinterpret_cast<const char*>(payload.data()), payload.size()};
         bucket.clusterConfiguration.setConfiguration(conf);
         cookie.setCas(cas);
-        mcbp_write_packet(cookie, cb::mcbp::Status::Success);
+        cookie.sendResponse(cb::mcbp::Status::Success);
 
         const long revision =
                 bucket.clusterConfiguration.getConfiguration().first;
@@ -124,7 +124,7 @@ void set_cluster_config_executor(Cookie& cookie) {
                     bucket.name,
                     e.what());
         cookie.setErrorContext(e.what());
-        mcbp_write_packet(cookie, cb::mcbp::Status::Einval);
+        cookie.sendResponse(cb::mcbp::Status::Einval);
     } catch (const std::exception& e) {
         LOG_WARNING(&connection,
                     "%u: %s Failed to update cluster configuration for bucket "
@@ -134,7 +134,7 @@ void set_cluster_config_executor(Cookie& cookie) {
                     bucket.name,
                     e.what());
         cookie.setErrorContext(e.what());
-        mcbp_write_packet(cookie, cb::mcbp::Status::Einternal);
+        cookie.sendResponse(cb::mcbp::Status::Einternal);
     }
 
     session_cas.decrement_session_counter();

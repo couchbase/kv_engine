@@ -17,6 +17,7 @@
 
 #include "cookie.h"
 #include "connection_mcbp.h"
+#include "mcbp.h"
 
 #include <cJSON_utils.h>
 
@@ -139,4 +140,12 @@ bool Cookie::isEwouldblock() const {
 
 void Cookie::setEwouldblock(bool ewouldblock) {
     connection.setEwouldblock(ewouldblock);
+}
+
+void Cookie::sendResponse(cb::mcbp::Status status) {
+    mcbp_write_packet(&connection, uint16_t(status));
+}
+
+void Cookie::sendResponse(cb::engine_errc code) {
+    sendResponse(cb::mcbp::to_status(code));
 }

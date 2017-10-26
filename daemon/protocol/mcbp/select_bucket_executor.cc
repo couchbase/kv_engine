@@ -52,5 +52,5 @@ void select_bucket_executor(Cookie& cookie) {
     connection.logCommand();
     auto ret = connection.remapErrorCode(select_bucket(connection));
     connection.logResponse(ret);
-    mcbp_write_packet(cookie, cb::mcbp::to_status(cb::engine_errc(ret)));
+    cookie.sendResponse(cb::mcbp::to_status(cb::engine_errc(ret)));
 }
