@@ -175,6 +175,11 @@ struct Request {
     }
 
     /**
+     * Is this a quiet command or not
+     */
+    bool isQuiet() const;
+
+    /**
      * Validate that the header is "sane" (correct magic, and extlen+keylen
      * doesn't exceed the body size)
      */

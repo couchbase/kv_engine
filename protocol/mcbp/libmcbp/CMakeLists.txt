@@ -14,6 +14,7 @@ add_library(mcbp STATIC
             lldb_dump_parser.cc
             magic.cc
             opcode.cc
+            request.cc
             sla.cc
             status_to_string.cc
             )
