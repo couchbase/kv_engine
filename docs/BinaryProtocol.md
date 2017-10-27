@@ -365,7 +365,7 @@ for examples of commands that include quiet variants.
 
 ### Data Types
 
-Possible values of the one-byte field which is a bit-filed.
+Possible values of the one-byte field which is a bit-field.
 
 | Bit  | Description |
 | -----|-------------|
@@ -373,14 +373,14 @@ Possible values of the one-byte field which is a bit-filed.
 | 0x02 | Snappy compressed |
 | 0x04 | Extended attributes (XATTR) |
 
-If no bits is set the datatype is considered to be RAW. In order to utilize
+If no bit is set the datatype is considered to be RAW. In order to utilize
 the datatype bits the client needs to notify the server that it supports
 datatype bits by performing a successful HELLO with the DATATYPE feature.
 
 ## Commands
 
 ### Introduction
-The communication is initially initiated by a request being sent from the
+The communication is initiated by a request being sent from the
 client to the server, and the server will respond to the request with
 zero or multiple packets for each request. The client is always the
 initiator of communication unless it enables the [`duplex`](#0x1f-helo)
@@ -1497,7 +1497,7 @@ The key should contain the agent name
 The value should contain the various features to enable. Each feature is
 a two byte value in network byte order.
 
-The following features is defined:
+The following features are defined:
 
 | Value  | Feature |
 |--------|---------|
