@@ -1108,12 +1108,12 @@ void try_read_mcbp_command(McbpConnection* c) {
     }
 
     // Create a host-local-byte-order-copy of the header
-    const auto& req = cookie.getRequest();
-    memcpy(c->binary_header.bytes, &req, sizeof(c->binary_header));
-    c->binary_header.request.keylen = req.getKeylen();
-    c->binary_header.request.bodylen = req.getBodylen();
-    c->binary_header.request.vbucket = req.getVBucket();
-    c->binary_header.request.cas = req.getCas();
+    std::memcpy(
+            c->binary_header.bytes, input.data(), sizeof(cb::mcbp::Request));
+    c->binary_header.request.keylen = ntohs(c->binary_header.request.keylen);
+    c->binary_header.request.bodylen = ntohl(c->binary_header.request.bodylen);
+    c->binary_header.request.vbucket = ntohs(c->binary_header.request.vbucket);
+    c->binary_header.request.cas = ntohll(c->binary_header.request.cas);
 
     if (c->binary_header.request.magic != PROTOCOL_BINARY_REQ &&
         !(c->binary_header.request.magic == PROTOCOL_BINARY_RES &&
@@ -1145,7 +1145,7 @@ void try_read_mcbp_command(McbpConnection* c) {
     c->setNoReply(false);
     c->setStart(ProcessClock::now());
     MEMCACHED_PROCESS_COMMAND_START(
-            c->getId(), &req, sizeof(cb::mcbp::Request));
+            c->getId(), input.data(), sizeof(cb::mcbp::Request));
 
     auto reason = validate_packet_execusion_constraints(c);
     if (reason != cb::mcbp::Status::Success) {
@@ -1159,7 +1159,8 @@ void try_read_mcbp_command(McbpConnection* c) {
         cookie.setPacket(Cookie::PacketContent::Full,
                          cb::const_byte_buffer{
                                  input.data(),
-                                 sizeof(cb::mcbp::Request) + req.getBodylen()});
+                                 sizeof(cb::mcbp::Request) +
+                                         c->binary_header.request.bodylen});
         c->setState(McbpStateMachine::State::execute);
     } else {
         // we need to allocate more memory!!
