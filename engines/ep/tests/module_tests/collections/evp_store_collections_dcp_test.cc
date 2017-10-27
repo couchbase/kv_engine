@@ -242,7 +242,7 @@ TEST_F(CollectionsDcpTest, test_dcp_consumer) {
     VBucketPtr vb = store->getVBucket(vbid);
 
     EXPECT_FALSE(vb->lockCollections().doesKeyContainValidCollection(
-            {"meat::bacon", DocNamespace::Collections}));
+            {"meat:bacon", DocNamespace::Collections}));
 
     // Call the consumer function for handling DCP events
     // create the meat collection
@@ -258,7 +258,7 @@ TEST_F(CollectionsDcpTest, test_dcp_consumer) {
 
     // We can now access the collection
     EXPECT_TRUE(vb->lockCollections().doesKeyContainValidCollection(
-            {"meat::bacon", DocNamespace::Collections}));
+            {"meat:bacon", DocNamespace::Collections}));
 
     // Call the consumer function for handling DCP events
     // delete the meat collection
@@ -274,7 +274,7 @@ TEST_F(CollectionsDcpTest, test_dcp_consumer) {
 
     // It's gone!
     EXPECT_FALSE(vb->lockCollections().doesKeyContainValidCollection(
-            {"meat::bacon", DocNamespace::Collections}));
+            {"meat:bacon", DocNamespace::Collections}));
 
     consumer->closeAllStreams();
     destroy_mock_cookie(cookie);
@@ -292,7 +292,7 @@ TEST_F(CollectionsDcpTest, test_dcp) {
 
     // Add a collection, then remove it. This generated events into the CP which
     // we'll manually replicate with calls to step
-    vb->updateFromManifest({R"({"separator":"::",
+    vb->updateFromManifest({R"({"separator":":",
               "collections":[{"name":"$default", "uid":"0"},
                              {"name":"meat","uid":"1"}]})"});
 
@@ -302,17 +302,17 @@ TEST_F(CollectionsDcpTest, test_dcp) {
 
     // 1. Replica does not know about meat
     EXPECT_FALSE(replica->lockCollections().doesKeyContainValidCollection(
-            {"meat::bacon", DocNamespace::Collections}));
+            {"meat:bacon", DocNamespace::Collections}));
 
     // Now step the producer to transfer the collection creation
     EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
 
     // 1. Replica now knows the collection
     EXPECT_TRUE(replica->lockCollections().doesKeyContainValidCollection(
-            {"meat::bacon", DocNamespace::Collections}));
+            {"meat:bacon", DocNamespace::Collections}));
 
     // remove meat
-    vb->updateFromManifest({R"({"separator":"::",
+    vb->updateFromManifest({R"({"separator":":",
               "collections":[{"name":"$default", "uid":"0"}]})"});
 
     notifyAndStepToCheckpoint();
@@ -322,7 +322,7 @@ TEST_F(CollectionsDcpTest, test_dcp) {
 
     // 3. Replica now blocking access to meat
     EXPECT_FALSE(replica->lockCollections().doesKeyContainValidCollection(
-            {"meat::bacon", DocNamespace::Collections}));
+            {"meat:bacon", DocNamespace::Collections}));
 
     // Now step the producer, no more collection events
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
@@ -371,25 +371,25 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete) {
     {
         VBucketPtr vb = store->getVBucket(vbid);
         // Create dairy
-        vb->updateFromManifest({R"({"separator":"::",
+        vb->updateFromManifest({R"({"separator":":",
               "collections":[{"name":"$default", "uid":"0"},
                              {"name":"fruit","uid":"1"},
                              {"name":"dairy","uid":"1"}]})"});
 
         // Mutate dairy
         for (int ii = 0; ii < items; ii++) {
-            std::string key = "dairy::" + std::to_string(ii);
+            std::string key = "dairy:" + std::to_string(ii);
             store_item(vbid, {key, DocNamespace::Collections}, "value");
         }
 
         // Mutate fruit
         for (int ii = 0; ii < items; ii++) {
-            std::string key = "fruit::" + std::to_string(ii);
+            std::string key = "fruit:" + std::to_string(ii);
             store_item(vbid, {key, DocNamespace::Collections}, "value");
         }
 
         // Delete dairy
-        vb->updateFromManifest({R"({"separator":"::",
+        vb->updateFromManifest({R"({"separator":":",
               "collections":[{"name":"$default", "uid":"0"},
                              {"name":"fruit","uid":"1"}]})"});
 
@@ -420,23 +420,23 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_create) {
     {
         VBucketPtr vb = store->getVBucket(vbid);
         // Create dairy
-        vb->updateFromManifest({R"({"separator":"::",
+        vb->updateFromManifest({R"({"separator":":",
               "collections":[{"name":"$default", "uid":"0"},
                              {"name":"dairy","uid":"1"}]})"});
 
         // Mutate dairy
         const int items = 3;
         for (int ii = 0; ii < items; ii++) {
-            std::string key = "dairy::" + std::to_string(ii);
+            std::string key = "dairy:" + std::to_string(ii);
             store_item(vbid, {key, DocNamespace::Collections}, "value");
         }
 
         // Delete dairy
         vb->updateFromManifest(
-                {R"({"separator":"::","collections":[{"name":"$default", "uid":"0"}]})"});
+                {R"({"separator":":","collections":[{"name":"$default", "uid":"0"}]})"});
 
         // Create dairy (new uid)
-        vb->updateFromManifest({R"({"separator":"::",
+        vb->updateFromManifest({R"({"separator":":",
               "collections":[{"name":"$default", "uid":"0"},
                              {"name":"dairy","uid":"2"}]})"});
 
@@ -465,19 +465,19 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_create2) {
     {
         VBucketPtr vb = store->getVBucket(vbid);
         // Create dairy
-        vb->updateFromManifest({R"({"separator":"::",
+        vb->updateFromManifest({R"({"separator":":",
               "collections":[{"name":"$default", "uid":"0"},
                              {"name":"dairy","uid":"1"}]})"});
 
         // Mutate dairy
         const int items = 3;
         for (int ii = 0; ii < items; ii++) {
-            std::string key = "dairy::" + std::to_string(ii);
+            std::string key = "dairy:" + std::to_string(ii);
             store_item(vbid, {key, DocNamespace::Collections}, "value");
         }
 
         // Delete dairy/create dairy in one update
-        vb->updateFromManifest({R"({"separator":"::",
+        vb->updateFromManifest({R"({"separator":":",
               "collections":[{"name":"$default", "uid":"0"},
                              {"name":"dairy","uid":"2"}]})"});
 
@@ -512,14 +512,14 @@ TEST_F(CollectionsDcpTest, test_dcp_separator) {
                              {"name":"meat","uid":"1"}]})"});
 
     // The producer should start with the old separator
-    EXPECT_EQ("::", producer->getCurrentSeparatorForStream(vbid));
+    EXPECT_EQ(":", producer->getCurrentSeparatorForStream(vbid));
 
     notifyAndStepToCheckpoint();
 
     VBucketPtr replica = store->getVBucket(replicaVB);
 
-    // The replica should have the :: separator
-    EXPECT_EQ("::", replica->lockCollections().getSeparator());
+    // The replica should have the old : separator
+    EXPECT_EQ(":", replica->lockCollections().getSeparator());
 
     // Now step the producer to transfer the separator
     EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
@@ -548,7 +548,7 @@ TEST_F(CollectionsDcpTest, test_dcp_separator_many) {
     vb->updateFromManifest({R"({"separator": "@@",
               "collections":[{"name":"$default", "uid":"0"}]})"});
     // Change the separator
-    vb->updateFromManifest({R"({"separator": ":",
+    vb->updateFromManifest({R"({"separator": "-",
               "collections":[{"name":"$default", "uid":"0"}]})"});
     // Change the separator
     vb->updateFromManifest({R"({"separator": ",",
@@ -562,16 +562,16 @@ TEST_F(CollectionsDcpTest, test_dcp_separator_many) {
     // to see , as the separator once DCP steps through the checkpoint
 
     // The producer should start with the initial separator
-    EXPECT_EQ("::", producer->getCurrentSeparatorForStream(vbid));
+    EXPECT_EQ(":", producer->getCurrentSeparatorForStream(vbid));
 
     notifyAndStepToCheckpoint();
 
     auto replica = store->getVBucket(replicaVB);
 
-    // The replica should have the :: separator
-    EXPECT_EQ("::", replica->lockCollections().getSeparator());
+    // The replica should have the old separator
+    EXPECT_EQ(":", replica->lockCollections().getSeparator());
 
-    std::array<std::string, 3> expectedData = {{"@@", ":", ","}};
+    std::array<std::string, 3> expectedData = {{"@@", "-", ","}};
     for (auto expected : expectedData) {
         // Now step the producer to transfer the separator
         EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
@@ -638,7 +638,7 @@ TEST_F(CollectionsFilteredDcpErrorTest, error1) {
 
 TEST_F(CollectionsFilteredDcpErrorTest, error2) {
     // Set some collections
-    store->setCollections({R"({"separator": "::",
+    store->setCollections({R"({"separator": ":",
               "collections":[{"name":"$default", "uid":"0"},
                              {"name":"meat", "uid":"1"},
                              {"name":"dairy", "uid":"2"}]})"});
@@ -656,7 +656,7 @@ TEST_F(CollectionsFilteredDcpErrorTest, error2) {
     producer->setNoopEnabled(true);
 
     // Remove meat
-    store->setCollections({R"({"separator": "::",
+    store->setCollections({R"({"separator": ":",
               "collections":[{"name":"$default", "uid":"0"},
                              {"name":"dairy", "uid":"2"}]})"});
 
@@ -696,7 +696,7 @@ TEST_F(CollectionsFilteredDcpTest, filtering) {
 
     // Perform a create of meat/dairy via the bucket level (filters are
     // worked out from the bucket manifest)
-    store->setCollections({R"({"separator": "::",
+    store->setCollections({R"({"separator": ":",
               "collections":[{"name":"$default", "uid":"0"},
                              {"name":"meat", "uid":"1"},
                              {"name":"dairy", "uid":"2"}]})"});
@@ -717,12 +717,12 @@ TEST_F(CollectionsFilteredDcpTest, filtering) {
     EXPECT_EQ("dairy", dcp_last_key);
 
     // Store collection documents
-    std::array<std::string, 2> expectedKeys = {{"dairy::one", "dairy::two"}};
-    store_item(vbid, {"meat::one", DocNamespace::Collections}, "value");
+    std::array<std::string, 2> expectedKeys = {{"dairy:one", "dairy:two"}};
+    store_item(vbid, {"meat:one", DocNamespace::Collections}, "value");
     store_item(vbid, {expectedKeys[0], DocNamespace::Collections}, "value");
-    store_item(vbid, {"meat::two", DocNamespace::Collections}, "value");
+    store_item(vbid, {"meat:two", DocNamespace::Collections}, "value");
     store_item(vbid, {expectedKeys[1], DocNamespace::Collections}, "value");
-    store_item(vbid, {"meat::three", DocNamespace::Collections}, "value");
+    store_item(vbid, {"meat:three", DocNamespace::Collections}, "value");
 
     auto vb0Stream = producer->findStream(0);
     ASSERT_NE(nullptr, vb0Stream.get());
@@ -745,7 +745,7 @@ TEST_F(CollectionsFilteredDcpTest, default_only) {
 
     // Perform a create of meat/dairy via the bucket level (filters are
     // worked out from the bucket manifest)
-    store->setCollections({R"({"separator": "::",
+    store->setCollections({R"({"separator": ":",
               "collections":[{"name":"$default", "uid":"0"},
                              {"name":"meat", "uid":"1"},
                              {"name":"dairy", "uid":"2"}]})"});
@@ -761,11 +761,11 @@ TEST_F(CollectionsFilteredDcpTest, default_only) {
     EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER, dcp_last_op);
 
     // Store collection documents and one default collection document
-    store_item(vbid, {"meat::one", DocNamespace::Collections}, "value");
-    store_item(vbid, {"dairy::one", DocNamespace::Collections}, "value");
+    store_item(vbid, {"meat:one", DocNamespace::Collections}, "value");
+    store_item(vbid, {"dairy:one", DocNamespace::Collections}, "value");
     store_item(vbid, {"anykey", DocNamespace::DefaultCollection}, "value");
-    store_item(vbid, {"dairy::two", DocNamespace::Collections}, "value");
-    store_item(vbid, {"meat::three", DocNamespace::Collections}, "value");
+    store_item(vbid, {"dairy:two", DocNamespace::Collections}, "value");
+    store_item(vbid, {"meat:three", DocNamespace::Collections}, "value");
 
     auto vb0Stream = producer->findStream(0);
     ASSERT_NE(nullptr, vb0Stream.get());
@@ -786,7 +786,7 @@ TEST_F(CollectionsFilteredDcpTest, stream_closes) {
 
     // Perform a create of meat via the bucket level (filters are worked out
     // from the bucket manifest)
-    store->setCollections({R"({"separator": "::",
+    store->setCollections({R"({"separator": ":",
               "collections":[{"name":"$default", "uid":"0"},
                              {"name":"meat", "uid":"1"}]})"});
     // Setup filtered DCP
@@ -808,7 +808,7 @@ TEST_F(CollectionsFilteredDcpTest, stream_closes) {
 
     // Perform a delete of meat via the bucket level (filters are worked out
     // from the bucket manifest)
-    store->setCollections({R"({"separator": "::",
+    store->setCollections({R"({"separator": ":",
               "collections":[{"name":"$default", "uid":"0"}]})"});
 
     notifyAndStepToCheckpoint();

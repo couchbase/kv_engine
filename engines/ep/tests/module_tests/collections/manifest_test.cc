@@ -134,10 +134,10 @@ TEST(ManifestTest, validation) {
 
 TEST(ManifestTest, defaultManifest) {
     // Default construction gives the default manifest
-    // $default, rev 0 and separator of ::
+    // $default, rev 0 and separator of :
     Collections::Manifest manifest;
     EXPECT_TRUE(manifest.doesDefaultCollectionExist());
-    EXPECT_EQ("::", manifest.getSeparator());
+    EXPECT_EQ(Collections::DefaultSeparator, manifest.getSeparator());
 }
 
 TEST(ManifestTest, getSeparator) {

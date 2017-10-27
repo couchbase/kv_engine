@@ -129,7 +129,7 @@ document).
 
 ```
 {
-  "separator":"::",
+  "separator":":",
    "collections":[
       {"name":"$default","uid":"0","start_seqno":"1","end_seqno":"-6"},
       {"name":"fruit","uid":"1","start_seqno":"13012","end_seqno":"-6"},
@@ -193,7 +193,7 @@ SystemEvents are treated differently by the ActiveStream.
 1. Start with `$default=exclusive open`
 2. Receive (assume VB high-seqno is 200)
 
-   `{"separator":"::","collections":[{"name":"$default", "uid":"0"}, {"name":"fruit","uid":"1"}]}`
+   `{"separator":":","collections":[{"name":"$default", "uid":"0"}, {"name":"fruit","uid":"1"}]}`
 
   * `$default=exclusive open, fruit=exclusive open`
   * stores a document `$collection::fruit` at seqno 201 with a value at least containing 1.
@@ -205,7 +205,7 @@ SystemEvents are treated differently by the ActiveStream.
    ```
 3. Receive (assume VB high-seqno is now 430)
 
-   `{"separator":"::","collections":[{"name":"$default", "uid":"0"}]}`
+   `{"separator":":","collections":[{"name":"$default", "uid":"0"}]}`
 
   * `$default=exclusive open, fruit=exclusive deleting`
   * note the creation of a deleted(SystemEvent::Collection) will trigger a background scrub of the collection's items.
@@ -230,7 +230,7 @@ SystemEvents are treated differently by the ActiveStream.
 1. Start with `$default=exclusive open`
 2. Receive (assume VB high-seqno is 836)
 
-   `{"separator":"::","collections":[{"name":"$default", "uid":"0"}, {"name":"fruit","uid":"1"}]}`
+   `{"separator":":","collections":[{"name":"$default", "uid":"0"}, {"name":"fruit","uid":"1"}]}`
 
   * `$default=exclusive open, fruit=exclusive open`
   * stored a document `$collection::fruit` at seqno 837
@@ -242,7 +242,7 @@ SystemEvents are treated differently by the ActiveStream.
    ```
 3. Receive (assume VB high-seqno = 919)
 
-   `{"separator":"::","collections":[{"name":"$default", "uid":"0"}]}`
+   `{"separator":":","collections":[{"name":"$default", "uid":"0"}]}`
 
   * `$default=exclusive open, fruit=exclusive deleting`
   * note the creation of a deleted(SystemEvent::Collection) will trigger a background scrub of the collection's items.
@@ -254,7 +254,7 @@ SystemEvents are treated differently by the ActiveStream.
    ```
 4. Receive (before the background delete completes, VB high-seqno = 1617)
 
-   `{"separator":"::","collections":[{"name":"$default", "uid":"0"}, {"name":"fruit","uid":"2"}]}`
+   `{"separator":":","collections":[{"name":"$default", "uid":"0"}, {"name":"fruit","uid":"2"}]}`
 
   * `$default=exclusive open, fruit=open and deleting`
   * store a document `$collection::fruit` at seqno 1618 with value at least containing the UID of 2

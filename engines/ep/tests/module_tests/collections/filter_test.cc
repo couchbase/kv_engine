@@ -64,7 +64,7 @@ public:
  */
 TEST_F(CollectionsFilterTest, junk_in) {
     Collections::Manifest m(
-            R"({"separator":"::",)"
+            R"({"separator":":",)"
             R"("collections":[{"name":"$default","uid":"0"},
                               {"name":"vegetable","uid":"1"}]})");
 
@@ -88,7 +88,7 @@ TEST_F(CollectionsFilterTest, junk_in) {
  */
 TEST_F(CollectionsFilterTest, validation1) {
     Collections::Manifest m(
-            R"({"separator":"::",)"
+            R"({"separator":":",)"
             R"("collections":[{"name":"$default","uid":"0"},
                               {"name":"vegetable","uid":"1"},
                               {"name":"meat","uid":"3"},
@@ -113,7 +113,7 @@ TEST_F(CollectionsFilterTest, validation1) {
  */
 TEST_F(CollectionsFilterTest, validation2) {
     Collections::Manifest m(
-            R"({"revision":0,"separator":"::",)"
+            R"({"revision":0,"separator":":",)"
             R"("collections":[{"name":"$default","uid":"0"},
                               {"name":"vegetable","uid":"1"},
                               {"name":"meat","uid":"3"},
@@ -138,7 +138,7 @@ TEST_F(CollectionsFilterTest, validation2) {
 TEST_F(CollectionsFilterTest, validation_no_default) {
     // m does not include $default
     Collections::Manifest m(
-            R"({"separator":"::",)"
+            R"({"separator":":",)"
             R"("collections":[{"name":"vegetable","uid":"1"},
                               {"name":"meat","uid":"3"},
                               {"name":"fruit", "uid":"4"},

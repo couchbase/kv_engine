@@ -27,7 +27,7 @@ static cb::const_char_buffer DefaultCollectionIdentifier(
         _DefaultCollectionIdentifier);
 
 // The default separator we will use for identifying collections in keys.
-const char* const DefaultSeparator = "::";
+const char* const DefaultSeparator = ":";
 
 // SystemEvent keys
 const char* const SystemEventPrefix = "$collections";
