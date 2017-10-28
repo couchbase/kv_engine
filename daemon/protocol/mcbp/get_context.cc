@@ -123,7 +123,7 @@ ENGINE_ERROR_CODE GetCommandContext::noSuchItem() {
                           reinterpret_cast<const char*>(key.data()),
                           int(key.size()), -1, 0);
 
-    if (connection.isNoReply()) {
+    if (cookie.getRequest().isQuiet()) {
         ++connection.getBucket()
                   .responseCounters[PROTOCOL_BINARY_RESPONSE_KEY_ENOENT];
         connection.setState(McbpStateMachine::State::new_cmd);

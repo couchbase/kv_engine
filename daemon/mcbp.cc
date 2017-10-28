@@ -85,7 +85,8 @@ void mcbp_write_response(McbpConnection* c,
                          int extlen,
                          int keylen,
                          int dlen) {
-    if (!c->isNoReply() || c->getCmd() == PROTOCOL_BINARY_CMD_GET ||
+    const auto quiet = c->getCookieObject().getRequest().isQuiet();
+    if (!quiet || c->getCmd() == PROTOCOL_BINARY_CMD_GET ||
         c->getCmd() == PROTOCOL_BINARY_CMD_GETK) {
         mcbp_add_header(c,
                         PROTOCOL_BINARY_RESPONSE_SUCCESS,

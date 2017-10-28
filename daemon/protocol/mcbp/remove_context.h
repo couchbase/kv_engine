@@ -60,9 +60,6 @@ public:
           input_cas(req.getCas()),
           state(State::GetItem),
           mutation_descr{} {
-        if (req.getClientOpcode() == cb::mcbp::ClientOpcode::Deleteq) {
-            cookie.getConnection().setNoReply(true);
-        }
     }
 
 protected:

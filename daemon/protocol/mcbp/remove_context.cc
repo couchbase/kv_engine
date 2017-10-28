@@ -179,7 +179,7 @@ ENGINE_ERROR_CODE RemoveCommandContext::reset() {
 ENGINE_ERROR_CODE RemoveCommandContext::sendResponse() {
     state = State::Done;
 
-    if (connection.isNoReply()) {
+    if (cookie.getRequest().isQuiet()) {
         ++connection.getBucket()
                   .responseCounters[PROTOCOL_BINARY_RESPONSE_SUCCESS];
         connection.setState(McbpStateMachine::State::new_cmd);

@@ -193,23 +193,14 @@ static void add_set_replace_executor(Cookie& cookie,
 }
 
 static void add_executor(Cookie& cookie) {
-    auto& req = cookie.getRequest(Cookie::PacketContent::Full);
-    auto& connection = cookie.getConnection();
-    connection.setNoReply(req.isQuiet());
     add_set_replace_executor(cookie, OPERATION_ADD);
 }
 
 static void set_executor(Cookie& cookie) {
-    auto& req = cookie.getRequest(Cookie::PacketContent::Full);
-    auto& connection = cookie.getConnection();
-    connection.setNoReply(req.isQuiet());
     add_set_replace_executor(cookie, OPERATION_SET);
 }
 
 static void replace_executor(Cookie& cookie) {
-    auto& req = cookie.getRequest(Cookie::PacketContent::Full);
-    auto& connection = cookie.getConnection();
-    connection.setNoReply(req.isQuiet());
     add_set_replace_executor(cookie, OPERATION_REPLACE);
 }
 
@@ -223,46 +214,18 @@ static void append_prepend_executor(
 }
 
 static void append_executor(Cookie& cookie) {
-    auto& req = cookie.getRequest(Cookie::PacketContent::Full);
-    auto& connection = cookie.getConnection();
-    connection.setNoReply(req.isQuiet());
     append_prepend_executor(cookie, AppendPrependCommandContext::Mode::Append);
 }
 
 static void prepend_executor(Cookie& cookie) {
-    auto& req = cookie.getRequest(Cookie::PacketContent::Full);
-    auto& connection = cookie.getConnection();
-    connection.setNoReply(req.isQuiet());
     append_prepend_executor(cookie, AppendPrependCommandContext::Mode::Prepend);
 }
 
 static void get_executor(Cookie& cookie) {
-    auto& req = cookie.getRequest(Cookie::PacketContent::Full);
-    auto& connection = cookie.getConnection();
-    connection.setNoReply(req.isQuiet());
     process_bin_get(cookie);
 }
 
 static void get_meta_executor(Cookie& cookie) {
-    auto& connection = cookie.getConnection();
-    switch (connection.getCmd()) {
-    case PROTOCOL_BINARY_CMD_GET_META:
-        // McbpConnection::noreply already set to false in constructor
-        break;
-    case PROTOCOL_BINARY_CMD_GETQ_META:
-        connection.setNoReply(true);
-        break;
-    default:
-        LOG_WARNING(&connection,
-                    "%u: get_meta_executor: cmd (which is %d) is not a valid "
-                    "GET_META "
-                    "variant - closing connection",
-                    connection.getId(),
-                    connection.getCmd());
-        connection.setState(McbpStateMachine::State::closing);
-        return;
-    }
-
     process_bin_get_meta(cookie);
 }
 
@@ -375,12 +338,6 @@ static void arithmetic_executor(Cookie& cookie) {
     auto* req = reinterpret_cast<protocol_binary_request_incr*>(
             cookie.getPacketAsVoidPtr());
     cookie.obtainContext<ArithmeticCommandContext>(connection, *req).drive();
-}
-
-static void arithmeticq_executor(Cookie& cookie) {
-    auto& connection = cookie.getConnection();
-    connection.setNoReply(true);
-    arithmetic_executor(cookie);
 }
 
 static void set_ctrl_token_executor(Cookie& cookie) {
@@ -723,9 +680,9 @@ void initialize_protocol_handlers() {
     handlers[PROTOCOL_BINARY_CMD_DELETEQ] = delete_executor;
     handlers[PROTOCOL_BINARY_CMD_STAT] = stat_executor;
     handlers[PROTOCOL_BINARY_CMD_INCREMENT] = arithmetic_executor;
-    handlers[PROTOCOL_BINARY_CMD_INCREMENTQ] = arithmeticq_executor;
+    handlers[PROTOCOL_BINARY_CMD_INCREMENTQ] = arithmetic_executor;
     handlers[PROTOCOL_BINARY_CMD_DECREMENT] = arithmetic_executor;
-    handlers[PROTOCOL_BINARY_CMD_DECREMENTQ] = arithmeticq_executor;
+    handlers[PROTOCOL_BINARY_CMD_DECREMENTQ] = arithmetic_executor;
     handlers[PROTOCOL_BINARY_CMD_GET_CMD_TIMER] = get_cmd_timer_executor;
     handlers[PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN] = set_ctrl_token_executor;
     handlers[PROTOCOL_BINARY_CMD_GET_CTRL_TOKEN] = get_ctrl_token_executor;
@@ -1025,7 +982,6 @@ void try_read_mcbp_command(McbpConnection* c) {
     c->setCmd(c->binary_header.request.opcode);
     /* clear the returned cas value */
     cookie.setCas(0);
-    c->setNoReply(false);
     c->setStart(ProcessClock::now());
     MEMCACHED_PROCESS_COMMAND_START(
             c->getId(), input.data(), sizeof(cb::mcbp::Request));

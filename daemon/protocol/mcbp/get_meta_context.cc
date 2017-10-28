@@ -89,7 +89,7 @@ ENGINE_ERROR_CODE GetMetaCommandContext::sendResponse() {
 ENGINE_ERROR_CODE GetMetaCommandContext::noSuchItem() {
     STATS_MISS(&connection, get);
 
-    if (connection.isNoReply()) {
+    if (cookie.getRequest().isQuiet()) {
         auto& bucket = connection.getBucket();
         bucket.responseCounters[PROTOCOL_BINARY_RESPONSE_KEY_ENOENT]++;
         connection.setState(McbpStateMachine::State::new_cmd);

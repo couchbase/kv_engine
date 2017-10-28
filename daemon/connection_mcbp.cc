@@ -907,7 +907,6 @@ unique_cJSON_ptr McbpConnection::toJSON() const {
             cJSON_AddNumberToObject(talloc, "size", temp_alloc.size());
             cJSON_AddItemToObject(obj, "temp_alloc_list", talloc);
         }
-        cJSON_AddBoolToObject(obj, "noreply", noreply);
 
         /* @todo we should decode the binary header */
         cJSON_AddNumberToObject(obj, "aiostat", aiostat);

@@ -42,8 +42,6 @@ public:
         : SteppableCommandContext(cookie), state(State::Flushing) {
         LOG_NOTICE(&connection, "%u: flush b:%s", connection.getId(),
                    connection.getBucket().name);
-        connection.setNoReply(cookie.getRequest().getClientOpcode() ==
-                              cb::mcbp::ClientOpcode::Flushq);
     }
 
 protected:

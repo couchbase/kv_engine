@@ -39,9 +39,6 @@ GatCommandContext::GatCommandContext(Cookie& cookie)
       exptime(getExptime(cookie)),
       info{},
       state(State::GetAndTouchItem) {
-    if (cookie.getRequest().getClientOpcode() == cb::mcbp::ClientOpcode::Gatq) {
-        connection.setNoReply(true);
-    }
 }
 
 ENGINE_ERROR_CODE GatCommandContext::getAndTouchItem() {
@@ -141,7 +138,7 @@ ENGINE_ERROR_CODE GatCommandContext::sendResponse() {
 
 ENGINE_ERROR_CODE GatCommandContext::noSuchItem() {
     STATS_MISS(&connection, get);
-    if (connection.isNoReply()) {
+    if (cookie.getRequest().isQuiet()) {
         ++connection.getBucket()
                     .responseCounters[PROTOCOL_BINARY_RESPONSE_KEY_ENOENT];
         connection.setState(McbpStateMachine::State::new_cmd);

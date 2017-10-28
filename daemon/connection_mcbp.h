@@ -422,15 +422,6 @@ public:
         }
     }
 
-    bool isNoReply() const {
-        return noreply;
-    }
-
-    void setNoReply(bool noreply) {
-        McbpConnection::noreply = noreply;
-    }
-
-
     /**
      * Enable the datatype which corresponds to the feature
      *
@@ -770,9 +761,6 @@ protected:
      * etc.. will be freed by calling "free")
      */
     std::vector<char*> temp_alloc;
-
-    /** True if the reply should not be sent (unless there is an error) */
-    bool noreply = false;
 
     /**
      * If the client enabled the datatype support the response packet
