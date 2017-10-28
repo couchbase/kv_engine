@@ -763,12 +763,6 @@ protected:
     std::vector<char*> temp_alloc;
 
     /**
-     * If the client enabled the datatype support the response packet
-     * will contain the datatype as set for the object
-     */
-    bool supports_datatype = false;
-
-    /**
      * If the client enabled the mutation seqno feature each mutation
      * command will return the vbucket UUID and sequence number for the
      * mutation.
