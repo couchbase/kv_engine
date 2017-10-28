@@ -19,18 +19,13 @@
 
 #include "buckets.h"
 #include "config_parse.h"
-#include "connections.h"
 #include "debug_helpers.h"
-#include "enginemap.h"
 #include "ioctl.h"
 #include "mc_time.h"
 #include "mcaudit.h"
 #include "mcbp.h"
 #include "mcbp_privileges.h"
 #include "mcbp_topkeys.h"
-#include "mcbp_validators.h"
-#include "mcbpdestroybuckettask.h"
-#include "memcached.h"
 #include "protocol/mcbp/appendprepend_context.h"
 #include "protocol/mcbp/arithmetic_context.h"
 #include "protocol/mcbp/audit_configure_context.h"
@@ -52,23 +47,12 @@
 #include "protocol/mcbp/sasl_auth_command_context.h"
 #include "protocol/mcbp/sasl_refresh_command_context.h"
 #include "protocol/mcbp/stats_context.h"
-#include "protocol/mcbp/steppable_command_context.h"
 #include "protocol/mcbp/unlock_context.h"
-#include "protocol/mcbp/utilities.h"
-#include "runtime.h"
 #include "sasl_tasks.h"
 #include "session_cas.h"
-#include "settings.h"
 #include "subdocument.h"
 
-#include <memcached/protocol_binary.h>
-#include <memcached/rbac.h>
-#include <platform/cb_malloc.h>
-#include <platform/checked_snprintf.h>
-#include <platform/compress.h>
-#include <snappy-c.h>
 #include <utilities/protocol2text.h>
-#include <cctype>
 
 std::array<bool, 0x100>&  topkey_commands = get_mcbp_topkeys();
 std::array<mcbp_package_execute, 0x100>& executors = get_mcbp_executors();
