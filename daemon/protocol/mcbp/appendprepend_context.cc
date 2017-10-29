@@ -20,6 +20,24 @@
 #include <xattr/blob.h>
 #include <xattr/utils.h>
 
+AppendPrependCommandContext::AppendPrependCommandContext(
+        Cookie& cookie, const cb::mcbp::Request& req)
+    : SteppableCommandContext(cookie),
+      mode((req.opcode == PROTOCOL_BINARY_CMD_APPEND ||
+            req.opcode == PROTOCOL_BINARY_CMD_APPENDQ)
+                   ? Mode::Append
+                   : Mode::Prepend),
+      key(cookie.getRequestKey()),
+      value(req.getValue()),
+      vbucket(req.getVBucket()),
+      cas(req.getCas()),
+      state(State::GetItem) {
+    auto datatype = req.datatype;
+    if (mcbp::datatype::is_snappy(datatype)) {
+        state = State::InflateInputData;
+    }
+}
+
 ENGINE_ERROR_CODE AppendPrependCommandContext::step() {
     ENGINE_ERROR_CODE ret;
     do {
@@ -60,10 +78,12 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::step() {
 ENGINE_ERROR_CODE AppendPrependCommandContext::inflateInputData() {
     try {
         if (!cb::compression::inflate(cb::compression::Algorithm::Snappy,
-                                      value.buf, value.len, inputbuffer)) {
+                                      reinterpret_cast<const char*>(value.buf),
+                                      value.len,
+                                      inputbuffer)) {
             return ENGINE_EINVAL;
         }
-        value.buf = inputbuffer.data.get();
+        value.buf = reinterpret_cast<const uint8_t*>(inputbuffer.data.get());
         value.len = inputbuffer.len;
         state = State::GetItem;
     } catch (const std::bad_alloc&) {

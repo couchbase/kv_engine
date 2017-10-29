@@ -204,21 +204,9 @@ static void replace_executor(Cookie& cookie) {
     add_set_replace_executor(cookie, OPERATION_REPLACE);
 }
 
-static void append_prepend_executor(
-        Cookie& cookie, const AppendPrependCommandContext::Mode mode) {
-    auto& connection = cookie.getConnection();
-    auto* req = reinterpret_cast<protocol_binary_request_append*>(
-            cookie.getPacketAsVoidPtr());
-    cookie.obtainContext<AppendPrependCommandContext>(connection, req, mode)
-            .drive();
-}
-
-static void append_executor(Cookie& cookie) {
-    append_prepend_executor(cookie, AppendPrependCommandContext::Mode::Append);
-}
-
-static void prepend_executor(Cookie& cookie) {
-    append_prepend_executor(cookie, AppendPrependCommandContext::Mode::Prepend);
+static void append_prepend_executor(Cookie& cookie) {
+    const auto& req = cookie.getRequest(Cookie::PacketContent::Full);
+    cookie.obtainContext<AppendPrependCommandContext>(cookie, req).drive();
 }
 
 static void get_executor(Cookie& cookie) {
@@ -661,10 +649,10 @@ void initialize_protocol_handlers() {
     handlers[PROTOCOL_BINARY_CMD_ADD] = add_executor;
     handlers[PROTOCOL_BINARY_CMD_REPLACEQ] = replace_executor;
     handlers[PROTOCOL_BINARY_CMD_REPLACE] = replace_executor;
-    handlers[PROTOCOL_BINARY_CMD_APPENDQ] = append_executor;
-    handlers[PROTOCOL_BINARY_CMD_APPEND] = append_executor;
-    handlers[PROTOCOL_BINARY_CMD_PREPENDQ] = prepend_executor;
-    handlers[PROTOCOL_BINARY_CMD_PREPEND] = prepend_executor;
+    handlers[PROTOCOL_BINARY_CMD_APPENDQ] = append_prepend_executor;
+    handlers[PROTOCOL_BINARY_CMD_APPEND] = append_prepend_executor;
+    handlers[PROTOCOL_BINARY_CMD_PREPENDQ] = append_prepend_executor;
+    handlers[PROTOCOL_BINARY_CMD_PREPEND] = append_prepend_executor;
     handlers[PROTOCOL_BINARY_CMD_GET] = get_executor;
     handlers[PROTOCOL_BINARY_CMD_GETQ] = get_executor;
     handlers[PROTOCOL_BINARY_CMD_GETK] = get_executor;

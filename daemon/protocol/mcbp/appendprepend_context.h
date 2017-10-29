@@ -54,31 +54,9 @@ public:
             Done
     };
 
-    enum class Mode : uint8_t {
-        Append,
-        Prepend
-    };
+    enum class Mode { Append, Prepend };
 
-    AppendPrependCommandContext(McbpConnection& c,
-                                protocol_binary_request_append* req,
-                                const Mode& mode_)
-        : SteppableCommandContext(c.getCookieObject()),
-          mode(mode_),
-          key(req->bytes + sizeof(req->bytes),
-              ntohs(req->message.header.request.keylen),
-              c.getDocNamespace()),
-          value(reinterpret_cast<const char*>(key.data() + key.size()),
-                ntohl(req->message.header.request.bodylen) - key.size()),
-          vbucket(ntohs(req->message.header.request.vbucket)),
-          cas(ntohll(req->message.header.request.cas)),
-          olditem(nullptr, cb::ItemDeleter{c.getBucketEngineAsV0()}),
-          newitem(nullptr, cb::ItemDeleter{c.getBucketEngineAsV0()}),
-          state(State::GetItem) {
-        auto datatype = req->message.header.request.datatype;
-        if (mcbp::datatype::is_snappy(datatype)) {
-            state = State::InflateInputData;
-        }
-    }
+    AppendPrependCommandContext(Cookie& cookie, const cb::mcbp::Request& req);
 
 protected:
     ENGINE_ERROR_CODE step() override;
@@ -96,7 +74,7 @@ protected:
 private:
     const Mode mode;
     const DocKey key;
-    cb::const_char_buffer value;
+    cb::const_byte_buffer value;
     const uint16_t vbucket;
     const uint64_t cas;
 
