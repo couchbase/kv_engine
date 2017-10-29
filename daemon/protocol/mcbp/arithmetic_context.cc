@@ -21,6 +21,17 @@
 #include "../../mcbp.h"
 #include "engine_wrapper.h"
 
+ArithmeticCommandContext::ArithmeticCommandContext(Cookie& cookie,
+                                                   const cb::mcbp::Request& req)
+    : SteppableCommandContext(cookie),
+      key(cookie.getRequestKey()),
+      request(reinterpret_cast<const protocol_binary_request_incr&>(req)),
+      cas(req.getCas()),
+      vbucket(req.getVBucket()),
+      increment(req.opcode == PROTOCOL_BINARY_CMD_INCREMENT ||
+                req.opcode == PROTOCOL_BINARY_CMD_INCREMENTQ) {
+}
+
 ENGINE_ERROR_CODE ArithmeticCommandContext::getItem() {
     auto ret = bucket_get(&connection, key, vbucket);
     if (ret.first == cb::engine_errc::success) {
@@ -57,8 +68,7 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::getItem() {
             state = State::CreateNewItem;
             ret.first = cb::engine_errc::success;
         } else {
-            if ((connection.getCmd() == PROTOCOL_BINARY_CMD_INCREMENT) ||
-                (connection.getCmd() == PROTOCOL_BINARY_CMD_INCREMENTQ)) {
+            if (increment) {
                 STATS_INCR(&connection, incr_misses);
             } else {
                 STATS_INCR(&connection, decr_misses);
@@ -133,9 +143,7 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::allocateNewItem() {
     uint64_t delta = ntohll(request.message.body.delta);
 
     // perform the op ;)
-    if (request.message.header.request.opcode == PROTOCOL_BINARY_CMD_INCREMENT ||
-        request.message.header.request.opcode == PROTOCOL_BINARY_CMD_INCREMENTQ) {
-        // increment
+    if (increment) {
         oldval += delta;
     } else {
         if (oldval < delta) {

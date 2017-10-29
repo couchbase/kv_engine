@@ -65,21 +65,9 @@ public:
         Done
     };
 
-    ArithmeticCommandContext(McbpConnection& c,
-                             const protocol_binary_request_incr& req)
-        : SteppableCommandContext(c.getCookieObject()),
-          key(req.bytes + sizeof(req.bytes),
-              ntohs(req.message.header.request.keylen),
-              c.getDocNamespace()),
-          request(req),
-          cas(ntohll(req.message.header.request.cas)),
-          olditem(nullptr, cb::ItemDeleter{c.getBucketEngineAsV0()}),
-          newitem(nullptr, cb::ItemDeleter{c.getBucketEngineAsV0()}),
-          vbucket(ntohs(req.message.header.request.vbucket)),
-          state(State::GetItem) {
-    }
+    ArithmeticCommandContext(Cookie& cookie, const cb::mcbp::Request& req);
 
-    ~ArithmeticCommandContext() {
+    ~ArithmeticCommandContext() override {
         reset();
     }
 
@@ -136,11 +124,12 @@ private:
     const DocKey key;
     const protocol_binary_request_incr& request;
     const uint64_t cas;
+    const uint16_t vbucket;
+    const bool increment;
     cb::unique_item_ptr olditem;
     item_info oldItemInfo;
     cb::unique_item_ptr newitem;
     cb::compression::Buffer buffer;
-    uint64_t result;
-    const uint16_t vbucket;
-    State state;
+    uint64_t result = 0;
+    State state = State::GetItem;
 };

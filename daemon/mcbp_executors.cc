@@ -334,10 +334,8 @@ static void delete_executor(Cookie& cookie) {
 }
 
 static void arithmetic_executor(Cookie& cookie) {
-    auto& connection = cookie.getConnection();
-    auto* req = reinterpret_cast<protocol_binary_request_incr*>(
-            cookie.getPacketAsVoidPtr());
-    cookie.obtainContext<ArithmeticCommandContext>(connection, *req).drive();
+    const auto& req = cookie.getRequest(Cookie::PacketContent::Full);
+    cookie.obtainContext<ArithmeticCommandContext>(cookie, req).drive();
 }
 
 static void set_ctrl_token_executor(Cookie& cookie) {
