@@ -23,27 +23,24 @@
 #include <memcached/types.h>
 #include <xattr/utils.h>
 
-MutationCommandContext::MutationCommandContext(McbpConnection& c,
-                                               protocol_binary_request_set* req,
+MutationCommandContext::MutationCommandContext(Cookie& cookie,
+                                               const cb::mcbp::Request& req,
                                                const ENGINE_STORE_OPERATION op_)
-    : SteppableCommandContext(c.getCookieObject()),
-      operation(req->message.header.request.cas == 0 ? op_ : OPERATION_CAS),
-      key(req->bytes + sizeof(req->bytes),
-          ntohs(req->message.header.request.keylen),
-          c.getDocNamespace()),
-      value(reinterpret_cast<const char*>(key.data() + key.size()),
-            ntohl(req->message.header.request.bodylen) - key.size() -
-                    req->message.header.request.extlen),
-      vbucket(ntohs(req->message.header.request.vbucket)),
-      input_cas(ntohll(req->message.header.request.cas)),
-      expiration(ntohl(req->message.body.expiration)),
-      flags(req->message.body.flags),
-      datatype(req->message.header.request.datatype),
+    : SteppableCommandContext(cookie),
+      operation(req.getCas() == 0 ? op_ : OPERATION_CAS),
+      key(cookie.getRequestKey()),
+      value(req.getValue()),
+      vbucket(req.getVBucket()),
+      input_cas(req.getCas()),
+      expiration(ntohl(reinterpret_cast<const protocol_binary_request_set&>(req)
+                               .message.body.expiration)),
+      flags(reinterpret_cast<const protocol_binary_request_set&>(req)
+                    .message.body.flags),
+      datatype(req.datatype),
       state(State::ValidateInput),
-      newitem(nullptr, cb::ItemDeleter{c.getBucketEngineAsV0()}),
-      existing(nullptr, cb::ItemDeleter{c.getBucketEngineAsV0()}),
-      store_if_predicate(c.selectedBucketIsXattrEnabled() ? storeIfPredicate
-                                                          : nullptr) {
+      store_if_predicate(cookie.getConnection().selectedBucketIsXattrEnabled()
+                                 ? storeIfPredicate
+                                 : nullptr) {
 }
 
 ENGINE_ERROR_CODE MutationCommandContext::step() {

@@ -48,9 +48,9 @@ public:
         Done
     };
 
-    MutationCommandContext(McbpConnection& c,
-                           protocol_binary_request_set* req,
-                           const ENGINE_STORE_OPERATION op_);
+    MutationCommandContext(Cookie& cookie,
+                           const cb::mcbp::Request& request,
+                           ENGINE_STORE_OPERATION op_);
 
     /// this function is the predicate to pass to store_if
     static cb::StoreIfStatus storeIfPredicate(
@@ -109,7 +109,7 @@ protected:
 private:
     const ENGINE_STORE_OPERATION operation;
     const DocKey key;
-    const cb::const_char_buffer value;
+    const cb::const_byte_buffer value;
     const uint16_t vbucket;
     const uint64_t input_cas;
     const rel_time_t expiration;

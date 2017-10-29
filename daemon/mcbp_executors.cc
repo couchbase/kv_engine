@@ -185,10 +185,10 @@ static void process_bin_noop_response(McbpConnection* c) {
 
 static void add_set_replace_executor(Cookie& cookie,
                                      ENGINE_STORE_OPERATION store_op) {
-    auto& connection = cookie.getConnection();
-    auto* req = reinterpret_cast<protocol_binary_request_set*>(
-            cookie.getPacketAsVoidPtr());
-    cookie.obtainContext<MutationCommandContext>(connection, req, store_op)
+    cookie.obtainContext<MutationCommandContext>(
+                  cookie,
+                  cookie.getRequest(Cookie::PacketContent::Full),
+                  store_op)
             .drive();
 }
 
