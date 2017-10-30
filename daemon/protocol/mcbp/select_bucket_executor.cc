@@ -20,14 +20,11 @@
 #include <daemon/memcached.h>
 #include <daemon/mcbp.h>
 
-ENGINE_ERROR_CODE select_bucket(McbpConnection& connection) {
+ENGINE_ERROR_CODE select_bucket(McbpConnection& connection,
+                                const std::string& bucketname) {
     if (!connection.isAuthenticated()) {
         return ENGINE_EACCESS;
     }
-    const auto key = connection.getKey();
-    // Unfortunately we need to copy it over to a std::string as the
-    // internal methods expects the string to be terminated with '\0'
-    const std::string bucketname{key.data(), key.size()};
     auto oldIndex = connection.getBucketIndex();
 
     try {
@@ -48,9 +45,15 @@ ENGINE_ERROR_CODE select_bucket(McbpConnection& connection) {
 }
 
 void select_bucket_executor(Cookie& cookie) {
+    const auto key = cookie.getRequest().getKey();
+    // Unfortunately we need to copy it over to a std::string as the
+    // internal methods expects the string to be terminated with '\0'
+    const std::string bucketname{reinterpret_cast<const char*>(key.data()),
+                                 key.size()};
+
     auto& connection = cookie.getConnection();
     connection.logCommand();
-    auto ret = connection.remapErrorCode(select_bucket(connection));
+    auto ret = connection.remapErrorCode(select_bucket(connection, bucketname));
     connection.logResponse(ret);
     cookie.sendResponse(cb::mcbp::to_status(cb::engine_errc(ret)));
 }
