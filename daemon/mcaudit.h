@@ -99,8 +99,7 @@ enum class Operation {
     Modify,
     Delete
 };
-void add(const McbpConnection& c, Operation operation);
-
+void add(const Cookie& c, Operation operation);
 }
 }
 }

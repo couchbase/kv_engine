@@ -99,8 +99,7 @@ ENGINE_ERROR_CODE GatCommandContext::sendResponse() {
     update_topkeys(key, &connection);
 
     // Audit the modification to the document (change of EXP)
-    cb::audit::document::add(connection,
-                             cb::audit::document::Operation::Modify);
+    cb::audit::document::add(cookie, cb::audit::document::Operation::Modify);
 
     if (connection.getCmd() == PROTOCOL_BINARY_CMD_TOUCH) {
         mcbp_write_packet(&connection, PROTOCOL_BINARY_RESPONSE_SUCCESS);
@@ -131,7 +130,7 @@ ENGINE_ERROR_CODE GatCommandContext::sendResponse() {
     // Add the value
     connection.addIov(payload.buf, payload.len);
     connection.setState(McbpStateMachine::State::send_data);
-    cb::audit::document::add(connection, cb::audit::document::Operation::Read);
+    cb::audit::document::add(cookie, cb::audit::document::Operation::Read);
     state = State::Done;
     return ENGINE_SUCCESS;
 }

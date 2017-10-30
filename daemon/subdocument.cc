@@ -1402,10 +1402,10 @@ static void subdoc_single_response(SubdocCmdContext& context) {
     }
 
     if (context.traits.is_mutator) {
-        cb::audit::document::add(connection,
+        cb::audit::document::add(connection.getCookieObject(),
                                  cb::audit::document::Operation::Modify);
     } else {
-        cb::audit::document::add(connection,
+        cb::audit::document::add(connection.getCookieObject(),
                                  cb::audit::document::Operation::Read);
     }
 
@@ -1473,7 +1473,7 @@ static void subdoc_multi_mutation_response(SubdocCmdContext& context) {
     size_t response_buf_needed;
     size_t iov_len = 0;
     if (context.overall_status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        cb::audit::document::add(connection,
+        cb::audit::document::add(connection.getCookieObject(),
                                  cb::audit::document::Operation::Modify);
 
         // on success, one per each non-zero length result.
@@ -1596,7 +1596,7 @@ static void subdoc_multi_lookup_response(SubdocCmdContext& context) {
     // Allocated required resource - build the header.
     auto status_code = context.overall_status;
     if (status_code == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        cb::audit::document::add(connection,
+        cb::audit::document::add(connection.getCookieObject(),
                                  cb::audit::document::Operation::Read);
         if (context.in_document_state == DocumentState::Deleted) {
             status_code = PROTOCOL_BINARY_RESPONSE_SUBDOC_SUCCESS_DELETED;

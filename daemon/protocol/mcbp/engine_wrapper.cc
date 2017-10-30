@@ -102,8 +102,9 @@ ENGINE_ERROR_CODE bucket_store(McbpConnection* c,
                                            document_state);
     if (ret == ENGINE_SUCCESS) {
         using namespace cb::audit::document;
-        add(*c, document_state ==
-               DocumentState::Alive ? Operation::Modify : Operation::Delete);
+        add(c->getCookieObject(),
+            document_state == DocumentState::Alive ? Operation::Modify
+                                                   : Operation::Delete);
     } else if (ret == ENGINE_DISCONNECT) {
         LOG_INFO(c,
                  "%u: %s bucket_store return ENGINE_DISCONNECT",
@@ -129,7 +130,7 @@ cb::EngineErrorCasPair bucket_store_if(McbpConnection* c,
                                               document_state);
     if (ret.status == cb::engine_errc::success) {
         using namespace cb::audit::document;
-        add(*c,
+        add(c->getCookieObject(),
             document_state == DocumentState::Alive ? Operation::Modify
                                                    : Operation::Delete);
     } else if (ret.status == cb::engine_errc::disconnect) {
@@ -154,7 +155,8 @@ ENGINE_ERROR_CODE bucket_remove(McbpConnection* c,
                                             vbucket,
                                             mut_info);
     if (ret == ENGINE_SUCCESS) {
-        cb::audit::document::add(*c, cb::audit::document::Operation::Delete);
+        cb::audit::document::add(c->getCookieObject(),
+                                 cb::audit::document::Operation::Delete);
     } else if (ret == ENGINE_DISCONNECT) {
         LOG_INFO(c,
                  "%u: %s bucket_remove return ENGINE_DISCONNECT",
@@ -226,7 +228,8 @@ cb::EngineErrorItemPair bucket_get_locked(McbpConnection& c,
                                                lock_timeout);
 
     if (ret.first == cb::engine_errc::success) {
-        cb::audit::document::add(c, cb::audit::document::Operation::Lock);
+        cb::audit::document::add(c.getCookieObject(),
+                                 cb::audit::document::Operation::Lock);
     } else if (ret.first == cb::engine_errc::disconnect) {
         LOG_INFO(&c,
                  "%u: %s bucket_get_locked return ENGINE_DISCONNECT",
