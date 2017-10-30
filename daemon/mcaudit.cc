@@ -195,38 +195,48 @@ void audit_privilege_debug(const Connection* c,
              "Failed to send privilege debug audit event to audit daemon");
 }
 
-void audit_command_access_failed(const McbpConnection *c) {
+void audit_command_access_failed(const Cookie& cookie) {
     if (!isEnabled(MEMCACHED_AUDIT_COMMAND_ACCESS_FAILURE)) {
         return;
     }
-    auto root = create_memcached_audit_object(c);
+    const auto& connection = cookie.getConnection();
+    auto root = create_memcached_audit_object(&connection);
     char buffer[256];
     memset(buffer, 0, sizeof(buffer));
+    const auto packet = cookie.getPacket();
     // Deliberately ignore failure of bytes_to_output_string
     // We'll either have a partial string or no string.
-    bytes_to_output_string(buffer, sizeof(buffer), c->getId(), true,
+    bytes_to_output_string(buffer,
+                           sizeof(buffer),
+                           connection.getId(),
+                           true,
                            "Access to command is not allowed:",
-                           reinterpret_cast<const char*>(&c->getBinaryHeader()),
-                           sizeof(protocol_binary_request_header));
+                           reinterpret_cast<const char*>(packet.data()),
+                           packet.size());
     cJSON_AddStringToObject(root.get(), "packet", buffer);
-    do_audit(c, MEMCACHED_AUDIT_COMMAND_ACCESS_FAILURE, root, buffer);
+    do_audit(&connection, MEMCACHED_AUDIT_COMMAND_ACCESS_FAILURE, root, buffer);
 }
 
-void audit_invalid_packet(const McbpConnection *c) {
+void audit_invalid_packet(const Cookie& cookie) {
     if (!isEnabled(MEMCACHED_AUDIT_INVALID_PACKET)) {
         return;
     }
-    auto root = create_memcached_audit_object(c);
+    const auto& connection = cookie.getConnection();
+    auto root = create_memcached_audit_object(&connection);
     char buffer[256];
     memset(buffer, 0, sizeof(buffer));
+    const auto packet = cookie.getPacket();
     // Deliberately ignore failure of bytes_to_output_string
     // We'll either have a partial string or no string.
-    bytes_to_output_string(buffer, sizeof(buffer), c->getId(), true,
+    bytes_to_output_string(buffer,
+                           sizeof(buffer),
+                           connection.getId(),
+                           true,
                            "Invalid Packet:",
-                           reinterpret_cast<const char*>(&c->getBinaryHeader()),
-                           sizeof(protocol_binary_request_header));
+                           reinterpret_cast<const char*>(packet.data()),
+                           packet.size());
     cJSON_AddStringToObject(root.get(), "packet", buffer);
-    do_audit(c, MEMCACHED_AUDIT_INVALID_PACKET, root, buffer);
+    do_audit(&connection, MEMCACHED_AUDIT_INVALID_PACKET, root, buffer);
 }
 
 bool mc_audit_event(uint32_t audit_eventid,

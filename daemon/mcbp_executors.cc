@@ -796,7 +796,7 @@ static void execute_request_packet(McbpConnection* c) {
                     "%u %s: no access to command %s",
                     c->getId(), c->getDescription().c_str(),
                     memcached_opcode_2_text(opcode));
-        audit_command_access_failed(c);
+        audit_command_access_failed(cookie);
 
         if (c->remapErrorCode(ENGINE_EACCESS) == ENGINE_DISCONNECT) {
             c->setState(McbpStateMachine::State::closing);
@@ -817,7 +817,7 @@ static void execute_request_packet(McbpConnection* c) {
                        "%u: Invalid format specified for %s - %d - "
                            "closing connection",
                        c->getId(), memcached_opcode_2_text(opcode), result);
-            audit_invalid_packet(c);
+            audit_invalid_packet(cookie);
             cookie.sendResponse(cb::mcbp::Status(result));
             c->setWriteAndGo(McbpStateMachine::State::closing);
             return;

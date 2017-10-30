@@ -191,10 +191,6 @@ public:
      */
     std::string getPrintableKey() const;
 
-    const protocol_binary_request_header& getBinaryHeader() const {
-        return binary_header;
-    }
-
     /* Binary protocol stuff */
     /* This is where the binary header goes */
     protocol_binary_request_header binary_header = {};

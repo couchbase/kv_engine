@@ -20,6 +20,7 @@
 #include <string>
 
 class Connection;
+class Cookie;
 class McbpConnection;
 
 /**
@@ -54,16 +55,16 @@ void audit_dcp_open(const Connection* c);
 /*
  * Send an audit event for command access failure
  *
- * param c the connection object performing DCP Open
+ * @param cookie the cookie repreresenting the operation
  */
-void audit_command_access_failed(const McbpConnection* c);
+void audit_command_access_failed(const Cookie& cookie);
 
 /**
  * Send an audit event for a invalid and thus rejected packet
  *
- * param c the connection object performing DCP Open
+ * @param cookie the cookie repreresenting the operation
  */
-void audit_invalid_packet(const McbpConnection* c);
+void audit_invalid_packet(const Cookie& cookie);
 
 /**
  * Send an audit event for the change in privilege debug
