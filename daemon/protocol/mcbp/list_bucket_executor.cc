@@ -71,7 +71,7 @@ std::pair<ENGINE_ERROR_CODE, std::string> list_bucket(
 
 void list_bucket_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
-    connection.logCommand();
+    cookie.logCommand();
     std::pair<ENGINE_ERROR_CODE, std::string> ret;
     try {
         ret = list_bucket(connection);
@@ -90,14 +90,14 @@ void list_bucket_executor(Cookie& cookie) {
                                   PROTOCOL_BINARY_RESPONSE_SUCCESS,
                                   0,
                                   connection.getCookie())) {
-            connection.logResponse(ret.first);
+            cookie.logResponse(ret.first);
             mcbp_write_and_free(&connection, &connection.getDynamicBuffer());
             return;
         }
         ret.first = ENGINE_ENOMEM;
     }
     ret.first = connection.remapErrorCode(ret.first);
-    connection.logResponse(ret.first);
+    cookie.logResponse(ret.first);
 
     ret.first = connection.remapErrorCode(ret.first);
     if (ret.first == ENGINE_DISCONNECT) {

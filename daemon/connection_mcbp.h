@@ -173,24 +173,6 @@ public:
         McbpConnection::cmd = cmd;
     }
 
-    /**
-     * Return the key of the currently processing command.
-     * @return the buffer to the key.
-     */
-    cb::const_char_buffer getKey() const {
-        auto* pkt = reinterpret_cast<const char*>(cookie.getPacketAsVoidPtr());
-        cb::const_char_buffer ret;
-        ret.len = binary_header.request.keylen;
-        ret.buf = pkt + sizeof binary_header.bytes + binary_header.request.extlen;
-        return ret;
-    }
-
-    /**
-     * Get a printable key from the header. Replace all non-printable
-     * charachters with '.'
-     */
-    std::string getPrintableKey() const;
-
     /* Binary protocol stuff */
     /* This is where the binary header goes */
     protocol_binary_request_header binary_header = {};
@@ -534,23 +516,6 @@ public:
     }
 
     /**
-     * Log the start of processing a command received from the client in the
-     * generic form which (may change over time, but currently it) looks like:
-     *
-     *     id> COMMAND KEY
-     */
-    void logCommand() const;
-
-    /**
-     * Log the end of processing a command and the result of the command:
-     *
-     *     id< COMMAND KEY - STATUS
-     *
-     * @param code The execution result
-     */
-    void logResponse(ENGINE_ERROR_CODE code) const;
-
-    /**
      * Try to enable SSL for this connection
      *
      * @param cert the SSL certificate to use
@@ -679,8 +644,6 @@ protected:
      * @return true upon success, false otherwise
      */
     bool initializeEvent();
-
-    void logResponse(const char* reason) const;
 
     /**
      * The state machine we're currently using

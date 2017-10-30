@@ -160,3 +160,56 @@ const DocKey Cookie::getRequestKey() const {
     auto key = getRequest().getKey();
     return DocKey{key.data(), key.size(), connection.getDocNamespace()};
 }
+
+std::string Cookie::getPrintableRequestKey() const {
+    const auto key = getRequest().getKey();
+
+    std::string buffer{reinterpret_cast<const char*>(key.data()), key.size()};
+    for (auto& ii : buffer) {
+        if (!std::isgraph(ii)) {
+            ii = '.';
+        }
+    }
+
+    return buffer;
+}
+
+void Cookie::logCommand() const {
+    if (settings.getVerbose() == 0) {
+        // Info is not enabled.. we don't want to try to format
+        // output
+        return;
+    }
+
+    const auto opcode = getRequest().getClientOpcode();
+    LOG_INFO(this,
+             "%u> %s %s",
+             connection.getId(),
+             to_string(opcode).c_str(),
+             getPrintableRequestKey().c_str());
+}
+
+void Cookie::logResponse(const char* reason) const {
+    const auto opcode = getRequest().getClientOpcode();
+    LOG_INFO(this,
+             "%u< %s %s - %s",
+             connection.getId(),
+             to_string(opcode).c_str(),
+             getPrintableRequestKey().c_str(),
+             reason);
+}
+
+void Cookie::logResponse(ENGINE_ERROR_CODE code) const {
+    if (settings.getVerbose() == 0) {
+        // Info is not enabled.. we don't want to try to format
+        // output
+        return;
+    }
+
+    if (code == ENGINE_EWOULDBLOCK || code == ENGINE_WANT_MORE) {
+        // These are temporary states
+        return;
+    }
+
+    logResponse(cb::to_string(cb::engine_errc(code)).c_str());
+}

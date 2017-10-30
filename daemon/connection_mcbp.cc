@@ -948,17 +948,16 @@ void McbpConnection::maybeLogSlowCommand(
         if (opcode == cb::mcbp::ClientOpcode::Stat) {
             // Log which stat command took a long time
             details.append(", key: ");
-            auto key = getKey();
+            auto key = cookie.getPrintableRequestKey();
 
-            if (strncmp(key.buf, "key ",
-                        std::min(key.len, static_cast<size_t>(4LU))) == 0) {
+            if (key.find("key ") == 0) {
                 // stat key username1324423e; truncate the actual item key
                 details.append("key <TRUNCATED>");
-            } else if (key.len > 0) {
-                details.append(key.buf, key.len);
-            } else {
+            } else if (key.empty()) {
                 // requests all stats
                 details.append("<EMPTY>");
+            } else {
+                details.append(key);
             }
         }
 
@@ -1075,57 +1074,6 @@ void McbpConnection::setPriority(const Connection::Priority& priority) {
 
 protocol_binary_response_status McbpConnection::validateCommand(protocol_binary_command command) {
     return Bucket::validateMcbpCommand(this, command, cookie);
-}
-
-void McbpConnection::logCommand() const {
-    if (settings.getVerbose() == 0) {
-        // Info is not enabled.. we don't want to try to format
-        // output
-        return;
-    }
-
-    LOG_INFO(this,
-             "%u> %s %s",
-             getId(),
-             memcached_opcode_2_text(getCmd()),
-             getPrintableKey().c_str());
-}
-
-void McbpConnection::logResponse(const char* reason) const {
-    LOG_INFO(this,
-             "%u< %s %s - %s",
-             getId(),
-             memcached_opcode_2_text(getCmd()),
-             getPrintableKey().c_str(),
-             reason);
-}
-
-void McbpConnection::logResponse(ENGINE_ERROR_CODE code) const {
-    if (settings.getVerbose() == 0) {
-        // Info is not enabled.. we don't want to try to format
-        // output
-        return;
-    }
-
-    if (code == ENGINE_EWOULDBLOCK || code == ENGINE_WANT_MORE) {
-        // These are temporary states
-        return;
-    }
-
-    logResponse(cb::to_string(cb::engine_errc(code)).c_str());
-}
-
-std::string McbpConnection::getPrintableKey() const {
-    const auto key = getKey();
-
-    std::string buffer{key.data(), key.size()};
-    for (auto& ii : buffer) {
-        if (!std::isgraph(ii)) {
-            ii = '.';
-        }
-    }
-
-    return buffer;
 }
 
 bool McbpConnection::selectedBucketIsXattrEnabled() const {

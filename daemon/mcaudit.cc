@@ -284,7 +284,7 @@ void add(const Cookie& cookie, Operation operation) {
     auto root = create_memcached_audit_object(&connection);
     cJSON_AddStringToObject(root.get(), "bucket", connection.getBucket().name);
     cJSON_AddStringToObject(
-            root.get(), "key", connection.getPrintableKey().c_str());
+            root.get(), "key", cookie.getPrintableRequestKey().c_str());
 
     switch (operation) {
     case Operation::Read:

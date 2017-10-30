@@ -20,7 +20,7 @@
 
 SteppableCommandContext::SteppableCommandContext(Cookie& cookie_)
     : cookie(cookie_), connection(cookie.getConnection()) {
-    connection.logCommand();
+    cookie.logCommand();
 }
 
 void SteppableCommandContext::drive() {
@@ -46,7 +46,7 @@ void SteppableCommandContext::drive() {
         }
     }
 
-    connection.logResponse(ret);
+    cookie.logResponse(ret);
     ret = connection.remapErrorCode(ret);
     switch (ret) {
     case ENGINE_SUCCESS:

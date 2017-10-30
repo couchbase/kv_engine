@@ -79,7 +79,7 @@ std::pair<ENGINE_ERROR_CODE, std::string> get_cmd_timer(
 
 void get_cmd_timer_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
-    connection.logCommand();
+    cookie.logCommand();
     std::pair<ENGINE_ERROR_CODE, std::string> ret;
     try {
         ret = get_cmd_timer(
@@ -101,7 +101,7 @@ void get_cmd_timer_executor(Cookie& cookie) {
                                   PROTOCOL_BINARY_RESPONSE_SUCCESS,
                                   0,
                                   static_cast<const void*>(&cookie))) {
-            connection.logResponse(ret.first);
+            cookie.logResponse(ret.first);
             mcbp_write_and_free(&connection, &cookie.getDynamicBuffer());
             return;
         }
@@ -109,7 +109,7 @@ void get_cmd_timer_executor(Cookie& cookie) {
     }
 
     ret.first = connection.remapErrorCode(ret.first);
-    connection.logResponse(ret.first);
+    cookie.logResponse(ret.first);
 
     if (ret.first == ENGINE_DISCONNECT) {
         connection.setState(McbpStateMachine::State::closing);

@@ -52,8 +52,8 @@ void select_bucket_executor(Cookie& cookie) {
                                  key.size()};
 
     auto& connection = cookie.getConnection();
-    connection.logCommand();
+    cookie.logCommand();
     auto ret = connection.remapErrorCode(select_bucket(connection, bucketname));
-    connection.logResponse(ret);
+    cookie.logResponse(ret);
     cookie.sendResponse(cb::mcbp::to_status(cb::engine_errc(ret)));
 }

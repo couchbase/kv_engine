@@ -19,7 +19,7 @@
 #include <daemon/mcbp.h>
 
 void drop_privilege_executor(Cookie& cookie) {
-    cookie.getConnection().logCommand();
+    cookie.logCommand();
     auto* request = reinterpret_cast<cb::mcbp::DropPrivilegeRequest*>(
             cookie.getPacketAsVoidPtr());
 

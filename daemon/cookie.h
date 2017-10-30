@@ -221,6 +221,12 @@ public:
     const DocKey getRequestKey() const;
 
     /**
+     * Get a printable key from the header. Replace all non-printable
+     * charachters with '.'
+     */
+    std::string getPrintableRequestKey() const;
+
+    /**
      * Get the packet as a response packet
      *
      * @param content if we want just the header or the entire response
@@ -233,6 +239,23 @@ public:
      */
     const cb::mcbp::Response& getResponse(
             PacketContent content = PacketContent::Header) const;
+
+    /**
+     * Log the start of processing a command received from the client in the
+     * generic form which (may change over time, but currently it) looks like:
+     *
+     *     id> COMMAND KEY
+     */
+    void logCommand() const;
+
+    /**
+     * Log the end of processing a command and the result of the command:
+     *
+     *     id< COMMAND KEY - STATUS
+     *
+     * @param code The execution result
+     */
+    void logResponse(ENGINE_ERROR_CODE code) const;
 
     /**
      * Get the current status of the asynchrous IO
@@ -364,4 +387,11 @@ protected:
      *  Between each command this is deleted and reset to nullptr.
      */
     std::unique_ptr<CommandContext> commandContext;
+
+    /**
+     * Log a preformatted response text
+     *
+     * @param reason the text to log
+     */
+    void logResponse(const char* reason) const;
 };
