@@ -1925,6 +1925,12 @@ void KVBucket::wakeUpExpiryPager() {
     }
 }
 
+void KVBucket::wakeItemPager() {
+    if (itemPagerTask->getState() == TASK_SNOOZED) {
+        ExecutorPool::get()->wake(itemPagerTask->getId());
+    }
+}
+
 void KVBucket::enableItemPager() {
     ExecutorPool::get()->cancel(itemPagerTask->getId());
     ExecutorPool::get()->schedule(itemPagerTask);

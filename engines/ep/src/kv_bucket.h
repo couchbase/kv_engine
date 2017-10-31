@@ -615,6 +615,9 @@ public:
     /// Wake up the expiry pager (if enabled), scheduling it for immediate run.
     void wakeUpExpiryPager();
 
+    /// Wake up the item pager (if enabled), scheduling it for immediate run.
+    /// Currently this is used only during testing.
+    void wakeItemPager();
     void enableItemPager();
     void disableItemPager();
 
