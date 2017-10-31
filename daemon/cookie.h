@@ -29,6 +29,7 @@
 // Forward decl
 namespace cb {
 namespace mcbp {
+class Header;
 struct Request;
 struct Response;
 enum class Status : uint16_t;
@@ -187,6 +188,13 @@ public:
     void* getPacketAsVoidPtr() const {
         return const_cast<void*>(static_cast<const void*>(getPacket().data()));
     }
+
+    /**
+     * Get the packet header for the current packet. The packet header
+     * allows for getting the various common fields in a packet (request and
+     * response).
+     */
+    const cb::mcbp::Header& getHeader() const;
 
     /**
      * Get the packet as a request packet

@@ -20,6 +20,7 @@
 #include "mcbp.h"
 
 #include <cJSON_utils.h>
+#include <mcbp/protocol/header.h>
 
 const std::string& Cookie::getErrorJson() {
     json_message.clear();
@@ -93,6 +94,11 @@ cb::const_byte_buffer Cookie::getPacket(PacketContent content) const {
 
     throw std::invalid_argument(
             "Cookie::getPacket(): Invalid content requested");
+}
+
+const cb::mcbp::Header& Cookie::getHeader() const {
+    const auto packet = getPacket(PacketContent::Header);
+    return *reinterpret_cast<const cb::mcbp::Header*>(packet.data());
 }
 
 const cb::mcbp::Request& Cookie::getRequest(PacketContent content) const {

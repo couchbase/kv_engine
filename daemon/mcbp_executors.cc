@@ -52,6 +52,7 @@
 #include "session_cas.h"
 #include "subdocument.h"
 
+#include <mcbp/protocol/header.h>
 #include <utilities/protocol2text.h>
 
 std::array<bool, 0x100>&  topkey_commands = get_mcbp_topkeys();
@@ -754,22 +755,6 @@ void initialize_mbcp_lookup_map(void) {
             process_bin_dcp_response;
 }
 
-/**
- * Check if the current packet use an invalid datatype value. It may be
- * considered invalid for two reasons:
- *
- *    1) it is using an unknown value
- *    2) The connected client has not enabled the datatype
- *    3) The bucket has disabled the datatype
- *
- * @param c - the connected client
- * @return true if the packet is considered invalid in this context,
- *         false otherwise
- */
-static bool invalid_datatype(McbpConnection* c) {
-    return !c->isDatatypeEnabled(c->binary_header.request.datatype);
-}
-
 static protocol_binary_response_status validate_bin_header(McbpConnection* c) {
     if (c->binary_header.request.bodylen >=
         (c->binary_header.request.keylen + c->binary_header.request.extlen)) {
@@ -863,16 +848,26 @@ static void execute_response_packet(McbpConnection* c) {
     }
 }
 
-static cb::mcbp::Status validate_packet_execusion_constraints(
-        McbpConnection* c) {
-    if (invalid_datatype(c)) {
-        c->getCookieObject().setErrorContext("Invalid datatype provided");
+static cb::mcbp::Status validate_packet_execusion_constraints(Cookie& cookie) {
+    /*
+     * Check if the current packet use an invalid datatype value. It may be
+     * considered invalid for two reasons:
+     *
+     *    1) it is using an unknown value
+     *    2) The connected client has not enabled the datatype
+     *    3) The bucket has disabled the datatype
+     *
+     */
+    const auto& header = cookie.getHeader();
+    if (!cookie.getConnection().isDatatypeEnabled(header.getDatatype())) {
+        cookie.setErrorContext("Invalid datatype provided");
         return cb::mcbp::Status::Einval;
     }
 
     /* binprot supports 16bit keys, but internals are still 8bit */
-    if (c->binary_header.request.keylen > KEY_MAX_LENGTH) {
-        c->getCookieObject().setErrorContext("Invalid key length");
+    if (header.getKeylen() > KEY_MAX_LENGTH) {
+        cookie.setErrorContext("Key length exceed " +
+                               std::to_string(KEY_MAX_LENGTH));
         return cb::mcbp::Status::Einval;
     }
 
@@ -880,8 +875,8 @@ static cb::mcbp::Status validate_packet_execusion_constraints(
      * Protect ourself from someone trying to kill us by sending insanely
      * large packets.
      */
-    if (c->binary_header.request.bodylen > settings.getMaxPacketSize()) {
-        c->getCookieObject().setErrorContext("Packet is too big");
+    if (header.getBodylen() > settings.getMaxPacketSize()) {
+        cookie.setErrorContext("Packet is too big");
         return cb::mcbp::Status::Einval;
     }
 
@@ -889,7 +884,7 @@ static cb::mcbp::Status validate_packet_execusion_constraints(
 }
 
 void mcbp_execute_packet(McbpConnection* c) {
-    if (c->binary_header.request.magic == PROTOCOL_BINARY_RES) {
+    if (c->getCookieObject().getHeader().isResponse()) {
         execute_response_packet(c);
     } else {
         // We've already verified that the packet is a legal packet
@@ -933,28 +928,24 @@ void try_read_mcbp_command(McbpConnection* c) {
         }
     }
 
-    // Create a host-local-byte-order-copy of the header
-    std::memcpy(
-            c->binary_header.bytes, input.data(), sizeof(cb::mcbp::Request));
-    c->binary_header.request.keylen = ntohs(c->binary_header.request.keylen);
-    c->binary_header.request.bodylen = ntohl(c->binary_header.request.bodylen);
-    c->binary_header.request.vbucket = ntohs(c->binary_header.request.vbucket);
-    c->binary_header.request.cas = ntohll(c->binary_header.request.cas);
+    const auto& header = cookie.getHeader();
+    if (!header.isResponse() && !header.isRequest()) {
+        LOG_WARNING(c,
+                    "%u: Invalid packet format detected (magic: %02x), closing "
+                    "connection",
+                    c->getId(),
+                    c->binary_header.request.magic);
+        c->setState(McbpStateMachine::State::closing);
+        return;
+    }
 
-    if (c->binary_header.request.magic != PROTOCOL_BINARY_REQ &&
-        !(c->binary_header.request.magic == PROTOCOL_BINARY_RES &&
-          response_handlers[c->binary_header.request.opcode])) {
-        if (c->binary_header.request.magic != PROTOCOL_BINARY_RES) {
-            LOG_WARNING(c, "%u: Invalid magic: %x, closing connection",
-                        c->getId(), c->binary_header.request.magic);
-        } else {
-            LOG_WARNING(c,
-                        "%u: Unsupported response packet received: %u, "
-                            "closing connection",
-                        c->getId(),
-                        (unsigned int)c->binary_header.request.opcode);
-
-        }
+    if (header.isResponse() &&
+        response_handlers[header.getOpcode()] == nullptr) {
+        LOG_WARNING(c,
+                    "%u: Unsupported response packet received: %u, "
+                    "closing connection",
+                    c->getId(),
+                    (unsigned int)c->binary_header.request.opcode);
         c->setState(McbpStateMachine::State::closing);
         return;
     }
@@ -964,6 +955,14 @@ void try_read_mcbp_command(McbpConnection* c) {
                 "try_read_mcbp_command: Not connected to a bucket");
     }
 
+    // Create a host-local-byte-order-copy of the header
+    std::memcpy(
+            c->binary_header.bytes, input.data(), sizeof(cb::mcbp::Request));
+    c->binary_header.request.keylen = ntohs(c->binary_header.request.keylen);
+    c->binary_header.request.bodylen = ntohl(c->binary_header.request.bodylen);
+    c->binary_header.request.vbucket = ntohs(c->binary_header.request.vbucket);
+    c->binary_header.request.cas = ntohll(c->binary_header.request.cas);
+
     c->addMsgHdr(true);
     c->setCmd(c->binary_header.request.opcode);
     /* clear the returned cas value */
@@ -972,7 +971,7 @@ void try_read_mcbp_command(McbpConnection* c) {
     MEMCACHED_PROCESS_COMMAND_START(
             c->getId(), input.data(), sizeof(cb::mcbp::Request));
 
-    auto reason = validate_packet_execusion_constraints(c);
+    auto reason = validate_packet_execusion_constraints(cookie);
     if (reason != cb::mcbp::Status::Success) {
         cookie.sendResponse(reason);
         c->setWriteAndGo(McbpStateMachine::State::closing);
