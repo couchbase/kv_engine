@@ -25,6 +25,7 @@
 #include "kvstore_priv.h"
 
 #include <rocksdb/convenience.h>
+#include <rocksdb/utilities/memory_util.h>
 
 #include <stdio.h>
 #include <string.h>
@@ -602,6 +603,50 @@ size_t RocksDBKVStore::getNumShards() {
     return configuration.getMaxShards();
 }
 
+bool RocksDBKVStore::getStat(const char* name, size_t& value) {
+    std::vector<rocksdb::DB*> dbs;
+    {
+        std::lock_guard<std::mutex> lg(openDBMutex);
+        for (const auto& db : vbDB) {
+            if (db) {
+                dbs.push_back(db->rdb.get());
+            }
+        }
+    }
+    if (dbs.empty()) {
+        return false;
+    }
+    auto cache_set = getCachePointers();
+    std::map<rocksdb::MemoryUtil::UsageType, uint64_t> usage_by_type;
+
+    auto status = rocksdb::MemoryUtil::GetApproximateMemoryUsageByType(
+            dbs, cache_set, &usage_by_type);
+    if (!status.ok()) {
+        logger.log(EXTENSION_LOG_NOTICE,
+                   "RocksDBKVStore::getStat: GetApproximateMemoryUsageByType "
+                   "error: %s",
+                   status.getState());
+        return false;
+    }
+
+    if (std::string(name) == "kMemTableTotal") {
+        value = usage_by_type.at(rocksdb::MemoryUtil::kMemTableTotal);
+    } else if (std::string(name) == "kMemTableUnFlushed") {
+        value = usage_by_type.at(rocksdb::MemoryUtil::kMemTableUnFlushed);
+    } else if (std::string(name) == "kTableReadersTotal") {
+        value = usage_by_type.at(rocksdb::MemoryUtil::kTableReadersTotal);
+    } else if (std::string(name) == "kCacheTotal") {
+        value = usage_by_type.at(rocksdb::MemoryUtil::kCacheTotal);
+    } else {
+        logger.log(EXTENSION_LOG_NOTICE,
+                   "RocksDBKVStore::getStat: invalid stat name: : %s",
+                   name);
+        return false;
+    }
+
+    return true;
+}
+
 StorageProperties RocksDBKVStore::getStorageProperties(void) {
     StorageProperties rv(StorageProperties::EfficientVBDump::Yes,
                          StorageProperties::EfficientVBDeletion::Yes,
@@ -612,6 +657,34 @@ StorageProperties RocksDBKVStore::getStorageProperties(void) {
                          StorageProperties::EfficientGet::Yes,
                          StorageProperties::ConcurrentWriteCompact::Yes);
     return rv;
+}
+
+std::unordered_set<const rocksdb::Cache*> RocksDBKVStore::getCachePointers() {
+    std::unordered_set<const rocksdb::Cache*> cache_set;
+
+    for (const auto& db : vbDB) {
+        if (db) {
+            // TODO: Cache from DBImpl. The 'std::shared_ptr<Cache>
+            // table_cache_' pointer is not exposed through the 'DB' interface
+
+            // Cache from DBOptions
+            // Note: we do not use the 'row_cache' currently. As the Block
+            // Cache, it can be shared among multiple DBs.
+            cache_set.insert(db->rdb->GetDBOptions().row_cache.get());
+        }
+    }
+
+    // Cache from table factories. We have a single Block Cache shared among
+    // all the VBuckets of a store.
+    if (rdbOptions.table_factory) {
+        auto* table_options = rdbOptions.table_factory->GetOptions();
+        auto* bbt_options =
+                static_cast<rocksdb::BlockBasedTableOptions*>(table_options);
+        cache_set.insert(bbt_options->block_cache.get());
+        cache_set.insert(bbt_options->block_cache_compressed.get());
+    }
+
+    return cache_set;
 }
 
 rocksdb::Slice RocksDBKVStore::getKeySlice(const DocKey& key) {

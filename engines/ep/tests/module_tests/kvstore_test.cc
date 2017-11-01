@@ -1966,3 +1966,30 @@ INSTANTIATE_TEST_CASE_P(KVStoreParam,
                         [](const ::testing::TestParamInfo<std::string>& info) {
                             return info.param;
                         });
+
+#ifdef EP_USE_ROCKSDB
+// Test fixture for tests which run only on RocksDB.
+class RocksDBKVStoreTest : public KVStoreTest {
+protected:
+    void SetUp() override {
+        KVStoreTest::SetUp();
+        Configuration config;
+        config.setDbname(data_dir);
+        config.setBackend("rocksdb");
+        kvstoreConfig = std::make_unique<KVStoreConfig>(config, 0 /*shardId*/);
+        kvstore = setup_kv_store(*kvstoreConfig);
+    }
+
+    std::unique_ptr<KVStoreConfig> kvstoreConfig;
+    std::unique_ptr<KVStore> kvstore;
+};
+
+// Verify that RocksDB internal memory usage stats are returned
+TEST_F(RocksDBKVStoreTest, MemUsageStatsTest) {
+    size_t value;
+    EXPECT_TRUE(kvstore->getStat("kMemTableTotal", value));
+    EXPECT_TRUE(kvstore->getStat("kMemTableUnFlushed", value));
+    EXPECT_TRUE(kvstore->getStat("kTableReadersTotal", value));
+    EXPECT_TRUE(kvstore->getStat("kCacheTotal", value));
+}
+#endif

@@ -2669,6 +2669,26 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
         add_casted_stat("ep_block_cache_misses", value, add_stat, cookie);
     }
 
+    // Specific to RocksDB
+    if (kvBucket->getKVStoreStat(
+                "kMemTableTotal", value, KVBucketIface::KVSOption::RW)) {
+        add_casted_stat("ep_rocksdb_kMemTableTotal", value, add_stat, cookie);
+    }
+    if (kvBucket->getKVStoreStat(
+                "kMemTableUnFlushed", value, KVBucketIface::KVSOption::RW)) {
+        add_casted_stat(
+                "ep_rocksdb_kMemTableUnFlushed", value, add_stat, cookie);
+    }
+    if (kvBucket->getKVStoreStat(
+                "kTableReadersTotal", value, KVBucketIface::KVSOption::RW)) {
+        add_casted_stat(
+                "ep_rocksdb_kTableReadersTotal", value, add_stat, cookie);
+    }
+    if (kvBucket->getKVStoreStat(
+                "kCacheTotal", value, KVBucketIface::KVSOption::RW)) {
+        add_casted_stat("ep_rocksdb_kCacheTotal", value, add_stat, cookie);
+    }
+
     return ENGINE_SUCCESS;
 }
 

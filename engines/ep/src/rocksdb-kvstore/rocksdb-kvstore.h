@@ -128,6 +128,16 @@ public:
      */
     void rollback() override;
 
+    /*
+     * Get a RocksDBKVStore specific stat
+     *
+     * @param name The name of the statistic to fetch.
+     * @param[out] value Value of the given stat (if exists).
+     * @return True if the stat exists, is of type size_t and was successfully
+     *         returned, else false.
+     */
+    bool getStat(const char* name, size_t& value) override;
+
     /**
      * Query the properties of the underlying storage.
      */
@@ -330,6 +340,12 @@ private:
      * Shard.
      */
     std::vector<uint16_t> discoverVBuckets();
+
+    /*
+     * This function returns a set of pointers to all Caches allocated for
+     * all the rocksdb::DB instances managed by this store.
+     */
+    std::unordered_set<const rocksdb::Cache*> getCachePointers();
 
     rocksdb::Slice getKeySlice(const DocKey& key);
     rocksdb::Slice getSeqnoSlice(const int64_t* seqno);
