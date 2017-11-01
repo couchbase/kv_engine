@@ -169,21 +169,6 @@ bool McbpStateMachine::execute() {
     return stateToFunc(currentState)(connection);
 }
 
-static void reset_cmd_handler(McbpConnection *c) {
-    c->setCmd(-1);
-
-    c->getCookieObject().reset();
-
-    c->shrinkBuffers();
-    if (c->read->rsize() >= sizeof(c->binary_header)) {
-        c->setState(McbpStateMachine::State::parse_cmd);
-    } else if (c->isSslEnabled()) {
-        c->setState(McbpStateMachine::State::read_packet_header);
-    } else {
-        c->setState(McbpStateMachine::State::waiting);
-    }
-}
-
 /**
  * Ship DCP log to the other end. This state differs with all other states
  * in the way that it support full duplex dialog. We're listening to both read
@@ -196,23 +181,22 @@ static void reset_cmd_handler(McbpConnection *c) {
  *              if we should start processing events for other connections.
  */
 bool conn_ship_log(McbpConnection& connection) {
-    auto* c = &connection;
-    if (is_bucket_dying(c)) {
+    if (is_bucket_dying(connection)) {
         return true;
     }
 
     bool cont = false;
     short mask = EV_READ | EV_PERSIST | EV_WRITE;
 
-    if (c->isSocketClosed()) {
+    if (connection.isSocketClosed()) {
         return false;
     }
 
-    if (c->isReadEvent() || !c->read->empty()) {
-        if (c->read->rsize() >= sizeof(c->binary_header)) {
+    if (connection.isReadEvent() || !connection.read->empty()) {
+        if (connection.read->rsize() >= sizeof(connection.binary_header)) {
             try_read_mcbp_command(connection);
         } else {
-            c->setState(McbpStateMachine::State::read_packet_header);
+            connection.setState(McbpStateMachine::State::read_packet_header);
         }
 
         /* we're going to process something.. let's proceed */
@@ -226,12 +210,12 @@ bool conn_ship_log(McbpConnection& connection) {
         /* up in a situation where we're receiving a burst of nack messages */
         /* we'll only process a subset of messages in our input queue, */
         /* and it will slowly grow.. */
-        c->setNumEvents(c->getMaxReqsPerEvent());
-    } else if (c->isWriteEvent()) {
-        if (c->decrementNumEvents() >= 0) {
-            c->setEwouldblock(false);
+        connection.setNumEvents(connection.getMaxReqsPerEvent());
+    } else if (connection.isWriteEvent()) {
+        if (connection.decrementNumEvents() >= 0) {
+            connection.setEwouldblock(false);
             ship_dcp_log(connection);
-            if (c->isEwouldblock()) {
+            if (connection.isEwouldblock()) {
                 mask = EV_READ | EV_PERSIST;
             } else {
                 cont = true;
@@ -239,54 +223,58 @@ bool conn_ship_log(McbpConnection& connection) {
         }
     }
 
-    if (!c->updateEvent(mask)) {
-        LOG_WARNING(c, "%u: conn_ship_log - Unable to update libevent "
-                    "settings, closing connection (%p) %s", c->getId(),
-                    c->getCookie(), c->getDescription().c_str());
-        c->setState(McbpStateMachine::State::closing);
+    if (!connection.updateEvent(mask)) {
+        LOG_WARNING(&connection,
+                    "%u: conn_ship_log - Unable to update libevent "
+                    "settings, closing connection (%p) %s",
+                    connection.getId(),
+                    connection.getCookie(),
+                    connection.getDescription().c_str());
+        connection.setState(McbpStateMachine::State::closing);
     }
 
     return cont;
 }
 
 bool conn_waiting(McbpConnection& connection) {
-    auto* c = &connection;
-    if (is_bucket_dying(c) || c->processServerEvents()) {
+    if (is_bucket_dying(connection) || connection.processServerEvents()) {
         return true;
     }
 
-    if (!c->updateEvent(EV_READ | EV_PERSIST)) {
-        LOG_WARNING(c, "%u: conn_waiting - Unable to update libevent "
+    if (!connection.updateEvent(EV_READ | EV_PERSIST)) {
+        LOG_WARNING(&connection,
+                    "%u: conn_waiting - Unable to update libevent "
                     "settings with (EV_READ | EV_PERSIST), closing connection "
                     "(%p) %s",
-                    c->getId(), c->getCookie(), c->getDescription().c_str());
-        c->setState(McbpStateMachine::State::closing);
+                    connection.getId(),
+                    connection.getCookie(),
+                    connection.getDescription().c_str());
+        connection.setState(McbpStateMachine::State::closing);
         return true;
     }
-    c->setState(McbpStateMachine::State::read_packet_header);
+    connection.setState(McbpStateMachine::State::read_packet_header);
     return false;
 }
 
 bool conn_read_packet_header(McbpConnection& connection) {
-    auto* c = &connection;
-    if (is_bucket_dying(c) || c->processServerEvents()) {
+    if (is_bucket_dying(connection) || connection.processServerEvents()) {
         return true;
     }
 
-    switch (c->tryReadNetwork()) {
+    switch (connection.tryReadNetwork()) {
     case McbpConnection::TryReadResult::NoDataReceived:
-        c->setState(McbpStateMachine::State::waiting);
+        connection.setState(McbpStateMachine::State::waiting);
         break;
     case McbpConnection::TryReadResult::DataReceived:
-        if (c->read->rsize() >= sizeof(c->binary_header)) {
-            c->setState(McbpStateMachine::State::parse_cmd);
+        if (connection.read->rsize() >= sizeof(connection.binary_header)) {
+            connection.setState(McbpStateMachine::State::parse_cmd);
         } else {
-            c->setState(McbpStateMachine::State::waiting);
+            connection.setState(McbpStateMachine::State::waiting);
         }
         break;
     case McbpConnection::TryReadResult::SocketClosed:
     case McbpConnection::TryReadResult::SocketError:
-        c->setState(McbpStateMachine::State::closing);
+        connection.setState(McbpStateMachine::State::closing);
         break;
     case McbpConnection::TryReadResult::MemoryError: /* Failed to allocate more memory */
         /* State already set by try_read_network */
@@ -302,20 +290,19 @@ bool conn_parse_cmd(McbpConnection& connection) {
 }
 
 bool conn_new_cmd(McbpConnection& connection) {
-    auto* c = &connection;
-    if (is_bucket_dying(c)) {
+    if (is_bucket_dying(connection)) {
         return true;
     }
 
-    c->setStart(ProcessClock::time_point());
+    connection.setStart(ProcessClock::time_point());
 
-    if (!c->write->empty()) {
+    if (!connection.write->empty()) {
         LOG_WARNING(
-                c,
+                &connection,
                 "%u: Expected write buffer to be empty.. It's not! (%" PRIu64
                 ")",
-                c->getId(),
-                c->write->rsize());
+                connection.getId(),
+                connection.write->rsize());
     }
 
     /*
@@ -323,10 +310,21 @@ bool conn_new_cmd(McbpConnection& connection) {
      * connection will only process a certain number of operations
      * before they will back off.
      */
-    if (c->decrementNumEvents() >= 0) {
-        reset_cmd_handler(c);
+    if (connection.decrementNumEvents() >= 0) {
+        connection.setCmd(-1);
+
+        connection.getCookieObject().reset();
+
+        connection.shrinkBuffers();
+        if (connection.read->rsize() >= sizeof(connection.binary_header)) {
+            connection.setState(McbpStateMachine::State::parse_cmd);
+        } else if (connection.isSslEnabled()) {
+            connection.setState(McbpStateMachine::State::read_packet_header);
+        } else {
+            connection.setState(McbpStateMachine::State::waiting);
+        }
     } else {
-        get_thread_stats(c)->conn_yields++;
+        get_thread_stats(&connection)->conn_yields++;
 
         /*
          * If we've got data in the input buffer we might get "stuck"
@@ -340,14 +338,16 @@ bool conn_new_cmd(McbpConnection& connection) {
          * connections in the way that they may not even get data from
          * the other end so that they'll _have_ to wait for a write event.
          */
-        if (c->havePendingInputData() || c->isDCP()) {
+        if (connection.havePendingInputData() || connection.isDCP()) {
             short flags = EV_WRITE | EV_PERSIST;
-            if (!c->updateEvent(flags)) {
-                LOG_WARNING(c, "%u: conn_new_cmd - Unable to update "
+            if (!connection.updateEvent(flags)) {
+                LOG_WARNING(&connection,
+                            "%u: conn_new_cmd - Unable to update "
                             "libevent settings, closing connection (%p) %s",
-                            c->getId(), c->getCookie(),
-                            c->getDescription().c_str());
-                c->setState(McbpStateMachine::State::closing);
+                            connection.getId(),
+                            connection.getCookie(),
+                            connection.getDescription().c_str());
+                connection.setState(McbpStateMachine::State::closing);
                 return true;
             }
         }
@@ -358,38 +358,38 @@ bool conn_new_cmd(McbpConnection& connection) {
 }
 
 bool conn_execute(McbpConnection& connection) {
-    auto* c = &connection;
-    if (is_bucket_dying(c)) {
+    if (is_bucket_dying(connection)) {
         return true;
     }
 
-    if (!c->isPacketAvailable()) {
+    if (!connection.isPacketAvailable()) {
         throw std::logic_error(
                 "conn_execute: Internal error.. the input packet is not "
                 "completely in memory");
     }
 
-    c->setEwouldblock(false);
+    connection.setEwouldblock(false);
 
     mcbp_execute_packet(connection.getCookieObject());
 
-    if (c->isEwouldblock()) {
-        c->unregisterEvent();
+    if (connection.isEwouldblock()) {
+        connection.unregisterEvent();
         return false;
     }
 
     // We've executed the packet, and given that we're not blocking we
     // we should move over to the next state. Just do a sanity check
     // for that.
-    if (c->getState() == McbpStateMachine::State::execute) {
+    if (connection.getState() == McbpStateMachine::State::execute) {
         throw std::logic_error(
                 "conn_execute: Should leave conn_execute for !EWOULDBLOCK");
     }
 
     // Consume the packet we just executed from the input buffer
-    c->read->consume([c](cb::const_byte_buffer buffer) -> ssize_t {
-        size_t size =
-                sizeof(c->binary_header) + c->binary_header.request.bodylen;
+    connection.read->consume([&connection](
+                                     cb::const_byte_buffer buffer) -> ssize_t {
+        size_t size = sizeof(connection.binary_header) +
+                      connection.binary_header.request.bodylen;
         if (size > buffer.size()) {
             throw std::logic_error(
                     "conn_execute: Not enough data in input buffer");
@@ -401,56 +401,57 @@ bool conn_execute(McbpConnection& connection) {
 }
 
 bool conn_read_packet_body(McbpConnection& connection) {
-    auto* c = &connection;
-    if (is_bucket_dying(c)) {
+    if (is_bucket_dying(connection)) {
         return true;
     }
 
-    if (c->isPacketAvailable()) {
+    if (connection.isPacketAvailable()) {
         throw std::logic_error(
                 "conn_read_packet_body: should not be called with the complete "
                 "packet available");
     }
 
     // We need to get more data!!!
-    auto res = c->read->produce([c](cb::byte_buffer buffer) -> ssize_t {
-        return c->recv(reinterpret_cast<char*>(buffer.data()), buffer.size());
-    });
+    auto res = connection.read->produce(
+            [&connection](cb::byte_buffer buffer) -> ssize_t {
+                return connection.recv(reinterpret_cast<char*>(buffer.data()),
+                                       buffer.size());
+            });
 
     if (res > 0) {
-        get_thread_stats(c)->bytes_read += res;
+        get_thread_stats(&connection)->bytes_read += res;
 
-        if (c->isPacketAvailable()) {
+        if (connection.isPacketAvailable()) {
             auto& cookie = connection.getCookieObject();
-            auto input = c->read->rdata();
+            auto input = connection.read->rdata();
             const auto* req =
                     reinterpret_cast<const cb::mcbp::Request*>(input.data());
             cookie.setPacket(Cookie::PacketContent::Full,
                              cb::const_byte_buffer{input.data(),
                                                    sizeof(cb::mcbp::Request) +
                                                            req->getBodylen()});
-            c->setState(McbpStateMachine::State::execute);
+            connection.setState(McbpStateMachine::State::execute);
         }
 
         return true;
     }
 
     if (res == 0) { /* end of stream */
-        c->setState(McbpStateMachine::State::closing);
+        connection.setState(McbpStateMachine::State::closing);
         return true;
     }
 
     auto error = GetLastNetworkError();
     if (is_blocking(error)) {
-        if (!c->updateEvent(EV_READ | EV_PERSIST)) {
-            LOG_WARNING(c,
+        if (!connection.updateEvent(EV_READ | EV_PERSIST)) {
+            LOG_WARNING(&connection,
                         "%u: conn_read_packet_body - Unable to update libevent "
                         "settings with (EV_READ | EV_PERSIST), closing "
                         "connection (%p) %s",
-                        c->getId(),
-                        c->getCookie(),
-                        c->getDescription().c_str());
-            c->setState(McbpStateMachine::State::closing);
+                        connection.getId(),
+                        connection.getCookie(),
+                        connection.getDescription().c_str());
+            connection.setState(McbpStateMachine::State::closing);
             return true;
         }
 
@@ -461,38 +462,41 @@ bool conn_read_packet_body(McbpConnection& connection) {
 
     // We have a "real" error on the socket.
     std::string errormsg = cb_strerror(error);
-    LOG_WARNING(c,
+    LOG_WARNING(&connection,
                 "%u Closing connection (%p) %s due to read error: %s",
-                c->getId(),
-                c->getCookie(),
-                c->getDescription().c_str(),
+                connection.getId(),
+                connection.getCookie(),
+                connection.getDescription().c_str(),
                 errormsg.c_str());
 
-    c->setState(McbpStateMachine::State::closing);
+    connection.setState(McbpStateMachine::State::closing);
     return true;
 }
 
 bool conn_send_data(McbpConnection& connection) {
-    auto* c = &connection;
     bool ret = true;
 
-    switch (c->transmit()) {
+    switch (connection.transmit()) {
     case McbpConnection::TransmitResult::Complete:
         // Release all allocated resources
-        c->releaseTempAlloc();
-        c->releaseReservedItems();
+        connection.releaseTempAlloc();
+        connection.releaseReservedItems();
 
         // We're done sending the response to the client. Enter the next
         // state in the state machine
-        c->setState(c->getWriteAndGo());
+        connection.setState(connection.getWriteAndGo());
         break;
 
     case McbpConnection::TransmitResult::Incomplete:
-        LOG_INFO(c, "%d - Incomplete transfer. Will retry", c->getId());
+        LOG_INFO(&connection,
+                 "%d - Incomplete transfer. Will retry",
+                 connection.getId());
         break;
 
     case McbpConnection::TransmitResult::HardError:
-        LOG_NOTICE(c, "%d - Hard error, closing connection", c->getId());
+        LOG_NOTICE(&connection,
+                   "%d - Hard error, closing connection",
+                   connection.getId());
         break;
 
     case McbpConnection::TransmitResult::SoftError:
@@ -500,7 +504,7 @@ bool conn_send_data(McbpConnection& connection) {
         break;
     }
 
-    if (is_bucket_dying(c)) {
+    if (is_bucket_dying(connection)) {
         return true;
     }
 
@@ -508,38 +512,36 @@ bool conn_send_data(McbpConnection& connection) {
 }
 
 bool conn_pending_close(McbpConnection& connection) {
-    auto* c = &connection;
-    if (!c->isSocketClosed()) {
+    if (!connection.isSocketClosed()) {
         throw std::logic_error("conn_pending_close: socketDescriptor must be closed");
     }
-    LOG_DEBUG(c,
+    LOG_DEBUG(&connection,
               "Awaiting clients to release the cookie (pending close for %p)",
-              (void*)c);
+              (void*)&connection);
     /*
      * tell the DCP connection that we're disconnecting it now,
      * but give it a grace period
      */
-    perform_callbacks(ON_DISCONNECT, NULL, c->getCookie());
+    perform_callbacks(ON_DISCONNECT, nullptr, connection.getCookie());
 
-    if (c->getRefcount() > 1) {
+    if (connection.getRefcount() > 1) {
         return false;
     }
 
-    c->setState(McbpStateMachine::State::immediate_close);
+    connection.setState(McbpStateMachine::State::immediate_close);
     return true;
 }
 
 bool conn_immediate_close(McbpConnection& connection) {
-    auto* c = &connection;
-    ListeningPort *port_instance;
-    if (!c->isSocketClosed()) {
+    if (!connection.isSocketClosed()) {
         throw std::logic_error("conn_immediate_close: socketDescriptor must be closed");
     }
-    LOG_DETAIL(c, "Releasing connection %p", c);
+    LOG_DETAIL(&connection, "Releasing connection %p", &connection);
 
     {
         std::lock_guard<std::mutex> guard(stats_mutex);
-        port_instance = get_listening_port_instance(c->getParentPort());
+        auto* port_instance =
+                get_listening_port_instance(connection.getParentPort());
         if (port_instance) {
             --port_instance->curr_conns;
         } else {
@@ -547,30 +549,29 @@ bool conn_immediate_close(McbpConnection& connection) {
         }
     }
 
-    perform_callbacks(ON_DISCONNECT, NULL, c->getCookie());
-    disassociate_bucket(c);
-    conn_close(c);
+    perform_callbacks(ON_DISCONNECT, nullptr, connection.getCookie());
+    disassociate_bucket(connection);
+    conn_close(connection);
 
     return false;
 }
 
 bool conn_closing(McbpConnection& connection) {
-    auto* c = &connection;
     // Delete any attached command context
-    c->getCookieObject().reset();
+    connection.getCookieObject().reset();
 
     /* We don't want any network notifications anymore.. */
-    c->unregisterEvent();
-    safe_close(c->getSocketDescriptor());
-    c->setSocketDescriptor(INVALID_SOCKET);
+    connection.unregisterEvent();
+    safe_close(connection.getSocketDescriptor());
+    connection.setSocketDescriptor(INVALID_SOCKET);
 
-    /* engine::release any allocated state */
-    conn_cleanup_engine_allocations(c);
+    // Release all reserved items!
+    connection.releaseReservedItems();
 
-    if (c->getRefcount() > 1 || c->isEwouldblock()) {
-        c->setState(McbpStateMachine::State::pending_close);
+    if (connection.getRefcount() > 1 || connection.isEwouldblock()) {
+        connection.setState(McbpStateMachine::State::pending_close);
     } else {
-        c->setState(McbpStateMachine::State::immediate_close);
+        connection.setState(McbpStateMachine::State::immediate_close);
     }
     return true;
 }

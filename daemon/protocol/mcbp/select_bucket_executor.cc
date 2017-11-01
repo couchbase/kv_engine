@@ -29,13 +29,13 @@ ENGINE_ERROR_CODE select_bucket(McbpConnection& connection,
 
     try {
         cb::rbac::createContext(connection.getUsername(), bucketname);
-        if (associate_bucket(&connection, bucketname.c_str())) {
+        if (associate_bucket(connection, bucketname.c_str())) {
             return ENGINE_SUCCESS;
         } else {
             if (oldIndex != connection.getBucketIndex()) {
                 // try to jump back to the bucket we used to be associated
                 // with..
-                associate_bucket(&connection, all_buckets[oldIndex].name);
+                associate_bucket(connection, all_buckets[oldIndex].name);
             }
             return ENGINE_KEY_ENOENT;
         }

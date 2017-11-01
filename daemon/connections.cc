@@ -223,7 +223,7 @@ Connection* conn_new(const SOCKET sfd, in_port_t parent_port,
 
     c->incrementRefcount();
 
-    associate_initial_bucket(c);
+    associate_initial_bucket(*c);
 
     c->setThread(thread);
     MEMCACHED_CONN_ALLOCATE(c->getId());
@@ -235,72 +235,56 @@ Connection* conn_new(const SOCKET sfd, in_port_t parent_port,
     return c;
 }
 
-void conn_cleanup_engine_allocations(McbpConnection * c) {
-    c->releaseReservedItems();
+static void conn_cleanup(McbpConnection& connection) {
+    connection.setInternal(false);
+    connection.releaseTempAlloc();
+    connection.read->clear();
+    connection.write->clear();
+    /* Return any buffers back to the thread; before we disassociate the
+     * connection from the thread. Note we clear DCP status first, so
+     * conn_return_buffers() will actually free the buffers.
+     */
+    connection.setDCP(false);
+    conn_return_buffers(&connection);
+    connection.clearDynamicBuffer();
+    connection.setEngineStorage(nullptr);
+
+    connection.setThread(nullptr);
+    cb_assert(connection.getNext() == nullptr);
+    connection.setSocketDescriptor(INVALID_SOCKET);
+    connection.setStart(ProcessClock::time_point());
+    connection.disableSSL();
 }
 
-static void conn_cleanup(Connection *c) {
-    if (c == nullptr) {
-        throw std::invalid_argument("conn_cleanup: 'c' must be non-NULL");
-    }
-    c->setInternal(false);
-
-    auto* mcbpc = dynamic_cast<McbpConnection*>(c);
-    if (mcbpc != nullptr) {
-        mcbpc->releaseTempAlloc();
-        mcbpc->read->clear();
-        mcbpc->write->clear();
-        /* Return any buffers back to the thread; before we disassociate the
-         * connection from the thread. Note we clear DCP status first, so
-         * conn_return_buffers() will actually free the buffers.
-         */
-        mcbpc->setDCP(false);
-    }
-    conn_return_buffers(c);
-    if (mcbpc != nullptr) {
-        mcbpc->clearDynamicBuffer();
-    }
-    c->setEngineStorage(nullptr);
-
-    c->setThread(nullptr);
-    cb_assert(c->getNext() == nullptr);
-    c->setSocketDescriptor(INVALID_SOCKET);
-    if (mcbpc != nullptr) {
-        mcbpc->setStart(ProcessClock::time_point());
-        mcbpc->disableSSL();
-    }
-}
-
-void conn_close(McbpConnection *c) {
-    if (c == nullptr) {
-        throw std::invalid_argument("conn_close: 'c' must be non-NULL");
-    }
-    if (!c->isSocketClosed()) {
+void conn_close(McbpConnection& connection) {
+    if (!connection.isSocketClosed()) {
         throw std::logic_error("conn_cleanup: socketDescriptor must be closed");
     }
-    if (c->getState() != McbpStateMachine::State::immediate_close) {
+    if (connection.getState() != McbpStateMachine::State::immediate_close) {
         throw std::logic_error("conn_cleanup: Connection:state (which is " +
-                               std::string(c->getStateName()) +
+                               std::string(connection.getStateName()) +
                                ") must be conn_immediate_close");
     }
 
-    auto thread = c->getThread();
+    auto thread = connection.getThread();
     if (thread == nullptr) {
         throw std::logic_error("conn_close: unable to obtain non-NULL thread from connection");
     }
     /* remove from pending-io list */
-    if (settings.getVerbose() > 1 && list_contains(thread->pending_io, c)) {
-        LOG_WARNING(c,
-                    "Current connection was in the pending-io list.. Nuking it");
+    if (settings.getVerbose() > 1 &&
+        list_contains(thread->pending_io, &connection)) {
+        LOG_WARNING(
+                &connection,
+                "Current connection was in the pending-io list.. Nuking it");
     }
-    thread->pending_io = list_remove(thread->pending_io, c);
+    thread->pending_io = list_remove(thread->pending_io, &connection);
 
-    conn_cleanup(c);
+    conn_cleanup(connection);
 
-    if (c->getThread() != nullptr) {
+    if (connection.getThread() != nullptr) {
         throw std::logic_error("conn_close: failed to disassociate connection from thread");
     }
-    c->setState(McbpStateMachine::State::destroyed);
+    connection.setState(McbpStateMachine::State::destroyed);
 }
 
 ListeningPort *get_listening_port_instance(const in_port_t port) {

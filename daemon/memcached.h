@@ -142,7 +142,7 @@ extern Connection *listen_conn;
 /*
  * Functions to add / update the connection to libevent
  */
-void associate_initial_bucket(Connection *c);
+void associate_initial_bucket(Connection& connection);
 
 /*
  * Functions such as the libevent-related calls that need to do cross-thread
@@ -275,8 +275,8 @@ inline void set_econnreset(void) {
 #endif
 
 void shutdown_server(void);
-bool associate_bucket(Connection *c, const char *name);
-void disassociate_bucket(Connection *c);
+bool associate_bucket(Connection& connection, const char* name);
+void disassociate_bucket(Connection& connection);
 
 bool is_listen_disabled(void);
 uint64_t get_listen_disabled_num(void);

@@ -91,7 +91,7 @@ ListenConnection* conn_new_server(const SOCKET sfd,
  * be used), but it's memory is still allocated. See conn_destructor() to
  * actually free it's resources.
  */
-void conn_close(McbpConnection *c);
+void conn_close(McbpConnection& connection);
 
 /**
  * Return the TCP or domain socket listening_port structure that
@@ -104,11 +104,6 @@ ListeningPort *get_listening_port_instance(const in_port_t port);
  * Note: We hold the connections mutex for the duration of this function.
  */
 void connection_stats(ADD_STAT add_stats, const void *c, const int64_t fd);
-
-/*
- * Use engine::release to drop any data we may have allocated with engine::allocate
- */
-void conn_cleanup_engine_allocations(McbpConnection * c);
 
 /**
  * Signal (set writable) all idle clients bound to either a specific

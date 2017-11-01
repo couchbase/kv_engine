@@ -187,24 +187,24 @@ static void set_stats_reset_time(void)
     }
 }
 
-void disassociate_bucket(Connection *c) {
-    Bucket &b = all_buckets.at(c->getBucketIndex());
+void disassociate_bucket(Connection& connection) {
+    Bucket& b = all_buckets.at(connection.getBucketIndex());
     std::lock_guard<std::mutex> guard(b.mutex);
     b.clients--;
 
-    c->setBucketIndex(0);
-    c->setBucketEngine(nullptr);
+    connection.setBucketIndex(0);
+    connection.setBucketEngine(nullptr);
 
     if (b.clients == 0 && b.state == BucketState::Destroying) {
         b.cond.notify_one();
     }
 }
 
-bool associate_bucket(Connection *c, const char *name) {
+bool associate_bucket(Connection& connection, const char* name) {
     bool found = false;
 
     /* leave the current bucket */
-    disassociate_bucket(c);
+    disassociate_bucket(connection);
 
     /* Try to associate with the named bucket */
     /* @todo add auth checks!!! */
@@ -213,8 +213,8 @@ bool associate_bucket(Connection *c, const char *name) {
         std::lock_guard<std::mutex> guard(b.mutex);
         if (b.state == BucketState::Ready && strcmp(b.name, name) == 0) {
             b.clients++;
-            c->setBucketIndex(ii);
-            c->setBucketEngine(b.engine);
+            connection.setBucketIndex(ii);
+            connection.setBucketEngine(b.engine);
             found = true;
         }
     }
@@ -226,25 +226,25 @@ bool associate_bucket(Connection *c, const char *name) {
             std::lock_guard<std::mutex> guard(b.mutex);
             b.clients++;
         }
-        c->setBucketIndex(0);
-        c->setBucketEngine(b.engine);
+        connection.setBucketIndex(0);
+        connection.setBucketEngine(b.engine);
     }
 
     return found;
 }
 
-void associate_initial_bucket(Connection *c) {
+void associate_initial_bucket(Connection& connection) {
     Bucket &b = all_buckets.at(0);
     {
         std::lock_guard<std::mutex> guard(b.mutex);
         b.clients++;
     }
 
-    c->setBucketIndex(0);
-    c->setBucketEngine(b.engine);
+    connection.setBucketIndex(0);
+    connection.setBucketEngine(b.engine);
 
     if (is_default_bucket_enabled()) {
-        associate_bucket(c, "default");
+        associate_bucket(connection, "default");
     }
 }
 
@@ -972,20 +972,19 @@ bool conn_listening(ListenConnection *c)
  * for why a bucket could be dying: It is currently being deleted, or
  * someone initiated a shutdown process.
  */
-bool is_bucket_dying(Connection *c)
-{
+bool is_bucket_dying(Connection& c) {
     bool disconnect = memcached_shutdown;
-    Bucket &b = all_buckets.at(c->getBucketIndex());
+    Bucket& b = all_buckets.at(c.getBucketIndex());
 
     if (b.state != BucketState::Ready) {
         disconnect = true;
     }
 
     if (disconnect) {
-        LOG_NOTICE(c,
+        LOG_NOTICE(&c,
                    "%u The connected bucket is being deleted.. disconnecting",
-                   c->getId());
-        c->initiateShutdown();
+                   c.getId());
+        c.initiateShutdown();
         return true;
     }
 
@@ -2211,7 +2210,7 @@ void DestroyBucketThread::destroy() {
 
     /* If this thread is connected to the requested bucket... release it */
     if (connection != nullptr && idx == size_t(connection->getBucketIndex())) {
-        disassociate_bucket(connection);
+        disassociate_bucket(*connection);
     }
 
     /* Let all of the worker threads start invalidating connections */

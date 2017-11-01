@@ -193,11 +193,11 @@ void SaslAuthTask::notifyExecutionComplete() {
         }
 
         if (cb::rbac::mayAccessBucket(connection.getUsername(), username)) {
-            associate_bucket(&connection, username.c_str());
+            associate_bucket(connection, username.c_str());
         } else {
             // the user don't have access to that bucket, move the
             // connection to the "no bucket"
-            associate_bucket(&connection, "");
+            associate_bucket(connection, "");
         }
     }
 

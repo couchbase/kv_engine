@@ -253,7 +253,7 @@ int McbpConnection::sslPreConnection() {
                 ClientCertAuth::Mode::Mandatory) {
                 disconnect = true;
             } else if (is_default_bucket_enabled()) {
-                associate_bucket(this, "default");
+                associate_bucket(*this, "default");
             }
             break;
         case ClientCertUser::Status::Success:
