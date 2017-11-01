@@ -36,16 +36,17 @@ static std::string backfillStateToString(backfill_state_t state) {
     return "<invalid>:" + std::to_string(state);
 }
 
-CacheCallback::CacheCallback(EventuallyPersistentEngine& e, active_stream_t& s)
+CacheCallback::CacheCallback(EventuallyPersistentEngine& e,
+                             std::shared_ptr<ActiveStream> s)
     : engine_(e), stream_(s) {
-    if (stream_.get() == nullptr) {
+    if (s == nullptr) {
         throw std::invalid_argument("CacheCallback(): stream is NULL");
     }
-    if (!stream_.get()->isTypeActive()) {
+    if (!s->isTypeActive()) {
         throw std::invalid_argument(
                 "CacheCallback(): stream->getType() "
                 "(which is " +
-                to_string(stream_.get()->getType()) + ") is not Active");
+                to_string(s->getType()) + ") is not Active");
     }
 }
 
@@ -89,15 +90,15 @@ void CacheCallback::callback(CacheLookup& lookup) {
     setStatus(ENGINE_SUCCESS);
 }
 
-DiskCallback::DiskCallback(active_stream_t& s) : stream_(s) {
-    if (stream_.get() == nullptr) {
+DiskCallback::DiskCallback(std::shared_ptr<ActiveStream> s) : stream_(s) {
+    if (s == nullptr) {
         throw std::invalid_argument("DiskCallback(): stream is NULL");
     }
-    if (!stream_.get()->isTypeActive()) {
+    if (!s->isTypeActive()) {
         throw std::invalid_argument(
                 "DiskCallback(): stream->getType() "
                 "(which is " +
-                to_string(stream_.get()->getType()) + ") is not Active");
+                to_string(s->getType()) + ") is not Active");
     }
 }
 
@@ -116,7 +117,7 @@ void DiskCallback::callback(GetValue& val) {
 }
 
 DCPBackfillDisk::DCPBackfillDisk(EventuallyPersistentEngine& e,
-                                 const active_stream_t& s,
+                                 std::shared_ptr<ActiveStream> s,
                                  uint64_t startSeqno,
                                  uint64_t endSeqno)
     : DCPBackfill(s, startSeqno, endSeqno),

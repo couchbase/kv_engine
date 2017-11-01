@@ -43,15 +43,12 @@ typedef SingleThreadedRCPtr<DcpProducer> dcp_producer_t;
 
 // Implementation defined in dcp/stream.h
 class Stream;
-typedef SingleThreadedRCPtr<Stream> stream_t;
 
 // Implementation defined in dcp/stream.h
 class ActiveStream;
-typedef SingleThreadedRCPtr<ActiveStream> active_stream_t;
 
 // Implementation defined in dcp/stream.h
 class PassiveStream;
-typedef RCPtr<PassiveStream> passive_stream_t;
 
 class ConnHandler;
 typedef SingleThreadedRCPtr<ConnHandler> connection_t;

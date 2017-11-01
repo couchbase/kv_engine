@@ -109,7 +109,7 @@ public:
 
     std::unique_ptr<DCPBackfill> createDCPBackfill(
             EventuallyPersistentEngine& e,
-            const active_stream_t& stream,
+            std::shared_ptr<ActiveStream> stream,
             uint64_t startSeqno,
             uint64_t endSeqno) override;
 

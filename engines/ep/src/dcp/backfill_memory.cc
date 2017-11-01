@@ -24,7 +24,7 @@
 #include "seqlist.h"
 
 DCPBackfillMemory::DCPBackfillMemory(EphemeralVBucketPtr evb,
-                                     const active_stream_t& s,
+                                     std::shared_ptr<ActiveStream> s,
                                      uint64_t startSeqno,
                                      uint64_t endSeqno)
     : DCPBackfill(s, startSeqno, endSeqno), weakVb(evb) {
@@ -102,10 +102,11 @@ backfill_status_t DCPBackfillMemory::run() {
     return backfill_finished;
 }
 
-DCPBackfillMemoryBuffered::DCPBackfillMemoryBuffered(EphemeralVBucketPtr evb,
-                                                     const active_stream_t& s,
-                                                     uint64_t startSeqno,
-                                                     uint64_t endSeqno)
+DCPBackfillMemoryBuffered::DCPBackfillMemoryBuffered(
+        EphemeralVBucketPtr evb,
+        std::shared_ptr<ActiveStream> s,
+        uint64_t startSeqno,
+        uint64_t endSeqno)
     : DCPBackfill(s, startSeqno, endSeqno),
       evb(evb),
       state(BackfillState::Init),

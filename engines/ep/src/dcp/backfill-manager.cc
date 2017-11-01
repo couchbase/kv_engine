@@ -151,7 +151,7 @@ BackfillManager::~BackfillManager() {
 }
 
 void BackfillManager::schedule(VBucket& vb,
-                               const active_stream_t& stream,
+                               std::shared_ptr<ActiveStream> stream,
                                uint64_t start,
                                uint64_t end) {
     LockHolder lh(lock);

@@ -109,7 +109,7 @@ TEST_F(SingleThreadedEphemeralBackfillTest, RangeIteratorVBDeleteRaceTest) {
                                                        /*flags*/ 0,
                                                        {/*no json*/});
     // Create a Mock Active Stream
-    stream_t stream = new MockActiveStream(
+    auto mock_stream = std::make_shared<MockActiveStream>(
             static_cast<EventuallyPersistentEngine*>(engine.get()),
             producer,
             /*flags*/ 0,
@@ -122,9 +122,6 @@ TEST_F(SingleThreadedEphemeralBackfillTest, RangeIteratorVBDeleteRaceTest) {
             /*snap_end_seqno*/ ~0,
             IncludeValue::Yes,
             IncludeXattrs::Yes);
-
-    MockActiveStream* mock_stream =
-            static_cast<MockActiveStream*>(stream.get());
 
     ASSERT_TRUE(mock_stream->isPending()) << "stream state should be Pending";
 
@@ -166,7 +163,7 @@ TEST_F(SingleThreadedEphemeralBackfillTest, RangeIteratorVBDeleteRaceTest) {
 
     // Now bin the producer
     engine->getDcpConnMap().shutdownAllConnections();
-    stream.reset();
+    mock_stream.reset();
     producer.reset();
 
     // run the backfill task so the backfill can reach state

@@ -869,7 +869,7 @@ bool ActiveStream::nextCheckpointItem() {
     if (vbucket &&
         vbucket->checkpointManager->getNumItemsForCursor(name_) > 0) {
         // schedule this stream to build the next checkpoint
-        producer->scheduleCheckpointProcessorTask(this);
+        producer->scheduleCheckpointProcessorTask(shared_from_this());
         return true;
     } else if (chkptItemsExtractionInProgress) {
         return true;
@@ -890,8 +890,7 @@ bool ActiveStreamCheckpointProcessorTask::run() {
 
     size_t iterations = 0;
     do {
-        stream_t nextStream = queuePop();
-        ActiveStream* stream = static_cast<ActiveStream*>(nextStream.get());
+        std::shared_ptr<ActiveStream> stream = queuePop();
 
         if (stream) {
             stream->nextCheckpointItemTask();
@@ -917,7 +916,8 @@ void ActiveStreamCheckpointProcessorTask::wakeup() {
     ExecutorPool::get()->wake(getId());
 }
 
-void ActiveStreamCheckpointProcessorTask::schedule(const stream_t& stream) {
+void ActiveStreamCheckpointProcessorTask::schedule(
+        std::shared_ptr<ActiveStream> stream) {
     pushUnique(stream);
 
     bool expected = false;
@@ -1233,7 +1233,7 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
                                   "flag : %s", vb_, backfillStart, backfillEnd,
                                   reschedule ? "True" : "False");
         producer->scheduleBackfillManager(
-                *vbucket, this, backfillStart, backfillEnd);
+                *vbucket, shared_from_this(), backfillStart, backfillEnd);
         isBackfillTaskRunning.store(true);
     } else {
         if (reschedule) {

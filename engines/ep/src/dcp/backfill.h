@@ -34,7 +34,7 @@ enum backfill_status_t {
 
 class DCPBackfill {
 public:
-    DCPBackfill(const active_stream_t& s,
+    DCPBackfill(std::shared_ptr<ActiveStream> s,
                 uint64_t startSeqno,
                 uint64_t endSeqno)
         : stream(s), startSeqno(startSeqno), endSeqno(endSeqno) {
@@ -78,7 +78,7 @@ protected:
      * Ptr to the associated Active DCP stream. Backfill can be run for only
      * an active DCP stream
      */
-    active_stream_t stream;
+    std::shared_ptr<ActiveStream> stream;
 
     /**
      * Start seqno of the backfill

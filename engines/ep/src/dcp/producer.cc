@@ -389,35 +389,35 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
         return ENGINE_UNKNOWN_COLLECTION;
     }
 
-    stream_t s;
+    std::shared_ptr<Stream> s;
     if (notifyOnly) {
-        s = new NotifierStream(&engine_,
-                               this,
-                               getName(),
-                               flags,
-                               opaque,
-                               vbucket,
-                               notifySeqno,
-                               end_seqno,
-                               vbucket_uuid,
-                               snap_start_seqno,
-                               snap_end_seqno,
-                               std::move(vbFilter));
+        s = std::make_shared<NotifierStream>(&engine_,
+                                             this,
+                                             getName(),
+                                             flags,
+                                             opaque,
+                                             vbucket,
+                                             notifySeqno,
+                                             end_seqno,
+                                             vbucket_uuid,
+                                             snap_start_seqno,
+                                             snap_end_seqno,
+                                             std::move(vbFilter));
     } else {
-        s = new ActiveStream(&engine_,
-                             this,
-                             getName(),
-                             flags,
-                             opaque,
-                             *vb,
-                             start_seqno,
-                             end_seqno,
-                             vbucket_uuid,
-                             snap_start_seqno,
-                             snap_end_seqno,
-                             includeValue,
-                             includeXattrs,
-                             std::move(vbFilter));
+        s = std::make_shared<ActiveStream>(&engine_,
+                                           this,
+                                           getName(),
+                                           flags,
+                                           opaque,
+                                           *vb,
+                                           start_seqno,
+                                           end_seqno,
+                                           vbucket_uuid,
+                                           snap_start_seqno,
+                                           snap_end_seqno,
+                                           includeValue,
+                                           includeXattrs,
+                                           std::move(vbFilter));
     }
 
     {
@@ -903,7 +903,7 @@ void DcpProducer::recordBackfillManagerBytesSent(size_t bytes) {
 }
 
 void DcpProducer::scheduleBackfillManager(VBucket& vb,
-                                          const active_stream_t& s,
+                                          std::shared_ptr<ActiveStream> s,
                                           uint64_t start,
                                           uint64_t end) {
     backfillMgr->schedule(vb, s, start, end);
@@ -1090,12 +1090,9 @@ std::unique_ptr<DcpResponse> DcpProducer::getNextItem() {
                 return NULL;
             }
 
-            stream_t stream;
-            {
-                stream = findStream(vbucket);
-                if (!stream) {
-                    continue;
-                }
+            std::shared_ptr<Stream> stream = findStream(vbucket);
+            if (!stream) {
+                continue;
             }
 
             auto response = stream->next();
@@ -1266,7 +1263,8 @@ void DcpProducer::scheduleCheckpointProcessorTask() {
     ExecutorPool::get()->schedule(checkpointCreatorTask);
 }
 
-void DcpProducer::scheduleCheckpointProcessorTask(const stream_t& s) {
+void DcpProducer::scheduleCheckpointProcessorTask(
+        std::shared_ptr<ActiveStream> s) {
     if (!checkpointCreatorTask) {
         throw std::logic_error(
                 "DcpProducer::scheduleCheckpointProcessorTask task is null");
@@ -1284,11 +1282,11 @@ void DcpProducer::clearCheckpointProcessorTaskQueues() {
         ->clearQueues();
 }
 
-SingleThreadedRCPtr<Stream> DcpProducer::findStream(uint16_t vbid) {
+std::shared_ptr<Stream> DcpProducer::findStream(uint16_t vbid) {
     auto it = streams.find(vbid);
     if (it.second) {
         return it.first;
     } else {
-        return SingleThreadedRCPtr<Stream>();
+        return nullptr;
     }
 }

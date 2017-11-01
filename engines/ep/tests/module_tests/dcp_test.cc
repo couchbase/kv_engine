@@ -129,18 +129,18 @@ protected:
         vb0 = engine->getVBucket(vbid);
         ASSERT_NE(nullptr, vb0.get());
         EXPECT_TRUE(vb0) << "Failed to get valid VBucket object for id 0";
-        stream = new MockActiveStream(engine,
-                                      producer,
-                                      flags,
-                                      /*opaque*/ 0,
-                                      *vb0,
-                                      /*st_seqno*/ 0,
-                                      /*en_seqno*/ ~0,
-                                      /*vb_uuid*/ 0xabcd,
-                                      /*snap_start_seqno*/ 0,
-                                      /*snap_end_seqno*/ ~0,
-                                      includeVal,
-                                      includeXattrs);
+        stream = std::make_shared<MockActiveStream>(engine,
+                                                    producer,
+                                                    flags,
+                                                    /*opaque*/ 0,
+                                                    *vb0,
+                                                    /*st_seqno*/ 0,
+                                                    /*en_seqno*/ ~0,
+                                                    /*vb_uuid*/ 0xabcd,
+                                                    /*snap_start_seqno*/ 0,
+                                                    /*snap_end_seqno*/ ~0,
+                                                    includeVal,
+                                                    includeXattrs);
 
         EXPECT_FALSE(vb0->checkpointManager->registerCursor(
                 producer->getName(), 1, false, MustSendCheckpointEnd::NO))
@@ -213,7 +213,7 @@ protected:
     }
 
     mock_dcp_producer_t producer;
-    stream_t stream;
+    std::shared_ptr<MockActiveStream> stream;
     VBucketPtr vb0;
 };
 
@@ -238,8 +238,10 @@ TEST_P(StreamTest, test_streamIsKeyOnlyTrue) {
     ASSERT_EQ(ENGINE_SUCCESS, err)
         << "stream request did not return ENGINE_SUCCESS";
 
-    stream = dynamic_cast<MockDcpProducer*>(producer.get())->findStream(0);
-    EXPECT_TRUE(dynamic_cast<ActiveStream*>(stream.get())->isKeyOnly());
+    auto activeStream =
+            std::dynamic_pointer_cast<ActiveStream>(producer->findStream(0));
+    ASSERT_NE(nullptr, activeStream);
+    EXPECT_TRUE(activeStream->isKeyOnly());
     destroy_dcp_stream();
 }
 
@@ -460,8 +462,10 @@ TEST_P(StreamTest, test_streamIsKeyOnlyFalseBecauseOfIncludeValue) {
     ASSERT_EQ(ENGINE_SUCCESS, err)
         << "stream request did not return ENGINE_SUCCESS";
 
-    stream = dynamic_cast<MockDcpProducer*>(producer.get())->findStream(0);
-    EXPECT_FALSE(dynamic_cast<ActiveStream*>(stream.get())->isKeyOnly());
+    auto activeStream =
+            std::dynamic_pointer_cast<ActiveStream>(producer->findStream(0));
+    ASSERT_NE(nullptr, activeStream);
+    EXPECT_FALSE(activeStream->isKeyOnly());
     destroy_dcp_stream();
 }
 
@@ -486,8 +490,10 @@ TEST_P(StreamTest, test_streamIsKeyOnlyFalseBecauseOfIncludeXattrs) {
     ASSERT_EQ(ENGINE_SUCCESS, err)
         << "stream request did not return ENGINE_SUCCESS";
 
-    stream = dynamic_cast<MockDcpProducer*>(producer.get())->findStream(0);
-    EXPECT_FALSE(dynamic_cast<ActiveStream*>(stream.get())->isKeyOnly());
+    auto activeStream =
+            std::dynamic_pointer_cast<ActiveStream>(producer->findStream(0));
+    ASSERT_NE(nullptr, activeStream);
+    EXPECT_FALSE(activeStream->isKeyOnly());
     destroy_dcp_stream();
 }
 
@@ -504,8 +510,7 @@ TEST_P(StreamTest, test_keyOnlyMessageSize) {
 
     setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::No);
     std::unique_ptr<DcpResponse> dcpResponse =
-            dynamic_cast<MockActiveStream*>(
-                    stream.get())->public_makeResponseFromItem(qi);
+            stream->public_makeResponseFromItem(qi);
 
     EXPECT_EQ(keyOnlyMessageSize, dcpResponse->getMessageSize());
     destroy_dcp_stream();
@@ -524,8 +529,7 @@ TEST_P(StreamTest, test_keyValueAndXattrsMessageSize) {
 
     setup_dcp_stream(0, IncludeValue::Yes, IncludeXattrs::Yes);
     std::unique_ptr<DcpResponse> dcpResponse =
-            dynamic_cast<MockActiveStream*>(
-                    stream.get())->public_makeResponseFromItem(qi);
+            stream->public_makeResponseFromItem(qi);
 
     EXPECT_EQ(keyAndValueMessageSize, dcpResponse->getMessageSize());
     destroy_dcp_stream();
@@ -544,8 +548,7 @@ TEST_P(StreamTest, test_keyAndValueMessageSize) {
 
     setup_dcp_stream(0, IncludeValue::Yes, IncludeXattrs::Yes);
     std::unique_ptr<DcpResponse> dcpResponse =
-            dynamic_cast<MockActiveStream*>(
-                    stream.get())->public_makeResponseFromItem(qi);
+            stream->public_makeResponseFromItem(qi);
 
     EXPECT_EQ(keyAndValueMessageSize, dcpResponse->getMessageSize());
     destroy_dcp_stream();
@@ -568,8 +571,7 @@ TEST_P(StreamTest, test_keyAndValueExcludingXattrsMessageSize) {
 
     setup_dcp_stream(0, IncludeValue::Yes, IncludeXattrs::No);
     std::unique_ptr<DcpResponse> dcpResponse =
-            dynamic_cast<MockActiveStream*>(
-                    stream.get())->public_makeResponseFromItem(qi);
+            stream->public_makeResponseFromItem(qi);
 
     EXPECT_EQ(keyAndValueMessageSize, dcpResponse->getMessageSize());
     destroy_dcp_stream();
@@ -589,8 +591,7 @@ TEST_P(StreamTest,
 
     setup_dcp_stream(0, IncludeValue::Yes, IncludeXattrs::No);
     std::unique_ptr<DcpResponse> dcpResponse =
-            dynamic_cast<MockActiveStream*>(
-                    stream.get())->public_makeResponseFromItem(qi);
+            stream->public_makeResponseFromItem(qi);
 
     EXPECT_EQ(keyAndValueMessageSize, dcpResponse->getMessageSize());
     destroy_dcp_stream();
@@ -613,8 +614,7 @@ TEST_P(StreamTest, test_keyAndValueExcludingValueDataMessageSize) {
 
     setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::Yes);
     std::unique_ptr<DcpResponse> dcpResponse =
-            dynamic_cast<MockActiveStream*>(
-                    stream.get())->public_makeResponseFromItem(qi);
+            stream->public_makeResponseFromItem(qi);
 
     EXPECT_EQ(keyAndValueMessageSize, dcpResponse->getMessageSize());
     destroy_dcp_stream();
@@ -631,11 +631,9 @@ TEST_P(StreamTest, backfillGetsNoItems) {
         store_item(vbid, "key", "value1");
         store_item(vbid, "key", "value2");
 
-        active_stream_t aStream = dynamic_cast<ActiveStream *>(stream.get());
-
         auto evb = std::shared_ptr<EphemeralVBucket>(
                 std::dynamic_pointer_cast<EphemeralVBucket>(vb0));
-        auto dcpbfm = DCPBackfillMemory(evb, aStream, 1, 1);
+        auto dcpbfm = DCPBackfillMemory(evb, stream, 1, 1);
         dcpbfm.run();
         destroy_dcp_stream();
     }
@@ -653,25 +651,25 @@ TEST_P(StreamTest, test_mb17766) {
     setup_dcp_stream();
 
     // Should start with nextCheckpointItem() returning true.
-    MockActiveStream* mock_stream = static_cast<MockActiveStream*>(stream.get());
-    EXPECT_TRUE(mock_stream->public_nextCheckpointItem())
-        << "nextCheckpointItem() should initially be true.";
+    EXPECT_TRUE(stream->public_nextCheckpointItem())
+            << "nextCheckpointItem() should initially be true.";
 
     std::vector<queued_item> items;
 
     // Get the set of outstanding items
-    mock_stream->public_getOutstandingItems(vb0, items);
+    stream->public_getOutstandingItems(vb0, items);
 
     // REGRESSION CHECK: nextCheckpointItem() should still return true
-    EXPECT_TRUE(mock_stream->public_nextCheckpointItem())
-        << "nextCheckpointItem() after getting outstanding items should be true.";
+    EXPECT_TRUE(stream->public_nextCheckpointItem())
+            << "nextCheckpointItem() after getting outstanding items should be "
+               "true.";
 
     // Process the set of items
-    mock_stream->public_processItems(items);
+    stream->public_processItems(items);
 
     // Should finish with nextCheckpointItem() returning false.
-    EXPECT_FALSE(mock_stream->public_nextCheckpointItem())
-        << "nextCheckpointItem() after processing items should be false.";
+    EXPECT_FALSE(stream->public_nextCheckpointItem())
+            << "nextCheckpointItem() after processing items should be false.";
     destroy_dcp_stream();
 }
 
@@ -697,42 +695,41 @@ TEST_P(StreamTest, MB17653_ItemsRemaining) {
     setup_dcp_stream();
 
     // Should start with one item remaining.
-    MockActiveStream* mock_stream = static_cast<MockActiveStream*>(stream.get());
-
-    EXPECT_EQ(1, mock_stream->getItemsRemaining())
-        << "Unexpected initial stream item count";
+    EXPECT_EQ(1, stream->getItemsRemaining())
+            << "Unexpected initial stream item count";
 
     // Populate the streams' ready queue with items from the checkpoint,
     // advancing the streams' cursor. Should result in no change in items
     // remaining (they still haven't been send out of the stream).
-    mock_stream->nextCheckpointItemTask();
-    EXPECT_EQ(1, mock_stream->getItemsRemaining())
-        << "Mismatch after moving items to ready queue";
+    stream->nextCheckpointItemTask();
+    EXPECT_EQ(1, stream->getItemsRemaining())
+            << "Mismatch after moving items to ready queue";
 
     // Add another mutation. As we have already iterated over all checkpoint
     // items and put into the streams' ready queue, de-duplication of this new
     // mutation (from the point of view of the stream) isn't possible, so items
     // remaining should increase by one.
     store_item(vbid, "key", "value");
-    EXPECT_EQ(2, mock_stream->getItemsRemaining())
-        << "Mismatch after populating readyQ and storing 1 more item";
+    EXPECT_EQ(2, stream->getItemsRemaining())
+            << "Mismatch after populating readyQ and storing 1 more item";
 
     // Now actually drain the items from the readyQ and see how many we received,
     // excluding meta items. This will result in all but one of the checkpoint
     // items (the one we added just above) being drained.
-    std::unique_ptr<DcpResponse> response(mock_stream->public_nextQueuedItem());
+    std::unique_ptr<DcpResponse> response(stream->public_nextQueuedItem());
     ASSERT_NE(nullptr, response);
     EXPECT_TRUE(response->isMetaEvent()) << "Expected 1st item to be meta";
 
-    response = mock_stream->public_nextQueuedItem();
+    response = stream->public_nextQueuedItem();
     ASSERT_NE(nullptr, response);
     EXPECT_FALSE(response->isMetaEvent()) << "Expected 2nd item to be non-meta";
 
-    response = mock_stream->public_nextQueuedItem();
+    response = stream->public_nextQueuedItem();
     EXPECT_EQ(nullptr, response) << "Expected there to not be a 3rd item.";
 
-    EXPECT_EQ(1, mock_stream->getItemsRemaining())
-        << "Expected to have 1 item remaining (in checkpoint) after draining readyQ";
+    EXPECT_EQ(1, stream->getItemsRemaining()) << "Expected to have 1 item "
+                                                 "remaining (in checkpoint) "
+                                                 "after draining readyQ";
 
     // Add another 10 mutations on a different key. This should only result in
     // us having one more item (not 10) due to de-duplication in
@@ -741,17 +738,18 @@ TEST_P(StreamTest, MB17653_ItemsRemaining) {
         store_item(vbid, "key_2", "value");
     }
 
-    EXPECT_EQ(2, mock_stream->getItemsRemaining())
-        << "Expected two items after adding 1 more to existing checkpoint";
+    EXPECT_EQ(2, stream->getItemsRemaining())
+            << "Expected two items after adding 1 more to existing checkpoint";
 
     // Copy items into readyQ a second time, and drain readyQ so we should
     // have no items left.
-    mock_stream->nextCheckpointItemTask();
+    stream->nextCheckpointItemTask();
     do {
-        response = mock_stream->public_nextQueuedItem();
+        response = stream->public_nextQueuedItem();
     } while (response);
-    EXPECT_EQ(0, mock_stream->getItemsRemaining())
-        << "Should have 0 items remaining after advancing cursor and draining readyQ";
+    EXPECT_EQ(0, stream->getItemsRemaining()) << "Should have 0 items "
+                                                 "remaining after advancing "
+                                                 "cursor and draining readyQ";
     destroy_dcp_stream();
 }
 
@@ -762,29 +760,28 @@ TEST_P(StreamTest, test_mb18625) {
     setup_dcp_stream();
 
     // Should start with nextCheckpointItem() returning true.
-    MockActiveStream* mock_stream = static_cast<MockActiveStream*>(stream.get());
-    EXPECT_TRUE(mock_stream->public_nextCheckpointItem())
-        << "nextCheckpointItem() should initially be true.";
+    EXPECT_TRUE(stream->public_nextCheckpointItem())
+            << "nextCheckpointItem() should initially be true.";
 
     std::vector<queued_item> items;
 
     // Get the set of outstanding items
-    mock_stream->public_getOutstandingItems(vb0, items);
+    stream->public_getOutstandingItems(vb0, items);
 
     // Set stream to DEAD to simulate a close stream request
-    mock_stream->setDead(END_STREAM_CLOSED);
+    stream->setDead(END_STREAM_CLOSED);
 
     // Process the set of items retrieved from checkpoint queues previously
-    mock_stream->public_processItems(items);
+    stream->public_processItems(items);
 
     // Retrieve the next message in the stream's readyQ
-    auto op = mock_stream->public_nextQueuedItem();
+    auto op = stream->public_nextQueuedItem();
     EXPECT_EQ(DcpResponse::Event::StreamEnd, op->getEvent())
         << "Expected the STREAM_END message";
 
     // Expect no other message to be queued after stream end message
-    EXPECT_EQ(0, (mock_stream->public_readyQ()).size())
-        << "Expected no more messages in the readyQ";
+    EXPECT_EQ(0, (stream->public_readyQ()).size())
+            << "Expected no more messages in the readyQ";
     destroy_dcp_stream();
 }
 
@@ -796,27 +793,25 @@ TEST_P(StreamTest, BackfillOnly) {
 
     /* Set up a DCP stream for the backfill */
     setup_dcp_stream();
-    MockActiveStream* mock_stream =
-            static_cast<MockActiveStream*>(stream.get());
 
     /* We want the backfill task to run in a background thread */
     ExecutorPool::get()->setNumAuxIO(1);
-    mock_stream->transitionStateToBackfilling();
+    stream->transitionStateToBackfilling();
 
     /* Wait for the backfill task to complete */
     {
         std::chrono::microseconds uSleepTime(128);
-        while (numItems != mock_stream->getLastReadSeqno()) {
+        while (numItems != stream->getLastReadSeqno()) {
             uSleepTime = decayingSleep(uSleepTime);
         }
     }
 
     /* Verify that all items are read in the backfill */
-    EXPECT_EQ(numItems, mock_stream->getNumBackfillItems());
+    EXPECT_EQ(numItems, stream->getNumBackfillItems());
 
     /* Since backfill items are sitting in the readyQ, check if the stat is
        updated correctly */
-    EXPECT_EQ(numItems, mock_stream->getNumBackfillItemsRemaining());
+    EXPECT_EQ(numItems, stream->getNumBackfillItemsRemaining());
 
     destroy_dcp_stream();
     /* [TODO]: Expand the testcase to check if snapshot marker, all individual
@@ -839,8 +834,6 @@ TEST_P(StreamTest, BackfillSmallBuffer) {
 
     /* Set up a DCP stream for the backfill */
     setup_dcp_stream();
-    MockActiveStream* mock_stream =
-            dynamic_cast<MockActiveStream*>(stream.get());
 
     /* set the DCP backfill buffer size to a value that is smaller than the
        size of a mutation */
@@ -850,18 +843,18 @@ TEST_P(StreamTest, BackfillSmallBuffer) {
 
     /* We want the backfill task to run in a background thread */
     ExecutorPool::get()->setNumAuxIO(1);
-    mock_stream->transitionStateToBackfilling();
+    stream->transitionStateToBackfilling();
 
     /* Backfill can only read 1 as its buffer will become full after that */
     {
         std::chrono::microseconds uSleepTime(128);
-        while ((numItems - 1) != mock_stream->getLastReadSeqno()) {
+        while ((numItems - 1) != stream->getLastReadSeqno()) {
             uSleepTime = decayingSleep(uSleepTime);
         }
     }
 
     /* Consume the backfill item(s) */
-    mock_stream->consumeBackfillItems(/*snapshot*/ 1 + /*mutation*/ 1);
+    stream->consumeBackfillItems(/*snapshot*/ 1 + /*mutation*/ 1);
 
     /* We should see that buffer full status must be false as we have read
        the item in the backfill buffer */
@@ -870,13 +863,13 @@ TEST_P(StreamTest, BackfillSmallBuffer) {
     /* Finish up with the backilling of the remaining item */
     {
         std::chrono::microseconds uSleepTime(128);
-        while (numItems != mock_stream->getLastReadSeqno()) {
+        while (numItems != stream->getLastReadSeqno()) {
             uSleepTime = decayingSleep(uSleepTime);
         }
     }
 
     /* Read the other item */
-    mock_stream->consumeBackfillItems(1);
+    stream->consumeBackfillItems(1);
     destroy_dcp_stream();
 }
 
@@ -918,25 +911,23 @@ TEST_P(StreamTest, EphemeralBackfillSnapshotHasNoDuplicates) {
 
     /* Set up a DCP stream for the backfill */
     setup_dcp_stream();
-    MockActiveStream* mock_stream =
-            static_cast<MockActiveStream*>(stream.get());
 
     /* We want the backfill task to run in a background thread */
     ExecutorPool::get()->setNumAuxIO(1);
-    mock_stream->transitionStateToBackfilling();
+    stream->transitionStateToBackfilling();
 
     /* Wait for the backfill task to complete */
     {
         std::chrono::microseconds uSleepTime(128);
         uint64_t expLastReadSeqno = 4 /*numItems*/ + 4 /*num updates*/;
         while (expLastReadSeqno !=
-               static_cast<uint64_t>(mock_stream->getLastReadSeqno())) {
+               static_cast<uint64_t>(stream->getLastReadSeqno())) {
             uSleepTime = decayingSleep(uSleepTime);
         }
     }
 
     /* Verify that only 4 items are read in the backfill (no duplicates) */
-    EXPECT_EQ(numItems, mock_stream->getNumBackfillItems());
+    EXPECT_EQ(numItems, stream->getNumBackfillItems());
 
     destroy_dcp_stream();
 }
@@ -948,13 +939,11 @@ TEST_P(StreamTest, CursorDroppingBasicBackfillState) {
 
     /* Set up a DCP stream */
     setup_dcp_stream();
-    MockActiveStream* mock_stream =
-            dynamic_cast<MockActiveStream*>(stream.get());
 
     /* Transition stream to backfill state and expect cursor dropping call to
        succeed */
-    mock_stream->transitionStateToBackfilling();
-    EXPECT_TRUE(mock_stream->public_handleSlowStream());
+    stream->transitionStateToBackfilling();
+    EXPECT_TRUE(stream->public_handleSlowStream());
 
     /* Run the backfill task in background thread to run so that it can
        complete/cancel itself */
@@ -962,7 +951,7 @@ TEST_P(StreamTest, CursorDroppingBasicBackfillState) {
     /* Finish up with the backilling of the remaining item */
     {
         std::chrono::microseconds uSleepTime(128);
-        while (numItems != mock_stream->getLastReadSeqno()) {
+        while (numItems != stream->getLastReadSeqno()) {
             uSleepTime = decayingSleep(uSleepTime);
         }
     }
@@ -972,38 +961,34 @@ TEST_P(StreamTest, CursorDroppingBasicBackfillState) {
 TEST_P(StreamTest, CursorDroppingBasicInMemoryState) {
     /* Set up a DCP stream */
     setup_dcp_stream();
-    MockActiveStream* mock_stream =
-            dynamic_cast<MockActiveStream*>(stream.get());
 
     /* Transition stream to in-memory state and expect cursor dropping call to
        succeed */
-    mock_stream->transitionStateToBackfilling();
-    mock_stream->transitionStateToInMemory();
-    EXPECT_TRUE(mock_stream->public_handleSlowStream());
+    stream->transitionStateToBackfilling();
+    stream->transitionStateToInMemory();
+    EXPECT_TRUE(stream->public_handleSlowStream());
     destroy_dcp_stream();
 }
 
 TEST_P(StreamTest, CursorDroppingBasicNotAllowedStates) {
     /* Set up a DCP stream */
     setup_dcp_stream(DCP_ADD_STREAM_FLAG_TAKEOVER);
-    MockActiveStream* mock_stream =
-            dynamic_cast<MockActiveStream*>(stream.get());
 
     /* Transition stream to takeoverSend state and expect cursor dropping call
        to fail */
-    mock_stream->transitionStateToBackfilling();
-    mock_stream->transitionStateToTakeoverSend();
-    EXPECT_FALSE(mock_stream->public_handleSlowStream());
+    stream->transitionStateToBackfilling();
+    stream->transitionStateToTakeoverSend();
+    EXPECT_FALSE(stream->public_handleSlowStream());
 
     /* Transition stream to takeoverWait state and expect cursor dropping call
        to fail */
-    mock_stream->transitionStateToTakeoverWait();
-    EXPECT_FALSE(mock_stream->public_handleSlowStream());
+    stream->transitionStateToTakeoverWait();
+    EXPECT_FALSE(stream->public_handleSlowStream());
 
     /* Transition stream to takeoverSend state and expect cursor dropping call
        to fail */
-    mock_stream->transitionStateToTakeoverDead();
-    EXPECT_FALSE(mock_stream->public_handleSlowStream());
+    stream->transitionStateToTakeoverDead();
+    EXPECT_FALSE(stream->public_handleSlowStream());
     destroy_dcp_stream();
 }
 
@@ -1126,11 +1111,9 @@ protected:
  * ENGINE_KEY_EEXISTS.
  */
 TEST_P(CacheCallbackTest, CacheCallback_key_eexists) {
-    MockActiveStream* mockStream = static_cast<MockActiveStream*>(stream.get());
-    active_stream_t activeStream(mockStream);
-    CacheCallback callback(*engine, activeStream);
+    CacheCallback callback(*engine, stream);
 
-    mockStream->transitionStateToBackfilling();
+    stream->transitionStateToBackfilling();
     CacheLookup lookup(docKey, /*BySeqno*/ 1, vbid);
     callback.callback(lookup);
 
@@ -1141,10 +1124,10 @@ TEST_P(CacheCallbackTest, CacheCallback_key_eexists) {
     EXPECT_EQ(ENGINE_KEY_EEXISTS, callback.getStatus());
 
     /* Verify that the item is read in the backfill */
-    EXPECT_EQ(numItems, mockStream->getNumBackfillItems());
+    EXPECT_EQ(numItems, stream->getNumBackfillItems());
 
     /* Verify have the backfill item sitting in the readyQ */
-    EXPECT_EQ(numItems, mockStream->public_readyQ().size());
+    EXPECT_EQ(numItems, stream->public_readyQ().size());
 }
 
 /*
@@ -1153,11 +1136,9 @@ TEST_P(CacheCallbackTest, CacheCallback_key_eexists) {
  * ENGINE_SUCCESS.
  */
 TEST_P(CacheCallbackTest, CacheCallback_engine_success) {
-    MockActiveStream* mockStream = static_cast<MockActiveStream*>(stream.get());
-    active_stream_t activeStream(mockStream);
-    CacheCallback callback(*engine, activeStream);
+    CacheCallback callback(*engine, stream);
 
-    mockStream->transitionStateToBackfilling();
+    stream->transitionStateToBackfilling();
     // Passing in wrong BySeqno - should be 1, but passing in 0
     CacheLookup lookup(docKey, /*BySeqno*/ 0, vbid);
     callback.callback(lookup);
@@ -1169,10 +1150,10 @@ TEST_P(CacheCallbackTest, CacheCallback_engine_success) {
     EXPECT_EQ(ENGINE_SUCCESS, callback.getStatus());
 
     /* Verify that the item is not read in the backfill */
-    EXPECT_EQ(0, mockStream->getNumBackfillItems());
+    EXPECT_EQ(0, stream->getNumBackfillItems());
 
     /* Verify do not have the backfill item sitting in the readyQ */
-    EXPECT_EQ(0, mockStream->public_readyQ().size());
+    EXPECT_EQ(0, stream->public_readyQ().size());
 }
 
 /*
@@ -1187,11 +1168,9 @@ TEST_P(CacheCallbackTest, CacheCallback_engine_success_not_resident) {
          */
         return;
     }
-    MockActiveStream* mockStream = static_cast<MockActiveStream*>(stream.get());
-    active_stream_t activeStream(mockStream);
-    CacheCallback callback(*engine, activeStream);
+    CacheCallback callback(*engine, stream);
 
-    mockStream->transitionStateToBackfilling();
+    stream->transitionStateToBackfilling();
     CacheLookup lookup(docKey, /*BySeqno*/ 1, vbid);
     // Make the key non-resident by evicting the key
     const char* msg;
@@ -1205,10 +1184,10 @@ TEST_P(CacheCallbackTest, CacheCallback_engine_success_not_resident) {
     EXPECT_EQ(ENGINE_SUCCESS, callback.getStatus());
 
     /* Verify that the item is not read in the backfill */
-    EXPECT_EQ(0, mockStream->getNumBackfillItems());
+    EXPECT_EQ(0, stream->getNumBackfillItems());
 
     /* Verify do not have the backfill item sitting in the readyQ */
-    EXPECT_EQ(0, mockStream->public_readyQ().size());
+    EXPECT_EQ(0, stream->public_readyQ().size());
 }
 
 /*
@@ -1225,11 +1204,9 @@ TEST_P(CacheCallbackTest, CacheCallback_engine_enomem) {
     dynamic_cast<MockDcpProducer*>(producer.get())->setBackfillBufferSize(0);
     dynamic_cast<MockDcpProducer*>(producer.get())->bytesForceRead(1);
 
-    MockActiveStream* mockStream = static_cast<MockActiveStream*>(stream.get());
-    active_stream_t activeStream(mockStream);
-    CacheCallback callback(*engine, activeStream);
+    CacheCallback callback(*engine, stream);
 
-    mockStream->transitionStateToBackfilling();
+    stream->transitionStateToBackfilling();
     CacheLookup lookup(docKey, /*BySeqno*/ 1, vbid);
     callback.callback(lookup);
 
@@ -1241,10 +1218,10 @@ TEST_P(CacheCallbackTest, CacheCallback_engine_enomem) {
     EXPECT_EQ(ENGINE_ENOMEM, callback.getStatus());
 
     /* Verify that the item is not read in the backfill */
-    EXPECT_EQ(0, mockStream->getNumBackfillItems());
+    EXPECT_EQ(0, stream->getNumBackfillItems());
 
     /* Verify do not have the backfill item sitting in the readyQ */
-    EXPECT_EQ(0, mockStream->public_readyQ().size());
+    EXPECT_EQ(0, stream->public_readyQ().size());
 }
 
 class ConnectionTest : public DCPTest,

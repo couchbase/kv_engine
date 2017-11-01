@@ -92,7 +92,7 @@ public:
     /**
      * Finds the stream for a given vbucket
      */
-    SingleThreadedRCPtr<Stream> findStream(uint16_t vbid) {
+    std::shared_ptr<Stream> findStream(uint16_t vbid) {
         return DcpProducer::findStream(vbid);
     }
 

@@ -34,7 +34,7 @@
 class DCPBackfillMemory : public DCPBackfill {
 public:
     DCPBackfillMemory(EphemeralVBucketPtr evb,
-                      const active_stream_t& s,
+                      std::shared_ptr<ActiveStream> s,
                       uint64_t startSeqno,
                       uint64_t endSeqno);
 
@@ -61,7 +61,7 @@ private:
 class DCPBackfillMemoryBuffered : public DCPBackfill {
 public:
     DCPBackfillMemoryBuffered(EphemeralVBucketPtr evb,
-                              const active_stream_t& s,
+                              std::shared_ptr<ActiveStream> s,
                               uint64_t startSeqno,
                               uint64_t endSeqno);
 

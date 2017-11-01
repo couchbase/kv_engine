@@ -217,7 +217,8 @@ const std::string to_string(Stream::Type type);
 
 class ActiveStreamCheckpointProcessorTask;
 
-class ActiveStream : public Stream {
+class ActiveStream : public Stream,
+                     public std::enable_shared_from_this<ActiveStream> {
 public:
     ActiveStream(EventuallyPersistentEngine* e,
                  dcp_producer_t p,
@@ -520,7 +521,7 @@ public:
     }
 
     bool run();
-    void schedule(const stream_t& stream);
+    void schedule(std::shared_ptr<ActiveStream> stream);
     void wakeup();
     void clearQueues();
     size_t queueSize() {
@@ -529,10 +530,9 @@ public:
     }
 
 private:
-
-    stream_t queuePop() {
-        stream_t rval;
+    std::shared_ptr<ActiveStream> queuePop() {
         LockHolder lh(workQueueLock);
+        std::shared_ptr<ActiveStream> rval;
         if (!queue.empty()) {
             rval = queue.front();
             queue.pop();
@@ -546,7 +546,7 @@ private:
         return queue.empty();
     }
 
-    void pushUnique(const stream_t& stream) {
+    void pushUnique(std::shared_ptr<ActiveStream> stream) {
         LockHolder lh(workQueueLock);
         if (queuedVbuckets.count(stream->getVBucket()) == 0) {
             queue.push(stream);
@@ -560,7 +560,7 @@ private:
      * Maintain a queue of unique stream_t
      * There's no need to have the same stream in the queue more than once
      */
-    std::queue<stream_t> queue;
+    std::queue<std::shared_ptr<ActiveStream>> queue;
     std::set<uint16_t> queuedVbuckets;
 
     std::atomic<bool> notified;

@@ -134,7 +134,7 @@ public:
     bool recordBackfillManagerBytesRead(size_t bytes, bool force);
     void recordBackfillManagerBytesSent(size_t bytes);
     void scheduleBackfillManager(VBucket& vb,
-                                 const active_stream_t& s,
+                                 std::shared_ptr<ActiveStream> s,
                                  uint64_t start,
                                  uint64_t end);
 
@@ -232,7 +232,7 @@ private:
         Schedules active stream checkpoint processor task
         for given stream.
     */
-    void scheduleCheckpointProcessorTask(const stream_t& s);
+    void scheduleCheckpointProcessorTask(std::shared_ptr<ActiveStream> s);
 
     /*
         Clears active stream checkpoint processor task's queue.
@@ -243,7 +243,7 @@ protected:
     /** Searches the streams map for a stream for vbucket ID. Returns the
      *  found stream, or an empty pointer if none found.
      */
-    SingleThreadedRCPtr<Stream> findStream(uint16_t vbid);
+    std::shared_ptr<Stream> findStream(uint16_t vbid);
 
     /** We may disconnect if noop messages are enabled and the last time we
      *  received any message (including a noop) exceeds the dcpTimeout.
@@ -289,7 +289,6 @@ protected:
     std::unique_ptr<DcpResponse> getNextItem();
 
     size_t getItemsRemaining();
-    stream_t findStreamByVbid(uint16_t vbid);
 
     std::string priority;
 
@@ -314,7 +313,7 @@ protected:
     DcpReadyQueue ready;
 
     // Map of vbid -> stream. Map itself is atomic (thread-safe).
-    typedef AtomicUnorderedMap<uint16_t, SingleThreadedRCPtr<Stream>> StreamsMap;
+    typedef AtomicUnorderedMap<uint16_t, std::shared_ptr<Stream>> StreamsMap;
     StreamsMap streams;
 
     std::atomic<size_t> itemsSent;

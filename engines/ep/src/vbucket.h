@@ -1071,7 +1071,8 @@ public:
      * Creates a DCP backfill object
      *
      * @param e ref to EventuallyPersistentEngine
-     * @param stream ref to the stream for which this backfill obj is created
+     * @param stream Shared ptr to the stream for which this backfill obj is
+     *               created
      * @param startSeqno requested start sequence number of the backfill
      * @param endSeqno requested end sequence number of the backfill
      *
@@ -1080,7 +1081,7 @@ public:
      */
     virtual std::unique_ptr<DCPBackfill> createDCPBackfill(
             EventuallyPersistentEngine& e,
-            const active_stream_t& stream,
+            std::shared_ptr<ActiveStream> stream,
             uint64_t startSeqno,
             uint64_t endSeqno) = 0;
 

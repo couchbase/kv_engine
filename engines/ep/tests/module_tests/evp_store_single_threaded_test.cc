@@ -183,7 +183,7 @@ TEST_F(SingleThreadedEPBucketTest, MB22421_backfilling_but_task_finished) {
                                                         /*notifyOnly*/ false,
                                                         {/*nojson*/});
      // Create a Mock Active Stream
-     stream_t stream = new MockActiveStream(
+     auto mock_stream = std::make_shared<MockActiveStream>(
              static_cast<EventuallyPersistentEngine*>(engine.get()),
              producer,
              /*flags*/ 0,
@@ -196,9 +196,6 @@ TEST_F(SingleThreadedEPBucketTest, MB22421_backfilling_but_task_finished) {
              /*snap_end_seqno*/ ~0,
              IncludeValue::Yes,
              IncludeXattrs::Yes);
-
-     MockActiveStream* mock_stream =
-             static_cast<MockActiveStream*>(stream.get());
 
      mock_stream->transitionStateToBackfilling();
      ASSERT_TRUE(mock_stream->isInMemory())
@@ -244,7 +241,7 @@ TEST_F(SingleThreadedEPBucketTest, MB22421_reregister_cursor) {
                                                        /*flags*/ 0,
                                                        {/*no json*/});
     // Create a Mock Active Stream
-    stream_t stream = new MockActiveStream(
+    auto mock_stream = std::make_shared<MockActiveStream>(
             static_cast<EventuallyPersistentEngine*>(engine.get()),
             producer,
             /*flags*/ 0,
@@ -257,9 +254,6 @@ TEST_F(SingleThreadedEPBucketTest, MB22421_reregister_cursor) {
             /*snap_end_seqno*/ ~0,
             IncludeValue::Yes,
             IncludeXattrs::Yes);
-
-    MockActiveStream* mock_stream =
-            static_cast<MockActiveStream*>(stream.get());
 
     mock_stream->transitionStateToBackfilling();
     EXPECT_TRUE(mock_stream->isInMemory())
@@ -327,7 +321,7 @@ TEST_F(SingleThreadedEPBucketTest, MB22421_reregister_cursor) {
 // test MB22960_cursor_dropping_data_loss.
 void MB22960callbackBeforeRegisterCursor(
         EPBucket* store,
-        MockActiveStreamWithOverloadedRegisterCursor* mock_stream,
+        MockActiveStreamWithOverloadedRegisterCursor& mock_stream,
         VBucketPtr vb,
         size_t& registerCursorCount) {
     EXPECT_LE(registerCursorCount, 1);
@@ -339,11 +333,11 @@ void MB22960callbackBeforeRegisterCursor(
         CheckpointManager& ckpt_mgr = *vb->checkpointManager;
 
         //pendingBackfill has now been cleared
-        EXPECT_FALSE(mock_stream->public_getPendingBackfill())
-        << "pendingBackfill is not false";
+        EXPECT_FALSE(mock_stream.public_getPendingBackfill())
+                << "pendingBackfill is not false";
         // we are now in backfill mode
-        EXPECT_TRUE(mock_stream->public_isBackfillTaskRunning())
-        << "isBackfillRunning is not true";
+        EXPECT_TRUE(mock_stream.public_isBackfillTaskRunning())
+                << "isBackfillRunning is not true";
 
         //Add a doc and close previous checkpoint
         auto item3 = make_item(vb->getId(), makeStoredDocKey("key3"), "value",
@@ -395,32 +389,30 @@ TEST_F(SingleThreadedEPBucketTest, MB22960_cursor_dropping_data_loss) {
                                                        /*flags*/ 0,
                                                        {/*no json*/});
     // Create a Mock Active Stream
-    stream_t stream = new MockActiveStreamWithOverloadedRegisterCursor(
-            static_cast<EventuallyPersistentEngine*>(engine.get()),
-            producer,
-            /*flags*/ 0,
-            /*opaque*/ 0,
-            *vb,
-            /*st_seqno*/ 0,
-            /*en_seqno*/ ~0,
-            /*vb_uuid*/ 0xabcd,
-            /*snap_start_seqno*/ 0,
-            /*snap_end_seqno*/ ~0,
-            IncludeValue::Yes,
-            IncludeXattrs::Yes);
+    auto mock_stream =
+            std::make_shared<MockActiveStreamWithOverloadedRegisterCursor>(
+                    static_cast<EventuallyPersistentEngine*>(engine.get()),
+                    producer,
+                    /*flags*/ 0,
+                    /*opaque*/ 0,
+                    *vb,
+                    /*st_seqno*/ 0,
+                    /*en_seqno*/ ~0,
+                    /*vb_uuid*/ 0xabcd,
+                    /*snap_start_seqno*/ 0,
+                    /*snap_end_seqno*/ ~0,
+                    IncludeValue::Yes,
+                    IncludeXattrs::Yes);
 
-    MockActiveStreamWithOverloadedRegisterCursor* mock_stream =
-            static_cast<MockActiveStreamWithOverloadedRegisterCursor*>(
-                    stream.get());
-
+    auto& mockStreamObj = *mock_stream;
     mock_stream->setCallbackBeforeRegisterCursor(
-            [this, mock_stream, vb, &registerCursorCount]() {
+            [this, &mockStreamObj, vb, &registerCursorCount]() {
                 MB22960callbackBeforeRegisterCursor(
-                        &getEPBucket(), mock_stream, vb, registerCursorCount);
+                        &getEPBucket(), mockStreamObj, vb, registerCursorCount);
             });
 
     mock_stream->setCallbackAfterRegisterCursor(
-            [mock_stream, &registerCursorCount]() {
+            [&mock_stream, &registerCursorCount]() {
                 // This callback is called every time a backfill is performed.
                 // It is called immediately after completing
                 // ActiveStream::registerCursor.
@@ -627,26 +619,23 @@ TEST_F(SingleThreadedEPBucketTest, MB25056_do_not_set_pendingBackfill_to_true) {
                                                        /*flags*/ 0,
                                                        {/*no json*/});
     // Create a Mock Active Stream
-    stream_t stream = new MockActiveStreamWithOverloadedRegisterCursor(
-            static_cast<EventuallyPersistentEngine*>(engine.get()),
-            producer,
-            /*flags*/ 0,
-            /*opaque*/ 0,
-            *vb,
-            /*st_seqno*/ 0,
-            /*en_seqno*/ 4,
-            /*vb_uuid*/ 0xabcd,
-            /*snap_start_seqno*/ 0,
-            /*snap_end_seqno*/ ~0,
-            IncludeValue::Yes,
-            IncludeXattrs::Yes);
-
-    MockActiveStreamWithOverloadedRegisterCursor* mock_stream =
-            static_cast<MockActiveStreamWithOverloadedRegisterCursor*>(
-                    stream.get());
+    auto mock_stream =
+            std::make_shared<MockActiveStreamWithOverloadedRegisterCursor>(
+                    static_cast<EventuallyPersistentEngine*>(engine.get()),
+                    producer,
+                    /*flags*/ 0,
+                    /*opaque*/ 0,
+                    *vb,
+                    /*st_seqno*/ 0,
+                    /*en_seqno*/ 4,
+                    /*vb_uuid*/ 0xabcd,
+                    /*snap_start_seqno*/ 0,
+                    /*snap_end_seqno*/ ~0,
+                    IncludeValue::Yes,
+                    IncludeXattrs::Yes);
 
     mock_stream->setCallbackBeforeRegisterCursor(
-            [mock_stream, this, vb, &registerCursorCount]() {
+            [this, vb, &registerCursorCount]() {
                 // This callback function is called every time a backfill is
                 // performed. It is called immediately prior to executing
                 // ActiveStream::registerCursor.
@@ -654,7 +643,7 @@ TEST_F(SingleThreadedEPBucketTest, MB25056_do_not_set_pendingBackfill_to_true) {
             });
 
     mock_stream->setCallbackAfterRegisterCursor(
-            [mock_stream, &registerCursorCount]() {
+            [&mock_stream, &registerCursorCount]() {
                 // This callback function is called every time a backfill is
                 // performed. It is called immediately after completing
                 // ActiveStream::registerCursor.
@@ -742,7 +731,7 @@ TEST_F(SingleThreadedEPBucketTest, test_mb22451) {
     // Create a Mock Active Stream
     auto vb = store->getVBucket(vbid);
     ASSERT_NE(nullptr, vb.get());
-    stream_t stream = new MockActiveStream(
+    auto mock_stream = std::make_shared<MockActiveStream>(
             static_cast<EventuallyPersistentEngine*>(engine.get()),
             producer,
             /*flags*/ 0,
@@ -755,9 +744,6 @@ TEST_F(SingleThreadedEPBucketTest, test_mb22451) {
             /*snap_end_seqno*/ ~0,
             IncludeValue::Yes,
             IncludeXattrs::Yes);
-
-    MockActiveStream* mock_stream =
-            static_cast<MockActiveStream*>(stream.get());
 
     /**
       * The core of the test follows:
