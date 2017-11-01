@@ -158,7 +158,7 @@ struct Response {
      * Validate that the header is "sane" (correct magic, and extlen+keylen
      * doesn't exceed the body size)
      */
-    bool validate() {
+    bool validate() const {
         auto m = Magic(magic);
         if (m != Magic::ClientResponse && m != Magic::ServerResponse) {
             return false;
