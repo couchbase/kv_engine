@@ -755,25 +755,15 @@ void initialize_mbcp_lookup_map(void) {
             process_bin_dcp_response;
 }
 
-static protocol_binary_response_status validate_bin_header(McbpConnection* c) {
-    if (c->binary_header.request.bodylen >=
-        (c->binary_header.request.keylen + c->binary_header.request.extlen)) {
-        return PROTOCOL_BINARY_RESPONSE_SUCCESS;
-    } else {
-        return PROTOCOL_BINARY_RESPONSE_EINVAL;
-    }
-}
+static void execute_request_packet(Cookie& cookie,
+                                   const cb::mcbp::Request& request) {
+    auto* c = &cookie.getConnection();
 
-static void execute_request_packet(McbpConnection* c) {
     static McbpPrivilegeChains privilegeChains;
     protocol_binary_response_status result;
 
-    char* packet =
-            static_cast<char*>(c->getCookieObject().getPacketAsVoidPtr());
-    auto opcode = static_cast<protocol_binary_command>(c->binary_header.request.opcode);
+    const auto opcode = request.opcode;
     auto executor = executors[opcode];
-    auto& cookie = c->getCookieObject();
-
     const auto res = privilegeChains.invoke(opcode, c->getCookieObject());
     switch (res) {
     case cb::rbac::PrivilegeAccess::Fail:
@@ -792,9 +782,10 @@ static void execute_request_packet(McbpConnection* c) {
 
         return;
     case cb::rbac::PrivilegeAccess::Ok:
-        result = validate_bin_header(c);
-        if (result == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        if (request.validate()) {
             result = c->validateCommand(opcode);
+        } else {
+            result = PROTOCOL_BINARY_RESPONSE_EINVAL;
         }
 
         if (result != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
@@ -808,8 +799,8 @@ static void execute_request_packet(McbpConnection* c) {
             return;
         }
 
-        if (executor != NULL) {
-            executor(c, packet);
+        if (executor != nullptr) {
+            executor(c, const_cast<void*>(static_cast<const void*>(&request)));
         } else {
             handlers[opcode](cookie);
         }
@@ -833,18 +824,21 @@ static void execute_request_packet(McbpConnection* c) {
 /**
  * We've received a response packet. Parse and execute it
  *
- * @param c The connection receiving the packet
+ * @param cookie the current command context
+ * @param response the actual response packet
  */
-static void execute_response_packet(McbpConnection* c) {
-    auto handler = response_handlers[c->binary_header.request.opcode];
+static void execute_response_packet(Cookie& cookie,
+                                    const cb::mcbp::Response& response) {
+    auto handler = response_handlers[response.opcode];
     if (handler) {
-        handler(c);
+        handler(&cookie.getConnection());
     } else {
-        LOG_NOTICE(c,
+        auto& c = cookie.getConnection();
+        LOG_NOTICE(&cookie.getConnection(),
                    "%u: Unsupported response packet received with opcode: %02x",
-                   c->getId(),
-                   c->binary_header.request.opcode);
-        c->setState(McbpStateMachine::State::closing);
+                   c.getId(),
+                   response.opcode);
+        c.setState(McbpStateMachine::State::closing);
     }
 }
 
@@ -883,31 +877,26 @@ static cb::mcbp::Status validate_packet_execusion_constraints(Cookie& cookie) {
     return cb::mcbp::Status::Success;
 }
 
-void mcbp_execute_packet(McbpConnection* c) {
-    if (c->getCookieObject().getHeader().isResponse()) {
-        execute_response_packet(c);
+void mcbp_execute_packet(Cookie& cookie) {
+    const auto& header = cookie.getHeader();
+    if (header.isResponse()) {
+        execute_response_packet(cookie, header.getResponse());
     } else {
         // We've already verified that the packet is a legal packet
         // so it must be a request
-        execute_request_packet(c);
+        execute_request_packet(cookie, header.getRequest());
     }
 }
 
-void try_read_mcbp_command(McbpConnection* c) {
-    if (c == nullptr) {
-        throw std::logic_error(
-                "try_read_mcbp_command: Internal error, connection is not "
-                "mcbp");
-    }
-
-    auto input = c->read->rdata();
+void try_read_mcbp_command(McbpConnection& c) {
+    auto input = c.read->rdata();
     if (input.size() < sizeof(cb::mcbp::Request)) {
         throw std::logic_error(
                 "try_read_mcbp_command: header not present (got " +
-                std::to_string(c->read->rsize()) + " of " +
+                std::to_string(c.read->rsize()) + " of " +
                 std::to_string(sizeof(cb::mcbp::Request)) + ")");
     }
-    auto& cookie = c->getCookieObject();
+    auto& cookie = c.getCookieObject();
     cookie.setPacket(
             Cookie::PacketContent::Header,
             cb::const_byte_buffer{input.data(), sizeof(cb::mcbp::Request)});
@@ -918,90 +907,91 @@ void try_read_mcbp_command(McbpConnection* c) {
         ssize_t nw;
         nw = bytes_to_output_string(buffer,
                                     sizeof(buffer),
-                                    c->getId(),
+                                    c.getId(),
                                     true,
                                     "Read binary protocol data:",
                                     (const char*)input.data(),
                                     sizeof(cb::mcbp::Request));
         if (nw != -1) {
-            LOG_DEBUG(c, "%s", buffer);
+            LOG_DEBUG(&c, "%s", buffer);
         }
     }
 
     const auto& header = cookie.getHeader();
     if (!header.isResponse() && !header.isRequest()) {
-        LOG_WARNING(c,
+        LOG_WARNING(&c,
                     "%u: Invalid packet format detected (magic: %02x), closing "
                     "connection",
-                    c->getId(),
-                    c->binary_header.request.magic);
-        c->setState(McbpStateMachine::State::closing);
+                    c.getId(),
+                    header.getMagic());
+        c.setState(McbpStateMachine::State::closing);
         return;
     }
 
-    if (header.isResponse() &&
-        response_handlers[header.getOpcode()] == nullptr) {
-        LOG_WARNING(c,
+    if (header.isResponse() && response_handlers[header.getOpcode()] == nullptr) {
+        LOG_WARNING(&c,
                     "%u: Unsupported response packet received: %u, "
                     "closing connection",
-                    c->getId(),
-                    (unsigned int)c->binary_header.request.opcode);
-        c->setState(McbpStateMachine::State::closing);
+                    c.getId(),
+                    (unsigned int)c.binary_header.request.opcode);
+        c.setState(McbpStateMachine::State::closing);
         return;
     }
 
-    if (c->getBucketEngine() == nullptr) {
+    if (c.getBucketEngine() == nullptr) {
         throw std::logic_error(
                 "try_read_mcbp_command: Not connected to a bucket");
     }
 
     // Create a host-local-byte-order-copy of the header
-    std::memcpy(
-            c->binary_header.bytes, input.data(), sizeof(cb::mcbp::Request));
-    c->binary_header.request.keylen = ntohs(c->binary_header.request.keylen);
-    c->binary_header.request.bodylen = ntohl(c->binary_header.request.bodylen);
-    c->binary_header.request.vbucket = ntohs(c->binary_header.request.vbucket);
-    c->binary_header.request.cas = ntohll(c->binary_header.request.cas);
+    // @deprecated.. we need this to be part of the cookie as the connection
+    //               object itself is supposed to handle multiple commands
+    //               at a time in the future!!
+    std::memcpy(c.binary_header.bytes, input.data(), sizeof(cb::mcbp::Request));
+    c.binary_header.request.keylen = ntohs(c.binary_header.request.keylen);
+    c.binary_header.request.bodylen = ntohl(c.binary_header.request.bodylen);
+    c.binary_header.request.vbucket = ntohs(c.binary_header.request.vbucket);
+    c.binary_header.request.cas = ntohll(c.binary_header.request.cas);
 
-    c->addMsgHdr(true);
-    c->setCmd(c->binary_header.request.opcode);
+    c.addMsgHdr(true);
+    c.setCmd(header.getOpcode());
     /* clear the returned cas value */
     cookie.setCas(0);
-    c->setStart(ProcessClock::now());
+    c.setStart(ProcessClock::now());
     MEMCACHED_PROCESS_COMMAND_START(
-            c->getId(), input.data(), sizeof(cb::mcbp::Request));
+            c.getId(), input.data(), sizeof(cb::mcbp::Request));
 
     auto reason = validate_packet_execusion_constraints(cookie);
     if (reason != cb::mcbp::Status::Success) {
         cookie.sendResponse(reason);
-        c->setWriteAndGo(McbpStateMachine::State::closing);
+        c.setWriteAndGo(McbpStateMachine::State::closing);
         return;
     }
 
-    if (c->isPacketAvailable()) {
+    if (c.isPacketAvailable()) {
         // we've got the entire packet spooled up, just go execute
         cookie.setPacket(Cookie::PacketContent::Full,
-                         cb::const_byte_buffer{
-                                 input.data(),
-                                 sizeof(cb::mcbp::Request) +
-                                         c->binary_header.request.bodylen});
-        c->setState(McbpStateMachine::State::execute);
+                         cb::const_byte_buffer{input.data(),
+                                               sizeof(cb::mcbp::Request) +
+                                                       header.getBodylen()});
+        c.setState(McbpStateMachine::State::execute);
     } else {
         // we need to allocate more memory!!
         try {
-            size_t needed = sizeof(cb::mcbp::Request) +
-                            c->binary_header.request.bodylen;
-            c->read->ensureCapacity(needed - c->read->rsize());
+            size_t needed = sizeof(cb::mcbp::Request) + header.getBodylen();
+            c.read->ensureCapacity(needed - c.read->rsize());
+            // ensureCapacity may have reallocated the buffer.. make sure
+            // that the packet in the cookie points to the correct address
             cookie.setPacket(Cookie::PacketContent::Header,
-                             cb::const_byte_buffer{c->read->rdata().data(),
+                             cb::const_byte_buffer{c.read->rdata().data(),
                                                    sizeof(cb::mcbp::Request)});
         } catch (const std::bad_alloc&) {
-            LOG_WARNING(c,
+            LOG_WARNING(&c,
                         "%u: Failed to grow buffer.. closing connection",
-                        c->getId());
-            c->setState(McbpStateMachine::State::closing);
+                        c.getId());
+            c.setState(McbpStateMachine::State::closing);
             return;
         }
-        c->setState(McbpStateMachine::State::read_packet_body);
+        c.setState(McbpStateMachine::State::read_packet_body);
     }
 }

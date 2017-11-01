@@ -210,7 +210,7 @@ bool conn_ship_log(McbpConnection& connection) {
 
     if (c->isReadEvent() || !c->read->empty()) {
         if (c->read->rsize() >= sizeof(c->binary_header)) {
-            try_read_mcbp_command(c);
+            try_read_mcbp_command(connection);
         } else {
             c->setState(McbpStateMachine::State::read_packet_header);
         }
@@ -297,9 +297,8 @@ bool conn_read_packet_header(McbpConnection& connection) {
 }
 
 bool conn_parse_cmd(McbpConnection& connection) {
-    auto* c = &connection;
-    try_read_mcbp_command(c);
-    return !c->isEwouldblock();
+    try_read_mcbp_command(connection);
+    return !connection.isEwouldblock();
 }
 
 bool conn_new_cmd(McbpConnection& connection) {
@@ -372,7 +371,7 @@ bool conn_execute(McbpConnection& connection) {
 
     c->setEwouldblock(false);
 
-    mcbp_execute_packet(c);
+    mcbp_execute_packet(connection.getCookieObject());
 
     if (c->isEwouldblock()) {
         c->unregisterEvent();

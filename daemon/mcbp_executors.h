@@ -35,9 +35,9 @@ typedef void (* mcbp_package_execute)(McbpConnection *c, void* packet);
  */
 std::array<mcbp_package_execute, 0x100>& get_mcbp_executors();
 
-void mcbp_execute_packet(McbpConnection* c);
+void mcbp_execute_packet(Cookie& cookie);
 
-void try_read_mcbp_command(McbpConnection *c);
+void try_read_mcbp_command(McbpConnection& c);
 
 void initialize_mbcp_lookup_map(void);
 
