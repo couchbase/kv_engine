@@ -22,6 +22,7 @@
 #include "utilities/protocol2text.h"
 #include "xattr/utils.h"
 
+#include <mcbp/protocol/framebuilder.h>
 #include <mcbp/protocol/header.h>
 #include <platform/compress.h>
 
@@ -50,9 +51,7 @@ static bool send_not_my_vbucket(McbpConnection& c) {
         return true;
     }
 
-    protocol_binary_response_header* header;
-    const size_t needed = sizeof(*header) + pair.second->size();
-
+    const size_t needed = sizeof(cb::mcbp::Response) + pair.second->size();
     if (!c.growDynamicBuffer(needed)) {
         LOG_WARNING(&c,
                     "<%d ERROR: Failed to allocate memory for response",
@@ -61,20 +60,19 @@ static bool send_not_my_vbucket(McbpConnection& c) {
     }
 
     auto& buffer = c.getDynamicBuffer();
-    auto* buf = buffer.getCurrent();
-    header = reinterpret_cast<protocol_binary_response_header*>(buf);
-    memset(header, 0, sizeof(*header));
+    auto* buf = reinterpret_cast<uint8_t*>(buffer.getCurrent());
+    const auto& header = c.getCookieObject().getHeader();
 
-    header->response.magic = (uint8_t)PROTOCOL_BINARY_RES;
-    header->response.opcode = c.binary_header.request.opcode;
-    header->response.status =
-            (uint16_t)htons(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET);
-    header->response.bodylen = htonl((uint32_t)pair.second->size());
-    header->response.opaque = c.getOpaque();
-    buf += sizeof(*header);
-    std::copy(pair.second->begin(), pair.second->end(), buf);
+    cb::mcbp::ResponseBuilder builder({buf, needed});
+    builder.setMagic(cb::mcbp::Magic::ClientResponse);
+    builder.setOpcode(header.getRequest().getClientOpcode());
+    builder.setStatus(cb::mcbp::Status::NotMyVbucket);
+    builder.setOpaque(header.getOpaque());
+    builder.setValue({reinterpret_cast<const uint8_t*>(pair.second->data()),
+                      pair.second->size()});
+    builder.validate();
+
     buffer.moveOffset(needed);
-
     mcbp_write_and_free(&c, &c.getDynamicBuffer());
     c.setClustermapRevno(pair.first);
     return true;
@@ -198,6 +196,7 @@ void mcbp_add_header(McbpConnection* c,
     }
 
     c->addMsgHdr(true);
+    auto& cookie = c->getCookieObject();
     const auto wbuf = mcbp_add_header(*c->write,
                                       c->binary_header.request.opcode,
                                       err,
@@ -205,8 +204,8 @@ void mcbp_add_header(McbpConnection* c,
                                       key_len,
                                       body_len,
                                       datatype,
-                                      c->getOpaque(),
-                                      c->getCookieObject().getCas());
+                                      cookie.getHeader().getOpaque(),
+                                      cookie.getCas());
 
     if (settings.getVerbose() > 1) {
         char buffer[1024];
@@ -294,37 +293,23 @@ bool mcbp_response_handler(const void* key, uint16_t keylen,
         return false;
     }
 
-    protocol_binary_response_header header = {};
-    header.response.magic = (uint8_t)PROTOCOL_BINARY_RES;
-    header.response.opcode = c->binary_header.request.opcode;
-    header.response.keylen = (uint16_t)htons(keylen);
-    header.response.extlen = extlen;
-    header.response.datatype = datatype;
-    header.response.status = (uint16_t)htons(status);
-    header.response.bodylen = htonl(needed - sizeof(protocol_binary_response_header));
-    header.response.opaque = c->getOpaque();
-    header.response.cas = htonll(cas);
+    auto* buf = reinterpret_cast<uint8_t*>(dbuf.getCurrent());
+    const auto& header = cookie->getHeader();
+
+    cb::mcbp::ResponseBuilder builder({buf, needed});
+    builder.setMagic(cb::mcbp::Magic::ClientResponse);
+    builder.setOpcode(header.getRequest().getClientOpcode());
+    builder.setDatatype(cb::mcbp::Datatype(datatype));
+    builder.setStatus(cb::mcbp::Status(status));
+    builder.setExtras({static_cast<const uint8_t*>(ext), extlen});
+    builder.setKey({static_cast<const uint8_t*>(key), keylen});
+    builder.setValue(
+            {reinterpret_cast<const uint8_t*>(payload.data()), payload.size()});
+    builder.setOpaque(header.getOpaque());
+    builder.setCas(cas);
+    builder.validate();
 
     ++c->getBucket().responseCounters[status];
-
-    char *buf = dbuf.getCurrent();
-    memcpy(buf, header.bytes, sizeof(header.response));
-    buf += sizeof(header.response);
-
-    if (extlen > 0) {
-        memcpy(buf, ext, extlen);
-        buf += extlen;
-    }
-
-    if (keylen > 0) {
-        memcpy(buf, key, keylen);
-        buf += keylen;
-    }
-
-    if (payload.len > 0) {
-        memcpy(buf, payload.buf, payload.len);
-    }
-
     dbuf.moveOffset(needed);
     return true;
 }
