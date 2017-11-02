@@ -826,7 +826,7 @@
             "type": "std::string"
         },
         "rocksdb_bbt_options": {
-            "default": "",
+            "default": "cache_index_and_filter_blocks=true",
             "descr": "RocksDB Block Based Table Options, comma separated.",
             "type": "std::string"
         },
