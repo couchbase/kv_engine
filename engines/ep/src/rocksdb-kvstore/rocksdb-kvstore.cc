@@ -651,9 +651,6 @@ bool RocksDBKVStore::getStat(const char* name, size_t& value) {
     } else if (std::string(name) == "kCacheTotal") {
         value = usage_by_type.at(rocksdb::MemoryUtil::kCacheTotal);
     } else {
-        logger.log(EXTENSION_LOG_NOTICE,
-                   "RocksDBKVStore::getStat: invalid stat name: : %s",
-                   name);
         return false;
     }
 
