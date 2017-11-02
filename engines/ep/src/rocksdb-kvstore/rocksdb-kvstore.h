@@ -363,8 +363,11 @@ private:
 
     void readVBState(const KVRocksDB& db);
 
-    rocksdb::Status saveVBState(const KVRocksDB& db,
-                                const vbucket_state& vbState);
+    // Serialize the vbucket state and add it to the local CF in the specified
+    // batch of writes.
+    rocksdb::Status saveVBStateToBatch(const KVRocksDB& db,
+                                       const vbucket_state& vbState,
+                                       rocksdb::WriteBatch& batch);
 
     rocksdb::Status saveDocs(
             uint16_t vbid,

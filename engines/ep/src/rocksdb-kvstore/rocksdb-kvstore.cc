@@ -568,12 +568,25 @@ bool RocksDBKVStore::snapshotVBucket(uint16_t vbucketId,
         (options == VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT ||
          options == VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT)) {
         auto& db = openDB(vbucketId);
-        if (!saveVBState(db, vbstate).ok()) {
+        rocksdb::WriteBatch batch;
+        auto status = saveVBStateToBatch(db, vbstate, batch);
+        if (!status.ok()) {
             logger.log(EXTENSION_LOG_WARNING,
-                       "RocksDBKVStore::snapshotVBucket: saveVBState failed "
-                       "state:%s, vb:%" PRIu16,
+                       "RocksDBKVStore::snapshotVBucket: saveVBStateToBatch() "
+                       "failed state:%s vb:%" PRIu16 " :%s",
                        VBucket::toString(vbstate.state),
-                       vbucketId);
+                       vbucketId,
+                       status.getState());
+            return false;
+        }
+        status = db.rdb->Write(writeOptions, &batch);
+        if (!status.ok()) {
+            logger.log(EXTENSION_LOG_WARNING,
+                       "RocksDBKVStore::snapshotVBucket: Write() "
+                       "failed state:%s vb:%" PRIu16 " :%s",
+                       VBucket::toString(vbstate.state),
+                       vbucketId,
+                       status.getState());
             return false;
         }
     }
@@ -864,8 +877,9 @@ void RocksDBKVStore::readVBState(const KVRocksDB& db) {
                                                            failovers);
 }
 
-rocksdb::Status RocksDBKVStore::saveVBState(const KVRocksDB& db,
-                                            const vbucket_state& vbState) {
+rocksdb::Status RocksDBKVStore::saveVBStateToBatch(const KVRocksDB& db,
+                                                   const vbucket_state& vbState,
+                                                   rocksdb::WriteBatch& batch) {
     std::stringstream jsonState;
 
     jsonState << "{\"state\": \"" << VBucket::toString(vbState.state) << "\""
@@ -889,10 +903,7 @@ rocksdb::Status RocksDBKVStore::saveVBState(const KVRocksDB& db,
     jsonState << "}";
 
     auto key = getVbstateKey();
-    auto status =
-            db.rdb->Put(writeOptions, db.localCFH.get(), key, jsonState.str());
-
-    return status;
+    return batch.Put(db.localCFH.get(), key, jsonState.str());
 }
 
 rocksdb::Status RocksDBKVStore::saveDocs(
@@ -932,10 +943,10 @@ rocksdb::Status RocksDBKVStore::saveDocs(
         }
     }
 
-    status = saveVBState(db, *vbstate);
+    status = saveVBStateToBatch(db, *vbstate, batch);
     if (!status.ok()) {
         logger.log(EXTENSION_LOG_WARNING,
-                   "RocksDBKVStore::saveDocs: saveVBState error:%d",
+                   "RocksDBKVStore::saveDocs: saveVBStateToBatch error:%d",
                    status.code());
         return status;
     }
