@@ -183,7 +183,7 @@ bool conn_listening(ListenConnection *c);
 void event_handler(evutil_socket_t fd, short which, void *arg);
 void listen_event_handler(evutil_socket_t, short, void *);
 
-void mcbp_collect_timings(const McbpConnection* c);
+void mcbp_collect_timings(Cookie& cookie);
 
 void log_socket_error(EXTENSION_LOG_LEVEL severity,
                       const void* client_cookie,

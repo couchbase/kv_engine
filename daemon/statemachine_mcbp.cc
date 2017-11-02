@@ -106,7 +106,7 @@ void McbpStateMachine::setCurrentState(State task) {
 
     if (task == State::send_data) {
         if (connection.getStart() != ProcessClock::time_point()) {
-            mcbp_collect_timings(&connection);
+            mcbp_collect_timings(connection.getCookieObject());
             connection.setStart(ProcessClock::time_point());
         }
         MEMCACHED_PROCESS_COMMAND_END(connection.getId(), nullptr, 0);

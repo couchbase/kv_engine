@@ -22,7 +22,7 @@
 #include "utilities/protocol2text.h"
 #include "xattr/utils.h"
 
-#include <include/memcached/protocol_binary.h>
+#include <mcbp/protocol/header.h>
 #include <platform/compress.h>
 
 /**
@@ -85,7 +85,8 @@ void mcbp_write_response(McbpConnection* c,
                          int extlen,
                          int keylen,
                          int dlen) {
-    const auto quiet = c->getCookieObject().getRequest().isQuiet();
+    auto& cookie = c->getCookieObject();
+    const auto quiet = cookie.getRequest().isQuiet();
     if (!quiet || c->getCmd() == PROTOCOL_BINARY_CMD_GET ||
         c->getCmd() == PROTOCOL_BINARY_CMD_GETK) {
         mcbp_add_header(c,
@@ -99,7 +100,7 @@ void mcbp_write_response(McbpConnection* c,
         c->setWriteAndGo(McbpStateMachine::State::new_cmd);
     } else {
         if (c->getStart() != ProcessClock::time_point()) {
-            mcbp_collect_timings(reinterpret_cast<McbpConnection*>(c));
+            mcbp_collect_timings(cookie);
             c->setStart(ProcessClock::time_point());
         }
         // The responseCounter is updated here as this is non-responding code
@@ -327,19 +328,29 @@ bool mcbp_response_handler(const void* key, uint16_t keylen,
     return true;
 }
 
-void mcbp_collect_timings(const McbpConnection* c) {
+void mcbp_collect_timings(Cookie& cookie) {
+    auto* c = &cookie.getConnection();
+    if (c->isDCP()) {
+        // The state machinery works differently for the DCP connections
+        // so these timings isn't accurate!
+        //
+        // For now disable the timings, and add them back once they're
+        // correct
+        return;
+    }
+    const auto opcode = cookie.getHeader().getOpcode();
     const auto elapsed_ns = ProcessClock::now() - c->getStart();
     // aggregated timing for all buckets
-    all_buckets[0].timings.collect(c->getCmd(), elapsed_ns);
+    all_buckets[0].timings.collect(opcode, elapsed_ns);
 
     // timing for current bucket
-    bucket_id_t bucketid = get_bucket_id(c->getCookie());
+    const auto bucketid = c->getBucketIndex();
     /* bucketid will be zero initially before you run sasl auth
      * (unless there is a default bucket), or if someone tries
      * to delete the bucket you're associated with and your're idle.
      */
     if (bucketid != 0) {
-        all_buckets[bucketid].timings.collect(c->getCmd(), elapsed_ns);
+        all_buckets[bucketid].timings.collect(opcode, elapsed_ns);
     }
 
     // Log operations taking longer than 0.5s
