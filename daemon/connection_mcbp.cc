@@ -922,52 +922,6 @@ const Protocol McbpConnection::getProtocol() const {
     return Protocol::Memcached;
 }
 
-void McbpConnection::maybeLogSlowCommand(
-        const std::chrono::milliseconds& elapsed, uint8_t cmd) const {
-    auto opcode = cb::mcbp::ClientOpcode(cmd);
-    const auto limit = cb::mcbp::sla::getSlowOpThreshold(opcode);
-
-    if (elapsed > limit) {
-        std::chrono::nanoseconds timings(elapsed);
-        std::string command;
-        try {
-            command = to_string(opcode);
-        } catch (const std::exception& e) {
-            char opcode_s[16];
-            checked_snprintf(opcode_s, sizeof(opcode_s), "0x%X", cmd);
-            command.assign(opcode_s);
-        }
-
-        std::string details;
-        if (opcode == cb::mcbp::ClientOpcode::Stat) {
-            // Log which stat command took a long time
-            details.append(", key: ");
-            auto key = cookie.getPrintableRequestKey();
-
-            if (key.find("key ") == 0) {
-                // stat key username1324423e; truncate the actual item key
-                details.append("key <TRUNCATED>");
-            } else if (key.empty()) {
-                // requests all stats
-                details.append("<EMPTY>");
-            } else {
-                details.append(key);
-            }
-        }
-
-        TRACE_INSTANT2("memcached/slow", "Slow cmd", "opcode", cmd, "connection_id", getId());
-        LOG_WARNING(NULL,
-                    "%u: Slow %s operation on connection: %s (%s)%s"
-                    " opaque:0x%08x",
-                    getId(),
-                    command.c_str(),
-                    cb::time2text(timings).c_str(),
-                    getDescription().c_str(),
-                    details.c_str(),
-                    getOpaque());
-    }
-}
-
 bool McbpConnection::shouldDelete() {
     return getState() == McbpStateMachine::State ::destroyed;
 }

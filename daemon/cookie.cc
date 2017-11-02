@@ -19,8 +19,12 @@
 #include "connection_mcbp.h"
 #include "mcbp.h"
 
-#include <cJSON_utils.h>
-#include <mcbp/protocol/header.h>
+#include <mcbp/mcbp.h>
+#include <phosphor/phosphor.h>
+#include <platform/checked_snprintf.h>
+#include <platform/timeutils.h>
+
+#include <chrono>
 
 unique_cJSON_ptr Cookie::toJSON() const {
     unique_cJSON_ptr ret(cJSON_CreateObject());
@@ -239,4 +243,59 @@ void Cookie::logResponse(ENGINE_ERROR_CODE code) const {
     }
 
     logResponse(cb::to_string(cb::engine_errc(code)).c_str());
+}
+
+void Cookie::maybeLogSlowCommand(
+        const std::chrono::milliseconds& elapsed) const {
+    const auto opcode = getRequest().getClientOpcode();
+    const auto limit = cb::mcbp::sla::getSlowOpThreshold(opcode);
+
+    if (elapsed > limit) {
+        const auto& header = getHeader();
+        std::chrono::nanoseconds timings(elapsed);
+        std::string command;
+        try {
+            command = to_string(opcode);
+        } catch (const std::exception& e) {
+            char opcode_s[16];
+            checked_snprintf(
+                    opcode_s, sizeof(opcode_s), "0x%X", header.getOpcode());
+            command.assign(opcode_s);
+        }
+
+        std::string details;
+        if (opcode == cb::mcbp::ClientOpcode::Stat) {
+            // Log which stat command took a long time
+            details.append(", key: ");
+            auto key = getPrintableRequestKey();
+
+            if (key.find("key ") == 0) {
+                // stat key username1324423e; truncate the actual item key
+                details.append("key <TRUNCATED>");
+            } else if (key.empty()) {
+                // requests all stats
+                details.append("<EMPTY>");
+            } else {
+                details.append(key);
+            }
+        }
+
+        auto& c = getConnection();
+
+        TRACE_INSTANT2("memcached/slow",
+                       "Slow cmd",
+                       "opcode",
+                       getHeader().getOpcode(),
+                       "connection_id",
+                       c.getId());
+        LOG_WARNING(nullptr,
+                    "%u: Slow %s operation on connection: %s (%s)%s"
+                    " opaque:0x%08x",
+                    c.getId(),
+                    command.c_str(),
+                    cb::time2text(timings).c_str(),
+                    c.getDescription().c_str(),
+                    details.c_str(),
+                    header.getOpaque());
+    }
 }

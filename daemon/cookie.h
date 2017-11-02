@@ -24,6 +24,7 @@
 #include <memcached/types.h>
 #include <platform/uuid.h>
 
+#include <chrono>
 #include <memory>
 #include <stdexcept>
 
@@ -344,6 +345,14 @@ public:
     void setCommandContext(CommandContext* ctx = nullptr) {
         commandContext.reset(ctx);
     }
+
+    /**
+     * Log the current connection if its execution time exceeds the
+     * threshold for the command
+     *
+     * @param elapsed the number of ms elapsed while executing the command
+     */
+    void maybeLogSlowCommand(const std::chrono::milliseconds& elapsed) const;
 
 protected:
     /**

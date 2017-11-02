@@ -149,18 +149,6 @@ public:
     const Protocol getProtocol() const override;
 
     /**
-     * Log the current connection if its execution time exceeds the
-     * threshold for the command
-     *
-     * @param elapsed the number of ms elapsed while executing the command
-     * @param cmd the opcode for the command
-     *
-     * @todo refactor this into the command object when we introduce them
-     */
-    void maybeLogSlowCommand(const std::chrono::milliseconds& elapsed,
-                             uint8_t cmd) const;
-
-    /**
      * Return the opaque value for the command being processed
      */
     uint32_t getOpaque() const {

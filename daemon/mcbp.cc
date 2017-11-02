@@ -357,5 +357,5 @@ void mcbp_collect_timings(Cookie& cookie) {
     // Log operations taking longer than 0.5s
     const auto elapsed_ms =
             std::chrono::duration_cast<std::chrono::milliseconds>(elapsed_ns);
-    c->maybeLogSlowCommand(elapsed_ms, opcode);
+    cookie.maybeLogSlowCommand(elapsed_ms);
 }
