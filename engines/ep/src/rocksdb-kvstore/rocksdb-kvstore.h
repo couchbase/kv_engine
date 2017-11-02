@@ -293,6 +293,12 @@ public:
                 new RocksDBKVStore(configuration));
     }
 
+protected:
+    // Write a batch of updates to the given database; measuring the time
+    // taken and adding the timer to the commit histogram.
+    rocksdb::Status writeAndTimeBatch(const KVRocksDB& db,
+                                      rocksdb::WriteBatch batch);
+
 private:
     // This is used for synchonization in `openDB` to avoid that we open two
     // `rocksdb::DB` instances on the same DB (e.g., this would be possible

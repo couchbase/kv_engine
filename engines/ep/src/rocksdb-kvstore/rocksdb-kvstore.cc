@@ -906,6 +906,15 @@ rocksdb::Status RocksDBKVStore::saveVBStateToBatch(const KVRocksDB& db,
     return batch.Put(db.localCFH.get(), key, jsonState.str());
 }
 
+rocksdb::Status RocksDBKVStore::writeAndTimeBatch(const KVRocksDB& db,
+                                                  rocksdb::WriteBatch batch) {
+    auto begin = ProcessClock::now();
+    auto status = db.rdb->Write(writeOptions, &batch);
+    st.commitHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
+            ProcessClock::now() - begin));
+    return status;
+}
+
 rocksdb::Status RocksDBKVStore::saveDocs(
         uint16_t vbid,
         const Item* collectionsManifest,
@@ -941,6 +950,30 @@ rocksdb::Status RocksDBKVStore::saveDocs(
                        vbid);
             return status;
         }
+
+        // Check if we should split into a new writeBatch if the batch size
+        // exceeds the write_buffer_size - this is necessary because we
+        // don't want our WriteBatch to exceed the configured memtable size, as
+        // that can cause significant memory bloating (see MB-26521).
+        // Note the limit check is only approximate, as the batch contains
+        // updates for at least 2 CFs (key & seqno) which will be written into
+        // separate memtables, so we don't exactly know the size contribution
+        // to each memtable in the batch.
+        const auto batchLimit = defaultCFOptions.write_buffer_size +
+                                seqnoCFOptions.write_buffer_size;
+        if (batch.GetDataSize() > batchLimit) {
+            status = writeAndTimeBatch(db, batch);
+            if (!status.ok()) {
+                logger.log(EXTENSION_LOG_WARNING,
+                           "RocksDBKVStore::saveDocs: rocksdb::DB::Write "
+                           "error:%d, "
+                           "vb:%" PRIu16,
+                           status.code(),
+                           vbid);
+                return status;
+            }
+            batch.Clear();
+        }
     }
 
     status = saveVBStateToBatch(db, *vbstate, batch);
@@ -951,10 +984,7 @@ rocksdb::Status RocksDBKVStore::saveDocs(
         return status;
     }
 
-    auto begin = ProcessClock::now();
-    status = db.rdb->Write(writeOptions, &batch);
-    st.commitHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
-            ProcessClock::now() - begin));
+    status = writeAndTimeBatch(db, batch);
     if (!status.ok()) {
         logger.log(EXTENSION_LOG_WARNING,
                    "RocksDBKVStore::saveDocs: rocksdb::DB::Write error:%d, "
