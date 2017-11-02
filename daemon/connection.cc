@@ -21,10 +21,11 @@
 #include "server_event.h"
 #include "statemachine_mcbp.h"
 
-#include <exception>
-#include <utilities/protocol2text.h>
+#include <mcbp/protocol/header.h>
 #include <platform/checked_snprintf.h>
 #include <platform/strerror.h>
+#include <utilities/protocol2text.h>
+#include <exception>
 
 const char* to_string(const Connection::Priority& priority) {
     switch (priority) {
@@ -301,11 +302,8 @@ cb::rbac::PrivilegeAccess Connection::checkPrivilege(
                    cb::rbac::PrivilegeAccess::Stale &&
            retries < max_retries) {
         ++retries;
-        std::string command;
-        auto* mcbp = dynamic_cast<McbpConnection*>(this);
-        if (mcbp != nullptr) {
-            command = memcached_opcode_2_text(mcbp->getCmd());
-        }
+        const auto opcode = cookie.getHeader().getOpcode();
+        const std::string command(memcached_opcode_2_text(opcode));
 
         // The privilege context we had could have been a dummy entry
         // (created when the client connected, and used until the
@@ -360,12 +358,8 @@ cb::rbac::PrivilegeAccess Connection::checkPrivilege(
     }
 
     if (ret == cb::rbac::PrivilegeAccess::Fail) {
-        std::string command;
-        auto* mcbp = dynamic_cast<McbpConnection*>(this);
-        if (mcbp != nullptr) {
-            command = memcached_opcode_2_text(mcbp->getCmd());
-        }
-
+        const auto opcode = cookie.getHeader().getOpcode();
+        const std::string command(memcached_opcode_2_text(opcode));
         const std::string privilege_string = cb::rbac::to_string(privilege);
         const std::string context = privilegeContext.to_string();
 
