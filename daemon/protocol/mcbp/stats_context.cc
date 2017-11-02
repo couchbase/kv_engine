@@ -25,6 +25,8 @@
 #include <daemon/mc_time.h>
 #include <daemon/mcbp.h>
 #include <daemon/runtime.h>
+#include <mcbp/protocol/framebuilder.h>
+#include <mcbp/protocol/header.h>
 #include <memcached/audit_interface.h>
 #include <phosphor/stats_callback.h>
 #include <phosphor/trace_log.h>
@@ -385,39 +387,30 @@ static void process_stat_settings(ADD_STAT add_stat_callback,
              settings.isCollectionsPrototypeEnabled());
 }
 
-static void append_bin_stats(const char* key, const uint16_t klen,
-                             const char* val, const uint32_t vlen,
-                             McbpConnection* c) {
-    auto& dbuf = c->getDynamicBuffer();
+static void append_bin_stats(const char* key,
+                             const uint16_t klen,
+                             const char* val,
+                             const uint32_t vlen,
+                             Cookie& cookie) {
+    auto& c = cookie.getConnection();
+    auto& dbuf = c.getDynamicBuffer();
     // We've ensured that there is enough room in the buffer before calling
     // this method
-    char* buf = dbuf.getCurrent();
-
-    uint32_t bodylen = klen + vlen;
-    protocol_binary_response_header header;
-
-    memset(&header, 0, sizeof(header));
-    header.response.magic = (uint8_t)PROTOCOL_BINARY_RES;
-    header.response.opcode = PROTOCOL_BINARY_CMD_STAT;
-    header.response.keylen = (uint16_t)htons(klen);
-    header.response.datatype = (uint8_t)PROTOCOL_BINARY_RAW_BYTES;
-    header.response.bodylen = htonl(bodylen);
-    header.response.opaque = c->getOpaque();
-
-    memcpy(buf, header.bytes, sizeof(header.response));
-    buf += sizeof(header.response);
-
-    if (klen > 0) {
-        cb_assert(key != NULL);
-        memcpy(buf, key, klen);
-        buf += klen;
-    }
-
-    if (vlen > 0) {
-        memcpy(buf, val, vlen);
-    }
-
-    dbuf.moveOffset(sizeof(header.response) + bodylen);
+    auto* buf = reinterpret_cast<uint8_t*>(dbuf.getCurrent());
+    cb::mcbp::ResponseBuilder builder(
+            cb::byte_buffer(buf, dbuf.getSize() - dbuf.getOffset()));
+    builder.setMagic(cb::mcbp::Magic::ClientResponse);
+    builder.setOpcode(cb::mcbp::ClientOpcode::Stat);
+    builder.setDatatype(cb::mcbp::Datatype::Raw);
+    builder.setStatus(cb::mcbp::Status::Success);
+    builder.setKey(
+            cb::const_byte_buffer(reinterpret_cast<const uint8_t*>(key), klen));
+    builder.setValue(
+            cb::const_byte_buffer(reinterpret_cast<const uint8_t*>(val), vlen));
+    builder.setOpaque(cookie.getHeader().getOpaque());
+    builder.validate();
+    dbuf.moveOffset(sizeof(cb::mcbp::Response) +
+                    builder.getFrame()->getBodylen());
 }
 
 
@@ -431,7 +424,7 @@ static void append_stats(const char* key, const uint16_t klen,
     if (!cookie->getConnection().growDynamicBuffer(needed)) {
         return;
     }
-    append_bin_stats(key, klen, val, vlen, &cookie->getConnection());
+    append_bin_stats(key, klen, val, vlen, *const_cast<Cookie*>(cookie));
 }
 
 
