@@ -59,7 +59,7 @@ public:
      *
      * @return a SingleThreadedRCPtr to the newly created PassiveStream.
      */
-    virtual SingleThreadedRCPtr<PassiveStream> makePassiveStream(
+    virtual std::shared_ptr<PassiveStream> makePassiveStream(
             EventuallyPersistentEngine& e,
             dcp_consumer_t consumer,
             const std::string& name,
@@ -235,7 +235,7 @@ protected:
 
     // Searches the streams map for a stream for vbucket ID. Returns the found
     // stream, or an empty pointer if none found.
-    SingleThreadedRCPtr<PassiveStream> findStream(uint16_t vbid);
+    std::shared_ptr<PassiveStream> findStream(uint16_t vbid);
 
     std::unique_ptr<DcpResponse> getNextItem();
 
@@ -272,8 +272,8 @@ protected:
      *  - if there's an error, e.g. ETMPFAIL/ENOMEM - cannot_process
      *  - if we hit the yieldThreshold - more_to_process
      */
-    process_items_error_t drainStreamsBufferedItems(SingleThreadedRCPtr<PassiveStream>& stream,
-                                                    size_t yieldThreshold);
+    process_items_error_t drainStreamsBufferedItems(
+            std::shared_ptr<PassiveStream> stream, size_t yieldThreshold);
 
     /**
      * This function is called when an addStream command gets a rollback
@@ -305,8 +305,8 @@ protected:
     std::list<uint16_t> ready;
 
     // Map of vbid -> passive stream. Map itself is atomic (thread-safe).
-    typedef AtomicUnorderedMap<uint16_t,
-                               SingleThreadedRCPtr<PassiveStream>> PassiveStreamMap;
+    typedef AtomicUnorderedMap<uint16_t, std::shared_ptr<PassiveStream>>
+            PassiveStreamMap;
     PassiveStreamMap streams;
 
     /*

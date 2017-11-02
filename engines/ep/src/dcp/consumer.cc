@@ -172,7 +172,7 @@ void DcpConsumer::taskCancelled() {
     taskAlreadyCancelled.compare_exchange_strong(inverse, true);
 }
 
-SingleThreadedRCPtr<PassiveStream> DcpConsumer::makePassiveStream(
+std::shared_ptr<PassiveStream> DcpConsumer::makePassiveStream(
         EventuallyPersistentEngine& e,
         dcp_consumer_t consumer,
         const std::string& name,
@@ -185,19 +185,18 @@ SingleThreadedRCPtr<PassiveStream> DcpConsumer::makePassiveStream(
         uint64_t snap_start_seqno,
         uint64_t snap_end_seqno,
         uint64_t vb_high_seqno) {
-    return SingleThreadedRCPtr<PassiveStream>(
-            new PassiveStream(&e,
-                              consumer,
-                              name,
-                              flags,
-                              opaque,
-                              vb,
-                              start_seqno,
-                              end_seqno,
-                              vb_uuid,
-                              snap_start_seqno,
-                              snap_end_seqno,
-                              vb_high_seqno));
+    return std::make_shared<PassiveStream>(&e,
+                                           consumer,
+                                           name,
+                                           flags,
+                                           opaque,
+                                           vb,
+                                           start_seqno,
+                                           end_seqno,
+                                           vb_uuid,
+                                           snap_start_seqno,
+                                           snap_end_seqno,
+                                           vb_high_seqno);
 }
 
 ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque, uint16_t vbucket,
@@ -857,9 +856,8 @@ void DcpConsumer::aggregateQueueStats(ConnCounter& aggregator) {
     aggregator.conn_queueBackoff += backoffs;
 }
 
-
-process_items_error_t DcpConsumer::drainStreamsBufferedItems(SingleThreadedRCPtr<PassiveStream>& stream,
-                                                             size_t yieldThreshold) {
+process_items_error_t DcpConsumer::drainStreamsBufferedItems(
+        std::shared_ptr<PassiveStream> stream, size_t yieldThreshold) {
     process_items_error_t rval = all_processed;
     uint32_t bytesProcessed = 0;
     size_t iterations = 0;
@@ -1246,12 +1244,12 @@ void DcpConsumer::notifyConsumerIfNecessary(bool schedule) {
     }
 }
 
-SingleThreadedRCPtr<PassiveStream> DcpConsumer::findStream(uint16_t vbid) {
+std::shared_ptr<PassiveStream> DcpConsumer::findStream(uint16_t vbid) {
     auto it = streams.find(vbid);
     if (it.second) {
         return it.first;
     } else {
-        return SingleThreadedRCPtr<PassiveStream>();
+        return nullptr;
     }
 }
 

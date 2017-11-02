@@ -48,7 +48,7 @@ enum backfill_source_t {
     BACKFILL_FROM_DISK
 };
 
-class Stream : public RCValue {
+class Stream {
 public:
 
     enum class Type {

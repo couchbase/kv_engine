@@ -39,7 +39,7 @@ public:
         return lastMessageTime;
     }
 
-    SingleThreadedRCPtr<PassiveStream> getVbucketStream(uint16_t vbid) {
+    std::shared_ptr<PassiveStream> getVbucketStream(uint16_t vbid) {
         return findStream(vbid);
     }
 
@@ -55,7 +55,7 @@ public:
      * Creates a PassiveStream.
      * @return a SingleThreadedRCPtr to the newly created MockPassiveStream.
      */
-    SingleThreadedRCPtr<PassiveStream> makePassiveStream(
+    std::shared_ptr<PassiveStream> makePassiveStream(
             EventuallyPersistentEngine& e,
             dcp_consumer_t consumer,
             const std::string& name,
@@ -68,19 +68,18 @@ public:
             uint64_t snap_start_seqno,
             uint64_t snap_end_seqno,
             uint64_t vb_high_seqno) override {
-        return SingleThreadedRCPtr<PassiveStream>(
-                new MockPassiveStream(e,
-                                      consumer,
-                                      name,
-                                      flags,
-                                      opaque,
-                                      vb,
-                                      start_seqno,
-                                      end_seqno,
-                                      vb_uuid,
-                                      snap_start_seqno,
-                                      snap_end_seqno,
-                                      vb_high_seqno));
+        return std::make_shared<MockPassiveStream>(e,
+                                                   consumer,
+                                                   name,
+                                                   flags,
+                                                   opaque,
+                                                   vb,
+                                                   start_seqno,
+                                                   end_seqno,
+                                                   vb_uuid,
+                                                   snap_start_seqno,
+                                                   snap_end_seqno,
+                                                   vb_high_seqno);
     }
 
 };
