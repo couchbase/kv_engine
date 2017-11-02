@@ -356,6 +356,12 @@ private:
     std::unordered_set<const rocksdb::Cache*> getCachePointers(
             const std::vector<rocksdb::DB*>& dbs);
 
+    /*
+     * This function returns the 'rocksdb::StatsLevel' value for the
+     * 'stats_level' string representation given in input.
+     */
+    static rocksdb::StatsLevel getStatsLevel(const std::string& stats_level);
+
     rocksdb::Slice getKeySlice(const DocKey& key);
     rocksdb::Slice getSeqnoSlice(const int64_t* seqno);
     int64_t getNumericSeqno(const rocksdb::Slice& seqnoSlice);

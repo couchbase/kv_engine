@@ -840,6 +840,11 @@
             "descr": "Number of RocksDB high priority background threads. 0 = auto-select.",
             "type": "size_t"
         },
+        "rocksdb_stats_level": {
+            "default": "",
+            "descr": "RocksDB Statistics 'stats_level'. Possible values: {'', 'kAll', 'kExceptTimeForMutex', 'kExceptDetailedTimers'}. The empty value disables Statistics.",
+            "type": "std::string"
+        },
         "time_synchronization": {
             "default": "disabled",
             "descr": "No longer supported. This config parameter has no effect.",

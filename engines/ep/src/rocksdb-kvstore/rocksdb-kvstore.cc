@@ -260,6 +260,18 @@ RocksDBKVStore::RocksDBKVStore(KVStoreConfig& config)
             ObjectRegistry::getCurrentEngine());
     rdbOptions.listeners.emplace_back(fsl);
 
+    // Enable Statistics if 'Statistics::stat_level_' is provided by the
+    // configuration. We create a statistics object and pass to the multiple
+    // DBs managed by the same KVStore. Then the statistics object will contain
+    // aggregated values for all those DBs. Note that some stats are undefined
+    // and have no meaningful information across multiple DBs (e.g.,
+    // "rocksdb.sequence.number").
+    if (!configuration.getRocksdbStatsLevel().empty()) {
+        rdbOptions.statistics = rocksdb::CreateDBStatistics();
+        rdbOptions.statistics->stats_level_ =
+                getStatsLevel(configuration.getRocksdbStatsLevel());
+    }
+
     // Read persisted VBs state
     auto vbids = discoverVBuckets();
     for (auto vbid : vbids) {
@@ -684,6 +696,21 @@ std::unordered_set<const rocksdb::Cache*> RocksDBKVStore::getCachePointers(
     }
 
     return cache_set;
+}
+
+rocksdb::StatsLevel RocksDBKVStore::getStatsLevel(
+        const std::string& stats_level) {
+    if (stats_level == "kExceptDetailedTimers") {
+        return rocksdb::StatsLevel::kExceptDetailedTimers;
+    } else if (stats_level == "kExceptTimeForMutex") {
+        return rocksdb::StatsLevel::kExceptTimeForMutex;
+    } else if (stats_level == "kAll") {
+        return rocksdb::StatsLevel::kAll;
+    } else {
+        throw std::invalid_argument(
+                std::string("RocksDBKVStore::getStatsLevel: stats_level: '") +
+                stats_level + std::string("'"));
+    }
 }
 
 rocksdb::Slice RocksDBKVStore::getKeySlice(const DocKey& key) {

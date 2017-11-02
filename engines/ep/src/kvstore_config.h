@@ -145,6 +145,13 @@ public:
         return rocksDbHighPriBackgroundThreads;
     }
 
+    /*
+     * Return the RocksDB Statistics 'stats_level'.
+     */
+    const std::string& getRocksdbStatsLevel() {
+        return rocksdbStatsLevel;
+    }
+
 private:
     class ConfigChangeListener;
 
@@ -178,4 +185,8 @@ private:
 
     /// RocksDB high priority background thread count.
     size_t rocksDbHighPriBackgroundThreads = 0;
+
+    // RocksDB Statistics 'stats_level'. Possible values:
+    // {'', 'kAll', 'kExceptTimeForMutex', 'kExceptDetailedTimers'}
+    std::string rocksdbStatsLevel;
 };

@@ -1994,4 +1994,28 @@ TEST_F(RocksDBKVStoreTest, MemUsageStatsTest) {
     EXPECT_TRUE(kvstore->getStat("kTableReadersTotal", value));
     EXPECT_TRUE(kvstore->getStat("kCacheTotal", value));
 }
+
+// Verify that a wrong value of 'rocksdb_statistics_option' is caught
+TEST_F(RocksDBKVStoreTest, StatisticsOptionWrongValueTest) {
+    Configuration config;
+    config.setDbname(data_dir);
+    config.setBackend("rocksdb");
+
+    // Test wrong value
+    config.setRocksdbStatsLevel("wrong-value");
+    kvstoreConfig = std::make_unique<KVStoreConfig>(config, 0 /*shardId*/);
+    // Close the opened DB instance
+    kvstore.reset();
+    // Re-open with the new configuration
+    EXPECT_THROW(kvstore = setup_kv_store(*kvstoreConfig),
+                 std::invalid_argument);
+
+    // Test one right value
+    config.setRocksdbStatsLevel("kAll");
+    kvstoreConfig = std::make_unique<KVStoreConfig>(config, 0 /*shardId*/);
+    // Close the opened DB instance
+    kvstore.reset();
+    // Re-open with the new configuration
+    kvstore = setup_kv_store(*kvstoreConfig);
+}
 #endif

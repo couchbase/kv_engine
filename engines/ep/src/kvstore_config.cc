@@ -49,6 +49,7 @@ KVStoreConfig::KVStoreConfig(Configuration& config, uint16_t shardid)
     rocksDbLowPriBackgroundThreads = config.getRocksdbLowPriBackgroundThreads();
     rocksDbHighPriBackgroundThreads =
             config.getRocksdbHighPriBackgroundThreads();
+    rocksdbStatsLevel = config.getRocksdbStatsLevel();
 }
 
 KVStoreConfig::KVStoreConfig(uint16_t _maxVBuckets,
