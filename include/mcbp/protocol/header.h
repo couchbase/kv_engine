@@ -16,10 +16,18 @@
  */
 #pragma once
 
+#include "config.h"
+
 #include "magic.h"
+
+#include <cJSON_utils.h>
+#include <stdexcept>
 
 namespace cb {
 namespace mcbp {
+
+struct Request;
+struct Response;
 
 /**
  * The header struct is a representation of the header in a binary protocol.
@@ -120,6 +128,8 @@ public:
 
         return (size_t(extlen) + size_t(getKeylen()) <= size_t(getBodylen()));
     }
+
+    unique_cJSON_ptr toJSON() const;
 
 protected:
     /*

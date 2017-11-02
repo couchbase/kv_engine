@@ -17,10 +17,10 @@
 #include "engine_wrapper.h"
 #include "gat_context.h"
 
-#include <daemon/debug_helpers.h>
-#include <daemon/mcbp.h>
-#include <xattr/utils.h>
 #include <daemon/mcaudit.h>
+#include <daemon/mcbp.h>
+#include <mcbp/protocol/header.h>
+#include <xattr/utils.h>
 
 uint32_t GatCommandContext::getExptime(Cookie& cookie) {
     auto extras = cookie.getRequest(Cookie::PacketContent::Full).getExtdata();
@@ -58,7 +58,7 @@ ENGINE_ERROR_CODE GatCommandContext::getAndTouchItem() {
 
         bool need_inflate = false;
         if (mcbp::datatype::is_snappy(info.datatype) &&
-            connection.getCmd() != PROTOCOL_BINARY_CMD_TOUCH) {
+            cookie.getHeader().getOpcode() != PROTOCOL_BINARY_CMD_TOUCH) {
             need_inflate = mcbp::datatype::is_xattr(info.datatype) ||
                            !connection.isSnappyEnabled();
         }
@@ -101,7 +101,7 @@ ENGINE_ERROR_CODE GatCommandContext::sendResponse() {
     // Audit the modification to the document (change of EXP)
     cb::audit::document::add(cookie, cb::audit::document::Operation::Modify);
 
-    if (connection.getCmd() == PROTOCOL_BINARY_CMD_TOUCH) {
+    if (cookie.getHeader().getOpcode() == PROTOCOL_BINARY_CMD_TOUCH) {
         mcbp_write_packet(&connection, PROTOCOL_BINARY_RESPONSE_SUCCESS);
         state = State::Done;
         return ENGINE_SUCCESS;

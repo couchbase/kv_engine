@@ -153,24 +153,18 @@ public:
      * threshold for the command
      *
      * @param elapsed the number of ms elapsed while executing the command
+     * @param cmd the opcode for the command
      *
      * @todo refactor this into the command object when we introduce them
      */
-    void maybeLogSlowCommand(const std::chrono::milliseconds& elapsed) const;
+    void maybeLogSlowCommand(const std::chrono::milliseconds& elapsed,
+                             uint8_t cmd) const;
 
     /**
      * Return the opaque value for the command being processed
      */
     uint32_t getOpaque() const {
         return binary_header.request.opaque;
-    }
-
-    uint8_t getCmd() const {
-        return cmd;
-    }
-
-    void setCmd(uint8_t cmd) {
-        McbpConnection::cmd = cmd;
     }
 
     /* Binary protocol stuff */
@@ -671,9 +665,6 @@ protected:
      * thread timeslice
      */
     int numEvents = 0;
-
-    /** current command being processed */
-    uint8_t cmd = PROTOCOL_BINARY_CMD_INVALID;
 
     // Members related to libevent
 

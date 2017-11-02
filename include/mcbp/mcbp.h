@@ -18,6 +18,7 @@
 
 #include <mcbp/protocol/datatype.h>
 #include <mcbp/protocol/feature.h>
+#include <mcbp/protocol/header.h>
 #include <mcbp/protocol/magic.h>
 #include <mcbp/protocol/opcode.h>
 #include <mcbp/protocol/request.h>

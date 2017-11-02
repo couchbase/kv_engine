@@ -73,7 +73,6 @@ ENGINE_ERROR_CODE dcp_message_system_event(const void* cookie,
                                           cb::const_byte_buffer key,
                                           cb::const_byte_buffer eventData) {
     auto* c = cookie2mcbp(cookie, __func__);
-    c->setCmd(PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT);
 
     protocol_binary_request_dcp_system_event packet(
             opaque, vbucket, key.size(), eventData.size(), event, bySeqno);

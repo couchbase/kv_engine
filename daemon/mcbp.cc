@@ -86,9 +86,10 @@ void mcbp_write_response(McbpConnection* c,
                          int keylen,
                          int dlen) {
     auto& cookie = c->getCookieObject();
+    const auto opcode = cookie.getHeader().getOpcode();
     const auto quiet = cookie.getRequest().isQuiet();
-    if (!quiet || c->getCmd() == PROTOCOL_BINARY_CMD_GET ||
-        c->getCmd() == PROTOCOL_BINARY_CMD_GETK) {
+    if (!quiet || opcode == PROTOCOL_BINARY_CMD_GET ||
+        opcode == PROTOCOL_BINARY_CMD_GETK) {
         mcbp_add_header(c,
                         PROTOCOL_BINARY_RESPONSE_SUCCESS,
                         extlen,
@@ -356,5 +357,5 @@ void mcbp_collect_timings(Cookie& cookie) {
     // Log operations taking longer than 0.5s
     const auto elapsed_ms =
             std::chrono::duration_cast<std::chrono::milliseconds>(elapsed_ns);
-    c->maybeLogSlowCommand(elapsed_ms);
+    c->maybeLogSlowCommand(elapsed_ms, opcode);
 }

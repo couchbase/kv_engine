@@ -16,6 +16,7 @@
  */
 #pragma once
 
+#include <mcbp/protocol/header.h>
 #include <platform/compress.h>
 #include "../../memcached.h"
 #include "steppable_command_context.h"
@@ -61,8 +62,9 @@ protected:
      * @return true if we should add the key as part of the response
      */
     bool shouldSendKey() {
-        return connection.getCmd() == PROTOCOL_BINARY_CMD_GETK ||
-               connection.getCmd() == PROTOCOL_BINARY_CMD_GETKQ;
+        const auto opcode = cookie.getHeader().getOpcode();
+        return opcode == PROTOCOL_BINARY_CMD_GETK ||
+               opcode == PROTOCOL_BINARY_CMD_GETKQ;
     }
 
     /**

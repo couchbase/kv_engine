@@ -822,6 +822,8 @@ unique_cJSON_ptr McbpConnection::toJSON() const {
     auto ret = Connection::toJSON();
     cJSON* obj = ret.get();
     if (obj != nullptr) {
+        cJSON_AddItemToObject(obj, "cookie", cookie.toJSON().release());
+
         cJSON_AddBoolToObject(obj, "sasl_enabled", saslAuthEnabled);
         cJSON_AddBoolToObject(obj, "dcp", isDCP());
         cJSON_AddBoolToObject(obj, "dcp_xattr_aware", isDcpXattrAware());
@@ -830,13 +832,6 @@ unique_cJSON_ptr McbpConnection::toJSON() const {
                                 max_reqs_per_event);
         cJSON_AddNumberToObject(obj, "nevents", numEvents);
         cJSON_AddStringToObject(obj, "state", getStateName());
-
-        const char* cmd_name = memcached_opcode_2_text(cmd);
-        if (cmd_name == nullptr) {
-            cJSON_AddUintPtrToObject(obj, "cmd", cmd);
-        } else {
-            cJSON_AddStringToObject(obj, "cmd", cmd_name);
-        }
 
         {
             cJSON* o = cJSON_CreateObject();
@@ -928,10 +923,9 @@ const Protocol McbpConnection::getProtocol() const {
 }
 
 void McbpConnection::maybeLogSlowCommand(
-    const std::chrono::milliseconds& elapsed) const {
+        const std::chrono::milliseconds& elapsed, uint8_t cmd) const {
     auto opcode = cb::mcbp::ClientOpcode(cmd);
-    const auto limit =
-            cb::mcbp::sla::getSlowOpThreshold(cb::mcbp::ClientOpcode(cmd));
+    const auto limit = cb::mcbp::sla::getSlowOpThreshold(opcode);
 
     if (elapsed > limit) {
         std::chrono::nanoseconds timings(elapsed);

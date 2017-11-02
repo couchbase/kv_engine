@@ -18,6 +18,7 @@
 
 #include "dynamic_buffer.h"
 
+#include <cJSON_utils.h>
 #include <daemon/protocol/mcbp/command_context.h>
 #include <memcached/dockey.h>
 #include <memcached/types.h>
@@ -73,6 +74,11 @@ public:
         cas = 0;
         commandContext.reset();
     }
+
+    /**
+     * Get a representation of the object in JSON
+     */
+    unique_cJSON_ptr toJSON() const;
 
     /**
      * Get the unique event identifier created for this command. It should

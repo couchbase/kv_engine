@@ -22,6 +22,33 @@
 #include <cJSON_utils.h>
 #include <mcbp/protocol/header.h>
 
+unique_cJSON_ptr Cookie::toJSON() const {
+    unique_cJSON_ptr ret(cJSON_CreateObject());
+
+    if (packet.empty()) {
+        cJSON_AddItemToObject(ret.get(), "packet", cJSON_CreateObject());
+    } else {
+        const auto& header = getHeader();
+        cJSON_AddItemToObject(ret.get(), "packet", header.toJSON().release());
+    }
+
+    if (!event_id.empty()) {
+        cJSON_AddStringToObject(ret.get(), "event_id", event_id.c_str());
+    }
+
+    if (!error_context.empty()) {
+        cJSON_AddStringToObject(
+                ret.get(), "error_context", error_context.c_str());
+    }
+
+    if (cas != 0) {
+        std::string str = std::to_string(cas);
+        cJSON_AddStringToObject(ret.get(), "cas", str.c_str());
+    }
+
+    return ret;
+}
+
 const std::string& Cookie::getErrorJson() {
     json_message.clear();
     if (error_context.empty() && event_id.empty()) {

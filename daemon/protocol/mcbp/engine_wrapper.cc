@@ -15,8 +15,9 @@
  *   limitations under the License.
  */
 #include "engine_wrapper.h"
-#include <utilities/protocol2text.h>
 #include <daemon/mcaudit.h>
+#include <mcbp/protocol/header.h>
+#include <utilities/protocol2text.h>
 
 ENGINE_ERROR_CODE bucket_unknown_command(McbpConnection* c,
                                          protocol_binary_request_header* request,
@@ -31,7 +32,8 @@ ENGINE_ERROR_CODE bucket_unknown_command(McbpConnection* c,
                  "%u: %s %s return ENGINE_DISCONNECT",
                  c->getId(),
                  c->getDescription().c_str(),
-                 memcached_opcode_2_text(c->getCmd()));
+                 memcached_opcode_2_text(
+                         c->getCookieObject().getHeader().getOpcode()));
     }
     return ret;
 }

@@ -15,7 +15,7 @@
  *   limitations under the License.
  */
 #include "arithmetic_context.h"
-#include <daemon/mc_time.h>
+#include <mcbp/protocol/header.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>
 #include "../../mcbp.h"
@@ -208,9 +208,9 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::storeItem() {
 ENGINE_ERROR_CODE ArithmeticCommandContext::sendResult() {
     update_topkeys(key, &connection);
     state = State::Done;
-
-    if ((connection.getCmd() == PROTOCOL_BINARY_CMD_INCREMENT) ||
-        (connection.getCmd() == PROTOCOL_BINARY_CMD_INCREMENTQ)) {
+    const auto opcode = cookie.getHeader().getOpcode();
+    if ((opcode == PROTOCOL_BINARY_CMD_INCREMENT) ||
+        (opcode == PROTOCOL_BINARY_CMD_INCREMENTQ)) {
         STATS_INCR(&connection, incr_hits);
     } else {
         STATS_INCR(&connection, decr_hits);

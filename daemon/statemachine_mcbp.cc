@@ -311,8 +311,6 @@ bool conn_new_cmd(McbpConnection& connection) {
      * before they will back off.
      */
     if (connection.decrementNumEvents() >= 0) {
-        connection.setCmd(-1);
-
         connection.getCookieObject().reset();
 
         connection.shrinkBuffers();

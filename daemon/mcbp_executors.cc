@@ -954,7 +954,6 @@ void try_read_mcbp_command(McbpConnection& c) {
     c.binary_header.request.cas = ntohll(c.binary_header.request.cas);
 
     c.addMsgHdr(true);
-    c.setCmd(header.getOpcode());
     /* clear the returned cas value */
     cookie.setCas(0);
     c.setStart(ProcessClock::now());

@@ -15,6 +15,7 @@ add_library(mcbp STATIC
             magic.cc
             opcode.cc
             request.cc
+	    header.cc
             sla.cc
             status_to_string.cc
             )

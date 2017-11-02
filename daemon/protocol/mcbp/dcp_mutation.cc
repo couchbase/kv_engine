@@ -38,7 +38,6 @@ ENGINE_ERROR_CODE dcp_message_mutation(const void* void_cookie,
                                        uint8_t nru,
                                        uint8_t collection_len) {
     auto* c = cookie2mcbp(void_cookie, __func__);
-    c->setCmd(PROTOCOL_BINARY_CMD_DCP_MUTATION);
     // Use a unique_ptr to make sure we release the item in all error paths
     cb::unique_item_ptr item(it, cb::ItemDeleter{c->getBucketEngineAsV0()});
 
