@@ -2669,7 +2669,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
         add_casted_stat("ep_block_cache_misses", value, add_stat, cookie);
     }
 
-    // Specific to RocksDB
+    // Specific to RocksDB. Cumulative ep-engine stats.
+    // Note: These are also reported per-shard in 'kvstore' stats.
     if (kvBucket->getKVStoreStat(
                 "kMemTableTotal", value, KVBucketIface::KVSOption::RW)) {
         add_casted_stat("ep_rocksdb_kMemTableTotal", value, add_stat, cookie);

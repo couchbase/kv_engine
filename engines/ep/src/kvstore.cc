@@ -277,6 +277,21 @@ void KVStore::addStats(ADD_STAT add_stat, const void *c) {
             st.fsStatsCompaction.totalBytesRead, add_stat, c);
     addStat(prefix, "io_compaction_write_bytes",
             st.fsStatsCompaction.totalBytesWritten, add_stat, c);
+
+    // Specific to RocksDB. Per-shard stats.
+    size_t value = 0;
+    if (getStat("kMemTableTotal", value)) {
+        addStat(prefix, "rocksdb_kMemTableTotal", value, add_stat, c);
+    }
+    if (getStat("kMemTableUnFlushed", value)) {
+        addStat(prefix, "rocksdb_kMemTableUnFlushed", value, add_stat, c);
+    }
+    if (getStat("kTableReadersTotal", value)) {
+        addStat(prefix, "rocksdb_kTableReadersTotal", value, add_stat, c);
+    }
+    if (getStat("kCacheTotal", value)) {
+        addStat(prefix, "rocksdb_kCacheTotal", value, add_stat, c);
+    }
 }
 
 void KVStore::addTimingStats(ADD_STAT add_stat, const void *c) {
