@@ -148,13 +148,6 @@ public:
 
     const Protocol getProtocol() const override;
 
-    /**
-     * Return the opaque value for the command being processed
-     */
-    uint32_t getOpaque() const {
-        return binary_header.request.opaque;
-    }
-
     /* Binary protocol stuff */
     /* This is where the binary header goes */
     protocol_binary_request_header binary_header = {};
