@@ -48,10 +48,12 @@ private:
      * @return nothing if lookup is logically deleted, else return a GetValue
      *         by performing a vb::get with lookup::getKey.
      */
-    boost::optional<GetValue> get(VBucket& vb, CacheLookup& lookup);
+    boost::optional<GetValue> get(VBucket& vb,
+                                  CacheLookup& lookup,
+                                  ActiveStream& stream);
 
     EventuallyPersistentEngine& engine_;
-    std::shared_ptr<ActiveStream> stream_;
+    std::weak_ptr<ActiveStream> streamPtr;
 };
 
 /* Callback to get the items that are found to be in the disk */
@@ -62,7 +64,7 @@ public:
     void callback(GetValue& val);
 
 private:
-    std::shared_ptr<ActiveStream> stream_;
+    std::weak_ptr<ActiveStream> streamPtr;
 };
 
 /**

@@ -38,7 +38,7 @@ static std::string backfillStateToString(backfill_state_t state) {
 
 CacheCallback::CacheCallback(EventuallyPersistentEngine& e,
                              std::shared_ptr<ActiveStream> s)
-    : engine_(e), stream_(s) {
+    : engine_(e), streamPtr(s) {
     if (s == nullptr) {
         throw std::invalid_argument("CacheCallback(): stream is NULL");
     }
@@ -51,7 +51,9 @@ CacheCallback::CacheCallback(EventuallyPersistentEngine& e,
 }
 
 // Do a get and restrict the collections lock scope to just these checks.
-boost::optional<GetValue> CacheCallback::get(VBucket& vb, CacheLookup& lookup) {
+boost::optional<GetValue> CacheCallback::get(VBucket& vb,
+                                             CacheLookup& lookup,
+                                             ActiveStream& stream) {
     auto collectionsRHandle = vb.lockCollections(lookup.getKey());
     // Check with collections if this key should be loaded, status EEXISTS is
     // the only way to inform the scan to not continue with this key.
@@ -64,12 +66,18 @@ boost::optional<GetValue> CacheCallback::get(VBucket& vb, CacheLookup& lookup) {
                           0,
                           /*options*/ NONE,
                           /*diskFlushAll*/ false,
-                          stream_->isKeyOnly() ? VBucket::GetKeyOnly::Yes
-                                               : VBucket::GetKeyOnly::No,
+                          stream.isKeyOnly() ? VBucket::GetKeyOnly::Yes
+                                             : VBucket::GetKeyOnly::No,
                           collectionsRHandle);
 }
 
 void CacheCallback::callback(CacheLookup& lookup) {
+    auto stream_ = streamPtr.lock();
+    if (!stream_) {
+        setStatus(ENGINE_SUCCESS);
+        return;
+    }
+
     VBucketPtr vb =
             engine_.getKVBucket()->getVBucket(lookup.getVBucketId());
     if (!vb) {
@@ -77,7 +85,7 @@ void CacheCallback::callback(CacheLookup& lookup) {
         return;
     }
 
-    auto optionalGv = get(*vb, lookup);
+    auto optionalGv = get(*vb, lookup, *stream_);
     if (optionalGv.is_initialized()) {
         auto& gv = optionalGv.get();
 
@@ -99,7 +107,7 @@ void CacheCallback::callback(CacheLookup& lookup) {
     }
 }
 
-DiskCallback::DiskCallback(std::shared_ptr<ActiveStream> s) : stream_(s) {
+DiskCallback::DiskCallback(std::shared_ptr<ActiveStream> s) : streamPtr(s) {
     if (s == nullptr) {
         throw std::invalid_argument("DiskCallback(): stream is NULL");
     }
@@ -112,6 +120,12 @@ DiskCallback::DiskCallback(std::shared_ptr<ActiveStream> s) : stream_(s) {
 }
 
 void DiskCallback::callback(GetValue& val) {
+    auto stream_ = streamPtr.lock();
+    if (!stream_) {
+        setStatus(ENGINE_SUCCESS);
+        return;
+    }
+
     if (!val.item) {
         throw std::invalid_argument("DiskCallback::callback: val is NULL");
     }
@@ -160,6 +174,16 @@ void DCPBackfillDisk::cancel() {
 }
 
 backfill_status_t DCPBackfillDisk::create() {
+    auto stream = streamPtr.lock();
+    if (!stream) {
+        LOG(EXTENSION_LOG_WARNING,
+            "DCPBackfillDisk::create(): "
+            "(vb:%d) backfill create ended prematurely as the associated "
+            "stream is deleted by the producer conn ",
+            getVBucketId());
+        transitionState(backfill_state_done);
+        return backfill_finished;
+    }
     uint16_t vbid = stream->getVBucket();
 
     uint64_t lastPersistedSeqno =
@@ -205,6 +229,11 @@ backfill_status_t DCPBackfillDisk::create() {
 }
 
 backfill_status_t DCPBackfillDisk::scan() {
+    auto stream = streamPtr.lock();
+    if (!stream) {
+        return complete(true);
+    }
+
     uint16_t vbid = stream->getVBucket();
 
     if (!(stream->isActive())) {
@@ -224,9 +253,22 @@ backfill_status_t DCPBackfillDisk::scan() {
 }
 
 backfill_status_t DCPBackfillDisk::complete(bool cancelled) {
-    uint16_t vbid = stream->getVBucket();
-    KVStore* kvstore = engine.getKVBucket()->getROUnderlying(vbid);
+    /* we want to destroy kv store context irrespective of a premature complete
+       or not */
+    KVStore* kvstore = engine.getKVBucket()->getROUnderlying(getVBucketId());
     kvstore->destroyScanContext(scanCtx);
+
+    auto stream = streamPtr.lock();
+    if (!stream) {
+        LOG(EXTENSION_LOG_WARNING,
+            "DCPBackfillDisk::complete(): "
+            "(vb:%d) backfill create ended prematurely as the associated "
+            "stream is deleted by the producer conn; %s",
+            getVBucketId(),
+            cancelled ? "cancelled" : "finished");
+        transitionState(backfill_state_done);
+        return backfill_finished;
+    }
 
     stream->completeBackfill();
 

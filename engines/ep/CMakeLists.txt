@@ -167,6 +167,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/connhandler.cc
             src/connmap.cc
             src/crc32.c
+            src/dcp/backfill.cc
             src/dcp/backfill-manager.cc
             src/dcp/backfill_disk.cc
             src/dcp/backfill_memory.cc

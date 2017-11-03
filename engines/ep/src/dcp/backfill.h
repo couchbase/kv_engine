@@ -37,7 +37,10 @@ public:
     DCPBackfill(std::shared_ptr<ActiveStream> s,
                 uint64_t startSeqno,
                 uint64_t endSeqno)
-        : stream(s), startSeqno(startSeqno), endSeqno(endSeqno) {
+        : streamPtr(s),
+          startSeqno(startSeqno),
+          endSeqno(endSeqno),
+          vbid(s->getVBucket()) {
     }
 
     virtual ~DCPBackfill() {
@@ -56,7 +59,7 @@ public:
      * @return vbid
      */
     uint16_t getVBucketId() const {
-        return stream->getVBucket();
+        return vbid;
     }
 
     /**
@@ -64,9 +67,7 @@ public:
      *
      * @return true if stream is in dead state; else false
      */
-    bool isStreamDead() const {
-        return !stream->isActive();
-    }
+    bool isStreamDead() const;
 
     /**
      * Cancels the backfill
@@ -76,9 +77,13 @@ public:
 protected:
     /**
      * Ptr to the associated Active DCP stream. Backfill can be run for only
-     * an active DCP stream
+     * an active DCP stream.
+     * We use a weak_ptr instead of a shared_ptr to avoid cyclic reference.
+     * DCPBackfill objs do not primarily own the stream objs, they only need
+     * reference to a valid stream obj when backfills are run. Hence, they
+     * should only hold a weak_ptr to the stream objs.
      */
-    std::shared_ptr<ActiveStream> stream;
+    std::weak_ptr<ActiveStream> streamPtr;
 
     /**
      * Start seqno of the backfill
@@ -89,6 +94,11 @@ protected:
      * End seqno of the backfill
      */
     uint64_t endSeqno;
+
+    /**
+     * Id of the vbucket on which the backfill is running
+     */
+    const VBucket::id_type vbid;
 };
 
 using UniqueDCPBackfillPtr = std::unique_ptr<DCPBackfill>;

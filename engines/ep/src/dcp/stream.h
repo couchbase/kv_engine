@@ -532,13 +532,13 @@ public:
 private:
     std::shared_ptr<ActiveStream> queuePop() {
         LockHolder lh(workQueueLock);
-        std::shared_ptr<ActiveStream> rval;
         if (!queue.empty()) {
-            rval = queue.front();
+            auto rval = queue.front().first.lock();
+            queuedVbuckets.erase(queue.front().second);
             queue.pop();
-            queuedVbuckets.erase(rval->getVBucket());
+            return rval;
         }
-        return rval;
+        return nullptr;
     }
 
     bool queueEmpty() {
@@ -549,7 +549,7 @@ private:
     void pushUnique(std::shared_ptr<ActiveStream> stream) {
         LockHolder lh(workQueueLock);
         if (queuedVbuckets.count(stream->getVBucket()) == 0) {
-            queue.push(stream);
+            queue.push(std::make_pair(stream, stream->getVBucket()));
             queuedVbuckets.insert(stream->getVBucket());
         }
     }
@@ -557,11 +557,14 @@ private:
     std::mutex workQueueLock;
 
     /**
-     * Maintain a queue of unique stream_t
-     * There's no need to have the same stream in the queue more than once
+     * Maintain a queue of unique streams and the corresponding vbuckets. We
+     * have the queue to have FIFO processing of the streams and a set to have
+     * at the most one stream per vbucket. In the queue we need to store the
+     * corresponding vbucket because if the stream gets deleted before it is
+     * processed, we must then remove it from the set
      */
-    std::queue<std::shared_ptr<ActiveStream>> queue;
-    std::set<uint16_t> queuedVbuckets;
+    std::queue<std::pair<std::weak_ptr<ActiveStream>, VBucket::id_type>> queue;
+    std::set<VBucket::id_type> queuedVbuckets;
 
     std::atomic<bool> notified;
     size_t iterationsBeforeYield;
