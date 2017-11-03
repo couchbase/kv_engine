@@ -445,8 +445,7 @@ static void subdoc_executor(McbpConnection& c, const void *packet,
 
             STATS_HIT(&c, get);
         }
-        update_topkeys(DocKey(reinterpret_cast<const uint8_t*>(key),
-                              keylen, c.getDocNamespace()), &c);
+        update_topkeys(c.getCookieObject());
         return;
     } while (auto_retry && attempts < MAXIMUM_ATTEMPTS);
 

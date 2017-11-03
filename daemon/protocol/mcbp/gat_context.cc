@@ -96,7 +96,7 @@ ENGINE_ERROR_CODE GatCommandContext::inflateItem() {
 
 ENGINE_ERROR_CODE GatCommandContext::sendResponse() {
     STATS_HIT(&connection, get);
-    update_topkeys(key, &connection);
+    update_topkeys(cookie);
 
     // Audit the modification to the document (change of EXP)
     cb::audit::document::add(cookie, cb::audit::document::Operation::Modify);

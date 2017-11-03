@@ -110,7 +110,7 @@ ENGINE_ERROR_CODE GetCommandContext::sendResponse() {
     cb::audit::document::add(cookie, cb::audit::document::Operation::Read);
 
     STATS_HIT(&connection, get);
-    update_topkeys(key, &connection);
+    update_topkeys(cookie);
 
     state = State::Done;
     return ENGINE_SUCCESS;

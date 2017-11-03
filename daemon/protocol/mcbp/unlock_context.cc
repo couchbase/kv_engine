@@ -23,7 +23,7 @@
 ENGINE_ERROR_CODE UnlockCommandContext::unlock() {
     auto ret = bucket_unlock(connection, key, vbucket, cas);
     if (ret == ENGINE_SUCCESS) {
-        update_topkeys(key, &connection);
+        update_topkeys(cookie);
         mcbp_write_packet(&connection, PROTOCOL_BINARY_RESPONSE_SUCCESS);
         state = State::Done;
     }

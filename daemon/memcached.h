@@ -212,9 +212,11 @@ const char* get_server_version(void);
  * Connection-related functions
  */
 
-/* Increments topkeys count for a key when called by a valid operation. */
-void update_topkeys(const DocKey& key, McbpConnection *c);
-
+/**
+ * Increments topkeys count for the key specified within the command context
+ * provided by the cookie.
+ */
+void update_topkeys(const Cookie& cookie);
 
 void notify_thread_bucket_deletion(LIBEVENT_THREAD *me);
 

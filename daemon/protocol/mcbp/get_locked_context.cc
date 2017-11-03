@@ -98,7 +98,7 @@ ENGINE_ERROR_CODE GetLockedCommandContext::sendResponse() {
     connection.setState(McbpStateMachine::State::send_data);
 
     STATS_INCR(&connection, cmd_lock);
-    update_topkeys(key, &connection);
+    update_topkeys(cookie);
 
     state = State::Done;
     return ENGINE_SUCCESS;

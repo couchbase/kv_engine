@@ -206,7 +206,7 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::storeItem() {
 }
 
 ENGINE_ERROR_CODE ArithmeticCommandContext::sendResult() {
-    update_topkeys(key, &connection);
+    update_topkeys(cookie);
     state = State::Done;
     const auto opcode = cookie.getHeader().getOpcode();
     if ((opcode == PROTOCOL_BINARY_CMD_INCREMENT) ||

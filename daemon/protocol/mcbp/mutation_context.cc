@@ -254,7 +254,7 @@ ENGINE_ERROR_CODE MutationCommandContext::storeItem() {
 }
 
 ENGINE_ERROR_CODE MutationCommandContext::sendResponse() {
-    update_topkeys(key, &connection);
+    update_topkeys(cookie);
     state = State::Done;
 
     if (cookie.getRequest().isQuiet()) {

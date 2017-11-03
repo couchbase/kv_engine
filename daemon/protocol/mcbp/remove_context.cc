@@ -47,7 +47,7 @@ ENGINE_ERROR_CODE RemoveCommandContext::step() {
             break;
         case State::Done:
             SLAB_INCR(&connection, delete_hits);
-            update_topkeys(key, &connection);
+            update_topkeys(cookie);
             return ENGINE_SUCCESS;
         }
     } while (ret == ENGINE_SUCCESS);

@@ -80,7 +80,7 @@ ENGINE_ERROR_CODE GetMetaCommandContext::sendResponse() {
     mcbp_write_and_free(&connection, &connection.getDynamicBuffer());
 
     STATS_HIT(&connection, get);
-    update_topkeys(key, &connection);
+    update_topkeys(cookie);
 
     state = State::Done;
     return ENGINE_SUCCESS;

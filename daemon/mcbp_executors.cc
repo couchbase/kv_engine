@@ -62,14 +62,14 @@ std::array<mcbp_package_execute, 0x100>& executors = get_mcbp_executors();
  * Triggers topkeys_update (i.e., increments topkeys stats) if called by a
  * valid operation.
  */
-void update_topkeys(const DocKey& key, McbpConnection* c) {
-    const auto& cookie = c->getCookieObject();
+void update_topkeys(const Cookie& cookie) {
     const auto opcode = cookie.getHeader().getOpcode();
     if (topkey_commands[opcode]) {
-        if (all_buckets[c->getBucketIndex()].topkeys != nullptr) {
-            all_buckets[c->getBucketIndex()].topkeys->updateKey(key.data(),
-                                                                key.size(),
-                                                                mc_time_get_current_time());
+        const auto index = cookie.getConnection().getBucketIndex();
+        const auto key = cookie.getRequestKey();
+        if (all_buckets[index].topkeys != nullptr) {
+            all_buckets[index].topkeys->updateKey(
+                    key.data(), key.size(), mc_time_get_current_time());
         }
     }
 }
@@ -159,10 +159,7 @@ static void process_bin_unknown_packet(Cookie& cookie) {
         } else {
             connection.setState(McbpStateMachine::State::new_cmd);
         }
-        update_topkeys(DocKey(req->bytes + sizeof(*req) + req->request.extlen,
-                              ntohs(req->request.keylen),
-                              connection.getDocNamespace()),
-                       &connection);
+        update_topkeys(cookie);
         break;
     }
     case ENGINE_EWOULDBLOCK:

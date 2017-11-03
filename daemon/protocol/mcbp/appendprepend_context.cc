@@ -196,7 +196,7 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::storeItem() {
     auto ret = bucket_store(&connection, newitem.get(), &ncas, OPERATION_CAS);
 
     if (ret == ENGINE_SUCCESS) {
-        update_topkeys(key, &connection);
+        update_topkeys(cookie);
         connection.getCookieObject().setCas(ncas);
         if (connection.isSupportsMutationExtras()) {
             item_info newItemInfo;
