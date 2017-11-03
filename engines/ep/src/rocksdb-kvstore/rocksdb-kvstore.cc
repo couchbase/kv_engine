@@ -286,7 +286,7 @@ RocksDBKVStore::~RocksDBKVStore() {
 const KVRocksDB& RocksDBKVStore::openDB(uint16_t vbid) {
     // This lock is to avoid 2 different threads (e.g., `Flush` and
     // `Warmup`) to open multiple `rocksdb::DB` instances on the same DB.
-    std::lock_guard<std::mutex> lg(openDBMutex);
+    std::lock_guard<std::mutex> lg(vbDBMutex);
 
     if (vbDB[vbid]) {
         return *vbDB[vbid];
@@ -361,7 +361,7 @@ bool RocksDBKVStore::commit(const Item* collectionsManifest) {
     // shorten the scope of the lock.
     std::vector<std::unique_ptr<RocksRequest>> commitBatch;
     {
-        std::lock_guard<std::mutex> lock(writeLock);
+        std::lock_guard<std::mutex> lock(writeMutex);
         std::swap(pendingReqs, commitBatch);
     }
 
@@ -542,12 +542,9 @@ void RocksDBKVStore::del(const Item& item, Callback<int>& cb) {
 }
 
 void RocksDBKVStore::delVBucket(uint16_t vbid, uint64_t vb_version) {
-    std::lock_guard<std::mutex> lg(writeLock);
-    // TODO: check if needs lock on `openDBMutex`. We should not need (e.g.,
-    // there was no synchonization between this and `commit`), but we could
-    // have an error if we destroy `vbDB[vbid]` while the same DB is used
-    // somewhere else. Also, from RocksDB docs:
-    //     "Calling DestroyDB() on a live DB is an undefined behavior."
+    std::lock_guard<std::mutex> lg1(writeMutex);
+    std::lock_guard<std::mutex> lg2(vbDBMutex);
+
     vbDB[vbid].reset();
     // Just destroy the DB in the sub-folder for vbid
     auto dbname = getVBDBSubdir(vbid);
@@ -619,7 +616,7 @@ size_t RocksDBKVStore::getNumShards() {
 bool RocksDBKVStore::getStat(const char* name, size_t& value) {
     std::vector<rocksdb::DB*> dbs;
     {
-        std::lock_guard<std::mutex> lg(openDBMutex);
+        std::lock_guard<std::mutex> lg(vbDBMutex);
         for (const auto& db : vbDB) {
             if (db) {
                 dbs.push_back(db->rdb.get());
@@ -629,7 +626,7 @@ bool RocksDBKVStore::getStat(const char* name, size_t& value) {
     if (dbs.empty()) {
         return false;
     }
-    auto cache_set = getCachePointers();
+    auto cache_set = getCachePointers(dbs);
     std::map<rocksdb::MemoryUtil::UsageType, uint64_t> usage_by_type;
 
     auto status = rocksdb::MemoryUtil::GetApproximateMemoryUsageByType(
@@ -669,10 +666,11 @@ StorageProperties RocksDBKVStore::getStorageProperties(void) {
     return rv;
 }
 
-std::unordered_set<const rocksdb::Cache*> RocksDBKVStore::getCachePointers() {
+std::unordered_set<const rocksdb::Cache*> RocksDBKVStore::getCachePointers(
+        const std::vector<rocksdb::DB*>& dbs) {
     std::unordered_set<const rocksdb::Cache*> cache_set;
 
-    for (const auto& db : vbDB) {
+    for (const auto* db : dbs) {
         if (db) {
             // TODO: Cache from DBImpl. The 'std::shared_ptr<Cache>
             // table_cache_' pointer is not exposed through the 'DB' interface
@@ -680,7 +678,7 @@ std::unordered_set<const rocksdb::Cache*> RocksDBKVStore::getCachePointers() {
             // Cache from DBOptions
             // Note: we do not use the 'row_cache' currently. As the Block
             // Cache, it can be shared among multiple DBs.
-            cache_set.insert(db->rdb->GetDBOptions().row_cache.get());
+            cache_set.insert(db->GetDBOptions().row_cache.get());
         }
     }
 

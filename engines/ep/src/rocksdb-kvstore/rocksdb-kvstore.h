@@ -300,10 +300,12 @@ protected:
                                       rocksdb::WriteBatch batch);
 
 private:
-    // This is used for synchonization in `openDB` to avoid that we open two
-    // `rocksdb::DB` instances on the same DB (e.g., this would be possible
-    // when we `Flush` and `Warmup` run in parallel).
-    std::mutex openDBMutex;
+    // Guards access to the 'vbDB' vector. Users should acquire this mutex
+    // before accessing (reading / writing) any elements of the vector.
+    // This is used also for synchonization in 'openDB' to avoid that we open
+    // two 'rocksdb::DB' instances on the same DB (e.g., this would be possible
+    // when we 'Flush' and 'Warmup' run in parallel).
+    std::mutex vbDBMutex;
     // We cannot open two `rocksdb::DB` instances on the same DB.
     // From the RocksDB documentation:
     //     "A database may only be opened by one process at a time. The rocksdb
@@ -349,9 +351,10 @@ private:
 
     /*
      * This function returns a set of pointers to all Caches allocated for
-     * all the rocksdb::DB instances managed by this store.
+     * all the rocksdb::DB instances given in input.
      */
-    std::unordered_set<const rocksdb::Cache*> getCachePointers();
+    std::unordered_set<const rocksdb::Cache*> getCachePointers(
+            const std::vector<rocksdb::DB*>& dbs);
 
     rocksdb::Slice getKeySlice(const DocKey& key);
     rocksdb::Slice getSeqnoSlice(const int64_t* seqno);
@@ -402,7 +405,7 @@ private:
     // RocksDB does *not* need additional synchronisation around
     // db->Write, but we need to prevent delVBucket racing with
     // commit, potentially losing data.
-    std::mutex writeLock;
+    std::mutex writeMutex;
 
     // This variable is used to verify that the KVStore API is used correctly
     // when RocksDB is used as store. "Correctly" means that the caller must
