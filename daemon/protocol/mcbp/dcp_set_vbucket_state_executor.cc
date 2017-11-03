@@ -17,19 +17,23 @@
 
 #include "executors.h"
 
-void dcp_set_vbucket_state_executor(McbpConnection* c, void* packet) {
-    auto* req = reinterpret_cast<protocol_binary_request_dcp_set_vbucket_state*>(packet);
+void dcp_set_vbucket_state_executor(McbpConnection* c, void*) {
     ENGINE_ERROR_CODE ret = c->getAiostat();
     c->setAiostat(ENGINE_SUCCESS);
     c->setEwouldblock(false);
 
     if (ret == ENGINE_SUCCESS) {
+        const auto& cookie = c->getCookieObject();
+        const auto& request = cookie.getRequest(Cookie::PacketContent::Full);
+        const auto* req = reinterpret_cast<
+                const protocol_binary_request_dcp_set_vbucket_state*>(&request);
         vbucket_state_t state = (vbucket_state_t)req->message.body.state;
         ret = c->getBucketEngine()->dcp.set_vbucket_state(
-            c->getBucketEngineAsV0(), c->getCookie(),
-            c->binary_header.request.opaque,
-            c->binary_header.request.vbucket,
-            state);
+                c->getBucketEngineAsV0(),
+                &cookie,
+                request.getOpaque(),
+                request.getVBucket(),
+                state);
     }
 
     switch (ret) {

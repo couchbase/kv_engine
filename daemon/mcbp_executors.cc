@@ -63,8 +63,9 @@ std::array<mcbp_package_execute, 0x100>& executors = get_mcbp_executors();
  * valid operation.
  */
 void update_topkeys(const DocKey& key, McbpConnection* c) {
-
-    if (topkey_commands[c->binary_header.request.opcode]) {
+    const auto& cookie = c->getCookieObject();
+    const auto opcode = cookie.getHeader().getOpcode();
+    if (topkey_commands[opcode]) {
         if (all_buckets[c->getBucketIndex()].topkeys != nullptr) {
             all_buckets[c->getBucketIndex()].topkeys->updateKey(key.data(),
                                                                 key.size(),
@@ -930,10 +931,10 @@ void try_read_mcbp_command(McbpConnection& c) {
 
     if (header.isResponse() && response_handlers[header.getOpcode()] == nullptr) {
         LOG_WARNING(&c,
-                    "%u: Unsupported response packet received: %u, "
+                    "%u: Unsupported response packet received: %02x, "
                     "closing connection",
                     c.getId(),
-                    (unsigned int)c.binary_header.request.opcode);
+                    header.getOpcode());
         c.setState(McbpStateMachine::State::closing);
         return;
     }
@@ -942,16 +943,6 @@ void try_read_mcbp_command(McbpConnection& c) {
         throw std::logic_error(
                 "try_read_mcbp_command: Not connected to a bucket");
     }
-
-    // Create a host-local-byte-order-copy of the header
-    // @deprecated.. we need this to be part of the cookie as the connection
-    //               object itself is supposed to handle multiple commands
-    //               at a time in the future!!
-    std::memcpy(c.binary_header.bytes, input.data(), sizeof(cb::mcbp::Request));
-    c.binary_header.request.keylen = ntohs(c.binary_header.request.keylen);
-    c.binary_header.request.bodylen = ntohl(c.binary_header.request.bodylen);
-    c.binary_header.request.vbucket = ntohs(c.binary_header.request.vbucket);
-    c.binary_header.request.cas = ntohll(c.binary_header.request.cas);
 
     c.addMsgHdr(true);
     /* clear the returned cas value */

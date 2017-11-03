@@ -19,9 +19,7 @@
 #include "executors.h"
 #include "utilities.h"
 
-void dcp_buffer_acknowledgement_executor(McbpConnection* c, void* packet) {
-    auto* req = reinterpret_cast<protocol_binary_request_dcp_buffer_acknowledgement*>(packet);
-
+void dcp_buffer_acknowledgement_executor(McbpConnection* c, void*) {
     ENGINE_ERROR_CODE ret = c->getAiostat();
     c->setAiostat(ENGINE_SUCCESS);
     c->setEwouldblock(false);
@@ -30,13 +28,20 @@ void dcp_buffer_acknowledgement_executor(McbpConnection* c, void* packet) {
         ret = mcbp::haveDcpPrivilege(*c);
 
         if (ret == ENGINE_SUCCESS) {
+            const auto& cookie = c->getCookieObject();
+            const auto& header = cookie.getRequest();
+            const auto* req = reinterpret_cast<
+                    const protocol_binary_request_dcp_buffer_acknowledgement*>(
+                    &header);
+
             uint32_t bbytes;
             memcpy(&bbytes, &req->message.body.buffer_bytes, 4);
             ret = c->getBucketEngine()->dcp.buffer_acknowledgement(
-                c->getBucketEngineAsV0(), c->getCookie(),
-                c->binary_header.request.opaque,
-                c->binary_header.request.vbucket,
-                ntohl(bbytes));
+                    c->getBucketEngineAsV0(),
+                    &cookie,
+                    header.getOpaque(),
+                    header.getVBucket(),
+                    ntohl(bbytes));
         }
     }
 

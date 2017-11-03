@@ -16,6 +16,7 @@
  */
 
 #include <daemon/mcbp.h>
+#include <mcbp/protocol/header.h>
 #include "executors.h"
 #include "utilities.h"
 
@@ -28,9 +29,10 @@ void dcp_noop_executor(McbpConnection* c, void*) {
         // NOOP may be sent to a consumer or a producer...
         ret = mcbp::haveDcpPrivilege(*c);
         if (ret == ENGINE_SUCCESS) {
-            ret = c->getBucketEngine()->dcp.noop(c->getBucketEngineAsV0(),
-                                                 c->getCookie(),
-                                                 c->binary_header.request.opaque);
+            const auto& cookie = c->getCookieObject();
+            const auto& header = cookie.getHeader();
+            ret = c->getBucketEngine()->dcp.noop(
+                    c->getBucketEngineAsV0(), &cookie, header.getOpaque());
         }
     }
 
