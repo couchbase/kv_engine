@@ -91,7 +91,7 @@ void list_bucket_executor(Cookie& cookie) {
                                   0,
                                   connection.getCookie())) {
             cookie.logResponse(ret.first);
-            mcbp_write_and_free(&connection, &connection.getDynamicBuffer());
+            mcbp_write_and_free(&connection, &cookie.getDynamicBuffer());
             return;
         }
         ret.first = ENGINE_ENOMEM;

@@ -392,8 +392,7 @@ static void append_bin_stats(const char* key,
                              const char* val,
                              const uint32_t vlen,
                              Cookie& cookie) {
-    auto& c = cookie.getConnection();
-    auto& dbuf = c.getDynamicBuffer();
+    auto& dbuf = cookie.getDynamicBuffer();
     // We've ensured that there is enough room in the buffer before calling
     // this method
     auto* buf = reinterpret_cast<uint8_t*>(dbuf.getCurrent());
@@ -419,12 +418,13 @@ static void append_stats(const char* key, const uint16_t klen,
                          const void* void_cookie) {
     size_t needed;
 
-    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
+    auto& cookie =
+            *const_cast<Cookie*>(reinterpret_cast<const Cookie*>(void_cookie));
     needed = vlen + klen + sizeof(protocol_binary_response_header);
-    if (!cookie->getConnection().growDynamicBuffer(needed)) {
+    if (!cookie.growDynamicBuffer(needed)) {
         return;
     }
-    append_bin_stats(key, klen, val, vlen, *const_cast<Cookie*>(cookie));
+    append_bin_stats(key, klen, val, vlen, cookie);
 }
 
 
@@ -885,7 +885,7 @@ ENGINE_ERROR_CODE StatsCommandContext::step() {
         // We just want to record this once rather than for each packet sent
         ++connection.getBucket()
                   .responseCounters[PROTOCOL_BINARY_RESPONSE_SUCCESS];
-        mcbp_write_and_free(&connection, &connection.getDynamicBuffer());
+        mcbp_write_and_free(&connection, &cookie.getDynamicBuffer());
 
     } else {
         switch (ret) {

@@ -74,6 +74,7 @@ public:
         packet = {};
         cas = 0;
         commandContext.reset();
+        dynamicBuffer.clear();
     }
 
     /**

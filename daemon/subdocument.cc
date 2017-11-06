@@ -1418,7 +1418,8 @@ static void subdoc_single_response(SubdocCmdContext& context) {
 
     // Add mutation descr to response buffer if requested.
     if (include_mutation_dscr) {
-        DynamicBuffer& response_buf = connection.getDynamicBuffer();
+        DynamicBuffer& response_buf =
+                connection.getCookieObject().getDynamicBuffer();
         if (!response_buf.grow(extlen)) {
             // Unable to form complete response.
             mcbp_write_packet(&connection, PROTOCOL_BINARY_RESPONSE_ENOMEM);
@@ -1449,7 +1450,8 @@ static void subdoc_multi_mutation_response(SubdocCmdContext& context) {
     //
     // On failure body indicates the index and status code of the first failing
     // spec.
-    DynamicBuffer& response_buf = connection.getDynamicBuffer();
+    DynamicBuffer& response_buf =
+            connection.getCookieObject().getDynamicBuffer();
     size_t extlen = 0;
     char* extras_ptr = nullptr;
 
@@ -1581,7 +1583,8 @@ static void subdoc_multi_lookup_response(SubdocCmdContext& context) {
     // 1. status (uin16_t) & vallen (uint32_t). Use the dynamicBuffer for this
     // 2. actual value - this already resides either in the original document
     //                   (for lookups) or stored in the Subdoc::Result.
-    DynamicBuffer& response_buf = connection.getDynamicBuffer();
+    DynamicBuffer& response_buf =
+            connection.getCookieObject().getDynamicBuffer();
     size_t needed = (sizeof(uint16_t) + sizeof(uint32_t)) *
         (context.getOperations(SubdocCmdContext::Phase::XATTR).size() +
          context.getOperations(SubdocCmdContext::Phase::Body).size());

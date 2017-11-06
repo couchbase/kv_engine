@@ -36,8 +36,8 @@ void dcp_get_failover_log_executor(McbpConnection* c, void* packet) {
 
     switch (ret) {
     case ENGINE_SUCCESS:
-        if (c->getDynamicBuffer().getRoot() != nullptr) {
-            mcbp_write_and_free(c, &c->getDynamicBuffer());
+        if (c->getCookieObject().getDynamicBuffer().getRoot() != nullptr) {
+            mcbp_write_and_free(c, &c->getCookieObject().getDynamicBuffer());
         } else {
             mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
         }

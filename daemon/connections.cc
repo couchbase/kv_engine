@@ -246,7 +246,7 @@ static void conn_cleanup(McbpConnection& connection) {
      */
     connection.setDCP(false);
     conn_return_buffers(&connection);
-    connection.clearDynamicBuffer();
+    connection.getCookieObject().reset();
     connection.setEngineStorage(nullptr);
 
     connection.setThread(nullptr);

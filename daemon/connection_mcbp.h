@@ -444,24 +444,6 @@ public:
         McbpConnection::supports_mutation_extras = supports_mutation_extras;
     }
 
-    /**
-     * Clear the dynamic buffer
-     */
-    void clearDynamicBuffer() {
-        cookie.clearDynamicBuffer();
-    }
-
-    /**
-     * Grow the dynamic buffer to
-     */
-    bool growDynamicBuffer(size_t needed) {
-        return cookie.growDynamicBuffer(needed);
-    }
-
-    DynamicBuffer& getDynamicBuffer() {
-        return cookie.getDynamicBuffer();
-    }
-
     ProcessClock::time_point getStart() const {
         return start;
     }

@@ -288,7 +288,7 @@ ENGINE_ERROR_CODE MutationCommandContext::sendResponse() {
                                    connection.getCookie())) {
             return ENGINE_FAILED;
         }
-        mcbp_write_and_free(&connection, &connection.getDynamicBuffer());
+        mcbp_write_and_free(&connection, &cookie.getDynamicBuffer());
     } else {
         mcbp_write_packet(&connection, PROTOCOL_BINARY_RESPONSE_SUCCESS);
     }

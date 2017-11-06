@@ -265,7 +265,7 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::sendResult() {
         }
     }
 
-    mcbp_write_and_free(&connection, &connection.getDynamicBuffer());
+    mcbp_write_and_free(&connection, &cookie.getDynamicBuffer());
     return ENGINE_SUCCESS;
 }
 

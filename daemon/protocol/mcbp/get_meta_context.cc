@@ -77,7 +77,7 @@ ENGINE_ERROR_CODE GetMetaCommandContext::sendResponse() {
                           info.cas,
                           connection.getCookie());
 
-    mcbp_write_and_free(&connection, &connection.getDynamicBuffer());
+    mcbp_write_and_free(&connection, &cookie.getDynamicBuffer());
 
     STATS_HIT(&connection, get);
     update_topkeys(cookie);

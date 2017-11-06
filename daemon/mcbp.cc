@@ -60,7 +60,7 @@ static bool send_not_my_vbucket(Cookie& cookie) {
         return false;
     }
 
-    auto& buffer = c.getDynamicBuffer();
+    auto& buffer = cookie.getDynamicBuffer();
     auto* buf = reinterpret_cast<uint8_t*>(buffer.getCurrent());
     const auto& header = c.getCookieObject().getHeader();
 
@@ -74,7 +74,7 @@ static bool send_not_my_vbucket(Cookie& cookie) {
     builder.validate();
 
     buffer.moveOffset(needed);
-    mcbp_write_and_free(&c, &c.getDynamicBuffer());
+    mcbp_write_and_free(&c, &cookie.getDynamicBuffer());
     c.setClustermapRevno(pair.first);
     return true;
 }
@@ -288,7 +288,7 @@ bool mcbp_response_handler(const void* key, uint16_t keylen,
     const size_t needed = payload.len + keylen + extlen +
                           sizeof(protocol_binary_response_header);
 
-    auto &dbuf = c->getDynamicBuffer();
+    auto& dbuf = cookie->getDynamicBuffer();
     if (!dbuf.grow(needed)) {
         LOG_WARNING(c, "<%u ERROR: Failed to allocate memory for response",
                     c->getId());
