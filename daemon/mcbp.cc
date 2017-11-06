@@ -34,7 +34,8 @@
  * @param c the connection to send the response to
  * @return true if success, false if memory allocation fails.
  */
-static bool send_not_my_vbucket(McbpConnection& c) {
+static bool send_not_my_vbucket(Cookie& cookie) {
+    auto& c = cookie.getConnection();
     auto pair = c.getBucket().clusterConfiguration.getConfiguration();
     if (pair.first == -1 ||
         (pair.first == c.getClustermapRevno() && settings.isDedupeNmvbMaps())) {
@@ -52,7 +53,7 @@ static bool send_not_my_vbucket(McbpConnection& c) {
     }
 
     const size_t needed = sizeof(cb::mcbp::Response) + pair.second->size();
-    if (!c.growDynamicBuffer(needed)) {
+    if (!cookie.growDynamicBuffer(needed)) {
         LOG_WARNING(&c,
                     "<%d ERROR: Failed to allocate memory for response",
                     c.getId());
@@ -132,7 +133,7 @@ void mcbp_write_packet(McbpConnection* c, protocol_binary_response_status err) {
         return;
     }
     if (err == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET) {
-        if (!send_not_my_vbucket(*c)) {
+        if (!send_not_my_vbucket(c->getCookieObject())) {
             throw std::runtime_error(
                     "mcbp_write_packet: failed to send not my vbucket");
         }
@@ -274,7 +275,7 @@ bool mcbp_response_handler(const void* key, uint16_t keylen,
     case PROTOCOL_BINARY_RESPONSE_ROLLBACK:
         break;
     case PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET:
-        return send_not_my_vbucket(*c);
+        return send_not_my_vbucket(*cookie);
     default:
         //
         payload = {error_json.data(), error_json.size()};
