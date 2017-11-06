@@ -830,6 +830,16 @@
             "descr": "RocksDB Block Based Table Options, comma separated.",
             "type": "std::string"
         },
+        "rocksdb_low_pri_background_threads": {
+            "default": "0",
+            "descr": "Number of RocksDB low priority background threads. 0 = auto-select.",
+            "type": "size_t"
+        },
+        "rocksdb_high_pri_background_threads": {
+            "default": "0",
+            "descr": "Number of RocksDB high priority background threads. 0 = auto-select.",
+            "type": "size_t"
+        },
         "time_synchronization": {
             "default": "disabled",
             "descr": "No longer supported. This config parameter has no effect.",

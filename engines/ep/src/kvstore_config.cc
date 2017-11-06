@@ -46,6 +46,9 @@ KVStoreConfig::KVStoreConfig(Configuration& config, uint16_t shardid)
     setPeriodicSyncBytes(config.getFsyncAfterEveryNBytesWritten());
     config.addValueChangedListener("fsync_after_every_n_bytes_written",
                                    new ConfigChangeListener(*this));
+    rocksDbLowPriBackgroundThreads = config.getRocksdbLowPriBackgroundThreads();
+    rocksDbHighPriBackgroundThreads =
+            config.getRocksdbHighPriBackgroundThreads();
 }
 
 KVStoreConfig::KVStoreConfig(uint16_t _maxVBuckets,

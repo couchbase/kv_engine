@@ -111,6 +111,9 @@ public:
         periodicSyncBytes = bytes;
     }
 
+    // Following specific to RocksDB.
+    // TODO: Move into a RocksDBKVStoreConfig subclass.
+
     /*
      * Return the RocksDB Database level options.
      */
@@ -130,6 +133,16 @@ public:
      */
     const std::string& getRocksDbBBTOptions() {
         return rocksDbBBTOptions;
+    }
+
+    /// Return the RocksDB low priority background thread count.
+    size_t getRocksDbLowPriBackgroundThreads() const {
+        return rocksDbLowPriBackgroundThreads;
+    }
+
+    /// Return the RocksDB high priority background thread count.
+    size_t getRocksDbHighPriBackgroundThreads() const {
+        return rocksDbHighPriBackgroundThreads;
     }
 
 private:
@@ -159,4 +172,10 @@ private:
     // RocksDB Block Based Table options. Semicolon-separated
     // `<option>=<value>` pairs.
     std::string rocksDbBBTOptions;
+
+    /// RocksDB low priority background thread count.
+    size_t rocksDbLowPriBackgroundThreads = 0;
+
+    /// RocksDB high priority background thread count.
+    size_t rocksDbHighPriBackgroundThreads = 0;
 };

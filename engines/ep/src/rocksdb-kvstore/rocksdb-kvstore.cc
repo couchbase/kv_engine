@@ -24,6 +24,7 @@
 #include "kvstore_config.h"
 #include "kvstore_priv.h"
 
+#include <platform/sysinfo.h>
 #include <rocksdb/convenience.h>
 #include <rocksdb/utilities/memory_util.h>
 
@@ -227,29 +228,19 @@ RocksDBKVStore::RocksDBKVStore(KVStoreConfig& config)
     rdbOptions.table_factory.reset(
             rocksdb::NewBlockBasedTableFactory(table_options));
 
-    // The `max_background_compactions` or `max_background_flushes` options
-    // are deprecated but still available in case the RocksDB default is not
-    // optimal. We need the following further configuration for applying them.
-    // RocksDB will set `max_background_jobs` to
-    // `max_background_compactions + max_background_flushes` in the case where
-    // the user sets at least one of `max_background_compactions` or
-    // `max_background_flushes`. Thus, in that case the `max_background_jobs`
-    // option is ignored.
-    // In the case where only one of `max_background_compactions` and
-    // `max_background_flushes` is set, RocksDB sets the other to 1 and we do
-    // not need to call `env->SetBackgroundThreads()` for that one because the
-    // default size of both Thread Pools is 1.
-    auto defaultOptions = rocksdb::Options();
-    if (rdbOptions.max_background_compactions !=
-        defaultOptions.max_background_compactions) {
-        rocksdb::Env::Default()->SetBackgroundThreads(
-                rdbOptions.max_background_compactions, rocksdb::Env::LOW);
+    // Set number of background threads - note these are per-environment, so
+    // are shared across all DB instances (vBuckets) and all Buckets.
+    auto lowPri = configuration.getRocksDbLowPriBackgroundThreads();
+    if (lowPri == 0) {
+        lowPri = cb::get_available_cpu_count();
     }
-    if (rdbOptions.max_background_flushes !=
-        defaultOptions.max_background_flushes) {
-        rocksdb::Env::Default()->SetBackgroundThreads(
-                rdbOptions.max_background_flushes, rocksdb::Env::HIGH);
+    rocksdb::Env::Default()->SetBackgroundThreads(lowPri, rocksdb::Env::LOW);
+
+    auto highPri = configuration.getRocksDbHighPriBackgroundThreads();
+    if (highPri == 0) {
+        highPri = cb::get_available_cpu_count();
     }
+    rocksdb::Env::Default()->SetBackgroundThreads(highPri, rocksdb::Env::HIGH);
 
     // Set the provided `RocksDBCFOptions` as the base configuration for all
     // Column Families.
