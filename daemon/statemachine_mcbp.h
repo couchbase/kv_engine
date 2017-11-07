@@ -62,7 +62,8 @@ public:
         read_packet_header,
 
         /**
-         * parse_cmd parse the command header
+         * parse_cmd parse the command header, and make a host-local copy of
+         * the packet header in c->binary_header for convenience
          *
          * possible next state:
          *   * closing - if the bucket is currently being deleted (or protocol

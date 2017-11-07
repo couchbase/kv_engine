@@ -148,6 +148,10 @@ public:
 
     const Protocol getProtocol() const override;
 
+    /* Binary protocol stuff */
+    /* This is where the binary header goes */
+    protocol_binary_request_header binary_header = {};
+
     /**
      * Decrement the number of events to process and return the new value
      */

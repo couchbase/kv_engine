@@ -197,15 +197,14 @@ void mcbp_add_header(McbpConnection* c,
 
     c->addMsgHdr(true);
     auto& cookie = c->getCookieObject();
-    const auto& header = cookie.getHeader();
     const auto wbuf = mcbp_add_header(*c->write,
-                                      header.getOpcode(),
+                                      c->binary_header.request.opcode,
                                       err,
                                       ext_len,
                                       key_len,
                                       body_len,
                                       datatype,
-                                      header.getOpaque(),
+                                      cookie.getHeader().getOpaque(),
                                       cookie.getCas());
 
     if (settings.getVerbose() > 1) {

@@ -16,7 +16,6 @@
  */
 
 #include <daemon/mcbp.h>
-#include <mcbp/protocol/header.h>
 #include "executors.h"
 #include "utilities.h"
 
@@ -29,21 +28,15 @@ void dcp_control_executor(McbpConnection* c, void* packet) {
         ret = mcbp::haveDcpPrivilege(*c);
 
         if (ret == ENGINE_SUCCESS) {
-            const auto& cookie = c->getCookieObject();
-            const auto& header = cookie.getHeader();
-            const auto* req = reinterpret_cast<
-                    const protocol_binary_request_dcp_control*>(&header);
+            auto* req = reinterpret_cast<protocol_binary_request_dcp_control*>(packet);
             const uint8_t* key = req->bytes + sizeof(req->bytes);
             uint16_t nkey = ntohs(req->message.header.request.keylen);
             const uint8_t* value = key + nkey;
             uint32_t nvalue = ntohl(req->message.header.request.bodylen) - nkey;
             ret = c->getBucketEngine()->dcp.control(c->getBucketEngineAsV0(),
-                                                    &cookie,
-                                                    header.getOpaque(),
-                                                    key,
-                                                    nkey,
-                                                    value,
-                                                    nvalue);
+                                                    c->getCookie(),
+                                                    c->binary_header.request.opaque,
+                                                    key, nkey, value, nvalue);
         }
     }
 

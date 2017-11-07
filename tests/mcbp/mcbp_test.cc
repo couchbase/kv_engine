@@ -19,7 +19,6 @@
 #include "utilities/protocol2text.h"
 
 #include <event2/event.h>
-#include <mcbp/protocol/header.h>
 #include <memcached/extension_loggers.h>
 #include <memcached/protocol_binary.h>
 
@@ -60,8 +59,14 @@ protocol_binary_response_status
 ValidatorTest::validate(protocol_binary_command opcode, void* packet) {
     // Mockup a McbpConnection and Cookie for the validator chain
     connection.enableDatatype(cb::mcbp::Feature::XATTR);
-    const auto& req = *reinterpret_cast<const cb::mcbp::Header*>(packet);
-    const size_t size = sizeof(req) + req.getBodylen();
+    auto* req = reinterpret_cast<protocol_binary_request_header*>(packet);
+    connection.binary_header = *req;
+    connection.binary_header.request.keylen = ntohs(req->request.keylen);
+    connection.binary_header.request.bodylen = ntohl(req->request.bodylen);
+    connection.binary_header.request.vbucket = ntohs(req->request.vbucket);
+    connection.binary_header.request.cas = ntohll(req->request.cas);
+
+    const size_t size = sizeof(*req) + connection.binary_header.request.bodylen;
     cb::const_byte_buffer buffer{static_cast<uint8_t*>(packet), size};
     MockCookie cookie(connection, buffer);
     return validatorChains.invoke(opcode, cookie);

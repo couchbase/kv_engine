@@ -19,12 +19,8 @@
 #include "executors.h"
 #include "dcp_add_failover_log.h"
 
-void dcp_stream_req_executor(McbpConnection* c, void*) {
-    const auto& cookie = c->getCookieObject();
-    const auto& request = cookie.getRequest(Cookie::PacketContent::Full);
-    const auto* req =
-            reinterpret_cast<const protocol_binary_request_dcp_stream_req*>(
-                    &request);
+void dcp_stream_req_executor(McbpConnection* c, void* packet) {
+    auto* req = reinterpret_cast<protocol_binary_request_dcp_stream_req*>(packet);
 
     uint32_t flags = ntohl(req->message.body.flags);
     uint64_t start_seqno = ntohll(req->message.body.start_seqno);
@@ -49,12 +45,11 @@ void dcp_stream_req_executor(McbpConnection* c, void*) {
 
     if (ret == ENGINE_SUCCESS) {
         ret = c->getBucketEngine()->dcp.stream_req(c->getBucketEngineAsV0(),
-                                                   &cookie,
+                                                   c->getCookie(),
                                                    flags,
-                                                   request.getOpaque(),
-                                                   request.getVBucket(),
-                                                   start_seqno,
-                                                   end_seqno,
+                                                   c->binary_header.request.opaque,
+                                                   c->binary_header.request.vbucket,
+                                                   start_seqno, end_seqno,
                                                    vbucket_uuid,
                                                    snap_start_seqno,
                                                    snap_end_seqno,

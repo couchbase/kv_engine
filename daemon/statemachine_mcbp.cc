@@ -24,7 +24,6 @@
 #include "protocol/mcbp/ship_dcp_log.h"
 #include "sasl_tasks.h"
 
-#include <mcbp/mcbp.h>
 #include <platform/strerror.h>
 
 static bool conn_new_cmd(McbpConnection& connection);
@@ -194,7 +193,7 @@ bool conn_ship_log(McbpConnection& connection) {
     }
 
     if (connection.isReadEvent() || !connection.read->empty()) {
-        if (connection.read->rsize() >= sizeof(cb::mcbp::Header)) {
+        if (connection.read->rsize() >= sizeof(connection.binary_header)) {
             try_read_mcbp_command(connection);
         } else {
             connection.setState(McbpStateMachine::State::read_packet_header);
@@ -267,7 +266,7 @@ bool conn_read_packet_header(McbpConnection& connection) {
         connection.setState(McbpStateMachine::State::waiting);
         break;
     case McbpConnection::TryReadResult::DataReceived:
-        if (connection.read->rsize() >= sizeof(cb::mcbp::Header)) {
+        if (connection.read->rsize() >= sizeof(connection.binary_header)) {
             connection.setState(McbpStateMachine::State::parse_cmd);
         } else {
             connection.setState(McbpStateMachine::State::waiting);
@@ -315,7 +314,7 @@ bool conn_new_cmd(McbpConnection& connection) {
         connection.getCookieObject().reset();
 
         connection.shrinkBuffers();
-        if (connection.read->rsize() >= sizeof(cb::mcbp::Header)) {
+        if (connection.read->rsize() >= sizeof(connection.binary_header)) {
             connection.setState(McbpStateMachine::State::parse_cmd);
         } else if (connection.isSslEnabled()) {
             connection.setState(McbpStateMachine::State::read_packet_header);
@@ -385,10 +384,10 @@ bool conn_execute(McbpConnection& connection) {
     }
 
     // Consume the packet we just executed from the input buffer
-    const auto& cookie = connection.getCookieObject();
-    connection.read->consume([&cookie](
+    connection.read->consume([&connection](
                                      cb::const_byte_buffer buffer) -> ssize_t {
-        size_t size = cookie.getPacket(Cookie::PacketContent::Full).size();
+        size_t size = sizeof(connection.binary_header) +
+                      connection.binary_header.request.bodylen;
         if (size > buffer.size()) {
             throw std::logic_error(
                     "conn_execute: Not enough data in input buffer");
