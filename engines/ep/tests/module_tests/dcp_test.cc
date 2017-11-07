@@ -340,8 +340,14 @@ TEST_P(StreamTest, test_verifyDCPCompression) {
     uint32_t keyAndSnappyValueMessageSize = MutationResponse::mutationBaseMsgBytes +
              item1->getKey().size() + item1->getNBytes();
 
+    /**
+     * Create a DCP response and check that a new item isn't created and
+     * the message size remains the same as the original item
+     */
     queued_item qi(std::move(item1));
     std::unique_ptr<DcpResponse> dcpResponse = stream->public_makeResponseFromItem(qi);
+    auto mutProdResponse = dynamic_cast<MutationProducerResponse*>(dcpResponse.get());
+    ASSERT_EQ(qi.get(), mutProdResponse->getItem().get());
     EXPECT_EQ(keyAndSnappyValueMessageSize, dcpResponse->getMessageSize());
 
     uint64_t rollbackSeqno;
@@ -376,10 +382,16 @@ TEST_P(StreamTest, test_verifyDCPCompression) {
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_SNAPPY,
               dcp_last_datatype);
 
+    /**
+     * Create a DCP response and check that a new item is created and
+     * the message size is less than the size of original item
+     */
     uint32_t keyAndValueMessageSize = MutationResponse::mutationBaseMsgBytes +
              item2->getKey().size() + item2->getNBytes();
     qi.reset(std::move(item2));
     dcpResponse = stream->public_makeResponseFromItem(qi);
+    mutProdResponse = dynamic_cast<MutationProducerResponse*>(dcpResponse.get());
+    ASSERT_NE(qi.get(), mutProdResponse->getItem().get());
     EXPECT_LT(dcpResponse->getMessageSize(), keyAndValueMessageSize);
 
     /* Stream the second mutation */
@@ -414,10 +426,16 @@ TEST_P(StreamTest, test_verifyDCPCompression) {
     /* Stream the 3rd mutation */
     ASSERT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
 
+    /**
+     * Create a DCP response and check that a new item is created and
+     * the message size is greater than the size of original item
+     */
     keyAndSnappyValueMessageSize = MutationResponse::mutationBaseMsgBytes +
              item3->getKey().size() + item3->getNBytes();
     qi.reset(std::move(item3));
     dcpResponse = stream->public_makeResponseFromItem(qi);
+    mutProdResponse = dynamic_cast<MutationProducerResponse*>(dcpResponse.get());
+    ASSERT_NE(qi.get(), mutProdResponse->getItem().get());
     EXPECT_GT(dcpResponse->getMessageSize(), keyAndSnappyValueMessageSize);
 
     value.assign(qi->getValue()->getData(), qi->getValue()->valueSize());
@@ -425,10 +443,16 @@ TEST_P(StreamTest, test_verifyDCPCompression) {
     EXPECT_GT(dcp_last_packet_size, keyAndSnappyValueMessageSize);
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, dcp_last_datatype);
 
+    /**
+     * Create a DCP response and check that a new item is created and
+     * the message size is same as the size of original item
+     */
     keyAndValueMessageSize = MutationResponse::mutationBaseMsgBytes +
             item4->getKey().size() + item4->getNBytes();
     qi.reset(std::move(item4));
     dcpResponse = stream->public_makeResponseFromItem(qi);
+    mutProdResponse = dynamic_cast<MutationProducerResponse*>(dcpResponse.get());
+    ASSERT_EQ(qi.get(), mutProdResponse->getItem().get());
     EXPECT_EQ(dcpResponse->getMessageSize(), keyAndValueMessageSize);
 
     /* Stream the 4th mutation */
@@ -693,6 +717,12 @@ TEST_P(StreamTest, test_keyOnlyMessageSize) {
     std::unique_ptr<DcpResponse> dcpResponse =
             stream->public_makeResponseFromItem(qi);
 
+    /**
+     * Create a DCP response and check that a new item is created
+     */
+    auto mutProdResponse = dynamic_cast<MutationProducerResponse*>(dcpResponse.get());
+    ASSERT_NE(qi.get(), mutProdResponse->getItem().get());
+
     EXPECT_EQ(keyOnlyMessageSize, dcpResponse->getMessageSize());
     destroy_dcp_stream();
 }
@@ -712,6 +742,11 @@ TEST_P(StreamTest, test_keyValueAndXattrsMessageSize) {
     std::unique_ptr<DcpResponse> dcpResponse =
             stream->public_makeResponseFromItem(qi);
 
+    /**
+     * Create a DCP response and check that a new item is not created
+     */
+    auto mutProdResponse = dynamic_cast<MutationProducerResponse*>(dcpResponse.get());
+    ASSERT_EQ(qi.get(), mutProdResponse->getItem().get());
     EXPECT_EQ(keyAndValueMessageSize, dcpResponse->getMessageSize());
     destroy_dcp_stream();
 }
@@ -731,6 +766,11 @@ TEST_P(StreamTest, test_keyAndValueMessageSize) {
     std::unique_ptr<DcpResponse> dcpResponse =
             stream->public_makeResponseFromItem(qi);
 
+    /**
+     * Create a DCP response and check that a new item is not created
+     */
+    auto mutProdResponse = dynamic_cast<MutationProducerResponse*>(dcpResponse.get());
+    ASSERT_EQ(qi.get(), mutProdResponse->getItem().get());
     EXPECT_EQ(keyAndValueMessageSize, dcpResponse->getMessageSize());
     destroy_dcp_stream();
 }
@@ -754,6 +794,11 @@ TEST_P(StreamTest, test_keyAndValueExcludingXattrsMessageSize) {
     std::unique_ptr<DcpResponse> dcpResponse =
             stream->public_makeResponseFromItem(qi);
 
+    /**
+     * Create a DCP response and check that a new item is created
+     */
+    auto mutProdResponse = dynamic_cast<MutationProducerResponse*>(dcpResponse.get());
+    ASSERT_NE(qi.get(), mutProdResponse->getItem().get());
     EXPECT_EQ(keyAndValueMessageSize, dcpResponse->getMessageSize());
     destroy_dcp_stream();
 }
@@ -773,7 +818,11 @@ TEST_P(StreamTest,
     setup_dcp_stream(0, IncludeValue::Yes, IncludeXattrs::No);
     std::unique_ptr<DcpResponse> dcpResponse =
             stream->public_makeResponseFromItem(qi);
-
+    /**
+     * Create a DCP response and check that a new item is not created
+     */
+    auto mutProdResponse = dynamic_cast<MutationProducerResponse*>(dcpResponse.get());
+    ASSERT_EQ(qi.get(), mutProdResponse->getItem().get());
     EXPECT_EQ(keyAndValueMessageSize, dcpResponse->getMessageSize());
     destroy_dcp_stream();
 }
@@ -797,6 +846,11 @@ TEST_P(StreamTest, test_keyAndValueExcludingValueDataMessageSize) {
     std::unique_ptr<DcpResponse> dcpResponse =
             stream->public_makeResponseFromItem(qi);
 
+    /**
+     * Create a DCP response and check that a new item is created
+     */
+    auto mutProdResponse = dynamic_cast<MutationProducerResponse*>(dcpResponse.get());
+    ASSERT_NE(qi.get(), mutProdResponse->getItem().get());
     EXPECT_EQ(keyAndValueMessageSize, dcpResponse->getMessageSize());
     destroy_dcp_stream();
 }

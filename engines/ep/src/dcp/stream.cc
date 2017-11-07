@@ -965,23 +965,72 @@ void ActiveStream::getOutstandingItems(VBucketPtr &vb,
     }
 }
 
+/**
+ * This function is used to find out if a given item's value
+ * needs to be changed
+ */
+static bool shouldModifyItem(const queued_item& item,
+                             IncludeValue includeValue,
+                             IncludeXattrs includeXattrs,
+                             bool isCompressionEnabled) {
+    value_t value = item->getValue();
+    /**
+     * If there is no value, no modification needs to be done
+     */
+    if (value) {
+        /**
+         * If value needs to be included
+         */
+        if (includeValue == IncludeValue::No) {
+            return true;
+        }
+
+        /**
+         * Check if value needs to be compressed or decompressed
+         * If yes, then then value definitely needs modification
+         */
+        if (isCompressionEnabled !=
+            mcbp::datatype::is_snappy(item->getDataType())) {
+            return true;
+        }
+
+        /**
+         * If the value doesn't have to be compressed, then
+         * check if xattrs need to be pruned. If not, then
+         * value needs no modification
+         */
+        if (includeXattrs == IncludeXattrs::No &&
+            mcbp::datatype::is_xattr(item->getDataType())) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
         queued_item& item) {
     if (item->getOperation() != queue_op::system_event) {
         auto cKey = Collections::DocKey::make(item->getKey(), currentSeparator);
-        std::unique_ptr<Item> finalItem = std::make_unique<Item>(*item);
-        finalItem->pruneValueAndOrXattrs(includeValue, includeXattributes);
+        queued_item finalQueuedItem(item);
+        if (shouldModifyItem(item, includeValue, includeXattributes,
+                             isCompressionEnabled())) {
+            auto finalItem = std::make_unique<Item>(*item);
+            finalItem->pruneValueAndOrXattrs(includeValue, includeXattributes);
 
-        if (isCompressionEnabled()) {
-            if (!finalItem->compressValue()) {
-                LOG(EXTENSION_LOG_WARNING,
-                    "Failed to snappy compress an uncompressed value");
+            if (isCompressionEnabled()) {
+                if (!finalItem->compressValue()) {
+                    LOG(EXTENSION_LOG_WARNING,
+                        "Failed to snappy compress an uncompressed value");
+                }
+            } else {
+                if (!finalItem->decompressValue()) {
+                    LOG(EXTENSION_LOG_WARNING,
+                        "Failed to snappy uncompress a compressed value");
+                }
             }
-        } else {
-            if (!finalItem->decompressValue()) {
-                LOG(EXTENSION_LOG_WARNING,
-                    "Failed to snappy uncompress a compressed value");
-            }
+
+            finalQueuedItem = std::move(finalItem);
         }
 
         /**
@@ -992,7 +1041,7 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
          * values.
          */
         return std::make_unique<MutationProducerResponse>(
-                queued_item(std::move(finalItem)),
+                finalQueuedItem,
                 opaque_,
                 includeValue,
                 includeXattributes,
