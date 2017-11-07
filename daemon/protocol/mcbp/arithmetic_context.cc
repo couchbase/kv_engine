@@ -136,7 +136,7 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::allocateNewItem() {
     const std::string payload(ptr, oldsize - xattrsize);
 
     uint64_t oldval;
-    if (!safe_strtoull(payload.c_str(), &oldval)) {
+    if (!safe_strtoull(payload.c_str(), oldval)) {
         return ENGINE_DELTA_BADVAL;
     }
 

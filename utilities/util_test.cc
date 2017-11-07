@@ -33,42 +33,42 @@
 
 TEST(StringTest, safe_strtoul) {
     uint32_t val;
-    EXPECT_TRUE(safe_strtoul("123", &val));
+    EXPECT_TRUE(safe_strtoul("123", val));
     EXPECT_EQ(123u, val);
-    EXPECT_TRUE(safe_strtoul("+123", &val));
+    EXPECT_TRUE(safe_strtoul("+123", val));
     EXPECT_EQ(123u, val);
-    EXPECT_FALSE(safe_strtoul("", &val));  /* empty */
-    EXPECT_FALSE(safe_strtoul("123BOGUS", &val));  /* non-numeric */
+    EXPECT_FALSE(safe_strtoul("", val));  /* empty */
+    EXPECT_FALSE(safe_strtoul("123BOGUS", val));  /* non-numeric */
     /* Not sure what it does, but this works with ICC :/
-       EXPECT_FALSE(safe_strtoul("92837498237498237498029383", &val)); // out of range
+       EXPECT_FALSE(safe_strtoul("92837498237498237498029383", val)); // out of range
     */
 
     /* extremes: */
-    EXPECT_TRUE(safe_strtoul("4294967295", &val)); /* 2**32 - 1 */
+    EXPECT_TRUE(safe_strtoul("4294967295", val)); /* 2**32 - 1 */
     EXPECT_EQ(4294967295L, val);
     /* This actually works on 64-bit ubuntu
-       EXPECT_FALSE(safe_strtoul("4294967296", &val)); 2**32
+       EXPECT_FALSE(safe_strtoul("4294967296", val)); 2**32
     */
-    EXPECT_FALSE(safe_strtoul("-1", &val));  /* negative */
+    EXPECT_FALSE(safe_strtoul("-1", val));  /* negative */
 }
 
 
 TEST(StringTest, safe_strtoull) {
     uint64_t val;
     uint64_t exp = -1;
-    EXPECT_TRUE(safe_strtoull("123", &val));
+    EXPECT_TRUE(safe_strtoull("123", val));
     EXPECT_EQ(123u, val);
-    EXPECT_TRUE(safe_strtoull("+123", &val));
+    EXPECT_TRUE(safe_strtoull("+123", val));
     EXPECT_EQ(123u, val);
-    EXPECT_FALSE(safe_strtoull("", &val));  /* empty */
-    EXPECT_FALSE(safe_strtoull("123BOGUS", &val));  /* non-numeric */
-    EXPECT_FALSE(safe_strtoull("92837498237498237498029383", &val)); /* out of range */
+    EXPECT_FALSE(safe_strtoull("", val));  /* empty */
+    EXPECT_FALSE(safe_strtoull("123BOGUS", val));  /* non-numeric */
+    EXPECT_FALSE(safe_strtoull("92837498237498237498029383", val)); /* out of range */
 
     /* extremes: */
-    EXPECT_TRUE(safe_strtoull("18446744073709551615", &val)); /* 2**64 - 1 */
+    EXPECT_TRUE(safe_strtoull("18446744073709551615", val)); /* 2**64 - 1 */
     EXPECT_EQ(exp, val);
-    EXPECT_FALSE(safe_strtoull("18446744073709551616", &val)); /* 2**64 */
-    EXPECT_FALSE(safe_strtoull("-1", &val));  /* negative */
+    EXPECT_FALSE(safe_strtoull("18446744073709551616", val)); /* 2**64 */
+    EXPECT_FALSE(safe_strtoull("-1", val));  /* negative */
 }
 
 TEST(StringTest, safe_strtoll) {
@@ -76,78 +76,78 @@ TEST(StringTest, safe_strtoll) {
     int64_t exp = 1;
     exp <<= 63;
     exp -= 1;
-    EXPECT_TRUE(safe_strtoll("123", &val));
+    EXPECT_TRUE(safe_strtoll("123", val));
     EXPECT_EQ(123, val);
-    EXPECT_TRUE(safe_strtoll("+123", &val));
+    EXPECT_TRUE(safe_strtoll("+123", val));
     EXPECT_EQ(123, val);
-    EXPECT_TRUE(safe_strtoll("-123", &val));
+    EXPECT_TRUE(safe_strtoll("-123", val));
     EXPECT_EQ(-123, val);
-    EXPECT_FALSE(safe_strtoll("", &val));  /* empty */
-    EXPECT_FALSE(safe_strtoll("123BOGUS", &val));  /* non-numeric */
-    EXPECT_FALSE(safe_strtoll("92837498237498237498029383", &val)); /* out of range */
+    EXPECT_FALSE(safe_strtoll("", val));  /* empty */
+    EXPECT_FALSE(safe_strtoll("123BOGUS", val));  /* non-numeric */
+    EXPECT_FALSE(safe_strtoll("92837498237498237498029383", val)); /* out of range */
 
     /* extremes: */
-    EXPECT_FALSE(safe_strtoll("18446744073709551615", &val)); /* 2**64 - 1 */
-    EXPECT_TRUE(safe_strtoll("9223372036854775807", &val)); /* 2**63 - 1 */
+    EXPECT_FALSE(safe_strtoll("18446744073709551615", val)); /* 2**64 - 1 */
+    EXPECT_TRUE(safe_strtoll("9223372036854775807", val)); /* 2**63 - 1 */
 
     EXPECT_EQ(exp, val); /* 9223372036854775807LL); */
     /*
-      EXPECT_EQ(safe_strtoll("-9223372036854775808", &val)); // -2**63
+      EXPECT_EQ(safe_strtoll("-9223372036854775808", val)); // -2**63
       EXPECT_EQ(val, -9223372036854775808LL);
     */
-    EXPECT_FALSE(safe_strtoll("-9223372036854775809", &val)); /* -2**63 - 1 */
+    EXPECT_FALSE(safe_strtoll("-9223372036854775809", val)); /* -2**63 - 1 */
 
     /* We'll allow space to terminate the string.  And leading space. */
-    EXPECT_TRUE(safe_strtoll(" 123 foo", &val));
+    EXPECT_TRUE(safe_strtoll(" 123 foo", val));
     EXPECT_EQ(123, val);
 }
 
 TEST(StringTest, safe_strtol) {
     int32_t val;
-    EXPECT_TRUE(safe_strtol("123", &val));
+    EXPECT_TRUE(safe_strtol("123", val));
     EXPECT_EQ(123, val);
-    EXPECT_TRUE(safe_strtol("+123", &val));
+    EXPECT_TRUE(safe_strtol("+123", val));
     EXPECT_EQ(123, val);
-    EXPECT_TRUE(safe_strtol("-123", &val));
+    EXPECT_TRUE(safe_strtol("-123", val));
     EXPECT_EQ(-123, val);
-    EXPECT_FALSE(safe_strtol("", &val));  /* empty */
-    EXPECT_FALSE(safe_strtol("123BOGUS", &val));  /* non-numeric */
-    EXPECT_FALSE(safe_strtol("92837498237498237498029383", &val)); /* out of range */
+    EXPECT_FALSE(safe_strtol("", val));  /* empty */
+    EXPECT_FALSE(safe_strtol("123BOGUS", val));  /* non-numeric */
+    EXPECT_FALSE(safe_strtol("92837498237498237498029383", val)); /* out of range */
 
     /* extremes: */
     /* This actually works on 64-bit ubuntu
-       EXPECT_FALSE(safe_strtol("2147483648", &val)); // (expt 2.0 31.0)
+       EXPECT_FALSE(safe_strtol("2147483648", val)); // (expt 2.0 31.0)
     */
-    EXPECT_TRUE(safe_strtol("2147483647", &val)); /* (- (expt 2.0 31) 1) */
+    EXPECT_TRUE(safe_strtol("2147483647", val)); /* (- (expt 2.0 31) 1) */
     EXPECT_EQ(2147483647L, val);
     /* This actually works on 64-bit ubuntu
-       EXPECT_FALSE(safe_strtol("-2147483649", &val)); // (- (expt -2.0 31) 1)
+       EXPECT_FALSE(safe_strtol("-2147483649", val)); // (- (expt -2.0 31) 1)
     */
 
     /* We'll allow space to terminate the string.  And leading space. */
-    EXPECT_TRUE(safe_strtol(" 123 foo", &val));
+    EXPECT_TRUE(safe_strtol(" 123 foo", val));
     EXPECT_EQ(123, val);
 }
 
 TEST(StringTest, safe_strtof) {
     float val;
-    EXPECT_TRUE(safe_strtof("123", &val));
+    EXPECT_TRUE(safe_strtof("123", val));
     EXPECT_EQ(123.00f, val);
-    EXPECT_TRUE(safe_strtof("+123", &val));
+    EXPECT_TRUE(safe_strtof("+123", val));
     EXPECT_EQ(123.00f, val);
-    EXPECT_TRUE(safe_strtof("-123", &val));
+    EXPECT_TRUE(safe_strtof("-123", val));
     EXPECT_EQ(-123.00f, val);
-    EXPECT_FALSE(safe_strtof("", &val));  /* empty */
-    EXPECT_FALSE(safe_strtof("123BOGUS", &val));  /* non-numeric */
+    EXPECT_FALSE(safe_strtof("", val));  /* empty */
+    EXPECT_FALSE(safe_strtof("123BOGUS", val));  /* non-numeric */
 
     /* We'll allow space to terminate the string.  And leading space. */
-    EXPECT_TRUE(safe_strtof(" 123 foo", &val));
+    EXPECT_TRUE(safe_strtof(" 123 foo", val));
     EXPECT_EQ(123.00f, val);
 
-    EXPECT_TRUE(safe_strtof("123.23", &val));
+    EXPECT_TRUE(safe_strtof("123.23", val));
     EXPECT_EQ(123.23f, val);
 
-    EXPECT_TRUE(safe_strtof("123.00", &val));
+    EXPECT_TRUE(safe_strtof("123.00", val));
     EXPECT_EQ(123.00f, val);
 }
 

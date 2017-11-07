@@ -572,7 +572,7 @@ static void settings_init(void) {
     settings.setTopkeysSize(20);
     if (tmp != NULL) {
         int count;
-        if (safe_strtol(tmp, &count)) {
+        if (safe_strtol(tmp, count)) {
             settings.setTopkeysSize(count);
         }
     }
