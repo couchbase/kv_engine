@@ -893,6 +893,35 @@ TEST_F(BasicLinkedListTest, UpdateDuringPurge) {
     EXPECT_EQ(0, basicLL->getNumStaleItems());
 }
 
+/* Run purge when the last item in the list does not yet have a seqno */
+TEST_F(BasicLinkedListTest, PurgeWithItemWithoutSeqno) {
+    const int numItems = 2;
+    int expItems = numItems;
+    const std::string keyPrefix("key");
+
+    /* Add 2 new items */
+    addNewItemsToList(1, keyPrefix, numItems);
+
+    /* Add a stale item */
+    addStaleItem("stale", numItems + 1);
+    ++expItems;
+    ASSERT_EQ(expItems, basicLL->getNumItems());
+    ASSERT_EQ(1, basicLL->getNumStaleItems());
+
+    /* Add an item which doesn't yet have a seqno. Such a scenario is possible
+       when an item is added to the list, but seqno for it is yet to be
+       generated */
+    addItemWithoutSeqno("itemInMetaState");
+    ++expItems;
+    ASSERT_EQ(expItems, basicLL->getNumItems());
+
+    /* Run purge */
+    EXPECT_EQ(1, basicLL->purgeTombstones(numItems + 1));
+    --expItems;
+    EXPECT_EQ(expItems, basicLL->getNumItems());
+    EXPECT_EQ(0, basicLL->getNumStaleItems());
+}
+
 TEST_F(BasicLinkedListTest, PurgePauseResume) {
     const int numItems = 4, numPurgeItems = 2;
     const std::string keyPrefix("key");

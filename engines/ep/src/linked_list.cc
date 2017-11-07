@@ -295,7 +295,8 @@ size_t BasicLinkedList::purgeTombstones(seqno_t purgeUpToSeqno,
     size_t purgedCount = 0;
     bool stale;
     for (auto it = startIt; it != seqList.end();) {
-        if (it->getBySeqno() > purgeUpToSeqno) {
+        if ((it->getBySeqno() > purgeUpToSeqno) ||
+            (it->getBySeqno() <= 0) /* last item with no valid seqno yet */) {
             break;
         }
 
