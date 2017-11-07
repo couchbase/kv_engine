@@ -225,6 +225,15 @@ RocksDBKVStore::RocksDBKVStore(KVStoreConfig& config)
                             "GetBlockBasedTableOptionsFromString error: ") +
                 status.getState());
     }
+
+    // Set the size of the per-shard Block Cache
+    if (configuration.getRocksdbBlockCacheSize() > 0) {
+        size_t sizePerShard = configuration.getRocksdbBlockCacheSize() /
+                              configuration.getMaxShards();
+        table_options.block_cache = rocksdb::NewLRUCache(sizePerShard);
+    }
+
+    // Set the new BlockBasedTableOptions
     rdbOptions.table_factory.reset(
             rocksdb::NewBlockBasedTableFactory(table_options));
 

@@ -152,6 +152,13 @@ public:
         return rocksdbStatsLevel;
     }
 
+    /*
+     * Return the RocksDB Block Cache size.
+     */
+    size_t getRocksdbBlockCacheSize() {
+        return rocksdbBlockCacheSize;
+    }
+
 private:
     class ConfigChangeListener;
 
@@ -189,4 +196,7 @@ private:
     // RocksDB Statistics 'stats_level'. Possible values:
     // {'', 'kAll', 'kExceptTimeForMutex', 'kExceptDetailedTimers'}
     std::string rocksdbStatsLevel;
+
+    // RocksDB Block Cache size
+    size_t rocksdbBlockCacheSize = 0;
 };
