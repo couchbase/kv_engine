@@ -24,9 +24,6 @@
 static_assert(TaskPriority::VKeyStatBGFetchTask < TaskPriority::FlusherTask,
               "VKeyStatBGFetchTask not less than FlusherTask");
 
-static_assert(TaskPriority::FlusherTask < TaskPriority::ItemPager,
-              "FlusherTask not less than ItemPager");
-
 static_assert(TaskPriority::ItemPager < TaskPriority::BackfillManagerTask,
               "ItemPager not less than BackfillManagerTask");
 
