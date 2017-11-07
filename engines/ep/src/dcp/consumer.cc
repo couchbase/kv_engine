@@ -39,22 +39,20 @@ const std::string DcpConsumer::cursorDroppingCtrlMsg = "supports_cursor_dropping
 class Processor : public GlobalTask {
 public:
     Processor(EventuallyPersistentEngine* e,
-              connection_t c,
+              dcp_consumer_t c,
               double sleeptime = 1,
               bool completeBeforeShutdown = true)
         : GlobalTask(e, TaskId::Processor, sleeptime, completeBeforeShutdown),
-          conn(c),
-          description("Processing buffered items for " + conn->getName()) {
+          consumer(c),
+          description("Processing buffered items for " + consumer->getName()) {
     }
 
     ~Processor() {
-        DcpConsumer* consumer = static_cast<DcpConsumer*>(conn.get());
         consumer->taskCancelled();
     }
 
     bool run() {
         TRACE_EVENT0("ep-engine/task", "Processor");
-        DcpConsumer* consumer = static_cast<DcpConsumer*>(conn.get());
         if (consumer->doDisconnect()) {
             return false;
         }
@@ -117,7 +115,7 @@ public:
     }
 
 private:
-    const connection_t conn;
+    const dcp_consumer_t consumer;
     const std::string description;
 };
 
