@@ -1647,13 +1647,14 @@ ENGINE_ERROR_CODE KVBucket::setWithMeta(Item& itm,
         return ENGINE_KEY_EEXISTS;
     }
 
-    { // collections read scope
+    ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
+    {   // collections read scope
         auto collectionsRHandle = vb->lockCollections();
         if (!collectionsRHandle.doesKeyContainValidCollection(itm.getKey())) {
             return ENGINE_UNKNOWN_COLLECTION;
         }
 
-        return vb->setWithMeta(itm,
+        rv = vb->setWithMeta(itm,
                                cas,
                                seqno,
                                cookie,
@@ -1665,6 +1666,11 @@ ENGINE_ERROR_CODE KVBucket::setWithMeta(Item& itm,
                                genCas,
                                isReplication);
     }
+
+    if (rv == ENGINE_SUCCESS) {
+        checkAndMaybeFreeMemory();
+    }
+    return rv;
 }
 
 GetValue KVBucket::getAndUpdateTtl(const DocKey& key, uint16_t vbucket,
