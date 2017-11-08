@@ -2262,6 +2262,8 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::store_if(
     switch (status) {
     case ENGINE_SUCCESS:
         ++stats.numOpsStore;
+        // If success - check if we're now in need of some memory freeing
+        kvBucket->checkAndMaybeFreeMemory();
         break;
     case ENGINE_ENOMEM:
         status = memoryCondition();

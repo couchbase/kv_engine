@@ -2593,7 +2593,10 @@ static test_result test_dcp_cursor_dropping(ENGINE_HANDLE *h,
     /* Initially write a few items */
     int num_items = 25;
     const int initialSnapshotSize = num_items;
-    const int cursor_dropping_mem_thres_perc = 90;
+
+    // 75% is so that we don't hit the HWM (triggering the pager) yet is above
+    // the thresholds required for cursor dropping
+    const int cursor_dropping_mem_thres_perc = 75;
 
     write_items(h, h1, num_items, 1);
 
@@ -2687,7 +2690,9 @@ static test_result test_dcp_cursor_dropping_backfill(ENGINE_HANDLE *h,
     /* Initially write a few items */
     int num_items = 50;
     const int initialSnapshotSize = num_items;
-    const int cursor_dropping_mem_thres_perc = 90;
+    // 75% is so that we don't hit the HWM (triggering the pager) yet is above
+    // the thresholds required for cursor dropping
+    const int cursor_dropping_mem_thres_perc = 75;
 
     write_items(h, h1, num_items, 1);
 

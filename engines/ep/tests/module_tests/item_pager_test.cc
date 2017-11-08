@@ -163,6 +163,21 @@ protected:
         return count;
     }
 
+    void populateUntilAboveHighWaterMark(uint16_t vbid) {
+        bool populate = true;
+        int count = 0;
+        auto& stats = engine->getEpStats();
+        while (populate) {
+            auto key = makeStoredDocKey("key_" + std::to_string(count++));
+            auto item = make_item(vbid, key, {"x" , 128}, 0/*ttl*/);
+            // Set NRU of item to maximum; so will be a candidate for paging out
+            // straight away.
+            item.setNRUValue(MAX_NRU_VALUE);
+            EXPECT_EQ(ENGINE_SUCCESS, storeItem(item));
+            populate = stats.getTotalMemoryUsed() <= stats.mem_high_wat.load();
+        }
+    }
+
     /// Count of nonIO tasks we should initially have.
     size_t initialNonIoTasks = 0;
 };
@@ -274,6 +289,13 @@ TEST_P(STItemPagerTest, ServerQuotaReached) {
                 vb->getNumItems() - vb->getNumNonResidentItems();
         EXPECT_LT(numResidentItems, count);
     }
+}
+
+TEST_P(STItemPagerTest, HighWaterMarkTriggersPager) {
+    // Fill to just over HWM
+    populateUntilAboveHighWaterMark(vbid);
+    // Success if the pager is now ready
+    runHighMemoryPager();
 }
 
 // Test that when the server quota is reached, we delete items which have

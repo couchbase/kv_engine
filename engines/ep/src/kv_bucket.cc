@@ -2542,6 +2542,13 @@ bool KVBucket::isMemoryUsageTooHigh() {
     return memoryUsed > (maxSize * backfillMemoryThreshold);
 }
 
+// Trigger memory reduction (ItemPager) if we've exceeded high water
+void KVBucket::checkAndMaybeFreeMemory() {
+    if (stats.getTotalMemoryUsed() > stats.mem_high_wat) {
+        attemptToFreeMemory();
+    }
+}
+
 void KVBucket::setBackfillMemoryThreshold(double threshold) {
     backfillMemoryThreshold = threshold;
 }

@@ -4795,10 +4795,19 @@ static enum test_result test_item_pager(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     memset(&data, 'x', sizeof(data)-1);
     data[1023] = '\0';
 
-    // Create documents, until we hit TempOOM. Due to accurate memory tracking
-    // & overheads it's impossible to exactly predict how many we will need...
+    // Create documents, until we hit TempOOM or have at least stored enough
+    // documents that we've overflowed the cache. Due to accurate memory
+    // tracking & overheads it's impossible to exactly predict how many we will
+    // need. Additionally the pager kicks in at the HWM before TMPFAIL so if we
+    // kept going until we hit TMPFAIL we could of stored many many docs and
+    // have a low residency ratio (basically the store loop chasing ejection)
+    // the low RR makes the final part of the test incredibly slow.
     int docs_stored = 0;
-    for (int j = 0; ; ++j) {
+
+    // Calculate the number of items to store, we ensure we will fill the memory
+    // quota, but we don't want to overfill (and go heavy DGM)
+    int nDocs = get_int_stat(h, h1, "ep_max_size") / sizeof(data);
+    for (int j = 0; j < nDocs; ++j) {
         std::stringstream ss;
         ss << "key-" << j;
         std::string key(ss.str());
@@ -4810,6 +4819,8 @@ static enum test_result test_item_pager(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
 
         check(err == ENGINE_SUCCESS || err == ENGINE_TMPFAIL,
               "Failed to store a value");
+        // The pager triggers when we hit HWM, we may or may not hit TMPFAIL
+        // before we hit nDocs
         if (err == ENGINE_TMPFAIL) {
             break;
         }
@@ -4817,24 +4828,11 @@ static enum test_result test_item_pager(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     }
     wait_for_flusher_to_settle(h, h1);
 
-    // We should have stored at least a reasonable number of docs so we can
-    // then have NRU act on 50% of them.
+    // The pager should of ran
+    wait_for_stat_to_be_gte(h, h1, "ep_num_value_ejects", 1);
+
     check(docs_stored > 10,
           "Failed to store enough documents before hitting TempOOM\n");
-
-    // Reference the first 50% of the stored documents making them have a
-    // lower NRU and not candidates for ejection.
-    for (int j = 0; j < docs_stored / 2; ++j) {
-        std::stringstream ss;
-        ss << "key-" << j;
-        std::string key(ss.str());
-        // Reference each stored item multiple times.
-        for (int k = 0; k < 5; ++k) {
-            checkeq(cb::engine_errc::success,
-                    get(h, h1, NULL, key, 0).first,
-                    "Failed to get value.");
-        }
-    }
 
     // If the item pager hasn't run already, set mem_high_wat
     // to a value less than mem_used which would force the

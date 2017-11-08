@@ -671,6 +671,14 @@ public:
     bool isMemoryUsageTooHigh();
 
     /**
+     * Check the status of memory used and maybe begin to free memory if
+     * required.
+     *
+     * This checks if the bucket's mem_used has exceeded the high water mark.
+     */
+    void checkAndMaybeFreeMemory();
+
+    /**
      * Flushes all items waiting for persistence in a given vbucket
      * @param vbid The id of the vbucket to flush
      * @return The number of items flushed
