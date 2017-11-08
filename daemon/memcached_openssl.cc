@@ -80,6 +80,5 @@ void shutdown_openssl() {
     // SSL_COMP_free_compression_methods() to perform this;
     // however we arn't that new...
     sk_SSL_COMP_free(SSL_COMP_get_compression_methods());
-
 #endif
 }
