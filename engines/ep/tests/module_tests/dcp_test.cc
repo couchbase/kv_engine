@@ -116,12 +116,13 @@ protected:
         if (includeXattrs == IncludeXattrs::Yes) {
             flags |= DCP_OPEN_INCLUDE_XATTRS;
         }
-        producer = new MockDcpProducer(*engine,
-                                       /*cookie*/ nullptr,
-                                       "test_producer",
-                                       flags,
-                                       {/*no json*/},
-                                       /*startTask*/ true);
+        producer = std::make_shared<MockDcpProducer>(
+                *engine,
+                /*cookie*/ nullptr,
+                "test_producer",
+                flags,
+                cb::const_byte_buffer() /*no json*/,
+                /*startTask*/ true);
 
         if (includeXattrs == IncludeXattrs::Yes) {
             producer->setNoopEnabled(true);
@@ -150,7 +151,7 @@ protected:
     }
 
     void destroy_dcp_stream() {
-        producer.get()->closeStream(/*opaque*/ 0, vb0->getId());
+        producer->closeStream(/*opaque*/ 0, vb0->getId());
     }
 
     /*
@@ -240,7 +241,7 @@ protected:
         }
     }
 
-    mock_dcp_producer_t producer;
+    std::shared_ptr<MockDcpProducer> producer;
     std::shared_ptr<MockActiveStream> stream;
     VBucketPtr vb0;
 };
@@ -1072,9 +1073,7 @@ TEST_P(StreamTest, BackfillSmallBuffer) {
 
     /* set the DCP backfill buffer size to a value that is smaller than the
        size of a mutation */
-    MockDcpProducer* mock_producer =
-            dynamic_cast<MockDcpProducer*>(producer.get());
-    mock_producer->setBackfillBufferSize(1);
+    producer->setBackfillBufferSize(1);
 
     /* We want the backfill task to run in a background thread */
     ExecutorPool::get()->setNumAuxIO(1);
@@ -1093,7 +1092,7 @@ TEST_P(StreamTest, BackfillSmallBuffer) {
 
     /* We should see that buffer full status must be false as we have read
        the item in the backfill buffer */
-    EXPECT_FALSE(mock_producer->getBackfillBufferFullStatus());
+    EXPECT_FALSE(producer->getBackfillBufferFullStatus());
 
     /* Finish up with the backilling of the remaining item */
     {
@@ -1331,7 +1330,7 @@ protected:
     }
 
     void TearDown() override {
-        producer.get()->closeAllStreams();
+        producer->closeAllStreams();
         StreamTest::TearDown();
     }
 
@@ -1436,8 +1435,8 @@ TEST_P(CacheCallbackTest, CacheCallback_engine_enomem) {
      * by setting the backfill buffer size to zero, and then setting bytes read
      * to one.
      */
-    dynamic_cast<MockDcpProducer*>(producer.get())->setBackfillBufferSize(0);
-    dynamic_cast<MockDcpProducer*>(producer.get())->bytesForceRead(1);
+    producer->setBackfillBufferSize(0);
+    producer->bytesForceRead(1);
 
     CacheCallback callback(*engine, stream);
 
@@ -1662,10 +1661,10 @@ TEST_P(ConnectionTest, test_deadConnections) {
     connMap.initialize();
     const void *cookie = create_mock_cookie();
     // Create a new Dcp producer
-    dcp_producer_t producer = connMap.newProducer(cookie,
-                                                  "test_producer",
-                                                  /*flags*/ 0,
-                                                  {/*no json*/});
+    connMap.newProducer(cookie,
+                        "test_producer",
+                        /*flags*/ 0,
+                        {/*no json*/});
 
     // Disconnect the producer connection
     connMap.disconnect(cookie);
@@ -1682,21 +1681,19 @@ TEST_P(ConnectionTest, test_mb23637_findByNameWithConnectionDoDisconnect) {
     connMap.initialize();
     const void *cookie = create_mock_cookie();
     // Create a new Dcp producer
-    dcp_producer_t producer = connMap.newProducer(cookie,
-                                                  "test_producer",
-                                                  /*flags*/ 0,
-                                                  {/*nojson*/});
+    connMap.newProducer(cookie,
+                        "test_producer",
+                        /*flags*/ 0,
+                        {/*nojson*/});
     // should be able to find the connection
-    ASSERT_NE(connection_t(nullptr),
-              connMap.findByName("eq_dcpq:test_producer"));
+    ASSERT_NE(nullptr, connMap.findByName("eq_dcpq:test_producer"));
     // Disconnect the producer connection
     connMap.disconnect(cookie);
     ASSERT_EQ(1, connMap.getNumberOfDeadConnections())
         << "Unexpected number of dead connections";
     // should not be able to find because the connection has been marked as
     // wanting to disconnect
-    EXPECT_EQ(connection_t(nullptr),
-              connMap.findByName("eq_dcpq:test_producer"));
+    EXPECT_EQ(nullptr, connMap.findByName("eq_dcpq:test_producer"));
     connMap.manageConnections();
     // Should be zero deadConnections
     EXPECT_EQ(0, connMap.getNumberOfDeadConnections())
@@ -1709,25 +1706,24 @@ TEST_P(ConnectionTest, test_mb23637_findByNameWithDuplicateConnections) {
     const void* cookie1 = create_mock_cookie();
     const void* cookie2 = create_mock_cookie();
     // Create a new Dcp producer
-    dcp_producer_t producer = connMap.newProducer(cookie1,
-                                                  "test_producer",
-                                                  /*flags*/ 0,
-                                                  {/*nojson*/});
-    ASSERT_NE(0, producer) << "producer is null";
+    DcpProducer* producer = connMap.newProducer(cookie1,
+                                                "test_producer",
+                                                /*flags*/ 0,
+                                                {/*nojson*/});
+    ASSERT_NE(nullptr, producer) << "producer is null";
     // should be able to find the connection
-    ASSERT_NE(connection_t(nullptr),
-              connMap.findByName("eq_dcpq:test_producer"));
+    ASSERT_NE(nullptr, connMap.findByName("eq_dcpq:test_producer"));
 
     // Create a duplicate Dcp producer
-    dcp_producer_t duplicateproducer = connMap.newProducer(
+    DcpProducer* duplicateproducer = connMap.newProducer(
             cookie2, "test_producer", /*flags*/ 0, {/*nojson*/});
     ASSERT_TRUE(producer->doDisconnect()) << "producer doDisconnect == false";
-    ASSERT_NE(0, duplicateproducer) << "duplicateproducer is null";
+    ASSERT_NE(nullptr, duplicateproducer) << "duplicateproducer is null";
 
     // should find the duplicateproducer as the first producer has been marked
     // as wanting to disconnect
     EXPECT_EQ(duplicateproducer,
-              connMap.findByName("eq_dcpq:test_producer"));
+              connMap.findByName("eq_dcpq:test_producer").get());
 
     // Disconnect the producer connection
     connMap.disconnect(cookie1);
@@ -1749,19 +1745,19 @@ TEST_P(ConnectionTest, test_mb17042_duplicate_name_producer_connections) {
     const void* cookie1 = create_mock_cookie();
     const void* cookie2 = create_mock_cookie();
     // Create a new Dcp producer
-    dcp_producer_t producer = connMap.newProducer(cookie1,
-                                                  "test_producer",
-                                                  /*flags*/ 0,
-                                                  {/*nojson*/});
-    EXPECT_NE(0, producer) << "producer is null";
+    DcpProducer* producer = connMap.newProducer(cookie1,
+                                                "test_producer",
+                                                /*flags*/ 0,
+                                                {/*nojson*/});
+    EXPECT_NE(nullptr, producer) << "producer is null";
 
     // Create a duplicate Dcp producer
-    dcp_producer_t duplicateproducer = connMap.newProducer(cookie2,
-                                                           "test_producer",
-                                                           /*flags*/ 0,
-                                                           {/*nojson*/});
+    DcpProducer* duplicateproducer = connMap.newProducer(cookie2,
+                                                         "test_producer",
+                                                         /*flags*/ 0,
+                                                         {/*nojson*/});
     EXPECT_TRUE(producer->doDisconnect()) << "producer doDisconnect == false";
-    EXPECT_NE(0, duplicateproducer) << "duplicateproducer is null";
+    EXPECT_NE(nullptr, duplicateproducer) << "duplicateproducer is null";
 
     // Disconnect the producer connection
     connMap.disconnect(cookie1);
@@ -1780,13 +1776,14 @@ TEST_P(ConnectionTest, test_mb17042_duplicate_name_consumer_connections) {
     struct mock_connstruct* cookie1 = (struct mock_connstruct*)create_mock_cookie();
     struct mock_connstruct* cookie2 = (struct mock_connstruct*)create_mock_cookie();
     // Create a new Dcp consumer
-    dcp_consumer_t consumer = connMap.newConsumer(cookie1, "test_consumer");
-    EXPECT_NE(0, consumer) << "consumer is null";
+    DcpConsumer* consumer = connMap.newConsumer(cookie1, "test_consumer");
+    EXPECT_NE(nullptr, consumer) << "consumer is null";
 
     // Create a duplicate Dcp consumer
-    dcp_consumer_t duplicateconsumer = connMap.newConsumer(cookie2, "test_consumer");
+    DcpConsumer* duplicateconsumer =
+            connMap.newConsumer(cookie2, "test_consumer");
     EXPECT_TRUE(consumer->doDisconnect()) << "consumer doDisconnect == false";
-    EXPECT_NE(0, duplicateconsumer) << "duplicateconsumer is null";
+    EXPECT_NE(nullptr, duplicateconsumer) << "duplicateconsumer is null";
 
     // Disconnect the consumer connection
     connMap.disconnect(cookie1);
@@ -1804,19 +1801,19 @@ TEST_P(ConnectionTest, test_mb17042_duplicate_cookie_producer_connections) {
     connMap.initialize();
     const void* cookie = create_mock_cookie();
     // Create a new Dcp producer
-    dcp_producer_t producer = connMap.newProducer(cookie,
-                                                  "test_producer1",
-                                                  /*flags*/ 0,
-                                                  {/*nojson*/});
+    DcpProducer* producer = connMap.newProducer(cookie,
+                                                "test_producer1",
+                                                /*flags*/ 0,
+                                                {/*nojson*/});
 
     // Create a duplicate Dcp producer
-    dcp_producer_t duplicateproducer = connMap.newProducer(cookie,
-                                                           "test_producer2",
-                                                           /*flags*/ 0,
-                                                           {/*nojson*/});
+    DcpProducer* duplicateproducer = connMap.newProducer(cookie,
+                                                         "test_producer2",
+                                                         /*flags*/ 0,
+                                                         {/*nojson*/});
 
     EXPECT_TRUE(producer->doDisconnect()) << "producer doDisconnect == false";
-    EXPECT_EQ(0, duplicateproducer) << "duplicateproducer is not null";
+    EXPECT_EQ(nullptr, duplicateproducer) << "duplicateproducer is not null";
 
     // Disconnect the producer connection
     connMap.disconnect(cookie);
@@ -1832,12 +1829,13 @@ TEST_P(ConnectionTest, test_mb17042_duplicate_cookie_consumer_connections) {
     connMap.initialize();
     const void* cookie = create_mock_cookie();
     // Create a new Dcp consumer
-    dcp_consumer_t consumer = connMap.newConsumer(cookie, "test_consumer1");
+    DcpConsumer* consumer = connMap.newConsumer(cookie, "test_consumer1");
 
     // Create a duplicate Dcp consumer
-    dcp_consumer_t duplicateconsumer = connMap.newConsumer(cookie, "test_consumer2");
+    DcpConsumer* duplicateconsumer =
+            connMap.newConsumer(cookie, "test_consumer2");
     EXPECT_TRUE(consumer->doDisconnect()) << "consumer doDisconnect == false";
-    EXPECT_EQ(0, duplicateconsumer) << "duplicateconsumer is not null";
+    EXPECT_EQ(nullptr, duplicateconsumer) << "duplicateconsumer is not null";
 
     // Disconnect the consumer connection
     connMap.disconnect(cookie);
@@ -1939,8 +1937,8 @@ TEST_P(ConnectionTest, test_consumer_add_stream) {
 
     /* Create a Mock Dcp consumer. Since child class subobj of MockDcpConsumer
        obj are accounted for by SingleThreadedRCPtr, use the same here */
-    connection_t conn = new MockDcpConsumer(*engine, cookie, "test_consumer");
-    MockDcpConsumer* consumer = dynamic_cast<MockDcpConsumer*>(conn.get());
+    auto consumer =
+            std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
 
     ASSERT_EQ(ENGINE_SUCCESS, set_vb_state(vbid, vbucket_state_replica));
     ASSERT_EQ(ENGINE_SUCCESS, consumer->addStream(/*opaque*/0, vbid,
@@ -1976,10 +1974,10 @@ TEST_P(ConnectionTest, test_mb20645_stats_after_closeAllStreams) {
     connMap.initialize();
     const void *cookie = create_mock_cookie();
     // Create a new Dcp producer
-    dcp_producer_t producer = connMap.newProducer(cookie,
-                                                  "test_producer",
-                                                  /*flags*/ 0,
-                                                  {/*no json*/});
+    DcpProducer* producer = connMap.newProducer(cookie,
+                                                "test_producer",
+                                                /*flags*/ 0,
+                                                {/*no json*/});
 
     // Disconnect the producer connection
     connMap.disconnect(cookie);
@@ -2002,10 +2000,10 @@ TEST_P(ConnectionTest, test_mb20716_connmap_notify_on_delete) {
     connMap.initialize();
     const void *cookie = create_mock_cookie();
     // Create a new Dcp producer.
-    dcp_producer_t producer = connMap.newProducer(cookie,
-                                                  "mb_20716r",
-                                                  /*flags*/ 0,
-                                                  {/*nojson*/});
+    DcpProducer* producer = connMap.newProducer(cookie,
+                                                "mb_20716r",
+                                                /*flags*/ 0,
+                                                {/*nojson*/});
 
     // Check preconditions.
     EXPECT_TRUE(producer->isPaused());
@@ -2051,9 +2049,8 @@ TEST_P(ConnectionTest, test_mb20716_connmap_notify_on_delete_consumer) {
     MockDcpConnMap connMap(*engine);
     connMap.initialize();
     const void *cookie = create_mock_cookie();
-    // Create a new Dcp producer
-    dcp_consumer_t consumer = connMap.newConsumer(cookie,
-                                                  "mb_20716_consumer");
+    // Create a new Dcp consumer
+    DcpConsumer* consumer = connMap.newConsumer(cookie, "mb_20716_consumer");
 
     // Move consumer into paused state (aka EWOULDBLOCK).
     std::unique_ptr<dcp_message_producers> producers(
@@ -2117,8 +2114,8 @@ TEST_P(ConnectionTest, test_mb21784) {
      * Create a Mock Dcp consumer. Since child class subobj of MockDcpConsumer
      *  obj are accounted for by SingleThreadedRCPtr, use the same here
      */
-    connection_t conn = new MockDcpConsumer(*engine, cookie, "test_consumer");
-    MockDcpConsumer* consumer = static_cast<MockDcpConsumer*>(conn.get());
+    auto consumer =
+            std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
 
     // Add passive stream
     ASSERT_EQ(ENGINE_SUCCESS, consumer->addStream(/*opaque*/0, vbid,
@@ -2177,7 +2174,7 @@ protected:
     SERVER_HANDLE_V1 sapi;
     SERVER_COOKIE_API scookie_api;
     std::unique_ptr<MockDcpConnMap> connMap;
-    dcp_producer_t producer;
+    DcpProducer* producer;
     int callbacks;
 };
 
@@ -2197,7 +2194,8 @@ public:
 
     void notify() {
         callbacks++;
-        connMap->notifyPausedConnection(producer.get(), /*schedule*/true);
+        connMap->notifyPausedConnection(producer->shared_from_this(),
+                                        /*schedule*/ true);
     }
 
     int getCallbacks() {
@@ -2214,7 +2212,7 @@ public:
     }
 
     std::unique_ptr<MockDcpConnMap> connMap;
-    dcp_producer_t producer;
+    DcpProducer* producer;
 
 private:
     int callbacks;
@@ -2236,8 +2234,9 @@ TEST_F(NotifyTest, test_mb19503_connmap_notify) {
 
     // 1. Call notifyPausedConnection with schedule = true
     //    this will queue the producer
-    notifyTest.connMap->notifyPausedConnection(notifyTest.producer.get(),
-                                               /*schedule*/true);
+    notifyTest.connMap->notifyPausedConnection(
+            notifyTest.producer->shared_from_this(),
+            /*schedule*/ true);
     EXPECT_EQ(1, notifyTest.connMap->getPendingNotifications().size());
 
     // 2. Call notifyAllPausedConnections this will invoke notifyIOComplete
@@ -2272,8 +2271,9 @@ TEST_F(NotifyTest, test_mb19503_connmap_notify_paused) {
 
     // 1. Call notifyPausedConnection with schedule = true
     //    this will queue the producer
-    notifyTest.connMap->notifyPausedConnection(notifyTest.producer.get(),
-                                               /*schedule*/true);
+    notifyTest.connMap->notifyPausedConnection(
+            notifyTest.producer->shared_from_this(),
+            /*schedule*/ true);
     EXPECT_EQ(1, notifyTest.connMap->getPendingNotifications().size());
 
     // 2. Mark connection as not paused.
@@ -2293,8 +2293,9 @@ TEST_F(NotifyTest, test_mb19503_connmap_notify_paused) {
     notifyTest.producer->pause();
 
     // 4. Add another notification - should queue the producer again.
-    notifyTest.connMap->notifyPausedConnection(notifyTest.producer.get(),
-                                               /*schedule*/true);
+    notifyTest.connMap->notifyPausedConnection(
+            notifyTest.producer->shared_from_this(),
+            /*schedule*/ true);
     EXPECT_EQ(1, notifyTest.connMap->getPendingNotifications().size());
 
     // 5. Call notifyAllPausedConnections a second time - as connection is
@@ -2309,8 +2310,8 @@ TEST_P(ConnectionTest, test_mb24424_deleteResponse) {
     const void* cookie = create_mock_cookie();
     uint16_t vbid = 0;
 
-    connection_t conn = new MockDcpConsumer(*engine, cookie, "test_consumer");
-    MockDcpConsumer* consumer = dynamic_cast<MockDcpConsumer*>(conn.get());
+    auto consumer =
+            std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
 
     ASSERT_EQ(ENGINE_SUCCESS, set_vb_state(vbid, vbucket_state_replica));
     ASSERT_EQ(ENGINE_SUCCESS, consumer->addStream(/*opaque*/0, vbid,
@@ -2359,8 +2360,8 @@ TEST_P(ConnectionTest, test_mb24424_mutationResponse) {
     const void* cookie = create_mock_cookie();
     uint16_t vbid = 0;
 
-    connection_t conn = new MockDcpConsumer(*engine, cookie, "test_consumer");
-    MockDcpConsumer* consumer = dynamic_cast<MockDcpConsumer*>(conn.get());
+    auto consumer =
+            std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
 
     ASSERT_EQ(ENGINE_SUCCESS, set_vb_state(vbid, vbucket_state_replica));
     ASSERT_EQ(ENGINE_SUCCESS, consumer->addStream(/*opaque*/0, vbid,
@@ -2415,8 +2416,8 @@ void ConnectionTest::sendConsumerMutationsNearThreshold(bool beyondThreshold) {
     uint64_t bySeqno = snapStart;
 
     /* Set up a consumer connection */
-    connection_t conn = new MockDcpConsumer(*engine, cookie, "test_consumer");
-    MockDcpConsumer* consumer = dynamic_cast<MockDcpConsumer*>(conn.get());
+    auto consumer =
+            std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
 
     /* Replica vbucket */
     ASSERT_EQ(ENGINE_SUCCESS, set_vb_state(vbid, vbucket_state_replica));
@@ -2551,8 +2552,8 @@ void ConnectionTest::processConsumerMutationsNearThreshold(
     const uint64_t bySeqno = snapStart;
 
     /* Set up a consumer connection */
-    connection_t conn = new MockDcpConsumer(*engine, cookie, "test_consumer");
-    MockDcpConsumer* consumer = dynamic_cast<MockDcpConsumer*>(conn.get());
+    auto consumer =
+            std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
 
     /* Replica vbucket */
     ASSERT_EQ(ENGINE_SUCCESS, set_vb_state(vbid, vbucket_state_replica));

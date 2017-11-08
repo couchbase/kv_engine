@@ -103,11 +103,12 @@ TEST_F(SingleThreadedEphemeralBackfillTest, RangeIteratorVBDeleteRaceTest) {
     ASSERT_EQ(2, ckpt_mgr.removeClosedUnrefCheckpoints(*vb, new_ckpt_created));
 
     // Create a Mock Dcp producer
-    mock_dcp_producer_t producer = new MockDcpProducer(*engine,
-                                                       cookie,
-                                                       "test_producer",
-                                                       /*flags*/ 0,
-                                                       {/*no json*/});
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine,
+            cookie,
+            "test_producer",
+            /*flags*/ 0,
+            cb::const_byte_buffer() /*no json*/);
     // Create a Mock Active Stream
     auto mock_stream = std::make_shared<MockActiveStream>(
             static_cast<EventuallyPersistentEngine*>(engine.get()),

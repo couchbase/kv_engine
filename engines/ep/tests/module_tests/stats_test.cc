@@ -92,10 +92,10 @@ TEST_F(StatTest, vbucket_seqno_stats_test) {
 TEST_F(StatTest, vbucket_takeover_stats_no_stream) {
     // Create a new Dcp producer, reserving its cookie.
     get_mock_server_api()->cookie->reserve(cookie);
-    dcp_producer_t producer = engine->getDcpConnMap().newProducer(cookie,
-                                                     "test_producer",
-                                                     /*flags*/ 0,
-                                                     {/*no json*/});
+    engine->getDcpConnMap().newProducer(cookie,
+                                        "test_producer",
+                                        /*flags*/ 0,
+                                        {/*no json*/});
 
     const std::string stat = "dcp-vbtakeover " + std::to_string(vbid) +
             " test_producer";;
@@ -110,10 +110,8 @@ TEST_F(StatTest, vbucket_takeover_stats_no_stream) {
 TEST_F(StatTest, vbucket_takeover_stats_stream_not_active) {
     // Create a new Dcp producer, reserving its cookie.
     get_mock_server_api()->cookie->reserve(cookie);
-    dcp_producer_t producer = engine->getDcpConnMap().newProducer(cookie,
-                                                     "test_producer",
-                                                     DCP_OPEN_NOTIFIER,
-                                                     {/*no json*/});
+    DcpProducer* producer = engine->getDcpConnMap().newProducer(
+            cookie, "test_producer", DCP_OPEN_NOTIFIER, {/*no json*/});
 
     uint64_t rollbackSeqno;
     const std::string stat = "dcp-vbtakeover " + std::to_string(vbid) +
@@ -136,7 +134,7 @@ TEST_F(StatTest, vbucket_takeover_stats_stream_not_active) {
     EXPECT_EQ("does_not_exist", vals["status"]);
     EXPECT_EQ(0, std::stoi(vals["estimate"]));
     EXPECT_EQ(0, std::stoi(vals["backfillRemaining"]));
-    producer.get()->closeStream(/*opaque*/ 0, vbid);
+    producer->closeStream(/*opaque*/ 0, vbid);
 }
 
 

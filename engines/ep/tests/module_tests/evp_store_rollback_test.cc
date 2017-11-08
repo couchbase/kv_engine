@@ -316,7 +316,7 @@ TEST_P(RollbackTest, MB21784) {
 
     // Create a new Dcp producer, reserving its cookie.
     get_mock_server_api()->cookie->reserve(cookie);
-    dcp_producer_t producer = engine->getDcpConnMap().newProducer(
+    DcpProducer* producer = engine->getDcpConnMap().newProducer(
             cookie, "test_producer", /*flags*/ 0, {/*no json*/});
 
     uint64_t rollbackSeqno;
@@ -371,7 +371,8 @@ public:
         }
 
         store->setVBucketState(vbid, vbucket_state_active, false);
-        consumer = new MockDcpConsumer(*engine, cookie, "test_consumer");
+        consumer = std::make_shared<MockDcpConsumer>(
+                *engine, cookie, "test_consumer");
         vb = store->getVBucket(vbid);
         producers->stream_req = &RollbackDcpTest::streamRequest;
     }
@@ -501,7 +502,7 @@ public:
     }
 
     const void* cookie;
-    SingleThreadedRCPtr<MockDcpConsumer> consumer;
+    std::shared_ptr<MockDcpConsumer> consumer;
     std::unique_ptr<dcp_message_producers> producers;
     VBucketPtr vb;
     vbucket_state_t vbStateAtRollback;
@@ -670,16 +671,16 @@ TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
     get_mock_server_api()->cookie->reserve(cookie);
 
     // Create a Mock Dcp producer
-    SingleThreadedRCPtr<MockDcpProducer> producer =
-            new MockDcpProducer(*engine,
-                                /*cookie*/ cookie,
-                                "MB-21682",
-                                0,
-                                {/*no json*/});
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine,
+            /*cookie*/ cookie,
+            "MB-21682",
+            0,
+            cb::const_byte_buffer() /*no json*/);
 
     MockDcpConnMap& mockConnMap =
             static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
-    mockConnMap.addConn(cookie, producer.get());
+    mockConnMap.addConn(cookie, producer);
 
     uint64_t rollbackSeqno;
     ASSERT_EQ(ENGINE_SUCCESS,

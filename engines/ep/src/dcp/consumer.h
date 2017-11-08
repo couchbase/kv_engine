@@ -30,8 +30,10 @@
 class DcpResponse;
 class StreamEndResponse;
 
-class DcpConsumer : public ConnHandler {
-typedef std::map<uint32_t, std::pair<uint32_t, uint16_t> > opaque_map;
+class DcpConsumer : public ConnHandler,
+                    public std::enable_shared_from_this<DcpConsumer> {
+    typedef std::map<uint32_t, std::pair<uint32_t, uint16_t>> opaque_map;
+
 public:
 
     DcpConsumer(EventuallyPersistentEngine &e, const void *cookie,
@@ -61,7 +63,7 @@ public:
      */
     virtual std::shared_ptr<PassiveStream> makePassiveStream(
             EventuallyPersistentEngine& e,
-            dcp_consumer_t consumer,
+            std::shared_ptr<DcpConsumer> consumer,
             const std::string& name,
             uint32_t flags,
             uint32_t opaque,
@@ -368,7 +370,7 @@ public:
                  uint32_t opaque_,
                  uint16_t vbid_,
                  uint64_t rollbackSeqno_,
-                 dcp_consumer_t conn)
+                 std::shared_ptr<DcpConsumer> conn)
         : GlobalTask(e, TaskId::RollbackTask, 0, false),
           description("Running rollback task for vbucket " +
                       std::to_string(vbid_)),
@@ -397,7 +399,7 @@ private:
     uint32_t opaque;
     uint16_t vbid;
     uint64_t rollbackSeqno;
-    dcp_consumer_t cons;
+    std::shared_ptr<DcpConsumer> cons;
 };
 
 #endif  // SRC_DCP_CONSUMER_H_

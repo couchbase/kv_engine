@@ -64,7 +64,7 @@ public:
      */
     virtual bool isConnections() = 0;
 
-    void addVBConnByVBId(connection_t &conn, int16_t vbid);
+    void addVBConnByVBId(std::shared_ptr<ConnHandler> conn, int16_t vbid);
 
     void removeVBConnByVBId_UNLOCKED(const void* connCookie, int16_t vbid);
 
@@ -77,7 +77,8 @@ public:
      * @param schedule true if a notification event is pushed into a queue.
      *        Otherwise, directly notify the paused connection.
      */
-    void notifyPausedConnection(connection_t conn, bool schedule = false);
+    void notifyPausedConnection(std::shared_ptr<ConnHandler> conn,
+                                bool schedule = false);
 
     void notifyAllPausedConnections();
 
@@ -88,7 +89,7 @@ public:
 protected:
 
     // Synchronises notifying and releasing connections.
-    // Guards modifications to connection_t objects in {map_}.
+    // Guards modifications to std::shared_ptr<ConnHandler> objects in {map_}.
     // See also: {connLock}
     std::mutex                                    releaseLock;
 
@@ -98,16 +99,17 @@ protected:
     // ConnHandler objects is guarded by {releaseLock}.
     std::mutex                                    connsLock;
 
-    using CookieToConnectionMap = std::unordered_map<const void*, connection_t>;
+    using CookieToConnectionMap =
+            std::unordered_map<const void*, std::shared_ptr<ConnHandler>>;
     CookieToConnectionMap map_;
 
     std::vector<SpinLock> vbConnLocks;
-    std::vector<std::list<connection_t> > vbConns;
+    std::vector<std::list<std::shared_ptr<ConnHandler>>> vbConns;
 
     /* Handle to the engine who owns us */
     EventuallyPersistentEngine &engine;
 
-    AtomicQueue<connection_t> pendingNotifications;
+    AtomicQueue<std::shared_ptr<ConnHandler>> pendingNotifications;
     ConnNotifier *connNotifier_;
 
     static size_t vbConnLockNum;

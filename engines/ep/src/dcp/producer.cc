@@ -392,7 +392,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
     std::shared_ptr<Stream> s;
     if (notifyOnly) {
         s = std::make_shared<NotifierStream>(&engine_,
-                                             this,
+                                             shared_from_this(),
                                              getName(),
                                              flags,
                                              opaque,
@@ -405,7 +405,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
                                              std::move(vbFilter));
     } else {
         s = std::make_shared<ActiveStream>(&engine_,
-                                           this,
+                                           shared_from_this(),
                                            getName(),
                                            flags,
                                            opaque,
@@ -462,8 +462,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
     notifyStreamReady(vbucket);
 
     if (add_vb_conn_map) {
-        connection_t conn(this);
-        engine_.getDcpConnMap().addVBConnByVBId(conn, vbucket);
+        engine_.getDcpConnMap().addVBConnByVBId(shared_from_this(), vbucket);
     }
 
     return rv;
@@ -1116,7 +1115,8 @@ void DcpProducer::notifyStreamReady(uint16_t vbucket) {
 }
 
 void DcpProducer::notifyPaused(bool schedule) {
-    engine_.getDcpConnMap().notifyPausedConnection(this, schedule);
+    engine_.getDcpConnMap().notifyPausedConnection(shared_from_this(),
+                                                   schedule);
 }
 
 ENGINE_ERROR_CODE DcpProducer::maybeDisconnect() {

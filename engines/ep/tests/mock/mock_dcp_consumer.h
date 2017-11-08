@@ -57,7 +57,7 @@ public:
      */
     std::shared_ptr<PassiveStream> makePassiveStream(
             EventuallyPersistentEngine& e,
-            dcp_consumer_t consumer,
+            std::shared_ptr<DcpConsumer> consumer,
             const std::string& name,
             uint32_t flags,
             uint32_t opaque,

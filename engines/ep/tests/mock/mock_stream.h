@@ -28,7 +28,7 @@
 class MockActiveStream : public ActiveStream {
 public:
     MockActiveStream(EventuallyPersistentEngine* e,
-                     mock_dcp_producer_t p,
+                     std::shared_ptr<MockDcpProducer> p,
                      uint32_t flags,
                      uint32_t opaque,
                      VBucket& vb,
@@ -157,30 +157,31 @@ public:
   */
 class MockActiveStreamWithOverloadedRegisterCursor : public MockActiveStream {
 public:
-    MockActiveStreamWithOverloadedRegisterCursor(EventuallyPersistentEngine* e,
-                     mock_dcp_producer_t p,
-                     uint32_t flags,
-                     uint32_t opaque,
-                     VBucket& vb,
-                     uint64_t st_seqno,
-                     uint64_t en_seqno,
-                     uint64_t vb_uuid,
-                     uint64_t snap_start_seqno,
-                     uint64_t snap_end_seqno,
-                     IncludeValue includeValue = IncludeValue::Yes,
-                     IncludeXattrs includeXattrs = IncludeXattrs::Yes)
+    MockActiveStreamWithOverloadedRegisterCursor(
+            EventuallyPersistentEngine* e,
+            std::shared_ptr<MockDcpProducer> p,
+            uint32_t flags,
+            uint32_t opaque,
+            VBucket& vb,
+            uint64_t st_seqno,
+            uint64_t en_seqno,
+            uint64_t vb_uuid,
+            uint64_t snap_start_seqno,
+            uint64_t snap_end_seqno,
+            IncludeValue includeValue = IncludeValue::Yes,
+            IncludeXattrs includeXattrs = IncludeXattrs::Yes)
         : MockActiveStream(e,
-                       p,
-                       flags,
-                       opaque,
-                       vb,
-                       st_seqno,
-                       en_seqno,
-                       vb_uuid,
-                       snap_start_seqno,
-                       snap_end_seqno,
-                       includeValue,
-                       includeXattrs) {
+                           p,
+                           flags,
+                           opaque,
+                           vb,
+                           st_seqno,
+                           en_seqno,
+                           vb_uuid,
+                           snap_start_seqno,
+                           snap_end_seqno,
+                           includeValue,
+                           includeXattrs) {
     }
 
     /**
@@ -225,7 +226,7 @@ public:
 class MockPassiveStream : public PassiveStream {
 public:
     MockPassiveStream(EventuallyPersistentEngine& e,
-                      dcp_consumer_t consumer,
+                      std::shared_ptr<DcpConsumer> consumer,
                       const std::string& name,
                       uint32_t flags,
                       uint32_t opaque,
@@ -236,18 +237,19 @@ public:
                       uint64_t snap_start_seqno,
                       uint64_t snap_end_seqno,
                       uint64_t vb_high_seqno)
-    : PassiveStream(&e,
-                    consumer,
-                    name,
-                    flags,
-                    opaque,
-                    vb,
-                    start_seqno,
-                    end_seqno,
-                    vb_uuid,
-                    snap_start_seqno,
-                    snap_end_seqno,
-                    vb_high_seqno) {}
+        : PassiveStream(&e,
+                        consumer,
+                        name,
+                        flags,
+                        opaque,
+                        vb,
+                        start_seqno,
+                        end_seqno,
+                        vb_uuid,
+                        snap_start_seqno,
+                        snap_end_seqno,
+                        vb_high_seqno) {
+    }
 
     void transitionStateToDead() {
         transitionState(StreamState::Dead);

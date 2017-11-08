@@ -228,7 +228,7 @@ void Stream::addStats(ADD_STAT add_stat, const void *c) {
 }
 
 ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
-                           dcp_producer_t p,
+                           std::shared_ptr<DcpProducer> p,
                            const std::string& n,
                            uint32_t flags,
                            uint32_t opaque,
@@ -1645,7 +1645,7 @@ bool ActiveStream::queueResponse(DcpResponse* resp) const {
 }
 
 NotifierStream::NotifierStream(EventuallyPersistentEngine* e,
-                               dcp_producer_t p,
+                               std::shared_ptr<DcpProducer> p,
                                const std::string& name,
                                uint32_t flags,
                                uint32_t opaque,
@@ -1790,16 +1790,35 @@ void NotifierStream::addStats(ADD_STAT add_stat, const void* c) {
     filter->addStats(add_stat, c, name_, vb_);
 }
 
-PassiveStream::PassiveStream(EventuallyPersistentEngine* e, dcp_consumer_t c,
-                             const std::string &name, uint32_t flags,
-                             uint32_t opaque, uint16_t vb, uint64_t st_seqno,
-                             uint64_t en_seqno, uint64_t vb_uuid,
-                             uint64_t snap_start_seqno, uint64_t snap_end_seqno,
+PassiveStream::PassiveStream(EventuallyPersistentEngine* e,
+                             std::shared_ptr<DcpConsumer> c,
+                             const std::string& name,
+                             uint32_t flags,
+                             uint32_t opaque,
+                             uint16_t vb,
+                             uint64_t st_seqno,
+                             uint64_t en_seqno,
+                             uint64_t vb_uuid,
+                             uint64_t snap_start_seqno,
+                             uint64_t snap_end_seqno,
                              uint64_t vb_high_seqno)
-    : Stream(name, flags, opaque, vb, st_seqno, en_seqno, vb_uuid,
-             snap_start_seqno, snap_end_seqno, Type::Passive),
-      engine(e), consumer(c), last_seqno(vb_high_seqno), cur_snapshot_start(0),
-      cur_snapshot_end(0), cur_snapshot_type(Snapshot::None), cur_snapshot_ack(false) {
+    : Stream(name,
+             flags,
+             opaque,
+             vb,
+             st_seqno,
+             en_seqno,
+             vb_uuid,
+             snap_start_seqno,
+             snap_end_seqno,
+             Type::Passive),
+      engine(e),
+      consumer(c),
+      last_seqno(vb_high_seqno),
+      cur_snapshot_start(0),
+      cur_snapshot_end(0),
+      cur_snapshot_type(Snapshot::None),
+      cur_snapshot_ack(false) {
     LockHolder lh(streamMutex);
     streamRequest_UNLOCKED(vb_uuid);
     itemsReady.store(true);

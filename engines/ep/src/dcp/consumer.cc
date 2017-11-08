@@ -39,7 +39,7 @@ const std::string DcpConsumer::cursorDroppingCtrlMsg = "supports_cursor_dropping
 class Processor : public GlobalTask {
 public:
     Processor(EventuallyPersistentEngine* e,
-              dcp_consumer_t c,
+              std::shared_ptr<DcpConsumer> c,
               double sleeptime = 1,
               bool completeBeforeShutdown = true)
         : GlobalTask(e, TaskId::Processor, sleeptime, completeBeforeShutdown),
@@ -115,7 +115,7 @@ public:
     }
 
 private:
-    const dcp_consumer_t consumer;
+    const std::shared_ptr<DcpConsumer> consumer;
     const std::string description;
 };
 
@@ -172,7 +172,7 @@ void DcpConsumer::taskCancelled() {
 
 std::shared_ptr<PassiveStream> DcpConsumer::makePassiveStream(
         EventuallyPersistentEngine& e,
-        dcp_consumer_t consumer,
+        std::shared_ptr<DcpConsumer> consumer,
         const std::string& name,
         uint32_t flags,
         uint32_t opaque,
@@ -249,13 +249,14 @@ ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque, uint16_t vbucket,
      only once when the first stream is added */
     bool exp = false;
     if (processorTaskRunning.compare_exchange_strong(exp, true)) {
-        ExTask task = std::make_shared<Processor>(&engine, this, 1);
+        ExTask task =
+                std::make_shared<Processor>(&engine, shared_from_this(), 1);
         processorTaskId = ExecutorPool::get()->schedule(task);
     }
 
     streams.insert({vbucket,
                     makePassiveStream(engine_,
-                                      this,
+                                      shared_from_this(),
                                       getName(),
                                       flags,
                                       new_opaque,
@@ -797,7 +798,7 @@ bool DcpConsumer::handleRollbackResponse(uint16_t vbid,
             vbid,
             rollbackSeqno);
         ExTask task = std::make_shared<RollbackTask>(
-                &engine_, opaque, vbid, rollbackSeqno, this);
+                &engine_, opaque, vbid, rollbackSeqno, shared_from_this());
         ExecutorPool::get()->schedule(task);
     }
     return true;
@@ -1260,7 +1261,8 @@ std::shared_ptr<PassiveStream> DcpConsumer::findStream(uint16_t vbid) {
 }
 
 void DcpConsumer::notifyPaused(bool schedule) {
-    engine_.getDcpConnMap().notifyPausedConnection(this, schedule);
+    engine_.getDcpConnMap().notifyPausedConnection(shared_from_this(),
+                                                   schedule);
 }
 
 ENGINE_ERROR_CODE DcpConsumer::systemEvent(uint32_t opaque,

@@ -165,7 +165,7 @@ ConnMap::ConnMap(EventuallyPersistentEngine &theEngine)
     Configuration &config = engine.getConfiguration();
     size_t max_vbs = config.getMaxVbuckets();
     for (size_t i = 0; i < max_vbs; ++i) {
-        vbConns.push_back(std::list<connection_t>());
+        vbConns.push_back(std::list<std::shared_ptr<ConnHandler>>());
     }
 }
 
@@ -183,7 +183,8 @@ ConnMap::~ConnMap() {
     }
 }
 
-void ConnMap::notifyPausedConnection(connection_t conn, bool schedule) {
+void ConnMap::notifyPausedConnection(std::shared_ptr<ConnHandler> conn,
+                                     bool schedule) {
     if (engine.getEpStats().isShutdown) {
         return;
     }
@@ -206,12 +207,12 @@ void ConnMap::notifyPausedConnection(connection_t conn, bool schedule) {
 }
 
 void ConnMap::notifyAllPausedConnections() {
-    std::queue<connection_t> queue;
+    std::queue<std::shared_ptr<ConnHandler>> queue;
     pendingNotifications.getAll(queue);
 
     LockHolder rlh(releaseLock);
     while (!queue.empty()) {
-        connection_t &conn = queue.front();
+        auto& conn = queue.front();
         if (conn.get() && conn->isPaused() && conn->isReserved()) {
             engine.notifyIOComplete(conn->getCookie(), ENGINE_SUCCESS);
         }
@@ -219,22 +220,20 @@ void ConnMap::notifyAllPausedConnections() {
     }
 }
 
-void ConnMap::addVBConnByVBId(connection_t &conn, int16_t vbid) {
+void ConnMap::addVBConnByVBId(std::shared_ptr<ConnHandler> conn, int16_t vbid) {
     if (!conn.get()) {
         return;
     }
 
     size_t lock_num = vbid % vbConnLockNum;
     std::lock_guard<SpinLock> lh(vbConnLocks[lock_num]);
-    std::list<connection_t> &vb_conns = vbConns[vbid];
-    vb_conns.push_back(conn);
+    vbConns[vbid].push_back(conn);
 }
 
 void ConnMap::removeVBConnByVBId_UNLOCKED(const void* connCookie,
                                           int16_t vbid) {
-    std::list<connection_t> &vb_conns = vbConns[vbid];
-    std::list<connection_t>::iterator itr = vb_conns.begin();
-    for (; itr != vb_conns.end(); ++itr) {
+    std::list<std::shared_ptr<ConnHandler>>& vb_conns = vbConns[vbid];
+    for (auto itr = vb_conns.begin(); itr != vb_conns.end(); ++itr) {
         if (connCookie == (*itr)->getCookie()) {
             vb_conns.erase(itr);
             break;

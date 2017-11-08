@@ -32,7 +32,7 @@ public:
         return deadConnections.size();
     }
 
-    AtomicQueue<connection_t>& getPendingNotifications() {
+    AtomicQueue<std::shared_ptr<ConnHandler>>& getPendingNotifications() {
         return pendingNotifications;
     }
 
@@ -44,7 +44,7 @@ public:
         // destructor
     }
 
-    void addConn(const void* cookie, connection_t conn) {
+    void addConn(const void* cookie, std::shared_ptr<ConnHandler> conn) {
         LockHolder lh(connsLock);
         map_[cookie] = conn;
     }

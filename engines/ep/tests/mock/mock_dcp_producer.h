@@ -25,7 +25,7 @@
  * Mock of the DcpProducer class.  Wraps the real DcpProducer, but exposes
  * normally protected methods publically for test purposes.
  */
-class MockDcpProducer: public DcpProducer {
+class MockDcpProducer : public DcpProducer {
 public:
     MockDcpProducer(EventuallyPersistentEngine& theEngine,
                     const void* cookie,
@@ -130,5 +130,3 @@ public:
         return *backfillMgr;
     }
 };
-
-using mock_dcp_producer_t = SingleThreadedRCPtr<MockDcpProducer>;

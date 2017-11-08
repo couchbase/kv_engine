@@ -130,7 +130,7 @@ public:
 
     float getMinCompressionRatio();
 
-    connection_t findByName(const std::string &name);
+    std::shared_ptr<ConnHandler> findByName(const std::string& name);
 
     bool isConnections() {
         LockHolder lh(connsLock);
@@ -153,7 +153,7 @@ protected:
      * deadConnections is protected (as opposed to private) because
      * of the module test ep-engine_dead_connections_test
      */
-    std::list<connection_t> deadConnections;
+    std::list<std::shared_ptr<ConnHandler>> deadConnections;
 
     /*
      * Change the value at which a DcpConsumer::Processor task will yield

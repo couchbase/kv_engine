@@ -35,11 +35,9 @@ template <class C> class RCPtr;
 
 // Implementation defined in dcp/consumer.h
 class DcpConsumer;
-typedef SingleThreadedRCPtr<DcpConsumer> dcp_consumer_t;
 
 // Implementation defined in dcp/producer.h
 class DcpProducer;
-typedef SingleThreadedRCPtr<DcpProducer> dcp_producer_t;
 
 // Implementation defined in dcp/stream.h
 class Stream;
@@ -51,7 +49,6 @@ class ActiveStream;
 class PassiveStream;
 
 class ConnHandler;
-typedef SingleThreadedRCPtr<ConnHandler> connection_t;
 
 enum process_items_error_t {
     all_processed,

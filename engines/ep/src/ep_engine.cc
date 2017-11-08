@@ -2997,11 +2997,11 @@ struct ConnStatBuilder {
     ConnStatBuilder(const void *c, ADD_STAT as, ConnCounter& tc)
         : cookie(c), add_stat(as), aggregator(tc) {}
 
-    void operator() (connection_t &tc) {
+    void operator()(std::shared_ptr<ConnHandler> tc) {
         ++aggregator.totalConns;
         tc->addStats(add_stat, cookie);
 
-        DcpProducer *tp = dynamic_cast<DcpProducer*>(tc.get());
+        auto tp = std::dynamic_pointer_cast<DcpProducer>(tc);
         if (tp) {
             ++aggregator.totalProducers;
             tp->aggregateQueueStats(aggregator);
@@ -3018,10 +3018,10 @@ struct ConnAggStatBuilder {
                       const char *s, size_t sl)
         : counters(m), sep(s), sep_len(sl) {}
 
-    ConnCounter *getTarget(connection_t& tc) {
+    ConnCounter* getTarget(std::shared_ptr<ConnHandler> tc) {
         ConnCounter *rv = NULL;
 
-        if (tc.get()) {
+        if (tc) {
             const std::string name(tc->getName());
             size_t pos1 = name.find(':');
             if (pos1 == name.npos) {
@@ -3042,11 +3042,11 @@ struct ConnAggStatBuilder {
         return rv;
     }
 
-    void aggregate(connection_t& c, ConnCounter *tc){
+    void aggregate(std::shared_ptr<ConnHandler> c, ConnCounter* tc) {
         ConnCounter counter;
 
         ++counter.totalConns;
-        if (dynamic_cast<DcpProducer*>(c.get())) {
+        if (std::dynamic_pointer_cast<DcpProducer>(c)) {
             ++counter.totalProducers;
         }
 
@@ -3072,8 +3072,8 @@ struct ConnAggStatBuilder {
         return rv;
     }
 
-    void operator() (connection_t& tc) {
-        if (tc.get()) {
+    void operator()(std::shared_ptr<ConnHandler> tc) {
+        if (tc) {
             ConnCounter *aggregator = getTarget(tc);
             aggregate(tc, aggregator);
         }
@@ -4675,7 +4675,7 @@ EventuallyPersistentEngine::doDcpVbTakeoverStats(const void *cookie,
     std::string dcpName("eq_dcpq:");
     dcpName.append(key);
 
-    const connection_t &conn = dcpConnMap_->findByName(dcpName);
+    const auto conn = dcpConnMap_->findByName(dcpName);
     if (!conn) {
         LOG(EXTENSION_LOG_INFO,"doDcpVbTakeoverStats - cannot find "
             "connection %s for vb:%" PRIu16, dcpName.c_str(), vbid);
@@ -4700,7 +4700,7 @@ EventuallyPersistentEngine::doDcpVbTakeoverStats(const void *cookie,
         return ENGINE_SUCCESS;
     }
 
-    DcpProducer* producer = dynamic_cast<DcpProducer*>(conn.get());
+    auto producer = dynamic_pointer_cast<DcpProducer>(conn);
     if (producer) {
         producer->addTakeoverStats(add_stat, cookie, *vb);
     } else {

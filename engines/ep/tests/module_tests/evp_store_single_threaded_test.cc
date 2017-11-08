@@ -177,11 +177,12 @@ TEST_F(SingleThreadedEPBucketTest, MB22421_backfilling_but_task_finished) {
      auto& ckpt_mgr = *vb->checkpointManager;
 
      // Create a Mock Dcp producer
-     mock_dcp_producer_t producer = new MockDcpProducer(*engine,
-                                                        cookie,
-                                                        "test_producer",
-                                                        /*notifyOnly*/ false,
-                                                        {/*nojson*/});
+     auto producer = std::make_shared<MockDcpProducer>(
+             *engine,
+             cookie,
+             "test_producer",
+             /*notifyOnly*/ false,
+             cb::const_byte_buffer() /*no json*/);
      // Create a Mock Active Stream
      auto mock_stream = std::make_shared<MockActiveStream>(
              static_cast<EventuallyPersistentEngine*>(engine.get()),
@@ -235,11 +236,12 @@ TEST_F(SingleThreadedEPBucketTest, MB22421_reregister_cursor) {
     auto& ckpt_mgr = *vb->checkpointManager;
 
     // Create a Mock Dcp producer
-    mock_dcp_producer_t producer = new MockDcpProducer(*engine,
-                                                       cookie,
-                                                       "test_producer",
-                                                       /*flags*/ 0,
-                                                       {/*no json*/});
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine,
+            cookie,
+            "test_producer",
+            /*flags*/ 0,
+            cb::const_byte_buffer() /*no json*/);
     // Create a Mock Active Stream
     auto mock_stream = std::make_shared<MockActiveStream>(
             static_cast<EventuallyPersistentEngine*>(engine.get()),
@@ -411,11 +413,12 @@ TEST_F(SingleThreadedEPBucketTest, MB22960_cursor_dropping_data_loss) {
     EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
 
     // Create a Mock Dcp producer
-    mock_dcp_producer_t producer = new MockDcpProducer(*engine,
-                                                       cookie,
-                                                       "test_producer",
-                                                       /*flags*/ 0,
-                                                       {/*no json*/});
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine,
+            cookie,
+            "test_producer",
+            /*flags*/ 0,
+            cb::const_byte_buffer() /*no json*/);
     // Create a Mock Active Stream
     auto mock_stream =
             std::make_shared<MockActiveStreamWithOverloadedRegisterCursor>(
@@ -641,11 +644,12 @@ TEST_F(SingleThreadedEPBucketTest, MB25056_do_not_set_pendingBackfill_to_true) {
     }
 
     // Create a Mock Dcp producer
-    mock_dcp_producer_t producer = new MockDcpProducer(*engine,
-                                                       cookie,
-                                                       "test_producer",
-                                                       /*flags*/ 0,
-                                                       {/*no json*/});
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine,
+            cookie,
+            "test_producer",
+            /*flags*/ 0,
+            cb::const_byte_buffer() /*no json*/);
     // Create a Mock Active Stream
     auto mock_stream =
             std::make_shared<MockActiveStreamWithOverloadedRegisterCursor>(
@@ -751,11 +755,12 @@ TEST_F(SingleThreadedEPBucketTest, test_mb22451) {
     flush_vbucket_to_disk(vbid);
 
     // Create a Mock Dcp producer
-    mock_dcp_producer_t producer = new MockDcpProducer(*engine,
-                                                       cookie,
-                                                       "test_producer",
-                                                       /*flags*/ 0,
-                                                       {/*no json*/});
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine,
+            cookie,
+            "test_producer",
+            /*flags*/ 0,
+            cb::const_byte_buffer() /*no json*/);
     // Create a Mock Active Stream
     auto vb = store->getVBucket(vbid);
     ASSERT_NE(nullptr, vb.get());
@@ -855,11 +860,12 @@ TEST_F(SingleThreadedEPBucketTest, MB19428_no_streams_against_dead_vbucket) {
 
     {
         // Create a Mock Dcp producer
-        dcp_producer_t producer = new MockDcpProducer(*engine,
-                                                      cookie,
-                                                      "test_producer",
-                                                      /*flags*/ 0,
-                                                      {/*no json*/});
+        auto producer = std::make_shared<MockDcpProducer>(
+                *engine,
+                cookie,
+                "test_producer",
+                /*flags*/ 0,
+                cb::const_byte_buffer() /*no json*/);
 
         // Creating a producer will schedule one ActiveStreamCheckpointProcessorTask
         // that task though sleeps forever, so won't run until woken.
@@ -1000,7 +1006,7 @@ TEST_F(SingleThreadedEPBucketTest, MB18452_yield_dcp_processor) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
 
     // Create a MockDcpConsumer
-    dcp_consumer_t consumer = new MockDcpConsumer(*engine, cookie, "test");
+    auto consumer = std::make_shared<MockDcpConsumer>(*engine, cookie, "test");
 
     // Add the stream
     EXPECT_EQ(ENGINE_SUCCESS,
@@ -1344,11 +1350,12 @@ TEST_F(SingleThreadedEPBucketTest, stream_from_active_vbucket_only) {
         setVBucketStateAndRunPersistTask(vbid, it.first);
 
         /* Create a Mock Dcp producer */
-        dcp_producer_t producer = new MockDcpProducer(*engine,
-                                                      cookie,
-                                                      "test_producer",
-                                                      /*flags*/ 0,
-                                                      {/*no json*/});
+        auto producer = std::make_shared<MockDcpProducer>(
+                *engine,
+                cookie,
+                "test_producer",
+                /*flags*/ 0,
+                cb::const_byte_buffer() /*no json*/);
 
         /* Try to open stream on replica vb with
            DCP_ADD_STREAM_ACTIVE_VB_ONLY flag */
@@ -1621,7 +1628,8 @@ TEST_F(SingleThreadedEPBucketTest, mb25273) {
     // We need a replica VB
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
 
-    auto consumer = new MockDcpConsumer(*engine, cookie, "test_consumer");
+    auto consumer =
+            std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
     int opaque = 1;
     ASSERT_EQ(ENGINE_SUCCESS, consumer->addStream(opaque, vbid, /*flags*/ 0));
 

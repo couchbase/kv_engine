@@ -61,20 +61,21 @@ public:
     }
 
     void createDcpObjects(const std::string& filter, bool dcpCollectionAware) {
-        CollectionsDcpTest::consumer =
-                new MockDcpConsumer(*engine, cookieC, "test_consumer");
+        CollectionsDcpTest::consumer = std::make_shared<MockDcpConsumer>(
+                *engine, cookieC, "test_consumer");
 
         int flags = DCP_OPEN_INCLUDE_XATTRS;
         if (dcpCollectionAware) {
             flags |= DCP_OPEN_COLLECTIONS;
         }
-        producer = new MockDcpProducer(
+        producer = std::make_shared<MockDcpProducer>(
                 *engine,
                 cookieP,
                 "test_producer",
                 flags,
-                {reinterpret_cast<const uint8_t*>(filter.data()),
-                 filter.size()},
+                cb::const_byte_buffer(
+                        reinterpret_cast<const uint8_t*>(filter.data()),
+                        filter.size()),
                 false /*startTask*/);
 
         // Create the task object, but don't schedule
@@ -179,7 +180,7 @@ public:
     }
 
     static const uint16_t replicaVB{1};
-    static SingleThreadedRCPtr<MockDcpConsumer> consumer;
+    static std::shared_ptr<MockDcpConsumer> consumer;
     static mcbp::systemevent::id dcp_last_system_event;
 
     /*
@@ -211,17 +212,17 @@ public:
     const void* cookieC;
     const void* cookieP;
     std::unique_ptr<dcp_message_producers> producers;
-    SingleThreadedRCPtr<MockDcpProducer> producer;
+    std::shared_ptr<MockDcpProducer> producer;
 };
 
-SingleThreadedRCPtr<MockDcpConsumer> CollectionsDcpTest::consumer;
+std::shared_ptr<MockDcpConsumer> CollectionsDcpTest::consumer;
 mcbp::systemevent::id CollectionsDcpTest::dcp_last_system_event;
 
 TEST_F(CollectionsDcpTest, test_dcp_consumer) {
     const void* cookie = create_mock_cookie();
 
-    SingleThreadedRCPtr<MockDcpConsumer> consumer(
-            new MockDcpConsumer(*engine, cookie, "test_consumer"));
+    auto consumer =
+            std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
 
     store->setVBucketState(vbid, vbucket_state_replica, false);
     ASSERT_EQ(ENGINE_SUCCESS,
@@ -610,7 +611,7 @@ public:
     }
 
 protected:
-    SingleThreadedRCPtr<MockDcpProducer> producer;
+    std::shared_ptr<MockDcpProducer> producer;
     const void* cookieP;
 };
 
@@ -645,7 +646,7 @@ TEST_F(CollectionsFilteredDcpErrorTest, error2) {
     cb::const_byte_buffer buffer{
             reinterpret_cast<const uint8_t*>(filter.data()), filter.size()};
     // Can't create a filter for unknown collections
-    producer = std::make_unique<MockDcpProducer>(*engine,
+    producer = std::make_shared<MockDcpProducer>(*engine,
                                                  cookieP,
                                                  "test_producer",
                                                  DCP_OPEN_COLLECTIONS,

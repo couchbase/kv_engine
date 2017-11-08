@@ -221,7 +221,7 @@ class ActiveStream : public Stream,
                      public std::enable_shared_from_this<ActiveStream> {
 public:
     ActiveStream(EventuallyPersistentEngine* e,
-                 dcp_producer_t p,
+                 std::shared_ptr<DcpProducer> p,
                  const std::string& name,
                  uint32_t flags,
                  uint32_t opaque,
@@ -460,7 +460,7 @@ private:
     std::atomic<int> waitForSnapshot;
 
     EventuallyPersistentEngine* engine;
-    dcp_producer_t producer;
+    std::shared_ptr<DcpProducer> producer;
 
     struct {
         std::atomic<size_t> bytes;
@@ -573,7 +573,7 @@ private:
 class NotifierStream : public Stream {
 public:
     NotifierStream(EventuallyPersistentEngine* e,
-                   dcp_producer_t producer,
+                   std::shared_ptr<DcpProducer> producer,
                    const std::string& name,
                    uint32_t flags,
                    uint32_t opaque,
@@ -604,18 +604,25 @@ private:
 
     void transitionState(StreamState newState);
 
-    dcp_producer_t producer;
+    std::shared_ptr<DcpProducer> producer;
 
     std::unique_ptr<Collections::VB::Filter> filter;
 };
 
 class PassiveStream : public Stream {
 public:
-    PassiveStream(EventuallyPersistentEngine* e, dcp_consumer_t consumer,
-                  const std::string &name, uint32_t flags, uint32_t opaque,
-                  uint16_t vb, uint64_t start_seqno, uint64_t end_seqno,
-                  uint64_t vb_uuid, uint64_t snap_start_seqno,
-                  uint64_t snap_end_seqno, uint64_t vb_high_seqno);
+    PassiveStream(EventuallyPersistentEngine* e,
+                  std::shared_ptr<DcpConsumer> consumer,
+                  const std::string& name,
+                  uint32_t flags,
+                  uint32_t opaque,
+                  uint16_t vb,
+                  uint64_t start_seqno,
+                  uint64_t end_seqno,
+                  uint64_t vb_uuid,
+                  uint64_t snap_start_seqno,
+                  uint64_t snap_end_seqno,
+                  uint64_t vb_high_seqno);
 
     virtual ~PassiveStream();
 
@@ -714,7 +721,7 @@ protected:
     void streamRequest_UNLOCKED(uint64_t vb_uuid);
 
     EventuallyPersistentEngine* engine;
-    dcp_consumer_t consumer;
+    std::shared_ptr<DcpConsumer> consumer;
 
     std::atomic<uint64_t> last_seqno;
 
