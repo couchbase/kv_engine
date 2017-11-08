@@ -26,30 +26,6 @@
 #include "protocol/mcbp/engine_errc_2_mcbp.h"
 
 /**
- * Add a header to the specified net buffer
- *
- * @param pipe where to add the header
- * @param opcode the opcode to insert
- * @param err The error code to use
- * @param ext_len The length of the ext field
- * @param key_len The length of the key field
- * @param body_len THe length of the body field
- * @param datatype The datatype to inject into the header
- * @param opaque The opaque to add to the header
- * @param cas The cas field
- * @return the buffer we just updated
- */
-cb::const_byte_buffer mcbp_add_header(cb::Pipe& pipe,
-                                      uint8_t opcode,
-                                      uint16_t err,
-                                      uint8_t ext_len,
-                                      uint16_t key_len,
-                                      uint32_t body_len,
-                                      uint8_t datatype,
-                                      uint32_t opaque,
-                                      uint64_t cas);
-
-/**
  * Add a header to the current memcached connection
  *
  * @param c the connection to add the header for

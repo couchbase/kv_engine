@@ -259,7 +259,3 @@ ENDIF (ENABLE_DTRACE)
 
 INSTALL(TARGETS memcached
         RUNTIME DESTINATION bin)
-
-ADD_EXECUTABLE(mcbp_benchmark mcbp_benchmark.cc)
-TARGET_INCLUDE_DIRECTORIES(mcbp_benchmark BEFORE PRIVATE ${benchmark_SOURCE_DIR}/include)
-TARGET_LINK_LIBRARIES(mcbp_benchmark memcached_daemon benchmark)

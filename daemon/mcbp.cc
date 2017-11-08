@@ -158,15 +158,15 @@ void mcbp_write_packet(McbpConnection* c, protocol_binary_response_status err) {
     c->setWriteAndGo(McbpStateMachine::State::new_cmd);
 }
 
-cb::const_byte_buffer mcbp_add_header(cb::Pipe& pipe,
-                                      uint8_t opcode,
-                                      uint16_t err,
-                                      uint8_t ext_len,
-                                      uint16_t key_len,
-                                      uint32_t body_len,
-                                      uint8_t datatype,
-                                      uint32_t opaque,
-                                      uint64_t cas) {
+static cb::const_byte_buffer mcbp_add_header(cb::Pipe& pipe,
+                                             uint8_t opcode,
+                                             uint16_t err,
+                                             uint8_t ext_len,
+                                             uint16_t key_len,
+                                             uint32_t body_len,
+                                             uint8_t datatype,
+                                             uint32_t opaque,
+                                             uint64_t cas) {
     auto wbuf = pipe.wdata();
     auto* header = (protocol_binary_response_header*)wbuf.data();
 
