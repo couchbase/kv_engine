@@ -2036,9 +2036,7 @@ void CouchKVStore::commitCallback(std::vector<CouchRequest *> &committedReqs,
             if (errCode) {
                 ++st.numDelFailure;
             } else {
-                st.delTimeHisto.add(
-                        std::chrono::duration_cast<std::chrono::milliseconds>(
-                                committedReqs[index]->getDelta()));
+                st.delTimeHisto.add(committedReqs[index]->getDelta());
             }
             committedReqs[index]->getDelCallback()->callback(rv);
         } else {
@@ -2048,9 +2046,7 @@ void CouchKVStore::commitCallback(std::vector<CouchRequest *> &committedReqs,
             if (errCode) {
                 ++st.numSetFailure;
             } else {
-                st.writeTimeHisto.add(
-                        std::chrono::duration_cast<std::chrono::milliseconds>(
-                                committedReqs[index]->getDelta()));
+                st.writeTimeHisto.add(committedReqs[index]->getDelta());
                 st.writeSizeHisto.add(dataSize + keySize);
             }
             mutation_result p(rv, insertion);
