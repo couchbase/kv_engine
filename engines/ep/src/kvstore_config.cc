@@ -51,6 +51,8 @@ KVStoreConfig::KVStoreConfig(Configuration& config, uint16_t shardid)
             config.getRocksdbHighPriBackgroundThreads();
     rocksdbStatsLevel = config.getRocksdbStatsLevel();
     rocksdbBlockCacheSize = config.getRocksdbBlockCacheSize();
+    rocksdbDefaultCfMemBudget = config.getRocksdbDefaultCfMemBudget();
+    rocksdbSeqnoCfMemBudget = config.getRocksdbSeqnoCfMemBudget();
 }
 
 KVStoreConfig::KVStoreConfig(uint16_t _maxVBuckets,

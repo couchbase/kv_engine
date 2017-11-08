@@ -159,6 +159,18 @@ public:
         return rocksdbBlockCacheSize;
     }
 
+    // Return the RocksDB memory budget for Level-style compaction
+    // optimization for the 'default' column family
+    size_t getRocksdbDefaultCfMemBudget() {
+        return rocksdbDefaultCfMemBudget;
+    }
+
+    // Return the RocksDB memory budget for Level-style compaction
+    // optimization for the 'seqno' column family
+    size_t getRocksdbSeqnoCfMemBudget() {
+        return rocksdbSeqnoCfMemBudget;
+    }
+
 private:
     class ConfigChangeListener;
 
@@ -199,4 +211,12 @@ private:
 
     // RocksDB Block Cache size
     size_t rocksdbBlockCacheSize = 0;
+
+    // RocksDB memtable memory budget for Level-style compaction optimization
+    // for the 'default' column family
+    size_t rocksdbDefaultCfMemBudget = 0;
+
+    // RocksDB memtable memory budget for Level-style compaction optimization
+    // for the 'seqno' column family
+    size_t rocksdbSeqnoCfMemBudget = 0;
 };

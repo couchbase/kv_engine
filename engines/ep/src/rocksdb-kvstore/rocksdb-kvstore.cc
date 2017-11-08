@@ -919,12 +919,26 @@ rocksdb::ColumnFamilyOptions RocksDBKVStore::getBaselineDefaultCFOptions() {
     // 'rocksdb_block_cache_size'
     cfOptions.OptimizeForPointLookup(1);
 
+    // Overwrite Level-style Compaction options if Level-style Compaction
+    // Optimization is enabled for the 'default' CF
+    if (configuration.getRocksdbDefaultCfMemBudget() > 0) {
+        cfOptions.OptimizeLevelStyleCompaction(configuration.getRocksdbDefaultCfMemBudget());
+    }
+
     return cfOptions;
 }
 
 rocksdb::ColumnFamilyOptions RocksDBKVStore::getBaselineSeqnoCFOptions() {
     rocksdb::ColumnFamilyOptions cfOptions;
+
     cfOptions.comparator = &vbidSeqnoComparator;
+
+    // Overwrite Level-style Compaction options if Level-style Compaction
+    // Optimization is enabled for the 'seqno' CF
+    if (configuration.getRocksdbSeqnoCfMemBudget() > 0) {
+        cfOptions.OptimizeLevelStyleCompaction(configuration.getRocksdbSeqnoCfMemBudget());
+    }
+
     return cfOptions;
 }
 
