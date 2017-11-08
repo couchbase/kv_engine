@@ -344,24 +344,21 @@ void DcpConnMap::manageConnections() {
         connection_t conn = release.front();
         conn->releaseReference();
         release.pop_front();
-        removeVBConnections(conn);
+        DcpProducer* prod = dynamic_cast<DcpProducer*>(conn.get());
+        if (prod) {
+            removeVBConnections(*prod);
+        }
     }
 }
 
-void DcpConnMap::removeVBConnections(connection_t &conn) {
-    DcpProducer *tp = dynamic_cast<DcpProducer*>(conn.get());
-    if (!tp) {
-        return;
-    }
-
-    DcpProducer *prod = static_cast<DcpProducer*>(tp);
-    for (const auto vbid : prod->getVBVector()) {
+void DcpConnMap::removeVBConnections(DcpProducer& prod) {
+    for (const auto vbid : prod.getVBVector()) {
         size_t lock_num = vbid % vbConnLockNum;
         std::lock_guard<SpinLock> lh(vbConnLocks[lock_num]);
         std::list<connection_t> &vb_conns = vbConns[vbid];
         std::list<connection_t>::iterator itr = vb_conns.begin();
         for (; itr != vb_conns.end(); ++itr) {
-            if (conn->getCookie() == (*itr)->getCookie()) {
+            if (prod.getCookie() == (*itr)->getCookie()) {
                 vb_conns.erase(itr);
                 break;
             }

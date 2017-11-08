@@ -61,7 +61,7 @@ public:
 
     void notifyBackfillManagerTasks();
 
-    void removeVBConnections(connection_t &conn);
+    void removeVBConnections(DcpProducer& prod);
 
     /**
      * Close outbound (active) streams for a vbucket whenever a state
