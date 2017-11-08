@@ -840,13 +840,11 @@ ENGINE_ERROR_CODE DcpProducer::closeStream(uint32_t opaque, uint16_t vbucket) {
         if (!stream->isActive()) {
             LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Cannot close stream because "
                 "stream is already marked as dead", logHeader(), vbucket);
-            connection_t conn(this);
-            engine_.getDcpConnMap().removeVBConnByVBId(conn, vbucket);
+            engine_.getDcpConnMap().removeVBConnByVBId(getCookie(), vbucket);
             ret = ENGINE_KEY_ENOENT;
         } else {
             stream->setDead(END_STREAM_CLOSED);
-            connection_t conn(this);
-            engine_.getDcpConnMap().removeVBConnByVBId(conn, vbucket);
+            engine_.getDcpConnMap().removeVBConnByVBId(getCookie(), vbucket);
             ret = ENGINE_SUCCESS;
         }
     }
@@ -1022,9 +1020,8 @@ void DcpProducer::closeAllStreams() {
 
         streams.clear(guard);
     }
-    connection_t conn(this);
     for (const auto vbid: vbvector) {
-         engine_.getDcpConnMap().removeVBConnByVBId(conn, vbid);
+        engine_.getDcpConnMap().removeVBConnByVBId(getCookie(), vbid);
     }
 
     // Destroy the backfillManager. (BackfillManager task also

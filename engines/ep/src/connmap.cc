@@ -230,23 +230,20 @@ void ConnMap::addVBConnByVBId(connection_t &conn, int16_t vbid) {
     vb_conns.push_back(conn);
 }
 
-void ConnMap::removeVBConnByVBId_UNLOCKED(connection_t &conn, int16_t vbid) {
-    if (!conn.get()) {
-        return;
-    }
-
+void ConnMap::removeVBConnByVBId_UNLOCKED(const void* connCookie,
+                                          int16_t vbid) {
     std::list<connection_t> &vb_conns = vbConns[vbid];
     std::list<connection_t>::iterator itr = vb_conns.begin();
     for (; itr != vb_conns.end(); ++itr) {
-        if (conn->getCookie() == (*itr)->getCookie()) {
+        if (connCookie == (*itr)->getCookie()) {
             vb_conns.erase(itr);
             break;
         }
     }
 }
 
-void ConnMap::removeVBConnByVBId(connection_t &conn, int16_t vbid) {
+void ConnMap::removeVBConnByVBId(const void* connCookie, int16_t vbid) {
     size_t lock_num = vbid % vbConnLockNum;
     std::lock_guard<SpinLock> lh(vbConnLocks[lock_num]);
-    removeVBConnByVBId_UNLOCKED(conn, vbid);
+    removeVBConnByVBId_UNLOCKED(connCookie, vbid);
 }

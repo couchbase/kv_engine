@@ -66,9 +66,9 @@ public:
 
     void addVBConnByVBId(connection_t &conn, int16_t vbid);
 
-    void removeVBConnByVBId_UNLOCKED(connection_t &conn, int16_t vbid);
+    void removeVBConnByVBId_UNLOCKED(const void* connCookie, int16_t vbid);
 
-    void removeVBConnByVBId(connection_t &conn, int16_t vbid);
+    void removeVBConnByVBId(const void* connCookie, int16_t vbid);
 
     /**
      * Notify a given paused connection.
