@@ -59,7 +59,7 @@ void SteppableCommandContext::drive() {
         connection.setState(McbpStateMachine::State::closing);
         return;
     default:
-        mcbp_write_packet(&connection, engine_error_2_mcbp_protocol_error(ret));
+        cookie.sendResponse(cb::engine_errc(ret));
         return;
     }
 }

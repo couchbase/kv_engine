@@ -101,7 +101,7 @@ void dcp_open_executor(McbpConnection* c, void* packet) {
                    c->getDescription().c_str());
 
         audit_dcp_open(c);
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
+        c->getCookieObject().sendResponse(cb::mcbp::Status::Success);
         break;
     }
 
@@ -114,6 +114,6 @@ void dcp_open_executor(McbpConnection* c, void* packet) {
         break;
 
     default:
-        mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
+        c->getCookieObject().sendResponse(cb::engine_errc(ret));
     }
 }

@@ -49,6 +49,6 @@ void dcp_add_stream_executor(McbpConnection* c, void* packet) {
         break;
 
     default:
-        mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
+        c->getCookieObject().sendResponse(cb::engine_errc(ret));
     }
 }

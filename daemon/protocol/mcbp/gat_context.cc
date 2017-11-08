@@ -102,7 +102,7 @@ ENGINE_ERROR_CODE GatCommandContext::sendResponse() {
     cb::audit::document::add(cookie, cb::audit::document::Operation::Modify);
 
     if (cookie.getHeader().getOpcode() == PROTOCOL_BINARY_CMD_TOUCH) {
-        mcbp_write_packet(&connection, PROTOCOL_BINARY_RESPONSE_SUCCESS);
+        cookie.sendResponse(cb::mcbp::Status::Success);
         state = State::Done;
         return ENGINE_SUCCESS;
     }
@@ -142,7 +142,7 @@ ENGINE_ERROR_CODE GatCommandContext::noSuchItem() {
                     .responseCounters[PROTOCOL_BINARY_RESPONSE_KEY_ENOENT];
         connection.setState(McbpStateMachine::State::new_cmd);
     } else {
-        mcbp_write_packet(&connection, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
+        cookie.sendResponse(cb::mcbp::Status::KeyEnoent);
     }
 
     state = State::Done;

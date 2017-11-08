@@ -151,7 +151,7 @@ ENGINE_ERROR_CODE SaslAuthCommandContext::authFailure() {
                            ? "Unknown user"
                            : "Incorrect password");
     }
-    mcbp_write_packet(&connection, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR);
+    cookie.sendResponse(cb::mcbp::Status::AuthError);
 
     auto* ts = get_thread_stats(&connection);
     ts->auth_cmds++;

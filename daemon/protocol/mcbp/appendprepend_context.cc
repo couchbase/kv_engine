@@ -209,8 +209,7 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::storeItem() {
             mcbp_write_response(&connection, &extras, sizeof(extras), 0,
                                 sizeof(extras));
         } else {
-            mcbp_write_packet(&connection,
-                              PROTOCOL_BINARY_RESPONSE_SUCCESS);
+            cookie.sendResponse(cb::mcbp::Status::Success);
         }
         state = State::Done;
     } else if (ret == ENGINE_KEY_EEXISTS && cas == 0) {

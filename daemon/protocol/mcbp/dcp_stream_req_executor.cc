@@ -69,7 +69,7 @@ void dcp_stream_req_executor(McbpConnection* c, void*) {
         if (c->getCookieObject().getDynamicBuffer().getRoot() != nullptr) {
             mcbp_write_and_free(c, &c->getCookieObject().getDynamicBuffer());
         } else {
-            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
+            c->getCookieObject().sendResponse(cb::mcbp::Status::Success);
         }
         break;
 
@@ -82,7 +82,7 @@ void dcp_stream_req_executor(McbpConnection* c, void*) {
                                   c->getCookie())) {
             mcbp_write_and_free(c, &c->getCookieObject().getDynamicBuffer());
         } else {
-            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
+            c->getCookieObject().sendResponse(cb::mcbp::Status::Enomem);
         }
         break;
 
@@ -95,7 +95,7 @@ void dcp_stream_req_executor(McbpConnection* c, void*) {
         break;
 
     default:
-        mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
+        c->getCookieObject().sendResponse(cb::engine_errc(ret));
     }
 }
 

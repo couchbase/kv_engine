@@ -72,5 +72,5 @@ ENGINE_ERROR_CODE RbacReloadCommandContext::reload() {
 }
 
 void RbacReloadCommandContext::done() {
-    mcbp_write_packet(&connection, PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    cookie.sendResponse(cb::mcbp::Status::Success);
 }

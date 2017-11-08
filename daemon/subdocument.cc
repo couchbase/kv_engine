@@ -386,7 +386,7 @@ static void subdoc_executor(McbpConnection& c, const void *packet,
             context = subdoc_create_context(
                     c, traits, packet, value_buf, doc_flags);
             if (context == nullptr) {
-                mcbp_write_packet(&c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
+                c.getCookieObject().sendResponse(cb::mcbp::Status::Enomem);
                 return;
             }
             c.getCookieObject().setCommandContext(context);
@@ -417,7 +417,7 @@ static void subdoc_executor(McbpConnection& c, const void *packet,
                 continue;
             } else {
                 // No auto-retry - return status back to client and return.
-                mcbp_write_packet(&c, engine_error_2_mcbp_protocol_error(ret));
+                c.getCookieObject().sendResponse(cb::engine_errc(ret));
                 return;
             }
         } else if (ret != ENGINE_SUCCESS) {
@@ -459,7 +459,7 @@ static void subdoc_executor(McbpConnection& c, const void *packet,
          "attempting to perform op %s for client %s - returning TMPFAIL",
          c.getId(), MAXIMUM_ATTEMPTS, memcached_opcode_2_text(mcbp_cmd),
          c.getDescription().c_str());
-    mcbp_write_packet(&c, engine_error_2_mcbp_protocol_error(ENGINE_TMPFAIL));
+    c.getCookieObject().sendResponse(cb::mcbp::Status::Etmpfail);
 }
 
 // Fetch the item to operate on from the engine.
@@ -490,9 +490,7 @@ static bool subdoc_fetch(McbpConnection& c, SubdocCmdContext& ctx,
         case ENGINE_SUCCESS:
             if (ctx.traits.is_mutator &&
                 ctx.mutationSemantics == MutationSemantics::Add) {
-                mcbp_write_packet(
-                        &c,
-                        engine_error_2_mcbp_protocol_error(ENGINE_KEY_EEXISTS));
+                c.getCookieObject().sendResponse(cb::mcbp::Status::KeyEexists);
                 return false;
             }
             ctx.needs_new_doc = false;
@@ -501,7 +499,7 @@ static bool subdoc_fetch(McbpConnection& c, SubdocCmdContext& ctx,
         case ENGINE_KEY_ENOENT:
             if (ctx.traits.is_mutator &&
                 ctx.mutationSemantics == MutationSemantics::Replace) {
-                mcbp_write_packet(&c, engine_error_2_mcbp_protocol_error(ret));
+                c.getCookieObject().sendResponse(cb::engine_errc(ret));
                 return false;
             }
 
@@ -515,7 +513,7 @@ static bool subdoc_fetch(McbpConnection& c, SubdocCmdContext& ctx,
             } else if (ctx.jroot_type == JSONSL_T_OBJECT) {
                 ctx.in_doc = {"{}", 2};
             } else {
-                mcbp_write_packet(&c, engine_error_2_mcbp_protocol_error(ret));
+                c.getCookieObject().sendResponse(cb::engine_errc(ret));
                 return false;
             }
 
@@ -533,7 +531,7 @@ static bool subdoc_fetch(McbpConnection& c, SubdocCmdContext& ctx,
             return false;
 
         default:
-            mcbp_write_packet(&c, engine_error_2_mcbp_protocol_error(ret));
+            c.getCookieObject().sendResponse(cb::engine_errc(ret));
             return false;
         }
     }
@@ -546,7 +544,7 @@ static bool subdoc_fetch(McbpConnection& c, SubdocCmdContext& ctx,
         if (status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
             // Failed. Note c.item and c.commandContext will both be freed for
             // us as part of preparing for the next command.
-            mcbp_write_packet(&c, status);
+            c.getCookieObject().sendResponse(cb::mcbp::Status(status));
             return false;
         }
     }
@@ -759,7 +757,8 @@ static bool operate_single_doc(SubdocCmdContext& context,
             case SubdocPath::SINGLE:
                 // Failure of a (the only) op stops execution and returns an
                 // error to the client.
-                mcbp_write_packet(&context.connection, op->status);
+                context.connection.getCookieObject().sendResponse(
+                        cb::mcbp::Status(op->status));
                 return false;
 
             case SubdocPath::MULTI:
@@ -972,8 +971,8 @@ static bool do_xattr_phase(SubdocCmdContext& context) {
         case SubdocPath::SINGLE:
             // Failure of a (the only) op stops execution and returns an
             // error to the client.
-            mcbp_write_packet(&context.connection,
-                              engine_error_2_mcbp_protocol_error(access));
+            context.connection.getCookieObject().sendResponse(
+                    cb::engine_errc(access));
             return false;
 
         case SubdocPath::MULTI:
@@ -1157,8 +1156,8 @@ static bool subdoc_operate(SubdocCmdContext& context) {
         }
     } catch (const std::bad_alloc&) {
         // Insufficient memory - unable to continue.
-        mcbp_write_packet(&context.connection,
-                          PROTOCOL_BINARY_RESPONSE_ENOMEM);
+        context.connection.getCookieObject().sendResponse(
+                cb::mcbp::Status::Enomem);
         return false;
     }
 
@@ -1247,7 +1246,7 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
             return ret;
 
         default:
-            mcbp_write_packet(&connection, engine_error_2_mcbp_protocol_error(ret));
+            connection.getCookieObject().sendResponse(cb::engine_errc(ret));
             return ret;
         }
 
@@ -1258,7 +1257,8 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
         // Obtain the item info (and it's iovectors)
         item_info new_doc_info;
         if (!bucket_get_item_info(&connection, new_doc, &new_doc_info)) {
-            mcbp_write_packet(&connection, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
+            connection.getCookieObject().sendResponse(
+                    cb::mcbp::Status::Einternal);
             return ENGINE_FAILED;
         }
 
@@ -1301,8 +1301,8 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
                     LOG_WARNING(&connection,
                                 "%u: Subdoc: Failed to get item info",
                                 connection.getId());
-                    mcbp_write_packet(&connection,
-                                      PROTOCOL_BINARY_RESPONSE_EINTERNAL);
+                    connection.getCookieObject().sendResponse(
+                            cb::mcbp::Status::Einternal);
                     return ENGINE_FAILED;
                 }
 
@@ -1328,7 +1328,7 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
         break;
 
     default:
-        mcbp_write_packet(&connection, engine_error_2_mcbp_protocol_error(ret));
+        connection.getCookieObject().sendResponse(cb::engine_errc(ret));
         break;
     }
 
@@ -1422,7 +1422,7 @@ static void subdoc_single_response(SubdocCmdContext& context) {
                 connection.getCookieObject().getDynamicBuffer();
         if (!response_buf.grow(extlen)) {
             // Unable to form complete response.
-            mcbp_write_packet(&connection, PROTOCOL_BINARY_RESPONSE_ENOMEM);
+            connection.getCookieObject().sendResponse(cb::mcbp::Status::Enomem);
             return;
         }
         char* const extras_ptr = response_buf.getCurrent();
@@ -1461,7 +1461,7 @@ static void subdoc_multi_mutation_response(SubdocCmdContext& context) {
         extlen = sizeof(mutation_descr_t);
         if (!response_buf.grow(extlen)) {
             // Unable to form complete response.
-            mcbp_write_packet(&connection, PROTOCOL_BINARY_RESPONSE_ENOMEM);
+            connection.getCookieObject().sendResponse(cb::mcbp::Status::Enomem);
             return;
         }
         extras_ptr = response_buf.getCurrent();
@@ -1502,7 +1502,7 @@ static void subdoc_multi_mutation_response(SubdocCmdContext& context) {
     // 2. actual value - this already resides in the Subdoc::Result.
     if (!response_buf.grow(response_buf_needed)) {
         // Unable to form complete response.
-        mcbp_write_packet(&connection, PROTOCOL_BINARY_RESPONSE_ENOMEM);
+        connection.getCookieObject().sendResponse(cb::mcbp::Status::Enomem);
         return;
     }
 
@@ -1591,7 +1591,7 @@ static void subdoc_multi_lookup_response(SubdocCmdContext& context) {
 
     if (!response_buf.grow(needed)) {
         // Unable to form complete response.
-        mcbp_write_packet(&connection, PROTOCOL_BINARY_RESPONSE_ENOMEM);
+        connection.getCookieObject().sendResponse(cb::mcbp::Status::Enomem);
         return;
     }
 
@@ -1664,7 +1664,7 @@ static void subdoc_response(SubdocCmdContext& context) {
 
     // Shouldn't get here - invalid traits.path
     auto& connection = context.connection;
-    mcbp_write_packet(&connection, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
+    connection.getCookieObject().sendResponse(cb::mcbp::Status::Einternal);
     connection.setState(McbpStateMachine::State::closing);
 }
 

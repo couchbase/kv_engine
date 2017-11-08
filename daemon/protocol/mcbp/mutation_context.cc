@@ -290,7 +290,7 @@ ENGINE_ERROR_CODE MutationCommandContext::sendResponse() {
         }
         mcbp_write_and_free(&connection, &cookie.getDynamicBuffer());
     } else {
-        mcbp_write_packet(&connection, PROTOCOL_BINARY_RESPONSE_SUCCESS);
+        cookie.sendResponse(cb::mcbp::Status::Success);
     }
 
     return ENGINE_SUCCESS;

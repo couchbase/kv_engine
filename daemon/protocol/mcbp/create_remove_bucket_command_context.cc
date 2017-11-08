@@ -129,8 +129,7 @@ ENGINE_ERROR_CODE CreateRemoveBucketCommandContext::step() {
                 ret = remove();
                 break;
             case State::Done:
-                mcbp_write_packet(&connection,
-                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
+                cookie.sendResponse(cb::mcbp::Status::Success);
                 return ENGINE_SUCCESS;
             }
         } while (ret == ENGINE_SUCCESS);

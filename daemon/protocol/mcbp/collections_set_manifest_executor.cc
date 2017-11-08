@@ -40,8 +40,8 @@ void collections_set_manifest_executor(McbpConnection* c, void* packet) {
     }
 
     if (ret == ENGINE_SUCCESS) {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
+        c->getCookieObject().sendResponse(cb::mcbp::Status::Success);
     } else {
-        mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
+        c->getCookieObject().sendResponse(cb::engine_errc(ret));
     }
 }

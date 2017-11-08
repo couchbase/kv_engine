@@ -137,7 +137,7 @@ ENGINE_ERROR_CODE GetCommandContext::noSuchItem() {
             connection.addIov(key.data(), key.size());
             connection.setState(McbpStateMachine::State::send_data);
         } else {
-            mcbp_write_packet(&connection, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
+            cookie.sendResponse(cb::mcbp::Status::KeyEnoent);
         }
     }
 
