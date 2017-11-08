@@ -1851,7 +1851,8 @@ TEST_P(ConnectionTest, test_mb17042_duplicate_cookie_consumer_connections) {
 TEST_P(ConnectionTest, test_update_of_last_message_time_in_consumer) {
     const void* cookie = create_mock_cookie();
     // Create a Mock Dcp consumer
-    MockDcpConsumer *consumer = new MockDcpConsumer(*engine, cookie, "test_consumer");
+    SingleThreadedRCPtr<MockDcpConsumer> consumer =
+            new MockDcpConsumer(*engine, cookie, "test_consumer");
     consumer->setLastMessageTime(1234);
     consumer->addStream(/*opaque*/0, /*vbucket*/0, /*flags*/0);
     EXPECT_NE(1234, consumer->getLastMessageTime())
