@@ -26,21 +26,21 @@ std::string to_string(cb::mcbp::Feature feature) {
     case cb::mcbp::Feature::TLS:
         return "TLS";
     case cb::mcbp::Feature::TCPNODELAY:
-        return "TCP NODELAY";
+        return "TCP nodelay";
     case cb::mcbp::Feature::MUTATION_SEQNO:
         return "Mutation seqno";
     case cb::mcbp::Feature::TCPDELAY:
-        return "TCP DELAY";
+        return "TCP delay";
     case cb::mcbp::Feature::XATTR:
         return "XATTR";
     case cb::mcbp::Feature::XERROR:
         return "XERROR";
     case cb::mcbp::Feature::SELECT_BUCKET:
-        return "Select Bucket";
+        return "Select bucket";
     case cb::mcbp::Feature::COLLECTIONS:
-        return "COLLECTIONS";
+        return "Collections";
     case cb::mcbp::Feature::SNAPPY:
-        return "SNAPPY";
+        return "Snappy";
     case cb::mcbp::Feature::JSON:
         return "JSON";
     case cb::mcbp::Feature::Duplex:
