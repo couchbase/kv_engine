@@ -70,6 +70,11 @@ public:
         return std::chrono::milliseconds(25);
     }
 
+    /**
+     * Request that this ItemPager is scheduled to run 'now'
+     */
+    void scheduleNow();
+
 private:
     EventuallyPersistentEngine& engine;
     EPStats& stats;
@@ -86,6 +91,9 @@ private:
      * stored as a double seconds value ready for use in snooze calls.
      */
     std::chrono::duration<double> sleepTime;
+
+    /// atomic bool used in the task's run trigger
+    std::atomic<bool> notified;
 };
 
 /**

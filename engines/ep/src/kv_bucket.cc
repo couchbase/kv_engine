@@ -2937,9 +2937,7 @@ TaskStatus KVBucket::rollback(uint16_t vbid, uint64_t rollbackSeqno) {
 }
 
 void KVBucket::attemptToFreeMemory() {
-    if (itemPagerTask->getState() == TASK_SNOOZED) {
-        ExecutorPool::get()->wake(itemPagerTask->getId());
-    }
+    static_cast<ItemPager*>(itemPagerTask.get())->scheduleNow();
 }
 
 void KVBucket::runDefragmenterTask() {

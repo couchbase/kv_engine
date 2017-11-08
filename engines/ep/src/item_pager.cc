@@ -263,11 +263,25 @@ ItemPager::ItemPager(EventuallyPersistentEngine& e, EPStats& st)
       phase(PAGING_UNREFERENCED),
       doEvict(false),
       sleepTime(std::chrono::milliseconds(
-              e.getConfiguration().getPagerSleepTimeMs())) {
+              e.getConfiguration().getPagerSleepTimeMs())),
+      notified(false) {
 }
 
 bool ItemPager::run(void) {
     TRACE_EVENT0("ep-engine/task", "ItemPager");
+
+    // Setup so that we will sleep before clearing notified.
+    snooze(sleepTime.count());
+
+    // Save the value of notified to be used in the "do we page check", it could
+    // be that we've gone over HWM have been notified to run, then came back
+    // down (e.g. 1 byte under HWM), we should still page in this scenario.
+    // Notified would be false if we were woken by the periodic scheduler
+    bool wasNotified = notified;
+
+    // Clear the notification flag before starting the task's actions
+    notified.store(false);
+
     KVBucketIface* kvBucket = engine.getKVBucket();
     double current = static_cast<double>(stats.getTotalMemoryUsed());
     double upper = static_cast<double>(stats.mem_high_wat);
@@ -278,7 +292,7 @@ bool ItemPager::run(void) {
     }
 
     bool inverse = true;
-    if (((current > upper) || doEvict) &&
+    if (((current > upper) || doEvict || wasNotified) &&
         (*available).compare_exchange_strong(inverse, false)) {
         if (kvBucket->getItemEvictionPolicy() == VALUE_ONLY) {
             doEvict = true;
@@ -317,8 +331,14 @@ bool ItemPager::run(void) {
                         maxExpectedDuration);
     }
 
-    snooze(sleepTime.count());
     return true;
+}
+
+void ItemPager::scheduleNow() {
+    bool expected = false;
+    if (notified.compare_exchange_strong(expected, true)) {
+        ExecutorPool::get()->wake(getId());
+    }
 }
 
 ExpiredItemPager::ExpiredItemPager(EventuallyPersistentEngine *e,
