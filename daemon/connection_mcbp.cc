@@ -966,7 +966,7 @@ void McbpConnection::runEventLoop(short which) {
         } catch (const std::exception& e) {
             LOG_WARNING(this,
                     "%d: exception occurred in runloop whilst"
-                    "attempting to close connection: %s",
+                    " attempting to close connection: %s",
                     getId(), e.what());
         }
     }
