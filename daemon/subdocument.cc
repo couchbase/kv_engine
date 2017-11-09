@@ -49,9 +49,13 @@ using namespace mcbp::subdoc;
 /*
  * Declarations
  */
-static bool subdoc_fetch(McbpConnection& c, SubdocCmdContext& ctx,
-                         ENGINE_ERROR_CODE ret, const char* key,
-                         size_t keylen, uint16_t vbucket, uint64_t cas);
+static bool subdoc_fetch(Cookie& cookie,
+                         SubdocCmdContext& ctx,
+                         ENGINE_ERROR_CODE ret,
+                         const char* key,
+                         size_t keylen,
+                         uint16_t vbucket,
+                         uint64_t cas);
 
 static bool subdoc_operate(SubdocCmdContext& context);
 
@@ -59,7 +63,7 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
                                        ENGINE_ERROR_CODE ret,
                                        const char* key, size_t keylen,
                                        uint16_t vbucket, uint32_t expiration);
-static void subdoc_response(SubdocCmdContext& context);
+static void subdoc_response(Cookie& cookie, SubdocCmdContext& context);
 
 // Debug - print details of the specified subdocument command.
 static void subdoc_print_command(Connection& c, protocol_binary_command cmd,
@@ -320,22 +324,22 @@ uint32_t subdoc_decode_expiration(const protocol_binary_request_header* header,
     }
 }
 
-/* Main function which handles execution of all sub-document
+/**
+ * Main function which handles execution of all sub-document
  * commands: fetches, operates on, updates and finally responds to the client.
  *
  * Invoked via extern "C" trampoline functions (see later) which populate the
  * subdocument elements of executors[].
  *
- * @param c      connection object.
- * @param packet request packet.
+ * @param cookie the command context
  * @param traits Traits associated with the specific command.
  */
-static void subdoc_executor(McbpConnection& c, const void *packet,
-                            const SubdocCmdTraits traits) {
-
+static void subdoc_executor(Cookie& cookie, const SubdocCmdTraits traits) {
     // 0. Parse the request and log it if debug enabled.
-    const protocol_binary_request_subdocument *req =
-            reinterpret_cast<const protocol_binary_request_subdocument*>(packet);
+    auto packet = cookie.getPacket(Cookie::PacketContent::Full);
+    const auto* req =
+            reinterpret_cast<const protocol_binary_request_subdocument*>(
+                    packet.data());
     const protocol_binary_request_header* header = &req->message.header;
 
     const uint8_t extlen = header->request.extlen;
@@ -344,7 +348,7 @@ static void subdoc_executor(McbpConnection& c, const void *packet,
     const uint16_t vbucket = ntohs(header->request.vbucket);
     const uint64_t cas = ntohll(header->request.cas);
 
-    const char* key = (char*)packet + sizeof(*header) + extlen;
+    const char* key = (char*)packet.data() + sizeof(*header) + extlen;
 
     const char* value = key + keylen;
     const uint32_t vallen = bodylen - keylen - extlen;
@@ -355,8 +359,8 @@ static void subdoc_executor(McbpConnection& c, const void *packet,
     // We potentially need to make multiple attempts at this as the engine may
     // return EWOULDBLOCK if not initially resident, hence initialise ret to
     // c->aiostat.
-    ENGINE_ERROR_CODE ret = c.getAiostat();
-    c.setAiostat(ENGINE_SUCCESS);
+    ENGINE_ERROR_CODE ret = cookie.getAiostat();
+    cookie.setAiostat(ENGINE_SUCCESS);
 
     // If client didn't specify a CAS, we still use CAS internally to check
     // that we are updating the same version of the document as was fetched.
@@ -370,7 +374,7 @@ static void subdoc_executor(McbpConnection& c, const void *packet,
     // possible bugs in our code ;)
     const int MAXIMUM_ATTEMPTS = 100;
 
-    c.getCookieObject().logCommand();
+    cookie.logCommand();
 
     int attempts = 0;
     do {
@@ -379,24 +383,27 @@ static void subdoc_executor(McbpConnection& c, const void *packet,
         // 0. If we don't already have a command context, allocate one
         // (we may already have one if this is an auto_retry or a re-execution
         // due to EWOULDBLOCK).
-        auto* context = dynamic_cast<SubdocCmdContext*>(
-                c.getCookieObject().getCommandContext());
+        auto* context =
+                dynamic_cast<SubdocCmdContext*>(cookie.getCommandContext());
         if (context == nullptr) {
             cb::const_char_buffer value_buf{value, vallen};
-            context = subdoc_create_context(
-                    c, traits, packet, value_buf, doc_flags);
+            context = subdoc_create_context(cookie.getConnection(),
+                                            traits,
+                                            packet.data(),
+                                            value_buf,
+                                            doc_flags);
             if (context == nullptr) {
-                c.getCookieObject().sendResponse(cb::mcbp::Status::Enomem);
+                cookie.sendResponse(cb::mcbp::Status::Enomem);
                 return;
             }
-            c.getCookieObject().setCommandContext(context);
+            cookie.setCommandContext(context);
         }
 
         // 1. Attempt to fetch from the engine the document to operate on. Only
         // continue if it returned true, otherwise return from this function
         // (which may result in it being called again later in the EWOULDBLOCK
         // case).
-        if (!subdoc_fetch(c, *context, ret, key, keylen, vbucket, cas)) {
+        if (!subdoc_fetch(cookie, *context, ret, key, keylen, vbucket, cas)) {
             return;
         }
 
@@ -413,11 +420,11 @@ static void subdoc_executor(McbpConnection& c, const void *packet,
                 // state, so start from the beginning again.
                 ret = ENGINE_SUCCESS;
 
-                c.getCookieObject().setCommandContext();
+                cookie.setCommandContext();
                 continue;
             } else {
                 // No auto-retry - return status back to client and return.
-                c.getCookieObject().sendResponse(cb::engine_errc(ret));
+                cookie.sendResponse(cb::engine_errc(ret));
                 return;
             }
         } else if (ret != ENGINE_SUCCESS) {
@@ -425,58 +432,64 @@ static void subdoc_executor(McbpConnection& c, const void *packet,
         }
 
         // 4. Form a response and send it back to the client.
-        subdoc_response(*context);
+        subdoc_response(cookie, *context);
 
         // Update stats. Treat all mutations as 'cmd_set', all accesses as 'cmd_get',
         // in addition to specific subdoc counters. (This is mainly so we
         // see subdoc commands in the GUI, which used cmd_set / cmd_get).
-        auto* thread_stats = get_thread_stats(&c);
+        auto* thread_stats = get_thread_stats(&cookie.getConnection());
         if (context->traits.is_mutator) {
             thread_stats->cmd_subdoc_mutation++;
             thread_stats->bytes_subdoc_mutation_total += context->out_doc_len;
             thread_stats->bytes_subdoc_mutation_inserted +=
                     context->getOperationValueBytesTotal();
 
-            SLAB_INCR(&c, cmd_set);
+            SLAB_INCR(&cookie.getConnection(), cmd_set);
         } else {
             thread_stats->cmd_subdoc_lookup++;
             thread_stats->bytes_subdoc_lookup_total += context->in_doc.len;
             thread_stats->bytes_subdoc_lookup_extracted += context->response_val_len;
 
-            STATS_HIT(&c, get);
+            STATS_HIT(&cookie.getConnection(), get);
         }
-        update_topkeys(c.getCookieObject());
+        update_topkeys(cookie);
         return;
     } while (auto_retry && attempts < MAXIMUM_ATTEMPTS);
 
     // Hit maximum attempts - this theoretically could happen but shouldn't
     // in reality.
-    const protocol_binary_command mcbp_cmd =
-            protocol_binary_command(header->request.opcode);
+    const auto mcbp_cmd = protocol_binary_command(header->request.opcode);
 
+    auto& c = cookie.getConnection();
     LOG_WARNING(&c,
          "%u: Subdoc: Hit maximum number of auto-retry attempts (%d) when "
          "attempting to perform op %s for client %s - returning TMPFAIL",
          c.getId(), MAXIMUM_ATTEMPTS, memcached_opcode_2_text(mcbp_cmd),
          c.getDescription().c_str());
-    c.getCookieObject().sendResponse(cb::mcbp::Status::Etmpfail);
+    cookie.sendResponse(cb::mcbp::Status::Etmpfail);
 }
 
 // Fetch the item to operate on from the engine.
 // Returns true if the command was successful (and execution should continue),
 // else false.
-static bool subdoc_fetch(McbpConnection& c, SubdocCmdContext& ctx,
-                         ENGINE_ERROR_CODE ret, const char* key,
-                         size_t keylen, uint16_t vbucket, uint64_t cas) {
+static bool subdoc_fetch(Cookie& cookie,
+                         SubdocCmdContext& ctx,
+                         ENGINE_ERROR_CODE ret,
+                         const char* key,
+                         size_t keylen,
+                         uint16_t vbucket,
+                         uint64_t cas) {
     if (!ctx.fetchedItem && !ctx.needs_new_doc) {
         if (ret == ENGINE_SUCCESS) {
             DocKey get_key(reinterpret_cast<const uint8_t*>(key),
-                           keylen, c.getDocNamespace());
+                           keylen,
+                           cookie.getConnection().getDocNamespace());
             DocStateFilter state = DocStateFilter::Alive;
             if (ctx.do_allow_deleted_docs) {
                 state = DocStateFilter::AliveOrDeleted;
             }
-            auto r = bucket_get(&c, get_key, vbucket, state);
+            auto r = bucket_get(
+                    &cookie.getConnection(), get_key, vbucket, state);
             if (r.first == cb::engine_errc::success) {
                 ctx.fetchedItem = std::move(r.second);
                 ret = ENGINE_SUCCESS;
@@ -490,7 +503,7 @@ static bool subdoc_fetch(McbpConnection& c, SubdocCmdContext& ctx,
         case ENGINE_SUCCESS:
             if (ctx.traits.is_mutator &&
                 ctx.mutationSemantics == MutationSemantics::Add) {
-                c.getCookieObject().sendResponse(cb::mcbp::Status::KeyEexists);
+                cookie.sendResponse(cb::mcbp::Status::KeyEexists);
                 return false;
             }
             ctx.needs_new_doc = false;
@@ -499,7 +512,7 @@ static bool subdoc_fetch(McbpConnection& c, SubdocCmdContext& ctx,
         case ENGINE_KEY_ENOENT:
             if (ctx.traits.is_mutator &&
                 ctx.mutationSemantics == MutationSemantics::Replace) {
-                c.getCookieObject().sendResponse(cb::engine_errc(ret));
+                cookie.sendResponse(cb::engine_errc(ret));
                 return false;
             }
 
@@ -513,7 +526,7 @@ static bool subdoc_fetch(McbpConnection& c, SubdocCmdContext& ctx,
             } else if (ctx.jroot_type == JSONSL_T_OBJECT) {
                 ctx.in_doc = {"{}", 2};
             } else {
-                c.getCookieObject().sendResponse(cb::engine_errc(ret));
+                cookie.sendResponse(cb::engine_errc(ret));
                 return false;
             }
 
@@ -523,15 +536,15 @@ static bool subdoc_fetch(McbpConnection& c, SubdocCmdContext& ctx,
             return true;
 
         case ENGINE_EWOULDBLOCK:
-            c.setEwouldblock(true);
+            cookie.setEwouldblock(true);
             return false;
 
         case ENGINE_DISCONNECT:
-            c.setState(McbpStateMachine::State::closing);
+            cookie.getConnection().setState(McbpStateMachine::State::closing);
             return false;
 
         default:
-            c.getCookieObject().sendResponse(cb::engine_errc(ret));
+            cookie.sendResponse(cb::engine_errc(ret));
             return false;
         }
     }
@@ -544,7 +557,7 @@ static bool subdoc_fetch(McbpConnection& c, SubdocCmdContext& ctx,
         if (status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
             // Failed. Note c.item and c.commandContext will both be freed for
             // us as part of preparing for the next command.
-            c.getCookieObject().sendResponse(cb::mcbp::Status(status));
+            cookie.sendResponse(cb::mcbp::Status(status));
             return false;
         }
     }
@@ -1376,7 +1389,7 @@ static size_t encode_multi_mutation_result_spec(uint8_t index,
 
 /* Construct and send a response to a single-path request back to the client.
  */
-static void subdoc_single_response(SubdocCmdContext& context) {
+static void subdoc_single_response(Cookie& cookie, SubdocCmdContext& context) {
     auto& connection = context.connection;
 
     // Calculate extras size
@@ -1418,11 +1431,10 @@ static void subdoc_single_response(SubdocCmdContext& context) {
 
     // Add mutation descr to response buffer if requested.
     if (include_mutation_dscr) {
-        DynamicBuffer& response_buf =
-                connection.getCookieObject().getDynamicBuffer();
+        DynamicBuffer& response_buf = cookie.getDynamicBuffer();
         if (!response_buf.grow(extlen)) {
             // Unable to form complete response.
-            connection.getCookieObject().sendResponse(cb::mcbp::Status::Enomem);
+            cookie.sendResponse(cb::mcbp::Status::Enomem);
             return;
         }
         char* const extras_ptr = response_buf.getCurrent();
@@ -1441,7 +1453,8 @@ static void subdoc_single_response(SubdocCmdContext& context) {
 
 /* Construct and send a response to a multi-path mutation back to the client.
  */
-static void subdoc_multi_mutation_response(SubdocCmdContext& context) {
+static void subdoc_multi_mutation_response(Cookie& cookie,
+                                           SubdocCmdContext& context) {
     auto& connection = context.connection;
 
     // MULTI_MUTATION: On success, zero to N multi_mutation_result_spec objects
@@ -1450,8 +1463,7 @@ static void subdoc_multi_mutation_response(SubdocCmdContext& context) {
     //
     // On failure body indicates the index and status code of the first failing
     // spec.
-    DynamicBuffer& response_buf =
-            connection.getCookieObject().getDynamicBuffer();
+    DynamicBuffer& response_buf = cookie.getDynamicBuffer();
     size_t extlen = 0;
     char* extras_ptr = nullptr;
 
@@ -1461,7 +1473,7 @@ static void subdoc_multi_mutation_response(SubdocCmdContext& context) {
         extlen = sizeof(mutation_descr_t);
         if (!response_buf.grow(extlen)) {
             // Unable to form complete response.
-            connection.getCookieObject().sendResponse(cb::mcbp::Status::Enomem);
+            cookie.sendResponse(cb::mcbp::Status::Enomem);
             return;
         }
         extras_ptr = response_buf.getCurrent();
@@ -1502,7 +1514,7 @@ static void subdoc_multi_mutation_response(SubdocCmdContext& context) {
     // 2. actual value - this already resides in the Subdoc::Result.
     if (!response_buf.grow(response_buf_needed)) {
         // Unable to form complete response.
-        connection.getCookieObject().sendResponse(cb::mcbp::Status::Enomem);
+        cookie.sendResponse(cb::mcbp::Status::Enomem);
         return;
     }
 
@@ -1563,7 +1575,8 @@ static void subdoc_multi_mutation_response(SubdocCmdContext& context) {
 
 /* Construct and send a response to a multi-path lookup back to the client.
  */
-static void subdoc_multi_lookup_response(SubdocCmdContext& context) {
+static void subdoc_multi_lookup_response(Cookie& cookie,
+                                         SubdocCmdContext& context) {
     auto& connection = context.connection;
 
     // Calculate the value length - sum of all the operation results.
@@ -1591,7 +1604,7 @@ static void subdoc_multi_lookup_response(SubdocCmdContext& context) {
 
     if (!response_buf.grow(needed)) {
         // Unable to form complete response.
-        connection.getCookieObject().sendResponse(cb::mcbp::Status::Enomem);
+        cookie.sendResponse(cb::mcbp::Status::Enomem);
         return;
     }
 
@@ -1647,93 +1660,92 @@ static void subdoc_multi_lookup_response(SubdocCmdContext& context) {
 }
 
 // Respond back to the user as appropriate to the specific command.
-static void subdoc_response(SubdocCmdContext& context) {
+static void subdoc_response(Cookie& cookie, SubdocCmdContext& context) {
     switch (context.traits.path) {
     case SubdocPath::SINGLE:
-        subdoc_single_response(context);
+        subdoc_single_response(cookie, context);
         return;
 
     case SubdocPath::MULTI:
         if (context.traits.is_mutator) {
-            subdoc_multi_mutation_response(context);
+            subdoc_multi_mutation_response(cookie, context);
         } else {
-            subdoc_multi_lookup_response(context);
+            subdoc_multi_lookup_response(cookie, context);
         }
         return;
     }
 
     // Shouldn't get here - invalid traits.path
-    auto& connection = context.connection;
-    connection.getCookieObject().sendResponse(cb::mcbp::Status::Einternal);
-    connection.setState(McbpStateMachine::State::closing);
+    cookie.sendResponse(cb::mcbp::Status::Einternal);
+    cookie.getConnection().setWriteAndGo(McbpStateMachine::State::closing);
 }
 
-void subdoc_get_executor(McbpConnection* c, void* packet) {
-    return subdoc_executor(*c, packet,
+void subdoc_get_executor(Cookie& cookie) {
+    return subdoc_executor(cookie,
                            get_traits<PROTOCOL_BINARY_CMD_SUBDOC_GET>());
 }
 
-void subdoc_exists_executor(McbpConnection* c, void* packet) {
-    return subdoc_executor(*c, packet,
+void subdoc_exists_executor(Cookie& cookie) {
+    return subdoc_executor(cookie,
                            get_traits<PROTOCOL_BINARY_CMD_SUBDOC_EXISTS>());
 }
 
-void subdoc_dict_add_executor(McbpConnection* c, void *packet) {
-    return subdoc_executor(*c, packet,
+void subdoc_dict_add_executor(Cookie& cookie) {
+    return subdoc_executor(cookie,
                            get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD>());
 }
 
-void subdoc_dict_upsert_executor(McbpConnection* c, void *packet) {
-    return subdoc_executor(*c, packet,
-                           get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT>());
+void subdoc_dict_upsert_executor(Cookie& cookie) {
+    return subdoc_executor(
+            cookie, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT>());
 }
 
-void subdoc_delete_executor(McbpConnection* c, void *packet) {
-    return subdoc_executor(*c, packet,
+void subdoc_delete_executor(Cookie& cookie) {
+    return subdoc_executor(cookie,
                            get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DELETE>());
 }
 
-void subdoc_replace_executor(McbpConnection* c, void *packet) {
-    return subdoc_executor(*c, packet,
+void subdoc_replace_executor(Cookie& cookie) {
+    return subdoc_executor(cookie,
                            get_traits<PROTOCOL_BINARY_CMD_SUBDOC_REPLACE>());
 }
 
-void subdoc_array_push_last_executor(McbpConnection* c, void *packet) {
-    return subdoc_executor(*c, packet,
-                           get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST>());
+void subdoc_array_push_last_executor(Cookie& cookie) {
+    return subdoc_executor(
+            cookie, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST>());
 }
 
-void subdoc_array_push_first_executor(McbpConnection* c, void *packet) {
-    return subdoc_executor(*c, packet,
-                           get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST>());
+void subdoc_array_push_first_executor(Cookie& cookie) {
+    return subdoc_executor(
+            cookie, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST>());
 }
 
-void subdoc_array_insert_executor(McbpConnection* c, void *packet) {
-    return subdoc_executor(*c, packet,
-                           get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT>());
+void subdoc_array_insert_executor(Cookie& cookie) {
+    return subdoc_executor(
+            cookie, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT>());
 }
 
-void subdoc_array_add_unique_executor(McbpConnection* c, void *packet) {
-    return subdoc_executor(*c, packet,
-                           get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE>());
+void subdoc_array_add_unique_executor(Cookie& cookie) {
+    return subdoc_executor(
+            cookie, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE>());
 }
 
-void subdoc_counter_executor(McbpConnection* c, void *packet) {
-    return subdoc_executor(*c, packet,
+void subdoc_counter_executor(Cookie& cookie) {
+    return subdoc_executor(cookie,
                            get_traits<PROTOCOL_BINARY_CMD_SUBDOC_COUNTER>());
 }
 
-void subdoc_get_count_executor(McbpConnection *c, void *packet) {
-    return subdoc_executor(*c, packet,
+void subdoc_get_count_executor(Cookie& cookie) {
+    return subdoc_executor(cookie,
                            get_traits<PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT>());
 }
 
-void subdoc_multi_lookup_executor(McbpConnection* c, void *packet) {
-    return subdoc_executor(*c, packet,
-                           get_traits<PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP>());
+void subdoc_multi_lookup_executor(Cookie& cookie) {
+    return subdoc_executor(
+            cookie, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP>());
 }
 
-void subdoc_multi_mutation_executor(McbpConnection* c, void *packet) {
-    return subdoc_executor(*c, packet,
-                           get_traits<PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION>());
+void subdoc_multi_mutation_executor(Cookie& cookie) {
+    return subdoc_executor(
+            cookie, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION>());
 }

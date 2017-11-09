@@ -56,7 +56,6 @@
 #include <utilities/protocol2text.h>
 
 std::array<bool, 0x100>&  topkey_commands = get_mcbp_topkeys();
-std::array<mcbp_package_execute, 0x100>& executors = get_mcbp_executors();
 
 /**
  * Triggers topkeys_update (i.e., increments topkeys stats) if called by a
@@ -571,28 +570,6 @@ static void shutdown_executor(Cookie& cookie) {
     }
 }
 
-std::array<mcbp_package_execute, 0x100>& get_mcbp_executors() {
-    static std::array<mcbp_package_execute, 0x100> executors;
-    std::fill(executors.begin(), executors.end(), nullptr);
-
-    executors[PROTOCOL_BINARY_CMD_SUBDOC_GET] = subdoc_get_executor;
-    executors[PROTOCOL_BINARY_CMD_SUBDOC_EXISTS] = subdoc_exists_executor;
-    executors[PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD] = subdoc_dict_add_executor;
-    executors[PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT] = subdoc_dict_upsert_executor;
-    executors[PROTOCOL_BINARY_CMD_SUBDOC_DELETE] = subdoc_delete_executor;
-    executors[PROTOCOL_BINARY_CMD_SUBDOC_REPLACE] = subdoc_replace_executor;
-    executors[PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST] = subdoc_array_push_last_executor;
-    executors[PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST] = subdoc_array_push_first_executor;
-    executors[PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT] = subdoc_array_insert_executor;
-    executors[PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE] = subdoc_array_add_unique_executor;
-    executors[PROTOCOL_BINARY_CMD_SUBDOC_COUNTER] = subdoc_counter_executor;
-    executors[PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP] = subdoc_multi_lookup_executor;
-    executors[PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION] = subdoc_multi_mutation_executor;
-    executors[PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT] = subdoc_get_count_executor;
-
-    return executors;
-}
-
 static void rbac_refresh_executor(Cookie& cookie) {
     cookie.obtainContext<RbacReloadCommandContext>(cookie).drive();
 }
@@ -696,6 +673,28 @@ void initialize_protocol_handlers() {
     handlers[PROTOCOL_BINARY_CMD_SET_CLUSTER_CONFIG] =
             set_cluster_config_executor;
 
+    handlers[PROTOCOL_BINARY_CMD_SUBDOC_GET] = subdoc_get_executor;
+    handlers[PROTOCOL_BINARY_CMD_SUBDOC_EXISTS] = subdoc_exists_executor;
+    handlers[PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD] = subdoc_dict_add_executor;
+    handlers[PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT] =
+            subdoc_dict_upsert_executor;
+    handlers[PROTOCOL_BINARY_CMD_SUBDOC_DELETE] = subdoc_delete_executor;
+    handlers[PROTOCOL_BINARY_CMD_SUBDOC_REPLACE] = subdoc_replace_executor;
+    handlers[PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST] =
+            subdoc_array_push_last_executor;
+    handlers[PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST] =
+            subdoc_array_push_first_executor;
+    handlers[PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT] =
+            subdoc_array_insert_executor;
+    handlers[PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE] =
+            subdoc_array_add_unique_executor;
+    handlers[PROTOCOL_BINARY_CMD_SUBDOC_COUNTER] = subdoc_counter_executor;
+    handlers[PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP] =
+            subdoc_multi_lookup_executor;
+    handlers[PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION] =
+            subdoc_multi_mutation_executor;
+    handlers[PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT] = subdoc_get_count_executor;
+
     handlers[PROTOCOL_BINARY_CMD_TAP_CONNECT] = no_support_executor;
     handlers[PROTOCOL_BINARY_CMD_TAP_MUTATION] = no_support_executor;
     handlers[PROTOCOL_BINARY_CMD_TAP_DELETE] = no_support_executor;
@@ -764,7 +763,6 @@ static void execute_request_packet(Cookie& cookie,
     protocol_binary_response_status result;
 
     const auto opcode = request.opcode;
-    auto executor = executors[opcode];
     const auto res = privilegeChains.invoke(opcode, c->getCookieObject());
     switch (res) {
     case cb::rbac::PrivilegeAccess::Fail:
@@ -800,11 +798,7 @@ static void execute_request_packet(Cookie& cookie,
             return;
         }
 
-        if (executor != nullptr) {
-            executor(c, const_cast<void*>(static_cast<const void*>(&request)));
-        } else {
-            handlers[opcode](cookie);
-        }
+        handlers[opcode](cookie);
         return;
     case cb::rbac::PrivilegeAccess::Stale:
         if (c->remapErrorCode(ENGINE_AUTH_STALE) == ENGINE_DISCONNECT) {
