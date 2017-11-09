@@ -359,6 +359,88 @@ TEST_P(STItemPagerTest, ExpiredItemsDeletedFirst) {
     EXPECT_EQ(0, stats.expired_compactor);
 }
 
+// Test migrated and mutated from from ep_testsuite_basic so that it's less
+// racey
+TEST_P(STItemPagerTest, test_memory_limit) {
+    // Now set max_size to be 10MiB
+    std::string msg;
+    EXPECT_EQ(
+            PROTOCOL_BINARY_RESPONSE_SUCCESS,
+            engine->setFlushParam(
+                    "max_size", std::to_string(10 * 1024 * 1204).c_str(), msg));
+
+    // Store a large document 4MiB
+    std::string value(4 * 1024 * 1204, 'a');
+    {
+        auto item = make_item(
+                vbid, {"key", DocNamespace::DefaultCollection}, value);
+        // ensure this is eligible for eviction on the first pass of the pager
+        item.setNRUValue(MAX_NRU_VALUE);
+        ASSERT_EQ(ENGINE_SUCCESS, storeItem(item));
+    }
+
+    if (std::get<0>(GetParam()) == "persistent") {
+        // flush so the HT item becomes clean
+        store->flushVBucket(vbid);
+
+        // Now do some steps which will remove the checkpoint, all of these
+        // steps are needed
+        auto vb = engine->getVBucket(vbid);
+
+        // Force close the current checkpoint
+        vb->checkpointManager.createNewCheckpoint();
+        // Reflush
+        store->flushVBucket(vbid);
+        bool newCheckpointCreated = false;
+        auto removed = vb->checkpointManager.removeClosedUnrefCheckpoints(
+                *vb, newCheckpointCreated);
+        EXPECT_EQ(1, removed);
+    }
+
+    // Now set max_size to be mem_used + 10% (we need some headroom)
+    auto& stats = engine->getEpStats();
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+              engine->setFlushParam(
+                      "max_size",
+                      std::to_string(stats.getTotalMemoryUsed() * 1.10).c_str(),
+                      msg));
+
+
+    // The next tests use itemAllocate (as per a real SET)
+    EXPECT_EQ(ENGINE_TMPFAIL,
+              engine->itemAllocate(nullptr,
+                                   {"key2", DocNamespace::DefaultCollection},
+                                   value.size(),
+                                   0,
+                                   0,
+                                   0,
+                                   0,
+                                   vbid));
+
+    // item_pager should be notified and ready to run
+    runHighMemoryPager();
+
+    if (std::get<0>(GetParam()) == "persistent") {
+        EXPECT_EQ(1, stats.numValueEjects);
+    }
+
+    if (std::get<1>(GetParam()) != "fail_new_data") {
+        // Enough should of been freed so itemAllocate can succeed
+        item* itm = nullptr;
+        EXPECT_EQ(
+                ENGINE_SUCCESS,
+                engine->itemAllocate(&itm,
+                                     {"key2", DocNamespace::DefaultCollection},
+                                     value.size(),
+                                     0,
+                                     0,
+                                     0,
+                                     0,
+                                     vbid));
+        engine->itemRelease(cookie, itm);
+    }
+}
+
 /**
  * Test fixture for Ephemeral-only item pager tests.
  */

@@ -62,16 +62,28 @@ public:
      * @param bias active vbuckets eviction probability bias multiplier (0-1)
      * @param phase pointer to an item_pager_phase to be set
      */
-    PagingVisitor(KVBucketIface& s, EPStats &st, double pcnt,
-                  std::shared_ptr<std::atomic<bool>> &sfin, pager_type_t caller,
-                  bool pause, double bias,
-                  std::atomic<item_pager_phase>* phase) :
-        store(s), stats(st), percent(pcnt),
-        activeBias(bias), ejected(0),
-        startTime(ep_real_time()), stateFinalizer(sfin), owner(caller),
-        canPause(pause), completePhase(true),
-        wasHighMemoryUsage(s.isMemoryUsageTooHigh()),
-        taskStart(gethrtime()), pager_phase(phase) {}
+    PagingVisitor(KVBucket& s,
+                  EPStats& st,
+                  double pcnt,
+                  std::shared_ptr<std::atomic<bool>>& sfin,
+                  pager_type_t caller,
+                  bool pause,
+                  double bias,
+                  std::atomic<item_pager_phase>* phase)
+        : store(s),
+          stats(st),
+          percent(pcnt),
+          activeBias(bias),
+          ejected(0),
+          startTime(ep_real_time()),
+          stateFinalizer(sfin),
+          owner(caller),
+          canPause(pause),
+          completePhase(true),
+          wasHighMemoryUsage(s.isMemoryUsageTooHigh()),
+          taskStart(gethrtime()),
+          pager_phase(phase) {
+    }
 
     bool visit(const HashTable::HashBucketLock& lh, StoredValue& v) override {
         // Delete expired items for an active vbucket.
@@ -199,6 +211,15 @@ public:
         if (wasHighMemoryUsage && !store.isMemoryUsageTooHigh()) {
             store.getEPEngine().getDcpConnMap().notifyBackfillManagerTasks();
         }
+
+        if (ITEM_PAGER == owner) {
+            // Re-check memory which may wake up the ItemPager and schedule
+            // a new PagingVisitor with the next phase/memory target etc...
+            // This is done after we've signalled 'completion' by clearing
+            // the stateFinalizer, which ensures the ItemPager doesn't just
+            // ignore a request.
+            store.checkAndMaybeFreeMemory();
+        }
     }
 
     /**
@@ -239,7 +260,7 @@ private:
 
     std::list<Item> expired;
 
-    KVBucketIface& store;
+    KVBucket& store;
     EPStats &stats;
     double percent;
     double activeBias;
@@ -282,7 +303,7 @@ bool ItemPager::run(void) {
     // Clear the notification flag before starting the task's actions
     notified.store(false);
 
-    KVBucketIface* kvBucket = engine.getKVBucket();
+    KVBucket* kvBucket = engine.getKVBucket();
     double current = static_cast<double>(stats.getTotalMemoryUsed());
     double upper = static_cast<double>(stats.mem_high_wat);
     double lower = static_cast<double>(stats.mem_low_wat);
@@ -387,7 +408,7 @@ ExpiredItemPager::ExpiredItemPager(EventuallyPersistentEngine *e,
 
 bool ExpiredItemPager::run(void) {
     TRACE_EVENT0("ep-engine/task", "ExpiredItemPager");
-    KVBucketIface* kvBucket = engine->getKVBucket();
+    KVBucket* kvBucket = engine->getKVBucket();
     bool inverse = true;
     if ((*available).compare_exchange_strong(inverse, false)) {
         ++stats.expiryPagerRuns;
