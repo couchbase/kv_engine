@@ -32,6 +32,12 @@
                                "startid" :24576,
                                "file" : "goproj/src/github.com/couchbase/cbft/etc/audit_descriptor.json"
                               }
+               },
+               {
+                "n1ql" : {
+                               "startid" :28672,
+                               "file" : "goproj/src/github.com/couchbase/query/etc/audit_descriptor.json"
+                              }
                }
              ]
 }
