@@ -19,83 +19,95 @@
 #include "executors.h"
 #include "dcp_add_failover_log.h"
 
-void dcp_stream_req_executor(McbpConnection* c, void*) {
-    const auto& cookie = c->getCookieObject();
-    const auto& request = cookie.getRequest(Cookie::PacketContent::Full);
-    const auto* req =
-            reinterpret_cast<const protocol_binary_request_dcp_stream_req*>(
-                    &request);
+void dcp_stream_req_executor(Cookie& cookie) {
+    uint64_t rollback_seqno = 0;
 
-    uint32_t flags = ntohl(req->message.body.flags);
-    uint64_t start_seqno = ntohll(req->message.body.start_seqno);
-    uint64_t end_seqno = ntohll(req->message.body.end_seqno);
-    uint64_t vbucket_uuid = ntohll(req->message.body.vbucket_uuid);
-    uint64_t snap_start_seqno = ntohll(req->message.body.snap_start_seqno);
-    uint64_t snap_end_seqno = ntohll(req->message.body.snap_end_seqno);
-    uint64_t rollback_seqno;
+    ENGINE_ERROR_CODE ret = cookie.getAiostat();
+    cookie.setAiostat(ENGINE_SUCCESS);
+    cookie.setEwouldblock(false);
 
-    ENGINE_ERROR_CODE ret = c->getAiostat();
-    c->setAiostat(ENGINE_SUCCESS);
-    c->setEwouldblock(false);
-
+    auto& connection = cookie.getConnection();
     if (ret == ENGINE_ROLLBACK) {
-        LOG_WARNING(c,
+        LOG_WARNING(&connection,
                     "%u: dcp_stream_req_executor: Unexpected AIO stat"
-                        " result ROLLBACK. Shutting down DCP connection",
-                    c->getId());
-        c->setState(McbpStateMachine::State::closing);
+                    " result ROLLBACK. Shutting down DCP connection",
+                    connection.getId());
+        connection.setState(McbpStateMachine::State::closing);
         return;
     }
 
     if (ret == ENGINE_SUCCESS) {
-        ret = c->getBucketEngine()->dcp.stream_req(c->getBucketEngineAsV0(),
-                                                   &cookie,
-                                                   flags,
-                                                   request.getOpaque(),
-                                                   request.getVBucket(),
-                                                   start_seqno,
-                                                   end_seqno,
-                                                   vbucket_uuid,
-                                                   snap_start_seqno,
-                                                   snap_end_seqno,
-                                                   &rollback_seqno,
-                                                   add_failover_log);
+        const auto& request = cookie.getRequest(Cookie::PacketContent::Full);
+        const auto* req =
+                reinterpret_cast<const protocol_binary_request_dcp_stream_req*>(
+                        &request);
+
+        uint32_t flags = ntohl(req->message.body.flags);
+        uint64_t start_seqno = ntohll(req->message.body.start_seqno);
+        uint64_t end_seqno = ntohll(req->message.body.end_seqno);
+        uint64_t vbucket_uuid = ntohll(req->message.body.vbucket_uuid);
+        uint64_t snap_start_seqno = ntohll(req->message.body.snap_start_seqno);
+        uint64_t snap_end_seqno = ntohll(req->message.body.snap_end_seqno);
+        ret = connection.getBucketEngine()->dcp.stream_req(
+                connection.getBucketEngineAsV0(),
+                &cookie,
+                flags,
+                request.getOpaque(),
+                request.getVBucket(),
+                start_seqno,
+                end_seqno,
+                vbucket_uuid,
+                snap_start_seqno,
+                snap_end_seqno,
+                &rollback_seqno,
+                add_failover_log);
     }
 
+    ret = connection.remapErrorCode(ret);
     switch (ret) {
     case ENGINE_SUCCESS:
-        c->setDCP(true);
-        c->setPriority(Connection::Priority::Medium);
-        if (c->getCookieObject().getDynamicBuffer().getRoot() != nullptr) {
-            mcbp_write_and_free(c, &c->getCookieObject().getDynamicBuffer());
+        connection.setDCP(true);
+        connection.setPriority(Connection::Priority::Medium);
+        if (connection.getCookieObject().getDynamicBuffer().getRoot() !=
+            nullptr) {
+            mcbp_write_and_free(
+                    &connection,
+                    &connection.getCookieObject().getDynamicBuffer());
         } else {
-            c->getCookieObject().sendResponse(cb::mcbp::Status::Success);
+            cookie.sendResponse(cb::mcbp::Status::Success);
         }
         break;
 
     case ENGINE_ROLLBACK:
         rollback_seqno = htonll(rollback_seqno);
-        if (mcbp_response_handler(NULL, 0, NULL, 0, &rollback_seqno,
+        if (mcbp_response_handler(NULL,
+                                  0,
+                                  NULL,
+                                  0,
+                                  &rollback_seqno,
                                   sizeof(rollback_seqno),
                                   PROTOCOL_BINARY_RAW_BYTES,
-                                  PROTOCOL_BINARY_RESPONSE_ROLLBACK, 0,
-                                  c->getCookie())) {
-            mcbp_write_and_free(c, &c->getCookieObject().getDynamicBuffer());
+                                  PROTOCOL_BINARY_RESPONSE_ROLLBACK,
+                                  0,
+                                  connection.getCookie())) {
+            mcbp_write_and_free(
+                    &connection,
+                    &connection.getCookieObject().getDynamicBuffer());
         } else {
-            c->getCookieObject().sendResponse(cb::mcbp::Status::Enomem);
+            cookie.sendResponse(cb::mcbp::Status::Enomem);
         }
         break;
 
     case ENGINE_DISCONNECT:
-        c->setState(McbpStateMachine::State::closing);
+        connection.setState(McbpStateMachine::State::closing);
         break;
 
     case ENGINE_EWOULDBLOCK:
-        c->setEwouldblock(true);
+        cookie.setEwouldblock(true);
         break;
 
     default:
-        c->getCookieObject().sendResponse(cb::engine_errc(ret));
+        cookie.sendResponse(cb::engine_errc(ret));
     }
 }
 

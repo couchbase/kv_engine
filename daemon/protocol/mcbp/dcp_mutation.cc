@@ -116,17 +116,21 @@ ENGINE_ERROR_CODE dcp_message_mutation(const void* void_cookie,
     return ret;
 }
 
-static inline ENGINE_ERROR_CODE do_dcp_mutation(McbpConnection* conn,
-                                                void* packet) {
-    auto* req = reinterpret_cast<protocol_binary_request_dcp_mutation*>(packet);
+static inline ENGINE_ERROR_CODE do_dcp_mutation(Cookie& cookie) {
+    auto packet = cookie.getPacket(Cookie::PacketContent::Full);
+    auto& connection = cookie.getConnection();
+    const auto* req =
+            reinterpret_cast<const protocol_binary_request_dcp_mutation*>(
+                    packet.data());
 
     // Collection aware DCP will be sending the collection_len field
     auto body_offset = protocol_binary_request_dcp_mutation::getHeaderLength(
-            conn->isDcpCollectionAware());
+            connection.isDcpCollectionAware());
 
     // Namespace defaults to DefaultCollection for legacy DCP
     DocNamespace ns = DocNamespace::DefaultCollection;
-    if (conn->isDcpCollectionAware() && req->message.body.collection_len != 0) {
+    if (connection.isDcpCollectionAware() &&
+        req->message.body.collection_len != 0) {
         // Collection aware DCP sends non-zero collection_len for documents that
         // are in collections.
         ns = DocNamespace::Collections;
@@ -163,36 +167,50 @@ static inline ENGINE_ERROR_CODE do_dcp_mutation(McbpConnection* conn,
         }
     }
 
-    auto engine = conn->getBucketEngine();
-    return engine->dcp.mutation(conn->getBucketEngineAsV0(), conn->getCookie(),
-                                opaque, key, value, priv_bytes, datatype, cas,
-                                vbucket, flags, by_seqno, rev_seqno, expiration,
-                                lock_time, meta, req->message.body.nru);
+    auto engine = connection.getBucketEngine();
+    return engine->dcp.mutation(connection.getBucketEngineAsV0(),
+                                &cookie,
+                                opaque,
+                                key,
+                                value,
+                                priv_bytes,
+                                datatype,
+                                cas,
+                                vbucket,
+                                flags,
+                                by_seqno,
+                                rev_seqno,
+                                expiration,
+                                lock_time,
+                                meta,
+                                req->message.body.nru);
 }
 
-void dcp_mutation_executor(McbpConnection* c, void* packet) {
-    ENGINE_ERROR_CODE ret = c->getAiostat();
-    c->setAiostat(ENGINE_SUCCESS);
-    c->setEwouldblock(false);
+void dcp_mutation_executor(Cookie& cookie) {
+    ENGINE_ERROR_CODE ret = cookie.getAiostat();
+    cookie.setAiostat(ENGINE_SUCCESS);
+    cookie.setEwouldblock(false);
 
+    auto& connection = cookie.getConnection();
     if (ret == ENGINE_SUCCESS) {
-        ret = do_dcp_mutation(c, packet);
+        ret = do_dcp_mutation(cookie);
     }
 
+    ret = connection.remapErrorCode(ret);
     switch (ret) {
     case ENGINE_SUCCESS:
-        c->setState(McbpStateMachine::State::new_cmd);
+        connection.setState(McbpStateMachine::State::new_cmd);
         break;
 
     case ENGINE_DISCONNECT:
-        c->setState(McbpStateMachine::State::closing);
+        connection.setState(McbpStateMachine::State::closing);
         break;
 
     case ENGINE_EWOULDBLOCK:
-        c->setEwouldblock(true);
+        cookie.setEwouldblock(true);
         break;
 
     default:
-        c->getCookieObject().sendResponse(cb::engine_errc(ret));
+        cookie.sendResponse(cb::engine_errc(ret));
     }
 }

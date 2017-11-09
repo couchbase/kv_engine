@@ -33,21 +33,21 @@ void get_cmd_timer_executor(Cookie& cookie);
 void process_hello_packet_executor(Cookie& cookie);
 
 // DCP executor
-void dcp_add_stream_executor(McbpConnection* c, void* packet);
-void dcp_buffer_acknowledgement_executor(McbpConnection* c, void* packet);
-void dcp_close_stream_executor(McbpConnection* c, void* packet);
-void dcp_control_executor(McbpConnection* c, void* packet);
-void dcp_flush_executor(McbpConnection* c, void* packet);
-void dcp_get_failover_log_executor(McbpConnection* c, void* packet);
-void dcp_noop_executor(McbpConnection* c, void*);
-void dcp_open_executor(McbpConnection* c, void* packet);
-void dcp_set_vbucket_state_executor(McbpConnection* c, void* packet);
-void dcp_snapshot_marker_executor(McbpConnection* c, void* packet);
-void dcp_stream_end_executor(McbpConnection* c, void* packet);
-void dcp_stream_req_executor(McbpConnection* c, void* packet);
+void dcp_add_stream_executor(Cookie& cookie);
+void dcp_buffer_acknowledgement_executor(Cookie& cookie);
+void dcp_close_stream_executor(Cookie& cookie);
+void dcp_control_executor(Cookie& cookie);
+void dcp_flush_executor(Cookie& cookie);
+void dcp_get_failover_log_executor(Cookie& cookie);
+void dcp_noop_executor(Cookie& cookie);
+void dcp_open_executor(Cookie& cookie);
+void dcp_set_vbucket_state_executor(Cookie& cookie);
+void dcp_snapshot_marker_executor(Cookie& cookie);
+void dcp_stream_end_executor(Cookie& cookie);
+void dcp_stream_req_executor(Cookie& cookie);
 
 // Collections
-void collections_set_manifest_executor(McbpConnection* c, void* packet);
+void collections_set_manifest_executor(Cookie& cookie);
 
 void drop_privilege_executor(Cookie&);
 

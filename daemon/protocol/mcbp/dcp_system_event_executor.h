@@ -43,8 +43,5 @@ ENGINE_ERROR_CODE dcp_message_system_event(const void* cookie,
 /**
  * Implementation of the method responsible for handle the incoming
  * DCP_SYSTEM_EVENT packet.
- *
- * @param c the connection the packet arrived on
- * @param packet the full DCP_SYSTEM_EVENT packet
  */
-void dcp_system_event_executor(McbpConnection* c, void* packet);
+void dcp_system_event_executor(Cookie& cookie);

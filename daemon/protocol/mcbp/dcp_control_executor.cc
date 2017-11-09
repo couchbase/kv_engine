@@ -20,16 +20,16 @@
 #include "executors.h"
 #include "utilities.h"
 
-void dcp_control_executor(McbpConnection* c, void* packet) {
-    ENGINE_ERROR_CODE ret = c->getAiostat();
-    c->setAiostat(ENGINE_SUCCESS);
-    c->setEwouldblock(false);
+void dcp_control_executor(Cookie& cookie) {
+    ENGINE_ERROR_CODE ret = cookie.getAiostat();
+    cookie.setAiostat(ENGINE_SUCCESS);
+    cookie.setEwouldblock(false);
 
+    auto& connection = cookie.getConnection();
     if (ret == ENGINE_SUCCESS) {
-        ret = mcbp::haveDcpPrivilege(*c);
+        ret = mcbp::haveDcpPrivilege(connection);
 
         if (ret == ENGINE_SUCCESS) {
-            const auto& cookie = c->getCookieObject();
             const auto& header = cookie.getHeader();
             const auto* req = reinterpret_cast<
                     const protocol_binary_request_dcp_control*>(&header);
@@ -37,31 +37,32 @@ void dcp_control_executor(McbpConnection* c, void* packet) {
             uint16_t nkey = ntohs(req->message.header.request.keylen);
             const uint8_t* value = key + nkey;
             uint32_t nvalue = ntohl(req->message.header.request.bodylen) - nkey;
-            ret = c->getBucketEngine()->dcp.control(c->getBucketEngineAsV0(),
-                                                    &cookie,
-                                                    header.getOpaque(),
-                                                    key,
-                                                    nkey,
-                                                    value,
-                                                    nvalue);
+            ret = connection.getBucketEngine()->dcp.control(
+                    connection.getBucketEngineAsV0(),
+                    &cookie,
+                    header.getOpaque(),
+                    key,
+                    nkey,
+                    value,
+                    nvalue);
         }
     }
 
-    ret = c->remapErrorCode(ret);
+    ret = connection.remapErrorCode(ret);
     switch (ret) {
     case ENGINE_SUCCESS:
-        c->getCookieObject().sendResponse(cb::mcbp::Status::Success);
+        cookie.sendResponse(cb::mcbp::Status::Success);
         break;
 
     case ENGINE_DISCONNECT:
-        c->setState(McbpStateMachine::State::closing);
+        connection.setState(McbpStateMachine::State::closing);
         break;
 
     case ENGINE_EWOULDBLOCK:
-        c->setEwouldblock(true);
+        cookie.setEwouldblock(true);
         break;
 
     default:
-        c->getCookieObject().sendResponse(cb::engine_errc(ret));
+        cookie.sendResponse(cb::engine_errc(ret));
     }
 }

@@ -575,22 +575,6 @@ std::array<mcbp_package_execute, 0x100>& get_mcbp_executors() {
     static std::array<mcbp_package_execute, 0x100> executors;
     std::fill(executors.begin(), executors.end(), nullptr);
 
-    executors[PROTOCOL_BINARY_CMD_DCP_OPEN] = dcp_open_executor;
-    executors[PROTOCOL_BINARY_CMD_DCP_ADD_STREAM] = dcp_add_stream_executor;
-    executors[PROTOCOL_BINARY_CMD_DCP_CLOSE_STREAM] = dcp_close_stream_executor;
-    executors[PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER] = dcp_snapshot_marker_executor;
-    executors[PROTOCOL_BINARY_CMD_DCP_DELETION] = dcp_deletion_executor;
-    executors[PROTOCOL_BINARY_CMD_DCP_EXPIRATION] = dcp_expiration_executor;
-    executors[PROTOCOL_BINARY_CMD_DCP_FLUSH] = dcp_flush_executor;
-    executors[PROTOCOL_BINARY_CMD_DCP_GET_FAILOVER_LOG] = dcp_get_failover_log_executor;
-    executors[PROTOCOL_BINARY_CMD_DCP_MUTATION] = dcp_mutation_executor;
-    executors[PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE] = dcp_set_vbucket_state_executor;
-    executors[PROTOCOL_BINARY_CMD_DCP_NOOP] = dcp_noop_executor;
-    executors[PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT] = dcp_buffer_acknowledgement_executor;
-    executors[PROTOCOL_BINARY_CMD_DCP_CONTROL] = dcp_control_executor;
-    executors[PROTOCOL_BINARY_CMD_DCP_STREAM_END] = dcp_stream_end_executor;
-    executors[PROTOCOL_BINARY_CMD_DCP_STREAM_REQ] = dcp_stream_req_executor;
-    executors[PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT] = dcp_system_event_executor;
     executors[PROTOCOL_BINARY_CMD_SUBDOC_GET] = subdoc_get_executor;
     executors[PROTOCOL_BINARY_CMD_SUBDOC_EXISTS] = subdoc_exists_executor;
     executors[PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD] = subdoc_dict_add_executor;
@@ -605,9 +589,6 @@ std::array<mcbp_package_execute, 0x100>& get_mcbp_executors() {
     executors[PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP] = subdoc_multi_lookup_executor;
     executors[PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION] = subdoc_multi_mutation_executor;
     executors[PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT] = subdoc_get_count_executor;
-
-    executors[PROTOCOL_BINARY_CMD_COLLECTIONS_SET_MANIFEST] =
-            collections_set_manifest_executor;
 
     return executors;
 }
@@ -628,6 +609,28 @@ void initialize_protocol_handlers() {
         handler = process_bin_unknown_packet;
     }
 
+    handlers[PROTOCOL_BINARY_CMD_DCP_OPEN] = dcp_open_executor;
+    handlers[PROTOCOL_BINARY_CMD_DCP_ADD_STREAM] = dcp_add_stream_executor;
+    handlers[PROTOCOL_BINARY_CMD_DCP_CLOSE_STREAM] = dcp_close_stream_executor;
+    handlers[PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER] =
+            dcp_snapshot_marker_executor;
+    handlers[PROTOCOL_BINARY_CMD_DCP_DELETION] = dcp_deletion_executor;
+    handlers[PROTOCOL_BINARY_CMD_DCP_EXPIRATION] = dcp_expiration_executor;
+    handlers[PROTOCOL_BINARY_CMD_DCP_FLUSH] = dcp_flush_executor;
+    handlers[PROTOCOL_BINARY_CMD_DCP_GET_FAILOVER_LOG] =
+            dcp_get_failover_log_executor;
+    handlers[PROTOCOL_BINARY_CMD_DCP_MUTATION] = dcp_mutation_executor;
+    handlers[PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE] =
+            dcp_set_vbucket_state_executor;
+    handlers[PROTOCOL_BINARY_CMD_DCP_NOOP] = dcp_noop_executor;
+    handlers[PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT] =
+            dcp_buffer_acknowledgement_executor;
+    handlers[PROTOCOL_BINARY_CMD_DCP_CONTROL] = dcp_control_executor;
+    handlers[PROTOCOL_BINARY_CMD_DCP_STREAM_END] = dcp_stream_end_executor;
+    handlers[PROTOCOL_BINARY_CMD_DCP_STREAM_REQ] = dcp_stream_req_executor;
+    handlers[PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT] = dcp_system_event_executor;
+    handlers[PROTOCOL_BINARY_CMD_COLLECTIONS_SET_MANIFEST] =
+            collections_set_manifest_executor;
     handlers[PROTOCOL_BINARY_CMD_ISASL_REFRESH] = isasl_refresh_executor;
     handlers[PROTOCOL_BINARY_CMD_SSL_CERTS_REFRESH] =
             ssl_certs_refresh_executor;

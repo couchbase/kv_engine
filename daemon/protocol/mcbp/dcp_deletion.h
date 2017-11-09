@@ -18,7 +18,7 @@
 
 #include "../../memcached.h"
 
-void dcp_deletion_executor(McbpConnection* c, void* packet);
+void dcp_deletion_executor(Cookie& cookie);
 
 ENGINE_ERROR_CODE dcp_message_deletion(const void* void_cookie,
                                        uint32_t opaque,

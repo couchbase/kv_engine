@@ -18,30 +18,32 @@
 #include "../../mcbp.h"
 #include "executors.h"
 
-void collections_set_manifest_executor(McbpConnection* c, void* packet) {
-    auto* req =
-            reinterpret_cast<protocol_binary_collections_set_manifest*>(packet);
-
-    ENGINE_ERROR_CODE ret = c->getAiostat();
-    c->setAiostat(ENGINE_SUCCESS);
-    c->setEwouldblock(false);
+void collections_set_manifest_executor(Cookie& cookie) {
+    ENGINE_ERROR_CODE ret = cookie.getAiostat();
+    cookie.setAiostat(ENGINE_SUCCESS);
+    cookie.setEwouldblock(false);
 
     if (ret == ENGINE_SUCCESS) {
+        auto& connection = cookie.getConnection();
+        auto packet = cookie.getPacket(Cookie::PacketContent::Full);
+        const auto* req = reinterpret_cast<
+                const protocol_binary_collections_set_manifest*>(packet.data());
         const uint32_t valuelen = ntohl(req->message.header.request.bodylen);
         cb::const_char_buffer jsonBuffer{
                 reinterpret_cast<const char*>(req->bytes + sizeof(req->bytes)),
                 valuelen};
         ret = ENGINE_ERROR_CODE(
-                c->getBucketEngine()
+                connection.getBucketEngine()
                         ->collections
-                        .set_manifest(c->getBucketEngineAsV0(), jsonBuffer)
+                        .set_manifest(connection.getBucketEngineAsV0(),
+                                      jsonBuffer)
                         .code()
                         .value());
     }
 
     if (ret == ENGINE_SUCCESS) {
-        c->getCookieObject().sendResponse(cb::mcbp::Status::Success);
+        cookie.sendResponse(cb::mcbp::Status::Success);
     } else {
-        c->getCookieObject().sendResponse(cb::engine_errc(ret));
+        cookie.sendResponse(cb::engine_errc(ret));
     }
 }

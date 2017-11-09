@@ -16,37 +16,40 @@
  */
 
 #include <daemon/mcbp.h>
+#include <mcbp/mcbp.h>
 #include "executors.h"
 
-void dcp_close_stream_executor(McbpConnection* c, void* packet) {
-    auto* req = reinterpret_cast<protocol_binary_request_dcp_close_stream*>(packet);
-    ENGINE_ERROR_CODE ret = c->getAiostat();
-    c->setAiostat(ENGINE_SUCCESS);
-    c->setEwouldblock(false);
+void dcp_close_stream_executor(Cookie& cookie) {
+    ENGINE_ERROR_CODE ret = cookie.getAiostat();
+    cookie.setAiostat(ENGINE_SUCCESS);
+    cookie.setEwouldblock(false);
 
+    auto& connection = cookie.getConnection();
     if (ret == ENGINE_SUCCESS) {
-        uint16_t vbucket = ntohs(req->message.header.request.vbucket);
-        uint32_t opaque = ntohl(req->message.header.request.opaque);
-        ret = c->getBucketEngine()->dcp.close_stream(
-            c->getBucketEngineAsV0(), c->getCookie(),
-            opaque, vbucket);
+        const auto& header = cookie.getHeader().getRequest();
+        ret = connection.getBucketEngine()->dcp.close_stream(
+                connection.getBucketEngineAsV0(),
+                &cookie,
+                header.getOpaque(),
+                header.getVBucket());
     }
 
+    ret = connection.remapErrorCode(ret);
     switch (ret) {
     case ENGINE_SUCCESS:
-        c->getCookieObject().sendResponse(cb::mcbp::Status::Success);
+        cookie.sendResponse(cb::mcbp::Status::Success);
         break;
 
     case ENGINE_DISCONNECT:
-        c->setState(McbpStateMachine::State::closing);
+        connection.setState(McbpStateMachine::State::closing);
         break;
 
     case ENGINE_EWOULDBLOCK:
-        c->setEwouldblock(true);
+        cookie.setEwouldblock(true);
         break;
 
     default:
-        c->getCookieObject().sendResponse(cb::engine_errc(ret));
+        cookie.sendResponse(cb::engine_errc(ret));
     }
 }
 

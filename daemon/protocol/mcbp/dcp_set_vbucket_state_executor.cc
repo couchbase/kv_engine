@@ -17,39 +17,40 @@
 
 #include "executors.h"
 
-void dcp_set_vbucket_state_executor(McbpConnection* c, void*) {
-    ENGINE_ERROR_CODE ret = c->getAiostat();
-    c->setAiostat(ENGINE_SUCCESS);
-    c->setEwouldblock(false);
+void dcp_set_vbucket_state_executor(Cookie& cookie) {
+    ENGINE_ERROR_CODE ret = cookie.getAiostat();
+    cookie.setAiostat(ENGINE_SUCCESS);
+    cookie.setEwouldblock(false);
 
+    auto& connection = cookie.getConnection();
     if (ret == ENGINE_SUCCESS) {
-        const auto& cookie = c->getCookieObject();
         const auto& request = cookie.getRequest(Cookie::PacketContent::Full);
         const auto* req = reinterpret_cast<
                 const protocol_binary_request_dcp_set_vbucket_state*>(&request);
-        vbucket_state_t state = (vbucket_state_t)req->message.body.state;
-        ret = c->getBucketEngine()->dcp.set_vbucket_state(
-                c->getBucketEngineAsV0(),
+        auto state = (vbucket_state_t)req->message.body.state;
+        ret = connection.getBucketEngine()->dcp.set_vbucket_state(
+                connection.getBucketEngineAsV0(),
                 &cookie,
                 request.getOpaque(),
                 request.getVBucket(),
                 state);
     }
 
+    ret = connection.remapErrorCode(ret);
     switch (ret) {
     case ENGINE_SUCCESS:
-        c->setState(McbpStateMachine::State::ship_log);
+        connection.setState(McbpStateMachine::State::ship_log);
         break;
     case ENGINE_DISCONNECT:
-        c->setState(McbpStateMachine::State::closing);
+        connection.setState(McbpStateMachine::State::closing);
         break;
 
     case ENGINE_EWOULDBLOCK:
-        c->setEwouldblock(true);
+        cookie.setEwouldblock(true);
         break;
 
     default:
-        c->setState(McbpStateMachine::State::closing);
+        connection.setState(McbpStateMachine::State::closing);
         break;
     }
 }

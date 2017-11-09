@@ -18,42 +18,50 @@
 #include <daemon/mcbp.h>
 #include "executors.h"
 
-void dcp_snapshot_marker_executor(McbpConnection* c, void* packet) {
-    auto* req = reinterpret_cast<protocol_binary_request_dcp_snapshot_marker*>(packet);
+void dcp_snapshot_marker_executor(Cookie& cookie) {
+    ENGINE_ERROR_CODE ret = cookie.getAiostat();
+    cookie.setAiostat(ENGINE_SUCCESS);
+    cookie.setEwouldblock(false);
 
-    uint16_t vbucket = ntohs(req->message.header.request.vbucket);
-    uint32_t opaque = req->message.header.request.opaque;
-    uint32_t flags = ntohl(req->message.body.flags);
-    uint64_t start_seqno = ntohll(req->message.body.start_seqno);
-    uint64_t end_seqno = ntohll(req->message.body.end_seqno);
-
-    ENGINE_ERROR_CODE ret = c->getAiostat();
-    c->setAiostat(ENGINE_SUCCESS);
-    c->setEwouldblock(false);
-
+    auto& connection = cookie.getConnection();
     if (ret == ENGINE_SUCCESS) {
-        ret = c->getBucketEngine()->dcp.snapshot_marker(
-            c->getBucketEngineAsV0(), c->getCookie(),
-            opaque, vbucket,
-            start_seqno,
-            end_seqno, flags);
+        auto packet = cookie.getPacket(Cookie::PacketContent::Full);
+        const auto* req = reinterpret_cast<
+                const protocol_binary_request_dcp_snapshot_marker*>(
+                packet.data());
+
+        uint16_t vbucket = ntohs(req->message.header.request.vbucket);
+        uint32_t opaque = req->message.header.request.opaque;
+        uint32_t flags = ntohl(req->message.body.flags);
+        uint64_t start_seqno = ntohll(req->message.body.start_seqno);
+        uint64_t end_seqno = ntohll(req->message.body.end_seqno);
+
+        ret = connection.getBucketEngine()->dcp.snapshot_marker(
+                connection.getBucketEngineAsV0(),
+                &cookie,
+                opaque,
+                vbucket,
+                start_seqno,
+                end_seqno,
+                flags);
     }
 
+    ret = connection.remapErrorCode(ret);
     switch (ret) {
     case ENGINE_SUCCESS:
-        c->setState(McbpStateMachine::State::ship_log);
+        connection.setState(McbpStateMachine::State::ship_log);
         break;
 
     case ENGINE_DISCONNECT:
-        c->setState(McbpStateMachine::State::closing);
+        connection.setState(McbpStateMachine::State::closing);
         break;
 
     case ENGINE_EWOULDBLOCK:
-        c->setEwouldblock(true);
+        cookie.setEwouldblock(true);
         break;
 
     default:
-        c->getCookieObject().sendResponse(cb::engine_errc(ret));
+        cookie.sendResponse(cb::engine_errc(ret));
     }
 }
 

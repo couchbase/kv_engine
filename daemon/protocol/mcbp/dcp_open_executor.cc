@@ -20,17 +20,21 @@
 #include "executors.h"
 #include "utilities.h"
 
-void dcp_open_executor(McbpConnection* c, void* packet) {
-    auto* req = reinterpret_cast<protocol_binary_request_dcp_open*>(packet);
+void dcp_open_executor(Cookie& cookie) {
+    auto packet = cookie.getPacket(Cookie::PacketContent::Full);
+    const auto* req = reinterpret_cast<const protocol_binary_request_dcp_open*>(
+            packet.data());
 
-    ENGINE_ERROR_CODE ret = c->getAiostat();
-    c->setAiostat(ENGINE_SUCCESS);
-    c->setEwouldblock(false);
-    c->enableDatatype(cb::mcbp::Feature::SNAPPY);
-    c->enableDatatype(cb::mcbp::Feature::JSON);
+    ENGINE_ERROR_CODE ret = cookie.getAiostat();
+    cookie.setAiostat(ENGINE_SUCCESS);
+    cookie.setEwouldblock(false);
+
+    auto& connection = cookie.getConnection();
+    connection.enableDatatype(cb::mcbp::Feature::SNAPPY);
+    connection.enableDatatype(cb::mcbp::Feature::JSON);
 
     uint32_t flags = ntohl(req->message.body.flags);
-    const bool dcpNotifier = (flags & DCP_OPEN_NOTIFIER);
+    const bool dcpNotifier = (flags & DCP_OPEN_NOTIFIER) == DCP_OPEN_NOTIFIER;
 
     if (ret == ENGINE_SUCCESS) {
         cb::rbac::Privilege privilege = cb::rbac::Privilege::DcpProducer;
@@ -38,19 +42,21 @@ void dcp_open_executor(McbpConnection* c, void* packet) {
             privilege = cb::rbac::Privilege::DcpConsumer;
         }
 
-        ret = mcbp::checkPrivilege(*c, privilege);
+        ret = mcbp::checkPrivilege(connection, privilege);
 
         const uint16_t nkey = ntohs(req->message.header.request.keylen);
         const uint32_t valuelen = ntohl(req->message.header.request.bodylen) -
                                   nkey - req->message.header.request.extlen;
 
-        const char* name =
+        const auto* name =
                 reinterpret_cast<const char*>(req->bytes + sizeof(req->bytes));
 
-        auto dcpOpen = [=, &flags]() {
+        auto* c = &connection;
+        auto* theCookie = &cookie;
+        auto dcpOpen = [=, &flags, &theCookie]() -> ENGINE_ERROR_CODE {
             return c->getBucketEngine()->dcp.open(
                     c->getBucketEngineAsV0(),
-                    c->getCookie(),
+                    theCookie,
                     req->message.header.request.opaque,
                     ntohl(req->message.body.seqno),
                     flags,
@@ -69,51 +75,52 @@ void dcp_open_executor(McbpConnection* c, void* packet) {
                 flags |= DCP_OPEN_COLLECTIONS;
                 ret = dcpOpen();
                 LOG_NOTICE(
-                        c,
+                        &connection,
                         "%u: Retried DCP open with DCP_OPEN_COLLECTIONS ret:%d",
-                        c->getId(),
+                        connection.getId(),
                         ret);
             }
         }
     }
 
-    ret = c->remapErrorCode(ret);
+    ret = connection.remapErrorCode(ret);
     switch (ret) {
     case ENGINE_SUCCESS: {
         const bool dcpXattrAware = (flags & DCP_OPEN_INCLUDE_XATTRS) != 0 &&
-                                   c->selectedBucketIsXattrEnabled();
+                                   connection.selectedBucketIsXattrEnabled();
         const bool dcpNoValue = (flags & DCP_OPEN_NO_VALUE) != 0;
         const bool dcpCollections = (flags & DCP_OPEN_COLLECTIONS) != 0;
-        c->setDcpXattrAware(dcpXattrAware);
-        c->setDcpNoValue(dcpNoValue);
-        c->setDcpCollectionAware(dcpCollections);
+        connection.setDcpXattrAware(dcpXattrAware);
+        connection.setDcpNoValue(dcpNoValue);
+        connection.setDcpCollectionAware(dcpCollections);
 
         // @todo Keeping this as NOTICE while waiting for ns_server
         //       support for xattr over DCP (to make it easier to debug
         ///      see MB-22468
-        LOG_NOTICE(c,
-                   "%u: DCP connection opened successfully. flags:{%s%s%s%s} %s",
-                   c->getId(),
-                   dcpNotifier ? "NOTIFIER " : "",
-                   dcpXattrAware ? "INCLUDE_XATTRS " : "",
-                   dcpNoValue ? "NO_VALUE " : "",
-                   dcpCollections ? "COLLECTIONS" : "",
-                   c->getDescription().c_str());
+        LOG_NOTICE(
+                &connection,
+                "%u: DCP connection opened successfully. flags:{%s%s%s%s} %s",
+                connection.getId(),
+                dcpNotifier ? "NOTIFIER " : "",
+                dcpXattrAware ? "INCLUDE_XATTRS " : "",
+                dcpNoValue ? "NO_VALUE " : "",
+                dcpCollections ? "COLLECTIONS" : "",
+                connection.getDescription().c_str());
 
-        audit_dcp_open(c);
-        c->getCookieObject().sendResponse(cb::mcbp::Status::Success);
+        audit_dcp_open(&connection);
+        cookie.sendResponse(cb::mcbp::Status::Success);
         break;
     }
 
     case ENGINE_DISCONNECT:
-        c->setState(McbpStateMachine::State::closing);
+        connection.setState(McbpStateMachine::State::closing);
         break;
 
     case ENGINE_EWOULDBLOCK:
-        c->setEwouldblock(true);
+        cookie.setEwouldblock(true);
         break;
 
     default:
-        c->getCookieObject().sendResponse(cb::engine_errc(ret));
+        cookie.sendResponse(cb::engine_errc(ret));
     }
 }

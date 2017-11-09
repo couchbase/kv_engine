@@ -54,8 +54,5 @@ ENGINE_ERROR_CODE dcp_message_mutation(const void* void_cookie,
 /**
  * Implementation of the method responsible for handle the incoming
  * DCP_MUTATION packet.
- *
- * @param c the connection the packet arrived on
- * @param packet the full DCP_MUTATION packet
  */
-void dcp_mutation_executor(McbpConnection* c, void* packet);
+void dcp_mutation_executor(Cookie& cookie);

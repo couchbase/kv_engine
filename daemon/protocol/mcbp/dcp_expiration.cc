@@ -19,21 +19,25 @@
 #include "utilities.h"
 #include "../../mcbp.h"
 
-void dcp_expiration_executor(McbpConnection* c, void* packet) {
-    auto* req = reinterpret_cast<protocol_binary_request_dcp_expiration*>(packet);
-    ENGINE_ERROR_CODE ret = c->getAiostat();
-    c->setAiostat(ENGINE_SUCCESS);
-    c->setEwouldblock(false);
+void dcp_expiration_executor(Cookie& cookie) {
+    auto packet = cookie.getPacket(Cookie::PacketContent::Full);
+    const auto* req =
+            reinterpret_cast<const protocol_binary_request_dcp_expiration*>(
+                    packet.data());
+    ENGINE_ERROR_CODE ret = cookie.getAiostat();
+    cookie.setAiostat(ENGINE_SUCCESS);
+    cookie.setEwouldblock(false);
 
+    auto& connection = cookie.getConnection();
     if (ret == ENGINE_SUCCESS) {
         // Collection aware DCP will be sending the collection_len field
         auto body_offset =
                 protocol_binary_request_dcp_deletion::getHeaderLength(
-                        c->isDcpCollectionAware());
+                        connection.isDcpCollectionAware());
         const uint16_t nkey = ntohs(req->message.header.request.keylen);
         const DocKey key{req->bytes + body_offset,
                          nkey,
-                         c->getDocNamespaceForDcpMessage(
+                         connection.getDocNamespaceForDcpMessage(
                                  req->message.body.collection_len)};
         const auto opaque = req->message.header.request.opaque;
         const auto datatype = req->message.header.request.datatype;
@@ -55,30 +59,38 @@ void dcp_expiration_executor(McbpConnection* c, void* packet) {
         if (priv_bytes > COUCHBASE_MAX_ITEM_PRIVILEGED_BYTES) {
             ret = ENGINE_E2BIG;
         } else {
-            ret = c->getBucketEngine()->dcp.expiration(c->getBucketEngineAsV0(),
-                                                       c->getCookie(), opaque,
-                                                       key, value, priv_bytes,
-                                                       datatype, cas, vbucket,
-                                                       by_seqno, rev_seqno,
-                                                       meta);
+            ret = connection.getBucketEngine()->dcp.expiration(
+                    connection.getBucketEngineAsV0(),
+                    &cookie,
+                    opaque,
+                    key,
+                    value,
+                    priv_bytes,
+                    datatype,
+                    cas,
+                    vbucket,
+                    by_seqno,
+                    rev_seqno,
+                    meta);
         }
     }
 
+    ret = connection.remapErrorCode(ret);
     switch (ret) {
     case ENGINE_SUCCESS:
-        c->setState(McbpStateMachine::State::new_cmd);
+        connection.setState(McbpStateMachine::State::new_cmd);
         break;
 
     case ENGINE_DISCONNECT:
-        c->setState(McbpStateMachine::State::closing);
+        connection.setState(McbpStateMachine::State::closing);
         break;
 
     case ENGINE_EWOULDBLOCK:
-        c->setEwouldblock(true);
+        cookie.setEwouldblock(true);
         break;
 
     default:
-        c->getCookieObject().sendResponse(cb::engine_errc(ret));
+        cookie.sendResponse(cb::engine_errc(ret));
     }
 }
 

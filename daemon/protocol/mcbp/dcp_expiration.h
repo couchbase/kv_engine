@@ -18,7 +18,7 @@
 
 #include "../../memcached.h"
 
-void dcp_expiration_executor(McbpConnection* c, void* packet);
+void dcp_expiration_executor(Cookie& cookie);
 
 ENGINE_ERROR_CODE dcp_message_expiration(const void* void_cookie,
                                          uint32_t opaque,

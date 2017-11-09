@@ -18,37 +18,42 @@
 #include <daemon/mcbp.h>
 #include "executors.h"
 
-void dcp_add_stream_executor(McbpConnection* c, void* packet) {
-    auto* req = reinterpret_cast<protocol_binary_request_dcp_add_stream*>(packet);
+void dcp_add_stream_executor(Cookie& cookie) {
+    auto packet = cookie.getPacket(Cookie::PacketContent::Full);
+    const auto* req =
+            reinterpret_cast<const protocol_binary_request_dcp_add_stream*>(
+                    packet.data());
 
-    ENGINE_ERROR_CODE ret = c->getAiostat();
-    c->setAiostat(ENGINE_SUCCESS);
-    c->setEwouldblock(false);
+    ENGINE_ERROR_CODE ret = cookie.getAiostat();
+    cookie.setAiostat(ENGINE_SUCCESS);
+    cookie.setEwouldblock(false);
     uint32_t flags = ntohl(req->message.body.flags);
 
+    auto& connection = cookie.getConnection();
     if (ret == ENGINE_SUCCESS) {
-        ret = c->getBucketEngine()->dcp.add_stream(c->getBucketEngineAsV0(),
-                                                   c->getCookie(),
-                                                   req->message.header.request.opaque,
-                                                   ntohs(
-                                                       req->message.header.request.vbucket),
-                                                   flags);
+        ret = connection.getBucketEngine()->dcp.add_stream(
+                connection.getBucketEngineAsV0(),
+                &cookie,
+                req->message.header.request.opaque,
+                ntohs(req->message.header.request.vbucket),
+                flags);
     }
 
+    ret = connection.remapErrorCode(ret);
     switch (ret) {
     case ENGINE_SUCCESS:
-        c->setDCP(true);
-        c->setState(McbpStateMachine::State::ship_log);
+        connection.setDCP(true);
+        connection.setState(McbpStateMachine::State::ship_log);
         break;
     case ENGINE_DISCONNECT:
-        c->setState(McbpStateMachine::State::closing);
+        connection.setState(McbpStateMachine::State::closing);
         break;
 
     case ENGINE_EWOULDBLOCK:
-        c->setEwouldblock(true);
+        cookie.setEwouldblock(true);
         break;
 
     default:
-        c->getCookieObject().sendResponse(cb::engine_errc(ret));
+        cookie.sendResponse(cb::engine_errc(ret));
     }
 }
