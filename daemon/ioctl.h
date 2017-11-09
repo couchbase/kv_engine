@@ -14,9 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-
-#ifndef DAEMON_IOCTL_H
-#define DAEMON_IOCTL_H
+#pragma once
 
 #include "config.h"
 
@@ -30,7 +28,7 @@
  * the value into `value`
  * Otherwise returns a status code indicating why the read failed.
  */
-ENGINE_ERROR_CODE ioctl_get_property(Connection* c,
+ENGINE_ERROR_CODE ioctl_get_property(Cookie& cookie,
                                      const std::string& key,
                                      std::string& value);
 
@@ -38,8 +36,6 @@ ENGINE_ERROR_CODE ioctl_get_property(Connection* c,
  * If the property could be written, return ENGINE_SUCCESS.
  * Otherwise returns a status code indicating why the write failed.
  */
-ENGINE_ERROR_CODE ioctl_set_property(Connection* c,
+ENGINE_ERROR_CODE ioctl_set_property(Cookie& cookie,
                                      const std::string& key,
                                      const std::string& value);
-
-#endif /* DAEMON_IOCTL_H */

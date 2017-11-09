@@ -376,8 +376,7 @@ static void ioctl_get_executor(Cookie& cookie) {
                 reinterpret_cast<const char*>(req->bytes + sizeof(req->bytes));
         size_t keylen = ntohs(req->message.header.request.keylen);
         const std::string key(key_ptr, keylen);
-
-        ret = ioctl_get_property(&connection, key, value);
+        ret = ioctl_get_property(cookie, key, value);
     }
 
     ret = connection.remapErrorCode(ret);
@@ -418,22 +417,39 @@ static void ioctl_get_executor(Cookie& cookie) {
 }
 
 static void ioctl_set_executor(Cookie& cookie) {
+    ENGINE_ERROR_CODE ret = cookie.getAiostat();
+    cookie.setAiostat(ENGINE_SUCCESS);
+    cookie.setEwouldblock(false);
+
     auto& connection = cookie.getConnection();
-    auto* req = reinterpret_cast<protocol_binary_request_ioctl_set*>(
-            cookie.getPacketAsVoidPtr());
+    if (ret == ENGINE_SUCCESS) {
+        auto* req = reinterpret_cast<protocol_binary_request_ioctl_set*>(
+                cookie.getPacketAsVoidPtr());
 
-    const auto* key_ptr =
-            reinterpret_cast<const char*>(req->bytes + sizeof(req->bytes));
-    size_t keylen = ntohs(req->message.header.request.keylen);
-    const std::string key(key_ptr, keylen);
+        const auto* key_ptr =
+                reinterpret_cast<const char*>(req->bytes + sizeof(req->bytes));
+        size_t keylen = ntohs(req->message.header.request.keylen);
+        const std::string key(key_ptr, keylen);
 
-    const char* val_ptr = key_ptr + keylen;
-    size_t vallen = ntohl(req->message.header.request.bodylen) - keylen;
-    const std::string value(val_ptr, vallen);
+        const char* val_ptr = key_ptr + keylen;
+        size_t vallen = ntohl(req->message.header.request.bodylen) - keylen;
+        const std::string value(val_ptr, vallen);
 
-    ENGINE_ERROR_CODE status = ioctl_set_property(&connection, key, value);
+        ret = ioctl_set_property(cookie, key, value);
+    }
+    ret = connection.remapErrorCode(ret);
 
-    cookie.sendResponse(cb::mcbp::to_status(cb::engine_errc(status)));
+    switch (ret) {
+    case ENGINE_EWOULDBLOCK:
+        cookie.setAiostat(ENGINE_EWOULDBLOCK);
+        cookie.setEwouldblock(true);
+        break;
+    case ENGINE_DISCONNECT:
+        connection.setState(McbpStateMachine::State::closing);
+        break;
+    default:
+        cookie.sendResponse(cb::mcbp::to_status(cb::engine_errc(ret)));
+    }
 }
 
 static void config_validate_executor(Cookie& cookie) {

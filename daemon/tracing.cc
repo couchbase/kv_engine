@@ -27,15 +27,14 @@ static phosphor::TraceConfig lastConfig{
         phosphor::TraceConfig(phosphor::BufferMode::ring, 20 * 1024 * 1024)};
 static std::mutex configMutex;
 
-
-ENGINE_ERROR_CODE ioctlGetTracingStatus(Connection*,
+ENGINE_ERROR_CODE ioctlGetTracingStatus(Cookie& cookie,
                                         const StrToStrMap&,
                                         std::string& value) {
     value = PHOSPHOR_INSTANCE.isEnabled() ? "enabled" : "disabled";
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE ioctlGetTracingConfig(Connection*,
+ENGINE_ERROR_CODE ioctlGetTracingConfig(Cookie& cookie,
                                         const StrToStrMap&,
                                         std::string& value) {
     std::lock_guard<std::mutex> lh(configMutex);
@@ -107,10 +106,9 @@ void deinitializeTracing() {
     traceDumps.dumps.clear();
 }
 
-ENGINE_ERROR_CODE ioctlGetTracingBeginDump(Connection* c,
+ENGINE_ERROR_CODE ioctlGetTracingBeginDump(Cookie& cookie,
                                            const StrToStrMap&,
                                            std::string& value) {
-    auto& connection = dynamic_cast<McbpConnection&>(*c);
     std::lock_guard<phosphor::TraceLog> lh(PHOSPHOR_INSTANCE);
     if (PHOSPHOR_INSTANCE.isEnabled()) {
         PHOSPHOR_INSTANCE.stop(lh);
@@ -118,7 +116,7 @@ ENGINE_ERROR_CODE ioctlGetTracingBeginDump(Connection* c,
 
     phosphor::TraceContext context = PHOSPHOR_INSTANCE.getTraceContext(lh);
     if (context.getBuffer() == nullptr) {
-        connection.getCookieObject().setErrorContext(
+        cookie.setErrorContext(
                 "Cannot begin a dump when there is no existing trace");
         return ENGINE_EINVAL;
     }
@@ -144,11 +142,11 @@ class ChunkBuilderTask : public Task {
 public:
     /// This constructor assumes that the dump's
     /// mutex has already been locked
-    ChunkBuilderTask(McbpConnection& connection,
+    ChunkBuilderTask(Cookie& cookie_,
                      DumpContext& dump,
                      std::unique_lock<std::mutex> lck,
                      size_t chunk_size)
-        : Task(), connection(connection), dump(dump), lck(std::move(lck)) {
+        : Task(), cookie(cookie_), dump(dump), lck(std::move(lck)) {
         chunk.resize(chunk_size);
     }
 
@@ -159,7 +157,7 @@ public:
     }
 
     void notifyExecutionComplete() override {
-        notify_io_complete(connection.getCookie(), ENGINE_SUCCESS);
+        notify_io_complete(&cookie, ENGINE_SUCCESS);
     }
 
     std::string& getChunk() {
@@ -168,7 +166,7 @@ public:
 
 private:
     std::string chunk;
-    McbpConnection& connection;
+    Cookie& cookie;
     DumpContext& dump;
     std::unique_lock<std::mutex> lck;
 };
@@ -180,12 +178,9 @@ struct ChunkBuilderContext : public CommandContext {
     std::shared_ptr<ChunkBuilderTask> task;
 };
 
-ENGINE_ERROR_CODE ioctlGetTracingDumpChunk(Connection* c,
+ENGINE_ERROR_CODE ioctlGetTracingDumpChunk(Cookie& cookie,
                                            const StrToStrMap& arguments,
                                            std::string& value) {
-    auto& connection = dynamic_cast<McbpConnection&>(*c);
-    auto& cookie = connection.getCookieObject();
-
     // If we have a context then we already generated the chunk
     auto* ctx = dynamic_cast<ChunkBuilderContext*>(cookie.getCommandContext());
     if (ctx != nullptr) {
@@ -196,8 +191,7 @@ ENGINE_ERROR_CODE ioctlGetTracingDumpChunk(Connection* c,
 
     auto id = arguments.find("id");
     if (id == arguments.end()) {
-        connection.getCookieObject().setErrorContext(
-                "Dump ID must be specified as a key argument");
+        cookie.setErrorContext("Dump ID must be specified as a key argument");
         return ENGINE_EINVAL;
     }
 
@@ -205,8 +199,7 @@ ENGINE_ERROR_CODE ioctlGetTracingDumpChunk(Connection* c,
     try {
         uuid = cb::uuid::from_string(id->second);
     } catch (const std::invalid_argument&) {
-        connection.getCookieObject().setErrorContext(
-                "Dump ID must be a valid UUID");
+        cookie.setErrorContext("Dump ID must be a valid UUID");
         return ENGINE_EINVAL;
     }
 
@@ -214,7 +207,7 @@ ENGINE_ERROR_CODE ioctlGetTracingDumpChunk(Connection* c,
         std::lock_guard<std::mutex> lh(traceDumps.mutex);
         auto iter = traceDumps.dumps.find(uuid);
         if (iter == traceDumps.dumps.end()) {
-            connection.getCookieObject().setErrorContext(
+            cookie.setErrorContext(
                     "Dump ID must correspond to an existing dump");
             return ENGINE_EINVAL;
         }
@@ -232,14 +225,14 @@ ENGINE_ERROR_CODE ioctlGetTracingDumpChunk(Connection* c,
         // A chunk is already being generated for this dump
         if (!lck) {
             value = "";
-            connection.getCookieObject().setErrorContext(
+            cookie.setErrorContext(
                     "A chunk is already being fetched for this dump");
             return ENGINE_TMPFAIL;
         }
 
         // ChunkBuilderTask assumes the lock above is already held
         auto task = std::make_shared<ChunkBuilderTask>(
-                connection, dump, std::move(lck), chunk_size);
+                cookie, dump, std::move(lck), chunk_size);
         cookie.setCommandContext(new ChunkBuilderContext{task});
 
         cookie.setEwouldblock(true);
@@ -251,16 +244,14 @@ ENGINE_ERROR_CODE ioctlGetTracingDumpChunk(Connection* c,
     }
 }
 
-ENGINE_ERROR_CODE ioctlSetTracingClearDump(Connection* c,
+ENGINE_ERROR_CODE ioctlSetTracingClearDump(Cookie& cookie,
                                            const StrToStrMap& arguments,
                                            const std::string& value) {
-    auto& connection = dynamic_cast<McbpConnection&>(*c);
     cb::uuid::uuid_t uuid;
     try {
         uuid = cb::uuid::from_string(value);
     } catch (const std::invalid_argument&) {
-        connection.getCookieObject().setErrorContext(
-                "Dump ID must be a valid UUID");
+        cookie.setErrorContext("Dump ID must be a valid UUID");
         return ENGINE_EINVAL;
     }
 
@@ -268,7 +259,7 @@ ENGINE_ERROR_CODE ioctlSetTracingClearDump(Connection* c,
         std::lock_guard<std::mutex> lh(traceDumps.mutex);
         auto dump = traceDumps.dumps.find(uuid);
         if (dump == traceDumps.dumps.end()) {
-            connection.getCookieObject().setErrorContext(
+            cookie.setErrorContext(
                     "Dump ID must correspond to an existing dump");
             return ENGINE_EINVAL;
         }
@@ -279,27 +270,25 @@ ENGINE_ERROR_CODE ioctlSetTracingClearDump(Connection* c,
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE ioctlSetTracingConfig(Connection* c,
+ENGINE_ERROR_CODE ioctlSetTracingConfig(Cookie& cookie,
                                         const StrToStrMap&,
                                         const std::string& value) {
-    auto& connection = dynamic_cast<McbpConnection&>(*c);
-    if (value == "") {
-        connection.getCookieObject().setErrorContext(
-                "Trace config cannot be empty");
+    if (value.empty()) {
+        cookie.setErrorContext("Trace config cannot be empty");
         return ENGINE_EINVAL;
     }
     try {
         std::lock_guard<std::mutex> lh(configMutex);
         lastConfig = phosphor::TraceConfig::fromString(value);
     } catch (const std::invalid_argument& e) {
-        connection.getCookieObject().setErrorContext(
-                std::string("Trace config is illformed: ") + e.what());
+        cookie.setErrorContext(std::string("Trace config is illformed: ") +
+                               e.what());
         return ENGINE_EINVAL;
     }
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE ioctlSetTracingStart(Connection*,
+ENGINE_ERROR_CODE ioctlSetTracingStart(Cookie& cookie,
                                        const StrToStrMap&,
                                        const std::string& value) {
     std::lock_guard<std::mutex> lh(configMutex);
@@ -307,7 +296,7 @@ ENGINE_ERROR_CODE ioctlSetTracingStart(Connection*,
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE ioctlSetTracingStop(Connection*,
+ENGINE_ERROR_CODE ioctlSetTracingStop(Cookie& cookie,
                                       const StrToStrMap&,
                                       const std::string& value) {
     PHOSPHOR_INSTANCE.stop();

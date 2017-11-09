@@ -88,7 +88,7 @@ private:
  * IOCTL Get callback to get the tracing status
  * @param[out] value Either "enabled" or "disabled" depending on status
  */
-ENGINE_ERROR_CODE ioctlGetTracingStatus(Connection* c,
+ENGINE_ERROR_CODE ioctlGetTracingStatus(Cookie& cookie,
                                         const StrToStrMap& arguments,
                                         std::string& value);
 
@@ -96,7 +96,7 @@ ENGINE_ERROR_CODE ioctlGetTracingStatus(Connection* c,
  * IOCTL Get callback to get the last used tracing config
  * @param[out] value The last Phoshor config used (re-encoded as a string)
  */
-ENGINE_ERROR_CODE ioctlGetTracingConfig(Connection* c,
+ENGINE_ERROR_CODE ioctlGetTracingConfig(Cookie& cookie,
                                         const StrToStrMap& arguments,
                                         std::string& value);
 
@@ -104,7 +104,7 @@ ENGINE_ERROR_CODE ioctlGetTracingConfig(Connection* c,
  * IOCTL Get callback to create a new dump from the last trace
  * @param[out] value The uuid of the newly created dump
  */
-ENGINE_ERROR_CODE ioctlGetTracingBeginDump(Connection*,
+ENGINE_ERROR_CODE ioctlGetTracingBeginDump(Cookie& cookie,
                                            const StrToStrMap&,
                                            std::string& value);
 
@@ -114,7 +114,7 @@ ENGINE_ERROR_CODE ioctlGetTracingBeginDump(Connection*,
           continue
  * @param[out] value The contents of the next chunk (or empty if dump is done)
  */
-ENGINE_ERROR_CODE ioctlGetTracingDumpChunk(Connection*,
+ENGINE_ERROR_CODE ioctlGetTracingDumpChunk(Cookie& cookie,
                                            const StrToStrMap& arguments,
                                            std::string& value);
 
@@ -122,7 +122,7 @@ ENGINE_ERROR_CODE ioctlGetTracingDumpChunk(Connection*,
  * IOCTL Set callback to clear a tracing dump
  * @param value The uuid of the dump to clear
  */
-ENGINE_ERROR_CODE ioctlSetTracingClearDump(Connection*,
+ENGINE_ERROR_CODE ioctlSetTracingClearDump(Cookie& cookie,
                                            const StrToStrMap& arguments,
                                            const std::string& value);
 
@@ -130,20 +130,20 @@ ENGINE_ERROR_CODE ioctlSetTracingClearDump(Connection*,
  * IOCTL Set callback to set the tracing config to use when it starts
  * @param value The Phosphor trace config string to start tracing with
  */
-ENGINE_ERROR_CODE ioctlSetTracingConfig(Connection* c,
+ENGINE_ERROR_CODE ioctlSetTracingConfig(Cookie& cookie,
                                         const StrToStrMap& arguments,
                                         const std::string& value);
 
 /**
  * IOCTL Set callback to start tracing
  */
-ENGINE_ERROR_CODE ioctlSetTracingStart(Connection* c,
+ENGINE_ERROR_CODE ioctlSetTracingStart(Cookie& cookie,
                                        const StrToStrMap& arguments,
                                        const std::string& value);
 
 /**
  * IOCTL Set callback to stop tracing
  */
-ENGINE_ERROR_CODE ioctlSetTracingStop(Connection* c,
+ENGINE_ERROR_CODE ioctlSetTracingStop(Cookie& cookie,
                                       const StrToStrMap& arguments,
                                       const std::string& value);

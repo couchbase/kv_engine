@@ -33,30 +33,29 @@
  * Function interface for ioctl_get callbacks
  */
 using GetCallbackFunc = std::function<ENGINE_ERROR_CODE(
-        Connection* c,
-        const StrToStrMap& arguments,
-        std::string& value)>;
+        Cookie& cookie, const StrToStrMap& arguments, std::string& value)>;
 
 /**
  * Function interface for ioctl_set callbacks
  */
-using SetCallbackFunc = std::function<ENGINE_ERROR_CODE(
-        Connection* c,
-        const StrToStrMap& arguments,
-        const std::string& value)>;
+using SetCallbackFunc =
+        std::function<ENGINE_ERROR_CODE(Cookie& cookie,
+                                        const StrToStrMap& arguments,
+                                        const std::string& value)>;
 
 /**
  * Callback for calling allocator specific memory release
  */
-static ENGINE_ERROR_CODE setReleaseFreeMemory(Connection* c,
+static ENGINE_ERROR_CODE setReleaseFreeMemory(Cookie& cookie,
                                               const StrToStrMap&,
                                               const std::string& value) {
     AllocHooks::release_free_memory();
-    LOG_NOTICE(c, "%u: IOCTL_SET: release_free_memory called", c->getId());
+    auto& c = cookie.getConnection();
+    LOG_NOTICE(&c, "%u: IOCTL_SET: release_free_memory called", c.getId());
     return ENGINE_SUCCESS;
 }
 
-static ENGINE_ERROR_CODE setJemallocProfActive(Connection* c,
+static ENGINE_ERROR_CODE setJemallocProfActive(Cookie& cookie,
                                                const StrToStrMap&,
                                                const std::string& value) {
     bool enable;
@@ -70,24 +69,26 @@ static ENGINE_ERROR_CODE setJemallocProfActive(Connection* c,
 
     int res = AllocHooks::set_allocator_property(
             "prof.active", &enable, sizeof(enable));
-    LOG_NOTICE(c,
+    auto& c = cookie.getConnection();
+    LOG_NOTICE(&c,
                "%u: %s IOCTL_SET: setJemallocProfActive:%s called, result:%s",
-               c->getId(),
-               c->getDescription().c_str(),
+               c.getId(),
+               c.getDescription().c_str(),
                value.c_str(),
                (res == 0) ? "success" : "failure");
 
     return (res == 0) ? ENGINE_SUCCESS : ENGINE_EINVAL;
 }
 
-static ENGINE_ERROR_CODE setJemallocProfDump(Connection* c,
+static ENGINE_ERROR_CODE setJemallocProfDump(Cookie& cookie,
                                              const StrToStrMap&,
                                              const std::string&) {
     int res = AllocHooks::set_allocator_property("prof.dump", nullptr, 0);
-    LOG_NOTICE(c,
+    auto& c = cookie.getConnection();
+    LOG_NOTICE(&c,
                "%u: %s IOCTL_SET: setJemallocProfDump called, result:%s",
-               c->getId(),
-               c->getDescription().c_str(),
+               c.getId(),
+               c.getDescription().c_str(),
                (res == 0) ? "success" : "failure");
 
     return (res == 0) ? ENGINE_SUCCESS : ENGINE_EINVAL;
@@ -96,7 +97,7 @@ static ENGINE_ERROR_CODE setJemallocProfDump(Connection* c,
 /**
  * Callback for setting the trace status of a specific connection
  */
-static ENGINE_ERROR_CODE setTraceConnection(Connection* c,
+static ENGINE_ERROR_CODE setTraceConnection(Cookie& cookie,
                                             const StrToStrMap& arguments,
                                             const std::string& value) {
     auto id = arguments.find("id");
@@ -106,7 +107,7 @@ static ENGINE_ERROR_CODE setTraceConnection(Connection* c,
     return apply_connection_trace_mask(id->second, value);
 }
 
-ENGINE_ERROR_CODE ioctlGetMcbpSla(Connection* c,
+ENGINE_ERROR_CODE ioctlGetMcbpSla(Cookie& cookie,
                                   const StrToStrMap& arguments,
                                   std::string& value) {
     if (!arguments.empty() || !value.empty()) {
@@ -124,10 +125,9 @@ static const std::unordered_map<std::string, GetCallbackFunc> ioctl_get_map{
         {"trace.dump.chunk", ioctlGetTracingDumpChunk},
         {"sla", ioctlGetMcbpSla}};
 
-ENGINE_ERROR_CODE ioctl_get_property(Connection* c,
+ENGINE_ERROR_CODE ioctl_get_property(Cookie& cookie,
                                      const std::string& key,
                                      std::string& value) {
-
     std::pair<std::string, StrToStrMap> request;
 
     try {
@@ -138,12 +138,12 @@ ENGINE_ERROR_CODE ioctl_get_property(Connection* c,
 
     auto entry = ioctl_get_map.find(request.first);
     if (entry != ioctl_get_map.end()) {
-        return entry->second(c, request.second, value);
+        return entry->second(cookie, request.second, value);
     }
     return ENGINE_EINVAL;
 }
 
-static ENGINE_ERROR_CODE ioctlSetMcbpSla(Connection* c,
+static ENGINE_ERROR_CODE ioctlSetMcbpSla(Cookie& cookie,
                                          const StrToStrMap&,
                                          const std::string& value) {
     unique_cJSON_ptr doc(cJSON_Parse(value.c_str()));
@@ -154,11 +154,12 @@ static ENGINE_ERROR_CODE ioctlSetMcbpSla(Connection* c,
     try {
         cb::mcbp::sla::reconfigure(*doc);
     } catch (const std::invalid_argument& e) {
-        auto& connection = dynamic_cast<McbpConnection&>(*c);
+        auto& connection = cookie.getConnection();
         connection.getCookieObject().getEventId();
-        LOG_NOTICE(c,
+        auto& c = cookie.getConnection();
+        LOG_NOTICE(&c,
                    "%u: Failed to set MCBP SLA. UUID:[%s]: %s",
-                   c->getId(),
+                   c.getId(),
                    connection.getCookieObject().getEventId().c_str(),
                    e.what());
         return ENGINE_EINVAL;
@@ -178,10 +179,9 @@ static const std::unordered_map<std::string, SetCallbackFunc> ioctl_set_map{
         {"trace.dump.clear", ioctlSetTracingClearDump},
         {"sla", ioctlSetMcbpSla}};
 
-ENGINE_ERROR_CODE ioctl_set_property(Connection* c,
+ENGINE_ERROR_CODE ioctl_set_property(Cookie& cookie,
                                      const std::string& key,
                                      const std::string& value) {
-
     std::pair<std::string, StrToStrMap> request;
 
     try {
@@ -192,7 +192,7 @@ ENGINE_ERROR_CODE ioctl_set_property(Connection* c,
 
     auto entry = ioctl_set_map.find(request.first);
     if (entry != ioctl_set_map.end()) {
-        return entry->second(c, request.second, value);
+        return entry->second(cookie, request.second, value);
     }
     return ENGINE_EINVAL;
 }
