@@ -1909,9 +1909,7 @@ TEST_P(KVStoreParamTest, TestPersistenceCallbacksForDel) {
     EXPECT_TRUE(kvstore->commit(nullptr /*no collections manifest*/));
 }
 
-// MB-26684. This test has been disabled because it fails with SegFault when
-// it is executed for MemCheck (valgrind).
-TEST_P(KVStoreParamTest, DISABLED_TestOneDBPerVBucket) {
+TEST_P(KVStoreParamTest, TestOneDBPerVBucket) {
     WriteCallback wc;
     std::string value = "value";
     std::vector<uint16_t> vbids = {0, 1};
