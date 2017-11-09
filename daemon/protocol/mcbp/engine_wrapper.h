@@ -37,72 +37,74 @@ ENGINE_ERROR_CODE bucket_unknown_command(McbpConnection* c,
                                          protocol_binary_request_header* request,
                                          ADD_RESPONSE response);
 
-void bucket_item_set_cas(McbpConnection* c, item* it, uint64_t cas);
+void bucket_item_set_cas(Cookie& cookie, item* it, uint64_t cas)
+        CB_ATTR_NONNULL(2);
 
-void bucket_reset_stats(McbpConnection* c);
+void bucket_reset_stats(Cookie& cookie);
 
-bool bucket_get_item_info(McbpConnection* c, const item* item_,
-                          item_info* item_info_);
+bool bucket_get_item_info(Cookie& cookie,
+                          const item* item_,
+                          item_info* item_info_) CB_ATTR_NONNULL(2, 3);
 
-cb::EngineErrorMetadataPair bucket_get_meta(McbpConnection* c,
+cb::EngineErrorMetadataPair bucket_get_meta(Cookie& cookie,
                                             const DocKey& key,
                                             uint16_t vbucket);
 
-bool bucket_set_item_info(McbpConnection* c, item* item_,
-                          const item_info* item_info_);
-
-ENGINE_ERROR_CODE bucket_store(McbpConnection* c,
-                               item* item_,
-                               uint64_t* cas,
-                               ENGINE_STORE_OPERATION operation,
-                               DocumentState document_state = DocumentState::Alive);
+ENGINE_ERROR_CODE bucket_store(
+        Cookie& cookie,
+        item* item_,
+        uint64_t* cas,
+        ENGINE_STORE_OPERATION operation,
+        DocumentState document_state = DocumentState::Alive)
+        CB_ATTR_NONNULL(2, 3);
 
 cb::EngineErrorCasPair bucket_store_if(
-        McbpConnection* c,
+        Cookie& cookie,
         item* item_,
         uint64_t cas,
         ENGINE_STORE_OPERATION operation,
         cb::StoreIfPredicate predicate,
-        DocumentState document_state = DocumentState::Alive);
+        DocumentState document_state = DocumentState::Alive) CB_ATTR_NONNULL(2);
 
-ENGINE_ERROR_CODE bucket_remove(McbpConnection* c,
+ENGINE_ERROR_CODE bucket_remove(Cookie& cookie,
                                 const DocKey& key,
                                 uint64_t* cas,
                                 uint16_t vbucket,
-                                mutation_descr_t* mut_info);
+                                mutation_descr_t* mut_info)
+        CB_ATTR_NONNULL(3, 5);
 
 cb::EngineErrorItemPair bucket_get(
-        McbpConnection* c,
+        Cookie& cookie,
         const DocKey& key,
         uint16_t vbucket,
         DocStateFilter documentStateFilter = DocStateFilter::Alive);
 
-cb::EngineErrorItemPair bucket_get_if(McbpConnection* c,
-                                      const DocKey& key,
-                                      uint16_t vbucket,
-                                      std::function<bool(
-                                          const item_info&)> filter);
+cb::EngineErrorItemPair bucket_get_if(
+        Cookie& cookie,
+        const DocKey& key,
+        uint16_t vbucket,
+        std::function<bool(const item_info&)> filter);
 
-cb::EngineErrorItemPair bucket_get_and_touch(McbpConnection* c,
+cb::EngineErrorItemPair bucket_get_and_touch(Cookie& cookie,
                                              const DocKey& key,
                                              uint16_t vbucket,
                                              uint32_t expiration);
 
-cb::EngineErrorItemPair bucket_get_locked(McbpConnection& c,
-                                    const DocKey& key,
-                                    uint16_t vbucket,
-                                    uint32_t lock_timeout);
+cb::EngineErrorItemPair bucket_get_locked(Cookie& cookie,
+                                          const DocKey& key,
+                                          uint16_t vbucket,
+                                          uint32_t lock_timeout);
 
-ENGINE_ERROR_CODE bucket_unlock(McbpConnection& c,
+ENGINE_ERROR_CODE bucket_unlock(Cookie& cookie,
                                 const DocKey& key,
                                 uint16_t vbucket,
                                 uint64_t cas);
 
-std::pair<cb::unique_item_ptr, item_info> bucket_allocate_ex(McbpConnection& c,
+std::pair<cb::unique_item_ptr, item_info> bucket_allocate_ex(Cookie& cookie,
                                                              const DocKey& key,
-                                                             const size_t nbytes,
-                                                             const size_t priv_nbytes,
-                                                             const int flags,
-                                                             const rel_time_t exptime,
+                                                             size_t nbytes,
+                                                             size_t priv_nbytes,
+                                                             int flags,
+                                                             rel_time_t exptime,
                                                              uint8_t datatype,
                                                              uint16_t vbucket);

@@ -339,4 +339,4 @@ struct thread_stats *get_thread_stats(Connection *c);
 extern std::mutex stats_mutex;
 extern char reset_stats_time[80];
 
-void stats_reset(const void *cookie);
+void stats_reset(Cookie& cookie);

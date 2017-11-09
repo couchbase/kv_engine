@@ -21,7 +21,7 @@
 #include <daemon/mcbp.h>
 
 ENGINE_ERROR_CODE UnlockCommandContext::unlock() {
-    auto ret = bucket_unlock(connection, key, vbucket, cas);
+    auto ret = bucket_unlock(cookie, key, vbucket, cas);
     if (ret == ENGINE_SUCCESS) {
         update_topkeys(cookie);
         cookie.sendResponse(cb::mcbp::Status::Success);

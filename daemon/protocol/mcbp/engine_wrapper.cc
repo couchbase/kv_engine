@@ -38,196 +38,186 @@ ENGINE_ERROR_CODE bucket_unknown_command(McbpConnection* c,
     return ret;
 }
 
-void bucket_item_set_cas(McbpConnection* c, item* it, uint64_t cas) {
-    c->getBucketEngine()->item_set_cas(c->getBucketEngineAsV0(), c->getCookie(),
-                                       it, cas);
+void bucket_item_set_cas(Cookie& cookie, item* it, uint64_t cas) {
+    auto& c = cookie.getConnection();
+    c.getBucketEngine()->item_set_cas(
+            c.getBucketEngineAsV0(), &cookie, it, cas);
 }
 
-void bucket_reset_stats(McbpConnection* c) {
-    c->getBucketEngine()->reset_stats(c->getBucketEngineAsV0(), c->getCookie());
+void bucket_reset_stats(Cookie& cookie) {
+    auto& c = cookie.getConnection();
+    c.getBucketEngine()->reset_stats(c.getBucketEngineAsV0(), &cookie);
 }
 
-bool bucket_get_item_info(McbpConnection* c, const item* item_,
+bool bucket_get_item_info(Cookie& cookie,
+                          const item* item_,
                           item_info* item_info_) {
-    auto ret = c->getBucketEngine()->get_item_info(
-            c->getBucketEngineAsV0(), c->getCookie(), item_, item_info_);
+    auto& c = cookie.getConnection();
+    auto ret = c.getBucketEngine()->get_item_info(
+            c.getBucketEngineAsV0(), &cookie, item_, item_info_);
     if (!ret) {
-        LOG_INFO(c,
+        LOG_INFO(&c,
                  "%u: %s bucket_get_item_info failed",
-                 c->getId(),
-                 c->getDescription().c_str());
+                 c.getId(),
+                 c.getDescription().c_str());
     }
 
     return ret;
 }
 
-cb::EngineErrorMetadataPair bucket_get_meta(McbpConnection* c,
+cb::EngineErrorMetadataPair bucket_get_meta(Cookie& cookie,
                                             const DocKey& key,
                                             uint16_t vbucket) {
-    auto ret = c->getBucketEngine()->get_meta(
-            c->getBucketEngineAsV0(), c->getCookie(), key, vbucket);
+    auto& c = cookie.getConnection();
+    auto ret = c.getBucketEngine()->get_meta(
+            c.getBucketEngineAsV0(), &cookie, key, vbucket);
     if (ret.first == cb::engine_errc::disconnect) {
-        LOG_INFO(c,
+        LOG_INFO(&c,
                  "%u: %s bucket_get_meta return ENGINE_DISCONNECT",
-                 c->getId(),
-                 c->getDescription().c_str());
+                 c.getId(),
+                 c.getDescription().c_str());
     }
 
     return ret;
 }
 
-bool bucket_set_item_info(McbpConnection* c, item* item_,
-                          const item_info* item_info_) {
-    auto ret = c->getBucketEngine()->set_item_info(
-            c->getBucketEngineAsV0(), c->getCookie(), item_, item_info_);
-
-    if (!ret) {
-        LOG_INFO(c,
-                 "%u: %s bucket_set_item_info failed",
-                 c->getId(),
-                 c->getDescription().c_str());
-    }
-
-    return ret;
-}
-
-ENGINE_ERROR_CODE bucket_store(McbpConnection* c,
+ENGINE_ERROR_CODE bucket_store(Cookie& cookie,
                                item* item_,
                                uint64_t* cas,
                                ENGINE_STORE_OPERATION operation,
                                DocumentState document_state) {
-    auto ret = c->getBucketEngine()->store(c->getBucketEngineAsV0(),
-                                           c->getCookie(),
-                                           item_,
-                                           cas,
-                                           operation,
-                                           document_state);
+    auto& c = cookie.getConnection();
+    auto ret = c.getBucketEngine()->store(c.getBucketEngineAsV0(),
+                                          &cookie,
+                                          item_,
+                                          cas,
+                                          operation,
+                                          document_state);
     if (ret == ENGINE_SUCCESS) {
         using namespace cb::audit::document;
-        add(c->getCookieObject(),
+        add(cookie,
             document_state == DocumentState::Alive ? Operation::Modify
                                                    : Operation::Delete);
     } else if (ret == ENGINE_DISCONNECT) {
-        LOG_INFO(c,
+        LOG_INFO(&c,
                  "%u: %s bucket_store return ENGINE_DISCONNECT",
-                 c->getId(),
-                 c->getDescription().c_str());
+                 c.getId(),
+                 c.getDescription().c_str());
     }
 
     return ret;
 }
 
-cb::EngineErrorCasPair bucket_store_if(McbpConnection* c,
+cb::EngineErrorCasPair bucket_store_if(Cookie& cookie,
                                        item* item_,
                                        uint64_t cas,
                                        ENGINE_STORE_OPERATION operation,
                                        cb::StoreIfPredicate predicate,
                                        DocumentState document_state) {
-    auto ret = c->getBucketEngine()->store_if(c->getBucketEngineAsV0(),
-                                              c->getCookie(),
-                                              item_,
-                                              cas,
-                                              operation,
-                                              predicate,
-                                              document_state);
+    auto& c = cookie.getConnection();
+    auto ret = c.getBucketEngine()->store_if(c.getBucketEngineAsV0(),
+                                             &cookie,
+                                             item_,
+                                             cas,
+                                             operation,
+                                             predicate,
+                                             document_state);
     if (ret.status == cb::engine_errc::success) {
         using namespace cb::audit::document;
-        add(c->getCookieObject(),
+        add(cookie,
             document_state == DocumentState::Alive ? Operation::Modify
                                                    : Operation::Delete);
     } else if (ret.status == cb::engine_errc::disconnect) {
-        LOG_INFO(c,
+        LOG_INFO(&c,
                  "%u: %s store_if return ENGINE_DISCONNECT",
-                 c->getId(),
-                 c->getDescription().c_str());
+                 c.getId(),
+                 c.getDescription().c_str());
     }
 
     return ret;
 }
 
-ENGINE_ERROR_CODE bucket_remove(McbpConnection* c,
+ENGINE_ERROR_CODE bucket_remove(Cookie& cookie,
                                 const DocKey& key,
                                 uint64_t* cas,
                                 uint16_t vbucket,
                                 mutation_descr_t* mut_info) {
-    auto ret = c->getBucketEngine()->remove(c->getBucketEngineAsV0(),
-                                            c->getCookie(),
-                                            key,
-                                            cas,
-                                            vbucket,
-                                            mut_info);
+    auto& c = cookie.getConnection();
+    auto ret = c.getBucketEngine()->remove(
+            c.getBucketEngineAsV0(), &cookie, key, cas, vbucket, mut_info);
     if (ret == ENGINE_SUCCESS) {
-        cb::audit::document::add(c->getCookieObject(),
+        cb::audit::document::add(c.getCookieObject(),
                                  cb::audit::document::Operation::Delete);
     } else if (ret == ENGINE_DISCONNECT) {
-        LOG_INFO(c,
+        LOG_INFO(&c,
                  "%u: %s bucket_remove return ENGINE_DISCONNECT",
-                 c->getId(),
-                 c->getDescription().c_str());
+                 c.getId(),
+                 c.getDescription().c_str());
     }
     return ret;
 }
 
-cb::EngineErrorItemPair bucket_get(McbpConnection* c,
-                             const DocKey& key,
-                             uint16_t vbucket,
-                             DocStateFilter documentStateFilter) {
-    auto ret = c->getBucketEngine()->get(c->getBucketEngineAsV0(),
-                                         c->getCookie(),
-                                         key,
-                                         vbucket,
-                                         documentStateFilter);
+cb::EngineErrorItemPair bucket_get(Cookie& cookie,
+                                   const DocKey& key,
+                                   uint16_t vbucket,
+                                   DocStateFilter documentStateFilter) {
+    auto& c = cookie.getConnection();
+    auto ret = c.getBucketEngine()->get(c.getBucketEngineAsV0(),
+                                        &cookie,
+                                        key,
+                                        vbucket,
+                                        documentStateFilter);
     if (ret.first == cb::engine_errc::disconnect) {
-        LOG_INFO(c,
+        LOG_INFO(&c,
                  "%u: %s bucket_get return ENGINE_DISCONNECT",
-                 c->getId(),
-                 c->getDescription().c_str());
+                 c.getId(),
+                 c.getDescription().c_str());
     }
     return ret;
 }
 
-cb::EngineErrorItemPair bucket_get_if(McbpConnection* c,
-                                      const DocKey& key,
-                                      uint16_t vbucket,
-                                      std::function<bool(
-                                          const item_info&)> filter) {
-    auto ret = c->getBucketEngine()->get_if(
-            c->getBucketEngineAsV0(), c->getCookie(), key, vbucket, filter);
+cb::EngineErrorItemPair bucket_get_if(
+        Cookie& cookie,
+        const DocKey& key,
+        uint16_t vbucket,
+        std::function<bool(const item_info&)> filter) {
+    auto& c = cookie.getConnection();
+    auto ret = c.getBucketEngine()->get_if(
+            c.getBucketEngineAsV0(), &cookie, key, vbucket, filter);
 
     if (ret.first == cb::engine_errc::disconnect) {
-        LOG_INFO(c,
+        LOG_INFO(&c,
                  "%u: %s bucket_get_if return ENGINE_DISCONNECT",
-                 c->getId(),
-                 c->getDescription().c_str());
+                 c.getId(),
+                 c.getDescription().c_str());
     }
     return ret;
 }
 
-cb::EngineErrorItemPair bucket_get_and_touch(McbpConnection* c,
+cb::EngineErrorItemPair bucket_get_and_touch(Cookie& cookie,
                                              const DocKey& key,
                                              uint16_t vbucket,
                                              uint32_t expiration) {
-    auto ret = c->getBucketEngine()->get_and_touch(
-        c->getBucketEngineAsV0(), c->getCookie(), key, vbucket, expiration);
+    auto& c = cookie.getConnection();
+    auto ret = c.getBucketEngine()->get_and_touch(
+            c.getBucketEngineAsV0(), &cookie, key, vbucket, expiration);
 
     if (ret.first == cb::engine_errc::disconnect) {
-        LOG_INFO(c,
+        LOG_INFO(&c,
                  "%u: %s bucket_get_and_touch return ENGINE_DISCONNECT",
-                 c->getId(),
-                 c->getDescription().c_str());
+                 c.getId(),
+                 c.getDescription().c_str());
     }
     return ret;
 }
 
-cb::EngineErrorItemPair bucket_get_locked(McbpConnection& c,
-                                    const DocKey& key,
-                                    uint16_t vbucket,
-                                    uint32_t lock_timeout) {
-    auto ret = c.getBucketEngine()->get_locked(c.getBucketEngineAsV0(),
-                                               c.getCookie(),
-                                               key,
-                                               vbucket,
-                                               lock_timeout);
+cb::EngineErrorItemPair bucket_get_locked(Cookie& cookie,
+                                          const DocKey& key,
+                                          uint16_t vbucket,
+                                          uint32_t lock_timeout) {
+    auto& c = cookie.getConnection();
+    auto ret = c.getBucketEngine()->get_locked(
+            c.getBucketEngineAsV0(), &cookie, key, vbucket, lock_timeout);
 
     if (ret.first == cb::engine_errc::success) {
         cb::audit::document::add(c.getCookieObject(),
@@ -241,12 +231,13 @@ cb::EngineErrorItemPair bucket_get_locked(McbpConnection& c,
     return ret;
 }
 
-ENGINE_ERROR_CODE bucket_unlock(McbpConnection& c,
+ENGINE_ERROR_CODE bucket_unlock(Cookie& cookie,
                                 const DocKey& key,
                                 uint16_t vbucket,
                                 uint64_t cas) {
+    auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine()->unlock(
-            c.getBucketEngineAsV0(), c.getCookie(), key, vbucket, cas);
+            c.getBucketEngineAsV0(), &cookie, key, vbucket, cas);
     if (ret == ENGINE_DISCONNECT) {
         LOG_INFO(&c,
                  "%u: %s bucket_unlock return ENGINE_DISCONNECT",
@@ -256,14 +247,15 @@ ENGINE_ERROR_CODE bucket_unlock(McbpConnection& c,
     return ret;
 }
 
-std::pair<cb::unique_item_ptr, item_info> bucket_allocate_ex(McbpConnection& c,
-                                                             const DocKey& key,
-                                                             const size_t nbytes,
-                                                             const size_t priv_nbytes,
-                                                             const int flags,
-                                                             const rel_time_t exptime,
-                                                             uint8_t datatype,
-                                                             uint16_t vbucket) {
+std::pair<cb::unique_item_ptr, item_info> bucket_allocate_ex(
+        Cookie& cookie,
+        const DocKey& key,
+        const size_t nbytes,
+        const size_t priv_nbytes,
+        const int flags,
+        const rel_time_t exptime,
+        uint8_t datatype,
+        uint16_t vbucket) {
     // MB-25650 - We've got a document of 0 byte value and claims to contain
     //            xattrs.. that's not possible.
     if (nbytes == 0 && !mcbp::datatype::is_raw(datatype)) {
@@ -281,9 +273,10 @@ std::pair<cb::unique_item_ptr, item_info> bucket_allocate_ex(McbpConnection& c,
                                    COUCHBASE_MAX_ITEM_PRIVILEGED_BYTES));
     }
 
+    auto& c = cookie.getConnection();
     try {
         return c.getBucketEngine()->allocate_ex(c.getBucketEngineAsV0(),
-                                                c.getCookie(),
+                                                &cookie,
                                                 key,
                                                 nbytes,
                                                 priv_nbytes,

@@ -61,11 +61,10 @@ ENGINE_ERROR_CODE RemoveCommandContext::step() {
 }
 
 ENGINE_ERROR_CODE RemoveCommandContext::getItem() {
-    auto ret = bucket_get(&connection, key, vbucket);
+    auto ret = bucket_get(cookie, key, vbucket);
     if (ret.first == cb::engine_errc::success) {
         existing = std::move(ret.second);
-        if (!bucket_get_item_info(&connection, existing.get(),
-                                  &existing_info)) {
+        if (!bucket_get_item_info(cookie, existing.get(), &existing_info)) {
             return ENGINE_FAILED;
         }
 
@@ -98,7 +97,7 @@ ENGINE_ERROR_CODE RemoveCommandContext::allocateDeletedItem() {
         datatype = PROTOCOL_BINARY_DATATYPE_XATTR;
     }
     auto pair =
-            bucket_allocate_ex(connection,
+            bucket_allocate_ex(cookie,
                                key,
                                xattr.size(),
                                xattr.size(), // Only system xattrs
@@ -109,9 +108,9 @@ ENGINE_ERROR_CODE RemoveCommandContext::allocateDeletedItem() {
 
     deleted = std::move(pair.first);
     if (input_cas == 0) {
-        bucket_item_set_cas(&connection, deleted.get(), existing_info.cas);
+        bucket_item_set_cas(cookie, deleted.get(), existing_info.cas);
     } else {
-        bucket_item_set_cas(&connection, deleted.get(), input_cas);
+        bucket_item_set_cas(cookie, deleted.get(), input_cas);
     }
 
     if (xattr.size() > 0) {
@@ -124,13 +123,16 @@ ENGINE_ERROR_CODE RemoveCommandContext::allocateDeletedItem() {
 
 ENGINE_ERROR_CODE RemoveCommandContext::storeItem() {
     uint64_t new_cas;
-    auto ret = bucket_store(&connection, deleted.get(), &new_cas, OPERATION_CAS,
+    auto ret = bucket_store(cookie,
+                            deleted.get(),
+                            &new_cas,
+                            OPERATION_CAS,
                             DocumentState::Deleted);
 
     if (ret == ENGINE_SUCCESS) {
 
         item_info info;
-        if (!bucket_get_item_info(&connection, deleted.get(), &info)) {
+        if (!bucket_get_item_info(cookie, deleted.get(), &info)) {
             return ENGINE_FAILED;
         }
 
@@ -151,8 +153,7 @@ ENGINE_ERROR_CODE RemoveCommandContext::storeItem() {
 
 ENGINE_ERROR_CODE RemoveCommandContext::removeItem() {
     uint64_t new_cas = input_cas;
-    auto ret = bucket_remove(&connection, key, &new_cas,
-                             vbucket, &mutation_descr);
+    auto ret = bucket_remove(cookie, key, &new_cas, vbucket, &mutation_descr);
 
     if (ret == ENGINE_SUCCESS) {
         connection.getCookieObject().setCas(new_cas);

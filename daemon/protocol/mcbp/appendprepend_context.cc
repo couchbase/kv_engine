@@ -94,11 +94,10 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::inflateInputData() {
 }
 
 ENGINE_ERROR_CODE AppendPrependCommandContext::getItem() {
-    auto ret = bucket_get(&connection, key, vbucket);
+    auto ret = bucket_get(cookie, key, vbucket);
     if (ret.first == cb::engine_errc::success) {
         olditem = std::move(ret.second);
-        if (!bucket_get_item_info(&connection, olditem.get(),
-                                  &oldItemInfo)) {
+        if (!bucket_get_item_info(cookie, olditem.get(), &oldItemInfo)) {
             return ENGINE_FAILED;
         }
 
@@ -163,10 +162,14 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::allocateNewItem() {
         priv_size = blob.get_system_size();
     }
 
-    auto pair = bucket_allocate_ex(connection, key,
+    auto pair = bucket_allocate_ex(cookie,
+                                   key,
                                    old.len + value.len,
-                                   priv_size, oldItemInfo.flags,
-                                   0, datatype, vbucket);
+                                   priv_size,
+                                   oldItemInfo.flags,
+                                   0,
+                                   datatype,
+                                   vbucket);
 
     newitem = std::move(pair.first);
     cb::byte_buffer body{static_cast<uint8_t*>(pair.second.value[0].iov_base),
@@ -184,7 +187,7 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::allocateNewItem() {
         memcpy(body.buf + body_offset + value.len, old.buf + body_offset,
                old.len - body_offset);
     }
-    bucket_item_set_cas(&connection, newitem.get(), oldItemInfo.cas);
+    bucket_item_set_cas(cookie, newitem.get(), oldItemInfo.cas);
 
     state = State::StoreItem;
 
@@ -193,15 +196,14 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::allocateNewItem() {
 
 ENGINE_ERROR_CODE AppendPrependCommandContext::storeItem() {
     uint64_t ncas = cas;
-    auto ret = bucket_store(&connection, newitem.get(), &ncas, OPERATION_CAS);
+    auto ret = bucket_store(cookie, newitem.get(), &ncas, OPERATION_CAS);
 
     if (ret == ENGINE_SUCCESS) {
         update_topkeys(cookie);
         connection.getCookieObject().setCas(ncas);
         if (connection.isSupportsMutationExtras()) {
             item_info newItemInfo;
-            if (!bucket_get_item_info(&connection, newitem.get(),
-                                      &newItemInfo)) {
+            if (!bucket_get_item_info(cookie, newitem.get(), &newItemInfo)) {
                 return ENGINE_FAILED;
             }
             extras.vbucket_uuid = htonll(newItemInfo.vbucket_uuid);

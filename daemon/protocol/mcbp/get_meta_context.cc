@@ -37,7 +37,7 @@ GetMetaCommandContext::GetMetaCommandContext(Cookie& cookie)
 }
 
 ENGINE_ERROR_CODE GetMetaCommandContext::getItemMeta() {
-    auto errorMetaPair = bucket_get_meta(&connection, key, vbucket);
+    auto errorMetaPair = bucket_get_meta(cookie, key, vbucket);
     if (errorMetaPair.first == cb::engine_errc::success) {
         info = errorMetaPair.second;
         state = State::SendResponse;

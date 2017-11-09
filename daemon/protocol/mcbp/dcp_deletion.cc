@@ -107,13 +107,19 @@ ENGINE_ERROR_CODE dcp_message_deletion(const void* void_cookie,
                                        const void* meta,
                                        uint16_t nmeta,
                                        uint8_t collection_len) {
-    auto* c = cookie2mcbp(void_cookie, __func__);
+    if (void_cookie == nullptr) {
+        throw std::invalid_argument(
+                "dcp_message_deletion: void_cookie can't be nullptr");
+    }
+    const auto& ccookie = *static_cast<const Cookie*>(void_cookie);
+    auto& cookie = const_cast<Cookie&>(ccookie);
+    auto* c = &cookie.getConnection();
 
     // Use a unique_ptr to make sure we release the item in all error paths
     cb::unique_item_ptr item(it, cb::ItemDeleter{c->getBucketEngineAsV0()});
 
     item_info info;
-    if (!bucket_get_item_info(c, it, &info)) {
+    if (!bucket_get_item_info(cookie, it, &info)) {
         LOG_WARNING(c, "%u: dcp_message_deletion: Failed to get item info",
                     c->getId());
         return ENGINE_FAILED;

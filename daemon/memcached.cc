@@ -413,19 +413,15 @@ struct thread_stats *get_thread_stats(Connection *c) {
     return &independent_stats.at(c->getThread()->index);
 }
 
-void stats_reset(const void *void_cookie) {
-    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
-    cookie->validate();
-    auto& conn = cookie->getConnection();
-
+void stats_reset(Cookie& cookie) {
     {
         std::lock_guard<std::mutex> guard(stats_mutex);
         set_stats_reset_time();
     }
     stats.total_conns.reset();
     stats.rejected_conns.reset();
-    threadlocal_stats_reset(all_buckets[conn.getBucketIndex()].stats);
-    bucket_reset_stats(&conn);
+    threadlocal_stats_reset(cookie.getConnection().getBucket().stats);
+    bucket_reset_stats(cookie);
 }
 
 static int get_number_of_worker_threads(void) {

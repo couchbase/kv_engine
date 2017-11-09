@@ -123,10 +123,9 @@ ENGINE_ERROR_CODE MutationCommandContext::getExistingItemToPreserveXattr() {
     // value eviction case where the underlying engine would have to read
     // the value off disk in order to return it via get() even if we don't
     // need it (and would throw it away in the frontend).
-    auto pair = bucket_get_if(&connection, key, vbucket,
-                             [](const item_info& info) {
-                                 return mcbp::datatype::is_xattr(info.datatype);
-                             });
+    auto pair = bucket_get_if(cookie, key, vbucket, [](const item_info& info) {
+        return mcbp::datatype::is_xattr(info.datatype);
+    });
     if (pair.first != cb::engine_errc::no_such_key &&
         pair.first != cb::engine_errc::success) {
         return ENGINE_ERROR_CODE(pair.first);
@@ -138,7 +137,7 @@ ENGINE_ERROR_CODE MutationCommandContext::getExistingItemToPreserveXattr() {
         return ENGINE_SUCCESS;
     }
 
-    if (!bucket_get_item_info(&connection, existing.get(), &existing_info)) {
+    if (!bucket_get_item_info(cookie, existing.get(), &existing_info)) {
         return ENGINE_FAILED;
     }
 
@@ -174,7 +173,7 @@ ENGINE_ERROR_CODE MutationCommandContext::allocateNewItem() {
 
     item_info newitem_info;
     try {
-        auto ret = bucket_allocate_ex(connection,
+        auto ret = bucket_allocate_ex(cookie,
                                       key,
                                       value.len + xattr_size,
                                       system_xattr_size,
@@ -193,12 +192,12 @@ ENGINE_ERROR_CODE MutationCommandContext::allocateNewItem() {
     }
 
     if (operation == OPERATION_ADD || input_cas != 0) {
-        bucket_item_set_cas(&connection, newitem.get(), input_cas);
+        bucket_item_set_cas(cookie, newitem.get(), input_cas);
     } else {
         if (existing) {
-            bucket_item_set_cas(&connection, newitem.get(), existing_info.cas);
+            bucket_item_set_cas(cookie, newitem.get(), existing_info.cas);
         } else {
-            bucket_item_set_cas(&connection, newitem.get(), input_cas);
+            bucket_item_set_cas(cookie, newitem.get(), input_cas);
         }
     }
 
@@ -218,11 +217,8 @@ ENGINE_ERROR_CODE MutationCommandContext::allocateNewItem() {
 }
 
 ENGINE_ERROR_CODE MutationCommandContext::storeItem() {
-    auto ret = bucket_store_if(&connection,
-                               newitem.get(),
-                               input_cas,
-                               operation,
-                               store_if_predicate);
+    auto ret = bucket_store_if(
+            cookie, newitem.get(), input_cas, operation, store_if_predicate);
     if (ret.status == cb::engine_errc::success) {
         connection.getCookieObject().setCas(ret.cas);
         state = State::SendResponse;
@@ -266,7 +262,7 @@ ENGINE_ERROR_CODE MutationCommandContext::sendResponse() {
 
     if (connection.isSupportsMutationExtras()) {
         item_info newitem_info;
-        if (!bucket_get_item_info(&connection, newitem.get(), &newitem_info)) {
+        if (!bucket_get_item_info(cookie, newitem.get(), &newitem_info)) {
             return ENGINE_FAILED;
         }
 

@@ -488,8 +488,7 @@ static bool subdoc_fetch(Cookie& cookie,
             if (ctx.do_allow_deleted_docs) {
                 state = DocStateFilter::AliveOrDeleted;
             }
-            auto r = bucket_get(
-                    &cookie.getConnection(), get_key, vbucket, state);
+            auto r = bucket_get(cookie, get_key, vbucket, state);
             if (r.first == cb::engine_errc::success) {
                 ctx.fetchedItem = std::move(r.second);
                 ret = ENGINE_SUCCESS;
@@ -1224,14 +1223,14 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
 
             // Calculate the updated document length - use the last operation result.
             try {
-                auto r =  bucket_allocate_ex(connection,
-                                             allocate_key,
-                                             context.out_doc_len,
-                                             priv_bytes,
-                                             context.in_flags,
-                                             expiration,
-                                             context.in_datatype,
-                                             vbucket);
+                auto r = bucket_allocate_ex(connection.getCookieObject(),
+                                            allocate_key,
+                                            context.out_doc_len,
+                                            priv_bytes,
+                                            context.in_flags,
+                                            expiration,
+                                            context.in_datatype,
+                                            vbucket);
                 if (r.first) {
                     new_doc = r.first.release();
                     ret = ENGINE_SUCCESS;
@@ -1265,11 +1264,13 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
 
         // To ensure we only replace the version of the document we
         // just appended to; set the CAS to the one retrieved from.
-        bucket_item_set_cas(&connection, new_doc, context.in_cas);
+        bucket_item_set_cas(
+                connection.getCookieObject(), new_doc, context.in_cas);
 
         // Obtain the item info (and it's iovectors)
         item_info new_doc_info;
-        if (!bucket_get_item_info(&connection, new_doc, &new_doc_info)) {
+        if (!bucket_get_item_info(
+                    connection.getCookieObject(), new_doc, &new_doc_info)) {
             connection.getCookieObject().sendResponse(
                     cb::mcbp::Status::Einternal);
             return ENGINE_FAILED;
@@ -1289,9 +1290,10 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
         DocKey docKey(reinterpret_cast<const uint8_t*>(key),
                       keylen,
                       connection.getDocNamespace());
-        ret = bucket_remove(&connection, docKey, &new_cas, vbucket, &mdt);
+        ret = bucket_remove(
+                connection.getCookieObject(), docKey, &new_cas, vbucket, &mdt);
     } else {
-        ret = bucket_store(&connection,
+        ret = bucket_store(connection.getCookieObject(),
                            context.out_doc,
                            &new_cas,
                            new_op,
@@ -1309,8 +1311,9 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
                 context.sequence_no = mdt.seqno;
             } else {
                 item_info info;
-                if (!bucket_get_item_info(
-                            &connection, context.out_doc, &info)) {
+                if (!bucket_get_item_info(connection.getCookieObject(),
+                                          context.out_doc,
+                                          &info)) {
                     LOG_WARNING(&connection,
                                 "%u: Subdoc: Failed to get item info",
                                 connection.getId());

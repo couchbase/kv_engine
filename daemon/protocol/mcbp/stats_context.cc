@@ -496,8 +496,8 @@ static void process_bucket_details(McbpConnection* c) {
 static ENGINE_ERROR_CODE stat_reset_executor(const std::string& arg,
                                              Cookie& cookie) {
     if (arg.empty()) {
-        stats_reset(&cookie);
-        bucket_reset_stats(&cookie.getConnection());
+        stats_reset(cookie);
+        bucket_reset_stats(cookie);
         all_buckets[0].timings.reset();
         all_buckets[cookie.getConnection().getBucketIndex()].timings.reset();
         return ENGINE_SUCCESS;

@@ -33,12 +33,11 @@ ArithmeticCommandContext::ArithmeticCommandContext(Cookie& cookie,
 }
 
 ENGINE_ERROR_CODE ArithmeticCommandContext::getItem() {
-    auto ret = bucket_get(&connection, key, vbucket);
+    auto ret = bucket_get(cookie, key, vbucket);
     if (ret.first == cb::engine_errc::success) {
         olditem = std::move(ret.second);
 
-        if (!bucket_get_item_info(&connection, olditem.get(),
-                                  &oldItemInfo)) {
+        if (!bucket_get_item_info(cookie, olditem.get(), &oldItemInfo)) {
             return ENGINE_FAILED;
         }
 
@@ -83,11 +82,14 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::createNewItem() {
     const std::string value{std::to_string(ntohll(request.message.body.initial))};
     result = ntohll(request.message.body.initial);
 
-    auto pair = bucket_allocate_ex(connection, key, value.size(),
+    auto pair = bucket_allocate_ex(cookie,
+                                   key,
+                                   value.size(),
                                    0, // no privileged bytes
                                    0, // Empty flags
                                    ntohl(request.message.body.expiration),
-                                   PROTOCOL_BINARY_RAW_BYTES, vbucket);
+                                   PROTOCOL_BINARY_RAW_BYTES,
+                                   vbucket);
     newitem = std::move(pair.first);
 
     memcpy(pair.second.value[0].iov_base, value.data(), value.size());
@@ -98,10 +100,10 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::createNewItem() {
 
 ENGINE_ERROR_CODE ArithmeticCommandContext::storeNewItem() {
     uint64_t ncas = cas;
-    auto ret = bucket_store(&connection, newitem.get(), &ncas, OPERATION_ADD);
+    auto ret = bucket_store(cookie, newitem.get(), &ncas, OPERATION_ADD);
 
     if (ret == ENGINE_SUCCESS) {
-        connection.getCookieObject().setCas(ncas);
+        cookie.setCas(ncas);
         state = State::SendResult;
     } else if (ret == ENGINE_KEY_EEXISTS && cas == 0) {
         state = State::Reset;
@@ -162,7 +164,7 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::allocateNewItem() {
 
     // In order to be backwards compatible with old Couchbase server we
     // continue to use the old expiry time:
-    auto pair = bucket_allocate_ex(connection,
+    auto pair = bucket_allocate_ex(cookie,
                                    key,
                                    xattrsize + value.size(),
                                    priv_bytes,
@@ -184,7 +186,7 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::allocateNewItem() {
     // copy the xattr over;
     memcpy(body.buf, src, xattrsize);
     memcpy(body.buf + xattrsize, value.data(), value.size());
-    bucket_item_set_cas(&connection, newitem.get(), oldItemInfo.cas);
+    bucket_item_set_cas(cookie, newitem.get(), oldItemInfo.cas);
 
     state = State::StoreItem;
     return ENGINE_SUCCESS;
@@ -192,7 +194,7 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::allocateNewItem() {
 
 ENGINE_ERROR_CODE ArithmeticCommandContext::storeItem() {
     uint64_t ncas = cas;
-    auto ret = bucket_store(&connection, newitem.get(), &ncas, OPERATION_CAS);
+    auto ret = bucket_store(cookie, newitem.get(), &ncas, OPERATION_CAS);
 
     if (ret == ENGINE_SUCCESS) {
         connection.getCookieObject().setCas(ncas);
@@ -225,8 +227,7 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::sendResult() {
 
     if (connection.isSupportsMutationExtras()) {
         item_info newItemInfo;
-        if (!bucket_get_item_info(&connection, newitem.get(),
-                                  &newItemInfo)) {
+        if (!bucket_get_item_info(cookie, newitem.get(), &newItemInfo)) {
             return ENGINE_FAILED;
         }
 
