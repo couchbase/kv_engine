@@ -294,6 +294,8 @@ protected:
                                 uint32_t opaque,
                                 uint64_t rollbackSeqno);
 
+    /* Reference to the ep engine; need to create the 'Processor' task */
+    EventuallyPersistentEngine& engine;
     uint64_t opaqueCounter;
     size_t processorTaskId;
     std::atomic<enum process_items_error_t> processorTaskState;
@@ -327,7 +329,9 @@ protected:
     bool pendingEnableExtMetaData;
     bool pendingEnableValueCompression;
     bool pendingSupportCursorDropping;
-    std::atomic<bool> taskAlreadyCancelled;
+
+    /* Indicates if the 'Processor' task is running */
+    std::atomic<bool> processorTaskRunning;
 
     FlowControl flowControl;
 

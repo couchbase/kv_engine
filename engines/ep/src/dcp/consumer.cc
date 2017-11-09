@@ -119,10 +119,12 @@ private:
     const std::string description;
 };
 
-DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,
-                         const std::string &name)
+DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
+                         const void* cookie,
+                         const std::string& name)
     : ConnHandler(engine, cookie, name),
       lastMessageTime(ep_current_time()),
+      engine(engine),
       opaqueCounter(0),
       processorTaskId(0),
       processorTaskState(all_processed),
@@ -130,12 +132,14 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,
       backoffs(0),
       dcpIdleTimeout(engine.getConfiguration().getDcpIdleTimeout()),
       dcpNoopTxInterval(engine.getConfiguration().getDcpNoopTxInterval()),
-      taskAlreadyCancelled(false),
+      processorTaskRunning(false),
       flowControl(engine, this),
-      processBufferedMessagesYieldThreshold(engine.getConfiguration().
-                                                getDcpConsumerProcessBufferedMessagesYieldLimit()),
-      processBufferedMessagesBatchSize(engine.getConfiguration().
-                                            getDcpConsumerProcessBufferedMessagesBatchSize()) {
+      processBufferedMessagesYieldThreshold(
+              engine.getConfiguration()
+                      .getDcpConsumerProcessBufferedMessagesYieldLimit()),
+      processBufferedMessagesBatchSize(
+              engine.getConfiguration()
+                      .getDcpConsumerProcessBufferedMessagesBatchSize()) {
     Configuration& config = engine.getConfiguration();
     setSupportAck(false);
     logger.setId(engine.getServerApi()->cookie->get_log_info(cookie).first);
@@ -148,9 +152,6 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,
     pendingEnableExtMetaData = true;
     pendingEnableValueCompression = config.isEnableDcpConsumerSnappyCompression();
     pendingSupportCursorDropping = true;
-
-    ExTask task = std::make_shared<Processor>(&engine, this, 1);
-    processorTaskId = ExecutorPool::get()->schedule(task);
 }
 
 DcpConsumer::~DcpConsumer() {
@@ -159,15 +160,14 @@ DcpConsumer::~DcpConsumer() {
 
 
 void DcpConsumer::cancelTask() {
-    bool inverse = false;
-    if (taskAlreadyCancelled.compare_exchange_strong(inverse, true)) {
+    bool exp = true;
+    if (processorTaskRunning.compare_exchange_strong(exp, false)) {
         ExecutorPool::get()->cancel(processorTaskId);
     }
 }
 
 void DcpConsumer::taskCancelled() {
-    bool inverse = false;
-    taskAlreadyCancelled.compare_exchange_strong(inverse, true);
+    processorTaskRunning.store(false);
 }
 
 std::shared_ptr<PassiveStream> DcpConsumer::makePassiveStream(
@@ -243,6 +243,14 @@ ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque, uint16_t vbucket,
         } else {
             streams.erase(vbucket);
         }
+    }
+
+    /* We need 'Processor' task only when we have a stream. Hence create it
+     only once when the first stream is added */
+    bool exp = false;
+    if (processorTaskRunning.compare_exchange_strong(exp, true)) {
+        ExTask task = std::make_shared<Processor>(&engine, this, 1);
+        processorTaskId = ExecutorPool::get()->schedule(task);
     }
 
     streams.insert({vbucket,
