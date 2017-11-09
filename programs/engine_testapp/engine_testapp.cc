@@ -689,9 +689,10 @@ static ENGINE_ERROR_CODE mock_dcp_buffer_acknowledgement(ENGINE_HANDLE* handle,
                                                       cookie, opaque, vbucket, bb);
 }
 
-static ENGINE_ERROR_CODE mock_dcp_response_handler(ENGINE_HANDLE* handle,
-                                                   const void* cookie,
-                                                   protocol_binary_response_header *response) {
+static ENGINE_ERROR_CODE mock_dcp_response_handler(
+        ENGINE_HANDLE* handle,
+        const void* cookie,
+        const protocol_binary_response_header* response) {
     struct mock_engine *me = get_handle(handle);
     return me->the_engine->dcp.response_handler((ENGINE_HANDLE*)me->the_engine,
                                                 cookie, response);

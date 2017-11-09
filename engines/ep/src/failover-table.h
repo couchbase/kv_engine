@@ -145,7 +145,7 @@ class FailoverTable {
      */
     std::vector<vbucket_failover_t> getFailoverLog();
 
-    void replaceFailoverLog(uint8_t* bytes, uint32_t length);
+    void replaceFailoverLog(const uint8_t* bytes, uint32_t length);
 
     /**
      * Returns total number of entries in the failover table. These entries

@@ -514,9 +514,9 @@ struct dcp_interface {
                                   const void* value,
                                   uint32_t nvalue);
 
-    ENGINE_ERROR_CODE (* response_handler)(ENGINE_HANDLE* handle,
-                                           const void* cookie,
-                                           protocol_binary_response_header* response);
+    ENGINE_ERROR_CODE (*response_handler)(ENGINE_HANDLE* handle,
+                                          const void* cookie,
+                                          const protocol_binary_response_header* response);
 
     ENGINE_ERROR_CODE (* system_event) (ENGINE_HANDLE* handle,
                                         const void* cookie,

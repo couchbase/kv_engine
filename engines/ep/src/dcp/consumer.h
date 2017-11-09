@@ -143,7 +143,7 @@ public:
      * @returns true/false which will be converted to SUCCESS/DISCONNECT by the
      *          engine.
      */
-    bool handleResponse(protocol_binary_response_header* resp) override;
+    bool handleResponse(const protocol_binary_response_header* resp) override;
 
     /**
      * Push a systemEvent onto this DCP consumer for consumption by a VB
@@ -251,7 +251,9 @@ protected:
      */
     bool isValidOpaque(uint32_t opaque, uint16_t vbucket);
 
-    void streamAccepted(uint32_t opaque, uint16_t status, uint8_t* body,
+    void streamAccepted(uint32_t opaque,
+                        uint16_t status,
+                        const uint8_t* body,
                         uint32_t bodylen);
 
     ENGINE_ERROR_CODE handleNoop(struct dcp_message_producers* producers);

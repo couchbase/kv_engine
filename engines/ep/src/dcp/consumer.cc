@@ -702,7 +702,7 @@ bool RollbackTask::run() {
     return false;
 }
 
-bool DcpConsumer::handleResponse(protocol_binary_response_header* resp) {
+bool DcpConsumer::handleResponse(const protocol_binary_response_header* resp) {
     if (doDisconnect()) {
         return false;
     }
@@ -723,13 +723,14 @@ bool DcpConsumer::handleResponse(protocol_binary_response_header* resp) {
                 opaque, oitr->second.second);
             return false;
         }
-        protocol_binary_response_dcp_stream_req* pkt =
-            reinterpret_cast<protocol_binary_response_dcp_stream_req*>(resp);
+        const auto* pkt = reinterpret_cast<
+                const protocol_binary_response_dcp_stream_req*>(resp);
 
         uint16_t vbid = oitr->second.second;
         uint16_t status = ntohs(pkt->message.header.response.status);
         uint64_t bodylen = ntohl(pkt->message.header.response.bodylen);
-        uint8_t* body = pkt->bytes + sizeof(protocol_binary_response_header);
+        const uint8_t* body =
+                pkt->bytes + sizeof(protocol_binary_response_header);
 
         if (status == PROTOCOL_BINARY_RESPONSE_ROLLBACK) {
             if (bodylen != sizeof(uint64_t)) {
@@ -1035,9 +1036,10 @@ void DcpConsumer::notifyStreamReady(uint16_t vbucket) {
     notifyPaused(/*schedule*/true);
 }
 
-void DcpConsumer::streamAccepted(uint32_t opaque, uint16_t status, uint8_t* body,
+void DcpConsumer::streamAccepted(uint32_t opaque,
+                                 uint16_t status,
+                                 const uint8_t* body,
                                  uint32_t bodylen) {
-
     opaque_map::iterator oitr = opaqueMap_.find(opaque);
     if (oitr != opaqueMap_.end()) {
         uint32_t add_opaque = oitr->second.first;

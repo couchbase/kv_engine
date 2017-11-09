@@ -1527,9 +1527,10 @@ static ENGINE_ERROR_CODE EvpDcpControl(ENGINE_HANDLE* handle,
     return ENGINE_DISCONNECT;
 }
 
-static ENGINE_ERROR_CODE EvpDcpResponseHandler(ENGINE_HANDLE* handle,
-                                               const void* cookie,
-                                               protocol_binary_response_header* response) {
+static ENGINE_ERROR_CODE EvpDcpResponseHandler(
+        ENGINE_HANDLE* handle,
+        const void* cookie,
+        const protocol_binary_response_header* response) {
     auto engine = acquireEngine(handle);
     ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {

@@ -83,7 +83,7 @@ public:
      * @returns true/false which will be converted to SUCCESS/DISCONNECT by the
      *          engine.
      */
-    bool handleResponse(protocol_binary_response_header* resp) override;
+    bool handleResponse(const protocol_binary_response_header* resp) override;
 
     void addStats(ADD_STAT add_stat, const void *c) override;
 

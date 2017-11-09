@@ -765,7 +765,7 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque, const void* key,
     return ENGINE_EINVAL;
 }
 
-bool DcpProducer::handleResponse(protocol_binary_response_header* resp) {
+bool DcpProducer::handleResponse(const protocol_binary_response_header* resp) {
     lastReceiveTime = ep_current_time();
     if (doDisconnect()) {
         return false;
@@ -774,8 +774,8 @@ bool DcpProducer::handleResponse(protocol_binary_response_header* resp) {
     uint8_t opcode = resp->response.opcode;
     if (opcode == PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE ||
         opcode == PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER) {
-        protocol_binary_response_dcp_stream_req* pkt =
-            reinterpret_cast<protocol_binary_response_dcp_stream_req*>(resp);
+        const auto* pkt = reinterpret_cast<
+                const protocol_binary_response_dcp_stream_req*>(resp);
         uint32_t opaque = pkt->message.header.response.opaque;
 
 

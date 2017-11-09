@@ -965,9 +965,10 @@ private:
                                          const void* value,
                                          uint32_t nvalue);
 
-    static ENGINE_ERROR_CODE dcp_response_handler(ENGINE_HANDLE* handle,
-                                                  const void* cookie,
-                                                  protocol_binary_response_header* response);
+    static ENGINE_ERROR_CODE dcp_response_handler(
+            ENGINE_HANDLE* handle,
+            const void* cookie,
+            const protocol_binary_response_header* response);
 
     static ENGINE_ERROR_CODE dcp_system_event(ENGINE_HANDLE* handle,
                                               const void* cookie,
@@ -1696,9 +1697,10 @@ ENGINE_ERROR_CODE EWB_Engine::dcp_control(ENGINE_HANDLE* handle,
     }
 }
 
-ENGINE_ERROR_CODE EWB_Engine::dcp_response_handler(ENGINE_HANDLE* handle,
-                                                   const void* cookie,
-                                                   protocol_binary_response_header* response) {
+ENGINE_ERROR_CODE EWB_Engine::dcp_response_handler(
+        ENGINE_HANDLE* handle,
+        const void* cookie,
+        const protocol_binary_response_header* response) {
     EWB_Engine* ewb = to_engine(handle);
     if (ewb->real_engine->dcp.response_handler == nullptr) {
         return ENGINE_ENOTSUP;

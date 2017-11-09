@@ -173,7 +173,7 @@ public:
      * @returns true/false which will be converted to SUCCESS/DISCONNECT by the
      *          engine.
      */
-    virtual bool handleResponse(protocol_binary_response_header* resp);
+    virtual bool handleResponse(const protocol_binary_response_header* resp);
 
     virtual ENGINE_ERROR_CODE systemEvent(uint32_t opaque,
                                           uint16_t vbucket,

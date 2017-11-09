@@ -335,7 +335,7 @@ bool FailoverTable::loadFromJSON(const std::string& json) {
     return ret;
 }
 
-void FailoverTable::replaceFailoverLog(uint8_t* bytes, uint32_t length) {
+void FailoverTable::replaceFailoverLog(const uint8_t* bytes, uint32_t length) {
     std::lock_guard<std::mutex> lh(lock);
     if ((length % 16) != 0 || length == 0) {
         throw std::invalid_argument("FailoverTable::replaceFailoverLog: "
