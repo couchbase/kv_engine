@@ -1672,13 +1672,12 @@ ENGINE_ERROR_CODE KVBucket::deleteWithMeta(const DocKey& key,
     }
 
     { // collections read scope
-        auto collectionsRHandle = vb->lockCollections();
-        if (!collectionsRHandle.doesKeyContainValidCollection(key)) {
+        auto collectionsRHandle = vb->lockCollections(key);
+        if (!collectionsRHandle.valid()) {
             return ENGINE_UNKNOWN_COLLECTION;
         }
 
-        return vb->deleteWithMeta(key,
-                                  cas,
+        return vb->deleteWithMeta(cas,
                                   seqno,
                                   cookie,
                                   engine,
@@ -1689,7 +1688,8 @@ ENGINE_ERROR_CODE KVBucket::deleteWithMeta(const DocKey& key,
                                   genBySeqno,
                                   generateCas,
                                   bySeqno,
-                                  isReplication);
+                                  isReplication,
+                                  collectionsRHandle);
     }
 }
 

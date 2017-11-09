@@ -219,6 +219,26 @@ TEST_F(CollectionsTest, MB_25344) {
     EXPECT_EQ(ENGINE_KEY_ENOENT,
               store->getMetaData(
                       item2.getKey(), vbid, nullptr, meta, deleted, dtype));
+
+    // Prior to making deleteWithMeta isLogicallyDeleted aware, this would be
+    // success.
+    cas = 0;
+    meta.cas = 1;
+    EXPECT_EQ(ENGINE_KEY_ENOENT,
+              store->deleteWithMeta(item2.getKey(),
+                                    cas,
+                                    nullptr,
+                                    vbid,
+                                    nullptr,
+                                    {vbucket_state_active},
+                                    CheckConflicts::No,
+                                    meta,
+                                    false,
+                                    GenerateBySeqno::Yes,
+                                    GenerateCas::No,
+                                    0,
+                                    nullptr,
+                                    false));
 }
 
 // Test demonstrates issue logged as MB_25344, when we delete a collection

@@ -863,7 +863,6 @@ public:
     /**
      * Delete an item in the vbucket from a non-front end operation (DCP, XDCR)
      *
-     * @param key key to be deleted
      * @param[in, out] cas value to match; new cas after logical delete
      * @param[out] seqno Pointer to get the seqno generated for the item. A
      *                   NULL value is passed if not needed
@@ -879,22 +878,24 @@ public:
      * @param bySeqno seqno of the key being deleted
      * @param isReplication set to true if we are to use replication
      *                      throttle threshold
+     * @param readHandle Reader access to the key's collection data.
      *
      * @return the result of the operation
      */
-    ENGINE_ERROR_CODE deleteWithMeta(const DocKey& key,
-                                     uint64_t& cas,
-                                     uint64_t* seqno,
-                                     const void* cookie,
-                                     EventuallyPersistentEngine& engine,
-                                     int bgFetchDelay,
-                                     CheckConflicts checkConflicts,
-                                     const ItemMetaData& itemMeta,
-                                     bool backfill,
-                                     GenerateBySeqno genBySeqno,
-                                     GenerateCas generateCas,
-                                     uint64_t bySeqno,
-                                     bool isReplication);
+    ENGINE_ERROR_CODE deleteWithMeta(
+            uint64_t& cas,
+            uint64_t* seqno,
+            const void* cookie,
+            EventuallyPersistentEngine& engine,
+            int bgFetchDelay,
+            CheckConflicts checkConflicts,
+            const ItemMetaData& itemMeta,
+            bool backfill,
+            GenerateBySeqno genBySeqno,
+            GenerateCas generateCas,
+            uint64_t bySeqno,
+            bool isReplication,
+            const Collections::VB::Manifest::CachingReadHandle& readHandle);
 
     /**
      * Delete an expired item

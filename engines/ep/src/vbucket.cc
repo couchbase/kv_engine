@@ -1291,22 +1291,29 @@ ENGINE_ERROR_CODE VBucket::deleteItem(
     return ret;
 }
 
-ENGINE_ERROR_CODE VBucket::deleteWithMeta(const DocKey& key,
-                                          uint64_t& cas,
-                                          uint64_t* seqno,
-                                          const void* cookie,
-                                          EventuallyPersistentEngine& engine,
-                                          int bgFetchDelay,
-                                          CheckConflicts checkConflicts,
-                                          const ItemMetaData& itemMeta,
-                                          bool backfill,
-                                          GenerateBySeqno genBySeqno,
-                                          GenerateCas generateCas,
-                                          uint64_t bySeqno,
-                                          bool isReplication) {
+ENGINE_ERROR_CODE VBucket::deleteWithMeta(
+        uint64_t& cas,
+        uint64_t* seqno,
+        const void* cookie,
+        EventuallyPersistentEngine& engine,
+        int bgFetchDelay,
+        CheckConflicts checkConflicts,
+        const ItemMetaData& itemMeta,
+        bool backfill,
+        GenerateBySeqno genBySeqno,
+        GenerateCas generateCas,
+        uint64_t bySeqno,
+        bool isReplication,
+        const Collections::VB::Manifest::CachingReadHandle& readHandle) {
+    const auto& key = readHandle.getKey();
     auto hbl = ht.getLockedBucket(key);
     StoredValue* v = ht.unlocked_find(
             key, hbl.getBucketNum(), WantsDeleted::Yes, TrackReference::No);
+
+    if (v && readHandle.isLogicallyDeleted(v->getBySeqno())) {
+        return ENGINE_KEY_ENOENT;
+    }
+
     // Need conflict resolution?
     if (checkConflicts == CheckConflicts::Yes) {
         if (v) {
