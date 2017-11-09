@@ -146,7 +146,7 @@ ENGINE_ERROR_CODE bucket_remove(Cookie& cookie,
     auto ret = c.getBucketEngine()->remove(
             c.getBucketEngineAsV0(), &cookie, key, cas, vbucket, mut_info);
     if (ret == ENGINE_SUCCESS) {
-        cb::audit::document::add(c.getCookieObject(),
+        cb::audit::document::add(cookie,
                                  cb::audit::document::Operation::Delete);
     } else if (ret == ENGINE_DISCONNECT) {
         LOG_INFO(&c,
@@ -220,8 +220,7 @@ cb::EngineErrorItemPair bucket_get_locked(Cookie& cookie,
             c.getBucketEngineAsV0(), &cookie, key, vbucket, lock_timeout);
 
     if (ret.first == cb::engine_errc::success) {
-        cb::audit::document::add(c.getCookieObject(),
-                                 cb::audit::document::Operation::Lock);
+        cb::audit::document::add(cookie, cb::audit::document::Operation::Lock);
     } else if (ret.first == cb::engine_errc::disconnect) {
         LOG_INFO(&c,
                  "%u: %s bucket_get_locked return ENGINE_DISCONNECT",

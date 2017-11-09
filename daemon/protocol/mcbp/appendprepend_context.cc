@@ -200,7 +200,7 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::storeItem() {
 
     if (ret == ENGINE_SUCCESS) {
         update_topkeys(cookie);
-        connection.getCookieObject().setCas(ncas);
+        cookie.setCas(ncas);
         if (connection.isSupportsMutationExtras()) {
             item_info newItemInfo;
             if (!bucket_get_item_info(cookie, newitem.get(), &newItemInfo)) {

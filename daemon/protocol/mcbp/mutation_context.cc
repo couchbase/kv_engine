@@ -220,7 +220,7 @@ ENGINE_ERROR_CODE MutationCommandContext::storeItem() {
     auto ret = bucket_store_if(
             cookie, newitem.get(), input_cas, operation, store_if_predicate);
     if (ret.status == cb::engine_errc::success) {
-        connection.getCookieObject().setCas(ret.cas);
+        cookie.setCas(ret.cas);
         state = State::SendResponse;
     } else if (ret.status == cb::engine_errc::predicate_failed) {
         // predicate failed because xattrs are present
@@ -280,8 +280,8 @@ ENGINE_ERROR_CODE MutationCommandContext::sendResponse() {
                                    0,
                                    PROTOCOL_BINARY_RAW_BYTES,
                                    PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                                   connection.getCookieObject().getCas(),
-                                   connection.getCookie())) {
+                                   cookie.getCas(),
+                                   &cookie)) {
             return ENGINE_FAILED;
         }
         mcbp_write_and_free(&connection, &cookie.getDynamicBuffer());

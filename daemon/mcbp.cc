@@ -62,7 +62,7 @@ static bool send_not_my_vbucket(Cookie& cookie) {
 
     auto& buffer = cookie.getDynamicBuffer();
     auto* buf = reinterpret_cast<uint8_t*>(buffer.getCurrent());
-    const auto& header = c.getCookieObject().getHeader();
+    const auto& header = cookie.getHeader();
 
     cb::mcbp::ResponseBuilder builder({buf, needed});
     builder.setMagic(cb::mcbp::Magic::ClientResponse);

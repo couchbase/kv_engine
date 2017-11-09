@@ -139,7 +139,7 @@ ENGINE_ERROR_CODE RemoveCommandContext::storeItem() {
         // Response includes vbucket UUID and sequence number
         mutation_descr.vbucket_uuid = info.vbucket_uuid;
         mutation_descr.seqno = info.seqno;
-        connection.getCookieObject().setCas(info.cas);
+        cookie.setCas(info.cas);
 
         state = State::SendResponse;
     } else if (ret == ENGINE_KEY_EEXISTS && input_cas == 0) {
@@ -156,7 +156,7 @@ ENGINE_ERROR_CODE RemoveCommandContext::removeItem() {
     auto ret = bucket_remove(cookie, key, &new_cas, vbucket, &mutation_descr);
 
     if (ret == ENGINE_SUCCESS) {
-        connection.getCookieObject().setCas(new_cas);
+        cookie.setCas(new_cas);
         state = State::SendResponse;
     } else if (ret == ENGINE_KEY_EEXISTS && input_cas == 0) {
         // Cas collision and the caller specified the CAS wildcard.. retry
@@ -201,8 +201,8 @@ ENGINE_ERROR_CODE RemoveCommandContext::sendResponse() {
                                    0, // no value
                                    PROTOCOL_BINARY_RAW_BYTES,
                                    PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                                   connection.getCookieObject().getCas(),
-                                   connection.getCookie())) {
+                                   cookie.getCas(),
+                                   &cookie)) {
             return ENGINE_FAILED;
         }
 

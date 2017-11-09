@@ -763,7 +763,7 @@ static void execute_request_packet(Cookie& cookie,
     protocol_binary_response_status result;
 
     const auto opcode = request.opcode;
-    const auto res = privilegeChains.invoke(opcode, c->getCookieObject());
+    const auto res = privilegeChains.invoke(opcode, cookie);
     switch (res) {
     case cb::rbac::PrivilegeAccess::Fail:
         LOG_WARNING(c,

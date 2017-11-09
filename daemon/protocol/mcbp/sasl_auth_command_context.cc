@@ -35,15 +35,11 @@ ENGINE_ERROR_CODE SaslAuthCommandContext::initial() {
               connection.getId(), mechanism.c_str(), v.size());
 
     if (request.getClientOpcode() == cb::mcbp::ClientOpcode::SaslAuth) {
-        task = std::make_shared<StartSaslAuthTask>(connection.getCookieObject(),
-                                                   connection,
-                                                   mechanism,
-                                                   challenge);
+        task = std::make_shared<StartSaslAuthTask>(
+                cookie, connection, mechanism, challenge);
     } else if (request.getClientOpcode() == cb::mcbp::ClientOpcode::SaslStep) {
-        task = std::make_shared<StepSaslAuthTask>(connection.getCookieObject(),
-                                                  connection,
-                                                  mechanism,
-                                                  challenge);
+        task = std::make_shared<StepSaslAuthTask>(
+                cookie, connection, mechanism, challenge);
     } else {
         throw std::logic_error(
             "SaslAuthCommandContext() used with illegal opcode");

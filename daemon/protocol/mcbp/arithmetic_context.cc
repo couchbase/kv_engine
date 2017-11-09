@@ -197,7 +197,7 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::storeItem() {
     auto ret = bucket_store(cookie, newitem.get(), &ncas, OPERATION_CAS);
 
     if (ret == ENGINE_SUCCESS) {
-        connection.getCookieObject().setCas(ncas);
+        cookie.setCas(ncas);
         state = State::SendResult;
     } else if (ret == ENGINE_KEY_EEXISTS && cas == 0) {
         state = State::Reset;
@@ -246,8 +246,8 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::sendResult() {
                                    sizeof(result),
                                    PROTOCOL_BINARY_RAW_BYTES,
                                    PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                                   connection.getCookieObject().getCas(),
-                                   connection.getCookie())) {
+                                   cookie.getCas(),
+                                   &cookie)) {
             return ENGINE_FAILED;
         }
     } else {
@@ -260,8 +260,8 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::sendResult() {
                                    sizeof(result),
                                    PROTOCOL_BINARY_RAW_BYTES,
                                    PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                                   connection.getCookieObject().getCas(),
-                                   connection.getCookie())) {
+                                   cookie.getCas(),
+                                   &cookie)) {
             return ENGINE_FAILED;
         }
     }
