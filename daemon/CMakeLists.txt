@@ -222,6 +222,7 @@ TARGET_LINK_LIBRARIES(memcached_daemon
                       cbsasl
                       cbcompress
                       engine_utilities
+                      gsl_lite
                       platform
                       cJSON
                       JSON_checker
