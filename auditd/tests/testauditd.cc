@@ -42,7 +42,7 @@ static std::condition_variable cond;
 static bool ready = false;
 
 extern "C" {
-static void notify_io_complete(const void*, ENGINE_ERROR_CODE) {
+static void notify_io_complete(gsl::not_null<const void*>, ENGINE_ERROR_CODE) {
     std::lock_guard<std::mutex> lock(mutex);
     ready = true;
     cond.notify_one();

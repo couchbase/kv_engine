@@ -114,7 +114,7 @@ protected:
 
     ENGINE_ERROR_CODE storeItem(Item& item) {
         uint64_t cas = 0;
-        return engine->store(nullptr, &item, &cas, OPERATION_SET);
+        return engine->store(cookie, &item, &cas, OPERATION_SET);
     }
 
     /**
@@ -323,7 +323,7 @@ TEST_P(STItemPagerTest, ExpiredItemsDeletedFirst) {
     // here as get() would expire the item on access.
     for (size_t ii = 0; ii < countA; ii++) {
         auto key = makeStoredDocKey("key_" + std::to_string(ii));
-        auto result = store->get(key, vbid, nullptr, get_options_t());
+        auto result = store->get(key, vbid, cookie, get_options_t());
         EXPECT_EQ(ENGINE_SUCCESS, result.getStatus()) << "For key:" << key;
     }
 
@@ -488,17 +488,17 @@ void STExpiryPagerTest::expiredItemsDeleted() {
 
     // Check our items.
     auto key_0 = makeStoredDocKey("key_0");
-    auto result = store->get(key_0, vbid, nullptr, get_options_t());
+    auto result = store->get(key_0, vbid, cookie, get_options_t());
     EXPECT_EQ(ENGINE_SUCCESS, result.getStatus())
         << "Key without TTL should still exist.";
 
     auto key_1 = makeStoredDocKey("key_1");
     EXPECT_EQ(ENGINE_KEY_ENOENT,
-              store->get(key_1, vbid, nullptr, get_options_t()).getStatus())
-        << "Key with TTL:10 should be removed.";
+              store->get(key_1, vbid, cookie, get_options_t()).getStatus())
+            << "Key with TTL:10 should be removed.";
 
     auto key_2 = makeStoredDocKey("key_2");
-    result = store->get(key_2, vbid, nullptr, get_options_t());
+    result = store->get(key_2, vbid, cookie, get_options_t());
     EXPECT_EQ(ENGINE_SUCCESS, result.getStatus())
          << "Key with TTL:20 should still exist.";
 
@@ -518,17 +518,17 @@ void STExpiryPagerTest::expiredItemsDeleted() {
     EXPECT_EQ(1, engine->getVBucket(vbid)->getNumItems());
 
     // Check our items.
-    result = store->get(key_0, vbid, nullptr, get_options_t());
+    result = store->get(key_0, vbid, cookie, get_options_t());
     EXPECT_EQ(ENGINE_SUCCESS, result.getStatus())
         << "Key without TTL should still exist.";
 
     EXPECT_EQ(ENGINE_KEY_ENOENT,
-              store->get(key_1, vbid, nullptr, get_options_t()).getStatus())
-        << "Key with TTL:10 should be removed.";
+              store->get(key_1, vbid, cookie, get_options_t()).getStatus())
+            << "Key with TTL:10 should be removed.";
 
     EXPECT_EQ(ENGINE_KEY_ENOENT,
-              store->get(key_2, vbid, nullptr, get_options_t()).getStatus())
-    << "Key with TTL:20 should be removed.";
+              store->get(key_2, vbid, cookie, get_options_t()).getStatus())
+            << "Key with TTL:20 should be removed.";
 }
 
 // Test that when the expiry pager runs, all expired items are deleted.
@@ -571,7 +571,7 @@ TEST_P(STExpiryPagerTest, MB_25650) {
 
     get_options_t options =
             static_cast<get_options_t>(QUEUE_BG_FETCH | GET_DELETED_VALUE);
-    EXPECT_EQ(err, store->get(key_1, vbid, nullptr, options).getStatus())
+    EXPECT_EQ(err, store->get(key_1, vbid, cookie, options).getStatus())
             << "Key with TTL:10 should be removed.";
 
     // Verify that the xattr body still exists.
@@ -581,7 +581,7 @@ TEST_P(STExpiryPagerTest, MB_25650) {
                                 TaskId::MultiBGFetcherTask);
         store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
     }
-    auto item = store->get(key_1, vbid, nullptr, GET_DELETED_VALUE);
+    auto item = store->get(key_1, vbid, cookie, GET_DELETED_VALUE);
 
     ASSERT_EQ(ENGINE_SUCCESS, item.getStatus());
     EXPECT_TRUE(mcbp::datatype::is_xattr(item.item->getDataType()));
@@ -656,7 +656,7 @@ TEST_P(STExpiryPagerTest, MB_25671) {
         EXPECT_EQ(ENGINE_SUCCESS, deleteWithMeta());
     }
 
-    auto item = store->get(key_1, vbid, nullptr, options);
+    auto item = store->get(key_1, vbid, cookie, options);
     ASSERT_EQ(ENGINE_SUCCESS, item.getStatus());
     EXPECT_TRUE(item.item->isDeleted()) << "Not deleted " << *item.item;
     ASSERT_NE(0, item.item->getNBytes()) << "No value " << *item.item;
@@ -748,7 +748,7 @@ TEST_P(STPersistentExpiryPagerTest, MB_25991_ExpiryNonResident) {
             << "Should have 0 non-resident items after running expiry pager";
 
     // Check our item - should not exist.
-    auto result = store->get(key, vbid, nullptr, get_options_t());
+    auto result = store->get(key, vbid, cookie, get_options_t());
     EXPECT_EQ(ENGINE_KEY_ENOENT, result.getStatus());
 }
 

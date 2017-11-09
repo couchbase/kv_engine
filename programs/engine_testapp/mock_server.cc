@@ -81,43 +81,44 @@ static mock_connstruct* cookie_to_mock_object(const void* cookie) {
  * SERVER CORE API FUNCTIONS
  */
 
-static void mock_store_engine_specific(const void *cookie, void *engine_data) {
-    if (cookie) {
-        struct mock_connstruct *c = (struct mock_connstruct *)cookie;
-        cb_assert(c->magic == CONN_MAGIC);
-        c->engine_data = engine_data;
-    }
+static void mock_store_engine_specific(gsl::not_null<const void*> cookie,
+                                       void* engine_data) {
+    auto* c = cookie_to_mock_object(cookie.get());
+    cb_assert(c->magic == CONN_MAGIC);
+    c->engine_data = engine_data;
 }
 
-static void *mock_get_engine_specific(const void *cookie) {
-    struct mock_connstruct *c = (struct mock_connstruct *)cookie;
-    cb_assert(c == NULL || c->magic == CONN_MAGIC);
-    return c ? c->engine_data : NULL;
+static void* mock_get_engine_specific(gsl::not_null<const void*> cookie) {
+    const auto* c = reinterpret_cast<const mock_connstruct*>(cookie.get());
+    cb_assert(c->magic == CONN_MAGIC);
+    return c->engine_data;
 }
 
-static bool mock_is_datatype_supported(const void* cookie,
+static bool mock_is_datatype_supported(gsl::not_null<const void*> cookie,
                                        protocol_binary_datatype_t datatype) {
-    struct mock_connstruct *c = (struct mock_connstruct *)cookie;
-    cb_assert(c == NULL || c->magic == CONN_MAGIC);
+    const auto* c = reinterpret_cast<const mock_connstruct*>(cookie.get());
+    cb_assert(c->magic == CONN_MAGIC);
     std::bitset<8> in(datatype);
-    return c ? (c->enabled_datatypes & in) == in : false;
+    return (c->enabled_datatypes & in) == in;
 }
 
-static bool mock_is_mutation_extras_supported(const void *cookie) {
-    struct mock_connstruct *c = (struct mock_connstruct *)cookie;
-    cb_assert(c == NULL || c->magic == CONN_MAGIC);
-    return c ? c->handle_mutation_extras : false;
+static bool mock_is_mutation_extras_supported(
+        gsl::not_null<const void*> cookie) {
+    const auto* c = reinterpret_cast<const mock_connstruct*>(cookie.get());
+    cb_assert(c->magic == CONN_MAGIC);
+    return c->handle_mutation_extras;
 }
 
-static bool mock_is_collections_supported(const void *cookie) {
-    struct mock_connstruct *c = (struct mock_connstruct *)cookie;
-    cb_assert(c == NULL || c->magic == CONN_MAGIC);
-    return c ? c->handle_collections_support : false;
+static bool mock_is_collections_supported(gsl::not_null<const void*> cookie) {
+    const auto* c = reinterpret_cast<const mock_connstruct*>(cookie.get());
+    cb_assert(c->magic == CONN_MAGIC);
+    return c->handle_collections_support;
 }
 
-static uint8_t mock_get_opcode_if_ewouldblock_set(const void *cookie) {
-    struct mock_connstruct *c = (struct mock_connstruct *)cookie;
-    cb_assert(c == NULL || c->magic == CONN_MAGIC);
+static uint8_t mock_get_opcode_if_ewouldblock_set(
+        gsl::not_null<const void*> cookie) {
+    const auto* c = reinterpret_cast<const mock_connstruct*>(cookie.get());
+    cb_assert(c->magic == CONN_MAGIC);
     return 0x00;
 }
 
@@ -144,17 +145,19 @@ static void mock_decrement_session_ctr(void) {
     cb_mutex_exit(&(session_mutex));
 }
 
-static ENGINE_ERROR_CODE mock_cookie_reserve(const void *cookie) {
+static ENGINE_ERROR_CODE mock_cookie_reserve(
+        gsl::not_null<const void*> cookie) {
     cb_mutex_enter(&(ref_mutex));
-    struct mock_connstruct *c = (struct mock_connstruct *)cookie;
+    auto* c = cookie_to_mock_object(cookie.get());
     c->references++;
     cb_mutex_exit(&(ref_mutex));
     return ENGINE_SUCCESS;
 }
 
-static ENGINE_ERROR_CODE mock_cookie_release(const void *cookie) {
+static ENGINE_ERROR_CODE mock_cookie_release(
+        gsl::not_null<const void*> cookie) {
     cb_mutex_enter(&(ref_mutex));
-    struct mock_connstruct *c = (struct mock_connstruct *)cookie;
+    auto* c = cookie_to_mock_object(cookie.get());
 
     const int new_rc = --c->references;
     if (new_rc == 0) {
@@ -164,19 +167,20 @@ static ENGINE_ERROR_CODE mock_cookie_release(const void *cookie) {
     return ENGINE_SUCCESS;
 }
 
-static void mock_set_priority(const void* cookie, CONN_PRIORITY priority) {
+static void mock_set_priority(gsl::not_null<const void*> cookie,
+                              CONN_PRIORITY priority) {
     (void) cookie;
     (void) priority;
 }
 
-static cb::rbac::PrivilegeAccess mock_check_privilege(const void*,
-                                                      const cb::rbac::Privilege) {
+static cb::rbac::PrivilegeAccess mock_check_privilege(
+        gsl::not_null<const void*>, const cb::rbac::Privilege) {
     // @todo allow for mocking privilege access
     return cb::rbac::PrivilegeAccess::Ok;
 }
 
-static protocol_binary_response_status mock_engine_error2mcbp(const void* void_cookie,
-                                                              ENGINE_ERROR_CODE code) {
+static protocol_binary_response_status mock_engine_error2mcbp(
+        gsl::not_null<const void*>, ENGINE_ERROR_CODE code) {
     if (code == ENGINE_DISCONNECT) {
         return protocol_binary_response_status(-1);
     }
@@ -184,15 +188,14 @@ static protocol_binary_response_status mock_engine_error2mcbp(const void* void_c
     return engine_error_2_mcbp_protocol_error(code);
 }
 
-static std::pair<uint32_t, std::string> mock_get_log_info(const void*) {
+static std::pair<uint32_t, std::string> mock_get_log_info(
+        gsl::not_null<const void*>) {
     // The DCP test suite don't use a real cookie, and until we've
     // fixed that we can't try to use the provided cookie
     return std::make_pair(uint32_t(0xdead), std::string{"[you - me]"});
 }
 
-void mock_set_error_context(void* cookie, cb::const_char_buffer message) {
-    (void)cookie;
-    (void)message;
+void mock_set_error_context(gsl::not_null<void*>, cb::const_char_buffer) {
 }
 
 static PreLinkFunction pre_link_function;
@@ -201,8 +204,8 @@ void mock_set_pre_link_function(PreLinkFunction function) {
     pre_link_function = function;
 }
 
-static ENGINE_ERROR_CODE mock_pre_link_document(const void* cookie,
-                                                item_info& info) {
+static ENGINE_ERROR_CODE mock_pre_link_document(
+        gsl::not_null<const void*> cookie, item_info& info) {
     if (pre_link_function) {
         pre_link_function(info);
     }
@@ -243,15 +246,14 @@ static rel_time_t mock_realtime(const time_t exptime) {
     }
 }
 
-static void mock_notify_io_complete(const void *cookie, ENGINE_ERROR_CODE status) {
-    if (cookie) {
-        struct mock_connstruct *c = (struct mock_connstruct *)cookie;
-        cb_mutex_enter(&c->mutex);
-        c->status = status;
-        c->num_io_notifications++;
-        cb_cond_signal(&c->cond);
-        cb_mutex_exit(&c->mutex);
-    }
+static void mock_notify_io_complete(gsl::not_null<const void*> cookie,
+                                    ENGINE_ERROR_CODE status) {
+    auto* c = cookie_to_mock_object(cookie.get());
+    cb_mutex_enter(&c->mutex);
+    c->status = status;
+    c->num_io_notifications++;
+    cb_cond_signal(&c->cond);
+    cb_mutex_exit(&c->mutex);
 }
 
 static time_t mock_abstime(const rel_time_t exptime)
@@ -275,8 +277,10 @@ static size_t mock_get_max_item_iovec_size() {
  * SERVER STAT API FUNCTIONS
  */
 
-static void mock_count_eviction(const void *cookie, const void *key, const int nkey) {
-    struct mock_connstruct *c = (struct mock_connstruct *)cookie;
+static void mock_count_eviction(gsl::not_null<const void*> cookie,
+                                const void* key,
+                                const int nkey) {
+    auto* c = cookie_to_mock_object(cookie.get());
     c->evictions++;
 }
 

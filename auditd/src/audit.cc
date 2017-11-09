@@ -37,7 +37,7 @@
 
 EXTENSION_LOGGER_DESCRIPTOR* Audit::logger = NULL;
 std::string Audit::hostname;
-void (*Audit::notify_io_complete)(const void *cookie,
+void (*Audit::notify_io_complete)(gsl::not_null<const void*> cookie,
                                   ENGINE_ERROR_CODE status);
 
 void Audit::log_error(const AuditErrorCode return_code,

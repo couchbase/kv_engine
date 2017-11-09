@@ -118,7 +118,7 @@ protected:
         }
         producer = std::make_shared<MockDcpProducer>(
                 *engine,
-                /*cookie*/ nullptr,
+                cookie,
                 "test_producer",
                 flags,
                 cb::const_byte_buffer() /*no json*/,
@@ -334,8 +334,8 @@ TEST_P(StreamTest, test_verifyDCPCompression) {
     auto producers = get_dcp_producers(reinterpret_cast<ENGINE_HANDLE*>(engine),
                                        reinterpret_cast<ENGINE_HANDLE_V1*>(engine));
 
-    EXPECT_EQ(ENGINE_SUCCESS, engine->getKVBucket()->set(*item1, nullptr));
-    EXPECT_EQ(ENGINE_SUCCESS, engine->getKVBucket()->set(*item2, nullptr));
+    EXPECT_EQ(ENGINE_SUCCESS, engine->getKVBucket()->set(*item1, cookie));
+    EXPECT_EQ(ENGINE_SUCCESS, engine->getKVBucket()->set(*item2, cookie));
 
     uint32_t keyAndSnappyValueMessageSize = MutationResponse::mutationBaseMsgBytes +
              item1->getKey().size() + item1->getNBytes();
@@ -412,8 +412,8 @@ TEST_P(StreamTest, test_verifyDCPCompression) {
                                                 compressCtrlValue.size()));
     ASSERT_FALSE(producer->isValueCompressionEnabled());
 
-    EXPECT_EQ(ENGINE_SUCCESS, engine->getKVBucket()->set(*item3, nullptr));
-    EXPECT_EQ(ENGINE_SUCCESS, engine->getKVBucket()->set(*item4, nullptr));
+    EXPECT_EQ(ENGINE_SUCCESS, engine->getKVBucket()->set(*item3, cookie));
+    EXPECT_EQ(ENGINE_SUCCESS, engine->getKVBucket()->set(*item4, cookie));
 
     producer->notifySeqnoAvailable(vbid, vb->getHighSeqno());
     ASSERT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
@@ -2013,7 +2013,7 @@ TEST_P(ConnectionTest, test_mb20716_connmap_notify_on_delete) {
     SERVER_COOKIE_API* scapi = get_mock_server_api()->cookie;
     scapi->store_engine_specific(cookie, &notify_count);
     auto orig_notify_io_complete = scapi->notify_io_complete;
-    scapi->notify_io_complete = [](const void *cookie,
+    scapi->notify_io_complete = [](gsl::not_null<const void*> cookie,
                                    ENGINE_ERROR_CODE status) {
         auto* notify_ptr = reinterpret_cast<size_t*>(
                 get_mock_server_api()->cookie->get_engine_specific(cookie));
@@ -2069,7 +2069,7 @@ TEST_P(ConnectionTest, test_mb20716_connmap_notify_on_delete_consumer) {
     SERVER_COOKIE_API* scapi = get_mock_server_api()->cookie;
     scapi->store_engine_specific(cookie, &notify_count);
     auto orig_notify_io_complete = scapi->notify_io_complete;
-    scapi->notify_io_complete = [](const void *cookie,
+    scapi->notify_io_complete = [](gsl::not_null<const void*> cookie,
                                    ENGINE_ERROR_CODE status) {
         auto* notify_ptr = reinterpret_cast<size_t*>(
                 get_mock_server_api()->cookie->get_engine_specific(cookie));
@@ -2200,10 +2200,10 @@ public:
         return callbacks;
     }
 
-
-    static void dcp_test_notify_io_complete(const void *cookie,
+    static void dcp_test_notify_io_complete(gsl::not_null<const void*> cookie,
                                             ENGINE_ERROR_CODE status) {
-        auto notifyTest = reinterpret_cast<const ConnMapNotifyTest*>(cookie);
+        const auto* notifyTest =
+                reinterpret_cast<const ConnMapNotifyTest*>(cookie.get());
         // 3. Call notifyPausedConnection again. We're now interleaved inside
         //    of notifyAllPausedConnections, a second notification should occur.
         const_cast<ConnMapNotifyTest*>(notifyTest)->notify();

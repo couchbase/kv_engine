@@ -59,8 +59,8 @@ typedef struct {
      * @param cookie the cookie representing the command
      * @param status the return code for the operation
      */
-    void (* notify_io_complete)(const void* cookie,
-                                ENGINE_ERROR_CODE status);
+    void (*notify_io_complete)(gsl::not_null<const void*> cookie,
+                               ENGINE_ERROR_CODE status);
 } AUDIT_EXTENSION_DATA;
 
 /**

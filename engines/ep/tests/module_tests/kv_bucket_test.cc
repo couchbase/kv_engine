@@ -122,7 +122,7 @@ Item KVBucketTest::store_item(uint16_t vbid,
                               const std::vector<cb::engine_errc>& expected,
                               protocol_binary_datatype_t datatype) {
     auto item = make_item(vbid, key, value, exptime, datatype);
-    auto returnCode = store->set(item, nullptr);
+    auto returnCode = store->set(item, cookie);
     EXPECT_NE(expected.end(),
               std::find(expected.begin(),
                         expected.end(),
@@ -144,7 +144,7 @@ Item KVBucketTest::store_item(uint16_t vbid,
                         std::to_string(ii),
                 key.getDocNamespace());
         auto item = make_item(vbid, keyii, value, exptime, datatype);
-        auto err = store->set(item, nullptr);
+        auto err = store->set(item, cookie);
         if (ENGINE_SUCCESS != err) {
             return ::testing::AssertionFailure()
                    << "Failed to store " << keyii.data() << " error:" << err;
@@ -500,7 +500,7 @@ TEST_P(KVBucketParamTest, MB_25398_SetCASDeletedItem) {
     auto item = make_item(vbid, key, "deletedvalue");
     item.setDeleted();
     const auto inCAS = item.getCas();
-    ASSERT_EQ(ENGINE_SUCCESS, store->set(item, nullptr));
+    ASSERT_EQ(ENGINE_SUCCESS, store->set(item, cookie));
     ASSERT_NE(inCAS, item.getCas());
 
     // Flush, ensuring that the persistence callback runs and item is removed
@@ -515,17 +515,17 @@ TEST_P(KVBucketParamTest, MB_25398_SetCASDeletedItem) {
     if (engine->getConfiguration().getBucketType() == "persistent") {
         // Deleted item won't be resident (after a flush), so expect to need to
         // bgfetch.
-        EXPECT_EQ(ENGINE_EWOULDBLOCK, store->set(item2, nullptr));
+        EXPECT_EQ(ENGINE_EWOULDBLOCK, store->set(item2, cookie));
 
         runBGFetcherTask();
     }
 
     // Try with incorrect CAS.
-    EXPECT_EQ(ENGINE_KEY_EEXISTS, store->set(item2, nullptr));
+    EXPECT_EQ(ENGINE_KEY_EEXISTS, store->set(item2, cookie));
 
     // Try again, this time with correct CAS.
     item2.setCas(item.getCas());
-    EXPECT_EQ(ENGINE_SUCCESS, store->set(item2, nullptr));
+    EXPECT_EQ(ENGINE_SUCCESS, store->set(item2, cookie));
 }
 
 /**
@@ -545,16 +545,16 @@ TEST_P(KVBucketParamTest, MB_25398_SetCASDeletedItemNegative) {
     if (engine->getConfiguration().getBucketType() == "persistent") {
         // Deleted item won't be resident (after a flush), so expect to need to
         // bgfetch.
-        EXPECT_EQ(ENGINE_EWOULDBLOCK, store->set(item2, nullptr));
+        EXPECT_EQ(ENGINE_EWOULDBLOCK, store->set(item2, cookie));
         runBGFetcherTask();
     }
 
     // Try with a specific CAS.
-    EXPECT_EQ(ENGINE_KEY_ENOENT, store->set(item2, nullptr));
+    EXPECT_EQ(ENGINE_KEY_ENOENT, store->set(item2, cookie));
 
     // Try with no CAS (wildcard) - should be possible to store.
     item2.setCas(0);
-    EXPECT_EQ(ENGINE_SUCCESS, store->set(item2, nullptr));
+    EXPECT_EQ(ENGINE_SUCCESS, store->set(item2, cookie));
 }
 
 // Add tests //////////////////////////////////////////////////////////////////
@@ -562,7 +562,7 @@ TEST_P(KVBucketParamTest, MB_25398_SetCASDeletedItemNegative) {
 // Test successful add
 TEST_P(KVBucketParamTest, Add) {
     auto item = make_item(vbid, makeStoredDocKey("key"), "value");
-    EXPECT_EQ(ENGINE_SUCCESS, store->add(item, nullptr));
+    EXPECT_EQ(ENGINE_SUCCESS, store->add(item, cookie));
 }
 
 // Check incorrect vbucket returns not-my-vbucket.
@@ -591,7 +591,7 @@ TEST_P(KVBucketParamTest, SetWithMeta) {
 // Test setWithMeta with a conflict with an existing item.
 TEST_P(KVBucketParamTest, SetWithMeta_Conflicted) {
     auto item = make_item(vbid, makeStoredDocKey("key"), "value");
-    EXPECT_EQ(ENGINE_SUCCESS, store->set(item, nullptr));
+    EXPECT_EQ(ENGINE_SUCCESS, store->set(item, cookie));
 
     uint64_t seqno;
     // Attempt to set with the same rev Seqno - should get EEXISTS.
@@ -608,7 +608,7 @@ TEST_P(KVBucketParamTest, SetWithMeta_Conflicted) {
 // Test setWithMeta replacing existing item
 TEST_P(KVBucketParamTest, SetWithMeta_Replace) {
     auto item = make_item(vbid, makeStoredDocKey("key"), "value");
-    EXPECT_EQ(ENGINE_SUCCESS, store->set(item, nullptr));
+    EXPECT_EQ(ENGINE_SUCCESS, store->set(item, cookie));
 
     // Increase revSeqno so conflict resolution doesn't fail.
     item.setRevSeqno(item.getRevSeqno() + 1);
@@ -697,7 +697,7 @@ TEST_P(KVBucketParamTest, test_hlcEpochSeqno) {
 
     EXPECT_EQ(initialEpoch, vb->getHLCEpochSeqno());
     auto item = make_item(vbid, makeStoredDocKey("key1"), "value");
-    EXPECT_EQ(ENGINE_SUCCESS, store->add(item, nullptr));
+    EXPECT_EQ(ENGINE_SUCCESS, store->add(item, cookie));
     if (engine->getConfiguration().getBucketType() == "persistent") {
         // Trigger a flush to disk.
         flush_vbucket_to_disk(vbid);
@@ -707,7 +707,7 @@ TEST_P(KVBucketParamTest, test_hlcEpochSeqno) {
     EXPECT_NE(HlcCasSeqnoUninitialised, seqno);
 
     auto item2 = make_item(vbid, makeStoredDocKey("key2"), "value");
-    EXPECT_EQ(ENGINE_SUCCESS, store->add(item2, nullptr));
+    EXPECT_EQ(ENGINE_SUCCESS, store->add(item2, cookie));
     if (engine->getConfiguration().getBucketType() == "persistent") {
         // Trigger a flush to disk.
         flush_vbucket_to_disk(vbid);

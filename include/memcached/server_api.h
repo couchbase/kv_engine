@@ -22,6 +22,8 @@
 #include <memcached/rbac.h>
 #include <memcached/types.h>
 
+#include <gsl/gsl>
+
 #include <string>
 
 typedef struct {
@@ -71,7 +73,9 @@ typedef struct {
     /**
      * Tell the server we've evicted an item.
      */
-    void (*evicting)(const void* cookie, const void* key, int nkey);
+    void (*evicting)(gsl::not_null<const void*> cookie,
+                     const void* key,
+                     int nkey);
 } SERVER_STAT_API;
 
 /**
@@ -89,7 +93,8 @@ typedef struct {
      * @param cookie The cookie provided by the frontend
      * @param engine_data pointer to opaque data
      */
-    void (*store_engine_specific)(const void* cookie, void* engine_data);
+    void (*store_engine_specific)(gsl::not_null<const void*> cookie,
+                                  void* engine_data);
 
     /**
      * Retrieve engine-specific session data for the given cookie.
@@ -99,7 +104,7 @@ typedef struct {
      * @return the data provied by store_engine_specific or NULL
      *         if none was provided
      */
-    void* (*get_engine_specific)(const void* cookie);
+    void* (*get_engine_specific)(gsl::not_null<const void*> cookie);
 
     /**
      * Check if datatype is supported by the connection.
@@ -109,7 +114,7 @@ typedef struct {
      *
      * @return true if connection supports the datatype or else false.
      */
-    bool (*is_datatype_supported)(const void* cookie,
+    bool (*is_datatype_supported)(gsl::not_null<const void*> cookie,
                                   protocol_binary_datatype_t datatype);
 
     /**
@@ -119,7 +124,7 @@ typedef struct {
      *
      * @return true if supported or else false.
      */
-    bool (*is_mutation_extras_supported)(const void* cookie);
+    bool (*is_mutation_extras_supported)(gsl::not_null<const void*> cookie);
 
     /**
      * Check if collections are supported by the connection.
@@ -128,7 +133,7 @@ typedef struct {
      *
      * @return true if supported or else false.
      */
-    bool (*is_collections_supported)(const void* cookie);
+    bool (*is_collections_supported)(gsl::not_null<const void*> cookie);
 
     /**
      * Retrieve the opcode of the connection, if
@@ -142,7 +147,7 @@ typedef struct {
      * @return the opcode from the binary_header saved in the
      * connection.
      */
-    uint8_t (*get_opcode_if_ewouldblock_set)(const void* cookie);
+    uint8_t (*get_opcode_if_ewouldblock_set)(gsl::not_null<const void*> cookie);
 
     /**
      * Validate given ns_server's session cas token against
@@ -167,26 +172,28 @@ typedef struct {
      * @param cookie cookie representing the connection
      * @param status the status for the io operation
      */
-    void (*notify_io_complete)(const void* cookie, ENGINE_ERROR_CODE status);
+    void (*notify_io_complete)(gsl::not_null<const void*> cookie,
+                               ENGINE_ERROR_CODE status);
 
     /**
      * Notify the core that we're holding on to this cookie for
      * future use. (The core guarantees it will not invalidate the
      * memory until the cookie is invalidated by calling release())
      */
-    ENGINE_ERROR_CODE (*reserve)(const void* cookie);
+    ENGINE_ERROR_CODE (*reserve)(gsl::not_null<const void*> cookie);
 
     /**
      * Notify the core that we're releasing the reference to the
      * The engine is not allowed to use the cookie (the core may invalidate
      * the memory)
      */
-    ENGINE_ERROR_CODE (*release)(const void* cookie);
+    ENGINE_ERROR_CODE (*release)(gsl::not_null<const void*> cookie);
 
     /**
      * Set the priority for this connection
      */
-    void (*set_priority)(const void* cookie, CONN_PRIORITY priority);
+    void (*set_priority)(gsl::not_null<const void*> cookie,
+                         CONN_PRIORITY priority);
 
     /**
      * Get the bucket the connection is bound to
@@ -194,7 +201,7 @@ typedef struct {
      * @cookie The connection object
      * @return the bucket identifier for a cookie
      */
-    bucket_id_t (*get_bucket_id)(const void* cookie);
+    bucket_id_t (*get_bucket_id)(gsl::not_null<const void*> cookie);
 
     /**
      * Get connection id
@@ -202,7 +209,7 @@ typedef struct {
      * @param cookie the cookie sent to the engine for an operation
      * @return a unique identifier for a connection
      */
-    uint64_t (*get_connection_id)(const void* cookie);
+    uint64_t (*get_connection_id)(gsl::not_null<const void*> cookie);
 
     /**
      * Check if the cookie have the specified privilege in it's
@@ -218,7 +225,8 @@ typedef struct {
      *         false otherwise
      */
     cb::rbac::PrivilegeAccess (*check_privilege)(
-            const void* cookie, const cb::rbac::Privilege privilege);
+            gsl::not_null<const void*> cookie,
+            const cb::rbac::Privilege privilege);
 
     /**
      * Method to map an engine error code to the appropriate mcbp response
@@ -234,7 +242,7 @@ typedef struct {
      *         std::invalid_argument if the code doesn't exist
      */
     protocol_binary_response_status (*engine_error2mcbp)(
-            const void* cookie, ENGINE_ERROR_CODE code);
+            gsl::not_null<const void*> cookie, ENGINE_ERROR_CODE code);
 
     /**
      * Get the log information to be used for a log entry.
@@ -251,7 +259,8 @@ typedef struct {
      * at any time (but not while the engine is operating in a single call
      * from the core) so it should _not_ be cached.
      */
-    std::pair<uint32_t, std::string> (*get_log_info)(const void* cookie);
+    std::pair<uint32_t, std::string> (*get_log_info)(
+            gsl::not_null<const void*> cookie);
 
     /**
      * Set the error context string to be sent in response. This should not
@@ -261,7 +270,8 @@ typedef struct {
      * @param cookie the client cookie (to look up client connection)
      * @param message the message string to be set as the error context
      */
-    void (*set_error_context)(void* cookie, cb::const_char_buffer message);
+    void (*set_error_context)(gsl::not_null<void*> cookie,
+                              cb::const_char_buffer message);
 
 } SERVER_COOKIE_API;
 
@@ -290,7 +300,8 @@ struct SERVER_DOCUMENT_API {
      *                        error codes means that the engine should
      *                        *NOT* link the item
      */
-    ENGINE_ERROR_CODE (*pre_link)(const void* cookie, item_info& info);
+    ENGINE_ERROR_CODE(*pre_link)
+    (gsl::not_null<const void*> cookie, item_info& info);
 
     /**
      * This callback is called from the underlying engine right before

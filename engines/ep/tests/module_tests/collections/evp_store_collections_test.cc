@@ -153,12 +153,12 @@ TEST_F(CollectionsTest, MB_25344) {
 
     auto item1 = make_item(
             vbid, {"dairy::milk", DocNamespace::Collections}, "creamy", 0, 0);
-    EXPECT_EQ(ENGINE_SUCCESS, store->add(item1, nullptr));
+    EXPECT_EQ(ENGINE_SUCCESS, store->add(item1, cookie));
     flush_vbucket_to_disk(vbid, 1);
 
     auto item2 = make_item(
             vbid, {"dairy::cream", DocNamespace::Collections}, "creamy", 0, 0);
-    EXPECT_EQ(ENGINE_SUCCESS, store->add(item2, nullptr));
+    EXPECT_EQ(ENGINE_SUCCESS, store->add(item2, cookie));
     flush_vbucket_to_disk(vbid, 1);
 
     // Delete the dairy collection (so all dairy keys become logically deleted)
@@ -175,16 +175,16 @@ TEST_F(CollectionsTest, MB_25344) {
 
     // Expect that we can add item1 again, even though it is still present
     item1.setCas(0);
-    EXPECT_EQ(ENGINE_SUCCESS, store->add(item1, nullptr));
+    EXPECT_EQ(ENGINE_SUCCESS, store->add(item1, cookie));
 
     // Replace should fail
-    EXPECT_EQ(ENGINE_KEY_ENOENT, store->replace(item2, nullptr));
+    EXPECT_EQ(ENGINE_KEY_ENOENT, store->replace(item2, cookie));
 
     // Delete should fail
     uint64_t cas = 0;
     EXPECT_EQ(ENGINE_KEY_ENOENT,
               store->deleteItem(
-                      item2.getKey(), cas, vbid, nullptr, nullptr, nullptr));
+                      item2.getKey(), cas, vbid, cookie, nullptr, nullptr));
 
     // Unlock should fail enoent rather than an unlock error
     EXPECT_EQ(ENGINE_KEY_ENOENT,
@@ -207,10 +207,10 @@ TEST_F(CollectionsTest, MB_25344) {
     struct key_stats ks;
     EXPECT_EQ(ENGINE_KEY_ENOENT,
               store->getKeyStats(
-                      item2.getKey(), vbid, nullptr, ks, WantsDeleted::No));
+                      item2.getKey(), vbid, cookie, ks, WantsDeleted::No));
     EXPECT_EQ(ENGINE_SUCCESS,
               store->getKeyStats(
-                      item2.getKey(), vbid, nullptr, ks, WantsDeleted::Yes));
+                      item2.getKey(), vbid, cookie, ks, WantsDeleted::Yes));
     EXPECT_TRUE(ks.logically_deleted);
 
     uint32_t deleted = 0;
@@ -270,7 +270,7 @@ TEST_F(CollectionsTest, MB_25344_get) {
 
     auto item1 = make_item(
             vbid, {"dairy::milk", DocNamespace::Collections}, "creamy", 0, 0);
-    EXPECT_EQ(ENGINE_SUCCESS, store->add(item1, nullptr));
+    EXPECT_EQ(ENGINE_SUCCESS, store->add(item1, cookie));
     flush_vbucket_to_disk(vbid, 1);
 
     // Delete the dairy collection (so all dairy keys become logically deleted)
@@ -558,7 +558,7 @@ TEST_F(CollectionsWarmupTest, warmup) {
         item.setVBucketId(vbid);
         uint64_t cas;
         EXPECT_EQ(ENGINE_SUCCESS,
-                  engine->store(nullptr, &item, &cas, OPERATION_SET));
+                  engine->store(cookie, &item, &cas, OPERATION_SET));
     }
     {
         Item item({"dairy-+-milk", DocNamespace::Collections},
@@ -569,7 +569,7 @@ TEST_F(CollectionsWarmupTest, warmup) {
         item.setVBucketId(vbid);
         uint64_t cas;
         EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
-                  engine->store(nullptr, &item, &cas, OPERATION_SET));
+                  engine->store(cookie, &item, &cas, OPERATION_SET));
     }
 }
 

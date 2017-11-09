@@ -199,7 +199,7 @@ TEST_P(EPStoreEvictionTest, SetEExists) {
 
     // Store an item, then eject it.
     auto item = make_item(vbid, makeStoredDocKey("key"), "value");
-    EXPECT_EQ(ENGINE_SUCCESS, store->set(item, nullptr));
+    EXPECT_EQ(ENGINE_SUCCESS, store->set(item, cookie));
     flush_vbucket_to_disk(vbid);
     evict_key(item.getVBucketId(), item.getKey());
 
@@ -236,7 +236,7 @@ TEST_P(EPStoreEvictionTest, AddEExists) {
 
     // Store an item, then eject it.
     auto item = make_item(vbid, makeStoredDocKey("key"), "value");
-    EXPECT_EQ(ENGINE_SUCCESS, store->set(item, nullptr));
+    EXPECT_EQ(ENGINE_SUCCESS, store->set(item, cookie));
     flush_vbucket_to_disk(vbid);
     evict_key(item.getVBucketId(), item.getKey());
 
@@ -277,7 +277,7 @@ TEST_P(EPStoreEvictionTest, AddEExists) {
 TEST_P(EPStoreEvictionTest, SetWithMeta_ReplaceNonResident) {
     // Store an item, then evict it.
     auto item = make_item(vbid, makeStoredDocKey("key"), "value");
-    EXPECT_EQ(ENGINE_SUCCESS, store->set(item, nullptr));
+    EXPECT_EQ(ENGINE_SUCCESS, store->set(item, cookie));
     flush_vbucket_to_disk(vbid);
     evict_key(item.getVBucketId(), item.getKey());
 
@@ -328,7 +328,7 @@ TEST_P(EPStoreEvictionTest, DeletedValue) {
     auto key = makeStoredDocKey("key");
     auto item = make_item(vbid, key, "deleted value");
     item.setDeleted();
-    EXPECT_EQ(ENGINE_SUCCESS, store->set(item, nullptr));
+    EXPECT_EQ(ENGINE_SUCCESS, store->set(item, cookie));
 
     // The act of flushing will remove the item from the HashTable.
     flush_vbucket_to_disk(vbid);
@@ -369,7 +369,7 @@ TEST_P(EPStoreEvictionTest, DeletedValue) {
 TEST_P(EPStoreEvictionTest, MB_21976) {
     // Store an item, then eject it.
     auto item = make_item(vbid, makeStoredDocKey("key"), "value");
-    EXPECT_EQ(ENGINE_SUCCESS, store->set(item, nullptr));
+    EXPECT_EQ(ENGINE_SUCCESS, store->set(item, cookie));
     flush_vbucket_to_disk(vbid);
     evict_key(item.getVBucketId(), item.getKey());
 
@@ -553,7 +553,7 @@ TEST_P(EPStoreEvictionTest, xattrExpiryOnFullyEvictedItem) {
 TEST_P(EPStoreEvictionTest, getIfOnlyFetchesMetaForFilterNegative) {
     // Store an item, then eject it.
     auto item = make_item(vbid, makeStoredDocKey("key"), "value");
-    EXPECT_EQ(ENGINE_SUCCESS, store->set(item, nullptr));
+    EXPECT_EQ(ENGINE_SUCCESS, store->set(item, cookie));
     flush_vbucket_to_disk(vbid);
     evict_key(item.getVBucketId(), item.getKey());
 
@@ -608,7 +608,7 @@ TEST_P(EPStoreEvictionTest, getIfOnlyFetchesMetaForFilterNegative) {
 TEST_P(EPStoreEvictionTest, getIfOnlyFetchesMetaForFilterPositive) {
     // Store an item, then eject it.
     auto item = make_item(vbid, makeStoredDocKey("key"), "value");
-    EXPECT_EQ(ENGINE_SUCCESS, store->set(item, nullptr));
+    EXPECT_EQ(ENGINE_SUCCESS, store->set(item, cookie));
     flush_vbucket_to_disk(vbid);
     evict_key(item.getVBucketId(), item.getKey());
 
@@ -741,7 +741,7 @@ TEST_P(EPStoreEvictionTest, getDeletedItemWithValue) {
 
     auto item = make_item(vbid, dockey, "deletedvalue");
     item.setDeleted();
-    EXPECT_EQ(ENGINE_SUCCESS, store->set(item, nullptr));
+    EXPECT_EQ(ENGINE_SUCCESS, store->set(item, cookie));
     flush_vbucket_to_disk(vbid);
 
     //Perform a get
@@ -841,14 +841,14 @@ TEST_P(EPStoreEvictionBloomOnOffTest, store_if_throws) {
 
     if (::testing::get<0>(GetParam()) == "full_eviction") {
         EXPECT_NO_THROW(engine->store_if(
-                nullptr, item, 0 /*cas*/, OPERATION_SET, predicate));
+                cookie, item, 0 /*cas*/, OPERATION_SET, predicate));
         runBGFetcherTask();
     }
 
     // If the itemInfo exists, you can't ask for it again - so expect throw
-    EXPECT_THROW(engine->store_if(
-                         nullptr, item, 0 /*cas*/, OPERATION_SET, predicate),
-                 std::logic_error);
+    EXPECT_THROW(
+            engine->store_if(cookie, item, 0 /*cas*/, OPERATION_SET, predicate),
+            std::logic_error);
 }
 
 TEST_P(EPStoreEvictionBloomOnOffTest, store_if) {
@@ -910,7 +910,7 @@ TEST_P(EPStoreEvictionBloomOnOffTest, store_if) {
         flush_vbucket_to_disk(vbid);
         evict_key(vbid, test.key);
         auto item = make_item(vbid, test.key, "new_value");
-        test.actualStatus = engine->store_if(nullptr,
+        test.actualStatus = engine->store_if(cookie,
                                              item,
                                              0 /*cas*/,
                                              OPERATION_SET,
@@ -939,7 +939,7 @@ TEST_P(EPStoreEvictionBloomOnOffTest, store_if) {
         for (size_t i = 0; i < testData.size(); i++) {
             if (testData[i].actualStatus == cb::engine_errc::would_block) {
                 auto item = make_item(vbid, testData[i].key, "new_value");
-                auto status = engine->store_if(nullptr,
+                auto status = engine->store_if(cookie,
                                                item,
                                                0 /*cas*/,
                                                OPERATION_SET,
@@ -974,20 +974,20 @@ TEST_P(EPStoreEvictionBloomOnOffTest, store_if_fe_interleave) {
 
     EXPECT_EQ(
             cb::engine_errc::would_block,
-            engine->store_if(nullptr, item, 0 /*cas*/, OPERATION_SET, predicate)
+            engine->store_if(cookie, item, 0 /*cas*/, OPERATION_SET, predicate)
                     .status);
 
     // expect another store to the same key to be told the same, even though the
     // first store has populated the store with a temp item
     EXPECT_EQ(
             cb::engine_errc::would_block,
-            engine->store_if(nullptr, item, 0 /*cas*/, OPERATION_SET, predicate)
+            engine->store_if(cookie, item, 0 /*cas*/, OPERATION_SET, predicate)
                     .status);
 
     runBGFetcherTask();
     EXPECT_EQ(
             cb::engine_errc::success,
-            engine->store_if(nullptr, item, 0 /*cas*/, OPERATION_SET, predicate)
+            engine->store_if(cookie, item, 0 /*cas*/, OPERATION_SET, predicate)
                     .status);
 }
 

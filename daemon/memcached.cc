@@ -82,6 +82,8 @@
 #include <memcached/audit_interface.h>
 #include <memcached/server_api.h>
 
+#include <gsl/gsl>
+
 #if HAVE_LIBNUMA
 #include <numa.h>
 #endif
@@ -706,32 +708,33 @@ void safe_close(SOCKET sfd) {
     }
 }
 
-bucket_id_t get_bucket_id(const void *void_cookie) {
+bucket_id_t get_bucket_id(gsl::not_null<const void*> void_cookie) {
     /* @todo fix this. Currently we're using the index as the id,
      * but this should be changed to be a uniqe ID that won't be
      * reused.
      */
-    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
+    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
     cookie->validate();
     return bucket_id_t(cookie->getConnection().getBucketIndex());
 }
 
-uint64_t get_connection_id(const void *void_cookie) {
-    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
+uint64_t get_connection_id(gsl::not_null<const void*> void_cookie) {
+    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
     cookie->validate();
     return uint64_t(&cookie->getConnection());
 }
 
-std::pair<uint32_t, std::string> cookie_get_log_info(const void* void_cookie) {
-    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
+std::pair<uint32_t, std::string> cookie_get_log_info(
+        gsl::not_null<const void*> void_cookie) {
+    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
     cookie->validate();
     return std::make_pair(cookie->getConnection().getId(),
                           cookie->getConnection().getDescription());
 }
 
-void cookie_set_error_context(void* void_cookie,
+void cookie_set_error_context(gsl::not_null<void*> void_cookie,
                               cb::const_char_buffer message) {
-    auto* cookie = reinterpret_cast<Cookie*>(void_cookie);
+    auto* cookie = reinterpret_cast<Cookie*>(void_cookie.get());
     cookie->validate();
     cookie->setErrorContext(to_string(message));
 }
@@ -743,17 +746,18 @@ void cookie_set_error_context(void* void_cookie,
  * @param privilege The privilege to check for
  * @return if the privilege is held or not (or if the privilege data is stale)
  */
-static cb::rbac::PrivilegeAccess check_privilege(const void* void_cookie,
-                                                 const cb::rbac::Privilege privilege) {
-    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
+static cb::rbac::PrivilegeAccess check_privilege(
+        gsl::not_null<const void*> void_cookie,
+        const cb::rbac::Privilege privilege) {
+    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
     cookie->validate();
     return cookie->getConnection().checkPrivilege(privilege,
                                                   const_cast<Cookie&>(*cookie));
 }
 
-static protocol_binary_response_status engine_error2mcbp(const void* void_cookie,
-                                                         ENGINE_ERROR_CODE code) {
-    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
+static protocol_binary_response_status engine_error2mcbp(
+        gsl::not_null<const void*> void_cookie, ENGINE_ERROR_CODE code) {
+    const auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
     cookie->validate();
     auto& connection = cookie->getConnection();
 
@@ -768,11 +772,12 @@ static protocol_binary_response_status engine_error2mcbp(const void* void_cookie
     return engine_error_2_mcbp_protocol_error(status);
 }
 
-static ENGINE_ERROR_CODE pre_link_document(const void* void_cookie,
-                                           item_info& info) {
+static ENGINE_ERROR_CODE pre_link_document(
+        gsl::not_null<const void*> void_cookie, item_info& info) {
     // Sanity check that people aren't calling the method with a bogus
     // cookie
-    auto* cookie = reinterpret_cast<Cookie*>(const_cast<void*>(void_cookie));
+    auto* cookie =
+            reinterpret_cast<Cookie*>(const_cast<void*>(void_cookie.get()));
     cookie->validate();
 
     auto* context = cookie->getCommandContext();
@@ -1502,41 +1507,42 @@ const char* get_server_version(void) {
     }
 }
 
-static void store_engine_specific(const void *void_cookie,
-                                  void *engine_data) {
-
-    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
+static void store_engine_specific(gsl::not_null<const void*> void_cookie,
+                                  void* engine_data) {
+    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
     cookie->validate();
     cookie->getConnection().setEngineStorage(engine_data);
 }
 
-static void *get_engine_specific(const void *void_cookie) {
-    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
+static void* get_engine_specific(gsl::not_null<const void*> void_cookie) {
+    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
     cookie->validate();
     return cookie->getConnection().getEngineStorage();
 }
 
-static bool is_datatype_supported(const void* void_cookie,
+static bool is_datatype_supported(gsl::not_null<const void*> void_cookie,
                                   protocol_binary_datatype_t datatype) {
-    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
+    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
     cookie->validate();
     return cookie->getConnection().isDatatypeEnabled(datatype);
 }
 
-static bool is_mutation_extras_supported(const void *void_cookie) {
-    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
+static bool is_mutation_extras_supported(
+        gsl::not_null<const void*> void_cookie) {
+    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
     cookie->validate();
     return cookie->getConnection().isSupportsMutationExtras();
 }
 
-static bool is_collections_supported(const void* void_cookie) {
-    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
+static bool is_collections_supported(gsl::not_null<const void*> void_cookie) {
+    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
     cookie->validate();
     return cookie->getConnection().isCollectionsSupported();
 }
 
-static uint8_t get_opcode_if_ewouldblock_set(const void *void_cookie) {
-    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
+static uint8_t get_opcode_if_ewouldblock_set(
+        gsl::not_null<const void*> void_cookie) {
+    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
     cookie->validate();
 
     uint8_t opcode = PROTOCOL_BINARY_CMD_INVALID;
@@ -1558,20 +1564,18 @@ static void decrement_session_ctr(void) {
     session_cas.decrement_session_counter();
 }
 
-static ENGINE_ERROR_CODE reserve_cookie(const void *void_cookie) {
-    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
+static ENGINE_ERROR_CODE reserve_cookie(
+        gsl::not_null<const void*> void_cookie) {
+    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
     cookie->validate();
 
     cookie->getConnection().incrementRefcount();
     return ENGINE_SUCCESS;
 }
 
-static ENGINE_ERROR_CODE release_cookie(const void *void_cookie) {
-    if (void_cookie == nullptr) {
-        throw std::invalid_argument("release_cookie: 'cookie' must be non-NULL");
-    }
-
-    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
+static ENGINE_ERROR_CODE release_cookie(
+        gsl::not_null<const void*> void_cookie) {
+    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
     cookie->validate();
 
     Connection* c = &cookie->getConnection();
@@ -1600,12 +1604,9 @@ static ENGINE_ERROR_CODE release_cookie(const void *void_cookie) {
     return ENGINE_SUCCESS;
 }
 
-static void cookie_set_priority(const void* void_cookie, CONN_PRIORITY priority) {
-    if (void_cookie == nullptr) {
-        throw std::invalid_argument("cookie_set_priority: 'cookie' must be non-NULL");
-    }
-
-    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
+static void cookie_set_priority(gsl::not_null<const void*> void_cookie,
+                                CONN_PRIORITY priority) {
+    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
     cookie->validate();
 
     auto* c = &cookie->getConnection();
@@ -1627,10 +1628,7 @@ static void cookie_set_priority(const void* void_cookie, CONN_PRIORITY priority)
     c->initiateShutdown();
 }
 
-static void count_eviction(const void *cookie, const void *key, int nkey) {
-    (void)cookie;
-    (void)key;
-    (void)nkey;
+static void count_eviction(gsl::not_null<const void*>, const void*, int) {
 }
 
 /**

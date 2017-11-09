@@ -195,7 +195,7 @@ private:
 
     const char* to_string(Cmd cmd);
 
-    uint64_t (*get_connection_id)(const void* cookie);
+    uint64_t (*get_connection_id)(gsl::not_null<const void*> cookie);
 
 public:
     EWB_Engine(GET_SERVER_API gsa_);

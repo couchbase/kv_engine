@@ -69,6 +69,8 @@ void EventuallyPersistentEngineTest::SetUp() {
 
     // Once warmup is complete, set VB to active.
     engine->getKVBucket()->setVBucketState(vbid, vbucket_state_active, false);
+
+    cookie = create_mock_cookie();
 }
 
 void EventuallyPersistentEngineTest::TearDown() {
@@ -76,6 +78,7 @@ void EventuallyPersistentEngineTest::TearDown() {
     // NonIO threads may have been disabled (see DCPTest subclass).
     engine_v1->destroy(handle, true);
     destroy_mock_event_callbacks();
+    destroy_mock_cookie(cookie);
     destroy_engine();
     // Cleanup any files we created.
     cb::io::rmrf(test_dbname);
@@ -95,7 +98,7 @@ void EventuallyPersistentEngineTest::store_item(uint16_t vbid,
               vbid);
     uint64_t cas;
     EXPECT_EQ(ENGINE_SUCCESS,
-              engine->store(NULL, &item, &cas, OPERATION_SET));
+              engine->store(cookie, &item, &cas, OPERATION_SET));
 }
 
 const char EventuallyPersistentEngineTest::test_dbname[] = "ep_engine_ep_unit_tests_db";

@@ -53,7 +53,7 @@ public:
     cb_mutex_t producer_consumer_lock;
     static EXTENSION_LOGGER_DESCRIPTOR *logger;
     static std::string hostname;
-    static void (*notify_io_complete)(const void *cookie,
+    static void (*notify_io_complete)(gsl::not_null<const void*> cookie,
                                       ENGINE_ERROR_CODE status);
     AuditFile auditfile;
     std::atomic<uint32_t> dropped_events;

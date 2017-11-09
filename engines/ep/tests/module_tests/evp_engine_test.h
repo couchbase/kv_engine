@@ -55,6 +55,8 @@ protected:
     ENGINE_HANDLE_V1* engine_v1;
     EventuallyPersistentEngine* engine;
     std::string bucketType;
+
+    const void* cookie = nullptr;
 };
 
 /* Tests parameterised over ephemeral and persistent buckets
