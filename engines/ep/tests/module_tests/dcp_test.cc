@@ -1849,8 +1849,8 @@ TEST_P(ConnectionTest, test_mb17042_duplicate_cookie_consumer_connections) {
 TEST_P(ConnectionTest, test_update_of_last_message_time_in_consumer) {
     const void* cookie = create_mock_cookie();
     // Create a Mock Dcp consumer
-    SingleThreadedRCPtr<MockDcpConsumer> consumer =
-            new MockDcpConsumer(*engine, cookie, "test_consumer");
+    auto consumer =
+            std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
     consumer->setLastMessageTime(1234);
     consumer->addStream(/*opaque*/0, /*vbucket*/0, /*flags*/0);
     EXPECT_NE(1234, consumer->getLastMessageTime())
@@ -1935,8 +1935,7 @@ TEST_P(ConnectionTest, test_consumer_add_stream) {
     const void* cookie = create_mock_cookie();
     uint16_t vbid = 0;
 
-    /* Create a Mock Dcp consumer. Since child class subobj of MockDcpConsumer
-       obj are accounted for by SingleThreadedRCPtr, use the same here */
+    /* Create a Mock Dcp consumer */
     auto consumer =
             std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
 

@@ -76,7 +76,7 @@ struct ConnCounter {
     size_t      conn_queueItemOnDisk;
 };
 
-class ConnHandler : public RCValue {
+class ConnHandler {
 public:
     ConnHandler(EventuallyPersistentEngine& engine, const void* c,
                 const std::string& name);
