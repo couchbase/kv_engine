@@ -911,7 +911,15 @@ rocksdb::Status RocksDBKVStore::saveVBStateToBatch(const KVRocksDB& db,
 }
 
 rocksdb::ColumnFamilyOptions RocksDBKVStore::getBaselineDefaultCFOptions() {
-    return rocksdb::ColumnFamilyOptions();
+    rocksdb::ColumnFamilyOptions cfOptions;
+
+    // Enable Point Lookup Optimization for the 'default' Column Family
+    // Note: whatever we give in input as 'block_cache_size_mb', the Block
+    // Cache will be reset with the shared 'blockCache' of size
+    // 'rocksdb_block_cache_size'
+    cfOptions.OptimizeForPointLookup(1);
+
+    return cfOptions;
 }
 
 rocksdb::ColumnFamilyOptions RocksDBKVStore::getBaselineSeqnoCFOptions() {
@@ -937,12 +945,22 @@ void RocksDBKVStore::applyUserCFOptions(rocksdb::ColumnFamilyOptions& cfOptions,
                 status.getState());
     }
 
-    // Apply 'newBbtOptions' on top of 'cfOptions'
     // RocksDB ColumnFamilyOptions provide advanced options for the
     // Block Based Table file format, which is the default format for SST files.
-    rocksdb::BlockBasedTableOptions table_options;
+    // Apply 'newBbtOptions' on top of the current BlockBasedTableOptions of
+    // 'cfOptions'
+    rocksdb::BlockBasedTableOptions baseOptions;
+    if (cfOptions.table_factory) {
+        auto* bbtOptions = cfOptions.table_factory->GetOptions();
+        if (bbtOptions) {
+            baseOptions = *(
+                    static_cast<rocksdb::BlockBasedTableOptions*>(bbtOptions));
+        }
+    }
+
+    rocksdb::BlockBasedTableOptions tableOptions;
     status = rocksdb::GetBlockBasedTableOptionsFromString(
-            rocksdb::BlockBasedTableOptions(), newBbtOptions, &table_options);
+            baseOptions, newBbtOptions, &tableOptions);
     if (!status.ok()) {
         throw std::invalid_argument(
                 std::string("RocksDBKVStore::applyUserCFOptions: "
@@ -952,11 +970,11 @@ void RocksDBKVStore::applyUserCFOptions(rocksdb::ColumnFamilyOptions& cfOptions,
 
     // Always use the per-shard shared Block Cache. If it is nullptr, RocksDB
     // will allocate a default size Block Cache.
-    table_options.block_cache = blockCache;
+    tableOptions.block_cache = blockCache;
 
     // Set the new BlockBasedTableOptions
     cfOptions.table_factory.reset(
-            rocksdb::NewBlockBasedTableFactory(table_options));
+            rocksdb::NewBlockBasedTableFactory(tableOptions));
 }
 
 rocksdb::Status RocksDBKVStore::writeAndTimeBatch(const KVRocksDB& db,
