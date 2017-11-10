@@ -66,5 +66,3 @@ bool mcbp_response_handler(const void* key, uint16_t keylen,
 
 /* set up a connection to write a DynamicBuffer then free it once sent. */
 void mcbp_write_and_free(McbpConnection* c, DynamicBuffer* buf);
-
-void initialize_protocol_handlers();

@@ -110,7 +110,7 @@ struct request_lookup {
     BINARY_COMMAND_CALLBACK callback;
 };
 
-static struct request_lookup request_handlers[0x100];
+static std::array<request_lookup, 0x100> request_handlers;
 
 /**
  * The handler function is used to handle and incomming packet (command or
@@ -152,12 +152,12 @@ static void process_bin_unknown_packet(Cookie& cookie) {
     cookie.setEwouldblock(false);
 
     if (ret == ENGINE_SUCCESS) {
-        struct request_lookup* rq = request_handlers + req->request.opcode;
-        ret = rq->callback(rq->descriptor,
-                           connection.getBucketEngineAsV0(),
-                           static_cast<const void*>(&cookie),
-                           req,
-                           mcbp_response_handler);
+        struct request_lookup& rq = request_handlers[req->request.opcode];
+        ret = rq.callback(rq.descriptor,
+                          connection.getBucketEngineAsV0(),
+                          static_cast<const void*>(&cookie),
+                          req,
+                          mcbp_response_handler);
     }
 
     ret = cookie.getConnection().remapErrorCode(ret);
@@ -608,7 +608,70 @@ static void no_support_executor(Cookie& cookie) {
     cookie.sendResponse(cb::mcbp::Status::NotSupported);
 }
 
-void initialize_protocol_handlers() {
+static void process_bin_dcp_response(Cookie& cookie) {
+    ENGINE_ERROR_CODE ret = ENGINE_DISCONNECT;
+
+    auto& c = cookie.getConnection();
+
+    c.enableDatatype(cb::mcbp::Feature::SNAPPY);
+    c.enableDatatype(cb::mcbp::Feature::JSON);
+
+    if (c.getBucketEngine()->dcp.response_handler != nullptr) {
+        auto packet = cookie.getPacket(Cookie::PacketContent::Full);
+        const auto* header =
+                reinterpret_cast<const protocol_binary_response_header*>(
+                        packet.data());
+
+        ret = c.getBucketEngine()->dcp.response_handler(
+                c.getBucketEngineAsV0(), &cookie, header);
+        ret = c.remapErrorCode(ret);
+    }
+
+    if (ret == ENGINE_DISCONNECT) {
+        c.setState(McbpStateMachine::State::closing);
+    } else {
+        c.setState(McbpStateMachine::State::ship_log);
+    }
+}
+
+void initialize_mbcp_lookup_map() {
+    for (auto& handler : request_handlers) {
+        handler.descriptor = nullptr;
+        handler.callback = default_unknown_command;
+    }
+
+    response_handlers[PROTOCOL_BINARY_CMD_NOOP] = process_bin_noop_response;
+
+    response_handlers[PROTOCOL_BINARY_CMD_DCP_OPEN] = process_bin_dcp_response;
+    response_handlers[PROTOCOL_BINARY_CMD_DCP_ADD_STREAM] =
+            process_bin_dcp_response;
+    response_handlers[PROTOCOL_BINARY_CMD_DCP_CLOSE_STREAM] =
+            process_bin_dcp_response;
+    response_handlers[PROTOCOL_BINARY_CMD_DCP_STREAM_REQ] =
+            process_bin_dcp_response;
+    response_handlers[PROTOCOL_BINARY_CMD_DCP_GET_FAILOVER_LOG] =
+            process_bin_dcp_response;
+    response_handlers[PROTOCOL_BINARY_CMD_DCP_STREAM_END] =
+            process_bin_dcp_response;
+    response_handlers[PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER] =
+            process_bin_dcp_response;
+    response_handlers[PROTOCOL_BINARY_CMD_DCP_MUTATION] =
+            process_bin_dcp_response;
+    response_handlers[PROTOCOL_BINARY_CMD_DCP_DELETION] =
+            process_bin_dcp_response;
+    response_handlers[PROTOCOL_BINARY_CMD_DCP_EXPIRATION] =
+            process_bin_dcp_response;
+    response_handlers[PROTOCOL_BINARY_CMD_DCP_FLUSH] = process_bin_dcp_response;
+    response_handlers[PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE] =
+            process_bin_dcp_response;
+    response_handlers[PROTOCOL_BINARY_CMD_DCP_NOOP] = process_bin_dcp_response;
+    response_handlers[PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT] =
+            process_bin_dcp_response;
+    response_handlers[PROTOCOL_BINARY_CMD_DCP_CONTROL] =
+            process_bin_dcp_response;
+    response_handlers[PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT] =
+            process_bin_dcp_response;
+
     for (auto& handler : handlers) {
         handler = process_bin_unknown_packet;
     }
@@ -730,60 +793,6 @@ void initialize_protocol_handlers() {
     handlers[PROTOCOL_BINARY_CMD_TAP_VBUCKET_SET] = no_support_executor;
     handlers[PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_START] = no_support_executor;
     handlers[PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_END] = no_support_executor;
-}
-
-static void process_bin_dcp_response(Cookie& cookie) {
-    ENGINE_ERROR_CODE ret = ENGINE_DISCONNECT;
-
-    auto& c = cookie.getConnection();
-
-    c.enableDatatype(cb::mcbp::Feature::SNAPPY);
-    c.enableDatatype(cb::mcbp::Feature::JSON);
-
-    if (c.getBucketEngine()->dcp.response_handler != nullptr) {
-        auto packet = cookie.getPacket(Cookie::PacketContent::Full);
-        const auto* header =
-                reinterpret_cast<const protocol_binary_response_header*>(
-                        packet.data());
-
-        ret = c.getBucketEngine()->dcp.response_handler(
-                c.getBucketEngineAsV0(), &cookie, header);
-        ret = c.remapErrorCode(ret);
-    }
-
-    if (ret == ENGINE_DISCONNECT) {
-        c.setState(McbpStateMachine::State::closing);
-    } else {
-        c.setState(McbpStateMachine::State::ship_log);
-    }
-}
-
-void initialize_mbcp_lookup_map() {
-    int ii;
-    for (ii = 0; ii < 0x100; ++ii) {
-        request_handlers[ii].descriptor = NULL;
-        request_handlers[ii].callback = default_unknown_command;
-    }
-
-    response_handlers[PROTOCOL_BINARY_CMD_NOOP] = process_bin_noop_response;
-
-    response_handlers[PROTOCOL_BINARY_CMD_DCP_OPEN] = process_bin_dcp_response;
-    response_handlers[PROTOCOL_BINARY_CMD_DCP_ADD_STREAM] = process_bin_dcp_response;
-    response_handlers[PROTOCOL_BINARY_CMD_DCP_CLOSE_STREAM] = process_bin_dcp_response;
-    response_handlers[PROTOCOL_BINARY_CMD_DCP_STREAM_REQ] = process_bin_dcp_response;
-    response_handlers[PROTOCOL_BINARY_CMD_DCP_GET_FAILOVER_LOG] = process_bin_dcp_response;
-    response_handlers[PROTOCOL_BINARY_CMD_DCP_STREAM_END] = process_bin_dcp_response;
-    response_handlers[PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER] = process_bin_dcp_response;
-    response_handlers[PROTOCOL_BINARY_CMD_DCP_MUTATION] = process_bin_dcp_response;
-    response_handlers[PROTOCOL_BINARY_CMD_DCP_DELETION] = process_bin_dcp_response;
-    response_handlers[PROTOCOL_BINARY_CMD_DCP_EXPIRATION] = process_bin_dcp_response;
-    response_handlers[PROTOCOL_BINARY_CMD_DCP_FLUSH] = process_bin_dcp_response;
-    response_handlers[PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE] = process_bin_dcp_response;
-    response_handlers[PROTOCOL_BINARY_CMD_DCP_NOOP] = process_bin_dcp_response;
-    response_handlers[PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT] = process_bin_dcp_response;
-    response_handlers[PROTOCOL_BINARY_CMD_DCP_CONTROL] = process_bin_dcp_response;
-    response_handlers[PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT] =
-            process_bin_dcp_response;
 }
 
 static void execute_request_packet(Cookie& cookie,
