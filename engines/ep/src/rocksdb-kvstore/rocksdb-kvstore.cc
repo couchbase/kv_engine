@@ -196,46 +196,13 @@ RocksDBKVStore::RocksDBKVStore(KVStoreConfig& config)
     // The RocksDB Options is a set of DBOptions and ColumnFamilyOptions.
     // Together they cover all RocksDB available parameters.
     auto status = rocksdb::GetDBOptionsFromString(
-            rocksdb::Options(), configuration.getRocksDBOptions(), &rdbOptions);
+            dbOptions, configuration.getRocksDBOptions(), &dbOptions);
     if (!status.ok()) {
         throw std::invalid_argument(
                 std::string("RocksDBKVStore::open: GetDBOptionsFromString "
                             "error: ") +
                 status.getState());
     }
-    status = rocksdb::GetColumnFamilyOptionsFromString(
-            rdbOptions, configuration.getRocksDBCFOptions(), &rdbOptions);
-    if (!status.ok()) {
-        throw std::invalid_argument(
-                std::string("RocksDBKVStore::open: "
-                            "GetColumnFamilyOptionsFromString error: ") +
-                status.getState());
-    }
-
-    // RocksDB ColumnFamilyOptions provide advanced options for the
-    // Block Based Table file format, which is the default format for SST files.
-    rocksdb::BlockBasedTableOptions table_options;
-    status = rocksdb::GetBlockBasedTableOptionsFromString(
-            rocksdb::BlockBasedTableOptions(),
-            configuration.getRocksDbBBTOptions(),
-            &table_options);
-    if (!status.ok()) {
-        throw std::invalid_argument(
-                std::string("RocksDBKVStore::open: "
-                            "GetBlockBasedTableOptionsFromString error: ") +
-                status.getState());
-    }
-
-    // Set the size of the per-shard Block Cache
-    if (configuration.getRocksdbBlockCacheSize() > 0) {
-        size_t sizePerShard = configuration.getRocksdbBlockCacheSize() /
-                              configuration.getMaxShards();
-        table_options.block_cache = rocksdb::NewLRUCache(sizePerShard);
-    }
-
-    // Set the new BlockBasedTableOptions
-    rdbOptions.table_factory.reset(
-            rocksdb::NewBlockBasedTableFactory(table_options));
 
     // Set number of background threads - note these are per-environment, so
     // are shared across all DB instances (vBuckets) and all Buckets.
@@ -251,23 +218,15 @@ RocksDBKVStore::RocksDBKVStore(KVStoreConfig& config)
     }
     rocksdb::Env::Default()->SetBackgroundThreads(highPri, rocksdb::Env::HIGH);
 
-    // Set the provided `RocksDBCFOptions` as the base configuration for all
-    // Column Families.
-    defaultCFOptions = rocksdb::ColumnFamilyOptions(rdbOptions);
-    seqnoCFOptions = rocksdb::ColumnFamilyOptions(rdbOptions);
-    localCFOptions = rocksdb::ColumnFamilyOptions(rdbOptions);
-
-    rdbOptions.create_if_missing = true;
-    rdbOptions.create_missing_column_families = true;
-
-    seqnoCFOptions.comparator = &vbidSeqnoComparator;
+    dbOptions.create_if_missing = true;
+    dbOptions.create_missing_column_families = true;
 
     /* Use a listener to set the appropriate engine in the
      * flusher threads RocksDB creates. We need the flusher threads to
      * account for news/deletes against the appropriate bucket. */
     auto fsl = std::make_shared<FlushStartListener>(
             ObjectRegistry::getCurrentEngine());
-    rdbOptions.listeners.emplace_back(fsl);
+    dbOptions.listeners.emplace_back(fsl);
 
     // Enable Statistics if 'Statistics::stat_level_' is provided by the
     // configuration. We create a statistics object and pass to the multiple
@@ -276,10 +235,26 @@ RocksDBKVStore::RocksDBKVStore(KVStoreConfig& config)
     // and have no meaningful information across multiple DBs (e.g.,
     // "rocksdb.sequence.number").
     if (!configuration.getRocksdbStatsLevel().empty()) {
-        rdbOptions.statistics = rocksdb::CreateDBStatistics();
-        rdbOptions.statistics->stats_level_ =
+        dbOptions.statistics = rocksdb::CreateDBStatistics();
+        dbOptions.statistics->stats_level_ =
                 getStatsLevel(configuration.getRocksdbStatsLevel());
     }
+
+    // Allocate the per-shard Block Cache
+    if (configuration.getRocksdbBlockCacheSize() > 0) {
+        blockCache =
+                rocksdb::NewLRUCache(configuration.getRocksdbBlockCacheSize() /
+                                     configuration.getMaxShards());
+    }
+    // Configure all the Column Families
+    const auto& cfOptions = configuration.getRocksDBCFOptions();
+    const auto& bbtOptions = configuration.getRocksDbBBTOptions();
+    defaultCFOptions = getBaselineDefaultCFOptions();
+    seqnoCFOptions = getBaselineSeqnoCFOptions();
+    localCFOptions = getBaselineLocalCFOptions();
+    applyUserCFOptions(defaultCFOptions, cfOptions, bbtOptions);
+    applyUserCFOptions(seqnoCFOptions, cfOptions, bbtOptions);
+    applyUserCFOptions(localCFOptions, cfOptions, bbtOptions);
 
     // Read persisted VBs state
     auto vbids = discoverVBuckets();
@@ -316,8 +291,7 @@ const KVRocksDB& RocksDBKVStore::openDB(uint16_t vbid) {
     std::vector<rocksdb::ColumnFamilyHandle*> handles;
 
     rocksdb::DB* db;
-    auto status =
-            rocksdb::DB::Open(rdbOptions, dbname, families, &handles, &db);
+    auto status = rocksdb::DB::Open(dbOptions, dbname, families, &handles, &db);
     if (!status.ok()) {
         throw std::runtime_error(
                 "RocksDBKVStore::open: failed to open database '" + dbname +
@@ -560,7 +534,8 @@ void RocksDBKVStore::delVBucket(uint16_t vbid, uint64_t vb_version) {
     vbDB[vbid].reset();
     // Just destroy the DB in the sub-folder for vbid
     auto dbname = getVBDBSubdir(vbid);
-    auto status = rocksdb::DestroyDB(dbname, rdbOptions);
+    auto status = rocksdb::DestroyDB(
+            dbname, static_cast<const rocksdb::Options&>(dbOptions));
     if (!status.ok()) {
         throw std::runtime_error("RocksDBKVStore::open: DestroyDB '" + dbname +
                                  "' failed: " + status.getState());
@@ -694,17 +669,24 @@ std::unordered_set<const rocksdb::Cache*> RocksDBKVStore::getCachePointers(
         }
     }
 
-    // Cache from table factories. We have a single Block Cache shared among
-    // all the VBuckets of a store.
-    if (rdbOptions.table_factory) {
-        auto* table_options = rdbOptions.table_factory->GetOptions();
+    // Cache from table factories.
+    addCFBlockCachePointers(defaultCFOptions, cache_set);
+    addCFBlockCachePointers(seqnoCFOptions, cache_set);
+    addCFBlockCachePointers(localCFOptions, cache_set);
+
+    return cache_set;
+}
+
+void RocksDBKVStore::addCFBlockCachePointers(
+        const rocksdb::ColumnFamilyOptions& cfOptions,
+        std::unordered_set<const rocksdb::Cache*>& cache_set) {
+    if (cfOptions.table_factory) {
+        auto* table_options = cfOptions.table_factory->GetOptions();
         auto* bbt_options =
                 static_cast<rocksdb::BlockBasedTableOptions*>(table_options);
         cache_set.insert(bbt_options->block_cache.get());
         cache_set.insert(bbt_options->block_cache_compressed.get());
     }
-
-    return cache_set;
 }
 
 rocksdb::StatsLevel RocksDBKVStore::getStatsLevel(
@@ -926,6 +908,55 @@ rocksdb::Status RocksDBKVStore::saveVBStateToBatch(const KVRocksDB& db,
 
     auto key = getVbstateKey();
     return batch.Put(db.localCFH.get(), key, jsonState.str());
+}
+
+rocksdb::ColumnFamilyOptions RocksDBKVStore::getBaselineDefaultCFOptions() {
+    return rocksdb::ColumnFamilyOptions();
+}
+
+rocksdb::ColumnFamilyOptions RocksDBKVStore::getBaselineSeqnoCFOptions() {
+    rocksdb::ColumnFamilyOptions cfOptions;
+    cfOptions.comparator = &vbidSeqnoComparator;
+    return cfOptions;
+}
+
+rocksdb::ColumnFamilyOptions RocksDBKVStore::getBaselineLocalCFOptions() {
+    return rocksdb::ColumnFamilyOptions();
+}
+
+void RocksDBKVStore::applyUserCFOptions(rocksdb::ColumnFamilyOptions& cfOptions,
+                                        const std::string& newCfOptions,
+                                        const std::string& newBbtOptions) {
+    // Apply 'newCfOptions' on top of 'cfOptions'
+    auto status = rocksdb::GetColumnFamilyOptionsFromString(
+            cfOptions, newCfOptions, &cfOptions);
+    if (!status.ok()) {
+        throw std::invalid_argument(
+                std::string("RocksDBKVStore::applyUserCFOptions:  "
+                            "GetColumnFamilyOptionsFromString error: ") +
+                status.getState());
+    }
+
+    // Apply 'newBbtOptions' on top of 'cfOptions'
+    // RocksDB ColumnFamilyOptions provide advanced options for the
+    // Block Based Table file format, which is the default format for SST files.
+    rocksdb::BlockBasedTableOptions table_options;
+    status = rocksdb::GetBlockBasedTableOptionsFromString(
+            rocksdb::BlockBasedTableOptions(), newBbtOptions, &table_options);
+    if (!status.ok()) {
+        throw std::invalid_argument(
+                std::string("RocksDBKVStore::applyUserCFOptions: "
+                            "GetBlockBasedTableOptionsFromString error: ") +
+                status.getState());
+    }
+
+    // Always use the per-shard shared Block Cache. If it is nullptr, RocksDB
+    // will allocate a default size Block Cache.
+    table_options.block_cache = blockCache;
+
+    // Set the new BlockBasedTableOptions
+    cfOptions.table_factory.reset(
+            rocksdb::NewBlockBasedTableFactory(table_options));
 }
 
 rocksdb::Status RocksDBKVStore::writeAndTimeBatch(const KVRocksDB& db,

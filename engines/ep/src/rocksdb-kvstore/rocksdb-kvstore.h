@@ -320,10 +320,25 @@ private:
 
     VbidSeqnoComparator vbidSeqnoComparator;
 
-    rocksdb::Options rdbOptions;
+    rocksdb::DBOptions dbOptions;
     rocksdb::ColumnFamilyOptions defaultCFOptions;
     rocksdb::ColumnFamilyOptions seqnoCFOptions;
     rocksdb::ColumnFamilyOptions localCFOptions;
+
+    // Per-shard Block Cache
+    std::shared_ptr<rocksdb::Cache> blockCache;
+
+    rocksdb::ColumnFamilyOptions getBaselineDefaultCFOptions();
+
+    rocksdb::ColumnFamilyOptions getBaselineSeqnoCFOptions();
+
+    rocksdb::ColumnFamilyOptions getBaselineLocalCFOptions();
+
+    // Helper function to apply the string-format 'newCfOptions' and
+    // 'newBbtOptions' on top of 'cfOptions'.
+    void applyUserCFOptions(rocksdb::ColumnFamilyOptions& cfOptions,
+                            const std::string& newCfOptions,
+                            const std::string& newBbtOptions);
 
     /*
      * This function returns an instance of `KVRocksDB` for the given `vbid`.
@@ -355,6 +370,12 @@ private:
      */
     std::unordered_set<const rocksdb::Cache*> getCachePointers(
             const std::vector<rocksdb::DB*>& dbs);
+
+    // This helper function adds all the block cache pointers of 'cfOptions'
+    // to 'cache_set'
+    static void addCFBlockCachePointers(
+            const rocksdb::ColumnFamilyOptions& cfOptions,
+            std::unordered_set<const rocksdb::Cache*>& cache_set);
 
     /*
      * This function returns the 'rocksdb::StatsLevel' value for the
