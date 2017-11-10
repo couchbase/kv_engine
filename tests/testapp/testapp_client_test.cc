@@ -46,6 +46,41 @@ void TestappClientTest::setClusterSessionToken(uint64_t nval) {
     token = nval;
 }
 
+void TestappXattrClientTest::SetUp() {
+    TestappTest::SetUp();
+
+    mcd_env->getTestBucket().setXattrEnabled(
+            getConnection(),
+            bucketName,
+            ::testing::get<1>(GetParam()) == XattrSupport::Yes);
+    if (::testing::get<1>(GetParam()) == XattrSupport::No) {
+        xattrOperationStatus = PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
+    }
+
+    document.info.cas = mcbp::cas::Wildcard;
+    document.info.datatype = cb::mcbp::Datatype::JSON;
+    document.info.flags = 0xcaffee;
+    document.info.id = name;
+    document.info.expiration = 0;
+    const std::string content = to_string(memcached_cfg, false);
+    std::copy(
+            content.begin(), content.end(), std::back_inserter(document.value));
+}
+
+MemcachedConnection& TestappXattrClientTest::getConnection() {
+    switch (::testing::get<0>(GetParam())) {
+    case TransportProtocols::McbpPlain:
+        return prepare(connectionMap.getConnection(false, AF_INET));
+    case TransportProtocols::McbpIpv6Plain:
+        return prepare(connectionMap.getConnection(false, AF_INET6));
+    case TransportProtocols::McbpSsl:
+        return prepare(connectionMap.getConnection(true, AF_INET));
+    case TransportProtocols::McbpIpv6Ssl:
+        return prepare(connectionMap.getConnection(true, AF_INET6));
+    }
+    throw std::logic_error("Unknown transport");
+}
+
 void TestappXattrClientTest::createXattr(const std::string& path,
                                          const std::string& value,
                                          bool macro) {
