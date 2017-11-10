@@ -217,9 +217,7 @@ protected:
         document.info.datatype = cb::mcbp::Datatype::JSON;
         document.info.flags = 0xcaffee;
         document.info.id = name;
-        const std::string content = to_string(memcached_cfg, false);
-        std::copy(content.begin(), content.end(),
-                  std::back_inserter(document.value));
+        document.value = to_string(memcached_cfg, false);
         return conn.mutate(document, 0, type);
     }
 

@@ -210,8 +210,7 @@ protected:
 
         // Check the body was set correctly
         auto doc = getConnection().get(name, 0);
-        std::vector<uint8_t> expected(value.begin(), value.end());
-        EXPECT_EQ(expected, doc.value);
+        EXPECT_EQ(value, doc.value);
 
         // Check the xattr was set correctly
         auto resp = subdoc_get(sysXattr, SUBDOC_FLAG_XATTR_PATH);
@@ -229,9 +228,7 @@ protected:
         document.info.datatype = datatype;
         document.info.flags = 0xcaffee;
         document.info.id = name;
-        std::copy(startValue.begin(),
-                  startValue.end(),
-                  std::back_inserter(document.value));
+        document.value = startValue;
         getConnection().mutate(document, 0, MutationType::Set);
         auto doc = getConnection().get(name, 0);
 

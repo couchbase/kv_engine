@@ -86,7 +86,7 @@ public:
 class Document {
 public:
     DocumentInfo info;
-    std::vector<uint8_t> value;
+    std::string value;
 };
 
 class MutationInfo {
@@ -373,7 +373,9 @@ public:
                         MutationType type) {
         return mutate(doc.info,
                       vbucket,
-                      cb::const_byte_buffer(doc.value.data(), doc.value.size()),
+                      cb::const_byte_buffer(reinterpret_cast<const uint8_t*>(
+                                                    doc.value.data()),
+                                            doc.value.size()),
                       type);
     }
 
@@ -397,26 +399,13 @@ public:
      * Convenience method to store (aka "upsert") an item.
      * @param id The item's ID
      * @param vbucket vBucket
-     * @param value Value of the item. Should have a begin/end function
+     * @param value Value of the item.
      * @return The mutation result.
      */
-    template <typename T>
-    MutationInfo store(
-            const std::string& id,
-            uint16_t vbucket,
-            const T& value,
-            cb::mcbp::Datatype datatype = cb::mcbp::Datatype::Raw) {
-        Document doc{};
-        doc.value.assign(value.begin(), value.end());
-        doc.info.id = id;
-        doc.info.datatype = datatype;
-        return mutate(doc, vbucket, MutationType::Set);
-    }
-    MutationInfo store(const std::string& id, uint16_t vbucket,
-                       const char *value, size_t len) {
-        cb::const_char_buffer buf(value, len);
-        return store(id, vbucket, buf);
-    }
+    MutationInfo store(const std::string& id,
+                       uint16_t vbucket,
+                       std::string value,
+                       cb::mcbp::Datatype datatype = cb::mcbp::Datatype::Raw);
 
     /**
      * Get stats as a map

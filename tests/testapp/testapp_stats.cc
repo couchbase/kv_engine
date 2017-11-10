@@ -44,9 +44,7 @@ TEST_P(StatsTest, TestGetMeta) {
     doc.info.datatype = cb::mcbp::Datatype::JSON;
     doc.info.flags = 0xcaffee;
     doc.info.id = name;
-    char* ptr = cJSON_Print(memcached_cfg.get());
-    std::copy(ptr, ptr + strlen(ptr), std::back_inserter(doc.value));
-    cJSON_Free(ptr);
+    doc.value = to_string(memcached_cfg.get());
     conn.mutate(doc, 0, MutationType::Set);
 
     // Send 10 GET_META, this should increase the `cmd_get` and `get_hits` stats
@@ -164,9 +162,7 @@ TEST_P(StatsTest, Test_MB_17815) {
     doc.info.datatype = cb::mcbp::Datatype::JSON;
     doc.info.flags = 0xcaffee;
     doc.info.id = name;
-    char* ptr = cJSON_Print(memcached_cfg.get());
-    std::copy(ptr, ptr + strlen(ptr), std::back_inserter(doc.value));
-    cJSON_Free(ptr);
+    doc.value = to_string(memcached_cfg.get());
 
     conn.mutate(doc, 0, MutationType::Add);
     stats = conn.stats("");
@@ -372,9 +368,7 @@ TEST_P(StatsTest, TestTopkeys) {
         doc.info.datatype = cb::mcbp::Datatype::JSON;
         doc.info.flags = 0xcaffee;
         doc.info.id = name;
-        char* ptr = cJSON_Print(memcached_cfg.get());
-        std::copy(ptr, ptr + strlen(ptr), std::back_inserter(doc.value));
-        cJSON_Free(ptr);
+        doc.value = to_string(memcached_cfg.get());
 
         conn.mutate(doc, 0, MutationType::Set);
     }
@@ -393,9 +387,7 @@ TEST_P(StatsTest, TestTopkeysJson) {
         doc.info.datatype = cb::mcbp::Datatype::JSON;
         doc.info.flags = 0xcaffee;
         doc.info.id = name;
-        char* ptr = cJSON_Print(memcached_cfg.get());
-        std::copy(ptr, ptr + strlen(ptr), std::back_inserter(doc.value));
-        cJSON_Free(ptr);
+        doc.value = to_string(memcached_cfg.get());
 
         conn.mutate(doc, 0, MutationType::Set);
     }

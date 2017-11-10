@@ -731,6 +731,17 @@ MutationInfo MemcachedConnection::mutate(const DocumentInfo& info,
     return response.getMutationInfo();
 }
 
+MutationInfo MemcachedConnection::store(const std::string& id,
+                                        uint16_t vbucket,
+                                        std::string value,
+                                        cb::mcbp::Datatype datatype) {
+    Document doc{};
+    doc.value = std::move(value);
+    doc.info.id = id;
+    doc.info.datatype = datatype;
+    return mutate(doc, vbucket, MutationType::Set);
+}
+
 std::map<std::string, std::string> MemcachedConnection::statsMap(
         const std::string& subcommand) {
     BinprotGenericCommand command(PROTOCOL_BINARY_CMD_STAT, subcommand);

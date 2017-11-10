@@ -177,9 +177,7 @@ TEST_P(ArithmeticTest, TestMutationInfo) {
     doc.info.datatype = cb::mcbp::Datatype::JSON;
     doc.info.flags = 0xcaffee;
     doc.info.id = name;
-    char* ptr = cJSON_Print(memcached_cfg.get());
-    std::copy(ptr, ptr + strlen(ptr), std::back_inserter(doc.value));
-    cJSON_Free(ptr);
+    doc.value = to_string(memcached_cfg.get());
 
     conn.mutate(doc, 0, MutationType::Replace);
 }
@@ -192,9 +190,7 @@ TEST_P(ArithmeticTest, TestIllegalDatatype) {
     doc.info.datatype = cb::mcbp::Datatype::JSON;
     doc.info.flags = 0xcaffee;
     doc.info.id = name;
-    char* ptr = cJSON_Print(memcached_cfg.get());
-    std::copy(ptr, ptr + strlen(ptr), std::back_inserter(doc.value));
-    cJSON_Free(ptr);
+    doc.value = to_string(memcached_cfg.get());
 
     ASSERT_NO_THROW(conn.mutate(doc, 0, MutationType::Add));
 
@@ -215,7 +211,7 @@ static void test_stored_doc(MemcachedConnection& conn,
     doc.info.datatype = cb::mcbp::Datatype::JSON;
     doc.info.flags = 0xcaffee;
     doc.info.id = key;
-    std::copy(content.begin(), content.end(), std::back_inserter(doc.value));
+    doc.value = content;
 
     ASSERT_NO_THROW(conn.mutate(doc, 0, MutationType::Set));
     if (badval) {

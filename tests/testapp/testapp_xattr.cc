@@ -950,7 +950,7 @@ TEST_P(XattrTest, MB_25786_XTOC_VattrNoXattrs) {
     document.info.datatype = cb::mcbp::Datatype::JSON;
     document.info.flags = 0xcaffee;
     document.info.id = name;
-    std::copy(value.begin(), value.end(), std::back_inserter(document.value));
+    document.value = value;
     getConnection().mutate(document, 0, MutationType::Set);
     auto doc = getConnection().get(name, 0);
 
@@ -1258,12 +1258,10 @@ TEST_P(XattrTest, mb25928_UserCantExceedDocumentLimit) {
 
     auto& conn = getConnection();
 
-    std::vector<uint8_t> blob(GetTestBucket().getMaximumDocSize());
-    conn.store("mb25928", 0, blob);
+    std::string blob(GetTestBucket().getMaximumDocSize(), '\0');
+    conn.store("mb25928", 0, std::move(blob));
 
-    std::string value;
-    value.resize(300);
-    std::fill(value.begin(), value.end(), 'a');
+    std::string value(300, 'a');
     value.front() = '"';
     value.back() = '"';
 
@@ -1294,14 +1292,12 @@ TEST_P(XattrTest, mb25928_SystemCanExceedDocumentLimit) {
 
     auto& conn = getConnection();
 
-    std::vector<uint8_t> blob(GetTestBucket().getMaximumDocSize());
-    conn.store("mb25928", 0, blob);
+    std::string blob(GetTestBucket().getMaximumDocSize(), '\0');
+    conn.store("mb25928", 0, std::move(blob));
 
-    std::string value;
     // Let it be almost 1MB (the internal length fields and keys
     // is accounted for in the system space
-    value.resize(1024 * 1024 - 40);
-    std::fill(value.begin(), value.end(), 'a');
+    std::string value(1024 * 1024 - 40, 'a');
     value.front() = '"';
     value.back() = '"';
 
@@ -1332,12 +1328,10 @@ TEST_P(XattrTest, mb25928_SystemCantExceedSystemLimit) {
 
     auto& conn = getConnection();
 
-    std::vector<uint8_t> blob(GetTestBucket().getMaximumDocSize());
-    conn.store("mb25928", 0, blob);
+    std::string blob(GetTestBucket().getMaximumDocSize(), '\0');
+    conn.store("mb25928", 0, std::move(blob));
 
-    std::string value;
-    value.resize(1024 * 1024);
-    std::fill(value.begin(), value.end(), 'a');
+    std::string value(1024 * 1024, 'a');
     value.front() = '"';
     value.back() = '"';
 

@@ -465,9 +465,7 @@ TEST_P(BucketTest, TestBucketIsolationBuckets)
     doc.info.datatype = cb::mcbp::Datatype::JSON;
     doc.info.flags = 0xcaffee;
     doc.info.id = "TestBucketIsolationBuckets";
-    char* ptr = cJSON_Print(memcached_cfg.get());
-    std::copy(ptr, ptr + strlen(ptr), std::back_inserter(doc.value));
-    cJSON_Free(ptr);
+    doc.value = to_string(memcached_cfg.get());
 
     for (int ii = 1; ii < COUCHBASE_MAX_NUM_BUCKETS; ++ii) {
         std::stringstream ss;

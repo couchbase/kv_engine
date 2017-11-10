@@ -478,13 +478,12 @@ TEST_P(GetSetTest, TestIllegalVbucket) {
 }
 
 static void compress_vector(const std::vector<char>& input,
-                            std::vector<uint8_t>& output) {
+                            std::string& output) {
     cb::compression::Buffer compressed;
     EXPECT_TRUE(cb::compression::deflate(cb::compression::Algorithm::Snappy,
                                          input, compressed));
     EXPECT_GT(input.size(), compressed.size());
-    output.resize(compressed.size());
-    memcpy(output.data(), compressed.data(), compressed.size());
+    output.assign(compressed.data(), compressed.size());
 }
 
 TEST_P(GetSetTest, TestAppendCompressedSource) {
@@ -498,8 +497,7 @@ TEST_P(GetSetTest, TestAppendCompressedSource) {
 
     int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
     conn.mutate(document, 0, MutationType::Set);
-    document.value.resize(input.size());
-    std::fill(document.value.begin(), document.value.end(), 'b');
+    document.value.assign(input.size(), 'b');
     document.info.datatype = cb::mcbp::Datatype::Raw;
 
     conn.mutate(document, 0, MutationType::Append);
@@ -512,9 +510,8 @@ TEST_P(GetSetTest, TestAppendCompressedSource) {
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
 
-    std::vector<uint8_t> expected(input.size() * 2);
-    memset(expected.data(), 'a', input.size());
-    memset(expected.data() + input.size(), 'b', input.size());
+    std::string expected(input.size(), 'a');
+    expected.append(input.size(), 'b');
     EXPECT_EQ(expected, stored.value);
 }
 
@@ -522,8 +519,7 @@ TEST_P(GetSetTest, TestAppendCompressedData) {
     TESTAPP_SKIP_IF_NO_COMPRESSION();
     MemcachedConnection& conn = getConnection();
     document.info.datatype = cb::mcbp::Datatype::Raw;
-    document.value.resize(1024);
-    std::fill(document.value.begin(), document.value.end(), 'a');
+    document.value.assign(1024, 'a');
 
     int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
@@ -545,9 +541,8 @@ TEST_P(GetSetTest, TestAppendCompressedData) {
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
 
-    std::vector<uint8_t> expected(input.size() * 2);
-    memset(expected.data(), 'a', input.size());
-    memset(expected.data() + input.size(), 'b', input.size());
+    std::string expected(input.size(), 'a');
+    expected.append(input.size(), 'b');
 
     ASSERT_EQ(2048, stored.value.size());
 
@@ -580,9 +575,8 @@ TEST_P(GetSetTest, TestAppendCompressedSourceAndData) {
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
 
-    std::vector<uint8_t> expected(input.size() + append.size());
-    memset(expected.data(), 'a', input.size());
-    memset(expected.data() + input.size(), 'b', append.size());
+    std::string expected(input.size(), 'a');
+    expected.append(append.size(), 'b');
     EXPECT_EQ(expected, stored.value);
 }
 
@@ -598,8 +592,7 @@ TEST_P(GetSetTest, TestPrependCompressedSource) {
 
     int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
     conn.mutate(document, 0, MutationType::Set);
-    document.value.resize(input.size());
-    std::fill(document.value.begin(), document.value.end(), 'b');
+    document.value.assign(input.size(), 'b');
     document.info.datatype = cb::mcbp::Datatype::Raw;
 
     conn.mutate(document, 0, MutationType::Prepend);
@@ -613,9 +606,8 @@ TEST_P(GetSetTest, TestPrependCompressedSource) {
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
 
-    std::vector<uint8_t> expected(input.size() * 2);
-    memset(expected.data(), 'b', input.size());
-    memset(expected.data() + input.size(), 'a', input.size());
+    std::string expected(input.size(), 'b');
+    expected.append(input.size(), 'a');
     EXPECT_EQ(expected, stored.value);
 }
 
@@ -623,8 +615,7 @@ TEST_P(GetSetTest, TestPrependCompressedData) {
     TESTAPP_SKIP_IF_NO_COMPRESSION();
     MemcachedConnection& conn = getConnection();
     document.info.datatype = cb::mcbp::Datatype::Raw;
-    document.value.resize(1024);
-    std::fill(document.value.begin(), document.value.end(), 'a');
+    document.value.assign(1024, 'a');
 
     int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
     conn.mutate(document, 0, MutationType::Set);
@@ -645,9 +636,8 @@ TEST_P(GetSetTest, TestPrependCompressedData) {
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
 
-    std::vector<uint8_t> expected(input.size() * 2);
-    memset(expected.data(), 'b', input.size());
-    memset(expected.data() + input.size(), 'a', input.size());
+    std::string expected(input.size(), 'b');
+    expected.append(input.size(), 'a');
     EXPECT_EQ(expected, stored.value);
 }
 
@@ -677,9 +667,8 @@ TEST_P(GetSetTest, TestPrepepndCompressedSourceAndData) {
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
 
-    std::vector<uint8_t> expected(input.size() + append.size());
-    memset(expected.data(), 'b', input.size());
-    memset(expected.data() + input.size(), 'a', append.size());
+    std::string expected(input.size(), 'b');
+    expected.append(append.size(), 'a');
     EXPECT_EQ(expected, stored.value);
 }
 
