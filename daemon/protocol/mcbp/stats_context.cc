@@ -37,78 +37,103 @@
 #include <numeric>
 
 // Generic add_stat<T>. Uses std::to_string which requires heap allocation.
-template<typename T>
-void add_stat(const void* cookie, ADD_STAT add_stat_callback,
-              const char* name, const T& val) {
+template <typename T>
+void add_stat(Cookie& cookie,
+              ADD_STAT add_stat_callback,
+              const char* name,
+              const T& val) {
     std::string value = std::to_string(val);
-    add_stat_callback(name, uint16_t(strlen(name)),
-                      value.c_str(), uint32_t(value.length()), cookie);
+    add_stat_callback(name,
+                      uint16_t(strlen(name)),
+                      value.c_str(),
+                      uint32_t(value.length()),
+                      &cookie);
 }
 
 // Specializations for common, integer types. Uses stack buffer for
 // int-to-string conversion.
-void add_stat(const void* cookie, ADD_STAT add_stat_callback,
-              const char* name, int32_t val) {
+void add_stat(Cookie& cookie,
+              ADD_STAT add_stat_callback,
+              const char* name,
+              int32_t val) {
     char buf[16];
     int len = checked_snprintf(buf, sizeof(buf), "%" PRId32, val);
     if (len < 0 || size_t(len) >= sizeof(buf)) {
         LOG_WARNING(nullptr, "add_stat failed to add stat for %s", name);
     } else {
-        add_stat_callback(name, uint16_t(strlen(name)),
-                          buf, uint32_t(len), cookie);
+        add_stat_callback(
+                name, uint16_t(strlen(name)), buf, uint32_t(len), &cookie);
     }
 }
 
-void add_stat(const void* cookie, ADD_STAT add_stat_callback,
-              const char* name, uint32_t val) {
+void add_stat(Cookie& cookie,
+              ADD_STAT add_stat_callback,
+              const char* name,
+              uint32_t val) {
     char buf[16];
     int len = checked_snprintf(buf, sizeof(buf), "%" PRIu32, val);
     if (len < 0 || size_t(len) >= sizeof(buf)) {
         LOG_WARNING(nullptr, "add_stat failed to add stat for %s", name);
     } else {
-        add_stat_callback(name, uint16_t(strlen(name)),
-                          buf, uint32_t(len), cookie);
+        add_stat_callback(
+                name, uint16_t(strlen(name)), buf, uint32_t(len), &cookie);
     }
 }
 
-void add_stat(const void* cookie, ADD_STAT add_stat_callback,
-              const char* name, int64_t val) {
+void add_stat(Cookie& cookie,
+              ADD_STAT add_stat_callback,
+              const char* name,
+              int64_t val) {
     char buf[32];
     int len = checked_snprintf(buf, sizeof(buf), "%" PRId64, val);
     if (len < 0 || size_t(len) >= sizeof(buf)) {
         LOG_WARNING(nullptr, "add_stat failed to add stat for %s", name);
     } else {
-        add_stat_callback(name, uint16_t(strlen(name)),
-                          buf, uint32_t(len), cookie);
+        add_stat_callback(
+                name, uint16_t(strlen(name)), buf, uint32_t(len), &cookie);
     }
 }
 
-void add_stat(const void* cookie, ADD_STAT add_stat_callback,
-              const char* name, uint64_t val) {
+void add_stat(Cookie& cookie,
+              ADD_STAT add_stat_callback,
+              const char* name,
+              uint64_t val) {
     char buf[32];
     int len = checked_snprintf(buf, sizeof(buf), "%" PRIu64, val);
     if (len < 0 || size_t(len) >= sizeof(buf)) {
         LOG_WARNING(nullptr, "add_stat failed to add stat for %s", name);
     } else {
-        add_stat_callback(name, uint16_t(strlen(name)),
-                          buf, uint32_t(len), cookie);
+        add_stat_callback(
+                name, uint16_t(strlen(name)), buf, uint32_t(len), &cookie);
     }
 }
 
-void add_stat(const void* cookie, ADD_STAT add_stat_callback,
-              const char* name, const std::string& value) {
-    add_stat_callback(name, uint16_t(strlen(name)),
-                      value.c_str(), uint32_t(value.length()), cookie);
+void add_stat(Cookie& cookie,
+              ADD_STAT add_stat_callback,
+              const char* name,
+              const std::string& value) {
+    add_stat_callback(name,
+                      uint16_t(strlen(name)),
+                      value.c_str(),
+                      uint32_t(value.length()),
+                      &cookie);
 }
 
-void add_stat(const void* cookie, ADD_STAT add_stat_callback,
-              const char* name, const char* value) {
-    add_stat_callback(name, uint16_t(strlen(name)),
-                      value, uint32_t(strlen(value)), cookie);
+void add_stat(Cookie& cookie,
+              ADD_STAT add_stat_callback,
+              const char* name,
+              const char* value) {
+    add_stat_callback(name,
+                      uint16_t(strlen(name)),
+                      value,
+                      uint32_t(strlen(value)),
+                      &cookie);
 }
 
-void add_stat(const void* cookie, ADD_STAT add_stat_callback,
-              const char* name, const bool value) {
+void add_stat(Cookie& cookie,
+              ADD_STAT add_stat_callback,
+              const char* name,
+              const bool value) {
     if (value) {
         add_stat(cookie, add_stat_callback, name, "true");
     } else {
@@ -118,13 +143,11 @@ void add_stat(const void* cookie, ADD_STAT add_stat_callback,
 
 /* return server specific stats only */
 static ENGINE_ERROR_CODE server_stats(ADD_STAT add_stat_callback,
-                                      McbpConnection* c) {
+                                      Cookie& cookie) {
     rel_time_t now = mc_time_get_current_time();
 
     struct thread_stats thread_stats;
-    thread_stats.aggregate(all_buckets[c->getBucketIndex()].stats);
-
-    auto* cookie = c->getCookie();
+    thread_stats.aggregate(cookie.getConnection().getBucket().stats);
 
     try {
         std::lock_guard<std::mutex> guard(stats_mutex);
@@ -239,7 +262,8 @@ static ENGINE_ERROR_CODE server_stats(ADD_STAT add_stat_callback,
         add_stat(cookie, add_stat_callback, "cmd_mutation_10s_duration_us",
                  mutation_latency.duration_ns / 1000);
 
-        auto& respCounters = c->getBucket().responseCounters;
+        auto& respCounters =
+                cookie.getConnection().getBucket().responseCounters;
         // Ignore success responses by starting from begin + 1
         uint64_t total_resp_errors = std::accumulate(
                 std::begin(respCounters) + 1, std::end(respCounters), 0);
@@ -255,17 +279,11 @@ static ENGINE_ERROR_CODE server_stats(ADD_STAT add_stat_callback,
     return ENGINE_SUCCESS;
 }
 
-static void process_stat_settings(ADD_STAT add_stat_callback,
-                                  McbpConnection* c) {
-    if (c == nullptr) {
-        throw std::invalid_argument("process_stat_settings: "
-                                        "cookie must be non-NULL");
-    }
+static void process_stat_settings(ADD_STAT add_stat_callback, Cookie& cookie) {
     if (add_stat_callback == nullptr) {
         throw std::invalid_argument("process_stat_settings: "
                                         "add_stat_callback must be non-NULL");
     }
-    auto* cookie = c->getCookie();
     add_stat(cookie, add_stat_callback, "maxconns", settings.getMaxconns());
 
     try {
@@ -335,8 +353,14 @@ static void process_stat_settings(ADD_STAT add_stat_callback,
     add_stat(cookie, add_stat_callback, "auth_sasl_engine", "cbsasl");
 
     const char *sasl_mechs = nullptr;
-    if (cbsasl_listmech(c->getSaslConn(), nullptr, "(", ",", ")",
-                        &sasl_mechs, nullptr, nullptr)  == CBSASL_OK) {
+    if (cbsasl_listmech(cookie.getConnection().getSaslConn(),
+                        nullptr,
+                        "(",
+                        ",",
+                        ")",
+                        &sasl_mechs,
+                        nullptr,
+                        nullptr) == CBSASL_OK) {
         add_stat(cookie, add_stat_callback, "auth_sasl_mechanisms", sasl_mechs);
     }
 
@@ -467,19 +491,19 @@ static void process_bucket_details(McbpConnection* c) {
  *       <b>all</b> of the buckets?
  *
  * @param arg - should be empty
- * @param connection the connection that requested the operation
+ * @param cookie the command context
  */
 static ENGINE_ERROR_CODE stat_reset_executor(const std::string& arg,
-                                             McbpConnection& connection) {
+                                             Cookie& cookie) {
     if (arg.empty()) {
-        stats_reset(connection.getCookie());
-        bucket_reset_stats(&connection);
+        stats_reset(&cookie);
+        bucket_reset_stats(&cookie.getConnection());
         all_buckets[0].timings.reset();
-        all_buckets[connection.getBucketIndex()].timings.reset();
+        all_buckets[cookie.getConnection().getBucketIndex()].timings.reset();
         return ENGINE_SUCCESS;
     } else if (arg == "timings") {
         // Nuke the command timings section for the connected bucket
-        all_buckets[connection.getBucketIndex()].timings.reset();
+        all_buckets[cookie.getConnection().getBucketIndex()].timings.reset();
         return ENGINE_SUCCESS;
     } else {
         return ENGINE_EINVAL;
@@ -491,17 +515,16 @@ static ENGINE_ERROR_CODE stat_reset_executor(const std::string& arg,
  * histogram for the scheduler histogram.
  *
  * @param arg - should be empty
- * @param connection the connection that requested the operation
+ * @param cookie the command context
  */
 static ENGINE_ERROR_CODE stat_sched_executor(const std::string& arg,
-                                             McbpConnection& connection) {
-
+                                             Cookie& cookie) {
     if (arg.empty()) {
         for (int ii = 0; ii < settings.getNumWorkerThreads(); ++ii) {
             auto hist = scheduler_info[ii].to_string();
             std::string key = std::to_string(ii);
-            append_stats(key.data(), key.size(), hist.data(), hist.size(),
-                         connection.getCookie());
+            append_stats(
+                    key.data(), key.size(), hist.data(), hist.size(), &cookie);
         }
         return ENGINE_SUCCESS;
     } else if (arg == "aggregate") {
@@ -512,8 +535,7 @@ static ENGINE_ERROR_CODE stat_sched_executor(const std::string& arg,
         }
         // Add the stat
         auto hist = histogram.to_string();
-        append_stats(key.data(), key.size(), hist.data(), hist.size(),
-                     connection.getCookie());
+        append_stats(key.data(), key.size(), hist.data(), hist.size(), &cookie);
         return ENGINE_SUCCESS;
     } else {
         return ENGINE_EINVAL;
@@ -525,13 +547,12 @@ static ENGINE_ERROR_CODE stat_sched_executor(const std::string& arg,
  * settings.
  *
  * @param arg - should be empty
- * @param connection the connection that requested the operation
+ * @param cookie the command context
  */
 static ENGINE_ERROR_CODE stat_settings_executor(const std::string& arg,
-                                                McbpConnection& connection) {
-
+                                                Cookie& cookie) {
     if (arg.empty()) {
-        process_stat_settings(&append_stats, &connection);
+        process_stat_settings(&append_stats, cookie);
         return ENGINE_SUCCESS;
     } else {
         return ENGINE_EINVAL;
@@ -543,32 +564,29 @@ static ENGINE_ERROR_CODE stat_settings_executor(const std::string& arg,
  * the audit subsystem.
  *
  * @param arg - should be empty
- * @param connection the connection that requested the operation
+ * @param cookie the command context
  */
 static ENGINE_ERROR_CODE stat_audit_executor(const std::string& arg,
-                                             McbpConnection& connection) {
+                                             Cookie& cookie) {
     if (arg.empty()) {
-        process_auditd_stats(get_audit_handle(),
-                             &append_stats,
-                             const_cast<void*>(connection.getCookie()));
+        process_auditd_stats(get_audit_handle(), &append_stats, &cookie);
         return ENGINE_SUCCESS;
     } else {
         return ENGINE_EINVAL;
     }
 }
 
-
 /**
  * Handler for the <code>stats bucket details</code> used to get information
  * of the buckets (type, state, #clients etc)
  *
  * @param arg - should be empty
- * @param connection the connection that requested the operation
+ * @param cookie the command context
  */
 static ENGINE_ERROR_CODE stat_bucket_details_executor(const std::string& arg,
-                                                      McbpConnection& connection) {
+                                                      Cookie& cookie) {
     if (arg.empty()) {
-        process_bucket_details(&connection);
+        process_bucket_details(&cookie.getConnection());
         return ENGINE_SUCCESS;
     } else {
         return ENGINE_EINVAL;
@@ -580,12 +598,12 @@ static ENGINE_ERROR_CODE stat_bucket_details_executor(const std::string& arg,
  * as it gives just a subset of what you'll get from an empty stat.
  *
  * @param arg - should be empty
- * @param connection the connection that requested the operation
+ * @param cookie the command context
  */
 static ENGINE_ERROR_CODE stat_aggregate_executor(const std::string& arg,
-                                                 McbpConnection& connection) {
+                                                 Cookie& cookie) {
     if (arg.empty()) {
-        return server_stats(&append_stats, &connection);
+        return server_stats(&append_stats, cookie);
     } else {
         return ENGINE_EINVAL;
     }
@@ -597,10 +615,10 @@ static ENGINE_ERROR_CODE stat_aggregate_executor(const std::string& arg,
  *
  * @param arg an optional file descriptor representing the connection
  *            object to retrieve information about. If empty dump all.
- * @param connection the connection that requested the operation
+ * @param cookie the command context
  */
 static ENGINE_ERROR_CODE stat_connections_executor(const std::string& arg,
-                                                   McbpConnection& connection) {
+                                                   Cookie& cookie) {
     int64_t fd = -1;
 
     if (!arg.empty()) {
@@ -611,7 +629,7 @@ static ENGINE_ERROR_CODE stat_connections_executor(const std::string& arg,
         }
     }
 
-    connection_stats(&append_stats, connection.getCookie(), fd);
+    connection_stats(&append_stats, &cookie, fd);
     return ENGINE_SUCCESS;
 }
 
@@ -620,18 +638,17 @@ static ENGINE_ERROR_CODE stat_connections_executor(const std::string& arg,
  * the most popular keys in the attached bucket.
  *
  * @param arg - should be empty
- * @param connection the connection that requested the operation
+ * @param cookie the command context
  */
 static ENGINE_ERROR_CODE stat_topkeys_executor(const std::string& arg,
-                                               McbpConnection& connection) {
+                                               Cookie& cookie) {
     if (arg.empty()) {
-        auto& bucket = all_buckets[connection.getBucketIndex()];
+        auto& bucket = all_buckets[cookie.getConnection().getBucketIndex()];
         if (bucket.topkeys == nullptr) {
             return ENGINE_NO_BUCKET;
         }
-        return bucket.topkeys->stats(connection.getCookie(),
-                                     mc_time_get_current_time(),
-                                     append_stats);
+        return bucket.topkeys->stats(
+                &cookie, mc_time_get_current_time(), append_stats);
     } else {
         return ENGINE_EINVAL;
     }
@@ -642,10 +659,10 @@ static ENGINE_ERROR_CODE stat_topkeys_executor(const std::string& arg,
  * a JSON document containing the most popular keys in the attached bucket.
  *
  * @param arg - should be empty
- * @param connection the connection that requested the operation
+ * @param cookie the command context
  */
 static ENGINE_ERROR_CODE stat_topkeys_json_executor(const std::string& arg,
-                                                    McbpConnection& connection) {
+                                                    Cookie& cookie) {
     if (arg.empty()) {
         ENGINE_ERROR_CODE ret;
 
@@ -653,7 +670,7 @@ static ENGINE_ERROR_CODE stat_topkeys_json_executor(const std::string& arg,
         if (topkeys_doc == nullptr) {
             ret = ENGINE_ENOMEM;
         } else {
-            auto& bucket = all_buckets[connection.getBucketIndex()];
+            auto& bucket = all_buckets[cookie.getConnection().getBucketIndex()];
             if (bucket.topkeys == nullptr) {
                 return ENGINE_NO_BUCKET;
             }
@@ -664,9 +681,11 @@ static ENGINE_ERROR_CODE stat_topkeys_json_executor(const std::string& arg,
                 char key[] = "topkeys_json";
                 char* topkeys_str = cJSON_PrintUnformatted(topkeys_doc);
                 if (topkeys_str != nullptr) {
-                    append_stats(key, (uint16_t)strlen(key),
-                                 topkeys_str, (uint32_t)strlen(topkeys_str),
-                                 connection.getCookie());
+                    append_stats(key,
+                                 (uint16_t)strlen(key),
+                                 topkeys_str,
+                                 (uint32_t)strlen(topkeys_str),
+                                 &cookie);
                     cJSON_Free(topkeys_str);
                 } else {
                     ret = ENGINE_ENOMEM;
@@ -685,12 +704,12 @@ static ENGINE_ERROR_CODE stat_topkeys_json_executor(const std::string& arg,
  * information from the subdoc subsystem.
  *
  * @param arg - should be empty
- * @param connection the connection that requested the operation
+ * @param cookie the command context
  */
 static ENGINE_ERROR_CODE stat_subdoc_execute_executor(const std::string& arg,
-                                                      McbpConnection& connection) {
+                                                      Cookie& cookie) {
     if (arg.empty()) {
-        const auto index = connection.getBucketIndex();
+        const auto index = cookie.getConnection().getBucketIndex();
         std::string json_str;
         if (index == 0) {
             // Aggregrated timings for all buckets.
@@ -701,21 +720,21 @@ static ENGINE_ERROR_CODE stat_subdoc_execute_executor(const std::string& arg,
             json_str = aggregated.to_string();
         } else {
             // Timings for a specific bucket.
-            auto& bucket = all_buckets[connection.getBucketIndex()];
+            auto& bucket = all_buckets[cookie.getConnection().getBucketIndex()];
             json_str = bucket.subjson_operation_times.to_string();
         }
-        append_stats(nullptr, 0, json_str.c_str(), json_str.size(),
-                     connection.getCookie());
+        append_stats(nullptr, 0, json_str.c_str(), json_str.size(), &cookie);
         return ENGINE_SUCCESS;
     } else {
         return ENGINE_EINVAL;
     }
 }
 
-static ENGINE_ERROR_CODE stat_responses_json_executor(
-        const std::string& arg, McbpConnection& connection) {
+static ENGINE_ERROR_CODE stat_responses_json_executor(const std::string& arg,
+                                                      Cookie& cookie) {
     try {
-        auto& respCounters = connection.getBucket().responseCounters;
+        auto& respCounters =
+                cookie.getConnection().getBucket().responseCounters;
         unique_cJSON_ptr jsonPtr(cJSON_CreateObject());
 
         for (uint16_t resp = 0; resp < respCounters.size(); ++resp) {
@@ -733,7 +752,7 @@ static ENGINE_ERROR_CODE stat_responses_json_executor(
                      stat_name.size(),
                      json_str.c_str(),
                      json_str.size(),
-                     connection.getCookie());
+                     &cookie);
         return ENGINE_SUCCESS;
     } catch (const std::bad_alloc&) {
         return ENGINE_ENOMEM;
@@ -741,64 +760,49 @@ static ENGINE_ERROR_CODE stat_responses_json_executor(
 }
 
 static ENGINE_ERROR_CODE stat_tracing_executor(const std::string& arg,
-                                               McbpConnection& connection) {
+                                               Cookie& cookie) {
     class MemcachedCallback : public phosphor::StatsCallback {
     public:
-        MemcachedCallback(McbpConnection& connection) : c(connection) {
+        explicit MemcachedCallback(Cookie& cookie) : c(cookie) {
         }
 
         void operator()(gsl_p::cstring_span key,
                         gsl_p::cstring_span value) override {
-            append_stats(key.data(),
-                         key.size(),
-                         value.data(),
-                         value.size(),
-                         c.getCookie());
+            append_stats(
+                    key.data(), key.size(), value.data(), value.size(), &c);
         }
 
         void operator()(gsl_p::cstring_span key, bool value) override {
             const auto svalue = value ? "true"_ccb : "false"_ccb;
-            append_stats(key.data(),
-                         key.size(),
-                         svalue.data(),
-                         svalue.size(),
-                         c.getCookie());
+            append_stats(
+                    key.data(), key.size(), svalue.data(), svalue.size(), &c);
         }
 
         void operator()(gsl_p::cstring_span key, size_t value) override {
             const auto svalue = std::to_string(value);
-            append_stats(key.data(),
-                         key.size(),
-                         svalue.data(),
-                         svalue.size(),
-                         c.getCookie());
+            append_stats(
+                    key.data(), key.size(), svalue.data(), svalue.size(), &c);
         }
 
         void operator()(gsl_p::cstring_span key,
                         phosphor::ssize_t value) override {
             const auto svalue = std::to_string(value);
-            append_stats(key.data(),
-                         key.size(),
-                         svalue.data(),
-                         svalue.size(),
-                         c.getCookie());
+            append_stats(
+                    key.data(), key.size(), svalue.data(), svalue.size(), &c);
         }
 
         void operator()(gsl_p::cstring_span key, double value) override {
             const auto svalue = std::to_string(value);
-            append_stats(key.data(),
-                         key.size(),
-                         svalue.data(),
-                         svalue.size(),
-                         c.getCookie());
+            append_stats(
+                    key.data(), key.size(), svalue.data(), svalue.size(), &c);
         }
 
     private:
-        McbpConnection& c;
+        Cookie& c;
     };
 
     if (arg.empty()) {
-        MemcachedCallback cb{connection};
+        MemcachedCallback cb{cookie};
         phosphor::TraceLog::getInstance().getStats(cb);
         return ENGINE_SUCCESS;
     } else {
@@ -815,8 +819,7 @@ ENGINE_ERROR_CODE StatsCommandContext::step() {
         /**
          * The callback function to handle the stat request
          */
-        ENGINE_ERROR_CODE (*handler)(const std::string &arg,
-                                     McbpConnection& connection);
+        ENGINE_ERROR_CODE (*handler)(const std::string& arg, Cookie& cookie);
     };
 
     /**
@@ -843,7 +846,7 @@ ENGINE_ERROR_CODE StatsCommandContext::step() {
         /* request all statistics */
         ret = get_stats({reinterpret_cast<const char*>(key.data()), key.size()});
         if (ret == ENGINE_SUCCESS) {
-            ret = server_stats(&append_stats, &connection);
+            ret = server_stats(&append_stats, cookie);
         }
     } else {
         // The raw representing the key
@@ -874,7 +877,7 @@ ENGINE_ERROR_CODE StatsCommandContext::step() {
             }
 
             if (ret == ENGINE_SUCCESS) {
-                ret = iter->second.handler(argument, connection);
+                ret = iter->second.handler(argument, cookie);
             }
         }
     }
