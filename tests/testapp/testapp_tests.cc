@@ -1561,7 +1561,7 @@ static void get_object_w_datatype(const char *key,
 TEST_P(McdTestappTest, DatatypeJSON) {
     const char body[] = "{ \"value\" : 1234123412 }";
     set_datatype_feature(true);
-    store_object_w_datatype("myjson", body, strlen(body), false, true);
+    store_object_w_datatype("myjson", body, strlen(body), false);
 
     get_object_w_datatype("myjson", body, strlen(body), false, true, false);
 
@@ -1572,7 +1572,7 @@ TEST_P(McdTestappTest, DatatypeJSON) {
 TEST_P(McdTestappTest, DatatypeJSONWithoutSupport) {
     const char body[] = "{ \"value\" : 1234123412 }";
     set_datatype_feature(false);
-    store_object_w_datatype("myjson", body, strlen(body), false, false);
+    store_object_w_datatype("myjson", body, strlen(body), false);
 
     get_object_w_datatype("myjson", body, strlen(body), false, false, false);
 
@@ -1588,8 +1588,10 @@ TEST_P(McdTestappTest, DatatypeCompressed) {
     size_t deflated_len = compress_document(inflated, inflated_len, &deflated);
 
     set_datatype_feature(true);
-    store_object_w_datatype("mycompressed", deflated, deflated_len,
-                            /*compressed*/true, /*JSON*/false);
+    store_object_w_datatype("mycompressed",
+                            deflated,
+                            deflated_len,
+                            /*compressed*/ true);
 
     get_object_w_datatype("mycompressed", deflated, deflated_len,
                           true, false, false);
@@ -1597,29 +1599,6 @@ TEST_P(McdTestappTest, DatatypeCompressed) {
     set_datatype_feature(false);
     get_object_w_datatype("mycompressed", inflated, inflated_len,
                           true, false, true);
-
-    cb_free(deflated);
-}
-
-TEST_P(McdTestappTest, DatatypeCompressedJSON) {
-    TESTAPP_SKIP_IF_NO_COMPRESSION();
-    const char inflated[] = "{ \"value\" : \"aaaaaaaaabbbbbbbccccccdddddd\" }";
-    size_t inflated_len = strlen(inflated);
-
-    char* deflated;
-    size_t deflated_len = compress_document(inflated, inflated_len, &deflated);
-
-    set_datatype_feature(true);
-
-    store_object_w_datatype("mycompressedjson", deflated, deflated_len,
-                            /*compressed*/true, /*JSON*/true);
-
-    get_object_w_datatype("mycompressedjson", deflated, deflated_len,
-                          true, true, false);
-
-    set_datatype_feature(false);
-    get_object_w_datatype("mycompressedjson", inflated, inflated_len,
-                          true, true, true);
 
     cb_free(deflated);
 }

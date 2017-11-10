@@ -336,8 +336,10 @@ void store_object_with_flags(const char *key, const char *value, uint32_t flags)
 void delete_object(const char *key, bool ignore_missing = false);
 
 /* Attempts to store an object with a datatype */
-void store_object_w_datatype(const char *key, const void *data, size_t datalen,
-                             bool deflate, bool json);
+void store_object_w_datatype(const char* key,
+                             const void* data,
+                             size_t datalen,
+                             bool deflate);
 
 // Enables / disables the MUTATION_SEQNO feature.
 void set_mutation_seqno_feature(bool enable);

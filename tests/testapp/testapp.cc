@@ -1094,7 +1094,7 @@ void TestappTest::start_memcached_server(cJSON* config) {
 }
 
 void store_object_w_datatype(const char *key, const void *data, size_t datalen,
-                             bool deflate, bool json)
+                             bool deflate)
 {
     protocol_binary_request_no_extras request;
     int keylen = (int)strlen(key);
@@ -1102,10 +1102,6 @@ void store_object_w_datatype(const char *key, const void *data, size_t datalen,
     uint8_t datatype = PROTOCOL_BINARY_RAW_BYTES;
     if (deflate) {
         datatype |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
-    }
-
-    if (json) {
-        datatype |= PROTOCOL_BINARY_DATATYPE_JSON;
     }
 
     memset(request.bytes, 0, sizeof(request));

@@ -37,6 +37,7 @@
 // that large and one bigger to test with.
 const int MAX_SUBDOC_PATH_COMPONENTS = 32;
 
+
 // Ensure the execution of the operation is successful
 #define EXPECT_SD_OK(cmd) EXPECT_PRED_FORMAT1(subdoc_pred_ok, cmd)
 #define ASSERT_SD_OK(cmd) ASSERT_PRED_FORMAT1(subdoc_pred_ok, cmd)
@@ -113,7 +114,7 @@ void test_subdoc_fetch_array_simple(bool compressed, protocol_binary_command cmd
                 (cmd == PROTOCOL_BINARY_CMD_SUBDOC_EXISTS));
 
     const char array[] = "[ 0, \"one\", 2.0 ]";
-    store_object("array", array, /*JSON*/true, compressed);
+    store_object("array", array, compressed);
 
     // a). Check successful access to each array element.
     EXPECT_SD_VALEQ(BinprotSubdocCommand(cmd, "array", "[0]"), "0");
@@ -189,7 +190,7 @@ void test_subdoc_fetch_dict_simple(bool compressed,
                         "  \"string\": \"two\","
                         "  \"true\": true,"
                         "  \"false\": false }";
-    store_object("dict", dict, /*JSON*/true, compressed);
+    store_object("dict", dict, compressed);
 
     // a). Check successful access to each dict element.
     EXPECT_SD_VALEQ(BinprotSubdocCommand(cmd, "dict", "int"), "1");
@@ -263,7 +264,7 @@ void test_subdoc_fetch_dict_nested(bool compressed,
     char* dict_str = cJSON_PrintUnformatted(dict.get());
 
     // Store to Couchbase, optionally compressing first.
-    store_object("dict2", dict_str, /*JSON*/true, compressed);
+    store_object("dict2", dict_str, compressed);
     cJSON_Free(dict_str);
 
     // a). Check successful access to individual nested components.
@@ -447,14 +448,14 @@ void test_subdoc_dict_add_simple(bool compress, protocol_binary_command cmd) {
 
     // b). Attempt to add to non-JSON document should return ENOT_JSON
     const char not_JSON[] = "not; valid, JSON";
-    store_object("binary", not_JSON, /*JSON*/false, compress);
+    store_object("binary", not_JSON, compress);
     EXPECT_SD_ERR(BinprotSubdocCommand(cmd, "binary", "int", "2"),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_DOC_NOTJSON);
     delete_object("binary");
 
     // Store a simple JSON document to work on.
     const char dict[] = "{ \"key1\": 1 }";
-    store_object("dict", dict, /*JSON*/true, compress);
+    store_object("dict", dict, compress);
 
     // c). Addition of primitive types to the dict.
     for (const auto& kv : key_vals) {
@@ -572,7 +573,7 @@ void test_subdoc_dict_add_simple(bool compress, protocol_binary_command cmd) {
     delete_object("dict");
 
     // m). Attempt to perform dict command on array should fail.
-    store_object("array", "[1,2]", /*JSON*/true, compress);
+    store_object("array", "[1,2]", compress);
     EXPECT_SD_ERR(BinprotSubdocCommand(cmd, "array","foo", "\"bar\""),
                   PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH);
     delete_object("array");
@@ -580,7 +581,7 @@ void test_subdoc_dict_add_simple(bool compress, protocol_binary_command cmd) {
     // n). Check that attempts to add keys to a valid JSON fragment which is
     // not in a container fail. (We cannot operate on non-dict or array JSON
     // objects).
-    store_object("dict", "\"string\"", /*JSON*/true, compress);
+    store_object("dict", "\"string\"", compress);
     for (const auto& kv : key_vals) {
         EXPECT_SD_ERR(BinprotSubdocCommand(cmd, "dict", kv.first, kv.second),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_DOC_NOTJSON);
@@ -624,7 +625,7 @@ void McdTestappTest::test_subdoc_dict_add_cas(bool compress,
                 (cmd == PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT));
 
     // Store a simple JSON document to work on.
-    store_object("dict", "{}", /*JSON*/true, compress);
+    store_object("dict", "{}", compress);
 
     // a). Check that a CAS mismatch internally (between reading the JSON
     // (doc to operate on and storing it), is correctly retried.
@@ -763,7 +764,7 @@ void test_subdoc_delete_simple(bool compress) {
             "\"6\": true,"
             "\"7\": false"
             "}";
-    store_object("dict", dict, /*JSON*/true, compress);
+    store_object("dict", dict, compress);
 
     // Attempts to delete non-existent elements should fail.
     EXPECT_SD_ERR(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_DELETE, "dict", "bad_key"),
@@ -816,7 +817,7 @@ TEST_P(McdTestappTest, SubdocDelete_SimpleCompressed) {
 TEST_P(McdTestappTest, SubdocDelete_Array) {
 
     // Create an array, then test deleting elements.
-    store_object("a", "[0,1,2,3,4]", /*JSON*/true, /*compress*/false);
+    store_object("a", "[0,1,2,3,4]", /*compress*/ false);
 
     // Sanity check - 3rd element should be 2
     EXPECT_SD_GET("a", "[2]", "2");
@@ -857,8 +858,9 @@ TEST_P(McdTestappTest, SubdocDelete_Array) {
 
 TEST_P(McdTestappTest, SubdocDelete_ArrayNested) {
     // Nested array containing different objects.
-    store_object("b", "[0,[10,20,[100]],{\"key\":\"value\"}]",
-                 /*JSON*/true, /*compress*/false);
+    store_object("b",
+                 "[0,[10,20,[100]],{\"key\":\"value\"}]",
+                 /*compress*/ false);
 
     // Sanity check - 2nd element should be "[10,20,[100]]"
     EXPECT_SD_GET("b", "[1]", "[10,20,[100]]");
@@ -891,7 +893,7 @@ const std::vector<std::string> JSON_VALUES({
 TEST_P(McdTestappTest, SubdocReplace_SimpleDict)
 {
     // Simple dictionary, replace first element with various types.
-    store_object("a", "{\"key\":0,\"key2\":1}", /*JSON*/true, /*compress*/false);
+    store_object("a", "{\"key\":0,\"key2\":1}", /*compress*/ false);
 
     // Sanity check - 'key' should be "0"
     EXPECT_SD_GET("a", "key", "0");
@@ -911,7 +913,7 @@ TEST_P(McdTestappTest, SubdocReplace_SimpleDict)
 TEST_P(McdTestappTest, SubdocReplace_SimpleArray)
 {
     // Simple array, replace first element with various types.
-    store_object("a", "[0,1]", /*JSON*/true, /*compress*/false);
+    store_object("a", "[0,1]", /*compress*/ false);
 
     // Sanity check - [0] should be "0"
     EXPECT_SD_GET("a", "[0]", "0");
@@ -963,7 +965,7 @@ TEST_P(McdTestappTest, SubdocReplace_ArrayDeep)
 TEST_P(McdTestappTest, SubdocArrayPushLast_Simple)
 {
     // a). Empty array, append to it.
-    store_object("a", "[]", /*JSON*/true, /*compress*/false);
+    store_object("a", "[]", /*compress*/ false);
     EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST)
         .setKey("a").setPath("").setValue("0"));
     EXPECT_SD_GET("a", "[0]", "0");
@@ -1007,7 +1009,7 @@ TEST_P(McdTestappTest, SubdocArrayPushLast_Simple)
     delete_object("a");
 
     // d). Check various other object types append successfully.
-    store_object("b", "[]", /*JSON*/true, /*compress*/false);
+    store_object("b", "[]", /*compress*/ false);
     int index = 0;
     for (const auto& value : JSON_VALUES) {
         EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
@@ -1019,7 +1021,7 @@ TEST_P(McdTestappTest, SubdocArrayPushLast_Simple)
     delete_object("b");
 
     // e). Check we can append multiple values at once.
-    store_object("c", "[]", /*JSON*/true, /*compress*/false);
+    store_object("c", "[]", /*compress*/ false);
     EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
                                 "c", "", "0,1"));
     validate_object("c", "[0,1]");
@@ -1030,7 +1032,7 @@ TEST_P(McdTestappTest, SubdocArrayPushLast_Simple)
     delete_object("c");
 
     // f). Check MKDIR_P flag works.
-    store_object("d", "{}", /*JSON*/true, /*compress*/false);
+    store_object("d", "{}", /*compress*/ false);
     EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
                                 "d", "foo", "0", SUBDOC_FLAG_MKDIR_P));
     delete_object("d");
@@ -1040,7 +1042,7 @@ TEST_P(McdTestappTest, SubdocArrayPushLast_Nested)
 {
     // Operations on a nested array,
     // a). Begin with an empty nested array, append to it.
-    store_object("a", "[[]]", /*JSON*/true, /*compress*/false);
+    store_object("a", "[[]]", /*compress*/ false);
     EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST, "a",
                  "", "1"));
     EXPECT_SD_GET("a", "[0]", "[]");
@@ -1058,7 +1060,7 @@ TEST_P(McdTestappTest, SubdocArrayPushLast_Nested)
 TEST_P(McdTestappTest, SubdocArrayPushFirst_Simple)
 {
     // a). Empty array, prepend to it.
-    store_object("a", "[]", /*JSON*/true, /*compress*/false);
+    store_object("a", "[]", /*compress*/ false);
     EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST, "a", "", "0"));
     EXPECT_SD_GET("a", "[0]", "0");
     validate_object("a", "[0]");
@@ -1101,7 +1103,7 @@ TEST_P(McdTestappTest, SubdocArrayPushFirst_Simple)
     delete_object("a");
 
     // d). Check various other object types prepend successfully.
-    store_object("b", "[]", /*JSON*/true, /*compress*/false);
+    store_object("b", "[]", /*compress*/ false);
     for (const auto& value : JSON_VALUES) {
         EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
                                     "b", "", value));
@@ -1110,7 +1112,7 @@ TEST_P(McdTestappTest, SubdocArrayPushFirst_Simple)
     delete_object("b");
 
     // e). Check we can prepend multiple values at once.
-    store_object("c", "[]", /*JSON*/true, /*compress*/false);
+    store_object("c", "[]", /*compress*/ false);
     EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
                            "c", "", "0,1"));
     validate_object("c", "[0,1]");
@@ -1120,7 +1122,7 @@ TEST_P(McdTestappTest, SubdocArrayPushFirst_Simple)
     delete_object("c");
 
     // f). Check MKDIR_P flag works.
-    store_object("d", "{}", /*JSON*/true, /*compress*/false);
+    store_object("d", "{}", /*compress*/ false);
     EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
                            "d", "foo", "0", SUBDOC_FLAG_MKDIR_P));
     delete_object("d");
@@ -1130,7 +1132,7 @@ TEST_P(McdTestappTest, SubdocArrayPushFirst_Nested)
 {
     // Operations on a nested array.
     // a). Begin with an empty nested array, prepend to it.
-    store_object("a", "[[]]", /*JSON*/true, /*compress*/false);
+    store_object("a", "[[]]", /*compress*/ false);
     EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST, "a",
                            "", "1"));
     EXPECT_SD_GET("a", "[0]", "1");
@@ -1148,7 +1150,7 @@ TEST_P(McdTestappTest, SubdocArrayPushFirst_Nested)
 TEST_P(McdTestappTest, SubdocArrayAddUnique_Simple)
 {
     // Start with an array with a single element.
-    store_object("a", "[]", /*JSON*/true, /*compress*/false);
+    store_object("a", "[]", /*compress*/ false);
 
     // a). Add an element which doesn't already exist.
     EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
@@ -1164,7 +1166,7 @@ TEST_P(McdTestappTest, SubdocArrayAddUnique_Simple)
 
     // c). Larger array, add an element which already exists.
     std::string array("[0,1,2,3,4,5,6,7,8,9]");
-    store_object("b", array, /*JSON*/true, /*compress*/false);
+    store_object("b", array, /*compress*/ false);
     EXPECT_SD_ERR(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
                             "b", "", "6"),
                   PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_EEXISTS);
@@ -1205,13 +1207,13 @@ TEST_P(McdTestappTest, SubdocArrayAddUnique_Simple)
 
     // g). Attempts to add_unique to a array with non-primitive values should
     // fail.
-    store_object("c", "[{\"a\":\"b\"}]", /*JSON*/true, /*compress*/false);
+    store_object("c", "[{\"a\":\"b\"}]", /*compress*/ false);
     EXPECT_SD_ERR(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
                             "c", "", "1"),
                   PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH);
     delete_object("c");
 
-    store_object("d", "[[1,2]]", /*JSON*/true, /*compress*/false);
+    store_object("d", "[[1,2]]", /*compress*/ false);
     EXPECT_SD_ERR(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
                             "d", "", "3"),
                   PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH);
@@ -1221,7 +1223,7 @@ TEST_P(McdTestappTest, SubdocArrayAddUnique_Simple)
 TEST_P(McdTestappTest, SubdocArrayInsert_Simple)
 {
     // Start with an empty array.
-    store_object("a", "[]", /*JSON*/true, /*compress*/false);
+    store_object("a", "[]", /*compress*/ false);
 
     // a). Attempt to insert at position 0 should succeed.
     EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
@@ -1252,7 +1254,7 @@ TEST_P(McdTestappTest, SubdocArrayInsert_Simple)
 TEST_P(McdTestappTest, SubdocArrayInsert_Invalid)
 {
     // Start with an empty array.
-    store_object("a", "[]", /*JSON*/true, /*compress*/false);
+    store_object("a", "[]", /*compress*/ false);
 
     // a). Attempt to insert past the end of the (empty) array should fail.
     EXPECT_SUBDOC_CMD(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
@@ -1290,7 +1292,7 @@ TEST_P(McdTestappTest, SubdocArrayInsert_Invalid)
     delete_object("a");
 
     // f). Attempt to insert to a dict should fail.
-    store_object("b", "{}", /*JSON*/true, /*compress*/false);
+    store_object("b", "{}", /*compress*/ false);
     EXPECT_SUBDOC_CMD(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
                                 "b", "[0]", "0"),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH, "");
@@ -1301,17 +1303,17 @@ TEST_P(McdTestappTest, SubdocArrayInsert_Invalid)
 TEST_P(McdTestappTest, SubdocGetCount)
 {
     // Start with an empty array.
-    store_object("a", "[]", /*JSON*/true, /*compress*/false);
+    store_object("a", "[]", /*compress*/ false);
 
     // Get size. Should be 0
     EXPECT_SD_VALEQ(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT, "a", ""), "0");
 
     // Store it again, giving it some size
-    store_object("a", "[1,2,3]", true, false);
+    store_object("a", "[1,2,3]", false);
     EXPECT_SD_VALEQ(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT, "a", ""), "3");
 
     // Check for mismatch
-    store_object("a", "{\"k\":\"v\"}", true, false);
+    store_object("a", "{\"k\":\"v\"}", false);
     EXPECT_SD_ERR(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT, "a", "k"),
                   PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH);
 
@@ -1322,7 +1324,7 @@ TEST_P(McdTestappTest, SubdocGetCount)
 }
 
 void test_subdoc_counter_simple() {
-    store_object("a", "{}", /*JSON*/true, /*compress*/false);
+    store_object("a", "{}", /*compress*/ false);
 
     // a). Check that empty document, empty path creates a new element.
     EXPECT_SD_VALEQ(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
@@ -1380,7 +1382,7 @@ TEST_P(McdTestappTest, SubdocCounter_InvalidNotInt)
     // Cannot increment things which are not integers.
     for (auto& val : NOT_INTEGER) {
         const std::string doc("{\"key\":" + val + "}");
-        store_object("a", doc, /*JSON*/true, /*compress*/false);
+        store_object("a", doc, /*compress*/ false);
         EXPECT_SD_ERR(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
                                     "a", "key", "1"),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH);
@@ -1402,7 +1404,7 @@ TEST_P(McdTestappTest, SubdocCounter_InvalidERange)
     });
     for (auto& val : unrepresentable) {
         const std::string doc("{\"key\":" + val + "}");
-        store_object("b", doc, /*JSON*/true, /*compress*/false);
+        store_object("b", doc, /*compress*/ false);
         EXPECT_SUBDOC_CMD(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
                                     "b", "key", "1"),
                           PROTOCOL_BINARY_RESPONSE_SUBDOC_NUM_ERANGE, "");
@@ -1419,8 +1421,9 @@ TEST_P(McdTestappTest, SubdocCounter_Limits)
     //     should succeed.
     const int64_t max = std::numeric_limits<int64_t>::max();
 
-    store_object("a", "{\"key\":" + std::to_string(max - 1) + "}",
-                 /*JSON*/true, /*compress*/false);
+    store_object("a",
+                 "{\"key\":" + std::to_string(max - 1) + "}",
+                 /*compress*/ false);
     EXPECT_SD_VALEQ(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
                                 "a", "key", "1"), std::to_string(max));
 
@@ -1438,8 +1441,9 @@ TEST_P(McdTestappTest, SubdocCounter_Limits)
     // c). Same with int64_t::min() and decrement.
     const int64_t min = std::numeric_limits<int64_t>::min();
 
-    store_object("b", "{\"key\":" + std::to_string(min + 1) + "}",
-                 /*JSON*/true, /*compress*/false);
+    store_object("b",
+                 "{\"key\":" + std::to_string(min + 1) + "}",
+                 /*compress*/ false);
     EXPECT_SD_VALEQ(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
                               "b", "key", "-1"), std::to_string(min));
 
@@ -1459,7 +1463,7 @@ TEST_P(McdTestappTest, SubdocCounter_InvalidIncr)
 {
     // Cannot increment by a non-numeric value.
     const std::string doc("{\"key\":10}");
-    store_object("a", doc, /*JSON*/true, /*compress*/false);
+    store_object("a", doc, /*compress*/ false);
 
     for (auto& incr : NOT_INTEGER) {
         EXPECT_SUBDOC_CMD(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
@@ -1890,7 +1894,7 @@ TEST_P(McdTestappTest, SubdocUTF8PathTest) {
     // Check that using UTF8 characters in the path works, which it should
 
     const char dict[] = "{ \"kéy1\": 1 }";
-    store_object("dict", dict, /*JSON*/true, /*compress*/false);
+    store_object("dict", dict, /*compress*/ false);
     EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD, "dict", "kéy2👏", "56"));
     EXPECT_SD_GET("dict", "kéy2👏", "56");
     EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_DELETE, "dict", "kéy2👏", ""));
@@ -1905,7 +1909,7 @@ TEST_P(McdTestappTest, SubdocUTF8ValTest) {
     // Check that using UTF8 characters in the value works, which it should
 
     const char dict[] = "{ \"key1\": \"Ẇ̴̷̦͔͖͚̝̟̋̽ͪ̾ͤ̈́ͯͮͮ̀͗̌ͭ̾͜h̨̥̞͖̬̠͍͖̘̹͎͌̇̂̃ͯͣ͗̆̌̑ͨ̍̊ͪ̆̾̆̚͟͞ȧ̛̰̞̗̞̬̣̹͎̰̝͍͈̮̖̘̫̤̟͆̈́̒͗ͦ̋̓̌̊̋͝ͅţ͒ͮ͋̋̔̽ͥ̂ͭ̒̉̔̃ͫ̌̆̆҉̹͙̟̩̖̩̹̳̜͚̜̜ ͎̲͕̺̔̿̀͒̈́̏̌ͬͫ͒͂ͩͦ̀͝â̢̡̘̫̮̞̩̰̎ͨ̾ͤ̈́͑̉̈ͧ͆̃ͩ͆̚͡ ̧̢̛̙͔̰̹̲̱͔̤̝͖̥͚͓̲̪̯̟̖̏͒̽ͬ̂ͫͩͭ͋̏͊̽͗͊̀ͭ̋͘c̵̴͐̉̇͂̋ͬ̇̃͊ͨ͗̆̄̊́͏̡̡̫̦̦͉̼̙̜͉̯̮̪̫͍̩̼̘̫̻͍o̸̷͕̭̼̺̤͖͚̯̪̥̘̪̼̝̩̮͕̥̟̐͒̏ͭͦͮ̒ͧ̔̉̅̂͜͢͡o̷̢̡͕̟͓̺͚̟̱̜̻͇̘͍̤͓̲ͣͫ̾͛͗̅̐̏͑͆͌̀͜ͅͅͅl̴̡̙̹͖̈̄̌͒ͣ͒̅̏̕ ͛̐̿͋ͦ͛͌̄ͫ̒ͪ͊̀ͤ̀̿͏̶̡҉҉̤͎͖v̸̵̱͇̲͎̩͚̩͈̙̜̳̞̭̯̩̻̮̪ͯ̋̔͗̃̊ͬͮ̄̃͛̂̒̍͘͘a̦̝͇̙̬̬̰̪͙̗̟͙̝̬͛͂͑ͣ̓͑̏ͤ̑̀̚̚͘l͊̔́͋̋ͫ̈́̿̈̉̀͏̡͍͇̲̙̺̮͠uͬ̄̋̔ͪͧͥ͛ͭ̏̅ͫ͊̚͏̧͈̠̱͇͉̦̫͎͠ę̸͔̯̭̤͕̱͈̖͖̯̭̞͈͖ͨ̑̌̓̈ͮ͂̆̀͟ͅ\" }";
-    store_object("dict", dict, /*JSON*/true, /*compress*/false);
+    store_object("dict", dict, /*compress*/ false);
     EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD, "dict", "key2", "\"Ẇ̴̷̦͔͖͚̝̟̋̽ͪ̾ͤ̈́ͯͮͮ̀͗̌ͭ̾͜h̨̥̞͖̬̠͍͖̘̹͎͌̇̂̃ͯͣ͗̆̌̑ͨ̍̊ͪ̆̾̆̚͟͞ȧ̛̰̞̗̞̬̣̹͎̰̝͍͈̮̖̘̫̤̟͆̈́̒͗ͦ̋̓̌̊̋͝ͅţ͒ͮ͋̋̔̽ͥ̂ͭ̒̉̔̃ͫ̌̆̆҉̹͙̟̩̖̩̹̳̜͚̜̜ ͎̲͕̺̔̿̀͒̈́̏̌ͬͫ͒͂ͩͦ̀͝â̢̡̘̫̮̞̩̰̎ͨ̾ͤ̈́͑̉̈ͧ͆̃ͩ͆̚͡ ̧̢̛̙͔̰̹̲̱͔̤̝͖̥͚͓̲̪̯̟̖̏͒̽ͬ̂ͫͩͭ͋̏͊̽͗͊̀ͭ̋͘c̵̴͐̉̇͂̋ͬ̇̃͊ͨ͗̆̄̊́͏̡̡̫̦̦͉̼̙̜͉̯̮̪̫͍̩̼̘̫̻͍o̸̷͕̭̼̺̤͖͚̯̪̥̘̪̼̝̩̮͕̥̟̐͒̏ͭͦͮ̒ͧ̔̉̅̂͜͢͡o̷̢̡͕̟͓̺͚̟̱̜̻͇̘͍̤͓̲ͣͫ̾͛͗̅̐̏͑͆͌̀͜ͅͅͅl̴̡̙̹͖̈̄̌͒ͣ͒̅̏̕ ͛̐̿͋ͦ͛͌̄ͫ̒ͪ͊̀ͤ̀̿͏̶̡҉҉̤͎͖v̸̵̱͇̲͎̩͚̩͈̙̜̳̞̭̯̩̻̮̪ͯ̋̔͗̃̊ͬͮ̄̃͛̂̒̍͘͘a̦̝͇̙̬̬̰̪͙̗̟͙̝̬͛͂͑ͣ̓͑̏ͤ̑̀̚̚͘l͊̔́͋̋ͫ̈́̿̈̉̀͏̡͍͇̲̙̺̮͠uͬ̄̋̔ͪͧͥ͛ͭ̏̅ͫ͊̚͏̧͈̠̱͇͉̦̫͎͠ę̸͔̯̭̤͕̱͈̖͖̯̭̞͈͖ͨ̑̌̓̈ͮ͂̆̀͟ͅ\""));
     EXPECT_SD_GET("dict", "key2", "\"Ẇ̴̷̦͔͖͚̝̟̋̽ͪ̾ͤ̈́ͯͮͮ̀͗̌ͭ̾͜h̨̥̞͖̬̠͍͖̘̹͎͌̇̂̃ͯͣ͗̆̌̑ͨ̍̊ͪ̆̾̆̚͟͞ȧ̛̰̞̗̞̬̣̹͎̰̝͍͈̮̖̘̫̤̟͆̈́̒͗ͦ̋̓̌̊̋͝ͅţ͒ͮ͋̋̔̽ͥ̂ͭ̒̉̔̃ͫ̌̆̆҉̹͙̟̩̖̩̹̳̜͚̜̜ ͎̲͕̺̔̿̀͒̈́̏̌ͬͫ͒͂ͩͦ̀͝â̢̡̘̫̮̞̩̰̎ͨ̾ͤ̈́͑̉̈ͧ͆̃ͩ͆̚͡ ̧̢̛̙͔̰̹̲̱͔̤̝͖̥͚͓̲̪̯̟̖̏͒̽ͬ̂ͫͩͭ͋̏͊̽͗͊̀ͭ̋͘c̵̴͐̉̇͂̋ͬ̇̃͊ͨ͗̆̄̊́͏̡̡̫̦̦͉̼̙̜͉̯̮̪̫͍̩̼̘̫̻͍o̸̷͕̭̼̺̤͖͚̯̪̥̘̪̼̝̩̮͕̥̟̐͒̏ͭͦͮ̒ͧ̔̉̅̂͜͢͡o̷̢̡͕̟͓̺͚̟̱̜̻͇̘͍̤͓̲ͣͫ̾͛͗̅̐̏͑͆͌̀͜ͅͅͅl̴̡̙̹͖̈̄̌͒ͣ͒̅̏̕ ͛̐̿͋ͦ͛͌̄ͫ̒ͪ͊̀ͤ̀̿͏̶̡҉҉̤͎͖v̸̵̱͇̲͎̩͚̩͈̙̜̳̞̭̯̩̻̮̪ͯ̋̔͗̃̊ͬͮ̄̃͛̂̒̍͘͘a̦̝͇̙̬̬̰̪͙̗̟͙̝̬͛͂͑ͣ̓͑̏ͤ̑̀̚̚͘l͊̔́͋̋ͫ̈́̿̈̉̀͏̡͍͇̲̙̺̮͠uͬ̄̋̔ͪͧͥ͛ͭ̏̅ͫ͊̚͏̧͈̠̱͇͉̦̫͎͠ę̸͔̯̭̤͕̱͈̖͖̯̭̞͈͖ͨ̑̌̓̈ͮ͂̆̀͟ͅ\"");
     EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_DELETE, "dict", "key2", ""));
@@ -1945,8 +1949,8 @@ TEST_F(WorkerConcurrencyTest, SubdocArrayPushLast_Concurrent) {
     // Concurrently add to two different array documents, using two connections.
 
     // Setup the initial empty objects.
-    store_object("a", "[]", /*JSON*/true, /*compress*/false);
-    store_object("b", "[]", /*JSON*/true, /*compress*/false);
+    store_object("a", "[]", /*compress*/ false);
+    store_object("b", "[]", /*compress*/ false);
 
     // Create an additional second connection to memcached.
     SOCKET* current_sock = &sock;

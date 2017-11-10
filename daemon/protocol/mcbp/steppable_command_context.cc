@@ -16,6 +16,7 @@
  */
 #include "steppable_command_context.h"
 #include <daemon/mcbp.h>
+#include <daemon/memcached.h>
 #include <daemon/stats.h>
 
 SteppableCommandContext::SteppableCommandContext(Cookie& cookie_)
@@ -61,5 +62,17 @@ void SteppableCommandContext::drive() {
     default:
         cookie.sendResponse(cb::engine_errc(ret));
         return;
+    }
+}
+
+void SteppableCommandContext::setDatatypeJSONFromValue(
+        const cb::const_byte_buffer& value,
+        protocol_binary_datatype_t& datatype) {
+    // Determine if document is JSON or not. We do not trust what the client
+    // sent - instead we check for ourselves.
+    if (connection.getThread()->validator->validate(value.buf, value.len)) {
+        datatype |= PROTOCOL_BINARY_DATATYPE_JSON;
+    } else {
+        datatype &= ~PROTOCOL_BINARY_DATATYPE_JSON;
     }
 }

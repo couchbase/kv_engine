@@ -115,8 +115,12 @@ private:
     const rel_time_t expiration;
     const uint32_t flags;
 
-    // The datatype for the document to be created. We trust datatype aware
-    // clients to correctly initialize this.
+    // The datatype for the document to be created.
+    // For each field in here, we either trust the client, or re-calculate it
+    // server-side:
+    //    JSON - ignore what client sends, detect if JSON on the server side.
+    //    XATTR - trust what clients sends (as this affects how the value is
+    //            parsed).
     protocol_binary_datatype_t datatype;
 
     // The current state

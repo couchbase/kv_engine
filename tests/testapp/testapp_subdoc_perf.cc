@@ -178,7 +178,7 @@ TEST_F(SubdocPerfTest, Array_ReplaceMiddle) {
 // Create an N-element array, then benchmark replacing the first element.
 TEST_F(SubdocPerfTest, Array_ReplaceLast) {
     std::string list(subdoc_create_array(iterations));
-    store_object("list", list, /*JSON*/true, /*compress*/false);
+    store_object("list", list, /*compress*/ false);
 
     for (size_t i = 0; i < iterations; i++) {
         subdoc_verify_cmd(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
@@ -212,7 +212,7 @@ static void subdoc_create_dict(const std::string& name, size_t elements) {
     dict.pop_back();
     dict.push_back('}');
 
-    store_object(name, dict, /*JSON*/true, /*compress*/false);
+    store_object(name, dict, /*compress*/ false);
 }
 
 // Baseline test case for Dict test; this 'test' just creates the document to

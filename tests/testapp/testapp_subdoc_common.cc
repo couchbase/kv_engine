@@ -311,7 +311,6 @@ uint64_t expect_subdoc_cmd(
 
 void store_object(const std::string& key,
                   const std::string& value,
-                  bool JSON,
                   bool compress) {
     const char* payload = value.c_str();
     size_t payload_len = value.size();
@@ -322,7 +321,7 @@ void store_object(const std::string& key,
     }
 
     set_datatype_feature(true);
-    store_object_w_datatype(key.c_str(), payload, payload_len, compress, JSON);
+    store_object_w_datatype(key.c_str(), payload, payload_len, compress);
     set_datatype_feature(false);
     if (compress) {
         cb_free(deflated);

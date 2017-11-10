@@ -99,16 +99,12 @@ ENGINE_ERROR_CODE MutationCommandContext::validateInput() {
         return ENGINE_EINVAL;
     }
 
-    if (!connection.isJsonEnabled()) {
-        auto* validator = connection.getThread()->validator;
-        try {
-            auto* ptr = reinterpret_cast<const uint8_t*>(value.buf);
-            if (validator->validate(ptr, value.len)) {
-                datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-            }
-        } catch (const std::bad_alloc&) {
-            return ENGINE_ENOMEM;
-        }
+    // Determine if document is JSON or not. We do not trust what the client
+    // sent - instead we check for ourselves.
+    try {
+        setDatatypeJSONFromValue(value, datatype);
+    } catch (const std::bad_alloc&) {
+        return ENGINE_ENOMEM;
     }
 
     state = State::AllocateNewItem;

@@ -152,5 +152,4 @@ uint64_t expect_subdoc_cmd(
 
 void store_object(const std::string& key,
                   const std::string& value,
-                  bool JSON,
                   bool compress);

@@ -673,7 +673,9 @@ TEST_P(GetSetTest, TestPrepepndCompressedSourceAndData) {
 }
 
 TEST_P(GetSetTest, TestGetMeta) {
-    document.info.datatype = cb::mcbp::Datatype::JSON;
+    // Set the document value to valid JSON, so memcached sets the datatype
+    // as such.
+    document.value = R"("valid_json")";
     getConnection().mutate(document, 0, MutationType::Add);
     auto meta =
             getConnection().getMeta(document.info.id, 0, GetMetaVersion::V2);
@@ -687,7 +689,9 @@ TEST_P(GetSetTest, TestGetMeta) {
     EXPECT_NE(PROTOCOL_BINARY_DATATYPE_JSON, meta.second.datatype);
     EXPECT_EQ(0, meta.second.expiry);
 
-    document.info.datatype = cb::mcbp::Datatype::Raw;
+    // Set the document value to not-JSON, so memcached sets the datatype
+    // as such.
+    document.value = "[Invalid;JSON}";
     getConnection().mutate(document, 0, MutationType::Replace);
     meta = getConnection().getMeta(document.info.id, 0, GetMetaVersion::V2);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, meta.first);
@@ -730,4 +734,32 @@ TEST_P(GetSetTest, TestGetMetaExpiry) {
     meta = getConnection().getMeta(document.info.id, 0, GetMetaVersion::V1);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, meta.first);
     EXPECT_EQ(meta.second.expiry, document.info.expiration);
+}
+
+// Test that memcached correctly detects documents are JSON irrespective
+// of what the client sets the datatype to.
+TEST_P(GetSetTest, ServerDetectsJSON) {
+    auto& conn = getConnection();
+    document.value = R"("valid_JSON_string")";
+    document.info.datatype = cb::mcbp::Datatype::Raw;
+    conn.mutate(document, 0, MutationType::Add);
+
+    // Re-hello (supporting JSON), then fetch the document to see what
+    // datatype is has.
+    conn.setDatatypeJson(true);
+    EXPECT_EQ(cb::mcbp::Datatype::JSON, conn.get(name, 0).info.datatype);
+}
+
+// Test that memcached correctly detects documents are not JSON irrespective
+// of what the client sets the datatype to.
+TEST_P(GetSetTest, ServerDetectsNonJSON) {
+    auto& conn = getConnection();
+    document.value = R"(not;valid{JSON)";
+    document.info.datatype = cb::mcbp::Datatype::JSON;
+    conn.mutate(document, 0, MutationType::Add);
+
+    // Re-hello (supporting JSON), then fetch the document to see what
+    // datatype is has.
+    conn.setDatatypeJson(true);
+    EXPECT_EQ(cb::mcbp::Datatype::Raw, conn.get(name, 0).info.datatype);
 }

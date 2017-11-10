@@ -16,7 +16,10 @@
  */
 #pragma once
 
+#include <memcached/protocol_binary.h>
 #include <memcached/types.h>
+#include <platform/sized_buffer.h>
+
 #include "command_context.h"
 
 // Forward declaration
@@ -51,6 +54,15 @@ protected:
      *         data, or start processing the next command)
      */
     virtual ENGINE_ERROR_CODE step() = 0;
+
+    /**
+     * Helper function to set/clear the JSON bit in datatype based on if the
+     * given value is JSON or not.
+     * @throws std::bad_alloc if insufficient memory was available to parse
+     *         the value.
+     */
+    void setDatatypeJSONFromValue(const cb::const_byte_buffer& value,
+                                  protocol_binary_datatype_t& datatype);
 
     /**
      * The cookie executing this command
