@@ -261,7 +261,9 @@ ItemPager::ItemPager(EventuallyPersistentEngine& e, EPStats& st)
       stats(st),
       available(new std::atomic<bool>(true)),
       phase(PAGING_UNREFERENCED),
-      doEvict(false) {
+      doEvict(false),
+      sleepTime(std::chrono::milliseconds(
+              e.getConfiguration().getPagerSleepTimeMs())) {
 }
 
 bool ItemPager::run(void) {
@@ -270,7 +272,6 @@ bool ItemPager::run(void) {
     double current = static_cast<double>(stats.getTotalMemoryUsed());
     double upper = static_cast<double>(stats.mem_high_wat);
     double lower = static_cast<double>(stats.mem_low_wat);
-    double sleepTime = 5;
 
     if (current <= lower) {
         doEvict = false;
@@ -316,7 +317,7 @@ bool ItemPager::run(void) {
                         maxExpectedDuration);
     }
 
-    snooze(sleepTime);
+    snooze(sleepTime.count());
     return true;
 }
 

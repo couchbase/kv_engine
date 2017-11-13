@@ -79,6 +79,13 @@ private:
     // objects running on different threads.
     std::atomic<item_pager_phase> phase;
     bool doEvict;
+
+    /**
+     * How long this task sleeps for if not requested to run. Initialised from
+     * the configuration parameter - pager_sleep_time_ms
+     * stored as a double seconds value ready for use in snooze calls.
+     */
+    std::chrono::duration<double> sleepTime;
 };
 
 /**
