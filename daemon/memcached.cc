@@ -783,48 +783,6 @@ static ENGINE_ERROR_CODE pre_link_document(const void* void_cookie,
     return ENGINE_SUCCESS;
 }
 
-static void cbsasl_refresh_main(void *c)
-{
-    int rv;
-
-    try {
-        rv = cbsasl_server_refresh();
-        if (cb::sasl::plain::authenticate("default", "") == CBSASL_OK) {
-            set_default_bucket_enabled(true);
-        } else {
-            set_default_bucket_enabled(false);
-        }
-    } catch (...) {
-        rv = ENGINE_FAILED;
-    }
-
-    if (rv == CBSASL_OK) {
-        notify_io_complete(c, ENGINE_SUCCESS);
-    } else {
-        notify_io_complete(c, ENGINE_EINVAL);
-    }
-}
-
-ENGINE_ERROR_CODE refresh_cbsasl(Connection *c)
-{
-    cb_thread_t tid;
-    int err;
-
-    // @todo refactor and move this code over to MCBP
-    auto* conn = dynamic_cast<McbpConnection*>(c);
-
-    err = cb_create_named_thread(&tid, cbsasl_refresh_main,
-                                 const_cast<void*>(conn->getCookie()),
-                                 1, "mc:refresh_sasl");
-    if (err != 0) {
-        LOG_WARNING(c, "Failed to create cbsasl db update thread: %s",
-                    strerror(err));
-        return ENGINE_DISCONNECT;
-    }
-
-    return ENGINE_EWOULDBLOCK;
-}
-
 static cJSON *get_bucket_details_UNLOCKED(const Bucket& bucket, int idx) {
     if (bucket.state == BucketState::None) {
         return nullptr;

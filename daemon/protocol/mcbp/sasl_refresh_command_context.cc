@@ -18,10 +18,42 @@
 #include "sasl_refresh_command_context.h"
 
 #include <daemon/mcbp.h>
+#include <daemon/runtime.h>
+
+static void cbsasl_refresh_main(void* cookie) {
+    ENGINE_ERROR_CODE rv = ENGINE_FAILED;
+    try {
+        auto status = cbsasl_server_refresh();
+        if (status == CBSASL_OK) {
+            set_default_bucket_enabled(
+                    cb::sasl::plain::authenticate("default", "") == CBSASL_OK);
+            rv = ENGINE_SUCCESS;
+        }
+    } catch (...) {
+        rv = ENGINE_FAILED;
+    }
+
+    notify_io_complete(cookie, rv);
+}
 
 ENGINE_ERROR_CODE SaslRefreshCommandContext::refresh() {
     state = State::Done;
-    return refresh_cbsasl(&connection);
+
+    cb_thread_t tid;
+    auto status = cb_create_named_thread(&tid,
+                                         cbsasl_refresh_main,
+                                         static_cast<void*>(&cookie),
+                                         1,
+                                         "mc:refresh_sasl");
+    if (status != 0) {
+        LOG_WARNING(&cookie,
+                    "%u: Failed to create cbsasl db update thread: %s",
+                    connection.getId(),
+                    strerror(status));
+        return ENGINE_DISCONNECT;
+    }
+
+    return ENGINE_EWOULDBLOCK;
 }
 
 void SaslRefreshCommandContext::done() {
