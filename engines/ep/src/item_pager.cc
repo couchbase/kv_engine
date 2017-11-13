@@ -255,17 +255,18 @@ private:
     VBucketPtr currentBucket;
 };
 
-ItemPager::ItemPager(EventuallyPersistentEngine *e, EPStats &st) :
-    GlobalTask(e, TaskId::ItemPager, 10, false),
-    engine(e),
-    stats(st),
-    available(new std::atomic<bool>(true)),
-    phase(PAGING_UNREFERENCED),
-    doEvict(false) { }
+ItemPager::ItemPager(EventuallyPersistentEngine& e, EPStats& st)
+    : GlobalTask(&e, TaskId::ItemPager, 10, false),
+      engine(e),
+      stats(st),
+      available(new std::atomic<bool>(true)),
+      phase(PAGING_UNREFERENCED),
+      doEvict(false) {
+}
 
 bool ItemPager::run(void) {
     TRACE_EVENT0("ep-engine/task", "ItemPager");
-    KVBucketIface* kvBucket = engine->getKVBucket();
+    KVBucketIface* kvBucket = engine.getKVBucket();
     double current = static_cast<double>(stats.getTotalMemoryUsed());
     double upper = static_cast<double>(stats.mem_high_wat);
     double lower = static_cast<double>(stats.mem_low_wat);
@@ -292,7 +293,7 @@ bool ItemPager::run(void) {
         LOG(EXTENSION_LOG_INFO, ss.str().c_str(), (toKill*100.0));
 
         // compute active vbuckets evicition bias factor
-        Configuration &cfg = engine->getConfiguration();
+        Configuration& cfg = engine.getConfiguration();
         size_t activeEvictPerc = cfg.getPagerActiveVbPcnt();
         double bias = static_cast<double>(activeEvictPerc) / 50;
 

@@ -42,14 +42,13 @@ enum item_pager_phase {
  */
 class ItemPager : public GlobalTask {
 public:
-
     /**
      * Construct an ItemPager.
      *
-     * @param s the store (where we'll visit)
+     * @param e the store (where we'll visit)
      * @param st the stats
      */
-    ItemPager(EventuallyPersistentEngine *e, EPStats &st);
+    ItemPager(EventuallyPersistentEngine& e, EPStats& st);
 
     bool run(void);
 
@@ -72,15 +71,14 @@ public:
     }
 
 private:
-
-    EventuallyPersistentEngine     *engine;
-    EPStats                        &stats;
-    std::shared_ptr<std::atomic<bool>>   available;
+    EventuallyPersistentEngine& engine;
+    EPStats& stats;
+    std::shared_ptr<std::atomic<bool>> available;
 
     // Current pager phase. Atomic as may be accessed by multiple PagingVisitor
     // objects running on different threads.
     std::atomic<item_pager_phase> phase;
-    bool                            doEvict;
+    bool doEvict;
 };
 
 /**
