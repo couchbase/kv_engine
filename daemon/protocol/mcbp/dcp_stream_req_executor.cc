@@ -86,7 +86,7 @@ void dcp_stream_req_executor(Cookie& cookie) {
                                   PROTOCOL_BINARY_RAW_BYTES,
                                   PROTOCOL_BINARY_RESPONSE_ROLLBACK,
                                   0,
-                                  connection.getCookie())) {
+                                  static_cast<void*>(&cookie))) {
             mcbp_write_and_free(&connection, &cookie.getDynamicBuffer());
         } else {
             cookie.sendResponse(cb::mcbp::Status::Enomem);

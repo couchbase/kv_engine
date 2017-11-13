@@ -22,7 +22,7 @@
 ENGINE_ERROR_CODE FlushCommandContext::flushing() {
     state = State::Done;
     return connection.getBucketEngine()->flush(connection.getBucketEngineAsV0(),
-                                               connection.getCookie());
+                                               static_cast<void*>(&cookie));
 }
 
 void FlushCommandContext::done() {

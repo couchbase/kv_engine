@@ -31,7 +31,7 @@ ENGINE_ERROR_CODE AuditConfigureCommandContext::configuring() {
 
     auto ret = configure_auditdaemon(get_audit_handle(),
                                      settings.getAuditFile().c_str(),
-                                     connection.getCookie());
+                                     static_cast<void*>(&cookie));
     switch (ret) {
     case AUDIT_SUCCESS:
         return ENGINE_SUCCESS;

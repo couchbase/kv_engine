@@ -23,12 +23,13 @@
  */
 class RbacConfigReloadTask : public Task {
 public:
-    RbacConfigReloadTask(McbpConnection& connection_)
-        : connection(connection_), status(ENGINE_SUCCESS) {
+    explicit RbacConfigReloadTask(Cookie& cookie_)
+        : cookie(cookie_), status(ENGINE_SUCCESS) {
         // Empty
     }
 
     Status execute() override {
+        auto& connection = cookie.getConnection();
         try {
             LOG_NOTICE(nullptr,
                        "%u: Loading RBAC configuration from [%s] %s",
@@ -55,17 +56,17 @@ public:
     }
 
     void notifyExecutionComplete() override {
-        notify_io_complete(connection.getCookie(), status);
+        notify_io_complete(static_cast<void*>(&cookie), status);
     }
 
 private:
-    McbpConnection& connection;
+    Cookie& cookie;
     ENGINE_ERROR_CODE status;
 };
 
 ENGINE_ERROR_CODE RbacReloadCommandContext::reload() {
     state = State::Done;
-    task = std::make_shared<RbacConfigReloadTask>(connection);
+    task = std::make_shared<RbacConfigReloadTask>(cookie);
     std::lock_guard<std::mutex> guard(task->getMutex());
     executorPool->schedule(task);
     return ENGINE_EWOULDBLOCK;

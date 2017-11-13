@@ -89,7 +89,7 @@ void list_bucket_executor(Cookie& cookie) {
                                   PROTOCOL_BINARY_RAW_BYTES,
                                   PROTOCOL_BINARY_RESPONSE_SUCCESS,
                                   0,
-                                  connection.getCookie())) {
+                                  static_cast<void*>(&cookie))) {
             cookie.logResponse(ret.first);
             mcbp_write_and_free(&connection, &cookie.getDynamicBuffer());
             return;

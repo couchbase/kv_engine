@@ -457,21 +457,24 @@ static void append_stats(const char* key, const uint16_t klen,
  *
  * @param c the connection to return the details for
  */
-static void process_bucket_details(McbpConnection* c) {
+static void process_bucket_details(Cookie& cookie) {
     cJSON* obj = cJSON_CreateObject();
 
     cJSON* array = cJSON_CreateArray();
     for (size_t ii = 0; ii < all_buckets.size(); ++ii) {
         cJSON* o = get_bucket_details(ii);
-        if (o != NULL) {
+        if (o != nullptr) {
             cJSON_AddItemToArray(array, o);
         }
     }
     cJSON_AddItemToObject(obj, "buckets", array);
 
     char* stats_str = cJSON_PrintUnformatted(obj);
-    append_stats("bucket details", 14, stats_str, uint32_t(strlen(stats_str)),
-                 c->getCookie());
+    append_stats("bucket details",
+                 14,
+                 stats_str,
+                 uint32_t(strlen(stats_str)),
+                 static_cast<void*>(&cookie));
     cJSON_Free(stats_str);
     cJSON_Delete(obj);
 }
@@ -586,7 +589,7 @@ static ENGINE_ERROR_CODE stat_audit_executor(const std::string& arg,
 static ENGINE_ERROR_CODE stat_bucket_details_executor(const std::string& arg,
                                                       Cookie& cookie) {
     if (arg.empty()) {
-        process_bucket_details(&cookie.getConnection());
+        process_bucket_details(cookie);
         return ENGINE_SUCCESS;
     } else {
         return ENGINE_EINVAL;
@@ -883,7 +886,7 @@ ENGINE_ERROR_CODE StatsCommandContext::step() {
     }
 
     if (ret == ENGINE_SUCCESS) {
-        append_stats(nullptr, 0, nullptr, 0, connection.getCookie());
+        append_stats(nullptr, 0, nullptr, 0, static_cast<void*>(&cookie));
 
         // We just want to record this once rather than for each packet sent
         ++connection.getBucket()
@@ -915,14 +918,15 @@ ENGINE_ERROR_CODE StatsCommandContext::get_stats(const cb::const_char_buffer& k)
     if (k.empty()) {
         // Some backeds rely on key being nullptr if klen = 0
         return conn.getBucketEngine()->get_stats(conn.getBucketEngineAsV0(),
-                                                 conn.getCookie(),
-                                                 nullptr, 0, append_stats);
+                                                 static_cast<void*>(&cookie),
+                                                 nullptr,
+                                                 0,
+                                                 append_stats);
     } else {
         return conn.getBucketEngine()->get_stats(conn.getBucketEngineAsV0(),
-                                                 conn.getCookie(),
+                                                 static_cast<void*>(&cookie),
                                                  k.data(),
                                                  int(k.size()),
                                                  append_stats);
-
     }
 }

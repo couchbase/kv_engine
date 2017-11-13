@@ -201,7 +201,5 @@ void SaslAuthTask::notifyExecutionComplete() {
         }
     }
 
-    notify_io_complete(
-        reinterpret_cast<McbpConnection&>(connection).getCookie(),
-        ENGINE_SUCCESS);
+    notify_io_complete(static_cast<void*>(&cookie), ENGINE_SUCCESS);
 }

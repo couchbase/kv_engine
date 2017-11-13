@@ -31,7 +31,7 @@ void dcp_stream_end_executor(Cookie& cookie) {
                         packet.data());
         ret = connection.getBucketEngine()->dcp.stream_end(
                 connection.getBucketEngineAsV0(),
-                connection.getCookie(),
+                static_cast<void*>(&cookie),
                 req->message.header.request.opaque,
                 ntohs(req->message.header.request.vbucket),
                 ntohl(req->message.body.flags));

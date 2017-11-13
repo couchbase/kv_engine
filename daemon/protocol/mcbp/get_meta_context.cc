@@ -75,7 +75,7 @@ ENGINE_ERROR_CODE GetMetaCommandContext::sendResponse() {
                           PROTOCOL_BINARY_RAW_BYTES,
                           PROTOCOL_BINARY_RESPONSE_SUCCESS,
                           info.cas,
-                          connection.getCookie());
+                          static_cast<void*>(&cookie));
 
     mcbp_write_and_free(&connection, &cookie.getDynamicBuffer());
 
