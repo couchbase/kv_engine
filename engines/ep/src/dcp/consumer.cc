@@ -35,24 +35,28 @@ const std::string DcpConsumer::extMetadataCtrlMsg = "enable_ext_metadata";
 const std::string DcpConsumer::valueCompressionCtrlMsg = "enable_value_compression";
 const std::string DcpConsumer::cursorDroppingCtrlMsg = "supports_cursor_dropping";
 
-class Processor : public GlobalTask {
+class DcpConsumerTask : public GlobalTask {
 public:
-    Processor(EventuallyPersistentEngine* e,
-              connection_t c,
-              double sleeptime = 1,
-              bool completeBeforeShutdown = true)
-        : GlobalTask(e, TaskId::Processor, sleeptime, completeBeforeShutdown),
+    DcpConsumerTask(EventuallyPersistentEngine* e,
+                    connection_t c,
+                    double sleeptime = 1,
+                    bool completeBeforeShutdown = true)
+        : GlobalTask(e,
+                     TaskId::DcpConsumerTask,
+                     sleeptime,
+                     completeBeforeShutdown),
           conn(c),
-          description("Processing buffered items for " + conn->getName()) {
+          description("DcpConsumerTask, processing buffered items for " +
+                      conn->getName()) {
     }
 
-    ~Processor() {
+    ~DcpConsumerTask() {
         DcpConsumer* consumer = static_cast<DcpConsumer*>(conn.get());
         consumer->taskCancelled();
     }
 
     bool run() {
-        TRACE_EVENT0("ep-engine/task", "Processor");
+        TRACE_EVENT0("ep-engine/task", "DcpConsumerTask");
         DcpConsumer* consumer = static_cast<DcpConsumer*>(conn.get());
         if (consumer->doDisconnect()) {
             return false;
@@ -150,7 +154,7 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,
     pendingEnableValueCompression = config.isDcpValueCompressionEnabled();
     pendingSupportCursorDropping = true;
 
-    ExTask task = std::make_shared<Processor>(&engine, this, 1);
+    ExTask task = std::make_shared<DcpConsumerTask>(&engine, this, 1);
     processorTaskId = ExecutorPool::get()->schedule(task);
 }
 
