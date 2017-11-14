@@ -562,11 +562,6 @@ public:
     }
 
     /**
-     *  Invoke the validator function(s) for the command
-     */
-    protocol_binary_response_status validateCommand(protocol_binary_command command);
-
-    /**
      * Is SASL disabled for this connection or not? (connection authenticated
      * with SSL certificates will disable the possibility re-authenticate over
      * SASL)

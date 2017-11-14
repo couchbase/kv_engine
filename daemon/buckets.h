@@ -106,14 +106,6 @@ public:
     Bucket(const Bucket& other);
 
     /**
-     * Invoke the MCBP validator(s) for the given command
-     */
-    static protocol_binary_response_status validateMcbpCommand(
-                                                const Connection* c,
-                                                protocol_binary_command command,
-                                                Cookie& cookie);
-
-    /**
      * Mutex protecting the state and refcount. (@todo move to std::mutex).
      */
     mutable std::mutex mutex;

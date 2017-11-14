@@ -1020,10 +1020,6 @@ void McbpConnection::setPriority(const Connection::Priority& priority) {
         "Unkown priority: " + std::to_string(int(priority)));
 }
 
-protocol_binary_response_status McbpConnection::validateCommand(protocol_binary_command command) {
-    return Bucket::validateMcbpCommand(this, command, cookie);
-}
-
 bool McbpConnection::selectedBucketIsXattrEnabled() const {
     if (bucketEngine) {
         return settings.isXattrEnabled() &&

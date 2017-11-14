@@ -822,7 +822,10 @@ static void execute_request_packet(Cookie& cookie,
         return;
     case cb::rbac::PrivilegeAccess::Ok:
         if (request.validate()) {
-            result = c->validateCommand(opcode);
+            // The framing of the packet is valid...
+            // Verify that the actual command is legal
+            auto& bucket = cookie.getConnection().getBucket();
+            result = bucket.validatorChains.invoke(opcode, cookie);
         } else {
             result = PROTOCOL_BINARY_RESPONSE_EINVAL;
         }
