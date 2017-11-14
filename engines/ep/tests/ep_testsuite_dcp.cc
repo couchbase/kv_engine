@@ -151,7 +151,8 @@ public:
           flow_control_buf_size(1024),
           disable_ack(false),
           h(h),
-          h1(h1) {
+          h1(h1),
+          nruCounter(MAX_NRU_VALUE + 1) {
     }
 
     uint64_t getTotalBytes() {
@@ -194,6 +195,11 @@ public:
 
     ENGINE_ERROR_CODE sendControlMessage(const std::string& name,
                                          const std::string& value);
+
+    const std::vector<int>& getNruCounters() const {
+        return nruCounter;
+    }
+
 private:
     /* Vbucket-level stream stats used in test */
     struct VBStats {
@@ -246,6 +252,7 @@ private:
     std::map<uint16_t, VBStats> vb_stats;
     ENGINE_HANDLE* h;
     ENGINE_HANDLE_V1* h1;
+    std::vector<int> nruCounter;
 };
 
 ENGINE_ERROR_CODE TestDcpConsumer::sendControlMessage(
@@ -324,6 +331,10 @@ void TestDcpConsumer::run() {
                                    PROTOCOL_BINARY_RESPONSE_SUCCESS,
                                    dcp_last_opaque);
                     }
+
+                    check(dcp_last_nru <= MAX_NRU_VALUE,
+                          "NRU out of expected range");
+                    nruCounter[dcp_last_nru]++;
 
                     if (!dcp_last_value.empty()) {
                         stats.num_values++;
@@ -762,14 +773,23 @@ static void dcp_stream_to_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
         const std::string key{"key" + std::to_string(i)};
         const DocKey docKey{key, DocNamespace::DefaultCollection};
         const cb::const_byte_buffer value{(uint8_t*)data.data(), data.size()};
-        checkeq(ENGINE_SUCCESS, h1->dcp.mutation(h, cookie, opaque,
-                                                 docKey, value,
-                                                 0, // priv bytes
-                                                 PROTOCOL_BINARY_RAW_BYTES,
-                                                 cas, vbucket, flags,
-                                                 i, // by seqno
-                                                 revSeqno, exprtime,
-                                                 lockTime, {}, 0),
+        checkeq(ENGINE_SUCCESS,
+                h1->dcp.mutation(h,
+                                 cookie,
+                                 opaque,
+                                 docKey,
+                                 value,
+                                 0, // priv bytes
+                                 PROTOCOL_BINARY_RAW_BYTES,
+                                 cas,
+                                 vbucket,
+                                 flags,
+                                 i, // by seqno
+                                 revSeqno,
+                                 exprtime,
+                                 lockTime,
+                                 {},
+                                 INITIAL_NRU_VALUE),
                 "Failed dcp mutate.");
     }
 }
@@ -2238,6 +2258,11 @@ static enum test_result test_dcp_producer_stream_req_dgm(ENGINE_HANDLE *h,
     tdc.addStreamCtx(ctx);
     tdc.run();
 
+    // Expect that we get the same or more cold items than we ejected. We may
+    // see more because the backfill may have pulled a cold item from memory
+    checkge(tdc.getNruCounters()[MAX_NRU_VALUE],
+            get_int_stat(h, h1, "ep_num_value_ejects"),
+            "should have the the same or more cold items then we ejected");
     testHarness.destroy_cookie(cookie);
 
     return SUCCESS;

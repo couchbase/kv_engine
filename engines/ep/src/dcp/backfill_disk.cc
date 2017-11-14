@@ -108,6 +108,10 @@ void DiskCallback::callback(GetValue& val) {
         throw std::invalid_argument("DiskCallback::callback: val is NULL");
     }
 
+    // MB-26705: Make the backfilled item cold so ideally the consumer would
+    // evict this before any cached item if they get into memory pressure.
+    val.item->setNRUValue(MAX_NRU_VALUE);
+
     if (!stream_->backfillReceived(std::move(val.item),
                                    BACKFILL_FROM_DISK,
                                    /*force*/ false)) {
