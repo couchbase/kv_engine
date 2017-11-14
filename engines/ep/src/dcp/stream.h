@@ -418,7 +418,9 @@ private:
     bool isCurrentSnapshotCompleted() const;
 
     /**
-     * Drop the cursor registered with the checkpoint manager.
+     * Drop the cursor registered with the checkpoint manager. Used during
+     * cursor dropping. Upon failure to drop the cursor, puts stream to
+     * dead state and notifies the producer connection
      * Note: Expects the streamMutex to be acquired when called
      *
      * @return true if cursor is dropped; else false
@@ -434,6 +436,12 @@ private:
      *              the items are ready to be picked up. Default is 'false'
      */
     void notifyStreamReady(bool force = false);
+
+    /**
+     * Helper function that tries to takes the ownership of the vbucket
+     * (temporarily) and then removes the checkpoint cursor held by the stream.
+     */
+    void removeCheckpointCursor();
 
     /**
      * Decides what log level must be used for (active) stream state
@@ -593,8 +601,6 @@ public:
                    uint64_t snap_start_seqno,
                    uint64_t snap_end_seqno,
                    std::unique_ptr<Collections::VB::Filter> filter);
-
-    ~NotifierStream();
 
     std::unique_ptr<DcpResponse> next() override;
 

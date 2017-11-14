@@ -318,7 +318,9 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
 }
 
 ActiveStream::~ActiveStream() {
-    transitionState(StreamState::Dead);
+    if (state_ != StreamState::Dead) {
+        removeCheckpointCursor();
+    }
 }
 
 std::unique_ptr<DcpResponse> ActiveStream::next() {
@@ -1568,13 +1570,8 @@ void ActiveStream::transitionState(StreamState newState) {
             nextCheckpointItem();
             break;
         case StreamState::Dead:
-            {
-                VBucketPtr vb = engine->getVBucket(vb_);
-                if (vb) {
-                    vb->checkpointManager->removeCursor(name_);
-                }
-                break;
-            }
+            removeCheckpointCursor();
+            break;
         case StreamState::TakeoverWait:
         case StreamState::Pending:
             break;
@@ -1691,6 +1688,13 @@ void ActiveStream::notifyStreamReady(bool force) {
     }
 }
 
+void ActiveStream::removeCheckpointCursor() {
+    VBucketPtr vb = engine->getVBucket(vb_);
+    if (vb) {
+        vb->checkpointManager->removeCursor(name_);
+    }
+}
+
 NotifierStream::NotifierStream(EventuallyPersistentEngine* e,
                                std::shared_ptr<DcpProducer> p,
                                const std::string& name,
@@ -1727,10 +1731,6 @@ NotifierStream::NotifierStream(EventuallyPersistentEngine* e,
     p->getLogger().log(EXTENSION_LOG_NOTICE,
         "(vb %d) stream created with start seqno %" PRIu64 " and end seqno %"
         PRIu64, vb, st_seqno, en_seqno);
-}
-
-NotifierStream::~NotifierStream() {
-    transitionState(StreamState::Dead);
 }
 
 uint32_t NotifierStream::setDead(end_stream_status_t status) {
@@ -1889,7 +1889,7 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e,
 
 PassiveStream::~PassiveStream() {
     uint32_t unackedBytes = clearBuffer_UNLOCKED();
-    if (transitionState(StreamState::Dead)) {
+    if (state_ != StreamState::Dead) {
         // Destructed a "live" stream, log it.
         getLogger().log(EXTENSION_LOG_NOTICE,
             "(vb %" PRId16 ") Destructing stream."
