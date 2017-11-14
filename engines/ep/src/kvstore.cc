@@ -237,8 +237,6 @@ void KVStore::addStats(ADD_STAT add_stat, const void *c) {
     addStat(prefix, "backend_type",   backend,            add_stat, c);
     addStat(prefix, "open",           st.numOpen,         add_stat, c);
     addStat(prefix, "close",          st.numClose,        add_stat, c);
-    addStat(prefix, "readTime",       st.readTimeHisto,   add_stat, c);
-    addStat(prefix, "readSize",       st.readSizeHisto,   add_stat, c);
     addStat(prefix, "numLoadedVb",    st.numLoadedVb,     add_stat, c);
 
     // failure stats
@@ -311,6 +309,8 @@ void KVStore::addTimingStats(ADD_STAT add_stat, const void *c) {
     addStat(prefix, "snapshot",    st.snapshotHisto,    add_stat, c);
     addStat(prefix, "delete",      st.delTimeHisto,     add_stat, c);
     addStat(prefix, "save_documents", st.saveDocsHisto, add_stat, c);
+    addStat(prefix, "readTime", st.readTimeHisto, add_stat, c);
+    addStat(prefix, "readSize", st.readSizeHisto, add_stat, c);
     addStat(prefix, "writeTime",   st.writeTimeHisto,   add_stat, c);
     addStat(prefix, "writeSize",   st.writeSizeHisto,   add_stat, c);
     addStat(prefix, "saveDocCount",   st.batchSize,     add_stat, c);

@@ -7032,7 +7032,7 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
     // for variable keys:
     std::map<std::string, std::vector<std::regex> > statsPatterns{
             {"hash", {std::regex{"vb_0:histo_\\d+,\\d+"}}},
-            {"kvstore",
+            {"kvtimings",
              {std::regex{"ro_[0-3]:readTime_\\d+,\\d+"},
               std::regex{"ro_[0-3]:readSize_\\d+,\\d+"},
               std::regex{"rw_[0-3]:readTime_\\d+,\\d+"},
