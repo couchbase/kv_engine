@@ -2035,7 +2035,11 @@ static enum test_result test_io_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
         exp_write_bytes = 35; /* TBD: Do not hard code the value */
     } else if (backend == "couchdb") {
         exp_write_bytes = 22; /* TBD: Do not hard code the value */
-    } else {
+    } else if (backend == "rocksdb") {
+        // TODO RDB:
+        return SKIPPED_UNDER_ROCKSDB;
+    }
+    else {
         return SKIPPED;
     }
 
@@ -6095,6 +6099,10 @@ static enum test_result test_mb19635_upgrade_from_25x(ENGINE_HANDLE *h,
     if (backend == "forestdb") {
         return SKIPPED;
     }
+    if (backend == "rocksdb") {
+        // TODO RDB:
+        return SKIPPED_UNDER_ROCKSDB;
+    }
 
     std::string dbname = get_dbname(testHarness.get_current_testcase()->cfg);
 
@@ -7490,8 +7498,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  NULL,
-                 /* TODO RDB: RocksDB doesn't expire items yet,
-                  * implement getItemCount */ prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("expiry with xattr", test_expiry_with_xattr,
                  test_setup, teardown, "exp_pager_enabled=false", prepare,
@@ -7511,7 +7518,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  "exp_pager_stime=1",
-                 /* TODO RDB: implement getItemCount */
+                 // TODO RDB: Needs the 'ep_expired_pager' stat
                  prepare_skip_broken_under_rocks,
                  cleanup),
         TestCase("expiry_duplicate_warmup",
@@ -7542,8 +7549,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  NULL,
-                 /* TODO RDB: implement getItemCount */
-                 prepare_ep_bucket_skip_broken_under_rocks,
+                 prepare_ep_bucket,
                  cleanup),
         TestCase("test observe no data", test_observe_no_data, test_setup, teardown,
                  NULL, prepare, cleanup),
@@ -7566,8 +7572,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  NULL,
-                 /* TODO RDB: wrong failover seqno */
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("test observe seqno error", test_observe_seqno_error,
                  test_setup, teardown, NULL, prepare, cleanup),
@@ -7576,7 +7581,14 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  "max_size=6291456",
-                 /* TODO RDB: uses a magic number, rocks disagrees */
+                 // TODO RDB: This test requires full control and accurate
+                 // tracking on how memory is allocated by the underlying
+                 // store. We do not have that yet for RocksDB. Depending
+                 // on the configuration, RocksDB pre-allocates default-size
+                 // blocks of memory in the internal Arena.
+                 // For this specific test, the problem is that the memory
+                 // usage never goes below the 'ep_mem_high_wat'. Needs
+                 // to resize 'max_size' to consider RocksDB pre-allocations.
                  prepare_ep_bucket_skip_broken_under_rocks,
                  cleanup),
         TestCase("test memory condition",
@@ -7600,8 +7612,8 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  NULL,
-                 /* TODO RDB: Fails in full eviction - rockdb does not
-                  * report the correct item count*/
+                 // TODO RDB: Fails in full eviction. Rockdb does not report
+                 // the correct 'ep_bg_num_samples' stat
                  prepare_ep_bucket_skip_broken_under_rocks,
                  cleanup),
         TestCase("test bloomfilters with store apis",
@@ -7612,8 +7624,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  NULL,
-                 /* TODO RDB: Needs correct stat:ep_total_persisted*/
-                 prepare_ep_bucket_skip_broken_under_rocks,
+                 prepare_ep_bucket,
                  cleanup),
         TestCase("test datatype", test_datatype, test_setup,
                  teardown, NULL, prepare, cleanup),
@@ -7629,7 +7640,16 @@ BaseTestCase testsuite_testcases[] = {
                  teardown,
                  "chk_remover_stime=1;"
                  "max_size=6291456",
-                 /* TODO RDB: implement getItemCount */
+                 // TODO RDB: This test requires full control and accurate
+                 // tracking on how memory is allocated by the underlying
+                 // store. We do not have that yet for RocksDB. Depending
+                 // on the configuration, RocksDB pre-allocates default-size
+                 // blocks of memory in the internal Arena.
+                 // For this specific test, the problem is that we cannot store
+                 // all the item we need (ENGINE_ENOMEM), and the
+                 // 'vb_active_perc_mem_resident' stat never goes below the
+                 // threshold we expect. Needs to resize 'max_size' to consider
+                 // RocksDB pre-allocations.
                  prepare_skip_broken_under_rocks,
                  cleanup),
         TestCase("test set_param message", test_set_param_message, test_setup,
@@ -7660,23 +7680,21 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  NULL,
-                 /* TODO RDB: implement getItemCount */
-                 prepare_ep_bucket_skip_broken_under_rocks,
+                 prepare_ep_bucket,
                  cleanup),
         TestCase("bg meta stats",
                  test_bg_meta_stats,
                  test_setup,
                  teardown,
                  NULL,
-                 /* TODO RDB: implement getItemCount */
-                 prepare_ep_bucket_skip_broken_under_rocks,
+                 prepare_ep_bucket,
                  cleanup),
         TestCase("mem stats",
                  test_mem_stats,
                  test_setup,
                  teardown,
                  "chk_remover_stime=1;chk_period=60" IMMEDIATE_MEM_STATS,
-                 /* TODO RDB: implement getItemCount */ prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("stats key", test_key_stats, test_setup, teardown,
                  NULL, prepare, cleanup),
@@ -7687,15 +7705,15 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  NULL,
-                 /* TODO RDB: implement getItemCount */
-                 prepare_ep_bucket_skip_broken_under_rocks,
+                 prepare_ep_bucket,
                  cleanup),
         TestCase("warmup stats",
                  test_warmup_stats,
                  test_setup,
                  teardown,
                  NULL,
-                 /* TODO RDB: implement getItemCount */
+                 // TODO RDB: RocksDB does not report the currect
+                 // 'vb_X:num_items' stat
                  prepare_skip_broken_under_rocks,
                  cleanup),
         TestCase("warmup with threshold",
@@ -7703,8 +7721,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  "warmup_min_items_threshold=1",
-                 /* TODO RDB: implement getItemCount */
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("seqno stats", test_stats_seqno,
                  test_setup, teardown, NULL, prepare, cleanup),
@@ -7721,16 +7738,14 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  NULL,
-                 /* TODO RDB: implement getItemCount */
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("stats curr_items DELETE",
                  test_curr_items_delete,
                  test_setup,
                  teardown,
                  NULL,
-                 /* TODO RDB: implement getItemCount */
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("stats curr_items FLUSH",
                  test_curr_items_flush,
@@ -7738,16 +7753,14 @@ BaseTestCase testsuite_testcases[] = {
                  teardown,
                  NULL,
                  /* TODO Ephemeral: flush command does not complete */
-                 /* TODO RDB: implement getItemCount */
-                 prepare_skip_broken_under_ephemeral_and_rocks,
+                 prepare_ep_bucket,
                  cleanup),
         TestCase("stats curr_items vbucket_state_dead",
                  test_curr_items_dead,
                  test_setup,
                  teardown,
                  NULL,
-                 /* TODO RDB: implement getItemCount */
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("startup token stat", test_cbd_225, test_setup,
                  teardown, NULL, prepare, cleanup),
@@ -7762,7 +7775,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 /* TODO RDB: implement getItemCount */
+                 /* TODO RDB: implement RocksDBKVStore::getAllKeys */
                  prepare_skip_broken_under_rocks,
                  cleanup),
         TestCase("test ALL_KEYS api during bucket creation",
@@ -7782,8 +7795,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  NULL,
-                 /* TODO RDB: implement getItemCount */
-                 prepare_ep_bucket_skip_broken_under_rocks,
+                 prepare_ep_bucket,
                  cleanup),
         // duplicate items on disk
         TestCase("duplicate items on disk",
@@ -7832,7 +7844,8 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  NULL,
-                 /* TODO RDB: implement getItemCount */
+                 // TODO RDB: implement getItemCount
+                 // (needs the 'curr_items' stat)
                  prepare_skip_broken_under_rocks,
                  cleanup),
         TestCase("test shutdown snapshot range",
@@ -7853,32 +7866,28 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  "chk_remover_stime=1;chk_period=60" IMMEDIATE_MEM_STATS,
-                 /* TODO RDB: implement getItemCount */
-                 prepare_ep_bucket_skip_broken_under_rocks,
+                 prepare_ep_bucket,
                  cleanup),
         TestCase("disk>RAM paged-out rm",
                  test_disk_gt_ram_paged_rm,
                  test_setup,
                  teardown,
                  "chk_remover_stime=1;chk_period=60" IMMEDIATE_MEM_STATS,
-                 /* TODO RDB: implement getItemCount */
-                 prepare_ep_bucket_skip_broken_under_rocks,
+                 prepare_ep_bucket,
                  cleanup),
         TestCase("disk>RAM update paged-out",
                  test_disk_gt_ram_update_paged_out,
                  test_setup,
                  teardown,
                  NULL,
-                 /* TODO RDB: implement getItemCount */
-                 prepare_ep_bucket_skip_broken_under_rocks,
+                 prepare_ep_bucket,
                  cleanup),
         TestCase("disk>RAM delete paged-out",
                  test_disk_gt_ram_delete_paged_out,
                  test_setup,
                  teardown,
                  NULL,
-                 /* TODO RDB: implement getItemCount */
-                 prepare_ep_bucket_skip_broken_under_rocks,
+                 prepare_ep_bucket,
                  cleanup),
         TestCase("disk>RAM set bgfetch race", test_disk_gt_ram_set_race,
                  test_setup, teardown, NULL, prepare_ep_bucket, cleanup, true),
@@ -7890,32 +7899,28 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  MULTI_DISPATCHER_CONFIG IMMEDIATE_MEM_STATS,
-                 /* TODO RDB: implement getItemCount */
-                 prepare_ep_bucket_skip_broken_under_rocks,
+                 prepare_ep_bucket,
                  cleanup),
         TestCase("disk>RAM paged-out rm (wal)",
                  test_disk_gt_ram_paged_rm,
                  test_setup,
                  teardown,
                  MULTI_DISPATCHER_CONFIG IMMEDIATE_MEM_STATS,
-                 /* TODO RDB: implement getItemCount */
-                 prepare_ep_bucket_skip_broken_under_rocks,
+                 prepare_ep_bucket,
                  cleanup),
         TestCase("disk>RAM update paged-out (wal)",
                  test_disk_gt_ram_update_paged_out,
                  test_setup,
                  teardown,
                  MULTI_DISPATCHER_CONFIG,
-                 /* TODO RDB: implement getItemCount */
-                 prepare_ep_bucket_skip_broken_under_rocks,
+                 prepare_ep_bucket,
                  cleanup),
         TestCase("disk>RAM delete paged-out (wal)",
                  test_disk_gt_ram_delete_paged_out,
                  test_setup,
                  teardown,
                  MULTI_DISPATCHER_CONFIG,
-                 /* TODO RDB: implement getItemCount */
-                 prepare_ep_bucket_skip_broken_under_rocks,
+                 prepare_ep_bucket,
                  cleanup),
 
         // vbucket negative tests
@@ -7968,6 +7973,8 @@ BaseTestCase testsuite_testcases[] = {
                  nullptr,
                  /* In ephemeral buckets we don't do compaction. We have
                     module test 'EphTombstoneTest' to test tombstone purging */
+                 // TODO RDB: Needs RocksDBKVStore to implement manual
+                 // compaction and item expiration on compaction.
                  prepare_ep_bucket_skip_broken_under_rocks,
                  cleanup),
         TestCase("test compaction config", test_compaction_config,
@@ -7998,27 +8005,28 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  NULL,
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("test sync vbucket destroy restart",
                  test_sync_vbucket_destroy_restart,
                  test_setup,
                  teardown,
                  NULL,
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("test takeover stats race with vbucket create (DCP)",
                  test_takeover_stats_race_with_vb_create_DCP,
                  test_setup,
                  teardown,
                  NULL,
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("test num persisted deletes (takeover stats)",
                  test_takeover_stats_num_persisted_deletes,
                  test_setup,
                  teardown,
                  NULL,
+                 // TODO RDB: Implement RocksDBKVStore::getNumPersistedDeletes
                  prepare_skip_broken_under_rocks,
                  cleanup),
 
@@ -8078,8 +8086,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  NULL,
-                 /* TODO RDB: implement getItemCount */
-                 prepare_ep_bucket_skip_broken_under_rocks,
+                 prepare_ep_bucket,
                  cleanup),
         TestCase("test replace with eviction (full)", test_replace_with_eviction,
                  test_setup, teardown,
@@ -8121,7 +8128,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  "item_eviction_policy=full_eviction",
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
 
         TestCase("test get random key", test_get_random_key,
@@ -8132,7 +8139,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  NULL,
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("test hlc cas", test_hlc_cas, test_setup, teardown,
                  NULL, prepare, cleanup),
@@ -8145,7 +8152,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  NULL,
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
 
         TestCase("test_MB-19687_fixed",
@@ -8153,6 +8160,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  NULL,
+                 // TODO RDB: Needs to fix some missing/unexpected stats
                  prepare_skip_broken_under_rocks,
                  cleanup),
 
@@ -8165,6 +8173,8 @@ BaseTestCase testsuite_testcases[] = {
                  nullptr,
                  /* In ephemeral buckets we don't do compaction. We have
                     module test 'EphTombstoneTest' to test tombstone purging */
+                 // TODO RDB: Needs RocksDBKVStore to implement manual
+                 // compaction and item expiration on compaction.
                  prepare_ep_bucket_skip_broken_under_rocks,
                  cleanup),
 
@@ -8173,6 +8183,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  NULL,
+                 // TODO RDB: Needs the 'ep_item_commit_failed' stat
                  prepare_ep_bucket_skip_broken_under_rocks,
                  cleanup),
         TestCase("test_MB-test_mb20943_remove_pending_ops_on_vbucket_delete",
@@ -8183,6 +8194,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  NULL,
+                 // TODO RDB: Needs the 'vb_active_ops_reject' stat
                  prepare_ep_bucket_skip_broken_under_rocks,
                  cleanup),
 

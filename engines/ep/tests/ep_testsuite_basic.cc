@@ -2223,8 +2223,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  NULL,
-                 /* TODO RDB: implement getItemCount */
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("set+get hit", test_set_get_hit, test_setup,
                  teardown, NULL, prepare, cleanup),
@@ -2265,8 +2264,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  NULL,
-                 /* TODO RDB: implement getItemCount */
-                 prepare_ep_bucket_skip_broken_under_rocks,
+                 prepare_ep_bucket,
                  cleanup),
         TestCase("test gat", test_gat, test_setup, teardown,
                  NULL, prepare, cleanup),
@@ -2279,7 +2277,8 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  NULL,
-                 /* TODO RDB: implement getItemCount */
+                 // TODO RDB: implement getItemCount. Needs the
+                 // 'ep_num_non_resident' stat.
                  prepare_ep_bucket_skip_broken_under_rocks,
                  cleanup),
         TestCase("delete", test_delete, test_setup, teardown,
@@ -2289,8 +2288,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  NULL,
-                 /* TODO RDB: implement getItemCount */
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("delete with value CAS", test_delete_with_value_cas,
                  test_setup, teardown, NULL, prepare, cleanup),
@@ -2305,7 +2303,10 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  NULL,
-                 /* TODO RDB: implement getItemCount */
+                 // TODO RDB: This test fails because under RocksDB we can
+                 // still find a key after deleting the DB file and evicting
+                 // the key in the internal MemTable (which is also used as
+                 // read-cache).
                  prepare_ep_bucket_skip_broken_under_rocks,
                  cleanup),
         TestCase("retain rowid over a soft delete", test_bug2509,
@@ -2315,7 +2316,8 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  NULL,
-                 /* TODO RDB: implement getItemCount */
+                 // TODO RDB: implement getItemCount. Needs the
+                 // 'ep_warmup_value_count' stat.
                  prepare_skip_broken_under_rocks,
                  cleanup),
         TestCase("non-resident decrementers",
@@ -2323,7 +2325,8 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  NULL,
-                 /* TODO RDB: implement getItemCount */
+                 // TODO RDB: implement getItemCount. Needs the 'curr_items'
+                 // stat.
                  prepare_ep_bucket_skip_broken_under_rocks,
                  cleanup),
         TestCase("resident ratio after warmup", test_mb5172,
@@ -2363,8 +2366,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 /* TODO RDB: get_stat gives engine_error */
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
 
         TestCase("pre_link_document", pre_link_document, test_setup, teardown, nullptr,
@@ -2375,8 +2377,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 /* TODO RDB: implement getItemCount */
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
 
         // sentinel

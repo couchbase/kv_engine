@@ -5821,8 +5821,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 /* TODO RDB: implement getItemCount */
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("test dcp notifier open", test_dcp_notifier_open, test_setup,
                  teardown, nullptr, prepare, cleanup),
@@ -5872,8 +5871,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  "chk_remover_stime=1;max_checkpoints=2",
-                 /* TODO RDB: implement getItemCount */
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("test dcp producer stream open",
                  test_dcp_producer_stream_req_open,
@@ -5886,8 +5884,7 @@ BaseTestCase testsuite_testcases[] = {
                     the test fails if we are not doing a notification correctly
                  */
                  "connection_manager_interval=200000000",
-                 /* TODO RDB: implement getItemCount */
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("test producer stream request (partial)",
                  test_dcp_producer_stream_req_partial, test_setup, teardown,
@@ -5902,8 +5899,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  "chk_remover_stime=1;chk_max_items=100",
-                 /* TODO RDB: implement getItemCount */
-                 prepare_ep_bucket_skip_broken_under_rocks,
+                 prepare_ep_bucket,
                  cleanup),
         TestCase("test producer stream request (full)",
                  test_dcp_producer_stream_req_full, test_setup, teardown,
@@ -5915,24 +5911,21 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  "chk_remover_stime=1;chk_max_items=100;dcp_scan_item_limit=50",
-                 /* TODO RDB: implement getItemCount */
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("test producer stream request (disk only)",
                  test_dcp_producer_stream_req_diskonly,
                  test_setup,
                  teardown,
                  "chk_remover_stime=1;chk_max_items=100",
-                 /* TODO RDB: implement getItemCount */
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("test producer disk backfill limits",
                  test_dcp_producer_disk_backfill_limits,
                  test_setup,
                  teardown,
                  "dcp_scan_item_limit=100;dcp_scan_byte_limit=100",
-                 /* TODO RDB: implement getItemCount */
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("test producer disk backfill buffer limits",
                  test_dcp_producer_disk_backfill_buffer_limits,
@@ -5942,16 +5935,14 @@ BaseTestCase testsuite_testcases[] = {
                     of a mutation) */
                  "dcp_backfill_byte_limit=1;chk_remover_stime=1;"
                  "chk_max_items=3",
-                 /* TODO RDB: implement getItemCount */
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("test producer stream request (memory only)",
                  test_dcp_producer_stream_req_mem,
                  test_setup,
                  teardown,
                  "chk_remover_stime=1;chk_max_items=100",
-                 /* TODO RDB: implement getItemCount */
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("test producer stream request (DGM)",
                  test_dcp_producer_stream_req_dgm,
@@ -5967,32 +5958,28 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  NULL,
-                 /* TODO RDB: implement getItemCount */
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("test producer keep stream open",
                  test_dcp_producer_keep_stream_open,
                  test_setup,
                  teardown,
                  "chk_remover_stime=1;chk_max_items=100",
-                 /* TODO RDB: implement getItemCount */
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("test producer keep stream open replica",
                  test_dcp_producer_keep_stream_open_replica,
                  test_setup,
                  teardown,
                  "chk_remover_stime=1;chk_max_items=100",
-                 /* TODO RDB: implement getItemCount */
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("test producer stream cursor movement",
                  test_dcp_producer_stream_cursor_movement,
                  test_setup,
                  teardown,
                  "chk_remover_stime=1;chk_max_items=10",
-                 /* TODO RDB: implement getItemCount */
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("test producer stream request nmvb",
                  test_dcp_producer_stream_req_nmvb, test_setup, teardown, NULL,
@@ -6002,8 +5989,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  "chk_max_items=100",
-                 /* TODO RDB: implement getItemCount */
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("test dcp cursor dropping",
                  test_dcp_cursor_dropping,
@@ -6014,7 +6000,9 @@ BaseTestCase testsuite_testcases[] = {
                     ratio gets to 90%. See test body for more details. */
                  "cursor_dropping_lower_mark=60;cursor_dropping_upper_mark=70;"
                  "chk_remover_stime=1;max_size=6291456;chk_max_items=8000",
-                 /* TODO RDB: implement getItemCount */
+                 // TODO RDB: Cannot store any item (ENGINE_ENOMEM).
+                 // Needs to resize 'max_size' to consider RocksDB
+                 // pre-allocations.
                  prepare_skip_broken_under_rocks,
                  cleanup),
         TestCase("test dcp cursor dropping backfill",
@@ -6026,7 +6014,9 @@ BaseTestCase testsuite_testcases[] = {
                   ratio gets to 90%. See test body for more details. */
                  "cursor_dropping_lower_mark=60;cursor_dropping_upper_mark=70;"
                  "chk_remover_stime=1;max_size=6291456;chk_max_items=8000",
-                 /* TODO RDB: implement getItemCount */
+                 // TODO RDB: Cannot store any item (ENGINE_ENOMEM).
+                 // Needs to resize 'max_size' to consider RocksDB
+                 // pre-allocations.
                  prepare_skip_broken_under_rocks,
                  cleanup),
         TestCase("test dcp stream takeover", test_dcp_takeover, test_setup,
@@ -6053,47 +6043,43 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  "dcp_enable_noop=false",
-                 /* TODO RDB: implement getItemCount */
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("test reconnect partial snapshot",
                  test_dcp_reconnect_partial,
                  test_setup,
                  teardown,
                  "dcp_enable_noop=false",
-                 /* TODO RDB: implement getItemCount */
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("test crash full snapshot",
                  test_dcp_crash_reconnect_full,
                  test_setup,
                  teardown,
                  "dcp_enable_noop=false",
-                 /* TODO RDB: implement getItemCount */
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("test crash partial snapshot",
                  test_dcp_crash_reconnect_partial,
                  test_setup,
                  teardown,
                  "dcp_enable_noop=false",
-                 /* TODO RDB: implement getItemCount */
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("test rollback to zero on consumer",
                  test_rollback_to_zero,
                  test_setup,
                  teardown,
                  "dcp_enable_noop=false",
-                 /* TODO RDB: implement getItemCount */
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("test chk manager rollback",
                  test_chk_manager_rollback,
                  test_setup,
                  teardown,
                  "dcp_flow_control_policy=none;dcp_enable_noop=false",
-                 /* TODO RDB: implement getItemCount */
+                 // TODO RDB: implement getItemCount.
+                 // Needs the 'curr_items_tot' stat.
                  prepare_skip_broken_under_rocks,
                  cleanup),
         TestCase("test full rollback on consumer",
@@ -6101,7 +6087,9 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  "dcp_enable_noop=false",
-                 /* TODO RDB: implement getItemCount */
+                 // TODO RDB: Intermittently failing with SegFault.
+                 // Probably we have to implement getItemCount. Needs the
+                 // 'vb_replica_curr_items' stat.
                  prepare_skip_broken_under_rocks,
                  cleanup),
         TestCase("test partial rollback on consumer",
@@ -6109,7 +6097,8 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  "dcp_enable_noop=false",
-                 /* TODO RDB: implement getItemCount */
+                 // TODO RDB: implement getItemCount.
+                 // Needs the 'vb_replica_curr_items' stat.
                  prepare_skip_broken_under_rocks,
                  cleanup),
         TestCase("test change dcp buffer log size", test_dcp_buffer_log_size,
@@ -6119,8 +6108,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  NULL,
-                 /* TODO RDB: implement getItemCount */
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("test get failover log", test_dcp_get_failover_log,
                 test_setup, teardown, NULL, prepare, cleanup),
@@ -6153,7 +6141,8 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  NULL,
-                 /* TODO RDB: implement getItemCount */
+                 // TODO RDB: implement getItemCount. Needs the 'curr_items'
+                 // stat.
                  prepare_skip_broken_under_rocks,
                  cleanup),
         TestCase("dcp persistence seqno", test_dcp_persistence_seqno, test_setup,
@@ -6190,7 +6179,8 @@ BaseTestCase testsuite_testcases[] = {
                  /* In ephemeral buckets the test is run from module tests:
                     StreamTest.RollbackDueToPurge() */
                  /* TODO RDB: Need to purge in a compaction filter,
-                  * and store purged seqno. */
+                  * and store purged seqno.
+                  * Relies on triggering compaction directly */
                  prepare_ep_bucket_skip_broken_under_rocks,
                  cleanup),
         TestCase("dcp erroneous mutations scenario",
@@ -6198,8 +6188,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  NULL,
-                 /* TODO RDB: implement getItemCount */
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("dcp erroneous snapshot marker scenario", test_dcp_erroneous_marker,
                  test_setup, teardown, NULL, prepare, cleanup),
@@ -6228,8 +6217,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  NULL,
-                 /* TODO RDB: implement getItemCount */
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("test dcp multiple streams", test_dcp_multiple_streams,
                  test_setup, teardown, NULL, prepare, cleanup),

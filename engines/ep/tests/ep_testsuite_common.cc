@@ -248,7 +248,7 @@ enum test_result prepare_ep_bucket(engine_test_t* test) {
 enum test_result prepare_ep_bucket_skip_broken_under_rocks(engine_test_t* test) {
     std::string cfg{test->cfg};
     if (cfg.find("backend=rocksdb") != std::string::npos) {
-        return SKIPPED;
+        return SKIPPED_UNDER_ROCKSDB;
     }
 
     // Perform whatever prep the ep bucket function wants.
@@ -258,7 +258,7 @@ enum test_result prepare_ep_bucket_skip_broken_under_rocks(engine_test_t* test) 
 enum test_result prepare_skip_broken_under_rocks(engine_test_t* test) {
     std::string cfg{test->cfg};
     if (cfg.find("backend=rocksdb") != std::string::npos) {
-        return SKIPPED;
+        return SKIPPED_UNDER_ROCKSDB;
     }
 
     // Perform whatever prep the "base class" function wants.

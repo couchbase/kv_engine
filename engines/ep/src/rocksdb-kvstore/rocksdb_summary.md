@@ -3,53 +3,59 @@
 ## What it can do:
   * Set
   * Get
-  * Del  
+  * Del
       implemented identically to Set in order to persist metatdata
       and allow getMeta on a deleted item, and deleted items with bodies etc.
-
-  * Perform a backfill, or more generally, iterate all items by seqno.  
-      Implemented by having a second column family mapping seqno=>key.  
+  * Perform a backfill, or more generally, iterate all items by seqno.
+      Implemented by having a second column family mapping seqno=>key.
       Iterating over this gets us keys, which we then use to get the item.
       Currently, we handle stale entries here by checking if the
       item->getBySeqno() matches the seqno=>key entry - if it does not, the item
       has since been updated, and we are looking at an old entry
-  * Persist and load vbstates  
+  * Persist and load vbstates
       Largely stolen from couchstore - seems to work, and makes some testsuite
       tests pass, but hasn't been thoroughly tested
-  * Warmup  
+  * Warmup
       Works - basically dependent on the above two - from a cold start it
       correctly identifies present vbuckets, and loads them in to memory
+  * Correctly call persistence callbacks
+      Persistence callbacks are called after committing the batch
+  * We have moved to one DB instance per VBucket
 
 ## What it doesn't do:
-  * Correctly call persistence callbacks  
-      when set is called, a callback is provided which should only be called
-      after the item is safely persisted - at the moment we call it immediately
-      after batching the mutation, rather than after committing the batch.
-  * Efficient `getMulti`  
+  * Efficient `getMulti`
       RocksDB implements a multi get itself, but we are not yet using that;
       currently we are "manually" performing a series of gets.
-  * Expiry  
+  * Expiry on compaction
       We currently persist the TTL, but it is never acted upon.
       Should be simple to add - RocksDBKVStore supports a compaction filter;
       would be trivial to make it discard items with expiries which have elapsed.
-  * Correct stats  
+  * Correct stats
       * DBFileInfo - used to report:
         * `db_data_size`
         * `db_file_size`
       * Item count, required for resident ratio in full eviction
         Efficiently tracking the item count may be difficult; we cannot
         tell if a given Put will store a new item or update an existing one.
-        RocksDB can *estimate* the key count for a given CF.  
-        NB: This would also unblock a number of testsuite tests which are currently
+        RocksDB can *estimate* the key count for a given CF.
+        NB: This would also unblock some of testsuite tests which are currently
         skipped because they need to check the number of items in the persistent store.
+        Note: The item count is currenlty always incremented when we execute the
+        Persistence Callbacks, wheter the mutation will store a new item or update
+        an existing one.
+        The following KVStore functions are not yet implemented by RocksDBKVStore:
+          * getNumPersistedDeletes()
+          * getDbFileInfo()
+          * getAggrDbFileInfo()
+          * getItemCount()
   * Rollback  
       As-is, may always need to roll back to zero (essentially needs to empty the vb).
       Unlikely that we could rollback to an intermediate seqno as the item data
-      for old occurrences of a key is not kept.  
+      for old occurrences of a key is not kept.
       However, we could periodically create RocksDB `Snapshot`s - preventing the deletion
       of any items visible in the snapshot. These also (logically) prevent a compaction
       filter running on any items the Snapshot covers. Rolling back to a snapshot may
-      also be a challenge, but not insurmountable.  
+      also be a challenge, but not insurmountable.
       An alternative would be `Checkpoint`s - these make hardlinks
       of all SST files as they are at the current time in a new directory - essentially
       cloning the entire DB. This could be kept for a some period of time to allow rollback.
@@ -57,12 +63,64 @@
       dir, and move the checkpoint dir into its place.
       Option 3 would be to hold an `Iterator`. These hold a reference to all SST files they
       need access to. This would result in similar disk usage as a `Checkpoint` but may be
-      harder to rollback to.  
-      
-       
+      harder to rollback to.
+  * PROTOCOL_BINARY_CMD_GET_KEYS
+      The KVStore::getAllKeys function is not implemented by RocksDBKVStore
+  * Collections
+      RocksDBKVStore does not support Collections yet.
+  * Other KVStore functions not implemented:
+      * incrementRevision()
+      * prepareToDelete()
+
+## Tests failing under RocksDB (details in comments on test declaration in the source files):
+  * ep_testsuite.cc
+      expiration on compaction
+      test item pager
+      test access scanner
+      io stats
+      file stats
+      diskinfo stats
+      test ALL_KEYS api
+      flush+restart
+      flush multiv+restart
+      test vbucket compact
+      test num persisted deletes (takeover stats)
+      test_mb19635_upgrade_from_25x
+      test_MB-19687_fixed
+      test vbucket compact no purge
+      test_MB-20697
+      test_mb20744_check_incr_reject_ops
+      expiration on warmup
+      expiry_duplicate_warmup
+      test bloomfilters
+      warmup stats
+      duplicate items on disk
+      test shutdown without force
+  * ep_testsuite_basic.cc
+      test total memory limit
+      get/delete with missing db file
+      test mb5215
+      vbucket deletion doesn't affect new data
+      non-resident decrementers
+      flush_disabled
+  * ep_testsuite_checkpoint.cc
+      100% passing
+  * ep_testsuite_dcp.cc
+      test producer stream request (DGM)
+      test dcp cursor dropping
+      test dcp cursor dropping backfill
+      test chk manager rollback
+      test full rollback on consumer
+      test partial rollback on consumer
+      dcp last items purged
+      dcp rollback after purge
+      dcp failover log
+  * ep_testsuite_xdcr.cc
+      100% passing
 
 ## To build locally:
-    `make EXTRA_CMAKE_OPTIONS="-DEP_USE_ROCKSDB=ON"`
+      `make EXTRA_CMAKE_OPTIONS="-DEP_USE_ROCKSDB=ON"`
+      Note: 'EP_USE_ROCKSDB=ON' by default now.
 
 ## To use rocksdb:
    set up a one node cluster as normal.
@@ -84,7 +142,7 @@ pkill memcached
 ## Previous perf tests:
    an example comparison of rocksdb vs the contemporary master on [cbmonitor](
    http://cbmonitor.sc.couchbase.com/reports/html/?snapshot=hera_510-1102_access_829e&snapshot=hera_510-2232_access_f2d1)
-   (orange is rocksdb).  
+   (orange is rocksdb).
    This is now slightly dated, as master has moved forward.
    Also, as most previous perf tests were done while the code was still quite volatile,
    they may not best reflect the current state.
@@ -93,10 +151,10 @@ pkill memcached
    As the code is in master, but is *not* built by default, running a perf test
    does require a toy build, but not a custom toy manifest.
 
-   to create the toy build, go to [watson-toy](http://server.jenkins.couchbase.com/job/watson-toy/)  
-   
+   to create the toy build, go to [watson-toy](http://server.jenkins.couchbase.com/job/watson-toy/)
+
    __Build With Parameters__
-   
+
    ```
    Release             : vulcan
    Version             : 5.1.0
@@ -111,8 +169,8 @@ pkill memcached
 
    You can now follow [toy build wiki page](https://hub.internal.couchbase.com/confluence/display/PERF/Running+performance+tests+for+a+toy+build),  
    __with the following override__:
-   `bucket_extras.backend.rocksdb`  
-   when running the perf test of choice.  
+   `bucket_extras.backend.rocksdb`
+   when running the perf test of choice.
    Once the chosen test finishes (some take multiple hours) the KPI will be
    listed in the Console Output of the perf test jenkins job (along with a
    cbmonitor link similar to above - to compare two runs, use two `snapshot=blah`
@@ -122,13 +180,9 @@ pkill memcached
 ## Next Steps
    * Compile rocksdb cbdep for windows - msbuild stuff.
    * Rollback needs to be implemented to be functionally correct.
-   * Expiry: a compaction filter should be added to discard expired items.
+   * Expiry on Compaction: a compaction filter should be added to discard expired items.
    * Probably worth implementing getItemCount soon to better understand the performance
      impact and what other options should be considered
-   * May be worth moving to one db instance per vbucket - would simplify things like
-     deleting a vbucket, and would mean keys would not need to be vb prefixed -
-     and would even make rocksdb's estimate of #items in a CF a contender for
-     implementing getItemCount
 
 
 ## Thoughts on existing perf results

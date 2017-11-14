@@ -18,7 +18,8 @@ enum test_result {
     CORE = 15,
     PENDING = 19,
     TIMEOUT = 23,
-    SUCCESS_AFTER_RETRY = 24
+    SUCCESS_AFTER_RETRY = 24,
+    SKIPPED_UNDER_ROCKSDB = 25
 };
 
 typedef struct test engine_test_t;

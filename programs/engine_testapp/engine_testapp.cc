@@ -800,6 +800,10 @@ static int report_test(const char *name,
         msg="OK AFTER RETRY";
         color = 33;
         break;
+    case SKIPPED_UNDER_ROCKSDB:
+        msg="SKIPPED_UNDER_ROCKSDB";
+        color = 32;
+        break;
     default:
         color = 31;
         msg = "UNKNOWN";
