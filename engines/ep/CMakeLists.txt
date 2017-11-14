@@ -501,8 +501,6 @@ INSTALL(FILES
         management/mc_bin_client.py
         management/mc_bin_server.py
         management/memcacheConstants.py
-        management/tap.py
-        management/tap_example.py
         DESTINATION lib/python)
 
 INSTALL(FILES
