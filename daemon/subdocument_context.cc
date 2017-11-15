@@ -346,8 +346,7 @@ protocol_binary_response_status SubdocCmdContext::get_document_for_searching(
         try {
             using namespace cb::compression;
             if (!inflate(Algorithm::Snappy,
-                         in_doc.buf,
-                         in_doc.len,
+                         in_doc,
                          inflated_doc_buffer)) {
                 char clean_key[KEY_MAX_LENGTH + 32];
                 if (buf_to_printable_buffer(clean_key,

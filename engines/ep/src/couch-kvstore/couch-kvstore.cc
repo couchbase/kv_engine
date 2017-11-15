@@ -668,12 +668,11 @@ static int edit_docinfo_hook(DocInfo **info, const sized_buf *item) {
         // If the document is compressed we need to inflate it to
         // determine if it is json or not.
         cb::compression::Buffer inflated;
-        cb::const_char_buffer data { item->buf, item->size };
-
+        cb::const_char_buffer data {item->buf, item->size};
         if (((*info)->content_meta | COUCH_DOC_IS_COMPRESSED) ==
                 (*info)->content_meta) {
             if (!cb::compression::inflate(cb::compression::Algorithm::Snappy,
-                                          item->buf, item->size, inflated)) {
+                                          data, inflated)) {
                 throw std::runtime_error(
                     "edit_docinfo_hook: failed to inflate document with seqno: " +
                     std::to_string((*info)->db_seq) + " revno: " +
@@ -757,8 +756,7 @@ static int notify_expired_item(DocInfo& info,
         if (info.content_meta | COUCH_DOC_IS_COMPRESSED) {
             using namespace cb::compression;
 
-            if (!inflate(Algorithm::Snappy,
-                         item.buf, item.size, inflated)) {
+            if (!inflate(Algorithm::Snappy, {item.buf, item.size}, inflated)) {
                 LOG(EXTENSION_LOG_WARNING,
                     "time_purge_hook: failed to inflate document with seqno %" PRIu64 ""
                     "revno: %" PRIu64, info.db_seq, info.rev_seq);

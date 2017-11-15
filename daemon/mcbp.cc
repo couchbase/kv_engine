@@ -237,7 +237,7 @@ bool mcbp_response_handler(const void* key, uint16_t keylen,
         // The client is not snappy-aware, and the content contains
         // snappy encoded data.. We need to inflate it!
         if (!cb::compression::inflate(cb::compression::Algorithm::Snappy,
-                                      payload.buf, payload.len, buffer)) {
+                                      payload, buffer)) {
             std::string mykey(reinterpret_cast<const char*>(key), keylen);
             LOG_WARNING(c,
                         "<%u ERROR: Failed to inflate body, "

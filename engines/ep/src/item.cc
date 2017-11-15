@@ -228,10 +228,10 @@ bool Item::compressValue() {
         // that the value is not compressed already.
         cb::compression::Buffer deflated;
         if (cb::compression::deflate(cb::compression::Algorithm::Snappy,
-                                     getData(), getNBytes(), deflated)) {
+                                     {getData(), getNBytes()}, deflated)) {
             if (deflated.len > getNBytes()) {
                 //No point doing the compression if the deflated length
-                //is greater than the original length 
+                //is greater than the original length
                 return true;
             }
             setData(deflated.data.get(), deflated.len);
@@ -252,7 +252,7 @@ bool Item::decompressValue() {
         // that the value is compressed.
         cb::compression::Buffer inflated;
         if (cb::compression::inflate(cb::compression::Algorithm::Snappy,
-                                     getData(), getNBytes(), inflated)) {
+                                     {getData(), getNBytes()}, inflated)) {
             setData(inflated.data.get(), inflated.len);
             datatype &= ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
             setDataType(datatype);

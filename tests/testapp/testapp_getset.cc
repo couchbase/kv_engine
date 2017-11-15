@@ -481,8 +481,7 @@ static void compress_vector(const std::vector<char>& input,
                             std::vector<uint8_t>& output) {
     cb::compression::Buffer compressed;
     EXPECT_TRUE(cb::compression::deflate(cb::compression::Algorithm::Snappy,
-                                         input.data(), input.size(),
-                                         compressed));
+                                         input, compressed));
     EXPECT_GT(input.size(), compressed.len);
     output.resize(compressed.len);
     memcpy(output.data(), compressed.data.get(), compressed.len);

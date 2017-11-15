@@ -48,10 +48,12 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::getItem() {
 
         if (mcbp::datatype::is_snappy(oldItemInfo.datatype)) {
             try {
+                cb::const_char_buffer payload(static_cast<const char*>(
+                                              oldItemInfo.value[0].iov_base),
+                                              oldItemInfo.value[0].iov_len);
                 if (!cb::compression::inflate(
                     cb::compression::Algorithm::Snappy,
-                    (const char*)oldItemInfo.value[0].iov_base,
-                    oldItemInfo.value[0].iov_len,
+                    payload,
                     buffer)) {
                     return ENGINE_FAILED;
                 }

@@ -28,7 +28,8 @@ AppendPrependCommandContext::AppendPrependCommandContext(
                    ? Mode::Append
                    : Mode::Prepend),
       key(cookie.getRequestKey()),
-      value(req.getValue()),
+      value(reinterpret_cast<const char*>(req.getValue().buf),
+            req.getValue().len),
       vbucket(req.getVBucket()),
       cas(req.getCas()),
       state(State::GetItem) {
@@ -78,12 +79,11 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::step() {
 ENGINE_ERROR_CODE AppendPrependCommandContext::inflateInputData() {
     try {
         if (!cb::compression::inflate(cb::compression::Algorithm::Snappy,
-                                      reinterpret_cast<const char*>(value.buf),
-                                      value.len,
+                                      value,
                                       inputbuffer)) {
             return ENGINE_EINVAL;
         }
-        value.buf = reinterpret_cast<const uint8_t*>(inputbuffer.data.get());
+        value.buf = inputbuffer.data.get();
         value.len = inputbuffer.len;
         state = State::GetItem;
     } catch (const std::bad_alloc&) {
@@ -115,9 +115,11 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::getItem() {
 
         if (mcbp::datatype::is_snappy(oldItemInfo.datatype)) {
             try {
+                cb::const_char_buffer payload(static_cast<const char*>(
+                                              oldItemInfo.value[0].iov_base),
+                                              oldItemInfo.value[0].iov_len);
                 if (!cb::compression::inflate(cb::compression::Algorithm::Snappy,
-                                              (const char*)oldItemInfo.value[0].iov_base,
-                                              oldItemInfo.value[0].iov_len,
+                                              payload,
                                               buffer)) {
                     return ENGINE_FAILED;
                 }

@@ -195,7 +195,7 @@ protected:
         if (shouldCompress) {
             cb::compression::Buffer output;
             EXPECT_TRUE(cb::compression::deflate(cb::compression::Algorithm::Snappy,
-                        valueData.c_str(), valueData.length(), output));
+                        valueData, output));
             datatype |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
             return std::make_unique<Item>(key,
                                           /*flags*/0,
@@ -293,8 +293,7 @@ ENGINE_ERROR_CODE mock_mutation_return_engine_e2big(const void* cookie,
 std::string decompressValue(std::string compressedValue) {
     cb::compression::Buffer buffer;
     if (!cb::compression::inflate(cb::compression::Algorithm::Snappy,
-                                  compressedValue.c_str(), compressedValue.length(),
-                                  buffer)) {
+                                  compressedValue, buffer)) {
         return {};
     }
 
