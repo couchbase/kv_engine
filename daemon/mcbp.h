@@ -49,11 +49,8 @@ void mcbp_add_header(Cookie& cookie,
  *       added to an iovec), and thus must be live until transmit() is later
  *       called - (aka don't use stack for `d`).
  */
-void mcbp_write_response(McbpConnection* c,
-                         const void* d,
-                         int extlen,
-                         int keylen,
-                         int dlen);
+void mcbp_write_response(
+        Cookie& cookie, const void* d, int extlen, int keylen, int dlen);
 
 /**
  * Form and send a response packet back to the client without any

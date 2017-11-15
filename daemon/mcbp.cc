@@ -79,35 +79,33 @@ static bool send_not_my_vbucket(Cookie& cookie) {
     return true;
 }
 
-void mcbp_write_response(McbpConnection* c,
-                         const void* d,
-                         int extlen,
-                         int keylen,
-                         int dlen) {
-    auto& cookie = c->getCookieObject();
+void mcbp_write_response(
+        Cookie& cookie, const void* d, int extlen, int keylen, int dlen) {
+    auto& connection = cookie.getConnection();
     const auto opcode = cookie.getHeader().getOpcode();
     const auto quiet = cookie.getRequest().isQuiet();
     if (!quiet || opcode == PROTOCOL_BINARY_CMD_GET ||
         opcode == PROTOCOL_BINARY_CMD_GETK) {
-        mcbp_add_header(c->getCookieObject(),
+        mcbp_add_header(cookie,
                         PROTOCOL_BINARY_RESPONSE_SUCCESS,
                         extlen,
                         keylen,
                         dlen,
                         PROTOCOL_BINARY_RAW_BYTES);
-        c->addIov(d, dlen);
-        c->setState(McbpStateMachine::State::send_data);
-        c->setWriteAndGo(McbpStateMachine::State::new_cmd);
+        connection.addIov(d, dlen);
+        connection.setState(McbpStateMachine::State::send_data);
+        connection.setWriteAndGo(McbpStateMachine::State::new_cmd);
     } else {
-        if (c->getStart() != ProcessClock::time_point()) {
+        if (connection.getStart() != ProcessClock::time_point()) {
             mcbp_collect_timings(cookie);
-            c->setStart(ProcessClock::time_point());
+            connection.setStart(ProcessClock::time_point());
         }
         // The responseCounter is updated here as this is non-responding code
         // hence mcbp_add_header will not be called (which is what normally
         // updates the responseCounters).
-        ++c->getBucket().responseCounters[PROTOCOL_BINARY_RESPONSE_SUCCESS];
-        c->setState(McbpStateMachine::State::new_cmd);
+        auto& bucket = connection.getBucket();
+        ++bucket.responseCounters[PROTOCOL_BINARY_RESPONSE_SUCCESS];
+        connection.setState(McbpStateMachine::State::new_cmd);
     }
 }
 
@@ -129,7 +127,7 @@ void mcbp_write_and_free(McbpConnection* c, DynamicBuffer* buf) {
 
 void mcbp_write_packet(Cookie& cookie, cb::mcbp::Status status) {
     if (status == cb::mcbp::Status::Success) {
-        mcbp_write_response(&cookie.getConnection(), NULL, 0, 0, 0);
+        mcbp_write_response(cookie, nullptr, 0, 0, 0);
         return;
     }
 

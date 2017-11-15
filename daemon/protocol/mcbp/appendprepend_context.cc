@@ -208,8 +208,8 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::storeItem() {
             }
             extras.vbucket_uuid = htonll(newItemInfo.vbucket_uuid);
             extras.seqno = htonll(newItemInfo.seqno);
-            mcbp_write_response(&connection, &extras, sizeof(extras), 0,
-                                sizeof(extras));
+            mcbp_write_response(
+                    cookie, &extras, sizeof(extras), 0, sizeof(extras));
         } else {
             cookie.sendResponse(cb::mcbp::Status::Success);
         }
