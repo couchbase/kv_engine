@@ -1704,7 +1704,6 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
       workload(NULL),
       workloadPriority(NO_BUCKET_PRIORITY),
       getServerApiFunc(get_server_api),
-      dcpFlowControlManager_(NULL),
       checkpointConfig(NULL),
       trafficEnabled(false),
       deleteAllEnabled(false),
@@ -1926,14 +1925,17 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     std::string flowCtlPolicy = configuration.getDcpFlowControlPolicy();
 
     if (!flowCtlPolicy.compare("static")) {
-        dcpFlowControlManager_ = new DcpFlowControlManagerStatic(*this);
+        dcpFlowControlManager_ =
+                std::make_unique<DcpFlowControlManagerStatic>(*this);
     } else if (!flowCtlPolicy.compare("dynamic")) {
-        dcpFlowControlManager_ = new DcpFlowControlManagerDynamic(*this);
+        dcpFlowControlManager_ =
+                std::make_unique<DcpFlowControlManagerDynamic>(*this);
     } else if (!flowCtlPolicy.compare("aggressive")) {
-        dcpFlowControlManager_ = new DcpFlowControlManagerAggressive(*this);
+        dcpFlowControlManager_ =
+                std::make_unique<DcpFlowControlManagerAggressive>(*this);
     } else {
         /* Flow control is not enabled */
-        dcpFlowControlManager_ = new DcpFlowControlManager(*this);
+        dcpFlowControlManager_ = std::make_unique<DcpFlowControlManager>(*this);
     }
 
     checkpointConfig = new CheckpointConfig(*this);
@@ -5296,13 +5298,9 @@ EventuallyPersistentEngine::~EventuallyPersistentEngine() {
         kvBucket->deinitialize();
     }
     LOG(EXTENSION_LOG_NOTICE, "~EPEngine: Completed deinitialize.");
-    kvBucket.reset();
-    LOG(EXTENSION_LOG_NOTICE, "~EPEngine: Deleted KvBucket.");
     delete workload;
-    dcpConnMap_.reset();
-    LOG(EXTENSION_LOG_NOTICE, "~EPEngine: Deleted dcpConnMap_.");
-    delete dcpFlowControlManager_;
     delete checkpointConfig;
+    /* Unique_ptr(s) are deleted in the reverse order of the initialization */
 }
 
 const std::string& EpEngineTaskable::getName() const {

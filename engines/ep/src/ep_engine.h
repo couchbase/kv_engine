@@ -857,8 +857,8 @@ protected:
         char buffer[sizeof(engine_info) + 10 * sizeof(feature_info) ];
     } info;
 
+    std::unique_ptr<DcpFlowControlManager> dcpFlowControlManager_;
     std::unique_ptr<DcpConnMap> dcpConnMap_;
-    DcpFlowControlManager *dcpFlowControlManager_;
     CheckpointConfig *checkpointConfig;
     std::string name;
     size_t maxItemSize;

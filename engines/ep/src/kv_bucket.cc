@@ -414,6 +414,7 @@ KVBucket::~KVBucket() {
     LOG(EXTENSION_LOG_NOTICE, "Deleting vb_mutexes");
     LOG(EXTENSION_LOG_NOTICE, "Deleting defragmenterTask");
     defragmenterTask.reset();
+    LOG(EXTENSION_LOG_NOTICE, "Deleted KvBucket.");
 }
 
 const Flusher* KVBucket::getFlusher(uint16_t shardId) {

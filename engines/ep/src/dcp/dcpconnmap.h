@@ -36,6 +36,8 @@ public:
 
     DcpConnMap(EventuallyPersistentEngine &engine);
 
+    ~DcpConnMap();
+
     /**
      * Find or build a dcp connection for the given cookie and with
      * the given name.

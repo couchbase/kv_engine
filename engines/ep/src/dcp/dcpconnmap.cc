@@ -55,6 +55,10 @@ DcpConnMap::DcpConnMap(EventuallyPersistentEngine &e)
                                 new DcpConfigChangeListener(*this));
 }
 
+DcpConnMap::~DcpConnMap() {
+    LOG(EXTENSION_LOG_NOTICE, "Deleted dcpConnMap_");
+}
+
 DcpConsumer *DcpConnMap::newConsumer(const void* cookie,
                                      const std::string &name)
 {
