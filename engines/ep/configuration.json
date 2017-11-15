@@ -816,7 +816,7 @@
             "type" : "size_t"
         },
         "rocksdb_options": {
-            "default": "db_write_buffer_size=0",
+            "default": "",
             "descr": "RocksDB Options, comma separated.",
             "type": "std::string"
         },
