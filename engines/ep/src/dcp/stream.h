@@ -174,6 +174,14 @@ protected:
         return true;
     }
 
+    /**
+     * Returns the logger associated with the connection if the connection is
+     * still alive, else a default logger
+     *
+     * @return associated logger
+     */
+    virtual const Logger& getLogger() const = 0;
+
     const std::string &name_;
     uint32_t flags_;
     uint32_t opaque_;
@@ -604,6 +612,8 @@ private:
 
     void transitionState(StreamState newState);
 
+    const Logger& getLogger() const;
+
     std::shared_ptr<DcpProducer> producer;
 
     std::unique_ptr<Collections::VB::Filter> filter;
@@ -719,6 +729,8 @@ protected:
      * @params vb_uuid The VB UUID to use in the StreamRequest.
      */
     void streamRequest_UNLOCKED(uint64_t vb_uuid);
+
+    const Logger& getLogger() const;
 
     EventuallyPersistentEngine* engine;
     std::shared_ptr<DcpConsumer> consumer;
