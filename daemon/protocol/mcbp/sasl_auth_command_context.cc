@@ -115,7 +115,7 @@ ENGINE_ERROR_CODE SaslAuthCommandContext::authOk() {
 ENGINE_ERROR_CODE SaslAuthCommandContext::authContinue() {
     auto auth_task = reinterpret_cast<SaslAuthTask*>(task.get());
     auto payload = auth_task->getResponse();
-    mcbp_add_header(&connection,
+    mcbp_add_header(cookie,
                     PROTOCOL_BINARY_RESPONSE_AUTH_CONTINUE,
                     0,
                     0,

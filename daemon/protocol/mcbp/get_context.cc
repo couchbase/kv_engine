@@ -92,10 +92,12 @@ ENGINE_ERROR_CODE GetCommandContext::sendResponse() {
 
     // Set the CAS to add into the header
     cookie.setCas(info.cas);
-    mcbp_add_header(&connection,
+    mcbp_add_header(cookie,
                     PROTOCOL_BINARY_RESPONSE_SUCCESS,
                     sizeof(info.flags),
-                    keylen, bodylen, datatype);
+                    keylen,
+                    bodylen,
+                    datatype);
 
     // Add the flags
     connection.addIov(&info.flags, sizeof(info.flags));
@@ -129,9 +131,10 @@ ENGINE_ERROR_CODE GetCommandContext::noSuchItem() {
         connection.setState(McbpStateMachine::State::new_cmd);
     } else {
         if (shouldSendKey()) {
-            mcbp_add_header(&connection,
+            mcbp_add_header(cookie,
                             PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
-                            0, uint16_t(key.size()),
+                            0,
+                            uint16_t(key.size()),
                             uint32_t(key.size()),
                             PROTOCOL_BINARY_RAW_BYTES);
             connection.addIov(key.data(), key.size());

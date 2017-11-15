@@ -1428,8 +1428,11 @@ static void subdoc_single_response(Cookie& cookie, SubdocCmdContext& context) {
     if (context.in_document_state == DocumentState::Deleted) {
         status_code = PROTOCOL_BINARY_RESPONSE_SUBDOC_SUCCESS_DELETED;
     }
-    mcbp_add_header(&connection, status_code, extlen,
-                    0 /*keylen*/, extlen + context.response_val_len,
+    mcbp_add_header(cookie,
+                    status_code,
+                    extlen,
+                    0 /*keylen*/,
+                    extlen + context.response_val_len,
                     PROTOCOL_BINARY_RAW_BYTES);
 
     // Add mutation descr to response buffer if requested.
@@ -1528,7 +1531,10 @@ static void subdoc_multi_mutation_response(Cookie& cookie,
     }
 
     // Allocated required resource - build the header.
-    mcbp_add_header(&connection, status_code, extlen, /*keylen*/0,
+    mcbp_add_header(cookie,
+                    status_code,
+                    extlen,
+                    /*keylen*/ 0,
                     extlen + response_buf_needed + iov_len,
                     PROTOCOL_BINARY_RAW_BYTES);
 
@@ -1630,8 +1636,12 @@ static void subdoc_multi_lookup_response(Cookie& cookie,
         status_code = PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE_DELETED;
     }
 
-    mcbp_add_header(&connection, status_code, /*extlen*/0, /*keylen*/
-                    0, context.response_val_len, PROTOCOL_BINARY_RAW_BYTES);
+    mcbp_add_header(connection.getCookieObject(),
+                    status_code,
+                    /*extlen*/ 0, /*keylen*/
+                    0,
+                    context.response_val_len,
+                    PROTOCOL_BINARY_RAW_BYTES);
 
     // Append the iovecs for each operation result.
     for (auto phase : phases) {

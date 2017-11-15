@@ -41,7 +41,7 @@ static bool send_not_my_vbucket(Cookie& cookie) {
         (pair.first == c.getClustermapRevno() && settings.isDedupeNmvbMaps())) {
         // We don't have a vbucket map, or we've already sent it to the
         // client
-        mcbp_add_header(&c,
+        mcbp_add_header(cookie,
                         PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
                         0,
                         0,
@@ -89,7 +89,7 @@ void mcbp_write_response(McbpConnection* c,
     const auto quiet = cookie.getRequest().isQuiet();
     if (!quiet || opcode == PROTOCOL_BINARY_CMD_GET ||
         opcode == PROTOCOL_BINARY_CMD_GETK) {
-        mcbp_add_header(c,
+        mcbp_add_header(c->getCookieObject(),
                         PROTOCOL_BINARY_RESPONSE_SUCCESS,
                         extlen,
                         keylen,
@@ -144,7 +144,7 @@ void mcbp_write_packet(McbpConnection* c, protocol_binary_response_status err) {
     auto& cookie = c->getCookieObject();
     const auto& payload = cookie.getErrorJson();
 
-    mcbp_add_header(c,
+    mcbp_add_header(c->getCookieObject(),
                     err,
                     0,
                     0,
@@ -186,20 +186,16 @@ static cb::const_byte_buffer mcbp_add_header(cb::Pipe& pipe,
     return {wbuf.data(), sizeof(header->bytes)};
 }
 
-void mcbp_add_header(McbpConnection* c,
+void mcbp_add_header(Cookie& cookie,
                      uint16_t err,
                      uint8_t ext_len,
                      uint16_t key_len,
                      uint32_t body_len,
                      uint8_t datatype) {
-    if (c == nullptr) {
-        throw std::invalid_argument("mcbp_add_header: 'c' must be non-NULL");
-    }
-
-    c->addMsgHdr(true);
-    auto& cookie = c->getCookieObject();
+    auto& connection = cookie.getConnection();
+    connection.addMsgHdr(true);
     const auto& header = cookie.getHeader();
-    const auto wbuf = mcbp_add_header(*c->write,
+    const auto wbuf = mcbp_add_header(*connection.write,
                                       header.getOpcode(),
                                       err,
                                       ext_len,
@@ -213,17 +209,17 @@ void mcbp_add_header(McbpConnection* c,
         char buffer[1024];
         if (bytes_to_output_string(buffer,
                                    sizeof(buffer),
-                                   c->getId(),
+                                   connection.getId(),
                                    false,
                                    "Writing bin response:",
                                    reinterpret_cast<const char*>(wbuf.data()),
                                    wbuf.size()) != -1) {
-            LOG_DEBUG(c, "%s", buffer);
+            LOG_DEBUG(&connection, "%s", buffer);
         }
     }
 
-    ++c->getBucket().responseCounters[err];
-    c->addIov(wbuf.data(), wbuf.size());
+    ++connection.getBucket().responseCounters[err];
+    connection.addIov(wbuf.data(), wbuf.size());
 }
 
 bool mcbp_response_handler(const void* key, uint16_t keylen,

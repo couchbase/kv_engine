@@ -118,7 +118,7 @@ ENGINE_ERROR_CODE GatCommandContext::sendResponse() {
     uint32_t bodylen = sizeof(info.flags) + payload.len;
     // Set the CAS to add into the header
     cookie.setCas(info.cas);
-    mcbp_add_header(&connection,
+    mcbp_add_header(cookie,
                     PROTOCOL_BINARY_RESPONSE_SUCCESS,
                     sizeof(info.flags),
                     0, // no key

@@ -88,8 +88,11 @@ ENGINE_ERROR_CODE GetLockedCommandContext::sendResponse() {
 
     // Set the CAS to add into the header
     cookie.setCas(info.cas);
-    mcbp_add_header(&connection, PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                    sizeof(info.flags), 0 /* keylength */, bodylength,
+    mcbp_add_header(cookie,
+                    PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                    sizeof(info.flags),
+                    0 /* keylength */,
+                    bodylength,
                     datatype);
     // Add the flags
     connection.addIov(&info.flags, sizeof(info.flags));
