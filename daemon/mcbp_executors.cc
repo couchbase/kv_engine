@@ -468,29 +468,12 @@ static void ioctl_set_executor(Cookie& cookie) {
 
 static void config_validate_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
-    const char* val_ptr = NULL;
-    auto* req = reinterpret_cast<protocol_binary_request_ioctl_set*>(
-            cookie.getPacketAsVoidPtr());
-
-    size_t keylen = ntohs(req->message.header.request.keylen);
-    size_t vallen = ntohl(req->message.header.request.bodylen) - keylen;
-
-    /* Key not yet used, must be zero length. */
-    if (keylen != 0) {
-        cookie.sendResponse(cb::mcbp::Status::Einval);
-        return;
-    }
-
-    /* must have non-zero length config */
-    if (vallen == 0 || vallen > CONFIG_VALIDATE_MAX_LENGTH) {
-        cookie.sendResponse(cb::mcbp::Status::Einval);
-        return;
-    }
-
-    val_ptr = (const char*)(req->bytes + sizeof(req->bytes)) + keylen;
+    const auto& request = cookie.getRequest(Cookie::PacketContent::Full);
+    const auto value = request.getValue();
 
     // the config validator needs a null-terminated string...
-    std::string val_buffer(val_ptr, vallen);
+    std::string val_buffer(reinterpret_cast<const char*>(value.data()),
+                           value.size());
     unique_cJSON_ptr errors(cJSON_CreateArray());
 
     if (validate_proposed_config_changes(val_buffer.c_str(), errors.get())) {
@@ -500,9 +483,9 @@ static void config_validate_executor(Cookie& cookie) {
 
     /* problem(s). Send the errors back to the client. */
     auto error_string = to_string(errors, false);
-    if (mcbp_response_handler(NULL,
+    if (mcbp_response_handler(nullptr,
                               0,
-                              NULL,
+                              nullptr,
                               0,
                               error_string.data(),
                               uint32_t(error_string.size()),

@@ -21,6 +21,7 @@
 #pragma once
 
 #include <array>
+#include <mcbp/mcbp.h>
 #include <memcached/protocol_binary.h>
 #include "cookie.h"
 #include "function_chain.h"
