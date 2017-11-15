@@ -489,41 +489,31 @@ static void config_validate_executor(Cookie& cookie) {
 
     val_ptr = (const char*)(req->bytes + sizeof(req->bytes)) + keylen;
 
-    /* null-terminate value, and convert to integer */
-    try {
-        std::string val_buffer(val_ptr, vallen);
-        unique_cJSON_ptr errors(cJSON_CreateArray());
+    // the config validator needs a null-terminated string...
+    std::string val_buffer(val_ptr, vallen);
+    unique_cJSON_ptr errors(cJSON_CreateArray());
 
-        if (validate_proposed_config_changes(val_buffer.c_str(), errors.get())) {
-            cookie.sendResponse(cb::mcbp::Status::Success);
-        } else {
-            /* problem(s). Send the errors back to the client. */
-            auto error_string = to_string(errors, false);
-            if (mcbp_response_handler(NULL,
-                                      0,
-                                      NULL,
-                                      0,
-                                      error_string.data(),
-                                      uint32_t(error_string.size()),
-                                      PROTOCOL_BINARY_RAW_BYTES,
-                                      PROTOCOL_BINARY_RESPONSE_EINVAL,
-                                      0,
-                                      static_cast<const void*>(&cookie))) {
-                mcbp_write_and_free(&connection, &cookie.getDynamicBuffer());
-            } else {
-                cookie.sendResponse(cb::mcbp::Status::Enomem);
-            }
-        }
-    } catch (const std::bad_alloc&) {
-        LOG_WARNING(&connection,
-                    "%u: Failed to allocate buffer of size %" PRIu64
-                    " to validate config. Shutting down connection",
-                    connection.getId(),
-                    vallen + 1);
-        connection.setState(McbpStateMachine::State::closing);
+    if (validate_proposed_config_changes(val_buffer.c_str(), errors.get())) {
+        cookie.sendResponse(cb::mcbp::Status::Success);
         return;
     }
 
+    /* problem(s). Send the errors back to the client. */
+    auto error_string = to_string(errors, false);
+    if (mcbp_response_handler(NULL,
+                              0,
+                              NULL,
+                              0,
+                              error_string.data(),
+                              uint32_t(error_string.size()),
+                              PROTOCOL_BINARY_RAW_BYTES,
+                              PROTOCOL_BINARY_RESPONSE_EINVAL,
+                              0,
+                              static_cast<const void*>(&cookie))) {
+        mcbp_write_and_free(&connection, &cookie.getDynamicBuffer());
+    } else {
+        cookie.sendResponse(cb::mcbp::Status::Enomem);
+    }
 }
 
 static void config_reload_executor(Cookie& cookie) {
