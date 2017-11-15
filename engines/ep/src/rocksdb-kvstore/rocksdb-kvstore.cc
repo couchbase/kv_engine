@@ -1300,6 +1300,9 @@ scan_error_t RocksDBKVStore::scan(ScanContext* ctx) {
 }
 
 void RocksDBKVStore::destroyScanContext(ScanContext* ctx) {
+    if (ctx == nullptr) {
+        return;
+    }
     // TODO RDB: Might be nice to have the snapshot in the ctx and
     // release it on destruction
     auto it = scanSnapshots.find(ctx->scanId);
