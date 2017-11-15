@@ -469,7 +469,6 @@ static void ioctl_set_executor(Cookie& cookie) {
 static void config_validate_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
     const char* val_ptr = NULL;
-    cJSON* errors = NULL;
     auto* req = reinterpret_cast<protocol_binary_request_ioctl_set*>(
             cookie.getPacketAsVoidPtr());
 
@@ -493,19 +492,19 @@ static void config_validate_executor(Cookie& cookie) {
     /* null-terminate value, and convert to integer */
     try {
         std::string val_buffer(val_ptr, vallen);
-        errors = cJSON_CreateArray();
+        unique_cJSON_ptr errors(cJSON_CreateArray());
 
-        if (validate_proposed_config_changes(val_buffer.c_str(), errors)) {
+        if (validate_proposed_config_changes(val_buffer.c_str(), errors.get())) {
             cookie.sendResponse(cb::mcbp::Status::Success);
         } else {
             /* problem(s). Send the errors back to the client. */
-            char* error_string = cJSON_PrintUnformatted(errors);
+            auto error_string = to_string(errors, false);
             if (mcbp_response_handler(NULL,
                                       0,
                                       NULL,
                                       0,
-                                      error_string,
-                                      (uint32_t)strlen(error_string),
+                                      error_string.data(),
+                                      uint32_t(error_string.size()),
                                       PROTOCOL_BINARY_RAW_BYTES,
                                       PROTOCOL_BINARY_RESPONSE_EINVAL,
                                       0,
@@ -514,10 +513,7 @@ static void config_validate_executor(Cookie& cookie) {
             } else {
                 cookie.sendResponse(cb::mcbp::Status::Enomem);
             }
-            cJSON_Free(error_string);
         }
-
-        cJSON_Delete(errors);
     } catch (const std::bad_alloc&) {
         LOG_WARNING(&connection,
                     "%u: Failed to allocate buffer of size %" PRIu64
