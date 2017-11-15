@@ -821,7 +821,7 @@
             "type": "std::string"
         },
         "rocksdb_cf_options": {
-            "default": "write_buffer_size=67108864",
+            "default": "",
             "descr": "RocksDB Column Family Options, comma separated.",
             "type": "std::string"
         },
