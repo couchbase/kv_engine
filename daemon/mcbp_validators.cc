@@ -960,6 +960,22 @@ static protocol_binary_response_status audit_config_reload_validator(const Cooki
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
+static protocol_binary_response_status config_reload_validator(
+        const Cookie& cookie) {
+    auto& header = cookie.getHeader();
+
+    if (!header.isValid() || // Does the internal header fields add up?
+        header.getMagic() != PROTOCOL_BINARY_REQ || // It must be a request
+        header.getExtlen() != 0 || // extras is not allowed
+        header.getKeylen() != 0 || // Key is not used
+        header.getBodylen() != 0 || // value not used
+        header.getCas() != 0 || // Cas should not be set
+        header.getDatatype() != PROTOCOL_BINARY_RAW_BYTES) {
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+}
+
 static protocol_binary_response_status config_validate_validator(
         const Cookie& cookie) {
     auto& header = cookie.getHeader();
@@ -1348,6 +1364,8 @@ void McbpValidatorChains::initializeMcbpValidatorChains(McbpValidatorChains& cha
     chains.push_unique(PROTOCOL_BINARY_CMD_IOCTL_SET, ioctl_set_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_AUDIT_PUT, audit_put_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_AUDIT_CONFIG_RELOAD, audit_config_reload_validator);
+    chains.push_unique(PROTOCOL_BINARY_CMD_CONFIG_RELOAD,
+                       config_reload_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_CONFIG_VALIDATE,
                        config_validate_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_SHUTDOWN, shutdown_validator);

@@ -2812,5 +2812,49 @@ TEST_F(UnlockValidatorTest, InvalidBodylen) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
 
+// Test config_reload
+class ConfigReloadValidatorTest : public ValidatorTest {
+protected:
+    protocol_binary_response_status validate() {
+        return ValidatorTest::validate(PROTOCOL_BINARY_CMD_CONFIG_RELOAD,
+                                       static_cast<void*>(&request));
+    }
+};
+
+TEST_F(ConfigReloadValidatorTest, CorrectMessage) {
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
+}
+
+TEST_F(ConfigReloadValidatorTest, InvalidMagic) {
+    request.message.header.request.magic = 0;
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+}
+
+TEST_F(ConfigReloadValidatorTest, InvalidExtlen) {
+    request.message.header.request.extlen = 2;
+    request.message.header.request.bodylen = htonl(2);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+}
+
+TEST_F(ConfigReloadValidatorTest, InvalidKey) {
+    request.message.header.request.keylen = 10;
+    request.message.header.request.bodylen = htonl(10);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+}
+
+TEST_F(ConfigReloadValidatorTest, InvalidDatatype) {
+    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+}
+
+TEST_F(ConfigReloadValidatorTest, InvalidCas) {
+    request.message.header.request.cas = 1;
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+}
+
+TEST_F(ConfigReloadValidatorTest, InvalidBody) {
+    request.message.header.request.bodylen = htonl(4);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+}
 } // namespace test
 } // namespace mcbp
