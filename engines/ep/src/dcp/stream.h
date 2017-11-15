@@ -166,10 +166,6 @@ protected:
 
     uint64_t getReadyQueueMemory(void);
 
-    /**
-     * Sub-function of pushToReadyQ.
-     * @return true if the DcpRepsonse should be queued, false to skip
-     */
     virtual bool queueResponse(DcpResponse* resp) const {
         return true;
     }
@@ -245,18 +241,18 @@ public:
 
     virtual ~ActiveStream();
 
-    std::unique_ptr<DcpResponse> next();
+    std::unique_ptr<DcpResponse> next() override;
 
-    void setActive() {
+    void setActive() override {
         LockHolder lh(streamMutex);
         if (isPending()) {
             transitionState(StreamState::Backfilling);
         }
     }
 
-    uint32_t setDead(end_stream_status_t status);
+    uint32_t setDead(end_stream_status_t status) override;
 
-    void notifySeqnoAvailable(uint64_t seqno);
+    void notifySeqnoAvailable(uint64_t seqno) override;
 
     void snapshotMarkerAckReceived();
 
@@ -276,7 +272,7 @@ public:
 
     bool isCompressionEnabled();
 
-    void addStats(ADD_STAT add_stat, const void *c);
+    void addStats(ADD_STAT add_stat, const void* c) override;
 
     void addTakeoverStats(ADD_STAT add_stat, const void *c, const VBucket& vb);
 
@@ -289,7 +285,7 @@ public:
 
     uint64_t getLastSentSeqno() const;
 
-    const Logger& getLogger() const;
+    const Logger& getLogger() const override;
 
     // Runs on ActiveStreamCheckpointProcessorTask
     void nextCheckpointItemTask();
@@ -346,12 +342,7 @@ protected:
      */
     void processSystemEvent(DcpResponse* response);
 
-    /**
-     * Sub-function of Stream::pushToReadyQ.
-     *
-     * @return true if the DcpRepsonse should be queued, false to skip
-     */
-    bool queueResponse(DcpResponse* resp) const;
+    bool queueResponse(DcpResponse* resp) const override;
 
     /**
      * Registers a cursor with a given CheckpointManager.
@@ -595,24 +586,20 @@ public:
 
     ~NotifierStream();
 
-    std::unique_ptr<DcpResponse> next();
+    std::unique_ptr<DcpResponse> next() override;
 
-    uint32_t setDead(end_stream_status_t status);
+    uint32_t setDead(end_stream_status_t status) override;
 
-    void notifySeqnoAvailable(uint64_t seqno);
+    void notifySeqnoAvailable(uint64_t seqno) override;
 
-    void addStats(ADD_STAT add_stat, const void* c);
+    void addStats(ADD_STAT add_stat, const void* c) override;
 
 private:
-    /**
-     * Sub-function of Stream::pushToReadyQ.
-     * @return true if the DcpRepsonse should be queued, false to skip
-     */
-    bool queueResponse(DcpResponse* resp) const;
+    bool queueResponse(DcpResponse* resp) const override;
 
     void transitionState(StreamState newState);
 
-    const Logger& getLogger() const;
+    const Logger& getLogger() const override;
 
     std::shared_ptr<DcpProducer> producer;
 
@@ -639,9 +626,9 @@ public:
     process_items_error_t processBufferedMessages(uint32_t &processed_bytes,
                                                   size_t batchSize);
 
-    std::unique_ptr<DcpResponse> next();
+    std::unique_ptr<DcpResponse> next() override;
 
-    uint32_t setDead(end_stream_status_t status);
+    uint32_t setDead(end_stream_status_t status) override;
 
     /**
      * Place a StreamRequest message into the readyQueue, requesting a DCP
@@ -665,7 +652,7 @@ public:
     virtual ENGINE_ERROR_CODE messageReceived(
             std::unique_ptr<DcpResponse> response);
 
-    void addStats(ADD_STAT add_stat, const void *c);
+    void addStats(ADD_STAT add_stat, const void* c) override;
 
     static const size_t batchSize;
 
@@ -730,7 +717,7 @@ protected:
      */
     void streamRequest_UNLOCKED(uint64_t vb_uuid);
 
-    const Logger& getLogger() const;
+    const Logger& getLogger() const override;
 
     EventuallyPersistentEngine* engine;
     std::shared_ptr<DcpConsumer> consumer;
