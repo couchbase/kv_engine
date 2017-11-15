@@ -110,7 +110,7 @@ protected:
     EventuallyPersistentEngine &engine;
 
     AtomicQueue<std::shared_ptr<ConnHandler>> pendingNotifications;
-    ConnNotifier *connNotifier_;
+    std::shared_ptr<ConnNotifier> connNotifier_;
 
     static size_t vbConnLockNum;
 };
@@ -118,7 +118,7 @@ protected:
 /**
  * Connection notifier that wakes up paused connections.
  */
-class ConnNotifier {
+class ConnNotifier : public std::enable_shared_from_this<ConnNotifier> {
 public:
     ConnNotifier(ConnMap &cm)
             : connMap(cm),

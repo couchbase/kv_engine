@@ -37,7 +37,7 @@ public:
     }
 
     void initialize() {
-        connNotifier_ = new ConnNotifier(*this);
+        connNotifier_ = std::make_shared<ConnNotifier>(*this);
         // We do not create a ConnNotifierCallback task
         // We do not create a ConnManager task
         // The ConnNotifier is deleted in the DcpConnMap

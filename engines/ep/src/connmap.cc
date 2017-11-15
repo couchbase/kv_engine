@@ -41,15 +41,20 @@ const double ConnNotifier::DEFAULT_MIN_STIME = 1.0;
  */
 class ConnNotifierCallback : public GlobalTask {
 public:
-    ConnNotifierCallback(EventuallyPersistentEngine* e, ConnNotifier* notifier)
+    ConnNotifierCallback(EventuallyPersistentEngine* e,
+                         std::shared_ptr<ConnNotifier> notifier)
         : GlobalTask(e, TaskId::ConnNotifierCallback),
-          connNotifier(notifier),
+          connNotifierPtr(notifier),
           description("DCP connection notifier") {
     }
 
-
     bool run(void) {
-        return connNotifier->notifyConnections();
+        auto connNotifier = connNotifierPtr.lock();
+        if (connNotifier) {
+            return connNotifier->notifyConnections();
+        }
+        /* Stop the task as connNotifier is deleted */
+        return false;
     }
 
     cb::const_char_buffer getDescription() {
@@ -66,15 +71,15 @@ public:
     }
 
 private:
-    ConnNotifier *connNotifier;
+    const std::weak_ptr<ConnNotifier> connNotifierPtr;
     const cb::const_char_buffer description;
 };
 
 void ConnNotifier::start() {
     bool inverse = false;
     pendingNotification.compare_exchange_strong(inverse, true);
-    ExTask connotifyTask =
-            std::make_shared<ConnNotifierCallback>(&connMap.getEngine(), this);
+    ExTask connotifyTask = std::make_shared<ConnNotifierCallback>(
+            &connMap.getEngine(), shared_from_this());
     task = ExecutorPool::get()->schedule(connotifyTask);
 }
 
@@ -170,7 +175,7 @@ ConnMap::ConnMap(EventuallyPersistentEngine &theEngine)
 }
 
 void ConnMap::initialize() {
-    connNotifier_ = new ConnNotifier(*this);
+    connNotifier_ = std::make_shared<ConnNotifier>(*this);
     connNotifier_->start();
     ExTask connMgr = std::make_shared<ConnManager>(&engine, this);
     ExecutorPool::get()->schedule(connMgr);
@@ -179,7 +184,6 @@ void ConnMap::initialize() {
 ConnMap::~ConnMap() {
     if (connNotifier_) {
         connNotifier_->stop();
-        delete connNotifier_;
     }
 }
 
