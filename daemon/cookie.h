@@ -20,6 +20,7 @@
 
 #include <cJSON_utils.h>
 #include <daemon/protocol/mcbp/command_context.h>
+#include <mcbp/mcbp.h>
 #include <memcached/dockey.h>
 #include <memcached/types.h>
 #include <platform/uuid.h>
@@ -29,14 +30,6 @@
 #include <stdexcept>
 
 // Forward decl
-namespace cb {
-namespace mcbp {
-class Header;
-struct Request;
-struct Response;
-enum class Status : uint16_t;
-} // namespace mcbp
-} // namespace cb
 
 class McbpConnection;
 
@@ -312,6 +305,26 @@ public:
      * and send the appropriate packet back to the client.
      */
     void sendResponse(cb::engine_errc code);
+
+    /**
+     * Form a response packet and send back to the client
+     *
+     * Note: we currently _copy_ the content of extras, key and value
+     * into the connections write buffer.
+     *
+     * @param status The status code for the operation
+     * @param extras The extras to add to the package
+     * @param key The key to add to the package
+     * @param value The value to add to the packet
+     * @param datatype The datatype to add to the message
+     * @param cas the Cas field to insert into the packet
+     */
+    void sendResponse(cb::mcbp::Status status,
+                      cb::const_char_buffer extras,
+                      cb::const_char_buffer key,
+                      cb::const_char_buffer value,
+                      cb::mcbp::Datatype datatype,
+                      uint64_t cas);
 
     /**
      * Get the command context stored for this command as

@@ -187,6 +187,79 @@ void Cookie::sendResponse(cb::engine_errc code) {
     sendResponse(cb::mcbp::to_status(code));
 }
 
+void Cookie::sendResponse(cb::mcbp::Status status,
+                          cb::const_char_buffer extras,
+                          cb::const_char_buffer key,
+                          cb::const_char_buffer value,
+                          cb::mcbp::Datatype datatype,
+                          uint64_t cas) {
+    if (!connection.write->empty()) {
+        // We can't continue as we might already have references
+        // in the IOvector stack pointing into the existing buffer!
+        throw std::logic_error(
+                "Cookie::sendResponse: No data should have been inserted "
+                "in the write buffer!");
+    }
+
+    if (datatype != cb::mcbp::Datatype::Raw &&
+        datatype != cb::mcbp::Datatype::JSON) {
+        throw std::runtime_error("Cookie::sendResponse: Unsupported datatype");
+    }
+
+    if (status == cb::mcbp::Status::NotMyVbucket) {
+        sendResponse(status);
+        return;
+    }
+
+    const auto& error_json = getErrorJson();
+
+    if (cb::mcbp::isStatusSuccess(status)) {
+        setCas(cas);
+    } else {
+        // This is an error message.. Inject the error JSON!
+        extras = {};
+        key = {};
+        value = {error_json.data(), error_json.size()};
+        datatype = value.empty() ? cb::mcbp::Datatype::Raw
+                                 : cb::mcbp::Datatype::JSON;
+    }
+
+    mcbp_add_header(*this,
+                    uint16_t(status),
+                    uint8_t(extras.size()),
+                    uint16_t(key.size()),
+                    uint32_t(value.size() + key.size() + extras.size()),
+                    connection.getEnabledDatatypes(
+                            protocol_binary_datatype_t(datatype)));
+
+    const size_t needed = value.size() + key.size() + extras.size();
+    connection.write->ensureCapacity(needed);
+
+    if (!extras.empty()) {
+        auto wdata = connection.write->wdata();
+        std::copy(extras.begin(), extras.end(), wdata.begin());
+        connection.write->produced(extras.size());
+        connection.addIov(wdata.data(), extras.size());
+    }
+
+    if (!key.empty()) {
+        auto wdata = connection.write->wdata();
+        std::copy(key.begin(), key.end(), wdata.begin());
+        connection.write->produced(key.size());
+        connection.addIov(wdata.data(), key.size());
+    }
+
+    if (!value.empty()) {
+        auto wdata = connection.write->wdata();
+        std::copy(value.begin(), value.end(), wdata.begin());
+        connection.write->produced(value.size());
+        connection.addIov(wdata.data(), value.size());
+    }
+
+    connection.setState(McbpStateMachine::State::send_data);
+    connection.setWriteAndGo(McbpStateMachine::State::new_cmd);
+}
+
 const DocKey Cookie::getRequestKey() const {
     auto key = getRequest().getKey();
     return DocKey{key.data(), key.size(), connection.getDocNamespace()};
