@@ -55,7 +55,14 @@ void mcbp_write_response(McbpConnection* c,
                          int keylen,
                          int dlen);
 
-void mcbp_write_packet(McbpConnection* c, protocol_binary_response_status err);
+/**
+ * Form and send a response packet back to the client without any
+ * user specified payload
+ *
+ * @param cookie the command context for the reply
+ * @param status the status code to put in the message
+ */
+void mcbp_write_packet(Cookie& cookie, cb::mcbp::Status status);
 
 bool mcbp_response_handler(const void* key, uint16_t keylen,
                            const void* ext, uint8_t extlen,

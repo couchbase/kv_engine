@@ -180,7 +180,7 @@ void Cookie::setEwouldblock(bool ewouldblock) {
 }
 
 void Cookie::sendResponse(cb::mcbp::Status status) {
-    mcbp_write_packet(&connection, uint16_t(status));
+    mcbp_write_packet(*this, status);
 }
 
 void Cookie::sendResponse(cb::engine_errc code) {

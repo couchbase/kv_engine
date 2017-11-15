@@ -127,13 +127,14 @@ void mcbp_write_and_free(McbpConnection* c, DynamicBuffer* buf) {
     }
 }
 
-void mcbp_write_packet(McbpConnection* c, protocol_binary_response_status err) {
-    if (err == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        mcbp_write_response(c, NULL, 0, 0, 0);
+void mcbp_write_packet(Cookie& cookie, cb::mcbp::Status status) {
+    if (status == cb::mcbp::Status::Success) {
+        mcbp_write_response(&cookie.getConnection(), NULL, 0, 0, 0);
         return;
     }
-    if (err == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET) {
-        if (!send_not_my_vbucket(c->getCookieObject())) {
+
+    if (status == cb::mcbp::Status::NotMyVbucket) {
+        if (!send_not_my_vbucket(cookie)) {
             throw std::runtime_error(
                     "mcbp_write_packet: failed to send not my vbucket");
         }
@@ -141,21 +142,19 @@ void mcbp_write_packet(McbpConnection* c, protocol_binary_response_status err) {
     }
 
     // MB-23909: Server does not include event id's in the error message.
-    auto& cookie = c->getCookieObject();
     const auto& payload = cookie.getErrorJson();
 
-    mcbp_add_header(c->getCookieObject(),
-                    err,
+    mcbp_add_header(cookie,
+                    uint16_t(status),
                     0,
                     0,
                     uint32_t(payload.size()),
                     payload.empty() ? PROTOCOL_BINARY_RAW_BYTES
                                     : PROTOCOL_BINARY_DATATYPE_JSON);
-    if (!payload.empty()) {
-        c->addIov(payload.data(), payload.size());
-    }
-    c->setState(McbpStateMachine::State::send_data);
-    c->setWriteAndGo(McbpStateMachine::State::new_cmd);
+    auto& connection = cookie.getConnection();
+    connection.addIov(payload.data(), payload.size());
+    connection.setState(McbpStateMachine::State::send_data);
+    connection.setWriteAndGo(McbpStateMachine::State::new_cmd);
 }
 
 static cb::const_byte_buffer mcbp_add_header(cb::Pipe& pipe,
