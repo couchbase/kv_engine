@@ -339,41 +339,33 @@ static void arithmetic_executor(Cookie& cookie) {
 }
 
 static void set_ctrl_token_executor(Cookie& cookie) {
-    auto& connection = cookie.getConnection();
     auto* req = reinterpret_cast<protocol_binary_request_set_ctrl_token*>(
             cookie.getPacketAsVoidPtr());
     uint64_t casval = ntohll(req->message.header.request.cas);
     uint64_t newval = ntohll(req->message.body.new_cas);
     uint64_t value;
 
-    auto ret = session_cas.cas(newval, casval, value);
-    mcbp_response_handler(NULL,
-                          0,
-                          NULL,
-                          0,
-                          NULL,
-                          0,
-                          PROTOCOL_BINARY_RAW_BYTES,
-                          engine_error_2_mcbp_protocol_error(ret),
-                          value,
-                          static_cast<const void*>(&cookie));
+    auto ret = cb::engine_errc(session_cas.cas(newval, casval, value));
 
-    mcbp_write_and_free(&connection, &cookie.getDynamicBuffer());
+    // The contract in the protocol description for set-ctrl-token is
+    // to include the CAS value in the response even for failures
+    // (there is a unit test which enforce this)
+    cookie.setCas(value);
+    cookie.sendResponse(cb::mcbp::to_status(ret),
+                        {},
+                        {},
+                        {},
+                        cb::mcbp::Datatype::Raw,
+                        value);
 }
 
 static void get_ctrl_token_executor(Cookie& cookie) {
-    auto& connection = cookie.getConnection();
-    mcbp_response_handler(NULL,
-                          0,
-                          NULL,
-                          0,
-                          NULL,
-                          0,
-                          PROTOCOL_BINARY_RAW_BYTES,
-                          PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                          session_cas.getCasValue(),
-                          static_cast<const void*>(&cookie));
-    mcbp_write_and_free(&connection, &cookie.getDynamicBuffer());
+    cookie.sendResponse(cb::mcbp::Status::Success,
+                        {},
+                        {},
+                        {},
+                        cb::mcbp::Datatype::Raw,
+                        session_cas.getCasValue());
 }
 
 static void ioctl_get_executor(Cookie& cookie) {
