@@ -16,6 +16,8 @@
  */
 #pragma once
 
+#include <platform/sized_buffer.h>
+
 #include <cstdint>
 #include <string>
 
@@ -109,6 +111,4 @@ void add(const Cookie& c, Operation operation);
  */
 void initialize_audit();
 
-bool mc_audit_event(uint32_t audit_eventid,
-                    const void* payload,
-                    size_t length);
+bool mc_audit_event(uint32_t audit_eventid, cb::const_byte_buffer payload);

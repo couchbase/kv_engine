@@ -239,15 +239,15 @@ void audit_invalid_packet(const Cookie& cookie) {
     do_audit(&connection, MEMCACHED_AUDIT_INVALID_PACKET, root, buffer);
 }
 
-bool mc_audit_event(uint32_t audit_eventid,
-                    const void* payload,
-                    size_t length) {
+bool mc_audit_event(uint32_t audit_eventid, cb::const_byte_buffer payload) {
     if (!audit_enabled) {
         return true;
     }
 
-    return put_audit_event(get_audit_handle(), audit_eventid,
-                           payload, length) == AUDIT_SUCCESS;
+    return put_audit_event(get_audit_handle(),
+                           audit_eventid,
+                           payload.data(),
+                           payload.size()) == AUDIT_SUCCESS;
 }
 
 namespace cb {

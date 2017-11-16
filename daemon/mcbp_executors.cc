@@ -509,15 +509,12 @@ static void audit_config_reload_executor(Cookie& cookie) {
 }
 
 static void audit_put_executor(Cookie& cookie) {
-    auto* req = reinterpret_cast<const protocol_binary_request_audit_put*>(
-            cookie.getPacketAsVoidPtr());
-    const void* payload = req->bytes + sizeof(req->message.header) +
-                          req->message.header.request.extlen;
+    const auto& request = cookie.getRequest(Cookie::PacketContent::Full);
+    // The packet validator ensured that this is 4 bytes long
+    const auto extras = request.getExtdata();
+    const uint32_t id = *reinterpret_cast<const uint32_t*>(extras.data());
 
-    const size_t payload_length = ntohl(req->message.header.request.bodylen) -
-                                  req->message.header.request.extlen;
-
-    if (mc_audit_event(ntohl(req->message.body.id), payload, payload_length)) {
+    if (mc_audit_event(ntohl(id), request.getValue())) {
         cookie.sendResponse(cb::mcbp::Status::Success);
     } else {
         cookie.sendResponse(cb::mcbp::Status::Einternal);
