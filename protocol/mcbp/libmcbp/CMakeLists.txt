@@ -17,7 +17,7 @@ add_library(mcbp STATIC
             request.cc
 	    header.cc
             sla.cc
-            status_to_string.cc
+            status.cc
             )
 
 target_link_libraries(mcbp mcd_util dirutils cJSON)

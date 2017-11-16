@@ -245,6 +245,17 @@ static inline std::error_condition make_error_condition(Status e) {
     return std::error_condition(int(e), error_category());
 }
 
+/**
+ * Check if the provided status code represents success or a failure
+ *
+ * @param status the status code code to check
+ * @return true if the status code represents a successful critera
+ *         false if the status code represents a failure and the payload
+ *               should be replaced with the standard payload containing
+ *               the error context and UUID (if set)
+ */
+bool isStatusSuccess(Status status);
+
 } // namespace mcbp
 } // namespace cb
 

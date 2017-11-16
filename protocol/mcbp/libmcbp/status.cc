@@ -20,6 +20,64 @@
 namespace cb {
 namespace mcbp {
 
+bool isStatusSuccess(Status status) {
+    switch (status) {
+    case Status::Success:
+    case Status::SubdocSuccessDeleted:
+    case Status::SubdocMultiPathFailure:
+    case Status::SubdocMultiPathFailureDeleted:
+    case Status::Rollback:
+        return true;
+
+    case Status::KeyEnoent:
+    case Status::KeyEexists:
+    case Status::E2big:
+    case Status::Einval:
+    case Status::NotStored:
+    case Status::DeltaBadval:
+    case Status::NotMyVbucket:
+    case Status::NoBucket:
+    case Status::Locked:
+    case Status::AuthStale:
+    case Status::AuthError:
+    case Status::AuthContinue:
+    case Status::Erange:
+    case Status::Eaccess:
+    case Status::NotInitialized:
+    case Status::UnknownCommand:
+    case Status::Enomem:
+    case Status::NotSupported:
+    case Status::Einternal:
+    case Status::Ebusy:
+    case Status::Etmpfail:
+    case Status::XattrEinval:
+    case Status::UnknownCollection:
+    case Status::SubdocPathEnoent:
+    case Status::SubdocPathMismatch:
+    case Status::SubdocPathEinval:
+    case Status::SubdocPathE2big:
+    case Status::SubdocDocE2deep:
+    case Status::SubdocValueCantinsert:
+    case Status::SubdocDocNotJson:
+    case Status::SubdocNumErange:
+    case Status::SubdocDeltaEinval:
+    case Status::SubdocPathEexists:
+    case Status::SubdocValueEtoodeep:
+    case Status::SubdocInvalidCombo:
+    case Status::SubdocXattrInvalidFlagCombo:
+    case Status::SubdocXattrInvalidKeyCombo:
+    case Status::SubdocXattrUnknownMacro:
+    case Status::SubdocXattrUnknownVattr:
+    case Status::SubdocXattrCantModifyVattr:
+    case Status::SubdocInvalidXattrOrder:
+    case Status::COUNT:
+    case Status::ReservedUserStart:
+    case Status::ReservedUserEnd:
+        return false;
+    }
+    throw std::invalid_argument("isStatusSuccess(): invalid status provided");
+}
+
 class status_category : public std::error_category {
 public:
     const char* name() const NOEXCEPT override {
@@ -155,6 +213,7 @@ std::string to_string(cb::mcbp::Status status) {
         return "ReservedUserRange: " + std::to_string(int(status));
     }
 
-    throw std::invalid_argument("to_string(cb::mcbp::Status): Invalid status code: " +
-                                std::to_string(int(status)));
+    throw std::invalid_argument(
+            "to_string(cb::mcbp::Status): Invalid status code: " +
+            std::to_string(int(status)));
 }
