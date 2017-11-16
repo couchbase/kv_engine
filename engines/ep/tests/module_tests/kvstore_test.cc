@@ -31,6 +31,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <kvstore.h>
+#include <thread>
 #include <unordered_map>
 #include <vector>
 
@@ -1977,6 +1978,57 @@ TEST_P(KVStoreParamTest, TestOneDBPerVBucket) {
     checkGetValue(gv, ENGINE_KEY_ENOENT);
     gv = kvstore->get(makeStoredDocKey("key-1"), 0 /*vbid*/);
     checkGetValue(gv, ENGINE_KEY_ENOENT);
+}
+
+// Verify thread-safeness for 'delVBucket' concurrent operations.
+// Expect ThreadSanitizer to pick this.
+TEST_P(KVStoreParamTest, DelVBucketConcurrentOperationsTest) {
+    WriteCallback wc;
+    Item item(makeStoredDocKey("key"),
+              0 /*flags*/,
+              0 /*exptime*/,
+              "value",
+              5 /*nb*/,
+              PROTOCOL_BINARY_RAW_BYTES,
+              0 /*cas*/,
+              -1 /*bySeqno*/,
+              0 /*vbid*/);
+    // The execution of 'set' creates a DB if it does not exist yet, then it
+    // writes to the DB.
+    auto set = [&] {
+        for (int i = 0; i < 10; i++) {
+            // Execution of set creates again a DB if needed
+            kvstore->begin();
+            kvstore->set(item, wc);
+            kvstore->commit(nullptr /*no collections manifest*/);
+        }
+    };
+
+    // The execution of 'delVBucket' should always delete a DB without
+    // breaking the execution of other threads using the same DB.
+    auto delVBucket = [&] {
+        for (int i = 0; i < 10; i++) {
+            kvstore->delVBucket(0 /*vbid*/, 0 /*fileRev*/);
+        }
+    };
+
+    // The execution of 'getStat' reads from a DB if the DB exists.
+    auto getStat = [&] {
+        size_t value;
+        for (int i = 0; i < 10; i++) {
+            kvstore->getStat("kMemTableTotal", value);
+        }
+    };
+
+    // We cannot control how tasks are scheduled, but starting the threads
+    // in the following order allows ThreadSanitizer to catch data races
+    // (expected data race set-delVBucket or getStat-delVBucket)
+    std::thread t1(set);
+    std::thread t2(delVBucket);
+    std::thread t3(getStat);
+    t1.join();
+    t2.join();
+    t3.join();
 }
 
 std::string kvstoreTestParams[] = {

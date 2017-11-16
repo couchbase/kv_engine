@@ -168,6 +168,9 @@ public:
      */
     void del(const Item& itm, Callback<int>& cb) override;
 
+    // This is a blocking call. The function waits until other threads have
+    // finished processing on a VBucket DB (e.g., 'commit') before deleting
+    // the VBucket and returning to the caller.
     void delVBucket(uint16_t vbucket, uint64_t vb_version) override;
 
     std::vector<vbucket_state*> listPersistedVbuckets(void) override;
@@ -300,11 +303,13 @@ protected:
                                       rocksdb::WriteBatch batch);
 
 private:
-    // Guards access to the 'vbDB' vector. Users should acquire this mutex
-    // before accessing (reading / writing) any elements of the vector.
+    // Guards access to the 'vbDB' vector. Users should lock this mutex
+    // before accessing the vector to get a copy of any shared_ptr owned by
+    // the vector. The mutex can be unlocked once a thread has its own copy
+    // of the shared_ptr.
     // This is used also for synchonization in 'openDB' to avoid that we open
     // two 'rocksdb::DB' instances on the same DB (e.g., this would be possible
-    // when we 'Flush' and 'Warmup' run in parallel).
+    // when 'Flush' and 'Warmup' run in parallel).
     std::mutex vbDBMutex;
     // We cannot open two `rocksdb::DB` instances on the same DB.
     // From the RocksDB documentation:
@@ -316,7 +321,7 @@ private:
     // for a VBucket for the first time. Then, further calls to `openDB(vbid)`
     // return the pointer stored in this vector. An entry is removed only when
     // `delVBucket(vbid)`.
-    std::vector<std::unique_ptr<KVRocksDB>> vbDB;
+    std::vector<std::shared_ptr<KVRocksDB>> vbDB;
 
     VbidSeqnoComparator vbidSeqnoComparator;
 
@@ -346,7 +351,7 @@ private:
      *
      * @param vbid vbucket id for the vbucket DB to open
      */
-    const KVRocksDB& openDB(uint16_t vbid);
+    std::shared_ptr<KVRocksDB> openDB(uint16_t vbid);
 
     /*
      * The DB for each VBucket is created in a separated subfolder of

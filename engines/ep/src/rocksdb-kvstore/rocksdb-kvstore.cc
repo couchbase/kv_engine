@@ -32,6 +32,7 @@
 #include <string.h>
 #include <algorithm>
 #include <limits>
+#include <thread>
 
 #include "vbucket.h"
 
@@ -259,8 +260,8 @@ RocksDBKVStore::RocksDBKVStore(KVStoreConfig& config)
     // Read persisted VBs state
     auto vbids = discoverVBuckets();
     for (auto vbid : vbids) {
-        auto& db = openDB(vbid);
-        readVBState(db);
+        const auto db = openDB(vbid);
+        readVBState(*db);
         // Update stats
         ++st.numLoadedVb;
     }
@@ -270,13 +271,11 @@ RocksDBKVStore::~RocksDBKVStore() {
     in_transaction = false;
 }
 
-const KVRocksDB& RocksDBKVStore::openDB(uint16_t vbid) {
-    // This lock is to avoid 2 different threads (e.g., `Flush` and
-    // `Warmup`) to open multiple `rocksdb::DB` instances on the same DB.
+std::shared_ptr<KVRocksDB> RocksDBKVStore::openDB(uint16_t vbid) {
     std::lock_guard<std::mutex> lg(vbDBMutex);
 
     if (vbDB[vbid]) {
-        return *vbDB[vbid];
+        return vbDB[vbid];
     }
 
     auto dbname = getVBDBSubdir(vbid);
@@ -298,10 +297,10 @@ const KVRocksDB& RocksDBKVStore::openDB(uint16_t vbid) {
                 "': " + status.getState());
     }
 
-    vbDB[vbid] = std::make_unique<KVRocksDB>(
+    vbDB[vbid] = std::make_shared<KVRocksDB>(
             db, handles[0], handles[1], handles[2], vbid);
 
-    return *vbDB[vbid];
+    return vbDB[vbid];
 }
 
 std::string RocksDBKVStore::getVBDBSubdir(uint16_t vbid) {
@@ -476,10 +475,10 @@ GetValue RocksDBKVStore::getWithHeader(void* dbHandle,
                                        GetMetaOnly getMetaOnly,
                                        bool fetchDelete) {
     std::string value;
-    auto& db = openDB(vb);
+    const auto db = openDB(vb);
     // TODO RDB: use a PinnableSlice to avoid some memcpy
     rocksdb::Slice keySlice = getKeySlice(key);
-    rocksdb::Status s = db.rdb->Get(rocksdb::ReadOptions(), keySlice, &value);
+    rocksdb::Status s = db->rdb->Get(rocksdb::ReadOptions(), keySlice, &value);
     if (!s.ok()) {
         return GetValue{NULL, ENGINE_KEY_ENOENT};
     }
@@ -492,9 +491,9 @@ void RocksDBKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t& itms) {
         auto& key = it.first;
         rocksdb::Slice keySlice = getKeySlice(key);
         std::string value;
-        auto& db = openDB(vb);
+        const auto db = openDB(vb);
         rocksdb::Status s =
-                db.rdb->Get(rocksdb::ReadOptions(), keySlice, &value);
+                db->rdb->Get(rocksdb::ReadOptions(), keySlice, &value);
         if (s.ok()) {
             it.second.value =
                     makeGetValue(vb, key, value, it.second.isMetaOnly);
@@ -531,7 +530,30 @@ void RocksDBKVStore::delVBucket(uint16_t vbid, uint64_t vb_version) {
     std::lock_guard<std::mutex> lg1(writeMutex);
     std::lock_guard<std::mutex> lg2(vbDBMutex);
 
-    vbDB[vbid].reset();
+    if (!vbDB[vbid]) {
+        logger.log(EXTENSION_LOG_WARNING,
+                   "RocksDBKVStore::delVBucket: DB not found, vb:%" PRIu16,
+                   vbid);
+        return;
+    }
+
+    // 'vbDB' stores shared_ptr for each VBucket DB. The ownership of each
+    // pointer is shared among multiple threads performing different operations
+    // (e.g., 'get' and 'commit').
+    // We want to call 'DestroyDB' here rather than in '~KVRocksDB' because
+    // it is an expensive, IO-intensive operation and we do not want it to
+    // cause another thread (possibly a front-end one) from being blocked
+    // performing the destroy.
+    // So, the thread executing 'delVBucket' spins until it is the exclusive
+    // owner of the shared_ptr (i.e., other concurrent threads like 'commit'
+    // have completed and do not own any copy of the shared_ptr).
+    {
+        std::shared_ptr<KVRocksDB> sharedPtr;
+        std::swap(vbDB[vbid], sharedPtr);
+        while (!sharedPtr.unique()) {
+            std::this_thread::sleep_for(std::chrono::microseconds(100));
+        }
+    }
     // Just destroy the DB in the sub-folder for vbid
     auto dbname = getVBDBSubdir(vbid);
     auto status = rocksdb::DestroyDB(
@@ -551,9 +573,9 @@ bool RocksDBKVStore::snapshotVBucket(uint16_t vbucketId,
     if (updateCachedVBState(vbucketId, vbstate) &&
         (options == VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT ||
          options == VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT)) {
-        auto& db = openDB(vbucketId);
+        const auto db = openDB(vbucketId);
         rocksdb::WriteBatch batch;
-        auto status = saveVBStateToBatch(db, vbstate, batch);
+        auto status = saveVBStateToBatch(*db, vbstate, batch);
         if (!status.ok()) {
             logger.log(EXTENSION_LOG_WARNING,
                        "RocksDBKVStore::snapshotVBucket: saveVBStateToBatch() "
@@ -563,7 +585,7 @@ bool RocksDBKVStore::snapshotVBucket(uint16_t vbucketId,
                        status.getState());
             return false;
         }
-        status = db.rdb->Write(writeOptions, &batch);
+        status = db->rdb->Write(writeOptions, &batch);
         if (!status.ok()) {
             logger.log(EXTENSION_LOG_WARNING,
                        "RocksDBKVStore::snapshotVBucket: Write() "
@@ -602,38 +624,42 @@ size_t RocksDBKVStore::getNumShards() {
 
 bool RocksDBKVStore::getStat(const char* name, size_t& value) {
     std::vector<rocksdb::DB*> dbs;
+    std::map<rocksdb::MemoryUtil::UsageType, uint64_t> usageByType;
     {
+        // Note: we need to call 'GetApproximateMemoryUsageByType' under lock
+        // to avoid that 'delVBucket' deletes pointers in 'dbs'
         std::lock_guard<std::mutex> lg(vbDBMutex);
-        for (const auto& db : vbDB) {
+        for (const auto db : vbDB) {
             if (db) {
                 dbs.push_back(db->rdb.get());
             }
         }
-    }
-    if (dbs.empty()) {
-        return false;
-    }
-    auto cache_set = getCachePointers(dbs);
-    std::map<rocksdb::MemoryUtil::UsageType, uint64_t> usage_by_type;
 
-    auto status = rocksdb::MemoryUtil::GetApproximateMemoryUsageByType(
-            dbs, cache_set, &usage_by_type);
-    if (!status.ok()) {
-        logger.log(EXTENSION_LOG_NOTICE,
-                   "RocksDBKVStore::getStat: GetApproximateMemoryUsageByType "
-                   "error: %s",
-                   status.getState());
-        return false;
+        if (dbs.empty()) {
+            return false;
+        }
+        auto cache_set = getCachePointers(dbs);
+
+        auto status = rocksdb::MemoryUtil::GetApproximateMemoryUsageByType(
+                dbs, cache_set, &usageByType);
+        if (!status.ok()) {
+            logger.log(
+                    EXTENSION_LOG_NOTICE,
+                    "RocksDBKVStore::getStat: GetApproximateMemoryUsageByType "
+                    "error: %s",
+                    status.getState());
+            return false;
+        }
     }
 
     if (std::string(name) == "kMemTableTotal") {
-        value = usage_by_type.at(rocksdb::MemoryUtil::kMemTableTotal);
+        value = usageByType.at(rocksdb::MemoryUtil::kMemTableTotal);
     } else if (std::string(name) == "kMemTableUnFlushed") {
-        value = usage_by_type.at(rocksdb::MemoryUtil::kMemTableUnFlushed);
+        value = usageByType.at(rocksdb::MemoryUtil::kMemTableUnFlushed);
     } else if (std::string(name) == "kTableReadersTotal") {
-        value = usage_by_type.at(rocksdb::MemoryUtil::kTableReadersTotal);
+        value = usageByType.at(rocksdb::MemoryUtil::kTableReadersTotal);
     } else if (std::string(name) == "kCacheTotal") {
-        value = usage_by_type.at(rocksdb::MemoryUtil::kCacheTotal);
+        value = usageByType.at(rocksdb::MemoryUtil::kCacheTotal);
     } else {
         return false;
     }
@@ -1020,13 +1046,13 @@ rocksdb::Status RocksDBKVStore::saveDocs(
     int64_t maxDBSeqno = 0;
     rocksdb::WriteBatch batch;
 
-    auto& db = openDB(vbid);
+    const auto db = openDB(vbid);
 
     for (const auto& request : commitBatch) {
         int64_t bySeqno = request->getDocMeta().bySeqno;
         maxDBSeqno = std::max(maxDBSeqno, bySeqno);
 
-        status = addRequestToWriteBatch(db, batch, request.get());
+        status = addRequestToWriteBatch(*db, batch, request.get());
         if (!status.ok()) {
             logger.log(EXTENSION_LOG_WARNING,
                        "RocksDBKVStore::saveDocs: addRequestToWriteBatch "
@@ -1047,7 +1073,7 @@ rocksdb::Status RocksDBKVStore::saveDocs(
         const auto batchLimit = defaultCFOptions.write_buffer_size +
                                 seqnoCFOptions.write_buffer_size;
         if (batch.GetDataSize() > batchLimit) {
-            status = writeAndTimeBatch(db, batch);
+            status = writeAndTimeBatch(*db, batch);
             if (!status.ok()) {
                 logger.log(EXTENSION_LOG_WARNING,
                            "RocksDBKVStore::saveDocs: rocksdb::DB::Write "
@@ -1061,7 +1087,7 @@ rocksdb::Status RocksDBKVStore::saveDocs(
         }
     }
 
-    status = saveVBStateToBatch(db, *vbstate, batch);
+    status = saveVBStateToBatch(*db, *vbstate, batch);
     if (!status.ok()) {
         logger.log(EXTENSION_LOG_WARNING,
                    "RocksDBKVStore::saveDocs: saveVBStateToBatch error:%d",
@@ -1069,7 +1095,7 @@ rocksdb::Status RocksDBKVStore::saveDocs(
         return status;
     }
 
-    status = writeAndTimeBatch(db, batch);
+    status = writeAndTimeBatch(*db, batch);
     if (!status.ok()) {
         logger.log(EXTENSION_LOG_WARNING,
                    "RocksDBKVStore::saveDocs: rocksdb::DB::Write error:%d, "
@@ -1083,7 +1109,7 @@ rocksdb::Status RocksDBKVStore::saveDocs(
     st.docsCommitted = reqsSize;
 
     // Check and update last seqno
-    int64_t lastSeqno = readHighSeqnoFromDisk(db);
+    auto lastSeqno = readHighSeqnoFromDisk(*db);
     if (maxDBSeqno != lastSeqno) {
         logger.log(EXTENSION_LOG_WARNING,
                    "RocksDBKVStore::saveDocs: Seqno in db header (%" PRIu64
@@ -1169,8 +1195,9 @@ ScanContext* RocksDBKVStore::initScanContext(
         DocumentFilter options,
         ValueFilter valOptions) {
     size_t scanId = scanCounter++;
-    auto& db = openDB(vbid);
-    scanSnapshots.emplace(scanId, SnapshotPtr(db.rdb->GetSnapshot(), *db.rdb));
+    const auto db = openDB(vbid);
+    scanSnapshots.emplace(scanId,
+                          SnapshotPtr(db->rdb->GetSnapshot(), *db->rdb));
 
     // As we cannot efficiently determine how many documents this scan will
     // find, we approximate this value with the seqno difference + 1
@@ -1212,9 +1239,9 @@ scan_error_t RocksDBKVStore::scan(ScanContext* ctx) {
     snapshotOpts.snapshot = scanSnapshots.at(ctx->scanId).get();
 
     rocksdb::Slice startSeqnoSlice = getSeqnoSlice(&startSeqno);
-    auto& db = openDB(ctx->vbid);
+    const auto db = openDB(ctx->vbid);
     std::unique_ptr<rocksdb::Iterator> it(
-            db.rdb->NewIterator(snapshotOpts, db.seqnoCFH.get()));
+            db->rdb->NewIterator(snapshotOpts, db->seqnoCFH.get()));
     if (!it) {
         throw std::logic_error(
                 "RocksDBKVStore::scan: rocksdb::Iterator to Seqno Column "
@@ -1231,7 +1258,7 @@ scan_error_t RocksDBKVStore::scan(ScanContext* ctx) {
         auto seqno = getNumericSeqno(it->key());
         rocksdb::Slice keySlice = it->value();
         std::string valueStr;
-        auto s = db.rdb->Get(snapshotOpts, keySlice, &valueStr);
+        auto s = db->rdb->Get(snapshotOpts, keySlice, &valueStr);
 
         if (!s.ok()) {
             // TODO RDB: Old seqnos are never removed from the db!
