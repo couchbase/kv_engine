@@ -1086,6 +1086,34 @@ TEST_F(CouchKVStoreErrorInjectionTest, closeDB_close_file) {
     }
 }
 
+/**
+ * Verify the failed compaction statistic is accurate.
+ */
+TEST_F(CouchKVStoreErrorInjectionTest, CompactFailedStatsTest) {
+    populate_items(1);
+
+    compaction_ctx cctx;
+    cctx.purge_before_seq = 0;
+    cctx.purge_before_ts = 0;
+    cctx.curr_time = 0;
+    cctx.drop_deletes = 0;
+    cctx.db_file_id = 0;
+    {
+        /* Establish FileOps expectation */
+        EXPECT_CALL(ops, open(_, _, _, _)).WillOnce(
+                Return(COUCHSTORE_ERROR_OPEN_FILE)).RetiresOnSaturation();
+        EXPECT_CALL(ops, open(_, _, _, _)).Times(1).RetiresOnSaturation();
+        kvstore->compactDB(&cctx);
+    }
+
+    // Check the fail compaction statistic is correct.
+    std::map<std::string, std::string> stats;
+    kvstore->addStats(add_stat_callback, &stats);
+
+    EXPECT_EQ("1", stats["rw_0:failure_compaction"]);
+}
+
+
 class MockCouchRequest : public CouchRequest {
 public:
     class MetaData {

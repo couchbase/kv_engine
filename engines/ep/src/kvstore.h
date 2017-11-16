@@ -236,6 +236,7 @@ public:
       numOpen(0),
       numClose(0),
       numLoadedVb(0),
+      numCompactionFailure(0),
       numGetFailure(0),
       numSetFailure(0),
       numDelFailure(0),
@@ -259,6 +260,7 @@ public:
         numOpen = 0;
         numClose = 0;
         numLoadedVb = 0;
+        numCompactionFailure = 0;
         numGetFailure = 0;
         numSetFailure = 0;
         numDelFailure = 0;
@@ -291,6 +293,7 @@ public:
     Couchbase::RelaxedAtomic<size_t> numLoadedVb;
 
     //stats tracking failures
+    Couchbase::RelaxedAtomic<size_t> numCompactionFailure;
     Couchbase::RelaxedAtomic<size_t> numGetFailure;
     Couchbase::RelaxedAtomic<size_t> numSetFailure;
     Couchbase::RelaxedAtomic<size_t> numDelFailure;

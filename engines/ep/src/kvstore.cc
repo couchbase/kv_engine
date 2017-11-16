@@ -240,6 +240,7 @@ void KVStore::addStats(ADD_STAT add_stat, const void *c) {
     addStat(prefix, "numLoadedVb",    st.numLoadedVb,     add_stat, c);
 
     // failure stats
+    addStat(prefix, "failure_compaction", st.numCompactionFailure, add_stat, c);
     addStat(prefix, "failure_open",   st.numOpenFailure, add_stat, c);
     addStat(prefix, "failure_get",    st.numGetFailure,  add_stat, c);
 

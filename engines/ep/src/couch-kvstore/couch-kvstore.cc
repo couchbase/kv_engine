@@ -873,7 +873,11 @@ static int time_purge_hook(Db* d, DocInfo* info, sized_buf item, void* ctx_p) {
 }
 
 bool CouchKVStore::compactDB(compaction_ctx *hook_ctx) {
-    return compactDBInternal(hook_ctx, edit_docinfo_hook);
+    auto result = compactDBInternal(hook_ctx, edit_docinfo_hook);
+    if (!result) {
+        ++st.numCompactionFailure;
+    }
+    return result;
 }
 
 bool CouchKVStore::compactDBInternal(compaction_ctx* hook_ctx,
