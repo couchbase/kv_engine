@@ -177,20 +177,6 @@ AUDIT_ERROR_CODE put_audit_event(Audit* handle,
 }
 
 MEMCACHED_PUBLIC_API
-AUDIT_ERROR_CODE put_json_audit_event(Audit* handle,
-                                      uint32_t id,
-                                      cJSON* event) {
-    cJSON* ts = cJSON_GetObjectItem(event, "timestamp");
-    if (ts == nullptr) {
-        std::string timestamp = ISOTime::generatetimestamp();
-        cJSON_AddStringToObject(event, "timestamp", timestamp.c_str());
-    }
-
-    auto text = to_string(event, false);
-    return put_audit_event(handle, id, text.data(), text.length());
-}
-
-MEMCACHED_PUBLIC_API
 AUDIT_ERROR_CODE shutdown_auditdaemon(Audit* handle) {
     if (handle == nullptr) {
         throw std::invalid_argument(
