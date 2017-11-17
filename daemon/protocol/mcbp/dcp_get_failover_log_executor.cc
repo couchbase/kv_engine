@@ -40,7 +40,7 @@ void dcp_get_failover_log_executor(Cookie& cookie) {
     switch (ret) {
     case ENGINE_SUCCESS:
         if (cookie.getDynamicBuffer().getRoot() != nullptr) {
-            mcbp_write_and_free(&connection, &cookie.getDynamicBuffer());
+            cookie.sendDynamicBuffer();
         } else {
             cookie.sendResponse(cb::mcbp::Status::Success);
         }

@@ -74,7 +74,7 @@ static bool send_not_my_vbucket(Cookie& cookie) {
     builder.validate();
 
     buffer.moveOffset(needed);
-    mcbp_write_and_free(&c, &cookie.getDynamicBuffer());
+    cookie.sendDynamicBuffer();
     c.setClustermapRevno(pair.first);
     return true;
 }
@@ -106,22 +106,6 @@ void mcbp_write_response(
         auto& bucket = connection.getBucket();
         ++bucket.responseCounters[PROTOCOL_BINARY_RESPONSE_SUCCESS];
         connection.setState(McbpStateMachine::State::new_cmd);
-    }
-}
-
-void mcbp_write_and_free(McbpConnection* c, DynamicBuffer* buf) {
-    if (buf->getRoot() == nullptr) {
-        c->setState(McbpStateMachine::State::closing);
-    } else {
-        if (!c->pushTempAlloc(buf->getRoot())) {
-            c->setState(McbpStateMachine::State::closing);
-            return;
-        }
-        c->addIov(buf->getRoot(), buf->getOffset());
-        c->setState(McbpStateMachine::State::send_data);
-        c->setWriteAndGo(McbpStateMachine::State::new_cmd);
-
-        buf->takeOwnership();
     }
 }
 

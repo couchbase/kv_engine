@@ -168,7 +168,7 @@ void process_hello_packet_executor(Cookie& cookie) {
                               PROTOCOL_BINARY_RESPONSE_SUCCESS,
                               0,
                               static_cast<const void*>(&cookie));
-        mcbp_write_and_free(&connection, &cookie.getDynamicBuffer());
+        cookie.sendDynamicBuffer();
     }
 
     // Trim off the trailing whitespace (and potentially comma)

@@ -891,7 +891,7 @@ ENGINE_ERROR_CODE StatsCommandContext::step() {
         // We just want to record this once rather than for each packet sent
         ++connection.getBucket()
                   .responseCounters[PROTOCOL_BINARY_RESPONSE_SUCCESS];
-        mcbp_write_and_free(&connection, &cookie.getDynamicBuffer());
+        cookie.sendDynamicBuffer();
 
     } else {
         switch (ret) {

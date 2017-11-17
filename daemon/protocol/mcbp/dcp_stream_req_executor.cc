@@ -69,7 +69,7 @@ void dcp_stream_req_executor(Cookie& cookie) {
         connection.setDCP(true);
         connection.setPriority(Connection::Priority::Medium);
         if (cookie.getDynamicBuffer().getRoot() != nullptr) {
-            mcbp_write_and_free(&connection, &cookie.getDynamicBuffer());
+            cookie.sendDynamicBuffer();
         } else {
             cookie.sendResponse(cb::mcbp::Status::Success);
         }
@@ -87,7 +87,7 @@ void dcp_stream_req_executor(Cookie& cookie) {
                                   PROTOCOL_BINARY_RESPONSE_ROLLBACK,
                                   0,
                                   static_cast<void*>(&cookie))) {
-            mcbp_write_and_free(&connection, &cookie.getDynamicBuffer());
+            cookie.sendDynamicBuffer();
         } else {
             cookie.sendResponse(cb::mcbp::Status::Enomem);
         }

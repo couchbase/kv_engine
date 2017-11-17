@@ -179,6 +179,19 @@ void Cookie::setEwouldblock(bool ewouldblock) {
     connection.setEwouldblock(ewouldblock);
 }
 
+void Cookie::sendDynamicBuffer() {
+    if (dynamicBuffer.getRoot() == nullptr) {
+        throw std::logic_error(
+                "Cookie::sendDynamicBuffer(): Dynamic buffer not created");
+    } else {
+        connection.addIov(dynamicBuffer.getRoot(), dynamicBuffer.getOffset());
+        connection.setState(McbpStateMachine::State::send_data);
+        connection.setWriteAndGo(McbpStateMachine::State::new_cmd);
+        connection.pushTempAlloc(dynamicBuffer.getRoot());
+        dynamicBuffer.takeOwnership();
+    }
+}
+
 void Cookie::sendResponse(cb::mcbp::Status status) {
     mcbp_write_packet(*this, status);
 }

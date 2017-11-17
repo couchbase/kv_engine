@@ -294,6 +294,11 @@ public:
     }
 
     /**
+     * Send the dynamic buffer
+     */
+    void sendDynamicBuffer();
+
+    /**
      * Send a response without a message payload back to the client.
      *
      * @param status The status message to fill into the message.

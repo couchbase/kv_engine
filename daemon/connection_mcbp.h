@@ -359,16 +359,8 @@ public:
         temp_alloc.resize(0);
     }
 
-    bool pushTempAlloc(char* ptr) {
-        try {
-            temp_alloc.push_back(ptr);
-            return true;
-        } catch (std::bad_alloc) {
-            LOG_WARNING(this,
-                        "%u: FATAL: failed to allocate space to keep temporary buffer",
-                        getId());
-            return false;
-        }
+    void pushTempAlloc(char* ptr) {
+        temp_alloc.push_back(ptr);
     }
 
     /**

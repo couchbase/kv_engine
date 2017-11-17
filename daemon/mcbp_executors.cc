@@ -168,7 +168,7 @@ static void process_bin_unknown_packet(Cookie& cookie) {
             // it is sending a success to the client.
             ++connection.getBucket()
                       .responseCounters[PROTOCOL_BINARY_RESPONSE_SUCCESS];
-            mcbp_write_and_free(&connection, &cookie.getDynamicBuffer());
+            cookie.sendDynamicBuffer();
         } else {
             connection.setState(McbpStateMachine::State::new_cmd);
         }
@@ -399,7 +399,7 @@ static void ioctl_get_executor(Cookie& cookie) {
                                       PROTOCOL_BINARY_RESPONSE_SUCCESS,
                                       0,
                                       static_cast<const void*>(&cookie))) {
-                mcbp_write_and_free(&connection, &cookie.getDynamicBuffer());
+                cookie.sendDynamicBuffer();
             } else {
                 cookie.sendResponse(cb::mcbp::Status::Enomem);
             }
@@ -459,7 +459,6 @@ static void ioctl_set_executor(Cookie& cookie) {
 }
 
 static void config_validate_executor(Cookie& cookie) {
-    auto& connection = cookie.getConnection();
     const auto& request = cookie.getRequest(Cookie::PacketContent::Full);
     const auto value = request.getValue();
 
@@ -485,7 +484,7 @@ static void config_validate_executor(Cookie& cookie) {
                               PROTOCOL_BINARY_RESPONSE_EINVAL,
                               0,
                               static_cast<const void*>(&cookie))) {
-        mcbp_write_and_free(&connection, &cookie.getDynamicBuffer());
+        cookie.sendDynamicBuffer();
     } else {
         cookie.sendResponse(cb::mcbp::Status::Enomem);
     }
@@ -543,8 +542,7 @@ static void get_errmap_executor(Cookie& cookie) {
                               PROTOCOL_BINARY_RESPONSE_SUCCESS,
                               0,
                               static_cast<const void*>(&cookie));
-        mcbp_write_and_free(&cookie.getConnection(),
-                            &cookie.getDynamicBuffer());
+        cookie.sendDynamicBuffer();
     }
 }
 

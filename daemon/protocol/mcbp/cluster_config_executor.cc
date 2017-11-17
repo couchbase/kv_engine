@@ -55,7 +55,7 @@ void get_cluster_config_executor(Cookie& cookie) {
                               PROTOCOL_BINARY_RESPONSE_SUCCESS,
                               0,
                               static_cast<const void*>(&cookie));
-        mcbp_write_and_free(&connection, &cookie.getDynamicBuffer());
+        cookie.sendDynamicBuffer();
         connection.setClustermapRevno(pair.first);
     }
 }

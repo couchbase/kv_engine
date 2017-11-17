@@ -206,7 +206,7 @@ ENGINE_ERROR_CODE RemoveCommandContext::sendResponse() {
             return ENGINE_FAILED;
         }
 
-        mcbp_write_and_free(&connection, &cookie.getDynamicBuffer());
+        cookie.sendDynamicBuffer();
     } else {
         cookie.sendResponse(cb::mcbp::Status::Success);
     }
