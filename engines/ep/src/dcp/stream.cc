@@ -1713,7 +1713,7 @@ NotifierStream::NotifierStream(EventuallyPersistentEngine* e,
              snap_start_seqno,
              snap_end_seqno,
              Type::Notifier),
-      producer(p),
+      producerPtr(p),
       filter(std::move(filter)) {
     LockHolder lh(streamMutex);
     VBucketPtr vbucket = e->getVBucket(vb_);
@@ -1741,10 +1741,7 @@ uint32_t NotifierStream::setDead(end_stream_status_t status) {
             pushToReadyQ(
                     std::make_unique<StreamEndResponse>(opaque_, status, vb_));
             lh.unlock();
-            bool inverse = false;
-            if (itemsReady.compare_exchange_strong(inverse, true)) {
-                producer->notifyStreamReady(vb_);
-            }
+            notifyStreamReady();
         }
     }
     return 0;
@@ -1757,10 +1754,7 @@ void NotifierStream::notifySeqnoAvailable(uint64_t seqno) {
                 opaque_, END_STREAM_OK, vb_));
         transitionState(StreamState::Dead);
         lh.unlock();
-        bool inverse = false;
-        if (itemsReady.compare_exchange_strong(inverse, true)) {
-            producer->notifyStreamReady(vb_);
-        }
+        notifyStreamReady();
     }
 }
 
@@ -1773,7 +1767,8 @@ std::unique_ptr<DcpResponse> NotifierStream::next() {
     }
 
     auto& response = readyQ.front();
-    if (producer->bufferLogInsert(response->getMessageSize())) {
+    auto producer = producerPtr.lock();
+    if (producer && producer->bufferLogInsert(response->getMessageSize())) {
         return popFromReadyQ();
     }
     return nullptr;
@@ -1838,11 +1833,24 @@ void NotifierStream::addStats(ADD_STAT add_stat, const void* c) {
 }
 
 const Logger& NotifierStream::getLogger() const {
+    auto producer = producerPtr.lock();
     if (producer) {
         return producer->getLogger();
     }
     static Logger defaultLogger = Logger("DCP (Notifier): **Deleted conn**");
     return defaultLogger;
+}
+
+void NotifierStream::notifyStreamReady() {
+    auto producer = producerPtr.lock();
+    if (!producer) {
+        return;
+    }
+
+    bool inverse = false;
+    if (itemsReady.compare_exchange_strong(inverse, true)) {
+        producer->notifyStreamReady(vb_);
+    }
 }
 
 PassiveStream::PassiveStream(EventuallyPersistentEngine* e,

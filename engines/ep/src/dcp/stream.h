@@ -611,7 +611,13 @@ private:
 
     const Logger& getLogger() const override;
 
-    std::shared_ptr<DcpProducer> producer;
+    /**
+     * Notifies the producer connection that the stream has items ready to be
+     * pick up.
+     */
+    void notifyStreamReady();
+
+    std::weak_ptr<DcpProducer> producerPtr;
 
     std::unique_ptr<Collections::VB::Filter> filter;
 };
