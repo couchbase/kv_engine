@@ -1158,7 +1158,13 @@ bool CouchKVStore::commit(const Item* collectionsManifest) {
 }
 
 bool CouchKVStore::getStat(const char* name, size_t& value)  {
-    if (strcmp("io_total_read_bytes", name) == 0) {
+    if (strcmp("failure_compaction", name) == 0) {
+        value = st.numCompactionFailure.load();
+        return true;
+    } else if (strcmp("failure_get", name) == 0) {
+        value = st.numGetFailure.load();
+        return true;
+    } else if (strcmp("io_total_read_bytes", name) == 0) {
         value = st.fsStats.totalBytesRead.load() +
                 st.fsStatsCompaction.totalBytesRead.load();
         return true;

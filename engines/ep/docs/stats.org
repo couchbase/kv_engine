@@ -331,6 +331,18 @@ For introductory information on stats within Couchbase, start with the
 | ep_dcp_noop_mandatory_for_v5_featu-|If True,NOOP will be required for using |
 | res                                | features like xattrs/collections       |
 
+** Aggregated KVStore stats.  Note the following stats are reported per-shard
+** in 'kvstore' stats.
+
+| Stat                        | Description                                    |
+|-----------------------------+------------------------------------------------|
+| ep_compaction_failed        | Total number of compaction failures            |
+| ep_get_failed               | Total number of get failures                   |
+| ep_io_total_read_bytes      | Total number of bytes read                     |
+| ep_io_total_write_bytes     | Total number of bytes written                  |
+| ep_io_compaction_read_bytes | Total number of bytes read during compaction   |
+| ep_io_compaction_write_bytes| Total number of bytes written during compaction|
+
 ** vBucket total stats
 
 | Stat                     | Description                                    |

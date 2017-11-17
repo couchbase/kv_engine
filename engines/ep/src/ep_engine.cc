@@ -2631,6 +2631,14 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     // we want to be able to graph these over time, and hence need to expose
     // to ns_sever at the top-level.
     size_t value = 0;
+    if (kvBucket->getKVStoreStat("failure_compaction", value,
+                                 KVBucketIface::KVSOption::BOTH)) {
+        add_casted_stat("ep_compaction_failed",  value, add_stat, cookie);
+    }
+    if (kvBucket->getKVStoreStat("failure_get", value,
+                                 KVBucketIface::KVSOption::BOTH)) {
+        add_casted_stat("ep_get_failed",  value, add_stat, cookie);
+    }
     if (kvBucket->getKVStoreStat("io_total_read_bytes", value,
                                  KVBucketIface::KVSOption::BOTH)) {
         add_casted_stat("ep_io_total_read_bytes",  value, add_stat, cookie);
