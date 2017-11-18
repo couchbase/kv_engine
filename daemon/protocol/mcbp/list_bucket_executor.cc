@@ -79,28 +79,17 @@ void list_bucket_executor(Cookie& cookie) {
         ret.first = ENGINE_ENOMEM;
     }
 
-    if (ret.first == ENGINE_SUCCESS) {
-        if (mcbp_response_handler(nullptr,
-                                  0,
-                                  nullptr,
-                                  0,
-                                  ret.second.data(),
-                                  uint32_t(ret.second.size()),
-                                  PROTOCOL_BINARY_RAW_BYTES,
-                                  PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                                  0,
-                                  static_cast<void*>(&cookie))) {
-            cookie.logResponse(ret.first);
-            cookie.sendDynamicBuffer();
-            return;
-        }
-        ret.first = ENGINE_ENOMEM;
-    }
     ret.first = connection.remapErrorCode(ret.first);
     cookie.logResponse(ret.first);
 
-    ret.first = connection.remapErrorCode(ret.first);
-    if (ret.first == ENGINE_DISCONNECT) {
+    if (ret.first == ENGINE_SUCCESS) {
+        cookie.sendResponse(cb::mcbp::Status::Success,
+                            {},
+                            {},
+                            {ret.second.data(), ret.second.size()},
+                            cb::mcbp::Datatype::Raw,
+                            0);
+    } else if (ret.first == ENGINE_DISCONNECT) {
         connection.setState(McbpStateMachine::State::closing);
     } else {
         cookie.sendResponse(cb::mcbp::to_status(cb::engine_errc(ret.first)));
