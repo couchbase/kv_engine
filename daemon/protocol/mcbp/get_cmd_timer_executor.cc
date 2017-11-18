@@ -90,24 +90,6 @@ void get_cmd_timer_executor(Cookie& cookie) {
         ret.first = ENGINE_ENOMEM;
     }
 
-    if (ret.first == ENGINE_SUCCESS) {
-        if (mcbp_response_handler(nullptr,
-                                  0, // no key
-                                  nullptr,
-                                  0, // no extras
-                                  ret.second.data(),
-                                  uint32_t(ret.second.size()),
-                                  PROTOCOL_BINARY_RAW_BYTES,
-                                  PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                                  0,
-                                  static_cast<const void*>(&cookie))) {
-            cookie.logResponse(ret.first);
-            cookie.sendDynamicBuffer();
-            return;
-        }
-        ret.first = ENGINE_ENOMEM;
-    }
-
     ret.first = connection.remapErrorCode(ret.first);
     cookie.logResponse(ret.first);
 
@@ -116,5 +98,14 @@ void get_cmd_timer_executor(Cookie& cookie) {
         return;
     }
 
-    cookie.sendResponse(cb::engine_errc(ret.first));
+    if (ret.first == ENGINE_SUCCESS) {
+        cookie.sendResponse(cb::mcbp::Status::Success,
+                            {},
+                            {},
+                            {ret.second.data(), ret.second.size()},
+                            cb::mcbp::Datatype::JSON,
+                            0);
+    } else {
+        cookie.sendResponse(cb::engine_errc(ret.first));
+    }
 }
