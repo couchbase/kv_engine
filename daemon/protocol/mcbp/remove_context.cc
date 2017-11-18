@@ -193,20 +193,16 @@ ENGINE_ERROR_CODE RemoveCommandContext::sendResponse() {
         mutation_descr.vbucket_uuid = htonll(mutation_descr.vbucket_uuid);
         mutation_descr.seqno = htonll(mutation_descr.seqno);
 
-        if (!mcbp_response_handler(nullptr,
-                                   0, // no key
-                                   &mutation_descr,
-                                   sizeof(mutation_descr),
-                                   nullptr,
-                                   0, // no value
-                                   PROTOCOL_BINARY_RAW_BYTES,
-                                   PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                                   cookie.getCas(),
-                                   &cookie)) {
-            return ENGINE_FAILED;
-        }
+        cb::const_char_buffer extras = {
+                reinterpret_cast<const char*>(&mutation_descr),
+                sizeof(mutation_descr_t)};
 
-        cookie.sendDynamicBuffer();
+        cookie.sendResponse(cb::mcbp::Status::Success,
+                            extras,
+                            {},
+                            {},
+                            cb::mcbp::Datatype::Raw,
+                            cookie.getCas());
     } else {
         cookie.sendResponse(cb::mcbp::Status::Success);
     }
