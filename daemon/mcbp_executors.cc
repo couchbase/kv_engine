@@ -388,27 +388,12 @@ static void ioctl_get_executor(Cookie& cookie) {
     ret = connection.remapErrorCode(ret);
     switch (ret) {
     case ENGINE_SUCCESS:
-        try {
-            if (mcbp_response_handler(nullptr,
-                                      0,
-                                      nullptr,
-                                      0,
-                                      value.data(),
-                                      value.size(),
-                                      PROTOCOL_BINARY_RAW_BYTES,
-                                      PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                                      0,
-                                      static_cast<const void*>(&cookie))) {
-                cookie.sendDynamicBuffer();
-            } else {
-                cookie.sendResponse(cb::mcbp::Status::Enomem);
-            }
-        } catch (const std::exception& e) {
-            LOG_WARNING(&connection,
-                        "ioctl_get_executor: Failed to format response: %s",
-                        e.what());
-            cookie.sendResponse(cb::mcbp::Status::Enomem);
-        }
+        cookie.sendResponse(cb::mcbp::Status::Success,
+                            {},
+                            {},
+                            {value.data(), value.size()},
+                            cb::mcbp::Datatype::Raw,
+                            0);
         break;
     case ENGINE_EWOULDBLOCK:
         cookie.setAiostat(ENGINE_EWOULDBLOCK);
