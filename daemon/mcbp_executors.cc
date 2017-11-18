@@ -472,22 +472,9 @@ static void config_validate_executor(Cookie& cookie) {
         return;
     }
 
-    /* problem(s). Send the errors back to the client. */
-    auto error_string = to_string(errors, false);
-    if (mcbp_response_handler(nullptr,
-                              0,
-                              nullptr,
-                              0,
-                              error_string.data(),
-                              uint32_t(error_string.size()),
-                              PROTOCOL_BINARY_RAW_BYTES,
-                              PROTOCOL_BINARY_RESPONSE_EINVAL,
-                              0,
-                              static_cast<const void*>(&cookie))) {
-        cookie.sendDynamicBuffer();
-    } else {
-        cookie.sendResponse(cb::mcbp::Status::Enomem);
-    }
+    // problem(s). Send the errors back to the client.
+    cookie.setErrorContext(to_string(errors, false));
+    cookie.sendResponse(cb::mcbp::Status::Einval);
 }
 
 static void config_reload_executor(Cookie& cookie) {
