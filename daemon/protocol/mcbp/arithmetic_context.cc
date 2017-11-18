@@ -227,6 +227,14 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::sendResult() {
         return ENGINE_SUCCESS;
     }
 
+    mutation_descr_t mutation_descr{};
+    cb::const_char_buffer extras = {
+            reinterpret_cast<const char*>(&mutation_descr),
+            sizeof(mutation_descr_t)};
+    result = ntohll(result);
+    cb::const_char_buffer value = {reinterpret_cast<const char*>(&result),
+                                   sizeof(result)};
+
     if (connection.isSupportsMutationExtras()) {
         item_info newItemInfo;
         if (!bucket_get_item_info(cookie, newitem.get(), &newItemInfo)) {
@@ -235,40 +243,19 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::sendResult() {
 
         // Response includes vbucket UUID and sequence number
         // (in addition to value)
-        mutation_descr_t extras;
-        extras.vbucket_uuid = htonll(newItemInfo.vbucket_uuid);
-        extras.seqno = htonll(newItemInfo.seqno);
-        result = ntohll(result);
-
-        if (!mcbp_response_handler(nullptr,
-                                   0,
-                                   &extras,
-                                   sizeof(extras),
-                                   &result,
-                                   sizeof(result),
-                                   PROTOCOL_BINARY_RAW_BYTES,
-                                   PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                                   cookie.getCas(),
-                                   &cookie)) {
-            return ENGINE_FAILED;
-        }
+        mutation_descr.vbucket_uuid = htonll(newItemInfo.vbucket_uuid);
+        mutation_descr.seqno = htonll(newItemInfo.seqno);
     } else {
-        result = htonll(result);
-        if (!mcbp_response_handler(nullptr,
-                                   0,
-                                   nullptr,
-                                   0,
-                                   &result,
-                                   sizeof(result),
-                                   PROTOCOL_BINARY_RAW_BYTES,
-                                   PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                                   cookie.getCas(),
-                                   &cookie)) {
-            return ENGINE_FAILED;
-        }
+        extras = {};
     }
 
-    cookie.sendDynamicBuffer();
+    cookie.sendResponse(cb::mcbp::Status::Success,
+                        extras,
+                        {},
+                        value,
+                        cb::mcbp::Datatype::Raw,
+                        cookie.getCas());
+
     return ENGINE_SUCCESS;
 }
 
