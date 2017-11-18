@@ -260,6 +260,9 @@ ENGINE_ERROR_CODE MutationCommandContext::sendResponse() {
         return ENGINE_SUCCESS;
     }
 
+    mutation_descr_t mutation_descr{};
+    cb::const_char_buffer extras{};
+
     if (connection.isSupportsMutationExtras()) {
         item_info newitem_info;
         if (!bucket_get_item_info(cookie, newitem.get(), &newitem_info)) {
@@ -268,26 +271,18 @@ ENGINE_ERROR_CODE MutationCommandContext::sendResponse() {
 
         // Response includes vbucket UUID and sequence number
         // (in addition to value)
-        mutation_descr_t extras;
-        extras.vbucket_uuid = htonll(newitem_info.vbucket_uuid);
-        extras.seqno = htonll(newitem_info.seqno);
-
-        if (!mcbp_response_handler(nullptr,
-                                   0,
-                                   &extras,
-                                   sizeof(extras),
-                                   nullptr,
-                                   0,
-                                   PROTOCOL_BINARY_RAW_BYTES,
-                                   PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                                   cookie.getCas(),
-                                   &cookie)) {
-            return ENGINE_FAILED;
-        }
-        cookie.sendDynamicBuffer();
-    } else {
-        cookie.sendResponse(cb::mcbp::Status::Success);
+        mutation_descr.vbucket_uuid = htonll(newitem_info.vbucket_uuid);
+        mutation_descr.seqno = htonll(newitem_info.seqno);
+        extras = {reinterpret_cast<const char*>(&mutation_descr),
+                  sizeof(mutation_descr)};
     }
+
+    cookie.sendResponse(cb::mcbp::Status::Success,
+                        extras,
+                        {},
+                        {},
+                        cb::mcbp::Datatype::Raw,
+                        cookie.getCas());
 
     return ENGINE_SUCCESS;
 }
