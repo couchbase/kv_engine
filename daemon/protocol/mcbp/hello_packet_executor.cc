@@ -155,21 +155,13 @@ void process_hello_packet_executor(Cookie& cookie) {
         }
     }
 
-    if (out.empty()) {
-        cookie.sendResponse(cb::mcbp::Status::Success);
-    } else {
-        mcbp_response_handler(nullptr,
-                              0,
-                              nullptr,
-                              0,
-                              out.data(),
-                              uint32_t(2 * out.size()),
-                              PROTOCOL_BINARY_RAW_BYTES,
-                              PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                              0,
-                              static_cast<const void*>(&cookie));
-        cookie.sendDynamicBuffer();
-    }
+    cookie.sendResponse(
+            cb::mcbp::Status::Success,
+            {},
+            {},
+            {reinterpret_cast<const char*>(out.data()), 2 * out.size()},
+            cb::mcbp::Datatype::Raw,
+            0);
 
     // Trim off the trailing whitespace (and potentially comma)
     log_buffer.resize(log_buffer.size() - 1);
