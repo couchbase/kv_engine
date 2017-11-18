@@ -53,31 +53,26 @@ ENGINE_ERROR_CODE GetMetaCommandContext::sendResponse() {
     // Prepare response
     uint32_t deleted =
             htonl(info.document_state == DocumentState::Deleted ? 1 : 0);
-    uint8_t datatype = fetchDatatype ? info.datatype : 0;
+    uint8_t datatype = fetchDatatype ? info.datatype : uint8_t(0);
     GetMetaResponse metaResponse(deleted,
                                  info.flags,
                                  htonl(info.exptime),
                                  htonll(info.seqno),
                                  datatype);
 
-    const uint8_t responseExtlen =
+    const size_t responseExtlen =
             fetchDatatype
                     ? sizeof(metaResponse)
                     : sizeof(metaResponse) - sizeof(metaResponse.datatype);
 
-    // Send response
-    mcbp_response_handler(nullptr /*key*/,
-                          0 /*keylen*/,
-                          reinterpret_cast<uint8_t*>(&metaResponse),
-                          responseExtlen,
-                          nullptr /*body*/,
-                          0 /*bodylen*/,
-                          PROTOCOL_BINARY_RAW_BYTES,
-                          PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                          info.cas,
-                          static_cast<void*>(&cookie));
-
-    cookie.sendDynamicBuffer();
+    cb::const_char_buffer extras = {
+            reinterpret_cast<const char*>(&metaResponse), responseExtlen};
+    cookie.sendResponse(cb::mcbp::Status::Success,
+                        extras,
+                        {},
+                        {},
+                        cb::mcbp::Datatype::Raw,
+                        info.cas);
 
     STATS_HIT(&connection, get);
     update_topkeys(cookie);
