@@ -45,17 +45,12 @@ void get_cluster_config_executor(Cookie& cookie) {
     if (pair.first == -1) {
         cookie.sendResponse(cb::mcbp::Status::KeyEnoent);
     } else {
-        mcbp_response_handler(nullptr,
-                              0,
-                              nullptr,
-                              0,
-                              pair.second->data(),
-                              uint32_t(pair.second->size()),
-                              PROTOCOL_BINARY_RAW_BYTES,
-                              PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                              0,
-                              static_cast<const void*>(&cookie));
-        cookie.sendDynamicBuffer();
+        cookie.sendResponse(cb::mcbp::Status::Success,
+                            {},
+                            {},
+                            {pair.second->data(), pair.second->size()},
+                            cb::mcbp::Datatype::JSON,
+                            0);
         connection.setClustermapRevno(pair.first);
     }
 }
