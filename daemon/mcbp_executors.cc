@@ -519,17 +519,12 @@ static void get_errmap_executor(Cookie& cookie) {
     if (ss.empty()) {
         cookie.sendResponse(cb::mcbp::Status::KeyEnoent);
     } else {
-        mcbp_response_handler(NULL,
-                              0,
-                              NULL,
-                              0,
-                              ss.data(),
-                              ss.size(),
-                              PROTOCOL_BINARY_RAW_BYTES,
-                              PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                              0,
-                              static_cast<const void*>(&cookie));
-        cookie.sendDynamicBuffer();
+        cookie.sendResponse(cb::mcbp::Status::Success,
+                            {},
+                            {},
+                            {ss.data(), ss.size()},
+                            cb::mcbp::Datatype::JSON,
+                            0);
     }
 }
 
