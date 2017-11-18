@@ -77,22 +77,14 @@ void dcp_stream_req_executor(Cookie& cookie) {
 
     case ENGINE_ROLLBACK:
         rollback_seqno = htonll(rollback_seqno);
-        if (mcbp_response_handler(NULL,
-                                  0,
-                                  NULL,
-                                  0,
-                                  &rollback_seqno,
-                                  sizeof(rollback_seqno),
-                                  PROTOCOL_BINARY_RAW_BYTES,
-                                  PROTOCOL_BINARY_RESPONSE_ROLLBACK,
-                                  0,
-                                  static_cast<void*>(&cookie))) {
-            cookie.sendDynamicBuffer();
-        } else {
-            cookie.sendResponse(cb::mcbp::Status::Enomem);
-        }
+        cookie.sendResponse(cb::mcbp::Status::Rollback,
+                            {},
+                            {},
+                            {reinterpret_cast<const char*>(&rollback_seqno),
+                             sizeof(rollback_seqno)},
+                            cb::mcbp::Datatype::Raw,
+                            0);
         break;
-
     case ENGINE_DISCONNECT:
         connection.setState(McbpStateMachine::State::closing);
         break;
