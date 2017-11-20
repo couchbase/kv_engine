@@ -735,8 +735,14 @@ protected:
 
     const Logger& getLogger() const override;
 
+    /**
+     * Notifies the consumer connection that the stream has items ready to be
+     * pick up.
+     */
+    void notifyStreamReady();
+
     EventuallyPersistentEngine* engine;
-    std::shared_ptr<DcpConsumer> consumer;
+    std::weak_ptr<DcpConsumer> consumerPtr;
 
     std::atomic<uint64_t> last_seqno;
 

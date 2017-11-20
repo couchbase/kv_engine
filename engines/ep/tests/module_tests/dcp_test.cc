@@ -2249,6 +2249,30 @@ TEST_F(DcpConnMapTest, DeleteNotifierConnOnUncleanDCPConnMapDelete) {
     engine.setDcpConnMap(nullptr);
 }
 
+/* Tests that there is no memory loss due to cyclic reference between a
+ * consumer connection and a passive stream.
+ */
+TEST_F(DcpConnMapTest, DeleteConsumerConnOnUncleanDCPConnMapDelete) {
+    /* Consumer stream needs a replica vbucket */
+    engine.getKVBucket()->setVBucketState(vbid, vbucket_state_replica, false);
+
+    /* Create a new Dcp consumer */
+    void* dummyMockCookie = this;
+    DcpConsumer* consumer = engine.getDcpConnMap().newConsumer(dummyMockCookie,
+                                                               "test_consumer");
+
+    /* Add passive stream */
+    ASSERT_EQ(ENGINE_SUCCESS,
+              consumer->addStream(/*opaque*/ 0,
+                                  vbid,
+                                  /*flags*/ 0));
+
+    /* Delete the connmap, connection should be deleted as the owner of
+       the connection (connmap) is deleted. Checks that there is no cyclic
+       reference between conn (consumer) and stream or any other object */
+    engine.setDcpConnMap(nullptr);
+}
+
 class NotifyTest : public DCPTest {
 protected:
     void SetUp() {

@@ -1876,7 +1876,7 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e,
              snap_end_seqno,
              Type::Passive),
       engine(e),
-      consumer(c),
+      consumerPtr(c),
       last_seqno(vb_high_seqno),
       cur_snapshot_start(0),
       cur_snapshot_end(0),
@@ -1903,11 +1903,7 @@ void PassiveStream::streamRequest(uint64_t vb_uuid) {
         std::unique_lock<std::mutex> lh(streamMutex);
         streamRequest_UNLOCKED(vb_uuid);
     }
-
-    bool expected = false;
-    if (itemsReady.compare_exchange_strong(expected, true)) {
-        consumer->notifyStreamReady(vb_);
-    }
+    notifyStreamReady();
 }
 
 void PassiveStream::streamRequest_UNLOCKED(uint64_t vb_uuid) {
@@ -1976,10 +1972,7 @@ void PassiveStream::acceptStream(uint16_t status, uint32_t add_opaque) {
         pushToReadyQ(std::make_unique<AddStreamResponse>(
                 add_opaque, opaque_, status));
         lh.unlock();
-        bool inverse = false;
-        if (itemsReady.compare_exchange_strong(inverse, true)) {
-            consumer->notifyStreamReady(vb_);
-        }
+        notifyStreamReady();
     }
 }
 
@@ -2015,10 +2008,7 @@ void PassiveStream::reconnectStream(VBucketPtr &vb,
                                                      snap_start_seqno_,
                                                      snap_end_seqno_));
     }
-    bool inverse = false;
-    if (itemsReady.compare_exchange_strong(inverse, true)) {
-        consumer->notifyStreamReady(vb_);
-    }
+    notifyStreamReady();
 }
 
 ENGINE_ERROR_CODE PassiveStream::messageReceived(std::unique_ptr<DcpResponse> dcpResponse) {
@@ -2247,6 +2237,11 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
         return ENGINE_NOT_MY_VBUCKET;
     }
 
+    auto consumer = consumerPtr.lock();
+    if (!consumer) {
+        return ENGINE_DISCONNECT;
+    }
+
     if (uint64_t(*mutation->getBySeqno()) < cur_snapshot_start.load() ||
         uint64_t(*mutation->getBySeqno()) > cur_snapshot_end.load()) {
         getLogger().log(EXTENSION_LOG_WARNING,
@@ -2264,12 +2259,13 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
     // this check may send us "bad" CAS values, we should regenerate them (which
     // is better than rejecting the data entirely).
     if (!Item::isValidCas(mutation->getItem()->getCas())) {
-        LOG(EXTENSION_LOG_WARNING,
-            "%s Invalid CAS (0x%" PRIx64 ") received for mutation {vb:%" PRIu16
-            ", seqno:%" PRId64 "}. Regenerating new CAS",
-            consumer->logHeader(),
-            mutation->getItem()->getCas(), vb_,
-            mutation->getItem()->getBySeqno());
+        getLogger().log(EXTENSION_LOG_WARNING,
+                        "Invalid CAS (0x%" PRIx64
+                        ") received for mutation {vb:%" PRIu16
+                        ", seqno:%" PRId64 "}. Regenerating new CAS",
+                        mutation->getItem()->getCas(),
+                        vb_,
+                        mutation->getItem()->getBySeqno());
         mutation->getItem()->setCas();
     }
 
@@ -2317,6 +2313,11 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
         return ENGINE_NOT_MY_VBUCKET;
     }
 
+    auto consumer = consumerPtr.lock();
+    if (!consumer) {
+        return ENGINE_DISCONNECT;
+    }
+
     if (uint64_t(*deletion->getBySeqno()) < cur_snapshot_start.load() ||
         uint64_t(*deletion->getBySeqno()) > cur_snapshot_end.load()) {
         getLogger().log(EXTENSION_LOG_WARNING,
@@ -2341,10 +2342,13 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
 
     // MB-17517: Check for the incoming item's CAS validity.
     if (!Item::isValidCas(meta.cas)) {
-        LOG(EXTENSION_LOG_WARNING,
-            "%s Invalid CAS (0x%" PRIx64 ") received for deletion {vb:%" PRIu16
-            ", seqno:%" PRId64 "}. Regenerating new CAS",
-            consumer->logHeader(), meta.cas, vb_, *deletion->getBySeqno());
+        getLogger().log(EXTENSION_LOG_WARNING,
+                        "Invalid CAS (0x%" PRIx64
+                        ") received for deletion {vb:%" PRIu16
+                        ", seqno:%" PRId64 "}. Regenerating new CAS",
+                        meta.cas,
+                        vb_,
+                        *deletion->getBySeqno());
         meta.cas = Item::nextCas();
     }
 
@@ -2509,10 +2513,7 @@ void PassiveStream::processSetVBucketState(SetVBucketState* state) {
         pushToReadyQ(std::make_unique<SetVBucketStateResponse>(opaque_,
                                                                ENGINE_SUCCESS));
     }
-    bool inverse = false;
-    if (itemsReady.compare_exchange_strong(inverse, true)) {
-        consumer->notifyStreamReady(vb_);
-    }
+    notifyStreamReady();
 }
 
 void PassiveStream::handleSnapshotEnd(VBucketPtr& vb, uint64_t byseqno) {
@@ -2540,10 +2541,7 @@ void PassiveStream::handleSnapshotEnd(VBucketPtr& vb, uint64_t byseqno) {
                 pushToReadyQ(std::make_unique<SnapshotMarkerResponse>(
                         opaque_, ENGINE_SUCCESS));
             }
-            bool inverse = false;
-            if (itemsReady.compare_exchange_strong(inverse, true)) {
-                consumer->notifyStreamReady(vb_);
-            }
+            notifyStreamReady();
             cur_snapshot_ack = false;
         }
         cur_snapshot_type.store(Snapshot::None);
@@ -2687,9 +2685,22 @@ const char* PassiveStream::getEndStreamStatusStr(end_stream_status_t status)
 }
 
 const Logger& PassiveStream::getLogger() const {
+    auto consumer = consumerPtr.lock();
     if (consumer) {
         return consumer->getLogger();
     }
     static Logger defaultLogger = Logger("DCP (Consumer): **Deleted conn**");
     return defaultLogger;
+}
+
+void PassiveStream::notifyStreamReady() {
+    auto consumer = consumerPtr.lock();
+    if (!consumer) {
+        return;
+    }
+
+    bool inverse = false;
+    if (itemsReady.compare_exchange_strong(inverse, true)) {
+        consumer->notifyStreamReady(vb_);
+    }
 }

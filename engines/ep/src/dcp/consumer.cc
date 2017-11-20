@@ -43,16 +43,24 @@ public:
               double sleeptime = 1,
               bool completeBeforeShutdown = true)
         : GlobalTask(e, TaskId::Processor, sleeptime, completeBeforeShutdown),
-          consumer(c),
-          description("Processing buffered items for " + consumer->getName()) {
+          consumerPtr(c),
+          description("Processing buffered items for " + c->getName()) {
     }
 
     ~Processor() {
-        consumer->taskCancelled();
+        auto consumer = consumerPtr.lock();
+        if (consumer) {
+            consumer->taskCancelled();
+        }
     }
 
     bool run() {
         TRACE_EVENT0("ep-engine/task", "Processor");
+        auto consumer = consumerPtr.lock();
+        if (!consumer) {
+            return false;
+        }
+
         if (consumer->doDisconnect()) {
             return false;
         }
@@ -115,7 +123,9 @@ public:
     }
 
 private:
-    const std::shared_ptr<DcpConsumer> consumer;
+    /* we have one task per consumer. the task only needs a reference to the
+       consumer object and does not own it. Hence std::weak_ptr should be used*/
+    const std::weak_ptr<DcpConsumer> consumerPtr;
     const std::string description;
 };
 
