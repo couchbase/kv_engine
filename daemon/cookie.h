@@ -323,6 +323,11 @@ public:
      * @param value The value to add to the packet
      * @param datatype The datatype to add to the message
      * @param cas the Cas field to insert into the packet
+     *
+     * @throws std::bad_alloc for memory alloction failures
+     * @throws std::runtime_error if unsupported datatypes is being used
+     *                            (xattrs or compressed)
+     * @throws std::logic_error if the write buffer contains data
      */
     void sendResponse(cb::mcbp::Status status,
                       cb::const_char_buffer extras,
