@@ -106,12 +106,6 @@ private:
     bool passthrough;
     bool systemEventsAllowed;
 
-    /**
-     * const copy of the collections separator
-     * @todo MB-24507 - filters and the separator changing
-     */
-    const std::string separator;
-
     friend std::ostream& operator<<(std::ostream& os, const Filter& filter);
 };
 

@@ -41,10 +41,7 @@
  */
 Collections::Filter::Filter(boost::optional<const std::string&> jsonFilter,
                             const Manifest& manifest)
-    : defaultAllowed(false),
-      passthrough(false),
-      systemEventsAllowed(true),
-      separator(manifest.getSeparator()) {
+    : defaultAllowed(false), passthrough(false), systemEventsAllowed(true) {
     // If no filter is specified at all, then create a default collection only
     // filter. This filter means the default collection is streamed
     if (!jsonFilter.is_initialized()) {
@@ -142,7 +139,6 @@ std::ostream& Collections::operator<<(std::ostream& os,
        << ": passthrough:" << filter.passthrough
        << ", defaultAllowed:" << filter.defaultAllowed
        << ", systemEventsAllowed:" << filter.systemEventsAllowed
-       << ", separator:" << filter.separator
        << ", filter.size:" << filter.filter.size() << std::endl;
     for (const auto& entry : filter.filter) {
         os << entry << std::endl;
