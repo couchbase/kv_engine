@@ -57,35 +57,11 @@ public:
     typedef std::vector<OperationSpec> Operations;
 
     SubdocCmdContext(McbpConnection& connection_, const SubdocCmdTraits traits_)
-        : connection(connection_),
-          traits(traits_),
-          in_doc(),
-          in_cas(0),
-          in_flags(0),
-          in_datatype(PROTOCOL_BINARY_RAW_BYTES),
-          in_document_state(DocumentState::Alive),
-          executed(false),
-          jroot_type(JSONSL_T_ROOT),
-          needs_new_doc(false),
-          vbucket_uuid(0),
-          sequence_no(0),
-          out_doc_len(0),
-          out_doc(),
-          response_val_len(0),
-          do_macro_expansion(false),
-          do_allow_deleted_docs(false),
-          do_delete_doc(false),
-          no_sys_xattrs(false),
-          mutationSemantics(MutationSemantics::Replace),
-          fetchedItem{nullptr,
-                      cb::ItemDeleter{connection.getBucketEngineAsV0()}},
-          xtocSemantics{XtocSemantics::None},
-          currentPhase(Phase::XATTR) {
-        std::memset(&input_item_info, 0, sizeof(input_item_info));
+        : connection(connection_), traits(traits_) {
     }
 
-    virtual ~SubdocCmdContext() {
-        if (out_doc != NULL) {
+    ~SubdocCmdContext() override {
+        if (out_doc != nullptr) {
             auto engine = connection.getBucketEngine();
             engine->release(reinterpret_cast<ENGINE_HANDLE*>(engine),
                             &connection, out_doc);
@@ -175,7 +151,7 @@ public:
     // c). {intermediate_result} member of this object.
     // Either way, it should /not/ be cb_free()d.
     // TODO: Remove (b), and just use intermediate result.
-    cb::const_char_buffer in_doc;
+    cb::const_char_buffer in_doc{};
 
     // Temporary buffer to hold the inflated content in case of the
     // document in the engine being compressed
@@ -193,65 +169,68 @@ public:
 
     // CAS value of the input document. Required to ensure we only store a
     // new document which was derived from the same original input document.
-    uint64_t in_cas;
+    uint64_t in_cas = 0;
 
     // Flags of the input document. Required so we can set the same flags to
     // to the new document, so flags are unchanged by subdoc.
-    uint32_t in_flags;
+    uint32_t in_flags = 0;
 
     // The datatype for the document currently held in `in_doc`. This
     // is used to set the new documents datatype.
-    protocol_binary_datatype_t in_datatype;
+    protocol_binary_datatype_t in_datatype = PROTOCOL_BINARY_RAW_BYTES;
 
     // The state of the document currently held in `in_doc`. This is used
     // to to set the new documents state.
-    DocumentState in_document_state;
+    DocumentState in_document_state = DocumentState::Alive;
 
     // True if this operation has been successfully executed (via subjson)
     // and we have valid result.
-    bool executed;
+    bool executed = false;
 
     // [Mutations only] The type of the root element, if flags & FLAG_MKDOC
-    jsonsl_type_t jroot_type;
+    jsonsl_type_t jroot_type = JSONSL_T_ROOT;
+
     // [Mutations only] True if the doc does not exist and an insert (rather
     // than replace) is required.
-    bool needs_new_doc;
+    bool needs_new_doc = false;
 
     // Overall status of the entire command.
     // For single-path commands this is simply the same as the first (and only)
     // opetation, for multi-path it's an aggregate status.
-    protocol_binary_response_status overall_status;
+    protocol_binary_response_status overall_status =
+            PROTOCOL_BINARY_RESPONSE_SUCCESS;
 
     // [Mutations only] Mutation sequence number and vBucket UUID. Only set
     // if the calling connection has the MUTATION_SEQNO feature enabled; to be
     // included in the response back to the client.
-    uint64_t vbucket_uuid;
-    uint64_t sequence_no;
+    uint64_t vbucket_uuid = 0;
+    uint64_t sequence_no = 0;
 
     // [Mutations only] Size in bytes of the new item to store into engine.
     // Held in the context so upon success we can update statistics.
-    size_t out_doc_len;
+    size_t out_doc_len = 0;
 
     // [Mutations only] New item to store into engine. _Must_ be released
     // back to the engine using ENGINE_HANDLE_V1::release()
-    item* out_doc;
+    item* out_doc = nullptr;
 
     // Size in bytes of the response value to send back to the client.
-    size_t response_val_len;
+    size_t response_val_len = 0;
 
     // Set to true if one (or more) of the xattr operation wants to do
     // macro expansion.
-    bool do_macro_expansion;
+    bool do_macro_expansion = false;
 
     // Set to true if we want to operate on deleted documents
-    bool do_allow_deleted_docs;
+    bool do_allow_deleted_docs = false;
 
     // Set to true if we want to delete the document after modifying it
-    bool do_delete_doc;
+    bool do_delete_doc = false;
 
     // true if there are no system xattrs after the operation. In
     // reality this means we do a bucket_remove rather than a bucket_update
-    bool no_sys_xattrs;
+    bool no_sys_xattrs = false;
+
     /* Specification of a single path operation. Encapsulates both the request
      * parameters, and (later) the result of the operation.
      */
@@ -312,7 +291,7 @@ public:
         xattr_key = key;
     }
 
-    MutationSemantics mutationSemantics;
+    MutationSemantics mutationSemantics = MutationSemantics::Replace;
 
     void setMutationSemantics(mcbp::subdoc::doc_flag docFlags);
 
@@ -355,11 +334,11 @@ public:
      */
     cb::unique_item_ptr fetchedItem;
 
-    XtocSemantics xtocSemantics;
+    XtocSemantics xtocSemantics = XtocSemantics::None;
 
 private:
     // The item info representing the input document
-    item_info input_item_info;
+    item_info input_item_info = {};
 
     // The array containing all of the operations requested by the user.
     // Each element in the array contains the operations which should be
@@ -369,7 +348,7 @@ private:
     std::array<Operations, 2> operations;
 
     // The phase we're currently operating in
-    Phase currentPhase;
+    Phase currentPhase = Phase::XATTR;
 
     template <typename T>
     std::string macroToString(T macroValue);
