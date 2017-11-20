@@ -237,6 +237,10 @@ void Cookie::sendResponse(cb::mcbp::Status status,
                                  : cb::mcbp::Datatype::JSON;
     }
 
+    const size_t needed = sizeof(cb::mcbp::Header) + value.size() + key.size() +
+                          extras.size();
+    connection.write->ensureCapacity(needed);
+
     mcbp_add_header(*this,
                     uint16_t(status),
                     uint8_t(extras.size()),
@@ -245,8 +249,6 @@ void Cookie::sendResponse(cb::mcbp::Status status,
                     connection.getEnabledDatatypes(
                             protocol_binary_datatype_t(datatype)));
 
-    const size_t needed = value.size() + key.size() + extras.size();
-    connection.write->ensureCapacity(needed);
 
     if (!extras.empty()) {
         auto wdata = connection.write->wdata();
