@@ -141,6 +141,7 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
                          bool startTask)
     : ConnHandler(e, cookie, name),
       notifyOnly((flags & DCP_OPEN_NOTIFIER) != 0),
+      sendStreamEndOnClientStreamClose(false),
       lastSendTime(ep_current_time()),
       log(*this),
       itemsSent(0),
@@ -753,6 +754,15 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque, const void* key,
             priority.assign("low");
             return ENGINE_SUCCESS;
         }
+    } else if (keyStr == "send_stream_end_on_client_close_stream") {
+        if (valueStr == "true") {
+            sendStreamEndOnClientStreamClose = true;
+        }
+        /* Do not want to give an option to the client to disable this.
+           Default is disabled, client has only a choice to enable.
+           This is a one time setting and there is no point giving the client an
+           option to toggle it back mid way during the connection */
+        return ENGINE_SUCCESS;
     }
 
     LOG(EXTENSION_LOG_WARNING, "%s Invalid ctrl parameter '%s' for %s",
@@ -823,15 +833,18 @@ ENGINE_ERROR_CODE DcpProducer::closeStream(uint32_t opaque, uint16_t vbucket) {
         return ENGINE_DISCONNECT;
     }
 
-    auto it = streams.erase(vbucket);
+    /* We should not remove the stream from the streams map if we have to
+       send the "STREAM_END" response asynchronously to the consumer */
+    auto stream = sendStreamEndOnClientStreamClose
+                          ? findStream(vbucket)
+                          : streams.erase(vbucket).first;
 
     ENGINE_ERROR_CODE ret;
-    if (!it.second) {
+    if (!stream) {
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Cannot close stream because no "
             "stream exists for this vbucket", logHeader(), vbucket);
         return ENGINE_KEY_ENOENT;
     } else {
-        auto& stream = it.first;
         if (!stream->isActive()) {
             LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Cannot close stream because "
                 "stream is already marked as dead", logHeader(), vbucket);

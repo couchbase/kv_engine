@@ -46,6 +46,9 @@
 #include <platform/compress.h>
 #include <xattr/utils.h>
 
+extern uint8_t dcp_last_op;
+extern uint32_t dcp_last_flags;
+
 class DCPTest : public EventuallyPersistentEngineTest {
 protected:
     void SetUp() override {
@@ -57,6 +60,7 @@ protected:
         // Set NonIO threads to zero, so the connManager
         // task does not run.
         ExecutorPool::get()->setNumNonIO(0);
+        callbackCount = 0;
     }
 
     void TearDown() override {
@@ -95,7 +99,6 @@ protected:
         DCPTest::SetUp();
         vb0 = engine->getVBucket(0);
         EXPECT_TRUE(vb0) << "Failed to get valid VBucket object for id 0";
-        callbackCount = 0;
     }
 
     void TearDown() override {
@@ -1883,6 +1886,145 @@ TEST_P(ConnectionTest, test_mb17042_duplicate_cookie_producer_connections) {
     // Should be zero deadConnections
     EXPECT_EQ(0, connMap.getNumberOfDeadConnections())
         << "Dead connections still remain";
+}
+
+/* Checks that the DCP producer does an async stream close when the DCP client
+   expects "DCP_STREAM_END" msg. */
+TEST_P(ConnectionTest, test_producer_stream_end_on_client_close_stream) {
+    const void* cookie = create_mock_cookie();
+    /* Create a new Dcp producer */
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine,
+            cookie,
+            "test_producer",
+            /*flags*/ 0,
+            cb::const_byte_buffer() /*no json*/);
+
+    /* Send a control message to the producer indicating that the DCP client
+       expects a "DCP_STREAM_END" upon stream close */
+    const std::string sendStreamEndOnClientStreamCloseCtrlMsg(
+            "send_stream_end_on_client_close_stream");
+    const std::string sendStreamEndOnClientStreamCloseCtrlValue("true");
+    EXPECT_EQ(ENGINE_SUCCESS,
+              producer->control(
+                      0,
+                      sendStreamEndOnClientStreamCloseCtrlMsg.c_str(),
+                      sendStreamEndOnClientStreamCloseCtrlMsg.size(),
+                      sendStreamEndOnClientStreamCloseCtrlValue.c_str(),
+                      sendStreamEndOnClientStreamCloseCtrlValue.size()));
+
+    /* Open stream */
+    uint64_t rollbackSeqno = 0;
+    uint32_t opaque = 0;
+    const uint16_t vbid = 0;
+    EXPECT_EQ(ENGINE_SUCCESS,
+              producer->streamRequest(/*flags*/ 0,
+                                      opaque,
+                                      vbid,
+                                      /*start_seqno*/ 0,
+                                      /*end_seqno*/ ~0,
+                                      /*vb_uuid*/ 0,
+                                      /*snap_start*/ 0,
+                                      /*snap_end*/ 0,
+                                      &rollbackSeqno,
+                                      DCPTest::fakeDcpAddFailoverLog));
+
+    /* Close stream */
+    EXPECT_EQ(ENGINE_SUCCESS, producer->closeStream(opaque, vbid));
+
+    /* Expect a stream end message */
+    std::unique_ptr<dcp_message_producers> fakeProducers(
+            get_dcp_producers(handle, engine_v1));
+    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(fakeProducers.get()));
+    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_STREAM_END, dcp_last_op);
+    EXPECT_EQ(END_STREAM_CLOSED, dcp_last_flags);
+
+    /* Re-open stream for the same vbucket on the conn */
+    EXPECT_EQ(ENGINE_SUCCESS,
+              producer->streamRequest(/*flags*/ 0,
+                                      opaque,
+                                      vbid,
+                                      /*start_seqno*/ 0,
+                                      /*end_seqno*/ ~0,
+                                      /*vb_uuid*/ 0,
+                                      /*snap_start*/ 0,
+                                      /*snap_end*/ 0,
+                                      &rollbackSeqno,
+                                      DCPTest::fakeDcpAddFailoverLog));
+
+    /* Check that the new stream is opened properly */
+    auto stream = producer->findStream(vbid);
+    EXPECT_TRUE(stream->isInMemory());
+    destroy_mock_cookie(cookie);
+}
+
+/* Checks that the DCP producer does a synchronous stream close when the DCP
+   client does not expect "DCP_STREAM_END" msg. */
+TEST_P(ConnectionTest, test_producer_no_stream_end_on_client_close_stream) {
+    MockDcpConnMap connMap(*engine);
+    connMap.initialize();
+    const void* cookie = create_mock_cookie();
+
+    /* Create a new Dcp producer */
+    DcpProducer* producer = connMap.newProducer(cookie,
+                                                "test_producer",
+                                                /*flags*/ 0);
+
+    /* Open stream */
+    uint64_t rollbackSeqno = 0;
+    uint32_t opaque = 0;
+    const uint16_t vbid = 0;
+    EXPECT_EQ(ENGINE_SUCCESS,
+              producer->streamRequest(/*flags*/ 0,
+                                      opaque,
+                                      vbid,
+                                      /*start_seqno*/ 0,
+                                      /*end_seqno*/ ~0,
+                                      /*vb_uuid*/ 0,
+                                      /*snap_start*/ 0,
+                                      /*snap_end*/ 0,
+                                      &rollbackSeqno,
+                                      DCPTest::fakeDcpAddFailoverLog));
+
+    /* Close stream */
+    EXPECT_EQ(ENGINE_SUCCESS, producer->closeStream(opaque, vbid));
+
+    /* Don't expect a stream end message (or any other message as the stream is
+       closed) */
+    std::unique_ptr<dcp_message_producers> fakeProducers(
+            get_dcp_producers(handle, engine_v1));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(fakeProducers.get()));
+
+    /* Check that the stream is not found in the producer's stream map */
+    EXPECT_FALSE(producer->findStream(vbid));
+
+    /* Disconnect the producer connection */
+    connMap.disconnect(cookie);
+    /* Cleanup the deadConnections */
+    connMap.manageConnections();
+}
+
+TEST_P(ConnectionTest, test_producer_unknown_ctrl_msg) {
+    const void* cookie = create_mock_cookie();
+    /* Create a new Dcp producer */
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine,
+            cookie,
+            "test_producer",
+            /*flags*/ 0,
+            cb::const_byte_buffer() /*no json*/);
+
+    /* Send an unkown control message to the producer and expect an error code
+       of "ENGINE_EINVAL" */
+    const std::string unkownCtrlMsg("unknown");
+    const std::string unkownCtrlValue("blah");
+    EXPECT_EQ(ENGINE_EINVAL,
+              producer->control(0,
+                                unkownCtrlMsg.c_str(),
+                                unkownCtrlMsg.size(),
+                                unkownCtrlValue.c_str(),
+                                unkownCtrlValue.size()));
+    destroy_mock_cookie(cookie);
 }
 
 TEST_P(ConnectionTest, test_mb17042_duplicate_cookie_consumer_connections) {

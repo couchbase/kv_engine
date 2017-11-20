@@ -311,6 +311,7 @@ protected:
     Couchbase::RelaxedAtomic<bool> enableExtMetaData;
     Couchbase::RelaxedAtomic<bool> enableValueCompression;
     Couchbase::RelaxedAtomic<bool> supportsCursorDropping;
+    Couchbase::RelaxedAtomic<bool> sendStreamEndOnClientStreamClose;
 
     Couchbase::RelaxedAtomic<rel_time_t> lastSendTime;
     BufferLog log;

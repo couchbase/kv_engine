@@ -266,6 +266,9 @@ protected:
 
     ENGINE_ERROR_CODE supportCursorDropping(struct dcp_message_producers* producers);
 
+    ENGINE_ERROR_CODE sendStreamEndOnClientStreamClose(
+            struct dcp_message_producers* producers);
+
     void notifyVbucketReady(uint16_t vbucket);
 
     /**
@@ -333,6 +336,7 @@ protected:
     bool pendingEnableExtMetaData;
     bool pendingEnableValueCompression;
     bool pendingSupportCursorDropping;
+    bool pendingSendStreamEndOnClientStreamClose;
 
     /* Indicates if the 'Processor' task is running */
     std::atomic<bool> processorTaskRunning;
@@ -360,6 +364,7 @@ protected:
     static const std::string extMetadataCtrlMsg;
     static const std::string valueCompressionCtrlMsg;
     static const std::string cursorDroppingCtrlMsg;
+    static const std::string sendStreamEndOnClientStreamCloseCtrlMsg;
 };
 
 /*

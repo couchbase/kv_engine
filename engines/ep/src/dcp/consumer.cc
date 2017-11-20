@@ -37,6 +37,8 @@ const std::string DcpConsumer::priorityCtrlMsg = "set_priority";
 const std::string DcpConsumer::extMetadataCtrlMsg = "enable_ext_metadata";
 const std::string DcpConsumer::valueCompressionCtrlMsg = "enable_value_compression";
 const std::string DcpConsumer::cursorDroppingCtrlMsg = "supports_cursor_dropping";
+const std::string DcpConsumer::sendStreamEndOnClientStreamCloseCtrlMsg =
+        "send_stream_end_on_client_close_stream";
 
 class DcpConsumerTask : public GlobalTask {
 public:
@@ -148,6 +150,7 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
       backoffs(0),
       dcpIdleTimeout(engine.getConfiguration().getDcpIdleTimeout()),
       dcpNoopTxInterval(engine.getConfiguration().getDcpNoopTxInterval()),
+      pendingSendStreamEndOnClientStreamClose(true),
       processorTaskRunning(false),
       flowControl(engine, this),
       processBufferedMessagesYieldThreshold(
@@ -646,6 +649,13 @@ ENGINE_ERROR_CODE DcpConsumer::step(struct dcp_message_producers* producers) {
     }
 
     if ((ret = supportCursorDropping(producers)) != ENGINE_FAILED) {
+        if (ret == ENGINE_SUCCESS) {
+            ret = ENGINE_WANT_MORE;
+        }
+        return ret;
+    }
+
+    if ((ret = sendStreamEndOnClientStreamClose(producers)) != ENGINE_FAILED) {
         if (ret == ENGINE_SUCCESS) {
             ret = ENGINE_WANT_MORE;
         }
@@ -1229,6 +1239,29 @@ ENGINE_ERROR_CODE DcpConsumer::supportCursorDropping(struct dcp_message_producer
         return ret;
     }
 
+    return ENGINE_FAILED;
+}
+
+ENGINE_ERROR_CODE DcpConsumer::sendStreamEndOnClientStreamClose(
+        struct dcp_message_producers* producers) {
+    /* Sending this ctrl message tells the DCP producer that the consumer is
+       expecting a "STREAM_END" message when it initiates a stream close */
+    if (pendingSendStreamEndOnClientStreamClose) {
+        uint32_t opaque = ++opaqueCounter;
+        std::string val("true");
+        EventuallyPersistentEngine* epe =
+                ObjectRegistry::onSwitchThread(nullptr, true);
+        ENGINE_ERROR_CODE ret = producers->control(
+                getCookie(),
+                opaque,
+                sendStreamEndOnClientStreamCloseCtrlMsg.c_str(),
+                sendStreamEndOnClientStreamCloseCtrlMsg.size(),
+                val.c_str(),
+                val.size());
+        ObjectRegistry::onSwitchThread(epe);
+        pendingSendStreamEndOnClientStreamClose = false;
+        return ret;
+    }
     return ENGINE_FAILED;
 }
 
