@@ -426,6 +426,16 @@ private:
     bool dropCheckpointCursor_UNLOCKED();
 
     /**
+     * Notifies the producer connection that the stream has items ready to be
+     * pick up.
+     *
+     * @param force Indiciates if the function should notify the connection
+     *              irrespective of whether the connection already knows that
+     *              the items are ready to be picked up. Default is 'false'
+     */
+    void notifyStreamReady(bool force = false);
+
+    /**
      * Decides what log level must be used for (active) stream state
      * transitions
      *
@@ -459,7 +469,7 @@ private:
     std::atomic<int> waitForSnapshot;
 
     EventuallyPersistentEngine* engine;
-    std::shared_ptr<DcpProducer> producer;
+    std::weak_ptr<DcpProducer> producerPtr;
 
     struct {
         std::atomic<size_t> bytes;

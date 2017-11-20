@@ -263,7 +263,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
       firstMarkerSent(false),
       waitForSnapshot(0),
       engine(e),
-      producer(p),
+      producerPtr(p),
       lastSentSnapEndSeqno(0),
       chkptItemsExtractionInProgress(false),
       includeValue(includeVal),
@@ -347,10 +347,16 @@ std::unique_ptr<DcpResponse> ActiveStream::next(
             break;
         case StreamState::Reading:
             // Not valid for an active stream.
-            throw std::logic_error("ActiveStream::next: Invalid state "
-                    "StreamReading for stream " +
-                    std::string(producer->logHeader()) + " vb " +
-                    std::to_string(vb_));
+            {
+                auto producer = producerPtr.lock();
+                std::string connHeader =
+                        producer ? producer->logHeader()
+                                 : "DCP (Producer): **Deleted conn**";
+                throw std::logic_error(
+                        "ActiveStream::next: Invalid state "
+                        "StreamReading for stream " +
+                        connHeader + " vb " + std::to_string(vb_));
+            }
             break;
         case StreamState::Dead:
             response = deadPhase();
@@ -454,10 +460,7 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
             registerCursor(*vb->checkpointManager, chkCursorSeqno);
         }
     }
-    bool inverse = false;
-    if (itemsReady.compare_exchange_strong(inverse, true)) {
-        producer->notifyStreamReady(vb_);
-    }
+    notifyStreamReady();
 }
 
 bool ActiveStream::backfillReceived(std::unique_ptr<Item> itm,
@@ -472,9 +475,12 @@ bool ActiveStream::backfillReceived(std::unique_ptr<Item> itm,
         if (isBackfilling()) {
             queued_item qi(std::move(itm));
             std::unique_ptr<DcpResponse> resp(makeResponseFromItem(qi));
-            if (!producer->recordBackfillManagerBytesRead(
+            auto producer = producerPtr.lock();
+            if (!producer ||
+                !producer->recordBackfillManagerBytesRead(
                         resp->getApproximateSize(), force)) {
-                // Deleting resp may also delete itm (which is owned by resp)
+                // Deleting resp may also delete itm (which is owned by
+                // resp)
                 resp.reset();
                 return false;
             }
@@ -486,10 +492,7 @@ bool ActiveStream::backfillReceived(std::unique_ptr<Item> itm,
             pushToReadyQ(std::move(resp));
 
             lh.unlock();
-            bool inverse = false;
-            if (itemsReady.compare_exchange_strong(inverse, true)) {
-                producer->notifyStreamReady(vb_);
-            }
+            notifyStreamReady();
 
             if (backfill_source == BACKFILL_FROM_MEMORY) {
                 backfillItems.memory++;
@@ -524,17 +527,12 @@ void ActiveStream::completeBackfill() {
 
     bool inverse = true;
     isBackfillTaskRunning.compare_exchange_strong(inverse, false);
-    inverse = false;
-    if (itemsReady.compare_exchange_strong(inverse, true)) {
-        producer->notifyStreamReady(vb_);
-    }
+    notifyStreamReady();
 }
 
 void ActiveStream::snapshotMarkerAckReceived() {
-    bool inverse = false;
-    if (--waitForSnapshot == 0 &&
-        itemsReady.compare_exchange_strong(inverse, true)) {
-        producer->notifyStreamReady(vb_);
+    if (--waitForSnapshot == 0) {
+        notifyStreamReady();
     }
 }
 
@@ -596,10 +594,7 @@ void ActiveStream::setVBucketStateAckRecieved() {
         }
     }
 
-    bool inverse = false;
-    if (itemsReady.compare_exchange_strong(inverse, true)) {
-        producer->notifyStreamReady(vb_);
-    }
+    notifyStreamReady();
 }
 
 std::unique_ptr<DcpResponse> ActiveStream::backfillPhase(
@@ -611,6 +606,15 @@ std::unique_ptr<DcpResponse> ActiveStream::backfillPhase(
            bufferedBackfill.bytes.fetch_sub() for all events because
            resp->getApproximateSize() is non zero for only certain resp types.
            (MB-24905 is open to make the accounting cleaner) */
+        auto producer = producerPtr.lock();
+        if (!producer) {
+            throw std::logic_error("(vb:" + std::to_string(vb_) +
+                                   " )Producer reference null in the stream in "
+                                   "backfillPhase(). This should not happen as "
+                                   "the function is called from the producer "
+                                   "object");
+        }
+
         producer->recordBackfillManagerBytesSent(resp->getApproximateSize());
         bufferedBackfill.bytes.fetch_sub(resp->getApproximateSize());
         if (!resp->isMetaEvent() || resp->isSystemEvent()) {
@@ -696,9 +700,13 @@ std::unique_ptr<DcpResponse> ActiveStream::takeoverSendPhase() {
         takeoverStart = 0;
     }
 
-    if (producer->bufferLogInsert(SetVBucketState::baseMsgBytes)) {
-        transitionState(StreamState::TakeoverWait);
-        return std::make_unique<SetVBucketState>(opaque_, vb_, takeoverState);
+    auto producer = producerPtr.lock();
+    if (producer) {
+        if (producer->bufferLogInsert(SetVBucketState::baseMsgBytes)) {
+            transitionState(StreamState::TakeoverWait);
+            return std::make_unique<SetVBucketState>(
+                    opaque_, vb_, takeoverState);
+        }
     }
     return nullptr;
 }
@@ -724,7 +732,12 @@ std::unique_ptr<DcpResponse> ActiveStream::deadPhase() {
 }
 
 bool ActiveStream::isCompressionEnabled() {
-    return producer->isValueCompressionEnabled();
+    auto producer = producerPtr.lock();
+    if (producer) {
+        return producer->isValueCompressionEnabled();
+    }
+    /* If the 'producer' is deleted, what we return doesn't matter */
+    return false;
 }
 
 void ActiveStream::addStats(ADD_STAT add_stat, const void *c) {
@@ -842,6 +855,10 @@ void ActiveStream::addTakeoverStats(ADD_STAT add_stat, const void *cookie,
 std::unique_ptr<DcpResponse> ActiveStream::nextQueuedItem() {
     if (!readyQ.empty()) {
         auto& response = readyQ.front();
+        auto producer = producerPtr.lock();
+        if (!producer) {
+            return nullptr;
+        }
         if (producer->bufferLogInsert(response->getMessageSize())) {
             auto seqno = response->getBySeqno();
             if (seqno) {
@@ -867,6 +884,10 @@ bool ActiveStream::nextCheckpointItem() {
     if (vbucket &&
         vbucket->checkpointManager->getNumItemsForCursor(name_) > 0) {
         // schedule this stream to build the next checkpoint
+        auto producer = producerPtr.lock();
+        if (!producer) {
+            return false;
+        }
         producer->scheduleCheckpointProcessorTask(shared_from_this());
         return true;
     } else if (chkptItemsExtractionInProgress) {
@@ -1088,7 +1109,7 @@ void ActiveStream::processItems(std::vector<queued_item>& items) {
 
     // Completed item processing - clear guard flag and notify producer.
     chkptItemsExtractionInProgress.store(false);
-    producer->notifyStreamReady(vb_);
+    notifyStreamReady(true);
 }
 
 void ActiveStream::snapshot(std::deque<std::unique_ptr<DcpResponse>>& items,
@@ -1162,20 +1183,15 @@ uint32_t ActiveStream::setDead(end_stream_status_t status) {
         endStream(status);
     }
 
-    bool inverse = false;
-    if (status != END_STREAM_DISCONNECTED &&
-        itemsReady.compare_exchange_strong(inverse, true)) {
-        producer->notifyStreamReady(vb_);
+    if (status != END_STREAM_DISCONNECTED) {
+        notifyStreamReady();
     }
     return 0;
 }
 
 void ActiveStream::notifySeqnoAvailable(uint64_t seqno) {
     if (isActive()) {
-        bool inverse = false;
-        if (itemsReady.compare_exchange_strong(inverse, true)) {
-            producer->notifyStreamReady(vb_);
-        }
+        notifyStreamReady();
     }
 }
 
@@ -1186,7 +1202,11 @@ void ActiveStream::endStream(end_stream_status_t reason) {
             // If Stream were in Backfilling state, clear out the
             // backfilled items to clear up the backfill buffer.
             clear_UNLOCKED();
-            producer->recordBackfillManagerBytesSent(bufferedBackfill.bytes);
+            auto producer = producerPtr.lock();
+            if (producer) {
+                producer->recordBackfillManagerBytesSent(
+                        bufferedBackfill.bytes);
+            }
             bufferedBackfill.bytes = 0;
             bufferedBackfill.items = 0;
         }
@@ -1226,6 +1246,21 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
                         "lastReadSeqno : %" PRIu64 ", "
                         "reschedule : %s",
                         vb_, lastReadSeqno.load(),
+                        reschedule ? "True" : "False");
+        return;
+    }
+
+    auto producer = producerPtr.lock();
+    if (!producer) {
+        getLogger().log(EXTENSION_LOG_WARNING,
+                        "(vb %" PRIu16
+                        ") Aborting scheduleBackfill_UNLOCKED() "
+                        "as the producer conn is deleted; "
+                        "lastReadSeqno : %" PRIu64
+                        ", "
+                        "reschedule : %s",
+                        vb_,
+                        lastReadSeqno.load(),
                         reschedule ? "True" : "False");
         return;
     }
@@ -1368,10 +1403,7 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
              * time (i.e. when reschedule is false) because the stream is not
              * yet in producer conn list of streams.
              */
-            bool inverse = false;
-            if (itemsReady.compare_exchange_strong(inverse, true)) {
-                producer->notifyStreamReady(vb_);
-            }
+            notifyStreamReady();
         }
     }
 }
@@ -1405,12 +1437,19 @@ bool ActiveStream::handleSlowStream() {
             /* To be handled later if needed */
             return false;
         case StreamState::Pending:
-        case StreamState::Reading:
-            throw std::logic_error("ActiveStream::handleSlowStream: "
-                                   "called with state " +
-                                   to_string(state_.load()) + " "
-                                   "for stream " + producer->logHeader() +
-                                   "; vb " + std::to_string(vb_));
+        case StreamState::Reading: {
+            auto producer = producerPtr.lock();
+            std::string connHeader =
+                    producer ? producer->logHeader()
+                             : "DCP (Producer): **Deleted conn**";
+            throw std::logic_error(
+                    "ActiveStream::handleSlowStream: "
+                    "called with state " +
+                    to_string(state_.load()) +
+                    " "
+                    "for stream " +
+                    connHeader + "; vb " + std::to_string(vb_));
+        }
     }
     return false;
 }
@@ -1519,10 +1558,7 @@ void ActiveStream::transitionState(StreamState newState) {
             if (lastSentSeqno.load() >= end_seqno_) {
                 // Stream transitioning to DEAD state
                 endStream(END_STREAM_OK);
-                bool inverse = false;
-                if (itemsReady.compare_exchange_strong(inverse, true)) {
-                    producer->notifyStreamReady(vb_);
-                }
+                notifyStreamReady();
             } else {
                 nextCheckpointItem();
             }
@@ -1572,6 +1608,7 @@ uint64_t ActiveStream::getLastSentSeqno() const {
 }
 
 const Logger& ActiveStream::getLogger() const {
+    auto producer = producerPtr.lock();
     if (producer) {
         return producer->getLogger();
     }
@@ -1597,10 +1634,7 @@ bool ActiveStream::dropCheckpointCursor_UNLOCKED() {
     VBucketPtr vbucket = engine->getVBucket(vb_);
     if (!vbucket) {
         endStream(END_STREAM_STATE);
-        bool inverse = false;
-        if (itemsReady.compare_exchange_strong(inverse, true)) {
-            producer->notifyStreamReady(vb_);
-        }
+        notifyStreamReady();
     }
     /* Drop the existing cursor */
     return vbucket->checkpointManager->removeCursor(name_);
@@ -1643,6 +1677,18 @@ bool ActiveStream::queueResponse(DcpResponse* resp) const {
         return filter->allowSystemEvent(static_cast<SystemEventMessage*>(resp));
     }
     return true;
+}
+
+void ActiveStream::notifyStreamReady(bool force) {
+    auto producer = producerPtr.lock();
+    if (!producer) {
+        return;
+    }
+
+    bool inverse = false;
+    if (force || itemsReady.compare_exchange_strong(inverse, true)) {
+        producer->notifyStreamReady(vb_);
+    }
 }
 
 NotifierStream::NotifierStream(EventuallyPersistentEngine* e,

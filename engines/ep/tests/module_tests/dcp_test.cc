@@ -27,6 +27,7 @@
 #include "../mock/mock_dcp_consumer.h"
 #include "../mock/mock_dcp_producer.h"
 #include "../mock/mock_stream.h"
+#include "../mock/mock_synchronous_ep_engine.h"
 #include "checkpoint.h"
 #include "connmap.h"
 #include "dcp/backfill_disk.h"
@@ -2150,6 +2151,73 @@ TEST_P(ConnectionTest, test_mb21784) {
     // Close stream
     ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(/*opaque*/0, vbid));
     destroy_mock_cookie(cookie);
+}
+
+class DcpConnMapTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        /* Set up the bare minimum stuff needed by the 'SynchronousEPEngine'
+           (mock engine) */
+        ObjectRegistry::onSwitchThread(&engine);
+        engine.setKVBucket(engine.public_makeBucket(engine.getConfiguration()));
+        engine.public_initializeEngineCallbacks();
+        initialize_time_functions(get_mock_server_api()->core);
+
+        /* Set up one vbucket in the bucket */
+        engine.getKVBucket()->setVBucketState(
+                vbid, vbucket_state_active, false);
+    }
+
+    void TearDown() override {
+        destroy_mock_event_callbacks();
+        ObjectRegistry::onSwitchThread(nullptr);
+    }
+
+    /**
+     * Fake callback emulating dcp_add_failover_log
+     */
+    static ENGINE_ERROR_CODE fakeDcpAddFailoverLog(vbucket_failover_t* entry,
+                                                   size_t nentries,
+                                                   const void* cookie) {
+        return ENGINE_SUCCESS;
+    }
+
+    SynchronousEPEngine engine;
+    const uint16_t vbid = 0;
+};
+
+/* Tests that there is no memory loss due to cyclic reference between connection
+ * and other objects (like dcp streams). It is possible that connections are
+ * deleted from the dcp connmap when dcp connmap is deleted due to abrupt
+ * deletion of 'EventuallyPersistentEngine' obj.
+ * This test simulates the abrupt deletion of dcp connmap object
+ */
+TEST_F(DcpConnMapTest, DeleteProducerOnUncleanDCPConnMapDelete) {
+    /* Create a new Dcp producer */
+    void* dummyMockCookie = this;
+    DcpProducer* producer = engine.getDcpConnMap().newProducer(dummyMockCookie,
+                                                               "test_producer",
+                                                               /*flags*/ 0,
+                                                               {/*nojson*/});
+    /* Open stream */
+    uint64_t rollbackSeqno = 0;
+    uint32_t opaque = 0;
+    EXPECT_EQ(ENGINE_SUCCESS,
+              producer->streamRequest(/*flags*/ 0,
+                                      opaque,
+                                      vbid,
+                                      /*start_seqno*/ 0,
+                                      /*end_seqno*/ ~0,
+                                      /*vb_uuid*/ 0,
+                                      /*snap_start*/ 0,
+                                      /*snap_end*/ 0,
+                                      &rollbackSeqno,
+                                      fakeDcpAddFailoverLog));
+
+    /* Delete the connmap, connection should be deleted as the owner of
+       the connection (connmap) is deleted. Checks that there is no cyclic
+       reference between conn (producer) and stream or any other object */
+    engine.setDcpConnMap(nullptr);
 }
 
 class NotifyTest : public DCPTest {

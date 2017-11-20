@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include <dcp/dcpconnmap.h>
 #include <ep_bucket.h>
 #include <ep_engine.h>
 
