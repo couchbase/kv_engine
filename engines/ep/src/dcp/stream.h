@@ -100,9 +100,6 @@ public:
 
     virtual void notifySeqnoAvailable(uint64_t seqno) {}
 
-    void addFilter(const Collections::Filter& filter,
-                   const Collections::VB::Manifest& manifest);
-
     const std::string& getName() {
         return name_;
     }
