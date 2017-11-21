@@ -58,7 +58,8 @@ void TestappXattrClientTest::SetUp() {
     }
 
     document.info.cas = mcbp::cas::Wildcard;
-    document.info.datatype = cb::mcbp::Datatype::JSON;
+    // We can only set datatype to JSON if it was negotiated.
+    document.info.datatype = expectedJSONDatatype();
     document.info.flags = 0xcaffee;
     document.info.id = name;
     document.info.expiration = 0;
@@ -68,13 +69,17 @@ void TestappXattrClientTest::SetUp() {
 MemcachedConnection& TestappXattrClientTest::getConnection() {
     switch (::testing::get<0>(GetParam())) {
     case TransportProtocols::McbpPlain:
-        return prepare(connectionMap.getConnection(false, AF_INET));
+        return prepare(connectionMap.getConnection(false, AF_INET),
+                       hasJSONSupport());
     case TransportProtocols::McbpIpv6Plain:
-        return prepare(connectionMap.getConnection(false, AF_INET6));
+        return prepare(connectionMap.getConnection(false, AF_INET6),
+                       hasJSONSupport());
     case TransportProtocols::McbpSsl:
-        return prepare(connectionMap.getConnection(true, AF_INET));
+        return prepare(connectionMap.getConnection(true, AF_INET),
+                       hasJSONSupport());
     case TransportProtocols::McbpIpv6Ssl:
-        return prepare(connectionMap.getConnection(true, AF_INET6));
+        return prepare(connectionMap.getConnection(true, AF_INET6),
+                       hasJSONSupport());
     }
     throw std::logic_error("Unknown transport");
 }
@@ -83,6 +88,15 @@ void TestappXattrClientTest::createXattr(const std::string& path,
                                          const std::string& value,
                                          bool macro) {
     runCreateXattr(path, value, macro, xattrOperationStatus);
+}
+
+ClientJSONSupport TestappXattrClientTest::hasJSONSupport() const {
+    return ::testing::get<2>(GetParam());
+}
+
+cb::mcbp::Datatype TestappXattrClientTest::expectedJSONDatatype() const {
+    return hasJSONSupport() == ClientJSONSupport::Yes ? cb::mcbp::Datatype::JSON
+                                                      : cb::mcbp::Datatype::Raw;
 }
 
 BinprotSubdocResponse TestappXattrClientTest::getXattr(const std::string& path,
@@ -115,10 +129,13 @@ std::string to_string(const XattrSupport& xattrSupport) {
 #endif
 }
 
-std::string PrintToStringCombinedName::
-operator()(const ::testing::TestParamInfo<
-           ::testing::tuple<TransportProtocols, XattrSupport>>& info) const {
+std::string PrintToStringCombinedName::operator()(
+        const ::testing::TestParamInfo<::testing::tuple<TransportProtocols,
+                                                        XattrSupport,
+                                                        ClientJSONSupport>>&
+                info) const {
     std::string rv = to_string(::testing::get<0>(info.param)) + "_" +
-                     to_string(::testing::get<1>(info.param));
+                     to_string(::testing::get<1>(info.param)) + "_" +
+                     to_string(::testing::get<2>(info.param));
     return rv;
 }

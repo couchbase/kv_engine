@@ -56,6 +56,10 @@ const size_t BACKLOG = 1000;
 std::ostream& operator<<(std::ostream& os, const TransportProtocols& t);
 std::string to_string(const TransportProtocols& transport);
 
+/// Should testapp client negotiate JSON HELLO feature?
+enum class ClientJSONSupport { Yes, No };
+std::string to_string(ClientJSONSupport json);
+
 // Needed by subdocument tests in seperate .cc file.
 extern SOCKET sock;
 extern in_port_t port;
@@ -185,8 +189,11 @@ protected:
      *
      * @param connection the connection to prepare
      * @return The connection to use
+     * @param enableJSON Should Feature::JSON be negotiated?
      */
-    MemcachedConnection& prepare(MemcachedConnection& connection);
+    MemcachedConnection& prepare(
+            MemcachedConnection& connection,
+            ClientJSONSupport json = ClientJSONSupport::Yes);
 
     /**
      * Create an extended attribute

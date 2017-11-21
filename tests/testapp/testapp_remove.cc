@@ -103,7 +103,9 @@ INSTANTIATE_TEST_CASE_P(
                                              TransportProtocols::McbpSsl,
                                              TransportProtocols::McbpIpv6Ssl),
                            ::testing::Values(XattrSupport::Yes,
-                                             XattrSupport::No)),
+                                             XattrSupport::No),
+                           ::testing::Values(ClientJSONSupport::Yes,
+                                             ClientJSONSupport::No)),
         PrintToStringCombinedName());
 
 /**

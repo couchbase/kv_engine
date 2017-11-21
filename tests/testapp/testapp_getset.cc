@@ -36,7 +36,9 @@ INSTANTIATE_TEST_CASE_P(
                                              TransportProtocols::McbpSsl,
                                              TransportProtocols::McbpIpv6Ssl),
                            ::testing::Values(XattrSupport::Yes,
-                                             XattrSupport::No)),
+                                             XattrSupport::No),
+                           ::testing::Values(ClientJSONSupport::Yes,
+                                             ClientJSONSupport::No)),
         PrintToStringCombinedName());
 
 TEST_P(GetSetTest, TestAdd) {
@@ -208,7 +210,7 @@ TEST_P(GetSetTest, TestGetSuccess) {
               getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
     EXPECT_NE(mcbp::cas::Wildcard, stored.info.cas);
-    EXPECT_EQ(cb::mcbp::Datatype::JSON, stored.info.datatype);
+    EXPECT_EQ(expectedJSONDatatype(), stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
     EXPECT_EQ(document.value, stored.value);
@@ -744,10 +746,9 @@ TEST_P(GetSetTest, ServerDetectsJSON) {
     document.info.datatype = cb::mcbp::Datatype::Raw;
     conn.mutate(document, 0, MutationType::Add);
 
-    // Re-hello (supporting JSON), then fetch the document to see what
-    // datatype is has.
-    conn.setDatatypeJson(true);
-    EXPECT_EQ(cb::mcbp::Datatype::JSON, conn.get(name, 0).info.datatype);
+    // Fetch the document to see what datatype is has. It should match
+    // what our connection is capable of receiving.
+    EXPECT_EQ(expectedJSONDatatype(), conn.get(name, 0).info.datatype);
 }
 
 // Test that memcached correctly detects documents are not JSON irrespective
@@ -755,11 +756,9 @@ TEST_P(GetSetTest, ServerDetectsJSON) {
 TEST_P(GetSetTest, ServerDetectsNonJSON) {
     auto& conn = getConnection();
     document.value = R"(not;valid{JSON)";
-    document.info.datatype = cb::mcbp::Datatype::JSON;
     conn.mutate(document, 0, MutationType::Add);
 
-    // Re-hello (supporting JSON), then fetch the document to see what
-    // datatype is has.
-    conn.setDatatypeJson(true);
+    // Fetch the document to see what datatype is has. It should always
+    // be raw.
     EXPECT_EQ(cb::mcbp::Datatype::Raw, conn.get(name, 0).info.datatype);
 }

@@ -32,10 +32,11 @@ enum class XattrSupport { Yes, No };
 std::ostream& operator<<(std::ostream& os, const XattrSupport& xattrSupport);
 std::string to_string(const XattrSupport& xattrSupport);
 
-class TestappXattrClientTest
-        : public TestappTest,
-          public ::testing::WithParamInterface<
-                  ::testing::tuple<TransportProtocols, XattrSupport>> {
+class TestappXattrClientTest : public TestappTest,
+                               public ::testing::WithParamInterface<
+                                       ::testing::tuple<TransportProtocols,
+                                                        XattrSupport,
+                                                        ClientJSONSupport>> {
 public:
     TestappXattrClientTest()
         : xattrOperationStatus(PROTOCOL_BINARY_RESPONSE_SUCCESS) {
@@ -50,13 +51,21 @@ public:
                      const std::string& value,
                      bool macro = false);
 
+    ClientJSONSupport hasJSONSupport() const;
+
+    // What response datatype do we expect for documents which are JSON?
+    // Will be JSON only if the client successfully negotiated JSON feature.
+    cb::mcbp::Datatype expectedJSONDatatype() const;
+
 protected:
     Document document;
     protocol_binary_response_status xattrOperationStatus;
 };
 
 struct PrintToStringCombinedName {
-    std::string
-    operator()(const ::testing::TestParamInfo<
-               ::testing::tuple<TransportProtocols, XattrSupport>>& info) const;
+    std::string operator()(
+            const ::testing::TestParamInfo<::testing::tuple<TransportProtocols,
+                                                            XattrSupport,
+                                                            ClientJSONSupport>>&
+                    info) const;
 };

@@ -129,6 +129,16 @@ std::string to_string(const TransportProtocols& transport) {
 #endif
 }
 
+std::string to_string(ClientJSONSupport json) {
+    switch (json) {
+    case ClientJSONSupport::Yes:
+        return "JsonYes";
+    case ClientJSONSupport::No:
+        return "JsonNo";
+    }
+    throw std::logic_error("Unknown JSON support");
+}
+
 void TestappTest::CreateTestBucket()
 {
     auto& conn = connectionMap.getConnection(false);
@@ -1634,10 +1644,11 @@ MemcachedConnection& TestappTest::getAdminConnection() {
     return conn;
 }
 
-MemcachedConnection& TestappTest::prepare(MemcachedConnection& connection) {
+MemcachedConnection& TestappTest::prepare(MemcachedConnection& connection,
+                                          ClientJSONSupport json) {
     connection.reconnect();
     connection.setDatatypeCompressed(true);
-    connection.setDatatypeJson(true);
+    connection.setDatatypeJson(json == ClientJSONSupport::Yes);
     connection.setMutationSeqnoSupport(true);
     connection.setXerrorSupport(true);
     connection.setXattrSupport(true);
