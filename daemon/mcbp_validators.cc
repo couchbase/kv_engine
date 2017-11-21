@@ -1226,6 +1226,24 @@ static protocol_binary_response_status unlock_validator(const Cookie& cookie)
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
+static protocol_binary_response_status evict_key_validator(const Cookie& cookie)
+{
+    auto req = static_cast<protocol_binary_request_no_extras*>(McbpConnection::getPacket(cookie));
+    uint32_t klen = ntohs(req->message.header.request.keylen);
+    uint32_t blen = ntohl(req->message.header.request.bodylen);
+
+    if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
+        req->message.header.request.extlen != 0 || // no extras
+        klen == 0 || // must have key
+        klen != blen || // No value
+        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES ||
+        req->message.header.request.cas == 0) {
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+}
+
 static protocol_binary_response_status collections_set_manifest_validator(
         const Cookie& cookie) {
     auto packet = static_cast<protocol_binary_collections_set_manifest*>(
@@ -1338,6 +1356,8 @@ void McbpValidatorChains::initializeMcbpValidatorChains(McbpValidatorChains& cha
     chains.push_unique(PROTOCOL_BINARY_CMD_DELETE_BUCKET, delete_bucket_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_SELECT_BUCKET, select_bucket_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS, get_all_vb_seqnos_validator);
+
+    chains.push_unique(PROTOCOL_BINARY_CMD_EVICT_KEY, evict_key_validator);
 
     chains.push_unique(PROTOCOL_BINARY_CMD_GET_META, get_meta_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_GETQ_META, get_meta_validator);
