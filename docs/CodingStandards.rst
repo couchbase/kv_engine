@@ -10,7 +10,7 @@ Couchbase Editors's Note
 
 This document is a fork of LLVM's `CodingStandards
 <http://llvm.org/docs/CodingStandards.html>`_, with additions /
-removals as appropriate for KV-Engine. This was choden as a staritng
+removals as appropriate for KV-Engine. This was chosen as a starting
 point (instead of creating our own from scratch) because the vast
 majority of LLVM's document is applicable to Couchbase:
 
@@ -65,6 +65,31 @@ the functionality change.
 The ultimate goal of these guidelines is to increase the readability and
 maintainability of our common source base. If you have suggestions for topics to
 be included, please mail them to `DaveR <mailto:daver.remove.colour@red.couchbase.com>`_.
+
+Core C++ Guidelines
+-------------------
+
+In 2015 Bjarne Stroustrup & others announced the `C++ Core
+Guidelines<http://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines>` - a
+collaborative effort to help people use modern C++ efficiently. To
+quote from their introduction:
+
+    The guidelines are focused on relatively higher-level issues, such
+    as interfaces, resource management, memory management, and
+    concurrency. Such rules affect application architecture and
+    library design. Following the rules will lead to code that is
+    statically type-safe, has no resource leaks, and catches many more
+    programming logic errors than is common in code today. And it will
+    run fast -- you can afford to do things right.
+
+Since their introduction they have quickly become a de-facto (if not
+offical, given Bjarne's blessing!) standard in the C++ community, and
+KV-Engine is no different - we aim to follow where appropriate the
+Core C++ Guidelines.
+
+For any topic not explicitly covered or overruled in this document,
+please make use of the advise in the Core C++ Guidelines.
+
 
 Languages, Libraries, and Standards
 ===================================
@@ -1515,11 +1540,6 @@ Two particularly important books for our work are:
 #. `Large-Scale C++ Software Design
    <http://www.amazon.com/Large-Scale-Software-Design-John-Lakos/dp/0201633620/ref=sr_1_1>`_
    by John Lakos
-
-#. `Core C++ Guidelines
-   <http://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines>`_
-   editod by Bjarne Stroustrup, Herb Sutter. This is an excellent
-   resource for best practices in Modern C++.
 
 If you get some free time, and you haven't read them: do so, you might learn
 something.
