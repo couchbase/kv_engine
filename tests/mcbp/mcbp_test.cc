@@ -2861,7 +2861,7 @@ class EvictKeyValidatorTest : public ValidatorTest {
         ValidatorTest::SetUp();
         request.message.header.request.keylen = htons(10);
         request.message.header.request.bodylen = htonl(10);
-        request.message.header.request.cas = 0xdeadbeef;
+        request.message.header.request.cas = 0;
     }
 
 protected:
@@ -2898,7 +2898,7 @@ TEST_F(EvictKeyValidatorTest, InvalidDatatype) {
 }
 
 TEST_F(EvictKeyValidatorTest, InvalidCas) {
-    request.message.header.request.cas = 0;
+    request.message.header.request.cas = 0xff;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
 

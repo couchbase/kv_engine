@@ -1237,7 +1237,7 @@ static protocol_binary_response_status evict_key_validator(const Cookie& cookie)
         klen == 0 || // must have key
         klen != blen || // No value
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES ||
-        req->message.header.request.cas == 0) {
+        req->message.header.request.cas != 0) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
