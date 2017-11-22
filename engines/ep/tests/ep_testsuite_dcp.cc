@@ -4923,22 +4923,6 @@ static enum test_result test_dcp_rollback_after_purge(ENGINE_HANDLE *h,
 
     testHarness.destroy_cookie(cookie2);
 
-    /* Do not expect rollback when start_seqno == 0 */
-    DcpStreamCtx ctx3;
-    ctx3.vb_uuid = vb_uuid;
-    ctx3.seqno = {0, high_seqno};
-    ctx3.snapshot = {0, high_seqno};
-    ctx3.exp_err = ENGINE_SUCCESS;
-
-    const void* cookie3 = testHarness.create_cookie();
-    TestDcpConsumer tdc3("unittest3", cookie3, h, h1);
-    tdc3.addStreamCtx(ctx3);
-
-    tdc3.openConnection();
-    tdc3.openStreams();
-
-    testHarness.destroy_cookie(cookie3);
-
     return SUCCESS;
 }
 
@@ -5321,12 +5305,10 @@ static enum test_result test_failover_log_dcp(ENGINE_HANDLE *h,
     } dcp_params_t;
 
     dcp_params_t params[] =
-    {   /* Do not expect rollback when start_seqno is 0 and vb_uuid match */
+    {   /* Do not expect rollback when start_seqno is 0 */
         {0, uuid, 0, 0, 0, 0, ENGINE_SUCCESS},
-        /* Do not expect rollback when start_seqno is 0 and vb_uuid == 0 */
-        {0, 0x0, 0, 0, 0, 0, ENGINE_SUCCESS},
-        /* Expect rollback when start_seqno is 0 and vb_uuid mismatch */
-        {0, 0xBAD, 0, 0, 0, 0, ENGINE_ROLLBACK},
+        /* Do not expect rollback when start_seqno is 0 and vb_uuid mismatch */
+        {0, 0xBAD, 0, 0, 0, 0, ENGINE_SUCCESS},
         /* Don't expect rollback when you already have all items in the snapshot
            (that is, start == snap_end) and upper >= snap_end */
         {0, uuid, high_seqno, 0, high_seqno, 0, ENGINE_SUCCESS},
@@ -5523,13 +5505,13 @@ static enum test_result test_dcp_multiple_streams(ENGINE_HANDLE *h,
         checkeq(ENGINE_SUCCESS,
                 store(h, h1, nullptr, OPERATION_SET, key.c_str(), "data",
                       &itm, 0, 1),
-                "Failed store on vb 1");
+                "Failed store on vb 0");
         h1->release(h, nullptr, itm);
         key = "key_2_" + std::to_string(i);
         checkeq(ENGINE_SUCCESS,
                 store(h, h1, nullptr, OPERATION_SET, key.c_str(), "data",
                       &itm, 0, 2),
-                "Failed store on vb 2");
+                "Failed store on vb 1");
         h1->release(h, nullptr, itm);
     }
 
@@ -5541,13 +5523,13 @@ static enum test_result test_dcp_multiple_streams(ENGINE_HANDLE *h,
     int extra_items = 100;
 
     ctx1.vbucket = 1;
-    ctx1.vb_uuid = get_ull_stat(h, h1, "vb_1:0:id", "failovers");
+    ctx1.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
     ctx1.seqno = {0, static_cast<uint64_t>(num_items + extra_items)};
     ctx1.exp_mutations = num_items + extra_items;
     ctx1.live_frontend_client = true;
 
     ctx2.vbucket = 2;
-    ctx2.vb_uuid = get_ull_stat(h, h1, "vb_2:0:id", "failovers");
+    ctx2.vb_uuid = get_ull_stat(h, h1, "vb_1:0:id", "failovers");
     ctx2.seqno = {0, static_cast<uint64_t>(num_items + extra_items)};
     ctx2.exp_mutations = num_items + extra_items;
     ctx2.live_frontend_client = true;

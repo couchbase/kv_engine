@@ -88,47 +88,6 @@ TEST(FailoverTableTest, test_5_failover_log) {
     EXPECT_EQ(0, rollback_seqno);
 }
 
-/* A DCP client can have a diverging (w.r.t producer) branch at seqno 0.
-   Even though the client makes a request with start_seqno == 0, it expects a
-   rollback if its vb_uuid @ 0 does not match the failover table vb_uuid @ 0 */
-TEST(FailoverTableTest, test_diverging_branch_at_seqno_0) {
-    uint64_t rollback_seqno;
-
-    FailoverTable table(5);
-    table_t failover_entries = generate_entries(table, 2, 1);
-
-    /* rollback not needed as vb_uuid == 0 (don't care) */
-    EXPECT_FALSE(table.needsRollback(/*start_seqno*/ 0,
-                                     0,
-                                     /*vb_uuid*/ 0,
-                                     0,
-                                     0,
-                                     0,
-                                     &rollback_seqno)
-                         .first);
-
-    /* rollback not needed when vb_uuid matches the failover table vb_uuid */
-    EXPECT_FALSE(table.needsRollback(/*start_seqno*/ 0,
-                                     0,
-                                     table.getLatestEntry().vb_uuid,
-                                     0,
-                                     0,
-                                     0,
-                                     &rollback_seqno)
-                         .first);
-
-    /* rollback needed as vb_uuid does not match */
-    EXPECT_TRUE(table.needsRollback(/*start_seqno*/ 0,
-                                    0,
-                                    /*vb_uuid*/ 0xabcd,
-                                    0,
-                                    0,
-                                    0,
-                                    &rollback_seqno)
-                        .first);
-    EXPECT_EQ(0, rollback_seqno);
-}
-
 TEST(FailoverTableTest, test_edgetests_failover_log) {
     uint64_t start_seqno;
     uint64_t snap_start_seqno;
