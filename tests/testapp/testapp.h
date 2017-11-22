@@ -48,6 +48,13 @@ enum class TransportProtocols {
     McbpIpv6Ssl
 };
 
+// Properties of a particular subdoc statistic set.
+struct SubdocStatTraits {
+    const char* count_name;
+    const char* bytes_total_name;
+    const char* bytes_extracted_subset;
+};
+
 namespace Testapp {
 const size_t MAX_CONNECTIONS = 1000;
 const size_t BACKLOG = 1000;

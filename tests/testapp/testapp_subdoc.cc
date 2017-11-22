@@ -61,9 +61,9 @@ const int MAX_SUBDOC_PATH_COMPONENTS = 32;
 #define EXPECT_SUBDOC_CMD_RESP(cmd, err, val, resp) EXPECT_PRED_FORMAT4(subdoc_pred_full, cmd, err, val, resp)
 
 // Non JSON document, optionally compressed. Subdoc commands should fail.
-void test_subdoc_get_binary(bool compress,
-                            protocol_binary_command cmd,
-                            MemcachedConnection& conn) {
+void SubdocTestappTest::test_subdoc_get_binary(bool compress,
+                                               protocol_binary_command cmd,
+                                               MemcachedConnection& conn) {
     const char not_JSON[] = "not; json";
     store_object("binary", not_JSON);
 
@@ -106,8 +106,8 @@ TEST_P(SubdocTestappTest, SubdocExists_BinaryCompressed) {
 }
 
 // retrieve from a JSON document consisting of a toplevel array.
-void test_subdoc_fetch_array_simple(bool compressed, protocol_binary_command cmd) {
-
+void SubdocTestappTest::test_subdoc_fetch_array_simple(
+        bool compressed, protocol_binary_command cmd) {
     ASSERT_TRUE((cmd == PROTOCOL_BINARY_CMD_SUBDOC_GET) ||
                 (cmd == PROTOCOL_BINARY_CMD_SUBDOC_EXISTS));
 
@@ -176,9 +176,8 @@ TEST_P(SubdocTestappTest, SubdocExists_ArraySimpleCompressed) {
 }
 
 // JSON document containing toplevel dict.
-void test_subdoc_fetch_dict_simple(bool compressed,
-                                   protocol_binary_command cmd) {
-
+void SubdocTestappTest::test_subdoc_fetch_dict_simple(
+        bool compressed, protocol_binary_command cmd) {
     ASSERT_TRUE((cmd == PROTOCOL_BINARY_CMD_SUBDOC_GET) ||
                 (cmd == PROTOCOL_BINARY_CMD_SUBDOC_EXISTS));
 
@@ -228,9 +227,8 @@ TEST_P(SubdocTestappTest, SubdocExists_DictSimpleCompressed) {
 }
 
 // JSON document containing nested dictionary.
-void test_subdoc_fetch_dict_nested(bool compressed,
-                                   protocol_binary_command cmd) {
-
+void SubdocTestappTest::test_subdoc_fetch_dict_nested(
+        bool compressed, protocol_binary_command cmd) {
     ASSERT_TRUE((cmd == PROTOCOL_BINARY_CMD_SUBDOC_GET) ||
                 (cmd == PROTOCOL_BINARY_CMD_SUBDOC_EXISTS));
 
@@ -316,8 +314,8 @@ static cJSON* make_nested_dict(int nlevels) {
 }
 
 // Deeply nested JSON dictionary; verify limits on how deep documents can be.
-void test_subdoc_fetch_dict_deep(protocol_binary_command cmd) {
-
+void SubdocTestappTest::test_subdoc_fetch_dict_deep(
+        protocol_binary_command cmd) {
     // a). Should be able to access a deeply nested document as long as the
     // path we ask for is no longer than MAX_SUBDOC_PATH_COMPONENTS.
     unique_cJSON_ptr max_dict(make_nested_dict(MAX_SUBDOC_PATH_COMPONENTS));
@@ -380,8 +378,8 @@ std::string make_nested_array_path(int nlevels) {
 }
 
 // Deeply nested JSON array; verify limits on how deep documents can be.
-void test_subdoc_fetch_array_deep(protocol_binary_command cmd) {
-
+void SubdocTestappTest::test_subdoc_fetch_array_deep(
+        protocol_binary_command cmd) {
     // a). Should be able to access a deeply nested document as long as the
     // path we ask for is no longer than MAX_SUBDOC_PATH_COMPONENTS.
 
@@ -421,7 +419,8 @@ TEST_P(SubdocTestappTest, SubdocExists_ArrayDeep) {
  *            - PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD
  *            - PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT
  */
-void test_subdoc_dict_add_simple(bool compress, protocol_binary_command cmd) {
+void SubdocTestappTest::test_subdoc_dict_add_simple(
+        bool compress, protocol_binary_command cmd) {
     ASSERT_TRUE((cmd == PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD) ||
                 (cmd == PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT));
 
@@ -694,8 +693,8 @@ TEST_P(SubdocTestappTest, SubdocAddFlag_BucketStoreCas) {
                   PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
 }
 
-void test_subdoc_dict_add_upsert_deep(protocol_binary_command cmd) {
-
+void SubdocTestappTest::test_subdoc_dict_add_upsert_deep(
+        protocol_binary_command cmd) {
     ASSERT_TRUE((cmd == PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD) ||
                 (cmd == PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT));
 
@@ -738,8 +737,7 @@ TEST_P(SubdocTestappTest, SubdocDictUpsert_Deep) {
     test_subdoc_dict_add_upsert_deep(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT);
 }
 
-void test_subdoc_delete_simple(bool compress) {
-
+void SubdocTestappTest::test_subdoc_delete_simple(bool compress) {
     // a). Create a document containing each of the primitive types, and then
     // ensure we can successfully delete each type.
     const char dict[] = "{"
@@ -1298,7 +1296,7 @@ TEST_P(SubdocTestappTest, SubdocGetCount) {
     delete_object("a");
 }
 
-void test_subdoc_counter_simple() {
+void SubdocTestappTest::test_subdoc_counter_simple() {
     store_object("a", "{}", /*compress*/ false);
 
     // a). Check that empty document, empty path creates a new element.
@@ -1717,12 +1715,6 @@ enum class SubdocCmdType {
     Mutation
 };
 
-struct SubdocStatTraits {
-    const char* count_name;
-    const char* bytes_total_name;
-    const char* bytes_extracted_subset;
-};
-
 static const SubdocStatTraits LOOKUP_TRAITS { "cmd_subdoc_lookup",
                                               "bytes_subdoc_lookup_total",
                                               "bytes_subdoc_lookup_extracted" };
@@ -1731,14 +1723,14 @@ static const SubdocStatTraits MUTATION_TRAITS { "cmd_subdoc_mutation",
                                                 "bytes_subdoc_mutation_total",
                                                 "bytes_subdoc_mutation_inserted" };
 
-static void test_subdoc_stats_command(protocol_binary_command cmd,
-                                      SubdocStatTraits traits,
-                                      const std::string& doc,
-                                      const std::string& path,
-                                      const std::string& value,
-                                      const std::string& fragment,
-                                      size_t expected_total_len,
-                                      size_t expected_subset_len) {
+void SubdocTestappTest::test_subdoc_stats_command(protocol_binary_command cmd,
+                                                  SubdocStatTraits traits,
+                                                  const std::string& doc,
+                                                  const std::string& path,
+                                                  const std::string& value,
+                                                  const std::string& fragment,
+                                                  size_t expected_total_len,
+                                                  size_t expected_subset_len) {
     store_object("doc", doc.c_str());
 
     // Get initial stats

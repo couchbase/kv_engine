@@ -35,10 +35,10 @@
 #include <unordered_map>
 #include <valgrind/valgrind.h>
 
-class SubdocPerfTest : public TestappTest {
-public:
+class SubdocPerfTest : public SubdocTestappTest {
+protected:
     void SetUp() {
-        TestappTest::SetUp();
+        McdTestappTest::SetUp();
         // Performance test - disable ewouldblock_engine.
         ewouldblock_engine_configure(ENGINE_EWOULDBLOCK, EWBEngineMode::Next_N,
                                      0);
@@ -58,7 +58,10 @@ public:
 #endif
     }
 
-protected:
+    void subdoc_perf_test_array(protocol_binary_command cmd, size_t iterations);
+
+    void subdoc_perf_test_dict(protocol_binary_command cmd, size_t iterations);
+
     size_t iterations;
 };
 
@@ -66,8 +69,8 @@ protected:
 /* Create a JSON document consisting of a flat array of N elements, using
  * the specified opcode.
  */
-static void subdoc_perf_test_array(protocol_binary_command cmd,
-                                   size_t iterations) {
+void SubdocPerfTest::subdoc_perf_test_array(protocol_binary_command cmd,
+                                            size_t iterations) {
     store_object("list", "[]");
 
     for (size_t i = 0; i < iterations; i++) {
@@ -84,17 +87,17 @@ static void subdoc_perf_test_array(protocol_binary_command cmd,
  * sub-document API commands.
  ****************************************************************************/
 
-TEST_F(SubdocPerfTest, Array_PushFirst) {
+TEST_P(SubdocPerfTest, Array_PushFirst) {
     subdoc_perf_test_array(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
                            iterations);
 }
 
-TEST_F(SubdocPerfTest, Array_PushLast) {
+TEST_P(SubdocPerfTest, Array_PushLast) {
     subdoc_perf_test_array(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
                            iterations);
 }
 
-TEST_F(SubdocPerfTest, Array_AddUnique) {
+TEST_P(SubdocPerfTest, Array_AddUnique) {
     subdoc_perf_test_array(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
                            iterations);
 }
@@ -116,7 +119,7 @@ static std::string subdoc_create_array(size_t elements) {
 // Baseline test case for Array_Remove tests; this 'test' just creates the
 // document with  elements to operate on. Can then subtract the runtime of
 // this from Array_Remove tests to see actual performance.
-TEST_F(SubdocPerfTest, Array_RemoveBaseline) {
+TEST_P(SubdocPerfTest, Array_RemoveBaseline) {
     std::string list(subdoc_create_array(iterations));
     store_object("list", list.c_str());
     delete_object("list");
@@ -125,7 +128,7 @@ TEST_F(SubdocPerfTest, Array_RemoveBaseline) {
 
 // Create an N-element array, then benchmark removing N elements individually
 // by removing the first element each time.
-TEST_F(SubdocPerfTest, Array_RemoveFirst) {
+TEST_P(SubdocPerfTest, Array_RemoveFirst) {
     std::string list(subdoc_create_array(iterations));
     store_object("list", list.c_str());
 
@@ -138,7 +141,7 @@ TEST_F(SubdocPerfTest, Array_RemoveFirst) {
 
 // Create an N-element array, then benchmark removing N elements individually
 // by removing the last element each time.
-TEST_F(SubdocPerfTest, Array_RemoveLast) {
+TEST_P(SubdocPerfTest, Array_RemoveLast) {
     std::string list(subdoc_create_array(iterations));
     store_object("list", list.c_str());
 
@@ -151,7 +154,7 @@ TEST_F(SubdocPerfTest, Array_RemoveLast) {
 
 
 // Create an N-element array, then benchmark replacing the first element.
-TEST_F(SubdocPerfTest, Array_ReplaceFirst) {
+TEST_P(SubdocPerfTest, Array_ReplaceFirst) {
     std::string list(subdoc_create_array(iterations));
     store_object("list", list.c_str());
 
@@ -163,7 +166,7 @@ TEST_F(SubdocPerfTest, Array_ReplaceFirst) {
 }
 
 // Create an N-element array, then benchmark replacing the middle element.
-TEST_F(SubdocPerfTest, Array_ReplaceMiddle) {
+TEST_P(SubdocPerfTest, Array_ReplaceMiddle) {
     std::string list(subdoc_create_array(iterations));
     store_object("list", list.c_str());
 
@@ -176,7 +179,7 @@ TEST_F(SubdocPerfTest, Array_ReplaceMiddle) {
 }
 
 // Create an N-element array, then benchmark replacing the first element.
-TEST_F(SubdocPerfTest, Array_ReplaceLast) {
+TEST_P(SubdocPerfTest, Array_ReplaceLast) {
     std::string list(subdoc_create_array(iterations));
     store_object("list", list, /*compress*/ false);
 
@@ -187,8 +190,7 @@ TEST_F(SubdocPerfTest, Array_ReplaceLast) {
     delete_object("list");
 }
 
-
-TEST_F(SubdocPerfTest, Dict_Add) {
+TEST_P(SubdocPerfTest, Dict_Add) {
     store_object("dict", "{}");
 
     for (size_t i = 0; i < iterations; i++) {
@@ -218,12 +220,12 @@ static void subdoc_create_dict(const std::string& name, size_t elements) {
 // Baseline test case for Dict test; this 'test' just creates the document to
 // operate on. Can then subtract the runtime of this from Dict tests to
 // see actual performance.
-TEST_F(SubdocPerfTest, Dict_RemoveBaseline) {
+TEST_P(SubdocPerfTest, Dict_RemoveBaseline) {
     subdoc_create_dict("dict", iterations);
     delete_object("dict");
 }
 
-TEST_F(SubdocPerfTest, Dict_Remove) {
+TEST_P(SubdocPerfTest, Dict_Remove) {
     subdoc_create_dict("dict", iterations);
 
     for (size_t i = 0; i < iterations; i++) {
@@ -234,8 +236,8 @@ TEST_F(SubdocPerfTest, Dict_Remove) {
     delete_object("dict");
 }
 
-static void subdoc_perf_test_dict(protocol_binary_command cmd,
-                                  size_t iterations) {
+void SubdocPerfTest::subdoc_perf_test_dict(protocol_binary_command cmd,
+                                           size_t iterations) {
     subdoc_create_dict("dict", iterations);
 
     for (size_t i = 0; i < iterations; i++) {
@@ -249,12 +251,12 @@ static void subdoc_perf_test_dict(protocol_binary_command cmd,
 }
 
 // Measure GETing all keys in a dictionary.
-TEST_F(SubdocPerfTest, Dict_Get) {
+TEST_P(SubdocPerfTest, Dict_Get) {
     subdoc_perf_test_dict(PROTOCOL_BINARY_CMD_SUBDOC_GET, iterations);
 }
 
 // Measure checking for EXISTence of all keys in a dictionary.
-TEST_F(SubdocPerfTest, Dict_Exists) {
+TEST_P(SubdocPerfTest, Dict_Exists) {
     subdoc_perf_test_dict(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS, iterations);
 }
 
@@ -266,7 +268,7 @@ TEST_F(SubdocPerfTest, Dict_Exists) {
  * but packing in multiple paths into a single command where possible.
  ****************************************************************************/
 
-TEST_F(SubdocPerfTest, Array_PushFirst_Multipath) {
+TEST_P(SubdocPerfTest, Array_PushFirst_Multipath) {
     store_object("list", "[]");
 
     SubdocMultiMutationCmd mutation;
@@ -293,7 +295,7 @@ TEST_F(SubdocPerfTest, Array_PushFirst_Multipath) {
 
 // Create an N-element array, then benchmark removing N elements using
 // multi-path commands by removing the first element each time.
-TEST_F(SubdocPerfTest, Array_RemoveFirst_Multipath) {
+TEST_P(SubdocPerfTest, Array_RemoveFirst_Multipath) {
     std::string list(subdoc_create_array(iterations));
     store_object("list", list.c_str());
 
@@ -321,7 +323,7 @@ TEST_F(SubdocPerfTest, Array_RemoveFirst_Multipath) {
 
 // Create an N-element array, then benchmark replacing the first element
 // using multi-path operations.
-TEST_F(SubdocPerfTest, Array_ReplaceFirst_Multipath) {
+TEST_P(SubdocPerfTest, Array_ReplaceFirst_Multipath) {
     std::string list(subdoc_create_array(iterations));
     store_object("list", list.c_str());
 
@@ -347,7 +349,7 @@ TEST_F(SubdocPerfTest, Array_ReplaceFirst_Multipath) {
 
 // Create an N-element array, then benchmark replacing the middle element
 // using multi-path operations.
-TEST_F(SubdocPerfTest, Array_ReplaceMiddle_Multipath) {
+TEST_P(SubdocPerfTest, Array_ReplaceMiddle_Multipath) {
     std::string list(subdoc_create_array(iterations));
     store_object("list", list.c_str());
 
@@ -372,7 +374,7 @@ TEST_F(SubdocPerfTest, Array_ReplaceMiddle_Multipath) {
     delete_object("list");
 }
 
-TEST_F(SubdocPerfTest, Dict_Add_Multipath) {
+TEST_P(SubdocPerfTest, Dict_Add_Multipath) {
     store_object("dict", "{}");
 
     SubdocMultiMutationCmd mutation;
@@ -409,7 +411,7 @@ TEST_F(SubdocPerfTest, Dict_Add_Multipath) {
  * document - aka "Fulldoc" operations.
  ****************************************************************************/
 
-TEST_F(SubdocPerfTest, Array_PushFirst_Fulldoc) {
+TEST_P(SubdocPerfTest, Array_PushFirst_Fulldoc) {
     store_object("list", "[]");
 
     // At each iteration create a new document with one more element in it,
@@ -431,7 +433,7 @@ TEST_F(SubdocPerfTest, Array_PushFirst_Fulldoc) {
     delete_object("list");
 }
 
-TEST_F(SubdocPerfTest, Array_PushLast_Fulldoc) {
+TEST_P(SubdocPerfTest, Array_PushLast_Fulldoc) {
     store_object("list", "[]");
 
     // At each iteration create a new document with one more element in it,
@@ -453,7 +455,7 @@ TEST_F(SubdocPerfTest, Array_PushLast_Fulldoc) {
     delete_object("list");
 }
 
-TEST_F(SubdocPerfTest, Dict_Add_Fulldoc) {
+TEST_P(SubdocPerfTest, Dict_Add_Fulldoc) {
     store_object("dict", "{}");
 
     // At each iteration add another key to the dictionary, and SET the whole
@@ -481,7 +483,7 @@ TEST_F(SubdocPerfTest, Dict_Add_Fulldoc) {
 // Create an N-element array, then benchmark replacing (any) element. (For
 // fulldoc commands we are sending the whole document, so doesn't matter what
 // we replace).
-TEST_F(SubdocPerfTest, Array_Replace_Fulldoc) {
+TEST_P(SubdocPerfTest, Array_Replace_Fulldoc) {
     std::string list(subdoc_create_array(iterations));
     store_object("list", list.c_str());
 
@@ -493,3 +495,8 @@ TEST_F(SubdocPerfTest, Array_Replace_Fulldoc) {
 
     delete_object("list");
 }
+
+INSTANTIATE_TEST_CASE_P(SDPerf,
+                        SubdocPerfTest,
+                        ::testing::Values(TransportProtocols::McbpPlain),
+                        ::testing::PrintToStringParamName());

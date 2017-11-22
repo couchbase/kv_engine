@@ -260,7 +260,7 @@ uint64_t recv_subdoc_response(
     return header.response.cas;
 }
 
-::testing::AssertionResult subdoc_verify_cmd(
+::testing::AssertionResult SubdocTestappTest::subdoc_verify_cmd(
         const BinprotSubdocCommand& cmd,
         protocol_binary_response_status err,
         const std::string& value,
