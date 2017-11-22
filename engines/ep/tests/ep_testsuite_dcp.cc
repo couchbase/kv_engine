@@ -6212,8 +6212,17 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test MB-16357", test_mb16357,
                  test_setup, teardown, "compaction_exp_mem_threshold=85",
                  prepare, cleanup),
-        TestCase("test dcp early termination", test_dcp_early_termination,
-                 test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("test dcp early termination",
+                 test_dcp_early_termination,
+                 test_setup, teardown,
+                 // MB-26915: Disable RocksDB pre-allocation of disk space.
+                 // When 'allow_fallocate=true', RocksDB pre-allocates disk
+                 // space for the MANIFEST and WAL files. For this test (which
+                 // creates 100 DBs) it would be 75MB per DB, so ~7.5GB
+                 // in total.
+                 "rocksdb_options=allow_fallocate=false",
+                 prepare,
+                 cleanup),
         TestCase("test MB-17517 CAS -1 DCP",
                  test_mb17517_cas_minus_1_dcp,
                  test_setup,
