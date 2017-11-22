@@ -1330,6 +1330,23 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
         connection.getCookieObject().setCas(new_cas);
         break;
 
+    case ENGINE_NOT_STORED:
+        // If we tried an add for the item (because it didn't exists)
+        // we might race with another thread which started to add
+        // the document at the same time. (Note that for Set operations we
+        // have to use "add" to add the item to avoid race conditions with
+        // another thread trying to create the item at the same time.
+        //
+        // Adding documents will return NOT_STORED if the document already
+        // exist in the database. In the context of a Set operation we map
+        // the return code to EEXISTS which may cause the operation to be
+        // retried.
+        if (new_op == OPERATION_ADD &&
+            context.mutationSemantics == MutationSemantics::Set) {
+            ret = ENGINE_KEY_EEXISTS;
+        }
+        break;
+
     case ENGINE_KEY_EEXISTS:
         // CAS mismatch. Caller may choose to retry this (without necessarily
         // telling the client), so send so response here...

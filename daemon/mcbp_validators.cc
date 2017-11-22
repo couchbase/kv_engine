@@ -1289,6 +1289,21 @@ static protocol_binary_response_status unlock_validator(const Cookie& cookie)
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
+static protocol_binary_response_status evict_key_validator(const Cookie& cookie)
+{
+   auto& header = cookie.getHeader();
+    if (!header.isValid() || // Does the internal header fields add up?
+        header.getMagic() != PROTOCOL_BINARY_REQ || // It must be a request
+        header.getExtlen() != 0 || // extras is not allowed
+        header.getKeylen() == 0 || // must have key
+        header.getBodylen() != header.getKeylen() || // no value
+        header.getCas() != 0 || // Cas should not be set
+        header.getDatatype() != PROTOCOL_BINARY_RAW_BYTES) {
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+}
+
 static protocol_binary_response_status collections_set_manifest_validator(
         const Cookie& cookie) {
     auto packet = static_cast<protocol_binary_collections_set_manifest*>(
@@ -1403,6 +1418,8 @@ void McbpValidatorChains::initializeMcbpValidatorChains(McbpValidatorChains& cha
     chains.push_unique(PROTOCOL_BINARY_CMD_DELETE_BUCKET, delete_bucket_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_SELECT_BUCKET, select_bucket_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS, get_all_vb_seqnos_validator);
+
+    chains.push_unique(PROTOCOL_BINARY_CMD_EVICT_KEY, evict_key_validator);
 
     chains.push_unique(PROTOCOL_BINARY_CMD_GET_META, get_meta_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_GETQ_META, get_meta_validator);

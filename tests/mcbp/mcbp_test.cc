@@ -2856,5 +2856,63 @@ TEST_F(ConfigReloadValidatorTest, InvalidBody) {
     request.message.header.request.bodylen = htonl(4);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
+
+// PROTOCOL_BINARY_CMD_EVICT_KEY
+class EvictKeyValidatorTest : public ValidatorTest {
+    virtual void SetUp() override {
+        ValidatorTest::SetUp();
+        request.message.header.request.keylen = htons(10);
+        request.message.header.request.bodylen = htonl(10);
+        request.message.header.request.cas = 0;
+    }
+
+protected:
+    protocol_binary_response_status validate() {
+        return ValidatorTest::validate(PROTOCOL_BINARY_CMD_EVICT_KEY,
+                                       static_cast<void*>(&request));
+    }
+};
+
+TEST_F(EvictKeyValidatorTest, CorrectMessage) {
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
+}
+
+TEST_F(EvictKeyValidatorTest, InvalidMagic) {
+    request.message.header.request.magic = 0;
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+}
+
+TEST_F(EvictKeyValidatorTest, InvalidExtlen) {
+    request.message.header.request.extlen = 2;
+    request.message.header.request.bodylen = htonl(12);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+}
+
+TEST_F(EvictKeyValidatorTest, InvalidKey) {
+    request.message.header.request.keylen = 10;
+    request.message.header.request.bodylen = htonl(11);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+}
+
+TEST_F(EvictKeyValidatorTest, InvalidDatatype) {
+    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+}
+
+TEST_F(EvictKeyValidatorTest, InvalidCas) {
+    request.message.header.request.cas = 0xff;
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+}
+
+TEST_F(EvictKeyValidatorTest, InvalidBody) {
+    request.message.header.request.bodylen = htonl(4);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+}
+
+TEST_F(EvictKeyValidatorTest, InvalidBodylen) {
+    request.message.header.request.bodylen = htonl(1);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+}
+
 } // namespace test
 } // namespace mcbp

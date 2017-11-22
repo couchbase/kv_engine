@@ -19,7 +19,6 @@
 #include "settings.h"
 
 #include <array>
-#include <platform/cbassert.h>
 #include <platform/sized_buffer.h>
 #include <memcached/engine.h>
 #include <cJSON.h>

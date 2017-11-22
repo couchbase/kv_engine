@@ -57,3 +57,78 @@ TEST_P(RegressionTest, MB_26196) {
         FAIL() << "Expected system error to be thrown";
     }
 }
+
+/**
+ * MB-26828: Concurrent multi subdoc ops on same doc return not_stored error
+ *
+ * Subdoc use "add semantics" when trying to add the first version of a
+ * document to the engine even if the client is trying to perform a set
+ * with a CAS wildcard (in order to avoid racing on the set).
+ *
+ * The referenced bug identified a problem that the server didn't correctly
+ * retry the situation where two threads tried to create the same document.
+ *
+ * This test verifies that the fix did not affect the normal Add semantics
+ */
+TEST_P(RegressionTest, MB_26828_AddIsUnaffected) {
+    auto& conn = getConnection();
+
+    BinprotSubdocResponse resp;
+    BinprotSubdocMultiMutationCommand cmd;
+    cmd.setKey(name);
+
+    cmd.addDocFlag(mcbp::subdoc::doc_flag::Add);
+    cmd.addMutation(
+            PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
+            SUBDOC_FLAG_MKDIR_P,
+            "cron_timers",
+            R"({"callback_func": "NDtimerCallback", "payload": "doc_id_610"})");
+    conn.executeCommand(cmd, resp);
+
+    EXPECT_TRUE(resp.isSuccess()) << "Expected to work for Add";
+    // If we try it one more time, it should fail as we want to
+    // _ADD_ the doc if it isn't there
+    conn.executeCommand(cmd, resp);
+    EXPECT_FALSE(resp.isSuccess()) << "Add should fail when it isn't there";
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, resp.getStatus());
+}
+
+/**
+ * MB-26828: Concurrent multi subdoc ops on same doc return not_stored error
+ *
+ * Subdoc use "add semantics" when trying to add the first version of a
+ * document to the engine even if the client is trying to perform a set
+ * with a CAS wildcard (in order to avoid racing on the set).
+ *
+ * The referenced bug identified a problem that the server didn't correctly
+ * retry the situation where two threads tried to create the same document.
+ *
+ * This test verifies that the fix resolved the problem
+ */
+TEST_P(RegressionTest, MB_26828_SetIsFixed) {
+    auto& conn = getConnection();
+    BinprotSubdocResponse resp;
+    BinprotSubdocMultiMutationCommand cmd;
+    cmd.setKey(name);
+
+    // Configure the ewouldblock_engine to inject fake NOT STORED
+    // failure for the 3rd call (i.e. the 1st engine->store() attempt).
+    conn.configureEwouldBlockEngine(
+            EWBEngineMode::Sequence,
+            ENGINE_NOT_STORED,
+            0xffffffc4 /* <3 MSBytes all-ones>, 0b11,000,100 */);
+    cmd.addDocFlag(mcbp::subdoc::doc_flag::Mkdoc);
+
+    cmd.addMutation(
+            PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
+            SUBDOC_FLAG_MKDIR_P,
+            "cron_timers",
+            R"({"callback_func": "NDtimerCallback", "payload": "doc_id_610"})");
+    conn.executeCommand(cmd, resp);
+
+    EXPECT_TRUE(resp.isSuccess());
+    // Reset connection to make sure we're not affected by any ewb logic
+    conn = getConnection();
+    conn.executeCommand(cmd, resp);
+    EXPECT_TRUE(resp.isSuccess());
+}

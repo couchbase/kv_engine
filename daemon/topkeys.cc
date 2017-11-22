@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <cstring>
 #include <sys/types.h>
+#include <stdexcept>
 #include <stdlib.h>
 #include <inttypes.h>
 #include <platform/platform.h>
@@ -174,8 +175,9 @@ bool TopKeys::Shard::updateKey(const cb::const_char_buffer& key,
 void TopKeys::doUpdateKey(const void* key,
                           size_t nkey,
                           rel_time_t operation_time) {
-    cb_assert(key);
-    cb_assert(nkey > 0);
+    if (key == nullptr || nkey == 0) {
+        throw std::invalid_argument("TopKeys::doUpdateKey: must be specified");
+    }
 
     try {
         cb::const_char_buffer key_buf(static_cast<const char*>(key), nkey);
@@ -236,13 +238,16 @@ static void tk_iterfunc(const std::string& key, const topkey_item_t& it,
 static void tk_jsonfunc(const std::string& key, const topkey_item_t& it,
                         void* arg) {
     struct tk_context *c = (struct tk_context*)arg;
+    if (c->array == nullptr) {
+        throw std::invalid_argument("tk_jsonfunc: c->array can't be nullptr");
+    }
+
     cJSON *obj = cJSON_CreateObject();
     cJSON_AddItemToObject(obj, "key", cJSON_CreateString(key.c_str()));
     cJSON_AddItemToObject(obj, "access_count",
                           cJSON_CreateNumber(it.ti_access_count));
     cJSON_AddItemToObject(obj, "ctime", cJSON_CreateNumber(c->current_time
                                                            - it.ti_ctime));
-    cb_assert(c->array != NULL);
     cJSON_AddItemToArray(c->array, obj);
 }
 
