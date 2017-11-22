@@ -24,6 +24,8 @@
 #include "storeddockey.h"
 #include "utility.h"
 
+#include <memcached/3rd_party/folly/AtomicBitSet.h>
+
 #include <boost/intrusive/list.hpp>
 
 class Item;
@@ -139,21 +141,21 @@ public:
      * Mark this item as needing to be persisted.
      */
     void markDirty() {
-        _isDirty = 1;
+        bits.set(dirtyIndex, true);
     }
 
     /**
      * Mark this item as clean.
      */
     void markClean() {
-        _isDirty = 0;
+        bits.set(dirtyIndex, false);
     }
 
     /**
      * True if this object is dirty.
      */
     bool isDirty() const {
-        return _isDirty;
+        return bits.test(dirtyIndex);
     }
 
     bool eligibleForEviction(item_eviction_policy_t policy) {
@@ -254,7 +256,7 @@ public:
     void setValue(const Item& itm);
 
     void markDeleted() {
-        deleted = true;
+        setDeletedPriv(true);
         markDirty();
     }
 
@@ -436,12 +438,12 @@ public:
      * True if this value is resident in memory currently.
      */
     bool isResident() const {
-        return resident;
+        return bits.test(residentIndex);
     }
 
     void markNotResident() {
         resetValue();
-        resident = false;
+        setResident(false);
     }
 
     /// Discard the value from this document.
@@ -453,7 +455,7 @@ public:
      * True if this object is logically deleted.
      */
     bool isDeleted() const {
-        return deleted;
+        return bits.test(deletedIndex);
     }
 
     /**
@@ -477,14 +479,14 @@ public:
      * Return true if this is a new cache item.
      */
     bool isNewCacheItem() const {
-        return newCacheItem;
+        return bits.test(newCacheItemIndex);
     }
 
     /**
      * Set / reset a new cache item flag.
      */
     void setNewCacheItem(bool newitem) {
-        newCacheItem = newitem;
+        bits.set(newCacheItemIndex, newitem);
     }
 
     /**
@@ -515,7 +517,7 @@ public:
     boost::optional<item_info> getItemInfo(uint64_t vbuuid) const;
 
     void setNext(UniquePtr&& nextSv) {
-        if (stale) {
+        if (isStalePriv()) {
             throw std::logic_error(
                     "StoredValue::setNext: StoredValue is stale,"
                     "cannot set chain next value");
@@ -524,7 +526,7 @@ public:
     }
 
     UniquePtr& getNext() {
-        if (stale) {
+        if (isStalePriv()) {
             throw std::logic_error(
                     "StoredValue::getNext: StoredValue is stale,"
                     "cannot get chain next value");
@@ -642,6 +644,45 @@ protected:
      */
     void setValueImpl(const Item& itm);
 
+    // name clash with public OSV isStale
+    bool isStalePriv() const {
+        return bits.test(staleIndex);
+    }
+
+    void setStale(bool value) {
+        bits.set(staleIndex, value);
+    }
+
+    bool isOrdered() const {
+        return bits.test(orderedIndex);
+    }
+
+    void setOrdered(bool value) {
+        bits.set(orderedIndex, value);
+    }
+
+    void setDeletedPriv(bool value) {
+        bits.set(deletedIndex, value);
+    }
+
+    void setResident(bool value) {
+        bits.set(residentIndex, value);
+    }
+
+    void setDirty(bool value) {
+        bits.set(dirtyIndex, value);
+    }
+
+    void setNru(uint8_t nru) {
+        bits.set(nruIndex1, nru & 1);
+        bits.set(nruIndex2, (nru & 2) >> 1);
+    }
+
+    uint8_t getNru() const {
+        // Not atomic across the two bits, recommend holding the HBL
+        return bits.test(nruIndex1) | (bits.test(nruIndex2) << 1);
+    }
+
     friend class StoredValueFactory;
 
     value_t            value;          // 8 bytes
@@ -663,26 +704,25 @@ protected:
     uint32_t           exptime;        //!< Expiration time of this item.
     uint32_t           flags;          // 4 bytes
     protocol_binary_datatype_t datatype; // 1 byte
-    bool               _isDirty  :  1; // 1 bit
-    bool               deleted   :  1;
-    bool               newCacheItem : 1;
-    const bool isOrdered : 1; //!< Is this an instance of OrderedStoredValue?
-    uint8_t            nru       :  2; //!< True if referenced since last sweep
-    bool               resident :  1;
-    bool unused : 1; // Unused bits in first byte of bitfields.
 
-    // Indicates if a newer instance of the item is added. Logically part of
-    // OSV, but is physically located in SV as there are spare bytes here.
-    // Guarded by the SequenceList's writeLock.
-    // NOTE: As this is guarded by a different lock to the rest of the SV,
-    // it *must* be in a different byte than any other data not guarded by
-    // writeLock (Hence why this isn't in the same byte as _isDirty, deleted,
-    // newCacheItem etc). To achieve this std::atomic is used to ensure accesses
-    // are not "optimized" and merged with the previous byte. The thread-safety
-    // of std::atomic is not actually used/needed; we just need the no-merge
-    // guarantee.
-    // Note (2): Only 1 bit of this is currently used; rest is "spare".
-    std::atomic<bool> stale;
+    /**
+     * Compressed members live in the AtomicBitSet old comments for some members
+     * ordered := true if this is an instance of OrderedStoredValue
+     * stale := Indicates if a newer instance of the item is added. Logically
+     * part of OSV, but is physically located in SV as there are spare bits
+     * here. Guarded by the SequenceList's writeLock.
+     */
+    static constexpr size_t dirtyIndex = 0;
+    static constexpr size_t deletedIndex = 1;
+    static constexpr size_t newCacheItemIndex = 2;
+    static constexpr size_t orderedIndex = 3;
+    // 2 bit nru managed via setNru/getNru
+    static constexpr size_t nruIndex1 = 4;
+    static constexpr size_t nruIndex2 = 5;
+    static constexpr size_t residentIndex = 6;
+    static constexpr size_t staleIndex = 7;
+
+    folly::AtomicBitSet<sizeof(uint8_t)> bits;
 
     friend std::ostream& operator<<(std::ostream& os, const StoredValue& sv);
 };
@@ -701,7 +741,7 @@ public:
     boost::intrusive::list_member_hook<> seqno_hook;
 
     ~OrderedStoredValue() {
-        if (stale) {
+        if (isStalePriv()) {
             // This points to the replacement OSV which we do not actually own.
             // We are reusing a unique_ptr so we explicitly release it in this
             // case. We /do/ own the chain_next if we are not stale.
@@ -717,7 +757,7 @@ public:
      * param.
      */
     bool isStale(std::lock_guard<std::mutex>& writeGuard) const {
-        return stale;
+        return isStalePriv();
     }
 
     /**
@@ -732,12 +772,12 @@ public:
         // own the new SV. At destruction, we must release this ptr if
         // we are stale.
         chain_next_or_replacement.reset(newSv);
-        stale = true;
+        setStale(true);
     }
 
     StoredValue* getReplacementIfStale(
             std::lock_guard<std::mutex>& writeGuard) const {
-        if (!stale) {
+        if (!isStalePriv()) {
             return nullptr;
         }
 
@@ -817,7 +857,7 @@ private:
 
 SerialisedDocKey* StoredValue::key() {
     // key is located immediately following the object.
-    if (isOrdered) {
+    if (isOrdered()) {
         return static_cast<OrderedStoredValue*>(this)->key();
     } else {
         return reinterpret_cast<SerialisedDocKey*>(this + 1);
@@ -827,7 +867,7 @@ SerialisedDocKey* StoredValue::key() {
 size_t StoredValue::getObjectSize() const {
     // Size of fixed part of OrderedStoredValue or StoredValue, plus size of
     // (variable) key.
-    if (isOrdered) {
+    if (isOrdered()) {
         return sizeof(OrderedStoredValue) + getKey().getObjectSize();
     }
     return sizeof(*this) + getKey().getObjectSize();
