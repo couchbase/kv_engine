@@ -833,16 +833,17 @@ TEST_F(SingleThreadedEPBucketTest, MB19428_no_streams_against_dead_vbucket) {
         EXPECT_EQ(1, lpAuxioQ.getFutureQueueSize());
 
         uint64_t rollbackSeqno;
-        auto err = producer->streamRequest(/*flags*/0,
-                                           /*opaque*/0,
-                                           /*vbucket*/vbid,
-                                           /*start_seqno*/0,
-                                           /*end_seqno*/-1,
-                                           /*vb_uuid*/0xabcd,
-                                           /*snap_start*/0,
-                                           /*snap_end*/0,
-                                           &rollbackSeqno,
-                                           SingleThreadedEPBucketTest::fakeDcpAddFailoverLog);
+        auto err = producer->streamRequest(
+                /*flags*/ 0,
+                /*opaque*/ 0,
+                /*vbucket*/ vbid,
+                /*start_seqno*/ 0,
+                /*end_seqno*/ -1,
+                /*vb_uuid*/ 0,
+                /*snap_start*/ 0,
+                /*snap_end*/ 0,
+                &rollbackSeqno,
+                SingleThreadedEPBucketTest::fakeDcpAddFailoverLog);
 
         EXPECT_EQ(ENGINE_NOT_MY_VBUCKET, err) << "Unexpected error code";
 
@@ -949,12 +950,18 @@ TEST_F(SingleThreadedEPBucketTest, MB19892_BackfillNotDeleted) {
     // Actual stream request method (EvpDcpStreamReq) is static, so access via
     // the engine_interface.
     EXPECT_EQ(ENGINE_SUCCESS,
-              engine.get()->dcp.stream_req(
-                      &engine.get()->interface, cookie, /*flags*/0,
-                      /*opaque*/0, /*vbucket*/vbid, /*start_seqno*/0,
-                      /*end_seqno*/-1, /*vb_uuid*/0xabcd, /*snap_start*/0,
-                      /*snap_end*/0, &rollbackSeqno,
-                      dummy_dcp_add_failover_cb));
+              engine.get()->dcp.stream_req(&engine.get()->interface,
+                                           cookie,
+                                           /*flags*/ 0,
+                                           /*opaque*/ 0,
+                                           /*vbucket*/ vbid,
+                                           /*start_seqno*/ 0,
+                                           /*end_seqno*/ -1,
+                                           /*vb_uuid*/ 0,
+                                           /*snap_start*/ 0,
+                                           /*snap_end*/ 0,
+                                           &rollbackSeqno,
+                                           dummy_dcp_add_failover_cb));
 }
 
 /*
@@ -1150,11 +1157,17 @@ TEST_F(MB20054_SingleThreadedEPStoreTest, MB20054_onDeleteItem_during_bucket_del
     // Actual stream request method (EvpDcpStreamReq) is static, so access via
     // the engine_interface.
     EXPECT_EQ(ENGINE_SUCCESS,
-              engine->dcp.stream_req(&engine->interface, cookie, /*flags*/0,
-                                     /*opaque*/0, /*vbucket*/vbid,
-                                     /*start_seqno*/0, /*end_seqno*/-1,
-                                     /*vb_uuid*/0xabcd, /*snap_start*/0,
-                                     /*snap_end*/0, &rollbackSeqno,
+              engine->dcp.stream_req(&engine->interface,
+                                     cookie,
+                                     /*flags*/ 0,
+                                     /*opaque*/ 0,
+                                     /*vbucket*/ vbid,
+                                     /*start_seqno*/ 0,
+                                     /*end_seqno*/ -1,
+                                     /*vb_uuid*/ 0,
+                                     /*snap_start*/ 0,
+                                     /*snap_end*/ 0,
+                                     &rollbackSeqno,
                                      dummy_dcp_add_failover_cb));
 
     // FutureQ should now have an additional DCPBackfill task.
@@ -1322,15 +1335,16 @@ TEST_F(SingleThreadedEPBucketTest, stream_from_active_vbucket_only) {
         uint64_t rollbackSeqno;
         auto err = producer->streamRequest(/*flags*/
                                            DCP_ADD_STREAM_ACTIVE_VB_ONLY,
-                                           /*opaque*/0,
-                                           /*vbucket*/vbid,
-                                           /*start_seqno*/0,
-                                           /*end_seqno*/-1,
-                                           /*vb_uuid*/0xabcd,
-                                           /*snap_start*/0,
-                                           /*snap_end*/0,
+                                           /*opaque*/ 0,
+                                           /*vbucket*/ vbid,
+                                           /*start_seqno*/ 0,
+                                           /*end_seqno*/ -1,
+                                           /*vb_uuid*/ 0,
+                                           /*snap_start*/ 0,
+                                           /*snap_end*/ 0,
                                            &rollbackSeqno,
-                                           SingleThreadedEPBucketTest::fakeDcpAddFailoverLog);
+                                           SingleThreadedEPBucketTest::
+                                                   fakeDcpAddFailoverLog);
 
         if (it.second) {
             EXPECT_EQ(ENGINE_SUCCESS, err) << "Unexpected error code";

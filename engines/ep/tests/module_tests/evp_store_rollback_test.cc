@@ -441,7 +441,7 @@ public:
         }
         EXPECT_TRUE(streamRequestData.called);
         EXPECT_EQ(startSeqno, streamRequestData.start_seqno);
-        EXPECT_EQ(vbUUID, streamRequestData.vbucket_uuid);
+        EXPECT_EQ(startSeqno ? vbUUID : 0, streamRequestData.vbucket_uuid);
         streamRequestData = {};
     }
 
@@ -688,7 +688,7 @@ TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
                       /*vbucket*/ vbid,
                       /*start_seqno*/ 0,
                       /*end_seqno*/ ~0,
-                      /*vb_uuid*/ 0xabcd,
+                      /*vb_uuid*/ 0,
                       /*snap_start*/ 0,
                       /*snap_end*/ ~0,
                       &rollbackSeqno,
