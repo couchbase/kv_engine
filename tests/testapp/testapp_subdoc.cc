@@ -84,22 +84,22 @@ void test_subdoc_get_binary(bool compress,
     delete_object("binary");
 }
 
-TEST_P(McdTestappTest, SubdocGet_BinaryRaw) {
+TEST_P(SubdocTestappTest, SubdocGet_BinaryRaw) {
     test_subdoc_get_binary(/*compress*/ false,
                            PROTOCOL_BINARY_CMD_SUBDOC_GET,
                            getConnection());
 }
-TEST_P(McdTestappTest, SubdocGet_BinaryCompressed) {
+TEST_P(SubdocTestappTest, SubdocGet_BinaryCompressed) {
     test_subdoc_get_binary(
             /*compress*/ true, PROTOCOL_BINARY_CMD_SUBDOC_GET, getConnection());
 }
 
-TEST_P(McdTestappTest, SubdocExists_BinaryRaw) {
+TEST_P(SubdocTestappTest, SubdocExists_BinaryRaw) {
     test_subdoc_get_binary(/*compress*/ false,
                            PROTOCOL_BINARY_CMD_SUBDOC_EXISTS,
                            getConnection());
 }
-TEST_P(McdTestappTest, SubdocExists_BinaryCompressed) {
+TEST_P(SubdocTestappTest, SubdocExists_BinaryCompressed) {
     test_subdoc_get_binary(/*compress*/ true,
                            PROTOCOL_BINARY_CMD_SUBDOC_EXISTS,
                            getConnection());
@@ -157,20 +157,20 @@ void test_subdoc_fetch_array_simple(bool compressed, protocol_binary_command cmd
     delete_object("array");
 }
 
-TEST_P(McdTestappTest, SubdocGet_ArraySimpleRaw) {
+TEST_P(SubdocTestappTest, SubdocGet_ArraySimpleRaw) {
     test_subdoc_fetch_array_simple(/*compressed*/false,
                                    PROTOCOL_BINARY_CMD_SUBDOC_GET);
 }
-TEST_P(McdTestappTest, SubdocGet_ArraySimpleCompressed) {
+TEST_P(SubdocTestappTest, SubdocGet_ArraySimpleCompressed) {
     test_subdoc_fetch_array_simple(/*compressed*/true,
                                    PROTOCOL_BINARY_CMD_SUBDOC_GET);
 }
 
-TEST_P(McdTestappTest, SubdocExists_ArraySimpleRaw) {
+TEST_P(SubdocTestappTest, SubdocExists_ArraySimpleRaw) {
     test_subdoc_fetch_array_simple(/*compressed*/false,
                                    PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
 }
-TEST_P(McdTestappTest, SubdocExists_ArraySimpleCompressed) {
+TEST_P(SubdocTestappTest, SubdocExists_ArraySimpleCompressed) {
     test_subdoc_fetch_array_simple(/*compressed*/true,
                                    PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
 }
@@ -209,20 +209,20 @@ void test_subdoc_fetch_dict_simple(bool compressed,
     delete_object("dict");
 }
 
-TEST_P(McdTestappTest, SubdocGet_DictSimpleRaw) {
+TEST_P(SubdocTestappTest, SubdocGet_DictSimpleRaw) {
     test_subdoc_fetch_dict_simple(/*compressed*/false,
                                   PROTOCOL_BINARY_CMD_SUBDOC_GET);
 }
-TEST_P(McdTestappTest, SubdocGet_DictSimpleCompressed) {
+TEST_P(SubdocTestappTest, SubdocGet_DictSimpleCompressed) {
     test_subdoc_fetch_dict_simple(/*compressed*/true,
                                   PROTOCOL_BINARY_CMD_SUBDOC_GET);
 }
 
-TEST_P(McdTestappTest, SubdocExists_DictSimpleRaw) {
+TEST_P(SubdocTestappTest, SubdocExists_DictSimpleRaw) {
     test_subdoc_fetch_dict_simple(/*compressed*/false,
                                   PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
 }
-TEST_P(McdTestappTest, SubdocExists_DictSimpleCompressed) {
+TEST_P(SubdocTestappTest, SubdocExists_DictSimpleCompressed) {
     test_subdoc_fetch_dict_simple(/*compressed*/true,
                                   PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
 }
@@ -283,19 +283,19 @@ void test_subdoc_fetch_dict_nested(bool compressed,
     delete_object("dict2");
 }
 
-TEST_P(McdTestappTest, SubdocGet_DictNestedRaw) {
+TEST_P(SubdocTestappTest, SubdocGet_DictNestedRaw) {
     test_subdoc_fetch_dict_nested(/*compressed*/false,
                                   PROTOCOL_BINARY_CMD_SUBDOC_GET);
 }
-TEST_P(McdTestappTest, SubdocGet_DictNestedCompressed) {
+TEST_P(SubdocTestappTest, SubdocGet_DictNestedCompressed) {
     test_subdoc_fetch_dict_nested(/*compressed*/true,
                                   PROTOCOL_BINARY_CMD_SUBDOC_GET);
 }
-TEST_P(McdTestappTest, SubdocExists_DictNestedRaw) {
+TEST_P(SubdocTestappTest, SubdocExists_DictNestedRaw) {
     test_subdoc_fetch_dict_nested(/*compressed*/false,
                                   PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
 }
-TEST_P(McdTestappTest, SubdocExists_DictNestedCompressed) {
+TEST_P(SubdocTestappTest, SubdocExists_DictNestedCompressed) {
     test_subdoc_fetch_dict_nested(/*compressed*/true,
                                   PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
 }
@@ -350,10 +350,10 @@ void test_subdoc_fetch_dict_deep(protocol_binary_command cmd) {
     delete_object("too_deep_dict");
 }
 
-TEST_P(McdTestappTest, SubdocGet_DictDeep) {
+TEST_P(SubdocTestappTest, SubdocGet_DictDeep) {
     test_subdoc_fetch_dict_deep(PROTOCOL_BINARY_CMD_SUBDOC_GET);
 }
-TEST_P(McdTestappTest, SubdocExists_DictDeep) {
+TEST_P(SubdocTestappTest, SubdocExists_DictDeep) {
     test_subdoc_fetch_dict_deep(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
 }
 
@@ -408,10 +408,10 @@ void test_subdoc_fetch_array_deep(protocol_binary_command cmd) {
     delete_object("too_deep_array");
 }
 
-TEST_P(McdTestappTest, SubdocGet_ArrayDeep) {
+TEST_P(SubdocTestappTest, SubdocGet_ArrayDeep) {
     test_subdoc_fetch_array_deep(PROTOCOL_BINARY_CMD_SUBDOC_GET);
 }
-TEST_P(McdTestappTest, SubdocExists_ArrayDeep) {
+TEST_P(SubdocTestappTest, SubdocExists_ArrayDeep) {
     test_subdoc_fetch_array_deep(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
 }
 
@@ -581,36 +581,36 @@ void test_subdoc_dict_add_simple(bool compress, protocol_binary_command cmd) {
     delete_object("dict");
 }
 
-TEST_P(McdTestappTest, SubdocDictAdd_SimpleRaw) {
+TEST_P(SubdocTestappTest, SubdocDictAdd_SimpleRaw) {
     test_subdoc_dict_add_simple(/*compress*/false,
                                 PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD);
 }
 
-TEST_P(McdTestappTest, SubdocDictAdd_SimpleCompressed) {
+TEST_P(SubdocTestappTest, SubdocDictAdd_SimpleCompressed) {
     test_subdoc_dict_add_simple(/*compress*/true,
                                 PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD);
 }
 
-TEST_P(McdTestappTest, SubdocDictUpsert_SimpleRaw) {
+TEST_P(SubdocTestappTest, SubdocDictUpsert_SimpleRaw) {
     test_subdoc_dict_add_simple(/*compress*/false,
                                 PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT);
 }
 
-TEST_P(McdTestappTest, SubdocDictUpsert_SimpleCompressed) {
+TEST_P(SubdocTestappTest, SubdocDictUpsert_SimpleCompressed) {
     test_subdoc_dict_add_simple(/*compress*/true,
                                 PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT);
 }
 
 // Test FEATURE_MUTATION_SEQNO support.
-TEST_P(McdTestappTest, SubdocDictAdd_SimpleRaw_MutationSeqno) {
+TEST_P(SubdocTestappTest, SubdocDictAdd_SimpleRaw_MutationSeqno) {
     set_mutation_seqno_feature(true);
     test_subdoc_dict_add_simple(/*compress*/false,
                                 PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD);
     set_mutation_seqno_feature(false);
 }
 
-void McdTestappTest::test_subdoc_dict_add_cas(bool compress,
-                                              protocol_binary_command cmd) {
+void SubdocTestappTest::test_subdoc_dict_add_cas(bool compress,
+                                                 protocol_binary_command cmd) {
     ASSERT_TRUE((cmd == PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD) ||
                 (cmd == PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT));
 
@@ -657,24 +657,24 @@ void McdTestappTest::test_subdoc_dict_add_cas(bool compress,
     delete_object("dict");
 }
 
-TEST_P(McdTestappTest, SubdocDictAdd_CasRaw) {
+TEST_P(SubdocTestappTest, SubdocDictAdd_CasRaw) {
     test_subdoc_dict_add_cas(/*compress*/false,
                              PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD);
 }
-TEST_P(McdTestappTest, SubdocDictAdd_CasCompressed) {
+TEST_P(SubdocTestappTest, SubdocDictAdd_CasCompressed) {
     test_subdoc_dict_add_cas(/*compress*/true,
                              PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD);
 }
-TEST_P(McdTestappTest, SubdocDictUpsert_CasRaw) {
+TEST_P(SubdocTestappTest, SubdocDictUpsert_CasRaw) {
     test_subdoc_dict_add_cas(/*compress*/false,
                              PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT);
 }
-TEST_P(McdTestappTest, SubdocDictUpsert_CasCompressed) {
+TEST_P(SubdocTestappTest, SubdocDictUpsert_CasCompressed) {
     test_subdoc_dict_add_cas(/*compress*/true,
                              PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT);
 }
 
-TEST_P(McdTestappTest, SubdocAddFlag_BucketStoreCas) {
+TEST_P(SubdocTestappTest, SubdocAddFlag_BucketStoreCas) {
     // Check that if an item is set by another client after the fetch but
     // before the store then we return EEXISTS.
 
@@ -730,11 +730,11 @@ void test_subdoc_dict_add_upsert_deep(protocol_binary_command cmd) {
     delete_object("dict");
 }
 
-TEST_P(McdTestappTest, SubdocDictAdd_Deep) {
+TEST_P(SubdocTestappTest, SubdocDictAdd_Deep) {
     test_subdoc_dict_add_upsert_deep(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD);
 }
 
-TEST_P(McdTestappTest, SubdocDictUpsert_Deep) {
+TEST_P(SubdocTestappTest, SubdocDictUpsert_Deep) {
     test_subdoc_dict_add_upsert_deep(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT);
 }
 
@@ -793,16 +793,15 @@ void test_subdoc_delete_simple(bool compress) {
     delete_object("dict");
 }
 
-TEST_P(McdTestappTest, SubdocDelete_SimpleRaw) {
+TEST_P(SubdocTestappTest, SubdocDelete_SimpleRaw) {
     test_subdoc_delete_simple(/*compress*/false);
 }
 
-TEST_P(McdTestappTest, SubdocDelete_SimpleCompressed) {
+TEST_P(SubdocTestappTest, SubdocDelete_SimpleCompressed) {
     test_subdoc_delete_simple(/*compress*/true);
 }
 
-TEST_P(McdTestappTest, SubdocDelete_Array) {
-
+TEST_P(SubdocTestappTest, SubdocDelete_Array) {
     // Create an array, then test deleting elements.
     store_object("a", "[0,1,2,3,4]", /*compress*/ false);
 
@@ -843,7 +842,7 @@ TEST_P(McdTestappTest, SubdocDelete_Array) {
     delete_object("a");
 }
 
-TEST_P(McdTestappTest, SubdocDelete_ArrayNested) {
+TEST_P(SubdocTestappTest, SubdocDelete_ArrayNested) {
     // Nested array containing different objects.
     store_object("b",
                  "[0,[10,20,[100]],{\"key\":\"value\"}]",
@@ -877,8 +876,7 @@ const std::vector<std::string> JSON_VALUES({
     "false",
     "null"});
 
-TEST_P(McdTestappTest, SubdocReplace_SimpleDict)
-{
+TEST_P(SubdocTestappTest, SubdocReplace_SimpleDict) {
     // Simple dictionary, replace first element with various types.
     store_object("a", "{\"key\":0,\"key2\":1}", /*compress*/ false);
 
@@ -897,8 +895,7 @@ TEST_P(McdTestappTest, SubdocReplace_SimpleDict)
     delete_object("a");
 }
 
-TEST_P(McdTestappTest, SubdocReplace_SimpleArray)
-{
+TEST_P(SubdocTestappTest, SubdocReplace_SimpleArray) {
     // Simple array, replace first element with various types.
     store_object("a", "[0,1]", /*compress*/ false);
 
@@ -917,8 +914,7 @@ TEST_P(McdTestappTest, SubdocReplace_SimpleArray)
     delete_object("a");
 }
 
-TEST_P(McdTestappTest, SubdocReplace_ArrayDeep)
-{
+TEST_P(SubdocTestappTest, SubdocReplace_ArrayDeep) {
     // Test replacing in deeply nested arrays.
 
     // Create an array at one less than the maximum depth and an associated path.
@@ -949,8 +945,7 @@ TEST_P(McdTestappTest, SubdocReplace_ArrayDeep)
     delete_object("a");
 }
 
-TEST_P(McdTestappTest, SubdocArrayPushLast_Simple)
-{
+TEST_P(SubdocTestappTest, SubdocArrayPushLast_Simple) {
     // a). Empty array, append to it.
     store_object("a", "[]", /*compress*/ false);
     EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST)
@@ -1025,8 +1020,7 @@ TEST_P(McdTestappTest, SubdocArrayPushLast_Simple)
     delete_object("d");
 }
 
-TEST_P(McdTestappTest, SubdocArrayPushLast_Nested)
-{
+TEST_P(SubdocTestappTest, SubdocArrayPushLast_Nested) {
     // Operations on a nested array,
     // a). Begin with an empty nested array, append to it.
     store_object("a", "[[]]", /*compress*/ false);
@@ -1044,8 +1038,7 @@ TEST_P(McdTestappTest, SubdocArrayPushLast_Nested)
     delete_object("a");
 }
 
-TEST_P(McdTestappTest, SubdocArrayPushFirst_Simple)
-{
+TEST_P(SubdocTestappTest, SubdocArrayPushFirst_Simple) {
     // a). Empty array, prepend to it.
     store_object("a", "[]", /*compress*/ false);
     EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST, "a", "", "0"));
@@ -1115,8 +1108,7 @@ TEST_P(McdTestappTest, SubdocArrayPushFirst_Simple)
     delete_object("d");
 }
 
-TEST_P(McdTestappTest, SubdocArrayPushFirst_Nested)
-{
+TEST_P(SubdocTestappTest, SubdocArrayPushFirst_Nested) {
     // Operations on a nested array.
     // a). Begin with an empty nested array, prepend to it.
     store_object("a", "[[]]", /*compress*/ false);
@@ -1134,8 +1126,7 @@ TEST_P(McdTestappTest, SubdocArrayPushFirst_Nested)
     delete_object("a");
 }
 
-TEST_P(McdTestappTest, SubdocArrayAddUnique_Simple)
-{
+TEST_P(SubdocTestappTest, SubdocArrayAddUnique_Simple) {
     // Start with an array with a single element.
     store_object("a", "[]", /*compress*/ false);
 
@@ -1207,8 +1198,7 @@ TEST_P(McdTestappTest, SubdocArrayAddUnique_Simple)
     delete_object("d");
 }
 
-TEST_P(McdTestappTest, SubdocArrayInsert_Simple)
-{
+TEST_P(SubdocTestappTest, SubdocArrayInsert_Simple) {
     // Start with an empty array.
     store_object("a", "[]", /*compress*/ false);
 
@@ -1238,8 +1228,7 @@ TEST_P(McdTestappTest, SubdocArrayInsert_Simple)
     delete_object("a");
 }
 
-TEST_P(McdTestappTest, SubdocArrayInsert_Invalid)
-{
+TEST_P(SubdocTestappTest, SubdocArrayInsert_Invalid) {
     // Start with an empty array.
     store_object("a", "[]", /*compress*/ false);
 
@@ -1287,8 +1276,7 @@ TEST_P(McdTestappTest, SubdocArrayInsert_Invalid)
     delete_object("b");
 }
 
-TEST_P(McdTestappTest, SubdocGetCount)
-{
+TEST_P(SubdocTestappTest, SubdocGetCount) {
     // Start with an empty array.
     store_object("a", "[]", /*compress*/ false);
 
@@ -1344,11 +1332,11 @@ void test_subdoc_counter_simple() {
     delete_object("a");
 }
 
-TEST_P(McdTestappTest, SubdocCounter_Simple) {
+TEST_P(SubdocTestappTest, SubdocCounter_Simple) {
     test_subdoc_counter_simple();
 }
 
-TEST_P(McdTestappTest, SubdocCounter_Simple_MutationSeqno) {
+TEST_P(SubdocTestappTest, SubdocCounter_Simple_MutationSeqno) {
     set_mutation_seqno_feature(true);
     test_subdoc_counter_simple();
     set_mutation_seqno_feature(false);
@@ -1364,8 +1352,7 @@ static const std::vector<std::string> NOT_INTEGER({
     "1.1"
 });
 
-TEST_P(McdTestappTest, SubdocCounter_InvalidNotInt)
-{
+TEST_P(SubdocTestappTest, SubdocCounter_InvalidNotInt) {
     // Cannot increment things which are not integers.
     for (auto& val : NOT_INTEGER) {
         const std::string doc("{\"key\":" + val + "}");
@@ -1380,8 +1367,7 @@ TEST_P(McdTestappTest, SubdocCounter_InvalidNotInt)
     }
 }
 
-TEST_P(McdTestappTest, SubdocCounter_InvalidERange)
-{
+TEST_P(SubdocTestappTest, SubdocCounter_InvalidERange) {
     // Cannot increment things which are not representable as int64_t.
     const auto int64_max = std::numeric_limits<int64_t>::max();
 
@@ -1402,8 +1388,7 @@ TEST_P(McdTestappTest, SubdocCounter_InvalidERange)
     }
 }
 
-TEST_P(McdTestappTest, SubdocCounter_Limits)
-{
+TEST_P(SubdocTestappTest, SubdocCounter_Limits) {
     // a). Attempting to increment value one less than int64_t::MAX by one
     //     should succeed.
     const int64_t max = std::numeric_limits<int64_t>::max();
@@ -1446,8 +1431,7 @@ TEST_P(McdTestappTest, SubdocCounter_Limits)
     delete_object("b");
 }
 
-TEST_P(McdTestappTest, SubdocCounter_InvalidIncr)
-{
+TEST_P(SubdocTestappTest, SubdocCounter_InvalidIncr) {
     // Cannot increment by a non-numeric value.
     const std::string doc("{\"key\":10}");
     store_object("a", doc, /*compress*/ false);
@@ -1476,8 +1460,7 @@ TEST_P(McdTestappTest, SubdocCounter_InvalidIncr)
 // Test handling of the internal auto-retry when a CAS mismatch occurs due
 // to the underlying document changing between subdoc reading the initial value
 // and trying to write the new value (after applying the subdoc modification).
-TEST_P(McdTestappTest, SubdocCASAutoRetry)
-{
+TEST_P(SubdocTestappTest, SubdocCASAutoRetry) {
     // Store a simple dict value to operate on.
     store_object("a", "{}");
 
@@ -1509,8 +1492,7 @@ TEST_P(McdTestappTest, SubdocCASAutoRetry)
     delete_object("a");
 }
 
-TEST_P(McdTestappTest, SubdocMkdoc_Array)
-{
+TEST_P(SubdocTestappTest, SubdocMkdoc_Array) {
     // Create new document (array)
     ASSERT_SD_OK(
             BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
@@ -1536,7 +1518,7 @@ TEST_P(McdTestappTest, SubdocMkdoc_Array)
     delete_object("a");
 }
 
-TEST_P(McdTestappTest, SubdocMkdoc_Dict) {
+TEST_P(SubdocTestappTest, SubdocMkdoc_Dict) {
     // Create new document (dictionary)
     ASSERT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
                                       "a",
@@ -1570,7 +1552,7 @@ TEST_P(McdTestappTest, SubdocMkdoc_Dict) {
     delete_object("a");
 }
 
-TEST_P(McdTestappTest, SubdocMkdoc_Counter) {
+TEST_P(SubdocTestappTest, SubdocMkdoc_Counter) {
     // Counter should also work (with a path) + MKDIR_P
     ASSERT_SD_VALEQ(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
                                          "a",
@@ -1593,8 +1575,7 @@ TEST_P(McdTestappTest, SubdocMkdoc_Counter) {
 }
 
 // Test operation of setting document expiry for single-path commands.
-TEST_P(McdTestappTest, SubdocExpiry_Single)
-{
+TEST_P(SubdocTestappTest, SubdocExpiry_Single) {
     // Create two documents; one to be used for an exlicit 1s expiry and one
     // for an explicit 0s (i.e. never) expiry.
     store_object("ephemeral", "[\"a\"]");
@@ -1642,8 +1623,7 @@ TEST_P(McdTestappTest, SubdocExpiry_Single)
 }
 
 // Test handling of not-my-vbucket for a SUBDOC_GET
-TEST_P(McdTestappTest, SubdocGet_NotMyVbucket)
-{
+TEST_P(SubdocTestappTest, SubdocGet_NotMyVbucket) {
     const char array[] = "[0]";
     store_object("array", array);
 
@@ -1664,8 +1644,7 @@ TEST_P(McdTestappTest, SubdocGet_NotMyVbucket)
 }
 
 // Test handling of not-my-vbucket for a SUBDOC_DICT_ADD
-TEST_P(McdTestappTest, SubdocArrayPushLast_NotMyVbucket)
-{
+TEST_P(SubdocTestappTest, SubdocArrayPushLast_NotMyVbucket) {
     const char array[] = "[0]";
     store_object("array", array);
 
@@ -1692,8 +1671,7 @@ TEST_P(McdTestappTest, SubdocArrayPushLast_NotMyVbucket)
 }
 
 // Test that flags are preserved by subdoc mutation operations.
-TEST_P(McdTestappTest, SubdocFlags)
-{
+TEST_P(SubdocTestappTest, SubdocFlags) {
     const char array[] = "[0]";
     const uint32_t flags = 0xcafebabe;
     store_object_with_flags("array", array, flags);
@@ -1708,8 +1686,7 @@ TEST_P(McdTestappTest, SubdocFlags)
 }
 
 // Test that locked items are properly handled
-TEST_P(McdTestappTest, SubdocLockedItem)
-{
+TEST_P(SubdocTestappTest, SubdocLockedItem) {
     store_object("item", "{}", true);
 
     // Lock the object
@@ -1787,19 +1764,19 @@ static void test_subdoc_stats_command(protocol_binary_command cmd,
     delete_object("doc");
 }
 
-TEST_P(McdTestappTest, SubdocStatsLookupGet) {
+TEST_P(SubdocTestappTest, SubdocStatsLookupGet) {
     std::string doc("[10,11,12,13,14,15,16,17,18,19]");
     std::string response("10");
     test_subdoc_stats_command(PROTOCOL_BINARY_CMD_SUBDOC_GET, LOOKUP_TRAITS,
                               doc, "[0]", "", response,
                               doc.size(), response.size());
 }
-TEST_P(McdTestappTest, SubdocStatsLookupExists) {
+TEST_P(SubdocTestappTest, SubdocStatsLookupExists) {
     std::string doc("[10,11,12,13,14,15,16,17,18,19]");
     test_subdoc_stats_command(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS, LOOKUP_TRAITS,
                               doc, "[0]", "", "", doc.size(), 0);
 }
-TEST_P(McdTestappTest, SubdocStatsDictAdd) {
+TEST_P(SubdocTestappTest, SubdocStatsDictAdd) {
     std::string input("{\"foo\":1,\"bar\":2}");
     std::string path("baz");
     std::string fragment("3");
@@ -1808,7 +1785,7 @@ TEST_P(McdTestappTest, SubdocStatsDictAdd) {
                               MUTATION_TRAITS, input, path, fragment, "",
                               result.size(), fragment.size());
 }
-TEST_P(McdTestappTest, SubdocStatsDictUpsert) {
+TEST_P(SubdocTestappTest, SubdocStatsDictUpsert) {
     std::string input("{\"foo\":1,\"bar\":2}");
     std::string path("bar");
     std::string fragment("3");
@@ -1817,7 +1794,7 @@ TEST_P(McdTestappTest, SubdocStatsDictUpsert) {
                               MUTATION_TRAITS, input, path, fragment, "",
                               result.size(), fragment.size());
 }
-TEST_P(McdTestappTest, SubdocStatsDelete) {
+TEST_P(SubdocTestappTest, SubdocStatsDelete) {
     std::string input("{\"foo\":1,\"bar\":2,\"baz\":3}");
     std::string path("baz");
     std::string result("{\"foo\":1,\"bar\":2}");
@@ -1825,7 +1802,7 @@ TEST_P(McdTestappTest, SubdocStatsDelete) {
                                MUTATION_TRAITS, input, path, "", "",
                                result.size(), 0);
 }
-TEST_P(McdTestappTest, SubdocStatsReplace) {
+TEST_P(SubdocTestappTest, SubdocStatsReplace) {
     std::string input("{\"foo\":1,\"bar\":2}");
     std::string path("bar");
     std::string fragment("3");
@@ -1834,7 +1811,7 @@ TEST_P(McdTestappTest, SubdocStatsReplace) {
                               MUTATION_TRAITS, input, path, fragment, "",
                               result.size(), fragment.size());
 }
-TEST_P(McdTestappTest, SubdocStatsArrayPushLast) {
+TEST_P(SubdocTestappTest, SubdocStatsArrayPushLast) {
     std::string input("[10,11,12,13,14,15,16,17,18,19]");
     std::string fragment("20");
     std::string result("[10,11,12,13,14,15,16,17,18,19,20]");
@@ -1842,7 +1819,7 @@ TEST_P(McdTestappTest, SubdocStatsArrayPushLast) {
                                MUTATION_TRAITS, input, "", fragment, "",
                                result.size(), fragment.size());
 }
-TEST_P(McdTestappTest, SubdocStatsArrayPushFirst) {
+TEST_P(SubdocTestappTest, SubdocStatsArrayPushFirst) {
     std::string input("[10,11,12,13,14,15,16,17,18,19]");
     std::string fragment("9");
     std::string result("[9,10,11,12,13,14,15,16,17,18,19]");
@@ -1850,7 +1827,7 @@ TEST_P(McdTestappTest, SubdocStatsArrayPushFirst) {
                                MUTATION_TRAITS, input, "", fragment, "",
                                result.size(), fragment.size());
 }
-TEST_P(McdTestappTest, SubdocStatsArrayInsert) {
+TEST_P(SubdocTestappTest, SubdocStatsArrayInsert) {
     std::string input("[9,11,12,13,14,15,16,17,18,19]");
     std::string path("[0]");
     std::string fragment("10");
@@ -1859,7 +1836,7 @@ TEST_P(McdTestappTest, SubdocStatsArrayInsert) {
                                MUTATION_TRAITS, input, path, fragment, "",
                                result.size(), fragment.size());
 }
-TEST_P(McdTestappTest, SubdocStatsArrayAddUnique) {
+TEST_P(SubdocTestappTest, SubdocStatsArrayAddUnique) {
     std::string input("[10,11,12,13,14,15,16,17,18,19]");
     std::string fragment("20");
     std::string result("[10,11,12,13,14,15,16,17,18,19,20]");
@@ -1867,7 +1844,7 @@ TEST_P(McdTestappTest, SubdocStatsArrayAddUnique) {
                                MUTATION_TRAITS, input, "", fragment, "",
                                result.size(), fragment.size());
 }
-TEST_P(McdTestappTest, SubdocStatsCounter) {
+TEST_P(SubdocTestappTest, SubdocStatsCounter) {
     std::string input("{\"foo\":1,\"bar\":2}");
     std::string path("bar");
     std::string fragment("1");
@@ -1877,7 +1854,7 @@ TEST_P(McdTestappTest, SubdocStatsCounter) {
                                result.size(), fragment.size());
 }
 
-TEST_P(McdTestappTest, SubdocUTF8PathTest) {
+TEST_P(SubdocTestappTest, SubdocUTF8PathTest) {
     // Check that using UTF8 characters in the path works, which it should
 
     const char dict[] = "{ \"kéy1\": 1 }";
@@ -1892,7 +1869,7 @@ TEST_P(McdTestappTest, SubdocUTF8PathTest) {
     validate_object("dict", "{ \"kéy1\": 1 ,\"kéy2👏\":99}");
 }
 
-TEST_P(McdTestappTest, SubdocUTF8ValTest) {
+TEST_P(SubdocTestappTest, SubdocUTF8ValTest) {
     // Check that using UTF8 characters in the value works, which it should
 
     const char dict[] = "{ \"key1\": \"Ẇ̴̷̦͔͖͚̝̟̋̽ͪ̾ͤ̈́ͯͮͮ̀͗̌ͭ̾͜h̨̥̞͖̬̠͍͖̘̹͎͌̇̂̃ͯͣ͗̆̌̑ͨ̍̊ͪ̆̾̆̚͟͞ȧ̛̰̞̗̞̬̣̹͎̰̝͍͈̮̖̘̫̤̟͆̈́̒͗ͦ̋̓̌̊̋͝ͅţ͒ͮ͋̋̔̽ͥ̂ͭ̒̉̔̃ͫ̌̆̆҉̹͙̟̩̖̩̹̳̜͚̜̜ ͎̲͕̺̔̿̀͒̈́̏̌ͬͫ͒͂ͩͦ̀͝â̢̡̘̫̮̞̩̰̎ͨ̾ͤ̈́͑̉̈ͧ͆̃ͩ͆̚͡ ̧̢̛̙͔̰̹̲̱͔̤̝͖̥͚͓̲̪̯̟̖̏͒̽ͬ̂ͫͩͭ͋̏͊̽͗͊̀ͭ̋͘c̵̴͐̉̇͂̋ͬ̇̃͊ͨ͗̆̄̊́͏̡̡̫̦̦͉̼̙̜͉̯̮̪̫͍̩̼̘̫̻͍o̸̷͕̭̼̺̤͖͚̯̪̥̘̪̼̝̩̮͕̥̟̐͒̏ͭͦͮ̒ͧ̔̉̅̂͜͢͡o̷̢̡͕̟͓̺͚̟̱̜̻͇̘͍̤͓̲ͣͫ̾͛͗̅̐̏͑͆͌̀͜ͅͅͅl̴̡̙̹͖̈̄̌͒ͣ͒̅̏̕ ͛̐̿͋ͦ͛͌̄ͫ̒ͪ͊̀ͤ̀̿͏̶̡҉҉̤͎͖v̸̵̱͇̲͎̩͚̩͈̙̜̳̞̭̯̩̻̮̪ͯ̋̔͗̃̊ͬͮ̄̃͛̂̒̍͘͘a̦̝͇̙̬̬̰̪͙̗̟͙̝̬͛͂͑ͣ̓͑̏ͤ̑̀̚̚͘l͊̔́͋̋ͫ̈́̿̈̉̀͏̡͍͇̲̙̺̮͠uͬ̄̋̔ͪͧͥ͛ͭ̏̅ͫ͊̚͏̧͈̠̱͇͉̦̫͎͠ę̸͔̯̭̤͕̱͈̖͖̯̭̞͈͖ͨ̑̌̓̈ͮ͂̆̀͟ͅ\" }";
@@ -1903,10 +1880,11 @@ TEST_P(McdTestappTest, SubdocUTF8ValTest) {
     validate_object("dict", "{ \"key1\": \"Ẇ̴̷̦͔͖͚̝̟̋̽ͪ̾ͤ̈́ͯͮͮ̀͗̌ͭ̾͜h̨̥̞͖̬̠͍͖̘̹͎͌̇̂̃ͯͣ͗̆̌̑ͨ̍̊ͪ̆̾̆̚͟͞ȧ̛̰̞̗̞̬̣̹͎̰̝͍͈̮̖̘̫̤̟͆̈́̒͗ͦ̋̓̌̊̋͝ͅţ͒ͮ͋̋̔̽ͥ̂ͭ̒̉̔̃ͫ̌̆̆҉̹͙̟̩̖̩̹̳̜͚̜̜ ͎̲͕̺̔̿̀͒̈́̏̌ͬͫ͒͂ͩͦ̀͝â̢̡̘̫̮̞̩̰̎ͨ̾ͤ̈́͑̉̈ͧ͆̃ͩ͆̚͡ ̧̢̛̙͔̰̹̲̱͔̤̝͖̥͚͓̲̪̯̟̖̏͒̽ͬ̂ͫͩͭ͋̏͊̽͗͊̀ͭ̋͘c̵̴͐̉̇͂̋ͬ̇̃͊ͨ͗̆̄̊́͏̡̡̫̦̦͉̼̙̜͉̯̮̪̫͍̩̼̘̫̻͍o̸̷͕̭̼̺̤͖͚̯̪̥̘̪̼̝̩̮͕̥̟̐͒̏ͭͦͮ̒ͧ̔̉̅̂͜͢͡o̷̢̡͕̟͓̺͚̟̱̜̻͇̘͍̤͓̲ͣͫ̾͛͗̅̐̏͑͆͌̀͜ͅͅͅl̴̡̙̹͖̈̄̌͒ͣ͒̅̏̕ ͛̐̿͋ͦ͛͌̄ͫ̒ͪ͊̀ͤ̀̿͏̶̡҉҉̤͎͖v̸̵̱͇̲͎̩͚̩͈̙̜̳̞̭̯̩̻̮̪ͯ̋̔͗̃̊ͬͮ̄̃͛̂̒̍͘͘a̦̝͇̙̬̬̰̪͙̗̟͙̝̬͛͂͑ͣ̓͑̏ͤ̑̀̚̚͘l͊̔́͋̋ͫ̈́̿̈̉̀͏̡͍͇̲̙̺̮͠uͬ̄̋̔ͪͧͥ͛ͭ̏̅ͫ͊̚͏̧͈̠̱͇͉̦̫͎͠ę̸͔̯̭̤͕̱͈̖͖̯̭̞͈͖ͨ̑̌̓̈ͮ͂̆̀͟ͅ\" }");
 }
 
-INSTANTIATE_TEST_CASE_P(Subdoc,
-                        McdTestappTest,
-                        ::testing::Values(TransportProtocols::McbpPlain),
-                         ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_CASE_P(
+        Subdoc,
+        SubdocTestappTest,
+        ::testing::Values(TransportProtocols::McbpPlain),
+         ::testing::PrintToStringParamName());
 
 // Tests how a single worker handles multiple "concurrent" connections
 // performing operations.

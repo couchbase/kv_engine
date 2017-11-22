@@ -298,8 +298,6 @@ protected:
     /* Helpers for individual testcases */
     void test_set_huge_impl(const char *key, uint8_t cmd, int result,
                             bool pipeline, int iterations, int message_size);
-
-    void test_subdoc_dict_add_cas(bool compress, protocol_binary_command cmd);
 };
 
 SOCKET connect_to_server_plain(in_port_t port);

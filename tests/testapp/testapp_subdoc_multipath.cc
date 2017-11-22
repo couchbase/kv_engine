@@ -24,8 +24,7 @@
 #include "utilities/subdoc_encoder.h"
 
 // Test multi-path lookup command - simple single SUBDOC_GET
-TEST_P(McdTestappTest, SubdocMultiLookup_GetSingle)
-{
+TEST_P(SubdocTestappTest, SubdocMultiLookup_GetSingle) {
     store_object("dict", "{\"key1\":1,\"key2\":\"two\", \"key3\":3.0}");
 
     SubdocMultiLookupCmd lookup;
@@ -52,8 +51,7 @@ TEST_P(McdTestappTest, SubdocMultiLookup_GetSingle)
 }
 
 // Test multi-path lookup command - simple single SUBDOC_EXISTS
-TEST_P(McdTestappTest, SubdocMultiLookup_ExistsSingle)
-{
+TEST_P(SubdocTestappTest, SubdocMultiLookup_ExistsSingle) {
     store_object("dict", "{\"key1\":1,\"key2\":\"two\", \"key3\":3.0}");
 
     SubdocMultiLookupCmd lookup;
@@ -113,13 +111,12 @@ static void test_subdoc_multi_lookup_getmulti() {
     delete_object("dict");
 }
 // Test multi-path lookup - multiple GET lookups
-TEST_P(McdTestappTest, SubdocMultiLookup_GetMulti) {
+TEST_P(SubdocTestappTest, SubdocMultiLookup_GetMulti) {
     test_subdoc_multi_lookup_getmulti();
 }
 
 // Test multi-path lookup - multiple GET lookups with various invalid paths.
-TEST_P(McdTestappTest, SubdocMultiLookup_GetMultiInvalid)
-{
+TEST_P(SubdocTestappTest, SubdocMultiLookup_GetMultiInvalid) {
     store_object("dict", "{\"key1\":1,\"key2\":\"two\",\"key3\":[0,1,2]}");
 
     // Build a multi-path LOOKUP with a variety of invalid paths
@@ -144,8 +141,7 @@ TEST_P(McdTestappTest, SubdocMultiLookup_GetMultiInvalid)
 }
 
 // Test multi-path lookup - multiple EXISTS lookups
-TEST_P(McdTestappTest, SubdocMultiLookup_ExistsMulti)
-{
+TEST_P(SubdocTestappTest, SubdocMultiLookup_ExistsMulti) {
     auto dict = make_flat_dict(PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS + 1);
     auto* dict_str = cJSON_Print(dict.get());
     store_object("dict", dict_str);
@@ -179,8 +175,7 @@ TEST_P(McdTestappTest, SubdocMultiLookup_ExistsMulti)
 /******************* Multi-path mutation tests *******************************/
 
 // Test multi-path mutation command - simple single SUBDOC_DICT_ADD
-TEST_P(McdTestappTest, SubdocMultiMutation_DictAddSingle)
-{
+TEST_P(SubdocTestappTest, SubdocMultiMutation_DictAddSingle) {
     store_object("dict", "{}");
 
     SubdocMultiMutationCmd mutation;
@@ -196,8 +191,7 @@ TEST_P(McdTestappTest, SubdocMultiMutation_DictAddSingle)
 }
 
 // Test multi-path mutation command - simple multiple SUBDOC_DICT_ADD
-TEST_P(McdTestappTest, SubdocMultiMutation_DictAddMulti)
-{
+TEST_P(SubdocTestappTest, SubdocMultiMutation_DictAddMulti) {
     store_object("dict", "{}");
 
     SubdocMultiMutationCmd mutation;
@@ -257,12 +251,12 @@ static void test_subdoc_multi_mutation_dict_add_max() {
 
     delete_object("dict");
 }
-TEST_P(McdTestappTest, SubdocMultiMutation_DictAddMax) {
+TEST_P(SubdocTestappTest, SubdocMultiMutation_DictAddMax) {
     test_subdoc_multi_mutation_dict_add_max();
 }
 
 // Test attempting to add the same key twice in a multi-path command.
-TEST_P(McdTestappTest, SubdocMultiMutation_DictAddInvalidDuplicate) {
+TEST_P(SubdocTestappTest, SubdocMultiMutation_DictAddInvalidDuplicate) {
     store_object("dict", "{}");
 
     SubdocMultiMutationCmd mutation;
@@ -283,7 +277,7 @@ TEST_P(McdTestappTest, SubdocMultiMutation_DictAddInvalidDuplicate) {
 }
 
 // Test multi-path mutation command - 2x DictAdd with a Counter update
-TEST_P(McdTestappTest, SubdocMultiMutation_DictAddCounter) {
+TEST_P(SubdocTestappTest, SubdocMultiMutation_DictAddCounter) {
     store_object("dict", "{\"count\":0,\"items\":{}}");
 
     SubdocMultiMutationCmd mutation;
@@ -305,7 +299,7 @@ TEST_P(McdTestappTest, SubdocMultiMutation_DictAddCounter) {
 }
 
 // Test multi-path mutation command - 2x DictAdd with specific CAS.
-TEST_P(McdTestappTest, SubdocMultiMutation_DictAddCAS) {
+TEST_P(SubdocTestappTest, SubdocMultiMutation_DictAddCAS) {
     store_object("dict", "{\"int\":1}");
 
     // Use SUBDOC_EXISTS to obtain the current CAS.
@@ -390,18 +384,18 @@ void test_subdoc_multi_mutation_dictadd_delete() {
     delete_object("dict");
 }
 
-TEST_P(McdTestappTest, SubdocMultiMutation_DictAddDelete) {
+TEST_P(SubdocTestappTest, SubdocMultiMutation_DictAddDelete) {
     test_subdoc_multi_mutation_dictadd_delete();
 }
 
-TEST_P(McdTestappTest, SubdocMultiMutation_DictAddDelete_MutationSeqno) {
+TEST_P(SubdocTestappTest, SubdocMultiMutation_DictAddDelete_MutationSeqno) {
     set_mutation_seqno_feature(true);
     test_subdoc_multi_mutation_dictadd_delete();
     set_mutation_seqno_feature(false);
 }
 
 // Test support for expiration on multi-path commands.
-TEST_P(McdTestappTest, SubdocMultiMutation_Expiry) {
+TEST_P(SubdocTestappTest, SubdocMultiMutation_Expiry) {
     // Create two documents; one to be used for an exlicit 1s expiry and one
     // for an explicit 0s (i.e. never) expiry.
     store_object("ephemeral", "[\"a\"]");
@@ -456,7 +450,7 @@ TEST_P(McdTestappTest, SubdocMultiMutation_Expiry) {
 }
 
 // Test statistics support for multi-lookup commands
-TEST_P(McdTestappTest, SubdocStatsMultiLookup) {
+TEST_P(SubdocTestappTest, SubdocStatsMultiLookup) {
     // A multi-lookup counts as a single operation, irrespective of how many
     // path specs it contains.
 
@@ -480,7 +474,7 @@ TEST_P(McdTestappTest, SubdocStatsMultiLookup) {
 }
 
 // Test statistics support for multi-mutation commands
-TEST_P(McdTestappTest, SubdocStatsMultiMutation) {
+TEST_P(SubdocTestappTest, SubdocStatsMultiMutation) {
     // A multi-mutation counts as a single operation, irrespective of how many
     // path specs it contains.
 
@@ -504,7 +498,7 @@ TEST_P(McdTestappTest, SubdocStatsMultiMutation) {
 }
 
 // Test support for multi-mutations returning values - maximum spec count
-TEST_P(McdTestappTest, SubdocMultiMutation_MaxResultSpecValue) {
+TEST_P(SubdocTestappTest, SubdocMultiMutation_MaxResultSpecValue) {
     // Create an array of PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS counters.
     std::string input("[");
     std::string expected_json("[");
@@ -541,8 +535,7 @@ TEST_P(McdTestappTest, SubdocMultiMutation_MaxResultSpecValue) {
 }
 
 // Test that flags are preserved by subdoc multipath mutation operations.
-TEST_P(McdTestappTest, SubdocMultiMutation_Flags)
-{
+TEST_P(SubdocTestappTest, SubdocMultiMutation_Flags) {
     const uint32_t flags = 0xcafebabe;
     store_object_with_flags("array", "[]", flags);
 
@@ -560,7 +553,7 @@ TEST_P(McdTestappTest, SubdocMultiMutation_Flags)
 }
 
 // Test that you can create a document with the Add doc flag
-TEST_P(McdTestappTest, SubdocMultiMutation_AddDocFlag) {
+TEST_P(SubdocTestappTest, SubdocMultiMutation_AddDocFlag) {
     SubdocMultiMutationCmd mutation;
     mutation.addDocFlag(mcbp::subdoc::doc_flag::Add);
     mutation.key = "AddDocTest";
@@ -575,7 +568,7 @@ TEST_P(McdTestappTest, SubdocMultiMutation_AddDocFlag) {
 }
 
 // Test that a command with an Add doc flag fails if the key exists
-TEST_P(McdTestappTest, SubdocMultiMutation_AddDocFlagEEXists) {
+TEST_P(SubdocTestappTest, SubdocMultiMutation_AddDocFlagEEXists) {
     store_object("AddDocExistsTest", "[1,2,3,4]");
 
     SubdocMultiMutationCmd mutation;
@@ -597,7 +590,7 @@ TEST_P(McdTestappTest, SubdocMultiMutation_AddDocFlagEEXists) {
 }
 
 // An Addd doesn't make sense with a cas, check that it's rejected
-TEST_P(McdTestappTest, SubdocMultiMutation_AddDocFlagInavlidCas) {
+TEST_P(SubdocTestappTest, SubdocMultiMutation_AddDocFlagInavlidCas) {
     SubdocMultiMutationCmd mutation;
     mutation.addDocFlag(mcbp::subdoc::doc_flag::Add);
     mutation.key = "AddDocCas";
@@ -610,6 +603,6 @@ TEST_P(McdTestappTest, SubdocMultiMutation_AddDocFlagInavlidCas) {
 }
 
 INSTANTIATE_TEST_CASE_P(Subdoc,
-                        McdTestappTest,
+                        SubdocTestappTest,
                         ::testing::Values(TransportProtocols::McbpPlain),
                         ::testing::PrintToStringParamName());

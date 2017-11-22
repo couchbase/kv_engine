@@ -50,6 +50,11 @@ struct SubdocMultiMutationResult {
     std::string result;
 };
 
+class SubdocTestappTest : public McdTestappTest {
+protected:
+    void test_subdoc_dict_add_cas(bool compress, protocol_binary_command cmd);
+};
+
 /* Encodes and sends a sub-document command with the given parameters, receives
  * the response and validates that the status matches the expected one.
  * If expected_value is non-empty, also verifies that the response value equals
