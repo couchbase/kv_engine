@@ -436,14 +436,15 @@ static void append_bin_stats(const char* key,
                     builder.getFrame()->getBodylen());
 }
 
-
-static void append_stats(const char* key, const uint16_t klen,
-                         const char* val, const uint32_t vlen,
-                         const void* void_cookie) {
+static void append_stats(const char* key,
+                         const uint16_t klen,
+                         const char* val,
+                         const uint32_t vlen,
+                         gsl::not_null<const void*> void_cookie) {
     size_t needed;
 
-    auto& cookie =
-            *const_cast<Cookie*>(reinterpret_cast<const Cookie*>(void_cookie));
+    auto& cookie = *const_cast<Cookie*>(
+            reinterpret_cast<const Cookie*>(void_cookie.get()));
     needed = vlen + klen + sizeof(protocol_binary_response_header);
     if (!cookie.growDynamicBuffer(needed)) {
         return;
@@ -918,14 +919,12 @@ ENGINE_ERROR_CODE StatsCommandContext::get_stats(const cb::const_char_buffer& k)
         // Some backeds rely on key being nullptr if klen = 0
         return conn.getBucketEngine()->get_stats(conn.getBucketEngineAsV0(),
                                                  static_cast<void*>(&cookie),
-                                                 nullptr,
-                                                 0,
+                                                 {},
                                                  append_stats);
     } else {
         return conn.getBucketEngine()->get_stats(conn.getBucketEngineAsV0(),
                                                  static_cast<void*>(&cookie),
-                                                 k.data(),
-                                                 int(k.size()),
+                                                 {k.data(), k.size()},
                                                  append_stats);
     }
 }

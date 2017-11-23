@@ -46,8 +46,11 @@ bool add_response(const void *key, uint16_t keylen, const void *ext,
                   uint8_t datatype, uint16_t status, uint64_t cas,
                   const void *cookie);
 
-void add_stats(const char *key, const uint16_t klen, const char *val,
-               const uint32_t vlen, const void *cookie);
+void add_stats(const char* key,
+               const uint16_t klen,
+               const char* val,
+               const uint32_t vlen,
+               gsl::not_null<const void*> cookie);
 
 ENGINE_ERROR_CODE vb_map_response(const void *cookie, const void *map,
                                   size_t mapsize);
@@ -329,6 +332,10 @@ std::string get_str_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                          const char *statname, const char *statkey = NULL);
 bool get_bool_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                    const char *statname, const char *statkey = NULL);
+
+ENGINE_ERROR_CODE get_stats(gsl::not_null<ENGINE_HANDLE*> h,
+                            cb::const_char_buffer key,
+                            ADD_STAT callback);
 
 /* This is used to get stat info specified by 'histo_info' from histogram of
  * "statname" which is got by running stats on "statkey"

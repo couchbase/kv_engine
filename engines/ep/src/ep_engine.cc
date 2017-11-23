@@ -311,11 +311,11 @@ static ENGINE_ERROR_CODE EvpUnlock(gsl::not_null<ENGINE_HANDLE*> handle,
 }
 
 static ENGINE_ERROR_CODE EvpGetStats(gsl::not_null<ENGINE_HANDLE*> handle,
-                                     const void* cookie,
-                                     const char* stat_key,
-                                     int nkey,
+                                     gsl::not_null<const void*> cookie,
+                                     cb::const_char_buffer key,
                                      ADD_STAT add_stat) {
-    return acquireEngine(handle)->getStats(cookie, stat_key, nkey, add_stat);
+    return acquireEngine(handle)->getStats(
+            cookie, key.data(), gsl::narrow_cast<int>(key.size()), add_stat);
 }
 
 static ENGINE_ERROR_CODE EvpStore(gsl::not_null<ENGINE_HANDLE*> handle,

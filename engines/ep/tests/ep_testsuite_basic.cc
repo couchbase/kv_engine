@@ -266,9 +266,10 @@ static enum test_result test_max_size_and_water_marks_settings(
 static enum test_result test_whitespace_db(ENGINE_HANDLE *h,
                                            ENGINE_HANDLE_V1 *h1) {
     vals.clear();
+
     checkeq(ENGINE_SUCCESS,
-            h1->get_stats(h, NULL, NULL, 0, add_stats),
-           "Failed to get stats.");
+            get_stats(h, {}, add_stats),
+            "Failed to get stats.");
 
     std::string dbname;
     std::string policy;
@@ -292,8 +293,8 @@ static enum test_result test_whitespace_db(ENGINE_HANDLE *h,
 
     vals.clear();
     checkeq(ENGINE_SUCCESS,
-            h1->get_stats(h, NULL, NULL, 0, add_stats),
-           "Failed to get stats.");
+            get_stats(h, {}, add_stats),
+            "Failed to get stats.");
 
     if (vals["ep_dbname"] != dbname) {
         std::cerr << "Expected dbname = '" << dbname << "'"
@@ -728,7 +729,7 @@ static enum test_result test_unl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint16_t vbucketId = 0;
 
     checkeq(ENGINE_SUCCESS,
-            h1->get_stats(h, NULL, NULL, 0, add_stats),
+            get_stats(h, {}, add_stats),
             "Failed to get stats.");
 
     std::string eviction_policy;
@@ -1602,8 +1603,8 @@ static enum test_result test_delete_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
 
 static enum test_result test_get_delete_missing_file(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     checkeq(ENGINE_SUCCESS,
-            h1->get_stats(h, NULL, NULL, 0, add_stats),
-           "Failed to get stats.");
+            get_stats(h, {}, add_stats),
+            "Failed to get stats.");
 
     // TODO: This test needs to be skipped for forestdb as backend because
     // in that case we don't open and close on every operation. Thus, a get
@@ -1909,7 +1910,8 @@ static enum test_result test_flush_multiv(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     set_degraded_mode(h, h1, NULL, false);
 
     vals.clear();
-    checkeq(ENGINE_SUCCESS, h1->get_stats(h, NULL, NULL, 0, add_stats),
+    checkeq(ENGINE_SUCCESS,
+            get_stats(h, {}, add_stats),
             "Failed to get stats.");
     check(vals.find("ep_flush_all") != vals.end(),
           "Failed to get the status of flush_all");

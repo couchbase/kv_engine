@@ -158,7 +158,7 @@ static enum test_result test_replace_with_eviction(ENGINE_HANDLE *h,
             "Failed to replace existing value.");
 
     checkeq(ENGINE_SUCCESS,
-            h1->get_stats(h, NULL, NULL, 0, add_stats),
+            get_stats(h, {}, add_stats),
             "Failed to get stats.");
     std::string eviction_policy = vals.find("ep_item_eviction_policy")->second;
     if (eviction_policy == "full_eviction") {
@@ -1872,17 +1872,17 @@ static enum test_result test_stats_seqno(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 
     // Check invalid vbucket
     checkeq(ENGINE_NOT_MY_VBUCKET,
-            h1->get_stats(h, NULL, "vbucket-seqno 2", 15, add_stats),
+            get_stats(h, "vbucket-seqno 2"_ccb, add_stats),
             "Expected not my vbucket");
 
     // Check bad vbucket parameter (not numeric)
     checkeq(ENGINE_EINVAL,
-            h1->get_stats(h, NULL, "vbucket-seqno tt2", 17, add_stats),
+            get_stats(h, "vbucket-seqno tt2"_ccb, add_stats),
             "Expected invalid");
 
     // Check extra spaces at the end
     checkeq(ENGINE_EINVAL,
-            h1->get_stats(h, NULL, "vbucket-seqno    ", 17, add_stats),
+            get_stats(h, "vbucket-seqno    "_ccb, add_stats),
             "Expected invalid");
 
     return SUCCESS;
@@ -1913,15 +1913,15 @@ static enum test_result test_stats_diskinfo(ENGINE_HANDLE *h,
           "VB 1 data size should be greater than 0");
 
     checkeq(ENGINE_EINVAL,
-            h1->get_stats(h, NULL, "diskinfo ", 9, add_stats),
+            get_stats(h, "diskinfo "_ccb, add_stats),
             "Expected invalid");
 
     checkeq(ENGINE_EINVAL,
-            h1->get_stats(h, NULL, "diskinfo detai", 14, add_stats),
+            get_stats(h, "diskinfo detai"_ccb, add_stats),
             "Expected invalid");
 
     checkeq(ENGINE_EINVAL,
-            h1->get_stats(h, NULL, "diskinfo detaillll", 18, add_stats),
+            get_stats(h, "diskinfo detaillll"_ccb, add_stats),
             "Expected invalid");
 
     return SUCCESS;
@@ -1932,7 +1932,7 @@ static enum test_result test_uuid_stats(ENGINE_HANDLE *h,
 {
     vals.clear();
     checkeq(ENGINE_SUCCESS,
-            h1->get_stats(h, NULL, "uuid", 4, add_stats),
+            get_stats(h, "uuid"_ccb, add_stats),
             "Failed to get stats.");
     check(vals["uuid"] == "foobar", "Incorrect uuid");
     return SUCCESS;
@@ -1987,7 +1987,7 @@ static enum test_result test_item_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
 static enum test_result test_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     vals.clear();
     checkeq(ENGINE_SUCCESS,
-            h1->get_stats(h, NULL, NULL, 0, add_stats),
+            get_stats(h, {}, add_stats),
             "Failed to get stats.");
     check(vals.size() > 10, "Kind of expected more stats than that.");
 
@@ -2273,7 +2273,7 @@ static enum test_result test_key_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     // stat for key "k1" and vbucket "0"
     const char *statkey1 = "key k1 0";
     checkeq(ENGINE_SUCCESS,
-            h1->get_stats(h, cookie, statkey1, strlen(statkey1), add_stats),
+            h1->get_stats(h, cookie, {statkey1, strlen(statkey1)}, add_stats),
             "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
@@ -2284,7 +2284,7 @@ static enum test_result test_key_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     // stat for key "k2" and vbucket "1"
     const char *statkey2 = "key k2 1";
     checkeq(ENGINE_SUCCESS,
-            h1->get_stats(h, cookie, statkey2, strlen(statkey2), add_stats),
+            h1->get_stats(h, cookie, {statkey2, strlen(statkey2)}, add_stats),
             "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
@@ -2317,7 +2317,7 @@ static enum test_result test_vkey_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     // stat for key "k1" and vbucket "0"
     const char *statkey1 = "vkey k1 0";
     checkeq(ENGINE_SUCCESS,
-            h1->get_stats(h, cookie, statkey1, strlen(statkey1), add_stats),
+            h1->get_stats(h, cookie, {statkey1, strlen(statkey1)}, add_stats),
             "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
@@ -2329,7 +2329,7 @@ static enum test_result test_vkey_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     // stat for key "k2" and vbucket "1"
     const char *statkey2 = "vkey k2 1";
     checkeq(ENGINE_SUCCESS,
-            h1->get_stats(h, cookie, statkey2, strlen(statkey2), add_stats),
+            h1->get_stats(h, cookie, {statkey2, strlen(statkey2)}, add_stats),
             "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
@@ -2341,7 +2341,7 @@ static enum test_result test_vkey_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     // stat for key "k3" and vbucket "2"
     const char *statkey3 = "vkey k3 2";
     checkeq(ENGINE_SUCCESS,
-            h1->get_stats(h, cookie, statkey3, strlen(statkey3), add_stats),
+            h1->get_stats(h, cookie, {statkey3, strlen(statkey3)}, add_stats),
             "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
@@ -2353,7 +2353,7 @@ static enum test_result test_vkey_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     // stat for key "k4" and vbucket "3"
     const char *statkey4 = "vkey k4 3";
     checkeq(ENGINE_SUCCESS,
-            h1->get_stats(h, cookie, statkey4, strlen(statkey4), add_stats),
+            h1->get_stats(h, cookie, {statkey4, strlen(statkey4)}, add_stats),
             "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
@@ -2365,7 +2365,7 @@ static enum test_result test_vkey_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     // stat for key "k5" and vbucket "4"
     const char *statkey5 = "vkey k5 4";
     checkeq(ENGINE_SUCCESS,
-            h1->get_stats(h, cookie, statkey5, strlen(statkey5), add_stats),
+            h1->get_stats(h, cookie, {statkey5, strlen(statkey5)}, add_stats),
             "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
@@ -2531,7 +2531,7 @@ static enum test_result test_bloomfilters(ENGINE_HANDLE *h,
     cb_assert(5 == get_int_stat(h, h1, "curr_items"));
 
     checkeq(ENGINE_SUCCESS,
-            h1->get_stats(h, NULL, NULL, 0, add_stats),
+            get_stats(h, {}, add_stats),
             "Failed to get stats.");
     std::string eviction_policy = vals.find("ep_item_eviction_policy")->second;
 
@@ -2641,7 +2641,7 @@ static enum test_result test_bloomfilters_with_store_apis(ENGINE_HANDLE *h,
             "Expected no bgFetch attempts");
 
     checkeq(ENGINE_SUCCESS,
-            h1->get_stats(h, NULL, NULL, 0, add_stats),
+            get_stats(h, {}, add_stats),
             "Failed to get stats.");
     std::string eviction_policy = vals.find("ep_item_eviction_policy")->second;
 
@@ -2890,7 +2890,7 @@ static enum test_result test_access_scanner_settings(ENGINE_HANDLE *h,
 
     // Create a unique access log path by combining with the db path.
     checkeq(ENGINE_SUCCESS,
-            h1->get_stats(h, NULL, NULL, 0, add_stats),
+            get_stats(h, {}, add_stats),
             "Failed to get stats.");
     std::string dbname = vals.find("ep_dbname")->second;
 
@@ -2974,7 +2974,7 @@ static enum test_result test_access_scanner(ENGINE_HANDLE *h,
 
     // Create a unique access log path by combining with the db path.
     checkeq(ENGINE_SUCCESS,
-            h1->get_stats(h, NULL, NULL, 0, add_stats),
+            get_stats(h, {}, add_stats),
             "Failed to get stats.");
     const auto dbname = vals.find("ep_dbname")->second;
 
@@ -3007,7 +3007,7 @@ static enum test_result test_access_scanner(ENGINE_HANDLE *h,
             "Failed to set alog_task_time to 2 hours in the future");
 
     checkeq(ENGINE_SUCCESS,
-            h1->get_stats(h, NULL, NULL, 0, add_stats),
+            get_stats(h, {}, add_stats),
             "Failed to get stats.");
     std::string name = vals.find("ep_alog_path")->second;
 
@@ -3378,8 +3378,7 @@ static enum test_result test_cbd_225(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 static enum test_result test_workload_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const void* cookie = testHarness.create_cookie();
     checkeq(ENGINE_SUCCESS,
-            h1->get_stats(h, cookie, "workload",
-                          strlen("workload"), add_stats),
+            h1->get_stats(h, cookie, "workload"_ccb, add_stats),
             "Falied to get workload stats");
     testHarness.destroy_cookie(cookie);
     int num_read_threads = get_int_stat(h, h1, "ep_workload:num_readers",
@@ -3418,8 +3417,7 @@ static enum test_result test_workload_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
 static enum test_result test_max_workload_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const void* cookie = testHarness.create_cookie();
     checkeq(ENGINE_SUCCESS,
-            h1->get_stats(h, cookie, "workload",
-                          strlen("workload"), add_stats),
+            h1->get_stats(h, cookie, "workload"_ccb, add_stats),
             "Failed to get workload stats");
     testHarness.destroy_cookie(cookie);
     int num_read_threads = get_int_stat(h, h1, "ep_workload:num_readers",
@@ -3457,8 +3455,7 @@ static enum test_result test_max_workload_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_
 
 static enum test_result test_worker_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     checkeq(ENGINE_SUCCESS,
-            h1->get_stats(h, NULL, "dispatcher",
-                          strlen("dispatcher"), add_stats),
+            get_stats(h, "dispatcher"_ccb, add_stats),
             "Failed to get worker stats");
 
     std::set<std::string> tasklist;
@@ -3801,7 +3798,8 @@ static enum test_result test_value_eviction(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
             h1->unknown_command(h, NULL, pkt, add_response, testHarness.doc_namespace),
             "Failed to evict key.");
 
-    checkeq(ENGINE_SUCCESS, h1->get_stats(h, NULL, NULL, 0, add_stats),
+    checkeq(ENGINE_SUCCESS,
+            get_stats(h, {}, add_stats),
             "Failed to get stats.");
     std::string eviction_policy = vals.find("ep_item_eviction_policy")->second;
     if (eviction_policy == "value_only") {
@@ -4191,7 +4189,7 @@ static enum test_result test_regression_mb4314(ENGINE_HANDLE *h, ENGINE_HANDLE_V
 static enum test_result test_mb3466(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 {
     checkeq(ENGINE_SUCCESS,
-            h1->get_stats(h, NULL, NULL, 0, add_stats),
+            get_stats(h, {}, add_stats),
             "Failed to get stats.");
 
     check(vals.find("mem_used") != vals.end(),
@@ -4925,10 +4923,8 @@ static enum test_result test_stats_vkey_valid_field(ENGINE_HANDLE *h,
     // Check vkey when a key doesn't exist
     const char* stats_key = "vkey key 0";
     checkeq(ENGINE_KEY_ENOENT,
-            h1->get_stats(h, cookie, stats_key, strlen(stats_key),
-                          add_stats),
+            h1->get_stats(h, cookie, {stats_key, strlen(stats_key)}, add_stats),
             "Expected not found.");
-
 
     stop_persistence(h, h1);
 
@@ -4940,8 +4936,7 @@ static enum test_result test_stats_vkey_valid_field(ENGINE_HANDLE *h,
 
     // Check to make sure a non-persisted item is 'dirty'
     checkeq(ENGINE_SUCCESS,
-            h1->get_stats(h, cookie, stats_key, strlen(stats_key),
-                          add_stats),
+            h1->get_stats(h, cookie, {stats_key, strlen(stats_key)}, add_stats),
             "Failed to get stats.");
     check(vals.find("key_valid")->second.compare("dirty") == 0,
           "Expected 'dirty'");
@@ -4950,8 +4945,7 @@ static enum test_result test_stats_vkey_valid_field(ENGINE_HANDLE *h,
     start_persistence(h, h1);
     wait_for_stat_to_be(h, h1, "ep_total_persisted", 1);
     checkeq(ENGINE_SUCCESS,
-            h1->get_stats(h, cookie, stats_key, strlen(stats_key),
-                          add_stats),
+            h1->get_stats(h, cookie, {stats_key, strlen(stats_key)}, add_stats),
             "Failed to get stats.");
     check(vals.find("key_valid")->second.compare("valid") == 0,
           "Expected 'valid'");
@@ -4959,7 +4953,7 @@ static enum test_result test_stats_vkey_valid_field(ENGINE_HANDLE *h,
     // Check that an evicted key still returns valid
     evict_key(h, h1, "key", 0, "Ejected.");
     checkeq(ENGINE_SUCCESS,
-            h1->get_stats(h, cookie, "vkey key 0", 10, add_stats),
+            h1->get_stats(h, cookie, "vkey key 0"_ccb, add_stats),
             "Failed to get stats.");
     check(vals.find("key_valid")->second.compare("valid") == 0, "Expected 'valid'");
 
@@ -5441,10 +5435,7 @@ extern "C" {
 
 static enum test_result test_multiple_set_delete_with_metas_full_eviction(
                                     ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-
-    checkeq(ENGINE_SUCCESS,
-            h1->get_stats(h, NULL, NULL, 0, add_stats),
-            "Failed to get stats");
+    checkeq(ENGINE_SUCCESS, get_stats(h, {}, add_stats), "Failed to get stats");
     std::string eviction_policy = vals.find("ep_item_eviction_policy")->second;
     cb_assert(eviction_policy == "full_eviction");
 
@@ -5587,7 +5578,7 @@ static enum test_result test_keyStats_with_item_eviction(ENGINE_HANDLE *h,
     // stat for key "k1" and vbucket "0"
     const char *statkey1 = "key k1 0";
     checkeq(ENGINE_SUCCESS,
-            h1->get_stats(h, cookie, statkey1, strlen(statkey1), add_stats),
+            h1->get_stats(h, cookie, {statkey1, strlen(statkey1)}, add_stats),
             "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
@@ -7063,9 +7054,10 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
         // Fetch the statistics for each group.
         vals.clear();
         checkeq(ENGINE_SUCCESS,
-                h1->get_stats(h, nullptr, entry.first.empty() ?
-                                            nullptr : entry.first.data(),
-                              entry.first.size(), add_stats),
+                get_stats(h,
+                          {entry.first.empty() ? nullptr : entry.first.data(),
+                           entry.first.size()},
+                          add_stats),
                 (std::string("Failed to get stats: ") + entry.first).c_str());
 
         // Extract the keys from the fetched stats, and sort them.
@@ -7233,8 +7225,8 @@ static enum test_result test_mb19687_variable(ENGINE_HANDLE* h,
     for (const auto& entry : statsKeys) {
         vals.clear();
         checkeq(ENGINE_SUCCESS,
-                h1->get_stats(h, nullptr, entry.first.data(),
-                              entry.first.size(), add_stats),
+                get_stats(
+                        h, {entry.first.data(), entry.first.size()}, add_stats),
                 (std::string("Failed to get stats: ") + entry.first).c_str());
 
         // Verify that the stats we expected is there..
@@ -7259,7 +7251,7 @@ static enum test_result test_mb19687_variable(ENGINE_HANDLE* h,
 static enum test_result test_mb20697(ENGINE_HANDLE *h,
                                      ENGINE_HANDLE_V1 *h1) {
     checkeq(ENGINE_SUCCESS,
-            h1->get_stats(h, NULL, NULL, 0, add_stats),
+            get_stats(h, {}, add_stats),
             "Failed to get stats.");
 
     std::string dbname = vals["ep_dbname"];

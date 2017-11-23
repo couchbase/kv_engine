@@ -30,10 +30,12 @@ protected:
     std::unique_ptr<TopKeys> topkeys;
 };
 
-static void dump_key(const char* key, const uint16_t klen,
-                     const char* val, const uint32_t vlen,
-                     const void* cookie) {
-    size_t* count = static_cast<size_t*>(const_cast<void*>(cookie));
+static void dump_key(const char* key,
+                     const uint16_t klen,
+                     const char* val,
+                     const uint32_t vlen,
+                     gsl::not_null<const void*> cookie) {
+    size_t* count = static_cast<size_t*>(const_cast<void*>(cookie.get()));
     (*count)++;
 }
 

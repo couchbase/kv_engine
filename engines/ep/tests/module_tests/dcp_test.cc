@@ -1985,9 +1985,14 @@ TEST_P(ConnectionTest, test_mb20645_stats_after_closeAllStreams) {
     connMap.disconnect(cookie);
 
     // Try to read stats. Shouldn't crash.
-    producer->addStats([](const char *key, const uint16_t klen,
-                          const char *val, const uint32_t vlen,
-                          const void *cookie) {}, nullptr);
+    producer->addStats([](const char* key,
+                          const uint16_t klen,
+                          const char* val,
+                          const uint32_t vlen,
+                          gsl::not_null<const void*> cookie) {},
+                       // Cookie is not being used in the callback, but the
+                       // API requires it. Pass in the producer as cookie
+                       static_cast<const void*>(producer));
 
     destroy_mock_cookie(cookie);
 }

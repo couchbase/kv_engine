@@ -43,10 +43,12 @@ public:
     MOCK_CONST_METHOD2(Callback, void(std::string key, std::string value));
 
     // Static method to act as trampoline to the GoogleMock object method.
-    static void trampoline(const char *key, const uint16_t klen,
-                           const char *val, const uint32_t vlen,
-                           const void *cookie) {
-        auto* object = reinterpret_cast<const MockAddStat*>(cookie);
+    static void trampoline(const char* key,
+                           const uint16_t klen,
+                           const char* val,
+                           const uint32_t vlen,
+                           gsl::not_null<const void*> cookie) {
+        auto* object = reinterpret_cast<const MockAddStat*>(cookie.get());
         object->Callback({key, klen}, {val, vlen});
     }
 };

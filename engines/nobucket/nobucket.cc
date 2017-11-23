@@ -192,9 +192,8 @@ private:
     }
 
     static ENGINE_ERROR_CODE get_stats(gsl::not_null<ENGINE_HANDLE*>,
-                                       const void*,
-                                       const char*,
-                                       int,
+                                       gsl::not_null<const void*>,
+                                       cb::const_char_buffer key,
                                        ADD_STAT) {
         return ENGINE_NO_BUCKET;
     }

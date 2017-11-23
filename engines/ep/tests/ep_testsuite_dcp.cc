@@ -1099,8 +1099,7 @@ static enum test_result test_dcp_vbtakeover_no_stream(ENGINE_HANDLE *h,
     const auto est = get_int_stat(h, h1, "estimate", "dcp-vbtakeover 0");
     checkeq(10, est, "Invalid estimate for non-existent stream");
     checkeq(ENGINE_NOT_MY_VBUCKET,
-            h1->get_stats(h, nullptr, "dcp-vbtakeover 1",
-                          strlen("dcp-vbtakeover 1"), add_stats),
+            get_stats(h, "dcp-vbtakeover 1"_ccb, add_stats),
             "Expected not my vbucket");
 
     return SUCCESS;
@@ -3923,7 +3922,7 @@ static enum test_result test_dcp_get_failover_log(ENGINE_HANDLE *h,
     testHarness.destroy_cookie(cookie);
 
     checkeq(ENGINE_SUCCESS,
-            h1->get_stats(h, NULL, "failovers", 9, add_stats),
+            get_stats(h, "failovers"_ccb, add_stats),
             "Failed to get stats.");
 
     size_t i = 0;
@@ -5694,8 +5693,11 @@ static enum test_result test_mb19153(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static void mb19982_add_stat(const char *key, const uint16_t klen, const char *val,
-                      const uint32_t vlen, const void *cookie) {
+static void mb19982_add_stat(const char* key,
+                             const uint16_t klen,
+                             const char* val,
+                             const uint32_t vlen,
+                             gsl::not_null<const void*> cookie) {
     // do nothing
 }
 
@@ -5731,8 +5733,9 @@ static enum test_result test_mb19982(ENGINE_HANDLE *h,
 
     std::thread thread([h, h1, iterations]() {
         for (int ii = 0; ii < iterations; ii++) {
-            checkeq(h1->get_stats(h, NULL, "dcp", 3, &mb19982_add_stat),
-                    ENGINE_SUCCESS, "failed get_stats(dcp)");
+            checkeq(ENGINE_SUCCESS,
+                    get_stats(h, "dcp"_ccb, &mb19982_add_stat),
+                    "failed get_stats(dcp)");
         }
     });
 

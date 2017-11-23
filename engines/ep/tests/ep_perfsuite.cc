@@ -1150,14 +1150,14 @@ static void perf_stat_latency_core(ENGINE_HANDLE *h,
                 auto start = ProcessClock::now();
                 if (stat.first.compare("engine") == 0) {
                     checkeq(ENGINE_SUCCESS,
-                            h1->get_stats(h, cookie, nullptr, 0, add_stats),
+                            h1->get_stats(h, cookie, {}, add_stats),
                             "Failed to get engine stats");
                 } else {
                     checkeq(ENGINE_SUCCESS,
                             h1->get_stats(h,
                                           cookie,
-                                          stat.second.key.c_str(),
-                                          stat.second.key.length(),
+                                          {stat.second.key.c_str(),
+                                           stat.second.key.length()},
                                           add_stats),
                             (std::string("Failed to get stat:") +
                              stat.second.key)

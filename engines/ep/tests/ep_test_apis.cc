@@ -204,9 +204,11 @@ bool add_response_ret_meta(const void *key, uint16_t keylen, const void *ext,
                         status, cas, cookie);
 }
 
-void add_stats(const char *key, const uint16_t klen, const char *val,
-               const uint32_t vlen, const void *cookie) {
-    (void)cookie;
+void add_stats(const char* key,
+               const uint16_t klen,
+               const char* val,
+               const uint32_t vlen,
+               gsl::not_null<const void*>) {
     std::string k(key, klen);
     std::string v(val, vlen);
 
@@ -222,9 +224,11 @@ void add_stats(const char *key, const uint16_t klen, const char *val,
  * friends to lookup a specific stat. If `key` matches the requested key name,
  * then record its value in actual_stat_value.
  */
-void add_individual_stat(const char *key, const uint16_t klen, const char *val,
-               const uint32_t vlen, const void *cookie) {
-
+void add_individual_stat(const char* key,
+                         const uint16_t klen,
+                         const char* val,
+                         const uint32_t vlen,
+                         gsl::not_null<const void*>) {
     if (get_stat_context.actual_stat_value.empty() &&
             get_stat_context.requested_stat_name.compare(
                     0, get_stat_context.requested_stat_name.size(),
@@ -233,9 +237,11 @@ void add_individual_stat(const char *key, const uint16_t klen, const char *val,
     }
 }
 
-void add_individual_histo_stat(const char *key, const uint16_t klen,
-                               const char *val, const uint32_t vlen,
-                               const void *cookie) {
+void add_individual_histo_stat(const char* key,
+                               const uint16_t klen,
+                               const char* val,
+                               const uint32_t vlen,
+                               gsl::not_null<const void*> cookie) {
     /* Convert key to string */
     std::string key_str(key, klen);
     size_t pos1 = key_str.find(get_stat_context.requested_stat_name);
@@ -1125,8 +1131,10 @@ bool verify_vbucket_missing(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
         vals.clear();
     }
 
-    check(h1->get_stats(h, NULL, NULL, 0, add_stats) == ENGINE_SUCCESS,
+    const auto* cookie = testHarness.create_cookie();
+    check(h1->get_stats(h, cookie, {}, add_stats) == ENGINE_SUCCESS,
           "Failed to get stats.");
+    testHarness.destroy_cookie(cookie);
 
     {
         std::lock_guard<std::mutex> lh(vals_mutex);
@@ -1225,9 +1233,13 @@ std::string get_stat(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
     get_stat_context.requested_stat_name = statname;
     get_stat_context.actual_stat_value.clear();
 
-    ENGINE_ERROR_CODE err = h1->get_stats(h, NULL, statkey,
-                                          statkey == NULL ? 0 : strlen(statkey),
-                                          add_individual_stat);
+    const auto* cookie = testHarness.create_cookie();
+    ENGINE_ERROR_CODE err =
+            h1->get_stats(h,
+                          cookie,
+                          {statkey, statkey == NULL ? 0 : strlen(statkey)},
+                          add_individual_stat);
+    testHarness.destroy_cookie(cookie);
 
     if (err != ENGINE_SUCCESS) {
         throw engine_error(err);
@@ -1332,9 +1344,13 @@ static void get_histo_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
        Hence append _ */
     get_stat_context.requested_stat_name.append("_");
 
-    ENGINE_ERROR_CODE err = h1->get_stats(h, NULL, statkey,
-                                          statkey == NULL ? 0 : strlen(statkey),
-                                          add_individual_histo_stat);
+    const auto* cookie = testHarness.create_cookie();
+    ENGINE_ERROR_CODE err =
+            h1->get_stats(h,
+                          cookie,
+                          {statkey, statkey == NULL ? 0 : strlen(statkey)},
+                          add_individual_histo_stat);
+    testHarness.destroy_cookie(cookie);
 
     if (err != ENGINE_SUCCESS) {
         throw engine_error(err);
@@ -1349,9 +1365,13 @@ statistic_map get_all_stats(ENGINE_HANDLE *h,ENGINE_HANDLE_V1 *h1,
         std::lock_guard<std::mutex> lh(vals_mutex);
         vals.clear();
     }
-    ENGINE_ERROR_CODE err = h1->get_stats(h, NULL, statset,
-                                          statset == NULL ? 0 : strlen(statset),
-                                          add_stats);
+    const auto* cookie = testHarness.create_cookie();
+    ENGINE_ERROR_CODE err =
+            h1->get_stats(h,
+                          cookie,
+                          {statset, statset == NULL ? 0 : strlen(statset)},
+                          add_stats);
+    testHarness.destroy_cookie(cookie);
 
     if (err != ENGINE_SUCCESS) {
         throw engine_error(err);
@@ -1694,4 +1714,14 @@ void reset_stats(gsl::not_null<ENGINE_HANDLE*> h) {
     const auto* cookie = testHarness.create_cookie();
     h1->reset_stats(h, cookie);
     testHarness.destroy_cookie(cookie);
+}
+
+ENGINE_ERROR_CODE get_stats(gsl::not_null<ENGINE_HANDLE*> h,
+                            cb::const_char_buffer key,
+                            ADD_STAT callback) {
+    auto* h1 = reinterpret_cast<ENGINE_HANDLE_V1*>(h.get());
+    const auto* cookie = testHarness.create_cookie();
+    auto ret = h1->get_stats(h, cookie, key, callback);
+    testHarness.destroy_cookie(cookie);
+    return ret;
 }

@@ -98,9 +98,8 @@ static ENGINE_ERROR_CODE default_unlock(gsl::not_null<ENGINE_HANDLE*> handle,
                                         uint16_t vbucket,
                                         uint64_t cas);
 static ENGINE_ERROR_CODE default_get_stats(gsl::not_null<ENGINE_HANDLE*> handle,
-                                           const void* cookie,
-                                           const char* stat_key,
-                                           int nkey,
+                                           gsl::not_null<const void*> cookie,
+                                           cb::const_char_buffer key,
                                            ADD_STAT add_stat);
 static void default_reset_stats(gsl::not_null<ENGINE_HANDLE*> handle,
                                 gsl::not_null<const void*> cookie);
@@ -615,14 +614,13 @@ static ENGINE_ERROR_CODE default_unlock(gsl::not_null<ENGINE_HANDLE*> handle,
 }
 
 static ENGINE_ERROR_CODE default_get_stats(gsl::not_null<ENGINE_HANDLE*> handle,
-                                           const void* cookie,
-                                           const char* stat_key,
-                                           int nkey,
+                                           gsl::not_null<const void*> cookie,
+                                           cb::const_char_buffer key,
                                            ADD_STAT add_stat) {
     struct default_engine* engine = get_handle(handle);
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
-    if (stat_key == NULL) {
+    if (key.empty()) {
         char val[128];
         int len;
 
@@ -640,13 +638,13 @@ static ENGINE_ERROR_CODE default_get_stats(gsl::not_null<ENGINE_HANDLE*> handle,
         len = sprintf(val, "%" PRIu64, (uint64_t)engine->config.maxbytes);
         add_stat("engine_maxbytes", 15, val, len, cookie);
         cb_mutex_exit(&engine->stats.lock);
-    } else if (strncmp(stat_key, "slabs", 5) == 0) {
+    } else if (key == "slabs"_ccb) {
         slabs_stats(engine, add_stat, cookie);
-    } else if (strncmp(stat_key, "items", 5) == 0) {
+    } else if (key == "items"_ccb) {
         item_stats(engine, add_stat, cookie);
-    } else if (strncmp(stat_key, "sizes", 5) == 0) {
+    } else if (key == "sizes"_ccb) {
         item_stats_sizes(engine, add_stat, cookie);
-    } else if (strncmp(stat_key, "uuid", 4) == 0) {
+    } else if (key == "uuid"_ccb) {
         if (engine->config.uuid) {
             add_stat("uuid",
                      4,
@@ -656,7 +654,7 @@ static ENGINE_ERROR_CODE default_get_stats(gsl::not_null<ENGINE_HANDLE*> handle,
         } else {
             add_stat("uuid", 4, "", 0, cookie);
         }
-    } else if (strncmp(stat_key, "scrub", 5) == 0) {
+    } else if (key == "scrub"_ccb) {
         char val[128];
         int len;
 

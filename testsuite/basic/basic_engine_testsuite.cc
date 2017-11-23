@@ -429,10 +429,11 @@ static enum test_result item_set_cas_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
 }
 
 uint32_t evictions;
-static void eviction_stats_handler(const char *key, const uint16_t klen,
-                                   const char *val, const uint32_t vlen,
-                                   const void *cookie) {
-
+static void eviction_stats_handler(const char* key,
+                                   const uint16_t klen,
+                                   const char* val,
+                                   const uint32_t vlen,
+                                   gsl::not_null<const void*>) {
     if (strncmp(key, "evictions", klen) == 0) {
         char buffer[1024];
         memcpy(buffer, val, vlen);
@@ -481,8 +482,10 @@ static enum test_result lru_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                             &cas,
                             OPERATION_SET,
                             DocumentState::Alive) == ENGINE_SUCCESS);
-        cb_assert(h1->get_stats(h, NULL, NULL, 0,
-                             eviction_stats_handler) == ENGINE_SUCCESS);
+        const auto* cookie = test_harness.create_cookie();
+        cb_assert(h1->get_stats(h, cookie, {}, eviction_stats_handler) ==
+                  ENGINE_SUCCESS);
+        test_harness.destroy_cookie(cookie);
         if (evictions == 2) {
             break;
         }

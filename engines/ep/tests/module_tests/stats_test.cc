@@ -44,21 +44,22 @@ std::map<std::string, std::string> StatTest::get_stat(const char* statkey) {
                         const uint16_t klen,
                         const char* val,
                         const uint32_t vlen,
-                        const void* cookie) {
-        auto* stats = reinterpret_cast<StatMap*>(const_cast<void*>(cookie));
+                        gsl::not_null<const void*> cookie) {
+        auto* stats =
+                reinterpret_cast<StatMap*>(const_cast<void*>(cookie.get()));
         std::string k(key, klen);
         std::string v(val, vlen);
         (*stats)[k] = v;
     };
 
     ENGINE_HANDLE* handle = reinterpret_cast<ENGINE_HANDLE*>(engine.get());
-    EXPECT_EQ(ENGINE_SUCCESS,
-              engine->get_stats(handle,
-                                &stats,
-                                statkey,
-                                statkey == NULL ? 0 : strlen(statkey),
-                                add_stats))
-        << "Failed to get stats.";
+    EXPECT_EQ(
+            ENGINE_SUCCESS,
+            engine->get_stats(handle,
+                              &stats,
+                              {statkey, statkey == NULL ? 0 : strlen(statkey)},
+                              add_stats))
+            << "Failed to get stats.";
 
     return stats;
 }

@@ -357,19 +357,20 @@ static ENGINE_ERROR_CODE mock_unlock(gsl::not_null<ENGINE_HANDLE*> handle,
 }
 
 static ENGINE_ERROR_CODE mock_get_stats(gsl::not_null<ENGINE_HANDLE*> handle,
-                                        const void* cookie,
-                                        const char* stat_key,
-                                        int nkey,
+                                        gsl::not_null<const void*> cookie,
+                                        cb::const_char_buffer key,
                                         ADD_STAT add_stat) {
-    struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
     auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->get_stats,
                                get_engine_from_handle(handle),
-                               static_cast<const void*>(c),
-                               stat_key, nkey, add_stat);
+                               cookie,
+                               key,
+                               add_stat);
 
-    ENGINE_ERROR_CODE ret = call_engine_and_handle_EWOULDBLOCK(handle, c, engine_fn);
+    auto* construct =
+            reinterpret_cast<mock_connstruct*>(const_cast<void*>(cookie.get()));
 
-    check_and_destroy_mock_connstruct(c, cookie);
+    ENGINE_ERROR_CODE ret =
+            call_engine_and_handle_EWOULDBLOCK(handle, construct, engine_fn);
     return ret;
 }
 

@@ -935,13 +935,15 @@ extern "C" {
         std::map<std::string, std::string> smap;
     } snapshot_stats_t;
 
-    static void add_stat(const char *key, const uint16_t klen,
-                         const char *val, const uint32_t vlen,
-                         const void *cookie) {
+    static void add_stat(const char* key,
+                         const uint16_t klen,
+                         const char* val,
+                         const uint32_t vlen,
+                         gsl::not_null<const void*> cookie) {
         if (cookie == nullptr) {
             throw std::invalid_argument("add_stat: cookie is NULL");
         }
-        void *ptr = const_cast<void *>(cookie);
+        void* ptr = const_cast<void*>(cookie.get());
         snapshot_stats_t* snap = static_cast<snapshot_stats_t*>(ptr);
         ObjectRegistry::onSwitchThread(snap->engine);
 

@@ -1,8 +1,8 @@
 /* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#ifndef ENGINE_COMMON_H
-#define ENGINE_COMMON_H
+#pragma once
 
 #include <stdint.h>
+#include <gsl/gsl>
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,9 +24,11 @@ extern "C" {
      * @param vlen length of the value
      * @param cookie magic callback cookie
      */
-    typedef void (*ADD_STAT)(const char *key, const uint16_t klen,
-                             const char *val, const uint32_t vlen,
-                             const void *cookie);
+    typedef void (*ADD_STAT)(const char* key,
+                             const uint16_t klen,
+                             const char* val,
+                             const uint32_t vlen,
+                             gsl::not_null<const void*> cookie);
 
     /**
      * Callback for adding a response backet
@@ -54,5 +56,3 @@ extern "C" {
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* ENGINE_COMMON_H */

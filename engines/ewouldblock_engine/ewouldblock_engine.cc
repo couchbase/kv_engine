@@ -556,17 +556,16 @@ public:
     }
 
     static ENGINE_ERROR_CODE get_stats(gsl::not_null<ENGINE_HANDLE*> handle,
-                                       const void* cookie,
-                                       const char* stat_key,
-                                       int nkey,
+                                       gsl::not_null<const void*> cookie,
+                                       cb::const_char_buffer key,
                                        ADD_STAT add_stat) {
         EWB_Engine* ewb = to_engine(handle);
         ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
         if (ewb->should_inject_error(Cmd::GET_STATS, cookie, err)) {
             return err;
         } else {
-            return ewb->real_engine->get_stats(ewb->real_handle, cookie, stat_key,
-                                               nkey, add_stat);
+            return ewb->real_engine->get_stats(
+                    ewb->real_handle, cookie, key, add_stat);
         }
     }
 

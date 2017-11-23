@@ -510,17 +510,15 @@ typedef struct engine_interface_v1 {
      *
      * @param handle the engine handle
      * @param cookie The cookie provided by the frontend
-     * @param stat_key optional argument to stats
-     * @param nkey the length of the stat_key
+     * @param key optional argument to stats
      * @param add_stat callback to feed results to the output
      *
      * @return ENGINE_SUCCESS if all goes well
      */
     ENGINE_ERROR_CODE(*get_stats)
     (gsl::not_null<ENGINE_HANDLE*> handle,
-     const void* cookie,
-     const char* stat_key,
-     int nkey,
+     gsl::not_null<const void*> cookie,
+     cb::const_char_buffer key,
      ADD_STAT add_stat);
 
     /**

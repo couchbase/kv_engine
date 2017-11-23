@@ -125,22 +125,27 @@ static ENGINE_ERROR_CODE storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 }
 
 extern "C" {
-    static void add_stats(const char *key, const uint16_t klen,
-                          const char *val, const uint32_t vlen,
-                          const void *cookie) {
-        (void)cookie;
-        std::string k(key, klen);
-        std::string v(val, vlen);
-        vals[k] = v;
+static void add_stats(const char* key,
+                      const uint16_t klen,
+                      const char* val,
+                      const uint32_t vlen,
+                      gsl::not_null<const void*>) {
+    std::string k(key, klen);
+    std::string v(val, vlen);
+    vals[k] = v;
     }
 }
 
 static int get_int_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                         const char *statname, const char *statkey = NULL) {
     vals.clear();
-    check(h1->get_stats(h, NULL, statkey, statkey == NULL ? 0 : strlen(statkey),
+    const auto* cookie = testHarness.create_cookie();
+    check(h1->get_stats(h,
+                        cookie,
+                        {statkey, statkey == NULL ? 0 : strlen(statkey)},
                         add_stats) == ENGINE_SUCCESS,
           "Failed to get stats.");
+    testHarness.destroy_cookie(cookie);
     std::string s = vals[statname];
     return atoi(s.c_str());
 }

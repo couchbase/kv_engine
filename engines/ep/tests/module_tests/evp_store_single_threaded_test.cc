@@ -830,13 +830,18 @@ TEST_F(SingleThreadedEPBucketTest, MB19815_doDcpVbTakeoverStats) {
 
     // [[3]] Ok, let's see if we can get DCP takeover stats.
     // Dummy callback to pass into the stats function below.
-    auto dummy_cb = [](const char *key, const uint16_t klen,
-                          const char *val, const uint32_t vlen,
-                          const void *cookie) {};
+    auto dummy_cb = [](const char* key,
+                       const uint16_t klen,
+                       const char* val,
+                       const uint32_t vlen,
+                       gsl::not_null<const void*> cookie) {};
     std::string key{"MB19815_doDCPVbTakeoverStats"};
 
-    EXPECT_NO_THROW(engine->public_doDcpVbTakeoverStats
-                    (nullptr, dummy_cb, key, vbid));
+    // We can't call stats with a nullptr as the cookie. Given that
+    // the callback don't use the cookie "at all" we can just use the key
+    // as the cookie
+    EXPECT_NO_THROW(engine->public_doDcpVbTakeoverStats(
+            static_cast<const void*>(key.c_str()), dummy_cb, key, vbid));
 
     // Cleanup - run flusher.
     EXPECT_EQ(0, getEPBucket().flushVBucket(vbid));
