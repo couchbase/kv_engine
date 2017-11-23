@@ -59,18 +59,19 @@ static ENGINE_HANDLE* get_engine_from_handle(ENGINE_HANDLE* handle) {
     return reinterpret_cast<ENGINE_HANDLE*>(get_handle(handle)->the_engine);
 }
 
-static const engine_info* mock_get_info(ENGINE_HANDLE* handle) {
+static const engine_info* mock_get_info(gsl::not_null<ENGINE_HANDLE*> handle) {
     struct mock_engine *me = get_handle(handle);
     return me->the_engine->get_info((ENGINE_HANDLE*)me->the_engine);
 }
 
-static ENGINE_ERROR_CODE mock_initialize(ENGINE_HANDLE* handle,
+static ENGINE_ERROR_CODE mock_initialize(gsl::not_null<ENGINE_HANDLE*> handle,
                                          const char* config_str) {
     struct mock_engine *me = get_handle(handle);
     return me->the_engine->initialize((ENGINE_HANDLE*)me->the_engine, config_str);
 }
 
-static void mock_destroy(ENGINE_HANDLE* handle, const bool force) {
+static void mock_destroy(gsl::not_null<ENGINE_HANDLE*> handle,
+                         const bool force) {
     struct mock_engine *me = get_handle(handle);
     me->the_engine->destroy((ENGINE_HANDLE*)me->the_engine, force);
 }
@@ -110,7 +111,7 @@ void check_and_destroy_mock_connstruct(struct mock_connstruct* c, const void* co
  **/
 template <typename T>
 static std::pair<cb::engine_errc, T> do_blocking_engine_call(
-        ENGINE_HANDLE* handle,
+        gsl::not_null<ENGINE_HANDLE*> handle,
         struct mock_connstruct* c,
         std::function<std::pair<cb::engine_errc, T>()> engine_function) {
     c->nblocks = 0;
@@ -132,7 +133,7 @@ static std::pair<cb::engine_errc, T> do_blocking_engine_call(
 }
 
 static ENGINE_ERROR_CODE call_engine_and_handle_EWOULDBLOCK(
-        ENGINE_HANDLE* handle,
+        gsl::not_null<ENGINE_HANDLE*> handle,
         struct mock_connstruct* c,
         std::function<ENGINE_ERROR_CODE()> engine_function) {
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
@@ -151,14 +152,15 @@ static ENGINE_ERROR_CODE call_engine_and_handle_EWOULDBLOCK(
     return ret;
 }
 
-static cb::EngineErrorItemPair mock_allocate(ENGINE_HANDLE* handle,
-                                             const void* cookie,
-                                             const DocKey& key,
-                                             const size_t nbytes,
-                                             const int flags,
-                                             const rel_time_t exptime,
-                                             uint8_t datatype,
-                                             uint16_t vbucket) {
+static cb::EngineErrorItemPair mock_allocate(
+        gsl::not_null<ENGINE_HANDLE*> handle,
+        const void* cookie,
+        const DocKey& key,
+        const size_t nbytes,
+        const int flags,
+        const rel_time_t exptime,
+        uint8_t datatype,
+        uint16_t vbucket) {
     struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
     auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->allocate,
                                get_engine_from_handle(handle),
@@ -178,15 +180,16 @@ static cb::EngineErrorItemPair mock_allocate(ENGINE_HANDLE* handle,
     return ret;
 }
 
-static std::pair<cb::unique_item_ptr, item_info> mock_allocate_ex(ENGINE_HANDLE* handle,
-                 const void* cookie,
-                 const DocKey& key,
-                 const size_t nbytes,
-                 const size_t priv_nbytes,
-                 const int flags,
-                 const rel_time_t exptime,
-                 uint8_t datatype,
-                 uint16_t vbucket) {
+static std::pair<cb::unique_item_ptr, item_info> mock_allocate_ex(
+        gsl::not_null<ENGINE_HANDLE*> handle,
+        const void* cookie,
+        const DocKey& key,
+        const size_t nbytes,
+        const size_t priv_nbytes,
+        const int flags,
+        const rel_time_t exptime,
+        uint8_t datatype,
+        uint16_t vbucket) {
     struct mock_connstruct* c = get_or_create_mock_connstruct(cookie);
     auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->allocate_ex,
                                get_engine_from_handle(handle),
@@ -213,13 +216,12 @@ static std::pair<cb::unique_item_ptr, item_info> mock_allocate_ex(ENGINE_HANDLE*
     throw std::logic_error("mock_allocate_ex: Should never get here");
 }
 
-static ENGINE_ERROR_CODE mock_remove(ENGINE_HANDLE* handle,
+static ENGINE_ERROR_CODE mock_remove(gsl::not_null<ENGINE_HANDLE*> handle,
                                      const void* cookie,
                                      const DocKey& key,
                                      uint64_t* cas,
                                      uint16_t vbucket,
-                                     mutation_descr_t* mut_info)
-{
+                                     mutation_descr_t* mut_info) {
     struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
     auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->remove,
                                get_engine_from_handle(handle),
@@ -233,12 +235,13 @@ static ENGINE_ERROR_CODE mock_remove(ENGINE_HANDLE* handle,
     return ret;
 }
 
-static void mock_release(ENGINE_HANDLE* handle, item* item) {
+static void mock_release(gsl::not_null<ENGINE_HANDLE*> handle,
+                         gsl::not_null<item*> item) {
     struct mock_engine *me = get_handle(handle);
     me->the_engine->release((ENGINE_HANDLE*)me->the_engine, item);
 }
 
-static cb::EngineErrorItemPair mock_get(ENGINE_HANDLE* handle,
+static cb::EngineErrorItemPair mock_get(gsl::not_null<ENGINE_HANDLE*> handle,
                                         const void* cookie,
                                         const DocKey& key,
                                         uint16_t vbucket,
@@ -258,12 +261,12 @@ static cb::EngineErrorItemPair mock_get(ENGINE_HANDLE* handle,
     return ret;
 }
 
-static cb::EngineErrorItemPair mock_get_if(ENGINE_HANDLE* handle,
-                                           const void* cookie,
-                                           const DocKey& key,
-                                           uint16_t vbucket,
-                                           std::function<bool(
-                                               const item_info&)> filter) {
+static cb::EngineErrorItemPair mock_get_if(
+        gsl::not_null<ENGINE_HANDLE*> handle,
+        const void* cookie,
+        const DocKey& key,
+        uint16_t vbucket,
+        std::function<bool(const item_info&)> filter) {
     struct mock_connstruct* c = get_or_create_mock_connstruct(cookie);
     auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->get_if,
                                get_engine_from_handle(handle),
@@ -278,11 +281,12 @@ static cb::EngineErrorItemPair mock_get_if(ENGINE_HANDLE* handle,
     return ret;
 }
 
-static cb::EngineErrorItemPair mock_get_and_touch(ENGINE_HANDLE* handle,
-                                                  const void* cookie,
-                                                  const DocKey& key,
-                                                  uint16_t vbucket,
-                                                  uint32_t expiry_time) {
+static cb::EngineErrorItemPair mock_get_and_touch(
+        gsl::not_null<ENGINE_HANDLE*> handle,
+        const void* cookie,
+        const DocKey& key,
+        uint16_t vbucket,
+        uint32_t expiry_time) {
     struct mock_connstruct* c = get_or_create_mock_connstruct(cookie);
     auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->get_and_touch,
                                get_engine_from_handle(handle),
@@ -297,11 +301,12 @@ static cb::EngineErrorItemPair mock_get_and_touch(ENGINE_HANDLE* handle,
     return ret;
 }
 
-static cb::EngineErrorItemPair mock_get_locked(ENGINE_HANDLE* handle,
-                                               const void* cookie,
-                                               const DocKey& key,
-                                               uint16_t vbucket,
-                                               uint32_t lock_timeout) {
+static cb::EngineErrorItemPair mock_get_locked(
+        gsl::not_null<ENGINE_HANDLE*> handle,
+        const void* cookie,
+        const DocKey& key,
+        uint16_t vbucket,
+        uint32_t lock_timeout) {
     struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
     auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->get_locked,
                                get_engine_from_handle(handle),
@@ -317,10 +322,11 @@ static cb::EngineErrorItemPair mock_get_locked(ENGINE_HANDLE* handle,
     return ret;
 }
 
-static cb::EngineErrorMetadataPair mock_get_meta(ENGINE_HANDLE* handle,
-                                                 const void* cookie,
-                                                 const DocKey& key,
-                                                 uint16_t vbucket) {
+static cb::EngineErrorMetadataPair mock_get_meta(
+        gsl::not_null<ENGINE_HANDLE*> handle,
+        const void* cookie,
+        const DocKey& key,
+        uint16_t vbucket) {
     struct mock_connstruct* c = get_or_create_mock_connstruct(cookie);
     auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->get_meta,
                                get_engine_from_handle(handle),
@@ -334,7 +340,7 @@ static cb::EngineErrorMetadataPair mock_get_meta(ENGINE_HANDLE* handle,
     return ret;
 }
 
-static ENGINE_ERROR_CODE mock_unlock(ENGINE_HANDLE* handle,
+static ENGINE_ERROR_CODE mock_unlock(gsl::not_null<ENGINE_HANDLE*> handle,
                                      const void* cookie,
                                      const DocKey& key,
                                      uint16_t vbucket,
@@ -350,13 +356,11 @@ static ENGINE_ERROR_CODE mock_unlock(ENGINE_HANDLE* handle,
     return ret;
 }
 
-
-static ENGINE_ERROR_CODE mock_get_stats(ENGINE_HANDLE* handle,
+static ENGINE_ERROR_CODE mock_get_stats(gsl::not_null<ENGINE_HANDLE*> handle,
                                         const void* cookie,
                                         const char* stat_key,
                                         int nkey,
-                                        ADD_STAT add_stat)
-{
+                                        ADD_STAT add_stat) {
     struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
     auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->get_stats,
                                get_engine_from_handle(handle),
@@ -369,10 +373,10 @@ static ENGINE_ERROR_CODE mock_get_stats(ENGINE_HANDLE* handle,
     return ret;
 }
 
-static ENGINE_ERROR_CODE mock_store(ENGINE_HANDLE* handle,
-                                    const void *cookie,
-                                    item* item,
-                                    uint64_t *cas,
+static ENGINE_ERROR_CODE mock_store(gsl::not_null<ENGINE_HANDLE*> handle,
+                                    const void* cookie,
+                                    gsl::not_null<item*> item,
+                                    gsl::not_null<uint64_t*> cas,
                                     ENGINE_STORE_OPERATION operation,
                                     DocumentState document_state) {
     struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
@@ -387,7 +391,7 @@ static ENGINE_ERROR_CODE mock_store(ENGINE_HANDLE* handle,
     return ret;
 }
 
-static ENGINE_ERROR_CODE mock_flush(ENGINE_HANDLE* handle,
+static ENGINE_ERROR_CODE mock_flush(gsl::not_null<ENGINE_HANDLE*> handle,
                                     const void* cookie) {
     struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
     auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->flush,
@@ -400,17 +404,18 @@ static ENGINE_ERROR_CODE mock_flush(ENGINE_HANDLE* handle,
     return ret;
 }
 
-static void mock_reset_stats(ENGINE_HANDLE* handle, const void *cookie) {
+static void mock_reset_stats(gsl::not_null<ENGINE_HANDLE*> handle,
+                             const void* cookie) {
     struct mock_engine *me = get_handle(handle);
     me->the_engine->reset_stats((ENGINE_HANDLE*)me->the_engine, cookie);
 }
 
-static ENGINE_ERROR_CODE mock_unknown_command(ENGINE_HANDLE* handle,
-                                              const void* cookie,
-                                              protocol_binary_request_header *request,
-                                              ADD_RESPONSE response,
-                                              DocNamespace doc_namespace)
-{
+static ENGINE_ERROR_CODE mock_unknown_command(
+        gsl::not_null<ENGINE_HANDLE*> handle,
+        const void* cookie,
+        gsl::not_null<protocol_binary_request_header*> request,
+        ADD_RESPONSE response,
+        DocNamespace doc_namespace) {
     struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
     auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->unknown_command,
                                get_engine_from_handle(handle),
@@ -423,29 +428,32 @@ static ENGINE_ERROR_CODE mock_unknown_command(ENGINE_HANDLE* handle,
     return ret;
 }
 
-static void mock_item_set_cas(ENGINE_HANDLE* handle, item* item, uint64_t val) {
+static void mock_item_set_cas(gsl::not_null<ENGINE_HANDLE*> handle,
+                              gsl::not_null<item*> item,
+                              uint64_t val) {
     struct mock_engine *me = get_handle(handle);
     me->the_engine->item_set_cas((ENGINE_HANDLE*)me->the_engine, item, val);
 }
 
-static bool mock_get_item_info(ENGINE_HANDLE* handle,
-                               const item* item,
-                               item_info* item_info) {
+static bool mock_get_item_info(gsl::not_null<ENGINE_HANDLE*> handle,
+                               gsl::not_null<const item*> item,
+                               gsl::not_null<item_info*> item_info) {
     struct mock_engine *me = get_handle(handle);
     return me->the_engine->get_item_info(
             (ENGINE_HANDLE*)me->the_engine, item, item_info);
 }
 
-static ENGINE_ERROR_CODE mock_dcp_step(ENGINE_HANDLE* handle,
-                                       const void* cookie,
-                                       struct dcp_message_producers *producers) {
+static ENGINE_ERROR_CODE mock_dcp_step(
+        gsl::not_null<ENGINE_HANDLE*> handle,
+        gsl::not_null<const void*> cookie,
+        gsl::not_null<dcp_message_producers*> producers) {
     struct mock_engine *me = get_handle(handle);
     return me->the_engine->dcp.step((ENGINE_HANDLE*)me->the_engine, cookie,
                                     producers);
 }
 
-static ENGINE_ERROR_CODE mock_dcp_open(ENGINE_HANDLE* handle,
-                                       const void* cookie,
+static ENGINE_ERROR_CODE mock_dcp_open(gsl::not_null<ENGINE_HANDLE*> handle,
+                                       gsl::not_null<const void*> cookie,
                                        uint32_t opaque,
                                        uint32_t seqno,
                                        uint32_t flags,
@@ -461,12 +469,12 @@ static ENGINE_ERROR_CODE mock_dcp_open(ENGINE_HANDLE* handle,
                                     jsonExtras);
 }
 
-static ENGINE_ERROR_CODE mock_dcp_add_stream(ENGINE_HANDLE* handle,
-                                             const void* cookie,
-                                             uint32_t opaque,
-                                             uint16_t vbucket,
-                                             uint32_t flags) {
-
+static ENGINE_ERROR_CODE mock_dcp_add_stream(
+        gsl::not_null<ENGINE_HANDLE*> handle,
+        gsl::not_null<const void*> cookie,
+        uint32_t opaque,
+        uint16_t vbucket,
+        uint32_t flags) {
     struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
     auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->dcp.add_stream,
                                get_engine_from_handle(handle),
@@ -479,27 +487,29 @@ static ENGINE_ERROR_CODE mock_dcp_add_stream(ENGINE_HANDLE* handle,
     return ret;
 }
 
-static ENGINE_ERROR_CODE mock_dcp_close_stream(ENGINE_HANDLE* handle,
-                                               const void* cookie,
-                                               uint32_t opaque,
-                                               uint16_t vbucket) {
+static ENGINE_ERROR_CODE mock_dcp_close_stream(
+        gsl::not_null<ENGINE_HANDLE*> handle,
+        gsl::not_null<const void*> cookie,
+        uint32_t opaque,
+        uint16_t vbucket) {
     struct mock_engine *me = get_handle(handle);
     return me->the_engine->dcp.close_stream((ENGINE_HANDLE*)me->the_engine,
                                             cookie, opaque, vbucket);
 }
 
-static ENGINE_ERROR_CODE mock_dcp_stream_req(ENGINE_HANDLE* handle,
-                                             const void* cookie,
-                                             uint32_t flags,
-                                             uint32_t opaque,
-                                             uint16_t vbucket,
-                                             uint64_t start_seqno,
-                                             uint64_t end_seqno,
-                                             uint64_t vbucket_uuid,
-                                             uint64_t snap_start_seqno,
-                                             uint64_t snap_end_seqno,
-                                             uint64_t *rollback_seqno,
-                                             dcp_add_failover_log callback) {
+static ENGINE_ERROR_CODE mock_dcp_stream_req(
+        gsl::not_null<ENGINE_HANDLE*> handle,
+        gsl::not_null<const void*> cookie,
+        uint32_t flags,
+        uint32_t opaque,
+        uint16_t vbucket,
+        uint64_t start_seqno,
+        uint64_t end_seqno,
+        uint64_t vbucket_uuid,
+        uint64_t snap_start_seqno,
+        uint64_t snap_end_seqno,
+        uint64_t* rollback_seqno,
+        dcp_add_failover_log callback) {
     struct mock_engine *me = get_handle(handle);
     return me->the_engine->dcp.stream_req((ENGINE_HANDLE*)me->the_engine,
                                           cookie, flags, opaque, vbucket,
@@ -508,41 +518,44 @@ static ENGINE_ERROR_CODE mock_dcp_stream_req(ENGINE_HANDLE* handle,
                                           rollback_seqno, callback);
 }
 
-static ENGINE_ERROR_CODE mock_dcp_get_failover_log(ENGINE_HANDLE* handle,
-                                                   const void* cookie,
-                                                   uint32_t opaque,
-                                                   uint16_t vbucket,
-                                                   dcp_add_failover_log cb) {
+static ENGINE_ERROR_CODE mock_dcp_get_failover_log(
+        gsl::not_null<ENGINE_HANDLE*> handle,
+        gsl::not_null<const void*> cookie,
+        uint32_t opaque,
+        uint16_t vbucket,
+        dcp_add_failover_log cb) {
     struct mock_engine *me = get_handle(handle);
     return me->the_engine->dcp.get_failover_log((ENGINE_HANDLE*)me->the_engine,
                                                 cookie, opaque, vbucket, cb);
 }
 
-static ENGINE_ERROR_CODE mock_dcp_stream_end(ENGINE_HANDLE* handle,
-                                             const void* cookie,
-                                             uint32_t opaque,
-                                             uint16_t vbucket,
-                                             uint32_t flags) {
+static ENGINE_ERROR_CODE mock_dcp_stream_end(
+        gsl::not_null<ENGINE_HANDLE*> handle,
+        gsl::not_null<const void*> cookie,
+        uint32_t opaque,
+        uint16_t vbucket,
+        uint32_t flags) {
     struct mock_engine *me = get_handle(handle);
     return me->the_engine->dcp.stream_end((ENGINE_HANDLE*)me->the_engine,
                                           cookie, opaque, vbucket, flags);
 }
 
-static ENGINE_ERROR_CODE mock_dcp_snapshot_marker(ENGINE_HANDLE* handle,
-                                                  const void* cookie,
-                                                  uint32_t opaque,
-                                                  uint16_t vbucket,
-                                                  uint64_t start_seqno,
-                                                  uint64_t end_seqno,
-                                                  uint32_t flags) {
+static ENGINE_ERROR_CODE mock_dcp_snapshot_marker(
+        gsl::not_null<ENGINE_HANDLE*> handle,
+        gsl::not_null<const void*> cookie,
+        uint32_t opaque,
+        uint16_t vbucket,
+        uint64_t start_seqno,
+        uint64_t end_seqno,
+        uint32_t flags) {
     struct mock_engine *me = get_handle(handle);
     return me->the_engine->dcp.snapshot_marker((ENGINE_HANDLE*)me->the_engine,
                                                cookie, opaque, vbucket,
                                                start_seqno, end_seqno, flags);
 }
 
-static ENGINE_ERROR_CODE mock_dcp_mutation(ENGINE_HANDLE* handle,
-                                           const void* cookie,
+static ENGINE_ERROR_CODE mock_dcp_mutation(gsl::not_null<ENGINE_HANDLE*> handle,
+                                           gsl::not_null<const void*> cookie,
                                            uint32_t opaque,
                                            const DocKey& key,
                                            cb::const_byte_buffer value,
@@ -557,7 +570,6 @@ static ENGINE_ERROR_CODE mock_dcp_mutation(ENGINE_HANDLE* handle,
                                            uint32_t lock_time,
                                            cb::const_byte_buffer meta,
                                            uint8_t nru) {
-
     struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
     auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->dcp.mutation,
                                get_engine_from_handle(handle),
@@ -572,8 +584,8 @@ static ENGINE_ERROR_CODE mock_dcp_mutation(ENGINE_HANDLE* handle,
     return ret;
 }
 
-static ENGINE_ERROR_CODE mock_dcp_deletion(ENGINE_HANDLE* handle,
-                                           const void* cookie,
+static ENGINE_ERROR_CODE mock_dcp_deletion(gsl::not_null<ENGINE_HANDLE*> handle,
+                                           gsl::not_null<const void*> cookie,
                                            uint32_t opaque,
                                            const DocKey& key,
                                            cb::const_byte_buffer value,
@@ -584,7 +596,6 @@ static ENGINE_ERROR_CODE mock_dcp_deletion(ENGINE_HANDLE* handle,
                                            uint64_t by_seqno,
                                            uint64_t rev_seqno,
                                            cb::const_byte_buffer meta) {
-
     struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
     auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->dcp.deletion,
                                get_engine_from_handle(handle),
@@ -598,19 +609,19 @@ static ENGINE_ERROR_CODE mock_dcp_deletion(ENGINE_HANDLE* handle,
     return ret;
 }
 
-static ENGINE_ERROR_CODE mock_dcp_expiration(ENGINE_HANDLE* handle,
-                                             const void* cookie,
-                                             uint32_t opaque,
-                                             const DocKey& key,
-                                             cb::const_byte_buffer value,
-                                             size_t priv_bytes,
-                                             uint8_t datatype,
-                                             uint64_t cas,
-                                             uint16_t vbucket,
-                                             uint64_t by_seqno,
-                                             uint64_t rev_seqno,
-                                             cb::const_byte_buffer meta) {
-
+static ENGINE_ERROR_CODE mock_dcp_expiration(
+        gsl::not_null<ENGINE_HANDLE*> handle,
+        gsl::not_null<const void*> cookie,
+        uint32_t opaque,
+        const DocKey& key,
+        cb::const_byte_buffer value,
+        size_t priv_bytes,
+        uint8_t datatype,
+        uint64_t cas,
+        uint16_t vbucket,
+        uint64_t by_seqno,
+        uint64_t rev_seqno,
+        cb::const_byte_buffer meta) {
     struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
     auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->dcp.expiration,
                                get_engine_from_handle(handle),
@@ -624,11 +635,10 @@ static ENGINE_ERROR_CODE mock_dcp_expiration(ENGINE_HANDLE* handle,
     return ret;
 }
 
-static ENGINE_ERROR_CODE mock_dcp_flush(ENGINE_HANDLE* handle,
-                                        const void* cookie,
+static ENGINE_ERROR_CODE mock_dcp_flush(gsl::not_null<ENGINE_HANDLE*> handle,
+                                        gsl::not_null<const void*> cookie,
                                         uint32_t opaque,
                                         uint16_t vbucket) {
-
     struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
     auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->dcp.flush,
                                get_engine_from_handle(handle),
@@ -641,52 +651,53 @@ static ENGINE_ERROR_CODE mock_dcp_flush(ENGINE_HANDLE* handle,
     return ret;
 }
 
-static ENGINE_ERROR_CODE mock_dcp_set_vbucket_state(ENGINE_HANDLE* handle,
-                                                    const void* cookie,
-                                                    uint32_t opaque,
-                                                    uint16_t vbucket,
-                                                    vbucket_state_t state) {
+static ENGINE_ERROR_CODE mock_dcp_set_vbucket_state(
+        gsl::not_null<ENGINE_HANDLE*> handle,
+        gsl::not_null<const void*> cookie,
+        uint32_t opaque,
+        uint16_t vbucket,
+        vbucket_state_t state) {
     struct mock_engine *me = get_handle(handle);
     return me->the_engine->dcp.set_vbucket_state((ENGINE_HANDLE*)me->the_engine,
                                                  cookie, opaque, vbucket,
                                                  state);
 }
 
-static ENGINE_ERROR_CODE mock_dcp_noop(ENGINE_HANDLE* handle,
-                                       const void* cookie,
+static ENGINE_ERROR_CODE mock_dcp_noop(gsl::not_null<ENGINE_HANDLE*> handle,
+                                       gsl::not_null<const void*> cookie,
                                        uint32_t opaque) {
     struct mock_engine *me = get_handle(handle);
     return me->the_engine->dcp.noop((ENGINE_HANDLE*)me->the_engine,
                                     cookie, opaque);
 }
 
-static ENGINE_ERROR_CODE mock_dcp_control(ENGINE_HANDLE* handle,
-                                          const void* cookie,
+static ENGINE_ERROR_CODE mock_dcp_control(gsl::not_null<ENGINE_HANDLE*> handle,
+                                          gsl::not_null<const void*> cookie,
                                           uint32_t opaque,
-                                          const void *key,
+                                          const void* key,
                                           uint16_t nkey,
-                                          const void *value,
+                                          const void* value,
                                           uint32_t nvalue) {
-
     struct mock_engine *me = get_handle(handle);
     ENGINE_HANDLE* h = reinterpret_cast<ENGINE_HANDLE*>(me->the_engine);
     return me->the_engine->dcp.control(h, cookie, opaque, key, nkey, value,
                                        nvalue);
 }
 
-static ENGINE_ERROR_CODE mock_dcp_buffer_acknowledgement(ENGINE_HANDLE* handle,
-                                                         const void* cookie,
-                                                         uint32_t opaque,
-                                                         uint16_t vbucket,
-                                                         uint32_t bb) {
+static ENGINE_ERROR_CODE mock_dcp_buffer_acknowledgement(
+        gsl::not_null<ENGINE_HANDLE*> handle,
+        gsl::not_null<const void*> cookie,
+        uint32_t opaque,
+        uint16_t vbucket,
+        uint32_t bb) {
     struct mock_engine *me = get_handle(handle);
     return me->the_engine->dcp.buffer_acknowledgement((ENGINE_HANDLE*)me->the_engine,
                                                       cookie, opaque, vbucket, bb);
 }
 
 static ENGINE_ERROR_CODE mock_dcp_response_handler(
-        ENGINE_HANDLE* handle,
-        const void* cookie,
+        gsl::not_null<ENGINE_HANDLE*> handle,
+        gsl::not_null<const void*> cookie,
         const protocol_binary_response_header* response) {
     struct mock_engine *me = get_handle(handle);
     return me->the_engine->dcp.response_handler((ENGINE_HANDLE*)me->the_engine,
@@ -694,7 +705,7 @@ static ENGINE_ERROR_CODE mock_dcp_response_handler(
 }
 
 static cb::engine_error mock_collections_set_manifest(
-        ENGINE_HANDLE* handle, cb::const_char_buffer json) {
+        gsl::not_null<ENGINE_HANDLE*> handle, cb::const_char_buffer json) {
     struct mock_engine* me = get_handle(handle);
     if (me->the_engine->collections.set_manifest == nullptr) {
         return cb::engine_error(
@@ -706,13 +717,14 @@ static cb::engine_error mock_collections_set_manifest(
             (ENGINE_HANDLE*)me->the_engine, json);
 }
 
-void mock_set_log_level(ENGINE_HANDLE* handle, EXTENSION_LOG_LEVEL level) {
+void mock_set_log_level(gsl::not_null<ENGINE_HANDLE*> handle,
+                        EXTENSION_LOG_LEVEL level) {
     if (get_handle(handle)->the_engine->set_log_level != nullptr) {
         get_handle(handle)->the_engine->set_log_level(handle, level);
     }
 }
 
-bool mock_isXattrEnabled(ENGINE_HANDLE* handle) {
+bool mock_isXattrEnabled(gsl::not_null<ENGINE_HANDLE*> handle) {
     return get_handle(handle)->the_engine->isXattrEnabled(handle);
 }
 

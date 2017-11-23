@@ -11,6 +11,7 @@
 #include <utility>
 
 #include <boost/optional/optional.hpp>
+#include <gsl/gsl>
 
 #include "memcached/allocator_hooks.h"
 #include "memcached/callback.h"
@@ -191,7 +192,7 @@ typedef struct engine_interface_v1 {
      * @param handle the engine handle
      * @return a stringz description of this engine
      */
-    const engine_info* (* get_info)(ENGINE_HANDLE* handle);
+    const engine_info* (*get_info)(gsl::not_null<ENGINE_HANDLE*> handle);
 
     /**
      * Initialize an engine instance.
@@ -200,8 +201,8 @@ typedef struct engine_interface_v1 {
      * @param handle the engine handle
      * @param config_str configuration this engine needs to initialize itself.
      */
-    ENGINE_ERROR_CODE (* initialize)(ENGINE_HANDLE* handle,
-                                     const char* config_str);
+    ENGINE_ERROR_CODE(*initialize)
+    (gsl::not_null<ENGINE_HANDLE*> handle, const char* config_str);
 
     /**
      * Tear down this engine.
@@ -209,7 +210,7 @@ typedef struct engine_interface_v1 {
      * @param handle the engine handle
      * @param force the flag indicating the force shutdown or not.
      */
-    void (* destroy)(ENGINE_HANDLE* handle, const bool force);
+    void (*destroy)(gsl::not_null<ENGINE_HANDLE*> handle, const bool force);
 
     /*
      * Item operations.
@@ -230,7 +231,7 @@ typedef struct engine_interface_v1 {
      *
      * @return {cb::engine_errc::success, unique_item_ptr} if all goes well
      */
-    cb::EngineErrorItemPair (*allocate)(ENGINE_HANDLE* handle,
+    cb::EngineErrorItemPair (*allocate)(gsl::not_null<ENGINE_HANDLE*> handle,
                                         const void* cookie,
                                         const DocKey& key,
                                         const size_t nbytes,
@@ -275,15 +276,16 @@ typedef struct engine_interface_v1 {
      *   * `cb::engine_errc::too_busy` Too busy to serve the request,
      *                                 back off and try again.
      */
-    std::pair<cb::unique_item_ptr, item_info> (* allocate_ex)(ENGINE_HANDLE* handle,
-                                                              const void* cookie,
-                                                              const DocKey& key,
-                                                              const size_t nbytes,
-                                                              const size_t priv_nbytes,
-                                                              const int flags,
-                                                              const rel_time_t exptime,
-                                                              uint8_t datatype,
-                                                              uint16_t vbucket);
+    std::pair<cb::unique_item_ptr, item_info> (*allocate_ex)(
+            gsl::not_null<ENGINE_HANDLE*> handle,
+            const void* cookie,
+            const DocKey& key,
+            const size_t nbytes,
+            const size_t priv_nbytes,
+            const int flags,
+            const rel_time_t exptime,
+            uint8_t datatype,
+            uint16_t vbucket);
 
     /**
      * Remove an item.
@@ -297,12 +299,13 @@ typedef struct engine_interface_v1 {
      *
      * @return ENGINE_SUCCESS if all goes well
      */
-    ENGINE_ERROR_CODE (* remove)(ENGINE_HANDLE* handle,
-                                 const void* cookie,
-                                 const DocKey& key,
-                                 uint64_t* cas,
-                                 uint16_t vbucket,
-                                 mutation_descr_t* mut_info);
+    ENGINE_ERROR_CODE(*remove)
+    (gsl::not_null<ENGINE_HANDLE*> handle,
+     const void* cookie,
+     const DocKey& key,
+     uint64_t* cas,
+     uint16_t vbucket,
+     mutation_descr_t* mut_info);
 
     /**
      * Indicate that a caller who received an item no longer needs
@@ -311,7 +314,8 @@ typedef struct engine_interface_v1 {
      * @param handle the engine handle
      * @param item the item to be released
      */
-    void (*release)(ENGINE_HANDLE* handle, item* item);
+    void (*release)(gsl::not_null<ENGINE_HANDLE*> handle,
+                    gsl::not_null<item*> item);
 
     /**
      * Retrieve an item.
@@ -328,7 +332,7 @@ typedef struct engine_interface_v1 {
      *
      * @return ENGINE_SUCCESS if all goes well
      */
-    cb::EngineErrorItemPair (*get)(ENGINE_HANDLE* handle,
+    cb::EngineErrorItemPair (*get)(gsl::not_null<ENGINE_HANDLE*> handle,
                                    const void* cookie,
                                    const DocKey& key,
                                    uint16_t vbucket,
@@ -344,10 +348,11 @@ typedef struct engine_interface_v1 {
      *
      * @return  Pair (ENGINE_SUCCESS, Metadata) if all goes well
      */
-    cb::EngineErrorMetadataPair (*get_meta)(ENGINE_HANDLE* handle,
-                                            const void* cookie,
-                                            const DocKey& key,
-                                            uint16_t vbucket);
+    cb::EngineErrorMetadataPair (*get_meta)(
+            gsl::not_null<ENGINE_HANDLE*> handle,
+            const void* cookie,
+            const DocKey& key,
+            uint16_t vbucket);
 
     /**
      * Optionally retrieve an item. Only non-deleted items may be fetched
@@ -366,12 +371,12 @@ typedef struct engine_interface_v1 {
      *               present when filter is invoked.
      * @return A pair of the error code and (optionally) the item
      */
-    cb::EngineErrorItemPair (* get_if)(ENGINE_HANDLE* handle,
-                                       const void* cookie,
-                                       const DocKey& key,
-                                       uint16_t vbucket,
-                                       std::function<bool(
-                                           const item_info&)> filter);
+    cb::EngineErrorItemPair (*get_if)(
+            gsl::not_null<ENGINE_HANDLE*> handle,
+            const void* cookie,
+            const DocKey& key,
+            uint16_t vbucket,
+            std::function<bool(const item_info&)> filter);
 
     /**
      * Lock and Retrieve an item.
@@ -386,7 +391,7 @@ typedef struct engine_interface_v1 {
      *
      * @return ENGINE_SUCCESS if all goes well
      */
-    cb::EngineErrorItemPair (*get_locked)(ENGINE_HANDLE* handle,
+    cb::EngineErrorItemPair (*get_locked)(gsl::not_null<ENGINE_HANDLE*> handle,
                                           const void* cookie,
                                           const DocKey& key,
                                           uint16_t vbucket,
@@ -402,11 +407,12 @@ typedef struct engine_interface_v1 {
      * @param expirytime the new expiry time for the object
      * @return A pair of the error code and (optionally) the item
      */
-    cb::EngineErrorItemPair (*get_and_touch)(ENGINE_HANDLE* handle,
-                                             const void* cookie,
-                                             const DocKey& key,
-                                             uint16_t vbucket,
-                                             uint32_t expirytime);
+    cb::EngineErrorItemPair (*get_and_touch)(
+            gsl::not_null<ENGINE_HANDLE*> handle,
+            const void* cookie,
+            const DocKey& key,
+            uint16_t vbucket,
+            uint32_t expirytime);
 
     /**
      * Unlock an item.
@@ -419,11 +425,12 @@ typedef struct engine_interface_v1 {
      *
      * @return ENGINE_SUCCESS if all goes well
      */
-    ENGINE_ERROR_CODE (* unlock)(ENGINE_HANDLE* handle,
-                                 const void* cookie,
-                                 const DocKey& key,
-                                 uint16_t vbucket,
-                                 uint64_t cas);
+    ENGINE_ERROR_CODE(*unlock)
+    (gsl::not_null<ENGINE_HANDLE*> handle,
+     const void* cookie,
+     const DocKey& key,
+     uint16_t vbucket,
+     uint64_t cas);
 
     /**
      * Store an item into the underlying engine with the given
@@ -442,12 +449,13 @@ typedef struct engine_interface_v1 {
      *
      * @return ENGINE_SUCCESS if all goes well
      */
-    ENGINE_ERROR_CODE (* store)(ENGINE_HANDLE* handle,
-                                const void* cookie,
-                                item* item,
-                                uint64_t* cas,
-                                ENGINE_STORE_OPERATION operation,
-                                DocumentState document_state);
+    ENGINE_ERROR_CODE(*store)
+    (gsl::not_null<ENGINE_HANDLE*> handle,
+     const void* cookie,
+     gsl::not_null<item*> item,
+     gsl::not_null<uint64_t*> cas,
+     ENGINE_STORE_OPERATION operation,
+     DocumentState document_state);
 
     /**
      * Store an item into the underlying engine with the given
@@ -478,9 +486,9 @@ typedef struct engine_interface_v1 {
      *
      * @return a std::pair containing the engine_error code and new CAS
      */
-    cb::EngineErrorCasPair (*store_if)(ENGINE_HANDLE* handle,
+    cb::EngineErrorCasPair (*store_if)(gsl::not_null<ENGINE_HANDLE*> handle,
                                        const void* cookie,
-                                       item* item,
+                                       gsl::not_null<item*> item,
                                        uint64_t cas,
                                        ENGINE_STORE_OPERATION operation,
                                        cb::StoreIfPredicate predicate,
@@ -494,7 +502,8 @@ typedef struct engine_interface_v1 {
      *
      * @return ENGINE_SUCCESS if all goes well
      */
-    ENGINE_ERROR_CODE (* flush)(ENGINE_HANDLE* handle, const void* cookie);
+    ENGINE_ERROR_CODE(*flush)
+    (gsl::not_null<ENGINE_HANDLE*> handle, const void* cookie);
 
     /*
      * Statistics
@@ -511,11 +520,12 @@ typedef struct engine_interface_v1 {
      *
      * @return ENGINE_SUCCESS if all goes well
      */
-    ENGINE_ERROR_CODE (* get_stats)(ENGINE_HANDLE* handle,
-                                    const void* cookie,
-                                    const char* stat_key,
-                                    int nkey,
-                                    ADD_STAT add_stat);
+    ENGINE_ERROR_CODE(*get_stats)
+    (gsl::not_null<ENGINE_HANDLE*> handle,
+     const void* cookie,
+     const char* stat_key,
+     int nkey,
+     ADD_STAT add_stat);
 
     /**
      * Reset the stats.
@@ -523,7 +533,8 @@ typedef struct engine_interface_v1 {
      * @param handle the engine handle
      * @param cookie The cookie provided by the frontend
      */
-    void (* reset_stats)(ENGINE_HANDLE* handle, const void* cookie);
+    void (*reset_stats)(gsl::not_null<ENGINE_HANDLE*> handle,
+                        const void* cookie);
 
     /**
      * Any unknown command will be considered engine specific.
@@ -536,16 +547,19 @@ typedef struct engine_interface_v1 {
      *
      * @return ENGINE_SUCCESS if all goes well
      */
-    ENGINE_ERROR_CODE (* unknown_command)(ENGINE_HANDLE* handle,
-                                          const void* cookie,
-                                          protocol_binary_request_header* request,
-                                          ADD_RESPONSE response,
-                                          DocNamespace doc_namespace);
+    ENGINE_ERROR_CODE(*unknown_command)
+    (gsl::not_null<ENGINE_HANDLE*> handle,
+     const void* cookie,
+     gsl::not_null<protocol_binary_request_header*> request,
+     ADD_RESPONSE response,
+     DocNamespace doc_namespace);
 
     /**
      * Set the CAS id on an item.
      */
-    void (*item_set_cas)(ENGINE_HANDLE* handle, item* item, uint64_t cas);
+    void (*item_set_cas)(gsl::not_null<ENGINE_HANDLE*> handle,
+                         gsl::not_null<item*> item,
+                         uint64_t cas);
 
     /**
      * Get information about an item.
@@ -560,9 +574,9 @@ typedef struct engine_interface_v1 {
      * @param item_info
      * @return true if successful
      */
-    bool (* get_item_info)(ENGINE_HANDLE* handle,
-                           const item* item,
-                           item_info* item_info);
+    bool (*get_item_info)(gsl::not_null<ENGINE_HANDLE*> handle,
+                          gsl::not_null<const item*> item,
+                          gsl::not_null<item_info*> item_info);
 
     /**
      * Set information of an item.
@@ -575,9 +589,9 @@ typedef struct engine_interface_v1 {
      * @param item_info
      * @return true if successful
      */
-    bool (* set_item_info)(ENGINE_HANDLE* handle,
-                           item* item,
-                           const item_info* itm_info);
+    bool (*set_item_info)(gsl::not_null<ENGINE_HANDLE*> handle,
+                          gsl::not_null<item*> item,
+                          gsl::not_null<const item_info*> itm_info);
 
     struct dcp_interface dcp;
 
@@ -587,7 +601,8 @@ typedef struct engine_interface_v1 {
      * @param handle the engine handle
      * @param level the current log level
      */
-    void (* set_log_level)(ENGINE_HANDLE* handle, EXTENSION_LOG_LEVEL level);
+    void (*set_log_level)(gsl::not_null<ENGINE_HANDLE*> handle,
+                          EXTENSION_LOG_LEVEL level);
 
     collections_interface collections;
 
@@ -595,7 +610,7 @@ typedef struct engine_interface_v1 {
      * @param handle the engine handle
      * @returns if XATTRs are enabled for this bucket
      */
-    bool (*isXattrEnabled)(ENGINE_HANDLE* handle);
+    bool (*isXattrEnabled)(gsl::not_null<ENGINE_HANDLE*> handle);
 
 } ENGINE_HANDLE_V1;
 

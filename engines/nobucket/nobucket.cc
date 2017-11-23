@@ -88,19 +88,20 @@ private:
         return reinterpret_cast<NoBucket*>(handle);
     }
 
-    static const engine_info* get_info(ENGINE_HANDLE* handle) {
+    static const engine_info* get_info(gsl::not_null<ENGINE_HANDLE*> handle) {
         return &get_handle(handle)->info;
     }
 
-    static ENGINE_ERROR_CODE initialize(ENGINE_HANDLE*, const char*) {
+    static ENGINE_ERROR_CODE initialize(gsl::not_null<ENGINE_HANDLE*>,
+                                        const char*) {
         return ENGINE_SUCCESS;
     }
 
-    static void destroy(ENGINE_HANDLE* handle, const bool) {
+    static void destroy(gsl::not_null<ENGINE_HANDLE*> handle, const bool) {
         delete get_handle(handle);
     }
 
-    static cb::EngineErrorItemPair item_allocate(ENGINE_HANDLE*,
+    static cb::EngineErrorItemPair item_allocate(gsl::not_null<ENGINE_HANDLE*>,
                                                  const void*,
                                                  const DocKey&,
                                                  const size_t,
@@ -111,29 +112,35 @@ private:
         return cb::makeEngineErrorItemPair(cb::engine_errc::no_bucket);
     }
 
-    static std::pair<cb::unique_item_ptr, item_info> item_allocate_ex(ENGINE_HANDLE*, const void*,
-                                                                      const DocKey&,
-                                                                      const size_t,
-                                                                      const size_t,
-                                                                      const int,
-                                                                      const rel_time_t,
-                                                                      uint8_t,
-                                                                      uint16_t) {
+    static std::pair<cb::unique_item_ptr, item_info> item_allocate_ex(
+            gsl::not_null<ENGINE_HANDLE*>,
+            const void*,
+            const DocKey&,
+            const size_t,
+            const size_t,
+            const int,
+            const rel_time_t,
+            uint8_t,
+            uint16_t) {
         throw cb::engine_error(cb::engine_errc::no_bucket, "no bucket");
     }
 
-    static ENGINE_ERROR_CODE item_delete(ENGINE_HANDLE*, const void*,
-                                         const DocKey&, uint64_t*, uint16_t,
+    static ENGINE_ERROR_CODE item_delete(gsl::not_null<ENGINE_HANDLE*>,
+                                         const void*,
+                                         const DocKey&,
+                                         uint64_t*,
+                                         uint16_t,
                                          mutation_descr_t*) {
         return ENGINE_NO_BUCKET;
     }
 
-    static void item_release(ENGINE_HANDLE*, item*) {
+    static void item_release(gsl::not_null<ENGINE_HANDLE*>,
+                             gsl::not_null<item*>) {
         throw std::logic_error("NoBucket::item_release: no items should have"
                                    " been allocated from this engine");
     }
 
-    static cb::EngineErrorItemPair get(ENGINE_HANDLE* h,
+    static cb::EngineErrorItemPair get(gsl::not_null<ENGINE_HANDLE*> h,
                                        const void*,
                                        const DocKey&,
                                        uint16_t,
@@ -141,47 +148,60 @@ private:
         return cb::makeEngineErrorItemPair(cb::engine_errc::no_bucket);
     }
 
-    static cb::EngineErrorItemPair get_if(ENGINE_HANDLE* handle,
-                                          const void*,
-                                          const DocKey&,
-                                          uint16_t,
-                                          std::function<bool(
-                                              const item_info&)>) {
+    static cb::EngineErrorItemPair get_if(
+            gsl::not_null<ENGINE_HANDLE*> handle,
+            const void*,
+            const DocKey&,
+            uint16_t,
+            std::function<bool(const item_info&)>) {
         return cb::makeEngineErrorItemPair(cb::engine_errc::no_bucket);
     }
 
-    static cb::EngineErrorItemPair get_and_touch(ENGINE_HANDLE* handle,
-                                                 const void*,
-                                                 const DocKey&,
-                                                 uint16_t,
-                                                 uint32_t) {
+    static cb::EngineErrorItemPair get_and_touch(
+            gsl::not_null<ENGINE_HANDLE*> handle,
+            const void*,
+            const DocKey&,
+            uint16_t,
+            uint32_t) {
         return cb::makeEngineErrorItemPair(cb::engine_errc::no_bucket);
     }
 
-    static cb::EngineErrorItemPair get_locked(
-            ENGINE_HANDLE*, const void*, const DocKey&, uint16_t, uint32_t) {
+    static cb::EngineErrorItemPair get_locked(gsl::not_null<ENGINE_HANDLE*>,
+                                              const void*,
+                                              const DocKey&,
+                                              uint16_t,
+                                              uint32_t) {
         return cb::makeEngineErrorItemPair(cb::engine_errc::no_bucket);
     }
 
-    static ENGINE_ERROR_CODE unlock(ENGINE_HANDLE*, const void*, const DocKey&,
-                                    uint16_t, uint64_t) {
+    static ENGINE_ERROR_CODE unlock(gsl::not_null<ENGINE_HANDLE*>,
+                                    const void*,
+                                    const DocKey&,
+                                    uint16_t,
+                                    uint64_t) {
         return ENGINE_NO_BUCKET;
     }
 
-    static ENGINE_ERROR_CODE get_stats(ENGINE_HANDLE*, const void*,
-                                       const char*, int, ADD_STAT) {
+    static ENGINE_ERROR_CODE get_stats(gsl::not_null<ENGINE_HANDLE*>,
+                                       const void*,
+                                       const char*,
+                                       int,
+                                       ADD_STAT) {
         return ENGINE_NO_BUCKET;
     }
 
-    static ENGINE_ERROR_CODE store(ENGINE_HANDLE*, const void*, item*,
-                                   uint64_t*, ENGINE_STORE_OPERATION,
+    static ENGINE_ERROR_CODE store(gsl::not_null<ENGINE_HANDLE*>,
+                                   const void*,
+                                   gsl::not_null<item*>,
+                                   gsl::not_null<uint64_t*>,
+                                   ENGINE_STORE_OPERATION,
                                    DocumentState) {
         return ENGINE_NO_BUCKET;
     }
 
-    static cb::EngineErrorCasPair store_if(ENGINE_HANDLE*,
+    static cb::EngineErrorCasPair store_if(gsl::not_null<ENGINE_HANDLE*>,
                                            const void*,
-                                           item*,
+                                           gsl::not_null<item*>,
                                            uint64_t,
                                            ENGINE_STORE_OPERATION,
                                            cb::StoreIfPredicate,
@@ -189,41 +209,52 @@ private:
         return {cb::engine_errc::no_bucket, 0};
     }
 
-    static ENGINE_ERROR_CODE flush(ENGINE_HANDLE*, const void*) {
+    static ENGINE_ERROR_CODE flush(gsl::not_null<ENGINE_HANDLE*>, const void*) {
         return ENGINE_NO_BUCKET;
     }
 
-    static void reset_stats(ENGINE_HANDLE*, const void*) {
+    static void reset_stats(gsl::not_null<ENGINE_HANDLE*>, const void*) {
     }
 
-    static ENGINE_ERROR_CODE unknown_command(ENGINE_HANDLE*, const void*,
-                                             protocol_binary_request_header*,
-                                             ADD_RESPONSE, DocNamespace) {
+    static ENGINE_ERROR_CODE unknown_command(
+            gsl::not_null<ENGINE_HANDLE*>,
+            const void*,
+            gsl::not_null<protocol_binary_request_header*>,
+            ADD_RESPONSE,
+            DocNamespace) {
         return ENGINE_NO_BUCKET;
     }
 
-    static void item_set_cas(ENGINE_HANDLE*, item*, uint64_t) {
+    static void item_set_cas(gsl::not_null<ENGINE_HANDLE*>,
+                             gsl::not_null<item*>,
+                             uint64_t) {
         throw std::logic_error("NoBucket::item_set_cas: no items should have"
                                    " been allocated from this engine");
     }
 
-    static bool get_item_info(ENGINE_HANDLE*, const item*, item_info*) {
+    static bool get_item_info(gsl::not_null<ENGINE_HANDLE*>,
+                              gsl::not_null<const item*>,
+                              gsl::not_null<item_info*>) {
         throw std::logic_error("NoBucket::get_item_info: no items should have"
                                    " been allocated from this engine");
     }
 
-    static bool set_item_info(ENGINE_HANDLE*, item*, const item_info*) {
+    static bool set_item_info(gsl::not_null<ENGINE_HANDLE*>,
+                              gsl::not_null<item*>,
+                              gsl::not_null<const item_info*>) {
         throw std::logic_error("NoBucket::set_item_info: no items should have"
                                    " been allocated from this engine");
     }
 
-    static ENGINE_ERROR_CODE dcp_step(ENGINE_HANDLE*, const void*,
-                                      struct dcp_message_producers*) {
+    static ENGINE_ERROR_CODE dcp_step(
+            gsl::not_null<ENGINE_HANDLE*>,
+            gsl::not_null<const void*>,
+            gsl::not_null<struct dcp_message_producers*>) {
         return ENGINE_NO_BUCKET;
     }
 
-    static ENGINE_ERROR_CODE dcp_open(ENGINE_HANDLE*,
-                                      const void*,
+    static ENGINE_ERROR_CODE dcp_open(gsl::not_null<ENGINE_HANDLE*>,
+                                      gsl::not_null<const void*>,
                                       uint32_t,
                                       uint32_t,
                                       uint32_t,
@@ -232,98 +263,149 @@ private:
         return ENGINE_NO_BUCKET;
     }
 
-    static ENGINE_ERROR_CODE dcp_add_stream(ENGINE_HANDLE*, const void*,
-                                            uint32_t, uint16_t, uint32_t) {
+    static ENGINE_ERROR_CODE dcp_add_stream(gsl::not_null<ENGINE_HANDLE*>,
+                                            gsl::not_null<const void*>,
+                                            uint32_t,
+                                            uint16_t,
+                                            uint32_t) {
         return ENGINE_NO_BUCKET;
     }
 
-    static ENGINE_ERROR_CODE dcp_close_stream(ENGINE_HANDLE*, const void*,
-                                              uint32_t, uint16_t) {
+    static ENGINE_ERROR_CODE dcp_close_stream(gsl::not_null<ENGINE_HANDLE*>,
+                                              gsl::not_null<const void*>,
+                                              uint32_t,
+                                              uint16_t) {
         return ENGINE_NO_BUCKET;
     }
 
-    static ENGINE_ERROR_CODE dcp_stream_req(ENGINE_HANDLE*, const void*,
-                                            uint32_t, uint32_t, uint16_t,
-                                            uint64_t, uint64_t, uint64_t,
-                                            uint64_t, uint64_t, uint64_t*,
+    static ENGINE_ERROR_CODE dcp_stream_req(gsl::not_null<ENGINE_HANDLE*>,
+                                            gsl::not_null<const void*>,
+                                            uint32_t,
+                                            uint32_t,
+                                            uint16_t,
+                                            uint64_t,
+                                            uint64_t,
+                                            uint64_t,
+                                            uint64_t,
+                                            uint64_t,
+                                            uint64_t*,
                                             dcp_add_failover_log) {
         return ENGINE_NO_BUCKET;
     }
 
-    static ENGINE_ERROR_CODE dcp_get_failover_log(ENGINE_HANDLE*, const void*,
-                                                  uint32_t, uint16_t,
-                                                  ENGINE_ERROR_CODE (* )(
-                                                      vbucket_failover_t*,
-                                                      size_t, const void*)) {
+    static ENGINE_ERROR_CODE dcp_get_failover_log(
+            gsl::not_null<ENGINE_HANDLE*>,
+            gsl::not_null<const void*>,
+            uint32_t,
+            uint16_t,
+            ENGINE_ERROR_CODE (*)(vbucket_failover_t*,
+                                  size_t,
+                                  gsl::not_null<const void*>)) {
         return ENGINE_NO_BUCKET;
     }
 
-    static ENGINE_ERROR_CODE dcp_stream_end(ENGINE_HANDLE*, const void*,
-                                            uint32_t, uint16_t, uint32_t) {
+    static ENGINE_ERROR_CODE dcp_stream_end(gsl::not_null<ENGINE_HANDLE*>,
+                                            gsl::not_null<const void*>,
+                                            uint32_t,
+                                            uint16_t,
+                                            uint32_t) {
         return ENGINE_NO_BUCKET;
     }
 
-    static ENGINE_ERROR_CODE dcp_snapshot_marker(ENGINE_HANDLE*, const void*,
-                                                 uint32_t, uint16_t, uint64_t,
-                                                 uint64_t, uint32_t) {
+    static ENGINE_ERROR_CODE dcp_snapshot_marker(gsl::not_null<ENGINE_HANDLE*>,
+                                                 gsl::not_null<const void*>,
+                                                 uint32_t,
+                                                 uint16_t,
+                                                 uint64_t,
+                                                 uint64_t,
+                                                 uint32_t) {
         return ENGINE_NO_BUCKET;
     }
 
-    static ENGINE_ERROR_CODE dcp_mutation(ENGINE_HANDLE*, const void*, uint32_t,
-                                          const DocKey&, cb::const_byte_buffer,
-                                          size_t, uint8_t, uint64_t, uint16_t,
-                                          uint32_t, uint64_t, uint64_t,
-                                          uint32_t, uint32_t,
-                                          cb::const_byte_buffer, uint8_t) {
+    static ENGINE_ERROR_CODE dcp_mutation(gsl::not_null<ENGINE_HANDLE*>,
+                                          gsl::not_null<const void*>,
+                                          uint32_t,
+                                          const DocKey&,
+                                          cb::const_byte_buffer,
+                                          size_t,
+                                          uint8_t,
+                                          uint64_t,
+                                          uint16_t,
+                                          uint32_t,
+                                          uint64_t,
+                                          uint64_t,
+                                          uint32_t,
+                                          uint32_t,
+                                          cb::const_byte_buffer,
+                                          uint8_t) {
         return ENGINE_NO_BUCKET;
     }
 
-    static ENGINE_ERROR_CODE dcp_deletion(ENGINE_HANDLE*, const void*, uint32_t,
-                                          const DocKey&, cb::const_byte_buffer,
-                                          size_t, uint8_t, uint64_t, uint16_t,
-                                          uint64_t, uint64_t,
+    static ENGINE_ERROR_CODE dcp_deletion(gsl::not_null<ENGINE_HANDLE*>,
+                                          gsl::not_null<const void*>,
+                                          uint32_t,
+                                          const DocKey&,
+                                          cb::const_byte_buffer,
+                                          size_t,
+                                          uint8_t,
+                                          uint64_t,
+                                          uint16_t,
+                                          uint64_t,
+                                          uint64_t,
                                           cb::const_byte_buffer) {
         return ENGINE_NO_BUCKET;
     }
 
-    static ENGINE_ERROR_CODE dcp_expiration(ENGINE_HANDLE*, const void*,
-                                            uint32_t, const DocKey&,
-                                            cb::const_byte_buffer, size_t,
-                                            uint8_t, uint64_t, uint16_t,
-                                            uint64_t, uint64_t,
+    static ENGINE_ERROR_CODE dcp_expiration(gsl::not_null<ENGINE_HANDLE*>,
+                                            gsl::not_null<const void*>,
+                                            uint32_t,
+                                            const DocKey&,
+                                            cb::const_byte_buffer,
+                                            size_t,
+                                            uint8_t,
+                                            uint64_t,
+                                            uint16_t,
+                                            uint64_t,
+                                            uint64_t,
                                             cb::const_byte_buffer) {
         return ENGINE_NO_BUCKET;
     }
 
-    static ENGINE_ERROR_CODE dcp_flush(ENGINE_HANDLE*, const void*, uint32_t,
+    static ENGINE_ERROR_CODE dcp_flush(gsl::not_null<ENGINE_HANDLE*>,
+                                       gsl::not_null<const void*>,
+                                       uint32_t,
                                        uint16_t) {
         return ENGINE_NO_BUCKET;
     }
 
-    static ENGINE_ERROR_CODE dcp_set_vbucket_state(ENGINE_HANDLE*, const void*,
-                                                   uint32_t, uint16_t,
-                                                   vbucket_state_t) {
+    static ENGINE_ERROR_CODE dcp_set_vbucket_state(
+            gsl::not_null<ENGINE_HANDLE*>,
+            gsl::not_null<const void*>,
+            uint32_t,
+            uint16_t,
+            vbucket_state_t) {
         return ENGINE_NO_BUCKET;
     }
 
-    static ENGINE_ERROR_CODE dcp_system_event(ENGINE_HANDLE* handle,
-                                              const void* cookie,
-                                              uint32_t opaque,
-                                              uint16_t vbucket,
-                                              mcbp::systemevent::id event,
-                                              uint64_t bySeqno,
-                                              cb::const_byte_buffer key,
-                                              cb::const_byte_buffer eventData) {
+    static ENGINE_ERROR_CODE dcp_system_event(
+            gsl::not_null<ENGINE_HANDLE*> handle,
+            gsl::not_null<const void*> cookie,
+            uint32_t opaque,
+            uint16_t vbucket,
+            mcbp::systemevent::id event,
+            uint64_t bySeqno,
+            cb::const_byte_buffer key,
+            cb::const_byte_buffer eventData) {
         return ENGINE_NO_BUCKET;
     }
 
     static cb::engine_error collections_set_manifest(
-            ENGINE_HANDLE* handle, cb::const_char_buffer json) {
+            gsl::not_null<ENGINE_HANDLE*> handle, cb::const_char_buffer json) {
         return {cb::engine_errc::no_bucket,
                 "nobucket::collections_set_manifest"};
     }
 
-    static bool isXattrEnabled(ENGINE_HANDLE* handle) {
+    static bool isXattrEnabled(gsl::not_null<ENGINE_HANDLE*> handle) {
         return false;
     }
 };

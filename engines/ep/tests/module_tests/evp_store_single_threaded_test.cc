@@ -981,7 +981,8 @@ TEST_F(SingleThreadedEPBucketTest, MB19892_BackfillNotDeleted) {
 
     uint64_t rollbackSeqno;
     auto dummy_dcp_add_failover_cb = [](vbucket_failover_t* entry,
-                                       size_t nentries, const void *cookie) {
+                                        size_t nentries,
+                                        gsl::not_null<const void*> cookie) {
         return ENGINE_SUCCESS;
     };
 
@@ -1110,9 +1111,10 @@ static void MB20054_run_backfill_task(EventuallyPersistentEngine* engine,
     backfill.completeCurrentTask();
 }
 
-static ENGINE_ERROR_CODE dummy_dcp_add_failover_cb(vbucket_failover_t* entry,
-                                                   size_t nentries,
-                                                   const void *cookie) {
+static ENGINE_ERROR_CODE dummy_dcp_add_failover_cb(
+        vbucket_failover_t* entry,
+        size_t nentries,
+        gsl::not_null<const void*> cookie) {
     return ENGINE_SUCCESS;
 }
 

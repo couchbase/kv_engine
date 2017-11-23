@@ -22,7 +22,7 @@
 /** Callback from the engine adding the response */
 ENGINE_ERROR_CODE add_failover_log(vbucket_failover_t* entries,
                                    size_t nentries,
-                                   const void* cookie) {
+                                   gsl::not_null<const void*> cookie) {
     ENGINE_ERROR_CODE ret;
     size_t ii;
     for (ii = 0; ii < nentries; ++ii) {
@@ -30,11 +30,16 @@ ENGINE_ERROR_CODE add_failover_log(vbucket_failover_t* entries,
         entries[ii].seqno = htonll(entries[ii].seqno);
     }
 
-    if (mcbp_response_handler(NULL, 0, NULL, 0, entries,
+    if (mcbp_response_handler(NULL,
+                              0,
+                              NULL,
+                              0,
+                              entries,
                               (uint32_t)(nentries * sizeof(vbucket_failover_t)),
                               PROTOCOL_BINARY_RAW_BYTES,
-                              PROTOCOL_BINARY_RESPONSE_SUCCESS, 0,
-                              (void*)cookie)) {
+                              PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                              0,
+                              (void*)cookie.get())) {
         ret = ENGINE_SUCCESS;
     } else {
         ret = ENGINE_ENOMEM;

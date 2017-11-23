@@ -26,7 +26,7 @@
 #include <xattr/blob.h>
 #include <xattr/utils.h>
 
-ENGINE_ERROR_CODE dcp_message_mutation(const void* void_cookie,
+ENGINE_ERROR_CODE dcp_message_mutation(gsl::not_null<const void*> void_cookie,
                                        uint32_t opaque,
                                        item* it,
                                        uint16_t vbucket,
@@ -41,7 +41,7 @@ ENGINE_ERROR_CODE dcp_message_mutation(const void* void_cookie,
         throw std::invalid_argument(
                 "dcp_message_deletion: void_cookie can't be nullptr");
     }
-    const auto& ccookie = *static_cast<const Cookie*>(void_cookie);
+    const auto& ccookie = *static_cast<const Cookie*>(void_cookie.get());
     auto& cookie = const_cast<Cookie&>(ccookie);
     auto* c = &cookie.getConnection();
 

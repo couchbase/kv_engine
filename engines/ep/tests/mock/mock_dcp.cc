@@ -56,9 +56,7 @@ std::vector<std::pair<uint64_t, uint64_t> > dcp_failover_log;
 
 ENGINE_ERROR_CODE mock_dcp_add_failover_log(vbucket_failover_t* entry,
                                             size_t nentries,
-                                            const void *cookie) {
-    (void) cookie;
-
+                                            gsl::not_null<const void*>) {
     while (!dcp_failover_log.empty()) {
         dcp_failover_log.clear();
     }
@@ -74,9 +72,8 @@ ENGINE_ERROR_CODE mock_dcp_add_failover_log(vbucket_failover_t* entry,
    return ENGINE_SUCCESS;
 }
 
-static ENGINE_ERROR_CODE mock_get_failover_log(const void *cookie,
-                                               uint32_t opaque,
-                                               uint16_t vbucket) {
+static ENGINE_ERROR_CODE mock_get_failover_log(
+        gsl::not_null<const void*> cookie, uint32_t opaque, uint16_t vbucket) {
     (void) cookie;
     (void) opaque;
     (void) vbucket;
@@ -84,7 +81,7 @@ static ENGINE_ERROR_CODE mock_get_failover_log(const void *cookie,
     return ENGINE_ENOTSUP;
 }
 
-static ENGINE_ERROR_CODE mock_stream_req(const void *cookie,
+static ENGINE_ERROR_CODE mock_stream_req(gsl::not_null<const void*> cookie,
                                          uint32_t opaque,
                                          uint16_t vbucket,
                                          uint32_t flags,
@@ -108,7 +105,7 @@ static ENGINE_ERROR_CODE mock_stream_req(const void *cookie,
     return ENGINE_SUCCESS;
 }
 
-static ENGINE_ERROR_CODE mock_add_stream_rsp(const void *cookie,
+static ENGINE_ERROR_CODE mock_add_stream_rsp(gsl::not_null<const void*> cookie,
                                              uint32_t opaque,
                                              uint32_t stream_opaque,
                                              uint8_t status) {
@@ -122,9 +119,8 @@ static ENGINE_ERROR_CODE mock_add_stream_rsp(const void *cookie,
     return ENGINE_SUCCESS;
 }
 
-static ENGINE_ERROR_CODE mock_snapshot_marker_resp(const void *cookie,
-                                                   uint32_t opaque,
-                                                   uint8_t status) {
+static ENGINE_ERROR_CODE mock_snapshot_marker_resp(
+        gsl::not_null<const void*> cookie, uint32_t opaque, uint8_t status) {
     (void) cookie;
     clear_dcp_data();
     dcp_last_op = PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER;
@@ -134,7 +130,7 @@ static ENGINE_ERROR_CODE mock_snapshot_marker_resp(const void *cookie,
     return ENGINE_SUCCESS;
 }
 
-static ENGINE_ERROR_CODE mock_stream_end(const void *cookie,
+static ENGINE_ERROR_CODE mock_stream_end(gsl::not_null<const void*> cookie,
                                          uint32_t opaque,
                                          uint16_t vbucket,
                                          uint32_t flags) {
@@ -148,7 +144,7 @@ static ENGINE_ERROR_CODE mock_stream_end(const void *cookie,
     return ENGINE_SUCCESS;
 }
 
-static ENGINE_ERROR_CODE mock_marker(const void *cookie,
+static ENGINE_ERROR_CODE mock_marker(gsl::not_null<const void*> cookie,
                                      uint32_t opaque,
                                      uint16_t vbucket,
                                      uint64_t snap_start_seqno,
@@ -166,7 +162,7 @@ static ENGINE_ERROR_CODE mock_marker(const void *cookie,
     return ENGINE_SUCCESS;
 }
 
-static ENGINE_ERROR_CODE mock_mutation(const void* cookie,
+static ENGINE_ERROR_CODE mock_mutation(gsl::not_null<const void*> cookie,
                                        uint32_t opaque,
                                        item* itm,
                                        uint16_t vbucket,
@@ -209,7 +205,7 @@ static ENGINE_ERROR_CODE mock_mutation(const void* cookie,
     return ENGINE_SUCCESS;
 }
 
-static ENGINE_ERROR_CODE mock_deletion(const void* cookie,
+static ENGINE_ERROR_CODE mock_deletion(gsl::not_null<const void*> cookie,
                                        uint32_t opaque,
                                        item* itm,
                                        uint16_t vbucket,
@@ -246,7 +242,7 @@ static ENGINE_ERROR_CODE mock_deletion(const void* cookie,
     return ENGINE_SUCCESS;
 }
 
-static ENGINE_ERROR_CODE mock_expiration(const void*,
+static ENGINE_ERROR_CODE mock_expiration(gsl::not_null<const void*> cookie,
                                          uint32_t,
                                          item* itm,
                                          uint16_t,
@@ -262,7 +258,7 @@ static ENGINE_ERROR_CODE mock_expiration(const void*,
     return ENGINE_ENOTSUP;
 }
 
-static ENGINE_ERROR_CODE mock_flush(const void* cookie,
+static ENGINE_ERROR_CODE mock_flush(gsl::not_null<const void*> cookie,
                                     uint32_t opaque,
                                     uint16_t vbucket) {
     (void) cookie;
@@ -272,10 +268,11 @@ static ENGINE_ERROR_CODE mock_flush(const void* cookie,
     return ENGINE_ENOTSUP;
 }
 
-static ENGINE_ERROR_CODE mock_set_vbucket_state(const void* cookie,
-                                                uint32_t opaque,
-                                                uint16_t vbucket,
-                                                vbucket_state_t state) {
+static ENGINE_ERROR_CODE mock_set_vbucket_state(
+        gsl::not_null<const void*> cookie,
+        uint32_t opaque,
+        uint16_t vbucket,
+        vbucket_state_t state) {
     (void) cookie;
     clear_dcp_data();
     dcp_last_op = PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE;
@@ -286,7 +283,7 @@ static ENGINE_ERROR_CODE mock_set_vbucket_state(const void* cookie,
     return ENGINE_SUCCESS;
 }
 
-static ENGINE_ERROR_CODE mock_noop(const void* cookie,
+static ENGINE_ERROR_CODE mock_noop(gsl::not_null<const void*> cookie,
                                    uint32_t opaque) {
     (void) cookie;
     clear_dcp_data();
@@ -295,10 +292,11 @@ static ENGINE_ERROR_CODE mock_noop(const void* cookie,
     return ENGINE_SUCCESS;
 }
 
-static ENGINE_ERROR_CODE mock_buffer_acknowledgement(const void* cookie,
-                                                     uint32_t opaque,
-                                                     uint16_t vbucket,
-                                                     uint32_t buffer_bytes) {
+static ENGINE_ERROR_CODE mock_buffer_acknowledgement(
+        gsl::not_null<const void*> cookie,
+        uint32_t opaque,
+        uint16_t vbucket,
+        uint32_t buffer_bytes) {
     (void) cookie;
     clear_dcp_data();
     dcp_last_op = PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT;
@@ -307,12 +305,12 @@ static ENGINE_ERROR_CODE mock_buffer_acknowledgement(const void* cookie,
     return ENGINE_SUCCESS;
 }
 
-static ENGINE_ERROR_CODE mock_control(const void* cookie,
-                                           uint32_t opaque,
-                                           const void *key,
-                                           uint16_t nkey,
-                                           const void *value,
-                                           uint32_t nvalue) {
+static ENGINE_ERROR_CODE mock_control(gsl::not_null<const void*> cookie,
+                                      uint32_t opaque,
+                                      const void* key,
+                                      uint16_t nkey,
+                                      const void* value,
+                                      uint32_t nvalue) {
     (void) cookie;
     clear_dcp_data();
     dcp_last_op = PROTOCOL_BINARY_CMD_DCP_CONTROL;
@@ -322,7 +320,7 @@ static ENGINE_ERROR_CODE mock_control(const void* cookie,
     return ENGINE_SUCCESS;
 }
 
-static ENGINE_ERROR_CODE mock_system_event(const void* cookie,
+static ENGINE_ERROR_CODE mock_system_event(gsl::not_null<const void*> cookie,
                                            uint32_t opaque,
                                            uint16_t vbucket,
                                            mcbp::systemevent::id event,

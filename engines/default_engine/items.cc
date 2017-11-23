@@ -320,7 +320,7 @@ int do_item_link(struct default_engine *engine,
     auto cas = get_cas_id();
 
     /* Allocate a new CAS ID on link. */
-    item_set_cas(NULL, it, cas);
+    item_set_cas(reinterpret_cast<ENGINE_HANDLE*>(&engine), it, cas);
 
     item_info info = {};
     info.cas = cas;

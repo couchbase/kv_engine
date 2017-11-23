@@ -39,9 +39,10 @@ static ENGINE_ERROR_CODE add_packet_to_pipe(McbpConnection* c,
     return ret;
 }
 
-static ENGINE_ERROR_CODE dcp_message_get_failover_log(const void* void_cookie,
-                                                      uint32_t opaque,
-                                                      uint16_t vbucket) {
+static ENGINE_ERROR_CODE dcp_message_get_failover_log(
+        gsl::not_null<const void*> void_cookie,
+        uint32_t opaque,
+        uint16_t vbucket) {
     auto* c = cookie2mcbp(void_cookie, __func__);
 
     protocol_binary_request_dcp_get_failover_log packet = {};
@@ -54,15 +55,16 @@ static ENGINE_ERROR_CODE dcp_message_get_failover_log(const void* void_cookie,
     return add_packet_to_pipe(c, {packet.bytes, sizeof(packet.bytes)});
 }
 
-static ENGINE_ERROR_CODE dcp_message_stream_req(const void* void_cookie,
-                                                uint32_t opaque,
-                                                uint16_t vbucket,
-                                                uint32_t flags,
-                                                uint64_t start_seqno,
-                                                uint64_t end_seqno,
-                                                uint64_t vbucket_uuid,
-                                                uint64_t snap_start_seqno,
-                                                uint64_t snap_end_seqno) {
+static ENGINE_ERROR_CODE dcp_message_stream_req(
+        gsl::not_null<const void*> void_cookie,
+        uint32_t opaque,
+        uint16_t vbucket,
+        uint32_t flags,
+        uint64_t start_seqno,
+        uint64_t end_seqno,
+        uint64_t vbucket_uuid,
+        uint64_t snap_start_seqno,
+        uint64_t snap_end_seqno) {
     auto* c = cookie2mcbp(void_cookie, __func__);
     protocol_binary_request_dcp_stream_req packet = {};
     packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
@@ -83,7 +85,7 @@ static ENGINE_ERROR_CODE dcp_message_stream_req(const void* void_cookie,
 }
 
 static ENGINE_ERROR_CODE dcp_message_add_stream_response(
-        const void* void_cookie,
+        gsl::not_null<const void*> void_cookie,
         uint32_t opaque,
         uint32_t dialogopaque,
         uint8_t status) {
@@ -102,9 +104,10 @@ static ENGINE_ERROR_CODE dcp_message_add_stream_response(
     return add_packet_to_pipe(c, {packet.bytes, sizeof(packet.bytes)});
 }
 
-static ENGINE_ERROR_CODE dcp_message_marker_response(const void* void_cookie,
-                                                     uint32_t opaque,
-                                                     uint8_t status) {
+static ENGINE_ERROR_CODE dcp_message_marker_response(
+        gsl::not_null<const void*> void_cookie,
+        uint32_t opaque,
+        uint8_t status) {
     auto* c = cookie2mcbp(void_cookie, __func__);
 
     protocol_binary_response_dcp_snapshot_marker packet = {};
@@ -120,7 +123,9 @@ static ENGINE_ERROR_CODE dcp_message_marker_response(const void* void_cookie,
 }
 
 static ENGINE_ERROR_CODE dcp_message_set_vbucket_state_response(
-        const void* void_cookie, uint32_t opaque, uint8_t status) {
+        gsl::not_null<const void*> void_cookie,
+        uint32_t opaque,
+        uint8_t status) {
     auto* c = cookie2mcbp(void_cookie, __func__);
 
     protocol_binary_response_dcp_set_vbucket_state packet = {};
@@ -135,10 +140,11 @@ static ENGINE_ERROR_CODE dcp_message_set_vbucket_state_response(
     return add_packet_to_pipe(c, {packet.bytes, sizeof(packet.bytes)});
 }
 
-static ENGINE_ERROR_CODE dcp_message_stream_end(const void* void_cookie,
-                                                uint32_t opaque,
-                                                uint16_t vbucket,
-                                                uint32_t flags) {
+static ENGINE_ERROR_CODE dcp_message_stream_end(
+        gsl::not_null<const void*> void_cookie,
+        uint32_t opaque,
+        uint16_t vbucket,
+        uint32_t flags) {
     auto* c = cookie2mcbp(void_cookie, __func__);
 
     protocol_binary_request_dcp_stream_end packet = {};
@@ -154,12 +160,13 @@ static ENGINE_ERROR_CODE dcp_message_stream_end(const void* void_cookie,
     return add_packet_to_pipe(c, {packet.bytes, sizeof(packet.bytes)});
 }
 
-static ENGINE_ERROR_CODE dcp_message_marker(const void* void_cookie,
-                                            uint32_t opaque,
-                                            uint16_t vbucket,
-                                            uint64_t start_seqno,
-                                            uint64_t end_seqno,
-                                            uint32_t flags) {
+static ENGINE_ERROR_CODE dcp_message_marker(
+        gsl::not_null<const void*> void_cookie,
+        uint32_t opaque,
+        uint16_t vbucket,
+        uint64_t start_seqno,
+        uint64_t end_seqno,
+        uint32_t flags) {
     auto* c = cookie2mcbp(void_cookie, __func__);
 
     protocol_binary_request_dcp_snapshot_marker packet = {};
@@ -177,9 +184,10 @@ static ENGINE_ERROR_CODE dcp_message_marker(const void* void_cookie,
     return add_packet_to_pipe(c, {packet.bytes, sizeof(packet.bytes)});
 }
 
-static ENGINE_ERROR_CODE dcp_message_flush(const void* void_cookie,
-                                           uint32_t opaque,
-                                           uint16_t vbucket) {
+static ENGINE_ERROR_CODE dcp_message_flush(
+        gsl::not_null<const void*> void_cookie,
+        uint32_t opaque,
+        uint16_t vbucket) {
     auto* c = cookie2mcbp(void_cookie, __func__);
     protocol_binary_request_dcp_flush packet = {};
     packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
@@ -191,10 +199,11 @@ static ENGINE_ERROR_CODE dcp_message_flush(const void* void_cookie,
     return add_packet_to_pipe(c, {packet.bytes, sizeof(packet.bytes)});
 }
 
-static ENGINE_ERROR_CODE dcp_message_set_vbucket_state(const void* void_cookie,
-                                                       uint32_t opaque,
-                                                       uint16_t vbucket,
-                                                       vbucket_state_t state) {
+static ENGINE_ERROR_CODE dcp_message_set_vbucket_state(
+        gsl::not_null<const void*> void_cookie,
+        uint32_t opaque,
+        uint16_t vbucket,
+        vbucket_state_t state) {
     auto* c = cookie2mcbp(void_cookie, __func__);
     protocol_binary_request_dcp_set_vbucket_state packet = {};
 
@@ -214,8 +223,8 @@ static ENGINE_ERROR_CODE dcp_message_set_vbucket_state(const void* void_cookie,
     return add_packet_to_pipe(c, {packet.bytes, sizeof(packet.bytes)});
 }
 
-static ENGINE_ERROR_CODE dcp_message_noop(const void* void_cookie,
-                                          uint32_t opaque) {
+static ENGINE_ERROR_CODE dcp_message_noop(
+        gsl::not_null<const void*> void_cookie, uint32_t opaque) {
     auto* c = cookie2mcbp(void_cookie, __func__);
     protocol_binary_request_dcp_noop packet = {};
     packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
@@ -227,7 +236,7 @@ static ENGINE_ERROR_CODE dcp_message_noop(const void* void_cookie,
 }
 
 static ENGINE_ERROR_CODE dcp_message_buffer_acknowledgement(
-        const void* void_cookie,
+        gsl::not_null<const void*> void_cookie,
         uint32_t opaque,
         uint16_t vbucket,
         uint32_t buffer_bytes) {
@@ -245,12 +254,13 @@ static ENGINE_ERROR_CODE dcp_message_buffer_acknowledgement(
     return add_packet_to_pipe(c, {packet.bytes, sizeof(packet.bytes)});
 }
 
-static ENGINE_ERROR_CODE dcp_message_control(const void* void_cookie,
-                                             uint32_t opaque,
-                                             const void* key,
-                                             uint16_t nkey,
-                                             const void* value,
-                                             uint32_t nvalue) {
+static ENGINE_ERROR_CODE dcp_message_control(
+        gsl::not_null<const void*> void_cookie,
+        uint32_t opaque,
+        const void* key,
+        uint16_t nkey,
+        const void* value,
+        uint32_t nvalue) {
     auto* c = cookie2mcbp(void_cookie, __func__);
     protocol_binary_request_dcp_control packet = {};
     packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;

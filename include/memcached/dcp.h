@@ -40,32 +40,31 @@ struct dcp_message_producers {
     /**
      *
      */
-    ENGINE_ERROR_CODE (* get_failover_log)(const void* cookie,
-                                           uint32_t opaque,
-                                           uint16_t vbucket);
+    ENGINE_ERROR_CODE(*get_failover_log)
+    (gsl::not_null<const void*> cookie, uint32_t opaque, uint16_t vbucket);
 
-    ENGINE_ERROR_CODE (* stream_req)(const void* cookie,
-                                     uint32_t opaque,
-                                     uint16_t vbucket,
-                                     uint32_t flags,
-                                     uint64_t start_seqno,
-                                     uint64_t end_seqno,
-                                     uint64_t vbucket_uuid,
-                                     uint64_t snap_start_seqno,
-                                     uint64_t snap_end_seqno);
+    ENGINE_ERROR_CODE(*stream_req)
+    (gsl::not_null<const void*> cookie,
+     uint32_t opaque,
+     uint16_t vbucket,
+     uint32_t flags,
+     uint64_t start_seqno,
+     uint64_t end_seqno,
+     uint64_t vbucket_uuid,
+     uint64_t snap_start_seqno,
+     uint64_t snap_end_seqno);
 
-    ENGINE_ERROR_CODE (* add_stream_rsp)(const void* cookie,
-                                         uint32_t opaque,
-                                         uint32_t stream_opaque,
-                                         uint8_t status);
+    ENGINE_ERROR_CODE(*add_stream_rsp)
+    (gsl::not_null<const void*> cookie,
+     uint32_t opaque,
+     uint32_t stream_opaque,
+     uint8_t status);
 
-    ENGINE_ERROR_CODE (* marker_rsp)(const void* cookie,
-                                     uint32_t opaque,
-                                     uint8_t status);
+    ENGINE_ERROR_CODE(*marker_rsp)
+    (gsl::not_null<const void*> cookie, uint32_t opaque, uint8_t status);
 
-    ENGINE_ERROR_CODE (* set_vbucket_state_rsp)(const void* cookie,
-                                                uint32_t opaque,
-                                                uint8_t status);
+    ENGINE_ERROR_CODE(*set_vbucket_state_rsp)
+    (gsl::not_null<const void*> cookie, uint32_t opaque, uint8_t status);
 
     /**
      * Send a Stream End message
@@ -81,10 +80,11 @@ struct dcp_message_producers {
      *
      * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
      */
-    ENGINE_ERROR_CODE (* stream_end)(const void* cookie,
-                                     uint32_t opaque,
-                                     uint16_t vbucket,
-                                     uint32_t flags);
+    ENGINE_ERROR_CODE(*stream_end)
+    (gsl::not_null<const void*> cookie,
+     uint32_t opaque,
+     uint16_t vbucket,
+     uint32_t flags);
 
     /**
      * Send a marker
@@ -96,12 +96,13 @@ struct dcp_message_producers {
      *
      * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
      */
-    ENGINE_ERROR_CODE (* marker)(const void* cookie,
-                                 uint32_t opaque,
-                                 uint16_t vbucket,
-                                 uint64_t start_seqno,
-                                 uint64_t end_seqno,
-                                 uint32_t flags);
+    ENGINE_ERROR_CODE(*marker)
+    (gsl::not_null<const void*> cookie,
+     uint32_t opaque,
+     uint16_t vbucket,
+     uint64_t start_seqno,
+     uint64_t end_seqno,
+     uint32_t flags);
 
     /**
      * Send a Mutation
@@ -123,7 +124,7 @@ struct dcp_message_producers {
      * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
      */
     ENGINE_ERROR_CODE (*mutation)
-    (const void* cookie,
+    (gsl::not_null<const void*> cookie,
      uint32_t opaque,
      item* itm,
      uint16_t vbucket,
@@ -151,7 +152,7 @@ struct dcp_message_producers {
      * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
      */
     ENGINE_ERROR_CODE (*deletion)
-    (const void* cookie,
+    (gsl::not_null<const void*> cookie,
      uint32_t opaque,
      item* itm,
      uint16_t vbucket,
@@ -177,7 +178,7 @@ struct dcp_message_producers {
      * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
      */
     ENGINE_ERROR_CODE (*expiration)
-    (const void* cookie,
+    (gsl::not_null<const void*> cookie,
      uint32_t opaque,
      item* itm,
      uint16_t vbucket,
@@ -197,9 +198,8 @@ struct dcp_message_producers {
      *
      * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
      */
-    ENGINE_ERROR_CODE (* flush)(const void* cookie,
-                                uint32_t opaque,
-                                uint16_t vbucket);
+    ENGINE_ERROR_CODE(*flush)
+    (gsl::not_null<const void*> cookie, uint32_t opaque, uint16_t vbucket);
 
     /**
      * Send a state transition for a vbucket
@@ -212,10 +212,11 @@ struct dcp_message_producers {
      *
      * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
      */
-    ENGINE_ERROR_CODE (* set_vbucket_state)(const void* cookie,
-                                            uint32_t opaque,
-                                            uint16_t vbucket,
-                                            vbucket_state_t state);
+    ENGINE_ERROR_CODE(*set_vbucket_state)
+    (gsl::not_null<const void*> cookie,
+     uint32_t opaque,
+     uint16_t vbucket,
+     vbucket_state_t state);
 
     /**
      * Send a noop
@@ -225,7 +226,8 @@ struct dcp_message_producers {
      *
      * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
      */
-    ENGINE_ERROR_CODE (* noop)(const void* cookie, uint32_t opaque);
+    ENGINE_ERROR_CODE(*noop)
+    (gsl::not_null<const void*> cookie, uint32_t opaque);
 
     /**
      * Send a buffer acknowledgment
@@ -238,10 +240,11 @@ struct dcp_message_producers {
      *
      * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
      */
-    ENGINE_ERROR_CODE (* buffer_acknowledgement)(const void* cookie,
-                                                 uint32_t opaque,
-                                                 uint16_t vbucket,
-                                                 uint32_t buffer_bytes);
+    ENGINE_ERROR_CODE(*buffer_acknowledgement)
+    (gsl::not_null<const void*> cookie,
+     uint32_t opaque,
+     uint16_t vbucket,
+     uint32_t buffer_bytes);
 
     /**
      * Send a control message to the other end
@@ -256,12 +259,13 @@ struct dcp_message_producers {
      *
      * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
      */
-    ENGINE_ERROR_CODE (* control)(const void* cookie,
-                                  uint32_t opaque,
-                                  const void* key,
-                                  uint16_t nkey,
-                                  const void* value,
-                                  uint32_t nvalue);
+    ENGINE_ERROR_CODE(*control)
+    (gsl::not_null<const void*> cookie,
+     uint32_t opaque,
+     const void* key,
+     uint16_t nkey,
+     const void* value,
+     uint32_t nvalue);
 
     /**
      * Send a system event message to the other end
@@ -275,18 +279,20 @@ struct dcp_message_producers {
      *
      * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
      */
-    ENGINE_ERROR_CODE (* system_event)(const void* cookie,
-                                       uint32_t opaque,
-                                       uint16_t vbucket,
-                                       mcbp::systemevent::id event,
-                                       uint64_t bySeqno,
-                                       cb::const_byte_buffer key,
-                                       cb::const_byte_buffer eventData);
+    ENGINE_ERROR_CODE(*system_event)
+    (gsl::not_null<const void*> cookie,
+     uint32_t opaque,
+     uint16_t vbucket,
+     mcbp::systemevent::id event,
+     uint64_t bySeqno,
+     cb::const_byte_buffer key,
+     cb::const_byte_buffer eventData);
 };
 
-typedef ENGINE_ERROR_CODE (* dcp_add_failover_log)(vbucket_failover_t*,
-                                                   size_t nentries,
-                                                   const void* cookie);
+typedef ENGINE_ERROR_CODE (*dcp_add_failover_log)(
+        vbucket_failover_t*,
+        size_t nentries,
+        gsl::not_null<const void*> cookie);
 
 struct dcp_interface {
     /**
@@ -307,71 +313,81 @@ struct dcp_interface {
      *                          to send
      *
      */
-    ENGINE_ERROR_CODE (* step)(ENGINE_HANDLE* handle, const void* cookie,
-                               struct dcp_message_producers* producers);
+    ENGINE_ERROR_CODE(*step)
+    (gsl::not_null<ENGINE_HANDLE*> handle,
+     gsl::not_null<const void*> cookie,
+     gsl::not_null<dcp_message_producers*> producers);
 
-    ENGINE_ERROR_CODE (*open) (ENGINE_HANDLE* handle,
-                               const void* cookie,
-                               uint32_t opaque,
-                               uint32_t seqno,
-                               uint32_t flags,
-                               cb::const_char_buffer name,
-                               cb::const_byte_buffer jsonExtras);
+    ENGINE_ERROR_CODE(*open)
+    (gsl::not_null<ENGINE_HANDLE*> handle,
+     gsl::not_null<const void*> cookie,
+     uint32_t opaque,
+     uint32_t seqno,
+     uint32_t flags,
+     cb::const_char_buffer name,
+     cb::const_byte_buffer jsonExtras);
 
-    ENGINE_ERROR_CODE (* add_stream)(ENGINE_HANDLE* handle,
-                                     const void* cookie,
-                                     uint32_t opaque,
-                                     uint16_t vbucket,
-                                     uint32_t flags);
+    ENGINE_ERROR_CODE(*add_stream)
+    (gsl::not_null<ENGINE_HANDLE*> handle,
+     gsl::not_null<const void*> cookie,
+     uint32_t opaque,
+     uint16_t vbucket,
+     uint32_t flags);
 
-    ENGINE_ERROR_CODE (* close_stream)(ENGINE_HANDLE* handle,
-                                       const void* cookie,
-                                       uint32_t opaque,
-                                       uint16_t vbucket);
+    ENGINE_ERROR_CODE(*close_stream)
+    (gsl::not_null<ENGINE_HANDLE*> handle,
+     gsl::not_null<const void*> cookie,
+     uint32_t opaque,
+     uint16_t vbucket);
 
     /**
      * Callback to the engine that a Stream Request message was received
      */
-    ENGINE_ERROR_CODE (* stream_req)(ENGINE_HANDLE* handle,
-                                     const void* cookie,
-                                     uint32_t flags,
-                                     uint32_t opaque,
-                                     uint16_t vbucket,
-                                     uint64_t start_seqno,
-                                     uint64_t end_seqno,
-                                     uint64_t vbucket_uuid,
-                                     uint64_t snap_start_seqno,
-                                     uint64_t snap_end_seqno,
-                                     uint64_t* rollback_seqno,
-                                     dcp_add_failover_log callback);
+    ENGINE_ERROR_CODE(*stream_req)
+    (gsl::not_null<ENGINE_HANDLE*> handle,
+     gsl::not_null<const void*> cookie,
+     uint32_t flags,
+     uint32_t opaque,
+     uint16_t vbucket,
+     uint64_t start_seqno,
+     uint64_t end_seqno,
+     uint64_t vbucket_uuid,
+     uint64_t snap_start_seqno,
+     uint64_t snap_end_seqno,
+     uint64_t* rollback_seqno,
+     dcp_add_failover_log callback);
 
     /**
      * Callback to the engine that a get failover log message was received
      */
-    ENGINE_ERROR_CODE (* get_failover_log)(ENGINE_HANDLE* handle,
-                                           const void* cookie,
-                                           uint32_t opaque,
-                                           uint16_t vbucket,
-                                           dcp_add_failover_log callback);
+    ENGINE_ERROR_CODE(*get_failover_log)
+    (gsl::not_null<ENGINE_HANDLE*> handle,
+     gsl::not_null<const void*> cookie,
+     uint32_t opaque,
+     uint16_t vbucket,
+     dcp_add_failover_log callback);
 
     /**
      * Callback to the engine that a stream end message was received
      */
-    ENGINE_ERROR_CODE (* stream_end)(ENGINE_HANDLE* handle, const void* cookie,
-                                     uint32_t opaque,
-                                     uint16_t vbucket,
-                                     uint32_t flags);
+    ENGINE_ERROR_CODE(*stream_end)
+    (gsl::not_null<ENGINE_HANDLE*> handle,
+     gsl::not_null<const void*> cookie,
+     uint32_t opaque,
+     uint16_t vbucket,
+     uint32_t flags);
 
     /**
      * Callback to the engine that a snapshot marker message was received
      */
-    ENGINE_ERROR_CODE (* snapshot_marker)(ENGINE_HANDLE* handle,
-                                          const void* cookie,
-                                          uint32_t opaque,
-                                          uint16_t vbucket,
-                                          uint64_t start_seqno,
-                                          uint64_t end_seqno,
-                                          uint32_t flags);
+    ENGINE_ERROR_CODE(*snapshot_marker)
+    (gsl::not_null<ENGINE_HANDLE*> handle,
+     gsl::not_null<const void*> cookie,
+     uint32_t opaque,
+     uint16_t vbucket,
+     uint64_t start_seqno,
+     uint64_t end_seqno,
+     uint32_t flags);
 
     /**
      * Callback to the engine that a mutation message was received
@@ -395,22 +411,23 @@ struct dcp_interface {
      * @param nru The engine's NRU value
      * @return Standard engine error code.
      */
-    ENGINE_ERROR_CODE (* mutation)(ENGINE_HANDLE* handle,
-                                   const void* cookie,
-                                   uint32_t opaque,
-                                   const DocKey& key,
-                                   cb::const_byte_buffer value,
-                                   size_t priv_bytes,
-                                   uint8_t datatype,
-                                   uint64_t cas,
-                                   uint16_t vbucket,
-                                   uint32_t flags,
-                                   uint64_t by_seqno,
-                                   uint64_t rev_seqno,
-                                   uint32_t expiration,
-                                   uint32_t lock_time,
-                                   cb::const_byte_buffer meta,
-                                   uint8_t nru);
+    ENGINE_ERROR_CODE(*mutation)
+    (gsl::not_null<ENGINE_HANDLE*> handle,
+     gsl::not_null<const void*> cookie,
+     uint32_t opaque,
+     const DocKey& key,
+     cb::const_byte_buffer value,
+     size_t priv_bytes,
+     uint8_t datatype,
+     uint64_t cas,
+     uint16_t vbucket,
+     uint32_t flags,
+     uint64_t by_seqno,
+     uint64_t rev_seqno,
+     uint32_t expiration,
+     uint32_t lock_time,
+     cb::const_byte_buffer meta,
+     uint8_t nru);
 
     /**
      * Callback to the engine that a deletion message was received
@@ -430,18 +447,19 @@ struct dcp_interface {
      * @param meta The documents meta
      * @return Standard engine error code.
      */
-    ENGINE_ERROR_CODE (* deletion)(ENGINE_HANDLE* handle,
-                                   const void* cookie,
-                                   uint32_t opaque,
-                                   const DocKey& key,
-                                   cb::const_byte_buffer value,
-                                   size_t priv_bytes,
-                                   uint8_t datatype,
-                                   uint64_t cas,
-                                   uint16_t vbucket,
-                                   uint64_t by_seqno,
-                                   uint64_t rev_seqno,
-                                   cb::const_byte_buffer meta);
+    ENGINE_ERROR_CODE(*deletion)
+    (gsl::not_null<ENGINE_HANDLE*> handle,
+     gsl::not_null<const void*> cookie,
+     uint32_t opaque,
+     const DocKey& key,
+     cb::const_byte_buffer value,
+     size_t priv_bytes,
+     uint8_t datatype,
+     uint64_t cas,
+     uint16_t vbucket,
+     uint64_t by_seqno,
+     uint64_t rev_seqno,
+     cb::const_byte_buffer meta);
 
     /**
      * Callback to the engine that an expiration message was received
@@ -461,70 +479,78 @@ struct dcp_interface {
      * @param meta The documents meta
      * @return Standard engine error code.
      */
-    ENGINE_ERROR_CODE (* expiration)(ENGINE_HANDLE* handle,
-                                     const void* cookie,
-                                     uint32_t opaque,
-                                     const DocKey& key,
-                                     cb::const_byte_buffer value,
-                                     size_t priv_bytes,
-                                     uint8_t datatype,
-                                     uint64_t cas,
-                                     uint16_t vbucket,
-                                     uint64_t by_seqno,
-                                     uint64_t rev_seqno,
-                                     cb::const_byte_buffer meta);
+    ENGINE_ERROR_CODE(*expiration)
+    (gsl::not_null<ENGINE_HANDLE*> handle,
+     gsl::not_null<const void*> cookie,
+     uint32_t opaque,
+     const DocKey& key,
+     cb::const_byte_buffer value,
+     size_t priv_bytes,
+     uint8_t datatype,
+     uint64_t cas,
+     uint16_t vbucket,
+     uint64_t by_seqno,
+     uint64_t rev_seqno,
+     cb::const_byte_buffer meta);
 
     /**
      * Callback to the engine that a flush message was received
      */
-    ENGINE_ERROR_CODE (* flush)(ENGINE_HANDLE* handle, const void* cookie,
-                                uint32_t opaque,
-                                uint16_t vbucket);
+    ENGINE_ERROR_CODE(*flush)
+    (gsl::not_null<ENGINE_HANDLE*> handle,
+     gsl::not_null<const void*> cookie,
+     uint32_t opaque,
+     uint16_t vbucket);
 
     /**
      * Callback to the engine that a set vbucket state message was received
      */
-    ENGINE_ERROR_CODE
-    (* set_vbucket_state)(ENGINE_HANDLE* handle, const void* cookie,
-                          uint32_t opaque,
-                          uint16_t vbucket,
-                          vbucket_state_t state);
+    ENGINE_ERROR_CODE(*set_vbucket_state)
+    (gsl::not_null<ENGINE_HANDLE*> handle,
+     gsl::not_null<const void*> cookie,
+     uint32_t opaque,
+     uint16_t vbucket,
+     vbucket_state_t state);
 
     /**
      * Callback to the engine that a NOOP message was received
      */
-    ENGINE_ERROR_CODE (* noop)(ENGINE_HANDLE* handle,
-                               const void* cookie,
-                               uint32_t opaque);
+    ENGINE_ERROR_CODE(*noop)
+    (gsl::not_null<ENGINE_HANDLE*> handle,
+     gsl::not_null<const void*> cookie,
+     uint32_t opaque);
 
     /**
      * Callback to the engine that a buffer_ack message was received
      */
-    ENGINE_ERROR_CODE (* buffer_acknowledgement)(ENGINE_HANDLE* handle,
-                                                 const void* cookie,
-                                                 uint32_t opaque,
-                                                 uint16_t vbucket,
-                                                 uint32_t buffer_bytes);
+    ENGINE_ERROR_CODE(*buffer_acknowledgement)
+    (gsl::not_null<ENGINE_HANDLE*> handle,
+     gsl::not_null<const void*> cookie,
+     uint32_t opaque,
+     uint16_t vbucket,
+     uint32_t buffer_bytes);
 
-    ENGINE_ERROR_CODE (* control)(ENGINE_HANDLE* handle,
-                                  const void* cookie,
-                                  uint32_t opaque,
-                                  const void* key,
-                                  uint16_t nkey,
-                                  const void* value,
-                                  uint32_t nvalue);
+    ENGINE_ERROR_CODE(*control)
+    (gsl::not_null<ENGINE_HANDLE*> handle,
+     gsl::not_null<const void*> cookie,
+     uint32_t opaque,
+     const void* key,
+     uint16_t nkey,
+     const void* value,
+     uint32_t nvalue);
 
-    ENGINE_ERROR_CODE (*response_handler)(ENGINE_HANDLE* handle,
-                                          const void* cookie,
-                                          const protocol_binary_response_header* response);
+    ENGINE_ERROR_CODE(*response_handler)
+    (gsl::not_null<ENGINE_HANDLE*> handle,
+     gsl::not_null<const void*> cookie,
+     const protocol_binary_response_header* response);
 
-    ENGINE_ERROR_CODE (* system_event) (ENGINE_HANDLE* handle,
-                                        const void* cookie,
-                                        uint32_t opaque,
-                                        uint16_t vbucket,
-                                        mcbp::systemevent::id event,
-                                        uint64_t bySeqno,
-                                        cb::const_byte_buffer key,
-                                        cb::const_byte_buffer eventData);
+    ENGINE_ERROR_CODE(*system_event)
+    (gsl::not_null<ENGINE_HANDLE*> handle,
+     gsl::not_null<const void*> cookie,
+     uint32_t opaque,
+     uint16_t vbucket,
+     mcbp::systemevent::id event,
+     uint64_t bySeqno,
+     cb::const_byte_buffer key,
+     cb::const_byte_buffer eventData);
 };
-

@@ -32,13 +32,13 @@
  * @param eventData buffer containing event data which is shipped in the body
  * @return ENGINE_SUCCESS or ENGINE_E2BIG if there's no space in the send buffer
  */
-ENGINE_ERROR_CODE dcp_message_system_event(const void* cookie,
-                                          uint32_t opaque,
-                                          uint16_t vbucket,
-                                          mcbp::systemevent::id event,
-                                          uint64_t bySeqno,
-                                          cb::const_byte_buffer key,
-                                          cb::const_byte_buffer eventData);
+ENGINE_ERROR_CODE dcp_message_system_event(gsl::not_null<const void*> cookie,
+                                           uint32_t opaque,
+                                           uint16_t vbucket,
+                                           mcbp::systemevent::id event,
+                                           uint64_t bySeqno,
+                                           cb::const_byte_buffer key,
+                                           cb::const_byte_buffer eventData);
 
 /**
  * Implementation of the method responsible for handle the incoming

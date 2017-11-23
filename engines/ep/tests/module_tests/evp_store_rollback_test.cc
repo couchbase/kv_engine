@@ -68,9 +68,10 @@ protected:
     /*
      * Fake callback emulating dcp_add_failover_log
      */
-    static ENGINE_ERROR_CODE fakeDcpAddFailoverLog(vbucket_failover_t* entry,
-                                                   size_t nentries,
-                                                   const void *cookie) {
+    static ENGINE_ERROR_CODE fakeDcpAddFailoverLog(
+            vbucket_failover_t* entry,
+            size_t nentries,
+            gsl::not_null<const void*> cookie) {
         return ENGINE_SUCCESS;
     }
 
@@ -416,15 +417,16 @@ public:
         uint64_t snap_end_seqno;
     } streamRequestData;
 
-    static ENGINE_ERROR_CODE streamRequest(const void* cookie,
-                                           uint32_t opaque,
-                                           uint16_t vbucket,
-                                           uint32_t flags,
-                                           uint64_t start_seqno,
-                                           uint64_t end_seqno,
-                                           uint64_t vbucket_uuid,
-                                           uint64_t snap_start_seqno,
-                                           uint64_t snap_end_seqno) {
+    static ENGINE_ERROR_CODE streamRequest(
+            gsl::not_null<const void*> void_cookie,
+            uint32_t opaque,
+            uint16_t vbucket,
+            uint32_t flags,
+            uint64_t start_seqno,
+            uint64_t end_seqno,
+            uint64_t vbucket_uuid,
+            uint64_t snap_start_seqno,
+            uint64_t snap_end_seqno) {
         streamRequestData = {true,
                              opaque,
                              vbucket,
@@ -696,7 +698,9 @@ TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
                       &rollbackSeqno,
                       [](vbucket_failover_t* entry,
                          size_t nentries,
-                         const void* cookie) { return ENGINE_SUCCESS; }));
+                         gsl::not_null<const void*> cookie) {
+                          return ENGINE_SUCCESS;
+                      }));
 
     auto stream = producer->findStream(vbid);
     ASSERT_TRUE(stream->isActive());

@@ -55,8 +55,7 @@ static CrashEngine* get_handle(ENGINE_HANDLE* handle)
     return reinterpret_cast<CrashEngine*>(handle);
 }
 
-static const engine_info* get_info(ENGINE_HANDLE* handle)
-{
+static const engine_info* get_info(gsl::not_null<ENGINE_HANDLE*> handle) {
     return &get_handle(handle)->info.eng_info;
 }
 
@@ -98,9 +97,8 @@ char recursive_crash_function(char depth, CrashMode mode) {
 /* 'initializes' this engine - given this is the crash_engine that
  * means crashing it.
  */
-static ENGINE_ERROR_CODE initialize(ENGINE_HANDLE* handle,
-                                    const char* config_str)
-{
+static ENGINE_ERROR_CODE initialize(gsl::not_null<ENGINE_HANDLE*> handle,
+                                    const char* config_str) {
     (void)handle;
     (void)config_str;
     std::string mode_string(getenv("MEMCACHED_CRASH_TEST"));
@@ -120,49 +118,50 @@ static ENGINE_ERROR_CODE initialize(ENGINE_HANDLE* handle,
     return ENGINE_ERROR_CODE(recursive_crash_function(25, mode));
 }
 
-static void destroy(ENGINE_HANDLE* handle, const bool force)
-{
+static void destroy(gsl::not_null<ENGINE_HANDLE*> handle, const bool force) {
     (void)force;
     cb_free(handle);
 }
 
-static cb::EngineErrorItemPair item_allocate(ENGINE_HANDLE* handle,
-                                             const void* cookie,
-                                             const DocKey& key,
-                                             const size_t nbytes,
-                                             const int flags,
-                                             const rel_time_t exptime,
-                                             uint8_t datatype,
-                                             uint16_t vbucket) {
+static cb::EngineErrorItemPair item_allocate(
+        gsl::not_null<ENGINE_HANDLE*> handle,
+        const void* cookie,
+        const DocKey& key,
+        const size_t nbytes,
+        const int flags,
+        const rel_time_t exptime,
+        uint8_t datatype,
+        uint16_t vbucket) {
     return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
 }
 
-static std::pair<cb::unique_item_ptr, item_info> item_allocate_ex(ENGINE_HANDLE* handle,
-                                                                  const void* cookie,
-                                                                  const DocKey& key,
-                                                                  const size_t nbytes,
-                                                                  const size_t priv_nbytes,
-                                                                  const int flags,
-                                                                  const rel_time_t exptime,
-                                                                  uint8_t datatype,
-                                                                  uint16_t vbucket) {
+static std::pair<cb::unique_item_ptr, item_info> item_allocate_ex(
+        gsl::not_null<ENGINE_HANDLE*> handle,
+        const void* cookie,
+        const DocKey& key,
+        const size_t nbytes,
+        const size_t priv_nbytes,
+        const int flags,
+        const rel_time_t exptime,
+        uint8_t datatype,
+        uint16_t vbucket) {
     throw cb::engine_error{cb::engine_errc::failed, "crash_engine"};
 }
 
-static ENGINE_ERROR_CODE item_delete(ENGINE_HANDLE* handle,
+static ENGINE_ERROR_CODE item_delete(gsl::not_null<ENGINE_HANDLE*> handle,
                                      const void* cookie,
                                      const DocKey& key,
                                      uint64_t* cas,
                                      uint16_t vbucket,
-                                     mutation_descr_t* mut_info)
-{
+                                     mutation_descr_t* mut_info) {
     return ENGINE_FAILED;
 }
 
-static void item_release(ENGINE_HANDLE* handle, item* item) {
+static void item_release(gsl::not_null<ENGINE_HANDLE*> handle,
+                         gsl::not_null<item*> item) {
 }
 
-static cb::EngineErrorItemPair get(ENGINE_HANDLE* handle,
+static cb::EngineErrorItemPair get(gsl::not_null<ENGINE_HANDLE*> handle,
                                    const void* cookie,
                                    const DocKey& key,
                                    uint16_t vbucket,
@@ -170,7 +169,7 @@ static cb::EngineErrorItemPair get(ENGINE_HANDLE* handle,
     return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
 }
 
-static cb::EngineErrorItemPair get_if(ENGINE_HANDLE* handle,
+static cb::EngineErrorItemPair get_if(gsl::not_null<ENGINE_HANDLE*> handle,
                                       const void*,
                                       const DocKey&,
                                       uint16_t,
@@ -179,11 +178,15 @@ static cb::EngineErrorItemPair get_if(ENGINE_HANDLE* handle,
 }
 
 static cb::EngineErrorItemPair get_and_touch(
-        ENGINE_HANDLE* handle, const void*, const DocKey&, uint16_t, uint32_t) {
+        gsl::not_null<ENGINE_HANDLE*> handle,
+        const void*,
+        const DocKey&,
+        uint16_t,
+        uint32_t) {
     return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
 }
 
-static cb::EngineErrorItemPair get_locked(ENGINE_HANDLE* handle,
+static cb::EngineErrorItemPair get_locked(gsl::not_null<ENGINE_HANDLE*> handle,
                                           const void* cookie,
                                           const DocKey& key,
                                           uint16_t vbucket,
@@ -191,7 +194,7 @@ static cb::EngineErrorItemPair get_locked(ENGINE_HANDLE* handle,
     return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
 }
 
-static ENGINE_ERROR_CODE unlock(ENGINE_HANDLE* handle,
+static ENGINE_ERROR_CODE unlock(gsl::not_null<ENGINE_HANDLE*> handle,
                                 const void* cookie,
                                 const DocKey& key,
                                 uint16_t vbucket,
@@ -199,28 +202,26 @@ static ENGINE_ERROR_CODE unlock(ENGINE_HANDLE* handle,
     return ENGINE_FAILED;
 }
 
-static ENGINE_ERROR_CODE get_stats(ENGINE_HANDLE* handle,
+static ENGINE_ERROR_CODE get_stats(gsl::not_null<ENGINE_HANDLE*> handle,
                                    const void* cookie,
                                    const char* stat_key,
                                    int nkey,
-                                   ADD_STAT add_stat)
-{
+                                   ADD_STAT add_stat) {
     return ENGINE_FAILED;
 }
 
-static ENGINE_ERROR_CODE store(ENGINE_HANDLE* handle,
-                               const void *cookie,
-                               item* item,
-                               uint64_t *cas,
+static ENGINE_ERROR_CODE store(gsl::not_null<ENGINE_HANDLE*> handle,
+                               const void* cookie,
+                               gsl::not_null<item*> item,
+                               gsl::not_null<uint64_t*> cas,
                                ENGINE_STORE_OPERATION operation,
-                               DocumentState)
-{
+                               DocumentState) {
     return ENGINE_FAILED;
 }
 
-static cb::EngineErrorCasPair store_if(ENGINE_HANDLE* handle,
+static cb::EngineErrorCasPair store_if(gsl::not_null<ENGINE_HANDLE*> handle,
                                        const void* cookie,
-                                       item* item,
+                                       gsl::not_null<item*> item,
                                        uint64_t cas,
                                        ENGINE_STORE_OPERATION operation,
                                        cb::StoreIfPredicate,
@@ -228,33 +229,33 @@ static cb::EngineErrorCasPair store_if(ENGINE_HANDLE* handle,
     return {cb::engine_errc::failed, 0};
 }
 
-static ENGINE_ERROR_CODE flush(ENGINE_HANDLE* handle,
-                               const void* cookie)
-{
+static ENGINE_ERROR_CODE flush(gsl::not_null<ENGINE_HANDLE*> handle,
+                               const void* cookie) {
     return ENGINE_FAILED;
 }
 
-static void reset_stats(ENGINE_HANDLE* handle,
-                         const void *cookie)
-{
+static void reset_stats(gsl::not_null<ENGINE_HANDLE*> handle,
+                        const void* cookie) {
 }
 
-static void item_set_cas(ENGINE_HANDLE* handle, item* item, uint64_t val) {
+static void item_set_cas(gsl::not_null<ENGINE_HANDLE*> handle,
+                         gsl::not_null<item*> item,
+                         uint64_t val) {
 }
 
-static bool get_item_info(ENGINE_HANDLE* handle,
-                          const item* item,
-                          item_info* item_info) {
+static bool get_item_info(gsl::not_null<ENGINE_HANDLE*> handle,
+                          gsl::not_null<const item*> item,
+                          gsl::not_null<item_info*> item_info) {
     return false;
 }
 
-static bool set_item_info(ENGINE_HANDLE* handle,
-                          item* item,
-                          const item_info* itm_info) {
+static bool set_item_info(gsl::not_null<ENGINE_HANDLE*> handle,
+                          gsl::not_null<item*> item,
+                          gsl::not_null<const item_info*> itm_info) {
     return false;
 }
 
-static bool is_xattr_enabled(ENGINE_HANDLE* handle) {
+static bool is_xattr_enabled(gsl::not_null<ENGINE_HANDLE*> handle) {
     return true;
 }
 

@@ -39,7 +39,7 @@
  *                        the stream, the standard engine return values
  *                        if a failure happens.
  */
-ENGINE_ERROR_CODE dcp_message_mutation(const void* void_cookie,
+ENGINE_ERROR_CODE dcp_message_mutation(gsl::not_null<const void*> void_cookie,
                                        uint32_t opaque,
                                        item* it,
                                        uint16_t vbucket,

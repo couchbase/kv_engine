@@ -68,13 +68,13 @@ void dcp_system_event_executor(Cookie& cookie) {
     }
 }
 
-ENGINE_ERROR_CODE dcp_message_system_event(const void* cookie,
-                                          uint32_t opaque,
-                                          uint16_t vbucket,
-                                          mcbp::systemevent::id event,
-                                          uint64_t bySeqno,
-                                          cb::const_byte_buffer key,
-                                          cb::const_byte_buffer eventData) {
+ENGINE_ERROR_CODE dcp_message_system_event(gsl::not_null<const void*> cookie,
+                                           uint32_t opaque,
+                                           uint16_t vbucket,
+                                           mcbp::systemevent::id event,
+                                           uint64_t bySeqno,
+                                           cb::const_byte_buffer key,
+                                           cb::const_byte_buffer eventData) {
     auto* c = cookie2mcbp(cookie, __func__);
 
     protocol_binary_request_dcp_system_event packet(

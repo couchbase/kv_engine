@@ -23,102 +23,113 @@
 // we may use for testing ;)
 #define DEFAULT_ENGINE_VBUCKET_UUID 0xdeadbeef
 
-static const engine_info* default_get_info(ENGINE_HANDLE* handle);
-static ENGINE_ERROR_CODE default_initialize(ENGINE_HANDLE* handle,
-                                            const char* config_str);
-static void default_destroy(ENGINE_HANDLE* handle,
+static const engine_info* default_get_info(
+        gsl::not_null<ENGINE_HANDLE*> handle);
+static ENGINE_ERROR_CODE default_initialize(
+        gsl::not_null<ENGINE_HANDLE*> handle, const char* config_str);
+static void default_destroy(gsl::not_null<ENGINE_HANDLE*> handle,
                             const bool force);
-static cb::EngineErrorItemPair default_item_allocate(ENGINE_HANDLE* handle,
-                                                     const void* cookie,
-                                                     const DocKey& key,
-                                                     const size_t nbytes,
-                                                     const int flags,
-                                                     const rel_time_t exptime,
-                                                     uint8_t datatype,
-                                                     uint16_t vbucket);
-static std::pair<cb::unique_item_ptr, item_info> default_item_allocate_ex(ENGINE_HANDLE* handle,
-                                                                          const void* cookie,
-                                                                          const DocKey& key,
-                                                                          const size_t nbytes,
-                                                                          const size_t priv_nbytes,
-                                                                          const int flags,
-                                                                          const rel_time_t exptime,
-                                                                          uint8_t datatype,
-                                                                          uint16_t vbucket);
+static cb::EngineErrorItemPair default_item_allocate(
+        gsl::not_null<ENGINE_HANDLE*> handle,
+        const void* cookie,
+        const DocKey& key,
+        const size_t nbytes,
+        const int flags,
+        const rel_time_t exptime,
+        uint8_t datatype,
+        uint16_t vbucket);
+static std::pair<cb::unique_item_ptr, item_info> default_item_allocate_ex(
+        gsl::not_null<ENGINE_HANDLE*> handle,
+        const void* cookie,
+        const DocKey& key,
+        const size_t nbytes,
+        const size_t priv_nbytes,
+        const int flags,
+        const rel_time_t exptime,
+        uint8_t datatype,
+        uint16_t vbucket);
 
-static ENGINE_ERROR_CODE default_item_delete(ENGINE_HANDLE* handle,
-                                             const void* cookie,
-                                             const DocKey& key,
-                                             uint64_t* cas,
-                                             uint16_t vbucket,
-                                             mutation_descr_t* mut_info);
+static ENGINE_ERROR_CODE default_item_delete(
+        gsl::not_null<ENGINE_HANDLE*> handle,
+        const void* cookie,
+        const DocKey& key,
+        uint64_t* cas,
+        uint16_t vbucket,
+        mutation_descr_t* mut_info);
 
-static void default_item_release(ENGINE_HANDLE* handle, item* item);
-static cb::EngineErrorItemPair default_get(ENGINE_HANDLE* handle,
+static void default_item_release(gsl::not_null<ENGINE_HANDLE*> handle,
+                                 gsl::not_null<item*> item);
+static cb::EngineErrorItemPair default_get(gsl::not_null<ENGINE_HANDLE*> handle,
                                            const void* cookie,
                                            const DocKey& key,
                                            uint16_t vbucket,
                                            DocStateFilter);
 
-static cb::EngineErrorItemPair default_get_if(ENGINE_HANDLE*,
-                                              const void*,
-                                              const DocKey&,
-                                              uint16_t,
-                                              std::function<bool(
-                                                  const item_info&)>);
+static cb::EngineErrorItemPair default_get_if(
+        gsl::not_null<ENGINE_HANDLE*>,
+        const void*,
+        const DocKey&,
+        uint16_t,
+        std::function<bool(const item_info&)>);
 
-static cb::EngineErrorItemPair default_get_and_touch(ENGINE_HANDLE* handle,
-                                                     const void* cookie,
-                                                     const DocKey& key,
-                                                     uint16_t vbucket,
-                                                     uint32_t expiry_time);
+static cb::EngineErrorItemPair default_get_and_touch(
+        gsl::not_null<ENGINE_HANDLE*> handle,
+        const void* cookie,
+        const DocKey& key,
+        uint16_t vbucket,
+        uint32_t expiry_time);
 
-static cb::EngineErrorItemPair default_get_locked(ENGINE_HANDLE* handle,
-                                                  const void* cookie,
-                                                  const DocKey& key,
-                                                  uint16_t vbucket,
-                                                  uint32_t lock_timeout);
+static cb::EngineErrorItemPair default_get_locked(
+        gsl::not_null<ENGINE_HANDLE*> handle,
+        const void* cookie,
+        const DocKey& key,
+        uint16_t vbucket,
+        uint32_t lock_timeout);
 
-static cb::EngineErrorMetadataPair default_get_meta(ENGINE_HANDLE* handle,
-                                                    const void* cookie,
-                                                    const DocKey& key,
-                                                    uint16_t vbucket);
+static cb::EngineErrorMetadataPair default_get_meta(
+        gsl::not_null<ENGINE_HANDLE*> handle,
+        const void* cookie,
+        const DocKey& key,
+        uint16_t vbucket);
 
-static ENGINE_ERROR_CODE default_unlock(ENGINE_HANDLE* handle,
+static ENGINE_ERROR_CODE default_unlock(gsl::not_null<ENGINE_HANDLE*> handle,
                                         const void* cookie,
                                         const DocKey& key,
                                         uint16_t vbucket,
                                         uint64_t cas);
-static ENGINE_ERROR_CODE default_get_stats(ENGINE_HANDLE* handle,
-                  const void *cookie,
-                  const char *stat_key,
-                  int nkey,
-                  ADD_STAT add_stat);
-static void default_reset_stats(ENGINE_HANDLE* handle, const void *cookie);
-static ENGINE_ERROR_CODE default_store(ENGINE_HANDLE* handle,
-                                       const void *cookie,
-                                       item* item,
-                                       uint64_t *cas,
+static ENGINE_ERROR_CODE default_get_stats(gsl::not_null<ENGINE_HANDLE*> handle,
+                                           const void* cookie,
+                                           const char* stat_key,
+                                           int nkey,
+                                           ADD_STAT add_stat);
+static void default_reset_stats(gsl::not_null<ENGINE_HANDLE*> handle,
+                                const void* cookie);
+static ENGINE_ERROR_CODE default_store(gsl::not_null<ENGINE_HANDLE*> handle,
+                                       const void* cookie,
+                                       gsl::not_null<item*> item,
+                                       gsl::not_null<uint64_t*> cas,
                                        ENGINE_STORE_OPERATION operation,
                                        DocumentState);
 
-static cb::EngineErrorCasPair default_store_if(ENGINE_HANDLE* handle,
-                                               const void* cookie,
-                                               item* item_,
-                                               uint64_t cas,
-                                               ENGINE_STORE_OPERATION operation,
-                                               cb::StoreIfPredicate predicate,
-                                               DocumentState document_state);
+static cb::EngineErrorCasPair default_store_if(
+        gsl::not_null<ENGINE_HANDLE*> handle,
+        const void* cookie,
+        gsl::not_null<item*> item_,
+        uint64_t cas,
+        ENGINE_STORE_OPERATION operation,
+        cb::StoreIfPredicate predicate,
+        DocumentState document_state);
 
-static ENGINE_ERROR_CODE default_flush(ENGINE_HANDLE* handle,
+static ENGINE_ERROR_CODE default_flush(gsl::not_null<ENGINE_HANDLE*> handle,
                                        const void* cookie);
 static ENGINE_ERROR_CODE initalize_configuration(struct default_engine *se,
                                                  const char *cfg_str);
-static ENGINE_ERROR_CODE default_unknown_command(ENGINE_HANDLE* handle,
-                                                 const void* cookie,
-                                                 protocol_binary_request_header *request,
-                                                 ADD_RESPONSE response,
-                                                 DocNamespace doc_namespace);
+static ENGINE_ERROR_CODE default_unknown_command(
+        gsl::not_null<ENGINE_HANDLE*> handle,
+        const void* cookie,
+        gsl::not_null<protocol_binary_request_header*> request,
+        ADD_RESPONSE response,
+        DocNamespace doc_namespace);
 
 union vbucket_info_adapter {
     char c;
@@ -148,15 +159,15 @@ static bool handled_vbucket(struct default_engine *e, uint16_t vbid) {
 /* mechanism for handling bad vbucket requests */
 #define VBUCKET_GUARD(e, v) if (!handled_vbucket(e, v)) { return ENGINE_NOT_MY_VBUCKET; }
 
-static bool get_item_info(ENGINE_HANDLE* handle,
-                          const item* item,
-                          item_info* item_info);
+static bool get_item_info(gsl::not_null<ENGINE_HANDLE*> handle,
+                          gsl::not_null<const item*> item,
+                          gsl::not_null<item_info*> item_info);
 
-static bool set_item_info(ENGINE_HANDLE* handle,
-                          item* item,
-                          const item_info* itm_info);
+static bool set_item_info(gsl::not_null<ENGINE_HANDLE*> handle,
+                          gsl::not_null<item*> item,
+                          gsl::not_null<const item_info*> itm_info);
 
-static bool is_xattr_supported(ENGINE_HANDLE* handle);
+static bool is_xattr_supported(gsl::not_null<ENGINE_HANDLE*> handle);
 
 /**
  * Given that default_engine is implemented in C and not C++ we don't have
@@ -253,34 +264,37 @@ static hash_item* get_real_item(item* item) {
     return (hash_item*)item;
 }
 
-static const engine_info* default_get_info(ENGINE_HANDLE* handle) {
+static const engine_info* default_get_info(
+        gsl::not_null<ENGINE_HANDLE*> handle) {
     return &get_handle(handle)->info.engine;
 }
 
-static ENGINE_ERROR_CODE default_initialize(ENGINE_HANDLE* handle,
-                                            const char* config_str) {
-   struct default_engine* se = get_handle(handle);
-   ENGINE_ERROR_CODE ret = initalize_configuration(se, config_str);
-   if (ret != ENGINE_SUCCESS) {
-      return ret;
-   }
-   se->info.engine.features[se->info.engine.num_features++].feature = ENGINE_FEATURE_CAS;
+static ENGINE_ERROR_CODE default_initialize(
+        gsl::not_null<ENGINE_HANDLE*> handle, const char* config_str) {
+    struct default_engine* se = get_handle(handle);
+    ENGINE_ERROR_CODE ret = initalize_configuration(se, config_str);
+    if (ret != ENGINE_SUCCESS) {
+        return ret;
+    }
+    se->info.engine.features[se->info.engine.num_features++].feature =
+            ENGINE_FEATURE_CAS;
 
-   ret = assoc_init(se);
-   if (ret != ENGINE_SUCCESS) {
-      return ret;
-   }
+    ret = assoc_init(se);
+    if (ret != ENGINE_SUCCESS) {
+        return ret;
+    }
 
-   ret = slabs_init(se, se->config.maxbytes, se->config.factor,
-                    se->config.preallocate);
-   if (ret != ENGINE_SUCCESS) {
-      return ret;
-   }
+    ret = slabs_init(
+            se, se->config.maxbytes, se->config.factor, se->config.preallocate);
+    if (ret != ENGINE_SUCCESS) {
+        return ret;
+    }
 
-   return ENGINE_SUCCESS;
+    return ENGINE_SUCCESS;
 }
 
-static void default_destroy(ENGINE_HANDLE* handle, const bool force) {
+static void default_destroy(gsl::not_null<ENGINE_HANDLE*> handle,
+                            const bool force) {
     (void)force;
     engine_manager_delete_engine(get_handle(handle));
 }
@@ -302,14 +316,15 @@ void destroy_engine_instance(struct default_engine* engine) {
     }
 }
 
-static cb::EngineErrorItemPair default_item_allocate(ENGINE_HANDLE* handle,
-                                                     const void* cookie,
-                                                     const DocKey& key,
-                                                     const size_t nbytes,
-                                                     const int flags,
-                                                     const rel_time_t exptime,
-                                                     uint8_t datatype,
-                                                     uint16_t vbucket) {
+static cb::EngineErrorItemPair default_item_allocate(
+        gsl::not_null<ENGINE_HANDLE*> handle,
+        const void* cookie,
+        const DocKey& key,
+        const size_t nbytes,
+        const int flags,
+        const rel_time_t exptime,
+        uint8_t datatype,
+        uint16_t vbucket) {
     try {
         auto pair = default_item_allocate_ex(handle, cookie, key, nbytes,
                                              0, // No privileged bytes
@@ -321,15 +336,16 @@ static cb::EngineErrorItemPair default_item_allocate(ENGINE_HANDLE* handle,
     }
 }
 
-static std::pair<cb::unique_item_ptr, item_info> default_item_allocate_ex(ENGINE_HANDLE* handle,
-                                                                          const void* cookie,
-                                                                          const DocKey& key,
-                                                                          const size_t nbytes,
-                                                                          const size_t priv_nbytes,
-                                                                          const int flags,
-                                                                          const rel_time_t exptime,
-                                                                          uint8_t datatype,
-                                                                          uint16_t vbucket) {
+static std::pair<cb::unique_item_ptr, item_info> default_item_allocate_ex(
+        gsl::not_null<ENGINE_HANDLE*> handle,
+        const void* cookie,
+        const DocKey& key,
+        const size_t nbytes,
+        const size_t priv_nbytes,
+        const int flags,
+        const rel_time_t exptime,
+        uint8_t datatype,
+        uint16_t vbucket) {
     hash_item *it;
 
     unsigned int id;
@@ -374,12 +390,13 @@ static std::pair<cb::unique_item_ptr, item_info> default_item_allocate_ex(ENGINE
     }
 }
 
-static ENGINE_ERROR_CODE default_item_delete(ENGINE_HANDLE* handle,
-                                             const void* cookie,
-                                             const DocKey& key,
-                                             uint64_t* cas,
-                                             uint16_t vbucket,
-                                             mutation_descr_t* mut_info) {
+static ENGINE_ERROR_CODE default_item_delete(
+        gsl::not_null<ENGINE_HANDLE*> handle,
+        const void* cookie,
+        const DocKey& key,
+        uint64_t* cas,
+        uint16_t vbucket,
+        mutation_descr_t* mut_info) {
     struct default_engine* engine = get_handle(handle);
     hash_item* it;
     uint64_t cas_in = *cas;
@@ -442,11 +459,12 @@ static ENGINE_ERROR_CODE default_item_delete(ENGINE_HANDLE* handle,
     return ret;
 }
 
-static void default_item_release(ENGINE_HANDLE* handle, item* item) {
+static void default_item_release(gsl::not_null<ENGINE_HANDLE*> handle,
+                                 gsl::not_null<item*> item) {
     item_release(get_handle(handle), get_real_item(item));
 }
 
-static cb::EngineErrorItemPair default_get(ENGINE_HANDLE* handle,
+static cb::EngineErrorItemPair default_get(gsl::not_null<ENGINE_HANDLE*> handle,
                                            const void* cookie,
                                            const DocKey& key,
                                            uint16_t vbucket,
@@ -470,7 +488,7 @@ static cb::EngineErrorItemPair default_get(ENGINE_HANDLE* handle,
 }
 
 static cb::EngineErrorItemPair default_get_if(
-        ENGINE_HANDLE* handle,
+        gsl::not_null<ENGINE_HANDLE*> handle,
         const void* cookie,
         const DocKey& key,
         uint16_t vbucket,
@@ -505,12 +523,12 @@ static cb::EngineErrorItemPair default_get_if(
             cb::engine_errc::success, ret.release(), handle);
 }
 
-static cb::EngineErrorItemPair default_get_and_touch(ENGINE_HANDLE* handle,
-                                                     const void* cookie,
-                                                     const DocKey& key,
-                                                     uint16_t vbucket,
-                                                     uint32_t expiry_time) {
-
+static cb::EngineErrorItemPair default_get_and_touch(
+        gsl::not_null<ENGINE_HANDLE*> handle,
+        const void* cookie,
+        const DocKey& key,
+        uint16_t vbucket,
+        uint32_t expiry_time) {
     struct default_engine* engine = get_handle(handle);
 
     if (!handled_vbucket(engine, vbucket)) {
@@ -525,11 +543,12 @@ static cb::EngineErrorItemPair default_get_and_touch(ENGINE_HANDLE* handle,
             cb::engine_errc(ret), reinterpret_cast<item*>(it), handle);
 }
 
-static cb::EngineErrorItemPair default_get_locked(ENGINE_HANDLE* handle,
-                                                  const void* cookie,
-                                                  const DocKey& key,
-                                                  uint16_t vbucket,
-                                                  uint32_t lock_timeout) {
+static cb::EngineErrorItemPair default_get_locked(
+        gsl::not_null<ENGINE_HANDLE*> handle,
+        const void* cookie,
+        const DocKey& key,
+        uint16_t vbucket,
+        uint32_t lock_timeout) {
     auto* engine = get_handle(handle);
 
     if (!handled_vbucket(engine, vbucket)) {
@@ -554,10 +573,11 @@ static cb::EngineErrorItemPair default_get_locked(ENGINE_HANDLE* handle,
     return cb::makeEngineErrorItemPair(cb::engine_errc(ret), it, handle);
 }
 
-static cb::EngineErrorMetadataPair default_get_meta(ENGINE_HANDLE* handle,
-                                                    const void* cookie,
-                                                    const DocKey& key,
-                                                    uint16_t vbucket) {
+static cb::EngineErrorMetadataPair default_get_meta(
+        gsl::not_null<ENGINE_HANDLE*> handle,
+        const void* cookie,
+        const DocKey& key,
+        uint16_t vbucket) {
     auto* engine_handle = get_handle(handle);
 
     if (!handled_vbucket(engine_handle, vbucket)) {
@@ -584,7 +604,7 @@ static cb::EngineErrorMetadataPair default_get_meta(ENGINE_HANDLE* handle,
     return std::make_pair(cb::engine_errc::success, info);
 }
 
-static ENGINE_ERROR_CODE default_unlock(ENGINE_HANDLE* handle,
+static ENGINE_ERROR_CODE default_unlock(gsl::not_null<ENGINE_HANDLE*> handle,
                                         const void* cookie,
                                         const DocKey& key,
                                         uint16_t vbucket,
@@ -594,81 +614,84 @@ static ENGINE_ERROR_CODE default_unlock(ENGINE_HANDLE* handle,
     return item_unlock(engine, cookie, key.data(), key.size(), cas);
 }
 
-static ENGINE_ERROR_CODE default_get_stats(ENGINE_HANDLE* handle,
+static ENGINE_ERROR_CODE default_get_stats(gsl::not_null<ENGINE_HANDLE*> handle,
                                            const void* cookie,
                                            const char* stat_key,
                                            int nkey,
-                                           ADD_STAT add_stat)
-{
-   struct default_engine* engine = get_handle(handle);
-   ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+                                           ADD_STAT add_stat) {
+    struct default_engine* engine = get_handle(handle);
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
-   if (stat_key == NULL) {
-      char val[128];
-      int len;
+    if (stat_key == NULL) {
+        char val[128];
+        int len;
 
-      cb_mutex_enter(&engine->stats.lock);
-      len = sprintf(val, "%" PRIu64, (uint64_t)engine->stats.evictions);
-      add_stat("evictions", 9, val, len, cookie);
-      len = sprintf(val, "%" PRIu64, (uint64_t)engine->stats.curr_items);
-      add_stat("curr_items", 10, val, len, cookie);
-      len = sprintf(val, "%" PRIu64, (uint64_t)engine->stats.total_items);
-      add_stat("total_items", 11, val, len, cookie);
-      len = sprintf(val, "%" PRIu64, (uint64_t)engine->stats.curr_bytes);
-      add_stat("bytes", 5, val, len, cookie);
-      len = sprintf(val, "%" PRIu64, engine->stats.reclaimed);
-      add_stat("reclaimed", 9, val, len, cookie);
-      len = sprintf(val, "%" PRIu64, (uint64_t)engine->config.maxbytes);
-      add_stat("engine_maxbytes", 15, val, len, cookie);
-      cb_mutex_exit(&engine->stats.lock);
-   } else if (strncmp(stat_key, "slabs", 5) == 0) {
-      slabs_stats(engine, add_stat, cookie);
-   } else if (strncmp(stat_key, "items", 5) == 0) {
-      item_stats(engine, add_stat, cookie);
-   } else if (strncmp(stat_key, "sizes", 5) == 0) {
-      item_stats_sizes(engine, add_stat, cookie);
-   } else if (strncmp(stat_key, "uuid", 4) == 0) {
-       if (engine->config.uuid) {
-           add_stat("uuid", 4, engine->config.uuid,
-                    (uint32_t)strlen(engine->config.uuid), cookie);
-       } else {
-           add_stat("uuid", 4, "", 0, cookie);
-       }
-   } else if (strncmp(stat_key, "scrub", 5) == 0) {
-      char val[128];
-      int len;
+        cb_mutex_enter(&engine->stats.lock);
+        len = sprintf(val, "%" PRIu64, (uint64_t)engine->stats.evictions);
+        add_stat("evictions", 9, val, len, cookie);
+        len = sprintf(val, "%" PRIu64, (uint64_t)engine->stats.curr_items);
+        add_stat("curr_items", 10, val, len, cookie);
+        len = sprintf(val, "%" PRIu64, (uint64_t)engine->stats.total_items);
+        add_stat("total_items", 11, val, len, cookie);
+        len = sprintf(val, "%" PRIu64, (uint64_t)engine->stats.curr_bytes);
+        add_stat("bytes", 5, val, len, cookie);
+        len = sprintf(val, "%" PRIu64, engine->stats.reclaimed);
+        add_stat("reclaimed", 9, val, len, cookie);
+        len = sprintf(val, "%" PRIu64, (uint64_t)engine->config.maxbytes);
+        add_stat("engine_maxbytes", 15, val, len, cookie);
+        cb_mutex_exit(&engine->stats.lock);
+    } else if (strncmp(stat_key, "slabs", 5) == 0) {
+        slabs_stats(engine, add_stat, cookie);
+    } else if (strncmp(stat_key, "items", 5) == 0) {
+        item_stats(engine, add_stat, cookie);
+    } else if (strncmp(stat_key, "sizes", 5) == 0) {
+        item_stats_sizes(engine, add_stat, cookie);
+    } else if (strncmp(stat_key, "uuid", 4) == 0) {
+        if (engine->config.uuid) {
+            add_stat("uuid",
+                     4,
+                     engine->config.uuid,
+                     (uint32_t)strlen(engine->config.uuid),
+                     cookie);
+        } else {
+            add_stat("uuid", 4, "", 0, cookie);
+        }
+    } else if (strncmp(stat_key, "scrub", 5) == 0) {
+        char val[128];
+        int len;
 
-      cb_mutex_enter(&engine->scrubber.lock);
-      if (engine->scrubber.running) {
-         add_stat("scrubber:status", 15, "running", 7, cookie);
-      } else {
-         add_stat("scrubber:status", 15, "stopped", 7, cookie);
-      }
+        cb_mutex_enter(&engine->scrubber.lock);
+        if (engine->scrubber.running) {
+            add_stat("scrubber:status", 15, "running", 7, cookie);
+        } else {
+            add_stat("scrubber:status", 15, "stopped", 7, cookie);
+        }
 
-      if (engine->scrubber.started != 0) {
-         if (engine->scrubber.stopped != 0) {
-            time_t diff = engine->scrubber.started - engine->scrubber.stopped;
-            len = sprintf(val, "%" PRIu64, (uint64_t)diff);
-            add_stat("scrubber:last_run", 17, val, len, cookie);
-         }
+        if (engine->scrubber.started != 0) {
+            if (engine->scrubber.stopped != 0) {
+                time_t diff =
+                        engine->scrubber.started - engine->scrubber.stopped;
+                len = sprintf(val, "%" PRIu64, (uint64_t)diff);
+                add_stat("scrubber:last_run", 17, val, len, cookie);
+            }
 
-         len = sprintf(val, "%" PRIu64, engine->scrubber.visited);
-         add_stat("scrubber:visited", 16, val, len, cookie);
-         len = sprintf(val, "%" PRIu64, engine->scrubber.cleaned);
-         add_stat("scrubber:cleaned", 16, val, len, cookie);
-      }
-      cb_mutex_exit(&engine->scrubber.lock);
-   } else {
-      ret = ENGINE_KEY_ENOENT;
-   }
+            len = sprintf(val, "%" PRIu64, engine->scrubber.visited);
+            add_stat("scrubber:visited", 16, val, len, cookie);
+            len = sprintf(val, "%" PRIu64, engine->scrubber.cleaned);
+            add_stat("scrubber:cleaned", 16, val, len, cookie);
+        }
+        cb_mutex_exit(&engine->scrubber.lock);
+    } else {
+        ret = ENGINE_KEY_ENOENT;
+    }
 
-   return ret;
+    return ret;
 }
 
-static ENGINE_ERROR_CODE default_store(ENGINE_HANDLE* handle,
-                                       const void *cookie,
-                                       item* item,
-                                       uint64_t *cas,
+static ENGINE_ERROR_CODE default_store(gsl::not_null<ENGINE_HANDLE*> handle,
+                                       const void* cookie,
+                                       gsl::not_null<item*> item,
+                                       gsl::not_null<uint64_t*> cas,
                                        ENGINE_STORE_OPERATION operation,
                                        DocumentState document_state) {
     auto* engine = get_handle(handle);
@@ -683,13 +706,14 @@ static ENGINE_ERROR_CODE default_store(ENGINE_HANDLE* handle,
                       cookie, document_state);
 }
 
-static cb::EngineErrorCasPair default_store_if(ENGINE_HANDLE* handle,
-                                               const void* cookie,
-                                               item* item,
-                                               uint64_t cas,
-                                               ENGINE_STORE_OPERATION operation,
-                                               cb::StoreIfPredicate predicate,
-                                               DocumentState document_state) {
+static cb::EngineErrorCasPair default_store_if(
+        gsl::not_null<ENGINE_HANDLE*> handle,
+        const void* cookie,
+        gsl::not_null<item*> item,
+        uint64_t cas,
+        ENGINE_STORE_OPERATION operation,
+        cb::StoreIfPredicate predicate,
+        DocumentState document_state) {
     struct default_engine* engine = get_handle(handle);
 
     if (predicate) {
@@ -734,22 +758,23 @@ static cb::EngineErrorCasPair default_store_if(ENGINE_HANDLE* handle,
     return {cb::engine_errc(status), cas};
 }
 
-static ENGINE_ERROR_CODE default_flush(ENGINE_HANDLE* handle,
+static ENGINE_ERROR_CODE default_flush(gsl::not_null<ENGINE_HANDLE*> handle,
                                        const void* cookie) {
-   item_flush_expired(get_handle(handle));
+    item_flush_expired(get_handle(handle));
 
-   return ENGINE_SUCCESS;
+    return ENGINE_SUCCESS;
 }
 
-static void default_reset_stats(ENGINE_HANDLE* handle, const void *cookie) {
-   struct default_engine *engine = get_handle(handle);
-   item_stats_reset(engine);
+static void default_reset_stats(gsl::not_null<ENGINE_HANDLE*> handle,
+                                const void* cookie) {
+    struct default_engine* engine = get_handle(handle);
+    item_stats_reset(engine);
 
-   cb_mutex_enter(&engine->stats.lock);
-   engine->stats.evictions = 0;
-   engine->stats.reclaimed = 0;
-   engine->stats.total_items = 0;
-   cb_mutex_exit(&engine->stats.lock);
+    cb_mutex_enter(&engine->stats.lock);
+    engine->stats.evictions = 0;
+    engine->stats.reclaimed = 0;
+    engine->stats.total_items = 0;
+    cb_mutex_exit(&engine->stats.lock);
 }
 
 static ENGINE_ERROR_CODE initalize_configuration(struct default_engine *se,
@@ -953,12 +978,12 @@ static bool set_param(struct default_engine* e,
     return false;
 }
 
-static ENGINE_ERROR_CODE default_unknown_command(ENGINE_HANDLE* handle,
-                                                 const void* cookie,
-                                                 protocol_binary_request_header *request,
-                                                 ADD_RESPONSE response,
-                                                 DocNamespace doc_namespace)
-{
+static ENGINE_ERROR_CODE default_unknown_command(
+        gsl::not_null<ENGINE_HANDLE*> handle,
+        const void* cookie,
+        gsl::not_null<protocol_binary_request_header*> request,
+        ADD_RESPONSE response,
+        DocNamespace doc_namespace) {
     struct default_engine* e = get_handle(handle);
     bool sent;
 
@@ -970,21 +995,27 @@ static ENGINE_ERROR_CODE default_unknown_command(ENGINE_HANDLE* handle,
         sent = rm_vbucket(e, cookie, request, response);
         break;
     case PROTOCOL_BINARY_CMD_SET_VBUCKET:
-        sent = set_vbucket(e, cookie,
-                reinterpret_cast<protocol_binary_request_set_vbucket*>(request),
+        sent = set_vbucket(
+                e,
+                cookie,
+                reinterpret_cast<protocol_binary_request_set_vbucket*>(
+                        request.get()),
                 response);
         break;
     case PROTOCOL_BINARY_CMD_GET_VBUCKET:
-        sent = get_vbucket(e, cookie,
-                reinterpret_cast<protocol_binary_request_get_vbucket*>(request),
+        sent = get_vbucket(
+                e,
+                cookie,
+                reinterpret_cast<protocol_binary_request_get_vbucket*>(
+                        request.get()),
                 response);
         break;
     case PROTOCOL_BINARY_CMD_SET_PARAM:
-        sent = set_param(
-                e,
-                cookie,
-                reinterpret_cast<protocol_binary_request_set_param*>(request),
-                response);
+        sent = set_param(e,
+                         cookie,
+                         reinterpret_cast<protocol_binary_request_set_param*>(
+                                 request.get()),
+                         response);
         break;
     default:
         sent = response(NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
@@ -999,7 +1030,9 @@ static ENGINE_ERROR_CODE default_unknown_command(ENGINE_HANDLE* handle,
     }
 }
 
-void item_set_cas(ENGINE_HANDLE* handle, item* item, uint64_t val) {
+void item_set_cas(gsl::not_null<ENGINE_HANDLE*> handle,
+                  gsl::not_null<item*> item,
+                  uint64_t val) {
     hash_item* it = get_real_item(item);
     it->cas = val;
 }
@@ -1016,10 +1049,10 @@ char* item_get_data(const hash_item* item)
     return ((char*)key->header.full_key) + hash_key_get_key_len(key);
 }
 
-static bool get_item_info(ENGINE_HANDLE* handle,
-                          const item* item,
-                          item_info* item_info) {
-    hash_item* it = (hash_item*)item;
+static bool get_item_info(gsl::not_null<ENGINE_HANDLE*> handle,
+                          gsl::not_null<const item*> item,
+                          gsl::not_null<item_info*> item_info) {
+    auto* it = reinterpret_cast<const hash_item*>(item.get());
     const hash_key* key = item_get_key(it);
     auto* engine = get_handle(handle);
 
@@ -1069,17 +1102,14 @@ static bool get_item_info(ENGINE_HANDLE* handle,
     return true;
 }
 
-static bool set_item_info(ENGINE_HANDLE* handle,
-                          item* item,
-                          const item_info* itm_info) {
-    hash_item* it = (hash_item*)item;
-    if (!it) {
-        return false;
-    }
+static bool set_item_info(gsl::not_null<ENGINE_HANDLE*> handle,
+                          gsl::not_null<item*> item,
+                          gsl::not_null<const item_info*> itm_info) {
+    auto* it = reinterpret_cast<hash_item*>(item.get());
     it->datatype = itm_info->datatype;
     return true;
 }
 
-static bool is_xattr_supported(ENGINE_HANDLE* handle) {
+static bool is_xattr_supported(gsl::not_null<ENGINE_HANDLE*> handle) {
     return get_handle(handle)->config.xattr_enabled;
 }

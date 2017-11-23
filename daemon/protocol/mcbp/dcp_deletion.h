@@ -20,7 +20,7 @@
 
 void dcp_deletion_executor(Cookie& cookie);
 
-ENGINE_ERROR_CODE dcp_message_deletion(const void* void_cookie,
+ENGINE_ERROR_CODE dcp_message_deletion(gsl::not_null<const void*> void_cookie,
                                        uint32_t opaque,
                                        item* it,
                                        uint16_t vbucket,

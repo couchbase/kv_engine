@@ -186,7 +186,7 @@ public:
     /*
      * DCP callback method to push SystemEvents on to the consumer
      */
-    static ENGINE_ERROR_CODE sendSystemEvent(const void* cookie,
+    static ENGINE_ERROR_CODE sendSystemEvent(gsl::not_null<const void*> cookie,
                                              uint32_t opaque,
                                              uint16_t vbucket,
                                              mcbp::systemevent::id event,
@@ -203,9 +203,10 @@ public:
                 opaque, replicaVB, event, bySeqno, key, eventData);
     }
 
-    static ENGINE_ERROR_CODE dcpAddFailoverLog(vbucket_failover_t* entry,
-                                               size_t nentries,
-                                               const void* cookie) {
+    static ENGINE_ERROR_CODE dcpAddFailoverLog(
+            vbucket_failover_t* entry,
+            size_t nentries,
+            gsl::not_null<const void*> cookie) {
         return ENGINE_SUCCESS;
     }
 

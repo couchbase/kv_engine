@@ -72,9 +72,10 @@ protected:
     /*
      * Fake callback emulating dcp_add_failover_log
      */
-    static ENGINE_ERROR_CODE fakeDcpAddFailoverLog(vbucket_failover_t* entry,
-                                                   size_t nentries,
-                                                   const void* cookie) {
+    static ENGINE_ERROR_CODE fakeDcpAddFailoverLog(
+            vbucket_failover_t* entry,
+            size_t nentries,
+            gsl::not_null<const void*> cookie) {
         callbackCount++;
         return ENGINE_SUCCESS;
     }
@@ -275,17 +276,18 @@ TEST_P(StreamTest, test_streamIsKeyOnlyTrue) {
     destroy_dcp_stream();
 }
 
-ENGINE_ERROR_CODE mock_mutation_return_engine_e2big(const void* cookie,
-                                                    uint32_t opaque,
-                                                    item* itm,
-                                                    uint16_t vbucket,
-                                                    uint64_t by_seqno,
-                                                    uint64_t rev_seqno,
-                                                    uint32_t lock_time,
-                                                    const void* meta,
-                                                    uint16_t nmeta,
-                                                    uint8_t nru,
-                                                    uint8_t collection_len) {
+ENGINE_ERROR_CODE mock_mutation_return_engine_e2big(
+        gsl::not_null<const void*> cookie,
+        uint32_t opaque,
+        item* itm,
+        uint16_t vbucket,
+        uint64_t by_seqno,
+        uint64_t rev_seqno,
+        uint32_t lock_time,
+        const void* meta,
+        uint16_t nmeta,
+        uint8_t nru,
+        uint8_t collection_len) {
     Item* item = reinterpret_cast<Item*>(itm);
     delete item;
     return ENGINE_E2BIG;
@@ -1498,7 +1500,8 @@ protected:
     uint16_t vbid;
 };
 
-ENGINE_ERROR_CODE mock_noop_return_engine_e2big(const void* cookie,uint32_t opaque) {
+ENGINE_ERROR_CODE mock_noop_return_engine_e2big(
+        gsl::not_null<const void*> cookie, uint32_t opaque) {
     return ENGINE_E2BIG;
 }
 
@@ -2176,9 +2179,10 @@ protected:
     /**
      * Fake callback emulating dcp_add_failover_log
      */
-    static ENGINE_ERROR_CODE fakeDcpAddFailoverLog(vbucket_failover_t* entry,
-                                                   size_t nentries,
-                                                   const void* cookie) {
+    static ENGINE_ERROR_CODE fakeDcpAddFailoverLog(
+            vbucket_failover_t* entry,
+            size_t nentries,
+            gsl::not_null<const void*> cookie) {
         return ENGINE_SUCCESS;
     }
 

@@ -31,7 +31,7 @@ extern std::vector<std::pair<uint64_t, uint64_t> > dcp_failover_log;
 
 ENGINE_ERROR_CODE mock_dcp_add_failover_log(vbucket_failover_t* entry,
                                             size_t nentries,
-                                            const void *cookie);
+                                            gsl::not_null<const void*> cookie);
 
 #ifdef __cplusplus
 }

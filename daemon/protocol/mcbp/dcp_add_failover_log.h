@@ -22,4 +22,4 @@
 /** Callback from the engine adding the response */
 ENGINE_ERROR_CODE add_failover_log(vbucket_failover_t* entries,
                                    size_t nentries,
-                                   const void* cookie);
+                                   gsl::not_null<const void*> cookie);

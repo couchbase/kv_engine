@@ -27,6 +27,6 @@ struct collections_interface {
     /**
      * Inform the engine of the current collection manifest (a JSON document)
      */
-    cb::engine_error (*set_manifest)(ENGINE_HANDLE* handle,
+    cb::engine_error (*set_manifest)(gsl::not_null<ENGINE_HANDLE*> handle,
                                      cb::const_char_buffer json);
 };
