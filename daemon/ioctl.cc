@@ -154,13 +154,12 @@ static ENGINE_ERROR_CODE ioctlSetMcbpSla(Cookie& cookie,
     try {
         cb::mcbp::sla::reconfigure(*doc);
     } catch (const std::invalid_argument& e) {
-        auto& connection = cookie.getConnection();
-        connection.getCookieObject().getEventId();
+        cookie.getEventId();
         auto& c = cookie.getConnection();
         LOG_NOTICE(&c,
                    "%u: Failed to set MCBP SLA. UUID:[%s]: %s",
                    c.getId(),
-                   connection.getCookieObject().getEventId().c_str(),
+                   cookie.getEventId().c_str(),
                    e.what());
         return ENGINE_EINVAL;
     }
