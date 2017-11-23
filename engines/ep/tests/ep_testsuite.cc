@@ -148,7 +148,7 @@ static enum test_result test_replace_with_eviction(ENGINE_HANDLE *h,
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET,"key", "somevalue", &i),
             "Failed to set value.");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     wait_for_flusher_to_settle(h, h1);
     evict_key(h, h1, "key");
     int numBgFetched = get_int_stat(h, h1, "ep_bg_fetched");
@@ -169,7 +169,7 @@ static enum test_result test_replace_with_eviction(ENGINE_HANDLE *h,
             get_int_stat(h, h1, "ep_bg_fetched"),
             "Bg fetched value didn't match");
 
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     check_key_value(h, h1, "key", "somevalue1", 10);
     return SUCCESS;
 }
@@ -186,7 +186,7 @@ static enum test_result test_wrong_vb_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     checkeq(ENGINE_NOT_MY_VBUCKET,
             store(h, h1, NULL, op, "key", "somevalue", &i, cas, 1),
             "Expected not_my_vbucket");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     wait_for_stat_change(h, h1, "ep_num_not_my_vbuckets", numNotMyVBucket);
     return SUCCESS;
 }
@@ -208,7 +208,7 @@ static enum test_result test_pending_vb_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE
     checkeq(ENGINE_EWOULDBLOCK,
             store(h, h1, cookie, op, "key", "somevalue", &i, cas, 1),
             "Expected ewouldblock");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     testHarness.destroy_cookie(cookie);
     return SUCCESS;
 }
@@ -231,7 +231,7 @@ static enum test_result test_replica_vb_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE
             store(h, h1, NULL, op, "key", "somevalue", &i, cas, 1),
             "Expected not my vbucket");
     wait_for_stat_change(h, h1, "ep_num_not_my_vbuckets", numNotMyVBucket);
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     return SUCCESS;
 }
 
@@ -277,7 +277,7 @@ static int checkCurrItemsAfterShutdown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
         checkeq(ENGINE_SUCCESS,
                 store(h, h1, NULL, OPERATION_SET, itr->c_str(), "oracle", &i, 0, 0),
                 "Failed to store a value");
-        h1->release(h, NULL, i);
+        h1->release(h, i);
     }
 
     checkeq(0, get_int_stat(h, h1, "ep_total_persisted"),
@@ -349,7 +349,7 @@ static enum test_result test_flush_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i),
             "Failed set.");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     check_key_value(h, h1, "key", "somevalue", 9);
 
     // Restart once to ensure written to disk.
@@ -371,7 +371,7 @@ static enum test_result test_flush_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, "key2", "somevalue", &i),
             "Failed post-flush set.");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     check_key_value(h, h1, "key2", "somevalue", 9);
 
     // Restart again, ensure written to disk.
@@ -384,7 +384,7 @@ static enum test_result test_flush_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, "key3", "somevalue", &i),
             "Failed post-flush, post-restart set.");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     check_key_value(h, h1, "key3", "somevalue", 9);
 
     // Read value again, should not be there.
@@ -407,7 +407,7 @@ static enum test_result test_shutdown_snapshot_range(ENGINE_HANDLE *h,
         checkeq(ENGINE_SUCCESS,
                 store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i),
                 "Failed to store a value");
-        h1->release(h, NULL, i);
+        h1->release(h, i);
     }
 
     wait_for_flusher_to_settle(h, h1);
@@ -452,11 +452,11 @@ static enum test_result test_flush_multiv_restart(ENGINE_HANDLE *h, ENGINE_HANDL
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i),
             "Failed set.");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, "key2", "somevalue", &i, 0, 2),
             "Failed set in vb2.");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
 
     // Restart once to ensure written to disk.
     testHarness.reload_engine(&h, &h1,
@@ -496,7 +496,7 @@ static enum test_result test_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     static const char val[] = "somevalue";
     ENGINE_ERROR_CODE ret = store(h, h1, NULL, OPERATION_SET, "key", val, &i);
     checkeq(ENGINE_SUCCESS, ret, "Failed set.");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
 
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
@@ -517,49 +517,49 @@ static enum test_result test_specialKeys(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     check((ret = store(h, h1, NULL, OPERATION_SET, key0, val0, &i)) == ENGINE_SUCCESS,
           "Failed set Chinese key");
     check_key_value(h, h1, key0, val0, strlen(val0));
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     // Traditional Chinese "Couchbase"
     static const char key1[] = "沙發數據庫";
     static const char val1[] = "some Traditional Chinese value";
     check((ret = store(h, h1, NULL, OPERATION_SET, key1, val1, &i)) == ENGINE_SUCCESS,
           "Failed set Traditional Chinese key");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     // Korean "couch potato"
     static const char key2[] = "쇼파감자";
     static const char val2[] = "some Korean value";
     check((ret = store(h, h1, NULL, OPERATION_SET, key2, val2, &i)) == ENGINE_SUCCESS,
           "Failed set Korean key");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     // Russian "couch potato"
     static const char key3[] = "лодырь, лентяй";
     static const char val3[] = "some Russian value";
     check((ret = store(h, h1, NULL, OPERATION_SET, key3, val3, &i)) == ENGINE_SUCCESS,
           "Failed set Russian key");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     // Japanese "couch potato"
     static const char key4[] = "カウチポテト";
     static const char val4[] = "some Japanese value";
     check((ret = store(h, h1, NULL, OPERATION_SET, key4, val4, &i)) == ENGINE_SUCCESS,
           "Failed set Japanese key");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     // Indian char key, and no idea what it is
     static const char key5[] = "हरियानवी";
     static const char val5[] = "some Indian value";
     check((ret = store(h, h1, NULL, OPERATION_SET, key5, val5, &i)) == ENGINE_SUCCESS,
           "Failed set Indian key");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     // Portuguese translation "couch potato"
     static const char key6[] = "sedentário";
     static const char val6[] = "some Portuguese value";
     check((ret = store(h, h1, NULL, OPERATION_SET, key6, val6, &i)) == ENGINE_SUCCESS,
           "Failed set Portuguese key");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     // Arabic translation "couch potato"
     static const char key7[] = "الحافلةالبطاطة";
     static const char val7[] = "some Arabic value";
     check((ret = store(h, h1, NULL, OPERATION_SET, key7, val7, &i)) == ENGINE_SUCCESS,
           "Failed set Arabic key");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
 
     if (isWarmupEnabled(h, h1)) {
         // Check that after warmup the keys are still present.
@@ -590,28 +590,28 @@ static enum test_result test_binKeys(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check((ret = store(h, h1, NULL, OPERATION_SET, key0, val0, &i)) == ENGINE_SUCCESS,
           "Failed set binary key0");
     check_key_value(h, h1, key0, val0, strlen(val0));
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     // binary keys with char values beyond 0x7F
     static const char key1[] = "\xf1\xfd\xfe\xff\xf0\xf8\xef";
     static const char val1[] = "some value val9";
     check((ret = store(h, h1, NULL, OPERATION_SET, key1, val1, &i)) == ENGINE_SUCCESS,
           "Failed set binary key1");
     check_key_value(h, h1, key1, val1, strlen(val1));
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     // binary keys with special utf-8 BOM (Byte Order Mark) values 0xBB 0xBF 0xEF
     static const char key2[] = "\xff\xfe\xbb\xbf\xef";
     static const char val2[] = "some utf-8 bom value";
     check((ret = store(h, h1, NULL, OPERATION_SET, key2, val2, &i)) == ENGINE_SUCCESS,
           "Failed set binary utf-8 bom key");
     check_key_value(h, h1, key2, val2, strlen(val2));
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     // binary keys with special utf-16BE BOM values "U+FEFF"
     static const char key3[] = "U+\xfe\xff\xefU+\xff\xfe";
     static const char val3[] = "some utf-16 bom value";
     check((ret = store(h, h1, NULL, OPERATION_SET, key3, val3, &i)) == ENGINE_SUCCESS,
           "Failed set binary utf-16 bom key");
     check_key_value(h, h1, key3, val3, strlen(val3));
-    h1->release(h, NULL, i);
+    h1->release(h, i);
 
     if (isWarmupEnabled(h, h1)) {
         testHarness.reload_engine(&h, &h1,
@@ -865,7 +865,7 @@ static enum test_result test_expiry_with_xattr(ENGINE_HANDLE* h,
     /* Retrieve the item info and create a new blob out of the data */
     item_info info;
     checkeq(true,
-            h1->get_item_info(h, cookie, ret.second.get(), &info),
+            h1->get_item_info(h, ret.second.get(), &info),
             "Unable to retrieve item info");
 
     cb::byte_buffer value_buf{static_cast<uint8_t*>(info.value[0].iov_base),
@@ -900,7 +900,7 @@ static enum test_result test_expiry(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
     item_info info;
-    if (!h1->get_item_info(h, NULL, ret.second.get(), &info)) {
+    if (!h1->get_item_info(h, ret.second.get(), &info)) {
         abort();
     }
     memcpy(info.value[0].iov_base, data, strlen(data));
@@ -955,7 +955,7 @@ static enum test_result test_expiry_loader(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
     item_info info;
-    if (!h1->get_item_info(h, NULL, ret.second.get(), &info)) {
+    if (!h1->get_item_info(h, ret.second.get(), &info)) {
         abort();
     }
     memcpy(info.value[0].iov_base, data, strlen(data));
@@ -1005,7 +1005,7 @@ static enum test_result test_expiration_on_compaction(ENGINE_HANDLE *h,
                       "somevalue", &itm, 0, 0, 10,
                       PROTOCOL_BINARY_RAW_BYTES),
                 "Set failed.");
-        h1->release(h, NULL, itm);
+        h1->release(h, itm);
     }
 
     wait_for_flusher_to_settle(h, h1);
@@ -1051,7 +1051,7 @@ static enum test_result test_expiration_on_warmup(ENGINE_HANDLE *h,
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
     item_info info;
-    if (!h1->get_item_info(h, NULL, ret.second.get(), &info)) {
+    if (!h1->get_item_info(h, ret.second.get(), &info)) {
         abort();
     }
     memcpy(info.value[0].iov_base, data, strlen(data));
@@ -1119,7 +1119,7 @@ static enum test_result test_bug3454(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
     item_info info;
-    if (!h1->get_item_info(h, NULL, ret.second.get(), &info)) {
+    if (!h1->get_item_info(h, ret.second.get(), &info)) {
         abort();
     }
     memcpy(info.value[0].iov_base, data, strlen(data));
@@ -1144,7 +1144,7 @@ static enum test_result test_bug3454(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
             h, h1, NULL, key, strlen(data), 0, 0, PROTOCOL_BINARY_RAW_BYTES, 0);
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
-    if (!h1->get_item_info(h, NULL, ret.second.get(), &info)) {
+    if (!h1->get_item_info(h, ret.second.get(), &info)) {
         abort();
     }
     memcpy(info.value[0].iov_base, data, strlen(data));
@@ -1191,7 +1191,7 @@ static enum test_result test_bug3522(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
     item_info info;
-    if (!h1->get_item_info(h, NULL, ret.second.get(), &info)) {
+    if (!h1->get_item_info(h, ret.second.get(), &info)) {
         abort();
     }
     memcpy(info.value[0].iov_base, data, strlen(data));
@@ -1220,7 +1220,7 @@ static enum test_result test_bug3522(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                    0);
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
-    if (!h1->get_item_info(h, NULL, ret.second.get(), &info)) {
+    if (!h1->get_item_info(h, ret.second.get(), &info)) {
         abort();
     }
     memcpy(info.value[0].iov_base, new_data, strlen(new_data));
@@ -1315,7 +1315,7 @@ static enum test_result test_get_replica_non_resident(ENGINE_HANDLE *h,
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, "key", "value", &i, 0, 0),
             "Store Failed");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     wait_for_flusher_to_settle(h, h1);
     wait_for_stat_to_be(h, h1, "ep_total_persisted", 1);
 
@@ -1434,14 +1434,14 @@ static enum test_result test_vbucket_compact(ENGINE_HANDLE *h,
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, exp_key, exp_value, &itm),
             "Failed to set expiring key");
-    h1->release(h, NULL, itm);
+    h1->release(h, itm);
     check_key_value(h, h1, exp_key, exp_value, strlen(exp_value));
 
     // Set a non-expiring key...
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, non_exp_key, non_exp_value, &itm),
             "Failed to set non-expiring key");
-    h1->release(h, NULL, itm);
+    h1->release(h, itm);
     check_key_value(h, h1, non_exp_key, non_exp_value, strlen(non_exp_value));
 
     // Touch expiring key with an expire time
@@ -1470,7 +1470,7 @@ static enum test_result test_vbucket_compact(ENGINE_HANDLE *h,
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, "dummykey", "dummyvalue", &itm),
             "Error setting dummy key");
-    h1->release(h, NULL, itm);
+    h1->release(h, itm);
     wait_for_flusher_to_settle(h, h1);
 
     checkeq(0, get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno"),
@@ -1547,7 +1547,7 @@ static enum test_result test_multiple_vb_compactions(ENGINE_HANDLE *h,
         checkeq(ENGINE_SUCCESS,
                 store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(), &i, 0, vbid),
                 "Failed to store a value");
-        h1->release(h, NULL, i);
+        h1->release(h, i);
         ++count;
     }
 
@@ -1607,7 +1607,7 @@ test_multi_vb_compactions_with_workload(ENGINE_HANDLE *h,
                 store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(),
                       &i, 0, vbid),
                 "Failed to store a value");
-        h1->release(h, NULL, i);
+        h1->release(h, i);
         ++count;
     }
     wait_for_flusher_to_settle(h, h1);
@@ -1695,7 +1695,7 @@ static enum test_result test_vbucket_destroy_stats(ENGINE_HANDLE *h,
                 store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(),
                       &i, 0, 1),
                 "Failed to store a value");
-        h1->release(h, NULL, i);
+        h1->release(h, i);
     }
     wait_for_flusher_to_settle(h, h1);
     testHarness.time_travel(65);
@@ -1737,7 +1737,7 @@ static enum test_result vbucket_destroy_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_
             store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i, 0, 1),
             "Failed to set a value");
     check_key_value(h, h1, "key", "somevalue", 9, 1);
-    h1->release(h, NULL, i);
+    h1->release(h, i);
 
     // Reload to get a flush forced.
     testHarness.reload_engine(&h, &h1,
@@ -1941,17 +1941,17 @@ static enum test_result test_item_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i, 0, 0),
             "Failed set.");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     wait_for_flusher_to_settle(h, h1);
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, "key", "somevalueX", &i, 0, 0),
             "Failed set.");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     wait_for_flusher_to_settle(h, h1);
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, "key1", "somevalueY", &i, 0, 0),
             "Failed set.");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     wait_for_flusher_to_settle(h, h1);
 
     check_key_value(h, h1, "key", "somevalueX", 10);
@@ -1964,7 +1964,7 @@ static enum test_result test_item_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, "key1", "someothervalue", &i, 0, 0),
             "Failed set.");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     wait_for_flusher_to_settle(h, h1);
 
     check_key_value(h, h1, "key1", "someothervalue", 14);
@@ -2151,7 +2151,7 @@ static enum test_result test_vb_file_stats_after_warmup(ENGINE_HANDLE *h,
         checkeq(ENGINE_SUCCESS,
                 store(h, h1, NULL, OPERATION_SET, key.str().c_str(), "somevalue", &it),
                 "Error setting.");
-        h1->release(h, NULL, it);
+        h1->release(h, it);
     }
     wait_for_flusher_to_settle(h, h1);
 
@@ -2259,12 +2259,12 @@ static enum test_result test_key_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET,"k1", "v1", &i, 0, 0),
             "Failed to store an item.");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     // set (k2,v2) in vbucket 1
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET,"k2", "v2", &i, 0, 1),
             "Failed to store an item.");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
 
     const void *cookie = testHarness.create_cookie();
 
@@ -2412,7 +2412,7 @@ static enum test_result test_warmup_conf(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
         checkeq(ENGINE_SUCCESS,
                 store(h, h1, NULL, OPERATION_SET, key.str().c_str(), "somevalue", &it),
                 "Error setting.");
-        h1->release(h, NULL, it);
+        h1->release(h, it);
     }
 
     // Restart the server.
@@ -2499,7 +2499,7 @@ static enum test_result test_bloomfilters(ENGINE_HANDLE *h,
                 store(h, h1, NULL, OPERATION_SET, key.str().c_str(),
                       "somevalue", &it),
                 "Error setting.");
-        h1->release(h, NULL, it);
+        h1->release(h, it);
     }
     wait_for_flusher_to_settle(h, h1);
 
@@ -2675,7 +2675,7 @@ static enum test_result test_bloomfilters_with_store_apis(ENGINE_HANDLE *h,
                     store(h, h1, NULL, OPERATION_ADD, key.str().c_str(),
                           "newvalue", &itm),
                     "Failed to add value again.");
-            h1->release(h, NULL, itm);
+            h1->release(h, itm);
         }
 
         checkeq(num_read_attempts,
@@ -2719,7 +2719,7 @@ static enum test_result test_bloomfilter_delete_plus_set_scenario(
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET,"k1", "v1", &itm),
             "Failed to fail to store an item.");
-    h1->release(h, NULL, itm);
+    h1->release(h, itm);
 
     wait_for_flusher_to_settle(h, h1);
     int num_writes = get_int_stat(h, h1, "rw_0:io_num_write", "kvstore");
@@ -2732,7 +2732,7 @@ static enum test_result test_bloomfilter_delete_plus_set_scenario(
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET,"k1", "v2", &itm, 0, 0),
             "Failed to fail to store an item.");
-    h1->release(h, NULL, itm);
+    h1->release(h, itm);
     int key_count = get_int_stat(h, h1, "vb_0:bloom_filter_key_count",
                                  "vbucket-details 0");
 
@@ -2775,7 +2775,7 @@ static enum test_result test_datatype(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     checkeq(cb::engine_errc::success, ret.first, "Unable to get stored item");
 
     item_info info;
-    h1->get_item_info(h, cookie, ret.second.get(), &info);
+    h1->get_item_info(h, ret.second.get(), &info);
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
             info.datatype, "Invalid datatype");
 
@@ -2792,7 +2792,7 @@ static enum test_result test_datatype(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     ret = get(h, h1, cookie, key1, 0);
     checkeq(cb::engine_errc::success, ret.first, "Unable to get stored item");
 
-    h1->get_item_info(h, cookie, ret.second.get(), &info);
+    h1->get_item_info(h, ret.second.get(), &info);
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
             info.datatype, "Invalid datatype, when setWithMeta");
 
@@ -2822,7 +2822,7 @@ static enum test_result test_datatype_with_unknown_command(ENGINE_HANDLE *h,
     checkeq(cb::engine_errc::success, ret.first, "Unable to get stored item");
 
     item_info info;
-    h1->get_item_info(h, cookie, ret.second.get(), &info);
+    h1->get_item_info(h, ret.second.get(), &info);
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
             info.datatype, "Invalid datatype, when setWithMeta");
 
@@ -3040,13 +3040,13 @@ static enum test_result test_access_scanner(ENGINE_HANDLE *h,
         switch (ret) {
             case ENGINE_SUCCESS:
                 num_items++;
-                h1->release(h, NULL, itm);
+                h1->release(h, itm);
                 break;
 
             case ENGINE_ENOMEM:
             case ENGINE_TMPFAIL:
                 // Returned when at high watermark; simply retry the op.
-                h1->release(h, NULL, itm);
+                h1->release(h, itm);
                 break;
 
             default:
@@ -3135,7 +3135,7 @@ static enum test_result test_warmup_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
                 store(h, h1, NULL, OPERATION_SET, key.str().c_str(),
                       "somevalue", &it),
                 "Error setting.");
-        h1->release(h, NULL, it);
+        h1->release(h, it);
     }
 
     // Restart the server.
@@ -3203,7 +3203,7 @@ static enum test_result test_warmup_with_threshold(ENGINE_HANDLE *h,
                 store(h, h1, NULL, OPERATION_SET, key.str().c_str(), "somevalue", &it,
                      0, (i % 4)),
                 "Error setting.");
-        h1->release(h, NULL, it);
+        h1->release(h, it);
     }
 
     // Restart the server.
@@ -3347,11 +3347,11 @@ static enum test_result test_cbd_225(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET,"k1", "v1", &i),
             "Failed to fail to store an item.");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET,"k2", "v2", &i),
             "Failed to fail to store an item.");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     wait_for_flusher_to_settle(h, h1);
 
     // check token again, which should be the same as before
@@ -3523,7 +3523,7 @@ static enum test_result test_all_keys_api(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
         checkeq(ENGINE_SUCCESS, store(h, h1, NULL, OPERATION_SET, it->c_str(),
                                       it->c_str(), &itm, 0, 0),
                 "Failed to store a value");
-        h1->release(h, NULL, itm);
+        h1->release(h, itm);
     }
     std::string del_key("key_" + std::to_string(del_key_idx));
     checkeq(ENGINE_SUCCESS, del(h, h1, del_key.c_str(), 0, 0),
@@ -3643,15 +3643,15 @@ static enum test_result test_curr_items_add_set(ENGINE_HANDLE *h, ENGINE_HANDLE_
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_ADD,"k1", "v1", &i),
             "Failed to fail to store an item.");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET,"k2", "v2", &i),
             "Failed to fail to store an item.");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET,"k3", "v3", &i),
             "Failed to fail to store an item.");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     if (isPersistentBucket(h, h1) && is_full_eviction(h, h1)) {
         // MB-21957: FE mode - curr_items is only valid once we flush documents
         wait_for_flusher_to_settle(h, h1);
@@ -3767,7 +3767,7 @@ static enum test_result test_value_eviction(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET,"k1", "v1", &i, 0, 0),
             "Failed to fail to store an item.");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     evict_key(h, h1, "k1", 0, "Can't eject: Dirty object.", true);
     start_persistence(h, h1);
     wait_for_flusher_to_settle(h, h1);
@@ -3775,7 +3775,7 @@ static enum test_result test_value_eviction(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET,"k2", "v2", &i, 0, 1),
             "Failed to fail to store an item.");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     evict_key(h, h1, "k2", 1, "Can't eject: Dirty object.", true);
     start_persistence(h, h1);
     wait_for_flusher_to_settle(h, h1);
@@ -3847,7 +3847,7 @@ static enum test_result test_duplicate_items_disk(ENGINE_HANDLE *h, ENGINE_HANDL
         checkeq(ENGINE_SUCCESS,
                 store(h, h1, NULL, OPERATION_SET, it->c_str(), "value", &i, 0, 1),
                 "Failed to store a value");
-        h1->release(h, NULL, i);
+        h1->release(h, i);
     }
     wait_for_flusher_to_settle(h, h1);
 
@@ -3870,7 +3870,7 @@ static enum test_result test_duplicate_items_disk(ENGINE_HANDLE *h, ENGINE_HANDL
         checkeq(ENGINE_SUCCESS,
                 store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(), &i, 0, 1),
                 "Failed to store a value");
-        h1->release(h, NULL, i);
+        h1->release(h, i);
     }
     wait_for_flusher_to_settle(h, h1);
 
@@ -3989,7 +3989,7 @@ static enum test_result test_disk_gt_ram_update_paged_out(ENGINE_HANDLE *h,
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, "k1", "new value", &i),
             "Failed to update an item.");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
 
     check_key_value(h, h1, "k1", "new value", 9);
 
@@ -4027,7 +4027,7 @@ extern "C" {
                 store(td->h, td->h1, NULL, OPERATION_SET,
                       "k1", "new value", &i),
                 "Failed to update an item.");
-        td->h1->release(td->h, NULL, i);
+        td->h1->release(td->h, i);
 
         delete td;
     }
@@ -4108,7 +4108,7 @@ static enum test_result test_kill9_bucket(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
         checkeq(ENGINE_SUCCESS,
                 store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(), &i, 0, 0),
                 "Failed to store a value");
-        h1->release(h, NULL, i);
+        h1->release(h, i);
     }
 
     // Last parameter indicates the force shutdown for the engine.
@@ -4130,7 +4130,7 @@ static enum test_result test_kill9_bucket(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
         checkeq(ENGINE_SUCCESS,
                 store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(), &i, 0, 0),
                 "Failed to store a value");
-        h1->release(h, NULL, i);
+        h1->release(h, i);
     }
     for (it = keys.begin(); it != keys.end(); ++it) {
         check_key_value(h, h1, it->c_str(), it->data(), it->size(), 0);
@@ -4148,7 +4148,7 @@ static enum test_result test_revid(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
                 store(h, h1, NULL, OPERATION_SET, "test_revid", "foo",
                       &it, 0, 0),
                 "Failed to store a value");
-        h1->release(h, NULL, it);
+        h1->release(h, it);
 
         cb::EngineErrorMetadataPair erroMetaPair;
         check(get_meta(h, h1, "test_revid", erroMetaPair), "Get meta failed");
@@ -4428,7 +4428,7 @@ static enum test_result test_observe_temp_item(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, k1, "somevalue", &i),
             "Failed set.");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     wait_for_flusher_to_settle(h, h1);
 
     checkeq(ENGINE_SUCCESS, del(h, h1, k1, 0, 0), "Delete failed");
@@ -4742,7 +4742,7 @@ static enum test_result test_control_data_traffic(ENGINE_HANDLE *h, ENGINE_HANDL
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, "key", "value1", &itm),
             "Failed to set key");
-    h1->release(h, NULL, itm);
+    h1->release(h, itm);
 
     protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_DISABLE_TRAFFIC);
     checkeq(ENGINE_SUCCESS,
@@ -4755,7 +4755,7 @@ static enum test_result test_control_data_traffic(ENGINE_HANDLE *h, ENGINE_HANDL
     checkeq(ENGINE_TMPFAIL,
             store(h, h1, NULL, OPERATION_SET, "key", "value2", &itm),
             "Expected to receive temporary failure");
-    h1->release(h, NULL, itm);
+    h1->release(h, itm);
 
     pkt = createPacket(PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC);
     checkeq(ENGINE_SUCCESS,
@@ -4768,7 +4768,7 @@ static enum test_result test_control_data_traffic(ENGINE_HANDLE *h, ENGINE_HANDL
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, "key", "value2", &itm),
             "Failed to set key");
-    h1->release(h, NULL, itm);
+    h1->release(h, itm);
     return SUCCESS;
 }
 
@@ -4787,7 +4787,7 @@ static enum test_result test_memory_condition(ENGINE_HANDLE* h,
         item *i = NULL;
         ENGINE_ERROR_CODE err = store(h, h1, NULL, OPERATION_SET, key.c_str(),
                                       data, &i);
-        h1->release(h, NULL, i);
+        h1->release(h, i);
 
         check(err == ENGINE_SUCCESS || err == ENGINE_TMPFAIL,
               "Failed to store a value");
@@ -4818,7 +4818,7 @@ static enum test_result test_item_pager(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
         item *i = NULL;
         ENGINE_ERROR_CODE err = store(h, h1, NULL, OPERATION_SET, key.c_str(),
                                       data, &i);
-        h1->release(h, NULL, i);
+        h1->release(h, i);
 
         check(err == ENGINE_SUCCESS || err == ENGINE_TMPFAIL,
               "Failed to store a value");
@@ -4932,7 +4932,7 @@ static enum test_result test_stats_vkey_valid_field(ENGINE_HANDLE *h,
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, "key", "value", &itm),
             "Failed to set key");
-    h1->release(h, NULL, itm);
+    h1->release(h, itm);
 
     // Check to make sure a non-persisted item is 'dirty'
     checkeq(ENGINE_SUCCESS,
@@ -4975,14 +4975,14 @@ static enum test_result test_multiple_transactions(ENGINE_HANDLE *h,
                 store(h, h1, NULL, OPERATION_SET,
                       s1.str().c_str(), s1.str().c_str(), &i, 0, 0),
                 "Failed to store a value");
-        h1->release(h, NULL, i);
+        h1->release(h, i);
         std::stringstream s2;
         s2 << "key-1-" << j;
         checkeq(ENGINE_SUCCESS,
                 store(h, h1, NULL, OPERATION_SET,
                       s2.str().c_str(), s2.str().c_str(), &i, 0, 1),
                 "Failed to store a value");
-        h1->release(h, NULL, i);
+        h1->release(h, i);
     }
     wait_for_stat_to_be(h, h1, "ep_total_persisted", 2000);
     check(get_int_stat(h, h1, "ep_commit_num") > 1,
@@ -5344,12 +5344,12 @@ static enum test_result test_set_with_item_eviction(ENGINE_HANDLE *h,
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i),
             "Failed set.");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     wait_for_flusher_to_settle(h, h1);
     evict_key(h, h1, "key", 0, "Ejected.");
     checkeq(ENGINE_SUCCESS, store(h, h1, NULL, OPERATION_SET, "key", "newvalue", &i),
             "Failed set.");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     check_key_value(h, h1, "key", "newvalue", 8);
     return SUCCESS;
 }
@@ -5367,7 +5367,7 @@ static enum test_result test_setWithMeta_with_item_eviction(ENGINE_HANDLE *h,
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, key, val, &i),
             "Failed set.");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     wait_for_flusher_to_settle(h, h1);
     evict_key(h, h1, key, 0, "Ejected.");
 
@@ -5515,14 +5515,14 @@ static enum test_result test_add_with_item_eviction(ENGINE_HANDLE *h,
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_ADD,"key", "somevalue", &i),
             "Failed to add value.");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     wait_for_flusher_to_settle(h, h1);
     evict_key(h, h1, "key", 0, "Ejected.");
 
     checkeq(ENGINE_NOT_STORED,
             store(h, h1, NULL, OPERATION_ADD,"key", "somevalue", &i),
             "Failed to fail to re-add value.");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
 
     // Expiration above was an hour, so let's go to The Future
     testHarness.time_travel(3800);
@@ -5530,7 +5530,7 @@ static enum test_result test_add_with_item_eviction(ENGINE_HANDLE *h,
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_ADD,"key", "newvalue", &i),
             "Failed to add value again.");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     check_key_value(h, h1, "key", "newvalue", 8);
     return SUCCESS;
 }
@@ -5542,7 +5542,7 @@ static enum test_result test_gat_with_item_eviction(ENGINE_HANDLE *h,
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, "mykey", "somevalue", &itm),
             "Failed set.");
-    h1->release(h, NULL, itm);
+    h1->release(h, itm);
     wait_for_flusher_to_settle(h, h1);
     evict_key(h, h1, "mykey", 0, "Ejected.");
 
@@ -5574,7 +5574,7 @@ static enum test_result test_keyStats_with_item_eviction(ENGINE_HANDLE *h,
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET,"k1", "v1", &i, 0, 0),
             "Failed to store an item.");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     wait_for_flusher_to_settle(h, h1);
     evict_key(h, h1, "k1", 0, "Ejected.");
 
@@ -5620,7 +5620,7 @@ static enum test_result test_delWithMeta_with_item_eviction(ENGINE_HANDLE *h,
     del_with_meta(h, h1, key, keylen, 0, &itemMeta);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     return SUCCESS;
 }
 
@@ -5635,7 +5635,7 @@ static enum test_result test_del_with_item_eviction(ENGINE_HANDLE *h,
 
     Item *it = reinterpret_cast<Item*>(i);
     uint64_t orig_cas = it->getCas();
-    h1->release(h, NULL, i);
+    h1->release(h, i);
 
     uint64_t cas = 0;
     uint64_t vb_uuid;
@@ -5736,7 +5736,7 @@ static enum test_result test_expired_item_with_item_eviction(ENGINE_HANDLE *h,
     item *itm = NULL;
     check(store(h, h1, NULL, OPERATION_SET, "mykey", "somevalue", &itm) == ENGINE_SUCCESS,
           "Failed set.");
-    h1->release(h, NULL, itm);
+    h1->release(h, itm);
     gat(h, h1, "mykey", 0, 10); // 10 sec as expiration time
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "gat mykey");
     check(last_body == "somevalue", "Invalid data returned");
@@ -5790,7 +5790,7 @@ static enum test_result test_mb16421(ENGINE_HANDLE *h,
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, "mykey", "somevalue", &itm),
             "Failed set.");
-    h1->release(h, NULL, itm);
+    h1->release(h, itm);
     wait_for_flusher_to_settle(h, h1);
 
     // Evict Item!
@@ -5866,7 +5866,7 @@ static enum test_result test_get_random_key(ENGINE_HANDLE *h,
             store(h, h1, NULL, OPERATION_SET, "mykey", "{\"some\":\"value\"}",
                   &itm, 0, 0, 3600, PROTOCOL_BINARY_DATATYPE_JSON),
             "Failed set.");
-    h1->release(h, NULL, itm);
+    h1->release(h, itm);
     checkeq(cb::engine_errc::success,
             get(h, h1, NULL, "mykey", 0).first,
             "Item should be there");
@@ -5942,7 +5942,7 @@ static enum test_result test_failover_log_behavior(ENGINE_HANDLE *h,
         checkeq(ENGINE_SUCCESS,
                 store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i),
                 "Failed to store a value");
-        h1->release(h, NULL, i);
+        h1->release(h, i);
     }
 
     wait_for_flusher_to_settle(h, h1);
@@ -5975,7 +5975,7 @@ static enum test_result test_hlc_cas(ENGINE_HANDLE *h,
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_ADD, key, "data1", &i, 0, 0),
             "Failed to store an item");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
 
     check(get_item_info(h, h1, &info, key), "Error in getting item info");
     curr_cas = info.cas;
@@ -5985,7 +5985,7 @@ static enum test_result test_hlc_cas(ENGINE_HANDLE *h,
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, key, "data2", &i, 0, 0),
             "Failed to store an item");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
 
     check(get_item_info(h, h1, &info, key), "Error getting item info");
     curr_cas = info.cas;
@@ -5995,7 +5995,7 @@ static enum test_result test_hlc_cas(ENGINE_HANDLE *h,
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_REPLACE, key, "data3", &i, 0, 0),
             "Failed to store an item");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
 
     check(get_item_info(h, h1, &info, key), "Error in getting item info");
     curr_cas = info.cas;
@@ -6039,7 +6039,7 @@ static enum test_result test_multi_bucket_set_get(engine_test_t* test) {
               store(bucket.h, bucket.h1, NULL,
                     OPERATION_SET, "key", val.str().c_str(), &i),
                     "Error setting.");
-        bucket.h1->release(bucket.h, NULL, i);
+        bucket.h1->release(bucket.h, i);
     }
 
     // Read back the values
@@ -7223,7 +7223,7 @@ static enum test_result test_mb19687_variable(ENGINE_HANDLE* h,
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_ADD, "mykey", "data1", &i, 0, 0),
             "Failed to store an item");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
 
     bool error = false;
     for (const auto& entry : statsKeys) {

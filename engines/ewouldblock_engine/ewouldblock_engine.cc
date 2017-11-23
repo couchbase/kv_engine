@@ -386,7 +386,7 @@ public:
         }
     }
 
-    static void release(ENGINE_HANDLE* handle, const void *cookie, item* item) {
+    static void release(ENGINE_HANDLE* handle, item* item) {
         EWB_Engine* ewb = to_engine(handle);
         auto logger = ewb->gsa()->log->get_logger();
         logger->log(EXTENSION_LOG_DEBUG, nullptr, "EWB_Engine: release");
@@ -395,7 +395,7 @@ public:
             // Ignore the DCP mutation, we own it (and don't track
             // refcounts on it).
         } else {
-            return ewb->real_engine->release(ewb->real_handle, cookie, item);
+            return ewb->real_engine->release(ewb->real_handle, item);
         }
     }
 
@@ -676,8 +676,7 @@ public:
         }
     }
 
-    static void item_set_cas(ENGINE_HANDLE *handle, const void* cookie,
-                             item* item, uint64_t cas) {
+    static void item_set_cas(ENGINE_HANDLE* handle, item* item, uint64_t cas) {
         // Should never be called as ENGINE_HANDLE_V1::item_set_cas is updated
         // to point to the real_engine once it is initialized. This function
         //only exists so there is a non-NULL value for
@@ -686,8 +685,9 @@ public:
         abort();
     }
 
-    static bool get_item_info(ENGINE_HANDLE *handle, const void *cookie,
-                              const item* item, item_info *item_info) {
+    static bool get_item_info(ENGINE_HANDLE* handle,
+                              const item* item,
+                              item_info* item_info) {
         EWB_Engine* ewb = to_engine(handle);
         auto logger = ewb->gsa()->log->get_logger();
         logger->log(EXTENSION_LOG_DEBUG, nullptr, "EWB_Engine: get_item_info");
@@ -708,13 +708,14 @@ public:
             item_info->value[0].iov_len = item_info->nbytes;
             return true;
         } else {
-            return ewb->real_engine->get_item_info(ewb->real_handle, cookie,
-                                                   item, item_info);
+            return ewb->real_engine->get_item_info(
+                    ewb->real_handle, item, item_info);
         }
     }
 
-    static bool set_item_info(ENGINE_HANDLE *handle, const void *cookie,
-                              item* item, const item_info *item_info) {
+    static bool set_item_info(ENGINE_HANDLE* handle,
+                              item* item,
+                              const item_info* item_info) {
         // Should never be called - set item_set_cas().
         abort();
     }
@@ -1947,7 +1948,7 @@ ENGINE_ERROR_CODE EWB_Engine::setItemCas(const void *cookie,
     }
 
     // item_set_cas has no return value!
-    real_engine->item_set_cas(real_handle, cookie, rv.second.get(), cas64);
+    real_engine->item_set_cas(real_handle, rv.second.get(), cas64);
     response(nullptr, 0, nullptr, 0, nullptr, 0,
              PROTOCOL_BINARY_RAW_BYTES,
              PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);

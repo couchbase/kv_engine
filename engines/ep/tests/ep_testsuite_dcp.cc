@@ -387,7 +387,7 @@ void TestDcpConsumer::run() {
                                     store(h, h1, NULL, OPERATION_SET,
                                           key.c_str(), "data", &i, 0, vbid),
                                     "Failed to store a value");
-                            h1->release(h, NULL, i);
+                            h1->release(h, i);
                         }
                     } else if (dcp_last_vbucket_state == vbucket_state_active) {
                         stats.num_set_vbucket_active++;
@@ -982,7 +982,7 @@ extern "C" {
                     store(wtc->h, wtc->h1, nullptr, OPERATION_SET,
                           key.c_str(), "somevalue", &itm, 0, wtc->vbid),
                     "Failed to store value");
-            wtc->h1->release(wtc->h, nullptr, itm);
+            wtc->h1->release(wtc->h, itm);
         }
     }
 
@@ -1183,7 +1183,7 @@ static enum test_result test_dcp_notifier(ENGINE_HANDLE *h,
                 store(h, h1, nullptr, OPERATION_SET, key.c_str(),
                       "data", &i),
                 "Failed to store a value");
-        h1->release(h, nullptr, i);
+        h1->release(h, i);
     }
     // Shouldn't get a stream end yet
     dcp_step(h, h1, cookie);
@@ -1196,7 +1196,7 @@ static enum test_result test_dcp_notifier(ENGINE_HANDLE *h,
                 store(h, h1, nullptr, OPERATION_SET, key.c_str(),
                       "data", &i),
                 "Failed to store a value");
-        h1->release(h, nullptr, i);
+        h1->release(h, i);
     }
     // Should get a stream end
     dcp_step(h, h1, cookie);
@@ -1227,7 +1227,7 @@ static enum test_result test_dcp_notifier_equal_to_number_of_items(
     checkeq(ENGINE_SUCCESS,
             store(h, h1, nullptr, OPERATION_SET, key.c_str(), "data", &ii),
             "Failed to store a value");
-    h1->release(h, nullptr, ii);
+    h1->release(h, ii);
     const auto *cookie = testHarness.create_cookie();
     const std::string name("unittest");
     const uint32_t seqno = 0;
@@ -1245,7 +1245,7 @@ static enum test_result test_dcp_notifier_equal_to_number_of_items(
     checkeq(ENGINE_SUCCESS,
             store(h, h1, nullptr, OPERATION_SET, "key0", "data", &ii),
             "Failed to store a value");
-    h1->release(h, nullptr, ii);
+    h1->release(h, ii);
     dcp_step(h, h1, cookie);
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_CMD_DCP_STREAM_END),
             dcp_last_op, "Expected stream end");
@@ -2211,7 +2211,7 @@ static enum test_result test_dcp_producer_stream_req_dgm(ENGINE_HANDLE *h,
         if (ret == ENGINE_SUCCESS) {
             i++;
         }
-        h1->release(h, cookie, itm);
+        h1->release(h, itm);
     }
 
     // Sanity check - ensure we have enough vBucket quota (max_size)
@@ -2462,7 +2462,7 @@ static enum test_result test_dcp_producer_stream_cursor_movement(
         checkeq(ENGINE_SUCCESS,
                 store(h, h1, NULL, OPERATION_SET, key.c_str(), "data", &i),
                 "Failed to store a value");
-        h1->release(h, NULL, i);
+        h1->release(h, i);
     }
 
     wait_for_flusher_to_settle(h, h1);
@@ -3229,7 +3229,7 @@ static enum test_result test_failover_scenario_one_with_dcp(
             store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i),
             "Error in SET operation.");
 
-    h1->release(h, NULL, i);
+    h1->release(h, i);
 
     wait_for_flusher_to_settle(h, h1);
     checkeq(0, get_int_stat(h, h1, "ep_diskqueue_items"),
@@ -3483,7 +3483,7 @@ static enum test_result test_chk_manager_rollback(ENGINE_HANDLE *h,
         checkeq(ENGINE_SUCCESS,
                 store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i),
                 "Failed to store a value");
-        h1->release(h, NULL, i);
+        h1->release(h, i);
     }
 
     start_persistence(h, h1);
@@ -5377,13 +5377,13 @@ static enum test_result test_dcp_multiple_streams(ENGINE_HANDLE *h,
                 store(h, h1, nullptr, OPERATION_SET, key.c_str(), "data",
                       &itm, 0, 1),
                 "Failed store on vb 0");
-        h1->release(h, nullptr, itm);
+        h1->release(h, itm);
         key = "key_2_" + std::to_string(i);
         checkeq(ENGINE_SUCCESS,
                 store(h, h1, nullptr, OPERATION_SET, key.c_str(), "data",
                       &itm, 0, 2),
                 "Failed store on vb 1");
-        h1->release(h, nullptr, itm);
+        h1->release(h, itm);
     }
 
     std::string name("unittest");
@@ -5443,7 +5443,7 @@ static enum test_result test_dcp_on_vbucket_state_change(ENGINE_HANDLE *h,
     checkeq(ENGINE_SUCCESS,
             store(h, h1, nullptr, OPERATION_SET, "key", "value", &i),
             "Failed to store a value");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
 
     // Wait for producer to stream that item
     const std::string items_sent_str = "eq_dcpq:" + conn_name + ":items_sent";
@@ -5654,7 +5654,7 @@ static enum test_result test_mb19153(ENGINE_HANDLE *h,
                     ss.str().c_str(), "data", &i, 0, 0, 0, 0)
                     == ENGINE_SUCCESS, "Failed to store a value");
 
-        h1->release(h, NULL, i);
+        h1->release(h, i);
     }
 
     const void *cookie = testHarness.create_cookie();

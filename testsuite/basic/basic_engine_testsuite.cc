@@ -178,7 +178,7 @@ static enum test_result replace_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     auto ret = h1->allocate(
             h, NULL, key, sizeof(int), 1, 0, PROTOCOL_BINARY_RAW_BYTES, 0);
     cb_assert(ret.first == cb::engine_errc::success);
-    cb_assert(h1->get_item_info(h, NULL, ret.second.get(), &item_info) == true);
+    cb_assert(h1->get_item_info(h, ret.second.get(), &item_info) == true);
 
     for (ii = 0; ii < 10; ++ii) {
         prev_cas = cas;
@@ -194,7 +194,7 @@ static enum test_result replace_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     ret = h1->get(h, NULL, key, 0, DocStateFilter::Alive);
     cb_assert(ret.first == cb::engine_errc::success);
-    cb_assert(h1->get_item_info(h, NULL, ret.second.get(), &item_info) == true);
+    cb_assert(h1->get_item_info(h, ret.second.get(), &item_info) == true);
     cb_assert(item_info.value[0].iov_len == sizeof(int));
     cb_assert(*(int*)(item_info.value[0].iov_base) == 9);
 
@@ -390,7 +390,7 @@ static enum test_result get_item_info_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
                         OPERATION_SET,
                         DocumentState::Alive) == ENGINE_SUCCESS);
     /* Had this been actual code, there'd be a connection here */
-    cb_assert(h1->get_item_info(h, NULL, ret.second.get(), &ii) == true);
+    cb_assert(h1->get_item_info(h, ret.second.get(), &ii) == true);
     assert_equal(cas, ii.cas);
     assert_equal(0u, ii.flags);
     cb_assert(strcmp(reinterpret_cast<const char*>(key.data()), static_cast<const char*>(ii.key)) == 0);
@@ -420,8 +420,8 @@ static enum test_result item_set_cas_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
                         OPERATION_SET,
                         DocumentState::Alive) == ENGINE_SUCCESS);
     newcas = cas + 1;
-    h1->item_set_cas(h, NULL, ret.second.get(), newcas);
-    cb_assert(h1->get_item_info(h, NULL, ret.second.get(), &ii) == true);
+    h1->item_set_cas(h, ret.second.get(), newcas);
+    cb_assert(h1->get_item_info(h, ret.second.get(), &ii) == true);
     cb_assert(ii.cas == newcas);
     return SUCCESS;
 }
@@ -539,7 +539,7 @@ static enum test_result test_datatype(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     ret = h1->get(h, NULL, key, 0, DocStateFilter::Alive);
     cb_assert(ret.first == cb::engine_errc::success);
 
-    cb_assert(h1->get_item_info(h, NULL, ret.second.get(), &ii) == true);
+    cb_assert(h1->get_item_info(h, ret.second.get(), &ii) == true);
     cb_assert(ii.datatype == 1);
 
     return SUCCESS;

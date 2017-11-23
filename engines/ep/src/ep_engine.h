@@ -143,7 +143,7 @@ public:
         return ret;
     }
 
-    void itemRelease(const void* cookie, item *itm);
+    void itemRelease(item* itm);
 
     ENGINE_ERROR_CODE get(const void* cookie,
                           item** itm,

@@ -53,8 +53,7 @@ static ENGINE_ERROR_CODE default_item_delete(ENGINE_HANDLE* handle,
                                              uint16_t vbucket,
                                              mutation_descr_t* mut_info);
 
-static void default_item_release(ENGINE_HANDLE* handle, const void *cookie,
-                                 item* item);
+static void default_item_release(ENGINE_HANDLE* handle, item* item);
 static cb::EngineErrorItemPair default_get(ENGINE_HANDLE* handle,
                                            const void* cookie,
                                            const DocKey& key,
@@ -149,11 +148,13 @@ static bool handled_vbucket(struct default_engine *e, uint16_t vbid) {
 /* mechanism for handling bad vbucket requests */
 #define VBUCKET_GUARD(e, v) if (!handled_vbucket(e, v)) { return ENGINE_NOT_MY_VBUCKET; }
 
-static bool get_item_info(ENGINE_HANDLE *handle, const void *cookie,
-                          const item* item, item_info *item_info);
+static bool get_item_info(ENGINE_HANDLE* handle,
+                          const item* item,
+                          item_info* item_info);
 
-static bool set_item_info(ENGINE_HANDLE *handle, const void *cookie,
-                          item* item, const item_info *itm_info);
+static bool set_item_info(ENGINE_HANDLE* handle,
+                          item* item,
+                          const item_info* itm_info);
 
 static bool is_xattr_supported(ENGINE_HANDLE* handle);
 
@@ -357,7 +358,7 @@ static std::pair<cb::unique_item_ptr, item_info> default_item_allocate_ex(ENGINE
 
     if (it != NULL) {
         item_info info;
-        if (!get_item_info(handle, cookie, it, &info)) {
+        if (!get_item_info(handle, it, &info)) {
             // This should never happen (unless we provide invalid
             // arguments)
             item_release(engine, it);
@@ -416,11 +417,11 @@ static ENGINE_ERROR_CODE default_item_delete(ENGINE_HANDLE* handle,
             // If the caller specified the "cas wildcard" we should set
             // the cas for the item we just fetched and do a cas
             // replace with that value
-            item_set_cas(handle, cookie, deleted, it->cas);
+            item_set_cas(handle, deleted, it->cas);
         } else {
             // The caller specified a specific CAS value so we should
             // use that value in our cas replace
-            item_set_cas(handle, cookie, deleted, cas_in);
+            item_set_cas(handle, deleted, cas_in);
         }
 
         ret = store_item(engine, deleted, cas, OPERATION_CAS,
@@ -441,10 +442,8 @@ static ENGINE_ERROR_CODE default_item_delete(ENGINE_HANDLE* handle,
     return ret;
 }
 
-static void default_item_release(ENGINE_HANDLE* handle,
-                                 const void *cookie,
-                                 item* item) {
-   item_release(get_handle(handle), get_real_item(item));
+static void default_item_release(ENGINE_HANDLE* handle, item* item) {
+    item_release(get_handle(handle), get_real_item(item));
 }
 
 static cb::EngineErrorItemPair default_get(ENGINE_HANDLE* handle,
@@ -493,7 +492,7 @@ static cb::EngineErrorItemPair default_get_if(
     }
 
     item_info info;
-    if (!get_item_info(handle, cookie, ret.get(), &info)) {
+    if (!get_item_info(handle, ret.get(), &info)) {
         throw cb::engine_error(cb::engine_errc::failed,
                                "default_get_if: get_item_info failed");
     }
@@ -577,7 +576,7 @@ static cb::EngineErrorMetadataPair default_get_meta(ENGINE_HANDLE* handle,
     }
 
     item_info info;
-    if (!get_item_info(handle, cookie, item.get(), &info)) {
+    if (!get_item_info(handle, item.get(), &info)) {
         throw cb::engine_error(cb::engine_errc::failed,
                                "default_get_if: get_item_info failed");
     }
@@ -708,7 +707,7 @@ static cb::EngineErrorCasPair default_store_if(ENGINE_HANDLE* handle,
         cb::StoreIfStatus status;
         if (existing.get()) {
             item_info info;
-            if (!get_item_info(handle, cookie, existing.get(), &info)) {
+            if (!get_item_info(handle, existing.get(), &info)) {
                 throw cb::engine_error(
                         cb::engine_errc::failed,
                         "default_store_if: get_item_info failed");
@@ -1000,9 +999,7 @@ static ENGINE_ERROR_CODE default_unknown_command(ENGINE_HANDLE* handle,
     }
 }
 
-void item_set_cas(ENGINE_HANDLE *handle, const void *cookie,
-                  item* item, uint64_t val)
-{
+void item_set_cas(ENGINE_HANDLE* handle, item* item, uint64_t val) {
     hash_item* it = get_real_item(item);
     it->cas = val;
 }
@@ -1019,9 +1016,9 @@ char* item_get_data(const hash_item* item)
     return ((char*)key->header.full_key) + hash_key_get_key_len(key);
 }
 
-static bool get_item_info(ENGINE_HANDLE *handle, const void *cookie,
-                          const item* item, item_info *item_info)
-{
+static bool get_item_info(ENGINE_HANDLE* handle,
+                          const item* item,
+                          item_info* item_info) {
     hash_item* it = (hash_item*)item;
     const hash_key* key = item_get_key(it);
     auto* engine = get_handle(handle);
@@ -1072,9 +1069,9 @@ static bool get_item_info(ENGINE_HANDLE *handle, const void *cookie,
     return true;
 }
 
-static bool set_item_info(ENGINE_HANDLE *handle, const void *cookie,
-                          item* item, const item_info *itm_info)
-{
+static bool set_item_info(ENGINE_HANDLE* handle,
+                          item* item,
+                          const item_info* itm_info) {
     hash_item* it = (hash_item*)item;
     if (!it) {
         return false;

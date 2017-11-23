@@ -309,10 +309,9 @@ typedef struct engine_interface_v1 {
      * it.
      *
      * @param handle the engine handle
-     * @param cookie The cookie provided by the frontend
      * @param item the item to be released
      */
-    void (* release)(ENGINE_HANDLE* handle, const void* cookie, item* item);
+    void (*release)(ENGINE_HANDLE* handle, item* item);
 
     /**
      * Retrieve an item.
@@ -546,8 +545,7 @@ typedef struct engine_interface_v1 {
     /**
      * Set the CAS id on an item.
      */
-    void (* item_set_cas)(ENGINE_HANDLE* handle, const void* cookie,
-                          item* item, uint64_t cas);
+    void (*item_set_cas)(ENGINE_HANDLE* handle, item* item, uint64_t cas);
 
     /**
      * Get information about an item.
@@ -563,7 +561,6 @@ typedef struct engine_interface_v1 {
      * @return true if successful
      */
     bool (* get_item_info)(ENGINE_HANDLE* handle,
-                           const void* cookie,
                            const item* item,
                            item_info* item_info);
 
@@ -579,7 +576,6 @@ typedef struct engine_interface_v1 {
      * @return true if successful
      */
     bool (* set_item_info)(ENGINE_HANDLE* handle,
-                           const void* cookie,
                            item* item,
                            const item_info* itm_info);
 
@@ -630,7 +626,7 @@ public:
     void operator()(item* item) {
         if (handle) {
             auto* v1 = reinterpret_cast<ENGINE_HANDLE_V1*>(handle);
-            v1->release(handle, nullptr, item);
+            v1->release(handle, item);
         } else {
             throw std::invalid_argument("cb::ItemDeleter: item attempted to be "
                                         "freed by null engine handle");

@@ -93,7 +93,7 @@ static enum test_result test_get_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
     check(temp == 1, "Expect one getMeta op");
 
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     return SUCCESS;
 }
 
@@ -122,7 +122,7 @@ static enum test_result test_get_meta_with_extras(ENGINE_HANDLE *h,
     // check the stat again
     temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
     check(temp == 1, "Expect one getMeta op");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
 
     if (isWarmupEnabled(h, h1)) {
         // restart
@@ -147,7 +147,7 @@ static enum test_result test_get_meta_deleted(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, key, "somevalue", &i),
             "Failed set.");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, key, "somevalue", &i),
             "Failed set.");
@@ -177,7 +177,7 @@ static enum test_result test_get_meta_deleted(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
     temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
     checkeq(1, temp, "Expect one getMeta op");
 
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     return SUCCESS;
 }
 
@@ -213,7 +213,7 @@ static enum test_result test_get_meta_with_get(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, key1, "somevalue", &i),
             "Failed set.");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     wait_for_flusher_to_settle(h, h1);
     // check the stat
     int temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
@@ -271,7 +271,7 @@ static enum test_result test_get_meta_with_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, key1, "somevalue", &i),
             "Failed set.");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     wait_for_flusher_to_settle(h, h1);
     wait_for_stat_to_be(h, h1, "curr_items", 1);
 
@@ -288,7 +288,7 @@ static enum test_result test_get_meta_with_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     checkeq(1, get_int_stat(h, h1, "ep_num_ops_get_meta"), "Expect one getMeta op");
     checkeq(1, get_int_stat(h, h1, "curr_items"), "Expected single curr_items");
     checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expected zero temp_items");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
 
     // check curr, temp item counts
     checkeq(1, get_int_stat(h, h1, "curr_items"), "Expected single curr_items");
@@ -315,7 +315,7 @@ static enum test_result test_get_meta_with_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V
 
     // check the stat
     checkeq(2, get_int_stat(h, h1, "ep_num_ops_get_meta"), "Expect more getMeta ops");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
 
     // test get_meta followed by set for a nonexistent key. should pass.
     check(!get_meta(h, h1, key2, errorMetaPair),
@@ -330,7 +330,7 @@ static enum test_result test_get_meta_with_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     checkeq(3, get_int_stat(h, h1, "ep_num_ops_get_meta"),
             "Expected one extra getMeta ops");
 
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     return SUCCESS;
 }
 
@@ -345,7 +345,7 @@ static enum test_result test_get_meta_with_delete(ENGINE_HANDLE *h, ENGINE_HANDL
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, key1, "somevalue", &i),
             "Failed set.");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     wait_for_flusher_to_settle(h, h1);
     // check the stat
     int temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
@@ -545,18 +545,18 @@ static enum test_result test_delete_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
             store(h, h1, NULL, OPERATION_SET, key1,
                   "somevalue", &i),
             "Failed set.");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
 
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, key2,
                   "somevalue2", &i),
             "Failed set.");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
 
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, key3,
                   "somevalue3", &i), "Failed set.");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
 
     vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
     high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
@@ -661,7 +661,7 @@ static enum test_result test_delete_with_meta_deleted(ENGINE_HANDLE *h,
     checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
     checkPersistentBucketTempItems(h, h1, 1);
 
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     return SUCCESS;
 }
 
@@ -803,7 +803,7 @@ static enum test_result test_delete_with_meta_race_with_set(ENGINE_HANDLE *h, EN
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, key1, "somevalue", &i),
             "Failed set.");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     wait_for_flusher_to_settle(h, h1);
 
     cb::EngineErrorMetadataPair errorMetaPair;
@@ -814,7 +814,7 @@ static enum test_result test_delete_with_meta_race_with_set(ENGINE_HANDLE *h, EN
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, key1, "someothervalue", &i),
             "Failed set.");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
 
     // attempt delete_with_meta. should fail since cas is no longer valid.
     del_with_meta(h, h1, key1, keylen1, 0, &itm_meta, errorMetaPair.second.cas);
@@ -840,7 +840,7 @@ static enum test_result test_delete_with_meta_race_with_set(ENGINE_HANDLE *h, EN
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, key1, "someothervalue", &i),
             "Failed set.");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     del_with_meta(h, h1, key1, keylen1, 0, &itm_meta, errorMetaPair.second.cas);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
           "Expected invalid cas error");
@@ -945,7 +945,7 @@ static enum test_result test_delete_with_meta_race_with_delete(ENGINE_HANDLE *h,
     temp = get_int_stat(h, h1, "ep_num_ops_del_meta");
     check(temp == 2, "Expect some ops");
 
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     return SUCCESS;
 }
 
@@ -1045,7 +1045,7 @@ static enum test_result test_set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     check(last_uuid == vb_uuid, "Expected valid vbucket uuid");
     check(last_seqno == high_seqno + 3, "Expected valid sequence number");
 
-    h1->release(h, NULL, i);
+    h1->release(h, i);
 
     // Make sure the item expiration was processed correctly
     testHarness.time_travel(301);
@@ -1152,7 +1152,7 @@ static enum test_result test_set_with_meta_deleted(ENGINE_HANDLE *h, ENGINE_HAND
     checkeq(1, get_int_stat(h, h1, "curr_items"), "Expected single curr_items");
     checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expected zero temp_items");
 
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     return SUCCESS;
 }
 
@@ -1226,7 +1226,7 @@ static enum test_result test_set_with_meta_race_with_set(ENGINE_HANDLE *h, ENGIN
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, key1, "somevalue", &i),
             "Failed set.");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     wait_for_flusher_to_settle(h, h1);
     cb::EngineErrorMetadataPair errorMetaPair;
     check(get_meta(h, h1, key1, errorMetaPair), "Expected to get meta");
@@ -1235,7 +1235,7 @@ static enum test_result test_set_with_meta_race_with_set(ENGINE_HANDLE *h, ENGIN
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, key1, "someothervalue", &i),
             "Failed set.");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
 
     // attempt set_with_meta. should fail since cas is no longer valid.
     ItemMetaData meta(errorMetaPair.second.cas,
@@ -1265,7 +1265,7 @@ static enum test_result test_set_with_meta_race_with_set(ENGINE_HANDLE *h, ENGIN
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, key1, "someothervalue", &i),
             "Failed set.");
-    h1->release(h, NULL, i);
+    h1->release(h, i);
 
     // attempt set_with_meta. should fail since cas is no longer valid.
     meta = ItemMetaData(errorMetaPair.second.cas,
@@ -1391,7 +1391,7 @@ static enum test_result test_set_with_meta_race_with_delete(ENGINE_HANDLE *h, EN
     temp = get_int_stat(h, h1, "ep_num_ops_set_meta");
     check(temp == 2, "Expect some ops");
 
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     return SUCCESS;
 }
 
@@ -1411,7 +1411,7 @@ static enum test_result test_set_with_meta_xattr(ENGINE_HANDLE* h,
             store(h, h1, nullptr, OPERATION_SET, key, value_data.c_str(), &i),
             "Failed set.");
 
-    h1->release(h, nullptr, i);
+    h1->release(h, i);
 
     cb::EngineErrorMetadataPair errorMetaPair;
 
@@ -1562,7 +1562,7 @@ static enum test_result test_delete_with_meta_xattr(ENGINE_HANDLE* h,
     auto ret = get(h, h1, nullptr, key1, 0, DocStateFilter::AliveOrDeleted);
     checkeq(cb::engine_errc::success, ret.first, "Failed to get(key1)");
 
-    check(h1->get_item_info(h, nullptr, ret.second.get(), &info),
+    check(h1->get_item_info(h, ret.second.get(), &info),
           "Failed get_item_info of key1");
     checkeq(data.size(), info.value[0].iov_len, "Value length mismatch");
     checkeq(0, memcmp(info.value[0].iov_base, data.data(), data.size()),
@@ -1714,7 +1714,7 @@ static enum test_result test_temp_item_deletion(ENGINE_HANDLE *h, ENGINE_HANDLE_
     checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
     checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expected zero temp_items");
 
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     testHarness.destroy_cookie(cookie);
 
     return SUCCESS;
@@ -1894,7 +1894,7 @@ static enum test_result test_del_meta_conflict_resolution(ENGINE_HANDLE *h,
             store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i),
             "Failed set.");
     wait_for_flusher_to_settle(h, h1);
-    h1->release(h, NULL, i);
+    h1->release(h, i);
 
     // put some random metadata
     ItemMetaData itemMeta;
@@ -1954,9 +1954,9 @@ static enum test_result test_del_meta_lww_conflict_resolution(ENGINE_HANDLE *h,
             store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i),
             "Failed set.");
 
-    h1->get_item_info(h, NULL, i, &info);
+    h1->get_item_info(h, i, &info);
     wait_for_flusher_to_settle(h, h1);
-    h1->release(h, NULL, i);
+    h1->release(h, i);
 
     // put some random metadata
     ItemMetaData itemMeta;
@@ -2016,7 +2016,7 @@ static enum test_result test_getMeta_with_item_eviction(ENGINE_HANDLE *h,
                           it->getFlags(), it->getExptime());
     verifyMetaData(metadata, errorMetaPair.second);
 
-    h1->release(h, NULL, i);
+    h1->release(h, i);
     return SUCCESS;
 }
 

@@ -178,11 +178,10 @@ static cb::EngineErrorItemPair EvpItemAllocate(ENGINE_HANDLE* handle,
     return cb::makeEngineErrorItemPair(cb::engine_errc(ret), itm, handle);
 }
 
-static bool EvpGetItemInfo(ENGINE_HANDLE *handle, const void *,
-                           const item* itm, item_info *itm_info);
-static void EvpItemRelease(ENGINE_HANDLE* handle, const void *cookie,
-                           item* itm);
-
+static bool EvpGetItemInfo(ENGINE_HANDLE* handle,
+                           const item* itm,
+                           item_info* itm_info);
+static void EvpItemRelease(ENGINE_HANDLE* handle, item* itm);
 
 static std::pair<cb::unique_item_ptr, item_info> EvpItemAllocateEx(ENGINE_HANDLE* handle,
                                                                    const void* cookie,
@@ -204,8 +203,8 @@ static std::pair<cb::unique_item_ptr, item_info> EvpItemAllocateEx(ENGINE_HANDLE
     }
 
     item_info info;
-    if (!EvpGetItemInfo(handle, cookie, it, &info)) {
-        EvpItemRelease(handle, cookie, it);
+    if (!EvpGetItemInfo(handle, it, &info)) {
+        EvpItemRelease(handle, it);
         throw cb::engine_error(cb::engine_errc::failed,
                                "EvpItemAllocateEx: EvpGetItemInfo failed");
     }
@@ -231,9 +230,8 @@ static ENGINE_ERROR_CODE EvpItemDelete(ENGINE_HANDLE* handle,
 }
 
 static void EvpItemRelease(ENGINE_HANDLE* handle,
-                           const void* cookie,
                            item* itm) {
-    acquireEngine(handle)->itemRelease(cookie, itm);
+    acquireEngine(handle)->itemRelease(itm);
 }
 
 static cb::EngineErrorItemPair EvpGet(ENGINE_HANDLE* handle,
@@ -1269,8 +1267,7 @@ static ENGINE_ERROR_CODE EvpUnknownCommand(ENGINE_HANDLE* handle,
     return ret;
 }
 
-static void EvpItemSetCas(ENGINE_HANDLE*, const void*,
-                          item* itm, uint64_t cas) {
+static void EvpItemSetCas(ENGINE_HANDLE*, item* itm, uint64_t cas) {
     static_cast<Item*>(itm)->setCas(cas);
 }
 
@@ -1655,8 +1652,9 @@ void destroy_engine() {
     ObjectRegistry::reset();
 }
 
-static bool EvpGetItemInfo(ENGINE_HANDLE* handle, const void*,
-                           const item* itm, item_info* itm_info) {
+static bool EvpGetItemInfo(ENGINE_HANDLE* handle,
+                           const item* itm,
+                           item_info* itm_info) {
     const Item* it = reinterpret_cast<const Item*>(itm);
     auto engine = acquireEngine(handle);
     *itm_info = engine->getItemInfo(*it);
@@ -1670,8 +1668,9 @@ static cb::EngineErrorMetadataPair EvpGetMeta(ENGINE_HANDLE* handle,
     return acquireEngine(handle)->getMeta(cookie, key, vbucket);
 }
 
-static bool EvpSetItemInfo(ENGINE_HANDLE* handle, const void* cookie,
-                           item* itm, const item_info* itm_info) {
+static bool EvpSetItemInfo(ENGINE_HANDLE* handle,
+                           item* itm,
+                           const item_info* itm_info) {
     Item* it = reinterpret_cast<Item*>(itm);
     if (!it) {
         return false;
@@ -2023,7 +2022,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::itemAllocate(
     }
 }
 
-void EventuallyPersistentEngine::itemRelease(const void* cookie, item* itm) {
+void EventuallyPersistentEngine::itemRelease(item* itm) {
     delete reinterpret_cast<Item*>(itm);
 }
 

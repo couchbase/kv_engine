@@ -507,7 +507,7 @@ bool get_item_info(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, item_info *info,
     if (ret.first != cb::engine_errc::success) {
         return false;
     }
-    if (!h1->get_item_info(h, NULL, ret.second.get(), info)) {
+    if (!h1->get_item_info(h, ret.second.get(), info)) {
         fprintf(stderr, "get_item_info failed\n");
         return false;
     }
@@ -519,7 +519,7 @@ bool get_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, item *i,
              std::string &key) {
 
     item_info info;
-    if (!h1->get_item_info(h, NULL, i, &info)) {
+    if (!h1->get_item_info(h, i, &info)) {
         fprintf(stderr, "get_item_info failed\n");
         return false;
     }
@@ -627,7 +627,7 @@ protocol_binary_request_header* prepare_get_replica(ENGINE_HANDLE *h,
         item *i = NULL;
         check(store(h, h1, NULL, OPERATION_SET, key, "replicadata", &i, 0, id)
               == ENGINE_SUCCESS, "Get Replica Failed");
-        h1->release(h, NULL, i);
+        h1->release(h, i);
 
         check(set_vbucket_state(h, h1, id, state),
               "Failed to set vbucket active state, Get Replica Failed");
@@ -951,7 +951,7 @@ ENGINE_ERROR_CODE storeCasOut(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     auto ret = allocate(h, h1, NULL, key, value.size(), 0, 0, datatype, vb);
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
     item_info info;
-    check(h1->get_item_info(h, h1, ret.second.get(), &info),
+    check(h1->get_item_info(h, ret.second.get(), &info),
           "Unable to get item_info");
     memcpy(info.value[0].iov_base, value.data(), value.size());
     ENGINE_ERROR_CODE res = h1->store(
@@ -972,13 +972,13 @@ cb::EngineErrorItemPair storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
         return rv;
     }
     item_info info;
-    if (!h1->get_item_info(h, cookie, rv.second.get(), &info)) {
+    if (!h1->get_item_info(h, rv.second.get(), &info)) {
         abort();
     }
 
     cb_assert(info.value[0].iov_len == vlen);
     memcpy(info.value[0].iov_base, value, vlen);
-    h1->item_set_cas(h, cookie, rv.second.get(), casIn);
+    h1->item_set_cas(h, rv.second.get(), casIn);
 
     auto storeRet = h1->store(h, cookie, rv.second.get(), &cas, op, docState);
 
@@ -995,7 +995,7 @@ ENGINE_ERROR_CODE touch(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
     // Update the global cas value (used by some tests)
     if (result.first == cb::engine_errc::success) {
         item_info info{};
-        check(h1->get_item_info(h, nullptr, result.second.get(), &info),
+        check(h1->get_item_info(h, result.second.get(), &info),
               "Failed to get item info");
         last_cas.store(info.cas);
     }
@@ -1077,7 +1077,7 @@ std::pair<ENGINE_ERROR_CODE, std::string> get_value(ENGINE_HANDLE* h,
         return {ENGINE_ERROR_CODE(rv.first), ""};
     }
     item_info info;
-    if (!h1->get_item_info(h, cookie, rv.second.get(), &info)) {
+    if (!h1->get_item_info(h, rv.second.get(), &info)) {
         return {ENGINE_FAILED, ""};
     }
     auto value = std::string(reinterpret_cast<char*>(info.value[0].iov_base),
@@ -1481,7 +1481,7 @@ void wait_for_persisted_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
         wait_for_flusher_to_settle(h, h1);
         wait_for_stat_change(h, h1, "ep_commit_num", commitNum);
     }
-    h1->release(h, NULL, i);
+    h1->release(h, i);
 }
 
 void set_degraded_mode(ENGINE_HANDLE *h,
@@ -1567,7 +1567,7 @@ void write_items(ENGINE_HANDLE* h,
                                       expiry,
                                       0,
                                       docState);
-        h1->release(h, nullptr, i);
+        h1->release(h, i);
         validate_store_resp(ret, j);
     }
 }
@@ -1597,7 +1597,7 @@ int write_items_upto_mem_perc(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
         std::string key("key" + std::to_string(num_items + start_seqno));
         ENGINE_ERROR_CODE ret = store(h, h1, nullptr, OPERATION_SET,
                                       key.c_str(), "somevalue", &itm);
-        h1->release(h, nullptr, itm);
+        h1->release(h, itm);
         validate_store_resp(ret, num_items);
     }
     return num_items;
@@ -1610,7 +1610,7 @@ uint64_t get_CAS(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     checkeq(cb::engine_errc::success, ret.first, "get_CAS: Failed to get key");
 
     item_info info;
-    check(h1->get_item_info(h, NULL, ret.second.get(), &info),
+    check(h1->get_item_info(h, ret.second.get(), &info),
           "get_CAS: Failed to get item info for key");
 
     return info.cas;

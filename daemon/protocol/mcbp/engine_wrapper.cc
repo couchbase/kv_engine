@@ -43,8 +43,7 @@ ENGINE_ERROR_CODE bucket_unknown_command(Cookie& cookie,
 
 void bucket_item_set_cas(Cookie& cookie, item* it, uint64_t cas) {
     auto& c = cookie.getConnection();
-    c.getBucketEngine()->item_set_cas(
-            c.getBucketEngineAsV0(), &cookie, it, cas);
+    c.getBucketEngine()->item_set_cas(c.getBucketEngineAsV0(), it, cas);
 }
 
 void bucket_reset_stats(Cookie& cookie) {
@@ -57,7 +56,7 @@ bool bucket_get_item_info(Cookie& cookie,
                           item_info* item_info_) {
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine()->get_item_info(
-            c.getBucketEngineAsV0(), &cookie, item_, item_info_);
+            c.getBucketEngineAsV0(), item_, item_info_);
     if (!ret) {
         LOG_INFO(&c,
                  "%u: %s bucket_get_item_info failed",

@@ -128,7 +128,7 @@ private:
         return ENGINE_NO_BUCKET;
     }
 
-    static void item_release(ENGINE_HANDLE*, const void*, item*) {
+    static void item_release(ENGINE_HANDLE*, item*) {
         throw std::logic_error("NoBucket::item_release: no items should have"
                                    " been allocated from this engine");
     }
@@ -202,20 +202,17 @@ private:
         return ENGINE_NO_BUCKET;
     }
 
-
-    static void item_set_cas(ENGINE_HANDLE*, const void*, item*, uint64_t) {
+    static void item_set_cas(ENGINE_HANDLE*, item*, uint64_t) {
         throw std::logic_error("NoBucket::item_set_cas: no items should have"
                                    " been allocated from this engine");
     }
 
-    static bool get_item_info(ENGINE_HANDLE*, const void*, const item*,
-                              item_info*) {
+    static bool get_item_info(ENGINE_HANDLE*, const item*, item_info*) {
         throw std::logic_error("NoBucket::get_item_info: no items should have"
                                    " been allocated from this engine");
     }
 
-    static bool set_item_info(ENGINE_HANDLE*, const void*, item*,
-                              const item_info*) {
+    static bool set_item_info(ENGINE_HANDLE*, item*, const item_info*) {
         throw std::logic_error("NoBucket::set_item_info: no items should have"
                                    " been allocated from this engine");
     }

@@ -159,10 +159,7 @@ static ENGINE_ERROR_CODE item_delete(ENGINE_HANDLE* handle,
     return ENGINE_FAILED;
 }
 
-static void item_release(ENGINE_HANDLE* handle, const void *cookie,
-                         item* item)
-{
-
+static void item_release(ENGINE_HANDLE* handle, item* item) {
 }
 
 static cb::EngineErrorItemPair get(ENGINE_HANDLE* handle,
@@ -242,20 +239,18 @@ static void reset_stats(ENGINE_HANDLE* handle,
 {
 }
 
-static void item_set_cas(ENGINE_HANDLE *handle, const void *cookie,
-                         item* item, uint64_t val)
-{
+static void item_set_cas(ENGINE_HANDLE* handle, item* item, uint64_t val) {
 }
 
-static bool get_item_info(ENGINE_HANDLE *handle, const void *cookie,
-                          const item* item, item_info *item_info)
-{
+static bool get_item_info(ENGINE_HANDLE* handle,
+                          const item* item,
+                          item_info* item_info) {
     return false;
 }
 
-static bool set_item_info(ENGINE_HANDLE *handle, const void *cookie,
-                          item* item, const item_info *itm_info)
-{
+static bool set_item_info(ENGINE_HANDLE* handle,
+                          item* item,
+                          const item_info* itm_info) {
     return false;
 }
 

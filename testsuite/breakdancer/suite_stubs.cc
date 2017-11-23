@@ -44,12 +44,12 @@ static void storeItem(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
             h, cookie, key, vlen, flags, expiry, PROTOCOL_BINARY_RAW_BYTES, 0);
     cb_assert(ret.first == cb::engine_errc::success);
 
-    if (!h1->get_item_info(h, cookie, ret.second.get(), &info)) {
+    if (!h1->get_item_info(h, ret.second.get(), &info)) {
         abort();
     }
 
     memcpy(info.value[0].iov_base, value, vlen);
-    h1->item_set_cas(h, cookie, ret.second.get(), 0);
+    h1->item_set_cas(h, ret.second.get(), 0);
 
     auto rv = h1->store(
             h, cookie, ret.second.get(), &cas, op, DocumentState::Alive);
@@ -80,7 +80,7 @@ void checkValue(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* exp) {
     auto rv = h1->get(h, NULL, key, 0, DocStateFilter::Alive);
     cb_assert(rv.first == cb::engine_errc::success);
 
-    h1->get_item_info(h, NULL, rv.second.get(), &info);
+    h1->get_item_info(h, rv.second.get(), &info);
 
     char* buf = new char[info.value[0].iov_len + 1];
     memcpy(buf, info.value[0].iov_base, info.value[0].iov_len);

@@ -233,11 +233,9 @@ static ENGINE_ERROR_CODE mock_remove(ENGINE_HANDLE* handle,
     return ret;
 }
 
-static void mock_release(ENGINE_HANDLE* handle,
-                         const void *cookie,
-                         item* item) {
+static void mock_release(ENGINE_HANDLE* handle, item* item) {
     struct mock_engine *me = get_handle(handle);
-    me->the_engine->release((ENGINE_HANDLE*)me->the_engine, cookie, item);
+    me->the_engine->release((ENGINE_HANDLE*)me->the_engine, item);
 }
 
 static cb::EngineErrorItemPair mock_get(ENGINE_HANDLE* handle,
@@ -425,20 +423,17 @@ static ENGINE_ERROR_CODE mock_unknown_command(ENGINE_HANDLE* handle,
     return ret;
 }
 
-static void mock_item_set_cas(ENGINE_HANDLE *handle, const void *cookie,
-                              item* item, uint64_t val)
-{
+static void mock_item_set_cas(ENGINE_HANDLE* handle, item* item, uint64_t val) {
     struct mock_engine *me = get_handle(handle);
-    me->the_engine->item_set_cas((ENGINE_HANDLE*)me->the_engine, cookie, item, val);
+    me->the_engine->item_set_cas((ENGINE_HANDLE*)me->the_engine, item, val);
 }
 
-
-static bool mock_get_item_info(ENGINE_HANDLE *handle, const void *cookie,
-                               const item* item, item_info *item_info)
-{
+static bool mock_get_item_info(ENGINE_HANDLE* handle,
+                               const item* item,
+                               item_info* item_info) {
     struct mock_engine *me = get_handle(handle);
-    return me->the_engine->get_item_info((ENGINE_HANDLE*)me->the_engine,
-                                         cookie, item, item_info);
+    return me->the_engine->get_item_info(
+            (ENGINE_HANDLE*)me->the_engine, item, item_info);
 }
 
 static ENGINE_ERROR_CODE mock_dcp_step(ENGINE_HANDLE* handle,

@@ -332,7 +332,7 @@ public:
     void releaseReservedItems() {
         ENGINE_HANDLE* handle = reinterpret_cast<ENGINE_HANDLE*>(bucketEngine);
         for (auto* it : reservedItems) {
-            bucketEngine->release(handle, this, it);
+            bucketEngine->release(handle, it);
         }
         reservedItems.clear();
     }

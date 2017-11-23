@@ -204,7 +204,7 @@ static ENGINE_ERROR_CODE mock_mutation(const void* cookie,
     dcp_last_collection_len = collectionLen;
     dcp_last_datatype = item->getDataType();
     if (engine_handle_v1 && engine_handle) {
-        engine_handle_v1->release(engine_handle, NULL, item);
+        engine_handle_v1->release(engine_handle, item);
     }
     return ENGINE_SUCCESS;
 }
@@ -240,7 +240,7 @@ static ENGINE_ERROR_CODE mock_deletion(const void* cookie,
     dcp_last_collection_len = collectionLen;
 
     if (engine_handle_v1 && engine_handle) {
-        engine_handle_v1->release(engine_handle, nullptr, item);
+        engine_handle_v1->release(engine_handle, item);
     }
 
     return ENGINE_SUCCESS;
@@ -257,7 +257,7 @@ static ENGINE_ERROR_CODE mock_expiration(const void*,
                                          uint8_t) {
     clear_dcp_data();
     if (engine_handle_v1 && engine_handle) {
-        engine_handle_v1->release(engine_handle, nullptr, itm);
+        engine_handle_v1->release(engine_handle, itm);
     }
     return ENGINE_ENOTSUP;
 }
