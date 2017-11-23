@@ -33,9 +33,7 @@
 #include <memcached/engine_error.h>
 #include <daemon/connection_mcbp.h>
 
-ENGINE_ERROR_CODE bucket_unknown_command(McbpConnection* c,
-                                         protocol_binary_request_header* request,
-                                         ADD_RESPONSE response);
+ENGINE_ERROR_CODE bucket_unknown_command(Cookie& cookie, ADD_RESPONSE response);
 
 void bucket_item_set_cas(Cookie& cookie, item* it, uint64_t cas)
         CB_ATTR_NONNULL(2);

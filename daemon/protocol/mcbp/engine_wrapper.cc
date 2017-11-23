@@ -19,21 +19,24 @@
 #include <mcbp/protocol/header.h>
 #include <utilities/protocol2text.h>
 
-ENGINE_ERROR_CODE bucket_unknown_command(McbpConnection* c,
-                                         protocol_binary_request_header* request,
+ENGINE_ERROR_CODE bucket_unknown_command(Cookie& cookie,
                                          ADD_RESPONSE response) {
-    auto ret = c->getBucketEngine()->unknown_command(c->getBucketEngineAsV0(),
-                                                     c->getCookie(),
-                                                     request,
-                                                     response,
-                                                     c->getDocNamespace());
+    auto& c = cookie.getConnection();
+    const void* const_ptr = static_cast<const void*>(cookie.getPacket().data());
+    auto* ptr = const_cast<void*>(const_ptr);
+    auto* req = reinterpret_cast<protocol_binary_request_header*>(ptr);
+    auto ret = c.getBucketEngine()->unknown_command(c.getBucketEngineAsV0(),
+                                                    &cookie,
+                                                    req,
+                                                    response,
+                                                    c.getDocNamespace());
     if (ret == ENGINE_DISCONNECT) {
-        LOG_INFO(c,
+        const auto request = cookie.getRequest();
+        LOG_INFO(&c,
                  "%u: %s %s return ENGINE_DISCONNECT",
-                 c->getId(),
-                 c->getDescription().c_str(),
-                 memcached_opcode_2_text(
-                         c->getCookieObject().getHeader().getOpcode()));
+                 c.getId(),
+                 c.getDescription().c_str(),
+                 to_string(request.getClientOpcode()).c_str());
     }
     return ret;
 }

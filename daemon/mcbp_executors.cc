@@ -93,16 +93,15 @@ static void gat_executor(Cookie& cookie) {
     cookie.obtainContext<GatCommandContext>(cookie).drive();
 }
 
-
 static ENGINE_ERROR_CODE default_unknown_command(
-    EXTENSION_BINARY_PROTOCOL_DESCRIPTOR*,
-    ENGINE_HANDLE*,
-    const void* void_cookie,
-    protocol_binary_request_header* request,
-    ADD_RESPONSE response) {
-
-    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
-    return bucket_unknown_command(&cookie->getConnection(), request, response);
+        EXTENSION_BINARY_PROTOCOL_DESCRIPTOR*,
+        ENGINE_HANDLE*,
+        const void* const_cookie,
+        protocol_binary_request_header*,
+        ADD_RESPONSE response) {
+    auto* void_cookie = const_cast<void*>(const_cookie);
+    auto& cookie = *reinterpret_cast<Cookie*>(void_cookie);
+    return bucket_unknown_command(cookie, response);
 }
 
 struct request_lookup {
