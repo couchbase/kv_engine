@@ -62,14 +62,6 @@ public:
           traits(traits_) {
     }
 
-    ~SubdocCmdContext() override {
-        if (out_doc != nullptr) {
-            auto engine = connection.getBucketEngine();
-            engine->release(reinterpret_cast<ENGINE_HANDLE*>(engine),
-                            &connection, out_doc);
-        }
-    }
-
     ENGINE_ERROR_CODE pre_link_document(item_info& info) override;
 
     /**
@@ -213,9 +205,8 @@ public:
     // Held in the context so upon success we can update statistics.
     size_t out_doc_len = 0;
 
-    // [Mutations only] New item to store into engine. _Must_ be released
-    // back to the engine using ENGINE_HANDLE_V1::release()
-    item* out_doc = nullptr;
+    // [Mutations only] New item to store into engine.
+    cb::unique_item_ptr out_doc;
 
     // Size in bytes of the response value to send back to the client.
     size_t response_val_len = 0;

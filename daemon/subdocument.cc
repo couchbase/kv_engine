@@ -1214,7 +1214,6 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
     // Allocate a new item of this size.
     if (context.out_doc == NULL &&
         !(context.no_sys_xattrs && context.do_delete_doc)) {
-        item* new_doc = nullptr;
 
         if (ret == ENGINE_SUCCESS) {
             context.out_doc_len = context.in_doc.len;
@@ -1236,7 +1235,8 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
                                             context.in_datatype,
                                             vbucket);
                 if (r.first) {
-                    new_doc = r.first.release();
+                    // Save the allocated document in the cmd context.
+                    context.out_doc = std::move(r.first);
                     ret = ENGINE_SUCCESS;
                 } else {
                     ret = ENGINE_ENOMEM;
@@ -1250,7 +1250,6 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
         switch (ret) {
         case ENGINE_SUCCESS:
             // Save the allocated document in the cmd context.
-            context.out_doc = new_doc;
             break;
 
         case ENGINE_EWOULDBLOCK:
@@ -1268,11 +1267,12 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
 
         // To ensure we only replace the version of the document we
         // just appended to; set the CAS to the one retrieved from.
-        bucket_item_set_cas(cookie, new_doc, context.in_cas);
+        bucket_item_set_cas(cookie, context.out_doc.get(), context.in_cas);
 
         // Obtain the item info (and it's iovectors)
         item_info new_doc_info;
-        if (!bucket_get_item_info(cookie, new_doc, &new_doc_info)) {
+        if (!bucket_get_item_info(
+                    cookie, context.out_doc.get(), &new_doc_info)) {
             cookie.sendResponse(cb::mcbp::Status::Einternal);
             return ENGINE_FAILED;
         }
@@ -1294,7 +1294,7 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
         ret = bucket_remove(cookie, docKey, &new_cas, vbucket, &mdt);
     } else {
         ret = bucket_store(cookie,
-                           context.out_doc,
+                           context.out_doc.get(),
                            &new_cas,
                            new_op,
                            context.do_delete_doc ? DocumentState::Deleted
@@ -1311,7 +1311,8 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
                 context.sequence_no = mdt.seqno;
             } else {
                 item_info info;
-                if (!bucket_get_item_info(cookie, context.out_doc, &info)) {
+                if (!bucket_get_item_info(
+                            cookie, context.out_doc.get(), &info)) {
                     LOG_WARNING(&connection,
                                 "%u: Subdoc: Failed to get item info",
                                 connection.getId());
