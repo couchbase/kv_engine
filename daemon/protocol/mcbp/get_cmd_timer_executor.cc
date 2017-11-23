@@ -21,14 +21,15 @@
 #include <daemon/mcbp.h>
 #include <daemon/buckets.h>
 
-std::pair<ENGINE_ERROR_CODE, std::string> get_cmd_timer(
-        McbpConnection& connection,
-        const protocol_binary_request_get_cmd_timer* req) {
-    const char* key = (const char*)(req->bytes + sizeof(req->bytes));
-    size_t keylen = ntohs(req->message.header.request.keylen);
-    int index = connection.getBucketIndex();
-    const std::string bucket(key, keylen);
-    const auto opcode = req->message.body.opcode;
+std::pair<ENGINE_ERROR_CODE, std::string> get_cmd_timer(Cookie& cookie) {
+    const auto& request = cookie.getRequest(Cookie::PacketContent::Full);
+    const auto key = request.getKey();
+    const std::string bucket(reinterpret_cast<const char*>(key.data()),
+                             key.size());
+    const auto extras = request.getExtdata();
+    auto keylen = key.size();
+    const auto opcode = extras[0];
+    int index = cookie.getConnection().getBucketIndex();
 
     if (keylen > 0 && bucket != all_buckets[index].name) {
         // The user specified the current selected bucket
@@ -37,8 +38,7 @@ std::pair<ENGINE_ERROR_CODE, std::string> get_cmd_timer(
 
     if (keylen > 0 || index == 0) {
         // You need the Stats privilege in order to specify a bucket
-        auto ret = mcbp::checkPrivilege(connection.getCookieObject(),
-                                        cb::rbac::Privilege::Stats);
+        auto ret = mcbp::checkPrivilege(cookie, cb::rbac::Privilege::Stats);
         if (ret != ENGINE_SUCCESS) {
             return std::make_pair(ret, "");
         }
@@ -83,10 +83,7 @@ void get_cmd_timer_executor(Cookie& cookie) {
     cookie.logCommand();
     std::pair<ENGINE_ERROR_CODE, std::string> ret;
     try {
-        ret = get_cmd_timer(
-                connection,
-                reinterpret_cast<protocol_binary_request_get_cmd_timer*>(
-                        cookie.getPacketAsVoidPtr()));
+        ret = get_cmd_timer(cookie);
     } catch (const std::bad_alloc&) {
         ret.first = ENGINE_ENOMEM;
     }
