@@ -227,9 +227,8 @@ bool conn_ship_log(McbpConnection& connection) {
     if (!connection.updateEvent(mask)) {
         LOG_WARNING(&connection,
                     "%u: conn_ship_log - Unable to update libevent "
-                    "settings, closing connection (%p) %s",
+                    "settings, closing connection %s",
                     connection.getId(),
-                    connection.getCookie(),
                     connection.getDescription().c_str());
         connection.setState(McbpStateMachine::State::closing);
     }
@@ -246,9 +245,8 @@ bool conn_waiting(McbpConnection& connection) {
         LOG_WARNING(&connection,
                     "%u: conn_waiting - Unable to update libevent "
                     "settings with (EV_READ | EV_PERSIST), closing connection "
-                    "(%p) %s",
+                    "%s",
                     connection.getId(),
-                    connection.getCookie(),
                     connection.getDescription().c_str());
         connection.setState(McbpStateMachine::State::closing);
         return true;
@@ -342,9 +340,8 @@ bool conn_new_cmd(McbpConnection& connection) {
             if (!connection.updateEvent(flags)) {
                 LOG_WARNING(&connection,
                             "%u: conn_new_cmd - Unable to update "
-                            "libevent settings, closing connection (%p) %s",
+                            "libevent settings, closing connection %s",
                             connection.getId(),
-                            connection.getCookie(),
                             connection.getDescription().c_str());
                 connection.setState(McbpStateMachine::State::closing);
                 return true;
@@ -446,9 +443,8 @@ bool conn_read_packet_body(McbpConnection& connection) {
             LOG_WARNING(&connection,
                         "%u: conn_read_packet_body - Unable to update libevent "
                         "settings with (EV_READ | EV_PERSIST), closing "
-                        "connection (%p) %s",
+                        "connection %s",
                         connection.getId(),
-                        connection.getCookie(),
                         connection.getDescription().c_str());
             connection.setState(McbpStateMachine::State::closing);
             return true;
@@ -462,9 +458,8 @@ bool conn_read_packet_body(McbpConnection& connection) {
     // We have a "real" error on the socket.
     std::string errormsg = cb_strerror(error);
     LOG_WARNING(&connection,
-                "%u Closing connection (%p) %s due to read error: %s",
+                "%u Closing connection %s due to read error: %s",
                 connection.getId(),
-                connection.getCookie(),
                 connection.getDescription().c_str(),
                 errormsg.c_str());
 
