@@ -26,7 +26,6 @@
 
 #include <platform/sysinfo.h>
 #include <rocksdb/convenience.h>
-#include <rocksdb/utilities/memory_util.h>
 
 #include <stdio.h>
 #include <string.h>
@@ -622,49 +621,48 @@ size_t RocksDBKVStore::getNumShards() {
     return configuration.getMaxShards();
 }
 
-bool RocksDBKVStore::getStat(const char* name, size_t& value) {
-    std::vector<rocksdb::DB*> dbs;
-    std::map<rocksdb::MemoryUtil::UsageType, uint64_t> usageByType;
-    {
-        // Note: we need to call 'GetApproximateMemoryUsageByType' under lock
-        // to avoid that 'delVBucket' deletes pointers in 'dbs'
-        std::lock_guard<std::mutex> lg(vbDBMutex);
-        for (const auto db : vbDB) {
-            if (db) {
-                dbs.push_back(db->rdb.get());
-            }
-        }
+bool RocksDBKVStore::getStat(const char* name_, size_t& value) {
+    std::string name(name_);
 
-        if (dbs.empty()) {
-            return false;
-        }
-        auto cache_set = getCachePointers(dbs);
-
-        auto status = rocksdb::MemoryUtil::GetApproximateMemoryUsageByType(
-                dbs, cache_set, &usageByType);
-        if (!status.ok()) {
-            logger.log(
-                    EXTENSION_LOG_NOTICE,
-                    "RocksDBKVStore::getStat: GetApproximateMemoryUsageByType "
-                    "error: %s",
-                    status.getState());
-            return false;
-        }
+    // Memory Usage
+    if (name == "kMemTableTotal") {
+        return getStatFromMemUsage(rocksdb::MemoryUtil::kMemTableTotal, value);
+    } else if (name == "kMemTableUnFlushed") {
+        return getStatFromMemUsage(rocksdb::MemoryUtil::kMemTableUnFlushed,
+                                   value);
+    } else if (name == "kTableReadersTotal") {
+        return getStatFromMemUsage(rocksdb::MemoryUtil::kTableReadersTotal,
+                                   value);
+    } else if (name == "kCacheTotal") {
+        return getStatFromMemUsage(rocksdb::MemoryUtil::kCacheTotal, value);
     }
 
-    if (std::string(name) == "kMemTableTotal") {
-        value = usageByType.at(rocksdb::MemoryUtil::kMemTableTotal);
-    } else if (std::string(name) == "kMemTableUnFlushed") {
-        value = usageByType.at(rocksdb::MemoryUtil::kMemTableUnFlushed);
-    } else if (std::string(name) == "kTableReadersTotal") {
-        value = usageByType.at(rocksdb::MemoryUtil::kTableReadersTotal);
-    } else if (std::string(name) == "kCacheTotal") {
-        value = usageByType.at(rocksdb::MemoryUtil::kCacheTotal);
-    } else {
-        return false;
+    // Block Cache hit/miss
+    else if (name == "rocksdb.block.cache.hit") {
+        return getStatFromStatistics(rocksdb::Tickers::BLOCK_CACHE_HIT, value);
+    } else if (name == "rocksdb.block.cache.miss") {
+        return getStatFromStatistics(rocksdb::Tickers::BLOCK_CACHE_MISS, value);
+    } else if (name == "rocksdb.block.cache.data.hit") {
+        return getStatFromStatistics(rocksdb::Tickers::BLOCK_CACHE_DATA_HIT,
+                                     value);
+    } else if (name == "rocksdb.block.cache.data.miss") {
+        return getStatFromStatistics(rocksdb::Tickers::BLOCK_CACHE_DATA_MISS,
+                                     value);
+    } else if (name == "rocksdb.block.cache.index.hit") {
+        return getStatFromStatistics(rocksdb::Tickers::BLOCK_CACHE_INDEX_HIT,
+                                     value);
+    } else if (name == "rocksdb.block.cache.index.miss") {
+        return getStatFromStatistics(rocksdb::Tickers::BLOCK_CACHE_INDEX_MISS,
+                                     value);
+    } else if (name == "rocksdb.block.cache.filter.hit") {
+        return getStatFromStatistics(rocksdb::Tickers::BLOCK_CACHE_FILTER_HIT,
+                                     value);
+    } else if (name == "rocksdb.block.cache.filter.miss") {
+        return getStatFromStatistics(rocksdb::Tickers::BLOCK_CACHE_FILTER_MISS,
+                                     value);
     }
 
-    return true;
+    return false;
 }
 
 StorageProperties RocksDBKVStore::getStorageProperties(void) {
@@ -1337,4 +1335,55 @@ void RocksDBKVStore::destroyScanContext(ScanContext* ctx) {
         scanSnapshots.erase(it);
     }
     delete ctx;
+}
+
+bool RocksDBKVStore::getStatFromMemUsage(
+        const rocksdb::MemoryUtil::UsageType type, size_t& value) {
+    std::vector<rocksdb::DB*> dbs;
+    std::map<rocksdb::MemoryUtil::UsageType, uint64_t> usageByType;
+    {
+        // Note: we need to call 'GetApproximateMemoryUsageByType' under lock
+        // to avoid that 'delVBucket' deletes pointers in 'dbs'
+        std::lock_guard<std::mutex> lg(vbDBMutex);
+        for (const auto db : vbDB) {
+            if (db) {
+                dbs.push_back(db->rdb.get());
+            }
+        }
+
+        if (dbs.empty()) {
+            return false;
+        }
+        auto cache_set = getCachePointers(dbs);
+
+        auto status = rocksdb::MemoryUtil::GetApproximateMemoryUsageByType(
+                dbs, cache_set, &usageByType);
+        if (!status.ok()) {
+            logger.log(EXTENSION_LOG_NOTICE,
+                       "RocksDBKVStore::getStatFromMemUsage: "
+                       "GetApproximateMemoryUsageByType error: %s",
+                       status.getState());
+            return false;
+        }
+    }
+
+    value = usageByType.at(type);
+
+    return true;
+}
+
+bool RocksDBKVStore::getStatFromStatistics(const rocksdb::Tickers ticker,
+                                           size_t& value) {
+    std::lock_guard<std::mutex> lg(vbDBMutex);
+    for (const auto db : vbDB) {
+        if (db) {
+            const auto statistics = db->rdb->GetDBOptions().statistics;
+            if (!statistics) {
+                return false;
+            }
+            value += statistics->getTickerCount(ticker);
+        }
+    }
+
+    return true;
 }

@@ -2680,6 +2680,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
 
     // Specific to RocksDB. Cumulative ep-engine stats.
     // Note: These are also reported per-shard in 'kvstore' stats.
+    // Memory Usage
     if (kvBucket->getKVStoreStat(
                 "kMemTableTotal", value, KVBucketIface::KVSOption::RW)) {
         add_casted_stat("ep_rocksdb_kMemTableTotal", value, add_stat, cookie);
@@ -2697,6 +2698,67 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     if (kvBucket->getKVStoreStat(
                 "kCacheTotal", value, KVBucketIface::KVSOption::RW)) {
         add_casted_stat("ep_rocksdb_kCacheTotal", value, add_stat, cookie);
+    }
+    // Block Cache hit/miss
+    if (kvBucket->getKVStoreStat("rocksdb.block.cache.hit",
+                                 value,
+                                 KVBucketIface::KVSOption::RW)) {
+        add_casted_stat(
+                "ep_rocksdb_rocksdb.block.cache.hit", value, add_stat, cookie);
+    }
+    if (kvBucket->getKVStoreStat("rocksdb.block.cache.miss",
+                                 value,
+                                 KVBucketIface::KVSOption::RW)) {
+        add_casted_stat(
+                "ep_rocksdb_rocksdb.block.cache.miss", value, add_stat, cookie);
+    }
+    if (kvBucket->getKVStoreStat("rocksdb.block.cache.data.hit",
+                                 value,
+                                 KVBucketIface::KVSOption::RW)) {
+        add_casted_stat("ep_rocksdb_rocksdb.block.cache.data.hit",
+                        value,
+                        add_stat,
+                        cookie);
+    }
+    if (kvBucket->getKVStoreStat("rocksdb.block.cache.data.miss",
+                                 value,
+                                 KVBucketIface::KVSOption::RW)) {
+        add_casted_stat("ep_rocksdb_rocksdb.block.cache.data.miss",
+                        value,
+                        add_stat,
+                        cookie);
+    }
+    if (kvBucket->getKVStoreStat("rocksdb.block.cache.index.hit",
+                                 value,
+                                 KVBucketIface::KVSOption::RW)) {
+        add_casted_stat("ep_rocksdb_rocksdb.block.cache.index.hit",
+                        value,
+                        add_stat,
+                        cookie);
+    }
+    if (kvBucket->getKVStoreStat("rocksdb.block.cache.index.miss",
+                                 value,
+                                 KVBucketIface::KVSOption::RW)) {
+        add_casted_stat("ep_rocksdb_rocksdb.block.cache.index.miss",
+                        value,
+                        add_stat,
+                        cookie);
+    }
+    if (kvBucket->getKVStoreStat("rocksdb.block.cache.filter.hit",
+                                 value,
+                                 KVBucketIface::KVSOption::RW)) {
+        add_casted_stat("ep_rocksdb_rocksdb.block.cache.filter.hit",
+                        value,
+                        add_stat,
+                        cookie);
+    }
+    if (kvBucket->getKVStoreStat("rocksdb.block.cache.filter.miss",
+                                 value,
+                                 KVBucketIface::KVSOption::RW)) {
+        add_casted_stat("ep_rocksdb_rocksdb.block.cache.filter.miss",
+                        value,
+                        add_stat,
+                        cookie);
     }
 
     return ENGINE_SUCCESS;

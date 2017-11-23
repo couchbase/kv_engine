@@ -2066,13 +2066,35 @@ protected:
     std::unique_ptr<KVStore> kvstore;
 };
 
-// Verify that RocksDB internal memory usage stats are returned
-TEST_F(RocksDBKVStoreTest, MemUsageStatsTest) {
+// Verify that RocksDB internal stats are returned
+TEST_F(RocksDBKVStoreTest, StatsTest) {
     size_t value;
+
+    // Memory Usage stats
     EXPECT_TRUE(kvstore->getStat("kMemTableTotal", value));
     EXPECT_TRUE(kvstore->getStat("kMemTableUnFlushed", value));
     EXPECT_TRUE(kvstore->getStat("kTableReadersTotal", value));
     EXPECT_TRUE(kvstore->getStat("kCacheTotal", value));
+
+    // Block Cache stats
+    Configuration config;
+    config.setDbname(data_dir);
+    config.setBackend("rocksdb");
+    // Note: we need to switch-on DB Statistics
+    config.setRocksdbStatsLevel("kAll");
+    kvstoreConfig = std::make_unique<KVStoreConfig>(config, 0 /*shardId*/);
+    // Close the opened DB instance
+    kvstore.reset();
+    // Re-open with the new configuration
+    kvstore = setup_kv_store(*kvstoreConfig);
+    EXPECT_TRUE(kvstore->getStat("rocksdb.block.cache.hit", value));
+    EXPECT_TRUE(kvstore->getStat("rocksdb.block.cache.miss", value));
+    EXPECT_TRUE(kvstore->getStat("rocksdb.block.cache.data.hit", value));
+    EXPECT_TRUE(kvstore->getStat("rocksdb.block.cache.data.miss", value));
+    EXPECT_TRUE(kvstore->getStat("rocksdb.block.cache.index.hit", value));
+    EXPECT_TRUE(kvstore->getStat("rocksdb.block.cache.index.miss", value));
+    EXPECT_TRUE(kvstore->getStat("rocksdb.block.cache.filter.hit", value));
+    EXPECT_TRUE(kvstore->getStat("rocksdb.block.cache.filter.miss", value));
 }
 
 // Verify that a wrong value of 'rocksdb_statistics_option' is caught

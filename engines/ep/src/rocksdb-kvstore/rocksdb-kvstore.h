@@ -31,6 +31,7 @@
 
 #include <rocksdb/db.h>
 #include <rocksdb/listener.h>
+#include <rocksdb/utilities/memory_util.h>
 #include <string>
 
 #include "../objectregistry.h"
@@ -427,6 +428,13 @@ private:
     int64_t readHighSeqnoFromDisk(const KVRocksDB& db);
 
     std::string getVbstateKey();
+
+    // Helper function to retrieve stats from the RocksDB MemoryUtil API.
+    bool getStatFromMemUsage(const rocksdb::MemoryUtil::UsageType type,
+                             size_t& value);
+
+    // Helper function to retrieve stats from the RocksDB Statistics API.
+    bool getStatFromStatistics(const rocksdb::Tickers ticker, size_t& value);
 
     // Used for queueing mutation requests (in `set` and `del`) and flushing
     // them to disk (in `commit`).

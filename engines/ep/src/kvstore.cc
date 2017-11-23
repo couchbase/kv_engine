@@ -279,6 +279,7 @@ void KVStore::addStats(ADD_STAT add_stat, const void *c) {
 
     // Specific to RocksDB. Per-shard stats.
     size_t value = 0;
+    // Memory Usage
     if (getStat("kMemTableTotal", value)) {
         addStat(prefix, "rocksdb_kMemTableTotal", value, add_stat, c);
     }
@@ -290,6 +291,55 @@ void KVStore::addStats(ADD_STAT add_stat, const void *c) {
     }
     if (getStat("kCacheTotal", value)) {
         addStat(prefix, "rocksdb_kCacheTotal", value, add_stat, c);
+    }
+    // Block Cache hit/miss
+    if (getStat("rocksdb.block.cache.hit", value)) {
+        addStat(prefix, "rocksdb_rocksdb.block.cache.hit", value, add_stat, c);
+    }
+    if (getStat("rocksdb.block.cache.miss", value)) {
+        addStat(prefix, "rocksdb_rocksdb.block.cache.miss", value, add_stat, c);
+    }
+    if (getStat("rocksdb.block.cache.data.hit", value)) {
+        addStat(prefix,
+                "rocksdb_rocksdb.block.cache.index.hit",
+                value,
+                add_stat,
+                c);
+    }
+    if (getStat("rocksdb.block.cache.data.miss", value)) {
+        addStat(prefix,
+                "rocksdb_rocksdb.block.cache.index.miss",
+                value,
+                add_stat,
+                c);
+    }
+    if (getStat("rocksdb.block.cache.index.hit", value)) {
+        addStat(prefix,
+                "rocksdb_rocksdb.block.cache.index.hit",
+                value,
+                add_stat,
+                c);
+    }
+    if (getStat("rocksdb.block.cache.index.miss", value)) {
+        addStat(prefix,
+                "rocksdb_rocksdb.block.cache.index.miss",
+                value,
+                add_stat,
+                c);
+    }
+    if (getStat("rocksdb.block.cache.filter.hit", value)) {
+        addStat(prefix,
+                "rocksdb_rocksdb.block.cache.filter.hit",
+                value,
+                add_stat,
+                c);
+    }
+    if (getStat("rocksdb.block.cache.filter.miss", value)) {
+        addStat(prefix,
+                "rocksdb_rocksdb.block.cache.filter.miss",
+                value,
+                add_stat,
+                c);
     }
 }
 
