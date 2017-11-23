@@ -235,7 +235,7 @@ static ENGINE_ERROR_CODE flush(gsl::not_null<ENGINE_HANDLE*> handle,
 }
 
 static void reset_stats(gsl::not_null<ENGINE_HANDLE*> handle,
-                        const void* cookie) {
+                        gsl::not_null<const void*> cookie) {
 }
 
 static void item_set_cas(gsl::not_null<ENGINE_HANDLE*> handle,

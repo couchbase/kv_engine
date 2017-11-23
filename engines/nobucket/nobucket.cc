@@ -213,7 +213,7 @@ private:
         return ENGINE_NO_BUCKET;
     }
 
-    static void reset_stats(gsl::not_null<ENGINE_HANDLE*>, const void*) {
+    static void reset_stats(gsl::not_null<ENGINE_HANDLE*>, gsl::not_null<const void*> cookie) {
     }
 
     static ENGINE_ERROR_CODE unknown_command(

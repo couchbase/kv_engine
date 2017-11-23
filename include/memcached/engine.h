@@ -530,7 +530,7 @@ typedef struct engine_interface_v1 {
      * @param cookie The cookie provided by the frontend
      */
     void (*reset_stats)(gsl::not_null<ENGINE_HANDLE*> handle,
-                        const void* cookie);
+                        gsl::not_null<const void*> cookie);
 
     /**
      * Any unknown command will be considered engine specific.

@@ -356,7 +356,7 @@ static ENGINE_ERROR_CODE EvpFlush(gsl::not_null<ENGINE_HANDLE*> handle,
     return acquireEngine(handle)->flush(cookie);
 }
 
-static void EvpResetStats(gsl::not_null<ENGINE_HANDLE*> handle, const void*) {
+static void EvpResetStats(gsl::not_null<ENGINE_HANDLE*> handle, gsl::not_null<const void*> cookie) {
     acquireEngine(handle)->resetStats();
 }
 

@@ -571,7 +571,7 @@ public:
     }
 
     static void reset_stats(gsl::not_null<ENGINE_HANDLE*> handle,
-                            const void* cookie) {
+                            gsl::not_null<const void*> cookie) {
         EWB_Engine* ewb = to_engine(handle);
         return ewb->real_engine->reset_stats(ewb->real_handle, cookie);
     }

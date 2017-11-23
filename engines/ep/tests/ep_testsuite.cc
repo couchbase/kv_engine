@@ -2043,7 +2043,7 @@ static enum test_result test_io_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
         return SKIPPED;
     }
 
-    h1->reset_stats(h, NULL);
+    reset_stats(h);
 
     checkeq(0,
             get_int_stat(h, h1, "rw_0:io_bg_fetch_docs_read", "kvstore"),
@@ -2175,7 +2175,7 @@ static enum test_result test_vb_file_stats_after_warmup(ENGINE_HANDLE *h,
 }
 
 static enum test_result test_bg_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    h1->reset_stats(h, NULL);
+    reset_stats(h);
     wait_for_persisted_value(h, h1, "a", "b\r\n");
     evict_key(h, h1, "a", 0, "Ejected.");
     testHarness.time_travel(43);
@@ -2201,14 +2201,14 @@ static enum test_result test_bg_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(get_int_stat(h, h1, "ep_bg_num_samples") == 2,
           "Expected one sample");
 
-    h1->reset_stats(h, NULL);
+    reset_stats(h);
     checkeq(0, get_int_stat(h, h1, "ep_bg_fetched"),
             "ep_bg_fetched is not reset to 0");
     return SUCCESS;
 }
 
 static enum test_result test_bg_meta_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    h1->reset_stats(h, NULL);
+    reset_stats(h);
 
     wait_for_persisted_value(h, h1, "k1", "v1");
     wait_for_persisted_value(h, h1, "k2", "v2");
@@ -3754,7 +3754,8 @@ static enum test_result test_value_eviction(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
 
     item *i = NULL;
-    h1->reset_stats(h, NULL);
+    reset_stats(h);
+
     checkeq(0, get_int_stat(h, h1, "ep_num_value_ejects"),
             "Expected reset stats to set ep_num_value_ejects to zero");
     checkeq(0, get_int_stat(h, h1, "ep_num_non_resident"),
@@ -3811,7 +3812,7 @@ static enum test_result test_value_eviction(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     }
     cb_free(pkt);
 
-    h1->reset_stats(h, NULL);
+    reset_stats(h);
     checkeq(0, get_int_stat(h, h1, "ep_num_value_ejects"),
             "Expected reset stats to set ep_num_value_ejects to zero");
 

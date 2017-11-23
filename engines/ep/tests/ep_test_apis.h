@@ -615,4 +615,6 @@ inline bool is_full_eviction(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return get_str_stat(h, h1, "ep_item_eviction_policy") == "full_eviction";
 }
 
+void reset_stats(gsl::not_null<ENGINE_HANDLE*> h);
+
 #endif  // TESTS_EP_TEST_APIS_H_

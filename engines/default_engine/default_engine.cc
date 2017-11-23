@@ -103,7 +103,7 @@ static ENGINE_ERROR_CODE default_get_stats(gsl::not_null<ENGINE_HANDLE*> handle,
                                            int nkey,
                                            ADD_STAT add_stat);
 static void default_reset_stats(gsl::not_null<ENGINE_HANDLE*> handle,
-                                const void* cookie);
+                                gsl::not_null<const void*> cookie);
 static ENGINE_ERROR_CODE default_store(gsl::not_null<ENGINE_HANDLE*> handle,
                                        const void* cookie,
                                        gsl::not_null<item*> item,
@@ -766,7 +766,7 @@ static ENGINE_ERROR_CODE default_flush(gsl::not_null<ENGINE_HANDLE*> handle,
 }
 
 static void default_reset_stats(gsl::not_null<ENGINE_HANDLE*> handle,
-                                const void* cookie) {
+                                gsl::not_null<const void*> cookie) {
     struct default_engine* engine = get_handle(handle);
     item_stats_reset(engine);
 

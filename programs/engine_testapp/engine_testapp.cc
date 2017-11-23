@@ -405,7 +405,7 @@ static ENGINE_ERROR_CODE mock_flush(gsl::not_null<ENGINE_HANDLE*> handle,
 }
 
 static void mock_reset_stats(gsl::not_null<ENGINE_HANDLE*> handle,
-                             const void* cookie) {
+                             gsl::not_null<const void*> cookie) {
     struct mock_engine *me = get_handle(handle);
     me->the_engine->reset_stats((ENGINE_HANDLE*)me->the_engine, cookie);
 }

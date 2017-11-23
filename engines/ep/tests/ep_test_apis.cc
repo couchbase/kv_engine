@@ -1661,3 +1661,10 @@ bool repeat_till_true(std::function<bool()> functor,
     } while (!fSuccess && max_repeat > 0);
     return fSuccess;
 }
+
+void reset_stats(gsl::not_null<ENGINE_HANDLE*> h) {
+    auto* h1 = reinterpret_cast<ENGINE_HANDLE_V1*>(h.get());
+    const auto* cookie = testHarness.create_cookie();
+    h1->reset_stats(h, cookie);
+    testHarness.destroy_cookie(cookie);
+}
