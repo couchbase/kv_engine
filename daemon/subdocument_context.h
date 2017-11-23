@@ -56,8 +56,10 @@ public:
     class OperationSpec;
     typedef std::vector<OperationSpec> Operations;
 
-    SubdocCmdContext(McbpConnection& connection_, const SubdocCmdTraits traits_)
-        : connection(connection_), traits(traits_) {
+    SubdocCmdContext(Cookie& cookie_, const SubdocCmdTraits traits_)
+        : cookie(cookie_),
+          connection(cookie_.getConnection()),
+          traits(traits_) {
     }
 
     ~SubdocCmdContext() override {
@@ -137,8 +139,9 @@ public:
     // Returns the total size of all Operation values (bytes).
     uint64_t getOperationValueBytesTotal() const;
 
-    // Cookie this command is associated with. Needed for the destructor
-    // to release items.
+    // Cookie this command is associated with.
+    Cookie& cookie;
+
     McbpConnection& connection;
 
     // The traits for this command.

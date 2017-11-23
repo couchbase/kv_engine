@@ -96,7 +96,7 @@ static void subdoc_print_command(Connection& c, protocol_binary_command cmd,
  * Definitions
  */
 static void create_single_path_context(SubdocCmdContext& context,
-                                       McbpConnection& c,
+                                       Cookie& cookie,
                                        const SubdocCmdTraits traits,
                                        const void* packet,
                                        cb::const_char_buffer value,
@@ -165,13 +165,19 @@ static void create_single_path_context(SubdocCmdContext& context,
         const char* key = (char*)packet + sizeof(req->message.header) + extlen;
         const uint16_t keylen = ntohs(req->message.header.request.keylen);
 
-        subdoc_print_command(c, mcbp_cmd, key, keylen,
-                             path.buf, path.len, value.buf, value.len);
+        subdoc_print_command(cookie.getConnection(),
+                             mcbp_cmd,
+                             key,
+                             keylen,
+                             path.buf,
+                             path.len,
+                             value.buf,
+                             value.len);
     }
 }
 
 static void create_multi_path_context(SubdocCmdContext& context,
-                                      McbpConnection& c,
+                                      Cookie& cookie,
                                       const SubdocCmdTraits traits,
                                       const void* packet,
                                       cb::const_char_buffer value,
@@ -260,28 +266,34 @@ static void create_multi_path_context(SubdocCmdContext& context,
         const uint16_t keylen = ntohs(req->message.header.request.keylen);
 
         const char path[] = "<multipath>";
-        subdoc_print_command(c, mcbp_cmd, key, keylen,
-                             path, strlen(path), value.buf, value.len);
+        subdoc_print_command(cookie.getConnection(),
+                             mcbp_cmd,
+                             key,
+                             keylen,
+                             path,
+                             strlen(path),
+                             value.buf,
+                             value.len);
     }
 }
 
-static SubdocCmdContext* subdoc_create_context(McbpConnection& c,
+static SubdocCmdContext* subdoc_create_context(Cookie& cookie,
                                                const SubdocCmdTraits traits,
                                                const void* packet,
                                                cb::const_char_buffer value,
                                                doc_flag doc_flags) {
     try {
         std::unique_ptr<SubdocCmdContext> context;
-        context.reset(new SubdocCmdContext(c, traits));
+        context.reset(new SubdocCmdContext(cookie, traits));
         switch (traits.path) {
         case SubdocPath::SINGLE:
             create_single_path_context(
-                    *context.get(), c, traits, packet, value, doc_flags);
+                    *context.get(), cookie, traits, packet, value, doc_flags);
             break;
 
         case SubdocPath::MULTI:
             create_multi_path_context(
-                    *context.get(), c, traits, packet, value, doc_flags);
+                    *context.get(), cookie, traits, packet, value, doc_flags);
             break;
         }
 
@@ -387,11 +399,8 @@ static void subdoc_executor(Cookie& cookie, const SubdocCmdTraits traits) {
                 dynamic_cast<SubdocCmdContext*>(cookie.getCommandContext());
         if (context == nullptr) {
             cb::const_char_buffer value_buf{value, vallen};
-            context = subdoc_create_context(cookie.getConnection(),
-                                            traits,
-                                            packet.data(),
-                                            value_buf,
-                                            doc_flags);
+            context = subdoc_create_context(
+                    cookie, traits, packet.data(), value_buf, doc_flags);
             if (context == nullptr) {
                 cookie.sendResponse(cb::mcbp::Status::Enomem);
                 return;
@@ -769,8 +778,7 @@ static bool operate_single_doc(SubdocCmdContext& context,
             case SubdocPath::SINGLE:
                 // Failure of a (the only) op stops execution and returns an
                 // error to the client.
-                context.connection.getCookieObject().sendResponse(
-                        cb::mcbp::Status(op->status));
+                context.cookie.sendResponse(cb::mcbp::Status(op->status));
                 return false;
 
             case SubdocPath::MULTI:
@@ -807,8 +815,7 @@ static ENGINE_ERROR_CODE validate_vattr_privilege(SubdocCmdContext& context) {
 
         bool xattrRead = false;
         auto access = context.connection.checkPrivilege(
-                cb::rbac::Privilege::XattrRead,
-                context.connection.getCookieObject());
+                cb::rbac::Privilege::XattrRead, context.cookie);
         switch (access) {
         case cb::rbac::PrivilegeAccess::Ok:
             xattrRead = true;
@@ -822,8 +829,7 @@ static ENGINE_ERROR_CODE validate_vattr_privilege(SubdocCmdContext& context) {
 
         bool xattrSysRead = false;
         access = context.connection.checkPrivilege(
-                cb::rbac::Privilege::SystemXattrRead,
-                context.connection.getCookieObject());
+                cb::rbac::Privilege::SystemXattrRead, context.cookie);
         switch (access) {
         case cb::rbac::PrivilegeAccess::Ok:
             xattrSysRead = true;
@@ -874,8 +880,7 @@ static ENGINE_ERROR_CODE validate_xattr_privilege(SubdocCmdContext& context) {
         }
     }
 
-    auto access = context.connection.checkPrivilege(
-            privilege, context.connection.getCookieObject());
+    auto access = context.connection.checkPrivilege(privilege, context.cookie);
     switch (access) {
     case cb::rbac::PrivilegeAccess::Ok:
         return ENGINE_SUCCESS;
@@ -983,8 +988,7 @@ static bool do_xattr_phase(SubdocCmdContext& context) {
         case SubdocPath::SINGLE:
             // Failure of a (the only) op stops execution and returns an
             // error to the client.
-            context.connection.getCookieObject().sendResponse(
-                    cb::engine_errc(access));
+            context.cookie.sendResponse(cb::engine_errc(access));
             return false;
 
         case SubdocPath::MULTI:
@@ -1168,8 +1172,7 @@ static bool subdoc_operate(SubdocCmdContext& context) {
         }
     } catch (const std::bad_alloc&) {
         // Insufficient memory - unable to continue.
-        context.connection.getCookieObject().sendResponse(
-                cb::mcbp::Status::Enomem);
+        context.cookie.sendResponse(cb::mcbp::Status::Enomem);
         return false;
     }
 
@@ -1185,6 +1188,7 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
                                        size_t keylen, uint16_t vbucket,
                                        uint32_t expiration) {
     auto& connection = context.connection;
+    auto& cookie = context.cookie;
 
     if (context.getCurrentPhase() == SubdocCmdContext::Phase::XATTR) {
         LOG_WARNING(&connection,
@@ -1195,7 +1199,7 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
     if (!context.traits.is_mutator) {
         // No update required - just make sure we have the correct cas to use
         // for response.
-        connection.getCookieObject().setCas(context.in_cas);
+        cookie.setCas(context.in_cas);
         return ENGINE_SUCCESS;
     }
 
@@ -1223,7 +1227,7 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
 
             // Calculate the updated document length - use the last operation result.
             try {
-                auto r = bucket_allocate_ex(connection.getCookieObject(),
+                auto r = bucket_allocate_ex(cookie,
                                             allocate_key,
                                             context.out_doc_len,
                                             priv_bytes,
@@ -1258,21 +1262,18 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
             return ret;
 
         default:
-            connection.getCookieObject().sendResponse(cb::engine_errc(ret));
+            cookie.sendResponse(cb::engine_errc(ret));
             return ret;
         }
 
         // To ensure we only replace the version of the document we
         // just appended to; set the CAS to the one retrieved from.
-        bucket_item_set_cas(
-                connection.getCookieObject(), new_doc, context.in_cas);
+        bucket_item_set_cas(cookie, new_doc, context.in_cas);
 
         // Obtain the item info (and it's iovectors)
         item_info new_doc_info;
-        if (!bucket_get_item_info(
-                    connection.getCookieObject(), new_doc, &new_doc_info)) {
-            connection.getCookieObject().sendResponse(
-                    cb::mcbp::Status::Einternal);
+        if (!bucket_get_item_info(cookie, new_doc, &new_doc_info)) {
+            cookie.sendResponse(cb::mcbp::Status::Einternal);
             return ENGINE_FAILED;
         }
 
@@ -1290,10 +1291,9 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
         DocKey docKey(reinterpret_cast<const uint8_t*>(key),
                       keylen,
                       connection.getDocNamespace());
-        ret = bucket_remove(
-                connection.getCookieObject(), docKey, &new_cas, vbucket, &mdt);
+        ret = bucket_remove(cookie, docKey, &new_cas, vbucket, &mdt);
     } else {
-        ret = bucket_store(connection.getCookieObject(),
+        ret = bucket_store(cookie,
                            context.out_doc,
                            &new_cas,
                            new_op,
@@ -1311,14 +1311,11 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
                 context.sequence_no = mdt.seqno;
             } else {
                 item_info info;
-                if (!bucket_get_item_info(connection.getCookieObject(),
-                                          context.out_doc,
-                                          &info)) {
+                if (!bucket_get_item_info(cookie, context.out_doc, &info)) {
                     LOG_WARNING(&connection,
                                 "%u: Subdoc: Failed to get item info",
                                 connection.getId());
-                    connection.getCookieObject().sendResponse(
-                            cb::mcbp::Status::Einternal);
+                    cookie.sendResponse(cb::mcbp::Status::Einternal);
                     return ENGINE_FAILED;
                 }
 
@@ -1327,7 +1324,7 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
             }
         }
 
-        connection.getCookieObject().setCas(new_cas);
+        cookie.setCas(new_cas);
         break;
 
     case ENGINE_NOT_STORED:
@@ -1361,7 +1358,7 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
         break;
 
     default:
-        connection.getCookieObject().sendResponse(cb::engine_errc(ret));
+        cookie.sendResponse(cb::engine_errc(ret));
         break;
     }
 
@@ -1434,11 +1431,10 @@ static void subdoc_single_response(Cookie& cookie, SubdocCmdContext& context) {
     }
 
     if (context.traits.is_mutator) {
-        cb::audit::document::add(connection.getCookieObject(),
+        cb::audit::document::add(cookie,
                                  cb::audit::document::Operation::Modify);
     } else {
-        cb::audit::document::add(connection.getCookieObject(),
-                                 cb::audit::document::Operation::Read);
+        cb::audit::document::add(cookie, cb::audit::document::Operation::Read);
     }
 
     auto status_code = PROTOCOL_BINARY_RESPONSE_SUCCESS;
@@ -1509,7 +1505,7 @@ static void subdoc_multi_mutation_response(Cookie& cookie,
     size_t response_buf_needed;
     size_t iov_len = 0;
     if (context.overall_status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        cb::audit::document::add(connection.getCookieObject(),
+        cb::audit::document::add(cookie,
                                  cb::audit::document::Operation::Modify);
 
         // on success, one per each non-zero length result.
@@ -1622,8 +1618,7 @@ static void subdoc_multi_lookup_response(Cookie& cookie,
     // 1. status (uin16_t) & vallen (uint32_t). Use the dynamicBuffer for this
     // 2. actual value - this already resides either in the original document
     //                   (for lookups) or stored in the Subdoc::Result.
-    DynamicBuffer& response_buf =
-            connection.getCookieObject().getDynamicBuffer();
+    DynamicBuffer& response_buf = cookie.getDynamicBuffer();
     size_t needed = (sizeof(uint16_t) + sizeof(uint32_t)) *
         (context.getOperations(SubdocCmdContext::Phase::XATTR).size() +
          context.getOperations(SubdocCmdContext::Phase::Body).size());
@@ -1637,8 +1632,7 @@ static void subdoc_multi_lookup_response(Cookie& cookie,
     // Allocated required resource - build the header.
     auto status_code = context.overall_status;
     if (status_code == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        cb::audit::document::add(connection.getCookieObject(),
-                                 cb::audit::document::Operation::Read);
+        cb::audit::document::add(cookie, cb::audit::document::Operation::Read);
         if (context.in_document_state == DocumentState::Deleted) {
             status_code = PROTOCOL_BINARY_RESPONSE_SUBDOC_SUCCESS_DELETED;
         }
@@ -1653,7 +1647,7 @@ static void subdoc_multi_lookup_response(Cookie& cookie,
         status_code = PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE_DELETED;
     }
 
-    mcbp_add_header(connection.getCookieObject(),
+    mcbp_add_header(cookie,
                     status_code,
                     /*extlen*/ 0, /*keylen*/
                     0,

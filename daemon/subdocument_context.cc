@@ -310,8 +310,7 @@ protocol_binary_response_status SubdocCmdContext::get_document_for_searching(
     item_info& info = getInputItemInfo();
     auto& c = connection;
 
-    if (!bucket_get_item_info(
-                connection.getCookieObject(), fetchedItem.get(), &info)) {
+    if (!bucket_get_item_info(cookie, fetchedItem.get(), &info)) {
         LOG_WARNING(&c, "%u: Failed to get item info", c.getId());
         return PROTOCOL_BINARY_RESPONSE_EINTERNAL;
     }
