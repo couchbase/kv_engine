@@ -28,9 +28,9 @@ public:
     McbpCreateBucketTask(const std::string& name_,
                          const std::string& config_,
                          const BucketType& type_,
-                         McbpConnection& connection_)
-        : thread(name_, config_, type_, connection_, this),
-          mcbpconnection(connection_) {
+                         Cookie& cookie_)
+        : thread(name_, config_, type_, cookie_.getConnection(), this),
+          cookie(cookie_) {
     }
 
     // start the bucket deletion
@@ -44,11 +44,12 @@ public:
     }
 
     void notifyExecutionComplete() override {
-        notify_io_complete(mcbpconnection.getCookie(), thread.getResult());
+        notify_io_complete(static_cast<const void*>(&cookie),
+                           thread.getResult());
     }
 
     CreateBucketThread thread;
-    McbpConnection& mcbpconnection;
+    Cookie& cookie;
 };
 
 ENGINE_ERROR_CODE CreateRemoveBucketCommandContext::initial() {
@@ -77,8 +78,7 @@ ENGINE_ERROR_CODE CreateRemoveBucketCommandContext::create() {
 
     std::string errors;
     BucketType type = module_to_bucket_type(value.c_str());
-    task = std::make_shared<McbpCreateBucketTask>(
-            name, config, type, connection);
+    task = std::make_shared<McbpCreateBucketTask>(name, config, type, cookie);
     std::lock_guard<std::mutex> guard(task->getMutex());
     reinterpret_cast<McbpCreateBucketTask*>(task.get())->start();
     executorPool->schedule(task, false);
