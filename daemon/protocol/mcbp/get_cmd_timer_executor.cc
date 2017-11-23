@@ -37,7 +37,8 @@ std::pair<ENGINE_ERROR_CODE, std::string> get_cmd_timer(
 
     if (keylen > 0 || index == 0) {
         // You need the Stats privilege in order to specify a bucket
-        auto ret = mcbp::checkPrivilege(connection, cb::rbac::Privilege::Stats);
+        auto ret = mcbp::checkPrivilege(connection.getCookieObject(),
+                                        cb::rbac::Privilege::Stats);
         if (ret != ENGINE_SUCCESS) {
             return std::make_pair(ret, "");
         }

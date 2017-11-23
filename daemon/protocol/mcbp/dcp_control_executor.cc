@@ -27,7 +27,7 @@ void dcp_control_executor(Cookie& cookie) {
 
     auto& connection = cookie.getConnection();
     if (ret == ENGINE_SUCCESS) {
-        ret = mcbp::haveDcpPrivilege(connection);
+        ret = mcbp::haveDcpPrivilege(cookie);
 
         if (ret == ENGINE_SUCCESS) {
             const auto& header = cookie.getHeader();

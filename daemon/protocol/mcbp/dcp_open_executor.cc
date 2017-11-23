@@ -42,7 +42,7 @@ void dcp_open_executor(Cookie& cookie) {
             privilege = cb::rbac::Privilege::DcpConsumer;
         }
 
-        ret = mcbp::checkPrivilege(connection, privilege);
+        ret = mcbp::checkPrivilege(cookie, privilege);
 
         const uint16_t nkey = ntohs(req->message.header.request.keylen);
         const uint32_t valuelen = ntohl(req->message.header.request.bodylen) -

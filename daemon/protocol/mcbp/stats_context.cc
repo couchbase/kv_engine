@@ -875,8 +875,7 @@ ENGINE_ERROR_CODE StatsCommandContext::step() {
                              key.size()});
         } else {
             if (iter->second.privileged) {
-                ret = mcbp::checkPrivilege(connection,
-                                           cb::rbac::Privilege::Stats);
+                ret = mcbp::checkPrivilege(cookie, cb::rbac::Privilege::Stats);
             }
 
             if (ret == ENGINE_SUCCESS) {

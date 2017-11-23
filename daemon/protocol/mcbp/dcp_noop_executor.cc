@@ -28,7 +28,7 @@ void dcp_noop_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
     if (ret == ENGINE_SUCCESS) {
         // NOOP may be sent to a consumer or a producer...
-        ret = mcbp::haveDcpPrivilege(connection);
+        ret = mcbp::haveDcpPrivilege(cookie);
         if (ret == ENGINE_SUCCESS) {
             const auto& header = cookie.getHeader();
             ret = connection.getBucketEngine()->dcp.noop(

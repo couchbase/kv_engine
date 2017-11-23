@@ -34,10 +34,10 @@ McbpConnection* cookie2mcbp(const void* void_cookie,
                             const char* function);
 
 namespace mcbp {
-static inline ENGINE_ERROR_CODE checkPrivilege(McbpConnection& connection,
+static inline ENGINE_ERROR_CODE checkPrivilege(Cookie& cookie,
                                                cb::rbac::Privilege privilege) {
-    switch (connection.checkPrivilege(privilege,
-                                      connection.getCookieObject())) {
+    auto& connection = cookie.getConnection();
+    switch (connection.checkPrivilege(privilege, cookie)) {
     case cb::rbac::PrivilegeAccess::Ok:
         return ENGINE_SUCCESS;
     case cb::rbac::PrivilegeAccess::Fail:
@@ -50,10 +50,10 @@ static inline ENGINE_ERROR_CODE checkPrivilege(McbpConnection& connection,
     throw std::logic_error("checkPrivilege: internal error");
 }
 
-static inline ENGINE_ERROR_CODE haveDcpPrivilege(McbpConnection& connection) {
-    auto ret = checkPrivilege(connection,cb::rbac::Privilege::DcpProducer);
+static inline ENGINE_ERROR_CODE haveDcpPrivilege(Cookie& cookie) {
+    auto ret = checkPrivilege(cookie, cb::rbac::Privilege::DcpProducer);
     if (ret == ENGINE_EACCESS) {
-        ret = checkPrivilege(connection,cb::rbac::Privilege::DcpConsumer);
+        ret = checkPrivilege(cookie, cb::rbac::Privilege::DcpConsumer);
     }
     return ret;
 }
