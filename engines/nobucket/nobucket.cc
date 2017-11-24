@@ -167,7 +167,7 @@ private:
     }
 
     static cb::EngineErrorItemPair get_locked(gsl::not_null<ENGINE_HANDLE*>,
-                                              const void*,
+                                              gsl::not_null<const void*>,
                                               const DocKey&,
                                               uint16_t,
                                               uint32_t) {
@@ -175,7 +175,7 @@ private:
     }
 
     static ENGINE_ERROR_CODE unlock(gsl::not_null<ENGINE_HANDLE*>,
-                                    const void*,
+                                    gsl::not_null<const void*>,
                                     const DocKey&,
                                     uint16_t,
                                     uint64_t) {

@@ -292,7 +292,7 @@ static cb::EngineErrorItemPair EvpGetAndTouch(
 
 static cb::EngineErrorItemPair EvpGetLocked(
         gsl::not_null<ENGINE_HANDLE*> handle,
-        const void* cookie,
+        gsl::not_null<const void*> cookie,
         const DocKey& key,
         uint16_t vbucket,
         uint32_t lock_timeout) {
@@ -303,7 +303,7 @@ static cb::EngineErrorItemPair EvpGetLocked(
 }
 
 static ENGINE_ERROR_CODE EvpUnlock(gsl::not_null<ENGINE_HANDLE*> handle,
-                                   const void* cookie,
+                                   gsl::not_null<const void*> cookie,
                                    const DocKey& key,
                                    uint16_t vbucket,
                                    uint64_t cas) {

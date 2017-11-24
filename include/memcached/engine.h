@@ -388,7 +388,7 @@ typedef struct engine_interface_v1 {
      * @return ENGINE_SUCCESS if all goes well
      */
     cb::EngineErrorItemPair (*get_locked)(gsl::not_null<ENGINE_HANDLE*> handle,
-                                          const void* cookie,
+                                          gsl::not_null<const void*> cookie,
                                           const DocKey& key,
                                           uint16_t vbucket,
                                           uint32_t lock_timeout);
@@ -423,7 +423,7 @@ typedef struct engine_interface_v1 {
      */
     ENGINE_ERROR_CODE(*unlock)
     (gsl::not_null<ENGINE_HANDLE*> handle,
-     const void* cookie,
+     gsl::not_null<const void*> cookie,
      const DocKey& key,
      uint16_t vbucket,
      uint64_t cas);

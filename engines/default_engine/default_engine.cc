@@ -81,7 +81,7 @@ static cb::EngineErrorItemPair default_get_and_touch(
 
 static cb::EngineErrorItemPair default_get_locked(
         gsl::not_null<ENGINE_HANDLE*> handle,
-        const void* cookie,
+        gsl::not_null<const void*> cookie,
         const DocKey& key,
         uint16_t vbucket,
         uint32_t lock_timeout);
@@ -93,7 +93,7 @@ static cb::EngineErrorMetadataPair default_get_meta(
         uint16_t vbucket);
 
 static ENGINE_ERROR_CODE default_unlock(gsl::not_null<ENGINE_HANDLE*> handle,
-                                        const void* cookie,
+                                        gsl::not_null<const void*> cookie,
                                         const DocKey& key,
                                         uint16_t vbucket,
                                         uint64_t cas);
@@ -545,7 +545,7 @@ static cb::EngineErrorItemPair default_get_and_touch(
 
 static cb::EngineErrorItemPair default_get_locked(
         gsl::not_null<ENGINE_HANDLE*> handle,
-        const void* cookie,
+        gsl::not_null<const void*> cookie,
         const DocKey& key,
         uint16_t vbucket,
         uint32_t lock_timeout) {
@@ -605,7 +605,7 @@ static cb::EngineErrorMetadataPair default_get_meta(
 }
 
 static ENGINE_ERROR_CODE default_unlock(gsl::not_null<ENGINE_HANDLE*> handle,
-                                        const void* cookie,
+                                        gsl::not_null<const void*> cookie,
                                         const DocKey& key,
                                         uint16_t vbucket,
                                         uint64_t cas) {

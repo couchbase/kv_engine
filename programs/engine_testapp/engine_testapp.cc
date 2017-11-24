@@ -302,23 +302,21 @@ static cb::EngineErrorItemPair mock_get_and_touch(
 
 static cb::EngineErrorItemPair mock_get_locked(
         gsl::not_null<ENGINE_HANDLE*> handle,
-        const void* cookie,
+        gsl::not_null<const void*> cookie,
         const DocKey& key,
         uint16_t vbucket,
         uint32_t lock_timeout) {
-    struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
     auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->get_locked,
                                get_engine_from_handle(handle),
-                               static_cast<const void*>(c),
+                               cookie,
                                key,
                                vbucket,
                                lock_timeout);
+    auto* construct =
+            reinterpret_cast<mock_connstruct*>(const_cast<void*>(cookie.get()));
 
-    auto ret =
-            do_blocking_engine_call<cb::unique_item_ptr>(handle, c, engine_fn);
-
-    check_and_destroy_mock_connstruct(c, cookie);
-    return ret;
+    return do_blocking_engine_call<cb::unique_item_ptr>(
+            handle, construct, engine_fn);
 }
 
 static cb::EngineErrorMetadataPair mock_get_meta(
@@ -340,19 +338,20 @@ static cb::EngineErrorMetadataPair mock_get_meta(
 }
 
 static ENGINE_ERROR_CODE mock_unlock(gsl::not_null<ENGINE_HANDLE*> handle,
-                                     const void* cookie,
+                                     gsl::not_null<const void*> cookie,
                                      const DocKey& key,
                                      uint16_t vbucket,
                                      uint64_t cas) {
-    struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
     auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->unlock,
                                get_engine_from_handle(handle),
-                               static_cast<const void*>(c), key, vbucket, cas);
+                               cookie,
+                               key,
+                               vbucket,
+                               cas);
 
-    ENGINE_ERROR_CODE ret = call_engine_and_handle_EWOULDBLOCK(handle, c, engine_fn);
-
-    check_and_destroy_mock_connstruct(c, cookie);
-    return ret;
+    auto* construct =
+            reinterpret_cast<mock_connstruct*>(const_cast<void*>(cookie.get()));
+    return call_engine_and_handle_EWOULDBLOCK(handle, construct, engine_fn);
 }
 
 static ENGINE_ERROR_CODE mock_get_stats(gsl::not_null<ENGINE_HANDLE*> handle,

@@ -459,7 +459,7 @@ public:
 
     static cb::EngineErrorItemPair get_locked(
             gsl::not_null<ENGINE_HANDLE*> handle,
-            const void* cookie,
+            gsl::not_null<const void*> cookie,
             const DocKey& key,
             uint16_t vbucket,
             uint32_t lock_timeout) {
@@ -491,7 +491,7 @@ public:
     }
 
     static ENGINE_ERROR_CODE unlock(gsl::not_null<ENGINE_HANDLE*> handle,
-                                    const void* cookie,
+                                    gsl::not_null<const void*> cookie,
                                     const DocKey& key,
                                     uint16_t vbucket,
                                     uint64_t cas) {

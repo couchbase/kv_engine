@@ -534,11 +534,21 @@ cb::EngineErrorItemPair getl(ENGINE_HANDLE* h,
                              const char* key,
                              uint16_t vb,
                              uint32_t lock_timeout) {
-    return h1->get_locked(h,
-                          cookie,
-                          DocKey(key, testHarness.doc_namespace),
-                          vb,
-                          lock_timeout);
+    bool create_cookie = false;
+    if (cookie == nullptr) {
+        cookie = testHarness.create_cookie();
+        create_cookie = true;
+    }
+    auto ret = h1->get_locked(h,
+                              cookie,
+                              DocKey(key, testHarness.doc_namespace),
+                              vb,
+                              lock_timeout);
+    if (create_cookie) {
+        testHarness.destroy_cookie(cookie);
+    }
+
+    return ret;
 }
 
 bool get_meta(ENGINE_HANDLE* h,
@@ -1006,9 +1016,18 @@ ENGINE_ERROR_CODE touch(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
 ENGINE_ERROR_CODE unl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                       const void* cookie, const char* key,
                       uint16_t vb, uint64_t cas) {
+    bool create_cookie = false;
+    if (cookie == nullptr) {
+        cookie = testHarness.create_cookie();
+        create_cookie = true;
+    }
+    auto ret = h1->unlock(
+            h, cookie, DocKey(key, testHarness.doc_namespace), vb, cas);
 
-    return h1->unlock(h, cookie, DocKey(key, testHarness.doc_namespace),
-                      vb, cas);
+    if (create_cookie) {
+        testHarness.destroy_cookie(cookie);
+    }
+    return ret;
 }
 
 void compact_db(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
