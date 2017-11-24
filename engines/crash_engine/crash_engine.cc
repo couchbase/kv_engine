@@ -170,7 +170,7 @@ static cb::EngineErrorItemPair get(gsl::not_null<ENGINE_HANDLE*> handle,
 }
 
 static cb::EngineErrorItemPair get_if(gsl::not_null<ENGINE_HANDLE*> handle,
-                                      const void*,
+                                      gsl::not_null<const void*>,
                                       const DocKey&,
                                       uint16_t,
                                       std::function<bool(const item_info&)>) {

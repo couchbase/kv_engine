@@ -427,7 +427,7 @@ public:
 
     static cb::EngineErrorItemPair get_if(
             gsl::not_null<ENGINE_HANDLE*> handle,
-            const void* cookie,
+            gsl::not_null<const void*> cookie,
             const DocKey& key,
             uint16_t vbucket,
             std::function<bool(const item_info&)> filter) {

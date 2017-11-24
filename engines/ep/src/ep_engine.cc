@@ -273,7 +273,7 @@ static cb::EngineErrorItemPair EvpGet(gsl::not_null<ENGINE_HANDLE*> handle,
 
 static cb::EngineErrorItemPair EvpGetIf(
         gsl::not_null<ENGINE_HANDLE*> handle,
-        const void* cookie,
+        gsl::not_null<const void*> cookie,
         const DocKey& key,
         uint16_t vbucket,
         std::function<bool(const item_info&)> filter) {

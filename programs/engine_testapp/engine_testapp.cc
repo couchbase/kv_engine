@@ -263,22 +263,21 @@ static cb::EngineErrorItemPair mock_get(gsl::not_null<ENGINE_HANDLE*> handle,
 
 static cb::EngineErrorItemPair mock_get_if(
         gsl::not_null<ENGINE_HANDLE*> handle,
-        const void* cookie,
+        gsl::not_null<const void*> cookie,
         const DocKey& key,
         uint16_t vbucket,
         std::function<bool(const item_info&)> filter) {
-    struct mock_connstruct* c = get_or_create_mock_connstruct(cookie);
     auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->get_if,
                                get_engine_from_handle(handle),
-                               static_cast<const void*>(c),
+                               cookie,
                                key,
                                vbucket,
                                filter);
+    auto* construct =
+            reinterpret_cast<mock_connstruct*>(const_cast<void*>(cookie.get()));
 
-    auto ret =
-            do_blocking_engine_call<cb::unique_item_ptr>(handle, c, engine_fn);
-    check_and_destroy_mock_connstruct(c, cookie);
-    return ret;
+    return do_blocking_engine_call<cb::unique_item_ptr>(
+            handle, construct, engine_fn);
 }
 
 static cb::EngineErrorItemPair mock_get_and_touch(

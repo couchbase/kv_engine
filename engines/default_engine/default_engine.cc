@@ -67,7 +67,7 @@ static cb::EngineErrorItemPair default_get(gsl::not_null<ENGINE_HANDLE*> handle,
 
 static cb::EngineErrorItemPair default_get_if(
         gsl::not_null<ENGINE_HANDLE*>,
-        const void*,
+        gsl::not_null<const void*>,
         const DocKey&,
         uint16_t,
         std::function<bool(const item_info&)>);
@@ -489,7 +489,7 @@ static cb::EngineErrorItemPair default_get(gsl::not_null<ENGINE_HANDLE*> handle,
 
 static cb::EngineErrorItemPair default_get_if(
         gsl::not_null<ENGINE_HANDLE*> handle,
-        const void* cookie,
+        gsl::not_null<const void*> cookie,
         const DocKey& key,
         uint16_t vbucket,
         std::function<bool(const item_info&)> filter) {
