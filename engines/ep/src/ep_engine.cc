@@ -1672,7 +1672,7 @@ static bool EvpGetItemInfo(gsl::not_null<ENGINE_HANDLE*> handle,
 
 static cb::EngineErrorMetadataPair EvpGetMeta(
         gsl::not_null<ENGINE_HANDLE*> handle,
-        const void* cookie,
+        gsl::not_null<const void*> cookie,
         const DocKey& key,
         uint16_t vbucket) {
     return acquireEngine(handle)->getMeta(cookie, key, vbucket);

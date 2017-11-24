@@ -566,13 +566,19 @@ bool get_meta(ENGINE_HANDLE* h,
               cb::EngineErrorMetadataPair& out,
               const void* cookie) {
     DocKey docKey(key, testHarness.doc_namespace);
-    out = h1->get_meta(h, cookie, docKey, /*vb*/ 0);
-
-    if (out.first == cb::engine_errc::success) {
-        return true;
+    bool cookie_create = false;
+    if (cookie == nullptr) {
+        cookie = testHarness.create_cookie();
+        cookie_create = true;
     }
 
-    return false;
+    out = h1->get_meta(h, cookie, docKey, /*vb*/ 0);
+
+    if (cookie_create) {
+        testHarness.destroy_cookie(cookie);
+    }
+
+    return out.first == cb::engine_errc::success;
 }
 
 ENGINE_ERROR_CODE observe(ENGINE_HANDLE* h,

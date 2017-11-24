@@ -88,7 +88,7 @@ static cb::EngineErrorItemPair default_get_locked(
 
 static cb::EngineErrorMetadataPair default_get_meta(
         gsl::not_null<ENGINE_HANDLE*> handle,
-        const void* cookie,
+        gsl::not_null<const void*> cookie,
         const DocKey& key,
         uint16_t vbucket);
 
@@ -575,7 +575,7 @@ static cb::EngineErrorItemPair default_get_locked(
 
 static cb::EngineErrorMetadataPair default_get_meta(
         gsl::not_null<ENGINE_HANDLE*> handle,
-        const void* cookie,
+        gsl::not_null<const void*> cookie,
         const DocKey& key,
         uint16_t vbucket) {
     auto* engine_handle = get_handle(handle);

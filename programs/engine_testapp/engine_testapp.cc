@@ -321,20 +321,19 @@ static cb::EngineErrorItemPair mock_get_locked(
 
 static cb::EngineErrorMetadataPair mock_get_meta(
         gsl::not_null<ENGINE_HANDLE*> handle,
-        const void* cookie,
+        gsl::not_null<const void*> cookie,
         const DocKey& key,
         uint16_t vbucket) {
-    struct mock_connstruct* c = get_or_create_mock_connstruct(cookie);
     auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->get_meta,
                                get_engine_from_handle(handle),
-                               static_cast<const void*>(c),
+                               cookie,
                                key,
                                vbucket);
 
-    auto ret = do_blocking_engine_call<item_info>(handle, c, engine_fn);
+    auto* construct =
+            reinterpret_cast<mock_connstruct*>(const_cast<void*>(cookie.get()));
 
-    check_and_destroy_mock_connstruct(c, cookie);
-    return ret;
+    return do_blocking_engine_call<item_info>(handle, construct, engine_fn);
 }
 
 static ENGINE_ERROR_CODE mock_unlock(gsl::not_null<ENGINE_HANDLE*> handle,

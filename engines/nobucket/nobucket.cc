@@ -43,6 +43,7 @@ public:
         ENGINE_HANDLE_V1::remove = item_delete;
         ENGINE_HANDLE_V1::release = item_release;
         ENGINE_HANDLE_V1::get = get;
+        ENGINE_HANDLE_V1::get_meta = get_meta;
         ENGINE_HANDLE_V1::get_if = get_if;
         ENGINE_HANDLE_V1::get_and_touch = get_and_touch;
         ENGINE_HANDLE_V1::get_locked = get_locked;
@@ -146,6 +147,14 @@ private:
                                        uint16_t,
                                        DocStateFilter) {
         return cb::makeEngineErrorItemPair(cb::engine_errc::no_bucket);
+    }
+
+    static cb::EngineErrorMetadataPair get_meta(
+            gsl::not_null<ENGINE_HANDLE*> handle,
+            gsl::not_null<const void*> cookie,
+            const DocKey& key,
+            uint16_t vbucket) {
+        return cb::EngineErrorMetadataPair(cb::engine_errc::no_bucket, {});
     }
 
     static cb::EngineErrorItemPair get_if(

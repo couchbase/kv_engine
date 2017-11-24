@@ -346,7 +346,7 @@ typedef struct engine_interface_v1 {
      */
     cb::EngineErrorMetadataPair (*get_meta)(
             gsl::not_null<ENGINE_HANDLE*> handle,
-            const void* cookie,
+            gsl::not_null<const void*> cookie,
             const DocKey& key,
             uint16_t vbucket);
 
