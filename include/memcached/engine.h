@@ -76,10 +76,6 @@ struct server_handle_v1_t {
     SERVER_DOCUMENT_API* document;
 };
 
-typedef ENGINE_ERROR_CODE (* engine_get_vb_map_cb)(const void* cookie,
-                                                   const void* map,
-                                                   size_t mapsize);
-
 /**
  * The signature for the "create_instance" function exported from the module.
  *

@@ -738,22 +738,6 @@ public:
         abort();
     }
 
-    static ENGINE_ERROR_CODE get_engine_vb_map(
-            gsl::not_null<ENGINE_HANDLE*> handle,
-            const void* cookie,
-            engine_get_vb_map_cb callback) {
-        // Used to test NOT_MY_VBUCKET - just return a dummy config.
-        EWB_Engine* ewb = to_engine(handle);
-        auto logger = ewb->gsa()->log->get_logger();
-        logger->log(EXTENSION_LOG_DEBUG, NULL, "EWB_Engine::get_engine_vb_map");
-
-        std::string vbmap =
-            "{\"rev\":" + std::to_string(ewb->clustermap_revno.load()) + "}";
-        callback(cookie, vbmap.data(), vbmap.length());
-
-        return ENGINE_SUCCESS;
-    }
-
     static void handle_disconnect(const void* cookie,
                                   ENGINE_EVENT_TYPE type,
                                   const void* event_data,
