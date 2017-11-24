@@ -2707,6 +2707,27 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                 "kCacheTotal", value, KVBucketIface::KVSOption::RW)) {
         add_casted_stat("ep_rocksdb_kCacheTotal", value, add_stat, cookie);
     }
+    // MemTable Size per-CF
+    if (kvBucket->getKVStoreStat("default_kSizeAllMemTables",
+                                 value,
+                                 KVBucketIface::KVSOption::RW)) {
+        add_casted_stat("ep_rocksdb_default_kSizeAllMemTables",
+                        value,
+                        add_stat,
+                        cookie);
+    }
+    if (kvBucket->getKVStoreStat("seqno_kSizeAllMemTables",
+                                 value,
+                                 KVBucketIface::KVSOption::RW)) {
+        add_casted_stat(
+                "ep_rocksdb_seqno_kSizeAllMemTables", value, add_stat, cookie);
+    }
+    if (kvBucket->getKVStoreStat("local_kSizeAllMemTables",
+                                 value,
+                                 KVBucketIface::KVSOption::RW)) {
+        add_casted_stat(
+                "ep_rocksdb_local_kSizeAllMemTables", value, add_stat, cookie);
+    }
     // Block Cache hit/miss
     if (kvBucket->getKVStoreStat("rocksdb.block.cache.hit",
                                  value,

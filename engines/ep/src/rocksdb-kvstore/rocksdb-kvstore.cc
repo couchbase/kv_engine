@@ -637,6 +637,21 @@ bool RocksDBKVStore::getStat(const char* name_, size_t& value) {
         return getStatFromMemUsage(rocksdb::MemoryUtil::kCacheTotal, value);
     }
 
+    // MemTable Size per Column Famiy
+    else if (name == "default_kSizeAllMemTables") {
+        return getStatFromProperties(ColumnFamily::Default,
+                                     rocksdb::DB::Properties::kSizeAllMemTables,
+                                     value);
+    } else if (name == "seqno_kSizeAllMemTables") {
+        return getStatFromProperties(ColumnFamily::Seqno,
+                                     rocksdb::DB::Properties::kSizeAllMemTables,
+                                     value);
+    } else if (name == "local_kSizeAllMemTables") {
+        return getStatFromProperties(ColumnFamily::Local,
+                                     rocksdb::DB::Properties::kSizeAllMemTables,
+                                     value);
+    }
+
     // Block Cache hit/miss
     else if (name == "rocksdb.block.cache.hit") {
         return getStatFromStatistics(rocksdb::Tickers::BLOCK_CACHE_HIT, value);
@@ -1382,6 +1397,38 @@ bool RocksDBKVStore::getStatFromStatistics(const rocksdb::Tickers ticker,
                 return false;
             }
             value += statistics->getTickerCount(ticker);
+        }
+    }
+
+    return true;
+}
+
+bool RocksDBKVStore::getStatFromProperties(ColumnFamily cf,
+                                           const std::string& property,
+                                           size_t& value) {
+    std::lock_guard<std::mutex> lg(vbDBMutex);
+    for (const auto db : vbDB) {
+        if (db) {
+            rocksdb::ColumnFamilyHandle* cfh = nullptr;
+            switch (cf) {
+            case ColumnFamily::Default:
+                cfh = db->defaultCFH.get();
+                break;
+            case ColumnFamily::Seqno:
+                cfh = db->seqnoCFH.get();
+                break;
+            case ColumnFamily::Local:
+                cfh = db->localCFH.get();
+                break;
+            }
+            if (!cfh) {
+                return false;
+            }
+            std::string out;
+            if (!db->rdb->GetProperty(cfh, property, &out)) {
+                return false;
+            }
+            value += std::stoi(out);
         }
     }
 

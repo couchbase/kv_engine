@@ -292,6 +292,20 @@ void KVStore::addStats(ADD_STAT add_stat, const void *c) {
     if (getStat("kCacheTotal", value)) {
         addStat(prefix, "rocksdb_kCacheTotal", value, add_stat, c);
     }
+    // MemTable Size per-CF
+    if (getStat("default_kSizeAllMemTables", value)) {
+        addStat(prefix,
+                "rocksdb_default_kSizeAllMemTables",
+                value,
+                add_stat,
+                c);
+    }
+    if (getStat("seqno_kSizeAllMemTables", value)) {
+        addStat(prefix, "rocksdb_seqno_kSizeAllMemTables", value, add_stat, c);
+    }
+    if (getStat("local_kSizeAllMemTables", value)) {
+        addStat(prefix, "rocksdb_local_kSizeAllMemTables", value, add_stat, c);
+    }
     // Block Cache hit/miss
     if (getStat("rocksdb.block.cache.hit", value)) {
         addStat(prefix, "rocksdb_rocksdb.block.cache.hit", value, add_stat, c);

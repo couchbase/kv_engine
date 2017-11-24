@@ -334,6 +334,8 @@ private:
     // Per-shard Block Cache
     std::shared_ptr<rocksdb::Cache> blockCache;
 
+    enum class ColumnFamily { Default, Seqno, Local };
+
     rocksdb::ColumnFamilyOptions getBaselineDefaultCFOptions();
 
     rocksdb::ColumnFamilyOptions getBaselineSeqnoCFOptions();
@@ -435,6 +437,12 @@ private:
 
     // Helper function to retrieve stats from the RocksDB Statistics API.
     bool getStatFromStatistics(const rocksdb::Tickers ticker, size_t& value);
+
+    // Helper function to retrieve stats from the RocksDB Property API for a
+    // given Column Family.
+    bool getStatFromProperties(ColumnFamily cf,
+                               const std::string& property,
+                               size_t& value);
 
     // Used for queueing mutation requests (in `set` and `del`) and flushing
     // them to disk (in `commit`).

@@ -2070,13 +2070,18 @@ protected:
 TEST_F(RocksDBKVStoreTest, StatsTest) {
     size_t value;
 
-    // Memory Usage stats
+    // Memory Usage
     EXPECT_TRUE(kvstore->getStat("kMemTableTotal", value));
     EXPECT_TRUE(kvstore->getStat("kMemTableUnFlushed", value));
     EXPECT_TRUE(kvstore->getStat("kTableReadersTotal", value));
     EXPECT_TRUE(kvstore->getStat("kCacheTotal", value));
 
-    // Block Cache stats
+    // MemTable Size per CF
+    EXPECT_TRUE(kvstore->getStat("default_kSizeAllMemTables", value));
+    EXPECT_TRUE(kvstore->getStat("seqno_kSizeAllMemTables", value));
+    EXPECT_TRUE(kvstore->getStat("local_kSizeAllMemTables", value));
+
+    // Block Cache
     Configuration config;
     config.setDbname(data_dir);
     config.setBackend("rocksdb");
