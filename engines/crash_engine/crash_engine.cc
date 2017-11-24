@@ -220,7 +220,7 @@ static ENGINE_ERROR_CODE store(gsl::not_null<ENGINE_HANDLE*> handle,
 }
 
 static cb::EngineErrorCasPair store_if(gsl::not_null<ENGINE_HANDLE*> handle,
-                                       const void* cookie,
+                                       gsl::not_null<const void*> cookie,
                                        gsl::not_null<item*> item,
                                        uint64_t cas,
                                        ENGINE_STORE_OPERATION operation,

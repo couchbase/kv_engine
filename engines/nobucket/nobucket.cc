@@ -200,7 +200,7 @@ private:
     }
 
     static cb::EngineErrorCasPair store_if(gsl::not_null<ENGINE_HANDLE*>,
-                                           const void*,
+                                           gsl::not_null<const void*>,
                                            gsl::not_null<item*>,
                                            uint64_t,
                                            ENGINE_STORE_OPERATION,

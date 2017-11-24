@@ -483,7 +483,7 @@ typedef struct engine_interface_v1 {
      * @return a std::pair containing the engine_error code and new CAS
      */
     cb::EngineErrorCasPair (*store_if)(gsl::not_null<ENGINE_HANDLE*> handle,
-                                       const void* cookie,
+                                       gsl::not_null<const void*> cookie,
                                        gsl::not_null<item*> item,
                                        uint64_t cas,
                                        ENGINE_STORE_OPERATION operation,
