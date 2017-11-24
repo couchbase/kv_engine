@@ -274,12 +274,12 @@ typedef struct engine_interface_v1 {
      */
     std::pair<cb::unique_item_ptr, item_info> (*allocate_ex)(
             gsl::not_null<ENGINE_HANDLE*> handle,
-            const void* cookie,
+            gsl::not_null<const void*> cookie,
             const DocKey& key,
-            const size_t nbytes,
-            const size_t priv_nbytes,
-            const int flags,
-            const rel_time_t exptime,
+            size_t nbytes,
+            size_t priv_nbytes,
+            int flags,
+            rel_time_t exptime,
             uint8_t datatype,
             uint16_t vbucket);
 

@@ -182,7 +182,7 @@ static cb::EngineErrorItemPair mock_allocate(
 
 static std::pair<cb::unique_item_ptr, item_info> mock_allocate_ex(
         gsl::not_null<ENGINE_HANDLE*> handle,
-        const void* cookie,
+        gsl::not_null<const void*> cookie,
         const DocKey& key,
         const size_t nbytes,
         const size_t priv_nbytes,
@@ -190,24 +190,28 @@ static std::pair<cb::unique_item_ptr, item_info> mock_allocate_ex(
         const rel_time_t exptime,
         uint8_t datatype,
         uint16_t vbucket) {
-    struct mock_connstruct* c = get_or_create_mock_connstruct(cookie);
     auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->allocate_ex,
                                get_engine_from_handle(handle),
-                               static_cast<const void*>(c),
-                               key, nbytes, priv_nbytes, flags, exptime,
-                               datatype, vbucket);
+                               cookie,
+                               key,
+                               nbytes,
+                               priv_nbytes,
+                               flags,
+                               exptime,
+                               datatype,
+                               vbucket);
 
+    auto* c =
+            reinterpret_cast<mock_connstruct*>(const_cast<void*>(cookie.get()));
     c->nblocks = 0;
     cb_mutex_enter(&c->mutex);
 
     try {
         auto ret = engine_fn();
         cb_mutex_exit(&c->mutex);
-        check_and_destroy_mock_connstruct(c, cookie);
         return ret;
     } catch (const cb::engine_error& error) {
         cb_mutex_exit(&c->mutex);
-        check_and_destroy_mock_connstruct(c, cookie);
         if (error.code() == cb::engine_errc::would_block) {
             throw std::logic_error("mock_allocate_ex: allocate_ex should not block!");
         }

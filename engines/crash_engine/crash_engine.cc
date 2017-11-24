@@ -137,12 +137,12 @@ static cb::EngineErrorItemPair item_allocate(
 
 static std::pair<cb::unique_item_ptr, item_info> item_allocate_ex(
         gsl::not_null<ENGINE_HANDLE*> handle,
-        const void* cookie,
+        gsl::not_null<const void*> cookie,
         const DocKey& key,
-        const size_t nbytes,
-        const size_t priv_nbytes,
-        const int flags,
-        const rel_time_t exptime,
+        size_t nbytes,
+        size_t priv_nbytes,
+        int flags,
+        rel_time_t exptime,
         uint8_t datatype,
         uint16_t vbucket) {
     throw cb::engine_error{cb::engine_errc::failed, "crash_engine"};

@@ -115,12 +115,12 @@ private:
 
     static std::pair<cb::unique_item_ptr, item_info> item_allocate_ex(
             gsl::not_null<ENGINE_HANDLE*>,
-            const void*,
+            gsl::not_null<const void*> cookie,
             const DocKey&,
-            const size_t,
-            const size_t,
-            const int,
-            const rel_time_t,
+            size_t,
+            size_t,
+            int,
+            rel_time_t,
             uint8_t,
             uint16_t) {
         throw cb::engine_error(cb::engine_errc::no_bucket, "no bucket");
