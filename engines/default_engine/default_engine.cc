@@ -121,7 +121,7 @@ static cb::EngineErrorCasPair default_store_if(
         DocumentState document_state);
 
 static ENGINE_ERROR_CODE default_flush(gsl::not_null<ENGINE_HANDLE*> handle,
-                                       const void* cookie);
+                                       gsl::not_null<const void*> cookie);
 static ENGINE_ERROR_CODE initalize_configuration(struct default_engine *se,
                                                  const char *cfg_str);
 static ENGINE_ERROR_CODE default_unknown_command(
@@ -759,7 +759,7 @@ static cb::EngineErrorCasPair default_store_if(
 }
 
 static ENGINE_ERROR_CODE default_flush(gsl::not_null<ENGINE_HANDLE*> handle,
-                                       const void* cookie) {
+                                       gsl::not_null<const void*> cookie) {
     item_flush_expired(get_handle(handle));
 
     return ENGINE_SUCCESS;

@@ -546,7 +546,7 @@ public:
     }
 
     static ENGINE_ERROR_CODE flush(gsl::not_null<ENGINE_HANDLE*> handle,
-                                   const void* cookie) {
+                                   gsl::not_null<const void*> cookie) {
         // Flush is a little different - it often returns EWOULDBLOCK, and
         // notify_io_complete() just tells the server it can issue it's *next*
         // command (i.e. no need to re-flush). Therefore just pass Flush

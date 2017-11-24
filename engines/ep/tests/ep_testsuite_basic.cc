@@ -1821,9 +1821,11 @@ static enum test_result test_flush(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check_key_value(h, h1, "key", "somevalue", 9);
 
     set_degraded_mode(h, h1, NULL, true);
-    checkeq(ENGINE_SUCCESS,
-            h1->flush(h, NULL),
-            "Failed to flush");
+
+    const auto* cookie = testHarness.create_cookie();
+    checkeq(ENGINE_SUCCESS, h1->flush(h, cookie), "Failed to flush");
+    testHarness.destroy_cookie(cookie);
+
     set_degraded_mode(h, h1, NULL, false);
 
     checkeq(ENGINE_KEY_ENOENT, verify_key(h, h1, "key"), "Expected missing key");
@@ -1861,7 +1863,11 @@ static enum test_result test_flush_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     check_key_value(h, h1, "key2", "somevalue", 9);
 
     set_degraded_mode(h, h1, NULL, true);
-    checkeq(ENGINE_SUCCESS, h1->flush(h, NULL), "Failed to flush");
+
+    const auto* cookie = testHarness.create_cookie();
+    checkeq(ENGINE_SUCCESS, h1->flush(h, cookie), "Failed to flush");
+    testHarness.destroy_cookie(cookie);
+
     set_degraded_mode(h, h1, NULL, false);
     checkeq(ENGINE_KEY_ENOENT, verify_key(h, h1, "key"), "Expected missing key");
     checkeq(ENGINE_KEY_ENOENT, verify_key(h, h1, "key2"), "Expected missing key");
@@ -1897,7 +1903,9 @@ static enum test_result test_flush_multiv(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     check_key_value(h, h1, "key2", "somevalue", 9, 2);
 
     set_degraded_mode(h, h1, NULL, true);
-    checkeq(ENGINE_SUCCESS, h1->flush(h, NULL), "Failed to flush");
+    const auto* cookie = testHarness.create_cookie();
+    checkeq(ENGINE_SUCCESS, h1->flush(h, cookie), "Failed to flush");
+    testHarness.destroy_cookie(cookie);
     set_degraded_mode(h, h1, NULL, false);
 
     vals.clear();
@@ -1926,10 +1934,12 @@ static enum test_result test_flush_disabled(ENGINE_HANDLE *h,
             "Failed set.");
     h1->release(h, i);
     check_key_value(h, h1, "key", "somevalue", 9);
+
     // expect error msg engine does not support operation
-    checkeq(ENGINE_ENOTSUP,
-            h1->flush(h, NULL),
-            "Flush should be disabled");
+    const auto* cookie = testHarness.create_cookie();
+    checkeq(ENGINE_ENOTSUP, h1->flush(h, cookie), "Flush should be disabled");
+    testHarness.destroy_cookie(cookie);
+
     //check the key
     checkeq(ENGINE_SUCCESS, verify_key(h, h1, "key"), "Expected key");
 
@@ -1949,8 +1959,11 @@ static enum test_result test_flush_disabled(ENGINE_HANDLE *h,
 
 
         set_degraded_mode(h, h1, NULL, true);
+        const auto* cookie = testHarness.create_cookie();
         checkeq(ENGINE_SUCCESS,
-                h1->flush(h, NULL), "Flush should be enabled");
+                h1->flush(h, cookie),
+                "Flush should be enabled");
+        testHarness.destroy_cookie(cookie);
         set_degraded_mode(h, h1, NULL, false);
 
         //expect missing key
@@ -1960,6 +1973,7 @@ static enum test_result test_flush_disabled(ENGINE_HANDLE *h,
 }
 
 static enum test_result test_CBD_152(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    const auto* cookie = testHarness.create_cookie();
     item *i = NULL;
 
     // turn off flushall_enabled parameter
@@ -1975,7 +1989,7 @@ static enum test_result test_CBD_152(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     check_key_value(h, h1, "key", "somevalue", 9);
     // expect error msg engine does not support operation
-    checkeq(ENGINE_ENOTSUP, h1->flush(h, NULL), "Flush should be disabled");
+    checkeq(ENGINE_ENOTSUP, h1->flush(h, cookie), "Flush should be disabled");
     //check the key
     checkeq(ENGINE_SUCCESS, verify_key(h, h1, "key"), "Expected key");
 
@@ -1985,11 +1999,12 @@ static enum test_result test_CBD_152(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           "Failed to set flushall_enabled param");
     // flush should succeed
     set_degraded_mode(h, h1, NULL, true);
-    checkeq(ENGINE_SUCCESS, h1->flush(h, NULL), "Flush should be enabled");
+    checkeq(ENGINE_SUCCESS, h1->flush(h, cookie), "Flush should be enabled");
     set_degraded_mode(h, h1, NULL, false);
     //expect missing key
     check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
 
+    testHarness.destroy_cookie(cookie);
     return SUCCESS;
 }
 

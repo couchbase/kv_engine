@@ -209,7 +209,8 @@ private:
         return {cb::engine_errc::no_bucket, 0};
     }
 
-    static ENGINE_ERROR_CODE flush(gsl::not_null<ENGINE_HANDLE*>, const void*) {
+    static ENGINE_ERROR_CODE flush(gsl::not_null<ENGINE_HANDLE*>,
+                                   gsl::not_null<const void*>) {
         return ENGINE_NO_BUCKET;
     }
 

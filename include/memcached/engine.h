@@ -499,7 +499,7 @@ typedef struct engine_interface_v1 {
      * @return ENGINE_SUCCESS if all goes well
      */
     ENGINE_ERROR_CODE(*flush)
-    (gsl::not_null<ENGINE_HANDLE*> handle, const void* cookie);
+    (gsl::not_null<ENGINE_HANDLE*> handle, gsl::not_null<const void*> cookie);
 
     /*
      * Statistics

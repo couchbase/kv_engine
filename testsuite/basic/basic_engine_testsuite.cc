@@ -363,7 +363,9 @@ static enum test_result flush_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                         &cas,
                         OPERATION_SET,
                         DocumentState::Alive) == ENGINE_SUCCESS);
-    cb_assert(h1->flush(h, NULL) == ENGINE_SUCCESS);
+    const auto* cookie = test_harness.create_cookie();
+    cb_assert(h1->flush(h, cookie) == ENGINE_SUCCESS);
+    test_harness.destroy_cookie(cookie);
     ret = h1->get(h, NULL, key, 0, DocStateFilter::Alive);
     cb_assert(ret.first == cb::engine_errc::no_such_key);
     cb_assert(ret.second == nullptr);

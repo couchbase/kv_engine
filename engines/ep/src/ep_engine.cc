@@ -352,7 +352,7 @@ static cb::EngineErrorCasPair EvpStoreIf(gsl::not_null<ENGINE_HANDLE*> handle,
 }
 
 static ENGINE_ERROR_CODE EvpFlush(gsl::not_null<ENGINE_HANDLE*> handle,
-                                  const void* cookie) {
+                                  gsl::not_null<const void*> cookie) {
     return acquireEngine(handle)->flush(cookie);
 }
 
