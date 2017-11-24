@@ -74,7 +74,7 @@ static cb::EngineErrorItemPair default_get_if(
 
 static cb::EngineErrorItemPair default_get_and_touch(
         gsl::not_null<ENGINE_HANDLE*> handle,
-        const void* cookie,
+        gsl::not_null<const void*> cookie,
         const DocKey& key,
         uint16_t vbucket,
         uint32_t expiry_time);
@@ -525,7 +525,7 @@ static cb::EngineErrorItemPair default_get_if(
 
 static cb::EngineErrorItemPair default_get_and_touch(
         gsl::not_null<ENGINE_HANDLE*> handle,
-        const void* cookie,
+        gsl::not_null<const void*> cookie,
         const DocKey& key,
         uint16_t vbucket,
         uint32_t expiry_time) {

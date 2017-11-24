@@ -282,7 +282,7 @@ static cb::EngineErrorItemPair EvpGetIf(
 
 static cb::EngineErrorItemPair EvpGetAndTouch(
         gsl::not_null<ENGINE_HANDLE*> handle,
-        const void* cookie,
+        gsl::not_null<const void*> cookie,
         const DocKey& key,
         uint16_t vbucket,
         uint32_t expiry_time) {

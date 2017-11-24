@@ -496,9 +496,11 @@ ENGINE_ERROR_CODE seqnoPersistence(ENGINE_HANDLE* h,
 
 cb::EngineErrorItemPair gat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                             const char* key, uint16_t vb, uint32_t exp) {
-
-    return h1->get_and_touch(h, nullptr, DocKey(key, testHarness.doc_namespace),
-                             vb, exp);
+    const auto* cookie = testHarness.create_cookie();
+    auto ret = h1->get_and_touch(
+            h, cookie, DocKey(key, testHarness.doc_namespace), vb, exp);
+    testHarness.destroy_cookie(cookie);
+    return ret;
 }
 
 bool get_item_info(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, item_info *info,
@@ -1003,10 +1005,10 @@ cb::EngineErrorItemPair storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
 ENGINE_ERROR_CODE touch(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
            uint16_t vb, uint32_t exp) {
-
-    auto result = h1->get_and_touch(h, nullptr,
-                                    DocKey(key, testHarness.doc_namespace), vb,
-                                    exp);
+    const auto* cookie = testHarness.create_cookie();
+    auto result = h1->get_and_touch(
+            h, cookie, DocKey(key, testHarness.doc_namespace), vb, exp);
+    testHarness.destroy_cookie(cookie);
 
     // Update the global cas value (used by some tests)
     if (result.first == cb::engine_errc::success) {

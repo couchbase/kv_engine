@@ -168,7 +168,7 @@ private:
 
     static cb::EngineErrorItemPair get_and_touch(
             gsl::not_null<ENGINE_HANDLE*> handle,
-            const void*,
+            gsl::not_null<const void*> cookie,
             const DocKey&,
             uint16_t,
             uint32_t) {
