@@ -1040,6 +1040,21 @@ static int execute_test(engine_test_t test,
     } else if (default_cfg != nullptr) {
         test.cfg = default_cfg;
     }
+    // MB-26973: Disable RocksDB pre-allocation of disk space by default.
+    // When 'allow_fallocate=true', RocksDB pre-allocates disk space for the
+    // MANIFEST and WAL files (some tests showed up to ~75MB per DB,
+    // ~7.5GB for 100 empty DBs created).
+    if (test.cfg != nullptr) {
+        if (std::string(test.cfg).find("backend=rocksdb") !=
+            std::string::npos) {
+            cfg.assign(test.cfg);
+            if (!cfg.empty() && cfg.back() != ';') {
+                cfg.append(";");
+            }
+            cfg.append("rocksdb_options=allow_fallocate=false;");
+            test.cfg = cfg.c_str();
+        }
+    }
 
     current_testcase = &test;
     if (test.prepare != NULL) {
