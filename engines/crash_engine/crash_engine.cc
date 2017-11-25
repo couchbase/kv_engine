@@ -125,7 +125,7 @@ static void destroy(gsl::not_null<ENGINE_HANDLE*> handle, const bool force) {
 
 static cb::EngineErrorItemPair item_allocate(
         gsl::not_null<ENGINE_HANDLE*> handle,
-        const void* cookie,
+        gsl::not_null<const void*> cookie,
         const DocKey& key,
         const size_t nbytes,
         const int flags,

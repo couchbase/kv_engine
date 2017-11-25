@@ -228,7 +228,7 @@ typedef struct engine_interface_v1 {
      * @return {cb::engine_errc::success, unique_item_ptr} if all goes well
      */
     cb::EngineErrorItemPair (*allocate)(gsl::not_null<ENGINE_HANDLE*> handle,
-                                        const void* cookie,
+                                        gsl::not_null<const void*> cookie,
                                         const DocKey& key,
                                         const size_t nbytes,
                                         const int flags,

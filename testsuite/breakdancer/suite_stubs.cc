@@ -35,8 +35,8 @@ static void storeItem(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     uint64_t cas = 0;
     const char *value = "0";
     const int flags = 0;
-    const void *cookie = NULL;
-	size_t vlen;
+    const void* cookie = testHarness.create_cookie();
+    size_t vlen;
     item_info info;
 
     vlen = strlen(value);
@@ -54,6 +54,7 @@ static void storeItem(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     auto rv = h1->store(
             h, cookie, ret.second.get(), &cas, op, DocumentState::Alive);
 
+    testHarness.destroy_cookie(cookie);
     hasError = rv != ENGINE_SUCCESS;
 }
 

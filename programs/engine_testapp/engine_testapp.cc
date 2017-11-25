@@ -154,17 +154,16 @@ static ENGINE_ERROR_CODE call_engine_and_handle_EWOULDBLOCK(
 
 static cb::EngineErrorItemPair mock_allocate(
         gsl::not_null<ENGINE_HANDLE*> handle,
-        const void* cookie,
+        gsl::not_null<const void*> cookie,
         const DocKey& key,
         const size_t nbytes,
         const int flags,
         const rel_time_t exptime,
         uint8_t datatype,
         uint16_t vbucket) {
-    struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
     auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->allocate,
                                get_engine_from_handle(handle),
-                               static_cast<const void*>(c),
+                               cookie,
                                key,
                                nbytes,
                                flags,
@@ -172,12 +171,10 @@ static cb::EngineErrorItemPair mock_allocate(
                                datatype,
                                vbucket);
 
-    auto ret =
-            do_blocking_engine_call<cb::unique_item_ptr>(handle, c, engine_fn);
+    auto* c =
+            reinterpret_cast<mock_connstruct*>(const_cast<void*>(cookie.get()));
 
-    check_and_destroy_mock_connstruct(c, cookie);
-
-    return ret;
+    return do_blocking_engine_call<cb::unique_item_ptr>(handle, c, engine_fn);
 }
 
 static std::pair<cb::unique_item_ptr, item_info> mock_allocate_ex(

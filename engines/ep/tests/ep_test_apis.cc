@@ -1672,14 +1672,24 @@ cb::EngineErrorItemPair allocate(ENGINE_HANDLE* h,
                                  rel_time_t exptime,
                                  uint8_t datatype,
                                  uint16_t vb) {
-    return h1->allocate(h,
-                        cookie,
-                        DocKey(key, testHarness.doc_namespace),
-                        nbytes,
-                        flags,
-                        exptime,
-                        datatype,
-                        vb);
+    bool cookie_created = false;
+    if (cookie == nullptr) {
+        cookie = testHarness.create_cookie();
+        cookie_created = true;
+    }
+    auto ret = h1->allocate(h,
+                            cookie,
+                            DocKey(key, testHarness.doc_namespace),
+                            nbytes,
+                            flags,
+                            exptime,
+                            datatype,
+                            vb);
+    if (cookie_created) {
+        testHarness.destroy_cookie(cookie);
+    }
+
+    return ret;
 }
 
 cb::EngineErrorItemPair get(ENGINE_HANDLE* h,

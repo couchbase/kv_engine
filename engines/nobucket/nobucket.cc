@@ -103,7 +103,7 @@ private:
     }
 
     static cb::EngineErrorItemPair item_allocate(gsl::not_null<ENGINE_HANDLE*>,
-                                                 const void*,
+                                                 gsl::not_null<const void*>,
                                                  const DocKey&,
                                                  const size_t,
                                                  const int,
