@@ -131,7 +131,7 @@ static enum test_result set_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
         cb_assert(h1->store(h,
                             cookie,
                             ret.second.get(),
-                            &cas,
+                            cas,
                             OPERATION_SET,
                             DocumentState::Alive) == ENGINE_SUCCESS);
         cb_assert(cas != prev_cas);
@@ -157,7 +157,7 @@ static enum test_result add_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
         ENGINE_ERROR_CODE rv = h1->store(h,
                                          cookie,
                                          ret.second.get(),
-                                         &cas,
+                                         cas,
                                          OPERATION_ADD,
                                          DocumentState::Alive);
         if (ii == 0) {
@@ -194,7 +194,7 @@ static enum test_result replace_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
         cb_assert(h1->store(h,
                             cookie,
                             ret.second.get(),
-                            &cas,
+                            cas,
                             OPERATION_REPLACE,
                             DocumentState::Alive) == ENGINE_SUCCESS);
         cb_assert(cas != prev_cas);
@@ -224,7 +224,7 @@ static enum test_result store_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     cb_assert(h1->store(h,
                         cookie,
                         ret.second.get(),
-                        &cas,
+                        cas,
                         OPERATION_SET,
                         DocumentState::Alive) == ENGINE_SUCCESS);
     cb_assert(cas != 0);
@@ -246,7 +246,7 @@ static enum test_result get_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     cb_assert(h1->store(h,
                         cookie,
                         ret.second.get(),
-                        &cas,
+                        cas,
                         OPERATION_SET,
                         DocumentState::Alive) == ENGINE_SUCCESS);
     ret = h1->get(h, cookie, key, 0, DocStateFilter::Alive);
@@ -269,7 +269,7 @@ static enum test_result get_deleted_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     cb_assert(h1->store(h,
                         cookie,
                         ret.second.get(),
-                        &cas,
+                        cas,
                         OPERATION_SET,
                         DocumentState::Alive) == ENGINE_SUCCESS);
     ret = h1->get(h, cookie, key, 0, DocStateFilter::Alive);
@@ -307,7 +307,7 @@ static enum test_result expiry_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     cb_assert(h1->store(h,
                         cookie,
                         ret.second.get(),
-                        &cas,
+                        cas,
                         OPERATION_SET,
                         DocumentState::Alive) == ENGINE_SUCCESS);
     test_harness.time_travel(11);
@@ -332,7 +332,7 @@ static enum test_result release_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     cb_assert(h1->store(h,
                         cookie,
                         ret.second.get(),
-                        &cas,
+                        cas,
                         OPERATION_SET,
                         DocumentState::Alive) == ENGINE_SUCCESS);
     test_harness.destroy_cookie(cookie);
@@ -355,7 +355,7 @@ static enum test_result remove_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     cb_assert(h1->store(h,
                         cookie,
                         ret.second.get(),
-                        &cas,
+                        cas,
                         OPERATION_SET,
                         DocumentState::Alive) == ENGINE_SUCCESS);
     cb_assert(h1->remove(h, cookie, key, cas, 0, mut_info) == ENGINE_SUCCESS);
@@ -383,7 +383,7 @@ static enum test_result flush_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     cb_assert(h1->store(h,
                         cookie,
                         ret.second.get(),
-                        &cas,
+                        cas,
                         OPERATION_SET,
                         DocumentState::Alive) == ENGINE_SUCCESS);
     cb_assert(h1->flush(h, cookie) == ENGINE_SUCCESS);
@@ -412,7 +412,7 @@ static enum test_result get_item_info_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     cb_assert(h1->store(h,
                         cookie,
                         ret.second.get(),
-                        &cas,
+                        cas,
                         OPERATION_SET,
                         DocumentState::Alive) == ENGINE_SUCCESS);
     /* Had this been actual code, there'd be a connection here */
@@ -445,7 +445,7 @@ static enum test_result item_set_cas_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     cb_assert(h1->store(h,
                         cookie,
                         ret.second.get(),
-                        &cas,
+                        cas,
                         OPERATION_SET,
                         DocumentState::Alive) == ENGINE_SUCCESS);
     newcas = cas + 1;
@@ -483,7 +483,7 @@ static enum test_result lru_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     cb_assert(h1->store(h,
                         cookie,
                         ret.second.get(),
-                        &cas,
+                        cas,
                         OPERATION_SET,
                         DocumentState::Alive) == ENGINE_SUCCESS);
 
@@ -508,7 +508,7 @@ static enum test_result lru_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
         cb_assert(h1->store(h,
                             cookie,
                             ret.second.get(),
-                            &cas,
+                            cas,
                             OPERATION_SET,
                             DocumentState::Alive) == ENGINE_SUCCESS);
         cb_assert(h1->get_stats(h, cookie, {}, eviction_stats_handler) ==
@@ -567,7 +567,7 @@ static enum test_result test_datatype(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     cb_assert(h1->store(h,
                         cookie,
                         ret.second.get(),
-                        &cas,
+                        cas,
                         OPERATION_SET,
                         DocumentState::Alive) == ENGINE_SUCCESS);
 
@@ -617,7 +617,7 @@ static enum test_result test_n_bucket_destroy(engine_test_t *test) {
             cb_assert(bucket.second->store(bucket.first,
                                            cookie,
                                            ret.second.get(),
-                                           &cas,
+                                           cas,
                                            OPERATION_SET,
                                            DocumentState::Alive) ==
                       ENGINE_SUCCESS);
@@ -662,7 +662,7 @@ static enum test_result test_bucket_destroy_interleaved(engine_test_t *test) {
             cb_assert(h1->store(h,
                                 cookie,
                                 ret.second.get(),
-                                &cas,
+                                cas,
                                 OPERATION_SET,
                                 DocumentState::Alive) == ENGINE_SUCCESS);
         }

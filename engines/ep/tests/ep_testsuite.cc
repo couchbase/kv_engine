@@ -897,8 +897,16 @@ static enum test_result test_expiry(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const char *key = "test_expiry";
     const char *data = "some test data here.";
 
-    auto ret = allocate(
-            h, h1, NULL, key, strlen(data), 0, 2, PROTOCOL_BINARY_RAW_BYTES, 0);
+    const void* cookie = testHarness.create_cookie();
+    auto ret = allocate(h,
+                        h1,
+                        cookie,
+                        key,
+                        strlen(data),
+                        0,
+                        2,
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        0);
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
     item_info info;
@@ -909,9 +917,9 @@ static enum test_result test_expiry(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     uint64_t cas = 0;
     auto rv = h1->store(h,
-                        NULL,
+                        cookie,
                         ret.second.get(),
-                        &cas,
+                        cas,
                         OPERATION_SET,
                         DocumentState::Alive);
     checkeq(ENGINE_SUCCESS, rv, "Set failed.");
@@ -919,7 +927,7 @@ static enum test_result test_expiry(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     testHarness.time_travel(5);
     checkeq(cb::engine_errc::no_such_key,
-            get(h, h1, NULL, key, 0).first,
+            get(h, h1, cookie, key, 0).first,
             "Item didn't expire");
 
     int expired_access = get_int_stat(h, h1, "ep_expired_access");
@@ -929,7 +937,7 @@ static enum test_result test_expiry(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     checkeq(1, expired_access, "Expected an expired item on access");
     checkeq(1, active_expired, "Expected an expired active item");
     checkeq(ENGINE_SUCCESS,
-            store(h, h1, NULL, OPERATION_SET, key, data, nullptr),
+            store(h, h1, cookie, OPERATION_SET, key, data, nullptr),
             "Failed set.");
 
     // When run under full eviction, the total item stats are set from the
@@ -942,6 +950,7 @@ static enum test_result test_expiry(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     ss << "overwriting the key that was expired, but not purged yet";
     checkeq(1, get_int_stat(h, h1, "curr_items"), ss.str().c_str());
 
+    testHarness.destroy_cookie(cookie);
     return SUCCESS;
 }
 
@@ -952,8 +961,16 @@ static enum test_result test_expiry_loader(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     const char *key = "test_expiry_loader";
     const char *data = "some test data here.";
 
-    auto ret = allocate(
-            h, h1, NULL, key, strlen(data), 0, 2, PROTOCOL_BINARY_RAW_BYTES, 0);
+    const void* cookie = testHarness.create_cookie();
+    auto ret = allocate(h,
+                        h1,
+                        cookie,
+                        key,
+                        strlen(data),
+                        0,
+                        2,
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        0);
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
     item_info info;
@@ -964,9 +981,9 @@ static enum test_result test_expiry_loader(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
 
     uint64_t cas = 0;
     auto rv = h1->store(h,
-                        NULL,
+                        cookie,
                         ret.second.get(),
-                        &cas,
+                        cas,
                         OPERATION_SET,
                         DocumentState::Alive);
     checkeq(ENGINE_SUCCESS, rv, "Set failed.");
@@ -974,7 +991,7 @@ static enum test_result test_expiry_loader(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
 
     testHarness.time_travel(3);
 
-    ret = get(h, h1, NULL, key, 0);
+    ret = get(h, h1, cookie, key, 0);
     checkeq(cb::engine_errc::no_such_key, ret.first, "Item didn't expire");
 
     // Restart the engine to ensure the above expired item is not loaded
@@ -984,6 +1001,8 @@ static enum test_result test_expiry_loader(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
                               true, false);
     wait_for_warmup_complete(h, h1);
     cb_assert(0 == get_int_stat(h, h1, "ep_warmup_value_count", "warmup"));
+
+    testHarness.destroy_cookie(cookie);
 
     return SUCCESS;
 }
@@ -1034,6 +1053,7 @@ static enum test_result test_expiration_on_warmup(ENGINE_HANDLE *h,
         return SKIPPED;
     }
 
+    const auto* cookie = testHarness.create_cookie();
     set_param(h, h1, protocol_binary_engine_param_flush,
               "exp_pager_enabled", "false");
     int pager_runs = get_int_stat(h, h1, "ep_num_expiry_pager_runs");
@@ -1043,7 +1063,7 @@ static enum test_result test_expiration_on_warmup(ENGINE_HANDLE *h,
 
     auto ret = allocate(h,
                         h1,
-                        NULL,
+                        cookie,
                         key,
                         strlen(data),
                         0,
@@ -1060,9 +1080,9 @@ static enum test_result test_expiration_on_warmup(ENGINE_HANDLE *h,
 
     uint64_t cas = 0;
     auto rv = h1->store(h,
-                        NULL,
+                        cookie,
                         ret.second.get(),
-                        &cas,
+                        cas,
                         OPERATION_SET,
                         DocumentState::Alive);
     checkeq(ENGINE_SUCCESS, rv, "Set failed.");
@@ -1104,6 +1124,7 @@ static enum test_result test_expiration_on_warmup(ENGINE_HANDLE *h,
     checkeq(0, get_int_stat(h, h1, "curr_items"),
             "The item should have been expired.");
 
+    testHarness.destroy_cookie(cookie);
     return SUCCESS;
 
 }
@@ -1116,8 +1137,16 @@ static enum test_result test_bug3454(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const char *key = "test_expiry_duplicate_warmup";
     const char *data = "some test data here.";
 
-    auto ret = allocate(
-            h, h1, NULL, key, strlen(data), 0, 5, PROTOCOL_BINARY_RAW_BYTES, 0);
+    const void* cookie = testHarness.create_cookie();
+    auto ret = allocate(h,
+                        h1,
+                        cookie,
+                        key,
+                        strlen(data),
+                        0,
+                        5,
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        0);
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
     item_info info;
@@ -1128,9 +1157,9 @@ static enum test_result test_bug3454(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     uint64_t cas = 0;
     auto rv = h1->store(h,
-                        NULL,
+                        cookie,
                         ret.second.get(),
-                        &cas,
+                        cas,
                         OPERATION_SET,
                         DocumentState::Alive);
     checkeq(ENGINE_SUCCESS, rv, "Set failed.");
@@ -1139,11 +1168,18 @@ static enum test_result test_bug3454(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     // Advance the ep_engine time by 10 sec for the above item to be expired.
     testHarness.time_travel(10);
-    ret = get(h, h1, NULL, key, 0);
+    ret = get(h, h1, cookie, key, 0);
     checkeq(cb::engine_errc::no_such_key, ret.first, "Item didn't expire");
 
-    ret = allocate(
-            h, h1, NULL, key, strlen(data), 0, 0, PROTOCOL_BINARY_RAW_BYTES, 0);
+    ret = allocate(h,
+                   h1,
+                   cookie,
+                   key,
+                   strlen(data),
+                   0,
+                   0,
+                   PROTOCOL_BINARY_RAW_BYTES,
+                   0);
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
     if (!h1->get_item_info(h, ret.second.get(), &info)) {
@@ -1154,9 +1190,9 @@ static enum test_result test_bug3454(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     cas = 0;
     // Add a new item with the same key.
     rv = h1->store(h,
-                   NULL,
+                   cookie,
                    ret.second.get(),
-                   &cas,
+                   cas,
                    OPERATION_ADD,
                    DocumentState::Alive);
     checkeq(ENGINE_SUCCESS, rv, "Add failed.");
@@ -1165,7 +1201,7 @@ static enum test_result test_bug3454(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     wait_for_flusher_to_settle(h, h1);
 
     checkeq(cb::engine_errc::success,
-            get(h, h1, NULL, key, 0).first,
+            get(h, h1, cookie, key, 0).first,
             "Item shouldn't expire");
 
     // Restart the engine to ensure the above unexpired new item is loaded
@@ -1177,6 +1213,7 @@ static enum test_result test_bug3454(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     cb_assert(1 == get_int_stat(h, h1, "ep_warmup_value_count", "warmup"));
     cb_assert(0 == get_int_stat(h, h1, "ep_warmup_dups", "warmup"));
 
+    testHarness.destroy_cookie(cookie);
     return SUCCESS;
 }
 
@@ -1188,8 +1225,16 @@ static enum test_result test_bug3522(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const char *key = "test_expiry_no_items_warmup";
     const char *data = "some test data here.";
 
-    auto ret = allocate(
-            h, h1, NULL, key, strlen(data), 0, 0, PROTOCOL_BINARY_RAW_BYTES, 0);
+    const void* cookie = testHarness.create_cookie();
+    auto ret = allocate(h,
+                        h1,
+                        cookie,
+                        key,
+                        strlen(data),
+                        0,
+                        0,
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        0);
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
     item_info info;
@@ -1200,9 +1245,9 @@ static enum test_result test_bug3522(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     uint64_t cas = 0;
     auto rv = h1->store(h,
-                        NULL,
+                        cookie,
                         ret.second.get(),
-                        &cas,
+                        cas,
                         OPERATION_SET,
                         DocumentState::Alive);
     checkeq(ENGINE_SUCCESS, rv, "Set failed.");
@@ -1213,7 +1258,7 @@ static enum test_result test_bug3522(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const char *new_data = "new data here.";
     ret = allocate(h,
                    h1,
-                   NULL,
+                   cookie,
                    key,
                    strlen(new_data),
                    0,
@@ -1230,9 +1275,9 @@ static enum test_result test_bug3522(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     int pager_runs = get_int_stat(h, h1, "ep_num_expiry_pager_runs");
     cas = 0;
     rv = h1->store(h,
-                   NULL,
+                   cookie,
                    ret.second.get(),
-                   &cas,
+                   cas,
                    OPERATION_SET,
                    DocumentState::Alive);
     checkeq(ENGINE_SUCCESS, rv, "Set failed.");
@@ -1251,6 +1296,7 @@ static enum test_result test_bug3522(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     // TODO: modify this for a better test case
     cb_assert(0 == get_int_stat(h, h1, "ep_warmup_dups", "warmup"));
 
+    testHarness.destroy_cookie(cookie);
     return SUCCESS;
 }
 

@@ -97,8 +97,7 @@ void EventuallyPersistentEngineTest::store_item(uint16_t vbid,
               -1 /*seqno*/,
               vbid);
     uint64_t cas;
-    EXPECT_EQ(ENGINE_SUCCESS,
-              engine->store(cookie, &item, &cas, OPERATION_SET));
+    EXPECT_EQ(ENGINE_SUCCESS, engine->store(cookie, &item, cas, OPERATION_SET));
 }
 
 const char EventuallyPersistentEngineTest::test_dbname[] = "ep_engine_ep_unit_tests_db";

@@ -198,7 +198,7 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::allocateNewItem() {
 
 ENGINE_ERROR_CODE AppendPrependCommandContext::storeItem() {
     uint64_t ncas = cas;
-    auto ret = bucket_store(cookie, newitem.get(), &ncas, OPERATION_CAS);
+    auto ret = bucket_store(cookie, newitem.get(), ncas, OPERATION_CAS);
 
     if (ret == ENGINE_SUCCESS) {
         update_topkeys(cookie);

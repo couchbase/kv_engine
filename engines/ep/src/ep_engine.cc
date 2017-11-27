@@ -313,9 +313,9 @@ static ENGINE_ERROR_CODE EvpGetStats(gsl::not_null<ENGINE_HANDLE*> handle,
 }
 
 static ENGINE_ERROR_CODE EvpStore(gsl::not_null<ENGINE_HANDLE*> handle,
-                                  const void* cookie,
+                                  gsl::not_null<const void*> cookie,
                                   gsl::not_null<item*> itm,
-                                  gsl::not_null<uint64_t*> cas,
+                                  uint64_t& cas,
                                   ENGINE_STORE_OPERATION operation,
                                   DocumentState document_state) {
     auto engine = acquireEngine(handle);
@@ -2280,14 +2280,14 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::store_if(
     return {cb::engine_errc(status), item.getCas()};
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::store(const void *cookie,
-                                                    item* itm,
-                                                    uint64_t *cas,
-                                                    ENGINE_STORE_OPERATION
-                                                                     operation) {
+ENGINE_ERROR_CODE EventuallyPersistentEngine::store(
+        const void* cookie,
+        item* itm,
+        uint64_t& cas,
+        ENGINE_STORE_OPERATION operation) {
     Item& item = static_cast<Item&>(*static_cast<Item*>(itm));
-    auto rv = store_if(cookie, item, *cas, operation, {});
-    *cas = rv.cas;
+    auto rv = store_if(cookie, item, cas, operation, {});
+    cas = rv.cas;
     return ENGINE_ERROR_CODE(rv.status);
 }
 

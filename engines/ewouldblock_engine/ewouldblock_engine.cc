@@ -506,9 +506,9 @@ public:
     }
 
     static ENGINE_ERROR_CODE store(gsl::not_null<ENGINE_HANDLE*> handle,
-                                   const void* cookie,
+                                   gsl::not_null<const void*> cookie,
                                    gsl::not_null<item*> item,
-                                   gsl::not_null<uint64_t*> cas,
+                                   uint64_t& cas,
                                    ENGINE_STORE_OPERATION operation,
                                    DocumentState document_state) {
         EWB_Engine* ewb = to_engine(handle);

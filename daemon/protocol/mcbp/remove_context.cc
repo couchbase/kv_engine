@@ -125,7 +125,7 @@ ENGINE_ERROR_CODE RemoveCommandContext::storeItem() {
     uint64_t new_cas;
     auto ret = bucket_store(cookie,
                             deleted.get(),
-                            &new_cas,
+                            new_cas,
                             OPERATION_CAS,
                             DocumentState::Deleted);
 

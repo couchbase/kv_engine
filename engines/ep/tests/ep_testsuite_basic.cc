@@ -572,19 +572,30 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint16_t vbucketId = 0;
     uint32_t expiration = 25;
 
+    const void* cookie = testHarness.create_cookie();
+
     checkeq(cb::engine_errc::no_such_key,
-            getl(h, h1, nullptr, key, vbucketId, expiration).first,
+            getl(h, h1, cookie, key, vbucketId, expiration).first,
             "expected the key to be missing...");
 
     item *i = NULL;
     checkeq(ENGINE_SUCCESS,
-            store(h, h1, NULL, OPERATION_SET, key, "{\"lock\":\"data\"}",
-                  &i, 0, vbucketId, 3600, PROTOCOL_BINARY_DATATYPE_JSON),
+            store(h,
+                  h1,
+                  cookie,
+                  OPERATION_SET,
+                  key,
+                  "{\"lock\":\"data\"}",
+                  &i,
+                  0,
+                  vbucketId,
+                  3600,
+                  PROTOCOL_BINARY_DATATYPE_JSON),
             "Failed to store an item.");
     h1->release(h, i);
 
     /* retry getl, should succeed */
-    auto ret = getl(h, h1, nullptr, key, vbucketId, expiration);
+    auto ret = getl(h, h1, cookie, key, vbucketId, expiration);
     checkeq(cb::engine_errc::success,
             ret.first,
             "Expected to be able to getl on first try");
@@ -606,11 +617,18 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     /* lock's taken so this should fail */
     checkeq(cb::engine_errc::locked_tmpfail,
-            getl(h, h1, nullptr, key, vbucketId, expiration).first,
+            getl(h, h1, cookie, key, vbucketId, expiration).first,
             "Expected to fail getl on second try");
 
     checkne(ENGINE_SUCCESS,
-            store(h, h1, NULL, OPERATION_SET, key, "lockdata2", &i, 0,
+            store(h,
+                  h1,
+                  cookie,
+                  OPERATION_SET,
+                  key,
+                  "lockdata2",
+                  &i,
+                  0,
                   vbucketId),
             "Should have failed to store an item.");
     h1->release(h, i);
@@ -620,17 +638,25 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     /* retry set, should succeed */
     checkeq(ENGINE_SUCCESS,
-            store(h, h1, NULL, OPERATION_SET, key, "lockdata", &i, 0, vbucketId),
+            store(h,
+                  h1,
+                  cookie,
+                  OPERATION_SET,
+                  key,
+                  "lockdata",
+                  &i,
+                  0,
+                  vbucketId),
             "Failed to store an item.");
     h1->release(h, i);
 
     /* point to wrong vbucket, to test NOT_MY_VB response */
     checkeq(cb::engine_errc::not_my_vbucket,
-            getl(h, h1, nullptr, key, 10, expiration).first,
+            getl(h, h1, cookie, key, 10, expiration).first,
             "Should have received not my vbucket response");
 
     /* acquire lock, should succeed */
-    ret = getl(h, h1, nullptr, key, vbucketId, expiration);
+    ret = getl(h, h1, cookie, key, vbucketId, expiration);
     checkeq(cb::engine_errc::success,
             ret.first,
             "Acquire lock should have succeeded");
@@ -653,13 +679,22 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     char binaryData1[] = "abcdefg\0gfedcba";
 
     checkeq(cb::engine_errc::success,
-            storeCasVb11(h, h1, NULL, OPERATION_SET, key,
-                         binaryData1, sizeof(binaryData1) - 1, 82758, 0, 0).first,
+            storeCasVb11(h,
+                         h1,
+                         cookie,
+                         OPERATION_SET,
+                         key,
+                         binaryData1,
+                         sizeof(binaryData1) - 1,
+                         82758,
+                         0,
+                         0)
+                    .first,
             "Failed set.");
 
     /* acquire lock, should succeed */
     checkeq(cb::engine_errc::success,
-            getl(h, h1, nullptr, key, vbucketId, expiration).first,
+            getl(h, h1, cookie, key, vbucketId, expiration).first,
             "Acquire lock should have succeeded");
 
     /* bug MB 3252 & MB 3354.
@@ -674,7 +709,7 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     ret = allocate(h,
                    h1,
-                   NULL,
+                   cookie,
                    ekey,
                    strlen(edata),
                    0,
@@ -690,9 +725,9 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     checkeq(ENGINE_SUCCESS,
             h1->store(h,
-                      NULL,
+                      cookie,
                       ret.second.get(),
-                      &cas,
+                      cas,
                       OPERATION_SET,
                       DocumentState::Alive),
             "Failed to Store item");
@@ -704,7 +739,7 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     /* cas should fail */
     ret = storeCasVb11(h,
                        h1,
-                       NULL,
+                       cookie,
                        OPERATION_CAS,
                        ekey,
                        binaryData1,
@@ -716,10 +751,11 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     /* but a simple store should succeed */
     checkeq(ENGINE_SUCCESS,
-            store(h, h1, NULL, OPERATION_SET, ekey, edata, &i, 0, vbucketId),
+            store(h, h1, cookie, OPERATION_SET, ekey, edata, &i, 0, vbucketId),
             "Failed to store an item.");
     h1->release(h, i);
 
+    testHarness.destroy_cookie(cookie);
     return SUCCESS;
 }
 
@@ -819,9 +855,9 @@ static enum test_result test_set_get_hit_bin(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
 static enum test_result test_set_with_cas_non_existent(ENGINE_HANDLE *h,
                                                        ENGINE_HANDLE_V1 *h1) {
     const char *key = "test_expiry_flush";
-
-    auto ret =
-            allocate(h, h1, NULL, key, 10, 0, 0, PROTOCOL_BINARY_RAW_BYTES, 0);
+    const auto* cookie = testHarness.create_cookie();
+    auto ret = allocate(
+            h, h1, cookie, key, 10, 0, 0, PROTOCOL_BINARY_RAW_BYTES, 0);
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
     Item* it = reinterpret_cast<Item*>(ret.second.get());
@@ -830,13 +866,14 @@ static enum test_result test_set_with_cas_non_existent(ENGINE_HANDLE *h,
     uint64_t cas = 0;
     checkeq(ENGINE_KEY_ENOENT,
             h1->store(h,
-                      NULL,
+                      cookie,
                       ret.second.get(),
-                      &cas,
+                      cas,
                       OPERATION_SET,
                       DocumentState::Alive),
             "Expected not found");
 
+    testHarness.destroy_cookie(cookie);
     return SUCCESS;
 }
 

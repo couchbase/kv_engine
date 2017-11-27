@@ -210,9 +210,9 @@ static ENGINE_ERROR_CODE get_stats(gsl::not_null<ENGINE_HANDLE*> handle,
 }
 
 static ENGINE_ERROR_CODE store(gsl::not_null<ENGINE_HANDLE*> handle,
-                               const void* cookie,
+                               gsl::not_null<const void*> cookie,
                                gsl::not_null<item*> item,
-                               gsl::not_null<uint64_t*> cas,
+                               uint64_t& cas,
                                ENGINE_STORE_OPERATION operation,
                                DocumentState) {
     return ENGINE_FAILED;

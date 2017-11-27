@@ -1295,7 +1295,7 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
     } else {
         ret = bucket_store(cookie,
                            context.out_doc.get(),
-                           &new_cas,
+                           new_cas,
                            new_op,
                            context.do_delete_doc ? DocumentState::Deleted
                                                  : context.in_document_state);

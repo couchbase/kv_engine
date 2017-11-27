@@ -986,14 +986,25 @@ ENGINE_ERROR_CODE storeCasOut(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                               const protocol_binary_datatype_t datatype,
                               item*& out_item, uint64_t& out_cas,
                               DocumentState docState) {
-    auto ret = allocate(h, h1, NULL, key, value.size(), 0, 0, datatype, vb);
+    bool create_cookie = false;
+    if (cookie == nullptr) {
+        cookie = testHarness.create_cookie();
+        create_cookie = true;
+    }
+
+    auto ret = allocate(h, h1, cookie, key, value.size(), 0, 0, datatype, vb);
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
     item_info info;
     check(h1->get_item_info(h, ret.second.get(), &info),
           "Unable to get item_info");
     memcpy(info.value[0].iov_base, value.data(), value.size());
     ENGINE_ERROR_CODE res = h1->store(
-            h, NULL, ret.second.get(), &out_cas, OPERATION_SET, docState);
+            h, cookie, ret.second.get(), out_cas, OPERATION_SET, docState);
+
+    if (create_cookie) {
+        testHarness.destroy_cookie(cookie);
+    }
+
     return res;
 }
 
@@ -1018,7 +1029,17 @@ cb::EngineErrorItemPair storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     memcpy(info.value[0].iov_base, value, vlen);
     h1->item_set_cas(h, rv.second.get(), casIn);
 
-    auto storeRet = h1->store(h, cookie, rv.second.get(), &cas, op, docState);
+    bool create_cookie = false;
+    if (cookie == nullptr) {
+        cookie = testHarness.create_cookie();
+        create_cookie = true;
+    }
+
+    auto storeRet = h1->store(h, cookie, rv.second.get(), cas, op, docState);
+
+    if (create_cookie) {
+        testHarness.destroy_cookie(cookie);
+    }
 
     return {cb::engine_errc(storeRet), std::move(rv.second)};
 }

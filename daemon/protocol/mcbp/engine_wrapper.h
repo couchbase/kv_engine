@@ -50,7 +50,7 @@ cb::EngineErrorMetadataPair bucket_get_meta(Cookie& cookie,
 ENGINE_ERROR_CODE bucket_store(
         Cookie& cookie,
         gsl::not_null<item*> item_,
-        gsl::not_null<uint64_t*> cas,
+        uint64_t& cas,
         ENGINE_STORE_OPERATION operation,
         DocumentState document_state = DocumentState::Alive);
 

@@ -798,7 +798,7 @@ TEST_P(EPStoreEvictionTest, memOverheadMemoryCondition) {
                               makeStoredDocKey("key_" + std::to_string(count)),
                               value);
         uint64_t cas;
-        result = engine->store(nullptr, &item, &cas, OPERATION_SET);
+        result = engine->store(nullptr, &item, cas, OPERATION_SET);
     }
 
     if (GetParam() == "value_only") {

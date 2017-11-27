@@ -104,9 +104,9 @@ static ENGINE_ERROR_CODE default_get_stats(gsl::not_null<ENGINE_HANDLE*> handle,
 static void default_reset_stats(gsl::not_null<ENGINE_HANDLE*> handle,
                                 gsl::not_null<const void*> cookie);
 static ENGINE_ERROR_CODE default_store(gsl::not_null<ENGINE_HANDLE*> handle,
-                                       const void* cookie,
+                                       gsl::not_null<const void*> cookie,
                                        gsl::not_null<item*> item,
-                                       gsl::not_null<uint64_t*> cas,
+                                       uint64_t& cas,
                                        ENGINE_STORE_OPERATION operation,
                                        DocumentState);
 
@@ -691,9 +691,9 @@ static ENGINE_ERROR_CODE default_get_stats(gsl::not_null<ENGINE_HANDLE*> handle,
 }
 
 static ENGINE_ERROR_CODE default_store(gsl::not_null<ENGINE_HANDLE*> handle,
-                                       const void* cookie,
+                                       gsl::not_null<const void*> cookie,
                                        gsl::not_null<item*> item,
-                                       gsl::not_null<uint64_t*> cas,
+                                       uint64_t& cas,
                                        ENGINE_STORE_OPERATION operation,
                                        DocumentState document_state) {
     auto* engine = get_handle(handle);
@@ -704,8 +704,7 @@ static ENGINE_ERROR_CODE default_store(gsl::not_null<ENGINE_HANDLE*> handle,
         return safe_item_unlink(engine, it);
     }
 
-    return store_item(engine, it, cas, operation,
-                      cookie, document_state);
+    return store_item(engine, it, &cas, operation, cookie, document_state);
 }
 
 static cb::EngineErrorCasPair default_store_if(

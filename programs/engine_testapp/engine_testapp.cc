@@ -369,21 +369,23 @@ static ENGINE_ERROR_CODE mock_get_stats(gsl::not_null<ENGINE_HANDLE*> handle,
 }
 
 static ENGINE_ERROR_CODE mock_store(gsl::not_null<ENGINE_HANDLE*> handle,
-                                    const void* cookie,
+                                    gsl::not_null<const void*> cookie,
                                     gsl::not_null<item*> item,
-                                    gsl::not_null<uint64_t*> cas,
+                                    uint64_t& cas,
                                     ENGINE_STORE_OPERATION operation,
                                     DocumentState document_state) {
-    struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
     auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->store,
                                get_engine_from_handle(handle),
-                               static_cast<const void*>(c),
-                               item, cas, operation, document_state);
+                               cookie,
+                               item,
+                               std::ref(cas),
+                               operation,
+                               document_state);
 
-    ENGINE_ERROR_CODE ret = call_engine_and_handle_EWOULDBLOCK(handle, c, engine_fn);
+    auto* construct =
+            reinterpret_cast<mock_connstruct*>(const_cast<void*>(cookie.get()));
 
-    check_and_destroy_mock_connstruct(c, cookie);
-    return ret;
+    return call_engine_and_handle_EWOULDBLOCK(handle, construct, engine_fn);
 }
 
 static ENGINE_ERROR_CODE mock_flush(gsl::not_null<ENGINE_HANDLE*> handle,

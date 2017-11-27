@@ -52,7 +52,7 @@ static void storeItem(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     h1->item_set_cas(h, ret.second.get(), 0);
 
     auto rv = h1->store(
-            h, cookie, ret.second.get(), &cas, op, DocumentState::Alive);
+            h, cookie, ret.second.get(), cas, op, DocumentState::Alive);
 
     testHarness.destroy_cookie(cookie);
     hasError = rv != ENGINE_SUCCESS;

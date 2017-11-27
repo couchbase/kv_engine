@@ -224,9 +224,9 @@ public:
         }
     }
 
-    ENGINE_ERROR_CODE store(const void *cookie,
+    ENGINE_ERROR_CODE store(const void* cookie,
                             item* itm,
-                            uint64_t *cas,
+                            uint64_t& cas,
                             ENGINE_STORE_OPERATION operation);
 
     cb::EngineErrorCasPair store_if(const void* cookie,

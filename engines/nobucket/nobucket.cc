@@ -199,9 +199,9 @@ private:
     }
 
     static ENGINE_ERROR_CODE store(gsl::not_null<ENGINE_HANDLE*>,
-                                   const void*,
+                                   gsl::not_null<const void*>,
                                    gsl::not_null<item*>,
-                                   gsl::not_null<uint64_t*>,
+                                   uint64_t&,
                                    ENGINE_STORE_OPERATION,
                                    DocumentState) {
         return ENGINE_NO_BUCKET;

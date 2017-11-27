@@ -102,7 +102,7 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::createNewItem() {
 
 ENGINE_ERROR_CODE ArithmeticCommandContext::storeNewItem() {
     uint64_t ncas = cas;
-    auto ret = bucket_store(cookie, newitem.get(), &ncas, OPERATION_ADD);
+    auto ret = bucket_store(cookie, newitem.get(), ncas, OPERATION_ADD);
 
     if (ret == ENGINE_SUCCESS) {
         cookie.setCas(ncas);
@@ -196,7 +196,7 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::allocateNewItem() {
 
 ENGINE_ERROR_CODE ArithmeticCommandContext::storeItem() {
     uint64_t ncas = cas;
-    auto ret = bucket_store(cookie, newitem.get(), &ncas, OPERATION_CAS);
+    auto ret = bucket_store(cookie, newitem.get(), ncas, OPERATION_CAS);
 
     if (ret == ENGINE_SUCCESS) {
         cookie.setCas(ncas);
