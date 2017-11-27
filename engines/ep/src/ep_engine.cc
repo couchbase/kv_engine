@@ -2789,6 +2789,27 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                         add_stat,
                         cookie);
     }
+    // Disk Usage per-CF
+    if (kvBucket->getKVStoreStat("default_kTotalSstFilesSize",
+                                 value,
+                                 KVBucketIface::KVSOption::RW)) {
+        add_casted_stat("ep_rocksdb_default_kTotalSstFilesSize",
+                        value,
+                        add_stat,
+                        cookie);
+    }
+    if (kvBucket->getKVStoreStat("seqno_kTotalSstFilesSize",
+                                 value,
+                                 KVBucketIface::KVSOption::RW)) {
+        add_casted_stat(
+                "ep_rocksdb_seqno_kTotalSstFilesSize", value, add_stat, cookie);
+    }
+    if (kvBucket->getKVStoreStat("local_kTotalSstFilesSize",
+                                 value,
+                                 KVBucketIface::KVSOption::RW)) {
+        add_casted_stat(
+                "ep_rocksdb_local_kTotalSstFilesSize", value, add_stat, cookie);
+    }
 
     return ENGINE_SUCCESS;
 }

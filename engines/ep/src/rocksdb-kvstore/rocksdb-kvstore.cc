@@ -677,6 +677,24 @@ bool RocksDBKVStore::getStat(const char* name_, size_t& value) {
                                      value);
     }
 
+    // Disk Usage per Column Family
+    else if (name == "default_kTotalSstFilesSize") {
+        return getStatFromProperties(
+                ColumnFamily::Default,
+                rocksdb::DB::Properties::kTotalSstFilesSize,
+                value);
+    } else if (name == "seqno_kTotalSstFilesSize") {
+        return getStatFromProperties(
+                ColumnFamily::Seqno,
+                rocksdb::DB::Properties::kTotalSstFilesSize,
+                value);
+    } else if (name == "local_kTotalSstFilesSize") {
+        return getStatFromProperties(
+                ColumnFamily::Local,
+                rocksdb::DB::Properties::kTotalSstFilesSize,
+                value);
+    }
+
     return false;
 }
 

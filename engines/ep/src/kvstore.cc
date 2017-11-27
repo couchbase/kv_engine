@@ -355,6 +355,20 @@ void KVStore::addStats(ADD_STAT add_stat, const void *c) {
                 add_stat,
                 c);
     }
+    // Disk Usage per-CF
+    if (getStat("default_kTotalSstFilesSize", value)) {
+        addStat(prefix,
+                "rocksdb_default_kTotalSstFilesSize",
+                value,
+                add_stat,
+                c);
+    }
+    if (getStat("seqno_kTotalSstFilesSize", value)) {
+        addStat(prefix, "rocksdb_seqno_kTotalSstFilesSize", value, add_stat, c);
+    }
+    if (getStat("local_kTotalSstFilesSize", value)) {
+        addStat(prefix, "rocksdb_local_kTotalSstFilesSize", value, add_stat, c);
+    }
 }
 
 void KVStore::addTimingStats(ADD_STAT add_stat, const void *c) {
