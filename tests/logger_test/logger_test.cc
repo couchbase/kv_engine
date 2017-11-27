@@ -25,6 +25,7 @@
 #include <iostream>
 #include <sstream>
 
+#include <daemon/settings.h>
 #include <gtest/gtest.h>
 
 #include "extensions/loggers/file_logger_utilities.h"
@@ -296,4 +297,31 @@ TEST_F(LoggerUtilitiesTest, TestInvalidExtension) {
 TEST_F(LoggerUtilitiesTest, TestInvalidSeparator) {
     createFile(1, "-", ".txt");
     EXPECT_EQ(0, find_first_logfile_id(prefix));
+}
+
+TEST(NonExtensionLoggerTest, file_logger_initialize_test) {
+    EXTENSION_ERROR_CODE ret;
+    LoggerConfig config;
+    std::vector<std::string> files;
+
+#ifndef WIN32
+    unsetenv("CB_MINIMIZE_LOGGER_SLEEPTIME");
+    unsetenv("CB_MAXIMIZE_LOGGER_CYCLE_SIZE");
+    unsetenv("CB_MAXIMIZE_LOGGER_BUFFER_SIZE");
+#endif
+
+    files = cb::io::findFilesWithPrefix("logger_test");
+
+    if (!files.empty()) {
+        remove_files(files);
+    }
+
+    config.filename = "file_logger_initialize_test";
+    config.buffersize = 8192;
+    config.cyclesize = 2048;
+    config.sleeptime = 1;
+    config.unit_test = true;
+
+    ret = file_logger_initialize(config, get_server_api);
+    cb_assert(ret == EXTENSION_SUCCESS);
 }

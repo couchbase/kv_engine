@@ -571,6 +571,14 @@ static void handle_extensions(Settings& s, cJSON* obj) {
     }
 }
 
+static void handle_logger(Settings& s, cJSON* obj) {
+    if (obj->type != cJSON_Object) {
+        throw std::invalid_argument("\"logger\" must be an object");
+    }
+    LoggerConfig config(obj);
+    s.setLoggerConfig(config);
+}
+
 /**
  * Handle the "interfaces" tag in the settings
  *
@@ -635,6 +643,7 @@ void Settings::reconfigure(const unique_cJSON_ptr& json) {
             {"threads", handle_threads},
             {"interfaces", handle_interfaces},
             {"extensions", handle_extensions},
+            {"logger", handle_logger},
             {"default_reqs_per_event", handle_reqs_event},
             {"reqs_per_event_high_priority", handle_reqs_event},
             {"reqs_per_event_med_priority", handle_reqs_event},
@@ -983,6 +992,12 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                     "extensions can't be changed dynamically");
             }
         }
+    }
+
+    if (other.has.logger) {
+        if (other.logger_settings != logger_settings)
+            throw std::invalid_argument(
+                    "logger configuration can't be changed dynamically");
     }
 
     if (other.has.error_maps) {
@@ -1496,6 +1511,67 @@ ClientCertAuth::ClientCertAuth(cJSON* obj) {
     ClientCertAuth::type = pathVal;
     ClientCertAuth::delimiter = delimiterVal;
     certUser.reset(createUser.release());
+}
+
+LoggerConfig::LoggerConfig(const cJSON* json) {
+    cJSON* obj = cJSON_GetObjectItem(const_cast<cJSON*>(json), "filename");
+    if (obj != nullptr) {
+        if (obj->type != cJSON_String) {
+            throw std::invalid_argument(
+                    "LoggerConfig: \"filename\" must be a string");
+        }
+        filename.assign(obj->valuestring);
+    }
+
+    obj = cJSON_GetObjectItem(const_cast<cJSON*>(json), "buffersize");
+    if (obj != nullptr) {
+        if (obj->type != cJSON_Number) {
+            throw std::invalid_argument(
+                    "LoggerConfig: \"buffersize\" must be an unsigned int");
+        }
+        buffersize = static_cast<unsigned int>(obj->valueint);
+    }
+
+    obj = cJSON_GetObjectItem(const_cast<cJSON*>(json), "cyclesize");
+    if (obj != nullptr) {
+        if (obj->type != cJSON_Number) {
+            throw std::invalid_argument(
+                    "LoggerConfig: \"cyclesize\" must be an unsigned int");
+        }
+        cyclesize = static_cast<unsigned int>(obj->valueint);
+    }
+
+    obj = cJSON_GetObjectItem(const_cast<cJSON*>(json), "sleeptime");
+    if (obj != nullptr) {
+        if (obj->type != cJSON_Number) {
+            throw std::invalid_argument(
+                    "LoggerConfig: \"sleeptime\" must be an unsigned int");
+        }
+        sleeptime = static_cast<unsigned int>(obj->valueint);
+    }
+
+    obj = cJSON_GetObjectItem(const_cast<cJSON*>(json), "unit_test");
+    unit_test = false;
+    if (obj != nullptr) {
+        if (obj->type == cJSON_True) {
+            unit_test = true;
+        } else if (obj->type != cJSON_False) {
+            throw std::invalid_argument(
+                    "LoggerConfig: \"unit_test\" must be a bool");
+        }
+    }
+}
+
+bool LoggerConfig::operator==(const LoggerConfig& other) const {
+    return (this->filename == other.filename) &&
+           (this->buffersize == other.buffersize) &&
+           (this->sleeptime == other.sleeptime) &&
+           (this->cyclesize == other.cyclesize) &&
+           (this->unit_test == other.unit_test);
+}
+
+bool LoggerConfig::operator!=(const LoggerConfig& other) const {
+    return !(*this == other);
 }
 
 std::string to_string(BreakpadContent content) {

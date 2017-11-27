@@ -426,6 +426,30 @@ TEST_F(SettingsTest, InterfacesInvalidSslEntry) {
     cb::io::rmrf(pattern);
 }
 
+TEST_F(SettingsTest, ParseLoggerSettings) {
+    nonObjectValuesShouldFail("logger");
+
+    unique_cJSON_ptr obj(cJSON_CreateObject());
+    cJSON_AddStringToObject(obj.get(), "filename", "logs/n_1/memcached.log");
+    cJSON_AddNumberToObject(obj.get(), "buffersize", 1024);
+    cJSON_AddNumberToObject(obj.get(), "cyclesize", 10485760);
+    cJSON_AddNumberToObject(obj.get(), "sleeptime", 19);
+    cJSON_AddBoolToObject(obj.get(), "unit_test", true);
+
+    unique_cJSON_ptr root(cJSON_CreateObject());
+    cJSON_AddItemToObject(root.get(), "logger", obj.release());
+    Settings settings(root);
+
+    EXPECT_TRUE(settings.has.logger);
+
+    LoggerConfig config = settings.getLoggerConfig();
+    EXPECT_EQ("logs/n_1/memcached.log", config.filename);
+    EXPECT_EQ(1024, config.buffersize);
+    EXPECT_EQ(10485760, config.cyclesize);
+    EXPECT_EQ(19, config.sleeptime);
+    EXPECT_EQ(true, config.unit_test);
+}
+
 TEST_F(SettingsTest, Extensions) {
     nonArrayValuesShouldFail("extensions");
 
@@ -1126,6 +1150,22 @@ TEST(SettingsUpdateTest, ExtensionsDifferentArraysSizeShouldFail) {
     settings.addPendingExtension(ext);
     EXPECT_NO_THROW(settings.updateSettings(updated, false));
     settings.addPendingExtension(ext);
+    EXPECT_THROW(settings.updateSettings(updated, false),
+                 std::invalid_argument);
+}
+
+TEST(SettingsUpdateTest, UpdatingLoggerSettingsShouldFail) {
+    Settings settings;
+    Settings updated;
+
+    LoggerConfig config;
+    config.filename.assign("logger_test");
+    config.buffersize = 1024;
+    config.cyclesize = 1024 * 1024;
+
+    EXPECT_NO_THROW(settings.updateSettings(updated, false));
+
+    updated.setLoggerConfig(config);
     EXPECT_THROW(settings.updateSettings(updated, false),
                  std::invalid_argument);
 }

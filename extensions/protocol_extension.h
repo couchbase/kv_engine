@@ -2,6 +2,7 @@
 #ifndef EXAMPLE_PROTOCOL_H
 #define EXAMPLE_PROTOCOL_H
 
+#include <daemon/settings.h>
 #include <memcached/engine.h>
 
 #ifdef __cplusplus
@@ -12,6 +13,11 @@ extern "C" {
                                                          GET_SERVER_API get_server_api);
 #ifdef __cplusplus
 }
+
+MEMCACHED_PUBLIC_API
+EXTENSION_ERROR_CODE file_logger_initialize(const LoggerConfig& config,
+                                            GET_SERVER_API get_server_api);
+
 #endif
 
 #endif

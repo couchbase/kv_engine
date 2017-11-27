@@ -98,6 +98,21 @@ struct extension_settings {
     std::string config;
 };
 
+/* The settings supported by the file logger */
+struct LoggerConfig {
+    LoggerConfig() {}
+    LoggerConfig(const cJSON* json);
+
+    bool operator==(const LoggerConfig& other) const;
+    bool operator!=(const LoggerConfig& other) const;
+
+    std::string filename;
+    size_t buffersize = 2048 * 1024; // 2 MB for the logging queue
+    size_t cyclesize = 100 * 1024 * 1024; // 100 MB per cycled file
+    size_t sleeptime = 60; // time between forced flushes of the buffer
+    bool unit_test = false; // if running in a unit test or not
+};
+
 /**
  * What information should breakpad minidumps contain?
  */
@@ -381,6 +396,16 @@ public:
     const std::vector<extension_settings>& getPendingExtensions() const {
         return pending_extensions;
     }
+
+    const LoggerConfig getLoggerConfig() {
+        return logger_settings;
+    };
+
+    void setLoggerConfig(const LoggerConfig& config) {
+        has.logger = true;
+        logger_settings = config;
+        notify_changed("logger");
+    };
 
     /**
      * Get the name of the file containing the audit configuration
@@ -965,6 +990,11 @@ protected:
     std::vector<struct extension_settings> pending_extensions;
 
     /**
+     * Configuration of the logger
+     */
+    LoggerConfig logger_settings;
+
+    /**
      * The file containing audit configuration
      */
     std::string audit_file;
@@ -1106,6 +1136,7 @@ public:
         bool threads;
         bool interfaces;
         bool extensions;
+        bool logger;
         bool audit;
         bool saslauthd_socketpath;
         bool reqs_per_event_high_priority;

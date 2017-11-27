@@ -26,10 +26,11 @@
 #undef close
 #endif
 
-#include <memcached/extension.h>
+#include <daemon/settings.h>
 #include <memcached/engine.h>
-#include <memcached/syslog.h>
+#include <memcached/extension.h>
 #include <memcached/isotime.h>
+#include <memcached/syslog.h>
 #include <phosphor/phosphor.h>
 #include <platform/strerror.h>
 
@@ -650,9 +651,8 @@ static void logger_shutdown(bool force) {
 }
 
 MEMCACHED_PUBLIC_API
-EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
-                                                     GET_SERVER_API get_server_api)
-{
+EXTENSION_ERROR_CODE file_logger_initialize(const LoggerConfig& logger_settings,
+                                            GET_SERVER_API get_server_api) {
     /* memcached_logger_test invokes memcached_extensions_initialize
      * for each test.  Therefore it is necessary to ensure the following
      * state is reset.
@@ -664,7 +664,7 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
     lastlog.offset = 0;
     lastlog.created = 0;
 
-    char *fname = NULL;
+    char* fname = NULL;
 
     cb_mutex_initialize(&mutex);
     cb_cond_initialize(&cond);
@@ -688,47 +688,14 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
     if (gethostname(hostname, sizeof(hostname))) {
         std::cerr << "Could not get the hostname: " << cb_strerror()
                   << std::endl;
-        strcpy(hostname,"unknown");
+        strcpy(hostname, "unknown");
     }
 
-    if (config != NULL) {
-        struct config_item items[6];
-        int ii = 0;
-        memset(&items, 0, sizeof(items));
-
-        items[ii].key = "filename";
-        items[ii].datatype = DT_STRING;
-        items[ii].value.dt_string = &fname;
-        ++ii;
-
-        items[ii].key = "buffersize";
-        items[ii].datatype = DT_SIZE;
-        items[ii].value.dt_size = &buffersz;
-        ++ii;
-
-        items[ii].key = "cyclesize";
-        items[ii].datatype = DT_SIZE;
-        items[ii].value.dt_size = &cyclesz;
-        ++ii;
-
-        items[ii].key = "sleeptime";
-        items[ii].datatype = DT_SIZE;
-        items[ii].value.dt_size = &sleeptime;
-        ++ii;
-
-        items[ii].key = "unit_test";
-        items[ii].datatype = DT_BOOL;
-        items[ii].value.dt_bool = &unit_test;
-        ++ii;
-
-        items[ii].key = NULL;
-        ++ii;
-        cb_assert(ii == 6);
-
-        if (sapi->core->parse_config(config, items, stderr) != ENGINE_SUCCESS) {
-            return EXTENSION_FATAL;
-        }
-    }
+    fname = cb_strdup(logger_settings.filename.c_str());
+    buffersz = logger_settings.buffersize;
+    cyclesz = logger_settings.cyclesize;
+    sleeptime = logger_settings.sleeptime;
+    unit_test = logger_settings.unit_test;
 
     if (getenv("CB_MINIMIZE_LOGGER_SLEEPTIME") != nullptr) {
         sleeptime = 1;
@@ -742,14 +709,15 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
         buffersz = 8 * 1024 * 1024; // use two 8MB log buffers
     }
 
-    if (fname == NULL) {
+    if (fname == NULL || strcmp(fname, "") == 0) {
         fname = cb_strdup("memcached");
     }
 
     buffers[0].data = reinterpret_cast<char*>(cb_malloc(buffersz));
     buffers[1].data = reinterpret_cast<char*>(cb_malloc(buffersz));
 
-    if (buffers[0].data == NULL || buffers[1].data == NULL || fname == NULL) {
+    if (buffers[0].data == NULL || buffers[1].data == NULL || fname == NULL ||
+        strcmp(fname, "") == 0) {
         std::cerr << "Failed to allocate memory for the logger" << std::endl;
         cb_free(fname);
         cb_free(buffers[0].data);
@@ -759,8 +727,8 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
 
     next_file_id = find_first_logfile_id(fname);
 
-    if (cb_create_named_thread(&tid, logger_thread_main, fname, 0,
-                               "mc:file_logger") < 0) {
+    if (cb_create_named_thread(
+                &tid, logger_thread_main, fname, 0, "mc:file_logger") < 0) {
         std::cerr << "Failed to create the logger backend thread: "
                   << cb_strerror() << std::endl;
         cb_free(fname);
@@ -793,4 +761,63 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
     sapi->callback->register_callback(NULL, ON_LOG_LEVEL, on_log_level, NULL);
 
     return EXTENSION_SUCCESS;
+}
+
+MEMCACHED_PUBLIC_API
+EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
+                                                     GET_SERVER_API get_server_api)
+{
+    char* fname = NULL;
+    LoggerConfig logger_config;
+
+    sapi = get_server_api();
+    if (sapi == NULL) {
+        return EXTENSION_FATAL;
+    }
+
+    if (config != NULL) {
+        struct config_item items[6];
+        int ii = 0;
+        memset(&items, 0, sizeof(items));
+
+        items[ii].key = "filename";
+        items[ii].datatype = DT_STRING;
+        items[ii].value.dt_string = &fname;
+        ++ii;
+
+        items[ii].key = "buffersize";
+        items[ii].datatype = DT_SIZE;
+        items[ii].value.dt_size = &(logger_config.buffersize);
+        ++ii;
+
+        items[ii].key = "cyclesize";
+        items[ii].datatype = DT_SIZE;
+        items[ii].value.dt_size = &(logger_config.cyclesize);
+        ++ii;
+
+        items[ii].key = "sleeptime";
+        items[ii].datatype = DT_SIZE;
+        items[ii].value.dt_size = &(logger_config.sleeptime);
+        ++ii;
+
+        items[ii].key = "unit_test";
+        items[ii].datatype = DT_BOOL;
+        items[ii].value.dt_bool = &(logger_config.unit_test);
+        ++ii;
+
+        items[ii].key = NULL;
+        ++ii;
+        cb_assert(ii == 6);
+
+        if (sapi->core->parse_config(config, items, stderr) != ENGINE_SUCCESS) {
+            return EXTENSION_FATAL;
+        }
+
+        if (fname != NULL) {
+            logger_config.filename.assign(fname);
+        }
+    }
+    cb_free(fname);
+
+    return file_logger_initialize(logger_config, get_server_api);
 }
