@@ -142,7 +142,7 @@ private:
     }
 
     static cb::EngineErrorItemPair get(gsl::not_null<ENGINE_HANDLE*> h,
-                                       const void*,
+                                       gsl::not_null<const void*>,
                                        const DocKey&,
                                        uint16_t,
                                        DocStateFilter) {

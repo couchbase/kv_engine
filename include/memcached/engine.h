@@ -329,7 +329,7 @@ typedef struct engine_interface_v1 {
      * @return ENGINE_SUCCESS if all goes well
      */
     cb::EngineErrorItemPair (*get)(gsl::not_null<ENGINE_HANDLE*> handle,
-                                   const void* cookie,
+                                   gsl::not_null<const void*> cookie,
                                    const DocKey& key,
                                    uint16_t vbucket,
                                    DocStateFilter documentStateFilter);

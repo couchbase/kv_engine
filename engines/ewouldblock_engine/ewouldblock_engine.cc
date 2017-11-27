@@ -406,7 +406,7 @@ public:
     }
 
     static cb::EngineErrorItemPair get(gsl::not_null<ENGINE_HANDLE*> handle,
-                                       const void* cookie,
+                                       gsl::not_null<const void*> cookie,
                                        const DocKey& key,
                                        uint16_t vbucket,
                                        DocStateFilter documentStateFilter) {

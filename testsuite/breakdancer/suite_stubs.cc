@@ -82,10 +82,12 @@ void set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 }
 
 void checkValue(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* exp) {
-    item_info info;
-    auto rv = h1->get(h, NULL, key, 0, DocStateFilter::Alive);
+    const auto* cookie = testHarness.create_cookie();
+    auto rv = h1->get(h, cookie, key, 0, DocStateFilter::Alive);
+    testHarness.destroy_cookie(cookie);
     cb_assert(rv.first == cb::engine_errc::success);
 
+    item_info info;
     h1->get_item_info(h, rv.second.get(), &info);
 
     char* buf = new char[info.value[0].iov_len + 1];
@@ -106,7 +108,9 @@ void checkValue(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* exp) {
 }
 
 void assertNotExists(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    auto rv = h1->get(h, NULL, key, 0, DocStateFilter::Alive);
+    const auto* cookie = testHarness.create_cookie();
+    auto rv = h1->get(h, cookie, key, 0, DocStateFilter::Alive);
+    testHarness.destroy_cookie(cookie);
     cb_assert(rv.first == cb::engine_errc::no_such_key);
 }
 

@@ -1712,11 +1712,22 @@ cb::EngineErrorItemPair get(ENGINE_HANDLE* h,
                             const std::string& key,
                             uint16_t vb,
                             DocStateFilter documentStateFilter) {
-    return h1->get(h,
-                   cookie,
-                   DocKey(key, testHarness.doc_namespace),
-                   vb,
-                   documentStateFilter);
+    bool create_cookie = false;
+    if (cookie == nullptr) {
+        cookie = testHarness.create_cookie();
+        create_cookie = true;
+    }
+
+    auto ret = h1->get(h,
+                       cookie,
+                       DocKey(key, testHarness.doc_namespace),
+                       vb,
+                       documentStateFilter);
+
+    if (create_cookie) {
+        testHarness.destroy_cookie(cookie);
+    }
+    return ret;
 }
 
 bool repeat_till_true(std::function<bool()> functor,

@@ -60,7 +60,7 @@ static ENGINE_ERROR_CODE default_item_delete(
 static void default_item_release(gsl::not_null<ENGINE_HANDLE*> handle,
                                  gsl::not_null<item*> item);
 static cb::EngineErrorItemPair default_get(gsl::not_null<ENGINE_HANDLE*> handle,
-                                           const void* cookie,
+                                           gsl::not_null<const void*> cookie,
                                            const DocKey& key,
                                            uint16_t vbucket,
                                            DocStateFilter);
@@ -468,7 +468,7 @@ static void default_item_release(gsl::not_null<ENGINE_HANDLE*> handle,
 }
 
 static cb::EngineErrorItemPair default_get(gsl::not_null<ENGINE_HANDLE*> handle,
-                                           const void* cookie,
+                                           gsl::not_null<const void*> cookie,
                                            const DocKey& key,
                                            uint16_t vbucket,
                                            DocStateFilter documentStateFilter) {
