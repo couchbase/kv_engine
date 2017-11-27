@@ -20,6 +20,7 @@
  */
 #include "bgfetcher.h"
 #include "dcp/dcpconnmap.h"
+#include "failover-table.h"
 #include "kvstore.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "tests/mock/mock_dcp.h"
@@ -676,6 +677,50 @@ TEST_F(CollectionsFilteredDcpErrorTest, error1) {
     } catch (const cb::engine_error& e) {
         EXPECT_EQ(cb::engine_errc::unknown_collection, e.code());
     }
+}
+
+// Cannot create non-zero stream for a name-only filter stream
+TEST_F(CollectionsFilteredDcpErrorTest, fail_non_zero_name_only_streams) {
+    // Set some collections
+    store->setCollections({R"({"separator": "::","uid":"0",
+              "collections":[{"name":"$default", "uid":"0"},
+                             {"name":"meat", "uid":"1"},
+                             {"name":"dairy", "uid":"2"}]})"});
+
+    // name only filter
+    std::string filter = R"({"collections":["meat"]})";
+    cb::const_byte_buffer buffer{
+            reinterpret_cast<const uint8_t*>(filter.data()), filter.size()};
+    // Can't create a filter for unknown collections
+    producer = std::make_shared<MockDcpProducer>(*engine,
+                                                 cookieP,
+                                                 "test_producer",
+                                                 DCP_OPEN_COLLECTIONS,
+                                                 buffer,
+                                                 false /*startTask*/);
+    producer->setNoopEnabled(true);
+
+    // Remove meat
+    store->setCollections({R"({"separator": "::","uid":"0",
+              "collections":[{"name":"$default", "uid":"0"},
+                             {"name":"dairy", "uid":"2"}]})"});
+
+    VBucketPtr vb = store->getVBucket(vbid);
+    auto uid = vb->failovers->getLatestUUID();
+
+    // Now should be prevented from creating a new stream
+    uint64_t rollbackSeqno = 0;
+    EXPECT_EQ(ENGINE_EINVAL,
+              producer->streamRequest(0, // flags
+                                      1, // opaque
+                                      vbid,
+                                      1, // start_seqno
+                                      ~0ull, // end_seqno
+                                      uid, // vbucket_uuid,
+                                      1, // snap_start_seqno,
+                                      1, // snap_end_seqno,
+                                      &rollbackSeqno,
+                                      &CollectionsDcpTest::dcpAddFailoverLog));
 }
 
 class CollectionsFilteredDcpTest : public CollectionsDcpTest {

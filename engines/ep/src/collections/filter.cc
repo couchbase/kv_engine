@@ -46,7 +46,10 @@
  */
 Collections::Filter::Filter(boost::optional<const std::string&> jsonFilter,
                             const Manifest* manifest)
-    : defaultAllowed(false), passthrough(false), systemEventsAllowed(true) {
+    : defaultAllowed(false),
+      passthrough(false),
+      systemEventsAllowed(true),
+      type(Type::NoFilter) {
     // If the jsonFilter is not initialised we are building a filter for a
     // legacy DCP stream, one which could only ever support $default
     if (!jsonFilter.is_initialized()) {
@@ -218,6 +221,9 @@ std::ostream& Collections::operator<<(std::ostream& os,
        << ", defaultAllowed:" << filter.defaultAllowed
        << ", systemEventsAllowed:" << filter.systemEventsAllowed;
     switch (filter.getType()) {
+    case Collections::Filter::Type::NoFilter:
+        os << ", type:no-filter";
+        break;
     case Collections::Filter::Type::Name:
         os << ", type:name";
         break;

@@ -67,6 +67,7 @@ public:
             std::vector<std::pair<std::string, boost::optional<uid_t>>>;
 
     enum class Type {
+        NoFilter, // No filter was defined
         Name, // Filter is name-only
         NameUid // Filter contains name:uid entries
     };

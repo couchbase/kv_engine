@@ -187,7 +187,7 @@ TEST_F(CollectionsFilterTest, validation_no_default) {
 }
 
 /**
- * Test that we cannot create a true filter without a manifest
+ * Test that we cannot create a filter without a manifest
  */
 TEST_F(CollectionsFilterTest, no_manifest) {
     std::string jsonFilter = R"({"collections":["$default", "fruit", "meat"]})";
@@ -277,6 +277,39 @@ TEST_F(CollectionsFilterTest, filter_basic2) {
 
     // The actual filter "list" stores nothing
     EXPECT_EQ(0, f.getFilter().size());
+}
+
+/**
+ * Construct a valid Collections::Filter as if a legacy DCP producer was created
+ */
+TEST_F(CollectionsFilterTest, filter_legacy) {
+    Collections::Manifest m(
+            R"({"separator":"$","uid":"0",)"
+            R"("collections":[{"name":"$default","uid":"0"},
+                              {"name":"vegetable","uid":"1"},
+                              {"name":"meat","uid":"3"},
+                              {"name":"fruit", "uid":"4"},
+                              {"name":"dairy","uid":"5"}]})");
+
+    // No string...
+    boost::optional<const std::string&> json;
+    Collections::Filter f(json, &m);
+
+    // Not a pass through
+    EXPECT_FALSE(f.isPassthrough());
+
+    // Allows the default
+    EXPECT_TRUE(f.allowDefaultCollection());
+
+    // Does not allow system events
+    EXPECT_FALSE(f.allowSystemEvents());
+
+    // The actual filter "list" stores nothing
+    EXPECT_EQ(0, f.getFilter().size());
+
+    // Is not a name or name-uid filter
+    EXPECT_FALSE(f.isNameFilter());
+    EXPECT_FALSE(f.isNameUidFilter());
 }
 
 class CollectionsVBFilterTest : public CollectionsFilterTest {};
