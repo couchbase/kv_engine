@@ -73,8 +73,11 @@ public:
     /*
      * Create a manifest from json.
      * Validates the json as per SET_COLLECTIONS rules.
+     * @param json a string containing the JSON data
+     * @param maxNumberOfCollections an upper limit on the number of collections
+     *        allowed, defaults to 1000.
      */
-    Manifest(const std::string& json);
+    Manifest(const std::string& json, size_t maxNumberOfCollections = 1000);
 
     const std::string& getSeparator() const {
         return separator;

@@ -31,7 +31,8 @@ Manifest::Manifest()
     collections.push_back({DefaultCollectionIdentifier.data(), 0});
 }
 
-Manifest::Manifest(const std::string& json) : defaultCollectionExists(false) {
+Manifest::Manifest(const std::string& json, size_t maxNumberOfCollections)
+    : defaultCollectionExists(false) {
     if (!checkUTF8JSON(reinterpret_cast<const unsigned char*>(json.data()),
                        json.size())) {
         throw std::invalid_argument("Manifest::Manifest input not valid json:" +
@@ -57,7 +58,14 @@ Manifest::Manifest(const std::string& json) : defaultCollectionExists(false) {
     auto jsonCollections =
             getJsonObject(cjson.get(), CollectionsKey, CollectionsType);
 
-    for (int ii = 0; ii < cJSON_GetArraySize(jsonCollections); ii++) {
+    size_t count = cJSON_GetArraySize(jsonCollections);
+    if (count > maxNumberOfCollections) {
+        throw std::invalid_argument(
+                "Manifest::Manifest too many collections count:" +
+                std::to_string(count));
+    }
+
+    for (size_t ii = 0; ii < count; ii++) {
         auto collection = cJSON_GetArrayItem(jsonCollections, ii);
         throwIfNullOrWrongType(
                 std::string(CollectionsKey) + ":" + std::to_string(ii),

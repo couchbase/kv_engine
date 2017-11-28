@@ -15,9 +15,10 @@
  *   limitations under the License.
  */
 
-#include "collections/filter.h"
 #include "collections/manager.h"
+#include "collections/filter.h"
 #include "collections/manifest.h"
+#include "ep_engine.h"
 #include "kv_bucket.h"
 #include "vbucket.h"
 
@@ -37,7 +38,11 @@ cb::engine_error Collections::Manager::update(KVBucket& bucket,
     std::unique_ptr<Manifest> newManifest;
     // Construct a newManifest (will throw if JSON was illegal)
     try {
-        newManifest = std::make_unique<Manifest>(json);
+        newManifest =
+                std::make_unique<Manifest>(json,
+                                           bucket.getEPEngine()
+                                                   .getConfiguration()
+                                                   .getCollectionsMaxSize());
     } catch (std::exception& e) {
         LOG(EXTENSION_LOG_NOTICE,
             "Collections::Manager::update can't construct manifest e.what:%s",

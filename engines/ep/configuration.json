@@ -187,6 +187,11 @@
             "descr": "Enable the collections functionality. Warning breaks upgrades and compatibility with legacy clients",
             "type": "bool"
         },
+        "collections_max_size" : {
+            "default": "1000",
+            "descr": "The maximum number of collections allowed.",
+            "type": "size_t"
+        },
         "compaction_write_queue_cap": {
             "default": "10000",
             "desr" : "Disk write queue threshold after which compaction tasks will be made to snooze, if there are already pending compaction tasks",
