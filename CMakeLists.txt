@@ -98,10 +98,6 @@ INCLUDE_DIRECTORIES(AFTER
                     ${gmock_SOURCE_DIR}/include
                     ${phosphor_SOURCE_DIR}/include)
 
-# Configure GSL Lite to throw exceptions on any violations (default
-# is to call std::terminate with no message).
-ADD_DEFINITIONS(-Dgsl_CONFIG_CONTRACT_VIOLATION_THROWS)
-
 INCLUDE_DIRECTORIES(AFTER ${PROJECT_BINARY_DIR}/include)
 
 IF (MEMORY_ALLOCATOR)
