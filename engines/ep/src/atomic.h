@@ -245,7 +245,13 @@ public:
         }
     }
 
+    // Copy construction - increases ref-count on object by 1.
     SingleThreadedRCPtr(const SingleThreadedRCPtr<T> &other) : value(other.gimme()) {}
+
+    // Move construction - reference count is unchanged.
+    SingleThreadedRCPtr(SingleThreadedRCPtr<T>&& other) : value(other.value) {
+        other.value = nullptr;
+    }
 
     template <typename Y>
     SingleThreadedRCPtr(const SingleThreadedRCPtr<Y>& other)
@@ -284,6 +290,13 @@ public:
 
     SingleThreadedRCPtr<T> & operator =(const SingleThreadedRCPtr<T> &other) {
         reset(other);
+        return *this;
+    }
+
+    // Move-assignment - reference count is unchanged of incoming item.
+    SingleThreadedRCPtr<T>& operator=(SingleThreadedRCPtr<T>&& other) {
+        swap(other.value);
+        other.value = nullptr;
         return *this;
     }
 
