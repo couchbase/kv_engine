@@ -279,6 +279,11 @@ public:
         swap(other.gimme());
     }
 
+    // Swap - reference count is unchanged on each pointed-to object.
+    void swap(SingleThreadedRCPtr<T>& other) {
+        std::swap(this->value, other.value);
+    }
+
     int refCount() const {
         return static_cast<RCValue*>(value)->_rc_refcount.load();
     }
@@ -341,6 +346,12 @@ private:
 template <typename T, class... Args>
 SingleThreadedRCPtr<T> make_STRCPtr(Args&&... args) {
     return SingleThreadedRCPtr<T>(new T(std::forward<Args>(args)...));
+}
+
+// Makes SingleThreadedRCPtr support Swappable
+template <typename T>
+void swap(SingleThreadedRCPtr<T>& a, SingleThreadedRCPtr<T>& b) {
+    a.swap(b);
 }
 
 /**
