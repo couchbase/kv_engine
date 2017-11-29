@@ -35,14 +35,13 @@
 
 ENGINE_ERROR_CODE bucket_unknown_command(Cookie& cookie, ADD_RESPONSE response);
 
-void bucket_item_set_cas(Cookie& cookie, item* it, uint64_t cas)
-        CB_ATTR_NONNULL(2);
+void bucket_item_set_cas(Cookie& cookie, gsl::not_null<item*> it, uint64_t cas);
 
 void bucket_reset_stats(Cookie& cookie);
 
 bool bucket_get_item_info(Cookie& cookie,
-                          const item* item_,
-                          item_info* item_info_) CB_ATTR_NONNULL(2, 3);
+                          gsl::not_null<const item*> item_,
+                          gsl::not_null<item_info*> item_info_);
 
 cb::EngineErrorMetadataPair bucket_get_meta(Cookie& cookie,
                                             const DocKey& key,
@@ -50,26 +49,24 @@ cb::EngineErrorMetadataPair bucket_get_meta(Cookie& cookie,
 
 ENGINE_ERROR_CODE bucket_store(
         Cookie& cookie,
-        item* item_,
-        uint64_t* cas,
+        gsl::not_null<item*> item_,
+        gsl::not_null<uint64_t*> cas,
         ENGINE_STORE_OPERATION operation,
-        DocumentState document_state = DocumentState::Alive)
-        CB_ATTR_NONNULL(2, 3);
+        DocumentState document_state = DocumentState::Alive);
 
 cb::EngineErrorCasPair bucket_store_if(
         Cookie& cookie,
-        item* item_,
+        gsl::not_null<item*> item_,
         uint64_t cas,
         ENGINE_STORE_OPERATION operation,
         cb::StoreIfPredicate predicate,
-        DocumentState document_state = DocumentState::Alive) CB_ATTR_NONNULL(2);
+        DocumentState document_state = DocumentState::Alive);
 
 ENGINE_ERROR_CODE bucket_remove(Cookie& cookie,
                                 const DocKey& key,
-                                uint64_t* cas,
+                                gsl::not_null<uint64_t*> cas,
                                 uint16_t vbucket,
-                                mutation_descr_t* mut_info)
-        CB_ATTR_NONNULL(3, 5);
+                                gsl::not_null<mutation_descr_t*> mut_info);
 
 cb::EngineErrorItemPair bucket_get(
         Cookie& cookie,

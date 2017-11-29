@@ -41,7 +41,9 @@ ENGINE_ERROR_CODE bucket_unknown_command(Cookie& cookie,
     return ret;
 }
 
-void bucket_item_set_cas(Cookie& cookie, item* it, uint64_t cas) {
+void bucket_item_set_cas(Cookie& cookie,
+                         gsl::not_null<item*> it,
+                         uint64_t cas) {
     auto& c = cookie.getConnection();
     c.getBucketEngine()->item_set_cas(c.getBucketEngineAsV0(), it, cas);
 }
@@ -52,8 +54,8 @@ void bucket_reset_stats(Cookie& cookie) {
 }
 
 bool bucket_get_item_info(Cookie& cookie,
-                          const item* item_,
-                          item_info* item_info_) {
+                          gsl::not_null<const item*> item_,
+                          gsl::not_null<item_info*> item_info_) {
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine()->get_item_info(
             c.getBucketEngineAsV0(), item_, item_info_);
@@ -84,8 +86,8 @@ cb::EngineErrorMetadataPair bucket_get_meta(Cookie& cookie,
 }
 
 ENGINE_ERROR_CODE bucket_store(Cookie& cookie,
-                               item* item_,
-                               uint64_t* cas,
+                               gsl::not_null<item*> item_,
+                               gsl::not_null<uint64_t*> cas,
                                ENGINE_STORE_OPERATION operation,
                                DocumentState document_state) {
     auto& c = cookie.getConnection();
@@ -111,7 +113,7 @@ ENGINE_ERROR_CODE bucket_store(Cookie& cookie,
 }
 
 cb::EngineErrorCasPair bucket_store_if(Cookie& cookie,
-                                       item* item_,
+                                       gsl::not_null<item*> item_,
                                        uint64_t cas,
                                        ENGINE_STORE_OPERATION operation,
                                        cb::StoreIfPredicate predicate,
@@ -141,9 +143,9 @@ cb::EngineErrorCasPair bucket_store_if(Cookie& cookie,
 
 ENGINE_ERROR_CODE bucket_remove(Cookie& cookie,
                                 const DocKey& key,
-                                uint64_t* cas,
+                                gsl::not_null<uint64_t*> cas,
                                 uint16_t vbucket,
-                                mutation_descr_t* mut_info) {
+                                gsl::not_null<mutation_descr_t*> mut_info) {
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine()->remove(
             c.getBucketEngineAsV0(), &cookie, key, cas, vbucket, mut_info);
