@@ -487,8 +487,17 @@ class CompareQueuedItemsBySeqnoAndKey {
 public:
     CompareQueuedItemsBySeqnoAndKey() {}
     bool operator()(const queued_item &i1, const queued_item &i2) {
-        return i1->getKey() == i2->getKey()
-            ? i1->getBySeqno() > i2->getBySeqno()
-            : i1->getKey() < i2->getKey();
+        // First compare keys - if they differ then that's sufficient to
+        // distinguish them.
+        const auto comp = i1->getKey().compare(i2->getKey());
+        if (comp < 0) {
+            return true;
+        }
+        if (comp > 0) {
+            return false;
+        }
+
+        // Keys equal - need to check seqno.
+        return i1->getBySeqno() > i2->getBySeqno();
     }
 };

@@ -102,6 +102,10 @@ public:
         return &keydata.c_str()[namespaceBytes];
     }
 
+    int compare(const StoredDocKey& rhs) const {
+        return keydata.compare(rhs.keydata);
+    }
+
     /**
      * Return the key with the DocNamespace as a prefix.
      * Thus the "beer::bud" in the Collections namespace becomes "\1beer::bud"

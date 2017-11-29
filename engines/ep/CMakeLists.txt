@@ -342,6 +342,7 @@ TARGET_LINK_LIBRARIES(ep-engine_string_utils_test gtest gtest_main platform)
 
 ADD_EXECUTABLE(ep_engine_benchmarks
                benchmarks/access_scanner_bench.cc
+               benchmarks/item_bench.cc
                tests/mock/mock_synchronous_ep_engine.cc
                $<TARGET_OBJECTS:ep_objs>
                $<TARGET_OBJECTS:memory_tracking>
