@@ -71,7 +71,10 @@ void flush(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 void del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 	uint64_t cas = 0;
 	mutation_descr_t mut_info;
-    hasError = h1->remove(h, NULL, key, &cas, 0, &mut_info) != ENGINE_SUCCESS;
+        const auto* cookie = testHarness.create_cookie();
+        hasError =
+                h1->remove(h, cookie, key, cas, 0, mut_info) != ENGINE_SUCCESS;
+        testHarness.destroy_cookie(cookie);
 }
 
 void set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {

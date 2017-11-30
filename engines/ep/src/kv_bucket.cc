@@ -1598,7 +1598,7 @@ ENGINE_ERROR_CODE KVBucket::deleteItem(const DocKey& key,
                                        uint16_t vbucket,
                                        const void* cookie,
                                        ItemMetaData* itemMeta,
-                                       mutation_descr_t* mutInfo) {
+                                       mutation_descr_t& mutInfo) {
     VBucketPtr vb = getVBucket(vbucket);
     if (!vb || vb->getState() == vbucket_state_dead) {
         ++stats.numNotMyVBuckets;

@@ -89,13 +89,14 @@ protected:
         ASSERT_EQ(initial_seqno + 1, item_v1.getBySeqno());
         ASSERT_EQ(1, getEPBucket().flushVBucket(vbid));
         uint64_t cas = item_v1.getCas();
+        mutation_descr_t mutation_descr;
         ASSERT_EQ(ENGINE_SUCCESS,
                   store->deleteItem(a,
                                     cas,
                                     vbid,
                                     /*cookie*/ nullptr,
                                     /*itemMeta*/ nullptr,
-                                    /*mutation_descr_t*/ nullptr));
+                                    mutation_descr));
         if (flush_before_rollback) {
             ASSERT_EQ(1, getEPBucket().flushVBucket(vbid));
         }

@@ -187,13 +187,14 @@ void KVBucketTest::flushVBucketToDiskIfPersistent(uint16_t vbid, int expected) {
 
 void KVBucketTest::delete_item(uint16_t vbid, const DocKey& key) {
     uint64_t cas = 0;
+    mutation_descr_t mutation_descr;
     EXPECT_EQ(ENGINE_SUCCESS,
               store->deleteItem(key,
                                 cas,
                                 vbid,
                                 cookie,
                                 /*itemMeta*/ nullptr,
-                                /*mutation_descr_t*/ nullptr));
+                                mutation_descr));
 }
 
 void KVBucketTest::evict_key(uint16_t vbid, const DocKey& key) {
@@ -453,13 +454,14 @@ TEST_P(KVBucketParamTest, SetCASDeleted) {
 
     // Delete item
     uint64_t cas = 0;
+    mutation_descr_t mutation_descr;
     EXPECT_EQ(ENGINE_SUCCESS,
               store->deleteItem(key,
                                 cas,
                                 vbid,
                                 cookie,
-                      /*itemMeta*/ nullptr,
-                      /*mutation_descr_t*/ nullptr));
+                                /*itemMeta*/ nullptr,
+                                mutation_descr));
 
     if (engine->getConfiguration().getBucketType() == "persistent") {
         // Trigger a flush to disk.
@@ -670,13 +672,10 @@ TEST_P(KVBucketParamTest, mb22824) {
 
     uint64_t cas = 0;
     ItemMetaData itemMeta2;
+    mutation_descr_t mutation_descr;
     EXPECT_EQ(ENGINE_KEY_ENOENT,
-              store->deleteItem(key,
-                                cas,
-                                vbid,
-                                cookie,
-                                &itemMeta2,
-                                /*mutation_descr_t*/ nullptr));
+              store->deleteItem(
+                      key, cas, vbid, cookie, &itemMeta2, mutation_descr));
 
     // Should be getting the same CAS from the failed delete as getMetaData
     EXPECT_EQ(itemMeta1.cas, itemMeta2.cas);

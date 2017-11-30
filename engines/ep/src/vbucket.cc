@@ -1174,7 +1174,7 @@ ENGINE_ERROR_CODE VBucket::deleteItem(
         EventuallyPersistentEngine& engine,
         const int bgFetchDelay,
         ItemMetaData* itemMeta,
-        mutation_descr_t* mutInfo,
+        mutation_descr_t& mutInfo,
         const Collections::VB::Manifest::CachingReadHandle& readHandle) {
     auto hbl = ht.getLockedBucket(readHandle.getKey());
     StoredValue* v = ht.unlocked_find(readHandle.getKey(),
@@ -1283,10 +1283,8 @@ ENGINE_ERROR_CODE VBucket::deleteItem(
         cas = v->getCas();
 
         if (delrv != MutationStatus::NotFound) {
-            if (mutInfo) {
-                mutInfo->seqno = seqno;
-                mutInfo->vbucket_uuid = failovers->getLatestUUID();
-            }
+            mutInfo.seqno = seqno;
+            mutInfo.vbucket_uuid = failovers->getLatestUUID();
             if (itemMeta != nullptr) {
                 itemMeta->cas = v->getCas();
             }

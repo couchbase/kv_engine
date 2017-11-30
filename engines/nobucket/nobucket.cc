@@ -127,11 +127,11 @@ private:
     }
 
     static ENGINE_ERROR_CODE item_delete(gsl::not_null<ENGINE_HANDLE*>,
-                                         const void*,
+                                         gsl::not_null<const void*>,
                                          const DocKey&,
-                                         uint64_t*,
+                                         uint64_t&,
                                          uint16_t,
-                                         mutation_descr_t*) {
+                                         mutation_descr_t&) {
         return ENGINE_NO_BUCKET;
     }
 

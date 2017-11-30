@@ -51,11 +51,11 @@ static std::pair<cb::unique_item_ptr, item_info> default_item_allocate_ex(
 
 static ENGINE_ERROR_CODE default_item_delete(
         gsl::not_null<ENGINE_HANDLE*> handle,
-        const void* cookie,
+        gsl::not_null<const void*> cookie,
         const DocKey& key,
-        uint64_t* cas,
+        uint64_t& cas,
         uint16_t vbucket,
-        mutation_descr_t* mut_info);
+        mutation_descr_t& mut_info);
 
 static void default_item_release(gsl::not_null<ENGINE_HANDLE*> handle,
                                  gsl::not_null<item*> item);
@@ -391,14 +391,14 @@ static std::pair<cb::unique_item_ptr, item_info> default_item_allocate_ex(
 
 static ENGINE_ERROR_CODE default_item_delete(
         gsl::not_null<ENGINE_HANDLE*> handle,
-        const void* cookie,
+        gsl::not_null<const void*> cookie,
         const DocKey& key,
-        uint64_t* cas,
+        uint64_t& cas,
         uint16_t vbucket,
-        mutation_descr_t* mut_info) {
+        mutation_descr_t& mut_info) {
     struct default_engine* engine = get_handle(handle);
     hash_item* it;
-    uint64_t cas_in = *cas;
+    uint64_t cas_in = cas;
     VBUCKET_GUARD(engine, vbucket);
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
@@ -440,8 +440,12 @@ static ENGINE_ERROR_CODE default_item_delete(
             item_set_cas(handle, deleted, cas_in);
         }
 
-        ret = store_item(engine, deleted, cas, OPERATION_CAS,
-                         cookie, DocumentState::Deleted);
+        ret = store_item(engine,
+                         deleted,
+                         &cas,
+                         OPERATION_CAS,
+                         cookie,
+                         DocumentState::Deleted);
 
         item_release(engine, it);
         item_release(engine, deleted);
@@ -452,8 +456,8 @@ static ENGINE_ERROR_CODE default_item_delete(
 
     // vbucket UUID / seqno arn't supported by default engine, so just return
     // a hardcoded vbucket uuid, and zero for the sequence number.
-    mut_info->vbucket_uuid = DEFAULT_ENGINE_VBUCKET_UUID;
-    mut_info->seqno = 0;
+    mut_info.vbucket_uuid = DEFAULT_ENGINE_VBUCKET_UUID;
+    mut_info.seqno = 0;
 
     return ret;
 }

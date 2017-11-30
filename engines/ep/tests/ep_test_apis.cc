@@ -345,16 +345,30 @@ void createCheckpoint(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
 ENGINE_ERROR_CODE del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                       uint64_t cas, uint16_t vbucket, const void* cookie) {
-    mutation_descr_t mut_info;
-    return h1->remove(h, cookie, DocKey(key, testHarness.doc_namespace),
-                      &cas, vbucket, &mut_info);
+    mutation_descr_t mut_info{};
+    return del(h, h1, key, &cas, vbucket, cookie, &mut_info);
 }
 
 ENGINE_ERROR_CODE del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                       uint64_t* cas, uint16_t vbucket, const void* cookie,
                       mutation_descr_t* mut_info) {
-    return h1->remove(h, cookie, DocKey(key, testHarness.doc_namespace),
-                      cas, vbucket, mut_info);
+    bool create_cookie = false;
+    if (cookie == nullptr) {
+        cookie = testHarness.create_cookie();
+        create_cookie = true;
+    }
+
+    auto ret = h1->remove(h,
+                          cookie,
+                          DocKey(key, testHarness.doc_namespace),
+                          *cas,
+                          vbucket,
+                          *mut_info);
+    if (create_cookie) {
+        testHarness.destroy_cookie(cookie);
+    }
+
+    return ret;
 }
 
 /** Simplified version of store for handling the common case of performing

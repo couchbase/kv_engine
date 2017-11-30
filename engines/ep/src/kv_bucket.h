@@ -259,7 +259,7 @@ public:
                                  uint16_t vbucket,
                                  const void* cookie,
                                  ItemMetaData* itemMeta,
-                                 mutation_descr_t* mutInfo);
+                                 mutation_descr_t& mutInfo);
 
     ENGINE_ERROR_CODE deleteWithMeta(const DocKey& key,
                                      uint64_t& cas,

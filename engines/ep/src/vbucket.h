@@ -860,7 +860,7 @@ public:
             EventuallyPersistentEngine& engine,
             int bgFetchDelay,
             ItemMetaData* itemMeta,
-            mutation_descr_t* mutInfo,
+            mutation_descr_t& mutInfo,
             const Collections::VB::Manifest::CachingReadHandle& readHandle);
 
     /**

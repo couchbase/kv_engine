@@ -1291,7 +1291,7 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
         DocKey docKey(reinterpret_cast<const uint8_t*>(key),
                       keylen,
                       connection.getDocNamespace());
-        ret = bucket_remove(cookie, docKey, &new_cas, vbucket, &mdt);
+        ret = bucket_remove(cookie, docKey, new_cas, vbucket, mdt);
     } else {
         ret = bucket_store(cookie,
                            context.out_doc.get(),

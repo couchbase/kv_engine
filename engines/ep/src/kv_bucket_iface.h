@@ -264,7 +264,7 @@ public:
                                          uint16_t vbucket,
                                          const void* cookie,
                                          ItemMetaData* itemMeta,
-                                         mutation_descr_t* mutInfo) = 0;
+                                         mutation_descr_t& mutInfo) = 0;
 
     /**
      * Delete an item in the store from a non-front end operation (DCP, XDCR)

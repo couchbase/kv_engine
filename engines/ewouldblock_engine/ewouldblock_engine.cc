@@ -376,11 +376,11 @@ public:
     }
 
     static ENGINE_ERROR_CODE remove(gsl::not_null<ENGINE_HANDLE*> handle,
-                                    const void* cookie,
+                                    gsl::not_null<const void*> cookie,
                                     const DocKey& key,
-                                    uint64_t* cas,
+                                    uint64_t& cas,
                                     uint16_t vbucket,
-                                    mutation_descr_t* mut_info) {
+                                    mutation_descr_t& mut_info) {
         EWB_Engine* ewb = to_engine(handle);
         ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
         if (ewb->should_inject_error(Cmd::REMOVE, cookie, err)) {

@@ -297,11 +297,11 @@ typedef struct engine_interface_v1 {
      */
     ENGINE_ERROR_CODE(*remove)
     (gsl::not_null<ENGINE_HANDLE*> handle,
-     const void* cookie,
+     gsl::not_null<const void*> cookie,
      const DocKey& key,
-     uint64_t* cas,
+     uint64_t& cas,
      uint16_t vbucket,
-     mutation_descr_t* mut_info);
+     mutation_descr_t& mut_info);
 
     /**
      * Indicate that a caller who received an item no longer needs

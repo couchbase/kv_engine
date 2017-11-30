@@ -180,9 +180,14 @@ TEST_F(CollectionsTest, MB_25344) {
 
     // Delete should fail
     uint64_t cas = 0;
+    mutation_descr_t mutation_descr;
     EXPECT_EQ(ENGINE_KEY_ENOENT,
-              store->deleteItem(
-                      item2.getKey(), cas, vbid, cookie, nullptr, nullptr));
+              store->deleteItem(item2.getKey(),
+                                cas,
+                                vbid,
+                                cookie,
+                                nullptr,
+                                mutation_descr));
 
     // Unlock should fail enoent rather than an unlock error
     EXPECT_EQ(ENGINE_KEY_ENOENT,

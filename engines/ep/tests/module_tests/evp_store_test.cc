@@ -449,11 +449,14 @@ TEST_P(EPStoreEvictionTest, checkIfResidentAfterBgFetch) {
 
     //Now, delete the item
     uint64_t cas = 0;
+    mutation_descr_t mutation_descr;
     ASSERT_EQ(ENGINE_SUCCESS,
-              store->deleteItem(dockey, cas, vbid,
+              store->deleteItem(dockey,
+                                cas,
+                                vbid,
                                 /*cookie*/ cookie,
                                 /*itemMeta*/ nullptr,
-                                /*mutation_descr_t*/ nullptr));
+                                mutation_descr));
 
     flush_vbucket_to_disk(vbid);
 
@@ -693,11 +696,14 @@ TEST_P(EPStoreEvictionTest, getDeletedItemWithNoValue) {
     flush_vbucket_to_disk(vbid);
 
     uint64_t cas = 0;
+    mutation_descr_t mutation_descr;
     ASSERT_EQ(ENGINE_SUCCESS,
-              store->deleteItem(dockey, cas, vbid,
+              store->deleteItem(dockey,
+                                cas,
+                                vbid,
                                 /*cookie*/ cookie,
                                 /*itemMeta*/ nullptr,
-                                /*mutation_descr_t*/ nullptr));
+                                mutation_descr));
 
     // Ensure that the delete has been persisted
     flush_vbucket_to_disk(vbid);

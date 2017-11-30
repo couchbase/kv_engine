@@ -149,11 +149,11 @@ static std::pair<cb::unique_item_ptr, item_info> item_allocate_ex(
 }
 
 static ENGINE_ERROR_CODE item_delete(gsl::not_null<ENGINE_HANDLE*> handle,
-                                     const void* cookie,
+                                     gsl::not_null<const void*> cookie,
                                      const DocKey& key,
-                                     uint64_t* cas,
+                                     uint64_t& cas,
                                      uint16_t vbucket,
-                                     mutation_descr_t* mut_info) {
+                                     mutation_descr_t& mut_info) {
     return ENGINE_FAILED;
 }
 

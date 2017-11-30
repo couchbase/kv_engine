@@ -125,7 +125,7 @@ public:
                                  uint64_t& cas,
                                  uint16_t vbucket,
                                  ItemMetaData* item_meta,
-                                 mutation_descr_t* mut_info) {
+                                 mutation_descr_t& mut_info) {
         ENGINE_ERROR_CODE ret = kvBucket->deleteItem(key,
                                                      cas,
                                                      vbucket,

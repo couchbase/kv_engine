@@ -249,12 +249,13 @@ TEST_P(DatatypeStatTest, datatypeDeletion) {
     auto vals = get_stat(nullptr);
     EXPECT_EQ(1, std::stoi(vals["ep_active_datatype_json,xattr"]));
     uint64_t cas = 0;
+    mutation_descr_t mutation_descr;
     store->deleteItem({"jsonXattrDoc", DocNamespace::DefaultCollection},
                       cas,
                       0,
                       cookie,
                       nullptr,
-                      nullptr);
+                      mutation_descr);
     vals = get_stat(nullptr);
     EXPECT_EQ(0, std::stoi(vals["ep_active_datatype_json,xattr"]));
 }

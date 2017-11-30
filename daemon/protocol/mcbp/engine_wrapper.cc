@@ -143,9 +143,9 @@ cb::EngineErrorCasPair bucket_store_if(Cookie& cookie,
 
 ENGINE_ERROR_CODE bucket_remove(Cookie& cookie,
                                 const DocKey& key,
-                                gsl::not_null<uint64_t*> cas,
+                                uint64_t& cas,
                                 uint16_t vbucket,
-                                gsl::not_null<mutation_descr_t*> mut_info) {
+                                mutation_descr_t& mut_info) {
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine()->remove(
             c.getBucketEngineAsV0(), &cookie, key, cas, vbucket, mut_info);

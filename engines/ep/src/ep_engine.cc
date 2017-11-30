@@ -216,19 +216,13 @@ static std::pair<cb::unique_item_ptr, item_info> EvpItemAllocateEx(
 }
 
 static ENGINE_ERROR_CODE EvpItemDelete(gsl::not_null<ENGINE_HANDLE*> handle,
-                                       const void* cookie,
+                                       gsl::not_null<const void*> cookie,
                                        const DocKey& key,
-                                       uint64_t* cas,
+                                       uint64_t& cas,
                                        uint16_t vbucket,
-                                       mutation_descr_t* mut_info) {
-    if (!cas) {
-        LOG(EXTENSION_LOG_WARNING,
-            "EvpItemDelete(): cas ptr passed is null for vb: %" PRIu16,
-            vbucket);
-        return ENGINE_EINVAL;
-    }
+                                       mutation_descr_t& mut_info) {
     return acquireEngine(handle)->itemDelete(
-            cookie, key, *cas, vbucket, nullptr, mut_info);
+            cookie, key, cas, vbucket, nullptr, mut_info);
 }
 
 static void EvpItemRelease(gsl::not_null<ENGINE_HANDLE*> handle,
@@ -4905,9 +4899,10 @@ EventuallyPersistentEngine::returnMeta(const void* cookie,
         delete itm;
     } else if (mutate_type == DEL_RET_META) {
         ItemMetaData itm_meta;
+        mutation_descr_t mutation_descr;
         DocKey key(keyPtr, keylen, docNamespace);
         ret = kvBucket->deleteItem(
-                key, cas, vbucket, cookie, &itm_meta, nullptr);
+                key, cas, vbucket, cookie, &itm_meta, mutation_descr);
         if (ret == ENGINE_SUCCESS) {
             ++stats.numOpsDelRetMeta;
         }
