@@ -724,7 +724,7 @@ public:
     virtual void attemptToFreeMemory();
 
     void wakeUpCheckpointRemover() {
-        if (chkTask->getState() == TASK_SNOOZED) {
+        if (chkTask && chkTask->getState() == TASK_SNOOZED) {
             ExecutorPool::get()->wake(chkTask->getId());
         }
     }

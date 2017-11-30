@@ -347,6 +347,7 @@ ADD_EXECUTABLE(ep_engine_benchmarks
                benchmarks/engine_fixture.cc
                benchmarks/ep_engine_benchmarks_main.cc
                benchmarks/item_bench.cc
+               benchmarks/vbucket_bench.cc
                tests/mock/mock_synchronous_ep_engine.cc
                $<TARGET_OBJECTS:ep_objs>
                $<TARGET_OBJECTS:memory_tracking>
