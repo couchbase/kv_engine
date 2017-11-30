@@ -75,11 +75,11 @@ public:
 
     ~AtomicPtr() {}
 
-    T *operator ->() {
+    T *operator ->() const noexcept {
         return std::atomic<T*>::load();
     }
 
-    T &operator *() {
+    T &operator *() const noexcept {
         return *std::atomic<T*>::load();
     }
 
@@ -125,6 +125,7 @@ public:
     RCValue() : _rc_refcount(0) {}
     RCValue(const RCValue &) : _rc_refcount(0) {}
     ~RCValue() {}
+
 private:
     template <class MyTT> friend class RCPtr;
     template <class MySS> friend class SingleThreadedRCPtr;
@@ -134,6 +135,12 @@ private:
 
     int _rc_decref() const {
         return --_rc_refcount;
+    }
+
+    // A get method to ensure that SingleThreadedRCPtr does not need to directly
+    // refer to a RCValue.
+    const RCValue& getRCValue() const {
+        return *this;
     }
 
     mutable std::atomic<int> _rc_refcount;
@@ -147,21 +154,21 @@ class RCPtr {
 public:
     RCPtr(C *init = NULL) : value(init) {
         if (init != NULL) {
-            static_cast<RCValue*>(value)->_rc_incref();
+            value->getRCValue()._rc_incref();
         }
     }
 
     RCPtr(const RCPtr<C> &other) : value(other.gimme()) {}
 
     ~RCPtr() {
-        if (value && static_cast<RCValue *>(value)->_rc_decref() == 0) {
+        if (value && value->getRCValue()._rc_decref() == 0) {
             delete get();
         }
     }
 
     void reset(C *newValue = NULL) {
         if (newValue != NULL) {
-            static_cast<RCValue *>(newValue)->_rc_incref();
+            newValue->getRCValue()._rc_incref();
         }
         swap(newValue);
     }
@@ -200,7 +207,7 @@ private:
     C *gimme() const {
         std::lock_guard<SpinLock> lh(lock);
         if (value) {
-            static_cast<RCValue *>(value)->_rc_incref();
+            value->getRCValue()._rc_incref();
         }
         return value;
     }
@@ -211,7 +218,7 @@ private:
             std::lock_guard<SpinLock> lh(lock);
             tmp = value.exchange(newValue);
         }
-        if (tmp != NULL && static_cast<RCValue *>(tmp)->_rc_decref() == 0) {
+        if (tmp != NULL && tmp->getRCValue()._rc_decref() == 0) {
             delete tmp;
         }
     }
@@ -241,7 +248,7 @@ class SingleThreadedRCPtr {
 public:
     SingleThreadedRCPtr(T *init = NULL) : value(init) {
         if (init != NULL) {
-            static_cast<RCValue*>(value)->_rc_incref();
+            value->getRCValue()._rc_incref();
         }
     }
 
@@ -263,14 +270,14 @@ public:
     }
 
     ~SingleThreadedRCPtr() {
-        if (value && static_cast<RCValue *>(value)->_rc_decref() == 0) {
+        if (value && value->getRCValue()._rc_decref() == 0) {
             delete value;
         }
     }
 
     void reset(T *newValue = NULL) {
         if (newValue != NULL) {
-            static_cast<RCValue *>(newValue)->_rc_incref();
+            newValue->getRCValue()._rc_incref();
         }
         swap(newValue);
     }
@@ -285,7 +292,7 @@ public:
     }
 
     int refCount() const {
-        return static_cast<RCValue*>(value)->_rc_refcount.load();
+        return value->getRCValue()._rc_refcount.load();
     }
 
     // safe for the lifetime of this instance
@@ -327,7 +334,7 @@ private:
 
     T *gimme() const {
         if (value) {
-            static_cast<RCValue *>(value)->_rc_incref();
+            value->getRCValue()._rc_incref();
         }
         return value;
     }
@@ -335,7 +342,7 @@ private:
     void swap(T *newValue) {
         T *old = value;
         value = newValue;
-        if (old != NULL && static_cast<RCValue *>(old)->_rc_decref() == 0) {
+        if (old != NULL && old->getRCValue()._rc_decref() == 0) {
             delete old;
         }
     }
