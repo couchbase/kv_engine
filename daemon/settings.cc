@@ -1115,6 +1115,15 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         }
     }
 
+    if (other.has.collections_prototype) {
+        if (other.collections_prototype != collections_prototype) {
+            logit(EXTENSION_LOG_NOTICE,
+                  "%s collections_prototype",
+                  other.collections_prototype.load() ? "Enable" : "Disable");
+            setCollectionsPrototype(other.collections_prototype.load());
+        }
+    }
+
     if (other.has.interfaces) {
         // validate that we haven't changed stuff in the entries
         auto total = interfaces.size();
