@@ -15,72 +15,17 @@
  *   limitations under the License.
  */
 
+/*
+ * Benchmarks for the AccessScanner class - measuring speed and memory overhead.
+ */
+
 #include <access_scanner.h>
-#include <benchmark/benchmark.h>
 #include <fakes/fake_executorpool.h>
 #include <mock/mock_synchronous_ep_engine.h>
-#include <programs/engine_testapp/mock_server.h>
 
 #include "benchmark_memory_tracker.h"
-#include "dcp/dcpconnmap.h"
-#include "ep_time.h"
-#include "item.h"
 
-class EngineFixture : public benchmark::Fixture {
-protected:
-    void SetUp(const benchmark::State& state) override {
-        SingleThreadedExecutorPool::replaceExecutorPoolWithFake();
-        executorPool = reinterpret_cast<SingleThreadedExecutorPool*>(
-                ExecutorPool::get());
-        memoryTracker = BenchmarkMemoryTracker::getInstance(
-                *get_mock_server_api()->alloc_hooks);
-        memoryTracker->reset();
-        std::string config = "dbname=benchmarks-test;ht_locks=47;" + varConfig;
-
-        engine.reset(new SynchronousEPEngine(config));
-        ObjectRegistry::onSwitchThread(engine.get());
-
-        engine->setKVBucket(
-                engine->public_makeBucket(engine->getConfiguration()));
-
-        engine->public_initializeEngineCallbacks();
-        initialize_time_functions(get_mock_server_api()->core);
-        cookie = create_mock_cookie();
-    }
-
-    void TearDown(const benchmark::State& state) override {
-        executorPool->cancelAndClearAll();
-        destroy_mock_cookie(cookie);
-        destroy_mock_event_callbacks();
-        engine->getDcpConnMap().manageConnections();
-        engine.reset();
-        ObjectRegistry::onSwitchThread(nullptr);
-        ExecutorPool::shutdown();
-        memoryTracker->destroyInstance();
-    }
-
-    Item make_item(uint16_t vbid,
-                   const std::string& key,
-                   const std::string& value) {
-        Item item({key, DocNamespace::DefaultCollection},
-                  /*flags*/ 0,
-                  /*exp*/ 0,
-                  value.c_str(),
-                  value.size(),
-                  PROTOCOL_BINARY_DATATYPE_JSON);
-        item.setVBucketId(vbid);
-        return item;
-    }
-
-    std::unique_ptr<SynchronousEPEngine> engine;
-    const void* cookie = nullptr;
-    const int vbid = 0;
-
-    // Allows subclasses to add stuff to the config
-    std::string varConfig;
-    BenchmarkMemoryTracker* memoryTracker;
-    SingleThreadedExecutorPool* executorPool;
-};
+#include "engine_fixture.h"
 
 class AccessLogBenchEngine : public EngineFixture {
 protected:
@@ -166,15 +111,3 @@ static void AccessScannerArguments(benchmark::internal::Benchmark* b) {
 BENCHMARK_REGISTER_F(AccessLogBenchEngine, MemoryOverhead)
         ->Apply(AccessScannerArguments)
         ->MinTime(0.000001);
-
-static char allow_no_stats_env[] = "ALLOW_NO_STATS_UPDATE=yeah";
-int main(int argc, char** argv) {
-    putenv(allow_no_stats_env);
-    mock_init_alloc_hooks();
-    init_mock_server(true);
-    initialize_time_functions(get_mock_server_api()->core);
-    ::benchmark::Initialize(&argc, argv);
-    ::benchmark::RunSpecifiedBenchmarks();
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}

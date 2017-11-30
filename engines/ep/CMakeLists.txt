@@ -342,6 +342,10 @@ TARGET_LINK_LIBRARIES(ep-engine_string_utils_test gtest gtest_main platform)
 
 ADD_EXECUTABLE(ep_engine_benchmarks
                benchmarks/access_scanner_bench.cc
+               benchmarks/benchmark_memory_tracker.cc
+               benchmarks/defragmenter_bench.cc
+               benchmarks/engine_fixture.cc
+               benchmarks/ep_engine_benchmarks_main.cc
                benchmarks/item_bench.cc
                tests/mock/mock_synchronous_ep_engine.cc
                $<TARGET_OBJECTS:ep_objs>
@@ -351,8 +355,6 @@ ADD_EXECUTABLE(ep_engine_benchmarks
                ${Memcached_SOURCE_DIR}/daemon/doc_pre_expiry.cc
                ${Memcached_SOURCE_DIR}/daemon/protocol/mcbp/engine_errc_2_mcbp.cc
                ${Memcached_SOURCE_DIR}/utilities/string_utilities.cc
-               benchmarks/benchmark_memory_tracker.cc
-               benchmarks/defragmenter_bench.cc
                tests/module_tests/vbucket_test.cc)
 
 TARGET_LINK_LIBRARIES(ep_engine_benchmarks benchmark platform xattr
