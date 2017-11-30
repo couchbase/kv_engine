@@ -1,3 +1,15 @@
+- test: ep_benchmarks
+  command: "build/kv_engine/ep_engine_benchmarks
+                --benchmark_filter=FlushVBucket
+                --benchmark_out_format=json
+                --benchmark_out=benchmark_output.json &&
+            python kv_engine/scripts/benchmark2xml.py
+                --benchmark_file=benchmark_output.json
+                --output_file=benchmark_results.xml --time_format=ns
+                --in_place --cpu_time"
+  output:
+    - "benchmark_results.xml"
+
 - test: perfsuite
   command: "build/kv_engine/engine_testapp -E build/kv_engine/ep.so -T build/kv_engine/ep_perfsuite.so -v -e dbname=./value_eviction_perf -f xml &&
             python kv_engine/scripts/cbnt_perfsuite_strip_results.py -d . -p output -i '.pct99' -i '.pct95'"

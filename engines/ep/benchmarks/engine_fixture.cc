@@ -19,6 +19,7 @@
 
 #include <fakes/fake_executorpool.h>
 #include <mock/mock_synchronous_ep_engine.h>
+#include <platform/dirutils.h>
 #include <programs/engine_testapp/mock_server.h>
 #include <thread>
 
@@ -59,6 +60,7 @@ void EngineFixture::TearDown(const benchmark::State& state) {
         engine->getDcpConnMap().manageConnections();
         engine.reset();
         ExecutorPool::shutdown();
+        cb::io::rmrf("benchmarks-test");
     }
     ObjectRegistry::onSwitchThread(nullptr);
 }

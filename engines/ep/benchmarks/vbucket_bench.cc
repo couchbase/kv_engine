@@ -22,6 +22,7 @@
 #include "benchmark_memory_tracker.h"
 #include "checkpoint_manager.h"
 #include "engine_fixture.h"
+#include "fakes/fake_executorpool.h"
 #include "stored_value_factories.h"
 
 #include "../tests/module_tests/thread_gate.h"
@@ -33,13 +34,27 @@
 
 #include <algorithm>
 
+enum class Store { Couchstore = 0, RocksDB = 1 };
+
+static std::string to_string(Store store) {
+    switch (store) {
+    case Store::Couchstore:
+        return "couchdb";
+    case Store::RocksDB:
+        return "rocksdb";
+    }
+    throw std::invalid_argument("to_string(Store): invalid enumeration " +
+                                std::to_string(int(store)));
+}
+
 class VBucketBench : public EngineFixture {
 protected:
     void SetUp(const benchmark::State& state) override {
-        // A number of benchmarks require more than the default 100MB bucket
-        // quota - bump to ~1GB.
-        varConfig = "max_size=1000000000";
-
+        store = Store(state.range(0));
+        varConfig = "backend=" + to_string(store) +
+                    // A number of benchmarks require more than the default
+                    // 100MB bucket quota - bump to ~1GB.
+                    ";max_size=1000000000";
         EngineFixture::SetUp(state);
         if (state.thread_index == 0) {
             engine->getKVBucket()->setVBucketState(
@@ -49,7 +64,11 @@ protected:
 
     void TearDown(const benchmark::State& state) override {
         if (state.thread_index == 0) {
-            engine->getKVBucket()->deleteVBucket(vbid, this);
+            ASSERT_EQ(ENGINE_SUCCESS,
+                      engine->getKVBucket()->deleteVBucket(vbid, nullptr));
+            executorPool->runNextTask(
+                    AUXIO_TASK_IDX,
+                    "Removing (dead) vb:0 from memory and disk");
         }
         EngineFixture::TearDown(state);
     }
@@ -66,6 +85,8 @@ protected:
         } while (moreAvailable);
         return itemsFlushed;
     }
+
+    Store store;
 };
 
 /**
@@ -85,9 +106,9 @@ protected:
 
     void TearDown(const benchmark::State& state) override {
         if (state.thread_index == 0) {
-            engine->getKVBucket()->deleteVBucket(vbid, this);
+            memoryTracker->destroyInstance();
         }
-        EngineFixture::TearDown(state);
+        VBucketBench::TearDown(state);
     }
 
     BenchmarkMemoryTracker* memoryTracker;
@@ -125,7 +146,7 @@ protected:
  */
 BENCHMARK_DEFINE_F(MemTrackingVBucketBench, QueueDirty)
 (benchmark::State& state) {
-    const auto itemCount = state.range(0);
+    const auto itemCount = state.range(1);
 
     std::default_random_engine gen;
     auto makeKeyWithDuplicates = [&gen](int i) {
@@ -179,7 +200,7 @@ BENCHMARK_DEFINE_F(MemTrackingVBucketBench, QueueDirty)
 
 BENCHMARK_DEFINE_F(MemTrackingVBucketBench, FlushVBucket)
 (benchmark::State& state) {
-    const auto itemCount = state.range(0);
+    const auto itemCount = state.range(1);
     int itemsFlushedTotal = 0;
 
     // Memory size before flushing.
@@ -211,6 +232,7 @@ BENCHMARK_DEFINE_F(MemTrackingVBucketBench, FlushVBucket)
         itemsFlushedTotal += itemsFlushed;
     }
     state.SetItemsProcessed(itemsFlushedTotal);
+    state.SetLabel(std::string("store:" + to_string(store)).c_str());
     // Peak memory usage while flushing, minus baseline.
     state.counters["PeakFlushBytes"] = peakBytes - baseBytes;
     state.counters["PeakBytesPerItem"] = (peakBytes - baseBytes) / itemCount;
@@ -442,11 +464,16 @@ BENCHMARK_REGISTER_F(MemTrackingVBucketBench, QueueDirty)
         ->Args({10000})
         ->Args({1000000});
 
-BENCHMARK_REGISTER_F(MemTrackingVBucketBench, FlushVBucket)
-        ->RangeMultiplier(10)
-        ->Range(1, 1000000);
+static void FlushArguments(benchmark::internal::Benchmark* b) {
+    // Add both couchstore (0) and rocksdb (1) variants for a range of sizes.
+    for (size_t items = 1; items <= 1000000; items *= 100) {
+        b->ArgPair(0, items);
+        b->ArgPair(1, items);
+    }
+}
 
-BENCHMARK_REGISTER_F(VBucketBench, CreateDeleteStoredValue)->Threads(16);
+BENCHMARK_REGISTER_F(MemTrackingVBucketBench, FlushVBucket)
+        ->Apply(FlushArguments);
 
 BENCHMARK_REGISTER_F(CheckpointBench, QueueDirtyWithManyClosedUnrefCheckpoints)
         ->Args({100})

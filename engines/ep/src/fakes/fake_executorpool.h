@@ -134,6 +134,12 @@ public:
         return taskLocator;
     };
 
+    /**
+     * Runs the next task with the expected name from the given task queue.
+     * The task is run synchronously in the current thread.
+     */
+    void runNextTask(task_type_t taskType, std::string expectedTask);
+
 private:
     void cancelAll_UNLOCKED() {
         for (auto& it : taskLocator) {
@@ -248,3 +254,10 @@ private:
      */
     std::function<void(bool)> checker;
 };
+
+inline void SingleThreadedExecutorPool::runNextTask(task_type_t taskType,
+                                                    std::string expectedTask) {
+    CheckedExecutor executor(this, *getLpTaskQ()[taskType]);
+    executor.runCurrentTask(expectedTask);
+    executor.completeCurrentTask();
+}

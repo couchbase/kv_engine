@@ -54,14 +54,6 @@ protected:
     BenchmarkMemoryTracker* memoryTracker;
 };
 
-ProcessClock::time_point runNextTask(SingleThreadedExecutorPool* pool,
-                                     task_type_t taskType,
-                                     std::string expectedTask) {
-    CheckedExecutor executor(pool, *pool->getLpTaskQ()[taskType]);
-    executor.runCurrentTask(expectedTask);
-    return executor.completeCurrentTask();
-}
-
 /*
  * Varies whether the access scanner is running or not. Also varies the
  * number of items stored in the vbucket. The purpose of this benchmark is to
@@ -101,14 +93,9 @@ BENCHMARK_DEFINE_F(AccessLogBenchEngine, MemoryOverhead)
     while (state.KeepRunning()) {
         if (state.range(0) == 1) {
             executorPool->wake(task->getId());
-            runNextTask(executorPool,
-                        AUXIO_TASK_IDX,
-                        "Generating access "
-                        "log");
-            runNextTask(executorPool,
-                        AUXIO_TASK_IDX,
-                        "Item Access Scanner on"
-                        " vb 0");
+            executorPool->runNextTask(AUXIO_TASK_IDX, "Generating access log");
+            executorPool->runNextTask(AUXIO_TASK_IDX,
+                                      "Item Access Scanner on vb:0");
         }
     }
     state.counters["MaxBytesAllocatedPerItem"] =
