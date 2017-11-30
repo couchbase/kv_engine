@@ -135,8 +135,8 @@ public:
 protected:
     void flushOneDeleteAll();
 
-    PersistenceCallback* flushOneDelOrSet(const queued_item& qi,
-                                          VBucketPtr& vb);
+    std::unique_ptr<PersistenceCallback> flushOneDelOrSet(const queued_item& qi,
+                                                          VBucketPtr& vb);
 
     /**
      * Compaction of a database file

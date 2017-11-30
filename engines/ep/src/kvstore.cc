@@ -29,10 +29,12 @@
 #ifdef EP_USE_ROCKSDB
 #include "rocksdb-kvstore/rocksdb-kvstore.h"
 #endif
-#include "kvstore_config.h"
-#include "statwriter.h"
 #include "kvstore.h"
+#include "kvstore_config.h"
+#include "persistence_callback.h"
+#include "statwriter.h"
 #include "vbucket.h"
+
 #include <platform/dirutils.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -218,6 +220,12 @@ void KVStore::addStat(const std::string &prefix, const char *stat, T &val,
     fullstat << prefix << ":" << stat;
     add_casted_stat(fullstat.str().c_str(), val, add_stat, c);
 }
+
+KVStore::KVStore(KVStoreConfig& config, bool read_only)
+    : configuration(config), readOnly(read_only) {
+}
+
+KVStore::~KVStore() = default;
 
 void KVStore::addStats(ADD_STAT add_stat, const void *c) {
     const char* backend = configuration.getBackend().c_str();

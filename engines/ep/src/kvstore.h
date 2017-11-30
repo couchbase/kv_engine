@@ -30,6 +30,7 @@
 #include <relaxed_atomic.h>
 #include <atomic>
 #include <cstring>
+#include <deque>
 #include <list>
 #include <map>
 #include <string>
@@ -443,10 +444,13 @@ private:
  */
 class KVStore {
 public:
-    KVStore(KVStoreConfig &config, bool read_only = false)
-        : configuration(config), readOnly(read_only) {}
+    /// Ordered container of persistence callbacks currently registered.
+    using PersistenceCallbacks =
+            std::deque<std::unique_ptr<PersistenceCallback>>;
 
-    virtual ~KVStore() {}
+    KVStore(KVStoreConfig& config, bool read_only = false);
+
+    virtual ~KVStore();
 
     /**
      * Allow the kvstore to add extra statistics information
@@ -655,7 +659,7 @@ public:
      */
     void optimizeWrites(std::vector<queued_item>& items);
 
-    std::list<PersistenceCallback *>& getPersistenceCbList() {
+    PersistenceCallbacks& getPersistenceCbList() {
         return pcbs;
     }
 
@@ -743,7 +747,8 @@ protected:
        RelaxedAtomic to allow stats access without lock. */
     std::vector<Couchbase::RelaxedAtomic<size_t>> cachedDocCount;
     Couchbase::RelaxedAtomic<uint16_t> cachedValidVBCount;
-    std::list<PersistenceCallback *> pcbs;
+
+    PersistenceCallbacks pcbs;
 
     void createDataDir(const std::string& dbname);
     template <typename T>
