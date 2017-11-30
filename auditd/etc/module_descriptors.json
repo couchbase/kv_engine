@@ -38,6 +38,12 @@
                                "startid" :28672,
                                "file" : "goproj/src/github.com/couchbase/query/etc/audit_descriptor.json"
                               }
-               }
+               },
+               {
+                "eventing" :  {
+                               "startid" : 32768,
+                               "file" : "goproj/src/github.com/couchbase/eventing/audit/audit_descriptor.json"
+                              }
+                }
              ]
 }
