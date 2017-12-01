@@ -21,13 +21,14 @@
 #include <algorithm>
 #include <limits>
 
+#include <platform/histogram.h>
+#include <platform/timeutils.h>
 #include "atomic_unordered_map.h"
 #include "checkpoint.h"
 #include "common.h"
 #include "dcp/stream.h"
-#include <platform/histogram.h>
-#include <platform/timeutils.h>
 #include "item.h"
+#include "persistence_callback.h"
 #include "stored-value.h"
 #include "vbucket.h"
 
@@ -75,6 +76,7 @@ int main(int, char **) {
     display("HistogramBin<int>", sizeof(HistogramBin<int>));
     display("HistogramBin<microseconds>",
             sizeof(MicrosecondHistogram::bin_type));
+    display("PersistenceCallback", sizeof(PersistenceCallback));
     display("AtomicUnorderedMap<uint32_t, SingleThreadedRCPtr<Stream>>",
             sizeof(AtomicUnorderedMap<uint32_t, SingleThreadedRCPtr<Stream>>));
 

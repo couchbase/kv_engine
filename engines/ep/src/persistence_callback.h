@@ -24,6 +24,15 @@
 
 class EPStats;
 
+struct EPTransactionContext : public TransactionContext {
+    EPTransactionContext(EPStats& stats, VBucket& vbucket)
+        : stats(stats), vbucket(vbucket) {
+    }
+
+    EPStats& stats;
+    VBucket& vbucket;
+};
+
 /**
  * Callback invoked after persisting an item from memory to disk.
  *
@@ -36,8 +45,6 @@ class PersistenceCallback
           public Callback<TransactionContext, int> {
 public:
     PersistenceCallback(const queued_item& qi,
-                        VBucketPtr& vb,
-                        EPStats& s,
                         uint64_t c);
 
     ~PersistenceCallback();
@@ -51,16 +58,10 @@ public:
     // successfully deleted the item.
     void callback(TransactionContext&, int& value) override;
 
-    VBucketPtr& getVBucket() {
-        return vbucket;
-    }
-
 private:
-    void redirty();
+    void redirty(EPStats& stats, VBucket& vbucket);
 
     const queued_item queuedItem;
-    VBucketPtr vbucket;
-    EPStats& stats;
     uint64_t cas;
     DISALLOW_COPY_AND_ASSIGN(PersistenceCallback);
 };

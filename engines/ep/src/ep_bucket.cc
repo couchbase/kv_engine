@@ -251,7 +251,7 @@ int EPBucket::flushVBucket(uint16_t vbid) {
 
         if (!items.empty()) {
             while (!rwUnderlying->begin(
-                    std::make_unique<TransactionContext>())) {
+                    std::make_unique<EPTransactionContext>(stats, *vb))) {
                 ++stats.beginFailed;
                 LOG(EXTENSION_LOG_WARNING, "Failed to start a transaction!!! "
                     "Retry in 1 sec ...");
@@ -641,14 +641,13 @@ std::unique_ptr<PersistenceCallback> EPBucket::flushOneDelOrSet(
                          &stats.diskInsertHisto : &stats.diskUpdateHisto,
                          bySeqno == -1 ? "disk_insert" : "disk_update",
                          stats.timingLog);
-        auto cb = std::make_unique<PersistenceCallback>(
-                qi, vb, stats, qi->getCas());
+        auto cb = std::make_unique<PersistenceCallback>(qi, qi->getCas());
         rwUnderlying->set(*qi, *cb);
         return cb;
     } else {
         BlockTimer timer(&stats.diskDelHisto, "disk_delete",
                          stats.timingLog);
-        auto cb = std::make_unique<PersistenceCallback>(qi, vb, stats, 0);
+        auto cb = std::make_unique<PersistenceCallback>(qi, 0);
         rwUnderlying->del(*qi, *cb);
         return cb;
     }
