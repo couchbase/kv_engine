@@ -73,6 +73,16 @@ typedef struct {
 } compaction_ctx;
 
 /**
+ * State associated with a KVStore transaction (begin() / commit() pair).
+ * Users would typically subclass this, and provide an instance to begin().
+ * The KVStore will then provide a pointer to it during every persistenca
+ * callback.
+ */
+struct TransactionContext {
+    virtual ~TransactionContext(){};
+};
+
+/**
  * Result of database mutation operations.
  *
  * This is a pair where .first is the number of rows affected, and
@@ -496,9 +506,14 @@ public:
     /**
      * Begin a transaction (if not already in one).
      *
+     * @param txCtx A transaction context to associate with this transaction.
+     *        The context will be passed to each operations' completion
+     *        callback, so this can be used to hold state common to the entire
+     *        transaction without having to duplicate it in every Callback.
+     *
      * @return false if we cannot begin a transaction
      */
-    virtual bool begin() = 0;
+    virtual bool begin(std::unique_ptr<TransactionContext> txCtx) = 0;
 
     /**
      * Commit a transaction (unless not currently in one).
@@ -522,9 +537,13 @@ public:
 
     /**
      * Set an item into the kv store.
+     *
+     * @param item The item to store
+     * @param cb Pointer to a callback object which will be invoked when the
+     *           set() has been persisted to disk.
      */
-    virtual void set(const Item &item,
-                     Callback<mutation_result> &cb) = 0;
+    virtual void set(const Item& item,
+                     Callback<TransactionContext, mutation_result>& cb) = 0;
 
     /**
      * Get an item from the kv store.
@@ -554,8 +573,13 @@ public:
 
     /**
      * Delete an item from the kv store.
+     *
+     * @param item The item to delete
+     * @param cb Pointer to a callback object which will be invoked when the
+     *           del() has been persisted to disk.
      */
-    virtual void del(const Item &itm, Callback<int> &cb) = 0;
+    virtual void del(const Item& itm,
+                     Callback<TransactionContext, int>& cb) = 0;
 
     /**
      * Delete a given vbucket database instance from underlying storage

@@ -250,7 +250,8 @@ int EPBucket::flushVBucket(uint16_t vbid) {
                         ProcessClock::now() - _begin_));
 
         if (!items.empty()) {
-            while (!rwUnderlying->begin()) {
+            while (!rwUnderlying->begin(
+                    std::make_unique<TransactionContext>())) {
                 ++stats.beginFailed;
                 LOG(EXTENSION_LOG_WARNING, "Failed to start a transaction!!! "
                     "Retry in 1 sec ...");

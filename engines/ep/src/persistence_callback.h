@@ -31,8 +31,9 @@ class EPStats;
  * KVBucket::flushOne so that an object can be
  * requeued in case of failure to store in the underlying layer.
  */
-class PersistenceCallback : public Callback<mutation_result>,
-                            public Callback<int> {
+class PersistenceCallback
+        : public Callback<TransactionContext, mutation_result>,
+          public Callback<TransactionContext, int> {
 public:
     PersistenceCallback(const queued_item& qi,
                         VBucketPtr& vb,
@@ -42,13 +43,13 @@ public:
     ~PersistenceCallback();
 
     // This callback is invoked for set only.
-    void callback(mutation_result& value);
+    void callback(TransactionContext&, mutation_result& value) override;
 
     // This callback is invoked for deletions only.
     //
     // The boolean indicates whether the underlying storage
     // successfully deleted the item.
-    void callback(int& value);
+    void callback(TransactionContext&, int& value) override;
 
     VBucketPtr& getVBucket() {
         return vbucket;

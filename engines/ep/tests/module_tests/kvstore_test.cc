@@ -35,12 +35,11 @@
 #include <unordered_map>
 #include <vector>
 
-class WriteCallback : public Callback<mutation_result> {
+class WriteCallback : public Callback<TransactionContext, mutation_result> {
 public:
     WriteCallback() {}
 
-    void callback(mutation_result &result) {
-
+    void callback(TransactionContext&, mutation_result& result) {
     }
 
 };
@@ -142,7 +141,7 @@ public:
         : cb([](RV... val){}) {}
 
     void callback(RV&...result) {
-        cb(std::move(result...));
+        cb(std::forward<RV>(result)...);
     }
 
 protected:
@@ -236,7 +235,7 @@ TEST_F(CouchKVStoreTest, CompressedTest) {
             1024, 4, data_dir, "couchdb", 0, false /*persistnamespace*/);
     auto kvstore = setup_kv_store(config);
 
-    kvstore->begin();
+    kvstore->begin({});
 
     WriteCallback wc;
     for (int i = 1; i <= 5; i++) {
@@ -274,7 +273,7 @@ TEST_F(CouchKVStoreTest, StatsTest) {
     auto kvstore = setup_kv_store(config);
 
     // Perform a transaction with a single mutation (set) in it.
-    kvstore->begin();
+    kvstore->begin({});
     const std::string key{"key"};
     const std::string value{"value"};
     Item item(makeStoredDocKey(key), 0, 0, value.c_str(), value.size());
@@ -306,7 +305,7 @@ TEST_F(CouchKVStoreTest, CompactStatsTest) {
     auto kvstore = setup_kv_store(config);
 
     // Perform a transaction with a single mutation (set) in it.
-    kvstore->begin();
+    kvstore->begin({});
     const std::string key{"key"};
     const std::string value{"value"};
     Item item(makeStoredDocKey(key), 0, 0, value.c_str(), value.size());
@@ -523,8 +522,8 @@ protected:
 
     void populate_items(size_t count) {
         generate_items(count);
-        CustomCallback<mutation_result> set_callback;
-        kvstore->begin();
+        CustomCallback<TransactionContext, mutation_result> set_callback;
+        kvstore->begin({});
         for(const auto& item: items) {
             kvstore->set(item, set_callback);
         }
@@ -558,9 +557,9 @@ protected:
  */
 TEST_F(CouchKVStoreErrorInjectionTest, openDB_retry_open_db_ex) {
     generate_items(1);
-    CustomCallback<mutation_result> set_callback;
+    CustomCallback<TransactionContext, mutation_result> set_callback;
 
-    kvstore->begin();
+    kvstore->begin({});
     kvstore->set(items.front(), set_callback);
     {
         /* Establish Logger expectation */
@@ -583,9 +582,9 @@ TEST_F(CouchKVStoreErrorInjectionTest, openDB_retry_open_db_ex) {
  */
 TEST_F(CouchKVStoreErrorInjectionTest, openDB_open_db_ex) {
     generate_items(1);
-    CustomCallback<mutation_result> set_callback;
+    CustomCallback<TransactionContext, mutation_result> set_callback;
 
-    kvstore->begin();
+    kvstore->begin({});
     kvstore->set(items.front(), set_callback);
     {
         /* Establish Logger expectation */
@@ -607,9 +606,9 @@ TEST_F(CouchKVStoreErrorInjectionTest, openDB_open_db_ex) {
  */
 TEST_F(CouchKVStoreErrorInjectionTest, commit_save_documents) {
     generate_items(1);
-    CustomCallback<mutation_result> set_callback;
+    CustomCallback<TransactionContext, mutation_result> set_callback;
 
-    kvstore->begin();
+    kvstore->begin({});
     kvstore->set(items.front(), set_callback);
     {
         /* Establish Logger expectation */
@@ -632,9 +631,9 @@ TEST_F(CouchKVStoreErrorInjectionTest, commit_save_documents) {
  */
 TEST_F(CouchKVStoreErrorInjectionTest, commit_save_local_document) {
     generate_items(1);
-    CustomCallback<mutation_result> set_callback;
+    CustomCallback<TransactionContext, mutation_result> set_callback;
 
-    kvstore->begin();
+    kvstore->begin({});
     kvstore->set(items.front(), set_callback);
     {
         /* Establish Logger expectation */
@@ -658,9 +657,9 @@ TEST_F(CouchKVStoreErrorInjectionTest, commit_save_local_document) {
  */
 TEST_F(CouchKVStoreErrorInjectionTest, commit_commit) {
     generate_items(1);
-    CustomCallback<mutation_result> set_callback;
+    CustomCallback<TransactionContext, mutation_result> set_callback;
 
-    kvstore->begin();
+    kvstore->begin({});
     kvstore->set(items.front(), set_callback);
     {
         /* Establish Logger expectation */
@@ -924,10 +923,10 @@ TEST_F(CouchKVStoreErrorInjectionTest, recordDbDump_open_doc_with_docinfo) {
  */
 TEST_F(CouchKVStoreErrorInjectionTest, rollback_changes_count1) {
     generate_items(6);
-    CustomCallback<mutation_result> set_callback;
+    CustomCallback<TransactionContext, mutation_result> set_callback;
 
     for(const auto item: items) {
-        kvstore->begin();
+        kvstore->begin({});
         kvstore->set(item, set_callback);
         kvstore->commit(nullptr /*no collections manifest*/);
     }
@@ -954,10 +953,10 @@ TEST_F(CouchKVStoreErrorInjectionTest, rollback_changes_count1) {
  */
 TEST_F(CouchKVStoreErrorInjectionTest, rollback_rewind_header) {
     generate_items(6);
-    CustomCallback<mutation_result> set_callback;
+    CustomCallback<TransactionContext, mutation_result> set_callback;
 
     for(const auto item: items) {
-        kvstore->begin();
+        kvstore->begin({});
         kvstore->set(item, set_callback);
         kvstore->commit(nullptr /*no collections manifest*/);
     }
@@ -986,10 +985,10 @@ TEST_F(CouchKVStoreErrorInjectionTest, rollback_rewind_header) {
  */
 TEST_F(CouchKVStoreErrorInjectionTest, rollback_changes_count2) {
     generate_items(6);
-    CustomCallback<mutation_result> set_callback;
+    CustomCallback<TransactionContext, mutation_result> set_callback;
 
     for(const auto item: items) {
-        kvstore->begin();
+        kvstore->begin({});
         kvstore->set(item, set_callback);
         kvstore->commit(nullptr /*no collections manifest*/);
     }
@@ -1016,10 +1015,10 @@ TEST_F(CouchKVStoreErrorInjectionTest, rollback_changes_count2) {
  */
 TEST_F(CouchKVStoreErrorInjectionTest, readVBState_open_local_document) {
     generate_items(6);
-    CustomCallback<mutation_result> set_callback;
+    CustomCallback<TransactionContext, mutation_result> set_callback;
 
     for(const auto item: items) {
-        kvstore->begin();
+        kvstore->begin({});
         kvstore->set(item, set_callback);
         kvstore->commit(nullptr /*no collections manifest*/);
     }
@@ -1164,7 +1163,9 @@ public:
     }
 
     // Mocks original code but returns the IORequest for fuzzing
-    MockCouchRequest* setAndReturnRequest(const Item &itm, Callback<mutation_result> &cb) {
+    MockCouchRequest* setAndReturnRequest(
+            const Item& itm,
+            Callback<TransactionContext, mutation_result>& cb) {
         if (isReadOnly()) {
             throw std::logic_error("MockCouchKVStore::set: Not valid on a read-only "
                             "object.");
@@ -1304,7 +1305,7 @@ TEST_F(CouchstoreTest, noMeta) {
     StoredDocKey key = makeStoredDocKey("key");
     Item item(key, 0, 0, "value", 5);
     WriteCallback wc;
-    kvstore->begin();
+    kvstore->begin({});
     auto request = kvstore->setAndReturnRequest(item, wc);
 
     // Now directly mess with the metadata of the value which will be written
@@ -1321,7 +1322,7 @@ TEST_F(CouchstoreTest, shortMeta) {
     StoredDocKey key = makeStoredDocKey("key");
     Item item(key, 0, 0, "value", 5);
     WriteCallback wc;
-    kvstore->begin();
+    kvstore->begin({});
     auto request = kvstore->setAndReturnRequest(item, wc);
 
     // Now directly mess with the metadata of the value which will be written
@@ -1347,7 +1348,7 @@ TEST_F(CouchstoreTest, testV0MetaThings) {
               0xf00fcafe11225566ull);
 
     WriteCallback wc;
-    kvstore->begin();
+    kvstore->begin({});
     kvstore->set(item, wc);
     kvstore->commit(nullptr /*no collections manifest*/);
 
@@ -1376,7 +1377,7 @@ TEST_F(CouchstoreTest, testV1MetaThings) {
               0xf00fcafe11225566ull);
     EXPECT_NE(0, datatype); // make sure we writing non-zero
     WriteCallback wc;
-    kvstore->begin();
+    kvstore->begin({});
     kvstore->set(item, wc);
     kvstore->commit(nullptr /*no collections manifest*/);
 
@@ -1395,7 +1396,7 @@ TEST_F(CouchstoreTest, fuzzV0) {
     StoredDocKey key = makeStoredDocKey("key");
     Item item(key, 0, 0, "value", 5);
     WriteCallback wc;
-    kvstore->begin();
+    kvstore->begin({});
     auto request = kvstore->setAndReturnRequest(item, wc);
 
     // Now directly mess with the metadata of the value which will be written
@@ -1421,7 +1422,7 @@ TEST_F(CouchstoreTest, fuzzV1) {
     StoredDocKey key = makeStoredDocKey("key");
     Item item(key, 0, 0, "value", 5);
     WriteCallback wc;
-    kvstore->begin();
+    kvstore->begin({});
     auto request = kvstore->setAndReturnRequest(item, wc);
 
     // Now directly mess with the metadata of the value which will be written
@@ -1465,7 +1466,7 @@ TEST_F(CouchstoreTest, testV0WriteReadWriteRead) {
     meta.flags = 0x01020304;
 
     WriteCallback wc;
-    kvstore->begin();
+    kvstore->begin({});
     auto request = kvstore->setAndReturnRequest(item, wc);
 
     // Force the meta to be V0
@@ -1485,7 +1486,7 @@ TEST_F(CouchstoreTest, testV0WriteReadWriteRead) {
     gc.callback(gv);
 
     // Write back the item we read (this will write out V1 meta)
-    kvstore->begin();
+    kvstore->begin({});
     kvstore->set(*gc.getValue(), wc);
     kvstore->commit(nullptr /*no collections manifest*/);
 
@@ -1526,7 +1527,7 @@ TEST_F(CouchstoreTest, testV2WriteRead) {
     meta.legacyDeleted = 0x01;
 
     WriteCallback wc;
-    kvstore->begin();
+    kvstore->begin({});
     auto request = kvstore->setAndReturnRequest(item, wc);
 
     // Force the meta to be V2 (19 bytes)
@@ -1576,7 +1577,7 @@ TEST_F(CouchstoreTest, testV0CompactionUpgrade) {
     meta.flags = 0x01020304;
 
     WriteCallback wc;
-    kvstore->begin();
+    kvstore->begin({});
     auto request = kvstore->setAndReturnRequest(item, wc);
 
     // Force the meta to be V0
@@ -1632,7 +1633,7 @@ TEST_F(CouchstoreTest, testV2CompactionUpgrade) {
     meta.legacyDeleted = 1;
 
     WriteCallback wc;
-    kvstore->begin();
+    kvstore->begin({});
     auto request = kvstore->setAndReturnRequest(item, wc);
 
     // Force the meta to be V2
@@ -1841,24 +1842,27 @@ TEST_F(CouchKVStoreMetaData, assignment) {
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, copy2->getDataType());
 }
 
-class PersistenceCallbacks : public Callback<mutation_result>,
-                             public Callback<int> {
+class PersistenceCallbacks
+        : public Callback<TransactionContext, mutation_result>,
+          public Callback<TransactionContext, int> {
 public:
     virtual ~PersistenceCallbacks() {
     }
 
     // SET callback.
-    virtual void callback(mutation_result& result) = 0;
+    virtual void callback(TransactionContext& txCtx,
+                          mutation_result& result) = 0;
 
     // DEL callback.
     // @param value number of items that the underlying storage has deleted
-    virtual void callback(int& value) = 0;
+    virtual void callback(TransactionContext& txCtx, int& value) = 0;
 };
 
 class MockPersistenceCallbacks : public PersistenceCallbacks {
 public:
-    MOCK_METHOD1(callback, void(mutation_result& result));
-    MOCK_METHOD1(callback, void(int& value));
+    MOCK_METHOD2(callback,
+                 void(TransactionContext& txCtx, mutation_result& result));
+    MOCK_METHOD2(callback, void(TransactionContext& txCtx, int& value));
 };
 
 // Test fixture for tests which run on all KVStore implementations (Couchstore,
@@ -1885,7 +1889,7 @@ protected:
 
 // Test basic set / get of a document
 TEST_P(KVStoreParamTest, BasicTest) {
-    kvstore->begin();
+    kvstore->begin({});
     StoredDocKey key = makeStoredDocKey("key");
     Item item(key, 0, 0, "value", 5);
     WriteCallback wc;
@@ -1898,19 +1902,19 @@ TEST_P(KVStoreParamTest, BasicTest) {
 }
 
 TEST_P(KVStoreParamTest, TestPersistenceCallbacksForSet) {
-    kvstore->begin();
+    kvstore->begin({});
 
     // Expect that the SET callback will not be called just after `set`
     MockPersistenceCallbacks mpc;
     mutation_result result = std::make_pair(1, true);
-    EXPECT_CALL(mpc, callback(result)).Times(0);
+    EXPECT_CALL(mpc, callback(_, result)).Times(0);
 
     auto key = makeStoredDocKey("key");
     Item item(key, 0, 0, "value", 5);
     kvstore->set(item, mpc);
 
     // Expect that the SET callback will be called once after `commit`
-    EXPECT_CALL(mpc, callback(result)).Times(1);
+    EXPECT_CALL(mpc, callback(_, result)).Times(1);
 
     EXPECT_TRUE(kvstore->commit(nullptr /*no collections manifest*/));
 }
@@ -1923,19 +1927,19 @@ TEST_P(KVStoreParamTest, TestPersistenceCallbacksForDel) {
     // called but not considered in any EXCPECT_CALL (GMock warning is
     // "Uninteresting mock function call".)
     NiceMock<MockPersistenceCallbacks> mpc;
-    kvstore->begin();
+    kvstore->begin({});
     kvstore->set(item, mpc);
     kvstore->commit(nullptr /*no collections manifest*/);
-    kvstore->begin();
+    kvstore->begin({});
 
     // Expect that the DEL callback will not be called just after `del`
     int delCount = 1;
-    EXPECT_CALL(mpc, callback(delCount)).Times(0);
+    EXPECT_CALL(mpc, callback(_, delCount)).Times(0);
 
     kvstore->del(item, mpc);
 
     // Expect that the DEL callback will be called once after `commit`
-    EXPECT_CALL(mpc, callback(delCount)).Times(1);
+    EXPECT_CALL(mpc, callback(_, delCount)).Times(1);
 
     EXPECT_TRUE(kvstore->commit(nullptr /*no collections manifest*/));
 }
@@ -1954,7 +1958,7 @@ TEST_P(KVStoreParamTest, TestOneDBPerVBucket) {
 
     // Store an item into each VBucket DB
     for (auto vbid : vbids) {
-        kvstore->begin();
+        kvstore->begin({});
         Item item(makeStoredDocKey("key-" + std::to_string(vbid)),
                   0 /*flags*/,
                   0 /*exptime*/,
@@ -2000,7 +2004,7 @@ TEST_P(KVStoreParamTest, DelVBucketConcurrentOperationsTest) {
     auto set = [&] {
         for (int i = 0; i < 10; i++) {
             // Execution of set creates again a DB if needed
-            kvstore->begin();
+            kvstore->begin({});
             kvstore->set(item, wc);
             kvstore->commit(nullptr /*no collections manifest*/);
         }

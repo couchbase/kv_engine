@@ -193,12 +193,13 @@ public:
      *
      * @return true if the transaction is started successfully
      */
-    bool begin(void) override {
+    bool begin(std::unique_ptr<TransactionContext> txCtx) override {
         if (isReadOnly()) {
             throw std::logic_error("CouchKVStore::begin: Not valid on a "
                     "read-only object.");
         }
         intransaction = true;
+        transactionCtx = std::move(txCtx);
         return intransaction;
     }
 
@@ -222,6 +223,7 @@ public:
         }
         if (intransaction) {
             intransaction = false;
+            transactionCtx.reset();
         }
     }
 
@@ -232,13 +234,8 @@ public:
      */
     StorageProperties getStorageProperties(void) override;
 
-    /**
-     * Insert or update a given document.
-     *
-     * @param itm instance representing the document to be inserted or updated
-     * @param cb callback instance for SET
-     */
-    void set(const Item &itm, Callback<mutation_result> &cb) override;
+    void set(const Item& itm,
+             Callback<TransactionContext, mutation_result>& cb) override;
 
     /**
      * Retrieve the document with a given key from the underlying storage
@@ -288,13 +285,7 @@ public:
         return 1;
     }
 
-    /**
-     * Delete a given document from the underlying storage system.
-     *
-     * @param itm instance representing the document to be deleted
-     * @param cb callback instance for DELETE
-     */
-    void del(const Item &itm, Callback<int> &cb) override;
+    void del(const Item& itm, Callback<TransactionContext, int>& cb) override;
 
     /**
      * Delete a given vbucket database instance from underlying storage
@@ -598,6 +589,7 @@ protected:
     uint16_t numDbFiles;
     std::vector<CouchRequest *> pendingReqsQ;
     bool intransaction;
+    std::unique_ptr<TransactionContext> transactionCtx;
 
     /**
      * FileOpsInterface implementation for couchstore which tracks

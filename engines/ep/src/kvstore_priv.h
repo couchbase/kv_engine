@@ -46,8 +46,8 @@ struct KVStatsCtx {
 typedef struct KVStatsCtx kvstats_ctx;
 
 typedef union {
-    Callback<mutation_result>* setCb;
-    Callback<int>* delCb;
+    Callback<TransactionContext, mutation_result>* setCb;
+    Callback<TransactionContext, int>* delCb;
 } MutationRequestCallback;
 
 class IORequest {
@@ -73,11 +73,11 @@ public:
                 ProcessClock::now() - start);
     }
 
-    Callback<mutation_result>* getSetCallback(void) {
+    Callback<TransactionContext, mutation_result>* getSetCallback(void) {
         return callback.setCb;
     }
 
-    Callback<int>* getDelCallback(void) {
+    Callback<TransactionContext, int>* getDelCallback(void) {
         return callback.delCb;
     }
 

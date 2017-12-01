@@ -388,7 +388,8 @@ void CouchKVStore::reset(uint16_t vbucketId) {
     }
 }
 
-void CouchKVStore::set(const Item &itm, Callback<mutation_result> &cb) {
+void CouchKVStore::set(const Item& itm,
+                       Callback<TransactionContext, mutation_result>& cb) {
     if (isReadOnly()) {
         throw std::logic_error("CouchKVStore::set: Not valid on a read-only "
                         "object.");
@@ -556,8 +557,7 @@ void CouchKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms) {
     closeDatabaseHandle(db);
 }
 
-void CouchKVStore::del(const Item &itm,
-                       Callback<int> &cb) {
+void CouchKVStore::del(const Item& itm, Callback<TransactionContext, int>& cb) {
     if (isReadOnly()) {
         throw std::logic_error("CouchKVStore::del: Not valid on a read-only "
                         "object.");
@@ -1151,6 +1151,7 @@ bool CouchKVStore::commit(const Item* collectionsManifest) {
     if (intransaction) {
         if (commit2couchstore(collectionsManifest)) {
             intransaction = false;
+            transactionCtx.reset();
         }
     }
 
@@ -2046,7 +2047,8 @@ void CouchKVStore::commitCallback(std::vector<CouchRequest *> &committedReqs,
             } else {
                 st.delTimeHisto.add(committedReqs[index]->getDelta());
             }
-            committedReqs[index]->getDelCallback()->callback(rv);
+            committedReqs[index]->getDelCallback()->callback(*transactionCtx,
+                                                             rv);
         } else {
             int rv = getMutationStatus(errCode);
             const auto& key = committedReqs[index]->getKey();
@@ -2058,7 +2060,8 @@ void CouchKVStore::commitCallback(std::vector<CouchRequest *> &committedReqs,
                 st.writeSizeHisto.add(dataSize + keySize);
             }
             mutation_result p(rv, insertion);
-            committedReqs[index]->getSetCallback()->callback(p);
+            committedReqs[index]->getSetCallback()->callback(*transactionCtx,
+                                                             p);
         }
     }
 }

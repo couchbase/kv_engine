@@ -33,7 +33,8 @@ PersistenceCallback::PersistenceCallback(const queued_item& qi,
 PersistenceCallback::~PersistenceCallback() = default;
 
 // This callback is invoked for set only.
-void PersistenceCallback::callback(mutation_result& value) {
+void PersistenceCallback::callback(TransactionContext& txCtx,
+                                   mutation_result& value) {
     if (value.first == 1) {
         auto hbl = vbucket->ht.getLockedBucket(queuedItem->getKey());
         StoredValue* v = vbucket->fetchValidValue(hbl,
@@ -105,7 +106,7 @@ void PersistenceCallback::callback(mutation_result& value) {
 //
 // The boolean indicates whether the underlying storage
 // successfully deleted the item.
-void PersistenceCallback::callback(int& value) {
+void PersistenceCallback::callback(TransactionContext& txCtx, int& value) {
     // > 1 would be bad.  We were only trying to delete one row.
     if (value > 1) {
         throw std::logic_error(

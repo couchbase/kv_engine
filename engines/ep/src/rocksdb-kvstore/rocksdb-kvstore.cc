@@ -324,8 +324,9 @@ std::vector<uint16_t> RocksDBKVStore::discoverVBuckets() {
     return vbids;
 }
 
-bool RocksDBKVStore::begin() {
+bool RocksDBKVStore::begin(std::unique_ptr<TransactionContext> txCtx) {
     in_transaction = true;
+    transactionCtx = std::move(txCtx);
     return in_transaction;
 }
 
@@ -371,6 +372,7 @@ bool RocksDBKVStore::commit(const Item* collectionsManifest) {
     // Set `in_transanction = false` only if `commit` is successful.
     if (success) {
         in_transaction = false;
+        transactionCtx.reset();
     }
 
     return success;
@@ -420,7 +422,7 @@ void RocksDBKVStore::commitCallback(
                 // which is costly. For now just assume that the item did exist.
                 rv = 1;
             }
-            request->getDelCallback()->callback(rv);
+            request->getDelCallback()->callback(*transactionCtx, rv);
         } else {
             if (status.code()) {
                 ++st.numSetFailure;
@@ -434,7 +436,7 @@ void RocksDBKVStore::commitCallback(
             // to RocksDB which is costly. For now just assume that the item
             // did not exist.
             mutation_result mr = std::make_pair(1, true);
-            request->getSetCallback()->callback(mr);
+            request->getSetCallback()->callback(*transactionCtx, mr);
         }
     }
 }
@@ -442,6 +444,7 @@ void RocksDBKVStore::commitCallback(
 void RocksDBKVStore::rollback() {
     if (in_transaction) {
         in_transaction = false;
+        transactionCtx.reset();
     }
 }
 
@@ -453,7 +456,8 @@ std::vector<vbucket_state*> RocksDBKVStore::listPersistedVbuckets() {
     return result;
 }
 
-void RocksDBKVStore::set(const Item& item, Callback<mutation_result>& cb) {
+void RocksDBKVStore::set(const Item& item,
+                         Callback<TransactionContext, mutation_result>& cb) {
     if (!in_transaction) {
         throw std::logic_error(
                 "RocksDBKVStore::set: in_transaction must be true to perform a "
@@ -512,7 +516,8 @@ void RocksDBKVStore::reset(uint16_t vbucketId) {
     // TODO RDB:  Implement.
 }
 
-void RocksDBKVStore::del(const Item& item, Callback<int>& cb) {
+void RocksDBKVStore::del(const Item& item,
+                         Callback<TransactionContext, int>& cb) {
     if (!in_transaction) {
         throw std::logic_error(
                 "RocksDBKVStore::del: in_transaction must be true to perform a "

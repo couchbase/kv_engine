@@ -115,7 +115,7 @@ public:
     /**
      * Begin a transaction (if not already in one).
      */
-    bool begin() override;
+    bool begin(std::unique_ptr<TransactionContext> txCtx) override;
 
     /**
      * Commit a transaction (unless not currently in one).
@@ -147,7 +147,8 @@ public:
     /**
      * Overrides set().
      */
-    void set(const Item& item, Callback<mutation_result>& cb) override;
+    void set(const Item& item,
+             Callback<TransactionContext, mutation_result>& cb) override;
 
     /**
      * Overrides get().
@@ -167,7 +168,7 @@ public:
     /**
      * Overrides del().
      */
-    void del(const Item& itm, Callback<int>& cb) override;
+    void del(const Item& itm, Callback<TransactionContext, int>& cb) override;
 
     // This is a blocking call. The function waits until other threads have
     // finished processing on a VBucket DB (e.g., 'commit') before deleting
@@ -462,6 +463,8 @@ private:
     //      - set() / del() xN
     //      - commit()
     bool in_transaction;
+
+    std::unique_ptr<TransactionContext> transactionCtx;
 
     std::atomic<size_t> scanCounter; // atomic counter for generating scan id
 
