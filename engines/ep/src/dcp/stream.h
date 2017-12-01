@@ -168,12 +168,16 @@ protected:
     }
 
     /**
-     * Returns the logger associated with the connection if the connection is
-     * still alive, else a default logger
+     * Uses the associated connection logger to log the message if the
+     * connection is alive else uses a default logger
      *
-     * @return associated logger
+     * @param severity Desired logging level
+     * @param fmt Format string
+     * @param ... Variable list of params as per the fmt
      */
-    virtual const Logger& getLogger() const = 0;
+    virtual void log(EXTENSION_LOG_LEVEL severity,
+                     const char* fmt,
+                     ...) const = 0;
 
     const std::string &name_;
     uint32_t flags_;
@@ -282,7 +286,7 @@ public:
 
     uint64_t getLastSentSeqno() const;
 
-    const Logger& getLogger() const override;
+    void log(EXTENSION_LOG_LEVEL severity, const char* fmt, ...) const override;
 
     // Runs on ActiveStreamCheckpointProcessorTask
     void nextCheckpointItemTask();
@@ -612,7 +616,7 @@ private:
 
     void transitionState(StreamState newState);
 
-    const Logger& getLogger() const override;
+    void log(EXTENSION_LOG_LEVEL severity, const char* fmt, ...) const override;
 
     /**
      * Notifies the producer connection that the stream has items ready to be
@@ -736,7 +740,7 @@ protected:
      */
     void streamRequest_UNLOCKED(uint64_t vb_uuid);
 
-    const Logger& getLogger() const override;
+    void log(EXTENSION_LOG_LEVEL severity, const char* fmt, ...) const override;
 
     /**
      * Notifies the consumer connection that the stream has items ready to be

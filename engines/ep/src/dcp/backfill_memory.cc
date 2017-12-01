@@ -167,20 +167,18 @@ backfill_status_t DCPBackfillMemoryBuffered::create() {
         if (rangeItrOptional) {
             rangeItr = std::move(*rangeItrOptional);
         } else {
-            stream->getLogger().log(
-                    EXTENSION_LOG_INFO,
-                    "vb:%" PRIu16
-                    " Deferring backfill creation as another "
-                    "range iterator is already on the sequence list",
-                    getVBucketId());
+            stream->log(EXTENSION_LOG_INFO,
+                        "vb:%" PRIu16
+                        " Deferring backfill creation as another "
+                        "range iterator is already on the sequence list",
+                        getVBucketId());
             return backfill_snooze;
         }
     } catch (const std::bad_alloc&) {
-        stream->getLogger().log(
-                EXTENSION_LOG_WARNING,
-                "Alloc error when trying to create a range iterator"
-                "on the sequence list for (vb %" PRIu16 ")",
-                getVBucketId());
+        stream->log(EXTENSION_LOG_WARNING,
+                    "Alloc error when trying to create a range iterator"
+                    "on the sequence list for (vb %" PRIu16 ")",
+                    getVBucketId());
         /* Try backfilling again later; here we snooze because system has
            hit ENOMEM */
         return backfill_snooze;
@@ -250,13 +248,12 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
         try {
             item = (*rangeItr).toItem(false, getVBucketId());
         } catch (const std::bad_alloc&) {
-            stream->getLogger().log(
-                    EXTENSION_LOG_WARNING,
-                    "Alloc error when trying to create an "
-                    "item copy from hash table. Item seqno:%" PRIi64
-                    ", vb:%" PRIu16,
-                    (*rangeItr).getBySeqno(),
-                    getVBucketId());
+            stream->log(EXTENSION_LOG_WARNING,
+                        "Alloc error when trying to create an "
+                        "item copy from hash table. Item seqno:%" PRIi64
+                        ", vb:%" PRIu16,
+                        (*rangeItr).getBySeqno(),
+                        getVBucketId());
             /* Try backfilling again later; here we snooze because system has
                hit ENOMEM */
             return backfill_snooze;
@@ -268,12 +265,11 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
             /* Try backfill again later; here we do not snooze because we
                want to check if other backfills can be run by the
                backfillMgr */
-            stream->getLogger().log(EXTENSION_LOG_INFO,
-                                    "vb:%" PRIu16
-                                    " Deferring backfill at seqno:%" PRIi64
-                                    "as scan buffer or backfill buffer is full",
-                                    getVBucketId(),
-                                    seqnoDbg);
+            stream->log(EXTENSION_LOG_INFO,
+                        "vb:%" PRIu16 " Deferring backfill at seqno:%" PRIi64
+                        "as scan buffer or backfill buffer is full",
+                        getVBucketId(),
+                        seqnoDbg);
             return backfill_success;
         }
         ++rangeItr;
@@ -304,13 +300,12 @@ void DCPBackfillMemoryBuffered::complete(bool cancelled) {
 
     EXTENSION_LOG_LEVEL severity =
             cancelled ? EXTENSION_LOG_NOTICE : EXTENSION_LOG_INFO;
-    stream->getLogger().log(severity,
-                            "(vb %d) Backfill task (%" PRIu64 " to %" PRIu64
-                            ") %s",
-                            getVBucketId(),
-                            startSeqno,
-                            endSeqno,
-                            cancelled ? "cancelled" : "finished");
+    stream->log(severity,
+                "(vb %d) Backfill task (%" PRIu64 " to %" PRIu64 ") %s",
+                getVBucketId(),
+                startSeqno,
+                endSeqno,
+                cancelled ? "cancelled" : "finished");
 
     transitionState(BackfillState::Done);
 }

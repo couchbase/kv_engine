@@ -190,14 +190,14 @@ backfill_status_t DCPBackfillDisk::create() {
             engine.getKVBucket()->getLastPersistedSeqno(vbid);
 
     if (lastPersistedSeqno < endSeqno) {
-        stream->getLogger().log(EXTENSION_LOG_NOTICE,
-                                "(vb %d) Rescheduling backfill"
-                                "because backfill up to seqno %" PRIu64
-                                " is needed but only up to "
-                                "%" PRIu64 " is persisted",
-                                vbid,
-                                endSeqno,
-                                lastPersistedSeqno);
+        stream->log(EXTENSION_LOG_NOTICE,
+                    "(vb %d) Rescheduling backfill"
+                    "because backfill up to seqno %" PRIu64
+                    " is needed but only up to "
+                    "%" PRIu64 " is persisted",
+                    vbid,
+                    endSeqno,
+                    lastPersistedSeqno);
         return backfill_snooze;
     }
 
@@ -274,13 +274,12 @@ backfill_status_t DCPBackfillDisk::complete(bool cancelled) {
 
     EXTENSION_LOG_LEVEL severity =
             cancelled ? EXTENSION_LOG_NOTICE : EXTENSION_LOG_INFO;
-    stream->getLogger().log(severity,
-                            "(vb %d) Backfill task (%" PRIu64 " to %" PRIu64
-                            ") %s",
-                            vbid,
-                            startSeqno,
-                            endSeqno,
-                            cancelled ? "cancelled" : "finished");
+    stream->log(severity,
+                "(vb %d) Backfill task (%" PRIu64 " to %" PRIu64 ") %s",
+                vbid,
+                startSeqno,
+                endSeqno,
+                cancelled ? "cancelled" : "finished");
 
     transitionState(backfill_state_done);
 
