@@ -16,21 +16,21 @@
 #include "config.h"
 #include <cbsasl/cbsasl.h>
 
-#include <algorithm>
-#include <array>
 #include <gtest/gtest.h>
 #include <platform/cb_malloc.h>
 #include <platform/platform.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <algorithm>
+#include <array>
 
-char envptr[1024]{"CBSASL_PWFILE=" SOURCE_ROOT
-    "/tests/cbsasl_server_tests/sasl_server_test.json"};
+char envptr[1024]{"CBSASL_PWFILE=" SOURCE_ROOT "/cbsasl/sasl_server_test.json"};
 
 static std::string mechanisms;
 
-static int sasl_getopt_callback(void*, const char*,
+static int sasl_getopt_callback(void*,
+                                const char*,
                                 const char* option,
                                 const char** result,
                                 unsigned* len) {
@@ -59,11 +59,18 @@ protected:
         server_sasl_callback[ii].proc = nullptr;
         server_sasl_callback[ii].context = nullptr;
 
-        ASSERT_EQ(CBSASL_OK, cbsasl_server_init(server_sasl_callback.data(),
-                                                "cbsasl_server_test"));
         ASSERT_EQ(CBSASL_OK,
-                  cbsasl_server_new(nullptr, nullptr, nullptr, nullptr, nullptr,
-                                    nullptr, 0, &conn));
+                  cbsasl_server_init(server_sasl_callback.data(),
+                                     "cbsasl_server_test"));
+        ASSERT_EQ(CBSASL_OK,
+                  cbsasl_server_new(nullptr,
+                                    nullptr,
+                                    nullptr,
+                                    nullptr,
+                                    nullptr,
+                                    nullptr,
+                                    0,
+                                    &conn));
     }
 
     void TearDown() {
@@ -91,8 +98,8 @@ protected:
 TEST_F(SaslServerTest, ListMechs) {
     const char* mechs = nullptr;
     unsigned len = 0;
-    cbsasl_error_t err = cbsasl_listmech(conn, nullptr, nullptr, " ",
-                                         nullptr, &mechs, &len, nullptr);
+    cbsasl_error_t err = cbsasl_listmech(
+            conn, nullptr, nullptr, " ", nullptr, &mechs, &len, nullptr);
     ASSERT_EQ(CBSASL_OK, err);
     EXPECT_EQ(mechanisms, std::string(mechs, len));
 }
@@ -100,12 +107,12 @@ TEST_F(SaslServerTest, ListMechs) {
 TEST_F(SaslServerTest, ListMechsBadParam) {
     const char* mechs = nullptr;
     unsigned len = 0;
-    cbsasl_error_t err = cbsasl_listmech(conn, nullptr, nullptr, ",",
-                                         nullptr, nullptr, &len, nullptr);
+    cbsasl_error_t err = cbsasl_listmech(
+            conn, nullptr, nullptr, ",", nullptr, nullptr, &len, nullptr);
     ASSERT_EQ(CBSASL_BADPARAM, err);
 
-    err = cbsasl_listmech(nullptr, nullptr, nullptr, ",",
-                          nullptr, &mechs, &len, nullptr);
+    err = cbsasl_listmech(
+            nullptr, nullptr, nullptr, ",", nullptr, &mechs, &len, nullptr);
     ASSERT_EQ(CBSASL_BADPARAM, err);
 }
 
@@ -113,8 +120,8 @@ TEST_F(SaslServerTest, ListMechsSpecialized) {
     const char* mechs = nullptr;
     unsigned len = 0;
     int num;
-    cbsasl_error_t err = cbsasl_listmech(conn, nullptr, "(", ",",
-                                         ")", &mechs, &len, &num);
+    cbsasl_error_t err =
+            cbsasl_listmech(conn, nullptr, "(", ",", ")", &mechs, &len, &num);
     ASSERT_EQ(CBSASL_OK, err);
     std::string mechlist(mechs, len);
     std::string expected("(" + mechanisms + ")");
@@ -123,8 +130,8 @@ TEST_F(SaslServerTest, ListMechsSpecialized) {
 }
 
 TEST_F(SaslServerTest, BadMech) {
-    cbsasl_error_t err = cbsasl_server_start(conn, "bad_mech", nullptr, 0,
-                                             nullptr, nullptr);
+    cbsasl_error_t err =
+            cbsasl_server_start(conn, "bad_mech", nullptr, 0, nullptr, nullptr);
     ASSERT_EQ(CBSASL_NOMECH, err);
 }
 
@@ -132,9 +139,8 @@ TEST_F(SaslServerTest, PlainCorrectPassword) {
     /* Normal behavior */
     const char* output = nullptr;
     unsigned outputlen = 0;
-    cbsasl_error_t err = cbsasl_server_start(conn, "PLAIN",
-                                             "\0mikewied\0mikepw", 16, &output,
-                                             &outputlen);
+    cbsasl_error_t err = cbsasl_server_start(
+            conn, "PLAIN", "\0mikewied\0mikepw", 16, &output, &outputlen);
     ASSERT_EQ(CBSASL_OK, err);
     cb_free((void*)output);
 }
@@ -143,9 +149,8 @@ TEST_F(SaslServerTest, PlainWrongPassword) {
     const char* output = nullptr;
     unsigned outputlen = 0;
 
-    cbsasl_error_t err = cbsasl_server_start(conn, "PLAIN",
-                                             "\0mikewied\0badpPW", 16, &output,
-                                             &outputlen);
+    cbsasl_error_t err = cbsasl_server_start(
+            conn, "PLAIN", "\0mikewied\0badpPW", 16, &output, &outputlen);
     ASSERT_EQ(CBSASL_PWERR, err);
     cb_free((void*)output);
 }
@@ -154,8 +159,8 @@ TEST_F(SaslServerTest, PlainNoPassword) {
     const char* output = nullptr;
     unsigned outputlen = 0;
 
-    cbsasl_error_t err = cbsasl_server_start(conn, "PLAIN", "\0nopass\0", 8,
-                                             &output, &outputlen);
+    cbsasl_error_t err = cbsasl_server_start(
+            conn, "PLAIN", "\0nopass\0", 8, &output, &outputlen);
     ASSERT_EQ(CBSASL_OK, err);
     cb_free((void*)output);
 }
@@ -164,10 +169,8 @@ TEST_F(SaslServerTest, PlainWithAuthzid) {
     const char* output = nullptr;
     unsigned outputlen = 0;
 
-    cbsasl_error_t err = cbsasl_server_start(conn, "PLAIN",
-                                             "funzid\0mikewied\0mikepw", 22,
-                                             &output,
-                                             &outputlen);
+    cbsasl_error_t err = cbsasl_server_start(
+            conn, "PLAIN", "funzid\0mikewied\0mikepw", 22, &output, &outputlen);
     ASSERT_EQ(CBSASL_OK, err);
     cb_free((void*)output);
 }
@@ -176,8 +179,8 @@ TEST_F(SaslServerTest, PlainWithNoPwOrUsernameEndingNull) {
     const char* output = nullptr;
     unsigned outputlen = 0;
 
-    cbsasl_error_t err = cbsasl_server_start(conn, "PLAIN", "funzid\0mikewied",
-                                             15, &output, &outputlen);
+    cbsasl_error_t err = cbsasl_server_start(
+            conn, "PLAIN", "funzid\0mikewied", 15, &output, &outputlen);
     ASSERT_NE(CBSASL_OK, err);
     cb_free((void*)output);
 }
@@ -186,8 +189,8 @@ TEST_F(SaslServerTest, PlainNoNullAtAll) {
     const char* output = nullptr;
     unsigned outputlen = 0;
 
-    cbsasl_error_t err = cbsasl_server_start(conn, "PLAIN", "funzidmikewied",
-                                             14, &output, &outputlen);
+    cbsasl_error_t err = cbsasl_server_start(
+            conn, "PLAIN", "funzidmikewied", 14, &output, &outputlen);
     ASSERT_NE(CBSASL_OK, err);
     cb_free((void*)output);
 }
@@ -204,8 +207,8 @@ TEST_F(SaslLimitMechServerTest, TestDisableMechList) {
     const char* mechs = nullptr;
     unsigned len = 0;
     int num;
-    cbsasl_error_t err = cbsasl_listmech(conn, nullptr, "(", ",",
-                                         ")", &mechs, &len, &num);
+    cbsasl_error_t err =
+            cbsasl_listmech(conn, nullptr, "(", ",", ")", &mechs, &len, &num);
     ASSERT_EQ(CBSASL_OK, err);
     std::string mechlist(mechs, len);
     EXPECT_EQ(std::string("(PLAIN)"), mechlist);

@@ -21,9 +21,9 @@
  */
 #include <gtest/gtest.h>
 
-#include <cbsasl/pwconv.h>
-#include <cbsasl/password_database.h>
-#include <cbsasl/plain/check_password.h>
+#include "password_database.h"
+#include "plain/check_password.h"
+#include "pwconv.h"
 
 class PwconvTest : public ::testing::Test {
 protected:
@@ -57,7 +57,6 @@ TEST_F(PwconvTest, VerifySpaceInTheMiddle) {
     EXPECT_EQ(CBSASL_PWERR,
               cb::sasl::plain::check_password(nullptr, trond, "password"));
 }
-
 
 TEST_F(PwconvTest, VerifySpaceAtTheEnd) {
     auto mike = db->find("mike");

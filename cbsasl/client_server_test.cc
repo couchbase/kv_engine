@@ -14,14 +14,14 @@
  *   limitations under the License.
  */
 #include "config.h"
+#include <cbcrypto/cbcrypto.h>
 #include <cbsasl/cbsasl.h>
 #include <gtest/gtest.h>
+#include <platform/cb_malloc.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <array>
-#include <cbcrypto/cbcrypto.h>
-#include <platform/cb_malloc.h>
 
 const char* cbpwfile = "cbsasl_test.pw";
 
@@ -33,7 +33,9 @@ struct my_sasl_ctx {
     std::string nonce;
 };
 
-static int sasl_get_username(void* context, int id, const char** result,
+static int sasl_get_username(void* context,
+                             int id,
+                             const char** result,
                              unsigned int* len) {
     struct my_sasl_ctx* ctx = reinterpret_cast<my_sasl_ctx*>(context);
     if (!context || !result ||
@@ -49,7 +51,9 @@ static int sasl_get_username(void* context, int id, const char** result,
     return CBSASL_OK;
 }
 
-static int sasl_get_password(cbsasl_conn_t* conn, void* context, int id,
+static int sasl_get_password(cbsasl_conn_t* conn,
+                             void* context,
+                             int id,
                              cbsasl_secret_t** psecret) {
     struct my_sasl_ctx* ctx = reinterpret_cast<my_sasl_ctx*>(context);
     if (!conn || !psecret || id != CBSASL_CB_PASS || ctx == nullptr) {
@@ -60,7 +64,9 @@ static int sasl_get_password(cbsasl_conn_t* conn, void* context, int id,
     return CBSASL_OK;
 }
 
-static int sasl_get_cnonce(void* context, int id, const char** result,
+static int sasl_get_cnonce(void* context,
+                           int id,
+                           const char** result,
                            unsigned int* len) {
     if (context == nullptr || id != CBSASL_CB_CNONCE || result == nullptr ||
         len == nullptr) {
@@ -85,8 +91,8 @@ protected:
         ASSERT_EQ(0, fclose(fp));
 
         putenv(envptr);
-        ASSERT_EQ(CBSASL_OK, cbsasl_server_init(nullptr,
-                                                "cbsasl_client_server_test"));
+        ASSERT_EQ(CBSASL_OK,
+                  cbsasl_server_init(nullptr, "cbsasl_client_server_test"));
     }
 
     static void TearDownTestCase() {
@@ -101,17 +107,17 @@ protected:
         std::array<cbsasl_callback_t, 5> sasl_callbacks;
         int ii = 0;
         sasl_callbacks[ii].id = CBSASL_CB_USER;
-        sasl_callbacks[ii].proc = (int (*)(void))&sasl_get_username;
+        sasl_callbacks[ii].proc = (int (*)(void)) & sasl_get_username;
         sasl_callbacks[ii++].context = &client_context;
         sasl_callbacks[ii].id = CBSASL_CB_AUTHNAME;
-        sasl_callbacks[ii].proc = (int (*)(void))&sasl_get_username;
+        sasl_callbacks[ii].proc = (int (*)(void)) & sasl_get_username;
         sasl_callbacks[ii++].context = &client_context;
         sasl_callbacks[ii].id = CBSASL_CB_PASS;
-        sasl_callbacks[ii].proc = (int (*)(void))&sasl_get_password;
+        sasl_callbacks[ii].proc = (int (*)(void)) & sasl_get_password;
         sasl_callbacks[ii++].context = &client_context;
         if (addNonce) {
             sasl_callbacks[ii].id = CBSASL_CB_CNONCE;
-            sasl_callbacks[ii].proc = (int (*)(void))&sasl_get_cnonce;
+            sasl_callbacks[ii].proc = (int (*)(void)) & sasl_get_cnonce;
             sasl_callbacks[ii++].context = &client_context;
         }
         sasl_callbacks[ii].id = CBSASL_CB_LIST_END;
@@ -125,18 +131,24 @@ protected:
         client_context.nonce = "fyko+d2lbbFgONRv9qkxdawL";
 
         cbsasl_conn_t* conn = nullptr;
-        ASSERT_EQ(CBSASL_OK, cbsasl_client_new(nullptr, nullptr, nullptr,
-                                               nullptr, sasl_callbacks.data(),
-                                               0,
-                                               &conn));
+        ASSERT_EQ(CBSASL_OK,
+                  cbsasl_client_new(nullptr,
+                                    nullptr,
+                                    nullptr,
+                                    nullptr,
+                                    sasl_callbacks.data(),
+                                    0,
+                                    &conn));
         client.reset(conn);
         conn = nullptr;
 
         const char* chosenmech;
         const char* data;
         unsigned int len;
-        ASSERT_EQ(CBSASL_OK, cbsasl_client_start(client.get(), mech, nullptr,
-                                                 &data, &len, &chosenmech));
+        ASSERT_EQ(
+                CBSASL_OK,
+                cbsasl_client_start(
+                        client.get(), mech, nullptr, &data, &len, &chosenmech));
 
         struct my_sasl_ctx server_context;
         server_context.nonce = "3rfcNHYJY1ZVvWVs7j";
@@ -145,7 +157,7 @@ protected:
         ii = 0;
         if (addNonce) {
             server_sasl_callback[ii].id = CBSASL_CB_CNONCE;
-            server_sasl_callback[ii].proc = (int (*)(void))&sasl_get_cnonce;
+            server_sasl_callback[ii].proc = (int (*)(void)) & sasl_get_cnonce;
             server_sasl_callback[ii].context = &server_context;
             ++ii;
         }
@@ -154,15 +166,21 @@ protected:
         server_sasl_callback[ii].context = nullptr;
 
         ASSERT_EQ(CBSASL_OK,
-                  cbsasl_server_new(nullptr, nullptr, nullptr, nullptr, nullptr,
-                                    server_sasl_callback.data(), 0, &conn));
+                  cbsasl_server_new(nullptr,
+                                    nullptr,
+                                    nullptr,
+                                    nullptr,
+                                    nullptr,
+                                    server_sasl_callback.data(),
+                                    0,
+                                    &conn));
         server.reset(conn);
 
         cbsasl_error_t err;
         const char* serverdata;
         unsigned int serverlen;
-        err = cbsasl_server_start(server.get(), chosenmech, data, len,
-                                  &serverdata, &serverlen);
+        err = cbsasl_server_start(
+                server.get(), chosenmech, data, len, &serverdata, &serverlen);
         if (err == CBSASL_OK) {
             cb_free(client_context.secret);
             return;
@@ -170,22 +188,25 @@ protected:
 
         EXPECT_EQ(CBSASL_CONTINUE, err);
         if (serverlen > 0) {
-            EXPECT_EQ(CBSASL_CONTINUE, cbsasl_client_step(client.get(),
-                                                          serverdata,
-                                                          serverlen,
-                                                          nullptr, &data,
-                                                          &len));
+            EXPECT_EQ(CBSASL_CONTINUE,
+                      cbsasl_client_step(client.get(),
+                                         serverdata,
+                                         serverlen,
+                                         nullptr,
+                                         &data,
+                                         &len));
         }
 
-        while ((err = cbsasl_server_step(server.get(), data, len,
-                                         &serverdata, &serverlen)) ==
+        while ((err = cbsasl_server_step(
+                        server.get(), data, len, &serverdata, &serverlen)) ==
                CBSASL_CONTINUE) {
-
-            EXPECT_EQ(CBSASL_CONTINUE, cbsasl_client_step(client.get(),
-                                                          serverdata,
-                                                          serverlen,
-                                                          nullptr, &data,
-                                                          &len));
+            EXPECT_EQ(CBSASL_CONTINUE,
+                      cbsasl_client_step(client.get(),
+                                         serverdata,
+                                         serverlen,
+                                         nullptr,
+                                         &data,
+                                         &len));
         }
 
         EXPECT_EQ(CBSASL_OK, err);

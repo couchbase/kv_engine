@@ -1,8 +1,3 @@
-ADD_SUBDIRECTORY(cbsasl_client_server_test)
-ADD_SUBDIRECTORY(cbsasl_password_database_test)
-ADD_SUBDIRECTORY(cbsasl_pwconv_test)
-ADD_SUBDIRECTORY(cbsasl_server_tests)
-ADD_SUBDIRECTORY(cbsasl_strcmp_test)
 ADD_SUBDIRECTORY(config_util_test)
 ADD_SUBDIRECTORY(config_parse_test)
 ADD_SUBDIRECTORY(datatype)

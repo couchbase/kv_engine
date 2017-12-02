@@ -46,3 +46,79 @@ install(TARGETS cbsasl
         RUNTIME DESTINATION bin
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib)
+
+# Unit tests
+ADD_EXECUTABLE(cbsasl_strcmp_test strcmp_test.cc
+               strcmp.cc
+               util.h)
+TARGET_LINK_LIBRARIES(cbsasl_strcmp_test gtest gtest_main)
+ADD_TEST(NAME cbsasl-strcmp
+         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+         COMMAND cbsasl_strcmp_test)
+
+ADD_EXECUTABLE(cbsasl_pwconv_test
+               ${Memcached_SOURCE_DIR}/include/cbcrypto/cbcrypto.h
+               log.cc
+               password_database.cc
+               password_database.h
+               plain/check_password.cc
+               plain/check_password.h
+               pwconv.cc
+               pwconv.h
+               pwconv_test.cc
+               strcmp.cc
+               user.cc
+               user.h)
+TARGET_LINK_LIBRARIES(cbsasl_pwconv_test
+                      gtest_main
+                      gtest
+                      cbsasl
+                      platform
+                      cJSON)
+ADD_TEST(NAME cbsasl-pwconv-test
+         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+         COMMAND cbsasl_pwconv_test)
+
+ADD_EXECUTABLE(cbsasl_password_database_test
+               ${Memcached_SOURCE_DIR}/include/cbcrypto/cbcrypto.h
+               log.cc
+               password_database.cc
+               password_database.h
+               password_database_test.cc
+               pwconv.cc
+               pwconv.h
+               user.cc
+               user.h)
+TARGET_LINK_LIBRARIES(cbsasl_password_database_test
+                      cbcrypto
+                      gtest
+                      cJSON
+                      dirutils
+                      platform
+                      ${OPENSSL_LIBRARIES})
+ADD_TEST(NAME cbsasl-password-database
+         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+         COMMAND cbsasl_password_database_test)
+
+ADD_EXECUTABLE(cbsasl_client_server_test
+              ${Memcached_SOURCE_DIR}/include/cbcrypto/cbcrypto.h
+              ${Memcached_SOURCE_DIR}/include/cbsasl/cbsasl.h
+              client_server_test.cc)
+
+
+TARGET_LINK_LIBRARIES(cbsasl_client_server_test cbcrypto cbsasl gtest gtest_main)
+ADD_TEST(NAME cbsasl-client-server
+         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+         COMMAND cbsasl_client_server_test)
+
+ADD_EXECUTABLE(cbsasl_server_test sasl_server_test.cc)
+TARGET_LINK_LIBRARIES(cbsasl_server_test
+                      cbsasl
+                      cbcrypto
+                      platform
+                      cJSON
+                      gtest
+                      gtest_main)
+ADD_TEST(NAME cbsasl-server-sasl
+         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+         COMMAND cbsasl_server_test)
