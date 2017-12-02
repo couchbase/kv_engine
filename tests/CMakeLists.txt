@@ -1,4 +1,3 @@
-ADD_SUBDIRECTORY(cbcrypto_test)
 ADD_SUBDIRECTORY(cbsasl_client_server_test)
 ADD_SUBDIRECTORY(cbsasl_password_database_test)
 ADD_SUBDIRECTORY(cbsasl_pwconv_test)
