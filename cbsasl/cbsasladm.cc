@@ -16,8 +16,9 @@
  */
 #include "config.h"
 
-#include <cbsasl/pwconv.h>
-#include <cbsasl/user.h>
+#include "pwconv.h"
+#include "user.h"
+
 #include <getopt.h>
 #include <memcached/protocol_binary.h>
 #include <platform/platform.h>
@@ -53,8 +54,7 @@ static int handle_refresh(int argc, char**, MemcachedConnection& connection) {
         return EXIT_SUCCESS;
     } else {
         std::cerr << "Command failed: "
-                  << memcached_status_2_text(resp.getStatus())
-                  << std::endl;
+                  << memcached_status_2_text(resp.getStatus()) << std::endl;
         return EXIT_FAILURE;
     }
 
@@ -83,12 +83,12 @@ int handle_pwconv(int argc, char** argv) {
 static void usage() {
     fprintf(stderr,
             "Usage: cbsasladm [-h host[:port]] [-p port] [-s] "
-                "[-u user] [-P password] [-C ssl_cert] [-K ssl_key] cmd\n"
-                "   The following command(s) exists:\n"
-                "\trefresh - tell memcached to reload its internal "
-                "cache\n"
-                "\tpwconv input ouput - convert isasl.pw to cbsasl.pw "
-                "format\n");
+            "[-u user] [-P password] [-C ssl_cert] [-K ssl_key] cmd\n"
+            "   The following command(s) exists:\n"
+            "\trefresh - tell memcached to reload its internal "
+            "cache\n"
+            "\tpwconv input ouput - convert isasl.pw to cbsasl.pw "
+            "format\n");
     exit(EXIT_SUCCESS);
 }
 
@@ -99,7 +99,7 @@ static void usage() {
  * @param argv argument vector
  * @return 0 if success, error code otherwise
  */
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
     int cmd;
     std::string port{"11210"};
     std::string host{"localhost"};
@@ -117,22 +117,22 @@ int main(int argc, char **argv) {
 
     while ((cmd = getopt(argc, argv, "46h:p:u:b:P:si:K:C:")) != EOF) {
         switch (cmd) {
-        case '6' :
+        case '6':
             family = AF_INET6;
             break;
-        case '4' :
+        case '4':
             family = AF_INET;
             break;
-        case 'h' :
+        case 'h':
             host.assign(optarg);
             break;
         case 'p':
             port.assign(optarg);
             break;
-        case 'b' :
+        case 'b':
             bucket.assign(optarg);
             break;
-        case 'u' :
+        case 'u':
             user.assign(optarg);
             break;
         case 'P':
@@ -186,14 +186,15 @@ int main(int argc, char **argv) {
             connection.connect();
 
             // MEMCACHED_VERSION contains the git sha
-            connection.hello("cbsasladm",
-                             MEMCACHED_VERSION,
-                             "command line utility to manage the internal sasl db");
+            connection.hello(
+                    "cbsasladm",
+                    MEMCACHED_VERSION,
+                    "command line utility to manage the internal sasl db");
             connection.setXerrorSupport(true);
 
             if (!user.empty()) {
-                connection.authenticate(user, password,
-                                        connection.getSaslMechanisms());
+                connection.authenticate(
+                        user, password, connection.getSaslMechanisms());
             }
 
             if (!bucket.empty()) {

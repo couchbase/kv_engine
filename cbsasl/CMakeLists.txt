@@ -47,6 +47,24 @@ install(TARGETS cbsasl
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib)
 
+
+ADD_EXECUTABLE(cbsasladm
+               cbsasladm.cc
+               log.cc
+               pwconv.cc
+               pwconv.h
+               user.cc
+               user.h)
+TARGET_LINK_LIBRARIES(cbsasladm
+                      cbsasl
+                      mc_client_connection
+                      mcd_util
+                      mcutils
+                      platform)
+INSTALL(TARGETS cbsasladm RUNTIME DESTINATION bin)
+
+
+
 # Unit tests
 ADD_EXECUTABLE(cbsasl_strcmp_test strcmp_test.cc
                strcmp.cc

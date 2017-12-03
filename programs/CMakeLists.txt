@@ -16,7 +16,6 @@ ADD_TEST(NAME memcached-hostutils-test
 ADD_LIBRARY(getpass STATIC
             getpass.cc getpass.h)
 
-ADD_SUBDIRECTORY(cbsasladm)
 ADD_SUBDIRECTORY(engine_testapp)
 ADD_SUBDIRECTORY(mcctl)
 ADD_SUBDIRECTORY(mclogsplit)
