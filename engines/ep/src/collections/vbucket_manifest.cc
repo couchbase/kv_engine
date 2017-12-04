@@ -129,11 +129,13 @@ void Manifest::addCollection(::VBucket& vb,
 
     LOG(EXTENSION_LOG_NOTICE,
         "collections: vb:%" PRIu16 " adding collection:%.*s, uid:%" PRIu64
-        ", seqno:%" PRIu64,
+        ", replica:%s, backfill:%s, seqno:%" PRId64,
         vb.getId(),
         int(identifier.getName().size()),
         identifier.getName().data(),
         identifier.getUid(),
+        optionalSeqno.is_initialized() ? "true" : "false",
+        vb.isBackfillPhase() ? "true" : "false",
         seqno);
 
     // 3. Now patch the entry with the seqno of the system event, note the copy
@@ -199,11 +201,14 @@ void Manifest::beginCollectionDelete(::VBucket& vb,
 
     LOG(EXTENSION_LOG_NOTICE,
         "collections: vb:%" PRIu16
-        " begin delete of collection:%.*s, uid:%" PRIu64 ", seqno:%" PRIu64,
+        " begin delete of collection:%.*s, uid:%" PRIu64
+        ", replica:%s, backfill:%s, seqno:%" PRId64,
         vb.getId(),
         int(identifier.getName().size()),
         identifier.getName().data(),
         identifier.getUid(),
+        optionalSeqno.is_initialized() ? "true" : "false",
+        vb.isBackfillPhase() ? "true" : "false",
         seqno);
 
     if (identifier.isDefaultCollection()) {
@@ -274,11 +279,14 @@ void Manifest::changeSeparator(::VBucket& vb,
     } else {
         LOG(EXTENSION_LOG_NOTICE,
             "collections: vb:%" PRIu16
-            " changing collection separator from:%s, to:%.*s",
+            " changing collection separator from:%s, to:%.*s, replica:%s, "
+            "backfill:%s",
             vb.getId(),
             separator.c_str(),
             int(newSeparator.size()),
-            newSeparator.data());
+            newSeparator.data(),
+            optionalSeqno.is_initialized() ? "true" : "false",
+            vb.isBackfillPhase() ? "true" : "false");
 
         // Change the separator then queue the event so the new separator
         // is recorded in the serialised manifest
@@ -341,8 +349,7 @@ Manifest::container::const_iterator Manifest::getManifestEntry(
         identifier = DefaultCollectionIdentifier;
     } else if (key.getDocNamespace() == DocNamespace::Collections) {
         const auto cKey = Collections::DocKey::make(key, separator);
-        identifier = {reinterpret_cast<const char*>(cKey.data()),
-                      cKey.getCollectionLen()};
+        identifier = cKey.getCollection();
     } else if (key.getDocNamespace() == DocNamespace::System) {
         const auto cKey = Collections::DocKey::make(key, separator);
 

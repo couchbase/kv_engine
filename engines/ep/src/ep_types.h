@@ -80,6 +80,11 @@ enum class QueueBgFetch {Yes, No};
 /// Allow for methods to optionally accept a seqno
 using OptionalSeqno = boost::optional<int64_t>;
 
+/// Determine the GenerateBySeqno value from an OptionalSeqno
+static inline GenerateBySeqno getGenerateBySeqno(const OptionalSeqno& seqno) {
+    return seqno ? GenerateBySeqno::No : GenerateBySeqno::Yes;
+}
+
 /**
  * Captures the result of a rollback request.
  * Contains if the rollback was successful, highSeqno of the vBucket after

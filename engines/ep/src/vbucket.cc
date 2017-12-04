@@ -2492,12 +2492,16 @@ void VBucket::notifyNewSeqno(const VBNotifyCtx& notifyCtx) {
 int64_t VBucket::queueItem(Item* item, OptionalSeqno seqno) {
     item->setVBucketId(id);
     queued_item qi(item);
-    checkpointManager->queueDirty(
-            *this,
-            qi,
-            seqno ? GenerateBySeqno::No : GenerateBySeqno::Yes,
-            GenerateCas::Yes,
-            nullptr /* No pre link step as this is for system events */);
+    if (isBackfillPhase()) {
+        queueBackfillItem(qi, getGenerateBySeqno(seqno));
+    } else {
+        checkpointManager->queueDirty(
+                *this,
+                qi,
+                getGenerateBySeqno(seqno),
+                GenerateCas::Yes,
+                nullptr /* No pre link step as this is for system events */);
+    }
     VBNotifyCtx notifyCtx;
     // If the seqno is initialized, skip replication notification
     notifyCtx.notifyReplication = !seqno.is_initialized();
