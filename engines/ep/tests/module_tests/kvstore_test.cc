@@ -54,7 +54,7 @@ public:
 
 };
 
-class KVStoreTestCacheCallback : public Callback<CacheLookup> {
+class KVStoreTestCacheCallback : public StatusCallback<CacheLookup> {
 public:
     KVStoreTestCacheCallback(int64_t s, int64_t e, uint16_t vbid) :
         start(s), end(e), vb(vbid) { }
@@ -71,7 +71,7 @@ private:
     uint16_t vb;
 };
 
-class GetCallback : public Callback<GetValue> {
+class GetCallback : public StatusCallback<GetValue> {
 public:
     GetCallback(ENGINE_ERROR_CODE _expectedErrorCode = ENGINE_SUCCESS) :
         expectCompressed(false),
@@ -133,7 +133,7 @@ public:
  * KVStore functions from a lambda/std::function
  */
 template <typename... RV>
-class CustomCallback : public Callback<RV...> {
+class CustomCallback : public StatusCallback<RV...> {
 public:
     CustomCallback(std::function<void(RV...)> _cb)
         : cb(_cb) {}
@@ -254,8 +254,8 @@ TEST_F(CouchKVStoreTest, CompressedTest) {
     StatsCallback sc;
     kvstore->commit(nullptr /*no collections manifest*/);
 
-    std::shared_ptr<Callback<GetValue> > cb(new GetCallback(true/*expectcompressed*/));
-    std::shared_ptr<Callback<CacheLookup> > cl(new KVStoreTestCacheCallback(1, 5, 0));
+    auto cb = std::make_shared<GetCallback>(true /*expectcompressed*/);
+    auto cl = std::make_shared<KVStoreTestCacheCallback>(1, 5, 0);
     ScanContext* scanCtx;
     scanCtx = kvstore->initScanContext(cb, cl, 0, 1,
                                        DocumentFilter::ALL_ITEMS,

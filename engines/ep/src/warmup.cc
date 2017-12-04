@@ -38,11 +38,10 @@
 #include <random>
 
 struct WarmupCookie {
-    WarmupCookie(KVBucket* s, Callback<GetValue>& c) :
-        cb(c), epstore(s),
-        loaded(0), skipped(0), error(0)
-    { /* EMPTY */ }
-    Callback<GetValue>& cb;
+    WarmupCookie(KVBucket* s, StatusCallback<GetValue>& c)
+        : cb(c), epstore(s), loaded(0), skipped(0), error(0) { /* EMPTY */
+    }
+    StatusCallback<GetValue>& cb;
     KVBucket* epstore;
     size_t loaded;
     size_t skipped;
@@ -1124,9 +1123,9 @@ void Warmup::loadingAccessLog(uint16_t shardId)
     }
 }
 
-size_t Warmup::doWarmup(MutationLog &lf, const std::map<uint16_t,
-                        vbucket_state> &vbmap, Callback<GetValue> &cb)
-{
+size_t Warmup::doWarmup(MutationLog& lf,
+                        const std::map<uint16_t, vbucket_state>& vbmap,
+                        StatusCallback<GetValue>& cb) {
     MutationLogHarvester harvester(lf, &store.getEPEngine());
     std::map<uint16_t, vbucket_state>::const_iterator it;
     for (it = vbmap.begin(); it != vbmap.end(); ++it) {

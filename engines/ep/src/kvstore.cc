@@ -39,8 +39,8 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-ScanContext::ScanContext(std::shared_ptr<Callback<GetValue>> cb,
-                         std::shared_ptr<Callback<CacheLookup>> cl,
+ScanContext::ScanContext(std::shared_ptr<StatusCallback<GetValue>> cb,
+                         std::shared_ptr<StatusCallback<CacheLookup>> cl,
                          uint16_t vb,
                          size_t id,
                          int64_t start,

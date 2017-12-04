@@ -34,7 +34,7 @@ enum backfill_state_t {
 };
 
 /* Callback to get the items that are found to be in the cache */
-class CacheCallback : public Callback<CacheLookup> {
+class CacheCallback : public StatusCallback<CacheLookup> {
 public:
     CacheCallback(EventuallyPersistentEngine& e,
                   std::shared_ptr<ActiveStream> s);
@@ -57,7 +57,7 @@ private:
 };
 
 /* Callback to get the items that are found to be in the disk */
-class DiskCallback : public Callback<GetValue> {
+class DiskCallback : public StatusCallback<GetValue> {
 public:
     DiskCallback(std::shared_ptr<ActiveStream> s);
 

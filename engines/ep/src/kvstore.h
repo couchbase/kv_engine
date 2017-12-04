@@ -96,7 +96,7 @@ struct TransactionContext {
  */
 typedef std::pair<int, bool> mutation_result;
 
-class NoLookupCallback : public Callback<CacheLookup> {
+class NoLookupCallback : public StatusCallback<CacheLookup> {
 public:
     NoLookupCallback() {}
     ~NoLookupCallback() {}
@@ -174,8 +174,8 @@ enum class VBStatePersist {
 
 class ScanContext {
 public:
-    ScanContext(std::shared_ptr<Callback<GetValue>> cb,
-                std::shared_ptr<Callback<CacheLookup>> cl,
+    ScanContext(std::shared_ptr<StatusCallback<GetValue>> cb,
+                std::shared_ptr<StatusCallback<CacheLookup>> cl,
                 uint16_t vb,
                 size_t id,
                 int64_t start,
@@ -185,8 +185,8 @@ public:
                 uint64_t _documentCount,
                 const KVStoreConfig& _config);
 
-    const std::shared_ptr<Callback<GetValue> > callback;
-    const std::shared_ptr<Callback<CacheLookup> > lookup;
+    const std::shared_ptr<StatusCallback<GetValue>> callback;
+    const std::shared_ptr<StatusCallback<CacheLookup>> lookup;
 
     int64_t lastReadSeqno;
     const int64_t startSeqno;
@@ -720,8 +720,8 @@ public:
      * If the ScanContext cannot be created, returns null.
      */
     virtual ScanContext* initScanContext(
-            std::shared_ptr<Callback<GetValue> > cb,
-            std::shared_ptr<Callback<CacheLookup> > cl,
+            std::shared_ptr<StatusCallback<GetValue>> cb,
+            std::shared_ptr<StatusCallback<CacheLookup>> cl,
             uint16_t vbid,
             uint64_t startSeqno,
             DocumentFilter options,
@@ -821,7 +821,7 @@ public:
 /**
  * Callback class used by DcpConsumer, for rollback operation
  */
-class RollbackCB : public Callback<GetValue> {
+class RollbackCB : public StatusCallback<GetValue> {
 public:
     RollbackCB() : dbHandle(NULL) { }
 

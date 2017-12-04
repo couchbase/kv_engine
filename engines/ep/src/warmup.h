@@ -80,7 +80,7 @@ private:
  * Helper class used to insert items into the storage by using
  * the KVStore::dump method to load items from the database
  */
-class LoadStorageKVPairCallback : public Callback<GetValue> {
+class LoadStorageKVPairCallback : public StatusCallback<GetValue> {
 public:
     LoadStorageKVPairCallback(KVBucket& ep,
                               bool _maybeEnableTraffic,
@@ -102,7 +102,7 @@ private:
     int         warmupState;
 };
 
-class LoadValueCallback : public Callback<CacheLookup> {
+class LoadValueCallback : public StatusCallback<CacheLookup> {
 public:
     LoadValueCallback(VBucketMap& vbMap, int _warmupState) :
         vbuckets(vbMap), warmupState(_warmupState) { }
@@ -144,8 +144,9 @@ public:
                      ProcessClock::duration(1));
     }
 
-    size_t doWarmup(MutationLog &lf, const std::map<uint16_t,
-                    vbucket_state> &vbmap, Callback<GetValue> &cb);
+    size_t doWarmup(MutationLog& lf,
+                    const std::map<uint16_t, vbucket_state>& vbmap,
+                    StatusCallback<GetValue>& cb);
 
     bool isComplete() const {
         return warmupComplete.load();

@@ -1227,8 +1227,8 @@ std::string RocksDBKVStore::getVbstateKey() {
 }
 
 ScanContext* RocksDBKVStore::initScanContext(
-        std::shared_ptr<Callback<GetValue> > cb,
-        std::shared_ptr<Callback<CacheLookup> > cl,
+        std::shared_ptr<StatusCallback<GetValue>> cb,
+        std::shared_ptr<StatusCallback<CacheLookup>> cl,
         uint16_t vbid,
         uint64_t startSeqno,
         DocumentFilter options,

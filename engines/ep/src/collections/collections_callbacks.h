@@ -27,7 +27,7 @@ namespace VB {
  * A KVStore::scan cache callback class which determines if the key is logically
  * deleted.
  */
-class LogicallyDeletedCallback : public Callback<CacheLookup> {
+class LogicallyDeletedCallback : public StatusCallback<CacheLookup> {
 public:
     LogicallyDeletedCallback(KVBucket& store) : store(store) {
     }

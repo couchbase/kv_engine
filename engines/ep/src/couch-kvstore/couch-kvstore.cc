@@ -1212,12 +1212,14 @@ void CouchKVStore::pendingTasks() {
     }
 }
 
-ScanContext* CouchKVStore::initScanContext(std::shared_ptr<Callback<GetValue> > cb,
-                                           std::shared_ptr<Callback<CacheLookup> > cl,
-                                           uint16_t vbid, uint64_t startSeqno,
-                                           DocumentFilter options,
-                                           ValueFilter valOptions) {
-    Db *db = NULL;
+ScanContext* CouchKVStore::initScanContext(
+        std::shared_ptr<StatusCallback<GetValue>> cb,
+        std::shared_ptr<StatusCallback<CacheLookup>> cl,
+        uint16_t vbid,
+        uint64_t startSeqno,
+        DocumentFilter options,
+        ValueFilter valOptions) {
+    Db* db = NULL;
     uint64_t rev = dbFileRevMap[vbid];
     couchstore_error_t errorCode = openDB(vbid, rev, &db,
                                           COUCHSTORE_OPEN_FLAG_RDONLY);
@@ -1668,8 +1670,8 @@ couchstore_error_t CouchKVStore::fetchDoc(Db* db,
 int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
 
     ScanContext* sctx = static_cast<ScanContext*>(ctx);
-    std::shared_ptr<Callback<GetValue> > cb = sctx->callback;
-    std::shared_ptr<Callback<CacheLookup> > cl = sctx->lookup;
+    auto* cb = sctx->callback.get();
+    auto* cl = sctx->lookup.get();
 
     Doc *doc = nullptr;
     sized_buf value{nullptr, 0};
@@ -2594,7 +2596,7 @@ RollbackResult CouchKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,
     }
 
     cb->setDbHeader(newdb.getDb());
-    std::shared_ptr<Callback<CacheLookup> > cl(new NoLookupCallback());
+    auto cl = std::make_shared<NoLookupCallback>();
     ScanContext* ctx = initScanContext(cb, cl, vbid, info.last_sequence+1,
                                        DocumentFilter::ALL_ITEMS,
                                        ValueFilter::KEYS_ONLY);

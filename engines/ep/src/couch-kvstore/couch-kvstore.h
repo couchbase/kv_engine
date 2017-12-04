@@ -422,11 +422,13 @@ public:
                                  uint32_t count,
                                  std::shared_ptr<Callback<const DocKey&>> cb) override;
 
-    ScanContext* initScanContext(std::shared_ptr<Callback<GetValue> > cb,
-                                 std::shared_ptr<Callback<CacheLookup> > cl,
-                                 uint16_t vbid, uint64_t startSeqno,
-                                 DocumentFilter options,
-                                 ValueFilter valOptions) override;
+    ScanContext* initScanContext(
+            std::shared_ptr<StatusCallback<GetValue>> cb,
+            std::shared_ptr<StatusCallback<CacheLookup>> cl,
+            uint16_t vbid,
+            uint64_t startSeqno,
+            DocumentFilter options,
+            ValueFilter valOptions) override;
 
     scan_error_t scan(ScanContext* sctx) override;
 

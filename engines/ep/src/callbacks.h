@@ -103,20 +103,27 @@ private:
 };
 
 /**
- * Interface for callbacks from storage APIs.
+ * Abstract interface for callbacks from storage APIs.
  */
 template <typename... RV>
 class Callback {
 public:
-
-    Callback() : myStatus(0) {}
-
     virtual ~Callback() {}
 
     /**
      * Method called on callback.
      */
     virtual void callback(RV&... value) = 0;
+};
+
+/**
+ * Interface for callbacks which return a status code.
+ */
+template <typename... RV>
+class StatusCallback : public Callback<RV...> {
+public:
+    StatusCallback() : myStatus(0) {
+    }
 
     virtual void setStatus(int status) {
         myStatus = status;
@@ -127,6 +134,5 @@ public:
     }
 
 private:
-
     int myStatus;
 };

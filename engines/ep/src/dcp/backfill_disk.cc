@@ -215,9 +215,8 @@ backfill_status_t DCPBackfillDisk::create() {
         }
     }
 
-    std::shared_ptr<Callback<GetValue> > cb(new DiskCallback(stream));
-    std::shared_ptr<Callback<CacheLookup> > cl(
-            new CacheCallback(engine, stream));
+    auto cb = std::make_shared<DiskCallback>(stream);
+    auto cl = std::make_shared<CacheCallback>(engine, stream);
     scanCtx = kvstore->initScanContext(
             cb, cl, vbid, startSeqno, DocumentFilter::ALL_ITEMS, valFilter);
 
