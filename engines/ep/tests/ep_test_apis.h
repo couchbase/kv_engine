@@ -237,11 +237,24 @@ void verify_all_vb_seqnos(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                           int vb_start, int vb_end);
 void start_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
 void stop_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
-ENGINE_ERROR_CODE store(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                        const void *cookie, ENGINE_STORE_OPERATION op,
-                        const char *key, const char *value, item **outitem,
-                        uint64_t casIn = 0, uint16_t vb = 0,
-                        uint32_t exp = 3600, uint8_t datatype = 0x00,
+
+/**
+ * Store an item.
+ *
+ * @param outitem If non-null, address of the stored item is saved here.
+ * @return
+ */
+ENGINE_ERROR_CODE store(ENGINE_HANDLE* h,
+                        ENGINE_HANDLE_V1* h1,
+                        const void* cookie,
+                        ENGINE_STORE_OPERATION op,
+                        const char* key,
+                        const char* value,
+                        item** outitem = nullptr,
+                        uint64_t casIn = 0,
+                        uint16_t vb = 0,
+                        uint32_t exp = 3600,
+                        uint8_t datatype = 0x00,
                         DocumentState docState = DocumentState::Alive);
 
 cb::EngineErrorItemPair allocate(ENGINE_HANDLE* h,

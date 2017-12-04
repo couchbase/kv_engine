@@ -80,14 +80,12 @@ static enum test_result test_validate_checkpoint_params(ENGINE_HANDLE *h, ENGINE
 
 static enum test_result test_checkpoint_create(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 {
-    item* itm;
     for (int i = 0; i < 5001; i++) {
         char key[8];
         sprintf(key, "key%d", i);
         checkeq(ENGINE_SUCCESS,
-                store(h, h1, NULL, OPERATION_SET, key, "value", &itm, 0, 0),
+                store(h, h1, NULL, OPERATION_SET, key, "value"),
                 "Failed to store an item.");
-        h1->release(h, itm);
     }
     checkeq(3, get_int_stat(h, h1, "vb_0:open_checkpoint_id", "checkpoint"),
             "New checkpoint wasn't create after 5001 item creates");
@@ -98,11 +96,9 @@ static enum test_result test_checkpoint_create(ENGINE_HANDLE *h, ENGINE_HANDLE_V
 
 static enum test_result test_checkpoint_timeout(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 {
-    item* itm;
     checkeq(ENGINE_SUCCESS,
-            store(h, h1, NULL, OPERATION_SET, "key", "value", &itm, 0, 0),
+            store(h, h1, NULL, OPERATION_SET, "key", "value"),
             "Failed to store an item.");
-    h1->release(h, itm);
     testHarness.time_travel(600);
     wait_for_stat_to_be(h, h1, "vb_0:open_checkpoint_id", 2, "checkpoint");
     return SUCCESS;
@@ -110,15 +106,13 @@ static enum test_result test_checkpoint_timeout(ENGINE_HANDLE *h, ENGINE_HANDLE_
 
 static enum test_result test_checkpoint_deduplication(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 {
-    item* itm;
     for (int i = 0; i < 5; i++) {
         for (int j = 0; j < 4500; j++) {
             char key[8];
             sprintf(key, "key%d", j);
             checkeq(ENGINE_SUCCESS,
-                    store(h, h1, NULL, OPERATION_SET, key, "value", &itm, 0, 0),
+                    store(h, h1, NULL, OPERATION_SET, key, "value"),
                     "Failed to store an item.");
-            h1->release(h, itm);
         }
     }
     // 4500 keys + 1x checkpoint_start + 1x set_vbucket_state.
@@ -128,30 +122,25 @@ static enum test_result test_checkpoint_deduplication(ENGINE_HANDLE *h, ENGINE_H
 
 static enum test_result test_collapse_checkpoints(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 {
-    item *itm;
     stop_persistence(h, h1);
     for (size_t i = 0; i < 5; ++i) {
         for (size_t j = 0; j < 497; ++j) {
             char key[8];
             sprintf(key, "key%ld", j);
             checkeq(ENGINE_SUCCESS,
-                    store(h, h1, NULL, OPERATION_SET, key, "value", &itm, 0, 0),
+                    store(h, h1, NULL, OPERATION_SET, key, "value"),
                     "Failed to store an item.");
-            h1->release(h, itm);
         }
         /* Test with app keys with special strings */
-        checkeq(ENGINE_SUCCESS, store(h, h1, NULL, OPERATION_SET, "dummy_key",
-                                      "value", &itm, 0, 0),
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, "dummy_key", "value"),
                 "Failed to store an item.");
-        h1->release(h, itm);
-        checkeq(ENGINE_SUCCESS, store(h, h1, NULL, OPERATION_SET,
-                                      "checkpoint_start", "value", &itm, 0, 0),
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, "checkpoint_start", "value"),
                 "Failed to store an item.");
-        h1->release(h, itm);
-        checkeq(ENGINE_SUCCESS, store(h, h1, NULL, OPERATION_SET,
-                                      "checkpoint_end", "value", &itm, 0, 0),
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, "checkpoint_end", "value"),
                 "Failed to store an item.");
-        h1->release(h, itm);
     }
     check(set_vbucket_state(h, h1, 0, vbucket_state_replica), "Failed to set vbucket state.");
     wait_for_stat_to_be_lte(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
@@ -175,12 +164,14 @@ extern "C" {
         for (int j = 0; j < 10; ++j) {
             std::stringstream ss;
             ss << "key" << j;
-            item *i;
             checkeq(ENGINE_SUCCESS,
-                    store(hp->h, hp->h1, NULL, OPERATION_SET,
-                          ss.str().c_str(), ss.str().c_str(), &i, 0, 0),
+                    store(hp->h,
+                          hp->h1,
+                          NULL,
+                          OPERATION_SET,
+                          ss.str().c_str(),
+                          ss.str().c_str()),
                     "Failed to store a value");
-            hp->h1->release(hp->h, i);
         }
 
         createCheckpoint(hp->h, hp->h1);

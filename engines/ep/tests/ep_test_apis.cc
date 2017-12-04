@@ -662,10 +662,16 @@ protocol_binary_request_header* prepare_get_replica(ENGINE_HANDLE *h,
     pkt = createPacket(PROTOCOL_BINARY_CMD_GET_REPLICA, id, 0, NULL, 0, key, strlen(key));
 
     if (!makeinvalidkey) {
-        item *i = NULL;
-        check(store(h, h1, NULL, OPERATION_SET, key, "replicadata", &i, 0, id)
-              == ENGINE_SUCCESS, "Get Replica Failed");
-        h1->release(h, i);
+        check(store(h,
+                    h1,
+                    NULL,
+                    OPERATION_SET,
+                    key,
+                    "replicadata",
+                    nullptr,
+                    0,
+                    id) == ENGINE_SUCCESS,
+              "Get Replica Failed");
 
         check(set_vbucket_state(h, h1, id, state),
               "Failed to set vbucket active state, Get Replica Failed");
@@ -1549,21 +1555,26 @@ void wait_for_persisted_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                               const char *key, const char *val,
                               uint16_t vbucketId) {
 
-    item *i = NULL;
     int commitNum = 0;
     if (isPersistentBucket(h, h1)) {
          commitNum = get_int_stat(h, h1, "ep_commit_num");
     }
-    check(ENGINE_SUCCESS == store(h, h1, NULL, OPERATION_SET, key, val, &i, 0,
+    check(ENGINE_SUCCESS == store(h,
+                                  h1,
+                                  NULL,
+                                  OPERATION_SET,
+                                  key,
+                                  val,
+                                  nullptr,
+                                  0,
                                   vbucketId),
-            "Failed to store an item.");
+          "Failed to store an item.");
 
     if (isPersistentBucket(h, h1)) {
         // Wait for persistence...
         wait_for_flusher_to_settle(h, h1);
         wait_for_stat_change(h, h1, "ep_commit_num", commitNum);
     }
-    h1->release(h, i);
 }
 
 void set_degraded_mode(ENGINE_HANDLE *h,
@@ -1635,7 +1646,6 @@ void write_items(ENGINE_HANDLE* h,
         if (j == num_items) {
             break;
         }
-        item *i = nullptr;
         std::string key(key_prefix + std::to_string(j + start_seqno));
         ENGINE_ERROR_CODE ret = store(h,
                                       h1,
@@ -1643,13 +1653,12 @@ void write_items(ENGINE_HANDLE* h,
                                       OPERATION_SET,
                                       key.c_str(),
                                       value,
-                                      &i,
+                                      nullptr,
                                       /*cas*/ 0,
                                       vb,
                                       expiry,
                                       0,
                                       docState);
-        h1->release(h, i);
         validate_store_resp(ret, j);
     }
 }
@@ -1675,11 +1684,9 @@ int write_items_upto_mem_perc(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                 break;
             }
         }
-        item *itm = nullptr;
         std::string key("key" + std::to_string(num_items + start_seqno));
-        ENGINE_ERROR_CODE ret = store(h, h1, nullptr, OPERATION_SET,
-                                      key.c_str(), "somevalue", &itm);
-        h1->release(h, itm);
+        ENGINE_ERROR_CODE ret =
+                store(h, h1, nullptr, OPERATION_SET, key.c_str(), "somevalue");
         validate_store_resp(ret, num_items);
     }
     return num_items;

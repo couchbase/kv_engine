@@ -381,13 +381,18 @@ void TestDcpConsumer::run() {
                     if (dcp_last_vbucket_state == vbucket_state_pending) {
                         stats.num_set_vbucket_pending++;
                         for (size_t j = 0; j < stats.extra_takeover_ops; ++j) {
-                            item *i = NULL;
                             std::string key("key" + std::to_string(j));
                             checkeq(ENGINE_SUCCESS,
-                                    store(h, h1, NULL, OPERATION_SET,
-                                          key.c_str(), "data", &i, 0, vbid),
+                                    store(h,
+                                          h1,
+                                          NULL,
+                                          OPERATION_SET,
+                                          key.c_str(),
+                                          "data",
+                                          nullptr,
+                                          0,
+                                          vbid),
                                     "Failed to store a value");
-                            h1->release(h, i);
                         }
                     } else if (dcp_last_vbucket_state == vbucket_state_active) {
                         stats.num_set_vbucket_active++;
@@ -977,12 +982,17 @@ extern "C" {
 
         for (int i = 0; i < wtc->items; ++i) {
             std::string key("key_" + std::to_string(i));
-            item *itm;
             checkeq(ENGINE_SUCCESS,
-                    store(wtc->h, wtc->h1, nullptr, OPERATION_SET,
-                          key.c_str(), "somevalue", &itm, 0, wtc->vbid),
+                    store(wtc->h,
+                          wtc->h1,
+                          nullptr,
+                          OPERATION_SET,
+                          key.c_str(),
+                          "somevalue",
+                          nullptr,
+                          0,
+                          wtc->vbid),
                     "Failed to store value");
-            wtc->h1->release(wtc->h, itm);
         }
     }
 
@@ -1176,26 +1186,32 @@ static enum test_result test_dcp_notifier(ENGINE_HANDLE *h,
     notifier_request(h, h1, cookie, ++opaque, vbucket, start, true);
     dcp_step(h, h1, cookie);
     for (auto j = 0; j < 5; ++j) {
-        item *i = nullptr;
         const auto key = "key" + std::to_string(j);
         checkeq(ENGINE_SUCCESS,
-                store(h, h1, nullptr, OPERATION_SET, key.c_str(),
-                      "data", &i),
+                store(h,
+                      h1,
+                      nullptr,
+                      OPERATION_SET,
+                      key.c_str(),
+                      "data",
+                      nullptr),
                 "Failed to store a value");
-        h1->release(h, i);
     }
     // Shouldn't get a stream end yet
     dcp_step(h, h1, cookie);
     check(dcp_last_op != PROTOCOL_BINARY_CMD_DCP_STREAM_END,
           "Wasn't expecting a stream end");
     for (auto j = 0; j < 6; ++j) {
-        item *i = nullptr;
         const auto key = "key" + std::to_string(j);
         checkeq(ENGINE_SUCCESS,
-                store(h, h1, nullptr, OPERATION_SET, key.c_str(),
-                      "data", &i),
+                store(h,
+                      h1,
+                      nullptr,
+                      OPERATION_SET,
+                      key.c_str(),
+                      "data",
+                      nullptr),
                 "Failed to store a value");
-        h1->release(h, i);
     }
     // Should get a stream end
     dcp_step(h, h1, cookie);
@@ -1221,12 +1237,11 @@ static enum test_result test_dcp_notifier(ENGINE_HANDLE *h,
 
 static enum test_result test_dcp_notifier_equal_to_number_of_items(
                         ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    item *ii = nullptr;
     const std::string key("key0");
     checkeq(ENGINE_SUCCESS,
-            store(h, h1, nullptr, OPERATION_SET, key.c_str(), "data", &ii),
+            store(h, h1, nullptr, OPERATION_SET, key.c_str(), "data", nullptr),
             "Failed to store a value");
-    h1->release(h, ii);
+
     const auto *cookie = testHarness.create_cookie();
     const std::string name("unittest");
     const uint32_t seqno = 0;
@@ -1242,9 +1257,8 @@ static enum test_result test_dcp_notifier_equal_to_number_of_items(
     check(dcp_last_op != PROTOCOL_BINARY_CMD_DCP_STREAM_END,
           "Wasn't expecting a stream end");
     checkeq(ENGINE_SUCCESS,
-            store(h, h1, nullptr, OPERATION_SET, "key0", "data", &ii),
+            store(h, h1, nullptr, OPERATION_SET, "key0", "data"),
             "Failed to store a value");
-    h1->release(h, ii);
     dcp_step(h, h1, cookie);
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_CMD_DCP_STREAM_END),
             dcp_last_op, "Expected stream end");
@@ -2197,20 +2211,13 @@ static enum test_result test_dcp_producer_stream_req_dgm(ENGINE_HANDLE *h,
             }
         }
 
-        item *itm = NULL;
         std::stringstream ss;
         ss << "key" << i;
-        ENGINE_ERROR_CODE ret = store(h,
-                                      h1,
-                                      cookie,
-                                      OPERATION_SET,
-                                      ss.str().c_str(),
-                                      "somevalue",
-                                      &itm);
+        ENGINE_ERROR_CODE ret = store(
+                h, h1, cookie, OPERATION_SET, ss.str().c_str(), "somevalue");
         if (ret == ENGINE_SUCCESS) {
             i++;
         }
-        h1->release(h, itm);
     }
 
     // Sanity check - ensure we have enough vBucket quota (max_size)
@@ -2456,12 +2463,10 @@ static enum test_result test_dcp_producer_stream_cursor_movement(
             curr_chkpt_id = get_ull_stat(h, h1, "vb_0:open_checkpoint_id",
                                          "checkpoint");
         }
-        item *i = NULL;
         std::string key("key" + std::to_string(j));
         checkeq(ENGINE_SUCCESS,
-                store(h, h1, NULL, OPERATION_SET, key.c_str(), "data", &i),
+                store(h, h1, NULL, OPERATION_SET, key.c_str(), "data"),
                 "Failed to store a value");
-        h1->release(h, i);
     }
 
     wait_for_flusher_to_settle(h, h1);
@@ -3223,12 +3228,9 @@ static enum test_result test_failover_scenario_one_with_dcp(
     check(set_vbucket_state(h, h1, 0, vbucket_state_active),
             "Failed to set vbucket state.");
 
-    item *i = NULL;
     checkeq(ENGINE_SUCCESS,
-            store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i),
+            store(h, h1, NULL, OPERATION_SET, "key", "somevalue"),
             "Error in SET operation.");
-
-    h1->release(h, i);
 
     wait_for_flusher_to_settle(h, h1);
     checkeq(0, get_int_stat(h, h1, "ep_diskqueue_items"),
@@ -3476,13 +3478,11 @@ static enum test_result test_chk_manager_rollback(ENGINE_HANDLE *h,
     stop_persistence(h, h1);
 
     for (int j = 0; j < num_items / 2; ++j) {
-        item *i = NULL;
         std::stringstream ss;
         ss << "key" << (j + num_items);
         checkeq(ENGINE_SUCCESS,
-                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i),
+                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data"),
                 "Failed to store a value");
-        h1->release(h, i);
     }
 
     start_persistence(h, h1);
@@ -4257,7 +4257,7 @@ static enum test_result test_dcp_consumer_mutate(ENGINE_HANDLE *h,
 static enum test_result test_dcp_consumer_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     // Store an item
     checkeq(ENGINE_SUCCESS,
-            store(h, h1, NULL, OPERATION_ADD, "key", "value", nullptr),
+            store(h, h1, NULL, OPERATION_ADD, "key", "value"),
             "Failed to fail to store an item.");
     wait_for_flusher_to_settle(h, h1);
     verify_curr_items(h, h1, 1, "one item stored");
@@ -4649,8 +4649,7 @@ static enum test_result test_dcp_last_items_purged(ENGINE_HANDLE *h,
     /* Set 3 items */
     for (int count = 0; count < num_items; count++){
         checkeq(ENGINE_SUCCESS,
-                store(h, h1, NULL, OPERATION_SET, key[count], "somevalue", NULL,
-                      0, 0, 0),
+                store(h, h1, NULL, OPERATION_SET, key[count], "somevalue"),
                 "Error setting.");
     }
 
@@ -4714,8 +4713,7 @@ static enum test_result test_dcp_rollback_after_purge(ENGINE_HANDLE *h,
     /* Set 3 items */
     for (int count = 0; count < num_items; count++){
         checkeq(ENGINE_SUCCESS,
-                store(h, h1, NULL, OPERATION_SET, key[count], "somevalue", NULL,
-                      0, 0, 0),
+                store(h, h1, NULL, OPERATION_SET, key[count], "somevalue"),
                 "Error setting.");
     }
     high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
@@ -5371,18 +5369,30 @@ static enum test_result test_dcp_multiple_streams(ENGINE_HANDLE *h,
     int num_items = 100;
     for (int i = 0; i < num_items; ++i) {
         std::string key("key_1_" + std::to_string(i));
-        item *itm;
         checkeq(ENGINE_SUCCESS,
-                store(h, h1, nullptr, OPERATION_SET, key.c_str(), "data",
-                      &itm, 0, 1),
+                store(h,
+                      h1,
+                      nullptr,
+                      OPERATION_SET,
+                      key.c_str(),
+                      "data",
+                      nullptr,
+                      0,
+                      1),
                 "Failed store on vb 0");
-        h1->release(h, itm);
+
         key = "key_2_" + std::to_string(i);
         checkeq(ENGINE_SUCCESS,
-                store(h, h1, nullptr, OPERATION_SET, key.c_str(), "data",
-                      &itm, 0, 2),
+                store(h,
+                      h1,
+                      nullptr,
+                      OPERATION_SET,
+                      key.c_str(),
+                      "data",
+                      nullptr,
+                      0,
+                      2),
                 "Failed store on vb 1");
-        h1->release(h, itm);
     }
 
     std::string name("unittest");
@@ -5438,11 +5448,9 @@ static enum test_result test_dcp_on_vbucket_state_change(ENGINE_HANDLE *h,
     wait_for_stat_to_be(h, h1, "ep_dcp_producer_count", 1, "dcp");
 
     // Write a mutation
-    item *i;
     checkeq(ENGINE_SUCCESS,
-            store(h, h1, nullptr, OPERATION_SET, "key", "value", &i),
+            store(h, h1, nullptr, OPERATION_SET, "key", "value"),
             "Failed to store a value");
-    h1->release(h, i);
 
     // Wait for producer to stream that item
     const std::string items_sent_str = "eq_dcpq:" + conn_name + ":items_sent";
@@ -5646,14 +5654,11 @@ static enum test_result test_mb19153(ENGINE_HANDLE *h,
     int num_items = 10000;
 
     for (int j = 0; j < num_items; ++j) {
-        item *i = NULL;
         std::stringstream ss;
         ss << "key-" << j;
-        check(store(h, h1, NULL, OPERATION_SET,
-                    ss.str().c_str(), "data", &i, 0, 0, 0, 0)
-                    == ENGINE_SUCCESS, "Failed to store a value");
-
-        h1->release(h, i);
+        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data") ==
+                      ENGINE_SUCCESS,
+              "Failed to store a value");
     }
 
     const void *cookie = testHarness.create_cookie();
