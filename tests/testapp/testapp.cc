@@ -324,10 +324,6 @@ cJSON* TestappTest::generate_config(uint16_t ssl_port)
         cJSON_AddItemToArray(array, obj);
     }
 
-    obj = cJSON_CreateObject();
-    cJSON_AddStringToObject(obj, "module", "testapp_extension.so");
-    cJSON_AddItemToArray(array, obj);
-
     cJSON_AddItemToObject(root, "extensions", array);
 
     // Build up the interface array

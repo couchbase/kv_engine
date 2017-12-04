@@ -100,6 +100,7 @@ ADD_LIBRARY(memcached_daemon STATIC
             memcached_openssl.h
             parent_monitor.cc
             parent_monitor.h
+            protocol/mcbp/adjust_timeofday_executor.cc
             protocol/mcbp/appendprepend_context.cc
             protocol/mcbp/appendprepend_context.h
             protocol/mcbp/arithmetic_context.cc

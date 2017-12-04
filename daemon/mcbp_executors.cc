@@ -715,6 +715,8 @@ void initialize_mbcp_lookup_map() {
     handlers[PROTOCOL_BINARY_CMD_TAP_VBUCKET_SET] = no_support_executor;
     handlers[PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_START] = no_support_executor;
     handlers[PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_END] = no_support_executor;
+
+    handlers[PROTOCOL_BINARY_CMD_ADJUST_TIMEOFDAY] = adjust_timeofday_executor;
 }
 
 static void execute_request_packet(Cookie& cookie,

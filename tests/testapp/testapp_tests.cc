@@ -2180,10 +2180,17 @@ void adjust_memcached_clock(int64_t clock_shift, TimeType timeType) {
         char bytes[1024];
     } buffer;
 
-    size_t len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
+    auto extlen = sizeof(uint64_t) + sizeof(uint8_t);
+    size_t len = mcbp_raw_command(buffer.bytes,
+                                  sizeof(buffer.bytes),
                                   PROTOCOL_BINARY_CMD_ADJUST_TIMEOFDAY,
-                                  NULL, 0, NULL,sizeof(uint64_t) + sizeof(uint8_t));
+                                  NULL,
+                                  0,
+                                  NULL,
+                                  extlen);
 
+    buffer.request.message.header.request.extlen =
+            gsl::narrow_cast<uint8_t>(extlen);
     buffer.request.message.body.offset = htonll(clock_shift);
     buffer.request.message.body.timeType = timeType;
 

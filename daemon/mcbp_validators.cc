@@ -1328,6 +1328,27 @@ static protocol_binary_response_status collections_set_manifest_validator(
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
+static protocol_binary_response_status adjust_timeofday_validator(const Cookie& cookie)
+{
+    const auto& header = cookie.getHeader();
+
+    if (!header.isValid() ||
+        header.getExtlen() != (sizeof(uint64_t) + sizeof(uint8_t)) ||
+        header.getKeylen() != 0 ||
+        header.getBodylen() != header.getExtlen() ||
+        header.getCas() != 0 ||
+        header.getDatatype() != PROTOCOL_BINARY_RAW_BYTES) {
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
+    // The method should only be available for unit tests
+    if (getenv("MEMCACHED_UNIT_TESTS") == nullptr) {
+        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
+    }
+
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+}
+
 void McbpValidatorChains::initializeMcbpValidatorChains(McbpValidatorChains& chains) {
     chains.push_unique(PROTOCOL_BINARY_CMD_DCP_OPEN, dcp_open_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_DCP_ADD_STREAM, dcp_add_stream_validator);
@@ -1435,4 +1456,7 @@ void McbpValidatorChains::initializeMcbpValidatorChains(McbpValidatorChains& cha
     chains.push_unique(PROTOCOL_BINARY_CMD_RBAC_REFRESH, configuration_refresh_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_COLLECTIONS_SET_MANIFEST,
                        collections_set_manifest_validator);
+
+    chains.push_unique(PROTOCOL_BINARY_CMD_ADJUST_TIMEOFDAY,
+                       adjust_timeofday_validator);
 }

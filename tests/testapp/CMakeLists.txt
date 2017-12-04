@@ -64,8 +64,7 @@ function(add_unit_test_suite)
                      blackhole_logger
                      default_engine ep
                      ewouldblock_engine
-                     memcached nobucket
-                     testapp_extension)
+                     memcached nobucket)
 
     if (arg_ENGINE)
         add_test(NAME memcached-${arg_NAME}-${arg_ENGINE}-tests

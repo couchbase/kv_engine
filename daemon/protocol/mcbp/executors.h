@@ -53,3 +53,5 @@ void drop_privilege_executor(Cookie&);
 
 void get_cluster_config_executor(Cookie&);
 void set_cluster_config_executor(Cookie&);
+
+void adjust_timeofday_executor(Cookie&);
