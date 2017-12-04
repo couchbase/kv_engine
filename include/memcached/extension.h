@@ -1,77 +1,64 @@
-/* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#ifndef MEMCACHED_EXTENSION_H
-#define MEMCACHED_EXTENSION_H
+/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+#pragma once
 
-#ifndef __cplusplus
-#include <stdbool.h>
-#endif
-
-#include <stdint.h>
 #include <memcached/engine_common.h>
 #include <memcached/protocol_binary.h>
-#include <memcached/types.h>
 #include <memcached/server_api.h>
+#include <memcached/types.h>
+#include <cstdint>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+/**
+ * \defgroup Extension Generic Extensions API
+ * \addtogroup Extension
+ * @{
+ *
+ * Definition of the generic extension API to memcached.
+ */
+
+/**
+ * Response codes for extension operations.
+ */
+typedef enum {
+    /** The command executed successfully */
+    EXTENSION_SUCCESS = 0x00,
+    /** A fatal error occurred, and the server should shut down as soon
+     * as possible */
+    EXTENSION_FATAL = 0xfe,
+    /** Generic failure. */
+    EXTENSION_FAILED = 0xff
+} EXTENSION_ERROR_CODE;
+
+typedef enum {
+    /**
+     * A generic extention that don't provide a functionality to the
+     * memcached core, but lives in the memcached address space.
+     */
+    EXTENSION_DAEMON = 0x00,
+    /**
+     * A log consumer
+     */
+    EXTENSION_LOGGER = 0x01
+} extension_type_t;
+
+/**
+ * Deamon extensions should provide the following descriptor when
+ * they register themselves.
+ */
+typedef struct extension_daemon_descriptor {
+    /**
+     * Get the name of the descriptor. The memory area returned by this
+     * function has to be valid until the descriptor is unregistered.
+     */
+    const char* (*get_name)(void);
 
     /**
-     * \defgroup Extension Generic Extensions API
-     * \addtogroup Extension
-     * @{
-     *
-     * Definition of the generic extension API to memcached.
+     * Deamon descriptors are stored in a linked list in the memcached
+     * core by using this pointer. Please do not modify this pointer
+     * by yourself until you have unregistered the descriptor.
+     * The <b>only</b> time it is safe for an extension to walk this
+     * list is during initialization of the modules.
      */
-
-    /**
-     * Response codes for extension operations.
-     */
-    typedef enum {
-        /** The command executed successfully */
-        EXTENSION_SUCCESS     = 0x00,
-        /** A fatal error occurred, and the server should shut down as soon
-         * as possible */
-        EXTENSION_FATAL       = 0xfe,
-        /** Generic failure. */
-        EXTENSION_FAILED      = 0xff
-    } EXTENSION_ERROR_CODE;
-
-    typedef enum {
-        /**
-         * A generic extention that don't provide a functionality to the
-         * memcached core, but lives in the memcached address space.
-         */
-        EXTENSION_DAEMON = 0x00,
-        /**
-         * A log consumer
-         */
-        EXTENSION_LOGGER = 0x01,
-        /**
-         * Command extension for the binary protocol
-         */
-        EXTENSION_BINARY_PROTOCOL = 0x03
-    } extension_type_t;
-
-    /**
-     * Deamon extensions should provide the following descriptor when
-     * they register themselves.
-     */
-    typedef struct extension_daemon_descriptor {
-        /**
-         * Get the name of the descriptor. The memory area returned by this
-         * function has to be valid until the descriptor is unregistered.
-         */
-        const char* (*get_name)(void);
-
-        /**
-         * Deamon descriptors are stored in a linked list in the memcached
-         * core by using this pointer. Please do not modify this pointer
-         * by yourself until you have unregistered the descriptor.
-         * The <b>only</b> time it is safe for an extension to walk this
-         * list is during initialization of the modules.
-         */
-        struct extension_daemon_descriptor *next;
+    struct extension_daemon_descriptor* next;
     } EXTENSION_DAEMON_DESCRIPTOR;
 
     typedef enum {
@@ -135,132 +122,6 @@ extern "C" {
     } mc_extension_token_t;
 
     /**
-     * ASCII protocol extensions must provide the following descriptor to
-     * extend the capabilities of the ascii protocol. The memcached core
-     * will probe each command in the order they are registered, so you should
-     * register the most likely command to be used first (or you could register
-     * only one descriptor and do a better dispatch routine inside your own
-     * implementation of accept / execute).
-     */
-    typedef struct extension_ascii_protocol_descriptor {
-        /**
-         * Get the name of the descriptor. The memory area returned by this
-         * function has to be valid until the descriptor is unregistered.
-         *
-         * @param cmd_cookie cookie registered with the command
-         */
-        const char* (*get_name)(const void *cmd_cookie);
-
-        /**
-         * Called by the server to determine if the command in argc, argv should
-         * be process by this handler.
-         *
-         * If the command accepts out-of-band data (like add / append / prepend
-         * / replace / set), the command must set the datapointer and ndata
-         * to the number of bytes it want to read (remember to account for
-         * the trailing "\r\n" ;-))
-         *
-         * If you need extra data, you should copy all of the argc/argv info
-         * you may need to execute the command, because those parameters will
-         * be 0 and NULL when execute is invoked...
-         *
-         * @param cmd_cookie cookie registered with the command
-         * @param cookie identifying the client connection
-         * @param argc the number of arguments
-         * @param argv the argument vector
-         * @param ndata the number of bytes in out-of-band data (OUT)
-         * @param ptr where the core shall write the data (OUT)
-         * @param noreply is this a noreply command or not...
-         * @return true if the command should be handled by this command handler
-         */
-        bool (*accept)(const void *cmd_cookie,
-                       void *cookie,
-                       int argc,
-                       mc_extension_token_t *argv,
-                       size_t *ndata,
-                       char **ptr);
-
-        /**
-         * execute the command.
-         *
-         * @param cmd_cookie cookie registered with the command
-         * @param cookie identifying the client connection
-         * @param argc the number of arguments
-         * @param argv the argument vector
-         * @param response_handler callback to add data to the return buffer
-         * @return Error code for the operation
-         */
-        ENGINE_ERROR_CODE (*execute)(const void *cmd_cookie,
-                                     const void *cookie,
-                                     int argc, mc_extension_token_t *argv,
-                                     ENGINE_ERROR_CODE (*response_handler)(const void *cookie,
-                                                                           int nbytes,
-                                                                           const char *dta));
-
-        /**
-         * abort the command.
-         *
-         * @param cmd_cookie cookie registered with the command
-         * @param cookie identifying the client connection
-         */
-        void (*abort)(const void *cmd_cookie, const void *cookie);
-
-        /**
-         * cookie for the command. This is the cookie passed to accept and
-         * execute, so that you can register the same functions for multiple
-         * commands (but tell them apart during invokations).
-         */
-        const void *cookie;
-
-        /**
-         * Deamon descriptors are stored in a linked list in the memcached
-         * core by using this pointer. Please do not modify this pointer
-         * by yourself until you have unregistered the descriptor.
-         * The <b>only</b> time it is safe for an extension to walk this
-         * list is during initialization of the modules.
-         */
-        struct extension_ascii_protocol_descriptor *next;
-    } EXTENSION_ASCII_PROTOCOL_DESCRIPTOR;
-
-
-    typedef struct extension_binary_protocol_descriptor EXTENSION_BINARY_PROTOCOL_DESCRIPTOR;
-
-    typedef ENGINE_ERROR_CODE (*BINARY_COMMAND_CALLBACK)(EXTENSION_BINARY_PROTOCOL_DESCRIPTOR *descriptor,
-                                                         ENGINE_HANDLE* handle,
-                                                         const void* cookie,
-                                                         protocol_binary_request_header *request,
-                                                         ADD_RESPONSE response);
-
-    /**
-     * ASCII protocol extensions must provide the following descriptor to
-     * extend the capabilities of the ascii protocol. The memcached core
-     * will probe each command in the order they are registered, so you should
-     * register the most likely command to be used first (or you could register
-     * only one descriptor and do a better dispatch routine inside your own
-     * implementation of accept / execute).
-     */
-    struct extension_binary_protocol_descriptor {
-        /**
-         * Get the name of the descriptor. The memory area returned by this
-         * function has to be valid until the descriptor is unregistered.
-         */
-        const char* (*get_name)(void);
-
-        void (*setup)(void (*add)(EXTENSION_BINARY_PROTOCOL_DESCRIPTOR *descriptor,
-                                  uint8_t cmd,
-                                  BINARY_COMMAND_CALLBACK new_handler));
-
-        /**
-         * Deamon descriptors are stored in a linked list in the memcached
-         * core by using this pointer. Please do not modify this pointer
-         * by yourself until you have unregistered the descriptor.
-         * The <b>only</b> time it is safe for an extension to walk this
-         * list is during initialization of the modules.
-         */
-        struct extension_binary_protocol_descriptor *next;
-    };
-
-    /**
      * The signature for the "memcached_extensions_initialize" function
      * exported from the loadable module.
      *
@@ -312,9 +173,3 @@ extern "C" {
     /**
      * @}
      */
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif

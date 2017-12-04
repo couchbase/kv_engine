@@ -93,24 +93,6 @@ static void gat_executor(Cookie& cookie) {
     cookie.obtainContext<GatCommandContext>(cookie).drive();
 }
 
-static ENGINE_ERROR_CODE default_unknown_command(
-        EXTENSION_BINARY_PROTOCOL_DESCRIPTOR*,
-        ENGINE_HANDLE*,
-        const void* const_cookie,
-        protocol_binary_request_header*,
-        ADD_RESPONSE response) {
-    auto* void_cookie = const_cast<void*>(const_cookie);
-    auto& cookie = *reinterpret_cast<Cookie*>(void_cookie);
-    return bucket_unknown_command(cookie, response);
-}
-
-struct request_lookup {
-    EXTENSION_BINARY_PROTOCOL_DESCRIPTOR* descriptor;
-    BINARY_COMMAND_CALLBACK callback;
-};
-
-static std::array<request_lookup, 0x100> request_handlers;
-
 /**
  * The handler function is used to handle and incomming packet (command or
  * response).
@@ -133,17 +115,7 @@ std::array<HandlerFunction, 0x100> handlers;
  */
 std::array<HandlerFunction, 0x100> response_handlers;
 
-void setup_mcbp_lookup_cmd(
-    EXTENSION_BINARY_PROTOCOL_DESCRIPTOR* descriptor,
-    uint8_t cmd,
-    BINARY_COMMAND_CALLBACK new_handler) {
-    request_handlers[cmd].descriptor = descriptor;
-    request_handlers[cmd].callback = new_handler;
-}
-
 static void process_bin_unknown_packet(Cookie& cookie) {
-    auto* req = reinterpret_cast<protocol_binary_request_header*>(
-            cookie.getPacketAsVoidPtr());
     auto& connection = cookie.getConnection();
 
     ENGINE_ERROR_CODE ret = cookie.getAiostat();
@@ -151,12 +123,7 @@ static void process_bin_unknown_packet(Cookie& cookie) {
     cookie.setEwouldblock(false);
 
     if (ret == ENGINE_SUCCESS) {
-        struct request_lookup& rq = request_handlers[req->request.opcode];
-        ret = rq.callback(rq.descriptor,
-                          connection.getBucketEngineAsV0(),
-                          static_cast<const void*>(&cookie),
-                          req,
-                          mcbp_response_handler);
+        ret = bucket_unknown_command(cookie, mcbp_response_handler);
     }
 
     ret = cookie.getConnection().remapErrorCode(ret);
@@ -557,11 +524,6 @@ static void process_bin_dcp_response(Cookie& cookie) {
 }
 
 void initialize_mbcp_lookup_map() {
-    for (auto& handler : request_handlers) {
-        handler.descriptor = nullptr;
-        handler.callback = default_unknown_command;
-    }
-
     response_handlers[PROTOCOL_BINARY_CMD_NOOP] = process_bin_noop_response;
 
     response_handlers[PROTOCOL_BINARY_CMD_DCP_OPEN] = process_bin_dcp_response;

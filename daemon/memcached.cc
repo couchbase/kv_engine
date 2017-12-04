@@ -1666,33 +1666,6 @@ static bool register_extension(extension_type_t type, void *extension)
                 reinterpret_cast<EXTENSION_LOGGER_DESCRIPTOR*>(extension);
         return true;
 
-    case EXTENSION_BINARY_PROTOCOL:
-        {
-            auto* ext_binprot =
-                    reinterpret_cast<EXTENSION_BINARY_PROTOCOL_DESCRIPTOR*>(extension);
-
-            if (settings.extensions.binary != NULL) {
-                EXTENSION_BINARY_PROTOCOL_DESCRIPTOR *last;
-                for (last = settings.extensions.binary; last->next != NULL;
-                     last = last->next) {
-                    if (last == ext_binprot) {
-                        return false;
-                    }
-                }
-                if (last == ext_binprot) {
-                    return false;
-                }
-                last->next = ext_binprot;
-                last->next->next = NULL;
-            } else {
-                settings.extensions.binary = ext_binprot;
-                settings.extensions.binary->next = NULL;
-            }
-
-            ext_binprot->setup(setup_mcbp_lookup_cmd);
-            return true;
-        }
-
     default:
         return false;
     }
@@ -1735,9 +1708,6 @@ static void unregister_extension(extension_type_t type, void *extension)
             }
         }
         break;
-    case EXTENSION_BINARY_PROTOCOL:
-        LOG_WARNING(NULL, "You can't unregister a binary command handler!");
-        break;
     }
 }
 
@@ -1752,9 +1722,6 @@ static void* get_extension(extension_type_t type)
 
     case EXTENSION_LOGGER:
         return settings.extensions.logger;
-
-    case EXTENSION_BINARY_PROTOCOL:
-        return settings.extensions.binary;
 
     default:
         return NULL;

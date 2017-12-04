@@ -373,12 +373,6 @@ static void process_stat_settings(ADD_STAT add_stat_callback, Cookie& cookie) {
 
     add_stat(cookie, add_stat_callback, "logger",
              settings.extensions.logger->get_name());
-    {
-        EXTENSION_BINARY_PROTOCOL_DESCRIPTOR* ptr;
-        for (ptr = settings.extensions.binary; ptr != NULL; ptr = ptr->next) {
-            add_stat(cookie, add_stat_callback, "binary_extension", ptr->get_name());
-        }
-    }
 
     add_stat(cookie, add_stat_callback, "audit",
              settings.getAuditFile().c_str());

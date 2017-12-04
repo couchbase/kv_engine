@@ -1159,7 +1159,6 @@ public:
     struct {
         EXTENSION_DAEMON_DESCRIPTOR *daemons;
         EXTENSION_LOGGER_DESCRIPTOR *logger;
-        EXTENSION_BINARY_PROTOCOL_DESCRIPTOR *binary;
     } extensions;
 };
 

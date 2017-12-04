@@ -25,23 +25,8 @@
 #include <memcached/protocol_binary.h>
 #include "connection_mcbp.h"
 
-typedef void (* mcbp_package_execute)(McbpConnection *c, void* packet);
-
-/**
- * Get the memcached binary protocol executors
- *
- * @return the array of 0x100 entries for the package
- *         executors
- */
-std::array<mcbp_package_execute, 0x100>& get_mcbp_executors();
-
 void mcbp_execute_packet(Cookie& cookie);
 
 void try_read_mcbp_command(McbpConnection& c);
 
-void initialize_mbcp_lookup_map(void);
-
-void setup_mcbp_lookup_cmd(
-    EXTENSION_BINARY_PROTOCOL_DESCRIPTOR* descriptor,
-    uint8_t cmd,
-    BINARY_COMMAND_CALLBACK new_handler);
+void initialize_mbcp_lookup_map();
