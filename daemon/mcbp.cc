@@ -231,8 +231,7 @@ bool mcbp_response_handler(const void* key, uint16_t keylen,
                         mcbp::datatype::to_string(datatype).c_str());
             return false;
         }
-        payload.buf = buffer.data.get();
-        payload.len = buffer.len;
+        payload = buffer;
         datatype &= ~(PROTOCOL_BINARY_DATATYPE_SNAPPY);
     }
 

@@ -84,8 +84,7 @@ ENGINE_ERROR_CODE GatCommandContext::inflateItem() {
                         connection.getId());
             return ENGINE_FAILED;
         }
-        payload.buf = buffer.data.get();
-        payload.len = buffer.len;
+        payload = buffer;
     } catch (const std::bad_alloc&) {
         return ENGINE_ENOMEM;
     }

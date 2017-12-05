@@ -83,8 +83,7 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::inflateInputData() {
                                       inputbuffer)) {
             return ENGINE_EINVAL;
         }
-        value.buf = inputbuffer.data.get();
-        value.len = inputbuffer.len;
+        value = inputbuffer;
         state = State::GetItem;
     } catch (const std::bad_alloc&) {
         return ENGINE_ENOMEM;
@@ -139,8 +138,8 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::allocateNewItem() {
     cb::byte_buffer old{(uint8_t*)oldItemInfo.value[0].iov_base,
                         oldItemInfo.nbytes};
 
-    if (buffer.len != 0) {
-        old = {(uint8_t*)buffer.data.get(), buffer.len};
+    if (buffer.size() != 0) {
+        old = {(uint8_t*)buffer.data(), buffer.size()};
     }
 
     // If we're operating on a document containing xattr's we need to
@@ -226,11 +225,8 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::storeItem() {
 ENGINE_ERROR_CODE AppendPrependCommandContext::reset() {
     olditem.reset();
     newitem.reset();
+    buffer.reset();
 
-    if (buffer.len > 0) {
-        buffer.len = 0;
-        buffer.data.reset();
-    }
     state = State::GetItem;
     return ENGINE_SUCCESS;
 }

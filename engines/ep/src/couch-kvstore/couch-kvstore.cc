@@ -678,7 +678,7 @@ static int edit_docinfo_hook(DocInfo **info, const sized_buf *item) {
                     std::to_string((*info)->db_seq) + " revno: " +
                     std::to_string((*info)->rev_seq));
             }
-            data = { inflated.data.get(), inflated.len };
+            data = inflated;
         }
 
         protocol_binary_datatype_t datatype = PROTOCOL_BINARY_RAW_BYTES;
@@ -762,7 +762,7 @@ static int notify_expired_item(DocInfo& info,
                     "revno: %" PRIu64, info.db_seq, info.rev_seq);
                 return COUCHSTORE_ERROR_CORRUPT;
             }
-            data = {inflated.data.get(),inflated.len};
+            data = inflated;
         }
     }
 

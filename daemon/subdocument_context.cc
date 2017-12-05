@@ -367,8 +367,7 @@ protocol_binary_response_status SubdocCmdContext::get_document_for_searching(
         }
 
         // Update document to point to the uncompressed version in the buffer.
-        in_doc.buf = inflated_doc_buffer.data.get();
-        in_doc.len = inflated_doc_buffer.len;
+        in_doc = inflated_doc_buffer;
         in_datatype &= ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
     }
 

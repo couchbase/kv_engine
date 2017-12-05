@@ -118,12 +118,12 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::storeNewItem() {
 ENGINE_ERROR_CODE ArithmeticCommandContext::allocateNewItem() {
     // Set ptr to point to the beginning of the input buffer.
     size_t oldsize = oldItemInfo.nbytes;
-    char* ptr = static_cast<char*>(oldItemInfo.value[0].iov_base);
+    auto* ptr = static_cast<char*>(oldItemInfo.value[0].iov_base);
     // If the input buffer was compressed we should use the temporary
     // allocated buffer instead
-    if (buffer.len != 0) {
-        ptr = static_cast<char*>(buffer.data.get());
-        oldsize = buffer.len;
+    if (buffer.size() != 0) {
+        ptr = buffer.data();
+        oldsize = buffer.size();
     }
 
     // Preserve the XATTRs of the existing item if it had any
@@ -180,9 +180,9 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::allocateNewItem() {
                          pair.second.value[0].iov_len};
 
     // copy the data over..
-    const char* src = (const char*)oldItemInfo.value[0].iov_base;
-    if (buffer.len != 0) {
-        src = buffer.data.get();
+    const auto* src = (const char*)oldItemInfo.value[0].iov_base;
+    if (buffer.size() != 0) {
+        src = buffer.data();
     }
 
     // copy the xattr over;
@@ -262,11 +262,7 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::sendResult() {
 ENGINE_ERROR_CODE ArithmeticCommandContext::reset() {
     olditem.reset();
     newitem.reset();
-
-    if (buffer.len > 0) {
-        buffer.len = 0;
-        buffer.data.reset();
-    }
+    buffer.reset();
     state = State::GetItem;
     return ENGINE_SUCCESS;
 }

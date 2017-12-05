@@ -200,10 +200,10 @@ protected:
                         valueData, output));
             datatype |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
             return std::make_unique<Item>(key,
-                                          /*flags*/0,
-                                          /*exp*/0,
-                                          output.data.get(),
-                                          output.len,
+                                          /*flags*/ 0,
+                                          /*exp*/ 0,
+                                          output.data(),
+                                          output.size(),
                                           datatype);
         }
 
@@ -300,7 +300,7 @@ std::string decompressValue(std::string compressedValue) {
         return {};
     }
 
-    return std::string(buffer.data.get(), buffer.len);
+    return std::string(buffer.data(), buffer.size());
 }
 
 extern std::string dcp_last_value;
