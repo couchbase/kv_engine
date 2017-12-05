@@ -374,6 +374,11 @@
             "default": "true",
             "type": "bool"
         },
+        "flusher_backfill_batch_limit" : {
+            "default": "0",
+            "descr": "Maximum number of backfill items to write in a single vBucket flush. Zero means no limit.",
+            "type": "size_t"
+        },
         "getl_default_timeout": {
             "default": "15",
             "descr": "The default timeout for a getl lock in (s)",

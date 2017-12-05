@@ -165,10 +165,30 @@ private:
     KVBucket& epstore;
 };
 
+class EPBucket::ValueChangedListener : public ::ValueChangedListener {
+public:
+    ValueChangedListener(EPBucket& bucket) : bucket(bucket) {
+    }
+
+    virtual void sizeValueChanged(const std::string& key,
+                                  size_t value) override {
+        if (key == "flusher_backfill_batch_limit") {
+            bucket.setFlusherBackfillBatchLimit(value);
+        } else {
+            LOG(EXTENSION_LOG_WARNING,
+                "Failed to change value for unknown variable, %s\n",
+                key.c_str());
+        }
+    }
+
+private:
+    EPBucket& bucket;
+};
+
 EPBucket::EPBucket(EventuallyPersistentEngine& theEngine)
     : KVBucket(theEngine) {
-    const std::string& policy =
-            engine.getConfiguration().getItemEvictionPolicy();
+    auto& config = engine.getConfiguration();
+    const std::string& policy = config.getItemEvictionPolicy();
     if (policy.compare("value_only") == 0) {
         eviction_policy = VALUE_ONLY;
     } else {
@@ -176,6 +196,10 @@ EPBucket::EPBucket(EventuallyPersistentEngine& theEngine)
     }
     replicationThrottle = std::make_unique<ReplicationThrottle>(
             engine.getConfiguration(), stats);
+
+    flusherBackfillBatchLimit = config.getFlusherBackfillBatchLimit();
+    config.addValueChangedListener("flusher_backfill_batch_limit",
+                                   new ValueChangedListener(*this));
 }
 
 bool EPBucket::initialize() {
@@ -210,23 +234,25 @@ void EPBucket::reset() {
     vbMap.getShard(EP_PRIMARY_SHARD)->getFlusher()->notifyFlushEvent();
 }
 
-int EPBucket::flushVBucket(uint16_t vbid) {
+std::pair<bool, size_t> EPBucket::flushVBucket(uint16_t vbid) {
     KVShard *shard = vbMap.getShardByVbId(vbid);
     if (diskDeleteAll && !deleteAllTaskCtx.delay) {
         if (shard->getId() == EP_PRIMARY_SHARD) {
             flushOneDeleteAll();
         } else {
             // disk flush is pending just return
-            return 0;
+            return {false, 0};
         }
     }
 
     int items_flushed = 0;
+    bool moreAvailable = false;
     const auto flush_start = ProcessClock::now();
 
     auto vb = getLockedVBucket(vbid, std::try_to_lock);
-    if (!vb.owns_lock()) { // Try another bucket if this one is locked
-        return RETRY_FLUSH_VBUCKET; // to avoid blocking flusher
+    if (!vb.owns_lock()) {
+        // Try another bucket if this one is locked to avoid blocking flusher.
+        return {true, 0};
     }
     if (vb) {
         std::vector<queued_item> items;
@@ -238,16 +264,20 @@ int EPBucket::flushVBucket(uint16_t vbid) {
         }
 
         // Append any 'backfill' items (mutations added by a DCP stream).
-        vb->getBackfillItems(items);
+        moreAvailable = vb->getBackfillItems(items, flusherBackfillBatchLimit);
 
-        // Append all items outstanding for the persistence cursor.
-        snapshot_range_t range;
-        auto _begin_ = ProcessClock::now();
-        range = vb->checkpointManager->getAllItemsForCursor(
-                CheckpointManager::pCursorName, items);
-        stats.persistenceCursorGetItemsHisto.add(
-                std::chrono::duration_cast<std::chrono::microseconds>(
-                        ProcessClock::now() - _begin_));
+        // Append all items outstanding for the persistence cursor, as long as
+        // we haven't already hit the batch limit.
+        snapshot_range_t range{0, 0};
+        if (!moreAvailable) {
+            auto _begin_ = ProcessClock::now();
+            range = vb->checkpointManager->getAllItemsForCursor(
+                    CheckpointManager::pCursorName, items);
+            moreAvailable = false;
+            stats.persistenceCursorGetItemsHisto.add(
+                    std::chrono::duration_cast<std::chrono::microseconds>(
+                            ProcessClock::now() - _begin_));
+        }
 
         if (!items.empty()) {
             while (!rwUnderlying->begin(
@@ -367,7 +397,7 @@ int EPBucket::flushVBucket(uint16_t vbid) {
 
                 if (rwUnderlying->snapshotVBucket(vb->getId(), vbstate,
                                                   options) != true) {
-                    return RETRY_FLUSH_VBUCKET;
+                    return {true, 0};
                 }
 
                 if (vb->setBucketCreation(false)) {
@@ -430,11 +460,15 @@ int EPBucket::flushVBucket(uint16_t vbid) {
                 vb->setPersistenceCheckpointId(chkid);
             }
         } else {
-            return RETRY_FLUSH_VBUCKET;
+            return {true, items_flushed};
         }
     }
 
-    return items_flushed;
+    return {moreAvailable, items_flushed};
+}
+
+void EPBucket::setFlusherBackfillBatchLimit(size_t limit) {
+    flusherBackfillBatchLimit = limit;
 }
 
 void EPBucket::commit(KVStore& kvstore, const Item* collectionsManifest) {

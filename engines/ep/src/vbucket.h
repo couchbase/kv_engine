@@ -403,7 +403,16 @@ public:
     virtual void queueBackfillItem(queued_item& qi,
                                    const GenerateBySeqno generateBySeqno) = 0;
 
-    void getBackfillItems(std::vector<queued_item> &items);
+    /**
+     * Transfer any backfill items to the specified vector, up to the optional
+     * limit.
+     * @param items Destination for items transferred from backfill.
+     * @param limit If non-zero, limit the number of items transferred to the
+     * specified number.
+     * @return true if any more items remain in the backfill set - i.e. if
+     *         limit constrained the number of items.
+     */
+    bool getBackfillItems(std::vector<queued_item>& items, size_t limit = 0);
 
     bool isBackfillPhase() {
         return backfill.isBackfillPhase.load();

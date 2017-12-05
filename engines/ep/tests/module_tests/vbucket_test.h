@@ -55,6 +55,9 @@ protected:
 
     std::vector<StoredDocKey> generateKeys(int num, int start = 0);
 
+    // Create a queued item with the given key
+    queued_item makeQueuedItem(const char *key);
+
     AddStatus addOne(const StoredDocKey& k, int expiry = 0);
 
     TempAddStatus addOneTemp(const StoredDocKey& k);

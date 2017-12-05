@@ -20,6 +20,7 @@
 #include "vbucket_test.h"
 
 #include "bgfetcher.h"
+#include "checkpoint.h"
 #include "ep_time.h"
 #include "ep_vb.h"
 #include "failover-table.h"
@@ -59,6 +60,17 @@ std::vector<StoredDocKey> VBucketTest::generateKeys(int num, int start) {
     }
 
     return rv;
+}
+
+queued_item VBucketTest::makeQueuedItem(const char *key) {
+    std::string val("x");
+    uint32_t flags = 0;
+    time_t expiry = 0;
+    return queued_item(new Item(makeStoredDocKey(key),
+                                flags,
+                                expiry,
+                                val.c_str(),
+                                val.size()));
 }
 
 AddStatus VBucketTest::addOne(const StoredDocKey& k, int expiry) {
@@ -502,6 +514,32 @@ TEST_P(VBucketTest, SizeStatsSoftDelFlush) {
     EXPECT_EQ(initialSize, this->global_stats.currentSize.load());
 
     cb_free(someval);
+}
+
+// Check that getBackfillItems() can correctly impose a limit on backfill items
+// fetched.
+TEST_P(VBucketTest, GetBackfillItems_Limit) {
+    // Setup - Add 3 items to backfill.
+    this->vbucket->backfill.items.push(makeQueuedItem("0"));
+    this->vbucket->backfill.items.push(makeQueuedItem("1"));
+    this->vbucket->backfill.items.push(makeQueuedItem("2"));
+
+    // Setup - Add 2 items to checkpoint manager (in addition to initial
+    // checkpoint_start)
+    auto keys = generateKeys(2, 3);
+    setMany(keys, MutationStatus::WasClean);
+
+    // Test - fetch items in chunks spanning the different item sources.
+    // Should get specified number (in correct order).
+    std::vector<queued_item> items;
+    EXPECT_TRUE(this->vbucket->getBackfillItems(items, 1));
+    EXPECT_EQ(1, items.size());
+    EXPECT_STREQ("0", items[0]->getKey().c_str());
+
+    EXPECT_FALSE(this->vbucket->getBackfillItems(items, 2));
+    EXPECT_EQ(3, items.size());
+    EXPECT_STREQ("1", items[1]->getKey().c_str());
+    EXPECT_STREQ("2", items[2]->getKey().c_str());
 }
 
 class VBucketEvictionTest : public VBucketTest {};

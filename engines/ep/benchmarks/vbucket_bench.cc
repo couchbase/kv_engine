@@ -39,7 +39,7 @@ protected:
 
 BENCHMARK_DEFINE_F(VBucketBench, FlushVBucket)(benchmark::State& state) {
     const auto itemCount = state.range(0);
-    int itemsFlushed = 0;
+    int itemsFlushedTotal = 0;
 
     // Memory size before flushing.
     size_t baseBytes = 0;
@@ -64,11 +64,19 @@ BENCHMARK_DEFINE_F(VBucketBench, FlushVBucket)(benchmark::State& state) {
 
         // Benchmark.
         auto& ep = dynamic_cast<EPBucket&>(*engine->getKVBucket());
-        itemsFlushed += ep.flushVBucket(vbid);
+        size_t itemsFlushed = 0;
+        bool moreAvailable;
+        do {
+            size_t count;
+            std::tie(moreAvailable, count) = ep.flushVBucket(vbid);
+            itemsFlushed += count;
+        } while (moreAvailable);
 
+        ASSERT_EQ(itemCount, itemsFlushed);
         peakBytes = std::max(peakBytes, memoryTracker->getMaxAlloc());
+        itemsFlushedTotal += itemsFlushed;
     }
-    state.SetItemsProcessed(itemsFlushed);
+    state.SetItemsProcessed(itemsFlushedTotal);
     // Peak memory usage while flushing, minus baseline.
     state.counters["PeakFlushBytes"] = peakBytes - baseBytes;
     state.counters["PeakBytesPerItem"] = (peakBytes - baseBytes) / itemCount;

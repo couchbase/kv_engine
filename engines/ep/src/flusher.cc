@@ -250,6 +250,8 @@ void Flusher::flushVB(void) {
         return;
     }
 
+    // If the low-priority vBucket queue is empty, see if there's any
+    // pending mutations - and if so re-populate the low pri queue.
     if (lpVbs.empty()) {
         if (hpVbs.empty()) {
             doHighPriority = false;
@@ -282,7 +284,8 @@ void Flusher::flushVB(void) {
     } else if (!hpVbs.empty()) {
         uint16_t vbid = hpVbs.front();
         hpVbs.pop();
-        if (store->flushVBucket(vbid) == RETRY_FLUSH_VBUCKET) {
+        if (store->flushVBucket(vbid).first) {
+            // More items still available, add vbid back to pending set.
             hpVbs.push(vbid);
         }
     } else {
@@ -291,7 +294,8 @@ void Flusher::flushVB(void) {
         }
         uint16_t vbid = lpVbs.front();
         lpVbs.pop();
-        if (store->flushVBucket(vbid) == RETRY_FLUSH_VBUCKET) {
+        if (store->flushVBucket(vbid).first) {
+            // More items still available, add vbid back to pending set.
             lpVbs.push(vbid);
         }
     }

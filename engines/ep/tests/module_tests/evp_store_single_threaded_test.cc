@@ -91,7 +91,7 @@ void SingleThreadedKVBucketTest::setVBucketStateAndRunPersistTask(uint16_t vbid,
     if (engine->getConfiguration().getBucketType() == "persistent") {
         // Trigger the flusher to flush state to disk.
         auto& ep = dynamic_cast<EPBucket&>(*store);
-        EXPECT_EQ(0, ep.flushVBucket(vbid));
+        EXPECT_EQ(std::make_pair(false, size_t(0)), ep.flushVBucket(vbid));
     }
 }
 
@@ -471,7 +471,8 @@ void MB22960callbackBeforeRegisterCursor(
                                           GenerateCas::Yes,
                                           /*preLinkDocCtx*/ nullptr);
 
-        EXPECT_EQ(1, store->flushVBucket(vb->getId()));
+        EXPECT_EQ(std::make_pair(false, size_t(1)),
+                  store->flushVBucket(vb->getId()));
         ckpt_mgr.createNewCheckpoint();
         EXPECT_EQ(3, ckpt_mgr.getNumCheckpoints());
         EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
@@ -499,7 +500,8 @@ void MB22960callbackBeforeRegisterCursor(
                                           GenerateCas::Yes,
                                           /*preLinkDocCtx*/ nullptr);
 
-        EXPECT_EQ(1, store->flushVBucket(vb->getId()));
+        EXPECT_EQ(std::make_pair(false, size_t(1)),
+                  store->flushVBucket(vb->getId()));
         ckpt_mgr.createNewCheckpoint();
         EXPECT_EQ(3, ckpt_mgr.getNumCheckpoints());
         EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
@@ -585,12 +587,14 @@ TEST_F(SingleThreadedEPBucketTest, MB22960_cursor_dropping_data_loss) {
         << "stream state should have transitioned to StreamInMemory";
 
     store_item(vbid, makeStoredDocKey("key1"), "value");
-    EXPECT_EQ(1, getEPBucket().flushVBucket(vbid));
+    EXPECT_EQ(std::make_pair(false, size_t(1)),
+              getEPBucket().flushVBucket(vbid));
     ckpt_mgr.createNewCheckpoint();
     EXPECT_EQ(2, ckpt_mgr.getNumCheckpoints());
 
     store_item(vbid, makeStoredDocKey("key2"), "value");
-    EXPECT_EQ(1, getEPBucket().flushVBucket(vbid));
+    EXPECT_EQ(std::make_pair(false, size_t(1)),
+              getEPBucket().flushVBucket(vbid));
     ckpt_mgr.createNewCheckpoint();
     EXPECT_EQ(3, ckpt_mgr.getNumCheckpoints());
 
@@ -979,7 +983,8 @@ TEST_F(SingleThreadedEPBucketTest, MB19815_doDcpVbTakeoverStats) {
             static_cast<const void*>(key.c_str()), dummy_cb, key, vbid));
 
     // Cleanup - run flusher.
-    EXPECT_EQ(0, getEPBucket().flushVBucket(vbid));
+    EXPECT_EQ(std::make_pair(false, size_t(0)),
+              getEPBucket().flushVBucket(vbid));
 }
 
 /*
@@ -993,7 +998,8 @@ TEST_F(SingleThreadedEPBucketTest, MB19428_no_streams_against_dead_vbucket) {
     store_item(vbid, makeStoredDocKey("key"), "value");
 
     // Directly flush the vbucket
-    EXPECT_EQ(1, getEPBucket().flushVBucket(vbid));
+    EXPECT_EQ(std::make_pair(false, size_t(1)),
+              getEPBucket().flushVBucket(vbid));
 
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_dead);
     auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
@@ -1109,7 +1115,8 @@ TEST_F(SingleThreadedEPBucketTest, MB19892_BackfillNotDeleted) {
     //  (This would normally also wake up the checkpoint remover task, but
     //   as that task was never registered with the ExecutorPool in this test
     //   environment, we need to manually remove the prev checkpoint).
-    EXPECT_EQ(1, getEPBucket().flushVBucket(vbid));
+    EXPECT_EQ(std::make_pair(false, size_t(1)),
+              getEPBucket().flushVBucket(vbid));
 
     bool new_ckpt_created;
     EXPECT_EQ(1, ckpt_mgr.removeClosedUnrefCheckpoints(*vb, new_ckpt_created));
@@ -1269,7 +1276,8 @@ TEST_F(SingleThreadedEPBucketTest, MB_27457) {
                          /*revSeqno*/ 0,
                          deleteTime);
 
-    EXPECT_EQ(2, getEPBucket().flushVBucket(vbid));
+    EXPECT_EQ(std::make_pair(false, size_t(2)),
+              getEPBucket().flushVBucket(vbid));
 
     // Drop the stream
     consumer->closeStream(/*opaque*/ 0, vbid);
@@ -1416,7 +1424,8 @@ TEST_F(MB20054_SingleThreadedEPStoreTest, MB20054_onDeleteItem_during_bucket_del
     //  (This would normally also wake up the checkpoint remover task, but
     //   as that task was never registered with the ExecutorPool in this test
     //   environment, we need to manually remove the prev checkpoint).
-    EXPECT_EQ(1, getEPBucket().flushVBucket(vbid));
+    EXPECT_EQ(std::make_pair(false, size_t(1)),
+              getEPBucket().flushVBucket(vbid));
 
     bool new_ckpt_created;
     EXPECT_EQ(1, ckpt_mgr.removeClosedUnrefCheckpoints(*vb, new_ckpt_created));
@@ -2017,7 +2026,8 @@ TEST_F(SingleThreadedEPBucketTest, mb25273) {
                                  0, // locktime
                                  {}, // meta
                                  0)); // nru
-    EXPECT_EQ(1, getEPBucket().flushVBucket(vbid));
+    EXPECT_EQ(std::make_pair(false, size_t(1)),
+              getEPBucket().flushVBucket(vbid));
     bySeqno++;
 
     // Send deletion in a single seqno snapshot and send a doc with only system
@@ -2039,7 +2049,8 @@ TEST_F(SingleThreadedEPBucketTest, mb25273) {
                                  bySeqno,
                                  /*revSeqno*/ 0,
                                  /*meta*/ {}));
-    EXPECT_EQ(1, getEPBucket().flushVBucket(vbid));
+    EXPECT_EQ(std::make_pair(false, size_t(1)),
+              getEPBucket().flushVBucket(vbid));
     /* Close stream before deleting the connection */
     ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(opaque, vbid));
 

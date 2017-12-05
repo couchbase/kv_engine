@@ -157,29 +157,34 @@ Item KVBucketTest::store_item(uint16_t vbid,
 }
 
 void KVBucketTest::flush_vbucket_to_disk(uint16_t vbid, int expected) {
-    int result;
+    size_t actualFlushed = 0;
     const auto time_limit = std::chrono::seconds(10);
     const auto deadline = std::chrono::steady_clock::now() + time_limit;
 
-    // Need to retry as warmup may not have completed.
+    // Need to retry as warmup may not have completed, or if the flush is
+    // in multiple parts.
     bool flush_successful = false;
+    bool moreAvailable;
     do {
-        result = dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
-        if (result != RETRY_FLUSH_VBUCKET) {
+        size_t count;
+        std::tie(moreAvailable, count) =
+                dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
+        actualFlushed += count;
+        if (!moreAvailable) {
             flush_successful = true;
             break;
         }
         std::this_thread::sleep_for(std::chrono::microseconds(100));
-    } while (std::chrono::steady_clock::now() < deadline);
+    } while ((std::chrono::steady_clock::now() < deadline) && moreAvailable);
 
     ASSERT_TRUE(flush_successful)
             << "Hit timeout (" << time_limit.count()
             << " seconds) waiting for "
                "warmup to complete while flushing VBucket.";
 
-    ASSERT_EQ(expected, result) << "Unexpected items (" << result
-                                << ") in flush_vbucket_to_disk(" << vbid << ", "
-                                << expected << ")";
+    ASSERT_EQ(expected, actualFlushed)
+            << "Unexpected items (" << actualFlushed
+            << ") in flush_vbucket_to_disk(" << vbid << ", " << expected << ")";
 }
 
 void KVBucketTest::flushVBucketToDiskIfPersistent(uint16_t vbid, int expected) {

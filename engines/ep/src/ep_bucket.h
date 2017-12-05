@@ -41,9 +41,18 @@ public:
     /**
      * Flushes all items waiting for persistence in a given vbucket
      * @param vbid The id of the vbucket to flush
-     * @return The number of items flushed
+     * @return A pair of {moreToFlush, flushCount}:
+     *         moreToFlush - true if there are still items remaining for this
+     *         vBucket.
+     *         flushCount - the number of items flushed.
      */
-    int flushVBucket(uint16_t vbid);
+    std::pair<bool, size_t> flushVBucket(uint16_t vbid);
+
+    /**
+     * Set the maximum number of backfill items which can be included in a
+     * single flusher commit.
+     */
+    void setFlusherBackfillBatchLimit(size_t limit);
 
     void commit(KVStore& kvstore, const Item* collectionsManifest);
 
@@ -133,6 +142,8 @@ public:
     }
 
 protected:
+    class ValueChangedListener;
+
     void flushOneDeleteAll();
 
     std::unique_ptr<PersistenceCallback> flushOneDelOrSet(const queued_item& qi,
@@ -151,4 +162,7 @@ protected:
      * @param db_file_id vbucket id for couchstore
      */
     void updateCompactionTasks(DBFileId db_file_id);
+
+    /// Max number of baclfill items to be included in a single flusher batch.
+    size_t flusherBackfillBatchLimit;
 };

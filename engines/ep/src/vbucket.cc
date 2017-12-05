@@ -311,15 +311,26 @@ void VBucket::fireAllOps(EventuallyPersistentEngine &engine) {
     }
 }
 
-void VBucket::getBackfillItems(std::vector<queued_item>& items) {
-    LockHolder lh(backfill.mutex);
-    size_t num_items = backfill.items.size();
-    while (!backfill.items.empty()) {
-        items.push_back(backfill.items.front());
-        backfill.items.pop();
+bool VBucket::getBackfillItems(std::vector<queued_item>& items, size_t limit) {
+    if (limit == 0) {
+        limit = std::numeric_limits<size_t>::max();
     }
+
+    bool moreAvailable = false;
+    size_t num_items = 0;
+    { // Locking scope
+        // Transfer up to `limit` items from backfill queue.
+        LockHolder lh(backfill.mutex);
+        for (; num_items < limit && !backfill.items.empty(); num_items++) {
+            items.push_back(backfill.items.front());
+            backfill.items.pop();
+        }
+        moreAvailable = !backfill.items.empty();
+    }
+
     stats.vbBackfillQueueSize.fetch_sub(num_items);
     stats.memOverhead->fetch_sub(num_items * sizeof(queued_item));
+    return moreAvailable;
 }
 
 void VBucket::setState(vbucket_state_t to) {
