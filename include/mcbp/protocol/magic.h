@@ -30,6 +30,8 @@ enum class Magic : uint8_t {
     ClientRequest = 0x80,
     /// Response packet from server to client
     ClientResponse = 0x81,
+    /// The alternative response packet containing frame extras
+    AltClientResponse = 0x18,
     /// Request packet from server to client
     ServerRequest = 0x82,
     /// Response packet from client to server

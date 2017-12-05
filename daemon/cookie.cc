@@ -141,6 +141,7 @@ const cb::mcbp::Request& Cookie::getRequest(PacketContent content) const {
     case cb::mcbp::Magic::ClientRequest:
     case cb::mcbp::Magic::ServerRequest:
         return *ret;
+    case cb::mcbp::Magic::AltClientResponse:
     case cb::mcbp::Magic::ClientResponse:
     case cb::mcbp::Magic::ServerResponse:
         throw std::logic_error("Cookie::getRequest(): Packet is response");
@@ -157,6 +158,7 @@ const cb::mcbp::Response& Cookie::getResponse(PacketContent content) const {
     case cb::mcbp::Magic::ClientRequest:
     case cb::mcbp::Magic::ServerRequest:
         throw std::logic_error("Cookie::getRequest(): Packet is resquest");
+    case cb::mcbp::Magic::AltClientResponse:
     case cb::mcbp::Magic::ClientResponse:
     case cb::mcbp::Magic::ServerResponse:
         return *ret;

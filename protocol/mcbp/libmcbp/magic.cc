@@ -25,6 +25,8 @@ std::string to_string(cb::mcbp::Magic magic) {
         return "ClientRequest";
     case cb::mcbp::Magic::ClientResponse:
         return "ClientResponse";
+    case cb::mcbp::Magic::AltClientResponse:
+        return "AltClientResponse";
     case cb::mcbp::Magic::ServerRequest:
         return "ServerRequest";
     case cb::mcbp::Magic::ServerResponse:
@@ -40,6 +42,7 @@ bool cb::mcbp::is_legal(cb::mcbp::Magic magic) {
     switch (magic) {
     case Magic::ClientRequest:
     case Magic::ClientResponse:
+    case Magic::AltClientResponse:
     case Magic::ServerRequest:
     case Magic::ServerResponse:
         return true;

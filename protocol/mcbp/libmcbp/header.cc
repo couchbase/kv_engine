@@ -37,7 +37,8 @@ unique_cJSON_ptr Header::toJSON() const {
                                 ::to_string(req.getClientOpcode()).c_str());
         cJSON_AddNumberToObject(ret.get(), "vbucket", req.getVBucket());
     } break;
-    case Magic::ClientResponse: {
+    case Magic::ClientResponse:
+    case Magic::AltClientResponse: {
         const auto& res = getResponse();
         cJSON_AddStringToObject(ret.get(),
                                 "opcode",

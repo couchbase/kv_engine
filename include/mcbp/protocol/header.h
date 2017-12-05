@@ -112,7 +112,8 @@ public:
      */
     const cb::mcbp::Response& getResponse() const {
         auto m = Magic(magic);
-        if (m == Magic::ClientResponse || m == Magic::ServerResponse) {
+        if (m == Magic::ClientResponse || m == Magic::AltClientResponse ||
+            m == Magic::ServerResponse) {
             return *reinterpret_cast<const cb::mcbp::Response*>(this);
         }
         throw std::logic_error(

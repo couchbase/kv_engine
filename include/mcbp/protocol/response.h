@@ -85,10 +85,17 @@ struct Response {
     }
 
     uint16_t getKeylen() const {
+        if (getMagic() == Magic::AltClientResponse) {
+            return reinterpret_cast<const uint8_t*>(this)[3];
+        }
         return ntohs(keylen);
     }
 
     void setKeylen(uint16_t value) {
+        if (value > 0xff) {
+            throw std::invalid_argument(
+                    "Response::setKeylen: key cannot exceed 1 byte");
+        }
         keylen = htons(value);
     }
 

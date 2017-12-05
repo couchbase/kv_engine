@@ -76,6 +76,70 @@ General format of a packet:
         +---------------+---------------+---------------+---------------+
         Total 24 bytes
 
+#### Response header with "flexible framing extras"
+
+When enabled by the client (via HELLO) the server is allowed to inject
+flexible framing extensions in the response packet.
+
+When the server decides to inject extra data in the packet, it does
+so by using a different value for magic (0x18 instead of 0x81), which
+tells the receiver that the current header looks like:
+
+      Byte/     0       |       1       |       2       |       3       |
+         /              |               |               |               |
+        |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
+        +---------------+---------------+---------------+---------------+
+       0| Magic (0x18)  | Opcode        | Framing extras| Key Length    |
+        +---------------+---------------+---------------+---------------+
+       4| Extras length | Data type     | Status                        |
+        +---------------+---------------+---------------+---------------+
+       8| Total body length                                             |
+        +---------------+---------------+---------------+---------------+
+      12| Opaque                                                        |
+        +---------------+---------------+---------------+---------------+
+      16| CAS                                                           |
+        |                                                               |
+        +---------------+---------------+---------------+---------------+
+        Total 24 bytes
+
+Following the header you'd now find the section containing the framing
+header (the size is specified in byte 2). Following the framing bytes you'll
+find the extras, then the key and finally the value. The size of the value
+is total body length - key length - extras length - framing extras.
+
+The framing extras is encoded as a series of variable-length FrameInfo objects.
+
+Each FrameInfo consists of:
+4bits: Object Identifier
+    (0..14): Identifier for the next element
+    15: Escape: ID is 15 + value of next byte.
+4bits: Object Length
+    (0..14) Size in bytes of the element data.
+    15: Escape: Size is 15 + value of next byte (after any object ID escape
+                bytes).
+N Bytes: Object data.
+
+For V1, only one object identifier is defined:
+0: Server Recv->Send duration: Time (in microseconds) server spent on the
+                               operation. Measured from receiving header from
+                               OS to when response given to OS.
+                               Size: 2 bytes; encoded as variable-precision
+                               value (see below)
+
+This would be encoded as:
+  Byte/     0       |       1       |       2       |
+     /              |               |               |
+    |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
+    +---------------+---------------+---------------+
+   0|  ID:0 | Len:2 |  Server Recv->Send Duration   |
+
+
+The duration is encoded as:
+
+m11 = m.wxyz = log11(micros)
+m <=7 => first 3 bits of the 16 bits
+wxyz <= 8192 ==> remaining 13 bits
+
 ### Header fields description
 
 * Magic: Magic number identifying the package (See [Magic_Byte](#magic-byte))
@@ -98,6 +162,7 @@ General format of a packet:
 | -----|-------------------------------------------|
 | 0x80 | Request packet from client to server      |
 | 0x81 | Response packet from server to client     |
+| 0x18 | Response packet containing flex extras    |
 | 0x82 | Request packet from server to client      |
 | 0x83 | Response packet from client to server     |
 
