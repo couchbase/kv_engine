@@ -22,6 +22,7 @@
 #include "blob.h"
 #include "item_pager.h"
 #include "storeddockey.h"
+#include "unique_tagged_ptr.h"
 #include "utility.h"
 
 #include <memcached/3rd_party/folly/AtomicBitSet.h>
@@ -127,13 +128,25 @@ public:
     };
 
     // Owning pointer type for StoredValue objects.
-    using UniquePtr = std::unique_ptr<StoredValue, Deleter>;
+    using UniquePtr = UniqueTaggedPtr<StoredValue, Deleter>;
 
     uint8_t getNRUValue() const;
 
     void setNRUValue(uint8_t nru_val);
 
     uint8_t incrNRUValue();
+
+    // Sets the top 16-bits of the chain_next_or_replacement pointer to the
+    // u16int input value.
+    void setChainTag(uint16_t v) {
+        chain_next_or_replacement.setTag(v);
+    }
+
+    // Gets the top 16-bits of the chain_next_or_replacement pointer and
+    // convert to a uint16 value.
+    uint16_t getChainTag() const {
+        return chain_next_or_replacement.getTag();
+    }
 
     void referenced();
 

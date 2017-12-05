@@ -474,7 +474,7 @@ TEST_F(BasicLinkedListTest, MarkStale) {
 
     /* Release the item from the hash table */
     auto ownedSv = releaseFromHashTable(keyPrefix + std::to_string(numItems));
-    OrderedStoredValue* nonOwnedSvPtr = ownedSv.get()->toOrderedStoredValue();
+    OrderedStoredValue* nonOwnedSvPtr = ownedSv->toOrderedStoredValue();
     size_t svSize = ownedSv->size();
     size_t svMetaDataSize = ownedSv->metaDataSize();
 
