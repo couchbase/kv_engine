@@ -270,28 +270,44 @@ private:
     VBucketPtr currentBucket;
 };
 
-ItemPager::ItemPager(EventuallyPersistentEngine *e, EPStats &st) :
-    GlobalTask(e, TaskId::ItemPager, 10, false),
-    engine(e),
-    stats(st),
-    available(new std::atomic<bool>(true)),
-    phase(PAGING_UNREFERENCED),
-    doEvict(false) { }
+ItemPager::ItemPager(EventuallyPersistentEngine& e, EPStats& st)
+    : GlobalTask(&e, TaskId::ItemPager, 10, false),
+      engine(e),
+      stats(st),
+      available(new std::atomic<bool>(true)),
+      phase(PAGING_UNREFERENCED),
+      doEvict(false),
+      sleepTime(std::chrono::milliseconds(
+              e.getConfiguration().getPagerSleepTimeMs())),
+      notified(false) {
+}
 
 bool ItemPager::run(void) {
     TRACE_EVENT0("ep-engine/task", "ItemPager");
-    KVBucketIface* kvBucket = engine->getKVBucket();
+
+    // Setup so that we will sleep before clearing notified.
+    snooze(sleepTime.count());
+
+    // Save the value of notified to be used in the "do we page check", it could
+    // be that we've gone over HWM have been notified to run, then came back
+    // down (e.g. 1 byte under HWM), we should still page in this scenario.
+    // Notified would be false if we were woken by the periodic scheduler
+    bool wasNotified = notified;
+
+    // Clear the notification flag before starting the task's actions
+    notified.store(false);
+
+    KVBucketIface* kvBucket = engine.getKVBucket();
     double current = static_cast<double>(stats.getTotalMemoryUsed());
     double upper = static_cast<double>(stats.mem_high_wat);
     double lower = static_cast<double>(stats.mem_low_wat);
-    double sleepTime = 5;
 
     if (current <= lower) {
         doEvict = false;
     }
 
     bool inverse = true;
-    if (((current > upper) || doEvict) &&
+    if (((current > upper) || doEvict || wasNotified) &&
         (*available).compare_exchange_strong(inverse, false)) {
         if (kvBucket->getItemEvictionPolicy() == VALUE_ONLY) {
             doEvict = true;
@@ -307,7 +323,7 @@ bool ItemPager::run(void) {
         LOG(EXTENSION_LOG_INFO, ss.str().c_str(), (toKill*100.0));
 
         // compute active vbuckets evicition bias factor
-        Configuration &cfg = engine->getConfiguration();
+        Configuration& cfg = engine.getConfiguration();
         size_t activeEvictPerc = cfg.getPagerActiveVbPcnt();
         double bias = static_cast<double>(activeEvictPerc) / 50;
 
@@ -330,8 +346,14 @@ bool ItemPager::run(void) {
                         maxExpectedDuration);
     }
 
-    snooze(sleepTime);
     return true;
+}
+
+void ItemPager::scheduleNow() {
+    bool expected = false;
+    if (notified.compare_exchange_strong(expected, true)) {
+        ExecutorPool::get()->wake(getId());
+    }
 }
 
 ExpiredItemPager::ExpiredItemPager(EventuallyPersistentEngine *e,

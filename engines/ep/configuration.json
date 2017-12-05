@@ -599,6 +599,11 @@
                 }
             }
         },
+        "pager_sleep_time_ms": {
+            "default": "5000",
+            "descr": "How long in milliseconds the ItemPager will sleep for when not being requested to run",
+            "type": "size_t"
+        },
         "postInitfile": {
             "default": "",
             "type": "std::string"

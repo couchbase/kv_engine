@@ -36,18 +36,22 @@ const std::string DcpConsumer::extMetadataCtrlMsg = "enable_ext_metadata";
 const std::string DcpConsumer::valueCompressionCtrlMsg = "enable_value_compression";
 const std::string DcpConsumer::cursorDroppingCtrlMsg = "supports_cursor_dropping";
 
-class Processor : public GlobalTask {
+class DcpConsumerTask : public GlobalTask {
 public:
-    Processor(EventuallyPersistentEngine* e,
-              std::shared_ptr<DcpConsumer> c,
-              double sleeptime = 1,
-              bool completeBeforeShutdown = true)
-        : GlobalTask(e, TaskId::Processor, sleeptime, completeBeforeShutdown),
+    DcpConsumerTask(EventuallyPersistentEngine* e,
+                    std::shared_ptr<DcpConsumer> c,
+                    double sleeptime = 1,
+                    bool completeBeforeShutdown = true)
+        : GlobalTask(e,
+                     TaskId::DcpConsumerTask,
+                     sleeptime,
+                     completeBeforeShutdown),
           consumerPtr(c),
-          description("Processing buffered items for " + c->getName()) {
+          description("DcpConsumerTask, processing buffered items for " +
+                      c->getName()) {
     }
 
-    ~Processor() {
+    ~DcpConsumerTask() {
         auto consumer = consumerPtr.lock();
         if (consumer) {
             consumer->taskCancelled();
@@ -55,7 +59,7 @@ public:
     }
 
     bool run() {
-        TRACE_EVENT0("ep-engine/task", "Processor");
+        TRACE_EVENT0("ep-engine/task", "DcpConsumerTask");
         auto consumer = consumerPtr.lock();
         if (!consumer) {
             return false;
@@ -259,8 +263,8 @@ ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque, uint16_t vbucket,
      only once when the first stream is added */
     bool exp = false;
     if (processorTaskRunning.compare_exchange_strong(exp, true)) {
-        ExTask task =
-                std::make_shared<Processor>(&engine, shared_from_this(), 1);
+        ExTask task = std::make_shared<DcpConsumerTask>(
+                &engine, shared_from_this(), 1);
         processorTaskId = ExecutorPool::get()->schedule(task);
     }
 
