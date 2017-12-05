@@ -42,14 +42,13 @@ enum item_pager_phase {
  */
 class ItemPager : public GlobalTask {
 public:
-
     /**
      * Construct an ItemPager.
      *
-     * @param s the store (where we'll visit)
+     * @param e the store (where we'll visit)
      * @param st the stats
      */
-    ItemPager(EventuallyPersistentEngine *e, EPStats &st);
+    ItemPager(EventuallyPersistentEngine& e, EPStats& st);
 
     bool run(void);
 
@@ -71,16 +70,30 @@ public:
         return std::chrono::milliseconds(25);
     }
 
-private:
+    /**
+     * Request that this ItemPager is scheduled to run 'now'
+     */
+    void scheduleNow();
 
-    EventuallyPersistentEngine     *engine;
-    EPStats                        &stats;
-    std::shared_ptr<std::atomic<bool>>   available;
+private:
+    EventuallyPersistentEngine& engine;
+    EPStats& stats;
+    std::shared_ptr<std::atomic<bool>> available;
 
     // Current pager phase. Atomic as may be accessed by multiple PagingVisitor
     // objects running on different threads.
     std::atomic<item_pager_phase> phase;
-    bool                            doEvict;
+    bool doEvict;
+
+    /**
+     * How long this task sleeps for if not requested to run. Initialised from
+     * the configuration parameter - pager_sleep_time_ms
+     * stored as a double seconds value ready for use in snooze calls.
+     */
+    std::chrono::duration<double> sleepTime;
+
+    /// atomic bool used in the task's run trigger
+    std::atomic<bool> notified;
 };
 
 /**

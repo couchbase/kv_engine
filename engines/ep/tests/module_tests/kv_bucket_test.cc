@@ -733,7 +733,7 @@ TEST_F(KVBucketTest, DataRaceInDoWorkerStat) {
 
     // Task which does nothing
     ExTask task = std::make_shared<LambdaTask>(
-            taskable, TaskId::Processor, 0, true, [&]() -> bool {
+            taskable, TaskId::DcpConsumerTask, 0, true, [&]() -> bool {
                 return true; // reschedule (immediately)
             });
 
