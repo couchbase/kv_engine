@@ -34,6 +34,7 @@ For introductory information on stats within Couchbase, start with the
 | ep_data_age                        | Seconds since most recently            |
 |                                    | stored object was modified             |
 | ep_data_age_highwat                | ep_data_age high water mark            |
+| ep_data_write_failed               | Total compaction and commit failures   |
 | ep_num_workers                     | Global number of shared worker threads |
 | ep_bucket_priority                 | Priority assigned to the bucket        |
 | ep_total_enqueued                  | Total number of items queued for       |
@@ -336,8 +337,7 @@ For introductory information on stats within Couchbase, start with the
 
 | Stat                        | Description                                    |
 |-----------------------------+------------------------------------------------|
-| ep_compaction_failed        | Total number of compaction failures            |
-| ep_get_failed               | Total number of get failures                   |
+| ep_data_read_failed         | Total number of get failures                   |
 | ep_io_total_read_bytes      | Total number of bytes read                     |
 | ep_io_total_write_bytes     | Total number of bytes written                  |
 | ep_io_compaction_read_bytes | Total number of bytes read during compaction   |

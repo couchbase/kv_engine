@@ -2627,11 +2627,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     size_t value = 0;
     if (kvBucket->getKVStoreStat("failure_compaction", value,
                                  KVBucketIface::KVSOption::BOTH)) {
-        add_casted_stat("ep_compaction_failed",  value, add_stat, cookie);
+        // Total data write failures is compaction failures plus commit failures
+        auto writeFailure = value + epstats.commitFailed;
+        add_casted_stat("ep_data_write_failed", writeFailure, add_stat, cookie);
     }
     if (kvBucket->getKVStoreStat("failure_get", value,
                                  KVBucketIface::KVSOption::BOTH)) {
-        add_casted_stat("ep_get_failed",  value, add_stat, cookie);
+        add_casted_stat("ep_data_read_failed",  value, add_stat, cookie);
     }
     if (kvBucket->getKVStoreStat("io_total_read_bytes", value,
                                  KVBucketIface::KVSOption::BOTH)) {
