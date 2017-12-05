@@ -116,6 +116,11 @@ public:
     }
 
     /**
+     * @returns this manifest as a std::string (JSON formatted)
+     */
+    std::string toJson() const;
+
+    /**
      * Write to std::cerr this
      */
     void dump() const;

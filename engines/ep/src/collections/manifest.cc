@@ -23,6 +23,7 @@
 
 #include <cstring>
 #include <iostream>
+#include <sstream>
 
 namespace Collections {
 
@@ -129,6 +130,21 @@ bool Manifest::validCollection(const char* collection) {
         return false;
     }
     return collection[0] != '_';
+}
+
+std::string Manifest::toJson() const {
+    std::stringstream json;
+    json << R"({"separator":")" << separator << R"(","collections":[)";
+    for (size_t ii = 0; ii < collections.size(); ii++) {
+        json << R"({"name":")" << collections[ii].getName().data()
+             << R"(","uid":")" << std::hex << collections[ii].getUid()
+             << R"("})";
+        if (ii != collections.size() - 1) {
+            json << ",";
+        }
+    }
+    json << "]}";
+    return json.str();
 }
 
 void Manifest::dump() const {

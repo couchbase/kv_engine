@@ -107,7 +107,7 @@ TEST(ManifestTest, validation) {
             // Extra keys ignored at the moment
             R"({"extra":"key",
                 "separator":"_",
-                "collections":[{"name":"beer", "uid":"1"},
+                "collections":[{"name":"beer", "uid":"af"},
                                {"name":"brewery","uid":"2"}]})"};
 
     for (auto& manifest : invalidManifests) {
@@ -169,5 +169,34 @@ TEST(ManifestTest, findCollection) {
 
     for (auto& collection : collectionF) {
         EXPECT_EQ(m.end(), m.find(collection));
+    }
+}
+
+TEST(ManifestTest, toJson) {
+    // Inputs for testing are not whitespace formatted as toJson does not format
+    std::vector<std::string> validManifests = {
+            R"({"separator":":","collections":[]})",
+
+            R"({"separator":":","collections":[{"name":"$default","uid":"0"},)"
+            R"({"name":"beer","uid":"1"},{"name":"brewery","uid":"2"}]})",
+
+            // beer & brewery have same UID, valid
+            R"({"separator":":","collections":[{"name":"$default","uid":"0"},)"
+            R"({"name":"beer","uid":"1"},{"name":"brewery","uid":"1"}]})",
+
+            R"({"separator":":","collections":[{"name":"beer","uid":"1"},)"
+            R"({"name":"brewery","uid":"2"}]})",
+
+            // Max separator
+            R"({"separator":"0123456789abcdef","collections":)"
+            R"([{"name":"beer","uid":"1"},{"name":"brewery","uid":"2"}]})",
+
+            R"({"separator":"_","collections":[{"name":"beer","uid":"af"},)"
+            R"({"name":"brewery","uid":"2"}]})"};
+
+    for (auto& manifest : validManifests) {
+        Collections::Manifest m(manifest);
+        // What we constructed with should match toJson
+        EXPECT_EQ(manifest, m.toJson());
     }
 }
