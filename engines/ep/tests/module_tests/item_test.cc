@@ -110,7 +110,7 @@ TEST_F(ItemTest, getAndSetCachedDataType) {
     auto blob = Blob::New(jsonValueData.c_str(), jsonValueData.size());
 
     // Replace the item's blob with one that contains extended meta data
-    item->setValue(blob);
+    item->setValue(TaggedPtr<Blob>(blob));
     item->setDataType(PROTOCOL_BINARY_DATATYPE_JSON);
 
     // Expect the cached datatype to be equal to the one in the new blob

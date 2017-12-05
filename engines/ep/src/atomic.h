@@ -115,7 +115,8 @@ private:
 };
 
 template <class T> class RCPtr;
-template <class S> class SingleThreadedRCPtr;
+template <class S, class Pointer, class Deleter>
+class SingleThreadedRCPtr;
 
 /**
  * A reference counted value (used by RCPtr and SingleThreadedRCPtr).
@@ -128,7 +129,8 @@ public:
 
 private:
     template <class MyTT> friend class RCPtr;
-    template <class MySS> friend class SingleThreadedRCPtr;
+    template <class MySS, class Pointer, class Deleter>
+    friend class SingleThreadedRCPtr;
     int _rc_incref() const {
         return ++_rc_refcount;
     }
@@ -242,26 +244,39 @@ RCPtr<T> dynamic_pointer_cast(const RCPtr<U>& r) {
  * "Single-threaded" means that the reference counted pointer should be accessed
  * by only one thread at any time or accesses to the reference counted pointer
  * by multiple threads should be synchronized by the external lock.
+ *
+ * Takes the following template parameters:
+ * @tparam class T the class that the SingleThreadedRCPtr is pointing to.
+ * @tparam class Pointer the pointer type that the SingleThreadedRCPtr
+ * maintains a reference counter for.  It is defaulted to a T*, however can also
+ * be a TaggedPtr<T>.
+ * @tparam class Deleter the deleter function for deleting the object pointed to
+ * by SingleThreadedRCPtr.  It defaults to the std::default_delete function
+ * templated on class T.  However when the pointer type is a TaggedPtr<T> a
+ * specialised delete function must be provided.
  */
-template <class T>
+template <class T, class Pointer = T*, class Deleter = std::default_delete<T>>
 class SingleThreadedRCPtr {
 public:
-    SingleThreadedRCPtr(T *init = NULL) : value(init) {
-        if (init != NULL) {
+    using rcptr_type = SingleThreadedRCPtr<T, Pointer, Deleter>;
+
+    SingleThreadedRCPtr(Pointer init = nullptr) : value(init) {
+        if (init != nullptr) {
             value->getRCValue()._rc_incref();
         }
     }
 
     // Copy construction - increases ref-count on object by 1.
-    SingleThreadedRCPtr(const SingleThreadedRCPtr<T> &other) : value(other.gimme()) {}
+    SingleThreadedRCPtr(const rcptr_type& other) : value(other.gimme()) {
+    }
 
     // Move construction - reference count is unchanged.
-    SingleThreadedRCPtr(SingleThreadedRCPtr<T>&& other) : value(other.value) {
+    SingleThreadedRCPtr(rcptr_type&& other) : value(other.value) {
         other.value = nullptr;
     }
 
-    template <typename Y>
-    SingleThreadedRCPtr(const SingleThreadedRCPtr<Y>& other)
+    template <typename Y, typename P>
+    SingleThreadedRCPtr(const SingleThreadedRCPtr<Y, P, Deleter>& other)
         : value(other.gimme()) {
     }
 
@@ -271,23 +286,23 @@ public:
 
     ~SingleThreadedRCPtr() {
         if (value && value->getRCValue()._rc_decref() == 0) {
-            delete value;
+            Deleter()(value);
         }
     }
 
-    void reset(T *newValue = NULL) {
-        if (newValue != NULL) {
+    void reset(Pointer newValue = nullptr) {
+        if (newValue != nullptr) {
             newValue->getRCValue()._rc_incref();
         }
         swap(newValue);
     }
 
-    void reset(const SingleThreadedRCPtr<T> &other) {
+    void reset(const rcptr_type& other) {
         swap(other.gimme());
     }
 
     // Swap - reference count is unchanged on each pointed-to object.
-    void swap(SingleThreadedRCPtr<T>& other) {
+    void swap(rcptr_type& other) {
         std::swap(this->value, other.value);
     }
 
@@ -296,17 +311,17 @@ public:
     }
 
     // safe for the lifetime of this instance
-    T *get() const {
+    Pointer get() const {
         return value;
     }
 
-    SingleThreadedRCPtr<T> & operator =(const SingleThreadedRCPtr<T> &other) {
+    rcptr_type& operator=(const rcptr_type& other) {
         reset(other);
         return *this;
     }
 
     // Move-assignment - reference count is unchanged of incoming item.
-    SingleThreadedRCPtr<T>& operator=(SingleThreadedRCPtr<T>&& other) {
+    rcptr_type& operator=(rcptr_type&& other) {
         swap(other.value);
         other.value = nullptr;
         return *this;
@@ -316,7 +331,7 @@ public:
         return *value;
     }
 
-    T *operator ->() const {
+    Pointer operator ->() const {
         return value;
     }
 
@@ -329,35 +344,37 @@ public:
     }
 
 private:
-    template <typename Y>
+    template <typename Y, typename P, typename D>
     friend class SingleThreadedRCPtr;
 
-    T *gimme() const {
+    Pointer gimme() const {
         if (value) {
             value->getRCValue()._rc_incref();
         }
         return value;
     }
 
-    void swap(T *newValue) {
-        T *old = value;
+    void swap(Pointer newValue) {
+        Pointer old = value;
         value = newValue;
-        if (old != NULL && old->getRCValue()._rc_decref() == 0) {
-            delete old;
+        if (old != nullptr && old->getRCValue()._rc_decref() == 0) {
+            Deleter()(old);
         }
     }
 
-    T *value;
+    Pointer value;
 };
 
-template <typename T, class... Args>
-SingleThreadedRCPtr<T> make_STRCPtr(Args&&... args) {
-    return SingleThreadedRCPtr<T>(new T(std::forward<Args>(args)...));
+template <typename T, typename Pointer, typename Deleter, class... Args>
+SingleThreadedRCPtr<T, Pointer, Deleter> make_STRCPtr(Args&&... args) {
+    return SingleThreadedRCPtr<T, Pointer, Deleter>(
+            new T(std::forward<Args>(args)...));
 }
 
 // Makes SingleThreadedRCPtr support Swappable
-template <typename T>
-void swap(SingleThreadedRCPtr<T>& a, SingleThreadedRCPtr<T>& b) {
+template <typename T, typename Pointer, typename Deleter>
+void swap(SingleThreadedRCPtr<T, Pointer, Deleter>& a,
+          SingleThreadedRCPtr<T, Pointer, Deleter>& b) {
     a.swap(b);
 }
 

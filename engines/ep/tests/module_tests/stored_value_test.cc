@@ -113,7 +113,7 @@ TYPED_TEST(ValueTest, DISABLED_StoredValueReallocateGivesSameSize) {
 
     auto blob = sv->getValue();
     ASSERT_EQ(191, blob->getSize());
-    int before = AllocHooks::get_allocation_size(blob.get());
+    int before = AllocHooks::get_allocation_size(blob.get().get());
 
     /* While the initial bug in MB-25143 would only increase the size of
      * the blob once, by two bytes, we iterate here to ensure that there
@@ -125,7 +125,7 @@ TYPED_TEST(ValueTest, DISABLED_StoredValueReallocateGivesSameSize) {
         sv->reallocate();
 
         blob = sv->getValue();
-        int after = AllocHooks::get_allocation_size(blob.get());
+        int after = AllocHooks::get_allocation_size(blob.get().get());
 
         EXPECT_EQ(before, after);
     }
@@ -194,7 +194,7 @@ TYPED_TEST(ValueTest, checkIfTempItemIsResident) {
     Item itm(makeStoredDocKey("k"),
              0,
              0,
-             (const value_t) nullptr,
+             (const value_t) TaggedPtr<Blob>{},
              PROTOCOL_BINARY_RAW_BYTES,
              0,
              StoredValue::state_temp_init);

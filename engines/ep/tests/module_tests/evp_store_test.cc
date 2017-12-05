@@ -644,7 +644,7 @@ TEST_P(EPStoreEvictionTest, getIfOnlyFetchesMetaForFilterPositive) {
         EXPECT_EQ(cb::engine_errc::success, res.first);
         ASSERT_NE(nullptr, res.second.get());
         Item* epItem = static_cast<Item*>(res.second.get());
-        ASSERT_NE(nullptr, epItem->getValue().get());
+        ASSERT_NE(nullptr, epItem->getValue().get().get());
         EXPECT_EQ("value", epItem->getValue()->to_s());
 
     } else if (GetParam() == "full_eviction") {
@@ -674,7 +674,7 @@ TEST_P(EPStoreEvictionTest, getIfOnlyFetchesMetaForFilterPositive) {
         EXPECT_EQ(cb::engine_errc::success, res.first);
         ASSERT_NE(nullptr, res.second.get());
         Item* epItem = static_cast<Item*>(res.second.get());
-        ASSERT_NE(nullptr, epItem->getValue().get());
+        ASSERT_NE(nullptr, epItem->getValue().get().get());
         EXPECT_EQ("value", epItem->getValue()->to_s());
 
     } else {

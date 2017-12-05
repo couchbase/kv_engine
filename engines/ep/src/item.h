@@ -430,7 +430,7 @@ private:
         } else {
             data = Blob::New(dta, nb);
         }
-        setValue(data);
+        setValue(TaggedPtr<Blob>(data));
     }
 
     ItemMetaData metaData;

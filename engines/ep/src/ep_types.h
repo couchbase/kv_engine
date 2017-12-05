@@ -16,6 +16,7 @@
  */
 
 #pragma once
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
@@ -27,10 +28,10 @@
 // Forward declarations for types defined elsewhere.
 class Item;
 
-template <class T>
+template <class T, class Pointer, class Deleter>
 class SingleThreadedRCPtr;
 
-using queued_item = SingleThreadedRCPtr<Item>;
+using queued_item = SingleThreadedRCPtr<Item, Item*, std::default_delete<Item>>;
 
 // Enumerations representing binary states - more explicit than using a generic
 // bool.

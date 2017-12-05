@@ -20,6 +20,7 @@
 #include "config.h"
 
 #include "atomic.h"
+#include "tagged_ptr.h"
 
 /**
  * A blob is a minimal sized storage for data up to 2^32 bytes long.
@@ -110,6 +111,18 @@ public:
 
     ~Blob();
 
+    /*
+     * The class provides a customer deleter for SingleThreadedRCPtr templated
+     * on a Blob with a pointer type of TaggedPtr.
+     */
+
+    class Deleter {
+    public:
+        void operator()(TaggedPtr<Blob> item) {
+            delete item.get();
+        }
+    };
+
 private:
     //Ensure Blob size of 12 bytes by padding by 3.
     static constexpr int paddingSize{3};
@@ -147,4 +160,4 @@ protected:
 bool operator==(const Blob& lhs, const Blob& rhs);
 std::ostream& operator<<(std::ostream& os, const Blob& b);
 
-typedef SingleThreadedRCPtr<Blob> value_t;
+typedef SingleThreadedRCPtr<Blob, TaggedPtr<Blob>, Blob::Deleter> value_t;

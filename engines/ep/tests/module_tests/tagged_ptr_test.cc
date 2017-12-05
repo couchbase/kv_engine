@@ -17,6 +17,7 @@
 
 #include "config.h"
 
+#include "atomic.h"
 #include "tagged_ptr.h"
 
 #include <gtest/gtest.h>
@@ -125,4 +126,35 @@ TEST(TaggedPtrTest, tagUnaffectedTest) {
     taggedPtr.set(&data);
     ASSERT_EQ(&data, taggedPtr.get());
     EXPECT_EQ(123, taggedPtr.getTag());
+}
+
+/// Check that the tag can be set using the updateTag helper method
+TEST(TaggedPtrTest, updateTagTest) {
+    // TestObject needs to inherit from RCValue because SingleThreadedRCPtr
+    // only takes RCValues
+    class TestObject : public RCValue {
+    public:
+        TestObject() : data(123) {
+        }
+
+        uint32_t getData() {
+            return data;
+        }
+
+    private:
+        uint32_t data;
+    };
+
+    // Custom deleter for TestObject objects
+    struct Deleter {
+        void operator()(TaggedPtr<TestObject> val) {
+            // Does not do anything
+        }
+    };
+
+    TestObject to;
+    SingleThreadedRCPtr<TestObject, TaggedPtr<TestObject>, Deleter> ptr{
+            TaggedPtr<TestObject>(&to)};
+    TaggedPtr<TestObject>::updateTag(ptr, 456);
+    EXPECT_EQ(456, ptr.get().getTag());
 }

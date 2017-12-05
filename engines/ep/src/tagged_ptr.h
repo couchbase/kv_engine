@@ -101,6 +101,20 @@ public:
         return std::addressof(r);
     }
 
+    /**
+     * Sets the tag of a TaggedPtr that is wrapped inside a pointer
+     * e.g. SingleThreadedRCPtr
+     *
+     * @param ptr  pointer that wraps a TaggedPtr
+     * @param value  u16int value that is to be stored in the tag
+     */
+    template <typename Pointer>
+    static void updateTag(Pointer& ptr, uint16_t value) {
+        auto taggedPtr = ptr.get();
+        taggedPtr.setTag(value);
+        ptr.reset(taggedPtr);
+    }
+
 private:
     uintptr_t extractPointer(uintptr_t ptr) const {
         return (ptr & 0x0000ffffffffffffull);

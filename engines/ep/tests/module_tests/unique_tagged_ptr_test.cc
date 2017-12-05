@@ -143,9 +143,9 @@ TEST(UniqueTaggedPtrTest, pointerUnaffectedTest) {
 TEST(UniqueTaggedPtrTest, tagUnaffectedTest) {
     TestObject to;
 
-    UniquePtr taggedPtr(nullptr, 123);
-    ASSERT_EQ(123, taggedPtr.getTag());
+    UniquePtr taggedPtr(nullptr, 456);
+    ASSERT_EQ(456, taggedPtr.getTag());
     taggedPtr.set(&to);
     ASSERT_EQ(&to, taggedPtr.get());
-    EXPECT_EQ(123, taggedPtr.getTag());
+    EXPECT_EQ(456, taggedPtr.getTag());
 }

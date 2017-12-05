@@ -30,7 +30,7 @@
 
 #include "locks.h"
 
-template <class S> class SingleThreadedRCPtr;
+template <class S, class Pointer, class Deleter> class SingleThreadedRCPtr;
 template <class C> class RCPtr;
 
 // Implementation defined in dcp/consumer.h
