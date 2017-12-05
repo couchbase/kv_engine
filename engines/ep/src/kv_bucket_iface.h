@@ -758,14 +758,6 @@ public:
     virtual size_t getNumPersistedDeletes(uint16_t vbid) = 0;
 
     /**
-     * Method to handle set_collections commands
-     * @param json a buffer containing a JSON manifest to apply to the bucket
-     */
-    virtual cb::engine_error setCollections(cb::const_char_buffer json) = 0;
-
-    virtual const Collections::Manager& getCollectionsManager() const = 0;
-
-    /**
      * @return true if the bucket supports 'get_all_keys'; else false
      */
     virtual bool isGetAllKeysSupported() const = 0;
