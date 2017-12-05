@@ -414,6 +414,23 @@ public:
      */
     bool getBackfillItems(std::vector<queued_item>& items, size_t limit = 0);
 
+    struct ItemsToFlush {
+        std::vector<queued_item> items;
+        snapshot_range_t range;
+        bool moreAvailable = false;
+    };
+
+    /**
+     * Obtain the series of items to be flushed for this vBucket.
+     *
+     * @param vb VBucket to fetch items for.
+     * @param approxLimit Upper bound on how many items to fetch.
+     * @return The items to flush; along with their seqno range and
+     *         if more items are available for this vBucket (i.e. the
+     *         limit was reached).
+     */
+    ItemsToFlush getItemsToPersist(size_t approxLimit);
+
     bool isBackfillPhase() {
         return backfill.isBackfillPhase.load();
     }

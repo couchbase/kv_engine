@@ -31,6 +31,7 @@
 #include "thread_gate.h"
 #include "ep_vb.h"
 
+#include <engines/ep/src/ep_types.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <valgrind/valgrind.h>
@@ -782,6 +783,49 @@ TYPED_TEST(CheckpointTest, ItemsForCheckpointCursor) {
     EXPECT_EQ(2 * MIN_CHECKPOINT_ITEMS + 3, items.size());
     EXPECT_EQ(0, range.start);
     EXPECT_EQ(1000 + 2 * MIN_CHECKPOINT_ITEMS, range.end);
+}
+
+// Test getAllItemsForCursor() when it is limited to fewer items than exist
+// in total. Cursor should only advanced to the start of the 2nd checkpoint.
+TYPED_TEST(CheckpointTest, ItemsForCheckpointCursorLimited) {
+    /* We want to have items across 2 checkpoints. Size down the default number
+       of items to create a new checkpoint and recreate the manager */
+    this->checkpoint_config = CheckpointConfig(DEFAULT_CHECKPOINT_PERIOD,
+                                               MIN_CHECKPOINT_ITEMS,
+                                               /*numCheckpoints*/ 2,
+                                               /*itemBased*/ true,
+                                               /*keepClosed*/ false,
+                                               /*enableMerge*/ false,
+                                               /*persistenceEnabled*/ true);
+
+    this->createManager();
+
+    /* Add items such that we have 2 checkpoints */
+    queued_item qi;
+    for (unsigned int ii = 0; ii < 2 * MIN_CHECKPOINT_ITEMS; ii++) {
+        ASSERT_TRUE(this->queueNewItem("key" + std::to_string(ii)));
+    }
+
+    /* Verify we have desired number of checkpoints and desired number of
+       items */
+    ASSERT_EQ(2, this->manager->getNumCheckpoints());
+    ASSERT_EQ(MIN_CHECKPOINT_ITEMS, this->manager->getNumOpenChkItems());
+
+    /* Get items for persistence. Specify a limit of 1 so we should only
+     * fetch the first checkpoints' worth.
+     */
+    std::vector<queued_item> items;
+    auto range = this->manager->getItemsForCursor(
+            CheckpointManager::pCursorName, items, 1);
+    EXPECT_EQ(0, range.start);
+    EXPECT_EQ(1000 + MIN_CHECKPOINT_ITEMS, range.end);
+    EXPECT_EQ(MIN_CHECKPOINT_ITEMS + 2, items.size())
+            << "Should have MIN_CHECKPOINT_ITEMS + 2 (ckpt start & end) items";
+    EXPECT_EQ(2,
+              this->manager->getCheckpointIdForCursor(
+                      CheckpointManager::pCursorName))
+            << "Cursor should have moved into second checkpoint.";
+
 }
 
 // Test the checkpoint cursor movement

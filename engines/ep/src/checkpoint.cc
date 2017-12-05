@@ -1249,8 +1249,14 @@ void CheckpointManager::queueSetVBState(VBucket& vb) {
 }
 
 snapshot_range_t CheckpointManager::getAllItemsForCursor(
-                                             const std::string& name,
-                                             std::vector<queued_item> &items) {
+        const std::string& name, std::vector<queued_item>& items) {
+    return getItemsForCursor(name, items, std::numeric_limits<size_t>::max());
+}
+
+snapshot_range_t CheckpointManager::getItemsForCursor(
+        const std::string& name,
+        std::vector<queued_item>& items,
+        size_t approxLimit) {
     LockHolder lh(queueLock);
     snapshot_range_t range;
     cursor_index::iterator it = connCursors.find(name);
@@ -1265,19 +1271,43 @@ snapshot_range_t CheckpointManager::getAllItemsForCursor(
         return range;
     }
 
+    auto& cursor = it->second;
+
+    // Fetch whole checkpoints; as long as we don't exceed the approx item
+    // limit.
     bool moreItems;
-    range.start = (*it->second.currentCheckpoint)->getSnapshotStartSeqno();
-    while ((moreItems = incrCursor(it->second))) {
-        queued_item& qi = *(it->second.currentPos);
+    range.start = (*cursor.currentCheckpoint)->getSnapshotStartSeqno();
+    range.end = (*cursor.currentCheckpoint)->getSnapshotEndSeqno();
+    size_t itemCount = 0;
+    while ((moreItems = incrCursor(cursor))) {
+        queued_item& qi = *(cursor.currentPos);
         items.push_back(qi);
+        itemCount++;
+
+        if (qi->getOperation() == queue_op::checkpoint_end) {
+            // Reached the end of a checkpoint; check if we have exceeded
+            // our limit.
+            if (itemCount >= approxLimit) {
+                // Reached our limit - don't want any more items.
+                range.end = (*cursor.currentCheckpoint)->getSnapshotEndSeqno();
+
+                // However, we *do* want to move the cursor into the next
+                // checkpoint if possible; as that means the checkpoint we just
+                // completed has one less cursor in it (and could potentially be
+                // freed).
+                moveCursorToNextCheckpoint(cursor);
+                break;
+            }
+        }
+        // May have moved into a new checkpoint - update range.end.
+        range.end = (*cursor.currentCheckpoint)->getSnapshotEndSeqno();
     }
-    range.end = (*it->second.currentCheckpoint)->getSnapshotEndSeqno();
 
     LOG(EXTENSION_LOG_DEBUG, "CheckpointManager::getAllItemsForCursor() "
             "cursor:%s range:{%" PRIu64 ", %" PRIu64 "}",
             name.c_str(), range.start, range.end);
 
-    it->second.numVisits++;
+    cursor.numVisits++;
 
     return range;
 }
@@ -1326,7 +1356,8 @@ bool CheckpointManager::incrCursor(CheckpointCursor &cursor) {
             cursor.incrMetaItemOffset(1);
         }
         return true;
-    } else if (!moveCursorToNextCheckpoint(cursor)) {
+    }
+    if (!moveCursorToNextCheckpoint(cursor)) {
         --(cursor.currentPos);
         return false;
     }

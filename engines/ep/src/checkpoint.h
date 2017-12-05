@@ -718,8 +718,34 @@ public:
      */
     queued_item nextItem(const std::string &name, bool &isLastMutationItem);
 
+    /**
+     * Add all outstanding items for the given cursor name to the vector.
+     *
+     * @param name Cursor to advance.
+     * @param items container which items will be appended to.
+     * @return The low/high sequence number added to `items` on success,
+     *         or (0,0) if no items were added.
+     */
     snapshot_range_t getAllItemsForCursor(const std::string& name,
-                                          std::vector<queued_item> &items);
+                                          std::vector<queued_item>& items);
+
+    /**
+     * Add items for the given cursor to the vector, stopping on a checkpoint
+     * boundary which is greater or equal to `approxLimit`. The cursor is
+     * advanced to point after the items fetched.
+     *
+     * Note: It is only valid to fetch complete checkpoints; as such we cannot
+     * limit to a precise number of items.
+     *
+     * @param name Cursor to advance.
+     * @param items container which items will be appended to.
+     * @param approxLimit Approximate number of items to add.
+     * @return sequenceRange - the low/high sequence number added to `items`
+     *        on success, or (0,0) if no items were added.
+     */
+    snapshot_range_t getItemsForCursor(const std::string& name,
+                                       std::vector<queued_item>& items,
+                                       size_t approxLimit);
 
     /**
      * Return the total number of items (including meta items) that belong to

@@ -255,29 +255,14 @@ std::pair<bool, size_t> EPBucket::flushVBucket(uint16_t vbid) {
         return {true, 0};
     }
     if (vb) {
-        std::vector<queued_item> items;
-        KVStore *rwUnderlying = getRWUnderlying(vbid);
+        // Obtain the set of items to flush, up to the maximum allowed for
+        // a single flush.
+        auto toFlush = vb->getItemsToPersist(flusherBatchSplitTrigger);
+        auto& items = toFlush.items;
+        auto& range = toFlush.range;
+        moreAvailable = toFlush.moreAvailable;
 
-        while (!vb->rejectQueue.empty()) {
-            items.push_back(vb->rejectQueue.front());
-            vb->rejectQueue.pop();
-        }
-
-        // Append any 'backfill' items (mutations added by a DCP stream).
-        moreAvailable = vb->getBackfillItems(items, flusherBatchSplitTrigger);
-
-        // Append all items outstanding for the persistence cursor, as long as
-        // we haven't already hit the batch limit.
-        snapshot_range_t range{0, 0};
-        if (!moreAvailable) {
-            auto _begin_ = ProcessClock::now();
-            range = vb->checkpointManager->getAllItemsForCursor(
-                    CheckpointManager::pCursorName, items);
-            moreAvailable = false;
-            stats.persistenceCursorGetItemsHisto.add(
-                    std::chrono::duration_cast<std::chrono::microseconds>(
-                            ProcessClock::now() - _begin_));
-        }
+        KVStore* rwUnderlying = getRWUnderlying(vb->getId());
 
         if (!items.empty()) {
             while (!rwUnderlying->begin(

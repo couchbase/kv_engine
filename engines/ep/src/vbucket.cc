@@ -311,26 +311,53 @@ void VBucket::fireAllOps(EventuallyPersistentEngine &engine) {
     }
 }
 
-bool VBucket::getBackfillItems(std::vector<queued_item>& items, size_t limit) {
-    if (limit == 0) {
-        limit = std::numeric_limits<size_t>::max();
+VBucket::ItemsToFlush VBucket::getItemsToPersist(size_t approxLimit) {
+    // Fetch up to approxLimit items from rejectQueue, backfill items and
+    // checkpointManager (in that order); then check if we obtained everything
+    // which is available.
+    ItemsToFlush result;
+
+    // First add any items from the rejectQueue.
+    while (result.items.size() < approxLimit && !rejectQueue.empty()) {
+        result.items.push_back(rejectQueue.front());
+        rejectQueue.pop();
     }
 
-    bool moreAvailable = false;
-    size_t num_items = 0;
-    { // Locking scope
-        // Transfer up to `limit` items from backfill queue.
+    // Append any 'backfill' items (mutations added by a DCP stream).
+    bool backfillEmpty;
+    {
         LockHolder lh(backfill.mutex);
-        for (; num_items < limit && !backfill.items.empty(); num_items++) {
-            items.push_back(backfill.items.front());
+        size_t num_items = 0;
+        while (result.items.size() < approxLimit && !backfill.items.empty()) {
+            result.items.push_back(backfill.items.front());
             backfill.items.pop();
+            num_items++;
         }
-        moreAvailable = !backfill.items.empty();
+        backfillEmpty = backfill.items.empty();
+        stats.vbBackfillQueueSize.fetch_sub(num_items);
+        stats.memOverhead->fetch_sub(num_items * sizeof(queued_item));
     }
 
-    stats.vbBackfillQueueSize.fetch_sub(num_items);
-    stats.memOverhead->fetch_sub(num_items * sizeof(queued_item));
-    return moreAvailable;
+    // Append up to approxLimit checkpoint items outstanding for the persistence
+    // cursor, if we haven't yet hit the limit.
+    // Note that it is only valid to queue a complete checkpoint - this is where
+    // the "approx" in the limit comes from.
+    const auto ckptMgrLimit = approxLimit - result.items.size();
+    if (ckptMgrLimit > 0) {
+        auto _begin_ = ProcessClock::now();
+        result.range = checkpointManager->getItemsForCursor(
+                CheckpointManager::pCursorName, result.items, ckptMgrLimit);
+        stats.persistenceCursorGetItemsHisto.add(
+                std::chrono::duration_cast<std::chrono::microseconds>(
+                        ProcessClock::now() - _begin_));
+    }
+
+    // Check if there's any more items remaining.
+    result.moreAvailable = !rejectQueue.empty() || !backfillEmpty ||
+                           (checkpointManager->getNumItemsForCursor(
+                                    CheckpointManager::pCursorName) > 0);
+
+    return result;
 }
 
 void VBucket::setState(vbucket_state_t to) {

@@ -516,30 +516,84 @@ TEST_P(VBucketTest, SizeStatsSoftDelFlush) {
     cb_free(someval);
 }
 
-// Check that getBackfillItems() can correctly impose a limit on backfill items
-// fetched.
-TEST_P(VBucketTest, GetBackfillItems_Limit) {
-    // Setup - Add 3 items to backfill.
-    this->vbucket->backfill.items.push(makeQueuedItem("0"));
-    this->vbucket->backfill.items.push(makeQueuedItem("1"));
-    this->vbucket->backfill.items.push(makeQueuedItem("2"));
+// Check that getItemsForCursor() can impose a limit on items fetched, but
+// that it always fetches complete checkpoints.
+TEST_P(VBucketTest, GetItemsForCursor_Limit) {
+    // Setup - Add two items each to three separate checkpoints.
+    auto keys = generateKeys(2, 1);
+    setMany(keys, MutationStatus::WasClean);
+    this->vbucket->checkpointManager->createNewCheckpoint();
+    keys = generateKeys(2, 3);
+    setMany(keys, MutationStatus::WasClean);
+    this->vbucket->checkpointManager->createNewCheckpoint();
+    keys = generateKeys(2, 5);
+    setMany(keys, MutationStatus::WasClean);
 
-    // Setup - Add 2 items to checkpoint manager (in addition to initial
-    // checkpoint_start)
-    auto keys = generateKeys(2, 3);
+    // Check - Asking for 1 item should give us all items in first checkpoint
+    // - 4 total (1x ckpt start, 2x mutation, 1x ckpt end).
+    auto result = this->vbucket->getItemsToPersist(1);
+    EXPECT_TRUE(result.moreAvailable);
+    EXPECT_EQ(4, result.items.size());
+    EXPECT_TRUE(result.items[0]->isCheckPointMetaItem());
+    EXPECT_STREQ("1", result.items[1]->getKey().c_str());
+    EXPECT_STREQ("2", result.items[2]->getKey().c_str());
+    EXPECT_TRUE(result.items[3]->isCheckPointMetaItem());
+
+    // Asking for 5 items should give us all items in second checkpoint and
+    // third checkpoint - 7 total
+    // (ckpt start, 2x mutation, ckpt_end, ckpt_start, 2x mutation)
+    result = this->vbucket->getItemsToPersist(5);
+    EXPECT_FALSE(result.moreAvailable);
+    EXPECT_EQ(7, result.items.size());
+    EXPECT_TRUE(result.items[0]->isCheckPointMetaItem());
+    EXPECT_STREQ("3", result.items[1]->getKey().c_str());
+    EXPECT_STREQ("4", result.items[2]->getKey().c_str());
+    EXPECT_TRUE(result.items[3]->isCheckPointMetaItem());
+    EXPECT_TRUE(result.items[4]->isCheckPointMetaItem());
+    EXPECT_STREQ("5", result.items[5]->getKey().c_str());
+    EXPECT_STREQ("6", result.items[6]->getKey().c_str());
+}
+
+// Check that getItemsToPersist() can correctly impose a limit on items fetched.
+TEST_P(VBucketTest, GetItemsToPersist_Limit) {
+    // Setup - Add items to reject, backfill and checkpoint manager.
+
+    this->vbucket->rejectQueue.push(makeQueuedItem("1"));
+    this->vbucket->rejectQueue.push(makeQueuedItem("2"));
+
+    // Add 2 items to backfill queue
+    this->vbucket->backfill.items.push(makeQueuedItem("3"));
+    this->vbucket->backfill.items.push(makeQueuedItem("4"));
+
+    // Add 2 items to checkpoint manager (in addition to initial
+    // checkpoint_start
+    auto keys = generateKeys(2, 5);
     setMany(keys, MutationStatus::WasClean);
 
     // Test - fetch items in chunks spanning the different item sources.
-    // Should get specified number (in correct order).
-    std::vector<queued_item> items;
-    EXPECT_TRUE(this->vbucket->getBackfillItems(items, 1));
-    EXPECT_EQ(1, items.size());
-    EXPECT_STREQ("0", items[0]->getKey().c_str());
+    // Should get specified number (in correct order), and should always have
+    // items available until the end.
+    auto result = this->vbucket->getItemsToPersist(1);
+    EXPECT_TRUE(result.moreAvailable);
+    EXPECT_EQ(1, result.items.size());
+    EXPECT_STREQ("1", result.items[0]->getKey().c_str());
 
-    EXPECT_FALSE(this->vbucket->getBackfillItems(items, 2));
-    EXPECT_EQ(3, items.size());
-    EXPECT_STREQ("1", items[1]->getKey().c_str());
-    EXPECT_STREQ("2", items[2]->getKey().c_str());
+    result = this->vbucket->getItemsToPersist(2);
+    EXPECT_TRUE(result.moreAvailable);
+    EXPECT_EQ(2, result.items.size());
+    EXPECT_STREQ("2", result.items[0]->getKey().c_str());
+    EXPECT_STREQ("3", result.items[1]->getKey().c_str());
+
+    // Next call should read 1 item from backfill; and *all* items from
+    // checkpoint (even through we only asked for 2 total), as it is not valid
+    // to read partial checkpoint contents.
+    result = this->vbucket->getItemsToPersist(2);
+    EXPECT_FALSE(result.moreAvailable);
+    EXPECT_EQ(4, result.items.size());
+    EXPECT_STREQ("4", result.items[0]->getKey().c_str());
+    EXPECT_TRUE(result.items[1]->isCheckPointMetaItem());
+    EXPECT_STREQ("5", result.items[2]->getKey().c_str());
+    EXPECT_STREQ("6", result.items[3]->getKey().c_str());
 }
 
 class VBucketEvictionTest : public VBucketTest {};
