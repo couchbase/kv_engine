@@ -37,6 +37,7 @@
 #include <platform/make_unique.h>
 #include <platform/sized_buffer.h>
 
+#include <array>
 #include <chrono>
 #include <memory>
 #include <string>
@@ -729,6 +730,11 @@ public:
 
     bool selectedBucketIsXattrEnabled() const;
 
+    /**
+     * Set the name of the connected agent
+     */
+    void setAgentName(cb::const_char_buffer name);
+
 protected:
     void runStateMachinery();
 
@@ -740,6 +746,11 @@ protected:
     bool initializeEvent();
 
     void logResponse(const char* reason) const;
+
+    /**
+     * The name of the client provided to us by hello
+     */
+    std::array<char, 32> agentName{};
 
     /**
      * The state machine we're currently using

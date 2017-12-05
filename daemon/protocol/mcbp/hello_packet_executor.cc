@@ -43,6 +43,7 @@ void process_hello_packet_executor(McbpConnection* c, void* packet) {
     c->setSupportsMutationExtras(false);
     c->setXerrorSupport(false);
     c->setCollectionsSupported(false);
+    c->setAgentName(key);
 
     if (!key.empty()) {
         log_buffer.append("[");

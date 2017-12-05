@@ -922,6 +922,7 @@ static cJSON* event_mask_to_json(const short mask) {
 cJSON* McbpConnection::toJSON() const {
     cJSON* obj = Connection::toJSON();
     if (obj != nullptr) {
+        cJSON_AddStringToObject(obj, "agent_name", agentName.data());
         json_add_bool_to_object(obj, "sasl_enabled", saslAuthEnabled);
         json_add_bool_to_object(obj, "dcp", isDCP());
         json_add_bool_to_object(obj, "dcp_xattr_aware", isDcpXattrAware());
@@ -1020,6 +1021,11 @@ cJSON* McbpConnection::toJSON() const {
     }
 
     return obj;
+}
+
+void McbpConnection::setAgentName(cb::const_char_buffer name) {
+    name.len = std::min(size_t(name.len), agentName.size() - 1);
+    std::copy(name.begin(), name.end(), agentName.begin());
 }
 
 const Protocol McbpConnection::getProtocol() const {
