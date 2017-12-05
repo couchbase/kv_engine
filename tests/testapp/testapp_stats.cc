@@ -273,7 +273,7 @@ TEST_P(StatsTest, TestAggregate) {
     EXPECT_NE(nullptr, cJSON_GetObjectItem(stats.get(), "pid"));
 }
 
-TEST_P(StatsTest, DISABLED_TestConnections) {
+TEST_P(StatsTest, TestConnections) {
     MemcachedConnection& conn = getConnection();
     unique_cJSON_ptr stats;
     stats = conn.stats("connections");
@@ -300,7 +300,11 @@ TEST_P(StatsTest, DISABLED_TestConnections) {
     }
 
     ASSERT_NE(-1, sock) << "Failed to locate a single connection object";
-
+#if 0
+    // We don't really know if the socket we picked out continue to
+    // exists on the server... We should extend the test to look for
+    // a certain connection (we can do that once we store the
+    // agent name.. see next patch)
     stats = conn.stats("connections " + std::to_string(sock));
     ASSERT_NE(nullptr, stats.get());
     ASSERT_EQ(1, cJSON_GetArraySize(stats.get()));
@@ -310,6 +314,7 @@ TEST_P(StatsTest, DISABLED_TestConnections) {
     ASSERT_NE(nullptr, ptr);
     EXPECT_EQ(cJSON_Number, ptr->type);
     EXPECT_EQ(sock, ptr->valueint);
+#endif
 }
 
 TEST_P(StatsTest, TestConnectionsInvalidNumber) {

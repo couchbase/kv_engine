@@ -972,29 +972,14 @@ cJSON* McbpConnection::toJSON() const {
             cJSON* iovobj = cJSON_CreateObject();
             cJSON_AddNumberToObject(iovobj, "size", iov.size());
             cJSON_AddNumberToObject(iovobj, "used", iovused);
-
-            cJSON* array = cJSON_CreateArray();
-            for (size_t ii = 0; ii < iovused; ++ii) {
-                cJSON* o = cJSON_CreateObject();
-                json_add_uintptr_to_object(o, "base", (uintptr_t)iov[ii].iov_base);
-                json_add_uintptr_to_object(o, "len", (uintptr_t)iov[ii].iov_len);
-                cJSON_AddItemToArray(array, o);
-            }
-            if (cJSON_GetArraySize(array) > 0) {
-                cJSON_AddItemToObject(iovobj, "vector", array);
-            } else {
-                cJSON_Delete(array);
-            }
             cJSON_AddItemToObject(obj, "iov", iovobj);
         }
 
         {
             cJSON* msg = cJSON_CreateObject();
-            cJSON_AddNumberToObject(msg, "size", msglist.capacity());
             cJSON_AddNumberToObject(msg, "used", msglist.size());
             cJSON_AddNumberToObject(msg, "curr", msgcurr);
             cJSON_AddNumberToObject(msg, "bytes", msgbytes);
-
             cJSON_AddItemToObject(obj, "msglist", msg);
         }
         {
@@ -1008,6 +993,7 @@ cJSON* McbpConnection::toJSON() const {
             cJSON_AddItemToObject(obj, "temp_alloc_list", talloc);
         }
         json_add_bool_to_object(obj, "noreply", noreply);
+
         {
             cJSON* dy_buf = cJSON_CreateObject();
             json_add_uintptr_to_object(dy_buf, "buffer",
