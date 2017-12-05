@@ -62,7 +62,7 @@ protected:
 
     cJSON *createDefaultConfig(void) {
         cJSON *root = cJSON_CreateObject();
-        cJSON_AddNumberToObject(root, "version", 1);
+        cJSON_AddNumberToObject(root, "version", 2);
         cJSON_AddNumberToObject(root, "rotate_size", 20*1024*1024);
         cJSON_AddNumberToObject(root, "rotate_interval", 900);
         cJSON_AddTrueToObject(root, "auditd_enabled");
@@ -73,6 +73,8 @@ protected:
         cJSON_AddItemToObject(root, "sync", sync);
         cJSON *disabled = cJSON_CreateArray();
         cJSON_AddItemToObject(root, "disabled", disabled);
+        cJSON *disabled_users = cJSON_CreateArray();
+        cJSON_AddItemToObject(root, "disabled_users", disabled_users);
 
         return root;
     }
@@ -104,6 +106,14 @@ TEST_F(AuditConfigTest, TestLegalVersion) {
         cJSON_ReplaceItemInObject(json, "version",
                                   cJSON_CreateNumber(version));
         if (version == 1) {
+            cJSON *obj = cJSON_DetachItemFromObject(json, "disabled_users");
+            cJSON_Delete(obj);
+        }
+        if (version == 2) {
+            cJSON *disabled_users = cJSON_CreateArray();
+            cJSON_AddItemToObject(json, "disabled_users", disabled_users);
+        }
+        if ((version == 1) || (version == 2)) {
             EXPECT_NO_THROW(config.initialize_config(json));
         } else {
             EXPECT_THROW(config.initialize_config(json), std::string);
@@ -373,4 +383,23 @@ TEST_F(AuditConfigTest, TestSpecifyDisabled) {
             EXPECT_FALSE(config.is_event_disabled(ii));
         }
     }
+}
+
+TEST_F(AuditConfigTest, TestSpecifyDisabledUsers) {
+    cJSON *array = cJSON_CreateArray();
+    for (uint16_t ii = 0; ii < 10; ++ii) {
+        auto user = "user" + std::to_string(ii);
+        cJSON_AddItemToArray(array, cJSON_CreateString(user.c_str()));
+    }
+    cJSON_ReplaceItemInObject(json, "disabled_users", array);
+    EXPECT_NO_THROW(config.initialize_config(json));
+
+    for (uint16_t ii = 0; ii < 100; ++ii) {
+        auto user = "user" + std::to_string(ii);
+        if (ii < 10) {
+                EXPECT_TRUE(config.is_event_filtered(user));
+            } else {
+                EXPECT_FALSE(config.is_event_filtered(user));
+            }
+        }
 }

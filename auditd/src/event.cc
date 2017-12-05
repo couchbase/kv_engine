@@ -54,6 +54,27 @@ bool Event::process(Audit& audit) {
         cJSON_Delete(json_payload);
         return true;
     }
+    // Check to see if real_userid::user is in the filter list.  If so ignore
+    // the event
+    auto real_userid = cJSON_GetObjectItem(json_payload, "real_userid");
+    if (real_userid != nullptr) {
+        auto user = cJSON_GetObjectItem(real_userid, "user");
+        if ((user != nullptr) && (audit.config.is_event_filtered(
+                user->valuestring))) {
+            return true;
+        }
+    }
+    // Check to see if effective_userid::user is in the filter list.  If so
+    // ignore the event
+    auto effective_userid = cJSON_GetObjectItem(json_payload,
+                                                "effective_userid");
+    if (effective_userid != nullptr) {
+        auto user = cJSON_GetObjectItem(effective_userid, "user");
+        if ((user != nullptr) && (audit.config.is_event_filtered(
+                user->valuestring))) {
+            return true;
+        }
+    }
     if (!audit.auditfile.ensure_open()) {
         Audit::log_error(AuditErrorCode::OPEN_AUDITFILE_ERROR);
         cJSON_Delete(json_payload);

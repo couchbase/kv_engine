@@ -71,6 +71,7 @@ public:
     std::string get_descriptors_path(void) const;
     bool is_event_sync(uint32_t id);
     bool is_event_disabled(uint32_t id);
+    bool is_event_filtered(const std::string &user) const;
 
 
     void set_min_file_rotation_time(uint32_t min_file_rotation_time) {
@@ -108,8 +109,12 @@ protected:
     void set_log_directory(cJSON *obj);
     void set_descriptors_path(cJSON *obj);
     void add_array(std::vector<uint32_t> &vec, cJSON *array, const char *name);
+    void add_string_array(std::vector<std::string> &vec,
+                          cJSON *array,
+                          const char *name);
     void set_sync(cJSON *array);
     void set_disabled(cJSON *array);
+    void set_disabled_users(cJSON *array);
 
     Couchbase::RelaxedAtomic<bool> auditd_enabled;
     Couchbase::RelaxedAtomic<uint32_t> rotate_interval;
@@ -127,6 +132,9 @@ protected:
 
     std::mutex disabled_mutex;
     std::vector<uint32_t> disabled;
+
+    mutable std::mutex disabled_users_mutex;
+    std::vector<std::string> disabled_users;
 
     Couchbase::RelaxedAtomic<uint32_t> min_file_rotation_time;
     Couchbase::RelaxedAtomic<uint32_t> max_file_rotation_time;

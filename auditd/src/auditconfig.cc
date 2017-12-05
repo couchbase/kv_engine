@@ -74,7 +74,7 @@ static cJSON *getObject(const cJSON *root, const char *name, int type)
 
 AuditConfig::AuditConfig(const cJSON *json) : AuditConfig() {
     cJSON *version = getObject(json, "version", cJSON_Number);
-    if (version->valueint != 1) {
+    if ((version->valueint != 1) && (version->valueint != 2))  {
         std::stringstream ss;
         ss << "error: version " << version->valueint << " is not supported";
         throw ss.str();
@@ -88,6 +88,9 @@ AuditConfig::AuditConfig(const cJSON *json) : AuditConfig() {
     set_descriptors_path(getObject(json, "descriptors_path", cJSON_String));
     set_sync(getObject(json, "sync", cJSON_Array));
     set_disabled(getObject(json, "disabled", cJSON_Array));
+    if (version->valueint == 2) {
+        set_disabled_users(getObject(json, "disabled_users", cJSON_Array));
+    }
 
     std::map<std::string, int> tags;
     tags["version"] = 1;
@@ -99,6 +102,9 @@ AuditConfig::AuditConfig(const cJSON *json) : AuditConfig() {
     tags["descriptors_path"] = 1;
     tags["sync"] = 1;
     tags["disabled"] = 1;
+    if (version->valueint == 2) {
+        tags["disabled_users"] = 1;
+    }
 
     for (cJSON *items = json->child; items != NULL; items = items->next) {
         if (tags.find(items->string) == tags.end()) {
@@ -213,6 +219,12 @@ bool AuditConfig::is_event_disabled(uint32_t id) {
     return std::find(disabled.begin(), disabled.end(), id) != disabled.end();
 }
 
+bool AuditConfig::is_event_filtered(const std::string &users) const {
+    std::lock_guard<std::mutex> guard(disabled_users_mutex);
+    return std::find(disabled_users.begin(), disabled_users.end(), users) !=
+            disabled_users.end();
+}
+
 void AuditConfig::sanitize_path(std::string &path) {
 #ifdef WIN32
     // Make sure that the path is in windows format
@@ -273,6 +285,22 @@ void AuditConfig::add_array(std::vector<uint32_t> &vec, cJSON *array, const char
     }
 }
 
+void AuditConfig::add_string_array(std::vector<std::string> &vec,
+                                   cJSON *array,
+                                   const char *name) {
+    vec.clear();
+    for (int ii = 0; ii < cJSON_GetArraySize(array); ii++) {
+        auto element = cJSON_GetArrayItem(array, ii);
+        if (element->type != cJSON_String) {
+            std::stringstream ss;
+            ss << "Incorrect type (" << element->type << ") for element in " <<
+            name << " array. Expected strings";
+            throw ss.str();
+        }
+        vec.push_back(element->valuestring);
+    }
+}
+
 void AuditConfig::set_sync(cJSON *array) {
     std::lock_guard<std::mutex> guard(sync_mutex);
     add_array(sync, array, "sync");
@@ -283,6 +311,11 @@ void AuditConfig::set_disabled(cJSON *array) {
     add_array(disabled, array, "disabled");
 }
 
+void AuditConfig::set_disabled_users(cJSON *array) {
+    std::lock_guard<std::mutex> guard(disabled_users_mutex);
+    add_string_array(disabled_users, array, "disabled_users");
+}
+
 unique_cJSON_ptr AuditConfig::to_json() const {
     unique_cJSON_ptr ret(cJSON_CreateObject());
     cJSON* root = ret.get();
@@ -290,7 +323,7 @@ unique_cJSON_ptr AuditConfig::to_json() const {
         throw std::bad_alloc();
     }
 
-    cJSON_AddNumberToObject(root, "version", 1);
+    cJSON_AddNumberToObject(root, "version", 2);
     cJSON_AddBoolToObject(root, "auditd_enabled", is_auditd_enabled());
     cJSON_AddNumberToObject(root, "rotate_size", get_rotate_size());
     cJSON_AddNumberToObject(root, "rotate_interval", get_rotate_interval());
@@ -309,6 +342,11 @@ unique_cJSON_ptr AuditConfig::to_json() const {
         cJSON_AddItemToArray(array, cJSON_CreateNumber(v));
     }
     cJSON_AddItemToObject(root, "disabled", array);
+    array = cJSON_CreateArray();
+    for (const auto& v : disabled) {
+        cJSON_AddItemToArray(array, cJSON_CreateNumber(v));
+    }
+    cJSON_AddItemToObject(root, "disabled_users", array);
 
     return ret;
 }
@@ -336,6 +374,11 @@ void AuditConfig::initialize_config(const cJSON* json) {
     {
         std::lock_guard<std::mutex> guard(disabled_mutex);
         disabled = other.disabled;
+    }
+
+    {
+        std::lock_guard<std::mutex> guard(disabled_users_mutex);
+        disabled_users = other.disabled_users;
     }
 
     min_file_rotation_time = other.min_file_rotation_time;
