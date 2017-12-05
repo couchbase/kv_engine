@@ -393,6 +393,8 @@ const uint8_t PROTOCOL_BINARY_CMD_GET_KEYS =
         uint8_t(cb::mcbp::ClientOpcode::GetKeys);
 const uint8_t PROTOCOL_BINARY_CMD_COLLECTIONS_SET_MANIFEST =
         uint8_t(cb::mcbp::ClientOpcode::CollectionsSetManifest);
+const uint8_t PROTOCOL_BINARY_CMD_COLLECTIONS_GET_MANIFEST =
+        uint8_t(cb::mcbp::ClientOpcode::CollectionsGetManifest);
 const uint8_t PROTOCOL_BINARY_CMD_SET_DRIFT_COUNTER_STATE =
         uint8_t(cb::mcbp::ClientOpcode::SetDriftCounterState);
 const uint8_t PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME =

@@ -1328,6 +1328,31 @@ static protocol_binary_response_status collections_set_manifest_validator(
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
+static protocol_binary_response_status collections_get_manifest_validator(
+        const Cookie& cookie) {
+    auto req = static_cast<protocol_binary_request_no_extras*>(
+            cookie.getPacketAsVoidPtr());
+
+    if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
+        req->message.header.request.keylen != 0 ||
+        req->message.header.request.extlen != 0 ||
+        req->message.header.request.bodylen != 0 ||
+        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
+    // We could do these tests before checking the packet, but
+    // it feels cleaner to validate the packet first.
+    if (cookie.getConnection().getBucketEngine() == nullptr ||
+        cookie.getConnection().getBucketEngine()->collections.get_manifest ==
+                nullptr) {
+        // The attached bucket does not support collections
+        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
+    }
+
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+}
+
 static protocol_binary_response_status adjust_timeofday_validator(const Cookie& cookie)
 {
     const auto& header = cookie.getHeader();
@@ -1456,6 +1481,8 @@ void McbpValidatorChains::initializeMcbpValidatorChains(McbpValidatorChains& cha
     chains.push_unique(PROTOCOL_BINARY_CMD_RBAC_REFRESH, configuration_refresh_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_COLLECTIONS_SET_MANIFEST,
                        collections_set_manifest_validator);
+    chains.push_unique(PROTOCOL_BINARY_CMD_COLLECTIONS_GET_MANIFEST,
+                       collections_get_manifest_validator);
 
     chains.push_unique(PROTOCOL_BINARY_CMD_ADJUST_TIMEOFDAY,
                        adjust_timeofday_validator);

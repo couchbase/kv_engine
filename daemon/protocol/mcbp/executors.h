@@ -48,6 +48,7 @@ void dcp_stream_req_executor(Cookie& cookie);
 
 // Collections
 void collections_set_manifest_executor(Cookie& cookie);
+void collections_get_manifest_executor(Cookie& cookie);
 
 void drop_privilege_executor(Cookie&);
 

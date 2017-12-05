@@ -598,6 +598,8 @@ void initialize_mbcp_lookup_map() {
     handlers[PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT] = dcp_system_event_executor;
     handlers[PROTOCOL_BINARY_CMD_COLLECTIONS_SET_MANIFEST] =
             collections_set_manifest_executor;
+    handlers[PROTOCOL_BINARY_CMD_COLLECTIONS_GET_MANIFEST] =
+            collections_get_manifest_executor;
     handlers[PROTOCOL_BINARY_CMD_ISASL_REFRESH] = isasl_refresh_executor;
     handlers[PROTOCOL_BINARY_CMD_SSL_CERTS_REFRESH] =
             ssl_certs_refresh_executor;

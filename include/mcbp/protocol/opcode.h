@@ -240,6 +240,11 @@ enum class ClientOpcode : uint8_t {
     CollectionsSetManifest = 0xb9,
 
     /**
+     * Command to get collections manifest
+     */
+    CollectionsGetManifest = 0xba,
+
+    /**
      * Commands for GO-XDCR
      */
     SetDriftCounterState = 0xc1,

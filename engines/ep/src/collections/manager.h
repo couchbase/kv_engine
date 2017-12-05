@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include <memcached/engine.h>
 #include <memcached/engine_error.h>
 #include <platform/sized_buffer.h>
 
@@ -50,6 +51,12 @@ public:
      * @returns engine_error indicating why the update failed.
      */
     cb::engine_error update(KVBucket& bucket, const std::string& json);
+
+    /**
+     * Retrieve the current manifest
+     * @return JSON version of the current manifest
+     */
+    cb::EngineErrorStringPair getManifest() const;
 
     /**
      * Update the vbucket's manifest with the current Manifest

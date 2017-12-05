@@ -802,6 +802,12 @@ public:
      */
     cb::engine_error setCollections(cb::const_char_buffer json);
 
+    /**
+     * Method to handle get_collections commands
+     * @return a pair of status and JSON as a std::string
+     */
+    cb::EngineErrorStringPair getCollections() const;
+
     const Collections::Manager& getCollectionsManager() const;
 
     bool isXattrEnabled() const;

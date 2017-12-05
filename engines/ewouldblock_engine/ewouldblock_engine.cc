@@ -999,6 +999,9 @@ private:
     static cb::engine_error collections_set_manifest(
             gsl::not_null<ENGINE_HANDLE*> handle, cb::const_char_buffer json);
 
+    static cb::EngineErrorStringPair collections_get_manifest(
+            gsl::not_null<ENGINE_HANDLE*> handle);
+
     static bool isXattrEnabled(gsl::not_null<ENGINE_HANDLE*> handle);
 
     // Base class for all fault injection modes.
@@ -1344,6 +1347,7 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
 
     ENGINE_HANDLE_V1::collections = {};
     ENGINE_HANDLE_V1::collections.set_manifest = collections_set_manifest;
+    ENGINE_HANDLE_V1::collections.get_manifest = collections_get_manifest;
 
     ENGINE_HANDLE_V1::isXattrEnabled = isXattrEnabled;
 
@@ -1773,6 +1777,17 @@ cb::engine_error EWB_Engine::collections_set_manifest(
     } else {
         return ewb->real_engine->collections.set_manifest(ewb->real_handle,
                                                           json);
+    }
+}
+
+cb::EngineErrorStringPair EWB_Engine::collections_get_manifest(
+        gsl::not_null<ENGINE_HANDLE*> handle) {
+    EWB_Engine* ewb = to_engine(handle);
+    if (ewb->real_engine->collections.get_manifest == nullptr) {
+        return {cb::engine_errc::not_supported,
+                "EWB_Engine::collections_get_manifest"};
+    } else {
+        return ewb->real_engine->collections.get_manifest(ewb->real_handle);
     }
 }
 

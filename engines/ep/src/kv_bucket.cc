@@ -2378,6 +2378,10 @@ cb::engine_error KVBucket::setCollections(cb::const_char_buffer json) {
     return collectionsManager->update(*this, manifest);
 }
 
+cb::EngineErrorStringPair KVBucket::getCollections() const {
+    return collectionsManager->getManifest();
+}
+
 const Collections::Manager& KVBucket::getCollectionsManager() const {
     return *collectionsManager.get();
 }

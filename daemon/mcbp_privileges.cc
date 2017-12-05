@@ -293,6 +293,9 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(PROTOCOL_BINARY_CMD_COLLECTIONS_SET_MANIFEST,
           require<Privilege::BucketManagement>);
 
+    /// all clients may need to read the manifest
+    setup(PROTOCOL_BINARY_CMD_COLLECTIONS_GET_MANIFEST, empty);
+
     if (getenv("MEMCACHED_UNIT_TESTS") != nullptr) {
         // The opcode used to set the clock by our extension
         setup(protocol_binary_command(PROTOCOL_BINARY_CMD_ADJUST_TIMEOFDAY), empty);

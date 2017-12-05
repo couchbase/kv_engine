@@ -1689,6 +1689,12 @@ static cb::engine_error EvpCollectionsSetManifest(
     return engine->getKVBucket()->setCollections(json);
 }
 
+static cb::EngineErrorStringPair EvpCollectionsGetManifest(
+        gsl::not_null<ENGINE_HANDLE*> handle) {
+    auto engine = acquireEngine(handle);
+    return engine->getKVBucket()->getCollections();
+}
+
 static bool EvpIsXattrEnabled(gsl::not_null<ENGINE_HANDLE*> handle) {
     auto engine = acquireEngine(handle);
     return engine->getKVBucket()->isXattrEnabled();
@@ -1756,6 +1762,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
     ENGINE_HANDLE_V1::dcp.system_event = EvpDcpSystemEvent;
     ENGINE_HANDLE_V1::set_log_level = EvpSetLogLevel;
     ENGINE_HANDLE_V1::collections.set_manifest = EvpCollectionsSetManifest;
+    ENGINE_HANDLE_V1::collections.get_manifest = EvpCollectionsGetManifest;
     ENGINE_HANDLE_V1::isXattrEnabled = EvpIsXattrEnabled;
 
     serverApi = getServerApiFunc();

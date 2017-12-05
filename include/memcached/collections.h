@@ -23,10 +23,20 @@
 #include <platform/sized_buffer.h>
 #include "memcached/engine_error.h"
 
+namespace cb {
+using EngineErrorStringPair = std::pair<engine_errc, std::string>;
+}
+
 struct collections_interface {
     /**
      * Inform the engine of the current collection manifest (a JSON document)
      */
     cb::engine_error (*set_manifest)(gsl::not_null<ENGINE_HANDLE*> handle,
                                      cb::const_char_buffer json);
+
+    /**
+     * Retrieve the last manifest set using set_manifest (a JSON document)
+     */
+    cb::EngineErrorStringPair (*get_manifest)(
+            gsl::not_null<ENGINE_HANDLE*> handle);
 };
