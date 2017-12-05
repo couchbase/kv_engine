@@ -1404,25 +1404,31 @@ ENGINE_ERROR_CODE KVBucket::setWithMeta(Item& itm,
         return ENGINE_KEY_EEXISTS;
     }
 
+    ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
     { // collections read scope
         auto collectionsRHandle = vb->lockCollections(itm.getKey());
         if (!collectionsRHandle.valid()) {
-            return ENGINE_UNKNOWN_COLLECTION;
+            rv = ENGINE_UNKNOWN_COLLECTION;
+        } else {
+            rv = vb->setWithMeta(itm,
+                                 cas,
+                                 seqno,
+                                 cookie,
+                                 engine,
+                                 bgFetchDelay,
+                                 checkConflicts,
+                                 allowExisting,
+                                 genBySeqno,
+                                 genCas,
+                                 isReplication,
+                                 collectionsRHandle);
         }
-
-        return vb->setWithMeta(itm,
-                               cas,
-                               seqno,
-                               cookie,
-                               engine,
-                               bgFetchDelay,
-                               checkConflicts,
-                               allowExisting,
-                               genBySeqno,
-                               genCas,
-                               isReplication,
-                               collectionsRHandle);
     }
+
+    if (rv == ENGINE_SUCCESS) {
+        checkAndMaybeFreeMemory();
+    }
+    return rv;
 }
 
 GetValue KVBucket::getAndUpdateTtl(const DocKey& key, uint16_t vbucket,
@@ -1859,6 +1865,13 @@ bool KVBucket::isMemoryUsageTooHigh() {
     double memoryUsed = static_cast<double>(stats.getTotalMemoryUsed());
     double maxSize = static_cast<double>(stats.getMaxDataSize());
     return memoryUsed > (maxSize * backfillMemoryThreshold);
+}
+
+// Trigger memory reduction (ItemPager) if we've exceeded high water
+void KVBucket::checkAndMaybeFreeMemory() {
+    if (stats.getTotalMemoryUsed() > stats.mem_high_wat) {
+        attemptToFreeMemory();
+    }
 }
 
 void KVBucket::setBackfillMemoryThreshold(double threshold) {

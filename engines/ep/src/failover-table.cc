@@ -128,7 +128,10 @@ std::pair<bool, std::string> FailoverTable::needsRollback(
     uint64_t upper = cur_seqno;
     std::lock_guard<std::mutex> lh(lock);
 
-    if (start_seqno == 0) {
+    /* Some clients can have a diverging (w.r.t producer) branch at seqno 0.
+       So check if we should we rollback when a client has a valid vb_uuid
+       even though the start_seqno == 0 */
+    if (start_seqno == 0 && vb_uuid == 0) {
         return std::make_pair(false, std::string());
     }
 
@@ -142,8 +145,8 @@ std::pair<bool, std::string> FailoverTable::needsRollback(
     adjustSnapshotRange(start_seqno, snap_start_seqno, snap_end_seqno);
 
     /* There may be items that are purged during compaction. We need
-     to rollback to seq no 0 in that case */
-    if (snap_start_seqno < purge_seqno) {
+       to rollback to seq no 0 in that case, only if start_seqno is not 0 */
+    if (snap_start_seqno < purge_seqno && start_seqno != 0) {
         return std::make_pair(true,
                               std::string("purge seqno (") +
                                       std::to_string(purge_seqno) +

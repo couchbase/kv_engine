@@ -1997,12 +1997,13 @@ void PassiveStream::streamRequest(uint64_t vb_uuid) {
 }
 
 void PassiveStream::streamRequest_UNLOCKED(uint64_t vb_uuid) {
+    /* the stream should send a don't care vb_uuid if start_seqno is 0 */
     pushToReadyQ(std::make_unique<StreamRequest>(vb_,
                                                  opaque_,
                                                  flags_,
                                                  start_seqno_,
                                                  end_seqno_,
-                                                 vb_uuid,
+                                                 start_seqno_ ? vb_uuid : 0,
                                                  snap_start_seqno_,
                                                  snap_end_seqno_));
 
@@ -2075,7 +2076,8 @@ void PassiveStream::acceptStream(uint16_t status, uint32_t add_opaque) {
 void PassiveStream::reconnectStream(VBucketPtr &vb,
                                     uint32_t new_opaque,
                                     uint64_t start_seqno) {
-    vb_uuid_ = vb->failovers->getLatestEntry().vb_uuid;
+    /* the stream should send a don't care vb_uuid if start_seqno is 0 */
+    vb_uuid_ = start_seqno ? vb->failovers->getLatestEntry().vb_uuid : 0;
 
     snapshot_info_t info = vb->checkpointManager->getSnapshotInfo();
     if (info.range.end == info.start) {

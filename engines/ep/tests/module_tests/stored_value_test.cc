@@ -225,6 +225,17 @@ TYPED_TEST(ValueTest, deletedValueDatatypeIsBinary) {
             << "datatype should be RAW BYTES after deletion.";
 }
 
+/**
+ * Check that NRU still works (given we now do some bitfield munging)
+ */
+TYPED_TEST(ValueTest, nru) {
+    EXPECT_EQ(INITIAL_NRU_VALUE, this->sv->getNRUValue());
+    this->sv->incrNRUValue();
+    EXPECT_EQ(INITIAL_NRU_VALUE + 1, this->sv->getNRUValue());
+    this->sv->referenced();
+    EXPECT_EQ(INITIAL_NRU_VALUE, this->sv->getNRUValue());
+}
+
 /// Check that StoredValue / OrderedStoredValue don't unexpectedly change in
 /// size (we've carefully crafted them to be as efficient as possible).
 TEST(StoredValueTest, expectedSize) {

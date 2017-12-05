@@ -44,13 +44,16 @@ StoredValue::StoredValue(const Item& itm,
       lock_expiry_or_delete_time(0),
       exptime(itm.getExptime()),
       flags(itm.getFlags()),
-      datatype(itm.getDataType()),
-      deleted(itm.isDeleted()),
-      newCacheItem(true),
-      isOrdered(isOrdered),
-      nru(itm.getNRUValue()),
-      resident(!isTempItem()),
-      stale(false) {
+      datatype(itm.getDataType()) {
+    // Initialise bit fields
+    setDeletedPriv(itm.isDeleted());
+    setNewCacheItem(true);
+    setOrdered(isOrdered);
+    setNru(itm.getNRUValue());
+    setResident(!isTempItem());
+    setStale(false);
+    // dirty initialised below
+
     // Placement-new the key which lives in memory directly after this
     // object.
     new (key()) SerialisedDocKey(itm.getKey());
@@ -72,9 +75,7 @@ StoredValue::~StoredValue() {
     ObjectRegistry::onDeleteStoredValue(this);
 }
 
-StoredValue::StoredValue(const StoredValue& other,
-                         UniquePtr n,
-                         EPStats& stats)
+StoredValue::StoredValue(const StoredValue& other, UniquePtr n, EPStats& stats)
     : value(other.value),
       chain_next_or_replacement(std::move(n)),
       cas(other.cas),
@@ -83,14 +84,14 @@ StoredValue::StoredValue(const StoredValue& other,
       lock_expiry_or_delete_time(other.lock_expiry_or_delete_time),
       exptime(other.exptime),
       flags(other.flags),
-      datatype(other.datatype),
-      _isDirty(other._isDirty),
-      deleted(other.deleted),
-      newCacheItem(other.newCacheItem),
-      isOrdered(other.isOrdered),
-      nru(other.nru),
-      resident(other.resident),
-      stale(false) {
+      datatype(other.datatype) {
+    setDirty(other.isDirty());
+    setDeletedPriv(other.isDeleted());
+    setNewCacheItem(other.isNewCacheItem());
+    setOrdered(other.isOrdered());
+    setNru(other.getNru());
+    setResident(other.isResident());
+    setStale(false);
     // Placement-new the key which lives in memory directly after this
     // object.
     StoredDocKey sKey(other.getKey());
@@ -100,7 +101,7 @@ StoredValue::StoredValue(const StoredValue& other,
 }
 
 void StoredValue::setValue(const Item& itm) {
-    if (isOrdered) {
+    if (isOrdered()) {
         return static_cast<OrderedStoredValue*>(this)->setValueImpl(itm);
     } else {
         return this->setValueImpl(itm);
@@ -112,27 +113,30 @@ void StoredValue::ejectValue() {
 }
 
 void StoredValue::referenced() {
+    uint8_t nru = getNru();
     if (nru > MIN_NRU_VALUE) {
-        --nru;
+        setNru(--nru);
     }
 }
 
 void StoredValue::setNRUValue(uint8_t nru_val) {
     if (nru_val <= MAX_NRU_VALUE) {
-        nru = nru_val;
+        setNru(nru_val);
     }
 }
 
 uint8_t StoredValue::incrNRUValue() {
     uint8_t ret = MAX_NRU_VALUE;
+    uint8_t nru = getNru();
     if (nru < MAX_NRU_VALUE) {
         ret = ++nru;
+        setNru(nru);
     }
     return ret;
 }
 
 uint8_t StoredValue::getNRUValue() const {
-    return nru;
+    return getNru();
 }
 
 void StoredValue::restoreValue(const Item& itm) {
@@ -142,12 +146,12 @@ void StoredValue::restoreValue(const Item& itm) {
         exptime = itm.getExptime();
         revSeqno = itm.getRevSeqno();
         bySeqno = itm.getBySeqno();
-        nru = INITIAL_NRU_VALUE;
+        setNru(INITIAL_NRU_VALUE);
     }
     datatype = itm.getDataType();
-    deleted = itm.isDeleted();
+    setDeletedPriv(itm.isDeleted());
     value = itm.getValue();
-    resident = true;
+    setResident(true);
 }
 
 void StoredValue::restoreMeta(const Item& itm) {
@@ -162,15 +166,15 @@ void StoredValue::restoreMeta(const Item& itm) {
         bySeqno = itm.getBySeqno();
         /* set it back to false as we created a temp item by setting it to true
            when bg fetch is scheduled (full eviction mode). */
-        newCacheItem = false;
+        setNewCacheItem(false);
     }
-    if (nru == MAX_NRU_VALUE) {
-        nru = INITIAL_NRU_VALUE;
+    if (getNru() == MAX_NRU_VALUE) {
+        setNru(INITIAL_NRU_VALUE);
     }
 }
 
 bool StoredValue::del() {
-    if (isOrdered) {
+    if (isOrdered()) {
         return static_cast<OrderedStoredValue*>(this)->deleteImpl();
     } else {
         return this->deleteImpl();
@@ -194,9 +198,9 @@ std::unique_ptr<Item> StoredValue::toItem(bool lck, uint16_t vbucket) const {
                                    vbucket,
                                    getRevSeqno());
 
-    itm->setNRUValue(nru);
+    itm->setNRUValue(getNru());
 
-    if (deleted) {
+    if (isDeleted()) {
         itm->setDeleted();
     }
 
@@ -215,10 +219,10 @@ std::unique_ptr<Item> StoredValue::toItemKeyOnly(uint16_t vbucket) const {
                                    vbucket,
                                    getRevSeqno());
 
-    itm->setNRUValue(nru);
+    itm->setNRUValue(getNru());
 
-    if (deleted) {
-       itm->setDeleted();
+    if (isDeleted()) {
+        itm->setDeleted();
     }
 
     return itm;
@@ -232,7 +236,7 @@ void StoredValue::reallocate() {
 }
 
 void StoredValue::Deleter::operator()(StoredValue* val) {
-    if (val->isOrdered) {
+    if (val->isOrdered()) {
         delete static_cast<OrderedStoredValue*>(val);
     } else {
         delete val;
@@ -240,14 +244,14 @@ void StoredValue::Deleter::operator()(StoredValue* val) {
 }
 
 OrderedStoredValue* StoredValue::toOrderedStoredValue() {
-    if (isOrdered) {
+    if (isOrdered()) {
         return static_cast<OrderedStoredValue*>(this);
     }
     throw std::bad_cast();
 }
 
 const OrderedStoredValue* StoredValue::toOrderedStoredValue() const {
-    if (isOrdered) {
+    if (isOrdered()) {
         return static_cast<const OrderedStoredValue*>(this);
     }
     throw std::bad_cast();
@@ -258,11 +262,10 @@ bool StoredValue::operator==(const StoredValue& other) const {
             bySeqno == other.bySeqno &&
             lock_expiry_or_delete_time == other.lock_expiry_or_delete_time &&
             exptime == other.exptime && flags == other.flags &&
-            _isDirty == other._isDirty && deleted == other.deleted &&
-            newCacheItem == other.newCacheItem &&
-            isOrdered == other.isOrdered && nru == other.nru &&
-            resident == other.resident &&
-            getKey() == other.getKey());
+            isDirty() == other.isDirty() && isDeleted() == other.isDeleted() &&
+            isNewCacheItem() == other.isNewCacheItem() &&
+            isOrdered() == other.isOrdered() && getNru() == other.getNru() &&
+            isResident() == other.isResident() && getKey() == other.getKey());
 }
 
 bool StoredValue::deleteImpl() {
@@ -276,21 +279,21 @@ bool StoredValue::deleteImpl() {
     setDatatype(PROTOCOL_BINARY_RAW_BYTES);
     setPendingSeqno();
 
-    deleted = true;
+    setDeletedPriv(true);
     markDirty();
 
     return true;
 }
 
 void StoredValue::setValueImpl(const Item& itm) {
-    if (deleted && !itm.isDeleted()) {
+    if (isDeleted() && !itm.isDeleted()) {
         // Transitioning from deleted -> alive - this should be considered
         // a new cache item as it is increasing the number of (alive) items
         // in the vBucket.
         setNewCacheItem(true);
     }
 
-    deleted = itm.isDeleted();
+    setDeletedPriv(itm.isDeleted());
     flags = itm.getFlags();
     datatype = itm.getDataType();
     bySeqno = itm.getBySeqno();
@@ -300,7 +303,7 @@ void StoredValue::setValueImpl(const Item& itm) {
     exptime = itm.getExptime();
     revSeqno = itm.getRevSeqno();
 
-    nru = itm.getNRUValue();
+    setNru(itm.getNRUValue());
 
     if (isTempInitialItem()) {
         markClean();
@@ -309,9 +312,9 @@ void StoredValue::setValueImpl(const Item& itm) {
     }
 
     if (isTempItem()) {
-        resident = false;
+        setResident(false);
     } else {
-        resident = true;
+        setResident(true);
         value = itm.getValue();
     }
 }
@@ -346,7 +349,7 @@ boost::optional<item_info> StoredValue::getItemInfo(uint64_t vbuuid) const {
 std::ostream& operator<<(std::ostream& os, const StoredValue& sv) {
 
     // type, address
-    os << (sv.isOrdered ? "OSV @" : " SV @") << &sv << " ";
+    os << (sv.isOrdered() ? "OSV @" : " SV @") << &sv << " ";
 
     // datatype: XCJ
     os << (mcbp::datatype::is_xattr(sv.getDatatype()) ? 'X' : '.');
@@ -360,9 +363,9 @@ std::ostream& operator<<(std::ostream& os, const StoredValue& sv) {
     os << (sv.isNewCacheItem() ? 'N' : '.');
     os << (sv.isResident() ? 'R' : '.');
     os << (sv.isLocked(ep_current_time()) ? 'L' : '.');
-    if (sv.isOrdered) {
+    if (sv.isOrdered()) {
         const auto* osv = sv.toOrderedStoredValue();
-        os << (osv->stale ? 'S' : '.');
+        os << (osv->isStalePriv() ? 'S' : '.');
     }
     os << ' ';
 
@@ -376,7 +379,7 @@ std::ostream& operator<<(std::ostream& os, const StoredValue& sv) {
     // seqno, revid, expiry / purge time
     os << "seq:" << sv.getBySeqno() << " rev:" << sv.getRevSeqno();
     os << " key:\"" << sv.getKey() << "\"";
-    if (sv.isOrdered && sv.isDeleted()) {
+    if (sv.isOrdered() && sv.isDeleted()) {
         os << " del_time:" << sv.lock_expiry_or_delete_time;
     } else {
         os << " exp:" << sv.getExptime();

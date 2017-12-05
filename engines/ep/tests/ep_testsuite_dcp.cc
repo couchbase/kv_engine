@@ -151,7 +151,8 @@ public:
           flow_control_buf_size(1024),
           disable_ack(false),
           h(h),
-          h1(h1) {
+          h1(h1),
+          nruCounter(MAX_NRU_VALUE + 1) {
     }
 
     uint64_t getTotalBytes() {
@@ -194,6 +195,11 @@ public:
 
     ENGINE_ERROR_CODE sendControlMessage(const std::string& name,
                                          const std::string& value);
+
+    const std::vector<int>& getNruCounters() const {
+        return nruCounter;
+    }
+
 private:
     /* Vbucket-level stream stats used in test */
     struct VBStats {
@@ -246,6 +252,7 @@ private:
     std::map<uint16_t, VBStats> vb_stats;
     ENGINE_HANDLE* h;
     ENGINE_HANDLE_V1* h1;
+    std::vector<int> nruCounter;
 };
 
 ENGINE_ERROR_CODE TestDcpConsumer::sendControlMessage(
@@ -324,6 +331,10 @@ void TestDcpConsumer::run() {
                                    PROTOCOL_BINARY_RESPONSE_SUCCESS,
                                    dcp_last_opaque);
                     }
+
+                    check(dcp_last_nru <= MAX_NRU_VALUE,
+                          "NRU out of expected range");
+                    nruCounter[dcp_last_nru]++;
 
                     if (!dcp_last_value.empty()) {
                         stats.num_values++;
@@ -767,14 +778,23 @@ static void dcp_stream_to_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
         const std::string key{"key" + std::to_string(i)};
         const DocKey docKey{key, DocNamespace::DefaultCollection};
         const cb::const_byte_buffer value{(uint8_t*)data.data(), data.size()};
-        checkeq(ENGINE_SUCCESS, h1->dcp.mutation(h, cookie, opaque,
-                                                 docKey, value,
-                                                 0, // priv bytes
-                                                 PROTOCOL_BINARY_RAW_BYTES,
-                                                 cas, vbucket, flags,
-                                                 i, // by seqno
-                                                 revSeqno, exprtime,
-                                                 lockTime, {}, 0),
+        checkeq(ENGINE_SUCCESS,
+                h1->dcp.mutation(h,
+                                 cookie,
+                                 opaque,
+                                 docKey,
+                                 value,
+                                 0, // priv bytes
+                                 PROTOCOL_BINARY_RAW_BYTES,
+                                 cas,
+                                 vbucket,
+                                 flags,
+                                 i, // by seqno
+                                 revSeqno,
+                                 exprtime,
+                                 lockTime,
+                                 {},
+                                 INITIAL_NRU_VALUE),
                 "Failed dcp mutate.");
     }
 }
@@ -2246,6 +2266,11 @@ static enum test_result test_dcp_producer_stream_req_dgm(ENGINE_HANDLE *h,
     tdc.addStreamCtx(ctx);
     tdc.run();
 
+    // Expect that we get the same or more cold items than we ejected. We may
+    // see more because the backfill may have pulled a cold item from memory
+    checkge(tdc.getNruCounters()[MAX_NRU_VALUE],
+            get_int_stat(h, h1, "ep_num_value_ejects"),
+            "should have the the same or more cold items then we ejected");
     testHarness.destroy_cookie(cookie);
 
     return SUCCESS;
@@ -2590,7 +2615,10 @@ static test_result test_dcp_cursor_dropping(ENGINE_HANDLE *h,
     /* Initially write a few items */
     int num_items = 25;
     const int initialSnapshotSize = num_items;
-    const int cursor_dropping_mem_thres_perc = 90;
+
+    // 75% is so that we don't hit the HWM (triggering the pager) yet is above
+    // the thresholds required for cursor dropping
+    const int cursor_dropping_mem_thres_perc = 75;
 
     write_items(h, h1, num_items, 1);
 
@@ -2684,7 +2712,9 @@ static test_result test_dcp_cursor_dropping_backfill(ENGINE_HANDLE *h,
     /* Initially write a few items */
     int num_items = 50;
     const int initialSnapshotSize = num_items;
-    const int cursor_dropping_mem_thres_perc = 90;
+    // 75% is so that we don't hit the HWM (triggering the pager) yet is above
+    // the thresholds required for cursor dropping
+    const int cursor_dropping_mem_thres_perc = 75;
 
     write_items(h, h1, num_items, 1);
 
@@ -4791,6 +4821,22 @@ static enum test_result test_dcp_rollback_after_purge(ENGINE_HANDLE *h,
 
     testHarness.destroy_cookie(cookie2);
 
+    /* Do not expect rollback when start_seqno == 0 */
+    DcpStreamCtx ctx3;
+    ctx3.vb_uuid = vb_uuid;
+    ctx3.seqno = {0, high_seqno};
+    ctx3.snapshot = {0, high_seqno};
+    ctx3.exp_err = ENGINE_SUCCESS;
+
+    const void* cookie3 = testHarness.create_cookie();
+    TestDcpConsumer tdc3("unittest3", cookie3, h, h1);
+    tdc3.addStreamCtx(ctx3);
+
+    tdc3.openConnection();
+    tdc3.openStreams();
+
+    testHarness.destroy_cookie(cookie3);
+
     return SUCCESS;
 }
 
@@ -5172,47 +5218,83 @@ static enum test_result test_failover_log_dcp(ENGINE_HANDLE *h,
         ENGINE_ERROR_CODE exp_err_code;
     } dcp_params_t;
 
-    dcp_params_t params[] =
-    {   /* Do not expect rollback when start_seqno is 0 */
-        {0, uuid, 0, 0, 0, 0, ENGINE_SUCCESS},
-        /* Do not expect rollback when start_seqno is 0 and vb_uuid mismatch */
-        {0, 0xBAD, 0, 0, 0, 0, ENGINE_SUCCESS},
-        /* Don't expect rollback when you already have all items in the snapshot
-           (that is, start == snap_end) and upper >= snap_end */
-        {0, uuid, high_seqno, 0, high_seqno, 0, ENGINE_SUCCESS},
-        {0, uuid, high_seqno - 1, 0, high_seqno - 1, 0, ENGINE_SUCCESS},
-        /* Do not expect rollback when you have no items in the snapshot
-         (that is, start == snap_start) and upper >= snap_end */
-        {0, uuid, high_seqno - 10, high_seqno - 10, high_seqno, 0, ENGINE_SUCCESS},
-        {0, uuid, high_seqno - 10, high_seqno - 10, high_seqno - 1, 0,
-         ENGINE_SUCCESS},
-        /* Do not expect rollback when you are in middle of a snapshot (that is,
-           snap_start < start < snap_end) and upper >= snap_end */
-        {0, uuid, 10, 0, high_seqno, 0, ENGINE_SUCCESS},
-        {0, uuid, 10, 0, high_seqno - 1, 0, ENGINE_SUCCESS},
-        /* Expect rollback when you are in middle of a snapshot (that is,
-           snap_start < start < snap_end) and upper < snap_end. Rollback to
-           snap_start if snap_start < upper */
-        {0, uuid, 20, 10, high_seqno + 1, 10, ENGINE_ROLLBACK},
-        /* Expect rollback when upper < snap_start_seqno. Rollback to upper */
-        {0, uuid, high_seqno + 20, high_seqno + 10, high_seqno + 30, high_seqno,
-         ENGINE_ROLLBACK},
-        {0, uuid, high_seqno + 10, high_seqno + 10, high_seqno + 10, high_seqno,
-         ENGINE_ROLLBACK},
-        /* vb_uuid not found in failover table, rollback to zero */
-        {0, 0xBAD, 10, 0, high_seqno, 0, ENGINE_ROLLBACK},
+    dcp_params_t params[] = {
+            /* Do not expect rollback when start_seqno is 0 and vb_uuid match */
+            {0, uuid, 0, 0, 0, 0, ENGINE_SUCCESS},
+            /* Do not expect rollback when start_seqno is 0 and vb_uuid == 0 */
+            {0, 0x0, 0, 0, 0, 0, ENGINE_SUCCESS},
+            /* Expect rollback when start_seqno is 0 and vb_uuid mismatch */
+            {0, 0xBAD, 0, 0, 0, 0, ENGINE_ROLLBACK},
+            /* Don't expect rollback when you already have all items in the
+               snapshot
+               (that is, start == snap_end) and upper >= snap_end */
+            {0, uuid, high_seqno, 0, high_seqno, 0, ENGINE_SUCCESS},
+            {0, uuid, high_seqno - 1, 0, high_seqno - 1, 0, ENGINE_SUCCESS},
+            /* Do not expect rollback when you have no items in the snapshot
+             (that is, start == snap_start) and upper >= snap_end */
+            {0,
+             uuid,
+             high_seqno - 10,
+             high_seqno - 10,
+             high_seqno,
+             0,
+             ENGINE_SUCCESS},
+            {0,
+             uuid,
+             high_seqno - 10,
+             high_seqno - 10,
+             high_seqno - 1,
+             0,
+             ENGINE_SUCCESS},
+            /* Do not expect rollback when you are in middle of a snapshot (that
+               is,
+               snap_start < start < snap_end) and upper >= snap_end */
+            {0, uuid, 10, 0, high_seqno, 0, ENGINE_SUCCESS},
+            {0, uuid, 10, 0, high_seqno - 1, 0, ENGINE_SUCCESS},
+            /* Expect rollback when you are in middle of a snapshot (that is,
+               snap_start < start < snap_end) and upper < snap_end. Rollback to
+               snap_start if snap_start < upper */
+            {0, uuid, 20, 10, high_seqno + 1, 10, ENGINE_ROLLBACK},
+            /* Expect rollback when upper < snap_start_seqno. Rollback to upper
+               */
+            {0,
+             uuid,
+             high_seqno + 20,
+             high_seqno + 10,
+             high_seqno + 30,
+             high_seqno,
+             ENGINE_ROLLBACK},
+            {0,
+             uuid,
+             high_seqno + 10,
+             high_seqno + 10,
+             high_seqno + 10,
+             high_seqno,
+             ENGINE_ROLLBACK},
+            /* vb_uuid not found in failover table, rollback to zero */
+            {0, 0xBAD, 10, 0, high_seqno, 0, ENGINE_ROLLBACK},
 
-        /* start_seqno > vb_high_seqno and DCP_ADD_STREAM_FLAG_LATEST
-           set - expect rollback */
-        {DCP_ADD_STREAM_FLAG_LATEST, uuid, high_seqno + 1, high_seqno + 1,
-         high_seqno + 1, high_seqno, ENGINE_ROLLBACK},
+            /* start_seqno > vb_high_seqno and DCP_ADD_STREAM_FLAG_LATEST
+               set - expect rollback */
+            {DCP_ADD_STREAM_FLAG_LATEST,
+             uuid,
+             high_seqno + 1,
+             high_seqno + 1,
+             high_seqno + 1,
+             high_seqno,
+             ENGINE_ROLLBACK},
 
-        /* start_seqno > vb_high_seqno and DCP_ADD_STREAM_FLAG_DISKONLY
-           set - expect rollback */
-        {DCP_ADD_STREAM_FLAG_DISKONLY, uuid, high_seqno + 1, high_seqno + 1,
-         high_seqno + 1, high_seqno, ENGINE_ROLLBACK},
+            /* start_seqno > vb_high_seqno and DCP_ADD_STREAM_FLAG_DISKONLY
+               set - expect rollback */
+            {DCP_ADD_STREAM_FLAG_DISKONLY,
+             uuid,
+             high_seqno + 1,
+             high_seqno + 1,
+             high_seqno + 1,
+             high_seqno,
+             ENGINE_ROLLBACK},
 
-        /* Add new test case here */
+            /* Add new test case here */
     };
 
     for (const auto& testcase : params) {
@@ -5379,7 +5461,7 @@ static enum test_result test_dcp_multiple_streams(ENGINE_HANDLE *h,
                       nullptr,
                       0,
                       1),
-                "Failed store on vb 0");
+                "Failed store on vb 1");
 
         key = "key_2_" + std::to_string(i);
         checkeq(ENGINE_SUCCESS,
@@ -5392,7 +5474,7 @@ static enum test_result test_dcp_multiple_streams(ENGINE_HANDLE *h,
                       nullptr,
                       0,
                       2),
-                "Failed store on vb 1");
+                "Failed store on vb 2");
     }
 
     std::string name("unittest");
@@ -5403,13 +5485,13 @@ static enum test_result test_dcp_multiple_streams(ENGINE_HANDLE *h,
     int extra_items = 100;
 
     ctx1.vbucket = 1;
-    ctx1.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    ctx1.vb_uuid = get_ull_stat(h, h1, "vb_1:0:id", "failovers");
     ctx1.seqno = {0, static_cast<uint64_t>(num_items + extra_items)};
     ctx1.exp_mutations = num_items + extra_items;
     ctx1.live_frontend_client = true;
 
     ctx2.vbucket = 2;
-    ctx2.vb_uuid = get_ull_stat(h, h1, "vb_1:0:id", "failovers");
+    ctx2.vb_uuid = get_ull_stat(h, h1, "vb_2:0:id", "failovers");
     ctx2.seqno = {0, static_cast<uint64_t>(num_items + extra_items)};
     ctx2.exp_mutations = num_items + extra_items;
     ctx2.live_frontend_client = true;

@@ -676,6 +676,14 @@ public:
      */
     bool isMemoryUsageTooHigh();
 
+    /**
+     * Check the status of memory used and maybe begin to free memory if
+     * required.
+     *
+     * This checks if the bucket's mem_used has exceeded the high water mark.
+     */
+    void checkAndMaybeFreeMemory();
+
     void addKVStoreStats(ADD_STAT add_stat, const void* cookie);
 
     void addKVStoreTimingStats(ADD_STAT add_stat, const void* cookie);
