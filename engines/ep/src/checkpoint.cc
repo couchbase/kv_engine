@@ -1247,20 +1247,15 @@ snapshot_range_t CheckpointManager::getAllItemsForCursor(
 
     bool moreItems;
     range.start = (*it->second.currentCheckpoint)->getSnapshotStartSeqno();
-    range.end = (*it->second.currentCheckpoint)->getSnapshotEndSeqno();
     while ((moreItems = incrCursor(it->second))) {
         queued_item& qi = *(it->second.currentPos);
         items.push_back(qi);
 
         if (qi->getOperation() == queue_op::checkpoint_end) {
-            range.end = (*it->second.currentCheckpoint)->getSnapshotEndSeqno();
             moveCursorToNextCheckpoint(it->second);
         }
     }
-
-    if (!moreItems) {
-        range.end = (*it->second.currentCheckpoint)->getSnapshotEndSeqno();
-    }
+    range.end = (*it->second.currentCheckpoint)->getSnapshotEndSeqno();
 
     LOG(EXTENSION_LOG_DEBUG, "CheckpointManager::getAllItemsForCursor() "
             "cursor:%s range:{%" PRIu64 ", %" PRIu64 "}",
