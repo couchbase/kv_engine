@@ -219,9 +219,9 @@ bool AuditConfig::is_event_disabled(uint32_t id) {
     return std::find(disabled.begin(), disabled.end(), id) != disabled.end();
 }
 
-bool AuditConfig::is_event_filtered(const std::string &users) const {
+bool AuditConfig::is_event_filtered(const std::string &user) const {
     std::lock_guard<std::mutex> guard(disabled_users_mutex);
-    return std::find(disabled_users.begin(), disabled_users.end(), users) !=
+    return std::find(disabled_users.begin(), disabled_users.end(), user) !=
             disabled_users.end();
 }
 
