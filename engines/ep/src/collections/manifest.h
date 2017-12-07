@@ -66,11 +66,6 @@ public:
     };
 
     /*
-     * Initialise the default manifest
-     */
-    Manifest();
-
-    /*
      * Create a manifest from json.
      * Validates the json as per SET_COLLECTIONS rules.
      * @param json a string containing the JSON data

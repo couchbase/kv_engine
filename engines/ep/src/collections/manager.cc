@@ -22,7 +22,7 @@
 #include "kv_bucket.h"
 #include "vbucket.h"
 
-Collections::Manager::Manager() : current(std::make_unique<Manifest>()) {
+Collections::Manager::Manager() {
 }
 
 cb::engine_error Collections::Manager::update(KVBucket& bucket,

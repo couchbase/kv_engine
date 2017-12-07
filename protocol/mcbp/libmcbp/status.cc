@@ -52,6 +52,7 @@ bool isStatusSuccess(Status status) {
     case Status::Etmpfail:
     case Status::XattrEinval:
     case Status::UnknownCollection:
+    case Status::NoCollectionsManifest:
     case Status::SubdocPathEnoent:
     case Status::SubdocPathMismatch:
     case Status::SubdocPathEinval:
@@ -156,6 +157,8 @@ std::string to_string(cb::mcbp::Status status) {
         return "Invalid XATTR section";
     case Status::UnknownCollection:
         return "Unknown Collection";
+    case Status::NoCollectionsManifest:
+        return "No Collections Manifest";
     case Status::SubdocPathEnoent:
         return "Subdoc: Path not does not exist";
     case Status::SubdocPathMismatch:

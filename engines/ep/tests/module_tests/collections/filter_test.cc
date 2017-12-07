@@ -77,9 +77,14 @@ TEST_F(CollectionsFilterTest, junk_in) {
 
     for (const auto& s : inputs) {
         boost::optional<const std::string&> json = s;
-        EXPECT_THROW(std::make_unique<Collections::Filter>(json, &m),
-                     std::invalid_argument)
-                << "Failed for " << s;
+        try {
+            Collections::Filter f(json, &m);
+            FAIL() << "Should of thrown an exception";
+        } catch (const cb::engine_error& e) {
+            EXPECT_EQ(cb::engine_errc::invalid_arguments, e.code());
+        } catch (...) {
+            FAIL() << "Should of thrown cb::engine_error";
+        }
     }
 }
 
@@ -102,8 +107,11 @@ TEST_F(CollectionsFilterTest, validation1) {
     for (const auto& s : inputs) {
         boost::optional<const std::string&> json = s;
 
-        EXPECT_NO_THROW(std::make_unique<Collections::Filter>(json, &m))
-                << "Exception thrown with input " << s;
+        try {
+            Collections::Filter f(json, &m);
+        } catch (...) {
+            FAIL() << "Exception thrown with input " << s;
+        }
     }
 }
 
@@ -126,8 +134,14 @@ TEST_F(CollectionsFilterTest, validation2) {
 
     for (const auto& s : inputs) {
         boost::optional<const std::string&> json = s;
-        EXPECT_THROW(std::make_unique<Collections::Filter>(json, &m),
-                     std::invalid_argument);
+        try {
+            Collections::Filter f(json, &m);
+            FAIL() << "Should of thrown an exception";
+        } catch (const cb::engine_error& e) {
+            EXPECT_EQ(cb::engine_errc::unknown_collection, e.code());
+        } catch (...) {
+            FAIL() << "Should of thrown cb::engine_error";
+        }
     }
 }
 
@@ -144,8 +158,31 @@ TEST_F(CollectionsFilterTest, validation_no_default) {
                               {"name":"fruit", "uid":"4"},
                               {"name":"dairy","uid":"5"}]})");
     boost::optional<const std::string&> json;
-    EXPECT_THROW(std::make_unique<Collections::Filter>(json, &m),
-                 std::logic_error);
+    try {
+        Collections::Filter f(json, &m);
+        FAIL() << "Should of thrown an exception";
+    } catch (const cb::engine_error& e) {
+        EXPECT_EQ(cb::engine_errc::unknown_collection, e.code());
+    } catch (...) {
+        FAIL() << "Should of thrown cb::engine_error";
+    }
+}
+
+/**
+ * Test that we cannot create a true filter without a manifest
+ */
+TEST_F(CollectionsFilterTest, no_manifest) {
+    std::string jsonFilter = R"({"collections":["$default", "fruit", "meat"]})";
+    boost::optional<const std::string&> json(jsonFilter);
+
+    try {
+        Collections::Filter f(json, nullptr);
+        FAIL() << "Should of thrown an exception";
+    } catch (const cb::engine_error& e) {
+        EXPECT_EQ(cb::engine_errc::no_collections_manifest, e.code());
+    } catch (...) {
+        FAIL() << "Should of thrown cb::engine_error";
+    }
 }
 
 /**

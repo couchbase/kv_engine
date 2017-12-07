@@ -73,6 +73,8 @@ protocol_binary_response_status mcbp::to_status(cb::engine_errc code) {
 
     case engine_errc::unknown_collection:
         return PROTOCOL_BINARY_RESPONSE_UNKNOWN_COLLECTION;
+    case engine_errc::no_collections_manifest:
+        return PROTOCOL_BINARY_RESPONSE_NO_COLLECTIONS_MANIFEST;
     case engine_errc::predicate_failed:
         throw std::logic_error(
                 "mcbp::to_status: predicate_failed is not a legal error code "
@@ -146,6 +148,8 @@ cb::mcbp::Status cb::mcbp::to_status(cb::engine_errc code) {
 
     case engine_errc::unknown_collection:
         return Status::UnknownCollection;
+    case engine_errc::no_collections_manifest:
+        return Status::NoCollectionsManifest;
     case engine_errc::predicate_failed:
         throw std::logic_error(
                 "mcbp::to_status: predicate_failed is not a legal error code "

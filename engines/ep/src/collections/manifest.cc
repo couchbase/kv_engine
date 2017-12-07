@@ -26,11 +26,6 @@
 
 namespace Collections {
 
-Manifest::Manifest()
-    : defaultCollectionExists(true), separator(DefaultSeparator) {
-    collections.push_back({DefaultCollectionIdentifier.data(), 0});
-}
-
 Manifest::Manifest(const std::string& json, size_t maxNumberOfCollections)
     : defaultCollectionExists(false) {
     if (!checkUTF8JSON(reinterpret_cast<const unsigned char*>(json.data()),

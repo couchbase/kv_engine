@@ -110,6 +110,11 @@ enum class Status : uint16_t {
      */
     UnknownCollection = 0x88,
 
+    /**
+     * Operation attempted and requires that the collections manifest is set.
+     */
+    NoCollectionsManifest = 0x89,
+
     /*
      * Sub-document specific responses.
      */

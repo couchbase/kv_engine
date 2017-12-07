@@ -635,13 +635,17 @@ TEST_F(CollectionsFilteredDcpErrorTest, error1) {
     cb::const_byte_buffer buffer{
             reinterpret_cast<const uint8_t*>(filter.data()), filter.size()};
     // Can't create a filter for unknown collections
-    EXPECT_THROW(std::make_unique<MockDcpProducer>(*engine,
-                                                   cookieP,
-                                                   "test_producer",
-                                                   DCP_OPEN_COLLECTIONS,
-                                                   buffer,
-                                                   false /*startTask*/),
-                 std::invalid_argument);
+    try {
+        MockDcpProducer mock(*engine,
+                             cookieP,
+                             "test_producer",
+                             DCP_OPEN_COLLECTIONS,
+                             buffer,
+                             false /*startTask*/);
+        FAIL() << "Expected an exception";
+    } catch (const cb::engine_error& e) {
+        EXPECT_EQ(cb::engine_errc::unknown_collection, e.code());
+    }
 }
 
 TEST_F(CollectionsFilteredDcpErrorTest, error2) {

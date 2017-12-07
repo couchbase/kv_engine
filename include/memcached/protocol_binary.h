@@ -120,6 +120,8 @@ const uint16_t PROTOCOL_BINARY_RESPONSE_XATTR_EINVAL =
         uint16_t(cb::mcbp::Status::XattrEinval);
 const uint16_t PROTOCOL_BINARY_RESPONSE_UNKNOWN_COLLECTION =
         uint16_t(cb::mcbp::Status::UnknownCollection);
+const uint16_t PROTOCOL_BINARY_RESPONSE_NO_COLLECTIONS_MANIFEST =
+        uint16_t(cb::mcbp::Status::NoCollectionsManifest);
 const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT =
         uint16_t(cb::mcbp::Status::SubdocPathEnoent);
 const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH =

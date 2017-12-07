@@ -100,6 +100,11 @@ enum class engine_errc {
      */
     predicate_failed = 0x17,
 
+    /**
+     * The request cannot complete until a collections manifest has been set
+     */
+    no_collections_manifest = 0x18,
+
     /** Generic failue. */
     failed = 0xff
 };
