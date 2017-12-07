@@ -5207,7 +5207,21 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpOpen(
 
     ConnHandler *handler = NULL;
     if (flags & (DCP_OPEN_PRODUCER | DCP_OPEN_NOTIFIER)) {
-        handler = dcpConnMap_->newProducer(cookie, connName, flags, jsonExtra);
+        try {
+            handler = dcpConnMap_->newProducer(
+                    cookie,
+                    connName,
+                    flags,
+                    getKVBucket()->getCollectionsManager().makeFilter(
+                            flags, jsonExtra));
+        } catch (const cb::engine_error& e) {
+            LOG(EXTENSION_LOG_NOTICE,
+                "EPEngine::dcpOpen: failed to create a filter error:%d, "
+                "what:%s",
+                ENGINE_ERROR_CODE(e.code().value()),
+                e.what());
+            return ENGINE_ERROR_CODE(e.code().value());
+        }
     } else {
         handler = dcpConnMap_->newConsumer(cookie, connName);
     }

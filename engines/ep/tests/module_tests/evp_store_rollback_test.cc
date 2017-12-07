@@ -319,7 +319,7 @@ TEST_P(RollbackTest, MB21784) {
     // Create a new Dcp producer, reserving its cookie.
     get_mock_server_api()->cookie->reserve(cookie);
     DcpProducer* producer = engine->getDcpConnMap().newProducer(
-            cookie, "test_producer", /*flags*/ 0, {/*no json*/});
+            cookie, "test_producer", /*flags*/ 0);
 
     uint64_t rollbackSeqno;
     auto err = producer->streamRequest(/*flags*/0,

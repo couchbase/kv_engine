@@ -131,7 +131,7 @@ ENGINE_ERROR_CODE DcpConnMap::addPassiveStream(ConnHandler& conn,
 DcpProducer* DcpConnMap::newProducer(const void* cookie,
                                      const std::string& name,
                                      uint32_t flags,
-                                     cb::const_byte_buffer jsonExtra) {
+                                     Collections::Filter filter) {
     LockHolder lh(connsLock);
 
     std::string conn_name("eq_dcpq:");
@@ -160,8 +160,12 @@ DcpProducer* DcpConnMap::newProducer(const void* cookie,
         }
     }
 
-    auto producer = std::make_shared<DcpProducer>(
-            engine, cookie, conn_name, flags, jsonExtra, true /*startTask*/);
+    auto producer = std::make_shared<DcpProducer>(engine,
+                                                  cookie,
+                                                  conn_name,
+                                                  flags,
+                                                  std::move(filter),
+                                                  true /*startTask*/);
     LOG(EXTENSION_LOG_INFO, "%s Connection created", producer->logHeader());
     map_[cookie] = producer;
 

@@ -69,18 +69,24 @@ cb::engine_error Collections::Manager::update(KVBucket& bucket,
 void Collections::Manager::update(VBucket& vb) const {
     // Lock manager updates
     std::lock_guard<std::mutex> ul(lock);
-    vb.updateFromManifest(*current);
+    if (current) {
+        vb.updateFromManifest(*current);
+    }
 }
 
-std::unique_ptr<Collections::Filter> Collections::Manager::makeFilter(
-        bool collectionsEnabled, const std::string& json) const {
+Collections::Filter Collections::Manager::makeFilter(
+        uint32_t openFlags, cb::const_byte_buffer jsonExtra) const {
     // Lock manager updates
     std::lock_guard<std::mutex> lg(lock);
     boost::optional<const std::string&> jsonFilter;
-    if (collectionsEnabled) {
+    std::string json;
+    if (openFlags & DCP_OPEN_COLLECTIONS) {
+        // assign to std::string as cJSON needs guaranteed zero termination
+        json.assign(reinterpret_cast<const char*>(jsonExtra.data()),
+                    jsonExtra.size());
         jsonFilter = json;
     }
-    return std::make_unique<Collections::Filter>(jsonFilter, *current);
+    return Collections::Filter(jsonFilter, current.get());
 }
 
 // This method is really to aid development and allow the dumping of the VB

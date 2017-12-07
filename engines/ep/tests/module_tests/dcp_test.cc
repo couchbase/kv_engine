@@ -1666,8 +1666,7 @@ TEST_P(ConnectionTest, test_deadConnections) {
     // Create a new Dcp producer
     connMap.newProducer(cookie,
                         "test_producer",
-                        /*flags*/ 0,
-                        {/*no json*/});
+                        /*flags*/ 0);
 
     // Disconnect the producer connection
     connMap.disconnect(cookie);
@@ -1686,8 +1685,7 @@ TEST_P(ConnectionTest, test_mb23637_findByNameWithConnectionDoDisconnect) {
     // Create a new Dcp producer
     connMap.newProducer(cookie,
                         "test_producer",
-                        /*flags*/ 0,
-                        {/*nojson*/});
+                        /*flags*/ 0);
     // should be able to find the connection
     ASSERT_NE(nullptr, connMap.findByName("eq_dcpq:test_producer"));
     // Disconnect the producer connection
@@ -1711,15 +1709,14 @@ TEST_P(ConnectionTest, test_mb23637_findByNameWithDuplicateConnections) {
     // Create a new Dcp producer
     DcpProducer* producer = connMap.newProducer(cookie1,
                                                 "test_producer",
-                                                /*flags*/ 0,
-                                                {/*nojson*/});
+                                                /*flags*/ 0);
     ASSERT_NE(nullptr, producer) << "producer is null";
     // should be able to find the connection
     ASSERT_NE(nullptr, connMap.findByName("eq_dcpq:test_producer"));
 
     // Create a duplicate Dcp producer
-    DcpProducer* duplicateproducer = connMap.newProducer(
-            cookie2, "test_producer", /*flags*/ 0, {/*nojson*/});
+    DcpProducer* duplicateproducer =
+            connMap.newProducer(cookie2, "test_producer", /*flags*/ 0);
     ASSERT_TRUE(producer->doDisconnect()) << "producer doDisconnect == false";
     ASSERT_NE(nullptr, duplicateproducer) << "duplicateproducer is null";
 
@@ -1750,15 +1747,13 @@ TEST_P(ConnectionTest, test_mb17042_duplicate_name_producer_connections) {
     // Create a new Dcp producer
     DcpProducer* producer = connMap.newProducer(cookie1,
                                                 "test_producer",
-                                                /*flags*/ 0,
-                                                {/*nojson*/});
+                                                /*flags*/ 0);
     EXPECT_NE(nullptr, producer) << "producer is null";
 
     // Create a duplicate Dcp producer
     DcpProducer* duplicateproducer = connMap.newProducer(cookie2,
                                                          "test_producer",
-                                                         /*flags*/ 0,
-                                                         {/*nojson*/});
+                                                         /*flags*/ 0);
     EXPECT_TRUE(producer->doDisconnect()) << "producer doDisconnect == false";
     EXPECT_NE(nullptr, duplicateproducer) << "duplicateproducer is null";
 
@@ -1806,14 +1801,12 @@ TEST_P(ConnectionTest, test_mb17042_duplicate_cookie_producer_connections) {
     // Create a new Dcp producer
     DcpProducer* producer = connMap.newProducer(cookie,
                                                 "test_producer1",
-                                                /*flags*/ 0,
-                                                {/*nojson*/});
+                                                /*flags*/ 0);
 
     // Create a duplicate Dcp producer
     DcpProducer* duplicateproducer = connMap.newProducer(cookie,
                                                          "test_producer2",
-                                                         /*flags*/ 0,
-                                                         {/*nojson*/});
+                                                         /*flags*/ 0);
 
     EXPECT_TRUE(producer->doDisconnect()) << "producer doDisconnect == false";
     EXPECT_EQ(nullptr, duplicateproducer) << "duplicateproducer is not null";
@@ -1978,8 +1971,7 @@ TEST_P(ConnectionTest, test_mb20645_stats_after_closeAllStreams) {
     // Create a new Dcp producer
     DcpProducer* producer = connMap.newProducer(cookie,
                                                 "test_producer",
-                                                /*flags*/ 0,
-                                                {/*no json*/});
+                                                /*flags*/ 0);
 
     // Disconnect the producer connection
     connMap.disconnect(cookie);
@@ -2009,8 +2001,7 @@ TEST_P(ConnectionTest, test_mb20716_connmap_notify_on_delete) {
     // Create a new Dcp producer.
     DcpProducer* producer = connMap.newProducer(cookie,
                                                 "mb_20716r",
-                                                /*flags*/ 0,
-                                                {/*nojson*/});
+                                                /*flags*/ 0);
 
     // Check preconditions.
     EXPECT_TRUE(producer->isPaused());
@@ -2206,8 +2197,7 @@ TEST_F(DcpConnMapTest, DeleteProducerOnUncleanDCPConnMapDelete) {
     void* dummyMockCookie = this;
     DcpProducer* producer = engine.getDcpConnMap().newProducer(dummyMockCookie,
                                                                "test_producer",
-                                                               /*flags*/ 0,
-                                                               {/*nojson*/});
+                                                               /*flags*/ 0);
     /* Open stream */
     uint64_t rollbackSeqno = 0;
     uint32_t opaque = 0;
@@ -2236,7 +2226,7 @@ TEST_F(DcpConnMapTest, DeleteNotifierConnOnUncleanDCPConnMapDelete) {
     /* Create a new Dcp producer */
     void* dummyMockCookie = this;
     DcpProducer* producer = engine.getDcpConnMap().newProducer(
-            dummyMockCookie, "test_producer", DCP_OPEN_NOTIFIER, {/*nojson*/});
+            dummyMockCookie, "test_producer", DCP_OPEN_NOTIFIER);
     /* Open notifier stream */
     uint64_t rollbackSeqno = 0;
     uint32_t opaque = 0;
@@ -2316,8 +2306,7 @@ public:
         // Use 'this' instead of a mock cookie
         producer = connMap->newProducer(static_cast<void*>(this),
                                         "test_producer",
-                                        /*flags*/ 0,
-                                        {/*no json*/});
+                                        /*flags*/ 0);
     }
 
     void notify() {

@@ -77,7 +77,7 @@ TEST_F(CollectionsFilterTest, junk_in) {
 
     for (const auto& s : inputs) {
         boost::optional<const std::string&> json = s;
-        EXPECT_THROW(std::make_unique<Collections::Filter>(json, m),
+        EXPECT_THROW(std::make_unique<Collections::Filter>(json, &m),
                      std::invalid_argument)
                 << "Failed for " << s;
     }
@@ -102,7 +102,7 @@ TEST_F(CollectionsFilterTest, validation1) {
     for (const auto& s : inputs) {
         boost::optional<const std::string&> json = s;
 
-        EXPECT_NO_THROW(std::make_unique<Collections::Filter>(json, m))
+        EXPECT_NO_THROW(std::make_unique<Collections::Filter>(json, &m))
                 << "Exception thrown with input " << s;
     }
 }
@@ -126,7 +126,7 @@ TEST_F(CollectionsFilterTest, validation2) {
 
     for (const auto& s : inputs) {
         boost::optional<const std::string&> json = s;
-        EXPECT_THROW(std::make_unique<Collections::Filter>(json, m),
+        EXPECT_THROW(std::make_unique<Collections::Filter>(json, &m),
                      std::invalid_argument);
     }
 }
@@ -144,7 +144,7 @@ TEST_F(CollectionsFilterTest, validation_no_default) {
                               {"name":"fruit", "uid":"4"},
                               {"name":"dairy","uid":"5"}]})");
     boost::optional<const std::string&> json;
-    EXPECT_THROW(std::make_unique<Collections::Filter>(json, m),
+    EXPECT_THROW(std::make_unique<Collections::Filter>(json, &m),
                  std::logic_error);
 }
 
@@ -163,7 +163,7 @@ TEST_F(CollectionsFilterTest, filter_basic1) {
 
     std::string jsonFilter = R"({"collections":["$default", "fruit", "meat"]})";
     boost::optional<const std::string&> json(jsonFilter);
-    Collections::Filter f(json, m);
+    Collections::Filter f(json, &m);
 
     // This is not a passthrough filter
     EXPECT_FALSE(f.isPassthrough());
@@ -199,7 +199,7 @@ TEST_F(CollectionsFilterTest, filter_basic2) {
 
     std::string jsonFilter; // empty string creates a pass through
     boost::optional<const std::string&> json(jsonFilter);
-    Collections::Filter f(json, m);
+    Collections::Filter f(json, &m);
 
     // This is a passthrough filter
     EXPECT_TRUE(f.isPassthrough());
@@ -238,7 +238,7 @@ TEST_F(CollectionsVBFilterTest, deleted_collection) {
     // these collections
     std::string jsonFilter = R"({"collections":["vegetable", "fruit"]})";
     boost::optional<const std::string&> json(jsonFilter);
-    Collections::Filter f(json, m1);
+    Collections::Filter f(json, &m1);
 
     Collections::VB::Manifest vbm({});
     // push creates
@@ -265,7 +265,7 @@ TEST_F(CollectionsVBFilterTest, basic_allow) {
 
     std::string jsonFilter = R"({"collections":["$default", "fruit", "meat"]})";
     boost::optional<const std::string&> json(jsonFilter);
-    Collections::Filter f(json, m);
+    Collections::Filter f(json, &m);
 
     Collections::VB::Manifest vbm({});
     vbm.wlock().update(vb, m);
@@ -301,7 +301,7 @@ TEST_F(CollectionsVBFilterTest, legacy_filter) {
                               {"name":"meat","uid":"3"}]})");
 
     boost::optional<const std::string&> json;
-    Collections::Filter f(json, m);
+    Collections::Filter f(json, &m);
 
     Collections::VB::Manifest vbm({});
     vbm.wlock().update(vb, m);
@@ -323,7 +323,7 @@ TEST_F(CollectionsVBFilterTest, passthrough) {
             R"("collections":[{"name":"meat","uid":"3"}]})");
     std::string filterJson; // empty string
     boost::optional<const std::string&> json(filterJson);
-    Collections::Filter f(json, m);
+    Collections::Filter f(json, &m);
 
     Collections::VB::Manifest vbm({});
     vbm.wlock().update(vb, m);
@@ -358,7 +358,7 @@ TEST_F(CollectionsVBFilterTest, no_default) {
 
     std::string jsonFilter = R"({"collections":["fruit", "meat"]})";
     boost::optional<const std::string&> json(jsonFilter);
-    Collections::Filter f(json, m);
+    Collections::Filter f(json, &m);
 
     // Now filter!
     Collections::VB::Filter vbf(f, vbm);
@@ -391,7 +391,7 @@ TEST_F(CollectionsVBFilterTest, remove1) {
     std::string jsonFilter = R"({"collections":["fruit", "meat"]})";
     boost::optional<const std::string&> json(jsonFilter);
 
-    Collections::Filter f(json, m);
+    Collections::Filter f(json, &m);
     Collections::VB::Filter vbf(f, vbm);
     EXPECT_TRUE(vbf.allow(
             {{"fruit$apple", DocNamespace::Collections}, 0, 0, nullptr, 0}));
@@ -424,7 +424,7 @@ TEST_F(CollectionsVBFilterTest, remove2) {
     std::string jsonFilter = R"({"collections":["$default", "meat"]})";
     boost::optional<const std::string&> json(jsonFilter);
 
-    Collections::Filter f(json, m);
+    Collections::Filter f(json, &m);
     Collections::VB::Filter vbf(f, vbm);
     EXPECT_TRUE(vbf.allow(
             {{"anykey", DocNamespace::DefaultCollection}, 0, 0, nullptr, 0}));
@@ -455,7 +455,7 @@ TEST_F(CollectionsVBFilterTest, system_events1) {
     std::string jsonFilter;
     boost::optional<const std::string&> json(jsonFilter);
 
-    Collections::Filter f(json, m);
+    Collections::Filter f(json, &m);
     Collections::VB::Filter vbf(f, vbm);
 
     // meat system event is allowed by the meat filter
@@ -495,7 +495,7 @@ TEST_F(CollectionsVBFilterTest, system_events2) {
     std::string jsonFilter = R"({"collections":["$default", "meat"]})";
     boost::optional<const std::string&> json(jsonFilter);
 
-    Collections::Filter f(json, m);
+    Collections::Filter f(json, &m);
     Collections::VB::Filter vbf(f, vbm);
 
     // meat system event is allowed by the meat filter
@@ -532,7 +532,7 @@ TEST_F(CollectionsVBFilterTest, system_events3) {
 
     boost::optional<const std::string&> json;
 
-    Collections::Filter f(json, m);
+    Collections::Filter f(json, &m);
     Collections::VB::Filter vbf(f, vbm);
 
     // All system events dropped by this empty/legacy filter

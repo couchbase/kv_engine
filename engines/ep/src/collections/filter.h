@@ -20,24 +20,37 @@
 #include "collections/manifest.h"
 
 #include <boost/optional/optional.hpp>
-#include <memcached/dockey.h>
-#include <platform/sized_buffer.h>
 
 #include <string>
-#include <unordered_map>
+#include <vector>
 
 namespace Collections {
 
 /**
- * Collections::Filter stores the JSON filter which DCP_OPEN_PRODUCER can
- * specify.
+ * Collections::Filter is an object which will be owned by a DcpProducer. The
+ * Collections::Filter goal is to ultimately enable the DcpProducer to create
+ * ActiveStream filters (Collections::VB::Filters) which do the real job of
+ * dropping keys.
  *
- * A Collections::Filter is optional in that the client can omit a filter
- * in which case the filter is a pass-through (isPassthrough():true).
+ * A Collections::Filter can be constructed so that it is either:
+ *  1. A "legacy filter" ensuring DCP streams act like they always did, in this
+ *     case only items of the default collection are allowed and any collection
+ *     items and SystemEvents are dropped.
+ *  2. A "pass-through filter", which means nothing is filtered, allowing for
+ *     example full vbucket replication to occur, i.e. every item and event of
+ *     every collection is allowed.
+ *  3. A "filter", only items and events of named collections are allowed.
  *
- * This object is used to create Collections::VB::Filter objects when VB streams
- * are requested. The Collections::VB::Filter object is used to make the final
- * decision if data should be streamed or dropped.
+ * Because DCP construction is a two-step operation, first create DcpProducer
+ * second create stream(s), and between those two steps collections could be
+ * deleted, the stream cannot police the producer's filter contents as a
+ * collection mis-match due to legitimate deletion cannot be distinguished from
+ * junk-input. Hence the construction of the Collections::Filter performs
+ * validation that the object is sensible with respect to the bucket's
+ * collections configuration. For example, a legacy filter should not be created
+ * if the bucket has removed the $default collection. The same logic applies to
+ * a proper filter, all named collections must be known at the time of creation.
+ *
  */
 class Filter {
 public:
@@ -46,7 +59,7 @@ public:
      * and the bucket's current Manifest.
      *
      * The optional JSON document allows a client to filter a chosen set of
-     * collections or just the default collection.
+     * collections.
      *
      * if jsonFilter is defined and empty - then we create a passthrough.
      * if jsonFilter is defined and !empty - then we filter as requested.
@@ -54,11 +67,14 @@ public:
      *   understand collections) then only documents with
      *   DocNamespace::DefaultCollection are allowed.
      *
+     * @params jsonFilter an optional string as described above.
+     * @params manifest pointer to the current manifest, can be null if no
+     *         manifest has been set.
      * @throws invalid_argument if the JSON is invalid or contains unknown
      *         collections.
      */
     Filter(boost::optional<const std::string&> jsonFilter,
-           const Manifest& manifest);
+           const Manifest* manifest);
 
     /**
      * Get the list of collections the filter knows about. Can be empty
@@ -101,9 +117,13 @@ private:
      */
     void addCollection(const char* collection, const Manifest& manifest);
 
+    /// A vector of named collections to allow, can be empty.
     std::vector<std::string> filter;
+    /// Are default collection items allowed?
     bool defaultAllowed;
+    /// Should everything be allowed (i.e. ignore the vector of names)
     bool passthrough;
+    /// Should system events be allowed?
     bool systemEventsAllowed;
 
     friend std::ostream& operator<<(std::ostream& os, const Filter& filter);

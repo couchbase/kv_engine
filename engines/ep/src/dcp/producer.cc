@@ -135,7 +135,7 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
                          const void* cookie,
                          const std::string& name,
                          uint32_t flags,
-                         cb::const_byte_buffer jsonFilter,
+                         Collections::Filter filter,
                          bool startTask)
     : ConnHandler(e, cookie, name),
       notifyOnly((flags & DCP_OPEN_NOTIFIER) != 0),
@@ -144,14 +144,12 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
       itemsSent(0),
       totalBytesSent(0),
       totalUncompressedDataSize(0),
-      includeValue(((flags & DCP_OPEN_NO_VALUE) != 0) ?
-              IncludeValue::No : IncludeValue::Yes),
-      includeXattrs(((flags & DCP_OPEN_INCLUDE_XATTRS) != 0) ?
-              IncludeXattrs::Yes : IncludeXattrs::No),
-      filter(e.getKVBucket()->getCollectionsManager().makeFilter(
-              (flags & DCP_OPEN_COLLECTIONS) != 0,
-              {reinterpret_cast<const char*>(jsonFilter.data()),
-               jsonFilter.size()})) {
+      includeValue(((flags & DCP_OPEN_NO_VALUE) != 0) ? IncludeValue::No
+                                                      : IncludeValue::Yes),
+      includeXattrs(((flags & DCP_OPEN_INCLUDE_XATTRS) != 0)
+                            ? IncludeXattrs::Yes
+                            : IncludeXattrs::No),
+      filter(std::move(filter)) {
     setSupportAck(true);
     setReserved(true);
     pause("initializing");
@@ -245,7 +243,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
     }
 
     // check for mandatory noop
-    const bool collectionsEnabled = filter->allowSystemEvents();
+    const bool collectionsEnabled = filter.allowSystemEvents();
     if ((includeXattrs == IncludeXattrs::Yes) || collectionsEnabled) {
         if (!noopCtx.enabled &&
             engine_.getConfiguration().isDcpNoopMandatoryForV5Features()) {
@@ -403,7 +401,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
                                                snap_end_seqno,
                                                includeValue,
                                                includeXattrs,
-                                               *filter,
+                                               filter,
                                                vb->getManifest());
         } catch (Collections::VB::Filter::EmptyException& e) {
             LOG(EXTENSION_LOG_WARNING,

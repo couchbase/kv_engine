@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include "collections/manager.h"
 #include "dcp/producer.h"
 #include "dcp/stream.h"
 #include "mock_dcp_backfill_mgr.h"
@@ -33,7 +34,14 @@ public:
                     uint32_t flags,
                     cb::const_byte_buffer jsonExtra,
                     bool startTask = true)
-        : DcpProducer(theEngine, cookie, name, flags, jsonExtra, startTask) {
+        : DcpProducer(
+                  theEngine,
+                  cookie,
+                  name,
+                  flags,
+                  theEngine.getKVBucket()->getCollectionsManager().makeFilter(
+                          flags, jsonExtra),
+                  startTask) {
         backfillMgr.reset(new MockDcpBackfillManager(engine_));
     }
 
@@ -119,7 +127,7 @@ public:
     }
 
     const Collections::Filter& getFilter() {
-        return *filter;
+        return filter;
     }
 
     void bytesForceRead(size_t bytes) {

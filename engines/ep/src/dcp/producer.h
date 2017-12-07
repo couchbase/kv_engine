@@ -22,12 +22,9 @@
 
 #include "atomic_unordered_map.h"
 
+#include "collections/filter.h"
 #include "connhandler.h"
 #include "dcp/dcp-types.h"
-
-namespace Collections {
-class Filter;
-}
 
 class BackfillManager;
 class DcpResponse;
@@ -52,7 +49,7 @@ public:
                 const void* cookie,
                 const std::string& n,
                 uint32_t flags,
-                cb::const_byte_buffer jsonFilter,
+                Collections::Filter filter,
                 bool startTask);
 
     virtual ~DcpProducer();
@@ -336,7 +333,7 @@ protected:
      * actual data filter (Collections::VB::Filter) per VB stream at request
      * time.
      */
-    std::unique_ptr<Collections::Filter> filter;
+    Collections::Filter filter;
 };
 
 #endif  // SRC_DCP_PRODUCER_H_

@@ -19,6 +19,7 @@
 
 #include "config.h"
 
+#include "collections/filter.h"
 #include "connmap.h"
 
 #include <platform/sized_buffer.h>
@@ -49,7 +50,8 @@ public:
     DcpProducer* newProducer(const void* cookie,
                              const std::string& name,
                              uint32_t flags,
-                             cb::const_byte_buffer jsonExtra);
+                             Collections::Filter filter = {{/*no json*/},
+                                                           nullptr});
 
     /**
      * Create a new consumer and add it in the list of TapConnections
