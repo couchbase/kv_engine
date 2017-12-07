@@ -36,3 +36,6 @@ extern "C" {
 
 // Removes all files in the specified vector
 void remove_files(std::vector<std::string> &files);
+
+// Custom log pattern which spdlog loggers should use
+const std::string log_pattern{"%Y-%m-%dT%T.%fZ %l %v"};

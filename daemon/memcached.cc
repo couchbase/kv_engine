@@ -2707,7 +2707,7 @@ extern "C" int memcached_main(int argc, char **argv) {
 
     /* Configure file logger, if specified as a settings object */
     if (settings.has.logger) {
-        configure_file_logger("file_logger.so");
+        configure_file_logger("spdlogger.so");
     }
 
     /* File-based logging available from this point onwards... */
