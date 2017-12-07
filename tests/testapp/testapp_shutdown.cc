@@ -14,55 +14,9 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+#include "testapp_shutdown.h"
 #include <string.h>
 #include <cerrno>
-#include "testapp.h"
-
-class ShutdownTest : public TestappTest {
-public:
-    static void SetUpTestCase() {
-        // Do nothing.
-        //
-        // If we don't provide a SetUpTestCase we'll get the one from
-        // TestappTest which will start the server for us (which is
-        // what we want, but in this test we're going to start try
-        // to stop the server so we need to have each test case
-        // start (and stop) the server for us...
-    }
-
-    virtual void SetUp() {
-        TestappTest::SetUpTestCase();
-        ASSERT_NE(reinterpret_cast<pid_t>(-1), server_pid)
-            << "Terminate test execution"
-            << std::endl
-            << (exit(1), "");
-
-        auto& conn = getAdminConnection();
-
-        BinprotGenericCommand cmd(PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN);
-        cmd.setExtrasValue(token);
-        conn.sendCommand(cmd);
-
-        BinprotResponse rsp;
-        conn.recvResponse(rsp);
-
-        ASSERT_TRUE(rsp.isSuccess())
-                        << "Failed to set control token: "
-                        << rsp.getStatus()
-                        << std::endl
-                        << (exit(1), "");
-    }
-
-    virtual void TearDown() {
-        TestappTest::TearDownTestCase();
-    }
-
-    static void TearDownTestCase() {
-        // Empty
-    }
-
-protected:
-};
 
 TEST_F(ShutdownTest, ShutdownAllowed) {
     auto& conn = getAdminConnection();

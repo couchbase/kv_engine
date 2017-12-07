@@ -139,12 +139,13 @@ protected:
 
     static void verify_server_running();
 
-
     /**
      * Waits for server to shutdown.  It assumes that the server is
      * already in the process of being shutdown
+     * @param killed If true server was shutdown by a signal, and we should
+     * expect different waitpid() result.
      */
-    static void waitForShutdown();
+    static void waitForShutdown(bool killed = false);
 
     static void stop_memcached_server();
     /**

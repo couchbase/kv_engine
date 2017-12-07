@@ -81,13 +81,27 @@ public:
           datatype(cb::mcbp::Datatype::Raw),
           cas(0) {
     }
+
+    bool operator==(const DocumentInfo& rhs) const {
+        return (id == rhs.id) && (flags == rhs.flags) &&
+               (expiration == rhs.expiration) && (datatype == rhs.datatype) &&
+               (cas == rhs.cas);
+    }
 };
+
+::std::ostream& operator<<(::std::ostream& os, const DocumentInfo& info);
 
 class Document {
 public:
+    bool operator==(const Document& rhs) const {
+        return (info == rhs.info) && (value == rhs.value);
+    }
+
     DocumentInfo info;
     std::string value;
 };
+
+::std::ostream& operator<<(::std::ostream& os, const Document& doc);
 
 class MutationInfo {
 public:
@@ -95,6 +109,16 @@ public:
     size_t size;
     uint64_t seqno;
     uint64_t vbucketuuid;
+};
+
+struct ObserveInfo {
+    uint8_t formatType;
+    uint16_t vbId;
+    uint64_t uuid;
+    uint64_t lastPersistedSeqno;
+    uint64_t currentSeqno;
+    uint64_t failoverUUID;
+    uint64_t failoverSeqno;
 };
 
 enum class BucketType : uint8_t {
@@ -623,6 +647,18 @@ public:
 
     std::pair<protocol_binary_response_status, GetMetaResponse> getMeta(
             const std::string& key, uint16_t vbucket, GetMetaVersion version);
+
+    /**
+     * Observe Seqno command - retrieve the persistence status of the given
+     * vBucket and UUID.
+     */
+    ObserveInfo observeSeqno(uint16_t vbid, uint64_t uuid);
+
+    /// Enable persistence for the connected bucket.
+    void enablePersistence();
+
+    /// Disable persistence for the connected bucket.
+    void disablePersistence();
 
     bool hasFeature(cb::mcbp::Feature feature) const {
         return effective_features.find(uint16_t(feature)) !=

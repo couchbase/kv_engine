@@ -1167,12 +1167,7 @@ void TestappTest::reconfigure(unique_cJSON_ptr& memcached_cfg) {
                                   PROTOCOL_BINARY_RESPONSE_SUCCESS);
 }
 
-
-/**
- * Waits for server to shutdown.  It assumes that the server is
- * already in the process of being shutdown
- */
-void TestappTest::waitForShutdown(void) {
+void TestappTest::waitForShutdown(bool killed) {
 #ifdef WIN32
     ASSERT_EQ(WAIT_OBJECT_0, WaitForSingleObject(server_pid, 60000));
     DWORD exit_code = NULL;
@@ -1191,7 +1186,8 @@ void TestappTest::waitForShutdown(void) {
     }
     ASSERT_NE(reinterpret_cast<pid_t>(-1), ret)
         << "waitpid failed: " << strerror(errno);
-    EXPECT_TRUE(WIFEXITED(status))
+    bool correctShutdown = killed ? WIFSIGNALED(status) : WIFEXITED(status);
+    EXPECT_TRUE(correctShutdown)
         << "waitpid status     : " << status << std::endl
         << "WIFEXITED(status)  : " << WIFEXITED(status) << std::endl
         << "WEXITSTATUS(status): " << WEXITSTATUS(status) << std::endl

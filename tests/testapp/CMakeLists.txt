@@ -172,6 +172,12 @@ add_unit_test_suite(NAME legacy-ssl
                     SOURCE testapp_legacy_ssl.cc testapp_tests.cc)
 
 # Run the RBAC tests
+add_unit_test_suite(NAME persistence
+                    ENGINE ep
+                    TIMEOUT 60
+                    SOURCE testapp_persistence.cc)
+
+# Run the RBAC tests
 add_unit_test_suite(NAME rbac
                     ENGINE ep
                     TIMEOUT 120

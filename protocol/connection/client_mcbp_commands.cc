@@ -657,6 +657,30 @@ static void append(std::vector<uint8_t>& buf, uint32_t value) {
     buf.insert(buf.end(), p, p + 4);
 }
 
+static uint8_t netToHost(uint8_t x) {
+    return x;
+}
+
+static uint16_t netToHost(uint16_t x) {
+    return ntohs(x);
+}
+
+static uint64_t netToHost(uint64_t x) {
+    return ntohll(x);
+}
+
+/**
+ * Extract the specified type from the buffer position. Returns an iterator
+ * to the next element after the type extracted.
+ */
+template <typename T>
+static std::vector<uint8_t>::iterator extract(
+        std::vector<uint8_t>::iterator pos, T& value) {
+    auto* p = reinterpret_cast<T*>(&*pos);
+    value = netToHost(*p);
+    return pos + sizeof(T);
+}
+
 /**
  * Append a 64 bit integer to the buffer in network byte order
  *
@@ -776,4 +800,53 @@ void BinprotSetControlTokenCommand::encode(std::vector<uint8_t>& buf) const {
 void BinprotSetClusterConfigCommand::encode(std::vector<uint8_t>& buf) const {
     writeHeader(buf, config.size(), 0);
     buf.insert(buf.end(), config.begin(), config.end());
+}
+
+BinprotObserveSeqnoCommand::BinprotObserveSeqnoCommand(uint16_t vbid,
+                                                       uint64_t uuid)
+    : BinprotGenericCommand(PROTOCOL_BINARY_CMD_OBSERVE_SEQNO), uuid(uuid) {
+    setVBucket(vbid);
+}
+
+void BinprotObserveSeqnoCommand::encode(std::vector<uint8_t>& buf) const {
+    writeHeader(buf, sizeof(uuid), 0);
+    append(buf, uuid);
+}
+
+void BinprotObserveSeqnoResponse::assign(std::vector<uint8_t>&& buf) {
+    BinprotResponse::assign(std::move(buf));
+    if (!isSuccess()) {
+        return;
+    }
+
+    if ((getBodylen() != 43) && (getBodylen() != 27)) {
+        throw std::runtime_error(
+                "BinprotObserveSeqnoResponse::assign: Invalid payload size - "
+                "expected:43 or 27, actual:" +
+                std::to_string(getBodylen()));
+    }
+
+    auto it = payload.begin() + getHeaderLen();
+    it = extract(it, info.formatType);
+    it = extract(it, info.vbId);
+    it = extract(it, info.uuid);
+    it = extract(it, info.lastPersistedSeqno);
+    it = extract(it, info.currentSeqno);
+
+    switch (info.formatType) {
+    case 0:
+        // No more fields for format 0.
+        break;
+
+    case 1:
+        // Add in hard failover information
+        it = extract(it, info.failoverUUID);
+        it = extract(it, info.failoverSeqno);
+        break;
+
+    default:
+        throw std::runtime_error(
+                "BinprotObserveSeqnoResponse::assign: Unexpected formatType:" +
+                std::to_string(info.formatType));
+    }
 }

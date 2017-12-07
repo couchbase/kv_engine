@@ -35,6 +35,20 @@
 
 static const bool packet_dump = getenv("COUCHBASE_PACKET_DUMP") != nullptr;
 
+::std::ostream& operator<<(::std::ostream& os, const DocumentInfo& info) {
+    return os << "id:" << info.id << " flags:" << info.flags
+              << " exp:" << info.expiration
+              << " datatype:" << int(info.datatype) << " cas:" << info.cas;
+}
+
+::std::ostream& operator<<(::std::ostream& os, const Document& doc) {
+    os << "info:" << doc.info << " value: [" << std::hex;
+    for (auto& v : doc.value) {
+        os << int(v) << " ";
+    }
+    return os << std::dec << "]";
+}
+
 /////////////////////////////////////////////////////////////////////////
 // Implementation of the MemcachedConnection class
 /////////////////////////////////////////////////////////////////////////
@@ -1052,6 +1066,44 @@ MutationInfo MemcachedConnection::mutateWithMeta(
     }
 
     return response.getMutationInfo();
+}
+
+ObserveInfo MemcachedConnection::observeSeqno(uint16_t vbid, uint64_t uuid) {
+    BinprotObserveSeqnoCommand observe(vbid, uuid);
+    sendCommand(observe);
+
+    BinprotObserveSeqnoResponse response;
+    recvResponse(response);
+
+    if (!response.isSuccess()) {
+        throw ConnectionError(std::string("Failed to observeSeqno for vbid:") +
+                                      std::to_string(vbid) +
+                                      " uuid:" + std::to_string(uuid),
+                              response.getStatus());
+    }
+    return response.info;
+}
+
+void MemcachedConnection::enablePersistence() {
+    sendCommand(BinprotGenericCommand(PROTOCOL_BINARY_CMD_START_PERSISTENCE));
+
+    BinprotResponse response;
+    recvResponse(response);
+    if (!response.isSuccess()) {
+        throw ConnectionError("Failed to enablePersistence ",
+                              response.getStatus());
+    }
+}
+
+void MemcachedConnection::disablePersistence() {
+    sendCommand(BinprotGenericCommand(PROTOCOL_BINARY_CMD_STOP_PERSISTENCE));
+
+    BinprotResponse response;
+    recvResponse(response);
+    if (!response.isSuccess()) {
+        throw ConnectionError("Failed to disablePersistence ",
+                              response.getStatus());
+    }
 }
 
 std::pair<protocol_binary_response_status, GetMetaResponse>

@@ -1401,3 +1401,20 @@ public:
 protected:
     const std::string config;
 };
+
+class BinprotObserveSeqnoCommand : public BinprotGenericCommand {
+public:
+    BinprotObserveSeqnoCommand(uint16_t vbid, uint64_t uuid);
+
+    void encode(std::vector<uint8_t>& buf) const override;
+
+private:
+    uint64_t uuid;
+};
+
+class BinprotObserveSeqnoResponse : public BinprotResponse {
+public:
+    void assign(std::vector<uint8_t>&& buf) override;
+
+    ObserveInfo info;
+};

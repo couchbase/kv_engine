@@ -45,6 +45,8 @@ public:
     virtual bool canStoreCompressedItems() const = 0;
     virtual size_t getMaximumDocSize() const = 0;
     virtual bool supportsLastModifiedVattr() const = 0;
+    virtual bool supportsPersistence() const = 0;
+
     void setXattrEnabled(MemcachedConnection& conn,
                          const std::string& bucketName,
                          bool value);

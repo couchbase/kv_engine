@@ -132,6 +132,10 @@ public:
     bool supportsLastModifiedVattr() const override {
         return false;
     }
+
+    bool supportsPersistence() const override {
+        return false;
+    }
 };
 
 class EpBucketImpl : public TestBucketImpl {
@@ -222,6 +226,10 @@ public:
     }
 
     bool supportsLastModifiedVattr() const override {
+        return true;
+    }
+
+    bool supportsPersistence() const override {
         return true;
     }
 
