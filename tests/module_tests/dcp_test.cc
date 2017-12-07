@@ -25,6 +25,7 @@
 #include "connmap.h"
 #include "dcp/stream.h"
 #include "evp_engine_test.h"
+#include "evp_store_single_threaded_test.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "../mock/mock_dcp.h"
 #include "../mock/mock_dcp_producer.h"
@@ -79,7 +80,7 @@ protected:
 class StreamTest : public DCPTest {
 protected:
     void TearDown() {
-        producer->clearCheckpointProcessorTaskQueues();
+        producer->cancelCheckpointCreatorTask();
         // Destroy various engine objects
         vb0.reset();
         stream.reset();
@@ -275,106 +276,126 @@ ENGINE_ERROR_CODE mock_noop_return_engine_e2big(const void* cookie,uint32_t opaq
 TEST_F(ConnectionTest, test_maybesendnoop_buffer_full) {
     const void* cookie = create_mock_cookie();
     // Create a Mock Dcp producer
-    MockDcpProducer producer(*engine, cookie, "test_producer", /*notifyOnly*/false);
+    mock_dcp_producer_t producer = new MockDcpProducer(*engine,
+                                                       cookie,
+                                                       "test_producer",
+                                                       /*notifyOnly*/false);
 
     struct dcp_message_producers producers = {nullptr, nullptr, nullptr, nullptr,
         nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
         mock_noop_return_engine_e2big, nullptr, nullptr};
 
-    producer.setNoopEnabled(true);
+    producer->setNoopEnabled(true);
     const auto send_time = ep_current_time() + 21;
-    producer.setNoopSendTime(send_time);
-    ENGINE_ERROR_CODE ret = producer.maybeSendNoop(&producers);
+    producer->setNoopSendTime(send_time);
+    ENGINE_ERROR_CODE ret = producer->maybeSendNoop(&producers);
     EXPECT_EQ(ENGINE_E2BIG, ret)
     << "maybeSendNoop not returning ENGINE_E2BIG";
-    EXPECT_FALSE(producer.getNoopPendingRecv())
+    EXPECT_FALSE(producer->getNoopPendingRecv())
     << "Waiting for noop acknowledgement";
-    EXPECT_EQ(send_time, producer.getNoopSendTime())
+    EXPECT_EQ(send_time, producer->getNoopSendTime())
     << "SendTime has been updated";
+    producer->cancelCheckpointCreatorTask();
     destroy_mock_cookie(cookie);
 }
 
 TEST_F(ConnectionTest, test_maybesendnoop_send_noop) {
     const void* cookie = create_mock_cookie();
     // Create a Mock Dcp producer
-    MockDcpProducer producer(*engine, cookie, "test_producer", /*notifyOnly*/false);
+    mock_dcp_producer_t producer = new MockDcpProducer(*engine,
+                                                       cookie,
+                                                       "test_producer",
+                                                       /*notifyOnly*/false);
 
     std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(handle, engine_v1));
-    producer.setNoopEnabled(true);
+    producer->setNoopEnabled(true);
     const auto send_time = ep_current_time() + 21;
-    producer.setNoopSendTime(send_time);
-    ENGINE_ERROR_CODE ret = producer.maybeSendNoop(producers.get());
+    producer->setNoopSendTime(send_time);
+    ENGINE_ERROR_CODE ret = producer->maybeSendNoop(producers.get());
     EXPECT_EQ(ENGINE_WANT_MORE, ret)
     << "maybeSendNoop not returning ENGINE_WANT_MORE";
-    EXPECT_TRUE(producer.getNoopPendingRecv())
+    EXPECT_TRUE(producer->getNoopPendingRecv())
     << "Not waiting for noop acknowledgement";
-    EXPECT_NE(send_time, producer.getNoopSendTime())
+    EXPECT_NE(send_time, producer->getNoopSendTime())
     << "SendTime has not been updated";
+    producer->cancelCheckpointCreatorTask();
     destroy_mock_cookie(cookie);
 }
 
 TEST_F(ConnectionTest, test_maybesendnoop_noop_already_pending) {
     const void* cookie = create_mock_cookie();
     // Create a Mock Dcp producer
-    MockDcpProducer producer(*engine, cookie, "test_producer", /*notifyOnly*/false);
+    mock_dcp_producer_t producer = new MockDcpProducer(*engine,
+                                                       cookie,
+                                                       "test_producer",
+                                                       /*notifyOnly*/false);
 
     std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(handle, engine_v1));
-    producer.setNoopEnabled(true);
+    producer->setNoopEnabled(true);
     const auto send_time = ep_current_time() + 21;
-    producer.setNoopSendTime(send_time);
-    ENGINE_ERROR_CODE ret = producer.maybeSendNoop(producers.get());
+    producer->setNoopSendTime(send_time);
+    ENGINE_ERROR_CODE ret = producer->maybeSendNoop(producers.get());
     EXPECT_EQ(ENGINE_WANT_MORE, ret)
     << "maybeSendNoop not returning ENGINE_WANT_MORE";
-    EXPECT_TRUE(producer.getNoopPendingRecv())
+    EXPECT_TRUE(producer->getNoopPendingRecv())
     << "Not awaiting noop acknowledgement";
-    EXPECT_NE(send_time, producer.getNoopSendTime())
+    EXPECT_NE(send_time, producer->getNoopSendTime())
     << "SendTime has not been updated";
-    producer.setNoopSendTime(send_time);
-    ENGINE_ERROR_CODE ret2 = producer.maybeSendNoop(producers.get());
+    producer->setNoopSendTime(send_time);
+    ENGINE_ERROR_CODE ret2 = producer->maybeSendNoop(producers.get());
     EXPECT_EQ(ENGINE_DISCONNECT, ret2)
      << "maybeSendNoop not returning ENGINE_DISCONNECT";
-    EXPECT_TRUE(producer.getNoopPendingRecv())
+    EXPECT_TRUE(producer->getNoopPendingRecv())
     << "Not waiting for noop acknowledgement";
-    EXPECT_EQ(send_time, producer.getNoopSendTime())
+    EXPECT_EQ(send_time, producer->getNoopSendTime())
     << "SendTime has been updated";
+    producer->cancelCheckpointCreatorTask();
     destroy_mock_cookie(cookie);
 }
 
 TEST_F(ConnectionTest, test_maybesendnoop_not_enabled) {
     const void* cookie = create_mock_cookie();
     // Create a Mock Dcp producer
-    MockDcpProducer producer(*engine, cookie, "test_producer", /*notifyOnly*/false);
+    mock_dcp_producer_t producer = new MockDcpProducer(*engine,
+                                                       cookie,
+                                                       "test_producer",
+                                                       /*notifyOnly*/false);
 
     std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(handle, engine_v1));
-    producer.setNoopEnabled(false);
+    producer->setNoopEnabled(false);
     const auto send_time = ep_current_time() + 21;
-    producer.setNoopSendTime(send_time);
-    ENGINE_ERROR_CODE ret = producer.maybeSendNoop(producers.get());
+    producer->setNoopSendTime(send_time);
+    ENGINE_ERROR_CODE ret = producer->maybeSendNoop(producers.get());
     EXPECT_EQ(ENGINE_FAILED, ret)
     << "maybeSendNoop not returning ENGINE_FAILED";
-    EXPECT_FALSE(producer.getNoopPendingRecv())
+    EXPECT_FALSE(producer->getNoopPendingRecv())
     << "Waiting for noop acknowledgement";
-    EXPECT_EQ(send_time, producer.getNoopSendTime())
+    EXPECT_EQ(send_time, producer->getNoopSendTime())
     << "SendTime has been updated";
+    producer->cancelCheckpointCreatorTask();
     destroy_mock_cookie(cookie);
 }
 
 TEST_F(ConnectionTest, test_maybesendnoop_not_sufficient_time_passed) {
     const void* cookie = create_mock_cookie();
     // Create a Mock Dcp producer
-    MockDcpProducer producer(*engine, cookie, "test_producer", /*notifyOnly*/false);
+    mock_dcp_producer_t producer = new MockDcpProducer(*engine,
+                                                       cookie,
+                                                       "test_producer",
+                                                       /*notifyOnly*/false);
 
     std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(handle, engine_v1));
-    producer.setNoopEnabled(true);
+    producer->setNoopEnabled(true);
     rel_time_t current_time = ep_current_time();
-    producer.setNoopSendTime(current_time);
-    ENGINE_ERROR_CODE ret = producer.maybeSendNoop(producers.get());
+    producer->setNoopSendTime(current_time);
+    ENGINE_ERROR_CODE ret = producer->maybeSendNoop(producers.get());
     EXPECT_EQ(ENGINE_FAILED, ret)
     << "maybeSendNoop not returning ENGINE_FAILED";
-    EXPECT_FALSE(producer.getNoopPendingRecv())
+    EXPECT_FALSE(producer->getNoopPendingRecv())
     << "Waiting for noop acknowledgement";
-    EXPECT_EQ(current_time, producer.getNoopSendTime())
+    EXPECT_EQ(current_time, producer->getNoopSendTime())
     << "SendTime has been incremented";
+    producer->cancelCheckpointCreatorTask();
     destroy_mock_cookie(cookie);
 }
 
@@ -793,6 +814,10 @@ public:
                                         /*notifyOnly*/false);
     }
 
+    ~ConnMapNotifyTest() {
+        producer->cancelCheckpointCreatorTask();
+    }
+
     void notify() {
         callbacks++;
         connMap->notifyPausedConnection(producer.get(), /*schedule*/true);
@@ -899,4 +924,114 @@ TEST_F(NotifyTest, test_mb19503_connmap_notify_paused) {
     //    paused this time we *should* get a callback.
     notifyTest.connMap->notifyAllPausedConnections();
     EXPECT_EQ(1, notifyTest.getCallbacks());
+}
+
+class ActiveStreamChkptProcessorTaskTest : public SingleThreadedEPStoreTest {
+public:
+    ActiveStreamChkptProcessorTaskTest() : cookie(create_mock_cookie()) {
+    }
+
+    void SetUp() override {
+        SingleThreadedEPStoreTest::SetUp();
+
+        /* Start an active vb and add 3 items */
+        store->setVBucketState(vbid, vbucket_state_active, false);
+        addItems(3);
+
+        producers = get_dcp_producers(
+                                      reinterpret_cast<ENGINE_HANDLE*>(engine.get()),
+                                      reinterpret_cast<ENGINE_HANDLE_V1*>(engine.get()));
+        dcp_producer_t producerRCPtr = new MockDcpProducer(*engine,
+                                                           cookie,
+                                                           "test_producer",
+                                                           /*notifyOnly*/false);
+        producer = dynamic_cast<MockDcpProducer*>(producerRCPtr.get());
+    }
+
+    void TearDown() override {
+        producer->cancelCheckpointCreatorTask();
+        producer->closeAllStreams();
+        producerRCPtr.reset();
+        destroy_mock_cookie(cookie);
+        SingleThreadedEPStoreTest::TearDown();
+    }
+
+    void addItems(int numItems) {
+        for (int i = 0; i < numItems; ++i) {
+            std::string key("key" + std::to_string(i));
+            store_item(vbid, key, "value");
+        }
+    }
+
+    /*
+     * Fake callback emulating dcp_add_failover_log
+     */
+    static ENGINE_ERROR_CODE fakeDcpAddFailoverLog(vbucket_failover_t* entry,
+                                                   size_t nentries,
+                                                   const void* cookie) {
+        return ENGINE_SUCCESS;
+    }
+
+    void notifyAndStepToCheckpoint() {
+        auto vb = store->getVBucket(vbid);
+        ASSERT_NE(nullptr, vb.get());
+
+        producer->notifySeqnoAvailable(vbid, vb->getHighSeqno());
+
+        /* Step which will notify the checkpoint processor task */
+        EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+        EXPECT_EQ(1, producer->getCheckpointSnapshotTask().queueSize());
+
+        /* Run the task */
+        producer->getCheckpointSnapshotTask().run();
+
+        /* This time the step should return something that is read from the
+         checkpoint processor */
+        EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    }
+
+    const void* cookie;
+    std::unique_ptr<dcp_message_producers> producers;
+    dcp_producer_t producerRCPtr;
+    MockDcpProducer* producer;
+    const int vbid = 0;
+};
+
+TEST_F(ActiveStreamChkptProcessorTaskTest, DeleteDeadStreamEntry) {
+    uint64_t rollbackSeqno;
+    uint32_t opaque = 1;
+    ASSERT_EQ(ENGINE_SUCCESS,
+              producer->streamRequest(0, // flags
+                                      opaque,
+                                      vbid,
+                                      0, // start_seqno
+                                      ~0ull, // end_seqno
+                                      0, // vbucket_uuid,
+                                      0, // snap_start_seqno,
+                                      0, // snap_end_seqno,
+                                      &rollbackSeqno,
+                                      &ActiveStreamChkptProcessorTaskTest::
+                                      fakeDcpAddFailoverLog));
+    /* Checkpoint task processor Q will already have any entry for the stream */
+    EXPECT_EQ(1, producer->getCheckpointSnapshotTask().queueSize());
+
+    /* Close and open the stream without clearing the checkpoint task processor
+     Q */
+    producer->closeStream(opaque, vbid);
+    ASSERT_EQ(ENGINE_SUCCESS,
+              producer->streamRequest(0, // flags
+                                      opaque,
+                                      vbid,
+                                      0, // start_seqno
+                                      ~0ull, // end_seqno
+                                      0, // vbucket_uuid,
+                                      0, // snap_start_seqno,
+                                      0, // snap_end_seqno,
+                                      &rollbackSeqno,
+                                      &ActiveStreamChkptProcessorTaskTest::
+                                      fakeDcpAddFailoverLog));
+
+    /* The checkpoint processor Q should be processed with the new stream
+     getting the item(s) */
+    notifyAndStepToCheckpoint();
 }

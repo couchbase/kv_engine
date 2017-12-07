@@ -32,7 +32,13 @@ public:
     DcpProducer(EventuallyPersistentEngine &e, const void *cookie,
                 const std::string &n, bool notifyOnly);
 
-    ~DcpProducer();
+    virtual ~DcpProducer();
+
+    /**
+     * Clears active stream checkpoint processor task's queue, resets its
+     * shared reference to the producer and cancels the task.
+     */
+    void cancelCheckpointCreatorTask();
 
     ENGINE_ERROR_CODE streamRequest(uint32_t flags, uint32_t opaque,
                                     uint16_t vbucket, uint64_t start_seqno,
@@ -201,10 +207,14 @@ public:
     */
     void scheduleCheckpointProcessorTask(stream_t s);
 
-    /*
-        Clears active stream checkpoint processor task's queue.
-    */
-    void clearCheckpointProcessorTaskQueues();
+    /**
+     * Returns a shared reference to the stream associated with the vbucket
+     *
+     * @param vbid Vbucket id
+     *
+     * @return shared reference ptr to the stream associated
+     */
+    stream_t findStreamByVbid(uint16_t vbid);
 
 protected:
 
@@ -218,13 +228,14 @@ protected:
         Couchbase::RelaxedAtomic<bool> enabled;
     } noopCtx;
 
+    ExTask checkpointCreatorTask;
+
 private:
 
 
     DcpResponse* getNextItem();
 
     size_t getItemsRemaining();
-    stream_t findStreamByVbid(uint16_t vbid);
 
     std::string priority;
 
@@ -256,9 +267,7 @@ private:
     AtomicValue<size_t> itemsSent;
     AtomicValue<size_t> totalBytesSent;
 
-    ExTask checkpointCreatorTask;
     static const uint32_t defaultNoopInerval;
-
 };
 
 #endif  // SRC_DCP_PRODUCER_H_

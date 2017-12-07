@@ -18,6 +18,7 @@
 #pragma once
 
 #include "dcp/producer.h"
+#include "dcp/stream.h"
 
 /*
  * Mock of the DcpProducer class.  Wraps the real DcpProducer, but exposes
@@ -54,4 +55,11 @@ public:
     bool getNoopEnabled() {
         return noopCtx.enabled;
     }
+
+    ActiveStreamCheckpointProcessorTask& getCheckpointSnapshotTask() const {
+        return *static_cast<ActiveStreamCheckpointProcessorTask*>(
+                        checkpointCreatorTask.get());
+    }
 };
+
+using mock_dcp_producer_t = SingleThreadedRCPtr<MockDcpProducer>;

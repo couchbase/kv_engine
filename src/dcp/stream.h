@@ -386,12 +386,14 @@ private:
 
 class ActiveStreamCheckpointProcessorTask : public GlobalTask {
 public:
-    ActiveStreamCheckpointProcessorTask(EventuallyPersistentEngine& e)
+    ActiveStreamCheckpointProcessorTask(EventuallyPersistentEngine& e,
+                                        dcp_producer_t p)
         : GlobalTask(&e, TaskId::ActiveStreamCheckpointProcessorTask,
                      INT_MAX, false),
       notified(false),
       iterationsBeforeYield(e.getConfiguration()
-                            .getDcpProducerSnapshotMarkerYieldLimit()) { }
+                            .getDcpProducerSnapshotMarkerYieldLimit()),
+      producer(p) { }
 
     std::string getDescription() {
         std::string rv("Process checkpoint(s) for DCP producer");
@@ -401,17 +403,38 @@ public:
     bool run();
     void schedule(stream_t stream);
     void wakeup();
-    void clearQueues();
+
+    /* Clears the queues and resets the producer reference */
+    void cancelTask();
+
+    /* Returns the number of unique streams waiting to be processed */
+    size_t queueSize() {
+        LockHolder lh(workQueueLock);
+        return queue.size();
+    }
 
 private:
 
     stream_t queuePop() {
         stream_t rval;
-        LockHolder lh(workQueueLock);
-        if (!queue.empty()) {
-            rval = queue.front();
+        uint16_t vbid = 0;
+        dcp_producer_t producerRefCpy;
+        {
+            LockHolder lh(workQueueLock);
+            if (queue.empty()) {
+                return rval;
+            }
+            vbid = queue.front();
             queue.pop();
-            queuedVbuckets.erase(rval->getVBucket());
+            queuedVbuckets.erase(vbid);
+            /* Get a copy of refPtr as we are releasing the workQueueLock */
+            producerRefCpy = producer;
+        }
+
+        /* findStreamByVbid acquires DcpProducer::streamsMutex, hence called
+           without acquiring workQueueLock */
+        if (producerRefCpy) {
+            return producerRefCpy->findStreamByVbid(vbid);
         }
         return rval;
     }
@@ -421,25 +444,34 @@ private:
         return queue.empty();
     }
 
-    void pushUnique(stream_t stream) {
+    void pushUnique(uint16_t vbid) {
         LockHolder lh(workQueueLock);
-        if (queuedVbuckets.count(stream->getVBucket()) == 0) {
-            queue.push(stream);
-            queuedVbuckets.insert(stream->getVBucket());
+        if (queuedVbuckets.count(vbid) == 0) {
+            queue.push(vbid);
+            queuedVbuckets.insert(vbid);
         }
     }
 
     Mutex workQueueLock;
 
     /**
-     * Maintain a queue of unique stream_t
+     * Maintain a queue of unique vbucket ids for which stream should be
+     * processed.
      * There's no need to have the same stream in the queue more than once
+     *
+     * The streams are kept in the 'streams map' of the producer object. We
+     * should not hold a shared reference to the stream object here in order to
+     * avoid multiple stream ownership issues
      */
-    std::queue<stream_t> queue;
-    std::set<uint16_t> queuedVbuckets;
+    std::queue<uint16_t> queue;
+    std::unordered_set<uint16_t> queuedVbuckets;
 
     AtomicValue<bool> notified;
     size_t iterationsBeforeYield;
+
+    /* shared reference to the producer object, should be deleted when the task
+       is stopped because the producer object contains a reference to this */
+    dcp_producer_t producer;
 };
 
 class NotifierStream : public Stream {

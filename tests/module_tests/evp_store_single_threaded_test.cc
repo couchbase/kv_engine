@@ -15,109 +15,12 @@
  *   limitations under the License.
  */
 
-#include "evp_store_test.h"
+#include "evp_store_single_threaded_test.h"
 
-#include "fakes/fake_executorpool.h"
-#include "taskqueue.h"
 #include "../mock/mock_dcp_producer.h"
 #include "../mock/mock_dcp_consumer.h"
 #include "../mock/mock_stream.h"
 #include "programs/engine_testapp/mock_server.h"
-
-#include <thread>
-
-/*
- * A subclass of EventuallyPersistentStoreTest which uses a fake ExecutorPool,
- * which will not spawn ExecutorThreads and hence not run any tasks
- * automatically in the background. All tasks must be manually run().
- */
-class SingleThreadedEPStoreTest : public EventuallyPersistentStoreTest {
-    void TearDown() {
-        shutdownAndPurgeTasks();
-        EventuallyPersistentStoreTest::TearDown();
-    }
-
-public:
-    /*
-     * Run the next task from the taskQ
-     * The task must match the expectedTaskName parameter
-     */
-    void runNextTask(TaskQueue& taskQ, const std::string& expectedTaskName) {
-        CheckedExecutor executor(task_executor, taskQ);
-
-        // Run the task
-        executor.runCurrentTask(expectedTaskName);
-        executor.completeCurrentTask();
-    }
-
-    /*
-     * Run the next task from the taskQ
-     */
-    void runNextTask(TaskQueue& taskQ) {
-        CheckedExecutor executor(task_executor, taskQ);
-
-        // Run the task
-        executor.runCurrentTask();
-        executor.completeCurrentTask();
-    }
-
-protected:
-    void SetUp() {
-        SingleThreadedExecutorPool::replaceExecutorPoolWithFake();
-        EventuallyPersistentStoreTest::SetUp();
-
-        task_executor = reinterpret_cast<SingleThreadedExecutorPool*>
-            (ExecutorPool::get());
-    }
-
-    /*
-     * Change the vbucket state and run the VBStatePeristTask
-     * On return the state will be changed and the task completed.
-     */
-    void setVBucketStateAndRunPersistTask(uint16_t vbid, vbucket_state_t newState) {
-        // Change state - this should add 1 set_vbucket_state op to the
-        //VBuckets' persistence queue.
-        EXPECT_EQ(ENGINE_SUCCESS,
-                  store->setVBucketState(vbid, newState, /*transfer*/false));
-
-        // Trigger the flusher to flush state to disk.
-        EXPECT_EQ(0, store->flushVBucket(vbid));
-    }
-
-    /*
-     * Set the stats isShutdown and attempt to drive all tasks to cancel
-     */
-    void shutdownAndPurgeTasks() {
-        engine->getEpStats().isShutdown = true;
-        task_executor->cancelAll();
-
-        for (task_type_t t :
-             {WRITER_TASK_IDX, READER_TASK_IDX, AUXIO_TASK_IDX, NONIO_TASK_IDX}) {
-
-            // Define a lambda to drive all tasks from the queue, if hpTaskQ
-            // is implemented then trivial to add a second call to runTasks.
-            auto runTasks = [=](TaskQueue& queue) {
-                while (queue.getFutureQueueSize() > 0 || queue.getReadyQueueSize() > 0) {
-                    runNextTask(queue);
-                }
-            };
-            runTasks(*task_executor->getLpTaskQ()[t]);
-            task_executor->stopTaskGroup(engine->getTaskable().getGID(), t,
-                                         engine->getEpStats().forceShutdown);
-        }
-    }
-
-    /*
-     * Fake callback emulating dcp_add_failover_log
-     */
-    static ENGINE_ERROR_CODE fakeDcpAddFailoverLog(vbucket_failover_t* entry,
-                                                   size_t nentries,
-                                                   const void *cookie) {
-        return ENGINE_SUCCESS;
-    }
-
-    SingleThreadedExecutorPool* task_executor;
-};
 
 /*
  * The following test checks to see if we call handleSlowStream when in a
@@ -168,6 +71,9 @@ TEST_F(SingleThreadedEPStoreTest, MB22421_backfilling_but_task_finished) {
      // flag to true and the DCP cursor being dropped
      EXPECT_TRUE(mock_stream->public_getPendingBackfill());
      EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
+
+    // Stop Producer checkpoint processor task
+    producer->cancelCheckpointCreatorTask();
 }
 
 /*
@@ -233,6 +139,9 @@ TEST_F(SingleThreadedEPStoreTest, MB22421_reregister_cursor) {
     // 1 and backfillEnd is 0, however the cursor still needs to be
     // re-registered.
     EXPECT_EQ(2, ckpt_mgr.getNumOfCursors());
+
+    // Stop Producer checkpoint processor task
+    producer->cancelCheckpointCreatorTask();
 }
 
 /**
@@ -292,6 +201,9 @@ TEST_F(SingleThreadedEPStoreTest, test_mb22451) {
             << "stream state should not have changed";
     // Required to ensure that the backfillMgr is deleted
     producer->closeAllStreams();
+
+    // Stop Producer checkpoint processor task
+    producer->cancelCheckpointCreatorTask();
 }
 
 /* Regression / reproducer test for MB-19695 - an exception is thrown
@@ -391,6 +303,9 @@ TEST_F(SingleThreadedEPStoreTest, MB19428_no_streams_against_dead_vbucket) {
 
         // The streamRequest failed and should not of created anymore tasks.
         EXPECT_EQ(1, lpAuxioQ.getFutureQueueSize());
+
+        // Stop Producer checkpoint processor task
+        producer->cancelCheckpointCreatorTask();
     }
 }
 

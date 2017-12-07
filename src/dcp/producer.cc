@@ -184,14 +184,18 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine &e, const void *cookie,
 
     backfillMgr.reset(new BackfillManager(&engine_));
 
-    checkpointCreatorTask = new ActiveStreamCheckpointProcessorTask(e);
+    checkpointCreatorTask = new ActiveStreamCheckpointProcessorTask(e, this);
     ExecutorPool::get()->schedule(checkpointCreatorTask, AUXIO_TASK_IDX);
 }
 
 DcpProducer::~DcpProducer() {
     backfillMgr.reset();
     delete rejectResp;
+}
 
+void DcpProducer::cancelCheckpointCreatorTask() {
+    static_cast<ActiveStreamCheckpointProcessorTask*>(
+            checkpointCreatorTask.get())->cancelTask();
     ExecutorPool::get()->cancel(checkpointCreatorTask->getId());
 }
 
@@ -1036,9 +1040,4 @@ bool DcpProducer::bufferLogInsert(size_t bytes) {
 void DcpProducer::scheduleCheckpointProcessorTask(stream_t s) {
     static_cast<ActiveStreamCheckpointProcessorTask*>(checkpointCreatorTask.get())
         ->schedule(s);
-}
-
-void DcpProducer::clearCheckpointProcessorTaskQueues() {
-    static_cast<ActiveStreamCheckpointProcessorTask*>(checkpointCreatorTask.get())
-        ->clearQueues();
 }
