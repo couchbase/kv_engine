@@ -221,3 +221,25 @@ TEST_F(EventDescriptorTest, HandleOptionalFieldsInvalidType) {
                           cJSON_CreateString("5"));
     EXPECT_THROW(EventDescriptor(json.get()), std::logic_error);
 }
+
+/// filtering_permitted is an optional parameter.  If it is not defined then
+/// enquiring whether filtering is permitted should return false.
+TEST_F(EventDescriptorTest, filterPermittedNotExist) {
+    cJSON_DeleteItemFromObject(json.get(), "filtering_permitted");
+    EventDescriptor ptr(json.get());
+    EXPECT_FALSE(ptr.isFilteringPermitted());
+}
+
+TEST_F(EventDescriptorTest, filterPermittedFalse) {
+    cJSON_DeleteItemFromObject(json.get(), "filtering_permitted");
+    cJSON_AddFalseToObject(json.get(), "filtering_permitted");
+    EventDescriptor ptr(json.get());
+    EXPECT_FALSE(ptr.isFilteringPermitted());
+}
+
+TEST_F(EventDescriptorTest, filterPermittedTrue) {
+    cJSON_DeleteItemFromObject(json.get(), "filtering_permitted");
+    cJSON_AddTrueToObject(json.get(), "filtering_permitted");
+    EventDescriptor ptr(json.get());
+    EXPECT_TRUE(ptr.isFilteringPermitted());
+}

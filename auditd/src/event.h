@@ -21,6 +21,8 @@
 #include <string>
 
 class Audit;
+class AuditConfig;
+struct cJSON;
 
 class Event {
 public:
@@ -37,6 +39,27 @@ public:
           payload(p,length) {}
 
     virtual bool process(Audit& audit);
+
+    /**
+     * State whether a given event should be filtered out given the user.
+     *
+     * @param eventPayload  pointer to the event payload
+     * @param config  reference to the audit configuration
+     * @param userid  reference to the userid_type string, which will either be
+     *                effective_userid or real_userid
+     * @return true if event should be filtered out, else false.
+     */
+    bool filterEventByUser(cJSON* json_payload, const AuditConfig& config,
+                           const std::string& userid_type);
+
+    /**
+     * State whether a given event should be filtered out.
+     *
+     * @param eventPayload  pointer to the event payload
+     * @param config  reference to the audit configuration
+     * @return true if event should be filtered out, else false.
+     */
+    bool filterEvent(cJSON* eventPayload, const AuditConfig& audit);
 
     virtual ~Event() {}
 

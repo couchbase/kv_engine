@@ -57,6 +57,9 @@ public:
         return enabled;
     }
 
+    const bool isFilteringPermitted() const {
+        return filteringPermitted;
+    }
 
     void setSync(bool sync) {
         EventDescriptor::sync = sync;
@@ -86,6 +89,7 @@ protected:
     const std::string description;
     bool sync;
     bool enabled;
+    bool filteringPermitted;
 };
 
 

@@ -22,6 +22,37 @@
 #include "event.h"
 #include "audit.h"
 
+bool Event::filterEventByUser(cJSON* json_payload,
+                              const AuditConfig& config,
+                              const std::string& userid_type) {
+    auto* id = cJSON_GetObjectItem(json_payload, userid_type.c_str());
+    if (id != nullptr) {
+        auto* user = cJSON_GetObjectItem(id, "user");
+        if (user != nullptr) {
+            if (user->type != cJSON_String) {
+                std::stringstream ss;
+                ss << "Incorrect type for \"" << userid_type
+                        << "::user\". Should be string.";
+                throw std::invalid_argument(ss.str());
+            } else if (config.is_event_filtered(user->valuestring)) {
+                return true;
+            }
+        }
+    }
+    // Do not filter out the event
+    return false;
+}
+
+bool Event::filterEvent(cJSON* json_payload, const AuditConfig& config) {
+    // Check to see if real_userid::user is in the filter list.
+    if (filterEventByUser(json_payload, config, "real_userid")) {
+        return true;
+    } else {
+        // Check to see if effective_userid::user is in the filter list.
+        return filterEventByUser(json_payload, config, "effective_userid");
+    }
+}
+
 bool Event::process(Audit& audit) {
     // Audit is disabled
     if (!audit.config.is_auditd_enabled()) {
@@ -54,27 +85,12 @@ bool Event::process(Audit& audit) {
         cJSON_Delete(json_payload);
         return true;
     }
-    // Check to see if real_userid::user is in the filter list.  If so ignore
-    // the event
-    auto real_userid = cJSON_GetObjectItem(json_payload, "real_userid");
-    if (real_userid != nullptr) {
-        auto user = cJSON_GetObjectItem(real_userid, "user");
-        if ((user != nullptr) && (audit.config.is_event_filtered(
-                user->valuestring))) {
-            return true;
-        }
+
+    if (evt->second->isFilteringPermitted() &&
+            filterEvent(json_payload, audit.config)) {
+        return true;
     }
-    // Check to see if effective_userid::user is in the filter list.  If so
-    // ignore the event
-    auto effective_userid = cJSON_GetObjectItem(json_payload,
-                                                "effective_userid");
-    if (effective_userid != nullptr) {
-        auto user = cJSON_GetObjectItem(effective_userid, "user");
-        if ((user != nullptr) && (audit.config.is_event_filtered(
-                user->valuestring))) {
-            return true;
-        }
-    }
+
     if (!audit.auditfile.ensure_open()) {
         Audit::log_error(AuditErrorCode::OPEN_AUDITFILE_ERROR);
         cJSON_Delete(json_payload);

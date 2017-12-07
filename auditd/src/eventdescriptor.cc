@@ -22,9 +22,18 @@ EventDescriptor::EventDescriptor(const cJSON* root)
       name(locate(root, "name", cJSON_String)->valuestring),
       description(locate(root, "description", cJSON_String)->valuestring),
       sync(locate(root, "sync", cJSON_True)->type == cJSON_True),
-      enabled(locate(root, "enabled", cJSON_True)->type == cJSON_True) {
+      enabled(locate(root, "enabled", cJSON_True)->type == cJSON_True),
+      filteringPermitted(false) {
+
     int expected = 5;
-    cJSON* obj;
+    // Look for the optional parameter filtering_permitted
+    cJSON* obj = cJSON_GetObjectItem(const_cast<cJSON*>(root), "filtering_permitted");
+    // If filter_permitted parameter is defined then set to appropriate value.
+    if (obj != nullptr) {
+        filteringPermitted = (obj->type == cJSON_True);
+        expected++;
+    }
+
     if ((obj = cJSON_GetObjectItem(const_cast<cJSON*>(root),
                                    "mandatory_fields")) != nullptr) {
         if (obj->type != cJSON_Array && obj->type != cJSON_Object) {
