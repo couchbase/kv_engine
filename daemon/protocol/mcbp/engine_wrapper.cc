@@ -309,3 +309,18 @@ ENGINE_ERROR_CODE bucket_flush(Cookie& cookie) {
     }
     return ret;
 }
+
+ENGINE_ERROR_CODE bucket_get_stats(Cookie& cookie,
+                                   cb::const_char_buffer key,
+                                   ADD_STAT add_stat) {
+    auto& c = cookie.getConnection();
+    auto ret = c.getBucketEngine()->get_stats(
+            c.getBucketEngineAsV0(), &cookie, key, add_stat);
+    if (ret == ENGINE_DISCONNECT) {
+        LOG_INFO(&c,
+                 "%u: %s bucket_get_stats return ENGINE_DISCONNECT",
+                 c.getId(),
+                 c.getDescription().c_str());
+    }
+    return ret;
+}

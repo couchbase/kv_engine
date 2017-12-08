@@ -45,14 +45,6 @@ protected:
     ENGINE_ERROR_CODE step() override;
 
 private:
-    /**
-     * Helper method to call into the engine API with the appropriate
-     * parameters.
-     *
-     * @param k The key to pass on to the underlying engine
-     * @return the return code from the engine
-     */
-    ENGINE_ERROR_CODE get_stats(const cb::const_char_buffer& k);
 
     /**
      * The key as specified in the input buffer (it may contain a sub command)

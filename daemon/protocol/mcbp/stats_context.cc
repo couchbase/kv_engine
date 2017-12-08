@@ -842,7 +842,7 @@ ENGINE_ERROR_CODE StatsCommandContext::step() {
 
     if (key.empty()) {
         /* request all statistics */
-        ret = get_stats({reinterpret_cast<const char*>(key.data()), key.size()});
+        ret = bucket_get_stats(cookie, {}, append_stats);
         if (ret == ENGINE_SUCCESS) {
             ret = server_stats(&append_stats, cookie);
         }
@@ -866,8 +866,10 @@ ENGINE_ERROR_CODE StatsCommandContext::step() {
         auto iter = handlers.find(command);
         if (iter == handlers.end()) {
             // This may be specific to the underlying engine
-            ret = get_stats({reinterpret_cast<const char*>(key.data()),
-                             key.size()});
+            ret = bucket_get_stats(
+                    cookie,
+                    {reinterpret_cast<const char*>(key.data()), key.size()},
+                    append_stats);
         } else {
             if (iter->second.privileged) {
                 ret = mcbp::checkPrivilege(cookie, cb::rbac::Privilege::Stats);
@@ -904,21 +906,4 @@ ENGINE_ERROR_CODE StatsCommandContext::step() {
     }
 
     return ret;
-}
-
-ENGINE_ERROR_CODE StatsCommandContext::get_stats(const cb::const_char_buffer& k) {
-    // Use a shorter name to avoid line wrapping..
-    auto& conn = connection;
-    if (k.empty()) {
-        // Some backeds rely on key being nullptr if klen = 0
-        return conn.getBucketEngine()->get_stats(conn.getBucketEngineAsV0(),
-                                                 static_cast<void*>(&cookie),
-                                                 {},
-                                                 append_stats);
-    } else {
-        return conn.getBucketEngine()->get_stats(conn.getBucketEngineAsV0(),
-                                                 static_cast<void*>(&cookie),
-                                                 {k.data(), k.size()},
-                                                 append_stats);
-    }
 }

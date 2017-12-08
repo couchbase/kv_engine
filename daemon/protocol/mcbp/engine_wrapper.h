@@ -105,3 +105,7 @@ std::pair<cb::unique_item_ptr, item_info> bucket_allocate_ex(Cookie& cookie,
                                                              uint16_t vbucket);
 
 ENGINE_ERROR_CODE bucket_flush(Cookie& cookie);
+
+ENGINE_ERROR_CODE bucket_get_stats(Cookie& cookie,
+                                   cb::const_char_buffer key,
+                                   ADD_STAT add_stat);
