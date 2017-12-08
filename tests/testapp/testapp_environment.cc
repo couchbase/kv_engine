@@ -147,10 +147,7 @@ public:
         if (fullEviction) {
             settings += ";item_eviction_policy=full_eviction";
         }
-        createEwbBucket(name,
-                        "ep.so",
-                        "dbname=" + dbPath + "/" + name,
-                        conn);
+        createEwbBucket(name, "ep.so", settings, conn);
 
         BinprotGenericCommand cmd;
         BinprotResponse resp;
