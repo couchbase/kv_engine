@@ -64,10 +64,21 @@ void TestBucketImpl::setXattrEnabled(MemcachedConnection& conn,
 
 class DefaultBucketImpl : public TestBucketImpl {
 public:
+    DefaultBucketImpl(std::string extraConfig = {})
+        : TestBucketImpl(extraConfig) {
+    }
+
     void setUpBucket(const std::string& name,
                      const std::string& config,
                      MemcachedConnection& conn) override {
-        createEwbBucket(name, "default_engine.so", config, conn);
+        std::string settings = config;
+        if (!extraConfig.empty()) {
+            if (!settings.empty()) {
+                settings += ';';
+            }
+            settings += extraConfig;
+        }
+        createEwbBucket(name, "default_engine.so", settings, conn);
     }
 
     std::string getName() const override {
@@ -125,9 +136,9 @@ public:
 
 class EpBucketImpl : public TestBucketImpl {
 public:
-    EpBucketImpl(bool fe)
-        : dbPath("mc_testapp." + std::to_string(cb_getpid())),
-          fullEviction(fe) {
+    EpBucketImpl(std::string extraConfig = {})
+        : TestBucketImpl(extraConfig),
+          dbPath("mc_testapp." + std::to_string(cb_getpid())) {
         // Cleanup any files from a previous run still on disk.
         try {
             cb::io::rmrf(dbPath);
@@ -144,8 +155,11 @@ public:
                      const std::string& config,
                      MemcachedConnection& conn) override {
         std::string settings = "dbname=" + dbPath + "/" + name;
-        if (fullEviction) {
-            settings += ";item_eviction_policy=full_eviction";
+        if (!config.empty()) {
+            settings += ";" + config;
+        }
+        if (!extraConfig.empty()) {
+            settings += ";" + extraConfig;
         }
         createEwbBucket(name, "ep.so", settings, conn);
 
@@ -213,26 +227,28 @@ public:
 
     /// Directory for any database files.
     const std::string dbPath;
-    bool fullEviction;
 };
 
-McdEnvironment::McdEnvironment(bool manageSSL_, std::string engineName)
+McdEnvironment::McdEnvironment(bool manageSSL_,
+                               std::string engineName,
+                               std::string engineConfig)
     : manageSSL(manageSSL_) {
     if (manageSSL) {
         initialize_openssl();
     }
 
     if (engineName == "default") {
-        testBucket = std::make_unique<DefaultBucketImpl>();
+        std::string config = "keep_deleted=true";
+        if (!engineConfig.empty()) {
+            config += ";" + engineConfig;
+        }
+        testBucket = std::make_unique<DefaultBucketImpl>(config);
     } else if (engineName == "ep") {
-        testBucket = std::make_unique<EpBucketImpl>(false /*full_eviction*/);
-    } else if (engineName == "ep_full_eviction") {
-        testBucket = std::make_unique<EpBucketImpl>(true /*full_eviction*/);
+        testBucket = std::make_unique<EpBucketImpl>(engineConfig);
     } else {
-        throw std::invalid_argument(
-                "Unknown engine '" + engineName +
-                "' "
-                "Options are 'default', 'ep' and 'ep_full_eviction'");
+        throw std::invalid_argument("Unknown engine '" + engineName +
+                                    "' "
+                                    "Options are 'default' and 'ep'");
     }
 }
 

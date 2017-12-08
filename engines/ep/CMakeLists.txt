@@ -522,7 +522,7 @@ ADD_TEST(NAME ep-engine-getset-unit-tests.value_eviction
 SET_TESTS_PROPERTIES(ep-engine-getset-unit-tests.value_eviction PROPERTIES TIMEOUT 400)
 ADD_TEST(NAME ep-engine-getset-unit-tests.full_eviction
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-        COMMAND memcached-get-set-tests -E ep_full_eviction)
+        COMMAND memcached-get-set-tests -E ep -c "item_eviction_policy=full_eviction")
 SET_TESTS_PROPERTIES(ep-engine-getset-unit-tests.full_eviction PROPERTIES TIMEOUT 400)
 
 ADD_TEST(NAME ep-engine-with-meta-unit-tests

@@ -28,6 +28,9 @@ class MemcachedConnection;
  */
 class TestBucketImpl {
 public:
+    TestBucketImpl(std::string extraConfig = {}) : extraConfig(extraConfig) {
+    }
+
     virtual void setUpBucket(const std::string& name,
                              const std::string& config,
                              MemcachedConnection& conn) = 0;
@@ -51,6 +54,8 @@ protected:
                                 const std::string& plugin,
                                 const std::string& config,
                                 MemcachedConnection& conn);
+
+    std::string extraConfig;
 };
 
 /**
@@ -73,8 +78,12 @@ public:
      *                   case we pass false into the McdEnvironment constructor.
      * @param engineName The name of the engine which memcached will be started
      *                   with.
+     * @param engineConfig Any additional engine config to pass when creating
+     *                     buckets.
      */
-    McdEnvironment(bool manageSSL_, std::string engineName);
+    McdEnvironment(bool manageSSL_,
+                   std::string engineName,
+                   std::string engineConfig);
 
     ~McdEnvironment();
 

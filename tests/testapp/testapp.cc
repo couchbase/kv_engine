@@ -139,7 +139,7 @@ void TestappTest::CreateTestBucket()
     conn.reconnect();
     conn.authenticate("@admin", "password", "PLAIN");
 
-    mcd_env->getTestBucket().setUpBucket(bucketName, "keep_deleted=true", conn);
+    mcd_env->getTestBucket().setUpBucket(bucketName, "", conn);
 
     // Reconnect the object to avoid others to reuse the admin creds
     conn.reconnect();
@@ -1275,12 +1275,16 @@ int main(int argc, char **argv) {
 #endif
 
     std::string engine_name("default");
+    std::string engine_config;
 
     int cmd;
-    while ((cmd = getopt(argc, argv, "veE:")) != EOF) {
+    while ((cmd = getopt(argc, argv, "vc:eE:")) != EOF) {
         switch (cmd) {
         case 'v':
             memcached_verbose++;
+            break;
+        case 'c':
+            engine_config = optarg;
             break;
         case 'e':
             embedded_memcached_server = true;
@@ -1295,6 +1299,8 @@ int main(int argc, char **argv) {
                       << "to stderr." << std::endl
                       << "               (use multiple times to increase the"
                       << " verbosity level." << std::endl
+                      << "  -c CONFIG - Additional configuration to pass to "
+                      << "bucket creation." << std::endl
                       << "  -e Embedded - Run the memcached daemon in the "
                       << "same process (for debugging only..)" << std::endl
                       << "  -E ENGINE engine type to use. <default|ep>"
@@ -1307,7 +1313,8 @@ int main(int argc, char **argv) {
      * If not running in embedded mode we need the McdEnvironment to manageSSL
      * initialization and shutdown.
      */
-    mcd_env = new McdEnvironment(!embedded_memcached_server, engine_name);
+    mcd_env = new McdEnvironment(
+            !embedded_memcached_server, engine_name, engine_config);
 
     ::testing::AddGlobalTestEnvironment(mcd_env);
 
