@@ -532,6 +532,12 @@ ADD_TEST(NAME ep-engine-with-meta-unit-tests
         COMMAND memcached-with-meta-tests -E ep)
 SET_TESTS_PROPERTIES(ep-engine-with-meta-unit-tests PROPERTIES TIMEOUT 400)
 
+IF (EP_USE_ROCKSDB)
+  ADD_TEST(NAME ep-engine-persistence-unit-tests.rocksdb
+    COMMAND memcached-persistence-tests -E ep -c "backend=rocksdb")
+  SET_TESTS_PROPERTIES(ep-engine-persistence-unit-tests.rocksdb PROPERTIES TIMEOUT 60)
+ENDIF (EP_USE_ROCKSDB)
+
 # Defines a testsuite which runs in full and value eviction
 # (persistent), ephemeral buckets (which has no eviction).
 FUNCTION(ADD_TESTSUITE name timeout)
