@@ -424,6 +424,15 @@ public:
         return result;
     }
 
+    T exchange(T desired, std::memory_order order = std::memory_order_seq_cst) {
+        std::lock_guard<std::mutex> lock(stderr_mutex);
+        std::cerr << "LoggedAtomic[" << this << "]::exchange("
+                  << "desired:" << desired << ") = ";
+        auto result = value.exchange(desired, order);
+        std::cerr << result << std::endl;
+        return result;
+    }
+
     bool compare_exchange_strong(T& expected, T desired,
                                  std::memory_order order =
                                       std::memory_order_seq_cst ) {
@@ -453,11 +462,19 @@ public:
         return value.load();
     }
 
-    T& operator++() {
+    T operator++() {
         std::lock_guard<std::mutex> lock(stderr_mutex);
         ++value;
         std::cerr << "LoggedAtomic[" << this << "]::pre-increment: "
                   << value << std::endl;
+        return value;
+    }
+
+    T operator--() {
+        std::lock_guard<std::mutex> lock(stderr_mutex);
+        --value;
+        std::cerr << "LoggedAtomic[" << this << "]::pre-decrement: " << value
+                  << std::endl;
         return value;
     }
 
