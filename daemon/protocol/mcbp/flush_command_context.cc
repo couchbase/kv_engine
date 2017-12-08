@@ -15,14 +15,14 @@
  *   limitations under the License.
  */
 #include "flush_command_context.h"
+#include "engine_wrapper.h"
 
 #include <daemon/mcbp.h>
 #include <daemon/mcaudit.h>
 
 ENGINE_ERROR_CODE FlushCommandContext::flushing() {
     state = State::Done;
-    return connection.getBucketEngine()->flush(connection.getBucketEngineAsV0(),
-                                               static_cast<void*>(&cookie));
+    return bucket_flush(cookie);
 }
 
 void FlushCommandContext::done() {

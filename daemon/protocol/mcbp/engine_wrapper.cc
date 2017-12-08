@@ -297,3 +297,15 @@ std::pair<cb::unique_item_ptr, item_info> bucket_allocate_ex(
         throw err;
     }
 }
+
+ENGINE_ERROR_CODE bucket_flush(Cookie& cookie) {
+    auto& c = cookie.getConnection();
+    auto ret = c.getBucketEngine()->flush(c.getBucketEngineAsV0(), &cookie);
+    if (ret == ENGINE_DISCONNECT) {
+        LOG_INFO(&c,
+                 "%u: %s bucket_flush return ENGINE_DISCONNECT",
+                 c.getId(),
+                 c.getDescription().c_str());
+    }
+    return ret;
+}
