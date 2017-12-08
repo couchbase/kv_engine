@@ -21,6 +21,7 @@
 
 #include <memcached/protocol_binary.h>
 #include <memcached/types.h>
+#include <platform/compress.h>
 #include <xattr/utils.h>
 
 MutationCommandContext::MutationCommandContext(Cookie& cookie,
@@ -105,6 +106,20 @@ ENGINE_ERROR_CODE MutationCommandContext::validateInput() {
         setDatatypeJSONFromValue(value, datatype);
     } catch (const std::bad_alloc&) {
         return ENGINE_ENOMEM;
+    }
+
+    /**
+     * If snappy datatype is enabled and if the datatype is SNAPPY,
+     * validate to data to ensure that it is compressed using SNAPPY
+     */
+    if (connection.isSnappyEnabled() &&
+            mcbp::datatype::is_snappy(datatype)) {
+        cb::const_char_buffer value_buf{reinterpret_cast<const char*>(value.buf),
+                                        value.len};
+        if (!cb::compression::validate(cb::compression::Algorithm::Snappy,
+                                       value_buf)) {
+            return ENGINE_EINVAL;
+        }
     }
 
     state = State::AllocateNewItem;

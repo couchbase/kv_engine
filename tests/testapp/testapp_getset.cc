@@ -488,6 +488,41 @@ static void compress_vector(const std::vector<char>& input,
     output.assign(compressed.data(), compressed.size());
 }
 
+TEST_P(GetSetTest, TestCompressedData) {
+    MemcachedConnection& conn = getConnection();
+    document.info.datatype = cb::mcbp::Datatype::Snappy;
+
+    std::vector<char> input(1024);
+    std::fill(input.begin(), input.end(), 'a');
+    compress_vector(input, document.value);
+
+    int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    conn.mutate(document, 0, MutationType::Set);
+    EXPECT_EQ(successCount + statResps() + 1,
+              getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
+}
+
+TEST_P(GetSetTest, TestInvalidCompressedData) {
+    MemcachedConnection& conn = getConnection();
+    document.info.datatype = cb::mcbp::Datatype::Snappy;
+
+    std::vector<char> input(1024);
+    std::fill(input.begin(), input.end(), 'a');
+
+    // Replacing a nonexisting document should fail
+    int einvalCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_EINVAL);
+    try {
+        conn.mutate(document, 0, MutationType::Set);
+        FAIL() << "It's not possible to set uncompressed documents if the "
+                  "datatype is set as SNAPPY";
+    } catch (ConnectionError& error) {
+        EXPECT_TRUE(error.isInvalidArguments()) << error.what();
+        // Check that we correctly increment the status counter stat
+        EXPECT_EQ(einvalCount + 1,
+                  getResponseCount(PROTOCOL_BINARY_RESPONSE_EINVAL));
+    }
+}
+
 TEST_P(GetSetTest, TestAppendCompressedSource) {
     MemcachedConnection& conn = getConnection();
     document.info.datatype = cb::mcbp::Datatype::Snappy;
