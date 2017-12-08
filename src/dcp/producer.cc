@@ -81,7 +81,16 @@ bool DcpProducer::BufferLog::pauseIfFull() {
 
 void DcpProducer::BufferLog::unpauseIfSpaceAvailable() {
     ReaderLockHolder rlh(logLock);
-    if (getState_UNLOCKED() != Full) {
+    if (getState_UNLOCKED() == Full) {
+        LOG(EXTENSION_LOG_NOTICE, "%s Unable to notify paused connection "
+                    "because DcpProducer::BufferLog is full; "
+                    "ackedBytes:%" PRIu64 ", bytesSent:%" PRIu64 ", "
+                    "maxBytes:%" PRIu64 ,
+                    producer.logHeader(),
+                    uint64_t(ackedBytes),
+                    uint64_t(bytesSent),
+                    uint64_t(maxBytes));
+    } else {
         producer.notifyPaused(true);
     }
 }
@@ -93,6 +102,14 @@ void DcpProducer::BufferLog::acknowledge(size_t bytes) {
         release_UNLOCKED(bytes);
         ackedBytes += bytes;
         if (state == Full) {
+            LOG(EXTENSION_LOG_NOTICE, "%s Notifying paused connection now that "
+                "DcpProducer::Bufferlog is no longer full; "
+                "ackedBytes:%" PRIu64 ", bytesSent:%" PRIu64 ", "
+                "maxBytes:%" PRIu64 ,
+                producer.logHeader(),
+                uint64_t(ackedBytes),
+                uint64_t(bytesSent),
+                uint64_t(maxBytes));
             producer.notifyPaused(true);
         }
     }
@@ -167,14 +184,18 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine &e, const void *cookie,
 
     backfillMgr.reset(new BackfillManager(&engine_));
 
-    checkpointCreatorTask = new ActiveStreamCheckpointProcessorTask(e);
+    checkpointCreatorTask = new ActiveStreamCheckpointProcessorTask(e, this);
     ExecutorPool::get()->schedule(checkpointCreatorTask, AUXIO_TASK_IDX);
 }
 
 DcpProducer::~DcpProducer() {
     backfillMgr.reset();
     delete rejectResp;
+}
 
+void DcpProducer::cancelCheckpointCreatorTask() {
+    static_cast<ActiveStreamCheckpointProcessorTask*>(
+            checkpointCreatorTask.get())->cancelTask();
     ExecutorPool::get()->cancel(checkpointCreatorTask->getId());
 }
 
@@ -784,18 +805,8 @@ bool DcpProducer::handleSlowStream(uint16_t vbid,
         if (stream) {
             if (stream->getName().compare(name) == 0) {
                 ActiveStream* as = static_cast<ActiveStream*>(stream.get());
-                if (as) {
-                    LOG(EXTENSION_LOG_NOTICE, "%s (vb %" PRIu16 ")  Producer "
-                        "is handling slow stream;"
-                        " state:%s lastReadSeqno:%" PRIu64
-                        " lastSentSeqno:%" PRIu64,
-                        logHeader(), vbid,
-                        Stream::stateName(as->getState()),
-                        as->getLastReadSeqno(),
-                        as->getLastSentSeqno());
-                    as->handleSlowStream();
-                    return true;
-                }
+                as->handleSlowStream();
+                return true;
             }
         }
     }
@@ -1029,9 +1040,4 @@ bool DcpProducer::bufferLogInsert(size_t bytes) {
 void DcpProducer::scheduleCheckpointProcessorTask(stream_t s) {
     static_cast<ActiveStreamCheckpointProcessorTask*>(checkpointCreatorTask.get())
         ->schedule(s);
-}
-
-void DcpProducer::clearCheckpointProcessorTaskQueues() {
-    static_cast<ActiveStreamCheckpointProcessorTask*>(checkpointCreatorTask.get())
-        ->clearQueues();
 }

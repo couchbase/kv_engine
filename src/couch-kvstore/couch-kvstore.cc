@@ -1011,9 +1011,6 @@ void CouchKVStore::addStats(const std::string &prefix,
 
 void CouchKVStore::addTimingStats(const std::string &prefix,
                                   ADD_STAT add_stat, const void *c) {
-    if (isReadOnly()) {
-        return;
-    }
     const char *prefix_str = prefix.c_str();
     addStat(prefix_str, "commit",      st.commitHisto,      add_stat, c);
     addStat(prefix_str, "compact",     st.compactHisto,     add_stat, c);

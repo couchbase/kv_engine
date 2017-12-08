@@ -62,6 +62,14 @@ Stream::~Stream() {
     clear_UNLOCKED();
 }
 
+bool Stream::isBackfilling() const {
+    return state_.load() == STREAM_BACKFILLING;
+}
+
+bool Stream::isInMemory() const {
+    return state_.load() == STREAM_IN_MEMORY;
+}
+
 void Stream::clear_UNLOCKED() {
     while (!readyQ.empty()) {
         DcpResponse* resp = readyQ.front();
@@ -238,7 +246,7 @@ DcpResponse* ActiveStream::next() {
             break;
         case STREAM_BACKFILLING:
             validTransition = true;
-            response = backfillPhase();
+            response = backfillPhase(lh);
             break;
         case STREAM_IN_MEMORY:
             validTransition = true;
@@ -283,6 +291,10 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
     uint64_t chkCursorSeqno = endSeqno;
 
     if (state_ != STREAM_BACKFILLING) {
+        producer->getLogger().log(EXTENSION_LOG_WARNING,
+                                  "(vb %" PRIu16 ") ActiveStream::"
+                                  "markDiskSnapshot: Unexpected state_:%s",
+                                  vb_, stateName(state_));
         return;
     }
 
@@ -290,9 +302,15 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
     firstMarkerSent = true;
 
     RCPtr<VBucket> vb = engine->getVBucket(vb_);
+    if (!vb) {
+        producer->getLogger().log(EXTENSION_LOG_WARNING,"(vb %" PRIu16 ") "
+                                  "ActiveStream::markDiskSnapshot, vbucket "
+                                  "does not exist", vb_);
+        return;
+    }
     // An atomic read of vbucket state without acquiring the
     // reader lock for state should suffice here.
-    if (vb && vb->getState() == vbucket_state_replica) {
+    if (vb->getState() == vbucket_state_replica) {
         if (end_seqno_ > endSeqno) {
             /* We possibly have items in the open checkpoint
                (incomplete snapshot) */
@@ -314,15 +332,22 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
                                     MARKER_FLAG_DISK));
     lastSentSnapEndSeqno.store(endSeqno, std::memory_order_relaxed);
 
-    if (!vb) {
-        endStream(END_STREAM_STATE);
-    } else if (!(flags_ & DCP_ADD_STREAM_FLAG_DISKONLY)) {
-        // Only re-register the cursor if we still need to get memory snapshots
-        CursorRegResult result =
-            vb->checkpointManager.registerCursorBySeqno(
-                                                name_, chkCursorSeqno,
-                                                MustSendCheckpointEnd::NO);
-        curChkSeqno = result.first;
+    if (!(flags_ & DCP_ADD_STREAM_FLAG_DISKONLY)) {
+        // Only re-register the cursor if we still need to get memory
+        // snapshots
+        try {
+            CursorRegResult result =
+                    vb->checkpointManager.registerCursorBySeqno(
+                            name_, chkCursorSeqno,
+                            MustSendCheckpointEnd::NO);
+
+            curChkSeqno = result.first;
+        } catch(std::exception& error) {
+            producer->getLogger().log(EXTENSION_LOG_WARNING,
+                    "(vb %" PRIu16 ") Failed to register cursor: %s",
+                    vb_, error.what());
+            endStream(END_STREAM_STATE);
+        }
     }
 
     lh.unlock();
@@ -379,29 +404,15 @@ void ActiveStream::completeBackfill() {
             producer->getLogger().log(EXTENSION_LOG_NOTICE,
                     "(vb %" PRIu16 ") Backfill complete, %" PRIu64 " items "
                     "read from disk, %" PRIu64 " from memory, last seqno read: "
-                    "%" PRIu64 "\n", vb_, uint64_t(backfillItems.disk.load()),
+                    "%" PRIu64 ", pendingBackfill : %s",
+                    vb_, uint64_t(backfillItems.disk.load()),
                     uint64_t(backfillItems.memory.load()),
-                    lastReadSeqno.load());
-
-            isBackfillTaskRunning = false;
-            if (pendingBackfill) {
-                scheduleBackfill_UNLOCKED(true);
-                pendingBackfill = false;
-            }
-
-            bool expected = false;
-            if (itemsReady.compare_exchange_strong(expected, true)) {
-                producer->notifyStreamReady(vb_);
-            }
-
-            /**
-              * MB-22451: It is important that we return here because
-              * scheduleBackfill_UNLOCKED(true) can set
-              * isBackfillTaskRunning to true.  Therefore if we don't return we
-              * will set isBackfillTaskRunning prematurely back to false, (see
-              * below).
-              */
-            return;
+                    lastReadSeqno.load(),
+                    pendingBackfill ? "True" : "False");
+        } else {
+            producer->getLogger().log(EXTENSION_LOG_WARNING,
+                    "(vb %" PRIu16 ") ActiveStream::completeBackfill: "
+                    "Unexpected state_:%s", vb_, stateName(state_));
         }
     }
 
@@ -486,7 +497,7 @@ void ActiveStream::setVBucketStateAckRecieved() {
     }
 }
 
-DcpResponse* ActiveStream::backfillPhase() {
+DcpResponse* ActiveStream::backfillPhase(LockHolder& lh) {
     DcpResponse* resp = nextQueuedItem();
 
     if (resp && (resp->getEvent() == DCP_MUTATION ||
@@ -502,19 +513,27 @@ DcpResponse* ActiveStream::backfillPhase() {
     }
 
     if (!isBackfillTaskRunning && readyQ.empty()) {
+        // Given readyQ.empty() is True resp will be NULL
         backfillRemaining.store(0, std::memory_order_relaxed);
-        if (lastReadSeqno.load() >= end_seqno_) {
-            endStream(END_STREAM_OK);
-        } else if (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER) {
-            transitionState(STREAM_TAKEOVER_SEND);
-        } else if (flags_ & DCP_ADD_STREAM_FLAG_DISKONLY) {
-            endStream(END_STREAM_OK);
+        // The previous backfill has completed.  Check to see if another
+        // backfill needs to be scheduled.
+        if (pendingBackfill) {
+            scheduleBackfill_UNLOCKED(true);
+            pendingBackfill = false;
         } else {
-            transitionState(STREAM_IN_MEMORY);
-        }
+            if (lastReadSeqno.load() >= end_seqno_) {
+                endStream(END_STREAM_OK);
+            } else if (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER) {
+                transitionState(STREAM_TAKEOVER_SEND);
+            } else if (flags_ & DCP_ADD_STREAM_FLAG_DISKONLY) {
+                endStream(END_STREAM_OK);
+            } else {
+                transitionState(STREAM_IN_MEMORY);
+            }
 
-        if (!resp) {
-            resp = nextQueuedItem();
+            if (!resp) {
+                resp = nextQueuedItem();
+            }
         }
     }
 
@@ -526,6 +545,8 @@ DcpResponse* ActiveStream::inMemoryPhase() {
         endStream(END_STREAM_OK);
     } else if (readyQ.empty()) {
         if (pendingBackfill) {
+            // Moving the state from STREAM_IN_MEMORY to
+            // STREAM_BACKFILLING will result in a backfill being scheduled
             transitionState(STREAM_BACKFILLING);
             pendingBackfill = false;
             return NULL;
@@ -777,7 +798,7 @@ void ActiveStreamCheckpointProcessorTask::wakeup() {
 }
 
 void ActiveStreamCheckpointProcessorTask::schedule(stream_t stream) {
-    pushUnique(stream);
+    pushUnique(stream->getVBucket());
 
     bool expected = false;
     if (notified.compare_exchange_strong(expected, true)) {
@@ -785,12 +806,15 @@ void ActiveStreamCheckpointProcessorTask::schedule(stream_t stream) {
     }
 }
 
-void ActiveStreamCheckpointProcessorTask::clearQueues() {
+void ActiveStreamCheckpointProcessorTask::cancelTask() {
     LockHolder lh(workQueueLock);
     while (!queue.empty()) {
         queue.pop();
     }
     queuedVbuckets.clear();
+    /* Reset the producer while holding the lock as it is a
+       SingleThreadedRCPtr */
+    producer.reset();
 }
 
 void ActiveStream::nextCheckpointItemTask() {
@@ -984,6 +1008,13 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
 
     RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
     if (!vbucket) {
+        producer->getLogger().log(EXTENSION_LOG_WARNING,
+                                  "(vb %" PRIu16 ") Failed to schedule "
+                                  "backfill as unable to get vbucket; "
+                                  "lastReadSeqno : %" PRIu64 ", "
+                                  "reschedule : %s",
+                                  vb_, lastReadSeqno.load(),
+                                  reschedule ? "True" : "False");
         return;
     }
 
@@ -1013,13 +1044,17 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
         }
         tryBackfill = true;
     } else {
-        CursorRegResult result =
-            vbucket->checkpointManager.registerCursorBySeqno(
-                                                name_,
-                                                lastReadSeqno.load(),
-                                                MustSendCheckpointEnd::NO);
-        curChkSeqno = result.first;
-        tryBackfill = result.second;
+        try {
+            std::tie(curChkSeqno, tryBackfill) =
+                    vbucket->checkpointManager.registerCursorBySeqno(
+                            name_, lastReadSeqno.load(),
+                            MustSendCheckpointEnd::NO);
+        } catch(std::exception& error) {
+            producer->getLogger().log(EXTENSION_LOG_WARNING,
+                                      "(vb %" PRIu16 ") Failed to register "
+                                      "cursor: %s", vb_, error.what());
+            endStream(END_STREAM_STATE);
+        }
 
         if (lastReadSeqno.load() > curChkSeqno) {
             throw std::logic_error("ActiveStream::scheduleBackfill_UNLOCKED: "
@@ -1056,6 +1091,52 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
         producer->scheduleBackfillManager(this, backfillStart, backfillEnd);
         isBackfillTaskRunning.store(true);
     } else {
+        if (reschedule) {
+            // Infrequent code path, see comment below.
+            producer->getLogger().log(EXTENSION_LOG_NOTICE,
+                                      "(vb %" PRIu16 ") Did not schedule "
+                                      "backfill with reschedule : True; "
+                                      "backfillStart : %" PRIu64 ", "
+                                      "backfillEnd : %" PRIu64 ", "
+                                      "flags_ : %" PRIu32 ", "
+                                      "tryBackfill : %s, "
+                                      "start_seqno_ : %" PRIu64 ", "
+                                      "end_seqno_ : %" PRIu64 ", "
+                                      "lastReadSeqno : %" PRIu64 ", "
+                                      "lastSentSeqno : %" PRIu64 ", "
+                                      "curChkSeqno : %" PRIu64 ", "
+                                      "itemsReady : %s",
+                                      vb_, backfillStart, backfillEnd, flags_,
+                                      tryBackfill ? "True" : "False",
+                                      start_seqno_, end_seqno_,
+                                      lastReadSeqno.load(),
+                                      lastSentSeqno.load(), curChkSeqno.load(),
+                                      itemsReady ? "True" : "False");
+
+            /* Cursor was dropped, but we will not do backfill.
+             * This may happen in a corner case where, the memory usage is high
+             * due to other vbuckets and persistence cursor moves ahead of
+             * replication cursor to new checkpoint open but does not persist
+             * items yet.
+             *
+             * Because we dropped the cursor but did not do a backfill (and
+             * therefore did not re-register a cursor in markDiskSnapshot) we
+             * must re-register the cursor here.
+             */
+            try {
+                CursorRegResult result =
+                            vbucket->checkpointManager.registerCursorBySeqno(
+                            name_, lastReadSeqno.load(),
+                            MustSendCheckpointEnd::NO);
+
+                    curChkSeqno = result.first;
+            } catch (std::exception& error) {
+                producer->getLogger().log(EXTENSION_LOG_WARNING,
+                                          "(vb %" PRIu16 ") Failed to register "
+                                          "cursor: %s", vb_, error.what());
+                endStream(END_STREAM_STATE);
+            }
+        }
         if (flags_ & DCP_ADD_STREAM_FLAG_DISKONLY) {
             endStream(END_STREAM_OK);
         } else if (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER) {
@@ -1064,17 +1145,15 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
             transitionState(STREAM_IN_MEMORY);
         }
         if (reschedule) {
-            /* Cursor was dropped, but we will not do backfill.
-               This may happen in a corner case where, the memory
-               usage is high due to other vbuckets and persistence cursor moves
-               ahead of replication cursor to new checkpoint open but does not
-               persist items yet.
-               Note: (1) We must not notify when we schedule backfill for the
-                         first time because the stream is not yet in producer
-                         conn list of streams 
-                     (2) It is not absolutely necessary to notify immediately
-                         as conn manager or an incoming items will cause a
-                         notification eventually, but wouldn't hurt to do so */
+            /*
+             * It is not absolutely necessary to notify immediately as conn
+             * manager or an incoming item will cause a notification eventually,
+             * but wouldn't hurt to do so.
+             *
+             * Note: must not notify when we schedule a backfill for the first
+             * time (i.e. when reschedule is false) because the stream is not
+             * yet in producer conn list of streams.
+             */
             bool inverse = false;
             if (itemsReady.compare_exchange_strong(inverse, true)) {
                 producer->notifyStreamReady(vb_);
@@ -1086,16 +1165,18 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
 void ActiveStream::handleSlowStream()
 {
     LockHolder lh(streamMutex);
+    producer->getLogger().log(EXTENSION_LOG_NOTICE,
+                              "(vb %" PRIu16 ") Handling slow stream; "
+                              "state_ : %s, "
+                              "lastReadSeqno : %" PRIu64 ", "
+                              "lastSentSeqno : %" PRIu64 ", "
+                              "isBackfillTaskRunning : %s",
+                              vb_, stateName(state_),
+                              lastReadSeqno.load(),
+                              lastSentSeqno.load(),
+                              isBackfillTaskRunning.load() ? "True" : "False");
     switch (state_.load()) {
         case STREAM_BACKFILLING:
-            if (isBackfillTaskRunning.load()) {
-                /* Drop the existing cursor and set pending backfill */
-                dropCheckpointCursor_UNLOCKED();
-                pendingBackfill = true;
-            } else {
-                scheduleBackfill_UNLOCKED(true);
-            }
-            break;
         case STREAM_IN_MEMORY:
             /* Drop the existing cursor and set pending backfill */
             dropCheckpointCursor_UNLOCKED();
