@@ -84,6 +84,7 @@ public:
         cas = 0;
         commandContext.reset();
         dynamicBuffer.clear();
+        tracer.clear();
     }
 
     /**

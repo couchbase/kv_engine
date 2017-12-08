@@ -47,8 +47,8 @@ void process_hello_packet_executor(Cookie& cookie) {
     connection.setCollectionsSupported(false);
     connection.setDuplexSupported(false);
     connection.setClustermapChangeNotificationSupported(false);
-    connection.getCookieObject().setTracingEnabled(false);
     connection.setAgentName(key);
+    connection.setTracingEnabled(false);
 
     if (!key.empty()) {
         log_buffer.append("[");
@@ -151,7 +151,7 @@ void process_hello_packet_executor(Cookie& cookie) {
             break;
 
         case cb::mcbp::Feature::Tracing:
-            connection.getCookieObject().setTracingEnabled(true);
+            connection.setTracingEnabled(true);
             added = true;
             break;
 

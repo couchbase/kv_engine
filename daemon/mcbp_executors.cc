@@ -885,7 +885,7 @@ void try_read_mcbp_command(McbpConnection& c) {
     c.addMsgHdr(true);
     MEMCACHED_PROCESS_COMMAND_START(
             c.getId(), input.data(), sizeof(cb::mcbp::Request));
-    c.getCookieObject().getTracer().clear();
+    c.getCookieObject().setTracingEnabled(c.isTracingEnabled());
 
     auto reason = validate_packet_execusion_constraints(cookie);
     if (reason != cb::mcbp::Status::Success) {

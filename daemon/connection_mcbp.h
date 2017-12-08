@@ -445,6 +445,14 @@ public:
         McbpConnection::aiostat = aiostat;
     }
 
+    bool isTracingEnabled() const {
+        return tracingEnabled;
+    }
+
+    void setTracingEnabled(bool enable) {
+        tracingEnabled = enable;
+    }
+
     bool isEwouldblock() const {
         return ewouldblock;
     }
@@ -604,6 +612,9 @@ protected:
 
     /** Is this DCP channel collection aware? */
     bool dcpCollectionAware = false;
+
+    /** Is Tracing enabled for this connection? */
+    bool tracingEnabled = false;
 
     /** The maximum requests we can process in a worker thread timeslice */
     int max_reqs_per_event =

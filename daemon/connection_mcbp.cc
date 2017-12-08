@@ -823,7 +823,7 @@ unique_cJSON_ptr McbpConnection::toJSON() const {
     if (obj != nullptr) {
         cJSON_AddItemToObject(obj, "cookie", cookie.toJSON().release());
         cJSON_AddStringToObject(obj, "agent_name", agentName.data());
-
+        cJSON_AddBoolToObject(obj, "tracing", tracingEnabled);
         cJSON_AddBoolToObject(obj, "sasl_enabled", saslAuthEnabled);
         cJSON_AddBoolToObject(obj, "dcp", isDCP());
         cJSON_AddBoolToObject(obj, "dcp_xattr_aware", isDcpXattrAware());
