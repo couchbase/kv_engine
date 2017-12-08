@@ -276,6 +276,8 @@ inline void set_econnreset(void) {
 }
 #endif
 
+SERVER_HANDLE_V1* get_server_api();
+
 void shutdown_server(void);
 bool associate_bucket(Connection& connection, const char* name);
 void disassociate_bucket(Connection& connection);

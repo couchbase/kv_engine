@@ -16,7 +16,9 @@
  */
 #include "engine_wrapper.h"
 #include <daemon/mcaudit.h>
+#include <daemon/memcached.h>
 #include <mcbp/protocol/header.h>
+#include <tracing/trace_helpers.h>
 #include <utilities/protocol2text.h>
 
 ENGINE_ERROR_CODE bucket_unknown_command(Cookie& cookie,
@@ -72,6 +74,7 @@ bool bucket_get_item_info(Cookie& cookie,
 cb::EngineErrorMetadataPair bucket_get_meta(Cookie& cookie,
                                             const DocKey& key,
                                             uint16_t vbucket) {
+    TRACE_SCOPE(get_server_api(), &cookie, cb::tracing::TraceCode::GETMETA);
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine()->get_meta(
             c.getBucketEngineAsV0(), &cookie, key, vbucket);
@@ -90,6 +93,7 @@ ENGINE_ERROR_CODE bucket_store(Cookie& cookie,
                                uint64_t& cas,
                                ENGINE_STORE_OPERATION operation,
                                DocumentState document_state) {
+    TRACE_SCOPE(get_server_api(), &cookie, cb::tracing::TraceCode::STORE);
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine()->store(c.getBucketEngineAsV0(),
                                           &cookie,
@@ -118,6 +122,7 @@ cb::EngineErrorCasPair bucket_store_if(Cookie& cookie,
                                        ENGINE_STORE_OPERATION operation,
                                        cb::StoreIfPredicate predicate,
                                        DocumentState document_state) {
+    TRACE_SCOPE(get_server_api(), &cookie, cb::tracing::TraceCode::STOREIF);
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine()->store_if(c.getBucketEngineAsV0(),
                                              &cookie,
@@ -146,6 +151,7 @@ ENGINE_ERROR_CODE bucket_remove(Cookie& cookie,
                                 uint64_t& cas,
                                 uint16_t vbucket,
                                 mutation_descr_t& mut_info) {
+    TRACE_SCOPE(get_server_api(), &cookie, cb::tracing::TraceCode::REMOVE);
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine()->remove(
             c.getBucketEngineAsV0(), &cookie, key, cas, vbucket, mut_info);
@@ -165,6 +171,7 @@ cb::EngineErrorItemPair bucket_get(Cookie& cookie,
                                    const DocKey& key,
                                    uint16_t vbucket,
                                    DocStateFilter documentStateFilter) {
+    TRACE_SCOPE(get_server_api(), &cookie, cb::tracing::TraceCode::GET);
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine()->get(c.getBucketEngineAsV0(),
                                         &cookie,
@@ -185,6 +192,7 @@ cb::EngineErrorItemPair bucket_get_if(
         const DocKey& key,
         uint16_t vbucket,
         std::function<bool(const item_info&)> filter) {
+    TRACE_SCOPE(get_server_api(), &cookie, cb::tracing::TraceCode::GETIF);
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine()->get_if(
             c.getBucketEngineAsV0(), &cookie, key, vbucket, filter);
@@ -202,6 +210,7 @@ cb::EngineErrorItemPair bucket_get_and_touch(Cookie& cookie,
                                              const DocKey& key,
                                              uint16_t vbucket,
                                              uint32_t expiration) {
+    TRACE_SCOPE(get_server_api(), &cookie, cb::tracing::TraceCode::GAT);
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine()->get_and_touch(
             c.getBucketEngineAsV0(), &cookie, key, vbucket, expiration);
@@ -219,6 +228,7 @@ cb::EngineErrorItemPair bucket_get_locked(Cookie& cookie,
                                           const DocKey& key,
                                           uint16_t vbucket,
                                           uint32_t lock_timeout) {
+    TRACE_SCOPE(get_server_api(), &cookie, cb::tracing::TraceCode::GETLOCKED);
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine()->get_locked(
             c.getBucketEngineAsV0(), &cookie, key, vbucket, lock_timeout);
@@ -238,6 +248,7 @@ ENGINE_ERROR_CODE bucket_unlock(Cookie& cookie,
                                 const DocKey& key,
                                 uint16_t vbucket,
                                 uint64_t cas) {
+    TRACE_SCOPE(get_server_api(), &cookie, cb::tracing::TraceCode::UNLOCK);
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine()->unlock(
             c.getBucketEngineAsV0(), &cookie, key, vbucket, cas);
@@ -259,6 +270,7 @@ std::pair<cb::unique_item_ptr, item_info> bucket_allocate_ex(
         const rel_time_t exptime,
         uint8_t datatype,
         uint16_t vbucket) {
+    TRACE_SCOPE(get_server_api(), &cookie, cb::tracing::TraceCode::ALLOCATE);
     // MB-25650 - We've got a document of 0 byte value and claims to contain
     //            xattrs.. that's not possible.
     if (nbytes == 0 && !mcbp::datatype::is_raw(datatype)) {
@@ -299,6 +311,8 @@ std::pair<cb::unique_item_ptr, item_info> bucket_allocate_ex(
 }
 
 ENGINE_ERROR_CODE bucket_flush(Cookie& cookie) {
+    TRACE_SCOPE(get_server_api(), &cookie, cb::tracing::TraceCode::FLUSH);
+
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine()->flush(c.getBucketEngineAsV0(), &cookie);
     if (ret == ENGINE_DISCONNECT) {
@@ -313,6 +327,7 @@ ENGINE_ERROR_CODE bucket_flush(Cookie& cookie) {
 ENGINE_ERROR_CODE bucket_get_stats(Cookie& cookie,
                                    cb::const_char_buffer key,
                                    ADD_STAT add_stat) {
+    TRACE_SCOPE(get_server_api(), &cookie, cb::tracing::TraceCode::GETSTATS);
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine()->get_stats(
             c.getBucketEngineAsV0(), &cookie, key, add_stat);

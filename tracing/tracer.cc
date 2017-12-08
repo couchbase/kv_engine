@@ -107,6 +107,8 @@ MEMCACHED_PUBLIC_API std::string to_string(
     case TraceCode::REQUEST:
         return "request";
 
+    case TraceCode::ALLOCATE:
+        return "allocate";
     case TraceCode::BGFETCH:
         return "bg.fetch";
     case TraceCode::FLUSH:
@@ -129,6 +131,8 @@ MEMCACHED_PUBLIC_API std::string to_string(
         return "lock";
     case TraceCode::OBSERVE:
         return "observe";
+    case TraceCode::REMOVE:
+        return "remove";
     case TraceCode::SETITEMINFO:
         return "set.item.info";
     case TraceCode::SETWITHMETA:

@@ -137,7 +137,7 @@ std::mutex stats_mutex;
 static void register_callback(ENGINE_HANDLE *eh,
                               ENGINE_EVENT_TYPE type,
                               EVENT_CALLBACK cb, const void *cb_data);
-static SERVER_HANDLE_V1 *get_server_api(void);
+
 static void create_listen_sockets(bool management);
 
 /* stats */
@@ -1856,8 +1856,7 @@ static void shutdown_logger() {
  * @return pointer to a structure containing the interface. The client should
  *         know the layout and perform the proper casts.
  */
-static SERVER_HANDLE_V1 *get_server_api(void)
-{
+SERVER_HANDLE_V1* get_server_api() {
     static int init;
     static SERVER_CORE_API core_api;
     static SERVER_COOKIE_API server_cookie_api;

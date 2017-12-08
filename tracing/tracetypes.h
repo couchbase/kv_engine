@@ -26,6 +26,7 @@ namespace tracing {
 enum class TraceCode {
     REQUEST, /* Whole Request */
 
+    ALLOCATE,
     BGFETCH,
     FLUSH,
     GAT,
@@ -37,6 +38,7 @@ enum class TraceCode {
     ITEMDELETE,
     LOCK,
     OBSERVE,
+    REMOVE,
     SETITEMINFO,
     SETWITHMETA,
     STORE,
