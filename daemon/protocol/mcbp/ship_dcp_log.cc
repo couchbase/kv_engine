@@ -317,10 +317,6 @@ void ship_dcp_log(McbpConnection& c) {
             dcp_message_system_event};
     ENGINE_ERROR_CODE ret;
 
-    // Begin timing DCP, each dcp callback needs to set the c.cmd for the timing
-    // to be recorded.
-    c.setStart(ProcessClock::now());
-
     c.addMsgHdr(true);
     c.setEwouldblock(false);
     ret = c.getBucketEngine()->dcp.step(

@@ -96,10 +96,6 @@ void mcbp_write_response(
         connection.setState(McbpStateMachine::State::send_data);
         connection.setWriteAndGo(McbpStateMachine::State::new_cmd);
     } else {
-        if (connection.getStart() != ProcessClock::time_point()) {
-            mcbp_collect_timings(cookie);
-            connection.setStart(ProcessClock::time_point());
-        }
         // The responseCounter is updated here as this is non-responding code
         // hence mcbp_add_header will not be called (which is what normally
         // updates the responseCounters).
@@ -303,7 +299,7 @@ void mcbp_collect_timings(Cookie& cookie) {
         return;
     }
     const auto opcode = cookie.getHeader().getOpcode();
-    const auto elapsed_ns = ProcessClock::now() - c->getStart();
+    const auto elapsed_ns = ProcessClock::now() - cookie.getStart();
     // aggregated timing for all buckets
     all_buckets[0].timings.collect(opcode, elapsed_ns);
 

@@ -387,3 +387,10 @@ void Cookie::maybeLogSlowCommand(
                     header.getOpaque());
     }
 }
+
+void Cookie::initialize(cb::const_byte_buffer header) {
+    reset();
+    setPacket(Cookie::PacketContent::Header, header);
+    setCas(0);
+    start = ProcessClock::now();
+}

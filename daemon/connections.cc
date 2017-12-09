@@ -252,7 +252,6 @@ static void conn_cleanup(McbpConnection& connection) {
     connection.setThread(nullptr);
     cb_assert(connection.getNext() == nullptr);
     connection.setSocketDescriptor(INVALID_SOCKET);
-    connection.setStart(ProcessClock::time_point());
     connection.disableSSL();
 }
 

@@ -23,6 +23,7 @@
 #include <mcbp/mcbp.h>
 #include <memcached/dockey.h>
 #include <memcached/types.h>
+#include <platform/processclock.h>
 #include <platform/uuid.h>
 
 #include <chrono>
@@ -55,6 +56,20 @@ public:
                 "Cookie::validate: Invalid magic detected");
         }
     }
+
+    /**
+     * Initialize this cookie.
+     *
+     * At some point we'll refactor this into being the constructor
+     * for the cookie. Currently we create a single cookie object per
+     * connection which handle all of the commands (and we'll call the
+     * initialize method every time we're starting on a new one), but
+     * in the future we'll have multiple commands per connection and
+     * this method should be the constructor).
+     *
+     * @param header the packet header
+     */
+    void initialize(cb::const_byte_buffer header);
 
     /**
      * Reset the Cookie object to allow it to be reused in the same
@@ -378,6 +393,13 @@ public:
      */
     void maybeLogSlowCommand(const std::chrono::milliseconds& elapsed) const;
 
+    /**
+     * Get the start time for this command
+     */
+    ProcessClock::time_point getStart() const {
+        return start;
+    }
+
 protected:
     /**
      * The connection object this cookie is bound to
@@ -416,6 +438,12 @@ protected:
 
     /** The cas to return back to the client */
     uint64_t cas = 0;
+
+    /**
+     * The high resolution timer value for when we started executing the
+     * current command.
+     */
+    ProcessClock::time_point start;
 
     /**
      *  command-specific context - for use by command executors to maintain

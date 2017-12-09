@@ -90,11 +90,6 @@ void McbpStateMachine::setCurrentState(State task) {
             connection.setCurrentEvent(EV_WRITE);
             task = State::ship_log;
         }
-
-        if (task == State::read_packet_header) {
-            // If we're starting to read data, reset any running timers
-            connection.setStart(ProcessClock::time_point());
-        }
     }
 
     if (settings.getVerbose() > 2 || task == State::closing) {
@@ -105,13 +100,6 @@ void McbpStateMachine::setCurrentState(State task) {
                    getStateName(task));
     }
 
-    if (task == State::send_data) {
-        if (connection.getStart() != ProcessClock::time_point()) {
-            mcbp_collect_timings(connection.getCookieObject());
-            connection.setStart(ProcessClock::time_point());
-        }
-        MEMCACHED_PROCESS_COMMAND_END(connection.getId(), nullptr, 0);
-    }
     currentState = task;
 }
 
@@ -293,8 +281,6 @@ bool conn_new_cmd(McbpConnection& connection) {
         return true;
     }
 
-    connection.setStart(ProcessClock::time_point());
-
     if (!connection.write->empty()) {
         LOG_WARNING(
                 &connection,
@@ -366,7 +352,9 @@ bool conn_execute(McbpConnection& connection) {
 
     connection.setEwouldblock(false);
 
-    mcbp_execute_packet(connection.getCookieObject());
+    auto& cookie = connection.getCookieObject();
+
+    mcbp_execute_packet(cookie);
 
     if (connection.isEwouldblock()) {
         connection.unregisterEvent();
@@ -381,8 +369,10 @@ bool conn_execute(McbpConnection& connection) {
                 "conn_execute: Should leave conn_execute for !EWOULDBLOCK");
     }
 
+    mcbp_collect_timings(cookie);
+    MEMCACHED_PROCESS_COMMAND_END(connection.getId(), nullptr, 0);
+
     // Consume the packet we just executed from the input buffer
-    const auto& cookie = connection.getCookieObject();
     connection.read->consume([&cookie](
                                      cb::const_byte_buffer buffer) -> ssize_t {
         size_t size = cookie.getPacket(Cookie::PacketContent::Full).size();

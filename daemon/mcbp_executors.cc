@@ -821,8 +821,7 @@ void try_read_mcbp_command(McbpConnection& c) {
                 std::to_string(sizeof(cb::mcbp::Request)) + ")");
     }
     auto& cookie = c.getCookieObject();
-    cookie.setPacket(
-            Cookie::PacketContent::Header,
+    cookie.initialize(
             cb::const_byte_buffer{input.data(), sizeof(cb::mcbp::Request)});
 
     if (settings.getVerbose() > 1) {
@@ -868,9 +867,6 @@ void try_read_mcbp_command(McbpConnection& c) {
     }
 
     c.addMsgHdr(true);
-    /* clear the returned cas value */
-    cookie.setCas(0);
-    c.setStart(ProcessClock::now());
     MEMCACHED_PROCESS_COMMAND_START(
             c.getId(), input.data(), sizeof(cb::mcbp::Request));
 

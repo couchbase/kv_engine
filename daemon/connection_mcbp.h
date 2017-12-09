@@ -436,14 +436,6 @@ public:
         McbpConnection::supports_mutation_extras = supports_mutation_extras;
     }
 
-    ProcessClock::time_point getStart() const {
-        return start;
-    }
-
-    void setStart(ProcessClock::time_point start) {
-        McbpConnection::start = start;
-    }
-
     const ENGINE_ERROR_CODE& getAiostat() const {
         return aiostat;
     }
@@ -664,12 +656,6 @@ protected:
      * mutation.
      */
     bool supports_mutation_extras = false;
-
-    /**
-     * The high resolution timer value for when we started executing the
-     * current command.
-     */
-    ProcessClock::time_point start;
 
     /**
      * The status for the async io operation
