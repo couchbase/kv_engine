@@ -2127,11 +2127,11 @@ std::pair<MutationStatus, VBNotifyCtx> VBucket::processSet(
         return {MutationStatus::NotFound, VBNotifyCtx()};
     } else {
         VBNotifyCtx notifyCtx;
-        std::tie(v, notifyCtx) = addNewStoredValue(hbl, itm, queueItmCtx);
-        if (!hasMetaData) {
-            updateRevSeqNoOfNewStoredValue(*v);
-            itm.setRevSeqno(v->getRevSeqno());
-        }
+        auto genRevSeqno = hasMetaData ? GenerateRevSeqno::No :
+                           GenerateRevSeqno::Yes;
+        std::tie(v, notifyCtx) = addNewStoredValue(hbl, itm, queueItmCtx,
+                                                   genRevSeqno);
+        itm.setRevSeqno(v->getRevSeqno());
         return {MutationStatus::WasClean, notifyCtx};
     }
 }
@@ -2194,12 +2194,14 @@ std::pair<AddStatus, VBNotifyCtx> VBucket::processAdd(
             /* A 'temp initial item' is just added to the hash table. It is
              not put on checkpoint manager or sequence list */
             v = ht.unlocked_addNewStoredValue(hbl, itm);
+            updateRevSeqNoOfNewStoredValue(*v);
         } else {
-            std::tie(v, rv.second) = addNewStoredValue(hbl, itm, queueItmCtx);
+            std::tie(v, rv.second) = addNewStoredValue(hbl, itm, queueItmCtx,
+                                                       GenerateRevSeqno::Yes);
         }
 
-        updateRevSeqNoOfNewStoredValue(*v);
         itm.setRevSeqno(v->getRevSeqno());
+
         if (v->isTempItem()) {
             rv.first = AddStatus::BgFetch;
         }

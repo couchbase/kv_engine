@@ -186,7 +186,8 @@ private:
     std::pair<StoredValue*, VBNotifyCtx> addNewStoredValue(
             const HashTable::HashBucketLock& hbl,
             const Item& itm,
-            const VBQueueItemCtx& queueItmCtx) override;
+            const VBQueueItemCtx& queueItmCtx,
+            GenerateRevSeqno genRevSeqno) override;
 
     std::tuple<StoredValue*, VBNotifyCtx> softDeleteStoredValue(
             const HashTable::HashBucketLock& hbl,

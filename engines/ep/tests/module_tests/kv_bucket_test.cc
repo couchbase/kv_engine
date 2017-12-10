@@ -830,6 +830,61 @@ TEST_P(KVBucketParamTest, MB_25948) {
                  reinterpret_cast<char*>(blob.get("_sync").data()));
 }
 
+/**
+ * Test performs the following operations
+ * 1. Store an item
+ * 2. Delete an item and make sure it is removed from memory
+ * 3. Store the item again
+ * 4. Evict the item from memory to ensure that meta data
+ *    will be retrieved from disk
+ * 5. Check that the revision seq no. retrieved from disk
+ *    is equal to 3 (the number of updates on that item)
+ */
+TEST_P(KVBucketParamTest, MB_27162) {
+     auto key = makeStoredDocKey("key");
+     std::string value("value");
+
+     Item item = store_item(vbid, key, value, 0, {cb::engine_errc::success},
+                            PROTOCOL_BINARY_RAW_BYTES);
+
+     delete_item(vbid, key);
+
+     flushVBucketToDiskIfPersistent(vbid, 1);
+
+     store_item(vbid, key, value, 0, {cb::engine_errc::success},
+                PROTOCOL_BINARY_RAW_BYTES);
+
+     flushVBucketToDiskIfPersistent(vbid, 1);
+
+     if (GetParam() != "bucket_type=ephemeral") {
+         evict_key(vbid, key);
+     }
+
+     ItemMetaData itemMeta;
+     uint32_t deleted = 0;
+     uint8_t datatype = 0;
+     auto doGetMetaData = [&]() {
+        return store->getMetaData(
+                key, vbid, cookie, itemMeta, deleted, datatype);
+     };
+
+     auto engineResult = doGetMetaData();
+
+     auto* shard = store->getVBucket(vbid)->getShard();
+     MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
+     if (engine->getConfiguration().getBucketType() == "persistent" &&
+         GetParam() == "item_eviction_policy=full_eviction") {
+         ASSERT_EQ(ENGINE_EWOULDBLOCK, engineResult);
+         // Manually run the bgfetch task, and re-attempt getMetaData
+         shard->getBgFetcher()->run(&mockTask);
+
+         engineResult = doGetMetaData();
+     }
+     // Verify that GetMeta succeeded; and metadata is correct.
+     ASSERT_EQ(ENGINE_SUCCESS, engineResult);
+     EXPECT_EQ(3, itemMeta.revSeqno);
+}
+
 class StoreIfTest : public KVBucketTest {
 public:
     void SetUp() override {

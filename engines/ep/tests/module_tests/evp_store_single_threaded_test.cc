@@ -1536,6 +1536,44 @@ TEST_F(WarmupTest, mightContainXattrs) {
     EXPECT_TRUE(engine->getKVBucket()->getVBucket(vbid)->mightContainXattrs());
 }
 
+/**
+ * Performs the following operations
+ * 1. Store an item
+ * 2. Delete the item
+ * 3. Recreate the item
+ * 4. Perform a warmup
+ * 5. Get meta data of the key to verify the revision seq no is
+ *    equal to number of updates on it
+ */
+TEST_F(WarmupTest, MB_27162) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    auto key = makeStoredDocKey("key");
+
+    store_item(vbid, key, "value");
+    flush_vbucket_to_disk(vbid);
+
+    delete_item(vbid, key);
+    flush_vbucket_to_disk(vbid);
+
+    store_item(vbid, key, "value");
+    flush_vbucket_to_disk(vbid);
+
+    resetEngineAndWarmup();
+
+    ItemMetaData itemMeta;
+    uint32_t deleted = 0;
+    uint8_t datatype = 0;
+    auto doGetMetaData = [&]() {
+        return store->getMetaData(key, vbid, cookie, itemMeta, deleted,
+                                  datatype);
+    };
+    auto engineResult = doGetMetaData();
+
+    ASSERT_EQ(ENGINE_SUCCESS, engineResult);
+    EXPECT_EQ(3, itemMeta.revSeqno);
+}
+
 TEST_F(WarmupTest, MB_25197) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 

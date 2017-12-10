@@ -1446,6 +1446,14 @@ protected:
     virtual void scheduleDeferredDeletion(
             EventuallyPersistentEngine& engine) = 0;
 
+    /**
+     * Update the revision seqno of a newly StoredValue item.
+     * We must ensure that it is greater the maxDeletedRevSeqno
+     *
+     * @param v StoredValue added newly. Its revSeqno is updated
+     */
+    void updateRevSeqNoOfNewStoredValue(StoredValue& v);
+
 private:
     void fireAllOps(EventuallyPersistentEngine& engine, ENGINE_ERROR_CODE code);
 
@@ -1487,13 +1495,16 @@ private:
      * @param itm Item to be added.
      * @param queueItmCtx holds info needed to queue an item in chkpt or vb
      *                    backfill queue
+     * @param genRevSeqno whether to generate new revision sequence number
+     *                    or not
      *
      * @return Ptr of the StoredValue added and notification info
      */
     virtual std::pair<StoredValue*, VBNotifyCtx> addNewStoredValue(
             const HashTable::HashBucketLock& hbl,
             const Item& itm,
-            const VBQueueItemCtx& queueItmCtx) = 0;
+            const VBQueueItemCtx& queueItmCtx,
+            GenerateRevSeqno genRevSeqno) = 0;
 
     /**
      * Logically (soft) delete item in all in-memory data structures. Also
@@ -1598,14 +1609,6 @@ private:
                                             int bgFetchDelay,
                                             get_options_t options,
                                             const StoredValue& v) = 0;
-
-    /**
-     * Update the revision seqno of a newly StoredValue item.
-     * We must ensure that it is greater the maxDeletedRevSeqno
-     *
-     * @param v StoredValue added newly. Its revSeqno is updated
-     */
-    void updateRevSeqNoOfNewStoredValue(StoredValue& v);
 
     /**
      * Increase the expiration count global stats and in the vbucket stats
