@@ -5154,11 +5154,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpOpen(
     (void) seqno;
     std::string connName = cb::to_string(stream_name);
 
-    if (reserveCookie(cookie) != ENGINE_SUCCESS) {
-        LOG(EXTENSION_LOG_WARNING, "Cannot create DCP connection because cookie"
-            "cannot be reserved");
-        return ENGINE_DISCONNECT;
-    }
 
     if (getEngineSpecific(cookie) != NULL) {
         LOG(EXTENSION_LOG_WARNING, "Cannot open DCP connection as another"
@@ -5201,11 +5196,19 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpOpen(
 
     if (handler == nullptr) {
         LOG(EXTENSION_LOG_WARNING, "EPEngine::dcpOpen: failed to create a handler");
-        releaseCookie(cookie);
         return ENGINE_DISCONNECT;
-    } else {
-        storeEngineSpecific(cookie, handler);
     }
+
+    // Success creating dcp object which has stored the cookie, now reserve it.
+    if (reserveCookie(cookie) != ENGINE_SUCCESS) {
+        LOG(EXTENSION_LOG_WARNING,
+            "Cannot create DCP connection because cookie "
+            "cannot be reserved");
+        return ENGINE_DISCONNECT;
+    }
+
+    storeEngineSpecific(cookie, handler);
+
     return ENGINE_SUCCESS;
 }
 
