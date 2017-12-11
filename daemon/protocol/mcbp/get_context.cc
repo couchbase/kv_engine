@@ -130,14 +130,13 @@ ENGINE_ERROR_CODE GetCommandContext::noSuchItem() {
         connection.setState(McbpStateMachine::State::new_cmd);
     } else {
         if (shouldSendKey()) {
-            mcbp_add_header(cookie,
-                            PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
-                            0,
-                            uint16_t(key.size()),
-                            uint32_t(key.size()),
-                            PROTOCOL_BINARY_RAW_BYTES);
-            connection.addIov(key.data(), key.size());
-            connection.setState(McbpStateMachine::State::send_data);
+            cookie.sendResponse(
+                    cb::mcbp::Status::KeyEnoent,
+                    {},
+                    {reinterpret_cast<const char*>(key.data()), key.size()},
+                    {},
+                    cb::mcbp::Datatype::Raw,
+                    0);
         } else {
             cookie.sendResponse(cb::mcbp::Status::KeyEnoent);
         }
