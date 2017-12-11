@@ -45,7 +45,10 @@ enum end_stream_status_t {
     END_STREAM_BACKFILL_FAIL,
     //! The stream closed early because the vbucket is rolling back and
     //! downstream needs to reopen the stream and rollback too
-    END_STREAM_ROLLBACK
+    END_STREAM_ROLLBACK,
+
+    //! All filtered collections have been removed so no more data can be sent.
+    END_STREAM_FILTER_EMPTY
 };
 
 enum dcp_marker_flag_t {
@@ -276,18 +279,18 @@ public:
           vbucket_(vbucket) {
     }
 
-    static uint32_t statusToFlags(end_stream_status_t status) {
+    static end_stream_status_t statusToFlags(end_stream_status_t status) {
         if (status == END_STREAM_ROLLBACK) {
             return END_STREAM_STATE;
         }
         return status;
     }
 
-    uint16_t getFlags() {
+    end_stream_status_t getFlags() const {
         return flags_;
     }
 
-    uint32_t getVbucket() {
+    uint16_t getVbucket() const {
         return vbucket_;
     }
 
@@ -298,7 +301,7 @@ public:
     static const uint32_t baseMsgBytes;
 
 private:
-    uint32_t flags_;
+    end_stream_status_t flags_;
     uint16_t vbucket_;
 };
 

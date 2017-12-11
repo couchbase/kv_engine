@@ -488,7 +488,7 @@ bool ActiveStream::backfillReceived(std::unique_ptr<Item> itm,
 
     if (itm->shouldReplicate()) {
         std::unique_lock<std::mutex> lh(streamMutex);
-        if (isBackfilling() && filter.allow(*itm)) {
+        if (isBackfilling() && filter.checkAndUpdate(*itm)) {
             queued_item qi(std::move(itm));
             std::unique_ptr<DcpResponse> resp(makeResponseFromItem(qi));
             auto producer = producerPtr.lock();
@@ -1117,9 +1117,12 @@ void ActiveStream::processItems(std::vector<queued_item>& items) {
             if (SystemEventReplicate::process(*qi) == ProcessStatus::Continue) {
                 curChkSeqno = qi->getBySeqno();
                 lastReadSeqnoUnSnapshotted = qi->getBySeqno();
-                if (filter.allow(*qi)) {
+                // Check if the item is allowed on the stream, note the filter
+                // updates itself for collection deletion events
+                if (filter.checkAndUpdate(*qi)) {
                     mutations.push_back(makeResponseFromItem(qi));
                 }
+
             } else if (qi->getOperation() == queue_op::checkpoint_start) {
                 /* if there are already other mutations, then they belong to the
                    previous checkpoint and hence we must create a snapshot and
@@ -1142,6 +1145,13 @@ void ActiveStream::processItems(std::vector<queued_item>& items) {
         } else {
             snapshot(mutations, mark);
         }
+    }
+
+    // After the snapshot has been processed, check if the filter is now empty
+    // a stream with an empty filter does nothing but self close
+    if (filter.empty()) {
+        // Filter is now empty empty, so endStream
+        endStream(END_STREAM_FILTER_EMPTY);
     }
 
     // Completed item processing - clear guard flag and notify producer.
@@ -1547,6 +1557,9 @@ const char* ActiveStream::getEndStreamStatusStr(end_stream_status_t status)
         return "The stream closed early due to backfill failure";
     case END_STREAM_ROLLBACK:
         return "The stream closed early because the vbucket rollback'ed";
+    case END_STREAM_FILTER_EMPTY:
+        return "The stream closed because all of the filtered collections "
+               "were deleted";
     }
     std::string msg("Status unknown: " + std::to_string(status) +
                     "; this should not have happened!");
@@ -1733,11 +1746,7 @@ void ActiveStream::processSystemEvent(DcpResponse* response) {
         if (se->getSystemEvent() == mcbp::systemevent::id::CollectionsSeparatorChanged) {
             currentSeparator =
                     std::string(se->getKey().data(), se->getKey().size());
-        } else if (se->getSystemEvent() ==
-                           mcbp::systemevent::id::DeleteCollection &&
-                   filter.remove(se->getKey())) {
-            // Filter empty, so endStream
-            endStream(END_STREAM_CLOSED);
+            // filter needs new separator?
         }
     }
 }

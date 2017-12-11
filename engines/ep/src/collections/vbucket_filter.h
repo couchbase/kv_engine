@@ -52,8 +52,6 @@ class Manifest;
 
 class Filter {
 public:
-    class EmptyException : public std::exception {};
-
     /**
      * Construct a Collections::VB::Filter using the producer's
      * Collections::Filter and the vbucket's collections manifest.
@@ -73,19 +71,20 @@ public:
            const ::Collections::VB::Manifest& manifest);
 
     /**
-     * @param item an Item to check against the filter
-     * @returns if the filter allows key based on the filter contents
+     * Check the item and if required, update the filter.
+     * If the item represents a collection deletion and this filter matches the
+     * collection, we must update the filter so that no more matching items
+     * would be allowed.
+     *
+     * @param item an Item to be processed.
+     * @return if the Item is allowed to be sent on the DcpStream
      */
-    bool allow(const Item& item) const;
+    bool checkAndUpdate(const Item& item);
 
     /**
-     * Attempt to remove the collection from the filter, no-op if the filter
-     * does include the collection.
-     *
-     * @param collection a collection name to remove.
-     * @returns true if the filter is empty
+     * @return if the filter is empty
      */
-    bool remove(cb::const_char_buffer collection);
+    bool empty() const;
 
     /**
      * Add statistics for this filter, currently just depicts the object's state
@@ -109,6 +108,11 @@ protected:
      * @param return true if the filter says this event should be allowed
      */
     bool allowSystemEvent(const Item& item) const;
+
+    /**
+     * Remove the collection of the item from the filter
+     */
+    void remove(const Item& item);
 
     using Container = ::std::unordered_map<cb::const_char_buffer,
                                            std::unique_ptr<std::string>>;

@@ -25,6 +25,7 @@
 #include "collections/filter.h"
 #include "connhandler.h"
 #include "dcp/dcp-types.h"
+#include "dcp/response.h"
 
 class BackfillManager;
 class DcpResponse;
@@ -287,6 +288,17 @@ protected:
     std::unique_ptr<DcpResponse> getNextItem();
 
     size_t getItemsRemaining();
+
+    /**
+     * Map the end_stream_status_t to one the client can understand.
+     * Maps END_STREAM_FILTER_EMPTY to END_STREAM_OK if the client does not
+     * understands collections
+     * @param cookie client cookie
+     * @param status the status to map
+     * @param a status safe for the client
+     */
+    end_stream_status_t mapEndStreamStatus(const void* cookie,
+                                           end_stream_status_t status) const;
 
     std::string priority;
 

@@ -63,52 +63,56 @@ Collections::VB::Filter::Filter(const Collections::Filter& filter,
                 c.c_str());
         }
     }
-
-    // All collections dropped
-    if (this->filter.empty() && !defaultAllowed) {
-        throw EmptyException();
-    }
 }
 
-bool Collections::VB::Filter::allow(const Item& item) const {
+bool Collections::VB::Filter::checkAndUpdate(const Item& item) {
     // passthrough, everything is allowed.
     if (passthrough) {
         return true;
     }
 
+    bool allowed = false;
     // The presence of $default is a simple check against defaultAllowed
     if (item.getKey().getDocNamespace() == DocNamespace::DefaultCollection &&
         defaultAllowed) {
-        return true;
+        allowed = true;
     } else if (item.getKey().getDocNamespace() == DocNamespace::Collections &&
                !filter.empty()) {
         // Collections require a look up in the filter
         const auto cKey = Collections::DocKey::make(item.getKey(), separator);
-        return filter.count(cKey.getCollection());
-    } else if (item.getKey().getDocNamespace() == DocNamespace::System &&
-               systemEventsAllowed) {
-        return allowSystemEvent(item);
+        allowed = filter.count(cKey.getCollection());
+    } else if (item.getKey().getDocNamespace() == DocNamespace::System) {
+        allowed = allowSystemEvent(item);
+
+        if (item.isDeleted()) {
+            remove(item);
+        }
     }
-    return false;
+    return allowed;
 }
 
-bool Collections::VB::Filter::remove(cb::const_char_buffer collection) {
+void Collections::VB::Filter::remove(const Item& item) {
     if (passthrough) {
-        // passthrough can never be empty, so return false
-        return false;
+        return;
     }
 
-    if (collection == DefaultCollectionIdentifier) {
+    const auto cKey = Collections::DocKey::make(item.getKey(), separator);
+    if (cKey.getKey() == DefaultCollectionIdentifier) {
         defaultAllowed = false;
     } else {
-        filter.erase(collection);
+        filter.erase(cKey.getKey());
     }
+}
 
-    // If the map is empty and the defaultCollection isn't present, we're empty
+bool Collections::VB::Filter::empty() const {
     return filter.empty() && !defaultAllowed;
 }
 
 bool Collections::VB::Filter::allowSystemEvent(const Item& item) const {
+    if (!systemEventsAllowed) {
+        return false;
+    }
+
     switch (SystemEvent(item.getFlags())) {
     case SystemEvent::Collection: {
         const auto cKey = Collections::DocKey::make(item.getKey(), separator);
@@ -154,6 +158,13 @@ void Collections::VB::Filter::addStats(ADD_STAT add_stat,
                          prefix.c_str(),
                          vb);
         add_casted_stat(buffer, defaultAllowed, add_stat, c);
+
+        checked_snprintf(buffer,
+                         bsize,
+                         "%s:filter_%d_system_allowed",
+                         prefix.c_str(),
+                         vb);
+        add_casted_stat(buffer, systemEventsAllowed, add_stat, c);
 
         checked_snprintf(
                 buffer, bsize, "%s:filter_%d_size", prefix.c_str(), vb);

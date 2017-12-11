@@ -387,29 +387,21 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
                                              snap_start_seqno,
                                              snap_end_seqno);
     } else {
-        try {
-            s = std::make_shared<ActiveStream>(&engine_,
-                                               shared_from_this(),
-                                               getName(),
-                                               flags,
-                                               opaque,
-                                               *vb,
-                                               start_seqno,
-                                               end_seqno,
-                                               vbucket_uuid,
-                                               snap_start_seqno,
-                                               snap_end_seqno,
-                                               includeValue,
-                                               includeXattrs,
-                                               filter,
-                                               vb->getManifest());
-        } catch (Collections::VB::Filter::EmptyException& e) {
-            LOG(EXTENSION_LOG_WARNING,
-                "%s (vb %d) Stream request failed, constructed filter is empty",
-                logHeader(),
-                vbucket);
-            return ENGINE_UNKNOWN_COLLECTION;
-        }
+        s = std::make_shared<ActiveStream>(&engine_,
+                                           shared_from_this(),
+                                           getName(),
+                                           flags,
+                                           opaque,
+                                           *vb,
+                                           start_seqno,
+                                           end_seqno,
+                                           vbucket_uuid,
+                                           snap_start_seqno,
+                                           snap_end_seqno,
+                                           includeValue,
+                                           includeXattrs,
+                                           filter,
+                                           vb->getManifest());
     }
 
     {
@@ -542,10 +534,11 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
         case DcpResponse::Event::StreamEnd:
         {
             StreamEndResponse* se = static_cast<StreamEndResponse*>(resp.get());
-            ret = producers->stream_end(getCookie(),
-                                        se->getOpaque(),
-                                        se->getVbucket(),
-                                        se->getFlags());
+            ret = producers->stream_end(
+                    getCookie(),
+                    se->getOpaque(),
+                    se->getVbucket(),
+                    mapEndStreamStatus(getCookie(), se->getFlags()));
             break;
         }
         case DcpResponse::Event::Mutation:
@@ -1246,4 +1239,13 @@ std::shared_ptr<Stream> DcpProducer::findStream(uint16_t vbid) {
     } else {
         return nullptr;
     }
+}
+
+end_stream_status_t DcpProducer::mapEndStreamStatus(
+        const void* cookie, end_stream_status_t status) const {
+    if (status == END_STREAM_FILTER_EMPTY &&
+        !engine_.isCollectionsSupported(cookie)) {
+        return END_STREAM_OK;
+    }
+    return status;
 }

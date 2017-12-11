@@ -35,11 +35,14 @@
 
 extern uint8_t dcp_last_op;
 extern std::string dcp_last_key;
+extern uint32_t dcp_last_flags;
 
 class CollectionsDcpTest : public SingleThreadedKVBucketTest {
 public:
     CollectionsDcpTest()
         : cookieC(create_mock_cookie()), cookieP(create_mock_cookie()) {
+        mock_set_collections_support(cookieP, true);
+        mock_set_collections_support(cookieC, true);
     }
 
     // Setup a producer/consumer ready for the test
@@ -60,10 +63,7 @@ public:
                 ->getCollectionsManifest(vbid);
     }
 
-    void createDcpObjects(const std::string& filter, bool dcpCollectionAware) {
-        CollectionsDcpTest::consumer = std::make_shared<MockDcpConsumer>(
-                *engine, cookieC, "test_consumer");
-
+    void createDcpProducer(const std::string& filter, bool dcpCollectionAware) {
         int flags = DCP_OPEN_INCLUDE_XATTRS;
         if (dcpCollectionAware) {
             flags |= DCP_OPEN_COLLECTIONS;
@@ -84,11 +84,11 @@ public:
         // Need to enable NOOP for XATTRS (and collections).
         producer->setNoopEnabled(true);
 
-        store->setVBucketState(replicaVB, vbucket_state_replica, false);
-        ASSERT_EQ(ENGINE_SUCCESS,
-                  consumer->addStream(/*opaque*/ 0,
-                                      replicaVB,
-                                      /*flags*/ 0));
+        // Patch our local callback into the handlers
+        producers->system_event = &CollectionsDcpTest::sendSystemEvent;
+    }
+
+    void createDcpStream() {
         uint64_t rollbackSeqno;
         ASSERT_EQ(ENGINE_SUCCESS,
                   producer->streamRequest(
@@ -102,10 +102,16 @@ public:
                           0, // snap_end_seqno,
                           &rollbackSeqno,
                           &CollectionsDcpTest::dcpAddFailoverLog));
+    }
 
-        // Patch our local callback into the handlers
-        producers->system_event = &CollectionsDcpTest::sendSystemEvent;
-
+    void createDcpConsumer() {
+        CollectionsDcpTest::consumer = std::make_shared<MockDcpConsumer>(
+                *engine, cookieC, "test_consumer");
+        store->setVBucketState(replicaVB, vbucket_state_replica, false);
+        ASSERT_EQ(ENGINE_SUCCESS,
+                  consumer->addStream(/*opaque*/ 0,
+                                      replicaVB,
+                                      /*flags*/ 0));
         // Setup a snapshot on the consumer
         ASSERT_EQ(ENGINE_SUCCESS,
                   consumer->snapshotMarker(/*opaque*/ 1,
@@ -113,6 +119,12 @@ public:
                                            /*start_seqno*/ 0,
                                            /*end_seqno*/ 100,
                                            /*flags*/ 0));
+    }
+
+    void createDcpObjects(const std::string& filter, bool dcpCollectionAware) {
+        createDcpConsumer();
+        createDcpProducer(filter, dcpCollectionAware);
+        createDcpStream();
     }
 
     void TearDown() override {
@@ -141,8 +153,10 @@ public:
         producer->getCheckpointSnapshotTask().run();
     }
 
-    void notifyAndStepToCheckpoint(bool expectSnapshot = true,
-                                   bool fromMemory = true) {
+    void notifyAndStepToCheckpoint(
+            cb::mcbp::ClientOpcode expectedOp =
+                    cb::mcbp::ClientOpcode::DcpSnapshotMarker,
+            bool fromMemory = true) {
         auto vb = store->getVBucket(vbid);
         ASSERT_NE(nullptr, vb.get());
 
@@ -164,9 +178,9 @@ public:
 
         // Next step which will process a snapshot marker and then the caller
         // should now be able to step through the checkpoint
-        if (expectSnapshot) {
+        if (expectedOp != cb::mcbp::ClientOpcode::Invalid) {
             EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
-            EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER, dcp_last_op);
+            EXPECT_EQ(uint8_t(expectedOp), dcp_last_op);
         } else {
             EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
         }
@@ -340,7 +354,8 @@ void CollectionsDcpTest::testDcpCreateDelete(int expectedCreates,
                                              int expectedDeletes,
                                              int expectedMutations,
                                              bool fromMemory) {
-    notifyAndStepToCheckpoint(true /* expect a snapshot*/, fromMemory);
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker,
+                              fromMemory);
 
     int creates = 0, deletes = 0, mutations = 0;
     // step until done
@@ -648,45 +663,6 @@ TEST_F(CollectionsFilteredDcpErrorTest, error1) {
     }
 }
 
-TEST_F(CollectionsFilteredDcpErrorTest, error2) {
-    // Set some collections
-    store->setCollections({R"({"separator": ":",
-              "collections":[{"name":"$default", "uid":"0"},
-                             {"name":"meat", "uid":"1"},
-                             {"name":"dairy", "uid":"2"}]})"});
-
-    std::string filter = R"({"collections":["meat"]})";
-    cb::const_byte_buffer buffer{
-            reinterpret_cast<const uint8_t*>(filter.data()), filter.size()};
-    // Can't create a filter for unknown collections
-    producer = std::make_shared<MockDcpProducer>(*engine,
-                                                 cookieP,
-                                                 "test_producer",
-                                                 DCP_OPEN_COLLECTIONS,
-                                                 buffer,
-                                                 false /*startTask*/);
-    producer->setNoopEnabled(true);
-
-    // Remove meat
-    store->setCollections({R"({"separator": ":",
-              "collections":[{"name":"$default", "uid":"0"},
-                             {"name":"dairy", "uid":"2"}]})"});
-
-    // Now should be prevented from creating a new stream
-    uint64_t rollbackSeqno = 0;
-    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
-              producer->streamRequest(0, // flags
-                                      1, // opaque
-                                      vbid,
-                                      0, // start_seqno
-                                      ~0ull, // end_seqno
-                                      0, // vbucket_uuid,
-                                      0, // snap_start_seqno,
-                                      0, // snap_end_seqno,
-                                      &rollbackSeqno,
-                                      &CollectionsDcpTest::dcpAddFailoverLog));
-}
-
 class CollectionsFilteredDcpTest : public CollectionsDcpTest {
 public:
     CollectionsFilteredDcpTest() : CollectionsDcpTest() {
@@ -799,7 +775,7 @@ TEST_F(CollectionsFilteredDcpTest, MB_24572) {
     store_item(vbid, {"meat::one1", DocNamespace::Collections}, "value");
     store_item(vbid, {"meat::two2", DocNamespace::Collections}, "value");
     store_item(vbid, {"meat::three3", DocNamespace::Collections}, "value");
-    notifyAndStepToCheckpoint(false /* no checkpoint should be generated*/);
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::Invalid);
 }
 
 TEST_F(CollectionsFilteredDcpTest, default_only) {
@@ -875,6 +851,83 @@ TEST_F(CollectionsFilteredDcpTest, stream_closes) {
 
     // Now step the producer to transfer the close stream
     EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+
+    // And no more
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+}
+
+/**
+ * Test that creation of a stream that resulted in an empty filter, because
+ * all the collection have been deleted, just goes to stream end.
+ */
+TEST_F(CollectionsFilteredDcpTest, empty_filter_stream_closes) {
+    VBucketPtr vb = store->getVBucket(vbid);
+
+    // Perform a create of meat via the bucket level (filters are worked out
+    // from the bucket manifest)
+    store->setCollections({R"({"separator": ":",
+              "collections":[{"name":"$default", "uid":"0"},
+                             {"name":"meat", "uid":"1"}]})"});
+
+    createDcpProducer(R"({"collections":["meat"]})", true);
+    createDcpConsumer();
+
+    // Perform a delete of meat
+    store->setCollections({R"({"separator": ":",
+                            "collections":[{"name":"$default", "uid":"0"}]})"});
+
+    createDcpStream();
+
+    auto vb0Stream = producer->findStream(0);
+    ASSERT_NE(nullptr, vb0Stream.get());
+
+    EXPECT_TRUE(vb0Stream->isActive());
+
+    // Expect a stream end marker and no data
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpStreamEnd);
+    EXPECT_EQ(END_STREAM_FILTER_EMPTY, dcp_last_flags);
+
+    // Done... collection deletion of default has closed the stream
+    EXPECT_FALSE(vb0Stream->isActive());
+
+    // And no more
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+}
+
+TEST_F(CollectionsFilteredDcpTest, legacy_stream_closes) {
+    VBucketPtr vb = store->getVBucket(vbid);
+
+    // Perform a create of meat via the bucket level (filters are worked out
+    // from the bucket manifest)
+    store->setCollections({R"({"separator": ":",
+              "collections":[{"name":"$default", "uid":"0"},
+                             {"name":"meat", "uid":"1"}]})"});
+    // Make cookie look like a non-collection client
+    mock_set_collections_support(cookieP, false);
+    mock_set_collections_support(cookieC, false);
+    // Setup legacy DCP, it only receives default collection mutation/deletion
+    // and should self-close if the default collection were to be deleted
+    createDcpObjects({}, false);
+
+    auto vb0Stream = producer->findStream(0);
+    ASSERT_NE(nullptr, vb0Stream.get());
+
+    // No keys have been written and no event can be sent, so expect nothing
+    // after kicking the stream into life
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::Invalid);
+
+    EXPECT_TRUE(vb0Stream->isActive());
+
+    // Perform a delete of $default
+    store->setCollections({R"({"separator": ":",
+              "collections":[{"name":"meat", "uid":"1"}]})"});
+
+    // Expect a stream end marker
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpStreamEnd);
+    EXPECT_EQ(END_STREAM_OK, dcp_last_flags);
+
+    // Done... collection deletion of default has closed the stream
+    EXPECT_FALSE(vb0Stream->isActive());
 
     // And no more
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
