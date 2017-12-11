@@ -1006,8 +1006,8 @@ rocksdb::ColumnFamilyOptions RocksDBKVStore::getBaselineSeqnoCFOptions() {
 
 rocksdb::ColumnFamilyOptions RocksDBKVStore::getBaselineLocalCFOptions() {
     rocksdb::ColumnFamilyOptions cfOptions;
-    // Set the Memtable size to 4KB
-    cfOptions.write_buffer_size = 4096;
+    // Set the Memtable size to the current RocksDB minimum (64KB)
+    cfOptions.write_buffer_size = 65536;
     return cfOptions;
 }
 
