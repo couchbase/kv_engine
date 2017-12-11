@@ -1765,43 +1765,6 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
     info.info.features[info.info.num_features++].feature = ENGINE_FEATURE_DATATYPE;
 }
 
-/// RAII wrapper for reserving the cookie
-class ReservedCookie {
-public:
-    ReservedCookie(const void* cookie, EventuallyPersistentEngine& engine)
-        : cookie(cookie), engine(engine) {
-        if (engine.reserveCookie(cookie) != ENGINE_SUCCESS) {
-            cookie = nullptr;
-        }
-    }
-
-    ~ReservedCookie() {
-        if (cookie) {
-            engine.releaseCookie(cookie);
-        }
-    }
-
-    /**
-     * @return if the constructor could not reserve the cookie
-     */
-    bool reserved() const {
-        return cookie != nullptr;
-    }
-
-    /**
-     * @return the managed cookie, this object will not call releaseCookie
-     */
-    const void* release() {
-        const void* rv = cookie;
-        cookie = nullptr;
-        return rv;
-    }
-
-private:
-    const void* cookie;
-    EventuallyPersistentEngine& engine;
-};
-
 ENGINE_ERROR_CODE EventuallyPersistentEngine::reserveCookie(const void *cookie)
 {
     EventuallyPersistentEngine *epe =
@@ -5179,9 +5142,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpOpen(
     (void) seqno;
     std::string connName = cb::to_string(stream_name);
 
-    ReservedCookie reservedCookie(cookie, *this);
-
-    if (!reservedCookie.reserved()) {
+    if (reserveCookie(cookie) != ENGINE_SUCCESS) {
         LOG(EXTENSION_LOG_WARNING, "Cannot create DCP connection because cookie"
             "cannot be reserved");
         return ENGINE_DISCONNECT;
@@ -5228,9 +5189,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpOpen(
 
     if (handler == nullptr) {
         LOG(EXTENSION_LOG_WARNING, "EPEngine::dcpOpen: failed to create a handler");
+        releaseCookie(cookie);
         return ENGINE_DISCONNECT;
     } else {
-        storeEngineSpecific(reservedCookie.release(), handler);
+        storeEngineSpecific(cookie, handler);
     }
     return ENGINE_SUCCESS;
 }
