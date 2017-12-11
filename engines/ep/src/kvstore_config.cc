@@ -53,6 +53,10 @@ KVStoreConfig::KVStoreConfig(Configuration& config, uint16_t shardid)
     rocksdbBlockCacheSize = config.getRocksdbBlockCacheSize();
     rocksdbDefaultCfMemBudget = config.getRocksdbDefaultCfMemBudget();
     rocksdbSeqnoCfMemBudget = config.getRocksdbSeqnoCfMemBudget();
+    rocksdbDefaultCfOptimizeCompaction =
+            config.getRocksdbDefaultCfOptimizeCompaction();
+    rocksdbSeqnoCfOptimizeCompaction =
+            config.getRocksdbSeqnoCfOptimizeCompaction();
 }
 
 KVStoreConfig::KVStoreConfig(uint16_t _maxVBuckets,

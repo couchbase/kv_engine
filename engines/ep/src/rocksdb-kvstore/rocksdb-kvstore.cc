@@ -981,10 +981,19 @@ rocksdb::ColumnFamilyOptions RocksDBKVStore::getBaselineDefaultCFOptions() {
     // 'rocksdb_block_cache_size'
     cfOptions.OptimizeForPointLookup(1);
 
-    // Overwrite Level-style Compaction options if Level-style Compaction
-    // Optimization is enabled for the 'default' CF
+    // Set the given Memory Budget as the write_buffer_size
     if (configuration.getRocksdbDefaultCfMemBudget() > 0) {
-        cfOptions.OptimizeLevelStyleCompaction(configuration.getRocksdbDefaultCfMemBudget());
+        cfOptions.write_buffer_size =
+                configuration.getRocksdbDefaultCfMemBudget();
+    }
+
+    // Overwrite Compaction options if Compaction Optimization is enabled
+    // for the 'default' CF
+    if (configuration.getRocksdbDefaultCfOptimizeCompaction() == "level") {
+        cfOptions.OptimizeLevelStyleCompaction(cfOptions.write_buffer_size);
+    } else if (configuration.getRocksdbDefaultCfOptimizeCompaction() ==
+               "universal") {
+        cfOptions.OptimizeUniversalStyleCompaction(cfOptions.write_buffer_size);
     }
 
     return cfOptions;
@@ -995,10 +1004,19 @@ rocksdb::ColumnFamilyOptions RocksDBKVStore::getBaselineSeqnoCFOptions() {
 
     cfOptions.comparator = &vbidSeqnoComparator;
 
-    // Overwrite Level-style Compaction options if Level-style Compaction
-    // Optimization is enabled for the 'seqno' CF
+    // Set the given Memory Budget as the write_buffer_size
     if (configuration.getRocksdbSeqnoCfMemBudget() > 0) {
-        cfOptions.OptimizeLevelStyleCompaction(configuration.getRocksdbSeqnoCfMemBudget());
+        cfOptions.write_buffer_size =
+                configuration.getRocksdbSeqnoCfMemBudget();
+    }
+
+    // Overwrite Compaction options if Compaction Optimization is enabled
+    // for the 'seqno' CF
+    if (configuration.getRocksdbSeqnoCfOptimizeCompaction() == "level") {
+        cfOptions.OptimizeLevelStyleCompaction(cfOptions.write_buffer_size);
+    } else if (configuration.getRocksdbSeqnoCfOptimizeCompaction() ==
+               "universal") {
+        cfOptions.OptimizeUniversalStyleCompaction(cfOptions.write_buffer_size);
     }
 
     return cfOptions;

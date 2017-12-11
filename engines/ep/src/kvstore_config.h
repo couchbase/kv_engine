@@ -171,6 +171,16 @@ public:
         return rocksdbSeqnoCfMemBudget;
     }
 
+    // Return the RocksDB Compaction Optimization type for the 'default' CF
+    std::string getRocksdbDefaultCfOptimizeCompaction() {
+        return rocksdbDefaultCfOptimizeCompaction;
+    }
+
+    // Return the RocksDB Compaction Optimization type for the 'seqno' CF
+    std::string getRocksdbSeqnoCfOptimizeCompaction() {
+        return rocksdbSeqnoCfOptimizeCompaction;
+    }
+
 private:
     class ConfigChangeListener;
 
@@ -212,11 +222,15 @@ private:
     // RocksDB Block Cache size
     size_t rocksdbBlockCacheSize = 0;
 
-    // RocksDB memtable memory budget for Level-style compaction optimization
-    // for the 'default' column family
+    // RocksDB memtable memory budget for the 'default' CF
     size_t rocksdbDefaultCfMemBudget = 0;
 
-    // RocksDB memtable memory budget for Level-style compaction optimization
-    // for the 'seqno' column family
+    // RocksDB memtable memory budget for the 'seqno' CF
     size_t rocksdbSeqnoCfMemBudget = 0;
+
+    // RocksDB flag to enable Compaction Optimization for the 'default' CF
+    std::string rocksdbDefaultCfOptimizeCompaction;
+
+    // RocksDB flag to enable Compaction Optimization for the 'seqno' CF
+    std::string rocksdbSeqnoCfOptimizeCompaction;
 };

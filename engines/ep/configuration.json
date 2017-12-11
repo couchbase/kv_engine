@@ -862,13 +862,37 @@
         },
         "rocksdb_default_cf_mem_budget": {
             "default": "0",
-            "descr": "Memtable memory budget (in Bytes) for Level-style Compaction Optimization for the 'default' Column Family. It enables optimization if the value is greater then 0.",
+            "descr": "Memtable memory budget (in Bytes) for the 'default' Column Family.",
             "type": "size_t"
         },
         "rocksdb_seqno_cf_mem_budget": {
             "default": "0",
-            "descr": "Memtable memory budget (in Bytes) for Level-style Compaction Optimization for the 'seqno' Column Family. It enables optimization if the value is greater then 0.",
+            "descr": "Memtable memory budget (in Bytes) for the 'seqno' Column Family.",
             "type": "size_t"
+        },
+        "rocksdb_default_cf_optimize_compaction": {
+            "default": "none",
+            "descr": "Enable Compaction Optimization for the 'default' ColumnFamily.",
+            "type": "std::string",
+            "validator": {
+                "enum": [
+                    "none",
+                    "level",
+                    "universal"
+                ]
+            }
+        },
+        "rocksdb_seqno_cf_optimize_compaction": {
+            "default": "none",
+            "descr": "Enable Compaction Optimization for the 'seqno' ColumnFamily.",
+            "type": "std::string",
+            "validator": {
+                "enum": [
+                    "none",
+                    "level",
+                    "universal"
+                ]
+            }
         },
         "time_synchronization": {
             "default": "disabled",
