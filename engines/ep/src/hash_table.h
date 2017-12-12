@@ -718,7 +718,7 @@ private:
     template <typename Pred>
     StoredValue::UniquePtr hashChainRemoveFirst(StoredValue::UniquePtr& chain,
                                                 Pred p) {
-        if (p(chain.get())) {
+        if (p(chain.get().get())) {
             // Head element:
             auto removed = std::move(chain);
             chain = std::move(removed->getNext());
@@ -728,7 +728,7 @@ private:
         // Not head element, start searching.
         for (StoredValue::UniquePtr* curr = &chain; curr->get()->getNext();
              curr = &curr->get()->getNext()) {
-            if (p(curr->get()->getNext().get())) {
+            if (p(curr->get()->getNext().get().get())) {
                 // next element matches predicate - splice it out of the list.
                 auto removed = std::move(curr->get()->getNext());
                 curr->get()->setNext(std::move(removed->getNext()));

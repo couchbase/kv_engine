@@ -220,7 +220,7 @@ void BasicLinkedList::markItemStale(std::lock_guard<std::mutex>& listWriteLg,
                                     StoredValue* newSv) {
     /* Release the StoredValue as BasicLinkedList does not want it to be of
        owned type */
-    StoredValue* v = ownedSv.release();
+    StoredValue* v = ownedSv.release().get();
 
     /* Update the stats tracking the memory owned by the list */
     staleSize.fetch_add(v->size());

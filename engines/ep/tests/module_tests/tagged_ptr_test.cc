@@ -158,3 +158,35 @@ TEST(TaggedPtrTest, updateTagTest) {
     TaggedPtr<TestObject>::updateTag(ptr, 456);
     EXPECT_EQ(456, ptr.get().getTag());
 }
+
+/// Check that the tag can be set using the updateTag helper method when pointer
+/// is a std::unique_ptr
+TEST(TaggedPtrTest, updateTagTestUniquePtr) {
+    class TestObject {
+    public:
+        TestObject() : data(123) {
+        }
+
+        uint32_t getData() {
+            return data;
+        }
+
+    private:
+        uint32_t data;
+    };
+
+    // Custom deleter for TestObject objects
+    struct Deleter {
+        void operator()(TaggedPtr<TestObject> val) {
+            // Does not do anything
+        }
+    };
+
+    using UniquePtr =
+            std::unique_ptr<TestObject, TaggedPtrDeleter<TestObject, Deleter>>;
+
+    TestObject to;
+    UniquePtr ptr{TaggedPtr<TestObject>(&to)};
+    TaggedPtr<TestObject>::updateTag(ptr, 456);
+    EXPECT_EQ(456, ptr.get().getTag());
+}

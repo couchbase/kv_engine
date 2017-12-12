@@ -236,17 +236,6 @@ TYPED_TEST(ValueTest, nru) {
     EXPECT_EQ(INITIAL_NRU_VALUE, this->sv->getNRUValue());
 }
 
-/// Check the use of Tags in a StoredValue::UniquePtr.
-TYPED_TEST(ValueTest, UniqueTaggedPtrTest) {
-    auto obj = this->sv.get();
-
-    // Tag should start at zero i.e. empty
-    ASSERT_EQ(0, this->sv.getTag());
-    this->sv.setTag(123);
-    EXPECT_EQ(123, this->sv.getTag());
-    EXPECT_EQ(obj, this->sv.get());
-}
-
 /// Check that StoredValue / OrderedStoredValue don't unexpectedly change in
 /// size (we've carefully crafted them to be as efficient as possible).
 TEST(StoredValueTest, expectedSize) {

@@ -40,7 +40,7 @@
 template <typename T>
 class TaggedPtr {
 public:
-    typedef T element_type;
+    using element_type = T;
 
     // Need to define all methods which unique_ptr expects from a pointer type
     TaggedPtr() : raw(0) {
@@ -97,8 +97,8 @@ public:
     }
 
     // Required by MS Compiler
-    static T* pointer_to(element_type& r) {
-        return std::addressof(r);
+    static TaggedPtr<T> pointer_to(element_type& r) {
+        return TaggedPtr<T>(std::addressof(r));
     }
 
     /**
@@ -126,4 +126,20 @@ private:
 
     // Tag held in top 16 bits.
     uintptr_t raw;
+};
+
+/*
+ * The class provides a Deleter for std::unique_ptr.  It defines a type pointer
+ * which is the TaggedPtr<T> and means that get() will return the TaggedPtr<T>.
+ * It also templates on the Deleter, so a customer deleter can be passed in.
+ */
+template <typename T, typename S>
+class TaggedPtrDeleter {
+public:
+    // Need to specify a custom pointer type
+    using pointer = TaggedPtr<T>;
+
+    void operator()(TaggedPtr<T> item) {
+        S()(item.get());
+    }
 };

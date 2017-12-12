@@ -651,10 +651,10 @@ TEST_F(HashTableTest, ReleaseItem) {
     auto releasedSv1 = ht.unlocked_release(hbl, releaseKey1);
 
     /* Validate the copied contents */
-    EXPECT_EQ(*vToRelease1, *(releasedSv1));
+    EXPECT_EQ(*vToRelease1, *(releasedSv1).get());
 
     /* Validate the HT element replace (hence released from HT) */
-    EXPECT_EQ(vToRelease1, releasedSv1.get());
+    EXPECT_EQ(vToRelease1, releasedSv1.get().get());
 
     /* Validate the HT count */
     EXPECT_EQ(numItems - 1, ht.getNumItems());
@@ -675,10 +675,10 @@ TEST_F(HashTableTest, ReleaseItem) {
     auto releasedSv2 = ht.unlocked_release(hbl2, releaseKey2);
 
     /* Validate the copied contents */
-    EXPECT_EQ(*vToRelease2, *(releasedSv2));
+    EXPECT_EQ(*vToRelease2, *(releasedSv2).get());
 
     /* Validate the HT element replace (hence released from HT) */
-    EXPECT_EQ(vToRelease2, releasedSv2.get());
+    EXPECT_EQ(vToRelease2, releasedSv2.get().get());
 
     /* Validate the HT count */
     EXPECT_EQ(numItems - 2, ht.getNumItems());
@@ -715,7 +715,7 @@ TEST_F(HashTableTest, CopyItem) {
     EXPECT_EQ(*replaceSv, *(res.first));
 
     /* Validate the HT element replace (hence released from HT) */
-    EXPECT_EQ(replaceSv, res.second.get());
+    EXPECT_EQ(replaceSv, res.second.get().get());
 
     /* Validate the HT count */
     EXPECT_EQ(numItems, ht.getNumItems());
@@ -766,7 +766,7 @@ TEST_F(HashTableTest, CopyDeletedItem) {
     EXPECT_EQ(*replaceSv, *(res.first));
 
     /* Validate the HT element replace (hence released from HT) */
-    EXPECT_EQ(replaceSv, res.second.get());
+    EXPECT_EQ(replaceSv, res.second.get().get());
 
     /* Validate the HT count */
     EXPECT_EQ(numItems, ht.getNumItems());

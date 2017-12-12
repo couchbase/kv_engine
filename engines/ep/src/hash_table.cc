@@ -313,10 +313,10 @@ StoredValue* HashTable::unlocked_addNewStoredValue(const HashBucketLock& hbl,
     // Create a new StoredValue and link it into the head of the bucket chain.
     auto v = (*valFact)(itm, std::move(values[hbl.getBucketNum()]));
 
-    statsEpilogue(*v);
+    statsEpilogue(*v.get());
 
     values[hbl.getBucketNum()] = std::move(v);
-    return values[hbl.getBucketNum()].get();
+    return values[hbl.getBucketNum()].get().get();
 }
 
 void HashTable::statsPrologue(const StoredValue& v) {
@@ -384,10 +384,10 @@ HashTable::unlocked_replaceByCopy(const HashBucketLock& hbl,
             vToCopy, std::move(values[hbl.getBucketNum()]));
 
     // Adding a new item into the HashTable; update stats.
-    statsEpilogue(*newSv);
+    statsEpilogue(*newSv.get());
 
     values[hbl.getBucketNum()] = std::move(newSv);
-    return {values[hbl.getBucketNum()].get(), std::move(releasedSv)};
+    return {values[hbl.getBucketNum()].get().get(), std::move(releasedSv)};
 }
 
 void HashTable::unlocked_softDelete(const std::unique_lock<std::mutex>& htLock,
@@ -408,7 +408,8 @@ StoredValue* HashTable::unlocked_find(const DocKey& key,
                                       int bucket_num,
                                       WantsDeleted wantsDeleted,
                                       TrackReference trackReference) {
-    for (StoredValue* v = values[bucket_num].get(); v; v = v->getNext().get()) {
+    for (StoredValue* v = values[bucket_num].get().get(); v;
+            v = v->getNext().get().get()) {
         if (v->hasKey(key)) {
             if (trackReference == TrackReference::Yes && !v->isDeleted()) {
                 v->referenced();
@@ -455,7 +456,7 @@ StoredValue::UniquePtr HashTable::unlocked_release(
     }
 
     // Update statistics for the item which is now gone.
-    statsPrologue(*released);
+    statsPrologue(*released.get());
 
     return released;
 }
@@ -534,7 +535,7 @@ void HashTable::visit(HashTableVisitor &visitor) {
             // on front-end threads.
             HashBucketLock lh(i, mutexes[l]);
 
-            StoredValue* v = values[i].get();
+            StoredValue* v = values[i].get().get();
             if (v) {
                 // TODO: Perf: This check seems costly - do we think it's still
                 // worth keeping?
@@ -548,7 +549,7 @@ void HashTable::visit(HashTableVisitor &visitor) {
                 }
             }
             while (v) {
-                StoredValue* tmp = v->getNext().get();
+                StoredValue* tmp = v->getNext().get().get();
                 visitor.visit(lh, *v);
                 v = tmp;
             }
@@ -568,7 +569,7 @@ void HashTable::visitDepth(HashTableDepthVisitor &visitor) {
         LockHolder lh(mutexes[l]);
         for (int i = l; i < static_cast<int>(size); i+= mutexes.size()) {
             size_t depth = 0;
-            StoredValue* p = values[i].get();
+            StoredValue* p = values[i].get().get();
             if (p) {
                 // TODO: Perf: This check seems costly - do we think it's still
                 // worth keeping?
@@ -585,7 +586,7 @@ void HashTable::visitDepth(HashTableDepthVisitor &visitor) {
             while (p) {
                 depth++;
                 mem += p->size();
-                p = p->getNext().get();
+                p = p->getNext().get().get();
             }
             visitor.visit(i, depth, mem);
             ++visited;
@@ -638,9 +639,9 @@ HashTable::Position HashTable::pauseResumeVisit(HashTableVisitor& visitor,
         for (; !paused && hash_bucket < size; hash_bucket += mutexes.size()) {
             HashBucketLock lh(hash_bucket, mutexes[lock]);
 
-            StoredValue* v = values[hash_bucket].get();
+            StoredValue* v = values[hash_bucket].get().get();
             while (!paused && v) {
-                StoredValue* tmp = v->getNext().get();
+                StoredValue* tmp = v->getNext().get().get();
                 paused = !visitor.visit(lh, *v);
                 v = tmp;
             }
@@ -717,7 +718,8 @@ bool HashTable::unlocked_ejectItem(StoredValue*& vptr,
 
 std::unique_ptr<Item> HashTable::getRandomKeyFromSlot(int slot) {
     auto lh = getLockedBucket(slot);
-    for (StoredValue* v = values[slot].get(); v; v = v->getNext().get()) {
+    for (StoredValue* v = values[slot].get().get(); v;
+            v = v->getNext().get().get()) {
         if (!v->isTempItem() && !v->isDeleted() && v->isResident()) {
             return v->toItem(false, 0);
         }
@@ -809,8 +811,8 @@ std::ostream& operator<<(std::ostream& os, const HashTable& ht) {
        << " values: " << std::endl;
     for (const auto& chain : ht.values) {
         if (chain) {
-            for (StoredValue* sv = chain.get(); sv != nullptr;
-                 sv = sv->getNext().get()) {
+            for (StoredValue* sv = chain.get().get(); sv != nullptr;
+                 sv = sv->getNext().get().get()) {
                 os << "    " << *sv << std::endl;
             }
         }
