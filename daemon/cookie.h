@@ -314,6 +314,12 @@ public:
     void sendDynamicBuffer();
 
     /**
+     * Sent back the not my vbucket response (piggyback a vbucket
+     * map and do deduplication if enabled)
+     */
+    void sendNotMyVBucket();
+
+    /**
      * Send a response without a message payload back to the client.
      *
      * @param status The status message to fill into the message.

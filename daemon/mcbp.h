@@ -43,15 +43,6 @@ void mcbp_add_header(Cookie& cookie,
                      uint32_t body_len,
                      uint8_t datatype);
 
-/**
- * Form and send a response packet back to the client without any
- * user specified payload
- *
- * @param cookie the command context for the reply
- * @param status the status code to put in the message
- */
-void mcbp_write_packet(Cookie& cookie, cb::mcbp::Status status);
-
 bool mcbp_response_handler(const void* key, uint16_t keylen,
                            const void* ext, uint8_t extlen,
                            const void* body, uint32_t bodylen,

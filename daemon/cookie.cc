@@ -16,10 +16,12 @@
  */
 
 #include "cookie.h"
+#include "buckets.h"
 #include "connection_mcbp.h"
 #include "mcbp.h"
 
 #include <mcbp/mcbp.h>
+#include <mcbp/protocol/framebuilder.h>
 #include <phosphor/phosphor.h>
 #include <platform/checked_snprintf.h>
 #include <platform/timeutils.h>
@@ -192,8 +194,72 @@ void Cookie::sendDynamicBuffer() {
     }
 }
 
+void Cookie::sendNotMyVBucket() {
+    auto pair = connection.getBucket().clusterConfiguration.getConfiguration();
+    if (pair.first == -1 || (pair.first == connection.getClustermapRevno() &&
+                             settings.isDedupeNmvbMaps())) {
+        // We don't have a vbucket map, or we've already sent it to the
+        // client
+        mcbp_add_header(*this,
+                        PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
+                        0,
+                        0,
+                        0,
+                        PROTOCOL_BINARY_RAW_BYTES);
+        connection.setState(McbpStateMachine::State::send_data);
+        connection.setWriteAndGo(McbpStateMachine::State::new_cmd);
+        return;
+    }
+
+    const size_t needed = sizeof(cb::mcbp::Response) + pair.second->size();
+    if (!growDynamicBuffer(needed)) {
+        throw std::bad_alloc();
+    }
+    auto& buffer = getDynamicBuffer();
+    auto* buf = reinterpret_cast<uint8_t*>(buffer.getCurrent());
+    const auto& header = getHeader();
+    cb::mcbp::ResponseBuilder builder({buf, needed});
+    builder.setMagic(cb::mcbp::Magic::ClientResponse);
+    builder.setOpcode(header.getRequest().getClientOpcode());
+    builder.setStatus(cb::mcbp::Status::NotMyVbucket);
+    builder.setOpaque(header.getOpaque());
+    builder.setValue({reinterpret_cast<const uint8_t*>(pair.second->data()),
+                      pair.second->size()});
+    builder.validate();
+
+    buffer.moveOffset(needed);
+    sendDynamicBuffer();
+    connection.setClustermapRevno(pair.first);
+}
+
 void Cookie::sendResponse(cb::mcbp::Status status) {
-    mcbp_write_packet(*this, status);
+    if (status == cb::mcbp::Status::Success) {
+        const auto& request = getHeader().getRequest();
+        const auto quiet = request.isQuiet();
+        if (quiet) {
+            // The responseCounter is updated here as this is non-responding
+            // code hence mcbp_add_header will not be called (which is what
+            // normally updates the responseCounters).
+            auto& bucket = connection.getBucket();
+            ++bucket.responseCounters[PROTOCOL_BINARY_RESPONSE_SUCCESS];
+            connection.setState(McbpStateMachine::State::new_cmd);
+            return;
+        }
+
+        mcbp_add_header(
+                *this, uint16_t(status), 0, 0, 0, PROTOCOL_BINARY_RAW_BYTES);
+        connection.setState(McbpStateMachine::State::send_data);
+        connection.setWriteAndGo(McbpStateMachine::State::new_cmd);
+        return;
+    }
+
+    if (status == cb::mcbp::Status::NotMyVbucket) {
+        sendNotMyVBucket();
+        return;
+    }
+
+    // fall back sending the error message (and include the JSON payload etc)
+    sendResponse(status, {}, {}, {}, cb::mcbp::Datatype::Raw, cas);
 }
 
 void Cookie::sendResponse(cb::engine_errc code) {
@@ -220,7 +286,7 @@ void Cookie::sendResponse(cb::mcbp::Status status,
     }
 
     if (status == cb::mcbp::Status::NotMyVbucket) {
-        sendResponse(status);
+        sendNotMyVBucket();
         return;
     }
 

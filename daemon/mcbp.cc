@@ -26,121 +26,6 @@
 #include <mcbp/protocol/header.h>
 #include <platform/compress.h>
 
-/**
- * Send a not my vbucket response to the client. It should piggyback the
- * current vbucket map unless the client knows it already (and is configured
- * to do deduplication of these maps).
- *
- * @param c the connection to send the response to
- * @return true if success, false if memory allocation fails.
- */
-static bool send_not_my_vbucket(Cookie& cookie) {
-    auto& c = cookie.getConnection();
-    auto pair = c.getBucket().clusterConfiguration.getConfiguration();
-    if (pair.first == -1 ||
-        (pair.first == c.getClustermapRevno() && settings.isDedupeNmvbMaps())) {
-        // We don't have a vbucket map, or we've already sent it to the
-        // client
-        mcbp_add_header(cookie,
-                        PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
-                        0,
-                        0,
-                        0,
-                        PROTOCOL_BINARY_RAW_BYTES);
-        c.setState(McbpStateMachine::State::send_data);
-        c.setWriteAndGo(McbpStateMachine::State::new_cmd);
-        return true;
-    }
-
-    const size_t needed = sizeof(cb::mcbp::Response) + pair.second->size();
-    if (!cookie.growDynamicBuffer(needed)) {
-        LOG_WARNING(&c,
-                    "<%d ERROR: Failed to allocate memory for response",
-                    c.getId());
-        return false;
-    }
-
-    auto& buffer = cookie.getDynamicBuffer();
-    auto* buf = reinterpret_cast<uint8_t*>(buffer.getCurrent());
-    const auto& header = cookie.getHeader();
-
-    cb::mcbp::ResponseBuilder builder({buf, needed});
-    builder.setMagic(cb::mcbp::Magic::ClientResponse);
-    builder.setOpcode(header.getRequest().getClientOpcode());
-    builder.setStatus(cb::mcbp::Status::NotMyVbucket);
-    builder.setOpaque(header.getOpaque());
-    builder.setValue({reinterpret_cast<const uint8_t*>(pair.second->data()),
-                      pair.second->size()});
-    builder.validate();
-
-    buffer.moveOffset(needed);
-    cookie.sendDynamicBuffer();
-    c.setClustermapRevno(pair.first);
-    return true;
-}
-
-/**
- * Form and send a (success) response to a command over the binary protocol.
- * NOTE: Data from `d` is *not* immediately copied out (it's address is just
- *       added to an iovec), and thus must be live until transmit() is later
- *       called - (aka don't use stack for `d`).
- */
-static void mcbp_write_response(
-        Cookie& cookie, const void* d, int extlen, int keylen, int dlen) {
-    auto& connection = cookie.getConnection();
-    const auto opcode = cookie.getHeader().getOpcode();
-    const auto quiet = cookie.getRequest().isQuiet();
-    if (!quiet || opcode == PROTOCOL_BINARY_CMD_GET ||
-        opcode == PROTOCOL_BINARY_CMD_GETK) {
-        mcbp_add_header(cookie,
-                        PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                        extlen,
-                        keylen,
-                        dlen,
-                        PROTOCOL_BINARY_RAW_BYTES);
-        connection.addIov(d, dlen);
-        connection.setState(McbpStateMachine::State::send_data);
-        connection.setWriteAndGo(McbpStateMachine::State::new_cmd);
-    } else {
-        // The responseCounter is updated here as this is non-responding code
-        // hence mcbp_add_header will not be called (which is what normally
-        // updates the responseCounters).
-        auto& bucket = connection.getBucket();
-        ++bucket.responseCounters[PROTOCOL_BINARY_RESPONSE_SUCCESS];
-        connection.setState(McbpStateMachine::State::new_cmd);
-    }
-}
-
-void mcbp_write_packet(Cookie& cookie, cb::mcbp::Status status) {
-    if (status == cb::mcbp::Status::Success) {
-        mcbp_write_response(cookie, nullptr, 0, 0, 0);
-        return;
-    }
-
-    if (status == cb::mcbp::Status::NotMyVbucket) {
-        if (!send_not_my_vbucket(cookie)) {
-            throw std::runtime_error(
-                    "mcbp_write_packet: failed to send not my vbucket");
-        }
-        return;
-    }
-
-    // MB-23909: Server does not include event id's in the error message.
-    const auto& payload = cookie.getErrorJson();
-
-    mcbp_add_header(cookie,
-                    uint16_t(status),
-                    0,
-                    0,
-                    uint32_t(payload.size()),
-                    payload.empty() ? PROTOCOL_BINARY_RAW_BYTES
-                                    : PROTOCOL_BINARY_DATATYPE_JSON);
-    auto& connection = cookie.getConnection();
-    connection.addIov(payload.data(), payload.size());
-    connection.setState(McbpStateMachine::State::send_data);
-    connection.setWriteAndGo(McbpStateMachine::State::new_cmd);
-}
-
 static cb::const_byte_buffer mcbp_add_header(cb::Pipe& pipe,
                                              uint8_t opcode,
                                              uint16_t err,
@@ -253,7 +138,8 @@ bool mcbp_response_handler(const void* key, uint16_t keylen,
     case PROTOCOL_BINARY_RESPONSE_ROLLBACK:
         break;
     case PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET:
-        return send_not_my_vbucket(*cookie);
+        cookie->sendNotMyVBucket();
+        return true;
     default:
         //
         payload = {error_json.data(), error_json.size()};
