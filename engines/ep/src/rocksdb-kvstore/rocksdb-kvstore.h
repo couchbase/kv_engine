@@ -88,7 +88,7 @@ public:
 };
 
 class RocksRequest;
-class KVRocksDB;
+class VBHandle;
 struct KVStatsCtx;
 
 /**
@@ -302,29 +302,27 @@ public:
 protected:
     // Write a batch of updates to the given database; measuring the time
     // taken and adding the timer to the commit histogram.
-    rocksdb::Status writeAndTimeBatch(const KVRocksDB& db,
-                                      rocksdb::WriteBatch batch);
+    rocksdb::Status writeAndTimeBatch(rocksdb::WriteBatch batch);
 
 private:
-    // Guards access to the 'vbDB' vector. Users should lock this mutex
+    // Unique RocksDB instance, per-Shard.
+    std::unique_ptr<rocksdb::DB> rdb;
+
+    // Guards access to the 'vbHandles' vector. Users should lock this mutex
     // before accessing the vector to get a copy of any shared_ptr owned by
     // the vector. The mutex can be unlocked once a thread has its own copy
     // of the shared_ptr.
-    // This is used also for synchonization in 'openDB' to avoid that we open
-    // two 'rocksdb::DB' instances on the same DB (e.g., this would be possible
-    // when 'Flush' and 'Warmup' run in parallel).
-    std::mutex vbDBMutex;
-    // We cannot open two `rocksdb::DB` instances on the same DB.
-    // From the RocksDB documentation:
-    //     "A database may only be opened by one process at a time. The rocksdb
-    //      implementation acquires a lock from the operating system to prevent
-    //      misuse. Within a single process, the same rocksdb::DB object may be
-    //      safely shared by multiple concurrent threads".
-    // Thus, we put an entry in this vector at position `vbid` when we `openDB`
-    // for a VBucket for the first time. Then, further calls to `openDB(vbid)`
-    // return the pointer stored in this vector. An entry is removed only when
-    // `delVBucket(vbid)`.
-    std::vector<std::shared_ptr<KVRocksDB>> vbDB;
+    std::mutex vbhMutex;
+
+    // This vector stores a VBHandle (i.e., handles for all the ColumnFamilies)
+    // for each VBucket. The entry for a VBucket can be inserted in two
+    // different cases:
+    //     1) When the store processes an operation on the VBucket for the
+    //          first time (in a call to 'getVBHandle()')
+    //     2) In 'openDB()', all the ColumnFamilyHandles for all the existing
+    //         Vbuckets are loaded.
+    // An entry is removed only in 'delVBucket(vbid)'.
+    std::vector<std::shared_ptr<VBHandle>> vbHandles;
 
     VbidSeqnoComparator vbidSeqnoComparator;
 
@@ -350,36 +348,33 @@ private:
                             const std::string& newCfOptions,
                             const std::string& newBbtOptions);
 
+    // Opens the DB on disk and instantiates 'rdb'. Also, it
+    // populates 'vbHandles' with the ColumnFamilyHandles for all the
+    // existing VBuckets.
+    void openDB();
+
     /*
-     * This function returns an instance of `KVRocksDB` for the given `vbid`.
-     * The DB for `vbid` is created if it does not exist.
+     * This function returns an instance of VBHandle for the given vbid.
+     * The VBHandle for 'vbid' is created if it does not exist.
      *
      * @param vbid vbucket id for the vbucket DB to open
      */
-    std::shared_ptr<KVRocksDB> openDB(uint16_t vbid);
+    std::shared_ptr<VBHandle> getVBHandle(uint16_t vbid);
 
     /*
-     * The DB for each VBucket is created in a separated subfolder of
-     * `configuration.getDBName()`. This function returns the path of the DB
-     * subfolder for the given `vbid`.
+     * The DB for each Shard is created in a separated subfolder of
+     * 'configuration.getDBName()'. This function returns the path of the DB
+     * subfolder for the current Shard.
      *
-     * @param vbid vbucket id for the vbucket DB subfolder to return
+     * @return DB relative path for the current Shard
      */
-    std::string getVBDBSubdir(uint16_t vbid);
-
-    /*
-     * This function returns a vector of Vbucket IDs that already exist on
-     * disk. The function considers only the Vbuckets managed by the current
-     * Shard.
-     */
-    std::vector<uint16_t> discoverVBuckets();
+    std::string getDBSubdir();
 
     /*
      * This function returns a set of pointers to all Caches allocated for
-     * all the rocksdb::DB instances given in input.
+     * the rocksdb::DB instances managed by the current Shard.
      */
-    std::unordered_set<const rocksdb::Cache*> getCachePointers(
-            const std::vector<rocksdb::DB*>& dbs);
+    std::unordered_set<const rocksdb::Cache*> getCachePointers();
 
     // This helper function adds all the block cache pointers of 'cfOptions'
     // to 'cache_set'
@@ -407,11 +402,11 @@ private:
                           const std::string& value,
                           GetMetaOnly getMetaOnly = GetMetaOnly::No);
 
-    void readVBState(const KVRocksDB& db);
+    void readVBState(const VBHandle& db);
 
     // Serialize the vbucket state and add it to the local CF in the specified
     // batch of writes.
-    rocksdb::Status saveVBStateToBatch(const KVRocksDB& db,
+    rocksdb::Status saveVBStateToBatch(const VBHandle& db,
                                        const vbucket_state& vbState,
                                        rocksdb::WriteBatch& batch);
 
@@ -420,7 +415,7 @@ private:
             const Item* collectionsManifest,
             const std::vector<std::unique_ptr<RocksRequest>>& commitBatch);
 
-    rocksdb::Status addRequestToWriteBatch(const KVRocksDB& db,
+    rocksdb::Status addRequestToWriteBatch(const VBHandle& db,
                                            rocksdb::WriteBatch& batch,
                                            RocksRequest* request);
 
@@ -428,7 +423,7 @@ private:
             rocksdb::Status status,
             const std::vector<std::unique_ptr<RocksRequest>>& commitBatch);
 
-    int64_t readHighSeqnoFromDisk(const KVRocksDB& db);
+    int64_t readHighSeqnoFromDisk(const VBHandle& db);
 
     std::string getVbstateKey();
 
