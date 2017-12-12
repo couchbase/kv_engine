@@ -436,19 +436,6 @@ public:
 
     void destroyScanContext(ScanContext* ctx) override;
 
-    /**
-     * This method peforms a full update (open/write/commit) of the
-     * _local/manifest document for the specified vbucket.
-     *
-     * @param vbid The VBucket id
-     * @param manifestValue An Item whose value is the source of the document
-     *        data.
-     * @returns true if the update was successful. Note logging on all failures
-     *
-     */
-    bool persistCollectionsManifestItem(uint16_t vbid,
-                                        const Item& manifestItem) override;
-
     std::string getCollectionsManifest(uint16_t vbid) override;
 
     /**

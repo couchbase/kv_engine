@@ -2749,34 +2749,6 @@ void CouchKVStore::removeCompactFile(const std::string &filename) {
     }
 }
 
-bool CouchKVStore::persistCollectionsManifestItem(uint16_t vbid,
-                                                  const Item& manifestItem) {
-    DbHolder db(this);
-
-    // openDB logs error details
-    couchstore_error_t errCode = openDB(vbid,
-                                        dbFileRevMap[vbid],
-                                        db.getDbAddress(),
-                                        COUCHSTORE_OPEN_FLAG_CREATE);
-    if (errCode != COUCHSTORE_SUCCESS) {
-        return false;
-    }
-
-    // saveCollecionsManifest logs error details
-    errCode = saveCollectionsManifest(*db.getDb(), manifestItem);
-    if (errCode != COUCHSTORE_SUCCESS) {
-        return false;
-    }
-
-    // commit logs error details
-    errCode = couchstore_commit(db.getDb());
-    if (errCode != COUCHSTORE_SUCCESS) {
-        return false;
-    }
-
-    return true;
-}
-
 std::string CouchKVStore::getCollectionsManifest(uint16_t vbid) {
     DbHolder db(this);
 

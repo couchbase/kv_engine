@@ -728,14 +728,6 @@ public:
     virtual void destroyScanContext(ScanContext* ctx) = 0;
 
     /**
-     * KVStore must implement this method which should perform a full write
-     * of the collections manifest, firstly by converting the Item value to
-     * JSON and then writing it the JSON data.
-     */
-    virtual bool persistCollectionsManifestItem(uint16_t vbid,
-                                                const Item& manifestItem) = 0;
-
-    /**
      * KVStore must implement this method which should read and return the
      * collection manifest data as a std::string (data written by
      * persistCollectionsManifestItem)
