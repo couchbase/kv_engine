@@ -23,6 +23,7 @@ namespace mcbp {
 bool isStatusSuccess(Status status) {
     switch (status) {
     case Status::Success:
+    case Status::AuthContinue:
     case Status::SubdocSuccessDeleted:
     case Status::SubdocMultiPathFailure:
     case Status::SubdocMultiPathFailureDeleted:
@@ -40,7 +41,6 @@ bool isStatusSuccess(Status status) {
     case Status::Locked:
     case Status::AuthStale:
     case Status::AuthError:
-    case Status::AuthContinue:
     case Status::Erange:
     case Status::Eaccess:
     case Status::NotInitialized:

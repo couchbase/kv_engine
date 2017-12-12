@@ -120,16 +120,12 @@ ENGINE_ERROR_CODE SaslAuthCommandContext::authOk() {
 ENGINE_ERROR_CODE SaslAuthCommandContext::authContinue() {
     auto auth_task = reinterpret_cast<SaslAuthTask*>(task.get());
     auto payload = auth_task->getResponse();
-    mcbp_add_header(cookie,
-                    PROTOCOL_BINARY_RESPONSE_AUTH_CONTINUE,
-                    0,
-                    0,
-                    payload.size(),
-                    PROTOCOL_BINARY_RAW_BYTES);
-    connection.addIov(payload.data(), payload.size());
-    connection.setState(McbpStateMachine::State::send_data);
-    connection.setWriteAndGo(McbpStateMachine::State::new_cmd);
-
+    cookie.sendResponse(cb::mcbp::Status::AuthContinue,
+                        {},
+                        {},
+                        payload,
+                        cb::mcbp::Datatype::Raw,
+                        0);
     state = State::Done;
     return ENGINE_SUCCESS;
 }
