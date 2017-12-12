@@ -72,16 +72,6 @@ mock_connstruct::mock_connstruct()
 }
 
 mock_connstruct::~mock_connstruct() {
-    if (isTracingEnabled()) {
-        auto data = to_string(tracer, true);
-        // DEBUGCODE
-        if (!data.empty()) {
-            std::cout << "[tracedata.begin:\n"
-                      << data << "\n"
-                      << to_string(tracer, false) << "\ntracedata.end]"
-                      << std::endl;
-        }
-    }
 }
 
 /* Forward declarations */

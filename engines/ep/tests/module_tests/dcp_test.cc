@@ -2275,21 +2275,18 @@ TEST_F(DcpConnMapTest, DeleteConsumerConnOnUncleanDCPConnMapDelete) {
 class NotifyTest : public DCPTest {
 protected:
     void SetUp() {
-        // The test is going to replace a server API method, we must
+        // The test is going to replace a server cookie API method, we must
         // be able to undo that
-        sapi = *get_mock_server_api();
         scookie_api = *get_mock_server_api()->cookie;
         DCPTest::SetUp();
     }
 
     void TearDown() {
-        // Reset the server_api for other tests
-        *get_mock_server_api() = sapi;
+        // Reset the server cookie api for other tests
         *get_mock_server_api()->cookie = scookie_api;
         DCPTest::TearDown();
     }
 
-    SERVER_HANDLE_V1 sapi;
     SERVER_COOKIE_API scookie_api;
     std::unique_ptr<MockDcpConnMap> connMap;
     DcpProducer* producer;

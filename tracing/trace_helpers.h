@@ -22,7 +22,6 @@
 struct server_handle_v1_t;
 typedef struct server_handle_v1_t SERVER_HANDLE_V1;
 
-// DEBUGCODE
 // #define DISABLE_SESSION_TRACING 1
 
 #ifndef DISABLE_SESSION_TRACING
@@ -31,7 +30,7 @@ typedef struct server_handle_v1_t SERVER_HANDLE_V1;
  * Traces a scope
  * Usage:
  *   {
- *     TRACE_SCOPE(cookie, "test1");
+ *     TRACE_SCOPE(api, cookie, "test1");
  *     ....
  *    }
  */
@@ -41,11 +40,18 @@ public:
                  const void* ck,
                  const cb::tracing::TraceCode code)
         : api(api), ck(ck), code(code) {
-        api->tracing->begin_trace(ck, code);
+        if (api->tracing->is_tracing_enabled(ck)) {
+            api->tracing->begin_trace(ck, code);
+        } else {
+            api = nullptr;
+            ck = nullptr;
+        }
     }
 
     ~ScopedTracer() {
-        api->tracing->end_trace(ck, code);
+        if (api) {
+            api->tracing->end_trace(ck, code);
+        }
     }
 
 protected:
@@ -57,7 +63,7 @@ protected:
 /**
  * Trace a block of code
  * Usage:
- *     TRACE_BLOCK("ht.lock.wait") {
+ *     TRACE_BLOCK(api, cookie, "ht.lock.wait") {
  *         lock.lock();
  *     }
  */
