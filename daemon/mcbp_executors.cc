@@ -221,11 +221,13 @@ static void verbosity_executor(Cookie& cookie) {
 }
 
 static void version_executor(Cookie& cookie) {
-    mcbp_write_response(cookie,
-                        get_server_version(),
-                        0,
-                        0,
-                        (uint32_t)strlen(get_server_version()));
+    const std::string version{get_server_version()};
+    cookie.sendResponse(cb::mcbp::Status::Success,
+                        {},
+                        {},
+                        version,
+                        cb::mcbp::Datatype::Raw,
+                        0);
 }
 
 static void quit_executor(Cookie& cookie) {
@@ -246,10 +248,20 @@ static void sasl_list_mech_executor(Cookie& cookie) {
 
     if (connection.isSslEnabled() && settings.has.ssl_sasl_mechanisms) {
         const auto& mechs = settings.getSslSaslMechanisms();
-        mcbp_write_response(cookie, mechs.data(), 0, 0, mechs.size());
+        cookie.sendResponse(cb::mcbp::Status::Success,
+                            {},
+                            {},
+                            mechs,
+                            cb::mcbp::Datatype::Raw,
+                            0);
     } else if (!connection.isSslEnabled() && settings.has.sasl_mechanisms) {
         const auto& mechs = settings.getSaslMechanisms();
-        mcbp_write_response(cookie, mechs.data(), 0, 0, mechs.size());
+        cookie.sendResponse(cb::mcbp::Status::Success,
+                            {},
+                            {},
+                            mechs,
+                            cb::mcbp::Datatype::Raw,
+                            0);
     } else {
         /*
          * The administrator did not configure any SASL mechanisms.
@@ -268,8 +280,12 @@ static void sasl_list_mech_executor(Cookie& cookie) {
                                    nullptr);
 
         if (ret == CBSASL_OK) {
-            mcbp_write_response(
-                    cookie, (char*)result_string, 0, 0, string_length);
+            cookie.sendResponse(cb::mcbp::Status::Success,
+                                {},
+                                {},
+                                {result_string, string_length},
+                                cb::mcbp::Datatype::Raw,
+                                0);
         } else {
             /* Perhaps there's a better error for this... */
             LOG_WARNING(&connection,

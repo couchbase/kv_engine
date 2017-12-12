@@ -209,8 +209,13 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::storeItem() {
             }
             extras.vbucket_uuid = htonll(newItemInfo.vbucket_uuid);
             extras.seqno = htonll(newItemInfo.seqno);
-            mcbp_write_response(
-                    cookie, &extras, sizeof(extras), 0, sizeof(extras));
+            cookie.sendResponse(
+                    cb::mcbp::Status::Success,
+                    {reinterpret_cast<const char*>(&extras), sizeof(extras)},
+                    {},
+                    {},
+                    cb::mcbp::Datatype::Raw,
+                    0);
         } else {
             cookie.sendResponse(cb::mcbp::Status::Success);
         }

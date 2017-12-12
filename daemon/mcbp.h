@@ -44,15 +44,6 @@ void mcbp_add_header(Cookie& cookie,
                      uint8_t datatype);
 
 /**
- * Form and send a (success) response to a command over the binary protocol.
- * NOTE: Data from `d` is *not* immediately copied out (it's address is just
- *       added to an iovec), and thus must be live until transmit() is later
- *       called - (aka don't use stack for `d`).
- */
-void mcbp_write_response(
-        Cookie& cookie, const void* d, int extlen, int keylen, int dlen);
-
-/**
  * Form and send a response packet back to the client without any
  * user specified payload
  *

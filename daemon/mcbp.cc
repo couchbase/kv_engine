@@ -79,7 +79,13 @@ static bool send_not_my_vbucket(Cookie& cookie) {
     return true;
 }
 
-void mcbp_write_response(
+/**
+ * Form and send a (success) response to a command over the binary protocol.
+ * NOTE: Data from `d` is *not* immediately copied out (it's address is just
+ *       added to an iovec), and thus must be live until transmit() is later
+ *       called - (aka don't use stack for `d`).
+ */
+static void mcbp_write_response(
         Cookie& cookie, const void* d, int extlen, int keylen, int dlen) {
     auto& connection = cookie.getConnection();
     const auto opcode = cookie.getHeader().getOpcode();

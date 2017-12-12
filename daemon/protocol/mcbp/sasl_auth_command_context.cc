@@ -106,7 +106,12 @@ ENGINE_ERROR_CODE SaslAuthCommandContext::step() {
 ENGINE_ERROR_CODE SaslAuthCommandContext::authOk() {
     auto auth_task = reinterpret_cast<SaslAuthTask*>(task.get());
     auto payload = auth_task->getResponse();
-    mcbp_write_response(cookie, payload.data(), 0, 0, payload.size());
+    cookie.sendResponse(cb::mcbp::Status::Success,
+                        {},
+                        {},
+                        payload,
+                        cb::mcbp::Datatype::Raw,
+                        0);
     get_thread_stats(&connection)->auth_cmds++;
     state = State::Done;
     return ENGINE_SUCCESS;
