@@ -309,8 +309,9 @@ TEST_P(StatsTest, TestAggregate) {
     EXPECT_NE(nullptr, cJSON_GetObjectItem(stats.get(), "pid"));
 }
 
-TEST_P(StatsTest, DISABLED_TestConnections) {
+TEST_P(StatsTest, TestConnections) {
     MemcachedConnection& conn = getConnection();
+    conn.hello("TestConnections", "1.0", "test connections test");
     unique_cJSON_ptr stats;
     stats = conn.stats("connections");
     ASSERT_NE(nullptr, stats.get());
@@ -327,16 +328,21 @@ TEST_P(StatsTest, DISABLED_TestConnections) {
         // the _this_ pointer should at least be there
         ASSERT_NE(nullptr, cJSON_GetObjectItem(json.get(), "connection"));
         if (sock == -1) {
-            auto* ptr = cJSON_GetObjectItem(json.get(), "socket");
+            auto* ptr = cJSON_GetObjectItem(json.get(), "agent_name");
             if (ptr != nullptr) {
-                EXPECT_EQ(cJSON_Number, ptr->type);
-                sock = ptr->valueint;
+                ASSERT_EQ(cJSON_String, ptr->type);
+                if (strcmp("TestConnections 1.0", ptr->valuestring) == 0) {
+                    ptr = cJSON_GetObjectItem(json.get(), "socket");
+                    if (ptr != nullptr) {
+                        EXPECT_EQ(cJSON_Number, ptr->type);
+                        sock = ptr->valueint;
+                    }
+                }
             }
         }
     }
 
-    ASSERT_NE(-1, sock) << "Failed to locate a single connection object";
-
+    ASSERT_NE(-1, sock) << "Failed to locate the connection object";
     stats = conn.stats("connections " + std::to_string(sock));
     ASSERT_NE(nullptr, stats.get());
     ASSERT_EQ(1, cJSON_GetArraySize(stats.get()));

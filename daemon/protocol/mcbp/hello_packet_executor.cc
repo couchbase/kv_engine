@@ -48,6 +48,7 @@ void process_hello_packet_executor(Cookie& cookie) {
     connection.setDuplexSupported(false);
     connection.setClustermapChangeNotificationSupported(false);
     connection.getCookieObject().setTracingEnabled(false);
+    connection.setAgentName(key);
 
     if (!key.empty()) {
         log_buffer.append("[");

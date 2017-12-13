@@ -37,6 +37,7 @@
 #include <platform/pipe.h>
 #include <platform/sized_buffer.h>
 
+#include <array>
 #include <chrono>
 #include <memory>
 #include <string>
@@ -566,6 +567,11 @@ public:
      *              terminated immediately)
      */
     bool processServerEvents();
+    
+    /**
+     * Set the name of the connected agent
+     */
+    void setAgentName(cb::const_char_buffer name);
 
 protected:
     void runStateMachinery();
@@ -576,6 +582,11 @@ protected:
      * @return true upon success, false otherwise
      */
     bool initializeEvent();
+
+    /**
+     * The name of the client provided to us by hello
+     */
+    std::array<char, 32> agentName{};
 
     /**
      * The state machine we're currently using

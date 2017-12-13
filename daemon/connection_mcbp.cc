@@ -822,6 +822,7 @@ unique_cJSON_ptr McbpConnection::toJSON() const {
     cJSON* obj = ret.get();
     if (obj != nullptr) {
         cJSON_AddItemToObject(obj, "cookie", cookie.toJSON().release());
+        cJSON_AddStringToObject(obj, "agent_name", agentName.data());
 
         cJSON_AddBoolToObject(obj, "sasl_enabled", saslAuthEnabled);
         cJSON_AddBoolToObject(obj, "dcp", isDCP());
@@ -866,29 +867,14 @@ unique_cJSON_ptr McbpConnection::toJSON() const {
             cJSON* iovobj = cJSON_CreateObject();
             cJSON_AddNumberToObject(iovobj, "size", iov.size());
             cJSON_AddNumberToObject(iovobj, "used", iovused);
-
-            cJSON* array = cJSON_CreateArray();
-            for (size_t ii = 0; ii < iovused; ++ii) {
-                cJSON* o = cJSON_CreateObject();
-                cJSON_AddUintPtrToObject(o, "base", (uintptr_t)iov[ii].iov_base);
-                cJSON_AddUintPtrToObject(o, "len", (uintptr_t)iov[ii].iov_len);
-                cJSON_AddItemToArray(array, o);
-            }
-            if (cJSON_GetArraySize(array) > 0) {
-                cJSON_AddItemToObject(iovobj, "vector", array);
-            } else {
-                cJSON_Delete(array);
-            }
             cJSON_AddItemToObject(obj, "iov", iovobj);
         }
 
         {
             cJSON* msg = cJSON_CreateObject();
-            cJSON_AddNumberToObject(msg, "size", msglist.capacity());
             cJSON_AddNumberToObject(msg, "used", msglist.size());
             cJSON_AddNumberToObject(msg, "curr", msgcurr);
             cJSON_AddNumberToObject(msg, "bytes", msgbytes);
-
             cJSON_AddItemToObject(obj, "msglist", msg);
         }
         {
@@ -915,6 +901,11 @@ unique_cJSON_ptr McbpConnection::toJSON() const {
     }
 
     return ret;
+}
+
+void McbpConnection::setAgentName(cb::const_char_buffer name) {
+    name.len = std::min(size_t(name.len), agentName.size() - 1);
+    std::copy(name.begin(), name.end(), agentName.begin());
 }
 
 const Protocol McbpConnection::getProtocol() const {

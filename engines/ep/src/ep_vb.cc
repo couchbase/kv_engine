@@ -489,8 +489,15 @@ EPVBucket::updateStoredValue(const HashTable::HashBucketLock& hbl,
 std::pair<StoredValue*, VBNotifyCtx> EPVBucket::addNewStoredValue(
         const HashTable::HashBucketLock& hbl,
         const Item& itm,
-        const VBQueueItemCtx& queueItmCtx) {
+        const VBQueueItemCtx& queueItmCtx,
+        GenerateRevSeqno genRevSeqno) {
     StoredValue* v = ht.unlocked_addNewStoredValue(hbl, itm);
+
+    if (genRevSeqno == GenerateRevSeqno::Yes) {
+        /* This item could potentially be recreated */
+        updateRevSeqNoOfNewStoredValue(*v);
+    }
+
     return {v, queueDirty(*v, queueItmCtx)};
 }
 
