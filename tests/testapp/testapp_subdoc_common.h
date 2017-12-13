@@ -16,7 +16,7 @@
  */
 
 /*
- * testapp testcases for sub-document API.
+ * Common functions / classes for sub-document API tests.
  */
 
 #pragma once
@@ -27,26 +27,23 @@
 
 #include <memory>
 
-typedef std::pair<protocol_binary_response_status,
-                  std::string> SubdocMultiLookupResult;
+typedef std::pair<protocol_binary_response_status, std::string>
+        SubdocMultiLookupResult;
 
 /* The result of an operation on a particular path performed in a
  * multi-mutation.
  */
 struct SubdocMultiMutationResult {
-
     SubdocMultiMutationResult(uint8_t index_,
                               protocol_binary_response_status status_)
-    : index(index_),
-      status(status_),
-      result() {}
+        : index(index_), status(status_), result() {
+    }
 
     SubdocMultiMutationResult(uint8_t index_,
                               protocol_binary_response_status status_,
                               const std::string& result_)
-    : index(index_),
-      status(status_),
-      result(result_) {}
+        : index(index_), status(status_), result(result_) {
+    }
 
     uint8_t index;
     protocol_binary_response_status status;
@@ -74,54 +71,64 @@ struct SubdocMultiMutationResult {
  * @param[out] resp Response object. Will be populated with response information
  * @return
  */
-::testing::AssertionResult subdoc_verify_cmd(const BinprotSubdocCommand& cmd,
-                                             protocol_binary_response_status expected_status,
-                                             const std::string& expected_value,
-                                             BinprotSubdocResponse& resp);
+::testing::AssertionResult subdoc_verify_cmd(
+        const BinprotSubdocCommand& cmd,
+        protocol_binary_response_status expected_status,
+        const std::string& expected_value,
+        BinprotSubdocResponse& resp);
 
 // Overload which creates a temporary response object
-inline ::testing::AssertionResult subdoc_verify_cmd(const BinprotSubdocCommand& cmd,
-                                                    protocol_binary_response_status err = PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                                                    const std::string& value = "") {
+inline ::testing::AssertionResult subdoc_verify_cmd(
+        const BinprotSubdocCommand& cmd,
+        protocol_binary_response_status err = PROTOCOL_BINARY_RESPONSE_SUCCESS,
+        const std::string& value = "") {
     BinprotSubdocResponse resp;
     return subdoc_verify_cmd(cmd, err, value, resp);
 }
 
 // Gtest helper
-template<typename T>
-::testing::AssertionResult subdoc_pred_ok(const char *, const T& cmd) {
+template <typename T>
+::testing::AssertionResult subdoc_pred_ok(const char*, const T& cmd) {
     return subdoc_verify_cmd(cmd);
 }
 
 // Gtest helper
-template<typename T>
-::testing::AssertionResult subdoc_pred_value(const char *, const char *,
+template <typename T>
+::testing::AssertionResult subdoc_pred_value(const char*,
+                                             const char*,
                                              const T& cmd,
                                              const std::string& value) {
     return subdoc_verify_cmd(cmd, PROTOCOL_BINARY_RESPONSE_SUCCESS, value);
 }
 
 // Gtest helper
-template<typename T>
-::testing::AssertionResult subdoc_pred_errcode(const char *, const char *,
-                                               const T& cmd,
-                                               protocol_binary_response_status expected) {
+template <typename T>
+::testing::AssertionResult subdoc_pred_errcode(
+        const char*,
+        const char*,
+        const T& cmd,
+        protocol_binary_response_status expected) {
     return subdoc_verify_cmd(cmd, expected);
 }
 
 // Gtest helper
-template<typename T>
-::testing::AssertionResult subdoc_pred_compat(const char *, const char *,
-                                              const char *, const T& cmd,
-                                              protocol_binary_response_status err,
-                                              const std::string& value) {
+template <typename T>
+::testing::AssertionResult subdoc_pred_compat(
+        const char*,
+        const char*,
+        const char*,
+        const T& cmd,
+        protocol_binary_response_status err,
+        const std::string& value) {
     return subdoc_verify_cmd(cmd, err, value);
 }
 
 // Gtest helper
-template<typename Tc, typename Tr>
-::testing::AssertionResult subdoc_pred_full(const char *, const char *,
-                                            const char *, const char *,
+template <typename Tc, typename Tr>
+::testing::AssertionResult subdoc_pred_full(const char*,
+                                            const char*,
+                                            const char*,
+                                            const char*,
                                             const Tc& cmd,
                                             protocol_binary_response_status err,
                                             const std::string& value,
@@ -129,15 +136,21 @@ template<typename Tc, typename Tr>
     return subdoc_verify_cmd(cmd, err, value, resp);
 }
 
-uint64_t expect_subdoc_cmd(const SubdocMultiLookupCmd& cmd,
-                           protocol_binary_response_status expected_status,
-                           const std::vector<SubdocMultiLookupResult>& expected_results);
+uint64_t recv_subdoc_response(protocol_binary_command expected_cmd,
+                              protocol_binary_response_status expected_status,
+                              const std::string& expected_value);
 
-uint64_t expect_subdoc_cmd(const SubdocMultiMutationCmd& cmd,
-                           protocol_binary_response_status expected_status,
-                           const std::vector<SubdocMultiMutationResult>& expected_results);
+uint64_t expect_subdoc_cmd(
+        const SubdocMultiLookupCmd& cmd,
+        protocol_binary_response_status expected_status,
+        const std::vector<SubdocMultiLookupResult>& expected_results);
 
+uint64_t expect_subdoc_cmd(
+        const SubdocMultiMutationCmd& cmd,
+        protocol_binary_response_status expected_status,
+        const std::vector<SubdocMultiMutationResult>& expected_results);
 
 void store_object(const std::string& key,
                   const std::string& value,
-                  bool JSON, bool compress);
+                  bool JSON,
+                  bool compress);

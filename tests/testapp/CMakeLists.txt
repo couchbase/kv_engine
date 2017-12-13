@@ -23,7 +23,6 @@ add_library(memcached_testapp_core OBJECT
             testapp_client_test.h
             testapp_environment.cc
             testapp_environment.h
-            testapp_tests.cc
             utilities.cc
             utilities.h)
 target_compile_options(memcached_testapp_core PRIVATE ${CB_CXX_FLAGS_NO_OPTIMIZE})
@@ -165,12 +164,12 @@ add_unit_test_suite(NAME stats
 # Run the unit tests for the memcached binary protocol over a plain socket
 add_unit_test_suite(NAME legacy-plain
                     TIMEOUT 200
-                    SOURCE testapp_legacy_plain.cc)
+                    SOURCE testapp_legacy_plain.cc testapp_tests.cc)
 
 # Run the unit tests for the memcached binary protocol over SSL
 add_unit_test_suite(NAME legacy-ssl
                     TIMEOUT 200
-                    SOURCE testapp_legacy_ssl.cc)
+                    SOURCE testapp_legacy_ssl.cc testapp_tests.cc)
 
 # Run the RBAC tests
 add_unit_test_suite(NAME rbac
@@ -194,6 +193,11 @@ add_unit_test_suite(NAME remove
 add_unit_test_suite(NAME shutdown
                     TIMEOUT 120
                     SOURCE testapp_shutdown.cc)
+
+# Run the subdoc functional tests
+add_unit_test_suite(NAME subdoc
+                    TIMEOUT 120
+                    SOURCE testapp_subdoc.cc testapp_subdoc_common.cc)
 
 # Run the connection timeout tests
 add_unit_test_suite(NAME connection-timeout
@@ -236,12 +240,12 @@ add_unit_test_suite(NAME no-autoselect-default-bucket
 # results in Jenkins.
 add_unit_test_suite(NAME subdoc-perf
                     TIMEOUT 400
-                    SOURCE testapp_subdoc_perf.cc testapp_subdoc.cc
+                    SOURCE testapp_subdoc_perf.cc testapp_subdoc_common.cc
                     OUTPUT --gtest_output=xml:gtest_results/memcached_basic_perf_tests.xml)
 
 add_unit_test_suite(NAME subdoc-multipath
                     TIMEOUT 400
-                    SOURCE testapp_subdoc_multipath.cc testapp_subdoc.cc)
+                    SOURCE testapp_subdoc_multipath.cc testapp_subdoc_common.cc)
 
 # Test that we correctly set and get cluster configuration (and that
 # the cluster configuration is piggybacked on a not-my-vbucket response

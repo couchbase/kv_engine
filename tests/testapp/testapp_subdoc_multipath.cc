@@ -19,7 +19,7 @@
  * Sub-document API multi-path tests
  */
 
-#include "testapp_subdoc.h"
+#include "testapp_subdoc_common.h"
 
 #include "utilities/subdoc_encoder.h"
 
@@ -608,3 +608,8 @@ TEST_P(McdTestappTest, SubdocMultiMutation_AddDocFlagInavlidCas) {
                               "56"});
     expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_EINVAL, {});
 }
+
+INSTANTIATE_TEST_CASE_P(Subdoc,
+                        McdTestappTest,
+                        ::testing::Values(TransportProtocols::McbpPlain),
+                        ::testing::PrintToStringParamName());

@@ -28,7 +28,7 @@
  *         K/V pairs of the form <num>: value_<num>.
  */
 
-#include "testapp_subdoc.h"
+#include "testapp_subdoc_common.h"
 
 #include "../utilities/subdoc_encoder.h"
 
