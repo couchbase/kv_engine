@@ -33,18 +33,6 @@ static const int MUTATION_FAILED = -1;
 static const int DOC_NOT_FOUND = 0;
 static const int MUTATION_SUCCESS = 1;
 
-struct KVStatsCtx {
-    KVStatsCtx(const KVStoreConfig& _config)
-        : vbucket(std::numeric_limits<uint16_t>::max()), config(_config) {
-    }
-
-    uint16_t vbucket;
-    std::unordered_map<StoredDocKey, kstat_entry_t> keyStats;
-    const KVStoreConfig& config;
-};
-
-typedef struct KVStatsCtx kvstats_ctx;
-
 typedef union {
     Callback<TransactionContext, mutation_result>* setCb;
     Callback<TransactionContext, int>* delCb;

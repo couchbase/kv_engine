@@ -425,7 +425,6 @@ private:
                                            RocksRequest* request);
 
     void commitCallback(
-            KVStatsCtx& statsCtx,
             rocksdb::Status status,
             const std::vector<std::unique_ptr<RocksRequest>>& commitBatch);
 

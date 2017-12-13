@@ -352,8 +352,6 @@ bool RocksDBKVStore::commit(const Item* collectionsManifest) {
 
     bool success = true;
     auto vbid = commitBatch[0]->getVBucketId();
-    KVStatsCtx statsCtx(configuration);
-    statsCtx.vbucket = vbid;
 
     // Flush all documents to disk
     auto status = saveDocs(vbid, collectionsManifest, commitBatch);
@@ -366,7 +364,7 @@ bool RocksDBKVStore::commit(const Item* collectionsManifest) {
         success = false;
     }
 
-    commitCallback(statsCtx, status, commitBatch);
+    commitCallback(status, commitBatch);
 
     // This behaviour is to replicate the one in Couchstore.
     // Set `in_transanction = false` only if `commit` is successful.
@@ -397,7 +395,6 @@ static int getMutationStatus(rocksdb::Status status) {
 }
 
 void RocksDBKVStore::commitCallback(
-        KVStatsCtx& kvctx,
         rocksdb::Status status,
         const std::vector<std::unique_ptr<RocksRequest>>& commitBatch) {
     for (const auto& request : commitBatch) {

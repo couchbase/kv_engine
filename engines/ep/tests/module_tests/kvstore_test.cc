@@ -44,16 +44,6 @@ public:
 
 };
 
-class StatsCallback : public Callback<kvstats_ctx> {
-public:
-    StatsCallback() {}
-
-    void callback(kvstats_ctx &result) {
-
-    }
-
-};
-
 class KVStoreTestCacheCallback : public StatusCallback<CacheLookup> {
 public:
     KVStoreTestCacheCallback(int64_t s, int64_t e, uint16_t vbid) :
@@ -251,7 +241,6 @@ TEST_F(CouchKVStoreTest, CompressedTest) {
         kvstore->set(item, wc);
     }
 
-    StatsCallback sc;
     kvstore->commit(nullptr /*no collections manifest*/);
 
     auto cb = std::make_shared<GetCallback>(true /*expectcompressed*/);
@@ -280,7 +269,6 @@ TEST_F(CouchKVStoreTest, StatsTest) {
     WriteCallback wc;
     kvstore->set(item, wc);
 
-    StatsCallback sc;
     EXPECT_TRUE(kvstore->commit(nullptr /*no collections manifest*/));
     // Check statistics are correct.
     std::map<std::string, std::string> stats;
@@ -1217,7 +1205,6 @@ public:
             }
         }
         kvstore.reset(new MockCouchKVStore(config));
-        StatsCallback sc;
         std::string failoverLog("");
         // simulate a setVBState - increment the rev and then persist the
         // state

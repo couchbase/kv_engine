@@ -147,6 +147,8 @@ protected:
     DocInfo dbDocInfo;
 };
 
+struct kvstats_ctx;
+
 /**
  * KVStore with couchstore as the underlying storage system
  */

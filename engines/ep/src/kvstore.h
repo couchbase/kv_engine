@@ -201,10 +201,6 @@ public:
     const KVStoreConfig& config;
 };
 
-// First bool is true if an item exists in VB DB file.
-// second bool is true if the operation is SET (i.e., insert or update).
-typedef std::pair<bool, bool> kstat_entry_t;
-
 struct FileStats {
     // Read time length
     MicrosecondHistogram readTimeHisto;
