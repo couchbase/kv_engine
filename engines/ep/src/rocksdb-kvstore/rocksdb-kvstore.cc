@@ -30,7 +30,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <algorithm>
-#include <gsl/gsl>
 #include <limits>
 #include <thread>
 
@@ -140,6 +139,7 @@ private:
     value_t docBody;
 };
 
+using RDBPtr = std::unique_ptr<rocksdb::DB>;
 // RocksDB docs suggest to "Use `rocksdb::DB::DestroyColumnFamilyHandle()` to
 // close a column family instead of deleting the column family handle directly"
 struct ColumnFamilyDeleter {
@@ -155,52 +155,27 @@ private:
 using ColumnFamilyPtr =
         std::unique_ptr<rocksdb::ColumnFamilyHandle, ColumnFamilyDeleter>;
 
-// The 'VBHandle' class is a wrapper around the ColumnFamilyHandles
-// for a VBucket.
-class VBHandle {
+// The `KVRocksDB` class is a wrapper around an instance of `rocksdb::DB` and
+// the linked Column Family pointers (which are usually used together).
+// Also, this class guarantees that all resources are released when the
+// `rocksdb::DB` instance is destroyed. From RocksDB docs:
+//     "Before delete DB, you have to close All column families by calling
+//      DestroyColumnFamilyHandle() with all the handles."
+class KVRocksDB {
 public:
-    VBHandle(rocksdb::DB& rdb,
-             rocksdb::ColumnFamilyHandle* defaultCFH,
-             rocksdb::ColumnFamilyHandle* seqnoCFH,
-             rocksdb::ColumnFamilyHandle* localCFH,
-             uint16_t vbid)
-        : rdb(rdb),
-          defaultCFH(ColumnFamilyPtr(defaultCFH, rdb)),
-          seqnoCFH(ColumnFamilyPtr(seqnoCFH, rdb)),
-          localCFH(ColumnFamilyPtr(localCFH, rdb)),
+    KVRocksDB(rocksdb::DB* rdb,
+              rocksdb::ColumnFamilyHandle* defaultCFH,
+              rocksdb::ColumnFamilyHandle* seqnoCFH,
+              rocksdb::ColumnFamilyHandle* localCFH,
+              uint16_t vbid)
+        : rdb(RDBPtr(rdb)),
+          defaultCFH(ColumnFamilyPtr(defaultCFH, *rdb)),
+          seqnoCFH(ColumnFamilyPtr(seqnoCFH, *rdb)),
+          localCFH(ColumnFamilyPtr(localCFH, *rdb)),
           vbid(vbid) {
     }
 
-    void dropColumnFamilies() {
-        // The call to DropColumnFamily() records the drop in the Manifest, but
-        // the actual remove will happen when the ColumFamilyHandle is deleted.
-        auto status = rdb.DropColumnFamily(defaultCFH.get());
-        if (!status.ok()) {
-            throw std::runtime_error(
-                    "VBHandle::dropColumnFamilies: DropColumnFamily failed for "
-                    "[vbid: " +
-                    std::to_string(vbid) + ", CF: default]: " +
-                    status.getState());
-        }
-        status = rdb.DropColumnFamily(seqnoCFH.get());
-        if (!status.ok()) {
-            throw std::runtime_error(
-                    "VBHandle::dropColumnFamilies: DropColumnFamily failed for "
-                    "[vbid: " +
-                    std::to_string(vbid) + ", CF: seqno]: " +
-                    status.getState());
-        }
-        status = rdb.DropColumnFamily(localCFH.get());
-        if (!status.ok()) {
-            throw std::runtime_error(
-                    "VBHandle::dropColumnFamilies: DropColumnFamily failed for "
-                    "[vbid: " +
-                    std::to_string(vbid) + ", CF: local]: " +
-                    status.getState());
-        }
-    }
-
-    rocksdb::DB& rdb;
+    const RDBPtr rdb;
     const ColumnFamilyPtr defaultCFH;
     const ColumnFamilyPtr seqnoCFH;
     const ColumnFamilyPtr localCFH;
@@ -209,12 +184,14 @@ public:
 
 RocksDBKVStore::RocksDBKVStore(KVStoreConfig& config)
     : KVStore(config),
-      vbHandles(configuration.getMaxVBuckets()),
+      vbDB(configuration.getMaxVBuckets()),
       in_transaction(false),
       scanCounter(0),
       logger(config.getLogger()) {
     cachedVBStates.resize(configuration.getMaxVBuckets());
     writeOptions.sync = true;
+
+    createDataDir(configuration.getDBName());
 
     // The RocksDB Options is a set of DBOptions and ColumnFamilyOptions.
     // Together they cover all RocksDB available parameters.
@@ -242,6 +219,7 @@ RocksDBKVStore::RocksDBKVStore(KVStoreConfig& config)
     rocksdb::Env::Default()->SetBackgroundThreads(highPri, rocksdb::Env::HIGH);
 
     dbOptions.create_if_missing = true;
+    dbOptions.create_missing_column_families = true;
 
     /* Use a listener to set the appropriate engine in the
      * flusher threads RocksDB creates. We need the flusher threads to
@@ -278,166 +256,72 @@ RocksDBKVStore::RocksDBKVStore(KVStoreConfig& config)
     applyUserCFOptions(seqnoCFOptions, cfOptions, bbtOptions);
     applyUserCFOptions(localCFOptions, cfOptions, bbtOptions);
 
-    // Open the DB and load the ColumnFamilyHandle for all the
-    // existing Column Families
-    openDB();
-
     // Read persisted VBs state
-    for (const auto vbh : vbHandles) {
-        if (vbh) {
-            readVBState(*vbh);
-            // Update stats
-            ++st.numLoadedVb;
-        }
+    auto vbids = discoverVBuckets();
+    for (auto vbid : vbids) {
+        const auto db = openDB(vbid);
+        readVBState(*db);
+        // Update stats
+        ++st.numLoadedVb;
     }
 }
 
 RocksDBKVStore::~RocksDBKVStore() {
-    // Guarantees that all the ColumnFamilyHandles for the existing VBuckets
-    // are released before 'rdb' is deleted. From RocksDB docs:
-    //     "Before delete DB, you have to close All column families by calling
-    //      DestroyColumnFamilyHandle() with all the handles."
-    vbHandles.clear();
     in_transaction = false;
 }
 
-void RocksDBKVStore::openDB() {
-    auto dbname = getDBSubdir();
-    createDataDir(dbname);
+std::shared_ptr<KVRocksDB> RocksDBKVStore::openDB(uint16_t vbid) {
+    std::lock_guard<std::mutex> lg(vbDBMutex);
 
-    std::vector<std::string> cfs;
-    auto status = rocksdb::DB::ListColumnFamilies(dbOptions, dbname, &cfs);
-    if (!status.ok()) {
-        // If ListColumnFamilies failed because the DB does not exist,
-        // then it will be created the first time we call 'rocksdb::DB::Open'.
-        // Else, we throw an error if ListColumnFamilies failed for any other
-        // unexpected reason.
-        if (!(status.code() == rocksdb::Status::kIOError &&
-              std::string(status.getState())
-                              .find("No such file or directory") !=
-                      std::string::npos)) {
-            throw std::runtime_error(
-                    "RocksDBKVStore::openDB: ListColumnFamilies failed for DB "
-                    "'" +
-                    dbname + "': " + status.getState());
-        }
+    if (vbDB[vbid]) {
+        return vbDB[vbid];
     }
 
-    // We need to pass a ColumnFamilyDescriptor for every existing CF.
-    // We populate 'cfDescriptors' so that it results in a vector
-    // containing packed CFs for every VBuckets, e.g. with
-    // MaxShards=4:
-    //     cfDescriptors[0] = default_0
-    //     cfDescriptors[1] = seqno_0
-    //     cfDescriptors[2] = local_0
-    //     cfDescriptors[3] = default_4
-    //     cfDescriptors[4] = seqno_4
-    //     cfDescriptors[5] = local_4
-    //     ..
-    // That helps us in populating 'vbHandles' later, because after
-    // 'rocksdb::DB::Open' handles[i] will be the handle that we will use
-    // to operate on the ColumnFamily at cfDescriptors[i].
-    std::vector<rocksdb::ColumnFamilyDescriptor> cfDescriptors;
-    for (uint16_t vbid = 0; vbid < configuration.getMaxVBuckets(); vbid++) {
-        if ((vbid % configuration.getMaxShards()) ==
-            configuration.getShardId()) {
-            std::string defaultCF = "default_" + std::to_string(vbid);
-            std::string seqnoCF = "seqno_" + std::to_string(vbid);
-            std::string localCF = "local_" + std::to_string(vbid);
-            if (std::find(cfs.begin(), cfs.end(), defaultCF) != cfs.end()) {
-                if (std::find(cfs.begin(), cfs.end(), seqnoCF) == cfs.end()) {
-                    throw std::logic_error("RocksDBKVStore::openDB: DB '" +
-                                           dbname +
-                                           "' is in inconsistent state: CF " +
-                                           seqnoCF + " not found.");
-                }
-                if (std::find(cfs.begin(), cfs.end(), localCF) == cfs.end()) {
-                    throw std::logic_error("RocksDBKVStore::openDB: DB '" +
-                                           dbname +
-                                           "' is in inconsistent state: CF " +
-                                           localCF + " not found.");
-                }
-                cfDescriptors.emplace_back(defaultCF, defaultCFOptions);
-                cfDescriptors.emplace_back(seqnoCF, seqnoCFOptions);
-                cfDescriptors.emplace_back(localCF, localCFOptions);
-            }
-        }
-    }
+    auto dbname = getVBDBSubdir(vbid);
 
-    // TODO: The RocksDB built-in 'default' CF always exists, need to check if
-    // we can drop it.
-    cfDescriptors.emplace_back(rocksdb::kDefaultColumnFamilyName,
-                               rocksdb::ColumnFamilyOptions());
+    std::vector<rocksdb::ColumnFamilyDescriptor> families{
+            rocksdb::ColumnFamilyDescriptor(rocksdb::kDefaultColumnFamilyName,
+                                            defaultCFOptions),
+            rocksdb::ColumnFamilyDescriptor("vbid_seqno_to_key",
+                                            seqnoCFOptions),
+            rocksdb::ColumnFamilyDescriptor("_local", localCFOptions)};
+
     std::vector<rocksdb::ColumnFamilyHandle*> handles;
+
     rocksdb::DB* db;
-    status = rocksdb::DB::Open(dbOptions, dbname, cfDescriptors, &handles, &db);
+    auto status = rocksdb::DB::Open(dbOptions, dbname, families, &handles, &db);
     if (!status.ok()) {
         throw std::runtime_error(
-                "RocksDBKVStore::openDB: Open failed for database '" + dbname +
+                "RocksDBKVStore::open: failed to open database '" + dbname +
                 "': " + status.getState());
     }
-    rdb.reset(db);
 
-    // The way we populated 'cfDescriptors' guarantees that: if 'cfDescriptors'
-    // contains more than only the RocksDB 'default' CF (i.e.,
-    // '(cfDescriptors.size() - 1) > 0') then 'cfDescriptors[i]',
-    // 'cfDescriptors[i+1]' and 'cfDescriptors[i+2]' are respectively the
-    // 'default_', 'seqno'_ and 'local_' CFs for a certain VBucket.
-    for (uint16_t i = 0; i < (cfDescriptors.size() - 1); i += 3) {
-        // Note: any further sanity-check is redundant as we will have always
-        // 'cf = "default_<vbid>"'.
-        const auto& cf = cfDescriptors[i].name;
-        uint16_t vbid = std::stoi(cf.substr(8));
-        vbHandles[vbid] = std::make_shared<VBHandle>(
-                *rdb, handles[i], handles[i + 1], handles[i + 2], vbid);
-    }
+    vbDB[vbid] = std::make_shared<KVRocksDB>(
+            db, handles[0], handles[1], handles[2], vbid);
 
-    // We need to release the ColumnFamilyHandle for the built-in 'default' CF
-    // here, as it is not managed by any VBHandle.
-    rdb->DestroyColumnFamilyHandle(handles.back());
+    return vbDB[vbid];
 }
 
-std::shared_ptr<VBHandle> RocksDBKVStore::getVBHandle(uint16_t vbid) {
-    std::lock_guard<std::mutex> lg(vbhMutex);
-    if (vbHandles[vbid]) {
-        return vbHandles[vbid];
-    }
+std::string RocksDBKVStore::getVBDBSubdir(uint16_t vbid) {
+    return configuration.getDBName() + "/rocksdb." + std::to_string(vbid);
+}
 
-    // If the VBHandle for vbid does not exist it means that we need to create
-    // the VBucket, i.e. we need to create the set of CFs on DB for vbid
-    std::vector<rocksdb::ColumnFamilyDescriptor> cfDescriptors;
-    auto vbid_ = std::to_string(vbid);
-    cfDescriptors.emplace_back("default_" + vbid_, defaultCFOptions);
-    cfDescriptors.emplace_back("seqno_" + vbid_, seqnoCFOptions);
-    cfDescriptors.emplace_back("local_" + vbid_, localCFOptions);
-
-    std::vector<rocksdb::ColumnFamilyHandle*> handles;
-    auto status = rdb->CreateColumnFamilies(cfDescriptors, &handles);
-    if (!status.ok()) {
-        for (auto* cfh : handles) {
-            status = rdb->DropColumnFamily(cfh);
-            if (!status.ok()) {
-                throw std::runtime_error(
-                        "RocksDBKVStore::getVBHandle: DropColumnFamily failed "
-                        "for CF " +
-                        cfh->GetName() + ": " + status.getState());
-            }
+std::vector<uint16_t> RocksDBKVStore::discoverVBuckets() {
+    std::vector<uint16_t> vbids;
+    auto vbDirs =
+            cb::io::findFilesContaining(configuration.getDBName(), "rocksdb.");
+    for (auto& dir : vbDirs) {
+        size_t lastDotIndex = dir.rfind(".");
+        size_t vbidLength = dir.size() - lastDotIndex - 1;
+        std::string vbidStr = dir.substr(lastDotIndex + 1, vbidLength);
+        uint16_t vbid = atoi(vbidStr.c_str());
+        // Take in account only VBuckets managed by this Shard
+        if ((vbid % configuration.getMaxShards()) ==
+            configuration.getShardId()) {
+            vbids.push_back(vbid);
         }
-        throw std::runtime_error(
-                "RocksDBKVStore::getVBHandle: CreateColumnFamilies failed for "
-                "vbid " +
-                std::to_string(vbid) + ": " + status.getState());
     }
-
-    vbHandles[vbid] = std::make_shared<VBHandle>(
-            *rdb, handles[0], handles[1], handles[2], vbid);
-
-    return vbHandles[vbid];
-}
-
-std::string RocksDBKVStore::getDBSubdir() {
-    return configuration.getDBName() + "/rocksdb." +
-           std::to_string(configuration.getShardId());
+    return vbids;
 }
 
 bool RocksDBKVStore::begin(std::unique_ptr<TransactionContext> txCtx) {
@@ -591,11 +475,10 @@ GetValue RocksDBKVStore::getWithHeader(void* dbHandle,
                                        GetMetaOnly getMetaOnly,
                                        bool fetchDelete) {
     std::string value;
-    const auto vbh = getVBHandle(vb);
+    const auto db = openDB(vb);
     // TODO RDB: use a PinnableSlice to avoid some memcpy
     rocksdb::Slice keySlice = getKeySlice(key);
-    rocksdb::Status s = rdb->Get(
-            rocksdb::ReadOptions(), vbh->defaultCFH.get(), keySlice, &value);
+    rocksdb::Status s = db->rdb->Get(rocksdb::ReadOptions(), keySlice, &value);
     if (!s.ok()) {
         return GetValue{NULL, ENGINE_KEY_ENOENT};
     }
@@ -608,11 +491,9 @@ void RocksDBKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t& itms) {
         auto& key = it.first;
         rocksdb::Slice keySlice = getKeySlice(key);
         std::string value;
-        const auto vbh = getVBHandle(vb);
-        rocksdb::Status s = rdb->Get(rocksdb::ReadOptions(),
-                                     vbh->defaultCFH.get(),
-                                     keySlice,
-                                     &value);
+        const auto db = openDB(vb);
+        rocksdb::Status s =
+                db->rdb->Get(rocksdb::ReadOptions(), keySlice, &value);
         if (s.ok()) {
             it.second.value =
                     makeGetValue(vb, key, value, it.second.isMetaOnly);
@@ -648,33 +529,39 @@ void RocksDBKVStore::del(const Item& item,
 
 void RocksDBKVStore::delVBucket(uint16_t vbid, uint64_t vb_version) {
     std::lock_guard<std::mutex> lg1(writeMutex);
-    std::lock_guard<std::mutex> lg2(vbhMutex);
+    std::lock_guard<std::mutex> lg2(vbDBMutex);
 
-    if (!vbHandles[vbid]) {
+    if (!vbDB[vbid]) {
         logger.log(EXTENSION_LOG_WARNING,
-                   "RocksDBKVStore::delVBucket: VBucket not found, vb:%" PRIu16,
+                   "RocksDBKVStore::delVBucket: DB not found, vb:%" PRIu16,
                    vbid);
         return;
     }
 
-    // 'vbHandles' stores a shared_ptr to VBHandle for each VBucket . The
-    // ownership of each pointer is shared among multiple threads performing
-    // different operations (e.g., 'get' and 'commit').
-    // We want to call 'DropColumnFamily' here rather than in other threads
-    // because it is an expensive, IO-intensive operation and we do not want
-    // it to cause another thread (possibly a front-end one) from being blocked
-    // performing the drop.
+    // 'vbDB' stores shared_ptr for each VBucket DB. The ownership of each
+    // pointer is shared among multiple threads performing different operations
+    // (e.g., 'get' and 'commit').
+    // We want to call 'DestroyDB' here rather than in '~KVRocksDB' because
+    // it is an expensive, IO-intensive operation and we do not want it to
+    // cause another thread (possibly a front-end one) from being blocked
+    // performing the destroy.
     // So, the thread executing 'delVBucket' spins until it is the exclusive
     // owner of the shared_ptr (i.e., other concurrent threads like 'commit'
     // have completed and do not own any copy of the shared_ptr).
     {
-        std::shared_ptr<VBHandle> sharedPtr;
-        std::swap(vbHandles[vbid], sharedPtr);
+        std::shared_ptr<KVRocksDB> sharedPtr;
+        std::swap(vbDB[vbid], sharedPtr);
         while (!sharedPtr.unique()) {
             std::this_thread::sleep_for(std::chrono::microseconds(100));
         }
-        // Drop all the CF for vbid.
-        sharedPtr->dropColumnFamilies();
+    }
+    // Just destroy the DB in the sub-folder for vbid
+    auto dbname = getVBDBSubdir(vbid);
+    auto status = rocksdb::DestroyDB(
+            dbname, static_cast<const rocksdb::Options&>(dbOptions));
+    if (!status.ok()) {
+        throw std::runtime_error("RocksDBKVStore::open: DestroyDB '" + dbname +
+                                 "' failed: " + status.getState());
     }
 }
 
@@ -687,9 +574,9 @@ bool RocksDBKVStore::snapshotVBucket(uint16_t vbucketId,
     if (updateCachedVBState(vbucketId, vbstate) &&
         (options == VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT ||
          options == VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT)) {
-        const auto vbh = getVBHandle(vbucketId);
+        const auto db = openDB(vbucketId);
         rocksdb::WriteBatch batch;
-        auto status = saveVBStateToBatch(*vbh, vbstate, batch);
+        auto status = saveVBStateToBatch(*db, vbstate, batch);
         if (!status.ok()) {
             logger.log(EXTENSION_LOG_WARNING,
                        "RocksDBKVStore::snapshotVBucket: saveVBStateToBatch() "
@@ -699,7 +586,7 @@ bool RocksDBKVStore::snapshotVBucket(uint16_t vbucketId,
                        status.getState());
             return false;
         }
-        status = rdb->Write(writeOptions, &batch);
+        status = db->rdb->Write(writeOptions, &batch);
         if (!status.ok()) {
             logger.log(EXTENSION_LOG_WARNING,
                        "RocksDBKVStore::snapshotVBucket: Write() "
@@ -825,15 +712,21 @@ StorageProperties RocksDBKVStore::getStorageProperties(void) {
     return rv;
 }
 
-std::unordered_set<const rocksdb::Cache*> RocksDBKVStore::getCachePointers() {
+std::unordered_set<const rocksdb::Cache*> RocksDBKVStore::getCachePointers(
+        const std::vector<rocksdb::DB*>& dbs) {
     std::unordered_set<const rocksdb::Cache*> cache_set;
 
-    // TODO: Cache from DBImpl. The 'std::shared_ptr<Cache>
-    // table_cache_' pointer is not exposed through the 'DB' interface
+    for (const auto* db : dbs) {
+        if (db) {
+            // TODO: Cache from DBImpl. The 'std::shared_ptr<Cache>
+            // table_cache_' pointer is not exposed through the 'DB' interface
 
-    // Cache from DBOptions
-    // Note: we do not use the 'row_cache' currently.
-    cache_set.insert(rdb->GetDBOptions().row_cache.get());
+            // Cache from DBOptions
+            // Note: we do not use the 'row_cache' currently. As the Block
+            // Cache, it can be shared among multiple DBs.
+            cache_set.insert(db->GetDBOptions().row_cache.get());
+        }
+    }
 
     // Cache from table factories.
     addCFBlockCachePointers(defaultCFOptions, cache_set);
@@ -927,13 +820,13 @@ GetValue RocksDBKVStore::makeGetValue(uint16_t vb,
             makeItem(vb, key, sval, getMetaOnly), ENGINE_SUCCESS, -1, 0);
 }
 
-void RocksDBKVStore::readVBState(const VBHandle& vbh) {
+void RocksDBKVStore::readVBState(const KVRocksDB& db) {
     // Largely copied from CouchKVStore
     // TODO RDB: refactor out sections common to CouchKVStore
     vbucket_state_t state = vbucket_state_dead;
     uint64_t checkpointId = 0;
     uint64_t maxDeletedSeqno = 0;
-    int64_t highSeqno = readHighSeqnoFromDisk(vbh);
+    int64_t highSeqno = readHighSeqnoFromDisk(db);
     std::string failovers;
     uint64_t purgeSeqno = 0;
     uint64_t lastSnapStart = 0;
@@ -944,9 +837,9 @@ void RocksDBKVStore::readVBState(const VBHandle& vbh) {
 
     auto key = getVbstateKey();
     std::string vbstate;
-    auto vbid = vbh.vbid;
-    auto status =
-            rdb->Get(rocksdb::ReadOptions(), vbh.localCFH.get(), key, &vbstate);
+    auto vbid = db.vbid;
+    auto status = db.rdb->Get(
+            rocksdb::ReadOptions(), db.localCFH.get(), key, &vbstate);
     if (!status.ok()) {
         if (status.IsNotFound()) {
             logger.log(EXTENSION_LOG_NOTICE,
@@ -1034,21 +927,20 @@ void RocksDBKVStore::readVBState(const VBHandle& vbh) {
         cJSON_Delete(jsonObj);
     }
 
-    cachedVBStates[vbh.vbid] =
-            std::make_unique<vbucket_state>(state,
-                                            checkpointId,
-                                            maxDeletedSeqno,
-                                            highSeqno,
-                                            purgeSeqno,
-                                            lastSnapStart,
-                                            lastSnapEnd,
-                                            maxCas,
-                                            hlcCasEpochSeqno,
-                                            mightContainXattrs,
-                                            failovers);
+    cachedVBStates[vbid] = std::make_unique<vbucket_state>(state,
+                                                           checkpointId,
+                                                           maxDeletedSeqno,
+                                                           highSeqno,
+                                                           purgeSeqno,
+                                                           lastSnapStart,
+                                                           lastSnapEnd,
+                                                           maxCas,
+                                                           hlcCasEpochSeqno,
+                                                           mightContainXattrs,
+                                                           failovers);
 }
 
-rocksdb::Status RocksDBKVStore::saveVBStateToBatch(const VBHandle& vbh,
+rocksdb::Status RocksDBKVStore::saveVBStateToBatch(const KVRocksDB& db,
                                                    const vbucket_state& vbState,
                                                    rocksdb::WriteBatch& batch) {
     std::stringstream jsonState;
@@ -1074,7 +966,7 @@ rocksdb::Status RocksDBKVStore::saveVBStateToBatch(const VBHandle& vbh,
     jsonState << "}";
 
     auto key = getVbstateKey();
-    return batch.Put(vbh.localCFH.get(), key, jsonState.str());
+    return batch.Put(db.localCFH.get(), key, jsonState.str());
 }
 
 rocksdb::ColumnFamilyOptions RocksDBKVStore::getBaselineDefaultCFOptions() {
@@ -1179,9 +1071,10 @@ void RocksDBKVStore::applyUserCFOptions(rocksdb::ColumnFamilyOptions& cfOptions,
             rocksdb::NewBlockBasedTableFactory(tableOptions));
 }
 
-rocksdb::Status RocksDBKVStore::writeAndTimeBatch(rocksdb::WriteBatch batch) {
+rocksdb::Status RocksDBKVStore::writeAndTimeBatch(const KVRocksDB& db,
+                                                  rocksdb::WriteBatch batch) {
     auto begin = ProcessClock::now();
-    auto status = rdb->Write(writeOptions, &batch);
+    auto status = db.rdb->Write(writeOptions, &batch);
     st.commitHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
             ProcessClock::now() - begin));
     return status;
@@ -1207,13 +1100,13 @@ rocksdb::Status RocksDBKVStore::saveDocs(
     int64_t maxDBSeqno = 0;
     rocksdb::WriteBatch batch;
 
-    const auto vbh = getVBHandle(vbid);
+    const auto db = openDB(vbid);
 
     for (const auto& request : commitBatch) {
         int64_t bySeqno = request->getDocMeta().bySeqno;
         maxDBSeqno = std::max(maxDBSeqno, bySeqno);
 
-        status = addRequestToWriteBatch(*vbh, batch, request.get());
+        status = addRequestToWriteBatch(*db, batch, request.get());
         if (!status.ok()) {
             logger.log(EXTENSION_LOG_WARNING,
                        "RocksDBKVStore::saveDocs: addRequestToWriteBatch "
@@ -1234,7 +1127,7 @@ rocksdb::Status RocksDBKVStore::saveDocs(
         const auto batchLimit = defaultCFOptions.write_buffer_size +
                                 seqnoCFOptions.write_buffer_size;
         if (batch.GetDataSize() > batchLimit) {
-            status = writeAndTimeBatch(batch);
+            status = writeAndTimeBatch(*db, batch);
             if (!status.ok()) {
                 logger.log(EXTENSION_LOG_WARNING,
                            "RocksDBKVStore::saveDocs: rocksdb::DB::Write "
@@ -1248,7 +1141,7 @@ rocksdb::Status RocksDBKVStore::saveDocs(
         }
     }
 
-    status = saveVBStateToBatch(*vbh, *vbstate, batch);
+    status = saveVBStateToBatch(*db, *vbstate, batch);
     if (!status.ok()) {
         logger.log(EXTENSION_LOG_WARNING,
                    "RocksDBKVStore::saveDocs: saveVBStateToBatch error:%d",
@@ -1256,7 +1149,7 @@ rocksdb::Status RocksDBKVStore::saveDocs(
         return status;
     }
 
-    status = writeAndTimeBatch(batch);
+    status = writeAndTimeBatch(*db, batch);
     if (!status.ok()) {
         logger.log(EXTENSION_LOG_WARNING,
                    "RocksDBKVStore::saveDocs: rocksdb::DB::Write error:%d, "
@@ -1270,7 +1163,7 @@ rocksdb::Status RocksDBKVStore::saveDocs(
     st.docsCommitted = reqsSize;
 
     // Check and update last seqno
-    auto lastSeqno = readHighSeqnoFromDisk(*vbh);
+    auto lastSeqno = readHighSeqnoFromDisk(*db);
     if (maxDBSeqno != lastSeqno) {
         logger.log(EXTENSION_LOG_WARNING,
                    "RocksDBKVStore::saveDocs: Seqno in db header (%" PRIu64
@@ -1286,7 +1179,7 @@ rocksdb::Status RocksDBKVStore::saveDocs(
 }
 
 rocksdb::Status RocksDBKVStore::addRequestToWriteBatch(
-        const VBHandle& vbh,
+        const KVRocksDB& db,
         rocksdb::WriteBatch& batch,
         RocksRequest* request) {
     uint16_t vbid = request->getVBucketId();
@@ -1302,8 +1195,7 @@ rocksdb::Status RocksDBKVStore::addRequestToWriteBatch(
     // We use the `saveDocsHisto` to track the time spent on
     // `rocksdb::WriteBatch::Put()`.
     auto begin = ProcessClock::now();
-    auto status =
-            batch.Put(vbh.defaultCFH.get(), keySliceParts, valueSliceParts);
+    auto status = batch.Put(keySliceParts, valueSliceParts);
     if (!status.ok()) {
         logger.log(EXTENSION_LOG_WARNING,
                    "RocksDBKVStore::saveDocs: rocksdb::WriteBatch::Put "
@@ -1313,7 +1205,7 @@ rocksdb::Status RocksDBKVStore::addRequestToWriteBatch(
                    vbid);
         return status;
     }
-    status = batch.Put(vbh.seqnoCFH.get(), bySeqnoSlice, keySlice);
+    status = batch.Put(db.seqnoCFH.get(), bySeqnoSlice, keySlice);
     if (!status.ok()) {
         logger.log(EXTENSION_LOG_WARNING,
                    "RocksDBKVStore::saveDocs: rocksdb::WriteBatch::Put "
@@ -1329,9 +1221,9 @@ rocksdb::Status RocksDBKVStore::addRequestToWriteBatch(
     return rocksdb::Status::OK();
 }
 
-int64_t RocksDBKVStore::readHighSeqnoFromDisk(const VBHandle& vbh) {
+int64_t RocksDBKVStore::readHighSeqnoFromDisk(const KVRocksDB& db) {
     std::unique_ptr<rocksdb::Iterator> it(
-            rdb->NewIterator(rocksdb::ReadOptions(), vbh.seqnoCFH.get()));
+            db.rdb->NewIterator(rocksdb::ReadOptions(), db.seqnoCFH.get()));
 
     // Seek to the highest seqno=>key mapping stored for the vbid
     auto maxSeqno = std::numeric_limits<int64_t>::max();
@@ -1357,7 +1249,9 @@ ScanContext* RocksDBKVStore::initScanContext(
         DocumentFilter options,
         ValueFilter valOptions) {
     size_t scanId = scanCounter++;
-    scanSnapshots.emplace(scanId, SnapshotPtr(rdb->GetSnapshot(), *rdb));
+    const auto db = openDB(vbid);
+    scanSnapshots.emplace(scanId,
+                          SnapshotPtr(db->rdb->GetSnapshot(), *db->rdb));
 
     // As we cannot efficiently determine how many documents this scan will
     // find, we approximate this value with the seqno difference + 1
@@ -1399,9 +1293,9 @@ scan_error_t RocksDBKVStore::scan(ScanContext* ctx) {
     snapshotOpts.snapshot = scanSnapshots.at(ctx->scanId).get();
 
     rocksdb::Slice startSeqnoSlice = getSeqnoSlice(&startSeqno);
-    const auto vbh = getVBHandle(ctx->vbid);
+    const auto db = openDB(ctx->vbid);
     std::unique_ptr<rocksdb::Iterator> it(
-            rdb->NewIterator(snapshotOpts, vbh->seqnoCFH.get()));
+            db->rdb->NewIterator(snapshotOpts, db->seqnoCFH.get()));
     if (!it) {
         throw std::logic_error(
                 "RocksDBKVStore::scan: rocksdb::Iterator to Seqno Column "
@@ -1418,8 +1312,7 @@ scan_error_t RocksDBKVStore::scan(ScanContext* ctx) {
         auto seqno = getNumericSeqno(it->key());
         rocksdb::Slice keySlice = it->value();
         std::string valueStr;
-        auto s = rdb->Get(
-                snapshotOpts, vbh->defaultCFH.get(), keySlice, &valueStr);
+        auto s = db->rdb->Get(snapshotOpts, keySlice, &valueStr);
 
         if (!s.ok()) {
             // TODO RDB: Old seqnos are never removed from the db!
@@ -1502,18 +1395,32 @@ void RocksDBKVStore::destroyScanContext(ScanContext* ctx) {
 
 bool RocksDBKVStore::getStatFromMemUsage(
         const rocksdb::MemoryUtil::UsageType type, size_t& value) {
-    std::vector<rocksdb::DB*> dbs = {rdb.get()};
-    auto cache_set = getCachePointers();
+    std::vector<rocksdb::DB*> dbs;
     std::map<rocksdb::MemoryUtil::UsageType, uint64_t> usageByType;
+    {
+        // Note: we need to call 'GetApproximateMemoryUsageByType' under lock
+        // to avoid that 'delVBucket' deletes pointers in 'dbs'
+        std::lock_guard<std::mutex> lg(vbDBMutex);
+        for (const auto db : vbDB) {
+            if (db) {
+                dbs.push_back(db->rdb.get());
+            }
+        }
 
-    auto status = rocksdb::MemoryUtil::GetApproximateMemoryUsageByType(
-            dbs, cache_set, &usageByType);
-    if (!status.ok()) {
-        logger.log(EXTENSION_LOG_NOTICE,
-                   "RocksDBKVStore::getStatFromMemUsage: "
-                   "GetApproximateMemoryUsageByType error: %s",
-                   status.getState());
-        return false;
+        if (dbs.empty()) {
+            return false;
+        }
+        auto cache_set = getCachePointers(dbs);
+
+        auto status = rocksdb::MemoryUtil::GetApproximateMemoryUsageByType(
+                dbs, cache_set, &usageByType);
+        if (!status.ok()) {
+            logger.log(EXTENSION_LOG_NOTICE,
+                       "RocksDBKVStore::getStatFromMemUsage: "
+                       "GetApproximateMemoryUsageByType error: %s",
+                       status.getState());
+            return false;
+        }
     }
 
     value = usageByType.at(type);
@@ -1523,37 +1430,43 @@ bool RocksDBKVStore::getStatFromMemUsage(
 
 bool RocksDBKVStore::getStatFromStatistics(const rocksdb::Tickers ticker,
                                            size_t& value) {
-    const auto statistics = rdb->GetDBOptions().statistics;
-    if (!statistics) {
-        return false;
+    std::lock_guard<std::mutex> lg(vbDBMutex);
+    for (const auto db : vbDB) {
+        if (db) {
+            const auto statistics = db->rdb->GetDBOptions().statistics;
+            if (!statistics) {
+                return false;
+            }
+            value += statistics->getTickerCount(ticker);
+        }
     }
-    value = statistics->getTickerCount(ticker);
+
     return true;
 }
 
 bool RocksDBKVStore::getStatFromProperties(ColumnFamily cf,
                                            const std::string& property,
                                            size_t& value) {
-    std::lock_guard<std::mutex> lg(vbhMutex);
-    for (const auto vbh : vbHandles) {
-        if (vbh) {
+    std::lock_guard<std::mutex> lg(vbDBMutex);
+    for (const auto db : vbDB) {
+        if (db) {
             rocksdb::ColumnFamilyHandle* cfh = nullptr;
             switch (cf) {
             case ColumnFamily::Default:
-                cfh = vbh->defaultCFH.get();
+                cfh = db->defaultCFH.get();
                 break;
             case ColumnFamily::Seqno:
-                cfh = vbh->seqnoCFH.get();
+                cfh = db->seqnoCFH.get();
                 break;
             case ColumnFamily::Local:
-                cfh = vbh->localCFH.get();
+                cfh = db->localCFH.get();
                 break;
             }
             if (!cfh) {
                 return false;
             }
             std::string out;
-            if (!rdb->GetProperty(cfh, property, &out)) {
+            if (!db->rdb->GetProperty(cfh, property, &out)) {
                 return false;
             }
             value += std::stoi(out);

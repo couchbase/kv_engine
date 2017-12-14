@@ -1931,19 +1931,19 @@ TEST_P(KVStoreParamTest, TestPersistenceCallbacksForDel) {
     EXPECT_TRUE(kvstore->commit(nullptr /*no collections manifest*/));
 }
 
-TEST_P(KVStoreParamTest, TestDataStoredInTheRightVBucket) {
+TEST_P(KVStoreParamTest, TestOneDBPerVBucket) {
     WriteCallback wc;
     std::string value = "value";
     std::vector<uint16_t> vbids = {0, 1};
 
     // For this test we need to initialize both VBucket 0 and VBucket 1.
-    // In the case of RocksDB we need to release the DB already opened in 'kvstore'
+    // In the case of RocksDB we need to release DBs already opened in `kvstore`
     if (kvstoreConfig->getBackend() == "rocksdb") {
         kvstore.reset();
     }
     kvstore = setup_kv_store(*kvstoreConfig, vbids);
 
-    // Store an item into each VBucket
+    // Store an item into each VBucket DB
     for (auto vbid : vbids) {
         kvstore->begin({});
         Item item(makeStoredDocKey("key-" + std::to_string(vbid)),
@@ -1959,14 +1959,14 @@ TEST_P(KVStoreParamTest, TestDataStoredInTheRightVBucket) {
         kvstore->commit(nullptr /*no collections manifest*/);
     }
 
-    // Check that each item has been stored in the right VBucket
+    // Check that each item has been stored in the right VBucket DB
     for (auto vbid : vbids) {
         GetValue gv = kvstore->get(
                 makeStoredDocKey("key-" + std::to_string(vbid)), vbid);
         checkGetValue(gv);
     }
 
-    // Check that an item is not found in a different VBucket
+    // Check that an item is not found in a different VBucket DB
     GetValue gv = kvstore->get(makeStoredDocKey("key-0"), 1 /*vbid*/);
     checkGetValue(gv, ENGINE_KEY_ENOENT);
     gv = kvstore->get(makeStoredDocKey("key-1"), 0 /*vbid*/);
@@ -1986,18 +1986,26 @@ TEST_P(KVStoreParamTest, DelVBucketConcurrentOperationsTest) {
               0 /*cas*/,
               -1 /*bySeqno*/,
               0 /*vbid*/);
+    // The execution of 'set' creates a DB if it does not exist yet, then it
+    // writes to the DB.
     auto set = [&] {
         for (int i = 0; i < 10; i++) {
+            // Execution of set creates again a DB if needed
             kvstore->begin({});
             kvstore->set(item, wc);
             kvstore->commit(nullptr /*no collections manifest*/);
         }
     };
+
+    // The execution of 'delVBucket' should always delete a DB without
+    // breaking the execution of other threads using the same DB.
     auto delVBucket = [&] {
         for (int i = 0; i < 10; i++) {
             kvstore->delVBucket(0 /*vbid*/, 0 /*fileRev*/);
         }
     };
+
+    // The execution of 'getStat' reads from a DB if the DB exists.
     auto getStat = [&] {
         size_t value;
         for (int i = 0; i < 10; i++) {
