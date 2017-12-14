@@ -525,7 +525,8 @@ static ENGINE_ERROR_CODE dcp_message_system_event(
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     c->write->produce([&c, &packet, &key, &eventData, &ret](
                               cb::byte_buffer buffer) -> size_t {
-        if (buffer.size() < sizeof(packet.bytes)) {
+        if (buffer.size() <
+            (sizeof(packet.bytes) + key.size() + eventData.size())) {
             ret = ENGINE_E2BIG;
             return 0;
         }
@@ -534,10 +535,13 @@ static ENGINE_ERROR_CODE dcp_message_system_event(
                   packet.bytes + sizeof(packet.bytes),
                   buffer.begin());
 
-        c->addIov(buffer.data(), sizeof(packet.bytes));
-        c->addIov(key.data(), key.size());
-        c->addIov(eventData.data(), eventData.size());
-        return sizeof(packet.bytes);
+        std::copy(
+                key.begin(), key.end(), buffer.begin() + sizeof(packet.bytes));
+        std::copy(eventData.begin(),
+                  eventData.end(),
+                  buffer.begin() + sizeof(packet.bytes) + key.size());
+
+        return sizeof(packet.bytes) + key.size() + eventData.size();
     });
 
     return ret;
