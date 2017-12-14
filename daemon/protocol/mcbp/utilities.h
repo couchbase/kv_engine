@@ -20,19 +20,6 @@
 
 #include <memcached/rbac.h>
 
-/**
- * Get the cookie represented by the void pointer passed as a cookie through
- * the engine interface
- *
- * @param void_cookie this is the void pointer passed to all of the engine
- *                    methods
- * @param function the name of the function trying to convert the cookie. This
- *                 is used purely for error reporting (if void_cookie is null)
- * @return The connection object
- */
-McbpConnection* cookie2mcbp(const void* void_cookie,
-                            const char* function);
-
 namespace mcbp {
 static inline ENGINE_ERROR_CODE checkPrivilege(Cookie& cookie,
                                                cb::rbac::Privilege privilege) {

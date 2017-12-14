@@ -20,6 +20,27 @@
 #include "engine_wrapper.h"
 #include "utilities.h"
 
+/**
+ * Get the cookie represented by the void pointer passed as a cookie through
+ * the engine interface
+ *
+ * @param void_cookie this is the void pointer passed to all of the engine
+ *                    methods
+ * @param function the name of the function trying to convert the cookie. This
+ *                 is used purely for error reporting (if void_cookie is null)
+ * @return The connection object
+ */
+static McbpConnection* cookie2mcbp(const void* void_cookie, const char* function) {
+    const auto * cookie = reinterpret_cast<const Cookie *>(void_cookie);
+    if (cookie == nullptr) {
+        throw std::invalid_argument(std::string(function) +
+                                    ": cookie is nullptr");
+    }
+    cookie->validate();
+    return &cookie->getConnection();
+}
+
+
 static ENGINE_ERROR_CODE add_packet_to_pipe(McbpConnection* c,
                                             cb::const_byte_buffer packet) {
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;

@@ -172,7 +172,6 @@ ADD_LIBRARY(memcached_daemon STATIC
             protocol/mcbp/steppable_command_context.h
             protocol/mcbp/unlock_context.cc
             protocol/mcbp/unlock_context.h
-            protocol/mcbp/utilities.cc
             protocol/mcbp/utilities.h
             runtime.cc
             runtime.h
