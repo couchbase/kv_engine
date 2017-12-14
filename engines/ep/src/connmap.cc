@@ -60,9 +60,9 @@ public:
         // In *theory* this should run very quickly (p50 of 64us); however
         // there's evidence it sometimes takes much longer than that - p99.999
         // of over 1s.
-        // Set slow limit to 1s initially to highlight the worst runtimes;
+        // Set slow limit to 5s initially to highlight the worst runtimes;
         // consider reducing further when they are solved.
-        return std::chrono::seconds(1);
+        return std::chrono::seconds(5);
     }
 
 private:

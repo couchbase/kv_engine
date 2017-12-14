@@ -54,10 +54,10 @@ public:
         // Flusher duration is likely to vary significantly; depending on
         // number of documents to flush and speed/capacity of disk subsystem.
         // As such, selecting a good maximum duration for all scenarios is hard.
-        // Choose a relatively generous value of 250ms - this should record
+        // Choose a relatively generous value of 400ms - this should record
         // any significantly slow executions without creating too much log
         // noise.
-        return std::chrono::milliseconds(250);
+        return std::chrono::milliseconds(400);
     }
 
 private:
@@ -85,9 +85,9 @@ public:
     }
 
     std::chrono::microseconds maxExpectedDuration() {
-        // Empirical evidence suggests this task runs under 25ms 99.98% of
+        // Empirical evidence suggests this task runs under 25s 99.98% of
         // the time.
-        return std::chrono::milliseconds(500);
+        return std::chrono::seconds(25);
     }
 
 private:
@@ -149,10 +149,10 @@ public:
         // vary significantly; depending on number of documents to fetch and
         // speed/capacity of disk subsystem. As such, selecting a good maximum
         // duration for all scenarios is hard.
-        // Choose a relatively generous value of 250ms - this should record
+        // Choose a relatively generous value of 700ms - this should record
         // any significantly slow executions without creating too much log
         // noise.
-        return std::chrono::milliseconds(250);
+        return std::chrono::milliseconds(700);
     }
 
 private:

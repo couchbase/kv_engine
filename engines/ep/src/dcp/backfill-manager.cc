@@ -89,9 +89,9 @@ cb::const_char_buffer BackfillManagerTask::getDescription() {
 }
 
 std::chrono::microseconds BackfillManagerTask::maxExpectedDuration() {
-    // Empirical evidence suggests this task runs under 100ms 99.999% of
+    // Empirical evidence suggests this task runs under 300ms 99.999% of
     // the time.
-    return std::chrono::milliseconds(100);
+    return std::chrono::milliseconds(300);
 }
 
 BackfillManager::BackfillManager(EventuallyPersistentEngine& e)

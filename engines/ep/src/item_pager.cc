@@ -342,8 +342,8 @@ bool ItemPager::run(void) {
                                                   bias,
                                                   &phase);
 
-        // p99.99 is ~50ms
-        const auto maxExpectedDuration = std::chrono::milliseconds(50);
+        // p99.99 is ~200ms
+        const auto maxExpectedDuration = std::chrono::milliseconds(200);
 
         kvBucket->visit(std::move(pv),
                         "Item pager",
