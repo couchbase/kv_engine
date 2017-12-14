@@ -1430,6 +1430,7 @@ bool RocksDBKVStore::getStatFromMemUsage(
 
 bool RocksDBKVStore::getStatFromStatistics(const rocksdb::Tickers ticker,
                                            size_t& value) {
+    value = 0;
     std::lock_guard<std::mutex> lg(vbDBMutex);
     for (const auto db : vbDB) {
         if (db) {
@@ -1447,6 +1448,7 @@ bool RocksDBKVStore::getStatFromStatistics(const rocksdb::Tickers ticker,
 bool RocksDBKVStore::getStatFromProperties(ColumnFamily cf,
                                            const std::string& property,
                                            size_t& value) {
+    value = 0;
     std::lock_guard<std::mutex> lg(vbDBMutex);
     for (const auto db : vbDB) {
         if (db) {
@@ -1469,7 +1471,7 @@ bool RocksDBKVStore::getStatFromProperties(ColumnFamily cf,
             if (!db->rdb->GetProperty(cfh, property, &out)) {
                 return false;
             }
-            value += std::stoi(out);
+            value += std::stoull(out);
         }
     }
 
