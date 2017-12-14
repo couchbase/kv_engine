@@ -1410,14 +1410,7 @@ static size_t encode_multi_mutation_result_spec(uint8_t index,
 static void subdoc_single_response(Cookie& cookie, SubdocCmdContext& context) {
     auto& connection = context.connection;
 
-    // Calculate extras size
-    const bool include_mutation_dscr = (connection.isSupportsMutationExtras() &&
-                                        context.traits.is_mutator);
-    const size_t extlen = include_mutation_dscr ? sizeof(mutation_descr_t)
-                                                : 0;
-
-    const char* value = NULL;
-    context.response_val_len = 0;
+    cb::const_char_buffer value = {};
     if (context.traits.response_has_value) {
         // The value may have been created in the xattr or the body phase
         // so it should only be one, so if it isn't an xattr it should be
@@ -1427,8 +1420,7 @@ static void subdoc_single_response(Cookie& cookie, SubdocCmdContext& context) {
             phase = SubdocCmdContext::Phase::Body;
         }
         auto mloc = context.getOperations(phase)[0].result.matchloc();
-        value = mloc.at;
-        context.response_val_len = mloc.length;
+        value = {mloc.at, mloc.length};
     }
 
     if (context.traits.is_mutator) {
@@ -1438,37 +1430,25 @@ static void subdoc_single_response(Cookie& cookie, SubdocCmdContext& context) {
         cb::audit::document::add(cookie, cb::audit::document::Operation::Read);
     }
 
-    auto status_code = PROTOCOL_BINARY_RESPONSE_SUCCESS;
-    if (context.in_document_state == DocumentState::Deleted) {
-        status_code = PROTOCOL_BINARY_RESPONSE_SUBDOC_SUCCESS_DELETED;
-    }
-    mcbp_add_header(cookie,
-                    status_code,
-                    extlen,
-                    0 /*keylen*/,
-                    extlen + context.response_val_len,
-                    PROTOCOL_BINARY_RAW_BYTES);
-
     // Add mutation descr to response buffer if requested.
-    if (include_mutation_dscr) {
-        DynamicBuffer& response_buf = cookie.getDynamicBuffer();
-        if (!response_buf.grow(extlen)) {
-            // Unable to form complete response.
-            cookie.sendResponse(cb::mcbp::Status::Enomem);
-            return;
-        }
-        char* const extras_ptr = response_buf.getCurrent();
-        encode_mutation_descr(context, extras_ptr);
-        response_buf.moveOffset(extlen);
-
-        connection.addIov(extras_ptr, extlen);
+    cb::const_char_buffer extras = {};
+    mutation_descr_t descr = {};
+    if (connection.isSupportsMutationExtras() && context.traits.is_mutator) {
+        encode_mutation_descr(context, reinterpret_cast<char*>(&descr));
+        extras = {reinterpret_cast<const char*>(&descr), sizeof(descr)};
     }
 
-    if (context.traits.response_has_value) {
-        connection.addIov(value, context.response_val_len);
+    auto status_code = cb::mcbp::Status::Success;
+    if (context.in_document_state == DocumentState::Deleted) {
+        status_code = cb::mcbp::Status::SubdocSuccessDeleted;
     }
 
-    connection.setState(McbpStateMachine::State::send_data);
+    cookie.sendResponse(cb::mcbp::Status(status_code),
+                        extras,
+                        {},
+                        value,
+                        cb::mcbp::Datatype::Raw,
+                        cookie.getCas());
 }
 
 /* Construct and send a response to a multi-path mutation back to the client.
