@@ -19,13 +19,3 @@
 #include "../../memcached.h"
 
 void dcp_expiration_executor(Cookie& cookie);
-
-ENGINE_ERROR_CODE dcp_message_expiration(gsl::not_null<const void*> void_cookie,
-                                         uint32_t opaque,
-                                         item* it,
-                                         uint16_t vbucket,
-                                         uint64_t by_seqno,
-                                         uint64_t rev_seqno,
-                                         const void* meta,
-                                         uint16_t nmeta,
-                                         uint8_t collection_len);

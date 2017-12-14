@@ -67,36 +67,3 @@ void dcp_system_event_executor(Cookie& cookie) {
         cookie.sendResponse(cb::engine_errc(ret));
     }
 }
-
-ENGINE_ERROR_CODE dcp_message_system_event(gsl::not_null<const void*> cookie,
-                                           uint32_t opaque,
-                                           uint16_t vbucket,
-                                           mcbp::systemevent::id event,
-                                           uint64_t bySeqno,
-                                           cb::const_byte_buffer key,
-                                           cb::const_byte_buffer eventData) {
-    auto* c = cookie2mcbp(cookie, __func__);
-
-    protocol_binary_request_dcp_system_event packet(
-            opaque, vbucket, key.size(), eventData.size(), event, bySeqno);
-
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    c->write->produce([&c, &packet, &key, &eventData, &ret](
-                              cb::byte_buffer buffer) -> size_t {
-        if (buffer.size() < sizeof(packet.bytes)) {
-            ret = ENGINE_E2BIG;
-            return 0;
-        }
-
-        std::copy(packet.bytes,
-                  packet.bytes + sizeof(packet.bytes),
-                  buffer.begin());
-
-        c->addIov(buffer.data(), sizeof(packet.bytes));
-        c->addIov(key.data(), key.size());
-        c->addIov(eventData.data(), eventData.size());
-        return sizeof(packet.bytes);
-    });
-
-    return ret;
-}

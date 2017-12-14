@@ -93,21 +93,3 @@ void dcp_expiration_executor(Cookie& cookie) {
         cookie.sendResponse(cb::engine_errc(ret));
     }
 }
-
-ENGINE_ERROR_CODE dcp_message_expiration(gsl::not_null<const void*> void_cookie,
-                                         uint32_t opaque,
-                                         item* it,
-                                         uint16_t vbucket,
-                                         uint64_t by_seqno,
-                                         uint64_t rev_seqno,
-                                         const void* meta,
-                                         uint16_t nmeta,
-                                         uint8_t collection_len) {
-    /*
-     * EP engine don't use expiration, so we won't have tests for this
-     * code. Add it back once we have people calling the method
-     */
-    auto* c = cookie2mcbp(void_cookie, __func__);
-    cb::unique_item_ptr item(it, cb::ItemDeleter{c->getBucketEngineAsV0()});
-    return ENGINE_ENOTSUP;
-}
