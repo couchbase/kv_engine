@@ -35,6 +35,7 @@ public:
         rotate_interval(900),
         rotate_size(20 * 1024 * 1024),
         buffered(true),
+        filtering_enabled(false),
         min_file_rotation_time(900), // 15 minutes
         max_file_rotation_time(604800), // 1 week
         max_rotate_file_size(500 * 1024 * 1024)
@@ -72,7 +73,8 @@ public:
     bool is_event_sync(uint32_t id);
     bool is_event_disabled(uint32_t id);
     bool is_event_filtered(const std::string &user) const;
-
+    bool is_filtering_enabled() const;
+    void set_filtering_enabled(bool value);
 
     void set_min_file_rotation_time(uint32_t min_file_rotation_time) {
         AuditConfig::min_file_rotation_time = min_file_rotation_time;
@@ -116,11 +118,13 @@ protected:
     void set_disabled(cJSON *array);
     void set_disabled_users(cJSON *array);
     static cJSON* getObject(const cJSON* root, const char* name, int type);
+    void set_filtering_enabled(cJSON *obj);
 
     Couchbase::RelaxedAtomic<bool> auditd_enabled;
     Couchbase::RelaxedAtomic<uint32_t> rotate_interval;
     Couchbase::RelaxedAtomic<size_t> rotate_size;
     Couchbase::RelaxedAtomic<bool> buffered;
+    Couchbase::RelaxedAtomic<bool> filtering_enabled;
 
     mutable std::mutex log_path_mutex;
     std::string log_path;

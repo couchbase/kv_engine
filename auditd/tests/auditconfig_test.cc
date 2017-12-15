@@ -76,6 +76,7 @@ protected:
         cJSON_AddItemToObject(root, "disabled", disabled);
         cJSON *disabled_users = cJSON_CreateArray();
         cJSON_AddItemToObject(root, "disabled_users", disabled_users);
+        cJSON_AddTrueToObject(root, "filtering_enabled");
 
         return root;
     }
@@ -107,11 +108,14 @@ TEST_F(AuditConfigTest, TestLegalVersion) {
         cJSON_ReplaceItemInObject(json, "version",
                                   cJSON_CreateNumber(version));
         if (version == 1) {
-            cJSON *obj = cJSON_DetachItemFromObject(json, "disabled_users");
+            cJSON* obj = cJSON_DetachItemFromObject(json, "filtering_enabled");
+            cJSON_Delete(obj);
+            obj = cJSON_DetachItemFromObject(json, "disabled_users");
             cJSON_Delete(obj);
         }
         if (version == 2) {
-            cJSON *disabled_users = cJSON_CreateArray();
+            cJSON_AddTrueToObject(json, "filtering_enabled");
+            cJSON* disabled_users = cJSON_CreateArray();
             cJSON_AddItemToObject(json, "disabled_users", disabled_users);
         }
         if ((version == 1) || (version == 2)) {
@@ -443,5 +447,33 @@ TEST_F(AuditConfigTest, AuditConfigDisabledUsers) {
                                                            "disabled",
                                                            cJSON_Array);
     EXPECT_EQ(0, cJSON_GetArraySize(disabledArray));
+}
 
+// Test the filtering_enabled parameter
+
+TEST_F(AuditConfigTest, TestNoFilteringEnabled) {
+    cJSON *obj = cJSON_DetachItemFromObject(json, "filtering_enabled");
+    cJSON_Delete(obj);
+    EXPECT_THROW(config.initialize_config(json), std::string);
+}
+
+TEST_F(AuditConfigTest, TestGetSetFilteringEnabled) {
+    config.set_filtering_enabled(true);
+    EXPECT_TRUE(config.is_filtering_enabled());
+    config.set_filtering_enabled(false);
+    EXPECT_FALSE(config.is_filtering_enabled());
+}
+
+TEST_F(AuditConfigTest, TestIllegalDatatypeFilteringEnabled) {
+    cJSON_ReplaceItemInObject(json, "filtering_enabled",
+                              cJSON_CreateString("foobar"));
+    EXPECT_THROW(config.initialize_config(json), std::string);
+}
+
+TEST_F(AuditConfigTest, TestLegalFilteringEnabled) {
+    cJSON_ReplaceItemInObject(json, "filtering_enabled", cJSON_CreateTrue());
+    EXPECT_NO_THROW(config.initialize_config(json));
+
+    cJSON_ReplaceItemInObject(json, "filtering_enabled", cJSON_CreateFalse());
+    EXPECT_NO_THROW(config.initialize_config(json));
 }

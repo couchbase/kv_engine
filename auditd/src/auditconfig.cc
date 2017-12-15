@@ -89,6 +89,7 @@ AuditConfig::AuditConfig(const cJSON *json) : AuditConfig() {
     set_sync(getObject(json, "sync", cJSON_Array));
     set_disabled(getObject(json, "disabled", cJSON_Array));
     if (version->valueint == 2) {
+        set_filtering_enabled(getObject(json, "filtering_enabled", -1));
         set_disabled_users(getObject(json, "disabled_users", cJSON_Array));
     }
 
@@ -103,6 +104,7 @@ AuditConfig::AuditConfig(const cJSON *json) : AuditConfig() {
     tags["sync"] = 1;
     tags["disabled"] = 1;
     if (version->valueint == 2) {
+        tags["filtering_enabled"] = 1;
         tags["disabled_users"] = 1;
     }
 
@@ -225,6 +227,14 @@ bool AuditConfig::is_event_filtered(const std::string &user) const {
             disabled_users.end();
 }
 
+void AuditConfig::set_filtering_enabled(bool value) {
+    filtering_enabled = value;
+}
+
+bool AuditConfig::is_filtering_enabled() const {
+    return filtering_enabled;
+}
+
 void AuditConfig::sanitize_path(std::string &path) {
 #ifdef WIN32
     // Make sure that the path is in windows format
@@ -246,6 +256,10 @@ void AuditConfig::set_rotate_interval(cJSON *obj) {
 
 void AuditConfig::set_auditd_enabled(cJSON *obj) {
     set_auditd_enabled(obj->type == cJSON_True);
+}
+
+void AuditConfig::set_filtering_enabled(cJSON *obj) {
+    set_filtering_enabled(obj->type == cJSON_True);
 }
 
 void AuditConfig::set_buffered(cJSON *obj) {
@@ -330,6 +344,7 @@ unique_cJSON_ptr AuditConfig::to_json() const {
     cJSON_AddBoolToObject(root, "buffered", is_buffered());
     cJSON_AddStringToObject(root, "log_path", get_log_directory().c_str());
     cJSON_AddStringToObject(root, "descriptors_path", get_descriptors_path().c_str());
+    cJSON_AddBoolToObject(root, "filtering_enabled", is_filtering_enabled());
 
     cJSON* array = cJSON_CreateArray();
     for (const auto& v : sync) {
@@ -359,6 +374,7 @@ void AuditConfig::initialize_config(const cJSON* json) {
     rotate_interval = other.rotate_interval;
     rotate_size = other.rotate_size;
     buffered = other.buffered;
+    filtering_enabled = other.filtering_enabled;
     {
         std::lock_guard<std::mutex> guard(log_path_mutex);
         log_path = other.log_path;
