@@ -606,5 +606,6 @@ INSTANTIATE_TEST_CASE_P(
         Subdoc,
         SubdocTestappTest,
         ::testing::Combine(::testing::Values(TransportProtocols::McbpPlain),
-                           ::testing::Values(ClientJSONSupport::No)),
+                           ::testing::Values(ClientJSONSupport::Yes,
+                                             ClientJSONSupport::No)),
         McdTestappTest::PrintToStringCombinedName);

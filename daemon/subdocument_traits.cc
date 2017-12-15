@@ -17,6 +17,24 @@
 
 #include "subdocument_traits.h"
 
+cb::mcbp::Datatype SubdocCmdTraits::responseDatatype(
+        protocol_binary_datatype_t docDatatype) const {
+    switch (response_type) {
+    case ResponseValue::None:
+        // datatype is mandatory for responses; return RAW even in the
+        // no-response-value case.
+        return cb::mcbp::Datatype::Raw;
+    case ResponseValue::JSON:
+        return cb::mcbp::Datatype::JSON;
+    case ResponseValue::Binary:
+        return cb::mcbp::Datatype::Raw;
+    case ResponseValue::FromDocument:
+        return cb::mcbp::Datatype(docDatatype);
+    }
+    throw std::logic_error("responseDatatype: invalid response_type:" +
+                           std::to_string(int(response_type)));
+}
+
 SubdocCmdTraits get_subdoc_cmd_traits(protocol_binary_command cmd) {
     switch (cmd) {
     case PROTOCOL_BINARY_CMD_GET:
@@ -72,7 +90,7 @@ SubdocCmdTraits get_subdoc_cmd_traits(protocol_binary_command cmd) {
                 mcbp::subdoc::doc_flag::None,
                 false,
                 false,
-                false,
+                ResponseValue::None,
                 false,
                 SubdocPath::SINGLE};
     }

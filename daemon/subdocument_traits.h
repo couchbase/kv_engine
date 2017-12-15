@@ -39,6 +39,16 @@ enum class SubdocPath : uint8_t {
  */
 enum class CommandScope : uint8_t { SubJSON, WholeDoc };
 
+/**
+ * What kind of response does a command return?
+ */
+enum class ResponseValue : uint8_t {
+    None, // No response is returned,
+    JSON, // Returns response in JSON
+    Binary, // Returns response in non-JSON (binary).
+    FromDocument // Returns reponse; datatype is of the targetted document.
+};
+
 /* Traits of each of the sub-document commands. These are used to build up
  * the individual implementations using generic building blocks:
  *
@@ -49,7 +59,7 @@ enum class CommandScope : uint8_t { SubJSON, WholeDoc };
  *   valid_doc_flags: What doc flags are valid for this command.
  *   request_has_value: Does the command request require a value?
  *   allow_empty_path: Is the path field allowed to be empty (zero-length)?
- *   response_has_value: Does the command response require a value?
+ *   response_value: Does the command response have a value, and if so what type?
  *   is_mutator: Does the command mutate (modify) the document?
  *   path: Whether this command on a single path or multiple paths
  */
@@ -61,9 +71,17 @@ struct SubdocCmdTraits {
     mcbp::subdoc::doc_flag valid_doc_flags;
     bool request_has_value;
     bool allow_empty_path;
-    bool response_has_value;
+    ResponseValue response_type;
     bool is_mutator;
     SubdocPath path;
+
+    bool responseHasValue() const {
+        return response_type != ResponseValue::None;
+    }
+
+    /// Returns the datatype to encode into a mcbp response.
+    cb::mcbp::Datatype responseDatatype(
+            protocol_binary_datatype_t docDatatype) const;
 };
 
 // Additional traits for multi-path operations.
@@ -91,7 +109,7 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_GET>() {
             mcbp::subdoc::doc_flag::AccessDeleted,
             /*request_has_value*/ false,
             /*allow_empty_path*/ true,
-            /*response_has_value*/ true,
+            ResponseValue::FromDocument,
             /*is_mutator*/ false,
             SubdocPath::SINGLE};
 }
@@ -105,7 +123,7 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SET>() {
             mcbp::subdoc::doc_flag::Mkdoc | mcbp::subdoc::doc_flag::Add,
             /*request_has_value*/ true,
             /*allow_empty_path*/ true,
-            /*response_has_value*/ false,
+            ResponseValue::None,
             /*is_mutator*/ true,
             SubdocPath::SINGLE};
 }
@@ -119,7 +137,7 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_DELETE>() {
             mcbp::subdoc::doc_flag::AccessDeleted,
             /*request_has_value*/ false,
             /*allow_empty_path*/ true,
-            /*response_has_value*/ false,
+            ResponseValue::None,
             /*is_mutator*/ true,
             SubdocPath::SINGLE};
 }
@@ -133,7 +151,7 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_GET>() {
             mcbp::subdoc::doc_flag::AccessDeleted,
             /*request_has_value*/ false,
             /*allow_empty_path*/ false,
-            /*response_has_value*/ true,
+            ResponseValue::JSON,
             /*is_mutator*/ false,
             SubdocPath::SINGLE};
 }
@@ -147,7 +165,7 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_EXISTS>() {
             mcbp::subdoc::doc_flag::AccessDeleted,
             /*request_has_value*/ false,
             /*allow_empty_path*/ false,
-            /*response_has_value*/ false,
+            ResponseValue::None,
             /*is_mutator*/ false,
             SubdocPath::SINGLE};
 }
@@ -163,7 +181,7 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD>() {
             doc_flag::Mkdoc | doc_flag::AccessDeleted | doc_flag::Add,
             /*request_has_value*/ true,
             /*allow_empty_path*/ false,
-            /*response_has_value*/ false,
+            ResponseValue::None,
             /*is_mutator*/ true,
             SubdocPath::SINGLE};
 }
@@ -179,7 +197,7 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT>() {
             doc_flag::Mkdoc | doc_flag::AccessDeleted | doc_flag::Add,
             /*request_has_value*/ true,
             /*allow_empty_path*/ false,
-            /*response_has_value*/ false,
+            ResponseValue::None,
             /*is_mutator*/ true,
             SubdocPath::SINGLE};
 }
@@ -193,7 +211,7 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DELETE>() {
             mcbp::subdoc::doc_flag::AccessDeleted,
             /*request_has_value*/ false,
             /*allow_empty_path*/ false,
-            /*response_has_value*/ false,
+            ResponseValue::None,
             /*is_mutator*/ true,
             SubdocPath::SINGLE};
 }
@@ -208,7 +226,7 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_REPLACE>() {
             mcbp::subdoc::doc_flag::AccessDeleted | mcbp::subdoc::doc_flag::Add,
             /*request_has_value*/ true,
             /*allow_empty_path*/ false,
-            /*response_has_value*/ false,
+            ResponseValue::None,
             /*is_mutator*/ true,
             SubdocPath::SINGLE};
 }
@@ -223,7 +241,7 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST>() 
             doc_flag::Mkdoc | doc_flag::AccessDeleted | doc_flag::Add,
             /*request_has_value*/ true,
             /*allow_empty_path*/ true,
-            /*response_has_value*/ false,
+            ResponseValue::None,
             /*is_mutator*/ true,
             SubdocPath::SINGLE};
 }
@@ -238,7 +256,7 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST>()
             doc_flag::Mkdoc | doc_flag::AccessDeleted | doc_flag::Add,
             /*request_has_value*/ true,
             /*allow_empty_path*/ true,
-            /*response_has_value*/ false,
+            ResponseValue::None,
             /*is_mutator*/ true,
             SubdocPath::SINGLE};
 }
@@ -253,7 +271,7 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT>() {
             mcbp::subdoc::doc_flag::AccessDeleted | mcbp::subdoc::doc_flag::Add,
             /*request_has_value*/ true,
             /*allow_empty_path*/ false,
-            /*response_has_value*/ false,
+            ResponseValue::None,
             /*is_mutator*/ true,
             SubdocPath::SINGLE};
 }
@@ -268,7 +286,7 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE>()
             doc_flag::Mkdoc | doc_flag::AccessDeleted | doc_flag::Add,
             /*request_has_value*/ true,
             /*allow_empty_path*/ true,
-            /*response_has_value*/ false,
+            ResponseValue::None,
             /*is_mutator*/ true,
             SubdocPath::SINGLE};
 }
@@ -283,7 +301,7 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_COUNTER>() {
             doc_flag::Mkdoc | doc_flag::AccessDeleted | doc_flag::Add,
             /*request_has_value*/ true,
             /*allow_empty_path*/ false,
-            /*response_has_value*/ true,
+            ResponseValue::JSON,
             /*is_mutator*/ true,
             SubdocPath::SINGLE};
 }
@@ -297,7 +315,7 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT>() {
             mcbp::subdoc::doc_flag::AccessDeleted,
             /*request_has_value*/ false,
             /*allow_empty_path*/ true,
-            /*response_has_value*/ true,
+            ResponseValue::JSON,
             /*is_mutator*/ false,
             SubdocPath::SINGLE};
 }
@@ -311,7 +329,7 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP>() {
             mcbp::subdoc::doc_flag::AccessDeleted,
             /*request_has_value*/ true,
             /*allow_empty_path*/ true,
-            /*response_has_value*/ true,
+            ResponseValue::Binary,
             /*is_mutator*/ false,
             SubdocPath::MULTI};
 }
@@ -325,7 +343,7 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION>() {
             mcbp::subdoc::doc_flag::Mkdoc | mcbp::subdoc::doc_flag::Add,
             /*request_has_value*/ true,
             /*allow_empty_path*/ true,
-            /*response_has_value*/ true,
+            ResponseValue::Binary,
             /*is_mutator*/ true,
             SubdocPath::MULTI};
 }

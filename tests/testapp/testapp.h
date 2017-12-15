@@ -377,6 +377,9 @@ void store_object_w_datatype(const char* key,
                              size_t datalen,
                              bool deflate);
 
+// Enables / disables the JSON feature.
+void set_json_feature(bool enable);
+
 // Enables / disables the MUTATION_SEQNO feature.
 void set_mutation_seqno_feature(bool enable);
 

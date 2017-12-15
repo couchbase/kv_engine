@@ -21,6 +21,8 @@
 
 #include "testapp_subdoc_common.h"
 
+#include <JSON_checker.h>
+
 std::ostream& operator<<(std::ostream& os, const BinprotSubdocCommand& obj) {
     os << "[cmd:" << memcached_opcode_2_text(obj.getOp())
        << " key:" << obj.getKey() << " path:" << obj.getPath()
@@ -283,16 +285,31 @@ uint64_t recv_subdoc_response(
         }
     }
 
-    // Check datatype is JSON for commands which return data; if the connection
-    // has negotiated JSON.
-    switch (cmd.getOp()) {
-    case PROTOCOL_BINARY_CMD_SUBDOC_GET:
-    case PROTOCOL_BINARY_CMD_SUBDOC_COUNTER:
-        if (cb::mcbp::Datatype(resp.getDatatype()) != expectedJSONDatatype()) {
-            return AssertionFailure()
-                   << "Datatype mismatch for " << cmd
-                   << " - expected:" << int(expectedJSONDatatype())
-                   << " actual:" << resp.getDatatype();
+    // Check datatype is JSON for commands which successfully return data; if
+    // the connection has negotiated JSON.
+    if (resp.isSuccess()) {
+        switch (cmd.getOp()) {
+        case PROTOCOL_BINARY_CMD_SUBDOC_GET:
+        case PROTOCOL_BINARY_CMD_SUBDOC_COUNTER:
+        case PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT:
+            if (cb::mcbp::Datatype(resp.getDatatype()) !=
+                expectedJSONDatatype()) {
+                return AssertionFailure()
+                       << "Datatype mismatch for " << cmd << " - expected:"
+                       << mcbp::datatype::to_string(protocol_binary_datatype_t(
+                                  expectedJSONDatatype()))
+                       << " actual:"
+                       << mcbp::datatype::to_string(resp.getDatatype());
+            }
+
+            // Check that JSON means JSON
+            JSON_checker::Validator validator;
+            auto data = resp.getData();
+            if (!validator.validate(data.data(), data.size())) {
+                return AssertionFailure()
+                       << "JSON validation failed for response data:'"
+                       << resp.getDataString() << "''";
+            }
         }
     }
 
@@ -334,9 +351,7 @@ void store_object(const std::string& key,
         payload = deflated;
     }
 
-    set_datatype_feature(true);
     store_object_w_datatype(key.c_str(), payload, payload_len, compress);
-    set_datatype_feature(false);
     if (compress) {
         cb_free(deflated);
     }

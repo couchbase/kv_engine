@@ -1411,7 +1411,7 @@ static void subdoc_single_response(Cookie& cookie, SubdocCmdContext& context) {
 
     context.response_val_len = 0;
     cb::const_char_buffer value = {};
-    if (context.traits.response_has_value) {
+    if (context.traits.responseHasValue()) {
         // The value may have been created in the xattr or the body phase
         // so it should only be one, so if it isn't an xattr it should be
         // in the body
@@ -1448,7 +1448,7 @@ static void subdoc_single_response(Cookie& cookie, SubdocCmdContext& context) {
                         extras,
                         {},
                         value,
-                        cb::mcbp::Datatype::Raw,
+                        context.traits.responseDatatype(context.in_datatype),
                         cookie.getCas());
 }
 
@@ -1497,7 +1497,7 @@ static void subdoc_multi_mutation_response(Cookie& cookie,
                  ii < context.getOperations(phase).size(); ii++) {
                 const auto& op = context.getOperations(phase)[ii];
                 const auto mloc = op.result.matchloc();
-                if (op.traits.response_has_value && mloc.length > 0) {
+                if (op.traits.responseHasValue() && mloc.length > 0) {
                     response_buf_needed += sizeof(uint8_t) + sizeof(uint16_t) +
                                            sizeof(uint32_t);
                     iov_len += mloc.length;
@@ -1546,7 +1546,7 @@ static void subdoc_multi_mutation_response(Cookie& cookie,
             // Successful - encode all non-zero length results.
             if (context.overall_status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
                 const auto mloc = op.result.matchloc();
-                if (op.traits.response_has_value && mloc.length > 0) {
+                if (op.traits.responseHasValue() && mloc.length > 0) {
                     char* header = response_buf.getCurrent();
                     size_t header_sz =
                         encode_multi_mutation_result_spec(index, op, header);
@@ -1589,7 +1589,7 @@ static void subdoc_multi_lookup_response(Cookie& cookie,
         for (auto& op : context.getOperations(phase)) {
             // 16bit status, 32bit resultlen, variable-length result.
             size_t result_size = sizeof(uint16_t) + sizeof(uint32_t);
-            if (op.traits.response_has_value) {
+            if (op.traits.responseHasValue()) {
                 result_size += op.result.matchloc().length;
             }
             context.response_val_len += result_size;
@@ -1647,7 +1647,7 @@ static void subdoc_multi_lookup_response(Cookie& cookie,
             const size_t header_sz = sizeof(uint16_t) + sizeof(uint32_t);
             *reinterpret_cast<uint16_t*>(header) = htons(op.status);
             uint32_t result_len = 0;
-            if (op.traits.response_has_value) {
+            if (op.traits.responseHasValue()) {
                 result_len = htonl(uint32_t(mloc.length));
             }
             *reinterpret_cast<uint32_t*>(header +

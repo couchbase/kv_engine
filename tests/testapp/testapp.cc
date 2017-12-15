@@ -415,6 +415,8 @@ void McdTestappTest::SetUp() {
         ASSERT_NE(INVALID_SOCKET, sock_ssl);
     }
 
+    set_json_feature(hasJSONSupport() == ClientJSONSupport::Yes);
+
     // Set ewouldblock_engine test harness to default mode.
     ewouldblock_engine_configure(ENGINE_EWOULDBLOCK, EWBEngineMode::First,
                                  /*unused*/0);
@@ -1148,6 +1150,10 @@ void store_object_w_datatype(const char *key, const void *data, size_t datalen,
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     mcbp_validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_SET,
                                   PROTOCOL_BINARY_RESPONSE_SUCCESS);
+}
+
+void set_json_feature(bool enable) {
+    set_feature(cb::mcbp::Feature::JSON, enable);
 }
 
 void set_mutation_seqno_feature(bool enable) {
