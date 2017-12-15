@@ -917,7 +917,7 @@ void ActiveStreamCheckpointProcessorTask::wakeup() {
 }
 
 void ActiveStreamCheckpointProcessorTask::schedule(const stream_t& stream) {
-    pushUnique(stream);
+    pushUnique(stream->getVBucket());
 
     bool expected = false;
     if (notified.compare_exchange_strong(expected, true)) {
@@ -925,12 +925,15 @@ void ActiveStreamCheckpointProcessorTask::schedule(const stream_t& stream) {
     }
 }
 
-void ActiveStreamCheckpointProcessorTask::clearQueues() {
+void ActiveStreamCheckpointProcessorTask::cancelTask() {
     LockHolder lh(workQueueLock);
     while (!queue.empty()) {
         queue.pop();
     }
     queuedVbuckets.clear();
+    /* Reset the producer while holding the lock as it is a
+       SingleThreadedRCPtr */
+    producer.reset();
 }
 
 void ActiveStream::nextCheckpointItemTask() {

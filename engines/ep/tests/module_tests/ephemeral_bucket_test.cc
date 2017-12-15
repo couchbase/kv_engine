@@ -163,7 +163,13 @@ TEST_F(SingleThreadedEphemeralBackfillTest, RangeIteratorVBDeleteRaceTest) {
     EXPECT_FALSE(
             task_executor->isTaskScheduled(NONIO_TASK_IDX, vbDeleteTaskName));
 
+    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
     // Now bin the producer
+    producer->cancelCheckpointCreatorTask();
+    /* Checkpoint processor task finishes up and releases its producer
+       reference */
+    runNextTask(lpAuxioQ, "Process checkpoint(s) for DCP producer");
+
     engine->getDcpConnMap().shutdownAllConnections();
     stream.reset();
     producer.reset();
@@ -171,7 +177,6 @@ TEST_F(SingleThreadedEphemeralBackfillTest, RangeIteratorVBDeleteRaceTest) {
     // run the backfill task so the backfill can reach state
     // backfill_finished and be destroyed destroying the range iterator
     // in the process
-    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
     runNextTask(lpAuxioQ, "Backfilling items for a DCP Connection");
 
     // Now the backfill is gone, the evb can be deleted

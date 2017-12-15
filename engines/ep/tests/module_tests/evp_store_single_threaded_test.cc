@@ -187,6 +187,9 @@ TEST_F(SingleThreadedEPBucketTest, MB22421_backfilling_but_task_finished) {
      // flag to true and the DCP cursor being dropped
      EXPECT_TRUE(mock_stream->public_getPendingBackfill());
      EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
+
+     // Stop Producer checkpoint processor task
+     producer->cancelCheckpointCreatorTask();
 }
 
 /*
@@ -256,6 +259,9 @@ TEST_F(SingleThreadedEPBucketTest, MB22421_reregister_cursor) {
     // 1 and backfillEnd is 0, however the cursor still needs to be
     // re-registered.
     EXPECT_EQ(2, ckpt_mgr.getNumOfCursors());
+
+    // Stop Producer checkpoint processor task
+    producer->cancelCheckpointCreatorTask();
 }
 
 /*
@@ -498,6 +504,9 @@ TEST_F(SingleThreadedEPBucketTest, MB22960_cursor_dropping_data_loss) {
 
     // BackfillManagerTask
     runNextTask(lpAuxioQ);
+
+    // Stop Producer checkpoint processor task
+    producer->cancelCheckpointCreatorTask();
 }
 
 /* The following is a regression test for MB25056, which came about due the fix
@@ -697,6 +706,9 @@ TEST_F(SingleThreadedEPBucketTest, MB25056_do_not_set_pendingBackfill_to_true) {
     runNextTask(lpAuxioQ, "Process checkpoint(s) for DCP producer");
     // BackfillManagerTask
     runNextTask(lpAuxioQ, "Backfilling items for a DCP Connection");
+
+    // Stop Producer checkpoint processor task
+    producer->cancelCheckpointCreatorTask();
 }
 
 /**
@@ -761,6 +773,9 @@ TEST_F(SingleThreadedEPBucketTest, test_mb22451) {
         << "stream state should not have changed";
     // Required to ensure that the backfillMgr is deleted
     producer->closeAllStreams();
+
+    // Stop Producer checkpoint processor task
+    producer->cancelCheckpointCreatorTask();
 }
 
 /* Regression / reproducer test for MB-19815 - an exception is thrown
@@ -849,6 +864,9 @@ TEST_F(SingleThreadedEPBucketTest, MB19428_no_streams_against_dead_vbucket) {
 
         // The streamRequest failed and should not of created anymore tasks.
         EXPECT_EQ(1, lpAuxioQ.getFutureQueueSize());
+
+        // Stop Producer checkpoint processor task
+        producer->cancelCheckpointCreatorTask();
     }
 }
 
@@ -1352,6 +1370,9 @@ TEST_F(SingleThreadedEPBucketTest, stream_from_active_vbucket_only) {
         } else {
             EXPECT_EQ(ENGINE_NOT_MY_VBUCKET, err) << "Unexpected error code";
         }
+
+        // Stop Producer checkpoint processor task
+        producer->cancelCheckpointCreatorTask();
     }
 }
 

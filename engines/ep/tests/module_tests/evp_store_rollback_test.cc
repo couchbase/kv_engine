@@ -726,6 +726,9 @@ TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
     EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
     EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_STREAM_END, dcp_last_op)
             << "stream should have received a STREAM_END";
+
+    // Stop Producer checkpoint processor task
+    producer->cancelCheckpointCreatorTask();
 }
 
 static auto allConfigValues = ::testing::Values(

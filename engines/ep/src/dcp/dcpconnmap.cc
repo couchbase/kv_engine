@@ -235,7 +235,7 @@ void DcpConnMap::closeStreams(CookieToConnectionMap& map) {
         DcpProducer* producer = dynamic_cast<DcpProducer*> (itr.second.get());
         if (producer) {
             producer->closeAllStreams();
-            producer->clearCheckpointProcessorTaskQueues();
+            producer->cancelCheckpointCreatorTask();
             // The producer may be in EWOULDBLOCK (if it's idle), therefore
             // notify him to ensure the front-end connection can close the TCP
             // connection.
@@ -289,7 +289,7 @@ void DcpConnMap::disconnect(const void *cookie) {
         DcpProducer* producer = dynamic_cast<DcpProducer*> (conn.get());
         if (producer) {
             producer->closeAllStreams();
-            producer->clearCheckpointProcessorTaskQueues();
+            producer->cancelCheckpointCreatorTask();
         } else {
             // Cancel consumer's processer task before closing all streams
             static_cast<DcpConsumer*>(conn.get())->cancelTask();

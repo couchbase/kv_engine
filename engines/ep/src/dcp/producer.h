@@ -56,6 +56,12 @@ public:
 
     virtual ~DcpProducer();
 
+    /**
+     * Clears active stream checkpoint processor task's queue, resets its
+     * shared reference to the producer and cancels the task.
+     */
+    void cancelCheckpointCreatorTask();
+
     ENGINE_ERROR_CODE streamRequest(uint32_t flags, uint32_t opaque,
                                     uint16_t vbucket, uint64_t start_seqno,
                                     uint64_t end_seqno, uint64_t vbucket_uuid,
@@ -232,17 +238,12 @@ private:
     */
     void scheduleCheckpointProcessorTask(const stream_t& s);
 
-    /*
-        Clears active stream checkpoint processor task's queue.
-    */
-    void clearCheckpointProcessorTaskQueues();
-
-protected:
     /** Searches the streams map for a stream for vbucket ID. Returns the
      *  found stream, or an empty pointer if none found.
      */
     SingleThreadedRCPtr<Stream> findStream(uint16_t vbid);
 
+protected:
     /** We may disconnect if noop messages are enabled and the last time we
      *  received any message (including a noop) exceeds the dcpTimeout.
      *  Returns ENGINE_DISCONNECT if noop messages are enabled and the timeout
@@ -287,7 +288,6 @@ protected:
     DcpResponse* getNextItem();
 
     size_t getItemsRemaining();
-    stream_t findStreamByVbid(uint16_t vbid);
 
     std::string priority;
 

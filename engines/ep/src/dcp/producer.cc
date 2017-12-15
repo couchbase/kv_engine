@@ -213,10 +213,16 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
 DcpProducer::~DcpProducer() {
     backfillMgr.reset();
     delete rejectResp;
+}
 
-    if (checkpointCreatorTask) {
-        ExecutorPool::get()->cancel(checkpointCreatorTask->getId());
+void DcpProducer::cancelCheckpointCreatorTask() {
+    if (!checkpointCreatorTask) {
+        throw std::logic_error(
+                "DcpProducer::cancelCheckpointCreatorTask task is null");
     }
+    static_cast<ActiveStreamCheckpointProcessorTask*>(
+            checkpointCreatorTask.get())->cancelTask();
+    ExecutorPool::get()->cancel(checkpointCreatorTask->getId());
 }
 
 ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
@@ -1230,7 +1236,7 @@ bool DcpProducer::bufferLogInsert(size_t bytes) {
 
 void DcpProducer::createCheckpointProcessorTask() {
     checkpointCreatorTask =
-            std::make_shared<ActiveStreamCheckpointProcessorTask>(engine_);
+            std::make_shared<ActiveStreamCheckpointProcessorTask>(engine_, this);
 }
 
 void DcpProducer::scheduleCheckpointProcessorTask() {
@@ -1244,15 +1250,6 @@ void DcpProducer::scheduleCheckpointProcessorTask(const stream_t& s) {
     }
     static_cast<ActiveStreamCheckpointProcessorTask*>(checkpointCreatorTask.get())
         ->schedule(s);
-}
-
-void DcpProducer::clearCheckpointProcessorTaskQueues() {
-    if (!checkpointCreatorTask) {
-        throw std::logic_error(
-                "DcpProducer::clearCheckpointProcessorTaskQueues task is null");
-    }
-    static_cast<ActiveStreamCheckpointProcessorTask*>(checkpointCreatorTask.get())
-        ->clearQueues();
 }
 
 SingleThreadedRCPtr<Stream> DcpProducer::findStream(uint16_t vbid) {
