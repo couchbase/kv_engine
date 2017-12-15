@@ -87,6 +87,16 @@ public:
 
     static uint16_t sasl_auth(const char *username, const char *password);
 
+    /// Does this test/connection support JSON datatype?
+    virtual ClientJSONSupport hasJSONSupport() const {
+        return ClientJSONSupport::No;
+    }
+
+    /**
+     * What response datatype do we expect for documents which are JSON?
+     * Will be JSON only if the client successfully negotiated JSON feature.
+     */
+    cb::mcbp::Datatype expectedJSONDatatype() const;
 
     virtual MemcachedConnection& getConnection();
     virtual MemcachedConnection& getAdminConnection();
@@ -190,11 +200,8 @@ protected:
      *
      * @param connection the connection to prepare
      * @return The connection to use
-     * @param enableJSON Should Feature::JSON be negotiated?
      */
-    MemcachedConnection& prepare(
-            MemcachedConnection& connection,
-            ClientJSONSupport json = ClientJSONSupport::Yes);
+    MemcachedConnection& prepare(MemcachedConnection& connection);
 
     /**
      * Create an extended attribute

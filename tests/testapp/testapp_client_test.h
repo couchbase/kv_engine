@@ -51,7 +51,7 @@ public:
                      const std::string& value,
                      bool macro = false);
 
-    ClientJSONSupport hasJSONSupport() const;
+    ClientJSONSupport hasJSONSupport() const override;
 
     // What response datatype do we expect for documents which are JSON?
     // Will be JSON only if the client successfully negotiated JSON feature.

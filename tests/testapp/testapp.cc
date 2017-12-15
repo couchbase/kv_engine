@@ -1630,6 +1630,11 @@ int TestappTest::getResponseCount(protocol_binary_response_status statusCode) {
     return cJSON_GetObjectItem(stats.get(), stream.str().c_str())->valueint;
 }
 
+cb::mcbp::Datatype TestappTest::expectedJSONDatatype() const {
+    return hasJSONSupport() == ClientJSONSupport::Yes ? cb::mcbp::Datatype::JSON
+                                                      : cb::mcbp::Datatype::Raw;
+}
+
 MemcachedConnection& TestappTest::getConnection() {
     return prepare(connectionMap.getConnection());
 }
@@ -1640,11 +1645,10 @@ MemcachedConnection& TestappTest::getAdminConnection() {
     return conn;
 }
 
-MemcachedConnection& TestappTest::prepare(MemcachedConnection& connection,
-                                          ClientJSONSupport json) {
+MemcachedConnection& TestappTest::prepare(MemcachedConnection& connection) {
     connection.reconnect();
     connection.setDatatypeCompressed(true);
-    connection.setDatatypeJson(json == ClientJSONSupport::Yes);
+    connection.setDatatypeJson(hasJSONSupport() == ClientJSONSupport::Yes);
     connection.setMutationSeqnoSupport(true);
     connection.setXerrorSupport(true);
     connection.setXattrSupport(true);
