@@ -1410,6 +1410,7 @@ static size_t encode_multi_mutation_result_spec(uint8_t index,
 static void subdoc_single_response(Cookie& cookie, SubdocCmdContext& context) {
     auto& connection = context.connection;
 
+    context.response_val_len = 0;
     cb::const_char_buffer value = {};
     if (context.traits.response_has_value) {
         // The value may have been created in the xattr or the body phase
@@ -1421,6 +1422,7 @@ static void subdoc_single_response(Cookie& cookie, SubdocCmdContext& context) {
         }
         auto mloc = context.getOperations(phase)[0].result.matchloc();
         value = {mloc.at, mloc.length};
+        context.response_val_len = value.size();
     }
 
     if (context.traits.is_mutator) {
