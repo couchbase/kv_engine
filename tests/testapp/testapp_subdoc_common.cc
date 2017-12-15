@@ -282,6 +282,20 @@ uint64_t recv_subdoc_response(
                    << "  Got: " << resp.getValue() << std::endl;
         }
     }
+
+    // Check datatype is JSON for commands which return data; if the connection
+    // has negotiated JSON.
+    switch (cmd.getOp()) {
+    case PROTOCOL_BINARY_CMD_SUBDOC_GET:
+    case PROTOCOL_BINARY_CMD_SUBDOC_COUNTER:
+        if (cb::mcbp::Datatype(resp.getDatatype()) != expectedJSONDatatype()) {
+            return AssertionFailure()
+                   << "Datatype mismatch for " << cmd
+                   << " - expected:" << int(expectedJSONDatatype())
+                   << " actual:" << resp.getDatatype();
+        }
+    }
+
     return AssertionSuccess();
 }
 
