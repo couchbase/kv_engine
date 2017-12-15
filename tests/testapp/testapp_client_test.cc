@@ -58,8 +58,6 @@ void TestappXattrClientTest::SetUp() {
     }
 
     document.info.cas = mcbp::cas::Wildcard;
-    // We can only set datatype to JSON if it was negotiated.
-    document.info.datatype = expectedJSONDatatype();
     document.info.flags = 0xcaffee;
     document.info.id = name;
     document.info.expiration = 0;

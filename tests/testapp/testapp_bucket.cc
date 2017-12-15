@@ -462,7 +462,6 @@ TEST_P(BucketTest, TestBucketIsolationBuckets)
     // I should be able to select each bucket and the same document..
     Document doc;
     doc.info.cas = mcbp::cas::Wildcard;
-    doc.info.datatype = cb::mcbp::Datatype::JSON;
     doc.info.flags = 0xcaffee;
     doc.info.id = "TestBucketIsolationBuckets";
     doc.value = to_string(memcached_cfg.get());

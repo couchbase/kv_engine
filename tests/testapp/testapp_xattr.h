@@ -222,7 +222,7 @@ protected:
     void setBodyAndXattr(
             const std::string& startValue,
             const std::string& xattrValue,
-            cb::mcbp::Datatype datatype = cb::mcbp::Datatype::JSON) {
+            cb::mcbp::Datatype datatype = cb::mcbp::Datatype::Raw) {
         Document document;
         document.info.cas = mcbp::cas::Wildcard;
         document.info.datatype = datatype;

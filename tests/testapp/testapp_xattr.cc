@@ -947,7 +947,6 @@ TEST_P(XattrTest, MB_25786_XTOC_VattrNoXattrs) {
     std::string value = R"({"Test":45})";
     Document document;
     document.info.cas = mcbp::cas::Wildcard;
-    document.info.datatype = cb::mcbp::Datatype::JSON;
     document.info.flags = 0xcaffee;
     document.info.id = name;
     document.value = value;
@@ -986,7 +985,7 @@ TEST_P(XattrTest, MB24152_GetXattrAndBodyDeleted) {
 TEST_P(XattrTest, MB24152_GetXattrAndBodyWithoutXattr) {
 
     // Create a document without an XATTR.
-    getConnection().store(name, 0, value, cb::mcbp::Datatype::JSON);
+    getConnection().store(name, 0, value);
 
     // Attempt to request both the body and a non-existent XATTR.
     BinprotSubdocMultiLookupCommand cmd;

@@ -28,7 +28,6 @@ public:
         TestappClientTest::SetUp();
 
         document.info.cas = mcbp::cas::Wildcard;
-        document.info.datatype = cb::mcbp::Datatype::JSON;
         document.info.flags = 0xcaffee;
         document.info.id = name;
         document.value = to_string(memcached_cfg, false);
