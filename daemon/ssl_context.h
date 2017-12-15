@@ -18,7 +18,7 @@
 
 #include "config.h"
 
-#include "sslcert.h"
+#include "client_cert_config.h"
 
 #include <cJSON.h>
 #include <memcached/openssl.h>
@@ -144,7 +144,7 @@ public:
 
     bool havePendingInputData();
 
-    std::pair<ClientCertUser::Status, std::string> getCertUserName();
+    std::pair<cb::x509::Status, std::string> getCertUserName();
     /**
      * Get a JSON description of this object.. caller must call cJSON_Delete()
      */

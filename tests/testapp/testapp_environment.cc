@@ -21,10 +21,11 @@
 #include "protocol/connection/client_mcbp_connection.h"
 
 #include <cJSON_utils.h>
-#include <fstream>
 #include <platform/dirutils.h>
-#include <platform/strerror.h>
+#include <platform/make_unique.h>
 #include <platform/memorymap.h>
+#include <platform/strerror.h>
+#include <fstream>
 
 void TestBucketImpl::createEwbBucket(const std::string& name,
                                      const std::string& plugin,

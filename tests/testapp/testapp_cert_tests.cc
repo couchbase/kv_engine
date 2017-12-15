@@ -130,7 +130,7 @@ TEST_F(SslCertTest, LoginEnabledWithoutCert) {
 
 /**
  * It should be possible to connect with a certificate when there is no
- * mapping defined on the system (only the client vertificate is validated)
+ * mapping defined on the system (only the client certificate is validated)
  */
 TEST_F(SslCertTest, LoginEnabledWithCertNoMapping) {
     reconfigure_client_cert_auth("enable", "", "", " ");

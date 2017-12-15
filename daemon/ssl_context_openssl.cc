@@ -66,11 +66,11 @@ bool SslContext::enable(const std::string& cert, const std::string& pkey) {
 
     set_ssl_ctx_cipher_list(ctx);
     int ssl_flags = 0;
-    switch (settings.getClientCertAuth()) {
-    case ClientCertAuth::Mode::Mandatory:
+    switch (settings.getClientCertMode()) {
+    case cb::x509::Mode::Mandatory:
         ssl_flags |= SSL_VERIFY_FAIL_IF_NO_PEER_CERT;
     // FALLTHROUGH
-    case ClientCertAuth::Mode::Enabled: {
+    case cb::x509::Mode::Enabled: {
         ssl_flags |= SSL_VERIFY_PEER;
         STACK_OF(X509_NAME)* certNames = SSL_load_client_CA_file(cert.c_str());
         if (certNames == NULL) {
@@ -82,7 +82,7 @@ bool SslContext::enable(const std::string& cert, const std::string& pkey) {
         SSL_CTX_set_verify(ctx, ssl_flags, nullptr);
         break;
     }
-    case ClientCertAuth::Mode::Disabled:
+    case cb::x509::Mode::Disabled:
         break;
     }
 
@@ -108,22 +108,9 @@ bool SslContext::enable(const std::string& cert, const std::string& pkey) {
     return true;
 }
 
-SslCertResult SslContext::getCertUserName() {
-    ClientCertUser::Status status = ClientCertUser::Status::NotPresent;
-    std::string result;
-
-    auto certUser = settings.getCertUserCopy();
-    if (certUser) {
-        cb::openssl::unique_x509_ptr cert(SSL_get_peer_certificate(client));
-        if (cert) {
-            return certUser->getUser(cert.get());
-        } else {
-            result = "certificate not presented by client";
-            status = ClientCertUser::Status::NotPresent;
-        }
-    }
-
-    return std::make_pair(status, result);
+std::pair<cb::x509::Status, std::string> SslContext::getCertUserName() {
+    cb::openssl::unique_x509_ptr cert(SSL_get_peer_certificate(client));
+    return settings.lookupUser(cert.get());
 }
 
 void SslContext::disable() {

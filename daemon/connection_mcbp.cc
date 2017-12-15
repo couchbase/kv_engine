@@ -269,18 +269,18 @@ int McbpConnection::sslPreConnection() {
         auto certResult = ssl.getCertUserName();
         bool disconnect = false;
         switch (certResult.first) {
-        case ClientCertUser::Status::Error:
+        case cb::x509::Status::NoMatch:
+        case cb::x509::Status::Error:
             disconnect = true;
             break;
-        case ClientCertUser::Status::NotPresent:
-            if (settings.getClientCertAuth() ==
-                ClientCertAuth::Mode::Mandatory) {
+        case cb::x509::Status::NotPresent:
+            if (settings.getClientCertMode() == cb::x509::Mode::Mandatory) {
                 disconnect = true;
             } else if (is_default_bucket_enabled()) {
                 associate_bucket(this, "default");
             }
             break;
-        case ClientCertUser::Status::Success:
+        case cb::x509::Status::Success:
             if (!tryAuthFromSslCert(certResult.second)) {
                 disconnect = true;
                 // Don't print an error message... already logged

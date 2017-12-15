@@ -13,7 +13,7 @@ IF (BREAKPAD_FOUND)
         SET(BREAKPAD_SRCS breakpad_dummy.cc)
     ENDIF ()
 ELSE ()
-    SET(BREAKPAD_SRCS breakpad_dummy.cc)
+    SET(BREAKPAD_SRCS breakpad_dummy.cc client_cert_config.cc client_cert_config.h)
 ENDIF ()
 
 CHECK_INCLUDE_FILES(numa.h HAVE_NUMA_H)
@@ -43,6 +43,8 @@ ADD_LIBRARY(memcached_daemon STATIC
             buckets.h
             cmdline.cc
             cmdline.h
+            client_cert_config.cc
+            client_cert_config.h
             config_parse.cc
             config_parse.h
             config_util.cc
@@ -173,8 +175,6 @@ ADD_LIBRARY(memcached_daemon STATIC
             session_cas.h
             settings.cc
             settings.h
-            sslcert.cc
-            sslcert.h
             ssl_context.h
             ssl_context_openssl.cc
             ssl_utils.cc
@@ -250,3 +250,15 @@ ENDIF (ENABLE_DTRACE)
 
 INSTALL(TARGETS memcached
         RUNTIME DESTINATION bin)
+
+#
+# Unit tests
+#
+add_executable(client_cert_config_test
+               client_cert_config_test.cc
+               client_cert_config.cc
+               client_cert_config.h)
+target_link_libraries(client_cert_config_test cJSON gtest gtest_main ${OPENSSL_LIBRARIES})
+add_test(NAME client_cert_config_test
+         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+         COMMAND client_cert_config_test)

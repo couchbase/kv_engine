@@ -25,7 +25,6 @@
 #include "log_macros.h"
 #include "net_buf.h"
 #include "settings.h"
-#include "sslcert.h"
 #include "statemachine_mcbp.h"
 
 #include <cJSON.h>
