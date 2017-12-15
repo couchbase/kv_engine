@@ -606,6 +606,25 @@ TEST_F(HashTableTest, NRUMinimum) {
     EXPECT_EQ(MIN_NRU_VALUE, v->getNRUValue());
 }
 
+// MB-27223 Check that NRU value is not modified when we set an already existing
+// item
+TEST_F(HashTableTest, NRUMinimumExistingItem) {
+    // Setup
+    HashTable ht(global_stats, makeFactory(), 5, 1);
+    StoredDocKey key = makeStoredDocKey("key");
+
+    Item item(key, 0, 0, "value", strlen("value"));
+    item.setNRUValue(MIN_NRU_VALUE);
+    EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
+    // Now repeat the set, so the item will be found in the hashtable and
+    // considered an update.
+    EXPECT_EQ(MutationStatus::WasDirty, ht.set(item));
+    // trackReferenced=false so we don't modify the NRU while validating it.
+    StoredValue* v(ht.find(key, TrackReference::No, WantsDeleted::No));
+    EXPECT_NE(nullptr, v);
+    EXPECT_EQ(MIN_NRU_VALUE, v->getNRUValue());
+}
+
 /* Test release from HT (but not deletion) of an (HT) element */
 TEST_F(HashTableTest, ReleaseItem) {
     /* Setup with 2 hash buckets and 1 lock */
