@@ -1875,8 +1875,9 @@ TEST_P(SubdocTestappTest, SubdocUTF8ValTest) {
 INSTANTIATE_TEST_CASE_P(
         Subdoc,
         SubdocTestappTest,
-        ::testing::Values(TransportProtocols::McbpPlain),
-         ::testing::PrintToStringParamName());
+        ::testing::Combine(::testing::Values(TransportProtocols::McbpPlain),
+                           ::testing::Values(ClientJSONSupport::No)),
+        McdTestappTest::PrintToStringCombinedName);
 
 // Tests how a single worker handles multiple "concurrent" connections
 // performing operations.

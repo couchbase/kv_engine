@@ -16,7 +16,10 @@
  */
 #include "testapp.h"
 
-INSTANTIATE_TEST_CASE_P(Transport,
-                        McdTestappTest,
-                        ::testing::Values(TransportProtocols::McbpSsl),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_CASE_P(
+        Transport,
+        McdTestappTest,
+        ::testing::Combine(::testing::Values(TransportProtocols::McbpSsl),
+                           ::testing::Values(ClientJSONSupport::Yes,
+                                             ClientJSONSupport::No)),
+        McdTestappTest::PrintToStringCombinedName);

@@ -27,6 +27,7 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include <string>
+#include <tuple>
 
 #include <cJSON.h>
 #include <gtest/gtest.h>
@@ -287,7 +288,8 @@ protected:
 // SSL transports.
 class McdTestappTest
         : public TestappTest,
-          public ::testing::WithParamInterface<TransportProtocols> {
+          public ::testing::WithParamInterface<
+                  ::testing::tuple<TransportProtocols, ClientJSONSupport>> {
 public:
     // Per-test-case set-up.
     // Called before the first test in this test case.
@@ -295,12 +297,30 @@ public:
 
     // TearDownTestCase same as parent.
 
+    /// Custom Test name function.
+    static std::string PrintToStringCombinedName(
+            const ::testing::TestParamInfo<
+                    ::testing::tuple<TransportProtocols, ClientJSONSupport>>&
+                    info);
+
 protected:
     // per test setup function.
-    virtual void SetUp();
+    virtual void SetUp() override;
 
     // per test tear-down function.
-    virtual void TearDown();
+    virtual void TearDown() override;
+
+    /// return the TransportProtocol parameter for this test instance.
+    TransportProtocols getProtocolParam() const {
+        return std::get<0>(GetParam());
+    }
+
+    /// return the ClientJSONSupport parameter for this test instance.
+    ClientJSONSupport getJSONParam() const {
+        return std::get<1>(GetParam());
+    }
+
+    ClientJSONSupport hasJSONSupport() const override;
 
     /* Helpers for individual testcases */
     void test_set_huge_impl(const char *key, uint8_t cmd, int result,

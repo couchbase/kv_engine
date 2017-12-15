@@ -1152,7 +1152,7 @@ TEST_P(McdTestappTest, Config_Reload) {
     } buffer;
     sasl_auth("@admin", "password");
 
-    if (GetParam() != TransportProtocols::McbpPlain) {
+    if (getProtocolParam() != TransportProtocols::McbpPlain) {
         return;
     }
 
@@ -1310,7 +1310,7 @@ TEST_P(McdTestappTest, Config_Reload_SSL) {
         char bytes[1024];
     } buffer;
 
-    if (GetParam() != TransportProtocols::McbpSsl) {
+    if (getProtocolParam() != TransportProtocols::McbpSsl) {
         return;
     }
     sasl_auth("@admin", "password");

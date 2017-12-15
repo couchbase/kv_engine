@@ -496,7 +496,9 @@ TEST_P(SubdocPerfTest, Array_Replace_Fulldoc) {
     delete_object("list");
 }
 
-INSTANTIATE_TEST_CASE_P(SDPerf,
-                        SubdocPerfTest,
-                        ::testing::Values(TransportProtocols::McbpPlain),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_CASE_P(
+        SDPerf,
+        SubdocPerfTest,
+        ::testing::Combine(::testing::Values(TransportProtocols::McbpPlain),
+                           ::testing::Values(ClientJSONSupport::No)),
+        McdTestappTest::PrintToStringCombinedName);

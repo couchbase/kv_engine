@@ -405,7 +405,7 @@ void McdTestappTest::SetUpTestCase() {
 // per test setup function.
 void McdTestappTest::SetUp() {
     verify_server_running();
-    if (GetParam() == TransportProtocols::McbpPlain) {
+    if (getProtocolParam() == TransportProtocols::McbpPlain) {
         current_phase = phase_plain;
         sock = connect_to_server_plain(port);
         ASSERT_NE(INVALID_SOCKET, sock);
@@ -422,13 +422,25 @@ void McdTestappTest::SetUp() {
 
 // per test tear-down function.
 void McdTestappTest::TearDown() {
-    if (GetParam() == TransportProtocols::McbpPlain) {
+    if (getProtocolParam() == TransportProtocols::McbpPlain) {
         closesocket(sock);
     } else {
         closesocket(sock_ssl);
         sock_ssl = INVALID_SOCKET;
         destroy_ssl_socket();
     }
+}
+
+ClientJSONSupport McdTestappTest::hasJSONSupport() const {
+    return getJSONParam();
+}
+
+std::string McdTestappTest::PrintToStringCombinedName(
+        const ::testing::TestParamInfo<
+                ::testing::tuple<TransportProtocols, ClientJSONSupport>>&
+                info) {
+    return to_string(::testing::get<0>(info.param)) + "_" +
+           to_string(::testing::get<1>(info.param));
 }
 
 #ifdef WIN32

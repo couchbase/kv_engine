@@ -602,7 +602,9 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_AddDocFlagInavlidCas) {
     expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_EINVAL, {});
 }
 
-INSTANTIATE_TEST_CASE_P(Subdoc,
-                        SubdocTestappTest,
-                        ::testing::Values(TransportProtocols::McbpPlain),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_CASE_P(
+        Subdoc,
+        SubdocTestappTest,
+        ::testing::Combine(::testing::Values(TransportProtocols::McbpPlain),
+                           ::testing::Values(ClientJSONSupport::No)),
+        McdTestappTest::PrintToStringCombinedName);
