@@ -489,7 +489,6 @@ static void compress_vector(const std::vector<char>& input,
 }
 
 TEST_P(GetSetTest, TestAppendCompressedSource) {
-    TESTAPP_SKIP_IF_NO_COMPRESSION();
     MemcachedConnection& conn = getConnection();
     document.info.datatype = cb::mcbp::Datatype::Snappy;
 
@@ -518,7 +517,6 @@ TEST_P(GetSetTest, TestAppendCompressedSource) {
 }
 
 TEST_P(GetSetTest, TestAppendCompressedData) {
-    TESTAPP_SKIP_IF_NO_COMPRESSION();
     MemcachedConnection& conn = getConnection();
     document.info.datatype = cb::mcbp::Datatype::Raw;
     document.value.assign(1024, 'a');
@@ -552,7 +550,6 @@ TEST_P(GetSetTest, TestAppendCompressedData) {
 }
 
 TEST_P(GetSetTest, TestAppendCompressedSourceAndData) {
-    TESTAPP_SKIP_IF_NO_COMPRESSION();
     MemcachedConnection& conn = getConnection();
     document.info.datatype = cb::mcbp::Datatype::Snappy;
 
@@ -584,7 +581,6 @@ TEST_P(GetSetTest, TestAppendCompressedSourceAndData) {
 
 
 TEST_P(GetSetTest, TestPrependCompressedSource) {
-    TESTAPP_SKIP_IF_NO_COMPRESSION();
     MemcachedConnection& conn = getConnection();
     document.info.datatype = cb::mcbp::Datatype::Snappy;
 
@@ -614,7 +610,6 @@ TEST_P(GetSetTest, TestPrependCompressedSource) {
 }
 
 TEST_P(GetSetTest, TestPrependCompressedData) {
-    TESTAPP_SKIP_IF_NO_COMPRESSION();
     MemcachedConnection& conn = getConnection();
     document.info.datatype = cb::mcbp::Datatype::Raw;
     document.value.assign(1024, 'a');
@@ -643,8 +638,7 @@ TEST_P(GetSetTest, TestPrependCompressedData) {
     EXPECT_EQ(expected, stored.value);
 }
 
-TEST_P(GetSetTest, TestPrepepndCompressedSourceAndData) {
-    TESTAPP_SKIP_IF_NO_COMPRESSION();
+TEST_P(GetSetTest, TestPrependCompressedSourceAndData) {
     MemcachedConnection& conn = getConnection();
     document.info.datatype = cb::mcbp::Datatype::Snappy;
 

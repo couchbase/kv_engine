@@ -219,7 +219,7 @@ public:
     }
 
     bool canStoreCompressedItems() const override {
-        return false;
+        return true;
     }
 
     size_t getMaximumDocSize() const override {

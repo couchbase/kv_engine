@@ -268,10 +268,6 @@ protected:
 #define TESTAPP_SKIP_IF_SUPPORTED(op) \
     do { TESTAPP__DOSKIP(GetTestBucket().supportsOp(op), #op); } while (0)
 
-#define TESTAPP_SKIP_IF_NO_COMPRESSION() \
-    do { TESTAPP__DOSKIP(!GetTestBucket().canStoreCompressedItems(), \
-                         "cannot store compressed items"); } while (0)
-
 // Test the various memcached binary protocol commands against a
 // external `memcached` process. Tests are parameterized to test both Plain and
 // SSL transports.

@@ -1581,7 +1581,6 @@ TEST_P(McdTestappTest, DatatypeJSONWithoutSupport) {
 }
 
 TEST_P(McdTestappTest, DatatypeCompressed) {
-    TESTAPP_SKIP_IF_NO_COMPRESSION();
     const char inflated[] = "aaaaaaaaabbbbbbbccccccdddddd";
     size_t inflated_len = strlen(inflated);
     char* deflated;
@@ -1591,7 +1590,7 @@ TEST_P(McdTestappTest, DatatypeCompressed) {
     store_object_w_datatype("mycompressed",
                             deflated,
                             deflated_len,
-                            /*compressed*/ true);
+                            true);
 
     get_object_w_datatype("mycompressed", deflated, deflated_len,
                           true, false, false);
