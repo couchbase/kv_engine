@@ -2731,62 +2731,48 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     if (kvBucket->getKVStoreStat("rocksdb.block.cache.hit",
                                  value,
                                  KVBucketIface::KVSOption::RW)) {
-        add_casted_stat(
-                "ep_rocksdb_rocksdb.block.cache.hit", value, add_stat, cookie);
+        add_casted_stat("ep_rocksdb_block_cache_hit", value, add_stat, cookie);
     }
     if (kvBucket->getKVStoreStat("rocksdb.block.cache.miss",
                                  value,
                                  KVBucketIface::KVSOption::RW)) {
-        add_casted_stat(
-                "ep_rocksdb_rocksdb.block.cache.miss", value, add_stat, cookie);
+        add_casted_stat("ep_rocksdb_block_cache_miss", value, add_stat, cookie);
     }
     if (kvBucket->getKVStoreStat("rocksdb.block.cache.data.hit",
                                  value,
                                  KVBucketIface::KVSOption::RW)) {
-        add_casted_stat("ep_rocksdb_rocksdb.block.cache.data.hit",
-                        value,
-                        add_stat,
-                        cookie);
+        add_casted_stat(
+                "ep_rocksdb_block_cache_data_hit", value, add_stat, cookie);
     }
     if (kvBucket->getKVStoreStat("rocksdb.block.cache.data.miss",
                                  value,
                                  KVBucketIface::KVSOption::RW)) {
-        add_casted_stat("ep_rocksdb_rocksdb.block.cache.data.miss",
-                        value,
-                        add_stat,
-                        cookie);
+        add_casted_stat(
+                "ep_rocksdb_block_cache_data_miss", value, add_stat, cookie);
     }
     if (kvBucket->getKVStoreStat("rocksdb.block.cache.index.hit",
                                  value,
                                  KVBucketIface::KVSOption::RW)) {
-        add_casted_stat("ep_rocksdb_rocksdb.block.cache.index.hit",
-                        value,
-                        add_stat,
-                        cookie);
+        add_casted_stat(
+                "ep_rocksdb_block_cache_index_hit", value, add_stat, cookie);
     }
     if (kvBucket->getKVStoreStat("rocksdb.block.cache.index.miss",
                                  value,
                                  KVBucketIface::KVSOption::RW)) {
-        add_casted_stat("ep_rocksdb_rocksdb.block.cache.index.miss",
-                        value,
-                        add_stat,
-                        cookie);
+        add_casted_stat(
+                "ep_rocksdb_block_cache_index_miss", value, add_stat, cookie);
     }
     if (kvBucket->getKVStoreStat("rocksdb.block.cache.filter.hit",
                                  value,
                                  KVBucketIface::KVSOption::RW)) {
-        add_casted_stat("ep_rocksdb_rocksdb.block.cache.filter.hit",
-                        value,
-                        add_stat,
-                        cookie);
+        add_casted_stat(
+                "ep_rocksdb_block_cache_filter_hit", value, add_stat, cookie);
     }
     if (kvBucket->getKVStoreStat("rocksdb.block.cache.filter.miss",
                                  value,
                                  KVBucketIface::KVSOption::RW)) {
-        add_casted_stat("ep_rocksdb_rocksdb.block.cache.filter.miss",
-                        value,
-                        add_stat,
-                        cookie);
+        add_casted_stat(
+                "ep_rocksdb_block_cache_filter_miss", value, add_stat, cookie);
     }
     // Disk Usage per-CF
     if (kvBucket->getKVStoreStat("default_kTotalSstFilesSize",

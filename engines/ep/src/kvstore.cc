@@ -316,52 +316,28 @@ void KVStore::addStats(ADD_STAT add_stat, const void *c) {
     }
     // Block Cache hit/miss
     if (getStat("rocksdb.block.cache.hit", value)) {
-        addStat(prefix, "rocksdb_rocksdb.block.cache.hit", value, add_stat, c);
+        addStat(prefix, "rocksdb_block_cache_hit", value, add_stat, c);
     }
     if (getStat("rocksdb.block.cache.miss", value)) {
-        addStat(prefix, "rocksdb_rocksdb.block.cache.miss", value, add_stat, c);
+        addStat(prefix, "rocksdb_block_cache_miss", value, add_stat, c);
     }
     if (getStat("rocksdb.block.cache.data.hit", value)) {
-        addStat(prefix,
-                "rocksdb_rocksdb.block.cache.index.hit",
-                value,
-                add_stat,
-                c);
+        addStat(prefix, "rocksdb_block_cache_data_hit", value, add_stat, c);
     }
     if (getStat("rocksdb.block.cache.data.miss", value)) {
-        addStat(prefix,
-                "rocksdb_rocksdb.block.cache.index.miss",
-                value,
-                add_stat,
-                c);
+        addStat(prefix, "rocksdb_block_cache_data_miss", value, add_stat, c);
     }
     if (getStat("rocksdb.block.cache.index.hit", value)) {
-        addStat(prefix,
-                "rocksdb_rocksdb.block.cache.index.hit",
-                value,
-                add_stat,
-                c);
+        addStat(prefix, "rocksdb_block_cache_index_hit", value, add_stat, c);
     }
     if (getStat("rocksdb.block.cache.index.miss", value)) {
-        addStat(prefix,
-                "rocksdb_rocksdb.block.cache.index.miss",
-                value,
-                add_stat,
-                c);
+        addStat(prefix, "rocksdb_block_cache_index_miss", value, add_stat, c);
     }
     if (getStat("rocksdb.block.cache.filter.hit", value)) {
-        addStat(prefix,
-                "rocksdb_rocksdb.block.cache.filter.hit",
-                value,
-                add_stat,
-                c);
+        addStat(prefix, "rocksdb_block_cache_filter_hit", value, add_stat, c);
     }
     if (getStat("rocksdb.block.cache.filter.miss", value)) {
-        addStat(prefix,
-                "rocksdb_rocksdb.block.cache.filter.miss",
-                value,
-                add_stat,
-                c);
+        addStat(prefix, "rocksdb_block_cache_filter_miss", value, add_stat, c);
     }
     // Disk Usage per-CF
     if (getStat("default_kTotalSstFilesSize", value)) {
