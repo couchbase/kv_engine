@@ -76,6 +76,18 @@ public:
 
     std::chrono::microseconds getTotalMicros() const;
 
+    /**
+     * Encode the total micros in 2 bytes using the below scheme
+     * m11 = m.wxyz = log11(micros)
+     * m <=7 => first 3 bits of the 16 bits
+     * wxyz <= 8192 ==> remaining 13 bits
+     * ---
+     * To Decode, get the log11 value & then raise it to 11.
+     * Max time period represented here is 02:18.916408 (2m 18s)
+     */
+    uint16_t getEncodedMicros(uint64_t actual = 0) const;
+    std::chrono::microseconds decodeMicros(uint16_t encoded) const;
+
     // clear the collected trace data;
     void clear();
 
