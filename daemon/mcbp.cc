@@ -18,15 +18,13 @@
 
 #include "debug_helpers.h"
 #include "memcached.h"
-#include "protocol/mcbp/engine_wrapper.h"
-#include "utilities/protocol2text.h"
 #include "xattr/utils.h"
 
 #include <mcbp/protocol/framebuilder.h>
-#include <mcbp/protocol/header.h>
 #include <platform/compress.h>
 
-static cb::const_byte_buffer mcbp_add_header(cb::Pipe& pipe,
+static cb::const_byte_buffer mcbp_add_header(Cookie& cookie,
+                                             cb::Pipe& pipe,
                                              uint8_t opcode,
                                              uint16_t err,
                                              uint8_t ext_len,
@@ -38,19 +36,50 @@ static cb::const_byte_buffer mcbp_add_header(cb::Pipe& pipe,
     auto wbuf = pipe.wdata();
     auto* header = (protocol_binary_response_header*)wbuf.data();
 
-    header->response.magic = (uint8_t)PROTOCOL_BINARY_RES;
     header->response.opcode = opcode;
-    header->response.keylen = (uint16_t)htons(key_len);
-
     header->response.extlen = ext_len;
     header->response.datatype = datatype;
     header->response.status = (uint16_t)htons(err);
-
-    header->response.bodylen = htonl(body_len);
     header->response.opaque = opaque;
     header->response.cas = htonll(cas);
-    pipe.produced(sizeof(header->bytes));
 
+    if (cookie.isTracingEnabled()) {
+        // When tracing is enabled we'll be using the alternative
+        // response header where we inject the framing header.
+        // For now we'll just hard-code the adding of the bytes
+        // for the tracing info.
+        //
+        // Moving forward we should get a builder for encoding the
+        // framing header (but do that the next time we need to add
+        // something so that we have a better understanding on how
+        // we need to do that (it could be that we need to modify
+        // an already existing section etc).
+        header->response.magic = uint8_t(cb::mcbp::Magic::AltClientResponse);
+        // The framing extras when we just include the tracing information
+        // is 3 bytes. 1 byte with id and length, then the 2 bytes
+        // containing the actual data.
+        const uint8_t framing_extras_size = 0x03;
+        const uint8_t tracing_framing_id = 0x02;
+
+        header->bytes[2] = framing_extras_size; // framing header extras 3 bytes
+        header->bytes[3] = uint8_t(key_len);
+        header->response.bodylen = htonl(body_len + framing_extras_size);
+
+        auto& tracer = cookie.getTracer();
+        const auto val = htons(tracer.getEncodedMicros());
+        auto* ptr = header->bytes + sizeof(header->bytes);
+        *ptr = tracing_framing_id;
+        ptr++;
+        memcpy(ptr, &val, sizeof(val));
+        pipe.produced(sizeof(header->bytes) + framing_extras_size);
+        return {wbuf.data(), sizeof(header->bytes) + framing_extras_size};
+    } else {
+        header->response.magic = (uint8_t)PROTOCOL_BINARY_RES;
+        header->response.keylen = (uint16_t)htons(key_len);
+        header->response.bodylen = htonl(body_len);
+    }
+
+    pipe.produced(sizeof(header->bytes));
     return {wbuf.data(), sizeof(header->bytes)};
 }
 
@@ -63,7 +92,8 @@ void mcbp_add_header(Cookie& cookie,
     auto& connection = cookie.getConnection();
     connection.addMsgHdr(true);
     const auto& header = cookie.getHeader();
-    const auto wbuf = mcbp_add_header(*connection.write,
+    const auto wbuf = mcbp_add_header(cookie,
+                                      *connection.write,
                                       header.getOpcode(),
                                       err,
                                       ext_len,
