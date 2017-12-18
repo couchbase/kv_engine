@@ -52,15 +52,17 @@ bool Tracer::end(SpanId spanId) {
 }
 
 bool Tracer::end(const TraceCode tracecode) {
-    std::lock_guard<std::mutex> lock(spanMutex);
     SpanId spanId = 0;
-    for (const auto& span : vecSpans) {
-        if (span.code == tracecode) {
-            return end(spanId);
+    {
+        std::lock_guard<std::mutex> lock(spanMutex);
+        for (const auto& span : vecSpans) {
+            if (span.code == tracecode) {
+                break;
+            }
+            spanId++;
         }
-        spanId++;
     }
-    return false;
+    return end(spanId);
 }
 
 const std::vector<Span>& Tracer::getDurations() const {
