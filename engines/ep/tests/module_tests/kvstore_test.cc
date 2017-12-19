@@ -2062,7 +2062,6 @@ TEST_F(RocksDBKVStoreTest, StatsTest) {
     // MemTable Size per CF
     EXPECT_TRUE(kvstore->getStat("default_kSizeAllMemTables", value));
     EXPECT_TRUE(kvstore->getStat("seqno_kSizeAllMemTables", value));
-    EXPECT_TRUE(kvstore->getStat("local_kSizeAllMemTables", value));
 
     // Block Cache
     Configuration config;
@@ -2087,7 +2086,6 @@ TEST_F(RocksDBKVStoreTest, StatsTest) {
     // Disk Usage per-CF
     EXPECT_TRUE(kvstore->getStat("default_kTotalSstFilesSize", value));
     EXPECT_TRUE(kvstore->getStat("seqno_kTotalSstFilesSize", value));
-    EXPECT_TRUE(kvstore->getStat("local_kTotalSstFilesSize", value));
 }
 
 // Verify that a wrong value of 'rocksdb_statistics_option' is caught

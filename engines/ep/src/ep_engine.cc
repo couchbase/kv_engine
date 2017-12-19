@@ -2728,12 +2728,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
         add_casted_stat(
                 "ep_rocksdb_seqno_kSizeAllMemTables", value, add_stat, cookie);
     }
-    if (kvBucket->getKVStoreStat("local_kSizeAllMemTables",
-                                 value,
-                                 KVBucketIface::KVSOption::RW)) {
-        add_casted_stat(
-                "ep_rocksdb_local_kSizeAllMemTables", value, add_stat, cookie);
-    }
     // Block Cache hit/miss
     if (kvBucket->getKVStoreStat("rocksdb.block.cache.hit",
                                  value,
@@ -2795,12 +2789,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                                  KVBucketIface::KVSOption::RW)) {
         add_casted_stat(
                 "ep_rocksdb_seqno_kTotalSstFilesSize", value, add_stat, cookie);
-    }
-    if (kvBucket->getKVStoreStat("local_kTotalSstFilesSize",
-                                 value,
-                                 KVBucketIface::KVSOption::RW)) {
-        add_casted_stat(
-                "ep_rocksdb_local_kTotalSstFilesSize", value, add_stat, cookie);
     }
 
     return ENGINE_SUCCESS;

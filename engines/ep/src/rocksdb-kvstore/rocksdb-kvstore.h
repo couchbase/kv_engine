@@ -52,7 +52,7 @@ private:
 };
 
 // Used to order the seqno Column Family to support iterating items by seqno
-class VbidSeqnoComparator : public rocksdb::Comparator {
+class SeqnoComparator : public rocksdb::Comparator {
 public:
     int Compare(const rocksdb::Slice& a,
                 const rocksdb::Slice& b) const override {
@@ -70,7 +70,7 @@ public:
     }
 
     const char* Name() const override {
-        return "VbidSeqnoComparator";
+        return "SeqnoComparator";
         /* Change this if the comparator implementation is altered
          This is used to ensure the operator with which the DB was
          created is the same as the one provided when opening the DB.
@@ -318,23 +318,20 @@ private:
     // An entry is removed only in 'delVBucket(vbid)'.
     std::vector<std::shared_ptr<VBHandle>> vbHandles;
 
-    VbidSeqnoComparator vbidSeqnoComparator;
+    SeqnoComparator seqnoComparator;
 
     rocksdb::DBOptions dbOptions;
     rocksdb::ColumnFamilyOptions defaultCFOptions;
     rocksdb::ColumnFamilyOptions seqnoCFOptions;
-    rocksdb::ColumnFamilyOptions localCFOptions;
 
     // Per-shard Block Cache
     std::shared_ptr<rocksdb::Cache> blockCache;
 
-    enum class ColumnFamily { Default, Seqno, Local };
+    enum class ColumnFamily { Default, Seqno };
 
     rocksdb::ColumnFamilyOptions getBaselineDefaultCFOptions();
 
     rocksdb::ColumnFamilyOptions getBaselineSeqnoCFOptions();
-
-    rocksdb::ColumnFamilyOptions getBaselineLocalCFOptions();
 
     // Helper function to apply the string-format 'newCfOptions' and
     // 'newBbtOptions' on top of 'cfOptions'.
@@ -419,7 +416,7 @@ private:
 
     int64_t readHighSeqnoFromDisk(const VBHandle& db);
 
-    std::string getVbstateKey();
+    int64_t getVbstateKey();
 
     // Helper function to retrieve stats from the RocksDB MemoryUtil API.
     bool getStatFromMemUsage(const rocksdb::MemoryUtil::UsageType type,

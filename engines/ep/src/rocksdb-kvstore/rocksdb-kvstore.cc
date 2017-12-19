@@ -162,12 +162,10 @@ public:
     VBHandle(rocksdb::DB& rdb,
              rocksdb::ColumnFamilyHandle* defaultCFH,
              rocksdb::ColumnFamilyHandle* seqnoCFH,
-             rocksdb::ColumnFamilyHandle* localCFH,
              uint16_t vbid)
         : rdb(rdb),
           defaultCFH(ColumnFamilyPtr(defaultCFH, rdb)),
           seqnoCFH(ColumnFamilyPtr(seqnoCFH, rdb)),
-          localCFH(ColumnFamilyPtr(localCFH, rdb)),
           vbid(vbid) {
     }
 
@@ -190,20 +188,11 @@ public:
                     std::to_string(vbid) + ", CF: seqno]: " +
                     status.getState());
         }
-        status = rdb.DropColumnFamily(localCFH.get());
-        if (!status.ok()) {
-            throw std::runtime_error(
-                    "VBHandle::dropColumnFamilies: DropColumnFamily failed for "
-                    "[vbid: " +
-                    std::to_string(vbid) + ", CF: local]: " +
-                    status.getState());
-        }
     }
 
     rocksdb::DB& rdb;
     const ColumnFamilyPtr defaultCFH;
     const ColumnFamilyPtr seqnoCFH;
-    const ColumnFamilyPtr localCFH;
     const uint16_t vbid;
 };
 
@@ -273,10 +262,8 @@ RocksDBKVStore::RocksDBKVStore(KVStoreConfig& config)
     const auto& bbtOptions = configuration.getRocksDbBBTOptions();
     defaultCFOptions = getBaselineDefaultCFOptions();
     seqnoCFOptions = getBaselineSeqnoCFOptions();
-    localCFOptions = getBaselineLocalCFOptions();
     applyUserCFOptions(defaultCFOptions, cfOptions, bbtOptions);
     applyUserCFOptions(seqnoCFOptions, cfOptions, bbtOptions);
-    applyUserCFOptions(localCFOptions, cfOptions, bbtOptions);
 
     // Open the DB and load the ColumnFamilyHandle for all the
     // existing Column Families
@@ -329,10 +316,8 @@ void RocksDBKVStore::openDB() {
     // MaxShards=4:
     //     cfDescriptors[0] = default_0
     //     cfDescriptors[1] = seqno_0
-    //     cfDescriptors[2] = local_0
-    //     cfDescriptors[3] = default_4
-    //     cfDescriptors[4] = seqno_4
-    //     cfDescriptors[5] = local_4
+    //     cfDescriptors[2] = default_4
+    //     cfDescriptors[3] = seqno_4
     //     ..
     // That helps us in populating 'vbHandles' later, because after
     // 'rocksdb::DB::Open' handles[i] will be the handle that we will use
@@ -342,8 +327,7 @@ void RocksDBKVStore::openDB() {
         if ((vbid % configuration.getMaxShards()) ==
             configuration.getShardId()) {
             std::string defaultCF = "default_" + std::to_string(vbid);
-            std::string seqnoCF = "seqno_" + std::to_string(vbid);
-            std::string localCF = "local_" + std::to_string(vbid);
+            std::string seqnoCF = "local+seqno_" + std::to_string(vbid);
             if (std::find(cfs.begin(), cfs.end(), defaultCF) != cfs.end()) {
                 if (std::find(cfs.begin(), cfs.end(), seqnoCF) == cfs.end()) {
                     throw std::logic_error("RocksDBKVStore::openDB: DB '" +
@@ -351,15 +335,8 @@ void RocksDBKVStore::openDB() {
                                            "' is in inconsistent state: CF " +
                                            seqnoCF + " not found.");
                 }
-                if (std::find(cfs.begin(), cfs.end(), localCF) == cfs.end()) {
-                    throw std::logic_error("RocksDBKVStore::openDB: DB '" +
-                                           dbname +
-                                           "' is in inconsistent state: CF " +
-                                           localCF + " not found.");
-                }
                 cfDescriptors.emplace_back(defaultCF, defaultCFOptions);
                 cfDescriptors.emplace_back(seqnoCF, seqnoCFOptions);
-                cfDescriptors.emplace_back(localCF, localCFOptions);
             }
         }
     }
@@ -380,16 +357,16 @@ void RocksDBKVStore::openDB() {
 
     // The way we populated 'cfDescriptors' guarantees that: if 'cfDescriptors'
     // contains more than only the RocksDB 'default' CF (i.e.,
-    // '(cfDescriptors.size() - 1) > 0') then 'cfDescriptors[i]',
-    // 'cfDescriptors[i+1]' and 'cfDescriptors[i+2]' are respectively the
-    // 'default_', 'seqno'_ and 'local_' CFs for a certain VBucket.
-    for (uint16_t i = 0; i < (cfDescriptors.size() - 1); i += 3) {
+    // '(cfDescriptors.size() - 1) > 0') then 'cfDescriptors[i]' and
+    // 'cfDescriptors[i+1]' are respectively the 'default_' and 'seqno'_ CFs
+    // for a certain VBucket.
+    for (uint16_t i = 0; i < (cfDescriptors.size() - 1); i += 2) {
         // Note: any further sanity-check is redundant as we will have always
         // 'cf = "default_<vbid>"'.
         const auto& cf = cfDescriptors[i].name;
         uint16_t vbid = std::stoi(cf.substr(8));
         vbHandles[vbid] = std::make_shared<VBHandle>(
-                *rdb, handles[i], handles[i + 1], handles[i + 2], vbid);
+                *rdb, handles[i], handles[i + 1], vbid);
     }
 
     // We need to release the ColumnFamilyHandle for the built-in 'default' CF
@@ -408,8 +385,7 @@ std::shared_ptr<VBHandle> RocksDBKVStore::getVBHandle(uint16_t vbid) {
     std::vector<rocksdb::ColumnFamilyDescriptor> cfDescriptors;
     auto vbid_ = std::to_string(vbid);
     cfDescriptors.emplace_back("default_" + vbid_, defaultCFOptions);
-    cfDescriptors.emplace_back("seqno_" + vbid_, seqnoCFOptions);
-    cfDescriptors.emplace_back("local_" + vbid_, localCFOptions);
+    cfDescriptors.emplace_back("local+seqno_" + vbid_, seqnoCFOptions);
 
     std::vector<rocksdb::ColumnFamilyHandle*> handles;
     auto status = rdb->CreateColumnFamilies(cfDescriptors, &handles);
@@ -429,8 +405,8 @@ std::shared_ptr<VBHandle> RocksDBKVStore::getVBHandle(uint16_t vbid) {
                 std::to_string(vbid) + ": " + status.getState());
     }
 
-    vbHandles[vbid] = std::make_shared<VBHandle>(
-            *rdb, handles[0], handles[1], handles[2], vbid);
+    vbHandles[vbid] =
+            std::make_shared<VBHandle>(*rdb, handles[0], handles[1], vbid);
 
     return vbHandles[vbid];
 }
@@ -761,10 +737,6 @@ bool RocksDBKVStore::getStat(const char* name_, size_t& value) {
         return getStatFromProperties(ColumnFamily::Seqno,
                                      rocksdb::DB::Properties::kSizeAllMemTables,
                                      value);
-    } else if (name == "local_kSizeAllMemTables") {
-        return getStatFromProperties(ColumnFamily::Local,
-                                     rocksdb::DB::Properties::kSizeAllMemTables,
-                                     value);
     }
 
     // Block Cache hit/miss
@@ -803,11 +775,6 @@ bool RocksDBKVStore::getStat(const char* name_, size_t& value) {
                 ColumnFamily::Seqno,
                 rocksdb::DB::Properties::kTotalSstFilesSize,
                 value);
-    } else if (name == "local_kTotalSstFilesSize") {
-        return getStatFromProperties(
-                ColumnFamily::Local,
-                rocksdb::DB::Properties::kTotalSstFilesSize,
-                value);
     }
 
     return false;
@@ -838,7 +805,6 @@ std::unordered_set<const rocksdb::Cache*> RocksDBKVStore::getCachePointers() {
     // Cache from table factories.
     addCFBlockCachePointers(defaultCFOptions, cache_set);
     addCFBlockCachePointers(seqnoCFOptions, cache_set);
-    addCFBlockCachePointers(localCFOptions, cache_set);
 
     return cache_set;
 }
@@ -945,8 +911,10 @@ void RocksDBKVStore::readVBState(const VBHandle& vbh) {
     auto key = getVbstateKey();
     std::string vbstate;
     auto vbid = vbh.vbid;
-    auto status =
-            rdb->Get(rocksdb::ReadOptions(), vbh.localCFH.get(), key, &vbstate);
+    auto status = rdb->Get(rocksdb::ReadOptions(),
+                           vbh.seqnoCFH.get(),
+                           getSeqnoSlice(&key),
+                           &vbstate);
     if (!status.ok()) {
         if (status.IsNotFound()) {
             logger.log(EXTENSION_LOG_NOTICE,
@@ -1074,7 +1042,8 @@ rocksdb::Status RocksDBKVStore::saveVBStateToBatch(const VBHandle& vbh,
     jsonState << "}";
 
     auto key = getVbstateKey();
-    return batch.Put(vbh.localCFH.get(), key, jsonState.str());
+    rocksdb::Slice keySlice = getSeqnoSlice(&key);
+    return batch.Put(vbh.seqnoCFH.get(), keySlice, jsonState.str());
 }
 
 rocksdb::ColumnFamilyOptions RocksDBKVStore::getBaselineDefaultCFOptions() {
@@ -1107,7 +1076,7 @@ rocksdb::ColumnFamilyOptions RocksDBKVStore::getBaselineDefaultCFOptions() {
 rocksdb::ColumnFamilyOptions RocksDBKVStore::getBaselineSeqnoCFOptions() {
     rocksdb::ColumnFamilyOptions cfOptions;
 
-    cfOptions.comparator = &vbidSeqnoComparator;
+    cfOptions.comparator = &seqnoComparator;
 
     // Set the given Memory Budget as the write_buffer_size
     if (configuration.getRocksdbSeqnoCfMemBudget() > 0) {
@@ -1124,13 +1093,6 @@ rocksdb::ColumnFamilyOptions RocksDBKVStore::getBaselineSeqnoCFOptions() {
         cfOptions.OptimizeUniversalStyleCompaction(cfOptions.write_buffer_size);
     }
 
-    return cfOptions;
-}
-
-rocksdb::ColumnFamilyOptions RocksDBKVStore::getBaselineLocalCFOptions() {
-    rocksdb::ColumnFamilyOptions cfOptions;
-    // Set the Memtable size to the current RocksDB minimum (64KB)
-    cfOptions.write_buffer_size = 65536;
     return cfOptions;
 }
 
@@ -1341,12 +1303,16 @@ int64_t RocksDBKVStore::readHighSeqnoFromDisk(const VBHandle& vbh) {
     if (!it->Valid()) {
         return 0;
     }
-
-    return getNumericSeqno(it->key());
+    auto highSeqno = getNumericSeqno(it->key());
+    // We use a negative seqno as key for VBState. Do not consider it.
+    return highSeqno >= 0 ? highSeqno : 0;
 }
 
-std::string RocksDBKVStore::getVbstateKey() {
-    return "vbstate";
+int64_t RocksDBKVStore::getVbstateKey() {
+    // We put the VBState into the SeqnoCF. As items in the SeqnoCF are ordered
+    // by increasing-seqno, we reserve a negative special key to VBState so
+    // that we can access it in O(1).
+    return -9999;
 }
 
 ScanContext* RocksDBKVStore::initScanContext(
@@ -1411,7 +1377,7 @@ scan_error_t RocksDBKVStore::scan(ScanContext* ctx) {
 
     rocksdb::Slice endSeqnoSlice = getSeqnoSlice(&ctx->maxSeqno);
     auto isPastEnd = [&endSeqnoSlice, this](rocksdb::Slice seqSlice) {
-        return vbidSeqnoComparator.Compare(seqSlice, endSeqnoSlice) == 1;
+        return seqnoComparator.Compare(seqSlice, endSeqnoSlice) == 1;
     };
 
     for (; it->Valid() && !isPastEnd(it->key()); it->Next()) {
@@ -1545,9 +1511,6 @@ bool RocksDBKVStore::getStatFromProperties(ColumnFamily cf,
                 break;
             case ColumnFamily::Seqno:
                 cfh = vbh->seqnoCFH.get();
-                break;
-            case ColumnFamily::Local:
-                cfh = vbh->localCFH.get();
                 break;
             }
             if (!cfh) {
