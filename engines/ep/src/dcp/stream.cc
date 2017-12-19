@@ -972,7 +972,7 @@ void ActiveStreamCheckpointProcessorTask::wakeup() {
 
 void ActiveStreamCheckpointProcessorTask::schedule(
         std::shared_ptr<ActiveStream> stream) {
-    pushUnique(stream);
+    pushUnique(stream->getVBucket());
 
     bool expected = false;
     if (notified.compare_exchange_strong(expected, true)) {
@@ -980,7 +980,7 @@ void ActiveStreamCheckpointProcessorTask::schedule(
     }
 }
 
-void ActiveStreamCheckpointProcessorTask::clearQueues() {
+void ActiveStreamCheckpointProcessorTask::cancelTask() {
     LockHolder lh(workQueueLock);
     while (!queue.empty()) {
         queue.pop();

@@ -215,6 +215,9 @@ TEST_F(SingleThreadedEPBucketTest, MB22421_backfilling_but_task_finished) {
      // flag to true and the DCP cursor being dropped
      EXPECT_TRUE(mock_stream->public_getPendingBackfill());
      EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
+
+     // Stop Producer checkpoint processor task
+     producer->cancelCheckpointCreatorTask();
 }
 
 /*
@@ -282,6 +285,9 @@ TEST_F(SingleThreadedEPBucketTest, MB22421_reregister_cursor) {
     // 1 and backfillEnd is 0, however the cursor still needs to be
     // re-registered.
     EXPECT_EQ(2, ckpt_mgr.getNumOfCursors());
+
+    // Stop Producer checkpoint processor task
+    producer->cancelCheckpointCreatorTask();
 }
 
 /*
@@ -419,6 +425,13 @@ TEST_F(SingleThreadedEPBucketTest, MB22960_cursor_dropping_data_loss) {
             "test_producer",
             /*flags*/ 0,
             cb::const_byte_buffer() /*no json*/);
+
+    // Since we are creating a mock active stream outside of
+    // DcpProducer::streamRequest(), and we want the checkpt processor task,
+    // create it explicitly here
+    producer->createCheckpointProcessorTask();
+    producer->scheduleCheckpointProcessorTask();
+
     // Create a Mock Active Stream
     auto mock_stream =
             std::make_shared<MockActiveStreamWithOverloadedRegisterCursor>(
@@ -540,6 +553,9 @@ TEST_F(SingleThreadedEPBucketTest, MB22960_cursor_dropping_data_loss) {
 
     // BackfillManagerTask
     runNextTask(lpAuxioQ);
+
+    // Stop Producer checkpoint processor task
+    producer->cancelCheckpointCreatorTask();
 }
 
 /* The following is a regression test for MB25056, which came about due the fix
@@ -650,6 +666,13 @@ TEST_F(SingleThreadedEPBucketTest, MB25056_do_not_set_pendingBackfill_to_true) {
             "test_producer",
             /*flags*/ 0,
             cb::const_byte_buffer() /*no json*/);
+
+    // Since we are creating a mock active stream outside of
+    // DcpProducer::streamRequest(), and we want the checkpt processor task,
+    // create it explicitly here
+    producer->createCheckpointProcessorTask();
+    producer->scheduleCheckpointProcessorTask();
+
     // Create a Mock Active Stream
     auto mock_stream =
             std::make_shared<MockActiveStreamWithOverloadedRegisterCursor>(
@@ -737,6 +760,9 @@ TEST_F(SingleThreadedEPBucketTest, MB25056_do_not_set_pendingBackfill_to_true) {
     runNextTask(lpAuxioQ, "Process checkpoint(s) for DCP producer");
     // BackfillManagerTask
     runNextTask(lpAuxioQ, "Backfilling items for a DCP Connection");
+
+    // Stop Producer checkpoint processor task
+    producer->cancelCheckpointCreatorTask();
 }
 
 /**
@@ -799,6 +825,9 @@ TEST_F(SingleThreadedEPBucketTest, test_mb22451) {
         << "stream state should not have changed";
     // Required to ensure that the backfillMgr is deleted
     producer->closeAllStreams();
+
+    // Stop Producer checkpoint processor task
+    producer->cancelCheckpointCreatorTask();
 }
 
 /* Regression / reproducer test for MB-19815 - an exception is thrown
@@ -872,9 +901,9 @@ TEST_F(SingleThreadedEPBucketTest, MB19428_no_streams_against_dead_vbucket) {
                 /*flags*/ 0,
                 cb::const_byte_buffer() /*no json*/);
 
-        // Creating a producer will schedule one ActiveStreamCheckpointProcessorTask
-        // that task though sleeps forever, so won't run until woken.
-        EXPECT_EQ(1, lpAuxioQ.getFutureQueueSize());
+        // Creating a producer will not create an
+        // ActiveStreamCheckpointProcessorTask until a stream is created.
+        EXPECT_EQ(0, lpAuxioQ.getFutureQueueSize());
 
         uint64_t rollbackSeqno;
         auto err = producer->streamRequest(
@@ -891,8 +920,12 @@ TEST_F(SingleThreadedEPBucketTest, MB19428_no_streams_against_dead_vbucket) {
 
         EXPECT_EQ(ENGINE_NOT_MY_VBUCKET, err) << "Unexpected error code";
 
-        // The streamRequest failed and should not of created anymore tasks.
+        // The streamRequest failed and should not of created anymore tasks than
+        // ActiveStreamCheckpointProcessorTask.
         EXPECT_EQ(1, lpAuxioQ.getFutureQueueSize());
+
+        // Stop Producer checkpoint processor task
+        producer->cancelCheckpointCreatorTask();
     }
 }
 
@@ -1194,9 +1227,9 @@ TEST_F(MB20054_SingleThreadedEPStoreTest, MB20054_onDeleteItem_during_bucket_del
                               name,
                               {}));
 
-    // Expect to have an ActiveStreamCheckpointProcessorTask, which is
-    // initially snoozed (so we can't run it).
-    EXPECT_EQ(1, lpAuxioQ->getFutureQueueSize());
+    // ActiveStreamCheckpointProcessorTask and DCPBackfill task are created
+    // when the first DCP stream is created.
+    EXPECT_EQ(0, lpAuxioQ->getFutureQueueSize());
     EXPECT_EQ(0, lpAuxioQ->getReadyQueueSize());
 
     uint64_t rollbackSeqno;
@@ -1399,6 +1432,9 @@ TEST_F(SingleThreadedEPBucketTest, stream_from_active_vbucket_only) {
         } else {
             EXPECT_EQ(ENGINE_NOT_MY_VBUCKET, err) << "Unexpected error code";
         }
+
+        // Stop Producer checkpoint processor task
+        producer->cancelCheckpointCreatorTask();
     }
 }
 

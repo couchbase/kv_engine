@@ -149,7 +149,8 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
       includeXattrs(((flags & DCP_OPEN_INCLUDE_XATTRS) != 0)
                             ? IncludeXattrs::Yes
                             : IncludeXattrs::No),
-      filter(std::move(filter)) {
+      filter(std::move(filter)),
+      createChkPtProcessorTsk(startTask) {
     setSupportAck(true);
     setReserved(true);
     pause("initializing");
@@ -204,17 +205,16 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
     }
 
     backfillMgr.reset(new BackfillManager(engine_));
-
-    if (startTask) {
-        createCheckpointProcessorTask();
-        scheduleCheckpointProcessorTask();
-    }
 }
 
 DcpProducer::~DcpProducer() {
     backfillMgr.reset();
+}
 
+void DcpProducer::cancelCheckpointCreatorTask() {
     if (checkpointCreatorTask) {
+        static_cast<ActiveStreamCheckpointProcessorTask*>(
+                                checkpointCreatorTask.get())->cancelTask();
         ExecutorPool::get()->cancel(checkpointCreatorTask->getId());
     }
 }
@@ -402,6 +402,14 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
                                            includeXattrs,
                                            filter,
                                            vb->getManifest());
+        /* We want to create the 'createCheckpointProcessorTask' here even if
+           the stream creation fails later on in the func. The goal is to
+           create the 'checkpointProcessorTask' before any valid active stream
+           is created */
+        if (createChkPtProcessorTsk && !checkpointCreatorTask) {
+            createCheckpointProcessorTask();
+            scheduleCheckpointProcessorTask();
+        }
     }
 
     {
@@ -1206,7 +1214,8 @@ bool DcpProducer::bufferLogInsert(size_t bytes) {
 
 void DcpProducer::createCheckpointProcessorTask() {
     checkpointCreatorTask =
-            std::make_shared<ActiveStreamCheckpointProcessorTask>(engine_);
+            std::make_shared<ActiveStreamCheckpointProcessorTask>(
+                    engine_, shared_from_this());
 }
 
 void DcpProducer::scheduleCheckpointProcessorTask() {
@@ -1221,15 +1230,6 @@ void DcpProducer::scheduleCheckpointProcessorTask(
     }
     static_cast<ActiveStreamCheckpointProcessorTask*>(checkpointCreatorTask.get())
         ->schedule(s);
-}
-
-void DcpProducer::clearCheckpointProcessorTaskQueues() {
-    if (!checkpointCreatorTask) {
-        throw std::logic_error(
-                "DcpProducer::clearCheckpointProcessorTaskQueues task is null");
-    }
-    static_cast<ActiveStreamCheckpointProcessorTask*>(checkpointCreatorTask.get())
-        ->clearQueues();
 }
 
 std::shared_ptr<Stream> DcpProducer::findStream(uint16_t vbid) {
