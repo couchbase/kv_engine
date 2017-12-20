@@ -1441,6 +1441,13 @@ typedef union {
  * error ENGINE_NOT_MY_VBUCKET
  */
 #define DCP_ADD_STREAM_ACTIVE_VB_ONLY 16
+/**
+ * Indicate the server to check for vb_uuid match even at start_seqno 0 before
+ * adding the stream successfully.
+ * If the flag is set and there is a vb_uuid mismatch at start_seqno 0, then
+ * the server returns ENGINE_ROLLBACK error.
+ */
+#define DCP_ADD_STREAM_STRICT_VBUUID 32
             uint32_t flags;
         } body;
     } message;

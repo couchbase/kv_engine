@@ -107,7 +107,10 @@ class FailoverTable {
      * @param snap_start_seqno the start seq number of the sanpshot
      * @param snap_end_seqno the end seq number of the sanpshot
      * @param purge_seqno last seq no purged during compaction
+     * @param strictVbUuidMatch indicates if vb_uuid should match even at
+     *                          start_seqno 0
      * @param rollback_seqno the sequence number to rollback to if necessary
+     *
      * @return true and reason if a rollback is needed, false otherwise
      */
     std::pair<bool, std::string> needsRollback(uint64_t start_seqno,
@@ -116,6 +119,7 @@ class FailoverTable {
                                                uint64_t snap_start_seqno,
                                                uint64_t snap_end_seqno,
                                                uint64_t purge_seqno,
+                                               bool strictVbUuidMatch,
                                                uint64_t* rollback_seqno) const;
 
     /**

@@ -125,15 +125,17 @@ std::pair<bool, std::string> FailoverTable::needsRollback(
         uint64_t snap_start_seqno,
         uint64_t snap_end_seqno,
         uint64_t purge_seqno,
+        bool strictVbUuidMatch,
         uint64_t* rollback_seqno) const {
     /* Start with upper as vb highSeqno */
     uint64_t upper = cur_seqno;
     std::lock_guard<std::mutex> lh(lock);
 
-    /* Some clients can have a diverging (w.r.t producer) branch at seqno 0.
-       So check if we should we rollback when a client has a valid vb_uuid
-       even though the start_seqno == 0 */
-    if (start_seqno == 0 && vb_uuid == 0) {
+    /* Clients can have a diverging (w.r.t producer) branch at seqno 0 and in
+       such a case, some of them strictly need a rollback and others don't.
+       So we should NOT rollback when a client has a vb_uuid == 0 or
+       if does not expect a rollback at start_seqno == 0 */
+    if (start_seqno == 0 && (!strictVbUuidMatch || vb_uuid == 0)) {
         return std::make_pair(false, std::string());
     }
 
