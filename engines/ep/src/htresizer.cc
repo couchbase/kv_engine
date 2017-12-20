@@ -55,7 +55,7 @@ bool HashtableResizerTask::run(void) {
     // acquire all HT locks). As such we are sensitive to the duration
     // of this task - we want to log anything which has a
     // non-negligible impact on frontend operations.
-    const auto maxExpectedDuration = std::chrono::milliseconds(50);
+    const auto maxExpectedDuration = std::chrono::milliseconds(100);
 
     store->visit(std::move(pv),
                  "Hashtable resizer",

@@ -511,12 +511,18 @@ private:
 
 class ActiveStreamCheckpointProcessorTask : public GlobalTask {
 public:
-    ActiveStreamCheckpointProcessorTask(EventuallyPersistentEngine& e)
-        : GlobalTask(&e, TaskId::ActiveStreamCheckpointProcessorTask,
-                     INT_MAX, false),
-      notified(false),
-      iterationsBeforeYield(e.getConfiguration()
-                            .getDcpProducerSnapshotMarkerYieldLimit()) { }
+    ActiveStreamCheckpointProcessorTask(EventuallyPersistentEngine& e,
+                                        std::shared_ptr<DcpProducer> p)
+        : GlobalTask(&e,
+                     TaskId::ActiveStreamCheckpointProcessorTask,
+                     INT_MAX,
+                     false),
+          notified(false),
+          iterationsBeforeYield(
+                  e.getConfiguration()
+                          .getDcpProducerSnapshotMarkerYieldLimit()),
+          producerPtr(p) {
+    }
 
     cb::const_char_buffer getDescription() {
         return "Process checkpoint(s) for DCP producer";
@@ -531,7 +537,11 @@ public:
     bool run();
     void schedule(std::shared_ptr<ActiveStream> stream);
     void wakeup();
-    void clearQueues();
+
+    /* Clears the queues and resets the producer reference */
+    void cancelTask();
+
+    /* Returns the number of unique streams waiting to be processed */
     size_t queueSize() {
         LockHolder lh(workQueueLock);
         return queue.size();
@@ -539,12 +549,23 @@ public:
 
 private:
     std::shared_ptr<ActiveStream> queuePop() {
-        LockHolder lh(workQueueLock);
-        if (!queue.empty()) {
-            auto rval = queue.front().first.lock();
-            queuedVbuckets.erase(queue.front().second);
+        uint16_t vbid = 0;
+        {
+            LockHolder lh(workQueueLock);
+            if (queue.empty()) {
+                return nullptr;
+            }
+            vbid = queue.front();
             queue.pop();
-            return rval;
+            queuedVbuckets.erase(vbid);
+        }
+
+        /* findStream acquires DcpProducer::streamsMutex, hence called
+           without acquiring workQueueLock */
+        auto producer = producerPtr.lock();
+        if (producer) {
+            return dynamic_pointer_cast<ActiveStream>(
+                    producer->findStream(vbid));
         }
         return nullptr;
     }
@@ -554,28 +575,35 @@ private:
         return queue.empty();
     }
 
-    void pushUnique(std::shared_ptr<ActiveStream> stream) {
+    void pushUnique(uint16_t vbid) {
         LockHolder lh(workQueueLock);
-        if (queuedVbuckets.count(stream->getVBucket()) == 0) {
-            queue.push(std::make_pair(stream, stream->getVBucket()));
-            queuedVbuckets.insert(stream->getVBucket());
+        if (queuedVbuckets.count(vbid) == 0) {
+            queue.push(vbid);
+            queuedVbuckets.insert(vbid);
         }
     }
 
     std::mutex workQueueLock;
 
     /**
-     * Maintain a queue of unique streams and the corresponding vbuckets. We
-     * have the queue to have FIFO processing of the streams and a set to have
-     * at the most one stream per vbucket. In the queue we need to store the
-     * corresponding vbucket because if the stream gets deleted before it is
-     * processed, we must then remove it from the set
+     * Maintain a queue of unique vbucket ids for which stream should be
+     * processed.
+     * There's no need to have the same stream in the queue more than once
+     *
+     * The streams are kept in the 'streams map' of the producer object. We
+     * should not hold a shared reference (even a weak ref) to the stream object
+     * here because 'streams map' is the actual owner. If we hold a weak ref
+     * here and the streams map replaces the stream for the vbucket id with a
+     * new one, then we would end up not updating it here as we append to the
+     * queue only if there is no entry for the vbucket in the queue.
      */
-    std::queue<std::pair<std::weak_ptr<ActiveStream>, VBucket::id_type>> queue;
-    std::set<VBucket::id_type> queuedVbuckets;
+    std::queue<VBucket::id_type> queue;
+    std::unordered_set<VBucket::id_type> queuedVbuckets;
 
     std::atomic<bool> notified;
     size_t iterationsBeforeYield;
+
+    std::weak_ptr<DcpProducer> producerPtr;
 };
 
 class NotifierStream : public Stream {

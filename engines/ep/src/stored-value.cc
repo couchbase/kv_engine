@@ -303,8 +303,6 @@ void StoredValue::setValueImpl(const Item& itm) {
     exptime = itm.getExptime();
     revSeqno = itm.getRevSeqno();
 
-    setNru(itm.getNRUValue());
-
     if (isTempInitialItem()) {
         markClean();
     } else {

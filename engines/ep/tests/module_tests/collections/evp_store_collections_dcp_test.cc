@@ -138,6 +138,7 @@ public:
         consumer->closeAllStreams();
         consumer->cancelTask();
         producer->closeAllStreams();
+        producer->cancelCheckpointCreatorTask();
         producer.reset();
         consumer.reset();
     }
