@@ -24,7 +24,6 @@
 #include "dynamic_buffer.h"
 #include "log_macros.h"
 #include "settings.h"
-#include "sslcert.h"
 #include "statemachine_mcbp.h"
 
 #include <cJSON.h>

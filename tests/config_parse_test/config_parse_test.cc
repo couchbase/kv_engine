@@ -707,34 +707,6 @@ TEST_F(SettingsTest, SslCipherList) {
     }
 }
 
-TEST_F(SettingsTest, ClientCertAuth) {
-    // nonObjectValuesShouldFail("client_cert_auth");
-
-    std::vector<std::vector<std::string>> testcases = {
-            {"enable", "san.uri", "test", ":", "pass"},
-            {"", "", "", "", "fail"},
-            {"junk", "", "", "", "fail"},
-            {"junk", "", "", "", "fail"},
-            {"disable", "", "", "", "pass"},
-            {"mandatory", "", "", "", "pass"},
-            {"mandatory", "junk", "", "", "fail"},
-            {"mandatory", "san.email", "", "", "pass"},
-            {"mandatory", "san.dnsname", "", "", "pass"}};
-
-    for (const auto& p : testcases) {
-        unique_cJSON_ptr obj(cJSON_CreateObject());
-        cJSON_AddStringToObject(obj.get(), "state", p[0].c_str());
-        cJSON_AddStringToObject(obj.get(), "path", p[1].c_str());
-        cJSON_AddStringToObject(obj.get(), "prefix", p[2].c_str());
-        cJSON_AddStringToObject(obj.get(), "delimiter", p[3].c_str());
-        if (p[4] == "pass") {
-            EXPECT_NO_THROW(ClientCertAuth csr(obj.get()));
-        } else {
-            EXPECT_THROW(ClientCertAuth csr(obj.get()), std::invalid_argument);
-        }
-    }
-}
-
 TEST_F(SettingsTest, SslMinimumProtocol) {
     nonStringValuesShouldFail("ssl_minimum_protocol");
 

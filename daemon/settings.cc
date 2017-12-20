@@ -507,12 +507,11 @@ static void handle_xattr_enabled(Settings& s, cJSON* obj) {
  * @param obj the object in the configuration
  */
 static void handle_client_cert_auth(Settings& s, cJSON* obj) {
-    if (obj->type == cJSON_Object || obj->type == cJSON_String) {
-        ClientCertAuth clientAuth(obj);
-        s.setClientCertAuth(clientAuth);
+    if (obj->type == cJSON_Object && obj->child != nullptr) {
+        auto config = cb::x509::ClientCertConfig::create(*obj);
+        s.reconfigureClientCertAuth(config);
     } else {
-        throw std::invalid_argument(
-                "\"client_cert_auth\" must be a object or string");
+        throw std::invalid_argument(R"("client_cert_auth" must be an object)");
     }
 }
 
@@ -1093,12 +1092,17 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         }
     }
     if (other.has.client_cert_auth) {
-        if (client_cert_auth != other.client_cert_auth) {
+        const auto m = client_cert_mapper.to_string();
+        const auto o = other.client_cert_mapper.to_string();
+
+        if (m != o) {
             logit(EXTENSION_LOG_NOTICE,
-                  "Change SSL client auth from \"%s\" to \"%s\"",
-                  getClientCertAuthStr().c_str(),
-                  other.getClientCertAuthStr().c_str());
-            setClientCertAuth(other.client_cert_auth);
+                  R"(Change SSL client auth from "%s" to "%s")",
+                  m.c_str(),
+                  o.c_str());
+            unique_cJSON_ptr json(cJSON_Parse(o.c_str()));
+            auto config = cb::x509::ClientCertConfig::create(*json);
+            reconfigureClientCertAuth(config);
         }
     }
     if (other.has.ssl_minimum_protocol) {
@@ -1469,48 +1473,6 @@ BreakpadSettings::BreakpadSettings(const cJSON* json) {
         }
         content = BreakpadContent::Default;
     }
-}
-
-std::string ClientCertAuth::cJSON_GetObjectString(cJSON* obj,
-                                                  const char* key,
-                                                  bool must = false) {
-    auto* value = cJSON_GetObjectItem(obj, key);
-    if (!value) {
-        if (must) {
-            std::ostringstream stringStream;
-            stringStream
-                    << "\"ClientCertAuth:client_cert_auth\" must contain \""
-                    << key << "\"";
-            throw std::invalid_argument(stringStream.str());
-        } else {
-            return "";
-        }
-    }
-    if (value->type != cJSON_String) {
-        std::ostringstream stringStream;
-        stringStream << "\"ClientCertAuth:client_cert_auth\":" << key
-                     << " must be string";
-        throw std::invalid_argument(stringStream.str());
-    }
-    return value->valuestring;
-}
-
-ClientCertAuth::ClientCertAuth(cJSON* obj) {
-    if (obj->type == cJSON_String) {
-        store(obj->valuestring);
-        certUser = createCertUser("", "", "");
-        return;
-    }
-    auto stateVal = cJSON_GetObjectString(obj, "state", true);
-    auto pathVal = cJSON_GetObjectString(obj, "path");
-    auto prefixVal = cJSON_GetObjectString(obj, "prefix");
-    auto delimiterVal = cJSON_GetObjectString(obj, "delimiter");
-    auto createUser = createCertUser(pathVal, prefixVal, delimiterVal);
-    store(stateVal);
-    ClientCertAuth::prefix = prefixVal;
-    ClientCertAuth::type = pathVal;
-    ClientCertAuth::delimiter = delimiterVal;
-    certUser.reset(createUser.release());
 }
 
 LoggerConfig::LoggerConfig(const cJSON* json) {

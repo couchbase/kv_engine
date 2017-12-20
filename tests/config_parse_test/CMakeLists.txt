@@ -1,8 +1,8 @@
 ADD_EXECUTABLE(memcached_config_parse_test config_parse_test.cc
+               ${Memcached_SOURCE_DIR}/daemon/client_cert_config.cc
+               ${Memcached_SOURCE_DIR}/daemon/client_cert_config.h
                ${Memcached_SOURCE_DIR}/daemon/settings.cc
                ${Memcached_SOURCE_DIR}/daemon/settings.h
-               ${Memcached_SOURCE_DIR}/daemon/sslcert.cc
-               ${Memcached_SOURCE_DIR}/daemon/sslcert.h
                ${Memcached_SOURCE_DIR}/daemon/ssl_utils.cc)
 
 TARGET_LINK_LIBRARIES(memcached_config_parse_test

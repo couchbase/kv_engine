@@ -18,8 +18,8 @@
 #pragma once
 
 #include "config.h"
+#include "client_cert_config.h"
 
-#include "sslcert.h"
 #include <cJSON_utils.h>
 #include <memcached/engine.h>
 #include <platform/dynamic.h>
@@ -185,85 +185,6 @@ enum class EventPriority {
     Medium,
     Low,
     Default
-};
-
-/**
- * Settings for enabling/disabling the ssl client authentication
- */
-class ClientCertAuth {
-public:
-    ClientCertAuth() {
-        store(Mode::Disabled);
-    };
-    ClientCertAuth(cJSON* obj);
-
-    enum class Mode { Disabled, Enabled, Mandatory };
-    Mode load() const {
-        return val.load();
-    }
-    void store(Mode v) {
-        val.store(v);
-    }
-    void store(const ClientCertAuth& c) {
-        store(c.load());
-    }
-    const std::string to_string() const {
-        std::ostringstream stringStream;
-        stringStream << "[ " << valMap.find(val)->second << "," << type
-            << "," << prefix << "," << delimiter << " ]";
-        return stringStream.str();
-    }
-    void store(std::string v) {
-        for (auto itr : valMap) {
-            if (itr.second == v) {
-                val = itr.first;
-                return;
-            }
-        }
-        throw std::invalid_argument(
-                "settings: \"ssl client auth\" invalid \
-                string value:" +
-                v);
-    }
-    std::unique_ptr<ClientCertUser> getCertUserCopy() const {
-        std::lock_guard<std::mutex> guard(mutex);
-        if (certUser) {
-            return certUser->clone();
-        }
-        return nullptr;
-    }
-    bool operator!=(const ClientCertAuth& other) {
-        std::lock_guard<std::mutex> guard(mutex);
-        bool equal = val == other.load() && prefix == other.prefix &&
-                     delimiter == other.delimiter && type == other.type;
-        return !equal;
-    }
-    void operator=(const ClientCertAuth& other) {
-        std::lock_guard<std::mutex> guard(mutex);
-        store(other.load());
-        certUser.reset();
-        prefix = other.prefix;
-        type = other.type;
-        delimiter = other.delimiter;
-        certUser = other.getCertUserCopy();
-    }
-    std::unique_ptr<ClientCertUser> createCertUser(
-            const std::string& field,
-            const std::string& prefix,
-            const std::string& delimiter);
-    std::string cJSON_GetObjectString(cJSON* obj, const char* key, bool must);
-
-private:
-    std::atomic<Mode> val;
-    std::string prefix;
-    std::string type;
-    std::string delimiter;
-    mutable std::mutex mutex;
-    std::unique_ptr<ClientCertUser> certUser;
-    typedef std::map<Mode, std::string> Vmap;
-    Vmap valMap = Vmap{{Mode::Disabled, "disable"},
-                       {Mode::Enabled, "enable"},
-                       {Mode::Mandatory, "mandatory"}};
 };
 
 /* When adding a setting, be sure to update process_stat_settings */
@@ -737,41 +658,24 @@ public:
         notify_changed("ssl_minimum_protocol");
     }
 
-    /**
-     * Get the ssl client auth
-     *
-     * @return the value of the ssl client auth
-     */
-    const std::string getClientCertAuthStr() const {
-        return client_cert_auth.to_string();
-    }
-
-    /**
-     * Get the ssl client auth
-     *
-     * @return the value of the ssl client auth
-     */
-    const ClientCertAuth::Mode getClientCertAuth() {
-        return client_cert_auth.load();
-    }
-
-    /**
-     * Set the ssl client auth
-     *
-     * @param client_cert_auth the new value of client auth
-     */
-    void setClientCertAuth(const ClientCertAuth& client_cert_auth) {
-        Settings::client_cert_auth = client_cert_auth;
+    void reconfigureClientCertAuth(
+            std::unique_ptr<cb::x509::ClientCertConfig>& config) {
+        client_cert_mapper.reconfigure(config);
         has.client_cert_auth = true;
         notify_changed("client_cert_auth");
     }
 
     /**
-     * Get the name settings for user from ssl cert
+     * Get the ssl client auth
      *
+     * @return the value of the ssl client auth
      */
-    std::unique_ptr<ClientCertUser> getCertUserCopy() {
-        return client_cert_auth.getCertUserCopy();
+    const cb::x509::Mode getClientCertMode() {
+        return client_cert_mapper.getMode();
+    }
+
+    std::pair<cb::x509::Status, std::string> lookupUser(X509* cert) const {
+        return client_cert_mapper.lookupUser(cert);
     }
 
     /**
@@ -1065,7 +969,7 @@ protected:
     /**
      * ssl client authentication
      */
-    ClientCertAuth client_cert_auth;
+    cb::x509::ClientCertMapper client_cert_mapper;
 
     /**
      * The number of topkeys to track
