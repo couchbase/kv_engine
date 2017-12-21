@@ -134,11 +134,9 @@ This would be encoded as:
    0|  ID:0 | Len:2 |  Server Recv->Send Duration   |
 
 
-The duration is encoded as:
-
-m11 = m.wxyz = log11(micros)
-m <=7 => first 3 bits of the 16 bits
-wxyz <= 8192 ==> remaining 13 bits
+The duration in micros is encoded as:
+ encoded =  (micros * 2) ^ (1.0 / 1.74)
+ decoded =  (encoded ^ 1.74) / 2
 
 ### Header fields description
 

@@ -18,6 +18,7 @@
 #include "config.h"
 
 #include <unistd.h>
+#include <algorithm>
 #include <iostream>
 #include <string>
 
@@ -50,7 +51,7 @@ TEST_F(TracingTest, Basic) {
 }
 
 TEST_F(TracingTest, ErrorRate) {
-    uint64_t micros_list[] = {1,
+    uint64_t micros_list[] = {5,
                               11,
                               1439,
                               6234,
@@ -59,12 +60,15 @@ TEST_F(TracingTest, ErrorRate) {
                               4567321,
                               98882110,
                               78821369,
-                              138916406};
-    for (const auto micros : micros_list) {
+                              118916406};
+    for (auto micros : micros_list) {
         auto repMicros = tracer.getEncodedMicros(micros);
-        auto decoded = tracer.decodeMicros(repMicros).count();
+        auto decoded = uint64_t(tracer.decodeMicros(repMicros).count());
 
-        // check if the error is less than 0.1%
-        EXPECT_LE((micros - decoded) * 100.0 / micros, 0.1);
+        if (decoded > micros) {
+            std::swap(micros, decoded);
+        }
+        // check if the error is less than 0.5%
+        EXPECT_LE((micros - decoded) * 100.0 / micros, 0.5);
     }
 }

@@ -77,55 +77,23 @@ std::chrono::microseconds Tracer::getTotalMicros() const {
 }
 
 /**
- * Encode the total micros in 2 bytes using the below scheme
- * m11 = m.wxyz = log11(micros)
- * m <=7 => first 3 bits of the 16 bits
- * wxyz <= 8191 ==> remaining 13 bits
- * ---
- * To Decode, get the log11 value & then raise it to 11.
- * Max time period represented here :
- * pow(7.8191,11)
- *   = 138949722 micros
- *   = 02:18.916408 (2m 18s)
+ * Encode the total micros in 2 bytes. Gives a much better coverage
+ * and reasonable error rates on larger values.
+ * Idea by Brett Lawson [@brett19]
+ * Max Time: 02:00.125042 (120125042)
  */
 uint16_t Tracer::getEncodedMicros(uint64_t actual) const {
-    static const uint8_t base = 11;
-    static const double ln11 = std::log(base);
-
-    double const MAX_11_REP = 7.8191f;
-
+    static const uint64_t maxVal = 120125042;
     if (0 == actual) {
         actual = getTotalMicros().count();
     }
-
-    auto repMicros = std::log(actual) / ln11;
-
-    // make sure it is <= than 7.8191
-    repMicros = std::min(repMicros, MAX_11_REP);
-
-    // first the integral part
-    uint16_t encodedMicros = uint8_t(repMicros);
-
-    encodedMicros <<= 13;
-
-    // remove the integral part
-    repMicros -= int(repMicros);
-
-    // we need the first 4 significant digits only
-    uint16_t mantissa = uint16_t(repMicros *= 10000);
-    mantissa = std::min(mantissa, uint16_t(8191));
-
-    encodedMicros += mantissa;
-
-    return encodedMicros;
+    actual = std::min(actual, maxVal);
+    return uint16_t(std::round(std::pow(actual * 2, 1.0 / 1.74)));
 }
 
 std::chrono::microseconds Tracer::decodeMicros(uint16_t encoded) const {
-    static const uint8_t base = 11;
-
-    auto repMicros = (encoded >> 13) + // first 3 bits
-                     (encoded & 0x1FFF) / 10000.0; // last 13 bits
-    return std::chrono::microseconds(uint64_t(std::pow(base, repMicros)));
+    auto usecs = uint64_t(std::pow(encoded, 1.74) / 2);
+    return std::chrono::microseconds(usecs);
 }
 
 void Tracer::clear() {
