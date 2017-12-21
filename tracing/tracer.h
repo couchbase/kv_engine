@@ -38,7 +38,7 @@ class MEMCACHED_PUBLIC_CLASS Tracer;
 // get the tracepoints either as raw
 // or formatted list of durations
 MEMCACHED_PUBLIC_API std::string to_string(const cb::tracing::Tracer& tracer,
-                                           bool raw = false);
+                                           bool raw = true);
 MEMCACHED_PUBLIC_API std::ostream& operator<<(
         std::ostream& os, const cb::tracing::Tracer& tracer);
 

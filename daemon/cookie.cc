@@ -459,15 +459,17 @@ void Cookie::maybeLogSlowCommand(
                        getHeader().getOpcode(),
                        "connection_id",
                        c.getId());
+        std::string traceData = to_string(tracer);
         LOG_WARNING(nullptr,
                     "%u: Slow %s operation on connection: %s (%s)%s"
-                    " opaque:0x%08x",
+                    " opaque:0x%08x trace:[%s]",
                     c.getId(),
                     command.c_str(),
                     cb::time2text(timings).c_str(),
                     c.getDescription().c_str(),
                     details.c_str(),
-                    header.getOpaque());
+                    header.getOpaque(),
+                    traceData.c_str());
     }
 }
 
