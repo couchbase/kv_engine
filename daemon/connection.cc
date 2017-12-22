@@ -210,15 +210,6 @@ bool Connection::setTcpNoDelay(bool enable) {
     return true;
 }
 
-std::string to_string(Protocol protocol) {
-    switch (protocol) {
-    case Protocol::Memcached:
-        return "memcached";
-    }
-
-    return "unknown protocol: " + std::to_string(int(protocol));
-}
-
 unique_cJSON_ptr Connection::toJSON() const {
     unique_cJSON_ptr ret(cJSON_CreateObject());
     cJSON* obj = ret.get();
@@ -227,8 +218,7 @@ unique_cJSON_ptr Connection::toJSON() const {
         cJSON_AddStringToObject(obj, "socket", "disconnected");
     } else {
         cJSON_AddNumberToObject(obj, "socket", (double)socketDescriptor);
-        cJSON_AddStringToObject(
-                obj, "protocol", to_string(getProtocol()).c_str());
+        cJSON_AddStringToObject(obj, "protocol", "memcached");
         cJSON_AddStringToObject(obj, "peername", getPeername().c_str());
         cJSON_AddStringToObject(obj, "sockname", getSockname().c_str());
         cJSON_AddNumberToObject(obj, "parent_port", parent_port);

@@ -214,10 +214,9 @@ Connection* conn_new(const SOCKET sfd, in_port_t parent_port,
     }
 
     LOG_INFO(nullptr,
-             "%u: Accepted new client %s using protocol: %s",
+             "%u: Accepted new client %s using protocol: memcached",
              c->getId(),
-             c->getDescription().c_str(),
-             to_string(c->getProtocol()).c_str());
+             c->getDescription().c_str());
 
     stats.total_conns++;
 

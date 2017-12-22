@@ -37,7 +37,6 @@ ListenConnection::ListenConnection(SOCKET sfd,
       backlog(interf.backlog),
       ssl(!interf.ssl.cert.empty()),
       management(interf.management),
-      protocol(interf.protocol),
       ev(event_new(b, sfd, EV_READ | EV_PERSIST, listen_event_handler,
                    reinterpret_cast<void*>(this))) {
 
@@ -55,11 +54,6 @@ ListenConnection::ListenConnection(SOCKET sfd,
 ListenConnection::~ListenConnection() {
     disable();
 
-}
-
-const Protocol ListenConnection::getProtocol() const {
-    // @todo we need a new version of this
-    return Protocol::Memcached;
 }
 
 void ListenConnection::enable() {
@@ -142,7 +136,7 @@ unique_cJSON_ptr ListenConnection::getDetails() {
         cJSON_AddFalseToObject(obj, "ssl");
     }
 
-    cJSON_AddStringToObject(obj, "protocol", to_string(protocol).c_str());
+    cJSON_AddStringToObject(obj, "protocol", "memcached");
     if (family == AF_INET) {
         cJSON_AddStringToObject(obj, "family", "AF_INET");
     } else {

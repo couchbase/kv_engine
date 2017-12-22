@@ -42,8 +42,6 @@ public:
 
     ListenConnection(const ListenConnection&) = delete;
 
-    const Protocol getProtocol() const override;
-
     void enable();
 
     void disable();
@@ -66,7 +64,6 @@ protected:
     const int backlog;
     const bool ssl;
     const bool management;
-    const Protocol protocol;
 
     struct EventDeleter {
         void operator()(struct event* ev) {

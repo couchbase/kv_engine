@@ -147,10 +147,6 @@ public:
         return reason;
     }
 
-    Protocol getProtocol() const {
-        return Protocol::Memcached;
-    }
-
     bool isInvalidArguments() const {
         return reason == PROTOCOL_BINARY_RESPONSE_EINVAL;
     }

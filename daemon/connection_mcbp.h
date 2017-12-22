@@ -145,9 +145,6 @@ public:
 
     unique_cJSON_ptr toJSON() const override;
 
-
-    const Protocol getProtocol() const override;
-
     /**
      * Decrement the number of events to process and return the new value
      */

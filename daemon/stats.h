@@ -199,8 +199,7 @@ public:
                   const std::string& host_,
                   bool tcp_nodelay_,
                   int backlog_,
-                  bool management_,
-                  const Protocol protocol_)
+                  bool management_)
         : port(port_),
           curr_conns(1),
           maxconns(0),
@@ -209,8 +208,7 @@ public:
           ipv6(false),
           ipv4(false),
           tcp_nodelay(tcp_nodelay_),
-          management(management_),
-          protocol(protocol_) {
+          management(management_) {
     }
 
     /**
@@ -259,8 +257,6 @@ public:
     // You can't change the purpose of a port dynamically (It is only
     // used during startup
     const bool management;
-    // we can't change the protocol dynamically
-    const Protocol protocol;
 };
 
 /**

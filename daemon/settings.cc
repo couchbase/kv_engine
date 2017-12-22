@@ -797,12 +797,8 @@ static void handle_interface_protocol(struct interface& ifc, cJSON* obj) {
         throw std::invalid_argument("\"protocol\" must be a string");
     }
 
-    std::string protocol(obj->valuestring);
-
-    if (protocol == "memcached") {
-        ifc.protocol = Protocol::Memcached;
-    } else {
-        throw std::invalid_argument("\"protocol\" must be \"memcached\"");
+    if (strcmp(obj->valuestring, "memcached") != 0) {
+        throw std::invalid_argument(R"("protocol" must be "memcached")");
     }
 }
 
@@ -965,7 +961,6 @@ void Settings::updateSettings(const Settings& other, bool apply) {
             // the following fields can't change
             if ((i1.host != i2.host) || (i1.port != i2.port) ||
                 (i1.ipv4 != i2.ipv4) || (i1.ipv6 != i2.ipv6) ||
-                (i1.protocol != i2.protocol) ||
                 (i1.management != i2.management)) {
                 throw std::invalid_argument(
                     "interfaces can't be changed dynamically");

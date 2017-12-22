@@ -173,8 +173,6 @@ public:
         Connection::priority = priority;
     }
 
-    virtual const Protocol getProtocol() const = 0;
-
     /**
      * Create a cJSON representation of the members of the connection
      */

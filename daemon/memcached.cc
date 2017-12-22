@@ -1242,8 +1242,7 @@ static void add_listening_port(const struct interface *interf, in_port_t port, s
                               interf->host,
                               interf->tcp_nodelay,
                               interf->backlog,
-                              interf->management,
-                              interf->protocol);
+                              interf->management);
 
         newport.curr_conns = 1;
         newport.maxconns = interf->maxconn;

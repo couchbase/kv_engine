@@ -739,9 +739,6 @@ McbpConnection::McbpConnection(SOCKET sfd,
                                event_base* b,
                                const ListeningPort& ifc)
     : Connection(sfd, b, ifc), stateMachine(*this), cookie(*this) {
-    if (ifc.protocol != Protocol::Memcached) {
-        throw std::logic_error("Incorrect object for MCBP");
-    }
     msglist.reserve(MSG_LIST_INITIAL);
     iov.resize(IOV_LIST_INITIAL);
 
@@ -906,10 +903,6 @@ unique_cJSON_ptr McbpConnection::toJSON() const {
 void McbpConnection::setAgentName(cb::const_char_buffer name) {
     name.len = std::min(size_t(name.len), agentName.size() - 1);
     std::copy(name.begin(), name.end(), agentName.begin());
-}
-
-const Protocol McbpConnection::getProtocol() const {
-    return Protocol::Memcached;
 }
 
 bool McbpConnection::shouldDelete() {

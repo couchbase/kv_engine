@@ -32,17 +32,6 @@
 #include <string>
 #include <vector>
 
-/**
- * An enumeration with constants for the various protocols supported
- * on the server.
- */
-enum class Protocol : uint8_t {
-    /** The memcached binary protocol as described in docs/BinaryProtocol.md */
-    Memcached
-};
-
-std::string to_string(Protocol protocol);
-
 struct interface {
     interface()
         : maxconn(1000),
@@ -51,11 +40,10 @@ struct interface {
           ipv6(true),
           ipv4(true),
           tcp_nodelay(true),
-          management(false),
-          protocol(Protocol::Memcached) {
+          management(false) {
     }
 
-    interface(const cJSON* json);
+    explicit interface(const cJSON* json);
 
     std::string host;
     struct {
@@ -69,7 +57,6 @@ struct interface {
     bool ipv4;
     bool tcp_nodelay;
     bool management;
-    Protocol protocol;
 };
 
 /* pair of shared object name and config for an extension to be loaded. */

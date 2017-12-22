@@ -324,7 +324,6 @@ TEST_F(SettingsTest, Interfaces) {
         EXPECT_EQ(10, ifc0.maxconn);
         EXPECT_EQ(10, ifc0.backlog);
         EXPECT_EQ("*", ifc0.host);
-        EXPECT_EQ(Protocol::Memcached, ifc0.protocol);
         EXPECT_TRUE(ifc0.management);
     } catch (std::exception& exception) {
         FAIL() << exception.what();
