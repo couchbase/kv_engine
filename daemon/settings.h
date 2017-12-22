@@ -201,7 +201,7 @@ public:
      * @param json
      * @throws std::invalid_argument if for syntax errors
      */
-    Settings(const unique_cJSON_ptr& json);
+    explicit Settings(const unique_cJSON_ptr& json);
 
     Settings(const Settings&) = delete;
 
