@@ -80,10 +80,10 @@ Connection* conn_new(const SOCKET sfd,
  * @param interf the interface description
  * @param base the event base to use for the socket
  */
-ListenConnection* conn_new_server(const SOCKET sfd,
+ListenConnection* conn_new_server(SOCKET sfd,
                                   in_port_t parent_port,
                                   sa_family_t family,
-                                  const struct interface& interf,
+                                  const NetworkInterface& interf,
                                   struct event_base* base);
 
 /*

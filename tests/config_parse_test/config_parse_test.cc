@@ -944,7 +944,7 @@ TEST(SettingsUpdateTest, InterfaceIdenticalArraysShouldWork) {
     Settings settings;
     // setting it to the same value should work
 
-    interface ifc;
+    NetworkInterface ifc;
     ifc.host.assign("*");
     ifc.ssl.key.assign("/etc/opt/couchbase/security/key.pem");
     ifc.ssl.cert.assign("/etc/opt/couchbase/security/cert.pem");
@@ -959,7 +959,7 @@ TEST(SettingsUpdateTest, InterfaceSomeValuesMayChange) {
     Settings settings;
     // setting it to the same value should work
 
-    interface ifc;
+    NetworkInterface ifc;
     ifc.host.assign("*");
     ifc.ssl.key.assign("/etc/opt/couchbase/security/key.pem");
     ifc.ssl.cert.assign("/etc/opt/couchbase/security/cert.pem");
@@ -993,13 +993,13 @@ TEST(SettingsUpdateTest, InterfaceSomeValuesMayNotChange) {
     Settings settings;
     // setting it to the same value should work
 
-    interface ifc;
+    NetworkInterface ifc;
 
     settings.addInterface(ifc);
 
     {
         Settings updated;
-        interface myifc;
+        NetworkInterface myifc;
         myifc.host.assign("localhost");
         updated.addInterface(myifc);
 
@@ -1009,7 +1009,7 @@ TEST(SettingsUpdateTest, InterfaceSomeValuesMayNotChange) {
 
     {
         Settings updated;
-        interface myifc;
+        NetworkInterface myifc;
         myifc.port = 11200;
         updated.addInterface(myifc);
 
@@ -1019,7 +1019,7 @@ TEST(SettingsUpdateTest, InterfaceSomeValuesMayNotChange) {
 
     {
         Settings updated;
-        interface myifc;
+        NetworkInterface myifc;
         myifc.ipv4 = false;
         updated.addInterface(myifc);
 
@@ -1029,7 +1029,7 @@ TEST(SettingsUpdateTest, InterfaceSomeValuesMayNotChange) {
 
     {
         Settings updated;
-        interface myifc;
+        NetworkInterface myifc;
         myifc.ipv6 = false;
         updated.addInterface(myifc);
 
@@ -1039,7 +1039,7 @@ TEST(SettingsUpdateTest, InterfaceSomeValuesMayNotChange) {
 
     {
         Settings updated;
-        interface myifc;
+        NetworkInterface myifc;
         myifc.management = true;
         updated.addInterface(myifc);
 
@@ -1053,7 +1053,7 @@ TEST(SettingsUpdateTest, InterfaceDifferentArraySizeShouldFail) {
     Settings settings;
     // setting it to the same value should work
 
-    interface ifc;
+    NetworkInterface ifc;
     settings.addInterface(ifc);
     updated.addInterface(ifc);
 
@@ -1070,7 +1070,7 @@ TEST(SettingsUpdateTest, InterfaceDifferentArraySizeShouldFail) {
 
 TEST(SettingsUpdateTest, ExtensionsIdenticalArraysShouldWork) {
     Settings settings;
-    extension_settings ext;
+    ExtensionSettings ext;
     ext.soname.assign("object.so");
     ext.config.assign("a=b");
     settings.addPendingExtension(ext);
@@ -1083,7 +1083,7 @@ TEST(SettingsUpdateTest, ExtensionsIdenticalArraysShouldWork) {
 
 TEST(SettingsUpdateTest, ExtensionsDifferentElementsShouldFail) {
     Settings settings;
-    extension_settings ext;
+    ExtensionSettings ext;
     ext.soname.assign("object.so");
     ext.config.assign("a=b");
     settings.addPendingExtension(ext);
@@ -1106,7 +1106,7 @@ TEST(SettingsUpdateTest, ExtensionsDifferentElementsShouldFail) {
 
 TEST(SettingsUpdateTest, ExtensionsDifferentArraysSizeShouldFail) {
     Settings settings;
-    extension_settings ext;
+    ExtensionSettings ext;
     ext.soname.assign("object.so");
     ext.config.assign("a=b");
     settings.addPendingExtension(ext);

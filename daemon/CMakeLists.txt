@@ -39,6 +39,8 @@ ADD_LIBRARY(memcached_daemon STATIC
             ${Memcached_SOURCE_DIR}/utilities/terminate_handler.cc
             $<TARGET_OBJECTS:memory_tracking>
             breakpad.h
+            breakpad_settings.cc
+            breakpad_settings.h
             buckets.cc
             buckets.h
             cccp_notification_task.cc
@@ -77,11 +79,15 @@ ADD_LIBRARY(memcached_daemon STATIC
             executor.h
             executorpool.cc
             executorpool.h
+            extension_settings.cc
+            extension_settings.h
             ioctl.cc
             ioctl.h
             libevent_locking.cc
             libevent_locking.h
             log_macros.h
+            logger_config.cc
+            logger_config.h
             mc_time.cc
             mc_time.h
             mcaudit.cc
@@ -100,6 +106,8 @@ ADD_LIBRARY(memcached_daemon STATIC
             memcached.cc
             memcached_openssl.cc
             memcached_openssl.h
+            network_interface.cc
+            network_interface.h
             parent_monitor.cc
             parent_monitor.h
             protocol/mcbp/adjust_timeofday_executor.cc

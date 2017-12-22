@@ -61,7 +61,7 @@ static ListenConnection* allocate_listen_connection(SOCKET sfd,
                                                     event_base* base,
                                                     in_port_t port,
                                                     sa_family_t family,
-                                                    const struct interface& interf);
+                                                    const NetworkInterface& interf);
 
 static void release_connection(Connection *c);
 
@@ -173,10 +173,10 @@ void run_event_loop(Connection* c, short which) {
     }
 }
 
-ListenConnection* conn_new_server(const SOCKET sfd,
+ListenConnection* conn_new_server(SOCKET sfd,
                                   in_port_t parent_port,
                                   sa_family_t family,
-                                  const struct interface& interf,
+                                  const NetworkInterface& interf,
                                   struct event_base* base) {
     auto* c = allocate_listen_connection(sfd, base, parent_port, family, interf);
     if (c == nullptr) {
@@ -426,7 +426,7 @@ static ListenConnection* allocate_listen_connection(SOCKET sfd,
                                                     event_base* base,
                                                     in_port_t port,
                                                     sa_family_t family,
-                                                    const struct interface& interf) {
+                                                    const NetworkInterface& interf) {
     ListenConnection *ret = nullptr;
 
     try {

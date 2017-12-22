@@ -18,7 +18,12 @@
 #pragma once
 
 #include "config.h"
+
+#include "breakpad_settings.h"
 #include "client_cert_config.h"
+#include "extension_settings.h"
+#include "logger_config.h"
+#include "network_interface.h"
 
 #include <cJSON_utils.h>
 #include <memcached/engine.h>
@@ -31,141 +36,6 @@
 #include <mutex>
 #include <string>
 #include <vector>
-
-struct interface {
-    interface()
-        : maxconn(1000),
-          backlog(1024),
-          port(11211),
-          ipv6(true),
-          ipv4(true),
-          tcp_nodelay(true),
-          management(false) {
-    }
-
-    explicit interface(const cJSON* json);
-
-    std::string host;
-    struct {
-        std::string key;
-        std::string cert;
-    } ssl;
-    int maxconn;
-    int backlog;
-    in_port_t port;
-    bool ipv6;
-    bool ipv4;
-    bool tcp_nodelay;
-    bool management;
-};
-
-/* pair of shared object name and config for an extension to be loaded. */
-struct extension_settings {
-    extension_settings() {}
-    extension_settings(const cJSON* json) {
-        cJSON* obj = cJSON_GetObjectItem(const_cast<cJSON*>(json), "module");
-        if (obj == nullptr) {
-            throw std::invalid_argument("extension_settings: mandatory element module not found");
-        }
-        if (obj->type != cJSON_String) {
-            throw std::invalid_argument("extension_settings: \"module\" must be a string");
-        }
-        soname.assign(obj->valuestring);
-
-        obj = cJSON_GetObjectItem(const_cast<cJSON*>(json), "config");
-        if (obj != nullptr) {
-            if (obj->type != cJSON_String) {
-                throw std::invalid_argument("extension_settings: \"config\" must be a string");
-            }
-            config.assign(obj->valuestring);
-        }
-    }
-
-    std::string soname;
-    std::string config;
-};
-
-/* The settings supported by the file logger */
-struct LoggerConfig {
-    LoggerConfig() {}
-    LoggerConfig(const cJSON* json);
-
-    bool operator==(const LoggerConfig& other) const;
-    bool operator!=(const LoggerConfig& other) const;
-
-    std::string filename;
-    size_t buffersize = 2048 * 1024; // 2 MB for the logging queue
-    size_t cyclesize = 100 * 1024 * 1024; // 100 MB per cycled file
-    size_t sleeptime = 60; // time between forced flushes of the buffer
-    bool unit_test = false; // if running in a unit test or not
-};
-
-/**
- * What information should breakpad minidumps contain?
- */
-enum class BreakpadContent {
-    /**
-     * Default content (threads+stack+env+arguments)
-     */
-    Default
-};
-
-std::string to_string(BreakpadContent content);
-
-/**
- * Settings for Breakpad crash catcher.
- */
-class BreakpadSettings {
-public:
-    /**
-     * Default constructor initialize the object to be in a disabled state
-     */
-    BreakpadSettings() = default;
-
-    /**
-     * Initialize the Breakpad object from the specified JSON structure
-     * which looks like:
-     *
-     *     {
-     *         "enabled" : true,
-     *         "minidump_dir" : "/var/crash",
-     *         "content" : "default"
-     *     }
-     *
-     * @param json The json to parse
-     * @throws std::invalid_argument if the json dosn't look as expected
-     */
-    explicit BreakpadSettings(const cJSON* json);
-
-    bool isEnabled() const {
-        return enabled;
-    }
-
-    void setEnabled(bool enabled) {
-        BreakpadSettings::enabled = enabled;
-    }
-
-    const std::string& getMinidumpDir() const {
-        return minidump_dir;
-    }
-
-    void setMinidumpDir(const std::string& minidump_dir) {
-        BreakpadSettings::minidump_dir = minidump_dir;
-    }
-
-    BreakpadContent getContent() const {
-        return content;
-    }
-
-    void setContent(BreakpadContent content) {
-        BreakpadSettings::content = content;
-    }
-
-protected:
-    bool enabled{false};
-    std::string minidump_dir;
-    BreakpadContent content{BreakpadContent::Default};
-};
 
 enum class EventPriority {
     High,
@@ -269,7 +139,7 @@ public:
      *
      * @param ifc the interface to add
      */
-    void addInterface(const struct interface& ifc) {
+    void addInterface(const NetworkInterface& ifc) {
         interfaces.push_back(ifc);
         has.interfaces = true;
         notify_changed("interfaces");
@@ -281,7 +151,7 @@ public:
      *
      * @return the vector of interfaces
      */
-    const std::vector<struct interface>& getInterfaces() const {
+    const std::vector<NetworkInterface>& getInterfaces() const {
         return interfaces;
     }
 
@@ -290,7 +160,7 @@ public:
      *
      * @param ext the extension to add
      */
-    void addPendingExtension(const struct extension_settings& ext) {
+    void addPendingExtension(const struct ExtensionSettings& ext) {
         pending_extensions.push_back(ext);
         has.extensions = true;
         notify_changed("extensions");
@@ -301,7 +171,7 @@ public:
      *
      * @return the vector containing all of the modules to load
      */
-    const std::vector<extension_settings>& getPendingExtensions() const {
+    const std::vector<ExtensionSettings>& getPendingExtensions() const {
         return pending_extensions;
     }
 
@@ -873,12 +743,12 @@ protected:
     /**
      * Array of interface settings we are listening on
      */
-    std::vector<struct interface> interfaces;
+    std::vector<NetworkInterface> interfaces;
 
     /**
      * Array of extensions and their settings to be loaded
      */
-    std::vector<struct extension_settings> pending_extensions;
+    std::vector<struct ExtensionSettings> pending_extensions;
 
     /**
      * Configuration of the logger

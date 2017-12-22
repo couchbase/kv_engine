@@ -534,7 +534,7 @@ static void settings_init(void) {
     settings.addChangeListener("interfaces", interfaces_changed_listener);
     settings.addChangeListener("saslauthd_socketpath",
                                saslauthd_socketpath_changed_listener);
-    struct interface default_interface;
+    NetworkInterface default_interface;
     settings.addInterface(default_interface);
 
     settings.setBioDrainBufferSize(8192);
@@ -1233,7 +1233,7 @@ static SOCKET new_server_socket(struct addrinfo *ai, bool tcp_nodelay) {
  * @param port the port number in use
  * @param family the address family for the port
  */
-static void add_listening_port(const struct interface *interf, in_port_t port, sa_family_t family) {
+static void add_listening_port(const NetworkInterface *interf, in_port_t port, sa_family_t family) {
     std::lock_guard<std::mutex> guard(stats_mutex);
     auto *descr = get_listening_port_instance(port);
 
@@ -1279,7 +1279,7 @@ static void add_listening_port(const struct interface *interf, in_port_t port, s
  * @param interface the interface to bind to
  * @param port the port number to bind to
  */
-static int server_socket(const struct interface *interf) {
+static int server_socket(const NetworkInterface *interf) {
     SOCKET sfd;
     struct addrinfo hints;
     int success = 0;

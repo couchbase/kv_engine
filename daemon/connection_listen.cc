@@ -30,16 +30,18 @@ ListenConnection::ListenConnection(SOCKET sfd,
                                    event_base* b,
                                    in_port_t port,
                                    sa_family_t fam,
-                                   const interface& interf)
+                                   const NetworkInterface& interf)
     : Connection(sfd, b),
       registered_in_libevent(false),
       family(fam),
       backlog(interf.backlog),
       ssl(!interf.ssl.cert.empty()),
       management(interf.management),
-      ev(event_new(b, sfd, EV_READ | EV_PERSIST, listen_event_handler,
+      ev(event_new(b,
+                   sfd,
+                   EV_READ | EV_PERSIST,
+                   listen_event_handler,
                    reinterpret_cast<void*>(this))) {
-
     if (ev.get() == nullptr) {
         throw std::bad_alloc();
     }

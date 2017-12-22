@@ -565,7 +565,7 @@ static void handle_extensions(Settings& s, cJSON* obj) {
             throw std::invalid_argument(
                 "Elements in the \"extensions\" array myst be objects");
         }
-        extension_settings ext(child);
+        ExtensionSettings ext(child);
         s.addPendingExtension(ext);
     }
 }
@@ -596,7 +596,7 @@ static void handle_interfaces(Settings& s, cJSON* obj) {
             throw std::invalid_argument(
                 "Elements in the \"interfaces\" array myst be objects");
         }
-        interface ifc(child);
+        NetworkInterface ifc(child);
         s.addInterface(ifc);
     }
 }
@@ -683,176 +683,6 @@ void Settings::reconfigure(const unique_cJSON_ptr& json) {
             logit(EXTENSION_LOG_WARNING,
                   "Unknown token \"%s\" in config ignored.\n",
                   obj->string);
-        }
-
-        obj = obj->next;
-    }
-}
-
-static void handle_interface_maxconn(struct interface& ifc, cJSON* obj) {
-    if (obj->type != cJSON_Number) {
-        throw std::invalid_argument("\"maxconn\" must be a number");
-    }
-
-    ifc.maxconn = obj->valueint;
-}
-
-static void handle_interface_port(struct interface& ifc, cJSON* obj) {
-    if (obj->type != cJSON_Number) {
-        throw std::invalid_argument("\"port\" must be a number");
-    }
-
-    ifc.port = in_port_t(obj->valueint);
-}
-
-static void handle_interface_host(struct interface& ifc, cJSON* obj) {
-    if (obj->type != cJSON_String) {
-        throw std::invalid_argument("\"host\" must be a string");
-    }
-
-    ifc.host.assign(obj->valuestring);
-}
-
-static void handle_interface_backlog(struct interface& ifc, cJSON* obj) {
-    if (obj->type != cJSON_Number) {
-        throw std::invalid_argument("\"backlog\" must be a number");
-    }
-
-    ifc.backlog = obj->valueint;
-}
-
-static void handle_interface_ipv4(struct interface& ifc, cJSON* obj) {
-    if (obj->type == cJSON_True) {
-        ifc.ipv4 = true;
-    } else if (obj->type == cJSON_False) {
-        ifc.ipv4 = false;
-    } else {
-        throw std::invalid_argument("\"ipv4\" must be a boolean value");
-    }
-}
-
-static void handle_interface_ipv6(struct interface& ifc, cJSON* obj) {
-    if (obj->type == cJSON_True) {
-        ifc.ipv6 = true;
-    } else if (obj->type == cJSON_False) {
-        ifc.ipv6 = false;
-    } else {
-        throw std::invalid_argument("\"ipv6\" must be a boolean value");
-    }
-}
-
-static void handle_interface_tcp_nodelay(struct interface& ifc, cJSON* obj) {
-    if (obj->type == cJSON_True) {
-        ifc.tcp_nodelay = true;
-    } else if (obj->type == cJSON_False) {
-        ifc.tcp_nodelay = false;
-    } else {
-        throw std::invalid_argument("\"tcp_nodelay\" must be a boolean value");
-    }
-}
-
-static void handle_interface_management(struct interface& ifc, cJSON* obj) {
-    if (obj->type == cJSON_True) {
-        ifc.management = true;
-    } else if (obj->type == cJSON_False) {
-        ifc.management = false;
-    } else {
-        throw std::invalid_argument("\"management\" must be a boolean value");
-    }
-}
-
-static void handle_interface_ssl(struct interface& ifc, cJSON* obj) {
-    if (obj->type != cJSON_Object) {
-        throw std::invalid_argument("\"ssl\" must be an object");
-    }
-    auto* key = cJSON_GetObjectItem(obj, "key");
-    auto* cert = cJSON_GetObjectItem(obj, "cert");
-    if (key == nullptr || cert == nullptr) {
-        throw std::invalid_argument(
-            "\"ssl\" must contain both \"key\" and \"cert\"");
-    }
-
-    if (key->type != cJSON_String) {
-        throw std::invalid_argument("\"ssl:key\" must be a key");
-    }
-
-    if (!cb::io::isFile(key->valuestring)) {
-        throw_missing_file_exception("ssl:key", key);
-    }
-
-    if (cert->type != cJSON_String) {
-        throw std::invalid_argument("\"ssl:cert\" must be a key");
-    }
-
-    if (!cb::io::isFile(cert->valuestring)) {
-        throw_missing_file_exception("ssl:cert", cert);
-    }
-
-    ifc.ssl.key.assign(key->valuestring);
-    ifc.ssl.cert.assign(cert->valuestring);
-}
-
-static void handle_interface_protocol(struct interface& ifc, cJSON* obj) {
-    if (obj->type != cJSON_String) {
-        throw std::invalid_argument("\"protocol\" must be a string");
-    }
-
-    if (strcmp(obj->valuestring, "memcached") != 0) {
-        throw std::invalid_argument(R"("protocol" must be "memcached")");
-    }
-}
-
-interface::interface(const cJSON* json)
-    : interface() {
-
-
-    struct interface_config_tokens {
-        /**
-         * The key in the configuration
-         */
-        std::string key;
-
-        /**
-         * A callback method used by the interface object when we're parsing
-         * the config attributes.
-         *
-         * @param ifc the interface object to update
-         * @param obj the current object in the configuration we're looking at
-         * @throws std::invalid_argument if it something is wrong with the
-         *         entry
-         */
-        void (* handler)(struct interface& ifc, cJSON* obj);
-    };
-
-    std::vector<interface_config_tokens> handlers = {
-        {"maxconn",     handle_interface_maxconn},
-        {"port",        handle_interface_port},
-        {"host",        handle_interface_host},
-        {"backlog",     handle_interface_backlog},
-        {"ipv4",        handle_interface_ipv4},
-        {"ipv6",        handle_interface_ipv6},
-        {"tcp_nodelay", handle_interface_tcp_nodelay},
-        {"ssl",         handle_interface_ssl},
-        {"management",  handle_interface_management},
-        {"protocol",    handle_interface_protocol},
-    };
-
-    cJSON* obj = json->child;
-    while (obj != nullptr) {
-        std::string key(obj->string);
-        bool found = false;
-        for (auto& handler : handlers) {
-            if (handler.key == key) {
-                handler.handler(*this, obj);
-                found = true;
-                break;
-            }
-        }
-
-        if (!found) {
-            Settings::logit(EXTENSION_LOG_NOTICE,
-                            "Unknown token \"%s\" in config ignored.\n",
-                            obj->string);
         }
 
         obj = obj->next;
@@ -949,7 +779,8 @@ void Settings::updateSettings(const Settings& other, bool apply) {
 
         // validate that we haven't changed stuff in the entries
         auto total = interfaces.size();
-        for (std::vector<interface>::size_type ii = 0; ii < total; ++ii) {
+        for (std::vector<NetworkInterface>::size_type ii = 0; ii < total;
+             ++ii) {
             const auto& i1 = interfaces[ii];
             const auto& i2 = other.interfaces[ii];
 
@@ -976,7 +807,7 @@ void Settings::updateSettings(const Settings& other, bool apply) {
 
         // validate that we haven't changed stuff in the entries
         auto total = pending_extensions.size();
-        for (std::vector<extension_settings>::size_type ii = 0;
+        for (std::vector<ExtensionSettings>::size_type ii = 0;
              ii < total; ++ii) {
             const auto& e1 = pending_extensions[ii];
             const auto& e2 = other.pending_extensions[ii];
@@ -1142,7 +973,8 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         // validate that we haven't changed stuff in the entries
         auto total = interfaces.size();
         bool changed = false;
-        for (std::vector<interface>::size_type ii = 0; ii < total; ++ii) {
+        for (std::vector<NetworkInterface>::size_type ii = 0; ii < total;
+             ++ii) {
             auto& i1 = interfaces[ii];
             const auto& i2 = other.interfaces[ii];
 
@@ -1421,121 +1253,4 @@ void Settings::notify_changed(const std::string& key) {
             listener(key, *this);
         }
     }
-}
-
-BreakpadSettings::BreakpadSettings(const cJSON* json) {
-    auto* obj = cJSON_GetObjectItem(const_cast<cJSON*>(json), "enabled");
-    if (obj == nullptr) {
-        throw std::invalid_argument(
-            "\"breakpad\" settings MUST contain \"enabled\" attribute");
-    }
-    if (obj->type == cJSON_True) {
-        enabled = true;
-    } else if (obj->type == cJSON_False) {
-        enabled = false;
-    } else {
-        throw std::invalid_argument(
-            "\"breakpad:enabled\" settings must be a boolean value");
-    }
-
-    obj = cJSON_GetObjectItem(const_cast<cJSON*>(json), "minidump_dir");
-    if (obj == nullptr) {
-        if (enabled) {
-            throw std::invalid_argument(
-                "\"breakpad\" settings MUST contain \"minidump_dir\" attribute when enabled");
-        }
-    } else if (obj->type != cJSON_String) {
-        throw std::invalid_argument(
-            "\"breakpad:minidump_dir\" settings must be a string");
-    } else {
-        minidump_dir.assign(obj->valuestring);
-        if (enabled) {
-            if (!cb::io::isDirectory(minidump_dir)) {
-                throw_missing_file_exception("breakpad:minidump_dir", obj);
-            }
-        }
-    }
-
-    obj = cJSON_GetObjectItem(const_cast<cJSON*>(json), "content");
-    if (obj != nullptr) {
-        if (obj->type != cJSON_String) {
-            throw std::invalid_argument(
-                "\"breakpad:content\" settings must be a string");
-        }
-        if (strcmp(obj->valuestring, "default") != 0) {
-            throw std::invalid_argument(
-                "\"breakpad:content\" settings must set to \"default\"");
-        }
-        content = BreakpadContent::Default;
-    }
-}
-
-LoggerConfig::LoggerConfig(const cJSON* json) {
-    cJSON* obj = cJSON_GetObjectItem(const_cast<cJSON*>(json), "filename");
-    if (obj != nullptr) {
-        if (obj->type != cJSON_String) {
-            throw std::invalid_argument(
-                    "LoggerConfig: \"filename\" must be a string");
-        }
-        filename.assign(obj->valuestring);
-    }
-
-    obj = cJSON_GetObjectItem(const_cast<cJSON*>(json), "buffersize");
-    if (obj != nullptr) {
-        if (obj->type != cJSON_Number) {
-            throw std::invalid_argument(
-                    "LoggerConfig: \"buffersize\" must be an unsigned int");
-        }
-        buffersize = static_cast<unsigned int>(obj->valueint);
-    }
-
-    obj = cJSON_GetObjectItem(const_cast<cJSON*>(json), "cyclesize");
-    if (obj != nullptr) {
-        if (obj->type != cJSON_Number) {
-            throw std::invalid_argument(
-                    "LoggerConfig: \"cyclesize\" must be an unsigned int");
-        }
-        cyclesize = static_cast<unsigned int>(obj->valueint);
-    }
-
-    obj = cJSON_GetObjectItem(const_cast<cJSON*>(json), "sleeptime");
-    if (obj != nullptr) {
-        if (obj->type != cJSON_Number) {
-            throw std::invalid_argument(
-                    "LoggerConfig: \"sleeptime\" must be an unsigned int");
-        }
-        sleeptime = static_cast<unsigned int>(obj->valueint);
-    }
-
-    obj = cJSON_GetObjectItem(const_cast<cJSON*>(json), "unit_test");
-    unit_test = false;
-    if (obj != nullptr) {
-        if (obj->type == cJSON_True) {
-            unit_test = true;
-        } else if (obj->type != cJSON_False) {
-            throw std::invalid_argument(
-                    "LoggerConfig: \"unit_test\" must be a bool");
-        }
-    }
-}
-
-bool LoggerConfig::operator==(const LoggerConfig& other) const {
-    return (this->filename == other.filename) &&
-           (this->buffersize == other.buffersize) &&
-           (this->sleeptime == other.sleeptime) &&
-           (this->cyclesize == other.cyclesize) &&
-           (this->unit_test == other.unit_test);
-}
-
-bool LoggerConfig::operator!=(const LoggerConfig& other) const {
-    return !(*this == other);
-}
-
-std::string to_string(BreakpadContent content) {
-    switch (content) {
-    case BreakpadContent::Default:
-        return "default";
-    }
-    throw std::invalid_argument("to_string(BeakpadContent): Invalid value: " +
-                                std::to_string(int(content)));
 }

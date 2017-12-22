@@ -36,7 +36,7 @@ public:
                      event_base* b,
                      in_port_t port,
                      sa_family_t fam,
-                     const struct interface &interf);
+                     const NetworkInterface &interf);
 
     virtual ~ListenConnection();
 
