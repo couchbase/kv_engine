@@ -42,7 +42,6 @@ public:
     // Whether the given bucket type supports an opcode
     virtual bool supportsOp(protocol_binary_command cmd) const = 0;
     virtual bool supportsPrivilegedBytes() const = 0;
-    virtual bool canStoreCompressedItems() const = 0;
     virtual size_t getMaximumDocSize() const = 0;
     virtual bool supportsLastModifiedVattr() const = 0;
     virtual bool supportsPersistence() const = 0;

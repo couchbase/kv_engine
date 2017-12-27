@@ -122,10 +122,6 @@ public:
         return false;
     }
 
-    bool canStoreCompressedItems() const override {
-            return true;
-    }
-
     size_t getMaximumDocSize() const override {
         return 1024 * 1024;
     }
@@ -215,10 +211,6 @@ public:
     }
 
     bool supportsPrivilegedBytes() const override {
-        return true;
-    }
-
-    bool canStoreCompressedItems() const override {
         return true;
     }
 
