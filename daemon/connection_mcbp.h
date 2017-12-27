@@ -536,12 +536,8 @@ public:
     /** Write buffer */
     std::unique_ptr<cb::Pipe> write;
 
-    const void* getCookie() const {
-        return &cookie;
-    }
-
     Cookie& getCookieObject() {
-        return cookie;
+        return *cookies.front();
     }
 
     /**
@@ -741,7 +737,15 @@ protected:
     // Total number of bytes sent to the network
     size_t totalSend = 0;
 
-    Cookie cookie;
+    /**
+     * The list of commands currently being processed. Currently we
+     * only use a single entry in this vector (and always reuse that
+     * object for all commands), but when the client tries to
+     * enable unordered execution we may operate with multiple
+     * commands at the same time and they're all stored in this
+     * vector)
+     */
+    std::vector<std::unique_ptr<Cookie>> cookies;
 
     Datatype datatype;
 

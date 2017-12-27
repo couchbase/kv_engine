@@ -591,7 +591,9 @@ void ship_dcp_log(Cookie& cookie) {
     c.addMsgHdr(true);
     cookie.setEwouldblock(false);
     ret = c.getBucketEngine()->dcp.step(
-            c.getBucketEngineAsV0(), c.getCookie(), &producers);
+            c.getBucketEngineAsV0(),
+            static_cast<const void*>(&c.getCookieObject()),
+            &producers);
     if (ret == ENGINE_SUCCESS) {
         /* the engine don't have more data to send at this moment */
         cookie.setEwouldblock(true);

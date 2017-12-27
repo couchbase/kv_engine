@@ -206,10 +206,6 @@ void McbpConnection::shrinkBuffers() {
                         IOV_LIST_INITIAL);
         }
     }
-
-    // The DynamicBuffer is only occasionally used - free the whole thing
-    // if it's still allocated.
-    cookie.clearDynamicBuffer();
 }
 
 bool McbpConnection::tryAuthFromSslCert(const std::string& userName) {
@@ -732,13 +728,15 @@ void McbpConnection::ensureIovSpace() {
 }
 
 McbpConnection::McbpConnection()
-    : Connection(INVALID_SOCKET, nullptr), stateMachine(*this), cookie(*this) {
+    : Connection(INVALID_SOCKET, nullptr), stateMachine(*this) {
+    cookies.emplace_back(std::unique_ptr<Cookie>{new Cookie(*this)});
 }
 
 McbpConnection::McbpConnection(SOCKET sfd,
                                event_base* b,
                                const ListeningPort& ifc)
-    : Connection(sfd, b, ifc), stateMachine(*this), cookie(*this) {
+    : Connection(sfd, b, ifc), stateMachine(*this) {
+    cookies.emplace_back(std::unique_ptr<Cookie>{new Cookie(*this)});
     msglist.reserve(MSG_LIST_INITIAL);
     iov.resize(IOV_LIST_INITIAL);
 
@@ -818,7 +816,11 @@ unique_cJSON_ptr McbpConnection::toJSON() const {
     auto ret = Connection::toJSON();
     cJSON* obj = ret.get();
     if (obj != nullptr) {
-        cJSON_AddItemToObject(obj, "cookie", cookie.toJSON().release());
+        unique_cJSON_ptr arr(cJSON_CreateArray());
+        for (const auto& c : cookies) {
+            cJSON_AddItemToArray(arr.get(), c->toJSON().release());
+        }
+        cJSON_AddItemToObject(obj, "cookies", arr.release());
         cJSON_AddStringToObject(obj, "agent_name", agentName.data());
         cJSON_AddBoolToObject(obj, "tracing", tracingEnabled);
         cJSON_AddBoolToObject(obj, "sasl_enabled", saslAuthEnabled);
@@ -962,8 +964,15 @@ void McbpConnection::initiateShutdown() {
 }
 
 void McbpConnection::close() {
-    bool ewb = cookie.isEwouldblock();
-    cookie.reset();
+    bool ewb = false;
+    for (auto& cookie : cookies) {
+        if (cookie) {
+            if (cookie->isEwouldblock()) {
+                ewb = true;
+            }
+            cookie->reset();
+        }
+    }
 
     // We don't want any network notifications anymore..
     unregisterEvent();
@@ -981,7 +990,11 @@ void McbpConnection::close() {
 }
 
 void McbpConnection::propagateDisconnect() const {
-    perform_callbacks(ON_DISCONNECT, nullptr, &cookie);
+    for (auto& cookie : cookies) {
+        if (cookie) {
+            perform_callbacks(ON_DISCONNECT, nullptr, cookie.get());
+        }
+    }
 }
 
 void McbpConnection::signalIfIdle(bool logbusy, int workerthread) {
