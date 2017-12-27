@@ -36,6 +36,8 @@ public:
      * implement it.
      */
     enum class State : uint8_t {
+        // Validate the input data
+            ValidateInput,
         // If the client sends compressed data we need to inflate the
         // input data before we can do anything
             InflateInputData,
@@ -60,6 +62,8 @@ public:
 
 protected:
     ENGINE_ERROR_CODE step() override;
+
+    ENGINE_ERROR_CODE validateInput();
 
     ENGINE_ERROR_CODE inflateInputData();
 
@@ -93,4 +97,5 @@ private:
     // as the command). They're stored in network byte order in this
     // member variable.
     mutation_descr_t extras = {};
+    protocol_binary_datatype_t datatype;
 };

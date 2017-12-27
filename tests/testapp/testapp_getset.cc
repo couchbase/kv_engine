@@ -584,6 +584,30 @@ TEST_P(GetSetTest, TestAppendCompressedData) {
     EXPECT_EQ(expected, stored.value);
 }
 
+TEST_P(GetSetTest, TestAppendInvalidCompressedData) {
+    MemcachedConnection& conn = getConnection();
+        document.info.datatype = cb::mcbp::Datatype::Raw;
+    document.value.assign(1024, 'a');
+
+    conn.mutate(document, 0, MutationType::Set);
+
+    std::vector<char> input(1024);
+    std::fill(input.begin(), input.end(), 'b');
+    document.info.datatype = cb::mcbp::Datatype::Snappy;
+
+    int einvalCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_EINVAL);
+    try {
+        conn.mutate(document, 0, MutationType::Append);
+        FAIL() << "It's not possible to append uncompressed documents if the "
+                  "datatype is set as SNAPPY";
+    } catch (ConnectionError& error) {
+        EXPECT_TRUE(error.isInvalidArguments()) << error.what();
+        // Check that we correctly increment the status counter stat
+        EXPECT_EQ(einvalCount + 1,
+                  getResponseCount(PROTOCOL_BINARY_RESPONSE_EINVAL));
+    }
+}
+
 TEST_P(GetSetTest, TestAppendCompressedSourceAndData) {
     MemcachedConnection& conn = getConnection();
     document.info.datatype = cb::mcbp::Datatype::Snappy;
@@ -671,6 +695,30 @@ TEST_P(GetSetTest, TestPrependCompressedData) {
     std::string expected(input.size(), 'b');
     expected.append(input.size(), 'a');
     EXPECT_EQ(expected, stored.value);
+}
+
+TEST_P(GetSetTest, TestPrependInvalidCompressedData) {
+    MemcachedConnection& conn = getConnection();
+        document.info.datatype = cb::mcbp::Datatype::Raw;
+    document.value.assign(1024, 'a');
+
+    conn.mutate(document, 0, MutationType::Set);
+
+    std::vector<char> input(1024);
+    std::fill(input.begin(), input.end(), 'b');
+    document.info.datatype = cb::mcbp::Datatype::Snappy;
+
+    int einvalCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_EINVAL);
+    try {
+        conn.mutate(document, 0, MutationType::Prepend);
+        FAIL() << "It's not possible to prepend uncompressed documents if the "
+                  "datatype is set as SNAPPY";
+    } catch (ConnectionError& error) {
+        EXPECT_TRUE(error.isInvalidArguments()) << error.what();
+        // Check that we correctly increment the status counter stat
+        EXPECT_EQ(einvalCount + 1,
+                  getResponseCount(PROTOCOL_BINARY_RESPONSE_EINVAL));
+    }
 }
 
 TEST_P(GetSetTest, TestPrependCompressedSourceAndData) {

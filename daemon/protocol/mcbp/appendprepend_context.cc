@@ -32,17 +32,17 @@ AppendPrependCommandContext::AppendPrependCommandContext(
             req.getValue().len),
       vbucket(req.getVBucket()),
       cas(req.getCas()),
-      state(State::GetItem) {
-    auto datatype = req.datatype;
-    if (mcbp::datatype::is_snappy(datatype)) {
-        state = State::InflateInputData;
-    }
+      state(State::ValidateInput),
+      datatype(req.datatype) {
 }
 
 ENGINE_ERROR_CODE AppendPrependCommandContext::step() {
     ENGINE_ERROR_CODE ret;
     do {
         switch (state) {
+        case State::ValidateInput:
+            ret = validateInput();
+            break;
         case State::InflateInputData:
             ret = inflateInputData();
             break;
@@ -74,6 +74,19 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::step() {
     }
 
     return ret;
+}
+
+ENGINE_ERROR_CODE AppendPrependCommandContext::validateInput() {
+    if (!connection.isDatatypeEnabled(datatype)) {
+        return ENGINE_EINVAL;
+    }
+
+    if (mcbp::datatype::is_snappy(datatype)) {
+        state = State::InflateInputData;
+    } else {
+        state = State::GetItem;
+    }
+    return ENGINE_SUCCESS;
 }
 
 ENGINE_ERROR_CODE AppendPrependCommandContext::inflateInputData() {

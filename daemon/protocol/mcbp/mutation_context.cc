@@ -112,8 +112,7 @@ ENGINE_ERROR_CODE MutationCommandContext::validateInput() {
      * If snappy datatype is enabled and if the datatype is SNAPPY,
      * validate to data to ensure that it is compressed using SNAPPY
      */
-    if (connection.isSnappyEnabled() &&
-            mcbp::datatype::is_snappy(datatype)) {
+    if (mcbp::datatype::is_snappy(datatype)) {
         cb::const_char_buffer value_buf{reinterpret_cast<const char*>(value.buf),
                                         value.len};
         if (!cb::compression::validate(cb::compression::Algorithm::Snappy,
