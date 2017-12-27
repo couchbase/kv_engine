@@ -74,29 +74,44 @@ const std::string& Cookie::getErrorJson() {
     return json_message;
 }
 
-void Cookie::setPacket(PacketContent content, cb::const_byte_buffer buffer) {
+void Cookie::setPacket(PacketContent content,
+                       cb::const_byte_buffer buffer,
+                       bool copy) {
+    if (buffer.size() < sizeof(cb::mcbp::Request)) {
+        // we don't have the header, so we can't even look at the body
+        // length
+        throw std::invalid_argument(
+                "Cookie::setPacket(): packet must contain header");
+    }
+
     switch (content) {
     case PacketContent::Header:
         if (buffer.size() != sizeof(cb::mcbp::Request)) {
             throw std::invalid_argument(
                     "Cookie::setPacket(): Incorrect packet size");
         }
+
+        if (copy) {
+            throw std::logic_error(
+                    "Cookie::setPacket(): copy should only be set for full "
+                    "content");
+        }
         packet = buffer;
         return;
     case PacketContent::Full:
-        if (buffer.size() < sizeof(cb::mcbp::Request)) {
-            // we don't have the header, so we can't even look at the body
-            // length
-            throw std::logic_error(
-                    "Cookie::setPacket(): packet must contain header");
-        }
-
         const auto* req =
                 reinterpret_cast<const cb::mcbp::Request*>(buffer.data());
         const size_t packetsize = sizeof(cb::mcbp::Request) + req->getBodylen();
 
         if (buffer.size() != packetsize) {
             throw std::logic_error("Cookie::setPacket(): Body not available");
+        }
+
+        if (copy) {
+            received_packet.reset(new uint8_t[buffer.size()]);
+            std::copy(buffer.begin(), buffer.end(), received_packet.get());
+            packet = {received_packet.get(), buffer.size()};
+            return;
         }
 
         packet = buffer;

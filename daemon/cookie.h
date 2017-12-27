@@ -180,11 +180,29 @@ public:
     /**
      * Set the packet used by this command context.
      *
-     * Note that the cookie does not _own_ the actual packet content,
-     * as we don't want to perform an extra memory copy (the actual data
-     * may belong to the network IO buffer code).
+     *
+     * Note that the cookie does not _own_ the actual packet content
+     * (unless copy is set to true), as we might not want to perform
+     * an extra memory copy from the underlying event framework
+     * into the cookie and then again into the underlying engine.
+     *
+     * The initial prototype of unordered execution will however
+     * do the copy to simplify the state machinery logic.
+     *
+     * @param content The part of the package to set
+     * @param buffer The bytes to set
+     * @param copy Set to true if the cookie should create a copy
+     *             of the data (to be returned from the getPackage)
+     *
+     * @throw std::invalid_argument if buffer size < a request
+     * @throw std::logic_error if copy is requested and content
+     *                         isn't the full packet
+     * @throw std::bad_alloc if copy is set to true and we fail to
+     *                       allocate a backing store.
      */
-    void setPacket(PacketContent content, cb::const_byte_buffer buffer);
+    void setPacket(PacketContent content,
+                   cb::const_byte_buffer buffer,
+                   bool copy = false);
 
     /**
      * Get the packet for this command / response packet
@@ -205,6 +223,14 @@ public:
      */
     void* getPacketAsVoidPtr() const {
         return const_cast<void*>(static_cast<const void*>(getPacket().data()));
+    }
+
+    /**
+     * Preserve the input packet by allocating memory and copy the
+     * current packet.
+     */
+    void preserveRequest() {
+        setPacket(PacketContent::Full, getPacket(), true);
     }
 
     /**
@@ -452,6 +478,12 @@ protected:
      * The input packet used in this command context
      */
     cb::const_byte_buffer packet;
+
+    /**
+     * The backing store of the received packet if the cookie owns
+     * the data (created by copying the input data)
+     */
+    std::unique_ptr<uint8_t[]> received_packet;
 
     /**
      * The dynamic buffer is used to format output packets to be sent on
