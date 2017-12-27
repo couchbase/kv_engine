@@ -105,7 +105,7 @@ ENGINE_ERROR_CODE CreateRemoveBucketCommandContext::remove() {
         return ENGINE_EINVAL;
     }
 
-    task = std::make_shared<McbpDestroyBucketTask>(name, force, &connection);
+    task = std::make_shared<McbpDestroyBucketTask>(name, force, &cookie);
     std::lock_guard<std::mutex> guard(task->getMutex());
     reinterpret_cast<McbpDestroyBucketTask*>(task.get())->start();
     executorPool->schedule(task, false);

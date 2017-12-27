@@ -2117,6 +2117,11 @@ void DestroyBucketThread::destroy() {
     ENGINE_ERROR_CODE ret = ENGINE_KEY_ENOENT;
     std::unique_lock<std::mutex> all_bucket_lock(buckets_lock);
 
+    McbpConnection* connection = nullptr;
+    if (cookie != nullptr) {
+        connection = &cookie->getConnection();
+    }
+
     /*
      * The destroy function will have access to a connection if the
      * McbpDestroyBucketTask originated from delete_bucket_executor().

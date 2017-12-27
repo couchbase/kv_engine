@@ -30,8 +30,8 @@ class McbpDestroyBucketTask : public Task {
 public:
     McbpDestroyBucketTask(const std::string& name_,
                           bool force_,
-                          McbpConnection* connection_)
-        : thread(name_, force_, connection_, this) {
+                          Cookie* cookie_)
+        : thread(name_, force_, cookie_, this) {
     }
 
     // start the bucket deletion
@@ -45,11 +45,13 @@ public:
     }
 
     void notifyExecutionComplete() override {
-        if (thread.getConnection() != nullptr) {
-            notify_io_complete(&thread.getConnection()->getCookieObject(),
-                               thread.getResult());
+        const auto* cookie = thread.getCookie();
+        if (cookie != nullptr) {
+            notify_io_complete(
+                static_cast<const void*>(cookie), thread.getResult());
         }
     }
 
+protected:
     DestroyBucketThread thread;
 };

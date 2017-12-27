@@ -350,31 +350,32 @@ public:
      * @param name_ the name of the bucket to delete
      * @param force_ should the bucket be forcibly shut down or should it
      *               try to perform a clean shutdown
-     * @param connection_ the connection that requested the operation
+     * @param cookie_ the cookie that requested the operation (may be
+     *                nullptr if the system itself requested the deletion)
      * @param task_ the task to notify when deletion is complete
      */
-    DestroyBucketThread(const std::string& name_,
+    DestroyBucketThread(std::string name_,
                         bool force_,
-                        McbpConnection* connection_,
+                        Cookie* cookie_,
                         Task* task_)
         : Couchbase::Thread("mc:bucket_del"),
-          name(name_),
+          name(std::move(name_)),
           force(force_),
-          connection(connection_),
+          cookie(cookie_),
           task(task_),
           result(ENGINE_DISCONNECT) {
     }
 
-    ~DestroyBucketThread() {
+    ~DestroyBucketThread() override {
         waitForState(Couchbase::ThreadState::Zombie);
-    }
-
-    McbpConnection* getConnection() const {
-        return connection;
     }
 
     ENGINE_ERROR_CODE getResult() const {
         return result;
+    }
+
+    Cookie* getCookie() {
+        return cookie;
     }
 
 protected:
@@ -389,7 +390,7 @@ private:
 
     std::string name;
     bool force;
-    McbpConnection* connection;
+    Cookie* cookie;
     Task* task;
     ENGINE_ERROR_CODE result;
 };
