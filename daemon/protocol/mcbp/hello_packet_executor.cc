@@ -37,6 +37,17 @@ void process_hello_packet_executor(Cookie& cookie) {
     std::vector<uint16_t> out;
     bool tcpdelay_handled = false;
 
+    // We can't switch bucket if we've got multiple commands in flight
+    if (connection.getNumberOfCookies() > 1) {
+        LOG_NOTICE(&connection,
+                   "%u: %s Changing options via HELO is not possible with "
+                   "multiple "
+                   "commands in flight",
+                   connection.getId(),
+                   connection.getDescription().c_str());
+        cookie.sendResponse(cb::mcbp::Status::NotSupported);
+    }
+
     /*
      * Disable all features the hello packet may enable, so that
      * the client can toggle features on/off during a connection
@@ -49,6 +60,7 @@ void process_hello_packet_executor(Cookie& cookie) {
     connection.setClustermapChangeNotificationSupported(false);
     connection.setAgentName(key);
     connection.setTracingEnabled(false);
+    connection.setAllowUnorderedExecution(false);
 
     if (!key.empty()) {
         log_buffer.append("[");
@@ -144,7 +156,13 @@ void process_hello_packet_executor(Cookie& cookie) {
             }
             break;
         case cb::mcbp::Feature::UnorderedExecution:
-            if (!connection.allowUnorderedExecution()) {
+            if (connection.isDCP()) {
+                LOG_NOTICE(&connection,
+                           "%u: %s Unordered execution is not supported for "
+                           "DCP connections",
+                           connection.getId(),
+                           connection.getDescription().c_str());
+            } else if (!connection.allowUnorderedExecution()) {
                 connection.setAllowUnorderedExecution(true);
                 added = true;
             }

@@ -911,6 +911,17 @@ bool McbpConnection::shouldDelete() {
     return getState() == McbpStateMachine::State ::destroyed;
 }
 
+size_t McbpConnection::getNumberOfCookies() const {
+    size_t ret = 0;
+    for (const auto& cookie : cookies) {
+        if (cookie) {
+            ++ret;
+        }
+    }
+
+    return ret;
+}
+
 bool McbpConnection::processServerEvents() {
     if (server_events.empty()) {
         return false;

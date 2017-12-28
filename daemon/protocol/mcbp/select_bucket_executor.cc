@@ -25,6 +25,18 @@ ENGINE_ERROR_CODE select_bucket(McbpConnection& connection,
     if (!connection.isAuthenticated()) {
         return ENGINE_EACCESS;
     }
+
+    // We can't switch bucket if we've got multiple commands in flight
+    if (connection.getNumberOfCookies() > 1) {
+        LOG_NOTICE(&connection,
+                   "%u: %s select_bucket [%u] is not possible with multiple "
+                   "commands in flight",
+                   connection.getId(),
+                   bucketname.c_str(),
+                   connection.getDescription().c_str());
+        return ENGINE_ENOTSUP;
+    }
+
     auto oldIndex = connection.getBucketIndex();
 
     try {
