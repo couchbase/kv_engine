@@ -372,9 +372,6 @@ EphemeralVBucket::updateStoredValue(const HashTable::HashBucketLock& hbl,
                      marking stale because once marked stale list assumes the
                      ownership of the item and may delete it anytime. */
             /* Release current storedValue from hash table */
-            /* [EPHE TODO]: Write a HT func to release the StoredValue directly
-                            than taking key as a param and deleting
-                            (MB-23184) */
             ownedSv = ht.unlocked_release(hbl, v.getKey());
 
             /* Add a new storedvalue for the item */
@@ -508,10 +505,8 @@ std::tuple<StoredValue*, VBNotifyCtx> EphemeralVBucket::softDeleteStoredValue(
                      marking stale because once marked stale list assumes the
                      ownership of the item and may delete it anytime. */
 
-            /* Release current storedValue from hash table */
-            /* [EPHE TODO]: Write a HT func to replace the StoredValue directly
-                            than taking key as a param and deleting (MB-23184)
-               */
+            /* Replace the current storedValue in the hash table with its
+               copy */
             std::tie(newSv, ownedSv) = ht.unlocked_replaceByCopy(hbl, v);
 
             seqList->appendToList(
