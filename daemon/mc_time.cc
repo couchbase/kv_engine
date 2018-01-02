@@ -56,7 +56,6 @@ static volatile uint64_t memcached_monotonic_start = 0;
 static struct event_base* main_ev_base = NULL;
 
 static void mc_time_clock_event_handler(evutil_socket_t fd, short which, void *arg);
-static void mc_time_init_epoch(void);
 static void mc_gather_timing_samples(void);
 
 /*
@@ -80,7 +79,7 @@ void mc_time_init(struct event_base* ev_base) {
  * In order to provide a monotonic "uptime" and track system time, we record
  * some points in time.
  */
-static void mc_time_init_epoch(void) {
+void mc_time_init_epoch(void) {
     struct timeval t;
     memcached_uptime = 0;
     memcached_monotonic_start = cb_get_monotonic_seconds();

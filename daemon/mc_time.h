@@ -18,6 +18,11 @@ extern "C" {
 void mc_time_init(struct event_base* ev_base);
 
 /*
+ * Init the epoch time tracking variables
+ */
+void mc_time_init_epoch(void);
+
+/*
  * Return a monotonically increasing value.
  * The value returned represents seconds since memcached started.
  */
