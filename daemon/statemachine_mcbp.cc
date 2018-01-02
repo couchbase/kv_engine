@@ -272,8 +272,11 @@ bool conn_read_packet_header(McbpConnection& connection) {
 }
 
 bool conn_parse_cmd(McbpConnection& connection) {
+    // Parse the data in the input pipe and prepare the cookie for execution.
+    // If all data is available we'll move over to the execution phase,
+    // otherwise we'll wait for the data to arrive
     try_read_mcbp_command(connection);
-    return !connection.isEwouldblock();
+    return true;
 }
 
 bool conn_new_cmd(McbpConnection& connection) {
