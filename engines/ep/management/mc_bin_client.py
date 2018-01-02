@@ -124,15 +124,30 @@ class MemcachedClient(object):
 
     vbucketId = 0
 
-    def __init__(self, host='127.0.0.1', port=11211, family=socket.AF_INET):
+    def __init__(self, host='127.0.0.1', port=11211, family=socket.AF_UNSPEC):
         self.host = host
         self.port = port
-        self.s = socket.socket(family, socket.SOCK_STREAM)
-        self.s.settimeout(10)
-        if hasattr(socket, 'AF_UNIX') and family == socket.AF_UNIX:
-            self.s.connect(host)
+
+        # Iterate all addresses for the given family; using the first
+        # one we can successfully connect to. If none succeed raise
+        # the last attempted as an exception.
+        for info in socket.getaddrinfo(self.host, self.port, family,
+                                       socket.SOCK_STREAM):
+            _family, socktype, proto, _, sockaddr = info
+            try:
+                sock = socket.socket(_family, socktype, proto)
+                sock.settimeout(10)
+                sock.connect(sockaddr)
+                self.s = sock
+                break
+            except socket.error as sock_error:
+                # If we get here socket objects will be close()d via
+                # garbage collection.
+                pass
         else:
-            self.s.connect((host, port))
+            # Didn't break from the loop, re-raise the last error
+            raise sock_error
+
         self.s.setblocking(0)
         self.r=random.Random()
         self.req_features = set()
