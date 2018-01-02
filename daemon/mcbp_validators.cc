@@ -46,6 +46,32 @@ static inline std::string get_peer_description(const Cookie& cookie) {
 /******************************************************************************
  *                         Package validators                                 *
  *****************************************************************************/
+
+/**
+ * Verify that the cookie meets the common DCP restrictions. For now
+ * the only restriction is that the connection cannot be set into the
+ * unordered execution mode.
+ *
+ * In the future it should be extended to verify that the various DCP
+ * commands is only sent on a connection which is set up as a DCP
+ * connection (except the initial OPEN etc)
+ *
+ * @param cookie The command cookie
+ */
+static protocol_binary_response_status verify_common_dcp_restrictions(
+        const Cookie& cookie) {
+    const auto& connection = cookie.getConnection();
+    if (connection.allowUnorderedExecution()) {
+        LOG_NOTICE(&connection,
+                   "DCP on a connection with unordered execution is currently "
+                   "not supported: %s",
+                   get_peer_description(cookie).c_str());
+        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
+    }
+
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+}
+
 static protocol_binary_response_status dcp_open_validator(const Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_dcp_open*>(
@@ -99,7 +125,7 @@ static protocol_binary_response_status dcp_open_validator(const Cookie& cookie)
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    return verify_common_dcp_restrictions(cookie);
 }
 
 static protocol_binary_response_status dcp_add_stream_validator(const Cookie& cookie)
@@ -145,7 +171,7 @@ static protocol_binary_response_status dcp_add_stream_validator(const Cookie& co
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    return verify_common_dcp_restrictions(cookie);
 }
 
 static protocol_binary_response_status dcp_close_stream_validator(const Cookie& cookie)
@@ -169,7 +195,7 @@ static protocol_binary_response_status dcp_close_stream_validator(const Cookie& 
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
 
-    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    return verify_common_dcp_restrictions(cookie);
 }
 
 static protocol_binary_response_status dcp_get_failover_log_validator(const Cookie& cookie)
@@ -193,7 +219,7 @@ static protocol_binary_response_status dcp_get_failover_log_validator(const Cook
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
 
-    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    return verify_common_dcp_restrictions(cookie);
 }
 
 static protocol_binary_response_status dcp_stream_req_validator(const Cookie& cookie)
@@ -216,7 +242,7 @@ static protocol_binary_response_status dcp_stream_req_validator(const Cookie& co
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
 
-    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    return verify_common_dcp_restrictions(cookie);
 }
 
 static protocol_binary_response_status dcp_stream_end_validator(const Cookie& cookie)
@@ -239,7 +265,7 @@ static protocol_binary_response_status dcp_stream_end_validator(const Cookie& co
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
 
-    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    return verify_common_dcp_restrictions(cookie);
 }
 
 static protocol_binary_response_status dcp_snapshot_marker_validator(const Cookie& cookie)
@@ -263,7 +289,7 @@ static protocol_binary_response_status dcp_snapshot_marker_validator(const Cooki
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
 
-    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    return verify_common_dcp_restrictions(cookie);
 }
 
 static protocol_binary_response_status dcp_system_event_validator(
@@ -292,7 +318,8 @@ static protocol_binary_response_status dcp_system_event_validator(
         // The attached bucket does not support DCP
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
-    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+
+    return verify_common_dcp_restrictions(cookie);
 }
 
 static bool is_valid_xattr_blob(const protocol_binary_request_header& header) {
@@ -342,7 +369,7 @@ static protocol_binary_response_status dcp_mutation_validator(const Cookie& cook
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
 
-    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    return verify_common_dcp_restrictions(cookie);
 }
 
 static protocol_binary_response_status dcp_deletion_validator(const Cookie& cookie)
@@ -378,7 +405,7 @@ static protocol_binary_response_status dcp_deletion_validator(const Cookie& cook
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
 
-    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    return verify_common_dcp_restrictions(cookie);
 }
 
 static protocol_binary_response_status dcp_expiration_validator(const Cookie& cookie)
@@ -409,7 +436,7 @@ static protocol_binary_response_status dcp_expiration_validator(const Cookie& co
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
 
-    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    return verify_common_dcp_restrictions(cookie);
 }
 
 static protocol_binary_response_status dcp_flush_validator(const Cookie& cookie)
@@ -432,7 +459,7 @@ static protocol_binary_response_status dcp_flush_validator(const Cookie& cookie)
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
 
-    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    return verify_common_dcp_restrictions(cookie);
 }
 
 static protocol_binary_response_status dcp_set_vbucket_state_validator(const Cookie& cookie)
@@ -460,7 +487,7 @@ static protocol_binary_response_status dcp_set_vbucket_state_validator(const Coo
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
 
-    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    return verify_common_dcp_restrictions(cookie);
 }
 
 static protocol_binary_response_status dcp_noop_validator(const Cookie& cookie)
@@ -483,7 +510,7 @@ static protocol_binary_response_status dcp_noop_validator(const Cookie& cookie)
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
 
-    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    return verify_common_dcp_restrictions(cookie);
 }
 
 static protocol_binary_response_status dcp_buffer_acknowledgement_validator(const Cookie& cookie)
@@ -507,7 +534,7 @@ static protocol_binary_response_status dcp_buffer_acknowledgement_validator(cons
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
 
-    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    return verify_common_dcp_restrictions(cookie);
 }
 
 static protocol_binary_response_status dcp_control_validator(const Cookie& cookie)
@@ -531,7 +558,7 @@ static protocol_binary_response_status dcp_control_validator(const Cookie& cooki
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
 
-    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    return verify_common_dcp_restrictions(cookie);
 }
 
 static protocol_binary_response_status configuration_refresh_validator(const Cookie& cookie)

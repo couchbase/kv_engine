@@ -104,3 +104,24 @@ TEST_P(DcpTest, MB24145_RollbackShouldContainSeqno) {
     EXPECT_EQ(0, *value);
 
 }
+
+TEST_P(DcpTest, UnorderedExecutionNotSupported) {
+    // Verify that it isn't possible to run a DCP open command
+    // on a connection which is set to unordered execution mode.
+    // Ideally we should have verified each of the available DCP
+    // packets, but our test framework does not have methods to
+    // create all of them. The DCP validators does however
+    // all call a common validator method to check this
+    // restriction. Once the full DCP test suite is implemented
+    // we should extend this test to validate all of the
+    // various commands.
+    auto& conn = getConnection();
+    conn.setUnorderedExecutionMode(ExecutionMode::Unordered);
+    conn.sendCommand(BinprotDcpOpenCommand{"ewb_internal:1", 0,
+                                           DCP_OPEN_PRODUCER});
+
+    BinprotResponse rsp;
+    conn.recvResponse(rsp);
+    EXPECT_FALSE(rsp.isSuccess());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, rsp.getStatus());
+}
