@@ -234,26 +234,6 @@ Connection* conn_new(const SOCKET sfd, in_port_t parent_port,
     return c;
 }
 
-static void conn_cleanup(McbpConnection& connection) {
-    connection.setInternal(false);
-    connection.releaseTempAlloc();
-    connection.read->clear();
-    connection.write->clear();
-    /* Return any buffers back to the thread; before we disassociate the
-     * connection from the thread. Note we clear DCP status first, so
-     * conn_return_buffers() will actually free the buffers.
-     */
-    connection.setDCP(false);
-    conn_return_buffers(&connection);
-    connection.getCookieObject().reset();
-    connection.setEngineStorage(nullptr);
-
-    connection.setThread(nullptr);
-    cb_assert(connection.getNext() == nullptr);
-    connection.setSocketDescriptor(INVALID_SOCKET);
-    connection.disableSSL();
-}
-
 void conn_close(McbpConnection& connection) {
     if (!connection.isSocketClosed()) {
         throw std::logic_error("conn_cleanup: socketDescriptor must be closed");
@@ -277,11 +257,15 @@ void conn_close(McbpConnection& connection) {
     }
     thread->pending_io = list_remove(thread->pending_io, &connection);
 
-    conn_cleanup(connection);
+    connection.read->clear();
+    connection.write->clear();
+    /* Return any buffers back to the thread; before we disassociate the
+     * connection from the thread. Note we clear DCP status first, so
+     * conn_return_buffers() will actually free the buffers.
+     */
+    connection.setDCP(false);
+    conn_return_buffers(&connection);
 
-    if (connection.getThread() != nullptr) {
-        throw std::logic_error("conn_close: failed to disassociate connection from thread");
-    }
     connection.setState(McbpStateMachine::State::destroyed);
 }
 
