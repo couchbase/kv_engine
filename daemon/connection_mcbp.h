@@ -80,6 +80,20 @@ public:
 
     void initiateShutdown() override;
 
+    /**
+     * Close the connection. If there is any references to the connection
+     * or the cookies we'll enter the "pending close" state to wait for
+     * these operations to complete before changing state to immediate
+     * close.
+     */
+    void close();
+
+    /**
+     * fire ON_DISCONNECT for all of the cookie objects (in case the
+     * underlying engine keeps track of any of them)
+     */
+    void propagateDisconnect() const;
+
     void signalIfIdle(bool logbusy, int workerthread) override;
 
     void setPriority(const Priority& priority) override;

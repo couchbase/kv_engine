@@ -509,7 +509,7 @@ bool conn_pending_close(McbpConnection& connection) {
      * tell the DCP connection that we're disconnecting it now,
      * but give it a grace period
      */
-    perform_callbacks(ON_DISCONNECT, nullptr, connection.getCookie());
+    connection.propagateDisconnect();
 
     if (connection.getRefcount() > 1) {
         return false;
@@ -536,7 +536,8 @@ bool conn_immediate_close(McbpConnection& connection) {
         }
     }
 
-    perform_callbacks(ON_DISCONNECT, nullptr, connection.getCookie());
+    connection.propagateDisconnect();
+
     disassociate_bucket(connection);
     conn_close(connection);
 
@@ -544,22 +545,7 @@ bool conn_immediate_close(McbpConnection& connection) {
 }
 
 bool conn_closing(McbpConnection& connection) {
-    // Delete any attached command context
-    connection.getCookieObject().reset();
-
-    /* We don't want any network notifications anymore.. */
-    connection.unregisterEvent();
-    safe_close(connection.getSocketDescriptor());
-    connection.setSocketDescriptor(INVALID_SOCKET);
-
-    // Release all reserved items!
-    connection.releaseReservedItems();
-
-    if (connection.getRefcount() > 1 || connection.isEwouldblock()) {
-        connection.setState(McbpStateMachine::State::pending_close);
-    } else {
-        connection.setState(McbpStateMachine::State::immediate_close);
-    }
+    connection.close();
     return true;
 }
 

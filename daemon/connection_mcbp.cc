@@ -961,6 +961,29 @@ void McbpConnection::initiateShutdown() {
     setState(McbpStateMachine::State::closing);
 }
 
+void McbpConnection::close() {
+    bool ewb = cookie.isEwouldblock();
+    cookie.reset();
+
+    // We don't want any network notifications anymore..
+    unregisterEvent();
+    safe_close(socketDescriptor);
+    socketDescriptor = INVALID_SOCKET;
+
+    // Release all reserved items!
+    releaseReservedItems();
+
+    if (refcount > 1 || ewb) {
+        setState(McbpStateMachine::State::pending_close);
+    } else {
+        setState(McbpStateMachine::State::immediate_close);
+    }
+}
+
+void McbpConnection::propagateDisconnect() const {
+    perform_callbacks(ON_DISCONNECT, nullptr, &cookie);
+}
+
 void McbpConnection::signalIfIdle(bool logbusy, int workerthread) {
     if (!isEwouldblock() && stateMachine.isIdleState()) {
         // Raise a 'fake' write event to ensure the connection has an
