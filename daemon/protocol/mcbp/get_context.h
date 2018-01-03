@@ -40,7 +40,6 @@ public:
 
     explicit GetCommandContext(Cookie& cookie)
         : SteppableCommandContext(cookie),
-          key(cookie.getRequestKey()),
           vbucket(cookie.getRequest().getVBucket()),
           state(State::GetItem) {
     }
@@ -120,7 +119,6 @@ protected:
     ENGINE_ERROR_CODE sendResponse();
 
 private:
-    const DocKey key;
     const uint16_t vbucket;
 
     cb::unique_item_ptr it;

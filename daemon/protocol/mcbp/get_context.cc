@@ -23,6 +23,7 @@
 #include <daemon/mcaudit.h>
 
 ENGINE_ERROR_CODE GetCommandContext::getItem() {
+    const auto key { cookie.getRequestKey()};
     auto ret = bucket_get(cookie, key, vbucket);
     if (ret.first == cb::engine_errc::success) {
         it = std::move(ret.second);
@@ -85,7 +86,7 @@ ENGINE_ERROR_CODE GetCommandContext::sendResponse() {
     uint32_t bodylen = sizeof(info.flags) + payload.len;
 
     if (shouldSendKey()) {
-        keylen = uint16_t(key.size());
+        keylen = uint16_t(info.nkey);
         bodylen += keylen;
     }
 
@@ -120,6 +121,7 @@ ENGINE_ERROR_CODE GetCommandContext::sendResponse() {
 ENGINE_ERROR_CODE GetCommandContext::noSuchItem() {
     STATS_MISS(&connection, get);
 
+    const auto key { cookie.getRequestKey()};
     MEMCACHED_COMMAND_GET(connection.getId(),
                           reinterpret_cast<const char*>(key.data()),
                           int(key.size()), -1, 0);
