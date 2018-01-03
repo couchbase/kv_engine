@@ -5223,8 +5223,12 @@ static enum test_result test_failover_log_dcp(ENGINE_HANDLE *h,
             {0, uuid, 0, 0, 0, 0, ENGINE_SUCCESS},
             /* Do not expect rollback when start_seqno is 0 and vb_uuid == 0 */
             {0, 0x0, 0, 0, 0, 0, ENGINE_SUCCESS},
-            /* Expect rollback when start_seqno is 0 and vb_uuid mismatch */
-            {0, 0xBAD, 0, 0, 0, 0, ENGINE_ROLLBACK},
+            /* Expect rollback when start_seqno is 0 and vb_uuid mismatch with
+             'STRICT_VBUUID' flag set */
+            {DCP_ADD_STREAM_STRICT_VBUUID, 0xBAD, 0, 0, 0, 0, ENGINE_ROLLBACK},
+            /* Don't expect rollback when start_seqno is 0 and vb_uuid mismatch with
+             'STRICT_VBUUID' flag not set */
+            {0, 0xBAD, 0, 0, 0, 0, ENGINE_SUCCESS},
             /* Don't expect rollback when you already have all items in the
                snapshot
                (that is, start == snap_end) and upper >= snap_end */

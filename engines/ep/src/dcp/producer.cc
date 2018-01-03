@@ -318,6 +318,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
                                          snap_start_seqno,
                                          snap_end_seqno,
                                          vb->getPurgeSeqno(),
+                                         flags & DCP_ADD_STREAM_STRICT_VBUUID,
                                          rollback_seqno);
 
     if (need_rollback.first) {
