@@ -200,26 +200,45 @@ protected:
      * Use Zipf distribution for the access pattern.
      */
     void accessPattern() {
+        // Calculate the access frequencies
         ZipfRejectionSampler zipf(noOfDocs, zipfScew);
         for (uint32_t ii = 0; ii < noOfAccesses; ii++) {
             auto itemNumber = zipf.getSample();
             frequencies[itemNumber]++;
+        }
 
-            auto key = makeStoredDocKey("DOC_" + std::to_string(itemNumber));
-            EventuallyPersistentEngine* epe =
-                    ObjectRegistry::onSwitchThread(NULL, true);
-            uint16_t vbucket = 0;
-            auto it = vbucketLookup.find(itemNumber);
-            if (it != vbucketLookup.end()) {
-                vbucket = it->second;
+        // Sort the access frequencies into descending order
+        std::sort(std::begin(frequencies),
+                  std::end(frequencies),
+                  std::greater<uint64_t>());
+
+        // Iterate through the frequency table and call get the correct number
+        // of times
+        bool complete = false;
+        while (!complete) {
+            complete = true;
+            uint32_t kk = 1;
+            while (kk <= noOfDocs && frequencies[kk] > 0) {
+                complete = false;
+                auto key = makeStoredDocKey("DOC_" + std::to_string(kk));
+                EventuallyPersistentEngine* epe =
+                        ObjectRegistry::onSwitchThread(NULL, true);
+                uint16_t vbucket = 0;
+                auto it = vbucketLookup.find(kk);
+                if (it != vbucketLookup.end()) {
+                    vbucket = it->second;
+                }
+                get_options_t options = static_cast<get_options_t>(
+                        QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE |
+                        DELETE_TEMP | HIDE_LOCKED_CAS | TRACK_STATISTICS);
+                item* itm = nullptr;
+                engine->get(cookie, &itm, key, vbucket, options);
+                delete reinterpret_cast<Item*>(itm);
+                ObjectRegistry::onSwitchThread(epe);
+
+                frequencies[kk]--;
+                kk++;
             }
-            get_options_t options = static_cast<get_options_t>(
-                    QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE |
-                    DELETE_TEMP | HIDE_LOCKED_CAS | TRACK_STATISTICS);
-            item* itm = nullptr;
-            engine->get(cookie, &itm, key, vbucket, options);
-            delete reinterpret_cast<Item*>(itm);
-            ObjectRegistry::onSwitchThread(epe);
         }
     }
 
@@ -320,16 +339,6 @@ TEST_P(STHashTableEvictionTest, DISABLED_STHashTableEvictionItemPagerTest) {
     auto evictedCount = residentOrEvicted();
     std::cout << "evictedCount = " << evictedCount << std::endl;
     printNoOfResidentDocs();
-
-    // Sort the access frequencies into descending order
-    std::sort(std::begin(frequencies),
-              std::end(frequencies),
-              std::greater<uint64_t>());
-    uint32_t ii = 1;
-    while (ii <= noOfDocs) {
-        std::cout << "" << ii << "  " << frequencies[ii] << std::endl;
-        ii++;
-    }
 
     auto& stats = engine->getEpStats();
     EXPECT_LT(stats.getTotalMemoryUsed(), stats.mem_low_wat.load())
