@@ -2038,6 +2038,7 @@ void EventuallyPersistentEngine::itemRelease(item* itm) {
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::flush(const void *cookie){
+    return ENGINE_ENOTSUP;
     if (!deleteAllEnabled) {
         return ENGINE_ENOTSUP;
     }

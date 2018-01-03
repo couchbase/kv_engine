@@ -327,6 +327,7 @@ static enum test_result test_flush_shutdown_noforce(ENGINE_HANDLE *h, ENGINE_HAN
 }
 
 static enum test_result test_flush_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    return SKIPPED;
     if (!isWarmupEnabled(h, h1)) {
         return SKIPPED;
     }
@@ -426,6 +427,7 @@ static enum test_result test_shutdown_snapshot_range(ENGINE_HANDLE *h,
 }
 
 static enum test_result test_flush_multiv_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    return SKIPPED;
     if (!isWarmupEnabled(h, h1)) {
         return SKIPPED;
     }
@@ -3741,7 +3743,7 @@ static enum test_result test_curr_items_delete(ENGINE_HANDLE *h,
 }
 
 static enum test_result test_curr_items_flush(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-
+    return SKIPPED;
     // Verify initial case.
     verify_curr_items(h, h1, 0, "init");
     checkeq(uint64_t(0),

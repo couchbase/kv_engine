@@ -1731,6 +1731,7 @@ static enum test_result test_set_vbucket_out_of_range(ENGINE_HANDLE *h,
 }
 
 static enum test_result test_flush(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    return SKIPPED;
     if (get_bool_stat(h, h1, "ep_flushall_enabled") == false) {
         check(set_param(h, h1, protocol_binary_engine_param_flush,
                         "flushall_enabled", "true"),
@@ -1767,6 +1768,7 @@ static enum test_result test_flush(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 }
 
 static enum test_result test_flush_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    return SKIPPED;
     int cacheSize = get_int_stat(h, h1, "ep_total_cache_size");
     int nonResident = get_int_stat(h, h1, "ep_num_non_resident");
 
@@ -1808,6 +1810,7 @@ static enum test_result test_flush_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 }
 
 static enum test_result test_flush_multiv(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    return SKIPPED;
     check(set_vbucket_state(h, h1, 2, vbucket_state_active),
           "Failed to set vbucket state.");
     checkeq(ENGINE_SUCCESS,
@@ -1854,6 +1857,7 @@ static enum test_result test_flush_multiv(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
 
 static enum test_result test_flush_disabled(ENGINE_HANDLE *h,
                                             ENGINE_HANDLE_V1 *h1) {
+    return SKIPPED;
     // start an engine with disabled flush, the flush() should be noop and
     // we expect to see the key after flush()
 
@@ -1901,6 +1905,7 @@ static enum test_result test_flush_disabled(ENGINE_HANDLE *h,
 }
 
 static enum test_result test_CBD_152(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    return SKIPPED;
     const auto* cookie = testHarness.create_cookie();
 
     // turn off flushall_enabled parameter
