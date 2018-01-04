@@ -194,7 +194,6 @@ Available params for "set":
                                    (Range: 0 - 23, Specify 'disable' to not delay the
                                    the expiry pager, in which case first run will be
                                    after exp_pager_stime seconds.)
-    flushall_enabled             - Enable flush operation.
     pager_active_vb_pcnt         - Percentage of active vbuckets items among
                                    all ejected items by item pager.
     max_size                     - Max memory used by the server.

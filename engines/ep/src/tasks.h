@@ -155,32 +155,6 @@ private:
 };
 
 /**
- * A task that performs the bucket flush operation.
- */
-class DeleteAllTask : public GlobalTask {
-public:
-    DeleteAllTask(EventuallyPersistentEngine* e)
-        : GlobalTask(e, TaskId::FlushAllTask, 0, false) {
-    }
-
-    bool run();
-
-    std::chrono::microseconds maxExpectedDuration() {
-        // Flushing the entire Bucket can take a non-trivial amount of time;
-        // moreover it's a relatively rare event so there is limited historical
-        // information on it's typical runtime.
-        // Selecting 10s here as an expected duration - this could be low,
-        // but the relative (in)frequency of running this shouldn't pollute
-        // the logs too much even if it is too low.
-        return std::chrono::seconds(10);
-    }
-
-    cb::const_char_buffer getDescription() {
-        return "Performing flush_all operation.";
-    }
-};
-
-/**
  * A task for performing disk fetches for "stats vkey".
  */
 class VKeyStatBGFetchTask : public GlobalTask {

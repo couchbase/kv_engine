@@ -100,8 +100,6 @@ memcached like this:
 | replication_throttle_cap_pcnt  | int    | Percentage of total items in write queue   |
 |                                |        | to throttle tap input. 0 means use fixed   |
 |                                |        | throttle queue cap.                        |
-| flushall_enabled               | bool   | True if we enable flush_all command; The   |
-|                                |        | default value is False.                    |
 | data_traffic_enabled           | bool   | True if we want to enable data traffic     |
 |                                |        | immediately after warmup completion        |
 | access_scanner_enabled         | bool   | True if access scanner task is enabled     |

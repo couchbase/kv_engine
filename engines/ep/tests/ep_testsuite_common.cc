@@ -99,7 +99,7 @@ engine_test_t* BaseTestCase::getTest() {
     if (cfg != 0) {
         ss << cfg << ";";
     } else {
-        ss << "flushall_enabled=true;";
+        ss << ";";
     }
 
     // Default to the suite's dbname if the test config didn't already

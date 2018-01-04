@@ -461,8 +461,6 @@ protocol_binary_response_status EventuallyPersistentEngine::setFlushParam(
     try {
         if (strcmp(keyz, "bg_fetch_delay") == 0) {
             getConfiguration().setBgFetchDelay(std::stoull(valz));
-        } else if (strcmp(keyz, "flushall_enabled") == 0) {
-            getConfiguration().setFlushallEnabled(cb_stob(valz));
         } else if (strcmp(keyz, "max_size") == 0) {
             size_t vsize = std::stoull(valz);
 
@@ -1715,7 +1713,6 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
       getServerApiFunc(get_server_api),
       checkpointConfig(NULL),
       trafficEnabled(false),
-      deleteAllEnabled(false),
       startupTime(0),
       taskable(this) {
     interface.interface = 1;
@@ -1839,11 +1836,6 @@ public:
         }
     }
 
-    virtual void booleanValueChanged(const std::string &key, bool value) {
-        if (key.compare("flushall_enabled") == 0) {
-            engine.setDeleteAll(value);
-        }
-    }
 private:
     EventuallyPersistentEngine &engine;
 };
@@ -1914,10 +1906,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
                                        new EpEngineValueChangeListener(*this));
     getlMaxTimeout = configuration.getGetlMaxTimeout();
     configuration.addValueChangedListener("getl_max_timeout",
-                                       new EpEngineValueChangeListener(*this));
-
-    deleteAllEnabled = configuration.isFlushallEnabled();
-    configuration.addValueChangedListener("flushall_enabled",
                                        new EpEngineValueChangeListener(*this));
 
     workload = new WorkLoadPolicy(configuration.getMaxNumWorkers(),
@@ -2039,39 +2027,6 @@ void EventuallyPersistentEngine::itemRelease(item* itm) {
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::flush(const void *cookie){
     return ENGINE_ENOTSUP;
-    if (!deleteAllEnabled) {
-        return ENGINE_ENOTSUP;
-    }
-
-    if (!isDegradedMode()) {
-        return ENGINE_TMPFAIL;
-    }
-
-    /*
-     * Supporting only a SYNC operation for bucket flush
-     */
-
-    void* es = getEngineSpecific(cookie);
-    if (es == NULL) {
-        // Check if diskDeleteAll was false and set it to true
-        // if yes, if the atomic variable weren't false, then
-        // we will assume that a deleteAll has been scheduled
-        // already and return TMPFAIL.
-        if (kvBucket->scheduleDeleteAllTask(cookie)) {
-            storeEngineSpecific(cookie, this);
-            return ENGINE_EWOULDBLOCK;
-        } else {
-            LOG(EXTENSION_LOG_INFO,
-                "Tried to trigger a bucket deleteAll, but"
-                "there seems to be a task running already!");
-            return ENGINE_TMPFAIL;
-        }
-
-    } else {
-        storeEngineSpecific(cookie, NULL);
-        LOG(EXTENSION_LOG_NOTICE, "Completed bucket deleteAll operation");
-        return ENGINE_SUCCESS;
-    }
 }
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::get_and_touch(const void* cookie,

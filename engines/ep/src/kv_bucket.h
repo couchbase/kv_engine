@@ -601,8 +601,6 @@ public:
         return diskDeleteAll.load();
     }
 
-    bool scheduleDeleteAllTask(const void* cookie);
-
     void setDeleteAllComplete();
 
     void setBackfillMemoryThreshold(double threshold);

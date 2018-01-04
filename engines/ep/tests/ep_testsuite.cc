@@ -326,60 +326,6 @@ static enum test_result test_flush_shutdown_noforce(ENGINE_HANDLE *h, ENGINE_HAN
     return SUCCESS;
 }
 
-static enum test_result test_flush_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    return SKIPPED;
-    if (!isWarmupEnabled(h, h1)) {
-        return SKIPPED;
-    }
-
-    // First try to delete something we know to not be there.
-    checkeq(ENGINE_KEY_ENOENT, del(h, h1, "key", 0, 0),
-            "Failed to fail initial delete.");
-    checkeq(ENGINE_SUCCESS,
-            store(h, h1, NULL, OPERATION_SET, "key", "somevalue"),
-            "Failed set.");
-    check_key_value(h, h1, "key", "somevalue", 9);
-
-    // Restart once to ensure written to disk.
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              testHarness.get_current_testcase()->cfg,
-                              true, false);
-    wait_for_warmup_complete(h, h1);
-
-    // Read value from disk.
-    check_key_value(h, h1, "key", "somevalue", 9);
-
-    // Flush
-    set_degraded_mode(h, h1, NULL, true);
-    const auto* cookie = testHarness.create_cookie();
-    checkeq(ENGINE_SUCCESS, h1->flush(h, cookie), "Failed to flush");
-    testHarness.destroy_cookie(cookie);
-    set_degraded_mode(h, h1, NULL, false);
-
-    checkeq(ENGINE_SUCCESS,
-            store(h, h1, NULL, OPERATION_SET, "key2", "somevalue"),
-            "Failed post-flush set.");
-    check_key_value(h, h1, "key2", "somevalue", 9);
-
-    // Restart again, ensure written to disk.
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              testHarness.get_current_testcase()->cfg,
-                              true, false);
-    wait_for_warmup_complete(h, h1);
-
-    checkeq(ENGINE_SUCCESS,
-            store(h, h1, NULL, OPERATION_SET, "key3", "somevalue"),
-            "Failed post-flush, post-restart set.");
-    check_key_value(h, h1, "key3", "somevalue", 9);
-
-    // Read value again, should not be there.
-    checkeq(ENGINE_KEY_ENOENT, verify_key(h, h1, "key"),
-            "Expected missing key");
-    return SUCCESS;
-}
-
 static enum test_result test_shutdown_snapshot_range(ENGINE_HANDLE *h,
                                                      ENGINE_HANDLE_V1 *h1) {
     if (!isWarmupEnabled(h, h1)) {
@@ -423,60 +369,6 @@ static enum test_result test_shutdown_snapshot_range(ENGINE_HANDLE *h,
                                     "vbucket-seqno"),
             "Wrong snapshot end persisted");
 
-    return SUCCESS;
-}
-
-static enum test_result test_flush_multiv_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    return SKIPPED;
-    if (!isWarmupEnabled(h, h1)) {
-        return SKIPPED;
-    }
-
-    check(set_vbucket_state(h, h1, 2, vbucket_state_active),
-          "Failed to set vbucket state.");
-    checkeq(ENGINE_SUCCESS,
-            store(h, h1, NULL, OPERATION_SET, "key", "somevalue"),
-            "Failed set.");
-
-    checkeq(ENGINE_SUCCESS,
-            store(h,
-                  h1,
-                  NULL,
-                  OPERATION_SET,
-                  "key2",
-                  "somevalue",
-                  nullptr,
-                  0,
-                  2),
-            "Failed set in vb2.");
-
-    // Restart once to ensure written to disk.
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              testHarness.get_current_testcase()->cfg,
-                              true, false);
-    wait_for_warmup_complete(h, h1);
-
-    // Read value from disk.
-    check_key_value(h, h1, "key", "somevalue", 9);
-
-    // Flush
-    set_degraded_mode(h, h1, NULL, true);
-    const auto* cookie = testHarness.create_cookie();
-    checkeq(ENGINE_SUCCESS, h1->flush(h, cookie), "Failed to flush");
-    testHarness.destroy_cookie(cookie);
-    set_degraded_mode(h, h1, NULL, false);
-
-    // Restart again, ensure written to disk.
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              testHarness.get_current_testcase()->cfg,
-                              true, false);
-    wait_for_warmup_complete(h, h1);
-
-    // Read value again, should not be there.
-    checkeq(ENGINE_KEY_ENOENT, verify_key(h, h1, "key"), "Expected missing key");
-    check(verify_vbucket_missing(h, h1, 2), "Bucket 2 came back.");
     return SUCCESS;
 }
 
@@ -3742,34 +3634,6 @@ static enum test_result test_curr_items_delete(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_curr_items_flush(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    return SKIPPED;
-    // Verify initial case.
-    verify_curr_items(h, h1, 0, "init");
-    checkeq(uint64_t(0),
-            get_stat<uint64_t>(h, h1, "ep_queue_size"),
-            "initial ep_queue_size is not zero");
-
-    // Store some items
-    write_items(h, h1, 3);
-    wait_for_flusher_to_settle(h, h1);
-
-    // Verify flush case.
-    set_degraded_mode(h, h1, nullptr, true);
-    const auto* cookie = testHarness.create_cookie();
-    checkeq(ENGINE_SUCCESS, h1->flush(h, cookie), "Failed to flush");
-    testHarness.destroy_cookie(cookie);
-    set_degraded_mode(h, h1, nullptr, false);
-    verify_curr_items(h, h1, 0, "flush");
-
-    checkeq(uint64_t(0),
-            get_stat<uint64_t>(h, h1, "ep_queue_size"),
-            "final ep_queue_size is not zero");
-
-    return SUCCESS;
-}
-
-
 static enum test_result test_curr_items_dead(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     // Verify initial case.
@@ -6473,7 +6337,6 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                         "ep_exp_pager_initial_run_time",
                         "ep_exp_pager_stime",
                         "ep_failpartialwarmup",
-                        "ep_flushall_enabled",
                         "ep_fsync_after_every_n_bytes_written",
                         "ep_getl_default_timeout",
                         "ep_getl_max_timeout",
@@ -6666,7 +6529,6 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
               "ep_failpartialwarmup",
               "ep_flush_all",
               "ep_flush_duration_total",
-              "ep_flushall_enabled",
               "ep_fsync_after_every_n_bytes_written",
               "ep_getl_default_timeout",
               "ep_getl_max_timeout",
@@ -7717,14 +7579,6 @@ BaseTestCase testsuite_testcases[] = {
                  NULL,
                  prepare,
                  cleanup),
-        TestCase("stats curr_items FLUSH",
-                 test_curr_items_flush,
-                 test_setup,
-                 teardown,
-                 NULL,
-                 /* TODO Ephemeral: flush command does not complete */
-                 prepare_ep_bucket,
-                 cleanup),
         TestCase("stats curr_items vbucket_state_dead",
                  test_curr_items_dead,
                  test_setup,
@@ -7789,22 +7643,6 @@ BaseTestCase testsuite_testcases[] = {
                  teardown, NULL, prepare, cleanup),
         TestCase("set+get+restart+hit (bin)", test_restart_bin_val,
                  test_setup, teardown, NULL, prepare, cleanup),
-        TestCase("flush+restart",
-                 test_flush_restart,
-                 test_setup,
-                 teardown,
-                 NULL,
-                 /* TODO RDB: implement flush */
-                 prepare_skip_broken_under_rocks,
-                 cleanup),
-        TestCase("flush multiv+restart",
-                 test_flush_multiv_restart,
-                 test_setup,
-                 teardown,
-                 NULL,
-                 /* TODO RDB: implement flush */
-                 prepare_skip_broken_under_rocks,
-                 cleanup),
         TestCase("test kill -9 bucket", test_kill9_bucket,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test shutdown with force", test_flush_shutdown_force,

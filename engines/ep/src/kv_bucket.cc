@@ -1719,19 +1719,6 @@ void KVBucket::reset() {
     LOG(EXTENSION_LOG_NOTICE, "KVBucket::reset(): Successfully flushed bucket");
 }
 
-bool KVBucket::scheduleDeleteAllTask(const void* cookie) {
-    bool inverse = false;
-    if (diskDeleteAll.compare_exchange_strong(inverse, true)) {
-        deleteAllTaskCtx.cookie = cookie;
-        deleteAllTaskCtx.delay.compare_exchange_strong(inverse, true);
-        ExTask task = std::make_shared<DeleteAllTask>(&engine);
-        ExecutorPool::get()->schedule(task);
-        return true;
-    } else {
-        return false;
-    }
-}
-
 void KVBucket::setDeleteAllComplete() {
     // Notify memcached about delete all task completion, and
     // set diskFlushall flag to false
