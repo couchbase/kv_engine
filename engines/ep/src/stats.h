@@ -40,8 +40,6 @@
 #define DEFAULT_MAX_DATA_SIZE (std::numeric_limits<size_t>::max())
 #endif
 
-static constexpr std::chrono::seconds ONE_SECOND(1);
-
 /**
  * Global engine stats container.
  */
@@ -151,14 +149,8 @@ public:
           rollbackCount(0),
           defragNumVisited(0),
           defragNumMoved(0),
-          dirtyAgeHisto(GrowingWidthGenerator<UnsignedMicroseconds,
-                                              cb::duration_limits>(
-                                ONE_SECOND.zero(), ONE_SECOND, 1.4),
-                        25),
-          diskCommitHisto(GrowingWidthGenerator<UnsignedMicroseconds,
-                                                cb::duration_limits>(
-                                  ONE_SECOND.zero(), ONE_SECOND, 1.4),
-                          25),
+          dirtyAgeHisto(),
+          diskCommitHisto(),
           timingLog(NULL),
           mem_merge_count_threshold(1),
           mem_merge_bytes_threshold(0),
