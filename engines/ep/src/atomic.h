@@ -285,7 +285,7 @@ public:
     }
 
     ~SingleThreadedRCPtr() {
-        if (value && value->getRCValue()._rc_decref() == 0) {
+        if (value != nullptr && value->getRCValue()._rc_decref() == 0) {
             Deleter()(value);
         }
     }
@@ -336,11 +336,11 @@ public:
     }
 
     bool operator! () const {
-        return !value;
+        return value == nullptr;
     }
 
     operator bool () const {
-        return (bool)value;
+        return value != nullptr;
     }
 
 private:
@@ -348,7 +348,7 @@ private:
     friend class SingleThreadedRCPtr;
 
     Pointer gimme() const {
-        if (value) {
+        if (value != nullptr) {
             value->getRCValue()._rc_incref();
         }
         return value;

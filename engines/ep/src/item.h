@@ -191,7 +191,7 @@ public:
     bool decompressValue();
 
     const char *getData() const {
-        return value.get() ? value->getData() : NULL;
+        return value ? value->getData() : NULL;
     }
 
     const value_t &getValue() const {
@@ -211,11 +211,11 @@ public:
     }
 
     uint32_t getNBytes() const {
-        return value.get() ? static_cast<uint32_t>(value->valueSize()) : 0;
+        return value ? static_cast<uint32_t>(value->valueSize()) : 0;
     }
 
     size_t getValMemSize() const {
-        return value.get() ? value->getSize() : 0;
+        return value ? value->getSize() : 0;
     }
 
     time_t getExptime() const {

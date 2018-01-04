@@ -64,7 +64,7 @@ public:
     }
 
     operator bool() const {
-        return raw != 0;
+        return extractPointer(raw) != 0;
     }
 
     // Implement pointer operator to allow existing code to transparently

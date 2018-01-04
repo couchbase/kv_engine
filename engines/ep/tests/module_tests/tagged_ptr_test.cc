@@ -69,6 +69,14 @@ TEST(TaggedPtrTest, boolFalseTest) {
     EXPECT_FALSE(taggedPtr);
 }
 
+/// Check that when the tag is set if the pointer is nullptr then calling the
+/// bool method on the taggedptr will return false
+TEST(TaggedPtrTest, boolWithTagFalseTest) {
+    TaggedPtr<uint32_t> taggedPtr(nullptr, 123);
+    ASSERT_EQ(123, taggedPtr.getTag());
+    EXPECT_FALSE(taggedPtr);
+}
+
 /// Test the -> operator of TaggedPtr
 TEST(TaggedPtrTest, ptrTest) {
     class TestObject {
