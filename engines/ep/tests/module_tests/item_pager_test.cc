@@ -24,6 +24,7 @@
 #include "checkpoint.h"
 #include "ep_time.h"
 #include "evp_store_single_threaded_test.h"
+#include "memory_tracker.h"
 #include "test_helpers.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 

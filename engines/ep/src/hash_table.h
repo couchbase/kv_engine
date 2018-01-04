@@ -24,6 +24,8 @@
 #include <platform/histogram.h>
 #include <platform/non_negative_counter.h>
 
+#include <array>
+
 class AbstractStoredValueFactory;
 class HashTableStatVisitor;
 class HashTableVisitor;

@@ -19,6 +19,9 @@
 
 #include "vbucket_test.h"
 
+#include "memory_tracker.h"
+#include "objectregistry.h"
+
 #include <programs/engine_testapp/mock_server.h>
 
 class DefragmenterTest : public VBucketTest {

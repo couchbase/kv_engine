@@ -17,6 +17,8 @@
 
 #pragma once
 
+#include <condition_variable>
+
 /** Object which is used to synchronise the execution of a number of threads.
  *  Each thread calls threadUp(), and until all threads have called this
  *  they are all blocked.
