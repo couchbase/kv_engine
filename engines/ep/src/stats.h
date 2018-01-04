@@ -141,7 +141,6 @@ public:
           numOpsSetRetMeta(0),
           numOpsDelRetMeta(0),
           numOpsGetMetaOnSetWithMeta(0),
-          mlogCompactorRuns(0),
           alogRuns(0),
           accessScannerSkips(0),
           alogNumItems(0),
@@ -160,10 +159,6 @@ public:
                                                 cb::duration_limits>(
                                   ONE_SECOND.zero(), ONE_SECOND, 1.4),
                           25),
-          mlogCompactorHisto(GrowingWidthGenerator<UnsignedMicroseconds,
-                                                   cb::duration_limits>(
-                                     ONE_SECOND.zero(), ONE_SECOND, 1.4),
-                             25),
           timingLog(NULL),
           mem_merge_count_threshold(1),
           mem_merge_bytes_threshold(0),
@@ -440,8 +435,6 @@ public:
     //! The number of background get meta ops due to set_with_meta operations
     Counter  numOpsGetMetaOnSetWithMeta;
 
-    //! The number of times the mutation log compactor is exectued
-    Counter mlogCompactorRuns;
     //! The number of times the access scanner runs
     Counter alogRuns;
     //! The number of times the access scanner skips generating access log
@@ -531,9 +524,6 @@ public:
     //! Histogram of disk commits
     MicrosecondHistogram diskCommitHisto;
 
-    //! Histogram of mutation log compactor
-    MicrosecondHistogram mlogCompactorHisto;
-
     //! Historgram of batch reads
     MicrosecondHistogram getMultiHisto;
 
@@ -578,7 +568,6 @@ public:
         vbucketDelMaxWalltime.store(0);
         vbucketDelTotWalltime.store(0);
 
-        mlogCompactorRuns.store(0);
         alogRuns.store(0);
         accessScannerSkips.store(0),
         defragNumVisited.store(0),
@@ -609,7 +598,6 @@ public:
         itemAllocSizeHisto.reset();
         getMultiBatchSizeHisto.reset();
         dirtyAgeHisto.reset();
-        mlogCompactorHisto.reset();
         getMultiHisto.reset();
         persistenceCursorGetItemsHisto.reset();
         dcpCursorsGetItemsHisto.reset();

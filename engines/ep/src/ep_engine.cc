@@ -2528,8 +2528,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
 
     add_casted_stat("ep_degraded_mode", isDegradedMode(), add_stat, cookie);
 
-    add_casted_stat("ep_mlog_compactor_runs", epstats.mlogCompactorRuns,
-                    add_stat, cookie);
     add_casted_stat("ep_num_access_scanner_runs", epstats.alogRuns,
                     add_stat, cookie);
     add_casted_stat("ep_num_access_scanner_skips",
