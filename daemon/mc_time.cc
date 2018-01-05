@@ -95,29 +95,56 @@ rel_time_t mc_time_get_current_time(void) {
     return memcached_uptime;
 }
 
-/*
- * Given a timestamp (timestamp follows the rules of mc store protocol)
- * return the seconds from "now" it is expected to expire.
- */
-rel_time_t mc_time_convert_to_real_time(const time_t t) {
+/// @return true if a + b would overflow rel_time_t
+static bool would_overflow(rel_time_t a, std::chrono::seconds b) {
+    return a > (std::numeric_limits<rel_time_t>::max() - b.count());
+}
 
+// The above would_overflow(a. b) assumes rel_time_t is unsigned
+static_assert(std::is_unsigned<rel_time_t>::value,
+              "would_overflow assumes rel_time_t is unsigned");
+
+rel_time_t mc_time_convert_to_real_time(rel_time_t t, cb::ExpiryLimit limit) {
     rel_time_t rv = 0;
 
-    if (t > memcached_maximum_relative_time) {
+    auto epoch = memcached_epoch;
+    auto uptime = memcached_uptime.load();
+
+    if (t > memcached_maximum_relative_time) { // t is absolute
+
+        // Ensure overflow is predictable (we stay at max rel_time_t)
+        if (limit && would_overflow(epoch + uptime, limit.get())) {
+            return std::numeric_limits<rel_time_t>::max();
+        }
+
+        if (limit && t > (epoch + uptime + limit.get().count())) {
+            t = (epoch + uptime) + limit.get().count();
+        }
+
         /* if item expiration is at/before the server started, give it an
            expiration time of 1 second after the server started.
            (because 0 means don't expire).  without this, we'd
            underflow and wrap around to some large value way in the
            future, effectively making items expiring in the past
            really expiring never */
-        if (t <= memcached_epoch) {
+        if (t <= epoch) {
             rv = (rel_time_t)1;
         } else {
-            rv = (rel_time_t)(t - memcached_epoch);
+            rv = (rel_time_t)(t - epoch);
         }
-    } else if (t != 0) {
-        rv = (rel_time_t)(t + memcached_uptime);
+    } else if (t != 0) { // t is relative
+        if (limit && t > limit.get().count()) {
+            t = limit.get().count();
+        }
+
+        // Ensure overflow is predictable (we stay at max rel_time_t)
+        if (limit && would_overflow(t + uptime, limit.get())) {
+            rv = std::numeric_limits<rel_time_t>::max();
+        } else {
+            rv = (rel_time_t)(t + uptime);
+        }
     }
+
     return rv;
 }
 

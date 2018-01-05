@@ -367,9 +367,14 @@ static std::pair<cb::unique_item_ptr, item_info> default_item_allocate_ex(
                                "default_item_allocate_ex");
     }
 
-    it = item_alloc(engine, key.data(), key.size(), flags,
-                    engine->server.core->realtime(exptime),
-                    (uint32_t)nbytes, cookie, datatype);
+    it = item_alloc(engine,
+                    key.data(),
+                    key.size(),
+                    flags,
+                    engine->server.core->realtime(exptime, cb::NoExpiryLimit),
+                    (uint32_t)nbytes,
+                    cookie,
+                    datatype);
 
     if (it != NULL) {
         item_info info;
@@ -539,8 +544,13 @@ static cb::EngineErrorItemPair default_get_and_touch(
     }
 
     hash_item* it = nullptr;
-    auto ret = item_get_and_touch(engine, cookie, &it, key.data(), key.size(),
-                                  engine->server.core->realtime(expiry_time));
+    auto ret = item_get_and_touch(
+            engine,
+            cookie,
+            &it,
+            key.data(),
+            key.size(),
+            engine->server.core->realtime(expiry_time, cb::NoExpiryLimit));
 
     return cb::makeEngineErrorItemPair(
             cb::engine_errc(ret), reinterpret_cast<item*>(it), handle);

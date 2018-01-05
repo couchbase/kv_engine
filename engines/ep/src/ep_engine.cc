@@ -2082,7 +2082,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::itemAllocate(
         const size_t nbytes,
         const size_t priv_nbytes,
         const int flags,
-        const rel_time_t exptime,
+        rel_time_t exptime,
         uint8_t datatype,
         uint16_t vbucket) {
     if (priv_nbytes > maxItemPrivilegedBytes) {
@@ -2098,7 +2098,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::itemAllocate(
         return memoryCondition();
     }
 
-    time_t expiretime = (exptime == 0) ? 0 : ep_abs_time(ep_reltime(exptime));
+    time_t expiretime =
+            (exptime == 0)
+                    ? 0
+                    : ep_abs_time(ep_reltime(exptime, cb::NoExpiryLimit));
 
     *itm = new Item(key,
                     flags,
@@ -2181,7 +2184,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get_and_touch(const void* co
     time_t expiry_time = exptime;
     if (exptime != 0) {
         auto* core = serverApi->core;
-        expiry_time = core->abstime(core->realtime(exptime));
+        expiry_time = core->abstime(core->realtime(exptime, cb::NoExpiryLimit));
     }
     GetValue gv(kvBucket->getAndUpdateTtl(key, vbucket, cookie, expiry_time));
 
@@ -4971,7 +4974,7 @@ EventuallyPersistentEngine::returnMeta(const void* cookie,
     uint32_t mutate_type = ntohl(request->message.body.mutation_type);
     uint32_t flags = ntohl(request->message.body.flags);
     uint32_t exp = ntohl(request->message.body.expiration);
-    exp = exp == 0 ? 0 : ep_abs_time(ep_reltime(exp));
+    exp = exp == 0 ? 0 : ep_abs_time(ep_reltime(exp, cb::NoExpiryLimit));
     size_t vallen = bodylen - keylen - extlen;
     uint64_t seqno;
 

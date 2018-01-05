@@ -1,8 +1,10 @@
 #ifndef MEMCACHED_TYPES_H
 #define MEMCACHED_TYPES_H 1
 
-#include <sys/types.h>
+#include <boost/optional/optional.hpp>
 #include <stdint.h>
+#include <sys/types.h>
+#include <chrono>
 
 #ifdef WIN32
 #include <platform/platform.h>
@@ -135,6 +137,10 @@ struct vbucket_info {
     /// has the vbucket has had xattr documents written to it
     bool mayContainXattrs;
 };
+
+using ExpiryLimit = boost::optional<std::chrono::seconds>;
+
+static const ExpiryLimit NoExpiryLimit{};
 }
 
 #endif /* MEMCACHED_TYPES_H */

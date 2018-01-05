@@ -44,7 +44,7 @@ using namespace std::chrono;
 
 // Basic expectations
 TEST_F(McTimeTest, relative) {
-    EXPECT_EQ(now + 100, mc_time_convert_to_real_time(100));
+    EXPECT_EQ(now + 100, mc_time_convert_to_real_time(100, cb::NoExpiryLimit));
 }
 
 TEST_F(McTimeTest, absolute) {
@@ -53,7 +53,7 @@ TEST_F(McTimeTest, absolute) {
               seconds(1).count();
     EXPECT_EQ(
             duration_cast<seconds>(hours(30 * 24)).count() + seconds(1).count(),
-            mc_time_convert_to_real_time(ts));
+            mc_time_convert_to_real_time(ts, cb::NoExpiryLimit));
 }
 
 TEST_F(McTimeTest, absolute_less_than_epoch) {
@@ -61,19 +61,91 @@ TEST_F(McTimeTest, absolute_less_than_epoch) {
             duration_cast<seconds>(hours(30 * 24)).count() + seconds(1).count();
 
     // If this failed, has the test system got a bad clock?
-    EXPECT_EQ(1, mc_time_convert_to_real_time(ts)) << "Check your system time";
+    EXPECT_EQ(1, mc_time_convert_to_real_time(ts, cb::NoExpiryLimit))
+            << "Check your system time";
 }
 
 TEST_F(McTimeTest, max) {
-    EXPECT_EQ(std::numeric_limits<rel_time_t>::max() - epoch,
-              mc_time_convert_to_real_time(std::numeric_limits<time_t>::max()));
+    EXPECT_EQ(
+            std::numeric_limits<rel_time_t>::max() - epoch,
+            mc_time_convert_to_real_time(std::numeric_limits<rel_time_t>::max(),
+                                         cb::NoExpiryLimit));
 }
 
 TEST_F(McTimeTest, min) {
-    EXPECT_EQ(std::numeric_limits<rel_time_t>::min(),
-              mc_time_convert_to_real_time(std::numeric_limits<time_t>::min()));
+    EXPECT_EQ(
+            std::numeric_limits<rel_time_t>::min(),
+            mc_time_convert_to_real_time(std::numeric_limits<rel_time_t>::min(),
+                                         cb::NoExpiryLimit));
 }
 
 TEST_F(McTimeTest, zero) {
-    EXPECT_EQ(0, mc_time_convert_to_real_time(0));
+    EXPECT_EQ(0, mc_time_convert_to_real_time(0, cb::NoExpiryLimit));
+}
+
+TEST_F(McTimeTest, limited_relative) {
+    EXPECT_EQ(now + 99, mc_time_convert_to_real_time(100, seconds(99)));
+}
+
+// Limiting to zero should work too
+TEST_F(McTimeTest, limited_relative_zero) {
+    EXPECT_EQ(now, mc_time_convert_to_real_time(100, seconds(0)));
+}
+
+TEST_F(McTimeTest, limited_absolute) {
+    // Exceed 30 days from now as an absolute
+    auto ts = epoch + duration_cast<seconds>(hours(30 * 24)).count() +
+              seconds(1).count();
+    EXPECT_EQ(now + 99, mc_time_convert_to_real_time(ts, seconds(99)));
+}
+
+TEST_F(McTimeTest, limited_absolute_zero) {
+    // Exceed 30 days from now as an absolute
+    auto ts = epoch + duration_cast<seconds>(hours(30 * 24)).count() +
+              seconds(2).count();
+
+    // Return of 1 return is a special case to force 'immediate' expiry
+    EXPECT_EQ(1, mc_time_convert_to_real_time(ts, seconds(0)));
+}
+
+TEST_F(McTimeTest, limited_less_than_epoch) {
+    auto ts = epoch - 1;
+
+    // If this failed, has the test system got a bad clock?
+    EXPECT_EQ(1, mc_time_convert_to_real_time(ts, seconds(99)))
+            << "Check your system time";
+}
+
+TEST_F(McTimeTest, limited_overflow_absolute) {
+    auto ts = epoch + 5;
+
+    EXPECT_EQ(std::numeric_limits<rel_time_t>::max(),
+              mc_time_convert_to_real_time(
+                      ts, seconds(std::numeric_limits<rel_time_t>::max())));
+}
+
+TEST_F(McTimeTest, limited_overflow_relative) {
+    auto ts = 5;
+
+    EXPECT_EQ(std::numeric_limits<rel_time_t>::max(),
+              mc_time_convert_to_real_time(
+                      ts, seconds(std::numeric_limits<rel_time_t>::max())));
+}
+
+// check if the limit and the expiry for relative expiry, the return val is the
+// same, i.e. expire in 5 seconds, max is 5 thus return 5
+TEST_F(McTimeTest, limited_relative_limit_and_expiry_equal) {
+    auto ts = 5;
+
+    EXPECT_EQ(5, mc_time_convert_to_real_time(ts, seconds(ts)));
+}
+
+// check if the limit and the expiry for absolute. This is different for the
+// absolute case because the expiry represents an absolute, but the limit
+// represents a relative limit.
+TEST_F(McTimeTest, limited_absolute_limit_and_expiry_equal) {
+    auto ts = epoch + duration_cast<seconds>(hours(30 * 24)).count() +
+              seconds(5).count();
+
+    EXPECT_EQ(ts - epoch, mc_time_convert_to_real_time(ts, seconds(ts)));
 }

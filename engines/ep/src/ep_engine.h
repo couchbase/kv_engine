@@ -111,7 +111,7 @@ public:
                                    const size_t nbytes,
                                    const size_t priv_nbytes,
                                    const int flags,
-                                   const rel_time_t exptime,
+                                   rel_time_t exptime,
                                    uint8_t datatype,
                                    uint16_t vbucket);
     /**

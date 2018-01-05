@@ -231,24 +231,42 @@ static rel_time_t mock_get_current_time(void) {
     return result;
 }
 
-static rel_time_t mock_realtime(const time_t exptime) {
+static rel_time_t mock_realtime(rel_time_t exptime, cb::ExpiryLimit limit) {
     /* no. of seconds in 30 days - largest possible delta exptime */
 
     if (exptime == 0) return 0; /* 0 means never expire */
 
+    rel_time_t rv = 0;
     if (exptime > REALTIME_MAXDELTA) {
+        if (limit &&
+            exptime > (process_started + time_travel_offset +
+                       limit.get().count())) {
+            exptime =
+                    process_started + time_travel_offset + limit.get().count();
+        }
         /* if item expiration is at/before the server started, give it an
            expiration time of 1 second after the server started.
            (because 0 means don't expire).  without this, we'd
            underflow and wrap around to some large value way in the
            future, effectively making items expiring in the past
            really expiring never */
-        if (exptime <= process_started)
-            return (rel_time_t)1;
-        return (rel_time_t)(exptime - process_started);
+        if (exptime <= process_started) {
+            rv = (rel_time_t)1;
+        } else {
+            rv = (rel_time_t)(exptime - process_started);
+        }
     } else {
-        return (rel_time_t)(exptime + mock_get_current_time());
+        if (limit && exptime > limit.get().count()) {
+            exptime = limit.get().count();
+        }
+
+        rv = (rel_time_t)(exptime + mock_get_current_time());
     }
+
+    if (limit && rv > limit.get().count()) {
+        rv = limit.get().count();
+    }
+    return rv;
 }
 
 static void mock_notify_io_complete(gsl::not_null<const void*> cookie,

@@ -31,7 +31,7 @@ static time_t default_abs_time(rel_time_t notused) {
     return 0;
 }
 
-static rel_time_t default_reltime(time_t notused) {
+static rel_time_t default_reltime(rel_time_t notused, cb::ExpiryLimit) {
     throw std::logic_error("default_reltime called");
     return 0;
 }
@@ -51,7 +51,7 @@ void initialize_time_functions(const SERVER_CORE_API* core_api) {
 
 rel_time_t (*ep_current_time)(void) = uninitialized_current_time;
 time_t (*ep_abs_time)(rel_time_t) = default_abs_time;
-rel_time_t (*ep_reltime)(time_t) = default_reltime;
+rel_time_t (*ep_reltime)(rel_time_t, cb::ExpiryLimit) = default_reltime;
 
 time_t ep_real_time(void) {
     return ep_abs_time(ep_current_time());

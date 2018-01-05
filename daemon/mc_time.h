@@ -44,10 +44,12 @@ void mc_time_clock_tick(void);
  */
 time_t mc_time_convert_to_abs_time(const rel_time_t rel_time);
 
-/*
+/**
  * Convert a time stamp to an absolute time stamp.
+ * @param t a protocol expiry time-stamp
+ * @oaram limit an optional limit, see server_api.h 'realtime' description
  */
-rel_time_t mc_time_convert_to_real_time(const time_t t);
+rel_time_t mc_time_convert_to_real_time(rel_time_t t, cb::ExpiryLimit limit);
 
 #ifdef __cplusplus
 }

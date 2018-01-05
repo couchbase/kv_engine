@@ -36,8 +36,18 @@ typedef struct {
 
     /**
      * Get the relative time for the given time_t value.
+     *
+     * @param exptime A time value expressed in 'protocol-format' (seconds).
+     *        1 to 30 days will be as interpreted as relative from "now"
+     *        > 30 days is interpreted as an absolute time.
+     *        0 in, 0 out.
+     * @param limit an optional limit to apply to the time calculations. If the
+     *        limit was 60 days, then all calculations will ensure the returned
+     *        time can never exceed limit days from now when used in conjunction
+     *        with abstime.
+     * @return The relative time since memcached's epoch.
      */
-    rel_time_t (*realtime)(const time_t exptime);
+    rel_time_t (*realtime)(rel_time_t exptime, cb::ExpiryLimit limit);
 
     /**
      * Get the absolute time for the given rel_time_t value.

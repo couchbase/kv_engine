@@ -39,7 +39,7 @@ void initialize_time_functions(const SERVER_CORE_API* core_api);
 
 extern rel_time_t (*ep_current_time)(void);
 extern time_t (*ep_abs_time)(rel_time_t);
-extern rel_time_t (*ep_reltime)(time_t);
+extern rel_time_t (*ep_reltime)(rel_time_t, cb::ExpiryLimit);
 extern time_t ep_real_time(void);
 
 #ifdef __cplusplus
