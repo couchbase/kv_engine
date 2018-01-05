@@ -88,10 +88,12 @@ INCLUDE_DIRECTORIES(BEFORE
                     ${Platform_SOURCE_DIR}/include
                     ${subjson_SOURCE_DIR})
 
+INCLUDE_DIRECTORIES(AFTER SYSTEM
+                    ${gtest_SOURCE_DIR}/include
+                    ${gmock_SOURCE_DIR}/include)
+
 INCLUDE_DIRECTORIES(AFTER
                     ${gsl_lite_SOURCE_DIR}/include
-                    ${gtest_SOURCE_DIR}/include
-                    ${gmock_SOURCE_DIR}/include
                     ${phosphor_SOURCE_DIR}/include)
 
 INCLUDE_DIRECTORIES(AFTER ${PROJECT_BINARY_DIR}/include)

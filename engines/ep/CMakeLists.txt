@@ -51,7 +51,7 @@ IF (EP_USE_ROCKSDB)
     MESSAGE(STATUS "ep-engine: Using RocksDB")
 ENDIF (EP_USE_ROCKSDB)
 
-INCLUDE_DIRECTORIES(AFTER
+INCLUDE_DIRECTORIES(AFTER SYSTEM
                     ${gtest_SOURCE_DIR}/include
                     ${gmock_SOURCE_DIR}/include)
 

@@ -1,4 +1,4 @@
-INCLUDE_DIRECTORIES(AFTER ${gtest_SOURCE_DIR}/include)
+INCLUDE_DIRECTORIES(AFTER SYSTEM ${gtest_SOURCE_DIR}/include)
 ADD_EXECUTABLE(memcached-doc-server-api-test
                doc_pre_expiry_test.cc
                ${PROJECT_SOURCE_DIR}/daemon/doc_pre_expiry.cc)

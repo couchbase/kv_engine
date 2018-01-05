@@ -1,4 +1,4 @@
-include_directories(AFTER ${gtest_SOURCE_DIR}/include)
+include_directories(AFTER SYSTEM ${gtest_SOURCE_DIR}/include)
 ADD_DEFINITIONS(-DBUILDING_VALIDATORS_TEST)
 add_executable(memcached_mcbp_test
                mcbp_gat_test.cc
