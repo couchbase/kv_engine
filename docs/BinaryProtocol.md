@@ -1627,10 +1627,12 @@ The following features is defined:
   deduplication of the vbucket map received as part of not my vbucket)
 * `UnorderedExecution` - The client allows the server to reorder the
   execution of commands (and send the responses in any order back to
-  the client). Note that when UnorderedExecution is selected, the
-  client cannot switch buckets (to make it deterministic which bucket
-  the operation is executed. The current proposal does not include any
-  barriers or other synchronization primitives.).
+  the client). Some commands can however not be reordered (select
+  bucket being one of them), when such a command is received the
+  server awaits all concurrent commands to complete before executing
+  the command in isolation. Once the command is completed the server
+  starts reordering the next commands. NOTE: It is not possible to
+  enable unordered execution on connections used for DCP.
 
 Response:
 
