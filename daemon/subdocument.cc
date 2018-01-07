@@ -1253,7 +1253,7 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
             break;
 
         case ENGINE_EWOULDBLOCK:
-            connection.setEwouldblock(true);
+            cookie.setEwouldblock(true);
             return ret;
 
         case ENGINE_DISCONNECT:
@@ -1351,7 +1351,7 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
         break;
 
     case ENGINE_EWOULDBLOCK:
-        connection.setEwouldblock(true);
+        cookie.setEwouldblock(true);
         break;
 
     case ENGINE_DISCONNECT:

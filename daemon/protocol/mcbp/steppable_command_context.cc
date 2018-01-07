@@ -25,9 +25,9 @@ SteppableCommandContext::SteppableCommandContext(Cookie& cookie_)
 }
 
 void SteppableCommandContext::drive() {
-    ENGINE_ERROR_CODE ret = connection.getAiostat();
-    connection.setAiostat(ENGINE_SUCCESS);
-    connection.setEwouldblock(false);
+    ENGINE_ERROR_CODE ret = cookie.getAiostat();
+    cookie.setAiostat(ENGINE_SUCCESS);
+    cookie.setEwouldblock(false);
 
     if (ret == ENGINE_SUCCESS) {
         try {
@@ -53,8 +53,8 @@ void SteppableCommandContext::drive() {
     case ENGINE_SUCCESS:
         break;
     case ENGINE_EWOULDBLOCK:
-        connection.setAiostat(ENGINE_EWOULDBLOCK);
-        connection.setEwouldblock(true);
+        cookie.setAiostat(ENGINE_EWOULDBLOCK);
+        cookie.setEwouldblock(true);
         return;
     case ENGINE_DISCONNECT:
         connection.setState(McbpStateMachine::State::closing);

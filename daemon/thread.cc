@@ -423,9 +423,10 @@ static void enlist_conn(Connection *c, Connection **list) {
 
 void notify_io_complete(gsl::not_null<const void*> void_cookie,
                         ENGINE_ERROR_CODE status) {
-    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
+    auto* ccookie = reinterpret_cast<const Cookie*>(void_cookie.get());
+    auto& cookie = const_cast<Cookie&>(*ccookie);
 
-    LIBEVENT_THREAD* thr = cookie->getConnection().getThread();
+    auto* thr = cookie.getConnection().getThread();
     if (thr == nullptr) {
         throw std::runtime_error(
             "notify_io_complete: connection should be bound to a thread");
@@ -433,14 +434,14 @@ void notify_io_complete(gsl::not_null<const void*> void_cookie,
 
     int notify;
 
-    LOG_DEBUG(NULL,
-              "Got notify from %u, status 0x%x",
-              cookie->getConnection().getId(),
+    LOG_DEBUG(nullptr,
+              "notify_io_complete: Got notify from %u, status 0x%x",
+              cookie.getConnection().getId(),
               status);
 
     LOCK_THREAD(thr);
-    cookie->getConnection().setAiostat(status);
-    notify = add_conn_to_pending_io_list(&cookie->getConnection());
+    cookie.setAiostat(status);
+    notify = add_conn_to_pending_io_list(&cookie.getConnection());
     UNLOCK_THREAD(thr);
 
     /* kick the thread in the butt */

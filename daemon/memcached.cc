@@ -1566,7 +1566,7 @@ static uint8_t get_opcode_if_ewouldblock_set(
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
 
     uint8_t opcode = PROTOCOL_BINARY_CMD_INVALID;
-    if (cookie->getConnection().isEwouldblock()) {
+    if (cookie->isEwouldblock()) {
         try {
             opcode = cookie->getHeader().getOpcode();
         } catch (...) {

@@ -353,13 +353,13 @@ bool conn_execute(McbpConnection& connection) {
                 "completely in memory");
     }
 
-    connection.setEwouldblock(false);
 
     auto& cookie = connection.getCookieObject();
+    cookie.setEwouldblock(false);
 
     mcbp_execute_packet(cookie);
 
-    if (connection.isEwouldblock()) {
+    if (cookie.isEwouldblock()) {
         connection.unregisterEvent();
         return false;
     }
