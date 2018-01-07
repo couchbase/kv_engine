@@ -202,9 +202,9 @@ bool conn_ship_log(McbpConnection& connection) {
         connection.setNumEvents(connection.getMaxReqsPerEvent());
     } else if (connection.isWriteEvent()) {
         if (connection.decrementNumEvents() >= 0) {
-            connection.setEwouldblock(false);
-            ship_dcp_log(connection);
-            if (connection.isEwouldblock()) {
+            auto& cookie = connection.getCookieObject();
+            ship_dcp_log(cookie);
+            if (cookie.isEwouldblock()) {
                 mask = EV_READ | EV_PERSIST;
             } else {
                 cont = true;

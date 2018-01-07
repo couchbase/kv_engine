@@ -16,6 +16,5 @@
  */
 #pragma once
 
-#include <daemon/connection_mcbp.h>
-
-void ship_dcp_log(McbpConnection& c);
+class Cookie;
+void ship_dcp_log(Cookie& c);

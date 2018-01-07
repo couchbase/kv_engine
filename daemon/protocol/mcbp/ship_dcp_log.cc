@@ -567,7 +567,7 @@ static ENGINE_ERROR_CODE dcp_message_system_event(
     return ret;
 }
 
-void ship_dcp_log(McbpConnection& c) {
+void ship_dcp_log(Cookie& cookie) {
     static struct dcp_message_producers producers = {
             dcp_message_get_failover_log,
             dcp_message_stream_req,
@@ -587,13 +587,14 @@ void ship_dcp_log(McbpConnection& c) {
             dcp_message_system_event};
     ENGINE_ERROR_CODE ret;
 
+    auto& c = cookie.getConnection();
     c.addMsgHdr(true);
-    c.setEwouldblock(false);
+    cookie.setEwouldblock(false);
     ret = c.getBucketEngine()->dcp.step(
             c.getBucketEngineAsV0(), c.getCookie(), &producers);
     if (ret == ENGINE_SUCCESS) {
         /* the engine don't have more data to send at this moment */
-        c.setEwouldblock(true);
+        cookie.setEwouldblock(true);
     } else if (ret == ENGINE_WANT_MORE) {
         /* The engine got more data it wants to send */
         ret = ENGINE_SUCCESS;
