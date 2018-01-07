@@ -424,7 +424,6 @@ static void enlist_conn(Connection *c, Connection **list) {
 void notify_io_complete(gsl::not_null<const void*> void_cookie,
                         ENGINE_ERROR_CODE status) {
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
-    cookie->validate();
 
     LIBEVENT_THREAD* thr = cookie->getConnection().getThread();
     if (thr == nullptr) {

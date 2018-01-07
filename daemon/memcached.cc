@@ -276,7 +276,6 @@ void perform_callbacks(ENGINE_EVENT_TYPE type,
         if (cookie == nullptr) {
             throw std::invalid_argument("perform_callbacks: cookie is nullptr");
         }
-        cookie->validate();
         const auto bucket_idx = cookie->getConnection().getBucketIndex();
         if (bucket_idx == -1) {
             throw std::logic_error(
@@ -714,20 +713,17 @@ bucket_id_t get_bucket_id(gsl::not_null<const void*> void_cookie) {
      * reused.
      */
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
-    cookie->validate();
     return bucket_id_t(cookie->getConnection().getBucketIndex());
 }
 
 uint64_t get_connection_id(gsl::not_null<const void*> void_cookie) {
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
-    cookie->validate();
     return uint64_t(&cookie->getConnection());
 }
 
 std::pair<uint32_t, std::string> cookie_get_log_info(
         gsl::not_null<const void*> void_cookie) {
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
-    cookie->validate();
     return std::make_pair(cookie->getConnection().getId(),
                           cookie->getConnection().getDescription());
 }
@@ -735,7 +731,6 @@ std::pair<uint32_t, std::string> cookie_get_log_info(
 void cookie_set_error_context(gsl::not_null<void*> void_cookie,
                               cb::const_char_buffer message) {
     auto* cookie = reinterpret_cast<Cookie*>(void_cookie.get());
-    cookie->validate();
     cookie->setErrorContext(to_string(message));
 }
 
@@ -750,7 +745,6 @@ static cb::rbac::PrivilegeAccess check_privilege(
         gsl::not_null<const void*> void_cookie,
         const cb::rbac::Privilege privilege) {
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
-    cookie->validate();
     return cookie->getConnection().checkPrivilege(privilege,
                                                   const_cast<Cookie&>(*cookie));
 }
@@ -758,7 +752,6 @@ static cb::rbac::PrivilegeAccess check_privilege(
 static protocol_binary_response_status engine_error2mcbp(
         gsl::not_null<const void*> void_cookie, ENGINE_ERROR_CODE code) {
     const auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
-    cookie->validate();
     auto& connection = cookie->getConnection();
 
     ENGINE_ERROR_CODE status = connection.remapErrorCode(code);
@@ -813,7 +806,6 @@ static ENGINE_ERROR_CODE pre_link_document(
     // cookie
     auto* cookie =
             reinterpret_cast<Cookie*>(const_cast<void*>(void_cookie.get()));
-    cookie->validate();
 
     auto* context = cookie->getCommandContext();
     if (context != nullptr) {
@@ -1544,40 +1536,34 @@ const char* get_server_version(void) {
 static void store_engine_specific(gsl::not_null<const void*> void_cookie,
                                   void* engine_data) {
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
-    cookie->validate();
     cookie->getConnection().setEngineStorage(engine_data);
 }
 
 static void* get_engine_specific(gsl::not_null<const void*> void_cookie) {
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
-    cookie->validate();
     return cookie->getConnection().getEngineStorage();
 }
 
 static bool is_datatype_supported(gsl::not_null<const void*> void_cookie,
                                   protocol_binary_datatype_t datatype) {
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
-    cookie->validate();
     return cookie->getConnection().isDatatypeEnabled(datatype);
 }
 
 static bool is_mutation_extras_supported(
         gsl::not_null<const void*> void_cookie) {
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
-    cookie->validate();
     return cookie->getConnection().isSupportsMutationExtras();
 }
 
 static bool is_collections_supported(gsl::not_null<const void*> void_cookie) {
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
-    cookie->validate();
     return cookie->getConnection().isCollectionsSupported();
 }
 
 static uint8_t get_opcode_if_ewouldblock_set(
         gsl::not_null<const void*> void_cookie) {
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
-    cookie->validate();
 
     uint8_t opcode = PROTOCOL_BINARY_CMD_INVALID;
     if (cookie->getConnection().isEwouldblock()) {
@@ -1601,7 +1587,6 @@ static void decrement_session_ctr(void) {
 static ENGINE_ERROR_CODE reserve_cookie(
         gsl::not_null<const void*> void_cookie) {
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
-    cookie->validate();
 
     cookie->getConnection().incrementRefcount();
     return ENGINE_SUCCESS;
@@ -1610,7 +1595,6 @@ static ENGINE_ERROR_CODE reserve_cookie(
 static ENGINE_ERROR_CODE release_cookie(
         gsl::not_null<const void*> void_cookie) {
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
-    cookie->validate();
 
     Connection* c = &cookie->getConnection();
     int notify;
@@ -1641,7 +1625,6 @@ static ENGINE_ERROR_CODE release_cookie(
 static void cookie_set_priority(gsl::not_null<const void*> void_cookie,
                                 CONN_PRIORITY priority) {
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
-    cookie->validate();
 
     auto* c = &cookie->getConnection();
     switch (priority) {

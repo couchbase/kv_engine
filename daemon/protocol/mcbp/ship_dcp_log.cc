@@ -36,7 +36,6 @@ static McbpConnection* cookie2mcbp(const void* void_cookie, const char* function
         throw std::invalid_argument(std::string(function) +
                                     ": cookie is nullptr");
     }
-    cookie->validate();
     return &cookie->getConnection();
 }
 

@@ -51,13 +51,6 @@ public:
     explicit Cookie(McbpConnection& conn) : connection(conn) {
     }
 
-    void validate() const {
-        if (magic != 0xdeadcafe) {
-            throw std::runtime_error(
-                "Cookie::validate: Invalid magic detected");
-        }
-    }
-
     /**
      * Initialize this cookie.
      *
@@ -454,17 +447,6 @@ protected:
      * The connection object this cookie is bound to
      */
     McbpConnection& connection;
-
-    /**
-     * The magic byte is used for development only and will be removed when
-     * we've successfully verified that we don't have any calls through the
-     * engine API where we are passing invalid cookies (connection objects).
-     *
-     * We've always had the cookie meaning the connection object, so it could
-     * be that I've missed some places where we pass something else than
-     * a new cookie. We want to track those errors as soon as possible.
-     */
-    const uint64_t magic = 0xdeadcafe;
 
     mutable std::string event_id;
     std::string error_context;
