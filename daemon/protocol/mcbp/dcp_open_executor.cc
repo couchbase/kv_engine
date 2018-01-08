@@ -27,7 +27,6 @@ void dcp_open_executor(Cookie& cookie) {
 
     ENGINE_ERROR_CODE ret = cookie.getAiostat();
     cookie.setAiostat(ENGINE_SUCCESS);
-    cookie.setEwouldblock(false);
 
     auto& connection = cookie.getConnection();
     connection.enableDatatype(cb::mcbp::Feature::SNAPPY);

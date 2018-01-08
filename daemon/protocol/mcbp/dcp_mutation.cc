@@ -99,7 +99,6 @@ static inline ENGINE_ERROR_CODE do_dcp_mutation(Cookie& cookie) {
 void dcp_mutation_executor(Cookie& cookie) {
     ENGINE_ERROR_CODE ret = cookie.getAiostat();
     cookie.setAiostat(ENGINE_SUCCESS);
-    cookie.setEwouldblock(false);
 
     auto& connection = cookie.getConnection();
     if (ret == ENGINE_SUCCESS) {

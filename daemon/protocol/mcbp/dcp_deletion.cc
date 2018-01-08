@@ -29,7 +29,6 @@ void dcp_deletion_executor(Cookie& cookie) {
 
     ENGINE_ERROR_CODE ret = cookie.getAiostat();
     cookie.setAiostat(ENGINE_SUCCESS);
-    cookie.setEwouldblock(false);
 
     if (ret == ENGINE_SUCCESS) {
         // Collection aware DCP will be sending the collection_len field, so

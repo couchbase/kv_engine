@@ -120,7 +120,6 @@ static void process_bin_unknown_packet(Cookie& cookie) {
 
     ENGINE_ERROR_CODE ret = cookie.getAiostat();
     cookie.setAiostat(ENGINE_SUCCESS);
-    cookie.setEwouldblock(false);
 
     if (ret == ENGINE_SUCCESS) {
         ret = bucket_unknown_command(cookie, mcbp_response_handler);
@@ -356,7 +355,6 @@ static void ioctl_get_executor(Cookie& cookie) {
             cookie.getPacketAsVoidPtr());
     ENGINE_ERROR_CODE ret = cookie.getAiostat();
     cookie.setAiostat(ENGINE_SUCCESS);
-    cookie.setEwouldblock(false);
 
     std::string value;
     if (ret == ENGINE_SUCCESS) {
@@ -392,7 +390,6 @@ static void ioctl_get_executor(Cookie& cookie) {
 static void ioctl_set_executor(Cookie& cookie) {
     ENGINE_ERROR_CODE ret = cookie.getAiostat();
     cookie.setAiostat(ENGINE_SUCCESS);
-    cookie.setEwouldblock(false);
 
     auto& connection = cookie.getConnection();
     if (ret == ENGINE_SUCCESS) {

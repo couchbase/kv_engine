@@ -26,7 +26,6 @@ void dcp_add_stream_executor(Cookie& cookie) {
 
     ENGINE_ERROR_CODE ret = cookie.getAiostat();
     cookie.setAiostat(ENGINE_SUCCESS);
-    cookie.setEwouldblock(false);
     uint32_t flags = ntohl(req->message.body.flags);
 
     auto& connection = cookie.getConnection();
