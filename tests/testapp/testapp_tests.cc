@@ -1445,17 +1445,38 @@ TEST_P(McdTestappTest, Hello) {
 
     EXPECT_EQ(12u, buffer.response.message.header.response.bodylen);
     ptr = (uint16_t*)(buffer.bytes + sizeof(buffer.response));
-    EXPECT_EQ(uint16_t(cb::mcbp::Feature::SNAPPY), ntohs(*ptr));
-    ptr++;
-    EXPECT_EQ(uint16_t(cb::mcbp::Feature::JSON), ntohs(*ptr));
-    ptr++;
-    EXPECT_EQ(uint16_t(cb::mcbp::Feature::TCPNODELAY), ntohs(*ptr));
-    ptr++;
-    EXPECT_EQ(uint16_t(cb::mcbp::Feature::MUTATION_SEQNO), ntohs(*ptr));
-    ptr++;
-    EXPECT_EQ(uint16_t(cb::mcbp::Feature::XATTR), ntohs(*ptr));
-    ptr++;
-    EXPECT_EQ(uint16_t(cb::mcbp::Feature::SELECT_BUCKET), ntohs(*ptr));
+
+    std::vector<cb::mcbp::Feature> enabled;
+    enabled.push_back(cb::mcbp::Feature(ntohs(ptr[0])));
+    enabled.push_back(cb::mcbp::Feature(ntohs(ptr[1])));
+    enabled.push_back(cb::mcbp::Feature(ntohs(ptr[2])));
+    enabled.push_back(cb::mcbp::Feature(ntohs(ptr[3])));
+    enabled.push_back(cb::mcbp::Feature(ntohs(ptr[4])));
+    enabled.push_back(cb::mcbp::Feature(ntohs(ptr[5])));
+
+    EXPECT_NE(
+            enabled.end(),
+            std::find(
+                    enabled.begin(), enabled.end(), cb::mcbp::Feature::SNAPPY));
+    EXPECT_NE(
+            enabled.end(),
+            std::find(enabled.begin(), enabled.end(), cb::mcbp::Feature::JSON));
+    EXPECT_NE(enabled.end(),
+              std::find(enabled.begin(),
+                        enabled.end(),
+                        cb::mcbp::Feature::TCPNODELAY));
+    EXPECT_NE(enabled.end(),
+              std::find(enabled.begin(),
+                        enabled.end(),
+                        cb::mcbp::Feature::MUTATION_SEQNO));
+    EXPECT_NE(
+            enabled.end(),
+            std::find(
+                    enabled.begin(), enabled.end(), cb::mcbp::Feature::XATTR));
+    EXPECT_NE(enabled.end(),
+              std::find(enabled.begin(),
+                        enabled.end(),
+                        cb::mcbp::Feature::SELECT_BUCKET));
 
     features[0] = 0xffff;
     len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),

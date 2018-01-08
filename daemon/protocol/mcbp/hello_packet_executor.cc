@@ -18,6 +18,107 @@
 #include <daemon/mcbp.h>
 #include "executors.h"
 
+#include <set>
+
+// We can't use a set of enums that easily in an unordered_set.. just use an
+// ordered for now..
+using FeatureSet = std::set<cb::mcbp::Feature>;
+
+/**
+ * Try to see if the provided vector of features contais a certain feature
+ *
+ * @param features The vector to search
+ * @param feature The feature to check for
+ * @return true if it contains the feature, false otherwise
+ */
+bool containsFeature(const FeatureSet& features, cb::mcbp::Feature feature) {
+    return features.find(feature) != features.end();
+}
+
+/**
+ * Convert the input array of requested features into the Feature set which
+ * don't include any illegal / unsupported features or any duplicates.
+ *
+ * In addition to that we'll also make sure that all dependent features is
+ * enabled (and that we don't request features which are mutually exclusive)
+ *
+ * @param requested The set to populate with the requested features
+ * @param input The input array
+ */
+void buildRequestVector(FeatureSet& requested, cb::sized_buffer<const uint16_t> input) {
+    for (const auto& value : input) {
+        const uint16_t in = ntohs(value);
+        const auto feature = cb::mcbp::Feature(in);
+
+        switch (feature) {
+        case cb::mcbp::Feature::Invalid:
+        case cb::mcbp::Feature::TLS:
+            // known, but we don't support them
+            break;
+        case cb::mcbp::Feature::TCPNODELAY:
+        case cb::mcbp::Feature::TCPDELAY:
+        case cb::mcbp::Feature::MUTATION_SEQNO:
+        case cb::mcbp::Feature::XATTR:
+        case cb::mcbp::Feature::JSON:
+        case cb::mcbp::Feature::SNAPPY:
+        case cb::mcbp::Feature::XERROR:
+        case cb::mcbp::Feature::SELECT_BUCKET:
+        case cb::mcbp::Feature::COLLECTIONS:
+        case cb::mcbp::Feature::Duplex:
+        case cb::mcbp::Feature::ClustermapChangeNotification:
+        case cb::mcbp::Feature::UnorderedExecution:
+        case cb::mcbp::Feature::Tracing:
+
+            // This isn't very optimal, but we've only got a handfull of elements ;)
+            if (!containsFeature(requested, feature)) {
+                requested.insert(feature);
+            }
+
+            break;
+        }
+    }
+
+    // Run through the requested array and make sure we don't have
+    // illegal combinations
+    for (const auto& feature : requested) {
+        switch (cb::mcbp::Feature(feature)) {
+        case cb::mcbp::Feature::Invalid:
+        case cb::mcbp::Feature::TLS:
+        case cb::mcbp::Feature::MUTATION_SEQNO:
+        case cb::mcbp::Feature::XATTR:
+        case cb::mcbp::Feature::XERROR:
+        case cb::mcbp::Feature::SELECT_BUCKET:
+        case cb::mcbp::Feature::COLLECTIONS:
+        case cb::mcbp::Feature::SNAPPY:
+        case cb::mcbp::Feature::JSON:
+        case cb::mcbp::Feature::Tracing:
+        case cb::mcbp::Feature::Duplex:
+        case cb::mcbp::Feature::UnorderedExecution:
+            // No other dependency
+            break;
+
+        case cb::mcbp::Feature::TCPNODELAY:
+            // cannot co-exist with TCPDELAY
+            if (containsFeature(requested, cb::mcbp::Feature::TCPDELAY)) {
+                throw std::invalid_argument("TCPNODELAY cannot co-exist with TCPDELAY");
+            }
+            break;
+        case cb::mcbp::Feature::TCPDELAY:
+            // cannot co-exist with TCPNODELAY
+            if (containsFeature(requested, cb::mcbp::Feature::TCPNODELAY)) {
+                throw std::invalid_argument("TCPDELAY cannot co-exist with TCPNODELAY");
+            }
+            break;
+        case cb::mcbp::Feature::ClustermapChangeNotification:
+            // Needs duplex
+            if (!containsFeature(requested, cb::mcbp::Feature::Duplex)) {
+                throw std::invalid_argument("ClustermapChangeNotification needs Duplex");
+            }
+            break;
+        }
+    }
+}
+
 void process_hello_packet_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
     auto* req = reinterpret_cast<protocol_binary_request_hello*>(
@@ -35,7 +136,6 @@ void process_hello_packet_executor(Cookie& cookie) {
         (ntohl(req->message.header.request.bodylen) - key.size()) / 2};
 
     std::vector<uint16_t> out;
-    bool tcpdelay_handled = false;
 
     // We can't switch bucket if we've got multiple commands in flight
     if (connection.getNumberOfCookies() > 1) {
@@ -46,6 +146,21 @@ void process_hello_packet_executor(Cookie& cookie) {
                    connection.getId(),
                    connection.getDescription().c_str());
         cookie.sendResponse(cb::mcbp::Status::NotSupported);
+        return;
+    }
+
+    FeatureSet requested;
+    try {
+        buildRequestVector(requested, input);
+    } catch (const std::invalid_argument& e) {
+        LOG_NOTICE(&connection,
+                   "%u: %s Invalid combination of options: %s",
+                   connection.getId(),
+                   connection.getDescription().c_str(),
+                   e.what());
+        cookie.setErrorContext(e.what());
+        cookie.sendResponse(cb::mcbp::Status::Einval);
+        return;
     }
 
     /*
@@ -73,15 +188,13 @@ void process_hello_packet_executor(Cookie& cookie) {
         log_buffer.append("] ");
     }
 
-    for (const auto& value : input) {
+    for (const auto& feature : requested) {
         bool added = false;
-        const uint16_t in = ntohs(value);
-        const auto feature = cb::mcbp::Feature(in);
 
         switch (feature) {
         case cb::mcbp::Feature::Invalid:
         case cb::mcbp::Feature::TLS:
-            /* Not implemented */
+            // Not implemented
             LOG_NOTICE(nullptr,
                        "%u: %s requested unupported feature %s",
                        connection.getId(),
@@ -90,70 +203,52 @@ void process_hello_packet_executor(Cookie& cookie) {
             break;
         case cb::mcbp::Feature::TCPNODELAY:
         case cb::mcbp::Feature::TCPDELAY:
-            if (!tcpdelay_handled) {
-                connection.setTcpNoDelay(feature ==
-                                         cb::mcbp::Feature::TCPNODELAY);
-                tcpdelay_handled = true;
-                added = true;
-            }
+            connection.setTcpNoDelay(feature == cb::mcbp::Feature::TCPNODELAY);
+            added = true;
             break;
 
         case cb::mcbp::Feature::MUTATION_SEQNO:
-            if (!connection.isSupportsMutationExtras()) {
-                connection.setSupportsMutationExtras(true);
-                added = true;
-            }
+            connection.setSupportsMutationExtras(true);
+            added = true;
             break;
         case cb::mcbp::Feature::XATTR:
             if ((Datatype::isSupported(cb::mcbp::Feature::XATTR) ||
-                 connection.isInternal()) &&
-                !connection.isXattrEnabled()) {
+                 connection.isInternal())) {
                 connection.enableDatatype(cb::mcbp::Feature::XATTR);
                 added = true;
             }
             break;
         case cb::mcbp::Feature::JSON:
-            if (Datatype::isSupported(cb::mcbp::Feature::JSON) &&
-                !connection.isJsonEnabled()) {
+            if (Datatype::isSupported(cb::mcbp::Feature::JSON)) {
                 connection.enableDatatype(cb::mcbp::Feature::JSON);
                 added = true;
             }
             break;
         case cb::mcbp::Feature::SNAPPY:
-            if (Datatype::isSupported(cb::mcbp::Feature::SNAPPY) &&
-                !connection.isSnappyEnabled()) {
+            if (Datatype::isSupported(cb::mcbp::Feature::SNAPPY)) {
                 connection.enableDatatype(cb::mcbp::Feature::SNAPPY);
                 added = true;
             }
             break;
         case cb::mcbp::Feature::XERROR:
-            if (!connection.isXerrorSupport()) {
-                connection.setXerrorSupport(true);
-                added = true;
-            }
+            connection.setXerrorSupport(true);
+            added = true;
             break;
         case cb::mcbp::Feature::SELECT_BUCKET:
             // The select bucket is only informative ;-)
             added = true;
             break;
         case cb::mcbp::Feature::COLLECTIONS:
-            if (!connection.isCollectionsSupported()) {
-                connection.setCollectionsSupported(true);
-                added = true;
-            }
+            connection.setCollectionsSupported(true);
+            added = true;
             break;
         case cb::mcbp::Feature::Duplex:
-            if (!connection.isDuplexSupported()) {
-                connection.setDuplexSupported(true);
-                added = true;
-            }
+            connection.setDuplexSupported(true);
+            added = true;
             break;
         case cb::mcbp::Feature::ClustermapChangeNotification:
-            if (!connection.isClustermapChangeNotificationSupported() &&
-                connection.isDuplexSupported()) {
-                connection.setClustermapChangeNotificationSupported(true);
-                added = true;
-            }
+            connection.setClustermapChangeNotificationSupported(true);
+            added = true;
             break;
         case cb::mcbp::Feature::UnorderedExecution:
             if (connection.isDCP()) {
@@ -162,7 +257,7 @@ void process_hello_packet_executor(Cookie& cookie) {
                            "DCP connections",
                            connection.getId(),
                            connection.getDescription().c_str());
-            } else if (!connection.allowUnorderedExecution()) {
+            } else {
                 connection.setAllowUnorderedExecution(true);
                 added = true;
             }
@@ -176,7 +271,7 @@ void process_hello_packet_executor(Cookie& cookie) {
         } // end switch
 
         if (added) {
-            out.push_back(value);
+            out.push_back(htons(uint16_t(feature)));
             log_buffer.append(to_string(feature));
             log_buffer.append(", ");
         }

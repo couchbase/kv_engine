@@ -382,19 +382,22 @@ void BinprotHelloCommand::encode(std::vector<uint8_t>& buf) const {
 void BinprotHelloResponse::assign(std::vector<uint8_t>&& buf) {
     BinprotResponse::assign(std::move(buf));
 
-    // Ensure body length is even
-    if ((getBodylen() & 1) != 0) {
-        throw std::runtime_error("BinprotHelloResponse::assign: Invalid response returned. Uneven body length");
-    }
+    if (isSuccess()) {
+        // Ensure body length is even
+        if ((getBodylen() & 1) != 0) {
+            throw std::runtime_error(
+                    "BinprotHelloResponse::assign: Invalid response returned. "
+                    "Uneven body length");
+        }
 
-    auto const* end =
-            reinterpret_cast<const uint16_t*>(getPayload() + getBodylen());
-    auto const* cur = reinterpret_cast<const uint16_t*>(getPayload() +
-                                                        getExtlen() +
-                                                        getKey().size());
+        auto const* end =
+                reinterpret_cast<const uint16_t*>(getPayload() + getBodylen());
+        auto const* cur = reinterpret_cast<const uint16_t*>(
+                getPayload() + getExtlen() + getKey().size());
 
-    for (; cur != end; ++cur) {
-        features.push_back(cb::mcbp::Feature(htons(*cur)));
+        for (; cur != end; ++cur) {
+            features.push_back(cb::mcbp::Feature(htons(*cur)));
+        }
     }
 }
 

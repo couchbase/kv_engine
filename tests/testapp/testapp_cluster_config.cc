@@ -137,24 +137,24 @@ TEST_P(ClusterConfigTest, test_MB_17506_dedupe) {
     test_MB_17506(true);
 }
 
-// MB-27460 TODO: Disabling test as HELLO executor incorrectly cares
-// about the order of ClustermapChangeNotification and Duplex in the
-// HELLO packet - hence depending on the (non-deterministic)
-// unordered_set used to build the HELLO packet; if Duplex after
-// ClustermapChangeNotification in the list then the negotiation
-// fails.
-TEST_P(ClusterConfigTest, DISABLED_Enable_CCCP_Push_Notifications) {
+TEST_P(ClusterConfigTest, Enable_CCCP_Push_Notifications) {
     auto& conn = getConnection();
-    conn.setDuplexSupport(false);
+    // The "connection class" ignore the context part in
+    // extended error message unless we enable the JSON datatype
+    conn.setDatatypeJson(true);
+
     conn.setClustermapChangeNotification(false);
+    conn.setDuplexSupport(false);
 
     try {
         conn.setClustermapChangeNotification(true);
         FAIL() << "It should not be possible to enable CCCP push notifications "
                   "without duplex";
     } catch (const std::runtime_error& e) {
-        EXPECT_STREQ("Failed to enable Clustermap change notification",
-                     e.what());
+        EXPECT_STREQ(
+                "Failed to say hello: 'ClustermapChangeNotification needs "
+                "Duplex', Invalid arguments (4)",
+                e.what());
     }
 
     // With duplex we should we good to go
@@ -162,9 +162,7 @@ TEST_P(ClusterConfigTest, DISABLED_Enable_CCCP_Push_Notifications) {
     conn.setClustermapChangeNotification(true);
 }
 
-// MB-27460: Disabled due to same reason as
-// Enable_CCCP_Push_Notifications
-TEST_P(ClusterConfigTest, DISABLED_CccpPushNotification) {
+TEST_P(ClusterConfigTest, CccpPushNotification) {
     auto& conn = getAdminConnection();
     conn.selectBucket("default");
 
