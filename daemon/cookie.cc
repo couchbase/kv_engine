@@ -182,11 +182,11 @@ const cb::mcbp::Response& Cookie::getResponse(PacketContent content) const {
     throw std::invalid_argument("Cookie::getResponse(): Invalid packet type");
 }
 
-const ENGINE_ERROR_CODE Cookie::getAiostat() const {
+ENGINE_ERROR_CODE Cookie::getAiostat() const {
     return connection.getAiostat();
 }
 
-void Cookie::setAiostat(const ENGINE_ERROR_CODE& aiostat) {
+void Cookie::setAiostat(ENGINE_ERROR_CODE aiostat) {
     connection.setAiostat(aiostat);
 }
 

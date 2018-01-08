@@ -297,12 +297,12 @@ public:
     /**
      * Get the current status of the asynchrous IO
      */
-    const ENGINE_ERROR_CODE getAiostat() const;
+    ENGINE_ERROR_CODE getAiostat() const;
 
     /**
      * Set the status code for the async IO
      */
-    void setAiostat(const ENGINE_ERROR_CODE& aiostat);
+    void setAiostat(ENGINE_ERROR_CODE aiostat);
 
     /**
      * Is the current cookie blocked?
