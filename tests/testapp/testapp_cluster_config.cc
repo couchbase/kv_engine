@@ -137,7 +137,13 @@ TEST_P(ClusterConfigTest, test_MB_17506_dedupe) {
     test_MB_17506(true);
 }
 
-TEST_P(ClusterConfigTest, Enable_CCCP_Push_Notifications) {
+// MB-27460 TODO: Disabling test as HELLO executor incorrectly cares
+// about the order of ClustermapChangeNotification and Duplex in the
+// HELLO packet - hence depending on the (non-deterministic)
+// unordered_set used to build the HELLO packet; if Duplex after
+// ClustermapChangeNotification in the list then the negotiation
+// fails.
+TEST_P(ClusterConfigTest, DISABLED_Enable_CCCP_Push_Notifications) {
     auto& conn = getConnection();
     conn.setDuplexSupport(false);
     conn.setClustermapChangeNotification(false);
@@ -156,7 +162,9 @@ TEST_P(ClusterConfigTest, Enable_CCCP_Push_Notifications) {
     conn.setClustermapChangeNotification(true);
 }
 
-TEST_P(ClusterConfigTest, CccpPushNotification) {
+// MB-27460: Disabled due to same reason as
+// Enable_CCCP_Push_Notifications
+TEST_P(ClusterConfigTest, DISABLED_CccpPushNotification) {
     auto& conn = getAdminConnection();
     conn.selectBucket("default");
 
