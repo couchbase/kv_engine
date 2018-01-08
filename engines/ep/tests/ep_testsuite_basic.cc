@@ -1914,6 +1914,94 @@ static test_result get_if(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
     return SUCCESS;
 }
 
+static test_result max_ttl_out_of_range(ENGINE_HANDLE* h,
+                                        ENGINE_HANDLE_V1* h1) {
+    // Test absolute first as this is the bigger time travel
+    check(!set_param(
+                  h, h1, protocol_binary_engine_param_flush, "max_ttl", "-1"),
+          "Should not be allowed to set a negative value");
+    check(!set_param(h,
+                     h1,
+                     protocol_binary_engine_param_flush,
+                     "max_ttl",
+                     "2147483648"),
+          "Should not be allowed to set > int32::max");
+
+    return SUCCESS;
+}
+
+static test_result max_ttl(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
+    // Make limit be greater than 30 days in seconds so that ep-engine must
+    // create a absolute expiry time internally.
+    const int absoluteExpiry = (60 * 60 * 24 * 31);
+    auto absoluteExpiryStr = std::to_string(absoluteExpiry);
+
+    const int relativeExpiry = 100;
+    auto relativeExpiryStr = std::to_string(relativeExpiry);
+
+    checkeq(0, get_int_stat(h, h1, "ep_max_ttl"), "max_ttl should be 0");
+
+    // Test absolute first as this is the bigger time travel
+    check(set_param(h,
+                    h1,
+                    protocol_binary_engine_param_flush,
+                    "max_ttl",
+                    absoluteExpiryStr.c_str()),
+          "Failed to set max_ttl");
+    checkeq(absoluteExpiry,
+            get_int_stat(h, h1, "ep_max_ttl"),
+            "max_ttl didn't change");
+
+    // Store will set 0 expiry, which results in 100 seconds of ttl
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, nullptr, OPERATION_SET, "key-abs", "somevalue"),
+            "Failed set.");
+
+    cb::EngineErrorMetadataPair errorMetaPair;
+    check(get_meta(h, h1, "key-abs", errorMetaPair), "Get meta failed");
+    checkne(time_t(0),
+            errorMetaPair.second.exptime,
+            "expiry should not be zero");
+
+    // Force expiry
+    testHarness.time_travel(absoluteExpiry + 1);
+
+    auto ret = get(h, h1, NULL, "key-abs", 0);
+    checkeq(cb::engine_errc::no_such_key,
+            ret.first,
+            "Failed, expected no_such_key.");
+
+    check(set_param(h,
+                    h1,
+                    protocol_binary_engine_param_flush,
+                    "max_ttl",
+                    relativeExpiryStr.c_str()),
+          "Failed to set max_ttl");
+    checkeq(relativeExpiry,
+            get_int_stat(h, h1, "ep_max_ttl"),
+            "max_ttl didn't change");
+
+    // Store will set 0 expiry, which results in 100 seconds of ttl
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, nullptr, OPERATION_SET, "key-rel", "somevalue"),
+            "Failed set.");
+
+    check(get_meta(h, h1, "key-rel", errorMetaPair), "Get meta failed");
+    checkne(time_t(0),
+            errorMetaPair.second.exptime,
+            "expiry should not be zero");
+
+    // Force expiry
+    testHarness.time_travel(relativeExpiry + 1);
+
+    ret = get(h, h1, NULL, "key-rel", 0);
+    checkeq(cb::engine_errc::no_such_key,
+            ret.first,
+            "Failed, expected no_such_key.");
+
+    return SUCCESS;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // Test manifest //////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -2219,6 +2307,22 @@ BaseTestCase testsuite_testcases[] = {
 
         TestCase("engine get_if",
                  get_if,
+                 test_setup,
+                 teardown,
+                 nullptr,
+                 prepare,
+                 cleanup),
+
+        TestCase("test max_ttl range",
+                 max_ttl_out_of_range,
+                 test_setup,
+                 teardown,
+                 nullptr,
+                 prepare,
+                 cleanup),
+
+        TestCase("test max_ttl",
+                 max_ttl,
                  test_setup,
                  teardown,
                  nullptr,

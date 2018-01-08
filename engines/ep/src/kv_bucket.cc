@@ -138,6 +138,8 @@ public:
             store.setCompactionExpMemThreshold(value);
         } else if (key.compare("replication_throttle_cap_pcnt") == 0) {
             store.getEPEngine().getReplicationThrottle().setCapPercent(value);
+        } else if (key.compare("max_ttl") == 0) {
+            store.setMaxTtl(value);
         } else {
             LOG(EXTENSION_LOG_WARNING,
                 "Failed to change value for unknown variable, %s\n",
@@ -335,6 +337,9 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
                                    new EPStoreValueChangeListener(*this));
 
     config.addValueChangedListener("xattr_enabled",
+                                   new EPStoreValueChangeListener(*this));
+
+    config.addValueChangedListener("max_ttl",
                                    new EPStoreValueChangeListener(*this));
 
     xattrEnabled = config.isXattrEnabled();

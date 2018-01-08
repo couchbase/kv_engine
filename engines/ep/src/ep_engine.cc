@@ -594,6 +594,8 @@ protocol_binary_response_status EventuallyPersistentEngine::setFlushParam(
             getConfiguration().setXattrEnabled(cb_stob(valz));
         } else if (strcmp(keyz, "compression_mode") == 0) {
             getConfiguration().setCompressionMode(valz);
+        } else if (strcmp(keyz, "max_ttl") == 0) {
+            getConfiguration().setMaxTtl(std::stoull(valz));
         } else {
             msg = "Unknown config param";
             rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
