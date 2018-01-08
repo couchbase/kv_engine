@@ -2076,6 +2076,26 @@ void EventuallyPersistentEngine::destroy(bool force) {
     }
 }
 
+std::pair<cb::ExpiryLimit, rel_time_t>
+EventuallyPersistentEngine::getExpiryParameters(rel_time_t exptime) const {
+    cb::ExpiryLimit expiryLimit;
+    auto limit = kvBucket->getMaxTtl();
+    if (limit.count()) {
+        expiryLimit = limit;
+        // If max_ttl is more than 30 days we need to convert it to absolute so
+        // it makes sense as an expiry time.
+        if (exptime == 0) {
+            if (limit.count() > (60 * 60 * 24 * 30)) {
+                exptime = ep_abs_time(limit.count());
+            } else {
+                exptime = limit.count();
+            }
+        }
+    }
+
+    return {expiryLimit, exptime};
+}
+
 ENGINE_ERROR_CODE EventuallyPersistentEngine::itemAllocate(
         item** itm,
         const DocKey& key,
@@ -2098,10 +2118,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::itemAllocate(
         return memoryCondition();
     }
 
+    cb::ExpiryLimit expiryLimit;
+    std::tie(expiryLimit, exptime) = getExpiryParameters(exptime);
     time_t expiretime =
-            (exptime == 0)
-                    ? 0
-                    : ep_abs_time(ep_reltime(exptime, cb::NoExpiryLimit));
+            (exptime == 0) ? 0 : ep_abs_time(ep_reltime(exptime, expiryLimit));
 
     *itm = new Item(key,
                     flags,
@@ -2181,11 +2201,12 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get_and_touch(const void* co
                                                            uint32_t exptime) {
     auto* handle = reinterpret_cast<ENGINE_HANDLE*>(this);
 
-    time_t expiry_time = exptime;
-    if (exptime != 0) {
-        auto* core = serverApi->core;
-        expiry_time = core->abstime(core->realtime(exptime, cb::NoExpiryLimit));
-    }
+    cb::ExpiryLimit expiryLimit;
+    std::tie(expiryLimit, exptime) = getExpiryParameters(exptime);
+
+    time_t expiry_time =
+            (exptime == 0) ? 0 : ep_abs_time(ep_reltime(exptime, expiryLimit));
+
     GetValue gv(kvBucket->getAndUpdateTtl(key, vbucket, cookie, expiry_time));
 
     auto rv = gv.getStatus();

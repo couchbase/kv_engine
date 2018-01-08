@@ -1138,6 +1138,54 @@ TEST_F(StoreIfTest, store_if_basic) {
     EXPECT_EQ(cb::engine_errc::predicate_failed, rv.status);
 }
 
+class ExpiryLimitTest : public KVBucketTest {
+public:
+    void SetUp() override {
+        config_string += "max_ttl=86400";
+        KVBucketTest::SetUp();
+        // Have all the objects, activate vBucket zero so we can store data.
+        store->setVBucketState(vbid, vbucket_state_active, false);
+    }
+};
+
+// Test that item allocate with a limit stops 0 expiry
+TEST_F(ExpiryLimitTest, itemAllocate) {
+    item* itm;
+    EXPECT_EQ(ENGINE_SUCCESS,
+              engine->itemAllocate(&itm,
+                                   {"key", DocNamespace::DefaultCollection},
+                                   5,
+                                   0,
+                                   0,
+                                   0 /*expiry*/,
+                                   0,
+                                   vbid));
+
+    Item* i = reinterpret_cast<Item*>(itm);
+    auto info = engine->getItemInfo(*i);
+    EXPECT_NE(0, info.exptime);
+
+    engine->itemRelease(itm);
+}
+
+// Test that GAT with a limit stops 0 expiry
+TEST_F(ExpiryLimitTest, gat) {
+    // This will actually skip the initial expiry limiting code as this function
+    // doesn't use itemAllocate
+    Item item = store_item(
+            vbid, {"key", DocNamespace::DefaultCollection}, "value", 0);
+
+    // Now touch with 0
+    auto rval = engine->get_and_touch(
+            cookie, {"key", DocNamespace::DefaultCollection}, vbid, 0);
+
+    EXPECT_EQ(cb::engine_errc::success, rval.first);
+
+    Item* i = reinterpret_cast<Item*>(rval.second.get());
+    auto info = engine->getItemInfo(*i);
+    EXPECT_NE(0, info.exptime);
+}
+
 // Test cases which run for EP (Full and Value eviction) and Ephemeral
 INSTANTIATE_TEST_CASE_P(EphemeralOrPersistent,
                         KVBucketParamTest,

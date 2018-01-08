@@ -836,6 +836,12 @@ public:
      */
     bool collectionsEraseKey(uint16_t vbid, const DocKey key, int64_t bySeqno);
 
+    /// return the buckets maxTtl value
+    std::chrono::seconds getMaxTtl() const;
+
+    /// set the buckets maxTtl
+    void setMaxTtl(size_t max);
+
 protected:
     // During the warmup phase we might want to enable external traffic
     // at a given point in time.. The LoadStorageKvPairCallback will be
@@ -965,6 +971,8 @@ protected:
 
     /* Contains info about throttling the replication */
     std::unique_ptr<ReplicationThrottle> replicationThrottle;
+
+    std::atomic<size_t> maxTtl;
 
     friend class KVBucketTest;
 

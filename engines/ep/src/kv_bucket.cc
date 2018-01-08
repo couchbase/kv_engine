@@ -232,7 +232,8 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
       statsSnapshotTaskId(0),
       lastTransTimePerItem(0),
       collectionsManager(std::make_unique<Collections::Manager>()),
-      xattrEnabled(true) {
+      xattrEnabled(true),
+      maxTtl(engine.getConfiguration().getMaxTtl()) {
     cachedResidentRatio.activeRatio.store(0);
     cachedResidentRatio.replicaRatio.store(0);
 
@@ -2418,4 +2419,12 @@ bool KVBucket::collectionsEraseKey(uint16_t vbid,
         vb->completeDeletion(completedCollection.get());
     }
     return true;
+}
+
+std::chrono::seconds KVBucket::getMaxTtl() const {
+    return std::chrono::seconds{maxTtl.load()};
+}
+
+void KVBucket::setMaxTtl(size_t max) {
+    maxTtl = max;
 }

@@ -741,6 +741,15 @@ protected:
                                      GenerateCas genCas,
                                      cb::const_byte_buffer emd);
 
+    /**
+     * Get parameters for expiry calculation
+     * The function will return any limit which may be in-force (max_ttl is non
+     * zero) and also calculate an expiry if exptime is 0 and max_ttl is in-use.
+     * @param exptime for an incoming itemAllocate/GAT
+     * @return a pair, the ExpiryLimit and the exptime to apply to the update
+     */
+    std::pair<cb::ExpiryLimit, rel_time_t> getExpiryParameters(rel_time_t exptime) const;
+
     SERVER_HANDLE_V1 *serverApi;
     std::unique_ptr<KVBucket> kvBucket;
     WorkLoadPolicy *workload;
