@@ -633,7 +633,7 @@ TEST_F(SettingsTest, DatatypeJson) {
     }
 }
 
-TEST_F(SettingsTest, DatatypeCompression) {
+TEST_F(SettingsTest, DatatypeSnappy) {
     nonBooleanValuesShouldFail("datatype_snappy");
 
     unique_cJSON_ptr obj(cJSON_CreateObject());
@@ -1282,7 +1282,7 @@ TEST(SettingsUpdateTest, DatatypeJsonIsNotDynamic) {
                  std::invalid_argument);
 }
 
-TEST(SettingsUpdateTest, DatatypeCompressionIsNotDynamic) {
+TEST(SettingsUpdateTest, DatatypeSnappyIsDynamic) {
     Settings updated;
     Settings settings;
     // setting it to the same value should work
@@ -1291,11 +1291,10 @@ TEST(SettingsUpdateTest, DatatypeCompressionIsNotDynamic) {
             settings.isDatatypeSnappyEnabled());
     EXPECT_NO_THROW(settings.updateSettings(updated, false));
 
-    // changing it should not work
+    // changing it should work
     updated.setDatatypeSnappyEnabled(
             !settings.isDatatypeSnappyEnabled());
-    EXPECT_THROW(settings.updateSettings(updated, false),
-                 std::invalid_argument);
+    EXPECT_NO_THROW(settings.updateSettings(updated, false));
 }
 
 TEST(SettingsUpdateTest, SslCipherListIsDynamic) {

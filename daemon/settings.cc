@@ -741,12 +741,6 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                     "datatype_json can't be changed dynamically");
         }
     }
-    if (other.has.datatype_snappy) {
-        if (other.datatype_snappy != datatype_snappy) {
-            throw std::invalid_argument(
-                    "datatype_snappy can't be changed dynamically");
-        }
-    }
     if (other.has.root) {
         if (other.root != root) {
             throw std::invalid_argument("root can't be changed dynamically");
@@ -839,6 +833,17 @@ void Settings::updateSettings(const Settings& other, bool apply) {
     }
 
     // Ok, go ahead and update the settings!!
+    if (other.has.datatype_snappy) {
+        if (other.datatype_snappy != datatype_snappy) {
+            std::string curr_val_str = datatype_snappy ? "true" : "false";
+            std::string other_val_str = other.datatype_snappy ? "true" : "false";
+            logit(EXTENSION_LOG_NOTICE,
+                  "Change datatype_snappy from %s to %s",
+                  curr_val_str.c_str(), other_val_str.c_str());
+            setDatatypeSnappyEnabled(other.datatype_snappy);
+        }
+    }
+
     if (other.has.verbose) {
         if (other.verbose != verbose) {
             logit(EXTENSION_LOG_NOTICE,

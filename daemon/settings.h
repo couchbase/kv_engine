@@ -789,7 +789,7 @@ protected:
      * is datatype json/snappy enabled?
      */
     bool datatype_json;
-    bool datatype_snappy;
+    std::atomic_bool datatype_snappy;
 
     /**
      * Maximum number of io events to process based on the priority of the
