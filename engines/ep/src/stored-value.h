@@ -149,6 +149,12 @@ public:
         return chain_next_or_replacement.get().getTag();
     }
 
+    // Set the frequency counter value to the input value
+    void setFreqCounterValue(uint16_t newValue);
+
+    // Gets the frequency counter value
+    uint16_t getFreqCounterValue() const;
+
     void referenced();
 
     /**

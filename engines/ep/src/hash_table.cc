@@ -32,6 +32,29 @@ static const ssize_t prime_size_table[] = {
     1610612741, -1
 };
 
+/**
+ * Define the increment factor for the statisticalCounter being used for
+ * the frequency counter.  The value is set such that it allows an 8-bit
+ * StatisticalCounter to mimic a uint16 counter.
+ *
+ * The value was reached by running the following code using a variety of
+ * incFactor values.
+ *
+ * StatisticalCounter<uint8_t> statisticalCounter(incFactor);
+ * uint64_t iterationCount{0};
+ * uint8_t counter{0};
+ *     while (counter != std::numeric_limits<uint8_t>::max()) {
+ *         counter = statisticalCounter.generateValue(counter);
+ *         iterationCount++;
+ *     }
+ * std::cerr << "iterationCount=" <<  iterationCount << std::endl;
+ *
+ * To mimic a uint16 counter, iterationCount needs to be ~65000 (the maximum
+ * value of a uint16_t is 65,536).  Through experimentation this was found to be
+ * achieved with an incFactor of 0.012.
+ */
+static const double freqCounterIncFactor = 0.012;
+
 
 std::ostream& operator<<(std::ostream& os, const HashTable::Position& pos) {
     os << "{lock:" << pos.lock << " bucket:" << pos.hash_bucket << "/" << pos.ht_size << "}";
@@ -58,7 +81,8 @@ HashTable::HashTable(EPStats& st,
       numResizes(0),
       numTempItems(0),
       memSize(0),
-      maxDeletedRevSeqno(0) {
+      maxDeletedRevSeqno(0),
+      statisticalCounter(freqCounterIncFactor) {
     values.resize(size);
     activeState = true;
 }
@@ -412,6 +436,13 @@ StoredValue* HashTable::unlocked_find(const DocKey& key,
             v = v->getNext().get().get()) {
         if (v->hasKey(key)) {
             if (trackReference == TrackReference::Yes && !v->isDeleted()) {
+                // Attempt to increment the storedValue frequency counter value.
+                // Because a statistical counter is used the new value will
+                // either be the same or an increment of the current value.
+                v->setFreqCounterValue(
+                        generateFreqValue(v->getFreqCounterValue()));
+                // @todo remove the referenced call when eviction algorithm is
+                // updated to use the frequency counter value.
                 v->referenced();
             }
             if (wantsDeleted == WantsDeleted::Yes || !v->isDeleted()) {
@@ -799,6 +830,10 @@ void HashTable::increaseMetaDataSize(EPStats& st, size_t by) {
 void HashTable::reduceMetaDataSize(EPStats &st, size_t by) {
     metaDataMemory.fetch_sub(by);
     st.currentSize.fetch_sub(by);
+}
+
+uint8_t HashTable::generateFreqValue(uint8_t counter) {
+    return statisticalCounter.generateValue(counter);
 }
 
 std::ostream& operator<<(std::ostream& os, const HashTable& ht) {

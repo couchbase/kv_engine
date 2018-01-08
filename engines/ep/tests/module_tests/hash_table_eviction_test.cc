@@ -350,7 +350,7 @@ static auto testConfigValues = ::testing::Values(
         std::make_tuple(/*max_size*/ std::to_string(200 * 1024 * 1024),
                         /*mem_low_wat*/ std::to_string(120 * 1024 * 1024),
                         /*mem_high_wat*/ std::to_string(160 * 1024 * 1024),
-                        /*skew*/ 0.05,
+                        /*skew*/ 0.9,
                         /*noOfAccesses*/ 20000000));
 
 INSTANTIATE_TEST_CASE_P(Eviction, STHashTableEvictionTest, testConfigValues, );

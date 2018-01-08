@@ -17,12 +17,13 @@
 
 #pragma once
 
+#include <mutex>
 #include <random>
 
 /**
- * Provides counter functionality so as the counter increases it becomes
- * increasingly more difficult to increment.  This enables a high granularity
- * counter to be implemented using only a small number of bits.
+ * Provides thread-safe counter functionality so as the counter increases it
+ * becomes increasingly more difficult to increment.  This enables a high
+ * granularity counter to be implemented using only a small number of bits.
  *
  * It is based on the statistical counter described at
  * http://antirez.com/news/109
@@ -41,8 +42,8 @@
  * stored in a taggedPtr.
  *
  * Through experimentation it has been determined that you need a incFactor of:
- * - approx 14000 to mimic a u32int counter (max value of 4,294,967,295)
- * - approx 2 to mimic a u16int counter (max value of 65,535)
+ * - approx 800 to mimic a u32int counter (max value of 4,294,967,295)
+ * - approx 0.012 to mimic a u16int counter (max value of 65,535)
  *
  * For example to replace a u16int counter with a statistical counter that
  * only requires 8-bits of storage, you would need to construct a
@@ -51,12 +52,11 @@
  *
  * It would be used as follows:
  *
- * uint16_t counter{0}; // Currently we are using uint16_t even though only
- *                      // 8-bits of storage are actually used.
- * counter = statisticalCounter.generateCounterValue(counter);
+ * uint8_t counter{0};
+ * counter = statisticalCounter.generateValue(counter);
  *
- * The generateCounterValue can be called approximately 65,000 times before
- * the counter becomes saturated at 255.
+ * The generateValue can be called approximately 65,000 times before the counter
+ * becomes saturated at 255.
  *
  */
 template <class T>
@@ -69,15 +69,26 @@ public:
      * Attempts generate a new incremented value for a given uint16_t.  The
      * increment functionality is probabilistic, with it becoming increasingly
      * more difficult to increment as the value gets higher.
+     * The function is thread-safe.
      * @param counter  The current counter value to generate increment for
      * @returns new incremented value.
      */
-    T generateCounterValue(T counter) {
+    T generateValue(T counter) {
         if (isSaturated(counter)) {
             return counter;
         }
-        double rand = dis(gen);
-        auto divisor = (counter == 0) ? 1.0 : (counter * incFactor);
+        double rand;
+        {
+            // The random number generator holds state.  Therefore grab
+            // a lock before generating a new random number.
+            std::lock_guard<std::mutex> guard(mutex);
+            rand = dis(gen);
+        }
+
+        // A power function is used to avoid incrementing the counter too
+        // aggressively when the input value is low.
+        auto divisor =
+                (counter == 0) ? 1.0 : (counter * counter * incFactor + 1);
         double prob = 1.0 / divisor;
         if (rand < prob) {
             counter++;
@@ -96,8 +107,8 @@ public:
     }
 
 private:
-    std::random_device rd;
-    std::mt19937 gen{rd()};
+    std::mutex mutex;
+    std::minstd_rand gen{std::random_device()()};
     std::uniform_real_distribution<> dis{0.0, 1.0};
     double incFactor;
 };

@@ -18,6 +18,7 @@
 #pragma once
 
 #include "config.h"
+#include "statistical_counter.h"
 #include "storeddockey.h"
 #include "stored-value.h"
 
@@ -692,6 +693,11 @@ private:
     std::atomic<uint64_t> maxDeletedRevSeqno;
     bool                 activeState;
 
+    // Used by generateFreqCounter to provide an incrementing value for the
+    // frequency counter of storedValues.  The frequency counter is used to
+    // identify which hash table entries should be evicted first.
+    StatisticalCounter<uint8_t> statisticalCounter;
+
     int getBucketForHash(int h) {
         return abs(h % static_cast<int>(size));
     }
@@ -763,6 +769,15 @@ private:
      * Reduce the size of the meta data
      */
     void reduceMetaDataSize(EPStats &st, size_t by);
+
+    /**
+     * Generates a new value that is either the same or higher than the input
+     * value.  It is intended to be used to increment the frequency counter of a
+     * storedValue.
+     * @param value  The value counter to try to generate an increment for.
+     * @returns      The new value that is the same or higher than value.
+     */
+    uint8_t generateFreqValue(uint8_t value);
 
     DISALLOW_COPY_AND_ASSIGN(HashTable);
 };

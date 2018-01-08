@@ -20,6 +20,14 @@
 #include "statistical_counter.h"
 
 #include <gtest/gtest.h>
+#include <limits>
+
+/**
+ * Define the increment factor for the statisticalCounter being used for
+ * the tests. 0.012 allows an 8-bit StatisticalCounter to mimic a uint16
+ * counter.
+ */
+static const double incFactor = 0.012;
 
 /*
  * Unit tests for the StatisticalCounter class.
@@ -28,18 +36,18 @@
 // Test that we can construct a StatisticalCounter and when we first call
 // generateCounterValue on a counter initialised to zero it will return one.
 TEST(StatisticalCounterTest, initialInc) {
-    StatisticalCounter<uint8_t> statisticalCounter;
-    uint16_t counter{0};
-    EXPECT_EQ(1, statisticalCounter.generateCounterValue(counter));
+    StatisticalCounter<uint8_t> statisticalCounter(incFactor);
+    uint8_t counter{0};
+    EXPECT_EQ(1, statisticalCounter.generateValue(counter));
 }
 
 // Test the a u16int_t counter is considered saturated when it reaches the max
 // of uint8_t.
 TEST(StatisticalCounterTest, saturateCounter) {
-    StatisticalCounter<uint8_t> statisticalCounter;
+    StatisticalCounter<uint8_t> statisticalCounter(incFactor);
     uint16_t counter{0};
-    while (counter != 255) {
-        counter = statisticalCounter.generateCounterValue(counter);
+    while (counter != std::numeric_limits<uint8_t>::max()) {
+        counter = statisticalCounter.generateValue(counter);
     }
     EXPECT_TRUE(statisticalCounter.isSaturated(counter));
 }

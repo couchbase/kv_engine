@@ -236,6 +236,15 @@ TYPED_TEST(ValueTest, nru) {
     EXPECT_EQ(INITIAL_NRU_VALUE, this->sv->getNRUValue());
 }
 
+/**
+ * Test the get / set of the frequency counter
+ */
+TYPED_TEST(ValueTest, freqCounter) {
+    EXPECT_EQ(0, this->sv->getFreqCounterValue());
+    this->sv->setFreqCounterValue(1);
+    EXPECT_EQ(1, this->sv->getFreqCounterValue());
+}
+
 /// Check that StoredValue / OrderedStoredValue don't unexpectedly change in
 /// size (we've carefully crafted them to be as efficient as possible).
 TEST(StoredValueTest, expectedSize) {
