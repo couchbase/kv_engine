@@ -78,7 +78,6 @@ static LIBEVENT_THREAD dispatcher_thread;
  */
 static int nthreads;
 static LIBEVENT_THREAD *threads;
-static cb_thread_t *thread_ids;
 std::vector<TimingHistogram> scheduler_info;
 
 /*
@@ -519,10 +518,6 @@ void thread_init(int nthr, struct event_base *main_base,
     if (threads == nullptr) {
         FATAL_ERROR(EXIT_FAILURE, "Can't allocate thread descriptors");
     }
-    thread_ids = reinterpret_cast<cb_thread_t*>(cb_calloc(nthreads, sizeof(cb_thread_t)));
-    if (thread_ids == nullptr) {
-        FATAL_ERROR(EXIT_FAILURE, "Can't allocate thread descriptors");
-    }
 
     setup_dispatcher(main_base, dispatcher_callback);
 
@@ -537,10 +532,11 @@ void thread_init(int nthr, struct event_base *main_base,
 
     /* Create threads after we've done all the libevent setup. */
     for (i = 0; i < nthreads; i++) {
-        std::string name = "mc:worker_" + std::to_string(i);
-        create_worker(worker_libevent, &threads[i], &thread_ids[i],
+        const std::string name = "mc:worker_" + std::to_string(i);
+        create_worker(worker_libevent,
+                      &threads[i],
+                      &threads[i].thread_id,
                       name.c_str());
-        threads[i].thread_id = thread_ids[i];
     }
 
     /* Wait for all the threads to set themselves up before returning. */
@@ -556,7 +552,7 @@ void threads_shutdown(void)
     int ii;
     for (ii = 0; ii < nthreads; ++ii) {
         notify_thread(&threads[ii]);
-        cb_join_thread(thread_ids[ii]);
+        cb_join_thread(threads[ii].thread_id);
     }
 }
 
@@ -574,7 +570,6 @@ void threads_cleanup(void)
         delete threads[ii].new_conn_queue;
     }
 
-    cb_free(thread_ids);
     cb_free(threads);
 }
 
