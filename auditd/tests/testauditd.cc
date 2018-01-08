@@ -27,10 +27,14 @@
 #include <memcached/isotime.h>
 #include <mutex>
 #include <platform/dirutils.h>
+#include <sstream>
+#include <fstream>
 
 #include "memcached/extension.h"
 #include "memcached/extension_loggers.h"
 #include "auditd/src/auditconfig.h"
+#include "auditd/src/audit.h"
+#include "mock_auditconfig.h"
 
 // The event descriptor file is normally stored in the directory named
 // auditd relative to the binary.. let's just use that as the default
@@ -113,7 +117,7 @@ protected:
         cb::io::rmrf(cfgfile);
     }
 
-    AuditConfig config;
+    MockAuditConfig config;
     static Audit* auditHandle;
 
     void SetUp() {
@@ -168,6 +172,51 @@ TEST_F(AuditDaemonTest, StartupDisabledDontCreateFiles) {
 TEST_F(AuditDaemonTest, StartupEnableCreateFile) {
     enable();
     assertNumberOfFiles(1);
+}
+
+/**
+  * Tests the filtering of audit events by user.
+  * The test adds user "johndoe" to the disabled_users list and then adds a new
+  * event that has the attribute filtering_permitted set to true.
+  * An attempt is made to add the new event to the audit log (using
+  * put_audit_event) with a real_userid:user = "johndoe".  Given this user is on
+  * the disabled_users list the event should be filtered out and hence not
+  * appear in the audit log.
+ */
+TEST_F(AuditDaemonTest, AuditFilteringTest) {
+    unique_cJSON_ptr disabled_users(cJSON_CreateObject());
+    cJSON_AddItemToArray(disabled_users.get(), cJSON_CreateString("johndoe"));
+    config.public_set_disabled_users(disabled_users.get());
+
+    enable();
+    unique_cJSON_ptr root(cJSON_CreateObject());
+    cJSON_AddNumberToObject(root.get(), "id", 1234);
+    cJSON_AddStringToObject(root.get(), "name", "newEvent");
+    cJSON_AddStringToObject(root.get(), "description", "description");
+    cJSON_AddFalseToObject(root.get(), "sync");
+    cJSON_AddTrueToObject(root.get(), "enabled");
+    cJSON_AddTrueToObject(root.get(), "filtering_permitted");
+    auditHandle->initialize_event_data_structures(root.get());
+
+    // generate the 1234 event with real_userid:user = johndoe
+    std::string payload =
+            R"({"id": 1234, "timestamp": "test", "real_userid":
+               {"source": "internal", "user": "johndoe"}})";
+    put_audit_event(auditHandle, 1234, payload.c_str(), payload.length());
+
+    // Check the audit log exists
+    auto vec = cb::io::findFilesContaining(testdir, "");
+    assertNumberOfFiles(1);
+
+    // Check to see if "johndoe" exists in the audit log
+    std::ifstream auditFile;
+    auditFile.open(vec.front().c_str());
+    std::string line;
+    while(std::getline(auditFile, line)) {
+        EXPECT_EQ(std::string::npos, line.find("johndoe", 0));
+    }
+
+    auditFile.close();
 }
 
 int main(int argc, char** argv) {

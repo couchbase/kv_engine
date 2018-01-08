@@ -342,9 +342,14 @@ unique_cJSON_ptr AuditConfig::to_json() const {
         cJSON_AddItemToArray(array, cJSON_CreateNumber(v));
     }
     cJSON_AddItemToObject(root, "disabled", array);
+
     array = cJSON_CreateArray();
     for (const auto& v : disabled) {
         cJSON_AddItemToArray(array, cJSON_CreateNumber(v));
+    }
+
+    for (const auto& v : disabled_users) {
+           cJSON_AddItemToArray(array, cJSON_CreateString(v.c_str()));
     }
     cJSON_AddItemToObject(root, "disabled_users", array);
 

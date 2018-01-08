@@ -21,8 +21,18 @@ ADD_TEST(NAME memcached-auditconfig-test
          COMMAND memcached_auditconfig_test)
 
 ADD_EXECUTABLE(memcached_auditd_tests
+               ${Memcached_SOURCE_DIR}/auditd/src/audit.h
+               ${Memcached_SOURCE_DIR}/auditd/src/audit.cc
                ${Memcached_SOURCE_DIR}/auditd/src/auditconfig.h
                ${Memcached_SOURCE_DIR}/auditd/src/auditconfig.cc
+               ${Memcached_SOURCE_DIR}/auditd/src/auditfile.h
+               ${Memcached_SOURCE_DIR}/auditd/src/auditfile.cc
+               ${Memcached_SOURCE_DIR}/auditd/src/configureevent.cc
+               ${Memcached_SOURCE_DIR}/auditd/src/configureevent.h
+               ${Memcached_SOURCE_DIR}/auditd/src/eventdescriptor.cc
+               ${Memcached_SOURCE_DIR}/auditd/src/eventdescriptor.h
+               ${Memcached_SOURCE_DIR}/auditd/src/event.cc
+               ${Memcached_SOURCE_DIR}/auditd/src/event.h
                testauditd.cc)
 TARGET_LINK_LIBRARIES(memcached_auditd_tests
                       auditd mcd_util mcd_time cJSON dirutils gtest)

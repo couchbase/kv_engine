@@ -88,6 +88,7 @@ bool Event::process(Audit& audit) {
 
     if (evt->second->isFilteringPermitted() &&
             filterEvent(json_payload, audit.config)) {
+        cJSON_Delete(json_payload);
         return true;
     }
 
