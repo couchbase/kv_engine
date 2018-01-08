@@ -460,6 +460,17 @@
             "type": "size_t",
             "aliases":["cache_size"]
         },
+        "max_ttl":{
+            "default": "0",
+            "descr": "A maximum TTL (in seconds) that will apply to all new documents, documents set with no TTL will be given this value. A value of 0 means this is disabled",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "min": 0,
+                    "max": 2147483647
+                }
+            }
+        },
         "max_vbuckets": {
             "default": "1024",
             "descr": "Maximum number of vbuckets expected",
