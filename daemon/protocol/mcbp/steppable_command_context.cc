@@ -25,9 +25,7 @@ SteppableCommandContext::SteppableCommandContext(Cookie& cookie_)
 }
 
 void SteppableCommandContext::drive() {
-    ENGINE_ERROR_CODE ret = cookie.getAiostat();
-    cookie.setAiostat(ENGINE_SUCCESS);
-    cookie.setEwouldblock(false);
+    ENGINE_ERROR_CODE ret = cookie.swapAiostat(ENGINE_SUCCESS);
 
     if (ret == ENGINE_SUCCESS) {
         try {
@@ -53,7 +51,6 @@ void SteppableCommandContext::drive() {
     case ENGINE_SUCCESS:
         break;
     case ENGINE_EWOULDBLOCK:
-        cookie.setAiostat(ENGINE_EWOULDBLOCK);
         cookie.setEwouldblock(true);
         return;
     case ENGINE_DISCONNECT:

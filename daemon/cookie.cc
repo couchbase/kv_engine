@@ -186,15 +186,21 @@ ENGINE_ERROR_CODE Cookie::getAiostat() const {
     return connection.getAiostat();
 }
 
-void Cookie::setAiostat(ENGINE_ERROR_CODE aiostat) {
-    connection.setAiostat(aiostat);
-}
-
 bool Cookie::isEwouldblock() const {
     return connection.isEwouldblock();
 }
 
+ENGINE_ERROR_CODE Cookie::swapAiostat(ENGINE_ERROR_CODE status) {
+    auto previous = connection.getAiostat();
+    connection.setAiostat(status);
+    return previous;
+}
+
+
 void Cookie::setEwouldblock(bool ewouldblock) {
+    if (ewouldblock) {
+        connection.setAiostat(ENGINE_EWOULDBLOCK);
+    }
     connection.setEwouldblock(ewouldblock);
 }
 

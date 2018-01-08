@@ -440,7 +440,8 @@ void notify_io_complete(gsl::not_null<const void*> void_cookie,
               status);
 
     LOCK_THREAD(thr);
-    cookie.setAiostat(status);
+    cookie.swapAiostat(status);
+    cookie.setEwouldblock(false);
     notify = add_conn_to_pending_io_list(&cookie.getConnection());
     UNLOCK_THREAD(thr);
 
