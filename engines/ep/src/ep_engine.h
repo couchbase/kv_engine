@@ -133,25 +133,7 @@ public:
                           item** itm,
                           const DocKey& key,
                           uint16_t vbucket,
-                          get_options_t options)
-    {
-        BlockTimer timer(&stats.getCmdHisto);
-        GetValue gv(kvBucket->get(key, vbucket, cookie, options));
-        ENGINE_ERROR_CODE ret = gv.getStatus();
-
-        if (ret == ENGINE_SUCCESS) {
-            *itm = gv.item.release();
-            if (options & TRACK_STATISTICS) {
-                ++stats.numOpsGet;
-            }
-        } else if (ret == ENGINE_KEY_ENOENT || ret == ENGINE_NOT_MY_VBUCKET) {
-            if (isDegradedMode()) {
-                return ENGINE_TMPFAIL;
-            }
-        }
-
-        return ret;
-    }
+                          get_options_t options);
 
     /**
      * Fetch an item only if the specified filter predicate returns true.
