@@ -2021,6 +2021,30 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::itemAllocate(
     }
 }
 
+ENGINE_ERROR_CODE EventuallyPersistentEngine::itemDelete(
+        const void* cookie,
+        const DocKey& key,
+        uint64_t& cas,
+        uint16_t vbucket,
+        ItemMetaData* item_meta,
+        mutation_descr_t& mut_info) {
+    ENGINE_ERROR_CODE ret = kvBucket->deleteItem(key,
+                                                 cas,
+                                                 vbucket,
+                                                 cookie,
+                                                 item_meta,
+                                                 mut_info);
+
+    if (ret == ENGINE_KEY_ENOENT || ret == ENGINE_NOT_MY_VBUCKET) {
+        if (isDegradedMode()) {
+            return ENGINE_TMPFAIL;
+        }
+    } else if (ret == ENGINE_SUCCESS) {
+        ++stats.numOpsDelete;
+    }
+    return ret;
+}
+
 void EventuallyPersistentEngine::itemRelease(item* itm) {
     delete reinterpret_cast<Item*>(itm);
 }
