@@ -691,6 +691,25 @@ void EPBucket::compactInternal(compaction_ctx* ctx) {
         }
         vb->setPurgeSeqno(it.second);
     }
+
+    LOG(EXTENSION_LOG_NOTICE,
+        "Compaction of db file id: %d completed (%s). "
+        "tombstones_purged:%" PRIu64 ", collection_items_erased:%" PRIu64
+        ", pre{size:%" PRIu64 ", items:%" PRIu64 ", deleted_items:%" PRIu64
+        ", purge_seqno:%" PRIu64 "}, post{size:%" PRIu64 ", items:%" PRIu64
+        ", deleted_items:%" PRIu64 ", purge_seqno:%" PRIu64 "}",
+        ctx->db_file_id,
+        result ? "ok" : "failed",
+        ctx->stats.tombstonesPurged,
+        ctx->stats.collectionsItemsPurged,
+        ctx->stats.pre.size,
+        ctx->stats.pre.items,
+        ctx->stats.pre.deletedItems,
+        ctx->stats.pre.purgeSeqno,
+        ctx->stats.post.size,
+        ctx->stats.post.items,
+        ctx->stats.post.deletedItems,
+        ctx->stats.post.purgeSeqno);
 }
 
 bool EPBucket::doCompact(compaction_ctx* ctx, const void* cookie) {

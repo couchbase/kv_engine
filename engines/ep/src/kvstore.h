@@ -58,6 +58,41 @@ typedef uint16_t DBFileId;
 typedef std::shared_ptr<Callback<uint16_t&, const DocKey&, bool&> > BloomFilterCBPtr;
 typedef std::shared_ptr<Callback<Item&, time_t&> > ExpiredItemsCBPtr;
 
+/**
+ * Generic information about a KVStore file
+ */
+struct FileInfo {
+    FileInfo() = default;
+
+    FileInfo(uint64_t items,
+             uint64_t deletedItems,
+             uint64_t size,
+             uint64_t purgeSeqno)
+        : items(items),
+          deletedItems(deletedItems),
+          size(size),
+          purgeSeqno(purgeSeqno) {
+    }
+    /// The number of items stored
+    uint64_t items = 0;
+
+    /// The number of deleted item stored
+    uint64_t deletedItems = 0;
+
+    /// The size on disk of the KVStore file
+    uint64_t size = 0;
+
+    /// Last purge sequence number
+    uint64_t purgeSeqno = 0;
+};
+
+struct CompactionStats {
+    uint64_t collectionsItemsPurged = 0;
+    uint64_t tombstonesPurged = 0;
+    FileInfo pre;
+    FileInfo post;
+};
+
 typedef struct {
     uint64_t purge_before_ts;
     uint64_t purge_before_seq;
@@ -70,6 +105,7 @@ typedef struct {
     BloomFilterCBPtr bloomFilterCallback;
     ExpiredItemsCBPtr expiryCallback;
     std::function<bool(const DocKey, int64_t)> collectionsEraser;
+    struct CompactionStats stats;
 } compaction_ctx;
 
 /**

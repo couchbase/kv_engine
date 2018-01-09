@@ -562,6 +562,9 @@ protected:
     bool compactDBInternal(compaction_ctx* hook_ctx,
                            couchstore_docinfo_hook dhook);
 
+    /// Copy relevant DbInfo stats to the common FileStats struct
+    static FileInfo toFileInfo(const DbInfo& info);
+
     const std::string dbname;
 
     /**

@@ -831,6 +831,7 @@ static int time_purge_hook(Db* d, DocInfo* info, sized_buf item, void* ctx_p) {
                     makeDocKey(info->id,
                                ctx->config->shouldPersistDocNamespace()),
                     int64_t(info->db_seq))) {
+            ctx->stats.collectionsItemsPurged++;
             return COUCHSTORE_COMPACT_DROP_ITEM;
         }
 
@@ -840,6 +841,7 @@ static int time_purge_hook(Db* d, DocInfo* info, sized_buf item, void* ctx_p) {
                     if (max_purge_seq < info->db_seq) {
                         ctx->max_purged_seq[vbid] = info->db_seq; // track max_purged_seq
                     }
+                    ctx->stats.tombstonesPurged++;
                     return COUCHSTORE_COMPACT_DROP_ITEM;      // ...unconditionally
                 }
                 if (exptime < ctx->purge_before_ts &&
@@ -848,6 +850,7 @@ static int time_purge_hook(Db* d, DocInfo* info, sized_buf item, void* ctx_p) {
                     if (max_purge_seq < info->db_seq) {
                         ctx->max_purged_seq[vbid] = info->db_seq;
                     }
+                    ctx->stats.tombstonesPurged++;
                     return COUCHSTORE_COMPACT_DROP_ITEM;
                 }
             }
@@ -888,6 +891,11 @@ bool CouchKVStore::compactDB(compaction_ctx *hook_ctx) {
         ++st.numCompactionFailure;
     }
     return result;
+}
+
+FileInfo CouchKVStore::toFileInfo(const DbInfo& info) {
+    return FileInfo{
+            info.doc_count, info.deleted_count, info.file_size, info.purge_seq};
 }
 
 bool CouchKVStore::compactDBInternal(compaction_ctx* hook_ctx,
@@ -933,6 +941,9 @@ bool CouchKVStore::compactDBInternal(compaction_ctx* hook_ctx,
     compact_file = dbfile + ".compact";
 
     couchstore_open_flags flags(COUCHSTORE_COMPACT_FLAG_UPGRADE_DB);
+
+    couchstore_db_info(compactdb, &info);
+    hook_ctx->stats.pre = toFileInfo(info);
 
     /**
      * This flag disables IO buffering in couchstore which means
@@ -1002,6 +1013,7 @@ bool CouchKVStore::compactDBInternal(compaction_ctx* hook_ctx,
                new_file.c_str(), new_rev);
 
     couchstore_db_info(targetDb, &info);
+    hook_ctx->stats.post = toFileInfo(info);
 
     cachedFileSize[vbid] = info.file_size;
     cachedSpaceUsed[vbid] = info.space_used;

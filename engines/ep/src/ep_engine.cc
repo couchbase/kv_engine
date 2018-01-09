@@ -1010,8 +1010,6 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
 
     switch (err) {
     case ENGINE_SUCCESS:
-        LOG(EXTENSION_LOG_NOTICE,
-            "Compaction of db file id: %d completed.", compactreq.db_file_id);
         break;
     case ENGINE_NOT_MY_VBUCKET:
         --stats.pendingCompactions;
