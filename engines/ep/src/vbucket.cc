@@ -2103,6 +2103,7 @@ void VBucket::_addStats(bool details, ADD_STAT add_stat, const void* c) {
         addStat("rollback_item_count", getRollbackItemCount(), add_stat, c);
         addStat("hp_vb_req_size", getHighPriorityChkSize(), add_stat, c);
         addStat("might_contain_xattrs", mightContainXattrs(), add_stat, c);
+        addStat("max_deleted_revid", ht.getMaxDeletedRevSeqno(), add_stat, c);
         hlc.addStats(statPrefix, add_stat, c);
     }
 }
