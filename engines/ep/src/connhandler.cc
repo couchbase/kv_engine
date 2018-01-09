@@ -23,7 +23,6 @@
 #include "ep_engine.h"
 #include "ep_time.h"
 
-
 ConnHandler::ConnHandler(EventuallyPersistentEngine& e, const void* c,
                          const std::string& n) :
     engine_(e),

@@ -31,6 +31,7 @@
 #include "persistence_callback.h"
 #include "stored-value.h"
 #include "vbucket.h"
+#include "vbucketmap.h"
 
 static void display(const char *name, size_t size) {
     std::cout << name << "\t" << size << std::endl;

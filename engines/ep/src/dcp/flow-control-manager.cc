@@ -15,8 +15,9 @@
  *   limitations under the License.
  */
 
-#include "ep_engine.h"
 #include "config.h"
+
+#include "ep_engine.h"
 
 #include "flow-control-manager.h"
 #include "dcp/consumer.h"

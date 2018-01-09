@@ -20,10 +20,10 @@
 
 #include "config.h"
 
+#include "configuration.h"
 #include "connhandler.h"
-#include "kv_bucket.h"
-#include "storeddockey.h"
 #include "stats.h"
+#include "storeddockey.h"
 #include "taskable.h"
 #include "vb_visitors.h"
 
@@ -58,6 +58,7 @@ typedef void (*NOTIFY_IO_COMPLETE_T)(const void *cookie,
 
 // Forward decl
 class EventuallyPersistentEngine;
+class ReplicationThrottle;
 
 /**
     To allow Engines to run tasks.
@@ -76,7 +77,7 @@ public:
 
     void setWorkloadPriority(bucket_priority_t prio);
 
-    WorkLoadPolicy& getWorkLoadPolicy(void);
+    WorkLoadPolicy& getWorkLoadPolicy();
 
     void logQTime(TaskId id, const ProcessClock::duration enqTime);
 
@@ -173,7 +174,6 @@ public:
                              uint16_t vbucket,
                              uint64_t cas);
 
-
     const std::string& getName() const {
         return name;
     }
@@ -183,12 +183,7 @@ public:
                                int nkey,
                                ADD_STAT add_stat);
 
-    void resetStats() {
-        stats.reset();
-        if (kvBucket) {
-            kvBucket->resetUnderlyingStats();
-        }
-    }
+    void resetStats();
 
     ENGINE_ERROR_CODE store(const void* cookie,
                             item* itm,
@@ -239,86 +234,31 @@ public:
                                 ADD_RESPONSE response,
                                 DocNamespace docNamespace);
 
-    void setDCPPriority(const void* cookie, CONN_PRIORITY priority) {
-        EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
-        serverApi->cookie->set_priority(cookie, priority);
-        ObjectRegistry::onSwitchThread(epe);
-    }
+    void setDCPPriority(const void* cookie, CONN_PRIORITY priority);
 
-    void notifyIOComplete(const void *cookie, ENGINE_ERROR_CODE status) {
-        if (cookie == NULL) {
-            LOG(EXTENSION_LOG_WARNING, "Tried to signal a NULL cookie!");
-        } else {
-            BlockTimer bt(&stats.notifyIOHisto);
-            EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
-            serverApi->cookie->notify_io_complete(cookie, status);
-            ObjectRegistry::onSwitchThread(epe);
-        }
-    }
+    void notifyIOComplete(const void* cookie, ENGINE_ERROR_CODE status);
 
     ENGINE_ERROR_CODE reserveCookie(const void *cookie);
     ENGINE_ERROR_CODE releaseCookie(const void *cookie);
 
-    void storeEngineSpecific(const void *cookie, void *engine_data) {
-        EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
-        serverApi->cookie->store_engine_specific(cookie, engine_data);
-        ObjectRegistry::onSwitchThread(epe);
-    }
+    void storeEngineSpecific(const void* cookie, void* engine_data);
 
-    void *getEngineSpecific(const void *cookie) {
-        EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
-        void *engine_data = serverApi->cookie->get_engine_specific(cookie);
-        ObjectRegistry::onSwitchThread(epe);
-        return engine_data;
-    }
+    void* getEngineSpecific(const void* cookie);
 
     bool isDatatypeSupported(const void* cookie,
-                             protocol_binary_datatype_t datatype) {
-        EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
-        bool isSupported =
-                serverApi->cookie->is_datatype_supported(cookie, datatype);
-        ObjectRegistry::onSwitchThread(epe);
-        return isSupported;
-    }
+                             protocol_binary_datatype_t datatype);
 
-    bool isMutationExtrasSupported(const void *cookie) {
-        EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
-        bool isSupported = serverApi->cookie->is_mutation_extras_supported(cookie);
-        ObjectRegistry::onSwitchThread(epe);
-        return isSupported;
-    }
+    bool isMutationExtrasSupported(const void* cookie);
 
-    bool isXattrEnabled(const void* cookie) {
-        return isDatatypeSupported(cookie, PROTOCOL_BINARY_DATATYPE_XATTR);
-    }
+    bool isXattrEnabled(const void* cookie);
 
-    bool isCollectionsSupported(const void* cookie) {
-        EventuallyPersistentEngine* epe =
-                ObjectRegistry::onSwitchThread(NULL, true);
-        bool isSupported = serverApi->cookie->is_collections_supported(cookie);
-        ObjectRegistry::onSwitchThread(epe);
-        return isSupported;
-    }
+    bool isCollectionsSupported(const void* cookie);
 
-    uint8_t getOpcodeIfEwouldblockSet(const void *cookie) {
-        EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
-        uint8_t opcode = serverApi->cookie->get_opcode_if_ewouldblock_set(cookie);
-        ObjectRegistry::onSwitchThread(epe);
-        return opcode;
-    }
+    uint8_t getOpcodeIfEwouldblockSet(const void* cookie);
 
-    bool validateSessionCas(const uint64_t cas) {
-        EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
-        bool ret = serverApi->cookie->validate_session_cas(cas);
-        ObjectRegistry::onSwitchThread(epe);
-        return ret;
-    }
+    bool validateSessionCas(const uint64_t cas);
 
-    void decrementSessionCtr(void) {
-        EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
-        serverApi->cookie->decrement_session_ctr();
-        ObjectRegistry::onSwitchThread(epe);
-    }
+    void decrementSessionCtr();
 
     void setErrorContext(const void* cookie, cb::const_char_buffer message);
 
@@ -326,60 +266,28 @@ public:
                                 EVENT_CALLBACK cb, const void *cb_data);
 
     template <typename T>
-    void notifyIOComplete(T cookies, ENGINE_ERROR_CODE status) {
-        EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
-        std::for_each(cookies.begin(), cookies.end(),
-                      std::bind2nd(std::ptr_fun((NOTIFY_IO_COMPLETE_T)serverApi->cookie->notify_io_complete),
-                                   status));
-        ObjectRegistry::onSwitchThread(epe);
-    }
+    void notifyIOComplete(T cookies, ENGINE_ERROR_CODE status);
 
     void handleDisconnect(const void *cookie);
     void handleDeleteBucket(const void *cookie);
 
-    protocol_binary_response_status stopFlusher(const char **msg, size_t *msg_size) {
-        (void) msg_size;
-        protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
-        *msg = NULL;
-        if (!kvBucket->pauseFlusher()) {
-            LOG(EXTENSION_LOG_INFO, "Unable to stop flusher");
-            *msg = "Flusher not running.";
-            rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
-        }
-        return rv;
-    }
+    protocol_binary_response_status stopFlusher(const char** msg,
+                                                size_t* msg_size);
 
-    protocol_binary_response_status startFlusher(const char **msg, size_t *msg_size) {
-        (void) msg_size;
-        protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
-        *msg = NULL;
-        if (!kvBucket->resumeFlusher()) {
-            LOG(EXTENSION_LOG_INFO, "Unable to start flusher");
-            *msg = "Flusher not shut down.";
-            rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
-        }
-        return rv;
-    }
+    protocol_binary_response_status startFlusher(const char** msg,
+                                                 size_t* msg_size);
 
-    ENGINE_ERROR_CODE deleteVBucket(uint16_t vbid, const void* c = NULL) {
-        return kvBucket->deleteVBucket(vbid, c);
-    }
+    ENGINE_ERROR_CODE deleteVBucket(uint16_t vbid, const void* c = NULL);
 
     ENGINE_ERROR_CODE compactDB(uint16_t vbid,
                                 compaction_ctx c,
-                                const void *cookie = NULL) {
-        return kvBucket->scheduleCompaction(vbid, c, cookie);
-    }
+                                const void* cookie = NULL);
 
-    bool resetVBucket(uint16_t vbid) {
-        return kvBucket->resetVBucket(vbid);
-    }
+    bool resetVBucket(uint16_t vbid);
 
     protocol_binary_response_status evictKey(const DocKey& key,
                                              uint16_t vbucket,
-                                             const char** msg) {
-        return kvBucket->evictKey(key, vbucket, msg);
-    }
+                                             const char** msg);
 
     ENGINE_ERROR_CODE observe(const void* cookie,
                               protocol_binary_request_header *request,
@@ -390,9 +298,7 @@ public:
                                     protocol_binary_request_header *request,
                                     ADD_RESPONSE response);
 
-    VBucketPtr getVBucket(uint16_t vbucket) {
-        return kvBucket->getVBucket(vbucket);
-    }
+    VBucketPtr getVBucket(uint16_t vbucket);
 
     ENGINE_ERROR_CODE setVBucketState(const void* cookie,
                                       ADD_RESPONSE response,
@@ -427,19 +333,23 @@ public:
 
     ~EventuallyPersistentEngine();
 
-    engine_info *getInfo() {
+    engine_info* getInfo() {
         return &info.info;
     }
 
-    EPStats &getEpStats() {
+    EPStats& getEpStats() {
         return stats;
     }
 
-    KVBucket* getKVBucket() { return kvBucket.get(); }
+    KVBucket* getKVBucket() {
+        return kvBucket.get();
+    }
 
-    DcpConnMap &getDcpConnMap() { return *dcpConnMap_; }
+    DcpConnMap& getDcpConnMap() {
+        return *dcpConnMap_;
+    }
 
-    DcpFlowControlManager &getDcpFlowControlManager() {
+    DcpFlowControlManager& getDcpFlowControlManager() {
         return *dcpFlowControlManager_;
     }
 
@@ -448,15 +358,17 @@ public:
      *
      * @return Ref to replication throttle
      */
-    ReplicationThrottle& getReplicationThrottle() {
-        return getKVBucket()->getReplicationThrottle();
+    ReplicationThrottle& getReplicationThrottle();
+
+    CheckpointConfig& getCheckpointConfig() {
+        return *checkpointConfig;
     }
 
-    CheckpointConfig &getCheckpointConfig() { return *checkpointConfig; }
+    SERVER_HANDLE_V1* getServerApi() {
+        return serverApi;
+    }
 
-    SERVER_HANDLE_V1* getServerApi() { return serverApi; }
-
-    Configuration &getConfiguration() {
+    Configuration& getConfiguration() {
         return configuration;
     }
 
@@ -496,16 +408,19 @@ public:
         return maxFailoverEntries;
     }
 
-    bool isDegradedMode() const {
-        return kvBucket->isWarmingUp() || !trafficEnabled.load();
-    }
+    bool isDegradedMode() const;
 
-    WorkLoadPolicy &getWorkLoadPolicy(void) {
+    WorkLoadPolicy& getWorkLoadPolicy() {
         return *workload;
     }
 
-    bucket_priority_t getWorkloadPriority(void) const {return workloadPriority; }
-    void setWorkloadPriority(bucket_priority_t p) { workloadPriority = p; }
+    bucket_priority_t getWorkloadPriority() const {
+        return workloadPriority;
+    }
+
+    void setWorkloadPriority(bucket_priority_t p) {
+        workloadPriority = p;
+    }
 
     ENGINE_ERROR_CODE getRandomKey(const void *cookie,
                                    ADD_RESPONSE response);
@@ -606,18 +521,12 @@ protected:
      *
      * @return True if there is memory for the item; else False
      */
-    bool hasMemoryForItemAllocation(uint32_t totalItemSize) {
-        return (stats.getTotalMemoryUsed() + totalItemSize) <=
-               stats.getMaxDataSize();
-    }
+    bool hasMemoryForItemAllocation(uint32_t totalItemSize);
 
     friend class KVBucket;
     friend class EPBucket;
 
-    bool enableTraffic(bool enable) {
-        bool inverse = !enable;
-        return trafficEnabled.compare_exchange_strong(inverse, enable);
-    }
+    bool enableTraffic(bool enable);
 
     ENGINE_ERROR_CODE doEngineStats(const void *cookie, ADD_STAT add_stat);
     ENGINE_ERROR_CODE doKlogStats(const void *cookie, ADD_STAT add_stat);

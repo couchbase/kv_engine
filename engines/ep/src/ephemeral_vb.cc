@@ -20,6 +20,7 @@
 #include "checkpoint.h"
 #include "dcp/backfill_memory.h"
 #include "ephemeral_tombstone_purger.h"
+#include "executorpool.h"
 #include "failover-table.h"
 #include "linked_list.h"
 #include "stored_value_factories.h"

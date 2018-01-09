@@ -21,6 +21,8 @@
 
 #include "defragmenter_visitor.h"
 #include "ep_engine.h"
+#include "executorpool.h"
+#include "kv_bucket.h"
 #include "stored-value.h"
 
 DefragmenterTask::DefragmenterTask(EventuallyPersistentEngine* e,

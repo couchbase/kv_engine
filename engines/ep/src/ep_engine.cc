@@ -18,6 +18,7 @@
 #include "config.h"
 
 #include "ep_engine.h"
+#include "kv_bucket.h"
 
 #include "checkpoint.h"
 #include "collections/manager.h"
@@ -1788,6 +1789,76 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::releaseCookie(const void *cookie)
     return rv;
 }
 
+void EventuallyPersistentEngine::storeEngineSpecific(const void* cookie,
+                                                     void* engine_data) {
+    EventuallyPersistentEngine* epe =
+            ObjectRegistry::onSwitchThread(NULL, true);
+    serverApi->cookie->store_engine_specific(cookie, engine_data);
+    ObjectRegistry::onSwitchThread(epe);
+}
+
+void* EventuallyPersistentEngine::getEngineSpecific(const void* cookie) {
+    EventuallyPersistentEngine* epe =
+            ObjectRegistry::onSwitchThread(NULL, true);
+    void* engine_data = serverApi->cookie->get_engine_specific(cookie);
+    ObjectRegistry::onSwitchThread(epe);
+    return engine_data;
+}
+
+bool EventuallyPersistentEngine::isDatatypeSupported(
+        const void* cookie, protocol_binary_datatype_t datatype) {
+    EventuallyPersistentEngine* epe =
+            ObjectRegistry::onSwitchThread(NULL, true);
+    bool isSupported =
+            serverApi->cookie->is_datatype_supported(cookie, datatype);
+    ObjectRegistry::onSwitchThread(epe);
+    return isSupported;
+}
+
+bool EventuallyPersistentEngine::isMutationExtrasSupported(const void* cookie) {
+    EventuallyPersistentEngine* epe =
+            ObjectRegistry::onSwitchThread(NULL, true);
+    bool isSupported = serverApi->cookie->is_mutation_extras_supported(cookie);
+    ObjectRegistry::onSwitchThread(epe);
+    return isSupported;
+}
+
+bool EventuallyPersistentEngine::isXattrEnabled(const void* cookie) {
+    return isDatatypeSupported(cookie, PROTOCOL_BINARY_DATATYPE_XATTR);
+}
+
+bool EventuallyPersistentEngine::isCollectionsSupported(const void* cookie) {
+    EventuallyPersistentEngine* epe =
+            ObjectRegistry::onSwitchThread(NULL, true);
+    bool isSupported = serverApi->cookie->is_collections_supported(cookie);
+    ObjectRegistry::onSwitchThread(epe);
+    return isSupported;
+}
+
+uint8_t EventuallyPersistentEngine::getOpcodeIfEwouldblockSet(
+        const void* cookie) {
+    EventuallyPersistentEngine* epe =
+            ObjectRegistry::onSwitchThread(NULL, true);
+    uint8_t opcode = serverApi->cookie->get_opcode_if_ewouldblock_set(cookie);
+    ObjectRegistry::onSwitchThread(epe);
+    return opcode;
+}
+
+bool EventuallyPersistentEngine::validateSessionCas(const uint64_t cas) {
+    EventuallyPersistentEngine* epe =
+            ObjectRegistry::onSwitchThread(NULL, true);
+    bool ret = serverApi->cookie->validate_session_cas(cas);
+    ObjectRegistry::onSwitchThread(epe);
+    return ret;
+}
+
+void EventuallyPersistentEngine::decrementSessionCtr(void) {
+    EventuallyPersistentEngine* epe =
+            ObjectRegistry::onSwitchThread(NULL, true);
+    serverApi->cookie->decrement_session_ctr();
+    ObjectRegistry::onSwitchThread(epe);
+}
+
 void EventuallyPersistentEngine::registerEngineCallback(ENGINE_EVENT_TYPE type,
                                                         EVENT_CALLBACK cb,
                                                         const void *cb_data) {
@@ -1804,6 +1875,20 @@ void EventuallyPersistentEngine::setErrorContext(
     EventuallyPersistentEngine* epe =
             ObjectRegistry::onSwitchThread(NULL, true);
     serverApi->cookie->set_error_context(const_cast<void*>(cookie), message);
+    ObjectRegistry::onSwitchThread(epe);
+}
+
+template <typename T>
+void EventuallyPersistentEngine::notifyIOComplete(T cookies,
+                                                  ENGINE_ERROR_CODE status) {
+    EventuallyPersistentEngine* epe =
+            ObjectRegistry::onSwitchThread(NULL, true);
+    std::for_each(
+            cookies.begin(),
+            cookies.end(),
+            std::bind2nd(std::ptr_fun((NOTIFY_IO_COMPLETE_T)serverApi->cookie
+                                              ->notify_io_complete),
+                         status));
     ObjectRegistry::onSwitchThread(epe);
 }
 
@@ -1837,8 +1922,6 @@ public:
 private:
     EventuallyPersistentEngine &engine;
 };
-
-
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     resetStats();
@@ -2337,6 +2420,17 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::memoryCondition() {
         ++stats.oom_errors;
         return ENGINE_ENOMEM;
     }
+}
+
+bool EventuallyPersistentEngine::hasMemoryForItemAllocation(
+        uint32_t totalItemSize) {
+    return (stats.getTotalMemoryUsed() + totalItemSize) <=
+           stats.getMaxDataSize();
+}
+
+bool EventuallyPersistentEngine::enableTraffic(bool enable) {
+    bool inverse = !enable;
+    return trafficEnabled.compare_exchange_strong(inverse, enable);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
@@ -3812,6 +3906,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
     return rv;
 }
 
+void EventuallyPersistentEngine::resetStats() {
+    stats.reset();
+    if (kvBucket) {
+        kvBucket->resetUnderlyingStats();
+    }
+}
+
 ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(
                                        const void* cookie,
                                        protocol_binary_request_header *request,
@@ -3996,6 +4097,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe_seqno(
                         PROTOCOL_BINARY_RAW_BYTES,
                         PROTOCOL_BINARY_RESPONSE_SUCCESS, 0,
                         cookie);
+}
+
+VBucketPtr EventuallyPersistentEngine::getVBucket(uint16_t vbucket) {
+    return kvBucket->getVBucket(vbucket);
 }
 
 ENGINE_ERROR_CODE
@@ -4764,6 +4869,10 @@ EventuallyPersistentEngine::handleTrafficControlCmd(const void *cookie,
                         status, 0, cookie);
 }
 
+bool EventuallyPersistentEngine::isDegradedMode() const {
+    return kvBucket->isWarmingUp() || !trafficEnabled.load();
+}
+
 ENGINE_ERROR_CODE
 EventuallyPersistentEngine::doDcpVbTakeoverStats(const void *cookie,
                                                  ADD_STAT add_stat,
@@ -5094,6 +5203,27 @@ EventuallyPersistentEngine::getAllKeys(const void* cookie,
     return ENGINE_EWOULDBLOCK;
 }
 
+void EventuallyPersistentEngine::setDCPPriority(const void* cookie,
+                                                CONN_PRIORITY priority) {
+    EventuallyPersistentEngine* epe =
+            ObjectRegistry::onSwitchThread(NULL, true);
+    serverApi->cookie->set_priority(cookie, priority);
+    ObjectRegistry::onSwitchThread(epe);
+}
+
+void EventuallyPersistentEngine::notifyIOComplete(const void* cookie,
+                                                  ENGINE_ERROR_CODE status) {
+    if (cookie == NULL) {
+        LOG(EXTENSION_LOG_WARNING, "Tried to signal a NULL cookie!");
+    } else {
+        BlockTimer bt(&stats.notifyIOHisto);
+        EventuallyPersistentEngine* epe =
+                ObjectRegistry::onSwitchThread(NULL, true);
+        serverApi->cookie->notify_io_complete(cookie, status);
+        ObjectRegistry::onSwitchThread(epe);
+    }
+}
+
 ENGINE_ERROR_CODE EventuallyPersistentEngine::getRandomKey(const void *cookie,
                                                        ADD_RESPONSE response) {
     GetValue gv(kvBucket->getRandomKey());
@@ -5234,6 +5364,52 @@ void EventuallyPersistentEngine::handleDeleteBucket(const void *cookie) {
     LOG(EXTENSION_LOG_NOTICE, "Shutting down all DCP connections in "
             "preparation for bucket deletion.");
     dcpConnMap_->shutdownAllConnections();
+}
+
+protocol_binary_response_status EventuallyPersistentEngine::stopFlusher(
+        const char** msg, size_t* msg_size) {
+    (void)msg_size;
+    protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    *msg = NULL;
+    if (!kvBucket->pauseFlusher()) {
+        LOG(EXTENSION_LOG_INFO, "Unable to stop flusher");
+        *msg = "Flusher not running.";
+        rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+    return rv;
+}
+
+protocol_binary_response_status EventuallyPersistentEngine::startFlusher(
+        const char** msg, size_t* msg_size) {
+    (void)msg_size;
+    protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    *msg = NULL;
+    if (!kvBucket->resumeFlusher()) {
+        LOG(EXTENSION_LOG_INFO, "Unable to start flusher");
+        *msg = "Flusher not shut down.";
+        rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+    return rv;
+}
+
+ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteVBucket(uint16_t vbid,
+                                                            const void* c) {
+    return kvBucket->deleteVBucket(vbid, c);
+}
+
+ENGINE_ERROR_CODE EventuallyPersistentEngine::compactDB(uint16_t vbid,
+                                                        compaction_ctx c,
+                                                        const void* cookie) {
+    return kvBucket->scheduleCompaction(vbid, c, cookie);
+}
+
+bool EventuallyPersistentEngine::resetVBucket(uint16_t vbid) {
+    return kvBucket->resetVBucket(vbid);
+}
+
+protocol_binary_response_status EventuallyPersistentEngine::evictKey(
+        const DocKey& key, uint16_t vbucket, const char** msg) {
+    return kvBucket->evictKey(key, vbucket, msg);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
@@ -5418,6 +5594,10 @@ EventuallyPersistentEngine::~EventuallyPersistentEngine() {
     delete workload;
     delete checkpointConfig;
     /* Unique_ptr(s) are deleted in the reverse order of the initialization */
+}
+
+ReplicationThrottle& EventuallyPersistentEngine::getReplicationThrottle() {
+    return getKVBucket()->getReplicationThrottle();
 }
 
 const std::string& EpEngineTaskable::getName() const {

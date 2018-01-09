@@ -22,6 +22,7 @@
 #include "evp_engine_test.h"
 
 #include "ep_engine.h"
+#include "kv_bucket.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "tests/module_tests/test_helpers.h"
 

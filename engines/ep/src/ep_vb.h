@@ -21,6 +21,8 @@
 #include "vbucket.h"
 #include "vbucket_bgfetch_item.h"
 
+class BgFetcher;
+
 /**
  * Eventually Peristent VBucket (EPVBucket) is a child class of VBucket.
  * It implements the logic of VBucket that is related only to persistence.

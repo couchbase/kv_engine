@@ -25,7 +25,6 @@
 #include "executorthread.h"
 #include "globaltask.h"
 #include "taskqueue.h"
-#include "ep_engine.h"
 
 #include <platform/timeutils.h>
 

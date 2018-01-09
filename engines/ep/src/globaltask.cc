@@ -17,8 +17,8 @@
 
 #include <limits.h>
 
-#include "globaltask.h"
 #include "ep_engine.h"
+#include "globaltask.h"
 
 // These static_asserts previously were in priority_test.cc
 static_assert(TaskPriority::VKeyStatBGFetchTask < TaskPriority::FlusherTask,

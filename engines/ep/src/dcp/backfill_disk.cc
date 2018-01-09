@@ -20,6 +20,7 @@
 #include "dcp/backfill_disk.h"
 #include "dcp/stream.h"
 #include "ep_engine.h"
+#include "kv_bucket.h"
 #include "vbucket.h"
 
 static std::string backfillStateToString(backfill_state_t state) {

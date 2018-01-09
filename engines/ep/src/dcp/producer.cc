@@ -26,7 +26,9 @@
 #include "dcp/backfill-manager.h"
 #include "dcp/dcpconnmap.h"
 #include "ep_engine.h"
+#include "executorpool.h"
 #include "failover-table.h"
+#include "kv_bucket.h"
 #include "snappy-c.h"
 
 #include <memcached/server_api.h>

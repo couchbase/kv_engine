@@ -28,10 +28,10 @@
 
 #include "connhandler.h"
 #include "connmap.h"
-#include "executorthread.h"
 #include "dcp/backfill-manager.h"
 #include "dcp/consumer.h"
 #include "dcp/producer.h"
+#include "executorpool.h"
 
 size_t ConnMap::vbConnLockNum = 32;
 const double ConnNotifier::DEFAULT_MIN_STIME = 1.0;

@@ -20,6 +20,7 @@
 #include "collections/manager.h"
 #include "dcp/producer.h"
 #include "dcp/stream.h"
+#include "kv_bucket.h"
 #include "mock_dcp_backfill_mgr.h"
 
 /*

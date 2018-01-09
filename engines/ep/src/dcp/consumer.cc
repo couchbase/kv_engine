@@ -22,7 +22,9 @@
 #include "dcp/stream.h"
 #include "ep_engine.h"
 #include "ep_time.h"
+#include "executorpool.h"
 #include "failover-table.h"
+#include "kv_bucket.h"
 #include "replicationthrottle.h"
 
 #include <climits>

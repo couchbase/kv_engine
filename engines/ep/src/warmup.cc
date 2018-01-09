@@ -24,6 +24,7 @@
 #include "ep_engine.h"
 #include "ep_vb.h"
 #include "failover-table.h"
+#include "kv_bucket.h"
 #include "mutation_log.h"
 #include "statwriter.h"
 #include "vbucket_bgfetch_item.h"
