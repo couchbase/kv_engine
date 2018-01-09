@@ -592,6 +592,8 @@ protocol_binary_response_status EventuallyPersistentEngine::setFlushParam(
                     std::stoull(valz));
         } else if (strcmp(keyz, "xattr_enabled") == 0) {
             getConfiguration().setXattrEnabled(cb_stob(valz));
+        } else if (strcmp(keyz, "compression_mode") == 0) {
+            getConfiguration().setCompressionMode(valz);
         } else {
             msg = "Unknown config param";
             rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
@@ -1713,7 +1715,8 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
       checkpointConfig(NULL),
       trafficEnabled(false),
       startupTime(0),
-      taskable(this) {
+      taskable(this),
+      compressionMode(CompressionMode::Off) {
     interface.interface = 1;
     ENGINE_HANDLE_V1::get_info = EvpGetInfo;
     ENGINE_HANDLE_V1::initialize = EvpInitialize;
@@ -1919,6 +1922,13 @@ public:
         }
     }
 
+    virtual void stringValueChanged(const std::string& key, const char* value) {
+        if (key == "compression_mode") {
+            std::string value_str{value, strlen(value)};
+            engine.setCompressMode(value_str);
+        }
+    }
+
 private:
     EventuallyPersistentEngine &engine;
 };
@@ -2041,6 +2051,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     LOG(EXTENSION_LOG_NOTICE,
         "EP Engine: Initialization of %s bucket complete",
         configuration.getBucketType().c_str());
+
+    setCompressMode(configuration.getCompressionMode());
+
+    configuration.addValueChangedListener("compression_mode",
+                                          new EpEngineValueChangeListener(*this));
 
     return ENGINE_SUCCESS;
 }

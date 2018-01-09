@@ -192,6 +192,18 @@
             "descr": "The maximum number of collections allowed.",
             "type": "size_t"
         },
+        "compression_mode": {
+            "default": "off",
+            "descr": "Determines which compression mode the bucket operates in",
+            "type": "std::string",
+            "validator": {
+                "enum": [
+                         "off",
+                         "passive",
+                         "active"
+                        ]
+            }
+        },
         "compaction_write_queue_cap": {
             "default": "10000",
             "desr" : "Disk write queue threshold after which compaction tasks will be made to snooze, if there are already pending compaction tasks",

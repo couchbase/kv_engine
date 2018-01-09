@@ -139,6 +139,43 @@ TEST_P(SetParamTest, requirements_bucket_type) {
     }
 }
 
+/**
+ * Test to verify if the compression mode in the configuration
+ * is updated then the compression mode in the engine is
+ * also updated correctly
+ */
+TEST_P(SetParamTest, compressionModeConfigTest) {
+    Configuration& config = engine->getConfiguration();
+
+    config.setCompressionMode("off");
+    EXPECT_EQ(CompressionMode::Off, engine->getCompressMode());
+
+    config.setCompressionMode("passive");
+    EXPECT_EQ(CompressionMode::Passive, engine->getCompressMode());
+
+    config.setCompressionMode("active");
+    EXPECT_EQ(CompressionMode::Active, engine->getCompressMode());
+
+    EXPECT_THROW(config.setCompressionMode("invalid"), std::range_error);
+    EXPECT_EQ(CompressionMode::Active, engine->getCompressMode());
+
+    std::string msg;
+    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+              engine->setFlushParam("compression_mode", "off", msg));
+    EXPECT_EQ(CompressionMode::Off, engine->getCompressMode());
+
+    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+              engine->setFlushParam("compression_mode", "passive", msg));
+    EXPECT_EQ(CompressionMode::Passive, engine->getCompressMode());
+
+    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+              engine->setFlushParam("compression_mode", "active", msg));
+    EXPECT_EQ(CompressionMode::Active, engine->getCompressMode());
+
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL,
+              engine->setFlushParam("compression_mode", "invalid", msg));
+}
+
 // Test cases which run for persistent and ephemeral buckets
 INSTANTIATE_TEST_CASE_P(EphemeralOrPersistent,
                         SetParamTest,
