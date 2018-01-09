@@ -499,6 +499,14 @@ protected:
     }
 
     void dumpValue(std::ostream& out) const override {
+        if (response.response.getStatus() == 0) {
+            dumpSuccessValue(out);
+        } else {
+            dumpFailureValue(out);
+        }
+    }
+
+    void dumpSuccessValue(std::ostream& out) const {
         uint32_t bodylen = ntohl(response.response.bodylen);
 
         if ((bodylen % 2) != 0) {
@@ -525,10 +533,18 @@ protected:
             } catch (...) {
                 text = std::to_string(feature);
             }
-            out << "                 (" << first << "-"
-            << first + 1 <<"): " << text << std::endl;
+            out << "                 (" << first << "-" << first + 1
+                << "): " << text << std::endl;
             first += 2;
         }
+    }
+
+    void dumpFailureValue(std::ostream& out) const {
+        auto value = response.response.getValue();
+        const std::string val = {reinterpret_cast<const char*>(value.data()),
+                                 value.size()};
+        out << "    Body                : The textual string \"" << val << "\""
+            << std::endl;
     }
 };
 
