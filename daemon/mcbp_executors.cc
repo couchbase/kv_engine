@@ -118,7 +118,8 @@ std::array<HandlerFunction, 0x100> response_handlers;
 static void process_bin_unknown_packet(Cookie& cookie) {
     auto& connection = cookie.getConnection();
 
-    ENGINE_ERROR_CODE ret = cookie.swapAiostat(ENGINE_SUCCESS);
+    ENGINE_ERROR_CODE ret = cookie.getAiostat();
+    cookie.setAiostat(ENGINE_SUCCESS);
 
     if (ret == ENGINE_SUCCESS) {
         ret = bucket_unknown_command(cookie, mcbp_response_handler);
@@ -352,7 +353,8 @@ static void ioctl_get_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
     auto* req = reinterpret_cast<protocol_binary_request_ioctl_set*>(
             cookie.getPacketAsVoidPtr());
-    auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
+    ENGINE_ERROR_CODE ret = cookie.getAiostat();
+    cookie.setAiostat(ENGINE_SUCCESS);
 
     std::string value;
     if (ret == ENGINE_SUCCESS) {
@@ -374,6 +376,7 @@ static void ioctl_get_executor(Cookie& cookie) {
                             0);
         break;
     case ENGINE_EWOULDBLOCK:
+        cookie.setAiostat(ENGINE_EWOULDBLOCK);
         cookie.setEwouldblock(true);
         break;
     case ENGINE_DISCONNECT:
@@ -385,7 +388,8 @@ static void ioctl_get_executor(Cookie& cookie) {
 }
 
 static void ioctl_set_executor(Cookie& cookie) {
-    auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
+    ENGINE_ERROR_CODE ret = cookie.getAiostat();
+    cookie.setAiostat(ENGINE_SUCCESS);
 
     auto& connection = cookie.getConnection();
     if (ret == ENGINE_SUCCESS) {
@@ -407,6 +411,7 @@ static void ioctl_set_executor(Cookie& cookie) {
 
     switch (ret) {
     case ENGINE_EWOULDBLOCK:
+        cookie.setAiostat(ENGINE_EWOULDBLOCK);
         cookie.setEwouldblock(true);
         break;
     case ENGINE_DISCONNECT:

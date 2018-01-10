@@ -20,7 +20,8 @@
 #include "executors.h"
 
 void dcp_close_stream_executor(Cookie& cookie) {
-    auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
+    ENGINE_ERROR_CODE ret = cookie.getAiostat();
+    cookie.setAiostat(ENGINE_SUCCESS);
 
     auto& connection = cookie.getConnection();
     if (ret == ENGINE_SUCCESS) {

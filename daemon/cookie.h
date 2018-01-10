@@ -300,12 +300,9 @@ public:
     ENGINE_ERROR_CODE getAiostat() const;
 
     /**
-     * Set the AIO status and return the previous value
-     *
-     * @param status the new AIO status
-     * @return the previous value
+     * Set the status code for the async IO
      */
-    ENGINE_ERROR_CODE swapAiostat(ENGINE_ERROR_CODE status);
+    void setAiostat(ENGINE_ERROR_CODE aiostat);
 
     /**
      * Is the current cookie blocked?

@@ -371,7 +371,8 @@ static void subdoc_executor(Cookie& cookie, const SubdocCmdTraits traits) {
     // We potentially need to make multiple attempts at this as the engine may
     // return EWOULDBLOCK if not initially resident, hence initialise ret to
     // c->aiostat.
-    auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
+    ENGINE_ERROR_CODE ret = cookie.getAiostat();
+    cookie.setAiostat(ENGINE_SUCCESS);
 
     // If client didn't specify a CAS, we still use CAS internally to check
     // that we are updating the same version of the document as was fetched.

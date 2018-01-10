@@ -97,7 +97,8 @@ static inline ENGINE_ERROR_CODE do_dcp_mutation(Cookie& cookie) {
 }
 
 void dcp_mutation_executor(Cookie& cookie) {
-    auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
+    ENGINE_ERROR_CODE ret = cookie.getAiostat();
+    cookie.setAiostat(ENGINE_SUCCESS);
 
     auto& connection = cookie.getConnection();
     if (ret == ENGINE_SUCCESS) {
