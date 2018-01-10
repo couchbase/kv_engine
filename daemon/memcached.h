@@ -73,25 +73,57 @@ class Connection;
 class ConnectionQueue;
 
 struct LIBEVENT_THREAD {
-    cb_thread_t thread_id;      /* unique ID of this thread */
-    struct event_base *base;    /* libevent handle this thread uses */
-    struct event notify_event;  /* listen event for notify pipe */
-    SOCKET notify[2];           /* notification pipes */
-    ConnectionQueue *new_conn_queue; /* queue of new connections to handle */
-    cb_mutex_t mutex;      /* Mutex to lock protect access to the pending_io */
-    bool is_locked;
-    Connection *pending_io;    /* List of connection with pending async io ops */
-    int index;                  /* index of this thread in the threads array */
-    ThreadType type;      /* Type of IO this thread processes */
+    /// unique ID of this thread
+    cb_thread_t thread_id;
 
-    /** Shared read buffer for all connections serviced by this thread. */
+    /// libevent handle this thread uses
+    struct event_base* base;
+
+    /// listen event for notify pipe
+    struct event notify_event;
+
+    /**
+     * notification pipe.
+     *
+     * The various worker threads are listening on index 0,
+     * and in order to notify the thread other threads will
+     * write data to index 1.
+     */
+    SOCKET notify[2];
+
+    /// queue of new connections to handle
+    ConnectionQueue* new_conn_queue;
+
+    /// Mutex to lock protect access to the pending_io
+    cb_mutex_t mutex;
+
+    /**
+     * Is the thread locked or not (used for sanity checking
+     * that we don't try to lock / unlock a mutex which is
+     * already locked/unlocked).
+     */
+    bool is_locked;
+
+    /// List of connection with pending async io ops
+    Connection* pending_io;
+
+    /// index of this thread in the threads array
+    int index;
+
+    /// Type of IO this thread processes
+    ThreadType type;
+
+    /// Shared read buffer for all connections serviced by this thread.
     std::unique_ptr<cb::Pipe> read;
 
-    /** Shared write buffer for all connections serviced by this thread. */
+    /// Shared write buffer for all connections serviced by this thread.
     std::unique_ptr<cb::Pipe> write;
 
-    subdoc_OPERATION* subdoc_op; /** Shared sub-document operation for all
-                                     connections serviced by this thread. */
+    /**
+     * Shared sub-document operation for all connections serviced by this
+     * thread
+     */
+    subdoc_OPERATION* subdoc_op;
 
     /**
      * When we're deleting buckets we need to disconnect idle
@@ -104,6 +136,10 @@ struct LIBEVENT_THREAD {
      */
     int deleting_buckets;
 
+    /**
+     * Shared validator used by all connections serviced by this thread
+     * when they need to validate a JSON document
+     */
     JSON_checker::Validator *validator;
 };
 
