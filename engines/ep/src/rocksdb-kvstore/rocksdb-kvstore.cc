@@ -232,12 +232,13 @@ RocksDBKVStore::RocksDBKVStore(KVStoreConfig& config)
 
     dbOptions.create_if_missing = true;
 
-    /* Use a listener to set the appropriate engine in the
-     * flusher threads RocksDB creates. We need the flusher threads to
-     * account for news/deletes against the appropriate bucket. */
-    auto fsl = std::make_shared<FlushStartListener>(
-            ObjectRegistry::getCurrentEngine());
-    dbOptions.listeners.emplace_back(fsl);
+    // We use EventListener to set the correct ThreadLocal engine in the
+    // ObjectRegistry for the RocksDB Flusher and Compactor threads. This
+    // allows the memory tracker to track allocations and deallocations against
+    // the appropriate bucket.
+    auto eventListener =
+            std::make_shared<EventListener>(ObjectRegistry::getCurrentEngine());
+    dbOptions.listeners.emplace_back(eventListener);
 
     // Enable Statistics if 'Statistics::stat_level_' is provided by the
     // configuration. We create a statistics object and pass to the multiple

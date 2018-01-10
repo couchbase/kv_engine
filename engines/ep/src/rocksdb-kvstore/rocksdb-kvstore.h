@@ -37,14 +37,27 @@
 #include "../objectregistry.h"
 #include "vbucket_bgfetch_item.h"
 
-// Used to set the correct engine in the ObjectRegistry thread local
-// in RocksDB's flusher threads.
-class FlushStartListener : public rocksdb::EventListener {
+// Local tests have showed that skipping the call to
+// `ObjectRegistry::onSwitchThread` from the RocksDB background Flush
+// threads makes the mem_used stat to grow quickly, leading to resident-ratio
+// close to 0 and constant tempOOM. At the same time, the memcached resident
+// set does not grow. This behaviour suggests that some RocksDB memory
+// allocations happen in a tracked thread (e.g., mc:writer executing
+// rocksdb::DB::Write()), but the deallocation is performed in a RocksDB
+// background Flush thread.
+// For MB-27330, the same happens with some memory allocated in tracked
+// threads and deallocated in RocksDB background Compaction threads.
+class EventListener : public rocksdb::EventListener {
 public:
-    FlushStartListener(EventuallyPersistentEngine* epe) : engine(epe) {
+    EventListener(EventuallyPersistentEngine* epe) : engine(epe) {
     }
     void OnFlushBegin(rocksdb::DB*, const rocksdb::FlushJobInfo&) override {
         ObjectRegistry::onSwitchThread(engine, false);
+    }
+    // Called at the beginning of a Compaction job
+    rocksdb::CompactionEventListener* GetCompactionEventListener() override {
+        ObjectRegistry::onSwitchThread(engine, false);
+        return nullptr;
     }
 
 private:
