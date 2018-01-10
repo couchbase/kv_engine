@@ -66,10 +66,6 @@ private:
     std::queue< std::unique_ptr<ConnectionQueueItem> > connections;
 };
 
-
-/* Connection lock around accepting new connections */
-cb_mutex_t conn_lock;
-
 static LIBEVENT_THREAD dispatcher_thread;
 
 /*
@@ -507,7 +503,6 @@ void thread_init(int nthr, struct event_base *main_base,
     int i;
     nthreads = nthr;
 
-    cb_mutex_initialize(&conn_lock);
     cb_mutex_initialize(&init_lock);
     cb_cond_initialize(&init_cond);
 
