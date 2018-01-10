@@ -95,14 +95,7 @@ struct LIBEVENT_THREAD {
     ConnectionQueue* new_conn_queue = nullptr;
 
     /// Mutex to lock protect access to the pending_io
-    cb_mutex_t mutex = {};
-
-    /**
-     * Is the thread locked or not (used for sanity checking
-     * that we don't try to lock / unlock a mutex which is
-     * already locked/unlocked).
-     */
-    bool is_locked = false;
+    std::mutex mutex;
 
     /// List of connection with pending async io ops
     Connection* pending_io = nullptr;
@@ -143,15 +136,9 @@ struct LIBEVENT_THREAD {
     JSON_checker::Validator* validator = nullptr;
 };
 
-#define LOCK_THREAD(t) \
-    cb_mutex_enter(&t->mutex); \
-    cb_assert(!t->is_locked); \
-    t->is_locked = true;
+#define LOCK_THREAD(t) t->mutex.lock();
 
-#define UNLOCK_THREAD(t) \
-    cb_assert(t->is_locked); \
-    t->is_locked = false; \
-    cb_mutex_exit(&t->mutex);
+#define UNLOCK_THREAD(t) t->mutex.unlock();
 
 extern void notify_thread(LIBEVENT_THREAD *thread);
 extern void notify_dispatcher(void);

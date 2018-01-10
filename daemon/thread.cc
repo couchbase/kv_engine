@@ -196,8 +196,6 @@ static void setup_thread(LIBEVENT_THREAD *me) {
         FATAL_ERROR(EXIT_FAILURE, "Failed to allocate memory for connection queue");
     }
 
-    cb_mutex_initialize(&me->mutex);
-
     // Initialize threads' sub-document parser / handler
     me->subdoc_op = subdoc_op_alloc();
 
