@@ -92,12 +92,12 @@ struct LIBEVENT_THREAD {
     SOCKET notify[2] = {INVALID_SOCKET, INVALID_SOCKET};
 
     /// queue of new connections to handle
-    ConnectionQueue* new_conn_queue = nullptr;
+    std::unique_ptr<ConnectionQueue> new_conn_queue;
 
     /// Mutex to lock protect access to the pending_io
     std::mutex mutex;
 
-    /// List of connection with pending async io ops
+    /// List of connection with pending async io ops (not owning)
     Connection* pending_io = nullptr;
 
     /// index of this thread in the threads array
@@ -116,7 +116,7 @@ struct LIBEVENT_THREAD {
      * Shared sub-document operation for all connections serviced by this
      * thread
      */
-    subdoc_OPERATION* subdoc_op = nullptr;
+    std::unique_ptr<Subdoc::Operation> subdoc_op;
 
     /**
      * When we're deleting buckets we need to disconnect idle
@@ -133,7 +133,7 @@ struct LIBEVENT_THREAD {
      * Shared validator used by all connections serviced by this thread
      * when they need to validate a JSON document
      */
-    JSON_checker::Validator* validator = nullptr;
+    std::unique_ptr<JSON_checker::Validator> validator;
 };
 
 #define LOCK_THREAD(t) t->mutex.lock();

@@ -582,7 +582,7 @@ subdoc_operate_one_path(SubdocCmdContext& context, SubdocCmdContext::OperationSp
                         const cb::const_char_buffer& in_doc) {
 
     // Prepare the specified sub-document command.
-    Subdoc::Operation* op = context.connection.getThread()->subdoc_op;
+    Subdoc::Operation* op = context.connection.getThread()->subdoc_op.get();
     op->clear();
     op->set_result_buf(&spec.result);
     op->set_code(spec.traits.subdocCommand);

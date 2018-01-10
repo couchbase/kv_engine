@@ -191,18 +191,12 @@ static void setup_thread(LIBEVENT_THREAD *me) {
     }
 
     try {
-        me->new_conn_queue = new ConnectionQueue;
+        me->new_conn_queue.reset(new ConnectionQueue);
+        me->subdoc_op.reset(new Subdoc::Operation());
+        me->validator.reset(new JSON_checker::Validator());
     } catch (const std::bad_alloc&) {
-        FATAL_ERROR(EXIT_FAILURE, "Failed to allocate memory for connection queue");
-    }
-
-    // Initialize threads' sub-document parser / handler
-    me->subdoc_op = subdoc_op_alloc();
-
-    try {
-        me->validator = new JSON_checker::Validator();
-    } catch (const std::bad_alloc&) {
-        FATAL_ERROR(EXIT_FAILURE, "Failed to allocate memory for JSON validator");
+        FATAL_ERROR(EXIT_FAILURE,
+                    "Failed to allocate memory for worker thread");
     }
 }
 
@@ -555,9 +549,9 @@ void threads_cleanup() {
         event_base_free(threads[ii].base);
         threads[ii].read.reset();
         threads[ii].write.reset();
-        subdoc_op_free(threads[ii].subdoc_op);
-        delete threads[ii].validator;
-        delete threads[ii].new_conn_queue;
+        threads[ii].subdoc_op.reset();
+        threads[ii].validator.reset();
+        threads[ii].new_conn_queue.reset();
     }
 
     threads.reset();
