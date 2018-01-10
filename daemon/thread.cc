@@ -73,7 +73,7 @@ static LIBEVENT_THREAD dispatcher_thread;
  * can use to signal that they've put a new connection on its queue.
  */
 static int nthreads;
-static LIBEVENT_THREAD *threads;
+static std::unique_ptr<LIBEVENT_THREAD[]> threads;
 std::vector<TimingHistogram> scheduler_info;
 
 /*
@@ -102,7 +102,7 @@ static void create_worker(void (*func)(void *), void *arg, cb_thread_t *id,
 
 void iterate_all_connections(std::function<void(Connection&)> callback) {
     for (int ii = 0; ii < nthreads; ++ii) {
-        LIBEVENT_THREAD* thr = threads + ii;
+        auto* thr = threads.get() + ii;
         LOCK_THREAD(thr);
         iterate_thread_connections(thr, callback);
         UNLOCK_THREAD(thr);
@@ -151,7 +151,6 @@ bool create_notification_pipe(LIBEVENT_THREAD *me)
 static void setup_dispatcher(struct event_base *main_base,
                              void (*dispatcher_callback)(evutil_socket_t, short, void *))
 {
-    memset(&dispatcher_thread, 0, sizeof(dispatcher_thread));
     dispatcher_thread.type = ThreadType::DISPATCHER;
     dispatcher_thread.base = main_base;
 	dispatcher_thread.thread_id = cb_thread_self();
@@ -454,7 +453,7 @@ static int last_thread = -1;
  */
 void dispatch_conn_new(SOCKET sfd, int parent_port) {
     int tid = (last_thread + 1) % settings.getNumWorkerThreads();
-    LIBEVENT_THREAD* thread = threads + tid;
+    LIBEVENT_THREAD* thread = threads.get() + tid;
     last_thread = tid;
 
     try {
@@ -507,9 +506,10 @@ void thread_init(int nthr, struct event_base *main_base,
     cb_cond_initialize(&init_cond);
 
     scheduler_info.resize(nthreads);
-    threads = reinterpret_cast<LIBEVENT_THREAD*>(cb_calloc(nthreads,
-                                                        sizeof(LIBEVENT_THREAD)));
-    if (threads == nullptr) {
+
+    try {
+        threads.reset(new LIBEVENT_THREAD[nthreads]);
+    } catch (const std::bad_alloc&) {
         FATAL_ERROR(EXIT_FAILURE, "Can't allocate thread descriptors");
     }
 
@@ -550,10 +550,8 @@ void threads_shutdown(void)
     }
 }
 
-void threads_cleanup(void)
-{
-    int ii;
-    for (ii = 0; ii < nthreads; ++ii) {
+void threads_cleanup() {
+    for (int ii = 0; ii < nthreads; ++ii) {
         safe_close(threads[ii].notify[0]);
         safe_close(threads[ii].notify[1]);
         event_base_free(threads[ii].base);
@@ -564,31 +562,28 @@ void threads_cleanup(void)
         delete threads[ii].new_conn_queue;
     }
 
-    cb_free(threads);
+    threads.reset();
 }
 
-void threads_notify_bucket_deletion(void)
-{
+void threads_notify_bucket_deletion() {
     for (int ii = 0; ii < nthreads; ++ii) {
-        LIBEVENT_THREAD *thr = threads + ii;
+        auto* thr = threads.get() + ii;
         notify_thread(thr);
     }
 }
 
-void threads_complete_bucket_deletion(void)
-{
+void threads_complete_bucket_deletion() {
     for (int ii = 0; ii < nthreads; ++ii) {
-        LIBEVENT_THREAD *thr = threads + ii;
+        auto* thr = threads.get() + ii;
         LOCK_THREAD(thr);
         threads[ii].deleting_buckets--;
         UNLOCK_THREAD(thr);
     }
 }
 
-void threads_initiate_bucket_deletion(void)
-{
+void threads_initiate_bucket_deletion() {
     for (int ii = 0; ii < nthreads; ++ii) {
-        LIBEVENT_THREAD *thr = threads + ii;
+        auto* thr = threads.get() + ii;
         LOCK_THREAD(thr);
         threads[ii].deleting_buckets++;
         UNLOCK_THREAD(thr);

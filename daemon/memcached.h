@@ -74,13 +74,13 @@ class ConnectionQueue;
 
 struct LIBEVENT_THREAD {
     /// unique ID of this thread
-    cb_thread_t thread_id;
+    cb_thread_t thread_id = {};
 
     /// libevent handle this thread uses
-    struct event_base* base;
+    struct event_base* base = nullptr;
 
     /// listen event for notify pipe
-    struct event notify_event;
+    struct event notify_event = {};
 
     /**
      * notification pipe.
@@ -89,29 +89,29 @@ struct LIBEVENT_THREAD {
      * and in order to notify the thread other threads will
      * write data to index 1.
      */
-    SOCKET notify[2];
+    SOCKET notify[2] = {INVALID_SOCKET, INVALID_SOCKET};
 
     /// queue of new connections to handle
-    ConnectionQueue* new_conn_queue;
+    ConnectionQueue* new_conn_queue = nullptr;
 
     /// Mutex to lock protect access to the pending_io
-    cb_mutex_t mutex;
+    cb_mutex_t mutex = {};
 
     /**
      * Is the thread locked or not (used for sanity checking
      * that we don't try to lock / unlock a mutex which is
      * already locked/unlocked).
      */
-    bool is_locked;
+    bool is_locked = false;
 
     /// List of connection with pending async io ops
-    Connection* pending_io;
+    Connection* pending_io = nullptr;
 
     /// index of this thread in the threads array
-    int index;
+    int index = 0;
 
     /// Type of IO this thread processes
-    ThreadType type;
+    ThreadType type = ThreadType::GENERAL;
 
     /// Shared read buffer for all connections serviced by this thread.
     std::unique_ptr<cb::Pipe> read;
@@ -123,7 +123,7 @@ struct LIBEVENT_THREAD {
      * Shared sub-document operation for all connections serviced by this
      * thread
      */
-    subdoc_OPERATION* subdoc_op;
+    subdoc_OPERATION* subdoc_op = nullptr;
 
     /**
      * When we're deleting buckets we need to disconnect idle
@@ -134,13 +134,13 @@ struct LIBEVENT_THREAD {
      * state. That should cause them to be rescheduled and cause the
      * client to disconnect.
      */
-    int deleting_buckets;
+    int deleting_buckets = 0;
 
     /**
      * Shared validator used by all connections serviced by this thread
      * when they need to validate a JSON document
      */
-    JSON_checker::Validator *validator;
+    JSON_checker::Validator* validator = nullptr;
 };
 
 #define LOCK_THREAD(t) \
