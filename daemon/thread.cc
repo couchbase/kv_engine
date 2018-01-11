@@ -21,8 +21,6 @@
 #include <queue>
 #include <memory>
 
-#define ITEMS_PER_ALLOC 64
-
 extern std::atomic<bool> memcached_shutdown;
 
 /* An item in the connection queue. */
