@@ -260,7 +260,9 @@ if md2core_exe and gdb_exe:
             if m:
                 # However allow unknown symbols if they are in system libraries.
                 so_name = m.group(1)
-                if not any(so_name.startswith(d) for d in ['/lib', '/usr/lib']):
+                if not any(so_name.startswith(d) for d in ['/lib',
+                                                           '/usr/lib',
+                                                           '/usr/local/lib']):
                     logging.error(("FAIL - GDB unable to identify the symbol of " +
                            "frame {0} - found '{1}'.").format(i, frame))
                     print("=== GDB begin ===")
