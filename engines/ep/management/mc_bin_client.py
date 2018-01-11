@@ -9,6 +9,7 @@ import exceptions
 import hmac
 import json
 import random
+import re
 import select
 import socket
 import struct
@@ -21,6 +22,30 @@ from memcacheConstants import SET_PKT_FMT, DEL_PKT_FMT, INCRDECR_RES_FMT
 from memcacheConstants import TOUCH_PKT_FMT, GAT_PKT_FMT, GETL_PKT_FMT
 from memcacheConstants import COMPACT_DB_PKT_FMT
 import memcacheConstants
+
+def parse_address(addr):
+    """Parse a host string with optional port number into a
+    (host, port, family) triple."""
+
+    # Sane defaults
+    family = socket.AF_UNSPEC
+    port = 11210
+    # Is this IPv6?
+    if addr.startswith('['):
+        matches = re.match(r'^\[([^\]]+)\](:(\d+))?$', addr)
+        family = socket.AF_INET6
+    else:
+        matches = re.match(r'^([^:]+)(:(\d+))?$', addr)
+    if matches:
+        # The host is the first group
+        host = matches.group(1)
+        # Optional port is the 3rd group
+        if matches.group(3):
+            port = int(matches.group(3))
+    else:
+        raise Exception("Invalid format for host string: '{}'".format(addr))
+
+    return host, port, family
 
 class TimeoutError(exceptions.Exception):
     def __init__(self, time):

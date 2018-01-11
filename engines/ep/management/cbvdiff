@@ -26,14 +26,13 @@ def main():
     cluster = args[0].split(',')
     for node in cluster:
         try:
-            host, port = node.split(':')
-            port = int(port)
+            host, port, family = mc_bin_client.parse_address(node)
         except ValueError:
             parser.print_help()
             sys.exit(1)
         # ----- Connect to memcached port ------
         try:
-            mc = mc_bin_client.MemcachedClient(host, port)
+            mc = mc_bin_client.MemcachedClient(host, port, family)
         except socket.gaierror, e:
             print 'Source %s connection error: %s' % (host, e)
             sys.exit(1)

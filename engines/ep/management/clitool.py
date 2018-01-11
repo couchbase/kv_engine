@@ -1,35 +1,8 @@
 import optparse
-import re
 import socket
 import sys
 
 import mc_bin_client
-
-
-def parse_address(addr):
-    """Parse a host string with optional port number into a
-    (host, port, family) triple."""
-
-    # Sane defaults
-    family = socket.AF_UNSPEC
-    port = 11210
-    # Is this IPv6?
-    if addr.startswith('['):
-        matches = re.match(r'^\[([^\]]+)\](:(\d+))?$', addr)
-        family = socket.AF_INET6
-    else:
-        matches = re.match(r'^([^:]+)(:(\d+))?$', addr)
-    if matches:
-        # The host is the first group
-        host = matches.group(1)
-        # Optional port is the 3rd group
-        if matches.group(3):
-            port = int(matches.group(3))
-    else:
-        raise Exception("Invalid format for host string: '{}'".format(addr))
-
-    return host, port, family
-
 
 class CliTool(object):
 
@@ -74,7 +47,7 @@ class CliTool(object):
 
         hp, self.cmd = args[:2]
         try:
-            (host, port, family) = parse_address(hp)
+            (host, port, family) = mc_bin_client.parse_address(hp)
         except Exception as e:
             print e
             sys.exit(1)
