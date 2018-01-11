@@ -70,7 +70,27 @@ enum class ThreadType {
 };
 
 class Connection;
-class ConnectionQueue;
+struct ConnectionQueueItem;
+
+/**
+ * The dispatcher accepts new clients and needs to dispatch them
+ * to the worker threads. In order to do so we use the ConnectionQueue
+ * where the dispatcher allocates the items and push on to the queue,
+ * and the actual worker thread pop's the items off and start
+ * serving them.
+ */
+class ConnectionQueue {
+public:
+    ~ConnectionQueue();
+
+    void push(std::unique_ptr<ConnectionQueueItem> item);
+
+    std::unique_ptr<ConnectionQueueItem> pop();
+
+private:
+    std::mutex mutex;
+    std::queue<std::unique_ptr<ConnectionQueueItem> > connections;
+};
 
 struct LIBEVENT_THREAD {
     /// unique ID of this thread
@@ -92,7 +112,7 @@ struct LIBEVENT_THREAD {
     SOCKET notify[2] = {INVALID_SOCKET, INVALID_SOCKET};
 
     /// queue of new connections to handle
-    std::unique_ptr<ConnectionQueue> new_conn_queue;
+    ConnectionQueue new_conn_queue;
 
     /// Mutex to lock protect access to the pending_io
     std::mutex mutex;

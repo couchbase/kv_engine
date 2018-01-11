@@ -35,34 +35,27 @@ struct ConnectionQueueItem {
     in_port_t parent_port;
 };
 
-class ConnectionQueue {
-public:
-    ~ConnectionQueue() {
-        while (!connections.empty()) {
-            safe_close(connections.front()->sfd);
-            connections.pop();
-        }
-    }
-
-    std::unique_ptr<ConnectionQueueItem> pop() {
-        std::lock_guard<std::mutex> guard(mutex);
-        if (connections.empty()) {
-            return nullptr;
-        }
-        std::unique_ptr<ConnectionQueueItem> ret(std::move(connections.front()));
+ConnectionQueue::~ConnectionQueue() {
+    while (!connections.empty()) {
+        safe_close(connections.front()->sfd);
         connections.pop();
-        return ret;
     }
+}
 
-    void push(std::unique_ptr<ConnectionQueueItem> &item) {
-        std::lock_guard<std::mutex> guard(mutex);
-        connections.push(std::move(item));
+std::unique_ptr<ConnectionQueueItem> ConnectionQueue::pop() {
+    std::lock_guard<std::mutex> guard(mutex);
+    if (connections.empty()) {
+        return nullptr;
     }
+    std::unique_ptr<ConnectionQueueItem> ret(std::move(connections.front()));
+    connections.pop();
+    return ret;
+}
 
-private:
-    std::mutex mutex;
-    std::queue< std::unique_ptr<ConnectionQueueItem> > connections;
-};
+void ConnectionQueue::push(std::unique_ptr<ConnectionQueueItem> item) {
+    std::lock_guard<std::mutex> guard(mutex);
+    connections.push(std::move(item));
+}
 
 static LIBEVENT_THREAD dispatcher_thread;
 
@@ -187,13 +180,6 @@ static void setup_thread(LIBEVENT_THREAD *me) {
         (event_add(&me->notify_event, 0) == -1)) {
         FATAL_ERROR(EXIT_FAILURE, "Can't monitor libevent notify pipe");
     }
-
-    try {
-        me->new_conn_queue.reset(new ConnectionQueue);
-    } catch (const std::bad_alloc&) {
-        FATAL_ERROR(EXIT_FAILURE,
-                    "Failed to allocate memory for worker thread");
-    }
 }
 
 /*
@@ -253,7 +239,7 @@ static void drain_notification_channel(evutil_socket_t fd)
 
 void dispatch_new_connections(LIBEVENT_THREAD* me) {
     std::unique_ptr<ConnectionQueueItem> item;
-    while ((item = me->new_conn_queue->pop()) != nullptr) {
+    while ((item = me->new_conn_queue.pop()) != nullptr) {
         if (conn_new(item->sfd, item->parent_port, me->base, me) == nullptr) {
             LOG_WARNING(nullptr, "Failed to dispatch event for socket %ld",
                         long(item->sfd));
@@ -447,7 +433,7 @@ void dispatch_conn_new(SOCKET sfd, int parent_port) {
     try {
         std::unique_ptr<ConnectionQueueItem> item(
             new ConnectionQueueItem(sfd, parent_port));
-        thread->new_conn_queue->push(item);
+        thread->new_conn_queue.push(std::move(item));
     } catch (const std::bad_alloc& e) {
         LOG_WARNING(nullptr,
                     "dispatch_conn_new: Failed to dispatch new connection: %s",
@@ -545,7 +531,6 @@ void threads_cleanup() {
         event_base_free(threads[ii].base);
         threads[ii].read.reset();
         threads[ii].write.reset();
-        threads[ii].new_conn_queue.reset();
     }
 
     threads.reset();
