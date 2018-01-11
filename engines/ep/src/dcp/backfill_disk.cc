@@ -225,6 +225,12 @@ backfill_status_t DCPBackfillDisk::create() {
         stream->markDiskSnapshot(startSeqno, scanCtx->maxSeqno);
         transitionState(backfill_state_scanning);
     } else {
+        stream->log(EXTENSION_LOG_WARNING,
+                    "DCPBackfillDisk::create(): "
+                    "(vb:%d) backfill create ended prematurely as the disk "
+                    "cannot be scanned. Associated stream is set to dead state",
+                    getVBucketId());
+        stream->setDead(END_STREAM_BACKFILL_FAIL);
         transitionState(backfill_state_done);
     }
 

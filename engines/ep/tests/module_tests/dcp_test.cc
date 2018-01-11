@@ -1063,6 +1063,41 @@ TEST_P(StreamTest, BackfillOnly) {
                items are read correctly */
 }
 
+/* Negative test case that checks whether the stream gracefully goes to
+   'dead' state upon disk backfill failure */
+TEST_P(StreamTest, DiskBackfillFail) {
+    if (bucketType == "ephemeral") {
+        /* Ephemeral buckets don't do disk backfill */
+        return;
+    }
+
+    /* Add 3 items */
+    int numItems = 3;
+    addItemsAndRemoveCheckpoint(numItems);
+
+    /* Delete the vb file so that the backfill would fail */
+    engine->getKVBucket()->getRWUnderlying(vbid)->delVBucket(vbid,
+                                                             /* file rev */ 1);
+
+    /* Set up a DCP stream for the backfill */
+    setup_dcp_stream();
+
+    /* Run the backfill task in a background thread */
+    ExecutorPool::get()->setNumAuxIO(1);
+    stream->transitionStateToBackfilling();
+
+    /* Wait for the backfill task to fail and stream to transition to dead
+       state */
+    {
+        std::chrono::microseconds uSleepTime(128);
+        while (stream->isActive()) {
+            uSleepTime = decayingSleep(uSleepTime);
+        }
+    }
+
+    destroy_dcp_stream();
+}
+
 /* Stream items from a DCP backfill with very small backfill buffer.
    However small the backfill buffer is, backfill must not stop, it must
    proceed to completion eventually */
