@@ -64,7 +64,7 @@ static LIBEVENT_THREAD dispatcher_thread;
  * can use to signal that they've put a new connection on its queue.
  */
 static int nthreads;
-static std::unique_ptr<LIBEVENT_THREAD[]> threads;
+static std::vector<LIBEVENT_THREAD> threads;
 std::vector<TimingHistogram> scheduler_info;
 
 /*
@@ -92,11 +92,9 @@ static void create_worker(void (*func)(void *), void *arg, cb_thread_t *id,
 /****************************** LIBEVENT THREADS *****************************/
 
 void iterate_all_connections(std::function<void(Connection&)> callback) {
-    for (int ii = 0; ii < nthreads; ++ii) {
-        auto* thr = threads.get() + ii;
-        LOCK_THREAD(thr);
-        iterate_thread_connections(thr, callback);
-        UNLOCK_THREAD(thr);
+    for (auto& thr : threads) {
+        std::lock_guard<std::mutex> guard(thr.mutex);
+        iterate_thread_connections(&thr, callback);
     }
 }
 
@@ -427,13 +425,13 @@ static int last_thread = -1;
  */
 void dispatch_conn_new(SOCKET sfd, int parent_port) {
     int tid = (last_thread + 1) % settings.getNumWorkerThreads();
-    LIBEVENT_THREAD* thread = threads.get() + tid;
+    auto& thread = threads[tid];
     last_thread = tid;
 
     try {
         std::unique_ptr<ConnectionQueueItem> item(
             new ConnectionQueueItem(sfd, parent_port));
-        thread->new_conn_queue.push(std::move(item));
+        thread.new_conn_queue.push(std::move(item));
     } catch (const std::bad_alloc& e) {
         LOG_WARNING(nullptr,
                     "dispatch_conn_new: Failed to dispatch new connection: %s",
@@ -442,8 +440,8 @@ void dispatch_conn_new(SOCKET sfd, int parent_port) {
         return ;
     }
 
-    MEMCACHED_CONN_DISPATCH(sfd, (uintptr_t)thread->thread_id);
-    notify_thread(thread);
+    MEMCACHED_CONN_DISPATCH(sfd, (uintptr_t)thread.thread_id);
+    notify_thread(&thread);
 }
 
 /*
@@ -482,7 +480,7 @@ void thread_init(int nthr, struct event_base *main_base,
     scheduler_info.resize(nthreads);
 
     try {
-        threads.reset(new LIBEVENT_THREAD[nthreads]);
+        threads = std::vector<LIBEVENT_THREAD>(nthreads);
     } catch (const std::bad_alloc&) {
         FATAL_ERROR(EXIT_FAILURE, "Can't allocate thread descriptors");
     }
@@ -528,8 +526,6 @@ void threads_cleanup() {
     for (int ii = 0; ii < nthreads; ++ii) {
         event_base_free(threads[ii].base);
     }
-
-    threads.reset();
 }
 
 LIBEVENT_THREAD::~LIBEVENT_THREAD() {
@@ -541,27 +537,22 @@ LIBEVENT_THREAD::~LIBEVENT_THREAD() {
 }
 
 void threads_notify_bucket_deletion() {
-    for (int ii = 0; ii < nthreads; ++ii) {
-        auto* thr = threads.get() + ii;
-        notify_thread(thr);
+    for (auto& thr : threads) {
+        notify_thread(&thr);
     }
 }
 
 void threads_complete_bucket_deletion() {
-    for (int ii = 0; ii < nthreads; ++ii) {
-        auto* thr = threads.get() + ii;
-        LOCK_THREAD(thr);
-        threads[ii].deleting_buckets--;
-        UNLOCK_THREAD(thr);
+    for (auto& thr : threads) {
+        std::lock_guard<std::mutex> guard(thr.mutex);
+        thr.deleting_buckets--;
     }
 }
 
 void threads_initiate_bucket_deletion() {
-    for (int ii = 0; ii < nthreads; ++ii) {
-        auto* thr = threads.get() + ii;
-        LOCK_THREAD(thr);
-        threads[ii].deleting_buckets++;
-        UNLOCK_THREAD(thr);
+    for (auto& thr : threads) {
+        std::lock_guard<std::mutex> guard(thr.mutex);
+        thr.deleting_buckets++;
     }
 }
 
