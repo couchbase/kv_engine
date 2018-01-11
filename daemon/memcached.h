@@ -167,9 +167,8 @@ struct LIBEVENT_THREAD {
 
 #define UNLOCK_THREAD(t) t->mutex.unlock();
 
-extern void notify_thread(LIBEVENT_THREAD *thread);
-extern void notify_dispatcher(void);
-extern bool create_notification_pipe(LIBEVENT_THREAD *me);
+extern void notify_thread(LIBEVENT_THREAD& thread);
+extern void notify_dispatcher();
 
 #include "connection.h"
 #include "connection_listen.h"
@@ -203,8 +202,8 @@ void associate_initial_bucket(Connection& connection);
 
 void thread_init(int nthreads, struct event_base *main_base,
                  void (*dispatcher_callback)(evutil_socket_t, short, void *));
-void threads_shutdown(void);
-void threads_cleanup(void);
+void threads_shutdown();
+void threads_cleanup();
 
 void dispatch_conn_new(SOCKET sfd, int parent_port);
 
@@ -268,11 +267,11 @@ const char* get_server_version(void);
  */
 void update_topkeys(const Cookie& cookie);
 
-void notify_thread_bucket_deletion(LIBEVENT_THREAD *me);
+void notify_thread_bucket_deletion(LIBEVENT_THREAD& me);
 
-void threads_notify_bucket_deletion(void);
-void threads_complete_bucket_deletion(void);
-void threads_initiate_bucket_deletion(void);
+void threads_notify_bucket_deletion();
+void threads_complete_bucket_deletion();
+void threads_initiate_bucket_deletion();
 
 // This should probably go in a network-helper file..
 #ifdef WIN32

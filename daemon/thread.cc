@@ -98,8 +98,7 @@ void iterate_all_connections(std::function<void(Connection&)> callback) {
     }
 }
 
-bool create_notification_pipe(LIBEVENT_THREAD *me)
-{
+static bool create_notification_pipe(LIBEVENT_THREAD& me) {
     int j;
 
 #ifdef WIN32
@@ -108,8 +107,11 @@ bool create_notification_pipe(LIBEVENT_THREAD *me)
 #define DATATYPE int
 #endif
 
-    if (evutil_socketpair(SOCKETPAIR_AF, SOCK_STREAM, 0,
-                          reinterpret_cast< DATATYPE *>(me->notify)) == SOCKET_ERROR) {
+    if (evutil_socketpair(SOCKETPAIR_AF,
+                          SOCK_STREAM,
+                          0,
+                          reinterpret_cast<DATATYPE*>(me.notify)) ==
+        SOCKET_ERROR) {
         log_socket_error(EXTENSION_LOG_WARNING, NULL,
                          "Can't create notify pipe: %s");
         return false;
@@ -122,13 +124,18 @@ bool create_notification_pipe(LIBEVENT_THREAD *me)
 #else
         void* flag_ptr = reinterpret_cast<void*>(&flags);
 #endif
-        setsockopt(me->notify[j], IPPROTO_TCP,
-                   TCP_NODELAY, flag_ptr, sizeof(flags));
-        setsockopt(me->notify[j], SOL_SOCKET,
-                   SO_REUSEADDR, flag_ptr, sizeof(flags));
+        setsockopt(me.notify[j],
+                   IPPROTO_TCP,
+                   TCP_NODELAY,
+                   flag_ptr,
+                   sizeof(flags));
+        setsockopt(me.notify[j],
+                   SOL_SOCKET,
+                   SO_REUSEADDR,
+                   flag_ptr,
+                   sizeof(flags));
 
-
-        if (evutil_make_socket_nonblocking(me->notify[j]) == -1) {
+        if (evutil_make_socket_nonblocking(me.notify[j]) == -1) {
             log_socket_error(EXTENSION_LOG_WARNING, NULL,
                              "Failed to enable non-blocking: %s");
             return false;
@@ -143,8 +150,8 @@ static void setup_dispatcher(struct event_base *main_base,
     dispatcher_thread.type = ThreadType::DISPATCHER;
     dispatcher_thread.base = main_base;
 	dispatcher_thread.thread_id = cb_thread_self();
-    if (!create_notification_pipe(&dispatcher_thread)) {
-        FATAL_ERROR(EXIT_FAILURE, "Unable to create notification pipe");
+        if (!create_notification_pipe(dispatcher_thread)) {
+            FATAL_ERROR(EXIT_FAILURE, "Unable to create notification pipe");
     }
 
     /* Listen for notifications from other threads */
@@ -162,20 +169,22 @@ static void setup_dispatcher(struct event_base *main_base,
 /*
  * Set up a thread's information.
  */
-static void setup_thread(LIBEVENT_THREAD *me) {
-    me->type = ThreadType::GENERAL;
-    me->base = event_base_new();
+static void setup_thread(LIBEVENT_THREAD& me) {
+    me.type = ThreadType::GENERAL;
+    me.base = event_base_new();
 
-    if (! me->base) {
+    if (!me.base) {
         FATAL_ERROR(EXIT_FAILURE, "Can't allocate event base");
     }
 
     /* Listen for notifications from other threads */
-    if ((event_assign(&me->notify_event, me->base, me->notify[0],
+    if ((event_assign(&me.notify_event,
+                      me.base,
+                      me.notify[0],
                       EV_READ | EV_PERSIST,
                       thread_libevent_process,
-                      me) == -1) ||
-        (event_add(&me->notify_event, 0) == -1)) {
+                      &me) == -1) ||
+        (event_add(&me.notify_event, 0) == -1)) {
         FATAL_ERROR(EXIT_FAILURE, "Can't monitor libevent notify pipe");
     }
 }
@@ -235,10 +244,10 @@ static void drain_notification_channel(evutil_socket_t fd)
     }
 }
 
-void dispatch_new_connections(LIBEVENT_THREAD* me) {
+static void dispatch_new_connections(LIBEVENT_THREAD& me) {
     std::unique_ptr<ConnectionQueueItem> item;
-    while ((item = me->new_conn_queue.pop()) != nullptr) {
-        if (conn_new(item->sfd, item->parent_port, me->base, me) == nullptr) {
+    while ((item = me.new_conn_queue.pop()) != nullptr) {
+        if (conn_new(item->sfd, item->parent_port, me.base, &me) == nullptr) {
             LOG_WARNING(nullptr, "Failed to dispatch event for socket %ld",
                         long(item->sfd));
             safe_close(item->sfd);
@@ -251,9 +260,8 @@ void dispatch_new_connections(LIBEVENT_THREAD* me) {
  * input arrives on the libevent wakeup pipe.
  */
 static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) {
-    LIBEVENT_THREAD* me = reinterpret_cast<LIBEVENT_THREAD*>(arg);
+    auto& me = *reinterpret_cast<LIBEVENT_THREAD*>(arg);
 
-    cb_assert(me->type == ThreadType::GENERAL);
     // Start by draining the notification channel before doing any work.
     // By doing so we know that we'll be notified again if someone
     // tries to notify us while we're doing the work below (so we don't have
@@ -265,26 +273,26 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
         // Someone requested memcached to shut down. The listen thread should
         // be stopped immediately.
         if (is_listen_thread()) {
-            LOG_NOTICE(NULL, "Stopping listen thread (thread.cc)");
-            event_base_loopbreak(me->base);
+            LOG_NOTICE(nullptr, "Stopping listen thread (thread.cc)");
+            event_base_loopbreak(me.base);
             return;
         }
 
-        if (signal_idle_clients(me, -1, false) == 0) {
-            LOG_NOTICE(NULL, "Stopping worker thread %u", me->index);
-            event_base_loopbreak(me->base);
+        if (signal_idle_clients(&me, -1, false) == 0) {
+            LOG_NOTICE(nullptr, "Stopping worker thread %u", me.index);
+            event_base_loopbreak(me.base);
             return;
         }
     }
 
     dispatch_new_connections(me);
 
-    LOCK_THREAD(me);
-    Connection* pending = me->pending_io;
-    me->pending_io = NULL;
-    while (pending != NULL) {
-        Connection *c = pending;
-        cb_assert(me == c->getThread());
+    std::lock_guard<std::mutex> guard(me.mutex);
+
+    auto* pending = me.pending_io;
+    me.pending_io = nullptr;
+    while (pending != nullptr) {
+        auto* c = pending;
         pending = pending->getNext();
         c->setNext(nullptr);
 
@@ -310,26 +318,25 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
     /*
      * I could look at all of the connection objects bound to dying buckets
      */
-    if (me->deleting_buckets) {
+    if (me.deleting_buckets) {
         notify_thread_bucket_deletion(me);
     }
 
     if (memcached_shutdown) {
         // Someone requested memcached to shut down. If we don't have
         // any connections bound to this thread we can just shut down
-        int connected = signal_idle_clients(me, -1, true);
+        auto connected = signal_idle_clients(&me, -1, true);
         if (connected == 0) {
-            LOG_NOTICE(NULL, "Stopping worker thread %u", me->index);
-            event_base_loopbreak(me->base);
+            LOG_NOTICE(nullptr, "Stopping worker thread %u", me.index);
+            event_base_loopbreak(me.base);
         } else {
             // @todo Change loglevel once MB-16255 is resolved
-            LOG_NOTICE(NULL,
+            LOG_NOTICE(nullptr,
                        "Waiting for %d connected clients on worker thread %u",
-                       connected, me->index);
+                       connected,
+                       me.index);
         }
     }
-
-    UNLOCK_THREAD(me);
 }
 
 extern volatile rel_time_t current_time;
@@ -412,7 +419,7 @@ void notify_io_complete(gsl::not_null<const void*> void_cookie,
 
     /* kick the thread in the butt */
     if (notify) {
-        notify_thread(thr);
+        notify_thread(*thr);
     }
 }
 
@@ -441,7 +448,7 @@ void dispatch_conn_new(SOCKET sfd, int parent_port) {
     }
 
     MEMCACHED_CONN_DISPATCH(sfd, (uintptr_t)thread.thread_id);
-    notify_thread(&thread);
+    notify_thread(thread);
 }
 
 /*
@@ -451,8 +458,8 @@ int is_listen_thread() {
     return dispatcher_thread.thread_id == cb_thread_self();
 }
 
-void notify_dispatcher(void) {
-    notify_thread(&dispatcher_thread);
+void notify_dispatcher() {
+    notify_thread(dispatcher_thread);
 }
 
 /******************************* GLOBAL STATS ******************************/
@@ -471,7 +478,6 @@ void threadlocal_stats_reset(std::vector<thread_stats>& thread_stats) {
  */
 void thread_init(int nthr, struct event_base *main_base,
                  void (*dispatcher_callback)(evutil_socket_t, short, void *)) {
-    int i;
     nthreads = nthr;
 
     cb_mutex_initialize(&init_lock);
@@ -487,22 +493,20 @@ void thread_init(int nthr, struct event_base *main_base,
 
     setup_dispatcher(main_base, dispatcher_callback);
 
-    for (i = 0; i < nthreads; i++) {
-        if (!create_notification_pipe(&threads[i])) {
+    for (int ii = 0; ii < nthreads; ii++) {
+        if (!create_notification_pipe(threads[ii])) {
             FATAL_ERROR(EXIT_FAILURE, "Cannot create notification pipe");
         }
-        threads[i].index = i;
+        threads[ii].index = ii;
 
-        setup_thread(&threads[i]);
+        setup_thread(threads[ii]);
     }
 
     /* Create threads after we've done all the libevent setup. */
-    for (i = 0; i < nthreads; i++) {
-        const std::string name = "mc:worker_" + std::to_string(i);
-        create_worker(worker_libevent,
-                      &threads[i],
-                      &threads[i].thread_id,
-                      name.c_str());
+    for (auto& thread : threads) {
+        const std::string name = "mc:worker_" + std::to_string(thread.index);
+        create_worker(
+                worker_libevent, &thread, &thread.thread_id, name.c_str());
     }
 
     /* Wait for all the threads to set themselves up before returning. */
@@ -513,18 +517,16 @@ void thread_init(int nthr, struct event_base *main_base,
     cb_mutex_exit(&init_lock);
 }
 
-void threads_shutdown(void)
-{
-    int ii;
-    for (ii = 0; ii < nthreads; ++ii) {
-        notify_thread(&threads[ii]);
-        cb_join_thread(threads[ii].thread_id);
+void threads_shutdown() {
+    for (auto& thread : threads) {
+        notify_thread(thread);
+        cb_join_thread(thread.thread_id);
     }
 }
 
 void threads_cleanup() {
-    for (int ii = 0; ii < nthreads; ++ii) {
-        event_base_free(threads[ii].base);
+    for (auto& thread : threads) {
+        event_base_free(thread.base);
     }
 }
 
@@ -538,7 +540,7 @@ LIBEVENT_THREAD::~LIBEVENT_THREAD() {
 
 void threads_notify_bucket_deletion() {
     for (auto& thr : threads) {
-        notify_thread(&thr);
+        notify_thread(thr);
     }
 }
 
@@ -556,9 +558,9 @@ void threads_initiate_bucket_deletion() {
     }
 }
 
-void notify_thread(LIBEVENT_THREAD *thread) {
-    if (send(thread->notify[1], "", 1, 0) != 1 &&
-            !is_blocking(GetLastNetworkError())) {
+void notify_thread(LIBEVENT_THREAD& thread) {
+    if (send(thread.notify[1], "", 1, 0) != 1 &&
+        !is_blocking(GetLastNetworkError())) {
         log_socket_error(EXTENSION_LOG_WARNING, NULL,
                          "Failed to notify thread: %s");
     }

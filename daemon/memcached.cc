@@ -1616,7 +1616,7 @@ static ENGINE_ERROR_CODE release_cookie(
 
     /* kick the thread in the butt */
     if (notify) {
-        notify_thread(thr);
+        notify_thread(*thr);
     }
 
     return ENGINE_SUCCESS;
@@ -2080,7 +2080,7 @@ void CreateBucketThread::run()
     task->makeRunnable();
 }
 
-void notify_thread_bucket_deletion(LIBEVENT_THREAD *me) {
+void notify_thread_bucket_deletion(LIBEVENT_THREAD& me) {
     for (size_t ii = 0; ii < all_buckets.size(); ++ii) {
         bool destroy = false;
         {
@@ -2091,7 +2091,7 @@ void notify_thread_bucket_deletion(LIBEVENT_THREAD *me) {
         }
 
         if (destroy) {
-            signal_idle_clients(me, ii, false);
+            signal_idle_clients(&me, ii, false);
         }
     }
 }
