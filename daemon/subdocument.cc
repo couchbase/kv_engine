@@ -582,17 +582,17 @@ subdoc_operate_one_path(SubdocCmdContext& context, SubdocCmdContext::OperationSp
                         const cb::const_char_buffer& in_doc) {
 
     // Prepare the specified sub-document command.
-    Subdoc::Operation* op = context.connection.getThread()->subdoc_op.get();
-    op->clear();
-    op->set_result_buf(&spec.result);
-    op->set_code(spec.traits.subdocCommand);
-    op->set_doc(in_doc.buf, in_doc.len);
+    auto& op = context.connection.getThread()->subdoc_op;
+    op.clear();
+    op.set_result_buf(&spec.result);
+    op.set_code(spec.traits.subdocCommand);
+    op.set_doc(in_doc.buf, in_doc.len);
 
     if (spec.flags & SUBDOC_FLAG_EXPAND_MACROS) {
         auto padded_macro = context.get_padded_macro(spec.value);
-        op->set_value(padded_macro.buf, padded_macro.len);
+        op.set_value(padded_macro.buf, padded_macro.len);
     } else {
-        op->set_value(spec.value.buf, spec.value.len);
+        op.set_value(spec.value.buf, spec.value.len);
     }
 
     if (context.getCurrentPhase() == SubdocCmdContext::Phase::XATTR &&
@@ -602,15 +602,15 @@ subdoc_operate_one_path(SubdocCmdContext& context, SubdocCmdContext::OperationSp
             // the other ones), so replace the document with
             // the document virtual one..
             auto doc = context.get_document_vattr();
-            op->set_doc(doc.data(), doc.size());
+            op.set_doc(doc.data(), doc.size());
         } else if (spec.path.buf[1] == 'X') {
             auto doc = context.get_xtoc_vattr();
-            op->set_doc(doc.data(), doc.size());
+            op.set_doc(doc.data(), doc.size());
         }
     }
 
     // ... and execute it.
-    Subdoc::Error subdoc_res = op->op_exec(spec.path.buf, spec.path.len);
+    const auto subdoc_res = op.op_exec(spec.path.buf, spec.path.len);
 
     switch (subdoc_res) {
     case Subdoc::Error::SUCCESS:

@@ -116,7 +116,7 @@ struct LIBEVENT_THREAD {
      * Shared sub-document operation for all connections serviced by this
      * thread
      */
-    std::unique_ptr<Subdoc::Operation> subdoc_op;
+    Subdoc::Operation subdoc_op;
 
     /**
      * When we're deleting buckets we need to disconnect idle
@@ -133,7 +133,7 @@ struct LIBEVENT_THREAD {
      * Shared validator used by all connections serviced by this thread
      * when they need to validate a JSON document
      */
-    std::unique_ptr<JSON_checker::Validator> validator;
+    JSON_checker::Validator validator;
 };
 
 #define LOCK_THREAD(t) t->mutex.lock();

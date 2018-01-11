@@ -190,8 +190,6 @@ static void setup_thread(LIBEVENT_THREAD *me) {
 
     try {
         me->new_conn_queue.reset(new ConnectionQueue);
-        me->subdoc_op.reset(new Subdoc::Operation());
-        me->validator.reset(new JSON_checker::Validator());
     } catch (const std::bad_alloc&) {
         FATAL_ERROR(EXIT_FAILURE,
                     "Failed to allocate memory for worker thread");
@@ -547,8 +545,6 @@ void threads_cleanup() {
         event_base_free(threads[ii].base);
         threads[ii].read.reset();
         threads[ii].write.reset();
-        threads[ii].subdoc_op.reset();
-        threads[ii].validator.reset();
         threads[ii].new_conn_queue.reset();
     }
 

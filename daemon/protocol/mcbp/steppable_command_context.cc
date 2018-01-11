@@ -70,7 +70,7 @@ void SteppableCommandContext::setDatatypeJSONFromValue(
         protocol_binary_datatype_t& datatype) {
     // Determine if document is JSON or not. We do not trust what the client
     // sent - instead we check for ourselves.
-    if (connection.getThread()->validator->validate(value.buf, value.len)) {
+    if (connection.getThread()->validator.validate(value.buf, value.len)) {
         datatype |= PROTOCOL_BINARY_DATATYPE_JSON;
     } else {
         datatype &= ~PROTOCOL_BINARY_DATATYPE_JSON;
