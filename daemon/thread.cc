@@ -526,14 +526,18 @@ void threads_shutdown(void)
 
 void threads_cleanup() {
     for (int ii = 0; ii < nthreads; ++ii) {
-        safe_close(threads[ii].notify[0]);
-        safe_close(threads[ii].notify[1]);
         event_base_free(threads[ii].base);
-        threads[ii].read.reset();
-        threads[ii].write.reset();
     }
 
     threads.reset();
+}
+
+LIBEVENT_THREAD::~LIBEVENT_THREAD() {
+    for (auto& sock : notify) {
+        if (sock != INVALID_SOCKET) {
+            safe_close(sock);
+        }
+    }
 }
 
 void threads_notify_bucket_deletion() {

@@ -93,6 +93,13 @@ private:
 };
 
 struct LIBEVENT_THREAD {
+    /**
+     * Destructor.
+     *
+     * Close the notification pipe (if open)
+     */
+    ~LIBEVENT_THREAD();
+
     /// unique ID of this thread
     cb_thread_t thread_id = {};
 
