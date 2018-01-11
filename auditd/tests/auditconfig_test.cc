@@ -24,6 +24,7 @@
 #include <cstring>
 #include "auditd.h"
 #include "auditconfig.h"
+#include "mock_auditconfig.h"
 
 #include <gtest/gtest.h>
 
@@ -402,4 +403,45 @@ TEST_F(AuditConfigTest, TestSpecifyDisabledUsers) {
                 EXPECT_FALSE(config.is_event_filtered(user));
             }
         }
+}
+
+/**
+ * Tests that when converting a config containing a single disabled event it
+ * translates to a single entry in the json "disabled" array and the json
+ * "disabled_users" array remains empty.
+ */
+TEST_F(AuditConfigTest, AuditConfigDisabled) {
+    MockAuditConfig config;
+    unique_cJSON_ptr disabled(cJSON_CreateObject());
+    cJSON_AddItemToArray(disabled.get(), cJSON_CreateNumber(1234));
+    config.public_set_disabled(disabled.get());
+    unique_cJSON_ptr json { config.to_json() };
+    auto disabledArray = MockAuditConfig::public_getObject(json.get(),
+                                                           "disabled",
+                                                           cJSON_Array);
+    EXPECT_EQ(1, cJSON_GetArraySize(disabledArray));
+    auto disabledUsersArray = MockAuditConfig::public_getObject(
+            json.get(), "disabled_users", cJSON_Array);
+    EXPECT_EQ(0, cJSON_GetArraySize(disabledUsersArray));
+}
+
+/**
+ * Tests that when converting a config containing a single disabled_user it
+ * translates to a single entry in the json "disabled_users" array and the json
+ * "disabled" array remains empty.
+ */
+TEST_F(AuditConfigTest, AuditConfigDisabledUsers) {
+    MockAuditConfig config;
+    unique_cJSON_ptr disabledUsers(cJSON_CreateObject());
+    cJSON_AddItemToArray(disabledUsers.get(), cJSON_CreateString("johndoe"));
+    config.public_set_disabled_users(disabledUsers.get());
+    unique_cJSON_ptr json { config.to_json() };
+    auto disabledUsersArray = MockAuditConfig::public_getObject(
+            json.get(), "disabled_users", cJSON_Array);
+    EXPECT_EQ(1, cJSON_GetArraySize(disabledUsersArray));
+    auto disabledArray = MockAuditConfig::public_getObject(json.get(),
+                                                           "disabled",
+                                                           cJSON_Array);
+    EXPECT_EQ(0, cJSON_GetArraySize(disabledArray));
+
 }

@@ -115,6 +115,7 @@ protected:
     void set_sync(cJSON *array);
     void set_disabled(cJSON *array);
     void set_disabled_users(cJSON *array);
+    static cJSON* getObject(const cJSON* root, const char* name, int type);
 
     Couchbase::RelaxedAtomic<bool> auditd_enabled;
     Couchbase::RelaxedAtomic<uint32_t> rotate_interval;

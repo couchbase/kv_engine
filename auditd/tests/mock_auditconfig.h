@@ -26,7 +26,17 @@ public:
                   // Empty
           };
 
+    void public_set_disabled(cJSON* array) {
+        AuditConfig::set_disabled(array);
+    }
+
     void public_set_disabled_users(cJSON* array) {
         AuditConfig::set_disabled_users(array);
+    }
+
+    static cJSON* public_getObject(const cJSON* root,
+                                   const char* name,
+                                   int type) {
+        return AuditConfig::getObject(root, name, type);
     }
 };
