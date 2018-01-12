@@ -253,8 +253,23 @@ TEST_P(PersistToTest, ConsistentStateAfterShutdown) {
     }
 }
 
+// MB-27539: ThreadSanitizer detects false positives on 'Clean' shutdown
+// tests run after 'Unclean' shutdown tests
+#if defined(__has_feature)
+#if __has_feature(thread_sanitizer)
+#define SKIP_UNCLEAN
+#endif
+#endif
+
+#if defined(SKIP_UNCLEAN)
+INSTANTIATE_TEST_CASE_P(Clean,
+                        PersistToTest,
+                        ::testing::Values(ShutdownMode::Clean),
+                        ::testing::PrintToStringParamName());
+#else
 INSTANTIATE_TEST_CASE_P(CleanOrUnclean,
                         PersistToTest,
                         ::testing::Values(ShutdownMode::Clean,
                                           ShutdownMode::Unclean),
                         ::testing::PrintToStringParamName());
+#endif
