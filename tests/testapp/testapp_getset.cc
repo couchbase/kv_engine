@@ -219,11 +219,10 @@ TEST_P(GetSetTest, TestGetSuccess) {
 TEST_P(GetSetTest, TestAppend) {
     MemcachedConnection& conn = getConnection();
     document.info.datatype = cb::mcbp::Datatype::Raw;
-    document.value.clear();
-    document.value.push_back('a');
+    document.value = "a";
     int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
     conn.mutate(document, 0, MutationType::Set);
-    document.value[0] = 'b';
+    document.value = "b";
     conn.mutate(document, 0, MutationType::Append);
 
     const auto stored = conn.get(name, 0);
@@ -235,23 +234,20 @@ TEST_P(GetSetTest, TestAppend) {
     EXPECT_EQ(cb::mcbp::Datatype::Raw, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
-    document.value[0] = 'a';
-    document.value.push_back('b');
-    EXPECT_EQ(document.value, stored.value);
+    EXPECT_EQ(std::string("ab"), stored.value);
 }
 
 TEST_P(GetSetTest, TestAppendWithXattr) {
     // The current code does not preserve XATTRs
     document.info.datatype = cb::mcbp::Datatype::Raw;
-    document.value.clear();
-    document.value.push_back('a');
+    document.value = "a";
     int sucCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
     getConnection().mutate(document, 0, MutationType::Add);
     createXattr("meta.cas", "\"${Mutation.CAS}\"", true);
     const auto mutation_cas = getXattr("meta.cas");
     EXPECT_NE("\"${Mutation.CAS}\"", mutation_cas.getValue());
 
-    document.value[0] = 'b';
+    document.value = "b";
     getConnection().mutate(document, 0, MutationType::Append);
 
     // The xattr should have been preserved, and the macro should not
@@ -281,21 +277,18 @@ TEST_P(GetSetTest, TestAppendWithXattr) {
     EXPECT_EQ(cb::mcbp::Datatype::Raw, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
-    document.value[0] = 'a';
-    document.value.push_back('b');
-    EXPECT_EQ(document.value, stored.value);
+    EXPECT_EQ(std::string("ab"), stored.value);
 }
 
 
 TEST_P(GetSetTest, TestAppendCasSuccess) {
     MemcachedConnection& conn = getConnection();
     document.info.datatype = cb::mcbp::Datatype::Raw;
-    document.value.clear();
-    document.value.push_back('a');
+    document.value = "a";
 
     int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
     const auto info = conn.mutate(document, 0, MutationType::Set);
-    document.value[0] = 'b';
+    document.value = "b";
     document.info.cas = info.cas;
     conn.mutate(document, 0, MutationType::Append);
 
@@ -308,19 +301,16 @@ TEST_P(GetSetTest, TestAppendCasSuccess) {
     EXPECT_EQ(cb::mcbp::Datatype::Raw, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
-    document.value[0] = 'a';
-    document.value.push_back('b');
-    EXPECT_EQ(document.value, stored.value);
+    EXPECT_EQ(std::string("ab"), stored.value);
 }
 
 TEST_P(GetSetTest, TestAppendCasMismatch) {
     MemcachedConnection& conn = getConnection();
     document.info.datatype = cb::mcbp::Datatype::Raw;
-    document.value.clear();
-    document.value.push_back('a');
+    document.value = "a";
 
     const auto info = conn.mutate(document, 0, MutationType::Set);
-    document.value[0] = 'b';
+    document.value = "b";
     document.info.cas = info.cas + 1;
     try {
         conn.mutate(document, 0, MutationType::Append);
@@ -336,19 +326,17 @@ TEST_P(GetSetTest, TestAppendCasMismatch) {
     EXPECT_EQ(document.info.datatype, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
-    document.value[0] = 'a';
-    EXPECT_EQ(document.value, stored.value);
+    EXPECT_EQ(std::string("a"), stored.value);
 }
 
 TEST_P(GetSetTest, TestPrepend) {
     MemcachedConnection& conn = getConnection();
     document.info.datatype = cb::mcbp::Datatype::Raw;
-    document.value.clear();
-    document.value.push_back('a');
+    document.value = "a";
 
     int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
     conn.mutate(document, 0, MutationType::Set);
-    document.value[0] = 'b';
+    document.value = "b";
     conn.mutate(document, 0, MutationType::Prepend);
 
     const auto stored = conn.get(name, 0);
@@ -360,15 +348,13 @@ TEST_P(GetSetTest, TestPrepend) {
     EXPECT_EQ(document.info.datatype, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
-    document.value.push_back('a');
-    EXPECT_EQ(document.value, stored.value);
+    EXPECT_EQ(std::string("ba"), stored.value);
 }
 
 TEST_P(GetSetTest, TestPrependWithXattr) {
     // The current code does not preserve XATTRs
     document.info.datatype = cb::mcbp::Datatype::Raw;
-    document.value.clear();
-    document.value.push_back('a');
+    document.value = "a";
 
     int sucCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
@@ -377,7 +363,7 @@ TEST_P(GetSetTest, TestPrependWithXattr) {
     const auto mutation_cas = getXattr("meta.cas");
     EXPECT_NE("\"${Mutation.CAS}\"", mutation_cas.getValue());
 
-    document.value[0] = 'b';
+    document.value = "b";
     getConnection().mutate(document, 0, MutationType::Prepend);
 
     // The xattr should have been preserved, and the macro should not
@@ -407,19 +393,17 @@ TEST_P(GetSetTest, TestPrependWithXattr) {
     EXPECT_EQ(cb::mcbp::Datatype::Raw, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
-    document.value.push_back('a');
-    EXPECT_EQ(document.value, stored.value);
+    EXPECT_EQ(std::string("ba"), stored.value);
 }
 
 TEST_P(GetSetTest, TestPrependCasSuccess) {
     MemcachedConnection& conn = getConnection();
     document.info.datatype = cb::mcbp::Datatype::Raw;
-    document.value.clear();
-    document.value.push_back('a');
+    document.value = "a";
 
     int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
     const auto info = conn.mutate(document, 0, MutationType::Set);
-    document.value[0] = 'b';
+    document.value = "b";
     document.info.cas = info.cas;
     conn.mutate(document, 0, MutationType::Prepend);
 
@@ -432,18 +416,16 @@ TEST_P(GetSetTest, TestPrependCasSuccess) {
     EXPECT_EQ(document.info.datatype, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
-    document.value.push_back('a');
-    EXPECT_EQ(document.value, stored.value);
+    EXPECT_EQ(std::string("ba"), stored.value);
 }
 
-TEST_P(GetSetTest, TestPerpendCasMismatch) {
+TEST_P(GetSetTest, TestPrependCasMismatch) {
     MemcachedConnection& conn = getConnection();
     document.info.datatype = cb::mcbp::Datatype::Raw;
-    document.value.clear();
-    document.value.push_back('a');
+    document.value = "a";
 
     const auto info = conn.mutate(document, 0, MutationType::Set);
-    document.value[0] = 'b';
+    document.value = "b";
     document.info.cas = info.cas + 1;
     try {
         conn.mutate(document, 0, MutationType::Prepend);
@@ -457,8 +439,7 @@ TEST_P(GetSetTest, TestPerpendCasMismatch) {
     EXPECT_EQ(document.info.datatype, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
-    document.value[0] = 'a';
-    EXPECT_EQ(document.value, stored.value);
+    EXPECT_EQ(std::string("a"), stored.value);
 }
 
 TEST_P(GetSetTest, TestIllegalVbucket) {
