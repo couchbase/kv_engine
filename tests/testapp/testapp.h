@@ -82,6 +82,17 @@ extern std::set<cb::mcbp::Feature> enabled_hello_features;
 
 class TestBucketImpl;
 
+/**
+ * Base test fixture for all 'testapp' tests - aka a test application talking to
+ * memcached.
+ *
+ * These tests connect to memcached via the binary protocol; and issue
+ * various commands to test functionality. TestappTest provides baseline
+ * functionality for simple tests; or for other more complex subclasses to
+ * build on.
+ * It provides a single connection type (no SSL / IPv6 etc), and a minimal
+ * set of HELLO flags negotiated.
+ */
 class TestappTest : public ::testing::Test {
 public:
     // Per-test-case set-up.
@@ -91,7 +102,6 @@ public:
     // Per-test-case tear-down.
     // Called after the last test in this test case.
     static void TearDownTestCase();
-
 
     static uint16_t sasl_auth(const char *username, const char *password);
 

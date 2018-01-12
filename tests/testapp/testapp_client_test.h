@@ -20,6 +20,10 @@
 
 #include "testapp.h"
 
+/**
+ * Test fixture for testapp tests; parameterised on the TransportProtocol (IPv4,
+ * Ipv6); (Plain, SSL).
+ */
 class TestappClientTest
     : public TestappTest,
       public ::testing::WithParamInterface<TransportProtocols> {
@@ -32,6 +36,13 @@ enum class XattrSupport { Yes, No };
 std::ostream& operator<<(std::ostream& os, const XattrSupport& xattrSupport);
 std::string to_string(const XattrSupport& xattrSupport);
 
+/**
+ * Test fixture for Extended Attribute (XATTR) tests.
+ * Parameterized on:
+ * - TransportProtocol (IPv4, Ipv6); (Plain, SSL);
+ * - XATTR On/Off
+ * - JSON On/Off.
+ */
 class TestappXattrClientTest : public TestappTest,
                                public ::testing::WithParamInterface<
                                        ::testing::tuple<TransportProtocols,
