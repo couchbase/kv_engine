@@ -784,6 +784,7 @@ TEST_P(XattrTest, MB_23882_VirtualXattrs) {
     verify_vattr_entry(meta.get(), "exptime", cJSON_Number);
     verify_vattr_entry(meta.get(), "value_bytes", cJSON_Number);
     verify_vattr_entry(meta.get(), "deleted", cJSON_False);
+    verify_vattr_entry(meta.get(), "flags", cJSON_Number);
 
     if (mcd_env->getTestBucket().supportsLastModifiedVattr()) {
         verify_vattr_entry(meta.get(), "last_modified", cJSON_String);
@@ -791,6 +792,9 @@ TEST_P(XattrTest, MB_23882_VirtualXattrs) {
 
     // Verify exptime is showing as 0 (document has no expiry)
     EXPECT_EQ(0, cJSON_GetObjectItem(meta.get(), "exptime")->valueint);
+
+    // Verify that the flags is correct
+    EXPECT_EQ(0xcaffee, cJSON_GetObjectItem(meta.get(), "flags")->valueint);
 
     // verify that the datatype is correctly encoded and contains
     // the correct bits

@@ -224,6 +224,10 @@ cb::const_char_buffer SubdocCmdContext::get_document_vattr() {
 
         cJSON_AddNumberToObject(doc.get(), "exptime", input_item_info.exptime);
 
+        // The flags are kept internally in network byte order...
+        cJSON_AddNumberToObject(
+                doc.get(), "flags", ntohl(input_item_info.flags));
+
         if (mcbp::datatype::is_xattr(input_item_info.datatype)) {
             // strip off xattr
             auto bodyoffset = cb::xattr::get_body_offset(
