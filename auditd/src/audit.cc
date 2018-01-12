@@ -226,6 +226,8 @@ bool Audit::create_audit_event(uint32_t event_id, cJSON *payload) {
             cJSON_AddNumberToObject(payload, "rotate_interval",
                                     config.get_rotate_interval());
             cJSON_AddNumberToObject(payload, "version", 1.0);
+            cJSON_AddStringToObject(payload, "uuid",
+                                    config.get_uuid().c_str());
             break;
 
         case AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON:

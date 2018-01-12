@@ -125,6 +125,7 @@ protected:
         config.set_rotate_interval(900);
         config.set_log_directory(testdir);
         config.set_auditd_enabled(false);
+        config.set_uuid("12345");
         cb::io::rmrf(testdir);
         cb::io::mkdirp(testdir);
     }
@@ -278,6 +279,25 @@ TEST_P(AuditDaemonFilteringTest, AuditFilteringTest) {
         // exists in audit log
         EXPECT_TRUE(foundJohndoe);
     }
+}
+
+// Check to see if "uuid":"12345" is reported
+TEST_F(AuditDaemonTest, UuidTest) {
+    enable();
+    // Check the audit log exists
+    auto vec = cb::io::findFilesContaining(testdir, "");
+    assertNumberOfFiles(1);
+
+    // wait up to 10 seconds for "uuid" to appear in the audit log
+    uint16_t waitIteration = 0;
+    while (!existsInAuditLog("uuid") && (waitIteration < 200)) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        waitIteration++;
+    }
+    EXPECT_TRUE(existsInAuditLog(R"("uuid")"))
+            << "uuid attribute is missing from audit log";
+    EXPECT_TRUE(existsInAuditLog(R"("uuid":"12345")"))
+            << "Wrong uuid in the audit log";
 }
 
 int main(int argc, char** argv) {

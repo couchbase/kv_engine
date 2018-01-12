@@ -77,6 +77,7 @@ protected:
         cJSON *disabled_users = cJSON_CreateArray();
         cJSON_AddItemToObject(root, "disabled_users", disabled_users);
         cJSON_AddTrueToObject(root, "filtering_enabled");
+        cJSON_AddStringToObject(root, "uuid", "123456");
 
         return root;
     }
@@ -112,11 +113,14 @@ TEST_F(AuditConfigTest, TestLegalVersion) {
             cJSON_Delete(obj);
             obj = cJSON_DetachItemFromObject(json, "disabled_users");
             cJSON_Delete(obj);
+            obj = cJSON_DetachItemFromObject(json, "uuid");
+            cJSON_Delete(obj);
         }
         if (version == 2) {
             cJSON_AddTrueToObject(json, "filtering_enabled");
             cJSON* disabled_users = cJSON_CreateArray();
             cJSON_AddItemToObject(json, "disabled_users", disabled_users);
+            cJSON_AddStringToObject(json, "uuid", "123456");
         }
         if ((version == 1) || (version == 2)) {
             EXPECT_NO_THROW(config.initialize_config(json));

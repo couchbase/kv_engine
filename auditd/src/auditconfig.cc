@@ -90,6 +90,7 @@ AuditConfig::AuditConfig(const cJSON *json) : AuditConfig() {
     set_disabled(getObject(json, "disabled", cJSON_Array));
     if (version->valueint == 2) {
         set_filtering_enabled(getObject(json, "filtering_enabled", -1));
+        set_uuid(getObject(json, "uuid", cJSON_String));
         set_disabled_users(getObject(json, "disabled_users", cJSON_Array));
     }
 
@@ -105,6 +106,7 @@ AuditConfig::AuditConfig(const cJSON *json) : AuditConfig() {
     tags["disabled"] = 1;
     if (version->valueint == 2) {
         tags["filtering_enabled"] = 1;
+        tags["uuid"] = 1;
         tags["disabled_users"] = 1;
     }
 
@@ -246,6 +248,16 @@ void AuditConfig::sanitize_path(std::string &path) {
     }
 }
 
+void AuditConfig::set_uuid(const std::string &_uuid) {
+    std::lock_guard<std::mutex> guard(uuid_mutex);
+    uuid = _uuid;
+}
+
+std::string AuditConfig::get_uuid() const {
+    std::lock_guard<std::mutex> guard(uuid_mutex);
+    return uuid;
+}
+
 void AuditConfig::set_rotate_size(cJSON *obj) {
     set_rotate_size(static_cast<size_t>(obj->valueint));
 }
@@ -330,6 +342,10 @@ void AuditConfig::set_disabled_users(cJSON *array) {
     add_string_array(disabled_users, array, "disabled_users");
 }
 
+void AuditConfig::set_uuid(cJSON *obj) {
+    set_uuid(obj->valuestring);
+}
+
 unique_cJSON_ptr AuditConfig::to_json() const {
     unique_cJSON_ptr ret(cJSON_CreateObject());
     cJSON* root = ret.get();
@@ -345,6 +361,7 @@ unique_cJSON_ptr AuditConfig::to_json() const {
     cJSON_AddStringToObject(root, "log_path", get_log_directory().c_str());
     cJSON_AddStringToObject(root, "descriptors_path", get_descriptors_path().c_str());
     cJSON_AddBoolToObject(root, "filtering_enabled", is_filtering_enabled());
+    cJSON_AddStringToObject(root, "uuid", get_uuid().c_str());
 
     cJSON* array = cJSON_CreateArray();
     for (const auto& v : sync) {
@@ -396,6 +413,11 @@ void AuditConfig::initialize_config(const cJSON* json) {
     {
         std::lock_guard<std::mutex> guard(disabled_users_mutex);
         disabled_users = other.disabled_users;
+    }
+
+    {
+        std::lock_guard<std::mutex> guard(uuid_mutex);
+        uuid = other.uuid;
     }
 
     min_file_rotation_time = other.min_file_rotation_time;
