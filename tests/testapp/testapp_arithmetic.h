@@ -16,9 +16,11 @@
  */
 #pragma once
 
-#include "testapp.h"
 #include "testapp_client_test.h"
 
-class ArithmeticTest : public TestappClientTest {
+class ArithmeticTest : public TestappXattrClientTest {};
 
-};
+/**
+ * Test fixture for arithmetic tests which always need XATTR support on.
+ */
+class ArithmeticXattrOnTest : public TestappXattrClientTest {};

@@ -19,14 +19,32 @@
 #include <thread>
 #include "testapp_arithmetic.h"
 
-INSTANTIATE_TEST_CASE_P(TransportProtocols,
-                        ArithmeticTest,
-                        ::testing::Values(TransportProtocols::McbpPlain,
-                                          TransportProtocols::McbpIpv6Plain,
-                                          TransportProtocols::McbpSsl,
-                                          TransportProtocols::McbpIpv6Ssl
-                                         ),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_CASE_P(
+        TransportProtocols,
+        ArithmeticTest,
+        ::testing::Combine(::testing::Values(TransportProtocols::McbpPlain,
+                                             TransportProtocols::McbpIpv6Plain,
+                                             TransportProtocols::McbpSsl,
+                                             TransportProtocols::McbpIpv6Ssl),
+                           ::testing::Values(XattrSupport::Yes,
+                                             XattrSupport::No),
+                           ::testing::Values(ClientJSONSupport::Yes,
+                                             ClientJSONSupport::No)),
+        PrintToStringCombinedName());
+
+// Tests which always need XATTR support (hence only instantiated with
+// XattrSupport::Yes).
+INSTANTIATE_TEST_CASE_P(
+        TransportProtocols,
+        ArithmeticXattrOnTest,
+        ::testing::Combine(::testing::Values(TransportProtocols::McbpPlain,
+                                             TransportProtocols::McbpIpv6Plain,
+                                             TransportProtocols::McbpSsl,
+                                             TransportProtocols::McbpIpv6Ssl),
+                           ::testing::Values(XattrSupport::Yes),
+                           ::testing::Values(ClientJSONSupport::Yes,
+                                             ClientJSONSupport::No)),
+        PrintToStringCombinedName());
 
 TEST_P(ArithmeticTest, TestArithmeticNoCreateOnNotFound) {
     auto& connection = getConnection();
@@ -229,8 +247,10 @@ TEST_P(ArithmeticTest, TestOperateOnStoredDocument) {
     // mostly here in order to validate that we correctly detect if
     // we can perform incr/decr on a document stored in the cache
     // (depending on the content being a legal value or not)
-    // To speed up CV, just run the test once and not for IPv6 + SSL ipv4&6
-    if (GetParam() != TransportProtocols::McbpPlain) {
+    // To speed up CV, just run the test for a single parameterization.
+    if (GetParam() != std::make_tuple(TransportProtocols::McbpPlain,
+                                      XattrSupport::Yes,
+                                      ClientJSONSupport::Yes)) {
         return;
     }
 #endif
@@ -261,7 +281,7 @@ TEST_P(ArithmeticTest, TestOperateOnStoredDocument) {
     }
 }
 
-TEST_P(ArithmeticTest, TestDocWithXattr) {
+TEST_P(ArithmeticXattrOnTest, TestDocWithXattr) {
     auto& conn = getConnection();
     EXPECT_EQ(0, conn.increment(name, 1));
 
@@ -301,7 +321,7 @@ TEST_P(ArithmeticTest, TestDocWithXattr) {
     }
 }
 
-TEST_P(ArithmeticTest, MB25402) {
+TEST_P(ArithmeticXattrOnTest, MB25402) {
     // Increment and decrement should not update the expiry time on existing
     // documents
     auto& conn = getConnection();
