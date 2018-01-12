@@ -941,6 +941,9 @@ uint64_t MemcachedConnection::incr_decr(protocol_binary_command opcode,
                                         uint64_t initial,
                                         rel_time_t exptime,
                                         MutationInfo* info) {
+    const char* opcode_name =
+            (opcode == PROTOCOL_BINARY_CMD_INCREMENT) ? "incr" : "decr";
+
     BinprotIncrDecrCommand command;
     command.setOp(opcode)
             .setKey(key)
@@ -954,13 +957,16 @@ uint64_t MemcachedConnection::incr_decr(protocol_binary_command opcode,
     recvResponse(response);
 
     if (!response.isSuccess()) {
-        if (opcode == PROTOCOL_BINARY_CMD_INCREMENT) {
-            throw ConnectionError("incr \"" + key + "\" failed.",
-                                  response.getStatus());
-        } else {
-            throw ConnectionError("decr \"" + key + "\" failed.",
-                                  response.getStatus());
-        }
+        throw ConnectionError(
+                std::string(opcode_name) + " \"" + key + "\" failed.",
+                response.getStatus());
+    }
+
+    if (response.getDatatype() != PROTOCOL_BINARY_RAW_BYTES) {
+        throw ValidationError(
+                std::string(opcode_name) + " \"" + key +
+                "\"invalid - response has incorrect datatype (" +
+                mcbp::datatype::to_string(response.getDatatype()) + ")");
     }
 
     if (info != nullptr) {

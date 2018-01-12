@@ -196,6 +196,17 @@ private:
 };
 
 /**
+ * Exception thrown when the received response deosn't match our expections.
+ */
+struct ValidationError : public std::runtime_error {
+    ValidationError(const char* msg) : std::runtime_error(msg) {
+    }
+
+    ValidationError(const std::string& msg) : std::runtime_error(msg) {
+    }
+};
+
+/**
  * The execution mode represents the mode the server executes commands
  * retrieved over the network. In an Ordered mode (that's the default mode
  * and how things was defined in the initial implementation of the binary
