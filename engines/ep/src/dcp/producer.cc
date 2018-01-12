@@ -906,6 +906,9 @@ void DcpProducer::addStats(ADD_STAT add_stat, const void *c) {
     addStat("cursor_dropping",
             supportsCursorDropping ? "ELIGIBLE" : "NOT_ELIGIBLE",
             add_stat, c);
+    addStat("send_stream_end_on_client_close_stream",
+            sendStreamEndOnClientStreamClose ? "true" : "false",
+            add_stat, c);
 
     // Possible that the producer has had its streams closed and hence doesn't
     // have a backfill manager anymore.
