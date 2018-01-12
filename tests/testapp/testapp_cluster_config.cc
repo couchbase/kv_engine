@@ -20,10 +20,10 @@
 #include <thread>
 #include "testapp_arithmetic.h"
 
-class ClusterConfigTest : public TestappClientTest {
-public:
+class ClusterConfigTest : public TestappXattrClientTest {
+protected:
     void SetUp() override {
-        TestappClientTest::SetUp();
+        TestappXattrClientTest::SetUp();
         // Make sure we've specified a session token
         setClusterSessionToken(0xdeadbeef);
     }
@@ -87,13 +87,18 @@ void ClusterConfigTest::test_MB_17506(bool dedupe) {
     }
 }
 
-INSTANTIATE_TEST_CASE_P(TransportProtocols,
-                        ClusterConfigTest,
-                        ::testing::Values(TransportProtocols::McbpPlain,
-                                          TransportProtocols::McbpIpv6Plain,
-                                          TransportProtocols::McbpSsl,
-                                          TransportProtocols::McbpIpv6Ssl),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_CASE_P(
+        TransportProtocols,
+        ClusterConfigTest,
+        ::testing::Combine(::testing::Values(TransportProtocols::McbpPlain,
+                                             TransportProtocols::McbpIpv6Plain,
+                                             TransportProtocols::McbpSsl,
+                                             TransportProtocols::McbpIpv6Ssl),
+                           ::testing::Values(XattrSupport::Yes,
+                                             XattrSupport::No),
+                           ::testing::Values(ClientJSONSupport::Yes,
+                                             ClientJSONSupport::No)),
+        PrintToStringCombinedName());
 
 TEST_P(ClusterConfigTest, SetClusterConfigWithIncorrectSessionToken) {
     auto response = setClusterConfig(0xcafebeef, R"({"rev":100})");
@@ -126,7 +131,11 @@ TEST_P(ClusterConfigTest, GetClusterConfig) {
     auto& conn = getConnection();
     conn.executeCommand(cmd, response);
     EXPECT_TRUE(response.isSuccess());
-    EXPECT_EQ(config, response.getDataString());
+    const auto value = response.getDataString();
+    EXPECT_EQ(config, value);
+    EXPECT_TRUE(hasCorrectDatatype(expectedJSONDatatype(),
+                                   cb::mcbp::Datatype(response.getDatatype()),
+                                   {value.data(), value.size()}));
 }
 
 TEST_P(ClusterConfigTest, test_MB_17506_no_dedupe) {

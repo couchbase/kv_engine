@@ -31,7 +31,7 @@ MemcachedConnection& TestappClientTest::getConnection() {
     throw std::logic_error("Unknown transport");
 }
 
-void TestappClientTest::setClusterSessionToken(uint64_t nval) {
+void TestappXattrClientTest::setClusterSessionToken(uint64_t nval) {
     auto& conn = getAdminConnection();
     BinprotResponse response;
 
@@ -99,20 +99,29 @@ cb::mcbp::Datatype TestappXattrClientTest::expectedJSONDatatype() const {
  */
 ::testing::AssertionResult TestappXattrClientTest::hasCorrectDatatype(
         const Document& doc, cb::mcbp::Datatype expectedType) {
+    return hasCorrectDatatype(expectedType,
+                              doc.info.datatype,
+                              {doc.value.data(), doc.value.size()});
+}
+
+::testing::AssertionResult TestappXattrClientTest::hasCorrectDatatype(
+        cb::mcbp::Datatype expectedType,
+        cb::mcbp::Datatype actualDatatype,
+        cb::const_char_buffer value) {
     using namespace mcbp::datatype;
-    if (doc.info.datatype != expectedType) {
+    if (actualDatatype != expectedType) {
         return ::testing::AssertionFailure()
                << "Datatype mismatch - expected:"
                << to_string(protocol_binary_datatype_t(expectedType))
                << " actual:"
-               << to_string(protocol_binary_datatype_t(doc.info.datatype));
+               << to_string(protocol_binary_datatype_t(actualDatatype));
     }
 
-    if (doc.info.datatype == cb::mcbp::Datatype::JSON) {
-        if (!isJSON({doc.value.data(), doc.value.size()})) {
+    if (actualDatatype == cb::mcbp::Datatype::JSON) {
+        if (!isJSON(value)) {
             return ::testing::AssertionFailure()
-                   << "JSON validation failed for response data:'" << doc.value
-                   << "''";
+                   << "JSON validation failed for response data:'"
+                   << to_string(value) << "''";
         }
     }
     return ::testing::AssertionSuccess();

@@ -29,7 +29,6 @@ class TestappClientTest
       public ::testing::WithParamInterface<TransportProtocols> {
 protected:
     MemcachedConnection& getConnection() override;
-    void setClusterSessionToken(uint64_t new_value);
 };
 
 enum class XattrSupport { Yes, No };
@@ -48,10 +47,11 @@ class TestappXattrClientTest : public TestappTest,
                                        ::testing::tuple<TransportProtocols,
                                                         XattrSupport,
                                                         ClientJSONSupport>> {
-public:
+protected:
     TestappXattrClientTest()
         : xattrOperationStatus(PROTOCOL_BINARY_RESPONSE_SUCCESS) {
     }
+
     void SetUp() override;
 
     MemcachedConnection& getConnection() override;
@@ -74,6 +74,13 @@ public:
      */
     static ::testing::AssertionResult hasCorrectDatatype(
             const Document& doc, cb::mcbp::Datatype expectedType);
+
+    static ::testing::AssertionResult hasCorrectDatatype(
+            cb::mcbp::Datatype expectedType,
+            cb::mcbp::Datatype actualType,
+            cb::const_char_buffer value);
+
+    void setClusterSessionToken(uint64_t new_value);
 
 protected:
     Document document;
