@@ -68,6 +68,13 @@ public:
     // Will be JSON only if the client successfully negotiated JSON feature.
     cb::mcbp::Datatype expectedJSONDatatype() const;
 
+    /**
+     * Helper function to check datatype is what we expect for this test config;
+     * and if datatype says JSON, validate the value /is/ JSON.
+     */
+    static ::testing::AssertionResult hasCorrectDatatype(
+            const Document& doc, cb::mcbp::Datatype expectedType);
+
 protected:
     Document document;
     protocol_binary_response_status xattrOperationStatus;

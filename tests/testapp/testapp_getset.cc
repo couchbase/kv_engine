@@ -22,7 +22,7 @@
 #include <platform/compress.h>
 
 class GetSetTest : public TestappXattrClientTest {
-public:
+protected:
     void SetUp() override {
         TestappXattrClientTest::SetUp();
     }
@@ -205,12 +205,13 @@ TEST_P(GetSetTest, TestGetSuccess) {
 
     int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
     const auto stored = conn.get(name, 0);
+    EXPECT_TRUE(hasCorrectDatatype(stored, expectedJSONDatatype()));
+
     // Check that we correctly increment the status counter stat
     EXPECT_EQ(successCount + statResps() + 1,
               getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
     EXPECT_NE(mcbp::cas::Wildcard, stored.info.cas);
-    EXPECT_EQ(expectedJSONDatatype(), stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
     EXPECT_EQ(document.value, stored.value);
@@ -226,12 +227,13 @@ TEST_P(GetSetTest, TestAppend) {
     conn.mutate(document, 0, MutationType::Append);
 
     const auto stored = conn.get(name, 0);
+    EXPECT_TRUE(hasCorrectDatatype(stored, cb::mcbp::Datatype::Raw));
+
     // Check that we correctly increment the status counter stat
     EXPECT_EQ(successCount + statResps() + 3,
               getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
     EXPECT_NE(mcbp::cas::Wildcard, stored.info.cas);
-    EXPECT_EQ(cb::mcbp::Datatype::Raw, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
     EXPECT_EQ(std::string("ab"), stored.value);
@@ -255,6 +257,7 @@ TEST_P(GetSetTest, TestAppendWithXattr) {
     EXPECT_EQ(mutation_cas, getXattr("meta.cas"));
 
     const auto stored = getConnection().get(name, 0);
+    EXPECT_TRUE(hasCorrectDatatype(stored, cb::mcbp::Datatype::Raw));
 
     // Check that we correctly increment the status counter stat.
     // * We expect 7 * helloResps because of
@@ -274,7 +277,6 @@ TEST_P(GetSetTest, TestAppendWithXattr) {
 
     // And the rest of the doc should look the same
     EXPECT_NE(mcbp::cas::Wildcard, stored.info.cas);
-    EXPECT_EQ(cb::mcbp::Datatype::Raw, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
     EXPECT_EQ(std::string("ab"), stored.value);
@@ -293,12 +295,13 @@ TEST_P(GetSetTest, TestAppendCasSuccess) {
     conn.mutate(document, 0, MutationType::Append);
 
     const auto stored = conn.get(name, 0);
+    EXPECT_TRUE(hasCorrectDatatype(stored, cb::mcbp::Datatype::Raw));
+
     // Check that we correctly increment the status counter stat
     EXPECT_EQ(successCount + statResps() + 3,
               getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
     EXPECT_NE(info.cas, stored.info.cas);
-    EXPECT_EQ(cb::mcbp::Datatype::Raw, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
     EXPECT_EQ(std::string("ab"), stored.value);
@@ -321,9 +324,9 @@ TEST_P(GetSetTest, TestAppendCasMismatch) {
 
     // verify it didn't change..
     const auto stored = conn.get(name, 0);
+    EXPECT_TRUE(hasCorrectDatatype(stored, cb::mcbp::Datatype::Raw));
 
     EXPECT_EQ(info.cas, stored.info.cas);
-    EXPECT_EQ(document.info.datatype, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
     EXPECT_EQ(std::string("a"), stored.value);
@@ -340,12 +343,13 @@ TEST_P(GetSetTest, TestPrepend) {
     conn.mutate(document, 0, MutationType::Prepend);
 
     const auto stored = conn.get(name, 0);
+    EXPECT_TRUE(hasCorrectDatatype(stored, cb::mcbp::Datatype::Raw));
+
     // Check that we correctly increment the status counter stat
     EXPECT_EQ(successCount + statResps() + 3,
               getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
     EXPECT_NE(mcbp::cas::Wildcard, stored.info.cas);
-    EXPECT_EQ(document.info.datatype, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
     EXPECT_EQ(std::string("ba"), stored.value);
@@ -371,6 +375,7 @@ TEST_P(GetSetTest, TestPrependWithXattr) {
     EXPECT_EQ(mutation_cas, getXattr("meta.cas"));
 
     const auto stored = getConnection().get(name, 0);
+    EXPECT_TRUE(hasCorrectDatatype(stored, cb::mcbp::Datatype::Raw));
 
     // Check that we correctly increment the status counter stat.
     // * We expect 7 * helloResps because of
@@ -390,7 +395,6 @@ TEST_P(GetSetTest, TestPrependWithXattr) {
 
     // And the rest of the doc should look the same
     EXPECT_NE(mcbp::cas::Wildcard, stored.info.cas);
-    EXPECT_EQ(cb::mcbp::Datatype::Raw, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
     EXPECT_EQ(std::string("ba"), stored.value);
@@ -408,12 +412,13 @@ TEST_P(GetSetTest, TestPrependCasSuccess) {
     conn.mutate(document, 0, MutationType::Prepend);
 
     const auto stored = conn.get(name, 0);
+    EXPECT_TRUE(hasCorrectDatatype(stored, cb::mcbp::Datatype::Raw));
+
     // Check that we correctly increment the status counter stat
     EXPECT_EQ(successCount + statResps() + 3,
               getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
     EXPECT_NE(mcbp::cas::Wildcard, stored.info.cas);
-    EXPECT_EQ(document.info.datatype, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
     EXPECT_EQ(std::string("ba"), stored.value);
@@ -434,9 +439,9 @@ TEST_P(GetSetTest, TestPrependCasMismatch) {
         EXPECT_TRUE(error.isAlreadyExists()) << error.what();
     }
     const auto stored = conn.get(name, 0);
+    EXPECT_TRUE(hasCorrectDatatype(stored, cb::mcbp::Datatype::Raw));
 
     EXPECT_NE(mcbp::cas::Wildcard, stored.info.cas);
-    EXPECT_EQ(document.info.datatype, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
     EXPECT_EQ(std::string("a"), stored.value);
@@ -519,11 +524,12 @@ TEST_P(GetSetTest, TestAppendCompressedSource) {
 
     conn.mutate(document, 0, MutationType::Append);
     const auto stored = conn.get(name, 0);
+    EXPECT_TRUE(hasCorrectDatatype(stored, cb::mcbp::Datatype::Raw));
+
     // Check that we correctly increment the status counter stat
     EXPECT_EQ(successCount + statResps() + 3,
               getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
-    EXPECT_EQ(cb::mcbp::Datatype::Raw, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
 
@@ -548,12 +554,12 @@ TEST_P(GetSetTest, TestAppendCompressedData) {
     conn.mutate(document, 0, MutationType::Append);
 
     const auto stored = conn.get(name, 0);
+    EXPECT_TRUE(hasCorrectDatatype(stored, cb::mcbp::Datatype::Raw));
 
     // Check that we correctly increment the status counter stat
     EXPECT_EQ(successCount + statResps() + 3,
               getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
-    EXPECT_EQ(cb::mcbp::Datatype::Raw, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
 
@@ -605,12 +611,12 @@ TEST_P(GetSetTest, TestAppendCompressedSourceAndData) {
     compress_vector(append, document.value);
     conn.mutate(document, 0, MutationType::Append);
     const auto stored = conn.get(name, 0);
+    EXPECT_TRUE(hasCorrectDatatype(stored, cb::mcbp::Datatype::Raw));
 
     // Check that we correctly increment the status counter stat
     EXPECT_EQ(successCount + statResps() + 3,
               getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
-    EXPECT_EQ(cb::mcbp::Datatype::Raw, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
 
@@ -635,12 +641,12 @@ TEST_P(GetSetTest, TestPrependCompressedSource) {
 
     conn.mutate(document, 0, MutationType::Prepend);
     const auto stored = conn.get(name, 0);
+    EXPECT_TRUE(hasCorrectDatatype(stored, cb::mcbp::Datatype::Raw));
 
     // Check that we correctly increment the status counter stat
     EXPECT_EQ(successCount + statResps() + 3,
               getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
-    EXPECT_EQ(cb::mcbp::Datatype::Raw, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
 
@@ -664,12 +670,12 @@ TEST_P(GetSetTest, TestPrependCompressedData) {
     conn.mutate(document, 0, MutationType::Prepend);
 
     const auto stored = conn.get(name, 0);
+    EXPECT_TRUE(hasCorrectDatatype(stored, cb::mcbp::Datatype::Raw));
 
     // Check that we correctly increment the status counter stat
     EXPECT_EQ(successCount + statResps() + 3,
               getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
-    EXPECT_EQ(cb::mcbp::Datatype::Raw, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
 
@@ -718,12 +724,12 @@ TEST_P(GetSetTest, TestPrependCompressedSourceAndData) {
     compress_vector(append, document.value);
     conn.mutate(document, 0, MutationType::Prepend);
     const auto stored = conn.get(name, 0);
+    EXPECT_TRUE(hasCorrectDatatype(stored, cb::mcbp::Datatype::Raw));
 
     // Check that we correctly increment the status counter stat
     EXPECT_EQ(successCount + statResps() + 3,
               getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
-    EXPECT_EQ(cb::mcbp::Datatype::Raw, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
 
@@ -806,7 +812,8 @@ TEST_P(GetSetTest, ServerDetectsJSON) {
 
     // Fetch the document to see what datatype is has. It should match
     // what our connection is capable of receiving.
-    EXPECT_EQ(expectedJSONDatatype(), conn.get(name, 0).info.datatype);
+    const auto stored = conn.get(name, 0);
+    EXPECT_TRUE(hasCorrectDatatype(stored, expectedJSONDatatype()));
 }
 
 // Test that memcached correctly detects documents are not JSON irrespective
@@ -818,5 +825,6 @@ TEST_P(GetSetTest, ServerDetectsNonJSON) {
 
     // Fetch the document to see what datatype is has. It should always
     // be raw.
-    EXPECT_EQ(cb::mcbp::Datatype::Raw, conn.get(name, 0).info.datatype);
+    const auto stored = conn.get(name, 0);
+    EXPECT_TRUE(hasCorrectDatatype(stored, cb::mcbp::Datatype::Raw));
 }

@@ -105,6 +105,10 @@ public:
 
     static uint16_t sasl_auth(const char *username, const char *password);
 
+    /// Helper which which returns true if the specified value is correctly
+    /// encoded as JSON.
+    static bool isJSON(cb::const_char_buffer value);
+
     /// Does this test/connection support JSON datatype?
     virtual ClientJSONSupport hasJSONSupport() const {
         return ClientJSONSupport::No;

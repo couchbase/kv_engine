@@ -1,38 +1,18 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#include "config.h"
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <errno.h>
-#include <string.h>
-#include <getopt.h>
-#include <fcntl.h>
-#include <ctype.h>
-#include <time.h>
-#include <evutil.h>
-#include <snappy-c.h>
-#include <gtest/gtest.h>
-
-#include <atomic>
-#include <algorithm>
-#include <string>
-#include <vector>
 
 #include "testapp.h"
-#include "testapp_subdoc_common.h"
 
-#include <memcached/util.h>
-#include <memcached/config_parser.h>
-#include <cbsasl/cbsasl.h>
-#include <platform/cb_malloc.h>
-#include <platform/platform.h>
-#include <fstream>
-#include <platform/dirutils.h>
-#include <platform/backtrace.h>
-#include "utilities.h"
-#include "utilities/protocol2text.h"
-#include "daemon/topkeys.h"
 #include "ssl_impl.h"
+
+#include <JSON_checker.h>
+#include <platform/backtrace.h>
+#include <platform/dirutils.h>
+
+#include <gtest/gtest.h>
+#include <snappy-c.h>
+
+#include <getopt.h>
+#include <fstream>
 
 #ifdef WIN32
 #include <process.h>
@@ -360,6 +340,12 @@ uint16_t TestappTest::sasl_auth(const char *username, const char *password) {
     cbsasl_dispose(&client);
 
     return buffer.response.message.header.response.status;
+}
+
+bool TestappTest::isJSON(cb::const_char_buffer value) {
+    JSON_checker::Validator validator;
+    const auto* ptr = reinterpret_cast<const uint8_t*>(value.data());
+    return validator.validate(ptr, value.size());
 }
 
 // per test setup function.

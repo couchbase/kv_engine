@@ -21,8 +21,6 @@
 
 #include "testapp_subdoc_common.h"
 
-#include <JSON_checker.h>
-
 std::ostream& operator<<(std::ostream& os, const BinprotSubdocCommand& obj) {
     os << "[cmd:" << memcached_opcode_2_text(obj.getOp())
        << " key:" << obj.getKey() << " path:" << obj.getPath()
@@ -303,9 +301,10 @@ uint64_t recv_subdoc_response(
             }
 
             // Check that JSON means JSON
-            JSON_checker::Validator validator;
-            auto data = resp.getData();
-            if (!validator.validate(data.data(), data.size())) {
+            auto value = resp.getData();
+            cb::const_char_buffer str(
+                    reinterpret_cast<const char*>(value.data()), value.size());
+            if (!isJSON(str)) {
                 return AssertionFailure()
                        << "JSON validation failed for response data:'"
                        << resp.getDataString() << "''";

@@ -93,6 +93,31 @@ cb::mcbp::Datatype TestappXattrClientTest::expectedJSONDatatype() const {
                                                       : cb::mcbp::Datatype::Raw;
 }
 
+/**
+ * Helper function to check datatype is what we expect for this test config,
+ * and if datatype says JSON; validate the value /is/ JSON.
+ */
+::testing::AssertionResult TestappXattrClientTest::hasCorrectDatatype(
+        const Document& doc, cb::mcbp::Datatype expectedType) {
+    using namespace mcbp::datatype;
+    if (doc.info.datatype != expectedType) {
+        return ::testing::AssertionFailure()
+               << "Datatype mismatch - expected:"
+               << to_string(protocol_binary_datatype_t(expectedType))
+               << " actual:"
+               << to_string(protocol_binary_datatype_t(doc.info.datatype));
+    }
+
+    if (doc.info.datatype == cb::mcbp::Datatype::JSON) {
+        if (!isJSON({doc.value.data(), doc.value.size()})) {
+            return ::testing::AssertionFailure()
+                   << "JSON validation failed for response data:'" << doc.value
+                   << "''";
+        }
+    }
+    return ::testing::AssertionSuccess();
+}
+
 BinprotSubdocResponse TestappXattrClientTest::getXattr(const std::string& path,
                                                        bool deleted) {
     return runGetXattr(path, deleted, xattrOperationStatus);
