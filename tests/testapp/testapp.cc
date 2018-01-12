@@ -375,19 +375,6 @@ void TestappTest::TearDown() {
 
 const std::string TestappTest::bucketName = "default";
 
-// Per-test-case set-up.
-// Called before the first test in this test case.
-void McdTestappTest::SetUpTestCase() {
-    memcached_cfg.reset(generate_config(0));
-
-    start_memcached_server(memcached_cfg.get());
-
-    if (HasFailure()) {
-        server_pid = reinterpret_cast<pid_t>(-1);
-    } else {
-        CreateTestBucket();
-    }
-}
 // per test setup function.
 void McdTestappTest::SetUp() {
     verify_server_running();

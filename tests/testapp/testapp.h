@@ -297,20 +297,15 @@ protected:
 #define TESTAPP_SKIP_IF_SUPPORTED(op) \
     do { TESTAPP__DOSKIP(GetTestBucket().supportsOp(op), #op); } while (0)
 
-// Test the various memcached binary protocol commands against a
-// external `memcached` process. Tests are parameterized to test both Plain and
-// SSL transports.
+/**
+ * Test fixture for testapp tests which are parameterised on Transport
+ * (IPv4/Ipv6,Plain/SSL) and Hello::JSON on/off.
+ */
 class McdTestappTest
         : public TestappTest,
           public ::testing::WithParamInterface<
                   ::testing::tuple<TransportProtocols, ClientJSONSupport>> {
 public:
-    // Per-test-case set-up.
-    // Called before the first test in this test case.
-    static void SetUpTestCase();
-
-    // TearDownTestCase same as parent.
-
     /// Custom Test name function.
     static std::string PrintToStringCombinedName(
             const ::testing::TestParamInfo<
