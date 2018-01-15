@@ -24,8 +24,7 @@ void dcp_expiration_executor(Cookie& cookie) {
     const auto* req =
             reinterpret_cast<const protocol_binary_request_dcp_expiration*>(
                     packet.data());
-    ENGINE_ERROR_CODE ret = cookie.getAiostat();
-    cookie.setAiostat(ENGINE_SUCCESS);
+    auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
 
     auto& connection = cookie.getConnection();
     if (ret == ENGINE_SUCCESS) {

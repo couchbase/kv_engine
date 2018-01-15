@@ -22,8 +22,7 @@
 void dcp_stream_req_executor(Cookie& cookie) {
     uint64_t rollback_seqno = 0;
 
-    ENGINE_ERROR_CODE ret = cookie.getAiostat();
-    cookie.setAiostat(ENGINE_SUCCESS);
+    auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
 
     auto& connection = cookie.getConnection();
     if (ret == ENGINE_ROLLBACK) {

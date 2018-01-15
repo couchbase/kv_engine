@@ -295,6 +295,11 @@ public:
     void logResponse(ENGINE_ERROR_CODE code) const;
 
     /**
+     * Set the aiostat and return the previous value
+     */
+    ENGINE_ERROR_CODE swapAiostat(ENGINE_ERROR_CODE value);
+
+    /**
      * Get the current status of the asynchrous IO
      */
     ENGINE_ERROR_CODE getAiostat() const;

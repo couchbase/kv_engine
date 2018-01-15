@@ -24,8 +24,7 @@ void dcp_add_stream_executor(Cookie& cookie) {
             reinterpret_cast<const protocol_binary_request_dcp_add_stream*>(
                     packet.data());
 
-    ENGINE_ERROR_CODE ret = cookie.getAiostat();
-    cookie.setAiostat(ENGINE_SUCCESS);
+    auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
     uint32_t flags = ntohl(req->message.body.flags);
 
     auto& connection = cookie.getConnection();

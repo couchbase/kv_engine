@@ -21,8 +21,7 @@
 #include "utilities.h"
 
 void dcp_noop_executor(Cookie& cookie) {
-    ENGINE_ERROR_CODE ret = cookie.getAiostat();
-    cookie.setAiostat(ENGINE_SUCCESS);
+    auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
 
     auto& connection = cookie.getConnection();
     if (ret == ENGINE_SUCCESS) {

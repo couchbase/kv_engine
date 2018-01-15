@@ -19,8 +19,7 @@
 #include "executors.h"
 
 void collections_set_manifest_executor(Cookie& cookie) {
-    ENGINE_ERROR_CODE ret = cookie.getAiostat();
-    cookie.setAiostat(ENGINE_SUCCESS);
+    auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
 
     if (ret == ENGINE_SUCCESS) {
         auto& connection = cookie.getConnection();
