@@ -227,7 +227,7 @@ configuration file.
 === datatype_json
 
 The *datatype_json* attribute is a boolean value to enable the support
-for using the datatype JSON extension. By default this support is *disabled*.
+for using the datatype JSON extension. By default this support is *enabled*.
 
 === datatype_snappy
 

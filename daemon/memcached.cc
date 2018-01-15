@@ -542,7 +542,7 @@ static void settings_init(void) {
     settings.setConnectionIdleTime(0); // Connection idle time disabled
     settings.setNumWorkerThreads(get_number_of_worker_threads());
     settings.extensions.logger = get_stderr_logger();
-    settings.setDatatypeJsonEnabled(false);
+    settings.setDatatypeJsonEnabled(true);
     settings.setDatatypeSnappyEnabled(false);
     settings.setRequestsPerEventNotification(50, EventPriority::High);
     settings.setRequestsPerEventNotification(5, EventPriority::Medium);
