@@ -201,6 +201,10 @@ bool Cookie::isEwouldblock() const {
 }
 
 void Cookie::setEwouldblock(bool ewouldblock) {
+    if (ewouldblock && !connection.isDCP()) {
+        setAiostat(ENGINE_EWOULDBLOCK);
+    }
+
     connection.setEwouldblock(ewouldblock);
 }
 

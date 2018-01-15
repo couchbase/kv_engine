@@ -374,7 +374,6 @@ static void ioctl_get_executor(Cookie& cookie) {
                             0);
         break;
     case ENGINE_EWOULDBLOCK:
-        cookie.setAiostat(ENGINE_EWOULDBLOCK);
         cookie.setEwouldblock(true);
         break;
     case ENGINE_DISCONNECT:
@@ -408,7 +407,6 @@ static void ioctl_set_executor(Cookie& cookie) {
 
     switch (ret) {
     case ENGINE_EWOULDBLOCK:
-        cookie.setAiostat(ENGINE_EWOULDBLOCK);
         cookie.setEwouldblock(true);
         break;
     case ENGINE_DISCONNECT:

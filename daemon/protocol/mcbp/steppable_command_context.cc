@@ -52,7 +52,6 @@ void SteppableCommandContext::drive() {
     case ENGINE_SUCCESS:
         break;
     case ENGINE_EWOULDBLOCK:
-        cookie.setAiostat(ENGINE_EWOULDBLOCK);
         cookie.setEwouldblock(true);
         return;
     case ENGINE_DISCONNECT:
