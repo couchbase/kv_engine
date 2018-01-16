@@ -147,12 +147,13 @@ std::pair<bool, std::string> FailoverTable::needsRollback(
     adjustSnapshotRange(start_seqno, snap_start_seqno, snap_end_seqno);
 
     /* There may be items that are purged during compaction. We need
-       to rollback to seq no 0 in that case, only if start_seqno is not 0 */
-    if (snap_start_seqno < purge_seqno && start_seqno != 0) {
+       to rollback to seq no 0 in that case, only if we have purged beyond
+       start_seqno and if start_seqno is not 0 */
+    if (start_seqno < purge_seqno && start_seqno != 0) {
         return std::make_pair(true,
                               std::string("purge seqno (") +
                                       std::to_string(purge_seqno) +
-                                      ") is greater than snapshot start - "
+                                      ") is greater than start seqno - "
                                       "could miss purged deletions");
     }
 

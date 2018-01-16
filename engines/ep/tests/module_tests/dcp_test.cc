@@ -1290,6 +1290,24 @@ TEST_P(StreamTest, RollbackDueToPurge) {
     EXPECT_EQ(ENGINE_SUCCESS,
               producer->closeStream(/*opaque*/ 0, vb0->getId()));
 
+    /* Set a start_seqno > purge_seqno > snap_start_seqno */
+    engine->getKVBucket()->getLockedVBucket(vbid)->setPurgeSeqno(numItems - 3);
+
+    /* We don't expect a rollback for this */
+    EXPECT_EQ(ENGINE_SUCCESS,
+              producer->streamRequest(/*flags*/ 0,
+                                      /*opaque*/ 0,
+                                      /*vbucket*/ 0,
+                                      /*start_seqno*/ numItems - 2,
+                                      /*end_seqno*/ numItems,
+                                      vbUuid,
+                                      /*snap_start*/ 0,
+                                      /*snap_end*/ numItems - 2,
+                                      &rollbackSeqno,
+                                      DCPTest::fakeDcpAddFailoverLog));
+    EXPECT_EQ(ENGINE_SUCCESS,
+              producer->closeStream(/*opaque*/ 0, vb0->getId()));
+
     /* Set a purge_seqno > start_seqno */
     engine->getKVBucket()->getLockedVBucket(vbid)->setPurgeSeqno(numItems - 1);
 
