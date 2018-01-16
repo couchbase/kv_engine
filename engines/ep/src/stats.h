@@ -18,11 +18,11 @@
 #pragma once
 
 #include "config.h"
-
-#include "threadlocal.h"
+#include "objectregistry.h"
 
 #include <memcached/types.h>
 #include <platform/cacheline_padded.h>
+#include <platform/corestore.h>
 #include <platform/histogram.h>
 #include <platform/non_negative_counter.h>
 #include <relaxed_atomic.h>
@@ -59,8 +59,11 @@ public:
 
     size_t getTotalMemoryUsed() {
         if (memoryTrackerEnabled.load()) {
-            auto val = totalMemory->load();
-            return val >= 0 ? val : 0;
+            size_t total = 0;
+            for (const auto& core : totalMemory) {
+                total += core->load();
+            }
+            return total;
         }
         return currentSize.load() + memOverhead->load();
     }
@@ -70,12 +73,6 @@ public:
 
     // account for deallocated mem
     void memDeallocated(size_t sz);
-
-    // merge accumulated local memory to the bucket variable
-    // the boolean force, if set to true, will skip checking
-    // threshold constraints and merge the local counters
-    // immediately
-    void mergeMemCounter(bool force = false);
 
     //! Number of keys warmed up during key-only loading.
     Counter warmedUpKeys;
@@ -196,9 +193,7 @@ public:
     //! Total number of Item objects
     cb::CachelinePadded<Counter> numItem;
     //! The total amount of memory used by this bucket (From memory tracking)
-    // This is a signed variable as depdending on how/when the thread-local
-    // counters merge their info, this could be negative
-    cb::CachelinePadded<Couchbase::RelaxedAtomic<long long> > totalMemory;
+    CoreStore<cb::CachelinePadded<Couchbase::RelaxedAtomic<size_t>>> totalMemory;
     //! True if the memory usage tracker is enabled.
     std::atomic<bool> memoryTrackerEnabled;
     //! Whether or not to force engine shutdown.
@@ -475,22 +470,7 @@ public:
     // Used by stats logging infrastructure.
     std::ostream *timingLog;
 
-    //! These 2 thresholds define when the thread local
-    //  mem counters are merged to the bucket counter
-    size_t mem_merge_count_threshold;
-    size_t mem_merge_bytes_threshold;
-
 private:
-    struct TLMemCounter {
-        // accumulated mem
-        long long used = 0;
-
-        // no.of times mem accounting has happened
-        size_t count = 0;
-    };
-
-    ThreadLocalPtr<TLMemCounter> localMemCounter;
-
     //! Max allowable memory size.
     std::atomic<size_t> maxDataSize;
 };

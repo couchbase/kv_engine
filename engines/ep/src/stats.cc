@@ -77,7 +77,6 @@ EPStats::EPStats()
       storedValOverhead(0),
       memOverhead(0),
       numItem(0),
-      totalMemory(0),
       memoryTrackerEnabled(false),
       forceShutdown(false),
       oom_errors(0),
@@ -126,17 +125,6 @@ EPStats::EPStats()
       dirtyAgeHisto(),
       diskCommitHisto(),
       timingLog(NULL),
-      mem_merge_count_threshold(1),
-      mem_merge_bytes_threshold(0),
-      localMemCounter([](void* ptr) -> void {
-          if (ptr != nullptr) {
-              // This HAS to be a non-bucket deallocation
-              // or else the callbacks could try to update counters
-              // that no longer exist
-              SystemAllocationGuard system_alloc_guard;
-              delete (TLMemCounter*)ptr;
-          }
-      }),
       maxDataSize(DEFAULT_MAX_DATA_SIZE) {
 }
 
@@ -149,20 +137,11 @@ void EPStats::memAllocated(size_t sz) {
         return;
     }
 
-    if (localMemCounter.get() == nullptr) {
-        // this HAS to be a non-bucket allocation
-        // or else the callbacks would try to call this
-        // function again & it would become an infinite loop
-        SystemAllocationGuard system_alloc_guard;
-        localMemCounter.set(new TLMemCounter());
-    }
-
     if (0 == sz) {
         return;
     }
 
-    localMemCounter.get()->used += sz;
-    mergeMemCounter();
+    totalMemory.get()->fetch_add(sz);
 }
 
 void EPStats::memDeallocated(size_t sz) {
@@ -170,28 +149,9 @@ void EPStats::memDeallocated(size_t sz) {
         return;
     }
 
-    if (localMemCounter.get() == nullptr) {
-        // this HAS to be a non-bucket allocation
-        // or else the callbacks would try to call this
-        // function again & it would become an infinite loop
-        SystemAllocationGuard system_alloc_guard;
-        localMemCounter.set(new TLMemCounter());
-    }
-
     if (0 == sz) {
         return;
     }
 
-    localMemCounter.get()->used -= sz;
-    mergeMemCounter();
-}
-
-void EPStats::mergeMemCounter(bool force) {
-    auto& counter = *(localMemCounter.get());
-    counter.count++;
-    if (force || counter.count % mem_merge_count_threshold == 0 ||
-        std::abs(counter.used) > (long)mem_merge_bytes_threshold) {
-        totalMemory->fetch_add(counter.used);
-        counter.used = 0;
-    }
+    totalMemory.get()->fetch_sub(sz);
 }

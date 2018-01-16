@@ -932,12 +932,6 @@ Note that tcmalloc stats are not available on some operating systems
 | ep_mem_low_wat_percent              | Low water mark (as a percentage)       |
 | ep_mem_high_wat                     | High water mark for auto-evictions   |
 | ep_mem_high_wat_percent             | High water mark (as a percentage)      |
-| ep_mem_merge_bytes_threshold        | The amount of thread-local memory    |
-|                                     | accumulation at which the local ctr  |
-|                                     | is to be merged with bucket level ctr|
-| ep_mem_merge_count_threshold        | No.of modifications to thread-local  |
-|                                     | mem ctr after which the ctr is to be |
-|                                     | merged with bucket level ctr         |
 | ep_oom_errors                       | Number of times unrecoverable OOMs   |
 |                                     | happened while processing operations |
 | ep_tmp_oom_errors                   | Number of times temporary OOMs       |

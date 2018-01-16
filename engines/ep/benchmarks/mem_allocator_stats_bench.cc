@@ -30,8 +30,6 @@ public:
     void SetUp(const benchmark::State& state) override {
         stats.reset();
         stats.memoryTrackerEnabled = true;
-        stats.mem_merge_count_threshold = 100;
-        stats.mem_merge_bytes_threshold = 10240;
     }
 
     EPStats stats;

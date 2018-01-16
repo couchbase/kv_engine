@@ -579,10 +579,6 @@ protocol_binary_response_status EventuallyPersistentEngine::setFlushParam(
             getConfiguration().requirementsMetOrThrow("ephemeral_metadata_purge_interval");
             getConfiguration().setEphemeralMetadataPurgeInterval(
                     std::stoull(valz));
-        } else if (strcmp(keyz, "mem_merge_count_threshold") == 0) {
-            getConfiguration().setMemMergeCountThreshold(std::stoul(valz));
-        } else if (strcmp(keyz, "mem_merge_bytes_threshold") == 0) {
-            getConfiguration().setMemMergeBytesThreshold(std::stoul(valz));
         } else if (strcmp(keyz, "fsync_after_every_n_bytes_written") == 0) {
             getConfiguration().setFsyncAfterEveryNBytesWritten(
                     std::stoull(valz));
@@ -1632,7 +1628,7 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
 
     if (MemoryTracker::trackingMemoryAllocations()) {
         engine->getEpStats().memoryTrackerEnabled.store(true);
-        engine->getEpStats().totalMemory->store(inital_tracking->load());
+        engine->getEpStats().totalMemory.get()->store(inital_tracking->load());
     }
     delete inital_tracking;
 
@@ -1919,10 +1915,6 @@ public:
             engine.setMaxItemSize(value);
         } else if (key.compare("max_item_privileged_bytes") == 0) {
             engine.setMaxItemPrivilegedBytes(value);
-        } else if (key.compare("mem_merge_count_threshold") == 0) {
-            engine.stats.mem_merge_count_threshold = value;
-        } else if (key.compare("mem_merge_bytes_threshold") == 0) {
-            engine.stats.mem_merge_bytes_threshold = value;
         }
     }
 
@@ -1977,15 +1969,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
                 configuration.getMaxSize(), stats.mem_high_wat_percent.load()));
     }
 
-    stats.mem_merge_count_threshold = configuration.getMemMergeCountThreshold();
-    configuration.addValueChangedListener(
-            "mem_merge_count_threshold",
-            new EpEngineValueChangeListener(*this));
-
-    stats.mem_merge_bytes_threshold = configuration.getMemMergeBytesThreshold();
-    configuration.addValueChangedListener(
-            "mem_merge_bytes_threshold",
-            new EpEngineValueChangeListener(*this));
 
     maxItemSize = configuration.getMaxItemSize();
     configuration.addValueChangedListener("max_item_size",

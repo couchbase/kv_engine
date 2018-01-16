@@ -513,28 +513,6 @@
                 }
             }
         },
-	"mem_merge_count_threshold" : {
-            "default": "100",
-            "descr": "No.of mem changes after which the thread-local mem is merged to the bucket counter",
-            "type": "size_t",
-            "validator": {
-                "range": {
-                    "max": 1000000,
-                    "min": 1
-                }
-            }
-        },
-	"mem_merge_bytes_threshold" : {
-            "default": "102400",
-            "descr": "Amount of mem changes after which the thread-local mem is merged to the bucket counter",
-            "type": "size_t",
-            "validator": {
-                "range": {
-                    "max": 104857600,
-                    "min": 1
-                }
-            }
-        },
         "num_reader_threads": {
             "default": "0",
             "descr": "Throttle max number of reader threads",
