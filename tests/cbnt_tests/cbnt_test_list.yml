@@ -11,6 +11,24 @@
     - "output.With_background_DCP.xml"
     - "output.With_constant_Expiry_pager.xml"
     - "output.With_constant_defragmention.xml"
+- test: perfsuite_ephemeral
+  command: 'build/kv_engine/engine_testapp -E build/kv_engine/ep.so -T build/kv_engine/ep_perfsuite.so -v -e "bucket_type=ephemeral;dbname=./ep_perfsuite.ephemeral.db" -f xml'
+  output:
+    - "output.1_bucket_1_thread_baseline.xml"
+    - "output.1_buckets_4_threads_baseline.xml"
+    - "output.2_buckets_2_threads_baseline.xml"
+    - "output.4_buckets_4_threads_baseline.xml"
+    - "output.DCP_In-memory_(BINARY-RAND)_[As_is_vs._Compress].xml"
+    - "output.DCP_In-memory_(JSON-PADDED)_[As_is_vs._Compress].xml"
+    - "output.DCP_In-memory_(JSON-RAND)_[As_is_vs._Compress].xml"
+    - "output.With_background_DCP.xml"
+    - "output.With_constant_Expiry_pager.xml"
+    - "output.With_constant_defragmention.xml"
 - test: subdoc_perf
   command: "build/kv_engine/memcached-subdoc-perf-tests -e --gtest_output=xml"
-  output: "test_detail.xml"
+  output:
+    - "test_detail.xml"
+- test: ep_benchmarks
+  command: "build/kv_engine/ep_engine_benchmarks --gtest_output=xml"
+  output:
+    - "test_detail.xml"
