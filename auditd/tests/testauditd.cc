@@ -126,6 +126,7 @@ protected:
         config.set_log_directory(testdir);
         config.set_auditd_enabled(false);
         config.set_uuid("12345");
+        config.set_version(2);
         cb::io::rmrf(testdir);
         cb::io::mkdirp(testdir);
     }
@@ -298,6 +299,25 @@ TEST_F(AuditDaemonTest, UuidTest) {
             << "uuid attribute is missing from audit log";
     EXPECT_TRUE(existsInAuditLog(R"("uuid":"12345")"))
             << "Wrong uuid in the audit log";
+}
+
+// Check to see if "version":2 is reported
+TEST_F(AuditDaemonTest, VersionTest) {
+    enable();
+    // Check the audit log exists
+    auto vec = cb::io::findFilesContaining(testdir, "");
+    assertNumberOfFiles(1);
+
+    // wait up to 10 seconds for "version" to appear in the audit log
+    uint16_t waitIteration = 0;
+    while (!existsInAuditLog("version") && (waitIteration < 200)) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        waitIteration++;
+    }
+    EXPECT_TRUE(existsInAuditLog(R"("version")"))
+            << "version attribute is missing from audit log";
+    EXPECT_TRUE(existsInAuditLog(R"("version":2)"))
+            << "Wrong version in the audit log";
 }
 
 int main(int argc, char** argv) {

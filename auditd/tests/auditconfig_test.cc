@@ -92,6 +92,11 @@ TEST_F(AuditConfigTest, UnknownTag) {
 
 // version
 
+TEST_F(AuditConfigTest, TestGetVersion) {
+    ASSERT_NO_THROW(config.initialize_config(json));
+    EXPECT_EQ(2, config.get_version());
+}
+
 TEST_F(AuditConfigTest, TestNoVersion) {
     cJSON *obj = cJSON_DetachItemFromObject(json, "version");
     cJSON_Delete(obj);

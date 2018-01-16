@@ -36,6 +36,7 @@ public:
         rotate_size(20 * 1024 * 1024),
         buffered(true),
         filtering_enabled(false),
+        version(0),
         uuid(""),
         min_file_rotation_time(900), // 15 minutes
         max_file_rotation_time(604800), // 1 week
@@ -71,6 +72,8 @@ public:
     std::string get_log_directory(void) const;
     void set_descriptors_path(const std::string &directory);
     std::string get_descriptors_path(void) const;
+    void set_version(uint32_t ver);
+    uint32_t get_version() const;
     bool is_event_sync(uint32_t id);
     bool is_event_disabled(uint32_t id);
     bool is_event_filtered(const std::string &user) const;
@@ -113,6 +116,7 @@ protected:
     void set_buffered(cJSON *obj);
     void set_log_directory(cJSON *obj);
     void set_descriptors_path(cJSON *obj);
+    void set_version(cJSON *obj);
     void add_array(std::vector<uint32_t> &vec, cJSON *array, const char *name);
     void add_string_array(std::vector<std::string> &vec,
                           cJSON *array,
@@ -129,6 +133,7 @@ protected:
     Couchbase::RelaxedAtomic<size_t> rotate_size;
     Couchbase::RelaxedAtomic<bool> buffered;
     Couchbase::RelaxedAtomic<bool> filtering_enabled;
+    Couchbase::RelaxedAtomic<uint32_t> version;
 
     mutable std::mutex log_path_mutex;
     std::string log_path;

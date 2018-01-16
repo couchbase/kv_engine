@@ -225,7 +225,7 @@ bool Audit::create_audit_event(uint32_t event_id, cJSON *payload) {
                                     config.get_log_directory().c_str());
             cJSON_AddNumberToObject(payload, "rotate_interval",
                                     config.get_rotate_interval());
-            cJSON_AddNumberToObject(payload, "version", 1.0);
+            cJSON_AddNumberToObject(payload, "version", config.get_version());
             cJSON_AddStringToObject(payload, "uuid",
                                     config.get_uuid().c_str());
             break;

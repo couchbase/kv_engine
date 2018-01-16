@@ -73,13 +73,7 @@ cJSON* AuditConfig::getObject(const cJSON* root, const char* name, int type)
 }
 
 AuditConfig::AuditConfig(const cJSON *json) : AuditConfig() {
-    cJSON *version = getObject(json, "version", cJSON_Number);
-    if ((version->valueint != 1) && (version->valueint != 2))  {
-        std::stringstream ss;
-        ss << "error: version " << version->valueint << " is not supported";
-        throw ss.str();
-    }
-
+    set_version(getObject(json, "version", cJSON_Number));
     set_rotate_size(getObject(json, "rotate_size", cJSON_Number));
     set_rotate_interval(getObject(json, "rotate_interval", cJSON_Number));
     set_auditd_enabled(getObject(json, "auditd_enabled", -1));
@@ -88,7 +82,7 @@ AuditConfig::AuditConfig(const cJSON *json) : AuditConfig() {
     set_descriptors_path(getObject(json, "descriptors_path", cJSON_String));
     set_sync(getObject(json, "sync", cJSON_Array));
     set_disabled(getObject(json, "disabled", cJSON_Array));
-    if (version->valueint == 2) {
+    if (get_version() == 2) {
         set_filtering_enabled(getObject(json, "filtering_enabled", -1));
         set_uuid(getObject(json, "uuid", cJSON_String));
         set_disabled_users(getObject(json, "disabled_users", cJSON_Array));
@@ -104,7 +98,7 @@ AuditConfig::AuditConfig(const cJSON *json) : AuditConfig() {
     tags["descriptors_path"] = 1;
     tags["sync"] = 1;
     tags["disabled"] = 1;
-    if (version->valueint == 2) {
+    if (get_version() == 2) {
         tags["filtering_enabled"] = 1;
         tags["uuid"] = 1;
         tags["disabled_users"] = 1;
@@ -213,6 +207,19 @@ std::string AuditConfig::get_descriptors_path(void) const {
     return descriptors_path;
 }
 
+void AuditConfig::set_version(uint32_t ver) {
+    if ((ver != 1) && (ver != 2))  {
+           std::stringstream ss;
+           ss << "error: version " << ver << " is not supported";
+           throw ss.str();
+       }
+    version = ver;
+}
+
+uint32_t AuditConfig::get_version() const {
+    return version;
+}
+
 bool AuditConfig::is_event_sync(uint32_t id) {
     std::lock_guard<std::mutex> guard(sync_mutex);
     return std::find(sync.begin(), sync.end(), id) != sync.end();
@@ -297,6 +304,10 @@ void AuditConfig::set_descriptors_path(cJSON *obj) {
     set_descriptors_path(obj->valuestring);
 }
 
+void AuditConfig::set_version(cJSON *obj) {
+    set_version(static_cast<uint32_t>(obj->valueint));
+}
+
 void AuditConfig::add_array(std::vector<uint32_t> &vec, cJSON *array, const char *name) {
     vec.clear();
     for (auto *ii = array->child; ii != NULL; ii = ii->next) {
@@ -353,7 +364,7 @@ unique_cJSON_ptr AuditConfig::to_json() const {
         throw std::bad_alloc();
     }
 
-    cJSON_AddNumberToObject(root, "version", 2);
+    cJSON_AddNumberToObject(root, "version", get_version());
     cJSON_AddBoolToObject(root, "auditd_enabled", is_auditd_enabled());
     cJSON_AddNumberToObject(root, "rotate_size", get_rotate_size());
     cJSON_AddNumberToObject(root, "rotate_interval", get_rotate_interval());
@@ -423,4 +434,5 @@ void AuditConfig::initialize_config(const cJSON* json) {
     min_file_rotation_time = other.min_file_rotation_time;
     max_file_rotation_time = other.max_file_rotation_time;
     max_rotate_file_size = other.max_rotate_file_size;
+    version = other.version;
 }
