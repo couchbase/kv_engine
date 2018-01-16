@@ -255,7 +255,13 @@ void renderToXML(const std::string& name, const std::string& description,
     strftime(timebuf, sizeof timebuf, "%FT%T%z\0", gmtime(&now));
 
     file << "<testsuites timestamp=\"" << timebuf << "\">\n";
-    file << "  <testsuite name=\"ep-perfsuite\">\n";
+
+    if (testHarness.bucket_type == "") {
+        file << "  <testsuite name=\"ep-perfsuite\">\n";
+    } else {
+        file << "  <testsuite name=\"ep-perfsuite-" << testHarness.bucket_type
+             << "\">\n";
+    }
 
     for (const auto& stats : value_stats) {
         file << "    <testcase name=\"" << name << "." << stats.name

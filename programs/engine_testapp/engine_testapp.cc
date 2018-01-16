@@ -1454,6 +1454,17 @@ int main(int argc, char **argv) {
     harness.doc_namespace = DocNamespace::DefaultCollection;
     harness.set_pre_link_function = mock_set_pre_link_function;
 
+    /* Check to see whether the config string string sets the bucket type. */
+    if (harness.default_engine_cfg != nullptr) {
+        std::regex bucket_type("bucket_type=(\\w+)",
+                               std::regex_constants::ECMAScript);
+        std::cmatch matches;
+        if (std::regex_search(
+                    harness.default_engine_cfg, matches, bucket_type)) {
+            harness.bucket_type = matches.str(1);
+        }
+    }
+
     /* Initialize logging. */
     if (log_to_stderr) {
         logger_descriptor = get_stderr_logger();

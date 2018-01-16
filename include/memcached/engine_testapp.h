@@ -34,6 +34,7 @@ struct test_harness {
                          const char *, const char *, bool, bool);
     OutputFormat output_format;
     const char* output_file_prefix;
+    std::string bucket_type;
     const void *(*create_cookie)(void);
     void (*destroy_cookie)(const void *cookie);
     void (*set_ewouldblock_handling)(const void *cookie, bool enable);
