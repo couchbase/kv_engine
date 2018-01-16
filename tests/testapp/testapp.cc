@@ -393,6 +393,8 @@ void McdTestappTest::SetUp() {
     // Set ewouldblock_engine test harness to default mode.
     ewouldblock_engine_configure(ENGINE_EWOULDBLOCK, EWBEngineMode::First,
                                  /*unused*/0);
+
+    setCompressionMode("off");
 }
 
 // per test tear-down function.
@@ -408,6 +410,11 @@ void McdTestappTest::TearDown() {
 
 ClientJSONSupport McdTestappTest::hasJSONSupport() const {
     return getJSONParam();
+}
+
+void TestappTest::setCompressionMode(const std::string compression_mode) {
+    mcd_env->getTestBucket().setCompressionMode(
+            getConnection(), bucketName, compression_mode);
 }
 
 std::string McdTestappTest::PrintToStringCombinedName(

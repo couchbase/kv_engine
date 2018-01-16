@@ -723,6 +723,10 @@ bool mock_isXattrEnabled(gsl::not_null<ENGINE_HANDLE*> handle) {
     return get_handle(handle)->the_engine->isXattrEnabled(handle);
 }
 
+BucketCompressionMode mock_getCompressionMode(gsl::not_null<ENGINE_HANDLE*> handle) {
+    return get_handle(handle)->the_engine->getCompressionMode(handle);
+}
+
 EXTENSION_LOGGER_DESCRIPTOR *logger_descriptor = NULL;
 
 static void usage(void) {
@@ -907,6 +911,7 @@ static ENGINE_HANDLE_V1* create_bucket(bool initialize, const char* cfg) {
         mock_engine->me.collections.set_manifest =
                 mock_collections_set_manifest;
         mock_engine->me.isXattrEnabled = mock_isXattrEnabled;
+        mock_engine->me.getCompressionMode = mock_getCompressionMode;
 
         mock_engine->the_engine = (ENGINE_HANDLE_V1*)handle;
 

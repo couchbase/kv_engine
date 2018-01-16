@@ -28,6 +28,7 @@ enum class TraceCode {
 
     ALLOCATE,
     BGFETCH,
+    COMPRESS,
     FLUSH,
     GAT,
     GET,

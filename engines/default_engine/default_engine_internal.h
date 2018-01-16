@@ -61,6 +61,7 @@ struct config {
    char *uuid;
    bool keep_deleted;
    std::atomic<bool> xattr_enabled;
+   std::atomic<BucketCompressionMode> compression_mode;
 };
 
 /**

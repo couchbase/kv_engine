@@ -88,16 +88,6 @@ private:
 };
 
 /**
- * The different compression modes that a bucket supports
- */
-enum class CompressionMode : uint8_t {
-    Off,     //Data will be stored as uncompressed
-    Passive, //Data will be stored as provided by the client
-    Active   //Bucket will actively try to compress stored
-             //data
-};
-
-/**
  * memcached engine interface to the KVBucket.
  */
 class EventuallyPersistentEngine : public ENGINE_HANDLE_V1 {
@@ -435,20 +425,20 @@ public:
     ENGINE_ERROR_CODE getRandomKey(const void *cookie,
                                    ADD_RESPONSE response);
 
-    void setCompressMode(const std::string& compressModeStr) {
+    void setCompressionMode(const std::string& compressModeStr) {
         if (compressModeStr == "off") {
-            compressionMode = CompressionMode::Off;
+            compressionMode = BucketCompressionMode::Off;
         } else if (compressModeStr == "passive") {
-            compressionMode = CompressionMode::Passive;
+            compressionMode = BucketCompressionMode::Passive;
         } else if (compressModeStr == "active") {
-            compressionMode = CompressionMode::Active;
+            compressionMode = BucketCompressionMode::Active;
         } else {
             throw std::invalid_argument(
-                    "setCompressMode: invalid mode specified");
+                    "setCompressionMode: invalid mode specified");
         }
     }
 
-    CompressionMode getCompressMode() {
+    BucketCompressionMode getCompressionMode() {
         return compressionMode;
     }
 
@@ -781,7 +771,7 @@ protected:
     // ep_engine starts up.
     std::atomic<time_t> startupTime;
     EpEngineTaskable taskable;
-    std::atomic<CompressionMode> compressionMode;
+    std::atomic<BucketCompressionMode> compressionMode;
 };
 
 #endif  // SRC_EP_ENGINE_H_

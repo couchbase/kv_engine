@@ -168,6 +168,9 @@ static bool set_item_info(gsl::not_null<ENGINE_HANDLE*> handle,
 
 static bool is_xattr_supported(gsl::not_null<ENGINE_HANDLE*> handle);
 
+static BucketCompressionMode get_compression_mode(
+                               gsl::not_null<ENGINE_HANDLE*> handle);
+
 /**
  * Given that default_engine is implemented in C and not C++ we don't have
  * a constructor for the struct to initialize the members to some sane
@@ -213,6 +216,7 @@ void default_engine_constructor(struct default_engine* engine, bucket_id_t id)
     engine->engine.get_item_info = get_item_info;
     engine->engine.set_item_info = set_item_info;
     engine->engine.isXattrEnabled = is_xattr_supported;
+    engine->engine.getCompressionMode = get_compression_mode;
     engine->config.verbose = 0;
     engine->config.oldest_live = 0;
     engine->config.evict_to_free = true;
@@ -940,6 +944,7 @@ static bool scrub_cmd(struct default_engine *e,
 
 /**
  * set_param only added to allow per bucket xattr on/off
+ * and toggle between compression modes for testing purposes
  */
 static bool set_param(struct default_engine* e,
                       const void* cookie,
@@ -973,18 +978,28 @@ static bool set_param(struct default_engine* e,
             } else {
                 return false;
             }
-            return response(NULL,
-                            0,
-                            NULL,
-                            0,
-                            NULL,
-                            0,
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                            0,
-                            cookie);
-            ;
+        } else if (key == "compression_mode") {
+            if (value == "off") {
+                e->config.compression_mode = BucketCompressionMode::Off;
+            } else if (value == "passive") {
+                e->config.compression_mode = BucketCompressionMode::Passive;
+            } else if (value == "active") {
+                e->config.compression_mode = BucketCompressionMode::Active;
+            } else {
+                return false;
+            }
         }
+
+        return response(NULL,
+                        0,
+                        NULL,
+                        0,
+                        NULL,
+                        0,
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                        0,
+                        cookie);
     }
     return false;
 }
@@ -1123,4 +1138,9 @@ static bool set_item_info(gsl::not_null<ENGINE_HANDLE*> handle,
 
 static bool is_xattr_supported(gsl::not_null<ENGINE_HANDLE*> handle) {
     return get_handle(handle)->config.xattr_enabled;
+}
+
+static BucketCompressionMode get_compression_mode(
+                              gsl::not_null<ENGINE_HANDLE*> handle) {
+    return get_handle(handle)->config.compression_mode;
 }

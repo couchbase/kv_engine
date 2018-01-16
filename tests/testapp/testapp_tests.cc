@@ -1607,6 +1607,8 @@ TEST_P(McdTestappTest, DatatypeCompressed) {
     char* deflated;
     size_t deflated_len = compress_document(inflated, inflated_len, &deflated);
 
+    setCompressionMode("passive");
+
     set_datatype_feature(true);
     store_object_w_datatype("mycompressed",
                             deflated,

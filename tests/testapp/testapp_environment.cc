@@ -49,7 +49,6 @@ void TestBucketImpl::setXattrEnabled(MemcachedConnection& conn,
     // Encode a set_flush_param (like cbepctl)
     BinprotGenericCommand cmd;
     BinprotResponse resp;
-
     cmd.setOp(PROTOCOL_BINARY_CMD_SET_PARAM);
     cmd.setKey("xattr_enabled");
     cmd.setExtrasValue<uint32_t>(htonl(protocol_binary_engine_param_flush));
@@ -58,6 +57,24 @@ void TestBucketImpl::setXattrEnabled(MemcachedConnection& conn,
     } else {
         cmd.setValue("false");
     }
+
+    conn.executeCommand(cmd, resp);
+    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+}
+
+void TestBucketImpl::setCompressionMode(MemcachedConnection& conn,
+                                        const std::string& bucketName,
+                                        const std::string value) {
+    conn.authenticate("@admin", "password", "PLAIN");
+    conn.selectBucket(bucketName);
+
+    // Encode a set_flush_param (like cbepctl)
+    BinprotGenericCommand cmd;
+    BinprotResponse resp;
+    cmd.setOp(PROTOCOL_BINARY_CMD_SET_PARAM);
+    cmd.setKey("compression_mode");
+    cmd.setExtrasValue<uint32_t>(htonl(protocol_binary_engine_param_flush));
+    cmd.setValue(value);
 
     conn.executeCommand(cmd, resp);
     ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
