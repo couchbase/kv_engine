@@ -20,6 +20,8 @@
 #include <thread>
 #include <string_utilities.h>
 #include <xattr/blob.h>
+#include <platform/compress.h>
+#include <platform/make_unique.h>
 
 Item make_item(uint16_t vbid,
                const StoredDocKey& key,
@@ -34,6 +36,27 @@ Item make_item(uint16_t vbid,
               datatype);
     item.setVBucketId(vbid);
     return item;
+}
+
+std::unique_ptr<Item> makeCompressibleItem(uint16_t vbid,
+                                           const StoredDocKey& key,
+                                           const std::string& value,
+                                           protocol_binary_datatype_t datatype,
+                                           bool shouldCompress) {
+    protocol_binary_datatype_t itemDataType = datatype;
+    if (shouldCompress) {
+        cb::compression::Buffer output;
+        cb::compression::deflate(cb::compression::Algorithm::Snappy,
+                                 value, output);
+        itemDataType |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
+        return std::make_unique<Item>(key, /*flags*/0, /*exp*/0,
+                                      output.data(), output.size(),
+                                      itemDataType);
+    }
+
+    return std::make_unique<Item>(key, /*flags*/0, /*exp*/0,
+                                  value.c_str(), value.length(),
+                                  itemDataType);
 }
 
 std::chrono::microseconds decayingSleep(std::chrono::microseconds uSeconds) {

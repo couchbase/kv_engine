@@ -198,33 +198,6 @@ protected:
                                           datatype);
     }
 
-    std::unique_ptr<Item> makeCompressibleItem(StoredDocKey key, bool shouldCompress) {
-        std::string valueData("{\"product\": \"car\",\"price\": \"100\"},"
-                              "{\"product\": \"bus\",\"price\": \"1000\"},"
-                              "{\"product\": \"Train\",\"price\": \"100000\"}");
-        protocol_binary_datatype_t datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-
-        if (shouldCompress) {
-            cb::compression::Buffer output;
-            EXPECT_TRUE(cb::compression::deflate(cb::compression::Algorithm::Snappy,
-                        valueData, output));
-            datatype |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
-            return std::make_unique<Item>(key,
-                                          /*flags*/ 0,
-                                          /*exp*/ 0,
-                                          output.data(),
-                                          output.size(),
-                                          datatype);
-        }
-
-        return std::make_unique<Item>(key,
-                                      /*flags*/0,
-                                      /*exp*/0,
-                                      valueData.c_str(),
-                                      valueData.length(),
-                                      datatype);
-    }
-
     /* Add items onto the vbucket and wait for the checkpoint to be removed */
     void addItemsAndRemoveCheckpoint(int numItems) {
         for (int i = 0; i < numItems; ++i) {
@@ -328,10 +301,17 @@ extern protocol_binary_datatype_t dcp_last_datatype;
  */
 TEST_P(StreamTest, test_verifyDCPCompression) {
     VBucketPtr vb = engine->getKVBucket()->getVBucket(vbid);
-    auto item1 = makeCompressibleItem(makeStoredDocKey("key1"), true);
-    auto item2 = makeCompressibleItem(makeStoredDocKey("key2"), false);
-    auto item3 = makeCompressibleItem(makeStoredDocKey("key3"), true);
-    auto item4 = makeCompressibleItem(makeStoredDocKey("key4"), false);
+    std::string valueData("{\"product\": \"car\",\"price\": \"100\"},"
+                          "{\"product\": \"bus\",\"price\": \"1000\"},"
+                          "{\"product\": \"Train\",\"price\": \"100000\"}");
+    auto item1 = makeCompressibleItem(vbid, makeStoredDocKey("key1"), valueData,
+                                      PROTOCOL_BINARY_DATATYPE_JSON, true);
+    auto item2 = makeCompressibleItem(vbid, makeStoredDocKey("key2"), valueData,
+                                      PROTOCOL_BINARY_DATATYPE_JSON, false);
+    auto item3 = makeCompressibleItem(vbid, makeStoredDocKey("key3"), valueData,
+                                      PROTOCOL_BINARY_DATATYPE_JSON, true);
+    auto item4 = makeCompressibleItem(vbid, makeStoredDocKey("key4"), valueData,
+                                      PROTOCOL_BINARY_DATATYPE_JSON, false);
 
     setup_dcp_stream(0, IncludeValue::Yes, IncludeXattrs::Yes);
 
