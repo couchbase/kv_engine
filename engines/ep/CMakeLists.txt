@@ -350,6 +350,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                    benchmarks/engine_fixture.cc
                    benchmarks/ep_engine_benchmarks_main.cc
                    benchmarks/item_bench.cc
+                   benchmarks/mem_allocator_stats_bench.cc
                    benchmarks/vbucket_bench.cc
                    tests/mock/mock_synchronous_ep_engine.cc
                    $<TARGET_OBJECTS:ep_objs>
@@ -484,7 +485,6 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
 
     #SET_TARGET_PROPERTIES(generated_testsuite PROPERTIES PREFIX "")
 endif (COUCHBASE_KV_BUILD_UNIT_TESTS)
-
 
 INSTALL(PROGRAMS
         ${CMAKE_CURRENT_BINARY_DIR}/wrapper/cbepctl
