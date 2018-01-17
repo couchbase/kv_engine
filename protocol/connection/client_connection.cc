@@ -486,31 +486,35 @@ void MemcachedConnection::recvFrame(Frame& frame,
 void MemcachedConnection::sendCommand(const BinprotCommand& command) {
     auto bufs = command.encode();
 
-    if (packet_dump) {
-        Frame frame;
+    // Construct a Frame for this command, then send the complete
+    // frame in one syscall.
+    //
+    // Perf: this function previously used multiple calls to
+    // sendBuffer() (one per header / buffer) to send the data without
+    // copying it. While this does reduce copying cost; it requires
+    // one send() syscall per chunk. Benchmarks show that is actually
+    // *more* expensive overall (particulary when measuring server
+    // performance) as the server can read the first header chunk;
+    // then attempts to read the body which hasn't been delievered yet
+    // and hence has to go around the libevent loop again to read the
+    // body.
+    // If we find we are sending large amounts of data (and the copy
+    // cost becomes noticable) then suggest adding a sendmsg() based
+    // send method which can send multiple iovectors in a single
+    // syscall.
+    Frame frame;
 
-        if (!bufs.header.empty()) {
-            std::copy(bufs.header.begin(),
-                      bufs.header.end(),
-                      std::back_inserter(frame.payload));
-        }
-
-        for (auto& buf : bufs.bufs) {
-            std::copy(
-                    buf.begin(), buf.end(), std::back_inserter(frame.payload));
-        }
-
-        sendFrame(frame);
-    } else {
-        if (!bufs.header.empty()) {
-            cb::const_byte_buffer tmp_bb(bufs.header);
-            sendBuffer(tmp_bb);
-        }
-
-        for (auto& buf : bufs.bufs) {
-            sendBuffer(buf);
-        }
+    if (!bufs.header.empty()) {
+        std::copy(bufs.header.begin(),
+                  bufs.header.end(),
+                  std::back_inserter(frame.payload));
     }
+
+    for (auto& buf : bufs.bufs) {
+        std::copy(buf.begin(), buf.end(), std::back_inserter(frame.payload));
+    }
+
+    sendFrame(frame);
 }
 
 void MemcachedConnection::recvResponse(BinprotResponse& response) {
