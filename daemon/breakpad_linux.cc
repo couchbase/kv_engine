@@ -71,10 +71,19 @@ void initialize_breakpad(const BreakpadSettings& settings) {
         // Turn off the terminate handler's backtrace - otherwise we
         // just print it twice.
         set_terminate_handler_print_backtrace(false);
+
+        ::settings.extensions.logger->log(
+                EXTENSION_LOG_NOTICE,
+                NULL,
+                "Breakpad enabled. Minidumps will be written to '%s'",
+                settings.getMinidumpDir().c_str());
     } else {
         // If breakpad is off, then at least print the backtrace via
         // terminate_handler.
         set_terminate_handler_print_backtrace(true);
+
+        ::settings.extensions.logger->log(
+                EXTENSION_LOG_NOTICE, NULL, "Breakpad disabled");
     }
 }
 
