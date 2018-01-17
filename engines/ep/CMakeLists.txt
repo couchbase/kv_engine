@@ -28,6 +28,7 @@ INCLUDE_DIRECTORIES(BEFORE ${CMAKE_INSTALL_PREFIX}/include
                            ${Memcached_SOURCE_DIR}/tracing
                            ${Memcached_SOURCE_DIR}/include
                            ${Couchstore_SOURCE_DIR}/include
+                           ${hdr_histogram_SOURCE_DIR}/src
                            ${phosphor_SOURCE_DIR}/include
                            ${CMAKE_CURRENT_BINARY_DIR})
 
@@ -241,7 +242,7 @@ ADD_LIBRARY(ep SHARED $<TARGET_OBJECTS:ep_objs>)
 
 SET_TARGET_PROPERTIES(ep PROPERTIES PREFIX "")
 TARGET_LINK_LIBRARIES(ep cJSON JSON_checker ${EP_STORAGE_LIBS}
-                      engine_utilities dirutils cbcompress
+                      engine_utilities dirutils cbcompress hdr_histogram_static
                       mcd_util platform phosphor xattr mcd_tracing
                       ${LIBEVENT_LIBRARIES})
 
@@ -282,6 +283,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                    tests/module_tests/futurequeue_test.cc
                    tests/module_tests/hash_table_eviction_test.cc
                    tests/module_tests/hash_table_test.cc
+                   tests/module_tests/hdrhistogram_test.cc
                    tests/module_tests/item_pager_test.cc
                    tests/module_tests/item_test.cc
                    tests/module_tests/kvstore_test.cc
@@ -314,7 +316,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                                ${Couchstore_SOURCE_DIR})
 
     TARGET_LINK_LIBRARIES(ep-engine_ep_unit_tests ${EP_STORAGE_LIBS} cJSON
-                          dirutils engine_utilities gtest gmock
+                          dirutils engine_utilities gtest gmock hdr_histogram_static
                           JSON_checker mcd_util mcd_tracing platform phosphor xattr
                           cbcompress ${MALLOC_LIBRARIES})
 
