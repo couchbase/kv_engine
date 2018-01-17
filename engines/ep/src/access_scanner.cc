@@ -312,24 +312,7 @@ bool AccessScanner::run() {
                 deleteAlogFile(name);
                 stats.accessScannerSkips++;
             } else {
-                auto pv = std::make_unique<ItemAccessVisitor>(store,
-                                                              conf,
-                                                              stats,
-                                                              i,
-                                                              available,
-                                                              *this,
-                                                              maxStoredItems);
-                auto task = std::make_shared<VBCBAdaptor>(
-                        &store,
-                        TaskId::AccessScannerVisitor,
-                        std::move(pv),
-                        "Item Access Scanner",
-                        sleepTime,
-                        true);
-
-                // p99.9 is typically ~200ms
-                task->setMaxExpectedDuration(std::chrono::milliseconds(500));
-                ExecutorPool::get()->schedule(task);
+                createAndScheduleTask(i);
             }
         }
     }
@@ -362,5 +345,36 @@ void AccessScanner::deleteAlogFile(const std::string& fileName) {
     if (access(fileName.c_str(), F_OK) == 0 && remove(fileName.c_str()) == -1) {
         LOG(EXTENSION_LOG_WARNING, "Failed to remove '%s': %s",
             fileName.c_str(), strerror(errno));
+    }
+}
+
+/**
+ * Helper method to create and schedule the VBCAdaptor task for the Access Log
+ * generation.
+ * @param shard vBucket shard being used to create the ItemAccessVisitor
+ * @return True on successful creation, False if the task failed
+ */
+void AccessScanner::createAndScheduleTask(const size_t shard) {
+    try {
+        auto pv = std::make_unique<ItemAccessVisitor>(
+                store, conf, stats, shard, available, *this, maxStoredItems);
+
+        auto task = std::make_shared<VBCBAdaptor>(&store,
+                                                  TaskId::AccessScannerVisitor,
+                                                  std::move(pv),
+                                                  "Item Access Scanner",
+                                                  sleepTime,
+                                                  true);
+
+        // p99.9 is typically ~200ms
+        task->setMaxExpectedDuration(std::chrono::milliseconds(500));
+        ExecutorPool::get()->schedule(task);
+    } catch (const std::exception& e) {
+        LOG(EXTENSION_LOG_WARNING,
+            "Error creating Item Access Scanner task: '%s'. Please verify the "
+            "location specified for the access logs is valid and exists. "
+            "Current location is set at: '%s'",
+            e.what(),
+            conf.getAlogPath().c_str());
     }
 }

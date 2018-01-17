@@ -46,6 +46,9 @@ public:
 
     std::atomic<size_t> completedCount;
 
+protected:
+    void createAndScheduleTask(size_t shard);
+
 private:
     void updateAlogTime(double sleepSecs);
     void deleteAlogFile(const std::string& fileName);

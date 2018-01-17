@@ -22,6 +22,7 @@
 #include "kv_bucket_test.h"
 
 #include "../mock/mock_dcp_producer.h"
+#include "access_scanner.h"
 #include "bgfetcher.h"
 #include "checkpoint.h"
 #include "checkpoint_remover.h"
@@ -30,6 +31,7 @@
 #include "ep_engine.h"
 #include "ep_time.h"
 #include "flusher.h"
+#include "globaltask.h"
 #include "lambda_task.h"
 #include "replicationthrottle.h"
 #include "tasks.h"
@@ -1108,6 +1110,56 @@ TEST_P(KVBucketParamTest, MB_27162) {
      // Verify that GetMeta succeeded; and metadata is correct.
      ASSERT_EQ(ENGINE_SUCCESS, engineResult);
      EXPECT_EQ(3, itemMeta.revSeqno);
+}
+
+/***
+ * Test class to expose the behaviour needed to create an ItemAccessVisitor
+ */
+class MockAccessScanner : public AccessScanner {
+public:
+    MockAccessScanner(KVBucket& _store,
+                      Configuration& conf,
+                      EPStats& st,
+                      double sleeptime = 0,
+                      bool useStartTime = false,
+                      bool completeBeforeShutdown = false)
+        : AccessScanner(_store,
+                        conf,
+                        st,
+                        sleeptime,
+                        useStartTime,
+                        completeBeforeShutdown) {
+    }
+
+    void public_createAndScheduleTask(const size_t shard) {
+        return createAndScheduleTask(shard);
+    }
+};
+
+/***
+ * Test to make sure the Access Scanner doesn't throw an exception with a log
+ * location specified in the config which doesn't exist.
+ */
+TEST_P(KVBucketParamTest, AccessScannerInvalidLogLocation) {
+    /* Manually edit the configuration to change the location of the
+     * access log to be somewhere that doesn't exist */
+    engine->getConfiguration().setAlogPath("/path/to/somewhere");
+    ASSERT_EQ(engine->getConfiguration().getAlogPath(), "/path/to/somewhere");
+    ASSERT_FALSE(cb::io::isDirectory(engine->getConfiguration().getAlogPath()));
+
+    /* Create the Access Scanner task with our modified configuration
+     * In this case, the 1000 refers to the sleep time for the job, but it never
+     * gets used as part of the test case. */
+    auto as = std::make_unique<MockAccessScanner>(*(engine->getKVBucket()),
+                                                  engine->getConfiguration(),
+                                                  engine->getEpStats(),
+                                                  1000);
+
+    /* Make sure this doesn't throw an exception when tyring to run the task*/
+    EXPECT_NO_THROW(as->public_createAndScheduleTask(0))
+            << "Access Scanner threw unexpected "
+               "exception where log location does "
+               "not exist";
 }
 
 class StoreIfTest : public KVBucketTest {
