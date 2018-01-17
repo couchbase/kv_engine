@@ -264,9 +264,16 @@ void process_hello_packet_executor(Cookie& cookie) {
             break;
 
         case cb::mcbp::Feature::Tracing:
-            connection.setTracingEnabled(true);
-            added = true;
-            break;
+            if (settings.isTracingEnabled()) {
+                connection.setTracingEnabled(true);
+                added = true;
+                break;
+            } else {
+                LOG_NOTICE(&connection,
+                           "%u: %s Request for [disabled] Tracing feature",
+                           connection.getId(),
+                           connection.getDescription().c_str());
+            }
 
         } // end switch
 

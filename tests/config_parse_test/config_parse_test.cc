@@ -859,6 +859,30 @@ TEST_F(SettingsTest, XattrEnabled) {
     }
 }
 
+TEST_F(SettingsTest, TracingEnabled) {
+    nonBooleanValuesShouldFail("tracing_enabled");
+
+    unique_cJSON_ptr obj(cJSON_CreateObject());
+    cJSON_AddTrueToObject(obj.get(), "tracing_enabled");
+    try {
+        Settings settings(obj);
+        EXPECT_TRUE(settings.isTracingEnabled());
+        EXPECT_TRUE(settings.has.tracing_enabled);
+    } catch (std::exception& exception) {
+        FAIL() << exception.what();
+    }
+
+    obj.reset(cJSON_CreateObject());
+    cJSON_AddFalseToObject(obj.get(), "tracing_enabled");
+    try {
+        Settings settings(obj);
+        EXPECT_FALSE(settings.isTracingEnabled());
+        EXPECT_TRUE(settings.has.tracing_enabled);
+    } catch (std::exception& exception) {
+        FAIL() << exception.what();
+    }
+}
+
 TEST(SettingsUpdateTest, EmptySettingsShouldWork) {
     Settings updated;
     Settings settings;

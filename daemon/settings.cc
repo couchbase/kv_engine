@@ -217,6 +217,25 @@ static void handle_topkeys_enabled(Settings& s, cJSON* obj) {
 }
 
 /**
+ * Handle the "tracing_enabled" tag in the settings
+ *
+ *  The value must be a boolean value
+ *
+ * @param s the settings object to update
+ * @param obj the object in the configuration
+ */
+static void handle_tracing_enabled(Settings& s, cJSON* obj) {
+    if (obj->type == cJSON_True) {
+        s.setTracingEnabled(true);
+    } else if (obj->type == cJSON_False) {
+        s.setTracingEnabled(false);
+    } else {
+        throw std::invalid_argument(
+                "\"tracing_enabled\" must be a boolean value");
+    }
+}
+
+/**
  * Handle "default_reqs_per_event", "reqs_per_event_high_priority",
  * "reqs_per_event_med_priority" and "reqs_per_event_low_priority" tag in
  * the settings
@@ -665,7 +684,8 @@ void Settings::reconfigure(const unique_cJSON_ptr& json) {
             {"client_cert_auth", handle_client_cert_auth},
             {"collections_prototype", handle_collections_prototype},
             {"opcode_attributes_override", handle_opcode_attributes_override},
-            {"topkeys_enabled", handle_topkeys_enabled}};
+            {"topkeys_enabled", handle_topkeys_enabled},
+            {"tracing_enabled", handle_tracing_enabled}};
 
     cJSON* obj = json->child;
     while (obj != nullptr) {

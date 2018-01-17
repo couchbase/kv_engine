@@ -723,6 +723,16 @@ public:
         notify_changed("topkeys_enabled");
     }
 
+    bool isTracingEnabled() const {
+        return tracing_enabled.load(std::memory_order_acquire);
+    }
+
+    void setTracingEnabled(bool enabled) {
+        Settings::tracing_enabled.store(enabled, std::memory_order_release);
+        has.tracing_enabled = true;
+        notify_changed("tracing_enabled");
+    }
+
 protected:
 
     /**
@@ -884,6 +894,11 @@ protected:
      */
     std::atomic_bool topkeys_enabled{false};
 
+    /**
+     * Is tracing enabled or not
+     */
+    std::atomic_bool tracing_enabled{true};
+
 public:
     /**
      * Flags for each of the above config options, indicating if they were
@@ -924,6 +939,7 @@ public:
         bool collections_prototype;
         bool opcode_attributes_override;
         bool topkeys_enabled;
+        bool tracing_enabled;
     } has;
 
 protected:

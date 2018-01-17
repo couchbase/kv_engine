@@ -312,6 +312,12 @@ the use of extended attributes on documents. It may be overridden by
 privileged connections to allow them to set up replication streams
 before users create them.
 
+=== tracing_enabled
+
+The *tracing_enabled* attribute is a boolean value to enable or disable
+retrieving tracedata from the server. If enabled, the time the request
+took on the server will be sent back as a part of the response.
+
 === opcode-attributes-override
 
 The *opcode-attributes-override* attribute is an object which follows
@@ -387,6 +393,7 @@ A Sample memcached.json:
         "saslauthd_socketpath" : "/var/run/saslauthd/mux",
         "dedupe_nmvb_maps" : true,
         "xattr_enabled" : true,
+        "tracing_enabled" : true,
         "opcode-attributes-override": {
            "version": 1,
            "get": {
