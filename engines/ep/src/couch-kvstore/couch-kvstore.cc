@@ -1511,6 +1511,25 @@ couchstore_error_t CouchKVStore::openDB(uint16_t vbucketId,
                    dbFileName.c_str(),
                    options,
                    fileRev);
+
+        if (errorCode == COUCHSTORE_ERROR_NO_SUCH_FILE) {
+            auto dotPos = dbFileName.find_last_of(".");
+            if (dotPos != std::string::npos) {
+                dbFileName = dbFileName.substr(0, dotPos);
+            }
+            auto files = cb::io::findFilesWithPrefix(dbFileName);
+            logger.log(
+                    EXTENSION_LOG_WARNING,
+                    "CouchKVStore::openDB: No such file, found:%zd alternative "
+                    "files for %s",
+                    files.size(),
+                    dbFileName.c_str());
+            for (const auto& f : files) {
+                logger.log(EXTENSION_LOG_WARNING,
+                           "CouchKVStore::openDB: Found %s",
+                           f.c_str());
+            }
+        }
     }
 
     return errorCode;
