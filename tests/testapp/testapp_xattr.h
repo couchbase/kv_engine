@@ -18,10 +18,10 @@
 
 #include "testapp_client_test.h"
 
-class XattrTest : public TestappClientTest {
+class XattrTest : public TestappXattrClientTest {
 public:
     void SetUp() override {
-        TestappClientTest::SetUp();
+        TestappXattrClientTest::SetUp();
 
         // Create the document to operate on
         auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
@@ -279,3 +279,6 @@ protected:
     const std::string sysXattr = "_sync.eg";
     const std::string xattrVal = "99";
 };
+
+/// Explicit text fixutre for tests which want Xattr support disabled.
+class XattrDisabledTest : public XattrTest {};

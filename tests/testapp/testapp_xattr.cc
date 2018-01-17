@@ -19,10 +19,25 @@
 #include <array>
 
 // @todo add the other transport protocols
-INSTANTIATE_TEST_CASE_P(TransportProtocols,
-    XattrTest,
-    ::testing::Values(TransportProtocols::McbpPlain),
-    ::testing::PrintToStringParamName());
+// Note: We always need XattrSupport::Yes for these tests
+INSTANTIATE_TEST_CASE_P(
+        TransportProtocols,
+        XattrTest,
+        ::testing::Combine(::testing::Values(TransportProtocols::McbpPlain),
+                           ::testing::Values(XattrSupport::Yes),
+                           ::testing::Values(ClientJSONSupport::Yes,
+                                             ClientJSONSupport::No)),
+        PrintToStringCombinedName());
+
+// Instantiation for tests which want XATTR support disabled.
+INSTANTIATE_TEST_CASE_P(
+        TransportProtocols,
+        XattrDisabledTest,
+        ::testing::Combine(::testing::Values(TransportProtocols::McbpPlain),
+                           ::testing::Values(XattrSupport::No),
+                           ::testing::Values(ClientJSONSupport::Yes,
+                                             ClientJSONSupport::No)),
+        PrintToStringCombinedName());
 
 TEST_P(XattrTest, GetXattrAndBody) {
     // Test to check that we can get both an xattr and the main body in
@@ -89,6 +104,9 @@ TEST_P(XattrTest, SetXattrAndBodyNewDocWithExpiry) {
     BinprotSubdocMultiLookupResponse getResp;
     conn.recvResponse(getResp);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, getResp.getStatus());
+
+    // Restore time.
+    adjust_memcached_clock(0, TimeType::Uptime);
 }
 
 TEST_P(XattrTest, SetXattrAndBodyExistingDoc) {
@@ -700,7 +718,7 @@ TEST_P(XattrTest, Counter_PartialXattrSpec) {
 ////////////////////////////////////////////////////////////////////////
 //  Verify that I can't do subdoc ops if it's not enabled by hello
 ////////////////////////////////////////////////////////////////////////
-TEST_P(XattrTest, VerifyNotEnabled) {
+TEST_P(XattrDisabledTest, VerifyNotEnabled) {
     auto& conn = getConnection();
     conn.setXattrSupport(false);
 
