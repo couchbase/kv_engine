@@ -2002,6 +2002,109 @@ static test_result max_ttl(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
     return SUCCESS;
 }
 
+static test_result max_ttl_setWithMeta(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
+    // Make limit be greater than 30 days in seconds so that ep-engine must
+    // create a absolute expiry time internally.
+    const int absoluteExpiry = (60 * 60 * 24 * 31);
+    auto absoluteExpiryStr = std::to_string(absoluteExpiry);
+    std::string keyAbs = "key-abs";
+
+    const int relativeExpiry = 100;
+    auto relativeExpiryStr = std::to_string(relativeExpiry);
+    std::string keyRel = "key-rel";
+
+    checkeq(0, get_int_stat(h, h1, "ep_max_ttl"), "max_ttl should be 0");
+
+    // Test absolute first as this is the bigger time travel
+    check(set_param(h,
+                    h1,
+                    protocol_binary_engine_param_flush,
+                    "max_ttl",
+                    absoluteExpiryStr.c_str()),
+          "Failed to set max_ttl");
+    checkeq(absoluteExpiry,
+            get_int_stat(h, h1, "ep_max_ttl"),
+            "max_ttl didn't change");
+
+    // SWM with 0 expiry which results in an expiry being set
+    ItemMetaData itemMeta(0xdeadbeef, 10, 0xf1a95, 0 /*expiry*/);
+    set_with_meta(h,
+                  h1,
+                  keyAbs.c_str(),
+                  keyAbs.size(),
+                  keyAbs.c_str(),
+                  keyAbs.size(),
+                  0 /*vb*/,
+                  &itemMeta,
+                  0 /*cas*/);
+
+    cb::EngineErrorMetadataPair errorMetaPair;
+    check(get_meta(h, h1, keyAbs.c_str(), errorMetaPair), "Get meta failed");
+    checkne(time_t(0),
+            errorMetaPair.second.exptime,
+            "expiry should not be zero");
+
+    // Force expiry
+    testHarness.time_travel(absoluteExpiry + 1);
+
+    auto ret = get(h, h1, NULL, keyAbs.c_str(), 0);
+    checkeq(cb::engine_errc::no_such_key,
+            ret.first,
+            "Failed, expected no_such_key.");
+
+    check(set_param(h,
+                    h1,
+                    protocol_binary_engine_param_flush,
+                    "max_ttl",
+                    relativeExpiryStr.c_str()),
+          "Failed to set max_ttl");
+    checkeq(relativeExpiry,
+            get_int_stat(h, h1, "ep_max_ttl"),
+            "max_ttl didn't change");
+
+    set_with_meta(h,
+                  h1,
+                  keyRel.c_str(),
+                  keyRel.size(),
+                  keyRel.c_str(),
+                  keyRel.size(),
+                  0 /*vb*/,
+                  &itemMeta,
+                  0 /*cas*/);
+
+    check(get_meta(h, h1, keyRel.c_str(), errorMetaPair), "Get meta failed");
+    checkne(time_t(0),
+            errorMetaPair.second.exptime,
+            "expiry should not be zero");
+
+    // Force expiry
+    testHarness.time_travel(relativeExpiry + 1);
+
+    ret = get(h, h1, NULL, keyRel.c_str(), 0);
+    checkeq(cb::engine_errc::no_such_key,
+            ret.first,
+            "Failed, expected no_such_key.");
+
+    // Final test, exceed the maxTTL and check we got capped!
+    itemMeta.exptime = errorMetaPair.second.exptime + 1000;
+    set_with_meta(h,
+                  h1,
+                  keyRel.c_str(),
+                  keyRel.size(),
+                  keyRel.c_str(),
+                  keyRel.size(),
+                  0 /*vb*/,
+                  &itemMeta,
+                  0 /*cas*/);
+
+    check(get_meta(h, h1, keyRel.c_str(), errorMetaPair), "Get meta failed");
+    checkne(itemMeta.exptime,
+            errorMetaPair.second.exptime,
+            "expiry should have been changed/capped");
+
+    return SUCCESS;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // Test manifest //////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -2323,6 +2426,14 @@ BaseTestCase testsuite_testcases[] = {
 
         TestCase("test max_ttl",
                  max_ttl,
+                 test_setup,
+                 teardown,
+                 nullptr,
+                 prepare,
+                 cleanup),
+
+        TestCase("test max_ttl_setWithMeta",
+                 max_ttl_setWithMeta,
                  test_setup,
                  teardown,
                  nullptr,

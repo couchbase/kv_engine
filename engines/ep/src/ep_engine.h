@@ -738,7 +738,15 @@ protected:
      * @param exptime for an incoming itemAllocate/GAT
      * @return a pair, the ExpiryLimit and the exptime to apply to the update
      */
-    std::pair<cb::ExpiryLimit, rel_time_t> getExpiryParameters(rel_time_t exptime) const;
+    std::pair<cb::ExpiryLimit, rel_time_t>
+    getExpiryParameters(rel_time_t exptime) const;
+
+    /**
+     * Process an expiry time to see if the maxTTL limit needs enforcing.
+     * @param in a document's expiry time
+     * @return the corrected expiry time (may return input)
+     */
+    time_t processExpiryTime(time_t in) const;
 
     SERVER_HANDLE_V1 *serverApi;
     std::unique_ptr<KVBucket> kvBucket;

@@ -2100,6 +2100,20 @@ EventuallyPersistentEngine::getExpiryParameters(rel_time_t exptime) const {
     return {expiryLimit, exptime};
 }
 
+time_t EventuallyPersistentEngine::processExpiryTime(time_t in) const {
+    auto limit = kvBucket->getMaxTtl();
+    time_t out = in;
+    if (limit.count()) {
+        auto currentTime = ep_real_time();
+        if (in == 0 || in > (currentTime + limit.count())) {
+            // must expire in now + MaxTTL seconds
+            out = currentTime + limit.count();
+        }
+    }
+
+    return out;
+}
+
 ENGINE_ERROR_CODE EventuallyPersistentEngine::itemAllocate(
         item** itm,
         const DocKey& key,
@@ -4648,6 +4662,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(
             cookie,
             datatype,
             {reinterpret_cast<const char*>(value.data()), value.size()});
+
+    // exptime may exceed this buckets max, so process it
+    itemMeta.exptime = processExpiryTime(itemMeta.exptime);
+
     auto item = std::make_unique<Item>(key,
                                        itemMeta.flags,
                                        itemMeta.exptime,
