@@ -318,6 +318,17 @@ TEST_P(StreamTest, test_verifyDCPCompression) {
     std::string compressCtrlMsg("enable_value_compression");
     std::string compressCtrlValue("true");
 
+    /**
+     * Sending a control message without actually enabling the SNAPPY
+     * datatype should fail
+     */
+    ASSERT_EQ(ENGINE_EINVAL, producer->control(0, compressCtrlMsg.c_str(),
+                                                compressCtrlMsg.size(),
+                                                compressCtrlValue.c_str(),
+                                                compressCtrlValue.size()));
+
+    mock_set_datatype_support(producer->getCookie(), PROTOCOL_BINARY_DATATYPE_SNAPPY);
+
     ASSERT_EQ(ENGINE_SUCCESS, producer->control(0, compressCtrlMsg.c_str(),
                                                 compressCtrlMsg.size(),
                                                 compressCtrlValue.c_str(),
@@ -473,6 +484,8 @@ TEST_P(StreamTest, test_verifyProducerCompressionStats) {
 
     std::string compressCtrlMsg("enable_value_compression");
     std::string compressCtrlValue("true");
+
+    mock_set_datatype_support(producer->getCookie(), PROTOCOL_BINARY_DATATYPE_SNAPPY);
 
     ASSERT_EQ(ENGINE_SUCCESS, producer->control(0, compressCtrlMsg.c_str(),
                                                 compressCtrlMsg.size(),

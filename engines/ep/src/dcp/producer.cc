@@ -703,6 +703,13 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque, const void* key,
         }
         return ENGINE_SUCCESS;
     } else if (strncmp(param, "enable_value_compression", nkey) == 0) {
+        if (!engine_.isDatatypeSupported(getCookie(),
+                               PROTOCOL_BINARY_DATATYPE_SNAPPY)) {
+            engine_.setErrorContext(getCookie(), "The ctrl parameter "
+                  "enable_value_compression is only supported if datatype "
+                  "snappy is enabled on the connection");
+            return ENGINE_EINVAL;
+        }
         if (valueStr == "true") {
             enableValueCompression = true;
         } else {

@@ -876,6 +876,9 @@ static void perf_dcp_client(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
             "Failed to establish connection buffer");
 
     if (retrieveCompressed) {
+
+        testHarness.set_datatype_support(cookie, PROTOCOL_BINARY_DATATYPE_SNAPPY);
+
         checkeq(h1->dcp.control(h, cookie, ++streamOpaque,
                                     "enable_value_compression",
                                     strlen("enable_value_compression"), "true", 4),
