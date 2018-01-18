@@ -256,20 +256,26 @@ void renderToXML(const std::string& name, const std::string& description,
 
     file << "<testsuites timestamp=\"" << timebuf << "\">\n";
 
+    std::string classname = "ep-perfsuite";
+
     if (testHarness.bucket_type == "") {
         file << "  <testsuite name=\"ep-perfsuite\">\n";
     } else {
         file << "  <testsuite name=\"ep-perfsuite-" << testHarness.bucket_type
              << "\">\n";
+        classname += "-" + testHarness.bucket_type;
     }
 
     for (const auto& stats : value_stats) {
         file << "    <testcase name=\"" << name << "." << stats.name
-        << ".median\" time=\"" << stats.median/1e3 << "\" classname=\"ep-perfsuite\"/>\n"
-        << "    <testcase name=\"" << name << "." << stats.name
-        << ".pct95\" time=\"" << stats.pct95/1e3 << "\" classname=\"ep-perfsuite\"/>\n"
-        << "    <testcase name=\"" << name << "." << stats.name
-        << ".pct99\" time=\"" << stats.pct99/1e3 << "\" classname=\"ep-perfsuite\"/>\n";
+             << ".median\" time=\"" << stats.median / 1e3 << "\" classname=\""
+             << classname << "\"/>\n"
+             << "    <testcase name=\"" << name << "." << stats.name
+             << ".pct95\" time=\"" << stats.pct95 / 1e3 << "\" classname=\""
+             << classname << "\"/>\n"
+             << "    <testcase name=\"" << name << "." << stats.name
+             << ".pct99\" time=\"" << stats.pct99 / 1e3 << "\" classname=\""
+             << classname << "\"/>\n";
     }
     file << "  </testsuite>\n";
     file << "</testsuites>\n";
