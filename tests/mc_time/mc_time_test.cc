@@ -104,8 +104,16 @@ TEST_F(McTimeTest, limited_absolute_zero) {
     auto ts = epoch + duration_cast<seconds>(hours(30 * 24)).count() +
               seconds(2).count();
 
-    // Return of 1 return is a special case to force 'immediate' expiry
-    EXPECT_EQ(1, mc_time_convert_to_real_time(ts, seconds(0)));
+    auto rv = mc_time_convert_to_real_time(ts, seconds(0));
+
+    if (now == 0) {
+        // mc_time will hit the case where the computed time is in the past so
+        // returns 1
+        EXPECT_EQ(1, rv);
+    } else {
+        // Returns now, i.e. expire now
+        EXPECT_EQ(now, rv);
+    }
 }
 
 TEST_F(McTimeTest, limited_less_than_epoch) {
@@ -133,11 +141,11 @@ TEST_F(McTimeTest, limited_overflow_relative) {
 }
 
 // check if the limit and the expiry for relative expiry, the return val is the
-// same, i.e. expire in 5 seconds, max is 5 thus return 5
+// same, i.e. expire in 5 seconds, max is 5 thus return 5 seconds from now
 TEST_F(McTimeTest, limited_relative_limit_and_expiry_equal) {
     auto ts = 5;
 
-    EXPECT_EQ(5, mc_time_convert_to_real_time(ts, seconds(ts)));
+    EXPECT_EQ(5 + now, mc_time_convert_to_real_time(ts, seconds(ts)));
 }
 
 // check if the limit and the expiry for absolute. This is different for the
