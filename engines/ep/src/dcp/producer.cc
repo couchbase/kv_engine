@@ -195,7 +195,7 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
     noopCtx.enabled = false;
 
     enableExtMetaData = false;
-    enableValueCompression = false;
+    forceValueCompression = false;
 
     // Cursor dropping is disabled for replication connections by default,
     // but will be enabled through a control message to support backward
@@ -523,7 +523,7 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
             dynamic_cast<MutationProducerResponse*>(resp.get());
     if (mutationResponse) {
         itmCpy = std::make_unique<Item>(*mutationResponse->getItem());
-        if (enableValueCompression) {
+        if (forceValueCompression) {
             /**
              * Retrieve the uncompressed length if the document is compressed.
              * This is to account for the total number of bytes if the data
@@ -702,18 +702,18 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque, const void* key,
             enableExtMetaData = false;
         }
         return ENGINE_SUCCESS;
-    } else if (strncmp(param, "enable_value_compression", nkey) == 0) {
+    } else if (strncmp(param, "force_value_compression", nkey) == 0) {
         if (!engine_.isDatatypeSupported(getCookie(),
                                PROTOCOL_BINARY_DATATYPE_SNAPPY)) {
             engine_.setErrorContext(getCookie(), "The ctrl parameter "
-                  "enable_value_compression is only supported if datatype "
+                  "force_value_compression is only supported if datatype "
                   "snappy is enabled on the connection");
             return ENGINE_EINVAL;
         }
         if (valueStr == "true") {
-            enableValueCompression = true;
+            forceValueCompression = true;
         } else {
-            enableValueCompression = false;
+            forceValueCompression = false;
         }
         return ENGINE_SUCCESS;
     } else if (strncmp(param, "supports_cursor_dropping", nkey) == 0) {
@@ -896,7 +896,7 @@ void DcpProducer::addStats(ADD_STAT add_stat, const void *c) {
     addStat("items_sent", getItemsSent(), add_stat, c);
     addStat("items_remaining", getItemsRemaining(), add_stat, c);
     addStat("total_bytes_sent", getTotalBytesSent(), add_stat, c);
-    if (enableValueCompression) {
+    if (forceValueCompression) {
         addStat("total_uncompressed_data_size", getTotalUncompressedDataSize(),
                 add_stat, c);
     }
@@ -907,8 +907,8 @@ void DcpProducer::addStats(ADD_STAT add_stat, const void *c) {
     addStat("priority", priority.c_str(), add_stat, c);
     addStat("enable_ext_metadata", enableExtMetaData ? "enabled" : "disabled",
             add_stat, c);
-    addStat("enable_value_compression",
-            enableValueCompression ? "enabled" : "disabled",
+    addStat("force_value_compression",
+            forceValueCompression ? "enabled" : "disabled",
             add_stat, c);
     addStat("cursor_dropping",
             supportsCursorDropping ? "ELIGIBLE" : "NOT_ELIGIBLE",

@@ -35,7 +35,7 @@ const std::string DcpConsumer::noopIntervalCtrlMsg = "set_noop_interval";
 const std::string DcpConsumer::connBufferCtrlMsg = "connection_buffer_size";
 const std::string DcpConsumer::priorityCtrlMsg = "set_priority";
 const std::string DcpConsumer::extMetadataCtrlMsg = "enable_ext_metadata";
-const std::string DcpConsumer::valueCompressionCtrlMsg = "enable_value_compression";
+const std::string DcpConsumer::forceCompressionCtrlMsg = "force_value_compression";
 const std::string DcpConsumer::cursorDroppingCtrlMsg = "supports_cursor_dropping";
 const std::string DcpConsumer::sendStreamEndOnClientStreamCloseCtrlMsg =
         "send_stream_end_on_client_close_stream";
@@ -169,7 +169,7 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
     pendingSendNoopInterval = config.isDcpEnableNoop();
     pendingSetPriority = true;
     pendingEnableExtMetaData = true;
-    pendingEnableValueCompression = config.isEnableDcpConsumerSnappyCompression();
+    pendingForceValueCompression = config.isEnableDcpConsumerSnappyCompression();
     pendingSupportCursorDropping = true;
 }
 
@@ -1207,17 +1207,17 @@ ENGINE_ERROR_CODE DcpConsumer::handleExtMetaData(struct dcp_message_producers* p
 }
 
 ENGINE_ERROR_CODE DcpConsumer::handleValueCompression(struct dcp_message_producers* producers) {
-    if (pendingEnableValueCompression) {
+    if (pendingForceValueCompression) {
         ENGINE_ERROR_CODE ret;
         uint32_t opaque = ++opaqueCounter;
         std::string val("true");
         EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
         ret = producers->control(getCookie(), opaque,
-                                 valueCompressionCtrlMsg.c_str(),
-                                 valueCompressionCtrlMsg.size(),
+                                 forceCompressionCtrlMsg.c_str(),
+                                 forceCompressionCtrlMsg.size(),
                                  val.c_str(), val.size());
         ObjectRegistry::onSwitchThread(epe);
-        pendingEnableValueCompression = false;
+        pendingForceValueCompression = false;
         return ret;
     }
 

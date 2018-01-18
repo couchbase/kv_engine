@@ -2908,7 +2908,7 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     if (get_bool_stat(h, h1, "ep_enable_dcp_consumer_snappy_compression")) {
         dcp_step(h, h1, cookie);
         cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
-        cb_assert(dcp_last_key.compare("enable_value_compression") == 0);
+        cb_assert(dcp_last_key.compare("force_value_compression") == 0);
         cb_assert(dcp_last_opaque != opaque);
     }
 

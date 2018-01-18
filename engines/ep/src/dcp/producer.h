@@ -148,7 +148,7 @@ public:
     }
 
     bool isValueCompressionEnabled() {
-        return enableValueCompression;
+        return forceValueCompression;
     }
 
     void notifyPaused(bool schedule);
@@ -309,7 +309,7 @@ protected:
     bool notifyOnly;
 
     Couchbase::RelaxedAtomic<bool> enableExtMetaData;
-    Couchbase::RelaxedAtomic<bool> enableValueCompression;
+    Couchbase::RelaxedAtomic<bool> forceValueCompression;
     Couchbase::RelaxedAtomic<bool> supportsCursorDropping;
     Couchbase::RelaxedAtomic<bool> sendStreamEndOnClientStreamClose;
 

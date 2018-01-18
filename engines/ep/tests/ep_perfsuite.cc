@@ -880,10 +880,10 @@ static void perf_dcp_client(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
         testHarness.set_datatype_support(cookie, PROTOCOL_BINARY_DATATYPE_SNAPPY);
 
         checkeq(h1->dcp.control(h, cookie, ++streamOpaque,
-                                    "enable_value_compression",
-                                    strlen("enable_value_compression"), "true", 4),
+                                    "force_value_compression",
+                                    strlen("force_value_compression"), "true", 4),
                 ENGINE_SUCCESS,
-                "Failed to enable value compression");
+                "Failed to force value compression");
     }
 
     // We create a stream from 0 to MAX(seqno), and then rely on encountering the

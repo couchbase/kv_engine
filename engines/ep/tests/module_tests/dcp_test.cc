@@ -315,7 +315,7 @@ TEST_P(StreamTest, test_verifyDCPCompression) {
 
     setup_dcp_stream(0, IncludeValue::Yes, IncludeXattrs::Yes);
 
-    std::string compressCtrlMsg("enable_value_compression");
+    std::string compressCtrlMsg("force_value_compression");
     std::string compressCtrlValue("true");
 
     /**
@@ -482,7 +482,7 @@ TEST_P(StreamTest, test_verifyProducerCompressionStats) {
                                   "{\"product\": \"Train\",\"price\": \"100000\"}");
     std::string regularValue("{\"product\": \"car\",\"price\": \"100\"}");
 
-    std::string compressCtrlMsg("enable_value_compression");
+    std::string compressCtrlMsg("force_value_compression");
     std::string compressCtrlValue("true");
 
     mock_set_datatype_support(producer->getCookie(), PROTOCOL_BINARY_DATATYPE_SNAPPY);

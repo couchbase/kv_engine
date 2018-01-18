@@ -334,7 +334,7 @@ protected:
     bool pendingSendNoopInterval;
     bool pendingSetPriority;
     bool pendingEnableExtMetaData;
-    bool pendingEnableValueCompression;
+    bool pendingForceValueCompression;
     bool pendingSupportCursorDropping;
     bool pendingSendStreamEndOnClientStreamClose;
 
@@ -362,7 +362,7 @@ protected:
     static const std::string connBufferCtrlMsg;
     static const std::string priorityCtrlMsg;
     static const std::string extMetadataCtrlMsg;
-    static const std::string valueCompressionCtrlMsg;
+    static const std::string forceCompressionCtrlMsg;
     static const std::string cursorDroppingCtrlMsg;
     static const std::string sendStreamEndOnClientStreamCloseCtrlMsg;
 };
