@@ -397,6 +397,18 @@ static ENGINE_ERROR_CODE dcp_message_deletion(
     return ret;
 }
 
+static ENGINE_ERROR_CODE dcp_message_deletion_v2(
+        gsl::not_null<const void*> void_cookie,
+        uint32_t opaque,
+        gsl::not_null<item*> it,
+        uint16_t vbucket,
+        uint64_t by_seqno,
+        uint64_t rev_seqno,
+        uint32_t delete_time,
+        uint8_t collection_len) {
+    return ENGINE_SUCCESS;
+}
+
 static ENGINE_ERROR_CODE dcp_message_expiration(
         gsl::not_null<const void*> void_cookie,
         uint32_t opaque,
@@ -578,6 +590,7 @@ void ship_dcp_log(Cookie& cookie) {
             dcp_message_marker,
             dcp_message_mutation,
             dcp_message_deletion,
+            dcp_message_deletion_v2,
             dcp_message_expiration,
             dcp_message_flush,
             dcp_message_set_vbucket_state,
