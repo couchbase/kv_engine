@@ -749,12 +749,6 @@
             "dynamic": false,
             "type": "bool"
         },
-        "enable_dcp_consumer_snappy_compression": {
-            "default": "false",
-            "desr": "whether the DCP consumer should request the DCP producer to send compressed documents",
-            "dynamic": false,
-            "type": "bool"
-        },
         "dcp_min_compression_ratio": {
             "default": "0.85",
             "desr": "Compression ratio to be achieved above which producer will ship documents as is",

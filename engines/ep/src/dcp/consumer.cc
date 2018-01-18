@@ -169,7 +169,6 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
     pendingSendNoopInterval = config.isDcpEnableNoop();
     pendingSetPriority = true;
     pendingEnableExtMetaData = true;
-    pendingForceValueCompression = config.isEnableDcpConsumerSnappyCompression();
     pendingSupportCursorDropping = true;
 }
 
@@ -635,13 +634,6 @@ ENGINE_ERROR_CODE DcpConsumer::step(struct dcp_message_producers* producers) {
     }
 
     if ((ret = handleExtMetaData(producers)) != ENGINE_FAILED) {
-        if (ret == ENGINE_SUCCESS) {
-            ret = ENGINE_WANT_MORE;
-        }
-        return ret;
-    }
-
-    if ((ret = handleValueCompression(producers)) != ENGINE_FAILED) {
         if (ret == ENGINE_SUCCESS) {
             ret = ENGINE_WANT_MORE;
         }
@@ -1200,24 +1192,6 @@ ENGINE_ERROR_CODE DcpConsumer::handleExtMetaData(struct dcp_message_producers* p
                                  val.c_str(), val.size());
         ObjectRegistry::onSwitchThread(epe);
         pendingEnableExtMetaData = false;
-        return ret;
-    }
-
-    return ENGINE_FAILED;
-}
-
-ENGINE_ERROR_CODE DcpConsumer::handleValueCompression(struct dcp_message_producers* producers) {
-    if (pendingForceValueCompression) {
-        ENGINE_ERROR_CODE ret;
-        uint32_t opaque = ++opaqueCounter;
-        std::string val("true");
-        EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
-        ret = producers->control(getCookie(), opaque,
-                                 forceCompressionCtrlMsg.c_str(),
-                                 forceCompressionCtrlMsg.size(),
-                                 val.c_str(), val.size());
-        ObjectRegistry::onSwitchThread(epe);
-        pendingForceValueCompression = false;
         return ret;
     }
 

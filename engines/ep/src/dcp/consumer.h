@@ -262,8 +262,6 @@ protected:
 
     ENGINE_ERROR_CODE handleExtMetaData(struct dcp_message_producers* producers);
 
-    ENGINE_ERROR_CODE handleValueCompression(struct dcp_message_producers* producers);
-
     ENGINE_ERROR_CODE supportCursorDropping(struct dcp_message_producers* producers);
 
     ENGINE_ERROR_CODE sendStreamEndOnClientStreamClose(
@@ -334,7 +332,6 @@ protected:
     bool pendingSendNoopInterval;
     bool pendingSetPriority;
     bool pendingEnableExtMetaData;
-    bool pendingForceValueCompression;
     bool pendingSupportCursorDropping;
     bool pendingSendStreamEndOnClientStreamClose;
 
