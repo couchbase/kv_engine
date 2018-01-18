@@ -1,10 +1,10 @@
 # audit daemon README
 
-8 January 2015
+17 January 2018
 
 Daniel Owen, owend@couchbase.com
 
-Version 1.0
+Version 2.0
 
 ## Overview
 
@@ -55,8 +55,10 @@ auditd module this is from 0x1000 to 0x1FFF).
 
 An events descriptor JSON structure contains a definition of the
 events for the module.  The JSON structure contains a version field;
-stating the auditd format version used.  Currently "1" is the only
-valid value.  The second field contains the module name.  This needs
+stating the auditd format version used.  Version 1 and with the
+introduction of Vulcan version 2 is supported.
+
+The second field contains the module name.  This needs
 to match the name used in the module descriptor file.  The third field
 is a list of all the events that are defined for the module.  An
 example event descriptor file for the auditd module is given below.
@@ -132,11 +134,15 @@ The module defines 4 events; for each event 7 fields must be specified:
 * mandatory_fields (object) - field(s) required for a valid instance of the event.  In version 1 of the audit format *timestamp* and *real_userid* fields are required (see below).  Other bespoke fields can be added.
 *  optional_fields - optional field(s) valid in an instance of the event.  Three standard optional_fields are defined in version 1; *sessionID*, *remote* and *effective_userid*.  However additional bespoke fields can be added, if required.  Note: it is valid to have an empty optional_fields, i.e. {}.
 
+Version 2 of the audit configuration supports the filtering of events by user.
+Therefore with Version 2 an additional optional attribute is permitted.
+* filtering_permiited (bool) - whether the event can be filtered or not.  If the attribute is not defined then it is defaulted that the event cannot be filtered.  Note: we don't want to permit any ns_server or audit events from being filtered. 
+
 ### Defining the format for mandatory and optional fields
 
 The format of mandatory and optional fields are defined to allow
-validation of the events submitted to auditd.  Note: for Sherlock
-validation will not be implemented.
+validation of the events submitted to auditd.  Note: validation is not currently
+implemented.
 
 Field types can be any valid JSON type.  The type is specified by
 providing the following default values:
@@ -160,6 +166,31 @@ pre-defined optional fields; *sessionID*, *remote* and
                    "description" : "this is the full description of the example event",
                    "sync" : false,
                    "enabled" : true,
+                   "mandatory_fields" : {
+                                         "timestamp" : "",
+                                         "real_userid" : {"source" : "", "user" : ""}
+                                        },
+                   "optional_fields" : {
+                                        "sessionid" : ""
+                                        "remote" : {"ip" : "", "port" : 1}
+                                        "effective_userid" : {"source" : "", "user" : ""}
+                                       }
+                }
+               ]
+    }
+
+A similar example for Version 2 where filtering_permitted is defined is provided
+below:
+
+    {"version" : 2,
+    "module" : "example",
+    "events" : [
+                {  "id" : 8192,
+                   "name" : "example event",
+                   "description" : "this is the full description of the example event",
+                   "sync" : false,
+                   "enabled" : true,
+                   "filtering_permitted" : true,
                    "mandatory_fields" : {
                                          "timestamp" : "",
                                          "real_userid" : {"source" : "", "user" : ""}
@@ -237,7 +268,7 @@ optional fields then an example payload would be as follows:
      "real_userid" : {"source": "internal", "user" : "_admin"},
      "sessionID" : "SID:ANON:www.w3.org:j6oAOxCWZh/CD723LGeXlf-01:34",
      "remote" : {"ip": "127.0.0.1", "port" : 11210"},
-     "effective_userid" : {"source": "ldap", "user" : "cn=John Doe, dc=example, dc=com"},
+     "effective_userid" : {"source": "ldap", "user" : "joeblogs"},
     }
 
 
@@ -251,7 +282,7 @@ PROTOCOL_BINARY_CMD_AUDIT_CONFIG_RELOAD.
 The configuration file is a JSON structured document that comprises of
 the following fields:
 
-* version - states which format of the auditd to use.  Currently only "1" is valid.
+* version - states which format of the auditd to use.  Currently only "1" or "2" is valid
 * daemon enabled - boolean stating whether the daemon should be running.
 * rotate interval - number of minutes between log file rotation.  (Default is one day.  Minimum is 15 minutes)
 * rotate_size - number of bytes written to the file before rotating to a new file
@@ -259,7 +290,14 @@ the following fields:
 * disabled - list of event ids (numbers) containing those events that are NOT to be outputted to the audit log.
 * sync - list of event ids containing those events that are synchronous.  Synchronous events are not supported in Sherlock and so this should be the empty list.
 
-An example configuration is presented below.
+With the introduction of Version 2 of the auditd configuration the following
+additional fields are required:
+
+* uuid - identifies which auditd configuration is being used.  The value is provided by ns_server
+* disabled_users - a list of strings.  Each string corresponds to the user that we want to be filtered out.  Note: The list can be empty.
+* filtering_enabled - boolean stating whether filtering is enabled.  This configuration overrides all other filtering options. i.e. if set to false, then regardless of other filter settings, no filtering will be performed.
+
+An example verison 1 configuration is presented below.
 
        {
         "version":      1,
@@ -272,3 +310,90 @@ An example configuration is presented below.
         "disabled": [],
         "sync": []
        }
+
+An example verison 2 configuration is presented below.
+
+       {
+        "version":      2,
+        "uuid":         "uuid_string_provided_by_ns_server"
+        "auditd_enabled":       true,
+        "rotate_interval":      1440,
+        "rotate_size":          20971520,
+        "buffered":             true,
+        "log_path": "/var/lib/couchbase/logs",
+        "descriptors_path" : "/path/to/directory/containing/audit_events.json/",
+        "disabled": [],
+        "disabled_users": ["joeblogs"],
+        "sync": []
+       }
+
+## Filtering Support
+
+With the introduction of Version 2 of the auditd configuration filtering by
+user is supported.  For filtering to work the filtering_enabled setting in the
+auditd configuration file must be set to true.
+
+In addition the disabled_users list must contain the user string that is to be
+filtered out.  The user must match the "user" component from a real_userid or
+effective_userid.  For example given the following:
+
+        "real_userid" : {"source": "internal", "user" : "_admin"}
+        "effective_userid" : {"source": "ldap", "user" : "joeblogs"},
+
+It would be possible to filter on either "_admin" or "joeblogs".  If for example
+it was decided to filter out the events from "joeblogs" then the disabled_users
+list would be as follows:
+
+        "disabled_users": ["joeblogs"]
+
+Finally, an event will only be filtered if its "filtering_permitted" attribute
+is set to true in the definition of the event.  If the event does not contain
+the "filtering_permitted" attribute, or it is set to false then the event will
+not be filtered, even if it was generated by a user that is in the
+disabled_users list.
+
+### Filtering At Source Optimisation
+
+Client modules can perform filtering at source to avoid the need to send audit
+events to the audit daemon only for them to be dropped.
+
+If this is implemented, the module doing the filtering must generate an audit
+event when they start (and stop) filtering events, together with the uuid of the
+configuration used.  The motivation behind this is that we need to be able to
+determine if an audit event was expected to be dropped by the frontend or if it
+is missing in the audit trail.
+
+As an example, lets suppose we decide to filter on userA and then at a later
+time we decide to clear the filter so that userA’s events are no longer filtered
+out.  Unless we record in the audit log when we made the change to the filter we
+don’t know if events have been filtered by the audit daemon or whether userA
+simply did not generate certain events.
+
+Therefore if filtering is performed at source, there is requirement for the
+module to define a {MODULE_NAME} configuration event.  For example if N1QL
+implements event filtering at the source, it will need to define a
+"N1QL configuration" event.  This event must contain a copy of the uuid
+identifying which version of the configuration file it is currently using.  An
+example of a configuration event is given below:
+
+       {
+        "id" : 28689,
+        "name" : "N1QL configuration",
+        "description" : "States that N1QL is using audit configuration with specified uuid",
+        "sync" : false,
+        "enabled" : true,
+        "filtering_permitted" : false,
+        "mandatory_fields" : {
+                              "timestamp" : "",
+                              "real_userid" : {"source" : "", "user" : ""},
+                              "uuid" : ""
+                             },
+        "optional_fields" : {}
+       }
+
+Note: The filtering_permitted setting for this event must be set to false.
+
+It is the reponsibility of the client module to generate a configuration event
+every time it picks up a new auditd configuration file (from ns_server).  This
+ensures that the latest auditd configuration version is recorded in the audit
+log when a module is filtering at source.
