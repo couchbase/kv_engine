@@ -86,8 +86,6 @@ ADD_LIBRARY(memcached_daemon STATIC
             libevent_locking.cc
             libevent_locking.h
             log_macros.h
-            logger_config.cc
-            logger_config.h
             mc_time.cc
             mc_time.h
             mcaudit.cc
@@ -229,6 +227,7 @@ TARGET_LINK_LIBRARIES(memcached_daemon
                       mcd_util
                       mcd_tracing
                       mcbp
+                      memcached_logger
                       cbsasl
                       cbcompress
                       engine_utilities

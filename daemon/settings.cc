@@ -593,7 +593,7 @@ static void handle_logger(Settings& s, cJSON* obj) {
     if (obj->type != cJSON_Object) {
         throw std::invalid_argument("\"logger\" must be an object");
     }
-    LoggerConfig config(obj);
+    cb::logger::Config config(*obj);
     s.setLoggerConfig(config);
 }
 

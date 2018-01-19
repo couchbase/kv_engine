@@ -21,7 +21,37 @@
  */
 
 #include "custom_rotating_file_sink.h"
-#include "file_logger_utilities.h"
+
+#include <platform/dirutils.h>
+
+static unsigned long find_first_logfile_id(const std::string& basename) {
+    unsigned long id = 0;
+
+    auto files = cb::io::findFilesWithPrefix(basename);
+    for (auto& file : files) {
+        // the format of the name should be:
+        // fnm.number.txt
+        auto index = file.rfind(".txt");
+        if (index == std::string::npos) {
+            continue;
+        }
+
+        file.resize(index);
+        index = file.rfind('.');
+        if (index != std::string::npos) {
+            try {
+                unsigned long value = std::stoul(file.substr(index + 1));
+                if (value > id) {
+                    id = value + 1;
+                }
+            } catch (...) {
+                // Ignore
+            }
+        }
+    }
+
+    return id;
+}
 
 template <class Mutex>
 custom_rotating_file_sink<Mutex>::custom_rotating_file_sink(

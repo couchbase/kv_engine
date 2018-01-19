@@ -18,7 +18,8 @@
 #include "config.h"
 
 #include "custom_rotating_file_sink.h"
-#include "extensions/protocol_extension.h"
+
+#include "logger.h"
 
 #include <memcached/engine.h>
 #include <memcached/extension.h>
@@ -162,12 +163,11 @@ static void on_log_level(const void* cookie,
 /* Initialises the loggers. Called if the logger configuration is
  * specified in a separate settings object.
  */
-MEMCACHED_PUBLIC_API
-EXTENSION_ERROR_CODE file_logger_initialize(const LoggerConfig& logger_settings,
-                                            GET_SERVER_API get_server_api) {
+boost::optional<std::string> cb::logger::initialize(
+        const Config& logger_settings, GET_SERVER_API get_server_api) {
     sapi = get_server_api();
     if (sapi == nullptr) {
-        return EXTENSION_FATAL;
+        return boost::optional<std::string>{"Failed to get server API"};
     }
 
     auto fname = logger_settings.filename;
@@ -199,8 +199,9 @@ EXTENSION_ERROR_CODE file_logger_initialize(const LoggerConfig& logger_settings,
                                      std::chrono::seconds(sleeptime));
         stderr_logger = spdlog::stderr_logger_mt("spdlog_stderr_logger");
     } catch (const spdlog::spdlog_ex& ex) {
-        std::cerr << "Log initialization failed: " << ex.what() << std::endl;
-        return EXTENSION_FATAL;
+        std::string msg =
+                std::string{"Log initialization failed: "} + ex.what();
+        return boost::optional<std::string>{msg};
     }
 
     current_log_level = convertToSpdSeverity(sapi->log->get_level());
@@ -214,70 +215,10 @@ EXTENSION_ERROR_CODE file_logger_initialize(const LoggerConfig& logger_settings,
     descriptor.shutdown = logger_shutdown;
 
     if (!sapi->extension->register_extension(EXTENSION_LOGGER, &descriptor)) {
-        return EXTENSION_FATAL;
-    }
-    sapi->callback->register_callback(NULL, ON_LOG_LEVEL, on_log_level, NULL);
-
-    return EXTENSION_SUCCESS;
-}
-
-/* Parses the logger configuration, if specified as an extension.
- * Calls initialize_file_logger, which performs the actual initialisation.
- */
-MEMCACHED_PUBLIC_API
-EXTENSION_ERROR_CODE memcached_extensions_initialize(
-        const char* config, GET_SERVER_API get_server_api) {
-    char* fname = NULL;
-    LoggerConfig logger_config;
-
-    sapi = get_server_api();
-    if (sapi == NULL) {
-        return EXTENSION_FATAL;
+        return boost::optional<std::string>{"Failed to register logger"};
     }
 
-    if (config != NULL) {
-        struct config_item items[6];
-        int ii = 0;
-        memset(&items, 0, sizeof(items));
-
-        items[ii].key = "filename";
-        items[ii].datatype = DT_STRING;
-        items[ii].value.dt_string = &fname;
-        ++ii;
-
-        items[ii].key = "buffersize";
-        items[ii].datatype = DT_SIZE;
-        items[ii].value.dt_size = &(logger_config.buffersize);
-        ++ii;
-
-        items[ii].key = "cyclesize";
-        items[ii].datatype = DT_SIZE;
-        items[ii].value.dt_size = &(logger_config.cyclesize);
-        ++ii;
-
-        items[ii].key = "sleeptime";
-        items[ii].datatype = DT_SIZE;
-        items[ii].value.dt_size = &(logger_config.sleeptime);
-        ++ii;
-
-        items[ii].key = "unit_test";
-        items[ii].datatype = DT_BOOL;
-        items[ii].value.dt_bool = &(logger_config.unit_test);
-        ++ii;
-
-        items[ii].key = NULL;
-        ++ii;
-        cb_assert(ii == 6);
-
-        if (sapi->core->parse_config(config, items, stderr) != ENGINE_SUCCESS) {
-            return EXTENSION_FATAL;
-        }
-
-        if (fname != NULL) {
-            logger_config.filename.assign(fname);
-        }
-    }
-    cb_free(fname);
-
-    return file_logger_initialize(logger_config, get_server_api);
+    sapi->callback->register_callback(
+            nullptr, ON_LOG_LEVEL, on_log_level, nullptr);
+    return {};
 }

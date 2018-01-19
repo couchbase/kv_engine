@@ -26,6 +26,7 @@
 #include "enginemap.h"
 #include "ioctl.h"
 #include "libevent_locking.h"
+#include "logger/logger.h"
 #include "mc_time.h"
 #include "mcaudit.h"
 #include "mcbp.h"
@@ -2571,76 +2572,6 @@ static void initialize_sasl() {
     }
 }
 
-/**
- * Configures the file logger, when specified as a settings field instead of
- * as an extension.
- *
- * Right now it uses the same mechanism as when loading extensions,
- * by opening a shared object and calling the "file_logger_initialize" method
- * from it.
- *
- * TODO: In the future, this mechanism should be replaced by linking
- * the logger source file.
- *
- * @param soname the name of the shared object
- */
-bool configure_file_logger(std::string soname) {
-    cb_dlhandle_t handle;
-    void* symbol;
-    EXTENSION_ERROR_CODE error;
-
-    // The signature of the "file_logger_initialize" method from the
-    // logger's source file
-    typedef EXTENSION_ERROR_CODE (*FILE_LOGGER_INITIALIZE)(
-            const LoggerConfig& config, GET_SERVER_API get_server_api);
-
-    union {
-        FILE_LOGGER_INITIALIZE initialize;
-        void* voidptr;
-    } funky;
-    char* error_msg;
-
-    if (soname == "") {
-        return false;
-    }
-
-    handle = cb_dlopen(soname.c_str(), &error_msg);
-    if (handle == NULL) {
-        LOG_WARNING(NULL,
-                    "Failed to open library \"%s\": %s\n",
-                    soname.c_str(),
-                    error_msg);
-        cb_free(error_msg);
-        return false;
-    }
-
-    symbol = cb_dlsym(handle, "file_logger_initialize", &error_msg);
-    if (symbol == NULL) {
-        LOG_WARNING(
-                NULL,
-                "Could not find symbol \"file_logger_initialize\" in %s: %s\n",
-                soname.c_str(),
-                error_msg);
-        cb_free(error_msg);
-        return false;
-    }
-    funky.voidptr = symbol;
-
-    error = (*funky.initialize)(settings.getLoggerConfig(), get_server_api);
-    if (error != EXTENSION_SUCCESS) {
-        LOG_WARNING(NULL,
-                    "Failed to initialize logger from %s. Error code: %d",
-                    soname.c_str(),
-                    error);
-        cb_dlclose(handle);
-        return false;
-    }
-
-    LOG_INFO(NULL, "Loaded logger from: %s", soname.c_str());
-
-    return true;
-}
-
 extern "C" int memcached_main(int argc, char **argv) {
     // MB-14649 log() crash on windows on some CPU's
 #ifdef _WIN64
@@ -2701,7 +2632,13 @@ extern "C" int memcached_main(int argc, char **argv) {
 
     /* Configure file logger, if specified as a settings object */
     if (settings.has.logger) {
-        configure_file_logger("spdlogger.so");
+        auto ret = cb::logger::initialize(settings.getLoggerConfig(),
+                                          get_server_api);
+        if (ret) {
+            FATAL_ERROR(EXIT_FAILURE,
+                        "Failed to initialize logger: %s",
+                        ret.get().c_str());
+        }
     }
 
     /* File-based logging available from this point onwards... */

@@ -441,7 +441,7 @@ TEST_F(SettingsTest, ParseLoggerSettings) {
 
     EXPECT_TRUE(settings.has.logger);
 
-    LoggerConfig config = settings.getLoggerConfig();
+    const auto config = settings.getLoggerConfig();
     EXPECT_EQ("logs/n_1/memcached.log", config.filename);
     EXPECT_EQ(1024, config.buffersize);
     EXPECT_EQ(10485760, config.cyclesize);
@@ -1153,7 +1153,7 @@ TEST(SettingsUpdateTest, UpdatingLoggerSettingsShouldFail) {
     Settings settings;
     Settings updated;
 
-    LoggerConfig config;
+    cb::logger::Config config;
     config.filename.assign("logger_test");
     config.buffersize = 1024;
     config.cyclesize = 1024 * 1024;

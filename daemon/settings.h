@@ -22,7 +22,7 @@
 #include "breakpad_settings.h"
 #include "client_cert_config.h"
 #include "extension_settings.h"
-#include "logger_config.h"
+#include "logger/logger.h"
 #include "network_interface.h"
 
 #include <cJSON_utils.h>
@@ -175,11 +175,11 @@ public:
         return pending_extensions;
     }
 
-    const LoggerConfig getLoggerConfig() {
+    const cb::logger::Config getLoggerConfig() {
         return logger_settings;
     };
 
-    void setLoggerConfig(const LoggerConfig& config) {
+    void setLoggerConfig(const cb::logger::Config& config) {
         has.logger = true;
         logger_settings = config;
         notify_changed("logger");
@@ -763,7 +763,7 @@ protected:
     /**
      * Configuration of the logger
      */
-    LoggerConfig logger_settings;
+    cb::logger::Config logger_settings;
 
     /**
      * The file containing audit configuration

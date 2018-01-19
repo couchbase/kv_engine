@@ -15,15 +15,18 @@
  *   limitations under the License.
  */
 
-#include "logger_config.h"
+#include "logger.h"
 
-LoggerConfig::LoggerConfig(gsl::not_null<const cJSON*> json) {
-    auto* root = const_cast<cJSON*>(json.get());
+namespace cb {
+namespace logger {
+
+Config::Config(const cJSON& json) {
+    auto* root = const_cast<cJSON*>(&json);
     auto* obj = cJSON_GetObjectItem(root, "filename");
     if (obj != nullptr) {
         if (obj->type != cJSON_String) {
             throw std::invalid_argument(
-                    "LoggerConfig: \"filename\" must be a string");
+                    R"(cb::logger::Config: "filename" must be a string)");
         }
         filename.assign(obj->valuestring);
     }
@@ -32,7 +35,7 @@ LoggerConfig::LoggerConfig(gsl::not_null<const cJSON*> json) {
     if (obj != nullptr) {
         if (obj->type != cJSON_Number) {
             throw std::invalid_argument(
-                    "LoggerConfig: \"buffersize\" must be an unsigned int");
+                    R"(cb::logger::Config: "buffersize" must be an unsigned int)");
         }
         buffersize = static_cast<unsigned int>(obj->valueint);
     }
@@ -41,7 +44,7 @@ LoggerConfig::LoggerConfig(gsl::not_null<const cJSON*> json) {
     if (obj != nullptr) {
         if (obj->type != cJSON_Number) {
             throw std::invalid_argument(
-                    "LoggerConfig: \"cyclesize\" must be an unsigned int");
+                    R"(cb::logger::Config: "cyclesize" must be an unsigned int)");
         }
         cyclesize = static_cast<unsigned int>(obj->valueint);
     }
@@ -50,7 +53,7 @@ LoggerConfig::LoggerConfig(gsl::not_null<const cJSON*> json) {
     if (obj != nullptr) {
         if (obj->type != cJSON_Number) {
             throw std::invalid_argument(
-                    "LoggerConfig: \"sleeptime\" must be an unsigned int");
+                    R"(cb::logger::Config: "sleeptime" must be an unsigned int)");
         }
         sleeptime = static_cast<unsigned int>(obj->valueint);
     }
@@ -62,12 +65,12 @@ LoggerConfig::LoggerConfig(gsl::not_null<const cJSON*> json) {
             unit_test = true;
         } else if (obj->type != cJSON_False) {
             throw std::invalid_argument(
-                    "LoggerConfig: \"unit_test\" must be a bool");
+                    R"(Config: "unit_test" must be a bool)");
         }
     }
 }
 
-bool LoggerConfig::operator==(const LoggerConfig& other) const {
+bool Config::operator==(const Config& other) const {
     return (this->filename == other.filename) &&
            (this->buffersize == other.buffersize) &&
            (this->sleeptime == other.sleeptime) &&
@@ -75,6 +78,9 @@ bool LoggerConfig::operator==(const LoggerConfig& other) const {
            (this->unit_test == other.unit_test);
 }
 
-bool LoggerConfig::operator!=(const LoggerConfig& other) const {
+bool Config::operator!=(const Config& other) const {
     return !(*this == other);
 }
+
+} // namespace logger
+} // namespace cb
