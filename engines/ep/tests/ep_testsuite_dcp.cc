@@ -569,6 +569,7 @@ void TestDcpConsumer::openConnection(uint32_t flags) {
                  "eq_dcpq:%s:max_buffer_bytes", name.c_str());
         checkeq(static_cast<int>(flow_control_buf_size),
                 get_int_stat(h, h1, stats_buffer, "dcp"),
+                "TestDcpConsumer::openConnection() : "
                 "Buffer Size did not get set correctly");
     } else {
         snprintf(stats_buffer, sizeof(stats_buffer),
