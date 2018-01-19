@@ -776,9 +776,6 @@ static void begin_trace(gsl::not_null<const void*> void_cookie,
                         cb::tracing::TraceCode tracecode) {
     auto* cookie =
             reinterpret_cast<Cookie*>(const_cast<void*>(void_cookie.get()));
-    if (!cookie->isTracingEnabled()) {
-        return;
-    }
     cookie->getTracer().begin(tracecode);
 }
 
@@ -786,9 +783,6 @@ static void end_trace(gsl::not_null<const void*> void_cookie,
                       cb::tracing::TraceCode tracecode) {
     auto* cookie =
             reinterpret_cast<Cookie*>(const_cast<void*>(void_cookie.get()));
-    if (!cookie->isTracingEnabled()) {
-        return;
-    }
     cookie->getTracer().end(tracecode);
 }
 

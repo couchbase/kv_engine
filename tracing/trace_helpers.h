@@ -40,7 +40,7 @@ public:
                  const void* ck,
                  const cb::tracing::TraceCode code)
         : api(api), ck(ck), code(code) {
-        if (api->tracing->is_tracing_enabled(ck)) {
+        if (api && ck) {
             api->tracing->begin_trace(ck, code);
         } else {
             api = nullptr;
