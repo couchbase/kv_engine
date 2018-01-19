@@ -419,7 +419,7 @@ static protocol_binary_response_status dcp_expiration_validator(const Cookie& co
 
     const uint32_t extlen{req->message.header.request.extlen};
     // extlen varies for collection aware DCP vs legacy
-    if (extlen != protocol_binary_request_dcp_deletion::getExtrasLength(
+    if (extlen != protocol_binary_request_dcp_expiration::getExtrasLength(
                           may_accept_collections(cookie))) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
