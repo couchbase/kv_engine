@@ -545,8 +545,7 @@
                     "max": 512,
                     "min": 0
                 }
-            },
-            "aliases":["max_num_readers"]
+            }
         },
         "num_writer_threads": {
             "default": "0",
@@ -558,8 +557,7 @@
                     "max": 512,
                     "min": 0
                 }
-            },
-            "aliases":["max_num_writers"]
+            }
         },
         "num_auxio_threads": {
             "default": "0",
@@ -571,8 +569,7 @@
                     "max": 512,
                     "min": 0
                 }
-            },
-            "aliases":["max_num_auxio"]
+            }
         },
         "num_nonio_threads": {
             "default": "0",
@@ -584,8 +581,7 @@
                     "max": 512,
                     "min": 0
                 }
-            },
-            "aliases":["max_num_nonio"]
+            }
         },
         "mem_high_wat": {
             "default": "max",

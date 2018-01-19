@@ -522,23 +522,19 @@ protocol_binary_response_status EventuallyPersistentEngine::setFlushParam(
             getConfiguration().setWarmupMinMemoryThreshold(std::stoull(valz));
         } else if (strcmp(keyz, "warmup_min_items_threshold") == 0) {
             getConfiguration().setWarmupMinItemsThreshold(std::stoull(valz));
-        } else if (strcmp(keyz, "max_num_readers") == 0 ||
-                   strcmp(keyz, "num_reader_threads") == 0) {
+        } else if (strcmp(keyz, "num_reader_threads") == 0) {
             size_t value = std::stoull(valz);
             getConfiguration().setNumReaderThreads(value);
             ExecutorPool::get()->setNumReaders(value);
-        } else if (strcmp(keyz, "max_num_writers") == 0 ||
-                   strcmp(keyz, "num_writer_threads") == 0) {
+        } else if (strcmp(keyz, "num_writer_threads") == 0) {
             size_t value = std::stoull(valz);
             getConfiguration().setNumWriterThreads(value);
             ExecutorPool::get()->setNumWriters(value);
-        } else if (strcmp(keyz, "max_num_auxio") == 0 ||
-                   strcmp(keyz, "num_auxio_threads") == 0) {
+        } else if (strcmp(keyz, "num_auxio_threads") == 0) {
             size_t value = std::stoull(valz);
             getConfiguration().setNumAuxioThreads(value);
             ExecutorPool::get()->setNumAuxIO(value);
-        } else if (strcmp(keyz, "max_num_nonio") == 0 ||
-                   strcmp(keyz, "num_nonio_threads") == 0) {
+        } else if (strcmp(keyz, "num_nonio_threads") == 0) {
             size_t value = std::stoull(valz);
             getConfiguration().setNumNonioThreads(value);
             ExecutorPool::get()->setNumNonIO(value);

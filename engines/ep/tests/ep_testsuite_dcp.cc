@@ -5735,7 +5735,7 @@ static enum test_result test_mb19153(ENGINE_HANDLE *h,
     // Set max num AUX IO to 0, so no backfill would start
     // immediately
     set_param(h, h1, protocol_binary_engine_param_flush,
-              "max_num_auxio", "0");
+              "num_auxio_threads", "0");
 
     int num_items = 10000;
 
@@ -5778,7 +5778,7 @@ static enum test_result test_mb19153(ENGINE_HANDLE *h,
     // Set auxIO threads to 1, so the backfill for the closed producer
     // is picked up, and begins to run.
     set_param(h, h1, protocol_binary_engine_param_flush,
-              "max_num_auxio", "1");
+              "num_auxio_threads", "1");
 
     // Terminate engine
     return SUCCESS;
