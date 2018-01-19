@@ -914,7 +914,19 @@ void EPBucket::completeStatsVKey(const void* cookie,
     engine.notifyIOComplete(cookie, ENGINE_SUCCESS);
 }
 
-/* Class that handles the disk callback during the rollback */
+/**
+ * Class that handles the disk callback during the rollback.
+ * For each mutation/deletion which was discarded as part of the rollback,
+ * the callback() method is invoked with the key of the discarded update.
+ * It can then lookup the state of that key using dbHandle (which represents the
+ * new, rolled-back file) and correct the in-memory view:
+ *
+ * a) If the key is not present in the Rollback header then delete it from
+ *    the HashTable (if either didn't exist yet, or had previously been
+ *    deleted in the Rollback header).
+ * b) If the key is present in the Rollback header then replace the in-memory
+ *    value with the value from the Rollback header.
+ */
 class EPDiskRollbackCB : public RollbackCB {
 public:
     EPDiskRollbackCB(EventuallyPersistentEngine& e) : RollbackCB(), engine(e) {

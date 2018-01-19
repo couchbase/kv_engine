@@ -706,6 +706,22 @@ public:
      */
     virtual size_t getItemCount(uint16_t vbid) = 0;
 
+    /**
+     * Rollback the specified vBucket to the state it had at rollbackseqno.
+     *
+     * On success, the vBucket should have discarded *at least* back to the
+     * specified rollbackseqno; if necessary it is valid to rollback further.
+     * A minimal implementation is permitted to rollback to zero.
+     *
+     * @param vbid VBucket to rollback
+     * @param rollbackseqno Sequence number to rollback to (minimum).
+     * @param cb For each mutation which has been rolled back (i.e. from the
+     * selected rollback point to the latest); invoke this callback with the Key
+     * of the now-discarded update. Callers can use this to undo the effect of
+     * the discarded updates on their in-memory view.
+     * @return success==true and details of the sequence numbers after rollback
+     * if rollback succeeded; else false.
+     */
     virtual RollbackResult rollback(uint16_t vbid, uint64_t rollbackseqno,
                                     std::shared_ptr<RollbackCB> cb) = 0;
 
@@ -856,5 +872,7 @@ public:
     }
 
 protected:
+    /// The database handle to use when lookup up items in the new, rolled back
+    /// database.
     void *dbHandle;
 };

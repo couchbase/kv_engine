@@ -2544,6 +2544,7 @@ RollbackResult CouchKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,
     dbFileName << dbname << "/" << vbid << ".couch." << fileRev;
     couchstore_error_t errCode;
 
+    // Open the vbucket's file and determine the latestSeqno persisted.
     errCode = openDB(vbid, fileRev, db.getDbAddress(),
                      (uint64_t) COUCHSTORE_OPEN_FLAG_RDONLY);
 
@@ -2562,10 +2563,11 @@ RollbackResult CouchKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,
                    couchstore_strerror(errCode), dbFileName.str().c_str());
         return RollbackResult(false, 0, 0, 0);
     }
-
     uint64_t latestSeqno = info.last_sequence;
 
-    //Count from latest seq no to 0
+    // Count how many updates are in the vbucket's file. We'll later compare
+    // this with how many items must be discarded and hence decide if it is
+    // better to discard everything and start from an empty vBucket.
     uint64_t totSeqCount = 0;
     errCode = couchstore_changes_count(db.getDb(), 0, latestSeqno, &totSeqCount);
     if (errCode != COUCHSTORE_SUCCESS) {
@@ -2577,6 +2579,8 @@ RollbackResult CouchKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,
         return RollbackResult(false, 0, 0, 0);
     }
 
+    // Open the vBucket file again; and search for a header which is
+    // before the requested rollback point - the Rollback Header.
     DbHolder newdb(this);
     errCode = openDB(vbid, fileRev, newdb.getDbAddress(), 0);
     if (errCode != COUCHSTORE_SUCCESS) {
@@ -2612,7 +2616,9 @@ RollbackResult CouchKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,
         }
     }
 
-    //Count from latest seq no to rollback seq no
+    // Count how many updates we need to discard to rollback to the Rollback
+    // Header. If this is too many; then prefer to discard everything (than
+    // have to patch up a large amount of in-memory data).
     uint64_t rollbackSeqCount = 0;
     errCode = couchstore_changes_count(db.getDb(), info.last_sequence, latestSeqno,
                                        &rollbackSeqCount);
@@ -2624,13 +2630,22 @@ RollbackResult CouchKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,
                    cb_strerror().c_str(), vbid, fileRev);
         return RollbackResult(false, 0, 0, 0);
     }
-
     if ((totSeqCount / 2) <= rollbackSeqCount) {
         //doresetVbucket flag set or rollback is greater than 50%,
         //reset the vbucket and send the entire snapshot
         return RollbackResult(false, 0, 0, 0);
     }
 
+    // We have decided to perform a rollback to the Rollback Header.
+    // Iterate across the series of keys which have been updated /since/ the
+    // Rollback Header; invoking a callback on each. This allows the caller to
+    // then inspect the state of the given key in the Rollback Header, and
+    // correct the in-memory view:
+    // * If the key is not present in the Rollback header then delete it from
+    //   the HashTable (if either didn't exist yet, or had previously been
+    //   deleted in the Rollback header).
+    // * If the key is present in the Rollback header then replace the in-memory
+    // value with the value from the Rollback header.
     cb->setDbHeader(newdb.getDb());
     auto cl = std::make_shared<NoLookupCallback>();
     ScanContext* ctx = initScanContext(cb, cl, vbid, info.last_sequence+1,
