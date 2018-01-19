@@ -144,6 +144,19 @@ public:
         McbpConnection::dcpCollectionAware = dcpCollectionAware;
     }
 
+    void setDcpDeleteTimeEnabled(bool dcpDeleteTimeEnabled) {
+        McbpConnection::dcpDeleteTimeEnabled = dcpDeleteTimeEnabled;
+    }
+
+    bool isDcpDeleteTimeEnabled() const {
+        return dcpDeleteTimeEnabled;
+    }
+
+    /// returns true if either collections or delete_time is enabled
+    bool isDcpDeleteV2() const {
+        return isDcpCollectionAware() || isDcpDeleteTimeEnabled();
+    }
+
     /**
      * Get the DocNamespace for a DcpMessage (mutation/deletion/expiration)
      * If the connection is dcp aware and the passed length is not zero, then
@@ -668,6 +681,9 @@ protected:
 
     /** Is Tracing enabled for this connection? */
     bool tracingEnabled = false;
+
+    /** Should DCP replicate the time a delete was created? */
+    bool dcpDeleteTimeEnabled = false;
 
     /** The maximum requests we can process in a worker thread timeslice */
     int max_reqs_per_event =
