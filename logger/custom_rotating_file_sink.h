@@ -63,7 +63,7 @@ private:
     std::size_t _max_size;
     std::size_t _max_files;
     std::size_t _current_size;
-    spdlog::details::file_helper _file_helper;
+    std::unique_ptr<spdlog::details::file_helper> _file_helper;
     spdlog::formatter_ptr formatter;
     unsigned long _next_file_id;
 

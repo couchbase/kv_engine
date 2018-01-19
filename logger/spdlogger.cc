@@ -149,6 +149,11 @@ static void logger_shutdown(bool force) {
     rotating_file_sink.reset();
 }
 
+static void logger_flush() {
+    file_logger->flush();
+    stderr_logger->flush();
+}
+
 /* Updates current log level */
 static void on_log_level(const void* cookie,
                          ENGINE_EVENT_TYPE type,
@@ -213,6 +218,7 @@ boost::optional<std::string> cb::logger::initialize(
     descriptor.get_name = get_name;
     descriptor.log = log;
     descriptor.shutdown = logger_shutdown;
+    descriptor.flush = logger_flush;
 
     if (!sapi->extension->register_extension(EXTENSION_LOGGER, &descriptor)) {
         return boost::optional<std::string>{"Failed to register logger"};

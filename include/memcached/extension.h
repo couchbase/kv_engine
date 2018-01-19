@@ -108,6 +108,11 @@ typedef struct extension_daemon_descriptor {
          *              any pending log messages written before we die.
          */
         void (*shutdown)(bool force);
+
+        /**
+         * Tell the logger to flush it's buffers
+         */
+        void (*flush)();
     } EXTENSION_LOGGER_DESCRIPTOR;
 
     typedef struct {

@@ -73,16 +73,36 @@ static void null_logger_log(EXTENSION_LOG_LEVEL severity,
     /* EMPTY */
 }
 
+static void null_logger_flush() {
+    // empty
+}
+
+static void null_logger_shutdown(bool force) {
+    /* EMPTY */
+}
+
+static void stderror_logger_flush() {
+    fflush(stderr);
+}
+
+static void stderror_logger_shutdown(bool force) {
+    fflush(stderr);
+}
+
 static EXTENSION_LOGGER_DESCRIPTOR null_logger_descriptor;
 
 EXTENSION_LOGGER_DESCRIPTOR* get_null_logger(void) {
     null_logger_descriptor.get_name = null_get_name;
     null_logger_descriptor.log = null_logger_log;
+    null_logger_descriptor.flush = null_logger_flush;
+    null_logger_descriptor.shutdown = null_logger_shutdown;
     return &null_logger_descriptor;
 }
 
 EXTENSION_LOGGER_DESCRIPTOR* get_stderr_logger(void) {
     stderror_logger_descriptor.get_name = stderror_get_name;
     stderror_logger_descriptor.log = stderror_logger_log;
+    stderror_logger_descriptor.flush = stderror_logger_flush;
+    stderror_logger_descriptor.shutdown = stderror_logger_shutdown;
     return &stderror_logger_descriptor;
 }

@@ -22,6 +22,7 @@
 #include <memcached/extension.h>
 #include <platform/cbassert.h>
 #include <platform/dirutils.h>
+#include <valgrind/valgrind.h>
 #include <fstream>
 
 static EXTENSION_LOGGER_DESCRIPTOR* logger;
@@ -224,3 +225,87 @@ TEST_F(SpdloggerTest, MultipleFilesTest) {
                                        << file;
     }
 }
+
+#ifndef WIN32
+/**
+ * Test that it works as expected when running out of file
+ * descriptors. This test won't run on Windows as they don't
+ * have the same ulimit setting
+ */
+TEST_F(SpdloggerTest, HandleOpenFileErrors) {
+    if (RUNNING_ON_VALGRIND) {
+        return;
+    }
+
+    logger->log(EXTENSION_LOG_DETAIL, nullptr, "Hey, this is a test");
+    logger->flush();
+    files = cb::io::findFilesWithPrefix(filename);
+    EXPECT_EQ(1, files.size());
+
+    // Bring down out open file limit to a more conservative level (to
+    // save using up a huge number of user / system FDs (and speed up the test).
+    rlimit rlim;
+    ASSERT_EQ(0, getrlimit(RLIMIT_NOFILE, &rlim))
+            << "Failed to get RLIMIT_NOFILE: " << strerror(errno);
+
+    const auto current = rlim.rlim_cur;
+    rlim.rlim_cur = 100;
+    ASSERT_EQ(0, setrlimit(RLIMIT_NOFILE, &rlim))
+            << "Failed to set RLIMIT_NOFILE: " << strerror(errno);
+
+    // Eat up file descriptors
+    std::vector<FILE*> fds;
+    FILE* fp;
+    while ((fp = fopen(files.front().c_str(), "r")) != nullptr) {
+        fds.push_back(fp);
+    }
+    EXPECT_EQ(EMFILE, errno);
+
+    // Keep on logging. This should cause the files to wrap
+    const std::string message{
+            "This is a textual log message that we want to repeat a number of "
+            "times"};
+    for (auto ii = 0; ii < 100; ii++) {
+        logger->log(EXTENSION_LOG_DETAIL, nullptr, message.c_str());
+    }
+
+    logger->log(EXTENSION_LOG_DETAIL, nullptr, "HandleOpenFileErrors");
+    logger->flush();
+
+    // We've just flushed the data to the file, so it should be possible
+    // to find it in the file.
+    char buffer[1024];
+    bool found = false;
+    while (fgets(buffer, sizeof(buffer), fds.front()) != nullptr) {
+        if (strstr(buffer, "HandleOpenFileErrors") != nullptr) {
+            found = true;
+        }
+    }
+
+    EXPECT_TRUE(found) << files.front()
+                       << " does not contain HandleOpenFileErrors";
+
+    // close all of the file descriptors
+    for (const auto& fp : fds) {
+        fclose(fp);
+    }
+    fds.clear();
+
+    // Verify that we didn't get a new file while we didn't have any
+    // free file descriptors
+    files = cb::io::findFilesWithPrefix(filename);
+    EXPECT_EQ(1, files.size());
+
+    // Add a log entry, and we should get a new file
+    logger->log(EXTENSION_LOG_DETAIL, nullptr, "Logging to the next file");
+    logger->flush();
+
+    files = cb::io::findFilesWithPrefix(filename);
+    EXPECT_EQ(2, files.size());
+
+    // Restore the filedescriptors
+    rlim.rlim_cur = current;
+    ASSERT_EQ(0, setrlimit(RLIMIT_NOFILE, &rlim))
+            << "Failed to restore RLIMIT_NOFILE: " << strerror(errno);
+}
+#endif

@@ -23,6 +23,7 @@
 #include "custom_rotating_file_sink.h"
 
 #include <platform/dirutils.h>
+#include <platform/make_unique.h>
 
 static unsigned long find_first_logfile_id(const std::string& basename) {
     unsigned long id = 0;
@@ -63,12 +64,12 @@ custom_rotating_file_sink<Mutex>::custom_rotating_file_sink(
       _max_size(max_size),
       _max_files(max_files),
       _current_size(0),
-      _file_helper(),
+      _file_helper(std::make_unique<spdlog::details::file_helper>()),
       _next_file_id(find_first_logfile_id(base_filename)) {
     formatter = std::make_shared<spdlog::pattern_formatter>(
             log_pattern, spdlog::pattern_time_type::local);
-    _file_helper.open(calc_filename());
-    _current_size = _file_helper.size(); // expensive. called only once
+    _file_helper->open(calc_filename());
+    _current_size = _file_helper->size(); // expensive. called only once
     addHook(openingLogfile);
 }
 
@@ -80,17 +81,27 @@ void custom_rotating_file_sink<Mutex>::_sink_it(
         const spdlog::details::log_msg& msg) {
     _current_size += msg.formatted.size();
     if (_current_size > _max_size) {
-        addHook(closingLogfile);
-        _file_helper.open(calc_filename(), true);
-        _current_size = msg.formatted.size();
-        addHook(openingLogfile);
+        std::unique_ptr<spdlog::details::file_helper> next =
+                std::make_unique<spdlog::details::file_helper>();
+        try {
+            next->open(calc_filename(), true);
+            addHook(closingLogfile);
+            std::swap(_file_helper, next);
+            _current_size = msg.formatted.size();
+            addHook(openingLogfile);
+        } catch (...) {
+            // Keep on logging to the this file, but try swap at the next
+            // insert of data (didn't use the next file we need to
+            // roll back the next_file_id to avoid getting a hole ;-)
+            _next_file_id--;
+        }
     }
-    _file_helper.write(msg);
+    _file_helper->write(msg);
 }
 
 template <class Mutex>
 void custom_rotating_file_sink<Mutex>::_flush() {
-    _file_helper.flush();
+    _file_helper->flush();
 }
 
 /* Takes a message, formats it and writes it to file */
@@ -102,13 +113,13 @@ void custom_rotating_file_sink<Mutex>::addHook(const std::string& hook) {
     msg.raw << hook;
 
     if (hook == openingLogfile) {
-        msg.raw << fmt::StringRef(_file_helper.filename().data(),
-                                  _file_helper.filename().size());
+        msg.raw << fmt::StringRef(_file_helper->filename().data(),
+                                  _file_helper->filename().size());
     }
     formatter->format(msg);
     _current_size += msg.formatted.size();
 
-    _file_helper.write(msg);
+    _file_helper->write(msg);
 }
 
 template <class Mutex>

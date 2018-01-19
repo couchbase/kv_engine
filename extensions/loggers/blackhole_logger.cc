@@ -19,6 +19,10 @@ static void logger_log(EXTENSION_LOG_LEVEL severity,
     (void)fmt;
 }
 
+static void logger_flush() {
+    // empty
+}
+
 static void logger_shutdown(bool force) {
     /* EMPTY */
 }
@@ -32,8 +36,9 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
     descriptor.get_name = get_name;
     descriptor.log = logger_log;
     descriptor.shutdown = logger_shutdown;
+    descriptor.flush = logger_flush;
 
-	(void)config;
+    (void)config;
     if (sapi == NULL) {
         return EXTENSION_FATAL;
     }
