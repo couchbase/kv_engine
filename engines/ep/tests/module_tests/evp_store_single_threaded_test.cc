@@ -141,7 +141,7 @@ void SingleThreadedKVBucketTest::runReadersUntilWarmedUp() {
  * Destroy engine and replace it with a new engine that can be warmed up.
  * Finally, run warmup.
  */
-void SingleThreadedKVBucketTest::resetEngineAndWarmup(std::string new_config) {
+void SingleThreadedKVBucketTest::resetEngineAndWarmup() {
     shutdownAndPurgeTasks();
     std::string config = config_string;
 
@@ -153,11 +153,6 @@ void SingleThreadedKVBucketTest::resetEngineAndWarmup(std::string new_config) {
         config.replace(pos, warmupF.size(), warmupT);
     } else {
         config += warmupT;
-    }
-
-    if (new_config.length() > 0) {
-        config += ";";
-        config += new_config;
     }
 
     reinitialise(config);
@@ -1533,8 +1528,8 @@ public:
         couchstore_free_db(handle);
     }
 
-    void resetEngineAndWarmup(std::string new_config = "") {
-        resetEngineAndEnableWarmup(new_config);
+    void resetEngineAndWarmup() {
+        resetEngineAndEnableWarmup();
         // Now get the engine warmed up
         runReadersUntilWarmedUp();
     }
@@ -1543,7 +1538,7 @@ public:
      * Destroy engine and replace it with a new engine that can be warmed up.
      * Finally, run warmup.
      */
-    void resetEngineAndEnableWarmup(std::string new_config = "") {
+    void resetEngineAndEnableWarmup() {
         shutdownAndPurgeTasks();
         std::string config = config_string;
 
@@ -1555,11 +1550,6 @@ public:
             config.replace(pos, warmupF.size(), warmupT);
         } else {
             config += warmupT;
-        }
-
-        if (new_config.length() > 0) {
-            config += ";";
-            config += new_config;
         }
 
         reinitialise(config);
@@ -1613,38 +1603,6 @@ TEST_F(WarmupTest, hlcEpoch) {
     ASSERT_EQ(ENGINE_SUCCESS, item2.getStatus());
     auto info2 = engine->getItemInfo(*item2.item);
     EXPECT_TRUE(info2.cas_is_hlc);
-}
-
-TEST_F(WarmupTest, fetchDocInDifferentCompressionModes) {
-    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
-
-    std::string valueData("{\"product\": \"car\",\"price\": \"100\"},"
-                          "{\"product\": \"bus\",\"price\": \"1000\"},"
-                          "{\"product\": \"Train\",\"price\": \"100000\"}");
-
-    //Store an item, then make the VB appear old ready for warmup
-    store_item(vbid, makeStoredDocKey("key1"), valueData);
-    flush_vbucket_to_disk(vbid);
-
-    resetEngineAndWarmup();
-    auto item1 = store->get(makeStoredDocKey("key1"), vbid, nullptr, {});
-    ASSERT_EQ(ENGINE_SUCCESS, item1.getStatus());
-    auto info1 = engine->getItemInfo(*item1.item);
-    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, info1.datatype);
-
-    resetEngineAndWarmup("compression_mode=passive");
-    item1 = store->get(makeStoredDocKey("key1"), vbid, nullptr, {});
-    ASSERT_EQ(ENGINE_SUCCESS, item1.getStatus());
-    info1 = engine->getItemInfo(*item1.item);
-    EXPECT_EQ((PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_SNAPPY),
-              info1.datatype);
-
-    resetEngineAndWarmup("compression_mode=active");
-    item1 = store->get(makeStoredDocKey("key1"), vbid, nullptr, {});
-    ASSERT_EQ(ENGINE_SUCCESS, item1.getStatus());
-    info1 = engine->getItemInfo(*item1.item);
-    EXPECT_EQ((PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_SNAPPY),
-              info1.datatype);
 }
 
 TEST_F(WarmupTest, mightContainXattrs) {

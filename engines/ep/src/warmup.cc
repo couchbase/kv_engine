@@ -1186,16 +1186,6 @@ void Warmup::scheduleLoadingKVPairs()
 
 }
 
-ValueFilter getValueFilterForCompressionMode(
-                    const BucketCompressionMode& compressionMode) {
-
-    if (compressionMode != BucketCompressionMode::Off) {
-        return ValueFilter::VALUES_COMPRESSED;
-    }
-
-    return ValueFilter::VALUES_DECOMPRESSED;
-}
-
 void Warmup::loadKVPairsforShard(uint16_t shardId)
 {
     bool maybe_enable_traffic = false;
@@ -1211,13 +1201,10 @@ void Warmup::loadKVPairsforShard(uint16_t shardId)
     auto cl =
             std::make_shared<LoadValueCallback>(store.vbMap, state.getState());
 
-    ValueFilter valFilter = getValueFilterForCompressionMode(
-                                    store.getEPEngine().getCompressionMode());
-
     for (const auto vbid : shardVbIds[shardId]) {
         ScanContext* ctx = kvstore->initScanContext(cb, cl, vbid, 0,
                                                     DocumentFilter::NO_DELETES,
-                                                    valFilter);
+                                                    ValueFilter::VALUES_DECOMPRESSED);
         if (ctx) {
             errorCode = kvstore->scan(ctx);
             kvstore->destroyScanContext(ctx);
@@ -1254,13 +1241,10 @@ void Warmup::loadDataforShard(uint16_t shardId)
     auto cl =
             std::make_shared<LoadValueCallback>(store.vbMap, state.getState());
 
-    ValueFilter valFilter = getValueFilterForCompressionMode(
-                                          store.getEPEngine().getCompressionMode());
-
     for (const auto vbid : shardVbIds[shardId]) {
         ScanContext* ctx = kvstore->initScanContext(cb, cl, vbid, 0,
                                                     DocumentFilter::NO_DELETES,
-                                                    valFilter);
+                                                    ValueFilter::VALUES_DECOMPRESSED);
         if (ctx) {
             errorCode = kvstore->scan(ctx);
             kvstore->destroyScanContext(ctx);
