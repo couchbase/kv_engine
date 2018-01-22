@@ -109,7 +109,7 @@ static protocol_binary_response_status dcp_open_validator(const Cookie& cookie)
 
     const auto mask = DCP_OPEN_PRODUCER | DCP_OPEN_NOTIFIER |
                       DCP_OPEN_INCLUDE_XATTRS | DCP_OPEN_NO_VALUE |
-                      DCP_OPEN_COLLECTIONS;
+                      DCP_OPEN_COLLECTIONS | DCP_OPEN_INCLUDE_DELETE_TIMES;
 
     if (flags & ~mask) {
         LOG_INFO(

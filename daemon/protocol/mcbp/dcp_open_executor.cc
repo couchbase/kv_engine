@@ -86,9 +86,12 @@ void dcp_open_executor(Cookie& cookie) {
                                    connection.selectedBucketIsXattrEnabled();
         const bool dcpNoValue = (flags & DCP_OPEN_NO_VALUE) != 0;
         const bool dcpCollections = (flags & DCP_OPEN_COLLECTIONS) != 0;
+        const bool dcpDeleteTimes =
+                (flags & DCP_OPEN_INCLUDE_DELETE_TIMES) != 0;
         connection.setDcpXattrAware(dcpXattrAware);
         connection.setDcpNoValue(dcpNoValue);
         connection.setDcpCollectionAware(dcpCollections);
+        connection.setDcpDeleteTimeEnabled(dcpDeleteTimes);
 
         unique_cJSON_ptr json(cJSON_CreateArray());
         const bool dcpProducer =
@@ -109,6 +112,10 @@ void dcp_open_executor(Cookie& cookie) {
         }
         if (dcpCollections) {
             cJSON_AddItemToArray(json.get(), cJSON_CreateString("COLLECTIONS"));
+        }
+        if (dcpDeleteTimes) {
+            cJSON_AddItemToArray(json.get(),
+                                 cJSON_CreateString("DELETE_TIMES"));
         }
         LOG_INFO("{}: DCP connection opened successfully. flags:{} {}",
                  connection.getId(),
