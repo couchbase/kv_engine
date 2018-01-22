@@ -135,8 +135,6 @@ MEMCACHED_PUBLIC_API std::string to_string(
         return "allocate";
     case TraceCode::BGFETCH:
         return "bg.fetch";
-    case TraceCode::COMPRESS:
-        return "compress";
     case TraceCode::FLUSH:
         return "flush";
     case TraceCode::GAT:

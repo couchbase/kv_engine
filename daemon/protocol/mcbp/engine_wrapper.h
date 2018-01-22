@@ -85,8 +85,6 @@ cb::EngineErrorItemPair bucket_get_and_touch(Cookie& cookie,
                                              uint16_t vbucket,
                                              uint32_t expiration);
 
-BucketCompressionMode bucket_get_compression_mode(Cookie& cookie);
-
 cb::EngineErrorItemPair bucket_get_locked(Cookie& cookie,
                                           const DocKey& key,
                                           uint16_t vbucket,

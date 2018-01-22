@@ -175,16 +175,6 @@ struct EngineErrorCasPair {
 }
 
 /**
- * The different compression modes that a bucket supports
- */
-enum class BucketCompressionMode : uint8_t {
-    Off,     //Data will be stored as uncompressed
-    Passive, //Data will be stored as provided by the client
-    Active   //Bucket will actively try to compress stored
-             //data
-};
-
-/**
  * Definition of the first version of the engine interface
  */
 typedef struct engine_interface_v1 {
@@ -616,12 +606,6 @@ typedef struct engine_interface_v1 {
      * @returns if XATTRs are enabled for this bucket
      */
     bool (*isXattrEnabled)(gsl::not_null<ENGINE_HANDLE*> handle);
-
-    /**
-     * @param handle the engine handle
-     * @returns the compression mode of the bucket
-     */
-    BucketCompressionMode (*getCompressionMode)(gsl::not_null<ENGINE_HANDLE*> handle);
 
 } ENGINE_HANDLE_V1;
 

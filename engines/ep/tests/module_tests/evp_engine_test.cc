@@ -148,29 +148,29 @@ TEST_P(SetParamTest, compressionModeConfigTest) {
     Configuration& config = engine->getConfiguration();
 
     config.setCompressionMode("off");
-    EXPECT_EQ(BucketCompressionMode::Off, engine->getCompressionMode());
+    EXPECT_EQ(CompressionMode::Off, engine->getCompressMode());
 
     config.setCompressionMode("passive");
-    EXPECT_EQ(BucketCompressionMode::Passive, engine->getCompressionMode());
+    EXPECT_EQ(CompressionMode::Passive, engine->getCompressMode());
 
     config.setCompressionMode("active");
-    EXPECT_EQ(BucketCompressionMode::Active, engine->getCompressionMode());
+    EXPECT_EQ(CompressionMode::Active, engine->getCompressMode());
 
     EXPECT_THROW(config.setCompressionMode("invalid"), std::range_error);
-    EXPECT_EQ(BucketCompressionMode::Active, engine->getCompressionMode());
+    EXPECT_EQ(CompressionMode::Active, engine->getCompressMode());
 
     std::string msg;
     ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
               engine->setFlushParam("compression_mode", "off", msg));
-    EXPECT_EQ(BucketCompressionMode::Off, engine->getCompressionMode());
+    EXPECT_EQ(CompressionMode::Off, engine->getCompressMode());
 
     ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
               engine->setFlushParam("compression_mode", "passive", msg));
-    EXPECT_EQ(BucketCompressionMode::Passive, engine->getCompressionMode());
+    EXPECT_EQ(CompressionMode::Passive, engine->getCompressMode());
 
     ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
               engine->setFlushParam("compression_mode", "active", msg));
-    EXPECT_EQ(BucketCompressionMode::Active, engine->getCompressionMode());
+    EXPECT_EQ(CompressionMode::Active, engine->getCompressMode());
 
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL,
               engine->setFlushParam("compression_mode", "invalid", msg));

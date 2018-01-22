@@ -187,12 +187,6 @@ cb::EngineErrorItemPair bucket_get(Cookie& cookie,
     return ret;
 }
 
-BucketCompressionMode bucket_get_compression_mode(Cookie& cookie) {
-    TRACE_SCOPE(get_server_api(), &cookie, cb::tracing::TraceCode::COMPRESS);
-    auto& c = cookie.getConnection();
-    return c.getBucketEngine()->getCompressionMode(c.getBucketEngineAsV0());
-}
-
 cb::EngineErrorItemPair bucket_get_if(
         Cookie& cookie,
         const DocKey& key,

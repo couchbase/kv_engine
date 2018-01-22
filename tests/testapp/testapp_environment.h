@@ -50,10 +50,6 @@ public:
                          const std::string& bucketName,
                          bool value);
 
-    void setCompressionMode(MemcachedConnection& conn,
-                            const std::string& bucketName,
-                            const std::string value);
-
 protected:
     static void createEwbBucket(const std::string& name,
                                 const std::string& plugin,

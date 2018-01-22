@@ -424,10 +424,6 @@ private:
     static bool isXattrEnabled(gsl::not_null<ENGINE_HANDLE*> handle) {
         return false;
     }
-
-    static BucketCompressionMode getCompressionMode(gsl::not_null<ENGINE_HANDLE*> handle) {
-        return BucketCompressionMode::Off;
-    }
 };
 
 MEMCACHED_PUBLIC_API

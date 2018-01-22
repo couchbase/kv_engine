@@ -1701,11 +1701,6 @@ static bool EvpIsXattrEnabled(gsl::not_null<ENGINE_HANDLE*> handle) {
     return engine->getKVBucket()->isXattrEnabled();
 }
 
-static BucketCompressionMode EvpGetCompressionMode(gsl::not_null<ENGINE_HANDLE*> handle) {
-    auto engine = acquireEngine(handle);
-    return engine->getCompressionMode();
-}
-
 void LOG(EXTENSION_LOG_LEVEL severity, const char *fmt, ...) {
     va_list va;
     va_start(va, fmt);
@@ -1723,7 +1718,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
       trafficEnabled(false),
       startupTime(0),
       taskable(this),
-      compressionMode(BucketCompressionMode::Off) {
+      compressionMode(CompressionMode::Off) {
     interface.interface = 1;
     ENGINE_HANDLE_V1::get_info = EvpGetInfo;
     ENGINE_HANDLE_V1::initialize = EvpInitialize;
@@ -1770,7 +1765,6 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
     ENGINE_HANDLE_V1::collections.set_manifest = EvpCollectionsSetManifest;
     ENGINE_HANDLE_V1::collections.get_manifest = EvpCollectionsGetManifest;
     ENGINE_HANDLE_V1::isXattrEnabled = EvpIsXattrEnabled;
-    ENGINE_HANDLE_V1::getCompressionMode = EvpGetCompressionMode;
 
     serverApi = getServerApiFunc();
     memset(&info, 0, sizeof(info));
@@ -1933,7 +1927,7 @@ public:
     virtual void stringValueChanged(const std::string& key, const char* value) {
         if (key == "compression_mode") {
             std::string value_str{value, strlen(value)};
-            engine.setCompressionMode(value_str);
+            engine.setCompressMode(value_str);
         }
     }
 
@@ -2060,7 +2054,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         "EP Engine: Initialization of %s bucket complete",
         configuration.getBucketType().c_str());
 
-    setCompressionMode(configuration.getCompressionMode());
+    setCompressMode(configuration.getCompressionMode());
 
     configuration.addValueChangedListener("compression_mode",
                                           new EpEngineValueChangeListener(*this));

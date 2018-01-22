@@ -130,9 +130,6 @@ protected:
     // per test tear-down function.
     virtual void TearDown();
 
-    //per test compression mode configuration function
-    void setCompressionMode(const std::string compression_mode);
-
     static cJSON* generate_config(uint16_t ssl_port);
     static cJSON* generate_config();
 

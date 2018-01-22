@@ -1004,8 +1004,6 @@ private:
 
     static bool isXattrEnabled(gsl::not_null<ENGINE_HANDLE*> handle);
 
-    static BucketCompressionMode getCompressionMode(gsl::not_null<ENGINE_HANDLE*> handle);
-
     // Base class for all fault injection modes.
     struct FaultInjectMode {
         FaultInjectMode(ENGINE_ERROR_CODE injected_error_)
@@ -1352,7 +1350,6 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
     ENGINE_HANDLE_V1::collections.get_manifest = collections_get_manifest;
 
     ENGINE_HANDLE_V1::isXattrEnabled = isXattrEnabled;
-    ENGINE_HANDLE_V1::getCompressionMode = getCompressionMode;
 
     std::memset(&info, 0, sizeof(info.buffer));
     info.eng_info.description = "EWOULDBLOCK Engine";
@@ -1800,15 +1797,6 @@ bool EWB_Engine::isXattrEnabled(gsl::not_null<ENGINE_HANDLE*> handle) {
         return false;
     } else {
         return ewb->real_engine->isXattrEnabled(ewb->real_handle);
-    }
-}
-
-BucketCompressionMode EWB_Engine::getCompressionMode(gsl::not_null<ENGINE_HANDLE*> handle) {
-    EWB_Engine* ewb = to_engine(handle);
-    if (ewb->real_engine->getCompressionMode == nullptr) {
-        return BucketCompressionMode::Off;
-    } else {
-        return ewb->real_engine->getCompressionMode(ewb->real_handle);
     }
 }
 
