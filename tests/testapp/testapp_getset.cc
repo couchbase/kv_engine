@@ -484,8 +484,68 @@ TEST_P(GetSetTest, TestCompressedData) {
 
     int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
     conn.mutate(document, 0, MutationType::Set);
-    EXPECT_EQ(successCount + statResps() + 1,
+
+    const auto stored = conn.get(name, 0);
+
+    EXPECT_EQ(successCount + statResps() + 2,
               getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
+    EXPECT_EQ(cb::mcbp::Datatype::Raw, stored.info.datatype);
+    EXPECT_EQ(document.info.flags, stored.info.flags);
+    EXPECT_EQ(document.info.id, stored.info.id);
+
+    std::string expected(input.size(), 'a');
+    ASSERT_EQ(1024, stored.value.size());
+    EXPECT_EQ(expected, stored.value);
+}
+
+TEST_P(GetSetTest, TestCompressedDataInPassiveMode) {
+    MemcachedConnection& conn = getConnection();
+    document.info.datatype = cb::mcbp::Datatype::Snappy;
+
+    setCompressionMode("passive");
+
+    std::vector<char> input(1024);
+    std::fill(input.begin(), input.end(), 'a');
+    compress_vector(input, document.value);
+
+    int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    conn.mutate(document, 0, MutationType::Set);
+
+    const auto stored = conn.get(name, 0);
+
+    EXPECT_EQ(successCount + statResps() + 2,
+              getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
+    EXPECT_EQ(cb::mcbp::Datatype::Snappy, stored.info.datatype);
+    EXPECT_EQ(document.info.flags, stored.info.flags);
+    EXPECT_EQ(document.info.id, stored.info.id);
+
+    ASSERT_EQ(document.value.size(), stored.value.size());
+    EXPECT_EQ(document.value, stored.value);
+}
+
+TEST_P(GetSetTest, TestCompressedDataInActiveMode) {
+    MemcachedConnection& conn = getConnection();
+    document.info.datatype = cb::mcbp::Datatype::Snappy;
+
+    setCompressionMode("active");
+
+    std::vector<char> input(1024);
+    std::fill(input.begin(), input.end(), 'a');
+    compress_vector(input, document.value);
+
+    int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    conn.mutate(document, 0, MutationType::Set);
+
+    const auto stored = conn.get(name, 0);
+
+    EXPECT_EQ(successCount + statResps() + 2,
+              getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
+    EXPECT_EQ(cb::mcbp::Datatype::Snappy, stored.info.datatype);
+    EXPECT_EQ(document.info.flags, stored.info.flags);
+    EXPECT_EQ(document.info.id, stored.info.id);
+
+    ASSERT_EQ(document.value.size(), stored.value.size());
+    EXPECT_EQ(document.value, stored.value);
 }
 
 TEST_P(GetSetTest, TestInvalidCompressedData) {

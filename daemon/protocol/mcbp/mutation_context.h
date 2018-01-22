@@ -20,6 +20,7 @@
 
 #include <memcached/engine.h>
 #include <memcached/protocol_binary.h>
+#include <platform/compress.h>
 
 /**
  * The MutationCommandContext is a state machine used by the memcached
@@ -109,7 +110,8 @@ protected:
 private:
     const ENGINE_STORE_OPERATION operation;
     const DocKey key;
-    const cb::const_byte_buffer value;
+    cb::const_byte_buffer value;
+    cb::compression::Buffer input_buffer;
     const uint16_t vbucket;
     const uint64_t input_cas;
     const rel_time_t expiration;

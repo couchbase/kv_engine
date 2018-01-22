@@ -21,7 +21,6 @@
 
 #include <memcached/protocol_binary.h>
 #include <memcached/types.h>
-#include <platform/compress.h>
 #include <xattr/utils.h>
 
 MutationCommandContext::MutationCommandContext(Cookie& cookie,
@@ -115,9 +114,22 @@ ENGINE_ERROR_CODE MutationCommandContext::validateInput() {
     if (mcbp::datatype::is_snappy(datatype)) {
         cb::const_char_buffer value_buf{reinterpret_cast<const char*>(value.buf),
                                         value.len};
-        if (!cb::compression::validate(cb::compression::Algorithm::Snappy,
-                                       value_buf)) {
-            return ENGINE_EINVAL;
+
+        const auto mode = bucket_get_compression_mode(cookie);
+        if (mode == BucketCompressionMode::Off) {
+            if (!cb::compression::inflate(cb::compression::Algorithm::Snappy,
+                                          value_buf,
+                                          input_buffer)) {
+                return ENGINE_EINVAL;
+            }
+            value.buf = reinterpret_cast<const uint8_t*>(input_buffer.data());
+            value.len = input_buffer.size();
+            datatype &= ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
+        } else {
+            if (!cb::compression::validate(cb::compression::Algorithm::Snappy,
+                                           value_buf)) {
+                return ENGINE_EINVAL;
+            }
         }
     }
 
