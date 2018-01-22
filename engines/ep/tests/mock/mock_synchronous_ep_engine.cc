@@ -54,6 +54,8 @@ SynchronousEPEngine::SynchronousEPEngine(std::string extra_config)
     enableTraffic(true);
 
     maxItemSize = configuration.getMaxItemSize();
+
+    setCompressionMode(configuration.getCompressionMode());
 }
 
 void SynchronousEPEngine::setKVBucket(std::unique_ptr<KVBucket> store) {

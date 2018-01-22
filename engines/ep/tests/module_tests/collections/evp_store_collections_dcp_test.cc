@@ -192,9 +192,9 @@ public:
                              int expectedMutations,
                              bool fromMemory = true);
 
-    void resetEngineAndWarmup() {
+    void resetEngineAndWarmup(std::string new_config = "") {
         teardown();
-        SingleThreadedKVBucketTest::resetEngineAndWarmup();
+        SingleThreadedKVBucketTest::resetEngineAndWarmup(new_config);
         producers = get_dcp_producers(
                 reinterpret_cast<ENGINE_HANDLE*>(engine.get()),
                 reinterpret_cast<ENGINE_HANDLE_V1*>(engine.get()));

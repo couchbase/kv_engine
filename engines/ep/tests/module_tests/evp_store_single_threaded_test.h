@@ -75,7 +75,7 @@ protected:
      * Destroy engine and replace it with a new engine that can be warmed up.
      * Finally, run warmup.
      */
-    void resetEngineAndWarmup();
+    void resetEngineAndWarmup(std::string new_config = "");
 
     /*
      * Fake callback emulating dcp_add_failover_log
