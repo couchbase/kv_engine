@@ -488,6 +488,38 @@ struct dcp_interface {
      cb::const_byte_buffer meta);
 
     /**
+     * Callback to the engine that a deletion_v2 message was received
+     *
+     * @param handle The handle to the engine
+     * @param cookie The cookie representing the connection
+     * @param opaque The opaque field in the message (identifying the stream)
+     * @param key The documents key
+     * @param value The value to store
+     * @param priv_bytes The number of bytes in the value which should be
+     *                   allocated from the privileged pool
+     * @param datatype The datatype for the incomming item
+     * @param cas The documents CAS value
+     * @param vbucket The vbucket identifier for the document
+     * @param by_seqno The sequence number in the vbucket
+     * @param rev_seqno The revision number for the item
+     * @param delete_time The time of the delete
+     * @return Standard engine error code.
+     */
+    ENGINE_ERROR_CODE(*deletion_v2)
+    (gsl::not_null<ENGINE_HANDLE*> handle,
+     gsl::not_null<const void*> cookie,
+     uint32_t opaque,
+     const DocKey& key,
+     cb::const_byte_buffer value,
+     size_t priv_bytes,
+     uint8_t datatype,
+     uint64_t cas,
+     uint16_t vbucket,
+     uint64_t by_seqno,
+     uint64_t rev_seqno,
+     uint32_t delete_time);
+
+    /**
      * Callback to the engine that an expiration message was received
      *
      * @param handle The handle to the engine

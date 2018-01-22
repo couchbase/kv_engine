@@ -932,6 +932,20 @@ private:
                                           uint64_t rev_seqno,
                                           cb::const_byte_buffer meta);
 
+    static ENGINE_ERROR_CODE dcp_deletion_v2(
+            gsl::not_null<ENGINE_HANDLE*> handle,
+            gsl::not_null<const void*> cookie,
+            uint32_t opaque,
+            const DocKey& key,
+            cb::const_byte_buffer value,
+            size_t priv_bytes,
+            uint8_t datatype,
+            uint64_t cas,
+            uint16_t vbucket,
+            uint64_t by_seqno,
+            uint64_t rev_seqno,
+            uint32_t delete_time);
+
     static ENGINE_ERROR_CODE dcp_expiration(
             gsl::not_null<ENGINE_HANDLE*> handle,
             gsl::not_null<const void*> cookie,
@@ -1339,6 +1353,7 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
     ENGINE_HANDLE_V1::dcp.snapshot_marker = dcp_snapshot_marker;
     ENGINE_HANDLE_V1::dcp.mutation = dcp_mutation;
     ENGINE_HANDLE_V1::dcp.deletion = dcp_deletion;
+    ENGINE_HANDLE_V1::dcp.deletion_v2 = dcp_deletion_v2;
     ENGINE_HANDLE_V1::dcp.expiration = dcp_expiration;
     ENGINE_HANDLE_V1::dcp.flush = dcp_flush;
     ENGINE_HANDLE_V1::dcp.set_vbucket_state = dcp_set_vbucket_state;
@@ -1622,6 +1637,38 @@ ENGINE_ERROR_CODE EWB_Engine::dcp_deletion(gsl::not_null<ENGINE_HANDLE*> handle,
                                               key, value, priv_bytes, datatype,
                                               cas, vbucket, by_seqno, rev_seqno,
                                               meta);
+    }
+}
+
+ENGINE_ERROR_CODE EWB_Engine::dcp_deletion_v2(
+        gsl::not_null<ENGINE_HANDLE*> handle,
+        gsl::not_null<const void*> cookie,
+        uint32_t opaque,
+        const DocKey& key,
+        cb::const_byte_buffer value,
+        size_t priv_bytes,
+        uint8_t datatype,
+        uint64_t cas,
+        uint16_t vbucket,
+        uint64_t by_seqno,
+        uint64_t rev_seqno,
+        uint32_t delete_time) {
+    EWB_Engine* ewb = to_engine(handle);
+    if (ewb->real_engine->dcp.deletion_v2 == nullptr) {
+        return ENGINE_ENOTSUP;
+    } else {
+        return ewb->real_engine->dcp.deletion_v2(ewb->real_handle,
+                                                 cookie,
+                                                 opaque,
+                                                 key,
+                                                 value,
+                                                 priv_bytes,
+                                                 datatype,
+                                                 cas,
+                                                 vbucket,
+                                                 by_seqno,
+                                                 rev_seqno,
+                                                 delete_time);
     }
 }
 

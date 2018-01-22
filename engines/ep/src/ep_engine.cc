@@ -1446,6 +1446,22 @@ static ENGINE_ERROR_CODE EvpDcpDeletion(gsl::not_null<ENGINE_HANDLE*> handle,
     return ENGINE_DISCONNECT;
 }
 
+static ENGINE_ERROR_CODE EvpDcpDeletionV2(gsl::not_null<ENGINE_HANDLE*> handle,
+                                          gsl::not_null<const void*> cookie,
+                                          uint32_t opaque,
+                                          const DocKey& key,
+                                          cb::const_byte_buffer value,
+                                          size_t priv_bytes,
+                                          uint8_t datatype,
+                                          uint64_t cas,
+                                          uint16_t vbucket,
+                                          uint64_t by_seqno,
+                                          uint64_t rev_seqno,
+                                          uint32_t delete_time) {
+    // @todo - link through to the consumer API
+    return ENGINE_DISCONNECT;
+}
+
 static ENGINE_ERROR_CODE EvpDcpExpiration(gsl::not_null<ENGINE_HANDLE*> handle,
                                           gsl::not_null<const void*> cookie,
                                           uint32_t opaque,
@@ -1761,6 +1777,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
     ENGINE_HANDLE_V1::dcp.snapshot_marker = EvpDcpSnapshotMarker;
     ENGINE_HANDLE_V1::dcp.mutation = EvpDcpMutation;
     ENGINE_HANDLE_V1::dcp.deletion = EvpDcpDeletion;
+    ENGINE_HANDLE_V1::dcp.deletion_v2 = EvpDcpDeletionV2;
     ENGINE_HANDLE_V1::dcp.expiration = EvpDcpExpiration;
     ENGINE_HANDLE_V1::dcp.flush = EvpDcpFlush;
     ENGINE_HANDLE_V1::dcp.set_vbucket_state = EvpDcpSetVbucketState;

@@ -66,6 +66,7 @@ public:
         ENGINE_HANDLE_V1::dcp.snapshot_marker = dcp_snapshot_marker;
         ENGINE_HANDLE_V1::dcp.mutation = dcp_mutation;
         ENGINE_HANDLE_V1::dcp.deletion = dcp_deletion;
+        ENGINE_HANDLE_V1::dcp.deletion_v2 = dcp_deletion_v2;
         ENGINE_HANDLE_V1::dcp.expiration = dcp_expiration;
         ENGINE_HANDLE_V1::dcp.flush = dcp_flush;
         ENGINE_HANDLE_V1::dcp.set_vbucket_state = dcp_set_vbucket_state;
@@ -355,6 +356,21 @@ private:
                                           uint64_t,
                                           uint64_t,
                                           cb::const_byte_buffer) {
+        return ENGINE_NO_BUCKET;
+    }
+
+    static ENGINE_ERROR_CODE dcp_deletion_v2(gsl::not_null<ENGINE_HANDLE*>,
+                                             gsl::not_null<const void*>,
+                                             uint32_t,
+                                             const DocKey&,
+                                             cb::const_byte_buffer,
+                                             size_t,
+                                             uint8_t,
+                                             uint64_t,
+                                             uint16_t,
+                                             uint64_t,
+                                             uint64_t,
+                                             uint32_t) {
         return ENGINE_NO_BUCKET;
     }
 
