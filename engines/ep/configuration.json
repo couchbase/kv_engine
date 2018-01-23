@@ -867,10 +867,10 @@
             "descr": "RocksDB Statistics 'stats_level'. Possible values: {'', 'kAll', 'kExceptTimeForMutex', 'kExceptDetailedTimers'}. The empty value disables Statistics.",
             "type": "std::string"
         },
-        "rocksdb_block_cache_size": {
-            "default": "0",
-            "descr": "RocksDB Block Cache size. A value of 0 sets to the default.",
-            "type": "size_t"
+        "rocksdb_block_cache_ratio": {
+            "default": "0.1",
+            "descr": "RocksDB Block Cache ratio of the Bucket Quota. A value of 0.0 sets to the default.",
+            "type": "float"
         },
         "rocksdb_default_cf_mem_budget": {
             "default": "0",

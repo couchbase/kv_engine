@@ -152,11 +152,16 @@ public:
         return rocksdbStatsLevel;
     }
 
+    // Return the Bucket Quota
+    size_t getBucketQuota() {
+        return bucketQuota;
+    }
+
     /*
-     * Return the RocksDB Block Cache size.
+     * Return the RocksDB Block Cache ratio of the Bucket Quota.
      */
-    size_t getRocksdbBlockCacheSize() {
-        return rocksdbBlockCacheSize;
+    float getRocksdbBlockCacheRatio() {
+        return rocksdbBlockCacheRatio;
     }
 
     // Return the RocksDB memory budget for Level-style compaction
@@ -199,6 +204,9 @@ private:
      */
     uint64_t periodicSyncBytes;
 
+    // Amount of memory reserved for the bucket.
+    size_t bucketQuota = 0;
+
     // RocksDB Database level options. Semicolon-separated `<option>=<value>`
     // pairs.
     std::string rocksDBOptions;
@@ -219,8 +227,8 @@ private:
     // {'', 'kAll', 'kExceptTimeForMutex', 'kExceptDetailedTimers'}
     std::string rocksdbStatsLevel;
 
-    // RocksDB Block Cache size
-    size_t rocksdbBlockCacheSize = 0;
+    // RocksDB Block Cache ratio of the Bucket Quota
+    float rocksdbBlockCacheRatio = 0.0;
 
     // RocksDB memtable memory budget for the 'default' CF
     size_t rocksdbDefaultCfMemBudget = 0;

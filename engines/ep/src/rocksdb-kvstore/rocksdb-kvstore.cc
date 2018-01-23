@@ -253,10 +253,11 @@ RocksDBKVStore::RocksDBKVStore(KVStoreConfig& config)
     }
 
     // Allocate the per-shard Block Cache
-    if (configuration.getRocksdbBlockCacheSize() > 0) {
-        blockCache =
-                rocksdb::NewLRUCache(configuration.getRocksdbBlockCacheSize() /
-                                     configuration.getMaxShards());
+    if (configuration.getRocksdbBlockCacheRatio() > 0.0) {
+        auto blockCacheQuota = configuration.getBucketQuota() *
+                               configuration.getRocksdbBlockCacheRatio();
+        blockCache = rocksdb::NewLRUCache(blockCacheQuota /
+                                          configuration.getMaxShards());
     }
     // Configure all the Column Families
     const auto& cfOptions = configuration.getRocksDBCFOptions();
