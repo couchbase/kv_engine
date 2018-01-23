@@ -429,12 +429,6 @@ void mock_init_alloc_hooks() {
 }
 
 // Begin -  Tracing api
-static bool is_tracing_enabled(gsl::not_null<const void*> void_cookie) {
-    auto* cookie = reinterpret_cast<mock_connstruct*>(
-            const_cast<void*>(void_cookie.get()));
-    return cookie->isTracingEnabled();
-}
-
 static void begin_trace(gsl::not_null<const void*> void_cookie,
                         cb::tracing::TraceCode tracecode) {
     auto* cookie = reinterpret_cast<mock_connstruct*>(
@@ -453,13 +447,6 @@ static void end_trace(gsl::not_null<const void*> void_cookie,
         return;
     }
     cookie->getTracer().end(tracecode);
-}
-
-static void set_tracing_enabled(gsl::not_null<const void*> void_cookie,
-                                bool enabled) {
-    auto* cookie = reinterpret_cast<mock_connstruct*>(
-            const_cast<void*>(void_cookie.get()));
-    cookie->setTracingEnabled(enabled);
 }
 // End -  Tracing api
 
@@ -528,10 +515,8 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
       document_api.pre_link = mock_pre_link_document;
       document_api.pre_expiry = document_pre_expiry;
 
-      tracing_api.is_tracing_enabled = is_tracing_enabled;
       tracing_api.begin_trace = begin_trace;
       tracing_api.end_trace = end_trace;
-      tracing_api.set_tracing_enabled = set_tracing_enabled;
 
       rv.interface = 1;
       rv.core = &core_api;
