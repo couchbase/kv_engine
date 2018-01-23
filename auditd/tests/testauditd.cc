@@ -260,9 +260,9 @@ TEST_P(AuditDaemonFilteringTest, AuditFilteringTest) {
     // Check the audit log exists
     assertNumberOfFiles(1);
 
-    // wait up to 5 seconds for "uuid" to appear in the audit log
+    // wait up to 10 seconds for "another" to appear in the audit log
     uint16_t waitIteration = 0;
-    while (!existsInAuditLog("uuid") && (waitIteration < 100)) {
+    while (!existsInAuditLog("another") && (waitIteration < 200)) {
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
         waitIteration++;
     }
