@@ -2763,7 +2763,7 @@ extern "C" int memcached_main(int argc, char **argv) {
     threads_cleanup();
 
     LOG_NOTICE(nullptr, "Shutting down executor pool");
-    delete executorPool.release();
+    executorPool.reset();
 
     LOG_NOTICE(NULL, "Releasing signal handlers");
     release_signal_handlers();
