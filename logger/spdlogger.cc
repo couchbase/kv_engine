@@ -25,6 +25,8 @@
 #include <memcached/extension.h>
 #include <phosphor/phosphor.h>
 #include <platform/processclock.h>
+#include <spdlog/sinks/dist_sink.h>
+#include <spdlog/sinks/stdout_sinks.h>
 #include <spdlog/spdlog.h>
 #include <chrono>
 #include <cstdio>
@@ -33,7 +35,6 @@ static SERVER_HANDLE_V1* sapi;
 static EXTENSION_LOGGER_DESCRIPTOR descriptor;
 
 static auto current_log_level = spdlog::level::warn;
-static const auto stderr_output_level = spdlog::level::err;
 
 /* Max suffix appended to the log file name.
  * The actual max no. of files is (max_files + 1), because the numbering starts
@@ -68,16 +69,14 @@ static const spdlog::level::level_enum convertToSpdSeverity(
 }
 
 /*
- * Instances of spdlog (async) file logger and stderr logger.
+ * Instances of spdlog (async) file logger.
  * The files logger requires a rotating file sink which is manually configured
- * from the parsed settings, while the sterr logger generates its own.
+ * from the parsed settings.
  * The loggers act as a handle to the sinks. They do the processing of log
  * messages and send them to the sinks, which do the actual writing (to file,
  * to stream etc.)
  */
-static std::shared_ptr<spdlog::sinks::sink> rotating_file_sink;
 static std::shared_ptr<spdlog::logger> file_logger;
-static std::shared_ptr<spdlog::logger> stderr_logger;
 
 /* Returns the name of the file logger */
 static const char* get_name() {
@@ -94,7 +93,7 @@ static void log(EXTENSION_LOG_LEVEL mcd_severity,
     const auto severity = convertToSpdSeverity(mcd_severity);
 
     // Skip any processing if message wouldn't be logged anyway
-    if (severity < current_log_level && severity < stderr_output_level) {
+    if (severity < current_log_level) {
         return;
     }
 
@@ -112,15 +111,6 @@ static void log(EXTENSION_LOG_LEVEL mcd_severity,
     }
     // len does not include '\0', hence >= and not >
     if (len >= int(sizeof(msg))) {
-        // Send full message to stderr.
-        if (severity >= stderr_output_level) {
-            va_start(va, fmt);
-            std::cerr << "Truncating big log message. Full message: ";
-            vfprintf(stderr, fmt, va);
-            std::cerr << std::endl;
-            va_end(va);
-        }
-
         // Crop message for logging
         const char cropped[] = " [cut]";
         snprintf(msg + (sizeof(msg) - sizeof(cropped)),
@@ -131,7 +121,6 @@ static void log(EXTENSION_LOG_LEVEL mcd_severity,
         msg[len] = '\0';
     }
 
-    stderr_logger->log(severity, msg);
     file_logger->log(severity, msg);
 }
 
@@ -140,16 +129,12 @@ static void log(EXTENSION_LOG_LEVEL mcd_severity,
  */
 static void logger_shutdown(bool force) {
     spdlog::drop(file_logger->name());
-    spdlog::drop(stderr_logger->name());
 
     file_logger.reset();
-    stderr_logger.reset();
-    rotating_file_sink.reset();
 }
 
 static void logger_flush() {
     file_logger->flush();
-    stderr_logger->flush();
 }
 
 /* Updates current log level */
@@ -191,16 +176,21 @@ boost::optional<std::string> cb::logger::initialize(
     }
 
     try {
-        rotating_file_sink = std::make_shared<custom_rotating_file_sink_mt>(
-                fname, cyclesz, max_files, log_pattern);
+        auto sink = std::make_shared<spdlog::sinks::dist_sink_mt>();
+        sink->add_sink(std::make_shared<custom_rotating_file_sink_mt>(
+                fname, cyclesz, max_files, log_pattern));
+
+        auto stderrsink = std::make_shared<spdlog::sinks::stderr_sink_mt>();
+        stderrsink->set_level(spdlog::level::warn);
+        sink->add_sink(stderrsink);
+
         file_logger =
                 spdlog::create_async("spdlog_file_logger",
-                                     rotating_file_sink,
+                                     sink,
                                      buffersz,
                                      spdlog::async_overflow_policy::block_retry,
                                      nullptr,
                                      std::chrono::seconds(sleeptime));
-        stderr_logger = spdlog::stderr_logger_mt("spdlog_stderr_logger");
     } catch (const spdlog::spdlog_ex& ex) {
         std::string msg =
                 std::string{"Log initialization failed: "} + ex.what();
@@ -210,7 +200,6 @@ boost::optional<std::string> cb::logger::initialize(
     current_log_level = convertToSpdSeverity(sapi->log->get_level());
 
     file_logger->set_level(current_log_level);
-    stderr_logger->set_level(stderr_output_level);
     spdlog::set_pattern(log_pattern);
 
     descriptor.get_name = get_name;
