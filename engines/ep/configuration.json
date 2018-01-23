@@ -848,7 +848,7 @@
             "type": "std::string"
         },
         "rocksdb_bbt_options": {
-            "default": "cache_index_and_filter_blocks=true,pin_l0_filter_and_index_blocks_in_cache=true",
+            "default": "block_size=16384,cache_index_and_filter_blocks=true,pin_l0_filter_and_index_blocks_in_cache=true",
             "descr": "RocksDB Block Based Table Options, comma separated.",
             "type": "std::string"
         },
