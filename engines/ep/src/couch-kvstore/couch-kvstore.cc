@@ -241,12 +241,7 @@ CouchRequest::CouchRequest(const Item& it,
     }
     meta.setCas(it.getCas());
     meta.setFlags(it.getFlags());
-    if (del) {
-        meta.setExptime(ep_real_time());
-    } else {
-        meta.setExptime(it.getExptime());
-    }
-
+    meta.setExptime(it.getExptime());
     meta.setDataType(it.getDataType());
 
     dbDocInfo.db_seq = it.getBySeqno();

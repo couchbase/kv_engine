@@ -442,6 +442,50 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
                                         uint64_t bySeqno,
                                         uint64_t revSeqno,
                                         cb::const_byte_buffer meta) {
+    return deletion(opaque,
+                    key,
+                    value,
+                    datatype,
+                    cas,
+                    vbucket,
+                    bySeqno,
+                    revSeqno,
+                    meta,
+                    0);
+}
+
+ENGINE_ERROR_CODE DcpConsumer::deletionV2(uint32_t opaque,
+                                          const DocKey& key,
+                                          cb::const_byte_buffer value,
+                                          size_t priv_bytes,
+                                          uint8_t datatype,
+                                          uint64_t cas,
+                                          uint16_t vbucket,
+                                          uint64_t bySeqno,
+                                          uint64_t revSeqno,
+                                          uint32_t deleteTime) {
+    return deletion(opaque,
+                    key,
+                    value,
+                    datatype,
+                    cas,
+                    vbucket,
+                    bySeqno,
+                    revSeqno,
+                    {},
+                    deleteTime);
+}
+
+ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
+                                        const DocKey& key,
+                                        cb::const_byte_buffer value,
+                                        uint8_t datatype,
+                                        uint64_t cas,
+                                        uint16_t vbucket,
+                                        uint64_t bySeqno,
+                                        uint64_t revSeqno,
+                                        cb::const_byte_buffer meta,
+                                        uint32_t deleteTime) {
     lastMessageTime = ep_current_time();
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
@@ -458,7 +502,7 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
     if (stream && stream->getOpaque() == opaque && stream->isActive()) {
         queued_item item(new Item(key,
                                   0,
-                                  0,
+                                  deleteTime,
                                   value.data(),
                                   value.size(),
                                   datatype,
@@ -468,11 +512,10 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
                                   revSeqno));
         item->setDeleted();
 
-        ExtendedMetaData *emd = NULL;
+        std::unique_ptr<ExtendedMetaData> emd;
         if (meta.size() > 0) {
-            emd = new ExtendedMetaData(meta.data(), meta.size());
+            emd = std::make_unique<ExtendedMetaData>(meta.data(), meta.size());
             if (emd->getStatus() == ENGINE_EINVAL) {
-                delete emd;
                 return ENGINE_EINVAL;
             }
         }
@@ -483,9 +526,8 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
                                                        opaque,
                                                        IncludeValue::Yes,
                                                        IncludeXattrs::Yes,
-                                                       emd));
+                                                       emd.release()));
         } catch (const std::bad_alloc&) {
-            delete emd;
             return ENGINE_ENOMEM;
         }
 

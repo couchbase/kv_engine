@@ -109,6 +109,17 @@ public:
                                uint64_t rev_seqno,
                                cb::const_byte_buffer meta) override;
 
+    ENGINE_ERROR_CODE deletionV2(uint32_t opaque,
+                                 const DocKey& key,
+                                 cb::const_byte_buffer value,
+                                 size_t priv_bytes,
+                                 uint8_t datatype,
+                                 uint64_t cas,
+                                 uint16_t vbucket,
+                                 uint64_t by_seqno,
+                                 uint64_t rev_seqno,
+                                 uint32_t delete_time) override;
+
     ENGINE_ERROR_CODE expiration(uint32_t opaque,
                                  const DocKey& key,
                                  cb::const_byte_buffer value,
@@ -298,6 +309,21 @@ protected:
     bool handleRollbackResponse(uint16_t vbid,
                                 uint32_t opaque,
                                 uint64_t rollbackSeqno);
+
+    /**
+     * The v2 and non v2 API are almost the same under the covers, so one
+     * shared method handles both.
+     */
+    ENGINE_ERROR_CODE deletion(uint32_t opaque,
+                               const DocKey& key,
+                               cb::const_byte_buffer value,
+                               uint8_t datatype,
+                               uint64_t cas,
+                               uint16_t vbucket,
+                               uint64_t bySeqno,
+                               uint64_t revSeqno,
+                               cb::const_byte_buffer meta,
+                               uint32_t deleteTime);
 
     /* Reference to the ep engine; need to create the 'Processor' task */
     EventuallyPersistentEngine& engine;

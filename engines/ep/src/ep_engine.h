@@ -589,7 +589,8 @@ protected:
      * Private helper method for decoding the options on set/del_with_meta.
      * Tighly coupled to the logic of both those functions, it will
      * take a request pointer and locate and validate any options within.
-     * @param request pointer to the set/del_with_meta request packet
+     * @param request byte buffer containing the incoming meta request.
+     * @param extlen the extlen value from the incoming meta request.
      * @param generateCas[out] set to Yes if CAS regeneration is enabled.
      * @param checkConflicts[out] set to No if conflict resolution should
      *        not be performed.
@@ -599,7 +600,8 @@ protected:
      *        locate the key.
      */
     protocol_binary_response_status decodeWithMetaOptions(
-            protocol_binary_request_delete_with_meta* request,
+            cb::const_byte_buffer request,
+            uint8_t extlen,
             GenerateCas& generateCas,
             CheckConflicts& checkConflicts,
             PermittedVBStates& permittedVBStates,

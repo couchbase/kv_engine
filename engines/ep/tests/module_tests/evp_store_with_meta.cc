@@ -1269,6 +1269,41 @@ TEST_P(AllWithMetaTest, skipConflicts) {
                   ENGINE_KEY_ENOENT);
 }
 
+// Perform a DeleteWithMeta with a deleteTime of 1, verify that time comes back
+// after a fetch and getMeta
+TEST_P(DelWithMetaTest, setting_deleteTime) {
+    ItemMetaData itemMeta{0xdeadbeef, 0xf00dcafe, 0xfacefeed, 1};
+    oneOpAndCheck(op,
+                  itemMeta,
+                  0, // no-options
+                  withValue,
+                  PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                  withValue ? ENGINE_SUCCESS : ENGINE_EWOULDBLOCK);
+
+    EXPECT_EQ(1, getEPBucket().flushVBucket(vbid));
+
+    ItemMetaData metadata;
+    uint32_t deleted = 0;
+    uint8_t datatype = 0;
+    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+              store->getMetaData({"mykey", DocNamespace::DefaultCollection},
+                                 vbid,
+                                 cookie,
+                                 metadata,
+                                 deleted,
+                                 datatype));
+    MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
+    store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+    EXPECT_EQ(ENGINE_SUCCESS,
+              store->getMetaData({"mykey", DocNamespace::DefaultCollection},
+                                 vbid,
+                                 cookie,
+                                 metadata,
+                                 deleted,
+                                 datatype));
+    EXPECT_EQ(itemMeta.exptime, metadata.exptime);
+}
+
 auto opcodeValues = ::testing::Values(PROTOCOL_BINARY_CMD_SET_WITH_META,
                                       PROTOCOL_BINARY_CMD_SETQ_WITH_META,
                                       PROTOCOL_BINARY_CMD_ADD_WITH_META,

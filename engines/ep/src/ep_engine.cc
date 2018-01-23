@@ -1458,7 +1458,20 @@ static ENGINE_ERROR_CODE EvpDcpDeletionV2(gsl::not_null<ENGINE_HANDLE*> handle,
                                           uint64_t by_seqno,
                                           uint64_t rev_seqno,
                                           uint32_t delete_time) {
-    // @todo - link through to the consumer API
+    auto engine = acquireEngine(handle);
+    ConnHandler* conn = engine->getConnHandler(cookie);
+    if (conn) {
+        return conn->deletionV2(opaque,
+                                key,
+                                value,
+                                priv_bytes,
+                                datatype,
+                                cas,
+                                vbucket,
+                                by_seqno,
+                                rev_seqno,
+                                delete_time);
+    }
     return ENGINE_DISCONNECT;
 }
 
@@ -4406,18 +4419,17 @@ cb::EngineErrorMetadataPair EventuallyPersistentEngine::getMeta(
 
 protocol_binary_response_status
 EventuallyPersistentEngine::decodeWithMetaOptions(
-        protocol_binary_request_delete_with_meta* request,
+        cb::const_byte_buffer request,
+        uint8_t extlen,
         GenerateCas& generateCas,
         CheckConflicts& checkConflicts,
         PermittedVBStates& permittedVBStates,
         int& keyOffset) {
-    uint8_t extlen = request->message.header.request.extlen;
     keyOffset = 0;
     bool forceFlag = false;
     if (extlen == 28 || extlen == 30) {
         uint32_t options;
-        memcpy(&options, request->bytes + sizeof(request->bytes),
-               sizeof(options));
+        memcpy(&options, request.data() + request.size(), sizeof(options));
         options = ntohl(options);
         keyOffset = 4; // 4 bytes for options
 
@@ -4527,7 +4539,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     GenerateCas generateCas = GenerateCas::No;
     int keyOffset = 0;
     protocol_binary_response_status error = PROTOCOL_BINARY_RESPONSE_SUCCESS;
-    if ((error = decodeWithMetaOptions(request,
+    if ((error = decodeWithMetaOptions({request->bytes, sizeof(request->bytes)},
+                                       request->message.header.request.extlen,
                                        generateCas,
                                        checkConflicts,
                                        permittedVBStates,
@@ -4746,7 +4759,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
     uint64_t cas = ntohll(request->message.header.request.cas);
     uint32_t bodylen = ntohl(request->message.header.request.bodylen);
     uint32_t flags = request->message.body.flags;
-    uint32_t expiration = ntohl(request->message.body.expiration);
+    uint32_t delete_time = ntohl(request->message.body.delete_time);
     uint64_t seqno = ntohll(request->message.body.seqno);
     uint64_t metacas = ntohll(request->message.body.cas);
     uint8_t datatype = request->message.header.request.datatype;
@@ -4757,7 +4770,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
     GenerateCas generateCas = GenerateCas::No;
     int keyOffset = 0;
     protocol_binary_response_status error = PROTOCOL_BINARY_RESPONSE_SUCCESS;
-    if ((error = decodeWithMetaOptions(request,
+    if ((error = decodeWithMetaOptions({request->bytes, sizeof(request->bytes)},
+                                       extlen,
                                        generateCas,
                                        checkConflicts,
                                        permittedVBStates,
@@ -4792,7 +4806,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
             ret = setWithMeta(vbucket,
                               key,
                               {value, vallen},
-                              {metacas, seqno, flags, time_t(expiration)},
+                              {metacas, seqno, flags, time_t(delete_time)},
                               true /*isDeleted*/,
                               datatype,
                               cas,
@@ -4807,7 +4821,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
         } else {
             ret = deleteWithMeta(vbucket,
                                  key,
-                                 {metacas, seqno, flags, time_t(expiration)},
+                                 {metacas, seqno, flags, time_t(delete_time)},
                                  cas,
                                  &bySeqno,
                                  cookie,

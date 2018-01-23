@@ -88,6 +88,22 @@ ENGINE_ERROR_CODE ConnHandler::deletion(uint32_t opaque,
     return ENGINE_DISCONNECT;
 }
 
+ENGINE_ERROR_CODE ConnHandler::deletionV2(uint32_t opaque,
+                                          const DocKey& key,
+                                          cb::const_byte_buffer value,
+                                          size_t priv_bytes,
+                                          uint8_t datatype,
+                                          uint64_t cas,
+                                          uint16_t vbucket,
+                                          uint64_t by_seqno,
+                                          uint64_t rev_seqno,
+                                          uint32_t delete_time) {
+    logger.log(EXTENSION_LOG_WARNING,
+               "Disconnecting - This connection doesn't "
+               "support the deletionV2 API");
+    return ENGINE_DISCONNECT;
+}
+
 ENGINE_ERROR_CODE ConnHandler::expiration(uint32_t opaque,
                                           const DocKey& key,
                                           cb::const_byte_buffer value,

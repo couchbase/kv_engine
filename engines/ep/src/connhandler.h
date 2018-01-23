@@ -117,6 +117,17 @@ public:
                                        uint64_t rev_seqno,
                                        cb::const_byte_buffer meta);
 
+    virtual ENGINE_ERROR_CODE deletionV2(uint32_t opaque,
+                                         const DocKey& key,
+                                         cb::const_byte_buffer value,
+                                         size_t priv_bytes,
+                                         uint8_t datatype,
+                                         uint64_t cas,
+                                         uint16_t vbucket,
+                                         uint64_t by_seqno,
+                                         uint64_t rev_seqno,
+                                         uint32_t delete_time);
+
     virtual ENGINE_ERROR_CODE expiration(uint32_t opaque,
                                          const DocKey& key,
                                          cb::const_byte_buffer value,

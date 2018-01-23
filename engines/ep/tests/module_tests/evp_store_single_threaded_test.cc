@@ -1124,6 +1124,108 @@ TEST_F(SingleThreadedEPBucketTest, MB18452_yield_dcp_processor) {
 }
 
 /*
+ * Test that the DCP processor returns a 'yield' return code when
+ * working on a large enough buffer size.
+ */
+TEST_F(SingleThreadedEPBucketTest, MB_27457) {
+    // We need a replica VB
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+
+    // Create a MockDcpConsumer
+    auto consumer = std::make_shared<MockDcpConsumer>(*engine, cookie, "test");
+
+    // Add the stream
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->addStream(/*opaque*/ 0, vbid, /*flags*/ 0));
+
+    // 1. Add the first message, a snapshot marker.
+    consumer->snapshotMarker(/*opaque*/ 1,
+                             vbid,
+                             /*startseq*/ 0,
+                             /*endseq*/ 2,
+                             /*flags*/ 0);
+    std::string data = R"({"json":"yes"})";
+    cb::const_byte_buffer value{reinterpret_cast<const uint8_t*>(data.data()),
+                                data.size()};
+    // 2. Now add two deletions, one without deleteTime, one with
+    consumer->deletionV2(/*opaque*/ 1,
+                         {"key1", DocNamespace::DefaultCollection},
+                         /*values*/ value,
+                         /*priv_bytes*/ 0,
+                         /*datatype*/ PROTOCOL_BINARY_DATATYPE_JSON,
+                         /*cas*/ 0,
+                         /*vbucket*/ vbid,
+                         /*bySeqno*/ 1,
+                         /*revSeqno*/ 0,
+                         /*deleteTime*/ 0);
+
+    const uint32_t deleteTime = 10;
+    consumer->deletionV2(/*opaque*/ 1,
+                         {"key2", DocNamespace::DefaultCollection},
+                         /*values*/ value,
+                         /*priv_bytes*/ 0,
+                         /*datatype*/ PROTOCOL_BINARY_DATATYPE_JSON,
+                         /*cas*/ 0,
+                         /*vbucket*/ vbid,
+                         /*bySeqno*/ 2,
+                         /*revSeqno*/ 0,
+                         deleteTime);
+
+    EXPECT_EQ(2, getEPBucket().flushVBucket(vbid));
+
+    // Drop the stream
+    consumer->closeStream(/*opaque*/ 0, vbid);
+
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    // Now read back and verify key2 has our test deleteTime of 10
+    ItemMetaData metadata;
+    uint32_t deleted = 0;
+    uint8_t datatype = 0;
+    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+              store->getMetaData(makeStoredDocKey("key1"),
+                                 vbid,
+                                 cookie,
+                                 metadata,
+                                 deleted,
+                                 datatype));
+
+    // Manually run the bgfetch task.
+    MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
+    store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+    EXPECT_EQ(ENGINE_SUCCESS,
+              store->getMetaData(makeStoredDocKey("key1"),
+                                 vbid,
+                                 cookie,
+                                 metadata,
+                                 deleted,
+                                 datatype));
+    EXPECT_EQ(1, deleted);
+    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, datatype);
+    EXPECT_NE(0, metadata.exptime); // A locally created deleteTime
+
+    deleted = 0;
+    datatype = 0;
+    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+              store->getMetaData(makeStoredDocKey("key2"),
+                                 vbid,
+                                 cookie,
+                                 metadata,
+                                 deleted,
+                                 datatype));
+    store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+    EXPECT_EQ(ENGINE_SUCCESS,
+              store->getMetaData(makeStoredDocKey("key2"),
+                                 vbid,
+                                 cookie,
+                                 metadata,
+                                 deleted,
+                                 datatype));
+    EXPECT_EQ(1, deleted);
+    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, datatype);
+    EXPECT_EQ(deleteTime, metadata.exptime); // Our replicated deleteTime!
+}
+
+/*
  * Background thread used by MB20054_onDeleteItem_during_bucket_deletion
  */
 static void MB20054_run_backfill_task(EventuallyPersistentEngine* engine,

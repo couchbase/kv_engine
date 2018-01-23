@@ -1973,11 +1973,18 @@ typedef union {
     uint8_t bytes[sizeof(protocol_binary_request_header) + 24];
 } protocol_binary_request_set_with_meta;
 
-/**
- * The message format for delete with meta
- */
-typedef protocol_binary_request_set_with_meta
-        protocol_binary_request_delete_with_meta;
+typedef union {
+    struct {
+        protocol_binary_request_header header;
+        struct {
+            uint32_t flags;
+            uint32_t delete_time;
+            uint64_t seqno;
+            uint64_t cas;
+        } body;
+    } message;
+    uint8_t bytes[sizeof(protocol_binary_request_header) + 24];
+} protocol_binary_request_delete_with_meta;
 
 /**
  * The message format for getLocked engine API

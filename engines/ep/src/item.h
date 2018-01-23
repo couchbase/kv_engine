@@ -222,6 +222,14 @@ public:
         return metaData.exptime;
     }
 
+    time_t getDeleteTime() const {
+        if (!isDeleted()) {
+            throw std::logic_error("Item::getDeleteTime called on a mutation");
+        }
+        // exptime stores the delete-time (but only for deleted items)
+        return metaData.exptime;
+    }
+
     uint32_t getFlags() const {
         return metaData.flags;
     }
