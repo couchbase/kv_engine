@@ -224,7 +224,7 @@ add_unit_test_suite(NAME tune-mcbp-lsa
 # Run the XATTR tests
 add_unit_test_suite(NAME xattr
                     ENGINE ep
-                    TIMEOUT 120
+                    TIMEOUT 240
                     SOURCE testapp_xattr.h testapp_xattr.cc)
 
 # Run the SSL cert tests
