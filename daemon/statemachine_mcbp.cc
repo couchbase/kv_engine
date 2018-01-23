@@ -92,14 +92,6 @@ void McbpStateMachine::setCurrentState(State task) {
         }
     }
 
-    if (settings.getVerbose() > 2 || task == State::closing) {
-        LOG_DETAIL(this,
-                   "%u: going from %s to %s",
-                   connection.getId(),
-                   getStateName(currentState),
-                   getStateName(task));
-    }
-
     currentState = task;
 }
 
@@ -523,7 +515,6 @@ bool conn_immediate_close(McbpConnection& connection) {
     if (!connection.isSocketClosed()) {
         throw std::logic_error("conn_immediate_close: socketDescriptor must be closed");
     }
-    LOG_DETAIL(&connection, "Releasing connection %p", &connection);
 
     {
         std::lock_guard<std::mutex> guard(stats_mutex);

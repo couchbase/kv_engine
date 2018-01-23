@@ -25,9 +25,7 @@
 #include <mutex>
 
 Logger::Logger(const std::string& prefix_)
-    : prefix(prefix_),
-      min_log_level(EXTENSION_LOG_DETAIL),
-      id(0) {
+    : prefix(prefix_), min_log_level(EXTENSION_LOG_DEBUG), id(0) {
 }
 
 void Logger::log(EXTENSION_LOG_LEVEL severity, const char* fmt, ...) const

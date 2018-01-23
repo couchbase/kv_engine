@@ -1764,9 +1764,8 @@ static EXTENSION_LOG_LEVEL get_log_level(void)
     switch (settings.getVerbose()) {
     case 0: ret = EXTENSION_LOG_NOTICE; break;
     case 1: ret = EXTENSION_LOG_INFO; break;
-    case 2: ret = EXTENSION_LOG_DEBUG; break;
     default:
-        ret = EXTENSION_LOG_DETAIL;
+        ret = EXTENSION_LOG_DEBUG;
     }
     return ret;
 }
@@ -1782,11 +1781,8 @@ static void set_log_level(EXTENSION_LOG_LEVEL severity)
     case EXTENSION_LOG_INFO:
         settings.setVerbose(1);
         break;
-    case EXTENSION_LOG_DEBUG:
-        settings.setVerbose(2);
-        break;
     default:
-        settings.setVerbose(3);
+        settings.setVerbose(2);
     }
 }
 

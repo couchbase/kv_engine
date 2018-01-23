@@ -62,8 +62,7 @@ typedef struct extension_daemon_descriptor {
     } EXTENSION_DAEMON_DESCRIPTOR;
 
     typedef enum {
-        EXTENSION_LOG_DETAIL,
-        EXTENSION_LOG_DEBUG,
+        EXTENSION_LOG_DEBUG = 1,
         EXTENSION_LOG_INFO,
         EXTENSION_LOG_NOTICE,
         EXTENSION_LOG_WARNING,

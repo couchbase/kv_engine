@@ -21,14 +21,6 @@
 // Helper macros to make it nicer to write log messages
 #define LOGGER settings.extensions.logger->log
 
-// Detail should be printed if verbose > 2
-#define LOG_DETAIL(COOKIE, ...)                                \
-    do {                                                       \
-        if (settings.getVerbose() > 2) {                       \
-            LOGGER(EXTENSION_LOG_DETAIL, COOKIE, __VA_ARGS__); \
-        }                                                      \
-    } while (false)
-
 // Debug should be printed if verbose > 1
 #define LOG_DEBUG(COOKIE, ...)                                \
     do {                                                      \

@@ -28,7 +28,7 @@
 static EXTENSION_LOGGER_DESCRIPTOR* logger;
 
 static EXTENSION_LOG_LEVEL get_log_level(void) {
-    return EXTENSION_LOG_DETAIL;
+    return EXTENSION_LOG_DEBUG;
 }
 
 static bool register_extension(extension_type_t type, void* extension) {
@@ -143,7 +143,7 @@ int countInFile(const std::string& file, const std::string& msg) {
  */
 TEST_F(SpdloggerTest, LargeMessageTest) {
     std::string message(2047, 'x'); // max message size is 2047 + 1 for '\0'
-    logger->log(EXTENSION_LOG_DETAIL, nullptr, message.c_str());
+    logger->log(EXTENSION_LOG_DEBUG, nullptr, message.c_str());
     logger->shutdown(false);
 
     files = cb::io::findFilesWithPrefix(filename);
@@ -168,7 +168,7 @@ TEST_F(SpdloggerTest, LargeMessageWithCroppingTest) {
     std::string cropped(2047 - strlen(" [cut]"), 'x');
     cropped.append(" [cut]");
 
-    logger->log(EXTENSION_LOG_DETAIL, nullptr, message.c_str());
+    logger->log(EXTENSION_LOG_DEBUG, nullptr, message.c_str());
     logger->shutdown(false);
 
     files = cb::io::findFilesWithPrefix("spdlogger_test");
@@ -211,7 +211,7 @@ TEST_F(SpdloggerTest, MultipleFilesTest) {
             "This is a textual log message that we want to repeat a number of "
             "times"};
     for (auto ii = 0; ii < 100; ii++) {
-        logger->log(EXTENSION_LOG_DETAIL, nullptr, message.c_str());
+        logger->log(EXTENSION_LOG_DEBUG, nullptr, message.c_str());
     }
     logger->shutdown(false);
 
@@ -237,7 +237,7 @@ TEST_F(SpdloggerTest, HandleOpenFileErrors) {
         return;
     }
 
-    logger->log(EXTENSION_LOG_DETAIL, nullptr, "Hey, this is a test");
+    logger->log(EXTENSION_LOG_DEBUG, nullptr, "Hey, this is a test");
     logger->flush();
     files = cb::io::findFilesWithPrefix(filename);
     EXPECT_EQ(1, files.size());
@@ -266,10 +266,10 @@ TEST_F(SpdloggerTest, HandleOpenFileErrors) {
             "This is a textual log message that we want to repeat a number of "
             "times"};
     for (auto ii = 0; ii < 100; ii++) {
-        logger->log(EXTENSION_LOG_DETAIL, nullptr, message.c_str());
+        logger->log(EXTENSION_LOG_DEBUG, nullptr, message.c_str());
     }
 
-    logger->log(EXTENSION_LOG_DETAIL, nullptr, "HandleOpenFileErrors");
+    logger->log(EXTENSION_LOG_DEBUG, nullptr, "HandleOpenFileErrors");
     logger->flush();
 
     // We've just flushed the data to the file, so it should be possible
@@ -297,7 +297,7 @@ TEST_F(SpdloggerTest, HandleOpenFileErrors) {
     EXPECT_EQ(1, files.size());
 
     // Add a log entry, and we should get a new file
-    logger->log(EXTENSION_LOG_DETAIL, nullptr, "Logging to the next file");
+    logger->log(EXTENSION_LOG_DEBUG, nullptr, "Logging to the next file");
     logger->flush();
 
     files = cb::io::findFilesWithPrefix(filename);

@@ -53,8 +53,6 @@ static const spdlog::level::level_enum convertToSpdSeverity(
         EXTENSION_LOG_LEVEL sev) {
     using namespace spdlog::level;
     switch (sev) {
-    case EXTENSION_LOG_DETAIL:
-        return level_enum::trace;
     case EXTENSION_LOG_DEBUG:
         return level_enum::debug;
     case EXTENSION_LOG_INFO:
