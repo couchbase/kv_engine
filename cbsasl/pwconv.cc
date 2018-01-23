@@ -66,9 +66,8 @@ void cbsasl_pwconv(std::istream& is, std::ostream& os) {
             username.resize(index);
         }
 
-        logging::log(logging::Level::Password,
-                     "Create user entry for [" + username +
-                             "] with password [" + password + "]");
+        logging::log(logging::Level::Trace,
+                     "Create user entry for [" + username + "]");
 
         auto u = cb::sasl::UserFactory::create(username, password);
         cJSON_AddItemToArray(users, u.to_json().release());

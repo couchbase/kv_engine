@@ -2497,9 +2497,6 @@ static void sasl_log_callback(cb::sasl::logging::Level level,
     case cb::sasl::logging::Level::Trace:
         LOG_DEBUG(nullptr, "%s", message.c_str());
         break;
-    case cb::sasl::logging::Level::Password:
-        LOG_DETAIL(nullptr, "%s", message.c_str());
-        break;
     }
 }
 

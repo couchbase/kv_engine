@@ -48,11 +48,7 @@ enum class Level {
     /**
      * Trace of internal protocol
      */
-    Trace,
-    /**
-     * Trace of internal protocol (may contain password)
-     */
-    Password
+    Trace
 };
 
 /**
