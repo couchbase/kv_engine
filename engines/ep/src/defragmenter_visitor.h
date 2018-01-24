@@ -20,12 +20,14 @@
 #include "config.h"
 
 #include "hash_table.h"
+#include "item.h"
 #include "progress_tracker.h"
 #include "vb_visitors.h"
+#include "vbucket.h"
 
 /**
- * Defragmentation visitor - visit all objects in a VBucket, and defragment
- * any which have reached the specified age.
+ * Defragmentation visitor - visit all objects in a VBucket, compress the
+ * documents and defragment any which have reached the specified age.
  */
 class DefragmentVisitor : public VBucketAwareHTVisitor {
 public:
@@ -36,8 +38,12 @@ public:
     // Set the deadline at which point the visitor will pause visiting.
     void setDeadline(ProcessClock::time_point deadline_);
 
+    // Set the current bucket compression mode
+    void setCompressionMode(const BucketCompressionMode compressionMode);
+
     // Implementation of HashTableVisitor interface:
-    virtual bool visit(const HashTable::HashBucketLock& lh, StoredValue& v);
+    virtual bool visit(const HashTable::HashBucketLock& lh,
+                       StoredValue& v) override;
 
     // Resets any held stats to zero.
     void clearStats();
@@ -47,6 +53,9 @@ public:
 
     // Returns the number of documents that have been visited.
     size_t getVisitedCount() const;
+
+    // Set the id of the current vbucket that is being visited.
+    void setCurrentVBucket(VBucket& vb) override;
 
 private:
     /* Configuration parameters */
@@ -67,4 +76,8 @@ private:
     size_t defrag_count;
     // How many documents have been visited.
     size_t visited_count;
+
+    uint16_t vbid;
+
+    BucketCompressionMode compressMode;
 };

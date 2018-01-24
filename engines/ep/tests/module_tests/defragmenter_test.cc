@@ -22,6 +22,7 @@
 #include "defragmenter.h"
 #include "defragmenter_visitor.h"
 #include "item.h"
+#include "test_helpers.h"
 #include "vbucket.h"
 
 #include <valgrind/valgrind.h>
@@ -347,6 +348,44 @@ TEST_P(DefragmenterTest, DISABLED_MaxDefragValueSize) {
     EXPECT_EQ(14336,
               DefragmenterTask::getMaxValueSize(
                       get_mock_server_api()->alloc_hooks));
+}
+
+/**
+ * Test that the defragmenter visitor will actively compress
+ * the documents in the hash table
+ */
+TEST_P(DefragmenterTest, testCompressionInActiveMode) {
+    std::string valueData("{\"product\": \"car\",\"price\": \"100\"},"
+                          "{\"product\": \"bus\",\"price\": \"1000\"},"
+                          "{\"product\": \"Train\",\"price\": \"100000\"}");
+
+    auto key = makeStoredDocKey("key");
+
+    auto item = make_item(vbucket->getId(), key, valueData);
+
+    auto compressible_item = makeCompressibleItem(vbucket->getId(), key,
+                             valueData, PROTOCOL_BINARY_DATATYPE_JSON,
+                             true);
+
+    auto rv = public_processSet(item, 0);
+    ASSERT_EQ(MutationStatus::WasClean, rv);
+
+    PauseResumeVBAdapter prAdapter(std::make_unique<DefragmentVisitor>(
+            0,
+            DefragmenterTask::getMaxValueSize(
+                    get_mock_server_api()->alloc_hooks)));
+
+    auto& visitor = dynamic_cast<DefragmentVisitor&>(prAdapter.getHTVisitor());
+    visitor.setCompressionMode(BucketCompressionMode::Active);
+    prAdapter.visit(*vbucket);
+
+    std::string compressed_str(compressible_item->getData(),
+                               compressible_item->getNBytes());
+
+    StoredValue* v = findValue(key);
+    EXPECT_EQ(compressed_str, v->getValue()->to_s());
+    EXPECT_EQ((PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_SNAPPY),
+              v->getDatatype());
 }
 
 INSTANTIATE_TEST_CASE_P(

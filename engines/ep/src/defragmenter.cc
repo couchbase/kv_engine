@@ -71,6 +71,7 @@ bool DefragmenterTask::run(void) {
         const auto deadline = start + getChunkDuration();
         visitor.setDeadline(deadline);
         visitor.clearStats();
+        visitor.setCompressionMode(engine->getCompressionMode());
 
         // Do it - set off the visitor.
         epstore_position = engine->getKVBucket()->pauseResumeVisit(
