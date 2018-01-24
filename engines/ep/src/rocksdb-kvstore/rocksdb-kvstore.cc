@@ -269,8 +269,14 @@ RocksDBKVStore::RocksDBKVStore(KVStoreConfig& config)
     applyUserCFOptions(seqnoCFOptions, cfOptions, bbtOptions);
 
     // Open the DB and load the ColumnFamilyHandle for all the
-    // existing Column Families
+    // existing Column Families (populates the 'vbHandles' vector)
     openDB();
+
+    // Calculate and apply the correct write_buffer_size for all Column
+    // Families. The Memtable size of each CF depends on the count of existing
+    // CFs in DB (besides other things). Thus, this must be called after
+    // 'openDB' (so that all the existing CFs have been loaded).
+    applyMemtablesQuota(std::lock_guard<std::mutex>(vbhMutex));
 
     // Read persisted VBs state
     for (const auto vbh : vbHandles) {
@@ -410,6 +416,10 @@ std::shared_ptr<VBHandle> RocksDBKVStore::getVBHandle(uint16_t vbid) {
 
     vbHandles[vbid] =
             std::make_shared<VBHandle>(*rdb, handles[0], handles[1], vbid);
+
+    // The number of VBuckets has increased, we need to re-balance the
+    // Memtables Quota among the CFs of existing VBuckets.
+    applyMemtablesQuota(lg);
 
     return vbHandles[vbid];
 }
@@ -655,6 +665,10 @@ void RocksDBKVStore::delVBucket(uint16_t vbid, uint64_t vb_version) {
         // Drop all the CF for vbid.
         sharedPtr->dropColumnFamilies();
     }
+
+    // The number of VBuckets has decreased, we need to re-balance the
+    // Memtables Quota among the CFs of existing VBuckets.
+    applyMemtablesQuota(lg2);
 }
 
 bool RocksDBKVStore::snapshotVBucket(uint16_t vbucketId,
@@ -1051,51 +1065,17 @@ rocksdb::Status RocksDBKVStore::saveVBStateToBatch(const VBHandle& vbh,
 
 rocksdb::ColumnFamilyOptions RocksDBKVStore::getBaselineDefaultCFOptions() {
     rocksdb::ColumnFamilyOptions cfOptions;
-
     // Enable Point Lookup Optimization for the 'default' Column Family
     // Note: whatever we give in input as 'block_cache_size_mb', the Block
     // Cache will be reset with the shared 'blockCache' of size
     // 'rocksdb_block_cache_size'
     cfOptions.OptimizeForPointLookup(1);
-
-    // Set the given Memory Budget as the write_buffer_size
-    if (configuration.getRocksdbDefaultCfMemBudget() > 0) {
-        cfOptions.write_buffer_size =
-                configuration.getRocksdbDefaultCfMemBudget();
-    }
-
-    // Overwrite Compaction options if Compaction Optimization is enabled
-    // for the 'default' CF
-    if (configuration.getRocksdbDefaultCfOptimizeCompaction() == "level") {
-        cfOptions.OptimizeLevelStyleCompaction(cfOptions.write_buffer_size);
-    } else if (configuration.getRocksdbDefaultCfOptimizeCompaction() ==
-               "universal") {
-        cfOptions.OptimizeUniversalStyleCompaction(cfOptions.write_buffer_size);
-    }
-
     return cfOptions;
 }
 
 rocksdb::ColumnFamilyOptions RocksDBKVStore::getBaselineSeqnoCFOptions() {
     rocksdb::ColumnFamilyOptions cfOptions;
-
     cfOptions.comparator = &seqnoComparator;
-
-    // Set the given Memory Budget as the write_buffer_size
-    if (configuration.getRocksdbSeqnoCfMemBudget() > 0) {
-        cfOptions.write_buffer_size =
-                configuration.getRocksdbSeqnoCfMemBudget();
-    }
-
-    // Overwrite Compaction options if Compaction Optimization is enabled
-    // for the 'seqno' CF
-    if (configuration.getRocksdbSeqnoCfOptimizeCompaction() == "level") {
-        cfOptions.OptimizeLevelStyleCompaction(cfOptions.write_buffer_size);
-    } else if (configuration.getRocksdbSeqnoCfOptimizeCompaction() ==
-               "universal") {
-        cfOptions.OptimizeUniversalStyleCompaction(cfOptions.write_buffer_size);
-    }
-
     return cfOptions;
 }
 
@@ -1541,4 +1521,115 @@ bool RocksDBKVStore::getStatFromProperties(ColumnFamily cf,
     }
 
     return true;
+}
+
+// As we implement a VBucket as a pair of two Column Families (a 'default' CF
+// and a 'local+seqno' CF), we need to re-set the 'write_buffer_size' for each
+// CF when the number of VBuckets managed by the current store changes. The
+// goal is to keep the total allocation for all the Memtables under the
+// 'rocksdb_memtables_ratio' given in configuration.
+// Thus, this function performs the following basic steps:
+//     1) Re-calculate the new sizes of all Memtables;
+//     2) Apply the new sizes.
+// We apply the new sizes using the rocksdb::DB::SetOptions() API. The
+// 'write_buffer_size' is a dynamically changeable option. This call changes
+// the size of mutable Memtables instantly. If the new size is below the
+// current allocation for the Memtable, the next key-value pair added will mark
+// the Memtable as immutable and will trigger a flush.
+void RocksDBKVStore::applyMemtablesQuota(
+        const std::lock_guard<std::mutex>& lock) {
+    const auto vbuckets = getVBucketsCount(lock);
+
+    // 1) If configuration.getRocksdbMemtablesRatio() == 0.0, then
+    //      we just want to use the baseline write_buffer_size.
+    // 2) If vbuckets == 0, then there is no Memtable (this happens only
+    //      when the underlying RocksDB instance has just been created).
+    // On both cases the following logic does not apply, so the
+    // write_buffer_size for both the 'default' and the 'seqno' CFs is left
+    // to the baseline value.
+    if (configuration.getRocksdbMemtablesRatio() > 0.0 && vbuckets > 0) {
+        const auto memtablesQuota = configuration.getBucketQuota() /
+                                    configuration.getMaxShards() *
+                                    configuration.getRocksdbMemtablesRatio();
+        // TODO: for now I am hard-coding the percentage of Memtables Quota
+        // that we allocate for the 'deafult' (90%) and 'seqno' (10%) CFs. The
+        // plan is to expose this percentage as a configuration parameter in a
+        // follow-up patch.
+        const auto defaultCFMemtablesQuota = memtablesQuota * 0.9;
+        const auto seqnoCFMemtablesQuota =
+                memtablesQuota - defaultCFMemtablesQuota;
+
+        // Set the the write_buffer_size for the 'default' CF
+        defaultCFOptions.write_buffer_size =
+                defaultCFMemtablesQuota / vbuckets /
+                defaultCFOptions.max_write_buffer_number;
+        // Set the write_buffer_size for the 'seqno' CF
+        seqnoCFOptions.write_buffer_size =
+                seqnoCFMemtablesQuota / vbuckets /
+                seqnoCFOptions.max_write_buffer_number;
+
+        // Apply the new write_buffer_size
+        const std::unordered_map<std::string, std::string>
+                newDefaultCFWriteBufferSize{std::make_pair(
+                        "write_buffer_size",
+                        std::to_string(defaultCFOptions.write_buffer_size))};
+        const std::unordered_map<std::string, std::string>
+                newSeqnoCFWriteBufferSize{std::make_pair(
+                        "write_buffer_size",
+                        std::to_string(seqnoCFOptions.write_buffer_size))};
+        for (const auto& vbh : vbHandles) {
+            if (vbh) {
+                auto status = rdb->SetOptions(vbh->defaultCFH.get(),
+                                              newDefaultCFWriteBufferSize);
+                if (!status.ok()) {
+                    throw std::runtime_error(
+                            "RocksDBKVStore::applyMemtablesQuota: SetOptions "
+                            "failed for [vbid: " +
+                            std::to_string(vbh->vbid) + ", CF: default]: " +
+                            status.getState());
+                }
+                status = rdb->SetOptions(vbh->seqnoCFH.get(),
+                                         newSeqnoCFWriteBufferSize);
+                if (!status.ok()) {
+                    throw std::runtime_error(
+                            "RocksDBKVStore::applyMemtablesQuota: SetOptions "
+                            "failed for [vbid: " +
+                            std::to_string(vbh->vbid) + ", CF: seqno]: " +
+                            status.getState());
+                }
+            }
+        }
+    }
+
+    // Overwrite Compaction options if Compaction Optimization is enabled
+    // for the 'default' CF
+    if (configuration.getRocksdbDefaultCfOptimizeCompaction() == "level") {
+        defaultCFOptions.OptimizeLevelStyleCompaction(
+                defaultCFOptions.write_buffer_size);
+    } else if (configuration.getRocksdbDefaultCfOptimizeCompaction() ==
+               "universal") {
+        defaultCFOptions.OptimizeUniversalStyleCompaction(
+                defaultCFOptions.write_buffer_size);
+    }
+    // Overwrite Compaction options if Compaction Optimization is enabled
+    // for the 'seqno' CF
+    if (configuration.getRocksdbSeqnoCfOptimizeCompaction() == "level") {
+        seqnoCFOptions.OptimizeLevelStyleCompaction(
+                seqnoCFOptions.write_buffer_size);
+    } else if (configuration.getRocksdbSeqnoCfOptimizeCompaction() ==
+               "universal") {
+        seqnoCFOptions.OptimizeUniversalStyleCompaction(
+                seqnoCFOptions.write_buffer_size);
+    }
+}
+
+size_t RocksDBKVStore::getVBucketsCount(
+        const std::lock_guard<std::mutex>&) const {
+    uint16_t count = 0;
+    for (const auto& vbh : vbHandles) {
+        if (vbh) {
+            count++;
+        }
+    }
+    return count;
 }

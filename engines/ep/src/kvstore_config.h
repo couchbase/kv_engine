@@ -164,16 +164,9 @@ public:
         return rocksdbBlockCacheRatio;
     }
 
-    // Return the RocksDB memory budget for Level-style compaction
-    // optimization for the 'default' column family
-    size_t getRocksdbDefaultCfMemBudget() {
-        return rocksdbDefaultCfMemBudget;
-    }
-
-    // Return the RocksDB memory budget for Level-style compaction
-    // optimization for the 'seqno' column family
-    size_t getRocksdbSeqnoCfMemBudget() {
-        return rocksdbSeqnoCfMemBudget;
+    // Return the RocksDB total Memtables ratio of the Bucket Quota
+    float getRocksdbMemtablesRatio() {
+        return rocksdbMemtablesRatio;
     }
 
     // Return the RocksDB Compaction Optimization type for the 'default' CF
@@ -230,11 +223,12 @@ private:
     // RocksDB Block Cache ratio of the Bucket Quota
     float rocksdbBlockCacheRatio = 0.0;
 
-    // RocksDB memtable memory budget for the 'default' CF
-    size_t rocksdbDefaultCfMemBudget = 0;
-
-    // RocksDB memtable memory budget for the 'seqno' CF
-    size_t rocksdbSeqnoCfMemBudget = 0;
+    // RocksDB total Memtables ratio of the Bucket Quota.
+    // This ratio represents the total quota of memory allocated for the
+    // Memtables of all Column Families. The logic in 'RocksDBKVStore' decides
+    // how this quota is split among different CFs. If this ratio is set to
+    // 0.0, then we set each Memtable size to a baseline value.
+    float rocksdbMemtablesRatio = 0.0;
 
     // RocksDB flag to enable Compaction Optimization for the 'default' CF
     std::string rocksdbDefaultCfOptimizeCompaction;

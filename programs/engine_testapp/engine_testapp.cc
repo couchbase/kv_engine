@@ -1041,10 +1041,7 @@ static int execute_test(engine_test_t test,
     } else if (default_cfg != nullptr) {
         test.cfg = default_cfg;
     }
-    // MB-26973: Disable RocksDB pre-allocation of disk space by default.
-    // When 'allow_fallocate=true', RocksDB pre-allocates disk space for the
-    // MANIFEST and WAL files (some tests showed up to ~75MB per DB,
-    // ~7.5GB for 100 empty DBs created).
+    // Necessary configuration to run tests under RocksDB.
     if (test.cfg != nullptr) {
         if (std::string(test.cfg).find("backend=rocksdb") !=
             std::string::npos) {
@@ -1052,7 +1049,20 @@ static int execute_test(engine_test_t test,
             if (!cfg.empty() && cfg.back() != ';') {
                 cfg.append(";");
             }
+            // MB-26973: Disable RocksDB pre-allocation of disk space by
+            // default. When 'allow_fallocate=true', RocksDB pre-allocates disk
+            // space for the MANIFEST and WAL files (some tests showed up to
+            // ~75MB per DB, ~7.5GB for 100 empty DBs created).
             cfg.append("rocksdb_options=allow_fallocate=false;");
+            // BucketQuota is now used to calculate the MemtablesQuota at
+            // runtime. The baseline value for BucketQuota is taken from the
+            // 'max_size' default value in configuration.json. If that default
+            // value is 0, then EPEngine sets the value to 'size_t::max()',
+            // leading to a huge MemtablesQuota. Avoid that 'size_t::max()' is
+            // used in the computation for MemtablesQuota.
+            if (cfg.find("max_size") == std::string::npos) {
+                cfg.append("max_size=1073741824;");
+            }
             test.cfg = cfg.c_str();
         }
     }

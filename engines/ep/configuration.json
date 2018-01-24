@@ -888,15 +888,10 @@
             "descr": "RocksDB Block Cache ratio of the Bucket Quota. A value of 0.0 sets to the default.",
             "type": "float"
         },
-        "rocksdb_default_cf_mem_budget": {
-            "default": "0",
-            "descr": "Memtable memory budget (in Bytes) for the 'default' Column Family.",
-            "type": "size_t"
-        },
-        "rocksdb_seqno_cf_mem_budget": {
-            "default": "0",
-            "descr": "Memtable memory budget (in Bytes) for the 'seqno' Column Family.",
-            "type": "size_t"
+        "rocksdb_memtables_ratio": {
+            "default": "0.1",
+            "descr": "RocksDB total (i.e., all Column Families) Memtables ratio of the Bucket Quota). A value of 0.0 sets to the default.",
+            "type": "float"
         },
         "rocksdb_default_cf_optimize_compaction": {
             "default": "none",

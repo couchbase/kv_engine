@@ -444,6 +444,19 @@ private:
                                const std::string& property,
                                size_t& value);
 
+    // The Memtable Quota is given by the 'rocksdb_memtables_ratio'
+    // configuration parameter as ratio of the Bucket Quota. This function
+    // calculates and applies the Memtable size for every single ColumnFamily
+    // depending on the *current state* of the store. Thus, it must be called
+    // under lock on 'vbhMutex', so that the number of VBuckets seen is
+    // consistent.
+    void applyMemtablesQuota(const std::lock_guard<std::mutex>&);
+
+    // Returns the current number of VBuckets managed by the underlying
+    // RocksDB instance. It must be called under lock on 'vbhMutex', so that
+    // the number of VBuckets seen is consistent.
+    size_t getVBucketsCount(const std::lock_guard<std::mutex>&) const;
+
     // Used for queueing mutation requests (in `set` and `del`) and flushing
     // them to disk (in `commit`).
     std::vector<std::unique_ptr<RocksRequest>> pendingReqs;
