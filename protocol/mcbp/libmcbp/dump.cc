@@ -18,6 +18,7 @@
 
 #include <mcbp/mcbp.h>
 #include <memcached/protocol_binary.h>
+#include <utilities/logtags.h>
 #include <utilities/protocol2text.h>
 
 #include <cctype>
@@ -118,7 +119,7 @@ protected:
                     return;
                 }
             }
-            out << "The textual string \"" << str
+            out << "The textual string \"" << cb::logtags::tagUserData(str)
                 << "\"" << std::endl;
         }
     }

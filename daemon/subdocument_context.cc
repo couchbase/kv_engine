@@ -22,6 +22,7 @@
 #include "protocol/mcbp/engine_wrapper.h"
 #include "subdocument.h"
 
+#include <utilities/logtags.h>
 #include <xattr/blob.h>
 
 #include <iomanip>
@@ -361,7 +362,7 @@ protocol_binary_response_status SubdocCmdContext::get_document_for_searching(
                                 " size. Key: '%s' may have an "
                                 "incorrect datatype of COMPRESSED_JSON.",
                                 c.getId(),
-                                clean_key);
+                                cb::logtags::tagUserData(clean_key).c_str());
                 }
 
                 return PROTOCOL_BINARY_RESPONSE_EINTERNAL;

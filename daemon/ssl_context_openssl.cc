@@ -19,6 +19,8 @@
 #include "memcached.h"
 #include "runtime.h"
 
+#include <utilities/logtags.h>
+
 SslContext::~SslContext() {
     if (enabled) {
         disable();
@@ -59,8 +61,8 @@ bool SslContext::enable(const std::string& cert, const std::string& pkey) {
         !SSL_CTX_use_PrivateKey_file(ctx, pkey.c_str(), SSL_FILETYPE_PEM)) {
         LOG_WARNING(nullptr,
                     "Failed to use SSL cert %s and pkey %s",
-                    cert.c_str(),
-                    pkey.c_str());
+                    cb::logtags::tagUserData(cert).c_str(),
+                    cb::logtags::tagUserData(pkey).c_str());
         return false;
     }
 
@@ -74,7 +76,9 @@ bool SslContext::enable(const std::string& cert, const std::string& pkey) {
         ssl_flags |= SSL_VERIFY_PEER;
         STACK_OF(X509_NAME)* certNames = SSL_load_client_CA_file(cert.c_str());
         if (certNames == NULL) {
-            LOG_WARNING(nullptr, "Failed to read SSL cert %s", cert.c_str());
+            LOG_WARNING(nullptr,
+                        "Failed to read SSL cert %s",
+                        cb::logtags::tagUserData(cert).c_str());
             return false;
         }
         SSL_CTX_set_client_CA_list(ctx, certNames);

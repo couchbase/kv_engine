@@ -15,10 +15,10 @@
  *   limitations under the License.
  */
 
-#include <cbsasl/util.h>
-#include <iterator>
 #include "check_password.h"
-
+#include <cbsasl/util.h>
+#include <utilities/logtags.h>
+#include <iterator>
 
 namespace cb {
 namespace sasl {
@@ -41,7 +41,7 @@ cbsasl_error_t check_password(cbsasl_conn_t* conn,
     if (size != PASSWORD_SIZE) {
         std::string message{
                 "cb::cbsasl::check_password: Invalid password entry for [" +
-                user.getUsername() + "]"};
+                cb::logtags::tagUserData(user.getUsername()) + "]"};
         if (conn) {
             logging::log(*conn, logging::Level::Error, message);
         } else {

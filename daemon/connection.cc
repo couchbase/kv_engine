@@ -24,6 +24,7 @@
 #include <mcbp/protocol/header.h>
 #include <platform/checked_snprintf.h>
 #include <platform/strerror.h>
+#include <utilities/logtags.h>
 #include <utilities/protocol2text.h>
 #include <exception>
 
@@ -471,7 +472,7 @@ void Connection::updateDescription() {
         if (isInternal()) {
             description += "System, ";
         }
-        description += getUsername();
+        description += cb::logtags::tagUserData(getUsername());
 
         if (domain == cb::sasl::Domain::External) {
             description += " (LDAP)";

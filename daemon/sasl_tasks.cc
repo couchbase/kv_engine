@@ -16,10 +16,10 @@
  */
 #include "config.h"
 #include "sasl_tasks.h"
-#include "memcached.h"
 #include "mcaudit.h"
+#include "memcached.h"
 #include <memcached/rbac.h>
-
+#include <utilities/logtags.h>
 
 StartSaslAuthTask::StartSaslAuthTask(Cookie& cookie_,
                                      Connection& connection_,
@@ -157,22 +157,22 @@ void SaslAuthTask::notifyExecutionComplete() {
         LOG_WARNING(&connection,
                     "%u: User [%s] not found. UUID:[%s]",
                     connection.getId(),
-                    connection.getUsername(),
+                    cb::logtags::tagUserData(connection.getUsername()).c_str(),
                     cookie.getEventId().c_str());
         break;
     case CBSASL_PWERR:
         LOG_WARNING(&connection,
                     "%u: Invalid password specified for [%s] UUID:[%s]",
                     connection.getId(),
-                    connection.getUsername(),
+                    cb::logtags::tagUserData(connection.getUsername()).c_str(),
                     cookie.getEventId().c_str());
         break;
     case CBSASL_NO_RBAC_PROFILE:
         LOG_WARNING(&connection,
                     "%u: User [%s] is not defined as a user in Couchbase. "
-                        "UUID:[%s]",
+                    "UUID:[%s]",
                     connection.getId(),
-                    connection.getUsername(),
+                    cb::logtags::tagUserData(connection.getUsername()).c_str(),
                     cookie.getEventId().c_str());
         break;
     }
@@ -181,9 +181,11 @@ void SaslAuthTask::notifyExecutionComplete() {
         connection.setAuthenticated(true);
         connection.setInternal(context.second);
         audit_auth_success(&connection);
-        LOG_INFO(&connection, "%u: Client %s authenticated as %s",
-                 connection.getId(), connection.getPeername().c_str(),
-                 connection.getUsername());
+        LOG_INFO(&connection,
+                 "%u: Client %s authenticated as %s",
+                 connection.getId(),
+                 connection.getPeername().c_str(),
+                 cb::logtags::tagUserData(connection.getUsername()).c_str());
 
         /* associate the connection with the appropriate bucket */
         std::string username = connection.getUsername();

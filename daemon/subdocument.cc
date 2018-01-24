@@ -28,6 +28,7 @@
 #include "subdocument_validators.h"
 #include "timings.h"
 #include "topkeys.h"
+#include "utilities/logtags.h"
 #include "utilities/protocol2text.h"
 #include "xattr/key_validator.h"
 #include "xattr/utils.h"
@@ -83,11 +84,18 @@ static void subdoc_print_command(Connection& c, protocol_binary_command cmd,
                         && (buf_to_printable_buffer(clean_value,
                                                     sizeof(clean_value), value,
                                                     vallen) != -1)) {
-            LOG_DEBUG(&c, "%s path:'%s' value:'%s'",
-                      clean_key, clean_path, clean_value);
+            LOG_DEBUG(&c,
+                      "%s path:'%s' value:'%s'",
+                      cb::logtags::tagUserData(clean_key).c_str(),
+                      cb::logtags::tagUserData(clean_path).c_str(),
+                      cb::logtags::tagUserData(clean_value).c_str());
+
         } else {
             // key & path only
-            LOG_DEBUG(&c, "%s path:'%s'", clean_key, clean_path);
+            LOG_DEBUG(&c,
+                      "%s path:'%s'",
+                      cb::logtags::tagUserData(clean_key).c_str(),
+                      cb::logtags::tagUserData(clean_path).c_str());
         }
     }
 }

@@ -28,6 +28,7 @@
 #include <platform/checked_snprintf.h>
 #include <platform/strerror.h>
 #include <platform/timeutils.h>
+#include <utilities/logtags.h>
 #include <utilities/protocol2text.h>
 #include <cctype>
 #include <exception>
@@ -217,8 +218,12 @@ bool McbpConnection::tryAuthFromSslCert(const std::string& userName) {
                 cb::rbac::createInitialContext(getUsername(), getDomain());
         setAuthenticated(true);
         setInternal(context.second);
-        LOG_INFO(this, "%u: Client %s authenticated as '%s' via X509 certificate",
-                 getId(), getPeername().c_str(), getUsername());
+        LOG_INFO(this,
+                 "%u: Client %s authenticated as '%s' via X509 "
+                 "certificate",
+                 getId(),
+                 getPeername().c_str(),
+                 cb::logtags::tagUserData(getUsername()).c_str());
         // Connections authenticated by using X.509 certificates should not
         // be able to use SASL to change it's identity.
         saslAuthEnabled = false;
@@ -227,7 +232,7 @@ bool McbpConnection::tryAuthFromSslCert(const std::string& userName) {
         LOG_WARNING(this,
                     "%u: User [%s] is not defined as a user in Couchbase",
                     getId(),
-                    e.what());
+                    cb::logtags::tagUserData(e.what()).c_str());
         return false;
     }
     return true;

@@ -25,6 +25,7 @@
 #include <phosphor/phosphor.h>
 #include <platform/checked_snprintf.h>
 #include <platform/timeutils.h>
+#include <utilities/logtags.h>
 
 #include <chrono>
 
@@ -383,7 +384,7 @@ std::string Cookie::getPrintableRequestKey() const {
         }
     }
 
-    return buffer;
+    return cb::logtags::tagUserData(buffer);
 }
 
 void Cookie::logCommand() const {

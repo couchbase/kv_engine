@@ -18,6 +18,7 @@
 
 #include "debug_helpers.h"
 #include "memcached.h"
+#include "utilities/logtags.h"
 #include "xattr/utils.h"
 
 #include <mcbp/protocol/framebuilder.h>
@@ -142,9 +143,10 @@ bool mcbp_response_handler(const void* key, uint16_t keylen,
             std::string mykey(reinterpret_cast<const char*>(key), keylen);
             LOG_WARNING(c,
                         "<%u ERROR: Failed to inflate body, "
-                            "Key: %s may have an incorrect datatype, "
-                            "Datatype indicates that document is %s",
-                        c->getId(), mykey.c_str(),
+                        "Key: %s may have an incorrect datatype, "
+                        "Datatype indicates that document is %s",
+                        c->getId(),
+                        cb::logtags::tagUserData(mykey).c_str(),
                         mcbp::datatype::to_string(datatype).c_str());
             return false;
         }

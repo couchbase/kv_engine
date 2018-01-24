@@ -56,6 +56,7 @@
 #include <platform/platform.h>
 #include <platform/processclock.h>
 #include <tracing/trace_helpers.h>
+#include <utilities/logtags.h>
 #include <xattr/utils.h>
 
 #include <cstdio>
@@ -697,8 +698,12 @@ static protocol_binary_response_status evictKey(
     size_t keylen = ntohs(req->message.header.request.keylen);
     uint16_t vbucket = ntohs(request->request.vbucket);
 
-    LOG(EXTENSION_LOG_DEBUG, "Manually evicting object with key{%.*s}\n",
-        int(keylen), keyPtr);
+    LOG(EXTENSION_LOG_DEBUG,
+        "Manually evicting object with <%s>key{%.*s}</%s>\n",
+        cb::logtags::userdata.c_str(),
+        int(keylen),
+        keyPtr,
+        cb::logtags::userdata.c_str());
     msg_size = 0;
     auto rv = e->evictKey(DocKey(keyPtr, keylen, docNamespace), vbucket, msg);
     if (rv == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET ||
@@ -3433,8 +3438,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(const void *cookie,
             } else {
                 valid.assign("ram_but_not_disk");
             }
-            LOG(EXTENSION_LOG_DEBUG, "doKeyStats key{%.*s} is %s\n",
-                int(key.size()), key.data(), valid.c_str());
+            LOG(EXTENSION_LOG_DEBUG,
+                "doKeyStats <%s>key{%.*s}</%s> is %s\n",
+                cb::logtags::userdata.c_str(),
+                int(key.size()),
+                key.data(),
+                cb::logtags::userdata.c_str(),
+                valid.c_str());
         }
         add_casted_stat("key_is_dirty", kstats.dirty, add_stat, cookie);
         add_casted_stat("key_exptime", kstats.exptime, add_stat, cookie);
@@ -3981,8 +3991,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(
 
         DocKey key(data + offset, keylen, docNamespace);
         offset += keylen;
-        LOG(EXTENSION_LOG_DEBUG, "Observing key{%.*s} in vb:%" PRIu16,
-            int(key.size()), key.data(), vb_id);
+        LOG(EXTENSION_LOG_DEBUG,
+            "Observing <%s>key{%.*s}</%s> in vb:%" PRIu16,
+            cb::logtags::userdata.c_str(),
+            int(key.size()),
+            key.data(),
+            cb::logtags::userdata.c_str(),
+            vb_id);
 
         // Get key stats
         uint16_t keystatus = 0;
