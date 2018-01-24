@@ -34,8 +34,6 @@
 static SERVER_HANDLE_V1* sapi;
 static EXTENSION_LOGGER_DESCRIPTOR descriptor;
 
-static auto current_log_level = spdlog::level::warn;
-
 /* Max suffix appended to the log file name.
  * The actual max no. of files is (max_files + 1), because the numbering starts
  * from the base file name (aka 0) eg. (file, file.1, ..., file.100)
@@ -92,11 +90,6 @@ static void log(EXTENSION_LOG_LEVEL mcd_severity,
                 ...) {
     const auto severity = convertToSpdSeverity(mcd_severity);
 
-    // Skip any processing if message wouldn't be logged anyway
-    if (severity < current_log_level) {
-        return;
-    }
-
     // Retrieve formatted log message
     char msg[2048];
     int len;
@@ -142,9 +135,8 @@ static void on_log_level(const void* cookie,
                          ENGINE_EVENT_TYPE type,
                          const void* event_data,
                          const void* cb_data) {
-    if (sapi != NULL) {
-        current_log_level = convertToSpdSeverity(sapi->log->get_level());
-        file_logger->set_level(current_log_level);
+    if (sapi != nullptr) {
+        file_logger->set_level(convertToSpdSeverity(sapi->log->get_level()));
     }
 }
 
@@ -197,9 +189,7 @@ boost::optional<std::string> cb::logger::initialize(
         return boost::optional<std::string>{msg};
     }
 
-    current_log_level = convertToSpdSeverity(sapi->log->get_level());
-
-    file_logger->set_level(current_log_level);
+    file_logger->set_level(convertToSpdSeverity(sapi->log->get_level()));
     spdlog::set_pattern(log_pattern);
 
     descriptor.get_name = get_name;
