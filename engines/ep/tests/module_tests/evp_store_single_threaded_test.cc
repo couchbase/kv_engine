@@ -17,6 +17,7 @@
 
 #include "evp_store_single_threaded_test.h"
 
+#include "../mock/mock_dcp.h"
 #include "../mock/mock_dcp_consumer.h"
 #include "../mock/mock_dcp_producer.h"
 #include "../mock/mock_global_task.h"
@@ -171,6 +172,103 @@ void SingleThreadedKVBucketTest::resetEngineAndWarmup(std::string new_config) {
     runReadersUntilWarmedUp();
 }
 
+std::shared_ptr<MockDcpProducer> SingleThreadedKVBucketTest::createDcpProducer(
+        const void* cookie,
+        const std::string& filter,
+        bool dcpCollectionAware,
+        IncludeDeleteTime deleteTime) {
+    int flags = DCP_OPEN_INCLUDE_XATTRS;
+    if (dcpCollectionAware) {
+        flags |= DCP_OPEN_COLLECTIONS;
+    }
+    if (deleteTime == IncludeDeleteTime::Yes) {
+        flags |= DCP_OPEN_INCLUDE_DELETE_TIMES;
+    }
+    auto newProducer = std::make_shared<MockDcpProducer>(
+            *engine,
+            cookie,
+            "test_producer",
+            flags,
+            cb::const_byte_buffer(
+                    reinterpret_cast<const uint8_t*>(filter.data()),
+                    filter.size()),
+            false /*startTask*/);
+
+    // Create the task object, but don't schedule
+    newProducer->createCheckpointProcessorTask();
+
+    // Need to enable NOOP for XATTRS (and collections).
+    newProducer->setNoopEnabled(true);
+
+    return newProducer;
+}
+
+extern uint8_t dcp_last_op;
+void SingleThreadedKVBucketTest::notifyAndStepToCheckpoint(
+        MockDcpProducer& producer,
+        dcp_message_producers& producers,
+        cb::mcbp::ClientOpcode expectedOp,
+        bool fromMemory) {
+    auto vb = store->getVBucket(vbid);
+    ASSERT_NE(nullptr, vb.get());
+
+    if (fromMemory) {
+        producer.notifySeqnoAvailable(vbid, vb->getHighSeqno());
+        runCheckpointProcessor(producer, producers);
+    } else {
+        // Run a backfill
+        auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+        // backfill:create()
+        runNextTask(lpAuxioQ);
+        // backfill:scan()
+        runNextTask(lpAuxioQ);
+        // backfill:complete()
+        runNextTask(lpAuxioQ);
+        // backfill:finished()
+        runNextTask(lpAuxioQ);
+    }
+
+    // Next step which will process a snapshot marker and then the caller
+    // should now be able to step through the checkpoint
+    if (expectedOp != cb::mcbp::ClientOpcode::Invalid) {
+        EXPECT_EQ(ENGINE_WANT_MORE, producer.step(&producers));
+        EXPECT_EQ(uint8_t(expectedOp), dcp_last_op);
+    } else {
+        EXPECT_EQ(ENGINE_SUCCESS, producer.step(&producers));
+    }
+}
+
+void SingleThreadedKVBucketTest::runCheckpointProcessor(
+        MockDcpProducer& producer, dcp_message_producers& producers) {
+    // Step which will notify the snapshot task
+    EXPECT_EQ(ENGINE_SUCCESS, producer.step(&producers));
+
+    EXPECT_EQ(1, producer.getCheckpointSnapshotTask().queueSize());
+
+    // Now call run on the snapshot task to move checkpoint into DCP
+    // stream
+    producer.getCheckpointSnapshotTask().run();
+}
+
+static ENGINE_ERROR_CODE dcpAddFailoverLog(vbucket_failover_t* entry,
+                                           size_t nentries,
+                                           gsl::not_null<const void*> cookie) {
+    return ENGINE_SUCCESS;
+}
+void SingleThreadedKVBucketTest::createDcpStream(MockDcpProducer& producer) {
+    uint64_t rollbackSeqno;
+    ASSERT_EQ(ENGINE_SUCCESS,
+              producer.streamRequest(0, // flags
+                                     1, // opaque
+                                     vbid,
+                                     0, // start_seqno
+                                     ~0ull, // end_seqno
+                                     0, // vbucket_uuid,
+                                     0, // snap_start_seqno,
+                                     0, // snap_end_seqno,
+                                     &rollbackSeqno,
+                                     &dcpAddFailoverLog));
+}
 /*
  * The following test checks to see if we call handleSlowStream when in a
  * backfilling state, but the backfillTask is not running, we
@@ -2008,4 +2106,89 @@ TEST_F(SingleThreadedEPBucketTest, CreatedItemFreqDecayerTask) {
     EXPECT_FALSE(isItemFreqDecayerTaskSnoozed());
     store->runItemFreqDecayerTask();
     EXPECT_TRUE(isItemFreqDecayerTaskSnoozed());
+}
+
+extern uint32_t dcp_last_delete_time;
+extern std::string dcp_last_key;
+// Combine warmup and DCP so we can check deleteTimes come back from disk
+TEST_F(WarmupTest, produce_delete_times) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    auto t1 = ep_real_time();
+    storeAndDeleteItem(
+            vbid, {"KEY1", DocNamespace::DefaultCollection}, "value");
+    auto t2 = ep_real_time();
+    // Now warmup to ensure that DCP will have to go to disk.
+    resetEngineAndWarmup();
+
+    auto cookie = create_mock_cookie();
+    auto producer =
+            createDcpProducer(cookie, {}, false, IncludeDeleteTime::Yes);
+    auto producers = get_dcp_producers(
+            reinterpret_cast<ENGINE_HANDLE*>(engine.get()),
+            reinterpret_cast<ENGINE_HANDLE_V1*>(engine.get()));
+
+    createDcpStream(*producer);
+
+    // noop off as we will play with time travel
+    producer->setNoopEnabled(false);
+
+    auto step = [this, producer, &producers](bool inMemory) {
+        notifyAndStepToCheckpoint(*producer,
+                                  *producers,
+                                  cb::mcbp::ClientOpcode::DcpSnapshotMarker,
+                                  inMemory);
+
+        // Now step the producer to transfer the delete/tombstone
+        EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    };
+
+    step(false);
+    EXPECT_NE(0, dcp_last_delete_time);
+    EXPECT_GE(dcp_last_delete_time, t1);
+    EXPECT_LE(dcp_last_delete_time, t2);
+    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_DELETION, dcp_last_op);
+    EXPECT_EQ("KEY1", dcp_last_key);
+
+    // Now a new delete, in-memory will also have a delete time
+    t1 = ep_real_time();
+    storeAndDeleteItem(
+            vbid, {"KEY2", DocNamespace::DefaultCollection}, "value");
+    t2 = ep_real_time();
+
+    step(true);
+
+    EXPECT_NE(0, dcp_last_delete_time);
+    EXPECT_GE(dcp_last_delete_time, t1);
+    EXPECT_LE(dcp_last_delete_time, t2);
+    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_DELETION, dcp_last_op);
+    EXPECT_EQ("KEY2", dcp_last_key);
+
+    // Finally expire a key and check that the delete_time we receive is the
+    // expiry time, not actually the time it was deleted.
+    auto expiryTime = ep_real_time() + 32000;
+    store_item(vbid,
+               {"KEY3", DocNamespace::DefaultCollection},
+               "value",
+               expiryTime);
+
+    step(true);
+
+    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_MUTATION, dcp_last_op);
+    TimeTraveller arron(64000);
+
+    // Trigger expiry on a GET
+    auto gv = store->get(
+            {"KEY3", DocNamespace::DefaultCollection}, vbid, cookie, NONE);
+    EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+
+    step(true);
+
+    EXPECT_EQ(expiryTime, dcp_last_delete_time);
+    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_DELETION, dcp_last_op);
+    EXPECT_EQ("KEY3", dcp_last_key);
+
+    destroy_mock_cookie(cookie);
+    producer->closeAllStreams();
+    producer->cancelCheckpointCreatorTask();
+    producer.reset();
 }

@@ -157,6 +157,9 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
       includeXattrs(((flags & DCP_OPEN_INCLUDE_XATTRS) != 0)
                             ? IncludeXattrs::Yes
                             : IncludeXattrs::No),
+      includeDeleteTime(((flags & DCP_OPEN_INCLUDE_DELETE_TIMES) != 0)
+                                ? IncludeDeleteTime::Yes
+                                : IncludeDeleteTime::No),
       filter(std::move(filter)),
       createChkPtProcessorTsk(startTask) {
     setSupportAck(true);
@@ -590,19 +593,33 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
                 throw std::logic_error(
                     "DcpProducer::step(Deletion): itmCpy must be != nullptr");
             }
-            std::pair<const char*, uint16_t> meta{nullptr, 0};
-            if (mutationResponse->getExtMetaData()) {
-                meta = mutationResponse->getExtMetaData()->getExtMeta();
+
+            if (includeDeleteTime == IncludeDeleteTime::Yes ||
+                filter.allowSystemEvents()) {
+                ret = producers->deletion_v2(
+                        getCookie(),
+                        mutationResponse->getOpaque(),
+                        itmCpy.release(),
+                        mutationResponse->getVBucket(),
+                        *mutationResponse->getBySeqno(),
+                        mutationResponse->getRevSeqno(),
+                        mutationResponse->getItem()->getExptime(),
+                        mutationResponse->getCollectionLen());
+            } else {
+                std::pair<const char*, uint16_t> meta{nullptr, 0};
+                if (mutationResponse->getExtMetaData()) {
+                    meta = mutationResponse->getExtMetaData()->getExtMeta();
+                }
+                ret = producers->deletion(getCookie(),
+                                          mutationResponse->getOpaque(),
+                                          itmCpy.release(),
+                                          mutationResponse->getVBucket(),
+                                          *mutationResponse->getBySeqno(),
+                                          mutationResponse->getRevSeqno(),
+                                          meta.first,
+                                          meta.second,
+                                          mutationResponse->getCollectionLen());
             }
-            ret = producers->deletion(getCookie(),
-                                      mutationResponse->getOpaque(),
-                                      itmCpy.release(),
-                                      mutationResponse->getVBucket(),
-                                      *mutationResponse->getBySeqno(),
-                                      mutationResponse->getRevSeqno(),
-                                      meta.first,
-                                      meta.second,
-                                      mutationResponse->getCollectionLen());
             break;
         }
         case DcpResponse::Event::SnapshotMarker:

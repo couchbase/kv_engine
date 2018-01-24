@@ -382,6 +382,12 @@ protected:
     IncludeXattrs includeXattrs;
 
     /**
+     * Indicates whether the active streams belonging to the DcpProducer should
+     * send the tombstone creation time, (if any exist), in the delete messages.
+     */
+    IncludeDeleteTime includeDeleteTime;
+
+    /**
      * The producer owns a "bucket" level filter which is used to build the
      * actual data filter (Collections::VB::Filter) per VB stream at request
      * time.

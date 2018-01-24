@@ -63,31 +63,6 @@ public:
                 ->getCollectionsManifest(vbid);
     }
 
-    void createDcpProducer(const std::string& filter, bool dcpCollectionAware) {
-        int flags = DCP_OPEN_INCLUDE_XATTRS;
-        if (dcpCollectionAware) {
-            flags |= DCP_OPEN_COLLECTIONS;
-        }
-        producer = std::make_shared<MockDcpProducer>(
-                *engine,
-                cookieP,
-                "test_producer",
-                flags,
-                cb::const_byte_buffer(
-                        reinterpret_cast<const uint8_t*>(filter.data()),
-                        filter.size()),
-                false /*startTask*/);
-
-        // Create the task object, but don't schedule
-        producer->createCheckpointProcessorTask();
-
-        // Need to enable NOOP for XATTRS (and collections).
-        producer->setNoopEnabled(true);
-
-        // Patch our local callback into the handlers
-        producers->system_event = &CollectionsDcpTest::sendSystemEvent;
-    }
-
     void createDcpStream() {
         uint64_t rollbackSeqno;
         ASSERT_EQ(ENGINE_SUCCESS,
@@ -123,7 +98,10 @@ public:
 
     void createDcpObjects(const std::string& filter, bool dcpCollectionAware) {
         createDcpConsumer();
-        createDcpProducer(filter, dcpCollectionAware);
+        producer = SingleThreadedKVBucketTest::createDcpProducer(
+                cookieP, filter, dcpCollectionAware, IncludeDeleteTime::No);
+        // Patch our local callback into the handlers
+        producers->system_event = &CollectionsDcpTest::sendSystemEvent;
         createDcpStream();
     }
 
@@ -144,47 +122,17 @@ public:
     }
 
     void runCheckpointProcessor() {
-        // Step which will notify the snapshot task
-        EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
-
-        EXPECT_EQ(1, producer->getCheckpointSnapshotTask().queueSize());
-
-        // Now call run on the snapshot task to move checkpoint into DCP
-        // stream
-        producer->getCheckpointSnapshotTask().run();
+        SingleThreadedKVBucketTest::runCheckpointProcessor(*producer,
+                                                           *producers);
     }
 
     void notifyAndStepToCheckpoint(
             cb::mcbp::ClientOpcode expectedOp =
                     cb::mcbp::ClientOpcode::DcpSnapshotMarker,
             bool fromMemory = true) {
-        auto vb = store->getVBucket(vbid);
-        ASSERT_NE(nullptr, vb.get());
-
-        if (fromMemory) {
-            producer->notifySeqnoAvailable(vbid, vb->getHighSeqno());
-            runCheckpointProcessor();
-        } else {
-            // Run a backfill
-            auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
-            // backfill:create()
-            runNextTask(lpAuxioQ);
-            // backfill:scan()
-            runNextTask(lpAuxioQ);
-            // backfill:complete()
-            runNextTask(lpAuxioQ);
-            // backfill:finished()
-            runNextTask(lpAuxioQ);
-        }
-
-        // Next step which will process a snapshot marker and then the caller
-        // should now be able to step through the checkpoint
-        if (expectedOp != cb::mcbp::ClientOpcode::Invalid) {
-            EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
-            EXPECT_EQ(uint8_t(expectedOp), dcp_last_op);
-        } else {
-            EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
-        }
+        // Call parent class function with our producer
+        SingleThreadedKVBucketTest::notifyAndStepToCheckpoint(
+                *producer, *producers, expectedOp, fromMemory);
     }
 
     void testDcpCreateDelete(int expectedCreates,
@@ -870,7 +818,10 @@ TEST_F(CollectionsFilteredDcpTest, empty_filter_stream_closes) {
               "collections":[{"name":"$default", "uid":"0"},
                              {"name":"meat", "uid":"1"}]})"});
 
-    createDcpProducer(R"({"collections":["meat"]})", true);
+    producer = createDcpProducer(cookieP,
+                                 R"({"collections":["meat"]})",
+                                 true,
+                                 IncludeDeleteTime::No);
     createDcpConsumer();
 
     // Perform a delete of meat

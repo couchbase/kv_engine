@@ -41,6 +41,7 @@ uint64_t dcp_last_snap_end_seqno;
 Couchbase::RelaxedAtomic<uint64_t> dcp_last_byseqno;
 uint64_t dcp_last_revseqno;
 uint8_t dcp_last_collection_len;
+uint32_t dcp_last_delete_time;
 std::string dcp_last_meta;
 std::string dcp_last_value;
 std::string dcp_last_key;
@@ -213,6 +214,7 @@ static ENGINE_ERROR_CODE mock_deletion(gsl::not_null<const void*> cookie,
                                        uint64_t rev_seqno,
                                        const void* meta,
                                        uint16_t nmeta,
+                                       uint32_t deleteTime,
                                        uint8_t collectionLen) {
     (void) cookie;
     clear_dcp_data();
@@ -234,12 +236,53 @@ static ENGINE_ERROR_CODE mock_deletion(gsl::not_null<const void*> cookie,
     dcp_last_value.assign(static_cast<const char*>(item->getData()),
                           item->getNBytes());
     dcp_last_collection_len = collectionLen;
+    dcp_last_delete_time = deleteTime;
 
     if (engine_handle_v1 && engine_handle) {
         engine_handle_v1->release(engine_handle, item);
     }
-
     return ENGINE_SUCCESS;
+}
+
+static ENGINE_ERROR_CODE mock_deletion_V1(gsl::not_null<const void*> cookie,
+                                          uint32_t opaque,
+                                          item* itm,
+                                          uint16_t vbucket,
+                                          uint64_t by_seqno,
+                                          uint64_t rev_seqno,
+                                          const void* meta,
+                                          uint16_t nmeta,
+                                          uint8_t collectionLen) {
+    return mock_deletion(cookie,
+                         opaque,
+                         itm,
+                         vbucket,
+                         by_seqno,
+                         rev_seqno,
+                         meta,
+                         nmeta,
+                         0,
+                         0);
+}
+
+static ENGINE_ERROR_CODE mock_deletion_V2(gsl::not_null<const void*> cookie,
+                                          uint32_t opaque,
+                                          gsl::not_null<item*> itm,
+                                          uint16_t vbucket,
+                                          uint64_t by_seqno,
+                                          uint64_t rev_seqno,
+                                          uint32_t deleteTime,
+                                          uint8_t collectionLen) {
+    return mock_deletion(cookie,
+                         opaque,
+                         itm,
+                         vbucket,
+                         by_seqno,
+                         rev_seqno,
+                         nullptr,
+                         0,
+                         deleteTime,
+                         collectionLen);
 }
 
 static ENGINE_ERROR_CODE mock_expiration(gsl::not_null<const void*> cookie,
@@ -352,6 +395,8 @@ void clear_dcp_data() {
     dcp_last_value.clear();
     dcp_last_key.clear();
     dcp_last_vbucket_state = (vbucket_state_t)0;
+    dcp_last_collection_len = 0;
+    dcp_last_delete_time = 0;
 }
 
 std::unique_ptr<dcp_message_producers> get_dcp_producers(ENGINE_HANDLE *_h,
@@ -365,7 +410,8 @@ std::unique_ptr<dcp_message_producers> get_dcp_producers(ENGINE_HANDLE *_h,
     producers->stream_end = mock_stream_end;
     producers->marker = mock_marker;
     producers->mutation = mock_mutation;
-    producers->deletion = mock_deletion;
+    producers->deletion = mock_deletion_V1;
+    producers->deletion_v2 = mock_deletion_V2;
     producers->expiration = mock_expiration;
     producers->flush = mock_flush;
     producers->set_vbucket_state = mock_set_vbucket_state;

@@ -76,6 +76,15 @@ enum class IncludeXattrs {
     No,
 };
 
+/*
+ * IncludeDeleteTime is used to state whether an active stream needs to send the
+ * tombstone creation time (only applies to backfilled items)
+ */
+enum class IncludeDeleteTime {
+    Yes,
+    No,
+};
+
 /**
  * DcpReadyQueue is a std::queue wrapper for managing a
  * queue of vbuckets that are ready for a DCP producer/consumer to process.

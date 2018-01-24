@@ -1414,6 +1414,14 @@ typedef union {
  * filter in the body (no filter = all data)
  */
 #define DCP_OPEN_COLLECTIONS 16
+
+/**
+ * Request that DCP delete message include the time the a delete was persisted.
+ * This only applies to deletes being backfilled from storage, in-memory deletes
+ * will have a delete time of 0
+ */
+#define DCP_OPEN_INCLUDE_DELETE_TIMES 32
+
             uint32_t flags;
         } body;
     } message;

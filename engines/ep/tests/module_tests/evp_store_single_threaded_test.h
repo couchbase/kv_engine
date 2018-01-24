@@ -25,6 +25,7 @@
 #include "fakes/fake_executorpool.h"
 
 class MockActiveStreamWithOverloadedRegisterCursor;
+class MockDcpProducer;
 
 /*
  * A subclass of KVBucketTest which uses a fake ExecutorPool,
@@ -44,6 +45,47 @@ public:
      * Run the next task from the taskQ
      */
     ProcessClock::time_point runNextTask(TaskQueue& taskQ);
+
+    /*
+     * DCP helper. Create a MockDcpProducer configured with (or without)
+     * collections and/or delete_times enabled
+     * @param cookie cookie to associate with the new producer
+     * @param filter DCP JSON filter (for collection support)
+     * @param dcpCollectionAware enable/disable collections
+     * @param deleteTime yes/no - enable/disable delete times
+     */
+    std::shared_ptr<MockDcpProducer> createDcpProducer(
+            const void* cookie,
+            const std::string& filter,
+            bool dcpCollectionAware,
+            IncludeDeleteTime deleteTime);
+
+    /*
+     * DCP helper.
+     * Notify and step the given producer
+     * @param expectedOp once stepped we expect to see this DCP opcode produced
+     * @param fromMemory if false then step a backfill
+     */
+    void notifyAndStepToCheckpoint(
+            MockDcpProducer& producer,
+            dcp_message_producers& producers,
+            cb::mcbp::ClientOpcode expectedOp =
+                    cb::mcbp::ClientOpcode::DcpSnapshotMarker,
+            bool fromMemory = true);
+
+    /*
+     * DCP helper.
+     * Run the active-checkpoint processor task for the given producer
+     * @param producer The producer whose task will be ran
+     * @param producers The dcp callbacks
+     */
+    void runCheckpointProcessor(MockDcpProducer& producer,
+                                dcp_message_producers& producers);
+
+    /**
+     * Create a DCP stream on the producer for this->vbid
+     */
+    void createDcpStream(MockDcpProducer& producer);
 
 protected:
     void SetUp() override;
