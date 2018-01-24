@@ -16,9 +16,11 @@ install(TARGETS memcached_logger
         LIBRARY DESTINATION lib/memcached
         ARCHIVE DESTINATION lib/memcached)
 
-add_executable(memcached_logger_test logger_test.cc)
-target_link_libraries(memcached_logger_test gtest gtest_main mcd_util memcached_logger dirutils)
-target_include_directories(memcached_logger_test INTERFACE PRIVATE ${Platform_SOURCE_DIR}/external)
-add_test(NAME memcached-spdlogger-test
-         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-         COMMAND memcached_logger_test)
+if (COUCHBASE_KV_BUILD_UNIT_TESTS)
+    add_executable(memcached_logger_test logger_test.cc)
+    target_link_libraries(memcached_logger_test gtest gtest_main mcd_util memcached_logger dirutils)
+    target_include_directories(memcached_logger_test INTERFACE PRIVATE ${Platform_SOURCE_DIR}/external)
+    add_test(NAME memcached-spdlogger-test
+             WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+             COMMAND memcached_logger_test)
+endif (COUCHBASE_KV_BUILD_UNIT_TESTS)

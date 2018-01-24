@@ -11,12 +11,14 @@ INSTALL(TARGETS mcd_util
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib)
 
-ADD_EXECUTABLE(utilities_testapp
-               config_parser.cc
-               string_utilities.cc
-               util.cc
-               util_test.cc)
-TARGET_LINK_LIBRARIES(utilities_testapp gtest gtest_main gmock platform)
-ADD_TEST(NAME memcached-utilities-tests
-         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-         COMMAND utilities_testapp)
+if (COUCHBASE_KV_BUILD_UNIT_TESTS)
+    ADD_EXECUTABLE(utilities_testapp
+                   config_parser.cc
+                   string_utilities.cc
+                   util.cc
+                   util_test.cc)
+    TARGET_LINK_LIBRARIES(utilities_testapp gtest gtest_main gmock platform)
+    ADD_TEST(NAME memcached-utilities-tests
+             WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+             COMMAND utilities_testapp)
+endif (COUCHBASE_KV_BUILD_UNIT_TESTS)

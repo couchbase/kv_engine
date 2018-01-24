@@ -7,6 +7,9 @@ INCLUDE(CheckIncludeFileCXX)
 INCLUDE(CTest)
 INCLUDE(GenerateExportHeader)
 INCLUDE_DIRECTORIES(BEFORE ${BOOST_INCLUDE_DIR})
+include(check_unit_test_enabled)
+
+check_unit_test_enabled(kv_engine COUCHBASE_KV_BUILD_UNIT_TESTS)
 
 # The test program expects to find the output files in
 # the root directory (that's how we built them earlier)
@@ -107,7 +110,7 @@ ENDIF (MEMORY_ALLOCATOR)
 IF (BREAKPAD_FOUND)
     ADD_DEFINITIONS(-DHAVE_BREAKPAD)
     INCLUDE_DIRECTORIES(AFTER ${BREAKPAD_INCLUDE_DIR})
-    IF (UNIX)
+    IF (UNIX AND COUCHBASE_KV_BUILD_UNIT_TESTS)
         # On Linux Breakpad unit test relies on examining the minidump -> core
         # file with GDB.
         FIND_PROGRAM(GDB_EXECUTABLE gdb)
@@ -140,7 +143,7 @@ IF (BREAKPAD_FOUND)
         #          ${PYTHON_EXECUTABLE}
         #          ${Memcached_SOURCE_DIR}/tests/breakpad_test.py
         #          ${Memcached_BINARY_DIR}/memcached)
-    ENDIF (UNIX)
+    ENDIF (UNIX AND COUCHBASE_KV_BUILD_UNIT_TESTS)
 ENDIF (BREAKPAD_FOUND)
 
 
@@ -177,26 +180,28 @@ ADD_SUBDIRECTORY(programs)
 ADD_SUBDIRECTORY(utilities)
 ADD_SUBDIRECTORY(engines)
 ADD_SUBDIRECTORY(extensions)
-ADD_SUBDIRECTORY(testsuite)
 ADD_SUBDIRECTORY(auditd)
 ADD_SUBDIRECTORY(xattr)
 ADD_SUBDIRECTORY(logger)
 ADD_SUBDIRECTORY(daemon)
 ADD_SUBDIRECTORY(tracing)
 
-CONFIGURE_FILE(tests/cert/testapp.pem tests/cert/testapp.pem COPYONLY)
-CONFIGURE_FILE(tests/cert/testapp.cert tests/cert/testapp.cert COPYONLY)
-CONFIGURE_FILE(tests/cert/client.pem tests/cert/client.pem COPYONLY)
-CONFIGURE_FILE(tests/cert/client.key tests/cert/client.key COPYONLY)
-CONFIGURE_FILE(tests/cert/parse-test.key tests/cert/parse-test.key COPYONLY)
-CONFIGURE_FILE(tests/cert/parse-test.pem tests/cert/parse-test.pem COPYONLY)
-# Second copy to test changing at runtime
-CONFIGURE_FILE(tests/cert/testapp.pem tests/cert/testapp2.pem COPYONLY)
-CONFIGURE_FILE(tests/cert/testapp.cert tests/cert/testapp2.cert COPYONLY)
+if (COUCHBASE_KV_BUILD_UNIT_TESTS)
+    CONFIGURE_FILE(tests/cert/testapp.pem tests/cert/testapp.pem COPYONLY)
+    CONFIGURE_FILE(tests/cert/testapp.cert tests/cert/testapp.cert COPYONLY)
+    CONFIGURE_FILE(tests/cert/client.pem tests/cert/client.pem COPYONLY)
+    CONFIGURE_FILE(tests/cert/client.key tests/cert/client.key COPYONLY)
+    CONFIGURE_FILE(tests/cert/parse-test.key tests/cert/parse-test.key COPYONLY)
+    CONFIGURE_FILE(tests/cert/parse-test.pem tests/cert/parse-test.pem COPYONLY)
+    # Second copy to test changing at runtime
+    CONFIGURE_FILE(tests/cert/testapp.pem tests/cert/testapp2.pem COPYONLY)
+    CONFIGURE_FILE(tests/cert/testapp.cert tests/cert/testapp2.cert COPYONLY)
 
-ADD_SUBDIRECTORY(tests)
+    ADD_SUBDIRECTORY(testsuite)
+    ADD_SUBDIRECTORY(tests)
 
-ENABLE_CODE_COVERAGE_REPORT()
+    ENABLE_CODE_COVERAGE_REPORT()
+endif (COUCHBASE_KV_BUILD_UNIT_TESTS)
 
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/config.h.in
                ${CMAKE_CURRENT_BINARY_DIR}/config.h)

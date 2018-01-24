@@ -16,9 +16,12 @@ ADD_TEST(NAME memcached-hostutils-test
 ADD_LIBRARY(getpass STATIC
             getpass.cc getpass.h)
 
-ADD_SUBDIRECTORY(engine_testapp)
+if (COUCHBASE_KV_BUILD_UNIT_TESTS)
+    ADD_SUBDIRECTORY(engine_testapp)
+    ADD_SUBDIRECTORY(moxi_hammer)
+endif (COUCHBASE_KV_BUILD_UNIT_TESTS)
+
 ADD_SUBDIRECTORY(mcctl)
 ADD_SUBDIRECTORY(mclogsplit)
 ADD_SUBDIRECTORY(mcstat)
 ADD_SUBDIRECTORY(mctimings)
-ADD_SUBDIRECTORY(moxi_hammer)
