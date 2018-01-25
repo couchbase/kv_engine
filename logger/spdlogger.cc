@@ -202,3 +202,7 @@ boost::optional<std::string> cb::logger::initialize(
             nullptr, ON_LOG_LEVEL, on_log_level, nullptr);
     return {};
 }
+
+std::shared_ptr<spdlog::logger> cb::logger::get() {
+    return file_logger;
+}

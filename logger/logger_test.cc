@@ -19,6 +19,7 @@
 
 #include <extensions/protocol_extension.h>
 #include <gtest/gtest.h>
+#include <memcached/engine.h>
 #include <memcached/extension.h>
 #include <platform/cbassert.h>
 #include <platform/dirutils.h>

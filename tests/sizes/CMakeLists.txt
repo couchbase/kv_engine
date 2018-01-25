@@ -1,7 +1,7 @@
 ADD_EXECUTABLE(memcached_sizes
                sizes.cc
                ${Memcached_SOURCE_DIR}/utilities/protocol2text.cc)
-
+TARGET_LINK_LIBRARIES(memcached_sizes memcached_logger)
 IF(ENABLE_DTRACE)
     ADD_DEPENDENCIES(memcached_sizes generate_memcached_dtrace_h)
 ENDIF(ENABLE_DTRACE)

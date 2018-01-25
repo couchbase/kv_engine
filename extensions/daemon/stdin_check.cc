@@ -10,6 +10,7 @@
 #include <fcntl.h>
 #endif
 
+#include <memcached/engine.h>
 #include <platform/platform.h>
 #include "extensions/protocol_extension.h"
 

@@ -26,6 +26,7 @@ add_library(memcached_testapp_core OBJECT
             utilities.cc
             utilities.h)
 target_compile_options(memcached_testapp_core PRIVATE ${CB_CXX_FLAGS_NO_OPTIMIZE})
+target_include_directories(memcached_testapp_core PUBLIC ${spdlog_SOURCE_DIR}/include)
 
 # Create a function to generate the various test cases
 function(add_unit_test_suite)
@@ -47,6 +48,7 @@ function(add_unit_test_suite)
     target_compile_options(memcached-${arg_NAME}-tests PRIVATE ${CB_CXX_FLAGS_NO_OPTIMIZE})
     target_link_libraries(memcached-${arg_NAME}-tests
                           memcached_daemon
+                          memcached_logger
                           mcd_util
                           mcutils
                           mc_client_connection

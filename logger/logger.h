@@ -22,6 +22,7 @@
 #include <boost/optional/optional.hpp>
 #include <cJSON.h>
 #include <memcached/server_api.h>
+#include <spdlog/logger.h>
 
 #include <string>
 
@@ -58,6 +59,12 @@ struct LOGGER_PUBLIC_API Config {
 LOGGER_PUBLIC_API
 boost::optional<std::string> initialize(const Config& logger_settings,
                                         GET_SERVER_API get_server_api);
+
+/**
+ * Get the underlying logger object
+ */
+LOGGER_PUBLIC_API
+std::shared_ptr<spdlog::logger> get();
 
 } // namespace logger
 } // namespace cb
