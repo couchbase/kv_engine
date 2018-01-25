@@ -12,9 +12,9 @@ generate_export_header(memcached_logger
                        EXPORT_FILE_NAME ${PROJECT_BINARY_DIR}/include/logger/visibility.h)
 
 install(TARGETS memcached_logger
-        RUNTIME DESTINATION lib/memcached
-        LIBRARY DESTINATION lib/memcached
-        ARCHIVE DESTINATION lib/memcached)
+        RUNTIME DESTINATION bin
+        LIBRARY DESTINATION lib
+        ARCHIVE DESTINATION lib)
 
 if (COUCHBASE_KV_BUILD_UNIT_TESTS)
     add_executable(memcached_logger_test logger_test.cc)
