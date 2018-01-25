@@ -681,9 +681,10 @@ void test_concat_impl(const char *key, uint8_t cmd) {
     mcbp_validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_GETK,
                                   PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
-    EXPECT_EQ(strlen(key), receive.response.message.header.response.keylen);
-    EXPECT_EQ((strlen(key) + 2*strlen(value) + 4),
-              receive.response.message.header.response.bodylen);
+    EXPECT_EQ(strlen(key),
+              receive.response.message.header.response.getKeylen());
+    EXPECT_EQ((strlen(key) + 2 * strlen(value) + 4),
+              receive.response.message.header.response.getBodylen());
 
     ptr = receive.bytes;
     ptr += sizeof(receive.response);
@@ -732,7 +733,7 @@ TEST_P(McdTestappTest, Stat) {
         mcbp_validate_response_header(&buffer.response,
                                       PROTOCOL_BINARY_CMD_STAT,
                                       PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    } while (buffer.response.message.header.response.keylen != 0);
+    } while (buffer.response.message.header.response.getKeylen() != 0);
 }
 
 TEST_P(McdTestappTest, StatConnections) {
@@ -752,7 +753,7 @@ TEST_P(McdTestappTest, StatConnections) {
         mcbp_validate_response_header(&buffer.response,
                                       PROTOCOL_BINARY_CMD_STAT,
                                       PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    } while (buffer.response.message.header.response.keylen != 0);
+    } while (buffer.response.message.header.response.getKeylen() != 0);
 }
 
 std::atomic<bool> hickup_thread_running;
@@ -1443,7 +1444,7 @@ TEST_P(McdTestappTest, Hello) {
                                   PROTOCOL_BINARY_CMD_HELLO,
                                   PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
-    EXPECT_EQ(12u, buffer.response.message.header.response.bodylen);
+    EXPECT_EQ(12u, buffer.response.message.header.response.getBodylen());
     ptr = (uint16_t*)(buffer.bytes + sizeof(buffer.response));
 
     std::vector<cb::mcbp::Feature> enabled;
@@ -1489,7 +1490,7 @@ TEST_P(McdTestappTest, Hello) {
     mcbp_validate_response_header(&buffer.response,
                                   PROTOCOL_BINARY_CMD_HELLO,
                                   PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    EXPECT_EQ(0u, buffer.response.message.header.response.bodylen);
+    EXPECT_EQ(0u, buffer.response.message.header.response.getBodylen());
 
     len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
                            PROTOCOL_BINARY_CMD_HELLO,
@@ -1522,7 +1523,7 @@ TEST_P(McdTestappTest, TapConnect) {
      mcbp_validate_response_header(&buffer.response,
                                    PROTOCOL_BINARY_CMD_TAP_CONNECT,
                                    PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
-     EXPECT_EQ(0u, buffer.response.message.header.response.bodylen);
+     EXPECT_EQ(0u, buffer.response.message.header.response.getBodylen());
 }
 
 static void get_object_w_datatype(const char *key,
@@ -1562,7 +1563,7 @@ static void get_object_w_datatype(const char *key,
         abort();
     }
 
-    len = ntohl(response.message.header.response.bodylen);
+    len = response.message.header.response.getBodylen();
     cb_assert(len > 4);
     safe_recv(&flags, sizeof(flags));
     len -= 4;
@@ -2131,7 +2132,7 @@ void test_pipeline_impl(int cmd, int result, const char* key_root,
     for (uint32_t ii = 0; ii < messages_in_stream; ii++) {
         protocol_binary_response_no_extras* message = (protocol_binary_response_no_extras*)current_message;
 
-        uint32_t bodylen = ntohl(message->message.header.response.bodylen);
+        uint32_t bodylen = message->message.header.response.getBodylen();
         uint8_t  extlen  = message->message.header.response.extlen;
         uint16_t status  = ntohs(message->message.header.response.status);
         uint32_t opq     = ntohl(message->message.header.response.opaque);
@@ -2330,7 +2331,7 @@ int get_topkeys_legacy_value(const std::string& wanted_key) {
 
         const char* key_ptr(buffer.bytes + sizeof(buffer.response) +
                             buffer.response.message.header.response.extlen);
-        size_t key_len(buffer.response.message.header.response.keylen);
+        size_t key_len(buffer.response.message.header.response.getKeylen());
 
         // A packet with key length zero indicates end of the stats.
         if (key_len == 0) {
@@ -2345,9 +2346,9 @@ int get_topkeys_legacy_value(const std::string& wanted_key) {
                 << "Unexpectedly found a second topkey for wanted key '" << wanted_key;
 
             const char* val_ptr(key_ptr + key_len);
-            const size_t val_len(buffer.response.message.header.response.bodylen -
-                                 key_len -
-                                 buffer.response.message.header.response.extlen);
+            const size_t val_len(
+                    buffer.response.message.header.response.getBodylen() -
+                    key_len - buffer.response.message.header.response.extlen);
             EXPECT_GT(val_len, 0u);
             value = std::string(val_ptr, val_len);
         }
@@ -2402,13 +2403,14 @@ bool get_topkeys_json_value(const std::string& key, int& count) {
     mcbp_validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_STAT,
                                   PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
-    EXPECT_NE(0, buffer.response.message.header.response.keylen);
+    EXPECT_NE(0, buffer.response.message.header.response.getKeylen());
 
-    const char* val_ptr = buffer.bytes + (sizeof(buffer.response) +
-             buffer.response.message.header.response.keylen +
-             buffer.response.message.header.response.extlen);
-    const size_t vallen(buffer.response.message.header.response.bodylen -
-                        buffer.response.message.header.response.keylen -
+    const char* val_ptr = buffer.bytes +
+                          (sizeof(buffer.response) +
+                           buffer.response.message.header.response.getKeylen() +
+                           buffer.response.message.header.response.extlen);
+    const size_t vallen(buffer.response.message.header.response.getBodylen() -
+                        buffer.response.message.header.response.getKeylen() -
                         buffer.response.message.header.response.extlen);
     EXPECT_GT(vallen, 0u);
     const std::string value(val_ptr, vallen);
@@ -2417,7 +2419,7 @@ bool get_topkeys_json_value(const std::string& key, int& count) {
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     mcbp_validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_STAT,
                                   PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    EXPECT_EQ(0, buffer.response.message.header.response.keylen);
+    EXPECT_EQ(0, buffer.response.message.header.response.getKeylen());
 
     // Check for response string
 

@@ -123,17 +123,14 @@ void sendCommand(BIO* bio, const std::vector<uint8_t>& buffer) {
 void readResponse(BIO* bio, std::vector<uint8_t>& buffer) {
     protocol_binary_response_no_extras res;
     ensure_recv(bio, res.bytes, sizeof(res.bytes));
-    uint32_t bodylen = ntohl(res.message.header.response.bodylen);
+    uint32_t bodylen = res.message.header.response.getBodylen();
     buffer.resize(sizeof(res.bytes) + bodylen);
     memcpy(buffer.data(), res.bytes, sizeof(res.bytes));
     ensure_recv(bio, buffer.data() + sizeof(res.bytes), bodylen);
     if (packet_dump) {
         cb::mcbp::dump(buffer.data(), std::cerr);
     }
-
     auto* r = reinterpret_cast<protocol_binary_response_header*>(buffer.data());
-    r->response.bodylen = ntohl(r->response.bodylen);
-    r->response.keylen = ntohs(r->response.keylen);
     r->response.status = ntohs(r->response.status);
 }
 
@@ -144,10 +141,10 @@ static bool sasl_listmech(BIO* bio, std::vector<char>& mecs) {
     readResponse(bio, response);
     auto* r = reinterpret_cast<protocol_binary_response_header*>(response.data());
     if (r->response.status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-
-        mecs.resize(r->response.bodylen);
-        memcpy(mecs.data(), response.data() + sizeof(r->bytes),
-               r->response.bodylen);
+        mecs.resize(r->response.getBodylen());
+        memcpy(mecs.data(),
+               response.data() + sizeof(r->bytes),
+               r->response.getBodylen());
         return true;
     } else {
         auto status = (protocol_binary_response_status)r->response.status;
@@ -223,12 +220,10 @@ int do_sasl_auth(BIO* bio, const char* user, const char* pass) {
 
     while (rsp->response.status ==
            PROTOCOL_BINARY_RESPONSE_AUTH_CONTINUE) {
-        int datalen = rsp->response.bodylen -
-                      rsp->response.keylen -
+        int datalen = rsp->response.getBodylen() - rsp->response.getKeylen() -
                       rsp->response.extlen;
 
-        int dataoffset = sizeof(rsp->bytes) +
-                         rsp->response.keylen +
+        int dataoffset = sizeof(rsp->bytes) + rsp->response.getKeylen() +
                          rsp->response.extlen;
 
         err = cbsasl_client_step(client,
@@ -281,7 +276,7 @@ bool enable_tcp_nodelay(BIO *bio)
     protocol_binary_response_hello response;
     ensure_recv(bio, &response, sizeof(response.bytes));
 
-    uint32_t vallen = ntohl(response.message.header.response.bodylen);
+    uint32_t vallen = response.message.header.response.getBodylen();
     std::vector<char> buffer(vallen);
     ensure_recv(bio, buffer.data(), vallen);
 

@@ -476,8 +476,6 @@ void MemcachedConnection::recvFrame(Frame& frame,
             // The underlying buffer may hage been reallocated as part of read
             auto* res = reinterpret_cast<protocol_binary_response_header*>(
                     frame.payload.data());
-            res->response.keylen = ntohs(res->response.keylen);
-            res->response.bodylen = bodylen;
             res->response.status = ntohs(res->response.status);
         }
     }

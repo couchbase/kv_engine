@@ -141,9 +141,9 @@ void BinprotResponse::assign(std::vector<uint8_t>&& srcbuf) {
 
 void BinprotSubdocResponse::assign(std::vector<uint8_t>&& srcbuf) {
     BinprotResponse::assign(std::move(srcbuf));
-    if (getBodylen() - getExtlen() > 0) {
+    if (getBodylen() - getExtlen() - getFramingExtraslen() > 0) {
         value.assign(payload.data() + sizeof(protocol_binary_response_header) +
-                             getExtlen(),
+                             getExtlen() + getFramingExtraslen(),
                      payload.data() + payload.size());
     }
 }
@@ -360,7 +360,8 @@ void BinprotMutationResponse::assign(std::vector<uint8_t>&& buf) {
         mutation_info.vbucketuuid = 0;
         mutation_info.seqno = 0;
     } else if (getExtlen() == 16) {
-        auto const* bufs = reinterpret_cast<const uint64_t*>(getPayload());
+        auto const* bufs = reinterpret_cast<const uint64_t*>(
+                getPayload() + getFramingExtraslen());
         mutation_info.vbucketuuid = ntohll(bufs[0]);
         mutation_info.seqno = ntohll(bufs[1]);
     } else {
@@ -384,16 +385,17 @@ void BinprotHelloResponse::assign(std::vector<uint8_t>&& buf) {
 
     if (isSuccess()) {
         // Ensure body length is even
-        if ((getBodylen() & 1) != 0) {
+        if (((getBodylen() - getFramingExtraslen()) & 1) != 0) {
             throw std::runtime_error(
-                    "BinprotHelloResponse::assign: Invalid response returned. "
+                    "BinprotHelloResponse::assign: "
+                    "Invalid response returned. "
                     "Uneven body length");
         }
 
         auto const* end =
                 reinterpret_cast<const uint16_t*>(getPayload() + getBodylen());
         auto const* cur = reinterpret_cast<const uint16_t*>(
-                getPayload() + getExtlen() + getKey().size());
+                begin() + getResponse().getValueOffset());
 
         for (; cur != end; ++cur) {
             features.push_back(cb::mcbp::Feature(htons(*cur)));

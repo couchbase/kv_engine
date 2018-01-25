@@ -15,8 +15,8 @@
  *   limitations under the License.
  */
 #pragma once
-#include <unordered_set>
 #include <platform/sized_buffer.h>
+#include <unordered_set>
 #include "client_connection.h"
 
 /**
@@ -287,7 +287,7 @@ public:
 
     /** Get the opcode for the response */
     protocol_binary_command getOp() const {
-        return protocol_binary_command(getHeader().response.opcode);
+        return protocol_binary_command(getResponse().opcode);
     }
 
     /** Get the status code for the response */
@@ -296,12 +296,16 @@ public:
     }
 
     size_t getExtlen() const {
-        return getHeader().response.extlen;
+        return getResponse().getExtlen();
     }
 
     /** Get the length of packet (minus the header) */
     size_t getBodylen() const {
-        return getHeader().response.bodylen;
+        return getResponse().getBodylen();
+    }
+
+    size_t getFramingExtraslen() const {
+        return getResponse().getFramingExtraslen();
     }
 
     /**
@@ -313,10 +317,10 @@ public:
         return sizeof(header.bytes);
     }
     uint64_t getCas() const {
-        return getHeader().response.cas;
+        return getResponse().cas;
     }
     protocol_binary_datatype_t getDatatype() const {
-        return getHeader().response.datatype;
+        return getResponse().datatype;
     }
 
     /**
@@ -324,7 +328,7 @@ public:
      * after the 24 byte memcached header
      */
     const uint8_t* getPayload() const {
-        return payload.data() + getHeaderLen();
+        return begin() + getHeaderLen();
     }
 
     /**
@@ -332,8 +336,9 @@ public:
      * Use #getKeyLen() to determine this.
      */
     cb::const_char_buffer getKey() const {
-        return cb::const_char_buffer(reinterpret_cast<const char*>(getPayload()) + getExtlen(),
-                                     getHeader().response.keylen);
+        return cb::const_char_buffer(reinterpret_cast<const char*>(begin()) +
+                                             getResponse().getKeyOffset(),
+                                     getResponse().getKeylen());
     }
 
     std::string getKeyString() const {
@@ -345,10 +350,8 @@ public:
      * any payload content _after_ the key and extras (if present
      */
     cb::const_byte_buffer getData() const {
-        // Clarify
-        const uint8_t* buf = payload.data() + getHeaderLen() + getKey().size() + getExtlen();
-        size_t len = getBodylen() - (getExtlen() + getKey().size());
-        return cb::const_byte_buffer(buf, len);
+        return cb::const_byte_buffer(begin() + getResponse().getValueOffset(),
+                                     getResponse().getValuelen());
     }
 
     std::string getDataString() const {
@@ -369,6 +372,10 @@ public:
                 payload.data());
     }
 
+    const cb::mcbp::Response& getResponse() const {
+        return getHeader().response;
+    }
+
     /**
      * Populate this response from a response
      * @param srcbuf The buffer containing the response.
@@ -386,10 +393,10 @@ public:
     }
 
 protected:
-    protocol_binary_response_header& getHeader() {
-        return *reinterpret_cast<protocol_binary_response_header*>(
-                payload.data());
+    const uint8_t* begin() const {
+        return payload.data();
     }
+
     std::vector<uint8_t> payload;
 };
 

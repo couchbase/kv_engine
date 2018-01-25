@@ -213,7 +213,7 @@ std::string get_sasl_mechs(void) {
 
     std::string ret;
     ret.assign(buffer.bytes + sizeof(buffer.response.bytes),
-               buffer.response.message.header.response.bodylen);
+               buffer.response.message.header.response.getBodylen());
     return ret;
 }
 
@@ -306,13 +306,13 @@ uint16_t TestappTest::sasl_auth(const char *username, const char *password) {
 
     while (buffer.response.message.header.response.status == PROTOCOL_BINARY_RESPONSE_AUTH_CONTINUE) {
         stepped = true;
-        int datalen = buffer.response.message.header.response.bodylen -
-            buffer.response.message.header.response.keylen -
-            buffer.response.message.header.response.extlen;
+        int datalen = buffer.response.message.header.response.getBodylen() -
+                      buffer.response.message.header.response.getKeylen() -
+                      buffer.response.message.header.response.extlen;
 
         int dataoffset = sizeof(buffer.response.bytes) +
-            buffer.response.message.header.response.keylen +
-            buffer.response.message.header.response.extlen;
+                         buffer.response.message.header.response.getKeylen() +
+                         buffer.response.message.header.response.extlen;
 
         err = cbsasl_client_step(client, buffer.bytes + dataoffset, datalen,
                                  NULL, &data, &len);
@@ -932,7 +932,8 @@ static void set_feature(cb::mcbp::Feature feature, bool enable) {
               sizeof(buffer.request.message.header) + bodylen, false);
 
     safe_recv(&buffer.response, sizeof(buffer.response));
-    const size_t response_bodylen = ntohl(buffer.response.message.header.response.bodylen);
+    const size_t response_bodylen =
+            buffer.response.message.header.response.getBodylen();
     EXPECT_EQ(bodylen - agentlen, response_bodylen);
     for (auto feature : enabled_hello_features) {
         uint16_t wire_feature;
@@ -964,7 +965,8 @@ fetch_value(const std::string& key) {
             protocol_binary_response_status(receive.response.message.header.response.status);
     if (status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
         const char* ptr = receive.bytes + sizeof(receive.response) + 4;
-        const size_t vallen = receive.response.message.header.response.bodylen - 4;
+        const size_t vallen =
+                receive.response.message.header.response.getBodylen() - 4;
         return std::make_pair(PROTOCOL_BINARY_RESPONSE_SUCCESS,
                               std::string(ptr, vallen));
     } else {
@@ -991,7 +993,7 @@ void validate_object(const char *key, const std::string& expected_value) {
     mcbp_validate_response_header(response, PROTOCOL_BINARY_CMD_GET,
                                   PROTOCOL_BINARY_RESPONSE_SUCCESS);
     char* ptr = receive.data() + sizeof(*response) + 4;
-    size_t vallen = response->message.header.response.bodylen - 4;
+    size_t vallen = response->message.header.response.getBodylen() - 4;
     ASSERT_EQ(expected_value.size(), vallen);
     std::string actual(ptr, vallen);
     EXPECT_EQ(expected_value, actual);
@@ -1423,9 +1425,8 @@ bool safe_recv_packetT(T& info) {
         }
     }
 
-    header->response.keylen = ntohs(header->response.keylen);
     header->response.status = ntohs(header->response.status);
-    auto bodylen = header->response.bodylen = ntohl(header->response.bodylen);
+    auto bodylen = header->response.getBodylen();
 
     // Set response to NULL, because the underlying buffer may change.
     header = nullptr;
@@ -1777,7 +1778,8 @@ stats_response_t request_stats() {
 
         const char* key_ptr(buffer.bytes + sizeof(buffer.response) +
                             buffer.response.message.header.response.extlen);
-        const size_t key_len(buffer.response.message.header.response.keylen);
+        const size_t key_len(
+                buffer.response.message.header.response.getKeylen());
 
         // key length zero indicates end of the stats.
         if (key_len == 0) {
@@ -1785,9 +1787,9 @@ stats_response_t request_stats() {
         }
 
         const char* val_ptr(key_ptr + key_len);
-        const size_t val_len(buffer.response.message.header.response.bodylen -
-                             key_len -
-                             buffer.response.message.header.response.extlen);
+        const size_t val_len(
+                buffer.response.message.header.response.getBodylen() - key_len -
+                buffer.response.message.header.response.extlen);
 
         result.insert(std::make_pair(std::string(key_ptr, key_len),
                                      std::string(val_ptr, val_len)));

@@ -408,7 +408,7 @@ protected:
 class Response : public McbpFrame {
 public:
     Response(const protocol_binary_response_header& res)
-        : McbpFrame(res.bytes, ntohl(res.response.bodylen) + sizeof(res.bytes)),
+        : McbpFrame(res.bytes, res.response.getBodylen() + sizeof(res.bytes)),
           response(res) {
         // nothing
     }
@@ -416,14 +416,14 @@ public:
 protected:
 
     void dumpPacketInfo(std::ostream& out) const override {
-        uint32_t bodylen = ntohl(response.response.bodylen);
+        uint32_t bodylen = response.response.getBodylen();
         out << "        Total " << sizeof(response) + bodylen << " bytes";
         if (bodylen > 0) {
             out << " (" << sizeof(response) << " bytes header";
             if (response.response.extlen != 0) {
                 out << ", " << (unsigned int)response.response.extlen << " byte extras ";
             }
-            uint16_t keylen = ntohs(response.response.keylen);
+            uint16_t keylen = response.response.getKeylen();
             if (keylen > 0) {
                 out << ", " << keylen << " bytes key";
             }
@@ -445,11 +445,13 @@ protected:
             << (uint32_t(response.bytes[1]) & 0xff) << " ("
             << to_string(response.response.getClientOpcode()) << ")"
             << std::endl;
-        out << "    Key length   (2,3)  : 0x" << std::setw(4) << (ntohs(response.response.keylen) & 0xffff) << std::endl;
+        out << "    Key length   (2,3)  : 0x" << std::setw(4)
+            << (response.response.getKeylen() & 0xffff) << std::endl;
         out << "    Extra length (4)    : 0x" << std::setw(2) << (uint32_t(response.bytes[4]) & 0xff) << std::endl;
         out << "    Data type    (5)    : 0x" << std::setw(2) << (uint32_t(response.bytes[5]) & 0xff) << std::endl;
         out << "    Status       (6,7)  : 0x" << std::setw(4) << (ntohs(response.response.status) & 0xffff) << " (" << memcached_status_2_text(status) << ")" << std::endl;
-        out << "    Total body   (8-11) : 0x" << std::setw(8) << (uint64_t(ntohl(response.response.bodylen)) & 0xffff) << std::endl;
+        out << "    Total body   (8-11) : 0x" << std::setw(8)
+            << (uint64_t(response.response.getBodylen()) & 0xffff) << std::endl;
         out << "    Opaque       (12-15): 0x" << std::setw(8) << response.response.opaque << std::endl;
         out << "    CAS          (16-23): 0x" << std::setw(16) << response.response.cas << std::endl;
         out << std::setfill(' ');
@@ -463,10 +465,10 @@ protected:
     }
 
     void dumpKey(std::ostream &out) const override {
-        McbpFrame::dumpKey(
-            response.bytes + sizeof(response.bytes) + response.response.extlen,
-            ntohs(response.response.keylen),
-            out);
+        McbpFrame::dumpKey(response.bytes + sizeof(response.bytes) +
+                                   response.response.extlen,
+                           response.response.getKeylen(),
+                           out);
     }
 
     void dumpValue(std::ostream &out) const override {
@@ -492,7 +494,7 @@ protected:
     }
 
     void dumpKey(std::ostream& out) const override {
-        if (response.response.keylen != 0) {
+        if (response.response.getKeylen() != 0) {
             throw std::logic_error(
                 "HelloResponse::dumpKey(): keylen must be 0");
         }
@@ -507,7 +509,7 @@ protected:
     }
 
     void dumpSuccessValue(std::ostream& out) const {
-        uint32_t bodylen = ntohl(response.response.bodylen);
+        uint32_t bodylen = response.response.getBodylen();
 
         if ((bodylen % 2) != 0) {
             throw std::logic_error(
@@ -564,7 +566,7 @@ protected:
     }
 
     void dumpKey(std::ostream& out) const override {
-        if (response.response.keylen != 0) {
+        if (response.response.getKeylen() != 0) {
             throw std::logic_error(
                 "ListBucketsResponse::dumpKey(): keylen must be 0");
         }
@@ -573,7 +575,7 @@ protected:
     void dumpValue(std::ostream& out) const override {
         const char* payload = reinterpret_cast<const char*>(response.bytes) +
                                                 sizeof(response.bytes);
-        std::string buckets(payload, ntohl(response.response.bodylen));
+        std::string buckets(payload, response.response.getBodylen());
         out << "    Body                :" << std::endl;
 
         std::string::size_type start = 0;

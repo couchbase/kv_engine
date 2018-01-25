@@ -76,7 +76,8 @@ uint64_t recv_subdoc_response(protocol_binary_command expected_cmd,
 
     const char* val_ptr =
             receive.bytes + sizeof(*header) + header->response.extlen;
-    const size_t vallen = header->response.bodylen - header->response.extlen;
+    const size_t vallen =
+            header->response.getBodylen() - header->response.extlen;
 
     if (!expected_value.empty() &&
         (expected_cmd != PROTOCOL_BINARY_CMD_SUBDOC_EXISTS)) {
@@ -113,7 +114,7 @@ uint64_t recv_subdoc_response(
     const auto& header = receive.response.message.header;
     const char* val_ptr =
             receive.bytes + sizeof(header) + header.response.extlen;
-    const size_t vallen = header.response.bodylen + header.response.extlen;
+    const size_t vallen = header.response.getBodylen() + header.response.extlen;
 
     size_t offset = 0;
     for (unsigned int ii = 0; ii < expected_results.size(); ii++) {
@@ -200,7 +201,7 @@ uint64_t recv_subdoc_response(
     const auto& header = receive.response.message.header;
     const char* val_ptr =
             receive.bytes + sizeof(header) + header.response.extlen;
-    const size_t vallen = header.response.bodylen - header.response.extlen;
+    const size_t vallen = header.response.getBodylen() - header.response.extlen;
     std::string value(val_ptr, val_ptr + vallen);
 
     if (expected_status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {

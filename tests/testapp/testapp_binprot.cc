@@ -275,7 +275,7 @@ void mcbp_validate_arithmetic(const protocol_binary_response_incr* incr,
         case PROTOCOL_BINARY_CMD_SET:
         case PROTOCOL_BINARY_CMD_APPEND:
         case PROTOCOL_BINARY_CMD_PREPEND:
-            TESTAPP_EXPECT_EQ(result, 0, header->response.keylen);
+            TESTAPP_EXPECT_EQ(result, 0, header->response.getKeylen());
             TESTAPP_EXPECT_EQ(result,
                               PROTOCOL_BINARY_RAW_BYTES,
                               header->response.datatype);
@@ -284,25 +284,25 @@ void mcbp_validate_arithmetic(const protocol_binary_response_incr* incr,
              */
             if (mutation_seqno_enabled) {
                 TESTAPP_EXPECT_EQ(result, 16u, header->response.extlen);
-                TESTAPP_EXPECT_EQ(result, 16u, header->response.bodylen);
+                TESTAPP_EXPECT_EQ(result, 16u, header->response.getBodylen());
             } else {
                 TESTAPP_EXPECT_EQ(result, 0u, header->response.extlen);
-                TESTAPP_EXPECT_EQ(result, 0u, header->response.bodylen);
+                TESTAPP_EXPECT_EQ(result, 0u, header->response.getBodylen());
             }
             TESTAPP_EXPECT_NE(result, header->response.cas, 0u);
             break;
         case PROTOCOL_BINARY_CMD_FLUSH:
         case PROTOCOL_BINARY_CMD_NOOP:
         case PROTOCOL_BINARY_CMD_QUIT:
-            TESTAPP_EXPECT_EQ(result, 0, header->response.keylen);
+            TESTAPP_EXPECT_EQ(result, 0, header->response.getKeylen());
             TESTAPP_EXPECT_EQ(result, 0, header->response.extlen);
             TESTAPP_EXPECT_EQ(result,
                               PROTOCOL_BINARY_RAW_BYTES,
                               header->response.datatype);
-            TESTAPP_EXPECT_EQ(result, 0u, header->response.bodylen);
+            TESTAPP_EXPECT_EQ(result, 0u, header->response.getBodylen());
             break;
         case PROTOCOL_BINARY_CMD_DELETE:
-            TESTAPP_EXPECT_EQ(result, 0, header->response.keylen);
+            TESTAPP_EXPECT_EQ(result, 0, header->response.getKeylen());
             TESTAPP_EXPECT_EQ(result,
                               PROTOCOL_BINARY_RAW_BYTES,
                               header->response.datatype);
@@ -311,15 +311,15 @@ void mcbp_validate_arithmetic(const protocol_binary_response_incr* incr,
              */
             if (mutation_seqno_enabled) {
                 TESTAPP_EXPECT_EQ(result, 16u, header->response.extlen);
-                TESTAPP_EXPECT_EQ(result, 16u, header->response.bodylen);
+                TESTAPP_EXPECT_EQ(result, 16u, header->response.getBodylen());
             } else {
                 TESTAPP_EXPECT_EQ(result, 0u, header->response.extlen);
-                TESTAPP_EXPECT_EQ(result, 0u, header->response.bodylen);
+                TESTAPP_EXPECT_EQ(result, 0u, header->response.getBodylen());
             }
             break;
         case PROTOCOL_BINARY_CMD_DECREMENT:
         case PROTOCOL_BINARY_CMD_INCREMENT:
-            TESTAPP_EXPECT_EQ(result, 0, header->response.keylen);
+            TESTAPP_EXPECT_EQ(result, 0, header->response.getKeylen());
             TESTAPP_EXPECT_EQ(result,
                               PROTOCOL_BINARY_RAW_BYTES,
                               header->response.datatype);
@@ -327,10 +327,10 @@ void mcbp_validate_arithmetic(const protocol_binary_response_incr* incr,
              * is enabled. Similary, bodylen must be either 8 or 24. */
             if (mutation_seqno_enabled) {
                 TESTAPP_EXPECT_EQ(result, 16, header->response.extlen);
-                TESTAPP_EXPECT_EQ(result, 24u, header->response.bodylen);
+                TESTAPP_EXPECT_EQ(result, 24u, header->response.getBodylen());
             } else {
                 TESTAPP_EXPECT_EQ(result, 0u, header->response.extlen);
-                TESTAPP_EXPECT_EQ(result, 8u, header->response.bodylen);
+                TESTAPP_EXPECT_EQ(result, 8u, header->response.getBodylen());
             }
             TESTAPP_EXPECT_NE(result, 0u, header->response.cas);
             break;
@@ -342,18 +342,18 @@ void mcbp_validate_arithmetic(const protocol_binary_response_incr* incr,
             break;
 
         case PROTOCOL_BINARY_CMD_VERSION:
-            TESTAPP_EXPECT_EQ(result, 0, header->response.keylen);
+            TESTAPP_EXPECT_EQ(result, 0, header->response.getKeylen());
             TESTAPP_EXPECT_EQ(result, 0, header->response.extlen);
             TESTAPP_EXPECT_EQ(result,
                               PROTOCOL_BINARY_RAW_BYTES,
                               header->response.datatype);
-            TESTAPP_EXPECT_NE(result, 0u, header->response.bodylen);
+            TESTAPP_EXPECT_NE(result, 0u, header->response.getBodylen());
             TESTAPP_EXPECT_EQ(result, 0u, header->response.cas);
             break;
 
         case PROTOCOL_BINARY_CMD_GET:
         case PROTOCOL_BINARY_CMD_GETQ:
-            TESTAPP_EXPECT_EQ(result, 0, header->response.keylen);
+            TESTAPP_EXPECT_EQ(result, 0, header->response.getKeylen());
             TESTAPP_EXPECT_EQ(result, 4, header->response.extlen);
             // Datatype depends on the document fetched / if Hello::JSON
             // negotiated - should be checked by caller.
@@ -362,27 +362,27 @@ void mcbp_validate_arithmetic(const protocol_binary_response_incr* incr,
 
         case PROTOCOL_BINARY_CMD_GETK:
         case PROTOCOL_BINARY_CMD_GETKQ:
-            TESTAPP_EXPECT_NE(result, 0, header->response.keylen);
+            TESTAPP_EXPECT_NE(result, 0, header->response.getKeylen());
             TESTAPP_EXPECT_EQ(result, 4, header->response.extlen);
             // Datatype depends on the document fetched / if Hello::JSON
             // negotiated - should be checked by caller.
             TESTAPP_EXPECT_NE(result, 0u, header->response.cas);
             break;
         case PROTOCOL_BINARY_CMD_SUBDOC_GET:
-            TESTAPP_EXPECT_EQ(result, 0, header->response.keylen);
+            TESTAPP_EXPECT_EQ(result, 0, header->response.getKeylen());
             TESTAPP_EXPECT_EQ(result, 0, header->response.extlen);
             // Datatype depends on the document fetched / if Hello::JSON
             // negotiated - should be checked by caller.
-            TESTAPP_EXPECT_NE(result, 0u, header->response.bodylen);
+            TESTAPP_EXPECT_NE(result, 0u, header->response.getBodylen());
             TESTAPP_EXPECT_NE(result, 0u, header->response.cas);
             break;
         case PROTOCOL_BINARY_CMD_SUBDOC_EXISTS:
-            TESTAPP_EXPECT_EQ(result, 0, header->response.keylen);
+            TESTAPP_EXPECT_EQ(result, 0, header->response.getKeylen());
             TESTAPP_EXPECT_EQ(result, 0, header->response.extlen);
             TESTAPP_EXPECT_EQ(result,
                               PROTOCOL_BINARY_RAW_BYTES,
                               header->response.datatype);
-            TESTAPP_EXPECT_EQ(result, 0u, header->response.bodylen);
+            TESTAPP_EXPECT_EQ(result, 0u, header->response.getBodylen());
             TESTAPP_EXPECT_NE(result, 0u, header->response.cas);
             break;
         case PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD:
@@ -391,7 +391,7 @@ void mcbp_validate_arithmetic(const protocol_binary_response_incr* incr,
         case PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST:
         case PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT:
         case PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE:
-            TESTAPP_EXPECT_EQ(result, 0, header->response.keylen);
+            TESTAPP_EXPECT_EQ(result, 0, header->response.getKeylen());
             TESTAPP_EXPECT_EQ(result,
                               PROTOCOL_BINARY_RAW_BYTES,
                               header->response.datatype);
@@ -401,42 +401,42 @@ void mcbp_validate_arithmetic(const protocol_binary_response_incr* incr,
              */
             if (mutation_seqno_enabled) {
                 TESTAPP_EXPECT_EQ(result, 16, header->response.extlen);
-                TESTAPP_EXPECT_EQ(result, 16u, header->response.bodylen);
+                TESTAPP_EXPECT_EQ(result, 16u, header->response.getBodylen());
             } else {
                 TESTAPP_EXPECT_EQ(result, 0u, header->response.extlen);
-                TESTAPP_EXPECT_EQ(result, 0u, header->response.bodylen);
+                TESTAPP_EXPECT_EQ(result, 0u, header->response.getBodylen());
             }
             TESTAPP_EXPECT_NE(result, 0u, header->response.cas);
             break;
         case PROTOCOL_BINARY_CMD_SUBDOC_COUNTER:
-            TESTAPP_EXPECT_EQ(result, 0, header->response.keylen);
+            TESTAPP_EXPECT_EQ(result, 0, header->response.getKeylen());
             // Datatype depends on the document fetched / if Hello::JSON
             // negotiated - should be checked by caller.
 
             if (mutation_seqno_enabled) {
                 TESTAPP_EXPECT_EQ(result, 16, header->response.extlen);
-                TESTAPP_EXPECT_GT(result, header->response.bodylen, 16u);
+                TESTAPP_EXPECT_GT(result, header->response.getBodylen(), 16u);
             } else {
                 TESTAPP_EXPECT_EQ(result, 0u, header->response.extlen);
-                TESTAPP_EXPECT_NE(result, 0u, header->response.bodylen);
+                TESTAPP_EXPECT_NE(result, 0u, header->response.getBodylen());
             }
             TESTAPP_EXPECT_NE(result, 0u, header->response.cas);
             break;
 
         case PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP:
-            TESTAPP_EXPECT_EQ(result, 0, header->response.keylen);
+            TESTAPP_EXPECT_EQ(result, 0, header->response.getKeylen());
             TESTAPP_EXPECT_EQ(result, 0, header->response.extlen);
             // Datatype of a multipath body is RAW_BYTES, as the body is
             // a binary structure packing multiple (JSON) fragments.
             TESTAPP_EXPECT_EQ(result,
                               PROTOCOL_BINARY_RAW_BYTES,
                               header->response.datatype);
-            TESTAPP_EXPECT_NE(result, 0u, header->response.bodylen);
+            TESTAPP_EXPECT_NE(result, 0u, header->response.getBodylen());
             TESTAPP_EXPECT_NE(result, 0u, header->response.cas);
             break;
 
         case PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION:
-            TESTAPP_EXPECT_EQ(result, 0, header->response.keylen);
+            TESTAPP_EXPECT_EQ(result, 0, header->response.getKeylen());
             // Datatype of a multipath body is RAW_BYTES, as the body is
             // a binary structure packing multiple results.
             TESTAPP_EXPECT_EQ(result,
@@ -447,10 +447,10 @@ void mcbp_validate_arithmetic(const protocol_binary_response_incr* incr,
              */
             if (mutation_seqno_enabled) {
                 TESTAPP_EXPECT_EQ(result, 16, header->response.extlen);
-                TESTAPP_EXPECT_GE(result, header->response.bodylen, 16u);
+                TESTAPP_EXPECT_GE(result, header->response.getBodylen(), 16u);
             } else {
                 TESTAPP_EXPECT_EQ(result, 0u, header->response.extlen);
-                TESTAPP_EXPECT_GE(result, header->response.bodylen, 0u);
+                TESTAPP_EXPECT_GE(result, header->response.getBodylen(), 0u);
             }
             TESTAPP_EXPECT_NE(result, 0u, header->response.cas);
             break;
@@ -467,7 +467,7 @@ void mcbp_validate_arithmetic(const protocol_binary_response_incr* incr,
         TESTAPP_EXPECT_EQ(result, 0u, header->response.cas);
         TESTAPP_EXPECT_EQ(result, 0, header->response.extlen);
         if (cmd != PROTOCOL_BINARY_CMD_GETK) {
-            TESTAPP_EXPECT_EQ(result, 0, header->response.keylen);
+            TESTAPP_EXPECT_EQ(result, 0, header->response.getKeylen());
         }
     }
     return result.result();

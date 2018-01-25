@@ -2958,7 +2958,7 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
         memcpy(pkt->bytes + headerlen, &rollbackSeqno, bodylen);
     }
 
-    pkt->response.bodylen = htonl(bodylen);
+    pkt->response.setBodylen(bodylen);
 
     if (response == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
         uint64_t vb_uuid = htonll(123456789);
@@ -2988,7 +2988,7 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
         pkt->response.opcode = PROTOCOL_BINARY_CMD_DCP_STREAM_REQ;
         pkt->response.status = htons(PROTOCOL_BINARY_RESPONSE_SUCCESS);
         pkt->response.opaque = dcp_last_opaque;
-        pkt->response.bodylen = htonl(16);
+        pkt->response.setBodylen(16);
 
         uint64_t vb_uuid = htonll(123456789);
         uint64_t by_seqno = 0;
@@ -3551,7 +3551,7 @@ static enum test_result test_chk_manager_rollback(ENGINE_HANDLE *h,
     pkt->response.opcode = PROTOCOL_BINARY_CMD_DCP_STREAM_REQ;
     pkt->response.status = htons(PROTOCOL_BINARY_RESPONSE_ROLLBACK);
     pkt->response.opaque = stream_opaque;
-    pkt->response.bodylen = htonl(8);
+    pkt->response.setBodylen(8);
     memcpy(pkt->bytes + 24, &rollbackSeqno, sizeof(uint64_t));
 
     checkeq(ENGINE_SUCCESS,
@@ -3576,7 +3576,7 @@ static enum test_result test_chk_manager_rollback(ENGINE_HANDLE *h,
     pkt->response.opcode = PROTOCOL_BINARY_CMD_DCP_STREAM_REQ;
     pkt->response.status = htons(PROTOCOL_BINARY_RESPONSE_SUCCESS);
     pkt->response.opaque = stream_opaque;
-    pkt->response.bodylen = htonl(16);
+    pkt->response.setBodylen(16);
     memcpy(pkt->bytes + 24, &vb_uuid, sizeof(uint64_t));
     memcpy(pkt->bytes + 22, &by_seqno, sizeof(uint64_t));
 
@@ -3645,7 +3645,7 @@ static enum test_result test_fullrollback_for_consumer(ENGINE_HANDLE *h,
     pkt1->response.magic = PROTOCOL_BINARY_RES;
     pkt1->response.opcode = PROTOCOL_BINARY_CMD_DCP_STREAM_REQ;
     pkt1->response.status = htons(PROTOCOL_BINARY_RESPONSE_ROLLBACK);
-    pkt1->response.bodylen = htonl(bodylen);
+    pkt1->response.setBodylen(bodylen);
     pkt1->response.opaque = dcp_last_opaque;
     memcpy(pkt1->bytes + headerlen, &rollbackSeqno, bodylen);
 
@@ -3667,7 +3667,7 @@ static enum test_result test_fullrollback_for_consumer(ENGINE_HANDLE *h,
     pkt2->response.opcode = PROTOCOL_BINARY_CMD_DCP_STREAM_REQ;
     pkt2->response.status = htons(PROTOCOL_BINARY_RESPONSE_SUCCESS);
     pkt2->response.opaque = dcp_last_opaque;
-    pkt2->response.bodylen = htonl(bodylen);
+    pkt2->response.setBodylen(bodylen);
     uint64_t vb_uuid = htonll(123456789);
     uint64_t by_seqno = 0;
     memcpy(pkt2->bytes + headerlen, &vb_uuid, sizeof(uint64_t));
@@ -3760,7 +3760,7 @@ static enum test_result test_partialrollback_for_consumer(ENGINE_HANDLE *h,
     pkt1->response.magic = PROTOCOL_BINARY_RES;
     pkt1->response.opcode = PROTOCOL_BINARY_CMD_DCP_STREAM_REQ;
     pkt1->response.status = htons(PROTOCOL_BINARY_RESPONSE_ROLLBACK);
-    pkt1->response.bodylen = htonl(bodylen);
+    pkt1->response.setBodylen(bodylen);
     pkt1->response.opaque = dcp_last_opaque;
     uint64_t rollbackPt = htonll(rollbackSeqno);
     memcpy(pkt1->bytes + headerlen, &rollbackPt, bodylen);
@@ -3780,7 +3780,7 @@ static enum test_result test_partialrollback_for_consumer(ENGINE_HANDLE *h,
     pkt2->response.opcode = PROTOCOL_BINARY_CMD_DCP_STREAM_REQ;
     pkt2->response.status = htons(PROTOCOL_BINARY_RESPONSE_SUCCESS);
     pkt2->response.opaque = dcp_last_opaque;
-    pkt2->response.bodylen = htonl(bodylen);
+    pkt2->response.setBodylen(bodylen);
     uint64_t vb_uuid = htonll(123456789);
     uint64_t by_seqno = 0;
     memcpy(pkt2->bytes + headerlen, &vb_uuid, sizeof(uint64_t));

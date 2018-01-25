@@ -399,7 +399,7 @@ public:
         p->message.header.response.status =
                 htons(PROTOCOL_BINARY_RESPONSE_ROLLBACK);
         p->message.header.response.opaque = opaque;
-        p->message.header.response.bodylen = htonl(sizeof(uint64_t));
+        p->message.header.response.setBodylen(sizeof(uint64_t));
 
         auto* seq = reinterpret_cast<uint64_t*>(p + 1);
         *seq = htonll(rollbackSeq);
