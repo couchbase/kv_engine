@@ -187,9 +187,8 @@ boost::optional<std::string> cb::logger::initialize(
         return boost::optional<std::string>{msg};
     }
 
+    file_logger->set_pattern(log_pattern);
     file_logger->set_level(convertToSpdSeverity(sapi->log->get_level()));
-    spdlog::set_pattern(log_pattern);
-
     descriptor.get_name = get_name;
     descriptor.log = log;
     descriptor.shutdown = logger_shutdown;
