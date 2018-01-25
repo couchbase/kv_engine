@@ -17,13 +17,11 @@
 #pragma once
 
 #include "config.h"
-#include "datatype.h"
-
 #include <mcbp/protocol/magic.h>
 #include <mcbp/protocol/opcode.h>
 #include <platform/sized_buffer.h>
-
 #include <cstdint>
+#include "datatype.h"
 
 namespace cb {
 namespace mcbp {
@@ -66,8 +64,10 @@ struct Response {
     }
 
     ClientOpcode getClientOpcode() const {
-        if (getMagic() != Magic::ClientResponse) {
-            throw std::logic_error("getClientOpcode: magic != client response");
+        if (getMagic() != Magic::ClientResponse &&
+            getMagic() != Magic::AltClientResponse) {
+            throw std::logic_error(
+                    "getClientOpcode: magic != [Alt]client response");
         }
         return ClientOpcode(opcode);
     }
@@ -84,9 +84,20 @@ struct Response {
         return ServerOpcode(opcode);
     }
 
+    bool isAltClientResponse() const {
+        return getMagic() == Magic::AltClientResponse;
+    }
+
+    uint8_t getFramingExtraslen() const {
+        if (!isAltClientResponse()) {
+            return 0;
+        }
+        return begin()[2];
+    }
+
     uint16_t getKeylen() const {
-        if (getMagic() == Magic::AltClientResponse) {
-            return reinterpret_cast<const uint8_t*>(this)[3];
+        if (isAltClientResponse()) {
+            return begin()[3];
         }
         return ntohs(keylen);
     }
@@ -147,18 +158,50 @@ struct Response {
         cas = htonll(val);
     }
 
+    uint32_t getValuelen() const {
+        return getBodylen() -
+               (getKeylen() + getExtlen() + getFramingExtraslen());
+    }
+
+    size_t getHeaderlen() const {
+        return sizeof(*this);
+    }
+
+    // offsets from payload begin
+    const uint8_t* begin() const {
+        return reinterpret_cast<const uint8_t*>(this);
+    }
+
+    size_t getFramingExtrasOffset() const {
+        return getHeaderlen();
+    }
+
+    size_t getExtOffset() const {
+        return getFramingExtrasOffset() + getFramingExtraslen();
+    }
+
+    size_t getKeyOffset() const {
+        return getExtOffset() + getExtlen();
+    }
+
+    size_t getValueOffset() const {
+        return getKeyOffset() + getKeylen();
+    }
+
+    cb::const_byte_buffer getFramingExtras() const {
+        return {begin() + getFramingExtrasOffset(), getFramingExtraslen()};
+    }
+
     cb::const_byte_buffer getKey() const {
-        return {reinterpret_cast<const uint8_t*>(this) + sizeof(*this) + extlen,
-                getKeylen()};
+        return {begin() + getKeyOffset(), getKeylen()};
     }
 
     cb::const_byte_buffer getExtdata() const {
-        return {reinterpret_cast<const uint8_t*>(this) + sizeof(*this), extlen};
+        return {begin() + getExtOffset(), getExtlen()};
     }
 
     cb::const_byte_buffer getValue() const {
-        const auto buf = getKey();
-        return {buf.data() + buf.size(), getBodylen() - getKeylen() - extlen};
+        return {begin() + getValueOffset(), getValuelen()};
     }
 
     /**
@@ -167,11 +210,14 @@ struct Response {
      */
     bool validate() const {
         auto m = Magic(magic);
-        if (m != Magic::ClientResponse && m != Magic::ServerResponse) {
+        if (m != Magic::ClientResponse && m != Magic::ServerResponse &&
+            m != Magic::AltClientResponse) {
             return false;
         }
 
-        return (size_t(extlen) + size_t(getKeylen()) <= size_t(getBodylen()));
+        return (size_t(getExtlen()) +
+                        size_t(getKeylen() + getFramingExtraslen()) <=
+                size_t(getBodylen()));
     }
 };
 
