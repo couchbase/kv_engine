@@ -58,8 +58,8 @@ private:
     // Calculate the full filename to use the next time
     spdlog::filename_t calc_filename();
 
-    spdlog::filename_t _base_filename;
-    std::size_t _max_size;
+    const spdlog::filename_t _base_filename;
+    const std::size_t _max_size;
     std::size_t _current_size;
     std::unique_ptr<spdlog::details::file_helper> _file_helper;
     spdlog::formatter_ptr formatter;
