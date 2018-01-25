@@ -34,12 +34,6 @@
 static SERVER_HANDLE_V1* sapi;
 static EXTENSION_LOGGER_DESCRIPTOR descriptor;
 
-/* Max suffix appended to the log file name.
- * The actual max no. of files is (max_files + 1), because the numbering starts
- * from the base file name (aka 0) eg. (file, file.1, ..., file.100)
- */
-static size_t max_files = 100;
-
 /* Custom log pattern which the loggers will use.
  * This pattern is duplicated for some test cases. If you need to update it,
  * please also update in all relevant places.
@@ -170,7 +164,7 @@ boost::optional<std::string> cb::logger::initialize(
     try {
         auto sink = std::make_shared<spdlog::sinks::dist_sink_mt>();
         sink->add_sink(std::make_shared<custom_rotating_file_sink_mt>(
-                fname, cyclesz, max_files, log_pattern));
+                fname, cyclesz, log_pattern));
 
         auto stderrsink = std::make_shared<spdlog::sinks::stderr_sink_mt>();
         stderrsink->set_level(spdlog::level::warn);

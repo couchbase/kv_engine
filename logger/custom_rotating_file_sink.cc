@@ -58,11 +58,9 @@ template <class Mutex>
 custom_rotating_file_sink<Mutex>::custom_rotating_file_sink(
         const spdlog::filename_t& base_filename,
         std::size_t max_size,
-        std::size_t max_files,
         const std::string& log_pattern)
     : _base_filename(base_filename),
       _max_size(max_size),
-      _max_files(max_files),
       _current_size(0),
       _file_helper(std::make_unique<spdlog::details::file_helper>()),
       _next_file_id(find_first_logfile_id(base_filename)) {

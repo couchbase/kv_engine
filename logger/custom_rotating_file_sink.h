@@ -45,7 +45,6 @@ class custom_rotating_file_sink : public spdlog::sinks::base_sink<Mutex> {
 public:
     custom_rotating_file_sink(const spdlog::filename_t& base_filename,
                               std::size_t max_size,
-                              std::size_t max_files,
                               const std::string& log_pattern);
 
     ~custom_rotating_file_sink() override;
@@ -61,7 +60,6 @@ private:
 
     spdlog::filename_t _base_filename;
     std::size_t _max_size;
-    std::size_t _max_files;
     std::size_t _current_size;
     std::unique_ptr<spdlog::details::file_helper> _file_helper;
     spdlog::formatter_ptr formatter;
