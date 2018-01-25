@@ -747,7 +747,7 @@ bool DcpConsumer::handleResponse(const protocol_binary_response_header* resp) {
 
         uint16_t vbid = oitr->second.second;
         uint16_t status = ntohs(pkt->message.header.response.status);
-        uint64_t bodylen = ntohl(pkt->message.header.response.bodylen);
+        uint64_t bodylen = pkt->message.header.response.getBodylen();
         const uint8_t* body =
                 pkt->bytes + sizeof(protocol_binary_response_header);
 

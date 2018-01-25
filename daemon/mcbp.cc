@@ -63,7 +63,7 @@ static cb::const_byte_buffer mcbp_add_header(Cookie& cookie,
 
         header->bytes[2] = framing_extras_size; // framing header extras 3 bytes
         header->bytes[3] = uint8_t(key_len);
-        header->response.bodylen = htonl(body_len + framing_extras_size);
+        header->response.setBodylen(body_len + framing_extras_size);
 
         auto& tracer = cookie.getTracer();
         const auto val = htons(tracer.getEncodedMicros());
@@ -75,8 +75,8 @@ static cb::const_byte_buffer mcbp_add_header(Cookie& cookie,
         return {wbuf.data(), sizeof(header->bytes) + framing_extras_size};
     } else {
         header->response.magic = (uint8_t)PROTOCOL_BINARY_RES;
-        header->response.keylen = (uint16_t)htons(key_len);
-        header->response.bodylen = htonl(body_len);
+        header->response.setKeylen(key_len);
+        header->response.setBodylen(body_len);
     }
 
     pipe.produced(sizeof(header->bytes));
