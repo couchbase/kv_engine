@@ -34,13 +34,14 @@
 static SERVER_HANDLE_V1* sapi;
 static EXTENSION_LOGGER_DESCRIPTOR descriptor;
 
-/* Custom log pattern which the loggers will use.
+/**
+ * Custom log pattern which the loggers will use.
  * This pattern is duplicated for some test cases. If you need to update it,
  * please also update in all relevant places.
  * TODO: Remove the duplication in the future, by (maybe) moving
  *       the const to a header file.
  */
-const std::string log_pattern{"%Y-%m-%dT%T.%fZ %l %v"};
+static const std::string log_pattern{"%Y-%m-%dT%T.%fZ %l %v"};
 
 static const spdlog::level::level_enum convertToSpdSeverity(
         EXTENSION_LOG_LEVEL sev) {
@@ -60,7 +61,7 @@ static const spdlog::level::level_enum convertToSpdSeverity(
     throw std::invalid_argument("Unknown severity level");
 }
 
-/*
+/**
  * Instances of spdlog (async) file logger.
  * The files logger requires a rotating file sink which is manually configured
  * from the parsed settings.
@@ -70,12 +71,13 @@ static const spdlog::level::level_enum convertToSpdSeverity(
  */
 static std::shared_ptr<spdlog::logger> file_logger;
 
-/* Returns the name of the file logger */
+/** Returns the name of the file logger */
 static const char* get_name() {
     return file_logger->name().c_str();
 }
 
-/* Retrieves a message, applies formatting and then logs it to stderr and
+/**
+ * Retrieves a message, applies formatting and then logs it to stderr and
  * to file, according to the severity.
  */
 static void log(EXTENSION_LOG_LEVEL mcd_severity,
@@ -111,7 +113,8 @@ static void log(EXTENSION_LOG_LEVEL mcd_severity,
     file_logger->log(severity, msg);
 }
 
-/* (Synchronously) flushes  all the messages in the loggers' queue
+/**
+ * (Synchronously) flushes  all the messages in the loggers' queue
  * and dereferences the loggers.
  */
 static void logger_shutdown(bool force) {
@@ -134,7 +137,8 @@ static void on_log_level(const void* cookie,
     }
 }
 
-/* Initialises the loggers. Called if the logger configuration is
+/**
+ * Initialises the loggers. Called if the logger configuration is
  * specified in a separate settings object.
  */
 boost::optional<std::string> cb::logger::initialize(
