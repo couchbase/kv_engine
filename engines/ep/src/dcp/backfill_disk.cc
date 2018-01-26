@@ -226,11 +226,14 @@ backfill_status_t DCPBackfillDisk::create() {
         stream->markDiskSnapshot(startSeqno, scanCtx->maxSeqno);
         transitionState(backfill_state_scanning);
     } else {
+        auto vb = engine.getVBucket(vbid);
         stream->log(EXTENSION_LOG_WARNING,
                     "DCPBackfillDisk::create(): "
                     "(vb:%d) backfill create ended prematurely as the disk "
-                    "cannot be scanned. Associated stream is set to dead state",
-                    getVBucketId());
+                    "cannot be scanned. Associated stream is set to dead state"
+                    ". The vbucket state: %s",
+                    getVBucketId(),
+                    vb ? VBucket::toString(vb->getState()) : "vb not found!!");
         stream->setDead(END_STREAM_BACKFILL_FAIL);
         transitionState(backfill_state_done);
     }

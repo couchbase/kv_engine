@@ -241,7 +241,7 @@ VBucket::~VBucket() {
     stats.memOverhead->fetch_sub(sizeof(VBucket) + ht.memorySize() +
                                 sizeof(CheckpointManager));
 
-    LOG(EXTENSION_LOG_INFO, "Destroying vbucket %d\n", id);
+    LOG(EXTENSION_LOG_NOTICE, "Destroying vbucket %d\n", id);
 }
 
 int64_t VBucket::getHighSeqno() const {
