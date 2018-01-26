@@ -19,61 +19,119 @@
 #include "utilities.h"
 #include "../../mcbp.h"
 
+static ENGINE_ERROR_CODE dcp_deletion_v1_executor(
+        Cookie& cookie, const protocol_binary_request_dcp_deletion& request) {
+    const uint16_t nkey = ntohs(request.message.header.request.keylen);
+    // The V1 delete is not collection aware, so lock to the DefaultCollection
+    const DocKey key{request.bytes + sizeof(request.bytes),
+                     nkey,
+                     DocNamespace::DefaultCollection};
+
+    const auto opaque = request.message.header.request.opaque;
+    const auto datatype = request.message.header.request.datatype;
+    const uint64_t cas = ntohll(request.message.header.request.cas);
+    const uint16_t vbucket = ntohs(request.message.header.request.vbucket);
+    const uint64_t by_seqno = ntohll(request.message.body.by_seqno);
+    const uint64_t rev_seqno = ntohll(request.message.body.rev_seqno);
+    const uint16_t nmeta = ntohs(request.message.body.nmeta);
+    const uint32_t valuelen = ntohl(request.message.header.request.bodylen) -
+                              nkey - request.message.header.request.extlen -
+                              nmeta;
+    cb::const_byte_buffer value{request.bytes + sizeof(request.bytes) + nkey,
+                                valuelen};
+    cb::const_byte_buffer meta{value.buf + valuelen, nmeta};
+    uint32_t priv_bytes = 0;
+    if (mcbp::datatype::is_xattr(datatype)) {
+        priv_bytes = valuelen;
+    }
+    if (priv_bytes <= COUCHBASE_MAX_ITEM_PRIVILEGED_BYTES) {
+        auto& connection = cookie.getConnection();
+        return connection.getBucketEngine()->dcp.deletion(
+                connection.getBucketEngineAsV0(),
+                &cookie,
+                opaque,
+                key,
+                value,
+                priv_bytes,
+                datatype,
+                cas,
+                vbucket,
+                by_seqno,
+                rev_seqno,
+                meta);
+    } else {
+        return ENGINE_E2BIG;
+    }
+    return ENGINE_DISCONNECT;
+}
+
+// The updated deletion sends no extended meta, but does send a deletion time
+// and the collection_len
+static ENGINE_ERROR_CODE dcp_deletion_v2_executor(
+        Cookie& cookie,
+        const protocol_binary_request_dcp_deletion_v2& request) {
+    const uint16_t nkey = ntohs(request.message.header.request.keylen);
+    auto& connection = cookie.getConnection();
+    const DocKey key{request.bytes + sizeof(request.bytes),
+                     nkey,
+                     connection.getDocNamespaceForDcpMessage(
+                             request.message.body.collection_len)};
+
+    const auto opaque = request.message.header.request.opaque;
+    const auto datatype = request.message.header.request.datatype;
+    const uint64_t cas = ntohll(request.message.header.request.cas);
+    const uint16_t vbucket = ntohs(request.message.header.request.vbucket);
+    const uint64_t by_seqno = ntohll(request.message.body.by_seqno);
+    const uint64_t rev_seqno = ntohll(request.message.body.rev_seqno);
+    const uint32_t delete_time = ntohl(request.message.body.delete_time);
+    const uint32_t valuelen = ntohl(request.message.header.request.bodylen) -
+                              nkey - request.message.header.request.extlen;
+    cb::const_byte_buffer value{request.bytes + sizeof(request.bytes) + nkey,
+                                valuelen};
+    uint32_t priv_bytes = 0;
+    if (mcbp::datatype::is_xattr(datatype)) {
+        priv_bytes = valuelen;
+    }
+
+    if (priv_bytes <= COUCHBASE_MAX_ITEM_PRIVILEGED_BYTES) {
+        return connection.getBucketEngine()->dcp.deletion_v2(
+                connection.getBucketEngineAsV0(),
+                &cookie,
+                opaque,
+                key,
+                value,
+                priv_bytes,
+                datatype,
+                cas,
+                vbucket,
+                by_seqno,
+                rev_seqno,
+                delete_time);
+    } else {
+        return ENGINE_E2BIG;
+    }
+}
+
 void dcp_deletion_executor(Cookie& cookie) {
     auto packet = cookie.getPacket(Cookie::PacketContent::Full);
-    const auto* req =
-            reinterpret_cast<const protocol_binary_request_dcp_deletion*>(
-                    packet.data());
 
     auto& connection = cookie.getConnection();
 
     auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
 
     if (ret == ENGINE_SUCCESS) {
-        // Collection aware DCP will be sending the collection_len field, so
-        // only read for collection-aware DCP
-        const auto body_offset =
-                protocol_binary_request_dcp_deletion::getHeaderLength(
-                        connection.isDcpCollectionAware());
-
-        const uint16_t nkey = ntohs(req->message.header.request.keylen);
-        const DocKey key{req->bytes + body_offset,
-                         nkey,
-                         connection.getDocNamespaceForDcpMessage(
-                                 req->message.body.collection_len)};
-        const auto opaque = req->message.header.request.opaque;
-        const auto datatype = req->message.header.request.datatype;
-        const uint64_t cas = ntohll(req->message.header.request.cas);
-        const uint16_t vbucket = ntohs(req->message.header.request.vbucket);
-        const uint64_t by_seqno = ntohll(req->message.body.by_seqno);
-        const uint64_t rev_seqno = ntohll(req->message.body.rev_seqno);
-        const uint16_t nmeta = ntohs(req->message.body.nmeta);
-        const uint32_t valuelen = ntohl(req->message.header.request.bodylen) -
-                                  nkey - req->message.header.request.extlen -
-                                  nmeta;
-        cb::const_byte_buffer value{req->bytes + body_offset + nkey, valuelen};
-        cb::const_byte_buffer meta{value.buf + valuelen, nmeta};
-        uint32_t priv_bytes = 0;
-        if (mcbp::datatype::is_xattr(datatype)) {
-            priv_bytes = valuelen;
-        }
-
-        if (priv_bytes > COUCHBASE_MAX_ITEM_PRIVILEGED_BYTES) {
-            ret = ENGINE_E2BIG;
+        if (connection.isDcpDeleteV2()) {
+            ret = dcp_deletion_v2_executor(
+                    cookie,
+                    *reinterpret_cast<
+                            const protocol_binary_request_dcp_deletion_v2*>(
+                            packet.data()));
         } else {
-            ret = connection.getBucketEngine()->dcp.deletion(
-                    connection.getBucketEngineAsV0(),
-                    &cookie,
-                    opaque,
-                    key,
-                    value,
-                    priv_bytes,
-                    datatype,
-                    cas,
-                    vbucket,
-                    by_seqno,
-                    rev_seqno,
-                    meta);
+            ret = dcp_deletion_v1_executor(
+                    cookie,
+                    *reinterpret_cast<
+                            const protocol_binary_request_dcp_deletion*>(
+                            packet.data()));
         }
     }
 

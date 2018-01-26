@@ -1616,8 +1616,8 @@ union protocol_binary_request_dcp_mutation {
 };
 
 union protocol_binary_request_dcp_deletion {
-    protocol_binary_request_dcp_deletion(bool collectionsAware,
-                                         uint32_t opaque,
+    static constexpr size_t extlen = 18;
+    protocol_binary_request_dcp_deletion(uint32_t opaque,
                                          uint16_t vbucket,
                                          uint64_t cas,
                                          uint16_t keyLen,
@@ -1625,16 +1625,15 @@ union protocol_binary_request_dcp_deletion {
                                          protocol_binary_datatype_t datatype,
                                          uint64_t bySeqno,
                                          uint64_t revSeqno,
-                                         uint16_t nmeta,
-                                         uint8_t collectionLen) {
+                                         uint16_t nmeta) {
         auto& req = message.header.request;
         req.magic = (uint8_t)PROTOCOL_BINARY_REQ;
-        // Not setting opcode as this can be expiration or delete
+        req.opcode = (uint8_t)PROTOCOL_BINARY_CMD_DCP_DELETION;
         req.opaque = opaque;
         req.vbucket = htons(vbucket);
         req.cas = htonll(cas);
         req.keylen = htons(keyLen);
-        req.extlen = getExtrasLength(collectionsAware);
+        req.extlen = extlen;
         req.bodylen = ntohl(req.extlen + keyLen + nmeta + valueLen);
         req.datatype = datatype;
 
@@ -1642,6 +1641,45 @@ union protocol_binary_request_dcp_deletion {
         body.by_seqno = htonll(bySeqno);
         body.rev_seqno = htonll(revSeqno);
         body.nmeta = htons(nmeta);
+    }
+    struct {
+        protocol_binary_request_header header;
+        struct {
+            uint64_t by_seqno;
+            uint64_t rev_seqno;
+            uint16_t nmeta;
+        } body;
+    } message;
+    uint8_t bytes[sizeof(protocol_binary_request_header) + extlen];
+};
+
+union protocol_binary_request_dcp_deletion_v2 {
+    static constexpr size_t extlen = 21;
+    protocol_binary_request_dcp_deletion_v2(uint32_t opaque,
+                                            uint16_t vbucket,
+                                            uint64_t cas,
+                                            uint16_t keyLen,
+                                            uint32_t valueLen,
+                                            protocol_binary_datatype_t datatype,
+                                            uint64_t bySeqno,
+                                            uint64_t revSeqno,
+                                            uint32_t deleteTime,
+                                            uint8_t collectionLen) {
+        auto& req = message.header.request;
+        req.magic = (uint8_t)PROTOCOL_BINARY_REQ;
+        req.opcode = (uint8_t)PROTOCOL_BINARY_CMD_DCP_DELETION;
+        req.opaque = opaque;
+        req.vbucket = htons(vbucket);
+        req.cas = htonll(cas);
+        req.keylen = htons(keyLen);
+        req.extlen = extlen;
+        req.bodylen = ntohl(req.extlen + keyLen + valueLen);
+        req.datatype = datatype;
+
+        auto& body = message.body;
+        body.by_seqno = htonll(bySeqno);
+        body.rev_seqno = htonll(revSeqno);
+        body.delete_time = htonl(deleteTime);
         body.collection_len = collectionLen;
     }
 
@@ -1650,30 +1688,11 @@ union protocol_binary_request_dcp_deletion {
         struct {
             uint64_t by_seqno;
             uint64_t rev_seqno;
-            uint16_t nmeta;
+            uint32_t delete_time;
             uint8_t collection_len;
         } body;
     } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) + 19];
-
-    static size_t getExtrasLength(bool collectionsAware) {
-        if (collectionsAware) {
-            return (2 * sizeof(uint64_t)) + sizeof(uint16_t) +
-                   (1 * sizeof(uint8_t));
-        } else {
-            return (2 * sizeof(uint64_t)) + sizeof(uint16_t);
-        }
-    }
-
-    /**
-     * Retrieve the size of a dcp mutation header - all the non variable
-     * data of the packet. The size of a collectionAware DCP stream deletion
-     * differs to that of legacy DCP streams.
-     */
-    static size_t getHeaderLength(bool collectionsAware) {
-        return sizeof(protocol_binary_request_header) +
-               getExtrasLength(collectionsAware);
-    }
+    uint8_t bytes[sizeof(protocol_binary_request_header) + extlen];
 };
 
 union protocol_binary_request_dcp_expiration {

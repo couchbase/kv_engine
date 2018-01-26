@@ -215,7 +215,8 @@ static ENGINE_ERROR_CODE mock_deletion(gsl::not_null<const void*> cookie,
                                        const void* meta,
                                        uint16_t nmeta,
                                        uint32_t deleteTime,
-                                       uint8_t collectionLen) {
+                                       uint8_t collectionLen,
+                                       uint32_t extlen) {
     (void) cookie;
     clear_dcp_data();
     Item* item = reinterpret_cast<Item*>(itm);
@@ -229,9 +230,9 @@ static ENGINE_ERROR_CODE mock_deletion(gsl::not_null<const void*> cookie,
     dcp_last_meta.assign(static_cast<const char*>(meta), nmeta);
 
     // @todo: MB-24391 as above.
-    dcp_last_packet_size = dcp_last_key.length() + item->getNBytes() + nmeta;
-    dcp_last_packet_size +=
-            protocol_binary_request_dcp_deletion::getHeaderLength(false);
+    dcp_last_packet_size = sizeof(protocol_binary_request_header) +
+                           dcp_last_key.length() + item->getNBytes() + nmeta;
+    dcp_last_packet_size += extlen;
 
     dcp_last_value.assign(static_cast<const char*>(item->getData()),
                           item->getNBytes());
@@ -262,7 +263,8 @@ static ENGINE_ERROR_CODE mock_deletion_V1(gsl::not_null<const void*> cookie,
                          meta,
                          nmeta,
                          0,
-                         0);
+                         0,
+                         protocol_binary_request_dcp_deletion::extlen);
 }
 
 static ENGINE_ERROR_CODE mock_deletion_V2(gsl::not_null<const void*> cookie,
@@ -282,7 +284,8 @@ static ENGINE_ERROR_CODE mock_deletion_V2(gsl::not_null<const void*> cookie,
                          nullptr,
                          0,
                          deleteTime,
-                         collectionLen);
+                         collectionLen,
+                         protocol_binary_request_dcp_deletion_v2::extlen);
 }
 
 static ENGINE_ERROR_CODE mock_expiration(gsl::not_null<const void*> cookie,

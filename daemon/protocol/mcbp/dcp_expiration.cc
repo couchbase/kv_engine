@@ -30,7 +30,7 @@ void dcp_expiration_executor(Cookie& cookie) {
     if (ret == ENGINE_SUCCESS) {
         // Collection aware DCP will be sending the collection_len field
         auto body_offset =
-                protocol_binary_request_dcp_deletion::getHeaderLength(
+                protocol_binary_request_dcp_expiration::getHeaderLength(
                         connection.isDcpCollectionAware());
         const uint16_t nkey = ntohs(req->message.header.request.keylen);
         const DocKey key{req->bytes + body_offset,

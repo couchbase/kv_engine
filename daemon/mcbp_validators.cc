@@ -39,6 +39,10 @@ static inline bool may_accept_collections(const Cookie& cookie) {
     return cookie.getConnection().isDcpCollectionAware();
 }
 
+static inline bool may_accept_dcp_deleteV2(const Cookie& cookie) {
+    return cookie.getConnection().isDcpDeleteV2();
+}
+
 static inline std::string get_peer_description(const Cookie& cookie) {
     return cookie.getConnection().getDescription();
 }
@@ -387,16 +391,24 @@ static protocol_binary_response_status dcp_deletion_validator(const Cookie& cook
     }
 
     const uint32_t extlen{req->message.header.request.extlen};
+
+    const uint32_t expectedExtlen =
+            may_accept_dcp_deleteV2(cookie)
+                    ? protocol_binary_request_dcp_deletion_v2::extlen
+                    : protocol_binary_request_dcp_deletion::extlen;
+
     // extlen varies for collection aware DCP vs legacy
-    if (extlen != protocol_binary_request_dcp_deletion::getExtrasLength(
-                          may_accept_collections(cookie))) {
+    if (extlen != expectedExtlen) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
     // We could do these tests before checking the packet, but
     // it feels cleaner to validate the packet first.
     if (cookie.getConnection().getBucketEngine() == nullptr ||
-        cookie.getConnection().getBucketEngine()->dcp.deletion == nullptr) {
+        cookie.getConnection().getBucketEngine()->dcp.deletion == nullptr ||
+        (cookie.getConnection().isDcpDeleteV2() &&
+         cookie.getConnection().getBucketEngine()->dcp.deletion_v2 ==
+                 nullptr)) {
         // The attached bucket does not support DCP
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }

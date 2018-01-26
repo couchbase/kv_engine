@@ -299,7 +299,52 @@ static ENGINE_ERROR_CODE dcp_message_mutation(
     return ret;
 }
 
+// Shared DCP_DELETION write function for the v1/v2 commands.
 static ENGINE_ERROR_CODE dcp_message_deletion(
+        McbpConnection& c,
+        Cookie& cookie,
+        const item_info& info,
+        cb::const_byte_buffer packet,
+        cb::const_byte_buffer extendedMeta) {
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+    c.write->produce([&c, &packet, &extendedMeta, &info, &ret](
+                             cb::byte_buffer buffer) -> size_t {
+        if (buffer.size() < (packet.size() + extendedMeta.size())) {
+            ret = ENGINE_E2BIG;
+            return 0;
+        }
+
+        std::copy(packet.begin(), packet.end(), buffer.begin());
+
+        if (extendedMeta.size() > 0) {
+            std::copy(extendedMeta.begin(),
+                      extendedMeta.end(),
+                      buffer.data() + packet.size());
+        }
+
+        // Add the header
+        c.addIov(buffer.data(), packet.size());
+
+        // Add the key
+        c.addIov(info.key, info.nkey);
+
+        // Add the optional payload (xattr)
+        if (info.nbytes > 0) {
+            c.addIov(info.value[0].iov_base, info.nbytes);
+        }
+
+        // Add the optional meta section
+        if (extendedMeta.size() > 0) {
+            c.addIov(buffer.data() + packet.size(), extendedMeta.size());
+        }
+
+        return packet.size() + extendedMeta.size();
+    });
+
+    return ret;
+}
+
+static ENGINE_ERROR_CODE dcp_message_deletion_v1(
         gsl::not_null<const void*> void_cookie,
         uint32_t opaque,
         item* it,
@@ -311,25 +356,25 @@ static ENGINE_ERROR_CODE dcp_message_deletion(
         uint8_t collection_len) {
     if (void_cookie == nullptr) {
         throw std::invalid_argument(
-                "dcp_message_deletion: void_cookie can't be nullptr");
+                "dcp_message_deletion_v1: void_cookie can't be nullptr");
     }
+
     const auto& ccookie = *static_cast<const Cookie*>(void_cookie.get());
     auto& cookie = const_cast<Cookie&>(ccookie);
-    auto* c = &cookie.getConnection();
+    auto& c = cookie.getConnection();
 
     // Use a unique_ptr to make sure we release the item in all error paths
-    cb::unique_item_ptr item(it, cb::ItemDeleter{c->getBucketEngineAsV0()});
-
+    cb::unique_item_ptr item(it, cb::ItemDeleter{c.getBucketEngineAsV0()});
     item_info info;
     if (!bucket_get_item_info(cookie, it, &info)) {
-        LOG_WARNING("{}: dcp_message_deletion: Failed to get item info",
-                    c->getId());
+        LOG_WARNING("{}: dcp_message_deletion_v1: Failed to get item info",
+                    c.getId());
         return ENGINE_FAILED;
     }
 
-    if (!c->reserveItem(it)) {
-        LOG_WARNING("{}: dcp_message_deletion: Failed to grow item array",
-                    c->getId());
+    if (!c.reserveItem(it)) {
+        LOG_WARNING("{}: dcp_message_deletion_v1: Failed to grow item array",
+                    c.getId());
         return ENGINE_FAILED;
     }
 
@@ -337,8 +382,7 @@ static ENGINE_ERROR_CODE dcp_message_deletion(
     // the item.
     item.release();
 
-    protocol_binary_request_dcp_deletion packet(c->isDcpCollectionAware(),
-                                                opaque,
+    protocol_binary_request_dcp_deletion packet(opaque,
                                                 vbucket,
                                                 info.cas,
                                                 info.nkey,
@@ -346,53 +390,14 @@ static ENGINE_ERROR_CODE dcp_message_deletion(
                                                 info.datatype,
                                                 by_seqno,
                                                 rev_seqno,
-                                                nmeta,
-                                                collection_len);
+                                                nmeta);
 
-    packet.message.header.request.opcode =
-            (uint8_t)PROTOCOL_BINARY_CMD_DCP_DELETION;
+    cb::const_byte_buffer packetBuffer{
+            reinterpret_cast<const uint8_t*>(&packet), sizeof(packet.bytes)};
+    cb::const_byte_buffer extendedMeta{reinterpret_cast<const uint8_t*>(meta),
+                                       nmeta};
 
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    c->write->produce([&c, &packet, &info, &meta, &nmeta, &ret](
-                              cb::byte_buffer buffer) -> size_t {
-
-        const size_t packetlen =
-                protocol_binary_request_dcp_deletion::getHeaderLength(
-                        c->isDcpCollectionAware());
-
-        if (buffer.size() < (packetlen + nmeta)) {
-            ret = ENGINE_E2BIG;
-            return 0;
-        }
-
-        std::copy(packet.bytes, packet.bytes + packetlen, buffer.begin());
-
-        if (nmeta > 0) {
-            std::copy(static_cast<const uint8_t*>(meta),
-                      static_cast<const uint8_t*>(meta) + nmeta,
-                      buffer.data() + packetlen);
-        }
-
-        // Add the header
-        c->addIov(buffer.data(), packetlen);
-
-        // Add the key
-        c->addIov(info.key, info.nkey);
-
-        // Add the optional payload (xattr)
-        if (info.nbytes > 0) {
-            c->addIov(info.value[0].iov_base, info.nbytes);
-        }
-
-        // Add the optional meta section
-        if (nmeta > 0) {
-            c->addIov(buffer.data() + packetlen, nmeta);
-        }
-
-        return packetlen + nmeta;
-    });
-
-    return ret;
+    return dcp_message_deletion(c, cookie, info, packetBuffer, extendedMeta);
 }
 
 static ENGINE_ERROR_CODE dcp_message_deletion_v2(
@@ -404,7 +409,51 @@ static ENGINE_ERROR_CODE dcp_message_deletion_v2(
         uint64_t rev_seqno,
         uint32_t delete_time,
         uint8_t collection_len) {
-    return ENGINE_SUCCESS;
+    if (void_cookie == nullptr) {
+        throw std::invalid_argument(
+                "dcp_message_deletion_v2: void_cookie can't be nullptr");
+    }
+
+    const auto& ccookie = *static_cast<const Cookie*>(void_cookie.get());
+    auto& cookie = const_cast<Cookie&>(ccookie);
+    auto& c = cookie.getConnection();
+
+    // Use a unique_ptr to make sure we release the item in all error paths
+    cb::unique_item_ptr item(it, cb::ItemDeleter{c.getBucketEngineAsV0()});
+    item_info info;
+    if (!bucket_get_item_info(cookie, it, &info)) {
+        LOG_WARNING("{}: dcp_message_deletion_v2: Failed to get item info",
+                    c.getId());
+        return ENGINE_FAILED;
+    }
+
+    if (!c.reserveItem(it)) {
+        LOG_WARNING("{}: dcp_message_deletion_v2: Failed to grow item array",
+                    c.getId());
+        return ENGINE_FAILED;
+    }
+
+    // we've reserved the item, and it'll be released when we're done sending
+    // the item.
+    item.release();
+
+    protocol_binary_request_dcp_deletion_v2 packet(opaque,
+                                                   vbucket,
+                                                   info.cas,
+                                                   info.nkey,
+                                                   info.nbytes,
+                                                   info.datatype,
+                                                   by_seqno,
+                                                   rev_seqno,
+                                                   delete_time,
+                                                   collection_len);
+
+    return dcp_message_deletion(
+            c,
+            cookie,
+            info,
+            {reinterpret_cast<const uint8_t*>(&packet), sizeof(packet.bytes)},
+            {/*no extended meta in v2*/});
 }
 
 static ENGINE_ERROR_CODE dcp_message_expiration(
@@ -588,7 +637,7 @@ void ship_dcp_log(Cookie& cookie) {
             dcp_message_stream_end,
             dcp_message_marker,
             dcp_message_mutation,
-            dcp_message_deletion,
+            dcp_message_deletion_v1,
             dcp_message_deletion_v2,
             dcp_message_expiration,
             dcp_message_flush,

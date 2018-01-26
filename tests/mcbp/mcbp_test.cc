@@ -1825,19 +1825,9 @@ class DcpDeletionValidatorTest : public ValidatorTest,
 public:
     DcpDeletionValidatorTest()
         : ValidatorTest(),
-          request(GetParam(),
-                  0 /*opaque*/,
-                  0 /*vbucket*/,
-                  0 /*cas*/,
-                  2 /*keylen*/,
-                  0 /*valueLen*/,
-                  PROTOCOL_BINARY_RAW_BYTES,
-                  0 /*bySeqno*/,
-                  0 /*revSeqno*/,
-                  0 /*nmeta*/,
-                  0 /*collectionLen*/) {
-        request.message.header.request.opcode =
-            (uint8_t)PROTOCOL_BINARY_CMD_DCP_DELETION;
+          request(GetParam() ? makeV2() : makeV1()),
+          header(request->getHeader()) {
+        header.request.opcode = (uint8_t)PROTOCOL_BINARY_CMD_DCP_DELETION;
     }
 
     void SetUp() override {
@@ -1847,12 +1837,91 @@ public:
 
 protected:
     protocol_binary_response_status validate() {
-        std::copy(request.bytes, request.bytes + sizeof(request.bytes), blob);
+        std::copy(request->getBytes(),
+                  request->getBytes() + request->getSizeofBytes(),
+                  blob);
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_DCP_DELETION,
                                        static_cast<void*>(blob));
     }
 
-    protocol_binary_request_dcp_deletion request;
+    class Request {
+    public:
+        virtual protocol_binary_request_header& getHeader() = 0;
+
+        virtual uint8_t* getBytes() = 0;
+
+        virtual size_t getSizeofBytes() = 0;
+    };
+
+    class RequestV1 : public Request {
+    public:
+        RequestV1()
+            : request(0 /*opaque*/,
+                      0 /*vbucket*/,
+                      0 /*cas*/,
+                      2 /*keylen*/,
+                      0 /*valueLen*/,
+                      PROTOCOL_BINARY_RAW_BYTES,
+                      0 /*bySeqno*/,
+                      0 /*revSeqno*/,
+                      0 /*nmeta*/) {
+        }
+        protocol_binary_request_header& getHeader() override {
+            return request.message.header;
+        }
+
+        uint8_t* getBytes() override {
+            return request.bytes;
+        }
+
+        size_t getSizeofBytes() override {
+            return sizeof(request.bytes);
+        }
+
+    private:
+        protocol_binary_request_dcp_deletion request;
+    };
+
+    class RequestV2 : public Request {
+    public:
+        RequestV2()
+            : request(0 /*opaque*/,
+                      0 /*vbucket*/,
+                      0 /*cas*/,
+                      2 /*keylen*/,
+                      0 /*valueLen*/,
+                      PROTOCOL_BINARY_RAW_BYTES,
+                      0 /*bySeqno*/,
+                      0 /*revSeqno*/,
+                      0, /*deleteTime*/
+                      0 /*collectionLen*/) {
+        }
+        protocol_binary_request_header& getHeader() override {
+            return request.message.header;
+        }
+
+        uint8_t* getBytes() override {
+            return request.bytes;
+        }
+
+        size_t getSizeofBytes() override {
+            return sizeof(request.bytes);
+        }
+
+    private:
+        protocol_binary_request_dcp_deletion_v2 request;
+    };
+
+    std::unique_ptr<Request> makeV1() {
+        return std::make_unique<RequestV1>();
+    }
+
+    std::unique_ptr<Request> makeV2() {
+        return std::make_unique<RequestV2>();
+    }
+
+    std::unique_ptr<Request> request;
+    protocol_binary_request_header& header;
 };
 
 INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
@@ -1865,7 +1934,7 @@ TEST_P(DcpDeletionValidatorTest, CorrectMessage) {
 }
 
 TEST_P(DcpDeletionValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    header.request.magic = 0;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
 
@@ -1875,7 +1944,7 @@ TEST_P(DcpDeletionValidatorTest, ValidDatatype) {
                                                   uint8_t(Datatype::Xattr)}};
 
     for (auto valid : datatypes) {
-        request.message.header.request.datatype = valid;
+        header.request.datatype = valid;
         EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, validate())
                     << "Testing valid datatype:" << int(valid);
     }
@@ -1893,32 +1962,34 @@ TEST_P(DcpDeletionValidatorTest, InvalidDatatype) {
             uint8_t(Datatype::JSON)}};
 
     for (auto invalid : datatypes) {
-        request.message.header.request.datatype = invalid;
+        header.request.datatype = invalid;
         EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate())
                     << "Testing invalid datatype:" << int(invalid);
     }
 }
 
 TEST_P(DcpDeletionValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 5;
-    request.message.header.request.bodylen = htonl(7);
+    header.request.extlen = 5;
+    header.request.bodylen = htonl(7);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
 
 TEST_P(DcpDeletionValidatorTest, InvalidExtlenCollections) {
-    request.message.header.request.extlen =
-        protocol_binary_request_dcp_deletion::getExtrasLength(!GetParam());
+    // Flip extlen, so when not collections, set the length collections uses
+    header.request.extlen =
+            GetParam() ? protocol_binary_request_dcp_deletion::extlen
+                       : protocol_binary_request_dcp_deletion_v2::extlen;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
 
 TEST_P(DcpDeletionValidatorTest, InvalidKeylen) {
-    request.message.header.request.keylen = 0;
-    request.message.header.request.bodylen = htonl(18);
+    header.request.keylen = 0;
+    header.request.bodylen = htonl(18);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
 
 TEST_P(DcpDeletionValidatorTest, WithValue) {
-    request.message.header.request.bodylen = htonl(100);
+    header.request.bodylen = htonl(100);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, validate());
 }
 
