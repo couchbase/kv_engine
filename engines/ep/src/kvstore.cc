@@ -336,6 +336,36 @@ void KVStore::addStats(ADD_STAT add_stat, const void *c) {
     if (getStat("rocksdb.block.cache.filter.miss", value)) {
         addStat(prefix, "rocksdb_block_cache_filter_miss", value, add_stat, c);
     }
+    // BlockCache Hit Ratio
+    size_t hit = 0;
+    size_t miss = 0;
+    if (getStat("rocksdb.block.cache.data.hit", hit) &&
+        getStat("rocksdb.block.cache.data.miss", miss) && (hit + miss) != 0) {
+        const auto ratio = float(hit) / (hit + miss);
+        addStat(prefix,
+                "rocksdb_block_cache_data_hit_ratio",
+                ratio,
+                add_stat,
+                c);
+    }
+    if (getStat("rocksdb.block.cache.index.hit", hit) &&
+        getStat("rocksdb.block.cache.index.miss", miss) && (hit + miss) != 0) {
+        const auto ratio = float(hit) / (hit + miss);
+        addStat(prefix,
+                "rocksdb_block_cache_index_hit_ratio",
+                ratio,
+                add_stat,
+                c);
+    }
+    if (getStat("rocksdb.block.cache.filter.hit", hit) &&
+        getStat("rocksdb.block.cache.filter.miss", miss) && (hit + miss) != 0) {
+        const auto ratio = float(hit) / (hit + miss);
+        addStat(prefix,
+                "rocksdb_block_cache_filter_hit_ratio",
+                ratio,
+                add_stat,
+                c);
+    }
     // Disk Usage per-CF
     if (getStat("default_kTotalSstFilesSize", value)) {
         addStat(prefix,

@@ -2849,52 +2849,47 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
         add_casted_stat(
                 "ep_rocksdb_seqno_kSizeAllMemTables", value, add_stat, cookie);
     }
-    // Block Cache hit/miss
-    if (kvBucket->getKVStoreStat("rocksdb.block.cache.hit",
-                                 value,
-                                 KVBucketIface::KVSOption::RW)) {
-        add_casted_stat("ep_rocksdb_block_cache_hit", value, add_stat, cookie);
-    }
-    if (kvBucket->getKVStoreStat("rocksdb.block.cache.miss",
-                                 value,
-                                 KVBucketIface::KVSOption::RW)) {
-        add_casted_stat("ep_rocksdb_block_cache_miss", value, add_stat, cookie);
-    }
+    // BlockCache Hit Ratio
+    size_t hit = 0;
+    size_t miss = 0;
     if (kvBucket->getKVStoreStat("rocksdb.block.cache.data.hit",
-                                 value,
-                                 KVBucketIface::KVSOption::RW)) {
-        add_casted_stat(
-                "ep_rocksdb_block_cache_data_hit", value, add_stat, cookie);
-    }
-    if (kvBucket->getKVStoreStat("rocksdb.block.cache.data.miss",
-                                 value,
-                                 KVBucketIface::KVSOption::RW)) {
-        add_casted_stat(
-                "ep_rocksdb_block_cache_data_miss", value, add_stat, cookie);
+                                 hit,
+                                 KVBucketIface::KVSOption::RW) &&
+        kvBucket->getKVStoreStat("rocksdb.block.cache.data.miss",
+                                 miss,
+                                 KVBucketIface::KVSOption::RW) &&
+        (hit + miss) != 0) {
+        const auto ratio = float(hit) / (hit + miss);
+        add_casted_stat("ep_rocksdb_block_cache_data_hit_ratio",
+                        ratio,
+                        add_stat,
+                        cookie);
     }
     if (kvBucket->getKVStoreStat("rocksdb.block.cache.index.hit",
-                                 value,
-                                 KVBucketIface::KVSOption::RW)) {
-        add_casted_stat(
-                "ep_rocksdb_block_cache_index_hit", value, add_stat, cookie);
-    }
-    if (kvBucket->getKVStoreStat("rocksdb.block.cache.index.miss",
-                                 value,
-                                 KVBucketIface::KVSOption::RW)) {
-        add_casted_stat(
-                "ep_rocksdb_block_cache_index_miss", value, add_stat, cookie);
+                                 hit,
+                                 KVBucketIface::KVSOption::RW) &&
+        kvBucket->getKVStoreStat("rocksdb.block.cache.index.miss",
+                                 miss,
+                                 KVBucketIface::KVSOption::RW) &&
+        (hit + miss) != 0) {
+        const auto ratio = float(hit) / (hit + miss);
+        add_casted_stat("ep_rocksdb_block_cache_index_hit_ratio",
+                        ratio,
+                        add_stat,
+                        cookie);
     }
     if (kvBucket->getKVStoreStat("rocksdb.block.cache.filter.hit",
-                                 value,
-                                 KVBucketIface::KVSOption::RW)) {
-        add_casted_stat(
-                "ep_rocksdb_block_cache_filter_hit", value, add_stat, cookie);
-    }
-    if (kvBucket->getKVStoreStat("rocksdb.block.cache.filter.miss",
-                                 value,
-                                 KVBucketIface::KVSOption::RW)) {
-        add_casted_stat(
-                "ep_rocksdb_block_cache_filter_miss", value, add_stat, cookie);
+                                 hit,
+                                 KVBucketIface::KVSOption::RW) &&
+        kvBucket->getKVStoreStat("rocksdb.block.cache.filter.miss",
+                                 miss,
+                                 KVBucketIface::KVSOption::RW) &&
+        (hit + miss) != 0) {
+        const auto ratio = float(hit) / (hit + miss);
+        add_casted_stat("ep_rocksdb_block_cache_filter_hit_ratio",
+                        ratio,
+                        add_stat,
+                        cookie);
     }
     // Disk Usage per-CF
     if (kvBucket->getKVStoreStat("default_kTotalSstFilesSize",
