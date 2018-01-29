@@ -114,12 +114,6 @@ struct default_engine {
    struct engine_stats stats;
    struct engine_scrubber scrubber;
 
-   union {
-       engine_info engine;
-       char buffer[sizeof(engine_info) +
-                   (sizeof(feature_info) * LAST_REGISTERED_ENGINE_FEATURE)];
-   } info;
-
    char vbucket_infos[NUM_VBUCKETS];
 
    /* a unique bucket index, note this is not cluster wide and dies with the process */

@@ -251,10 +251,6 @@ public:
 
     /* Implementation of all the engine functions. ***************************/
 
-    static const engine_info* get_info(gsl::not_null<ENGINE_HANDLE*> handle) {
-        return &to_engine(handle)->info.eng_info;
-    }
-
     static ENGINE_ERROR_CODE initialize(gsl::not_null<ENGINE_HANDLE*> handle,
                                         const char* config_str) {
         EWB_Engine* ewb = to_engine(handle);
@@ -755,11 +751,6 @@ public:
     }
 
     GET_SERVER_API gsa;
-    union {
-        engine_info eng_info;
-        char buffer[sizeof(engine_info) +
-                    (sizeof(feature_info) * LAST_REGISTERED_ENGINE_FEATURE)];
-    } info;
 
     // Actual engine we are proxying requests to.
     ENGINE_HANDLE* real_handle;
@@ -1303,7 +1294,6 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
     init_wrapped_api(gsa);
 
     interface.interface = 1;
-    ENGINE_HANDLE_V1::get_info = get_info;
     ENGINE_HANDLE_V1::initialize = initialize;
     ENGINE_HANDLE_V1::destroy = destroy;
     ENGINE_HANDLE_V1::allocate = allocate;
@@ -1353,11 +1343,6 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
 
     ENGINE_HANDLE_V1::isXattrEnabled = isXattrEnabled;
     ENGINE_HANDLE_V1::getCompressionMode = getCompressionMode;
-
-    std::memset(&info, 0, sizeof(info.buffer));
-    info.eng_info.description = "EWOULDBLOCK Engine";
-    info.eng_info.features[info.eng_info.num_features++].feature = ENGINE_FEATURE_LRU;
-    info.eng_info.features[info.eng_info.num_features++].feature = ENGINE_FEATURE_DATATYPE;
 
     clustermap_revno = 1;
 

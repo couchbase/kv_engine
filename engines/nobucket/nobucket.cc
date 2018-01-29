@@ -35,7 +35,6 @@ public:
     NoBucket() {
         memset(this, 0, sizeof(*this));
         ENGINE_HANDLE_V1::interface.interface = 1;
-        ENGINE_HANDLE_V1::get_info = get_info;
         ENGINE_HANDLE_V1::initialize = initialize;
         ENGINE_HANDLE_V1::destroy = destroy;
         ENGINE_HANDLE_V1::allocate = item_allocate;
@@ -74,12 +73,9 @@ public:
         ENGINE_HANDLE_V1::collections.set_manifest = collections_set_manifest;
         ENGINE_HANDLE_V1::collections.get_manifest = collections_get_manifest;
         ENGINE_HANDLE_V1::isXattrEnabled = isXattrEnabled;
-        info.description = "Disconnect engine v1.0";
     };
 
 private:
-    engine_info info;
-
     /**
      * Convert the ENGINE_HANDLE to the underlying class type
      *
@@ -88,10 +84,6 @@ private:
      */
     static NoBucket* get_handle(ENGINE_HANDLE* handle) {
         return reinterpret_cast<NoBucket*>(handle);
-    }
-
-    static const engine_info* get_info(gsl::not_null<ENGINE_HANDLE*> handle) {
-        return &get_handle(handle)->info;
     }
 
     static ENGINE_ERROR_CODE initialize(gsl::not_null<ENGINE_HANDLE*>,

@@ -1982,7 +1982,9 @@ void CreateBucketThread::create() {
     /* People aren't allowed to use the engine in this state,
      * so we can do stuff without locking..
      */
-    if (new_engine_instance(type, get_server_api,
+    if (new_engine_instance(type,
+                            name,
+                            get_server_api,
                             (ENGINE_HANDLE**)&bucket.engine,
                             settings.extensions.logger)) {
         auto* engine = bucket.engine;
@@ -2226,6 +2228,7 @@ static void initialize_buckets(void) {
     // in the array is "no bucket"
     ENGINE_HANDLE *handle;
     cb_assert(new_engine_instance(BucketType::NoBucket,
+                                  "<internal>",
                                   get_server_api,
                                   &handle,
                                   settings.extensions.logger));

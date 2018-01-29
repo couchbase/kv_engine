@@ -102,52 +102,6 @@ typedef ENGINE_ERROR_CODE (* CREATE_INSTANCE)(uint64_t interface,
  */
 typedef void (* DESTROY_ENGINE)(void);
 
-typedef enum {
-    ENGINE_FEATURE_CAS, /**< has compare-and-set operation */
-    ENGINE_FEATURE_PERSISTENT_STORAGE, /**< has persistent storage support*/
-    ENGINE_FEATURE_SECONDARY_ENGINE, /**< performs as pseudo engine */
-    ENGINE_FEATURE_ACCESS_CONTROL, /**< has access control feature */
-    ENGINE_FEATURE_MULTI_TENANCY,
-    ENGINE_FEATURE_LRU, /* Cache implements an LRU */
-    ENGINE_FEATURE_VBUCKET, /* Cache implements virtual buckets */
-    ENGINE_FEATURE_DATATYPE, /**< uses datatype field */
-    /**
-     * The engine supports storing the items value into multiple
-     * chunks rather than a continous segment.
-     */
-    ENGINE_FEATURE_ITEM_IOVECTOR,
-
-#define LAST_REGISTERED_ENGINE_FEATURE ENGINE_FEATURE_ITEM_IOVECTOR
-} engine_feature_t;
-
-typedef struct {
-    /**
-     * The identifier of this feature. All values with the most significant bit cleared is reserved
-     * for "registered" features.
-     */
-    uint32_t feature;
-    /**
-     * A textual description of the feature. (null will print the registered name for the feature
-     * (or "Unknown feature"))
-     */
-    const char* description;
-} feature_info;
-
-typedef struct {
-    /**
-     * Textual description of this engine
-     */
-    const char* description;
-    /**
-     * The number of features the server provides
-     */
-    uint32_t num_features;
-    /**
-     * An array containing all of the features the engine supports
-     */
-    feature_info features[1];
-} engine_info;
-
 /**
  * A unique_ptr to use with items returned from the engine interface.
  */
@@ -192,14 +146,6 @@ typedef struct engine_interface_v1 {
      * Engine info.
      */
     struct engine_interface interface;
-
-    /**
-     * Get a description of this engine.
-     *
-     * @param handle the engine handle
-     * @return a stringz description of this engine
-     */
-    const engine_info* (*get_info)(gsl::not_null<ENGINE_HANDLE*> handle);
 
     /**
      * Initialize an engine instance.

@@ -63,42 +63,6 @@ static void assert_ge_impl(const T& a_value, const T& b_value,
 }
 
 /*
- * Make sure that get_info returns something and that repeated calls to it
- * return the same something.
- */
-static enum test_result get_info_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    const engine_info *info = h1->get_info(h);
-    cb_assert(info != NULL);
-    cb_assert(info == h1->get_info(h));
-    return SUCCESS;
-}
-
-/*
- * Make sure that the structure returned by get_info has a non-null description.
- */
-static enum test_result get_info_description_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    const engine_info *info = h1->get_info(h);
-    cb_assert(info->description != NULL);
-    return SUCCESS;
-}
-
-/*
- * Make sure that the structure returned by get_info has a valid number of
- * features and that the size of the feautes array equals that value
- */
-static enum test_result get_info_features_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    const engine_info *info = h1->get_info(h);
-    uint32_t nfeats = info->num_features;
-    const feature_info *fi = info->features;
-    cb_assert (nfeats > 0);
-    while (nfeats-- > 0) {
-        cb_assert(fi++ != NULL);
-    }
-
-    return SUCCESS;
-}
-
-/*
  * Make sure we can successfully allocate an item, allocate op returns success
  * and that item struct is populated
  */
@@ -677,9 +641,6 @@ static enum test_result test_bucket_destroy_interleaved(engine_test_t *test) {
 MEMCACHED_PUBLIC_API
 engine_test_t* get_tests(void) {
     static engine_test_t tests[]  = {
-        TEST_CASE("get info test", get_info_test, NULL, NULL, NULL, NULL, NULL),
-        TEST_CASE("get info description test", get_info_description_test, NULL, NULL, NULL, NULL, NULL),
-        TEST_CASE("get info features test", get_info_features_test, NULL, NULL, NULL, NULL, NULL),
         TEST_CASE("allocate test", allocate_test, NULL, NULL, NULL, NULL, NULL),
         TEST_CASE("set test", set_test, NULL, NULL, NULL, NULL, NULL),
         TEST_CASE("add test", add_test, NULL, NULL, NULL, NULL, NULL),

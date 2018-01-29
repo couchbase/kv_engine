@@ -333,10 +333,6 @@ public:
 
     ~EventuallyPersistentEngine();
 
-    engine_info* getInfo() {
-        return &info.info;
-    }
-
     EPStats& getEpStats() {
         return stats;
     }
@@ -757,10 +753,6 @@ protected:
     std::unordered_map<const void*, ENGINE_ERROR_CODE> allKeysLookups;
     std::mutex lookupMutex;
     GET_SERVER_API getServerApiFunc;
-    union {
-        engine_info info;
-        char buffer[sizeof(engine_info) + 10 * sizeof(feature_info) ];
-    } info;
 
     std::unique_ptr<DcpFlowControlManager> dcpFlowControlManager_;
     std::unique_ptr<DcpConnMap> dcpConnMap_;

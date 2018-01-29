@@ -8,18 +8,6 @@
 #include <platform/cb_malloc.h>
 #include <platform/platform.h>
 
-static const char * const feature_descriptions[] = {
-    "compare and swap",
-    "persistent storage",
-    "secondary engine",
-    "access control",
-    "multi tenancy",
-    "LRU",
-    "vbuckets",
-    "datatype",
-    "item iovector"
-};
-
 struct engine_reference {
 
     /* Union hack to remove a warning from C99 */
@@ -144,7 +132,6 @@ static bool validate_engine_interface(const ENGINE_HANDLE_V1* v1,
     bool ret = true;
 #define check(a) if (v1->a == nullptr) { logit(logger, #a); ret = false; }
 
-    check(get_info);
     check(initialize);
     check(destroy);
     check(allocate);
@@ -199,61 +186,4 @@ bool init_engine_instance(ENGINE_HANDLE *engine,
         return false;
     }
     return true;
-}
-
-void log_engine_details(ENGINE_HANDLE* engine,
-                        EXTENSION_LOGGER_DESCRIPTOR* logger)
-{
-    ENGINE_HANDLE_V1 *engine_v1 = (ENGINE_HANDLE_V1*)engine;
-    const engine_info *info;
-    info = engine_v1->get_info(engine);
-    if (info) {
-        ssize_t offset;
-        bool comma;
-        char message[4096];
-        ssize_t nw = snprintf(message, sizeof(message),
-                              "Create bucket with engine: %s.",
-                              info->description ?
-                              info->description : "Unknown");
-        if (nw < 0 || nw >= ssize_t(sizeof(message))) {
-            return;
-        }
-        offset = nw;
-        comma = false;
-
-        if (info->num_features > 0) {
-            unsigned int ii;
-            nw = snprintf(message + offset, sizeof(message) - offset,
-                          " Supplying the following features: ");
-            if (nw < 0 || nw >= ssize_t(sizeof(message) - offset)) {
-                return;
-            }
-            offset += nw;
-            for (ii = 0; ii < info->num_features; ++ii) {
-                if (info->features[ii].description != NULL) {
-                    nw = snprintf(message + offset, sizeof(message) - offset,
-                                  "%s%s", comma ? ", " : "",
-                                  info->features[ii].description);
-                } else {
-                    if (info->features[ii].feature <= LAST_REGISTERED_ENGINE_FEATURE) {
-                        nw = snprintf(message + offset, sizeof(message) - offset,
-                                      "%s%s", comma ? ", " : "",
-                                      feature_descriptions[info->features[ii].feature]);
-                    } else {
-                        nw = snprintf(message + offset, sizeof(message) - offset,
-                                      "%sUnknown feature: %d", comma ? ", " : "",
-                                      info->features[ii].feature);
-                    }
-                }
-                comma = true;
-                if (nw < 0 || nw >= ssize_t(sizeof(message) - offset)) {
-                    return;
-                }
-                offset += nw;
-            }
-        }
-        logger->log(EXTENSION_LOG_NOTICE, NULL, "%s", message);
-    } else {
-        logger->log(EXTENSION_LOG_NOTICE, NULL, "Create bucket of unknown type");
-    }
 }

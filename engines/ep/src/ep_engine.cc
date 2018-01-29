@@ -141,10 +141,6 @@ static void checkNumeric(const char* str) {
     }
 }
 
-static const engine_info* EvpGetInfo(gsl::not_null<ENGINE_HANDLE*> handle) {
-    return acquireEngine(handle)->getInfo();
-}
-
 static ENGINE_ERROR_CODE EvpInitialize(gsl::not_null<ENGINE_HANDLE*> handle,
                                        const char* config_str) {
     return acquireEngine(handle)->initialize(config_str);
@@ -1717,7 +1713,6 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
       taskable(this),
       compressionMode(BucketCompressionMode::Off) {
     interface.interface = 1;
-    ENGINE_HANDLE_V1::get_info = EvpGetInfo;
     ENGINE_HANDLE_V1::initialize = EvpInitialize;
     ENGINE_HANDLE_V1::destroy = EvpDestroy;
     ENGINE_HANDLE_V1::allocate = EvpItemAllocate;
@@ -1765,13 +1760,6 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
     ENGINE_HANDLE_V1::getCompressionMode = EvpGetCompressionMode;
 
     serverApi = getServerApiFunc();
-    memset(&info, 0, sizeof(info));
-    info.info.description = "EP engine v" VERSION;
-    info.info.features[info.info.num_features++].feature = ENGINE_FEATURE_CAS;
-    info.info.features[info.info.num_features++].feature =
-                                             ENGINE_FEATURE_PERSISTENT_STORAGE;
-    info.info.features[info.info.num_features++].feature = ENGINE_FEATURE_LRU;
-    info.info.features[info.info.num_features++].feature = ENGINE_FEATURE_DATATYPE;
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::reserveCookie(const void *cookie)

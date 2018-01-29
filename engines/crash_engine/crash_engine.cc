@@ -43,21 +43,7 @@ void destroy_engine(void);
 
 struct CrashEngine {
     ENGINE_HANDLE_V1 engine;
-    union {
-        engine_info eng_info;
-        char buffer[sizeof(engine_info) +
-                    (sizeof(feature_info) * LAST_REGISTERED_ENGINE_FEATURE)];
-    } info;
 };
-
-static CrashEngine* get_handle(ENGINE_HANDLE* handle)
-{
-    return reinterpret_cast<CrashEngine*>(handle);
-}
-
-static const engine_info* get_info(gsl::not_null<ENGINE_HANDLE*> handle) {
-    return &get_handle(handle)->info.eng_info;
-}
 
 // How do I crash thee? Let me count the ways.
 enum class CrashMode {
@@ -274,7 +260,6 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
     }
 
     engine->engine.interface.interface = 1;
-    engine->engine.get_info = get_info;
     engine->engine.initialize = initialize;
     engine->engine.destroy = destroy;
     engine->engine.allocate = item_allocate;
@@ -295,8 +280,6 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
     engine->engine.get_item_info = get_item_info;
     engine->engine.set_item_info = set_item_info;
     engine->engine.isXattrEnabled = is_xattr_enabled;
-    engine->info.eng_info.description = "Crash Engine";
-    engine->info.eng_info.num_features = 0;
     *handle = reinterpret_cast<ENGINE_HANDLE*>(&engine->engine);
     return ENGINE_SUCCESS;
 }

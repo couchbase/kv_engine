@@ -59,11 +59,6 @@ static ENGINE_HANDLE* get_engine_from_handle(ENGINE_HANDLE* handle) {
     return reinterpret_cast<ENGINE_HANDLE*>(get_handle(handle)->the_engine);
 }
 
-static const engine_info* mock_get_info(gsl::not_null<ENGINE_HANDLE*> handle) {
-    struct mock_engine *me = get_handle(handle);
-    return me->the_engine->get_info((ENGINE_HANDLE*)me->the_engine);
-}
-
 static ENGINE_ERROR_CODE mock_initialize(gsl::not_null<ENGINE_HANDLE*> handle,
                                          const char* config_str) {
     struct mock_engine *me = get_handle(handle);
@@ -870,7 +865,6 @@ static ENGINE_HANDLE_V1* create_bucket(bool initialize, const char* cfg) {
 
         mock_engine->me.interface.interface = 1;
 
-        mock_engine->me.get_info = mock_get_info;
         mock_engine->me.initialize = mock_initialize;
         mock_engine->me.destroy = mock_destroy;
         mock_engine->me.allocate = mock_allocate;

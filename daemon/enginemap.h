@@ -23,47 +23,49 @@
 extern "C" {
 #endif
 
-    /**
-     * Create a new instance of the given bucket type
-     *
-     * @param type the type of engine to create an instance of
-     * @param get_server_api A function to get the server API (passed to the
-     *                       underlying engine)
-     * @param handle where to store the newly created engine
-     * @param logger where to write log messages
-     * @return ENGINE_SUCCESS on success
-     */
-    bool new_engine_instance(BucketType type,
-                             GET_SERVER_API get_server_api,
-                             ENGINE_HANDLE **handle,
-                             EXTENSION_LOGGER_DESCRIPTOR *logger);
+/**
+ * Create a new instance of the given bucket type
+ *
+ * @param type the type of engine to create an instance of
+ * @param name the name of the bucket to create
+ * @param get_server_api A function to get the server API (passed to the
+ *                       underlying engine)
+ * @param handle where to store the newly created engine
+ * @param logger where to write log messages
+ * @return ENGINE_SUCCESS on success
+ */
+bool new_engine_instance(BucketType type,
+                         const std::string& name,
+                         GET_SERVER_API get_server_api,
+                         ENGINE_HANDLE** handle,
+                         EXTENSION_LOGGER_DESCRIPTOR* logger);
 
-    /**
-     * Try to convert from a module name to a bucket type
-     *
-     * @param module the name of the shared object to look up (e.g. ep.so)
-     * @param return the constant representing the bucket or UNKNOWN for
-     *               unknown shared objects
-     */
-    BucketType module_to_bucket_type(const char *module);
+/**
+ * Try to convert from a module name to a bucket type
+ *
+ * @param module the name of the shared object to look up (e.g. ep.so)
+ * @param return the constant representing the bucket or UNKNOWN for
+ *               unknown shared objects
+ */
+BucketType module_to_bucket_type(const char* module);
 
-    /**
-     * Initialize the engine map with the different types of supported
-     * engine backends. The method will terminate the server upon errors
-     *
-     * This method is not MT safe
-     *
-     * @param msg where to store the error message
-     * @return true on success, false on error (msg will give more information)
-     */
-    bool initialize_engine_map(char **msg, EXTENSION_LOGGER_DESCRIPTOR *log);
+/**
+ * Initialize the engine map with the different types of supported
+ * engine backends. The method will terminate the server upon errors
+ *
+ * This method is not MT safe
+ *
+ * @param msg where to store the error message
+ * @return true on success, false on error (msg will give more information)
+ */
+bool initialize_engine_map(char** msg, EXTENSION_LOGGER_DESCRIPTOR* log);
 
-    /**
-     * Release all allocated resources used by the engine map.
-     *
-     * This method is not MT safe
-     */
-    void shutdown_engine_map(void);
+/**
+ * Release all allocated resources used by the engine map.
+ *
+ * This method is not MT safe
+ */
+void shutdown_engine_map(void);
 
 #ifdef __cplusplus
 }

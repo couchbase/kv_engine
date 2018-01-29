@@ -23,8 +23,6 @@
 // we may use for testing ;)
 #define DEFAULT_ENGINE_VBUCKET_UUID 0xdeadbeef
 
-static const engine_info* default_get_info(
-        gsl::not_null<ENGINE_HANDLE*> handle);
 static ENGINE_ERROR_CODE default_initialize(
         gsl::not_null<ENGINE_HANDLE*> handle, const char* config_str);
 static void default_destroy(gsl::not_null<ENGINE_HANDLE*> handle,
@@ -193,7 +191,6 @@ void default_engine_constructor(struct default_engine* engine, bucket_id_t id)
 
     engine->bucket_id = id;
     engine->engine.interface.interface = 1;
-    engine->engine.get_info = default_get_info;
     engine->engine.initialize = default_initialize;
     engine->engine.destroy = default_destroy;
     engine->engine.allocate = default_item_allocate;
@@ -226,11 +223,6 @@ void default_engine_constructor(struct default_engine* engine, bucket_id_t id)
     engine->config.chunk_size = 48;
     engine->config.item_size_max= 1024 * 1024;
     engine->config.xattr_enabled = true;
-    engine->info.engine.description = "Default engine v0.1";
-    engine->info.engine.num_features = 1;
-    engine->info.engine.features[0].feature = ENGINE_FEATURE_LRU;
-    engine->info.engine.features[engine->info.engine.num_features++].feature
-        = ENGINE_FEATURE_DATATYPE;
 }
 
 extern "C" ENGINE_ERROR_CODE create_instance(uint64_t interface,
@@ -267,11 +259,6 @@ static hash_item* get_real_item(item* item) {
     return (hash_item*)item;
 }
 
-static const engine_info* default_get_info(
-        gsl::not_null<ENGINE_HANDLE*> handle) {
-    return &get_handle(handle)->info.engine;
-}
-
 static ENGINE_ERROR_CODE default_initialize(
         gsl::not_null<ENGINE_HANDLE*> handle, const char* config_str) {
     struct default_engine* se = get_handle(handle);
@@ -279,8 +266,6 @@ static ENGINE_ERROR_CODE default_initialize(
     if (ret != ENGINE_SUCCESS) {
         return ret;
     }
-    se->info.engine.features[se->info.engine.num_features++].feature =
-            ENGINE_FEATURE_CAS;
 
     ret = assoc_init(se);
     if (ret != ENGINE_SUCCESS) {
