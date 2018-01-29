@@ -52,9 +52,9 @@ static const spdlog::level::level_enum convertToSpdSeverity(
     case EXTENSION_LOG_INFO:
         return level_enum::info;
     case EXTENSION_LOG_NOTICE:
-        return level_enum::warn;
+        return level_enum::info;
     case EXTENSION_LOG_WARNING:
-        return level_enum::err;
+        return level_enum::warn;
     case EXTENSION_LOG_FATAL:
         return level_enum::critical;
     }
