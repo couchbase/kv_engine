@@ -1189,7 +1189,7 @@ void Warmup::scheduleLoadingKVPairs()
 ValueFilter getValueFilterForCompressionMode(
                     const BucketCompressionMode& compressionMode) {
 
-    if (compressionMode != BucketCompressionMode::Off) {
+    if (compressionMode == BucketCompressionMode::Active) {
         return ValueFilter::VALUES_COMPRESSED;
     }
 
