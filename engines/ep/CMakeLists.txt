@@ -200,6 +200,8 @@ ADD_LIBRARY(ep_objs OBJECT
             src/htresizer.cc
             src/item.cc
             src/item_eviction.cc
+            src/item_freq_decayer.cc
+            src/item_freq_decayer_visitor.cc
             src/item_pager.cc
             src/kvstore.cc
             src/kvstore_config.cc

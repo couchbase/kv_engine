@@ -20,6 +20,7 @@
 #include "../mock/mock_dcp_consumer.h"
 #include "../mock/mock_dcp_producer.h"
 #include "../mock/mock_global_task.h"
+#include "../mock/mock_item_freq_decayer.h"
 #include "../mock/mock_stream.h"
 #include "bgfetcher.h"
 #include "checkpoint.h"
@@ -27,6 +28,7 @@
 #include "ep_time.h"
 #include "evp_store_test.h"
 #include "fakes/fake_executorpool.h"
+#include "item_freq_decayer_visitor.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "taskqueue.h"
 #include "tests/module_tests/test_helpers.h"
@@ -1858,4 +1860,38 @@ TEST_F(SingleThreadedEPBucketTest, mb25273) {
     EXPECT_EQ(0, gv.item->getFlags()); // flags also still zero
     EXPECT_EQ(3, gv.item->getCas());
     EXPECT_EQ(value.size(), gv.item->getValue()->valueSize());
+}
+
+// Test the item freq decayer task.  A mock version of the task is used,
+// which has the ChunkDuration reduced to 0ms which mean as long as the
+// number of documents is greater than
+// ProgressTracker:INITIAL_VISIT_COUNT_CHECK the task will require multiple
+// runs to complete.  If the task takes less than or more than two passes to
+// complete then an error will be reported.
+TEST_F(SingleThreadedEPBucketTest, ItemFreqDecayerTaskTest) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // ProgressTracker:INITIAL_VISIT_COUNT_CHECK = 100 and therefore
+    // add 110 documents to the hash table to ensure all documents cannot be
+    // visited in a single pass.
+    for (uint32_t ii = 1; ii < 110; ii++) {
+        auto key = makeStoredDocKey("DOC_" + std::to_string(ii));
+        store_item(vbid, key, "value");
+    }
+
+    auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    auto itemFreqDecayerTask =
+            std::make_shared<MockItemFreqDecayerTask>(engine.get(), 50);
+
+    EXPECT_EQ(0, lpNonioQ.getFutureQueueSize());
+    task_executor->schedule(itemFreqDecayerTask);
+    EXPECT_EQ(1, lpNonioQ.getFutureQueueSize());
+    itemFreqDecayerTask->wakeup();
+
+    EXPECT_FALSE(itemFreqDecayerTask->isCompleted());
+    runNextTask(lpNonioQ, "Item frequency count decayer task");
+    EXPECT_FALSE(itemFreqDecayerTask->isCompleted());
+    runNextTask(lpNonioQ, "Item frequency count decayer task");
+    // The item freq decayer task should have completed.
+    EXPECT_TRUE(itemFreqDecayerTask->isCompleted());
 }

@@ -427,6 +427,27 @@
                 "bucket_type": "persistent"
             }
         },
+        "item_freq_decayer_chunk_duration": {
+            "default": "20",
+            "descr": "Maximum time (in ms) itemFreqDecayer task will run for before being paused.",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "min": 1
+                }
+            }
+        },
+        "item_freq_decayer_percent": {
+            "default": "50",
+            "descr": "The percent that the frequency counter of a document is decayed when visited by item_freq_decayer.",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "min": 0,
+                    "max": 100
+                }
+            }
+        },
         "item_num_based_new_chk": {
             "default": "true",
             "descr": "True if the number of items in the current checkpoint plays a role in a new checkpoint creation",

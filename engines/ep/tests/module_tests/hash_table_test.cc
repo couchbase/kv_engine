@@ -18,6 +18,7 @@
 #include "config.h"
 
 #include "item.h"
+#include "item_freq_decayer_visitor.h"
 #include "kv_bucket.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "stats.h"
@@ -867,4 +868,45 @@ TEST_F(HashTableTest, PauseResumeHashBucket) {
 
     HashTable::Position start;
     ht.pauseResumeVisit(mockVisitor, start);
+}
+
+// Test the itemFreqDecayerVisitor by adding 256 documents to the hash table.
+// Then set the frequency count of each document in the range 0 to 255.  We
+// then visit each document and decay it by 50%.  The test checks that the
+// frequency count of each document has been decayed by 50%.
+TEST_F(HashTableTest, ItemFreqDecayerVisitorTest) {
+       HashTable ht(global_stats, makeFactory(true), 128, 1);
+       auto keys = generateKeys(256);
+       // Add 256 documents to the hash table
+       storeMany(ht, keys);
+       StoredValue* v;
+
+       // Set the frequency count of each document in the range 0 to 255.
+       for (int ii = 0; ii < 256; ii++) {
+           auto key = makeStoredDocKey(std::to_string(ii));
+           v = ht.find(key, TrackReference::No, WantsDeleted::No);
+           v->setFreqCounterValue(ii);
+       }
+
+       ItemFreqDecayerVisitor itemFreqDecayerVisitor(
+               Configuration().getItemFreqDecayerPercent());
+       // Decay the frequency count of each document by the configuration
+       // default of 50%
+       for (int ii = 0; ii < 256; ii++) {
+           auto key = makeStoredDocKey(std::to_string(ii));
+           v = ht.find(key, TrackReference::No, WantsDeleted::No);
+           auto lock = ht.getLockedBucket(key);
+           itemFreqDecayerVisitor.visit(lock, *v);
+       }
+
+       // Confirm we visited all the documents
+       EXPECT_EQ(256, itemFreqDecayerVisitor.getVisitedCount());
+
+       // Check the frequency of the docs have been decayed by 50%.
+       for (int ii = 0; ii < 256; ii++) {
+           auto key = makeStoredDocKey(std::to_string(ii));
+           v = ht.find(key, TrackReference::No, WantsDeleted::No);
+           uint16_t expectVal = ii * 0.5;
+           EXPECT_EQ(expectVal, v->getFreqCounterValue());
+       }
 }
