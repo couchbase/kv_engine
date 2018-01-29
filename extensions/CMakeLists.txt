@@ -1,2 +1,1 @@
 ADD_SUBDIRECTORY(daemon)
-ADD_SUBDIRECTORY(loggers)

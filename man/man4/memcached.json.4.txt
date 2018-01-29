@@ -329,6 +329,31 @@ The *topkeys_enabled* attribute is a boolean value to enable or disable
 collection of information about the most frequently used keys. If not
 specified its value is set to true.
 
+=== logger
+
+The *logger* attribute is used to specify properties for the logger
+used by memcached. It is an object with the following properties:
+
+    filename    The prefix of the files to use for logging. The
+                logger appends: nnnnnn.txt to the prefix specified
+                where nnnnnn is replaced with a sequence number.
+                If no filename is specified, no files will be written.
+
+    buffersize  The buffers used by the logger to buffer data before
+                dumping to disk. This property is only used when
+                filename is present.
+
+    cyclesize   The number of bytes to write to a file before starting
+                a new one.
+
+    sleeptime   The number of seconds to allow buffering before flushing
+                to disk.
+
+    unit_test   Boolean variable set to true when used for unit tests
+
+    console     Boolean variable (defaults to true) if log messages
+                should be sent to standard error as well.
+
 == EXAMPLES
 
 A Sample memcached.json:

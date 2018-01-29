@@ -68,6 +68,16 @@ Config::Config(const cJSON& json) {
                     R"(Config: "unit_test" must be a bool)");
         }
     }
+
+    obj = cJSON_GetObjectItem(root, "console");
+    if (obj != nullptr) {
+        if (obj->type == cJSON_False) {
+            console = false;
+        } else if (obj->type != cJSON_True) {
+            throw std::invalid_argument(
+                    R"(Config: "console" must be a bool)");
+        }
+    }
 }
 
 bool Config::operator==(const Config& other) const {
@@ -75,7 +85,8 @@ bool Config::operator==(const Config& other) const {
            (this->buffersize == other.buffersize) &&
            (this->sleeptime == other.sleeptime) &&
            (this->cyclesize == other.cyclesize) &&
-           (this->unit_test == other.unit_test);
+           (this->unit_test == other.unit_test) &&
+           (this->console == other.console);
 }
 
 bool Config::operator!=(const Config& other) const {

@@ -471,13 +471,13 @@ cJSON* TestappTest::generate_config(uint16_t ssl_port)
     const std::string pem_path = cwd + CERTIFICATE_PATH("testapp.pem");
     const std::string cert_path = cwd + CERTIFICATE_PATH("testapp.cert");
 
-    if (memcached_verbose > 0) {
-        cJSON_AddNumberToObject(root, "verbosity", memcached_verbose);
-    } else {
-        obj = cJSON_CreateObject();
-        cJSON_AddStringToObject(obj, "module", "blackhole_logger.so");
-        cJSON_AddItemToArray(array, obj);
+    unique_cJSON_ptr logger(cJSON_CreateObject());
+    cJSON_AddTrueToObject(logger.get(), "unit_test");
+    if (memcached_verbose == 0) {
+        cJSON_AddFalseToObject(logger.get(), "console");
     }
+    cJSON_AddItemToObject(root, "logger", logger.release());
+    cJSON_AddNumberToObject(root, "verbosity", memcached_verbose);
 
     cJSON_AddItemToObject(root, "extensions", array);
 

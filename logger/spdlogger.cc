@@ -26,10 +26,15 @@
 #include <phosphor/phosphor.h>
 #include <platform/processclock.h>
 #include <spdlog/sinks/dist_sink.h>
+#include <spdlog/sinks/null_sink.h>
 #include <spdlog/sinks/stdout_sinks.h>
 #include <spdlog/spdlog.h>
 #include <chrono>
 #include <cstdio>
+
+#ifndef WIN32
+#include <spdlog/sinks/ansicolor_sink.h>
+#endif
 
 static EXTENSION_LOGGER_DESCRIPTOR descriptor;
 
@@ -156,12 +161,24 @@ boost::optional<std::string> cb::logger::initialize(
 
     try {
         auto sink = std::make_shared<spdlog::sinks::dist_sink_mt>();
-        sink->add_sink(std::make_shared<custom_rotating_file_sink_mt>(
-                fname, cyclesz, log_pattern));
 
-        auto stderrsink = std::make_shared<spdlog::sinks::stderr_sink_mt>();
-        stderrsink->set_level(spdlog::level::warn);
-        sink->add_sink(stderrsink);
+        if (!fname.empty()) {
+            sink->add_sink(std::make_shared<custom_rotating_file_sink_mt>(
+                    fname, cyclesz, log_pattern));
+        }
+
+        if (logger_settings.console) {
+#ifdef WIN32
+            auto stderrsink = std::make_shared<spdlog::sinks::stderr_sink_mt>();
+#else
+            auto stderrsink =
+                    std::make_shared<spdlog::sinks::ansicolor_stderr_sink_mt>();
+#endif
+            stderrsink->set_level(spdlog::level::warn);
+            sink->add_sink(stderrsink);
+        } else {
+            sink->add_sink(std::make_shared<spdlog::sinks::null_sink_mt>());
+        }
 
         file_logger =
                 spdlog::create_async("spdlog_file_logger",

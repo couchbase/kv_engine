@@ -62,7 +62,6 @@ function(add_unit_test_suite)
                           ${LIBEVENT_LIBRARIES}
                           ${COUCHBASE_NETWORK_LIBS})
     add_dependencies(memcached-${arg_NAME}-tests
-                     blackhole_logger
                      default_engine ep
                      ewouldblock_engine
                      memcached nobucket)

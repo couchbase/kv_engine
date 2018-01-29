@@ -48,6 +48,8 @@ struct LOGGER_PUBLIC_API Config {
     size_t sleeptime = 60;
     /// if running in a unit test or not
     bool unit_test = false;
+    /// Should messages be passed on to the console via stderr
+    bool console = true;
 };
 
 /**
