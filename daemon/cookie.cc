@@ -445,20 +445,15 @@ void Cookie::maybeLogSlowCommand(
             command.assign(opcode_s);
         }
 
-        std::string details;
         if (opcode == cb::mcbp::ClientOpcode::Stat) {
             // Log which stat command took a long time
-            details.append(", key: ");
-            auto key = getPrintableRequestKey();
+            const auto key = getPrintableRequestKey();
 
             if (key.find("key ") == 0) {
                 // stat key username1324423e; truncate the actual item key
-                details.append("key <TRUNCATED>");
-            } else if (key.empty()) {
-                // requests all stats
-                details.append("<EMPTY>");
-            } else {
-                details.append(key);
+                command.append("key <TRUNCATED>");
+            } else if (!key.empty()) {
+                command.append(key);
             }
         }
 
@@ -470,17 +465,19 @@ void Cookie::maybeLogSlowCommand(
                        getHeader().getOpcode(),
                        "connection_id",
                        c.getId());
-        std::string traceData = to_string(tracer);
-        LOG_WARNING(nullptr,
-                    "%u: Slow %s operation on connection: %s (%s)%s"
-                    " opaque:0x%08x trace:[%s]",
-                    c.getId(),
-                    command.c_str(),
-                    cb::time2text(timings).c_str(),
-                    c.getDescription().c_str(),
-                    details.c_str(),
-                    header.getOpaque(),
-                    traceData.c_str());
+
+        const std::string traceData = to_string(tracer);
+        LOG_WARNING(
+                nullptr,
+                R"(%u: Slow operation. {"cid":"%s/%)" PRIu64
+                R"(","duration":"%s","trace":"%s","command":"%s","peer":"%s"})",
+                c.getId(),
+                c.getConnectionId().data(),
+                ntohl(getHeader().getOpaque()),
+                cb::time2text(timings).c_str(),
+                traceData.c_str(),
+                command.c_str(),
+                c.getPeername().c_str());
     }
 }
 

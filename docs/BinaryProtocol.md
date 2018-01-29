@@ -1556,7 +1556,13 @@ Request:
 * SHOULD have key
 * SHOULD have value
 
-The key should contain the agent name
+The key should contain the agent name. If the first character is '{' the
+server will try to parse the key as JSON and look for the following two
+attributes:
+
+ * "a" - which is the name of the agent
+ * "i" - 33 bytes connection identifier
+
 The value should contain the various features to enable. Each feature is
 a two byte value in network byte order.
 

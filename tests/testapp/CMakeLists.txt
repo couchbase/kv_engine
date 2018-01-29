@@ -261,3 +261,6 @@ add_unit_test_suite(NAME subdoc-multipath
 add_unit_test_suite(NAME cluster-config
                     TIMEOUT 400
                     SOURCE testapp_cluster_config.cc)
+
+# Unit test verifying different parts of hello
+add_unit_test_suite(NAME hello TIMEOUT 120 SOURCE testapp_hello.cc)

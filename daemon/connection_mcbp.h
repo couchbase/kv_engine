@@ -65,6 +65,18 @@
  */
 size_t adjust_msghdr(cb::Pipe& pipe, struct msghdr* m, ssize_t nbytes);
 
+/**
+ * The maximum number of character the core preserves for the
+ * agent name for each connection
+ */
+const size_t MaxSavedAgentName = 33;
+
+/**
+ * The maximum number of character the core preserves for the
+ * connection identifier for each connection
+ */
+const size_t MaxSavedConnectionId = 34;
+
 class McbpConnection : public Connection {
 protected:
     /**
@@ -586,11 +598,32 @@ public:
      *              terminated immediately)
      */
     bool processServerEvents();
-    
+
     /**
      * Set the name of the connected agent
      */
     void setAgentName(cb::const_char_buffer name);
+
+    const std::array<char, MaxSavedAgentName>& getAgentName() const {
+        return agentName;
+    }
+
+    /**
+     * Get the Identifier specified for this connection.
+     */
+    const std::array<char, MaxSavedConnectionId>& getConnectionId() {
+        return connectionId;
+    }
+
+    /**
+     * Set the identifier for this connection. By default the
+     * identifier is set to the peername, but the client
+     * may set it to whatever it likes (truncated at 33
+     * characters)
+     *
+     * @param uuid the uuid to use
+     */
+    void setConnectionId(cb::const_char_buffer uuid);
 
 protected:
     void runStateMachinery();
@@ -605,7 +638,16 @@ protected:
     /**
      * The name of the client provided to us by hello
      */
-    std::array<char, 32> agentName{};
+    std::array<char, MaxSavedAgentName> agentName{};
+
+    /**
+     * The connection id as specified by the client.
+     *
+     * The connection UUID is defined to be a string of 33 characters
+     * (two 8 byte integers separated with a /). To ease the printout
+     * of the string we allocate room for the termination character.
+     */
+    std::array<char, MaxSavedConnectionId> connectionId{};
 
     /**
      * The state machine we're currently using

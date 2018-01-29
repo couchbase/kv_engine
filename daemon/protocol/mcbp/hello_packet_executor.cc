@@ -173,18 +173,39 @@ void process_hello_packet_executor(Cookie& cookie) {
     connection.setCollectionsSupported(false);
     connection.setDuplexSupported(false);
     connection.setClustermapChangeNotificationSupported(false);
-    connection.setAgentName(key);
     connection.setTracingEnabled(false);
     connection.setAllowUnorderedExecution(false);
 
     if (!key.empty()) {
-        log_buffer.append("[");
-        if (key.size() > 256) {
-            log_buffer.append(key.data(), 256);
-            log_buffer.append("...");
+        if (key.front() == '{') {
+            // This may be JSON
+            const auto data = to_string(key);
+            unique_cJSON_ptr json{cJSON_Parse(data.c_str())};
+            if (json) {
+                auto* obj = cJSON_GetObjectItem(json.get(), "i");
+                if (obj != nullptr && obj->type == cJSON_String) {
+                    try {
+                        connection.setConnectionId(obj->valuestring);
+                    } catch (const std::exception& exception) {
+                        LOG_NOTICE(nullptr,
+                                   "%u: Failed to parse connection uuid: %s",
+                                   connection.getId(),
+                                   exception.what());
+                    }
+                }
+                obj = cJSON_GetObjectItem(json.get(), "a");
+                if (obj != nullptr && obj->type == cJSON_String) {
+                    connection.setAgentName(obj->valuestring);
+                }
+            } else {
+                connection.setAgentName(key);
+            }
         } else {
-            log_buffer.append(key.data(), key.size());
+            connection.setAgentName(key);
         }
+
+        log_buffer.append("[");
+        log_buffer.append(key.data(), key.size());
         log_buffer.append("] ");
     }
 

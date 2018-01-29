@@ -735,6 +735,7 @@ void McbpConnection::ensureIovSpace() {
 McbpConnection::McbpConnection()
     : Connection(INVALID_SOCKET, nullptr), stateMachine(*this) {
     cookies.emplace_back(std::unique_ptr<Cookie>{new Cookie(*this)});
+    setConnectionId(peername.c_str());
 }
 
 McbpConnection::McbpConnection(SOCKET sfd,
@@ -755,6 +756,7 @@ McbpConnection::McbpConnection(SOCKET sfd,
     if (!initializeEvent()) {
         throw std::runtime_error("Failed to initialize event structure");
     }
+    setConnectionId(peername.c_str());
 }
 
 McbpConnection::~McbpConnection() {
@@ -826,7 +828,14 @@ unique_cJSON_ptr McbpConnection::toJSON() const {
             cJSON_AddItemToArray(arr.get(), c->toJSON().release());
         }
         cJSON_AddItemToObject(obj, "cookies", arr.release());
-        cJSON_AddStringToObject(obj, "agent_name", agentName.data());
+
+        if (agentName.front() != '\0') {
+            cJSON_AddStringToObject(obj, "agent_name", agentName.data());
+        }
+        if (connectionId.front() != '\0') {
+            cJSON_AddStringToObject(obj, "connection_id", connectionId.data());
+        }
+
         cJSON_AddBoolToObject(obj, "tracing", tracingEnabled);
         cJSON_AddBoolToObject(obj, "sasl_enabled", saslAuthEnabled);
         cJSON_AddBoolToObject(obj, "dcp", isDCP());
@@ -908,8 +917,16 @@ unique_cJSON_ptr McbpConnection::toJSON() const {
 }
 
 void McbpConnection::setAgentName(cb::const_char_buffer name) {
-    name.len = std::min(size_t(name.len), agentName.size() - 1);
-    std::copy(name.begin(), name.end(), agentName.begin());
+    auto size = std::min(name.size(), agentName.size() - 1);
+    std::copy(name.begin(), name.begin() + size, agentName.begin());
+    agentName[size] = '\0';
+}
+
+void McbpConnection::setConnectionId(cb::const_char_buffer uuid) {
+    auto size = std::min(uuid.size(), connectionId.size() - 1);
+    std::copy(uuid.begin(), uuid.begin() + size, connectionId.begin());
+    // the uuid string shall always be zero terminated
+    connectionId[size] = '\0';
 }
 
 bool McbpConnection::shouldDelete() {
