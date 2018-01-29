@@ -812,7 +812,7 @@
             "type" : "size_t"
         },
         "rocksdb_options": {
-            "default": "bytes_per_sync=1048576",
+            "default": "bytes_per_sync=1048576,stats_dump_period_sec=60",
             "descr": "RocksDB Options, comma separated.",
             "type": "std::string"
         },
@@ -837,7 +837,7 @@
             "type": "size_t"
         },
         "rocksdb_stats_level": {
-            "default": "",
+            "default": "kExceptTimeForMutex",
             "descr": "RocksDB Statistics 'stats_level'. Possible values: {'', 'kAll', 'kExceptTimeForMutex', 'kExceptDetailedTimers'}. The empty value disables Statistics.",
             "type": "std::string"
         },
