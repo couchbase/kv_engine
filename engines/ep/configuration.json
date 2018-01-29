@@ -812,7 +812,7 @@
             "type" : "size_t"
         },
         "rocksdb_options": {
-            "default": "",
+            "default": "bytes_per_sync=1048576",
             "descr": "RocksDB Options, comma separated.",
             "type": "std::string"
         },
