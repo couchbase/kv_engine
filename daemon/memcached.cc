@@ -454,6 +454,11 @@ static void ssl_cipher_list_changed_listener(const std::string&, Settings &s) {
 }
 
 static void verbosity_changed_listener(const std::string&, Settings &s) {
+    auto logger = cb::logger::get();
+    if (logger) {
+        logger->set_level(cb::logger::convertToSpdSeverity(get_log_level()));
+    }
+
     perform_callbacks(ON_LOG_LEVEL, NULL, NULL);
 }
 

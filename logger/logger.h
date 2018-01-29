@@ -21,6 +21,7 @@
 
 #include <boost/optional/optional.hpp>
 #include <cJSON.h>
+#include <memcached/extension.h>
 #include <memcached/server_api.h>
 #include <spdlog/logger.h>
 
@@ -65,6 +66,16 @@ boost::optional<std::string> initialize(const Config& logger_settings,
  */
 LOGGER_PUBLIC_API
 std::shared_ptr<spdlog::logger> get();
+
+/**
+ * Convert a log level as being used by the memcached logger
+ * to spdlog's log levels
+ *
+ * @param sev The memcached severity level
+ * @return The corresponding value in spdlog
+ */
+LOGGER_PUBLIC_API
+spdlog::level::level_enum convertToSpdSeverity(EXTENSION_LOG_LEVEL sev);
 
 } // namespace logger
 } // namespace cb

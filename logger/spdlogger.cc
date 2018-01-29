@@ -31,7 +31,6 @@
 #include <chrono>
 #include <cstdio>
 
-static SERVER_HANDLE_V1* sapi;
 static EXTENSION_LOGGER_DESCRIPTOR descriptor;
 
 /**
@@ -43,7 +42,7 @@ static EXTENSION_LOGGER_DESCRIPTOR descriptor;
  */
 static const std::string log_pattern{"%Y-%m-%dT%T.%fZ %l %v"};
 
-static const spdlog::level::level_enum convertToSpdSeverity(
+spdlog::level::level_enum cb::logger::convertToSpdSeverity(
         EXTENSION_LOG_LEVEL sev) {
     using namespace spdlog::level;
     switch (sev) {
@@ -84,7 +83,7 @@ static void log(EXTENSION_LOG_LEVEL mcd_severity,
                 const void* client_cookie,
                 const char* fmt,
                 ...) {
-    const auto severity = convertToSpdSeverity(mcd_severity);
+    const auto severity = cb::logger::convertToSpdSeverity(mcd_severity);
 
     // Retrieve formatted log message
     char msg[2048];
@@ -127,23 +126,13 @@ static void logger_flush() {
     file_logger->flush();
 }
 
-/* Updates current log level */
-static void on_log_level(const void* cookie,
-                         ENGINE_EVENT_TYPE type,
-                         const void* event_data,
-                         const void* cb_data) {
-    if (sapi != nullptr) {
-        file_logger->set_level(convertToSpdSeverity(sapi->log->get_level()));
-    }
-}
-
 /**
  * Initialises the loggers. Called if the logger configuration is
  * specified in a separate settings object.
  */
 boost::optional<std::string> cb::logger::initialize(
         const Config& logger_settings, GET_SERVER_API get_server_api) {
-    sapi = get_server_api();
+    auto* sapi = get_server_api();
     if (sapi == nullptr) {
         return boost::optional<std::string>{"Failed to get server API"};
     }
@@ -198,8 +187,6 @@ boost::optional<std::string> cb::logger::initialize(
         return boost::optional<std::string>{"Failed to register logger"};
     }
 
-    sapi->callback->register_callback(
-            nullptr, ON_LOG_LEVEL, on_log_level, nullptr);
     return {};
 }
 
