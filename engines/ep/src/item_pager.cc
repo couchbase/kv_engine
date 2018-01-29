@@ -24,6 +24,7 @@
 #include "ep_time.h"
 #include "executorpool.h"
 #include "item.h"
+#include "item_eviction.h"
 #include "kv_bucket.h"
 #include "kv_bucket_iface.h"
 
@@ -159,6 +160,7 @@ public:
             adjustPercent(p, vb->getState());
             if (vBucketFilter(vb->getId())) {
                 currentBucket = vb;
+                itemEviction.reset();
                 vb->ht.visit(*this);
             }
 
@@ -279,6 +281,10 @@ private:
     ProcessClock::time_point taskStart;
     std::atomic<item_pager_phase>* pager_phase;
     VBucketPtr currentBucket;
+
+    // Holds the data structures used during the selection of documents to
+    // evict from the hash table.
+    ItemEviction itemEviction;
 };
 
 ItemPager::ItemPager(EventuallyPersistentEngine& e, EPStats& st)

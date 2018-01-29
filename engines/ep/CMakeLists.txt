@@ -199,6 +199,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/hlc.cc
             src/htresizer.cc
             src/item.cc
+            src/item_eviction.cc
             src/item_pager.cc
             src/kvstore.cc
             src/kvstore_config.cc
@@ -284,6 +285,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                    tests/module_tests/hash_table_eviction_test.cc
                    tests/module_tests/hash_table_test.cc
                    tests/module_tests/hdrhistogram_test.cc
+                   tests/module_tests/item_eviction_test.cc
                    tests/module_tests/item_pager_test.cc
                    tests/module_tests/item_test.cc
                    tests/module_tests/kvstore_test.cc
@@ -364,7 +366,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                    ${Memcached_SOURCE_DIR}/utilities/string_utilities.cc
                    tests/module_tests/vbucket_test.cc)
 
-    TARGET_LINK_LIBRARIES(ep_engine_benchmarks benchmark platform xattr
+    TARGET_LINK_LIBRARIES(ep_engine_benchmarks benchmark platform xattr hdr_histogram_static
                           cJSON dirutils engine_utilities gtest gmock JSON_checker mcd_util
                           mcd_tracing cbcompress ${MALLOC_LIBRARIES} ${EP_STORAGE_LIBS})
     TARGET_INCLUDE_DIRECTORIES(ep_engine_benchmarks PUBLIC
@@ -384,7 +386,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
 
     ADD_EXECUTABLE(ep-engine_sizes src/sizes.cc
                    $<TARGET_OBJECTS:ep_objs>)
-    TARGET_LINK_LIBRARIES(ep-engine_sizes cJSON JSON_checker
+    TARGET_LINK_LIBRARIES(ep-engine_sizes cJSON JSON_checker hdr_histogram_static
                           engine_utilities ${EP_STORAGE_LIBS} dirutils cbcompress platform mcd_util
                           mcd_tracing phosphor xattr ${LIBEVENT_LIBRARIES})
 
