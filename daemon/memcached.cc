@@ -544,7 +544,7 @@ static void settings_init(void) {
     settings.setNumWorkerThreads(get_number_of_worker_threads());
     settings.extensions.logger = get_stderr_logger();
     settings.setDatatypeJsonEnabled(true);
-    settings.setDatatypeSnappyEnabled(false);
+    settings.setDatatypeSnappyEnabled(true);
     settings.setRequestsPerEventNotification(50, EventPriority::High);
     settings.setRequestsPerEventNotification(5, EventPriority::Medium);
     settings.setRequestsPerEventNotification(1, EventPriority::Low);

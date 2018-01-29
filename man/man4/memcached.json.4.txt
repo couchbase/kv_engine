@@ -233,7 +233,7 @@ for using the datatype JSON extension. By default this support is *enabled*.
 
 The *datatype_snappy* attribute is a boolean value to enable the support
 for using the datatype snappy extension. By default this support is
-*disabled*.
+*enabled*.
 
 === max_packet_size
 
