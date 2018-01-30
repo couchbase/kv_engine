@@ -29,6 +29,10 @@
   output:
     - "test_detail.xml"
 - test: ep_benchmarks
-  command: "build/kv_engine/ep_engine_benchmarks --gtest_output=xml"
+  command: "build/kv_engine/ep_engine_benchmarks --gtest_output=xml --benchmark_out_format=json
+             --benchmark_out=benchmark_output.json &&
+           python kv_engine/scripts/benchmark2xml.py -b benchmark_output.json
+             -o benchmark_results.xml -t ms -i"
   output:
     - "test_detail.xml"
+    - "benchmark_results.xml"
