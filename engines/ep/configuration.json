@@ -395,6 +395,17 @@
             "descr": "The μs threshold of drift at which we will increment a vbucket's behind counter.",
             "type": "size_t"
         },
+        "ht_eviction_policy": {
+            "default": "2-bit_lru",
+            "descr": "The eviction policy for the hash table",
+            "type": "std::string",
+            "validator": {
+                "enum": [
+                    "2-bit_lru",
+                    "statistical_counter"
+                ]
+            }
+        },
         "ht_locks": {
             "default": "47",
             "type": "size_t"

@@ -98,6 +98,11 @@ enum class TempAddStatus : uint8_t {
 class HashTable {
 public:
 
+    enum class EvictionPolicy : uint8_t {
+        lru2Bit,  // The original 2-bit LRU policy
+        statisticalCounter // The new policy that uses a statistical counter
+    };
+
     /**
      * Represents a position within the hashtable.
      *
@@ -182,11 +187,13 @@ public:
      * @param svFactory Factory to use for constructing stored values
      * @param initialSize the number of hash table buckets to initially create.
      * @param locks the number of locks in the hash table
+     * @param the eviction policy to use for the hash table
      */
     HashTable(EPStats& st,
               std::unique_ptr<AbstractStoredValueFactory> svFactory,
               size_t initialSize,
-              size_t locks);
+              size_t locks,
+              EvictionPolicy policy);
 
     ~HashTable();
 
@@ -194,6 +201,13 @@ public:
         return sizeof(HashTable)
             + (size * sizeof(StoredValue*))
             + (mutexes.size() * sizeof(std::mutex));
+    }
+
+    /**
+     * Get the eviction policy being used by the hash table.
+     */
+    EvictionPolicy getEvictionPolicy() const {
+        return evictionPolicy;
     }
 
     /**
@@ -697,6 +711,10 @@ private:
     // frequency counter of storedValues.  The frequency counter is used to
     // identify which hash table entries should be evicted first.
     StatisticalCounter<uint8_t> statisticalCounter;
+
+    // The policy used by the hash table to evict items.  The item pager uses
+    // this to determine what eviction policy to apply.
+    EvictionPolicy evictionPolicy;
 
     int getBucketForHash(int h) {
         return abs(h % static_cast<int>(size));

@@ -105,20 +105,34 @@ public:
             return true;
         }
 
-        // always evict unreferenced items, or randomly evict referenced item
-        double r = *pager_phase == PAGING_UNREFERENCED ?
-            1 :
-            static_cast<double>(std::rand()) / static_cast<double>(RAND_MAX);
+        switch (currentBucket->ht.getEvictionPolicy()) {
+        case HashTable::EvictionPolicy::lru2Bit:
+        {
+            // always evict unreferenced items, or randomly evict referenced
+            // item
+            double r =
+                    *pager_phase == PAGING_UNREFERENCED ?
+                            1 :
+                            static_cast<double>(std::rand()) /
+                            static_cast<double>(RAND_MAX);
 
-        if (*pager_phase == PAGING_UNREFERENCED &&
-            v.getNRUValue() == MAX_NRU_VALUE) {
-            doEviction(lh, &v);
-        } else if (*pager_phase == PAGING_RANDOM &&
-                   v.incrNRUValue() == MAX_NRU_VALUE && r <= percent) {
-            doEviction(lh, &v);
+            if (*pager_phase == PAGING_UNREFERENCED && v.getNRUValue()
+                    == MAX_NRU_VALUE) {
+                doEviction(lh, &v);
+            } else if (*pager_phase == PAGING_RANDOM
+                    && v.incrNRUValue() == MAX_NRU_VALUE && r <= percent) {
+                doEviction(lh, &v);
+            }
+            return true;
         }
-
-        return true;
+        case HashTable::EvictionPolicy::statisticalCounter:
+        {
+            //@todo placeholder for statisticalCounter eviction policy
+            return true;
+        }
+        }
+        throw std::invalid_argument("PagingVisitor::visit - "
+                "EvictionPolicy is invalid");
     }
 
     void visitBucket(VBucketPtr &vb) override {
@@ -139,6 +153,8 @@ public:
         if (percent <= 0 || !pager_phase) {
             if (vBucketFilter(vb->getId())) {
                 currentBucket = vb;
+                // EvictionPolicy is not required when running expiry item
+                // pager
                 vb->ht.visit(*this);
             }
             return;

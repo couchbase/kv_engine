@@ -39,7 +39,11 @@ public:
     ValueTest()
         : stats(),
           factory(stats),
-          ht(stats, std::make_unique<Factory>(stats), /*size*/ 47, /*locks*/ 1),
+          ht(stats,
+             std::make_unique<Factory>(stats),
+             /*size*/ 47,
+             /*locks*/ 1,
+             /*eviction policy*/ HashTable::EvictionPolicy::lru2Bit),
           item(make_item(0, makeStoredDocKey("key"), "value")) {
     }
 

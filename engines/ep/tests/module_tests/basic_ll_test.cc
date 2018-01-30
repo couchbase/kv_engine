@@ -35,7 +35,12 @@ static EPStats global_stats;
 
 class BasicLinkedListTest : public ::testing::Test {
 public:
-    BasicLinkedListTest() : ht(global_stats, makeFactory(), 2, 1) {
+    BasicLinkedListTest()
+        : ht(global_stats,
+             makeFactory(),
+             2,
+             1,
+             HashTable::EvictionPolicy::lru2Bit) {
     }
 
     static std::unique_ptr<AbstractStoredValueFactory> makeFactory() {
