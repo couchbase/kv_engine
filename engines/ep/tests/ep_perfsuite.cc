@@ -252,7 +252,7 @@ void renderToXML(const std::string& name, const std::string& description,
     time(&now);
     char timebuf[256];
     // Ideally would use 'put_time' here, but it is not supported until GCC 5
-    strftime(timebuf, sizeof timebuf, "%FT%T%z\0", gmtime(&now));
+    strftime(timebuf, sizeof timebuf, "%FT%T%z", gmtime(&now));
 
     file << "<testsuites timestamp=\"" << timebuf << "\">\n";
 

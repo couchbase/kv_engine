@@ -1161,9 +1161,7 @@ std::pair<ENGINE_ERROR_CODE, std::string> get_value(ENGINE_HANDLE* h,
 
 bool verify_vbucket_missing(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                             uint16_t vb) {
-    char vbid[8];
-    snprintf(vbid, sizeof(vbid), "vb_%d", vb);
-    std::string vbstr(vbid);
+    const auto vbstr = "vb_" + std::to_string(vb);
 
     // Try up to three times to verify the bucket is missing.  Bucket
     // state changes are async.
