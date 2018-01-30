@@ -856,8 +856,8 @@ enum class doc_flag : uint8_t {
  *
  *   Header:                        24 @0: <protocol_binary_request_header>
  *   Extras:
- *     Sub-document flags            1 @24: <protocol_binary_subdoc_flag>
- *     Sub-document pathlen          2 @25: <variable>
+ *     Sub-document pathlen          2 @24: <variable>
+ *     Sub-document flags            1 @26: <protocol_binary_subdoc_flag>
  *     Expiry                        4 @27: (Optional) Mutations only. The
  *                                          ttl
  *     Sub-document doc flags        1 @27: (Optional) @31 if expiry is
