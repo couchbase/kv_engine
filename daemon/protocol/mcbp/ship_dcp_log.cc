@@ -573,6 +573,7 @@ static ENGINE_ERROR_CODE dcp_message_system_event(
                   eventData.end(),
                   buffer.begin() + sizeof(packet.bytes) + key.size());
 
+        c->addIov(buffer.begin(), sizeof(packet.bytes) + key.size() + eventData.size());
         return sizeof(packet.bytes) + key.size() + eventData.size();
     });
 
