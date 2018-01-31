@@ -26,6 +26,7 @@
 
 #include <platform/sysinfo.h>
 #include <rocksdb/convenience.h>
+#include <rocksdb/filter_policy.h>
 
 #include <stdio.h>
 #include <string.h>
@@ -1132,6 +1133,19 @@ void RocksDBKVStore::applyUserCFOptions(rocksdb::ColumnFamilyOptions& cfOptions,
                 std::string("RocksDBKVStore::applyUserCFOptions: "
                             "GetBlockBasedTableOptionsFromString error: ") +
                 status.getState());
+    }
+
+    // If using Partitioned Filters, then use the RocksDB recommended params
+    // (https://github.com/facebook/rocksdb/blob/master/include/rocksdb/filter_policy.h#L133):
+    //     "bits_per_key: bits per key in bloom filter. A good value for
+    //           bits_per_key is 10, which yields a filter with ~1% false
+    //           positive rate.
+    //       use_block_based_builder: use block based filter rather than full
+    //           filter. If you want to build a full filter, it needs to be
+    //           set to false."
+    if (tableOptions.partition_filters == true) {
+        tableOptions.filter_policy.reset(
+                rocksdb::NewBloomFilterPolicy(10, false));
     }
 
     // Always use the per-shard shared Block Cache. If it is nullptr, RocksDB
