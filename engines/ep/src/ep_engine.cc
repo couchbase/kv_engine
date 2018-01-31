@@ -1628,8 +1628,9 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
     }
 
     if (MemoryTracker::trackingMemoryAllocations()) {
+        engine->getEpStats().estimatedTotalMemory.get()->store(
+                inital_tracking->load());
         engine->getEpStats().memoryTrackerEnabled.store(true);
-        engine->getEpStats().totalMemory.get()->store(inital_tracking->load());
     }
     delete inital_tracking;
 

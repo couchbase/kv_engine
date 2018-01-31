@@ -263,6 +263,7 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
     stats.setMaxDataSize(config.getMaxSize());
     config.addValueChangedListener("max_size",
                                    new StatsValueChangeListener(stats, *this));
+    stats.setMemUsedMergeThreshold(config.getMemUsedMergeThreshold());
     getEPEngine().getDcpConnMap().updateMaxActiveSnoozingBackfills(
                                                         config.getMaxSize());
 

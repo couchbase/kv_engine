@@ -534,6 +534,17 @@
                 }
             }
         },
+        "mem_used_merge_threshold" : {
+            "default": "102400",
+            "descr": "How much per 'core' memory can accumulate before merging into the total.",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 104857600,
+                    "min": 0
+                }
+            }
+        },
         "num_reader_threads": {
             "default": "0",
             "descr": "Throttle max number of reader threads",

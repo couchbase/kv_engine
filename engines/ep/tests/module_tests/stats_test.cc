@@ -26,9 +26,13 @@
 #include "evp_store_single_threaded_test.h"
 #include "tasks.h"
 #include "test_helpers.h"
+#include "thread_gate.h"
 #include "tracing/trace_helpers.h"
 
 #include <gmock/gmock.h>
+
+#include <functional>
+#include <thread>
 
 void StatTest::SetUp() {
     SingleThreadedEPBucketTest::SetUp();
@@ -342,3 +346,67 @@ INSTANTIATE_TEST_CASE_P(FullAndValueEviction, DatatypeStatTest,
                         ::testing::Values("value_only", "full_eviction"), []
                                 (const ::testing::TestParamInfo<std::string>&
                                 info) {return info.param;});
+
+class TestEpStat : public EPStats {
+public:
+    void setMemUsedMergeThreshold(int64_t value) {
+        memUsedMergeThreshold = value;
+    }
+};
+
+class EpStatsTest : public ::testing::Test {
+public:
+};
+
+// Create n threads who all allocate the same amount of memory in very different
+// orders
+TEST_F(EpStatsTest, memoryAllocated) {
+    TestEpStat stats;
+    stats.memoryTrackerEnabled = true;
+    stats.setMemUsedMergeThreshold(100);
+
+    const int nThreads = 4;
+    ThreadGate tg(nThreads);
+    std::vector<std::thread> workers;
+    for (int i = 0; i < nThreads; i++) {
+        workers.push_back(std::thread([i, &tg, &stats]() {
+            std::mt19937 generator(i);
+            const int nAllocs = 250;
+            std::vector<int> inputs1(nAllocs);
+            std::vector<int> inputs2(nAllocs);
+            std::iota(inputs1.begin(), inputs1.end(), 1);
+            std::iota(inputs2.begin(), inputs2.end(), 1);
+
+            // Shuffle this threads order of updates
+            std::shuffle(inputs1.begin(), inputs1.end(), generator);
+            std::shuffle(inputs2.begin(), inputs2.end(), generator);
+
+            // Bind to the functions of interest
+            std::function<void(size_t)> f1 = std::bind(
+                    &EPStats::memAllocated, &stats, std::placeholders::_1);
+            std::function<void(size_t)> f2 = std::bind(
+                    &EPStats::memDeallocated, &stats, std::placeholders::_1);
+
+            // Reorder if thread id is odd
+            if (i & 1) {
+                f1.swap(f2);
+            }
+
+            tg.threadUp();
+
+            // Now run f1 then f2
+            for (size_t i = 0; i < inputs1.size(); i++) {
+                f1(inputs1.at(i));
+            }
+            for (size_t i = 0; i < inputs2.size(); i++) {
+                f2(inputs2.at(i));
+            }
+        }));
+    }
+
+    for (int i = 0; i < nThreads; i++) {
+        workers.at(i).join();
+    }
+
+    EXPECT_EQ(0, stats.getPreciseTotalMemoryUsed());
+}

@@ -25,23 +25,67 @@
 
 #include "stats.h"
 
+class TestEPStats : public EPStats {
+public:
+    // Special version for the benchmark which ensures memory tracking begins
+    // at zero for each KeepRunning iteration, ensuring consistent entry state.
+    void memAllocatedClear(size_t sz) {
+        auto& coreMemory = coreTotalMemory.get();
+        coreMemory->store(0);
+        auto value = coreMemory->fetch_add(sz) + sz;
+
+        maybeUpdateEstimatedTotalMemUsed(*coreMemory, value);
+    }
+};
+
 class MemoryAllocationStat : public benchmark::Fixture {
 public:
-    void SetUp(const benchmark::State& state) override {
-        stats.reset();
-        stats.memoryTrackerEnabled = true;
-    }
-
-    EPStats stats;
+    TestEPStats stats;
 };
 
 BENCHMARK_DEFINE_F(MemoryAllocationStat, AllocNRead1)(benchmark::State& state) {
+    if (state.thread_index == 0) {
+        stats.reset();
+        stats.memoryTrackerEnabled = true;
+        // memUsed merge must be 4 times higher so in theory we merge at the
+        // same rate as TLS (because 4 more threads than cores).
+        stats.setMemUsedMergeThreshold(10240 * 4);
+    }
+
     while (state.KeepRunning()) {
         // range = allocations per read
         for (int i = 0; i < state.range(0); i++) {
-            stats.memAllocated(128);
+            if (i == 0) {
+                stats.memAllocatedClear(128);
+            } else {
+                stats.memAllocated(128);
+            }
         }
         stats.getTotalMemoryUsed();
+    }
+}
+
+BENCHMARK_DEFINE_F(MemoryAllocationStat, AllocNReadM)(benchmark::State& state) {
+    if (state.thread_index == 0) {
+        stats.reset();
+        stats.memoryTrackerEnabled = true;
+        // memUsed merge must be 4 times higher so in theory we merge at the
+        // same rate as TLS (because 4 more threads than cores).
+        stats.setMemUsedMergeThreshold(10240 * 4);
+    }
+
+    while (state.KeepRunning()) {
+        // range = allocations per read
+        for (int i = 0; i < state.range(0); i++) {
+            if (i == 0) {
+                stats.memAllocatedClear(128);
+            } else {
+                stats.memAllocated(128);
+            }
+        }
+        for (int j = 0; j < state.range(1); j++) {
+            stats.getTotalMemoryUsed();
+        }
     }
 }
 
@@ -51,4 +95,9 @@ BENCHMARK_DEFINE_F(MemoryAllocationStat, AllocNRead1)(benchmark::State& state) {
 BENCHMARK_REGISTER_F(MemoryAllocationStat, AllocNRead1)
         ->Threads(cb::get_cpu_count() * 4)
         ->RangeMultiplier(2)
-        ->Range(1, 2000);
+        ->Range(0, 4000);
+
+BENCHMARK_REGISTER_F(MemoryAllocationStat, AllocNReadM)
+        ->Threads(cb::get_cpu_count() * 4)
+        ->RangeMultiplier(2)
+        ->Ranges({{0, 4000}, {128, 4000}});

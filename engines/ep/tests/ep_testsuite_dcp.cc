@@ -6093,7 +6093,9 @@ BaseTestCase testsuite_testcases[] = {
                     create at least 1000 items when our residency
                     ratio gets to 90%. See test body for more details. */
                  "cursor_dropping_lower_mark=60;cursor_dropping_upper_mark=70;"
-                 "chk_remover_stime=1;max_size=6291456;chk_max_items=8000",
+                 "chk_remover_stime=1;max_size=6291456;chk_max_items=8000;"
+                 "mem_used_merge_threshold=1",
+
                  // TODO RDB: Cannot store any item (ENGINE_ENOMEM).
                  // Needs to resize 'max_size' to consider RocksDB
                  // pre-allocations.
@@ -6107,7 +6109,8 @@ BaseTestCase testsuite_testcases[] = {
                   create at least 1000 items when our residency
                   ratio gets to 90%. See test body for more details. */
                  "cursor_dropping_lower_mark=60;cursor_dropping_upper_mark=70;"
-                 "chk_remover_stime=1;max_size=6291456;chk_max_items=8000",
+                 "chk_remover_stime=1;max_size=6291456;chk_max_items=8000;"
+                 "mem_used_merge_threshold=1",
                  // TODO RDB: Cannot store any item (ENGINE_ENOMEM).
                  // Needs to resize 'max_size' to consider RocksDB
                  // pre-allocations.
