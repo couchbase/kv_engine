@@ -545,14 +545,15 @@
                 }
             }
         },
-        "mem_used_merge_threshold" : {
-            "default": "102400",
-            "descr": "How much per 'core' memory can accumulate before merging into the total.",
-            "type": "size_t",
+        "mem_used_merge_threshold_percent" : {
+            "default": "0.5",
+            "descr": "What percent of max_data size should we allow the estimated total memory to lag by (EPStats::getEstimatedTotalMemoryUsed)",
+            "dynamic": false,
+            "type": "float",
             "validator": {
                 "range": {
-                    "max": 104857600,
-                    "min": 0
+                    "max": 100.0,
+                    "min": 0.0
                 }
             }
         },

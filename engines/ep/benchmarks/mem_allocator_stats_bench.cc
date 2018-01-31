@@ -27,6 +27,11 @@
 
 class TestEPStats : public EPStats {
 public:
+    /// update the merge threshold
+    void setMemUsedMergeThreshold(size_t value) {
+        memUsedMergeThreshold = value;
+    }
+
     // Special version for the benchmark which ensures memory tracking begins
     // at zero for each KeepRunning iteration, ensuring consistent entry state.
     void memAllocatedClear(size_t sz) {

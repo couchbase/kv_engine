@@ -127,9 +127,9 @@ EPStats::EPStats()
       diskCommitHisto(),
       timingLog(NULL),
       maxDataSize(DEFAULT_MAX_DATA_SIZE),
-      // set merge threshold the same as the old config - this will change in a
-      // subsequent patch
-      memUsedMergeThreshold(102400) {
+      // A "sensible" default, will change when setMaxDataSize is called
+      memUsedMergeThreshold(102400),
+      memUsedMergeThresholdPercent(0.5) {
 }
 
 EPStats::~EPStats() {
@@ -139,7 +139,16 @@ EPStats::~EPStats() {
 void EPStats::setMaxDataSize(size_t size) {
     if (size > 0) {
         maxDataSize.store(size);
+        // threshold is n% of total (but divided by the number of CoreStore
+        // elements, i.e. nCpu)
+        memUsedMergeThreshold =
+                maxDataSize * (memUsedMergeThresholdPercent / 100.0);
+        memUsedMergeThreshold = memUsedMergeThreshold / coreTotalMemory.size();
     }
+}
+
+void EPStats::setMemUsedMergeThresholdPercent(float percent) {
+    memUsedMergeThresholdPercent = percent;
 }
 
 void EPStats::memAllocated(size_t sz) {

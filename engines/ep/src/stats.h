@@ -53,10 +53,15 @@ public:
 
     void setMaxDataSize(size_t size);
 
-    /// update the merge threshold
-    void setMemUsedMergeThreshold(size_t value) {
-        memUsedMergeThreshold = value;
-    }
+    /**
+     * Set a percentage which is used to calculate a threshold to which the
+     * per core memory tracker value is merged into the global counter.
+     * @param percent A float percent assumed to be 0.0 to 100.0 which is used
+     *  when setMaxDataSize is called. A per core threshold is calculated which
+     *  tries to ensure that getTotalMemoryUsed returns a value which
+     *  lags the total of all allocations by percent.
+     */
+    void setMemUsedMergeThresholdPercent(float percent);
 
     /**
      * @return a estimated memory used. This is an estimate because memory is
@@ -509,6 +514,9 @@ protected:
      * local value into the 'global' memory counter (estimatedTotalMemory)
      */
     Couchbase::RelaxedAtomic<int64_t> memUsedMergeThreshold;
+
+    /// percentage used in calculating the memUsedMergeThreshold
+    float memUsedMergeThresholdPercent;
 };
 
 /**

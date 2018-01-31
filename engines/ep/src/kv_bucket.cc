@@ -260,10 +260,12 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
 
     *stats.memOverhead = sizeof(KVBucket);
 
+    // Set memUsedThresholdPercent before setting max_size
+    stats.setMemUsedMergeThresholdPercent(
+            config.getMemUsedMergeThresholdPercent());
     stats.setMaxDataSize(config.getMaxSize());
     config.addValueChangedListener("max_size",
                                    new StatsValueChangeListener(stats, *this));
-    stats.setMemUsedMergeThreshold(config.getMemUsedMergeThreshold());
     getEPEngine().getDcpConnMap().updateMaxActiveSnoozingBackfills(
                                                         config.getMaxSize());
 
