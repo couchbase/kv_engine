@@ -57,12 +57,13 @@ public:
         start_memcached_server(memcached_cfg.get());
 
         if (HasFailure()) {
-            server_pid = reinterpret_cast<pid_t>(-1);
+            std::cerr << "Error in ConnectionTimeoutTest::SetUpTestCaste, "
+                         "terminating process"
+                      << std::endl;
+            exit(EXIT_FAILURE);
         } else {
             CreateTestBucket();
         }
-
-        ASSERT_NE(reinterpret_cast<pid_t>(-1), server_pid);
     }
 
 protected:

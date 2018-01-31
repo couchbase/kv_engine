@@ -175,7 +175,10 @@ void TestappTest::SetUpTestCase() {
     start_memcached_server(memcached_cfg.get());
 
     if (HasFailure()) {
-        server_pid = reinterpret_cast<pid_t>(-1);
+        std::cerr << "Error in TestappTest::SetUpTestCase, terminating process"
+                  << std::endl;
+
+        exit(EXIT_FAILURE);
     } else {
         CreateTestBucket();
     }

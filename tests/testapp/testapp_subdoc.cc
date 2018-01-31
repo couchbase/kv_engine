@@ -1892,7 +1892,10 @@ public:
         start_memcached_server(memcached_cfg.get());
 
         if (HasFailure()) {
-            server_pid = reinterpret_cast<pid_t>(-1);
+            std::cerr << "Error in WorkerConcurrencyTest::SetUpTestCase, "
+                         "terminating process"
+                      << std::endl;
+            exit(EXIT_FAILURE);
         } else {
             CreateTestBucket();
         }
