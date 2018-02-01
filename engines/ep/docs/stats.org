@@ -917,6 +917,13 @@ Note that tcmalloc stats are not available on some operating systems
 (e.g., Windows) that do not support tcmalloc.
 
 | mem_used (deprecated)               | Engine's total memory usage          |
+| mem_used_estimate                   | Engine's total estimated memory usage|
+|                                     | This is a faster stat to read, but   |
+|                                     | lags mem_used as it's only updated   |
+|                                     | when a threshold is crossed see      |
+|                                     | mem_used_merge_threshold             |
+| mem_used_merge_threshold            | A threshold which triggers the merge |
+|                                     | of per-core memory used into mem_used|
 | bytes                               | Engine's total memory usage          |
 | ep_kv_size                          | Memory used to store item metadata,  |
 |                                     | keys and values, no matter the       |

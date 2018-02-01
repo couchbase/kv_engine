@@ -2555,8 +2555,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_persist_vbstate_total",
                     epstats.totalPersistVBState, add_stat, cookie);
 
-    size_t memUsed = stats.getEstimatedTotalMemoryUsed();
+    size_t memUsed = stats.getPreciseTotalMemoryUsed();
     add_casted_stat("mem_used", memUsed, add_stat, cookie);
+    add_casted_stat("mem_used_estimate",
+                    stats.getEstimatedTotalMemoryUsed(),
+                    add_stat,
+                    cookie);
     add_casted_stat("ep_mem_low_wat_percent", stats.mem_low_wat_percent,
                     add_stat, cookie);
     add_casted_stat("ep_mem_high_wat_percent", stats.mem_high_wat_percent,
@@ -2929,9 +2933,18 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doMemoryStats(const void *cookie,
                                                            ADD_STAT add_stat) {
     add_casted_stat(
-            "bytes", stats.getEstimatedTotalMemoryUsed(), add_stat, cookie);
+            "bytes", stats.getPreciseTotalMemoryUsed(), add_stat, cookie);
     add_casted_stat(
-            "mem_used", stats.getEstimatedTotalMemoryUsed(), add_stat, cookie);
+            "mem_used", stats.getPreciseTotalMemoryUsed(), add_stat, cookie);
+    add_casted_stat("mem_used_estimate",
+                    stats.getEstimatedTotalMemoryUsed(),
+                    add_stat,
+                    cookie);
+    add_casted_stat("mem_used_merge_threshold",
+                    stats.getMemUsedMergeThreshold(),
+                    add_stat,
+                    cookie);
+
     add_casted_stat("ep_kv_size", stats.currentSize, add_stat, cookie);
     add_casted_stat("ep_value_size", stats.totalValueSize, add_stat, cookie);
     add_casted_stat("ep_overhead", stats.memOverhead, add_stat, cookie);

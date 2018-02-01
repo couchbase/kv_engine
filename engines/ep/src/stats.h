@@ -63,6 +63,11 @@ public:
      */
     void setMemUsedMergeThresholdPercent(float percent);
 
+    /// @return the value of memUsedMergeThreshold
+    int64_t getMemUsedMergeThreshold() const {
+        return memUsedMergeThreshold.load();
+    }
+
     /**
      * @return a estimated memory used. This is an estimate because memory is
      * tracked in a CoreStore container and the estimate value is only updated
