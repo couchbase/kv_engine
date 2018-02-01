@@ -6970,56 +6970,41 @@ static enum test_result test_mb19687_variable(ENGINE_HANDLE* h,
                                               ENGINE_HANDLE_V1* h1) {
     // all of these should be const, but g++ seems to have problems with that
     std::map<std::string, std::vector<std::string> > statsKeys{
-        {"dispatcher", {}}, // Depends on how how long the dispatcher ran..
+            {"dispatcher", {}}, // Depends on how how long the dispatcher ran..
+            {"key mykey",
+             {"key_cas",
+              "key_exptime",
+              "key_flags",
+              "key_is_dirty",
+              "key_vb_state"}},
+            {"memory",
+             {
+                     "bytes",
+                     "ep_blob_num",
+                     "ep_blob_overhead",
+                     "ep_item_num",
+                     "ep_kv_size",
+                     "ep_max_size",
+                     "ep_mem_high_wat",
+                     "ep_mem_high_wat_percent",
+                     "ep_mem_low_wat",
+                     "ep_mem_low_wat_percent",
+                     "ep_oom_errors",
+                     "ep_overhead",
+                     "ep_storedval_num",
+                     "ep_storedval_overhead",
+                     "ep_storedval_size",
+                     "ep_tmp_oom_errors",
+                     "ep_value_size",
+                     "mem_used",
+             }},
 
-//        {"dcpagg bar",      {}}, // dcpagg takes a key and I need to have that dcp stream
-
-        {"key mykey",
-            {
-                "key_cas",
-                "key_exptime",
-                "key_flags",
-                "key_is_dirty",
-                "key_vb_state"
-            }
-        },
-        {"memory",
-            {
-                "bytes",
-                "ep_blob_num",
-                "ep_blob_overhead",
-                "ep_item_num",
-                "ep_kv_size",
-                "ep_max_size",
-                "ep_mem_high_wat",
-                "ep_mem_high_wat_percent",
-                "ep_mem_low_wat",
-                "ep_mem_low_wat_percent",
-                "ep_oom_errors",
-                "ep_overhead",
-                "ep_storedval_num",
-                "ep_storedval_overhead",
-                "ep_storedval_size",
-                "ep_tmp_oom_errors",
-                "ep_value_size",
-                "mem_used",
-            }
-        },
-
-        // These stat groups return histograms so we can't guess the
-        // key names...
-        {"timings",
-            {}
-        },
-        {"scheduler",
-            {}
-        },
-        {"runtimes",
-            {}
-        },
-        {"kvtimings",
-            {}
-        },
+            // These stat groups return histograms so we can't guess the
+            // key names...
+            {"timings", {}},
+            {"scheduler", {}},
+            {"runtimes", {}},
+            {"kvtimings", {}},
     };
 
     if (isWarmupEnabled(h, h1)) {
