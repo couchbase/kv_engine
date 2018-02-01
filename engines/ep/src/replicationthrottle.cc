@@ -36,7 +36,8 @@ bool ReplicationThrottle::persistenceQueueSmallEnough() const {
 }
 
 bool ReplicationThrottle::hasSomeMemory() const {
-    double memoryUsed = static_cast<double>(stats.getTotalMemoryUsed());
+    double memoryUsed =
+            static_cast<double>(stats.getEstimatedTotalMemoryUsed());
     double maxSize = static_cast<double>(stats.getMaxDataSize());
 
     return memoryUsed <= (maxSize * stats.replicationThrottleThreshold);

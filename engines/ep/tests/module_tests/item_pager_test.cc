@@ -107,10 +107,11 @@ protected:
                 << "Expected to have a HashTable of size 47 (mem calculations "
                    "based on this).";
         auto& stats = engine->getEpStats();
-        ASSERT_LE(stats.getTotalMemoryUsed(), 20 * 1024)
-            << "Expected to start with less than 20KB of memory used";
-        ASSERT_LT(stats.getTotalMemoryUsed(), stats.getMaxDataSize() * 0.5)
-            << "Expected to start below 50% of bucket quota";
+        ASSERT_LE(stats.getEstimatedTotalMemoryUsed(), 20 * 1024)
+                << "Expected to start with less than 20KB of memory used";
+        ASSERT_LT(stats.getEstimatedTotalMemoryUsed(),
+                  stats.getMaxDataSize() * 0.5)
+                << "Expected to start below 50% of bucket quota";
     }
 
     ENGINE_ERROR_CODE storeItem(Item& item) {
@@ -147,10 +148,12 @@ protected:
         --count;
 
         auto& stats = engine->getEpStats();
-        EXPECT_GT(stats.getTotalMemoryUsed(), stats.getMaxDataSize() * 0.8)
-            << "Expected to exceed 80% of bucket quota after hitting TMPFAIL";
-        EXPECT_GT(stats.getTotalMemoryUsed(), stats.mem_low_wat.load())
-            << "Expected to exceed low watermark after hitting TMPFAIL";
+        EXPECT_GT(stats.getEstimatedTotalMemoryUsed(),
+                  stats.getMaxDataSize() * 0.8)
+                << "Expected to exceed 80% of bucket quota after hitting "
+                   "TMPFAIL";
+        EXPECT_GT(stats.getEstimatedTotalMemoryUsed(), stats.mem_low_wat.load())
+                << "Expected to exceed low watermark after hitting TMPFAIL";
 
         // To ensure the Blobs can actually be removed from memory, they must have
         // a ref-count of 1. This will not be the case if there's any open
@@ -177,7 +180,8 @@ protected:
             // straight away.
             item.setNRUValue(MAX_NRU_VALUE);
             EXPECT_EQ(ENGINE_SUCCESS, storeItem(item));
-            populate = stats.getTotalMemoryUsed() <= stats.mem_high_wat.load();
+            populate = stats.getEstimatedTotalMemoryUsed() <=
+                       stats.mem_high_wat.load();
         }
     }
 
@@ -280,12 +284,12 @@ TEST_P(STItemPagerTest, ServerQuotaReached) {
     auto& stats = engine->getEpStats();
     auto vb = engine->getVBucket(vbid);
     if (std::get<1>(GetParam()) == "fail_new_data") {
-        EXPECT_GT(stats.getTotalMemoryUsed(), stats.mem_low_wat.load())
+        EXPECT_GT(stats.getEstimatedTotalMemoryUsed(), stats.mem_low_wat.load())
                 << "Expected still to exceed low watermark after hitting "
                    "TMPFAIL with fail_new_data bucket";
         EXPECT_EQ(count, vb->getNumItems());
     } else {
-        EXPECT_LT(stats.getTotalMemoryUsed(), stats.mem_low_wat.load())
+        EXPECT_LT(stats.getEstimatedTotalMemoryUsed(), stats.mem_low_wat.load())
                 << "Expected to be below low watermark after running item "
                    "pager";
         const auto numResidentItems =
@@ -315,7 +319,7 @@ TEST_P(STItemPagerTest, ExpiredItemsDeletedFirst) {
         auto item = make_item(vbid, key, value);
         ASSERT_EQ(ENGINE_SUCCESS, storeItem(item));
         countA++;
-    } while (stats.getTotalMemoryUsed() < stats.mem_low_wat.load());
+    } while (stats.getEstimatedTotalMemoryUsed() < stats.mem_low_wat.load());
 
     ASSERT_GE(countA, 10)
             << "Expected at least 10 items before hitting low watermark";
@@ -405,7 +409,8 @@ TEST_P(STItemPagerTest, test_memory_limit) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
               engine->setFlushParam(
                       "max_size",
-                      std::to_string(stats.getTotalMemoryUsed() * 1.10).c_str(),
+                      std::to_string(stats.getEstimatedTotalMemoryUsed() * 1.10)
+                              .c_str(),
                       msg));
 
     // The next tests use itemAllocate (as per a real SET)
@@ -458,10 +463,10 @@ TEST_P(STEphemeralItemPagerTest, ReplicaNotPaged) {
     store->setVBucketState(replica_vb, vbucket_state_active, false);
 
     auto& stats = engine->getEpStats();
-    ASSERT_LE(stats.getTotalMemoryUsed(), 40 * 1024)
-        << "Expected to start with less than 40KB of memory used";
-    ASSERT_LT(stats.getTotalMemoryUsed(), stats.mem_low_wat.load())
-        << "Expected to start below low watermark";
+    ASSERT_LE(stats.getEstimatedTotalMemoryUsed(), 40 * 1024)
+            << "Expected to start with less than 40KB of memory used";
+    ASSERT_LT(stats.getEstimatedTotalMemoryUsed(), stats.mem_low_wat.load())
+            << "Expected to start below low watermark";
 
     // Populate vbid 0 (active) until we reach the low watermark.
     size_t active_count = 0;
@@ -474,7 +479,7 @@ TEST_P(STEphemeralItemPagerTest, ReplicaNotPaged) {
         item.setNRUValue(MAX_NRU_VALUE);
         ASSERT_EQ(ENGINE_SUCCESS, storeItem(item));
         active_count++;
-    } while (stats.getTotalMemoryUsed() < stats.mem_low_wat.load());
+    } while (stats.getEstimatedTotalMemoryUsed() < stats.mem_low_wat.load());
 
     ASSERT_GE(active_count, 10)
             << "Expected at least 10 active items before hitting low watermark";
@@ -495,14 +500,15 @@ TEST_P(STEphemeralItemPagerTest, ReplicaNotPaged) {
 
     // Expected active vb behaviour depends on the full policy:
     if (std::get<1>(GetParam()) == "fail_new_data") {
-        EXPECT_GT(stats.getTotalMemoryUsed(), stats.mem_high_wat.load())
+        EXPECT_GT(stats.getEstimatedTotalMemoryUsed(),
+                  stats.mem_high_wat.load())
                 << "Expected to be above high watermark after running item "
                    "pager (fail_new_data)";
         EXPECT_EQ(store->getVBucket(active_vb)->getNumItems(), active_count)
                 << "Active count should be the same after Item Pager "
                    "(fail_new_data)";
     } else {
-        EXPECT_LT(stats.getTotalMemoryUsed(), stats.mem_low_wat.load())
+        EXPECT_LT(stats.getEstimatedTotalMemoryUsed(), stats.mem_low_wat.load())
                 << "Expected to be below low watermark after running item "
                    "pager";
         EXPECT_LT(store->getVBucket(active_vb)->getNumItems(), active_count)
@@ -574,8 +580,8 @@ void STExpiryPagerTest::expiredItemsDeleted() {
     // Sanity check - should have not hit high watermark (otherwise the
     // item pager will run automatically and aggressively delete items).
     auto& stats = engine->getEpStats();
-    EXPECT_LE(stats.getTotalMemoryUsed(), stats.getMaxDataSize() * 0.8)
-        << "Expected to not have exceeded 80% of bucket quota";
+    EXPECT_LE(stats.getEstimatedTotalMemoryUsed(), stats.getMaxDataSize() * 0.8)
+            << "Expected to not have exceeded 80% of bucket quota";
 
     // Move time forward by 11s, so key_1 should be expired.
     TimeTraveller tedTheodoreLogan(11);
@@ -828,7 +834,7 @@ TEST_P(STPersistentExpiryPagerTest, MB_25991_ExpiryNonResident) {
     // Sanity check - should have not hit high watermark (otherwise the
     // item pager will run automatically and aggressively delete items).
     auto& stats = engine->getEpStats();
-    EXPECT_LE(stats.getTotalMemoryUsed(), stats.getMaxDataSize() * 0.8)
+    EXPECT_LE(stats.getEstimatedTotalMemoryUsed(), stats.getMaxDataSize() * 0.8)
             << "Expected to not have exceeded 80% of bucket quota";
 
     // Evict key so it is no longer resident.

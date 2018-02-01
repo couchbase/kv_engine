@@ -663,7 +663,7 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
 }
 
 bool LoadStorageKVPairCallback::shouldEject() const {
-    return stats.getTotalMemoryUsed() >= stats.mem_low_wat;
+    return stats.getEstimatedTotalMemoryUsed() >= stats.mem_low_wat;
 }
 
 void LoadStorageKVPairCallback::purge() {

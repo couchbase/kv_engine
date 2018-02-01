@@ -58,7 +58,7 @@ public:
      * per core memory tracker value is merged into the global counter.
      * @param percent A float percent assumed to be 0.0 to 100.0 which is used
      *  when setMaxDataSize is called. A per core threshold is calculated which
-     *  tries to ensure that getTotalMemoryUsed returns a value which
+     *  tries to ensure that getEstimatedTotalMemoryUsed returns a value which
      *  lags the total of all allocations by percent.
      */
     void setMemUsedMergeThresholdPercent(float percent);
@@ -70,7 +70,7 @@ public:
      * value which may lag behind what getPreciseTotalMemoryUsed function
      * returns.
      */
-    size_t getTotalMemoryUsed() const {
+    size_t getEstimatedTotalMemoryUsed() const {
         if (memoryTrackerEnabled.load()) {
             return estimatedTotalMemory->load();
         }

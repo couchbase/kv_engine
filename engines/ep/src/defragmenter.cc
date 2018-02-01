@@ -57,7 +57,7 @@ bool DefragmenterTask::run(void) {
             ss << prAdapter->getHashtablePosition() << ".";
         }
         ss << " Using chunk_duration=" << getChunkDuration().count() << " ms."
-           << " mem_used=" << stats.getTotalMemoryUsed()
+           << " mem_used=" << stats.getEstimatedTotalMemoryUsed()
            << ", mapped_bytes=" << getMappedBytes();
         LOG(EXTENSION_LOG_INFO, "%s", ss.str().c_str());
 
@@ -109,7 +109,7 @@ bool DefragmenterTask::run(void) {
         ss << " Took " << duration.count() << " us."
            << " moved " << visitor.getDefragCount() << "/"
            << visitor.getVisitedCount() << " visited documents."
-           << " mem_used=" << stats.getTotalMemoryUsed()
+           << " mem_used=" << stats.getEstimatedTotalMemoryUsed()
            << ", mapped_bytes=" << getMappedBytes() << ". Sleeping for "
            << getSleepTime() << " seconds.";
         LOG(EXTENSION_LOG_INFO, "%s", ss.str().c_str());

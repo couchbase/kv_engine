@@ -885,7 +885,8 @@ checkpointCursorInfoList CheckpointManager::getAllCursors() {
 bool CheckpointManager::isCheckpointCreationForHighMemUsage(
         const VBucket& vbucket) {
     bool forceCreation = false;
-    double memoryUsed = static_cast<double>(stats.getTotalMemoryUsed());
+    double memoryUsed =
+            static_cast<double>(stats.getEstimatedTotalMemoryUsed());
     // pesistence and conn cursors are all currently in the open checkpoint?
     bool allCursorsInOpenCheckpoint =
         (connCursors.size() + 1) == checkpointList.back()->getNumberOfCursors();
@@ -919,7 +920,8 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(
     newOpenCheckpointCreated = oldCheckpointId > 0;
 
     if (checkpointConfig.canKeepClosedCheckpoints()) {
-        double memoryUsed = static_cast<double>(stats.getTotalMemoryUsed());
+        double memoryUsed =
+                static_cast<double>(stats.getEstimatedTotalMemoryUsed());
         if (memoryUsed < stats.mem_high_wat &&
             checkpointList.size() <= checkpointConfig.getMaxCheckpoints()) {
             return 0;

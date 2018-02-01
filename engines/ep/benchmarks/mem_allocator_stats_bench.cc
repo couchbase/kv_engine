@@ -66,7 +66,7 @@ BENCHMARK_DEFINE_F(MemoryAllocationStat, AllocNRead1)(benchmark::State& state) {
                 stats.memAllocated(128);
             }
         }
-        stats.getTotalMemoryUsed();
+        stats.getEstimatedTotalMemoryUsed();
     }
 }
 
@@ -89,14 +89,15 @@ BENCHMARK_DEFINE_F(MemoryAllocationStat, AllocNReadM)(benchmark::State& state) {
             }
         }
         for (int j = 0; j < state.range(1); j++) {
-            stats.getTotalMemoryUsed();
+            stats.getEstimatedTotalMemoryUsed();
         }
     }
 }
 
 // Test covers a range seen from a running cluster (with pillowfight load)
 // The range was discovered by counting calls to memAllocated/deallocated and
-// then logging how many had occurred for each read (getTotalMemoryUsed)
+// then logging how many had occurred for each read
+// (getEstimatedTotalMemoryUsed)
 BENCHMARK_REGISTER_F(MemoryAllocationStat, AllocNRead1)
         ->Threads(cb::get_cpu_count() * 4)
         ->RangeMultiplier(2)

@@ -161,7 +161,8 @@ public:
         }
 
         // skip active vbuckets if active resident ratio is lower than replica
-        double current = static_cast<double>(stats.getTotalMemoryUsed());
+        double current =
+                static_cast<double>(stats.getEstimatedTotalMemoryUsed());
         double lower = static_cast<double>(stats.mem_low_wat);
         double high = static_cast<double>(stats.mem_high_wat);
         if (vb->getState() == vbucket_state_active && current < high &&
@@ -331,7 +332,7 @@ bool ItemPager::run(void) {
     notified.store(false);
 
     KVBucket* kvBucket = engine.getKVBucket();
-    double current = static_cast<double>(stats.getTotalMemoryUsed());
+    double current = static_cast<double>(stats.getEstimatedTotalMemoryUsed());
     double upper = static_cast<double>(stats.mem_high_wat);
     double lower = static_cast<double>(stats.mem_low_wat);
 
@@ -351,7 +352,7 @@ bool ItemPager::run(void) {
         double toKill = (current - static_cast<double>(lower)) / current;
 
         std::stringstream ss;
-        ss << "Using " << stats.getTotalMemoryUsed()
+        ss << "Using " << stats.getEstimatedTotalMemoryUsed()
            << " bytes of memory, paging out %0f%% of items." << std::endl;
         LOG(EXTENSION_LOG_INFO, ss.str().c_str(), (toKill*100.0));
 

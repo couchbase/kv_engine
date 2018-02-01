@@ -128,9 +128,10 @@ protected:
         ASSERT_EQ(24571, store->getVBucket(vbid)->ht.getSize())
                 << "Expected to have a HashTable of size 24571";
         auto& stats = engine->getEpStats();
-        ASSERT_LE(stats.getTotalMemoryUsed(), 200 * 1024 * 4)
+        ASSERT_LE(stats.getEstimatedTotalMemoryUsed(), 200 * 1024 * 4)
                 << "Expected to start with less than 200KB of memory used";
-        ASSERT_LT(stats.getTotalMemoryUsed(), stats.getMaxDataSize() * 0.5)
+        ASSERT_LT(stats.getEstimatedTotalMemoryUsed(),
+                  stats.getMaxDataSize() * 0.5)
                 << "Expected to start below 50% of bucket quota";
 
         scheduleItemPager();
@@ -189,10 +190,11 @@ protected:
         --noOfDocs;
 
         auto& stats = engine->getEpStats();
-        EXPECT_GT(stats.getTotalMemoryUsed(), stats.getMaxDataSize() * 0.8)
+        EXPECT_GT(stats.getEstimatedTotalMemoryUsed(),
+                  stats.getMaxDataSize() * 0.8)
                 << "Expected to exceed 80% of bucket quota after hitting "
                    "TMPFAIL";
-        EXPECT_GT(stats.getTotalMemoryUsed(), stats.mem_low_wat.load())
+        EXPECT_GT(stats.getEstimatedTotalMemoryUsed(), stats.mem_low_wat.load())
                 << "Expected to exceed low watermark after hitting TMPFAIL";
     }
 
@@ -250,19 +252,20 @@ protected:
         auto& stats = engine->getEpStats();
         auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
 
-        auto current = static_cast<double>(stats.getTotalMemoryUsed());
+        auto current = static_cast<double>(stats.getEstimatedTotalMemoryUsed());
         auto lower = static_cast<double>(stats.mem_low_wat);
 
         while (current > lower) {
             store->wakeItemPager();
             runNextTask(lpNonioQ);
-            current = static_cast<double>(stats.getTotalMemoryUsed());
+            current = static_cast<double>(stats.getEstimatedTotalMemoryUsed());
             lower = static_cast<double>(stats.mem_low_wat);
             int vbucketcount = 0;
             while ((current > lower) && vbucketcount < noOfVBs) {
                 runNextTask(lpNonioQ);
                 vbucketcount++;
-                current = static_cast<double>(stats.getTotalMemoryUsed());
+                current = static_cast<double>(
+                        stats.getEstimatedTotalMemoryUsed());
                 lower = static_cast<double>(stats.mem_low_wat);
             }
         }
@@ -342,7 +345,7 @@ TEST_P(STHashTableEvictionTest, DISABLED_STHashTableEvictionItemPagerTest) {
     printNoOfResidentDocs();
 
     auto& stats = engine->getEpStats();
-    EXPECT_LT(stats.getTotalMemoryUsed(), stats.mem_low_wat.load())
+    EXPECT_LT(stats.getEstimatedTotalMemoryUsed(), stats.mem_low_wat.load())
             << "Expected to be below low watermark after running item pager";
 }
 

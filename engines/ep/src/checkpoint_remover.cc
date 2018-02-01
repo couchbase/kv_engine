@@ -99,9 +99,10 @@ void ClosedUnrefCheckpointRemoverTask::cursorDroppingIfNeeded(void) {
      * to go under the lower threshold which is a percentage of the quota,
      * specified by cursor_dropping_lower_mark.
      */
-    if (stats.getTotalMemoryUsed() > stats.cursorDroppingUThreshold.load()) {
-        size_t amountOfMemoryToClear = stats.getTotalMemoryUsed() -
-                                          stats.cursorDroppingLThreshold.load();
+    if (stats.getEstimatedTotalMemoryUsed() >
+        stats.cursorDroppingUThreshold.load()) {
+        size_t amountOfMemoryToClear = stats.getEstimatedTotalMemoryUsed() -
+                                       stats.cursorDroppingLThreshold.load();
         size_t memoryCleared = 0;
         KVBucketIface* kvBucket = engine->getKVBucket();
         // Get a list of active vbuckets sorted by memory usage

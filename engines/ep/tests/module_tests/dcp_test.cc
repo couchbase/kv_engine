@@ -2801,12 +2801,12 @@ void ConnectionTest::sendConsumerMutationsNearThreshold(bool beyondThreshold) {
     /* Set 'mem_used' beyond the 'replication threshold' */
     EPStats& stats = engine->getEpStats();
     if (beyondThreshold) {
-        stats.setMaxDataSize(stats.getTotalMemoryUsed());
+        stats.setMaxDataSize(stats.getEstimatedTotalMemoryUsed());
     } else {
         /* Set 'mem_used' just 1 byte less than the 'replication threshold'.
            That is we are below 'replication threshold', but not enough space
            for  the new item */
-        stats.setMaxDataSize(stats.getTotalMemoryUsed() + 1);
+        stats.setMaxDataSize(stats.getEstimatedTotalMemoryUsed() + 1);
         /* Simpler to set the replication threshold to 1 and test, rather than
            testing with maxData = (memUsed / replicationThrottleThreshold);
            that is, we are avoiding a division */
@@ -2948,10 +2948,10 @@ void ConnectionTest::processConsumerMutationsNearThreshold(
     if (beyondThreshold) {
         /* Actually setting it well above also, as there can be a drop in memory
            usage during testing */
-        stats.setMaxDataSize(stats.getTotalMemoryUsed() / 4);
+        stats.setMaxDataSize(stats.getEstimatedTotalMemoryUsed() / 4);
     } else {
         /* set max size to a value just over */
-        stats.setMaxDataSize(stats.getTotalMemoryUsed() + 1);
+        stats.setMaxDataSize(stats.getEstimatedTotalMemoryUsed() + 1);
         /* Simpler to set the replication threshold to 1 and test, rather than
            testing with maxData = (memUsed / replicationThrottleThreshold); that
            is, we are avoiding a division */

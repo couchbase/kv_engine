@@ -1790,7 +1790,8 @@ void KVBucket::warmupCompleted() {
 bool KVBucket::maybeEnableTraffic()
 {
     // @todo rename.. skal vaere isTrafficDisabled elns
-    double memoryUsed = static_cast<double>(stats.getTotalMemoryUsed());
+    double memoryUsed =
+            static_cast<double>(stats.getEstimatedTotalMemoryUsed());
     double maxSize = static_cast<double>(stats.getMaxDataSize());
 
     if (memoryUsed  >= stats.mem_low_wat) {
@@ -1862,14 +1863,15 @@ void KVBucket::stopWarmup(void)
 }
 
 bool KVBucket::isMemoryUsageTooHigh() {
-    double memoryUsed = static_cast<double>(stats.getTotalMemoryUsed());
+    double memoryUsed =
+            static_cast<double>(stats.getEstimatedTotalMemoryUsed());
     double maxSize = static_cast<double>(stats.getMaxDataSize());
     return memoryUsed > (maxSize * backfillMemoryThreshold);
 }
 
 // Trigger memory reduction (ItemPager) if we've exceeded high water
 void KVBucket::checkAndMaybeFreeMemory() {
-    if (stats.getTotalMemoryUsed() > stats.mem_high_wat) {
+    if (stats.getEstimatedTotalMemoryUsed() > stats.mem_high_wat) {
         attemptToFreeMemory();
     }
 }
@@ -2295,7 +2297,7 @@ bool KVBucket::compactionCanExpireItems() {
     // enough (marked by replication_throttle_queue_cap)
 
     bool isMemoryUsageOk =
-            (stats.getTotalMemoryUsed() <
+            (stats.getEstimatedTotalMemoryUsed() <
              (stats.getMaxDataSize() * compactionExpMemThreshold));
 
     size_t queueSize = stats.diskQueueSize.load();

@@ -202,7 +202,7 @@ size_t EPStats::getPreciseTotalMemoryUsed() const {
         for (const auto& core : coreTotalMemory) {
             total += core->load();
         }
-        return total + getTotalMemoryUsed();
+        return total + getEstimatedTotalMemoryUsed();
     }
     return currentSize.load() + memOverhead->load();
 }

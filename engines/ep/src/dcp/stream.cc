@@ -2625,7 +2625,8 @@ void PassiveStream::handleSnapshotEnd(VBucketPtr& vb, uint64_t byseqno) {
             ckptMgr.checkAndAddNewCheckpoint(id, *vb);
         } else {
             size_t mem_threshold = engine->getEpStats().mem_high_wat.load();
-            size_t mem_used = engine->getEpStats().getTotalMemoryUsed();
+            size_t mem_used =
+                    engine->getEpStats().getEstimatedTotalMemoryUsed();
             /* We want to add a new replica checkpoint if the mem usage is above
                high watermark (85%) */
             if (mem_threshold < mem_used) {
