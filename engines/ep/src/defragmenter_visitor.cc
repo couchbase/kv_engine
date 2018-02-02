@@ -42,9 +42,7 @@ bool DefragmentVisitor::visit(const HashTable::HashBucketLock& lh,
     // Check if the item can be compressed
     if (!mcbp::datatype::is_snappy(v.getDatatype()) &&
         compressMode == BucketCompressionMode::Active) {
-        auto it = v.toItem(false, vbid);
-        if (it->compressValue()) {
-            v.setValue(*it.get());
+        if (v.compressValue()) {
             valueCompressed = true;
         }
     }
@@ -85,10 +83,6 @@ size_t DefragmentVisitor::getDefragCount() const {
 
 size_t DefragmentVisitor::getVisitedCount() const {
     return visited_count;
-}
-
-void DefragmentVisitor::setCurrentVBucket(VBucket& vb) {
-    vbid = vb.getId();
 }
 
 void DefragmentVisitor::setCompressionMode(

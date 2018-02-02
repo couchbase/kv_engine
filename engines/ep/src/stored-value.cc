@@ -25,6 +25,7 @@
 #include "stats.h"
 
 #include <platform/cb_malloc.h>
+#include <platform/compress.h>
 
 const int64_t StoredValue::state_pending_seqno = -2;
 const int64_t StoredValue::state_deleted_key = -3;
@@ -325,6 +326,31 @@ void StoredValue::setValueImpl(const Item& itm) {
         setResident(true);
         value = itm.getValue();
     }
+}
+
+bool StoredValue::compressValue() {
+    if (!mcbp::datatype::is_snappy(datatype)) {
+        // Attempt compression only if datatype indicates
+        // that the value is not compressed already
+        cb::compression::Buffer deflated;
+        if (cb::compression::deflate(cb::compression::Algorithm::Snappy,
+                                     {value->getData(), value->valueSize()},
+                                     deflated)) {
+            if (deflated.size() > value->valueSize()) {
+                // No point of keeping it compressed if the deflated length
+                // is greater than the original length
+                return true;
+            }
+            Blob* data = nullptr;
+            data = Blob::New(deflated.data(), deflated.size());
+            datatype |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
+            value.reset(TaggedPtr<Blob>(data));
+        } else {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 /**
