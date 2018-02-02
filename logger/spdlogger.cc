@@ -19,6 +19,7 @@
 
 #include "custom_rotating_file_sink.h"
 
+#include "dedupe_sink.h"
 #include "logger.h"
 
 #include <memcached/engine.h>
@@ -71,7 +72,7 @@ spdlog::level::level_enum cb::logger::convertToSpdSeverity(
  * from the parsed settings.
  * The loggers act as a handle to the sinks. They do the processing of log
  * messages and send them to the sinks, which do the actual writing (to file,
- * to stream etc.)
+ * to stream etc.) or further processing.
  */
 static std::shared_ptr<spdlog::logger> file_logger;
 
@@ -122,7 +123,9 @@ static void log(EXTENSION_LOG_LEVEL mcd_severity,
  * and dereferences the loggers.
  */
 static void logger_shutdown(bool force) {
-    spdlog::drop(file_logger->name());
+    if (file_logger) {
+        spdlog::drop(file_logger->name());
+    }
 
     file_logger.reset();
 }
@@ -160,11 +163,25 @@ boost::optional<std::string> cb::logger::initialize(
     }
 
     try {
+        /* Initialise the loggers.
+         *
+         * The structure is as follows:
+         *
+         * file_logger = sends log messages to sink
+         *   |__dist_sink_mt = Distribute log messages to multiple sinks
+         *       | |__dedupe_sink_mt = deduplicates log messages
+         *       |     |__custom_rotating_file_sink_mt = adds opening & closing
+         *       |                                       hooks to the file
+         *       |__ (color)__stderr_sink_mt = Send log messages to consloe
+         */
+
         auto sink = std::make_shared<spdlog::sinks::dist_sink_mt>();
 
         if (!fname.empty()) {
-            sink->add_sink(std::make_shared<custom_rotating_file_sink_mt>(
-                    fname, cyclesz, log_pattern));
+            auto fsink = std::make_shared<custom_rotating_file_sink_mt>(
+                    fname, cyclesz, log_pattern);
+            sink->add_sink(
+                    std::make_shared<dedupe_sink_mt>(fsink, log_pattern));
         }
 
         if (logger_settings.console) {

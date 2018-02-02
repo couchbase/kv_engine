@@ -99,6 +99,7 @@ protected:
         config.buffersize = 8192;
         config.sleeptime = 1;
         config.unit_test = true;
+        config.console = false;
 
         const auto ret = cb::logger::initialize(config, get_server_api);
         EXPECT_FALSE(ret) << ret.get();
@@ -109,6 +110,11 @@ protected:
         for (const auto file : files) {
             cb::io::rmrf(file);
         }
+    }
+
+    void TearDown() override {
+        logger->shutdown(true);
+        RemoveFiles();
     }
 
     std::vector<std::string> files;
@@ -210,9 +216,9 @@ TEST_F(SpdloggerTest, BasicHooksTest) {
 TEST_F(SpdloggerTest, MultipleFilesTest) {
     const std::string message{
             "This is a textual log message that we want to repeat a number of "
-            "times"};
+            "times: %u"};
     for (auto ii = 0; ii < 100; ii++) {
-        logger->log(EXTENSION_LOG_DEBUG, nullptr, message.c_str());
+        logger->log(EXTENSION_LOG_DEBUG, nullptr, message.c_str(), ii);
     }
     logger->shutdown(false);
 
@@ -265,9 +271,9 @@ TEST_F(SpdloggerTest, HandleOpenFileErrors) {
     // Keep on logging. This should cause the files to wrap
     const std::string message{
             "This is a textual log message that we want to repeat a number of "
-            "times"};
+            "times %u"};
     for (auto ii = 0; ii < 100; ii++) {
-        logger->log(EXTENSION_LOG_DEBUG, nullptr, message.c_str());
+        logger->log(EXTENSION_LOG_DEBUG, nullptr, message.c_str(), ii);
     }
 
     logger->log(EXTENSION_LOG_DEBUG, nullptr, "HandleOpenFileErrors");
@@ -310,3 +316,86 @@ TEST_F(SpdloggerTest, HandleOpenFileErrors) {
             << "Failed to restore RLIMIT_NOFILE: " << strerror(errno);
 }
 #endif
+
+class DedupeSinkTest : public SpdloggerTest {};
+
+/*
+ * Tests the functionality of the dedupe_sink by sending it the same message
+ * 100 times. Once this is done, the log file should contain the string
+ * "Message repeated 100 times".
+ */
+TEST_F(DedupeSinkTest, BasicTest) {
+    std::string message("This message will be repeated 100 times!");
+    std::string dedupeMessage("Message repeated 100 times");
+
+    for (auto i = 0; i < 100; i++) {
+        logger->log(EXTENSION_LOG_WARNING, nullptr, message.c_str());
+    }
+    logger->flush();
+
+    files = cb::io::findFilesWithPrefix(filename);
+    auto found = false;
+    for (auto& file : files) {
+        auto logMessageCount = countInFile(file, message);
+        auto dedupeMessageCount = countInFile(file, dedupeMessage);
+        if (logMessageCount == 1 && dedupeMessageCount == 1) {
+            found = true;
+            break;
+        }
+    }
+    EXPECT_EQ(true, found);
+}
+
+/* No dedupe message should be printed if the message appeared only once */
+TEST_F(DedupeSinkTest, MessageLoggedOnceTest) {
+    std::string message("This message will be logged just once!");
+    std::string dedupeMessage("Message repeated");
+
+    logger->log(EXTENSION_LOG_WARNING, nullptr, message.c_str());
+    logger->flush();
+
+    files = cb::io::findFilesWithPrefix(filename);
+    EXPECT_EQ(1, files.size());
+    auto logMessageCount = countInFile(files.front(), message);
+    auto dedupeMessageCount = countInFile(files.front(), dedupeMessage);
+
+    EXPECT_EQ(1, logMessageCount);
+    EXPECT_EQ(0, dedupeMessageCount);
+}
+
+/* The dedupe message should trigger if the message appeared twice */
+TEST_F(DedupeSinkTest, MessageLoggedTwiceTest) {
+    std::string message("This message will be repeated twice!");
+    std::string dedupeMessage("Message repeated 2 times");
+
+    logger->log(EXTENSION_LOG_WARNING, nullptr, message.c_str());
+    logger->log(EXTENSION_LOG_WARNING, nullptr, message.c_str());
+    logger->flush();
+
+    files = cb::io::findFilesWithPrefix(filename);
+    EXPECT_EQ(1, files.size());
+    auto logMessageCount = countInFile(files.front(), message);
+    auto dedupeMessageCount = countInFile(files.front(), dedupeMessage);
+
+    EXPECT_EQ(1, logMessageCount);
+    EXPECT_EQ(1, dedupeMessageCount);
+}
+
+/* The dedupe message should not trigger if flushed in between */
+TEST_F(DedupeSinkTest, MessageLoggedTwiceWithFlushTest) {
+    std::string message("This message will be written and flushed!");
+    std::string dedupeMessage("Message repeated");
+
+    for (auto i = 0; i < 10; i++) {
+        logger->log(EXTENSION_LOG_WARNING, nullptr, message.c_str());
+        logger->flush();
+    }
+
+    files = cb::io::findFilesWithPrefix(filename);
+    EXPECT_EQ(1, files.size());
+    auto logMessageCount = countInFile(files.front(), message);
+    auto dedupeMessageCount = countInFile(files.front(), dedupeMessage);
+
+    EXPECT_EQ(10, logMessageCount);
+    EXPECT_EQ(0, dedupeMessageCount);
+}
