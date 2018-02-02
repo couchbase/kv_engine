@@ -165,12 +165,9 @@ protected:
      * @param ssl_port_out where to store the TCP port number the server is
      *                     listening for SSL connections (deprecated, use
      *                     connectionMap instead)
-     * @param timeout Number of seconds to wait for server to start before
-     *                giving up.
      */
     static void parse_portnumber_file(in_port_t& port_out,
-                                      in_port_t& ssl_port_out,
-                                      int timeout);
+                                      in_port_t& ssl_port_out);
 
     static void verify_server_running();
 

@@ -610,13 +610,22 @@ void TestappTest::verify_server_running() {
 }
 
 void TestappTest::parse_portnumber_file(in_port_t& port_out,
-                                        in_port_t& ssl_port_out,
-                                        int timeout) {
+                                        in_port_t& ssl_port_out) {
     FILE* fp;
+    // I've seen that running under valgrind startup of the processes
+    // might be slow, and getting even worse if the machine is under
+    // load. Instead of having a "false timeout" just because the
+    // server is slow, lets set the deadline to a high value so that
+    // if we hit it we have a real problem and not just a loaded
+    // server (rebuilding all of the source one more time is just
+    // putting more load on the servers).
+    using std::chrono::minutes;
+    using std::chrono::seconds;
+    const auto timeout = seconds(minutes(5)).count();
     const time_t deadline = time(NULL) + timeout;
     // Wait up to timeout seconds for the port file to be created.
     do {
-        usleep(50);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
         fp = fopen(portnumber_file.c_str(), "r");
         if (fp != nullptr) {
             break;
@@ -1099,7 +1108,7 @@ void TestappTest::start_memcached_server(cJSON* config) {
     } else {
         start_external_server();
     }
-    parse_portnumber_file(port, ssl_port, 30);
+    parse_portnumber_file(port, ssl_port);
 }
 
 void store_object_w_datatype(const char *key, const void *data, size_t datalen,
