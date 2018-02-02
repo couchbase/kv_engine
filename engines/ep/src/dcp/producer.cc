@@ -51,8 +51,8 @@ void DcpProducer::BufferLog::setBufferSize(size_t maxBytes) {
     WriterLockHolder lh(logLock);
     this->maxBytes = maxBytes;
     if (maxBytes == 0) {
-        bytesSent = 0;
-        ackedBytes = 0;
+        bytesOutstanding = 0;
+        ackedBytes.reset(0);
     }
 }
 
@@ -62,18 +62,21 @@ bool DcpProducer::BufferLog::insert(size_t bytes) {
     // If the log is not enabled
     // or there is space, allow the insert
     if (!isEnabled_UNLOCKED() || !isFull_UNLOCKED()) {
-        bytesSent += bytes;
+        bytesOutstanding += bytes;
         inserted = true;
     }
     return inserted;
 }
 
 void DcpProducer::BufferLog::release_UNLOCKED(size_t bytes) {
-    if (bytesSent >= bytes) {
-        bytesSent -= bytes;
-    } else {
-        bytesSent = 0;
+    if (bytes > bytesOutstanding) {
+        throw std::logic_error(
+                "DcpProducer::BufferLog: attempting to release " +
+                std::to_string(bytes) + " bytes which is greater than " +
+                std::to_string(bytesOutstanding));
     }
+
+    bytesOutstanding -= bytes;
 }
 
 bool DcpProducer::BufferLog::pauseIfFull() {
@@ -94,7 +97,7 @@ void DcpProducer::BufferLog::unpauseIfSpaceAvailable() {
             ", bytesSent:%" PRIu64 ", maxBytes:%" PRIu64,
             producer.logHeader(),
             uint64_t(ackedBytes),
-            uint64_t(bytesSent),
+            uint64_t(bytesOutstanding),
             uint64_t(maxBytes));
     } else {
         producer.notifyPaused(true);
@@ -107,6 +110,7 @@ void DcpProducer::BufferLog::acknowledge(size_t bytes) {
     if (state != Disabled) {
         release_UNLOCKED(bytes);
         ackedBytes += bytes;
+
         if (state == Full) {
             LOG(EXTENSION_LOG_NOTICE,
                 "%s Notifying paused connection now that "
@@ -114,7 +118,7 @@ void DcpProducer::BufferLog::acknowledge(size_t bytes) {
                 ", bytesSent:%" PRIu64 ", maxBytes:%" PRIu64,
                 producer.logHeader(),
                 uint64_t(ackedBytes),
-                uint64_t(bytesSent),
+                uint64_t(bytesOutstanding),
                 uint64_t(maxBytes));
             producer.notifyPaused(true);
         }
@@ -125,7 +129,7 @@ void DcpProducer::BufferLog::addStats(ADD_STAT add_stat, const void *c) {
     ReaderLockHolder rlh(logLock);
     if (isEnabled_UNLOCKED()) {
         producer.addStat("max_buffer_bytes", maxBytes, add_stat, c);
-        producer.addStat("unacked_bytes", bytesSent, add_stat, c);
+        producer.addStat("unacked_bytes", bytesOutstanding, add_stat, c);
         producer.addStat("total_acked_bytes", ackedBytes, add_stat, c);
         producer.addStat("flow_control", "enabled", add_stat, c);
     } else {

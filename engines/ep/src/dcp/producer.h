@@ -174,7 +174,8 @@ public:
         };
 
         BufferLog(DcpProducer& p)
-            : producer(p), maxBytes(0), bytesSent(0), ackedBytes(0) {}
+            : producer(p), maxBytes(0), bytesOutstanding(0), ackedBytes(0) {
+        }
 
         void setBufferSize(size_t maxBytes);
 
@@ -211,7 +212,7 @@ private:
         }
 
         bool isFull_UNLOCKED() {
-            return bytesSent >= maxBytes;
+            return bytesOutstanding >= maxBytes;
         }
 
         void release_UNLOCKED(size_t bytes);
@@ -220,9 +221,18 @@ private:
 
         cb::RWLock logLock;
         DcpProducer& producer;
+
+        /// Capacity of the buffer - maximum number of bytes which can be
+        /// outstanding before the buffer is considered full.
         size_t maxBytes;
-        size_t bytesSent;
-        size_t ackedBytes;
+
+        /// Number of bytes currently outstanding (in the buffer). Incremented
+        /// upon insert(); and then decremented by acknowledge().
+        cb::NonNegativeCounter<size_t> bytesOutstanding;
+
+        /// Total number of bytes acknowledeged. Should be non-decreasing in
+        /// normal usage; but can be reset to zero when buffer size changes.
+        Monotonic<size_t> ackedBytes;
     };
 
     /*

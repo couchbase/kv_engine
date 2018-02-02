@@ -111,6 +111,10 @@ public:
         return old;
     }
 
+    T operator+=(T rhs) {
+        return val += rhs;
+    }
+
     /* Can be used to lower the value */
     void reset(T desired) {
         val = desired;
