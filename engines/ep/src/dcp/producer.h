@@ -153,6 +153,14 @@ public:
 
     void notifyPaused(bool schedule);
 
+    /**
+     * Tracks the amount of outstanding sent data for a Dcp Producer, alongside
+     * how many bytes have been acknowledged by the peer connection.
+     *
+     * When the buffer becomes full (outstanding >= limit), the producer is
+     * paused. Similarly when data is subsequently acknowledged and outstanding
+     * < limit; the producer is un-paused.
+     */
     class BufferLog {
     public:
 
@@ -177,36 +185,38 @@ public:
             : producer(p), maxBytes(0), bytesOutstanding(0), ackedBytes(0) {
         }
 
+        /**
+         * Change the buffer size to the specified value. A maximum of zero
+         * disables buffering.
+         */
         void setBufferSize(size_t maxBytes);
 
         void addStats(ADD_STAT add_stat, const void *c);
 
-        /*
-            Return false if the log is full.
-
-            Returns true if the bytes fit or if the buffer log is disabled.
-              The tracked bytes is increased.
-        */
+        /**
+         * Insert N bytes into the buffer.
+         *
+         * @return false if the log is full, true if the bytes fit or if the
+         * buffer log is disabled. The outstanding bytes are increased.
+         */
         bool insert(size_t bytes);
 
-        /*
-            Acknowledge the bytes and unpause the producer if full.
-              The tracked bytes is decreased.
-        */
+        /**
+         * Acknowledge the bytes and unpause the producer if full.
+         * The outstanding bytes are decreased.
+         */
         void acknowledge(size_t bytes);
 
-        /*
-            Pause the producer if full.
-        */
+        /**
+         * Pause the producer if full.
+         * @return true if the producer was paused; else false.
+         */
         bool pauseIfFull();
 
-        /*
-            Unpause the producer if there's space (or disabled).
-        */
+        /// Unpause the producer if there's space (or disabled).
         void unpauseIfSpaceAvailable();
 
 private:
-
         bool isEnabled_UNLOCKED() {
             return maxBytes != 0;
         }
