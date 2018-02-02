@@ -103,40 +103,46 @@ tells the receiver that the current header looks like:
         Total 24 bytes
 
 Following the header you'd now find the section containing the framing
-header (the size is specified in byte 2). Following the framing bytes you'll
+extras (the size is specified in byte 2). Following the framing extras you'll
 find the extras, then the key and finally the value. The size of the value
 is total body length - key length - extras length - framing extras.
 
-The framing extras is encoded as a series of variable-length FrameInfo objects.
+The framing extras is encoded as a series of variable-length `FrameInfo` objects.
 
-Each FrameInfo consists of:
-4bits: Object Identifier
-    (0..14): Identifier for the next element
-    15: Escape: ID is 15 + value of next byte.
-4bits: Object Length
-    (0..14) Size in bytes of the element data.
-    15: Escape: Size is 15 + value of next byte (after any object ID escape
-                bytes).
-N Bytes: Object data.
+Each `FrameInfo` consists of:
+
+* 4 bits: *Object Identifier*. Encodes first 15 object IDs directly; with the 16th value (15) used
+   as an escape to support an additional 256 IDs by combining the value of the next byte:
+   * `0..14`: Identifier for this element.
+   * `15`: Escape: ID is 15 + value of next byte.
+* 4 bits: *Object Length*. Encodes sizes 0..14 directly; value 15 is
+   used to encode sizes above 14 by combining the value of a following
+   byte:
+   * `0..14`: Size in bytes of the element data.
+   * `15`: Escape: Size is 15 + value of next byte (after any object ID
+   escape bytes).
+* N Bytes: *Object data*.
 
 For V1, only one object identifier is defined:
-0: Server Recv->Send duration: Time (in microseconds) server spent on the
-                               operation. Measured from receiving header from
-                               OS to when response given to OS.
-                               Size: 2 bytes; encoded as variable-precision
-                               value (see below)
 
-This would be encoded as:
-  Byte/     0       |       1       |       2       |
-     /              |               |               |
-    |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
-    +---------------+---------------+---------------+
-   0|  ID:0 | Len:2 |  Server Recv->Send Duration   |
+##### ID:0 - Server Recv->Send duration
 
+Time (in microseconds) server spent on the operation. Measured from
+receiving header from OS to when response given to OS.
+Size: 2 bytes; encoded as variable-precision value (see below)
+
+FrameInfo encoded as:
+
+    Byte/     0       |       1       |       2       |
+       /              |               |               |
+      |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
+      +---------------+---------------+---------------+
+     0|  ID:0 | Len:2 |  Server Recv->Send Duration   |
 
 The duration in micros is encoded as:
- encoded =  (micros * 2) ^ (1.0 / 1.74)
- decoded =  (encoded ^ 1.74) / 2
+
+    encoded =  (micros * 2) ^ (1.0 / 1.74)
+    decoded =  (encoded ^ 1.74) / 2
 
 ### Header fields description
 
