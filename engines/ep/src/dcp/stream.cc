@@ -993,8 +993,7 @@ void ActiveStreamCheckpointProcessorTask::cancelTask() {
 void ActiveStream::nextCheckpointItemTask() {
     VBucketPtr vbucket = engine->getVBucket(vb_);
     if (vbucket) {
-        std::vector<queued_item> items;
-        getOutstandingItems(vbucket, items);
+        auto items = getOutstandingItems(*vbucket);
         processItems(items);
     } else {
         /* The entity deleting the vbucket must set stream to dead,
@@ -1005,20 +1004,21 @@ void ActiveStream::nextCheckpointItemTask() {
     }
 }
 
-void ActiveStream::getOutstandingItems(VBucketPtr &vb,
-                                       std::vector<queued_item> &items) {
+std::vector<queued_item> ActiveStream::getOutstandingItems(VBucket& vb) {
+    std::vector<queued_item> items;
     // Commencing item processing - set guard flag.
     chkptItemsExtractionInProgress.store(true);
 
     auto _begin_ = ProcessClock::now();
-    vb->checkpointManager->getAllItemsForCursor(name_, items);
+    vb.checkpointManager->getAllItemsForCursor(name_, items);
     engine->getEpStats().dcpCursorsGetItemsHisto.add(
             std::chrono::duration_cast<std::chrono::microseconds>(
                     ProcessClock::now() - _begin_));
 
-    if (vb->checkpointManager->getNumCheckpoints() > 1) {
+    if (vb.checkpointManager->getNumCheckpoints() > 1) {
         engine->getKVBucket()->wakeUpCheckpointRemover();
     }
+    return items;
 }
 
 /**

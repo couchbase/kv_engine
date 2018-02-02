@@ -895,10 +895,8 @@ TEST_P(StreamTest, test_mb17766) {
     EXPECT_TRUE(stream->public_nextCheckpointItem())
             << "nextCheckpointItem() should initially be true.";
 
-    std::vector<queued_item> items;
-
     // Get the set of outstanding items
-    stream->public_getOutstandingItems(vb0, items);
+    auto items = stream->public_getOutstandingItems(*vb0);
 
     // REGRESSION CHECK: nextCheckpointItem() should still return true
     EXPECT_TRUE(stream->public_nextCheckpointItem())
@@ -1004,10 +1002,8 @@ TEST_P(StreamTest, test_mb18625) {
     EXPECT_TRUE(stream->public_nextCheckpointItem())
             << "nextCheckpointItem() should initially be true.";
 
-    std::vector<queued_item> items;
-
     // Get the set of outstanding items
-    stream->public_getOutstandingItems(vb0, items);
+    auto items = stream->public_getOutstandingItems(*vb0);
 
     // Set stream to DEAD to simulate a close stream request
     stream->setDead(END_STREAM_CLOSED);

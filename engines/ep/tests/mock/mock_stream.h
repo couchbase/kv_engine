@@ -58,9 +58,8 @@ public:
     }
 
     // Expose underlying protected ActiveStream methods as public
-    void public_getOutstandingItems(VBucketPtr& vb,
-                                    std::vector<queued_item>& items) {
-        getOutstandingItems(vb, items);
+    std::vector<queued_item> public_getOutstandingItems(VBucket& vb) {
+        return getOutstandingItems(vb);
     }
 
     void public_processItems(std::vector<queued_item>& items) {

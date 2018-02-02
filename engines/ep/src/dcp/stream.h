@@ -305,8 +305,12 @@ public:
     }
 
 protected:
-    // Returns the outstanding items for the stream's checkpoint cursor.
-    void getOutstandingItems(VBucketPtr &vb, std::vector<queued_item> &items);
+    /**
+     * @param vb reference to the associated vbucket
+     *
+     * @return the outstanding items for the stream's checkpoint cursor.
+     */
+    std::vector<queued_item> getOutstandingItems(VBucket& vb);
 
     // Given a set of queued items, create mutation responses for each item,
     // and pass onto the producer associated with this stream.
