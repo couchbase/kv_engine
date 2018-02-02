@@ -15,6 +15,7 @@
  *   limitations under the License.
  */
 
+#include <cstdlib> // Required due to the use of free
 #include <limits>
 #include <memory>
 
