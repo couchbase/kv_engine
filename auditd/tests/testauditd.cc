@@ -36,7 +36,6 @@
 #include "auditd/src/auditconfig.h"
 #include "auditd/tests/mock_auditconfig.h"
 #include "memcached/extension.h"
-#include "memcached/extension_loggers.h"
 
 // The event descriptor file is normally stored in the directory named
 // auditd relative to the binary.. let's just use that as the default
@@ -83,7 +82,6 @@ public:
         // Start the audit daemon
         AUDIT_EXTENSION_DATA audit_extension_data;
         memset(&audit_extension_data, 0, sizeof(audit_extension_data));
-        audit_extension_data.log_extension = get_stderr_logger();
         audit_extension_data.notify_io_complete = notify_io_complete;
 
         ASSERT_EQ(AUDIT_SUCCESS,
@@ -321,6 +319,7 @@ TEST_F(AuditDaemonTest, VersionTest) {
 }
 
 int main(int argc, char** argv) {
+    cb::logger::createConsoleLogger();
     ::testing::InitGoogleTest(&argc, argv);
     // required for gethostname(); normally called by memcached's main()
     cb_initialize_sockets();

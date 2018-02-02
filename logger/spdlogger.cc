@@ -32,10 +32,16 @@
 #include <spdlog/spdlog.h>
 #include <chrono>
 #include <cstdio>
+#include <mutex>
 
 #ifndef WIN32
 #include <spdlog/sinks/ansicolor_sink.h>
 #endif
+
+static const std::string logger_name{"spdlog_file_logger"};
+static const size_t default_buffer_size{2048};
+static const std::chrono::milliseconds default_sleep_time{500};
+static std::mutex create_lock;
 
 static EXTENSION_LOGGER_DESCRIPTOR descriptor;
 
@@ -128,6 +134,7 @@ static void logger_shutdown(bool force) {
     }
 
     file_logger.reset();
+    cb::logger::createBlackholeLogger();
 }
 
 static void logger_flush() {
@@ -161,6 +168,8 @@ boost::optional<std::string> cb::logger::initialize(
     if (getenv("CB_MAXIMIZE_LOGGER_BUFFER_SIZE") != nullptr) {
         buffersz = 8 * 1024 * 1024; // use an 8MB log buffer
     }
+
+    std::lock_guard<std::mutex> guard(create_lock);
 
     try {
         /* Initialise the loggers.
@@ -197,8 +206,9 @@ boost::optional<std::string> cb::logger::initialize(
             sink->add_sink(std::make_shared<spdlog::sinks::null_sink_mt>());
         }
 
+        spdlog::drop(logger_name);
         file_logger =
-                spdlog::create_async("spdlog_file_logger",
+                spdlog::create_async(logger_name,
                                      sink,
                                      buffersz,
                                      spdlog::async_overflow_policy::block_retry,
@@ -212,18 +222,61 @@ boost::optional<std::string> cb::logger::initialize(
 
     file_logger->set_pattern(log_pattern);
     file_logger->set_level(convertToSpdSeverity(sapi->log->get_level()));
-    descriptor.get_name = get_name;
-    descriptor.log = log;
-    descriptor.shutdown = logger_shutdown;
-    descriptor.flush = logger_flush;
-
-    if (!sapi->extension->register_extension(EXTENSION_LOGGER, &descriptor)) {
-        return boost::optional<std::string>{"Failed to register logger"};
-    }
-
     return {};
 }
 
 std::shared_ptr<spdlog::logger> cb::logger::get() {
+    if (!file_logger) {
+        createBlackholeLogger();
+    }
+
     return file_logger;
+}
+
+void cb::logger::createBlackholeLogger() {
+    std::lock_guard<std::mutex> guard(create_lock);
+    // delete if already exists
+    spdlog::drop(logger_name);
+
+    file_logger = spdlog::create_async(
+            logger_name,
+            std::make_shared<spdlog::sinks::null_sink_mt>(),
+            default_buffer_size,
+            spdlog::async_overflow_policy::block_retry,
+            nullptr,
+            default_sleep_time);
+
+    file_logger->set_level(spdlog::level::off);
+    file_logger->set_pattern(log_pattern);
+}
+
+void cb::logger::createConsoleLogger() {
+    std::lock_guard<std::mutex> guard(create_lock);
+    // delete if already exists
+    spdlog::drop(logger_name);
+
+#ifdef WIN32
+    auto stderrsink = std::make_shared<spdlog::sinks::stderr_sink_mt>();
+#else
+    auto stderrsink =
+            std::make_shared<spdlog::sinks::ansicolor_stderr_sink_mt>();
+#endif
+    file_logger =
+            spdlog::create_async(logger_name,
+                                 stderrsink,
+                                 default_buffer_size,
+                                 spdlog::async_overflow_policy::block_retry,
+                                 nullptr,
+                                 default_sleep_time);
+    file_logger->set_level(spdlog::level::info);
+    file_logger->set_pattern(log_pattern);
+}
+
+LOGGER_PUBLIC_API
+EXTENSION_LOGGER_DESCRIPTOR& cb::logger::getLoggerDescriptor() {
+    descriptor.get_name = get_name;
+    descriptor.log = log;
+    descriptor.shutdown = logger_shutdown;
+    descriptor.flush = logger_flush;
+    return descriptor;
 }

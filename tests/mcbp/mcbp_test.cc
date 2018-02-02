@@ -20,7 +20,6 @@
 
 #include <event2/event.h>
 #include <mcbp/protocol/header.h>
-#include <memcached/extension_loggers.h>
 #include <memcached/protocol_binary.h>
 
 /**

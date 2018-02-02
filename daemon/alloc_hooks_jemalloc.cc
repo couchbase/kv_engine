@@ -19,7 +19,6 @@
 #include <stdbool.h>
 
 #include "memcached/visibility.h"
-#include <memcached/extension_loggers.h>
 #include <platform/cb_malloc.h>
 
 
@@ -28,6 +27,7 @@
 */
 #define JEMALLOC_NO_RENAME
 #include <jemalloc/jemalloc.h>
+#include <logger/logger.h>
 
 #if defined(HAVE_MEMALIGN)
 #include <malloc.h>
@@ -159,26 +159,27 @@ void JemallocHooks::release_free_memory() {
     size_t len = sizeof(narenas);
     int err = je_mallctl("arenas.narenas", &narenas, &len, NULL, 0);
     if (err != 0) {
-        get_stderr_logger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "jemalloc_release_free_memory() error %d - "
-                                     "could not determine narenas.", err);
+        CB_WARN("jemalloc_release_free_memory() error {} - "
+                "could not determine narenas.",
+                err);
+
         return;
     }
     size_t mib[3]; /* Components in "arena.0.purge" MIB. */
     size_t miblen = sizeof(mib) / sizeof(mib[0]);
     err = je_mallctlnametomib("arena.0.purge", mib, &miblen);
     if (err != 0) {
-        get_stderr_logger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "jemalloc_release_free_memory() error %d - "
-                                     "could not lookup MIB.", err);
+        CB_WARN("jemalloc_release_free_memory() error {} - "
+                "could not lookup MIB.",
+                err);
         return;
     }
     mib[1] = narenas;
     err = je_mallctlbymib(mib, miblen, NULL, 0, NULL, 0);
     if (err != 0) {
-        get_stderr_logger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "jemalloc_release_free_memory() error %d - "
-                                     "could not invoke arenas.N.purge.", err);
+        CB_WARN("jemalloc_release_free_memory() error {} - "
+                "could not invoke arenas.N.purge.",
+                err);
     }
 }
 
@@ -188,9 +189,9 @@ bool JemallocHooks::enable_thread_cache(bool enable) {
     int err = je_mallctl("thread.tcache.enabled", &old, &size, &enable,
                          sizeof(enable));
     if (err != 0) {
-        get_stderr_logger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "jemalloc_enable_thread_cache(%s) error %d",
-                                 (enable ? "true" : "false"), err);
+        CB_WARN("jemalloc_enable_thread_cache({}) error {}",
+                (enable ? "true" : "false"),
+                err);
     }
     return old;
 }

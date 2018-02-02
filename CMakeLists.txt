@@ -89,7 +89,8 @@ INCLUDE_DIRECTORIES(BEFORE
                     ${CMAKE_CURRENT_BINARY_DIR}
                     ${CMAKE_CURRENT_SOURCE_DIR}
                     ${Platform_SOURCE_DIR}/include
-                    ${subjson_SOURCE_DIR})
+                    ${subjson_SOURCE_DIR}
+                    ${spdlog_SOURCE_DIR}/include)
 
 INCLUDE_DIRECTORIES(AFTER SYSTEM
                     ${gtest_SOURCE_DIR}/include

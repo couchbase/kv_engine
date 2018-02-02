@@ -64,10 +64,36 @@ boost::optional<std::string> initialize(const Config& logger_settings,
                                         GET_SERVER_API get_server_api);
 
 /**
+ * Initialize the logger with the blackhole logger object
+ *
+ * This method is intended to be used by unit tests which
+ * don't need any output (but may call methods who tries
+ * to fetch the logger)
+ *
+ * @throws std::bad_alloc
+ * @throws spdlog::spdlog_ex if an error occurs creating the logger
+ *                           (if it already exists for instance)
+ */
+LOGGER_PUBLIC_API
+void createBlackholeLogger();
+
+/**
+ * Initialize the logger with the logger which logs to the console
+ *
+ * @throws std::bad_alloc
+ * @throws spdlog::spdlog_ex if an error occurs creating the logger
+ */
+LOGGER_PUBLIC_API
+void createConsoleLogger();
+
+/**
  * Get the underlying logger object
  */
 LOGGER_PUBLIC_API
 std::shared_ptr<spdlog::logger> get();
+
+LOGGER_PUBLIC_API
+EXTENSION_LOGGER_DESCRIPTOR& getLoggerDescriptor();
 
 /**
  * Convert a log level as being used by the memcached logger
@@ -81,3 +107,15 @@ spdlog::level::level_enum convertToSpdSeverity(EXTENSION_LOG_LEVEL sev);
 
 } // namespace logger
 } // namespace cb
+
+#define CB_LOG_ENTRY(level, ...)               \
+    do {                                       \
+        cb::logger::get()->level(__VA_ARGS__); \
+    } while (false)
+
+#define CB_TRACE(...) CB_LOG_ENTRY(trace, __VA_ARGS__)
+#define CB_DEBUG(...) CB_LOG_ENTRY(debug, __VA_ARGS__)
+#define CB_INFO(...) CB_LOG_ENTRY(info, __VA_ARGS__)
+#define CB_WARN(...) CB_LOG_ENTRY(warn, __VA_ARGS__)
+#define CB_ERROR(...) CB_LOG_ENTRY(err, __VA_ARGS__)
+#define CB_CRIT(...) CB_LOG_ENTRY(critical, __VA_ARGS__)

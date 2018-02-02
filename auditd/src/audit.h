@@ -24,12 +24,13 @@
 #include <atomic>
 
 #include <cJSON.h>
+#include <logger/logger.h>
+#include "auditconfig.h"
+#include "auditd.h"
+#include "auditfile.h"
+#include "eventdescriptor.h"
 #include "memcached/audit_interface.h"
 #include "memcached/types.h"
-#include "auditconfig.h"
-#include "auditfile.h"
-#include "auditd.h"
-#include "eventdescriptor.h"
 
 class Event;
 
@@ -51,7 +52,6 @@ public:
     cb_cond_t processeventqueue_empty;
     cb_cond_t events_arrived;
     cb_mutex_t producer_consumer_lock;
-    static EXTENSION_LOGGER_DESCRIPTOR *logger;
     static std::string hostname;
     static void (*notify_io_complete)(gsl::not_null<const void*> cookie,
                                       ENGINE_ERROR_CODE status);

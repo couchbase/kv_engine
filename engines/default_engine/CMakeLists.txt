@@ -29,7 +29,7 @@ IF (ENABLE_DTRACE)
   ENDIF (DTRACE_NEED_INSTRUMENT)
 ENDIF (ENABLE_DTRACE)
 
-TARGET_LINK_LIBRARIES(default_engine engine_utilities mcd_util platform ${COUCHBASE_NETWORK_LIBS})
+TARGET_LINK_LIBRARIES(default_engine memcached_logger engine_utilities mcd_util platform ${COUCHBASE_NETWORK_LIBS})
 
 INSTALL(TARGETS default_engine
         RUNTIME DESTINATION bin

@@ -17,12 +17,13 @@
 
 #include "config.h"
 
-#include <algorithm>
 #include <cJSON.h>
-#include <cstring>
+#include <logger/logger.h>
 #include <memcached/audit_interface.h>
 #include <memcached/isotime.h>
 #include <platform/strerror.h>
+#include <algorithm>
+#include <cstring>
 #include <sstream>
 
 #include "audit.h"
@@ -97,8 +98,10 @@ AUDIT_ERROR_CODE start_auditdaemon(const AUDIT_EXTENSION_DATA* extension_data,
         throw std::invalid_argument(
             "start_auditdaemon: extension_data can't be null");
     }
-    if (extension_data->log_extension == nullptr) {
-        throw std::invalid_argument("start_auditdaemon: logger can't be null");
+
+    if (!cb::logger::get()) {
+        throw std::invalid_argument(
+                "start_auditdaemon: logger must have been created");
     }
 
     std::unique_ptr<Audit> holder;
@@ -107,7 +110,6 @@ AUDIT_ERROR_CODE start_auditdaemon(const AUDIT_EXTENSION_DATA* extension_data,
         holder.reset(new Audit);
 
         Audit* audit = holder.get();
-        audit->logger = extension_data->log_extension;
         audit->notify_io_complete = extension_data->notify_io_complete;
         audit->hostname = gethostname();
         if (extension_data->configfile != nullptr) {
@@ -120,18 +122,15 @@ AUDIT_ERROR_CODE start_auditdaemon(const AUDIT_EXTENSION_DATA* extension_data,
 
         if (cb_create_named_thread(&audit->consumer_tid, consume_events,
                                    audit, 0, "mc:auditd") != 0) {
-            audit->logger->log(EXTENSION_LOG_WARNING, nullptr,
-                               "Failed to create audit thread");
+            CB_WARN("Failed to create audit thread");
             return AUDIT_FAILED;
         }
         audit->consumer_thread_running.store(true);
     } catch (std::runtime_error& err) {
-        extension_data->log_extension->log(EXTENSION_LOG_WARNING, nullptr, "%s",
-                                           err.what());
+        CB_WARN("{}", err.what());
         return AUDIT_FAILED;
     } catch (std::bad_alloc&) {
-        extension_data->log_extension->log(EXTENSION_LOG_WARNING, nullptr,
-                                           "Out of memory");
+        CB_WARN("Failed to start audit: Out of memory");
         return AUDIT_FAILED;
     }
 

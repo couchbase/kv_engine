@@ -6,7 +6,6 @@
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
 #include <memcached/extension.h>
-#include <memcached/extension_loggers.h>
 #include <memcached/server_api.h>
 #include <stdlib.h>
 #include <string.h>
@@ -21,6 +20,7 @@
 #include "daemon/protocol/mcbp/engine_errc_2_mcbp.h"
 #include "mock_server.h"
 
+#include <logger/logger.h>
 #include <array>
 #include <list>
 
@@ -42,8 +42,6 @@ std::atomic<rel_time_t> time_travel_offset;
 /* ref_mutex to guard references, and object deletion in case references becomes zero */
 static cb_mutex_t ref_mutex;
 struct mock_extensions extensions;
-EXTENSION_LOGGER_DESCRIPTOR *null_logger = NULL;
-EXTENSION_LOGGER_DESCRIPTOR *stderr_logger = NULL;
 EXTENSION_LOG_LEVEL log_level = EXTENSION_LOG_INFO;
 
 /**
@@ -330,9 +328,6 @@ static bool mock_register_extension(extension_type_t type, void *extension)
             extensions.daemons = reinterpret_cast<EXTENSION_DAEMON_DESCRIPTOR*>(extension);
         }
         return true;
-    case EXTENSION_LOGGER:
-        extensions.logger = reinterpret_cast<EXTENSION_LOGGER_DESCRIPTOR*>(extension);
-        return true;
     default:
         return false;
     }
@@ -360,16 +355,6 @@ static void mock_unregister_extension(extension_type_t type, void *extension)
             }
         }
         break;
-    case EXTENSION_LOGGER:
-        if (extensions.logger == extension) {
-            if (stderr_logger == extension) {
-                extensions.logger = null_logger;
-            } else {
-                extensions.logger = stderr_logger;
-            }
-        }
-        break;
-
     default:
         ;
     }
@@ -381,9 +366,6 @@ static void* mock_get_extension(extension_type_t type)
     switch (type) {
     case EXTENSION_DAEMON:
         return extensions.daemons;
-
-    case EXTENSION_LOGGER:
-        return extensions.logger;
 
     default:
         return NULL;
@@ -535,9 +517,9 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
 
 void init_mock_server(bool log_to_stderr) {
     process_started = time(0);
-    null_logger = get_null_logger();
-    stderr_logger = get_stderr_logger();
-    extensions.logger = log_to_stderr ? stderr_logger : null_logger;
+    log_to_stderr ? cb::logger::createConsoleLogger()
+                  : cb::logger::createBlackholeLogger();
+    extensions.logger = &cb::logger::getLoggerDescriptor();
     session_cas = 0x0102030405060708;
     session_ctr = 0;
     cb_mutex_initialize(&session_mutex);

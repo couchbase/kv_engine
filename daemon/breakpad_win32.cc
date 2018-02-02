@@ -19,7 +19,6 @@
 #include "breakpad.h"
 #include "client/windows/handler/exception_handler.h"
 #include "memcached.h"
-#include "memcached/extension_loggers.h"
 #include "utilities/terminate_handler.h"
 
 #include <platform/backtrace.h>

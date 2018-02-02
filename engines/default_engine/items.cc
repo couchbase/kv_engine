@@ -8,6 +8,7 @@
 #include <time.h>
 #include <inttypes.h>
 
+#include <logger/logger.h>
 #include <memcached/server_api.h>
 #include <platform/cb_malloc.h>
 #include <platform/crc32c.h>
@@ -546,25 +547,6 @@ hash_item* do_item_get(struct default_engine* engine,
     hash_item *it = assoc_find(crc32c(hash_key_get_key(key),
                                       hash_key_get_key_len(key), 0),
                                key);
-    int was_found = 0;
-
-    if (engine->config.verbose > 2) {
-        EXTENSION_LOGGER_DESCRIPTOR *logger;
-        logger = static_cast<EXTENSION_LOGGER_DESCRIPTOR*>
-            (engine->server.extension->get_extension(EXTENSION_LOGGER));
-        if (it == NULL) {
-            logger->log(EXTENSION_LOG_DEBUG, NULL,
-                        "> NOT FOUND in bucket %d, %s",
-                        hash_key_get_bucket_index(key),
-                        hash_key_get_client_key(key));
-        } else {
-            logger->log(EXTENSION_LOG_DEBUG, NULL,
-                        "> FOUND KEY in bucket %d, %s",
-                        hash_key_get_bucket_index(item_get_key(it)),
-                        hash_key_get_client_key(item_get_key(it)));
-            was_found++;
-        }
-    }
 
     if (it != NULL && engine->config.oldest_live != 0 &&
         engine->config.oldest_live <= current_time &&
@@ -573,25 +555,9 @@ hash_item* do_item_get(struct default_engine* engine,
         it = NULL;
     }
 
-    if (it == NULL && was_found) {
-        EXTENSION_LOGGER_DESCRIPTOR *logger;
-        logger = static_cast<EXTENSION_LOGGER_DESCRIPTOR*>
-            (engine->server.extension->get_extension(EXTENSION_LOGGER));
-        logger->log(EXTENSION_LOG_DEBUG, NULL, " -nuked by flush");
-        was_found--;
-    }
-
     if (it != NULL && it->exptime != 0 && it->exptime <= current_time) {
         do_item_unlink(engine, it);           /* MTSAFE - items.lock held */
         it = NULL;
-    }
-
-    if (it == NULL && was_found) {
-        EXTENSION_LOGGER_DESCRIPTOR *logger;
-        logger = static_cast<EXTENSION_LOGGER_DESCRIPTOR*>
-            (engine->server.extension->get_extension(EXTENSION_LOGGER));
-        logger->log(EXTENSION_LOG_DEBUG, NULL, " -nuked by expire");
-        was_found--;
     }
 
     if (it != NULL) {
@@ -654,15 +620,6 @@ static ENGINE_ERROR_CODE do_store_item(struct default_engine *engine,
             do_item_replace(engine, cookie, old_it, it);
             stored = ENGINE_SUCCESS;
         } else {
-            if (engine->config.verbose > 1) {
-                EXTENSION_LOGGER_DESCRIPTOR *logger;
-                logger = static_cast<EXTENSION_LOGGER_DESCRIPTOR*>
-                    (engine->server.extension->get_extension(EXTENSION_LOGGER));
-                logger->log(EXTENSION_LOG_INFO, NULL,
-                        "CAS:  failure: expected %" PRIu64", got %" PRIu64"\n",
-                        old_it->cas, it->cas);
-            }
-
             if (locked) {
                 stored = ENGINE_LOCKED;
             } else if (old_it->iflag & ITEM_ZOMBIE && !(it->iflag &ITEM_ZOMBIE)) {
@@ -1188,13 +1145,9 @@ static ENGINE_ERROR_CODE item_scrub(struct default_engine *engine,
     */
     if (engine->scrubber.force_delete && item->refcount > 0) {
         // warn that someone isn't releasing items before deleting their bucket.
-        EXTENSION_LOGGER_DESCRIPTOR* logger;
-        logger = static_cast<EXTENSION_LOGGER_DESCRIPTOR*>
-            (engine->server.extension->get_extension(EXTENSION_LOGGER));
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Bucket (%d) deletion is removing an item with refcount %d",
-                     engine->bucket_id,
-                     item->refcount);
+        CB_WARN("Bucket ({}) deletion is removing an item with refcount {}",
+                engine->bucket_id,
+                item->refcount);
     }
 
     if (engine->scrubber.force_delete || (item->refcount == 0 &&

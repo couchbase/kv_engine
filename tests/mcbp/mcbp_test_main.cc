@@ -17,10 +17,10 @@
 
 #include <daemon/settings.h>
 #include <gtest/gtest.h>
-#include <memcached/extension_loggers.h>
 
 int main(int argc, char** argv) {
-    settings.extensions.logger = get_stderr_logger();
+    cb::logger::createConsoleLogger();
+    settings.extensions.logger = &cb::logger::getLoggerDescriptor();
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }

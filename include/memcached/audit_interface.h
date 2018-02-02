@@ -43,11 +43,6 @@ typedef enum {
  */
 typedef struct {
     /**
-     * The logger instance
-     */
-    EXTENSION_LOGGER_DESCRIPTOR* log_extension;
-
-    /**
      * The name of the configuration file to use
      */
     const char* configfile;

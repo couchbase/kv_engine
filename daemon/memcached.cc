@@ -35,7 +35,6 @@
 #include "mcbp_validators.h"
 #include "mcbpdestroybuckettask.h"
 #include "memcached/audit_interface.h"
-#include "memcached/extension_loggers.h"
 #include "memcached_openssl.h"
 #include "parent_monitor.h"
 #include "protocol/mcbp/engine_wrapper.h"
@@ -547,7 +546,6 @@ static void settings_init(void) {
     settings.setVerbose(0);
     settings.setConnectionIdleTime(0); // Connection idle time disabled
     settings.setNumWorkerThreads(get_number_of_worker_threads());
-    settings.extensions.logger = get_stderr_logger();
     settings.setDatatypeJsonEnabled(true);
     settings.setDatatypeSnappyEnabled(true);
     settings.setRequestsPerEventNotification(50, EventPriority::High);
@@ -1665,11 +1663,6 @@ static bool register_extension(extension_type_t type, void *extension)
         }
         return true;
 
-    case EXTENSION_LOGGER:
-        settings.extensions.logger =
-                reinterpret_cast<EXTENSION_LOGGER_DESCRIPTOR*>(extension);
-        return true;
-
     default:
         return false;
     }
@@ -1703,15 +1696,6 @@ static void unregister_extension(extension_type_t type, void *extension)
             }
         }
         break;
-    case EXTENSION_LOGGER:
-        if (settings.extensions.logger == extension) {
-            if (get_stderr_logger() == extension) {
-                settings.extensions.logger = get_null_logger();
-            } else {
-                settings.extensions.logger = get_stderr_logger();
-            }
-        }
-        break;
     }
 }
 
@@ -1723,9 +1707,6 @@ static void* get_extension(extension_type_t type)
     switch (type) {
     case EXTENSION_DAEMON:
         return settings.extensions.daemons;
-
-    case EXTENSION_LOGGER:
-        return settings.extensions.logger;
 
     default:
         return NULL;
@@ -1788,31 +1769,6 @@ static void set_log_level(EXTENSION_LOG_LEVEL severity)
         break;
     default:
         settings.setVerbose(2);
-    }
-}
-
-/**
- * Resets the logger to the stderr logger and shuts down the previously
- * active logger extension.
- *
- * Does nothing if the null, stderr or blackhole loggers are being used
- */
-static void shutdown_logger() {
-    if (settings.extensions.logger == get_stderr_logger() ||
-        settings.extensions.logger == get_null_logger()) {
-        return;
-    }
-
-    // Testapp specifically loads a blackhole logger extension
-    if (settings.extensions.logger->get_name &&
-        settings.extensions.logger->get_name() == std::string("blackhole")) {
-        return;
-    }
-
-    auto* old_logger = settings.extensions.logger;
-    settings.extensions.logger = get_stderr_logger();
-    if (old_logger->shutdown != nullptr) {
-        old_logger->shutdown(/* force */ false);
     }
 }
 
@@ -2575,6 +2531,15 @@ extern "C" int memcached_main(int argc, char **argv) {
     // super-early crashes).
     install_backtrace_terminate_handler(nullptr);
 
+    try {
+        cb::logger::createConsoleLogger();
+        settings.extensions.logger = &cb::logger::getLoggerDescriptor();
+    } catch (const std::exception& e) {
+        std::cerr << "Failed to create logger object: " << e.what()
+                  << std::endl;
+        exit(EXIT_FAILURE);
+    }
+
     setup_libevent_locking();
 
     initialize_openssl();
@@ -2588,11 +2553,6 @@ extern "C" int memcached_main(int argc, char **argv) {
     settings_init();
 
     initialize_mbcp_lookup_map();
-
-    if (memcached_initialize_stderr_logger(get_server_api) != EXTENSION_SUCCESS) {
-        fprintf(stderr, "Failed to initialize log system\n");
-        return EX_OSERR;
-    }
 
     /* Parse command line arguments */
     try {
@@ -2801,8 +2761,7 @@ extern "C" int memcached_main(int argc, char **argv) {
     event_base_free(main_base);
 
     LOG_NOTICE(NULL, "Shutting down logger extension");
-    shutdown_logger();
+    settings.extensions.logger->shutdown(false);
 
-    LOG_NOTICE(NULL, "Shutdown complete.");
     return EXIT_SUCCESS;
 }

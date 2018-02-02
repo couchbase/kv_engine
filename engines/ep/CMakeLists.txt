@@ -321,8 +321,8 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
 
     TARGET_LINK_LIBRARIES(ep-engine_ep_unit_tests ${EP_STORAGE_LIBS} cJSON
                           dirutils engine_utilities gtest gmock hdr_histogram_static
-                          JSON_checker mcd_util mcd_tracing platform phosphor xattr
-                          cbcompress ${MALLOC_LIBRARIES})
+                          JSON_checker memcached_logger mcd_util mcd_tracing platform
+                          phosphor xattr cbcompress ${MALLOC_LIBRARIES})
 
     ADD_EXECUTABLE(ep-engine_atomic_ptr_test
                    tests/module_tests/atomic_ptr_test.cc
@@ -369,7 +369,8 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                    tests/module_tests/vbucket_test.cc)
 
     TARGET_LINK_LIBRARIES(ep_engine_benchmarks benchmark platform xattr hdr_histogram_static
-                          cJSON dirutils engine_utilities gtest gmock JSON_checker mcd_util
+                          cJSON dirutils engine_utilities
+                          memcached_logger gtest gmock JSON_checker mcd_util
                           mcd_tracing cbcompress ${MALLOC_LIBRARIES} ${EP_STORAGE_LIBS})
     TARGET_INCLUDE_DIRECTORIES(ep_engine_benchmarks PUBLIC
                                ${benchmark_SOURCE_DIR}/include

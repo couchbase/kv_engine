@@ -8,7 +8,7 @@ ADD_LIBRARY(auditd SHARED
             eventdescriptor.cc
             eventdescriptor.h)
 SET_TARGET_PROPERTIES(auditd PROPERTIES SOVERSION 0.1.0)
-TARGET_LINK_LIBRARIES(auditd mcd_time cJSON JSON_checker platform dirutils)
+TARGET_LINK_LIBRARIES(auditd memcached_logger mcd_time cJSON JSON_checker platform dirutils)
 ADD_DEPENDENCIES(auditd generate_audit_descriptors)
 
 INSTALL(TARGETS auditd

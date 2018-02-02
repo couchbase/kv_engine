@@ -116,29 +116,11 @@ ENGINE_ERROR_CODE slabs_init(struct default_engine *engine,
         engine->slabs.slabclass[i].size = size;
         engine->slabs.slabclass[i].perslab = (unsigned int)engine->config.item_size_max / engine->slabs.slabclass[i].size;
         size = (unsigned int)(size * factor);
-        if (engine->config.verbose > 1) {
-            EXTENSION_LOGGER_DESCRIPTOR *logger;
-            logger = static_cast<EXTENSION_LOGGER_DESCRIPTOR*>
-                (engine->server.extension->get_extension(EXTENSION_LOGGER));
-            logger->log(EXTENSION_LOG_INFO, NULL,
-                        "slab class %3d: chunk size %9u perslab %7u\n",
-                        i, engine->slabs.slabclass[i].size,
-                        engine->slabs.slabclass[i].perslab);
-        }
     }
 
     engine->slabs.power_largest = i;
     engine->slabs.slabclass[engine->slabs.power_largest].size = (unsigned int)engine->config.item_size_max;
     engine->slabs.slabclass[engine->slabs.power_largest].perslab = 1;
-    if (engine->config.verbose > 1) {
-        EXTENSION_LOGGER_DESCRIPTOR *logger;
-        logger = static_cast<EXTENSION_LOGGER_DESCRIPTOR*>
-            (engine->server.extension->get_extension(EXTENSION_LOGGER));
-        logger->log(EXTENSION_LOG_INFO, NULL,
-                    "slab class %3d: chunk size %9u perslab %7u\n",
-                    i, engine->slabs.slabclass[i].size,
-                    engine->slabs.slabclass[i].perslab);
-    }
 
     /* for the test suite:  faking of how much we've already malloc'd */
     {
@@ -443,12 +425,9 @@ void slabs_adjust_mem_requested(struct default_engine *engine, unsigned int id, 
     slabclass_t *p;
     cb_mutex_enter(&engine->slabs.lock);
     if (id < POWER_SMALLEST || id > engine->slabs.power_largest) {
-        EXTENSION_LOGGER_DESCRIPTOR *logger;
-        logger = static_cast<EXTENSION_LOGGER_DESCRIPTOR*>
-            (engine->server.extension->get_extension(EXTENSION_LOGGER));
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Internal error! Invalid slab class\n");
-        cb_assert(false);
+        throw std::invalid_argument(
+                "slabs_adjust_mem_requested: Internal error! Invalid slab "
+                "class");
     }
 
     p = &engine->slabs.slabclass[id];

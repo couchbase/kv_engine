@@ -328,7 +328,6 @@ void initialize_audit() {
 /* Start the audit daemon */
     AUDIT_EXTENSION_DATA audit_extension_data;
     memset(&audit_extension_data, 0, sizeof(audit_extension_data));
-    audit_extension_data.log_extension = settings.extensions.logger;
     audit_extension_data.notify_io_complete = notify_io_complete;
     audit_extension_data.configfile = settings.getAuditFile().c_str();
     Audit* handle = nullptr;

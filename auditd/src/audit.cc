@@ -35,7 +35,6 @@
 #include "auditd_audit_events.h"
 #include "eventdescriptor.h"
 
-EXTENSION_LOGGER_DESCRIPTOR* Audit::logger = NULL;
 std::string Audit::hostname;
 void (*Audit::notify_io_complete)(gsl::not_null<const void*> cookie,
                                   ENGINE_ERROR_CODE status);
@@ -44,147 +43,111 @@ void Audit::log_error(const AuditErrorCode return_code,
                       const std::string& string) {
     switch (return_code) {
     case AuditErrorCode::AUDIT_EXTENSION_DATA_ERROR:
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: audit extension data error");
+        CB_WARN("Audit: audit extension data error");
         break;
     case AuditErrorCode::FILE_OPEN_ERROR:
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: open error on file %s: %s", string.c_str(),
-                    strerror(errno));
+        CB_WARN("Audit: open error on file {}: {}", string, strerror(errno));
         break;
     case AuditErrorCode::FILE_RENAME_ERROR:
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: rename error on file %s: %s", string.c_str(),
-                    strerror(errno));
+        CB_WARN("Audit: rename error on file {}: {}", string, strerror(errno));
         break;
     case AuditErrorCode::FILE_REMOVE_ERROR:
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: remove error on file %s: %s", string.c_str(),
-                    strerror(errno));
+        CB_WARN("Audit: remove error on file {}: {}", string, strerror(errno));
         break;
     case AuditErrorCode::MEMORY_ALLOCATION_ERROR:
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: memory allocation error: %s", string.c_str());
+        CB_WARN("Audit: memory allocation error: {}", string);
         break;
     case AuditErrorCode::JSON_PARSING_ERROR:
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: JSON parsing error on string \"%s\"",
-                    string.c_str());
+        CB_WARN(R"(Audit: JSON parsing error on string "{}")", string);
         break;
     case AuditErrorCode::JSON_MISSING_DATA_ERROR:
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: JSON missing data error");
+        CB_WARN("Audit: JSON missing data error");
         break;
     case AuditErrorCode::JSON_MISSING_OBJECT_ERROR:
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: JSON missing object error");
+        CB_WARN("Audit: JSON missing object error");
         break;
     case AuditErrorCode::JSON_KEY_ERROR:
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: JSON key \"%s\" error", string.c_str());
+        CB_WARN(R"(Audit: JSON key "{}" error)", string);
         break;
     case AuditErrorCode::JSON_ID_ERROR:
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: JSON eventid error");
+        CB_WARN("Audit: JSON eventid error");
         break;
     case AuditErrorCode::JSON_UNKNOWN_FIELD_ERROR:
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: JSON unknown field error");
+        CB_WARN("Audit: JSON unknown field error");
         break;
     case AuditErrorCode::CB_CREATE_THREAD_ERROR:
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: cb create thread error");
+        CB_WARN("Audit: cb create thread error");
         break;
     case AuditErrorCode::EVENT_PROCESSING_ERROR:
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: event processing error");
+        CB_WARN("Audit: event processing error");
         break;
     case AuditErrorCode::PROCESSING_EVENT_FIELDS_ERROR:
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: processing events field error");
+        CB_WARN("Audit: processing events field error");
         break;
     case AuditErrorCode::TIMESTAMP_MISSING_ERROR:
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: timestamp missing error");
+        CB_WARN("Audit: timestamp missing error");
         break;
     case AuditErrorCode::TIMESTAMP_FORMAT_ERROR:
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: timestamp format error on string \"%s\"",
-                    string.c_str());
+        CB_WARN(
+                R"(Audit: timestamp format error on string "{}")", string);
         break;
     case AuditErrorCode::EVENT_ID_ERROR:
-        logger->log(EXTENSION_LOG_WARNING, NULL, "Audit: eventid error");
+        CB_WARN("Audit: eventid error");
         break;
     case AuditErrorCode::VERSION_ERROR:
-        logger->log(EXTENSION_LOG_WARNING, NULL, "Audit: audit version error");
+        CB_WARN("Audit: audit version error");
         break;
     case AuditErrorCode::VALIDATE_PATH_ERROR:
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: validate path \"%s\" error", string.c_str());
+        CB_WARN(R"(Audit: validate path "{}" error)", string);
         break;
     case AuditErrorCode::ROTATE_INTERVAL_BELOW_MIN_ERROR:
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: rotate_interval below minimum error");
+        CB_WARN("Audit: rotate_interval below minimum error");
         break;
     case AuditErrorCode::ROTATE_INTERVAL_EXCEEDS_MAX_ERROR:
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: rotate_interval exceeds maximum error");
+        CB_WARN("Audit: rotate_interval exceeds maximum error");
         break;
     case AuditErrorCode::OPEN_AUDITFILE_ERROR:
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: error opening audit file");
+        CB_WARN("Audit: error opening audit file");
         break;
     case AuditErrorCode::SETTING_AUDITFILE_OPEN_TIME_ERROR:
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: error: setting auditfile open time = %s",
-                    string.c_str());
+        CB_WARN("Audit: error: setting auditfile open time = {}", string);
         break;
     case AuditErrorCode::WRITING_TO_DISK_ERROR:
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: writing to disk error: %s", string.c_str());
+        CB_WARN("Audit: writing to disk error: {}", string);
         break;
     case AuditErrorCode::WRITE_EVENT_TO_DISK_ERROR:
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: error writing event to disk");
+        CB_WARN("Audit: error writing event to disk");
         break;
     case AuditErrorCode::UNKNOWN_EVENT_ERROR:
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: error: unknown event %s", string.c_str());
+        CB_WARN("Audit: error: unknown event {}", string);
         break;
     case AuditErrorCode::CONFIG_INPUT_ERROR:
         if (!string.empty()) {
-            logger->log(EXTENSION_LOG_WARNING, NULL,
-                        "Audit: error reading config: %s", string.c_str());
+            CB_WARN("Audit: error reading config: {}", string);
         } else {
-            logger->log(EXTENSION_LOG_WARNING, NULL,
-                        "Audit: error reading config");
+            CB_WARN("Audit: error reading config");
         }
         break;
     case AuditErrorCode::CONFIGURATION_ERROR:
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: error performing configuration");
+        CB_WARN("Audit: error performing configuration");
         break;
     case AuditErrorCode::MISSING_AUDIT_EVENTS_FILE_ERROR:
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: error: missing audit_event.json from \"%s\"",
-                    string.c_str());
+        CB_WARN(
+                R"(Audit: error: missing audit_event.json from "{}")", string);
         break;
     case AuditErrorCode::ROTATE_INTERVAL_SIZE_TOO_BIG:
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: error: rotation_size too big: %s", string.c_str());
+        CB_WARN("Audit: error: rotation_size too big: {}", string);
         break;
     case AuditErrorCode::AUDIT_DIRECTORY_DONT_EXIST:
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: error: %s does not exists", string.c_str());
+        CB_WARN("Audit: error: %s does not exists", string);
         break;
     case AuditErrorCode::INITIALIZATION_ERROR:
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: error during initialization: %s", string.c_str());
+        CB_WARN("Audit: error during initialization: {}", string);
         break;
     default:
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: unknown error code:%d with string:%s",
-                    return_code, string.c_str());
+        CB_WARN("Audit: unknown error code:{} with string:{}",
+                int(return_code),
+                string);
         break;
     }
 }
@@ -361,7 +324,8 @@ bool Audit::configure(void) {
         try {
             auditfile.cleanup_old_logfile(config.get_log_directory());
         } catch (std::string &str) {
-            logger->log(EXTENSION_LOG_WARNING, NULL, "%s", str.c_str());
+            // @todo We shouldn't be throwing strings..
+            CB_WARN("{}", str);
             return false;
         }
     }
@@ -457,9 +421,9 @@ bool Audit::add_to_filleventqueue(const uint32_t event_id,
         cb_cond_broadcast(&events_arrived);
         res = true;
     } else {
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: Dropping audit event %u: %s",
-                    new_event->id, new_event->payload.c_str());
+        CB_WARN("Audit: Dropping audit event {}: {}",
+                new_event->id,
+                new_event->payload);
         dropped_events++;
         delete new_event;
         res = false;

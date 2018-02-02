@@ -34,10 +34,6 @@ typedef enum {
      * memcached core, but lives in the memcached address space.
      */
     EXTENSION_DAEMON = 0x00,
-    /**
-     * A log consumer
-     */
-    EXTENSION_LOGGER = 0x01
 } extension_type_t;
 
 /**

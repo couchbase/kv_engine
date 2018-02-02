@@ -1,7 +1,6 @@
 ADD_LIBRARY(mcd_util SHARED
             config_parser.cc
             engine_loader.cc
-            extension_loggers.cc
             logtags.cc
             protocol2text.cc
             util.cc)

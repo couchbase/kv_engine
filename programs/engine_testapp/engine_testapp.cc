@@ -17,7 +17,7 @@
 #include "mock_server.h"
 
 #include <daemon/alloc_hooks.h>
-#include <memcached/extension_loggers.h>
+#include <logger/logger.h>
 #include <phosphor/phosphor.h>
 #include <platform/cb_malloc.h>
 #include <platform/processclock.h>
@@ -1066,10 +1066,7 @@ static int execute_test(engine_test_t test,
 
     if (ret == PENDING) {
         init_mock_server(log_to_stderr);
-        if (memcached_initialize_stderr_logger(get_mock_server_api) != EXTENSION_SUCCESS) {
-            fprintf(stderr, "Failed to initialize log system\n");
-            return 1;
-        }
+        logger_descriptor = &cb::logger::getLoggerDescriptor();
 
         /* Start the engine and go */
         if (!start_your_engine(engine)) {
@@ -1465,13 +1462,7 @@ int main(int argc, char **argv) {
     }
 
     /* Initialize logging. */
-    if (log_to_stderr) {
-        logger_descriptor = get_stderr_logger();
-    } else {
-        logger_descriptor = get_null_logger();
-    }
-    get_mock_server_api()->extension->register_extension(EXTENSION_LOGGER,
-                                                         logger_descriptor);
+    logger_descriptor = &cb::logger::getLoggerDescriptor();
 
     for (num_cases = 0; testcases[num_cases].name; num_cases++) {
         /* Just counting */

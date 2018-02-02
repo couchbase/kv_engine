@@ -32,12 +32,6 @@ static EXTENSION_LOG_LEVEL get_log_level(void) {
     return EXTENSION_LOG_DEBUG;
 }
 
-static bool register_extension(extension_type_t type, void* extension) {
-    cb_assert(type == EXTENSION_LOGGER);
-    logger = reinterpret_cast<EXTENSION_LOGGER_DESCRIPTOR*>(extension);
-    return true;
-}
-
 static void register_callback(ENGINE_HANDLE* eh,
                               ENGINE_EVENT_TYPE type,
                               EVENT_CALLBACK cb,
@@ -60,7 +54,6 @@ static SERVER_HANDLE_V1* get_server_api(void) {
 
         core_api.parse_config = parse_config;
         server_log_api.get_level = get_log_level;
-        extension_api.register_extension = register_extension;
         callback_api.register_callback = register_callback;
 
         rv.interface = 1;
@@ -103,6 +96,7 @@ protected:
 
         const auto ret = cb::logger::initialize(config, get_server_api);
         EXPECT_FALSE(ret) << ret.get();
+        logger = &cb::logger::getLoggerDescriptor();
     }
 
     void RemoveFiles() {

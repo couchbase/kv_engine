@@ -22,14 +22,13 @@
 
 #include "config.h"
 
+#include <logger/logger.h>
 #include "alloc_hooks_dummy.h"
 
-#include <memcached/extension_loggers.h>
-
 void DummyAllocHooks::initialize() {
-    get_stderr_logger()->log(EXTENSION_LOG_NOTICE, NULL,
-                             "This version of Couchbase is built without "
-                             "allocator hooks for accurate memory tracking");
+    CB_INFO("This version of Couchbase is built without allocator hooks "
+            "for "
+            "accurate memory tracking");
 }
 
 bool DummyAllocHooks::add_new_hook(void (* hook)(const void* ptr, size_t size)) {

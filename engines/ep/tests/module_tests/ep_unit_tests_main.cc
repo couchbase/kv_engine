@@ -19,7 +19,6 @@
  * Main function & globals for the ep_unit_test target.
  */
 
-#include <memcached/extension_loggers.h>
 #include "programs/engine_testapp/mock_server.h"
 
 #include <getopt.h>
@@ -61,10 +60,6 @@ int main(int argc, char **argv) {
     init_mock_server(log_to_stderr);
 
     get_mock_server_api()->log->set_level(EXTENSION_LOG_DEBUG);
-    if (memcached_initialize_stderr_logger(get_mock_server_api) != EXTENSION_SUCCESS) {
-        std::cerr << argv[0] << ": Failed to initialize log system" << std::endl;
-        return 1;
-    }
     Logger::setLoggerAPI(get_mock_server_api()->log);
 
     // Need to initialize ep_real_time and friends.

@@ -4,15 +4,16 @@
  *
  */
 #include "config.h"
-#include <fcntl.h>
 #include <errno.h>
-#include <mutex>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <platform/platform.h>
+#include <fcntl.h>
+#include <logger/logger.h>
 #include <platform/crc32c.h>
+#include <platform/platform.h>
 #include <platform/strerror.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <mutex>
 #include <vector>
 
 #include "default_engine_internal.h"
@@ -58,7 +59,6 @@ struct Assoc {
 
 /* One hashtable for all */
 static struct Assoc* global_assoc = nullptr;
-static EXTENSION_LOGGER_DESCRIPTOR *logger = nullptr;
 
 /* assoc factory. returns one new assoc or NULL if out-of-memory */
 static struct Assoc* assoc_consruct(int hashpower) {
@@ -75,10 +75,6 @@ ENGINE_ERROR_CODE assoc_init(struct default_engine *engine) {
     */
     if (global_assoc == nullptr) {
         global_assoc = assoc_consruct(16);
-        if (engine != nullptr) {
-            logger = static_cast<EXTENSION_LOGGER_DESCRIPTOR*>
-            (engine->server.extension->get_extension(EXTENSION_LOGGER));
-        }
     }
     return (global_assoc != NULL) ? ENGINE_SUCCESS : ENGINE_ENOMEM;
 }
@@ -183,10 +179,7 @@ static void assoc_expand() {
     if ((ret = cb_create_named_thread(&tid, assoc_maintenance_thread,
                                       nullptr, 1, "mc:assoc_maint")) != 0)
     {
-        if (logger != nullptr) {
-            logger->log(EXTENSION_LOG_WARNING, NULL,
-                        "Can't create thread: %s", cb_strerror().c_str());
-        }
+        CB_WARN("Can't create thread: {}", cb_strerror());
         global_assoc->hashpower--;
         global_assoc->expanding = false;
         global_assoc->primary_hashtable.swap(global_assoc->old_hashtable);
@@ -275,10 +268,7 @@ static void assoc_maintenance_thread(void *arg) {
                 global_assoc->expanding = false;
                 global_assoc->old_hashtable.resize(0);
                 global_assoc->old_hashtable.shrink_to_fit();
-                if (logger != nullptr) {
-                    logger->log(EXTENSION_LOG_INFO, NULL,
-                                "Hash table expansion done");
-                }
+                CB_INFO("Hash table expansion done");
             }
         }
         if (!global_assoc->expanding) {
