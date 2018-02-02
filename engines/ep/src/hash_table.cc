@@ -93,11 +93,7 @@ HashTable::~HashTable() {
     clear_UNLOCKED(true);
     // Wait for any outstanding visitors to finish.
     while (visitors > 0) {
-#ifdef _MSC_VER
-        Sleep(1);
-#else
-        usleep(100);
-#endif
+        std::this_thread::sleep_for(std::chrono::microseconds(100));
     }
 }
 
