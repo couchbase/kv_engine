@@ -332,7 +332,11 @@ protected:
     std::atomic<size_t> totalBytesSent;
     std::atomic<size_t> totalUncompressedDataSize;
 
+    /// Guards access to checkpointCreatorTask, so multiple threads can
+    /// safely access  checkpointCreatorTask shared ptr.
+    mutable std::mutex checkpointCreatorMutex;
     ExTask checkpointCreatorTask;
+
     static const std::chrono::seconds defaultDcpNoopTxInterval;
 
     // Indicates whether the active streams belonging to the DcpProducer should

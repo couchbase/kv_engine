@@ -110,7 +110,7 @@ void DcpProducer::BufferLog::acknowledge(size_t bytes) {
         if (state == Full) {
             LOG(EXTENSION_LOG_NOTICE,
                 "%s Notifying paused connection now that "
-                "DcpProducer::Bufferlog is no longer full; ackedBytes:%" PRIu64
+                "DcpProducer::BufferLog is no longer full; ackedBytes:%" PRIu64
                 ", bytesSent:%" PRIu64 ", maxBytes:%" PRIu64,
                 producer.logHeader(),
                 uint64_t(ackedBytes),
@@ -215,9 +215,11 @@ DcpProducer::~DcpProducer() {
 }
 
 void DcpProducer::cancelCheckpointCreatorTask() {
+    LockHolder guard(checkpointCreatorMutex);
     if (checkpointCreatorTask) {
         static_cast<ActiveStreamCheckpointProcessorTask*>(
-                                checkpointCreatorTask.get())->cancelTask();
+                checkpointCreatorTask.get())
+                ->cancelTask();
         ExecutorPool::get()->cancel(checkpointCreatorTask->getId());
     }
 }
@@ -925,6 +927,17 @@ void DcpProducer::addStats(ADD_STAT add_stat, const void *c) {
 
     log.addStats(add_stat, c);
 
+    ExTask pointerCopy;
+    { // Locking scope
+        LockHolder guard(checkpointCreatorMutex);
+        pointerCopy = checkpointCreatorTask;
+    }
+
+    if (pointerCopy) {
+        static_cast<ActiveStreamCheckpointProcessorTask*>(pointerCopy.get())
+                ->addStats(getName(), add_stat, c);
+    }
+
     addStat("num_streams", streams.size(), add_stat, c);
 
     // Make a copy of all valid streams (under lock), and then call addStats
@@ -1239,23 +1252,27 @@ bool DcpProducer::bufferLogInsert(size_t bytes) {
 }
 
 void DcpProducer::createCheckpointProcessorTask() {
+    LockHolder guard(checkpointCreatorMutex);
     checkpointCreatorTask =
             std::make_shared<ActiveStreamCheckpointProcessorTask>(
                     engine_, shared_from_this());
 }
 
 void DcpProducer::scheduleCheckpointProcessorTask() {
+    LockHolder guard(checkpointCreatorMutex);
     ExecutorPool::get()->schedule(checkpointCreatorTask);
 }
 
 void DcpProducer::scheduleCheckpointProcessorTask(
         std::shared_ptr<ActiveStream> s) {
+    LockHolder guard(checkpointCreatorMutex);
     if (!checkpointCreatorTask) {
         throw std::logic_error(
                 "DcpProducer::scheduleCheckpointProcessorTask task is null");
     }
-    static_cast<ActiveStreamCheckpointProcessorTask*>(checkpointCreatorTask.get())
-        ->schedule(s);
+    static_cast<ActiveStreamCheckpointProcessorTask*>(
+            checkpointCreatorTask.get())
+            ->schedule(s);
 }
 
 std::shared_ptr<Stream> DcpProducer::findStream(uint16_t vbid) {

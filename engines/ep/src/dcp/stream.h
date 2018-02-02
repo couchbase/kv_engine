@@ -551,6 +551,11 @@ public:
         return queue.size();
     }
 
+    /// Outputs statistics related to this task via the given callback.
+    void addStats(const std::string& name,
+                  ADD_STAT add_stat,
+                  const void* c) const;
+
 private:
     std::shared_ptr<ActiveStream> queuePop() {
         uint16_t vbid = 0;
@@ -587,7 +592,8 @@ private:
         }
     }
 
-    std::mutex workQueueLock;
+    /// Guards queue && queuedVbuckets
+    mutable std::mutex workQueueLock;
 
     /**
      * Maintain a queue of unique vbucket ids for which stream should be
@@ -605,7 +611,7 @@ private:
     std::unordered_set<VBucket::id_type> queuedVbuckets;
 
     std::atomic<bool> notified;
-    size_t iterationsBeforeYield;
+    const size_t iterationsBeforeYield;
 
     std::weak_ptr<DcpProducer> producerPtr;
 };

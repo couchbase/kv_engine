@@ -996,6 +996,34 @@ void ActiveStreamCheckpointProcessorTask::cancelTask() {
     queuedVbuckets.clear();
 }
 
+void ActiveStreamCheckpointProcessorTask::addStats(const std::string& name,
+                                                   ADD_STAT add_stat,
+                                                   const void* c) const {
+    // Take a copy of the queue data under lock; then format it to stats.
+    std::queue<VBucket::id_type> qCopy;
+    {
+        LockHolder lh(workQueueLock);
+        qCopy = queue;
+    }
+
+    auto prefix = name + ":ckpt_processor_";
+    add_casted_stat((prefix + "queue_size").c_str(), qCopy.size(), add_stat, c);
+
+    // Form a comma-separated string of the queue's contents.
+    std::string contents;
+    while (!qCopy.empty()) {
+        contents += std::to_string(qCopy.front()) + ",";
+        qCopy.pop();
+    }
+    if (!contents.empty()) {
+        contents.pop_back();
+    }
+    add_casted_stat(
+            (prefix + "queue_contents").c_str(), contents.c_str(), add_stat, c);
+
+    add_casted_stat((prefix + "notified").c_str(), notified, add_stat, c);
+}
+
 void ActiveStream::nextCheckpointItemTask() {
     VBucketPtr vbucket = engine->getVBucket(vb_);
     if (vbucket) {
