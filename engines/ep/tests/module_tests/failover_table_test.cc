@@ -565,8 +565,23 @@ TEST(FailoverTableTest, test_sanitize_failover_table) {
                               /* Erroneous entry */
                               "{\"id\":0,\"seq\":50},"
                               "{\"id\":160260368866392,\"seq\":0}]");
-    FailoverTable table(failover_json, 10 /* max_entries */);
+    FailoverTable table(failover_json, 10 /* max_entries */, 0);
 
     EXPECT_EQ(numCorrectEntries, table.getNumEntries());
     EXPECT_EQ(numErroneousEntries, table.getNumErroneousEntriesErased());
+    EXPECT_NE(failover_json, table.toJSON());
+}
+
+// Test that after removing everything, the table is still sane
+TEST(FailoverTableTest, test_sanitize_failover_table_all) {
+    const int numErroneousEntries = 2, numCorrectEntries = 1;
+    std::string failover_json(/* Erroneous entry */
+                              "[{\"id\":0,\"seq\":0},"
+                              /* Erroneous entry */
+                              "{\"id\":0,\"seq\":50}]");
+    FailoverTable table(failover_json, 10 /* max_entries */, 0);
+
+    EXPECT_EQ(numCorrectEntries, table.getNumEntries());
+    EXPECT_EQ(numErroneousEntries, table.getNumErroneousEntriesErased());
+    EXPECT_NE(failover_json, table.toJSON());
 }

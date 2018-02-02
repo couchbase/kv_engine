@@ -842,8 +842,8 @@ void Warmup::createVBuckets(uint16_t shardId) {
             if (vbs.failovers.empty()) {
                 table = std::make_unique<FailoverTable>(maxEntries);
             } else {
-                table = std::make_unique<FailoverTable>(vbs.failovers,
-                                                        maxEntries);
+                table = std::make_unique<FailoverTable>(
+                        vbs.failovers, maxEntries, vbs.highSeqno);
             }
             KVShard* shard = store.getVBuckets().getShardByVbId(vbid);
 

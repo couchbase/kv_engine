@@ -46,7 +46,7 @@ class FailoverTable {
 
     FailoverTable(size_t capacity);
 
-    FailoverTable(const std::string& json, size_t capacity);
+    FailoverTable(const std::string& json, size_t capacity, int64_t highSeqno);
 
     ~FailoverTable();
 
@@ -190,8 +190,10 @@ class FailoverTable {
      * Remove any wrong entries in failover table
      *
      * called only in ctor, hence does not grab lock
+     * @param highSeqno the VB's current high-seqno, used in the case when this
+     *        function removes all entries and a new one must be generated.
      */
-    void sanitizeFailoverTable();
+    void sanitizeFailoverTable(int64_t highSeqno);
 
     mutable std::mutex lock;
     table_t table;

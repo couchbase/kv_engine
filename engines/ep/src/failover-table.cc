@@ -29,15 +29,15 @@ FailoverTable::FailoverTable(size_t capacity)
     cacheTableJSON();
 }
 
-FailoverTable::FailoverTable(const std::string& json, size_t capacity)
-    : max_entries(capacity),
-      erroneousEntriesErased(0),
-      provider(true) {
+FailoverTable::FailoverTable(const std::string& json,
+                             size_t capacity,
+                             int64_t highSeqno)
+    : max_entries(capacity), erroneousEntriesErased(0), provider(true) {
     if (!loadFromJSON(json)) {
         throw std::invalid_argument("FailoverTable(): unable to load from "
                 "JSON file '" + json + "'");
     }
-    sanitizeFailoverTable();
+    sanitizeFailoverTable(highSeqno);
 }
 
 FailoverTable::~FailoverTable() { }
@@ -382,8 +382,7 @@ void FailoverTable::adjustSnapshotRange(uint64_t start_seqno,
     }
 }
 
-void FailoverTable::sanitizeFailoverTable()
-{
+void FailoverTable::sanitizeFailoverTable(int64_t highSeqno) {
     size_t intialTableSize = table.size();
     for (auto itr = table.begin(); itr != table.end(); ) {
         if (0 == itr->vb_uuid) {
@@ -406,6 +405,12 @@ void FailoverTable::sanitizeFailoverTable()
         ++itr;
     }
     erroneousEntriesErased += (intialTableSize - table.size());
+
+    if (table.empty()) {
+        createEntry(highSeqno);
+    } else if (erroneousEntriesErased) {
+        cacheTableJSON();
+    }
 }
 
 size_t FailoverTable::getNumErroneousEntriesErased() const {
