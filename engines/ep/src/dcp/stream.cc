@@ -939,6 +939,17 @@ bool ActiveStream::nextCheckpointItem() {
     return false;
 }
 
+ActiveStreamCheckpointProcessorTask::ActiveStreamCheckpointProcessorTask(
+        EventuallyPersistentEngine& e, std::shared_ptr<DcpProducer> p)
+    : GlobalTask(
+              &e, TaskId::ActiveStreamCheckpointProcessorTask, INT_MAX, false),
+      description("Process checkpoint(s) for DCP producer " + p->getName()),
+      notified(false),
+      iterationsBeforeYield(
+              e.getConfiguration().getDcpProducerSnapshotMarkerYieldLimit()),
+      producerPtr(p) {
+}
+
 bool ActiveStreamCheckpointProcessorTask::run() {
     if (engine->getEpStats().isShutdown) {
         return false;

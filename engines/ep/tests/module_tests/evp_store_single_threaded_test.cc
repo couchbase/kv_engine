@@ -667,10 +667,11 @@ TEST_F(SingleThreadedEPBucketTest, MB25056_do_not_set_pendingBackfill_to_true) {
     }
 
     // Create a Mock Dcp producer
+    const std::string testName("test_producer");
     auto producer = std::make_shared<MockDcpProducer>(
             *engine,
             cookie,
-            "test_producer",
+            testName,
             /*flags*/ 0,
             cb::const_byte_buffer() /*no json*/);
 
@@ -764,7 +765,7 @@ TEST_F(SingleThreadedEPBucketTest, MB25056_do_not_set_pendingBackfill_to_true) {
     ASSERT_EQ(1, registerCursorCount);
 
     // ActiveStreamCheckpointProcessorTask
-    runNextTask(lpAuxioQ, "Process checkpoint(s) for DCP producer");
+    runNextTask(lpAuxioQ, "Process checkpoint(s) for DCP producer " + testName);
     // BackfillManagerTask
     runNextTask(lpAuxioQ, "Backfilling items for a DCP Connection");
 

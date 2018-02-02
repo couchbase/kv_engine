@@ -103,10 +103,11 @@ TEST_F(SingleThreadedEphemeralBackfillTest, RangeIteratorVBDeleteRaceTest) {
     ASSERT_EQ(2, ckpt_mgr.removeClosedUnrefCheckpoints(*vb, new_ckpt_created));
 
     // Create a Mock Dcp producer
+    const std::string testName("test_producer");
     auto producer = std::make_shared<MockDcpProducer>(
             *engine,
             cookie,
-            "test_producer",
+            testName,
             /*flags*/ 0,
             cb::const_byte_buffer() /*no json*/);
 
@@ -174,7 +175,7 @@ TEST_F(SingleThreadedEphemeralBackfillTest, RangeIteratorVBDeleteRaceTest) {
     producer->cancelCheckpointCreatorTask();
     /* Checkpoint processor task finishes up and releases its producer
        reference */
-    runNextTask(lpAuxioQ, "Process checkpoint(s) for DCP producer");
+    runNextTask(lpAuxioQ, "Process checkpoint(s) for DCP producer " + testName);
 
     engine->getDcpConnMap().shutdownAllConnections();
     mock_stream.reset();

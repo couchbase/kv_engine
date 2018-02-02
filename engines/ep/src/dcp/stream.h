@@ -211,8 +211,6 @@ private:
 const char* to_string(Stream::Snapshot type);
 const std::string to_string(Stream::Type type);
 
-class ActiveStreamCheckpointProcessorTask;
-
 class ActiveStream : public Stream,
                      public std::enable_shared_from_this<ActiveStream> {
 public:
@@ -516,20 +514,10 @@ private:
 class ActiveStreamCheckpointProcessorTask : public GlobalTask {
 public:
     ActiveStreamCheckpointProcessorTask(EventuallyPersistentEngine& e,
-                                        std::shared_ptr<DcpProducer> p)
-        : GlobalTask(&e,
-                     TaskId::ActiveStreamCheckpointProcessorTask,
-                     INT_MAX,
-                     false),
-          notified(false),
-          iterationsBeforeYield(
-                  e.getConfiguration()
-                          .getDcpProducerSnapshotMarkerYieldLimit()),
-          producerPtr(p) {
-    }
+                                        std::shared_ptr<DcpProducer> p);
 
     cb::const_char_buffer getDescription() {
-        return "Process checkpoint(s) for DCP producer";
+        return description;
     }
 
     std::chrono::microseconds maxExpectedDuration() {
@@ -592,6 +580,9 @@ private:
         }
     }
 
+    /// Human-readable description of this task.
+    const std::string description;
+
     /// Guards queue && queuedVbuckets
     mutable std::mutex workQueueLock;
 
@@ -613,7 +604,7 @@ private:
     std::atomic<bool> notified;
     const size_t iterationsBeforeYield;
 
-    std::weak_ptr<DcpProducer> producerPtr;
+    const std::weak_ptr<DcpProducer> producerPtr;
 };
 
 class NotifierStream : public Stream {
