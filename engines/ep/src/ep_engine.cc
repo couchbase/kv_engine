@@ -585,6 +585,8 @@ protocol_binary_response_status EventuallyPersistentEngine::setFlushParam(
             getConfiguration().setCompressionMode(valz);
         } else if (strcmp(keyz, "max_ttl") == 0) {
             getConfiguration().setMaxTtl(std::stoull(valz));
+        } else if (strcmp(keyz, "mem_used_merge_threshold_percent") == 0) {
+            getConfiguration().setMemUsedMergeThresholdPercent(std::stof(valz));
         } else {
             msg = "Unknown config param";
             rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;

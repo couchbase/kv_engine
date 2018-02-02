@@ -511,6 +511,12 @@ protected:
     void maybeUpdateEstimatedTotalMemUsed(
             Couchbase::RelaxedAtomic<int64_t>& coreMemory, int64_t value);
 
+    /**
+     * Set memUsedMergeThreshold by calculating a percentage of max_size and
+     * divided by the size of the coreTotalMemory container.
+     */
+    void calculateMemUsedMergeThreshold();
+
     //! Max allowable memory size.
     std::atomic<size_t> maxDataSize;
 

@@ -139,16 +139,21 @@ EPStats::~EPStats() {
 void EPStats::setMaxDataSize(size_t size) {
     if (size > 0) {
         maxDataSize.store(size);
-        // threshold is n% of total (but divided by the number of CoreStore
-        // elements, i.e. nCpu)
-        memUsedMergeThreshold =
-                maxDataSize * (memUsedMergeThresholdPercent / 100.0);
-        memUsedMergeThreshold = memUsedMergeThreshold / coreTotalMemory.size();
+        calculateMemUsedMergeThreshold();
     }
 }
 
 void EPStats::setMemUsedMergeThresholdPercent(float percent) {
     memUsedMergeThresholdPercent = percent;
+    calculateMemUsedMergeThreshold();
+}
+
+void EPStats::calculateMemUsedMergeThreshold() {
+    // threshold is n% of total (but divided by the number of CoreStore
+    // elements, i.e. nCpu)
+    memUsedMergeThreshold =
+            maxDataSize * (memUsedMergeThresholdPercent / 100.0);
+    memUsedMergeThreshold = memUsedMergeThreshold / coreTotalMemory.size();
 }
 
 void EPStats::memAllocated(size_t sz) {

@@ -45,7 +45,10 @@ def set_param(mc, type, key, val):
                 return
             _quota_ = int(mc.stats()['ep_max_size'])
             val = str(int(float(_x_)*(_quota_)/100))
-
+    if (key == "mem_used_merge_threshold_percent" and
+        (float(val) > 100.0 or float(val) < 0.0)):
+        print 'Error: Invalid mem_used_merge_threshold_percent value %s' % val
+        return
     try:
         mc.set_param(0, key, val, engine_param)
         print 'set %s to %s' %(key, val)
@@ -221,6 +224,10 @@ Available params for "set":
     max_ttl                      - A max TTL (1 to 2,147,483,647) to apply to all new
                                    documents (or touched documents). 0 means this is
                                    disabled and the protocol specified expiry value is used.
+    mem_used_merge_threshold_percent - A percentage used in calculating the threshold at which
+                                   a per core memory counter is accumulated into a global
+                                   memory used counter. This configuration parameter generates
+                                   a value which is n% of max_size / number of CPUs.
 
   Available params for "set replication_param":
     replication_throttle_queue_cap   - Max disk write queue size to throttle

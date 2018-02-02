@@ -548,7 +548,6 @@
         "mem_used_merge_threshold_percent" : {
             "default": "0.5",
             "descr": "What percent of max_data size should we allow the estimated total memory to lag by (EPStats::getEstimatedTotalMemoryUsed)",
-            "dynamic": false,
             "type": "float",
             "validator": {
                 "range": {

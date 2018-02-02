@@ -68,7 +68,7 @@ public:
         // EMPTY
     }
 
-    virtual void sizeValueChanged(const std::string &key, size_t value) {
+    void sizeValueChanged(const std::string& key, size_t value) override {
         if (key.compare("max_size") == 0) {
             stats.setMaxDataSize(value);
             store.getEPEngine().getDcpConnMap(). \
@@ -97,7 +97,19 @@ public:
             stats.warmupNumReadCap.store(static_cast<double>(value) / 100.0);
         } else {
             LOG(EXTENSION_LOG_WARNING,
-                "Failed to change value for unknown variable, %s",
+                "StatsValueChangeListener(size_t) failed to change value for "
+                "unknown variable, %s",
+                key.c_str());
+        }
+    }
+
+    void floatValueChanged(const std::string& key, float value) override {
+        if (key.compare("mem_used_merge_threshold_percent") == 0) {
+            stats.setMemUsedMergeThresholdPercent(value);
+        } else {
+            LOG(EXTENSION_LOG_WARNING,
+                "StatsValueChangeListener(float) failed to change value for "
+                "unknown variable, %s",
                 key.c_str());
         }
     }
@@ -263,6 +275,8 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
     // Set memUsedThresholdPercent before setting max_size
     stats.setMemUsedMergeThresholdPercent(
             config.getMemUsedMergeThresholdPercent());
+    config.addValueChangedListener("mem_used_merge_threshold_percent",
+                                   new StatsValueChangeListener(stats, *this));
     stats.setMaxDataSize(config.getMaxSize());
     config.addValueChangedListener("max_size",
                                    new StatsValueChangeListener(stats, *this));
