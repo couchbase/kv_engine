@@ -245,12 +245,15 @@ void SslContext::drainBioSendPipe(SOCKET sfd) {
 }
 
 void SslContext::dumpCipherList(uint32_t id) const {
-    LOG_DEBUG("{}: Using SSL ciphers:", id);
+    unique_cJSON_ptr array(cJSON_CreateArray());
+
     int ii = 0;
     const char* cipher;
-    while ((cipher = SSL_get_cipher_list(client, ii++)) != NULL) {
-        LOG_DEBUG("{}    {}", id, cipher);
+    while ((cipher = SSL_get_cipher_list(client, ii++)) != nullptr) {
+        cJSON_AddItemToArray(array.get(), cJSON_CreateString(cipher));
     }
+
+    LOG_DEBUG("{}: Using SSL ciphers: {}", id, to_string(array, false));
 }
 
 cJSON* SslContext::toJSON() const {
