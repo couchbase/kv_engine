@@ -450,7 +450,7 @@ private:
     EXTENSION_LOG_LEVEL getTransitionStateLogLevel(StreamState currState,
                                                    StreamState newState);
 
-    /* The last sequence number queued from disk or memory, but is yet to be
+    /* The last sequence number queued from memory, but is yet to be
        snapshotted and put onto readyQ */
     std::atomic<uint64_t> lastReadSeqnoUnSnapshotted;
 

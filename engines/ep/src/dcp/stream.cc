@@ -800,6 +800,12 @@ void ActiveStream::addStats(ADD_STAT add_stat, const void *c) {
         checked_snprintf(buffer, bsize, "%s:stream_%d_last_read_seqno",
                          name_.c_str(), vb_);
         add_casted_stat(buffer, lastReadSeqno.load(), add_stat, c);
+        checked_snprintf(buffer,
+                         bsize,
+                         "%s:stream_%d_last_read_seqno_unsnapshotted",
+                         name_.c_str(),
+                         vb_);
+        add_casted_stat(buffer, lastReadSeqnoUnSnapshotted.load(), add_stat, c);
         checked_snprintf(buffer, bsize, "%s:stream_%d_ready_queue_memory",
                          name_.c_str(), vb_);
         add_casted_stat(buffer, getReadyQueueMemory(), add_stat, c);
