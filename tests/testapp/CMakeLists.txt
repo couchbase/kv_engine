@@ -30,7 +30,7 @@ target_include_directories(memcached_testapp_core PUBLIC ${spdlog_SOURCE_DIR}/in
 
 # Create a function to generate the various test cases
 function(add_unit_test_suite)
-    set(arg_TIMEOUT 120)
+    set(arg_TIMEOUT 240)
     cmake_parse_arguments("arg" "" "ENGINE;NAME;TIMEOUT;OUTPUT" "SOURCE" ${ARGN})
     if (NOT arg_NAME)
         MESSAGE(FATAL_ERROR "add_unit_test_suite: NAME must be specified")
@@ -101,7 +101,7 @@ add_unit_test_suite(NAME arithmetic
 
 # Run the Audit tests
 add_unit_test_suite(NAME audit
-                    TIMEOUT 120
+                    TIMEOUT 240
                     SOURCE testapp_audit.cc)
 
 # Run the Bucket tests
@@ -111,28 +111,28 @@ add_unit_test_suite(NAME bucket
 
 # Run the DCP tests
 add_unit_test_suite(NAME dcp
-                    TIMEOUT 120
+                    TIMEOUT 240
                     SOURCE testapp_dcp.cc)
 
 add_unit_test_suite(NAME errmap
-                    TIMEOUT 120
+                    TIMEOUT 240
                     SOURCE testapp_errmap.cc)
 
 # Run the Flush tests
 add_unit_test_suite(NAME flush
                     ENGINE ep
-                    TIMEOUT 120
+                    TIMEOUT 240
                     SOURCE testapp_flush.cc)
 
 # Run the tests with legacy users
 add_unit_test_suite(NAME legacy-users
-                    TIMEOUT 60
+                    TIMEOUT 120
                     SOURCE testapp_legacy_users.cc)
 
 # Run all of the lock tests
 add_unit_test_suite(NAME lock
                     ENGINE ep
-                    TIMEOUT 120
+                    TIMEOUT 240
                     SOURCE testapp_lock.cc)
 
 # Run the Normal get set tests
@@ -145,11 +145,11 @@ add_unit_test_suite(NAME get-set
 if (WIN32)
     # saslauthd is a Unix-only thingie
     add_unit_test_suite(NAME sasl
-                        TIMEOUT 120
+                        TIMEOUT 240
                         SOURCE testapp_sasl.cc testapp_sasl.h)
 else ()
     add_unit_test_suite(NAME sasl
-                        TIMEOUT 120
+                        TIMEOUT 240
                         SOURCE
                         testapp_sasl.cc testapp_sasl.h
                         saslauthd_mock.cc
@@ -159,7 +159,7 @@ endif ()
 
 # Run the stats tests
 add_unit_test_suite(NAME stats
-                    TIMEOUT 120
+                    TIMEOUT 240
                     SOURCE testapp_stats.cc testapp_stats.h)
 
 # Run the unit tests for the memcached binary protocol over a plain socket
@@ -175,46 +175,46 @@ add_unit_test_suite(NAME legacy-ssl
 # Run the RBAC tests
 add_unit_test_suite(NAME persistence
                     ENGINE ep
-                    TIMEOUT 60
+                    TIMEOUT 120
                     SOURCE testapp_persistence.cc)
 
 # Run the RBAC tests
 add_unit_test_suite(NAME rbac
                     ENGINE ep
-                    TIMEOUT 120
+                    TIMEOUT 240
                     SOURCE testapp_rbac.cc)
 
 # Run the regression tests
 add_unit_test_suite(NAME regression
                     ENGINE ep
-                    TIMEOUT 60
+                    TIMEOUT 120
                     SOURCE testapp_regression.cc)
 
 # Run the batch to verify remove
 add_unit_test_suite(NAME remove
                     ENGINE ep
-                    TIMEOUT 120
+                    TIMEOUT 240
                     SOURCE testapp_remove.cc)
 
 # Run the shutdown tests
 add_unit_test_suite(NAME shutdown
-                    TIMEOUT 120
+                    TIMEOUT 240
                     SOURCE testapp_shutdown.cc)
 
 # Run the subdoc functional tests
 add_unit_test_suite(NAME subdoc
-                    TIMEOUT 120
+                    TIMEOUT 240
                     SOURCE testapp_subdoc.cc testapp_subdoc_common.cc)
 
 # Run the connection timeout tests
 add_unit_test_suite(NAME connection-timeout
-                    TIMEOUT 120
+                    TIMEOUT 240
                     SOURCE testapp_timeout.cc)
 
 # Run the touch related tests
 add_unit_test_suite(NAME touch
                     ENGINE ep
-                    TIMEOUT 120
+                    TIMEOUT 240
                     SOURCE testapp_touch.cc)
 
 # Run the tests to tune the MCBP SLA via an IOCTL
@@ -230,17 +230,17 @@ add_unit_test_suite(NAME xattr
 
 # Run the SSL cert tests
 add_unit_test_suite(NAME ssl-cert
-                    TIMEOUT 120
+                    TIMEOUT 240
                     SOURCE testapp_cert_tests.cc)
 
 add_unit_test_suite(NAME with-meta
                     ENGINE ep
-                    TIMEOUT 120
+                    TIMEOUT 240
                     SOURCE testapp_withmeta.cc)
 
 # Verify that we don't connect to a password protected default bucket
 add_unit_test_suite(NAME no-autoselect-default-bucket
-                    TIMEOUT 120
+                    TIMEOUT 240
                     SOURCE testapp_no_autoselect_default_bucket.cc)
 
 # For perf tests we also want GTest to output XML so we can plot the
@@ -262,4 +262,4 @@ add_unit_test_suite(NAME cluster-config
                     SOURCE testapp_cluster_config.cc)
 
 # Unit test verifying different parts of hello
-add_unit_test_suite(NAME hello TIMEOUT 120 SOURCE testapp_hello.cc)
+add_unit_test_suite(NAME hello TIMEOUT 240 SOURCE testapp_hello.cc)
