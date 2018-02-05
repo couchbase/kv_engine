@@ -896,11 +896,6 @@ ENGINE_ERROR_CODE KVBucket::checkForDBExistence(DBFileId db_file_id) {
         if (!vb) {
             return ENGINE_NOT_MY_VBUCKET;
         }
-    } else if (backend.compare("forestdb") == 0) {
-        if (db_file_id > (vbMap.getNumShards() - 1)) {
-            //TODO: find a better error code
-            return ENGINE_EINVAL;
-        }
     } else {
         LOG(EXTENSION_LOG_WARNING,
             "Unknown backend specified for db file id: %d", db_file_id);
@@ -2180,7 +2175,7 @@ void KVBucket::addKVStoreStats(ADD_STAT add_stat, const void* cookie) {
         /* Add the different KVStore instances into a set and then
          * retrieve the stats from each instance separately. This
          * is because CouchKVStore has separate read only and read
-         * write instance whereas ForestKVStore has only instance
+         * write instance whereas RocksDBKVStore has only instance
          * for both read write and read-only.
          */
         std::set<KVStore *> underlyingSet;

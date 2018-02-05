@@ -433,12 +433,9 @@ public:
                                             const void* c = NULL) = 0;
 
     /**
-     * Check for the existence of a vbucket in the case of couchstore
-     * or shard in the case of forestdb. Note that this function will be
-     * deprecated once forestdb is the only backend supported
+     * Check for the existence of a vbucket in the case of couchstore.
      *
-     * @param db_file_id vbucketid for couchstore or shard id in the
-     *                   case of forestdb
+     * @param db_file_id vbucketid for couchstore
      */
     virtual ENGINE_ERROR_CODE checkForDBExistence(uint16_t db_file_id) = 0;
 

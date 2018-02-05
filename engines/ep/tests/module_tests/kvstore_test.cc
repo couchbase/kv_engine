@@ -198,9 +198,8 @@ static void add_stat_callback(const char* key,
 }
 
 /**
- * Test fixture for KVStore tests. Inherited by both ForestDB and
- * Couchstore test fixtures.
- **/
+ * Test fixture for KVStore tests.
+ */
 class KVStoreTest : public ::testing::Test {
 protected:
     void SetUp() override {
@@ -1181,7 +1180,7 @@ public:
 };
 
 //
-// Explicitly test couchstore (not valid for ForestDB)
+// Explicitly test couchstore (not valid for other KVStores)
 // Intended to ensure we can read and write couchstore files and
 // parse metadata we store in them.
 //
@@ -1852,10 +1851,10 @@ public:
     MOCK_METHOD2(callback, void(TransactionContext& txCtx, int& value));
 };
 
-// Test fixture for tests which run on all KVStore implementations (Couchstore,
-// ForestDB and RocksDB).
+// Test fixture for tests which run on all KVStore implementations (Couchstore
+// and RocksDB).
 // The string parameter represents the KVStore implementation that each test
-// of this class will use (e.g., "couchdb", "forestdb" and "rocksdb").
+// of this class will use (e.g., "couchdb" and "rocksdb").
 class KVStoreParamTest : public KVStoreTest,
                          public ::testing::WithParamInterface<std::string> {
 protected:
@@ -2017,9 +2016,6 @@ TEST_P(KVStoreParamTest, DelVBucketConcurrentOperationsTest) {
 }
 
 std::string kvstoreTestParams[] = {
-#ifdef EP_USE_FORESTDB
-        "forestdb",
-#endif
 #ifdef EP_USE_ROCKSDB
         "rocksdb",
 #endif

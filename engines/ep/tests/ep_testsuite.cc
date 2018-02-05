@@ -1985,9 +1985,7 @@ static enum test_result test_mem_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 static enum test_result test_io_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     int exp_write_bytes;
     std::string backend = get_str_stat(h, h1, "ep_backend");
-    if (backend == "forestdb") {
-        exp_write_bytes = 35; /* TBD: Do not hard code the value */
-    } else if (backend == "couchdb") {
+    if (backend == "couchdb") {
         exp_write_bytes = 22; /* TBD: Do not hard code the value */
     } else if (backend == "rocksdb") {
         // TODO RDB:
@@ -2035,9 +2033,6 @@ static enum test_result test_io_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     if (backend == "couchdb") {
         numReadStatStr << "ro_" << 0 << ":io_bg_fetch_docs_read";
         readBytesStatStr << "ro_" << 0 << ":io_bg_fetch_doc_bytes";
-    } else if (backend == "forestdb") {
-        numReadStatStr << "rw_" << 0 << ":io_bg_fetch_docs_read";
-        readBytesStatStr << "rw_" << 0 << ":io_read_bytes";
     } else {
         cb_assert(false);
     }
@@ -5985,9 +5980,6 @@ static enum test_result test_mb19635_upgrade_from_25x(ENGINE_HANDLE *h,
     }
 
     std::string backend = get_str_stat(h, h1, "ep_backend");
-    if (backend == "forestdb") {
-        return SKIPPED;
-    }
     if (backend == "rocksdb") {
         // TODO RDB:
         return SKIPPED_UNDER_ROCKSDB;

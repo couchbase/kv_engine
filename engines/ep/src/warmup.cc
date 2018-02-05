@@ -1415,17 +1415,15 @@ void Warmup::addStats(ADD_STAT add_stat, const void *c) const
     }
 }
 
-/* In the case of CouchKVStore, all vbucket states of all the shards are stored
- * in a single instance. ForestKVStore stores only the vbucket states specific
- * to that shard. Hence the vbucket states of all the shards need to be
- * retrieved */
+/* In the case of CouchKVStore, all vbucket states of all the shards
+ * are stored in a single instance. Others (e.g. RocksDBKVStore) store
+ * only the vbucket states specific to that shard. Hence the vbucket
+ * states of all the shards need to be retrieved */
 uint16_t Warmup::getNumKVStores()
 {
     Configuration& config = store.getEPEngine().getConfiguration();
     if (config.getBackend().compare("couchdb") == 0) {
         return 1;
-    } else if (config.getBackend().compare("forestdb") == 0) {
-        return config.getMaxNumShards();
     } else if (config.getBackend().compare("rocksdb") == 0) {
         return config.getMaxNumShards();
     }

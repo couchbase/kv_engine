@@ -1547,15 +1547,6 @@ static enum test_result test_get_delete_missing_file(ENGINE_HANDLE *h, ENGINE_HA
             get_stats(h, {}, add_stats),
             "Failed to get stats.");
 
-    // TODO: This test needs to be skipped for forestdb as backend because
-    // in that case we don't open and close on every operation. Thus, a get
-    // after deleting the database file would still result in a SUCCESS.
-    // In the future, regardless of the storage type, the resulting error
-    // should be the same.
-    std::string backend = vals["ep_backend"];
-    if (backend == "forestdb") {
-        return SKIPPED;
-    }
     const char *key = "key";
     wait_for_persisted_value(h, h1, key, "value2delete");
 

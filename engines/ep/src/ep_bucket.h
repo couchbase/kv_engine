@@ -148,8 +148,7 @@ protected:
     /**
      * Remove completed compaction tasks or wake snoozed tasks
      *
-     * @param db_file_id vbucket id for couchstore or shard id in the
-     *                   case of forestdb
+     * @param db_file_id vbucket id for couchstore
      */
     void updateCompactionTasks(DBFileId db_file_id);
 };

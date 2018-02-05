@@ -2094,8 +2094,6 @@ typedef union {
  *                     than purge_before_seq will be purged.
  * - drop_deletes:     whether to purge deleted items or not.
  * - db_file_id  :     Database file id for the underlying store.
- *                     In the case forestdb, this will be the
- *                     shard id.
  *
  * Response:
  *

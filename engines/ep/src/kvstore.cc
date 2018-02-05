@@ -23,9 +23,6 @@
 
 #include "common.h"
 #include "couch-kvstore/couch-kvstore.h"
-#ifdef EP_USE_FORESTDB
-#include "forest-kvstore/forest-kvstore.h"
-#endif
 #ifdef EP_USE_ROCKSDB
 #include "rocksdb-kvstore/rocksdb-kvstore.h"
 #endif

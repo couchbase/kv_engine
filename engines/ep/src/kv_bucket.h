@@ -442,12 +442,9 @@ public:
     ENGINE_ERROR_CODE deleteVBucket(uint16_t vbid, const void* c = NULL);
 
     /**
-     * Check for the existence of a vbucket in the case of couchstore
-     * or shard in the case of forestdb. Note that this function will be
-     * deprecated once forestdb is the only backend supported
+     * Check for the existence of a vbucket in the case of couchstore.
      *
-     * @param db_file_id vbucketid for couchstore or shard id in the
-     *                   case of forestdb
+     * @param db_file_id vbucketid for couchstore.
      */
     ENGINE_ERROR_CODE checkForDBExistence(uint16_t db_file_id);
 
@@ -463,8 +460,7 @@ public:
     /**
      * Remove completed compaction tasks or wake snoozed tasks
      *
-     * @param db_file_id vbucket id for couchstore or shard id in the
-     *                   case of forestdb
+     * @param db_file_id vbucket id for couchstore.
      */
     void updateCompactionTasks(uint16_t db_file_id);
 
