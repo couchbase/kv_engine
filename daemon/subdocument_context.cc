@@ -22,6 +22,7 @@
 #include "protocol/mcbp/engine_wrapper.h"
 #include "subdocument.h"
 
+#include <platform/string.h>
 #include <utilities/logtags.h>
 #include <xattr/blob.h>
 
@@ -154,13 +155,6 @@ cb::const_char_buffer SubdocCmdContext::get_padded_macro(
             ->second;
 }
 
-static inline std::string to_hex_string(uint64_t value) {
-    std::stringstream ss;
-    ss << std::hex << std::setfill('0');
-    ss << "0x" << std::setw(16) << value;
-    return ss.str();
-}
-
 void SubdocCmdContext::generate_macro_padding(cb::const_char_buffer payload,
                                               cb::const_char_buffer macro) {
     if (!do_macro_expansion) {
@@ -176,7 +170,7 @@ void SubdocCmdContext::generate_macro_padding(cb::const_char_buffer payload,
     while (!unique) {
         unique = true;
         uint64_t ii = dis(gen);
-        const std::string candidate = "\"" + to_hex_string(ii) + "\"";
+        const std::string candidate = "\"" + cb::to_hex(ii) + "\"";
 
         for (auto& op : getOperations(Phase::XATTR)) {
             if (cb::strnstr(op.value.buf, candidate.c_str(), op.value.len)) {
@@ -212,16 +206,15 @@ cb::const_char_buffer SubdocCmdContext::get_document_vattr() {
         unique_cJSON_ptr doc(cJSON_CreateObject());
 
         cJSON_AddStringToObject(
-                doc.get(), "CAS", to_hex_string(input_item_info.cas).c_str());
+                doc.get(), "CAS", cb::to_hex(input_item_info.cas).c_str());
 
         cJSON_AddStringToObject(
                 doc.get(),
                 "vbucket_uuid",
-                to_hex_string(input_item_info.vbucket_uuid).c_str());
+                cb::to_hex(input_item_info.vbucket_uuid).c_str());
 
-        cJSON_AddStringToObject(doc.get(),
-                                "seqno",
-                                to_hex_string(input_item_info.seqno).c_str());
+        cJSON_AddStringToObject(
+                doc.get(), "seqno", cb::to_hex(input_item_info.seqno).c_str());
 
         cJSON_AddNumberToObject(doc.get(), "exptime", input_item_info.exptime);
 
