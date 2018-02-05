@@ -59,6 +59,9 @@ def main():
     parser.add_option_group(required_args)
 
     optional_args = optparse.OptionGroup(parser, 'Optional Arguments')
+    optional_args.add_option('-c', '--cpu_time', action='store_true',
+                             dest='cpu_time', default=False,
+                             help='Create test results for CPU time stats')
     optional_args.add_option('-s', '--separator', action='store',
                              dest='separator', type='string', default='/',
                              help='The separator character used in the test '
@@ -97,6 +100,11 @@ def main():
 
     test_suites = collections.defaultdict(list)
 
+    test_cases = {'real_time': False}
+
+    if options.cpu_time:
+        test_cases['cpu_time'] = True
+
     for test in json_data['benchmarks']:
         name = test['name'].split(options.separator.strip())[0]
         test_suites[name].append(test)
@@ -120,15 +128,20 @@ def main():
     for test_suite in test_suites:
         output_file.write('  <testsuite name="{}">\n'.format(test_suite))
         for test in test_suites[test_suite]:
-            name = options.separator.join(
-                test['name'].split(options.separator.strip())[1:])
-            if not name:
-                name = test['name']
-            time = float(convert_time(test['real_time'], test['time_unit'],
-                                      options.time_format.strip()))
-            output_file.write('    <testcase name="{}" time="%f" '
-                              'classname="{}"/>\n'.format(name,
-                                                          test_suite) % time)
+            for stat in test_cases:
+                if stat not in test:
+                    continue
+                name = options.separator.join(
+                    test['name'].split(options.separator.strip())[1:])
+                if not name:
+                    name = test['name']
+                if test_cases[stat]:
+                    name = options.separator.join([name, stat])
+                time = float(convert_time(test[stat], test['time_unit'],
+                                          options.time_format.strip()))
+                output_file.write('    <testcase name="{}" time="%f" '
+                                  'classname="{}"/>\n'.format(name,
+                                                              test_suite) % time)
         output_file.write('  </testsuite>\n')
     output_file.write('</testsuites>\n')
 
