@@ -390,9 +390,11 @@ static bool batchWarmupCallback(uint16_t vbId,
                     c->cb.callback(val);
                 } else {
                     LOG(EXTENSION_LOG_WARNING,
-                    "Warmup failed to load data for vBucket = %d"
-                    " key{%s} error = %X\n",
-                    vbId, items.first.c_str(), val.getStatus());
+                        "Warmup failed to load data for vBucket = %d"
+                        " key{%s} error = %X",
+                        vbId,
+                        items.first.c_str(),
+                        val.getStatus());
                     c->error++;
                 }
 
@@ -427,7 +429,7 @@ static bool warmupCallback(void *arg, uint16_t vb, const DocKey& key)
         } else {
             LOG(EXTENSION_LOG_WARNING,
                 "Warmup failed to load data "
-                "for vb:%" PRIu16 ", key{%.*s}, error:%X\n",
+                "for vb:%" PRIu16 ", key{%.*s}, error:%X",
                 vb,
                 int(key.size()),
                 key.data(),

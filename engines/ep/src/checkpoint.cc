@@ -752,9 +752,13 @@ bool CheckpointManager::registerCursor_UNLOCKED(
         }
 
         LOG(EXTENSION_LOG_DEBUG,
-            "Checkpoint %" PRIu64 " for vbucket %d doesn't exist in memory. "
-            "Set the cursor with the name \"%s\" to checkpoint %" PRIu64 ".\n",
-            checkpointId, vbucketId, name.c_str(), (*it)->getId());
+            "Checkpoint %" PRIu64
+            " for vbucket %d doesn't exist in memory. "
+            "Set the cursor with the name \"%s\" to checkpoint %" PRIu64 ".",
+            checkpointId,
+            vbucketId,
+            name.c_str(),
+            (*it)->getId());
 
         if (it == checkpointList.end()) {
             throw std::logic_error("CheckpointManager::registerCursor_UNLOCKED: "
@@ -1272,8 +1276,11 @@ queued_item CheckpointManager::nextItem(const std::string &name,
     cursor_index::iterator it = connCursors.find(name);
     if (it == connCursors.end()) {
         LOG(EXTENSION_LOG_WARNING,
-        "The cursor with name \"%s\" is not found in the checkpoint of vbucket"
-        "%d.\n", name.c_str(), vbucketId);
+            "The cursor with name \"%s\" is not found in the checkpoint of "
+            "vbucket"
+            "%d.",
+            name.c_str(),
+            vbucketId);
         queued_item qi(new Item(DocKey("", DocNamespace::System), 0xffff,
                                 queue_op::empty, 0, 0));
         return qi;

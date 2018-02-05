@@ -60,7 +60,7 @@ void Flusher::wait(void) {
     auto endt = ProcessClock::now();
     if ((endt - startt).count() > 1000) {
         LOG(EXTENSION_LOG_NOTICE,
-            "Flusher::wait: had to wait %s for shutdown\n",
+            "Flusher::wait: had to wait %s for shutdown",
             cb::time2text(endt - startt).c_str());
     }
 }

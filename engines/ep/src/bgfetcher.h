@@ -64,8 +64,9 @@ public:
         LockHolder lh(queueMutex);
         if (!pendingVbs.empty()) {
             LOG(EXTENSION_LOG_DEBUG,
-                    "Terminating database reader without completing "
-                    "background fetches for %ld vbuckets.\n", pendingVbs.size());
+                "Terminating database reader without completing "
+                "background fetches for %ld vbuckets.",
+                pendingVbs.size());
             pendingVbs.clear();
         }
     }

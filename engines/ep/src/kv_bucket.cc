@@ -97,7 +97,7 @@ public:
             stats.warmupNumReadCap.store(static_cast<double>(value) / 100.0);
         } else {
             LOG(EXTENSION_LOG_WARNING,
-                "Failed to change value for unknown variable, %s\n",
+                "Failed to change value for unknown variable, %s",
                 key.c_str());
         }
     }
@@ -142,7 +142,7 @@ public:
             store.setMaxTtl(value);
         } else {
             LOG(EXTENSION_LOG_WARNING,
-                "Failed to change value for unknown variable, %s\n",
+                "Failed to change value for unknown variable, %s",
                 key.c_str());
         }
     }
@@ -1205,8 +1205,12 @@ void KVBucket::completeBGFetch(const DocKey& key,
                     vb->completeBGFetchForSingleItem(key, item, startTime);
             engine.notifyIOComplete(item.cookie, status);
         } else {
-            LOG(EXTENSION_LOG_INFO, "vb:%" PRIu16 " file was deleted in the "
-                "middle of a bg fetch for key{%.*s}\n", vbucket, int(key.size()),
+            LOG(EXTENSION_LOG_INFO,
+                "vb:%" PRIu16
+                " file was deleted in the "
+                "middle of a bg fetch for key{%.*s}",
+                vbucket,
+                int(key.size()),
                 key.data());
             engine.notifyIOComplete(cookie, ENGINE_NOT_MY_VBUCKET);
         }
@@ -1243,9 +1247,9 @@ void KVBucket::completeBGFetchMulti(uint16_t vbId,
         }
         LOG(EXTENSION_LOG_WARNING,
             "EP Store completes %d of batched background fetch for "
-            "for vBucket = %d that is already deleted\n",
-            (int)fetchedItems.size(), vbId);
-
+            "for vBucket = %d that is already deleted",
+            (int)fetchedItems.size(),
+            vbId);
     }
 }
 
@@ -1847,8 +1851,9 @@ void KVBucket::stopWarmup(void)
 {
     // forcefully stop current warmup task
     if (isWarmingUp()) {
-        LOG(EXTENSION_LOG_NOTICE, "Stopping warmup while engine is loading "
-            "data from underlying storage, shutdown = %s\n",
+        LOG(EXTENSION_LOG_NOTICE,
+            "Stopping warmup while engine is loading "
+            "data from underlying storage, shutdown = %s",
             stats.isShutdown ? "yes" : "no");
         warmupTask->stop();
     }

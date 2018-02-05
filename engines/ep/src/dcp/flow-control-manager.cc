@@ -48,13 +48,17 @@ void DcpFlowControlManager::setBufSizeWithinBounds(DcpConsumer *consumerConn,
      range */
     if (bufSize < config.getDcpConnBufferSize()) {
         bufSize = config.getDcpConnBufferSize();
-        LOG(EXTENSION_LOG_INFO, "%s Conn flow control buffer is set to "
-            "minimum, bucket size: %zu\n", consumerConn->logHeader(),
+        LOG(EXTENSION_LOG_INFO,
+            "%s Conn flow control buffer is set to "
+            "minimum, bucket size: %zu",
+            consumerConn->logHeader(),
             engine_.getEpStats().getMaxDataSize());
     } else if (bufSize > config.getDcpConnBufferSizeMax()) {
         bufSize = config.getDcpConnBufferSizeMax();
-        LOG(EXTENSION_LOG_INFO, "%s Conn flow control buffer is set to "
-            "maximum, bucket size: %zu\n", consumerConn->logHeader(),
+        LOG(EXTENSION_LOG_INFO,
+            "%s Conn flow control buffer is set to "
+            "maximum, bucket size: %zu",
+            consumerConn->logHeader(),
             engine_.getEpStats().getMaxDataSize());
     }
 }

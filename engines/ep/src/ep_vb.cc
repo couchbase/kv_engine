@@ -77,7 +77,7 @@ EPVBucket::EPVBucket(id_type i,
 EPVBucket::~EPVBucket() {
     if (!pendingBGFetches.empty()) {
         LOG(EXTENSION_LOG_WARNING,
-            "Have %ld pending BG fetches while destroying vbucket\n",
+            "Have %ld pending BG fetches while destroying vbucket",
             pendingBGFetches.size());
     }
 }

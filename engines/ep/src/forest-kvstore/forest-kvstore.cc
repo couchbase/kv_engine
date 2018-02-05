@@ -651,9 +651,13 @@ void ForestKVStore::getWithHeader(void* handle, const DocKey& key,
     if (status != FDB_RESULT_SUCCESS) {
         if (!getMetaOnly) {
             LOG(EXTENSION_LOG_WARNING,
-                "ForestKVStore::getWithHeader: Failed to retrieve metadata from "
-                "database, vb:%d key{%.*s} error:%s\n",
-                vb, int(key.size()), key.data(), fdb_error_msg(status));
+                "ForestKVStore::getWithHeader: Failed to retrieve metadata "
+                "from "
+                "database, vb:%d key{%.*s} error:%s",
+                vb,
+                int(key.size()),
+                key.data(),
+                fdb_error_msg(status));
         } else {
             LOG(EXTENSION_LOG_WARNING,
                 "ForestKVStore::getWithHeader: Failed to retrieve key value from database,"
@@ -1896,10 +1900,14 @@ RollbackResult ForestKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,
     // Initiate disk rollback
     status = fdb_rollback(&kvsHandle, currentSeqno);
     if (status != FDB_RESULT_SUCCESS) {
-        LOG(EXTENSION_LOG_WARNING, "ForestKVStore::rollback: "
-            "ForestDB rollback failed on vbucket: %" PRIu16 " and rollback "
-            "sequence number: %" PRIu64 "with error: %s\n",
-            vbid, currentSeqno, fdb_error_msg(status));
+        LOG(EXTENSION_LOG_WARNING,
+            "ForestKVStore::rollback: "
+            "ForestDB rollback failed on vbucket: %" PRIu16
+            " and rollback "
+            "sequence number: %" PRIu64 "with error: %s",
+            vbid,
+            currentSeqno,
+            fdb_error_msg(status));
         return RollbackResult(false, 0, 0, 0);
     }
 

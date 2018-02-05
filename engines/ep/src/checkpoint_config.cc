@@ -134,7 +134,7 @@ bool CheckpointConfig::validateCheckpointPeriodParam(size_t checkpoint_period) {
            << " is not ranged between the min allowed value "
            << MIN_CHECKPOINT_PERIOD << " and max value "
            << MAX_CHECKPOINT_PERIOD;
-        LOG(EXTENSION_LOG_WARNING, "%s\n", ss.str().c_str());
+        LOG(EXTENSION_LOG_WARNING, "%s", ss.str().c_str());
         return false;
     }
     return true;
@@ -148,7 +148,7 @@ bool CheckpointConfig::validateMaxCheckpointsParam(size_t max_checkpoints) {
            << " is not ranged between the min allowed value "
            << DEFAULT_MAX_CHECKPOINTS << " and max value "
            << MAX_CHECKPOINTS_UPPER_BOUND;
-        LOG(EXTENSION_LOG_WARNING, "%s\n", ss.str().c_str());
+        LOG(EXTENSION_LOG_WARNING, "%s", ss.str().c_str());
         return false;
     }
     return true;

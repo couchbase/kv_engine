@@ -247,7 +247,7 @@ VBucket::~VBucket() {
     stats.memOverhead->fetch_sub(sizeof(VBucket) + ht.memorySize() +
                                 sizeof(CheckpointManager));
 
-    LOG(EXTENSION_LOG_NOTICE, "Destroying vbucket %d\n", id);
+    LOG(EXTENSION_LOG_NOTICE, "Destroying vbucket %d", id);
 }
 
 int64_t VBucket::getHighSeqno() const {
@@ -294,8 +294,9 @@ void VBucket::fireAllOps(EventuallyPersistentEngine &engine,
     }
 
     LOG(EXTENSION_LOG_INFO,
-        "Fired pendings ops for vbucket %" PRIu16 " in state %s\n",
-        id, VBucket::toString(state));
+        "Fired pendings ops for vbucket %" PRIu16 " in state %s",
+        id,
+        VBucket::toString(state));
 }
 
 void VBucket::fireAllOps(EventuallyPersistentEngine &engine) {

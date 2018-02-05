@@ -666,8 +666,12 @@ protocol_binary_response_status EventuallyPersistentEngine::setVbucketParam(
         } else if (strcmp(keyz, "max_cas") == 0) {
             uint64_t v = std::strtoull(valz, nullptr, 10);
             checkNumeric(valz);
-            LOG(EXTENSION_LOG_WARNING, "setVbucketParam: max_cas:%" PRIu64 " "
-                "vb:%" PRIu16 "\n", v, vbucket);
+            LOG(EXTENSION_LOG_WARNING,
+                "setVbucketParam: max_cas:%" PRIu64
+                " "
+                "vb:%" PRIu16,
+                v,
+                vbucket);
             if (getKVBucket()->forceMaxCas(vbucket, v) != ENGINE_SUCCESS) {
                 rv = PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
                 msg = "Not my vbucket";
@@ -699,7 +703,7 @@ static protocol_binary_response_status evictKey(
     uint16_t vbucket = ntohs(request->request.vbucket);
 
     LOG(EXTENSION_LOG_DEBUG,
-        "Manually evicting object with <%s>key{%.*s}</%s>\n",
+        "Manually evicting object with <%s>key{%.*s}</%s>",
         cb::logtags::userdata.c_str(),
         int(keylen),
         keyPtr,
@@ -893,8 +897,10 @@ static ENGINE_ERROR_CODE delVBucket(EventuallyPersistentEngine* e,
         res = PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
         break;
     case ENGINE_EINVAL:
-        LOG(EXTENSION_LOG_WARNING, "Deletion of vbucket %d failed "
-            "because the vbucket is not in a dead state\n", vbucket);
+        LOG(EXTENSION_LOG_WARNING,
+            "Deletion of vbucket %d failed "
+            "because the vbucket is not in a dead state",
+            vbucket);
         e->setErrorContext(
                 cookie,
                 "Failed to delete vbucket.  Must be in the dead state.");
@@ -907,8 +913,10 @@ static ENGINE_ERROR_CODE delVBucket(EventuallyPersistentEngine* e,
         e->storeEngineSpecific(cookie, req);
         return ENGINE_EWOULDBLOCK;
     default:
-        LOG(EXTENSION_LOG_WARNING, "Deletion of vbucket %d failed "
-            "because of unknown reasons\n", vbucket);
+        LOG(EXTENSION_LOG_WARNING,
+            "Deletion of vbucket %d failed "
+            "because of unknown reasons",
+            vbucket);
         e->setErrorContext(cookie, "Failed to delete vbucket.  Unknown reason.");
         res = PROTOCOL_BINARY_RESPONSE_EINTERNAL;
     }
@@ -1036,8 +1044,10 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
         break;
     default:
         --stats.pendingCompactions;
-        LOG(EXTENSION_LOG_WARNING, "Compaction of db file id: %d failed "
-            "because of unknown reasons\n", compactreq.db_file_id);
+        LOG(EXTENSION_LOG_WARNING,
+            "Compaction of db file id: %d failed "
+            "because of unknown reasons",
+            compactreq.db_file_id);
         e->setErrorContext(cookie, "Failed to compact db file.  Unknown reason.");
         res = PROTOCOL_BINARY_RESPONSE_EINTERNAL;
         break;
@@ -3415,7 +3425,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(const void *cookie,
         if (!validate) {
             LOG(EXTENSION_LOG_DEBUG,
                 "Found lookup results for non-validating key "
-                "stat call. Would have leaked\n");
+                "stat call. Would have leaked");
             it.reset();
         }
     } else if (validate) {
@@ -3440,7 +3450,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(const void *cookie,
                 valid.assign("ram_but_not_disk");
             }
             LOG(EXTENSION_LOG_DEBUG,
-                "doKeyStats <%s>key{%.*s}</%s> is %s\n",
+                "doKeyStats <%s>key{%.*s}</%s> is %s",
                 cb::logtags::userdata.c_str(),
                 int(key.size()),
                 key.data(),
@@ -4524,7 +4534,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     if (vallen > maxItemSize) {
         LOG(EXTENSION_LOG_WARNING,
             "Item value size %ld for setWithMeta is bigger "
-            "than the max size %ld allowed!!!\n", vallen, maxItemSize);
+            "than the max size %ld allowed!!!",
+            vallen,
+            maxItemSize);
         return sendErrorResponse(response,
                                  PROTOCOL_BINARY_RESPONSE_E2BIG,
                                  0,
