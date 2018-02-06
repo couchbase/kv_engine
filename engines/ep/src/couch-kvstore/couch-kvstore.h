@@ -196,6 +196,9 @@ public:
      * @return true if the transaction is started successfully
      */
     bool begin(std::unique_ptr<TransactionContext> txCtx) override {
+        if (!txCtx) {
+            throw std::invalid_argument("CouchKVStore::begin: txCtx is null");
+        }
         if (isReadOnly()) {
             throw std::logic_error("CouchKVStore::begin: Not valid on a "
                     "read-only object.");

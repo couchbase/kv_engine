@@ -436,6 +436,9 @@ std::string RocksDBKVStore::getDBSubdir() {
 }
 
 bool RocksDBKVStore::begin(std::unique_ptr<TransactionContext> txCtx) {
+    if (!txCtx) {
+        throw std::invalid_argument("RocksDBKVStore::begin: txCtx is null");
+    }
     in_transaction = true;
     transactionCtx = std::move(txCtx);
     return in_transaction;
