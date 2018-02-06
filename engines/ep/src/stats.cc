@@ -201,13 +201,14 @@ void EPStats::maybeUpdateEstimatedTotalMemUsed(
     }
 }
 
-size_t EPStats::getPreciseTotalMemoryUsed() const {
+size_t EPStats::getPreciseTotalMemoryUsed() {
     if (memoryTrackerEnabled.load()) {
-        size_t total = 0;
-        for (const auto& core : coreTotalMemory) {
-            total += core->load();
+        for (auto& core : coreTotalMemory) {
+            estimatedTotalMemory->fetch_add(core->exchange(0));
         }
-        return total + getEstimatedTotalMemoryUsed();
+        // This still could become negative, e.g. core 0 allocated X after we
+        // read it, then core n deallocated X and we read -X.
+        return size_t(std::max(int64_t(0), estimatedTotalMemory->load()));
     }
     return currentSize.load() + memOverhead->load();
 }

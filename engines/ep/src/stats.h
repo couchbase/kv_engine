@@ -85,12 +85,15 @@ public:
     }
 
     /**
-     * @return a "precise" memory used value, this is precise because it will
-     * return the total from each core, which means iterating the CoreStore
-     * container to gather the current core total and summing that with
-     * the current estimate.
+     * @return a "precise" memory used value. Calling this method triggers a
+     * merge of all core local counters into the estimate, which means setting
+     * each core local counter to zero (hence non const).
+     *
+     * This is described as 'precise' because in the case of the total becoming
+     * negative (which can occur if a core deallocs an amount that the summation
+     * loop has not accounted for) we return 0
      */
-    size_t getPreciseTotalMemoryUsed() const;
+    size_t getPreciseTotalMemoryUsed();
 
     // account for allocated mem
     void memAllocated(size_t sz);

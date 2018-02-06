@@ -94,6 +94,31 @@ BENCHMARK_DEFINE_F(MemoryAllocationStat, AllocNReadM)(benchmark::State& state) {
     }
 }
 
+BENCHMARK_DEFINE_F(MemoryAllocationStat, AllocNReadPreciseM)
+(benchmark::State& state) {
+    if (state.thread_index == 0) {
+        stats.reset();
+        stats.memoryTrackerEnabled = true;
+        // memUsed merge must be 4 times higher so in theory we merge at the
+        // same rate as TLS (because 4 more threads than cores).
+        stats.setMemUsedMergeThreshold(10240 * 4);
+    }
+
+    while (state.KeepRunning()) {
+        // range = allocations per read
+        for (int i = 0; i < state.range(0); i++) {
+            if (i == 0) {
+                stats.memAllocatedClear(128);
+            } else {
+                stats.memAllocated(128);
+            }
+        }
+        for (int j = 0; j < state.range(1); j++) {
+            stats.getPreciseTotalMemoryUsed();
+        }
+    }
+}
+
 // Test covers a range seen from a running cluster (with pillowfight load)
 // The range was discovered by counting calls to memAllocated/deallocated and
 // then logging how many had occurred for each read
@@ -104,6 +129,11 @@ BENCHMARK_REGISTER_F(MemoryAllocationStat, AllocNRead1)
         ->Range(0, 4000);
 
 BENCHMARK_REGISTER_F(MemoryAllocationStat, AllocNReadM)
+        ->Threads(cb::get_cpu_count() * 4)
+        ->RangeMultiplier(2)
+        ->Ranges({{0, 4000}, {128, 4000}});
+
+BENCHMARK_REGISTER_F(MemoryAllocationStat, AllocNReadPreciseM)
         ->Threads(cb::get_cpu_count() * 4)
         ->RangeMultiplier(2)
         ->Ranges({{0, 4000}, {128, 4000}});
