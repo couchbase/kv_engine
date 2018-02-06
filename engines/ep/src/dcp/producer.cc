@@ -617,8 +617,7 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
                                           *mutationResponse->getBySeqno(),
                                           mutationResponse->getRevSeqno(),
                                           meta.first,
-                                          meta.second,
-                                          mutationResponse->getCollectionLen());
+                                          meta.second);
             }
             break;
         }

@@ -352,8 +352,7 @@ static ENGINE_ERROR_CODE dcp_message_deletion_v1(
         uint64_t by_seqno,
         uint64_t rev_seqno,
         const void* meta,
-        uint16_t nmeta,
-        uint8_t collection_len) {
+        uint16_t nmeta) {
     if (void_cookie == nullptr) {
         throw std::invalid_argument(
                 "dcp_message_deletion_v1: void_cookie can't be nullptr");

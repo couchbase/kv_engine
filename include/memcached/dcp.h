@@ -147,7 +147,6 @@ struct dcp_message_producers {
      * @param vbucket the vbucket id the message belong to
      * @param by_seqno
      * @param rev_seqno
-     * @param collection_len how many bytes of the key are the collection
      *
      * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
      */
@@ -159,8 +158,7 @@ struct dcp_message_producers {
      uint64_t by_seqno,
      uint64_t rev_seqno,
      const void* meta,
-     uint16_t nmeta,
-     uint8_t collection_len);
+     uint16_t nmeta);
 
     /**
      * Send a deletion with delete_time or collections (or both)

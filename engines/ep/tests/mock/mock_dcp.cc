@@ -252,8 +252,7 @@ static ENGINE_ERROR_CODE mock_deletion_V1(gsl::not_null<const void*> cookie,
                                           uint64_t by_seqno,
                                           uint64_t rev_seqno,
                                           const void* meta,
-                                          uint16_t nmeta,
-                                          uint8_t collectionLen) {
+                                          uint16_t nmeta) {
     return mock_deletion(cookie,
                          opaque,
                          itm,
