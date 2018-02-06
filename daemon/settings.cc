@@ -622,10 +622,10 @@ static void handle_interfaces(Settings& s, cJSON* obj) {
 
 static void handle_breakpad(Settings& s, cJSON* obj) {
     if (obj->type != cJSON_Object) {
-        throw std::invalid_argument("\"breakpad\" must be an object");
+        throw std::invalid_argument(R"("breakpad" must be an object)");
     }
 
-    BreakpadSettings breakpad(obj);
+    cb::breakpad::Settings breakpad(obj);
     s.setBreakpadSettings(breakpad);
 }
 
@@ -1062,29 +1062,29 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         auto& b1 = breakpad;
         const auto& b2 = other.breakpad;
 
-        if (b2.isEnabled() != b1.isEnabled()) {
+        if (b2.enabled != b1.enabled) {
             logit(EXTENSION_LOG_NOTICE,
                   "%e breakpad",
-                  b2.isEnabled() ? "Enable" : "Disable");
-            b1.setEnabled((b2.isEnabled()));
+                  b2.enabled ? "Enable" : "Disable");
+            b1.enabled = b2.enabled;
             changed = true;
         }
 
-        if (b2.getMinidumpDir() != b1.getMinidumpDir()) {
+        if (b2.minidump_dir != b1.minidump_dir) {
             logit(EXTENSION_LOG_NOTICE,
                   "Change minidump directory from \"%s\" to \"%s\"",
-                  b1.getMinidumpDir().c_str(),
-                  b2.getMinidumpDir().c_str());
-            b1.setMinidumpDir(b2.getMinidumpDir());
+                  b1.minidump_dir.c_str(),
+                  b2.minidump_dir.c_str());
+            b1.minidump_dir = b2.minidump_dir;
             changed = true;
         }
 
-        if (b2.getContent() != b1.getContent()) {
+        if (b2.content != b1.content) {
             logit(EXTENSION_LOG_NOTICE,
                   "Change minidump content from %s to %s",
-                  to_string(b1.getContent()).c_str(),
-                  to_string(b2.getContent()).c_str());
-            b1.setContent(b2.getContent());
+                  to_string(b1.content).c_str(),
+                  to_string(b2.content).c_str());
+            b1.content = b2.content;
             changed = true;
         }
 

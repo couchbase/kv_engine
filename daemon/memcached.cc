@@ -441,7 +441,7 @@ static int get_number_of_worker_threads(void) {
 }
 
 static void breakpad_changed_listener(const std::string&, Settings &s) {
-    initialize_breakpad(s.getBreakpadSettings());
+    cb::breakpad::initialize(s.getBreakpadSettings());
 }
 
 static void ssl_minimum_protocol_changed_listener(const std::string&, Settings &s) {
@@ -2571,7 +2571,7 @@ extern "C" int memcached_main(int argc, char **argv) {
     }
 
     /* Initialize breakpad crash catcher with our just-parsed settings. */
-    initialize_breakpad(settings.getBreakpadSettings());
+    cb::breakpad::initialize(settings.getBreakpadSettings());
 
     /* load extensions specified in the settings */
     load_extensions();
@@ -2746,7 +2746,7 @@ extern "C" int memcached_main(int argc, char **argv) {
     shutdown_engine_map();
 
     LOG_NOTICE(NULL, "Removing breakpad");
-    destroy_breakpad();
+    cb::breakpad::destroy();
 
     LOG_NOTICE(NULL, "Releasing callbacks");
     free_callbacks();

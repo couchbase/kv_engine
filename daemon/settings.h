@@ -621,7 +621,7 @@ public:
      *
      * @return the settings used for Breakpad
      */
-    const BreakpadSettings& getBreakpadSettings() const {
+    const cb::breakpad::Settings& getBreakpadSettings() const {
         return breakpad;
     }
 
@@ -630,7 +630,7 @@ public:
      *
      * @param breakpad the new breakpad settings
      */
-    void setBreakpadSettings(const BreakpadSettings& breakpad) {
+    void setBreakpadSettings(const cb::breakpad::Settings& breakpad) {
         Settings::breakpad = breakpad;
         has.breakpad = true;
         notify_changed("breakpad");
@@ -813,7 +813,7 @@ protected:
     /**
      * Breakpad crash catcher settings
      */
-    BreakpadSettings breakpad;
+    cb::breakpad::Settings breakpad;
 
     /**
      * To prevent us from reading (and allocating) an insane amount of

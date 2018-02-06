@@ -1,19 +1,12 @@
-IF (BREAKPAD_FOUND)
-    IF (WIN32)
-        SET(BREAKPAD_SRCS breakpad_win32.cc)
-    ELSEIF ("${CMAKE_SYSTEM_NAME}" STREQUAL "Linux")
-        SET(BREAKPAD_SRCS breakpad_linux.cc)
-        # Breakpad has headers (which are dependencies for our breakpad integration
-        # code) that don't compile cleanly as C++11, so the GNU standard is
-        # used instead.
-        SET_SOURCE_FILES_PROPERTIES(breakpad_linux.cc PROPERTIES COMPILE_FLAGS
-                                    ${CB_GNU_CXX11_OPTION})
-    ELSE ()
-        MESSAGE(STATUS "Breakpad not supported on this platform")
-        SET(BREAKPAD_SRCS breakpad_dummy.cc)
-    ENDIF ()
-ELSE ()
-    SET(BREAKPAD_SRCS breakpad_dummy.cc client_cert_config.cc client_cert_config.h)
+
+SET(BREAKPAD_SRCS breakpad.cc)
+
+IF ("${CMAKE_SYSTEM_NAME}" STREQUAL "Linux")
+    # Breakpad has headers (which are dependencies for our breakpad integration
+    # code) that don't compile cleanly as C++11, so the GNU standard is
+    # used instead.
+    SET_SOURCE_FILES_PROPERTIES(breakpad.cc PROPERTIES COMPILE_FLAGS
+                                ${CB_GNU_CXX11_OPTION})
 ENDIF ()
 
 CHECK_INCLUDE_FILES(numa.h HAVE_NUMA_H)

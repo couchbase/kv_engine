@@ -20,7 +20,10 @@
 #include <cstring>
 #include <system_error>
 
-BreakpadSettings::BreakpadSettings(gsl::not_null<const cJSON*> json) {
+namespace cb {
+namespace breakpad {
+
+Settings::Settings(gsl::not_null<const cJSON*> json) {
     auto* root = const_cast<cJSON*>(json.get());
     auto* obj = cJSON_GetObjectItem(root, "enabled");
     if (obj == nullptr) {
@@ -67,15 +70,19 @@ BreakpadSettings::BreakpadSettings(gsl::not_null<const cJSON*> json) {
             throw std::invalid_argument(
                     R"("breakpad:content" settings must set to "default")");
         }
-        content = BreakpadContent::Default;
+        content = Content::Default;
     }
 }
 
-std::string to_string(BreakpadContent content) {
+} // namespace breakpad
+} // namespace cb
+
+std::string to_string(cb::breakpad::Content content) {
     switch (content) {
-    case BreakpadContent::Default:
+    case cb::breakpad::Content::Default:
         return "default";
     }
-    throw std::invalid_argument("to_string(BeakpadContent): Invalid value: " +
-                                std::to_string(int(content)));
+    throw std::invalid_argument(
+            "to_string(cb::breakpad::Content): Invalid value: " +
+            std::to_string(int(content)));
 }

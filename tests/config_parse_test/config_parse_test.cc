@@ -755,17 +755,18 @@ TEST_F(SettingsTest, Breakpad) {
     cJSON_AddStringToObject(obj.get(), "minidump_dir", minidump_dir);
 
     // Content is optional
-    EXPECT_NO_THROW(BreakpadSettings settings(obj.get()));
+    EXPECT_NO_THROW(cb::breakpad::Settings settings(obj.get()));
 
     // But the minidump dir is mandatory
     cb::io::rmrf(minidump_dir);
-    EXPECT_THROW(BreakpadSettings settings(obj.get()), std::system_error);
+    EXPECT_THROW(cb::breakpad::Settings settings(obj.get()), std::system_error);
     cb::io::mkdirp(minidump_dir);
 
     cJSON_AddStringToObject(obj.get(), "content", "default");
-    EXPECT_NO_THROW(BreakpadSettings settings(obj.get()));
+    EXPECT_NO_THROW(cb::breakpad::Settings settings(obj.get()));
     cJSON_ReplaceItemInObject(obj.get(), "content", cJSON_CreateString("foo"));
-    EXPECT_THROW(BreakpadSettings settings(obj.get()), std::invalid_argument);
+    EXPECT_THROW(cb::breakpad::Settings settings(obj.get()),
+                 std::invalid_argument);
 
     cb::io::rmrf(minidump_dir);
 }
@@ -906,33 +907,32 @@ TEST(SettingsUpdateTest, RootIsNotDynamic) {
 TEST(SettingsUpdateTest, BreakpadIsDynamic) {
     Settings updated;
     Settings settings;
-    BreakpadSettings breakpadSettings;
-    breakpadSettings.setEnabled(true);
-    breakpadSettings.setContent(BreakpadContent::Default);
-    breakpadSettings.setMinidumpDir("/var/crash");
+    cb::breakpad::Settings breakpadSettings;
+    breakpadSettings.enabled = true;
+    breakpadSettings.minidump_dir = "/var/crash";
 
     settings.setBreakpadSettings(breakpadSettings);
     updated.setBreakpadSettings(breakpadSettings);
     EXPECT_NO_THROW(settings.updateSettings(updated, false));
 
     // Changing it should also work
-    breakpadSettings.setEnabled(false);
+    breakpadSettings.enabled = false;
     updated.setBreakpadSettings(breakpadSettings);
     EXPECT_NO_THROW(settings.updateSettings(updated, false));
-    EXPECT_TRUE(settings.getBreakpadSettings().isEnabled());
+    EXPECT_TRUE(settings.getBreakpadSettings().enabled);
 
     EXPECT_NO_THROW(settings.updateSettings(updated));
-    EXPECT_FALSE(settings.getBreakpadSettings().isEnabled());
+    EXPECT_FALSE(settings.getBreakpadSettings().enabled);
 
-    breakpadSettings.setMinidumpDir("/var/crash/minidump");
+    breakpadSettings.minidump_dir = "/var/crash/minidump";
     updated.setBreakpadSettings(breakpadSettings);
     EXPECT_NO_THROW(settings.updateSettings(updated, false));
-    EXPECT_EQ("/var/crash", settings.getBreakpadSettings().getMinidumpDir());
+    EXPECT_EQ("/var/crash", settings.getBreakpadSettings().minidump_dir);
 
     EXPECT_NO_THROW(settings.updateSettings(updated));
     EXPECT_EQ("/var/crash/minidump",
-              settings.getBreakpadSettings().getMinidumpDir());
-    EXPECT_FALSE(settings.getBreakpadSettings().isEnabled());
+              settings.getBreakpadSettings().minidump_dir);
+    EXPECT_FALSE(settings.getBreakpadSettings().enabled);
 }
 
 TEST(SettingsUpdateTest, AuditFileIsNotDynamic) {

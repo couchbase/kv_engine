@@ -21,27 +21,26 @@
 #include <gsl/gsl>
 #include <string>
 
+namespace cb {
+namespace breakpad {
 /**
  * What information should breakpad minidumps contain?
  */
-enum class BreakpadContent {
+enum class Content {
     /**
      * Default content (threads+stack+env+arguments)
      */
     Default
 };
 
-std::string to_string(BreakpadContent content);
-
 /**
  * Settings for Breakpad crash catcher.
  */
-class BreakpadSettings {
-public:
+struct Settings {
     /**
      * Default constructor initialize the object to be in a disabled state
      */
-    BreakpadSettings() = default;
+    Settings() = default;
 
     /**
      * Initialize the Breakpad object from the specified JSON structure
@@ -56,34 +55,14 @@ public:
      * @param json The json to parse
      * @throws std::invalid_argument if the json dosn't look as expected
      */
-    explicit BreakpadSettings(gsl::not_null<const cJSON*> json);
+    explicit Settings(gsl::not_null<const cJSON*> json);
 
-    bool isEnabled() const {
-        return enabled;
-    }
-
-    void setEnabled(bool enabled) {
-        BreakpadSettings::enabled = enabled;
-    }
-
-    const std::string& getMinidumpDir() const {
-        return minidump_dir;
-    }
-
-    void setMinidumpDir(const std::string& minidump_dir) {
-        BreakpadSettings::minidump_dir = minidump_dir;
-    }
-
-    BreakpadContent getContent() const {
-        return content;
-    }
-
-    void setContent(BreakpadContent content) {
-        BreakpadSettings::content = content;
-    }
-
-protected:
     bool enabled{false};
     std::string minidump_dir;
-    BreakpadContent content{BreakpadContent::Default};
+    Content content{Content::Default};
 };
+
+} // namespace breakpad
+} // namespace cb
+
+std::string to_string(cb::breakpad::Content content);

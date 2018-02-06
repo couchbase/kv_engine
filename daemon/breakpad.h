@@ -19,16 +19,33 @@
 #include "config.h"
 #include "settings.h"
 
+#ifdef WIN32
+#include "client/windows/handler/exception_handler.h"
+#elif defined(linux)
+#include "client/linux/handler/exception_handler.h"
+#else
+namespace google_breakpad {
+class ExceptionHandler {
+public:
+};
+} // namespace google_breakpad
+#endif
+
+namespace cb {
+namespace breakpad {
 /**
  * Initialize breakpad based on the specified settings struct.
  *
  * The function may be called multiple times and allow for reconfiguration
  * of the breakpad settings.
  */
-void initialize_breakpad(const BreakpadSettings& settings);
+void initialize(const cb::breakpad::Settings& settings);
 
 /**
  * Cleaning up when breakpad no longer needed
  * (Assuming it is enabled and has been initialized)
  */
-void destroy_breakpad(void);
+void destroy();
+
+} // namespace breakpad
+} // namespace cb
