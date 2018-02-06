@@ -30,6 +30,7 @@
 #include <memcached/types.h>
 
 #include <boost/intrusive/list.hpp>
+#include <relaxed_atomic.h>
 
 class Item;
 class OrderedStoredValue;
@@ -125,7 +126,7 @@ class OrderedStoredValue;
 class StoredValue {
 public:
 
-    /** 
+    /**
      * Compress the value part of stored value. If the compressed document
      * ends up being bigger than the original, then the method leaves the
      * document inflated
@@ -757,7 +758,10 @@ protected:
     UniquePtr chain_next_or_replacement; // 8 bytes
     uint64_t           cas;            //!< CAS identifier.
     uint64_t           revSeqno;       //!< Revision id sequence number
-    int64_t            bySeqno;        //!< By sequence id number
+    // bySeqno is atomic primarily for TSAN, which would flag that we write/read
+    // this in ephemeral backfills with different locks (which is true, but the
+    // access is we believe actually safe)
+    Couchbase::RelaxedAtomic<int64_t> bySeqno; //!< By sequence id number
     /// For alive items: GETL lock expiration. For deleted items: delete time.
     rel_time_t         lock_expiry_or_delete_time;
     uint32_t           exptime;        //!< Expiration time of this item.

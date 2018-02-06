@@ -246,6 +246,10 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
     UniqueItemPtr item;
     while (static_cast<uint64_t>(rangeItr.curr()) <= endSeqno) {
         try {
+            // MB-27199: toItem will read the StoredValue members, which are
+            // mutated with the HashBucketLock, so get the correct bucket lock
+            // before calling StoredValue::toItem
+            auto hbl = evb->ht.getLockedBucket((*rangeItr).getKey());
             item = (*rangeItr).toItem(false, getVBucketId());
         } catch (const std::bad_alloc&) {
             stream->log(EXTENSION_LOG_WARNING,

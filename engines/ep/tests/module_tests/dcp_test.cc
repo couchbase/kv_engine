@@ -46,6 +46,8 @@
 #include <platform/compress.h>
 #include <xattr/utils.h>
 
+#include <thread>
+
 extern uint8_t dcp_last_op;
 extern uint32_t dcp_last_flags;
 
@@ -1051,6 +1053,16 @@ TEST_P(StreamTest, BackfillOnly) {
     ExecutorPool::get()->setNumAuxIO(1);
     stream->transitionStateToBackfilling();
 
+    // MB-27199: Just stir things up by doing some front-end ops whilst
+    // backfilling. This would trigger a number of TSAN warnings
+    std::thread thr([this]() {
+        int i = 0;
+        while (i < 100) {
+            engine->get_and_touch(cookie, makeStoredDocKey("key1"), vbid, i);
+            i++;
+        }
+    });
+
     /* Wait for the backfill task to complete */
     {
         std::chrono::microseconds uSleepTime(128);
@@ -1065,6 +1077,8 @@ TEST_P(StreamTest, BackfillOnly) {
     /* Since backfill items are sitting in the readyQ, check if the stat is
        updated correctly */
     EXPECT_EQ(numItems, stream->getNumBackfillItemsRemaining());
+
+    thr.join();
 
     destroy_dcp_stream();
     /* [TODO]: Expand the testcase to check if snapshot marker, all individual
