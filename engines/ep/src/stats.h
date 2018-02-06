@@ -27,6 +27,7 @@
 #include <platform/non_negative_counter.h>
 #include <relaxed_atomic.h>
 
+#include <algorithm>
 #include <atomic>
 
 /**
@@ -77,7 +78,8 @@ public:
      */
     size_t getEstimatedTotalMemoryUsed() const {
         if (memoryTrackerEnabled.load()) {
-            return estimatedTotalMemory->load();
+            // Don't allow a negative result to be exposed
+            return size_t(std::max(int64_t(0), estimatedTotalMemory->load()));
         }
         return currentSize.load() + memOverhead->load();
     }
