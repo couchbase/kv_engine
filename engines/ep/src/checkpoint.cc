@@ -177,7 +177,7 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &qi,
                                                                 : keyIndex;
 
                     auto cursor_item_idx = index.find(cursor_item->getKey());
-                    if (cursor_item_idx == keyIndex.end()) {
+                    if (cursor_item_idx == index.end()) {
                         throw std::logic_error("Checkpoint::queueDirty: Unable "
                                 "to find key with"
                                 " op:" + to_string(cursor_item->getOperation()) +
