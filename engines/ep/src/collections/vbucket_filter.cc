@@ -51,16 +51,36 @@ Collections::VB::Filter::Filter(const Collections::Filter& filter,
     }
 
     for (const auto& c : filter.getFilter()) {
-        if (rh.isCollectionOpen({c.data(), c.size()})) {
-            auto m = std::make_unique<std::string>(c);
+        bool validFilterEntry = false;
+        if (c.second.is_initialized()) {
+            // strict name/uid lookup
+            validFilterEntry = rh.isCollectionOpen(Identifier{
+                    {c.first.data(), c.first.size()}, c.second.get()});
+        } else {
+            // just name lookup
+            validFilterEntry = rh.isCollectionOpen(
+                    cb::const_char_buffer{c.first.data(), c.first.size()});
+        }
+
+        if (validFilterEntry) {
+            auto m = std::make_unique<std::string>(c.first);
             cb::const_char_buffer b{m->data(), m->size()};
             this->filter.emplace(b, std::move(m));
         } else {
-            // The VB::Manifest doesn't gave the collection, or the collection
+            // The VB::Manifest doesn't have the collection, or the collection
             // is deleted
-            LOG(EXTENSION_LOG_NOTICE,
-                "VB::Filter::Filter: dropping collection:%s as it's not open",
-                c.c_str());
+            if (c.second.is_initialized()) {
+                LOG(EXTENSION_LOG_NOTICE,
+                    "VB::Filter::Filter: dropping collection:%s:%" PRIu64
+                    " as it's not open",
+                    c.first.c_str(),
+                    c.second.get());
+            } else {
+                LOG(EXTENSION_LOG_NOTICE,
+                    "VB::Filter::Filter: dropping collection:%s as it's not "
+                    "open",
+                    c.first.c_str());
+            }
         }
     }
 }

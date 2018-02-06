@@ -148,6 +148,13 @@ public:
         }
 
         /**
+         * @returns true if collection is open, false if not or unknown
+         */
+        bool isCollectionOpen(Identifier identifier) const {
+            return manifest.isCollectionOpen(identifier);
+        }
+
+        /**
          * @return true if the collection exists in the internal container
          */
         bool exists(cb::const_char_buffer collection) const {
@@ -633,6 +640,18 @@ private:
         auto itr = map.find(collection);
         if (itr != map.end()) {
             return itr->second->isOpen();
+        }
+        return false;
+    }
+
+    /**
+     * @returns true if the collection isOpen - false if not (or doesn't exist)
+     */
+    bool isCollectionOpen(Identifier identifier) const {
+        auto itr = map.find(identifier.getName());
+        if (itr != map.end()) {
+            return itr->second->getUid() == identifier.getUid() &&
+                   itr->second->isOpen();
         }
         return false;
     }

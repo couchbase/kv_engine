@@ -60,7 +60,7 @@ public:
 };
 
 /**
- * Test invalid inputs to the filter.
+ * Test invalid JSON formats as an input
  */
 TEST_F(CollectionsFilterTest, junk_in) {
     Collections::Manifest m(
@@ -100,9 +100,13 @@ TEST_F(CollectionsFilterTest, validation1) {
                               {"name":"fruit", "uid":"4"},
                               {"name":"dairy","uid":"5"}]})");
 
-    std::vector<std::string> inputs = {R"({"collections":["$default"]})",
-                                       R"({"collections":["vegetable"]})",
-                                       R"({"collections":["fruit", "meat"]})"};
+    std::vector<std::string> inputs = {
+            R"({"collections":["$default"]})",
+            R"({"collections":["vegetable"]})",
+            R"({"collections":["fruit", "meat"]})",
+            R"({"collections":[{"name":"vegetable","uid":"1"}]})",
+            R"({"collections":[{"name":"dairy","uid":"5"},{"name":"meat","uid":"3"}]})",
+            R"({"collections":[{"name":"$default","uid":"0"}]})"};
 
     for (const auto& s : inputs) {
         boost::optional<const std::string&> json = s;
@@ -116,8 +120,8 @@ TEST_F(CollectionsFilterTest, validation1) {
 }
 
 /**
- * Test valid inputs to the filter, but they are not known collections, so
- * should trigger an exception.
+ * Test valid JSON formats to the filter, but they are contain invalid content
+ * such as unknown collections
  */
 TEST_F(CollectionsFilterTest, validation2) {
     Collections::Manifest m(
@@ -128,9 +132,23 @@ TEST_F(CollectionsFilterTest, validation2) {
                               {"name":"fruit", "uid":"4"},
                               {"name":"dairy","uid":"5"}]})");
 
-    std::vector<std::string> inputs = {R"({"collections":["cheese"]})",
-                                       R"({"collections":["fruit","beer"]})",
-                                       R"({"collections":["$dufault"]})"};
+    std::vector<std::string> inputs = {
+            // wrong name inputs
+            R"({"collections":["cheese"]})",
+            R"({"collections":["fruit","beer"]})",
+            R"({"collections":["$dufault"]})",
+            // wrong UID inputs
+            R"({"collections":[{"name":"vegetable","uid":"2"}]})",
+            R"({"collections":[{"name":"meat","uid":"1"}]})",
+            R"({"collections":[{"name":"vegetable","uid":"1"},{"name":"dairy","uid":"9"}]})",
+            // wrong name and UID inputs
+            R"({"collections":[{"name":"vugetable","uid":"2"}]})",
+            R"({"collections":[{"name":"getable","uid":"1"}]})",
+            R"({"collections":[{"name":"vegetable","uid":"1"},{"name":"fairy","uid":"5"}]})",
+
+            // cannot mix name/uid and name
+            R"({"collections":[{"name":"vegetable","uid":"1"}, "cheese"]})",
+    };
 
     for (const auto& s : inputs) {
         boost::optional<const std::string&> json = s;
@@ -215,9 +233,19 @@ TEST_F(CollectionsFilterTest, filter_basic1) {
     EXPECT_EQ(2, f.getFilter().size());
 
     auto list = f.getFilter();
-    EXPECT_TRUE(std::find(std::begin(list), std::end(list), "fruit") !=
+    EXPECT_TRUE(std::find_if(
+                        std::begin(list),
+                        std::end(list),
+                        [](const std::pair<std::string,
+                                           boost::optional<Collections::uid_t>>&
+                                   item) { return item.first == "fruit"; }) !=
                 list.end());
-    EXPECT_TRUE(std::find(std::begin(list), std::end(list), "meat") !=
+    EXPECT_TRUE(std::find_if(
+                        std::begin(list),
+                        std::end(list),
+                        [](const std::pair<std::string,
+                                           boost::optional<Collections::uid_t>>&
+                                   item) { return item.first == "meat"; }) !=
                 list.end());
 }
 
@@ -252,6 +280,48 @@ TEST_F(CollectionsFilterTest, filter_basic2) {
 }
 
 class CollectionsVBFilterTest : public CollectionsFilterTest {};
+
+/**
+ * Try and create filter for collections which exist by name but not with the
+ * UID. This represents what could happen if a filtered producer was created
+ * successfully, but later when a stream request occurs, the VB's view of
+ * collections has shifted.
+ */
+TEST_F(CollectionsVBFilterTest, uid_mismatch) {
+    Collections::Manifest m1(
+            R"({"separator":"$","uid":"0",)"
+            R"("collections":[{"name":"$default","uid":"0"},
+                              {"name":"vegetable","uid":"1"},
+                              {"name":"meat","uid":"3"},
+                              {"name":"fruit", "uid":"4"},
+                              {"name":"dairy","uid":"5"}]})");
+    Collections::Manifest m2(
+            R"({"separator":"$","uid":"0",)"
+            R"("collections":[{"name":"$default","uid":"0"},
+                              {"name":"vegetable","uid":"8"},
+                              {"name":"meat","uid":"99"},
+                              {"name":"fruit", "uid":"4"},
+                              {"name":"dairy","uid":"5"}]})");
+
+    // Create the "producer" level filter so that we in theory produce at least
+    // these collections
+    std::string jsonFilter =
+            R"({"collections":[{"name":"meat","uid":"3"}, {"name":"vegetable","uid":"1"}]})";
+    boost::optional<const std::string&> json(jsonFilter);
+    // At this point the requested collections are valid for m1
+    Collections::Filter f(json, &m1);
+
+    Collections::VB::Manifest vbm({});
+    // push creates
+    vbm.wlock().update(vb, m1);
+    // push deletes, removing both filtered collections
+    vbm.wlock().update(vb, m2);
+
+    // Construction will now fail as the newly calculated filter doesn't match
+    // the collections of vbm
+    Collections::VB::Filter vbf(f, vbm);
+    EXPECT_TRUE(vbf.empty());
+}
 
 /**
  * Try and create filter for collections which exist, but have been deleted

@@ -235,6 +235,8 @@ TEST_F(CollectionsDcpTest, test_dcp_consumer) {
     EXPECT_TRUE(vb->lockCollections().doesKeyContainValidCollection(
             {"meat:bacon", DocNamespace::Collections}));
     EXPECT_TRUE(vb->lockCollections().isCollectionOpen("meat"));
+    EXPECT_TRUE(vb->lockCollections().isCollectionOpen(
+            Collections::Identifier{"meat", 4}));
     EXPECT_EQ(0xcafef00d, vb->lockCollections().getManifestUid());
 
     // Call the consumer function for handling DCP events
@@ -904,6 +906,51 @@ TEST_F(CollectionsFilteredDcpTest, empty_filter_stream_closes) {
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpStreamEnd);
     EXPECT_EQ(END_STREAM_FILTER_EMPTY, dcp_last_flags);
 
+    // Done... collection deletion of meat has closed the stream
+    EXPECT_FALSE(vb0Stream->isActive());
+
+    // And no more
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+}
+
+/**
+ * Test that creation of a stream that resulted in an empty filter, because
+ * all the collection have been deleted, just goes to stream end.
+ * This test uses a filter with name:uid
+ */
+TEST_F(CollectionsFilteredDcpTest, empty_filter_stream_closes2) {
+    VBucketPtr vb = store->getVBucket(vbid);
+
+    // Perform a create of meat via the bucket level (filters are worked out
+    // from the bucket manifest)
+    store->setCollections({R"({"separator": ":","uid":"0",
+              "collections":[{"name":"$default", "uid":"0"},
+                             {"name":"meat", "uid":"1"}]})"});
+
+    // specific collection uid
+    producer =
+            createDcpProducer(cookieP,
+                              R"({"collections":[{"name":"meat", "uid":"1"}]})",
+                              true,
+                              IncludeDeleteTime::No);
+    createDcpConsumer();
+
+    // Perform a delete of meat
+    store->setCollections({R"({"separator": ":","uid":"0",
+                            "collections":[{"name":"$default", "uid":"0"}]})"});
+
+    createDcpStream();
+
+    auto vb0Stream = producer->findStream(0);
+    ASSERT_NE(nullptr, vb0Stream.get());
+
+    EXPECT_TRUE(vb0Stream->isActive());
+
+    // Expect a stream end marker and no data
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpStreamEnd);
+    EXPECT_EQ(END_STREAM_FILTER_EMPTY, dcp_last_flags);
+
+    // Done... collection deletion of meat:1 has closed the stream
     EXPECT_FALSE(vb0Stream->isActive());
 
     // And no more
