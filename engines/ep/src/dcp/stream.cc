@@ -1281,7 +1281,7 @@ void ActiveStream::endStream(end_stream_status_t reason) {
             vb_,
             lastSentSeqno.load(),
             uint64_t(readyQ_non_meta_items.load()),
-            getEndStreamStatusStr(reason));
+            getEndStreamStatusStr(reason).c_str());
     }
 }
 
@@ -1548,8 +1548,7 @@ bool ActiveStream::handleSlowStream() {
     return false;
 }
 
-const char* ActiveStream::getEndStreamStatusStr(end_stream_status_t status)
-{
+std::string ActiveStream::getEndStreamStatusStr(end_stream_status_t status) {
     switch (status) {
     case END_STREAM_OK:
         return "The stream ended due to all items being streamed";
@@ -1569,9 +1568,8 @@ const char* ActiveStream::getEndStreamStatusStr(end_stream_status_t status)
         return "The stream closed because all of the filtered collections "
                "were deleted";
     }
-    std::string msg("Status unknown: " + std::to_string(status) +
-                    "; this should not have happened!");
-    return msg.c_str();
+    return std::string{"Status unknown: " + std::to_string(status) +
+                       "; this should not have happened!"};
 }
 
 void ActiveStream::transitionState(StreamState newState) {
@@ -2039,7 +2037,7 @@ uint32_t PassiveStream::setDead(end_stream_status_t status) {
             vb_,
             last_seqno.load(),
             unackedBytes,
-            getEndStreamStatusStr(status));
+            getEndStreamStatusStr(status).c_str());
     }
     return unackedBytes;
 }
@@ -2765,8 +2763,7 @@ bool PassiveStream::transitionState(StreamState newState) {
     return true;
 }
 
-const char* PassiveStream::getEndStreamStatusStr(end_stream_status_t status)
-{
+std::string PassiveStream::getEndStreamStatusStr(end_stream_status_t status) {
     switch (status) {
         case END_STREAM_OK:
             return "The stream closed as part of normal operation";
@@ -2779,9 +2776,8 @@ const char* PassiveStream::getEndStreamStatusStr(end_stream_status_t status)
         default:
             break;
     }
-    std::string msg("Status unknown: " + std::to_string(status) +
-                    "; this should not have happened!");
-    return msg.c_str();
+    return std::string{"Status unknown: " + std::to_string(status) +
+                       "; this should not have happened!"};
 }
 
 void PassiveStream::log(EXTENSION_LOG_LEVEL severity,

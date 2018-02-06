@@ -408,7 +408,7 @@ private:
      */
     void scheduleBackfill_UNLOCKED(bool reschedule);
 
-    const char* getEndStreamStatusStr(end_stream_status_t status);
+    std::string getEndStreamStatusStr(end_stream_status_t status);
 
     bool isCurrentSnapshotCompleted() const;
 
@@ -747,7 +747,7 @@ protected:
 
     uint32_t clearBuffer_UNLOCKED();
 
-    const char* getEndStreamStatusStr(end_stream_status_t status);
+    std::string getEndStreamStatusStr(end_stream_status_t status);
 
     /**
      * Push a StreamRequest into the readyQueue. The StreamRequest is initiaised
