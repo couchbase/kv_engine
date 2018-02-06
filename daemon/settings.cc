@@ -1139,6 +1139,17 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         }
         setTopkeysEnabled(other.isTopkeysEnabled());
     }
+
+    if (other.has.tracing_enabled) {
+        if (other.isTracingEnabled() != isTracingEnabled()) {
+            if (other.isTracingEnabled()) {
+                logit(EXTENSION_LOG_NOTICE, "Enable tracing support");
+            } else {
+                logit(EXTENSION_LOG_NOTICE, "Disable tracing support");
+            }
+        }
+        setTracingEnabled(other.isTracingEnabled());
+    }
 }
 
 void Settings::logit(EXTENSION_LOG_LEVEL level, const char* fmt, ...) {

@@ -17,6 +17,7 @@
 #include "client_mcbp_commands.h"
 #include <mcbp/mcbp.h>
 #include <array>
+#include "tracing/tracer.h"
 
 void BinprotCommand::encode(std::vector<uint8_t>& buf) const {
     protocol_binary_request_header header;
@@ -137,6 +138,31 @@ void BinprotSubdocCommand::encode(std::vector<uint8_t>& buf) const {
 
 void BinprotResponse::assign(std::vector<uint8_t>&& srcbuf) {
     payload = std::move(srcbuf);
+}
+
+boost::optional<std::chrono::microseconds> BinprotResponse::getTracingData()
+        const {
+    auto framingExtrasLen = getFramingExtraslen();
+    if (framingExtrasLen == 0) {
+        return boost::optional<std::chrono::microseconds>{};
+    }
+    const auto& framingExtras = getResponse().getFramingExtras();
+    const auto& data = framingExtras.data();
+    size_t offset = 0;
+
+    // locate the tracing info
+    while (offset < framingExtrasLen) {
+        const uint8_t id = data[offset] & 0xF0;
+        const uint8_t len = data[offset] & 0x0F;
+        if (0 == id) {
+            uint16_t micros = ntohs(
+                    reinterpret_cast<const uint16_t*>(data + offset + 1)[0]);
+            return cb::tracing::Tracer::decodeMicros(micros);
+        }
+        offset += 1 + len;
+    }
+
+    return boost::optional<std::chrono::microseconds>{};
 }
 
 void BinprotSubdocResponse::assign(std::vector<uint8_t>&& srcbuf) {

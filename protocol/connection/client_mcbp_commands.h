@@ -18,7 +18,7 @@
 #include <platform/sized_buffer.h>
 #include <unordered_set>
 #include "client_connection.h"
-
+#include <boost/optional/optional.hpp>
 /**
  * This is the base class used for binary protocol commands. You probably
  * want to use one of the subclasses. Do not subclass this class directly,
@@ -375,6 +375,11 @@ public:
     const cb::mcbp::Response& getResponse() const {
         return getHeader().response;
     }
+
+    /**
+     * Retrieve the approximate time spent on the server
+     */
+    boost::optional<std::chrono::microseconds> getTracingData() const;
 
     /**
      * Populate this response from a response

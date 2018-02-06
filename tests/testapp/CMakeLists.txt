@@ -141,6 +141,12 @@ add_unit_test_suite(NAME get-set
                     TIMEOUT 400
                     SOURCE testapp_getset.cc)
 
+# Run the Normal get set tests
+add_unit_test_suite(NAME tracing
+                    ENGINE ep
+                    TIMEOUT 400
+                    SOURCE testapp_tracing.cc)
+
 # Run the sasl tests
 if (WIN32)
     # saslauthd is a Unix-only thingie

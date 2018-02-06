@@ -453,7 +453,8 @@ void MemcachedConnection::recvFrame(Frame& frame,
     if (magic != cb::mcbp::Magic::ClientRequest &&
         magic != cb::mcbp::Magic::ClientResponse &&
         magic != cb::mcbp::Magic::ServerRequest &&
-        magic != cb::mcbp::Magic::ServerResponse) {
+        magic != cb::mcbp::Magic::ServerResponse &&
+        magic != cb::mcbp::Magic::AltClientResponse) {
         throw std::runtime_error("Invalid magic received: " +
                                  std::to_string(frame.payload.at(0)));
     }
@@ -482,6 +483,7 @@ void MemcachedConnection::recvFrame(Frame& frame,
 }
 
 void MemcachedConnection::sendCommand(const BinprotCommand& command) {
+    traceData.reset();
     auto bufs = command.encode();
 
     // Construct a Frame for this command, then send the complete
@@ -517,8 +519,10 @@ void MemcachedConnection::sendCommand(const BinprotCommand& command) {
 
 void MemcachedConnection::recvResponse(BinprotResponse& response) {
     Frame frame;
+    traceData.reset();
     recvFrame(frame);
     response.assign(std::move(frame.payload));
+    traceData = response.getTracingData();
 }
 
 void MemcachedConnection::authenticate(const std::string& username,

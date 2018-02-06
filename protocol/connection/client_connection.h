@@ -18,6 +18,7 @@
 
 #include "config.h"
 
+#include <boost/optional/optional.hpp>
 #include <cJSON.h>
 #include <cJSON_utils.h>
 #include <daemon/settings.h>
@@ -28,10 +29,12 @@
 #include <platform/dynamic.h>
 #include <platform/sized_buffer.h>
 #include <utilities/protocol2text.h>
+#include <chrono>
 #include <cstdlib>
 #include <stdexcept>
 #include <string>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 /**
@@ -715,6 +718,17 @@ public:
      */
     unique_cJSON_ptr getErrorMap(uint16_t version = 1);
 
+    /**
+     * Attempts to enable or disable a feature
+     * @param feature Feature to enable or disable
+     * @param enabled whether to enable or disable
+     */
+    void setFeature(cb::mcbp::Feature feature, bool enabled);
+
+    boost::optional<std::chrono::microseconds> getTraceData() const {
+        return traceData;
+    }
+
 protected:
     void read(Frame& frame, size_t bytes);
 
@@ -749,6 +763,7 @@ protected:
     SOCKET sock;
     bool synchronous;
     std::string saslMechanisms;
+    boost::optional<std::chrono::microseconds> traceData;
 
     typedef std::unordered_set<uint16_t> Featureset;
 
@@ -769,13 +784,6 @@ protected:
      * @param feat the featureset to enable.
      */
     void applyFeatures(const std::string& agent, const Featureset& features);
-
-    /**
-     * Attempts to enable or disable a feature
-     * @param feature Feature to enable or disable
-     * @param enabled whether to enable or disable
-     */
-    void setFeature(cb::mcbp::Feature feature, bool enabled);
 
     Featureset effective_features;
 };

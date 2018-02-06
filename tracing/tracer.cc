@@ -18,7 +18,6 @@
 #include <tracing/tracer.h>
 
 #include <algorithm>
-#include <cmath>
 #include <iostream>
 #include <limits>
 #include <sstream>
@@ -82,18 +81,8 @@ std::chrono::microseconds Tracer::getTotalMicros() const {
  * Idea by Brett Lawson [@brett19]
  * Max Time: 02:00.125042 (120125042)
  */
-uint16_t Tracer::getEncodedMicros(uint64_t actual) const {
-    static const uint64_t maxVal = 120125042;
-    if (0 == actual) {
-        actual = getTotalMicros().count();
-    }
-    actual = std::min(actual, maxVal);
-    return uint16_t(std::round(std::pow(actual * 2, 1.0 / 1.74)));
-}
-
-std::chrono::microseconds Tracer::decodeMicros(uint16_t encoded) const {
-    auto usecs = uint64_t(std::pow(encoded, 1.74) / 2);
-    return std::chrono::microseconds(usecs);
+uint16_t Tracer::getEncodedMicros() const {
+    return encodeMicros(getTotalMicros().count());
 }
 
 void Tracer::clear() {

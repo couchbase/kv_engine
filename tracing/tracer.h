@@ -15,6 +15,8 @@
  *   limitations under the License.
  */
 #pragma once
+#include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <mutex>
 #include <ostream>
@@ -76,11 +78,20 @@ public:
 
     std::chrono::microseconds getTotalMicros() const;
 
+    uint16_t getEncodedMicros() const;
     /**
      * Max time period represented here is 02:00.125042
      */
-    uint16_t getEncodedMicros(uint64_t actual = 0) const;
-    std::chrono::microseconds decodeMicros(uint16_t encoded) const;
+    static uint16_t encodeMicros(uint64_t actual) {
+        static const uint64_t maxVal = 120125042;
+        actual = std::min(actual, maxVal);
+        return uint16_t(std::round(std::pow(actual * 2, 1.0 / 1.74)));
+    }
+
+    static std::chrono::microseconds decodeMicros(uint16_t encoded) {
+        auto usecs = uint64_t(std::pow(encoded, 1.74) / 2);
+        return std::chrono::microseconds(usecs);
+    }
 
     // clear the collected trace data;
     void clear();
