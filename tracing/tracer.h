@@ -51,7 +51,7 @@ class MEMCACHED_PUBLIC_CLASS Span {
 public:
     Span(TraceCode code,
          std::chrono::microseconds start,
-         std::chrono::microseconds duration = std::chrono::microseconds(0))
+         std::chrono::microseconds duration = std::chrono::microseconds::max())
         : code(code), start(start), duration(duration) {
     }
     TraceCode code;

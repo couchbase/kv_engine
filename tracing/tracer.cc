@@ -72,7 +72,11 @@ std::chrono::microseconds Tracer::getTotalMicros() const {
     if (vecSpans.empty()) {
         return std::chrono::microseconds(0);
     }
-    return vecSpans[0].duration;
+    const auto& top = vecSpans[0];
+    if (top.duration == std::chrono::microseconds::max()) {
+        return to_micros(ProcessClock::now()) - top.start;
+    }
+    return top.duration;
 }
 
 /**
@@ -103,8 +107,12 @@ MEMCACHED_PUBLIC_API std::string to_string(const cb::tracing::Tracer& tracer,
     std::ostringstream os;
     auto size = vecSpans.size();
     for (const auto& span : vecSpans) {
-        os << to_string(span.code) << "=" << span.start.count() << ":"
-           << span.duration.count();
+        os << to_string(span.code) << "=" << span.start.count() << ":";
+        if (span.duration == std::chrono::microseconds::max()) {
+            os << "--";
+        } else {
+            os << span.duration.count();
+        }
         size--;
         if (size > 0) {
             os << (raw ? " " : "\n");
