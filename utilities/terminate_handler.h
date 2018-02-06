@@ -25,11 +25,8 @@
  * Interposes our own C++ terminate handler to print backtrace upon failures.
  * Chains to the default handler (if exists) after printing the backtrace,
  * then calls std::abort().
- * @param logger the logger descriptor to use to print the backtrace in the
- *               event of termination. If nullptr then will log directly to
- *               stderr.
  */
-void install_backtrace_terminate_handler(EXTENSION_LOGGER_DESCRIPTOR* logger = nullptr);
+void install_backtrace_terminate_handler();
 
 /**
  * Control if our C++ terminate handler should include a backtrace or not.
