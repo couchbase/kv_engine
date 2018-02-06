@@ -18,14 +18,15 @@
 
 #include "ep_types.h"
 #include "executorpool.h"
+#include "item_freq_decayer.h"
+#include "kv_bucket_iface.h"
 #include "mutation_log.h"
-#include "storeddockey.h"
 #include "stored-value.h"
+#include "storeddockey.h"
 #include "task_type.h"
+#include "utility.h"
 #include "vbucket.h"
 #include "vbucketmap.h"
-#include "utility.h"
-#include "kv_bucket_iface.h"
 
 #include <deque>
 
@@ -615,6 +616,9 @@ public:
     void enableItemPager();
     void disableItemPager();
 
+    /// Wake up the ItemFreqDecayer Task, scheduling it for immediate run.
+    void wakeItemFreqDecayerTask();
+
     void enableAccessScannerTask();
     void disableAccessScannerTask();
     void setAccessScannerSleeptime(size_t val, bool useStartTime);
@@ -732,6 +736,12 @@ public:
     }
 
     void runDefragmenterTask();
+
+    /**
+     * Invoke the run method of the ItemFreqDecayerTask.  Currently only used
+     * for testing purposes.
+     */
+    void runItemFreqDecayerTask();
 
     bool runAccessScannerTask();
 
@@ -879,6 +889,14 @@ protected:
     /// Helper method from initialize() to setup the expiry pager
     void initializeExpiryPager(Configuration& config);
 
+    /**
+     * Check whether the ItemFreqDecayer Task is snoozed.  Currently only
+     * used for testing purposes.
+     */
+    bool isItemFreqDecayerTaskSnoozed() const {
+        return (itemFreqDecayerTask->getState() == TASK_SNOOZED);
+    }
+
     /// Factory method to create a VBucket count visitor of the correct type.
     virtual std::unique_ptr<VBucketCountVisitor> makeVBCountVisitor(
             vbucket_state_t state);
@@ -905,7 +923,10 @@ protected:
     ExTask                          chkTask;
     float                           bfilterResidencyThreshold;
     ExTask                          defragmenterTask;
-
+    // The itemFreqDecayerTask is used to decay the frequency count of items
+    // stored in the hash table.  This is required to ensure that all the
+    // frequency counts do not become saturated.
+    ExTask itemFreqDecayerTask;
     size_t                          compactionWriteQueueCap;
     float                           compactionExpMemThreshold;
 

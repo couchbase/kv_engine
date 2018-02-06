@@ -26,6 +26,7 @@
 #include "ep_types.h"
 #include "failover-table.h"
 #include "flusher.h"
+#include "hash_table.h"
 #include "pre_link_document_context.h"
 #include "statwriter.h"
 #include "stored_value_factories.h"
@@ -2719,4 +2720,8 @@ void VBucket::DeferredDeleter::operator()(VBucket* vb) const {
         return;
     }
     delete vb;
+}
+
+void VBucket::setFreqSaturatedCallback(std::function<void()> callbackFunction) {
+    ht.setFreqSaturatedCallback(callbackFunction);
 }

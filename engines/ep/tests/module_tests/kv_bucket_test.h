@@ -143,6 +143,8 @@ public:
 
     void initializeExpiryPager();
 
+    bool isItemFreqDecayerTaskSnoozed() const;
+
     /**
      * Convenience method to run the background fetcher task once (in the
      * current thread).

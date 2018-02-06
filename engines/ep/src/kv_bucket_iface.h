@@ -683,6 +683,8 @@ public:
 
     virtual void runDefragmenterTask() = 0;
 
+    virtual void runItemFreqDecayerTask() = 0;
+
     virtual bool runAccessScannerTask() = 0;
 
     virtual void runVbStatePersistTask(int vbid) = 0;

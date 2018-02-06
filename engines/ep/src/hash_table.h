@@ -26,6 +26,7 @@
 #include <platform/non_negative_counter.h>
 
 #include <array>
+#include <functional>
 
 class AbstractStoredValueFactory;
 class HashTableStatVisitor;
@@ -250,6 +251,16 @@ public:
      */
     size_t getNumItems() const {
         return numItems;
+    }
+
+    /**
+     * Sets the frequencyCounterSaturated function to the callback function
+     * passed in.
+     * @param - callbackFunction  The function to set
+     *                            frequencyCounterSaturated to.
+     */
+    void setFreqSaturatedCallback(std::function<void()> callbackFunction) {
+        frequencyCounterSaturated = callbackFunction;
     }
 
     /**
@@ -715,6 +726,10 @@ private:
     // The policy used by the hash table to evict items.  The item pager uses
     // this to determine what eviction policy to apply.
     EvictionPolicy evictionPolicy;
+
+    // Used to hold the function to invoke when a storedValue's frequency
+    // counter becomes saturated.
+    std::function<void()> frequencyCounterSaturated;
 
     int getBucketForHash(int h) {
         return abs(h % static_cast<int>(size));

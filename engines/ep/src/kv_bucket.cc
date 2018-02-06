@@ -239,6 +239,7 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
       stats(engine.getEpStats()),
       vbMap(theEngine.getConfiguration(), *this),
       defragmenterTask(NULL),
+      itemFreqDecayerTask(nullptr),
       vb_mutexes(engine.getConfiguration().getMaxVbuckets()),
       diskDeleteAll(false),
       bgFetchDelay(0),
@@ -400,6 +401,17 @@ bool KVBucket::initialize() {
     ExecutorPool::get()->schedule(defragmenterTask);
 #endif
 
+    /*
+     * Creates the ItemFreqDecayer task which is used to ensure that the
+     * frequency counters of items stored in the hash table do not all
+     * become saturated.  Once the task runs it will snooze for int max
+     * seconds and will only be woken up when the frequency counter of an
+     * item in the hash table becomes saturated.
+     */
+    itemFreqDecayerTask = std::make_shared<ItemFreqDecayerTask>(
+            &engine, config.getItemFreqDecayerPercent());
+    ExecutorPool::get()->schedule(itemFreqDecayerTask);
+
     return true;
 }
 
@@ -408,7 +420,6 @@ void KVBucket::initializeWarmupTask() {
         warmupTask = std::make_unique<Warmup>(*this, engine.getConfiguration());
     }
 }
-
 void KVBucket::startWarmupTask() {
     if (warmupTask) {
         warmupTask->start();
@@ -438,6 +449,8 @@ KVBucket::~KVBucket() {
     LOG(EXTENSION_LOG_NOTICE, "Deleting vb_mutexes");
     LOG(EXTENSION_LOG_NOTICE, "Deleting defragmenterTask");
     defragmenterTask.reset();
+    LOG(EXTENSION_LOG_NOTICE, "Deleting itemFreqDecayerTask");
+    itemFreqDecayerTask.reset();
     LOG(EXTENSION_LOG_NOTICE, "Deleted KvBucket.");
 }
 
@@ -807,6 +820,9 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(
                             shard,
                             std::move(ft),
                             std::make_unique<NotifyNewSeqnoCB>(*this));
+
+        newvb->setFreqSaturatedCallback(
+                [this] { this->wakeItemFreqDecayerTask(); });
 
         Configuration& config = engine.getConfiguration();
         if (config.isBfilterEnabled()) {
@@ -1966,6 +1982,11 @@ void KVBucket::disableItemPager() {
     ExecutorPool::get()->cancel(itemPagerTask->getId());
 }
 
+void KVBucket::wakeItemFreqDecayerTask() {
+    auto& t = dynamic_cast<ItemFreqDecayerTask&>(*itemFreqDecayerTask);
+    t.wakeup();
+}
+
 void KVBucket::enableAccessScannerTask() {
     LockHolder lh(accessScanner.mutex);
     if (!accessScanner.enabled) {
@@ -2290,6 +2311,10 @@ void KVBucket::attemptToFreeMemory() {
 
 void KVBucket::runDefragmenterTask() {
     defragmenterTask->run();
+}
+
+void KVBucket::runItemFreqDecayerTask() {
+    itemFreqDecayerTask->run();
 }
 
 bool KVBucket::runAccessScannerTask() {

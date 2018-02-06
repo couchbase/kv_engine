@@ -434,11 +434,21 @@ StoredValue* HashTable::unlocked_find(const DocKey& key,
             v = v->getNext().get().get()) {
         if (v->hasKey(key)) {
             if (trackReference == TrackReference::Yes && !v->isDeleted()) {
-                // Attempt to increment the storedValue frequency counter value.
-                // Because a statistical counter is used the new value will
-                // either be the same or an increment of the current value.
-                v->setFreqCounterValue(
-                        generateFreqValue(v->getFreqCounterValue()));
+                // Attempt to increment the storedValue frequency counter
+                // value.  Because a statistical counter is used the new
+                // value will either be the same or an increment of the
+                // current value.
+                auto updatedFreqCounterValue =
+                        generateFreqValue(v->getFreqCounterValue());
+                v->setFreqCounterValue(updatedFreqCounterValue);
+
+                if (updatedFreqCounterValue ==
+                    std::numeric_limits<uint8_t>::max()) {
+                    // Invoke the registered callback function which
+                    // wakeups the ItemFreqDecayer task.
+                    frequencyCounterSaturated();
+                }
+
                 // @todo remove the referenced call when eviction algorithm is
                 // updated to use the frequency counter value.
                 v->referenced();

@@ -1896,3 +1896,13 @@ TEST_F(SingleThreadedEPBucketTest, ItemFreqDecayerTaskTest) {
     // The item freq decayer task should have completed.
     EXPECT_TRUE(itemFreqDecayerTask->isCompleted());
 }
+
+// Test to confirm that the ItemFreqDecayerTask gets created on kv_bucket
+// initialisation.  The task should be runnable.  However once run should
+// enter a "snoozed" state.
+TEST_F(SingleThreadedEPBucketTest, CreatedItemFreqDecayerTask) {
+    store->initialize();
+    EXPECT_FALSE(isItemFreqDecayerTaskSnoozed());
+    store->runItemFreqDecayerTask();
+    EXPECT_TRUE(isItemFreqDecayerTaskSnoozed());
+}

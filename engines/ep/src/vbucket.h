@@ -1132,6 +1132,15 @@ public:
     virtual void dump() const;
 
     /**
+     * Sets the callback function to invoke when a frequency counter becomes
+     * saturated.  The callback function is to invoke the ItemFreqDecayer
+     * task.
+     *
+     * @param callbackFunction - the function to callback.
+     */
+    void setFreqSaturatedCallback(std::function<void()> callbackFunction);
+
+    /**
      * Returns the number of deletes in the memory
      *
      * @return number of deletes

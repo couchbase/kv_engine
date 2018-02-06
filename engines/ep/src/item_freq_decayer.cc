@@ -39,7 +39,6 @@ bool ItemFreqDecayerTask::run(void) {
 
     // Setup so that we will sleep before clearing notified.
     snooze(std::numeric_limits<int>::max());
-    notified.store(false);
 
     // Get our pause/resume visitor. If we didn't finish the previous pass,
     // then resume from where we last were, otherwise create a new visitor
@@ -94,12 +93,14 @@ bool ItemFreqDecayerTask::run(void) {
        << visitor.getVisitedCount() << " documents.";
     LOG(EXTENSION_LOG_INFO, "%s", ss.str().c_str());
 
-    // Delete(reset) visitor if it finished.
+    // Delete(reset) visitor and allow to be notified if it finished.
     if (completed) {
         prAdapter.reset();
+        notified.store(false);
     } else {
-        // We have not completed Aging all the items so wake the task back up
-        wakeup();
+        // We have not completed decaying all the items so wake the task back
+        // up
+        wakeUp();
     }
 
     if (engine->getEpStats().isShutdown) {

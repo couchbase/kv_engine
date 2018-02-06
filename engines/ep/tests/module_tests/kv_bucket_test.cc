@@ -222,6 +222,10 @@ void KVBucketTest::initializeExpiryPager() {
     store->initializeExpiryPager(engine->getConfiguration());
 }
 
+bool KVBucketTest::isItemFreqDecayerTaskSnoozed() const {
+    return store->isItemFreqDecayerTaskSnoozed();
+}
+
 void KVBucketTest::runBGFetcherTask() {
     MockGlobalTask mockTask(engine->getTaskable(),
                             TaskId::MultiBGFetcherTask);
