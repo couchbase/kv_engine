@@ -60,57 +60,54 @@ bool Event::process(Audit& audit) {
     }
 
     // convert the event.payload into JSON
-    cJSON *json_payload = cJSON_Parse(payload.c_str());
-    if (json_payload == NULL) {
-        Audit::log_error(AuditErrorCode::JSON_PARSING_ERROR, payload.c_str());
+    unique_cJSON_ptr json_payload(cJSON_Parse(payload.c_str()));
+    if (!json_payload) {
+        Audit::log_error(AuditErrorCode::JSON_PARSING_ERROR, payload);
         return false;
     }
-    cJSON *timestamp_ptr = cJSON_GetObjectItem(json_payload, "timestamp");
-    if (timestamp_ptr == NULL) {
-        std::string timestamp;
-        timestamp = ISOTime::generatetimestamp();
-        cJSON_AddStringToObject(json_payload, "timestamp", timestamp.c_str());
+
+    cJSON* timestamp_ptr = cJSON_GetObjectItem(json_payload.get(), "timestamp");
+    if (timestamp_ptr == nullptr) {
+        // the audit does not contain a timestamp, so the server
+        // needs to insert one
+        const auto timestamp = ISOTime::generatetimestamp();
+        cJSON_AddStringToObject(
+                json_payload.get(), "timestamp", timestamp.c_str());
     }
+
     auto evt = audit.events.find(id);
     if (evt == audit.events.end()) {
         // it is an unknown event
-        std::ostringstream convert;
-        convert << id;
-        Audit::log_error(AuditErrorCode::UNKNOWN_EVENT_ERROR, convert.str().c_str());
-        cJSON_Delete(json_payload);
+        Audit::log_error(AuditErrorCode::UNKNOWN_EVENT_ERROR,
+                         std::to_string(id));
         return false;
     }
     if (!evt->second->isEnabled()) {
         // the event is not enabled so ignore event
-        cJSON_Delete(json_payload);
         return true;
     }
 
     if (audit.config.is_filtering_enabled() &&
-            evt->second->isFilteringPermitted() &&
-            filterEvent(json_payload, audit.config)) {
-        cJSON_Delete(json_payload);
+        evt->second->isFilteringPermitted() &&
+        filterEvent(json_payload.get(), audit.config)) {
         return true;
     }
 
     if (!audit.auditfile.ensure_open()) {
         Audit::log_error(AuditErrorCode::OPEN_AUDITFILE_ERROR);
-        cJSON_Delete(json_payload);
         return false;
     }
-    cJSON_AddNumberToObject(json_payload, "id", id);
-    cJSON_AddStringToObject(json_payload, "name", evt->second->getName().c_str());
-    cJSON_AddStringToObject(json_payload, "description", evt->second->getDescription().c_str());
+    cJSON_AddNumberToObject(json_payload.get(), "id", id);
+    cJSON_AddStringToObject(
+            json_payload.get(), "name", evt->second->getName().c_str());
+    cJSON_AddStringToObject(json_payload.get(),
+                            "description",
+                            evt->second->getDescription().c_str());
 
-    bool success = audit.auditfile.write_event_to_disk(json_payload);
-
-    // Release allocated resources
-    cJSON_Delete(json_payload);
-
-    if (success) {
+    if (audit.auditfile.write_event_to_disk(json_payload.get())) {
         return true;
-    } else {
-        Audit::log_error(AuditErrorCode::WRITE_EVENT_TO_DISK_ERROR);
-        return false;
     }
+
+    Audit::log_error(AuditErrorCode::WRITE_EVENT_TO_DISK_ERROR);
+    return false;
 }
