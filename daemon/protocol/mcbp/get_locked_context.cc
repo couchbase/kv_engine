@@ -107,7 +107,7 @@ ENGINE_ERROR_CODE GetLockedCommandContext::sendResponse() {
 }
 
 ENGINE_ERROR_CODE GetLockedCommandContext::step() {
-    ENGINE_ERROR_CODE ret;
+    auto ret = ENGINE_SUCCESS;
     do {
         switch (state) {
         case State::GetAndLockItem:

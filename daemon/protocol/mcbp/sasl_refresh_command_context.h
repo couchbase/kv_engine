@@ -40,7 +40,7 @@ public:
 
 protected:
     ENGINE_ERROR_CODE step() override {
-        ENGINE_ERROR_CODE ret;
+        auto ret = ENGINE_SUCCESS;
         do {
             switch (state) {
             case State::Refresh:

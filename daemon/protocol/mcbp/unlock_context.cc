@@ -32,7 +32,7 @@ ENGINE_ERROR_CODE UnlockCommandContext::unlock() {
 }
 
 ENGINE_ERROR_CODE UnlockCommandContext::step() {
-    ENGINE_ERROR_CODE ret;
+    auto ret = ENGINE_SUCCESS;
     do {
         switch (state) {
         case State::Unlock:

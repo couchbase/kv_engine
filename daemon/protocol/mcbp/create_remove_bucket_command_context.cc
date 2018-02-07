@@ -116,7 +116,7 @@ ENGINE_ERROR_CODE CreateRemoveBucketCommandContext::remove() {
 
 ENGINE_ERROR_CODE CreateRemoveBucketCommandContext::step() {
     try {
-        ENGINE_ERROR_CODE ret;
+        auto ret = ENGINE_SUCCESS;
         do {
             switch (state) {
             case State::Initial:

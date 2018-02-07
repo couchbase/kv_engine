@@ -100,7 +100,7 @@ ENGINE_ERROR_CODE GetMetaCommandContext::noSuchItem() {
 }
 
 ENGINE_ERROR_CODE GetMetaCommandContext::step() {
-    ENGINE_ERROR_CODE ret;
+    auto ret = ENGINE_SUCCESS;
     do {
         switch (state) {
         case State::GetItemMeta:

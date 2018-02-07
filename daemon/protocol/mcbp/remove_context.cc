@@ -21,7 +21,7 @@
 #include <xattr/blob.h>
 
 ENGINE_ERROR_CODE RemoveCommandContext::step() {
-    ENGINE_ERROR_CODE ret;
+    auto ret = ENGINE_SUCCESS;
     do {
         switch (state) {
         case State::GetItem:

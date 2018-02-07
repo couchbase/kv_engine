@@ -44,7 +44,7 @@ MutationCommandContext::MutationCommandContext(Cookie& cookie,
 }
 
 ENGINE_ERROR_CODE MutationCommandContext::step() {
-    ENGINE_ERROR_CODE ret;
+    auto ret = ENGINE_SUCCESS;
     do {
         switch (state) {
         case State::ValidateInput:

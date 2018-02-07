@@ -37,7 +37,7 @@ AppendPrependCommandContext::AppendPrependCommandContext(
 }
 
 ENGINE_ERROR_CODE AppendPrependCommandContext::step() {
-    ENGINE_ERROR_CODE ret;
+    auto ret = ENGINE_SUCCESS;
     do {
         switch (state) {
         case State::ValidateInput:

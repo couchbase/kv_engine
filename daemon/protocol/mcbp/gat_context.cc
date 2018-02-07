@@ -149,7 +149,7 @@ ENGINE_ERROR_CODE GatCommandContext::noSuchItem() {
 }
 
 ENGINE_ERROR_CODE GatCommandContext::step() {
-    ENGINE_ERROR_CODE ret;
+    auto ret = ENGINE_SUCCESS;
     do {
         switch (state) {
         case State::GetAndTouchItem:
