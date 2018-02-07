@@ -166,19 +166,23 @@ bool KVStore::snapshotStats(const std::map<std::string,
 
     FILE *new_stats = fopen(next_fname.c_str(), "w");
     if (new_stats == nullptr) {
-        LOG(EXTENSION_LOG_NOTICE, "Failed to log the engine stats to "
-                "file \"%s\" due to an error \"%s\"; Not critical because new "
-                "stats will be dumped later, please ignore.",
-            next_fname.c_str(), strerror(errno));
+        LOG(EXTENSION_LOG_NOTICE,
+            "Failed to open the engine stats "
+            "file \"%s\" due to an error \"%s\"; Not critical because new "
+            "stats will be dumped later, please ignore.",
+            next_fname.c_str(),
+            strerror(errno));
         return false;
     }
 
     bool rv = true;
     if (fprintf(new_stats, "%s\n", stats_buf.str().c_str()) < 0) {
-        LOG(EXTENSION_LOG_NOTICE, "Failed to log the engine stats to "
-                "file \"%s\" due to an error \"%s\"; Not critical because new "
-                "stats will be dumped later, please ignore.",
-            next_fname.c_str(), strerror(errno));
+        LOG(EXTENSION_LOG_NOTICE,
+            "Failed to write the engine stats to "
+            "file \"%s\" due to an error \"%s\"; Not critical because new "
+            "stats will be dumped later, please ignore.",
+            next_fname.c_str(),
+            strerror(errno));
         rv = false;
     }
     fclose(new_stats);
