@@ -213,6 +213,7 @@ def tasks_stats_formatter(stats, sort_by=None, reverse=False, *args):
                     ('num_runs',         ('#Runs',    True,  True )),
                     ('type',             ('Type',     False, False)),
                     ('name',             ('Name',     False, False)),
+                    ('this',             ('Addr',     False, False)),
                     ('description',      ('Descr.',   False, False)),
                 )]
 

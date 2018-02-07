@@ -27,6 +27,7 @@
 #include <cJSON_utils.h>
 #include <platform/checked_snprintf.h>
 #include <platform/processclock.h>
+#include <platform/string.h>
 #include <platform/sysinfo.h>
 #include <algorithm>
 #include <chrono>
@@ -911,6 +912,10 @@ void ExecutorPool::doTasksStat(EventuallyPersistentEngine* engine,
                 obj.get(), "state", to_string(task->getState()).c_str());
         cJSON_AddStringToObject(
                 obj.get(), "name", GlobalTask::getTaskName(task->getTypeId()));
+        cJSON_AddStringToObject(
+                obj.get(),
+                "this",
+                cb::to_hex(reinterpret_cast<uint64_t>(task.get())).c_str());
         cJSON_AddStringToObject(
                 obj.get(), "bucket", task->getTaskable().getName().c_str());
         cJSON_AddStringToObject(
