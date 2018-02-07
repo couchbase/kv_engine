@@ -54,6 +54,8 @@ public:
     // Returns the number of documents that have been visited.
     size_t getVisitedCount() const;
 
+    void setCurrentVBucket(VBucket& vb) override;
+
 private:
     /* Configuration parameters */
 
@@ -76,4 +78,7 @@ private:
 
     // Current compression mode of the bucket
     BucketCompressionMode compressMode;
+
+    // The current vbucket that is being processed
+    VBucket* currentVb;
 };

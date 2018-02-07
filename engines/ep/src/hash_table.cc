@@ -290,6 +290,14 @@ MutationStatus HashTable::set(Item& val) {
     }
 }
 
+void HashTable::compressValue(StoredValue& v) {
+   statsPrologue(v);
+
+   v.compressValue();
+
+   statsEpilogue(v);
+}
+
 MutationStatus HashTable::unlocked_updateStoredValue(
         const std::unique_lock<std::mutex>& htLock,
         StoredValue& v,

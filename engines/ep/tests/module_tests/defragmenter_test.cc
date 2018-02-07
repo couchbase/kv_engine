@@ -355,20 +355,40 @@ TEST_P(DefragmenterTest, DISABLED_MaxDefragValueSize) {
  * the documents in the hash table
  */
 TEST_P(DefragmenterTest, testCompressionInActiveMode) {
-    std::string valueData("{\"product\": \"car\",\"price\": \"100\"},"
-                          "{\"product\": \"bus\",\"price\": \"1000\"},"
-                          "{\"product\": \"Train\",\"price\": \"100000\"}");
+    std::string compressibleValue("{\"product\": \"car\",\"price\": \"100\"},"
+                                  "{\"product\": \"bus\",\"price\": \"1000\"},"
+                                  "{\"product\": \"Train\",\"price\": \"100000\"}");
 
-    auto key = makeStoredDocKey("key");
+    std::string nonCompressibleValue("{\"user\": \"scott\", \"password\": \"tiger\"}");
 
-    auto item = make_item(vbucket->getId(), key, valueData);
+    auto key1 = makeStoredDocKey("key1");
+    auto key2 = makeStoredDocKey("key2");
 
-    auto compressible_item = makeCompressibleItem(vbucket->getId(), key,
-                             valueData, PROTOCOL_BINARY_DATATYPE_JSON,
+    auto item1 = make_item(vbucket->getId(), key1, compressibleValue, 0,
+                           PROTOCOL_BINARY_DATATYPE_JSON);
+
+    auto item2 = make_item(vbucket->getId(), key2, nonCompressibleValue, 0,
+                           PROTOCOL_BINARY_DATATYPE_JSON);
+
+    auto compressible_item = makeCompressibleItem(vbucket->getId(), key1,
+                             compressibleValue, PROTOCOL_BINARY_DATATYPE_JSON,
                              true);
 
-    auto rv = public_processSet(item, 0);
+    auto rv = public_processSet(item1, 0);
     ASSERT_EQ(MutationStatus::WasClean, rv);
+
+    rv = public_processSet(item2, 0);
+    ASSERT_EQ(MutationStatus::WasClean, rv);
+
+    // Save the datatype counts before and after compression. The test needs
+    // to verify if the datatype counts are updated correctly after
+    // compression
+    auto curr_datatype = item1.getDataType();
+    auto curr_datatype_count = vbucket->ht.datatypeCounts[curr_datatype];
+    auto new_datatype = (PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_SNAPPY);
+    auto new_datatype_count = vbucket->ht.datatypeCounts[new_datatype];
+
+    auto itemCount = vbucket->ht.getNumItems();
 
     PauseResumeVBAdapter prAdapter(std::make_unique<DefragmentVisitor>(
             0,
@@ -382,10 +402,17 @@ TEST_P(DefragmenterTest, testCompressionInActiveMode) {
     std::string compressed_str(compressible_item->getData(),
                                compressible_item->getNBytes());
 
-    StoredValue* v = findValue(key);
-    EXPECT_EQ(compressed_str, v->getValue()->to_s());
-    EXPECT_EQ((PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_SNAPPY),
-              v->getDatatype());
+    std::string uncompressed_str(item2.getData(), item2.getNBytes());
+
+    StoredValue* v1 = findValue(key1);
+    StoredValue* v2 = findValue(key2);
+
+    EXPECT_EQ(compressed_str, v1->getValue()->to_s());
+    EXPECT_EQ(uncompressed_str, v2->getValue()->to_s());
+    EXPECT_EQ(new_datatype, v1->getDatatype());
+    EXPECT_EQ(curr_datatype_count - 1, vbucket->ht.datatypeCounts[curr_datatype]);
+    EXPECT_EQ(new_datatype_count + 1, vbucket->ht.datatypeCounts[new_datatype]);
+    EXPECT_EQ(itemCount, vbucket->ht.getNumItems());
 }
 
 INSTANTIATE_TEST_CASE_P(

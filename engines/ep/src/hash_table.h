@@ -351,6 +351,14 @@ public:
     MutationStatus set(Item& val);
 
     /**
+     * Compress the value in the given StoredValue
+     *
+     * @param v StoredValue whose value needs to be compressed
+     *
+     */
+    void compressValue(StoredValue& v);
+
+    /**
      * Updates an existing StoredValue in the HT.
      * Assumes that HT bucket lock is grabbed.
      *

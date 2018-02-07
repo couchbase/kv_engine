@@ -24,7 +24,8 @@ DefragmentVisitor::DefragmentVisitor(uint8_t age_threshold_,
     : max_size_class(max_size_class),
       age_threshold(age_threshold_),
       defrag_count(0),
-      visited_count(0) {
+      visited_count(0),
+      currentVb(nullptr) {
 }
 
 DefragmentVisitor::~DefragmentVisitor() {
@@ -42,9 +43,7 @@ bool DefragmentVisitor::visit(const HashTable::HashBucketLock& lh,
     // Check if the item can be compressed
     if (!mcbp::datatype::is_snappy(v.getDatatype()) &&
         compressMode == BucketCompressionMode::Active) {
-        if (v.compressValue()) {
-            valueCompressed = true;
-        }
+        currentVb->ht.compressValue(v);
     }
 
     // value must be at least non-zero (also covers Items with null Blobs)
@@ -88,4 +87,8 @@ size_t DefragmentVisitor::getVisitedCount() const {
 void DefragmentVisitor::setCompressionMode(
         const BucketCompressionMode compressionMode) {
     compressMode = compressionMode;
+}
+
+void DefragmentVisitor::setCurrentVBucket(VBucket& vb) {
+    currentVb = &vb;
 }
