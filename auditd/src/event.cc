@@ -22,20 +22,34 @@
 #include "event.h"
 #include "audit.h"
 
-bool Event::filterEventByUser(cJSON* json_payload,
-                              const AuditConfig& config,
-                              const std::string& userid_type) {
+bool Event::filterEventByUserid(cJSON* json_payload,
+                                const AuditConfig& config,
+                                const std::string& userid_type) {
     auto* id = cJSON_GetObjectItem(json_payload, userid_type.c_str());
     if (id != nullptr) {
-        auto* user = cJSON_GetObjectItem(id, "user");
-        if (user != nullptr) {
-            if (user->type != cJSON_String) {
+        auto* source = cJSON_GetObjectItem(id, "source");
+        if (source != nullptr) {
+            if (source->type != cJSON_String) {
                 std::stringstream ss;
                 ss << "Incorrect type for \"" << userid_type
-                        << "::user\". Should be string.";
+                   << "::source\". Should be string.";
                 throw std::invalid_argument(ss.str());
-            } else if (config.is_event_filtered(user->valuestring)) {
-                return true;
+            }
+            auto* user = cJSON_GetObjectItem(id, "user");
+            if (user != nullptr) {
+                if (user->type != cJSON_String) {
+                    std::stringstream ss;
+                    ss << "Incorrect type for \"" << userid_type
+                       << "::user\". Should be string.";
+                    throw std::invalid_argument(ss.str());
+                }
+                // Have a source and user so build the tuple and check if the
+                // event is filtered
+                const auto& userid =
+                        std::make_pair(source->valuestring, user->valuestring);
+                if (config.is_event_filtered(userid)) {
+                    return true;
+                }
             }
         }
     }
@@ -44,12 +58,12 @@ bool Event::filterEventByUser(cJSON* json_payload,
 }
 
 bool Event::filterEvent(cJSON* json_payload, const AuditConfig& config) {
-    // Check to see if real_userid::user is in the filter list.
-    if (filterEventByUser(json_payload, config, "real_userid")) {
+    // Check to see if the real_userid is in the filter list.
+    if (filterEventByUserid(json_payload, config, "real_userid")) {
         return true;
     } else {
-        // Check to see if effective_userid::user is in the filter list.
-        return filterEventByUser(json_payload, config, "effective_userid");
+        // Check to see if the effective_userid is in the filter list.
+        return filterEventByUserid(json_payload, config, "effective_userid");
     }
 }
 

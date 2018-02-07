@@ -15,13 +15,13 @@
  *   limitations under the License.
  */
 
-#include <iostream>
-#include <cstring>
-#include <cstdio>
-#include <sstream>
 #include <cJSON.h>
-#include <cerrno>
 #include <algorithm>
+#include <cerrno>
+#include <cstdio>
+#include <cstring>
+#include <iostream>
+#include <sstream>
 
 #include <platform/dirutils.h>
 
@@ -85,7 +85,7 @@ AuditConfig::AuditConfig(const cJSON *json) : AuditConfig() {
     if (get_version() == 2) {
         set_filtering_enabled(getObject(json, "filtering_enabled", -1));
         set_uuid(getObject(json, "uuid", cJSON_String));
-        set_disabled_users(getObject(json, "disabled_users", cJSON_Array));
+        set_disabled_userids(getObject(json, "disabled_userids", cJSON_Array));
     }
 
     std::map<std::string, int> tags;
@@ -101,7 +101,7 @@ AuditConfig::AuditConfig(const cJSON *json) : AuditConfig() {
     if (get_version() == 2) {
         tags["filtering_enabled"] = 1;
         tags["uuid"] = 1;
-        tags["disabled_users"] = 1;
+        tags["disabled_userids"] = 1;
     }
 
     for (cJSON *items = json->child; items != NULL; items = items->next) {
@@ -230,10 +230,12 @@ bool AuditConfig::is_event_disabled(uint32_t id) {
     return std::find(disabled.begin(), disabled.end(), id) != disabled.end();
 }
 
-bool AuditConfig::is_event_filtered(const std::string &user) const {
-    std::lock_guard<std::mutex> guard(disabled_users_mutex);
-    return std::find(disabled_users.begin(), disabled_users.end(), user) !=
-            disabled_users.end();
+bool AuditConfig::is_event_filtered(
+        const std::pair<std::string, std::string>& userid) const {
+    std::lock_guard<std::mutex> guard(disabled_userids_mutex);
+    return std::find(disabled_userids.begin(),
+                     disabled_userids.end(),
+                     userid) != disabled_userids.end();
 }
 
 void AuditConfig::set_filtering_enabled(bool value) {
@@ -322,19 +324,38 @@ void AuditConfig::add_array(std::vector<uint32_t> &vec, cJSON *array, const char
     }
 }
 
-void AuditConfig::add_string_array(std::vector<std::string> &vec,
-                                   cJSON *array,
-                                   const char *name) {
+void AuditConfig::add_pair_string_array(
+        std::vector<std::pair<std::string, std::string>>& vec,
+        cJSON* array,
+        const char* name) {
     vec.clear();
     for (int ii = 0; ii < cJSON_GetArraySize(array); ii++) {
         auto element = cJSON_GetArrayItem(array, ii);
-        if (element->type != cJSON_String) {
+        if (element->type != cJSON_Object) {
             std::stringstream ss;
-            ss << "Incorrect type (" << element->type << ") for element in " <<
-            name << " array. Expected strings";
-            throw ss.str();
+            ss << "Incorrect type (" << element->type << ") for element in "
+               << name << " array. Expected objects";
+            throw std::invalid_argument(ss.str());
         }
-        vec.push_back(element->valuestring);
+        auto* source = cJSON_GetObjectItem(element, "source");
+        if (source != nullptr) {
+            if (source->type != cJSON_String) {
+                throw std::invalid_argument(
+                        "Incorrect type for source. Should be string.");
+            }
+            auto* user = cJSON_GetObjectItem(element, "user");
+            if (user != nullptr) {
+                if (user->type != cJSON_String) {
+                    throw std::invalid_argument(
+                            "Incorrect type for user. Should be string.");
+                }
+                // Have a source and user so build the pair and add to the
+                // vector
+                const auto& userid =
+                        std::make_pair(source->valuestring, user->valuestring);
+                vec.push_back(userid);
+            }
+        }
     }
 }
 
@@ -348,9 +369,9 @@ void AuditConfig::set_disabled(cJSON *array) {
     add_array(disabled, array, "disabled");
 }
 
-void AuditConfig::set_disabled_users(cJSON *array) {
-    std::lock_guard<std::mutex> guard(disabled_users_mutex);
-    add_string_array(disabled_users, array, "disabled_users");
+void AuditConfig::set_disabled_userids(cJSON* array) {
+    std::lock_guard<std::mutex> guard(disabled_userids_mutex);
+    add_pair_string_array(disabled_userids, array, "disabled_userids");
 }
 
 void AuditConfig::set_uuid(cJSON *obj) {
@@ -387,10 +408,18 @@ unique_cJSON_ptr AuditConfig::to_json() const {
     cJSON_AddItemToObject(root, "disabled", array);
 
     array = cJSON_CreateArray();
-    for (const auto& v : disabled_users) {
-        cJSON_AddItemToArray(array, cJSON_CreateString(v.c_str()));
+    for (const auto& v : disabled_userids) {
+        cJSON* userIdRoot = cJSON_CreateObject();
+        if (userIdRoot == nullptr) {
+            throw std::runtime_error(
+                    "AuditConfig::to_json - Error creating "
+                    "cJSON object");
+        }
+        cJSON_AddStringToObject(userIdRoot, "source", std::get<0>(v).c_str());
+        cJSON_AddStringToObject(userIdRoot, "user", std::get<1>(v).c_str());
+        cJSON_AddItemToArray(array, userIdRoot);
     }
-    cJSON_AddItemToObject(root, "disabled_users", array);
+    cJSON_AddItemToObject(root, "disabled_userids", array);
 
     return ret;
 }
@@ -422,8 +451,8 @@ void AuditConfig::initialize_config(const cJSON* json) {
     }
 
     {
-        std::lock_guard<std::mutex> guard(disabled_users_mutex);
-        disabled_users = other.disabled_users;
+        std::lock_guard<std::mutex> guard(disabled_userids_mutex);
+        disabled_userids = other.disabled_userids;
     }
 
     {

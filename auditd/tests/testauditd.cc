@@ -199,11 +199,20 @@ class AuditDaemonFilteringTest : public AuditDaemonTest {
 protected:
     void SetUp() {
         AuditDaemonTest::SetUp();
-        // Add the user "johndoe" to the disabled users list
-        unique_cJSON_ptr disabled_users(cJSON_CreateObject());
-        cJSON_AddItemToArray(disabled_users.get(),
-                             cJSON_CreateString("johndoe"));
-        config.public_set_disabled_users(disabled_users.get());
+        // Add the userid : {"source" : "internal", "user" : "johndoe"}
+        // to the disabled users list
+        unique_cJSON_ptr disabled_userids(cJSON_CreateObject());
+        cJSON* userIdRoot = cJSON_CreateObject();
+        if (userIdRoot == nullptr) {
+            throw std::runtime_error(
+                    "TestSpecifyDisabledUsers - Error "
+                    "creating cJSON object");
+        }
+        cJSON_AddStringToObject(userIdRoot, "source", "internal");
+        cJSON_AddStringToObject(userIdRoot, "user", "johndoe");
+        cJSON_AddItemToArray(disabled_userids.get(), userIdRoot);
+
+        config.public_set_disabled_userids(disabled_userids.get());
     }
 
     // Adds a new event that has the filtering_permitted attribute set according

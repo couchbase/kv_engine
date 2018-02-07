@@ -74,8 +74,8 @@ protected:
         cJSON_AddItemToObject(root, "sync", sync);
         cJSON *disabled = cJSON_CreateArray();
         cJSON_AddItemToObject(root, "disabled", disabled);
-        cJSON *disabled_users = cJSON_CreateArray();
-        cJSON_AddItemToObject(root, "disabled_users", disabled_users);
+        cJSON* disabled_userids = cJSON_CreateArray();
+        cJSON_AddItemToObject(root, "disabled_userids", disabled_userids);
         cJSON_AddTrueToObject(root, "filtering_enabled");
         cJSON_AddStringToObject(root, "uuid", "123456");
 
@@ -116,15 +116,15 @@ TEST_F(AuditConfigTest, TestLegalVersion) {
         if (version == 1) {
             cJSON* obj = cJSON_DetachItemFromObject(json, "filtering_enabled");
             cJSON_Delete(obj);
-            obj = cJSON_DetachItemFromObject(json, "disabled_users");
+            obj = cJSON_DetachItemFromObject(json, "disabled_userids");
             cJSON_Delete(obj);
             obj = cJSON_DetachItemFromObject(json, "uuid");
             cJSON_Delete(obj);
         }
         if (version == 2) {
             cJSON_AddTrueToObject(json, "filtering_enabled");
-            cJSON* disabled_users = cJSON_CreateArray();
-            cJSON_AddItemToObject(json, "disabled_users", disabled_users);
+            cJSON* disabled_userids = cJSON_CreateArray();
+            cJSON_AddItemToObject(json, "disabled_userids", disabled_userids);
             cJSON_AddStringToObject(json, "uuid", "123456");
         }
         if ((version == 1) || (version == 2)) {
@@ -402,26 +402,36 @@ TEST_F(AuditConfigTest, TestSpecifyDisabled) {
 TEST_F(AuditConfigTest, TestSpecifyDisabledUsers) {
     cJSON *array = cJSON_CreateArray();
     for (uint16_t ii = 0; ii < 10; ++ii) {
+        cJSON* userIdRoot = cJSON_CreateObject();
+        if (userIdRoot == nullptr) {
+            throw std::runtime_error(
+                    "TestSpecifyDisabledUsers - Error "
+                    "creating cJSON object");
+        }
+        cJSON_AddStringToObject(userIdRoot, "source", "internal");
         auto user = "user" + std::to_string(ii);
-        cJSON_AddItemToArray(array, cJSON_CreateString(user.c_str()));
+        cJSON_AddStringToObject(userIdRoot, "user", user.c_str());
+        cJSON_AddItemToArray(array, userIdRoot);
     }
-    cJSON_ReplaceItemInObject(json, "disabled_users", array);
+    cJSON_ReplaceItemInObject(json, "disabled_userids", array);
     EXPECT_NO_THROW(config.initialize_config(json));
 
     for (uint16_t ii = 0; ii < 100; ++ii) {
-        auto user = "user" + std::to_string(ii);
+        const auto& source = "internal";
+        const auto& user = "user" + std::to_string(ii);
+        const auto& userid = std::make_pair(source, user);
         if (ii < 10) {
-                EXPECT_TRUE(config.is_event_filtered(user));
-            } else {
-                EXPECT_FALSE(config.is_event_filtered(user));
-            }
+            EXPECT_TRUE(config.is_event_filtered(userid));
+        } else {
+            EXPECT_FALSE(config.is_event_filtered(userid));
         }
+    }
 }
 
 /**
  * Tests that when converting a config containing a single disabled event it
  * translates to a single entry in the json "disabled" array and the json
- * "disabled_users" array remains empty.
+ * "disabled_userids" array remains empty.
  */
 TEST_F(AuditConfigTest, AuditConfigDisabled) {
     MockAuditConfig config;
@@ -433,25 +443,33 @@ TEST_F(AuditConfigTest, AuditConfigDisabled) {
                                                            "disabled",
                                                            cJSON_Array);
     EXPECT_EQ(1, cJSON_GetArraySize(disabledArray));
-    auto disabledUsersArray = MockAuditConfig::public_getObject(
-            json.get(), "disabled_users", cJSON_Array);
-    EXPECT_EQ(0, cJSON_GetArraySize(disabledUsersArray));
+    auto disabledUseridsArray = MockAuditConfig::public_getObject(
+            json.get(), "disabled_userids", cJSON_Array);
+    EXPECT_EQ(0, cJSON_GetArraySize(disabledUseridsArray));
 }
 
 /**
  * Tests that when converting a config containing a single disabled_user it
- * translates to a single entry in the json "disabled_users" array and the json
- * "disabled" array remains empty.
+ * translates to a single entry in the json "disabled_userids" array and the
+ * json "disabled" array remains empty.
  */
 TEST_F(AuditConfigTest, AuditConfigDisabledUsers) {
     MockAuditConfig config;
-    unique_cJSON_ptr disabledUsers(cJSON_CreateObject());
-    cJSON_AddItemToArray(disabledUsers.get(), cJSON_CreateString("johndoe"));
-    config.public_set_disabled_users(disabledUsers.get());
+    unique_cJSON_ptr disabledUserids(cJSON_CreateObject());
+
+    cJSON* userIdRoot = cJSON_CreateObject();
+    if (userIdRoot == nullptr) {
+        throw std::bad_alloc();
+    }
+    cJSON_AddStringToObject(userIdRoot, "source", "internal");
+    cJSON_AddStringToObject(userIdRoot, "user", "johndoe");
+    cJSON_AddItemToArray(disabledUserids.get(), userIdRoot);
+
+    config.public_set_disabled_userids(disabledUserids.get());
     unique_cJSON_ptr json { config.to_json() };
-    auto disabledUsersArray = MockAuditConfig::public_getObject(
-            json.get(), "disabled_users", cJSON_Array);
-    EXPECT_EQ(1, cJSON_GetArraySize(disabledUsersArray));
+    auto disabledUseridsArray = MockAuditConfig::public_getObject(
+            json.get(), "disabled_userids", cJSON_Array);
+    EXPECT_EQ(1, cJSON_GetArraySize(disabledUseridsArray));
     auto disabledArray = MockAuditConfig::public_getObject(json.get(),
                                                            "disabled",
                                                            cJSON_Array);

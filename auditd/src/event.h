@@ -41,7 +41,7 @@ public:
     virtual bool process(Audit& audit);
 
     /**
-     * State whether a given event should be filtered out given the user.
+     * State whether a given event should be filtered out given the userid.
      *
      * @param eventPayload  pointer to the event payload
      * @param config  reference to the audit configuration
@@ -49,8 +49,9 @@ public:
      *                effective_userid or real_userid
      * @return true if event should be filtered out, else false.
      */
-    bool filterEventByUser(cJSON* json_payload, const AuditConfig& config,
-                           const std::string& userid_type);
+    bool filterEventByUserid(cJSON* json_payload,
+                             const AuditConfig& config,
+                             const std::string& userid_type);
 
     /**
      * State whether a given event should be filtered out.

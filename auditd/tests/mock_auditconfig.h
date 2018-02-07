@@ -30,8 +30,8 @@ public:
         AuditConfig::set_disabled(array);
     }
 
-    void public_set_disabled_users(cJSON* array) {
-        AuditConfig::set_disabled_users(array);
+    void public_set_disabled_userids(cJSON* array) {
+        AuditConfig::set_disabled_userids(array);
     }
 
     static cJSON* public_getObject(const cJSON* root,

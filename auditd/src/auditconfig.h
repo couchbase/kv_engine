@@ -17,12 +17,13 @@
 #ifndef AUDITCONFIG_H
 #define AUDITCONFIG_H
 
-#include <atomic>
 #include <cJSON.h>
 #include <cJSON_utils.h>
 #include <inttypes.h>
+#include <atomic>
 #include <mutex>
 #include <string>
+#include <utility> // For std::pair
 #include <vector>
 
 #include <relaxed_atomic.h>
@@ -76,7 +77,8 @@ public:
     uint32_t get_version() const;
     bool is_event_sync(uint32_t id);
     bool is_event_disabled(uint32_t id);
-    bool is_event_filtered(const std::string &user) const;
+    bool is_event_filtered(
+            const std::pair<std::string, std::string>& userid) const;
     bool is_filtering_enabled() const;
     void set_filtering_enabled(bool value);
     void set_uuid(const std::string &uuid);
@@ -118,12 +120,13 @@ protected:
     void set_descriptors_path(cJSON *obj);
     void set_version(cJSON *obj);
     void add_array(std::vector<uint32_t> &vec, cJSON *array, const char *name);
-    void add_string_array(std::vector<std::string> &vec,
-                          cJSON *array,
-                          const char *name);
+    void add_pair_string_array(
+            std::vector<std::pair<std::string, std::string>>& vec,
+            cJSON* array,
+            const char* name);
     void set_sync(cJSON *array);
     void set_disabled(cJSON *array);
-    void set_disabled_users(cJSON *array);
+    void set_disabled_userids(cJSON* array);
     void set_uuid(cJSON *obj);
     static cJSON* getObject(const cJSON* root, const char* name, int type);
     void set_filtering_enabled(cJSON *obj);
@@ -147,8 +150,8 @@ protected:
     std::mutex disabled_mutex;
     std::vector<uint32_t> disabled;
 
-    mutable std::mutex disabled_users_mutex;
-    std::vector<std::string> disabled_users;
+    mutable std::mutex disabled_userids_mutex;
+    std::vector<std::pair<std::string, std::string>> disabled_userids;
 
     mutable std::mutex uuid_mutex;
     std::string uuid;
