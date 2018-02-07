@@ -444,46 +444,35 @@ static bool warmupCallback(void *arg, uint16_t vb, const DocKey& key)
     }
 }
 
-const int WarmupState::Initialize = 0;
-const int WarmupState::CreateVBuckets = 1;
-const int WarmupState::EstimateDatabaseItemCount = 2;
-const int WarmupState::KeyDump = 3;
-const int WarmupState::CheckForAccessLog = 4;
-const int WarmupState::LoadingAccessLog = 5;
-const int WarmupState::LoadingKVPairs = 6;
-const int WarmupState::LoadingData = 7;
-const int WarmupState::Done = 8;
-
 const char *WarmupState::toString(void) const {
     return getStateDescription(state.load());
 }
 
-const char *WarmupState::getStateDescription(int st) const {
+const char* WarmupState::getStateDescription(State st) const {
     switch (st) {
-    case Initialize:
+    case State::Initialize:
         return "initialize";
-    case CreateVBuckets:
+    case State::CreateVBuckets:
         return "creating vbuckets";
-    case EstimateDatabaseItemCount:
+    case State::EstimateDatabaseItemCount:
         return "estimating database item count";
-    case KeyDump:
+    case State::KeyDump:
         return "loading keys";
-    case CheckForAccessLog:
+    case State::CheckForAccessLog:
         return "determine access log availability";
-    case LoadingAccessLog:
+    case State::LoadingAccessLog:
         return "loading access log";
-    case LoadingKVPairs:
+    case State::LoadingKVPairs:
         return "loading k/v pairs";
-    case LoadingData:
+    case State::LoadingData:
         return "loading data";
-    case Done:
+    case State::Done:
         return "done";
-    default:
-        return "Illegal state";
     }
+    return "Illegal state";
 }
 
-void WarmupState::transition(int to, bool allowAnystate) {
+void WarmupState::transition(State to, bool allowAnystate) {
     if (allowAnystate || legalTransition(to)) {
         std::stringstream ss;
         ss << "Warmup transition from state \""
@@ -494,34 +483,35 @@ void WarmupState::transition(int to, bool allowAnystate) {
     } else {
         // Throw an exception to make it possible to test the logic ;)
         std::stringstream ss;
-        ss << "Illegal state transition from \"" << *this << "\" to " << to;
+        ss << "Illegal state transition from \"" << *this << "\" to "
+           << getStateDescription(to) << "(" << int(to) << ")";
         throw std::runtime_error(ss.str());
     }
 }
 
-bool WarmupState::legalTransition(int to) const {
+bool WarmupState::legalTransition(State to) const {
     switch (state.load()) {
-    case Initialize:
-        return (to == CreateVBuckets);
-    case CreateVBuckets:
-        return (to == EstimateDatabaseItemCount);
-    case EstimateDatabaseItemCount:
-        return (to == KeyDump || to == CheckForAccessLog);
-    case KeyDump:
-        return (to == LoadingKVPairs || to == CheckForAccessLog);
-    case CheckForAccessLog:
-        return (to == LoadingAccessLog || to == LoadingData ||
-                to == LoadingKVPairs || to == Done);
-    case LoadingAccessLog:
-        return (to == Done || to == LoadingData);
-    case LoadingKVPairs:
-        return (to == Done);
-    case LoadingData:
-        return (to == Done);
-
-    default:
+    case State::Initialize:
+        return (to == State::CreateVBuckets);
+    case State::CreateVBuckets:
+        return (to == State::EstimateDatabaseItemCount);
+    case State::EstimateDatabaseItemCount:
+        return (to == State::KeyDump || to == State::CheckForAccessLog);
+    case State::KeyDump:
+        return (to == State::LoadingKVPairs || to == State::CheckForAccessLog);
+    case State::CheckForAccessLog:
+        return (to == State::LoadingAccessLog || to == State::LoadingData ||
+                to == State::LoadingKVPairs || to == State::Done);
+    case State::LoadingAccessLog:
+        return (to == State::Done || to == State::LoadingData);
+    case State::LoadingKVPairs:
+        return (to == State::Done);
+    case State::LoadingData:
+        return (to == State::Done);
+    case State::Done:
         return false;
     }
+    return false;
 }
 
 std::ostream& operator <<(std::ostream &out, const WarmupState &state)
@@ -530,16 +520,15 @@ std::ostream& operator <<(std::ostream &out, const WarmupState &state)
     return out;
 }
 
-LoadStorageKVPairCallback::LoadStorageKVPairCallback(KVBucket& ep,
-                                                     bool _maybeEnableTraffic,
-                                                     int _warmupState)
+LoadStorageKVPairCallback::LoadStorageKVPairCallback(
+        KVBucket& ep, bool maybeEnableTraffic, WarmupState::State warmupState)
     : vbuckets(ep.vbMap),
       stats(ep.getEPEngine().getEpStats()),
       epstore(ep),
       startTime(ep_real_time()),
       hasPurged(false),
-      maybeEnableTraffic(_maybeEnableTraffic),
-      warmupState(_warmupState) {
+      maybeEnableTraffic(maybeEnableTraffic),
+      warmupState(warmupState) {
 }
 
 void LoadStorageKVPairCallback::callback(GetValue &val) {
@@ -619,24 +608,24 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
         }
 
         switch (warmupState) {
-            case WarmupState::KeyDump:
-                if (stats.warmOOM) {
-                    epstore.getWarmup()->setOOMFailure();
-                    stopLoading = true;
-                } else {
-                    ++stats.warmedUpKeys;
-                }
-                break;
-            case WarmupState::LoadingData:
-            case WarmupState::LoadingAccessLog:
-                if (epstore.getItemEvictionPolicy() == FULL_EVICTION) {
-                    ++stats.warmedUpKeys;
-                }
-                ++stats.warmedUpValues;
-                break;
-            default:
+        case WarmupState::State::KeyDump:
+            if (stats.warmOOM) {
+                epstore.getWarmup()->setOOMFailure();
+                stopLoading = true;
+            } else {
                 ++stats.warmedUpKeys;
-                ++stats.warmedUpValues;
+            }
+            break;
+        case WarmupState::State::LoadingData:
+        case WarmupState::State::LoadingAccessLog:
+            if (epstore.getItemEvictionPolicy() == FULL_EVICTION) {
+                ++stats.warmedUpKeys;
+            }
+            ++stats.warmedUpValues;
+            break;
+        default:
+            ++stats.warmedUpKeys;
+            ++stats.warmedUpValues;
         }
     } else {
         stopLoading = true;
@@ -706,7 +695,7 @@ void LoadStorageKVPairCallback::purge() {
 
 void LoadValueCallback::callback(CacheLookup &lookup)
 {
-    if (warmupState == WarmupState::LoadingData) {
+    if (warmupState == WarmupState::State::LoadingData) {
         VBucketPtr vb = vbuckets.getBucket(lookup.getVBucketId());
         if (!vb) {
             return;
@@ -786,7 +775,7 @@ void Warmup::stop(void)
         }
         taskSet.clear();
     }
-    transition(WarmupState::Done, true);
+    transition(WarmupState::State::Done, true);
     done();
 }
 
@@ -815,7 +804,7 @@ void Warmup::initialize()
     }
 
     populateShardVbStates();
-    transition(WarmupState::CreateVBuckets);
+    transition(WarmupState::State::CreateVBuckets);
 }
 
 void Warmup::scheduleCreateVBuckets()
@@ -890,7 +879,7 @@ void Warmup::createVBuckets(uint16_t shardId) {
 
     if (++threadtask_count == store.vbMap.getNumShards()) {
         processCreateVBucketsComplete();
-        transition(WarmupState::EstimateDatabaseItemCount);
+        transition(WarmupState::State::EstimateDatabaseItemCount);
     }
 }
 
@@ -953,9 +942,9 @@ void Warmup::estimateDatabaseItemCount(uint16_t shardId)
 
     if (++threadtask_count == store.vbMap.getNumShards()) {
         if (store.getItemEvictionPolicy() == VALUE_ONLY) {
-            transition(WarmupState::KeyDump);
+            transition(WarmupState::State::KeyDump);
         } else {
-            transition(WarmupState::CheckForAccessLog);
+            transition(WarmupState::State::CheckForAccessLog);
         }
     }
 }
@@ -1006,11 +995,11 @@ void Warmup::keyDumpforShard(uint16_t shardId)
         }
 
         if (success) {
-            transition(WarmupState::CheckForAccessLog);
+            transition(WarmupState::State::CheckForAccessLog);
         } else {
             LOG(EXTENSION_LOG_WARNING,
                 "Failed to dump keys, falling back to full dump");
-            transition(WarmupState::LoadingKVPairs);
+            transition(WarmupState::State::LoadingKVPairs);
         }
     }
 }
@@ -1031,7 +1020,7 @@ void Warmup::checkForAccessLog()
         cb::time2text(std::chrono::nanoseconds(metadata.load())).c_str());
 
     if (store.maybeEnableTraffic()) {
-        transition(WarmupState::Done);
+        transition(WarmupState::State::Done);
     }
 
     size_t accesslogs = 0;
@@ -1045,12 +1034,12 @@ void Warmup::checkForAccessLog()
         }
     }
     if (accesslogs == store.vbMap.shards.size()) {
-        transition(WarmupState::LoadingAccessLog);
+        transition(WarmupState::State::LoadingAccessLog);
     } else {
         if (store.getItemEvictionPolicy() == VALUE_ONLY) {
-            transition(WarmupState::LoadingData);
+            transition(WarmupState::State::LoadingData);
         } else {
-            transition(WarmupState::LoadingKVPairs);
+            transition(WarmupState::State::LoadingKVPairs);
         }
     }
 
@@ -1118,9 +1107,9 @@ void Warmup::loadingAccessLog(uint16_t shardId)
 
     if (++threadtask_count == store.vbMap.getNumShards()) {
         if (!store.maybeEnableTraffic()) {
-            transition(WarmupState::LoadingData);
+            transition(WarmupState::State::LoadingData);
         } else {
-            transition(WarmupState::Done);
+            transition(WarmupState::State::Done);
         }
 
     }
@@ -1230,7 +1219,7 @@ void Warmup::loadKVPairsforShard(uint16_t shardId)
         }
     }
     if (++threadtask_count == store.vbMap.getNumShards()) {
-        transition(WarmupState::Done);
+        transition(WarmupState::State::Done);
     }
 }
 
@@ -1274,7 +1263,7 @@ void Warmup::loadDataforShard(uint16_t shardId)
     }
 
     if (++threadtask_count == store.vbMap.getNumShards()) {
-        transition(WarmupState::Done);
+        transition(WarmupState::State::Done);
     }
 }
 
@@ -1295,42 +1284,41 @@ void Warmup::done()
 
 void Warmup::step() {
     switch (state.getState()) {
-        case WarmupState::Initialize:
-            scheduleInitialize();
-            break;
-        case WarmupState::CreateVBuckets:
-            scheduleCreateVBuckets();
-            break;
-        case WarmupState::EstimateDatabaseItemCount:
-            scheduleEstimateDatabaseItemCount();
-            break;
-        case WarmupState::KeyDump:
-            scheduleKeyDump();
-            break;
-        case WarmupState::CheckForAccessLog:
-            scheduleCheckForAccessLog();
-            break;
-        case WarmupState::LoadingAccessLog:
-            scheduleLoadingAccessLog();
-            break;
-        case WarmupState::LoadingKVPairs:
-            scheduleLoadingKVPairs();
-            break;
-        case WarmupState::LoadingData:
-            scheduleLoadingData();
-            break;
-        case WarmupState::Done:
-            scheduleCompletion();
-            break;
-        default:
-            throw std::logic_error("Warmup::step: illegal warmup state:" +
-                                   std::to_string(state.getState()));
+    case WarmupState::State::Initialize:
+        scheduleInitialize();
+        return;
+    case WarmupState::State::CreateVBuckets:
+        scheduleCreateVBuckets();
+        return;
+    case WarmupState::State::EstimateDatabaseItemCount:
+        scheduleEstimateDatabaseItemCount();
+        return;
+    case WarmupState::State::KeyDump:
+        scheduleKeyDump();
+        return;
+    case WarmupState::State::CheckForAccessLog:
+        scheduleCheckForAccessLog();
+        return;
+    case WarmupState::State::LoadingAccessLog:
+        scheduleLoadingAccessLog();
+        return;
+    case WarmupState::State::LoadingKVPairs:
+        scheduleLoadingKVPairs();
+        return;
+    case WarmupState::State::LoadingData:
+        scheduleLoadingData();
+        return;
+    case WarmupState::State::Done:
+        scheduleCompletion();
+        return;
     }
+    throw std::logic_error("Warmup::step: illegal warmup state:" +
+                           std::to_string(int(state.getState())));
 }
 
-void Warmup::transition(int to, bool force) {
-    int old = state.getState();
-    if (old != WarmupState::Done) {
+void Warmup::transition(WarmupState::State to, bool force) {
+    auto old = state.getState();
+    if (old != WarmupState::State::Done) {
         state.transition(to, force);
         step();
     }

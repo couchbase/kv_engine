@@ -45,27 +45,32 @@ struct vbucket_state;
 
 class WarmupState {
 public:
-    static const int Initialize;
-    static const int CreateVBuckets;
-    static const int EstimateDatabaseItemCount;
-    static const int KeyDump;
-    static const int LoadingAccessLog;
-    static const int CheckForAccessLog;
-    static const int LoadingKVPairs;
-    static const int LoadingData;
-    static const int Done;
+    enum class State {
+        Initialize,
+        CreateVBuckets,
+        EstimateDatabaseItemCount,
+        KeyDump,
+        LoadingAccessLog,
+        CheckForAccessLog,
+        LoadingKVPairs,
+        LoadingData,
+        Done
+    };
 
-    WarmupState() : state(Initialize) {}
+    WarmupState() : state(State::Initialize) {
+    }
 
-    void transition(int to, bool allowAnystate);
+    void transition(State to, bool allowAnystate);
     const char *toString(void) const;
 
-    int getState(void) const { return state; }
+    State getState(void) const {
+        return state;
+    }
 
 private:
-    std::atomic<int> state;
-    const char *getStateDescription(int val) const;
-    bool legalTransition(int to) const;
+    std::atomic<State> state;
+    const char* getStateDescription(State val) const;
+    bool legalTransition(State to) const;
     friend std::ostream& operator<< (std::ostream& out,
                                      const WarmupState &state);
     DISALLOW_COPY_AND_ASSIGN(WarmupState);
@@ -84,8 +89,8 @@ private:
 class LoadStorageKVPairCallback : public StatusCallback<GetValue> {
 public:
     LoadStorageKVPairCallback(KVBucket& ep,
-                              bool _maybeEnableTraffic,
-                              int _warmupState);
+                              bool maybeEnableTraffic,
+                              WarmupState::State warmupState);
 
     void callback(GetValue &val);
 
@@ -100,19 +105,20 @@ private:
     time_t      startTime;
     bool        hasPurged;
     bool        maybeEnableTraffic;
-    int         warmupState;
+    WarmupState::State warmupState;
 };
 
 class LoadValueCallback : public StatusCallback<CacheLookup> {
 public:
-    LoadValueCallback(VBucketMap& vbMap, int _warmupState) :
-        vbuckets(vbMap), warmupState(_warmupState) { }
+    LoadValueCallback(VBucketMap& vbMap, WarmupState::State warmupState)
+        : vbuckets(vbMap), warmupState(warmupState) {
+    }
 
     void callback(CacheLookup &lookup);
 
 private:
     VBucketMap &vbuckets;
-    int         warmupState;
+    WarmupState::State warmupState;
 };
 
 
@@ -195,8 +201,6 @@ private:
     template <typename T>
     void addStat(const char *nm, const T &val, ADD_STAT add_stat, const void *c) const;
 
-    void fireStateChange(const int from, const int to);
-
     /* Returns the number of KV stores that holds the states of all the vbuckets */
     uint16_t getNumKVStores();
 
@@ -212,7 +216,7 @@ private:
     void scheduleLoadingData();
     void scheduleCompletion();
 
-    void transition(int to, bool force=false);
+    void transition(WarmupState::State to, bool force = false);
 
     WarmupState state;
 
