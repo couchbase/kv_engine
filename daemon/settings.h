@@ -660,8 +660,6 @@ public:
         change_listeners[key].push_back(listener);
     }
 
-    static void logit(EXTENSION_LOG_LEVEL level, const char *fmt, ...);
-
     /**
      * May clients enable the XATTR feature?
      *

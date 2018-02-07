@@ -181,9 +181,7 @@ NetworkInterface::NetworkInterface(gsl::not_null<const cJSON*> json) {
         }
 
         if (!found) {
-            Settings::logit(EXTENSION_LOG_NOTICE,
-                            "Unknown token \"%s\" in config ignored.\n",
-                            obj->string);
+            LOG_INFO(R"(Unknown token "{}" in config ignored.)", obj->string);
         }
 
         obj = obj->next;

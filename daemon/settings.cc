@@ -701,9 +701,8 @@ void Settings::reconfigure(const unique_cJSON_ptr& json) {
         }
 
         if (!found) {
-            logit(EXTENSION_LOG_WARNING,
-                  "Unknown token \"%s\" in config ignored.\n",
-                  obj->string);
+            LOG_WARNING(R"(Unknown token "{}" in config ignored.)",
+                        obj->string);
         }
 
         obj = obj->next;
@@ -845,18 +844,18 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         if (other.datatype_snappy != datatype_snappy) {
             std::string curr_val_str = datatype_snappy ? "true" : "false";
             std::string other_val_str = other.datatype_snappy ? "true" : "false";
-            logit(EXTENSION_LOG_NOTICE,
-                  "Change datatype_snappy from %s to %s",
-                  curr_val_str.c_str(), other_val_str.c_str());
+            LOG_INFO("Change datatype_snappy from {} to {}",
+                     curr_val_str,
+                     other_val_str);
             setDatatypeSnappyEnabled(other.datatype_snappy);
         }
     }
 
     if (other.has.verbose) {
         if (other.verbose != verbose) {
-            logit(EXTENSION_LOG_NOTICE,
-                  "Change verbosity level from %u to %u",
-                  verbose.load(), other.verbose.load());
+            LOG_INFO("Change verbosity level from {} to {}",
+                     verbose.load(),
+                     other.verbose.load());
             setVerbose(other.verbose.load());
         }
     }
@@ -864,59 +863,54 @@ void Settings::updateSettings(const Settings& other, bool apply) {
     if (other.has.reqs_per_event_high_priority) {
         if (other.reqs_per_event_high_priority !=
             reqs_per_event_high_priority) {
-            logit(EXTENSION_LOG_NOTICE,
-                  "Change high priority iterations per event from %u to %u",
-                  reqs_per_event_high_priority,
-                  other.reqs_per_event_high_priority);
+            LOG_INFO("Change high priority iterations per event from {} to {}",
+                     reqs_per_event_high_priority,
+                     other.reqs_per_event_high_priority);
             setRequestsPerEventNotification(other.reqs_per_event_high_priority,
                                             EventPriority::High);
         }
     }
     if (other.has.reqs_per_event_med_priority) {
         if (other.reqs_per_event_med_priority != reqs_per_event_med_priority) {
-            logit(EXTENSION_LOG_NOTICE,
-                  "Change medium priority iterations per event from %u to %u",
-                  reqs_per_event_med_priority,
-                  other.reqs_per_event_med_priority);
+            LOG_INFO(
+                    "Change medium priority iterations per event from {} to {}",
+                    reqs_per_event_med_priority,
+                    other.reqs_per_event_med_priority);
             setRequestsPerEventNotification(other.reqs_per_event_med_priority,
                                             EventPriority::Medium);
         }
     }
     if (other.has.reqs_per_event_low_priority) {
         if (other.reqs_per_event_low_priority != reqs_per_event_low_priority) {
-            logit(EXTENSION_LOG_NOTICE,
-                  "Change low priority iterations per event from %u to %u",
-                  reqs_per_event_low_priority,
-                  other.reqs_per_event_low_priority);
+            LOG_INFO("Change low priority iterations per event from {} to {}",
+                     reqs_per_event_low_priority,
+                     other.reqs_per_event_low_priority);
             setRequestsPerEventNotification(other.reqs_per_event_low_priority,
                                             EventPriority::Low);
         }
     }
     if (other.has.default_reqs_per_event) {
         if (other.default_reqs_per_event != default_reqs_per_event) {
-            logit(EXTENSION_LOG_NOTICE,
-                  "Change default iterations per event from %u to %u",
-                  default_reqs_per_event,
-                  other.default_reqs_per_event);
+            LOG_INFO("Change default iterations per event from {} to {}",
+                     default_reqs_per_event,
+                     other.default_reqs_per_event);
             setRequestsPerEventNotification(other.default_reqs_per_event,
                                             EventPriority::Default);
         }
     }
     if (other.has.connection_idle_time) {
         if (other.connection_idle_time != connection_idle_time) {
-            logit(EXTENSION_LOG_NOTICE,
-                  "Change connection idle time from %u to %u",
-                  connection_idle_time.load(),
-                  other.connection_idle_time.load());
+            LOG_INFO("Change connection idle time from {} to {}",
+                     connection_idle_time.load(),
+                     other.connection_idle_time.load());
             setConnectionIdleTime(other.connection_idle_time);
         }
     }
     if (other.has.max_packet_size) {
         if (other.max_packet_size != max_packet_size) {
-            logit(EXTENSION_LOG_NOTICE,
-                  "Change max packet size from %u to %u",
-                  max_packet_size,
-                  other.max_packet_size);
+            LOG_INFO("Change max packet size from {} to {}",
+                     max_packet_size,
+                     other.max_packet_size);
             setMaxPacketSize(other.max_packet_size);
         }
     }
@@ -924,9 +918,10 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         if (other.ssl_cipher_list != ssl_cipher_list) {
             // this isn't safe!! an other thread could call stats settings
             // which would cause this to crash...
-            logit(EXTENSION_LOG_NOTICE,
-                  "Change SSL Cipher list from \"%s\" to \"%s\"",
-                  ssl_cipher_list.c_str(), other.ssl_cipher_list.c_str());
+            LOG_INFO(
+                    R"(Change SSL Cipher list from "{}" to "{}")",
+                    ssl_cipher_list,
+                    other.ssl_cipher_list);
             setSslCipherList(other.ssl_cipher_list);
         }
     }
@@ -935,10 +930,8 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         const auto o = other.client_cert_mapper.to_string();
 
         if (m != o) {
-            logit(EXTENSION_LOG_NOTICE,
-                  R"(Change SSL client auth from "%s" to "%s")",
-                  m.c_str(),
-                  o.c_str());
+            LOG_INFO(
+                    R"(Change SSL client auth from "{}" to "{}")", m, o);
             unique_cJSON_ptr json(cJSON_Parse(o.c_str()));
             auto config = cb::x509::ClientCertConfig::create(*json);
             reconfigureClientCertAuth(config);
@@ -948,36 +941,33 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         if (other.ssl_minimum_protocol != ssl_minimum_protocol) {
             // this isn't safe!! an other thread could call stats settings
             // which would cause this to crash...
-            logit(EXTENSION_LOG_NOTICE,
-                  "Change SSL minimum protocol from \"%s\" to \"%s\"",
-                  ssl_minimum_protocol.c_str(),
-                  other.ssl_minimum_protocol.c_str());
+            LOG_INFO(
+                    R"(Change SSL minimum protocol from "{}" to "{}")",
+                    ssl_minimum_protocol,
+                    other.ssl_minimum_protocol);
             setSslMinimumProtocol(other.ssl_minimum_protocol);
         }
     }
     if (other.has.dedupe_nmvb_maps) {
         if (other.dedupe_nmvb_maps != dedupe_nmvb_maps) {
-            logit(EXTENSION_LOG_NOTICE,
-                  "%s deduplication of NMVB maps",
-                  other.dedupe_nmvb_maps.load() ? "Enable" : "Disable");
+            LOG_INFO("{} deduplication of NMVB maps",
+                     other.dedupe_nmvb_maps.load() ? "Enable" : "Disable");
             setDedupeNmvbMaps(other.dedupe_nmvb_maps.load());
         }
     }
 
     if (other.has.xattr_enabled) {
         if (other.xattr_enabled != xattr_enabled) {
-            logit(EXTENSION_LOG_NOTICE,
-                  "%s XATTR",
-                  other.xattr_enabled.load() ? "Enable" : "Disable");
+            LOG_INFO("{} XATTR",
+                     other.xattr_enabled.load() ? "Enable" : "Disable");
             setXattrEnabled(other.xattr_enabled.load());
         }
     }
 
     if (other.has.collections_prototype) {
         if (other.collections_prototype != collections_prototype) {
-            logit(EXTENSION_LOG_NOTICE,
-                  "%s collections_prototype",
-                  other.collections_prototype.load() ? "Enable" : "Disable");
+            LOG_INFO("{} collections_prototype",
+                     other.collections_prototype.load() ? "Enable" : "Disable");
             setCollectionsPrototype(other.collections_prototype.load());
         }
     }
@@ -997,44 +987,50 @@ void Settings::updateSettings(const Settings& other, bool apply) {
             }
 
             if (i2.maxconn != i1.maxconn) {
-                logit(EXTENSION_LOG_NOTICE,
-                      "Change max connections for %s:%u from %u to %u",
-                      i1.host.c_str(), i1.port, i1.maxconn, i2.maxconn);
+                LOG_INFO("Change max connections for {}:{} from {} to {}",
+                         i1.host,
+                         i1.port,
+                         i1.maxconn,
+                         i2.maxconn);
                 i1.maxconn = i2.maxconn;
                 changed = true;
             }
 
             if (i2.backlog != i1.backlog) {
-                logit(EXTENSION_LOG_NOTICE,
-                      "Change backlog for %s:%u from %u to %u",
-                      i1.host.c_str(), i1.port, i1.backlog, i2.backlog);
+                LOG_INFO("Change backlog for {}:{} from {} to {}",
+                         i1.host,
+                         i1.port,
+                         i1.backlog,
+                         i2.backlog);
                 i1.backlog = i2.backlog;
                 changed = true;
             }
 
             if (i2.tcp_nodelay != i1.tcp_nodelay) {
-                logit(EXTENSION_LOG_NOTICE,
-                      "%e TCP NODELAY for %s:%u",
-                      i2.tcp_nodelay ? "Enable" : "Disable",
-                      i1.host.c_str(), i1.port);
+                LOG_INFO("{} TCP NODELAY for {}:{}",
+                         i2.tcp_nodelay ? "Enable" : "Disable",
+                         i1.host,
+                         i1.port);
                 i1.tcp_nodelay = i2.tcp_nodelay;
                 changed = true;
             }
 
             if (i2.ssl.cert != i1.ssl.cert) {
-                logit(EXTENSION_LOG_NOTICE,
-                      "Change SSL Certificiate for %s:%u from %s to %s",
-                      i1.host.c_str(), i1.port, i1.ssl.cert.c_str(),
-                      i2.ssl.cert.c_str());
+                LOG_INFO("Change SSL Certificiate for {}:{} from {} to {}",
+                         i1.host,
+                         i1.port,
+                         i1.ssl.cert,
+                         i2.ssl.cert);
                 i1.ssl.cert.assign(i2.ssl.cert);
                 changed = true;
             }
 
             if (i2.ssl.key != i1.ssl.key) {
-                logit(EXTENSION_LOG_NOTICE,
-                      "Change SSL Key for %s:%u from %s to %s",
-                      i1.host.c_str(), i1.port, i1.ssl.key.c_str(),
-                      i2.ssl.key.c_str());
+                LOG_INFO("Change SSL Key for {}:{} from {} to {}",
+                         i1.host,
+                         i1.port,
+                         i1.ssl.key,
+                         i2.ssl.key);
                 i1.ssl.key.assign(i2.ssl.key);
                 changed = true;
             }
@@ -1051,27 +1047,24 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         const auto& b2 = other.breakpad;
 
         if (b2.enabled != b1.enabled) {
-            logit(EXTENSION_LOG_NOTICE,
-                  "%e breakpad",
-                  b2.enabled ? "Enable" : "Disable");
+            LOG_INFO("{} breakpad", b2.enabled ? "Enable" : "Disable");
             b1.enabled = b2.enabled;
             changed = true;
         }
 
         if (b2.minidump_dir != b1.minidump_dir) {
-            logit(EXTENSION_LOG_NOTICE,
-                  "Change minidump directory from \"%s\" to \"%s\"",
-                  b1.minidump_dir.c_str(),
-                  b2.minidump_dir.c_str());
+            LOG_INFO(
+                    R"(Change minidump directory from "{}" to "{}")",
+                    b1.minidump_dir,
+                    b2.minidump_dir);
             b1.minidump_dir = b2.minidump_dir;
             changed = true;
         }
 
         if (b2.content != b1.content) {
-            logit(EXTENSION_LOG_NOTICE,
-                  "Change minidump content from %s to %s",
-                  to_string(b1.content).c_str(),
-                  to_string(b2.content).c_str());
+            LOG_INFO("Change minidump content from {} to {}",
+                     to_string(b1.content),
+                     to_string(b2.content));
             b1.content = b2.content;
             changed = true;
         }
@@ -1084,8 +1077,7 @@ void Settings::updateSettings(const Settings& other, bool apply) {
     if (other.has.privilege_debug) {
         if (other.privilege_debug != privilege_debug) {
             bool value = other.isPrivilegeDebug();
-            logit(EXTENSION_LOG_NOTICE, "%s privilege debug",
-                  value ? "Enable" : "Disable");
+            LOG_INFO("{} privilege debug", value ? "Enable" : "Disable");
             setPrivilegeDebug(value);
         }
     }
@@ -1096,10 +1088,10 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         //       down to cbsasl
         auto path = other.getSaslauthdSocketpath();
         if (path != saslauthd_socketpath.path) {
-            logit(EXTENSION_LOG_NOTICE,
-                  "Change saslauthd socket path from \"%s\" to \"%s\"",
-                  saslauthd_socketpath.path.c_str(),
-                  path.c_str());
+            LOG_INFO(
+                    R"(Change saslauthd socket path from "{}" to "{}")",
+                    saslauthd_socketpath.path,
+                    path);
             setSaslauthdSocketpath(path);
         }
     }
@@ -1109,52 +1101,28 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         auto proposed = other.getOpcodeAttributesOverride();
 
         if (proposed != current) {
-            logit(EXTENSION_LOG_NOTICE,
-                  R"(Change opcode attributes from "%s" to "%s")",
-                  current.c_str(),
-                  proposed.c_str());
+            LOG_INFO(
+                    R"(Change opcode attributes from "{}" to "{}")",
+                    current,
+                    proposed);
             setOpcodeAttributesOverride(proposed);
         }
     }
 
     if (other.has.topkeys_enabled) {
         if (other.isTopkeysEnabled() != isTopkeysEnabled()) {
-            if (other.isTopkeysEnabled()) {
-                logit(EXTENSION_LOG_NOTICE, "Enable topkeys support");
-            } else {
-                logit(EXTENSION_LOG_NOTICE, "Disable topkeys support");
-            }
+            LOG_INFO("{} topkeys support",
+                     other.isTopkeysEnabled() ? "Enable" : "Disable");
         }
         setTopkeysEnabled(other.isTopkeysEnabled());
     }
 
     if (other.has.tracing_enabled) {
         if (other.isTracingEnabled() != isTracingEnabled()) {
-            if (other.isTracingEnabled()) {
-                logit(EXTENSION_LOG_NOTICE, "Enable tracing support");
-            } else {
-                logit(EXTENSION_LOG_NOTICE, "Disable tracing support");
-            }
+            LOG_INFO("{} tracing support",
+                     other.isTracingEnabled() ? "Enable" : "Disable");
         }
         setTracingEnabled(other.isTracingEnabled());
-    }
-}
-
-void Settings::logit(EXTENSION_LOG_LEVEL level, const char* fmt, ...) {
-    auto logger = settings.extensions.logger;
-    if (logger != nullptr) {
-        char buffer[1024];
-
-        va_list ap;
-        va_start(ap, fmt);
-        auto len = vsnprintf(buffer, sizeof(buffer), fmt, ap);
-        va_end(ap);
-        if (len < 0) {
-            return;
-        }
-        buffer[sizeof(buffer) - 1] = '\0';
-
-        logger->log(level, nullptr, "%s", buffer);
     }
 }
 
