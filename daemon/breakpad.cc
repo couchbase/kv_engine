@@ -29,7 +29,7 @@ using namespace google_breakpad;
 // breakpad handler
 static std::unique_ptr<ExceptionHandler> handler;
 
-#if defined(WIN32) || defined(linux)
+#if (defined(WIN32) || defined(linux)) && defined(HAVE_BREAKPAD)
 // These methods is called from breakpad when creating
 // the dump. They're inside the #ifdef block to avoid
 // compilers to complain about static functions never
@@ -49,7 +49,7 @@ static void dump_stack() {
 // Unfortunately Breakpad use a different API on each platform,
 // so we need a bit of #ifdef's..
 
-#ifdef WIN32
+#if defined(WIN32) && defined(HAVE_BREAKPAD)
 static bool dumpCallback(const wchar_t* dump_path,
                          const wchar_t* minidump_id,
                          void* context,
@@ -69,7 +69,7 @@ static bool dumpCallback(const wchar_t* dump_path,
     dump_stack();
     return succeeded;
 }
-#elif defined(linux)
+#elif defined(linux) && defined(HAVE_BREAKPAD)
 static bool dumpCallback(const MinidumpDescriptor& descriptor,
                          void* context,
                          bool succeeded) {
@@ -84,7 +84,7 @@ static bool dumpCallback(const MinidumpDescriptor& descriptor,
 #endif
 
 void create_handler(const std::string& minidump_dir) {
-#ifdef WIN32
+#if defined(WIN32) && defined(HAVE_BREAKPAD)
     // Takes a wchar_t* on Windows. Isn't the Breakpad API nice and
     // consistent? ;)
     size_t len = minidump_dir.length() + 1;
@@ -101,7 +101,7 @@ void create_handler(const std::string& minidump_dir) {
                                        MiniDumpNormal,
                                        /*pipe*/ (wchar_t*)NULL,
                                        /*custom_info*/ NULL));
-#elif defined(linux)
+#elif defined(linux) && defined(HAVE_BREAKPAD)
     MinidumpDescriptor descriptor(minidump_dir.c_str());
     handler.reset(new ExceptionHandler(descriptor,
                                        /*filter*/ NULL,

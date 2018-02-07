@@ -1,6 +1,4 @@
 
-SET(BREAKPAD_SRCS breakpad.cc)
-
 IF ("${CMAKE_SYSTEM_NAME}" STREQUAL "Linux")
     # Breakpad has headers (which are dependencies for our breakpad integration
     # code) that don't compile cleanly as C++11, so the GNU standard is
@@ -26,7 +24,7 @@ IF (HAVE_LIBNUMA)
 ENDIF ()
 
 ADD_LIBRARY(memcached_daemon STATIC
-            ${BREAKPAD_SRCS}
+            breakpad.cc
             ${Memcached_SOURCE_DIR}/utilities/protocol2text.cc
             ${Memcached_SOURCE_DIR}/utilities/string_utilities.cc
             ${Memcached_SOURCE_DIR}/utilities/terminate_handler.cc

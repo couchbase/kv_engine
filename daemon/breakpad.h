@@ -19,9 +19,9 @@
 #include "config.h"
 #include "settings.h"
 
-#ifdef WIN32
+#if defined(WIN32) && defined(HAVE_BREAKPAD)
 #include "client/windows/handler/exception_handler.h"
-#elif defined(linux)
+#elif defined(linux) && defined(HAVE_BREAKPAD)
 #include "client/linux/handler/exception_handler.h"
 #else
 namespace google_breakpad {
