@@ -16,10 +16,10 @@ limitations under the License.
 The script downloads the raw cbmonitor data for a given list of runs and dumps
 some performance metrics to file (JSON and CSV formats).
 
-Usage: python get_cbmonitor_data.py --job_list \
+Usage: python get_cbmonitor_data.py --job-list \
        <project1>:<number1>[:'<label1>'] [<project2>:<number2> ..] \
-       --output_dir <output_dir>
-(e.g., python get_cbmonitor_data.py --job_list \
+       --output-dir <output_dir>
+(e.g., python get_cbmonitor_data.py --job-list \
        hera-pl:60:'RocksDB low OPS' hera-pl:67 --output_dir . )
 '''
 
@@ -29,6 +29,7 @@ import json
 import re
 import sys
 import urllib2
+import numpy
 
 
 # data format: [[timestamp1,value1],[timestamp2,value2],..]
@@ -69,17 +70,25 @@ def getMax(url):
     return maximum
 
 
-usage = ("Usage: python get_cbmonitor_data.py --job_list "
+def getP99(url):
+    valueList = []
+    pairs = json.loads(downloadData(url))
+    for pair in pairs:
+        valueList.append(float(pair[1]))
+    return numpy.percentile(valueList, 99.0)
+
+
+usage = ("Usage: python get_cbmonitor_data.py --job-list "
          "<project1>:<number1>[:'<label1>'] [<project2>:<number2> ..] "
-         "--output_dir <output_dir> "
-         "\n\t(e.g., python get_cbmonitor_data.py --job_list "
-         "hera-pl:60:'RocksDB low OPS' hera-pl:67 hera-pl:83 --output_dir . )")
+         "--output-dir <output_dir> "
+         "\n\t(e.g., python get_cbmonitor_data.py --job-list "
+         "hera-pl:60:'RocksDB low OPS' hera-pl:67 hera-pl:83 --output-dir . )")
 
 ap = argparse.ArgumentParser()
 
 try:
-    ap.add_argument('--job_list', nargs='+')
-    ap.add_argument('--output_dir')
+    ap.add_argument('--job-list', nargs='+')
+    ap.add_argument('--output-dir')
 except:
     print(usage)
     sys.exit()
@@ -164,7 +173,6 @@ for job in job_list:
     # other interesting timings
     avg_bg_wait_time = base_url_ns_server + "/avg_bg_wait_time"
     avg_disk_commit_time = base_url_ns_server + "/avg_disk_commit_time"
-    avg_disk_update_time = base_url_ns_server + "/avg_disk_update_time"
     # read/write amplification
     data_rps = []
     data_wps = []
@@ -191,24 +199,41 @@ for job in job_list:
 
     # Perfrunner collects the 'spring_latency' dataset for 'latency_set' and
     # 'latency_get' only on some test configs (i.e., synchronous clients)
+    hasLatencySet = False
+    hasLatencyGet = False
     hasLatency = True if (consoleText.find("spring_latency") != -1) else False
+    if hasLatency:
+        springLatency = downloadData(base_url_spring_latency)
+        hasLatencySet = (True if (springLatency.find("latency_set") != -1)
+                         else False)
+        hasLatencyGet = (True if (springLatency.find("latency_get") != -1)
+                         else False)
 
     data = {
         'job': project + ":" + number,
         'label': label,
         'snapshot': snapshot,
         'ops': '{:.2f}'.format(getAverage(ops)),
-        'latency_set': '{:.2f}'.format(getAverage(latency_set))
-                       if hasLatency else 'N/A',
-        'latency_get': '{:.2f}'.format(getAverage(latency_get))
-                       if hasLatency else 'N/A',
-        'avg_disk_update_time (us)': '{:.2f}'
-                                     .format(getAverage(avg_disk_update_time)),
-        'avg_disk_commit_time (s)': '{:.2f}'
-                                     .format(getAverage(avg_disk_commit_time)),
-        'avg_bg_wait_time (us)': '{:.2f}'.format(getAverage(avg_bg_wait_time)),
-        'data_rps': '{:.2f}'.format(getAverageFromList(data_rps, True)),
-        'data_wps': '{:.2f}'.format(getAverageFromList(data_wps, True)),
+        'latency_set (ms)': '{:.2f}'.format(getAverage(latency_set))
+                            if hasLatencySet else 'N/A',
+        'latency_get (ms)': '{:.2f}'.format(getAverage(latency_get))
+                            if hasLatencyGet else 'N/A',
+        'latency_set P99 (ms)': '{:.2f}'.format(getP99(latency_set))
+                                if hasLatencySet else 'N/A',
+        'latency_get P99 (ms)': '{:.2f}'.format(getP99(latency_get))
+                                if hasLatencyGet else 'N/A',
+        'avg_disk_commit_time (ms)': '{:.2f}'
+                                     .format(getAverage(avg_disk_commit_time) *
+                                             1000),
+        'avg_bg_wait_time (ms)': '{:.2f}'.format(getAverage(avg_bg_wait_time) /
+                                                 1000),
+        'avg_disk_commit_time P99 (ms)': '{:.2f}'
+                                     .format(getP99(avg_disk_commit_time) *
+                                             1000),
+        'avg_bg_wait_time P99 (ms)': '{:.2f}'.format(getP99(avg_bg_wait_time) /
+                                                     1000),
+        'data_rps (iops)': '{:.2f}'.format(getAverageFromList(data_rps, True)),
+        'data_wps (iops)': '{:.2f}'.format(getAverageFromList(data_wps, True)),
         'data_rbps (MB/s)': '{:.2f}'.format(
                                         getAverageFromList(data_rbps, True) *
                                         byteToMBConversionFactor
@@ -217,16 +242,10 @@ for job in job_list:
                                         getAverageFromList(data_wbps, True) *
                                         byteToMBConversionFactor
                                     ),
-        'couch_total_disk_size (MB)': '{:.2f}'
-                                      .format(
-                                          getAverage(couch_total_disk_size) *
-                                          byteToMBConversionFactor
-                                      ),
-        'max couch_total_disk_size (MB)': '{:.2f}'
-                                          .format(
-                                              getMax(couch_total_disk_size) *
-                                              byteToMBConversionFactor
-                                          ),
+        'couch_total_disk_size (MB)': int(getAverage(couch_total_disk_size) *
+                                          byteToMBConversionFactor),
+        'max couch_total_disk_size (MB)': int(getMax(couch_total_disk_size) *
+                                              byteToMBConversionFactor),
         'mem_used (MB)': '{:.2f}'.format(
                                      getAverage(mem_used) *
                                      byteToMBConversionFactor
