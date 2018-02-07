@@ -2699,7 +2699,7 @@ void VBucket::removeKey(const DocKey& key, int64_t bySeqno) {
     StoredValue* v = fetchValidValue(
             hbl, key, WantsDeleted::No, TrackReference::No, QueueExpired::Yes);
 
-    if (v && v->isResident() && v->getBySeqno() == bySeqno) {
+    if (v && v->getBySeqno() == bySeqno) {
         ht.unlocked_del(hbl, v->getKey());
     }
 }

@@ -72,6 +72,9 @@ TEST_P(CollectionsEraserTest, basic) {
 
     EXPECT_EQ(2, vb->getNumItems());
 
+    // Evict one of the keys, we should still erase it
+    evict_key(vbid, {"dairy:butter", DocNamespace::Collections});
+
     // delete the collection
     vb->updateFromManifest(
             {R"({"separator":":",)"
