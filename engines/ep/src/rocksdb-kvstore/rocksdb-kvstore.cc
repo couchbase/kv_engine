@@ -257,8 +257,14 @@ RocksDBKVStore::RocksDBKVStore(KVStoreConfig& config)
     if (configuration.getRocksdbBlockCacheRatio() > 0.0) {
         auto blockCacheQuota = configuration.getBucketQuota() *
                                configuration.getRocksdbBlockCacheRatio();
-        blockCache = rocksdb::NewLRUCache(blockCacheQuota /
-                                          configuration.getMaxShards());
+        // Keeping default settings for:
+        // num_shard_bits = -1 (automatically determined)
+        // strict_capacity_limit = false (do not fail insert when cache is full)
+        blockCache = rocksdb::NewLRUCache(
+                blockCacheQuota / configuration.getMaxShards(),
+                -1 /*num_shard_bits*/,
+                false /*strict_capacity_limit*/,
+                configuration.getRocksdbBlockCacheHighPriPoolRatio());
     }
     // Configure all the Column Families
     const auto& cfOptions = configuration.getRocksDBCFOptions();

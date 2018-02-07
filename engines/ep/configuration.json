@@ -888,6 +888,11 @@
             "descr": "RocksDB Block Cache ratio of the Bucket Quota. A value of 0.0 sets to the default.",
             "type": "float"
         },
+        "rocksdb_block_cache_high_pri_pool_ratio": {
+            "default": "0.9",
+            "descr": "RocksDB ratio of the BlockCache quota reserved for index/filter blocks. A value of 0.0 disables the 'cache_index_and_filter_blocks_with_high_priority=true' option.",
+            "type": "float"
+        },
         "rocksdb_memtables_ratio": {
             "default": "0.1",
             "descr": "RocksDB total (i.e., all Column Families) Memtables ratio of the Bucket Quota). A value of 0.0 sets to the default.",

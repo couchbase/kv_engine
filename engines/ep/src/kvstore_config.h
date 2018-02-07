@@ -164,6 +164,11 @@ public:
         return rocksdbBlockCacheRatio;
     }
 
+    // RocksDB ratio of the BlockCache quota reserved for index/filter blocks
+    float getRocksdbBlockCacheHighPriPoolRatio() {
+        return rocksdbBlockCacheHighPriPoolRatio;
+    }
+
     // Return the RocksDB total Memtables ratio of the Bucket Quota
     float getRocksdbMemtablesRatio() {
         return rocksdbMemtablesRatio;
@@ -222,6 +227,9 @@ private:
 
     // RocksDB Block Cache ratio of the Bucket Quota
     float rocksdbBlockCacheRatio = 0.0;
+
+    // RocksDB ratio of the BlockCache quota reserved for index/filter blocks
+    float rocksdbBlockCacheHighPriPoolRatio = 0.0;
 
     // RocksDB total Memtables ratio of the Bucket Quota.
     // This ratio represents the total quota of memory allocated for the
