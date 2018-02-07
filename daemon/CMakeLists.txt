@@ -189,6 +189,7 @@ ADD_LIBRARY(memcached_daemon STATIC
             statemachine_mcbp.cc
             statemachine_mcbp.h
             stats.h
+            stdin_check.cc
             subdocument.cc
             subdocument.h
             subdocument_context.h

@@ -141,18 +141,12 @@ file.
 
 === extensions
 
-The *extensions* attribute is used to specify an array of extensions
-which should be loaded. Each entry in the extensions array is an
-object describing a single extension with the following attributes:
+The *extensions* attribute is deprecated and no longer in use
 
-    module    A string value containing the module to load. This may
-              either be an absolute path, or the systems library path
-              will be searched for the object. When loaded memcached
-              calls the method memcached_extensions_initialize().
+=== stdin_listener
 
-    config    A string value containing configuration attributes to
-              the module. The config value is passed transparently
-              to the module.
+The *stdin_listener* attribute is a boolean attribute set to true
+if the standard input listener should be used or not.
 
 === engine
 
@@ -390,17 +384,7 @@ A Sample memcached.json:
                 "protocol" : "memcached"
             }
         ],
-        "extensions" :
-        [
-            {
-                "module" : "stdin_term_handler.so",
-                "config" : ""
-            },
-            {
-                "module" : "file_logger.so",
-                "config" : "cyclesize=10485760;sleeptime=19;filename=data/n_0/logs/memcached.log"
-            }
-        ],
+        "stdin_listener" : false,
         "engine" : {
             "module" : "bucket_engine.so",
             "config" : "admin=_admin;default_bucket_name=default;auto_create=false"

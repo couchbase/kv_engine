@@ -449,35 +449,25 @@ TEST_F(SettingsTest, ParseLoggerSettings) {
     EXPECT_EQ(true, config.unit_test);
 }
 
-TEST_F(SettingsTest, Extensions) {
-    nonArrayValuesShouldFail("extensions");
+TEST_F(SettingsTest, StdinListener) {
+    nonBooleanValuesShouldFail("stdin_listener");
 
-    unique_cJSON_ptr array(cJSON_CreateArray());
-
-    for (int ii = 0; ii < 10; ii++) {
-        unique_cJSON_ptr obj(cJSON_CreateObject());
-        std::string mod = "module-" + std::to_string(ii);
-        cJSON_AddStringToObject(obj.get(), "module", mod.c_str());
-        std::string cfg = "config-" + std::to_string(ii);
-        cJSON_AddStringToObject(obj.get(), "config", cfg.c_str());
-        cJSON_AddItemToArray(array.get(), obj.release());
+    unique_cJSON_ptr obj(cJSON_CreateObject());
+    cJSON_AddTrueToObject(obj.get(), "stdin_listener");
+    try {
+        Settings settings(obj);
+        EXPECT_TRUE(settings.isStdinListenerEnabled());
+        EXPECT_TRUE(settings.has.stdin_listener);
+    } catch (std::exception& exception) {
+        FAIL() << exception.what();
     }
 
-    unique_cJSON_ptr root(cJSON_CreateObject());
-    cJSON_AddItemToObject(root.get(), "extensions", array.release());
-
+    obj.reset(cJSON_CreateObject());
+    cJSON_AddFalseToObject(obj.get(), "stdin_listener");
     try {
-        Settings settings(root);
-        EXPECT_EQ(10, settings.getPendingExtensions().size());
-        EXPECT_TRUE(settings.has.extensions);
-        int ii = 0;
-        for (const auto& ext : settings.getPendingExtensions()) {
-            std::string mod = "module-" + std::to_string(ii);
-            std::string cfg = "config-" + std::to_string(ii);
-            EXPECT_EQ(mod, ext.soname);
-            EXPECT_EQ(cfg, ext.config);
-            ++ii;
-        }
+        Settings settings(obj);
+        EXPECT_FALSE(settings.isStdinListenerEnabled());
+        EXPECT_TRUE(settings.has.stdin_listener);
     } catch (std::exception& exception) {
         FAIL() << exception.what();
     }
@@ -1088,63 +1078,6 @@ TEST(SettingsUpdateTest, InterfaceDifferentArraySizeShouldFail) {
     settings.addInterface(ifc);
     EXPECT_NO_THROW(settings.updateSettings(updated, false));
     settings.addInterface(ifc);
-    EXPECT_THROW(settings.updateSettings(updated, false),
-                 std::invalid_argument);
-}
-
-TEST(SettingsUpdateTest, ExtensionsIdenticalArraysShouldWork) {
-    Settings settings;
-    ExtensionSettings ext;
-    ext.soname.assign("object.so");
-    ext.config.assign("a=b");
-    settings.addPendingExtension(ext);
-
-    // setting it to the same value should work
-    Settings updated;
-    updated.addPendingExtension(ext);
-    EXPECT_NO_THROW(settings.updateSettings(updated, false));
-}
-
-TEST(SettingsUpdateTest, ExtensionsDifferentElementsShouldFail) {
-    Settings settings;
-    ExtensionSettings ext;
-    ext.soname.assign("object.so");
-    ext.config.assign("a=b");
-    settings.addPendingExtension(ext);
-
-    {
-        Settings updated;
-        ext.config.assign("a=c");
-        updated.addPendingExtension(ext);
-        EXPECT_THROW(settings.updateSettings(updated, false),
-                     std::invalid_argument);
-    }
-    {
-        Settings updated;
-        ext.soname.assign("object.dll");
-        updated.addPendingExtension(ext);
-        EXPECT_THROW(settings.updateSettings(updated, false),
-                     std::invalid_argument);
-    }
-}
-
-TEST(SettingsUpdateTest, ExtensionsDifferentArraysSizeShouldFail) {
-    Settings settings;
-    ExtensionSettings ext;
-    ext.soname.assign("object.so");
-    ext.config.assign("a=b");
-    settings.addPendingExtension(ext);
-
-    // setting it to the same value should work
-    Settings updated;
-    updated.addPendingExtension(ext);
-    EXPECT_NO_THROW(settings.updateSettings(updated, false));
-    updated.addPendingExtension(ext);
-    EXPECT_THROW(settings.updateSettings(updated, false),
-                 std::invalid_argument);
-    settings.addPendingExtension(ext);
-    EXPECT_NO_THROW(settings.updateSettings(updated, false));
-    settings.addPendingExtension(ext);
     EXPECT_THROW(settings.updateSettings(updated, false),
                  std::invalid_argument);
 }

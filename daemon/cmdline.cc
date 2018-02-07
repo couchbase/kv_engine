@@ -56,19 +56,6 @@ static void handle_c(struct Option* o) {
             "-c is no longer used. Update the per interface description\n");
 }
 
-static void handle_X(struct Option* o) {
-    char *module = o->optarg;
-    char *config = strchr(o->optarg, ',');
-    if (config != NULL) {
-        *config = '\0';
-        config++;
-    }
-
-    if (!load_extension(module, config)) {
-        exit(EXIT_FAILURE);
-    }
-}
-
 static void apply_compat_arguments(void) {
     struct Option *o;
 
@@ -106,9 +93,6 @@ static void apply_compat_arguments(void) {
         case 'v':
             settings.setVerbose(settings.getVerbose() + 1);
             break;
-        case 'X':
-            handle_X(o);
-            break;
         }
     }
 }
@@ -121,7 +105,10 @@ void parse_arguments(int argc, char **argv) {
     optind = 1;
 
     /* process arguments */
-    while ((c = getopt(argc, argv, "I:b:C:R:D:Ln:f:P:ihkc:Mm:u:da:s:p:U:t:vrB:E:e:X:l:")) != -1) {
+    while ((c = getopt(argc,
+                       argv,
+                       "I:b:C:R:D:Ln:f:P:ihkc:Mm:u:da:s:p:U:t:vrB:E:e:l:")) !=
+           -1) {
         switch (c) {
         case 'C':
             config_file = optarg;
@@ -132,7 +119,6 @@ void parse_arguments(int argc, char **argv) {
         case 'c':
         case 't':
         case 'v':
-        case 'X':
             add_option(c, optarg);
             break;
 

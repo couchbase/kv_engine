@@ -236,6 +236,25 @@ static void handle_tracing_enabled(Settings& s, cJSON* obj) {
 }
 
 /**
+ * Handle the "stdin_listener" tag in the settings
+ *
+ *  The value must be a boolean value
+ *
+ * @param s the settings object to update
+ * @param obj the object in the configuration
+ */
+static void handle_stdin_listener(Settings& s, cJSON* obj) {
+    if (obj->type == cJSON_True) {
+        s.setStdinListenerEnabled(true);
+    } else if (obj->type == cJSON_False) {
+        s.setStdinListenerEnabled(false);
+    } else {
+        throw std::invalid_argument(
+                R"("stdin_listener" must be a boolean value)");
+    }
+}
+
+/**
  * Handle "default_reqs_per_event", "reqs_per_event_high_priority",
  * "reqs_per_event_med_priority" and "reqs_per_event_low_priority" tag in
  * the settings
@@ -566,27 +585,8 @@ static void handle_opcode_attributes_override(Settings& s, cJSON* obj) {
     s.setOpcodeAttributesOverride(to_string(obj));
 }
 
-/**
- * Handle the "extensions" tag in the settings
- *
- *  The value must be an array
- *
- * @param s the settings object to update
- * @param obj the object in the configuration
- */
 static void handle_extensions(Settings& s, cJSON* obj) {
-    if (obj->type != cJSON_Array) {
-        throw std::invalid_argument("\"extensions\" must be an array");
-    }
-
-    for (auto* child = obj->child; child != nullptr; child = child->next) {
-        if (child->type != cJSON_Object) {
-            throw std::invalid_argument(
-                "Elements in the \"extensions\" array myst be objects");
-        }
-        ExtensionSettings ext(child);
-        s.addPendingExtension(ext);
-    }
+    cb::logger::get()->info("Extensions ignored");
 }
 
 static void handle_logger(Settings& s, cJSON* obj) {
@@ -679,6 +679,7 @@ void Settings::reconfigure(const unique_cJSON_ptr& json) {
             {"saslauthd_socketpath", handle_saslauthd_socketpath},
             {"sasl_mechanisms", handle_sasl_mechanisms},
             {"ssl_sasl_mechanisms", handle_ssl_sasl_mechanisms},
+            {"stdin_listener", handle_stdin_listener},
             {"dedupe_nmvb_maps", handle_dedupe_nmvb_maps},
             {"xattr_enabled", handle_xattr_enabled},
             {"client_cert_auth", handle_client_cert_auth},
@@ -813,23 +814,10 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         }
     }
 
-    if (other.has.extensions) {
-        if (other.pending_extensions.size() != pending_extensions.size()) {
+    if (other.has.stdin_listener) {
+        if (other.stdin_listener.load() != stdin_listener.load()) {
             throw std::invalid_argument(
-                "extensions can't be changed dynamically");
-        }
-
-        // validate that we haven't changed stuff in the entries
-        auto total = pending_extensions.size();
-        for (std::vector<ExtensionSettings>::size_type ii = 0;
-             ii < total; ++ii) {
-            const auto& e1 = pending_extensions[ii];
-            const auto& e2 = other.pending_extensions[ii];
-
-            if ((e1.config != e2.config) || (e1.soname != e2.soname)) {
-                throw std::invalid_argument(
-                    "extensions can't be changed dynamically");
-            }
+                    "stdin_listener can't be changed dynamically");
         }
     }
 

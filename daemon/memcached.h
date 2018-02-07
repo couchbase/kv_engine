@@ -222,8 +222,6 @@ void safe_close(SOCKET sfd);
 bool list_contains(Connection *h, Connection *n);
 Connection *list_remove(Connection *h, Connection *n);
 
-bool load_extension(const char *soname, const char *config);
-
 int add_conn_to_pending_io_list(Connection *c);
 
 /* connection state machine */
@@ -342,5 +340,7 @@ uint64_t get_listen_disabled_num(void);
 extern std::unique_ptr<ExecutorPool> executorPool;
 
 void iterate_all_connections(std::function<void(Connection&)> callback);
+
+void start_stdin_listener(std::function<void()> function);
 
 #endif

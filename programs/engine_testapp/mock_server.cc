@@ -28,7 +28,6 @@
 #define CONN_MAGIC 0xbeefcafe
 
 struct mock_extensions {
-    EXTENSION_DAEMON_DESCRIPTOR *daemons;
     EXTENSION_LOGGER_DESCRIPTOR *logger;
 };
 
@@ -306,73 +305,6 @@ static void mock_count_eviction(gsl::not_null<const void*> cookie,
 }
 
 /**
- * SERVER STAT API FUNCTIONS
- */
-
-static bool mock_register_extension(extension_type_t type, void *extension)
-{
-    if (extension == NULL) {
-        return false;
-    }
-
-    switch (type) {
-    case EXTENSION_DAEMON:
-        {
-            EXTENSION_DAEMON_DESCRIPTOR *ptr;
-            for (ptr =  extensions.daemons; ptr != NULL; ptr = ptr->next) {
-                if (ptr == extension) {
-                    return false;
-                }
-            }
-            ((EXTENSION_DAEMON_DESCRIPTOR *)(extension))->next = extensions.daemons;
-            extensions.daemons = reinterpret_cast<EXTENSION_DAEMON_DESCRIPTOR*>(extension);
-        }
-        return true;
-    default:
-        return false;
-    }
-}
-
-static void mock_unregister_extension(extension_type_t type, void *extension)
-{
-    switch (type) {
-    case EXTENSION_DAEMON:
-        {
-            EXTENSION_DAEMON_DESCRIPTOR *prev = NULL;
-            EXTENSION_DAEMON_DESCRIPTOR *ptr = extensions.daemons;
-
-            while (ptr != NULL && ptr != extension) {
-                prev = ptr;
-                ptr = ptr->next;
-            }
-
-            if (ptr != NULL && prev != NULL) {
-                prev->next = ptr->next;
-            }
-
-            if (ptr != NULL && extensions.daemons == ptr) {
-                extensions.daemons = ptr->next;
-            }
-        }
-        break;
-    default:
-        ;
-    }
-
-}
-
-static void* mock_get_extension(extension_type_t type)
-{
-    switch (type) {
-    case EXTENSION_DAEMON:
-        return extensions.daemons;
-
-    default:
-        return NULL;
-    }
-}
-
-/**
  * SERVER CALLBACK API FUNCTIONS
  */
 
@@ -437,7 +369,6 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
    static SERVER_CORE_API core_api;
    static SERVER_COOKIE_API server_cookie_api;
    static SERVER_STAT_API server_stat_api;
-   static SERVER_EXTENSION_API extension_api;
    static SERVER_CALLBACK_API callback_api;
    static SERVER_LOG_API log_api;
    static ALLOCATOR_HOOKS_API hooks_api;
@@ -471,10 +402,6 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
       server_cookie_api.set_error_context = mock_set_error_context;
       server_stat_api.evicting = mock_count_eviction;
 
-      extension_api.register_extension = mock_register_extension;
-      extension_api.unregister_extension = mock_unregister_extension;
-      extension_api.get_extension = mock_get_extension;
-
       callback_api.register_callback = mock_register_callback;
       callback_api.perform_callbacks = mock_perform_callbacks;
 
@@ -503,7 +430,6 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
       rv.interface = 1;
       rv.core = &core_api;
       rv.stat = &server_stat_api;
-      rv.extension = &extension_api;
       rv.callback = &callback_api;
       rv.log = &log_api;
       rv.cookie = &server_cookie_api;

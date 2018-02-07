@@ -1633,86 +1633,6 @@ static void cookie_set_priority(gsl::not_null<const void*> void_cookie,
 static void count_eviction(gsl::not_null<const void*>, const void*, int) {
 }
 
-/**
- * Register an extension if it's not already registered
- *
- * @param type the type of the extension to register
- * @param extension the extension to register
- * @return true if success, false otherwise
- */
-static bool register_extension(extension_type_t type, void *extension)
-{
-    if (extension == NULL) {
-        return false;
-    }
-
-    switch (type) {
-    case EXTENSION_DAEMON:
-        {
-            auto* ext_daemon =
-                    reinterpret_cast<EXTENSION_DAEMON_DESCRIPTOR*>(extension);
-
-            EXTENSION_DAEMON_DESCRIPTOR *ptr;
-            for (ptr = settings.extensions.daemons; ptr != NULL; ptr = ptr->next) {
-                if (ptr == ext_daemon) {
-                    return false;
-                }
-            }
-            ext_daemon->next = settings.extensions.daemons;
-            settings.extensions.daemons = ext_daemon;
-        }
-        return true;
-
-    default:
-        return false;
-    }
-}
-
-/**
- * Unregister an extension
- *
- * @param type the type of the extension to remove
- * @param extension the extension to remove
- */
-static void unregister_extension(extension_type_t type, void *extension)
-{
-    switch (type) {
-    case EXTENSION_DAEMON:
-        {
-            EXTENSION_DAEMON_DESCRIPTOR *prev = NULL;
-            EXTENSION_DAEMON_DESCRIPTOR *ptr = settings.extensions.daemons;
-
-            while (ptr != NULL && ptr != extension) {
-                prev = ptr;
-                ptr = ptr->next;
-            }
-
-            if (ptr != NULL && prev != NULL) {
-                prev->next = ptr->next;
-            }
-
-            if (ptr != NULL && settings.extensions.daemons == ptr) {
-                settings.extensions.daemons = ptr->next;
-            }
-        }
-        break;
-    }
-}
-
-/**
- * Get the named extension
- */
-static void* get_extension(extension_type_t type)
-{
-    switch (type) {
-    case EXTENSION_DAEMON:
-        return settings.extensions.daemons;
-
-    default:
-        return NULL;
-    }
-}
-
 static size_t get_max_item_iovec_size() {
     return 1;
 }
@@ -1783,7 +1703,6 @@ SERVER_HANDLE_V1* get_server_api() {
     static SERVER_COOKIE_API server_cookie_api;
     static SERVER_STAT_API server_stat_api;
     static SERVER_LOG_API server_log_api;
-    static SERVER_EXTENSION_API extension_api;
     static SERVER_CALLBACK_API callback_api;
     static ALLOCATOR_HOOKS_API hooks_api;
     static SERVER_HANDLE_V1 rv;
@@ -1825,10 +1744,6 @@ SERVER_HANDLE_V1* get_server_api() {
         server_log_api.get_level = get_log_level;
         server_log_api.set_level = set_log_level;
 
-        extension_api.register_extension = register_extension;
-        extension_api.unregister_extension = unregister_extension;
-        extension_api.get_extension = get_extension;
-
         callback_api.register_callback = register_callback;
         callback_api.perform_callbacks = perform_callbacks;
 
@@ -1853,7 +1768,6 @@ SERVER_HANDLE_V1* get_server_api() {
         rv.interface = 1;
         rv.core = &core_api;
         rv.stat = &server_stat_api;
-        rv.extension = &extension_api;
         rv.callback = &callback_api;
         rv.log = &server_log_api;
         rv.cookie = &server_cookie_api;
@@ -2307,60 +2221,6 @@ void delete_all_buckets() {
 }
 
 /**
- * Load a shared object and initialize all the extensions in there.
- *
- * @param soname the name of the shared object (may not be NULL)
- * @param config optional configuration parameters
- * @return true if success, false otherwise
- */
-bool load_extension(const char *soname, const char *config) {
-    cb_dlhandle_t handle;
-    void *symbol;
-    EXTENSION_ERROR_CODE error;
-    union my_hack {
-        MEMCACHED_EXTENSIONS_INITIALIZE initialize;
-        void* voidptr;
-    } funky;
-    char *error_msg;
-
-    if (soname == NULL) {
-        return false;
-    }
-
-    handle = cb_dlopen(soname, &error_msg);
-    if (handle == NULL) {
-        LOG_WARNING(NULL, "Failed to open library \"%s\": %s\n",
-                    soname, error_msg);
-        cb_free(error_msg);
-        return false;
-    }
-
-    symbol = cb_dlsym(handle, "memcached_extensions_initialize", &error_msg);
-    if (symbol == NULL) {
-        LOG_WARNING(NULL,
-                    "Could not find symbol \"memcached_extensions_"
-                        "initialize\" in %s: %s\n",
-                    soname, error_msg);
-        cb_free(error_msg);
-        return false;
-    }
-    funky.voidptr = symbol;
-
-    error = (*funky.initialize)(config, get_server_api);
-    if (error != EXTENSION_SUCCESS) {
-        LOG_WARNING(NULL,
-                    "Failed to initalize extensions from %s. Error code: %d",
-                    soname, error);
-        cb_dlclose(handle);
-        return false;
-    }
-
-    LOG_INFO(NULL, "Loaded extensions from: %s", soname);
-
-    return true;
-}
-
-/**
  * Log a socket error message.
  *
  * @param severity the severity to put in the log
@@ -2421,18 +2281,6 @@ static void set_max_filehandles(void) {
                     settings.getMaxconns(),
                     (3 * (settings.getNumWorkerThreads() + 2)));
 
-    }
-}
-
-static void load_extensions(void) {
-    for (const auto& ext : settings.getPendingExtensions()) {
-        LOG_INFO(nullptr, "Loading extension %s with config: %s",
-                ext.soname.c_str(), ext.config.c_str());
-        if (!load_extension(ext.soname.c_str(), ext.config.c_str())) {
-            FATAL_ERROR(EXIT_FAILURE, "Unable to load extension %s "
-                        "using the config %s", ext.soname.c_str(),
-                        ext.config.c_str());
-        }
     }
 }
 
@@ -2573,9 +2421,6 @@ extern "C" int memcached_main(int argc, char **argv) {
     /* Initialize breakpad crash catcher with our just-parsed settings. */
     cb::breakpad::initialize(settings.getBreakpadSettings());
 
-    /* load extensions specified in the settings */
-    load_extensions();
-
     /* Configure file logger, if specified as a settings object */
     if (settings.has.logger) {
         auto ret = cb::logger::initialize(settings.getLoggerConfig(),
@@ -2591,6 +2436,11 @@ extern "C" int memcached_main(int argc, char **argv) {
 
     /* Logging available now extensions have been loaded. */
     LOG_NOTICE(NULL, "Couchbase version %s starting.", get_server_version());
+
+    if (settings.isStdinListenerEnabled()) {
+        cb::logger::get()->info("Enable standard input listener");
+        start_stdin_listener(shutdown_server);
+    }
 
 #ifdef HAVE_LIBNUMA
     // Log the NUMA policy selected (now the logger is available).

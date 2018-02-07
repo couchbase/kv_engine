@@ -156,23 +156,23 @@ public:
     }
 
     /**
-     * Add a new extension to be loaded to the internal list of extensions
+     * Should we use standard input listener?
      *
-     * @param ext the extension to add
+     * @return true if enabled, false otherwise
      */
-    void addPendingExtension(const struct ExtensionSettings& ext) {
-        pending_extensions.push_back(ext);
-        has.extensions = true;
-        notify_changed("extensions");
+    bool isStdinListenerEnabled() const {
+        return stdin_listener.load();
     }
 
     /**
-     * Get the list of extensions to load
+     * Set the mode for the standard input listener
      *
-     * @return the vector containing all of the modules to load
+     * @param enabled the new value
      */
-    const std::vector<ExtensionSettings>& getPendingExtensions() const {
-        return pending_extensions;
+    void setStdinListenerEnabled(bool enabled) {
+        stdin_listener.store(enabled);
+        has.stdin_listener = true;
+        notify_changed("stdin_listener");
     }
 
     const cb::logger::Config getLoggerConfig() {
@@ -756,11 +756,6 @@ protected:
     std::vector<NetworkInterface> interfaces;
 
     /**
-     * Array of extensions and their settings to be loaded
-     */
-    std::vector<struct ExtensionSettings> pending_extensions;
-
-    /**
      * Configuration of the logger
      */
     cb::logger::Config logger_settings;
@@ -899,6 +894,11 @@ protected:
      */
     std::atomic_bool tracing_enabled{true};
 
+    /**
+     * Use standard input listener
+     */
+    std::atomic_bool stdin_listener{true};
+
 public:
     /**
      * Flags for each of the above config options, indicating if they were
@@ -911,7 +911,6 @@ public:
         bool privilege_debug;
         bool threads;
         bool interfaces;
-        bool extensions;
         bool logger;
         bool audit;
         bool saslauthd_socketpath;
@@ -940,6 +939,7 @@ public:
         bool opcode_attributes_override;
         bool topkeys_enabled;
         bool tracing_enabled;
+        bool stdin_listener;
     } has;
 
 protected:
@@ -963,9 +963,7 @@ protected:
                                from sum of all individual interfaces */
 
 public:
-    /* linked lists of all loaded extensions */
     struct {
-        EXTENSION_DAEMON_DESCRIPTOR *daemons;
         EXTENSION_LOGGER_DESCRIPTOR *logger;
     } extensions;
 };

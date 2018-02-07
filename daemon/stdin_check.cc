@@ -5,21 +5,19 @@
 #include <string.h>
 
 #ifndef WIN32
-#include <sys/poll.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <sys/poll.h>
 #endif
 
 #include <memcached/engine.h>
 #include <platform/platform.h>
-#include "extensions/protocol_extension.h"
 
-union c99hack {
-    void *pointer;
-    void (*exit_function)(void);
-};
+#include "memcached.h"
 
-static char *get_command(char *buffer, size_t buffsize) {
+std::function<void()> exit_function;
+
+static char* get_command(char* buffer, size_t buffsize) {
 #ifdef WIN32
     if (fgets(buffer, buffsize, stdin) == NULL) {
         return NULL;
@@ -85,23 +83,22 @@ static char *get_command(char *buffer, size_t buffsize) {
  *
  * If the input stream is closed a clean shutdown is initiated
  */
-static void check_stdin_thread(void* arg)
-{
+static void check_stdin_thread(void* arg) {
     char command[80];
-    union c99hack chack;
-    chack.pointer = arg;
 
-    while (get_command(command, sizeof(command)) != NULL) {
+    bool call_exit_handler = true;
+
+    while (get_command(command, sizeof(command)) != nullptr) {
         /* Handle the command */
         if (strcmp(command, "die!\n") == 0) {
             fprintf(stderr, "'die!' on stdin.  Exiting super-quickly\n");
             fflush(stderr);
             _exit(0);
         } else if (strcmp(command, "shutdown\n") == 0) {
-            if (chack.pointer != NULL) {
+            if (call_exit_handler) {
                 fprintf(stderr, "EOL on stdin.  Initiating shutdown\n");
-                chack.exit_function();
-                chack.pointer = NULL;
+                exit_function();
+                call_exit_handler = false;
             }
         } else {
             fprintf(stderr, "Unknown command received on stdin. Ignored\n");
@@ -109,41 +106,20 @@ static void check_stdin_thread(void* arg)
     }
 
     /* The stream is closed.. do a nice shutdown */
-    if (chack.pointer != NULL) {
+    if (call_exit_handler) {
         fprintf(stderr, "EOF on stdin. Initiating shutdown\n");
-        chack.exit_function();
+        exit_function();
     }
 }
 
-static const char *get_name(void) {
-    return "stdin_check";
-}
-
-static EXTENSION_DAEMON_DESCRIPTOR descriptor;
-
-MEMCACHED_PUBLIC_API
-EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
-                                                     GET_SERVER_API get_server_api) {
-    SERVER_HANDLE_V1 *server = get_server_api();
-    union c99hack ch;
+void start_stdin_listener(std::function<void()> function) {
+    exit_function = function;
     cb_thread_t t;
 
-    descriptor.get_name = get_name;
-    if (server == NULL) {
-        return EXTENSION_FATAL;
+    if (cb_create_named_thread(
+                &t, check_stdin_thread, nullptr, 1, "mc:check_stdin") != 0) {
+        throw std::system_error(errno,
+                                std::system_category(),
+                                "couldn't create stdin checking thread.");
     }
-
-    if (!server->extension->register_extension(EXTENSION_DAEMON, &descriptor)) {
-        return EXTENSION_FATAL;
-    }
-
-    ch.exit_function = server->core->shutdown;
-    if (cb_create_named_thread(&t, check_stdin_thread, ch.pointer, 1,
-                               "mc:check_stdin") != 0) {
-        perror("couldn't create stdin checking thread.");
-        server->extension->unregister_extension(EXTENSION_DAEMON, &descriptor);
-        return EXTENSION_FATAL;
-    }
-
-    return EXTENSION_SUCCESS;
 }

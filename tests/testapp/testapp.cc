@@ -478,12 +478,9 @@ cJSON* TestappTest::generate_config(uint16_t ssl_port)
     }
     cJSON_AddItemToObject(root, "logger", logger.release());
     cJSON_AddNumberToObject(root, "verbosity", memcached_verbose);
-
-    cJSON_AddItemToObject(root, "extensions", array);
+    cJSON_AddFalseToObject(root, "stdin_listener");
 
     // Build up the interface array
-    array = cJSON_CreateArray();
-
     // One interface using the memcached binary protocol
     obj = cJSON_CreateObject();
     cJSON_AddNumberToObject(obj, "port", 0);

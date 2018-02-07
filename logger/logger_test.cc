@@ -17,7 +17,6 @@
 
 #include "logger.h"
 
-#include <extensions/protocol_extension.h>
 #include <gtest/gtest.h>
 #include <memcached/engine.h>
 #include <memcached/extension.h>
@@ -44,7 +43,6 @@ static SERVER_HANDLE_V1* get_server_api(void) {
     static SERVER_COOKIE_API server_cookie_api = {};
     static SERVER_STAT_API server_stat_api = {};
     static SERVER_LOG_API server_log_api = {};
-    static SERVER_EXTENSION_API extension_api = {};
     static SERVER_CALLBACK_API callback_api = {};
     static ALLOCATOR_HOOKS_API hooks_api = {};
     static SERVER_HANDLE_V1 rv;
@@ -59,7 +57,6 @@ static SERVER_HANDLE_V1* get_server_api(void) {
         rv.interface = 1;
         rv.core = &core_api;
         rv.stat = &server_stat_api;
-        rv.extension = &extension_api;
         rv.callback = &callback_api;
         rv.log = &server_log_api;
         rv.cookie = &server_cookie_api;
