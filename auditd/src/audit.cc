@@ -44,113 +44,116 @@ void Audit::log_error(const AuditErrorCode return_code,
                       const std::string& string) {
     switch (return_code) {
     case AuditErrorCode::AUDIT_EXTENSION_DATA_ERROR:
-        CB_WARN("Audit: audit extension data error");
+        LOG_WARNING("Audit: audit extension data error");
         break;
     case AuditErrorCode::FILE_OPEN_ERROR:
-        CB_WARN("Audit: open error on file {}: {}", string, strerror(errno));
+        LOG_WARNING(
+                "Audit: open error on file {}: {}", string, strerror(errno));
         break;
     case AuditErrorCode::FILE_RENAME_ERROR:
-        CB_WARN("Audit: rename error on file {}: {}", string, strerror(errno));
+        LOG_WARNING(
+                "Audit: rename error on file {}: {}", string, strerror(errno));
         break;
     case AuditErrorCode::FILE_REMOVE_ERROR:
-        CB_WARN("Audit: remove error on file {}: {}", string, strerror(errno));
+        LOG_WARNING(
+                "Audit: remove error on file {}: {}", string, strerror(errno));
         break;
     case AuditErrorCode::MEMORY_ALLOCATION_ERROR:
-        CB_WARN("Audit: memory allocation error: {}", string);
+        LOG_WARNING("Audit: memory allocation error: {}", string);
         break;
     case AuditErrorCode::JSON_PARSING_ERROR:
-        CB_WARN(R"(Audit: JSON parsing error on string "{}")", string);
+        LOG_WARNING(R"(Audit: JSON parsing error on string "{}")", string);
         break;
     case AuditErrorCode::JSON_MISSING_DATA_ERROR:
-        CB_WARN("Audit: JSON missing data error");
+        LOG_WARNING("Audit: JSON missing data error");
         break;
     case AuditErrorCode::JSON_MISSING_OBJECT_ERROR:
-        CB_WARN("Audit: JSON missing object error");
+        LOG_WARNING("Audit: JSON missing object error");
         break;
     case AuditErrorCode::JSON_KEY_ERROR:
-        CB_WARN(R"(Audit: JSON key "{}" error)", string);
+        LOG_WARNING(R"(Audit: JSON key "{}" error)", string);
         break;
     case AuditErrorCode::JSON_ID_ERROR:
-        CB_WARN("Audit: JSON eventid error");
+        LOG_WARNING("Audit: JSON eventid error");
         break;
     case AuditErrorCode::JSON_UNKNOWN_FIELD_ERROR:
-        CB_WARN("Audit: JSON unknown field error");
+        LOG_WARNING("Audit: JSON unknown field error");
         break;
     case AuditErrorCode::CB_CREATE_THREAD_ERROR:
-        CB_WARN("Audit: cb create thread error");
+        LOG_WARNING("Audit: cb create thread error");
         break;
     case AuditErrorCode::EVENT_PROCESSING_ERROR:
-        CB_WARN("Audit: event processing error");
+        LOG_WARNING("Audit: event processing error");
         break;
     case AuditErrorCode::PROCESSING_EVENT_FIELDS_ERROR:
-        CB_WARN("Audit: processing events field error");
+        LOG_WARNING("Audit: processing events field error");
         break;
     case AuditErrorCode::TIMESTAMP_MISSING_ERROR:
-        CB_WARN("Audit: timestamp missing error");
+        LOG_WARNING("Audit: timestamp missing error");
         break;
     case AuditErrorCode::TIMESTAMP_FORMAT_ERROR:
-        CB_WARN(
+        LOG_WARNING(
                 R"(Audit: timestamp format error on string "{}")", string);
         break;
     case AuditErrorCode::EVENT_ID_ERROR:
-        CB_WARN("Audit: eventid error");
+        LOG_WARNING("Audit: eventid error");
         break;
     case AuditErrorCode::VERSION_ERROR:
-        CB_WARN("Audit: audit version error");
+        LOG_WARNING("Audit: audit version error");
         break;
     case AuditErrorCode::VALIDATE_PATH_ERROR:
-        CB_WARN(R"(Audit: validate path "{}" error)", string);
+        LOG_WARNING(R"(Audit: validate path "{}" error)", string);
         break;
     case AuditErrorCode::ROTATE_INTERVAL_BELOW_MIN_ERROR:
-        CB_WARN("Audit: rotate_interval below minimum error");
+        LOG_WARNING("Audit: rotate_interval below minimum error");
         break;
     case AuditErrorCode::ROTATE_INTERVAL_EXCEEDS_MAX_ERROR:
-        CB_WARN("Audit: rotate_interval exceeds maximum error");
+        LOG_WARNING("Audit: rotate_interval exceeds maximum error");
         break;
     case AuditErrorCode::OPEN_AUDITFILE_ERROR:
-        CB_WARN("Audit: error opening audit file. Dropping event: {}",
-                cb::logtags::tagUserData(string));
+        LOG_WARNING("Audit: error opening audit file. Dropping event: {}",
+                    cb::logtags::tagUserData(string));
         break;
     case AuditErrorCode::SETTING_AUDITFILE_OPEN_TIME_ERROR:
-        CB_WARN("Audit: error: setting auditfile open time = {}", string);
+        LOG_WARNING("Audit: error: setting auditfile open time = {}", string);
         break;
     case AuditErrorCode::WRITING_TO_DISK_ERROR:
-        CB_WARN("Audit: writing to disk error: {}", string);
+        LOG_WARNING("Audit: writing to disk error: {}", string);
         break;
     case AuditErrorCode::WRITE_EVENT_TO_DISK_ERROR:
-        CB_WARN("Audit: error writing event to disk. Dropping event: {}",
-                cb::logtags::tagUserData(string));
+        LOG_WARNING("Audit: error writing event to disk. Dropping event: {}",
+                    cb::logtags::tagUserData(string));
         break;
     case AuditErrorCode::UNKNOWN_EVENT_ERROR:
-        CB_WARN("Audit: error: unknown event {}", string);
+        LOG_WARNING("Audit: error: unknown event {}", string);
         break;
     case AuditErrorCode::CONFIG_INPUT_ERROR:
         if (!string.empty()) {
-            CB_WARN("Audit: error reading config: {}", string);
+            LOG_WARNING("Audit: error reading config: {}", string);
         } else {
-            CB_WARN("Audit: error reading config");
+            LOG_WARNING("Audit: error reading config");
         }
         break;
     case AuditErrorCode::CONFIGURATION_ERROR:
-        CB_WARN("Audit: error performing configuration");
+        LOG_WARNING("Audit: error performing configuration");
         break;
     case AuditErrorCode::MISSING_AUDIT_EVENTS_FILE_ERROR:
-        CB_WARN(
+        LOG_WARNING(
                 R"(Audit: error: missing audit_event.json from "{}")", string);
         break;
     case AuditErrorCode::ROTATE_INTERVAL_SIZE_TOO_BIG:
-        CB_WARN("Audit: error: rotation_size too big: {}", string);
+        LOG_WARNING("Audit: error: rotation_size too big: {}", string);
         break;
     case AuditErrorCode::AUDIT_DIRECTORY_DONT_EXIST:
-        CB_WARN("Audit: error: %s does not exists", string);
+        LOG_WARNING("Audit: error: %s does not exists", string);
         break;
     case AuditErrorCode::INITIALIZATION_ERROR:
-        CB_WARN("Audit: error during initialization: {}", string);
+        LOG_WARNING("Audit: error during initialization: {}", string);
         break;
     default:
-        CB_WARN("Audit: unknown error code:{} with string:{}",
-                int(return_code),
-                string);
+        LOG_WARNING("Audit: unknown error code:{} with string:{}",
+                    int(return_code),
+                    string);
         break;
     }
 }
@@ -328,7 +331,7 @@ bool Audit::configure(void) {
             auditfile.cleanup_old_logfile(config.get_log_directory());
         } catch (std::string &str) {
             // @todo We shouldn't be throwing strings..
-            CB_WARN("{}", str);
+            LOG_WARNING("{}", str);
             return false;
         }
     }
@@ -424,9 +427,9 @@ bool Audit::add_to_filleventqueue(const uint32_t event_id,
         cb_cond_broadcast(&events_arrived);
         res = true;
     } else {
-        CB_WARN("Audit: Dropping audit event {}: {}",
-                new_event->id,
-                new_event->payload);
+        LOG_WARNING("Audit: Dropping audit event {}: {}",
+                    new_event->id,
+                    new_event->payload);
         dropped_events++;
         delete new_event;
         res = false;

@@ -28,12 +28,12 @@ ENGINE_ERROR_CODE select_bucket(McbpConnection& connection,
 
     // We can't switch bucket if we've got multiple commands in flight
     if (connection.getNumberOfCookies() > 1) {
-        LOG_NOTICE(&connection,
-                   "%u: %s select_bucket [%u] is not possible with multiple "
-                   "commands in flight",
-                   connection.getId(),
-                   bucketname.c_str(),
-                   connection.getDescription().c_str());
+        LOG_INFO(
+                "{}: {} select_bucket [{}] is not possible with multiple "
+                "commands in flight",
+                connection.getId(),
+                bucketname,
+                connection.getDescription());
         return ENGINE_ENOTSUP;
     }
 

@@ -31,8 +31,10 @@ ENGINE_ERROR_CODE SaslAuthCommandContext::initial() {
     std::string mechanism(reinterpret_cast<const char*>(k.data()), k.size());
     std::string challenge(reinterpret_cast<const char*>(v.data()), v.size());
 
-    LOG_DEBUG(&connection, "%u: SASL auth with mech: '%s' with %d bytes of data",
-              connection.getId(), mechanism.c_str(), v.size());
+    LOG_DEBUG("{}: SASL auth with mech: '{}' with {} bytes of data",
+              connection.getId(),
+              mechanism,
+              v.size());
 
     if (request.getClientOpcode() == cb::mcbp::ClientOpcode::SaslAuth) {
         task = std::make_shared<StartSaslAuthTask>(

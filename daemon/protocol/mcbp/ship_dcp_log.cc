@@ -227,7 +227,7 @@ static ENGINE_ERROR_CODE dcp_message_mutation(
 
     item_info info;
     if (!bucket_get_item_info(cookie, it, &info)) {
-        LOG_WARNING(c, "%u: Failed to get item info", c->getId());
+        LOG_WARNING("{}: Failed to get item info", c->getId());
         return ENGINE_FAILED;
     }
 
@@ -235,7 +235,7 @@ static ENGINE_ERROR_CODE dcp_message_mutation(
     cb::char_buffer buffer{root, info.value[0].iov_len};
 
     if (!c->reserveItem(it)) {
-        LOG_WARNING(c, "%u: Failed to grow item array", c->getId());
+        LOG_WARNING("{}: Failed to grow item array", c->getId());
         return ENGINE_FAILED;
     }
 
@@ -322,15 +322,13 @@ static ENGINE_ERROR_CODE dcp_message_deletion(
 
     item_info info;
     if (!bucket_get_item_info(cookie, it, &info)) {
-        LOG_WARNING(c,
-                    "%u: dcp_message_deletion: Failed to get item info",
+        LOG_WARNING("{}: dcp_message_deletion: Failed to get item info",
                     c->getId());
         return ENGINE_FAILED;
     }
 
     if (!c->reserveItem(it)) {
-        LOG_WARNING(c,
-                    "%u: dcp_message_deletion: Failed to grow item array",
+        LOG_WARNING("{}: dcp_message_deletion: Failed to grow item array",
                     c->getId());
         return ENGINE_FAILED;
     }

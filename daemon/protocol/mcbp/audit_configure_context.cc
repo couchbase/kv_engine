@@ -38,9 +38,8 @@ ENGINE_ERROR_CODE AuditConfigureCommandContext::configuring() {
     case AUDIT_EWOULDBLOCK:
         return ENGINE_EWOULDBLOCK;
     default:
-        LOG_WARNING(nullptr,
-                    "configuration of audit daemon failed with config file: %s",
-                    settings.getAuditFile().c_str());
+        LOG_WARNING("configuration of audit daemon failed with config file: {}",
+                    settings.getAuditFile());
     }
 
     return ENGINE_FAILED;

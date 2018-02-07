@@ -51,7 +51,7 @@ static ENGINE_ERROR_CODE setReleaseFreeMemory(Cookie& cookie,
                                               const std::string& value) {
     AllocHooks::release_free_memory();
     auto& c = cookie.getConnection();
-    LOG_NOTICE(&c, "%u: IOCTL_SET: release_free_memory called", c.getId());
+    LOG_INFO("{}: IOCTL_SET: release_free_memory called", c.getId());
     return ENGINE_SUCCESS;
 }
 
@@ -70,12 +70,11 @@ static ENGINE_ERROR_CODE setJemallocProfActive(Cookie& cookie,
     int res = AllocHooks::set_allocator_property(
             "prof.active", &enable, sizeof(enable));
     auto& c = cookie.getConnection();
-    LOG_NOTICE(&c,
-               "%u: %s IOCTL_SET: setJemallocProfActive:%s called, result:%s",
-               c.getId(),
-               c.getDescription().c_str(),
-               value.c_str(),
-               (res == 0) ? "success" : "failure");
+    LOG_INFO("{}: {} IOCTL_SET: setJemallocProfActive:%s called, result:{}",
+             c.getId(),
+             c.getDescription(),
+             value,
+             (res == 0) ? "success" : "failure");
 
     return (res == 0) ? ENGINE_SUCCESS : ENGINE_EINVAL;
 }
@@ -85,11 +84,10 @@ static ENGINE_ERROR_CODE setJemallocProfDump(Cookie& cookie,
                                              const std::string&) {
     int res = AllocHooks::set_allocator_property("prof.dump", nullptr, 0);
     auto& c = cookie.getConnection();
-    LOG_NOTICE(&c,
-               "%u: %s IOCTL_SET: setJemallocProfDump called, result:%s",
-               c.getId(),
-               c.getDescription().c_str(),
-               (res == 0) ? "success" : "failure");
+    LOG_INFO("{}: {} IOCTL_SET: setJemallocProfDump called, result:{}",
+             c.getId(),
+             c.getDescription(),
+             (res == 0) ? "success" : "failure");
 
     return (res == 0) ? ENGINE_SUCCESS : ENGINE_EINVAL;
 }
@@ -156,11 +154,10 @@ static ENGINE_ERROR_CODE ioctlSetMcbpSla(Cookie& cookie,
     } catch (const std::invalid_argument& e) {
         cookie.getEventId();
         auto& c = cookie.getConnection();
-        LOG_NOTICE(&c,
-                   "%u: Failed to set MCBP SLA. UUID:[%s]: %s",
-                   c.getId(),
-                   cookie.getEventId().c_str(),
-                   e.what());
+        LOG_INFO("{}: Failed to set MCBP SLA. UUID:[{}]: {}",
+                 c.getId(),
+                 cookie.getEventId(),
+                 e.what());
         return ENGINE_EINVAL;
     }
 

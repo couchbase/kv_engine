@@ -46,8 +46,7 @@ ENGINE_ERROR_CODE SaslRefreshCommandContext::refresh() {
                                          1,
                                          "mc:refresh_sasl");
     if (status != 0) {
-        LOG_WARNING(&cookie,
-                    "%u: Failed to create cbsasl db update thread: %s",
+        LOG_WARNING("{}: Failed to create cbsasl db update thread: {}",
                     connection.getId(),
                     strerror(status));
         return ENGINE_DISCONNECT;

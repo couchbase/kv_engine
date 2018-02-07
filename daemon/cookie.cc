@@ -24,9 +24,9 @@
 #include <mcbp/protocol/framebuilder.h>
 #include <phosphor/phosphor.h>
 #include <platform/checked_snprintf.h>
+#include <platform/string.h>
 #include <platform/timeutils.h>
 #include <utilities/logtags.h>
-
 #include <chrono>
 
 unique_cJSON_ptr Cookie::toJSON() const {
@@ -395,20 +395,18 @@ void Cookie::logCommand() const {
     }
 
     const auto opcode = getRequest().getClientOpcode();
-    LOG_INFO(this,
-             "%u> %s %s",
+    LOG_INFO("{}> {} {}",
              connection.getId(),
-             to_string(opcode).c_str(),
-             getPrintableRequestKey().c_str());
+             to_string(opcode),
+             getPrintableRequestKey());
 }
 
 void Cookie::logResponse(const char* reason) const {
     const auto opcode = getRequest().getClientOpcode();
-    LOG_INFO(this,
-             "%u< %s %s - %s",
+    LOG_INFO("{}< {} {} - {}",
              connection.getId(),
-             to_string(opcode).c_str(),
-             getPrintableRequestKey().c_str(),
+             to_string(opcode),
+             getPrintableRequestKey(),
              reason);
 }
 
@@ -468,16 +466,14 @@ void Cookie::maybeLogSlowCommand(
 
         const std::string traceData = to_string(tracer);
         LOG_WARNING(
-                nullptr,
-                R"(%u: Slow operation. {"cid":"%s/%)" PRIu64
-                R"(","duration":"%s","trace":"%s","command":"%s","peer":"%s"})",
+                R"(%u: Slow operation. {"cid":"{}/{:}","duration":"{}","trace":"{}","command":"{}","peer":"{}"})",
                 c.getId(),
                 c.getConnectionId().data(),
                 ntohl(getHeader().getOpaque()),
-                cb::time2text(timings).c_str(),
-                traceData.c_str(),
-                command.c_str(),
-                c.getPeername().c_str());
+                cb::time2text(timings),
+                traceData,
+                command,
+                c.getPeername());
     }
 }
 

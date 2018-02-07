@@ -72,9 +72,8 @@ void dcp_open_executor(Cookie& cookie) {
                 ret != ENGINE_SUCCESS) {
                 flags |= DCP_OPEN_COLLECTIONS;
                 ret = dcpOpen();
-                LOG_NOTICE(
-                        &connection,
-                        "%u: Retried DCP open with DCP_OPEN_COLLECTIONS ret:%d",
+                LOG_INFO(
+                        "{}: Retried DCP open with DCP_OPEN_COLLECTIONS ret:{}",
                         connection.getId(),
                         ret);
             }
@@ -95,15 +94,13 @@ void dcp_open_executor(Cookie& cookie) {
         // @todo Keeping this as NOTICE while waiting for ns_server
         //       support for xattr over DCP (to make it easier to debug
         ///      see MB-22468
-        LOG_NOTICE(
-                &connection,
-                "%u: DCP connection opened successfully. flags:{%s%s%s%s} %s",
-                connection.getId(),
-                dcpNotifier ? "NOTIFIER " : "",
-                dcpXattrAware ? "INCLUDE_XATTRS " : "",
-                dcpNoValue ? "NO_VALUE " : "",
-                dcpCollections ? "COLLECTIONS" : "",
-                connection.getDescription().c_str());
+        LOG_INFO("{}: DCP connection opened successfully. flags:{{}{}{}{}} {}",
+                 connection.getId(),
+                 dcpNotifier ? "NOTIFIER " : "",
+                 dcpXattrAware ? "INCLUDE_XATTRS " : "",
+                 dcpNoValue ? "NO_VALUE " : "",
+                 dcpCollections ? "COLLECTIONS" : "",
+                 connection.getDescription().c_str());
 
         audit_dcp_open(&connection);
         cookie.sendResponse(cb::mcbp::Status::Success);

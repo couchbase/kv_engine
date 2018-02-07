@@ -113,9 +113,9 @@ spdlog::level::level_enum convertToSpdSeverity(EXTENSION_LOG_LEVEL sev);
         cb::logger::get()->level(__VA_ARGS__); \
     } while (false)
 
-#define CB_TRACE(...) CB_LOG_ENTRY(trace, __VA_ARGS__)
-#define CB_DEBUG(...) CB_LOG_ENTRY(debug, __VA_ARGS__)
-#define CB_INFO(...) CB_LOG_ENTRY(info, __VA_ARGS__)
-#define CB_WARN(...) CB_LOG_ENTRY(warn, __VA_ARGS__)
-#define CB_ERROR(...) CB_LOG_ENTRY(err, __VA_ARGS__)
-#define CB_CRIT(...) CB_LOG_ENTRY(critical, __VA_ARGS__)
+#define LOG_TRACE(...) CB_LOG_ENTRY(trace, __VA_ARGS__)
+#define LOG_DEBUG(...) CB_LOG_ENTRY(debug, __VA_ARGS__)
+#define LOG_INFO(...) CB_LOG_ENTRY(info, __VA_ARGS__)
+#define LOG_WARNING(...) CB_LOG_ENTRY(warn, __VA_ARGS__)
+#define LOG_ERROR(...) CB_LOG_ENTRY(error, __VA_ARGS__)
+#define LOG_CRITICAL(...) CB_LOG_ENTRY(critical, __VA_ARGS__)

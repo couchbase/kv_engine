@@ -38,10 +38,11 @@ static void log_handled_exception() {
             throw;
         }
     } catch (const std::exception& e) {
-        CB_CRIT("Caught unhandled std::exception-derived exception. what(): {}",
+        LOG_CRITICAL(
+                "Caught unhandled std::exception-derived exception. what(): {}",
                 e.what());
     } catch (...) {
-        CB_CRIT("Caught unknown/unhandled exception.");
+        LOG_CRITICAL("Caught unknown/unhandled exception.");
     }
 }
 
@@ -51,21 +52,21 @@ static void log_backtrace() {
 
     char buffer[4096];
     if (print_backtrace_to_buffer("    ", buffer, sizeof(buffer))) {
-        CB_CRIT("Call stack: {}", buffer);
+        LOG_CRITICAL("Call stack: {}", buffer);
     } else {
         // Exceeded buffer space - print directly to stderr FD (requires no
         // buffering, but has the disadvantage that we don't get it in the log).
         fprintf(stderr, format_str, "");
         print_backtrace_to_file(stderr);
         fflush(stderr);
-        CB_CRIT("Call stack exceeds 4k");
+        LOG_CRITICAL("Call stack exceeds 4k");
     }
 }
 
 // Replacement terminate_handler which prints the exception's what() and a
 // backtrace of the current stack before chaining to the default handler.
 static void backtrace_terminate_handler() {
-    CB_CRIT("*** Fatal error encountered during exception handling ***");
+    LOG_CRITICAL("*** Fatal error encountered during exception handling ***");
 
     log_handled_exception();
 

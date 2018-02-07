@@ -5,6 +5,7 @@
 #include "config_parse.h"
 
 #include <getopt.h>
+#include <logger/logger.h>
 #include <platform/cb_malloc.h>
 
 
@@ -61,10 +62,10 @@ static void apply_compat_arguments(void) {
 
     /* Handle all other options */
     for (o = options; o != NULL; o = o->next) {
-        LOG_WARNING(NULL,
-                    "Option -%c passed to memcached is no longer supported."
-                        " Consider using the configuration file instead\n",
-                    o->cmd);
+        LOG_WARNING(
+                "Option -{} passed to memcached is no longer supported."
+                " Consider using the configuration file instead\n",
+                o->cmd);
 
         switch (o->cmd) {
         case 'b':
@@ -75,8 +76,8 @@ static void apply_compat_arguments(void) {
                 settings.setRequestsPerEventNotification(std::stoi(o->optarg),
                                                          EventPriority::Default);
             } catch (const std::exception& e) {
-                LOG_WARNING(nullptr, "Failed to parse \"%s\": %s", o->optarg,
-                           e.what());
+                LOG_ERROR(
+                        R"(Failed to parse "{}": {})", o->optarg, e.what());
             }
             break;
         case 'c':
@@ -86,8 +87,8 @@ static void apply_compat_arguments(void) {
             try {
                 settings.setNumWorkerThreads(std::stoi(o->optarg));
             } catch (const std::exception& e) {
-                LOG_WARNING(nullptr, "Failed to parse \"%s\": %s", o->optarg,
-                            e.what());
+                LOG_ERROR(
+                        R"(Failed to parse "{}": {})", o->optarg, e.what());
             }
             break;
         case 'v':

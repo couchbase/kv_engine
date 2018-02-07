@@ -76,15 +76,16 @@ bool validate_proposed_config_changes(const char* new_cfg, cJSON* errors) {
     return false;
 }
 
-void reload_config_file(void) {
-    LOG_NOTICE(NULL, "Reloading config file %s", get_config_file());
+void reload_config_file() {
+    LOG_INFO("Reloading config file {}", get_config_file());
 
     try {
         Settings new_settings(load_config_file(get_config_file()));
         settings.updateSettings(new_settings, true);
     } catch (const std::exception& exception) {
-        LOG_WARNING(NULL,
-                    "Validation failed while reloading config file '%s'. Error: %s",
-                    get_config_file(), exception.what());
+        LOG_WARNING(
+                "Validation failed while reloading config file '{}'. Error: {}",
+                get_config_file(),
+                exception.what());
     }
 }

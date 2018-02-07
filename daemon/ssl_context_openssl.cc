@@ -59,10 +59,9 @@ bool SslContext::enable(const std::string& cert, const std::string& pkey) {
     /* @todo don't read files, but use in-memory-copies */
     if (!SSL_CTX_use_certificate_chain_file(ctx, cert.c_str()) ||
         !SSL_CTX_use_PrivateKey_file(ctx, pkey.c_str(), SSL_FILETYPE_PEM)) {
-        LOG_WARNING(nullptr,
-                    "Failed to use SSL cert %s and pkey %s",
-                    cb::logtags::tagUserData(cert).c_str(),
-                    cb::logtags::tagUserData(pkey).c_str());
+        LOG_WARNING("Failed to use SSL cert {} and pkey {}",
+                    cb::logtags::tagUserData(cert),
+                    cb::logtags::tagUserData(pkey));
         return false;
     }
 
@@ -76,9 +75,8 @@ bool SslContext::enable(const std::string& cert, const std::string& pkey) {
         ssl_flags |= SSL_VERIFY_PEER;
         STACK_OF(X509_NAME)* certNames = SSL_load_client_CA_file(cert.c_str());
         if (certNames == NULL) {
-            LOG_WARNING(nullptr,
-                        "Failed to read SSL cert %s",
-                        cb::logtags::tagUserData(cert).c_str());
+            LOG_WARNING("Failed to read SSL cert {}",
+                        cb::logtags::tagUserData(cert));
             return false;
         }
         SSL_CTX_set_client_CA_list(ctx, certNames);
@@ -247,11 +245,11 @@ void SslContext::drainBioSendPipe(SOCKET sfd) {
 }
 
 void SslContext::dumpCipherList(uint32_t id) const {
-    LOG_DEBUG(NULL, "%u: Using SSL ciphers:", id);
+    LOG_DEBUG("{}: Using SSL ciphers:", id);
     int ii = 0;
     const char* cipher;
     while ((cipher = SSL_get_cipher_list(client, ii++)) != NULL) {
-        LOG_DEBUG(NULL, "%u    %s", id, cipher);
+        LOG_DEBUG("{}    {}", id, cipher);
     }
 }
 

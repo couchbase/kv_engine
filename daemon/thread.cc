@@ -84,8 +84,10 @@ static void create_worker(void (*func)(void *), void *arg, cb_thread_t *id,
     int ret;
 
     if ((ret = cb_create_named_thread(id, func, arg, 0, name)) != 0) {
-        FATAL_ERROR(EXIT_FAILURE, "Can't create thread %s: %s",
-                    name, cb_strerror(GetLastError()).c_str());
+        FATAL_ERROR(EXIT_FAILURE,
+                    "Can't create thread {}: {}",
+                    name,
+                    cb_strerror(GetLastError()));
     }
 }
 
@@ -248,7 +250,7 @@ static void dispatch_new_connections(LIBEVENT_THREAD& me) {
     std::unique_ptr<ConnectionQueueItem> item;
     while ((item = me.new_conn_queue.pop()) != nullptr) {
         if (conn_new(item->sfd, item->parent_port, me.base, &me) == nullptr) {
-            LOG_WARNING(nullptr, "Failed to dispatch event for socket %ld",
+            LOG_WARNING("Failed to dispatch event for socket {}",
                         long(item->sfd));
             safe_close(item->sfd);
         }
@@ -273,13 +275,13 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
         // Someone requested memcached to shut down. The listen thread should
         // be stopped immediately.
         if (is_listen_thread()) {
-            LOG_NOTICE(nullptr, "Stopping listen thread (thread.cc)");
+            LOG_INFO("Stopping listen thread (thread.cc)");
             event_base_loopbreak(me.base);
             return;
         }
 
         if (signal_idle_clients(&me, -1, false) == 0) {
-            LOG_NOTICE(nullptr, "Stopping worker thread %u", me.index);
+            LOG_INFO("Stopping worker thread %u", me.index);
             event_base_loopbreak(me.base);
             return;
         }
@@ -327,14 +329,13 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
         // any connections bound to this thread we can just shut down
         auto connected = signal_idle_clients(&me, -1, true);
         if (connected == 0) {
-            LOG_NOTICE(nullptr, "Stopping worker thread %u", me.index);
+            LOG_INFO("Stopping worker thread {}", me.index);
             event_base_loopbreak(me.base);
         } else {
             // @todo Change loglevel once MB-16255 is resolved
-            LOG_NOTICE(nullptr,
-                       "Waiting for %d connected clients on worker thread %u",
-                       connected,
-                       me.index);
+            LOG_INFO("Waiting for {} connected clients on worker thread {}",
+                     connected,
+                     me.index);
         }
     }
 }
@@ -407,8 +408,7 @@ void notify_io_complete(gsl::not_null<const void*> void_cookie,
 
     int notify;
 
-    LOG_DEBUG(nullptr,
-              "notify_io_complete: Got notify from %u, status 0x%x",
+    LOG_DEBUG("notify_io_complete: Got notify from {}, status {}",
               cookie.getConnection().getId(),
               status);
 
@@ -440,8 +440,7 @@ void dispatch_conn_new(SOCKET sfd, int parent_port) {
             new ConnectionQueueItem(sfd, parent_port));
         thread.new_conn_queue.push(std::move(item));
     } catch (const std::bad_alloc& e) {
-        LOG_WARNING(nullptr,
-                    "dispatch_conn_new: Failed to dispatch new connection: %s",
+        LOG_WARNING("dispatch_conn_new: Failed to dispatch new connection: {}",
                     e.what());
         safe_close(sfd);
         return ;

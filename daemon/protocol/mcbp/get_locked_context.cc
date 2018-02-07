@@ -27,9 +27,10 @@ ENGINE_ERROR_CODE GetLockedCommandContext::getAndLockItem() {
     if (ret.first == cb::engine_errc::success) {
         it = std::move(ret.second);
         if (!bucket_get_item_info(cookie, it.get(), &info)) {
-            LOG_WARNING(&connection, "%u: GetLockedCommandContext::"
-                "getAndLockItem Failed to get item info",
-                connection.getId());
+            LOG_WARNING(
+                    "{}: GetLockedCommandContext::"
+                    "getAndLockItem Failed to get item info",
+                    connection.getId());
             return ENGINE_FAILED;
         }
 
@@ -60,8 +61,10 @@ ENGINE_ERROR_CODE GetLockedCommandContext::inflateItem() {
     try {
         if (!cb::compression::inflate(cb::compression::Algorithm::Snappy,
                                       payload, buffer)) {
-            LOG_WARNING(&connection, "%u: GetLockedCommandContext::inflateItem:"
-                " Failed to inflate item", connection.getId());
+            LOG_WARNING(
+                    "{}: GetLockedCommandContext::inflateItem:"
+                    " Failed to inflate item",
+                    connection.getId());
             return ENGINE_FAILED;
         }
         payload = buffer;

@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2015 Couchbase, Inc.
+ *     Copyright 2018 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -16,38 +16,8 @@
  */
 #pragma once
 
-#include "settings.h"
-
-// Helper macros to make it nicer to write log messages
-#define LOGGER settings.extensions.logger->log
-
-// Debug should be printed if verbose > 1
-#define LOG_DEBUG(COOKIE, ...)                                \
-    do {                                                      \
-        if (settings.getVerbose() > 1) {                      \
-            LOGGER(EXTENSION_LOG_DEBUG, COOKIE, __VA_ARGS__); \
-        }                                                     \
-    } while (false)
-
-// Info should be printed if verbose > 0
-#define LOG_INFO(COOKIE, ...)                                \
-    do {                                                     \
-        if (settings.getVerbose() > 0) {                     \
-            LOGGER(EXTENSION_LOG_INFO, COOKIE, __VA_ARGS__); \
-        }                                                    \
-    } while (false)
-
-// Notice should always be printed
-#define LOG_NOTICE(COOKIE, ...)                            \
-    do {                                                   \
-        LOGGER(EXTENSION_LOG_NOTICE, COOKIE, __VA_ARGS__); \
-    } while (false)
-
-// Warnings should always be printed
-#define LOG_WARNING(COOKIE, ...)                            \
-    do {                                                    \
-        LOGGER(EXTENSION_LOG_WARNING, COOKIE, __VA_ARGS__); \
-    } while (false)
+#include <logger/logger.h>
+#include <cstdlib>
 
 /*
  * This macro records a fatal error to the log and
@@ -59,8 +29,9 @@
  * or the possbility of data corruption arises.
  */
 
-#define FATAL_ERROR(EXIT_STATUS, ...)                   \
-    do {                                                \
-        LOGGER(EXTENSION_LOG_FATAL, NULL, __VA_ARGS__); \
-        exit(EXIT_STATUS);                              \
+#define FATAL_ERROR(EXIT_STATUS, ...)             \
+    do {                                          \
+        cb::logger::get()->critical(__VA_ARGS__); \
+        cb::logger::get()->flush();               \
+        exit(EXIT_STATUS);                        \
     } while (false)

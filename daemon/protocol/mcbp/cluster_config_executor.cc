@@ -31,11 +31,11 @@ void get_cluster_config_executor(Cookie& cookie) {
             cookie.setErrorContext("No bucket selected");
             cookie.sendResponse(cb::mcbp::Status::NoBucket);
         } else {
-            LOG_NOTICE(&connection,
-                       "%u: Can't get cluster configuration without "
-                       "selecting a bucket. Disconnecting %s",
-                       connection.getId(),
-                       connection.getDescription().c_str());
+            LOG_INFO(
+                    "{}: Can't get cluster configuration without "
+                    "selecting a bucket. Disconnecting {}",
+                    connection.getId(),
+                    connection.getDescription());
             connection.setState(McbpStateMachine::State::closing);
         }
         return;
@@ -63,11 +63,11 @@ void set_cluster_config_executor(Cookie& cookie) {
             cookie.setErrorContext("No bucket selected");
             cookie.sendResponse(cb::mcbp::Status::NoBucket);
         } else {
-            LOG_NOTICE(&connection,
-                       "%u: Can't set cluster configuration without "
-                       "selecting a bucket. Disconnecting %s",
-                       connection.getId(),
-                       connection.getDescription().c_str());
+            LOG_INFO(
+                    "{}: Can't set cluster configuration without "
+                    "selecting a bucket. Disconnecting {}",
+                    connection.getId(),
+                    connection.getDescription());
             connection.setState(McbpStateMachine::State::closing);
         }
         return;
@@ -95,13 +95,13 @@ void set_cluster_config_executor(Cookie& cookie) {
         const long revision =
                 bucket.clusterConfiguration.getConfiguration().first;
 
-        LOG_NOTICE(&connection,
-                   "%u: %s Updated cluster configuration for bucket [%s]. New "
-                   "revision: %u",
-                   connection.getId(),
-                   connection.getDescription().c_str(),
-                   bucket.name,
-                   revision);
+        LOG_INFO(
+                "{}: {} Updated cluster configuration for bucket [{}]. New "
+                "revision: {}",
+                connection.getId(),
+                connection.getDescription(),
+                bucket.name,
+                revision);
 
         // Start an executor job to walk through the connections and tell
         // them to push new clustermaps
@@ -111,23 +111,23 @@ void set_cluster_config_executor(Cookie& cookie) {
         std::lock_guard<std::mutex> guard(task->getMutex());
         executorPool->schedule(task, true);
     } catch (const std::invalid_argument& e) {
-        LOG_WARNING(&connection,
-                    "%u: %s Failed to update cluster configuration for bucket "
-                    "[%s] - %s",
-                    connection.getId(),
-                    connection.getDescription().c_str(),
-                    bucket.name,
-                    e.what());
+        LOG_WARNING(
+                "{}: {} Failed to update cluster configuration for bucket "
+                "[{}] - {}",
+                connection.getId(),
+                connection.getDescription(),
+                bucket.name,
+                e.what());
         cookie.setErrorContext(e.what());
         cookie.sendResponse(cb::mcbp::Status::Einval);
     } catch (const std::exception& e) {
-        LOG_WARNING(&connection,
-                    "%u: %s Failed to update cluster configuration for bucket "
-                    "[%s] - %s",
-                    connection.getId(),
-                    connection.getDescription().c_str(),
-                    bucket.name,
-                    e.what());
+        LOG_WARNING(
+                "{}: {} Failed to update cluster configuration for bucket "
+                "[{}] - {}",
+                connection.getId(),
+                connection.getDescription(),
+                bucket.name,
+                e.what());
         cookie.setErrorContext(e.what());
         cookie.sendResponse(cb::mcbp::Status::Einternal);
     }

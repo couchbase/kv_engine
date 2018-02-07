@@ -53,6 +53,7 @@
 #include "subdocument.h"
 
 #include <mcbp/protocol/header.h>
+#include <platform/string.h>
 #include <utilities/protocol2text.h>
 
 std::array<bool, 0x100>&  topkey_commands = get_mcbp_topkeys();
@@ -286,8 +287,7 @@ static void sasl_list_mech_executor(Cookie& cookie) {
                                 0);
         } else {
             /* Perhaps there's a better error for this... */
-            LOG_WARNING(&connection,
-                        "%u: Failed to list SASL mechanisms: %s",
+            LOG_WARNING("{}: Failed to list SASL mechanisms: {}",
                         connection.getId(),
                         cbsasl_strerror(connection.getSaslConn(), ret));
             cookie.sendResponse(cb::mcbp::Status::AuthError);
@@ -702,9 +702,9 @@ static void execute_request_packet(Cookie& cookie,
     const auto res = privilegeChains.invoke(opcode, cookie);
     switch (res) {
     case cb::rbac::PrivilegeAccess::Fail:
-        LOG_WARNING(c,
-                    "%u %s: no access to command %s",
-                    c->getId(), c->getDescription().c_str(),
+        LOG_WARNING("{} {}: no access to command {}",
+                    c->getId(),
+                    c->getDescription(),
                     memcached_opcode_2_text(opcode));
         audit_command_access_failed(cookie);
 
@@ -727,10 +727,12 @@ static void execute_request_packet(Cookie& cookie,
         }
 
         if (result != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-            LOG_NOTICE(c,
-                       "%u: Invalid format specified for %s - %d - "
-                           "closing connection",
-                       c->getId(), memcached_opcode_2_text(opcode), result);
+            LOG_INFO(
+                    "{}: Invalid format specified for {} - {} - "
+                    "closing connection",
+                    c->getId(),
+                    memcached_opcode_2_text(opcode),
+                    result);
             audit_invalid_packet(cookie);
             cookie.sendResponse(cb::mcbp::Status(result));
             c->setWriteAndGo(McbpStateMachine::State::closing);
@@ -748,10 +750,11 @@ static void execute_request_packet(Cookie& cookie,
         return;
     }
 
-    LOG_WARNING(c,
-                "%u: execute_request_packet: res (which is %d) is not a valid "
-                "AuthResult - closing connection",
-                res);
+    LOG_WARNING(
+            "{}: execute_request_packet: res (which is {}) is not a valid "
+            "AuthResult - closing connection",
+            c->getId(),
+            uint32_t(res));
     c->setState(McbpStateMachine::State::closing);
 }
 
@@ -768,10 +771,9 @@ static void execute_response_packet(Cookie& cookie,
         handler(cookie);
     } else {
         auto& c = cookie.getConnection();
-        LOG_NOTICE(&cookie.getConnection(),
-                   "%u: Unsupported response packet received with opcode: %02x",
-                   c.getId(),
-                   response.opcode);
+        LOG_INFO("{}: Unsupported response packet received with opcode: {:x}",
+                 c.getId(),
+                 uint32_t(response.opcode));
         c.setState(McbpStateMachine::State::closing);
     }
 }
@@ -846,27 +848,27 @@ void try_read_mcbp_command(McbpConnection& c) {
                                     (const char*)input.data(),
                                     sizeof(cb::mcbp::Request));
         if (nw != -1) {
-            LOG_DEBUG(&c, "%s", buffer);
+            LOG_DEBUG("{}", buffer);
         }
     }
 
     const auto& header = cookie.getHeader();
     if (!header.isResponse() && !header.isRequest()) {
-        LOG_WARNING(&c,
-                    "%u: Invalid packet format detected (magic: %02x), closing "
-                    "connection",
-                    c.getId(),
-                    header.getMagic());
+        LOG_WARNING(
+                "{}: Invalid packet format detected (magic: {:x}), closing "
+                "connection",
+                c.getId(),
+                header.getMagic());
         c.setState(McbpStateMachine::State::closing);
         return;
     }
 
     if (header.isResponse() && response_handlers[header.getOpcode()] == nullptr) {
-        LOG_WARNING(&c,
-                    "%u: Unsupported response packet received: %02x, "
-                    "closing connection",
-                    c.getId(),
-                    header.getOpcode());
+        LOG_WARNING(
+                "{}: Unsupported response packet received: {:x}, "
+                "closing connection",
+                c.getId(),
+                header.getOpcode());
         c.setState(McbpStateMachine::State::closing);
         return;
     }
@@ -906,8 +908,7 @@ void try_read_mcbp_command(McbpConnection& c) {
                              cb::const_byte_buffer{c.read->rdata().data(),
                                                    sizeof(cb::mcbp::Request)});
         } catch (const std::bad_alloc&) {
-            LOG_WARNING(&c,
-                        "%u: Failed to grow buffer.. closing connection",
+            LOG_WARNING("{}: Failed to grow buffer.. closing connection",
                         c.getId());
             c.setState(McbpStateMachine::State::closing);
             return;

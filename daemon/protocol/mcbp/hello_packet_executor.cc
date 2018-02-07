@@ -139,12 +139,12 @@ void process_hello_packet_executor(Cookie& cookie) {
 
     // We can't switch bucket if we've got multiple commands in flight
     if (connection.getNumberOfCookies() > 1) {
-        LOG_NOTICE(&connection,
-                   "%u: %s Changing options via HELO is not possible with "
-                   "multiple "
-                   "commands in flight",
-                   connection.getId(),
-                   connection.getDescription().c_str());
+        LOG_INFO(
+                "{}: {} Changing options via HELO is not possible with "
+                "multiple "
+                "commands in flight",
+                connection.getId(),
+                connection.getDescription());
         cookie.sendResponse(cb::mcbp::Status::NotSupported);
         return;
     }
@@ -153,11 +153,10 @@ void process_hello_packet_executor(Cookie& cookie) {
     try {
         buildRequestVector(requested, input);
     } catch (const std::invalid_argument& e) {
-        LOG_NOTICE(&connection,
-                   "%u: %s Invalid combination of options: %s",
-                   connection.getId(),
-                   connection.getDescription().c_str(),
-                   e.what());
+        LOG_INFO("{}: {} Invalid combination of options: {}",
+                 connection.getId(),
+                 connection.getDescription(),
+                 e.what());
         cookie.setErrorContext(e.what());
         cookie.sendResponse(cb::mcbp::Status::Einval);
         return;
@@ -187,10 +186,9 @@ void process_hello_packet_executor(Cookie& cookie) {
                     try {
                         connection.setConnectionId(obj->valuestring);
                     } catch (const std::exception& exception) {
-                        LOG_NOTICE(nullptr,
-                                   "%u: Failed to parse connection uuid: %s",
-                                   connection.getId(),
-                                   exception.what());
+                        LOG_INFO("{}: Failed to parse connection uuid: {}",
+                                 connection.getId(),
+                                 exception.what());
                     }
                 }
                 obj = cJSON_GetObjectItem(json.get(), "a");
@@ -216,11 +214,10 @@ void process_hello_packet_executor(Cookie& cookie) {
         case cb::mcbp::Feature::Invalid:
         case cb::mcbp::Feature::TLS:
             // Not implemented
-            LOG_NOTICE(nullptr,
-                       "%u: %s requested unupported feature %s",
-                       connection.getId(),
-                       connection.getDescription().c_str(),
-                       to_string(feature).c_str());
+            LOG_INFO("{}: {} requested unupported feature {}",
+                     connection.getId(),
+                     connection.getDescription(),
+                     to_string(feature));
             break;
         case cb::mcbp::Feature::TCPNODELAY:
         case cb::mcbp::Feature::TCPDELAY:
@@ -273,11 +270,11 @@ void process_hello_packet_executor(Cookie& cookie) {
             break;
         case cb::mcbp::Feature::UnorderedExecution:
             if (connection.isDCP()) {
-                LOG_NOTICE(&connection,
-                           "%u: %s Unordered execution is not supported for "
-                           "DCP connections",
-                           connection.getId(),
-                           connection.getDescription().c_str());
+                LOG_INFO(
+                        "{}: {} Unordered execution is not supported for "
+                        "DCP connections",
+                        connection.getId(),
+                        connection.getDescription());
             } else {
                 connection.setAllowUnorderedExecution(true);
                 added = true;
@@ -290,10 +287,9 @@ void process_hello_packet_executor(Cookie& cookie) {
                 added = true;
                 break;
             } else {
-                LOG_NOTICE(&connection,
-                           "%u: %s Request for [disabled] Tracing feature",
-                           connection.getId(),
-                           connection.getDescription().c_str());
+                LOG_INFO("{}: {} Request for [disabled] Tracing feature",
+                         connection.getId(),
+                         connection.getDescription());
             }
 
         } // end switch
@@ -319,9 +315,8 @@ void process_hello_packet_executor(Cookie& cookie) {
         log_buffer.resize(log_buffer.size() - 1);
     }
 
-    LOG_NOTICE(&connection,
-               "%u: %s %s",
-               connection.getId(),
-               log_buffer.c_str(),
-               connection.getDescription().c_str());
+    LOG_INFO("{}: {} {}",
+             connection.getId(),
+             log_buffer,
+             connection.getDescription());
 }

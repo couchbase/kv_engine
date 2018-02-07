@@ -722,8 +722,6 @@ BucketCompressionMode mock_getCompressionMode(gsl::not_null<ENGINE_HANDLE*> hand
     return get_handle(handle)->the_engine->getCompressionMode(handle);
 }
 
-EXTENSION_LOGGER_DESCRIPTOR *logger_descriptor = NULL;
-
 static void usage(void) {
     printf("\n");
     printf("engine_testapp -E <path_to_engine_lib> -T <path_to_testlib>\n");
@@ -844,7 +842,7 @@ static int report_test(const char *name,
 
 static engine_reference* engine_ref = NULL;
 static bool start_your_engine(const char *engine) {
-    if ((engine_ref = load_engine(engine, NULL, NULL, logger_descriptor)) == NULL) {
+    if ((engine_ref = load_engine(engine, nullptr, nullptr)) == nullptr) {
         fprintf(stderr, "Failed to load engine %s.\n", engine);
         return false;
     }
@@ -861,8 +859,7 @@ static ENGINE_HANDLE_V1* create_bucket(bool initialize, const char* cfg) {
     struct mock_engine* mock_engine = (struct mock_engine*)cb_calloc(1, sizeof(struct mock_engine));
     ENGINE_HANDLE* handle = NULL;
 
-    if (create_engine_instance(engine_ref, &get_mock_server_api, logger_descriptor, &handle)) {
-
+    if (create_engine_instance(engine_ref, &get_mock_server_api, &handle)) {
         mock_engine->me.interface.interface = 1;
 
         mock_engine->me.initialize = mock_initialize;
@@ -918,7 +915,7 @@ static ENGINE_HANDLE_V1* create_bucket(bool initialize, const char* cfg) {
         }
 
         if (initialize) {
-            if(!init_engine_instance(handle, cfg, logger_descriptor)) {
+            if (!init_engine_instance(handle, cfg)) {
                 fprintf(stderr, "Failed to init engine with config %s.\n", cfg);
                 cb_free(mock_engine);
                 return NULL;
@@ -1076,7 +1073,6 @@ static int execute_test(engine_test_t test,
 
     if (ret == PENDING) {
         init_mock_server(log_to_stderr);
-        logger_descriptor = &cb::logger::getLoggerDescriptor();
 
         /* Start the engine and go */
         if (!start_your_engine(engine)) {
@@ -1470,9 +1466,6 @@ int main(int argc, char **argv) {
             harness.bucket_type = matches.str(1);
         }
     }
-
-    /* Initialize logging. */
-    logger_descriptor = &cb::logger::getLoggerDescriptor();
 
     for (num_cases = 0; testcases[num_cases].name; num_cases++) {
         /* Just counting */

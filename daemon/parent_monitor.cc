@@ -34,8 +34,8 @@ ParentMonitor::ParentMonitor(int parent_id) : parent_pid(parent_id) {
                                ParentMonitor::thread_main,
                                this, 0, "mc:parent_mon") != 0) {
         FATAL_ERROR(EXIT_FAILURE,
-                    "Failed to open parent process: %s",
-                    cb_strerror(GetLastError()).c_str());
+                    "Failed to open parent process: {}",
+                    cb_strerror(GetLastError()));
     }
 }
 

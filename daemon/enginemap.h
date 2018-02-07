@@ -58,7 +58,7 @@ BucketType module_to_bucket_type(const char* module);
  * @param msg where to store the error message
  * @return true on success, false on error (msg will give more information)
  */
-bool initialize_engine_map(char** msg, EXTENSION_LOGGER_DESCRIPTOR* log);
+bool initialize_engine_map(char** msg);
 
 /**
  * Release all allocated resources used by the engine map.

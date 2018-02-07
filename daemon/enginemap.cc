@@ -27,12 +27,8 @@
 
 class Engine {
 public:
-    Engine(const std::string &mod, engine_reference* ref,
-           EXTENSION_LOGGER_DESCRIPTOR *log) :
-        module(mod),
-        engine_ref(ref),
-        logger(log)
-    {
+    Engine(const std::string& mod, engine_reference* ref)
+        : module(mod), engine_ref(ref) {
         // EMPTY
     }
 
@@ -41,8 +37,7 @@ public:
     }
 
     bool createInstance(GET_SERVER_API get_server_api, ENGINE_HANDLE **handle) {
-        return create_engine_instance(engine_ref, get_server_api,
-                                      logger, handle);
+        return create_engine_instance(engine_ref, get_server_api, handle);
     }
 
     const std::string &getModule() const {
@@ -52,15 +47,11 @@ public:
 private:
     const std::string module;
     engine_reference* engine_ref;
-    EXTENSION_LOGGER_DESCRIPTOR *logger;
 };
 
-Engine *createEngine(const std::string &so,
-                     const std::string &function,
-                     EXTENSION_LOGGER_DESCRIPTOR *logger)
-{
-    engine_reference* engine_ref = load_engine(so.c_str(), function.c_str(),
-                                               NULL, logger);
+Engine* createEngine(const std::string& so, const std::string& function) {
+    engine_reference* engine_ref =
+            load_engine(so.c_str(), function.c_str(), nullptr);
 
     if (engine_ref == NULL) {
         std::stringstream ss;
@@ -69,7 +60,7 @@ Engine *createEngine(const std::string &so,
         throw ss.str();
     }
 
-    return new Engine(so, engine_ref, logger);
+    return new Engine(so, engine_ref);
 }
 
 std::map<BucketType, Engine *> map;
@@ -94,26 +85,20 @@ bool new_engine_instance(BucketType type,
     return ret;
 }
 
-bool initialize_engine_map(char **msg, EXTENSION_LOGGER_DESCRIPTOR *logger)
-{
+bool initialize_engine_map(char** msg) {
     try {
-        map[BucketType::NoBucket] = createEngine("nobucket.so",
-                                                 "create_no_bucket_instance",
-                                                 logger);
-        map[BucketType::Memcached] = createEngine("default_engine.so",
-                                                  "create_instance",
-                                                  logger);
-        map[BucketType::Couchstore] = createEngine("ep.so",
-                                                   "create_instance",
-                                                   logger);
+        map[BucketType::NoBucket] =
+                createEngine("nobucket.so", "create_no_bucket_instance");
+        map[BucketType::Memcached] =
+                createEngine("default_engine.so", "create_instance");
+        map[BucketType::Couchstore] = createEngine("ep.so", "create_instance");
         if (getenv("MEMCACHED_UNIT_TESTS") != NULL) {
             // The crash test just wants to create a coredump within the
             // crash_engine to ensure that breakpad successfuly creates
             // the dump files etc
             if (getenv("MEMCACHED_CRASH_TEST") != NULL) {
-                auto engine = createEngine("crash_engine.so",
-                                           "create_instance",
-                                           logger);
+                auto engine =
+                        createEngine("crash_engine.so", "create_instance");
                 ENGINE_HANDLE *h;
                 if (!engine->createInstance(nullptr, &h)) {
                     delete engine;
@@ -124,9 +109,8 @@ bool initialize_engine_map(char **msg, EXTENSION_LOGGER_DESCRIPTOR *logger)
                 // Not reached, but to mute code analyzers
                 delete engine;
             }
-            map[BucketType::EWouldBlock] = createEngine("ewouldblock_engine.so",
-                                                        "create_instance",
-                                                        logger);
+            map[BucketType::EWouldBlock] =
+                    createEngine("ewouldblock_engine.so", "create_instance");
         }
     } catch (const std::string &str) {
         *msg = cb_strdup(str.c_str());

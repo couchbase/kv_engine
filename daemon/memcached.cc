@@ -303,9 +303,9 @@ void perform_callbacks(ENGINE_EVENT_TYPE type,
 
         if (service_online) {
             if (cb_create_thread(&tid, populate_log_level, nullptr, 1) == -1) {
-                LOG_WARNING(NULL,
-                            "Failed to create thread to notify engines about "
-                                "changing log level");
+                LOG_WARNING(
+                        "Failed to create thread to notify engines about "
+                        "changing log level");
             }
         }
         break;
@@ -682,8 +682,9 @@ static void disable_listen(void) {
     for (next = listen_conn; next; next = next->getNext()) {
         auto* connection = dynamic_cast<ListenConnection*>(next);
         if (connection == nullptr) {
-            LOG_WARNING(next, "Internal error. Tried to disable listen on"
-                " an illegal connection object");
+            LOG_WARNING(
+                    "Internal error. Tried to disable listen on"
+                    " an illegal connection object");
             continue;
         }
         connection->disable();
@@ -700,8 +701,7 @@ void safe_close(SOCKET sfd) {
 
         if (rval == SOCKET_ERROR) {
             std::string error = cb_strerror();
-            LOG_WARNING(nullptr, "Failed to close socket %d (%s)!!", (int)sfd,
-                       error.c_str());
+            LOG_WARNING("Failed to close socket {} ({})!!", (int)sfd, error);
         } else {
             stats.curr_conns.fetch_sub(1, std::memory_order_relaxed);
             if (is_listen_disabled()) {
@@ -873,12 +873,11 @@ bool conn_listening(ListenConnection *c)
         auto error = GetLastNetworkError();
         if (is_emfile(error)) {
 #if defined(WIN32)
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                            "Too many open files.");
+            LOG_WARNING("Too many open files.");
 #else
             struct rlimit limit = {0};
             getrlimit(RLIMIT_NOFILE, &limit);
-            LOG_WARNING(c, "Too many open files. Current limit: %d",
+            LOG_WARNING("Too many open files. Current limit: {}",
                         limit.rlim_cur);
 #endif
             disable_listen();
@@ -906,11 +905,14 @@ bool conn_listening(ListenConnection *c)
             --port_instance->curr_conns;
         }
         stats.rejected_conns++;
-        LOG_WARNING(c,
-                    "Too many open connections. Current/Limit for port "
-                        "%d: %d/%d; total: %d/%d", port_instance->port,
-                    port_conns, port_instance->maxconns,
-                    curr_conns, settings.getMaxconns());
+        LOG_WARNING(
+                "Too many open connections. Current/Limit for port "
+                "{}: {}/{}; total: {}/{}",
+                port_instance->port,
+                port_conns,
+                port_instance->maxconns,
+                curr_conns,
+                settings.getMaxconns());
 
         safe_close(sfd);
         return false;
@@ -921,7 +923,7 @@ bool conn_listening(ListenConnection *c)
             std::lock_guard<std::mutex> guard(stats_mutex);
             --port_instance->curr_conns;
         }
-        LOG_WARNING(c, "Failed to make socket non-blocking. closing it");
+        LOG_WARNING("Failed to make socket non-blocking. closing it");
         safe_close(sfd);
         return false;
     }
@@ -945,9 +947,8 @@ bool is_bucket_dying(Connection& c) {
     }
 
     if (disconnect) {
-        LOG_NOTICE(&c,
-                   "%u The connected bucket is being deleted.. disconnecting",
-                   c.getId());
+        LOG_INFO("{} The connected bucket is being deleted.. disconnecting",
+                 c.getId());
         c.initiateShutdown();
         return true;
     }
@@ -958,14 +959,15 @@ bool is_bucket_dying(Connection& c) {
 void event_handler(evutil_socket_t fd, short which, void *arg) {
     auto *c = reinterpret_cast<Connection *>(arg);
     if (c == nullptr) {
-        LOG_WARNING(NULL, "event_handler: connection must be non-NULL");
+        LOG_WARNING("event_handler: connection must be non-NULL");
         return;
     }
 
     auto *thr = c->getThread();
     if (thr == nullptr) {
-        LOG_WARNING(c, "Internal error - connection without a thread found. - "
-            "ignored");
+        LOG_WARNING(
+                "Internal error - connection without a thread found. - "
+                "ignored");
         return;
     }
 
@@ -974,7 +976,7 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
         // Someone requested memcached to shut down.
         if (signal_idle_clients(thr, -1, false) == 0) {
             cb_assert(thr != nullptr);
-            LOG_NOTICE(NULL, "Stopping worker thread %u", thr->index);
+            LOG_INFO("Stopping worker thread {}", thr->index);
             c->eventBaseLoopbreak();
             return;
         }
@@ -996,18 +998,19 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
         if (mcbp != nullptr && (c->isInternal() || c->isDCP())) {
             auto* mcbp = dynamic_cast<McbpConnection*>(c);
             if (c->isInternal()) {
-                LOG_NOTICE(c, "%u: Timeout for admin connection. (ignore)",
-                           c->getId());
+                LOG_INFO("{}: Timeout for admin connection. (ignore)",
+                         c->getId());
             } else if (c->isDCP()) {
-                LOG_NOTICE(c, "%u: Timeout for DCP connection. (ignore)",
-                           c->getId());
+                LOG_INFO("{}: Timeout for DCP connection. (ignore)",
+                         c->getId());
             }
             if (!mcbp->reapplyEventmask()) {
                 c->initiateShutdown();
             }
         } else {
-            LOG_NOTICE(c, "%u: Shutting down idle client %s", c->getId(),
-                       c->getDescription().c_str());
+            LOG_INFO("{}: Shutting down idle client {}",
+                     c->getId(),
+                     c->getDescription());
             c->initiateShutdown();
         }
     }
@@ -1019,12 +1022,12 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
         // any connections bound to this thread we can just shut down
         int connected = signal_idle_clients(thr, -1, true);
         if (connected == 0) {
-            LOG_NOTICE(NULL, "Stopping worker thread %u", thr->index);
+            LOG_INFO("Stopping worker thread {}", thr->index);
             event_base_loopbreak(thr->base);
         } else {
-            LOG_NOTICE(NULL,
-                       "Waiting for %d connected clients on worker thread %u",
-                       connected, thr->index);
+            LOG_INFO("Waiting for {} connected clients on worker thread {}",
+                     connected,
+                     thr->index);
         }
     }
 
@@ -1039,15 +1042,16 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
 void listen_event_handler(evutil_socket_t, short which, void *arg) {
     auto *c = reinterpret_cast<ListenConnection *>(arg);
     if (c == nullptr) {
-        LOG_WARNING(NULL, "listen_event_handler: internal error, "
-            "arg must be non-NULL");
+        LOG_WARNING(
+                "listen_event_handler: internal error, "
+                "arg must be non-NULL");
         return;
     }
 
     if (memcached_shutdown) {
         // Someone requested memcached to shut down. The listen thread should
         // be stopped immediately.
-        LOG_NOTICE(NULL, "Stopping listen thread");
+        LOG_INFO("Stopping listen thread");
         c->eventBaseLoopbreak();
         return;
     }
@@ -1062,7 +1066,7 @@ static void dispatch_event_handler(evutil_socket_t fd, short, void *) {
     if (enable_common_ports.load()) {
         enable_common_ports.store(false);
         create_listen_sockets(false);
-        LOG_NOTICE(NULL, "Initialization complete. Accepting clients.");
+        LOG_INFO("Initialization complete. Accepting clients.");
     }
 
     if (nr != -1 && is_listen_disabled()) {
@@ -1080,8 +1084,9 @@ static void dispatch_event_handler(evutil_socket_t fd, short, void *) {
             for (next = listen_conn; next; next = next->getNext()) {
                 auto* connection = dynamic_cast<ListenConnection*>(next);
                 if (connection == nullptr) {
-                    LOG_WARNING(next, "Internal error: tried to enable listen "
-                        "on an incorrect connection object type");
+                    LOG_WARNING(
+                            "Internal error: tried to enable listen "
+                            "on an incorrect connection object type");
                     continue;
                 }
 
@@ -1106,7 +1111,7 @@ static void maximize_sndbuf(const SOCKET sfd) {
 
     /* Start with the default size. */
     if (getsockopt(sfd, SOL_SOCKET, SO_SNDBUF, old_ptr, &intsize) != 0) {
-        LOG_WARNING(NULL, "getsockopt(SO_SNDBUF): %s", strerror(errno));
+        LOG_WARNING("getsockopt(SO_SNDBUF): {}", strerror(errno));
         return;
     }
 
@@ -1129,10 +1134,7 @@ static void maximize_sndbuf(const SOCKET sfd) {
         }
     }
 
-    if (settings.getVerbose() > 1) {
-        LOG_DEBUG(NULL,
-                  "<%d send buffer was %d, now %d", sfd, old_size, last_good);
-    }
+    LOG_DEBUG("<{} send buffer was {}, now {}", sfd, old_size, last_good);
 }
 
 static SOCKET new_server_socket(struct addrinfo *ai, bool tcp_nodelay) {
@@ -1167,8 +1169,7 @@ static SOCKET new_server_socket(struct addrinfo *ai, bool tcp_nodelay) {
         error = setsockopt(sfd, IPPROTO_IPV6, IPV6_V6ONLY, flags_ptr,
                            sizeof(flags));
         if (error != 0) {
-            LOG_WARNING(NULL, "setsockopt(IPV6_V6ONLY): %s",
-                        strerror(errno));
+            LOG_WARNING("setsockopt(IPV6_V6ONLY): {}", strerror(errno));
             safe_close(sfd);
             return INVALID_SOCKET;
         }
@@ -1179,19 +1180,19 @@ static SOCKET new_server_socket(struct addrinfo *ai, bool tcp_nodelay) {
     error = setsockopt(sfd, SOL_SOCKET, SO_KEEPALIVE, flags_ptr,
                        sizeof(flags));
     if (error != 0) {
-        LOG_WARNING(NULL, "setsockopt(SO_KEEPALIVE): %s", strerror(errno));
+        LOG_WARNING("setsockopt(SO_KEEPALIVE): {}", strerror(errno));
     }
 
     error = setsockopt(sfd, SOL_SOCKET, SO_LINGER, ling_ptr, sizeof(ling));
     if (error != 0) {
-        LOG_WARNING(NULL, "setsockopt(SO_LINGER): %s", strerror(errno));
+        LOG_WARNING("setsockopt(SO_LINGER): {}", strerror(errno));
     }
 
     if (tcp_nodelay) {
         error = setsockopt(sfd, IPPROTO_TCP, TCP_NODELAY, flags_ptr,
                            sizeof(flags));
         if (error != 0) {
-            LOG_WARNING(NULL, "setsockopt(TCP_NODELAY): %s", strerror(errno));
+            LOG_WARNING("setsockopt(TCP_NODELAY): {}", strerror(errno));
         }
     }
 
@@ -1289,9 +1290,9 @@ static int server_socket(const NetworkInterface *interf) {
                           "getaddrinfo(): %s", error);
 #else
         if (error != EAI_SYSTEM) {
-            LOG_WARNING(NULL, "getaddrinfo(): %s", gai_strerror(error));
+            LOG_WARNING("getaddrinfo(): {}", gai_strerror(error));
         } else {
-            LOG_WARNING(NULL, "getaddrinfo(): %s", strerror(error));
+            LOG_WARNING("getaddrinfo(): {}", strerror(error));
         }
 #endif
         return 1;
@@ -1360,9 +1361,9 @@ static int server_sockets(bool management) {
     int ret = 0;
 
     if (management) {
-        LOG_NOTICE(nullptr, "Enable management port(s)");
+        LOG_INFO("Enable management port(s)");
     } else {
-        LOG_NOTICE(nullptr, "Enable user port(s)");
+        LOG_INFO("Enable user port(s)");
     }
 
     for (auto& interface : settings.getInterfaces()) {
@@ -1398,8 +1399,10 @@ static void create_listen_sockets(bool management) {
         FILE* portnumber_file = nullptr;
         portnumber_file = fopen(temp_portnumber_filename.c_str(), "a");
         if (portnumber_file == nullptr) {
-            FATAL_ERROR(EX_OSERR, "Failed to open \"%s\": %s",
-                        temp_portnumber_filename.c_str(), strerror(errno));
+            FATAL_ERROR(EX_OSERR,
+                        R"(Failed to open "{}": {})",
+                        temp_portnumber_filename,
+                        strerror(errno));
         }
 
         unique_cJSON_ptr array(cJSON_CreateArray());
@@ -1418,11 +1421,12 @@ static void create_listen_sockets(bool management) {
         cJSON_AddItemToObject(root.get(), "ports", array.release());
         fprintf(portnumber_file, "%s\n", to_string(root, true).c_str());
         fclose(portnumber_file);
-        LOG_NOTICE(nullptr, "Port numbers available in %s",
-                   portnumber_filename);
+        LOG_INFO("Port numbers available in {}", portnumber_filename);
         if (rename(temp_portnumber_filename.c_str(), portnumber_filename) == -1) {
-            FATAL_ERROR(EX_OSERR, "Failed to rename \"%s\" to \"%s\": %s",
-                        temp_portnumber_filename.c_str(), portnumber_filename,
+            FATAL_ERROR(EX_OSERR,
+                        R"(Failed to rename "{}" to "{}": {})",
+                        temp_portnumber_filename.c_str(),
+                        portnumber_filename,
                         strerror(errno));
         }
     }
@@ -1466,12 +1470,12 @@ static bool install_signal_handlers() {
                                  dump_connection_stat_signal_handler,
                                  nullptr);
     if (sigusr1_event == nullptr) {
-        LOG_WARNING(nullptr, "Failed to allocate SIGUSR1 handler");
+        LOG_WARNING("Failed to allocate SIGUSR1 handler");
         return false;
     }
 
     if (event_add(sigusr1_event, nullptr) < 0) {
-        LOG_WARNING(nullptr, "Failed to install SIGUSR1 handler");
+        LOG_WARNING("Failed to install SIGUSR1 handler");
         return false;
 
     }
@@ -1479,24 +1483,24 @@ static bool install_signal_handlers() {
     // SIGTERM - Used to shut down memcached cleanly
     sigterm_event = evsignal_new(main_base, SIGTERM, sigterm_handler, NULL);
     if (sigterm_event == NULL) {
-        LOG_WARNING(nullptr, "Failed to allocate SIGTERM handler");
+        LOG_WARNING("Failed to allocate SIGTERM handler");
         return false;
     }
 
     if (event_add(sigterm_event, NULL) < 0) {
-        LOG_WARNING(nullptr, "Failed to install SIGTERM handler");
+        LOG_WARNING("Failed to install SIGTERM handler");
         return false;
     }
 
     // SIGINT - Used to shut down memcached cleanly
     sigint_event = evsignal_new(main_base, SIGINT, sigterm_handler, NULL);
     if (sigint_event == NULL) {
-        LOG_WARNING(nullptr, "Failed to allocate SIGINT handler");
+        LOG_WARNING("Failed to allocate SIGINT handler");
         return false;
     }
 
     if (event_add(sigint_event, NULL) < 0) {
-        LOG_WARNING(nullptr, "Failed to install SIGINT handler");
+        LOG_WARNING("Failed to install SIGINT handler");
         return false;
     }
 
@@ -1624,9 +1628,11 @@ static void cookie_set_priority(gsl::not_null<const void*> void_cookie,
         return;
     }
 
-    LOG_WARNING(c,
-                "%u: cookie_set_priority: priority (which is %d) is not a "
-                    "valid CONN_PRIORITY - closing connection", priority);
+    LOG_WARNING(
+            "{}: cookie_set_priority: priority (which is {}) is not a "
+            "valid CONN_PRIORITY - closing connection",
+            c->getId(),
+            priority);
     c->initiateShutdown();
 }
 
@@ -1645,11 +1651,11 @@ void shutdown_server(void) {
     std::unique_lock<std::mutex> lk(shutdown_cv_mutex);
     if (!memcached_can_shutdown) {
         // log and proceed to wait shutdown
-        LOG_NOTICE(NULL, "shutdown_server waiting for can_shutdown signal");
+        LOG_INFO("shutdown_server waiting for can_shutdown signal");
         shutdown_cv.wait(lk, []{return memcached_can_shutdown;});
     }
     memcached_shutdown = true;
-    LOG_NOTICE(NULL, "Received shutdown request");
+    LOG_INFO("Received shutdown request");
     event_base_loopbreak(main_base);
 }
 
@@ -1781,21 +1787,21 @@ SERVER_HANDLE_V1* get_server_api() {
 
 /* BUCKET FUNCTIONS */
 void CreateBucketThread::create() {
-    LOG_NOTICE(&connection, "%u Create bucket [%s]",
-               connection.getId(), name.c_str());
+    auto logger = cb::logger::get();
+    logger->info("{} Create bucket [{}]", connection.getId(), name);
 
     if (!BucketValidator::validateBucketName(name, error)) {
-        LOG_NOTICE(&connection,
-                   "%u Create bucket [%s] failed - Invalid bucket name",
-                   connection.getId(), name.c_str());
+        logger->info("{} Create bucket [{}] failed - Invalid bucket name",
+                     connection.getId(),
+                     name);
         result = ENGINE_EINVAL;
         return;
     }
 
     if (!BucketValidator::validateBucketType(type, error)) {
-        LOG_NOTICE(&connection,
-                   "%u Create bucket [%s] failed - Invalid bucket type",
-                   connection.getId(), name.c_str());
+        logger->info("{} Create bucket [{}] failed - Invalid bucket type",
+                     connection.getId(),
+                     name);
         result = ENGINE_EINVAL;
         return;
     }
@@ -1819,14 +1825,14 @@ void CreateBucketThread::create() {
 
     if (found) {
         result = ENGINE_KEY_EEXISTS;
-        LOG_NOTICE(&connection,
-                   "%u Create bucket [%s] failed - Already exists",
-                   connection.getId(), name.c_str());
+        logger->info("{} Create bucket [{}] failed - Already exists",
+                     connection.getId(),
+                     name);
     } else if (first_free == all_buckets.size()) {
         result = ENGINE_E2BIG;
-        LOG_WARNING(&connection,
-                    "%u Create bucket [%s] failed - Too many buckets",
-                    connection.getId(), name.c_str());
+        logger->warn("{} Create bucket [{}] failed - Too many buckets",
+                     connection.getId(),
+                     name);
     } else {
         result = ENGINE_SUCCESS;
         ii = first_free;
@@ -1842,9 +1848,10 @@ void CreateBucketThread::create() {
             all_buckets[ii].topkeys = new TopKeys(settings.getTopkeysSize());
         } catch (const std::bad_alloc &) {
             result = ENGINE_ENOMEM;
-            LOG_WARNING(&connection,
-                        "%u Create bucket [%s] failed - out of memory",
-                        connection.getId(), name.c_str());        }
+            logger->warn("{} Create bucket [{}] failed - out of memory",
+                         connection.getId(),
+                         name);
+        }
     }
     all_bucket_lock.unlock();
 
@@ -1872,12 +1879,16 @@ void CreateBucketThread::create() {
             result = engine->initialize(v1_handle_2_handle(engine),
                                         config.c_str());
         } catch (const std::runtime_error& e) {
-            LOG_WARNING(&connection, "%u - Failed to create bucket [%s]: %s",
-                        connection.getId(), name.c_str(), e.what());
+            logger->warn("{} - Failed to create bucket [{}]: {}",
+                         connection.getId(),
+                         name,
+                         e.what());
             result = ENGINE_FAILED;
         } catch (const std::bad_alloc& e) {
-            LOG_WARNING(&connection, "%u - Failed to create bucket [%s]: %s",
-                        connection.getId(), name.c_str(), e.what());
+            logger->warn("{} - Failed to create bucket [{}]: {}",
+                         connection.getId(),
+                         name,
+                         e.what());
             result = ENGINE_ENOMEM;
         }
 
@@ -1886,9 +1897,9 @@ void CreateBucketThread::create() {
                 std::lock_guard<std::mutex> guard(bucket.mutex);
                 bucket.state = BucketState::Ready;
             }
-            LOG_NOTICE(&connection,
-                        "%u - Bucket [%s] created successfully",
-                        connection.getId(), name.c_str());
+            logger->info("{} - Bucket [{}] created successfully",
+                         connection.getId(),
+                         name);
         } else {
             {
                 std::lock_guard<std::mutex> guard(bucket.mutex);
@@ -1914,10 +1925,11 @@ void CreateBucketThread::create() {
             bucket.topkeys = nullptr;
         }
 
-        LOG_WARNING(&connection,
-                    "%u - Failed to create bucket [%s]: failed to create a "
-                        "new engine instance",
-                    connection.getId(), name.c_str());
+        logger->warn(
+                "{} - Failed to create bucket [{}]: failed to create a "
+                "new engine instance",
+                connection.getId(),
+                name);
         result = ENGINE_FAILED;
     }
 }
@@ -1987,22 +1999,29 @@ void DestroyBucketThread::destroy() {
     }
     all_bucket_lock.unlock();
 
+    auto logger = cb::logger::get();
+
     if (ret != ENGINE_SUCCESS) {
         auto code = engine_error_2_mcbp_protocol_error(ret);
-        LOG_NOTICE(connection, "%s Delete bucket [%s]: %s",
-                   connection_id.c_str(), name.c_str(),
-                   memcached_status_2_text(code));
+        logger->info("{} Delete bucket [{}]: {}",
+                     connection_id,
+                     name,
+                     memcached_status_2_text(code));
         result = ret;
         return;
     }
 
-    LOG_NOTICE(connection, "%s Delete bucket [%s]. Notifying all registered "
-            "ON_DELETE_BUCKET callbacks", connection_id.c_str(), name.c_str());
+    logger->info(
+            "{} Delete bucket [{}]. Notifying all registered "
+            "ON_DELETE_BUCKET callbacks",
+            connection_id,
+            name);
 
     perform_callbacks(ON_DELETE_BUCKET, nullptr, &all_buckets[idx]);
 
-    LOG_NOTICE(connection, "%s Delete bucket [%s]. Wait for clients to disconnect",
-               connection_id.c_str(), name.c_str());
+    logger->info("{} Delete bucket [{}]. Wait for clients to disconnect",
+                 connection_id,
+                 name);
 
     /* If this thread is connected to the requested bucket... release it */
     if (connection != nullptr && idx == size_t(connection->getBucketIndex())) {
@@ -2019,12 +2038,12 @@ void DestroyBucketThread::destroy() {
         std::unique_lock<std::mutex> guard(bucket.mutex);
 
         while (bucket.clients > 0) {
-            LOG_NOTICE(connection,
-                       "%u Delete bucket [%s]. Still waiting: %u clients "
-                       "connected",
-                       connection_id.c_str(),
-                       name.c_str(),
-                       bucket.clients);
+            logger->info(
+                    "{} Delete bucket [{}]. Still waiting: {} clients "
+                    "connected",
+                    connection_id.c_str(),
+                    name.c_str(),
+                    bucket.clients);
             /* drop the lock and notify the worker threads */
             guard.unlock();
             threads_notify_bucket_deletion();
@@ -2053,13 +2072,14 @@ void DestroyBucketThread::destroy() {
      * BucketState != Ready.  See associate_bucket() for more details.
      */
 
-    LOG_NOTICE(connection, "%s Delete bucket [%s]. Shut down the bucket",
-               connection_id.c_str(), name.c_str());
+    logger->info(
+            "{} Delete bucket [{}]. Shut down the bucket", connection_id, name);
 
     bucket.engine->destroy(v1_handle_2_handle(bucket.engine), force);
 
-    LOG_NOTICE(connection, "%s Delete bucket [%s]. Clean up allocated resources ",
-               connection_id.c_str(), name.c_str());
+    logger->info("{} Delete bucket [{}]. Clean up allocated resources ",
+                 connection_id,
+                 name);
 
     /* Clean up the stats... */
     threadlocal_stats_reset(bucket.stats);
@@ -2081,8 +2101,7 @@ void DestroyBucketThread::destroy() {
     // don't need lock because all timing data uses atomics
     bucket.timings.reset();
 
-    LOG_NOTICE(connection, "%s Delete bucket [%s] complete",
-               connection_id.c_str(), name.c_str());
+    logger->info("{} Delete bucket [{}] complete", connection_id, name);
     result = ENGINE_SUCCESS;
 }
 
@@ -2181,7 +2200,7 @@ void delete_all_buckets() {
         DestroyBucketThread thread;
     };
 
-    LOG_NOTICE(nullptr, "Stop all buckets");
+    LOG_INFO("Stop all buckets");
     bool done;
     do {
         done = true;
@@ -2197,9 +2216,7 @@ void delete_all_buckets() {
             std::lock_guard<std::mutex> bucket_guard(all_buckets[ii].mutex);
             if (all_buckets[ii].state == BucketState::Ready) {
                 name.assign(all_buckets[ii].name);
-                LOG_NOTICE(nullptr,
-                           "Scheduling delete for bucket %s",
-                           name.c_str());
+                LOG_INFO("Scheduling delete for bucket {}", name);
                 task = std::make_shared<DestroyBucketTask>(name);
                 std::lock_guard<std::mutex> guard(task->getMutex());
                 reinterpret_cast<McbpDestroyBucketTask*>(task.get())->start();
@@ -2211,11 +2228,9 @@ void delete_all_buckets() {
 
         if (task.get() != nullptr) {
             auto* dbt = reinterpret_cast<DestroyBucketTask*>(task.get());
-            LOG_NOTICE(nullptr,
-                       "Waiting for delete of %s to complete", name.c_str());
+            LOG_INFO("Waiting for delete of {} to complete", name);
             dbt->thread.waitForState(Couchbase::ThreadState::Zombie);
-            LOG_NOTICE(nullptr,
-                       "Bucket %s deleted", name.c_str());
+            LOG_INFO("Bucket {} deleted", name);
         }
     } while (!done);
 }
@@ -2267,20 +2282,21 @@ static void set_max_filehandles(void) {
     auto limit = cb::io::maximizeFileDescriptors(maxfiles);
 
     if (limit < maxfiles) {
-        LOG_WARNING(NULL,
-                    "Failed to set the number of file descriptors "
-                    "to %" PRIu64 " due to system resource restrictions. "
-                    "This may cause the system to misbehave once you reach a "
-                    "high connection count as the system won't be able open "
-                    "new files on the system. The maximum number of file "
-                    "descriptors is currently set to %" PRIu64 ". The system "
-                    "is configured to allow %u number of client connections, "
-                    "and in addition to that the overhead of the worker "
-                    "threads is %u. Finally the backed database needs to "
-                    "open files to persist data.", int(maxfiles), int(limit),
-                    settings.getMaxconns(),
-                    (3 * (settings.getNumWorkerThreads() + 2)));
-
+        LOG_WARNING(
+                "Failed to set the number of file descriptors "
+                "to {} due to system resource restrictions. "
+                "This may cause the system to misbehave once you reach a "
+                "high connection count as the system won't be able open "
+                "new files on the system. The maximum number of file "
+                "descriptors is currently set to {}. The system "
+                "is configured to allow %u number of client connections, "
+                "and in addition to that the overhead of the worker "
+                "threads is {}. Finally the backed database needs to "
+                "open files to persist data.",
+                int(maxfiles),
+                int(limit),
+                settings.getMaxconns(),
+                (3 * (settings.getNumWorkerThreads() + 2)));
     }
 }
 
@@ -2294,16 +2310,20 @@ static void sasl_log_callback(cb::sasl::logging::Level level,
                               const std::string& message) {
     switch (level) {
     case cb::sasl::logging::Level::Error:
+        LOG_ERROR("{}", message);
+        break;
     case cb::sasl::logging::Level::Warning:
-        LOG_WARNING(nullptr, "%s", message.c_str());
+        LOG_WARNING("{}", message);
         break;
     case cb::sasl::logging::Level::Notice:
-        LOG_NOTICE(nullptr, "%s", message.c_str());
+        LOG_INFO("{}", message);
         break;
     case cb::sasl::logging::Level::Fail:
     case cb::sasl::logging::Level::Debug:
+        LOG_DEBUG("{}", message);
+        break;
     case cb::sasl::logging::Level::Trace:
-        LOG_DEBUG(nullptr, "%s", message.c_str());
+        LOG_TRACE("{}", message);
         break;
     }
 }
@@ -2387,6 +2407,7 @@ extern "C" int memcached_main(int argc, char **argv) {
     // Setup terminate handler as early as possible to catch crashes
     // occurring during initialisation.
     install_backtrace_terminate_handler();
+    auto logger = cb::logger::get();
 
     setup_libevent_locking();
 
@@ -2406,7 +2427,8 @@ extern "C" int memcached_main(int argc, char **argv) {
     try {
         parse_arguments(argc, argv);
     } catch (const std::exception& exception) {
-        FATAL_ERROR(EXIT_FAILURE, "Failed to initialize server: %s",
+        FATAL_ERROR(EXIT_FAILURE,
+                    "Failed to initialize server: {}",
                     exception.what());
     }
 
@@ -2426,16 +2448,15 @@ extern "C" int memcached_main(int argc, char **argv) {
         auto ret = cb::logger::initialize(settings.getLoggerConfig(),
                                           get_server_api);
         if (ret) {
-            FATAL_ERROR(EXIT_FAILURE,
-                        "Failed to initialize logger: %s",
-                        ret.get().c_str());
+            FATAL_ERROR(
+                    EXIT_FAILURE, "Failed to initialize logger: {}", ret.get());
         }
     }
 
     /* File-based logging available from this point onwards... */
 
     /* Logging available now extensions have been loaded. */
-    LOG_NOTICE(NULL, "Couchbase version %s starting.", get_server_version());
+    logger->info("Couchbase version {} starting.", get_server_version());
 
     if (settings.isStdinListenerEnabled()) {
         cb::logger::get()->info("Enable standard input listener");
@@ -2453,21 +2474,20 @@ extern "C" int memcached_main(int argc, char **argv) {
     }
 
     if (!cb::io::isFile(settings.getRbacFile())) {
-        FATAL_ERROR(EXIT_FAILURE, "RBAC [%s] does not exist",
-                    settings.getRbacFile().c_str());
+        FATAL_ERROR(EXIT_FAILURE,
+                    "RBAC [{}] does not exist",
+                    settings.getRbacFile());
     }
 
-    LOG_NOTICE(nullptr, "Loading RBAC configuration from [%s]",
-               settings.getRbacFile().c_str());
+    logger->info("Loading RBAC configuration from [{}]",
+                 settings.getRbacFile());
     cb::rbac::loadPrivilegeDatabase(settings.getRbacFile());
 
-    LOG_NOTICE(nullptr,
-               "Loading error maps from [%s]",
-               settings.getErrorMapsDir().c_str());
+    logger->info("Loading error maps from [{}]", settings.getErrorMapsDir());
     try {
         settings.loadErrorMaps(settings.getErrorMapsDir());
     } catch (const std::exception& e) {
-        FATAL_ERROR(EXIT_FAILURE, "Failed to load error maps: %s", e.what());
+        FATAL_ERROR(EXIT_FAILURE, "Failed to load error maps: {}", e.what());
     }
 
     initialize_audit();
@@ -2482,9 +2502,11 @@ extern "C" int memcached_main(int argc, char **argv) {
 
     {
         char *errmsg;
-        if (!initialize_engine_map(&errmsg, settings.extensions.logger)) {
-            FATAL_ERROR(EXIT_FAILURE, "Unable to initialize engine "
-                        "map: %s", errmsg);
+        if (!initialize_engine_map(&errmsg)) {
+            FATAL_ERROR(EXIT_FAILURE,
+                        "Unable to initialize engine "
+                        "map: {}",
+                        errmsg);
         }
     }
 
@@ -2538,76 +2560,78 @@ extern "C" int memcached_main(int argc, char **argv) {
     /* Optional parent monitor */
     char *env = getenv("MEMCACHED_PARENT_MONITOR");
     if (env != NULL) {
-        LOG_NOTICE(NULL, "Starting parent monitor");
+        logger->info("Starting parent monitor");
         parent_monitor.reset(new ParentMonitor(std::stoi(env)));
     }
 
     if (!memcached_shutdown) {
         /* enter the event loop */
-        LOG_NOTICE(nullptr, "Initialization complete. Accepting clients.");
+        logger->info("Initialization complete. Accepting clients.");
         service_online = true;
         event_base_loop(main_base, 0);
         service_online = false;
     }
 
-    LOG_NOTICE(NULL, "Initiating graceful shutdown.");
+    logger->info("Initiating graceful shutdown.");
     delete_all_buckets();
 
     if (parent_monitor.get() != nullptr) {
-        LOG_NOTICE(NULL, "Shutting down parent monitor");
+        logger->info("Shutting down parent monitor");
         parent_monitor.reset();
     }
 
-    LOG_NOTICE(NULL, "Shutting down audit daemon");
+    logger->info("Shutting down audit daemon");
     /* Close down the audit daemon cleanly */
     shutdown_auditdaemon(get_audit_handle());
 
-    LOG_NOTICE(NULL, "Shutting down client worker threads");
+    logger->info("Shutting down client worker threads");
     threads_shutdown();
 
-    LOG_NOTICE(NULL, "Releasing client resources");
+    logger->info("Releasing client resources");
     close_all_connections();
 
-    LOG_NOTICE(NULL, "Releasing bucket resources");
+    logger->info("Releasing bucket resources");
     cleanup_buckets();
 
-    LOG_NOTICE(NULL, "Shutting down RBAC subsystem");
+    logger->info("Shutting down RBAC subsystem");
     cb::rbac::destroy();
 
-    LOG_NOTICE(NULL, "Releasing thread resources");
+    logger->info("Releasing thread resources");
     threads_cleanup();
 
-    LOG_NOTICE(nullptr, "Shutting down executor pool");
+    logger->info("Shutting down executor pool");
     executorPool.reset();
 
-    LOG_NOTICE(NULL, "Releasing signal handlers");
+    logger->info("Releasing signal handlers");
     release_signal_handlers();
 
-    LOG_NOTICE(NULL, "Shutting down SASL server");
+    logger->info("Shutting down SASL server");
     cbsasl_server_term();
 
-    LOG_NOTICE(NULL, "Releasing connection objects");
+    logger->info("Releasing connection objects");
     destroy_connections();
 
-    LOG_NOTICE(nullptr, "Deinitialising tracing");
+    logger->info("Deinitialising tracing");
     deinitializeTracing();
 
-    LOG_NOTICE(NULL, "Shutting down engine map");
+    logger->info("Shutting down engine map");
     shutdown_engine_map();
 
-    LOG_NOTICE(NULL, "Removing breakpad");
+    logger->info("Removing breakpad");
     cb::breakpad::destroy();
 
-    LOG_NOTICE(NULL, "Releasing callbacks");
+    logger->info("Releasing callbacks");
     free_callbacks();
 
-    LOG_NOTICE(NULL, "Shutting down OpenSSL");
+    logger->info("Shutting down OpenSSL");
     shutdown_openssl();
 
-    LOG_NOTICE(NULL, "Shutting down libevent");
+    logger->info("Shutting down libevent");
     event_base_free(main_base);
 
-    LOG_NOTICE(NULL, "Shutting down logger extension");
+    logger->info("Shutting down logger extension");
+    // drop my handle to the logger
+    logger.reset();
     settings.extensions.logger->shutdown(false);
 
     return EXIT_SUCCESS;

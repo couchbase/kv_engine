@@ -185,7 +185,7 @@ ListenConnection* conn_new_server(SOCKET sfd,
     c->incrementRefcount();
 
     MEMCACHED_CONN_ALLOCATE(c->getId());
-    LOG_DEBUG(c, "<%d server listening on %s", sfd, c->getSockname().c_str());
+    LOG_DEBUG("<{} server listening on {}", sfd, c->getSockname());
 
     stats.total_conns++;
     return c;
@@ -200,9 +200,9 @@ Connection* conn_new(const SOCKET sfd, in_port_t parent_port,
         std::lock_guard<std::mutex> guard(stats_mutex);
         auto* interface = get_listening_port_instance(parent_port);
         if (interface == nullptr) {
-            LOG_WARNING(NULL,
-                        "%u: failed to locate server port %u. Disconnecting",
-                        (unsigned int)sfd, parent_port);
+            LOG_WARNING("{}: failed to locate server port {}. Disconnecting",
+                        (unsigned int)sfd,
+                        parent_port);
             return nullptr;
         }
 
@@ -213,10 +213,9 @@ Connection* conn_new(const SOCKET sfd, in_port_t parent_port,
         return nullptr;
     }
 
-    LOG_INFO(nullptr,
-             "%u: Accepted new client %s using protocol: memcached",
+    LOG_INFO("{}: Accepted new client {} using protocol: memcached",
              c->getId(),
-             c->getDescription().c_str());
+             c->getDescription());
 
     stats.total_conns++;
 
@@ -228,7 +227,7 @@ Connection* conn_new(const SOCKET sfd, in_port_t parent_port,
     MEMCACHED_CONN_ALLOCATE(c->getId());
 
     if (settings.getVerbose() > 1) {
-        LOG_DEBUG(c, "<%d new client connection", sfd);
+        LOG_DEBUG("<{} new client connection", sfd);
     }
 
     return c;
@@ -252,7 +251,6 @@ void conn_close(McbpConnection& connection) {
     if (settings.getVerbose() > 1 &&
         list_contains(thread->pending_io, &connection)) {
         LOG_WARNING(
-                &connection,
                 "Current connection was in the pending-io list.. Nuking it");
     }
     thread->pending_io = list_remove(thread->pending_io, &connection);
@@ -305,10 +303,10 @@ void dump_connection_stat_signal_handler(evutil_socket_t, short, void *) {
         try {
             auto json = c->toJSON();
             auto info = to_string(json, false);
-            LOG_NOTICE(c, "Connection: %s", info.c_str());
+            LOG_INFO("Connection: {}", info);
         } catch (const std::bad_alloc&) {
-            LOG_NOTICE(c, "Failed to allocate memory to dump info for %u",
-                       c->getId());
+            LOG_WARNING("Failed to allocate memory to dump info for {}",
+                        c->getId());
         }
     }
 }
@@ -395,11 +393,11 @@ static Connection *allocate_connection(SOCKET sfd,
         stats.conn_structs++;
         return ret;
     } catch (const std::bad_alloc&) {
-        LOG_WARNING(NULL, "Failed to allocate memory for connection");
+        LOG_WARNING("Failed to allocate memory for connection");
     } catch (const std::exception& error) {
-        LOG_WARNING(NULL, "Failed to create connection: %s", error.what());
+        LOG_WARNING("Failed to create connection: {}", error.what());
     } catch (...) {
-        LOG_WARNING(NULL, "Failed to create connection");
+        LOG_WARNING("Failed to create connection");
     }
 
     delete ret;
@@ -420,11 +418,11 @@ static ListenConnection* allocate_listen_connection(SOCKET sfd,
         stats.conn_structs++;
         return ret;
     } catch (const std::bad_alloc&) {
-        LOG_WARNING(NULL, "Failed to allocate memory for listen connection");
+        LOG_WARNING("Failed to allocate memory for listen connection");
     } catch (const std::exception& error) {
-        LOG_WARNING(NULL, "Failed to create connection: %s", error.what());
+        LOG_WARNING("Failed to create connection: {}", error.what());
     } catch (...) {
-        LOG_WARNING(NULL, "Failed to create connection");
+        LOG_WARNING("Failed to create connection");
     }
 
     delete ret;
@@ -473,10 +471,10 @@ static BufferLoan loan_single_buffer(McbpConnection& c,
         // Unable to alloc a buffer for the thread. Not much we can do here
         // other than terminate the current connection.
         if (settings.getVerbose()) {
-            LOG_WARNING(&c,
-                        "%u: Failed to allocate new network buffer.. closing"
-                        " connection",
-                        c.getId());
+            LOG_WARNING(
+                    "{}: Failed to allocate new network buffer.. closing"
+                    " connection",
+                    c.getId());
         }
         c.setState(McbpStateMachine::State::closing);
         return BufferLoan::Existing;
@@ -525,7 +523,7 @@ ENGINE_ERROR_CODE apply_connection_trace_mask(const std::string& connid,
 
     if (found) {
         const char *message = enable ? "Enabled" : "Disabled";
-        LOG_NOTICE(nullptr, "%s trace for %u", message, id);
+        LOG_INFO("{} trace for {}", message, id);
         return ENGINE_SUCCESS;
     }
 

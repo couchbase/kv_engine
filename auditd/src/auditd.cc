@@ -122,15 +122,15 @@ AUDIT_ERROR_CODE start_auditdaemon(const AUDIT_EXTENSION_DATA* extension_data,
 
         if (cb_create_named_thread(&audit->consumer_tid, consume_events,
                                    audit, 0, "mc:auditd") != 0) {
-            CB_WARN("Failed to create audit thread");
+            LOG_WARNING("Failed to create audit thread");
             return AUDIT_FAILED;
         }
         audit->consumer_thread_running.store(true);
     } catch (std::runtime_error& err) {
-        CB_WARN("{}", err.what());
+        LOG_WARNING("{}", err.what());
         return AUDIT_FAILED;
     } catch (std::bad_alloc&) {
-        CB_WARN("Failed to start audit: Out of memory");
+        LOG_WARNING("Failed to start audit: Out of memory");
         return AUDIT_FAILED;
     }
 

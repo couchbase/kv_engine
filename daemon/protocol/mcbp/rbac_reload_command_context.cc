@@ -31,24 +31,22 @@ public:
     Status execute() override {
         auto& connection = cookie.getConnection();
         try {
-            LOG_NOTICE(nullptr,
-                       "%u: Loading RBAC configuration from [%s] %s",
-                       connection.getId(),
-                       settings.getRbacFile().c_str(),
-                       connection.getDescription().c_str());
+            LOG_INFO("{}: Loading RBAC configuration from [{}] {}",
+                     connection.getId(),
+                     settings.getRbacFile(),
+                     connection.getDescription());
             cb::rbac::loadPrivilegeDatabase(settings.getRbacFile());
-            LOG_NOTICE(nullptr,
-                       "%u: RBAC configuration updated %s",
-                       connection.getId(),
-                       connection.getDescription().c_str());
+            LOG_INFO("{}: RBAC configuration updated {}",
+                     connection.getId(),
+                     connection.getDescription());
         } catch (const std::runtime_error& error) {
-            LOG_WARNING(nullptr,
-                        "%u: RbacConfigReloadTask(): An error occured while "
-                        "loading RBAC configuration from [%s] %s: %s",
-                        connection.getId(),
-                        settings.getRbacFile().c_str(),
-                        connection.getDescription().c_str(),
-                        error.what());
+            LOG_WARNING(
+                    "{}: RbacConfigReloadTask(): An error occured while "
+                    "loading RBAC configuration from [{}] {}: {}",
+                    connection.getId(),
+                    settings.getRbacFile(),
+                    connection.getDescription(),
+                    error.what());
             status = ENGINE_FAILED;
         }
 

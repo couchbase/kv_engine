@@ -159,7 +159,8 @@ void JemallocHooks::release_free_memory() {
     size_t len = sizeof(narenas);
     int err = je_mallctl("arenas.narenas", &narenas, &len, NULL, 0);
     if (err != 0) {
-        CB_WARN("jemalloc_release_free_memory() error {} - "
+        LOG_WARNING(
+                "jemalloc_release_free_memory() error {} - "
                 "could not determine narenas.",
                 err);
 
@@ -169,7 +170,8 @@ void JemallocHooks::release_free_memory() {
     size_t miblen = sizeof(mib) / sizeof(mib[0]);
     err = je_mallctlnametomib("arena.0.purge", mib, &miblen);
     if (err != 0) {
-        CB_WARN("jemalloc_release_free_memory() error {} - "
+        LOG_WARNING(
+                "jemalloc_release_free_memory() error {} - "
                 "could not lookup MIB.",
                 err);
         return;
@@ -177,7 +179,8 @@ void JemallocHooks::release_free_memory() {
     mib[1] = narenas;
     err = je_mallctlbymib(mib, miblen, NULL, 0, NULL, 0);
     if (err != 0) {
-        CB_WARN("jemalloc_release_free_memory() error {} - "
+        LOG_WARNING(
+                "jemalloc_release_free_memory() error {} - "
                 "could not invoke arenas.N.purge.",
                 err);
     }
@@ -189,9 +192,9 @@ bool JemallocHooks::enable_thread_cache(bool enable) {
     int err = je_mallctl("thread.tcache.enabled", &old, &size, &enable,
                          sizeof(enable));
     if (err != 0) {
-        CB_WARN("jemalloc_enable_thread_cache({}) error {}",
-                (enable ? "true" : "false"),
-                err);
+        LOG_WARNING("jemalloc_enable_thread_cache({}) error {}",
+                    (enable ? "true" : "false"),
+                    err);
     }
     return old;
 }

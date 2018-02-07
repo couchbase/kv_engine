@@ -35,9 +35,9 @@
 
 bool McbpConnection::unregisterEvent() {
     if (!registered_in_libevent) {
-        LOG_WARNING(NULL,
-                    "Connection::unregisterEvent: Not registered in libevent - "
-                        "ignoring unregister attempt");
+        LOG_WARNING(
+                "Connection::unregisterEvent: Not registered in libevent - "
+                "ignoring unregister attempt");
         return false;
     }
 
@@ -56,8 +56,9 @@ bool McbpConnection::unregisterEvent() {
 
 bool McbpConnection::registerEvent() {
     if (registered_in_libevent) {
-        LOG_WARNING(NULL, "Connection::registerEvent: Already registered in"
-            " libevent - ignoring register attempt");
+        LOG_WARNING(
+                "Connection::registerEvent: Already registered in"
+                " libevent - ignoring register attempt");
         return false;
     }
 
@@ -112,9 +113,10 @@ bool McbpConnection::updateEvent(const short new_flags) {
         // into the timeout.
 
         if (ev_timeout_enabled && (isInternal() || isDCP())) {
-            LOG_DEBUG(this,
-                      "%u: Forcibly reset the event connection flags to"
-                          " disable timeout", getId());
+            LOG_DEBUG(
+                    "{}: Forcibly reset the event connection flags to"
+                    " disable timeout",
+                    getId());
         } else {
             rel_time_t now = mc_time_get_current_time();
             const int reinsert_time = settings.getConnectionIdleTime() / 2;
@@ -122,40 +124,45 @@ bool McbpConnection::updateEvent(const short new_flags) {
             if ((ev_insert_time + reinsert_time) > now) {
                 return true;
             } else {
-                LOG_DEBUG(this,
-                          "%u: Forcibly reset the event connection flags to"
-                              " avoid premature timeout", getId());
+                LOG_DEBUG(
+                        "{}: Forcibly reset the event connection flags to"
+                        " avoid premature timeout",
+                        getId());
             }
         }
     }
 
-    LOG_DEBUG(NULL, "%u: Updated event to read=%s, write=%s\n",
-              getId(), (new_flags & EV_READ ? "yes" : "no"),
+    LOG_DEBUG("{}: Updated event to read={}, write={}\n",
+              getId(),
+              (new_flags & EV_READ ? "yes" : "no"),
               (new_flags & EV_WRITE ? "yes" : "no"));
 
     if (!unregisterEvent()) {
-        LOG_WARNING(this,
-                    "Failed to remove connection from event notification "
-                    "library. Shutting down connection %s",
-                    getDescription().c_str());
+        LOG_WARNING(
+                "{}: Failed to remove connection from event notification "
+                "library. Shutting down connection {}",
+                getId(),
+                getDescription());
         return false;
     }
 
     if (event_assign(&event, base, socketDescriptor, new_flags, event_handler,
               reinterpret_cast<void*>(this)) == -1) {
-        LOG_WARNING(this,
-                    "Failed to set up event notification. "
-                    "Shutting down connection %s",
-                    getDescription().c_str());
+        LOG_WARNING(
+                "{}: Failed to set up event notification. "
+                "Shutting down connection {}",
+                getId(),
+                getDescription());
         return false;
     }
     ev_flags = new_flags;
 
     if (!registerEvent()) {
-        LOG_WARNING(this,
-                    "Failed to add connection to the event notification "
-                    "library. Shutting down connection %s",
-                    getDescription().c_str());
+        LOG_WARNING(
+                "{}: Failed to add connection to the event notification "
+                "library. Shutting down connection {}",
+                getId(),
+                getDescription());
         return false;
     }
 
@@ -187,10 +194,8 @@ void McbpConnection::shrinkBuffers() {
             msglist.resize(MSG_LIST_INITIAL);
             msglist.shrink_to_fit();
         } catch (const std::bad_alloc&) {
-            LOG_WARNING(this,
-                        "%u: Failed to shrink msglist down to %"
-                            PRIu64
-                            " elements.", getId(),
+            LOG_WARNING("{}: Failed to shrink msglist down to {} elements.",
+                        getId(),
                         MSG_LIST_INITIAL);
         }
     }
@@ -200,10 +205,8 @@ void McbpConnection::shrinkBuffers() {
             iov.resize(IOV_LIST_INITIAL);
             iov.shrink_to_fit();
         } catch (const std::bad_alloc&) {
-            LOG_WARNING(this,
-                        "%u: Failed to shrink iov down to %"
-                            PRIu64
-                            " elements.", getId(),
+            LOG_WARNING("{}: Failed to shrink iov down to {} elements.",
+                        getId(),
                         IOV_LIST_INITIAL);
         }
     }
@@ -218,21 +221,20 @@ bool McbpConnection::tryAuthFromSslCert(const std::string& userName) {
                 cb::rbac::createInitialContext(getUsername(), getDomain());
         setAuthenticated(true);
         setInternal(context.second);
-        LOG_INFO(this,
-                 "%u: Client %s authenticated as '%s' via X509 "
-                 "certificate",
-                 getId(),
-                 getPeername().c_str(),
-                 cb::logtags::tagUserData(getUsername()).c_str());
+        LOG_INFO(
+                "{}: Client {} authenticated as '{}' via X509 "
+                "certificate",
+                getId(),
+                getPeername(),
+                cb::logtags::tagUserData(getUsername()));
         // Connections authenticated by using X.509 certificates should not
         // be able to use SASL to change it's identity.
         saslAuthEnabled = false;
     } catch (const cb::rbac::NoSuchUserException& e) {
         setAuthenticated(false);
-        LOG_WARNING(this,
-                    "%u: User [%s] is not defined as a user in Couchbase",
+        LOG_WARNING("{}: User [{}] is not defined as a user in Couchbase",
                     getId(),
-                    cb::logtags::tagUserData(e.what()).c_str());
+                    cb::logtags::tagUserData(e.what()));
         return false;
     }
     return true;
@@ -267,10 +269,11 @@ int McbpConnection::sslPreConnection() {
         if (disconnect) {
             set_econnreset();
             if (!certResult.second.empty()) {
-                LOG_WARNING(this,
-                            "%u: SslPreConnection: disconnection client due to"
-                                " error [%s]", getId(),
-                            certResult.second.c_str());
+                LOG_WARNING(
+                        "{}: SslPreConnection: disconnection client due to"
+                        " error [{}]",
+                        getId(),
+                        certResult.second);
             }
             return -1;
         }
@@ -290,8 +293,7 @@ int McbpConnection::sslPreConnection() {
                 ERR_error_string_n(ERR_get_error(), ssl_err.data(),
                                    ssl_err.size());
 
-                LOG_WARNING(this, "%u: %s: %s",
-                            getId(), errmsg.c_str(), ssl_err.data());
+                LOG_WARNING("{}: {}: {}", getId(), errmsg, ssl_err.data());
             } catch (const std::bad_alloc&) {
                 // unable to print error message; continue.
             }
@@ -471,9 +473,8 @@ McbpConnection::TransmitResult McbpConnection::transmit() {
         // we have a real error, on which we close the connection
         if (res == -1) {
             if (is_closed_conn(error)) {
-                LOG_NOTICE(nullptr,
-                           "%u: Failed to send data; peer closed the connection",
-                           getId());
+                LOG_INFO("{}: Failed to send data; peer closed the connection",
+                         getId());
             } else {
                 log_socket_error(EXTENSION_LOG_WARNING, this,
                                  "Failed to write, and not due to blocking: %s");
@@ -484,11 +485,10 @@ McbpConnection::TransmitResult McbpConnection::transmit() {
             // requested to write 0 bytes (otherwise we should have gotten
             // -1 with EWOULDBLOCK)
             // Log the request buffer so that we can look into this
-            LOG_WARNING(this, "%d - sendmsg returned 0\n",
-                        socketDescriptor);
+            LOG_WARNING("{} - sendmsg returned 0", socketDescriptor);
             for (int ii = 0; ii < int(m->msg_iovlen); ++ii) {
-                LOG_WARNING(this, "\t%d - %zu\n",
-                            socketDescriptor, m->msg_iov[ii].iov_len);
+                LOG_WARNING(
+                        "\t{} - {}", socketDescriptor, m->msg_iov[ii].iov_len);
             }
         }
 
@@ -534,11 +534,11 @@ McbpConnection::TryReadResult McbpConnection::tryReadNetwork() {
     }
 
     if (res == 0) {
-        LOG_INFO(this,
-                 "%u Closing connection as the other side closed the "
-                 "connection %s",
-                 getId(),
-                 getDescription().c_str());
+        LOG_INFO(
+                "{} Closing connection as the other side closed the "
+                "connection {}",
+                getId(),
+                getDescription());
         return TryReadResult::SocketClosed;
     }
 
@@ -548,12 +548,12 @@ McbpConnection::TryReadResult McbpConnection::tryReadNetwork() {
     }
 
     std::string errormsg = cb_strerror(error);
-    LOG_WARNING(this,
-                "%u Closing connection %s due to read "
-                "error: %s",
-                getId(),
-                getDescription().c_str(),
-                errormsg.c_str());
+    LOG_WARNING(
+            "{} Closing connection {} due to read "
+            "error: {}",
+            getId(),
+            getDescription(),
+            errormsg);
     return TryReadResult::SocketError;
 }
 
@@ -601,9 +601,9 @@ int McbpConnection::sslRead(char* dest, size_t nbytes) {
                  * @todo I don't know how to gracefully recover from this
                  * let's just shut down the connection
                  */
-                LOG_WARNING(this,
-                            "%u: ERROR: SSL_read returned -1 with error %d",
-                            getId(), error);
+                LOG_WARNING("{}: ERROR: SSL_read returned -1 with error {}",
+                            getId(),
+                            error);
                 set_econnreset();
                 return -1;
             }
@@ -654,9 +654,10 @@ int McbpConnection::sslWrite(const char* src, size_t nbytes) {
                      * @todo I don't know how to gracefully recover from this
                      * let's just shut down the connection
                      */
-                    LOG_WARNING(this,
-                                "%u: ERROR: SSL_write returned -1 with error %d",
-                                getId(), error);
+                    LOG_WARNING(
+                            "{}: ERROR: SSL_write returned -1 with error {}",
+                            getId(),
+                            error);
                     set_econnreset();
                     return -1;
                 }
@@ -771,21 +772,18 @@ void McbpConnection::setState(McbpStateMachine::State next_state) {
 }
 
 void McbpConnection::runStateMachinery() {
+    auto logger = cb::logger::get();
     if (isTraceEnabled()) {
         do {
-            // @todo we should have a TRACE scope!!
-            LOGGER(EXTENSION_LOG_NOTICE,
-                   this,
-                   "%u - Running task: (%s)",
-                   getId(),
-                   stateMachine.getCurrentStateName());
+            logger->info("{} - Running task: {}",
+                         getId(),
+                         stateMachine.getCurrentStateName());
         } while (stateMachine.execute());
     } else {
         do {
-            LOG_DEBUG(this,
-                      "%u - Running task: (%s)",
-                      getId(),
-                      stateMachine.getCurrentStateName());
+            logger->debug("{} - Running task: {}",
+                          getId(),
+                          stateMachine.getCurrentStateName());
         } while (stateMachine.execute());
     }
 }
@@ -969,9 +967,10 @@ void McbpConnection::runEventLoop(short which) {
     try {
         runStateMachinery();
     } catch (const std::exception& e) {
-        LOG_WARNING(this,
-                    "%d: exception occurred in runloop - closing connection: %s",
-                    getId(), e.what());
+        LOG_WARNING(
+                "{}: exception occurred in runloop - closing connection: {}",
+                getId(),
+                e.what());
         setState(McbpStateMachine::State::closing);
         /*
          * In addition to setting the state to conn_closing
@@ -982,10 +981,11 @@ void McbpConnection::runEventLoop(short which) {
         try {
             runStateMachinery();
         } catch (const std::exception& e) {
-            LOG_WARNING(this,
-                    "%d: exception occurred in runloop whilst"
-                    " attempting to close connection: %s",
-                    getId(), e.what());
+            LOG_WARNING(
+                    "{}: exception occurred in runloop whilst"
+                    " attempting to close connection: {}",
+                    getId(),
+                    e.what());
         }
     }
 
@@ -1037,21 +1037,24 @@ void McbpConnection::signalIfIdle(bool logbusy, int workerthread) {
         if (!registered_in_libevent) {
             ev_flags = EV_READ | EV_WRITE | EV_PERSIST;
             if (!registerEvent()) {
-                LOG_WARNING(this, "McbpConnection::signalIfIdle: Unable to "
-                                  "registerEvent.  Setting state to conn_closing");
+                LOG_WARNING(
+                        "{}: McbpConnection::signalIfIdle: Unable to "
+                        "registerEvent.  Setting state to conn_closing",
+                        getId());
                 setState(McbpStateMachine::State::closing);
             }
         } else if (!updateEvent(EV_READ | EV_WRITE | EV_PERSIST)) {
-            LOG_WARNING(this, "McbpConnection::signalIfIdle: Unable to "
-                              "updateEvent.  Setting state to conn_closing");
+            LOG_WARNING(
+                    "{}: McbpConnection::signalIfIdle: Unable to "
+                    "updateEvent.  Setting state to conn_closing",
+                    getId());
             setState(McbpStateMachine::State::closing);
         }
         event_active(&event, EV_WRITE, 0);
     } else if (logbusy) {
         unique_cJSON_ptr json(toJSON());
         auto details = to_string(json, false);
-        LOG_NOTICE(
-                nullptr, "Worker thread %u: %s", workerthread, details.c_str());
+        LOG_INFO("Worker thread {}: {}", workerthread, details);
     }
 }
 

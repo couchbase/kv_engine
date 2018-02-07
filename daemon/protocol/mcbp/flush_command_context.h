@@ -40,8 +40,9 @@ public:
 
     explicit FlushCommandContext(Cookie& cookie)
         : SteppableCommandContext(cookie), state(State::Flushing) {
-        LOG_NOTICE(&connection, "%u: flush b:%s", connection.getId(),
-                   connection.getBucket().name);
+        LOG_INFO("{}: flush b:{}",
+                 connection.getId(),
+                 connection.getBucket().name);
     }
 
 protected:

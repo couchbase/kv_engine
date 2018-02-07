@@ -179,7 +179,8 @@ static void assoc_expand() {
     if ((ret = cb_create_named_thread(&tid, assoc_maintenance_thread,
                                       nullptr, 1, "mc:assoc_maint")) != 0)
     {
-        CB_WARN("Can't create thread: {}", cb_strerror());
+        LOG_ERROR("Can't create thread for rebalance assoc table: {}",
+                  cb_strerror());
         global_assoc->hashpower--;
         global_assoc->expanding = false;
         global_assoc->primary_hashtable.swap(global_assoc->old_hashtable);
@@ -268,7 +269,7 @@ static void assoc_maintenance_thread(void *arg) {
                 global_assoc->expanding = false;
                 global_assoc->old_hashtable.resize(0);
                 global_assoc->old_hashtable.shrink_to_fit();
-                CB_INFO("Hash table expansion done");
+                LOG_INFO("Hash table expansion done");
             }
         }
         if (!global_assoc->expanding) {

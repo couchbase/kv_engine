@@ -46,8 +46,7 @@ ENGINE_ERROR_CODE GatCommandContext::getAndTouchItem() {
     if (ret.first == cb::engine_errc::success) {
         it = std::move(ret.second);
         if (!bucket_get_item_info(cookie, it.get(), &info)) {
-            LOG_WARNING(&connection, "%u: Failed to get item info",
-                        connection.getId());
+            LOG_WARNING("{}: Failed to get item info", connection.getId());
             return ENGINE_FAILED;
         }
 
@@ -80,8 +79,7 @@ ENGINE_ERROR_CODE GatCommandContext::inflateItem() {
     try {
         if (!cb::compression::inflate(cb::compression::Algorithm::Snappy,
                                       payload, buffer)) {
-            LOG_WARNING(&connection, "%u: Failed to inflate item",
-                        connection.getId());
+            LOG_WARNING("{}: Failed to inflate item", connection.getId());
             return ENGINE_FAILED;
         }
         payload = buffer;

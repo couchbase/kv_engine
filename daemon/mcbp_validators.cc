@@ -18,7 +18,7 @@
 #include "config.h"
 #include "mcbp_validators.h"
 #include <memcached/protocol_binary.h>
-#include <include/memcached/protocol_binary.h>
+#include <platform/string.h>
 
 #include "buckets.h"
 #include "memcached.h"
@@ -62,10 +62,10 @@ static protocol_binary_response_status verify_common_dcp_restrictions(
         const Cookie& cookie) {
     const auto& connection = cookie.getConnection();
     if (connection.allowUnorderedExecution()) {
-        LOG_NOTICE(&connection,
-                   "DCP on a connection with unordered execution is currently "
-                   "not supported: %s",
-                   get_peer_description(cookie).c_str());
+        LOG_WARNING(
+                "DCP on a connection with unordered execution is currently "
+                "not supported: {}",
+                get_peer_description(cookie));
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
 
@@ -108,20 +108,19 @@ static protocol_binary_response_status dcp_open_validator(const Cookie& cookie)
                       DCP_OPEN_COLLECTIONS;
 
     if (flags & ~mask) {
-        LOG_NOTICE(
-                &cookie.getConnection(),
-                "Client trying to open dcp stream with unknown flags (%08x) %s",
+        LOG_INFO(
+                "Client trying to open dcp stream with unknown flags ({:x}) {}",
                 flags,
-                get_peer_description(cookie).c_str());
+                get_peer_description(cookie));
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
     if ((flags & DCP_OPEN_NOTIFIER) && (flags & ~DCP_OPEN_NOTIFIER)) {
-        LOG_NOTICE(&cookie.getConnection(),
-                   "Invalid flags combination (%08x) specified for a DCP "
-                   "consumer %s",
-                   flags,
-                   get_peer_description(cookie).c_str());
+        LOG_INFO(
+                "Invalid flags combination ({:x}) specified for a DCP "
+                "consumer {}",
+                flags,
+                get_peer_description(cookie));
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
@@ -158,15 +157,12 @@ static protocol_binary_response_status dcp_add_stream_validator(const Cookie& co
     if (flags & ~mask) {
         if (flags & DCP_ADD_STREAM_FLAG_NO_VALUE) {
             // MB-22525 The NO_VALUE flag should be passed to DCP_OPEN
-            LOG_NOTICE(&cookie.getConnection(),
-                       "Client trying to add stream with NO VALUE %s",
-                       get_peer_description(cookie).c_str());
+            LOG_INFO("Client trying to add stream with NO VALUE {}",
+                     get_peer_description(cookie));
         } else {
-            LOG_NOTICE(
-                    &cookie.getConnection(),
-                    "Client trying to add stream with unknown flags (%08x) %s",
-                    flags,
-                    get_peer_description(cookie).c_str());
+            LOG_INFO("Client trying to add stream with unknown flags ({:x}) {}",
+                     flags,
+                     get_peer_description(cookie));
         }
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }

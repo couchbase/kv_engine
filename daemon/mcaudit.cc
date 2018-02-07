@@ -54,17 +54,15 @@ void setEnabled(uint32_t id, bool enable) {
 
     if (id == 0) {
         if (audit_enabled.compare_exchange_strong(expected, enable)) {
-            LOG_NOTICE(nullptr,
-                       "Audit changed from: %s to: %s",
-                       !enable ? "enabled" : "disabled",
-                       enable ? "enabled" : "disabled");
+            LOG_INFO("Audit changed from: {} to: {}",
+                     !enable ? "enabled" : "disabled",
+                     enable ? "enabled" : "disabled");
         }
     }
 
     if (id >= First && id <= Last) {
         if (events[id - First].compare_exchange_strong(expected, enable)) {
-            LOG_INFO(nullptr,
-                     "Audit descriptor %u changed from: %s to: %s",
+            LOG_INFO("Audit descriptor {} changed from: {} to: {}",
                      id,
                      expected ? "enabled" : "disabled",
                      enable ? "enabled" : "disabled");
@@ -113,7 +111,7 @@ static void do_audit(const Connection* c,
                                   text.length());
 
     if (status != AUDIT_SUCCESS) {
-        LOG_WARNING(c, "%s: %s", warn, text.c_str());
+        LOG_WARNING("{}: {}", warn, text);
     }
 }
 
@@ -155,7 +153,7 @@ void audit_dcp_open(const Connection *c) {
         return;
     }
     if (c->isInternal()) {
-        LOG_INFO(c, "Open DCP stream with admin credentials");
+        LOG_INFO("Open DCP stream with admin credentials");
     } else {
         auto root = create_memcached_audit_object(c);
         cJSON_AddStringToObject(root.get(), "bucket", getBucketName(c));

@@ -215,13 +215,16 @@ void mc_time_clock_tick(void) {
             || (difference < memcached_check_system_time - 1))) {
             if (settings.extensions.logger) {
                 /* log all variables used in time calculations */
-                LOG_WARNING(NULL,
-                    "system clock changed? difference = %lu, memcached_epoch = %lu, "
-                    "memcached_uptime = %u, new memcached_epoch = %lu, "
-                    "next check %lu\n",
-                    difference, memcached_epoch,
-                    memcached_uptime.load(), (timeofday.tv_sec - memcached_uptime),
-                    check_system_time + memcached_check_system_time);
+                LOG_WARNING(
+                        "system clock changed? difference = {}, "
+                        "memcached_epoch = {}, "
+                        "memcached_uptime = {}, new memcached_epoch = {}, "
+                        "next check {}",
+                        difference,
+                        memcached_epoch,
+                        memcached_uptime.load(),
+                        (timeofday.tv_sec - memcached_uptime),
+                        check_system_time + memcached_check_system_time);
             }
             /* adjust memcached_epoch to ensure correct timeofday can
                be calculated by clients*/

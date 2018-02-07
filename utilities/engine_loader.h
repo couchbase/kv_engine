@@ -38,23 +38,20 @@ MEMCACHED_PUBLIC_API void unload_engine(engine_reference* engine);
  */
 MEMCACHED_PUBLIC_API engine_reference* load_engine(const char* soname,
                                                    const char* create_function,
-                                                   const char* destroy_function,
-                                                   EXTENSION_LOGGER_DESCRIPTOR* logger)
-   CB_ATTR_NONNULL(1, 4);
+                                                   const char* destroy_function)
+        CB_ATTR_NONNULL(1);
 
 /*
     Create an engine instance.
 */
 MEMCACHED_PUBLIC_API bool create_engine_instance(engine_reference* engine,
                                                  SERVER_HANDLE_V1 *(*get_server_api)(void),
-                                                 EXTENSION_LOGGER_DESCRIPTOR *logger,
                                                  ENGINE_HANDLE **engine_handle);
 /*
     Initialise the engine handle using the engine's exported initialize method.
 */
-MEMCACHED_PUBLIC_API bool init_engine_instance(ENGINE_HANDLE *engine,
-                                               const char *config_str,
-                                               EXTENSION_LOGGER_DESCRIPTOR *logger);
+MEMCACHED_PUBLIC_API bool init_engine_instance(ENGINE_HANDLE* engine,
+                                               const char* config_str);
 
 #ifdef __cplusplus
 }

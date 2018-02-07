@@ -205,11 +205,11 @@ bool conn_ship_log(McbpConnection& connection) {
     }
 
     if (!connection.updateEvent(mask)) {
-        LOG_WARNING(&connection,
-                    "%u: conn_ship_log - Unable to update libevent "
-                    "settings, closing connection %s",
-                    connection.getId(),
-                    connection.getDescription().c_str());
+        LOG_WARNING(
+                "{}: conn_ship_log - Unable to update libevent "
+                "settings, closing connection {}",
+                connection.getId(),
+                connection.getDescription());
         connection.setState(McbpStateMachine::State::closing);
     }
 
@@ -222,12 +222,12 @@ bool conn_waiting(McbpConnection& connection) {
     }
 
     if (!connection.updateEvent(EV_READ | EV_PERSIST)) {
-        LOG_WARNING(&connection,
-                    "%u: conn_waiting - Unable to update libevent "
-                    "settings with (EV_READ | EV_PERSIST), closing connection "
-                    "%s",
-                    connection.getId(),
-                    connection.getDescription().c_str());
+        LOG_WARNING(
+                "{}: conn_waiting - Unable to update libevent "
+                "settings with (EV_READ | EV_PERSIST), closing connection "
+                "{}",
+                connection.getId(),
+                connection.getDescription());
         connection.setState(McbpStateMachine::State::closing);
         return true;
     }
@@ -277,12 +277,9 @@ bool conn_new_cmd(McbpConnection& connection) {
     }
 
     if (!connection.write->empty()) {
-        LOG_WARNING(
-                &connection,
-                "%u: Expected write buffer to be empty.. It's not! (%" PRIu64
-                ")",
-                connection.getId(),
-                connection.write->rsize());
+        LOG_WARNING("{}: Expected write buffer to be empty.. It's not! ({})",
+                    connection.getId(),
+                    connection.write->rsize());
     }
 
     /*
@@ -319,11 +316,11 @@ bool conn_new_cmd(McbpConnection& connection) {
         if (connection.havePendingInputData() || connection.isDCP()) {
             short flags = EV_WRITE | EV_PERSIST;
             if (!connection.updateEvent(flags)) {
-                LOG_WARNING(&connection,
-                            "%u: conn_new_cmd - Unable to update "
-                            "libevent settings, closing connection %s",
-                            connection.getId(),
-                            connection.getDescription().c_str());
+                LOG_WARNING(
+                        "{}: conn_new_cmd - Unable to update "
+                        "libevent settings, closing connection {}",
+                        connection.getId(),
+                        connection.getDescription());
                 connection.setState(McbpStateMachine::State::closing);
                 return true;
             }
@@ -425,12 +422,12 @@ bool conn_read_packet_body(McbpConnection& connection) {
     auto error = GetLastNetworkError();
     if (is_blocking(error)) {
         if (!connection.updateEvent(EV_READ | EV_PERSIST)) {
-            LOG_WARNING(&connection,
-                        "%u: conn_read_packet_body - Unable to update libevent "
-                        "settings with (EV_READ | EV_PERSIST), closing "
-                        "connection %s",
-                        connection.getId(),
-                        connection.getDescription().c_str());
+            LOG_WARNING(
+                    "{}: conn_read_packet_body - Unable to update libevent "
+                    "settings with (EV_READ | EV_PERSIST), closing "
+                    "connection {}",
+                    connection.getId(),
+                    connection.getDescription());
             connection.setState(McbpStateMachine::State::closing);
             return true;
         }
@@ -442,11 +439,10 @@ bool conn_read_packet_body(McbpConnection& connection) {
 
     // We have a "real" error on the socket.
     std::string errormsg = cb_strerror(error);
-    LOG_WARNING(&connection,
-                "%u Closing connection %s due to read error: %s",
+    LOG_WARNING("{} Closing connection {} due to read error: {}",
                 connection.getId(),
-                connection.getDescription().c_str(),
-                errormsg.c_str());
+                connection.getDescription(),
+                errormsg);
 
     connection.setState(McbpStateMachine::State::closing);
     return true;
@@ -467,15 +463,11 @@ bool conn_send_data(McbpConnection& connection) {
         break;
 
     case McbpConnection::TransmitResult::Incomplete:
-        LOG_INFO(&connection,
-                 "%d - Incomplete transfer. Will retry",
-                 connection.getId());
+        LOG_DEBUG("{} - Incomplete transfer. Will retry", connection.getId());
         break;
 
     case McbpConnection::TransmitResult::HardError:
-        LOG_NOTICE(&connection,
-                   "%d - Hard error, closing connection",
-                   connection.getId());
+        LOG_INFO("{} - Hard error, closing connection", connection.getId());
         break;
 
     case McbpConnection::TransmitResult::SoftError:
@@ -494,8 +486,7 @@ bool conn_pending_close(McbpConnection& connection) {
     if (!connection.isSocketClosed()) {
         throw std::logic_error("conn_pending_close: socketDescriptor must be closed");
     }
-    LOG_DEBUG(&connection,
-              "Awaiting clients to release the cookie (pending close for %p)",
+    LOG_DEBUG("Awaiting clients to release the cookie (pending close for {})",
               (void*)&connection);
     /*
      * tell the DCP connection that we're disconnecting it now,

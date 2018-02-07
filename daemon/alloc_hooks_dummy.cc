@@ -26,7 +26,8 @@
 #include "alloc_hooks_dummy.h"
 
 void DummyAllocHooks::initialize() {
-    CB_INFO("This version of Couchbase is built without allocator hooks "
+    LOG_INFO(
+            "This version of Couchbase is built without allocator hooks "
             "for "
             "accurate memory tracking");
 }

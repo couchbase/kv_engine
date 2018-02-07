@@ -34,11 +34,10 @@ ENGINE_ERROR_CODE bucket_unknown_command(Cookie& cookie,
                                                     c.getDocNamespace());
     if (ret == ENGINE_DISCONNECT) {
         const auto request = cookie.getRequest();
-        LOG_INFO(&c,
-                 "%u: %s %s return ENGINE_DISCONNECT",
+        LOG_INFO("{}: {} {} return ENGINE_DISCONNECT",
                  c.getId(),
-                 c.getDescription().c_str(),
-                 to_string(request.getClientOpcode()).c_str());
+                 c.getDescription(),
+                 to_string(request.getClientOpcode()));
     }
     return ret;
 }
@@ -62,10 +61,9 @@ bool bucket_get_item_info(Cookie& cookie,
     auto ret = c.getBucketEngine()->get_item_info(
             c.getBucketEngineAsV0(), item_, item_info_);
     if (!ret) {
-        LOG_INFO(&c,
-                 "%u: %s bucket_get_item_info failed",
+        LOG_INFO("{}: {} bucket_get_item_info failed",
                  c.getId(),
-                 c.getDescription().c_str());
+                 c.getDescription());
     }
 
     return ret;
@@ -79,10 +77,9 @@ cb::EngineErrorMetadataPair bucket_get_meta(Cookie& cookie,
     auto ret = c.getBucketEngine()->get_meta(
             c.getBucketEngineAsV0(), &cookie, key, vbucket);
     if (ret.first == cb::engine_errc::disconnect) {
-        LOG_INFO(&c,
-                 "%u: %s bucket_get_meta return ENGINE_DISCONNECT",
+        LOG_INFO("{}: {} bucket_get_meta return ENGINE_DISCONNECT",
                  c.getId(),
-                 c.getDescription().c_str());
+                 c.getDescription());
     }
 
     return ret;
@@ -107,10 +104,9 @@ ENGINE_ERROR_CODE bucket_store(Cookie& cookie,
             document_state == DocumentState::Alive ? Operation::Modify
                                                    : Operation::Delete);
     } else if (ret == ENGINE_DISCONNECT) {
-        LOG_INFO(&c,
-                 "%u: %s bucket_store return ENGINE_DISCONNECT",
+        LOG_INFO("{}: {} bucket_store return ENGINE_DISCONNECT",
                  c.getId(),
-                 c.getDescription().c_str());
+                 c.getDescription());
     }
 
     return ret;
@@ -137,10 +133,9 @@ cb::EngineErrorCasPair bucket_store_if(Cookie& cookie,
             document_state == DocumentState::Alive ? Operation::Modify
                                                    : Operation::Delete);
     } else if (ret.status == cb::engine_errc::disconnect) {
-        LOG_INFO(&c,
-                 "%u: %s store_if return ENGINE_DISCONNECT",
+        LOG_INFO("{}: {} store_if return ENGINE_DISCONNECT",
                  c.getId(),
-                 c.getDescription().c_str());
+                 c.getDescription());
     }
 
     return ret;
@@ -159,10 +154,9 @@ ENGINE_ERROR_CODE bucket_remove(Cookie& cookie,
         cb::audit::document::add(cookie,
                                  cb::audit::document::Operation::Delete);
     } else if (ret == ENGINE_DISCONNECT) {
-        LOG_INFO(&c,
-                 "%u: %s bucket_remove return ENGINE_DISCONNECT",
+        LOG_INFO("{}: {} bucket_remove return ENGINE_DISCONNECT",
                  c.getId(),
-                 c.getDescription().c_str());
+                 c.getDescription());
     }
     return ret;
 }
@@ -179,10 +173,9 @@ cb::EngineErrorItemPair bucket_get(Cookie& cookie,
                                         vbucket,
                                         documentStateFilter);
     if (ret.first == cb::engine_errc::disconnect) {
-        LOG_INFO(&c,
-                 "%u: %s bucket_get return ENGINE_DISCONNECT",
+        LOG_INFO("{}: {} bucket_get return ENGINE_DISCONNECT",
                  c.getId(),
-                 c.getDescription().c_str());
+                 c.getDescription());
     }
     return ret;
 }
@@ -204,10 +197,9 @@ cb::EngineErrorItemPair bucket_get_if(
             c.getBucketEngineAsV0(), &cookie, key, vbucket, filter);
 
     if (ret.first == cb::engine_errc::disconnect) {
-        LOG_INFO(&c,
-                 "%u: %s bucket_get_if return ENGINE_DISCONNECT",
+        LOG_INFO("{}: {} bucket_get_if return ENGINE_DISCONNECT",
                  c.getId(),
-                 c.getDescription().c_str());
+                 c.getDescription());
     }
     return ret;
 }
@@ -222,10 +214,9 @@ cb::EngineErrorItemPair bucket_get_and_touch(Cookie& cookie,
             c.getBucketEngineAsV0(), &cookie, key, vbucket, expiration);
 
     if (ret.first == cb::engine_errc::disconnect) {
-        LOG_INFO(&c,
-                 "%u: %s bucket_get_and_touch return ENGINE_DISCONNECT",
+        LOG_INFO("{}: {} bucket_get_and_touch return ENGINE_DISCONNECT",
                  c.getId(),
-                 c.getDescription().c_str());
+                 c.getDescription());
     }
     return ret;
 }
@@ -242,10 +233,9 @@ cb::EngineErrorItemPair bucket_get_locked(Cookie& cookie,
     if (ret.first == cb::engine_errc::success) {
         cb::audit::document::add(cookie, cb::audit::document::Operation::Lock);
     } else if (ret.first == cb::engine_errc::disconnect) {
-        LOG_INFO(&c,
-                 "%u: %s bucket_get_locked return ENGINE_DISCONNECT",
+        LOG_INFO("{}: {} bucket_get_locked return ENGINE_DISCONNECT",
                  c.getId(),
-                 c.getDescription().c_str());
+                 c.getDescription());
     }
     return ret;
 }
@@ -259,10 +249,9 @@ ENGINE_ERROR_CODE bucket_unlock(Cookie& cookie,
     auto ret = c.getBucketEngine()->unlock(
             c.getBucketEngineAsV0(), &cookie, key, vbucket, cas);
     if (ret == ENGINE_DISCONNECT) {
-        LOG_INFO(&c,
-                 "%u: %s bucket_unlock return ENGINE_DISCONNECT",
+        LOG_INFO("{}: {} bucket_unlock return ENGINE_DISCONNECT",
                  c.getId(),
-                 c.getDescription().c_str());
+                 c.getDescription());
     }
     return ret;
 }
@@ -307,10 +296,9 @@ std::pair<cb::unique_item_ptr, item_info> bucket_allocate_ex(
                                                 vbucket);
     } catch (const cb::engine_error& err) {
         if (err.code() == cb::engine_errc::disconnect) {
-            LOG_INFO(&c,
-                     "%u: %s bucket_allocate_ex return ENGINE_DISCONNECT",
+            LOG_INFO("{}: {} bucket_allocate_ex return ENGINE_DISCONNECT",
                      c.getId(),
-                     c.getDescription().c_str());
+                     c.getDescription());
         }
         throw err;
     }
@@ -322,10 +310,9 @@ ENGINE_ERROR_CODE bucket_flush(Cookie& cookie) {
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine()->flush(c.getBucketEngineAsV0(), &cookie);
     if (ret == ENGINE_DISCONNECT) {
-        LOG_INFO(&c,
-                 "%u: %s bucket_flush return ENGINE_DISCONNECT",
+        LOG_INFO("{}: {} bucket_flush return ENGINE_DISCONNECT",
                  c.getId(),
-                 c.getDescription().c_str());
+                 c.getDescription());
     }
     return ret;
 }
@@ -338,10 +325,9 @@ ENGINE_ERROR_CODE bucket_get_stats(Cookie& cookie,
     auto ret = c.getBucketEngine()->get_stats(
             c.getBucketEngineAsV0(), &cookie, key, add_stat);
     if (ret == ENGINE_DISCONNECT) {
-        LOG_INFO(&c,
-                 "%u: %s bucket_get_stats return ENGINE_DISCONNECT",
+        LOG_INFO("{}: {} bucket_get_stats return ENGINE_DISCONNECT",
                  c.getId(),
-                 c.getDescription().c_str());
+                 c.getDescription());
     }
     return ret;
 }

@@ -26,10 +26,10 @@ void dcp_stream_req_executor(Cookie& cookie) {
 
     auto& connection = cookie.getConnection();
     if (ret == ENGINE_ROLLBACK) {
-        LOG_WARNING(&connection,
-                    "%u: dcp_stream_req_executor: Unexpected AIO stat"
-                    " result ROLLBACK. Shutting down DCP connection",
-                    connection.getId());
+        LOG_WARNING(
+                "{}: dcp_stream_req_executor: Unexpected AIO stat"
+                " result ROLLBACK. Shutting down DCP connection",
+                connection.getId());
         connection.setState(McbpStateMachine::State::closing);
         return;
     }

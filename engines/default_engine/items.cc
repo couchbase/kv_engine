@@ -1145,9 +1145,9 @@ static ENGINE_ERROR_CODE item_scrub(struct default_engine *engine,
     */
     if (engine->scrubber.force_delete && item->refcount > 0) {
         // warn that someone isn't releasing items before deleting their bucket.
-        CB_WARN("Bucket ({}) deletion is removing an item with refcount {}",
-                engine->bucket_id,
-                item->refcount);
+        LOG_WARNING("Bucket ({}) deletion is removing an item with refcount {}",
+                    engine->bucket_id,
+                    item->refcount);
     }
 
     if (engine->scrubber.force_delete || (item->refcount == 0 &&

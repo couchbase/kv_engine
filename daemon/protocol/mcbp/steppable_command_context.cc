@@ -33,10 +33,10 @@ void SteppableCommandContext::drive() {
             ret = step();
         } catch (const cb::engine_error& error) {
             if (error.code() != cb::engine_errc::would_block) {
-                LOG_WARNING(&connection,
-                            "%u: SteppableCommandContext::drive() %s: %s",
+                LOG_WARNING("{}: SteppableCommandContext::drive() {}: {}",
                             connection.getId(),
-                            connection.getDescription().c_str(), error.what());
+                            connection.getDescription(),
+                            error.what());
             }
             ret = ENGINE_ERROR_CODE(error.code().value());
         }

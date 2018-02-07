@@ -41,6 +41,6 @@ bool validate_proposed_config_changes(const char* new_cfg, cJSON* errors);
  * Re-parses the file, and for settings which are permitted to be dynamically
  * changed, update the running memcached settings.
  */
-void reload_config_file(void);
+void reload_config_file();
 
 #endif /* CONFIG_PARSE_H */

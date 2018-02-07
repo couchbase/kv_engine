@@ -84,18 +84,16 @@ static void subdoc_print_command(Connection& c, protocol_binary_command cmd,
                         && (buf_to_printable_buffer(clean_value,
                                                     sizeof(clean_value), value,
                                                     vallen) != -1)) {
-            LOG_DEBUG(&c,
-                      "%s path:'%s' value:'%s'",
-                      cb::logtags::tagUserData(clean_key).c_str(),
-                      cb::logtags::tagUserData(clean_path).c_str(),
-                      cb::logtags::tagUserData(clean_value).c_str());
+            LOG_DEBUG("{} path:'{}' value:'{}'",
+                      cb::logtags::tagUserData(clean_key),
+                      cb::logtags::tagUserData(clean_path),
+                      cb::logtags::tagUserData(clean_value));
 
         } else {
             // key & path only
-            LOG_DEBUG(&c,
-                      "%s path:'%s'",
-                      cb::logtags::tagUserData(clean_key).c_str(),
-                      cb::logtags::tagUserData(clean_path).c_str());
+            LOG_DEBUG("{} path:'{}'",
+                      cb::logtags::tagUserData(clean_key),
+                      cb::logtags::tagUserData(clean_path));
         }
     }
 }
@@ -477,11 +475,13 @@ static void subdoc_executor(Cookie& cookie, const SubdocCmdTraits traits) {
     const auto mcbp_cmd = protocol_binary_command(header->request.opcode);
 
     auto& c = cookie.getConnection();
-    LOG_WARNING(&c,
-         "%u: Subdoc: Hit maximum number of auto-retry attempts (%d) when "
-         "attempting to perform op %s for client %s - returning TMPFAIL",
-         c.getId(), MAXIMUM_ATTEMPTS, memcached_opcode_2_text(mcbp_cmd),
-         c.getDescription().c_str());
+    LOG_WARNING(
+            "{}: Subdoc: Hit maximum number of auto-retry attempts ({}) when "
+            "attempting to perform op {} for client {} - returning TMPFAIL",
+            c.getId(),
+            MAXIMUM_ATTEMPTS,
+            memcached_opcode_2_text(mcbp_cmd),
+            c.getDescription());
     cookie.sendResponse(cb::mcbp::Status::Etmpfail);
 }
 
@@ -661,9 +661,9 @@ subdoc_operate_one_path(SubdocCmdContext& context, SubdocCmdContext::OperationSp
 
     default:
         // TODO: handle remaining errors.
-        LOG_DEBUG(&context.connection,
-                  "Unexpected response from subdoc: %d (0x%x)",
-                  subdoc_res, subdoc_res);
+        LOG_DEBUG("Unexpected response from subdoc: {} ({:x})",
+                  subdoc_res,
+                  subdoc_res);
         return PROTOCOL_BINARY_RESPONSE_EINTERNAL;
     }
 }
@@ -1198,8 +1198,9 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
     auto& cookie = context.cookie;
 
     if (context.getCurrentPhase() == SubdocCmdContext::Phase::XATTR) {
-        LOG_WARNING(&connection,
-                    "Internal error: We should not reach subdoc_update in the xattr phase");
+        LOG_WARNING(
+                "Internal error: We should not reach subdoc_update in the "
+                "xattr phase");
         return ENGINE_FAILED;
     }
 
@@ -1320,8 +1321,7 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
                 item_info info;
                 if (!bucket_get_item_info(
                             cookie, context.out_doc.get(), &info)) {
-                    LOG_WARNING(&connection,
-                                "%u: Subdoc: Failed to get item info",
+                    LOG_WARNING("{}: Subdoc: Failed to get item info",
                                 connection.getId());
                     cookie.sendResponse(cb::mcbp::Status::Einternal);
                     return ENGINE_FAILED;

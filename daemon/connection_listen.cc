@@ -60,12 +60,11 @@ ListenConnection::~ListenConnection() {
 
 void ListenConnection::enable() {
     if (!registered_in_libevent) {
-        LOG_NOTICE(this, "%u Listen on %s", getId(), getSockname().c_str());
+        LOG_INFO("{} Listen on {}", getId(), getSockname());
         if (listen(getSocketDescriptor(), backlog) == SOCKET_ERROR) {
-            LOG_WARNING(this,
-                        "%u: Failed to listen on %s: %s",
+            LOG_WARNING("{}: Failed to listen on {}: {}",
                         getId(),
-                        getSockname().c_str(),
+                        getSockname(),
                         strerror(errno));
         }
 
@@ -89,8 +88,10 @@ void ListenConnection::disable() {
              * used may be higher than what we try to set it.
              */
             if (listen(getSocketDescriptor(), 1) == SOCKET_ERROR) {
-                LOG_WARNING(this, "%u: Failed to set backlog to 1 on %s: %s",
-                            getId(), getSockname().c_str(), strerror(errno));
+                LOG_WARNING("{}: Failed to set backlog to 1 on {}: {}",
+                            getId(),
+                            getSockname(),
+                            strerror(errno));
             }
         }
         if (event_del(ev.get()) == -1) {
@@ -104,27 +105,29 @@ void ListenConnection::disable() {
 }
 
 void ListenConnection::runEventLoop(short) {
+    auto logger = cb::logger::get();
+
     if (!server_events.empty()) {
-        LOG_WARNING(this,
-                    "%u: ListenConnection::runEventLoop() - logic error. "
-                    "Listen connections do not support server events");
+        logger->warn(
+                "{}: ListenConnection::runEventLoop() - logic error. "
+                "Listen connections do not support server events",
+                getId());
         while (!server_events.empty()) {
-            LOG_NOTICE(this,
-                       "%u: Dropping event: %s",
-                       getId(),
-                       server_events.front()->getDescription().c_str());
+            logger->info("{}: Dropping event: {}",
+                         getId(),
+                         server_events.front()->getDescription());
             server_events.pop();
         }
     }
 
     try {
         do {
-            LOG_DEBUG(this, "%u - Running task: (conn_listening)", getId());
+            logger->debug("{} - Running task: (conn_listening)", getId());
         } while (conn_listening(this));
     } catch (std::invalid_argument& e) {
-        LOG_WARNING(this,
-                    "%d: exception occurred while accepting clients: %s",
-                    getId(), e.what());
+        logger->warn("{}: exception occurred while accepting clients: {}",
+                     getId(),
+                     e.what());
     }
 }
 

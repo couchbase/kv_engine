@@ -59,7 +59,7 @@ void add_stat(Cookie& cookie,
     char buf[16];
     int len = checked_snprintf(buf, sizeof(buf), "%" PRId32, val);
     if (len < 0 || size_t(len) >= sizeof(buf)) {
-        LOG_WARNING(nullptr, "add_stat failed to add stat for %s", name);
+        LOG_WARNING("add_stat failed to add stat for {}", name);
     } else {
         add_stat_callback(
                 name, uint16_t(strlen(name)), buf, uint32_t(len), &cookie);
@@ -73,7 +73,7 @@ void add_stat(Cookie& cookie,
     char buf[16];
     int len = checked_snprintf(buf, sizeof(buf), "%" PRIu32, val);
     if (len < 0 || size_t(len) >= sizeof(buf)) {
-        LOG_WARNING(nullptr, "add_stat failed to add stat for %s", name);
+        LOG_WARNING("add_stat failed to add stat for {}", name);
     } else {
         add_stat_callback(
                 name, uint16_t(strlen(name)), buf, uint32_t(len), &cookie);
@@ -87,7 +87,7 @@ void add_stat(Cookie& cookie,
     char buf[32];
     int len = checked_snprintf(buf, sizeof(buf), "%" PRId64, val);
     if (len < 0 || size_t(len) >= sizeof(buf)) {
-        LOG_WARNING(nullptr, "add_stat failed to add stat for %s", name);
+        LOG_WARNING("add_stat failed to add stat for {}", name);
     } else {
         add_stat_callback(
                 name, uint16_t(strlen(name)), buf, uint32_t(len), &cookie);
@@ -101,7 +101,7 @@ void add_stat(Cookie& cookie,
     char buf[32];
     int len = checked_snprintf(buf, sizeof(buf), "%" PRIu64, val);
     if (len < 0 || size_t(len) >= sizeof(buf)) {
-        LOG_WARNING(nullptr, "add_stat failed to add stat for %s", name);
+        LOG_WARNING("add_stat failed to add stat for {}", name);
     } else {
         add_stat_callback(
                 name, uint16_t(strlen(name)), buf, uint32_t(len), &cookie);
@@ -335,7 +335,7 @@ static void process_stat_settings(ADD_STAT add_stat_callback, Cookie& cookie) {
             }
         }
     } catch (const std::exception& error) {
-        LOG_WARNING(nullptr, "process_stats_settings: Error building stats: %s",
+        LOG_WARNING("process_stats_settings: Error building stats: {}",
                     error.what());
     }
 

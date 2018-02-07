@@ -44,9 +44,10 @@ void set_ssl_ctx_cipher_list(SSL_CTX *ctx) {
     std::lock_guard<std::mutex> lock(ssl_cipher_list_mutex);
     if (ssl_cipher_list.length()) {
         if (SSL_CTX_set_cipher_list(ctx, ssl_cipher_list.c_str()) == 0) {
-            LOG_WARNING(NULL, "Failed to select any of the "
-                            "requested ciphers (%s)",
-                        ssl_cipher_list.c_str());
+            LOG_WARNING(
+                    "Failed to select any of the "
+                    "requested ciphers ({})",
+                    ssl_cipher_list);
         }
     }
 }
@@ -58,17 +59,13 @@ void set_ssl_protocol_mask(const std::string& mask) {
         ssl_protocol_mask.store(decode_ssl_protocol(mask),
                                 std::memory_order_release);
         if (!mask.empty()) {
-            LOG_NOTICE(nullptr, "Setting SSL minimum protocol to: %s",
-                       mask.c_str());
+            LOG_INFO("Setting SSL minimum protocol to: {}", mask);
         }
     } catch (const std::invalid_argument& e) {
-        LOG_WARNING(nullptr, "Invalid SSL protocol specified: %s",
-                    mask.c_str());
+        LOG_WARNING("Invalid SSL protocol specified: {}", mask);
 
     } catch (...) {
-        LOG_WARNING(nullptr,
-                    "An error occured while decoding the SSL protocol: %s",
-                    mask.c_str());
+        LOG_ERROR("An error occured while decoding the SSL protocol: {}", mask);
     }
 }
 

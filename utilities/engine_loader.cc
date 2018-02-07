@@ -1,12 +1,13 @@
 /* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #include "config.h"
-#include <ctype.h>
-#include <stdio.h>
-#include <string.h>
 #include "utilities/engine_loader.h"
+#include <ctype.h>
+#include <logger/logger.h>
 #include <memcached/types.h>
 #include <platform/cb_malloc.h>
 #include <platform/platform.h>
+#include <stdio.h>
+#include <string.h>
 
 struct engine_reference {
 
@@ -39,9 +40,7 @@ static void* find_symbol(cb_dlhandle_t handle, const char* function, char** errm
 
 engine_reference* load_engine(const char* soname,
                               const char* create_function,
-                              const char* destroy_function,
-                              EXTENSION_LOGGER_DESCRIPTOR* logger)
-{
+                              const char* destroy_function) {
     void *create_symbol = NULL;
     void *destroy_symbol = NULL;
     char *errmsg = NULL, *create_errmsg = NULL, *destroy_errmsg = NULL;
@@ -54,8 +53,8 @@ engine_reference* load_engine(const char* soname,
     cb_dlhandle_t handle = cb_dlopen(soname, &errmsg);
 
     if (handle == NULL) {
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Failed to open library \"%s\": %s\n", soname, errmsg);
+        cb::logger::get()->warn(
+                R"(Failed to open library "{}": {})", soname, errmsg);
         cb_free(errmsg);
         return NULL;
     }
@@ -79,17 +78,20 @@ engine_reference* load_engine(const char* soname,
     }
 
     if (create_symbol == NULL) {
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                "Could not find the function to create an engine instance in %s: %s\n",
-                soname, create_errmsg);
+        cb::logger::get()->warn(
+                "Could not find the function to create an engine instance in "
+                "{}: {}",
+                soname,
+                create_errmsg);
         cb_free(create_errmsg);
         return NULL;
     }
 
     if (destroy_symbol == NULL) {
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                "Could not find the function to destroy the engine in %s: %s\n",
-                soname, destroy_errmsg);
+        cb::logger::get()->warn(
+                "Could not find the function to destroy the engine in {}: {}",
+                soname,
+                destroy_errmsg);
         cb_free(destroy_errmsg);
         return NULL;
     }
@@ -105,7 +107,6 @@ engine_reference* load_engine(const char* soname,
 
 bool create_engine_instance(engine_reference* engine_ref,
                             SERVER_HANDLE_V1 *(*get_server_api)(void),
-                            EXTENSION_LOGGER_DESCRIPTOR *logger,
                             ENGINE_HANDLE **engine_handle) {
     ENGINE_HANDLE* engine = NULL;
 
@@ -113,24 +114,27 @@ bool create_engine_instance(engine_reference* engine_ref,
     ENGINE_ERROR_CODE error = (*engine_ref->my_create_instance.create)(1, get_server_api, &engine);
 
     if (error != ENGINE_SUCCESS || engine == NULL) {
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                "Failed to create instance. Error code: %d\n", error);
+        cb::logger::get()->warn("Failed to create instance. Error code: {}",
+                                error);
         return false;
     }
     *engine_handle = engine;
     return true;
 }
 
-static void logit(EXTENSION_LOGGER_DESCRIPTOR *logger, const char* field) {
-    logger->log(EXTENSION_LOG_WARNING, nullptr,
-                "Failed to initialize engine, missing implementation for %s",
-                field);
+static void logit(const char* field) {
+    cb::logger::get()->warn(
+            "Failed to initialize engine, missing implementation for {}",
+            field);
 }
 
-static bool validate_engine_interface(const ENGINE_HANDLE_V1* v1,
-                                      EXTENSION_LOGGER_DESCRIPTOR *logger) {
+static bool validate_engine_interface(const ENGINE_HANDLE_V1* v1) {
     bool ret = true;
-#define check(a) if (v1->a == nullptr) { logit(logger, #a); ret = false; }
+#define check(a)            \
+    if (v1->a == nullptr) { \
+        logit(#a);          \
+        ret = false;        \
+    }
 
     check(initialize);
     check(destroy);
@@ -158,16 +162,12 @@ static bool validate_engine_interface(const ENGINE_HANDLE_V1* v1,
     return ret;
 }
 
-
-bool init_engine_instance(ENGINE_HANDLE *engine,
-                          const char *config_str,
-                          EXTENSION_LOGGER_DESCRIPTOR *logger)
-{
+bool init_engine_instance(ENGINE_HANDLE* engine, const char* config_str) {
     ENGINE_ERROR_CODE error;
 
     if (engine->interface == 1) {
         auto engine_v1 = reinterpret_cast<ENGINE_HANDLE_V1*>(engine);
-        if (!validate_engine_interface(engine_v1, logger)) {
+        if (!validate_engine_interface(engine_v1)) {
             // error already logged
             return false;
         }
@@ -177,12 +177,12 @@ bool init_engine_instance(ENGINE_HANDLE *engine,
             engine_v1->destroy(engine, false);
             cb::engine_error err{cb::engine_errc(error),
                                  "Failed to initialize instance"};
-            logger->log(EXTENSION_LOG_WARNING, nullptr, "%s", err.what());
+            cb::logger::get()->warn("{}", err.what());
             return false;
         }
     } else {
-        logger->log(EXTENSION_LOG_WARNING, nullptr,
-                    "Unsupported interface level %" PRIu64, engine->interface);
+        cb::logger::get()->warn("Unsupported interface level {}",
+                                engine->interface);
         return false;
     }
     return true;

@@ -64,10 +64,9 @@ public:
         }
 
         conn.setClustermapRevno(payload.first);
-        LOG_NOTICE(&conn,
-                   "%u: Sending Cluster map revision %u",
-                   conn.getId(),
-                   payload.first);
+        LOG_INFO("{}: Sending Cluster map revision {}",
+                 conn.getId(),
+                 payload.first);
 
         std::string name = bucket.name;
 
@@ -105,10 +104,9 @@ public:
 };
 
 Task::Status CccpNotificationTask::execute() {
-    LOG_NOTICE(nullptr,
-               "Pushing new cluster config for bucket:[%s] revision:[%u]",
-               bucket.name,
-               revision);
+    LOG_INFO("Pushing new cluster config for bucket:[{}] revision:[{}]",
+             bucket.name,
+             revision);
 
     auto rev = revision;
 
@@ -135,27 +133,24 @@ Task::Status CccpNotificationTask::execute() {
             }
 
             if (rev <= connection->getClustermapRevno()) {
-                LOG_NOTICE(connection,
-                           "%u: Client is using %u, no need to push %u",
-                           c.getId(),
-                           connection->getClustermapRevno(),
-                           rev);
+                LOG_INFO("{}: Client is using {}, no need to push {}",
+                         c.getId(),
+                         connection->getClustermapRevno(),
+                         rev);
                 return;
             }
 
-            LOG_NOTICE(connection,
-                       "%u: Client is using %u. Push %u",
-                       c.getId(),
-                       connection->getClustermapRevno(),
-                       rev);
+            LOG_INFO("{}: Client is using {}. Push {}",
+                     c.getId(),
+                     connection->getClustermapRevno(),
+                     rev);
 
             connection->enqueueServerEvent(
                     std::make_unique<CccpPushNotificationServerEvent>());
             connection->signalIfIdle(false, 0);
         });
     } catch (const std::exception& e) {
-        LOG_WARNING(nullptr,
-                    "CccpNotificationTask::execute: received exception: %s",
+        LOG_WARNING("CccpNotificationTask::execute: received exception: {}",
                     e.what());
     }
     getMutex().lock();

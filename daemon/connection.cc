@@ -96,7 +96,7 @@ Connection::Connection(SOCKET sock,
 Connection::~Connection() {
     MEMCACHED_CONN_DESTROY(this);
     if (socketDescriptor != INVALID_SOCKET) {
-        LOG_INFO(this, "%u - Closing socket descriptor", getId());
+        LOG_DEBUG("{} - Closing socket descriptor", getId());
         safe_close(socketDescriptor);
     }
 }
@@ -122,8 +122,8 @@ static std::string sockaddr_to_string(const struct sockaddr_storage* addr,
                           port, sizeof(port),
                           NI_NUMERICHOST | NI_NUMERICSERV);
     if (err != 0) {
-        LOG_WARNING(NULL, "getnameinfo failed with error %d", err);
-        return NULL;
+        LOG_WARNING("getnameinfo failed with error {}", err);
+        return nullptr;
     }
 
     if (addr->ss_family == AF_INET6) {
@@ -152,8 +152,9 @@ void Connection::resolveConnectionName(bool listening) {
             if ((err = getpeername(socketDescriptor,
                                    reinterpret_cast<struct sockaddr*>(&peer),
                                    &peer_len)) != 0) {
-                LOG_WARNING(NULL, "getpeername for socket %d with error %d",
-                            socketDescriptor, err);
+                LOG_WARNING("getpeername for socket {} with error {}",
+                            socketDescriptor,
+                            err);
             } else {
                 peername = sockaddr_to_string(&peer, peer_len);
             }
@@ -164,16 +165,18 @@ void Connection::resolveConnectionName(bool listening) {
         if ((err = getsockname(socketDescriptor,
                                reinterpret_cast<struct sockaddr*>(&sock),
                                &sock_len)) != 0) {
-            LOG_WARNING(NULL, "getsockname for socket %d with error %d",
-                        socketDescriptor, err);
+            LOG_WARNING("getsockname for socket {} with error {}",
+                        socketDescriptor,
+                        err);
         } else {
             sockname = sockaddr_to_string(&sock, sock_len);
         }
         updateDescription();
     } catch (const std::bad_alloc& e) {
-        LOG_WARNING(NULL,
-                    "Connection::resolveConnectionName: failed to allocate memory: %s",
-                    e.what());
+        LOG_WARNING(
+                "Connection::resolveConnectionName: failed to allocate memory: "
+                "{}",
+                e.what());
     }
 }
 
@@ -200,8 +203,7 @@ bool Connection::setTcpNoDelay(bool enable) {
 
     if (error != 0) {
         std::string errmsg = cb_strerror(GetLastNetworkError());
-        LOG_WARNING(this, "setsockopt(TCP_NODELAY): %s",
-                    errmsg.c_str());
+        LOG_WARNING("setsockopt(TCP_NODELAY): {}", errmsg);
         nodelay = false;
         return false;
     } else {
@@ -307,25 +309,27 @@ cb::rbac::PrivilegeAccess Connection::checkPrivilege(
         } catch (const cb::rbac::NoSuchBucketException& error) {
             // Remove all access to the bucket
             privilegeContext = cb::rbac::createContext(getUsername(), "");
-            LOG_NOTICE(this,
-                       "%u: RBAC: Connection::checkPrivilege(%s) %s No access to bucket [%s]. command: [%s] new privilege set: %s",
-                       getId(), to_string(privilege).c_str(),
-                       getDescription().c_str(),
-                       all_buckets[bucketIndex].name,
-                       command.c_str(),
-                       privilegeContext.to_string().c_str());
+            LOG_INFO(
+                    "{}: RBAC: Connection::checkPrivilege({}) {} No access to "
+                    "bucket [{}]. command: [{}] new privilege set: {}",
+                    getId(),
+                    to_string(privilege),
+                    getDescription(),
+                    all_buckets[bucketIndex].name,
+                    command,
+                    privilegeContext.to_string());
         } catch (const cb::rbac::Exception& error) {
-            LOG_WARNING(this,
-                        "%u: RBAC: Connection::checkPrivilege(%s) %s: An "
-                        "exception occurred. command: [%s] bucket: [%s] UUID:"
-                        "[%s] message: %s",
-                        getId(),
-                        to_string(privilege).c_str(),
-                        getDescription().c_str(),
-                        command.c_str(),
-                        all_buckets[bucketIndex].name,
-                        cookie.getEventId().c_str(),
-                        error.what());
+            LOG_WARNING(
+                    "{}: RBAC: Connection::checkPrivilege({}) {}: An "
+                    "exception occurred. command: [{}] bucket: [{}] UUID:"
+                    "[{}] message: {}",
+                    getId(),
+                    to_string(privilege),
+                    getDescription(),
+                    command,
+                    all_buckets[bucketIndex].name,
+                    cookie.getEventId(),
+                    error.what());
             // Add a textual error as well
             cookie.setErrorContext("An exception occurred. command: [" +
                                    command + "]");
@@ -334,18 +338,17 @@ cb::rbac::PrivilegeAccess Connection::checkPrivilege(
     }
 
     if (retries == max_retries) {
-        LOG_NOTICE(this,
-                   "%u: RBAC: Gave up rebuilding privilege context after %u "
-                   "times. Let the client handle the stale authentication "
-                   "context",
-                   getId(),
-                   retries);
+        LOG_INFO(
+                "{}: RBAC: Gave up rebuilding privilege context after {} "
+                "times. Let the client handle the stale authentication "
+                "context",
+                getId(),
+                retries);
 
     } else if (retries > 1) {
-        LOG_NOTICE(this,
-                   "%u: RBAC: Had to rebuild privilege context %u times",
-                   getId(),
-                   retries);
+        LOG_INFO("{}: RBAC: Had to rebuild privilege context {} times",
+                 getId(),
+                 retries);
     }
 
     if (ret == cb::rbac::PrivilegeAccess::Fail) {
@@ -361,28 +364,29 @@ cb::rbac::PrivilegeAccess Connection::checkPrivilege(
                                   privilege_string,
                                   context);
 
-            LOG_NOTICE(this,
-                       "%u: RBAC privilege debug: %s command: [%s] bucket: [%s] privilege: [%s] context: %s",
-                       getId(),
-                       getDescription().c_str(),
-                       command.c_str(),
-                       all_buckets[bucketIndex].name,
-                       privilege_string.c_str(),
-                       context.c_str());
+            LOG_INFO(
+                    "{}: RBAC privilege debug:{} command:[{}] bucket:[{}] "
+                    "privilege:[{}] context:{}",
+                    getId(),
+                    getDescription(),
+                    command,
+                    all_buckets[bucketIndex].name,
+                    privilege_string,
+                    context);
 
             return cb::rbac::PrivilegeAccess::Ok;
         } else {
-            LOG_NOTICE(nullptr,
-                       "%u RBAC %s missing privilege %s for %s in bucket:[%s] "
-                       "with context: "
-                       "%s UUID:[%s]",
-                       getId(),
-                       getDescription().c_str(),
-                       privilege_string.c_str(),
-                       command.c_str(),
-                       all_buckets[bucketIndex].name,
-                       context.c_str(),
-                       cookie.getEventId().c_str());
+            LOG_INFO(
+                    "{} RBAC {} missing privilege {} for {} in bucket:[{}] "
+                    "with context: "
+                    "%s UUID:[{}]",
+                    getId(),
+                    getDescription(),
+                    privilege_string,
+                    command,
+                    all_buckets[bucketIndex].name,
+                    context,
+                    cookie.getEventId());
             // Add a textual error as well
             cookie.setErrorContext("Authorization failure: can't execute " +
                                    command + " operation without the " +
@@ -441,10 +445,12 @@ ENGINE_ERROR_CODE Connection::remapErrorCode(ENGINE_ERROR_CODE code) const {
     // prepared to receive access denied or authentincation stale.
     // For now we should just disconnect them
     auto errc = cb::make_error_condition(cb::engine_errc(code));
-    LOG_NOTICE(nullptr,
-               "%u - Client %s not aware of extended error code (%s). Disconnecting",
-               getId(), getDescription().c_str(), errc.message().c_str());
-
+    LOG_INFO(
+            "{} - Client {} not aware of extended error code ({}). "
+            "Disconnecting",
+            getId(),
+            getDescription().c_str(),
+            errc.message().c_str());
 
     return ENGINE_DISCONNECT;
 }
@@ -529,10 +535,6 @@ void Connection::setBucketIndex(int bucketIndex) {
         // possible bucket privileges
         privilegeContext.setBucketPrivileges();
     }
-
-    LOG_DEBUG(nullptr, "RBAC: %u %s switch privilege context %s",
-              getId(), getDescription().c_str(),
-              privilegeContext.to_string().c_str());
 }
 
 void Connection::addCpuTime(std::chrono::nanoseconds ns) {

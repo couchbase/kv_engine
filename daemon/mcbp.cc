@@ -114,7 +114,7 @@ void mcbp_add_header(Cookie& cookie,
                                    "Writing bin response:",
                                    reinterpret_cast<const char*>(wbuf.data()),
                                    wbuf.size()) != -1) {
-            LOG_DEBUG(&connection, "%s", buffer);
+            LOG_DEBUG("%s", buffer);
         }
     }
 
@@ -141,13 +141,13 @@ bool mcbp_response_handler(const void* key, uint16_t keylen,
         if (!cb::compression::inflate(cb::compression::Algorithm::Snappy,
                                       payload, buffer)) {
             std::string mykey(reinterpret_cast<const char*>(key), keylen);
-            LOG_WARNING(c,
-                        "<%u ERROR: Failed to inflate body, "
-                        "Key: %s may have an incorrect datatype, "
-                        "Datatype indicates that document is %s",
-                        c->getId(),
-                        cb::logtags::tagUserData(mykey).c_str(),
-                        mcbp::datatype::to_string(datatype).c_str());
+            LOG_WARNING(
+                    "<{} ERROR: Failed to inflate body, "
+                    "Key: {} may have an incorrect datatype, "
+                    "Datatype indicates that document is {}",
+                    c->getId(),
+                    cb::logtags::tagUserData(mykey),
+                    mcbp::datatype::to_string(datatype));
             return false;
         }
         payload = buffer;
@@ -186,7 +186,7 @@ bool mcbp_response_handler(const void* key, uint16_t keylen,
 
     auto& dbuf = cookie->getDynamicBuffer();
     if (!dbuf.grow(needed)) {
-        LOG_WARNING(c, "<%u ERROR: Failed to allocate memory for response",
+        LOG_WARNING("<{} ERROR: Failed to allocate memory for response",
                     c->getId());
         return false;
     }

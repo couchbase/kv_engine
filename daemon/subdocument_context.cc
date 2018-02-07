@@ -309,7 +309,7 @@ protocol_binary_response_status SubdocCmdContext::get_document_for_searching(
     auto& c = connection;
 
     if (!bucket_get_item_info(cookie, fetchedItem.get(), &info)) {
-        LOG_WARNING(&c, "%u: Failed to get item info", c.getId());
+        LOG_WARNING("{}: Failed to get item info", c.getId());
         return PROTOCOL_BINARY_RESPONSE_EINTERNAL;
     }
 
@@ -350,12 +350,12 @@ protocol_binary_response_status SubdocCmdContext::get_document_for_searching(
                                             sizeof(clean_key),
                                             static_cast<const char*>(info.key),
                                             info.nkey) != -1) {
-                    LOG_WARNING(&c,
-                                "<%u ERROR: Failed to determine inflated body"
-                                " size. Key: '%s' may have an "
-                                "incorrect datatype of COMPRESSED_JSON.",
-                                c.getId(),
-                                cb::logtags::tagUserData(clean_key).c_str());
+                    LOG_WARNING(
+                            "<{} ERROR: Failed to determine inflated body"
+                            " size. Key: '{}' may have an "
+                            "incorrect datatype of COMPRESSED_JSON.",
+                            c.getId(),
+                            cb::logtags::tagUserData(clean_key));
                 }
 
                 return PROTOCOL_BINARY_RESPONSE_EINTERNAL;

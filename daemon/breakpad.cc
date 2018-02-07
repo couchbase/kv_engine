@@ -36,11 +36,11 @@ static std::unique_ptr<ExceptionHandler> handler;
 // being used.
 
 static void write_to_logger(void* ctx, const char* frame) {
-    CB_CRIT("    {}", frame);
+    LOG_CRITICAL("    {}", frame);
 }
 
 static void dump_stack() {
-    CB_CRIT("Stack backtrace of crashed thread:");
+    LOG_CRITICAL("Stack backtrace of crashed thread:");
     print_backtrace(write_to_logger, NULL);
     cb::logger::get()->flush();
 }
@@ -62,7 +62,8 @@ static bool dumpCallback(const wchar_t* dump_path,
     char file[512];
     sprintf(file, "%S\\%S.dmp", dump_path, minidump_id);
 
-    CB_CRIT("Breakpad caught crash in memcached version {}. Writing crash dump "
+    LOG_CRITICAL(
+            "Breakpad caught crash in memcached version {}. Writing crash dump "
             "to {} before terminating.",
             get_server_version(),
             file);
@@ -73,7 +74,8 @@ static bool dumpCallback(const wchar_t* dump_path,
 static bool dumpCallback(const MinidumpDescriptor& descriptor,
                          void* context,
                          bool succeeded) {
-    CB_CRIT("Breakpad caught crash in memcached version {}. Writing crash dump "
+    LOG_CRITICAL(
+            "Breakpad caught crash in memcached version {}. Writing crash dump "
             "to {} before terminating.",
             get_server_version(),
             descriptor.path());
@@ -128,19 +130,19 @@ void cb::breakpad::initialize(const cb::breakpad::Settings& settings) {
         // just print it twice.
         set_terminate_handler_print_backtrace(false);
 
-        CB_INFO("Breakpad enabled. Minidumps will be written to '{}'",
-                settings.minidump_dir);
+        LOG_INFO("Breakpad enabled. Minidumps will be written to '{}'",
+                 settings.minidump_dir);
     } else {
         // If breakpad is off, then at least print the backtrace via
         // terminate_handler.
         set_terminate_handler_print_backtrace(true);
-        CB_INFO("Breakpad disabled");
+        LOG_INFO("Breakpad disabled");
     }
 }
 
 void cb::breakpad::destroy() {
     if (handler) {
-        CB_INFO("Disabling Breakpad");
+        LOG_INFO("Disabling Breakpad");
         set_terminate_handler_print_backtrace(true);
     }
     handler.reset();
