@@ -1,7 +1,6 @@
 ADD_LIBRARY(mcd_util SHARED
             config_parser.cc
             engine_loader.cc
-            logtags.cc
             protocol2text.cc
             util.cc)
 TARGET_LINK_LIBRARIES(mcd_util engine_utilities platform)

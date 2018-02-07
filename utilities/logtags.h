@@ -15,7 +15,7 @@
  *   limitations under the License.
  */
 #pragma once
-#include <memcached/visibility.h>
+
 #include <string>
 namespace cb {
 /**
@@ -23,7 +23,17 @@ namespace cb {
  * be scrubbed away during log collection.
  */
 namespace logtags {
-const std::string userdata = "ud";
-MEMCACHED_PUBLIC_API std::string tagUserData(const std::string& data);
+const std::string userdataStartTag = "<ud>";
+const std::string userdataEndTag = "</ud>";
+
+/**
+ * Tag user data with the surrounding userdata tags
+ *
+ * @param data The string to tag
+ * @return A tagged string in the form: <ud>string</ud>
+ */
+static inline std::string tagUserData(const std::string& data) {
+    return userdataStartTag + data + userdataEndTag;
+}
 } // namespace logtags
 } // namespace cb

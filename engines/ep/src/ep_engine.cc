@@ -705,11 +705,9 @@ static protocol_binary_response_status evictKey(
     uint16_t vbucket = ntohs(request->request.vbucket);
 
     LOG(EXTENSION_LOG_DEBUG,
-        "Manually evicting object with <%s>key{%.*s}</%s>",
-        cb::logtags::userdata.c_str(),
-        int(keylen),
-        keyPtr,
-        cb::logtags::userdata.c_str());
+        "Manually evicting object with key %s",
+        cb::logtags::tagUserData(std::string{(const char*)keyPtr, keylen})
+                .c_str());
     msg_size = 0;
     auto rv = e->evictKey(DocKey(keyPtr, keylen, docNamespace), vbucket, msg);
     if (rv == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET ||
@@ -3457,11 +3455,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(const void *cookie,
                 valid.assign("ram_but_not_disk");
             }
             LOG(EXTENSION_LOG_DEBUG,
-                "doKeyStats <%s>key{%.*s}</%s> is %s",
-                cb::logtags::userdata.c_str(),
-                int(key.size()),
-                key.data(),
-                cb::logtags::userdata.c_str(),
+                "doKeyStats key %s is %s",
+                cb::logtags::tagUserData(
+                        std::string{(const char*)key.data(), key.size()})
+                        .c_str(),
                 valid.c_str());
         }
         add_casted_stat("key_is_dirty", kstats.dirty, add_stat, cookie);
@@ -4010,11 +4007,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(
         DocKey key(data + offset, keylen, docNamespace);
         offset += keylen;
         LOG(EXTENSION_LOG_DEBUG,
-            "Observing <%s>key{%.*s}</%s> in vb:%" PRIu16,
-            cb::logtags::userdata.c_str(),
-            int(key.size()),
-            key.data(),
-            cb::logtags::userdata.c_str(),
+            "Observing key %s in vb:%" PRIu16,
+            cb::logtags::tagUserData(
+                    std::string{(const char*)key.data(), key.size()})
+                    .c_str(),
             vb_id);
 
         // Get key stats
