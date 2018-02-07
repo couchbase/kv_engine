@@ -70,10 +70,12 @@ bool DcpProducer::BufferLog::insert(size_t bytes) {
 
 void DcpProducer::BufferLog::release_UNLOCKED(size_t bytes) {
     if (bytes > bytesOutstanding) {
-        throw std::logic_error(
-                "DcpProducer::BufferLog: attempting to release " +
-                std::to_string(bytes) + " bytes which is greater than " +
-                std::to_string(bytesOutstanding));
+        LOG(EXTENSION_LOG_NOTICE,
+            "%s Attempting to release %" PRIu64
+            " bytes which is greater than bytesOutstanding:%" PRIu64,
+            producer.logHeader(),
+            uint64_t(bytes),
+            uint64_t(bytesOutstanding));
     }
 
     bytesOutstanding -= bytes;
