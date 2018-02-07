@@ -15,18 +15,19 @@
  *   limitations under the License.
  */
 
+#include <cJSON.h>
+#include <memcached/isotime.h>
+#include <utilities/logtags.h>
 #include <algorithm>
 #include <chrono>
-#include <queue>
-#include <map>
-#include <sstream>
-#include <iomanip>
-#include <string>
 #include <cstring>
-#include <cJSON.h>
 #include <fstream>
-#include <memcached/isotime.h>
+#include <iomanip>
 #include <iostream>
+#include <map>
+#include <queue>
+#include <sstream>
+#include <string>
 
 #include "auditd.h"
 #include "audit.h"
@@ -107,7 +108,8 @@ void Audit::log_error(const AuditErrorCode return_code,
         CB_WARN("Audit: rotate_interval exceeds maximum error");
         break;
     case AuditErrorCode::OPEN_AUDITFILE_ERROR:
-        CB_WARN("Audit: error opening audit file");
+        CB_WARN("Audit: error opening audit file. Dropping event: {}",
+                cb::logtags::tagUserData(string));
         break;
     case AuditErrorCode::SETTING_AUDITFILE_OPEN_TIME_ERROR:
         CB_WARN("Audit: error: setting auditfile open time = {}", string);
@@ -116,7 +118,8 @@ void Audit::log_error(const AuditErrorCode return_code,
         CB_WARN("Audit: writing to disk error: {}", string);
         break;
     case AuditErrorCode::WRITE_EVENT_TO_DISK_ERROR:
-        CB_WARN("Audit: error writing event to disk");
+        CB_WARN("Audit: error writing event to disk. Dropping event: {}",
+                cb::logtags::tagUserData(string));
         break;
     case AuditErrorCode::UNKNOWN_EVENT_ERROR:
         CB_WARN("Audit: error: unknown event {}", string);

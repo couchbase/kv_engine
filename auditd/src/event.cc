@@ -94,7 +94,8 @@ bool Event::process(Audit& audit) {
     }
 
     if (!audit.auditfile.ensure_open()) {
-        Audit::log_error(AuditErrorCode::OPEN_AUDITFILE_ERROR);
+        Audit::log_error(AuditErrorCode::OPEN_AUDITFILE_ERROR,
+                         to_string(json_payload, false));
         return false;
     }
     cJSON_AddNumberToObject(json_payload.get(), "id", id);
@@ -108,6 +109,7 @@ bool Event::process(Audit& audit) {
         return true;
     }
 
-    Audit::log_error(AuditErrorCode::WRITE_EVENT_TO_DISK_ERROR);
+    Audit::log_error(AuditErrorCode::WRITE_EVENT_TO_DISK_ERROR,
+                     to_string(json_payload, false));
     return false;
 }
