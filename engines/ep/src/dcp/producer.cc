@@ -25,7 +25,6 @@
 #include "common.h"
 #include "dcp/backfill-manager.h"
 #include "dcp/dcpconnmap.h"
-#include "ep_engine.h"
 #include "executorpool.h"
 #include "failover-table.h"
 #include "kv_bucket.h"
@@ -531,7 +530,7 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
             dynamic_cast<MutationProducerResponse*>(resp.get());
     if (mutationResponse) {
         itmCpy = std::make_unique<Item>(*mutationResponse->getItem());
-        if (forceValueCompression) {
+        if (isCompressionEnabled()) {
             /**
              * Retrieve the uncompressed length if the document is compressed.
              * This is to account for the total number of bytes if the data
@@ -904,7 +903,7 @@ void DcpProducer::addStats(ADD_STAT add_stat, const void *c) {
     addStat("items_sent", getItemsSent(), add_stat, c);
     addStat("items_remaining", getItemsRemaining(), add_stat, c);
     addStat("total_bytes_sent", getTotalBytesSent(), add_stat, c);
-    if (forceValueCompression) {
+    if (isCompressionEnabled()) {
         addStat("total_uncompressed_data_size", getTotalUncompressedDataSize(),
                 add_stat, c);
     }

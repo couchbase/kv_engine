@@ -26,6 +26,7 @@
 #include "connhandler.h"
 #include "dcp/dcp-types.h"
 #include "dcp/response.h"
+#include "ep_engine.h"
 
 class BackfillManager;
 class DcpResponse;
@@ -147,8 +148,22 @@ public:
         return enableExtMetaData;
     }
 
-    bool isValueCompressionEnabled() {
-        return forceValueCompression;
+    bool isCompressionEnabled() {
+        if (forceValueCompression ||
+            engine_.isDatatypeSupported(getCookie(), PROTOCOL_BINARY_DATATYPE_SNAPPY)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    bool isForceValueCompressionEnabled() {
+        return forceValueCompression.load();
+    }
+
+    bool isSnappyEnabled() {
+        return engine_.isDatatypeSupported(getCookie(),
+                                           PROTOCOL_BINARY_DATATYPE_SNAPPY);
     }
 
     void notifyPaused(bool schedule);

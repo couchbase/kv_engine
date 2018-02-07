@@ -263,6 +263,10 @@ public:
 
     bool isCompressionEnabled();
 
+    bool isForceValueCompressionEnabled();
+
+    bool isSnappyEnabled();
+
     void addStats(ADD_STAT add_stat, const void* c) override;
 
     void addTakeoverStats(ADD_STAT add_stat, const void *c, const VBucket& vb);

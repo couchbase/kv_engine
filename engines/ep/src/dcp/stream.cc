@@ -765,7 +765,25 @@ std::unique_ptr<DcpResponse> ActiveStream::deadPhase() {
 bool ActiveStream::isCompressionEnabled() {
     auto producer = producerPtr.lock();
     if (producer) {
-        return producer->isValueCompressionEnabled();
+        return producer->isCompressionEnabled();
+    }
+    /* If the 'producer' is deleted, what we return doesn't matter */
+    return false;
+}
+
+bool ActiveStream::isForceValueCompressionEnabled() {
+    auto producer = producerPtr.lock();
+    if (producer) {
+        return producer->isForceValueCompressionEnabled();
+    }
+    /* If the 'producer' is deleted, what we return doesn't matter */
+    return false;
+}
+
+bool ActiveStream::isSnappyEnabled() {
+    auto producer = producerPtr.lock();
+    if (producer) {
+        return producer->isSnappyEnabled();
     }
     /* If the 'producer' is deleted, what we return doesn't matter */
     return false;
@@ -1090,7 +1108,8 @@ std::vector<queued_item> ActiveStream::getOutstandingItems(VBucket& vb) {
 static bool shouldModifyItem(const queued_item& item,
                              IncludeValue includeValue,
                              IncludeXattrs includeXattrs,
-                             bool isCompressionEnabled) {
+                             bool isForceValueCompressionEnabled,
+                             bool isSnappyEnabled) {
     value_t value = item->getValue();
     /**
      * If there is no value, no modification needs to be done
@@ -1107,9 +1126,16 @@ static bool shouldModifyItem(const queued_item& item,
          * Check if value needs to be compressed or decompressed
          * If yes, then then value definitely needs modification
          */
-        if (isCompressionEnabled !=
-            mcbp::datatype::is_snappy(item->getDataType())) {
-            return true;
+        if (isSnappyEnabled) {
+            if (isForceValueCompressionEnabled) {
+                if (!mcbp::datatype::is_snappy(item->getDataType())) {
+                    return true;
+                }
+            }
+        } else {
+            if (mcbp::datatype::is_snappy(item->getDataType())) {
+                return true;
+            }
         }
 
         /**
@@ -1132,19 +1158,26 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
         auto cKey = Collections::DocKey::make(item->getKey(), currentSeparator);
         queued_item finalQueuedItem(item);
         if (shouldModifyItem(item, includeValue, includeXattributes,
-                             isCompressionEnabled())) {
+                             isForceValueCompressionEnabled(),
+                             isSnappyEnabled())) {
             auto finalItem = std::make_unique<Item>(*item);
             finalItem->pruneValueAndOrXattrs(includeValue, includeXattributes);
 
-            if (isCompressionEnabled()) {
-                if (!finalItem->compressValue()) {
-                    LOG(EXTENSION_LOG_WARNING,
-                        "Failed to snappy compress an uncompressed value");
+            if (isSnappyEnabled()) {
+                if (isForceValueCompressionEnabled()) {
+                    if (!mcbp::datatype::is_snappy(finalItem->getDataType())) {
+                        if (!finalItem->compressValue()) {
+                            LOG(EXTENSION_LOG_WARNING,
+                                "Failed to snappy compress an uncompressed value");
+                        }
+                    }
                 }
             } else {
-                if (!finalItem->decompressValue()) {
-                    LOG(EXTENSION_LOG_WARNING,
-                        "Failed to snappy uncompress a compressed value");
+                if (mcbp::datatype::is_snappy(finalItem->getDataType())) {
+                    if (!finalItem->decompressValue()) {
+                        LOG(EXTENSION_LOG_WARNING,
+                            "Failed to snappy uncompress a compressed value");
+                    }
                 }
             }
 

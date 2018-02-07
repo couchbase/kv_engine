@@ -319,6 +319,11 @@ TEST_P(StreamTest, test_verifyDCPCompression) {
     std::string compressCtrlValue("true");
 
     /**
+     * Ensure that compression is disabled
+     */
+    ASSERT_FALSE(producer->isCompressionEnabled());
+
+    /**
      * Sending a control message without actually enabling the SNAPPY
      * datatype should fail
      */
@@ -327,17 +332,10 @@ TEST_P(StreamTest, test_verifyDCPCompression) {
                                                 compressCtrlValue.c_str(),
                                                 compressCtrlValue.size()));
 
-    mock_set_datatype_support(producer->getCookie(), PROTOCOL_BINARY_DATATYPE_SNAPPY);
-
-    ASSERT_EQ(ENGINE_SUCCESS, producer->control(0, compressCtrlMsg.c_str(),
-                                                compressCtrlMsg.size(),
-                                                compressCtrlValue.c_str(),
-                                                compressCtrlValue.size()));
-    ASSERT_TRUE(producer->isValueCompressionEnabled());
-
     auto producers = get_dcp_producers(reinterpret_cast<ENGINE_HANDLE*>(engine),
                                        reinterpret_cast<ENGINE_HANDLE_V1*>(engine));
 
+    // Now, add 2 items
     EXPECT_EQ(ENGINE_SUCCESS, engine->getKVBucket()->set(*item1, cookie));
     EXPECT_EQ(ENGINE_SUCCESS, engine->getKVBucket()->set(*item2, cookie));
 
@@ -345,14 +343,15 @@ TEST_P(StreamTest, test_verifyDCPCompression) {
              item1->getKey().size() + item1->getNBytes();
 
     /**
-     * Create a DCP response and check that a new item isn't created and
-     * the message size remains the same as the original item
+     * Create a DCP response and check that a new item isn't created and that
+     * the size of the response message is greater than the size of the original
+     * message
      */
     queued_item qi(std::move(item1));
     std::unique_ptr<DcpResponse> dcpResponse = stream->public_makeResponseFromItem(qi);
     auto mutProdResponse = dynamic_cast<MutationProducerResponse*>(dcpResponse.get());
-    ASSERT_EQ(qi.get(), mutProdResponse->getItem().get());
-    EXPECT_EQ(keyAndSnappyValueMessageSize, dcpResponse->getMessageSize());
+    ASSERT_NE(qi.get(), mutProdResponse->getItem().get());
+    EXPECT_LT(keyAndSnappyValueMessageSize, dcpResponse->getMessageSize());
 
     uint64_t rollbackSeqno;
     auto err = producer->streamRequest(/*flags*/ 0,
@@ -379,12 +378,9 @@ TEST_P(StreamTest, test_verifyDCPCompression) {
     /* Stream the first mutation */
     EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
     std::string value(qi->getValue()->getData(), qi->getValue()->valueSize());
-    EXPECT_STREQ(dcp_last_value.c_str(), value.c_str());
-    EXPECT_STREQ(decompressValue(value).c_str(),
-                 decompressValue(dcp_last_value).c_str());
-    EXPECT_EQ(dcp_last_packet_size, keyAndSnappyValueMessageSize);
-    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_SNAPPY,
-              dcp_last_datatype);
+    EXPECT_STREQ(dcp_last_value.c_str(), decompressValue(value).c_str());
+    EXPECT_GT(dcp_last_packet_size, keyAndSnappyValueMessageSize);
+    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, dcp_last_datatype);
 
     /**
      * Create a DCP response and check that a new item is created and
@@ -395,29 +391,24 @@ TEST_P(StreamTest, test_verifyDCPCompression) {
     qi.reset(std::move(item2));
     dcpResponse = stream->public_makeResponseFromItem(qi);
     mutProdResponse = dynamic_cast<MutationProducerResponse*>(dcpResponse.get());
-    ASSERT_NE(qi.get(), mutProdResponse->getItem().get());
-    EXPECT_LT(dcpResponse->getMessageSize(), keyAndValueMessageSize);
+    ASSERT_EQ(qi.get(), mutProdResponse->getItem().get());
+    EXPECT_EQ(dcpResponse->getMessageSize(), keyAndValueMessageSize);
 
     /* Stream the second mutation */
     EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
 
     value.assign(qi->getValue()->getData(), qi->getValue()->valueSize());
-    EXPECT_STRNE(dcp_last_value.c_str(), value.c_str());
-    EXPECT_STREQ(value.c_str(), decompressValue(dcp_last_value).c_str());
-    EXPECT_LT(dcp_last_packet_size, keyAndValueMessageSize);
-    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_SNAPPY,
-              dcp_last_datatype);
+    EXPECT_STREQ(value.c_str(), dcp_last_value.c_str());
+    EXPECT_EQ(dcp_last_packet_size, keyAndValueMessageSize);
+    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, dcp_last_datatype);
 
-    /* Disable compression */
-    compressCtrlValue.assign("false");
-    ASSERT_EQ(ENGINE_SUCCESS, producer->control(0, compressCtrlMsg.c_str(),
-                                                compressCtrlMsg.size(),
-                                                compressCtrlValue.c_str(),
-                                                compressCtrlValue.size()));
-    ASSERT_FALSE(producer->isValueCompressionEnabled());
+    //Enable the snappy datatype on the connection
+    mock_set_datatype_support(producer->getCookie(), PROTOCOL_BINARY_DATATYPE_SNAPPY);
 
+    ASSERT_TRUE(producer->isCompressionEnabled());
+
+    // Now, add the 3rd item. This item should be compressed
     EXPECT_EQ(ENGINE_SUCCESS, engine->getKVBucket()->set(*item3, cookie));
-    EXPECT_EQ(ENGINE_SUCCESS, engine->getKVBucket()->set(*item4, cookie));
 
     producer->notifySeqnoAvailable(vbid, vb->getHighSeqno());
     ASSERT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
@@ -439,33 +430,55 @@ TEST_P(StreamTest, test_verifyDCPCompression) {
     qi.reset(std::move(item3));
     dcpResponse = stream->public_makeResponseFromItem(qi);
     mutProdResponse = dynamic_cast<MutationProducerResponse*>(dcpResponse.get());
-    ASSERT_NE(qi.get(), mutProdResponse->getItem().get());
-    EXPECT_GT(dcpResponse->getMessageSize(), keyAndSnappyValueMessageSize);
+    ASSERT_EQ(qi.get(), mutProdResponse->getItem().get());
+    EXPECT_EQ(dcpResponse->getMessageSize(), keyAndSnappyValueMessageSize);
 
     value.assign(qi->getValue()->getData(), qi->getValue()->valueSize());
-    EXPECT_STRNE(dcp_last_value.c_str(), value.c_str());
-    EXPECT_GT(dcp_last_packet_size, keyAndSnappyValueMessageSize);
-    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, dcp_last_datatype);
+    EXPECT_STREQ(dcp_last_value.c_str(), value.c_str());
+    EXPECT_EQ(dcp_last_packet_size, keyAndSnappyValueMessageSize);
+    EXPECT_EQ((PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_SNAPPY),
+              dcp_last_datatype);
 
+    // Now, send the control message to message to force value compression.
+    // This should succeed because datatype snappy has already been
+    // enabled in the connection
+    ASSERT_EQ(ENGINE_SUCCESS, producer->control(0, compressCtrlMsg.c_str(),
+                                                compressCtrlMsg.size(),
+                                                compressCtrlValue.c_str(),
+                                                compressCtrlValue.size()));
+
+    ASSERT_TRUE(producer->isForceValueCompressionEnabled());
+
+    // Now, add the 4th item, which is not compressed
+    EXPECT_EQ(ENGINE_SUCCESS, engine->getKVBucket()->set(*item4, cookie));
     /**
      * Create a DCP response and check that a new item is created and
-     * the message size is same as the size of original item
+     * the message size is less than the size of the original item
      */
     keyAndValueMessageSize = MutationResponse::mutationBaseMsgBytes +
             item4->getKey().size() + item4->getNBytes();
     qi.reset(std::move(item4));
     dcpResponse = stream->public_makeResponseFromItem(qi);
     mutProdResponse = dynamic_cast<MutationProducerResponse*>(dcpResponse.get());
-    ASSERT_EQ(qi.get(), mutProdResponse->getItem().get());
-    EXPECT_EQ(dcpResponse->getMessageSize(), keyAndValueMessageSize);
+    ASSERT_NE(qi.get(), mutProdResponse->getItem().get());
+    EXPECT_LT(dcpResponse->getMessageSize(), keyAndValueMessageSize);
+
+    producer->notifySeqnoAvailable(vbid, vb->getHighSeqno());
+    ASSERT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    ASSERT_EQ(1, producer->getCheckpointSnapshotTask().queueSize());
+    producer->getCheckpointSnapshotTask().run();
+
+    /* Stream the snapshot marker */
+    ASSERT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
 
     /* Stream the 4th mutation */
     ASSERT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
 
     value.assign(qi->getValue()->getData(), qi->getValue()->valueSize());
-    EXPECT_STREQ(dcp_last_value.c_str(), value.c_str());
-    EXPECT_EQ(dcp_last_packet_size, keyAndValueMessageSize);
-    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, dcp_last_datatype);
+    EXPECT_STREQ(decompressValue(dcp_last_value).c_str(), value.c_str());
+    EXPECT_LT(dcp_last_packet_size, keyAndValueMessageSize);
+    EXPECT_EQ((PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_SNAPPY),
+              dcp_last_datatype);
 
     destroy_dcp_stream();
 }
@@ -491,7 +504,7 @@ TEST_P(StreamTest, test_verifyProducerCompressionStats) {
                                                 compressCtrlMsg.size(),
                                                 compressCtrlValue.c_str(),
                                                 compressCtrlValue.size()));
-    ASSERT_TRUE(producer->isValueCompressionEnabled());
+    ASSERT_TRUE(producer->isForceValueCompressionEnabled());
 
     store_item(vbid, "key1", compressibleValue.c_str());
     store_item(vbid, "key2", regularValue.c_str());
@@ -572,7 +585,10 @@ TEST_P(StreamTest, test_verifyProducerCompressionStats) {
                                                 compressCtrlMsg.size(),
                                                 compressCtrlValue.c_str(),
                                                 compressCtrlValue.size()));
-    ASSERT_FALSE(producer->isValueCompressionEnabled());
+    mock_set_datatype_support(producer->getCookie(),
+                              PROTOCOL_BINARY_RAW_BYTES);
+
+    ASSERT_FALSE(producer->isCompressionEnabled());
     EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
     EXPECT_EQ(3, producer->getItemsSent());
     EXPECT_GT(producer->getTotalBytesSent(), totalBytesSent);
