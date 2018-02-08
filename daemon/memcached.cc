@@ -2632,7 +2632,7 @@ extern "C" int memcached_main(int argc, char **argv) {
     logger->info("Shutting down logger extension");
     // drop my handle to the logger
     logger.reset();
-    settings.extensions.logger->shutdown();
+    cb::logger::shutdown();
 
     return EXIT_SUCCESS;
 }

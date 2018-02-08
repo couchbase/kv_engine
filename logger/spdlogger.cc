@@ -82,11 +82,6 @@ spdlog::level::level_enum cb::logger::convertToSpdSeverity(
  */
 static std::shared_ptr<spdlog::logger> file_logger;
 
-/** Returns the name of the file logger */
-static const char* get_name() {
-    return file_logger->name().c_str();
-}
-
 /**
  * Retrieves a message, applies formatting and then logs it to stderr and
  * to file, according to the severity.
@@ -257,9 +252,6 @@ void cb::logger::createConsoleLogger() {
 
 LOGGER_PUBLIC_API
 EXTENSION_LOGGER_DESCRIPTOR& cb::logger::getLoggerDescriptor() {
-    descriptor.get_name = get_name;
     descriptor.log = log;
-    descriptor.shutdown = shutdown;
-    descriptor.flush = flush;
     return descriptor;
 }

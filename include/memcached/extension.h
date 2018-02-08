@@ -22,12 +22,6 @@ typedef enum {
  */
 typedef struct {
     /**
-     * Get the name of the descriptor. The memory area returned by this
-     * function has to be valid until the descriptor is unregistered.
-     */
-    const char* (*get_name)(void);
-
-    /**
      * Add an entry to the log.
      * @param severity the severity for this log entry
      * @param client_cookie the client we're serving (may be NULL if not
@@ -38,15 +32,6 @@ typedef struct {
                 const void* client_cookie,
                 const char* fmt,
                 ...);
-    /**
-     * Tell the logger to shut down (flush buffers, close files etc)
-     */
-    void (*shutdown)(void);
-
-    /**
-     * Tell the logger to flush it's buffers
-     */
-    void (*flush)();
 } EXTENSION_LOGGER_DESCRIPTOR;
 
 typedef struct {

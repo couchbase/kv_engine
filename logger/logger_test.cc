@@ -104,7 +104,7 @@ protected:
     }
 
     void TearDown() override {
-        logger->shutdown();
+        cb::logger::shutdown();
         RemoveFiles();
     }
 
@@ -142,7 +142,7 @@ int countInFile(const std::string& file, const std::string& msg) {
 TEST_F(SpdloggerTest, LargeMessageTest) {
     std::string message(2047, 'x'); // max message size is 2047 + 1 for '\0'
     logger->log(EXTENSION_LOG_DEBUG, nullptr, message.c_str());
-    logger->shutdown();
+    cb::logger::shutdown();
 
     files = cb::io::findFilesWithPrefix(filename);
 
@@ -167,7 +167,7 @@ TEST_F(SpdloggerTest, LargeMessageWithCroppingTest) {
     cropped.append(" [cut]");
 
     logger->log(EXTENSION_LOG_DEBUG, nullptr, message.c_str());
-    logger->shutdown();
+    cb::logger::shutdown();
 
     files = cb::io::findFilesWithPrefix("spdlogger_test");
 
@@ -188,7 +188,7 @@ TEST_F(SpdloggerTest, LargeMessageWithCroppingTest) {
  * check if the hooks appear in the file.
  */
 TEST_F(SpdloggerTest, BasicHooksTest) {
-    logger->shutdown();
+    cb::logger::shutdown();
 
     files = cb::io::findFilesWithPrefix(filename);
     EXPECT_EQ(1, files.size());
@@ -211,7 +211,7 @@ TEST_F(SpdloggerTest, MultipleFilesTest) {
     for (auto ii = 0; ii < 100; ii++) {
         logger->log(EXTENSION_LOG_DEBUG, nullptr, message.c_str(), ii);
     }
-    logger->shutdown();
+    cb::logger::shutdown();
 
     files = cb::io::findFilesWithPrefix(filename);
     EXPECT_LT(1, files.size());
@@ -236,7 +236,7 @@ TEST_F(SpdloggerTest, HandleOpenFileErrors) {
     }
 
     logger->log(EXTENSION_LOG_DEBUG, nullptr, "Hey, this is a test");
-    logger->flush();
+    cb::logger::flush();
     files = cb::io::findFilesWithPrefix(filename);
     EXPECT_EQ(1, files.size());
 
@@ -268,7 +268,7 @@ TEST_F(SpdloggerTest, HandleOpenFileErrors) {
     }
 
     logger->log(EXTENSION_LOG_DEBUG, nullptr, "HandleOpenFileErrors");
-    logger->flush();
+    cb::logger::flush();
 
     // We've just flushed the data to the file, so it should be possible
     // to find it in the file.
@@ -296,7 +296,7 @@ TEST_F(SpdloggerTest, HandleOpenFileErrors) {
 
     // Add a log entry, and we should get a new file
     logger->log(EXTENSION_LOG_DEBUG, nullptr, "Logging to the next file");
-    logger->flush();
+    cb::logger::flush();
 
     files = cb::io::findFilesWithPrefix(filename);
     EXPECT_EQ(2, files.size());
@@ -322,7 +322,7 @@ TEST_F(DedupeSinkTest, BasicTest) {
     for (auto i = 0; i < 100; i++) {
         logger->log(EXTENSION_LOG_WARNING, nullptr, message.c_str());
     }
-    logger->flush();
+    cb::logger::flush();
 
     files = cb::io::findFilesWithPrefix(filename);
     auto found = false;
@@ -343,7 +343,7 @@ TEST_F(DedupeSinkTest, MessageLoggedOnceTest) {
     std::string dedupeMessage("Message repeated");
 
     logger->log(EXTENSION_LOG_WARNING, nullptr, message.c_str());
-    logger->flush();
+    cb::logger::flush();
 
     files = cb::io::findFilesWithPrefix(filename);
     EXPECT_EQ(1, files.size());
@@ -361,7 +361,7 @@ TEST_F(DedupeSinkTest, MessageLoggedTwiceTest) {
 
     logger->log(EXTENSION_LOG_WARNING, nullptr, message.c_str());
     logger->log(EXTENSION_LOG_WARNING, nullptr, message.c_str());
-    logger->flush();
+    cb::logger::flush();
 
     files = cb::io::findFilesWithPrefix(filename);
     EXPECT_EQ(1, files.size());
@@ -379,7 +379,7 @@ TEST_F(DedupeSinkTest, MessageLoggedTwiceWithFlushTest) {
 
     for (auto i = 0; i < 10; i++) {
         logger->log(EXTENSION_LOG_WARNING, nullptr, message.c_str());
-        logger->flush();
+        cb::logger::flush();
     }
 
     files = cb::io::findFilesWithPrefix(filename);

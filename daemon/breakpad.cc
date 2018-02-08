@@ -42,7 +42,7 @@ static void write_to_logger(void* ctx, const char* frame) {
 static void dump_stack() {
     LOG_CRITICAL("Stack backtrace of crashed thread:");
     print_backtrace(write_to_logger, NULL);
-    cb::logger::get()->flush();
+    cb::logger::flush();
 }
 #endif
 
