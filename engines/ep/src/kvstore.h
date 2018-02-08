@@ -509,6 +509,23 @@ private:
 };
 
 /**
+ * Abstract file handle class to allow a DB file to be opened and held open
+ * for multiple KVStore methods.
+ */
+class KVFileHandle {
+public:
+    KVFileHandle(const KVStore& kvs) : kvs(kvs) {
+    }
+    virtual ~KVFileHandle() {
+    }
+    const KVStore& kvs;
+};
+
+struct KVFileHandleDeleter {
+    void operator()(KVFileHandle* kvFileHandle);
+};
+
+/**
  * Base class representing kvstore operations.
  */
 class KVStore {
@@ -807,6 +824,32 @@ public:
      * persistCollectionsManifestItem)
      */
     virtual std::string getCollectionsManifest(uint16_t vbid) = 0;
+
+    /**
+     * Obtain a KVFileHandle which holds the KVStore implementation's handle
+     * and provides RAII management of the resource.
+     *
+     * @param vbid the vbucket to open
+     * @return a unique_ptr to a new KVFileHandle object
+     */
+    virtual std::unique_ptr<KVFileHandle, KVFileHandleDeleter> makeFileHandle(
+            uint16_t vbid) = 0;
+
+    /**
+     * Free KVFileHandle - KVStore to override and release resources allocated
+     * by makeFileHandle.
+     */
+    virtual void freeFileHandle(KVFileHandle* kvFileHandle) const = 0;
+
+    /**
+     * Retrieve the stored item count for the given collection, does not error
+     * for collection not found as that's a legitimate state (and returns 0)
+     * @param kvFileHandle a handle into a KV data file
+     * @param collection the name of the collection to lookup
+     * @return the count (which can be 0 for not found)
+     */
+    virtual uint64_t getCollectionItemCount(const KVFileHandle& kvFileHandle,
+                                            CollectionID collection) = 0;
 
     /**
      * Increment the revision number of the vbucket.

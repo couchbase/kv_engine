@@ -2479,11 +2479,13 @@ std::string CouchKVStore::readCollectionsManifest(Db& db) {
 
 void CouchKVStore::saveItemCount(Db& db, CollectionID cid, uint64_t count) {
     // Write out the count in BE to a local doc named after the collection
-    std::string docName = "_collection/" + cid.to_string();
+    // Using set-notation cardinality - |cid| which helps keep the keys small
+    std::string docName = "|" + cid.to_string() + "|";
     cb::mcbp::unsigned_leb128<uint64_t> leb128(count);
     LocalDoc lDoc;
     lDoc.id.buf = const_cast<char*>(docName.c_str());
     lDoc.id.size = docName.size();
+
     lDoc.json.buf =
             const_cast<char*>(reinterpret_cast<const char*>(leb128.data()));
     lDoc.json.size = leb128.size();
@@ -2504,7 +2506,7 @@ void CouchKVStore::saveItemCount(Db& db, CollectionID cid, uint64_t count) {
 }
 
 void CouchKVStore::deleteItemCount(Db& db, CollectionID cid) {
-    std::string docName = "_collection/" + cid.to_string();
+    std::string docName = "|" + cid.to_string() + "|";
     LocalDoc lDoc;
     lDoc.id.buf = (char*)docName.c_str();
     lDoc.id.size = docName.size();
@@ -2521,6 +2523,37 @@ void CouchKVStore::deleteItemCount(Db& db, CollectionID cid) {
                 couchstore_strerror(errCode),
                 couchkvstore_strerrno(&db, errCode));
     }
+}
+
+uint64_t CouchKVStore::getCollectionItemCount(const KVFileHandle& kvFileHandle,
+                                              CollectionID collection) {
+    const auto& db = static_cast<const CouchKVFileHandle&>(kvFileHandle);
+    sized_buf id;
+    std::string docName = "|" + collection.to_string() + "|";
+    id.buf = const_cast<char*>(docName.c_str());
+    id.size = docName.size();
+
+    LocalDocHolder lDoc;
+    auto errCode = couchstore_open_local_document(
+            db.getDb(), (void*)id.buf, id.size, lDoc.getLocalDocAddress());
+    if (errCode != COUCHSTORE_SUCCESS) {
+        // Could be a deleted collection, so not found not an issue
+        if (errCode != COUCHSTORE_ERROR_DOC_NOT_FOUND) {
+            logger.warn(
+                    "CouchKVStore::getCollectionCount cid:{}"
+                    "couchstore_open_local_document error:{}",
+                    collection.to_string(),
+                    couchstore_strerror(errCode));
+        }
+
+        return 0;
+    }
+
+    return cb::mcbp::decode_unsigned_leb128<uint64_t>(
+                   {reinterpret_cast<const uint8_t*>(
+                            lDoc.getLocalDoc()->json.buf),
+                    lDoc.getLocalDoc()->json.size})
+            .first;
 }
 
 int CouchKVStore::getMultiCb(Db *db, DocInfo *docinfo, void *ctx) {
@@ -2977,6 +3010,20 @@ std::string CouchKVStore::getCollectionsManifest(uint16_t vbid) {
     }
 
     return readCollectionsManifest(*db);
+}
+
+std::unique_ptr<KVFileHandle, KVFileHandleDeleter> CouchKVStore::makeFileHandle(
+        uint16_t vbid) {
+    std::unique_ptr<CouchKVFileHandle, KVFileHandleDeleter> db(
+            new CouchKVFileHandle(*this));
+    // openDB logs errors
+    openDB(vbid, db->getDbHolder(), COUCHSTORE_OPEN_FLAG_RDONLY);
+
+    return std::move(db);
+}
+
+void CouchKVStore::freeFileHandle(KVFileHandle* kvFileHandle) const {
+    delete static_cast<CouchKVFileHandle*>(kvFileHandle);
 }
 
 void CouchKVStore::incrementRevision(uint16_t vbid) {

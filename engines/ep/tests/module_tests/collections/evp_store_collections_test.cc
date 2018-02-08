@@ -588,6 +588,11 @@ TEST_F(CollectionsWarmupTest, warmup) {
     EXPECT_EQ(0xface2,
               store->getVBucket(vbid)->lockCollections().getManifestUid());
 
+    // validate we warmup the item count
+    EXPECT_EQ(1,
+              store->getVBucket(vbid)->lockCollections().getItemCount(
+                      CollectionEntry::meat));
+
     {
         Item item(StoredDocKey{"meat:beef", CollectionEntry::meat},
                   /*flags*/ 0,
@@ -610,6 +615,10 @@ TEST_F(CollectionsWarmupTest, warmup) {
         EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
                   engine->storeInner(cookie, &item, cas, OPERATION_SET));
     }
+
+    EXPECT_EQ(1,
+              store->getVBucket(vbid)->lockCollections().getItemCount(
+                      CollectionEntry::meat));
 }
 
 // When a collection is deleted - an event enters the checkpoint which does not
@@ -690,6 +699,11 @@ TEST_F(CollectionsWarmupTest, warmupIgnoreLogicallyDeleted) {
     resetEngineAndWarmup();
 
     EXPECT_EQ(0, store->getVBucket(vbid)->ht.getNumInMemoryItems());
+    // Eraser hasn't ran, but the collection deletion will have resulted in
+    // the stat document being removed
+    EXPECT_EQ(0,
+              store->getVBucket(vbid)->lockCollections().getItemCount(
+                      CollectionEntry::meat));
 }
 
 //
@@ -730,6 +744,11 @@ TEST_F(CollectionsWarmupTest, warmupIgnoreLogicallyDeletedDefault) {
     resetEngineAndWarmup();
 
     EXPECT_EQ(0, store->getVBucket(vbid)->ht.getNumInMemoryItems());
+    // Eraser hasn't ran, but the collection deletion will have resulted in
+    // the stat document being removed
+    EXPECT_EQ(0,
+              store->getVBucket(vbid)->lockCollections().getItemCount(
+                      CollectionEntry::defaultC));
 }
 
 TEST_F(CollectionsWarmupTest, warmupManifestUidLoadsOnCreate) {

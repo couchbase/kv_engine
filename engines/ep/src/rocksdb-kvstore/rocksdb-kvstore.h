@@ -293,6 +293,26 @@ public:
         return "";
     }
 
+    std::unique_ptr<KVFileHandle, KVFileHandleDeleter> makeFileHandle(
+            uint16_t vbid) override {
+        // TODO JWW 2018-07-30 implement this fully - for now return something
+        // as this function is called from warmup
+
+        return std::unique_ptr<KVFileHandle, KVFileHandleDeleter>{
+                new KVFileHandle(*this)};
+    }
+
+    void freeFileHandle(KVFileHandle* kvFileHandle) const override {
+        // TODO JWW 2018-08-14 implement this dependent on makeFileHandle
+        delete kvFileHandle;
+    }
+
+    uint64_t getCollectionItemCount(const KVFileHandle& kvFileHandle,
+                                    CollectionID collection) override {
+        // TODO JWW 2018-07-30 implement this
+        return 0;
+    }
+
     void incrementRevision(uint16_t vbid) override {
         // TODO DJR 2017-05-19 implement this.
     }

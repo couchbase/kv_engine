@@ -436,6 +436,14 @@ public:
 
     std::string getCollectionsManifest(uint16_t vbid) override;
 
+    uint64_t getCollectionItemCount(const KVFileHandle& kvFileHandle,
+                                    CollectionID collection) override;
+
+    std::unique_ptr<KVFileHandle, KVFileHandleDeleter> makeFileHandle(
+            uint16_t vbid) override;
+
+    void freeFileHandle(KVFileHandle* kvFileHandle) const override;
+
     /**
      * Increment the revision number of the vbucket.
      * @param vbid ID of the vbucket to change.
@@ -471,6 +479,10 @@ protected:
         }
 
         Db* getDb() {
+            return db;
+        }
+
+        Db* getDb() const {
             return db;
         }
 
@@ -751,6 +763,27 @@ private:
 
     private:
         LocalDoc* localDoc;
+    };
+
+    class CouchKVFileHandle : public ::KVFileHandle {
+    public:
+        CouchKVFileHandle(CouchKVStore& kvstore)
+            : ::KVFileHandle(kvstore), db(kvstore) {
+        }
+
+        ~CouchKVFileHandle() override {
+        }
+
+        DbHolder& getDbHolder() {
+            return db;
+        }
+
+        Db* getDb() const {
+            return db.getDb();
+        }
+
+    private:
+        DbHolder db;
     };
 };
 

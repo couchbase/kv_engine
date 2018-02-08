@@ -101,6 +101,10 @@ KVStoreRWRO KVStoreFactory::create(KVStoreConfig& config) {
     return {};
 }
 
+void KVFileHandleDeleter::operator()(KVFileHandle* kvFileHandle) {
+    kvFileHandle->kvs.freeFileHandle(kvFileHandle);
+}
+
 void KVStore::createDataDir(const std::string& dbname) {
     try {
         cb::io::mkdirp(dbname);

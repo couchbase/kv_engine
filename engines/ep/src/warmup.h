@@ -54,6 +54,7 @@ public:
         CheckForAccessLog,
         LoadingKVPairs,
         LoadingData,
+        LoadingCollectionCounts,
         Done
     };
 
@@ -195,6 +196,7 @@ public:
     void loadingAccessLog(uint16_t shardId);
     void loadKVPairsforShard(uint16_t shardId);
     void loadDataforShard(uint16_t shardId);
+    void loadCollectionCountsForShard(uint16_t shardId);
     void done();
 
 private:
@@ -215,6 +217,7 @@ private:
     void scheduleLoadingKVPairs();
     void scheduleLoadingData();
     void scheduleCompletion();
+    void scheduleLoadingCollectionCounts();
 
     void transition(WarmupState::State to, bool force = false);
 

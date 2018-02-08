@@ -370,6 +370,16 @@ public:
                     vb, manifestUid, identifier, OptionalSeqno{endSeqno});
         }
 
+        /// @return iterator to the beginning of the underlying collection map
+        container::iterator begin() {
+            return manifest.begin();
+        }
+
+        /// @return iterator to the end of the underlying collection map
+        container::iterator end() {
+            return manifest.end();
+        }
+
         /**
          * Dump this VB::Manifest to std::cerr
          */
@@ -648,6 +658,20 @@ private:
     uint64_t getItemCount(CollectionID collection) const;
 
     container::const_iterator end() const {
+        return map.end();
+    }
+
+    /**
+     * @return iterator for the collections map
+     */
+    container::iterator begin() {
+        return map.begin();
+    }
+
+    /**
+     * @return end iterator for the collections map
+     */
+    container::iterator end() {
         return map.end();
     }
 
