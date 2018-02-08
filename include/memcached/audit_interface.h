@@ -16,7 +16,7 @@
  */
 #pragma once
 
-#include <memcached/extension.h>
+#include <memcached/engine.h>
 #include <memcached/visibility.h>
 #include <platform/platform.h>
 

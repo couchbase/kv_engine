@@ -17,6 +17,8 @@
 
 #include "mutation_log_entry.h"
 
+#include <iomanip>
+
 std::string to_string(MutationLogType t) {
     switch (t) {
     case MutationLogType::New:

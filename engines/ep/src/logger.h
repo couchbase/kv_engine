@@ -20,6 +20,7 @@
 #include "config.h"
 
 #include <memcached/extension.h>
+#include <platform/dynamic.h>
 
 #include <atomic>
 #include <cstdarg>

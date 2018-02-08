@@ -21,6 +21,7 @@
 
 #include "atomic.h"
 
+#include <memcached/engine_common.h>
 #include <platform/checked_snprintf.h>
 
 /*

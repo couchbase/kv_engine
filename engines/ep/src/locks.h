@@ -22,11 +22,13 @@
 
 #include <platform/processclock.h>
 #include <platform/rwlock.h>
+#include <cinttypes>
 #include <functional>
 #include <iostream>
 #include <mutex>
 #include <sstream>
 #include <stdexcept>
+#include <vector>
 
 #include "utility.h"
 

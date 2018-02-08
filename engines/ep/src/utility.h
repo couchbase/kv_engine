@@ -30,6 +30,7 @@
 #pragma once
 
 #include <memcached/extension.h>
+#include <platform/dynamic.h>
 
 // A macro to disallow the copy constructor and operator= functions
 #define DISALLOW_COPY_AND_ASSIGN(TypeName)      \

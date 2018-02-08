@@ -22,6 +22,11 @@
 #include "callbacks.h"
 #include "utility.h"
 
+#include <memcached/engine_common.h>
+#include <phosphor/phosphor.h>
+#include <platform/atomic_duration.h>
+#include <platform/processclock.h>
+
 #include <atomic>
 #include <deque>
 #include <map>
@@ -29,10 +34,6 @@
 #include <string>
 #include <unordered_set>
 #include <vector>
-
-#include <phosphor/phosphor.h>
-#include <platform/atomic_duration.h>
-#include <platform/processclock.h>
 
 class Configuration;
 class EPStats;

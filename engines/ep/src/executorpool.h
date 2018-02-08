@@ -72,6 +72,7 @@
 #include "task_type.h"
 #include "taskable.h"
 
+#include <memcached/engine.h>
 #include <map>
 #include <set>
 

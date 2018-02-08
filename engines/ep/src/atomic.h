@@ -21,6 +21,7 @@
 #include "config.h"
 
 #include <atomic>
+#include <memory>
 
 #include "locks.h"
 #include "utility.h"

@@ -26,6 +26,8 @@
 #include "utility.h"
 
 #include <memcached/3rd_party/folly/AtomicBitSet.h>
+#include <memcached/protocol_binary.h>
+#include <memcached/types.h>
 
 #include <boost/intrusive/list.hpp>
 

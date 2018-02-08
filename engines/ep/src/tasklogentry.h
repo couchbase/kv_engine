@@ -19,6 +19,7 @@
 
 #include "config.h"
 
+#include <memcached/types.h>
 #include <platform/processclock.h>
 
 #include <chrono>

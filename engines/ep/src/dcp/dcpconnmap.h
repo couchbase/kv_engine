@@ -22,6 +22,7 @@
 #include "collections/filter.h"
 #include "connmap.h"
 
+#include <memcached/engine.h>
 #include <platform/sized_buffer.h>
 
 #include <atomic>
