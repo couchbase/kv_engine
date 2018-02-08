@@ -254,20 +254,7 @@ void cb::logger::createConsoleLogger() {
     std::lock_guard<std::mutex> guard(create_lock);
     // delete if already exists
     spdlog::drop(logger_name);
-
-#ifdef WIN32
-    auto stderrsink = std::make_shared<spdlog::sinks::stderr_sink_mt>();
-#else
-    auto stderrsink =
-            std::make_shared<spdlog::sinks::ansicolor_stderr_sink_mt>();
-#endif
-    file_logger =
-            spdlog::create_async(logger_name,
-                                 stderrsink,
-                                 default_buffer_size,
-                                 spdlog::async_overflow_policy::block_retry,
-                                 nullptr,
-                                 default_sleep_time);
+    file_logger = spdlog::stderr_color_mt(logger_name);
     file_logger->set_level(spdlog::level::info);
     file_logger->set_pattern(log_pattern);
 }
