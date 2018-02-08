@@ -104,7 +104,7 @@ protected:
     }
 
     void TearDown() override {
-        logger->shutdown(true);
+        logger->shutdown();
         RemoveFiles();
     }
 
@@ -142,7 +142,7 @@ int countInFile(const std::string& file, const std::string& msg) {
 TEST_F(SpdloggerTest, LargeMessageTest) {
     std::string message(2047, 'x'); // max message size is 2047 + 1 for '\0'
     logger->log(EXTENSION_LOG_DEBUG, nullptr, message.c_str());
-    logger->shutdown(false);
+    logger->shutdown();
 
     files = cb::io::findFilesWithPrefix(filename);
 
@@ -167,7 +167,7 @@ TEST_F(SpdloggerTest, LargeMessageWithCroppingTest) {
     cropped.append(" [cut]");
 
     logger->log(EXTENSION_LOG_DEBUG, nullptr, message.c_str());
-    logger->shutdown(false);
+    logger->shutdown();
 
     files = cb::io::findFilesWithPrefix("spdlogger_test");
 
@@ -188,7 +188,7 @@ TEST_F(SpdloggerTest, LargeMessageWithCroppingTest) {
  * check if the hooks appear in the file.
  */
 TEST_F(SpdloggerTest, BasicHooksTest) {
-    logger->shutdown(false);
+    logger->shutdown();
 
     files = cb::io::findFilesWithPrefix(filename);
     EXPECT_EQ(1, files.size());
@@ -211,7 +211,7 @@ TEST_F(SpdloggerTest, MultipleFilesTest) {
     for (auto ii = 0; ii < 100; ii++) {
         logger->log(EXTENSION_LOG_DEBUG, nullptr, message.c_str(), ii);
     }
-    logger->shutdown(false);
+    logger->shutdown();
 
     files = cb::io::findFilesWithPrefix(filename);
     EXPECT_LT(1, files.size());

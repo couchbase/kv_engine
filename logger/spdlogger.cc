@@ -128,7 +128,7 @@ static void log(EXTENSION_LOG_LEVEL mcd_severity,
  * (Synchronously) flushes  all the messages in the loggers' queue
  * and dereferences the loggers.
  */
-static void logger_shutdown(bool force) {
+static void logger_shutdown() {
     if (file_logger) {
         spdlog::drop(file_logger->name());
     }
