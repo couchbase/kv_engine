@@ -105,6 +105,19 @@ EXTENSION_LOGGER_DESCRIPTOR& getLoggerDescriptor();
 LOGGER_PUBLIC_API
 spdlog::level::level_enum convertToSpdSeverity(EXTENSION_LOG_LEVEL sev);
 
+/**
+ * Tell the logger to flush its buffers
+ */
+LOGGER_PUBLIC_API
+void flush();
+
+/**
+ * Tell the logger to shut down (flush buffers) and replace the
+ * logger with the blackhole logger
+ */
+LOGGER_PUBLIC_API
+void shutdown();
+
 } // namespace logger
 } // namespace cb
 

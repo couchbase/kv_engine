@@ -124,21 +124,17 @@ static void log(EXTENSION_LOG_LEVEL mcd_severity,
     file_logger->log(severity, msg);
 }
 
-/**
- * (Synchronously) flushes  all the messages in the loggers' queue
- * and dereferences the loggers.
- */
-static void logger_shutdown() {
+LOGGER_PUBLIC_API
+void cb::logger::flush() {
     if (file_logger) {
-        spdlog::drop(file_logger->name());
+        file_logger->flush();
     }
-
-    file_logger.reset();
-    cb::logger::createBlackholeLogger();
 }
 
-static void logger_flush() {
-    file_logger->flush();
+LOGGER_PUBLIC_API
+void cb::logger::shutdown() {
+    flush();
+    createBlackholeLogger();
 }
 
 /**
@@ -263,7 +259,7 @@ LOGGER_PUBLIC_API
 EXTENSION_LOGGER_DESCRIPTOR& cb::logger::getLoggerDescriptor() {
     descriptor.get_name = get_name;
     descriptor.log = log;
-    descriptor.shutdown = logger_shutdown;
-    descriptor.flush = logger_flush;
+    descriptor.shutdown = shutdown;
+    descriptor.flush = flush;
     return descriptor;
 }
