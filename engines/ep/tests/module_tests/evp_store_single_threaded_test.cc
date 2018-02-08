@@ -1639,7 +1639,8 @@ TEST_F(WarmupTest, fetchDocInDifferentCompressionModes) {
     item1 = store->get(makeStoredDocKey("key1"), vbid, nullptr, {});
     ASSERT_EQ(ENGINE_SUCCESS, item1.getStatus());
     info1 = engine->getItemInfo(*item1.item);
-    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, info1.datatype);
+    EXPECT_EQ((PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_SNAPPY),
+              info1.datatype);
 
     resetEngineAndWarmup("compression_mode=active");
     item1 = store->get(makeStoredDocKey("key1"), vbid, nullptr, {});
