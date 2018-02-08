@@ -360,7 +360,7 @@ protected:
     void SetUp() override {
         global_stats.reset();
         ASSERT_EQ(0, ht.getItemMemory());
-        ASSERT_EQ(0, ht.cacheSize.load());
+        ASSERT_EQ(0, ht.getCacheSize());
         initialSize = stats.currentSize.load();
 
         EXPECT_EQ(0, ht.getNumItems());
@@ -372,7 +372,7 @@ protected:
 
     void TearDown() override {
         EXPECT_EQ(0, ht.getItemMemory());
-        EXPECT_EQ(0, ht.cacheSize.load());
+        EXPECT_EQ(0, ht.getCacheSize());
         EXPECT_EQ(initialSize, stats.currentSize.load());
 
         if (evictionPolicy == VALUE_ONLY) {
@@ -737,9 +737,9 @@ TEST_F(HashTableTest, CopyItem) {
             copyKey, hbl.getBucketNum(), WantsDeleted::Yes, TrackReference::No);
 
     /* Record some stats before 'replace by copy' */
-    auto metaDataMemBeforeCopy = ht.metaDataMemory.load();
-    auto datatypeCountsBeforeCopy = ht.datatypeCounts;
-    auto cacheSizeBeforeCopy = ht.cacheSize.load();
+    auto metaDataMemBeforeCopy = ht.getMetadataMemory();
+    auto datatypeCountsBeforeCopy = ht.getDatatypeCounts();
+    auto cacheSizeBeforeCopy = ht.getCacheSize();
     auto memSizeBeforeCopy = ht.getItemMemory();
     auto statsCurrSizeBeforeCopy = global_stats.currentSize.load();
 
@@ -755,9 +755,9 @@ TEST_F(HashTableTest, CopyItem) {
     EXPECT_EQ(numItems, ht.getNumItems());
 
     /* Stats should be equal to that before 'replaceByCopy' */
-    EXPECT_EQ(metaDataMemBeforeCopy, ht.metaDataMemory.load());
-    EXPECT_EQ(datatypeCountsBeforeCopy, ht.datatypeCounts);
-    EXPECT_EQ(cacheSizeBeforeCopy, ht.cacheSize.load());
+    EXPECT_EQ(metaDataMemBeforeCopy, ht.getMetadataMemory());
+    EXPECT_EQ(datatypeCountsBeforeCopy, ht.getDatatypeCounts());
+    EXPECT_EQ(cacheSizeBeforeCopy, ht.getCacheSize());
     EXPECT_EQ(memSizeBeforeCopy, ht.getItemMemory());
     EXPECT_EQ(statsCurrSizeBeforeCopy, global_stats.currentSize.load());
 }
@@ -791,9 +791,9 @@ TEST_F(HashTableTest, CopyDeletedItem) {
     EXPECT_EQ(expNumDeletedItems, ht.getNumDeletedItems());
 
     /* Record some stats before 'replace by copy' */
-    auto metaDataMemBeforeCopy = ht.metaDataMemory.load();
-    auto datatypeCountsBeforeCopy = ht.datatypeCounts;
-    auto cacheSizeBeforeCopy = ht.cacheSize.load();
+    auto metaDataMemBeforeCopy = ht.getMetadataMemory();
+    auto datatypeCountsBeforeCopy = ht.getDatatypeCounts();
+    auto cacheSizeBeforeCopy = ht.getCacheSize();
     auto memSizeBeforeCopy = ht.getItemMemory();
     auto statsCurrSizeBeforeCopy = global_stats.currentSize.load();
 
@@ -811,9 +811,9 @@ TEST_F(HashTableTest, CopyDeletedItem) {
     EXPECT_EQ(expNumDeletedItems, ht.getNumDeletedItems());
 
     /* Stats should be equal to that before 'replaceByCopy' */
-    EXPECT_EQ(metaDataMemBeforeCopy, ht.metaDataMemory.load());
-    EXPECT_EQ(datatypeCountsBeforeCopy, ht.datatypeCounts);
-    EXPECT_EQ(cacheSizeBeforeCopy, ht.cacheSize.load());
+    EXPECT_EQ(metaDataMemBeforeCopy, ht.getMetadataMemory());
+    EXPECT_EQ(datatypeCountsBeforeCopy, ht.getDatatypeCounts());
+    EXPECT_EQ(cacheSizeBeforeCopy, ht.getCacheSize());
     EXPECT_EQ(memSizeBeforeCopy, ht.getItemMemory());
     EXPECT_EQ(statsCurrSizeBeforeCopy, global_stats.currentSize.load());
 }

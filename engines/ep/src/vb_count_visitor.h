@@ -208,7 +208,7 @@ private:
     size_t backfillQueueSize;
     size_t pendingWrites;
     size_t chkPersistRemaining;
-    std::array<size_t, mcbp::datatype::highest + 1> datatypeCounts;
+    HashTable::DatatypeCombo datatypeCounts;
     uint64_t queueAge;
     uint64_t rollbackItemCount;
     size_t numHpVBReqs;

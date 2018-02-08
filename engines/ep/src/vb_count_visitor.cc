@@ -32,10 +32,10 @@ void VBucketCountVisitor::visitBucket(VBucketPtr& vb) {
     if (desired_state != vbucket_state_dead) {
         htMemory += vb->ht.memorySize();
         htItemMemory += vb->ht.getItemMemory();
-        htCacheSize += vb->ht.cacheSize;
+        htCacheSize += vb->ht.getCacheSize();
         numEjects += vb->ht.getNumEjects();
         numExpiredItems += vb->numExpiredItems;
-        metaDataMemory += vb->ht.metaDataMemory;
+        metaDataMemory += vb->ht.getMetadataMemory();
         metaDataDisk += vb->metaDataDisk;
         opsCreate += vb->opsCreate;
         opsUpdate += vb->opsUpdate;
@@ -67,8 +67,9 @@ void VBucketCountVisitor::visitBucket(VBucketPtr& vb) {
         totalHLCDriftExceptionCounters.behind += driftExceptionCounters.behind;
 
         // Iterate over each datatype combination
+        auto vbDatatypeCounts = vb->ht.getDatatypeCounts();
         for (uint8_t ii = 0; ii < datatypeCounts.size(); ++ii) {
-            datatypeCounts[ii] += vb->ht.datatypeCounts[ii];
+            datatypeCounts[ii] += vbDatatypeCounts[ii];
         }
     }
 }

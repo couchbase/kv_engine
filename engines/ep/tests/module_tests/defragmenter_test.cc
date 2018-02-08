@@ -384,9 +384,9 @@ TEST_P(DefragmenterTest, testCompressionInActiveMode) {
     // to verify if the datatype counts are updated correctly after
     // compression
     auto curr_datatype = item1.getDataType();
-    auto curr_datatype_count = vbucket->ht.datatypeCounts[curr_datatype];
+    auto curr_datatype_count = vbucket->ht.getDatatypeCounts()[curr_datatype];
     auto new_datatype = (PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_SNAPPY);
-    auto new_datatype_count = vbucket->ht.datatypeCounts[new_datatype];
+    auto new_datatype_count = vbucket->ht.getDatatypeCounts()[new_datatype];
 
     auto itemCount = vbucket->ht.getNumItems();
 
@@ -410,8 +410,10 @@ TEST_P(DefragmenterTest, testCompressionInActiveMode) {
     EXPECT_EQ(compressed_str, v1->getValue()->to_s());
     EXPECT_EQ(uncompressed_str, v2->getValue()->to_s());
     EXPECT_EQ(new_datatype, v1->getDatatype());
-    EXPECT_EQ(curr_datatype_count - 1, vbucket->ht.datatypeCounts[curr_datatype]);
-    EXPECT_EQ(new_datatype_count + 1, vbucket->ht.datatypeCounts[new_datatype]);
+    EXPECT_EQ(curr_datatype_count - 1,
+              vbucket->ht.getDatatypeCounts()[curr_datatype]);
+    EXPECT_EQ(new_datatype_count + 1,
+              vbucket->ht.getDatatypeCounts()[new_datatype]);
     EXPECT_EQ(itemCount, vbucket->ht.getNumItems());
 }
 

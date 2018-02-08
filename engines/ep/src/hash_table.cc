@@ -67,22 +67,15 @@ HashTable::HashTable(EPStats& st,
                      size_t initialSize,
                      size_t locks,
                      EvictionPolicy policy)
-    : datatypeCounts(),
-      cacheSize(0),
-      metaDataMemory(0),
-      initialSize(initialSize),
+    : initialSize(initialSize),
       size(initialSize),
       mutexes(locks),
       stats(st),
       valFact(std::move(svFactory)),
       visitors(0),
-      numItems(0),
-      numNonResidentItems(0),
-      numDeletedItems(0),
+      valueStats(stats),
       numEjects(0),
       numResizes(0),
-      numTempItems(0),
-      memSize(0),
       maxDeletedRevSeqno(0),
       statisticalCounter(freqCounterIncFactor),
       evictionPolicy(policy) {
@@ -138,12 +131,12 @@ void HashTable::clear_UNLOCKED(bool deactivate) {
 
     stats.currentSize.fetch_sub(clearedMemSize - clearedValSize);
 
-    datatypeCounts.fill(0);
-    numItems.store(0);
-    numTempItems.store(0);
-    numNonResidentItems.store(0);
-    memSize.store(0);
-    cacheSize.store(0);
+    valueStats.datatypeCounts.fill(0);
+    valueStats.numItems.store(0);
+    valueStats.numTempItems.store(0);
+    valueStats.numNonResidentItems.store(0);
+    valueStats.memSize.store(0);
+    valueStats.cacheSize.store(0);
 }
 
 static size_t distance(size_t a, size_t b) {
@@ -291,11 +284,11 @@ MutationStatus HashTable::set(Item& val) {
 }
 
 void HashTable::compressValue(StoredValue& v) {
-   statsPrologue(v);
+    valueStats.prologue(v);
 
-   v.compressValue();
+    v.compressValue();
 
-   statsEpilogue(v);
+    valueStats.epilogue(v);
 }
 
 MutationStatus HashTable::unlocked_updateStoredValue(
@@ -317,12 +310,12 @@ MutationStatus HashTable::unlocked_updateStoredValue(
     MutationStatus status =
             v.isDirty() ? MutationStatus::WasDirty : MutationStatus::WasClean;
 
-    statsPrologue(v);
+    valueStats.prologue(v);
 
     /* setValue() will mark v as undeleted if required */
     v.setValue(itm);
 
-    statsEpilogue(v);
+    valueStats.epilogue(v);
 
     return status;
 }
@@ -349,15 +342,15 @@ StoredValue* HashTable::unlocked_addNewStoredValue(const HashBucketLock& hbl,
     // from the hash table that have just been added.
     v->setFreqCounterValue(ItemEviction::initialFreqCount);
 
-    statsEpilogue(*v.get());
+    valueStats.epilogue(*v.get());
 
     values[hbl.getBucketNum()] = std::move(v);
     return values[hbl.getBucketNum()].get().get();
 }
 
-void HashTable::statsPrologue(const StoredValue& v) {
+void HashTable::Statistics::prologue(const StoredValue& v) {
     // Decrease all statistics which sv matches.
-    reduceMetaDataSize(stats, v.metaDataSize());
+    reduceMetaDataSize(epStats, v.metaDataSize());
     reduceCacheSize(v.size());
 
     if (!v.isResident() && !v.isDeleted() && !v.isTempItem()) {
@@ -376,9 +369,9 @@ void HashTable::statsPrologue(const StoredValue& v) {
     }
 }
 
-void HashTable::statsEpilogue(const StoredValue& v) {
+void HashTable::Statistics::epilogue(const StoredValue& v) {
     // After performing updates to sv; increase all statistics which sv matches.
-    increaseMetaDataSize(stats, v.metaDataSize());
+    increaseMetaDataSize(epStats, v.metaDataSize());
     increaseCacheSize(v.size());
 
     if (!v.isResident() && !v.isDeleted() && !v.isTempItem()) {
@@ -420,7 +413,7 @@ HashTable::unlocked_replaceByCopy(const HashBucketLock& hbl,
             vToCopy, std::move(values[hbl.getBucketNum()]));
 
     // Adding a new item into the HashTable; update stats.
-    statsEpilogue(*newSv.get());
+    valueStats.epilogue(*newSv.get());
 
     values[hbl.getBucketNum()] = std::move(newSv);
     return {values[hbl.getBucketNum()].get().get(), std::move(releasedSv)};
@@ -429,7 +422,7 @@ HashTable::unlocked_replaceByCopy(const HashBucketLock& hbl,
 void HashTable::unlocked_softDelete(const std::unique_lock<std::mutex>& htLock,
                                     StoredValue& v,
                                     bool onlyMarkDeleted) {
-    statsPrologue(v);
+    valueStats.prologue(v);
 
     if (onlyMarkDeleted) {
         v.markDeleted();
@@ -437,7 +430,7 @@ void HashTable::unlocked_softDelete(const std::unique_lock<std::mutex>& htLock,
         v.del();
     }
 
-    statsEpilogue(v);
+    valueStats.epilogue(v);
 }
 
 StoredValue* HashTable::unlocked_find(const DocKey& key,
@@ -509,7 +502,7 @@ StoredValue::UniquePtr HashTable::unlocked_release(
     }
 
     // Update statistics for the item which is now gone.
-    statsPrologue(*released.get());
+    valueStats.prologue(*released.get());
 
     return released;
 }
@@ -533,7 +526,7 @@ MutationStatus HashTable::insertFromWarmup(
         // in markNotResident.
         if (keyMetaDataOnly) {
             v->markNotResident();
-            ++numNonResidentItems;
+            ++valueStats.numNonResidentItems;
         }
         v->setNewCacheItem(false);
     } else {
@@ -569,8 +562,9 @@ void HashTable::dump() const {
     std::cerr << *this << std::endl;
 }
 
-void HashTable::visit(HashTableVisitor &visitor) {
-    if ((numItems.load() + numTempItems.load()) == 0 || !isActive()) {
+void HashTable::visit(HashTableVisitor& visitor) {
+    if ((valueStats.numItems.load() + valueStats.numTempItems.load()) == 0 ||
+        !isActive()) {
         return;
     }
 
@@ -612,7 +606,7 @@ void HashTable::visit(HashTableVisitor &visitor) {
 }
 
 void HashTable::visitDepth(HashTableDepthVisitor &visitor) {
-    if (numItems.load() == 0 || !isActive()) {
+    if (valueStats.numItems.load() == 0 || !isActive()) {
         return;
     }
     size_t visited = 0;
@@ -649,7 +643,8 @@ void HashTable::visitDepth(HashTableDepthVisitor &visitor) {
 
 HashTable::Position HashTable::pauseResumeVisit(HashTableVisitor& visitor,
                                                 Position& start_pos) {
-    if ((numItems.load() + numTempItems.load()) == 0 || !isActive()) {
+    if ((valueStats.numItems.load() + valueStats.numTempItems.load()) == 0 ||
+        !isActive()) {
         // Nothing to visit
         return endPosition();
     }
@@ -728,10 +723,10 @@ bool HashTable::unlocked_ejectItem(StoredValue*& vptr,
     }
     if (policy == VALUE_ONLY) {
         if (vptr->eligibleForEviction(policy)) {
-            reduceCacheSize(vptr->valuelen());
+            valueStats.reduceCacheSize(vptr->valuelen());
             vptr->ejectValue();
             ++stats.numValueEjects;
-            ++numNonResidentItems;
+            ++valueStats.numNonResidentItems;
             ++numEjects;
             return true;
         } else {
@@ -740,8 +735,8 @@ bool HashTable::unlocked_ejectItem(StoredValue*& vptr,
         }
     } else { // full eviction.
         if (vptr->eligibleForEviction(policy)) {
-            reduceMetaDataSize(stats, vptr->metaDataSize());
-            reduceCacheSize(vptr->size());
+            valueStats.reduceMetaDataSize(stats, vptr->metaDataSize());
+            valueStats.reduceCacheSize(vptr->size());
             int bucket_num = getBucketForHash(vptr->getKey().hash());
 
             // Remove the item from the hash table.
@@ -753,11 +748,12 @@ bool HashTable::unlocked_ejectItem(StoredValue*& vptr,
                 ++stats.numValueEjects;
             }
             if (!removed->isResident() && !removed->isTempItem()) {
-                decrNumNonResidentItems(); // Decrement because the item is
-                                           // fully evicted.
+                // Decrement because the item is fully evicted.
+                valueStats.decrNumNonResidentItems();
             }
-            decrNumItems(); // Decrement because the item is fully evicted.
-            --datatypeCounts[vptr->getDatatype()];
+            // Decrement because the item is fully evicted.
+            valueStats.decrNumItems();
+            --valueStats.datatypeCounts[vptr->getDatatype()];
             ++numEjects;
             updateMaxDeletedRevSeqno(vptr->getRevSeqno());
 
@@ -790,23 +786,23 @@ bool HashTable::unlocked_restoreValue(
     }
 
     if (v.isTempItem()) {
-        --numTempItems;
-        ++numItems;
+        --valueStats.numTempItems;
+        ++valueStats.numItems;
         /* set it back to false as we created a temp item by setting it to true
            when bg fetch is scheduled (full eviction mode). */
         v.setNewCacheItem(false);
-        ++datatypeCounts[itm.getDataType()];
+        ++valueStats.datatypeCounts[itm.getDataType()];
     } else {
-        decrNumNonResidentItems();
+        valueStats.decrNumNonResidentItems();
     }
 
     v.restoreValue(itm);
 
     if (v.isDeleted()) {
-        ++numDeletedItems;
+        ++valueStats.numDeletedItems;
     }
 
-    increaseCacheSize(v.getValue()->valueSize());
+    valueStats.increaseCacheSize(v.getValue()->valueSize());
     return true;
 }
 
@@ -827,29 +823,29 @@ void HashTable::unlocked_restoreMeta(const std::unique_lock<std::mutex>& htLock,
 
     v.restoreMeta(itm);
     if (!itm.isDeleted()) {
-        --numTempItems;
-        ++numItems;
-        ++numNonResidentItems;
-        ++datatypeCounts[v.getDatatype()];
+        --valueStats.numTempItems;
+        ++valueStats.numItems;
+        ++valueStats.numNonResidentItems;
+        ++valueStats.datatypeCounts[v.getDatatype()];
     }
 }
 
-void HashTable::increaseCacheSize(size_t by) {
+void HashTable::Statistics::increaseCacheSize(size_t by) {
     cacheSize.fetch_add(by);
     memSize.fetch_add(by);
 }
 
-void HashTable::reduceCacheSize(size_t by) {
+void HashTable::Statistics::reduceCacheSize(size_t by) {
     cacheSize.fetch_sub(by);
     memSize.fetch_sub(by);
 }
 
-void HashTable::increaseMetaDataSize(EPStats& st, size_t by) {
+void HashTable::Statistics::increaseMetaDataSize(EPStats& st, size_t by) {
     metaDataMemory.fetch_add(by);
     st.currentSize.fetch_add(by);
 }
 
-void HashTable::reduceMetaDataSize(EPStats &st, size_t by) {
+void HashTable::Statistics::reduceMetaDataSize(EPStats& st, size_t by) {
     metaDataMemory.fetch_sub(by);
     st.currentSize.fetch_sub(by);
 }

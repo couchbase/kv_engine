@@ -98,6 +98,12 @@ enum class TempAddStatus : uint8_t {
  */
 class HashTable {
 public:
+    /**
+     * Datatype counts; one element for each combination of datatypes
+     * (e.g. JSON, JSON+XATTR, JSON+Snappy, etc...)
+     */
+    using DatatypeCombo = std::array<cb::NonNegativeCounter<size_t>,
+                                     mcbp::datatype::highest + 1>;
 
     enum class EvictionPolicy : uint8_t {
         lru2Bit,  // The original 2-bit LRU policy
@@ -141,6 +147,113 @@ public:
 
         friend class HashTable;
         friend std::ostream& operator<<(std::ostream& os, const Position& pos);
+    };
+
+    /**
+     * Records various statistics about a HashTable object.
+     *
+     * Due to the number of items we typically store in HashTable, it isn't
+     * feasible to calculate statistics on-demand - e.g. to count the number
+     * of deleted items we don't want to iterate the HashTable counting how
+     * many SVs have isDeleted() set.
+     * Instead, we maintain a number of 'running' counters, updating the overall
+     * counts whenever items are added/removed/their state changes.
+     *
+     * Clients can read current statistics values via the various get() methods,
+     * however updating statistics values is performed by the prologue() and
+     * epilogue() methods.
+     */
+    class Statistics {
+    public:
+        Statistics(EPStats& epStats) : epStats(epStats) {
+        }
+
+        /**
+         * Update HashTable statistics before modifying a StoredValue.
+         *
+         * This function should be called before modifying *any* StoredValue
+         * object, if modifying it may affect any of the HashTable counts. For
+         * example, before we remove a StoredValue we must decrement any counts
+         * which it matches; or before we change its datatype we must decrement
+         * the count of the old datatype.
+         *
+         * It is typically paired with statsPrologue if modifying an existing
+         * SV. It will be used by itself if removing a SV (as there will be no
+         * SV after to call statsEpilogue() with).
+         *
+         * See also: epilogue().
+         * @param sv StoredValue which is about to be modified.
+         */
+        void prologue(const StoredValue& sv);
+
+        /**
+         * Update HashTable statistics after modifying a StoredValue.
+         *
+         * This function should be called after modifying *any* StoredValue
+         * object, if modifying it may affect any of the HashTable counts. For
+         * example, if the datatype of a StoredValue may have changed; then
+         * datatypeCounts needs to be updated.
+         *
+         * See also: prologue().
+         * @param sv StoredValue which has just been modified.
+         */
+        void epilogue(const StoredValue& sv);
+
+        /**
+         * Increase the size of the cache
+         */
+        void increaseCacheSize(size_t by);
+
+        /**
+         * Reduce the size of the cache
+         */
+        void reduceCacheSize(size_t by);
+
+        /**
+         * Increase the size of the meta data
+         */
+        void increaseMetaDataSize(EPStats& st, size_t by);
+
+        /**
+         * Reduce the size of the meta data
+         */
+        void reduceMetaDataSize(EPStats& st, size_t by);
+
+        void decrNumNonResidentItems() {
+            --numNonResidentItems;
+        }
+
+        void decrNumItems() {
+            --numItems;
+        }
+
+    public:
+        /// Count of alive & deleted, in-memory non-resident and resident items.
+        /// Excludes temporary items.
+        cb::NonNegativeCounter<size_t> numItems;
+        cb::NonNegativeCounter<size_t> numNonResidentItems;
+        cb::NonNegativeCounter<size_t> numDeletedItems;
+
+        /// Count of items where StoredValue::isTempItem() is true.
+        cb::NonNegativeCounter<size_t> numTempItems;
+
+        /**
+         * Number of documents of a given datatype. Includes alive
+         * (non-deleted), resident documents.
+         */
+        DatatypeCombo datatypeCounts = {};
+
+        //! Cache size (fixed-length fields in StoredValue + keylen + valuelen).
+        std::atomic<size_t> cacheSize = {};
+
+        //! Meta-data size (fixed-length fields in StoredValue + keylen).
+        std::atomic<size_t> metaDataMemory = {};
+
+        //! Memory consumed by items in this hashtable.
+        std::atomic<size_t> memSize = {};
+
+    private:
+        EPStats& epStats;
     };
 
     /**
@@ -230,27 +343,29 @@ public:
      *   getNumTempItems()
      */
     size_t getNumInMemoryItems() const {
-        return numItems;
+        return valueStats.numItems;
     }
 
     /**
      * Get the number of deleted items in the hash table.
      */
     size_t getNumDeletedItems() const {
-        return numDeletedItems;
+        return valueStats.numDeletedItems;
     }
 
     /**
      * Get the number of in-memory non-resident items within this hash table.
      */
-    size_t getNumInMemoryNonResItems() const { return numNonResidentItems; }
+    size_t getNumInMemoryNonResItems() const {
+        return valueStats.numNonResidentItems;
+    }
 
     /**
      * Get the number of non-resident and resident items managed by
      * this hash table. Includes items marked as deleted.
      */
     size_t getNumItems() const {
-        return numItems;
+        return valueStats.numItems;
     }
 
     /**
@@ -273,23 +388,33 @@ public:
     void cleanupIfTemporaryItem(const HashBucketLock& hbl,
                                 StoredValue& v);
 
-    void decrNumItems() {
-        --numItems;
-    }
-
-    void decrNumNonResidentItems() {
-        --numNonResidentItems;
-    }
-
     /**
      * Get the number of items whose values are ejected from this hash table.
      */
     size_t getNumEjects(void) { return numEjects; }
 
     /**
+     * Get the total cache size of this hash table.
+     *
+     * Defined as: (StoredValue + keylen + valuelen) for all items in HT.
+     */
+    size_t getCacheSize() const {
+        return valueStats.cacheSize;
+    }
+
+    /**
      * Get the total item memory size in this hash table.
      */
-    size_t getItemMemory(void) { return memSize; }
+    size_t getItemMemory() const {
+        return valueStats.memSize;
+    }
+
+    /**
+     * Get the total metadata memory size in this hash table.
+     */
+    size_t getMetadataMemory() const {
+        return valueStats.metaDataMemory;
+    }
 
     /**
      * Clear the hash table.
@@ -307,7 +432,11 @@ public:
      * Get the number of temp. items within this hash table.
      */
     size_t getNumTempItems() const {
-        return numTempItems;
+        return valueStats.numTempItems;
+    }
+
+    DatatypeCombo getDatatypeCounts() const {
+        return valueStats.datatypeCounts;
     }
 
     /**
@@ -644,50 +773,7 @@ public:
      */
     void dump() const;
 
-    /**
-     * Number of documents of a given datatype. Includes alive (non-deleted),
-     * resident documents.
-     */
-    std::array<cb::NonNegativeCounter<size_t>, mcbp::datatype::highest + 1>
-            datatypeCounts;
-
-    //! Cache size.
-    std::atomic<size_t>       cacheSize;
-    //! Meta-data size.
-    std::atomic<size_t>       metaDataMemory;
-
 private:
-    /**
-     * Update HashTable statistics before modifying a StoredValue.
-     *
-     * This function should be called before modifying *any* StoredValue object,
-     * if modifying it may affect any of the HashTable counts.
-     * For example, before we remove a StoredValue we must decrement any counts
-     * which it matches; or before we change its datatype we must decrement the
-     * count of the old datatype.
-     *
-     * It is typically paired with statsPrologue if modifying an existing SV.
-     * It will be used by itself if removing a SV (as there will be no SV
-     * after to call statsEpilogue() with).
-     *
-     * See also: statsEpilogue().
-     * @param sv StoredValue which is about to be modified.
-     */
-    void statsPrologue(const StoredValue& sv);
-
-    /**
-     * Update HashTable statistics after modifying a StoredValue.
-     *
-     * This function should be called after modifying *any* StoredValue object,
-     * if modifying it may affect any of the HashTable counts.
-     * For example, if the datatype of a StoredValue may have changed; then
-     * datatypeCounts needs to be updated.
-     *
-     * See also: statsPrologue().
-     * @param sv StoredValue which has just been modified.
-     */
-    void statsEpilogue(const StoredValue& sv);
-
     // The container for actually holding the StoredValues.
     using table_type = std::vector<StoredValue::UniquePtr>;
 
@@ -709,19 +795,10 @@ private:
     std::unique_ptr<AbstractStoredValueFactory> valFact;
     std::atomic<size_t>       visitors;
 
-    /// Count of alive & deleted, in-memory non-resident and resident items.
-    /// Excludes temporary items.
-    cb::NonNegativeCounter<size_t> numItems;
-    cb::NonNegativeCounter<size_t> numNonResidentItems;
-    cb::NonNegativeCounter<size_t> numDeletedItems;
+    Statistics valueStats;
+
     std::atomic<size_t> numEjects;
     std::atomic<size_t>       numResizes;
-
-    /// Count of items where StoredValue::isTempItem() is true.
-    cb::NonNegativeCounter<size_t> numTempItems;
-
-    //! Memory consumed by items in this hashtable.
-    std::atomic<size_t> memSize;
 
     std::atomic<uint64_t> maxDeletedRevSeqno;
     bool                 activeState;
@@ -790,26 +867,6 @@ private:
     }
 
     void clear_UNLOCKED(bool deactivate);
-
-    /**
-     * Increase the size of the cache
-     */
-    void increaseCacheSize(size_t by);
-
-    /**
-     * Reduce the size of the cache
-     */
-    void reduceCacheSize(size_t by);
-
-    /**
-     * Increase the size of the meta data
-     */
-    void increaseMetaDataSize(EPStats& st, size_t by);
-
-    /**
-     * Reduce the size of the meta data
-     */
-    void reduceMetaDataSize(EPStats &st, size_t by);
 
     /**
      * Generates a new value that is either the same or higher than the input
