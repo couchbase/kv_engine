@@ -308,6 +308,13 @@ TEST_P(STItemPagerTest, HighWaterMarkTriggersPager) {
 // Test that when the server quota is reached, we delete items which have
 // expired before any other items.
 TEST_P(STItemPagerTest, ExpiredItemsDeletedFirst) {
+    // Test only works for the only 2-bit LRU eviction algorithm
+    // @todo Investigate converting the test to work with the new Statistical
+    // counter eviction algorithm.
+    if (engine->getConfiguration().getHtEvictionPolicy() ==
+        "statistical_counter") {
+        return;
+    }
 
     // Populate bucket with non-expiring items until we reach the low
     // watermark.
@@ -369,6 +376,14 @@ TEST_P(STItemPagerTest, ExpiredItemsDeletedFirst) {
 // Test migrated and mutated from from ep_testsuite_basic so that it's less
 // racey
 TEST_P(STItemPagerTest, test_memory_limit) {
+    // Test only works for the only 2-bit LRU eviction algorithm
+    // @todo Investigate converting the test to work with the new Statistical
+    // counter eviction algorithm.
+    if (engine->getConfiguration().getHtEvictionPolicy() ==
+        "statistical_counter") {
+        return;
+    }
+
     // Now set max_size to be 10MiB
     std::string msg;
     EXPECT_EQ(

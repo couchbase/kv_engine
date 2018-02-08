@@ -17,6 +17,9 @@
 
 #pragma once
 
+#include "mock_ep_bucket.h"
+#include "mock_ephemeral_bucket.h"
+
 #include <dcp/dcpconnmap.h>
 #include <ep_bucket.h>
 #include <ep_engine.h>
@@ -60,6 +63,8 @@ public:
     std::unique_ptr<KVBucket> public_makeBucket(Configuration& config) {
         return makeBucket(config);
     }
+
+    std::unique_ptr<KVBucket> public_makeMockBucket(Configuration& config);
 
     bool public_enableTraffic(bool enable) {
         return enableTraffic(enable);

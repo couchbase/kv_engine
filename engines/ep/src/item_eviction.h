@@ -15,6 +15,7 @@
  *   limitations under the License.
  */
 
+#include <atomic>
 #include <cstdlib> // Required due to the use of free
 #include <limits>
 #include <memory>
@@ -74,9 +75,26 @@ public:
     // zero.
     void reset();
 
-    // Returns the value held in the frequency histogram at the
+    // StatCounter: Returns the value held in the frequency histogram at the
     // percentile defined by the input parameter percentage.
     uint16_t getFreqThreshold(uint8_t percentage) const;
+
+    // StatCounter: Return true if learning what the frequency counter
+    // threshold should be for eviction, else return false.
+    bool isLearning() const {
+        return (getFreqHistogramValueCount() <= learningPopulation);
+    }
+
+    // StatCounter: Return true if it is necessary to update the frequency
+    // threshold, else return false
+    bool isRequiredToUpdate() const {
+        return (getFreqHistogramValueCount() % requiredToUpdateInterval == 0);
+    }
+
+    // The initial frequency count that items should be set to when first
+    // added to the hash table.  It is not 0, as we want to ensure that we
+    // do not immediately evict items that we have just added.
+    static const uint8_t initialFreqCount = 5;
 
 private:
     // unique_ptr to a hdr_histogram structure, used to record a
@@ -92,4 +110,14 @@ private:
     // Because we cannot store 0 we have to offset by 1 so we have a maximum
     // of 256, instead of 255.
     const uint16_t maxFreqValue = std::numeric_limits<uint8_t>::max() + 1;
+
+    // StatCounter: The number of frequencies that need to be added to the
+    // frequency histogram before it is not necessary to recalculate the
+    // threshold every time we visit an item in the hash table.
+    const uint64_t learningPopulation = 100;
+
+    // StatCounter: The number of frequencies that need to be added to the
+    // frequency histogram before it is necessary to update the frequency
+    // threshold.
+    const uint64_t requiredToUpdateInterval = 100;
 };

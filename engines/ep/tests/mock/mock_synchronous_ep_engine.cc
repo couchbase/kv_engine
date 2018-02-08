@@ -71,3 +71,17 @@ void SynchronousEPEngine::setDcpConnMap(
 void SynchronousEPEngine::initializeConnmap() {
     dcpConnMap_->initialize();
 }
+
+std::unique_ptr<KVBucket> SynchronousEPEngine::public_makeMockBucket(
+        Configuration& config) {
+    const auto bucketType = config.getBucketType();
+    if (bucketType == "persistent") {
+        return std::make_unique<MockEPBucket>(*this);
+    } else if (bucketType == "ephemeral") {
+        EphemeralBucket::reconfigureForEphemeral(configuration);
+        return std::make_unique<MockEphemeralBucket>(*this);
+    }
+    throw std::invalid_argument(bucketType +
+                                " is not a recognized bucket "
+                                "type");
+}

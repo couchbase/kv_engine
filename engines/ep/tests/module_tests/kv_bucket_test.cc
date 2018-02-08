@@ -77,7 +77,8 @@ void KVBucketTest::initialise(std::string config) {
     engine.reset(new SynchronousEPEngine(config));
     ObjectRegistry::onSwitchThread(engine.get());
 
-    engine->setKVBucket(engine->public_makeBucket(engine->getConfiguration()));
+    engine->setKVBucket(
+            engine->public_makeMockBucket(engine->getConfiguration()));
     store = engine->getKVBucket();
 
     store->chkTask = std::make_shared<ClosedUnrefCheckpointRemoverTask>(

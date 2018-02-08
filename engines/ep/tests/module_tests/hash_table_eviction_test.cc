@@ -25,6 +25,7 @@
 #include "evp_store_single_threaded_test.h"
 #include "memory_tracker.h"
 #include "test_helpers.h"
+#include "tests/mock/mock_ep_bucket.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 
 #include <gtest/gtest.h>
@@ -135,6 +136,8 @@ protected:
                 << "Expected to start below 50% of bucket quota";
 
         scheduleItemPager();
+        static_cast<MockEPBucket*>(store)->createItemFreqDecayerTask();
+        static_cast<MockEPBucket*>(store)->disableItemFreqDecayerTask();
 
         // Sanity check - should be no nonIO tasks ready to run,
         // and two in futureQ EphTombstoneHTCleaner and ItemPager)
