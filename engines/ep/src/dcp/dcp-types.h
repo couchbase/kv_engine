@@ -29,6 +29,7 @@
 #include <unordered_set>
 
 #include "locks.h"
+#include "statwriter.h"
 
 template <class S, class Pointer, class Deleter> class SingleThreadedRCPtr;
 template <class C> class RCPtr;
@@ -146,6 +147,52 @@ public:
     bool empty() {
         LockHolder lh(lock);
         return readyQueue.empty();
+    }
+
+    void addStats(const std::string& name, ADD_STAT add_stat, const void* c) {
+        // Take a copy of the queue data under lock; then format it to stats.
+        std::queue<uint16_t> qCopy;
+        std::unordered_set<uint16_t> qMapCopy;
+        {
+            LockHolder lh(lock);
+            qCopy = readyQueue;
+            qMapCopy = queuedValues;
+        }
+
+        auto prefix = name + ":dcp_ready_queue_";
+        add_casted_stat(
+                (prefix + "size").c_str(), qCopy.size(), add_stat, c);
+        add_casted_stat((prefix + "map_size").c_str(),
+                        qMapCopy.size(),
+                        add_stat,
+                        c);
+
+        // Form a comma-separated string of the queue's contents.
+        std::string contents;
+        while (!qCopy.empty()) {
+            contents += std::to_string(qCopy.front()) + ",";
+            qCopy.pop();
+        }
+        if (!contents.empty()) {
+            contents.pop_back();
+        }
+        add_casted_stat((prefix + "contents").c_str(),
+                        contents.c_str(),
+                        add_stat,
+                        c);
+
+        // Form a comma-separated string of the queue map's contents.
+        std::string qMapContents;
+        for (auto& vbid : qMapCopy) {
+            qMapContents += std::to_string(vbid) + ",";
+        }
+        if (!qMapContents.empty()) {
+            qMapContents.pop_back();
+        }
+        add_casted_stat((prefix + "map_contents").c_str(),
+                        qMapContents.c_str(),
+                        add_stat,
+                        c);
     }
 
 private:
