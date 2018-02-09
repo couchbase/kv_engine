@@ -1285,7 +1285,7 @@ int main(int argc, char **argv) {
         void* voidptr;
     } my_setup_suite;
 
-
+    cb::logger::createConsoleLogger();
     cb_initialize_sockets();
 
     AllocHooks::initialize();

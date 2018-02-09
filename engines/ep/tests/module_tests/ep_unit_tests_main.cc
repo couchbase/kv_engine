@@ -23,6 +23,7 @@
 
 #include <getopt.h>
 #include <gtest/gtest.h>
+#include <logger/logger.h>
 
 #include "configuration.h"
 #include "ep_time.h"
@@ -56,6 +57,7 @@ int main(int argc, char **argv) {
 
     putenv(allow_no_stats_env);
 
+    cb::logger::createConsoleLogger();
     mock_init_alloc_hooks();
     init_mock_server(log_to_stderr);
 
