@@ -23,6 +23,7 @@
 #include <atomic>
 #include <mutex>
 #include <string>
+#include <unordered_map>
 #include <utility> // For std::pair
 #include <vector>
 
@@ -30,6 +31,9 @@
 
 class AuditConfig {
 public:
+    enum class EventState { /* event state defined as enabled */ enabled,
+                            /* event state defined as disabled */ disabled,
+                            /* event state is not defined */ undefined };
 
     AuditConfig(void) :
         auditd_enabled(false),
@@ -76,7 +80,9 @@ public:
     void set_version(uint32_t ver);
     uint32_t get_version() const;
     bool is_event_sync(uint32_t id);
+    // is_event_disabled is depreciated in version 2 of the configuration.
     bool is_event_disabled(uint32_t id);
+    AuditConfig::EventState get_event_state(uint32_t id) const;
     bool is_event_filtered(
             const std::pair<std::string, std::string>& userid) const;
     bool is_filtering_enabled() const;
@@ -124,9 +130,14 @@ protected:
             std::vector<std::pair<std::string, std::string>>& vec,
             cJSON* array,
             const char* name);
+    void add_event_states_object(
+            std::unordered_map<uint32_t, EventState>& eventStates,
+            cJSON* object,
+            const char* name);
     void set_sync(cJSON *array);
     void set_disabled(cJSON *array);
     void set_disabled_userids(cJSON* array);
+    void set_event_states(cJSON* object);
     void set_uuid(cJSON *obj);
     static cJSON* getObject(const cJSON* root, const char* name, int type);
     void set_filtering_enabled(cJSON *obj);
@@ -152,6 +163,9 @@ protected:
 
     mutable std::mutex disabled_userids_mutex;
     std::vector<std::pair<std::string, std::string>> disabled_userids;
+
+    mutable std::mutex event_states_mutex;
+    std::unordered_map<uint32_t, EventState> event_states;
 
     mutable std::mutex uuid_mutex;
     std::string uuid;

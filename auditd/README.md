@@ -287,7 +287,7 @@ the following fields:
 * rotate interval - number of minutes between log file rotation.  (Default is one day.  Minimum is 15 minutes)
 * rotate_size - number of bytes written to the file before rotating to a new file
 * buffered - should buffered file IO be used or not
-* disabled - list of event ids (numbers) containing those events that are NOT to be outputted to the audit log.
+* disabled - list of event ids (numbers) containing those events that are NOT to be outputted to the audit log.  This is depreciated in version 2 and has no affect.
 * sync - list of event ids containing those events that are synchronous.  Synchronous events are not supported in Sherlock and so this should be the empty list.
 
 With the introduction of Version 2 of the auditd configuration the following
@@ -296,6 +296,9 @@ additional fields are required:
 * uuid - identifies which auditd configuration is being used.  The value is provided by ns_server
 * disabled_userids - a list of userids.  Each entry corresponds to a userid that we want to be filtered out.  Note: The list can be empty.
 * filtering_enabled - boolean stating whether filtering is enabled.  This configuration overrides all other filtering options. i.e. if set to false, then regardless of other filter settings, no filtering will be performed.
+* events_states - map of eventids to states (either enabled or disabled).  This configuration is used
+to override the "enabled" attribute of an event defined in its module definition.  The map is optional
+and if omiited the configuration will still be parsed correctly.
 
 An example verison 1 configuration is presented below.
 
@@ -322,7 +325,7 @@ An example verison 2 configuration is presented below.
         "buffered":             true,
         "log_path": "/var/lib/couchbase/logs",
         "descriptors_path" : "/path/to/directory/containing/audit_events.json/",
-        "disabled": [],
+        "event_states" : {"1234" : "enabled", "5678" : "disabled"}
         "disabled_userids": [{"source" : "internal, "user" : "joeblogs"}],
         "sync": []
        }

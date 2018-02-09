@@ -218,9 +218,6 @@ bool Audit::initialize_event_data_structures(cJSON *event_ptr) {
 
     try {
         auto *entry = new EventDescriptor(event_ptr);
-        if (config.is_event_disabled(entry->getId())) {
-            entry->setEnabled(false);
-        }
         events.insert(std::pair<uint32_t, EventDescriptor*>(entry->getId(), entry));
     } catch (std::bad_alloc& ba) {
         log_error(AuditErrorCode::MEMORY_ALLOCATION_ERROR, ba.what());
@@ -356,11 +353,20 @@ bool Audit::configure(void) {
     auditfile.reconfigure(config);
 
     // iterate through the events map and update the sync and enabled flags
-    typedef std::map<uint32_t, EventDescriptor*>::iterator it_type;
-    for(it_type iterator = events.begin(); iterator != events.end(); iterator++) {
-        iterator->second->setSync(config.is_event_sync(iterator->first));
-        if (config.is_event_disabled(iterator->first)) {
-            iterator->second->setEnabled(false);
+    for (const auto& event : events) {
+        event.second->setSync(config.is_event_sync(event.first));
+        // If the event has a state defined then use that
+        AuditConfig::EventState state = config.get_event_state(event.first);
+        switch (state) {
+        case AuditConfig::EventState::enabled:
+            event.second->setEnabled(true);
+            break;
+        case AuditConfig::EventState::disabled:
+            event.second->setEnabled(false);
+            break;
+        case AuditConfig::EventState::undefined:
+            // No state defined for the event so don't do anything
+            break;
         }
     }
 

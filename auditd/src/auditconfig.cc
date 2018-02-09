@@ -81,11 +81,19 @@ AuditConfig::AuditConfig(const cJSON *json) : AuditConfig() {
     set_log_directory(getObject(json, "log_path", cJSON_String));
     set_descriptors_path(getObject(json, "descriptors_path", cJSON_String));
     set_sync(getObject(json, "sync", cJSON_Array));
-    set_disabled(getObject(json, "disabled", cJSON_Array));
+    // The disabled list is depreciated in version 2
+    if (get_version() == 1) {
+        set_disabled(getObject(json, "disabled", cJSON_Array));
+    }
     if (get_version() == 2) {
         set_filtering_enabled(getObject(json, "filtering_enabled", -1));
         set_uuid(getObject(json, "uuid", cJSON_String));
         set_disabled_userids(getObject(json, "disabled_userids", cJSON_Array));
+        // event_states is optional so if not defined will not throw an
+        // exception.
+        if (cJSON_GetObjectItem(const_cast<cJSON*>(json), "event_states")) {
+            set_event_states(getObject(json, "event_states", cJSON_Object));
+        }
     }
 
     std::map<std::string, int> tags;
@@ -97,11 +105,14 @@ AuditConfig::AuditConfig(const cJSON *json) : AuditConfig() {
     tags["log_path"] = 1;
     tags["descriptors_path"] = 1;
     tags["sync"] = 1;
+    // The disabled list is depreciated in version 2 - if defined will
+    // just be ignored.
     tags["disabled"] = 1;
     if (get_version() == 2) {
         tags["filtering_enabled"] = 1;
         tags["uuid"] = 1;
         tags["disabled_userids"] = 1;
+        tags["event_states"] = 1;
     }
 
     for (cJSON *items = json->child; items != NULL; items = items->next) {
@@ -230,6 +241,17 @@ bool AuditConfig::is_event_disabled(uint32_t id) {
     return std::find(disabled.begin(), disabled.end(), id) != disabled.end();
 }
 
+AuditConfig::EventState AuditConfig::get_event_state(uint32_t id) const {
+    std::lock_guard<std::mutex> guard(event_states_mutex);
+    const auto it = event_states.find(id);
+    if (it == event_states.end()) {
+        // If event state is not defined (as either enabled or disabled) then
+        // return undefined.
+        return EventState::undefined;
+    }
+    return it->second;
+}
+
 bool AuditConfig::is_event_filtered(
         const std::pair<std::string, std::string>& userid) const {
     std::lock_guard<std::mutex> guard(disabled_userids_mutex);
@@ -324,6 +346,31 @@ void AuditConfig::add_array(std::vector<uint32_t> &vec, cJSON *array, const char
     }
 }
 
+void AuditConfig::add_event_states_object(
+        std::unordered_map<uint32_t, EventState>& eventStates,
+        cJSON* object,
+        const char* name) {
+    eventStates.clear();
+    cJSON* obj = object->child;
+    while (obj != nullptr) {
+        std::string event(obj->string);
+        if (obj->type != cJSON_String) {
+            throw std::invalid_argument(
+                    "Incorrect type for state. Should be string.");
+        }
+        std::string state{obj->valuestring};
+        EventState estate{EventState::undefined};
+        if (state == "enabled") {
+            estate = EventState::enabled;
+        } else if (state == "disabled") {
+            estate = EventState::disabled;
+        }
+        // add to the eventStates map
+        eventStates[std::stoi(event)] = estate;
+        obj = obj->next;
+    }
+}
+
 void AuditConfig::add_pair_string_array(
         std::vector<std::pair<std::string, std::string>>& vec,
         cJSON* array,
@@ -374,6 +421,11 @@ void AuditConfig::set_disabled_userids(cJSON* array) {
     add_pair_string_array(disabled_userids, array, "disabled_userids");
 }
 
+void AuditConfig::set_event_states(cJSON* object) {
+    std::lock_guard<std::mutex> guard(event_states_mutex);
+    add_event_states_object(event_states, object, "event_states");
+}
+
 void AuditConfig::set_uuid(cJSON *obj) {
     set_uuid(obj->valuestring);
 }
@@ -415,11 +467,38 @@ unique_cJSON_ptr AuditConfig::to_json() const {
                     "AuditConfig::to_json - Error creating "
                     "cJSON object");
         }
-        cJSON_AddStringToObject(userIdRoot, "source", std::get<0>(v).c_str());
-        cJSON_AddStringToObject(userIdRoot, "user", std::get<1>(v).c_str());
+        std::string source;
+        std::string user;
+        std::tie(source, user) = v;
+        cJSON_AddStringToObject(userIdRoot, "source", source.c_str());
+        cJSON_AddStringToObject(userIdRoot, "user", user.c_str());
         cJSON_AddItemToArray(array, userIdRoot);
     }
     cJSON_AddItemToObject(root, "disabled_userids", array);
+
+    cJSON* object = cJSON_CreateObject();
+    for (const auto& v : event_states) {
+        std::string event = std::to_string(v.first);
+        EventState estate = v.second;
+        std::string state;
+        switch (estate) {
+        case EventState::enabled: {
+            state = "enabled";
+            break;
+        }
+        case EventState::disabled: {
+            state = "disabled";
+            break;
+        }
+        case EventState::undefined: {
+            throw std::logic_error(
+                    "AuditConfig::to_json - EventState:undefined should not be "
+                    "found in the event_states list");
+        }
+        }
+        cJSON_AddStringToObject(object, event.c_str(), state.c_str());
+    }
+    cJSON_AddItemToObject(root, "event_states", object);
 
     return ret;
 }
@@ -453,6 +532,11 @@ void AuditConfig::initialize_config(const cJSON* json) {
     {
         std::lock_guard<std::mutex> guard(disabled_userids_mutex);
         disabled_userids = other.disabled_userids;
+    }
+
+    {
+        std::lock_guard<std::mutex> guard(event_states_mutex);
+        event_states = other.event_states;
     }
 
     {

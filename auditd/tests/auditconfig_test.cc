@@ -74,6 +74,8 @@ protected:
         cJSON_AddItemToObject(root, "sync", sync);
         cJSON *disabled = cJSON_CreateArray();
         cJSON_AddItemToObject(root, "disabled", disabled);
+        cJSON *event_states = cJSON_CreateObject();
+        cJSON_AddItemToObject(root, "event_states", event_states);
         cJSON* disabled_userids = cJSON_CreateArray();
         cJSON_AddItemToObject(root, "disabled_userids", disabled_userids);
         cJSON_AddTrueToObject(root, "filtering_enabled");
@@ -118,6 +120,8 @@ TEST_F(AuditConfigTest, TestLegalVersion) {
             cJSON_Delete(obj);
             obj = cJSON_DetachItemFromObject(json, "disabled_userids");
             cJSON_Delete(obj);
+            obj = cJSON_DetachItemFromObject(json, "event_states");
+            cJSON_Delete(obj);
             obj = cJSON_DetachItemFromObject(json, "uuid");
             cJSON_Delete(obj);
         }
@@ -125,6 +129,8 @@ TEST_F(AuditConfigTest, TestLegalVersion) {
             cJSON_AddTrueToObject(json, "filtering_enabled");
             cJSON* disabled_userids = cJSON_CreateArray();
             cJSON_AddItemToObject(json, "disabled_userids", disabled_userids);
+            cJSON* event_states = cJSON_CreateObject();
+            cJSON_AddItemToObject(json, "event_states", event_states);
             cJSON_AddStringToObject(json, "uuid", "123456");
         }
         if ((version == 1) || (version == 2)) {
@@ -379,7 +385,11 @@ TEST_F(AuditConfigTest, TestSpecifySync) {
 TEST_F(AuditConfigTest, TestNoDisabled) {
     cJSON *obj = cJSON_DetachItemFromObject(json, "disabled");
     cJSON_Delete(obj);
-    EXPECT_THROW(config.initialize_config(json), std::string);
+    if (config.get_version() == 1) {
+        EXPECT_THROW(config.initialize_config(json), std::string);
+    } else {
+        EXPECT_NO_THROW(config.initialize_config(json));
+    }
 }
 
 TEST_F(AuditConfigTest, TestSpecifyDisabled) {
@@ -391,7 +401,7 @@ TEST_F(AuditConfigTest, TestSpecifyDisabled) {
     EXPECT_NO_THROW(config.initialize_config(json));
 
     for (uint32_t ii = 0; ii < 100; ++ii) {
-        if (ii < 10) {
+        if (ii < 10 && config.get_version() == 1) {
             EXPECT_TRUE(config.is_event_disabled(ii));
         } else {
             EXPECT_FALSE(config.is_event_disabled(ii));
@@ -503,4 +513,42 @@ TEST_F(AuditConfigTest, TestLegalFilteringEnabled) {
 
     cJSON_ReplaceItemInObject(json, "filtering_enabled", cJSON_CreateFalse());
     EXPECT_NO_THROW(config.initialize_config(json));
+}
+
+// The event_states list is optional and therefore if it does not exist
+// it should not throw an exception.
+TEST_F(AuditConfigTest, TestNoEventStates) {
+    cJSON* obj = cJSON_DetachItemFromObject(json, "event_states");
+    cJSON_Delete(obj);
+    EXPECT_NO_THROW(config.initialize_config(json));
+}
+
+// Test that with an event_states object consisting of "enabled" and "disabled"
+// the states get converted into corresponding EventStates.  Also if an event
+// is not in the event_states object it has an EventState of undefined.
+TEST_F(AuditConfigTest, TestSpecifyEventStates) {
+    cJSON* object = cJSON_CreateObject();
+    for (int ii = 0; ii < 5; ++ii) {
+        auto event = std::to_string(ii);
+        cJSON_AddStringToObject(object, event.c_str(), "enabled");
+    }
+    for (int ii = 5; ii < 10; ++ii) {
+        auto event = std::to_string(ii);
+        cJSON_AddStringToObject(object, event.c_str(), "disabled");
+    }
+    cJSON_ReplaceItemInObject(json, "event_states", object);
+    EXPECT_NO_THROW(config.initialize_config(json));
+
+    for (uint32_t ii = 0; ii < 20; ++ii) {
+        if (ii < 5) {
+            EXPECT_EQ(AuditConfig::EventState::enabled,
+                      config.get_event_state(ii));
+        } else if (ii < 10) {
+            EXPECT_EQ(AuditConfig::EventState::disabled,
+                      config.get_event_state(ii));
+        } else {
+            EXPECT_EQ(AuditConfig::EventState::undefined,
+                      config.get_event_state(ii));
+        }
+    }
 }
