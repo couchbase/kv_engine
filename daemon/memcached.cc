@@ -2445,8 +2445,7 @@ extern "C" int memcached_main(int argc, char **argv) {
 
     /* Configure file logger, if specified as a settings object */
     if (settings.has.logger) {
-        auto ret = cb::logger::initialize(settings.getLoggerConfig(),
-                                          get_server_api);
+        auto ret = cb::logger::initialize(settings.getLoggerConfig());
         if (ret) {
             FATAL_ERROR(
                     EXIT_FAILURE, "Failed to initialize logger: {}", ret.get());

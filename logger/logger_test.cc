@@ -27,45 +27,6 @@
 
 static EXTENSION_LOGGER_DESCRIPTOR* logger;
 
-static EXTENSION_LOG_LEVEL get_log_level(void) {
-    return EXTENSION_LOG_DEBUG;
-}
-
-static void register_callback(ENGINE_HANDLE* eh,
-                              ENGINE_EVENT_TYPE type,
-                              EVENT_CALLBACK cb,
-                              const void* cb_data) {
-}
-
-static SERVER_HANDLE_V1* get_server_api(void) {
-    static bool init = false;
-    static SERVER_CORE_API core_api = {};
-    static SERVER_COOKIE_API server_cookie_api = {};
-    static SERVER_STAT_API server_stat_api = {};
-    static SERVER_LOG_API server_log_api = {};
-    static SERVER_CALLBACK_API callback_api = {};
-    static ALLOCATOR_HOOKS_API hooks_api = {};
-    static SERVER_HANDLE_V1 rv;
-
-    if (!init) {
-        init = true;
-
-        core_api.parse_config = parse_config;
-        server_log_api.get_level = get_log_level;
-        callback_api.register_callback = register_callback;
-
-        rv.interface = 1;
-        rv.core = &core_api;
-        rv.stat = &server_stat_api;
-        rv.callback = &callback_api;
-        rv.log = &server_log_api;
-        rv.cookie = &server_cookie_api;
-        rv.alloc_hooks = &hooks_api;
-    }
-
-    return &rv;
-}
-
 class SpdloggerTest : public ::testing::Test {
 protected:
 /*
@@ -91,9 +52,10 @@ protected:
         config.unit_test = true;
         config.console = false;
 
-        const auto ret = cb::logger::initialize(config, get_server_api);
+        const auto ret = cb::logger::initialize(config);
         EXPECT_FALSE(ret) << ret.get();
         logger = &cb::logger::getLoggerDescriptor();
+        cb::logger::get()->set_level(spdlog::level::level_enum::debug);
     }
 
     void RemoveFiles() {

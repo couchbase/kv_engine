@@ -136,12 +136,7 @@ void cb::logger::shutdown() {
  * specified in a separate settings object.
  */
 boost::optional<std::string> cb::logger::initialize(
-        const Config& logger_settings, GET_SERVER_API get_server_api) {
-    auto* sapi = get_server_api();
-    if (sapi == nullptr) {
-        return boost::optional<std::string>{"Failed to get server API"};
-    }
-
+        const Config& logger_settings) {
     auto fname = logger_settings.filename;
     auto buffersz = logger_settings.buffersize;
     auto cyclesz = logger_settings.cyclesize;
@@ -209,7 +204,7 @@ boost::optional<std::string> cb::logger::initialize(
     }
 
     file_logger->set_pattern(log_pattern);
-    file_logger->set_level(convertToSpdSeverity(sapi->log->get_level()));
+    file_logger->set_level(spdlog::level::level_enum::info);
     return {};
 }
 

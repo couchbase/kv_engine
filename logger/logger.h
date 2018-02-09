@@ -53,15 +53,15 @@ struct LOGGER_PUBLIC_API Config {
 };
 
 /**
- * Initialize the logger
+ * Initialize the logger.
+ *
+ * The default level for the created logger is set to INFO
  *
  * @param logger_settings the configuration for the logger
- * @param get_server_api function to retrieve the server API
  * @return optional error message if something goes wrong
  */
 LOGGER_PUBLIC_API
-boost::optional<std::string> initialize(const Config& logger_settings,
-                                        GET_SERVER_API get_server_api);
+boost::optional<std::string> initialize(const Config& logger_settings);
 
 /**
  * Initialize the logger with the blackhole logger object
