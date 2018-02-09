@@ -112,8 +112,8 @@ LOGGER_PUBLIC_API
 void flush();
 
 /**
- * Tell the logger to shut down (flush buffers) and replace the
- * logger with the blackhole logger
+ * Tell the logger to shut down (flush buffers) and release _ALL_
+ * loggers (you'd need to create new loggers after this method)
  */
 LOGGER_PUBLIC_API
 void shutdown();
