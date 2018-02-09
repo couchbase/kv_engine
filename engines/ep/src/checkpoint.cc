@@ -1446,7 +1446,17 @@ size_t CheckpointManager::getNumItemsForCursor_UNLOCKED(
     cursor_index::const_iterator it = connCursors.find(name);
     if (it != connCursors.end()) {
         size_t offset = it->second.offset + getNumOfMetaItemsFromCursor(it->second);
-        remains = (numItems > offset) ? numItems - offset : 0;
+        if (numItems >= offset) {
+            remains = numItems - offset;
+        } else {
+            LOG(EXTENSION_LOG_WARNING,
+                "For cursor \"%s\" the offset %zu is greater than  "
+                "numItems %zu on vb:%" PRIu16,
+                name.c_str(),
+                offset,
+                numItems.load(),
+                vbucketId);
+        }
     }
     return remains;
 }
