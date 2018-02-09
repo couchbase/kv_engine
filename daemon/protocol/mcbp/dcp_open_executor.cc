@@ -28,8 +28,6 @@ void dcp_open_executor(Cookie& cookie) {
     auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
 
     auto& connection = cookie.getConnection();
-    connection.enableDatatype(cb::mcbp::Feature::SNAPPY);
-    connection.enableDatatype(cb::mcbp::Feature::JSON);
 
     uint32_t flags = ntohl(req->message.body.flags);
     const bool dcpNotifier = (flags & DCP_OPEN_NOTIFIER) == DCP_OPEN_NOTIFIER;
