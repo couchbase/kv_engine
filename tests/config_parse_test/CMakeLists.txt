@@ -18,7 +18,7 @@ TARGET_LINK_LIBRARIES(memcached_config_parse_test
                       memcached_logger
                       platform
                       dirutils
-                      gtest gtest_main
+                      gtest
                       ${OPENSSL_LIBRARIES}
                       ${COUCHBASE_NETWORK_LIBS})
 ADD_TEST(NAME memcache-config-parse

@@ -1373,5 +1373,14 @@ TEST(SettingsUpdateTest, OpcodeAttributesMustBeValidFormat) {
     // Setting to an empty value means drop the previous content
     settings.setOpcodeAttributesOverride("");
     EXPECT_EQ("", settings.getOpcodeAttributesOverride());
+}
 
+int main(int argc, char** argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+
+    cb::logger::createBlackholeLogger();
+    auto ret = RUN_ALL_TESTS();
+    cb::logger::shutdown();
+
+    return ret;
 }
