@@ -26,21 +26,26 @@
 #include "ep_engine.h"
 #include "flusher.h"
 #include "kvshard.h"
+#ifdef EP_USE_ROCKSDB
+#include "rocksdb-kvstore/rocksdb-kvstore_config.h"
+#endif
 
 /* [EPHE TODO]: Consider not using KVShard for ephemeral bucket */
 KVShard::KVShard(uint16_t id, KVBucket& kvBucket)
-    : kvConfig(kvBucket.getEPEngine().getConfiguration(), id),
-      vbuckets(kvConfig.getMaxVBuckets()),
+    : vbuckets(kvBucket.getEPEngine().getConfiguration().getMaxVbuckets()),
       highPriorityCount(0) {
-    const std::string backend = kvConfig.getBackend();
+    auto& epConfig = kvBucket.getEPEngine().getConfiguration();
+    const std::string backend = epConfig.getBackend();
     if (backend == "couchdb") {
-        auto stores = KVStoreFactory::create(kvConfig);
+        kvConfig = std::make_unique<KVStoreConfig>(epConfig, id);
+        auto stores = KVStoreFactory::create(*kvConfig);
         rwStore = std::move(stores.rw);
         roStore = std::move(stores.ro);
     }
 #ifdef EP_USE_ROCKSDB
     else if (backend == "rocksdb") {
-        auto stores = KVStoreFactory::create(kvConfig);
+        kvConfig = std::make_unique<RocksDBKVStoreConfig>(epConfig, id);
+        auto stores = KVStoreFactory::create(*kvConfig);
         rwStore = std::move(stores.rw);
     }
 #endif

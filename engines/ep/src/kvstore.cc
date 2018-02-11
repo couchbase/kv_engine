@@ -25,6 +25,7 @@
 #include "couch-kvstore/couch-kvstore.h"
 #ifdef EP_USE_ROCKSDB
 #include "rocksdb-kvstore/rocksdb-kvstore.h"
+#include "rocksdb-kvstore/rocksdb-kvstore_config.h"
 #endif
 #include "kvstore.h"
 #include "kvstore_config.h"
@@ -82,7 +83,8 @@ KVStoreRWRO KVStoreFactory::create(KVStoreConfig& config) {
     }
 #ifdef EP_USE_ROCKSDB
     else if (backend == "rocksdb") {
-        auto rw = std::make_unique<RocksDBKVStore>(config);
+        auto rw = std::make_unique<RocksDBKVStore>(
+                dynamic_cast<RocksDBKVStoreConfig&>(config));
         return {rw.release(), nullptr};
     }
 #endif

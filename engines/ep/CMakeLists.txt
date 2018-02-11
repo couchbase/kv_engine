@@ -37,7 +37,8 @@ SET(EP_STORAGE_LIBS couchstore)
 
 IF (EP_USE_ROCKSDB)
     INCLUDE_DIRECTORIES(AFTER ${ROCKSDB_INCLUDE_DIR})
-    SET(ROCKSDB_KVSTORE_SOURCE src/rocksdb-kvstore/rocksdb-kvstore.cc)
+    SET(ROCKSDB_KVSTORE_SOURCE src/rocksdb-kvstore/rocksdb-kvstore.cc
+        src/rocksdb-kvstore/rocksdb-kvstore_config.cc)
     LIST(APPEND EP_STORAGE_LIBS ${ROCKSDB_LIBRARIES})
     ADD_DEFINITIONS(-DEP_USE_ROCKSDB=1)
     MESSAGE(STATUS "ep-engine: Using RocksDB")

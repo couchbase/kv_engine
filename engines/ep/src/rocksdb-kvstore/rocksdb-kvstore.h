@@ -101,6 +101,7 @@ public:
 };
 
 class RocksRequest;
+class RocksDBKVStoreConfig;
 class VBHandle;
 struct KVStatsCtx;
 
@@ -114,7 +115,7 @@ public:
      *
      * @param config    Configuration information
      */
-    RocksDBKVStore(KVStoreConfig& config);
+    RocksDBKVStore(RocksDBKVStoreConfig& config);
 
     ~RocksDBKVStore();
 
@@ -298,12 +299,6 @@ public:
     uint64_t prepareToDelete(uint16_t vbid) override {
         // TODO DJR 2017-05-19 implement this.
         return 0;
-    }
-
-    std::unique_ptr<RocksDBKVStore> makeReadOnlyStore() {
-        // Not using make_unique due to the private constructor we're calling
-        return std::unique_ptr<RocksDBKVStore>(
-                new RocksDBKVStore(configuration));
     }
 
 protected:

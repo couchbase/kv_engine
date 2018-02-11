@@ -23,6 +23,9 @@
 #include "couch-kvstore/couch-kvstore.h"
 #include "kvstore.h"
 #include "kvstore_config.h"
+#ifdef EP_USE_ROCKSDB
+#include "rocksdb-kvstore/rocksdb-kvstore_config.h"
+#endif
 #include "src/internal.h"
 #include "tests/module_tests/test_helpers.h"
 #include "tests/test_fileops.h"
@@ -1865,7 +1868,16 @@ protected:
         // `GetParam` returns the string parameter representing the KVStore
         // implementation
         config.setBackend(GetParam());
-        kvstoreConfig = std::make_unique<KVStoreConfig>(config, 0 /*shardId*/);
+        if (config.getBackend() == "couchdb") {
+            kvstoreConfig =
+                    std::make_unique<KVStoreConfig>(config, 0 /*shardId*/);
+        }
+#ifdef EP_USE_ROCKSDB
+        else if (config.getBackend() == "rocksdb") {
+            kvstoreConfig = std::make_unique<RocksDBKVStoreConfig>(
+                    config, 0 /*shardId*/);
+        }
+#endif
         kvstore = setup_kv_store(*kvstoreConfig);
     }
 
@@ -2037,7 +2049,8 @@ protected:
         Configuration config;
         config.setDbname(data_dir);
         config.setBackend("rocksdb");
-        kvstoreConfig = std::make_unique<KVStoreConfig>(config, 0 /*shardId*/);
+        kvstoreConfig =
+                std::make_unique<RocksDBKVStoreConfig>(config, 0 /*shardId*/);
         kvstore = setup_kv_store(*kvstoreConfig);
     }
 
@@ -2065,7 +2078,8 @@ TEST_F(RocksDBKVStoreTest, StatsTest) {
     config.setBackend("rocksdb");
     // Note: we need to switch-on DB Statistics
     config.setRocksdbStatsLevel("kAll");
-    kvstoreConfig = std::make_unique<KVStoreConfig>(config, 0 /*shardId*/);
+    kvstoreConfig =
+            std::make_unique<RocksDBKVStoreConfig>(config, 0 /*shardId*/);
     // Close the opened DB instance
     kvstore.reset();
     // Re-open with the new configuration
@@ -2092,7 +2106,8 @@ TEST_F(RocksDBKVStoreTest, StatisticsOptionWrongValueTest) {
 
     // Test wrong value
     config.setRocksdbStatsLevel("wrong-value");
-    kvstoreConfig = std::make_unique<KVStoreConfig>(config, 0 /*shardId*/);
+    kvstoreConfig =
+            std::make_unique<RocksDBKVStoreConfig>(config, 0 /*shardId*/);
     // Close the opened DB instance
     kvstore.reset();
     // Re-open with the new configuration
@@ -2101,7 +2116,8 @@ TEST_F(RocksDBKVStoreTest, StatisticsOptionWrongValueTest) {
 
     // Test one right value
     config.setRocksdbStatsLevel("kAll");
-    kvstoreConfig = std::make_unique<KVStoreConfig>(config, 0 /*shardId*/);
+    kvstoreConfig =
+            std::make_unique<RocksDBKVStoreConfig>(config, 0 /*shardId*/);
     // Close the opened DB instance
     kvstore.reset();
     // Re-open with the new configuration

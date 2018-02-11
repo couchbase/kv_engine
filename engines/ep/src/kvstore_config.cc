@@ -39,26 +39,10 @@ KVStoreConfig::KVStoreConfig(Configuration& config, uint16_t shardid)
                     config.getDbname(),
                     config.getBackend(),
                     shardid,
-                    config.isCollectionsPrototypeEnabled(),
-                    config.getRocksdbOptions(),
-                    config.getRocksdbCfOptions(),
-                    config.getRocksdbBbtOptions()) {
+                    config.isCollectionsPrototypeEnabled()) {
     setPeriodicSyncBytes(config.getFsyncAfterEveryNBytesWritten());
     config.addValueChangedListener("fsync_after_every_n_bytes_written",
                                    new ConfigChangeListener(*this));
-    rocksDbLowPriBackgroundThreads = config.getRocksdbLowPriBackgroundThreads();
-    rocksDbHighPriBackgroundThreads =
-            config.getRocksdbHighPriBackgroundThreads();
-    rocksdbStatsLevel = config.getRocksdbStatsLevel();
-    rocksdbBlockCacheRatio = config.getRocksdbBlockCacheRatio();
-    rocksdbBlockCacheHighPriPoolRatio =
-            config.getRocksdbBlockCacheHighPriPoolRatio();
-    rocksdbMemtablesRatio = config.getRocksdbMemtablesRatio();
-    rocksdbDefaultCfOptimizeCompaction =
-            config.getRocksdbDefaultCfOptimizeCompaction();
-    rocksdbSeqnoCfOptimizeCompaction =
-            config.getRocksdbSeqnoCfOptimizeCompaction();
-    bucketQuota = config.getMaxSize();
 }
 
 KVStoreConfig::KVStoreConfig(uint16_t _maxVBuckets,
@@ -66,10 +50,7 @@ KVStoreConfig::KVStoreConfig(uint16_t _maxVBuckets,
                              const std::string& _dbname,
                              const std::string& _backend,
                              uint16_t _shardId,
-                             bool _persistDocNamespace,
-                             const std::string& rocksDBOptions_,
-                             const std::string& rocksDBCFOptions_,
-                             const std::string& rocksDbBBTOptions_)
+                             bool _persistDocNamespace)
     : maxVBuckets(_maxVBuckets),
       maxShards(_maxShards),
       dbname(_dbname),
@@ -77,19 +58,10 @@ KVStoreConfig::KVStoreConfig(uint16_t _maxVBuckets,
       shardId(_shardId),
       logger(&global_logger),
       buffered(true),
-      persistDocNamespace(_persistDocNamespace),
-      rocksDBOptions(rocksDBOptions_),
-      rocksDBCFOptions(rocksDBCFOptions_),
-      rocksDbBBTOptions(rocksDbBBTOptions_) {
-    // We pass RocksDB Options (through `configuration.json` and the
-    // `-e "<config>"` command line argument for tests) as comma-separated
-    // <option>=<value> pairs, but RocksDB can parse only semicolon-separated
-    // option strings. We cannot use directly the semicolon because
-    // `-e "<config>"` already uses it as separator in the `<config>` string.
-    std::replace(rocksDBOptions.begin(), rocksDBOptions.end(), ',', ';');
-    std::replace(rocksDBCFOptions.begin(), rocksDBCFOptions.end(), ',', ';');
-    std::replace(rocksDbBBTOptions.begin(), rocksDbBBTOptions.end(), ',', ';');
+      persistDocNamespace(_persistDocNamespace) {
 }
+
+KVStoreConfig::~KVStoreConfig() = default;
 
 KVStoreConfig& KVStoreConfig::setLogger(Logger& _logger) {
     logger = &_logger;

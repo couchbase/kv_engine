@@ -96,14 +96,19 @@ public:
                                              const void* cookie);
 
     KVShard::id_type getId() const {
-        return kvConfig.getShardId();
+        return kvConfig->getShardId();
     }
 
     std::vector<VBucket::id_type> getVBucketsSortedByState();
     std::vector<VBucket::id_type> getVBuckets();
 
 private:
-    KVStoreConfig kvConfig;
+    // Holds the store configuration for the current shard.
+    // We need to use a unique_ptr in place of the concrete class because
+    // KVStoreConfig is a polymorphic type, and this unique_ptr can hold a
+    // pointer to either the base class or a child class (e.g.,
+    // RocksDBKVStoreConfig) instance.
+    std::unique_ptr<KVStoreConfig> kvConfig;
 
     /**
      * VBMapElement comprises the VBucket smart pointer and a mutex.

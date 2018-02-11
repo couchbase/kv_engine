@@ -18,10 +18,10 @@
 #include "config.h"
 
 #include "rocksdb-kvstore.h"
+#include "rocksdb-kvstore_config.h"
 
 #include "ep_time.h"
 
-#include "kvstore_config.h"
 #include "kvstore_priv.h"
 
 #include <platform/sysinfo.h>
@@ -197,19 +197,19 @@ public:
     const uint16_t vbid;
 };
 
-RocksDBKVStore::RocksDBKVStore(KVStoreConfig& config)
-    : KVStore(config),
+RocksDBKVStore::RocksDBKVStore(RocksDBKVStoreConfig& configuration)
+    : KVStore(configuration),
       vbHandles(configuration.getMaxVBuckets()),
       in_transaction(false),
       scanCounter(0),
-      logger(config.getLogger()) {
+      logger(configuration.getLogger()) {
     cachedVBStates.resize(configuration.getMaxVBuckets());
     writeOptions.sync = true;
 
     // The RocksDB Options is a set of DBOptions and ColumnFamilyOptions.
     // Together they cover all RocksDB available parameters.
     auto status = rocksdb::GetDBOptionsFromString(
-            dbOptions, configuration.getRocksDBOptions(), &dbOptions);
+            dbOptions, configuration.getDBOptions(), &dbOptions);
     if (!status.ok()) {
         throw std::invalid_argument(
                 std::string("RocksDBKVStore::open: GetDBOptionsFromString "
@@ -219,13 +219,13 @@ RocksDBKVStore::RocksDBKVStore(KVStoreConfig& config)
 
     // Set number of background threads - note these are per-environment, so
     // are shared across all DB instances (vBuckets) and all Buckets.
-    auto lowPri = configuration.getRocksDbLowPriBackgroundThreads();
+    auto lowPri = configuration.getLowPriBackgroundThreads();
     if (lowPri == 0) {
         lowPri = cb::get_available_cpu_count();
     }
     rocksdb::Env::Default()->SetBackgroundThreads(lowPri, rocksdb::Env::LOW);
 
-    auto highPri = configuration.getRocksDbHighPriBackgroundThreads();
+    auto highPri = configuration.getHighPriBackgroundThreads();
     if (highPri == 0) {
         highPri = cb::get_available_cpu_count();
     }
@@ -247,16 +247,16 @@ RocksDBKVStore::RocksDBKVStore(KVStoreConfig& config)
     // aggregated values for all those DBs. Note that some stats are undefined
     // and have no meaningful information across multiple DBs (e.g.,
     // "rocksdb.sequence.number").
-    if (!configuration.getRocksdbStatsLevel().empty()) {
+    if (!configuration.getStatsLevel().empty()) {
         dbOptions.statistics = rocksdb::CreateDBStatistics();
         dbOptions.statistics->stats_level_ =
-                getStatsLevel(configuration.getRocksdbStatsLevel());
+                getStatsLevel(configuration.getStatsLevel());
     }
 
     // Allocate the per-shard Block Cache
-    if (configuration.getRocksdbBlockCacheRatio() > 0.0) {
+    if (configuration.getBlockCacheRatio() > 0.0) {
         auto blockCacheQuota = configuration.getBucketQuota() *
-                               configuration.getRocksdbBlockCacheRatio();
+                               configuration.getBlockCacheRatio();
         // Keeping default settings for:
         // num_shard_bits = -1 (automatically determined)
         // strict_capacity_limit = false (do not fail insert when cache is full)
@@ -264,11 +264,11 @@ RocksDBKVStore::RocksDBKVStore(KVStoreConfig& config)
                 blockCacheQuota / configuration.getMaxShards(),
                 -1 /*num_shard_bits*/,
                 false /*strict_capacity_limit*/,
-                configuration.getRocksdbBlockCacheHighPriPoolRatio());
+                configuration.getBlockCacheHighPriPoolRatio());
     }
     // Configure all the Column Families
-    const auto& cfOptions = configuration.getRocksDBCFOptions();
-    const auto& bbtOptions = configuration.getRocksDbBBTOptions();
+    const auto& cfOptions = configuration.getCFOptions();
+    const auto& bbtOptions = configuration.getBBTOptions();
     defaultCFOptions = getBaselineDefaultCFOptions();
     seqnoCFOptions = getBaselineSeqnoCFOptions();
     applyUserCFOptions(defaultCFOptions, cfOptions, bbtOptions);
@@ -1549,17 +1549,20 @@ void RocksDBKVStore::applyMemtablesQuota(
         const std::lock_guard<std::mutex>& lock) {
     const auto vbuckets = getVBucketsCount(lock);
 
-    // 1) If configuration.getRocksdbMemtablesRatio() == 0.0, then
+    auto& configuration =
+            dynamic_cast<RocksDBKVStoreConfig&>(this->configuration);
+
+    // 1) If configuration.getMemtablesRatio() == 0.0, then
     //      we just want to use the baseline write_buffer_size.
     // 2) If vbuckets == 0, then there is no Memtable (this happens only
     //      when the underlying RocksDB instance has just been created).
     // On both cases the following logic does not apply, so the
     // write_buffer_size for both the 'default' and the 'seqno' CFs is left
     // to the baseline value.
-    if (configuration.getRocksdbMemtablesRatio() > 0.0 && vbuckets > 0) {
+    if (configuration.getMemtablesRatio() > 0.0 && vbuckets > 0) {
         const auto memtablesQuota = configuration.getBucketQuota() /
                                     configuration.getMaxShards() *
-                                    configuration.getRocksdbMemtablesRatio();
+                                    configuration.getMemtablesRatio();
         // TODO: for now I am hard-coding the percentage of Memtables Quota
         // that we allocate for the 'deafult' (90%) and 'seqno' (10%) CFs. The
         // plan is to expose this percentage as a configuration parameter in a
@@ -1612,21 +1615,19 @@ void RocksDBKVStore::applyMemtablesQuota(
 
     // Overwrite Compaction options if Compaction Optimization is enabled
     // for the 'default' CF
-    if (configuration.getRocksdbDefaultCfOptimizeCompaction() == "level") {
+    if (configuration.getDefaultCfOptimizeCompaction() == "level") {
         defaultCFOptions.OptimizeLevelStyleCompaction(
                 defaultCFOptions.write_buffer_size);
-    } else if (configuration.getRocksdbDefaultCfOptimizeCompaction() ==
-               "universal") {
+    } else if (configuration.getDefaultCfOptimizeCompaction() == "universal") {
         defaultCFOptions.OptimizeUniversalStyleCompaction(
                 defaultCFOptions.write_buffer_size);
     }
     // Overwrite Compaction options if Compaction Optimization is enabled
     // for the 'seqno' CF
-    if (configuration.getRocksdbSeqnoCfOptimizeCompaction() == "level") {
+    if (configuration.getSeqnoCfOptimizeCompaction() == "level") {
         seqnoCFOptions.OptimizeLevelStyleCompaction(
                 seqnoCFOptions.write_buffer_size);
-    } else if (configuration.getRocksdbSeqnoCfOptimizeCompaction() ==
-               "universal") {
+    } else if (configuration.getSeqnoCfOptimizeCompaction() == "universal") {
         seqnoCFOptions.OptimizeUniversalStyleCompaction(
                 seqnoCFOptions.write_buffer_size);
     }
