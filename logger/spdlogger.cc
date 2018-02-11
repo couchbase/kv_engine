@@ -32,14 +32,12 @@
 #include <spdlog/spdlog.h>
 #include <chrono>
 #include <cstdio>
-#include <mutex>
 
 #ifndef WIN32
 #include <spdlog/sinks/ansicolor_sink.h>
 #endif
 
 static const std::string logger_name{"spdlog_file_logger"};
-static std::mutex create_lock;
 
 static EXTENSION_LOGGER_DESCRIPTOR descriptor;
 
@@ -154,8 +152,6 @@ boost::optional<std::string> cb::logger::initialize(
         buffersz = 8 * 1024 * 1024; // use an 8MB log buffer
     }
 
-    std::lock_guard<std::mutex> guard(create_lock);
-
     try {
         /* Initialise the loggers.
          *
@@ -217,7 +213,6 @@ std::shared_ptr<spdlog::logger> cb::logger::get() {
 }
 
 void cb::logger::createBlackholeLogger() {
-    std::lock_guard<std::mutex> guard(create_lock);
     // delete if already exists
     spdlog::drop(logger_name);
 
@@ -229,7 +224,6 @@ void cb::logger::createBlackholeLogger() {
 }
 
 void cb::logger::createConsoleLogger() {
-    std::lock_guard<std::mutex> guard(create_lock);
     // delete if already exists
     spdlog::drop(logger_name);
     file_logger = spdlog::stderr_color_mt(logger_name);
