@@ -25,8 +25,6 @@
 #include <platform/memorymap.h>
 #include <valgrind/valgrind.h>
 
-static EXTENSION_LOGGER_DESCRIPTOR* logger;
-
 class SpdloggerTest : public ::testing::Test {
 protected:
 /*
@@ -48,19 +46,20 @@ protected:
         config.filename = filename;
         config.cyclesize = 2048;
         config.buffersize = 8192;
-        config.sleeptime = 1;
+        // sleeptime can't be set too low as then the deduplication
+        // logic may not work as it flush too early...
+        config.sleeptime = 10000;
         config.unit_test = true;
         config.console = false;
 
         const auto ret = cb::logger::initialize(config);
         EXPECT_FALSE(ret) << ret.get();
-        logger = &cb::logger::getLoggerDescriptor();
         cb::logger::get()->set_level(spdlog::level::level_enum::debug);
     }
 
     void RemoveFiles() {
         files = cb::io::findFilesWithPrefix(filename);
-        for (const auto file : files) {
+        for (const auto& file : files) {
             cb::io::rmrf(file);
         }
     }
@@ -102,9 +101,9 @@ int countInFile(const std::string& file, const std::string& msg) {
  * Test that the printf-style of the logger still works
  */
 TEST_F(SpdloggerTest, OldStylePrintf) {
-    auto& old = cb::logger::getLoggerDescriptor();
+    auto& logger = cb::logger::getLoggerDescriptor();
     const uint32_t value = 0xdeadbeef;
-    old.log(EXTENSION_LOG_INFO, nullptr, "OldStylePrintf %x", value);
+    logger.log(EXTENSION_LOG_INFO, nullptr, "OldStylePrintf %x", value);
     cb::logger::shutdown();
     files = cb::io::findFilesWithPrefix(filename);
     EXPECT_EQ(1, files.size()) << "We should only have a single logfile";
@@ -128,10 +127,14 @@ TEST_F(SpdloggerTest, FmtStyleFormatting) {
  * Tests writing the maximum allowed message to file. Messages are held in
  * a buffer of size 2048, which allows for a message of size 2047 characters
  * (excluding logger formatting and null terminator).
+ *
+ * (old printf style)
  */
 TEST_F(SpdloggerTest, LargeMessageTest) {
-    std::string message(2047, 'x'); // max message size is 2047 + 1 for '\0'
-    logger->log(EXTENSION_LOG_DEBUG, nullptr, message.c_str());
+    const std::string message(2047,
+                              'x'); // max message size is 2047 + 1 for '\0'
+    auto& logger = cb::logger::getLoggerDescriptor();
+    logger.log(EXTENSION_LOG_DEBUG, nullptr, message.c_str());
     cb::logger::shutdown();
 
     files = cb::io::findFilesWithPrefix(filename);
@@ -144,22 +147,26 @@ TEST_F(SpdloggerTest, LargeMessageTest) {
             break;
         }
     }
-    EXPECT_TRUE(found);
+    EXPECT_TRUE(found) << "Failed to locate the long message in any of the "
+                       << files.size() << " logfiles";
 }
 
 /**
  * Tests the message cropping feature.
  * Crops a message which wouldn't fit in the message buffer.
+ *
+ * (old printf style)
  */
 TEST_F(SpdloggerTest, LargeMessageWithCroppingTest) {
-    std::string message(2048, 'x'); // just 1 over max message size
+    const std::string message(2048, 'x'); // just 1 over max message size
     std::string cropped(2047 - strlen(" [cut]"), 'x');
     cropped.append(" [cut]");
 
-    logger->log(EXTENSION_LOG_DEBUG, nullptr, message.c_str());
+    auto& logger = cb::logger::getLoggerDescriptor();
+    logger.log(EXTENSION_LOG_DEBUG, nullptr, message.c_str());
     cb::logger::shutdown();
 
-    files = cb::io::findFilesWithPrefix("spdlogger_test");
+    files = cb::io::findFilesWithPrefix(filename);
 
     auto found = false;
     for (auto& file : files) {
@@ -170,7 +177,8 @@ TEST_F(SpdloggerTest, LargeMessageWithCroppingTest) {
         }
     }
 
-    EXPECT_TRUE(found);
+    EXPECT_TRUE(found) << "Failed to locate the cropped text in any of the "
+                       << files.size() << " logfiles";
 }
 
 /**
@@ -181,13 +189,9 @@ TEST_F(SpdloggerTest, BasicHooksTest) {
     cb::logger::shutdown();
 
     files = cb::io::findFilesWithPrefix(filename);
-    EXPECT_EQ(1, files.size());
-
-    auto openingHookCount = countInFile(files.front(), openingHook);
-    auto closingHookCount = countInFile(files.front(), closingHook);
-
-    EXPECT_EQ(1, openingHookCount);
-    EXPECT_EQ(1, closingHookCount);
+    ASSERT_EQ(1, files.size());
+    EXPECT_EQ(1, countInFile(files.front(), openingHook));
+    EXPECT_EQ(1, countInFile(files.front(), closingHook));
 }
 
 /**
@@ -195,22 +199,21 @@ TEST_F(SpdloggerTest, BasicHooksTest) {
  * Test if the hooks appear in each file.
  */
 TEST_F(SpdloggerTest, MultipleFilesTest) {
-    const std::string message{
+    const char* message =
             "This is a textual log message that we want to repeat a number of "
-            "times: %u"};
+            "times: {}";
     for (auto ii = 0; ii < 100; ii++) {
-        logger->log(EXTENSION_LOG_DEBUG, nullptr, message.c_str(), ii);
+        LOG_DEBUG(message, ii);
     }
     cb::logger::shutdown();
 
     files = cb::io::findFilesWithPrefix(filename);
     EXPECT_LT(1, files.size());
-    for (auto file : files) {
-        auto openingHookCount = countInFile(file, openingHook);
-        auto closingHookCount = countInFile(file, closingHook);
-        EXPECT_EQ(1, openingHookCount) << "Missing open hook in file: " << file;
-        EXPECT_EQ(1, closingHookCount) << "Missing closing hook in file: "
-                                       << file;
+    for (auto& file : files) {
+        EXPECT_EQ(1, countInFile(file, openingHook))
+                << "Missing open hook in file: " << file;
+        EXPECT_EQ(1, countInFile(file, closingHook))
+                << "Missing closing hook in file: " << file;
     }
 }
 
@@ -222,10 +225,11 @@ TEST_F(SpdloggerTest, MultipleFilesTest) {
  */
 TEST_F(SpdloggerTest, HandleOpenFileErrors) {
     if (RUNNING_ON_VALGRIND) {
+        std::cerr << "Skipping test when running on valgrind" << std::endl;
         return;
     }
 
-    logger->log(EXTENSION_LOG_DEBUG, nullptr, "Hey, this is a test");
+    LOG_DEBUG("Hey, this is a test");
     cb::logger::flush();
     files = cb::io::findFilesWithPrefix(filename);
     EXPECT_EQ(1, files.size());
@@ -250,14 +254,14 @@ TEST_F(SpdloggerTest, HandleOpenFileErrors) {
     EXPECT_EQ(EMFILE, errno);
 
     // Keep on logging. This should cause the files to wrap
-    const std::string message{
+    const char* message =
             "This is a textual log message that we want to repeat a number of "
-            "times %u"};
+            "times {}";
     for (auto ii = 0; ii < 100; ii++) {
-        logger->log(EXTENSION_LOG_DEBUG, nullptr, message.c_str(), ii);
+        LOG_DEBUG(message, ii);
     }
 
-    logger->log(EXTENSION_LOG_DEBUG, nullptr, "HandleOpenFileErrors");
+    LOG_DEBUG("HandleOpenFileErrors");
     cb::logger::flush();
 
     // We've just flushed the data to the file, so it should be possible
@@ -285,7 +289,7 @@ TEST_F(SpdloggerTest, HandleOpenFileErrors) {
     EXPECT_EQ(1, files.size());
 
     // Add a log entry, and we should get a new file
-    logger->log(EXTENSION_LOG_DEBUG, nullptr, "Logging to the next file");
+    LOG_DEBUG("Logging to the next file");
     cb::logger::flush();
 
     files = cb::io::findFilesWithPrefix(filename);
@@ -300,83 +304,81 @@ TEST_F(SpdloggerTest, HandleOpenFileErrors) {
 
 class DedupeSinkTest : public SpdloggerTest {};
 
-/*
+/**
  * Tests the functionality of the dedupe_sink by sending it the same message
  * 100 times. Once this is done, the log file should contain the string
  * "Message repeated 100 times".
  */
 TEST_F(DedupeSinkTest, BasicTest) {
-    std::string message("This message will be repeated 100 times!");
-    std::string dedupeMessage("Message repeated 100 times");
+    const std::string message{"This message will be repeated 100 times!"};
+    const std::string dedupeMessage{"Message repeated 100 times"};
 
-    for (auto i = 0; i < 100; i++) {
-        logger->log(EXTENSION_LOG_WARNING, nullptr, message.c_str());
+    for (auto ii = 0; ii < 100; ii++) {
+        LOG_WARNING(message);
     }
-    cb::logger::flush();
+    cb::logger::shutdown();
 
     files = cb::io::findFilesWithPrefix(filename);
-    auto found = false;
-    for (auto& file : files) {
-        auto logMessageCount = countInFile(file, message);
-        auto dedupeMessageCount = countInFile(file, dedupeMessage);
-        if (logMessageCount == 1 && dedupeMessageCount == 1) {
-            found = true;
-            break;
-        }
-    }
-    EXPECT_EQ(true, found);
+    ASSERT_EQ(1, files.size()) << "Did not expect log rotation to happen";
+    EXPECT_EQ(1, countInFile(files.front(), message));
+    EXPECT_EQ(1, countInFile(files.front(), dedupeMessage));
 }
 
-/* No dedupe message should be printed if the message appeared only once */
+/**
+ * No dedupe message should be printed if the message appeared only once
+ */
 TEST_F(DedupeSinkTest, MessageLoggedOnceTest) {
-    std::string message("This message will be logged just once!");
-    std::string dedupeMessage("Message repeated");
+    const std::string message{"This message will be logged just once!"};
+    const std::string dedupeMessage{"Message repeated"};
 
-    logger->log(EXTENSION_LOG_WARNING, nullptr, message.c_str());
-    cb::logger::flush();
+    LOG_WARNING(message);
+    cb::logger::shutdown();
 
     files = cb::io::findFilesWithPrefix(filename);
-    EXPECT_EQ(1, files.size());
-    auto logMessageCount = countInFile(files.front(), message);
-    auto dedupeMessageCount = countInFile(files.front(), dedupeMessage);
-
-    EXPECT_EQ(1, logMessageCount);
-    EXPECT_EQ(0, dedupeMessageCount);
+    ASSERT_EQ(1, files.size()) << "Did not expect log rotation to happen";
+    EXPECT_EQ(1, countInFile(files.front(), message));
+    EXPECT_EQ(0, countInFile(files.front(), dedupeMessage));
 }
 
-/* The dedupe message should trigger if the message appeared twice */
+/**
+ * The dedupe message should trigger if the message appeared twice
+ */
 TEST_F(DedupeSinkTest, MessageLoggedTwiceTest) {
-    std::string message("This message will be repeated twice!");
-    std::string dedupeMessage("Message repeated 2 times");
+    const std::string message{"This message will be repeated twice!"};
+    const std::string dedupeMessage{"Message repeated 2 times"};
 
-    logger->log(EXTENSION_LOG_WARNING, nullptr, message.c_str());
-    logger->log(EXTENSION_LOG_WARNING, nullptr, message.c_str());
-    cb::logger::flush();
+    LOG_WARNING(message);
+    LOG_WARNING(message);
+    cb::logger::shutdown();
 
     files = cb::io::findFilesWithPrefix(filename);
-    EXPECT_EQ(1, files.size());
-    auto logMessageCount = countInFile(files.front(), message);
-    auto dedupeMessageCount = countInFile(files.front(), dedupeMessage);
-
-    EXPECT_EQ(1, logMessageCount);
-    EXPECT_EQ(1, dedupeMessageCount);
+    ASSERT_EQ(1, files.size()) << "Did not expect log rotation to happen";
+    EXPECT_EQ(1, countInFile(files.front(), message));
+    EXPECT_EQ(1, countInFile(files.front(), dedupeMessage));
 }
 
-/* The dedupe message should not trigger if flushed in between */
+/**
+ * Flushing the buffer should "reset" the deduplication logic as we don't
+ * want the log to look like:
+ *
+ *     message x repeated 10 times
+ *     message x repeated 11 times
+ *     message x repeated 15 times
+ *
+ * It makes it harder to read the logs.. Does it mean that it happened
+ * 1 time or 11 times between the first two lines etc.
+ */
 TEST_F(DedupeSinkTest, MessageLoggedTwiceWithFlushTest) {
-    std::string message("This message will be written and flushed!");
-    std::string dedupeMessage("Message repeated");
+    const std::string message{"This message will be written and flushed!"};
+    const std::string dedupeMessage{"Message repeated"};
 
     for (auto i = 0; i < 10; i++) {
-        logger->log(EXTENSION_LOG_WARNING, nullptr, message.c_str());
+        LOG_WARNING(message);
         cb::logger::flush();
     }
 
     files = cb::io::findFilesWithPrefix(filename);
-    EXPECT_EQ(1, files.size());
-    auto logMessageCount = countInFile(files.front(), message);
-    auto dedupeMessageCount = countInFile(files.front(), dedupeMessage);
-
-    EXPECT_EQ(10, logMessageCount);
-    EXPECT_EQ(0, dedupeMessageCount);
+    ASSERT_EQ(1, files.size()) << "Did not expect log rotation to happen";
+    EXPECT_EQ(10, countInFile(files.front(), message));
+    EXPECT_EQ(0, countInFile(files.front(), dedupeMessage));
 }
