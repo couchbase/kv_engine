@@ -19,6 +19,8 @@
 
 #include "kvstore_config.h"
 
+#include <rocksdb/rate_limiter.h>
+
 #include <string>
 
 class Configuration;
@@ -90,6 +92,16 @@ public:
         return seqnoCfOptimizeCompaction;
     }
 
+    // Return the write rate limit for Flush and Compaction
+    size_t getWriteRateLimit() {
+        return writeRateLimit;
+    }
+
+    // Creates a RateLimiter object, which is shared across all the RocksDB
+    // instances in the environment to control the IO rate of Flush and
+    // Compaction tasks.
+    std::shared_ptr<rocksdb::RateLimiter> getEnvRateLimiter();
+
 private:
     // Amount of memory reserved for the bucket
     size_t bucketQuota = 0;
@@ -131,4 +143,8 @@ private:
 
     // Flag to enable Compaction Optimization for the 'seqno' CF
     std::string seqnoCfOptimizeCompaction = "";
+
+    // Write rate limit. Use to control write rate of flush and
+    // compaction.
+    size_t writeRateLimit = 0;
 };

@@ -42,4 +42,19 @@ RocksDBKVStoreConfig::RocksDBKVStoreConfig(Configuration& config,
     defaultCfOptimizeCompaction =
             config.getRocksdbDefaultCfOptimizeCompaction();
     seqnoCfOptimizeCompaction = config.getRocksdbSeqnoCfOptimizeCompaction();
+    writeRateLimit = config.getRocksdbWriteRateLimit();
+}
+
+std::shared_ptr<rocksdb::RateLimiter>
+RocksDBKVStoreConfig::getEnvRateLimiter() {
+    if (writeRateLimit > 0) {
+        // IO rate limiter for background Flushers and Compactors.
+        // 'rateLimiter' is shared across all the RocksDB instances in the
+        // current environment (i.e., across all buckets on the node) to enforce
+        // a global rate limit.
+        static std::shared_ptr<rocksdb::RateLimiter> rateLimiter(
+                rocksdb::NewGenericRateLimiter(writeRateLimit));
+        return rateLimiter;
+    }
+    return nullptr;
 }

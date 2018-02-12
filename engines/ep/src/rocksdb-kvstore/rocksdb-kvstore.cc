@@ -253,6 +253,9 @@ RocksDBKVStore::RocksDBKVStore(RocksDBKVStoreConfig& configuration)
                 getStatsLevel(configuration.getStatsLevel());
     }
 
+    // Apply the environment rate limit for Flush and Compaction
+    dbOptions.rate_limiter = configuration.getEnvRateLimiter();
+
     // Allocate the per-shard Block Cache
     if (configuration.getBlockCacheRatio() > 0.0) {
         auto blockCacheQuota = configuration.getBucketQuota() *
