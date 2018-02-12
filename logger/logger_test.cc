@@ -99,6 +99,32 @@ int countInFile(const std::string& file, const std::string& msg) {
 }
 
 /**
+ * Test that the printf-style of the logger still works
+ */
+TEST_F(SpdloggerTest, OldStylePrintf) {
+    auto& old = cb::logger::getLoggerDescriptor();
+    const uint32_t value = 0xdeadbeef;
+    old.log(EXTENSION_LOG_INFO, nullptr, "OldStylePrintf %x", value);
+    cb::logger::shutdown();
+    files = cb::io::findFilesWithPrefix(filename);
+    EXPECT_EQ(1, files.size()) << "We should only have a single logfile";
+    EXPECT_EQ(1, countInFile(files.front(), "INFO OldStylePrintf deadbeef"));
+}
+
+/**
+ * Test that the new fmt-style formatting works
+ */
+TEST_F(SpdloggerTest, FmtStyleFormatting) {
+    const uint32_t value = 0xdeadbeef;
+    LOG_INFO("FmtStyleFormatting {:x}", value);
+    cb::logger::shutdown();
+    files = cb::io::findFilesWithPrefix(filename);
+    EXPECT_EQ(1, files.size()) << "We should only have a single logfile";
+    EXPECT_EQ(1,
+              countInFile(files.front(), "INFO FmtStyleFormatting deadbeef"));
+}
+
+/**
  * Tests writing the maximum allowed message to file. Messages are held in
  * a buffer of size 2048, which allows for a message of size 2047 characters
  * (excluding logger formatting and null terminator).
