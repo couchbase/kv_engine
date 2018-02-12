@@ -22,8 +22,8 @@
 #include <memcached/extension.h>
 #include <platform/cbassert.h>
 #include <platform/dirutils.h>
+#include <platform/memorymap.h>
 #include <valgrind/valgrind.h>
-#include <fstream>
 
 static EXTENSION_LOGGER_DESCRIPTOR* logger;
 
@@ -76,23 +76,25 @@ protected:
     const std::string closingHook = "---------- Closing logfile";
 };
 
-/* Helper function - counts how many times a string appears in a file. */
+/**
+ * Helper function - counts how many times a string appears in a file.
+ *
+ * @param file the name of the file
+ * @param msg the message to searc hfor
+ * @return the number of times we found the message in the file
+ */
 int countInFile(const std::string& file, const std::string& msg) {
-    std::ifstream inFile;
+    cb::MemoryMappedFile map(file.c_str(), cb::MemoryMappedFile::Mode::RDONLY);
+    map.open();
 
-    inFile.open(file);
-    if (!inFile) {
-        return -1;
-    }
+    const auto* begin = reinterpret_cast<const char*>(map.getRoot());
+    const auto* end = begin + map.getSize();
 
-    auto count = 0;
-    std::string line;
-    while (getline(inFile, line)) {
-        if (line.find(msg, 0) != std::string::npos) {
-            count++;
-        }
+    int count = 0;
+    while ((begin = std::search(begin, end, msg.begin(), msg.end())) != end) {
+        ++count;
+        begin += msg.size();
     }
-    inFile.close();
     return count;
 }
 
