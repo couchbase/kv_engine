@@ -1,5 +1,5 @@
 {
-    "version" : 1,
+    "version" : 2,
     "module" : "auditd",
     "events" : [
                 {  "id" : 4096,
@@ -7,6 +7,7 @@
                    "description" : "loaded configuration file for audit daemon",
                    "sync" : false,
                    "enabled" : true,
+                   "filtering_permitted" : false,
                    "mandatory_fields" : {
                                          "timestamp" : "",
                                          "real_userid" : {"source" : "", "user" : ""},
@@ -25,6 +26,7 @@
                    "description" : "The audit daemon is being shutdown",
                    "sync" : false,
                    "enabled" : true,
+                   "filtering_permitted" : false,
                    "mandatory_fields" : {
                                          "timestamp" : "",
                                          "real_userid" : {"source" : "", "user" : ""}

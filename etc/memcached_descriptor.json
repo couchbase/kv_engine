@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "module": "memcached",
   "events": [
     {
@@ -8,6 +8,7 @@
       "description": "opened DCP connection",
       "sync": false,
       "enabled": true,
+      "filtering_permitted": true,
       "mandatory_fields": {
         "timestamp": "",
         "real_userid": {
@@ -27,6 +28,7 @@
       "description": "Authentication to the cluster failed",
       "sync": false,
       "enabled": true,
+      "filtering_permitted": false,
       "mandatory_fields": {
         "timestamp": "",
         "real_userid": {
@@ -46,6 +48,7 @@
       "description": "Flushed the content of a bucket",
       "sync": false,
       "enabled": true,
+      "filtering_permitted": true,
       "mandatory_fields": {
         "timestamp": "",
         "real_userid": {
@@ -65,6 +68,7 @@
       "description": "Rejected an invalid packet",
       "sync": false,
       "enabled": true,
+      "filtering_permitted": true,
       "mandatory_fields": {
         "timestamp": "",
         "real_userid": {
@@ -84,6 +88,7 @@
       "description": "Access to command is not allowed",
       "sync": false,
       "enabled": true,
+      "filtering_permitted": false,
       "mandatory_fields": {
         "timestamp": "",
         "real_userid": {
@@ -102,6 +107,7 @@
       "description" : "Authentication to the cluster succeeded",
       "sync" : false,
       "enabled" : false,
+      "filtering_permitted": true,
       "mandatory_fields" : {
         "timestamp" : "",
         "real_userid" : {
@@ -120,6 +126,7 @@
       "description": "The state of the privilege debug mode changed",
       "sync": false,
       "enabled": true,
+      "filtering_permitted": false,
       "mandatory_fields": {
         "enable": true,
         "timestamp": "",
@@ -139,6 +146,7 @@
       "description": "Access to a resource was granted due to privilege debug",
       "sync": false,
       "enabled": true,
+      "filtering_permitted": false,
       "mandatory_fields": {
         "command": "",
         "bucket": "",
@@ -161,6 +169,7 @@
       "description": "The named document was read",
       "sync": false,
       "enabled": false,
+      "filtering_permitted": true,
       "mandatory_fields": {
         "bucket": "",
         "key": "",
@@ -181,6 +190,7 @@
       "description": "The named document was locked",
       "sync": false,
       "enabled": false,
+      "filtering_permitted": true,
       "mandatory_fields": {
         "bucket": "",
         "key": "",
@@ -201,6 +211,7 @@
       "description": "The named document was modified",
       "sync": false,
       "enabled": false,
+      "filtering_permitted": true,
       "mandatory_fields": {
         "bucket": "",
         "key": "",
@@ -221,6 +232,7 @@
       "description": "The named document was deleted",
       "sync": false,
       "enabled": false,
+      "filtering_permitted": true,
       "mandatory_fields": {
         "bucket": "",
         "key": "",
