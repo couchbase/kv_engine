@@ -510,7 +510,6 @@ static void process_bin_dcp_response(Cookie& cookie) {
 
     auto& c = cookie.getConnection();
 
-    c.enableDatatype(cb::mcbp::Feature::SNAPPY);
     c.enableDatatype(cb::mcbp::Feature::JSON);
 
     if (c.getBucketEngine()->dcp.response_handler != nullptr) {
