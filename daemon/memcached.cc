@@ -2289,7 +2289,7 @@ static void set_max_filehandles(void) {
                 "high connection count as the system won't be able open "
                 "new files on the system. The maximum number of file "
                 "descriptors is currently set to {}. The system "
-                "is configured to allow %u number of client connections, "
+                "is configured to allow {} number of client connections, "
                 "and in addition to that the overhead of the worker "
                 "threads is {}. Finally the backed database needs to "
                 "open files to persist data.",

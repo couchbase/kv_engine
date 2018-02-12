@@ -281,7 +281,7 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
         }
 
         if (signal_idle_clients(&me, -1, false) == 0) {
-            LOG_INFO("Stopping worker thread %u", me.index);
+            LOG_INFO("Stopping worker thread {}", me.index);
             event_base_loopbreak(me.base);
             return;
         }

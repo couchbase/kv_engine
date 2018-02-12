@@ -466,7 +466,7 @@ void Cookie::maybeLogSlowCommand(
 
         const std::string traceData = to_string(tracer);
         LOG_WARNING(
-                R"(%u: Slow operation. {"cid":"{}/{:}","duration":"{}","trace":"{}","command":"{}","peer":"{}"})",
+                R"({}: Slow operation. {{"cid":"{}/{:x}","duration":"{}","trace":"{}","command":"{}","peer":"{}"}})",
                 c.getId(),
                 c.getConnectionId().data(),
                 ntohl(getHeader().getOpaque()),
