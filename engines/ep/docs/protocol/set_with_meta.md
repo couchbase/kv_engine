@@ -166,11 +166,12 @@ All set_with_meta requests:
     CAS          (16-23): 0x0000000000000001 (1)
 
 ### Extras
+
 The following fields are required by the command:
-* Flags
-* Expiration
-* RevSeqno
-* Cas
+* `Flags`
+* `Expiration`: Encoded as seconds since unix epoch. Does not support "relative" expiration.
+* `RevSeqno`
+* `Cas`
 
 The following are optional fields:
 * Options
