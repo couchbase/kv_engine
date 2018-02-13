@@ -1967,6 +1967,17 @@ void CheckpointManager::addStats(ADD_STAT add_stat, const void *cookie) {
                              cur_it->first.c_str());
             add_casted_stat(buf, cur_it->second.numVisits.load(),
                             add_stat, cookie);
+            if (cur_it->first != pCursorName) {
+                checked_snprintf(buf,
+                                 sizeof(buf),
+                                 "vb_%d:%s:num_items_for_cursor",
+                                 vbucketId,
+                                 cur_it->first.c_str());
+                add_casted_stat(buf,
+                                getNumItemsForCursor_UNLOCKED(cur_it->first),
+                                add_stat,
+                                cookie);
+            }
         }
     } catch (std::exception& error) {
         LOG(EXTENSION_LOG_WARNING,
