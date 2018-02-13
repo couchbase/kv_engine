@@ -495,10 +495,14 @@ static void generate(cJSON* o, cJSON* params) {
  * for the parameters in there
  */
 int main(int argc, char **argv) {
-    const char *file = "configuration.json";
-    if (argc == 2) {
-        file = argv[1];
+    if (argc < 4) {
+        cerr << "Usage: " << argv[0] << "<input config file> <header> <source>\n";
+        return 1;
     }
+
+    const char* file = argv[1];
+    const char* header = argv[2];
+    const char* source = argv[3];
 
     initialize();
 
@@ -533,11 +537,11 @@ int main(int argc, char **argv) {
     }
     prototypes << "#endif  // SRC_GENERATED_CONFIGURATION_H_" << endl;
 
-    ofstream headerfile("src/generated_configuration.h");
+    ofstream headerfile(header);
     headerfile << prototypes.str();
     headerfile.close();
 
-    ofstream implfile("src/generated_configuration.cc");
+    ofstream implfile(source);
     implfile << implementation.str() << endl
              << "void Configuration::initialize() {" << endl
              << initialization.str()

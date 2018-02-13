@@ -121,14 +121,26 @@ ADD_CUSTOM_COMMAND(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.c
                   COMMENT "Generating code for stats info")
 
 ADD_CUSTOM_COMMAND(OUTPUT
-                     ${CMAKE_CURRENT_BINARY_DIR}/src/generated_configuration.cc
-                     ${CMAKE_CURRENT_BINARY_DIR}/src/generated_configuration.h
+                     src/generated_configuration.cc.temp
+                     src/generated_configuration.h.temp
                   COMMAND
-                     genconfig ${CMAKE_CURRENT_SOURCE_DIR}/configuration.json
+                     genconfig ${CMAKE_CURRENT_SOURCE_DIR}/configuration.json src/generated_configuration.h.temp src/generated_configuration.cc.temp
                   DEPENDS
                         configuration.json
                         genconfig
                   COMMENT "Generating code for configuration class")
+
+ADD_CUSTOM_COMMAND(OUTPUT
+                     src/generated_configuration.cc
+                     src/generated_configuration.h
+                  COMMAND
+                     ${CMAKE_COMMAND} -E copy_if_different src/generated_configuration.cc.temp src/generated_configuration.cc
+                  COMMAND
+                     ${CMAKE_COMMAND} -E copy_if_different src/generated_configuration.h.temp src/generated_configuration.h
+                  DEPENDS
+                     src/generated_configuration.cc.temp
+                     src/generated_configuration.h.temp
+                  COMMENT "Copying code for configuration class")
 
 SET(COUCH_KVSTORE_SOURCE src/couch-kvstore/couch-kvstore.cc
             src/couch-kvstore/couch-fs-stats.cc)
