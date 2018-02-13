@@ -23,6 +23,20 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR})
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR})
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR})
 
+# Speed up incremental builds by not depending on linked shared
+# library files.
+#
+# Modification to shared library *files* will not be sufficient to
+# re-link targets which depend on them; however changes to the shared
+# library interface (i.e. headers) will still cause re-linking.
+#
+# Example: memcached.exe dynamically links to libplatform.so; and
+# depends on the various <platform/xxx> header files. With this
+# setting, modifications to the implemenation of libplatform.so which
+# don't change it's headers will not cause memcached.exe to be
+# re-linked.
+set(CMAKE_LINK_DEPENDS_NO_SHARED 1)
+
 # Check if the system have a usable version of PKCS5_PBKDF2_HMAC_SHA1
 CMAKE_PUSH_CHECK_STATE(RESET)
 SET(CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES} ${OPENSSL_LIBRARIES})
