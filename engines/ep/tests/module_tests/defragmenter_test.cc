@@ -165,11 +165,11 @@ TEST_P(DefragmenterTest, DISABLED_MappedMemory) {
     size_t mem_used_0 = mem_used.load();
     size_t mapped_0 = get_mapped_bytes();
 
-    // 1. Create a number of small documents. Doesn't really matter that
-    //    they are small, main thing is we create enough to span multiple
-    //    pages (so we can later leave 'holes' when they are deleted).
-    const size_t size = 128;
-    const size_t num_docs = 50000;
+    // 1. Create a number of documents. Size doesn't matter too much, main
+    // thing is we create enough to span multiple pages (so we can later leave
+    // 'holes' when they are deleted).
+    const size_t size = 512;
+    const size_t num_docs = 5000;
     setDocs(size, num_docs);
 
     // Since public_processSet causes queueDirty to be run for each item above
@@ -296,7 +296,7 @@ TEST_P(DefragmenterTest, DISABLED_RefCountMemUsage) {
     // 1. Create a small number of documents to record the checkpoint manager
     // overhead with
     const size_t size = 3500;
-    const size_t num_docs = 50000;
+    const size_t num_docs = 5000;
     setDocs(size, num_docs);
 
     // 2. Determine how many documents are in each page, and then remove all but
