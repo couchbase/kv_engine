@@ -385,6 +385,16 @@ protected:
         EXPECT_EQ(0, ht.getNumDeletedItems());
     }
 
+    StoredValue* addAndEjectItem() {
+        EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
+
+        auto* v(ht.find(key, TrackReference::Yes, WantsDeleted::No));
+        EXPECT_TRUE(v);
+        v->markClean();
+        EXPECT_TRUE(ht.unlocked_ejectItem(v, evictionPolicy));
+        return v;
+    }
+
     EPStats stats;
     HashTable ht;
     size_t initialSize;
@@ -407,12 +417,49 @@ TEST_P(HashTableStatsTest, SizeFlush) {
 }
 
 TEST_P(HashTableStatsTest, SizeEject) {
-    EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
+    addAndEjectItem();
 
-    StoredValue* v(ht.find(key, TrackReference::Yes, WantsDeleted::No));
-    EXPECT_TRUE(v);
-    v->markClean();
-    EXPECT_TRUE(ht.unlocked_ejectItem(v, evictionPolicy));
+    del(ht, key);
+}
+
+// Check sizes when ejecting a value and then restoring it.
+TEST_P(HashTableStatsTest, SizeEjectRestoreValue) {
+    auto* v = addAndEjectItem();
+
+    if (evictionPolicy == VALUE_ONLY) {
+        // Value-only: expect to have metadata still present.
+        EXPECT_EQ(1, ht.getNumItems());
+        EXPECT_EQ(1, ht.getNumInMemoryNonResItems());
+        ASSERT_EQ(1, ht.getDatatypeCounts()[PROTOCOL_BINARY_RAW_BYTES]);
+    }
+
+    if (evictionPolicy == FULL_EVICTION) {
+        // ejectItem() will have removed both the value and meta.
+        EXPECT_EQ(0, ht.getNumItems());
+        EXPECT_EQ(0, ht.getNumInMemoryNonResItems());
+        ASSERT_EQ(0, ht.getDatatypeCounts()[PROTOCOL_BINARY_RAW_BYTES]);
+
+        // Need a new tempItem (metadata) to restore value into.
+        Item temp(key,
+                  0,
+                  0,
+                  nullptr,
+                  0,
+                  PROTOCOL_BINARY_RAW_BYTES,
+                  0,
+                  StoredValue::state_temp_init);
+        auto hbl = ht.getLockedBucket(key);
+        v = ht.unlocked_addNewStoredValue(hbl, temp);
+        EXPECT_EQ(1, ht.getNumTempItems());
+    }
+
+    {
+        auto hbl = ht.getLockedBucket(key);
+        EXPECT_TRUE(ht.unlocked_restoreValue(hbl.getHTLock(), item, *v));
+    }
+
+    EXPECT_EQ(0, ht.getNumInMemoryNonResItems());
+    EXPECT_EQ(1, ht.getDatatypeCounts()[PROTOCOL_BINARY_RAW_BYTES]);
 
     del(ht, key);
 }

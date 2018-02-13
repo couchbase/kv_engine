@@ -785,24 +785,18 @@ bool HashTable::unlocked_restoreValue(
         return false;
     }
 
+    valueStats.prologue(v);
+
     if (v.isTempItem()) {
-        --valueStats.numTempItems;
-        ++valueStats.numItems;
         /* set it back to false as we created a temp item by setting it to true
            when bg fetch is scheduled (full eviction mode). */
         v.setNewCacheItem(false);
-        ++valueStats.datatypeCounts[itm.getDataType()];
-    } else {
-        valueStats.decrNumNonResidentItems();
     }
 
     v.restoreValue(itm);
 
-    if (v.isDeleted()) {
-        ++valueStats.numDeletedItems;
-    }
+    valueStats.epilogue(v);
 
-    valueStats.increaseCacheSize(v.getValue()->valueSize());
     return true;
 }
 
