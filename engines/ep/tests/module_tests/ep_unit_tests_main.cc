@@ -57,7 +57,7 @@ int main(int argc, char **argv) {
 
     putenv(allow_no_stats_env);
 
-    cb::logger::createConsoleLogger();
+    cb::logger::createBlackholeLogger();
     mock_init_alloc_hooks();
     init_mock_server(log_to_stderr);
 
