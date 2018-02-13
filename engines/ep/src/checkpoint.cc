@@ -1248,6 +1248,11 @@ snapshot_range_t CheckpointManager::getAllItemsForCursor(
     if (it == connCursors.end()) {
         range.start = 0;
         range.end = 0;
+        LOG(EXTENSION_LOG_WARNING,
+            "getAllItemsForCursor(): Cursor \"%s\" not found in the checkpoint "
+            "manager on vb:%" PRIu16,
+            name.c_str(),
+            vbucketId);
         return range;
     }
 
@@ -1457,6 +1462,12 @@ size_t CheckpointManager::getNumItemsForCursor_UNLOCKED(
                 numItems.load(),
                 vbucketId);
         }
+    } else {
+        LOG(EXTENSION_LOG_WARNING,
+            "getNumItemsForCursor_UNLOCKED(): Cursor \"%s\" not found in the "
+            "checkpoint manager on vb:%" PRIu16,
+            name.c_str(),
+            vbucketId);
     }
     return remains;
 }
