@@ -42,13 +42,23 @@ protected:
     void SetUp() override {
         RemoveFiles();
 
+        // We don't want to deal with multiple files in the
+        // basic tests. Set the file size to 20MB
+        SetUpLogger(20 * 1024);
+    }
+
+    /**
+     * Set up the logger
+     *
+     * @param cyclesize - the size to use before switching file
+     */
+    void SetUpLogger(size_t cyclesize) {
         cb::logger::Config config;
         config.filename = filename;
-        config.cyclesize = 2048;
+        config.cyclesize = cyclesize;
         config.buffersize = 8192;
-        // sleeptime can't be set too low as then the deduplication
-        // logic may not work as it flush too early...
-        config.sleeptime = 10000;
+        // Disable timebased flush
+        config.sleeptime = 0;
         config.unit_test = true;
         config.console = false;
 
@@ -67,6 +77,21 @@ protected:
     void TearDown() override {
         cb::logger::shutdown();
         RemoveFiles();
+    }
+
+    std::string getLogContents() {
+        files = cb::io::findFilesWithPrefix(filename);
+        std::ostringstream ret;
+
+        for (const auto& file : files) {
+            cb::MemoryMappedFile map(file.c_str(),
+                                     cb::MemoryMappedFile::Mode::RDONLY);
+            map.open();
+            ret << std::string{reinterpret_cast<const char*>(map.getRoot()),
+                               map.getSize()};
+        }
+
+        return ret.str();
     }
 
     std::vector<std::string> files;
@@ -106,7 +131,7 @@ TEST_F(SpdloggerTest, OldStylePrintf) {
     logger.log(EXTENSION_LOG_INFO, nullptr, "OldStylePrintf %x", value);
     cb::logger::shutdown();
     files = cb::io::findFilesWithPrefix(filename);
-    EXPECT_EQ(1, files.size()) << "We should only have a single logfile";
+    ASSERT_EQ(1, files.size()) << "We should only have a single logfile";
     EXPECT_EQ(1, countInFile(files.front(), "INFO OldStylePrintf deadbeef"));
 }
 
@@ -118,7 +143,7 @@ TEST_F(SpdloggerTest, FmtStyleFormatting) {
     LOG_INFO("FmtStyleFormatting {:x}", value);
     cb::logger::shutdown();
     files = cb::io::findFilesWithPrefix(filename);
-    EXPECT_EQ(1, files.size()) << "We should only have a single logfile";
+    ASSERT_EQ(1, files.size()) << "We should only have a single logfile";
     EXPECT_EQ(1,
               countInFile(files.front(), "INFO FmtStyleFormatting deadbeef"));
 }
@@ -138,17 +163,8 @@ TEST_F(SpdloggerTest, LargeMessageTest) {
     cb::logger::shutdown();
 
     files = cb::io::findFilesWithPrefix(filename);
-
-    auto found = false;
-    for (auto& file : files) {
-        auto messageCount = countInFile(file, message);
-        if (messageCount == 1) {
-            found = true;
-            break;
-        }
-    }
-    EXPECT_TRUE(found) << "Failed to locate the long message in any of the "
-                       << files.size() << " logfiles";
+    ASSERT_EQ(1, files.size()) << "We should only have a single logfile";
+    EXPECT_EQ(1, countInFile(files.front(), message));
 }
 
 /**
@@ -167,18 +183,8 @@ TEST_F(SpdloggerTest, LargeMessageWithCroppingTest) {
     cb::logger::shutdown();
 
     files = cb::io::findFilesWithPrefix(filename);
-
-    auto found = false;
-    for (auto& file : files) {
-        auto messageCount = countInFile(file, cropped);
-        if (messageCount == 1) {
-            found = true;
-            break;
-        }
-    }
-
-    EXPECT_TRUE(found) << "Failed to locate the cropped text in any of the "
-                       << files.size() << " logfiles";
+    ASSERT_EQ(1, files.size()) << "We should only have a single logfile";
+    EXPECT_EQ(1, countInFile(files.front(), cropped));
 }
 
 /**
@@ -189,16 +195,30 @@ TEST_F(SpdloggerTest, BasicHooksTest) {
     cb::logger::shutdown();
 
     files = cb::io::findFilesWithPrefix(filename);
-    ASSERT_EQ(1, files.size());
+    ASSERT_EQ(1, files.size()) << "We should only have a single logfile";
     EXPECT_EQ(1, countInFile(files.front(), openingHook));
     EXPECT_EQ(1, countInFile(files.front(), closingHook));
 }
 
 /**
+ * Test class for tests which wants to operate on multiple log files
+ *
+ * Initialize the logger with a 2k file rotation threshold
+ */
+class FileRotationTest : public SpdloggerTest {
+protected:
+    void SetUp() override {
+        RemoveFiles();
+        // Use a 2 k file size to make sure that we rotate :)
+        SetUpLogger(2048);
+    }
+};
+
+/**
  * Log multiple messages, which will causes the files to rotate a few times.
  * Test if the hooks appear in each file.
  */
-TEST_F(SpdloggerTest, MultipleFilesTest) {
+TEST_F(FileRotationTest, MultipleFilesTest) {
     const char* message =
             "This is a textual log message that we want to repeat a number of "
             "times: {}";
@@ -223,7 +243,7 @@ TEST_F(SpdloggerTest, MultipleFilesTest) {
  * descriptors. This test won't run on Windows as they don't
  * have the same ulimit setting
  */
-TEST_F(SpdloggerTest, HandleOpenFileErrors) {
+TEST_F(FileRotationTest, HandleOpenFileErrors) {
     if (RUNNING_ON_VALGRIND) {
         std::cerr << "Skipping test when running on valgrind" << std::endl;
         return;
@@ -353,8 +373,12 @@ TEST_F(DedupeSinkTest, MessageLoggedTwiceTest) {
 
     files = cb::io::findFilesWithPrefix(filename);
     ASSERT_EQ(1, files.size()) << "Did not expect log rotation to happen";
-    EXPECT_EQ(1, countInFile(files.front(), message));
-    EXPECT_EQ(1, countInFile(files.front(), dedupeMessage));
+    EXPECT_EQ(1, countInFile(files.front(), message))
+            << "Log contents:" << std::endl
+            << getLogContents();
+    EXPECT_EQ(1, countInFile(files.front(), dedupeMessage))
+            << "Log contents:" << std::endl
+            << getLogContents();
 }
 
 /**
@@ -379,6 +403,10 @@ TEST_F(DedupeSinkTest, MessageLoggedTwiceWithFlushTest) {
 
     files = cb::io::findFilesWithPrefix(filename);
     ASSERT_EQ(1, files.size()) << "Did not expect log rotation to happen";
-    EXPECT_EQ(10, countInFile(files.front(), message));
-    EXPECT_EQ(0, countInFile(files.front(), dedupeMessage));
+    EXPECT_EQ(10, countInFile(files.front(), message))
+            << "Log contents:" << std::endl
+            << getLogContents();
+    EXPECT_EQ(0, countInFile(files.front(), dedupeMessage))
+            << "Log contents:" << std::endl
+            << getLogContents();
 }
