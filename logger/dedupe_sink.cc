@@ -39,7 +39,6 @@ void dedupe_sink<Mutex>::_sink_it(const spdlog::details::log_msg& msg) {
 /* Tells the underlying sink to flush its contents. */
 template <class Mutex>
 void dedupe_sink<Mutex>::_flush() {
-    std::lock_guard<Mutex> lock(spdlog::sinks::base_sink<Mutex>::_mutex);
     flushLastLog();
     sink->flush();
 }
