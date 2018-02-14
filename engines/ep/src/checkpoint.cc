@@ -1270,10 +1270,6 @@ snapshot_range_t CheckpointManager::getAllItemsForCursor(
     while ((moreItems = incrCursor(it->second))) {
         queued_item& qi = *(it->second.currentPos);
         items.push_back(qi);
-
-        if (qi->getOperation() == queue_op::checkpoint_end) {
-            moveCursorToNextCheckpoint(it->second);
-        }
     }
     range.end = (*it->second.currentCheckpoint)->getSnapshotEndSeqno();
 

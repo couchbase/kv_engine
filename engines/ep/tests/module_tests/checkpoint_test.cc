@@ -767,16 +767,21 @@ TYPED_TEST(CheckpointTest, ItemsForCheckpointCursor) {
 
     /* Get items for persistence*/
     std::vector<queued_item> items;
-    this->manager->getAllItemsForCursor(CheckpointManager::pCursorName, items);
+    auto range = this->manager->getAllItemsForCursor(
+            CheckpointManager::pCursorName, items);
 
     /* We should have got (2 * MIN_CHECKPOINT_ITEMS + 3) items. 3 additional are
        op_ckpt_start, op_ckpt_end and op_ckpt_start */
     EXPECT_EQ(2 * MIN_CHECKPOINT_ITEMS + 3, items.size());
+    EXPECT_EQ(0, range.start);
+    EXPECT_EQ(1000 + 2 * MIN_CHECKPOINT_ITEMS, range.end);
 
     /* Get items for DCP replication cursor */
     items.clear();
-    this->manager->getAllItemsForCursor(dcp_cursor.c_str(), items);
+    range = this->manager->getAllItemsForCursor(dcp_cursor.c_str(), items);
     EXPECT_EQ(2 * MIN_CHECKPOINT_ITEMS + 3, items.size());
+    EXPECT_EQ(0, range.start);
+    EXPECT_EQ(1000 + 2 * MIN_CHECKPOINT_ITEMS, range.end);
 }
 
 // Test the checkpoint cursor movement
@@ -814,15 +819,20 @@ TYPED_TEST(CheckpointTest, CursorMovement) {
 
     /* Get items for persistence cursor */
     std::vector<queued_item> items;
-    this->manager->getAllItemsForCursor(CheckpointManager::pCursorName, items);
+    auto range = this->manager->getAllItemsForCursor(
+            CheckpointManager::pCursorName, items);
 
     /* We should have got (MIN_CHECKPOINT_ITEMS + op_ckpt_start) items. */
     EXPECT_EQ(MIN_CHECKPOINT_ITEMS + 1, items.size());
+    EXPECT_EQ(0, range.start);
+    EXPECT_EQ(1000 + MIN_CHECKPOINT_ITEMS, range.end);
 
     /* Get items for DCP replication cursor */
     items.clear();
-    this->manager->getAllItemsForCursor(dcp_cursor.c_str(), items);
+    range = this->manager->getAllItemsForCursor(dcp_cursor.c_str(), items);
     EXPECT_EQ(MIN_CHECKPOINT_ITEMS + 1, items.size());
+    EXPECT_EQ(0, range.start);
+    EXPECT_EQ(1000 + MIN_CHECKPOINT_ITEMS, range.end);
 
     uint64_t curr_open_chkpt_id = this->manager->getOpenCheckpointId_UNLOCKED();
 
@@ -839,10 +849,14 @@ TYPED_TEST(CheckpointTest, CursorMovement) {
             this->manager->getNumItemsForCursor(CheckpointManager::pCursorName))
             << "Expected to have no normal (only meta) items";
     items.clear();
-    this->manager->getAllItemsForCursor(CheckpointManager::pCursorName, items);
+    range = this->manager->getAllItemsForCursor(CheckpointManager::pCursorName,
+                                                items);
 
     /* We should have got op_ckpt_start item */
     EXPECT_EQ(1, items.size());
+    EXPECT_EQ(1000 + MIN_CHECKPOINT_ITEMS, range.start);
+    EXPECT_EQ(1000 + MIN_CHECKPOINT_ITEMS, range.end);
+
     EXPECT_EQ(queue_op::checkpoint_start, items.at(0)->getOperation());
 
     /* Get items for DCP replication cursor */
