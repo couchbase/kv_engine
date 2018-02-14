@@ -375,7 +375,7 @@ static void create_master_file(const std::list<Module *> &modules,
         error_exit(CREATE_JSON_OBJECT_ERROR, NULL);
     }
 
-    cJSON_AddNumberToObject(output_json, "version", 2);
+    cJSON_AddNumberToObject(output_json, "version", 1);
 
     cJSON *arr = cJSON_CreateArray();
     if (arr == NULL) {
@@ -466,7 +466,7 @@ int main(int argc, char **argv) {
         try {
             module->createHeaderFile();
         } catch (std::string error) {
-            std::cerr << "Failed to write header file for " << module->name
+            std::cerr << "Failed to write heder file for " << module->name
                       << ":" << std::endl << error << std::endl;
             exit(EXIT_FAILURE);
         }

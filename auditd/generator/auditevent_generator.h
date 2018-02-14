@@ -68,8 +68,6 @@ public:
         cJSON *cDescr = getMandatoryObject(root, "description", cJSON_String);
         cJSON *cSync = getMandatoryObject(root, "sync", -1);
         cJSON *cEnabled = getMandatoryObject(root, "enabled", -1);
-        cJSON *cFilteringPermitted = getOptionalObject(
-                root, "filtering_permitted", -1);
         cJSON *cMand = getMandatoryObject(root, "mandatory_fields", cJSON_Object);
         cJSON *cOpt = getMandatoryObject(root, "optional_fields", cJSON_Object);
 
@@ -78,11 +76,6 @@ public:
         description.assign(cDescr->valuestring);
         sync = cSync->type == cJSON_True;
         enabled = cEnabled->type == cJSON_True;
-        if (cFilteringPermitted != nullptr) {
-            filtering_permitted = cFilteringPermitted->type == cJSON_True;
-        } else {
-            filtering_permitted = false;
-        }
         char *ptr = cJSON_PrintUnformatted(cMand);
         mandatory_fields.assign(ptr);
         cJSON_Free(ptr);
@@ -91,8 +84,7 @@ public:
         cJSON_Free(ptr);
 
         int num_elem = cJSON_GetArraySize(root);
-        if ((cFilteringPermitted == nullptr && num_elem != 7) ||
-                (cFilteringPermitted != nullptr && num_elem != 8)) {
+        if (num_elem != 7) {
             std::stringstream ss;
             char *bulk = cJSON_Print(root);
             ss << "Unknown elements for " << name
@@ -107,7 +99,6 @@ public:
     std::string description;
     bool sync;
     bool enabled;
-    bool filtering_permitted;
     std::string mandatory_fields;
     std::string optional_fields;
 };
