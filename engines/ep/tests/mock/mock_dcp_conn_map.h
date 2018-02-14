@@ -16,6 +16,7 @@
  */
 #pragma once
 
+#include "connhandler.h"
 #include "dcp/dcpconnmap.h"
 
 /*
@@ -47,5 +48,16 @@ public:
     void addConn(const void* cookie, std::shared_ptr<ConnHandler> conn) {
         LockHolder lh(connsLock);
         map_[cookie] = conn;
+    }
+
+    /// return if the named handler exists for the vbid in the vbConns structure
+    bool doesConnHandlerExist(uint16_t vbid, const std::string& name) const {
+        const auto& list = vbConns[vbid];
+        return std::find_if(
+                       list.begin(),
+                       list.end(),
+                       [&name](const std::shared_ptr<ConnHandler>& c) -> bool {
+                           return c->getName() == name;
+                       }) != list.end();
     }
 };

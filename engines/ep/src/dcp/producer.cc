@@ -862,12 +862,15 @@ ENGINE_ERROR_CODE DcpProducer::closeStream(uint32_t opaque, uint16_t vbucket) {
         if (!stream->isActive()) {
             LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Cannot close stream because "
                 "stream is already marked as dead", logHeader(), vbucket);
-            engine_.getDcpConnMap().removeVBConnByVBId(getCookie(), vbucket);
             ret = ENGINE_KEY_ENOENT;
         } else {
             stream->setDead(END_STREAM_CLOSED);
-            engine_.getDcpConnMap().removeVBConnByVBId(getCookie(), vbucket);
             ret = ENGINE_SUCCESS;
+        }
+        if (!sendStreamEndOnClientStreamClose) {
+            /* Remove the conn from 'vb_conns map' only when we have removed the
+               stream from the producer connections StreamsMap */
+            engine_.getDcpConnMap().removeVBConnByVBId(getCookie(), vbucket);
         }
     }
 

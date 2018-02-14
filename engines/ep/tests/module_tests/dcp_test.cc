@@ -1965,6 +1965,11 @@ TEST_P(ConnectionTest, test_producer_stream_end_on_client_close_stream) {
                                       &rollbackSeqno,
                                       DCPTest::fakeDcpAddFailoverLog));
 
+    MockDcpConnMap& mockConnMap =
+            static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
+    mockConnMap.addConn(cookie, producer);
+    EXPECT_TRUE(mockConnMap.doesConnHandlerExist(vbid, "test_producer"));
+
     /* Close stream */
     EXPECT_EQ(ENGINE_SUCCESS, producer->closeStream(opaque, vbid));
 
@@ -1991,7 +1996,15 @@ TEST_P(ConnectionTest, test_producer_stream_end_on_client_close_stream) {
     /* Check that the new stream is opened properly */
     auto stream = producer->findStream(vbid);
     EXPECT_TRUE(stream->isInMemory());
-    destroy_mock_cookie(cookie);
+
+    // MB-27769: Prior to the fix, this would fail here because we would skip
+    // adding the connhandler into the connmap vbConns vector, causing the
+    // stream to never get notified.
+    EXPECT_TRUE(mockConnMap.doesConnHandlerExist(vbid, "test_producer"));
+
+    mockConnMap.disconnect(cookie);
+    EXPECT_FALSE(mockConnMap.doesConnHandlerExist(vbid, "test_producer"));
+    mockConnMap.manageConnections();
 }
 
 /* Checks that the DCP producer does a synchronous stream close when the DCP
