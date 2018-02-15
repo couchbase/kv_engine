@@ -842,8 +842,6 @@ public:
      */
     void checkAndAddNewCheckpoint(uint64_t id, VBucket& vbucket);
 
-    bool closeOpenCheckpoint();
-
     void setBackfillPhase(uint64_t start, uint64_t end);
 
     void createSnapshot(uint64_t snapStartSeqno, uint64_t snapEndSeqno);
@@ -957,11 +955,6 @@ private:
      * return 0.
      */
     uint64_t checkOpenCheckpoint_UNLOCKED(bool forceCreation, bool timeBound);
-
-    uint64_t checkOpenCheckpoint(bool forceCreation, bool timeBound) {
-        LockHolder lh(queueLock);
-        return checkOpenCheckpoint_UNLOCKED(forceCreation, timeBound);
-    }
 
     bool closeOpenCheckpoint_UNLOCKED();
 

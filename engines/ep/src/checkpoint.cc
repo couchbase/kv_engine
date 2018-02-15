@@ -602,11 +602,6 @@ bool CheckpointManager::closeOpenCheckpoint_UNLOCKED() {
     return true;
 }
 
-bool CheckpointManager::closeOpenCheckpoint() {
-    LockHolder lh(queueLock);
-    return closeOpenCheckpoint_UNLOCKED();
-}
-
 bool CheckpointManager::registerCursor(
                             const std::string& name,
                             uint64_t checkpointId,
