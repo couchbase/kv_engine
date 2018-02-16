@@ -7452,6 +7452,9 @@ BaseTestCase testsuite_testcases[] = {
                  test_access_scanner,
                  test_setup,
                  teardown,
+                 // Need to cap at <number of items written, so we create
+                 // >1 checkpoint.
+                 "chk_max_items=500;"
                  "chk_remover_stime=1;"
                  "max_size=6291456",
                  // TODO RDB: This test requires full control and accurate

@@ -1980,6 +1980,13 @@ static enum test_result test_dcp_producer_stream_req_full(ENGINE_HANDLE *h,
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
     wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 1, "checkpoint");
 
+    checkne(num_items -
+            get_stat<uint64_t>(h, h1, "ep_items_rm_from_checkpoints"),
+            uint64_t{0},
+            "Require a non-zero number of items to still be present in "
+                    "CheckpointManager to be able to get 2x snapshot markers "
+                    "(1x disk, 1x memory)");
+
     const void *cookie = testHarness.create_cookie();
 
     DcpStreamCtx ctx;
@@ -2219,6 +2226,10 @@ static enum test_result test_dcp_producer_stream_req_mem(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+/**
+ * Test that a DCP stream request in DGM scenarios correctly receives items
+ * from both memory and disk.
+ */
 static enum test_result test_dcp_producer_stream_req_dgm(ENGINE_HANDLE *h,
                                                          ENGINE_HANDLE_V1 *h1) {
     // Test only works for the only 2-bit LRU eviction algorithm as it
@@ -6005,7 +6016,7 @@ BaseTestCase testsuite_testcases[] = {
                  cleanup),
         TestCase("test producer stream request (full)",
                  test_dcp_producer_stream_req_full, test_setup, teardown,
-                 "chk_remover_stime=1;chk_max_items=100",
+                 "chk_remover_stime=1;max_checkpoints=2;chk_max_items=100",
                  prepare_ephemeral_bucket,
                  cleanup),
         TestCase("test producer stream request (backfill)",
@@ -6050,6 +6061,9 @@ BaseTestCase testsuite_testcases[] = {
                  test_dcp_producer_stream_req_dgm,
                  test_setup,
                  teardown,
+                 // Need fewer than the number of items we write (at least 1000)
+                 // in each checkpoint.
+                 "chk_max_items=500;"
                  "chk_remover_stime=1;max_size=6291456",
                  /* not needed in ephemeral as it is DGM case */
                  /* TODO RDB: Relies on resident ratio - not valid yet */

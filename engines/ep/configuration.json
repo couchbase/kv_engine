@@ -170,7 +170,7 @@
             }
         },
         "chk_max_items": {
-            "default": "500",
+            "default": "10000",
             "type": "size_t"
         },
         "chk_period": {
@@ -485,7 +485,7 @@
             }
         },
         "max_checkpoints": {
-            "default": "2",
+            "default": "100",
             "type": "size_t"
         },
         "max_failover_entries": {
