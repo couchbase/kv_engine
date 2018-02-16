@@ -172,8 +172,8 @@ public:
 
     virtual void sizeValueChanged(const std::string& key,
                                   size_t value) override {
-        if (key == "flusher_backfill_batch_limit") {
-            bucket.setFlusherBackfillBatchLimit(value);
+        if (key == "flusher_batch_split_trigger") {
+            bucket.setFlusherBatchSplitTrigger(value);
         } else {
             LOG(EXTENSION_LOG_WARNING,
                 "Failed to change value for unknown variable, %s\n",
@@ -197,8 +197,8 @@ EPBucket::EPBucket(EventuallyPersistentEngine& theEngine)
     replicationThrottle = std::make_unique<ReplicationThrottle>(
             engine.getConfiguration(), stats);
 
-    flusherBackfillBatchLimit = config.getFlusherBackfillBatchLimit();
-    config.addValueChangedListener("flusher_backfill_batch_limit",
+    flusherBatchSplitTrigger = config.getFlusherBatchSplitTrigger();
+    config.addValueChangedListener("flusher_batch_split_trigger",
                                    new ValueChangedListener(*this));
 }
 
@@ -264,7 +264,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(uint16_t vbid) {
         }
 
         // Append any 'backfill' items (mutations added by a DCP stream).
-        moreAvailable = vb->getBackfillItems(items, flusherBackfillBatchLimit);
+        moreAvailable = vb->getBackfillItems(items, flusherBatchSplitTrigger);
 
         // Append all items outstanding for the persistence cursor, as long as
         // we haven't already hit the batch limit.
@@ -467,8 +467,8 @@ std::pair<bool, size_t> EPBucket::flushVBucket(uint16_t vbid) {
     return {moreAvailable, items_flushed};
 }
 
-void EPBucket::setFlusherBackfillBatchLimit(size_t limit) {
-    flusherBackfillBatchLimit = limit;
+void EPBucket::setFlusherBatchSplitTrigger(size_t limit) {
+    flusherBatchSplitTrigger = limit;
 }
 
 void EPBucket::commit(KVStore& kvstore, const Item* collectionsManifest) {

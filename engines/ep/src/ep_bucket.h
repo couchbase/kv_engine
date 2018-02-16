@@ -49,10 +49,11 @@ public:
     std::pair<bool, size_t> flushVBucket(uint16_t vbid);
 
     /**
-     * Set the maximum number of backfill items which can be included in a
-     * single flusher commit.
+     * Set the number of flusher items which can be included in a
+     * single flusher commit - more than this number of items will split
+     * into multiple commits.
      */
-    void setFlusherBackfillBatchLimit(size_t limit);
+    void setFlusherBatchSplitTrigger(size_t limit);
 
     void commit(KVStore& kvstore, const Item* collectionsManifest);
 
@@ -163,6 +164,9 @@ protected:
      */
     void updateCompactionTasks(DBFileId db_file_id);
 
-    /// Max number of baclfill items to be included in a single flusher batch.
-    size_t flusherBackfillBatchLimit;
+    /**
+     * Max number of backill items in a single flusher batch before we split
+     * into multiple batches.
+     */
+    size_t flusherBatchSplitTrigger;
 };
