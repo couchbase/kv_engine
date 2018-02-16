@@ -35,7 +35,83 @@ protected:
         EngineFixture::SetUp(state);
         engine->getKVBucket()->setVBucketState(0, vbucket_state_active, false);
     }
+
+    void TearDown(const benchmark::State& state) override {
+        engine->getKVBucket()->deleteVBucket(vbid, this);
+        EngineFixture::TearDown(state);
+    }
+
+    /// Flush all items in the vBucket to disk.
+    size_t flushAllItems(uint16_t vbid) {
+        size_t itemsFlushed = 0;
+        auto& ep = dynamic_cast<EPBucket&>(*engine->getKVBucket());
+        bool moreAvailable;
+        do {
+            size_t count;
+            std::tie(moreAvailable, count) = ep.flushVBucket(vbid);
+            itemsFlushed += count;
+        } while (moreAvailable);
+        return itemsFlushed;
+    }
 };
+
+/**
+ * Benchmark queueing items into a vBucket.
+ * Items have a 10% chance of being a duplicate key of a previous item (to
+ * model de-dupe).
+ */
+BENCHMARK_DEFINE_F(VBucketBench, QueueDirty)(benchmark::State& state) {
+    const auto itemCount = state.range(0);
+
+    std::default_random_engine gen;
+    auto makeKeyWithDuplicates = [&gen](int i) {
+        // 10% of the time; return a key which is the same as a previous one.
+        std::uniform_real_distribution<> dis(0, 1.0);
+        if (dis(gen) < 0.1) {
+            return std::string("key") + std::to_string((i + 1) / 2);
+        } else {
+            return std::string("key") + std::to_string(i);
+        }
+    };
+
+    int itemsQueuedTotal = 0;
+
+    // Pre-size the VBucket's hashtable to a sensible size.
+    auto* vb = engine->getKVBucket()->getVBucket(vbid).get();
+    vb->ht.resize(itemCount);
+
+    // Memory size before queuing.
+    const size_t baseBytes = memoryTracker->getCurrentAlloc();
+
+    // Maximum memory during queueing.
+    size_t peakBytes = 0;
+
+    const std::string value(1, 'x');
+    while (state.KeepRunning()) {
+        // Benchmark: Add the given number of items to checkpoint manager.
+        // Note we don't include the time taken to make the item.
+        for (int i = 0; i < itemCount; ++i) {
+            state.PauseTiming();
+            const auto key = makeKeyWithDuplicates(i);
+            auto item = make_item(vbid, key, value);
+            state.ResumeTiming();
+            ASSERT_EQ(ENGINE_SUCCESS, engine->getKVBucket()->set(item, cookie));
+            ++itemsQueuedTotal;
+        }
+
+        state.PauseTiming();
+        peakBytes = std::max(peakBytes, memoryTracker->getMaxAlloc());
+        /// Cleanup VBucket
+        vb->ht.clear();
+        vb->checkpointManager->clear(*vb, 0);
+        state.ResumeTiming();
+    }
+
+    state.SetItemsProcessed(itemsQueuedTotal);
+    // Peak memory usage while queuing, minus baseline.
+    state.counters["PeakQueueBytes"] = peakBytes - baseBytes;
+    state.counters["PeakBytesPerItem"] = (peakBytes - baseBytes) / itemCount;
+}
 
 BENCHMARK_DEFINE_F(VBucketBench, FlushVBucket)(benchmark::State& state) {
     const auto itemCount = state.range(0);
@@ -63,14 +139,7 @@ BENCHMARK_DEFINE_F(VBucketBench, FlushVBucket)(benchmark::State& state) {
         state.ResumeTiming();
 
         // Benchmark.
-        auto& ep = dynamic_cast<EPBucket&>(*engine->getKVBucket());
-        size_t itemsFlushed = 0;
-        bool moreAvailable;
-        do {
-            size_t count;
-            std::tie(moreAvailable, count) = ep.flushVBucket(vbid);
-            itemsFlushed += count;
-        } while (moreAvailable);
+        size_t itemsFlushed = flushAllItems(vbid);
 
         ASSERT_EQ(itemCount, itemsFlushed);
         peakBytes = std::max(peakBytes, memoryTracker->getMaxAlloc());
@@ -81,6 +150,13 @@ BENCHMARK_DEFINE_F(VBucketBench, FlushVBucket)(benchmark::State& state) {
     state.counters["PeakFlushBytes"] = peakBytes - baseBytes;
     state.counters["PeakBytesPerItem"] = (peakBytes - baseBytes) / itemCount;
 }
+
+// Run with item counts from 1..10,000,000.
+BENCHMARK_REGISTER_F(VBucketBench, QueueDirty)
+        ->Args({1})
+        ->Args({100})
+        ->Args({10000})
+        ->Args({1000000});
 
 BENCHMARK_REGISTER_F(VBucketBench, FlushVBucket)
         ->RangeMultiplier(10)

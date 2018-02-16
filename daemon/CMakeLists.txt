@@ -270,7 +270,12 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                    client_cert_config_test.cc
                    client_cert_config.cc
                    client_cert_config.h)
-    target_link_libraries(client_cert_config_test cJSON gtest gtest_main ${OPENSSL_LIBRARIES})
+    target_link_libraries(client_cert_config_test PRIVATE
+            cJSON
+            gtest
+            gtest_main
+            platform
+            ${OPENSSL_LIBRARIES})
     add_test(NAME client_cert_config_test
              WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
              COMMAND client_cert_config_test)

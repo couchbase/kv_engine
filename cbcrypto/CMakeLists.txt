@@ -5,13 +5,13 @@ SET_TARGET_PROPERTIES(cbcrypto PROPERTIES SOVERSION 1.0.0)
 
 if (APPLE)
     # Apple is using the Common Crypto Framework for all crypto functions
-    TARGET_LINK_LIBRARIES(cbcrypto cJSON platform)
+    TARGET_LINK_LIBRARIES(cbcrypto PRIVATE cJSON platform phosphor)
 elseif (WIN32)
     # Use the OpenSSL ones for all other platforms
-    TARGET_LINK_LIBRARIES(cbcrypto cJSON platform Bcrypt)
+    TARGET_LINK_LIBRARIES(cbcrypto PRIVATE cJSON platform phosphor Bcrypt)
 else()
     # Use the OpenSSL ones for all other platforms
-    TARGET_LINK_LIBRARIES(cbcrypto cJSON platform ${OPENSSL_LIBRARIES})
+    TARGET_LINK_LIBRARIES(cbcrypto PRIVATE cJSON platform phosphor ${OPENSSL_LIBRARIES})
 endif ()
 
 GENERATE_EXPORT_HEADER(cbcrypto
