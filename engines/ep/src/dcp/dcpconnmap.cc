@@ -277,8 +277,18 @@ void DcpConnMap::disconnect(const void *cookie) {
         if (itr != map_.end()) {
             conn = itr->second;
             if (conn.get()) {
-                conn->getLogger().log(EXTENSION_LOG_NOTICE,
-                                      "Removing connection %p", cookie);
+                auto* epe = ObjectRegistry::onSwitchThread(nullptr, true);
+                if (epe) {
+                    auto conn_desc =
+                         epe->getServerApi()->cookie->get_log_info(cookie).second;
+                    conn->getLogger().log(EXTENSION_LOG_NOTICE,
+                                          "Removing connection %s",
+                                          conn_desc.c_str());
+                } else {
+                    conn->getLogger().log(EXTENSION_LOG_NOTICE,
+                                          "Removing connection %p", cookie);
+                }
+                ObjectRegistry::onSwitchThread(epe);
                 conn->setDisconnect();
                 map_.erase(itr);
             }
