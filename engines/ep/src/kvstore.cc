@@ -344,7 +344,8 @@ void KVStore::addStats(ADD_STAT add_stat, const void *c) {
     size_t miss = 0;
     if (getStat("rocksdb.block.cache.data.hit", hit) &&
         getStat("rocksdb.block.cache.data.miss", miss) && (hit + miss) != 0) {
-        const auto ratio = float(hit) / (hit + miss);
+        const auto ratio =
+                gsl::narrow_cast<int>(float(hit) / (hit + miss) * 10000);
         addStat(prefix,
                 "rocksdb_block_cache_data_hit_ratio",
                 ratio,
@@ -353,7 +354,8 @@ void KVStore::addStats(ADD_STAT add_stat, const void *c) {
     }
     if (getStat("rocksdb.block.cache.index.hit", hit) &&
         getStat("rocksdb.block.cache.index.miss", miss) && (hit + miss) != 0) {
-        const auto ratio = float(hit) / (hit + miss);
+        const auto ratio =
+                gsl::narrow_cast<int>(float(hit) / (hit + miss) * 10000);
         addStat(prefix,
                 "rocksdb_block_cache_index_hit_ratio",
                 ratio,
@@ -362,7 +364,8 @@ void KVStore::addStats(ADD_STAT add_stat, const void *c) {
     }
     if (getStat("rocksdb.block.cache.filter.hit", hit) &&
         getStat("rocksdb.block.cache.filter.miss", miss) && (hit + miss) != 0) {
-        const auto ratio = float(hit) / (hit + miss);
+        const auto ratio =
+                gsl::narrow_cast<int>(float(hit) / (hit + miss) * 10000);
         addStat(prefix,
                 "rocksdb_block_cache_filter_hit_ratio",
                 ratio,

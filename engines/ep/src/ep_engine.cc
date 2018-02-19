@@ -2899,7 +2899,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                                  miss,
                                  KVBucketIface::KVSOption::RW) &&
         (hit + miss) != 0) {
-        const auto ratio = float(hit) / (hit + miss);
+        const auto ratio =
+                gsl::narrow_cast<int>(float(hit) / (hit + miss) * 10000);
         add_casted_stat("ep_rocksdb_block_cache_data_hit_ratio",
                         ratio,
                         add_stat,
@@ -2912,7 +2913,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                                  miss,
                                  KVBucketIface::KVSOption::RW) &&
         (hit + miss) != 0) {
-        const auto ratio = float(hit) / (hit + miss);
+        const auto ratio =
+                gsl::narrow_cast<int>(float(hit) / (hit + miss) * 10000);
         add_casted_stat("ep_rocksdb_block_cache_index_hit_ratio",
                         ratio,
                         add_stat,
@@ -2925,7 +2927,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                                  miss,
                                  KVBucketIface::KVSOption::RW) &&
         (hit + miss) != 0) {
-        const auto ratio = float(hit) / (hit + miss);
+        const auto ratio =
+                gsl::narrow_cast<int>(float(hit) / (hit + miss) * 10000);
         add_casted_stat("ep_rocksdb_block_cache_filter_hit_ratio",
                         ratio,
                         add_stat,
