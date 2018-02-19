@@ -94,15 +94,6 @@ private:
 
     /// atomic bool used in the task's run trigger
     std::atomic<bool> notified;
-
-    // StatCounter: The amount to multiply by the percentage of total memory
-    // that needs to be recovered by.  The multiplier is required because the
-    // percentage of memory does not necessarily fully match the percentage of
-    // items to evict from the hash table.  Therefore it is possible on the
-    // first pass we do not evict a sufficient number of items.  Therefore we
-    // use the multiplier to ensure that on future passes of the eviction
-    // algorithm we evict a sufficient number of items.
-    std::atomic<double> evictionMultiplier;
 };
 
 /**

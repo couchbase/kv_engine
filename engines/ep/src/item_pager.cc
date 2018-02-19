@@ -66,8 +66,6 @@ public:
      *              visits
      * @param bias active vbuckets eviction probability bias multiplier (0-1)
      * @param phase pointer to an item_pager_phase to be set
-     * @param evictionMult  StatCounter: pointer to the eviction multiple
-     * @param evictionPerc  StatCounter: the eviction percent estimate
      */
     PagingVisitor(KVBucket& s,
                   EPStats& st,
@@ -76,9 +74,7 @@ public:
                   pager_type_t caller,
                   bool pause,
                   double bias,
-                  std::atomic<item_pager_phase>* phase,
-                  std::atomic<double>* evictionMult,
-                  double evictionPerc)
+                  std::atomic<item_pager_phase>* phase)
         : store(s),
           stats(st),
           percent(pcnt),
@@ -92,8 +88,6 @@ public:
           wasHighMemoryUsage(s.isMemoryUsageTooHigh()),
           taskStart(ProcessClock::now()),
           pager_phase(phase),
-          evictionMultiplier(evictionMult),
-          evictionPercent(evictionPerc),
           freqCounterThreshold(0) {
     }
 
@@ -201,17 +195,6 @@ public:
                                     ? noOfItems
                                     : ItemEviction::learningPopulation;
                     itemEviction.setUpdateInterval(interval);
-                    /*
-                     * We now need to set the "percent" variable that is used
-                     * when selecting the percentile of the frequency
-                     * histogram.
-                     * In addition to setting the percent variable, the
-                     * adjustPercent function modifies the percentile based
-                     * on whether the vbucket is an active or a replia (we
-                     * want to evict more items from replicas than we do
-                     * active).
-                     */
-                    adjustPercent(evictionPercent, vb->getState());
                 }
                 vb->ht.visit(*this);
                 // We have just evicted all eligible items from the hash table
@@ -283,28 +266,6 @@ public:
             // the stateFinalizer, which ensures the ItemPager doesn't just
             // ignore a request.
             store.checkAndMaybeFreeMemory();
-        }
-
-        if (evictionMultiplier != nullptr) {
-            // If not yet complete
-            if (completePhase) {
-                // An insufficient number of items were evicted to drop the
-                // memory usage to below the low water mark.  Therefore we
-                // need a second pass using a percentage estimate that is
-                // higher than the original estimate of total memory to
-                // recover.  The higher estimate is calculated using
-                // multiplier, which is increased by a small amount on each
-                // pass.
-
-                // The amount the eviction multiplier should be increased by
-                const double multiplierIncrease = 0.05;
-                *evictionMultiplier = *evictionMultiplier + multiplierIncrease;
-            } else {
-                // As the eviction pass is complete and we have evicted
-                // sufficient items we now reset the evictionMulitplier
-                // ready for the next time we need to evict.
-                *evictionMultiplier = 0;
-            }
         }
     }
 
@@ -382,13 +343,6 @@ private:
     // evict from the hash table.
     ItemEviction itemEviction;
 
-    // Pointer to evictionMultiplier held by the ItemPager
-    std::atomic<double>* evictionMultiplier;
-
-    // Estimate of percentage of items that need to be evicted to get below
-    // the low water mark.
-    double evictionPercent;
-
     // The frequency counter threshold that is used to determine whether we
     // should evict items from the hash table.
     uint16_t freqCounterThreshold;
@@ -403,8 +357,7 @@ ItemPager::ItemPager(EventuallyPersistentEngine& e, EPStats& st)
       doEvict(false),
       sleepTime(std::chrono::milliseconds(
               e.getConfiguration().getPagerSleepTimeMs())),
-      notified(false),
-      evictionMultiplier(0.0) {
+      notified(false) {
 }
 
 bool ItemPager::run(void) {
@@ -452,12 +405,6 @@ bool ItemPager::run(void) {
         size_t activeEvictPerc = cfg.getPagerActiveVbPcnt();
         double bias = static_cast<double>(activeEvictPerc) / 50;
 
-        // Calculate the percent of total memory that needs to be
-        // recovered to fall below the lower water mark.
-        double evictionPercent =
-                (current - static_cast<double>(lower)) / current;
-        evictionPercent = evictionPercent * (1.0 + evictionMultiplier);
-
         auto pv = std::make_unique<PagingVisitor>(*kvBucket,
                                                   stats,
                                                   toKill,
@@ -465,9 +412,7 @@ bool ItemPager::run(void) {
                                                   ITEM_PAGER,
                                                   false,
                                                   bias,
-                                                  &phase,
-                                                  &evictionMultiplier,
-                                                  evictionPercent);
+                                                  &phase);
 
         // p99.99 is ~200ms
         const auto maxExpectedDuration = std::chrono::milliseconds(200);
@@ -548,9 +493,7 @@ bool ExpiredItemPager::run(void) {
                 EXPIRY_PAGER,
                 true,
                 1,
-                /* pager_phase */ nullptr,
-                /* evictionMultiplier */ nullptr,
-                /* evictionPercent*/ 0);
+                /* pager_phase */ nullptr);
 
         // p99.99 is ~50ms (same as ItemPager).
         const auto maxExpectedDuration = std::chrono::milliseconds(50);
