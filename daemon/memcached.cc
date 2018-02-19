@@ -2407,7 +2407,6 @@ extern "C" int memcached_main(int argc, char **argv) {
     // Setup terminate handler as early as possible to catch crashes
     // occurring during initialisation.
     install_backtrace_terminate_handler();
-    auto logger = cb::logger::get();
 
     setup_libevent_locking();
 
@@ -2451,6 +2450,7 @@ extern "C" int memcached_main(int argc, char **argv) {
                     EXIT_FAILURE, "Failed to initialize logger: {}", ret.get());
         }
     }
+    auto logger = cb::logger::get();
 
     /* File-based logging available from this point onwards... */
 
