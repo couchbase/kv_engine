@@ -90,15 +90,29 @@ void dcp_open_executor(Cookie& cookie) {
         connection.setDcpNoValue(dcpNoValue);
         connection.setDcpCollectionAware(dcpCollections);
 
-        // @todo Keeping this as NOTICE while waiting for ns_server
-        //       support for xattr over DCP (to make it easier to debug
-        ///      see MB-22468
-        LOG_INFO("{}: DCP connection opened successfully. flags:{{}{}{}{}} {}",
+        unique_cJSON_ptr json(cJSON_CreateArray());
+        const bool dcpProducer =
+                (flags & DCP_OPEN_PRODUCER) == DCP_OPEN_PRODUCER;
+        if (dcpProducer) {
+            cJSON_AddItemToArray(json.get(), cJSON_CreateString("PRODUCER"));
+        }
+
+        if (dcpNotifier) {
+            cJSON_AddItemToArray(json.get(), cJSON_CreateString("NOTIFIER"));
+        }
+        if (dcpXattrAware) {
+            cJSON_AddItemToArray(json.get(),
+                                 cJSON_CreateString("INCLUDE_XATTRS"));
+        }
+        if (dcpNoValue) {
+            cJSON_AddItemToArray(json.get(), cJSON_CreateString("NO_VALUE"));
+        }
+        if (dcpCollections) {
+            cJSON_AddItemToArray(json.get(), cJSON_CreateString("COLLECTIONS"));
+        }
+        LOG_INFO("{}: DCP connection opened successfully. flags:{} {}",
                  connection.getId(),
-                 dcpNotifier ? "NOTIFIER " : "",
-                 dcpXattrAware ? "INCLUDE_XATTRS " : "",
-                 dcpNoValue ? "NO_VALUE " : "",
-                 dcpCollections ? "COLLECTIONS" : "",
+                 to_string(json, false),
                  connection.getDescription().c_str());
 
         audit_dcp_open(&connection);
