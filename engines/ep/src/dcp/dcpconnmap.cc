@@ -47,12 +47,12 @@ DcpConnMap::DcpConnMap(EventuallyPersistentEngine &e)
                     engine.getConfiguration().getDcpMinCompressionRatio());
 
     // Note: these allocations are deleted by ~Configuration
-    engine.getConfiguration().
-        addValueChangedListener("dcp_consumer_process_buffered_messages_yield_limit",
-                                new DcpConfigChangeListener(*this));
-    engine.getConfiguration().
-        addValueChangedListener("dcp_consumer_process_buffered_messages_batch_size",
-                                new DcpConfigChangeListener(*this));
+    engine.getConfiguration().addValueChangedListener(
+            "dcp_consumer_process_buffered_messages_yield_limit",
+            std::make_unique<DcpConfigChangeListener>(*this));
+    engine.getConfiguration().addValueChangedListener(
+            "dcp_consumer_process_buffered_messages_batch_size",
+            std::make_unique<DcpConfigChangeListener>(*this));
 }
 
 DcpConnMap::~DcpConnMap() {

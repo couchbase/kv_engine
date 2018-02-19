@@ -276,23 +276,27 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
     // Set memUsedThresholdPercent before setting max_size
     stats.setMemUsedMergeThresholdPercent(
             config.getMemUsedMergeThresholdPercent());
-    config.addValueChangedListener("mem_used_merge_threshold_percent",
-                                   new StatsValueChangeListener(stats, *this));
+    config.addValueChangedListener(
+            "mem_used_merge_threshold_percent",
+            std::make_unique<StatsValueChangeListener>(stats, *this));
     stats.setMaxDataSize(config.getMaxSize());
-    config.addValueChangedListener("max_size",
-                                   new StatsValueChangeListener(stats, *this));
+    config.addValueChangedListener(
+            "max_size",
+            std::make_unique<StatsValueChangeListener>(stats, *this));
     getEPEngine().getDcpConnMap().updateMaxActiveSnoozingBackfills(
                                                         config.getMaxSize());
 
     stats.mem_low_wat.store(config.getMemLowWat());
-    config.addValueChangedListener("mem_low_wat",
-                                   new StatsValueChangeListener(stats, *this));
+    config.addValueChangedListener(
+            "mem_low_wat",
+            std::make_unique<StatsValueChangeListener>(stats, *this));
     stats.mem_low_wat_percent.store(
                 (double)(stats.mem_low_wat.load()) / stats.getMaxDataSize());
 
     stats.mem_high_wat.store(config.getMemHighWat());
-    config.addValueChangedListener("mem_high_wat",
-                                   new StatsValueChangeListener(stats, *this));
+    config.addValueChangedListener(
+            "mem_high_wat",
+            std::make_unique<StatsValueChangeListener>(stats, *this));
     stats.mem_high_wat_percent.store(
                 (double)(stats.mem_high_wat.load()) / stats.getMaxDataSize());
 
@@ -301,64 +305,78 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
     stats.replicationThrottleThreshold.store(static_cast<double>
                                     (config.getReplicationThrottleThreshold())
                                      / 100.0);
-    config.addValueChangedListener("replication_throttle_threshold",
-                                   new StatsValueChangeListener(stats, *this));
+    config.addValueChangedListener(
+            "replication_throttle_threshold",
+            std::make_unique<StatsValueChangeListener>(stats, *this));
 
     stats.replicationThrottleWriteQueueCap.store(
                                     config.getReplicationThrottleQueueCap());
-    config.addValueChangedListener("replication_throttle_queue_cap",
-                                   new EPStoreValueChangeListener(*this));
-    config.addValueChangedListener("replication_throttle_cap_pcnt",
-                                   new EPStoreValueChangeListener(*this));
+    config.addValueChangedListener(
+            "replication_throttle_queue_cap",
+            std::make_unique<EPStoreValueChangeListener>(*this));
+    config.addValueChangedListener(
+            "replication_throttle_cap_pcnt",
+            std::make_unique<EPStoreValueChangeListener>(*this));
 
     setBGFetchDelay(config.getBgFetchDelay());
-    config.addValueChangedListener("bg_fetch_delay",
-                                   new EPStoreValueChangeListener(*this));
+    config.addValueChangedListener(
+            "bg_fetch_delay",
+            std::make_unique<EPStoreValueChangeListener>(*this));
 
     stats.warmupMemUsedCap.store(static_cast<double>
                                (config.getWarmupMinMemoryThreshold()) / 100.0);
-    config.addValueChangedListener("warmup_min_memory_threshold",
-                                   new StatsValueChangeListener(stats, *this));
+    config.addValueChangedListener(
+            "warmup_min_memory_threshold",
+            std::make_unique<StatsValueChangeListener>(stats, *this));
     stats.warmupNumReadCap.store(static_cast<double>
                                 (config.getWarmupMinItemsThreshold()) / 100.0);
-    config.addValueChangedListener("warmup_min_items_threshold",
-                                   new StatsValueChangeListener(stats, *this));
+    config.addValueChangedListener(
+            "warmup_min_items_threshold",
+            std::make_unique<StatsValueChangeListener>(stats, *this));
 
     double mem_threshold = static_cast<double>
                                       (config.getMutationMemThreshold()) / 100;
     VBucket::setMutationMemoryThreshold(mem_threshold);
-    config.addValueChangedListener("mutation_mem_threshold",
-                                   new EPStoreValueChangeListener(*this));
+    config.addValueChangedListener(
+            "mutation_mem_threshold",
+            std::make_unique<EPStoreValueChangeListener>(*this));
 
     double backfill_threshold = static_cast<double>
                                       (config.getBackfillMemThreshold()) / 100;
     setBackfillMemoryThreshold(backfill_threshold);
-    config.addValueChangedListener("backfill_mem_threshold",
-                                   new EPStoreValueChangeListener(*this));
+    config.addValueChangedListener(
+            "backfill_mem_threshold",
+            std::make_unique<EPStoreValueChangeListener>(*this));
 
-    config.addValueChangedListener("bfilter_enabled",
-                                   new EPStoreValueChangeListener(*this));
+    config.addValueChangedListener(
+            "bfilter_enabled",
+            std::make_unique<EPStoreValueChangeListener>(*this));
 
     bfilterResidencyThreshold = config.getBfilterResidencyThreshold();
-    config.addValueChangedListener("bfilter_residency_threshold",
-                                   new EPStoreValueChangeListener(*this));
+    config.addValueChangedListener(
+            "bfilter_residency_threshold",
+            std::make_unique<EPStoreValueChangeListener>(*this));
 
     compactionExpMemThreshold = config.getCompactionExpMemThreshold();
-    config.addValueChangedListener("compaction_exp_mem_threshold",
-                                   new EPStoreValueChangeListener(*this));
+    config.addValueChangedListener(
+            "compaction_exp_mem_threshold",
+            std::make_unique<EPStoreValueChangeListener>(*this));
 
     compactionWriteQueueCap = config.getCompactionWriteQueueCap();
-    config.addValueChangedListener("compaction_write_queue_cap",
-                                   new EPStoreValueChangeListener(*this));
+    config.addValueChangedListener(
+            "compaction_write_queue_cap",
+            std::make_unique<EPStoreValueChangeListener>(*this));
 
-    config.addValueChangedListener("dcp_min_compression_ratio",
-                                   new EPStoreValueChangeListener(*this));
+    config.addValueChangedListener(
+            "dcp_min_compression_ratio",
+            std::make_unique<EPStoreValueChangeListener>(*this));
 
-    config.addValueChangedListener("xattr_enabled",
-                                   new EPStoreValueChangeListener(*this));
+    config.addValueChangedListener(
+            "xattr_enabled",
+            std::make_unique<EPStoreValueChangeListener>(*this));
 
-    config.addValueChangedListener("max_ttl",
-                                   new EPStoreValueChangeListener(*this));
+    config.addValueChangedListener(
+            "max_ttl", std::make_unique<EPStoreValueChangeListener>(*this));
 
     xattrEnabled = config.isXattrEnabled();
 
@@ -1796,12 +1814,15 @@ void KVBucket::warmupCompleted() {
         }
 
         Configuration &config = engine.getConfiguration();
-        config.addValueChangedListener("access_scanner_enabled",
-                                       new EPStoreValueChangeListener(*this));
-        config.addValueChangedListener("alog_sleep_time",
-                                       new EPStoreValueChangeListener(*this));
-        config.addValueChangedListener("alog_task_time",
-                                       new EPStoreValueChangeListener(*this));
+        config.addValueChangedListener(
+                "access_scanner_enabled",
+                std::make_unique<EPStoreValueChangeListener>(*this));
+        config.addValueChangedListener(
+                "alog_sleep_time",
+                std::make_unique<EPStoreValueChangeListener>(*this));
+        config.addValueChangedListener(
+                "alog_task_time",
+                std::make_unique<EPStoreValueChangeListener>(*this));
     }
 
     // "0" sleep_time means that the first snapshot task will be executed
@@ -2397,12 +2418,15 @@ void KVBucket::initializeExpiryPager(Configuration& config) {
 
     setExpiryPagerSleeptime(config.getExpPagerStime());
 
-    config.addValueChangedListener("exp_pager_stime",
-                                   new EPStoreValueChangeListener(*this));
-    config.addValueChangedListener("exp_pager_enabled",
-                                   new EPStoreValueChangeListener(*this));
-    config.addValueChangedListener("exp_pager_initial_run_time",
-                                   new EPStoreValueChangeListener(*this));
+    config.addValueChangedListener(
+            "exp_pager_stime",
+            std::make_unique<EPStoreValueChangeListener>(*this));
+    config.addValueChangedListener(
+            "exp_pager_enabled",
+            std::make_unique<EPStoreValueChangeListener>(*this));
+    config.addValueChangedListener(
+            "exp_pager_initial_run_time",
+            std::make_unique<EPStoreValueChangeListener>(*this));
 }
 
 cb::engine_error KVBucket::setCollections(cb::const_char_buffer json) {

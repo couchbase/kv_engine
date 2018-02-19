@@ -21,6 +21,7 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include <platform/make_unique.h>
 
 /* Like EXPECT_THROW except you can check the exception's `what()` */
 # define CB_EXPECT_THROW_MSG(EXPR, ETYPE, MSG) \
@@ -346,7 +347,7 @@ TEST(ChangeListenerTest, ChangeListenerSSizeRegression) {
     std::string key{"test_key"};
 
     // Create listeners
-    auto mvcl = new MockValueChangedListener;
+    auto mvcl = std::make_unique<MockValueChangedListener>();
     // set parameter once so entry in attributes is present to add a listener
     configuration.setParameter(key, (ssize_t)1);
 
@@ -354,7 +355,7 @@ TEST(ChangeListenerTest, ChangeListenerSSizeRegression) {
     EXPECT_CALL(*mvcl, sizeValueChanged(_, _)).Times(0);
 
     // add listeners
-    configuration.addValueChangedListener(key, mvcl);
+    configuration.addValueChangedListener(key, std::move(mvcl));
 
     // change parameters
     configuration.setParameter(key, (ssize_t)2);

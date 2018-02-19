@@ -145,11 +145,11 @@ void Configuration::addAlias(const std::string& key, const std::string& alias) {
     attributes[alias] = attributes[key];
 }
 
-void Configuration::addValueChangedListener(const std::string &key,
-                                            ValueChangedListener *val) {
+void Configuration::addValueChangedListener(
+        const std::string& key, std::unique_ptr<ValueChangedListener> val) {
     LockHolder lh(mutex);
     if (attributes.find(key) != attributes.end()) {
-        attributes[key]->changeListener.emplace_back(val);
+        attributes[key]->changeListener.emplace_back(std::move(val));
     }
 }
 

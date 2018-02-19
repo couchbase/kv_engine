@@ -95,21 +95,23 @@ void CheckpointConfig::addConfigChangeListener(
         EventuallyPersistentEngine& engine) {
     Configuration& configuration = engine.getConfiguration();
     configuration.addValueChangedListener(
-            "chk_period", new ChangeListener(engine.getCheckpointConfig()));
+            "chk_period",
+            std::make_unique<ChangeListener>(engine.getCheckpointConfig()));
     configuration.addValueChangedListener(
-            "chk_max_items", new ChangeListener(engine.getCheckpointConfig()));
+            "chk_max_items",
+            std::make_unique<ChangeListener>(engine.getCheckpointConfig()));
     configuration.addValueChangedListener(
             "max_checkpoints",
-            new ChangeListener(engine.getCheckpointConfig()));
+            std::make_unique<ChangeListener>(engine.getCheckpointConfig()));
     configuration.addValueChangedListener(
             "item_num_based_new_chk",
-            new ChangeListener(engine.getCheckpointConfig()));
+            std::make_unique<ChangeListener>(engine.getCheckpointConfig()));
     configuration.addValueChangedListener(
             "keep_closed_chks",
-            new ChangeListener(engine.getCheckpointConfig()));
+            std::make_unique<ChangeListener>(engine.getCheckpointConfig()));
     configuration.addValueChangedListener(
             "enable_chk_merge",
-            new ChangeListener(engine.getCheckpointConfig()));
+            std::make_unique<ChangeListener>(engine.getCheckpointConfig()));
 }
 
 bool CheckpointConfig::validateCheckpointMaxItemsParam(

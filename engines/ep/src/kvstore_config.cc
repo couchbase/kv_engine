@@ -17,6 +17,8 @@
 
 #include "kvstore_config.h"
 
+#include <platform/make_unique.h>
+
 /// A listener class to update KVStore related configs at runtime.
 class KVStoreConfig::ConfigChangeListener : public ValueChangedListener {
 public:
@@ -41,8 +43,9 @@ KVStoreConfig::KVStoreConfig(Configuration& config, uint16_t shardid)
                     shardid,
                     config.isCollectionsPrototypeEnabled()) {
     setPeriodicSyncBytes(config.getFsyncAfterEveryNBytesWritten());
-    config.addValueChangedListener("fsync_after_every_n_bytes_written",
-                                   new ConfigChangeListener(*this));
+    config.addValueChangedListener(
+            "fsync_after_every_n_bytes_written",
+            std::make_unique<ConfigChangeListener>(*this));
 }
 
 KVStoreConfig::KVStoreConfig(uint16_t _maxVBuckets,

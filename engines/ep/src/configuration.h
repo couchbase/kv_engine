@@ -245,17 +245,16 @@ public:
     void addStats(ADD_STAT add_stat, const void *c) const;
 
     /**
-     * Add a listener for changes for a key. The configuration class
-     * will release the memory for the ValueChangedListener by calling
-     * delete in it's destructor (so you have to allocate it by using
-     * new). There is no way to remove a ValueChangeListener.
+     * Add a listener for changes for a key. The configuration class takes
+     * ownership of the listener. There is no way to remove a
+     * ValueChangeListener.
      *
      * @param key the key to add the listener for
      * @param val the listener that will receive all of the callbacks
      *            when the value change.
      */
-    void addValueChangedListener(const std::string &key,
-                                 ValueChangedListener *val);
+    void addValueChangedListener(const std::string& key,
+                                 std::unique_ptr<ValueChangedListener> val);
 
     /**
      * Set a validator for a specific key. The configuration class

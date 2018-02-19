@@ -122,7 +122,8 @@ bool EphemeralBucket::initialize() {
         enableItemPager();
     }
     engine.getConfiguration().addValueChangedListener(
-            "ephemeral_full_policy", new EphemeralValueChangedListener(*this));
+            "ephemeral_full_policy",
+            std::make_unique<EphemeralValueChangedListener>(*this));
 
     // Tombstone purger - scheduled periodically as long as we have a
     // non-zero interval. Can be dynamically adjusted, so add config listeners.
@@ -130,10 +131,12 @@ bool EphemeralBucket::initialize() {
     if (interval > 0) {
         enableTombstonePurgerTask();
     }
-    config.addValueChangedListener("ephemeral_metadata_purge_age",
-                                   new EphemeralValueChangedListener(*this));
-    config.addValueChangedListener("ephemeral_metadata_purge_interval",
-                                   new EphemeralValueChangedListener(*this));
+    config.addValueChangedListener(
+            "ephemeral_metadata_purge_age",
+            std::make_unique<EphemeralValueChangedListener>(*this));
+    config.addValueChangedListener(
+            "ephemeral_metadata_purge_interval",
+            std::make_unique<EphemeralValueChangedListener>(*this));
 
     // High priority vbucket request notification task
     ExecutorPool::get()->schedule(notifyHpReqTask);

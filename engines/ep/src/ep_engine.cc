@@ -2012,20 +2012,23 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
 
 
     maxItemSize = configuration.getMaxItemSize();
-    configuration.addValueChangedListener("max_item_size",
-                                       new EpEngineValueChangeListener(*this));
+    configuration.addValueChangedListener(
+            "max_item_size",
+            std::make_unique<EpEngineValueChangeListener>(*this));
 
     maxItemPrivilegedBytes = configuration.getMaxItemPrivilegedBytes();
     configuration.addValueChangedListener(
             "max_item_privileged_bytes",
-            new EpEngineValueChangeListener(*this));
+            std::make_unique<EpEngineValueChangeListener>(*this));
 
     getlDefaultTimeout = configuration.getGetlDefaultTimeout();
-    configuration.addValueChangedListener("getl_default_timeout",
-                                       new EpEngineValueChangeListener(*this));
+    configuration.addValueChangedListener(
+            "getl_default_timeout",
+            std::make_unique<EpEngineValueChangeListener>(*this));
     getlMaxTimeout = configuration.getGetlMaxTimeout();
-    configuration.addValueChangedListener("getl_max_timeout",
-                                       new EpEngineValueChangeListener(*this));
+    configuration.addValueChangedListener(
+            "getl_max_timeout",
+            std::make_unique<EpEngineValueChangeListener>(*this));
 
     workload = new WorkLoadPolicy(configuration.getMaxNumWorkers(),
                                   configuration.getMaxNumShards());
@@ -2082,8 +2085,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
 
     setCompressionMode(configuration.getCompressionMode());
 
-    configuration.addValueChangedListener("compression_mode",
-                                          new EpEngineValueChangeListener(*this));
+    configuration.addValueChangedListener(
+            "compression_mode",
+            std::make_unique<EpEngineValueChangeListener>(*this));
 
     return ENGINE_SUCCESS;
 }

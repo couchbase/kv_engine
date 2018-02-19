@@ -198,8 +198,9 @@ EPBucket::EPBucket(EventuallyPersistentEngine& theEngine)
             engine.getConfiguration(), stats);
 
     flusherBatchSplitTrigger = config.getFlusherBatchSplitTrigger();
-    config.addValueChangedListener("flusher_batch_split_trigger",
-                                   new ValueChangedListener(*this));
+    config.addValueChangedListener(
+            "flusher_batch_split_trigger",
+            std::make_unique<ValueChangedListener>(*this));
 }
 
 bool EPBucket::initialize() {

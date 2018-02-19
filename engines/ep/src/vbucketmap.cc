@@ -32,10 +32,12 @@ VBucketMap::VBucketMap(Configuration& config, KVBucket& store)
         shards.push_back(std::make_unique<KVShard>(shardId, store));
     }
 
-    config.addValueChangedListener("hlc_drift_ahead_threshold_us",
-                                    new VBucketConfigChangeListener(*this));
-    config.addValueChangedListener("hlc_drift_behind_threshold_us",
-                                    new VBucketConfigChangeListener(*this));
+    config.addValueChangedListener(
+            "hlc_drift_ahead_threshold_us",
+            std::make_unique<VBucketConfigChangeListener>(*this));
+    config.addValueChangedListener(
+            "hlc_drift_behind_threshold_us",
+            std::make_unique<VBucketConfigChangeListener>(*this));
 }
 
 VBucketPtr VBucketMap::getBucket(id_type id) const {
