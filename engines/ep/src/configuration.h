@@ -252,6 +252,7 @@ public:
      * @param key the key to add the listener for
      * @param val the listener that will receive all of the callbacks
      *            when the value change.
+     * @throw invalid_argument if the specified key isn't a valid config key.
      */
     void addValueChangedListener(const std::string& key,
                                  std::unique_ptr<ValueChangedListener> val);

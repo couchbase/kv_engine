@@ -150,9 +150,12 @@ void Configuration::addAlias(const std::string& key, const std::string& alias) {
 void Configuration::addValueChangedListener(
         const std::string& key, std::unique_ptr<ValueChangedListener> val) {
     LockHolder lh(mutex);
-    if (attributes.find(key) != attributes.end()) {
-        attributes[key]->changeListener.emplace_back(std::move(val));
+    if (attributes.find(key) == attributes.end()) {
+        throw std::invalid_argument(
+                "Configuration::addValueChangedListener: No such config key '" +
+                key + "'");
     }
+    attributes[key]->changeListener.emplace_back(std::move(val));
 }
 
 ValueChangedValidator *Configuration::setValueValidator(const std::string &key,
