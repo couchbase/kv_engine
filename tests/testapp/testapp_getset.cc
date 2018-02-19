@@ -26,7 +26,28 @@ protected:
     void SetUp() override {
         TestappXattrClientTest::SetUp();
     }
+
+    void verifyData(MemcachedConnection& conn, int successCount,
+                    int numOps, cb::mcbp::Datatype expectedDatatype,
+                    std::string expectedValue);
 };
+
+void GetSetTest::verifyData(MemcachedConnection& conn,
+                            int successCount,
+                            int numOps,
+                            cb::mcbp::Datatype expectedDatatype,
+                            std::string expectedValue) {
+    const auto stored = conn.get(name, 0);
+    EXPECT_EQ(successCount + statResps() + numOps + 1,
+              getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
+
+    EXPECT_TRUE(hasCorrectDatatype(stored, expectedDatatype));
+    EXPECT_EQ(document.info.flags, stored.info.flags);
+    EXPECT_EQ(document.info.id, stored.info.id);
+
+    ASSERT_EQ(expectedValue.size(), stored.value.size());
+    EXPECT_EQ(expectedValue, stored.value);
+}
 
 INSTANTIATE_TEST_CASE_P(
         TransportProtocols,
@@ -498,6 +519,22 @@ TEST_P(GetSetTest, TestCompressedData) {
     EXPECT_EQ(expected, stored.value);
 }
 
+TEST_P(GetSetTest, TestCompressedJSON) {
+    MemcachedConnection& conn = getConnection();
+    document.info.datatype = cb::mcbp::Datatype::Snappy;
+
+    std::string valueData{R"({"aaaaaaaaa":10000000000})"};
+
+    std::vector<char> input(valueData.begin(), valueData.end());
+    compress_vector(input, document.value);
+
+    int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    conn.mutate(document, 0, MutationType::Set);
+
+    verifyData(conn, successCount, 1, expectedJSONDatatype(),
+               valueData);
+}
+
 TEST_P(GetSetTest, TestCompressedDataInPassiveMode) {
     MemcachedConnection& conn = getConnection();
     document.info.datatype = cb::mcbp::Datatype::Snappy;
@@ -523,6 +560,30 @@ TEST_P(GetSetTest, TestCompressedDataInPassiveMode) {
     EXPECT_EQ(document.value, stored.value);
 }
 
+TEST_P(GetSetTest, TestCompressedJSONInPassiveMode) {
+    MemcachedConnection& conn = getConnection();
+    document.info.datatype = cb::mcbp::Datatype::Snappy;
+
+    setCompressionMode("passive");
+
+    std::string valueData{R"({"aaaaaaaaa":10000000000})"};
+
+    std::vector<char> input(valueData.begin(), valueData.end());
+    compress_vector(input, document.value);
+
+    auto expectedDatatype = cb::mcbp::Datatype::Snappy;
+    if (hasJSONSupport() == ClientJSONSupport::Yes) {
+        expectedDatatype = static_cast<cb::mcbp::Datatype>(
+                               static_cast<uint8_t>(expectedDatatype) |
+                               static_cast<uint8_t>(cb::mcbp::Datatype::JSON));
+    }
+
+    int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    conn.mutate(document, 0, MutationType::Set);
+
+    verifyData(conn, successCount, 1, expectedDatatype, document.value);
+}
+
 TEST_P(GetSetTest, TestCompressedDataInActiveMode) {
     MemcachedConnection& conn = getConnection();
     document.info.datatype = cb::mcbp::Datatype::Snappy;
@@ -540,12 +601,37 @@ TEST_P(GetSetTest, TestCompressedDataInActiveMode) {
 
     EXPECT_EQ(successCount + statResps() + 2,
               getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
+
     EXPECT_EQ(cb::mcbp::Datatype::Snappy, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
 
     ASSERT_EQ(document.value.size(), stored.value.size());
     EXPECT_EQ(document.value, stored.value);
+}
+
+TEST_P(GetSetTest, TestCompressedJSONInActiveMode) {
+    MemcachedConnection& conn = getConnection();
+    document.info.datatype = cb::mcbp::Datatype::Snappy;
+
+    setCompressionMode("active");
+
+    std::string valueData{R"({"aaaaaaaaa":10000000000})"};
+
+    std::vector<char> input(valueData.begin(), valueData.end());
+    compress_vector(input, document.value);
+
+    int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    conn.mutate(document, 0, MutationType::Set);
+
+    auto expectedDatatype = cb::mcbp::Datatype::Snappy;
+    if (hasJSONSupport() == ClientJSONSupport::Yes) {
+        expectedDatatype = static_cast<cb::mcbp::Datatype>(
+                               static_cast<uint8_t>(expectedDatatype) |
+                               static_cast<uint8_t>(cb::mcbp::Datatype::JSON));
+    }
+
+    verifyData(conn, successCount, 1, expectedDatatype, document.value);
 }
 
 TEST_P(GetSetTest, TestInvalidCompressedData) {

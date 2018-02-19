@@ -99,38 +99,36 @@ ENGINE_ERROR_CODE MutationCommandContext::validateInput() {
         return ENGINE_EINVAL;
     }
 
-    // Determine if document is JSON or not. We do not trust what the client
-    // sent - instead we check for ourselves.
-    try {
-        setDatatypeJSONFromValue(value, datatype);
-    } catch (const std::bad_alloc&) {
-        return ENGINE_ENOMEM;
-    }
-
     /**
      * If snappy datatype is enabled and if the datatype is SNAPPY,
      * validate to data to ensure that it is compressed using SNAPPY
      */
-    if (mcbp::datatype::is_snappy(datatype)) {
-        cb::const_char_buffer value_buf{reinterpret_cast<const char*>(value.buf),
-                                        value.len};
+    try {
+        if (mcbp::datatype::is_snappy(datatype)) {
+            cb::const_char_buffer value_buf{reinterpret_cast<const char*>(value.buf),
+                                            value.len};
 
-        const auto mode = bucket_get_compression_mode(cookie);
-        if (mode == BucketCompressionMode::Off) {
             if (!cb::compression::inflate(cb::compression::Algorithm::Snappy,
                                           value_buf,
                                           input_buffer)) {
                 return ENGINE_EINVAL;
             }
-            value.buf = reinterpret_cast<const uint8_t*>(input_buffer.data());
-            value.len = input_buffer.size();
-            datatype &= ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
-        } else {
-            if (!cb::compression::validate(cb::compression::Algorithm::Snappy,
-                                           value_buf)) {
-                return ENGINE_EINVAL;
+
+            setDatatypeJSONFromValue(input_buffer, datatype);
+
+            const auto mode = bucket_get_compression_mode(cookie);
+            if (mode == BucketCompressionMode::Off) {
+                value.buf = reinterpret_cast<const uint8_t*>(input_buffer.data());
+                value.len = input_buffer.size();
+                datatype &= ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
             }
+        } else {
+            // Determine if document is JSON or not. We do not trust what the client
+            // sent - instead we check for ourselves.
+            setDatatypeJSONFromValue(value, datatype);
         }
+    } catch (const std::bad_alloc&) {
+        return ENGINE_ENOMEM;
     }
 
     state = State::AllocateNewItem;
