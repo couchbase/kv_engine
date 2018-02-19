@@ -119,21 +119,31 @@ BENCHMARK_DEFINE_F(MemoryAllocationStat, AllocNReadPreciseM)
     }
 }
 
-// Test covers a range seen from a running cluster (with pillowfight load)
-// The range was discovered by counting calls to memAllocated/deallocated and
-// then logging how many had occurred for each read
-// (getEstimatedTotalMemoryUsed)
+// Tests cover a rough, but realistic range seen from a running cluster (with
+// pillowfight load). The range was discovered by counting calls to
+// memAllocated/deallocated and then logging how many had occurred for each
+// getEstimatedTotalMemoryUsed. A previous version of this file used the Range
+// API and can be used if this test is being used to perform deeper analysis of
+// this code.
 BENCHMARK_REGISTER_F(MemoryAllocationStat, AllocNRead1)
         ->Threads(cb::get_cpu_count() * 4)
-        ->RangeMultiplier(2)
-        ->Range(0, 4000);
+        ->Args({0})
+        ->Args({200})
+        ->Args({1000});
 
 BENCHMARK_REGISTER_F(MemoryAllocationStat, AllocNReadM)
         ->Threads(cb::get_cpu_count() * 4)
-        ->RangeMultiplier(2)
-        ->Ranges({{0, 4000}, {128, 4000}});
+        ->Args({0, 10})
+        ->Args({200, 10})
+        ->Args({1000, 10})
+        ->Args({0, 1000})
+        ->Args({200, 200})
+        ->Args({1000, 10});
 
 BENCHMARK_REGISTER_F(MemoryAllocationStat, AllocNReadPreciseM)
         ->Threads(cb::get_cpu_count() * 4)
-        ->RangeMultiplier(2)
-        ->Ranges({{0, 4000}, {128, 4000}});
+        // This benchmark is configured to run 'alloc heavy'. The getPrecise
+        // function is only used by getStats, which is infrequent relative to
+        // memory alloc/dealloc
+        ->Args({1000, 10})
+        ->Args({100000, 10});
