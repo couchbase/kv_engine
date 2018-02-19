@@ -21,7 +21,7 @@
 
 #include <hdr_histogram.h>
 
-ItemEviction::ItemEviction() {
+ItemEviction::ItemEviction() : requiredToUpdateInterval(learningPopulation) {
     struct hdr_histogram* hist;
     hdr_init(minFreqValue,
              maxFreqValue,

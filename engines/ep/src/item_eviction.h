@@ -91,10 +91,20 @@ public:
         return (getFreqHistogramValueCount() % requiredToUpdateInterval == 0);
     }
 
+    // StatCounter: Update the requiredToUpdateInterval
+    void setUpdateInterval(uint64_t interval) {
+        requiredToUpdateInterval = interval;
+    }
+
     // The initial frequency count that items should be set to when first
     // added to the hash table.  It is not 0, as we want to ensure that we
     // do not immediately evict items that we have just added.
     static const uint8_t initialFreqCount = 5;
+
+    // StatCounter: The number of frequencies that need to be added to the
+    // frequency histogram before it is not necessary to recalculate the
+    // threshold every time we visit an item in the hash table.
+    static const uint64_t learningPopulation = 100;
 
 private:
     // unique_ptr to a hdr_histogram structure, used to record a
@@ -112,12 +122,7 @@ private:
     const uint16_t maxFreqValue = std::numeric_limits<uint8_t>::max() + 1;
 
     // StatCounter: The number of frequencies that need to be added to the
-    // frequency histogram before it is not necessary to recalculate the
-    // threshold every time we visit an item in the hash table.
-    const uint64_t learningPopulation = 100;
-
-    // StatCounter: The number of frequencies that need to be added to the
     // frequency histogram before it is necessary to update the frequency
     // threshold.
-    const uint64_t requiredToUpdateInterval = 100;
+    uint64_t requiredToUpdateInterval;
 };

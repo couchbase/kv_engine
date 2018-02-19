@@ -199,6 +199,18 @@ public:
 
                 if (currentBucket->ht.getEvictionPolicy() ==
                     HashTable::EvictionPolicy::statisticalCounter) {
+                    // Percent of items in the hash table to be visited
+                    // between updating the interval.
+                    const double percentOfItems = 0.1;
+                    // Calculate the number of items to visit before updating
+                    // the interval
+                    uint64_t noOfItems = std::ceil(vb->getNumItems() *
+                                                   (percentOfItems * 0.01));
+                    uint64_t interval =
+                            (noOfItems > ItemEviction::learningPopulation)
+                                    ? noOfItems
+                                    : ItemEviction::learningPopulation;
+                    itemEviction.setUpdateInterval(interval);
                     /*
                      * We now need to set the "percent" variable that is used
                      * when selecting the percentile of the frequency
