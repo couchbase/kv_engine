@@ -932,6 +932,11 @@
             "descr": "RocksDB write rate limit (in Bytes/Sec). Use to control write rate of flush and compaction. A value of 0 sets to the default (no limit).",
             "type": "size_t"
         },
+        "rocksdb_uc_max_size_amplification_percent": {
+            "default": "200",
+            "descr": "RocksDB Universal-Compaction 'max_size_amplification_percent' option. The default value is the RocksDB internal default (200).",
+            "type": "size_t"
+        },
         "time_synchronization": {
             "default": "disabled",
             "descr": "No longer supported. This config parameter has no effect.",

@@ -1149,6 +1149,16 @@ void RocksDBKVStore::applyUserCFOptions(rocksdb::ColumnFamilyOptions& cfOptions,
     // Set the new BlockBasedTableOptions
     cfOptions.table_factory.reset(
             rocksdb::NewBlockBasedTableFactory(tableOptions));
+
+    // Set the user-provided size amplification factor if under Universal
+    // Compaction
+    if (cfOptions.compaction_style ==
+        rocksdb::CompactionStyle::kCompactionStyleUniversal) {
+        auto& configuration =
+                dynamic_cast<RocksDBKVStoreConfig&>(this->configuration);
+        cfOptions.compaction_options_universal.max_size_amplification_percent =
+                configuration.getUCMaxSizeAmplificationPercent();
+    }
 }
 
 rocksdb::Status RocksDBKVStore::writeAndTimeBatch(rocksdb::WriteBatch batch) {

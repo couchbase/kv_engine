@@ -43,6 +43,8 @@ RocksDBKVStoreConfig::RocksDBKVStoreConfig(Configuration& config,
             config.getRocksdbDefaultCfOptimizeCompaction();
     seqnoCfOptimizeCompaction = config.getRocksdbSeqnoCfOptimizeCompaction();
     writeRateLimit = config.getRocksdbWriteRateLimit();
+    ucMaxSizeAmplificationPercent =
+            config.getRocksdbUcMaxSizeAmplificationPercent();
 }
 
 std::shared_ptr<rocksdb::RateLimiter>

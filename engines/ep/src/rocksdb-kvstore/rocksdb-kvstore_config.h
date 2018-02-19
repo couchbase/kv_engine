@@ -97,6 +97,11 @@ public:
         return writeRateLimit;
     }
 
+    // Return the Universal Compaction size amplification constraint.
+    size_t getUCMaxSizeAmplificationPercent() {
+        return ucMaxSizeAmplificationPercent;
+    }
+
     // Creates a RateLimiter object, which is shared across all the RocksDB
     // instances in the environment to control the IO rate of Flush and
     // Compaction tasks.
@@ -147,4 +152,17 @@ private:
     // Write rate limit. Use to control write rate of flush and
     // compaction.
     size_t writeRateLimit = 0;
+
+    // Universal Compaction specific option. From RocksDB docs:
+    // "The size amplification is defined as the amount (in percentage) of
+    // additional storage needed to store a single byte of data in the database.
+    // For example, a size amplification of 2% means that a database that
+    // contains 100 bytes of user-data may occupy upto 102 bytes of
+    // physical storage. By this definition, a fully compacted database has
+    // a size amplification of 0%.
+    // Default: 200, which means that a 100 byte database could require upto
+    // 300 bytes of storage."
+    // Essentially we can use this parameter to relax/narrow the size
+    // amplification constraint under Universal Compaction.
+    size_t ucMaxSizeAmplificationPercent = 200;
 };
