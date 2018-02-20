@@ -395,7 +395,7 @@
             "type": "size_t"
         },
         "ht_eviction_policy": {
-            "default": "2-bit_lru",
+            "default": "statistical_counter",
             "descr": "The eviction policy for the hash table",
             "type": "std::string",
             "validator": {
