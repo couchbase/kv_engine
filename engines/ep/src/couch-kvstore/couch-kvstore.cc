@@ -2787,7 +2787,7 @@ std::string CouchKVStore::getCollectionsManifest(uint16_t vbid) {
     DbHolder db(*this);
 
     // openDB logs error details
-    couchstore_error_t errCode = openDB(vbid, db, COUCHSTORE_OPEN_FLAG_CREATE);
+    couchstore_error_t errCode = openDB(vbid, db, COUCHSTORE_OPEN_FLAG_RDONLY);
     if (errCode != COUCHSTORE_SUCCESS) {
         return {};
     }
