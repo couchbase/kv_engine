@@ -154,17 +154,7 @@ public:
 
     void visitBucket(VBucketPtr &vb) override {
         update();
-
-        bool newCheckpointCreated = false;
-        size_t removed = vb->checkpointManager->removeClosedUnrefCheckpoints(
-                *vb, newCheckpointCreated);
-        stats.itemsRemovedFromCheckpoints.fetch_add(removed);
-        // If the new checkpoint is created, notify this event to the
-        // corresponding paused DCP connections.
-        if (newCheckpointCreated) {
-            store.getEPEngine().getDcpConnMap().notifyVBConnections(
-                    vb->getId(), vb->checkpointManager->getHighSeqno());
-        }
+        removeClosedUnrefCheckpoints(vb);
 
         // fast path for expiry item pager
         if (percent <= 0 || !pager_phase) {
@@ -224,6 +214,11 @@ public:
                     adjustPercent(evictionPercent, vb->getState());
                 }
                 vb->ht.visit(*this);
+                // We have just evicted all eligible items from the hash table
+                // so we now want to reclaim the memory being used to hold
+                // closed and unreferenced checkpoints in the vbucket, before
+                // potentially moving to the next vbucket.
+                removeClosedUnrefCheckpoints(vb);
             }
 
         } else { // stop eviction whenever memory usage is below low watermark
@@ -319,6 +314,23 @@ public:
     size_t numEjected() { return ejected; }
 
 private:
+
+    // Removes checkpoints that are both closed and unreferenced, thereby
+    // freeing the associated memory.
+    // @param vb  The vbucket whose eligible checkpoints are removed from.
+    void removeClosedUnrefCheckpoints(VBucketPtr &vb) {
+        bool newCheckpointCreated = false;
+        size_t removed = vb->checkpointManager->removeClosedUnrefCheckpoints(
+                *vb, newCheckpointCreated);
+        stats.itemsRemovedFromCheckpoints.fetch_add(removed);
+        // If the new checkpoint is created, notify this event to the
+        // corresponding paused DCP connections.
+        if (newCheckpointCreated) {
+            store.getEPEngine().getDcpConnMap().notifyVBConnections(
+                    vb->getId(), vb->checkpointManager->getHighSeqno());
+        }
+    }
+
     void adjustPercent(double prob, vbucket_state_t state) {
         if (state == vbucket_state_replica ||
             state == vbucket_state_dead)
