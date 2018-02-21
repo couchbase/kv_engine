@@ -580,12 +580,12 @@ public:
     /**
      * Get an item from the kv store.
      */
-    virtual GetValue get(const DocKey& key,
+    virtual GetValue get(const StoredDocKey& key,
                          uint16_t vb,
                          bool fetchDelete = false) = 0;
 
     virtual GetValue getWithHeader(void* dbHandle,
-                                   const DocKey& key,
+                                   const StoredDocKey& key,
                                    uint16_t vb,
                                    GetMetaOnly getMetaOnly,
                                    bool fetchDelete = false) = 0;

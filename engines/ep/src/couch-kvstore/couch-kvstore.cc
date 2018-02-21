@@ -418,7 +418,9 @@ void CouchKVStore::set(const Item& itm,
     pendingReqsQ.push_back(req);
 }
 
-GetValue CouchKVStore::get(const DocKey& key, uint16_t vb, bool fetchDelete) {
+GetValue CouchKVStore::get(const StoredDocKey& key,
+                           uint16_t vb,
+                           bool fetchDelete) {
     DbHolder db(*this);
     couchstore_error_t errCode = openDB(vb, db, COUCHSTORE_OPEN_FLAG_RDONLY);
     if (errCode != COUCHSTORE_SUCCESS) {
@@ -434,7 +436,7 @@ GetValue CouchKVStore::get(const DocKey& key, uint16_t vb, bool fetchDelete) {
 }
 
 GetValue CouchKVStore::getWithHeader(void* dbHandle,
-                                     const DocKey& key,
+                                     const StoredDocKey& key,
                                      uint16_t vb,
                                      GetMetaOnly getMetaOnly,
                                      bool fetchDelete) {
@@ -444,8 +446,15 @@ GetValue CouchKVStore::getWithHeader(void* dbHandle,
     sized_buf id;
     GetValue rv;
 
-    id.size = key.size();
-    id.buf = const_cast<char*>(reinterpret_cast<const char*>(key.data()));
+    if (configuration.shouldPersistDocNamespace()) {
+        id = {const_cast<char*>(reinterpret_cast<const char*>(
+                      key.getDocNameSpacedData())),
+              key.getDocNameSpacedSize()};
+
+    } else {
+        id = {const_cast<char*>(reinterpret_cast<const char*>(key.data())),
+              key.size()};
+    }
 
     couchstore_error_t errCode = couchstore_docinfo_by_id(db, (uint8_t *)id.buf,
                                                           id.size, &docInfo);

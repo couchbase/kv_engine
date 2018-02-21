@@ -32,10 +32,12 @@
 #include "tests/mock/mock_dcp_consumer.h"
 #include "tests/module_tests/test_helpers.h"
 
-class RollbackTest : public EPBucketTest,
-                     public ::testing::WithParamInterface<
-                             std::tuple<std::string, std::string>> {
+class RollbackTest
+        : public EPBucketTest,
+          public ::testing::WithParamInterface<
+                  std::tuple<std::string, std::string, std::string>> {
     void SetUp() override {
+        config_string += std::get<2>(GetParam());
         EPBucketTest::SetUp();
         if (std::get<1>(GetParam()) == "pending") {
             vbStateAtRollback = vbucket_state_pending;
@@ -366,9 +368,10 @@ TEST_P(RollbackTest, RollbackOnActive) {
     EXPECT_EQ(TaskStatus::Abort, store->rollback(vbid, 0 /*rollbackReqSeqno*/));
 }
 
-class RollbackDcpTest : public SingleThreadedEPBucketTest,
-                        public ::testing::WithParamInterface<
-                                std::tuple<std::string, std::string>> {
+class RollbackDcpTest
+        : public SingleThreadedEPBucketTest,
+          public ::testing::WithParamInterface<
+                  std::tuple<std::string, std::string, std::string>> {
 public:
     RollbackDcpTest()
         : cookie(create_mock_cookie()),
@@ -376,6 +379,7 @@ public:
     }
 
     void SetUp() override {
+        config_string += std::get<2>(GetParam());
         SingleThreadedEPBucketTest::SetUp();
         if (std::get<1>(GetParam()) == "pending") {
             vbStateAtRollback = vbucket_state_pending;
@@ -751,10 +755,26 @@ TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
 }
 
 static auto allConfigValues = ::testing::Values(
-        std::make_tuple(std::string("value_only"), std::string("replica")),
-        std::make_tuple(std::string("full_eviction"), std::string("replica")),
-        std::make_tuple(std::string("value_only"), std::string("pending")),
-        std::make_tuple(std::string("full_eviction"), std::string("pending")));
+        std::make_tuple(std::string("value_only"),
+                        std::string("replica"),
+                        std::string()),
+        std::make_tuple(std::string("full_eviction"),
+                        std::string("replica"),
+                        std::string()),
+        std::make_tuple(std::string("value_only"),
+                        std::string("pending"),
+                        std::string()),
+        std::make_tuple(std::string("full_eviction"),
+                        std::string("pending"),
+                        std::string()),
+        // Add a couple of extra collection enabled tests to cover the basic
+        // rollback
+        std::make_tuple(std::string("value_only"),
+                        std::string("replica"),
+                        std::string("collections_prototype_enabled=true")),
+        std::make_tuple(std::string("full_eviction"),
+                        std::string("replica"),
+                        std::string("collections_prototype_enabled=true")));
 
 // Test cases which run in both Full and Value eviction on replica and pending
 // vbucket states

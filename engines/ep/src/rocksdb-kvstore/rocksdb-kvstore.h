@@ -167,12 +167,12 @@ public:
     /**
      * Overrides get().
      */
-    GetValue get(const DocKey& key,
+    GetValue get(const StoredDocKey& key,
                  uint16_t vb,
                  bool fetchDelete = false) override;
 
     GetValue getWithHeader(void* dbHandle,
-                           const DocKey& key,
+                           const StoredDocKey& key,
                            uint16_t vb,
                            GetMetaOnly getMetaOnly,
                            bool fetchDelete = false) override;

@@ -582,12 +582,14 @@ void RocksDBKVStore::set(const Item& item,
     pendingReqs.push_back(std::make_unique<RocksRequest>(item, callback));
 }
 
-GetValue RocksDBKVStore::get(const DocKey& key, uint16_t vb, bool fetchDelete) {
+GetValue RocksDBKVStore::get(const StoredDocKey& key,
+                             uint16_t vb,
+                             bool fetchDelete) {
     return getWithHeader(nullptr, key, vb, GetMetaOnly::No, fetchDelete);
 }
 
 GetValue RocksDBKVStore::getWithHeader(void* dbHandle,
-                                       const DocKey& key,
+                                       const StoredDocKey& key,
                                        uint16_t vb,
                                        GetMetaOnly getMetaOnly,
                                        bool fetchDelete) {
