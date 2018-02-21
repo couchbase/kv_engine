@@ -71,13 +71,12 @@ public:
     // Returns the number of values added to the frequency histogram.
     uint64_t getFreqHistogramValueCount() const;
 
-    // Clears the frequency histogram and set the percentage threshold to
-    // zero.
+    // Clears the frequency histogram.
     void reset();
 
     // StatCounter: Returns the value held in the frequency histogram at the
     // percentile defined by the input parameter percentage.
-    uint16_t getFreqThreshold(uint8_t percentage) const;
+    uint16_t getFreqThreshold(double percentage) const;
 
     // StatCounter: Return true if learning what the frequency counter
     // threshold should be for eviction, else return false.
@@ -115,11 +114,11 @@ private:
     HdrHistogramUniquePtr freqHistogram;
 
     //  The minimum value that can be added to the frequency histogram
-    const uint16_t minFreqValue = 1; // hdr_histogram cannot take 0
+    const int64_t minFreqValue = 1; // hdr_histogram cannot take 0
     // The maximum value that can be added to the frequency histogram
     // Because we cannot store 0 we have to offset by 1 so we have a maximum
     // of 256, instead of 255.
-    const uint16_t maxFreqValue = std::numeric_limits<uint8_t>::max() + 1;
+    const int64_t maxFreqValue = std::numeric_limits<uint8_t>::max() + 1;
 
     // StatCounter: The number of frequencies that need to be added to the
     // frequency histogram before it is necessary to update the frequency

@@ -49,5 +49,5 @@ TEST(ItemEvictionClassTest, freqThreshold) {
         itemEv.addValueToFreqHistogram(ii);
     }
     ASSERT_EQ(256, itemEv.getFreqHistogramValueCount());
-    EXPECT_EQ(128, itemEv.getFreqThreshold(50));
+    EXPECT_EQ(128, itemEv.getFreqThreshold(50.0));
 }

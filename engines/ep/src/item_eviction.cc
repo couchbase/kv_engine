@@ -33,7 +33,7 @@ ItemEviction::ItemEviction() : requiredToUpdateInterval(learningPopulation) {
 void ItemEviction::addValueToFreqHistogram(uint8_t v) {
     //  A hdr_histogram cannot store 0.  Therefore we add one so the
     // range moves from 0 -> 255 to 1 -> 256.
-    uint16_t vBiased = v + 1;
+    int64_t vBiased = v + 1;
     hdr_record_value(freqHistogram.get(), vBiased);
 }
 
@@ -45,6 +45,6 @@ void ItemEviction::reset() {
     hdr_reset(freqHistogram.get());
 }
 
-uint16_t ItemEviction::getFreqThreshold(uint8_t percentage) const {
+uint16_t ItemEviction::getFreqThreshold(double percentage) const {
     return hdr_value_at_percentile(freqHistogram.get(), percentage);
 }

@@ -149,7 +149,7 @@ public:
             if (itemEviction.isLearning() ||
                 itemEviction.isRequiredToUpdate()) {
                 freqCounterThreshold =
-                        itemEviction.getFreqThreshold(std::ceil(percent * 100));
+                        itemEviction.getFreqThreshold(percent * 100.0);
             }
 
             if (v.getFreqCounterValue() <= freqCounterThreshold) {
