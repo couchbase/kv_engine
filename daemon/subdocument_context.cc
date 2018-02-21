@@ -312,10 +312,9 @@ protocol_binary_response_status SubdocCmdContext::get_document_for_searching(
         LOG_WARNING("{}: Failed to get item info", c.getId());
         return PROTOCOL_BINARY_RESPONSE_EINTERNAL;
     }
-
-    if (info.cas == -1ull) {
+    if (info.cas == LOCKED_CAS) {
         // Check that item is not locked:
-        if (client_cas == 0 || client_cas == -1ull) {
+        if (client_cas == 0 || client_cas == LOCKED_CAS) {
             if (c.remapErrorCode(ENGINE_LOCKED_TMPFAIL) ==
                 ENGINE_LOCKED_TMPFAIL) {
                 return PROTOCOL_BINARY_RESPONSE_LOCKED;

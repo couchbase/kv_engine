@@ -490,7 +490,7 @@ class SystemEventConsumerMessage : public SystemEventMessage {
 public:
     SystemEventConsumerMessage(uint32_t opaque,
                                mcbp::systemevent::id ev,
-                               uint64_t seqno,
+                               int64_t seqno,
                                uint16_t vbucket,
                                cb::const_byte_buffer _key,
                                cb::const_byte_buffer _eventData)

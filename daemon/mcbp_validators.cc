@@ -297,9 +297,9 @@ static protocol_binary_response_status dcp_system_event_validator(
     // keylen + bodylen > ??
     auto req = static_cast<protocol_binary_request_dcp_system_event*>(
             cookie.getPacketAsVoidPtr());
-    auto bodylen = ntohl(req->message.header.request.bodylen);
-    auto keylen = ntohs(req->message.header.request.keylen);
-    auto extlen = req->message.header.request.extlen;
+    long bodylen = ntohl(req->message.header.request.bodylen);
+    short keylen = ntohs(req->message.header.request.keylen);
+    int extlen = req->message.header.request.extlen;
 
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         extlen != protocol_binary_request_dcp_system_event::getExtrasLength() ||

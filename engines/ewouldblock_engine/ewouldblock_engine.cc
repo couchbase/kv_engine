@@ -2044,7 +2044,7 @@ ENGINE_ERROR_CODE EWB_Engine::setItemCas(const void *cookie,
                                          ADD_RESPONSE response) {
     uint64_t cas64 = cas;
     if (cas == static_cast<uint32_t>(-1)) {
-        cas64 = -1ull;
+        cas64 = LOCKED_CAS;
     }
 
     auto rv = real_engine->get(real_handle,

@@ -42,6 +42,11 @@ typedef enum {
 typedef void item;
 
 /**
+ * Constant value representing the masked CAS we return if an item is under lock
+ */
+static constexpr uint64_t LOCKED_CAS = std::numeric_limits<uint64_t>::max();
+
+/**
  * The legal state a document may be in (from the cores perspective)
  */
 enum class DocumentState : uint8_t {
