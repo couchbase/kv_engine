@@ -73,9 +73,6 @@
 // away ;)
 typedef void (*UNLOCK_COOKIE_T)(const void *cookie);
 
-#define MULTI_DISPATCHER_CONFIG \
-    "ht_size=129;ht_locks=3;chk_remover_stime=1;chk_period=60"
-
 class ThreadData {
 public:
     ThreadData(ENGINE_HANDLE *eh, ENGINE_HANDLE_V1 *ehv1,
@@ -7686,35 +7683,6 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup, teardown, NULL, prepare_ep_bucket, cleanup, true),
         TestCase("disk>RAM delete bgfetch race", test_disk_gt_ram_rm_race,
                  test_setup, teardown, NULL, prepare_ep_bucket, cleanup, true),
-        // disk>RAM tests with WAL
-        TestCase("disk>RAM golden path (wal)",
-                 test_disk_gt_ram_golden,
-                 test_setup,
-                 teardown,
-                 MULTI_DISPATCHER_CONFIG,
-                 prepare_ep_bucket,
-                 cleanup),
-        TestCase("disk>RAM paged-out rm (wal)",
-                 test_disk_gt_ram_paged_rm,
-                 test_setup,
-                 teardown,
-                 MULTI_DISPATCHER_CONFIG,
-                 prepare_ep_bucket,
-                 cleanup),
-        TestCase("disk>RAM update paged-out (wal)",
-                 test_disk_gt_ram_update_paged_out,
-                 test_setup,
-                 teardown,
-                 MULTI_DISPATCHER_CONFIG,
-                 prepare_ep_bucket,
-                 cleanup),
-        TestCase("disk>RAM delete paged-out (wal)",
-                 test_disk_gt_ram_delete_paged_out,
-                 test_setup,
-                 teardown,
-                 MULTI_DISPATCHER_CONFIG,
-                 prepare_ep_bucket,
-                 cleanup),
 
         // vbucket negative tests
         TestCase("vbucket get (dead)", test_wrong_vb_get,
