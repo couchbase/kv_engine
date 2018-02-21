@@ -20,6 +20,7 @@
 #include <logger/logger.h>
 #include <phosphor/phosphor.h>
 #include <platform/cb_malloc.h>
+#include <platform/dirutils.h>
 #include <platform/processclock.h>
 
 struct mock_engine {
@@ -1289,6 +1290,13 @@ int main(int argc, char **argv) {
     cb_initialize_sockets();
 
     AllocHooks::initialize();
+
+    auto limit = cb::io::maximizeFileDescriptors(1024);
+    if (limit < 1024) {
+        std::cerr << "Error: The unit tests needs at least 1k file descriptors"
+                  << std::endl;
+        exit(EXIT_FAILURE);
+    }
 
     memset(&my_get_test, 0, sizeof(my_get_test));
     memset(&my_setup_suite, 0, sizeof(my_setup_suite));
