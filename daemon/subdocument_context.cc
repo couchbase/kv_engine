@@ -26,10 +26,11 @@
 #include <utilities/logtags.h>
 #include <xattr/blob.h>
 
+#include <utilities/string_utilities.h>
+#include <gsl/gsl>
 #include <iomanip>
 #include <random>
 #include <sstream>
-#include <utilities/string_utilities.h>
 
 SubdocCmdContext::OperationSpec::OperationSpec(SubdocCmdTraits traits_,
                                                protocol_binary_subdoc_flag flags_,
@@ -216,7 +217,10 @@ cb::const_char_buffer SubdocCmdContext::get_document_vattr() {
         cJSON_AddStringToObject(
                 doc.get(), "seqno", cb::to_hex(input_item_info.seqno).c_str());
 
-        cJSON_AddNumberToObject(doc.get(), "exptime", input_item_info.exptime);
+        cJSON_AddIntegerToObject(
+                doc.get(),
+                "exptime",
+                gsl::narrow<uint32_t>(input_item_info.exptime));
 
         // The flags are kept internally in network byte order...
         cJSON_AddNumberToObject(

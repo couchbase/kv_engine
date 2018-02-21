@@ -262,8 +262,8 @@ cJSON* SslContext::toJSON() const {
     if (enabled) {
         cJSON_AddBoolToObject(obj, "connected", connected);
         cJSON_AddBoolToObject(obj, "error", error);
-        cJSON_AddNumberToObject(obj, "total_recv", totalRecv);
-        cJSON_AddNumberToObject(obj, "total_send", totalSend);
+        cJSON_AddInteger64ToObject(obj, "total_recv", totalRecv);
+        cJSON_AddInteger64ToObject(obj, "total_send", totalSend);
     }
 
     return obj;

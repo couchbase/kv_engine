@@ -876,26 +876,26 @@ unique_cJSON_ptr McbpConnection::toJSON() const {
 
         {
             cJSON* iovobj = cJSON_CreateObject();
-            cJSON_AddNumberToObject(iovobj, "size", iov.size());
-            cJSON_AddNumberToObject(iovobj, "used", iovused);
+            cJSON_AddInteger64ToObject(iovobj, "size", iov.size());
+            cJSON_AddInteger64ToObject(iovobj, "used", iovused);
             cJSON_AddItemToObject(obj, "iov", iovobj);
         }
 
         {
             cJSON* msg = cJSON_CreateObject();
-            cJSON_AddNumberToObject(msg, "used", msglist.size());
-            cJSON_AddNumberToObject(msg, "curr", msgcurr);
-            cJSON_AddNumberToObject(msg, "bytes", msgbytes);
+            cJSON_AddInteger64ToObject(msg, "used", msglist.size());
+            cJSON_AddInteger64ToObject(msg, "curr", msgcurr);
+            cJSON_AddInteger64ToObject(msg, "bytes", msgbytes);
             cJSON_AddItemToObject(obj, "msglist", msg);
         }
         {
             cJSON* ilist = cJSON_CreateObject();
-            cJSON_AddNumberToObject(ilist, "size", reservedItems.size());
+            cJSON_AddInteger64ToObject(ilist, "size", reservedItems.size());
             cJSON_AddItemToObject(obj, "itemlist", ilist);
         }
         {
             cJSON* talloc = cJSON_CreateObject();
-            cJSON_AddNumberToObject(talloc, "size", temp_alloc.size());
+            cJSON_AddInteger64ToObject(talloc, "size", temp_alloc.size());
             cJSON_AddItemToObject(obj, "temp_alloc_list", talloc);
         }
 
@@ -903,8 +903,8 @@ unique_cJSON_ptr McbpConnection::toJSON() const {
         cJSON_AddNumberToObject(obj, "aiostat", aiostat);
         cJSON_AddBoolToObject(obj, "ewouldblock", ewouldblock);
         cJSON_AddItemToObject(obj, "ssl", ssl.toJSON());
-        cJSON_AddNumberToObject(obj, "total_recv", totalRecv);
-        cJSON_AddNumberToObject(obj, "total_send", totalSend);
+        cJSON_AddInteger64ToObject(obj, "total_recv", totalRecv);
+        cJSON_AddInteger64ToObject(obj, "total_send", totalSend);
         cJSON_AddStringToObject(
                 obj,
                 "datatype",
