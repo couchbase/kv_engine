@@ -51,7 +51,7 @@ ENGINE_ERROR_CODE select_bucket(McbpConnection& connection,
             }
             return ENGINE_KEY_ENOENT;
         }
-    } catch (const cb::rbac::Exception& error) {
+    } catch (const cb::rbac::Exception&) {
         return ENGINE_EACCESS;
     }
 }

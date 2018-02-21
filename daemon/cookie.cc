@@ -436,7 +436,7 @@ void Cookie::maybeLogSlowCommand(
         std::string command;
         try {
             command = to_string(opcode);
-        } catch (const std::exception& e) {
+        } catch (const std::exception&) {
             char opcode_s[16];
             checked_snprintf(
                     opcode_s, sizeof(opcode_s), "0x%X", header.getOpcode());

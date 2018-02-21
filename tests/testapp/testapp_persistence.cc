@@ -243,7 +243,7 @@ TEST_P(PersistToTest, ConsistentStateAfterShutdown) {
             auto key = std::to_string(i);
             try {
                 conn.get(key, vbid);
-            } catch (ConnectionError& e) {
+            } catch (ConnectionError&) {
                 // expect the get to fail.
                 continue;
             }

@@ -53,7 +53,7 @@ cb::byte_buffer Blob::get(const cb::const_byte_buffer& key) const {
                 current += size;
             }
         }
-    } catch (const std::out_of_range& ex) {
+    } catch (const std::out_of_range&) {
     }
 
     // Not found!
@@ -73,7 +73,7 @@ void Blob::prune_user_keys() {
                 current += 4 + size;
             }
         }
-    } catch (const std::out_of_range& ex) {
+    } catch (const std::out_of_range&) {
     }
 }
 
@@ -243,7 +243,7 @@ size_t Blob::get_system_size() const {
             }
             current += 4 + size;
         }
-    } catch (const std::out_of_range& ex) {
+    } catch (const std::out_of_range&) {
     }
 
     return ret;
@@ -265,7 +265,7 @@ unique_cJSON_ptr Blob::to_json() const {
 
             current += size;
         }
-    } catch (const std::out_of_range& ex) {
+    } catch (const std::out_of_range&) {
     }
 
     return ret;

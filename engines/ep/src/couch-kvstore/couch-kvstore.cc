@@ -1604,7 +1604,7 @@ couchstore_error_t CouchKVStore::fetchDoc(Db* db,
     std::unique_ptr<MetaData> metadata;
     try {
         metadata = MetaDataFactory::createMetaData(docinfo->rev_meta);
-    } catch(std::logic_error& e) {
+    } catch (std::logic_error&) {
         return COUCHSTORE_ERROR_DB_NO_LONGER_VALID;
     }
 
@@ -2728,7 +2728,7 @@ void CouchKVStore::unlinkCouchFile(uint16_t vbucket,
     try {
         checked_snprintf(fname, sizeof(fname), "%s/%d.couch.%" PRIu64,
                          dbname.c_str(), vbucket, fRev);
-    } catch (std::exception& error) {
+    } catch (std::exception&) {
         LOG(EXTENSION_LOG_WARNING,
             "CouchKVStore::unlinkCouchFile: Failed to build filename:%s",
             fname);

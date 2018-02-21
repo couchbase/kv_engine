@@ -116,7 +116,7 @@ TEST(ManifestTest, validation) {
             EXPECT_TRUE(false)
                     << "No exception thrown for invalid manifest:" << manifest
                     << std::endl;
-        } catch (std::exception& e) {
+        } catch (std::exception&) {
         }
     }
 

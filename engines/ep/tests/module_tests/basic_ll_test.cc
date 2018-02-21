@@ -573,7 +573,7 @@ TEST_F(BasicLinkedListTest, RangeIteratorOverflow) {
     /* Try iterating beyond the end and expect exception to be thrown */
     try {
         ++itr;
-    } catch (std::out_of_range& e) {
+    } catch (std::out_of_range&) {
         caughtOutofRangeExcp = true;
     }
     EXPECT_TRUE(caughtOutofRangeExcp);

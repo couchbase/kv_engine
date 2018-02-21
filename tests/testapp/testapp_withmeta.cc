@@ -109,7 +109,7 @@ TEST_P(WithMetaTest, basicSet) {
                                               /*seqno*/ 1,
                                               /*options*/ 0,
                                               {});
-    } catch (std::exception& e) {
+    } catch (std::exception&) {
         FAIL() << "mutateWithMeta threw an exception";
     }
 
@@ -132,7 +132,7 @@ TEST_P(WithMetaTest, basicSetXattr) {
                                               {});
         EXPECT_EQ(XattrSupport::Yes, ::testing::get<1>(GetParam()));
         EXPECT_EQ(testCas, ntohll(resp.cas));
-    } catch (std::exception& e) {
+    } catch (std::exception&) {
         EXPECT_EQ(XattrSupport::No, ::testing::get<1>(GetParam()));
     }
 

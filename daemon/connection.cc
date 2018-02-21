@@ -306,7 +306,7 @@ cb::rbac::PrivilegeAccess Connection::checkPrivilege(
         try {
             privilegeContext = cb::rbac::createContext(getUsername(),
                                                        all_buckets[bucketIndex].name);
-        } catch (const cb::rbac::NoSuchBucketException& error) {
+        } catch (const cb::rbac::NoSuchBucketException&) {
             // Remove all access to the bucket
             privilegeContext = cb::rbac::createContext(getUsername(), "");
             LOG_INFO(
@@ -525,7 +525,7 @@ void Connection::setBucketIndex(int bucketIndex) {
             // you any privileges.
             privilegeContext = cb::rbac::PrivilegeContext{};
         }
-    } catch (const cb::rbac::Exception &exception) {
+    } catch (const cb::rbac::Exception&) {
         privilegeContext = cb::rbac::PrivilegeContext{};
     }
 

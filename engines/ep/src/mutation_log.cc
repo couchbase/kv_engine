@@ -241,7 +241,7 @@ static bool writeFully(file_handle_t fd, const uint8_t *buf, size_t nbytes) {
             ssize_t written = doWrite(fd, buf, nbytes);
             nbytes -= written;
             buf += written;
-        } catch (std::system_error& e) {
+        } catch (std::system_error&) {
             LOG(EXTENSION_LOG_WARNING,
                 "writeFully: Failed to write to mutation log with error: %s",
                 cb_strerror().c_str());

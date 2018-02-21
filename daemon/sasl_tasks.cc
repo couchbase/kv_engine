@@ -128,7 +128,7 @@ void SaslAuthTask::notifyExecutionComplete() {
         try {
             context = cb::rbac::createInitialContext(connection.getUsername(),
                                                      connection.getDomain());
-        } catch (const cb::rbac::NoSuchUserException& e) {
+        } catch (const cb::rbac::NoSuchUserException&) {
             error = CBSASL_NO_RBAC_PROFILE;
         }
     }

@@ -241,7 +241,7 @@ void reconfigure(const cJSON& doc, bool apply) {
         cb::mcbp::ClientOpcode opcode;
         try {
             opcode = to_opcode(obj->string);
-        } catch (const std::invalid_argument& e) {
+        } catch (const std::invalid_argument&) {
             throw std::invalid_argument(
                     std::string{
                             "cb::mcbp::sla::reconfigure: Unknown command '"} +

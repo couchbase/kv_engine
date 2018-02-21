@@ -116,7 +116,7 @@ TEST_P(BucketTest, TestMultipleBuckets) {
             std::string name = "bucket-" + std::to_string(ii);
             connection.createBucket(name, "", BucketType::Memcached);
         }
-    } catch (ConnectionError& ex) {
+    } catch (ConnectionError&) {
         FAIL() << "Failed to create more than " << ii << " buckets";
     }
 

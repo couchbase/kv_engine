@@ -183,7 +183,7 @@ TEST_F(SslCertTest, LoginWhenMandatoryWithoutCert) {
     try {
         connection.connect();
         FAIL() << "It should not be possible to connect without certificate";
-    } catch (const std::exception&e) {
+    } catch (const std::exception&) {
     }
 }
 
