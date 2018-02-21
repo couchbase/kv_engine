@@ -486,6 +486,7 @@ private:
     using SnapshotPtr =
             std::unique_ptr<const rocksdb::Snapshot, SnapshotDeleter>;
     std::map<size_t, SnapshotPtr> scanSnapshots;
+    std::mutex scanSnapshotsMutex;
 
     Logger& logger;
 };

@@ -29,6 +29,7 @@
 #include "kvstore_priv.h"
 #include "libcouchstore/couch_db.h"
 #include "logger.h"
+#include "monotonic.h"
 
 #include <platform/histogram.h>
 #include <platform/strerror.h>
@@ -458,6 +459,60 @@ public:
     uint64_t prepareToDelete(uint16_t vbid) override;
 
 protected:
+    /**
+     * Internal RAII class for managing a Db* and having it closed when
+     * the DbHolder goes out of scope.
+     */
+    class DbHolder {
+    public:
+        DbHolder(CouchKVStore& kvs) : kvstore(kvs), db(nullptr), fileRev(0) {
+        }
+
+        DbHolder(const DbHolder&) = delete;
+        DbHolder(const DbHolder&&) = delete;
+        DbHolder operator=(const DbHolder&) = delete;
+
+        Db** getDbAddress() {
+            return &db;
+        }
+
+        Db* getDb() {
+            return db;
+        }
+
+        operator Db*() {
+            return db;
+        }
+
+        Db* releaseDb() {
+            auto* result = db;
+            db = nullptr;
+            return result;
+        }
+
+        void setFileRev(uint64_t rev) {
+            fileRev = rev;
+        }
+
+        uint64_t getFileRev() const {
+            return fileRev;
+        }
+
+        // Allow a non-RAII close, needed for some use-cases
+        void close() {
+            if (db) {
+                kvstore.closeDatabaseHandle(releaseDb());
+            }
+        }
+
+        ~DbHolder() {
+            close();
+        }
+        CouchKVStore& kvstore;
+        Db* db;
+        uint64_t fileRev;
+    };
+
     /*
      * Returns the DbInfo for the given vbucket database.
      */
@@ -479,19 +534,22 @@ protected:
     uint64_t checkNewRevNum(std::string &dbname, bool newFile = false);
     void populateFileNameMap(std::vector<std::string> &filenames,
                              std::vector<uint16_t> *vbids);
-    void remVBucketFromDbFileMap(uint16_t vbucketId);
     void updateDbFileMap(uint16_t vbucketId, uint64_t newFileRev);
     couchstore_error_t openDB(uint16_t vbucketId,
-                              uint64_t fileRev,
-                              Db** db,
+                              DbHolder& db,
                               couchstore_open_flags options,
                               FileOpsInterface* ops = nullptr);
+
+    couchstore_error_t openSpecificDB(uint16_t vbucketId,
+                                      uint64_t rev,
+                                      DbHolder& db,
+                                      couchstore_open_flags options,
+                                      FileOpsInterface* ops = nullptr);
 
     /**
      * save the Documents held in docs to the file associated with vbid/rev
      *
      * @param vbid the vbucket file to open/write/commit
-     * @param rev the revision of the vbucket file to open/write/commit
      * @param docs vector of Doc* to be written (can be empty)
      * @param docsinfo vector of DocInfo* to be written (non const due to
      *        couchstore API). Entry n corresponds to entry n of docs.
@@ -502,7 +560,6 @@ protected:
      * @returns COUCHSTORE_SUCCESS or a failure code (failure paths log)
      */
     couchstore_error_t saveDocs(uint16_t vbid,
-                                uint64_t rev,
                                 const std::vector<Doc*>& docs,
                                 std::vector<DocInfo*>& docinfos,
                                 kvstats_ctx& kvctx,
@@ -549,10 +606,8 @@ protected:
      *
      * @param dbname
      * @param vbucket id
-     * @param current db rev number
      */
-    void removeCompactFile(const std::string &dbname, uint16_t vbid,
-                           uint64_t currentRev);
+    void removeCompactFile(const std::string& dbname, uint16_t vbid);
 
     void removeCompactFile(const std::string &filename);
 
@@ -570,18 +625,28 @@ protected:
 
     const std::string dbname;
 
+    using MonotonicRevision = AtomicMonotonic<uint64_t, ThrowExceptionPolicy>;
     /**
      * Per-vbucket file revision atomic to ensure writer threads see increments.
      * This is a reference of the real vector which there should be one per
      * RW/RO pair.
      */
-    std::vector<std::atomic<uint64_t>>& dbFileRevMap;
+    std::vector<MonotonicRevision>& dbFileRevMap;
 
     /**
      * The RW couch-kvstore owns the fileRevMap and passes a reference to it's
      * RO sibling.
      */
-    std::vector<std::atomic<uint64_t>> fileRevMap;
+    std::vector<MonotonicRevision> fileRevMap;
+
+    /**
+     * An internal rwlock used to keep openDB and compaction in sync
+     * Primarily that compaction and scans can be ran concurrently, we must
+     * ensure that a scan doesn't read the fileRev then compaction moves the
+     * fileRev (and the real file) before the scan performs an open.
+     * Many opens are allowed in parallel, just compact must block.
+     */
+    cb::RWLock openDbMutex;
 
     uint16_t numDbFiles;
     std::vector<CouchRequest *> pendingReqsQ;
@@ -642,7 +707,7 @@ private:
     CouchKVStore(KVStoreConfig& config,
                  FileOpsInterface& ops,
                  bool readOnly,
-                 std::vector<std::atomic<uint64_t>>& dbFileRevMap,
+                 std::vector<MonotonicRevision>& dbFileRevMap,
                  size_t fileRevMapSize);
 
     /**
@@ -654,39 +719,7 @@ private:
      *        the RW store).
      */
     CouchKVStore(KVStoreConfig& config,
-                 std::vector<std::atomic<uint64_t>>& dbFileRevMap);
-
-    class DbHolder {
-    public:
-        DbHolder(CouchKVStore* kvs) : kvstore(kvs), db(nullptr) {}
-
-        DbHolder(const DbHolder&) = delete;
-        DbHolder(const DbHolder&&) = delete;
-        DbHolder operator=(const DbHolder&) = delete;
-
-
-        Db** getDbAddress() {
-            return &db;
-        }
-
-        Db* getDb() {
-            return db;
-        }
-
-        Db* releaseDb() {
-            auto* result = db;
-            db = nullptr;
-            return result;
-        }
-
-        ~DbHolder() {
-            if (db) {
-                kvstore->closeDatabaseHandle(db);
-            }
-        }
-        CouchKVStore* kvstore;
-        Db* db;
-    };
+                 std::vector<MonotonicRevision>& dbFileRevMap);
 
     /**
      * RAII holder for a couchstore LocalDoc object

@@ -29,6 +29,7 @@
 #include "src/internal.h"
 #include "tests/module_tests/test_helpers.h"
 #include "tests/test_fileops.h"
+#include "thread_gate.h"
 #include "vbucket_bgfetch_item.h"
 
 #include <gmock/gmock.h>
@@ -2022,6 +2023,60 @@ TEST_P(KVStoreParamTest, DelVBucketConcurrentOperationsTest) {
     std::thread t1(set);
     std::thread t2(delVBucket);
     std::thread t3(getStat);
+    t1.join();
+    t2.join();
+    t3.join();
+}
+
+// MB-27963 identified that compaction and scan are racing with respect to
+// the current view of the fileMap causing scan to fail.
+TEST_P(KVStoreParamTest, CompactAndScan) {
+    WriteCallback wc;
+    for (int i = 1; i < 10; i++) {
+        kvstore->begin(std::make_unique<TransactionContext>());
+        kvstore->set(
+                make_item(0, makeStoredDocKey(std::string(i, 'k')), "value"),
+                wc);
+        kvstore->commit(nullptr /*no collections manifest*/);
+    }
+
+    ThreadGate tg(3);
+
+    auto initScan = [this, &tg] {
+        tg.threadUp();
+        for (int i = 0; i < 10; i++) {
+            auto cb = std::make_shared<GetCallback>(true /*expectcompressed*/);
+            auto cl = std::make_shared<KVStoreTestCacheCallback>(1, 5, 0);
+            ScanContext* scanCtx;
+            scanCtx = kvstore->initScanContext(cb,
+                                               cl,
+                                               0,
+                                               1,
+                                               DocumentFilter::ALL_ITEMS,
+                                               ValueFilter::VALUES_COMPRESSED);
+            if (scanCtx == nullptr) {
+                FAIL() << "initScanContext returned nullptr";
+                return;
+            }
+            kvstore->destroyScanContext(scanCtx);
+        }
+    };
+    auto compact = [this, &tg] {
+        tg.threadUp();
+        compaction_ctx cctx;
+        cctx.purge_before_seq = 0;
+        cctx.purge_before_ts = 0;
+        cctx.curr_time = 0;
+        cctx.drop_deletes = 0;
+        cctx.db_file_id = 0;
+        for (int i = 0; i < 10; i++) {
+            EXPECT_TRUE(kvstore->compactDB(&cctx));
+        }
+    };
+
+    std::thread t1(compact);
+    std::thread t2(initScan);
+    std::thread t3(initScan);
     t1.join();
     t2.join();
     t3.join();

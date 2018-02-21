@@ -1331,7 +1331,11 @@ ScanContext* RocksDBKVStore::initScanContext(
         DocumentFilter options,
         ValueFilter valOptions) {
     size_t scanId = scanCounter++;
-    scanSnapshots.emplace(scanId, SnapshotPtr(rdb->GetSnapshot(), *rdb));
+
+    {
+        std::lock_guard<std::mutex> lg(scanSnapshotsMutex);
+        scanSnapshots.emplace(scanId, SnapshotPtr(rdb->GetSnapshot(), *rdb));
+    }
 
     // As we cannot efficiently determine how many documents this scan will
     // find, we approximate this value with the seqno difference + 1
@@ -1370,6 +1374,11 @@ scan_error_t RocksDBKVStore::scan(ScanContext* ctx) {
                                      : GetMetaOnly::No;
 
     rocksdb::ReadOptions snapshotOpts{rocksdb::ReadOptions()};
+
+    // Lock for safe access to the scanSnapshots map and to ensure the snapshot
+    // doesn't get destroyed whilst we have the pointer.
+    // @todo use a shared_ptr and reduce the lock scope to just the map::at call
+    std::lock_guard<std::mutex> lg(scanSnapshotsMutex);
     snapshotOpts.snapshot = scanSnapshots.at(ctx->scanId).get();
 
     rocksdb::Slice startSeqnoSlice = getSeqnoSlice(&startSeqno);
@@ -1465,6 +1474,7 @@ void RocksDBKVStore::destroyScanContext(ScanContext* ctx) {
     if (ctx == nullptr) {
         return;
     }
+    std::lock_guard<std::mutex> lg(scanSnapshotsMutex);
     // TODO RDB: Might be nice to have the snapshot in the ctx and
     // release it on destruction
     auto it = scanSnapshots.find(ctx->scanId);
