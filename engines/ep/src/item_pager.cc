@@ -127,7 +127,23 @@ public:
         }
         case HashTable::EvictionPolicy::statisticalCounter:
         {
-            itemEviction.addValueToFreqHistogram(v.getFreqCounterValue());
+            /*
+             * If the storedValue is eligible for eviction then add its
+             * frequency counter value to the histogram, otherwise add the
+             * maximum (255) to indicate that the storedValue cannot be
+             * evicted.
+             *
+             * By adding the maximum value for each storedValue that cannot be
+             * evicted we ensure that the histogram is biased correctly so that
+             * we get a frequency threshold that will remove the correct number
+             * of storedValue items.
+             */
+            if (v.eligibleForEviction(store.getItemEvictionPolicy())) {
+                itemEviction.addValueToFreqHistogram(v.getFreqCounterValue());
+            } else {
+                itemEviction.addValueToFreqHistogram(
+                        std::numeric_limits<uint8_t>::max());
+            }
             // Whilst we are learning it is worth always updating the threshold.
             // We also want to update the threshold at periodic intervals.
             if (itemEviction.isLearning() ||
