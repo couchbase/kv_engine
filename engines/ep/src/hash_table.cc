@@ -576,7 +576,7 @@ void HashTable::dump() const {
 }
 
 void HashTable::visit(HashTableVisitor& visitor) {
-    if ((valueStats.numItems.load() + valueStats.numTempItems.load()) == 0 ||
+    if ((valueStats.getNumItems() + valueStats.getNumTempItems()) == 0 ||
         !isActive()) {
         return;
     }
@@ -619,7 +619,7 @@ void HashTable::visit(HashTableVisitor& visitor) {
 }
 
 void HashTable::visitDepth(HashTableDepthVisitor &visitor) {
-    if (valueStats.numItems.load() == 0 || !isActive()) {
+    if (valueStats.getNumItems() == 0 || !isActive()) {
         return;
     }
     size_t visited = 0;
@@ -656,7 +656,7 @@ void HashTable::visitDepth(HashTableDepthVisitor &visitor) {
 
 HashTable::Position HashTable::pauseResumeVisit(HashTableVisitor& visitor,
                                                 Position& start_pos) {
-    if ((valueStats.numItems.load() + valueStats.numTempItems.load()) == 0 ||
+    if ((valueStats.getNumItems() + valueStats.getNumTempItems()) == 0 ||
         !isActive()) {
         // Nothing to visit
         return endPosition();

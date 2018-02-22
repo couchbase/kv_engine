@@ -202,11 +202,47 @@ public:
         /// Reset the values of all statistics to zero.
         void reset();
 
-    public:
+        size_t getNumItems() const {
+            return numItems;
+        }
+
+        size_t getNumNonResidentItems() const {
+            return numNonResidentItems;
+        }
+
+        size_t getNumDeletedItems() const {
+            return numDeletedItems;
+        }
+
+        size_t getNumTempItems() const {
+            return numTempItems;
+        }
+
+        DatatypeCombo getDatatypeCounts() const {
+            return datatypeCounts;
+        }
+
+        size_t getCacheSize() const {
+            return cacheSize;
+        }
+
+        size_t getMetaDataMemory() const {
+            return metaDataMemory;
+        }
+
+        size_t getMemSize() const {
+            return memSize;
+        }
+
+    private:
         /// Count of alive & deleted, in-memory non-resident and resident items.
         /// Excludes temporary items.
         cb::NonNegativeCounter<size_t> numItems;
+
+        /// Count of alive, non-resident items.
         cb::NonNegativeCounter<size_t> numNonResidentItems;
+
+        /// Count of deleted items.
         cb::NonNegativeCounter<size_t> numDeletedItems;
 
         /// Count of items where StoredValue::isTempItem() is true.
@@ -230,7 +266,6 @@ public:
         //! Memory consumed by items in this hashtable.
         std::atomic<size_t> memSize = {};
 
-    private:
         EPStats& epStats;
     };
 
@@ -321,21 +356,21 @@ public:
      *   getNumTempItems()
      */
     size_t getNumInMemoryItems() const {
-        return valueStats.numItems;
+        return valueStats.getNumItems();
     }
 
     /**
      * Get the number of deleted items in the hash table.
      */
     size_t getNumDeletedItems() const {
-        return valueStats.numDeletedItems;
+        return valueStats.getNumDeletedItems();
     }
 
     /**
      * Get the number of in-memory non-resident items within this hash table.
      */
     size_t getNumInMemoryNonResItems() const {
-        return valueStats.numNonResidentItems;
+        return valueStats.getNumNonResidentItems();
     }
 
     /**
@@ -343,7 +378,7 @@ public:
      * this hash table. Includes items marked as deleted.
      */
     size_t getNumItems() const {
-        return valueStats.numItems;
+        return valueStats.getNumItems();
     }
 
     /**
@@ -377,21 +412,21 @@ public:
      * Defined as: (StoredValue + keylen + valuelen) for all items in HT.
      */
     size_t getCacheSize() const {
-        return valueStats.cacheSize;
+        return valueStats.getCacheSize();
     }
 
     /**
      * Get the total item memory size in this hash table.
      */
     size_t getItemMemory() const {
-        return valueStats.memSize;
+        return valueStats.getMemSize();
     }
 
     /**
      * Get the total metadata memory size in this hash table.
      */
     size_t getMetadataMemory() const {
-        return valueStats.metaDataMemory;
+        return valueStats.getMetaDataMemory();
     }
 
     /**
@@ -410,11 +445,11 @@ public:
      * Get the number of temp. items within this hash table.
      */
     size_t getNumTempItems() const {
-        return valueStats.numTempItems;
+        return valueStats.getNumTempItems();
     }
 
     DatatypeCombo getDatatypeCounts() const {
-        return valueStats.datatypeCounts;
+        return valueStats.getDatatypeCounts();
     }
 
     /**
