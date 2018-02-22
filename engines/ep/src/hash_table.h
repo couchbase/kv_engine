@@ -199,6 +199,9 @@ public:
          */
         void epilogue(const StoredValue& sv);
 
+        /// Reset the values of all statistics to zero.
+        void reset();
+
         /**
          * Increase the size of the cache
          */

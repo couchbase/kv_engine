@@ -131,12 +131,7 @@ void HashTable::clear_UNLOCKED(bool deactivate) {
 
     stats.currentSize.fetch_sub(clearedMemSize - clearedValSize);
 
-    valueStats.datatypeCounts.fill(0);
-    valueStats.numItems.store(0);
-    valueStats.numTempItems.store(0);
-    valueStats.numNonResidentItems.store(0);
-    valueStats.memSize.store(0);
-    valueStats.cacheSize.store(0);
+    valueStats.reset();
 }
 
 static size_t distance(size_t a, size_t b) {
@@ -388,6 +383,15 @@ void HashTable::Statistics::epilogue(const StoredValue& v) {
             ++datatypeCounts[v.getDatatype()];
         }
     }
+}
+
+void HashTable::Statistics::reset() {
+    datatypeCounts.fill(0);
+    numItems.store(0);
+    numTempItems.store(0);
+    numNonResidentItems.store(0);
+    memSize.store(0);
+    cacheSize.store(0);
 }
 
 std::pair<StoredValue*, StoredValue::UniquePtr>
