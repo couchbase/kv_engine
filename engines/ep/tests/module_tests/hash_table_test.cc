@@ -464,6 +464,37 @@ TEST_P(HashTableStatsTest, SizeEjectRestoreValue) {
     del(ht, key);
 }
 
+// Check sizes when ejecting an item and then restoring metadata.
+TEST_P(HashTableStatsTest, SizeEjectRestoreMeta) {
+    if (evictionPolicy == VALUE_ONLY) {
+        // restoreMeta only valid for Full eviction - metadata is
+        // unevictable in value-only.
+        return;
+    }
+
+    addAndEjectItem();
+
+    // ejectItem() will have removed both the value and meta. Need
+    // a new tempItem (metadata) to restore metdata into.
+    Item temp(key,
+              0,
+              0,
+              nullptr,
+              0,
+              PROTOCOL_BINARY_RAW_BYTES,
+              0,
+              StoredValue::state_temp_init);
+    {
+        auto hbl = ht.getLockedBucket(key);
+        auto* v = ht.unlocked_addNewStoredValue(hbl, temp);
+        EXPECT_EQ(1, ht.getNumTempItems());
+        ht.unlocked_restoreMeta(hbl.getHTLock(), item, *v);
+        EXPECT_EQ(1, ht.getNumInMemoryNonResItems());
+    }
+
+    del(ht, key);
+}
+
 TEST_P(HashTableStatsTest, EjectFlush) {
     EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
 

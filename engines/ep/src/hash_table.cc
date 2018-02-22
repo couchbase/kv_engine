@@ -525,8 +525,9 @@ MutationStatus HashTable::insertFromWarmup(
         // first place instead of adding it to the Item and then discarding it
         // in markNotResident.
         if (keyMetaDataOnly) {
+            valueStats.prologue(*v);
             v->markNotResident();
-            ++valueStats.numNonResidentItems;
+            valueStats.epilogue(*v);
         }
         v->setNewCacheItem(false);
     } else {
@@ -721,25 +722,29 @@ bool HashTable::unlocked_ejectItem(StoredValue*& vptr,
         throw std::invalid_argument("HashTable::unlocked_ejectItem: "
                 "Unable to delete NULL StoredValue");
     }
-    if (policy == VALUE_ONLY) {
+
+    switch (policy) {
+    case VALUE_ONLY:
         if (vptr->eligibleForEviction(policy)) {
-            valueStats.reduceCacheSize(vptr->valuelen());
+            valueStats.prologue(*vptr);
+
             vptr->ejectValue();
             ++stats.numValueEjects;
-            ++valueStats.numNonResidentItems;
             ++numEjects;
+
+            valueStats.epilogue(*vptr);
+
             return true;
-        } else {
-            ++stats.numFailedEjects;
-            return false;
         }
-    } else { // full eviction.
+        ++stats.numFailedEjects;
+        return false;
+
+    case FULL_EVICTION:
         if (vptr->eligibleForEviction(policy)) {
-            valueStats.reduceMetaDataSize(stats, vptr->metaDataSize());
-            valueStats.reduceCacheSize(vptr->size());
-            int bucket_num = getBucketForHash(vptr->getKey().hash());
+            valueStats.prologue(*vptr);
 
             // Remove the item from the hash table.
+            int bucket_num = getBucketForHash(vptr->getKey().hash());
             auto removed = hashChainRemoveFirst(
                     values[bucket_num],
                     [vptr](const StoredValue* v) { return v == vptr; });
@@ -747,22 +752,16 @@ bool HashTable::unlocked_ejectItem(StoredValue*& vptr,
             if (removed->isResident()) {
                 ++stats.numValueEjects;
             }
-            if (!removed->isResident() && !removed->isTempItem()) {
-                // Decrement because the item is fully evicted.
-                valueStats.decrNumNonResidentItems();
-            }
-            // Decrement because the item is fully evicted.
-            valueStats.decrNumItems();
-            --valueStats.datatypeCounts[vptr->getDatatype()];
             ++numEjects;
             updateMaxDeletedRevSeqno(vptr->getRevSeqno());
 
             return true;
-        } else {
-            ++stats.numFailedEjects;
-            return false;
         }
+        ++stats.numFailedEjects;
+        return false;
     }
+
+    return false;
 }
 
 std::unique_ptr<Item> HashTable::getRandomKeyFromSlot(int slot) {
@@ -815,13 +814,11 @@ void HashTable::unlocked_restoreMeta(const std::unique_lock<std::mutex>& htLock,
                 "call on a non-active HT object");
     }
 
+    valueStats.prologue(v);
+
     v.restoreMeta(itm);
-    if (!itm.isDeleted()) {
-        --valueStats.numTempItems;
-        ++valueStats.numItems;
-        ++valueStats.numNonResidentItems;
-        ++valueStats.datatypeCounts[v.getDatatype()];
-    }
+
+    valueStats.epilogue(v);
 }
 
 void HashTable::Statistics::increaseCacheSize(size_t by) {
