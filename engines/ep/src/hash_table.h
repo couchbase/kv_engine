@@ -242,7 +242,10 @@ public:
 
         /**
          * Number of documents of a given datatype. Includes alive
-         * (non-deleted), resident documents.
+         * (non-deleted), documents in the HashTable.
+         * For value eviction includes resident & non-resident items (as the
+         * datatype is part of the metadata), for full-eviction will only
+         * include resident items.
          */
         DatatypeCombo datatypeCounts = {};
 

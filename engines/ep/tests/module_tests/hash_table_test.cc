@@ -368,6 +368,9 @@ protected:
         EXPECT_EQ(0, ht.getNumInMemoryNonResItems());
         EXPECT_EQ(0, ht.getNumTempItems());
         EXPECT_EQ(0, ht.getNumDeletedItems());
+        for (const auto& count : ht.getDatatypeCounts()) {
+            EXPECT_EQ(0, count);
+        }
     }
 
     void TearDown() override {
@@ -383,6 +386,9 @@ protected:
         EXPECT_EQ(0, ht.getNumInMemoryItems());
         EXPECT_EQ(0, ht.getNumTempItems());
         EXPECT_EQ(0, ht.getNumDeletedItems());
+        for (const auto& count : ht.getDatatypeCounts()) {
+            EXPECT_EQ(0, count);
+        }
     }
 
     StoredValue* addAndEjectItem() {
