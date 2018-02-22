@@ -249,6 +249,21 @@ TYPED_TEST(ValueTest, freqCounter) {
     EXPECT_EQ(1, this->sv->getFreqCounterValue());
 }
 
+TYPED_TEST(ValueTest, replaceValue) {
+    ASSERT_EQ(0, this->sv->getFreqCounterValue());
+    this->sv->setFreqCounterValue(100);
+    ASSERT_EQ(100, this->sv->getFreqCounterValue());
+
+    auto sv = this->factory(
+            make_item(0,
+                      makeStoredDocKey(std::string("key").c_str()),
+                      std::string("value").c_str()),
+            {});
+
+    this->sv->replaceValue(sv->getValue().get());
+    EXPECT_EQ(100, this->sv->getFreqCounterValue());
+}
+
 /// Check that StoredValue / OrderedStoredValue don't unexpectedly change in
 /// size (we've carefully crafted them to be as efficient as possible).
 TEST(StoredValueTest, expectedSize) {

@@ -243,7 +243,7 @@ void StoredValue::reallocate() {
     // Allocate a new Blob for this stored value; copy the existing Blob to
     // the new one and free the old.
     value_t new_val(Blob::Copy(*value));
-    value.reset(new_val);
+    replaceValue(new_val.get());
 }
 
 void StoredValue::Deleter::operator()(StoredValue* val) {
@@ -344,7 +344,7 @@ bool StoredValue::compressValue() {
             Blob* data = nullptr;
             data = Blob::New(deflated.data(), deflated.size());
             datatype |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
-            value.reset(TaggedPtr<Blob>(data));
+            replaceValue(TaggedPtr<Blob>(data));
         } else {
             return false;
         }

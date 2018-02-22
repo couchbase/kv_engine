@@ -494,6 +494,14 @@ public:
         value.reset();
     }
 
+    /// Replace the existing value with new data.
+    void replaceValue(TaggedPtr<Blob> data) {
+        // Maintain the frequency count for the storedValue.
+        auto freqCount = getFreqCounterValue();
+        value.reset(data);
+        setFreqCounterValue(freqCount);
+    }
+
     /**
      * True if this object is logically deleted.
      */
