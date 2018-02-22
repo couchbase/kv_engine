@@ -285,8 +285,12 @@ TEST_F(ExecutorTest, PeriodicExecution) {
 
         EXPECT_EQ(i, cmd->runcount);
     }
+
     EXPECT_EQ(0, executorpool->waitqSize());
     EXPECT_EQ(0, executorpool->futureqSize());
+
+    executorpool.reset();
+
     EXPECT_TRUE(cmd->executionComplete);
 }
 
