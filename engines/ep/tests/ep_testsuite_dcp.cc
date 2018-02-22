@@ -2269,12 +2269,16 @@ static enum test_result test_dcp_producer_stream_req_dgm(ENGINE_HANDLE *h,
     wait_for_flusher_to_settle(h, h1);
 
     verify_curr_items(h, h1, i, "Wrong number of items");
-    int num_non_resident = get_int_stat(h, h1, "vb_active_num_non_resident");
-    cb_assert(num_non_resident >= ((float)(50/100) * i));
+    double num_non_resident = get_int_stat(h, h1, "vb_active_num_non_resident");
+    checkge(num_non_resident,
+            i * 0.5,
+            "Expected at least 50% of items to be non-resident");
 
     // Reduce max_size from 6291456 to 6000000
     set_param(h, h1, protocol_binary_engine_param_flush, "max_size", "6000000");
-    cb_assert(get_int_stat(h, h1, "vb_active_perc_mem_resident") < 50);
+    checkgt(50,
+            get_int_stat(h, h1, "vb_active_perc_mem_resident"),
+            "Too high percentage of memory resident");
 
     DcpStreamCtx ctx;
     ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
