@@ -201,6 +201,14 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::allocateNewItem() {
         memcpy(body.buf + body_offset + value.len, old.buf + body_offset,
                old.len - body_offset);
     }
+    // If the resulting document's data is valid JSON, set the datatype flag
+    // to reflect this.
+    cb::const_byte_buffer buf{
+            reinterpret_cast<const uint8_t*>(body.buf + body_offset),
+            old.len + value.len};
+    // Update the documents's datatype and CAS values
+    setDatatypeJSONFromValue(buf, datatype);
+    bucket_item_set_datatype(cookie, newitem.get(), datatype);
     bucket_item_set_cas(cookie, newitem.get(), oldItemInfo.cas);
 
     state = State::StoreItem;

@@ -260,6 +260,78 @@ TEST_P(GetSetTest, TestAppend) {
     EXPECT_EQ(std::string("ab"), stored.value);
 }
 
+// Check that APPEND correctly maintains JSON datatype if we append something
+// which keeps it JSON.
+TEST_P(GetSetTest, TestAppendJsonToJson) {
+    // Create a documement which is a valid JSON number.
+    MemcachedConnection& conn = getConnection();
+    document.value = "10";
+    conn.mutate(document, 0, MutationType::Set);
+    auto stored = conn.get(name, 0);
+    EXPECT_EQ(expectedJSONDatatype(), stored.info.datatype);
+
+    // Now append another digit to it - should still be valid JSON.
+    document.value = '1';
+    conn.mutate(document, 0, MutationType::Append);
+    stored = conn.get(name, 0);
+    EXPECT_EQ(expectedJSONDatatype(), stored.info.datatype);
+    EXPECT_EQ("101", stored.value);
+}
+
+// Check that APPEND correctly sets JSON datatype if we append something to
+// a binary doc which makes it JSON.
+TEST_P(GetSetTest, TestAppendRawToJson) {
+    // Create a documement which is not valid JSON (yet).
+    MemcachedConnection& conn = getConnection();
+    document.value = "[1";
+    conn.mutate(document, 0, MutationType::Set);
+    auto stored = conn.get(name, 0);
+    EXPECT_EQ(cb::mcbp::Datatype::Raw, stored.info.datatype);
+
+    // Now append closing square bracket - should become valid JSON array.
+    document.value = ']';
+    conn.mutate(document, 0, MutationType::Append);
+    stored = conn.get(name, 0);
+    EXPECT_EQ(expectedJSONDatatype(), stored.info.datatype);
+    EXPECT_EQ("[1]", stored.value);
+}
+
+// Check that PREPEND correctly maintains JSON datatype if we append something
+// which keeps it JSON.
+TEST_P(GetSetTest, TestPrependJsonToJson) {
+    // Create a documement which is a valid JSON number.
+    MemcachedConnection& conn = getConnection();
+    document.value = "10";
+    conn.mutate(document, 0, MutationType::Set);
+    auto stored = conn.get(name, 0);
+    EXPECT_EQ(expectedJSONDatatype(), stored.info.datatype);
+
+    // Now prepend another digit to it - should still be valid JSON.
+    document.value = '1';
+    conn.mutate(document, 0, MutationType::Prepend);
+    stored = conn.get(name, 0);
+    EXPECT_EQ(expectedJSONDatatype(), stored.info.datatype);
+    EXPECT_EQ("110", stored.value);
+}
+
+// Check that PREPEND correctly sets JSON datatype if we append something to
+// a binary doc which makes it JSON.
+TEST_P(GetSetTest, TestPrependRawToJson) {
+    // Create a documement which is not valid JSON (yet).
+    MemcachedConnection& conn = getConnection();
+    document.value = "1]";
+    conn.mutate(document, 0, MutationType::Set);
+    auto stored = conn.get(name, 0);
+    EXPECT_EQ(cb::mcbp::Datatype::Raw, stored.info.datatype);
+
+    // Now prepend closing square bracket - should become valid JSON array.
+    document.value = '[';
+    conn.mutate(document, 0, MutationType::Prepend);
+    stored = conn.get(name, 0);
+    EXPECT_EQ(expectedJSONDatatype(), stored.info.datatype);
+    EXPECT_EQ("[1]", stored.value);
+}
+
 TEST_P(GetSetTest, TestAppendWithXattr) {
     // The current code does not preserve XATTRs
     document.info.datatype = cb::mcbp::Datatype::Raw;
