@@ -512,6 +512,13 @@ typedef struct engine_interface_v1 {
                          uint64_t cas);
 
     /**
+     * Set the data type on an item.
+     */
+    void (*item_set_datatype)(gsl::not_null<ENGINE_HANDLE*> handle,
+                              gsl::not_null<item*> item,
+                              protocol_binary_datatype_t datatype);
+
+    /**
      * Get information about an item.
      *
      * The loader of the module may need the pointers to the actual data within

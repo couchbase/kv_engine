@@ -49,6 +49,14 @@ void bucket_item_set_cas(Cookie& cookie,
     c.getBucketEngine()->item_set_cas(c.getBucketEngineAsV0(), it, cas);
 }
 
+void bucket_item_set_datatype(Cookie& cookie,
+                              gsl::not_null<item*> it,
+                              protocol_binary_datatype_t datatype) {
+    auto& c = cookie.getConnection();
+    c.getBucketEngine()->item_set_datatype(
+            c.getBucketEngineAsV0(), it, datatype);
+}
+
 void bucket_reset_stats(Cookie& cookie) {
     auto& c = cookie.getConnection();
     c.getBucketEngine()->reset_stats(c.getBucketEngineAsV0(), &cookie);

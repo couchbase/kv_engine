@@ -306,6 +306,8 @@ public:
             // real_engine's functions directly.
             ewb->ENGINE_HANDLE_V1::item_set_cas = ewb->real_engine->item_set_cas;
             ewb->ENGINE_HANDLE_V1::set_item_info = ewb->real_engine->set_item_info;
+            ewb->ENGINE_HANDLE_V1::item_set_datatype =
+                    ewb->real_engine->item_set_datatype;
         }
 
         // Register a callback on DISCONNECT events, so we can delete
@@ -700,6 +702,13 @@ public:
         //only exists so there is a non-NULL value for
         // ENGINE_HANDLE_V1::item_set_cas initially to keep load_engine()
         // happy.
+        abort();
+    }
+
+    static void item_set_datatype(gsl::not_null<ENGINE_HANDLE*>,
+                                  gsl::not_null<item*> itm,
+                                  protocol_binary_datatype_t datatype) {
+        // Should never be called - set item_set_datatype().
         abort();
     }
 
@@ -1336,6 +1345,7 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
     ENGINE_HANDLE_V1::reset_stats = reset_stats;
     ENGINE_HANDLE_V1::unknown_command = unknown_command;
     ENGINE_HANDLE_V1::item_set_cas = item_set_cas;
+    ENGINE_HANDLE_V1::item_set_datatype = item_set_datatype;
     ENGINE_HANDLE_V1::get_item_info = get_item_info;
     ENGINE_HANDLE_V1::set_item_info = set_item_info;
     ENGINE_HANDLE_V1::set_log_level = NULL;

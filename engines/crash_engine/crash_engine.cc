@@ -228,6 +228,11 @@ static void item_set_cas(gsl::not_null<ENGINE_HANDLE*> handle,
                          uint64_t val) {
 }
 
+static void item_set_datatype(gsl::not_null<ENGINE_HANDLE*> handle,
+                              gsl::not_null<item*> item,
+                              protocol_binary_datatype_t val) {
+}
+
 static bool get_item_info(gsl::not_null<ENGINE_HANDLE*> handle,
                           gsl::not_null<const item*> item,
                           gsl::not_null<item_info*> item_info) {
@@ -277,6 +282,7 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
     engine->engine.store_if = store_if;
     engine->engine.flush = flush;
     engine->engine.item_set_cas = item_set_cas;
+    engine->engine.item_set_datatype = item_set_datatype;
     engine->engine.get_item_info = get_item_info;
     engine->engine.set_item_info = set_item_info;
     engine->engine.isXattrEnabled = is_xattr_enabled;

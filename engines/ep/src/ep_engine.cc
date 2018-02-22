@@ -1278,6 +1278,12 @@ static void EvpItemSetCas(gsl::not_null<ENGINE_HANDLE*>,
     static_cast<Item*>(itm.get())->setCas(cas);
 }
 
+static void EvpItemSetDatatype(gsl::not_null<ENGINE_HANDLE*>,
+                               gsl::not_null<item*> itm,
+                               protocol_binary_datatype_t datatype) {
+    static_cast<Item*>(itm.get())->setDataType(datatype);
+}
+
 static ENGINE_ERROR_CODE EvpDcpStep(
         gsl::not_null<ENGINE_HANDLE*> handle,
         gsl::not_null<const void*> cookie,
@@ -1777,6 +1783,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
     ENGINE_HANDLE_V1::flush = EvpFlush;
     ENGINE_HANDLE_V1::unknown_command = EvpUnknownCommand;
     ENGINE_HANDLE_V1::item_set_cas = EvpItemSetCas;
+    ENGINE_HANDLE_V1::item_set_datatype = EvpItemSetDatatype;
     ENGINE_HANDLE_V1::get_item_info = EvpGetItemInfo;
     ENGINE_HANDLE_V1::set_item_info = EvpSetItemInfo;
 

@@ -117,6 +117,10 @@ static cb::EngineErrorCasPair default_store_if(
         cb::StoreIfPredicate predicate,
         DocumentState document_state);
 
+static void item_set_datatype(gsl::not_null<ENGINE_HANDLE*> handle,
+                              gsl::not_null<item*> item,
+                              protocol_binary_datatype_t val);
+
 static ENGINE_ERROR_CODE default_flush(gsl::not_null<ENGINE_HANDLE*> handle,
                                        gsl::not_null<const void*> cookie);
 static ENGINE_ERROR_CODE initalize_configuration(struct default_engine *se,
@@ -210,6 +214,7 @@ void default_engine_constructor(struct default_engine* engine, bucket_id_t id)
     engine->engine.flush = default_flush;
     engine->engine.unknown_command = default_unknown_command;
     engine->engine.item_set_cas = item_set_cas;
+    engine->engine.item_set_datatype = item_set_datatype;
     engine->engine.get_item_info = get_item_info;
     engine->engine.set_item_info = set_item_info;
     engine->engine.isXattrEnabled = is_xattr_supported;
@@ -1046,6 +1051,13 @@ void item_set_cas(gsl::not_null<ENGINE_HANDLE*> handle,
                   uint64_t val) {
     hash_item* it = get_real_item(item);
     it->cas = val;
+}
+
+static void item_set_datatype(gsl::not_null<ENGINE_HANDLE*> handle,
+                              gsl::not_null<item*> item,
+                              protocol_binary_datatype_t val) {
+    auto* it = reinterpret_cast<hash_item*>(item.get());
+    it->datatype = val;
 }
 
 hash_key* item_get_key(const hash_item* item)

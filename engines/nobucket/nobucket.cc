@@ -54,6 +54,7 @@ public:
         ENGINE_HANDLE_V1::flush = flush;
         ENGINE_HANDLE_V1::unknown_command = unknown_command;
         ENGINE_HANDLE_V1::item_set_cas = item_set_cas;
+        ENGINE_HANDLE_V1::item_set_datatype = item_set_datatype;
         ENGINE_HANDLE_V1::get_item_info = get_item_info;
         ENGINE_HANDLE_V1::set_item_info = set_item_info;
         ENGINE_HANDLE_V1::dcp.step = dcp_step;
@@ -233,6 +234,14 @@ private:
                              uint64_t) {
         throw std::logic_error("NoBucket::item_set_cas: no items should have"
                                    " been allocated from this engine");
+    }
+
+    static void item_set_datatype(gsl::not_null<ENGINE_HANDLE*>,
+                                  gsl::not_null<item*>,
+                                  protocol_binary_datatype_t) {
+        throw std::logic_error(
+                "NoBucket::item_set_datatype: no items should have"
+                " been allocated from this engine");
     }
 
     static bool get_item_info(gsl::not_null<ENGINE_HANDLE*>,
