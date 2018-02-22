@@ -18,6 +18,7 @@
 #pragma once
 
 #include "collections/collections_types.h"
+#include "memcached/engine_common.h"
 #include "stored-value.h"
 #include "systemevent.h"
 
@@ -126,6 +127,12 @@ public:
     uint64_t getDiskCount() const {
         return diskCount;
     }
+
+    /// @return true if successfully added stats, false otherwise
+    bool addStats(const std::string& cid,
+                  uint16_t vbid,
+                  const void* cookie,
+                  ADD_STAT add_stat) const;
 
 private:
     /**

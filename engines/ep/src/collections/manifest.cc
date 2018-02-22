@@ -16,12 +16,16 @@
  */
 
 #include "collections/manifest.h"
+#include "bucket_logger.h"
 #include "collections/collections_types.h"
+#include "statwriter.h"
+#include "utility.h"
 
 #include <json_utilities.h>
 
 #include <JSON_checker.h>
 #include <nlohmann/json.hpp>
+#include <platform/checked_snprintf.h>
 #include <gsl/gsl>
 
 #include <cctype>
@@ -208,6 +212,29 @@ std::string Manifest::toJson() const {
     }
     json << "]}";
     return json.str();
+}
+
+void Manifest::addStats(const void* cookie, ADD_STAT add_stat) const {
+    try {
+        const int bsize = 512;
+        char buffer[bsize];
+        checked_snprintf(buffer, bsize, "manifest:entries");
+        add_casted_stat(buffer, collections.size(), add_stat, cookie);
+        checked_snprintf(buffer, bsize, "manifest:default_exists");
+        add_casted_stat(buffer, defaultCollectionExists, add_stat, cookie);
+        checked_snprintf(buffer, bsize, "manifest:uid");
+        add_casted_stat(buffer, uid, add_stat, cookie);
+
+        for (const auto& entry : collections) {
+            checked_snprintf(buffer,
+                             bsize,
+                             "manifest:collection:%s",
+                             entry.first.to_string().c_str());
+        }
+    } catch (const std::exception& e) {
+        EP_LOG_WARN("Manifest::addStats failed to build stats exception:{}",
+                    e.what());
+    }
 }
 
 void Manifest::dump() const {

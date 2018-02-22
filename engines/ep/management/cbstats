@@ -365,7 +365,7 @@ def histograms(mc, raw_stats):
             label_func = special_labels[k]
 
         label = "%s - %s" % (label_func(kstart), label_func(kend))
-        
+
         if not k in histodata:
             histodata[k] = []
         histodata[k].append({'start' : int(kstart),
@@ -373,7 +373,7 @@ def histograms(mc, raw_stats):
                              'label' : label,
                              'lb_fun': label_func,
                              'value' : int(v)})
-    
+
     for name, data_points in sorted(histodata.items()):
         max_label_len = max([len(stat['label']) for stat in data_points])
         widestval = len(str(max([stat['value'] for stat in data_points])))
@@ -475,6 +475,22 @@ def stats_timings(mc):
 @cmd
 def stats_dcp(mc):
     stats_formatter(stats_perform(mc, 'dcp'))
+
+@cmd
+def stats_collections(mc, vb=-1):
+    try:
+        vb = int(vb)
+        if vb == -1:
+            cmd = 'collections'
+        else:
+            cmd = "collections %s" % (str(vb))
+        stats_formatter(stats_perform(mc, cmd))
+    except ValueError:
+        print 'Specified vbucket \"%s\" is not valid' % str(vb)
+
+@cmd
+def stats_collections_details(mc):
+    stats_formatter(stats_perform(mc, 'collections-details'))
 
 @cmd
 def stats_dcpagg(mc):
@@ -792,6 +808,8 @@ def main():
     c.addCommand('vkey', stats_vkey, 'vkey keyname vbid')
     c.addCommand('warmup', stats_warmup, 'warmup')
     c.addCommand('uuid', stats_uuid, 'uuid')
+    c.addCommand('collections', stats_collections, 'collections [vbid]')
+    c.addCommand('collections-details', stats_collections_details, 'collections-details')
     c.addFlag('-j', 'json', 'output the results in json format')
     c.addFlag('-8', 'force_utf8', 'Force use of UTF8 symbols in output')
 

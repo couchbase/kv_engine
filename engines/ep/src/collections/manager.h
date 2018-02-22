@@ -65,6 +65,11 @@ public:
     void update(VBucket& vb) const;
 
     /**
+     * Do 'add_stat' calls for the bucket to retrieve summary collection stats
+     */
+    void addStats(const void* cookie, ADD_STAT add_stat) const;
+
+    /**
      * For development, log as much collections stuff as we can
      */
     void logAll(KVBucket& bucket) const;
@@ -73,6 +78,14 @@ public:
      * Write to std::cerr this
      */
     void dump() const;
+
+    /**
+     * Perform the gathering of collection stats for the bucket.
+     */
+    static ENGINE_ERROR_CODE doStats(KVBucket& bucket,
+                                     const void* cookie,
+                                     ADD_STAT add_stat,
+                                     const std::string& statKey);
 
 private:
     /**

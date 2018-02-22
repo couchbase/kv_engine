@@ -20,6 +20,7 @@
 #include <memcached/dockey.h>
 #include <platform/sized_buffer.h>
 #include <gsl/gsl>
+#include <unordered_map>
 
 namespace Collections {
 
@@ -44,6 +45,9 @@ const char CouchstoreManifest[] = "_local/collections_manifest";
 const size_t CouchstoreManifestLen = sizeof(CouchstoreManifest) - 1;
 
 using uid_t = uint64_t;
+
+// Map used in summary stats
+using Summary = std::unordered_map<CollectionID, uint64_t>;
 
 /**
  * Return a uid_t from a C-string.

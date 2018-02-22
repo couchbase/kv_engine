@@ -3980,6 +3980,11 @@ void EventuallyPersistentEngine::runVbStatePersistTask(Vbid vbid) {
     kvBucket->runVbStatePersistTask(vbid);
 }
 
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doCollectionsStats(
+        const void* cookie, ADD_STAT add_stat, const std::string& statKey) {
+    return Collections::Manager::doStats(*kvBucket, cookie, add_stat, statKey);
+}
+
 ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
                                                        const char* stat_key,
                                                        int nkey,
@@ -4137,12 +4142,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         } else {
             return ENGINE_EINVAL;
         }
-    } else if (statKey == "collections" &&
-               configuration.isCollectionsEnabled()) {
-        // @todo MB-24546 For development, just log everything.
-        kvBucket->getCollectionsManager().logAll(*kvBucket.get());
-        rv = ENGINE_SUCCESS;
-
+    } else if (cb_isPrefix(statKey, "collections")) {
+        rv = doCollectionsStats(cookie, add_stat, std::string(stat_key, nkey));
     } else if (statKey[0] == '_') {
         // Privileged stats - need Stats priv (and not just SimpleStats).
         switch (getServerApi()->cookie->check_privilege(

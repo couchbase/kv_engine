@@ -22,6 +22,7 @@
 #include "collections/manifest.h"
 #include "collections/vbucket_serialised_manifest_entry.h"
 #include "item.h"
+#include "statwriter.h"
 #include "vbucket.h"
 
 #include <json_utilities.h>
@@ -615,6 +616,51 @@ uint64_t Manifest::getItemCount(CollectionID collection) const {
     // For now link through to disk count
     // @todo: ephemeral support
     return itr->second.getDiskCount();
+}
+
+bool Manifest::addStats(uint16_t vbid,
+                        const void* cookie,
+                        ADD_STAT add_stat) const {
+    try {
+        const int bsize = 512;
+        char buffer[bsize];
+        checked_snprintf(buffer, bsize, "vb_%d:manifest:entries", vbid);
+        add_casted_stat(buffer, map.size(), add_stat, cookie);
+        checked_snprintf(buffer, bsize, "vb_%d:manifest:default_exists", vbid);
+        add_casted_stat(buffer,
+                        defaultCollectionExists ? "true" : "false",
+                        add_stat,
+                        cookie);
+        checked_snprintf(buffer, bsize, "vb_%d:manifest:greatest_end", vbid);
+        add_casted_stat(buffer, greatestEndSeqno, add_stat, cookie);
+        checked_snprintf(buffer, bsize, "vb_%d:manifest:n_deleting", vbid);
+        add_casted_stat(buffer, nDeletingCollections, add_stat, cookie);
+    } catch (const std::exception& e) {
+        EP_LOG_WARN(
+                "VB::Manifest::addStats vb:{}, failed to build stats "
+                "exception:{}",
+                vbid,
+                e.what());
+        return false;
+    }
+    for (const auto& entry : map) {
+        if (!entry.second.addStats(
+                    entry.first.to_string(), vbid, cookie, add_stat)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+void Manifest::updateSummary(Summary& summary) const {
+    for (const auto& entry : map) {
+        auto s = summary.find(entry.first);
+        if (s == summary.end()) {
+            summary[entry.first] = entry.second.getDiskCount();
+        } else {
+            s->second += entry.second.getDiskCount();
+        }
+    }
 }
 
 std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {
