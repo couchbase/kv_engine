@@ -1063,10 +1063,13 @@ TEST_P(StreamTest, BackfillOnly) {
         }
     });
 
+    // Ensure all GATs are done before evaluating the stream below
+    thr.join();
+
     /* Wait for the backfill task to complete */
     {
         std::chrono::microseconds uSleepTime(128);
-        while (numItems != stream->getLastReadSeqno()) {
+        while (stream->getLastReadSeqno() < numItems) {
             uSleepTime = decayingSleep(uSleepTime);
         }
     }
@@ -1078,7 +1081,6 @@ TEST_P(StreamTest, BackfillOnly) {
        updated correctly */
     EXPECT_EQ(numItems, stream->getNumBackfillItemsRemaining());
 
-    thr.join();
 
     destroy_dcp_stream();
     /* [TODO]: Expand the testcase to check if snapshot marker, all individual
