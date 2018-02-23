@@ -22,13 +22,14 @@
 #include "cbsasl/util.h"
 
 #include <cbsasl/mechanismfactory.h>
+#include <platform/base64.h>
+#include <platform/random.h>
 #include <cstring>
+#include <gsl/gsl>
 #include <iomanip>
 #include <iostream>
 #include <map>
 #include <memory>
-#include <platform/base64.h>
-#include <platform/random.h>
 #include <set>
 #include <sstream>
 #include <string>
@@ -506,9 +507,11 @@ cbsasl_error_t ScramShaServerBackend::step(const char* input,
     std::string clientproof = iter->second;
     std::string my_clientproof = Couchbase::Base64::encode(getClientProof());
 
-    int fail = cbsasl_secure_compare(clientproof.c_str(), clientproof.length(),
+    int fail = cbsasl_secure_compare(clientproof.c_str(),
+                                     clientproof.length(),
                                      my_clientproof.c_str(),
-                                     my_clientproof.length()) ^user.isDummy();
+                                     my_clientproof.length()) ^
+               gsl::narrow_cast<int>(user.isDummy());
 
     if (fail != 0) {
         if (user.isDummy()) {

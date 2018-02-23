@@ -175,31 +175,29 @@ TEST(FloatRangeValidatorTest, FloatBoundsWork) {
     FloatRangeValidator validator;
     std::string key{"test_key"};
 
-    (&validator)->min(-100.1)->max(1000.1);
+    (&validator)->min(-100.1f)->max(1000.1f);
 
     /* In-bounds */
-    EXPECT_NO_THROW(validator.validateFloat(key, -100.1));
-    EXPECT_NO_THROW(validator.validateFloat(key, 100.00));
-    EXPECT_NO_THROW(validator.validateFloat(key, 101.0));
-    EXPECT_NO_THROW(validator.validateFloat(key, 999.0));
+    EXPECT_NO_THROW(validator.validateFloat(key, -100.1f));
+    EXPECT_NO_THROW(validator.validateFloat(key, 100.00f));
+    EXPECT_NO_THROW(validator.validateFloat(key, 101.0f));
+    EXPECT_NO_THROW(validator.validateFloat(key, 999.0f));
 
     /* Out-of bounds */
     CB_EXPECT_THROW_MSG(
-            validator.validateFloat(key, -100.2),
+            validator.validateFloat(key, -100.2f),
             std::range_error,
-            ("Validation Error, test_key takes values between "
-             + std::to_string(-100.1f)
-             + " and " + std::to_string(1000.1f)
-             + " (Got: " + std::to_string(-100.2f) + ")").c_str()
-    );
+            ("Validation Error, test_key takes values between " +
+             std::to_string(-100.1f) + " and " + std::to_string(1000.1f) +
+             " (Got: " + std::to_string(-100.2f) + ")")
+                    .c_str());
     CB_EXPECT_THROW_MSG(
-            validator.validateFloat(key, 1000.2),
+            validator.validateFloat(key, 1000.2f),
             std::range_error,
-            ("Validation Error, test_key takes values between "
-             + std::to_string(-100.1f)
-             + " and " + std::to_string(1000.1f)
-             + " (Got: " + std::to_string(1000.2f) + ")").c_str()
-    );
+            ("Validation Error, test_key takes values between " +
+             std::to_string(-100.1f) + " and " + std::to_string(1000.1f) +
+             " (Got: " + std::to_string(1000.2f) + ")")
+                    .c_str());
 }
 
 TEST(EnumValidatorTest, EmptyWorks) {

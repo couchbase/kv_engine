@@ -22,6 +22,7 @@
 #include <platform/cb_malloc.h>
 #include <platform/dirutils.h>
 #include <platform/processclock.h>
+#include <platform/strerror.h>
 
 struct mock_engine {
     ENGINE_HANDLE_V1 me;
@@ -1174,19 +1175,7 @@ static int spawn_and_wait(int argc, char* const argv[]) {
 
     if (!CreateProcess(argv[0], commandline, NULL, NULL, FALSE, 0,
                        NULL, NULL, &sinfo, &pinfo)) {
-        LPVOID error_msg;
-        DWORD err = GetLastError();
-
-        if (FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-                          FORMAT_MESSAGE_FROM_SYSTEM |
-                          FORMAT_MESSAGE_IGNORE_INSERTS,
-                          NULL, err, 0,
-                          (LPTSTR)&error_msg, 0, NULL) != 0) {
-            fprintf(stderr, "Failed to start process: %s\n", error_msg);
-            LocalFree(error_msg);
-        } else {
-            fprintf(stderr, "Failed to start process: unknown error\n");
-        }
+        std::cerr << "Failed to start process: " << cb_strerror() << std::endl;
         exit(EXIT_FAILURE);
     }
     WaitForSingleObject(pinfo.hProcess, INFINITE);

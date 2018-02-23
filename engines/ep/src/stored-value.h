@@ -740,7 +740,8 @@ protected:
 
     uint8_t getNru() const {
         // Not atomic across the two bits, recommend holding the HBL
-        return bits.test(nruIndex1) | (bits.test(nruIndex2) << 1);
+        return uint8_t(bits.test(nruIndex1)) |
+               (uint8_t(bits.test(nruIndex2)) << 1);
     }
 
     friend class StoredValueFactory;

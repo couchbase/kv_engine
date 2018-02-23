@@ -125,10 +125,9 @@ static enum test_result test_collapse_checkpoints(ENGINE_HANDLE *h, ENGINE_HANDL
     stop_persistence(h, h1);
     for (size_t i = 0; i < 5; ++i) {
         for (size_t j = 0; j < 497; ++j) {
-            char key[8];
-            sprintf(key, "key%ld", j);
+            const auto key = "key" + std::to_string(j);
             checkeq(ENGINE_SUCCESS,
-                    store(h, h1, NULL, OPERATION_SET, key, "value"),
+                    store(h, h1, NULL, OPERATION_SET, key.c_str(), "value"),
                     "Failed to store an item.");
         }
         /* Test with app keys with special strings */

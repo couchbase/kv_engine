@@ -7,6 +7,7 @@
 #include <JSON_checker.h>
 #include <platform/backtrace.h>
 #include <platform/dirutils.h>
+#include <platform/strerror.h>
 
 #include <gtest/gtest.h>
 #include <snappy-c.h>
@@ -742,16 +743,7 @@ void TestappTest::start_external_server() {
         LPVOID error_msg;
         DWORD err = GetLastError();
 
-        if (FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-                          FORMAT_MESSAGE_FROM_SYSTEM |
-                          FORMAT_MESSAGE_IGNORE_INSERTS,
-                          NULL, err, 0,
-                          (LPTSTR)&error_msg, 0, NULL) != 0) {
-            fprintf(stderr, "Failed to start process: %s\n", error_msg);
-            LocalFree(error_msg);
-        } else {
-            fprintf(stderr, "Failed to start process: unknown error\n");
-        }
+        std::cerr << "Failed to start process: " << cb_strerror() << std::endl;
         exit(EXIT_FAILURE);
     }
 
