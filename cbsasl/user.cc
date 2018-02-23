@@ -19,13 +19,14 @@
 #include "user.h"
 #include "cbsasl_internal.h"
 
-#include <atomic>
-#include <iterator>
 #include <platform/base64.h>
 #include <platform/random.h>
+#include <atomic>
+#include <gsl/gsl>
+#include <iterator>
+#include <memory>
 #include <stdexcept>
 #include <string>
-#include <memory>
 
 std::atomic<int> IterationCount(4096);
 
@@ -276,7 +277,7 @@ cb::sasl::User::PasswordMetaData::PasswordMetaData(cJSON* obj) {
     // validate that we may decode the salt
     Couchbase::Base64::decode(salt);
     password.assign(Couchbase::Base64::decode(h->valuestring));
-    iteration_count = i->valueint;
+    iteration_count = gsl::narrow<int>(i->valueint);
     if (iteration_count < 0) {
         throw std::runtime_error("cb::cbsasl::User::PasswordMetaData: iteration "
                                      "count must be positive");

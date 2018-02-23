@@ -23,6 +23,7 @@
 #include <algorithm>
 #include <cstring>
 #include <fstream>
+#include <gsl/gsl>
 #include <system_error>
 
 #include "log_macros.h"
@@ -194,7 +195,7 @@ static void handle_threads(Settings& s, cJSON* obj) {
         throw std::invalid_argument("\"threads\" must be an integer");
     }
 
-    s.setNumWorkerThreads(obj->valueint);
+    s.setNumWorkerThreads(gsl::narrow<int>(obj->valueint));
 }
 
 /**
@@ -284,7 +285,8 @@ static void handle_reqs_event(Settings& s, cJSON* obj) {
     } else {
         throw std::invalid_argument("Invalid key specified: " + name);
     }
-    s.setRequestsPerEventNotification(obj->valueint, priority);
+    s.setRequestsPerEventNotification(gsl::narrow<int>(obj->valueint),
+                                      priority);
 }
 
 /**
@@ -299,7 +301,7 @@ static void handle_verbosity(Settings& s, cJSON* obj) {
     if (obj->type != cJSON_Number) {
         throw std::invalid_argument("\"verbosity\" must be an integer");
     }
-    s.setVerbose(obj->valueint);
+    s.setVerbose(gsl::narrow<int>(obj->valueint));
 }
 
 /**
@@ -331,7 +333,7 @@ static void handle_bio_drain_buffer_sz(Settings& s, cJSON* obj) {
         throw std::invalid_argument(
             "\"bio_drain_buffer_sz\" must be an integer");
     }
-    s.setBioDrainBufferSize(obj->valueint);
+    s.setBioDrainBufferSize(gsl::narrow<unsigned int>(obj->valueint));
 }
 
 /**
@@ -444,7 +446,7 @@ static void handle_max_packet_size(Settings& s, cJSON* obj) {
         throw std::invalid_argument(
             "\"max_packet_size\" must be an integer");
     }
-    s.setMaxPacketSize(obj->valueint * 1024 * 1024);
+    s.setMaxPacketSize(gsl::narrow<uint32_t>(obj->valueint) * 1024 * 1024);
 }
 
 /**

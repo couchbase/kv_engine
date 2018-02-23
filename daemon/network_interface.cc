@@ -18,6 +18,7 @@
 #include "settings.h"
 
 #include <platform/dirutils.h>
+#include <gsl/gsl>
 #include <vector>
 
 static void handle_interface_maxconn(NetworkInterface& ifc, cJSON* obj) {
@@ -25,7 +26,7 @@ static void handle_interface_maxconn(NetworkInterface& ifc, cJSON* obj) {
         throw std::invalid_argument(R"("maxconn" must be a number)");
     }
 
-    ifc.maxconn = obj->valueint;
+    ifc.maxconn = gsl::narrow<int>(obj->valueint);
 }
 
 static void handle_interface_port(NetworkInterface& ifc, cJSON* obj) {
@@ -49,7 +50,7 @@ static void handle_interface_backlog(NetworkInterface& ifc, cJSON* obj) {
         throw std::invalid_argument(R"("backlog" must be a number)");
     }
 
-    ifc.backlog = obj->valueint;
+    ifc.backlog = gsl::narrow<int>(obj->valueint);
 }
 
 static void handle_interface_ipv4(NetworkInterface& ifc, cJSON* obj) {

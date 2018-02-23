@@ -37,18 +37,19 @@
 #include "testapp.h"
 #include "testapp_subdoc_common.h"
 
-#include <memcached/util.h>
-#include <memcached/config_parser.h>
 #include <cbsasl/cbsasl.h>
+#include <memcached/config_parser.h>
+#include <memcached/util.h>
+#include <platform/backtrace.h>
 #include <platform/cb_malloc.h>
+#include <platform/dirutils.h>
 #include <platform/platform.h>
 #include <fstream>
-#include <platform/dirutils.h>
-#include <platform/backtrace.h>
+#include <gsl/gsl>
+#include "daemon/topkeys.h"
 #include "memcached/openssl.h"
 #include "utilities.h"
 #include "utilities/protocol2text.h"
-#include "daemon/topkeys.h"
 
 using Testapp::MAX_CONNECTIONS;
 using Testapp::BACKLOG;
@@ -2442,7 +2443,7 @@ bool get_topkeys_json_value(const std::string& key, int& count) {
         if (key == current_key->valuestring) {
             cJSON* access_count = cJSON_GetObjectItem(record, "access_count");
             EXPECT_NE(nullptr, access_count);
-            count = access_count->valueint;
+            count = gsl::narrow<int>(access_count->valueint);
             cJSON_Delete(json_value);
             return true;
         }

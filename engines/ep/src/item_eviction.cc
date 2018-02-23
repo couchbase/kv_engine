@@ -17,6 +17,7 @@
 
 #include "item_eviction.h"
 
+#include <gsl/gsl>
 #include <limits>
 
 #include <hdr_histogram.h>
@@ -46,5 +47,6 @@ void ItemEviction::reset() {
 }
 
 uint16_t ItemEviction::getFreqThreshold(double percentage) const {
-    return hdr_value_at_percentile(freqHistogram.get(), percentage);
+    return gsl::narrow<uint16_t>(
+            hdr_value_at_percentile(freqHistogram.get(), percentage));
 }

@@ -242,21 +242,22 @@ static ENGINE_ERROR_CODE dcp_message_mutation(
     // we've reserved the item, and it'll be released when we're done sending
     // the item.
     item.release();
-    protocol_binary_request_dcp_mutation packet(c->isDcpCollectionAware(),
-                                                opaque,
-                                                vbucket,
-                                                info.cas,
-                                                info.nkey,
-                                                buffer.len,
-                                                info.datatype,
-                                                by_seqno,
-                                                rev_seqno,
-                                                info.flags,
-                                                info.exptime,
-                                                lock_time,
-                                                nmeta,
-                                                nru,
-                                                collection_len);
+    protocol_binary_request_dcp_mutation packet(
+            c->isDcpCollectionAware(),
+            opaque,
+            vbucket,
+            info.cas,
+            info.nkey,
+            gsl::narrow<uint32_t>(buffer.len),
+            info.datatype,
+            by_seqno,
+            rev_seqno,
+            info.flags,
+            gsl::narrow<uint32_t>(info.exptime),
+            lock_time,
+            nmeta,
+            nru,
+            collection_len);
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     c->write->produce([&c, &packet, &info, &buffer, &meta, &nmeta, &ret](
@@ -598,7 +599,12 @@ static ENGINE_ERROR_CODE dcp_message_system_event(
     auto* c = cookie2mcbp(cookie, __func__);
 
     protocol_binary_request_dcp_system_event packet(
-            opaque, vbucket, key.size(), eventData.size(), event, bySeqno);
+            opaque,
+            vbucket,
+            gsl::narrow<uint16_t>(key.size()),
+            eventData.size(),
+            event,
+            bySeqno);
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     c->write->produce([&c, &packet, &key, &eventData, &ret](

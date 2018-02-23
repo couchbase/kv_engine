@@ -29,6 +29,7 @@
 
 #include <algorithm>
 #include <array>
+#include <gsl/gsl>
 #include <iomanip>
 #include <iostream>
 #include <iterator>
@@ -197,7 +198,7 @@ static void build_stream(size_t streamsize, size_t itemsize) {
         case 8:
         case 9:
             // insert get(s)
-            total = dis(gen) + 1;
+            total = gsl::narrow<uint16_t>(dis(gen) + 1);
             command.assign("get ");
             for (uint16_t ii = 0; ii < total; ii++) {
                 command.append(getKey(dis(gen)));

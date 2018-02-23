@@ -15,12 +15,13 @@
  *   limitations under the License.
  */
 
-#include "testapp_subdoc_common.h"
-#include "testapp_client_test.h"
 #include <cstring>
+#include <gsl/gsl>
 #include <limits>
 #include <string>
 #include <vector>
+#include "testapp_client_test.h"
+#include "testapp_subdoc_common.h"
 
 #include <cJSON.h>
 #include <platform/cb_malloc.h>
@@ -71,7 +72,8 @@ void SubdocTestappTest::test_subdoc_get_binary(bool compress,
             cJSON_GetObjectItem(conn.stats("responses detailed").get(),
                                 "responses")
                     ->valuestring));
-    int notJsonCount = cJSON_GetObjectItem(stats.get(), "c6")->valueint;
+    int notJsonCount =
+            gsl::narrow<int>(cJSON_GetObjectItem(stats.get(), "c6")->valueint);
     // a). Check that access fails with DOC_NOTJSON
     EXPECT_SD_ERR(BinprotSubdocCommand(cmd, "binary", "[0]"), PROTOCOL_BINARY_RESPONSE_SUBDOC_DOC_NOTJSON);
 

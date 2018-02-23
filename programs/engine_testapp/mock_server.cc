@@ -22,6 +22,7 @@
 
 #include <logger/logger.h>
 #include <array>
+#include <gsl/gsl>
 #include <list>
 
 #define REALTIME_MAXDELTA 60*60*24*3
@@ -238,8 +239,8 @@ static rel_time_t mock_realtime(rel_time_t exptime, cb::ExpiryLimit limit) {
         if (limit &&
             exptime > (process_started + time_travel_offset +
                        limit.get().count())) {
-            exptime =
-                    process_started + time_travel_offset + limit.get().count();
+            exptime = gsl::narrow<rel_time_t>(
+                    process_started + time_travel_offset + limit.get().count());
         }
         /* if item expiration is at/before the server started, give it an
            expiration time of 1 second after the server started.
@@ -254,14 +255,14 @@ static rel_time_t mock_realtime(rel_time_t exptime, cb::ExpiryLimit limit) {
         }
     } else {
         if (limit && exptime > limit.get().count()) {
-            exptime = limit.get().count();
+            exptime = gsl::narrow<rel_time_t>(limit.get().count());
         }
 
         rv = (rel_time_t)(exptime + mock_get_current_time());
     }
 
     if (limit && rv > limit.get().count()) {
-        rv = limit.get().count();
+        rv = gsl::narrow<rel_time_t>(limit.get().count());
     }
     return rv;
 }
@@ -534,7 +535,7 @@ int get_number_of_mock_cookie_references(const void *cookie) {
     return numberOfReferences;
 }
 
-int get_number_of_mock_cookie_io_notifications(const void* cookie) {
+size_t get_number_of_mock_cookie_io_notifications(const void* cookie) {
     mock_connstruct* c = cookie_to_mock_object(cookie);
     return c->num_io_notifications;
 }

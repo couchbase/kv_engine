@@ -342,7 +342,7 @@ void AuditConfig::add_array(std::vector<uint32_t> &vec, cJSON *array, const char
                <<" array. Expected numbers";
             throw ss.str();
         }
-        vec.push_back(ii->valueint);
+        vec.push_back(gsl::narrow<uint32_t>(ii->valueint));
     }
 }
 

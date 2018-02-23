@@ -56,7 +56,7 @@ ENGINE_ERROR_CODE GetMetaCommandContext::sendResponse() {
     uint8_t datatype = fetchDatatype ? info.datatype : uint8_t(0);
     GetMetaResponse metaResponse(deleted,
                                  info.flags,
-                                 htonl(info.exptime),
+                                 htonl(gsl::narrow<uint32_t>(info.exptime)),
                                  htonll(info.seqno),
                                  datatype);
 

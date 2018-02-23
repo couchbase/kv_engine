@@ -26,6 +26,7 @@
 #include <array>
 #include <atomic>
 #include <cctype>
+#include <gsl/gsl>
 
 namespace cb {
 namespace mcbp {
@@ -65,7 +66,8 @@ unique_cJSON_ptr to_json() {
             unique_cJSON_ptr obj(cJSON_CreateObject());
             auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                     threshold[ii].load(std::memory_order_relaxed));
-            cJSON_AddNumberToObject(obj.get(), "slow", ms.count());
+            cJSON_AddNumberToObject(
+                    obj.get(), "slow", gsl::narrow_cast<double>(ms.count()));
             cJSON_AddItemToObject(ret.get(), cmd.c_str(), obj.release());
         } catch (const std::exception&) {
             // unknown command. ignore

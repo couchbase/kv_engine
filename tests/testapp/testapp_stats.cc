@@ -16,6 +16,8 @@
  */
 #include "testapp_stats.h"
 
+#include <gsl/gsl>
+
 INSTANTIATE_TEST_CASE_P(TransportProtocols,
                         StatsTest,
                         ::testing::Values(TransportProtocols::McbpPlain,
@@ -333,7 +335,7 @@ TEST_P(StatsTest, TestConnections) {
                     ptr = cJSON_GetObjectItem(json.get(), "socket");
                     if (ptr != nullptr) {
                         EXPECT_EQ(cJSON_Number, ptr->type);
-                        sock = ptr->valueint;
+                        sock = gsl::narrow<int>(ptr->valueint);
                     }
                 }
             }

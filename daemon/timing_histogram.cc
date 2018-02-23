@@ -218,6 +218,6 @@ uint32_t TimingHistogram::aggregate_wayout() {
     return ret;
 }
 
-uint32_t TimingHistogram::get_total() {
+uint64_t TimingHistogram::get_total() {
     return total;
 }

@@ -78,8 +78,8 @@ MEMCACHED_PUBLIC_API void destroy_mock_event_callbacks(void);
 
 MEMCACHED_PUBLIC_API int get_number_of_mock_cookie_references(const void *cookie);
 
-MEMCACHED_PUBLIC_API int get_number_of_mock_cookie_io_notifications(
-        const void* cookie);
+MEMCACHED_PUBLIC_API size_t
+get_number_of_mock_cookie_io_notifications(const void* cookie);
 
 void mock_set_pre_link_function(PreLinkFunction function);
 

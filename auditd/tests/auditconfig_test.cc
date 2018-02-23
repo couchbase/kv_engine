@@ -14,11 +14,12 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include <map>
-#include <cstdlib>
-#include <iostream>
 #include <platform/dirutils.h>
 #include <platform/platform.h>
+#include <cstdlib>
+#include <gsl/gsl>
+#include <iostream>
+#include <map>
 
 #include <cerrno>
 #include <cstring>
@@ -204,11 +205,10 @@ TEST_F(AuditConfigTest, TestRotateIntervalLegalValue) {
     const uint32_t min_file_rotation_time = defaultvalue.get_min_file_rotation_time();
     const uint32_t max_file_rotation_time = defaultvalue.get_max_file_rotation_time();
 
-    for (size_t ii = min_file_rotation_time;
-         ii < max_file_rotation_time;
+    for (uint32_t ii = min_file_rotation_time; ii < max_file_rotation_time;
          ii += 1000) {
-        cJSON_ReplaceItemInObject(json, "rotate_interval",
-                                  cJSON_CreateNumber(double(ii)));
+        cJSON_ReplaceItemInObject(
+                json, "rotate_interval", cJSON_CreateNumber(ii));
         EXPECT_NO_THROW(config.initialize_config(json));
     }
 }

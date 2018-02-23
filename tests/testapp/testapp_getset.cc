@@ -18,8 +18,9 @@
 #include "testapp.h"
 #include "testapp_client_test.h"
 
-#include <algorithm>
 #include <platform/compress.h>
+#include <algorithm>
+#include <gsl/gsl>
 
 class GetSetTest : public TestappXattrClientTest {
 protected:
@@ -1009,12 +1010,12 @@ TEST_P(GetSetTest, TestGetMetaExpiry) {
     auto meta =
             getConnection().getMeta(document.info.id, 0, GetMetaVersion::V1);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, meta.first);
-    uint32_t expected = now + seconds - 2;
+    uint32_t expected = gsl::narrow<uint32_t>(now) + seconds - 2;
     EXPECT_GE(meta.second.expiry, expected);
     EXPECT_LE(meta.second.expiry, expected + 3);
 
     // Case `expiry` > `num_seconds_in_a_month`
-    document.info.expiration = now + 60;
+    document.info.expiration = gsl::narrow<uint32_t>(now) + 60;
     getConnection().mutate(document, 0, MutationType::Replace);
     meta = getConnection().getMeta(document.info.id, 0, GetMetaVersion::V1);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, meta.first);

@@ -28,6 +28,7 @@
 
 #include <array>
 #include <cstdlib>
+#include <gsl/gsl>
 #include <iostream>
 #include <stdexcept>
 
@@ -137,7 +138,7 @@ private:
         int ii = 0;
         cJSON* i = arr->child;
         while (i) {
-            us[ii].count = i->valueint;
+            us[ii].count = gsl::narrow<uint32_t>(i->valueint);
             ++ii;
             i = i->next;
             if (ii == 100 && i != NULL) {
@@ -150,7 +151,7 @@ private:
         ii = 1;
         i = arr->child;
         while (i) {
-            ms[ii].count = i->valueint;
+            ms[ii].count = gsl::narrow<uint32_t>(i->valueint);
             ++ii;
             i = i->next;
             if (ii == 50 && i != NULL) {
@@ -163,7 +164,7 @@ private:
         ii = 0;
         i = arr->child;
         while (i) {
-            halfsec[ii].count = i->valueint;
+            halfsec[ii].count = gsl::narrow<uint32_t>(i->valueint);
             ++ii;
             i = i->next;
             if (ii == 10 && i != NULL) {
@@ -184,7 +185,7 @@ private:
         }
 
         // Calculate total and cumulative counts, and find the highest value.
-        max = total = 0;
+        total = max = 0;
 
         update_max_and_total(max, total, ns);
         for (auto &val : us) {

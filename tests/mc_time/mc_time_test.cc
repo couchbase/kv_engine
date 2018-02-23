@@ -20,6 +20,7 @@
 #include <daemon/mc_time.h>
 #include <daemon/memcached.h>
 #include <gtest/gtest.h>
+#include <gsl/gsl>
 
 class McTimeTest : public ::testing::Test {
 public:
@@ -53,7 +54,8 @@ TEST_F(McTimeTest, absolute) {
               seconds(1).count();
     EXPECT_EQ(
             duration_cast<seconds>(hours(30 * 24)).count() + seconds(1).count(),
-            mc_time_convert_to_real_time(ts, cb::NoExpiryLimit));
+            mc_time_convert_to_real_time(gsl::narrow<rel_time_t>(ts),
+                                         cb::NoExpiryLimit));
 }
 
 TEST_F(McTimeTest, absolute_less_than_epoch) {
@@ -61,7 +63,9 @@ TEST_F(McTimeTest, absolute_less_than_epoch) {
             duration_cast<seconds>(hours(30 * 24)).count() + seconds(1).count();
 
     // If this failed, has the test system got a bad clock?
-    EXPECT_EQ(1, mc_time_convert_to_real_time(ts, cb::NoExpiryLimit))
+    EXPECT_EQ(1,
+              mc_time_convert_to_real_time(gsl::narrow<rel_time_t>(ts),
+                                           cb::NoExpiryLimit))
             << "Check your system time";
 }
 
@@ -96,7 +100,9 @@ TEST_F(McTimeTest, limited_absolute) {
     // Exceed 30 days from now as an absolute
     auto ts = epoch + duration_cast<seconds>(hours(30 * 24)).count() +
               seconds(1).count();
-    EXPECT_EQ(now + 99, mc_time_convert_to_real_time(ts, seconds(99)));
+    EXPECT_EQ(now + 99,
+              mc_time_convert_to_real_time(gsl::narrow<rel_time_t>(ts),
+                                           seconds(99)));
 }
 
 TEST_F(McTimeTest, limited_absolute_zero) {
@@ -104,7 +110,8 @@ TEST_F(McTimeTest, limited_absolute_zero) {
     auto ts = epoch + duration_cast<seconds>(hours(30 * 24)).count() +
               seconds(2).count();
 
-    auto rv = mc_time_convert_to_real_time(ts, seconds(0));
+    auto rv = mc_time_convert_to_real_time(gsl::narrow<rel_time_t>(ts),
+                                           seconds(0));
 
     if (now == 0) {
         // mc_time will hit the case where the computed time is in the past so
@@ -120,7 +127,9 @@ TEST_F(McTimeTest, limited_less_than_epoch) {
     auto ts = epoch - 1;
 
     // If this failed, has the test system got a bad clock?
-    EXPECT_EQ(1, mc_time_convert_to_real_time(ts, seconds(99)))
+    EXPECT_EQ(1,
+              mc_time_convert_to_real_time(gsl::narrow<rel_time_t>(ts),
+                                           seconds(99)))
             << "Check your system time";
 }
 
@@ -129,7 +138,8 @@ TEST_F(McTimeTest, limited_overflow_absolute) {
 
     EXPECT_EQ(std::numeric_limits<rel_time_t>::max(),
               mc_time_convert_to_real_time(
-                      ts, seconds(std::numeric_limits<rel_time_t>::max())));
+                      gsl::narrow<rel_time_t>(ts),
+                      seconds(std::numeric_limits<rel_time_t>::max())));
 }
 
 TEST_F(McTimeTest, limited_overflow_relative) {
@@ -155,5 +165,7 @@ TEST_F(McTimeTest, limited_absolute_limit_and_expiry_equal) {
     auto ts = epoch + duration_cast<seconds>(hours(30 * 24)).count() +
               seconds(5).count();
 
-    EXPECT_EQ(ts - epoch, mc_time_convert_to_real_time(ts, seconds(ts)));
+    EXPECT_EQ(ts - epoch,
+              mc_time_convert_to_real_time(gsl::narrow<rel_time_t>(ts),
+                                           seconds(ts)));
 }

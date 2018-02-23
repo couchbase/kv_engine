@@ -5,13 +5,13 @@
 #include "ssl_impl.h"
 
 #include <JSON_checker.h>
+#include <gtest/gtest.h>
 #include <platform/backtrace.h>
 #include <platform/cb_malloc.h>
 #include <platform/dirutils.h>
 #include <platform/strerror.h>
-
-#include <gtest/gtest.h>
 #include <snappy-c.h>
+#include <gsl/gsl>
 
 #include <getopt.h>
 #include <fstream>
@@ -499,8 +499,8 @@ cJSON* TestappTest::generate_config(uint16_t ssl_port)
     cJSON_AddNumberToObject(obj, "port", 0);
     cJSON_AddTrueToObject(obj, "ipv4");
     cJSON_AddTrueToObject(obj, "ipv6");
-    cJSON_AddNumberToObject(obj, "maxconn", MAX_CONNECTIONS);
-    cJSON_AddNumberToObject(obj, "backlog", BACKLOG);
+    cJSON_AddInteger64ToObject(obj, "maxconn", MAX_CONNECTIONS);
+    cJSON_AddInteger64ToObject(obj, "backlog", BACKLOG);
     cJSON_AddStringToObject(obj, "host", "*");
     cJSON_AddStringToObject(obj, "protocol", "memcached");
     cJSON_AddTrueToObject(obj, "management");
@@ -509,8 +509,8 @@ cJSON* TestappTest::generate_config(uint16_t ssl_port)
     // One interface using the memcached binary protocol over SSL
     obj = cJSON_CreateObject();
     cJSON_AddNumberToObject(obj, "port", ssl_port);
-    cJSON_AddNumberToObject(obj, "maxconn", MAX_CONNECTIONS);
-    cJSON_AddNumberToObject(obj, "backlog", BACKLOG);
+    cJSON_AddInteger64ToObject(obj, "maxconn", MAX_CONNECTIONS);
+    cJSON_AddInteger64ToObject(obj, "backlog", BACKLOG);
     cJSON_AddTrueToObject(obj, "ipv4");
     cJSON_AddTrueToObject(obj, "ipv6");
     cJSON_AddStringToObject(obj, "host", "*");
@@ -1639,7 +1639,8 @@ int TestappTest::getResponseCount(protocol_binary_response_status statusCode) {
                     ->valuestring));
     std::stringstream stream;
     stream << std::hex << statusCode;
-    return cJSON_GetObjectItem(stats.get(), stream.str().c_str())->valueint;
+    return gsl::narrow<int>(
+            cJSON_GetObjectItem(stats.get(), stream.str().c_str())->valueint);
 }
 
 cb::mcbp::Datatype TestappTest::expectedJSONDatatype() const {

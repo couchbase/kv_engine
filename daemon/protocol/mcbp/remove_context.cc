@@ -102,7 +102,8 @@ ENGINE_ERROR_CODE RemoveCommandContext::allocateDeletedItem() {
                                xattr.size(),
                                xattr.size(), // Only system xattrs
                                0, // MB-25273: 0 flags when deleting the body
-                               existing_info.exptime,
+                               0, // Tombstone item, reset expiry time as will
+                                  // be removed during purge
                                datatype,
                                vbucket);
 

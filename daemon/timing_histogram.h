@@ -48,7 +48,7 @@ public:
     uint32_t get_msec(const uint8_t index);
     uint32_t get_halfsec(const uint8_t index);
     uint32_t get_wayout(const uint8_t index);
-    uint32_t get_total();
+    uint64_t get_total();
 
     uint32_t aggregate_wayout();
 

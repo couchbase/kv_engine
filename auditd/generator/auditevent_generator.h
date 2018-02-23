@@ -18,6 +18,7 @@
 #ifndef AUDIT_DESCRIPTORS_H
 #define AUDIT_DESCRIPTORS_H
 
+#include <gsl/gsl>
 #include <string>
 
 #define eventid_modulus 4096
@@ -128,7 +129,7 @@ public:
         cJSON *fname = getMandatoryObject(data, "file", cJSON_String);
         cJSON *hfile = getOptionalObject(data, "header", cJSON_String);
 
-        start = sid->valueint;
+        start = gsl::narrow<int>(sid->valueint);
         file.assign(srcRoot);
         file.append("/");
         file.append(fname->valuestring);

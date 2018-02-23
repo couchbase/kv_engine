@@ -27,6 +27,7 @@
 #include <platform/strerror.h>
 
 #include <cerrno>
+#include <gsl/gsl>
 #include <iostream>
 #include <limits>
 #include <sstream>
@@ -213,7 +214,7 @@ void MemcachedConnection::connect() {
         SSL_CTX_set_mode(context, SSL_MODE_AUTO_RETRY);
 
         bio = BIO_new_ssl(context, 1);
-        BIO_push(bio, BIO_new_socket(sock, 0));
+        BIO_push(bio, BIO_new_socket(gsl::narrow<int>(sock), 0));
 
         if (BIO_do_handshake(bio) <= 0) {
             BIO_free_all(bio);
