@@ -202,34 +202,6 @@ public:
         /// Reset the values of all statistics to zero.
         void reset();
 
-        /**
-         * Increase the size of the cache
-         */
-        void increaseCacheSize(size_t by);
-
-        /**
-         * Reduce the size of the cache
-         */
-        void reduceCacheSize(size_t by);
-
-        /**
-         * Increase the size of the meta data
-         */
-        void increaseMetaDataSize(EPStats& st, size_t by);
-
-        /**
-         * Reduce the size of the meta data
-         */
-        void reduceMetaDataSize(EPStats& st, size_t by);
-
-        void decrNumNonResidentItems() {
-            --numNonResidentItems;
-        }
-
-        void decrNumItems() {
-            --numItems;
-        }
-
     public:
         /// Count of alive & deleted, in-memory non-resident and resident items.
         /// Excludes temporary items.

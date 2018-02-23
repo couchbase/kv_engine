@@ -345,11 +345,15 @@ StoredValue* HashTable::unlocked_addNewStoredValue(const HashBucketLock& hbl,
 
 void HashTable::Statistics::prologue(const StoredValue& v) {
     // Decrease all statistics which sv matches.
-    reduceMetaDataSize(epStats, v.metaDataSize());
-    reduceCacheSize(v.size());
+
+    metaDataMemory.fetch_sub(v.metaDataSize());
+    epStats.currentSize.fetch_sub(v.metaDataSize());
+
+    cacheSize.fetch_sub(v.size());
+    memSize.fetch_sub(v.size());
 
     if (!v.isResident() && !v.isDeleted() && !v.isTempItem()) {
-        decrNumNonResidentItems();
+        --numNonResidentItems;
     }
 
     if (v.isTempItem()) {
@@ -366,8 +370,12 @@ void HashTable::Statistics::prologue(const StoredValue& v) {
 
 void HashTable::Statistics::epilogue(const StoredValue& v) {
     // After performing updates to sv; increase all statistics which sv matches.
-    increaseMetaDataSize(epStats, v.metaDataSize());
-    increaseCacheSize(v.size());
+
+    metaDataMemory.fetch_add(v.metaDataSize());
+    epStats.currentSize.fetch_add(v.metaDataSize());
+
+    cacheSize.fetch_add(v.size());
+    memSize.fetch_add(v.size());
 
     if (!v.isResident() && !v.isDeleted() && !v.isTempItem()) {
         ++numNonResidentItems;
@@ -823,26 +831,6 @@ void HashTable::unlocked_restoreMeta(const std::unique_lock<std::mutex>& htLock,
     v.restoreMeta(itm);
 
     valueStats.epilogue(v);
-}
-
-void HashTable::Statistics::increaseCacheSize(size_t by) {
-    cacheSize.fetch_add(by);
-    memSize.fetch_add(by);
-}
-
-void HashTable::Statistics::reduceCacheSize(size_t by) {
-    cacheSize.fetch_sub(by);
-    memSize.fetch_sub(by);
-}
-
-void HashTable::Statistics::increaseMetaDataSize(EPStats& st, size_t by) {
-    metaDataMemory.fetch_add(by);
-    st.currentSize.fetch_add(by);
-}
-
-void HashTable::Statistics::reduceMetaDataSize(EPStats& st, size_t by) {
-    metaDataMemory.fetch_sub(by);
-    st.currentSize.fetch_sub(by);
 }
 
 uint8_t HashTable::generateFreqValue(uint8_t counter) {
