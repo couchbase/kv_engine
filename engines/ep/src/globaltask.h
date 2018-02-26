@@ -152,11 +152,13 @@ public:
     size_t getId() const { return uid; }
 
     /**
-     * Returns the type id of this task.
+     * Returns the id of this task.
      *
-     * @return A type id of the task.
+     * @return The id of this task.
      */
-    TaskId getTypeId() { return typeId; }
+    TaskId getTaskId() {
+        return taskId;
+    }
 
     /**
      * Gets the engine that this task was scheduled from
@@ -256,7 +258,7 @@ protected:
     bool blockShutdown;
     std::atomic<task_state_t> state;
     const size_t uid;
-    const TaskId typeId;
+    const TaskId taskId;
     TaskPriority priority;
     EventuallyPersistentEngine *engine;
     Taskable& taskable;

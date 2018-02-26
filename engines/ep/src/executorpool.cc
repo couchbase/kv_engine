@@ -431,7 +431,7 @@ size_t ExecutorPool::_schedule(ExTask task) {
     const size_t taskId = task->getId();
 
     TaskQueue* q = _getTaskQueue(task->getTaskable(),
-                                 GlobalTask::getTaskType(task->getTypeId()));
+                                 GlobalTask::getTaskType(task->getTaskId()));
     TaskQpair tqp(task, q);
 
     auto result = taskLocator.insert(std::make_pair(taskId, tqp));
@@ -911,7 +911,7 @@ void ExecutorPool::doTasksStat(EventuallyPersistentEngine* engine,
         cJSON_AddStringToObject(
                 obj.get(), "state", to_string(task->getState()).c_str());
         cJSON_AddStringToObject(
-                obj.get(), "name", GlobalTask::getTaskName(task->getTypeId()));
+                obj.get(), "name", GlobalTask::getTaskName(task->getTaskId()));
         cJSON_AddStringToObject(
                 obj.get(),
                 "this",
@@ -938,13 +938,13 @@ void ExecutorPool::doTasksStat(EventuallyPersistentEngine* engine,
                 obj.get(),
                 "num_runs",
                 engine->getEpStats()
-                        .taskRuntimeHisto[static_cast<int>(task->getTypeId())]
+                        .taskRuntimeHisto[static_cast<int>(task->getTaskId())]
                         .total());
         cJSON_AddStringToObject(
                 obj.get(),
                 "type",
                 TaskQueue::taskType2Str(
-                        GlobalTask::getTaskType(task->getTypeId()))
+                        GlobalTask::getTaskType(task->getTaskId()))
                         .c_str());
 
         cJSON_AddItemToArray(list.get(), obj.release());

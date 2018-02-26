@@ -23,7 +23,7 @@ public:
         : GlobalTask(e, id, 0.0, false),
           order(o),
           description(std::string("TestTask ") +
-                      GlobalTask::getTaskName(getTypeId())) {
+                      GlobalTask::getTaskName(getTaskId())) {
     }
 
     // returning true will also drive the ExecutorPool::reschedule path.

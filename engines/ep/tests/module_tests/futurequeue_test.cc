@@ -38,7 +38,7 @@ TEST_F(FutureQueueTest, push1) {
     EXPECT_EQ(1u, queue.size());
     EXPECT_FALSE(queue.empty());
 
-    EXPECT_EQ(TaskId::PendingOpsNotification, queue.top()->getTypeId());
+    EXPECT_EQ(TaskId::PendingOpsNotification, queue.top()->getTaskId());
 }
 
 TEST_F(FutureQueueTest, pushn) {
@@ -51,7 +51,7 @@ TEST_F(FutureQueueTest, pushn) {
     }
     EXPECT_EQ(n, queue.size());
     EXPECT_FALSE(queue.empty());
-    EXPECT_EQ(TaskId::PendingOpsNotification, queue.top()->getTypeId());
+    EXPECT_EQ(TaskId::PendingOpsNotification, queue.top()->getTaskId());
 }
 
 /*

@@ -100,11 +100,37 @@ void ExecutorThread::run() {
             // that the task wanted to wake up and the current time
             const ProcessClock::time_point woketime =
                     currentTask->getWaketime();
-            currentTask->
-            getTaskable().logQTime(currentTask->getTypeId(),
-                                   getCurTime() > woketime ?
-                                           getCurTime() - woketime :
-                                           ProcessClock::duration::zero());
+            const auto scheduleOverhead = getCurTime() - woketime;
+            currentTask->getTaskable().logQTime(
+                    currentTask->getTaskId(),
+                    scheduleOverhead.count() ? scheduleOverhead
+                                             : ProcessClock::duration::zero());
+            // MB-25822: It could be useful to have the exact datetime of long
+            // schedule times, in the same way we have for long runtimes.
+            // It is more difficult to estimate the expected schedule time than
+            // the runtime for a task, because the schedule times depends on
+            // things "external" to the task itself (e.g., how many tasks are
+            // in queue in the same priority-group).
+            // Also, the schedule time depends on the runtime of the previous
+            // run. That means that for Read/Write/AuxIO tasks it is even more
+            // difficult to predict because that do IO.
+            // So, for now we log long schedule times only for NON_IO tasks,
+            // which is the task type for the ConnManager and
+            // ConnNotifierCallback tasks involved in MB-25822 and that we aim
+            // to debug. We consider 1 second a sensible schedule overhead
+            // limit for NON_IO tasks.
+            if (GlobalTask::getTaskType(currentTask->getTaskId()) ==
+                        task_type_t::NONIO_TASK_IDX &&
+                scheduleOverhead > std::chrono::seconds(1)) {
+                auto description = currentTask->getDescription();
+                LOG(EXTENSION_LOG_WARNING,
+                    "Slow scheduling for NON_IO task '%.*s' on thread %s. "
+                    "Schedule overhead: %s",
+                    int(description.size()),
+                    description.data(),
+                    getName().c_str(),
+                    cb::time2text(scheduleOverhead).c_str());
+            }
             updateTaskStart();
             rel_time_t startReltime = ep_current_time();
 
@@ -123,7 +149,7 @@ void ExecutorThread::run() {
             // Task done, log it ...
             const ProcessClock::duration runtime(ProcessClock::now() -
                                                  getTaskStart());
-            currentTask->getTaskable().logRunTime(currentTask->getTypeId(),
+            currentTask->getTaskable().logRunTime(currentTask->getTaskId(),
                                                   runtime);
             currentTask->updateRuntime(runtime);
 
