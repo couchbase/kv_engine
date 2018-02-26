@@ -215,11 +215,11 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
         supportsCursorDropping = true;
     }
 
-    backfillMgr.reset(new BackfillManager(engine_));
+    backfill.manager.reset(new BackfillManager(engine_));
 }
 
 DcpProducer::~DcpProducer() {
-    backfillMgr.reset();
+    backfill.manager.reset();
 }
 
 void DcpProducer::cancelCheckpointCreatorTask() {
@@ -894,26 +894,26 @@ ENGINE_ERROR_CODE DcpProducer::closeStream(uint32_t opaque, uint16_t vbucket) {
 }
 
 void DcpProducer::notifyBackfillManager() {
-    backfillMgr->wakeUpTask();
+    backfill.manager->wakeUpTask();
 }
 
 bool DcpProducer::recordBackfillManagerBytesRead(size_t bytes, bool force) {
     if (force) {
-        backfillMgr->bytesForceRead(bytes);
+        backfill.manager->bytesForceRead(bytes);
         return true;
     }
-    return backfillMgr->bytesCheckAndRead(bytes);
+    return backfill.manager->bytesCheckAndRead(bytes);
 }
 
 void DcpProducer::recordBackfillManagerBytesSent(size_t bytes) {
-    backfillMgr->bytesSent(bytes);
+    backfill.manager->bytesSent(bytes);
 }
 
 void DcpProducer::scheduleBackfillManager(VBucket& vb,
                                           std::shared_ptr<ActiveStream> s,
                                           uint64_t start,
                                           uint64_t end) {
-    backfillMgr->schedule(vb, s, start, end);
+    backfill.manager->schedule(vb, s, start, end);
 }
 
 void DcpProducer::addStats(ADD_STAT add_stat, const void *c) {
@@ -945,8 +945,8 @@ void DcpProducer::addStats(ADD_STAT add_stat, const void *c) {
 
     // Possible that the producer has had its streams closed and hence doesn't
     // have a backfill manager anymore.
-    if (backfillMgr) {
-        backfillMgr->addStats(*this, add_stat, c);
+    if (backfill.manager) {
+        backfill.manager->addStats(*this, add_stat, c);
     }
 
     log.addStats(add_stat, c);
@@ -1090,7 +1090,11 @@ void DcpProducer::closeAllStreams() {
     // don't, then the RCPtr references which exist between
     // DcpProducer and ActiveStream result in us leaking DcpProducer
     // objects (and Couchstore vBucket files, via DCPBackfill task).
-    backfillMgr.reset();
+    // Also, the DcpProducer::closeAllStreams() function can be executed
+    // concurrently (eg, EPEngine 'handleDisconnect' and 'handleDeleteBucket'),
+    // so we need to acquire a lock before resetting 'backfill.manager'.
+    std::lock_guard<std::mutex> lg(backfill.resetMutex);
+    backfill.manager.reset();
 }
 
 const char* DcpProducer::getType() const {
