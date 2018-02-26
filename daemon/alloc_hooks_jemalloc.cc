@@ -26,6 +26,15 @@
 * don't rename je_FOO to FOO.
 */
 #define JEMALLOC_NO_RENAME
+
+/*
+ * If we are on Windows, we need to declare this to make sure
+ * that dllexport is configured correctly
+ */
+#ifdef WIN32
+#define DLLEXPORT
+#endif
+
 #include <jemalloc/jemalloc.h>
 #include <logger/logger.h>
 
@@ -34,6 +43,7 @@
 #endif
 
 /* jemalloc checks for this symbol, and it's contents for the config to use. */
+JEMALLOC_EXPORT
 const char* je_malloc_conf =
         /* Use just one arena, instead of the default based on number of CPUs.
            Helps to minimize heap fragmentation. */

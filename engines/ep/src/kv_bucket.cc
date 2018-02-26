@@ -993,9 +993,6 @@ static void add_stat(const char* key,
                      const char* val,
                      const uint32_t vlen,
                      gsl::not_null<const void*> cookie) {
-    if (cookie == nullptr) {
-        throw std::invalid_argument("add_stat: cookie is NULL");
-    }
     void* ptr = const_cast<void*>(cookie.get());
     snapshot_stats_t* snap = static_cast<snapshot_stats_t*>(ptr);
     ObjectRegistry::onSwitchThread(snap->engine);

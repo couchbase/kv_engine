@@ -84,10 +84,8 @@ public:
         return me;
     }
 
-    void operator delete(void*) {
-        // Statically buffered.  There is no delete.
-        throw std::logic_error("MutationLogEntryV1 delete is not allowed");
-    }
+    // Statically buffered.  There is no delete.
+    void operator delete(void*) = delete;
 
     /**
      * The size of a MutationLogEntryV1, in bytes, containing a key of
@@ -263,10 +261,8 @@ public:
         return me;
     }
 
-    void operator delete(void*) {
-        // Statically buffered.  There is no delete.
-        throw std::logic_error("MutationLogEntryV2 delete is not allowed");
-    }
+    // Statically buffered.  There is no delete.
+    void operator delete(void*) = delete;
 
     /**
      * The size of a MutationLogEntryV2, in bytes, containing a key of

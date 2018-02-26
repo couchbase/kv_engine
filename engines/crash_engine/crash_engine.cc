@@ -22,6 +22,7 @@
 #include "config.h"
 
 #include <stdlib.h>
+#include <gsl/gsl>
 #include <stdexcept>
 #include <string>
 
@@ -64,7 +65,7 @@ char recursive_crash_function(char depth, CrashMode mode) {
     if (depth == 0) {
         switch (mode) {
         case CrashMode::SegFault: {
-            char* death = (char*)0xdeadcbdb;
+            char* death = (char*)(uintptr_t)0xdeadcbdb;
             return *death + dummy;
         }
         case CrashMode::UncaughtStdException:
@@ -76,7 +77,7 @@ char recursive_crash_function(char depth, CrashMode mode) {
             throw UnknownException();
         }
     }
-    recursive_crash_function(depth - 1, mode);
+    recursive_crash_function(depth - char(1), mode);
     return dummy++;
 }
 

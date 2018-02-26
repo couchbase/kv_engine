@@ -752,8 +752,6 @@ void TestappTest::start_external_server() {
                        NULL, NULL, /*bInheritHandles*/FALSE,
                        0,
                        NULL, NULL, &sinfo, &pinfo)) {
-        LPVOID error_msg;
-        DWORD err = GetLastError();
 
         std::cerr << "Failed to start process: " << cb_strerror() << std::endl;
         exit(EXIT_FAILURE);
