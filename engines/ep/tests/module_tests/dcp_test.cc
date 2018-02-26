@@ -39,6 +39,8 @@
 #include "evp_engine_test.h"
 #include "evp_store_single_threaded_test.h"
 #include "failover-table.h"
+#include "memory_tracker.h"
+#include "objectregistry.h"
 #include "test_helpers.h"
 
 #include <dcp/backfill_memory.h>
@@ -63,6 +65,13 @@ protected:
         // task does not run.
         ExecutorPool::get()->setNumNonIO(0);
         callbackCount = 0;
+
+#if defined(HAVE_JEMALLOC)
+        // MB-28370: Run with memory tracking for all alloc/deallocs when built
+        // with jemalloc.
+        MemoryTracker::getInstance(*get_mock_server_api()->alloc_hooks);
+        engine->getEpStats().memoryTrackerEnabled.store(true);
+#endif
     }
 
     void TearDown() override {
@@ -74,6 +83,8 @@ protected:
         ExecutorPool::get()->setNumNonIO(1);
 
         EventuallyPersistentEngineTest::TearDown();
+
+        MemoryTracker::destroyInstance();
     }
 
     /*
@@ -2846,12 +2857,12 @@ void ConnectionTest::sendConsumerMutationsNearThreshold(bool beyondThreshold) {
     /* Set 'mem_used' beyond the 'replication threshold' */
     EPStats& stats = engine->getEpStats();
     if (beyondThreshold) {
-        stats.setMaxDataSize(stats.getEstimatedTotalMemoryUsed());
+        stats.setMaxDataSize(stats.getPreciseTotalMemoryUsed());
     } else {
         /* Set 'mem_used' just 1 byte less than the 'replication threshold'.
            That is we are below 'replication threshold', but not enough space
            for  the new item */
-        stats.setMaxDataSize(stats.getEstimatedTotalMemoryUsed() + 1);
+        stats.setMaxDataSize(stats.getPreciseTotalMemoryUsed() + 1);
         /* Simpler to set the replication threshold to 1 and test, rather than
            testing with maxData = (memUsed / replicationThrottleThreshold);
            that is, we are avoiding a division */

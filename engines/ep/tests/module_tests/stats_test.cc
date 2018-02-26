@@ -358,6 +358,26 @@ class EpStatsTest : public ::testing::Test {
 public:
 };
 
+TEST_F(EpStatsTest, memoryNegative) {
+    TestEpStat stats;
+    stats.memoryTrackerEnabled = true;
+
+    stats.memDeallocated(100);
+    EXPECT_EQ(0, stats.getEstimatedTotalMemoryUsed());
+    EXPECT_EQ(0, stats.getPreciseTotalMemoryUsed());
+    // getPrecise will have merged, check we really have negative
+    EXPECT_EQ(-100, stats.estimatedTotalMemory->load());
+}
+
+TEST_F(EpStatsTest, memoryNegativeUntracked) {
+    TestEpStat stats;
+    stats.memoryTrackerEnabled = false;
+
+    stats.memOverhead->fetch_sub(100);
+    EXPECT_EQ(0, stats.getEstimatedTotalMemoryUsed());
+    EXPECT_EQ(-100, stats.memOverhead->load());
+}
+
 // Create n threads who all allocate the same amount of memory in very different
 // orders
 TEST_F(EpStatsTest, memoryAllocated) {

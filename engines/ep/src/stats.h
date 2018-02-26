@@ -77,11 +77,14 @@ public:
      * returns.
      */
     size_t getEstimatedTotalMemoryUsed() const {
+        int64_t rv = 0;
         if (memoryTrackerEnabled.load()) {
-            // Don't allow a negative result to be exposed
-            return size_t(std::max(int64_t(0), estimatedTotalMemory->load()));
+            rv = estimatedTotalMemory->load();
+        } else {
+            rv = currentSize.load() + memOverhead->load();
         }
-        return currentSize.load() + memOverhead->load();
+        // Don't allow a negative result to be exposed as a size_t
+        return size_t(std::max(int64_t(0), rv));
     }
 
     /**
