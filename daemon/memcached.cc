@@ -806,7 +806,7 @@ static cJSON *get_bucket_details_UNLOCKED(const Bucket& bucket, int idx) {
     }
 
     cJSON *root = cJSON_CreateObject();
-    cJSON_AddIntegerToObject(root, "index", idx);
+    cJSON_AddNumberToObject(root, "index", idx);
     switch (bucket.state.load()) {
     case BucketState::None:
         cJSON_AddStringToObject(root, "state", "none");

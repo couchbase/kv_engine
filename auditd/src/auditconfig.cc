@@ -439,7 +439,7 @@ unique_cJSON_ptr AuditConfig::to_json() const {
 
     cJSON_AddNumberToObject(root, "version", get_version());
     cJSON_AddBoolToObject(root, "auditd_enabled", is_auditd_enabled());
-    cJSON_AddInteger64ToObject(root, "rotate_size", get_rotate_size());
+    cJSON_AddNumberToObject(root, "rotate_size", get_rotate_size());
     cJSON_AddNumberToObject(root, "rotate_interval", get_rotate_interval());
     cJSON_AddBoolToObject(root, "buffered", is_buffered());
     cJSON_AddStringToObject(root, "log_path", get_log_directory().c_str());

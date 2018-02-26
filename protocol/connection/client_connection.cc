@@ -345,12 +345,7 @@ unique_cJSON_ptr MemcachedConnection::stats(const std::string& subcommand) {
         } else {
             try {
                 int64_t val = std::stoll(value);
-                // Perform a narrow here, this will throw an exception if we are
-                // going to lose data but this is fine given we are already in a
-                // try-catch, so we will just add the data to the cJSON object
-                // as a string.
-                cJSON_AddNumberToObject(
-                        ret.get(), key.c_str(), gsl::narrow<double>(val));
+                cJSON_AddNumberToObject(ret.get(), key.c_str(), val);
             } catch (...) {
                 cJSON_AddStringToObject(ret.get(), key.c_str(), value.c_str());
             }

@@ -729,7 +729,7 @@ static ENGINE_ERROR_CODE stat_responses_json_executor(const std::string& arg,
             const uint64_t value = respCounters[resp].load();
             std::stringstream stream;
             stream << std::hex << resp;
-            cJSON_AddInteger64ToObject(
+            cJSON_AddNumberToObject(
                     jsonPtr.get(), stream.str().c_str(), value);
         }
 

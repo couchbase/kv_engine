@@ -217,10 +217,7 @@ cb::const_char_buffer SubdocCmdContext::get_document_vattr() {
         cJSON_AddStringToObject(
                 doc.get(), "seqno", cb::to_hex(input_item_info.seqno).c_str());
 
-        cJSON_AddIntegerToObject(
-                doc.get(),
-                "exptime",
-                gsl::narrow<uint32_t>(input_item_info.exptime));
+        cJSON_AddNumberToObject(doc.get(), "exptime", input_item_info.exptime);
 
         // The flags are kept internally in network byte order...
         cJSON_AddNumberToObject(
