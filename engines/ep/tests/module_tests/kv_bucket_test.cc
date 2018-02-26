@@ -648,6 +648,65 @@ TEST_P(KVBucketParamTest, SetWithMeta_Replace) {
                                  /*allowExisting*/ true));
 }
 
+/**
+ * 1. setWithMeta to store an item with an expiry value
+ * 2. Call get after expiry to ensure that item is deleted
+ * 3. setWithMeta to store an item with lesser rev seqno
+ *    than what is stored in hash table
+ * 4. (3) should result in an EWOULDBLOCK and a temporary
+ *    deleted item in hash table
+ * 5. setWithMeta after BG Fetch should result in EEXISTS
+ * 6. Temporary item should be deleted from the hash table
+ */
+TEST_P(KVBucketParamTest, MB_28078_SetWithMeta_tempDeleted) {
+    auto key = makeStoredDocKey("key");
+    auto item = make_item(vbid, key, "value");
+    item.setExpTime(1);
+    item.setCas();
+    uint64_t seqno;
+    EXPECT_EQ(ENGINE_SUCCESS,
+              store->setWithMeta(item,
+                                 0,
+                                 &seqno,
+                                 cookie,
+                                 {vbucket_state_active},
+                                 CheckConflicts::No,
+                                 /*allowExisting*/ true));
+
+    TimeTraveller docBrown(20);
+    get_options_t options =
+            static_cast<get_options_t>(QUEUE_BG_FETCH | GET_DELETED_VALUE);
+
+    auto doGet = [&]() { return store->get(key, vbid, nullptr, options); };
+    GetValue result = doGet();
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    auto doSetWithMeta = [&]() {
+        return store->setWithMeta(item,
+                                  item.getCas(),
+                                  &seqno,
+                                  cookie,
+                                  {vbucket_state_active},
+                                  CheckConflicts::Yes,
+                                  /*allowExisting*/ true);
+    };
+
+    if (engine->getConfiguration().getBucketType() == "persistent") {
+        ASSERT_EQ(ENGINE_EWOULDBLOCK, doSetWithMeta());
+    }
+
+    auto* shard = store->getVBucket(vbid)->getShard();
+    MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
+    if (engine->getConfiguration().getBucketType() == "persistent") {
+        shard->getBgFetcher()->run(&mockTask);
+        ASSERT_EQ(ENGINE_KEY_EEXISTS, doSetWithMeta());
+    }
+
+    EXPECT_EQ(0, store->getVBucket(vbid)->getNumItems());
+    EXPECT_EQ(0, store->getVBucket(vbid)->getNumTempItems());
+}
+
 // Test forced setWithMeta
 TEST_P(KVBucketParamTest, SetWithMeta_Forced) {
     auto item = make_item(vbid, makeStoredDocKey("key"), "value");

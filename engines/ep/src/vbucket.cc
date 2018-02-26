@@ -1122,6 +1122,11 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(
                                             itm.getDataType(),
                                             itm.isDeleted()))) {
                 ++stats.numOpsSetMetaResolutionFailed;
+                // If the existing item happens to be a temporary item,
+                // delete the item to save memory in the hash table
+                if (v->isTempItem()) {
+                    deleteStoredValue(hbl, *v);
+                }
                 return ENGINE_KEY_EEXISTS;
             }
         } else {
