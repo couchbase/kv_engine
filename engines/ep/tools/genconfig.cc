@@ -64,13 +64,13 @@ static string getRangeValidatorCode(const std::string &key, cJSON *o) {
         exit(1);
     }
 
-    if (min && min->type != cJSON_Number) {
+    if (min && (min->type != cJSON_Number && min->type != cJSON_Double)) {
         cerr << "Incorrect datatype for the range validator specified for "
              << "\"" << key << "\"." << endl
              << "Only numbers are supported." << endl;
         exit(1);
     }
-    if (max && !(max->type == cJSON_Number ||
+    if (max && !(max->type == cJSON_Number || max->type == cJSON_Double ||
             (max->type == cJSON_String &&
              std::string(max->valuestring) == "NUM_CPU"))) {
         cerr << "Incorrect datatype for the range validator specified for "
@@ -86,12 +86,20 @@ static string getRangeValidatorCode(const std::string &key, cJSON *o) {
     if (getDatatype(key, o) == "float") {
         validator_type = "FloatRangeValidator";
         if (min) {
-            mins = to_string(min->valuedouble);
+            if (min->type == cJSON_Double) {
+                mins = to_string(min->valuedouble);
+            } else {
+                mins = to_string(min->valueint);
+            }
         } else {
             mins = "std::numeric_limits<float>::min()";
         }
         if (max) {
-            maxs = to_string(max->valuedouble);
+            if (max->type == cJSON_Double) {
+                maxs = to_string(max->valuedouble);
+            } else {
+                maxs = to_string(max->valueint);
+            }
         } else {
             maxs = "std::numeric_limits<float>::max()";
         }
@@ -372,12 +380,11 @@ static string getRequirements(const std::string& key, cJSON* o, cJSON* params) {
         case cJSON_String:
             value = std::string("\"") + req->valuestring + "\"";
             break;
+        case cJSON_Double:
+            value = std::to_string(req->valuedouble);
+            break;
         case cJSON_Number:
-            if (type == "float") {
-                value = std::to_string(req->valuedouble);
-            } else {
-                value = std::to_string(req->valueint);
-            }
+            value = std::to_string(req->valueint);
             break;
         case cJSON_True:
             value = "true";

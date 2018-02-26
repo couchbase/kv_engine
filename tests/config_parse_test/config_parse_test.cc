@@ -68,7 +68,7 @@ void SettingsTest::nonStringValuesShouldFail(const std::string& tag) {
     expectFail(obj);
 
     obj.reset(cJSON_CreateObject());
-    cJSON_AddNumberToObject(obj.get(), tag.c_str(), 5.0);
+    cJSON_AddDoubleToObject(obj.get(), tag.c_str(), 5.0);
     expectFail(obj);
 
     // Null should not be accepted
@@ -99,7 +99,7 @@ void SettingsTest::nonBooleanValuesShouldFail(const std::string& tag) {
     expectFail(obj);
 
     obj.reset(cJSON_CreateObject());
-    cJSON_AddNumberToObject(obj.get(), tag.c_str(), 5.0);
+    cJSON_AddDoubleToObject(obj.get(), tag.c_str(), 5.0);
     expectFail(obj);
 
     // Null should not be accepted
@@ -165,7 +165,7 @@ void SettingsTest::nonArrayValuesShouldFail(const std::string& tag) {
     expectFail(obj);
 
     obj.reset(cJSON_CreateObject());
-    cJSON_AddNumberToObject(obj.get(), tag.c_str(), 5.0);
+    cJSON_AddDoubleToObject(obj.get(), tag.c_str(), 5.0);
     expectFail(obj);
 
     // Null should not be accepted
@@ -200,7 +200,7 @@ void SettingsTest::nonObjectValuesShouldFail(const std::string& tag) {
     expectFail(obj);
 
     obj.reset(cJSON_CreateObject());
-    cJSON_AddNumberToObject(obj.get(), tag.c_str(), 5.0);
+    cJSON_AddDoubleToObject(obj.get(), tag.c_str(), 5.0);
     expectFail(obj);
 
     // Null should not be accepted

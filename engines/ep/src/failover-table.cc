@@ -313,8 +313,8 @@ bool FailoverTable::loadFromJSON(cJSON *json) {
         }
 
         failover_entry_t entry;
-        entry.vb_uuid = (uint64_t) jid->valuedouble;
-        entry.by_seqno = (uint64_t) jseq->valuedouble;
+        entry.vb_uuid = uint64_t(jid->valueint);
+        entry.by_seqno = uint64_t(jseq->valueint);
         new_table.push_back(entry);
     }
 

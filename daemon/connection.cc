@@ -220,7 +220,7 @@ unique_cJSON_ptr Connection::toJSON() const {
     if (socketDescriptor == INVALID_SOCKET) {
         cJSON_AddStringToObject(obj, "socket", "disconnected");
     } else {
-        cJSON_AddNumberToObject(obj, "socket", (double)socketDescriptor);
+        cJSON_AddNumberToObject(obj, "socket", socketDescriptor);
         cJSON_AddStringToObject(obj, "protocol", "memcached");
         cJSON_AddStringToObject(obj, "peername", getPeername().c_str());
         cJSON_AddStringToObject(obj, "sockname", getSockname().c_str());
