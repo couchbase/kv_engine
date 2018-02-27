@@ -44,8 +44,6 @@ struct LOGGER_PUBLIC_API Config {
     size_t buffersize = 2048 * 1024;
     /// 100 MB per cycled file
     size_t cyclesize = 100 * 1024 * 1024;
-    /// time between forced flushes of the buffer
-    size_t sleeptime = 60;
     /// if running in a unit test or not
     bool unit_test = false;
     /// Should messages be passed on to the console via stderr

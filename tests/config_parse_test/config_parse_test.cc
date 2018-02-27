@@ -432,7 +432,6 @@ TEST_F(SettingsTest, ParseLoggerSettings) {
     cJSON_AddStringToObject(obj.get(), "filename", "logs/n_1/memcached.log");
     cJSON_AddNumberToObject(obj.get(), "buffersize", 1024);
     cJSON_AddNumberToObject(obj.get(), "cyclesize", 10485760);
-    cJSON_AddNumberToObject(obj.get(), "sleeptime", 19);
     cJSON_AddBoolToObject(obj.get(), "unit_test", true);
 
     unique_cJSON_ptr root(cJSON_CreateObject());
@@ -445,7 +444,6 @@ TEST_F(SettingsTest, ParseLoggerSettings) {
     EXPECT_EQ("logs/n_1/memcached.log", config.filename);
     EXPECT_EQ(1024, config.buffersize);
     EXPECT_EQ(10485760, config.cyclesize);
-    EXPECT_EQ(19, config.sleeptime);
     EXPECT_EQ(true, config.unit_test);
 }
 

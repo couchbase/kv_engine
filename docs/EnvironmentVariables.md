@@ -144,11 +144,6 @@ May be used to tell `engine_testapp` to retry failed tests.
 
 May be set to let `engine_testapp` use colors in its output.
 
-## `CB_MINIMIZE_LOGGER_SLEEPTIME`
-
-If set the logger will only sleep 1 sec before dumping internal
-buffers to the logfile
-
 ## `CB_MAXIMIZE_LOGGER_CYCLE_SIZE`
 
 If set the logger will use 1GB file sizes

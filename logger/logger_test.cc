@@ -33,7 +33,6 @@ protected:
  */
 #ifndef WIN32
     static void SetUpTestCase() {
-        unsetenv("CB_MINIMIZE_LOGGER_SLEEPTIME");
         unsetenv("CB_MAXIMIZE_LOGGER_CYCLE_SIZE");
         unsetenv("CB_MAXIMIZE_LOGGER_BUFFER_SIZE");
     }
@@ -57,8 +56,6 @@ protected:
         config.filename = filename;
         config.cyclesize = cyclesize;
         config.buffersize = 8192;
-        // Disable timebased flush
-        config.sleeptime = 0;
         config.unit_test = true;
         config.console = false;
 
@@ -321,92 +318,3 @@ TEST_F(FileRotationTest, HandleOpenFileErrors) {
             << "Failed to restore RLIMIT_NOFILE: " << strerror(errno);
 }
 #endif
-
-class DedupeSinkTest : public SpdloggerTest {};
-
-/**
- * Tests the functionality of the dedupe_sink by sending it the same message
- * 100 times. Once this is done, the log file should contain the string
- * "Message repeated 100 times".
- */
-TEST_F(DedupeSinkTest, BasicTest) {
-    const std::string message{"This message will be repeated 100 times!"};
-    const std::string dedupeMessage{"Message repeated 100 times"};
-
-    for (auto ii = 0; ii < 100; ii++) {
-        LOG_WARNING(message);
-    }
-    cb::logger::shutdown();
-
-    files = cb::io::findFilesWithPrefix(filename);
-    ASSERT_EQ(1, files.size()) << "Did not expect log rotation to happen";
-    EXPECT_EQ(1, countInFile(files.front(), message));
-    EXPECT_EQ(1, countInFile(files.front(), dedupeMessage));
-}
-
-/**
- * No dedupe message should be printed if the message appeared only once
- */
-TEST_F(DedupeSinkTest, MessageLoggedOnceTest) {
-    const std::string message{"This message will be logged just once!"};
-    const std::string dedupeMessage{"Message repeated"};
-
-    LOG_WARNING(message);
-    cb::logger::shutdown();
-
-    files = cb::io::findFilesWithPrefix(filename);
-    ASSERT_EQ(1, files.size()) << "Did not expect log rotation to happen";
-    EXPECT_EQ(1, countInFile(files.front(), message));
-    EXPECT_EQ(0, countInFile(files.front(), dedupeMessage));
-}
-
-/**
- * The dedupe message should trigger if the message appeared twice
- */
-TEST_F(DedupeSinkTest, MessageLoggedTwiceTest) {
-    const std::string message{"This message will be repeated twice!"};
-    const std::string dedupeMessage{"Message repeated 2 times"};
-
-    LOG_WARNING(message);
-    LOG_WARNING(message);
-    cb::logger::shutdown();
-
-    files = cb::io::findFilesWithPrefix(filename);
-    ASSERT_EQ(1, files.size()) << "Did not expect log rotation to happen";
-    EXPECT_EQ(1, countInFile(files.front(), message))
-            << "Log contents:" << std::endl
-            << getLogContents();
-    EXPECT_EQ(1, countInFile(files.front(), dedupeMessage))
-            << "Log contents:" << std::endl
-            << getLogContents();
-}
-
-/**
- * Flushing the buffer should "reset" the deduplication logic as we don't
- * want the log to look like:
- *
- *     message x repeated 10 times
- *     message x repeated 11 times
- *     message x repeated 15 times
- *
- * It makes it harder to read the logs.. Does it mean that it happened
- * 1 time or 11 times between the first two lines etc.
- */
-TEST_F(DedupeSinkTest, MessageLoggedTwiceWithFlushTest) {
-    const std::string message{"This message will be written and flushed!"};
-    const std::string dedupeMessage{"Message repeated"};
-
-    for (auto i = 0; i < 10; i++) {
-        LOG_WARNING(message);
-        cb::logger::flush();
-    }
-
-    files = cb::io::findFilesWithPrefix(filename);
-    ASSERT_EQ(1, files.size()) << "Did not expect log rotation to happen";
-    EXPECT_EQ(10, countInFile(files.front(), message))
-            << "Log contents:" << std::endl
-            << getLogContents();
-    EXPECT_EQ(0, countInFile(files.front(), dedupeMessage))
-            << "Log contents:" << std::endl
-            << getLogContents();
-}

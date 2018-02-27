@@ -19,7 +19,6 @@
 
 #include "custom_rotating_file_sink.h"
 
-#include "dedupe_sink.h"
 #include "logger.h"
 
 #include <memcached/engine.h>
@@ -138,11 +137,6 @@ boost::optional<std::string> cb::logger::initialize(
     auto fname = logger_settings.filename;
     auto buffersz = logger_settings.buffersize;
     auto cyclesz = logger_settings.cyclesize;
-    auto sleeptime = logger_settings.sleeptime;
-
-    if (getenv("CB_MINIMIZE_LOGGER_SLEEPTIME") != nullptr) {
-        sleeptime = 1;
-    }
 
     if (getenv("CB_MAXIMIZE_LOGGER_CYCLE_SIZE") != nullptr) {
         cyclesz = 1024 * 1024 * 1024; // use up to 1 GB log file size
@@ -159,7 +153,6 @@ boost::optional<std::string> cb::logger::initialize(
          *
          * file_logger = sends log messages to sink
          *   |__dist_sink_mt = Distribute log messages to multiple sinks
-         *       | |__dedupe_sink_mt = deduplicates log messages
          *       |     |__custom_rotating_file_sink_mt = adds opening & closing
          *       |                                       hooks to the file
          *       |__ (color)__stderr_sink_mt = Send log messages to consloe
@@ -168,10 +161,8 @@ boost::optional<std::string> cb::logger::initialize(
         auto sink = std::make_shared<spdlog::sinks::dist_sink_mt>();
 
         if (!fname.empty()) {
-            auto fsink = std::make_shared<custom_rotating_file_sink_mt>(
-                    fname, cyclesz, log_pattern);
-            sink->add_sink(
-                    std::make_shared<dedupe_sink_mt>(fsink, log_pattern));
+            sink->add_sink(std::make_shared<custom_rotating_file_sink_mt>(
+                    fname, cyclesz, log_pattern));
         }
 
         if (logger_settings.console) {
@@ -192,7 +183,7 @@ boost::optional<std::string> cb::logger::initialize(
                                      buffersz,
                                      spdlog::async_overflow_policy::block_retry,
                                      nullptr,
-                                     std::chrono::seconds(sleeptime));
+                                     std::chrono::milliseconds(200));
     } catch (const spdlog::spdlog_ex& ex) {
         std::string msg =
                 std::string{"Log initialization failed: "} + ex.what();

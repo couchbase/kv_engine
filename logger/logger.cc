@@ -49,15 +49,6 @@ Config::Config(const cJSON& json) {
         cyclesize = static_cast<unsigned int>(obj->valueint);
     }
 
-    obj = cJSON_GetObjectItem(root, "sleeptime");
-    if (obj != nullptr) {
-        if (obj->type != cJSON_Number) {
-            throw std::invalid_argument(
-                    R"(cb::logger::Config: "sleeptime" must be an unsigned int)");
-        }
-        sleeptime = static_cast<unsigned int>(obj->valueint);
-    }
-
     obj = cJSON_GetObjectItem(root, "unit_test");
     unit_test = false;
     if (obj != nullptr) {
@@ -83,7 +74,6 @@ Config::Config(const cJSON& json) {
 bool Config::operator==(const Config& other) const {
     return (this->filename == other.filename) &&
            (this->buffersize == other.buffersize) &&
-           (this->sleeptime == other.sleeptime) &&
            (this->cyclesize == other.cyclesize) &&
            (this->unit_test == other.unit_test) &&
            (this->console == other.console);

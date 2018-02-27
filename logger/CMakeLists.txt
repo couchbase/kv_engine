@@ -3,9 +3,7 @@ add_library(memcached_logger SHARED
             logger.cc
             spdlogger.cc
             custom_rotating_file_sink.cc
-            custom_rotating_file_sink.h
-            dedupe_sink.cc
-            dedupe_sink.h)
+            custom_rotating_file_sink.h)
 
 target_link_libraries(memcached_logger cJSON platform dirutils spdlog)
 set_target_properties(memcached_logger PROPERTIES SOVERSION 1.0.0)

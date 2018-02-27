@@ -52,7 +52,6 @@ void LogToLoggerWithDisabledLogLevel(benchmark::State& state) {
         cb::logger::Config config{};
         config.cyclesize = 2048;
         config.buffersize = 8192;
-        config.sleeptime = 1;
         config.unit_test = true;
         config.console = false;
 
@@ -88,7 +87,6 @@ void LogToLoggerWithEnabledLogLevel(benchmark::State& state) {
         cb::logger::Config config{};
         config.cyclesize = 2048;
         config.buffersize = 8192;
-        config.sleeptime = 1;
         config.unit_test = true;
         config.console = false;
 
