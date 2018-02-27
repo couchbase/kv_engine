@@ -21,63 +21,19 @@
  * in configure.ac.
  */
 
-#ifndef SRC_CONFIG_STATIC_H
-#define SRC_CONFIG_STATIC_H 1
+#pragma once
 
 #include "config.h"
 
 #define _FILE_OFFSET_BITS 64
 
-#if ((defined (__SUNPRO_C) || defined(__SUNPRO_CC)) || defined __GNUC__)
-#define EXPORT_FUNCTION __attribute__ ((visibility("default")))
-#elif defined(_MSC_VER)
-#define EXPORT_FUNCTION __declspec(dllexport)
-#else
-#define EXPORT_FUNCTION
-#endif
-
 #if HAVE_ARPA_INET_H
 #include <arpa/inet.h>
-#endif
-
-#ifdef HAVE_INTTYPES_H
-#include <inttypes.h>
-#endif
-
-#ifdef HAVE_NETDB_H
-#include <netdb.h>
-#endif
-
-#ifdef HAVE_NETINET_IN_H
-#include <netinet/in.h>
-#endif
-
-#ifdef HAVE_NETINET_TCP_H
-#include <netinet/tcp.h>
-#endif
-
-#ifdef HAVE_POLL_H
-#include <poll.h>
-#endif
-
-#ifdef HAVE_SYS_SOCKET_H
-#include <sys/socket.h>
-#endif
-
-#ifdef HAVE_SYS_TIME_H
-#include <sys/time.h>
-#endif
-
-#include <sys/types.h>
-
-#ifdef HAVE_UNISTD_H
-#include <unistd.h>
 #endif
 
 #ifdef WIN32
 #include <winsock2.h>
 #include <ws2tcpip.h>
-#define getppid() 2
 
 #include <io.h>
 #define F_OK 0
@@ -107,5 +63,3 @@ typedef unsigned int useconds_t;
 #undef htons
 #undef htonl
 #endif
-
-#endif /* SRC_CONFIG_STATIC_H */

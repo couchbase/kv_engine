@@ -17,10 +17,6 @@
 
 #include "config.h"
 
-#ifdef _MSC_VER
-#define alarm(a)
-#endif
-
 #include <iostream>
 
 #include "common.h"
@@ -54,6 +50,5 @@ static void testUint16() {
 
 int main(int argc, char **argv) {
     (void)argc; (void)argv;
-    alarm(60);
     testUint16();
 }

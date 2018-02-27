@@ -38,12 +38,12 @@ class DcpFlowControlManager;
 class VBucketCountVisitor;
 
 extern "C" {
-    EXPORT_FUNCTION
+    MEMCACHED_PUBLIC_API
     ENGINE_ERROR_CODE create_instance(uint64_t interface,
                                       GET_SERVER_API get_server_api,
                                       ENGINE_HANDLE **handle);
 
-    EXPORT_FUNCTION
+    MEMCACHED_PUBLIC_API
     void destroy_engine(void);
 
     void EvpNotifyPendingConns(void*arg);
