@@ -29,8 +29,6 @@
 #include <system_error>
 #include <iostream>
 
-#define MAX_THREADS 500
-
 /**
  * Container of thread-local data.
  */

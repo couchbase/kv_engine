@@ -24,12 +24,6 @@
 #include <sstream>
 
 #include <sys/stat.h>
-#ifdef _MSC_VER
-#include <direct.h>
-#define mkdir(a, b) _mkdir(a)
-#else
-#include <sys/wait.h>
-#endif
 
 #include <platform/cb_malloc.h>
 #include <platform/dirutils.h>
@@ -231,7 +225,7 @@ enum test_result prepare(engine_test_t *test) {
             throw e;
         }
     }
-    mkdir(dbname.c_str(), 0777);
+    cb::io::mkdirp(dbname);
     return SUCCESS;
 }
 

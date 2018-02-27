@@ -43,19 +43,11 @@
 #pragma warning(disable: 4244)
 #pragma warning(disable: 4267)
 #pragma warning(disable: 4996)
-#pragma warning(disable: 4800)
-/*
-#pragma warning(disable: )
-#pragma warning(disable: )
-*/
 
-#if _MSC_VER < 1900
-#define snprintf _snprintf
-#endif
 #define sleep(a) Sleep(a * 1000)
 #define random() (long)rand()
 typedef unsigned int useconds_t;
-#endif
+#endif // WIN32
 
 #if defined(linux) || defined(__linux__) || defined(__linux)
 #undef ntohs

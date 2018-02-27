@@ -15,57 +15,7 @@
  *   limitations under the License.
  */
 
-#ifndef SRC_ATOMICQUEUE_H_
-#define SRC_ATOMICQUEUE_H_ 1
-
-#ifdef _MSC_VER
-
-#include <queue>
-#include <thread>
-#include <mutex>
-
-/**
- * Create a simple version of the AtomicQueue for windows right now to
- * avoid the threadlocal usage which is currently using pthreads
- */
-template <typename T>
-class AtomicQueue {
-public:
-    void push(T &value) {
-        std::lock_guard<std::mutex> lock(mutex);
-        queue.push(value);
-    }
-
-    void getAll(std::queue<T> &outQueue) {
-        std::lock_guard<std::mutex> lock(mutex);
-        while (!queue.empty()) {
-            outQueue.push(queue.front());
-            queue.pop();
-        }
-    }
-
-    /**
-     * True if this queue is empty.
-     */
-    bool empty() {
-        std::lock_guard<std::mutex> lock(mutex);
-        return queue.empty();
-    }
-
-    /**
-     * Return the number of queued items.
-     */
-    size_t size() {
-        std::lock_guard<std::mutex> lock(mutex);
-        return queue.size();
-    }
-
-private:
-    std::queue<T> queue;
-    std::mutex mutex;
-};
-
-#else
+#pragma once
 
 #include <queue>
 
@@ -152,6 +102,8 @@ public:
         return numItems;
     }
 private:
+    static constexpr size_t MAX_THREADS = 500;
+
     AtomicPtr<std::queue<T> > *initialize() {
         std::queue<T> *q = new std::queue<T>;
         size_t i(counter++);
@@ -177,7 +129,3 @@ private:
     std::atomic<size_t> numItems;
     DISALLOW_COPY_AND_ASSIGN(AtomicQueue);
 };
-#endif
-
-
-#endif  // SRC_ATOMICQUEUE_H_

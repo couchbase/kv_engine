@@ -176,9 +176,6 @@ protected:
         }
     }
 
-// This test triggers MSVC 'cl' to assert, a lot of time has been spent trying
-// to tweak the code so it compiles, but no solution yet. Disabled for VS 2013
-#if !defined(_MSC_VER) || _MSC_VER != 1800
     void rollback_to_middle_test(bool flush_before_rollback) {
         // create some more checkpoints just to see a few iterations
         // of parts of the rollback function.
@@ -233,7 +230,6 @@ protected:
         EXPECT_EQ(rollback_item.getBySeqno(),
                   store->getVBucket(vbid)->getHighSeqno());
     }
-#endif
 
 protected:
     int64_t initial_seqno;
@@ -256,7 +252,6 @@ TEST_P(RollbackTest, RollbackAfterDeletionNoFlush) {
     rollback_after_deletion_test(/*flush_before_rollback*/false);
 }
 
-#if !defined(_MSC_VER) || _MSC_VER != 1800
 TEST_P(RollbackTest, RollbackToMiddleOfAPersistedSnapshot) {
     rollback_to_middle_test(true);
 }
@@ -311,7 +306,6 @@ TEST_P(RollbackTest, RollbackToMiddleOfAnUnPersistedSnapshot) {
                 << "A key set after the rollback point was found";
     }
 }
-#endif
 
 /*
  * The opencheckpointid of a bucket is one after a rollback.
