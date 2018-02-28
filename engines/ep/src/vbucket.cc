@@ -33,6 +33,7 @@
 #include "vbucket.h"
 #include "vbucketdeletiontask.h"
 
+#include <platform/compress.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>
 
@@ -2702,19 +2703,30 @@ std::chrono::seconds VBucket::getCheckpointFlushTimeout() {
 
 std::unique_ptr<Item> VBucket::pruneXattrDocument(
         StoredValue& v, const ItemMetaData& itemMeta) {
-    // Need to take a copy of the value, prune it, and add it back
+    // Need to take a copy of the value, prune it, and add it back, however
+    // check for compressed
+    cb::compression::Buffer workspace;
+    if (mcbp::datatype::is_snappy(v.getDatatype())) {
+        if (!cb::compression::inflate(
+                    cb::compression::Algorithm::Snappy,
+                    {v.getValue()->getData(), v.getValue()->valueSize()},
+                    workspace)) {
+            throw std::logic_error(
+                    "VBucket::pruneXattrDocument failed to inflate");
+        }
 
-    // Create work-space document
-    std::vector<uint8_t> workspace(v.getValue()->valueSize());
-    std::copy_n(v.getValue()->getData(),
-                v.getValue()->valueSize(),
-                workspace.begin());
+    } else {
+        // Use the compression buffer without inflating, just copy-in
+        workspace.resize(v.getValue()->valueSize());
+        std::copy_n(v.getValue()->getData(),
+                    v.getValue()->valueSize(),
+                    workspace.data());
+    }
 
     // Now attach to the XATTRs in the document
-    auto sz = cb::xattr::get_body_offset(
-            {reinterpret_cast<char*>(workspace.data()), workspace.size()});
+    auto sz = cb::xattr::get_body_offset(workspace);
 
-    cb::xattr::Blob xattr({workspace.data(), sz});
+    cb::xattr::Blob xattr({reinterpret_cast<uint8_t*>(workspace.data()), sz});
     xattr.prune_user_keys();
 
     auto prunedXattrs = xattr.finalize();

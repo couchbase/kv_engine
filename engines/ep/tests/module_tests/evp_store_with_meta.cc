@@ -293,6 +293,14 @@ public:
     }
 };
 
+class XattrWithMetaTest
+        : public WithMetaTest,
+          public ::testing::WithParamInterface<
+                  ::testing::tuple<bool, protocol_binary_command>> {};
+
+class SnappyWithMetaTest : public WithMetaTest,
+                           public ::testing::WithParamInterface<bool> {};
+
 TEST_P(AddSetWithMetaTest, basic) {
     ItemMetaData itemMeta{0xdeadbeef, 0xf00dcafe, 0xfacefeed, expiry};
     oneOpAndCheck(GetParam(),
@@ -1115,7 +1123,8 @@ TEST_F(WithMetaLwwTest, del_conflict_win) {
 
 TEST_P(AllWithMetaTest, markJSON) {
     // Write a XATTR doc with JSON body, expect the doc to be marked as JSON
-    auto value = createXattrValue(R"({"json":"yesplease"})");
+    auto value = createXattrValue(
+            R"({"json":"yesplease"})");
     auto swm = buildWithMetaPacket(GetParam(),
                                    PROTOCOL_BINARY_DATATYPE_XATTR,
                                    vbid /*vbucket*/,
@@ -1141,13 +1150,15 @@ TEST_P(AllWithMetaTest, markJSON) {
 }
 
 // Test uses an XATTR body that has 1 system key (see createXattrValue)
-TEST_F(WithMetaTest, xattrPruneUserKeysOnDelete1) {
-    auto value = createXattrValue(R"({"json":"yesplease"})");
+TEST_P(SnappyWithMetaTest, xattrPruneUserKeysOnDelete1) {
+    auto value = createXattrValue(
+            R"({"json":"yesplease"})", true, GetParam());
+    uint8_t snappy = GetParam() ? PROTOCOL_BINARY_DATATYPE_SNAPPY : 0;
     ItemMetaData itemMeta{1, 1, 0, expiry};
     std::string mykey = "mykey";
     DocKey key{mykey, DocNamespace::DefaultCollection};
     auto swm = buildWithMetaPacket(PROTOCOL_BINARY_CMD_SET_WITH_META,
-                                   PROTOCOL_BINARY_DATATYPE_XATTR,
+                                   PROTOCOL_BINARY_DATATYPE_XATTR | snappy,
                                    vbid /*vbucket*/,
                                    0 /*opaque*/,
                                    0 /*cas*/,
@@ -1196,34 +1207,23 @@ TEST_F(WithMetaTest, xattrPruneUserKeysOnDelete1) {
 }
 
 // Test uses an XATTR body that has no system keys
-TEST_F(WithMetaTest, xattrPruneUserKeysOnDelete2) {
-    cb::xattr::Blob blob;
-
-    // No _ prefixed keys
-    blob.set(to_const_byte_buffer("user"),
-             to_const_byte_buffer("{\"author\":\"bubba\"}"));
-    blob.set(to_const_byte_buffer("meta"),
-             to_const_byte_buffer("{\"content-type\":\"text\"}"));
-
-    auto xattrValue = blob.finalize();
-
-    // append body to the xattrs and store in data
-    std::string body = "document_body";
-    std::string data;
-    std::copy_n(xattrValue.buf, xattrValue.len, std::back_inserter(data));
-    std::copy_n(body.c_str(), body.size(), std::back_inserter(data));
+TEST_P(XattrWithMetaTest, xattrPruneUserKeysOnDelete2) {
+    auto value = createXattrValue(
+            R"({"json":"yesplease"})", false, ::testing::get<0>(GetParam()));
+    uint8_t snappy =
+            ::testing::get<0>(GetParam()) ? PROTOCOL_BINARY_DATATYPE_SNAPPY : 0;
 
     ItemMetaData itemMeta{1, 1, 0, expiry};
     std::string mykey = "mykey";
     DocKey key{mykey, DocNamespace::DefaultCollection};
     auto swm = buildWithMetaPacket(PROTOCOL_BINARY_CMD_SET_WITH_META,
-                                   PROTOCOL_BINARY_DATATYPE_XATTR,
+                                   PROTOCOL_BINARY_DATATYPE_XATTR | snappy,
                                    vbid /*vbucket*/,
                                    0 /*opaque*/,
                                    0 /*cas*/,
                                    itemMeta,
                                    mykey,
-                                   data);
+                                   value);
     EXPECT_EQ(ENGINE_SUCCESS,
               callEngine(PROTOCOL_BINARY_CMD_SET_WITH_META, swm));
     EXPECT_EQ(std::make_pair(false, size_t(1)),
@@ -1328,9 +1328,21 @@ struct PrintToStringCombinedName {
     std::string
     operator()(const ::testing::TestParamInfo<
                ::testing::tuple<bool, protocol_binary_command>>& info) const {
-        std::string rv = std::to_string(::testing::get<1>(info.param));
+        std::string rv = memcached_opcode_2_text(::testing::get<1>(info.param));
         if (::testing::get<0>(info.param)) {
             rv += "_with_value";
+        }
+        return rv;
+    }
+};
+
+struct PrintToStringCombinedNameSnappyOnOff {
+    std::string
+    operator()(const ::testing::TestParamInfo<
+               ::testing::tuple<bool, protocol_binary_command>>& info) const {
+        std::string rv = memcached_opcode_2_text(::testing::get<1>(info.param));
+        if (::testing::get<0>(info.param)) {
+            rv += "_snappy";
         }
         return rv;
     }
@@ -1341,6 +1353,15 @@ struct PrintOpcode {
             const ::testing::TestParamInfo<protocol_binary_command>& info)
             const {
         return memcached_opcode_2_text(info.param);
+    }
+};
+
+struct PrintSnappyOnOff {
+    std::string operator()(const ::testing::TestParamInfo<bool>& info) const {
+        if (info.param) {
+            return "snappy";
+        }
+        return "no_snappy";
     }
 };
 
@@ -1370,3 +1391,14 @@ INSTANTIATE_TEST_CASE_P(AddSetDelMeta,
                         AllWithMetaTest,
                         opcodeValues,
                         PrintOpcode());
+
+INSTANTIATE_TEST_CASE_P(SnappyWithMetaTest,
+                        SnappyWithMetaTest,
+                        ::testing::Bool(),
+                        PrintSnappyOnOff());
+
+INSTANTIATE_TEST_CASE_P(AddSetDelXattrMeta,
+                        XattrWithMetaTest,
+                        // Bool for snappy on/off
+                        ::testing::Combine(::testing::Bool(), opcodeValues),
+                        PrintToStringCombinedNameSnappyOnOff());

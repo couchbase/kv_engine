@@ -66,24 +66,36 @@ std::chrono::microseconds decayingSleep(std::chrono::microseconds uSeconds) {
     return std::min(uSeconds * 2, maxSleepTime);
 }
 
-std::string createXattrValue(const std::string& body) {
-      cb::xattr::Blob blob;
+std::string createXattrValue(const std::string& body,
+                             bool withSystemKey,
+                             bool makeItSnappy) {
+    cb::xattr::Blob blob;
 
-      //Add a few XAttrs
-      blob.set(to_const_byte_buffer("ABCuser"),
-               to_const_byte_buffer("{\"author\":\"bubba\"}"));
-      blob.set(to_const_byte_buffer("_sync"),
-               to_const_byte_buffer("{\"cas\":\"0xdeadbeefcafefeed\"}"));
-      blob.set(to_const_byte_buffer("meta"),
-               to_const_byte_buffer("{\"content-type\":\"text\"}"));
+    // Add a few XAttrs
+    blob.set(to_const_byte_buffer("ABCuser"),
+             to_const_byte_buffer("{\"author\":\"bubba\"}"));
+    if (withSystemKey) {
+        blob.set(to_const_byte_buffer("_sync"),
+                 to_const_byte_buffer("{\"cas\":\"0xdeadbeefcafefeed\"}"));
+    }
+    blob.set(to_const_byte_buffer("meta"),
+             to_const_byte_buffer("{\"content-type\":\"text\"}"));
 
-      auto xattr_value = blob.finalize();
+    auto xattr_value = blob.finalize();
 
-      // append body to the xattrs and store in data
-      std::string data;
-      std::copy(xattr_value.buf, xattr_value.buf + xattr_value.len,
-                std::back_inserter(data));
-      std::copy(body.c_str(), body.c_str() + body.size(),
-                std::back_inserter(data));
-      return data;
-  }
+    // append body to the xattrs and store in data
+    std::string data;
+    std::copy(xattr_value.buf,
+              xattr_value.buf + xattr_value.len,
+              std::back_inserter(data));
+    std::copy(
+            body.c_str(), body.c_str() + body.size(), std::back_inserter(data));
+
+    if (makeItSnappy) {
+        cb::compression::Buffer output;
+        cb::compression::deflate(
+                cb::compression::Algorithm::Snappy, data, output);
+        return {output.data(), output.size()};
+    }
+    return data;
+}

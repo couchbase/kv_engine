@@ -58,7 +58,9 @@ inline StoredDocKey makeStoredDocKey(
  * Create an XATTR document using the supplied string as the body
  * @returns string containing the new value
  */
-std::string createXattrValue(const std::string& body);
+std::string createXattrValue(const std::string& body,
+                             bool withSystemKey = true,
+                             bool makeItSnappy = false);
 
 /**
  * Class which moves time forward when created by the given amount, and upon
