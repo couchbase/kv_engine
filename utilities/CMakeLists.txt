@@ -6,6 +6,8 @@ add_library(mcd_util SHARED
             engine_loader.h
             protocol2text.cc
             protocol2text.h
+            string_utilities.cc
+            string_utilities.h
             terminate_handler.cc
             terminate_handler.h
             util.cc)
@@ -22,9 +24,7 @@ install(TARGETS mcd_util
         ARCHIVE DESTINATION lib)
 
 if (COUCHBASE_KV_BUILD_UNIT_TESTS)
-    add_executable(utilities_testapp
-                   string_utilities.cc
-                   util_test.cc)
+    add_executable(utilities_testapp util_test.cc)
     target_link_libraries(utilities_testapp
                           mcd_util
                           platform

@@ -315,8 +315,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                    $<TARGET_OBJECTS:couchstore_test_fileops>
                    ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_server.cc
                    ${Memcached_SOURCE_DIR}/daemon/doc_pre_expiry.cc
-                   ${Memcached_SOURCE_DIR}/daemon/protocol/mcbp/engine_errc_2_mcbp.cc
-                   ${Memcached_SOURCE_DIR}/utilities/string_utilities.cc)
+                   ${Memcached_SOURCE_DIR}/daemon/protocol/mcbp/engine_errc_2_mcbp.cc)
 
     TARGET_INCLUDE_DIRECTORIES(ep-engine_ep_unit_tests
                                PUBLIC
@@ -368,7 +367,6 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                    ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_server.cc
                    ${Memcached_SOURCE_DIR}/daemon/doc_pre_expiry.cc
                    ${Memcached_SOURCE_DIR}/daemon/protocol/mcbp/engine_errc_2_mcbp.cc
-                   ${Memcached_SOURCE_DIR}/utilities/string_utilities.cc
                    tests/module_tests/vbucket_test.cc)
 
     TARGET_LINK_LIBRARIES(ep_engine_benchmarks PRIVATE
@@ -415,10 +413,10 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                 src/ext_meta_parser.cc
                 tests/ep_testsuite_common.cc
                 tests/ep_test_apis.cc
-                tests/mock/mock_dcp.cc
-                ${Memcached_SOURCE_DIR}/utilities/string_utilities.cc)
+                tests/mock/mock_dcp.cc)
     SET_TARGET_PROPERTIES(ep_testsuite PROPERTIES PREFIX "")
-    TARGET_LINK_LIBRARIES(ep_testsuite engine_utilities ${EP_STORAGE_LIBS} dirutils JSON_checker platform
+    TARGET_LINK_LIBRARIES(ep_testsuite engine_utilities mcd_util
+                          ${EP_STORAGE_LIBS} dirutils JSON_checker platform
                           xattr
                           ${LIBEVENT_LIBRARIES})
     ADD_DEPENDENCIES(ep_testsuite engine_testapp)
@@ -459,10 +457,9 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                 tests/ep_testsuite_common.cc
                 tests/ep_testsuite_xdcr.cc
                 tests/ep_test_apis.cc
-                src/ext_meta_parser.cc
-                ${Memcached_SOURCE_DIR}/utilities/string_utilities.cc)
+                src/ext_meta_parser.cc)
     SET_TARGET_PROPERTIES(ep_testsuite_xdcr PROPERTIES PREFIX "")
-    TARGET_LINK_LIBRARIES(ep_testsuite_xdcr engine_utilities JSON_checker dirutils platform xattr
+    TARGET_LINK_LIBRARIES(ep_testsuite_xdcr mcd_util engine_utilities JSON_checker dirutils platform xattr
                           ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
     ADD_DEPENDENCIES(ep_testsuite_xdcr engine_testapp)
 
