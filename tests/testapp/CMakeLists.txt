@@ -11,7 +11,8 @@ TARGET_LINK_LIBRARIES(generate_test_cbsaslpw cbsasl cJSON platform
 
 
 add_library(memcached_testapp_core OBJECT
-            ${Memcached_SOURCE_DIR}/utilities/subdoc_encoder.cc
+            subdoc_encoder.cc
+            subdoc_encoder.h
             openssl_impl.cc
             ssl_impl.h
             testapp.cc

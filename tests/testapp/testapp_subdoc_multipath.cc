@@ -21,8 +21,6 @@
 
 #include "testapp_subdoc_common.h"
 
-#include "utilities/subdoc_encoder.h"
-
 // Test multi-path lookup command - simple single SUBDOC_GET
 TEST_P(SubdocTestappTest, SubdocMultiLookup_GetSingle) {
     store_object("dict", "{\"key1\":1,\"key2\":\"two\", \"key3\":3.0}");

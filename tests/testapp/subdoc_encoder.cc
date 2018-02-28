@@ -47,8 +47,8 @@ std::vector<char> SubdocMultiLookupCmd::encode() const {
     }
 
     // Populate the header.
-    auto* header = reinterpret_cast<protocol_binary_request_header*>
-        (request.data());
+    auto* header =
+            reinterpret_cast<protocol_binary_request_header*>(request.data());
     populate_header(*header, request.size() - sizeof(*header));
 
     return request;
@@ -77,8 +77,8 @@ std::vector<char> SubdocMultiMutationCmd::encode() const {
     }
 
     // Populate the header.
-    auto* header = reinterpret_cast<protocol_binary_request_header*>
-        (request.data());
+    auto* header =
+            reinterpret_cast<protocol_binary_request_header*>(request.data());
 
     populate_header(*header, request.size() - sizeof(*header));
 
@@ -101,7 +101,8 @@ std::vector<char> SubdocMultiCmd::encode_common() const {
             char bytes[sizeof(uint32_t)];
         } u;
         u.expiry = htonl(expiry);
-        std::copy(&u.bytes[0], &u.bytes[sizeof(uint32_t)],
+        std::copy(&u.bytes[0],
+                  &u.bytes[sizeof(uint32_t)],
                   back_inserter(request));
     }
 
@@ -126,8 +127,7 @@ void SubdocMultiCmd::addDocFlag(mcbp::subdoc::doc_flag flags_) {
         doc_flags = doc_flags | flags_;
     } else {
         throw std::invalid_argument("addDocFlags: flags_ (which is " +
-                                    to_string(flags_) +
-                                    ") is not a doc flag");
+                                    to_string(flags_) + ") is not a doc flag");
     }
 }
 

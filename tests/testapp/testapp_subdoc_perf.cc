@@ -30,8 +30,6 @@
 
 #include "testapp_subdoc_common.h"
 
-#include "../utilities/subdoc_encoder.h"
-
 #include <unordered_map>
 #include <valgrind/valgrind.h>
 

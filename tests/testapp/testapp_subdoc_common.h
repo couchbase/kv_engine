@@ -23,7 +23,7 @@
 
 #include "testapp.h"
 
-#include "utilities/subdoc_encoder.h"
+#include "subdoc_encoder.h"
 
 #include <memory>
 

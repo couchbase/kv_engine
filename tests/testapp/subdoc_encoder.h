@@ -29,21 +29,21 @@
 
 // Abstract base class for multi lookup / mutation command encoding.
 struct SubdocMultiCmd {
-
     SubdocMultiCmd(protocol_binary_command command_)
         : cas(0),
           expiry(0),
           encode_zero_expiry_on_wire(false),
           command(command_),
-          doc_flags(mcbp::subdoc::doc_flag::None) {}
+          doc_flags(mcbp::subdoc::doc_flag::None) {
+    }
 
     std::string key;
     uint64_t cas;
     uint32_t expiry;
 
-    // If true then a zero expiry will actually be encoded on the wire (as zero),
-    // as opposed to the normal behaviour of indicating zero by the absence of
-    // the 'expiry' field in extras.
+    // If true then a zero expiry will actually be encoded on the wire (as
+    // zero), as opposed to the normal behaviour of indicating zero by the
+    // absence of the 'expiry' field in extras.
     bool encode_zero_expiry_on_wire;
 
     protocol_binary_command command;
@@ -65,9 +65,9 @@ protected:
 
 /* Sub-document API MULTI_LOOKUP command */
 struct SubdocMultiLookupCmd : public SubdocMultiCmd {
-
     SubdocMultiLookupCmd()
-        : SubdocMultiCmd(PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP) {}
+        : SubdocMultiCmd(PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP) {
+    }
 
     struct LookupSpec {
         protocol_binary_command opcode;
@@ -84,9 +84,9 @@ struct SubdocMultiLookupCmd : public SubdocMultiCmd {
 
 /* Sub-document API MULTI_MUTATION command */
 struct SubdocMultiMutationCmd : public SubdocMultiCmd {
-
     SubdocMultiMutationCmd()
-        : SubdocMultiCmd(PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION) {}
+        : SubdocMultiCmd(PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION) {
+    }
 
     struct LookupSpec {
         protocol_binary_command opcode;
