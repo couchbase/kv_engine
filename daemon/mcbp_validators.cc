@@ -18,6 +18,7 @@
 #include "config.h"
 #include "mcbp_validators.h"
 #include <memcached/protocol_binary.h>
+#include <platform/compress.h>
 #include <platform/string.h>
 
 #include "buckets.h"
@@ -330,7 +331,17 @@ static bool is_valid_xattr_blob(const protocol_binary_request_header& header) {
     auto* ptr = reinterpret_cast<const char*>(header.bytes);
     ptr += sizeof(header.bytes) + extlen + keylen;
 
+    cb::compression::Buffer buffer;
     cb::const_char_buffer xattr{ptr, bodylen - keylen - extlen};
+    if (mcbp::datatype::is_snappy(header.request.datatype)) {
+        // Inflate the xattr data and validate that.
+        if (!cb::compression::inflate(
+                    cb::compression::Algorithm::Snappy, xattr, buffer)) {
+            return false;
+        }
+        xattr = buffer;
+    }
+
     return cb::xattr::validate(xattr);
 }
 
@@ -383,9 +394,12 @@ static protocol_binary_response_status dcp_deletion_validator(const Cookie& cook
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    // Check datatype - only allow raw, or XATTR iff XATTRs are enabled.
+    // Check datatype - only allow raw, or iff XATTRs are enabled XATTR (with or
+    // without snappy)
     if (!(mcbp::datatype::is_raw(datatype) ||
-          (datatype == PROTOCOL_BINARY_DATATYPE_XATTR &&
+          ((datatype == PROTOCOL_BINARY_DATATYPE_XATTR ||
+            datatype == (PROTOCOL_BINARY_DATATYPE_XATTR |
+                         PROTOCOL_BINARY_DATATYPE_SNAPPY)) &&
            may_accept_xattr(cookie)))) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }

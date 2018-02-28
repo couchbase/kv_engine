@@ -1940,8 +1940,10 @@ TEST_P(DcpDeletionValidatorTest, InvalidMagic) {
 
 TEST_P(DcpDeletionValidatorTest, ValidDatatype) {
     using cb::mcbp::Datatype;
-    const std::array<uint8_t, 2> datatypes = {{uint8_t(Datatype::Raw),
-                                                  uint8_t(Datatype::Xattr)}};
+    const std::array<uint8_t, 3> datatypes = {
+            {uint8_t(Datatype::Raw),
+             uint8_t(Datatype::Xattr),
+             uint8_t(Datatype::Xattr) | uint8_t(Datatype::Snappy)}};
 
     for (auto valid : datatypes) {
         header.request.datatype = valid;
@@ -1952,14 +1954,13 @@ TEST_P(DcpDeletionValidatorTest, ValidDatatype) {
 
 TEST_P(DcpDeletionValidatorTest, InvalidDatatype) {
     using cb::mcbp::Datatype;
-    const std::array<uint8_t, 6> datatypes = {
-        {uint8_t(Datatype::JSON),
-            uint8_t(Datatype::Snappy),
-            uint8_t(Datatype::Snappy) | uint8_t(Datatype::JSON),
-            uint8_t(Datatype::Xattr) | uint8_t(Datatype::JSON),
-            uint8_t(Datatype::Xattr) | uint8_t(Datatype::Snappy),
-            uint8_t(Datatype::Xattr) | uint8_t(Datatype::Snappy) |
-            uint8_t(Datatype::JSON)}};
+    const std::array<uint8_t, 5> datatypes = {
+            {uint8_t(Datatype::JSON),
+             uint8_t(Datatype::Snappy),
+             uint8_t(Datatype::Snappy) | uint8_t(Datatype::JSON),
+             uint8_t(Datatype::Xattr) | uint8_t(Datatype::JSON),
+             (uint8_t(Datatype::Xattr) | uint8_t(Datatype::Snappy) |
+              uint8_t(Datatype::JSON))}};
 
     for (auto invalid : datatypes) {
         header.request.datatype = invalid;
