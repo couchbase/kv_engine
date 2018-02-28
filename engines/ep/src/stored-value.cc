@@ -161,7 +161,7 @@ void StoredValue::restoreValue(const Item& itm) {
     }
     datatype = itm.getDataType();
     setDeletedPriv(itm.isDeleted());
-    value = itm.getValue();
+    value = itm.getValue(); // Implicitly also copies the frequency counter
     setResident(true);
 }
 
@@ -182,6 +182,7 @@ void StoredValue::restoreMeta(const Item& itm) {
     if (getNru() == MAX_NRU_VALUE) {
         setNru(INITIAL_NRU_VALUE);
     }
+    setFreqCounterValue(itm.getFreqCounterValue());
 }
 
 bool StoredValue::del() {

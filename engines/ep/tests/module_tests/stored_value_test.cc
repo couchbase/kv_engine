@@ -24,6 +24,7 @@
 #include "../../daemon/alloc_hooks.h"
 #include "../mock/mock_stored_value.h"
 #include "hash_table.h"
+#include "item_eviction.h"
 #include "stats.h"
 #include "stored_value_factories.h"
 #include "tests/module_tests/test_helpers.h"
@@ -288,6 +289,32 @@ TYPED_TEST(ValueTest, replaceValue) {
 
     this->sv->replaceValue(sv->getValue().get());
     EXPECT_EQ(100, this->sv->getFreqCounterValue());
+}
+
+TYPED_TEST(ValueTest, restoreValue) {
+    ASSERT_EQ(5, this->sv->getFreqCounterValue());
+    this->sv->setFreqCounterValue(100);
+    ASSERT_EQ(100, this->sv->getFreqCounterValue());
+
+    auto itm = make_item(0,
+                      makeStoredDocKey(std::string("key").c_str()),
+                      std::string("value").c_str());
+
+    this->sv->restoreValue(itm);
+    EXPECT_EQ(5, this->sv->getFreqCounterValue());
+}
+
+TYPED_TEST(ValueTest, restoreMeta) {
+    ASSERT_EQ(5, this->sv->getFreqCounterValue());
+    this->sv->setFreqCounterValue(100);
+    ASSERT_EQ(100, this->sv->getFreqCounterValue());
+
+    auto itm = make_item(0,
+                      makeStoredDocKey(std::string("key").c_str()),
+                      std::string("value").c_str());
+
+    this->sv->restoreMeta(itm);
+    EXPECT_EQ(5, this->sv->getFreqCounterValue());
 }
 
 /// Check that StoredValue / OrderedStoredValue don't unexpectedly change in
