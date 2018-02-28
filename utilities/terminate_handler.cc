@@ -86,6 +86,12 @@ static void backtrace_terminate_handler() {
 }
 
 void install_backtrace_terminate_handler() {
+    if (!cb::logger::get()) {
+        // If we don't have a logger, it's time to create one as the
+        // backtrace code expects a logger to be present
+        cb::logger::createConsoleLogger();
+    }
+
     if (default_terminate_handler != nullptr) {
         // restore the previously saved one before (re)installing ours.
         std::set_terminate(default_terminate_handler);

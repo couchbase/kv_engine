@@ -17,18 +17,18 @@
 
 #pragma once
 
-#include "config.h"
-
-#include <memcached/extension.h>
+#include <memcached/mcd_util-visibility.h>
 
 /**
  * Interposes our own C++ terminate handler to print backtrace upon failures.
  * Chains to the default handler (if exists) after printing the backtrace,
  * then calls std::abort().
  */
+MCD_UTIL_PUBLIC_API
 void install_backtrace_terminate_handler();
 
 /**
  * Control if our C++ terminate handler should include a backtrace or not.
  */
+MCD_UTIL_PUBLIC_API
 void set_terminate_handler_print_backtrace(bool print);

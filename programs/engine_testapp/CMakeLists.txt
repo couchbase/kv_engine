@@ -4,7 +4,6 @@ ADD_EXECUTABLE(engine_testapp engine_testapp.cc
                ${Memcached_SOURCE_DIR}/daemon/protocol/mcbp/engine_errc_2_mcbp.cc
                ${Memcached_SOURCE_DIR}/daemon/protocol/mcbp/engine_errc_2_mcbp.h
                ${Memcached_SOURCE_DIR}/daemon/doc_pre_expiry.cc
-               ${Memcached_SOURCE_DIR}/utilities/terminate_handler.cc
                $<TARGET_OBJECTS:memory_tracking>)
 
 TARGET_LINK_LIBRARIES(engine_testapp PRIVATE

@@ -26,7 +26,6 @@ ENDIF ()
 ADD_LIBRARY(memcached_daemon STATIC
             breakpad.cc
             ${Memcached_SOURCE_DIR}/utilities/string_utilities.cc
-            ${Memcached_SOURCE_DIR}/utilities/terminate_handler.cc
             $<TARGET_OBJECTS:memory_tracking>
             breakpad.h
             breakpad_settings.cc

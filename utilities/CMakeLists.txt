@@ -6,6 +6,8 @@ add_library(mcd_util SHARED
             engine_loader.h
             protocol2text.cc
             protocol2text.h
+            terminate_handler.cc
+            terminate_handler.h
             util.cc)
 target_link_libraries(mcd_util memcached_logger engine_utilities platform)
 set_target_properties(mcd_util PROPERTIES SOVERSION 1.0.0)
