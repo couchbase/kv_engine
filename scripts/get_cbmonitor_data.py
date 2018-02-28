@@ -1,3 +1,5 @@
+#!/usr/bin/env python2.7
+
 '''
 Copyright 2018 Couchbase, Inc
 
@@ -16,17 +18,19 @@ limitations under the License.
 The script downloads the raw cbmonitor data for a given list of runs and dumps
 some performance metrics to file (JSON and CSV formats).
 
-Usage: python get_cbmonitor_data.py --job-list \
+Usage: get_cbmonitor_data.py --job-list \
        <project1>:<number1>[:'<label1>'] [<project2>:<number2> ..] \
        --output-dir <output_dir>
-(e.g., python get_cbmonitor_data.py --job-list \
+(e.g., get_cbmonitor_data.py --job-list \
        hera-pl:60:'RocksDB low OPS' hera-pl:67 --output_dir . )
 '''
 
 import argparse
 import csv
+import gzip
 import json
 import re
+from StringIO import StringIO
 import sys
 import urllib2
 import numpy
@@ -38,11 +42,19 @@ def downloadData(url):
     try:
         # Note: urllib2 module sends HTTP/1.1 requests with Connection:close
         # header included
-        connection = urllib2.urlopen(url, timeout=10)
+        request = urllib2.Request(url)
+        request.add_header('Accept-encoding', 'gzip')
+        response = urllib2.urlopen(request, timeout=10)
     except urllib2.URLError, e:
         raise Exception("'urlopen' error, url not correct or user not "
                         "connected to VPN: %r" % e)
-    return connection.read()
+
+    if response.info().get('Content-Encoding') == 'gzip':
+        buf = StringIO(response.read())
+        f = gzip.GzipFile(fileobj=buf)
+        return f.read()
+    else:
+        return response.read()
 
 
 def getAverage(url):
@@ -78,10 +90,10 @@ def getP99(url):
     return numpy.percentile(valueList, 99.0)
 
 
-usage = ("Usage: python get_cbmonitor_data.py --job-list "
+usage = ("Usage: get_cbmonitor_data.py --job-list "
          "<project1>:<number1>[:'<label1>'] [<project2>:<number2> ..] "
          "--output-dir <output_dir> "
-         "\n\t(e.g., python get_cbmonitor_data.py --job-list "
+         "\n\t(e.g., get_cbmonitor_data.py --job-list "
          "hera-pl:60:'RocksDB low OPS' hera-pl:67 hera-pl:83 --output-dir . )")
 
 ap = argparse.ArgumentParser()
