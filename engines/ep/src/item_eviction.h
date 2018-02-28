@@ -15,6 +15,8 @@
  *   limitations under the License.
  */
 
+#pragma once
+
 #include <atomic>
 #include <cstdlib> // Required due to the use of free
 #include <limits>

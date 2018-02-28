@@ -19,6 +19,7 @@
 
 #include "ep_time.h"
 #include "item.h"
+#include "item_eviction.h"
 #include "objectregistry.h"
 
 #include <cJSON.h>
@@ -38,10 +39,9 @@ Item::Item(const DocKey& k,
            uint64_t theCas,
            int64_t i,
            uint16_t vbid,
-           uint64_t sno,
-           uint8_t nru_value)
+           uint64_t sno)
     : metaData(theCas, sno, fl, exp),
-      value(val),
+      value(TaggedPtr<Blob>(val.get().get(), ItemEviction::initialFreqCount)),
       key(k),
       bySeqno(i),
       queuedTime(ep_current_time()),
@@ -49,7 +49,7 @@ Item::Item(const DocKey& k,
       deleted(false),
       op(k.getDocNamespace() == DocNamespace::System ? queue_op::system_event
                                                      : queue_op::mutation),
-      nru(nru_value),
+      nru(INITIAL_NRU_VALUE),
       datatype(dtype) {
     if (bySeqno == 0) {
         throw std::invalid_argument("Item(): bySeqno must be non-zero");
@@ -67,9 +67,9 @@ Item::Item(const DocKey& k,
            uint64_t theCas,
            int64_t i,
            uint16_t vbid,
-           uint64_t sno,
-           uint8_t nru_value)
+           uint64_t sno)
     : metaData(theCas, sno, fl, exp),
+      value(TaggedPtr<Blob>(nullptr, ItemEviction::initialFreqCount)),
       key(k),
       bySeqno(i),
       queuedTime(ep_current_time()),
@@ -77,13 +77,12 @@ Item::Item(const DocKey& k,
       deleted(false),
       op(k.getDocNamespace() == DocNamespace::System ? queue_op::system_event
                                                      : queue_op::mutation),
-      nru(nru_value),
+      nru(INITIAL_NRU_VALUE),
       datatype(dtype) {
     if (bySeqno == 0) {
         throw std::invalid_argument("Item(): bySeqno must be non-zero");
     }
     setData(static_cast<const char*>(dta), nb);
-
     ObjectRegistry::onCreateItem(this);
 }
 
@@ -91,16 +90,16 @@ Item::Item(const DocKey& k,
            const uint16_t vb,
            queue_op o,
            const uint64_t revSeq,
-           const int64_t bySeq,
-           uint8_t nru_value)
+           const int64_t bySeq)
     : metaData(),
+      value(TaggedPtr<Blob>(nullptr, ItemEviction::initialFreqCount)),
       key(k),
       bySeqno(bySeq),
       queuedTime(ep_current_time()),
       vbucketId(vb),
       deleted(false),
       op(o),
-      nru(nru_value) {
+      nru(INITIAL_NRU_VALUE) {
     if (bySeqno < 0) {
         throw std::invalid_argument("Item(): bySeqno must be non-negative");
     }
@@ -110,7 +109,7 @@ Item::Item(const DocKey& k,
 
 Item::Item(const Item& other)
     : metaData(other.metaData),
-      value(other.value),
+      value(other.value), // Implicitly also copies the frequency counter
       key(other.key),
       bySeqno(other.bySeqno.load()),
       queuedTime(other.queuedTime),
@@ -350,4 +349,14 @@ item_info to_item_info(const ItemMetaData& itemMeta,
             deleted ? DocumentState::Deleted : DocumentState::Alive;
 
     return info;
+}
+
+void Item::setFreqCounterValue(uint16_t newValue) {
+    auto taggedPtr = value.get();
+    taggedPtr.setTag(newValue);
+    value.reset(taggedPtr);
+}
+
+uint16_t Item::getFreqCounterValue() const {
+    return value.get().getTag();
 }

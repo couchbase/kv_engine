@@ -332,11 +332,6 @@ StoredValue* HashTable::unlocked_addNewStoredValue(const HashBucketLock& hbl,
     // Create a new StoredValue and link it into the head of the bucket chain.
     auto v = (*valFact)(itm, std::move(values[hbl.getBucketNum()]));
 
-    // When first adding a new stored value set the counter frequency value
-    // to the initialFreqCount.  This means we are less likely evict documents
-    // from the hash table that have just been added.
-    v->setFreqCounterValue(ItemEviction::initialFreqCount);
-
     valueStats.epilogue(*v.get());
 
     values[hbl.getBucketNum()] = std::move(v);

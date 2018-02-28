@@ -22,6 +22,7 @@
 #include "config.h"
 
 #include "../../daemon/alloc_hooks.h"
+#include "../mock/mock_stored_value.h"
 #include "hash_table.h"
 #include "stats.h"
 #include "stored_value_factories.h"
@@ -244,13 +245,38 @@ TYPED_TEST(ValueTest, nru) {
  * Test the get / set of the frequency counter
  */
 TYPED_TEST(ValueTest, freqCounter) {
-    EXPECT_EQ(0, this->sv->getFreqCounterValue());
+    EXPECT_EQ(5, this->sv->getFreqCounterValue());
     this->sv->setFreqCounterValue(1);
     EXPECT_EQ(1, this->sv->getFreqCounterValue());
 }
 
+TYPED_TEST(ValueTest, initialFreqCounterForTemp) {
+    Item itm = make_item(0,
+                         makeStoredDocKey(std::string("key").c_str()),
+                         std::string("value").c_str());
+    itm.setBySeqno(StoredValue::state_temp_init);
+    auto storedVal = MockStoredValue::UniquePtr(
+            new (::operator new(this->public_getRequiredStorage(itm)))
+                    MockStoredValue(itm,
+                                    {},
+                                    this->stats,
+                                    /*isOrdered*/ false));
+    ASSERT_TRUE(storedVal->isTempItem());
+    EXPECT_EQ(0, storedVal->getFreqCounterValue());
+}
+
+TYPED_TEST(ValueTest, copyStoreValue) {
+    ASSERT_EQ(5, this->sv->getFreqCounterValue());
+    this->sv->setFreqCounterValue(100);
+    ASSERT_EQ(100, this->sv->getFreqCounterValue());
+    auto storedVal = MockStoredValue::UniquePtr(
+            new (::operator new(this->sv->getObjectSize()))
+                    MockStoredValue(*(this->sv.get()), {}, this->stats));
+    EXPECT_EQ(100, storedVal->getFreqCounterValue());
+}
+
 TYPED_TEST(ValueTest, replaceValue) {
-    ASSERT_EQ(0, this->sv->getFreqCounterValue());
+    ASSERT_EQ(5, this->sv->getFreqCounterValue());
     this->sv->setFreqCounterValue(100);
     ASSERT_EQ(100, this->sv->getFreqCounterValue());
 

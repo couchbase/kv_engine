@@ -77,7 +77,7 @@ StoredValue::~StoredValue() {
 }
 
 StoredValue::StoredValue(const StoredValue& other, UniquePtr n, EPStats& stats)
-    : value(other.value),
+    : value(other.value), // Implicitly also copies the frequency counter
       chain_next_or_replacement(std::move(n)),
       cas(other.cas),
       revSeqno(other.revSeqno),
@@ -210,6 +210,7 @@ std::unique_ptr<Item> StoredValue::toItem(bool lck, uint16_t vbucket) const {
                                    getRevSeqno());
 
     itm->setNRUValue(getNru());
+    itm->setFreqCounterValue(getFreqCounterValue());
 
     if (isDeleted()) {
         itm->setDeleted();
@@ -231,6 +232,7 @@ std::unique_ptr<Item> StoredValue::toItemKeyOnly(uint16_t vbucket) const {
                                    getRevSeqno());
 
     itm->setNRUValue(getNru());
+    itm->setFreqCounterValue(getFreqCounterValue());
 
     if (isDeleted()) {
         itm->setDeleted();

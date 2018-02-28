@@ -480,7 +480,7 @@ void VBucket::handlePreExpiry(const std::unique_lock<std::mutex>& hbl,
         itm_info =
                 itm->toItemInfo(failovers->getLatestUUID(), getHLCEpochSeqno());
         value_t new_val(Blob::Copy(*value));
-        itm->setValue(new_val);
+        itm->replaceValue(new_val.get());
         itm->setDataType(v.getDatatype());
 
         SERVER_HANDLE_V1* sapi = engine->getServerApi();
@@ -498,9 +498,10 @@ void VBucket::handlePreExpiry(const std::unique_lock<std::mutex>& hbl,
                           v.getCas(),
                           v.getBySeqno(),
                           id,
-                          v.getRevSeqno(),
-                          v.getNRUValue());
+                          v.getRevSeqno());
 
+            new_item.setNRUValue(v.getNRUValue());
+            new_item.setFreqCounterValue(v.getFreqCounterValue());
             new_item.setDeleted();
             ht.unlocked_updateStoredValue(hbl, v, new_item);
         }
@@ -2733,7 +2734,7 @@ std::unique_ptr<Item> VBucket::pruneXattrDocument(
         rv->setFlags(itemMeta.flags);
         rv->setExpTime(itemMeta.exptime);
         rv->setRevSeqno(itemMeta.revSeqno);
-        rv->setValue(TaggedPtr<Blob>(newValue));
+        rv->replaceValue(newValue);
         rv->setDataType(PROTOCOL_BINARY_DATATYPE_XATTR);
         return rv;
     } else {

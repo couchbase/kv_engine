@@ -520,7 +520,7 @@ void KVBucket::getValue(Item& it) {
             gv.getStatus());
         return;
     } else if (!gv.item->isDeleted()) {
-        it.setValue(gv.item->getValue());
+        it.replaceValue(gv.item->getValue().get());
     }
 }
 
@@ -546,7 +546,7 @@ void KVBucket::deleteExpiredItem(Item& it,
                 value_t value(
                         Blob::New(static_cast<char*>(info.value[0].iov_base),
                                   info.value[0].iov_len));
-                it.setValue(value);
+                it.replaceValue(value.get());
                 it.setDataType(info.datatype);
             }
         }

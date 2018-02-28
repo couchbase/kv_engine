@@ -147,8 +147,7 @@ public:
          uint64_t theCas = 0,
          int64_t i = -1,
          uint16_t vbid = 0,
-         uint64_t sno = 1,
-         uint8_t nru_value = INITIAL_NRU_VALUE);
+         uint64_t sno = 1);
 
     /* Constructor (new value).
      * k         specify the item's DocKey.
@@ -169,15 +168,13 @@ public:
          uint64_t theCas = 0,
          int64_t i = -1,
          uint16_t vbid = 0,
-         uint64_t sno = 1,
-         uint8_t nru_value = INITIAL_NRU_VALUE);
+         uint64_t sno = 1);
 
     Item(const DocKey& k,
          const uint16_t vb,
          queue_op o,
          const uint64_t revSeq,
-         const int64_t bySeq,
-         uint8_t nru_value = INITIAL_NRU_VALUE);
+         const int64_t bySeq);
 
     /* Copy constructor */
     Item(const Item& other);
@@ -254,8 +251,12 @@ public:
         metaData.cas = ncas;
     }
 
-    void setValue(const value_t &v) {
-        value.reset(v);
+    /// Replace the existing value with new data.
+    void replaceValue(TaggedPtr<Blob> data) {
+        // Maintain the frequency count for the Item.
+        auto freqCount = getFreqCounterValue();
+        value.reset(data);
+        setFreqCounterValue(freqCount);
     }
 
     void setFlags(uint32_t f) {
@@ -395,6 +396,12 @@ public:
         return nru;
     }
 
+    /// Set the frequency counter value to the input value
+    void setFreqCounterValue(uint16_t newValue);
+
+    /// Gets the frequency counter value
+    uint16_t getFreqCounterValue() const;
+
     static uint64_t nextCas(void) {
         return ProcessClock::now().time_since_epoch().count() + (++casCounter);
     }
@@ -438,7 +445,7 @@ private:
         } else {
             data = Blob::New(dta, nb);
         }
-        setValue(TaggedPtr<Blob>(data));
+        replaceValue(data);
     }
 
     ItemMetaData metaData;

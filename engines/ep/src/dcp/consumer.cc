@@ -393,8 +393,8 @@ ENGINE_ERROR_CODE DcpConsumer::mutation(uint32_t opaque,
                                   cas,
                                   bySeqno,
                                   vbucket,
-                                  revSeqno,
-                                  nru));
+                                  revSeqno));
+        item->setNRUValue(nru);
 
         ExtendedMetaData *emd = NULL;
         if (meta.size() > 0) {
