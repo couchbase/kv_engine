@@ -21,6 +21,8 @@
 
 #include "testapp_subdoc_common.h"
 
+#include <platform/cb_malloc.h>
+
 std::ostream& operator<<(std::ostream& os, const BinprotSubdocCommand& obj) {
     os << "[cmd:" << memcached_opcode_2_text(obj.getOp())
        << " key:" << obj.getKey() << " path:" << obj.getPath()

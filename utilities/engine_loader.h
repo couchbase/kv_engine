@@ -1,15 +1,26 @@
-/* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#ifndef ENGINE_LOADER_H
-#define ENGINE_LOADER_H
+/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+/*
+ *     Copyright 2018 Couchbase, Inc
+ *
+ *   Licensed under the Apache License, Version 2.0 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *       http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+#pragma once
 
-#include <memcached/extension.h>
 #include <memcached/engine.h>
-#include <memcached/visibility.h>
-#include <platform/dynamic.h>
+#include <memcached/extension.h>
+#include <memcached/mcd_util-visibility.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <platform/dynamic.h>
 
 /*
     This type is allocated by load_engine and freed by unload_engine
@@ -21,7 +32,8 @@ typedef struct engine_reference engine_reference;
     Unload the engine.
     Triggers destroy_engine then closes the shared object finally freeing the reference.
 */
-MEMCACHED_PUBLIC_API void unload_engine(engine_reference* engine);
+MCD_UTIL_PUBLIC_API
+void unload_engine(engine_reference* engine);
 
 /**
  * Load the specified engine shared object.
@@ -36,25 +48,20 @@ MEMCACHED_PUBLIC_API void unload_engine(engine_reference* engine);
  * @param logger Where to print error messages (cannot be NULL)
  * @return engine_reference* on success or NULL for failure.
  */
-MEMCACHED_PUBLIC_API engine_reference* load_engine(const char* soname,
-                                                   const char* create_function,
-                                                   const char* destroy_function)
-        CB_ATTR_NONNULL(1);
+MCD_UTIL_PUBLIC_API
+engine_reference* load_engine(const char* soname,
+                              const char* create_function,
+                              const char* destroy_function) CB_ATTR_NONNULL(1);
 
 /*
     Create an engine instance.
 */
-MEMCACHED_PUBLIC_API bool create_engine_instance(engine_reference* engine,
-                                                 SERVER_HANDLE_V1 *(*get_server_api)(void),
-                                                 ENGINE_HANDLE **engine_handle);
+MCD_UTIL_PUBLIC_API
+bool create_engine_instance(engine_reference* engine,
+                            SERVER_HANDLE_V1* (*get_server_api)(void),
+                            ENGINE_HANDLE** engine_handle);
 /*
     Initialise the engine handle using the engine's exported initialize method.
 */
-MEMCACHED_PUBLIC_API bool init_engine_instance(ENGINE_HANDLE* engine,
-                                               const char* config_str);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif    /* ENGINE_LOADER_H */
+MCD_UTIL_PUBLIC_API
+bool init_engine_instance(ENGINE_HANDLE* engine, const char* config_str);

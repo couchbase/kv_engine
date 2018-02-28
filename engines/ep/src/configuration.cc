@@ -20,6 +20,8 @@
 
 #include "configuration_impl.h"
 
+#include <platform/cb_malloc.h>
+
 #include "locks.h"
 
 #ifdef AUTOCONF_BUILD

@@ -18,8 +18,9 @@
 #include "items.h"
 #include "assoc.h"
 
-#include <platform/crc32c.h>
 #include <benchmark/benchmark.h>
+#include <platform/cb_malloc.h>
+#include <platform/crc32c.h>
 #include <random>
 
 const uint32_t max_items = 100000;

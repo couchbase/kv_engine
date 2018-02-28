@@ -6,6 +6,7 @@
 
 #include <JSON_checker.h>
 #include <platform/backtrace.h>
+#include <platform/cb_malloc.h>
 #include <platform/dirutils.h>
 #include <platform/strerror.h>
 

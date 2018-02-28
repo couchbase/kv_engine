@@ -1,17 +1,27 @@
-#ifndef CONFIG_PARSER_H
-#define CONFIG_PARSER_H
+/*
+ *     Copyright 2018 Couchbase, Inc
+ *
+ *   Licensed under the Apache License, Version 2.0 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *       http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+#pragma once
 
-#include <stdint.h>
-#include <stdio.h>
-#include <memcached/visibility.h>
+#include <memcached/mcd_util-visibility.h>
 
-#include <platform/cb_malloc.h>
+#include <cstdint>
+#include <cstdio>
 
+// Windows don't have ssize_t
 typedef long mc_ssize_t;
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 /**
  * The supported datatypes the config file parser can handle
@@ -62,10 +72,5 @@ struct config_item {
  *         1 if config successfully parsed, but unknown tokens found
  *        -1 if illegal values was found in the config
  */
-MEMCACHED_PUBLIC_API int parse_config(const char *str, struct config_item items[], FILE *error);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif
+MCD_UTIL_PUBLIC_API
+int parse_config(const char* str, struct config_item items[], FILE* error);
