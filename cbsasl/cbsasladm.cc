@@ -26,6 +26,8 @@
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <utilities/protocol2text.h>
+#include <utilities/terminate_handler.h>
+
 #include <cerrno>
 #include <cstdio>
 #include <cstdlib>
@@ -100,6 +102,9 @@ static void usage() {
  * @return 0 if success, error code otherwise
  */
 int main(int argc, char** argv) {
+    // Make sure that we dump callstacks on the console
+    install_backtrace_terminate_handler();
+
     int cmd;
     std::string port{"11210"};
     std::string host{"localhost"};

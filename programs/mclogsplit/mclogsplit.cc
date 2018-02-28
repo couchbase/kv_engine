@@ -17,6 +17,8 @@
 
 #include <getopt.h>
 #include <platform/dirutils.h>
+#include <utilities/terminate_handler.h>
+
 #include <cstdio>
 #include <cstring>
 #include <iomanip>
@@ -113,6 +115,9 @@ void process_file(const std::string& filename,
 }
 
 int main(int argc, char** argv) {
+    // Make sure that we dump callstacks on the console
+    install_backtrace_terminate_handler();
+
     struct option long_options[] = {{"input", required_argument, nullptr, 'i'},
                                     {"output", required_argument, nullptr, 'o'},
                                     {"preserve", no_argument, nullptr, 'p'},

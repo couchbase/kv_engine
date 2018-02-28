@@ -31,6 +31,7 @@
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <utilities/protocol2text.h>
+#include <utilities/terminate_handler.h>
 
 #include <iostream>
 #include <stdio.h>
@@ -131,6 +132,9 @@ static void usage() {
 }
 
 int main(int argc, char** argv) {
+    // Make sure that we dump callstacks on the console
+    install_backtrace_terminate_handler();
+
     int cmd;
     std::string port{"11210"};
     std::string host{"localhost"};

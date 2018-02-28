@@ -22,6 +22,8 @@
 #include <programs/getpass.h>
 #include <programs/hostname_utils.h>
 #include <protocol/connection/client_connection.h>
+#include <utilities/terminate_handler.h>
+
 #include <iostream>
 
 /**
@@ -107,6 +109,9 @@ static void usage() {
 }
 
 int main(int argc, char** argv) {
+    // Make sure that we dump callstacks on the console
+    install_backtrace_terminate_handler();
+
     int cmd;
     std::string port{"11210"};
     std::string host{"localhost"};
