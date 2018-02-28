@@ -1,6 +1,4 @@
 ADD_EXECUTABLE(memcached_config_parse_test config_parse_test.cc
-               ${Memcached_SOURCE_DIR}/daemon/breakpad_settings.cc
-               ${Memcached_SOURCE_DIR}/daemon/breakpad_settings.h
                ${Memcached_SOURCE_DIR}/daemon/client_cert_config.cc
                ${Memcached_SOURCE_DIR}/daemon/client_cert_config.h
                ${Memcached_SOURCE_DIR}/daemon/extension_settings.cc
@@ -14,6 +12,7 @@ ADD_EXECUTABLE(memcached_config_parse_test config_parse_test.cc
 TARGET_LINK_LIBRARIES(memcached_config_parse_test
                       cJSON
                       JSON_checker
+                      mcd_util
                       mcbp
                       memcached_logger
                       platform

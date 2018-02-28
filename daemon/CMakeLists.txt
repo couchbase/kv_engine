@@ -1,12 +1,4 @@
 
-IF ("${CMAKE_SYSTEM_NAME}" STREQUAL "Linux")
-    # Breakpad has headers (which are dependencies for our breakpad integration
-    # code) that don't compile cleanly as C++11, so the GNU standard is
-    # used instead.
-    SET_SOURCE_FILES_PROPERTIES(breakpad.cc PROPERTIES COMPILE_FLAGS
-                                ${CB_GNU_CXX11_OPTION})
-ENDIF ()
-
 CHECK_INCLUDE_FILES(numa.h HAVE_NUMA_H)
 SET(WITH_NUMA True CACHE BOOL "Explicitly set NUMA memory allocation policy")
 IF (HAVE_NUMA_H AND WITH_NUMA)
@@ -24,11 +16,7 @@ IF (HAVE_LIBNUMA)
 ENDIF ()
 
 ADD_LIBRARY(memcached_daemon STATIC
-            breakpad.cc
             $<TARGET_OBJECTS:memory_tracking>
-            breakpad.h
-            breakpad_settings.cc
-            breakpad_settings.h
             buckets.cc
             buckets.h
             cccp_notification_task.cc
@@ -233,7 +221,6 @@ TARGET_LINK_LIBRARIES(memcached_daemon
                       ${LIBEVENT_LIBRARIES}
                       ${OPENSSL_LIBRARIES}
                       ${COUCHBASE_NETWORK_LIBS}
-                      ${BREAKPAD_LIBRARIES}
                       ${NUMA_LIBRARIES}
                       ${MEMCACHED_EXTRA_LIBS})
 

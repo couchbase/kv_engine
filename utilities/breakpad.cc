@@ -15,13 +15,14 @@
  *   limitations under the License.
  */
 
+#include "config.h"
 #include "breakpad.h"
-#include "memcached.h"
-#include "utilities/terminate_handler.h"
+#include "terminate_handler.h"
 
-#include <platform/platform.h>
+#include <logger/logger.h>
 
 #include <platform/backtrace.h>
+#include <platform/platform.h>
 
 using namespace google_breakpad;
 
@@ -65,7 +66,7 @@ static bool dumpCallback(const wchar_t* dump_path,
     LOG_CRITICAL(
             "Breakpad caught crash in memcached version {}. Writing crash dump "
             "to {} before terminating.",
-            get_server_version(),
+            PRODUCT_VERSION,
             file);
     dump_stack();
     return succeeded;
@@ -77,7 +78,7 @@ static bool dumpCallback(const MinidumpDescriptor& descriptor,
     LOG_CRITICAL(
             "Breakpad caught crash in memcached version {}. Writing crash dump "
             "to {} before terminating.",
-            get_server_version(),
+            PRODUCT_VERSION,
             descriptor.path());
 
     dump_stack();

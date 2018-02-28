@@ -18,6 +18,8 @@
 #pragma once
 
 #include <cJSON.h>
+#include <memcached/mcd_util-visibility.h>
+
 #include <gsl/gsl>
 #include <string>
 
@@ -26,7 +28,7 @@ namespace breakpad {
 /**
  * What information should breakpad minidumps contain?
  */
-enum class Content {
+enum class MCD_UTIL_PUBLIC_API Content {
     /**
      * Default content (threads+stack+env+arguments)
      */
@@ -36,7 +38,7 @@ enum class Content {
 /**
  * Settings for Breakpad crash catcher.
  */
-struct Settings {
+struct MCD_UTIL_PUBLIC_API Settings {
     /**
      * Default constructor initialize the object to be in a disabled state
      */
@@ -65,4 +67,5 @@ struct Settings {
 } // namespace breakpad
 } // namespace cb
 
+MCD_UTIL_PUBLIC_API
 std::string to_string(cb::breakpad::Content content);

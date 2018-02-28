@@ -19,7 +19,7 @@
 
 #include "config.h"
 
-#include "breakpad_settings.h"
+#include <utilities/breakpad_settings.h>
 #include "client_cert_config.h"
 #include "extension_settings.h"
 #include "logger/logger.h"

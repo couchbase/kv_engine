@@ -17,7 +17,10 @@
 #pragma once
 
 #include "config.h"
-#include "settings.h"
+
+#include <memcached/mcd_util-visibility.h>
+
+#include "breakpad_settings.h"
 
 #if defined(WIN32) && defined(HAVE_BREAKPAD)
 #include "client/windows/handler/exception_handler.h"
@@ -39,12 +42,14 @@ namespace breakpad {
  * The function may be called multiple times and allow for reconfiguration
  * of the breakpad settings.
  */
+MCD_UTIL_PUBLIC_API
 void initialize(const cb::breakpad::Settings& settings);
 
 /**
  * Cleaning up when breakpad no longer needed
  * (Assuming it is enabled and has been initialized)
  */
+MCD_UTIL_PUBLIC_API
 void destroy();
 
 } // namespace breakpad

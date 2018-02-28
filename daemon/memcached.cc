@@ -16,7 +16,6 @@
 #include "config.h"
 #include "memcached.h"
 #include "alloc_hooks.h"
-#include "breakpad.h"
 #include "buckets.h"
 #include "cmdline.h"
 #include "config_parse.h"
@@ -56,6 +55,7 @@
 #include <platform/dirutils.h>
 #include <platform/strerror.h>
 #include <platform/sysinfo.h>
+#include <utilities/breakpad.h>
 
 #include <signal.h>
 #include <fcntl.h>
