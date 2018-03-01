@@ -21,10 +21,12 @@
 
 #include <getopt.h>
 #include <memcached/protocol_binary.h>
+#include <platform/dirutils.h>
 #include <platform/platform.h>
 #include <programs/hostname_utils.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
+#include <utilities/breakpad.h>
 #include <utilities/protocol2text.h>
 #include <utilities/terminate_handler.h>
 
@@ -85,7 +87,8 @@ int handle_pwconv(int argc, char** argv) {
 static void usage() {
     fprintf(stderr,
             "Usage: cbsasladm [-h host[:port]] [-p port] [-s] "
-            "[-u user] [-P password] [-C ssl_cert] [-K ssl_key] cmd\n"
+            "[-u user] [-P password] [-C ssl_cert] [-K ssl_key] "
+            "[-D dump-dir] cmd\n"
             "   The following command(s) exists:\n"
             "\trefresh - tell memcached to reload its internal "
             "cache\n"
@@ -111,6 +114,7 @@ int main(int argc, char** argv) {
     std::string user{};
     std::string password{};
     std::string bucket{};
+    std::string dumpdir;
     std::string ssl_cert;
     std::string ssl_key;
 
@@ -120,8 +124,11 @@ int main(int argc, char** argv) {
     /* Initialize the socket subsystem */
     cb_initialize_sockets();
 
-    while ((cmd = getopt(argc, argv, "46h:p:u:b:P:si:K:C:")) != EOF) {
+    while ((cmd = getopt(argc, argv, "46h:p:u:b:P:si:K:C:D:")) != EOF) {
         switch (cmd) {
+        case 'D':
+            dumpdir.assign(optarg);
+            break;
         case '6':
             family = AF_INET6;
             break;
@@ -172,6 +179,8 @@ int main(int argc, char** argv) {
         std::cerr << "You need to supply a command" << std::endl;
         usage();
     }
+
+    cb::breakpad::initialize(dumpdir);
 
     std::string command{argv[optind]};
     if (command == "refresh") {

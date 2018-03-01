@@ -46,6 +46,15 @@ MCD_UTIL_PUBLIC_API
 void initialize(const cb::breakpad::Settings& settings);
 
 /**
+ * Initialize breakpad from use of a command line program.
+ *
+ * @param directory specifies the dump directory to use (an empty directory
+ *                  is accepted and ignored).
+ */
+MCD_UTIL_PUBLIC_API
+void initialize(const std::string& dumpdir);
+
+/**
  * Cleaning up when breakpad no longer needed
  * (Assuming it is enabled and has been initialized)
  */

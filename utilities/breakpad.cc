@@ -22,6 +22,7 @@
 #include <logger/logger.h>
 
 #include <platform/backtrace.h>
+#include <platform/dirutils.h>
 #include <platform/platform.h>
 
 using namespace google_breakpad;
@@ -64,8 +65,8 @@ static bool dumpCallback(const wchar_t* dump_path,
     sprintf(file, "%S\\%S.dmp", dump_path, minidump_id);
 
     LOG_CRITICAL(
-            "Breakpad caught crash in memcached version {}. Writing crash dump "
-            "to {} before terminating.",
+            "Breakpad caught a crash (Couchbase version {}). Writing crash "
+            "dump to {} before terminating.",
             PRODUCT_VERSION,
             file);
     dump_stack();
@@ -76,8 +77,8 @@ static bool dumpCallback(const MinidumpDescriptor& descriptor,
                          void* context,
                          bool succeeded) {
     LOG_CRITICAL(
-            "Breakpad caught crash in memcached version {}. Writing crash dump "
-            "to {} before terminating.",
+            "Breakpad caught a crash (Couchbase version {}). Writing crash "
+            "dump to {} before terminating.",
             PRODUCT_VERSION,
             descriptor.path());
 
@@ -138,6 +139,27 @@ void cb::breakpad::initialize(const cb::breakpad::Settings& settings) {
         // terminate_handler.
         set_terminate_handler_print_backtrace(true);
         LOG_INFO("Breakpad disabled");
+    }
+}
+
+void cb::breakpad::initialize(const std::string& directory) {
+    // We cannot actually change any of breakpad's settings once created, only
+    // remove it and re-create with new settings.
+    destroy();
+
+    if (directory.empty()) {
+        // No directory provided
+        return;
+    }
+
+    create_handler(directory);
+
+    if (handler) {
+        // Turn off the terminate handler's backtrace - otherwise we
+        // just print it twice.
+        set_terminate_handler_print_backtrace(false);
+    } else {
+        // do we want to notify the user that we don't have access?
     }
 }
 

@@ -171,7 +171,7 @@ os.remove(config_file.name)
 os.remove(rbac_file.name)
 
 # Check a message was written to stderr
-if 'Breakpad caught crash' not in stderrdata:
+if 'Breakpad caught a crash' not in stderrdata:
     logging.error("FAIL - No message written to stderr on crash.")
     print_stderrdata(stderrdata)
     cleanup_and_exit(3)
