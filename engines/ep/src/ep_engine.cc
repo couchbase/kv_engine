@@ -52,6 +52,7 @@
 #include <memcached/util.h>
 #include <platform/cb_malloc.h>
 #include <platform/checked_snprintf.h>
+#include <platform/compress.h>
 #include <platform/make_unique.h>
 #include <platform/platform.h>
 #include <platform/processclock.h>
@@ -4794,10 +4795,32 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(
         }
     }
 
-    datatype = checkForDatatypeJson(
-            cookie,
-            datatype,
-            {reinterpret_cast<const char*>(value.data()), value.size()});
+    if (!isDatatypeSupported(cookie, PROTOCOL_BINARY_DATATYPE_SNAPPY) &&
+            mcbp::datatype::is_snappy(datatype)) {
+        return ENGINE_EINVAL;
+    }
+
+    cb::const_char_buffer payload(reinterpret_cast<const char*>(value.data()),
+                                  value.size());
+
+    cb::const_byte_buffer finalValue = value;
+    protocol_binary_datatype_t finalDatatype = datatype;
+    cb::compression::Buffer uncompressedValue;
+    if (mcbp::datatype::is_snappy(datatype)) {
+        if (!cb::compression::inflate(cb::compression::Algorithm::Snappy,
+                                      payload, uncompressedValue)) {
+            return ENGINE_EINVAL;
+        }
+
+        if (compressionMode == BucketCompressionMode::Off) {
+            finalValue = uncompressedValue;
+            finalDatatype &= ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
+        }
+    }
+
+    finalDatatype = checkForDatatypeJson(cookie, finalDatatype,
+                        mcbp::datatype::is_snappy(datatype) ?
+                        uncompressedValue : payload);
 
     // exptime may exceed this buckets max, so process it
     itemMeta.exptime = processExpiryTime(itemMeta.exptime);
@@ -4805,9 +4828,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(
     auto item = std::make_unique<Item>(key,
                                        itemMeta.flags,
                                        itemMeta.exptime,
-                                       value.data(),
-                                       value.size(),
-                                       datatype,
+                                       finalValue.data(),
+                                       finalValue.size(),
+                                       finalDatatype,
                                        itemMeta.cas,
                                        -1,
                                        vbucket);

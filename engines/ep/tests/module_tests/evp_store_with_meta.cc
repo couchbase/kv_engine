@@ -512,6 +512,45 @@ TEST_P(AllWithMetaTest, invalid_extlen) {
     }
 }
 
+// Test to verify that a set with meta will store the data
+// as uncompressed in the hash table
+TEST_F(WithMetaTest, storeUncompressedInOffMode) {
+    std::string valueData{R"({"aaaaaaaaa":10000000000})"};
+    auto item = makeCompressibleItem(vbid, makeStoredDocKey("key"), valueData,
+                                     PROTOCOL_BINARY_RAW_BYTES, true);
+
+    item->setCas();
+
+    ASSERT_EQ(PROTOCOL_BINARY_DATATYPE_SNAPPY, item->getDataType());
+
+    cb::const_byte_buffer value{reinterpret_cast<const uint8_t*>(item->getData()),
+                                item->getNBytes()};
+
+    ItemMetaData itemMeta{item->getCas(), item->getRevSeqno(),
+                          item->getFlags(), item->getExptime()};
+
+    mock_set_datatype_support(cookie, PROTOCOL_BINARY_DATATYPE_SNAPPY);
+
+    auto swm = buildWithMetaPacket(PROTOCOL_BINARY_CMD_SET_WITH_META,
+                                   item->getDataType() /*datatype*/,
+                                   vbid /*vbucket*/,
+                                   0 /*opaque*/,
+                                   0 /*cas*/,
+                                   itemMeta,
+                                   std::string("key"),
+                                   std::string(item->getData(), item->getNBytes()),
+                                   {},
+                                   SKIP_CONFLICT_RESOLUTION_FLAG);
+    EXPECT_EQ(ENGINE_SUCCESS, callEngine(PROTOCOL_BINARY_CMD_SET_WITH_META, swm));
+
+    VBucketPtr vb = store->getVBucket(vbid);
+    StoredValue* v(vb->ht.find(makeStoredDocKey("key"), TrackReference::No,
+                               WantsDeleted::No));
+    ASSERT_NE(nullptr, v);
+    EXPECT_EQ(valueData, v->getValue()->to_s());
+    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, v->getDatatype());
+}
+
 TEST_P(AllWithMetaTest, nmvb) {
     std::string key = "mykey";
     std::string value = "myvalue";
@@ -1165,6 +1204,9 @@ TEST_P(SnappyWithMetaTest, xattrPruneUserKeysOnDelete1) {
                                    itemMeta,
                                    mykey,
                                    value);
+
+    mock_set_datatype_support(cookie, PROTOCOL_BINARY_DATATYPE_SNAPPY);
+
     EXPECT_EQ(ENGINE_SUCCESS,
               callEngine(PROTOCOL_BINARY_CMD_SET_WITH_META, swm));
     EXPECT_EQ(std::make_pair(false, size_t(1)),
@@ -1224,6 +1266,9 @@ TEST_P(XattrWithMetaTest, xattrPruneUserKeysOnDelete2) {
                                    itemMeta,
                                    mykey,
                                    value);
+
+    mock_set_datatype_support(cookie, PROTOCOL_BINARY_DATATYPE_SNAPPY);
+
     EXPECT_EQ(ENGINE_SUCCESS,
               callEngine(PROTOCOL_BINARY_CMD_SET_WITH_META, swm));
     EXPECT_EQ(std::make_pair(false, size_t(1)),
