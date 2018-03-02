@@ -815,10 +815,10 @@ TYPED_TEST(CheckpointTest, ItemsForCheckpointCursorLimited) {
      * fetch the first checkpoints' worth.
      */
     std::vector<queued_item> items;
-    auto range = this->manager->getItemsForCursor(
+    auto result = this->manager->getItemsForCursor(
             CheckpointManager::pCursorName, items, 1);
-    EXPECT_EQ(0, range.start);
-    EXPECT_EQ(1000 + MIN_CHECKPOINT_ITEMS, range.end);
+    EXPECT_EQ(0, result.range.start);
+    EXPECT_EQ(1000 + MIN_CHECKPOINT_ITEMS, result.range.end);
     EXPECT_EQ(MIN_CHECKPOINT_ITEMS + 2, items.size())
             << "Should have MIN_CHECKPOINT_ITEMS + 2 (ckpt start & end) items";
     EXPECT_EQ(2,

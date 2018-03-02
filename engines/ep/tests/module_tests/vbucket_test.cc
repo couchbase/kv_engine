@@ -566,7 +566,7 @@ TEST_P(VBucketTest, GetItemsToPersist_Limit) {
     this->vbucket->backfill.items.push(makeQueuedItem("4"));
 
     // Add 2 items to checkpoint manager (in addition to initial
-    // checkpoint_start
+    // checkpoint_start).
     auto keys = generateKeys(2, 5);
     setMany(keys, MutationStatus::WasClean);
 
@@ -594,6 +594,20 @@ TEST_P(VBucketTest, GetItemsToPersist_Limit) {
     EXPECT_TRUE(result.items[1]->isCheckPointMetaItem());
     EXPECT_STREQ("5", result.items[2]->getKey().c_str());
     EXPECT_STREQ("6", result.items[3]->getKey().c_str());
+}
+
+// Check that getItemsToPersist() correctly returns `moreAvailable` if we
+// hit the CheckpointManager limit early.
+TEST_P(VBucketTest, GetItemsToPersist_LimitCkptMoreAvailable) {
+    // Setup - Add an item to checkpoint manager (in addition to initial
+    // checkpoint_start).
+    ASSERT_EQ(MutationStatus::WasClean, setOne(makeStoredDocKey("1")));
+
+    // Test - fetch items such that we have a limit for CheckpointManager of
+    // zero. This should return moreAvailable=true.
+    auto result = this->vbucket->getItemsToPersist(0);
+    EXPECT_TRUE(result.moreAvailable);
+    EXPECT_EQ(0, result.items.size());
 }
 
 class VBucketEvictionTest : public VBucketTest {};

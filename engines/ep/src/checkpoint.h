@@ -595,6 +595,12 @@ public:
 
     typedef std::shared_ptr<Callback<uint16_t> > FlusherCallback;
 
+    /// Return type of getItemsForCursor()
+    struct ItemsForCursor {
+        snapshot_range_t range = {0, 0};
+        bool moreAvailable = {false};
+    };
+
     CheckpointManager(EPStats& st,
                       uint16_t vbucket,
                       CheckpointConfig& config,
@@ -738,14 +744,17 @@ public:
      * limit to a precise number of items.
      *
      * @param name Cursor to advance.
-     * @param items container which items will be appended to.
+     * @param[in/out] items container which items will be appended to.
      * @param approxLimit Approximate number of items to add.
-     * @return sequenceRange - the low/high sequence number added to `items`
-     *        on success, or (0,0) if no items were added.
+     * @return An ItemsForCursor object containing:
+     * range: the low/high sequence number of the checkpoints(s) added to
+     * `items`;
+     * moreAvailable: true if there are still items available for this
+     * checkpoint (i.e. the limit was hit).
      */
-    snapshot_range_t getItemsForCursor(const std::string& name,
-                                       std::vector<queued_item>& items,
-                                       size_t approxLimit);
+    ItemsForCursor getItemsForCursor(const std::string& name,
+                                     std::vector<queued_item>& items,
+                                     size_t approxLimit);
 
     /**
      * Return the total number of items (including meta items) that belong to
@@ -762,7 +771,13 @@ public:
 
     size_t getNumCheckpoints() const;
 
-    /* Returns the count of Items (excluding meta items) that the given cursor
+    /* WARNING! This method can return inaccurate counts - see MB-28431. It
+     * at *least* can suffer from overcounting by at least 1 (in scenarios as
+     * yet not clear).
+     * As such it is *not* safe to use when a precise count of remaining
+     * items is needed.
+     *
+     * Returns the count of Items (excluding meta items) that the given cursor
      * has yet to process (i.e. between the cursor's current position and the
      * end of the last checkpoint).
      */

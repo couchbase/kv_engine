@@ -344,19 +344,25 @@ VBucket::ItemsToFlush VBucket::getItemsToPersist(size_t approxLimit) {
     // Note that it is only valid to queue a complete checkpoint - this is where
     // the "approx" in the limit comes from.
     const auto ckptMgrLimit = approxLimit - result.items.size();
+    CheckpointManager::ItemsForCursor ckptItems;
     if (ckptMgrLimit > 0) {
         auto _begin_ = ProcessClock::now();
-        result.range = checkpointManager->getItemsForCursor(
+        ckptItems = checkpointManager->getItemsForCursor(
                 CheckpointManager::pCursorName, result.items, ckptMgrLimit);
+        result.range = ckptItems.range;
         stats.persistenceCursorGetItemsHisto.add(
                 std::chrono::duration_cast<std::chrono::microseconds>(
                         ProcessClock::now() - _begin_));
+    } else {
+        // We haven't got sufficient remaining capacity to read items from
+        // CheckpoitnManager, therefore we must assume that there /could/
+        // more data to follow.
+        ckptItems.moreAvailable = true;
     }
 
     // Check if there's any more items remaining.
-    result.moreAvailable = !rejectQueue.empty() || !backfillEmpty ||
-                           (checkpointManager->getNumItemsForCursor(
-                                    CheckpointManager::pCursorName) > 0);
+    result.moreAvailable =
+            !rejectQueue.empty() || !backfillEmpty || ckptItems.moreAvailable;
 
     return result;
 }
