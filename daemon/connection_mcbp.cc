@@ -534,7 +534,7 @@ McbpConnection::TryReadResult McbpConnection::tryReadNetwork() {
     }
 
     if (res == 0) {
-        LOG_INFO(
+        LOG_DEBUG(
                 "{} Closing connection as the other side closed the "
                 "connection {}",
                 getId(),
@@ -547,13 +547,17 @@ McbpConnection::TryReadResult McbpConnection::tryReadNetwork() {
         return TryReadResult::NoDataReceived;
     }
 
-    std::string errormsg = cb_strerror(error);
-    LOG_WARNING(
+    // There was an error reading from the socket. There isn't much we
+    // can do about that apart from logging it and close the connection.
+    // Keep this as INFO as it isn't a problem with the memcached server,
+    // it is a network issue (or a bad client not closing the connection
+    // cleanly)
+    LOG_INFO(
             "{} Closing connection {} due to read "
             "error: {}",
             getId(),
             getDescription(),
-            errormsg);
+            cb_strerror(error));
     return TryReadResult::SocketError;
 }
 
