@@ -1230,8 +1230,7 @@ TEST_P(SnappyWithMetaTest, xattrPruneUserKeysOnDelete1) {
     auto sz = cb::xattr::get_body_offset(
             {result.item->getData(), result.item->getNBytes()});
 
-    auto p = reinterpret_cast<const uint8_t*>(result.item->getData());
-    cb::xattr::Blob blob({const_cast<uint8_t*>(p), sz});
+    cb::xattr::Blob blob({const_cast<char*>(result.item->getData()), sz});
 
     EXPECT_EQ(0, blob.get("user").size());
     EXPECT_EQ(0, blob.get("meta").size());

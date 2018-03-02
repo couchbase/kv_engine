@@ -45,10 +45,10 @@
  * @return true if the key part of the provided path meets the spec
  */
 XATTR_PUBLIC_API
-bool is_valid_xattr_key(cb::const_byte_buffer path, size_t& key_length);
+bool is_valid_xattr_key(cb::const_char_buffer path, size_t& key_length);
 
 // Wrapper function if you couldn't care less about the key length
-inline bool is_valid_xattr_key(cb::const_byte_buffer path) {
+inline bool is_valid_xattr_key(cb::const_char_buffer path) {
     size_t len;
     return is_valid_xattr_key(path, len);
 }

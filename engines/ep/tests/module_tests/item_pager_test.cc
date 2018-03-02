@@ -715,8 +715,8 @@ TEST_P(STExpiryPagerTest, MB_25650) {
     ASSERT_EQ(ENGINE_SUCCESS, item.getStatus());
     EXPECT_TRUE(mcbp::datatype::is_xattr(item.item->getDataType()));
     ASSERT_NE(0, item.item->getNBytes());
-    auto p = reinterpret_cast<const uint8_t*>(item.item->getData());
-    cb::xattr::Blob blob({const_cast<uint8_t*>(p), item.item->getNBytes()});
+    cb::xattr::Blob blob(
+            {const_cast<char*>(item.item->getData()), item.item->getNBytes()});
 
     EXPECT_EQ(0, blob.get("user").size());
     EXPECT_EQ(0, blob.get("meta").size());
@@ -790,8 +790,8 @@ TEST_P(STExpiryPagerTest, MB_25671) {
     EXPECT_TRUE(item.item->isDeleted()) << "Not deleted " << *item.item;
     ASSERT_NE(0, item.item->getNBytes()) << "No value " << *item.item;
 
-    auto p = reinterpret_cast<const uint8_t*>(item.item->getData());
-    cb::xattr::Blob blob({const_cast<uint8_t*>(p), item.item->getNBytes()});
+    cb::xattr::Blob blob(
+            {const_cast<char*>(item.item->getData()), item.item->getNBytes()});
 
     EXPECT_EQ(0, blob.get("user").size());
     EXPECT_EQ(0, blob.get("meta").size());

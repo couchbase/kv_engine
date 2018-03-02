@@ -2732,7 +2732,7 @@ std::unique_ptr<Item> VBucket::pruneXattrDocument(
     // Now attach to the XATTRs in the document
     auto sz = cb::xattr::get_body_offset(workspace);
 
-    cb::xattr::Blob xattr({reinterpret_cast<uint8_t*>(workspace.data()), sz});
+    cb::xattr::Blob xattr({workspace.data(), sz});
     xattr.prune_user_keys();
 
     auto prunedXattrs = xattr.finalize();

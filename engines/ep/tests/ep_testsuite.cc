@@ -696,12 +696,9 @@ static enum test_result test_expiry_with_xattr(ENGINE_HANDLE* h,
     cb::xattr::Blob blob;
 
     //Add a few XAttrs
-    blob.set(to_const_byte_buffer("user"),
-             to_const_byte_buffer("{\"author\":\"bubba\"}"));
-    blob.set(to_const_byte_buffer("_sync"),
-             to_const_byte_buffer("{\"cas\":\"0xdeadbeefcafefeed\"}"));
-    blob.set(to_const_byte_buffer("meta"),
-             to_const_byte_buffer("{\"content-type\":\"text\"}"));
+    blob.set("user", "{\"author\":\"bubba\"}");
+    blob.set("_sync", "{\"cas\":\"0xdeadbeefcafefeed\"}");
+    blob.set("meta", "{\"content-type\":\"text\"}");
 
     auto xattr_value = blob.finalize();
 
@@ -756,7 +753,7 @@ static enum test_result test_expiry_with_xattr(ENGINE_HANDLE* h,
             h1->get_item_info(h, ret.second.get(), &info),
             "Unable to retrieve item info");
 
-    cb::byte_buffer value_buf{static_cast<uint8_t*>(info.value[0].iov_base),
+    cb::char_buffer value_buf{static_cast<char*>(info.value[0].iov_base),
                               info.value[0].iov_len};
 
     cb::xattr::Blob new_blob(value_buf);
@@ -770,7 +767,7 @@ static enum test_result test_expiry_with_xattr(ENGINE_HANDLE* h,
             "The size of the blob doesn't match the size of system attributes");
 
     const std::string& cas_str{"{\"cas\":\"0xdeadbeefcafefeed\"}"};
-    const std::string& sync_str = to_string(blob.get(to_const_byte_buffer("_sync")));
+    const std::string& sync_str = to_string(blob.get("_sync"));
 
     checkeq(cas_str, sync_str , "system xattr is invalid");
 
@@ -5697,9 +5694,7 @@ static enum test_result test_eviction_with_xattr(ENGINE_HANDLE* h,
 
     const char key[] = "test_eviction_with_xattr";
     cb::xattr::Blob builder;
-    const cb::const_byte_buffer& xattr_key = to_const_byte_buffer("_ep");
-    const cb::const_byte_buffer& xattr_value = to_const_byte_buffer("{\foo\":\"bar\"}");
-    builder.set(xattr_key, xattr_value);
+    builder.set("_ep", "{\foo\":\"bar\"}");
     auto blob = builder.finalize();
     std::string data;
     std::copy(blob.buf, blob.buf + blob.size(), std::back_inserter(data));

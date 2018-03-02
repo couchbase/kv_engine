@@ -26,12 +26,12 @@ namespace xattr {
 Blob::Blob(const Blob& other)
     : allocator(default_allocator),
       alloc_size(other.blob.size()) {
-    allocator.reset(new uint8_t[alloc_size]);
+    allocator.reset(new char[alloc_size]);
     blob = { allocator.get(), alloc_size };
     std::copy(other.blob.begin(), other.blob.end(), blob.begin());
 }
 
-cb::byte_buffer Blob::get(const cb::const_byte_buffer& key) const {
+cb::char_buffer Blob::get(const cb::const_char_buffer& key) const {
     try {
         size_t current = 4;
         while (current < blob.len) {
@@ -44,7 +44,7 @@ cb::byte_buffer Blob::get(const cb::const_byte_buffer& key) const {
                     std::memcmp(blob.buf + current, key.buf, key.len) == 0) {
                     // Yay this is the key!!!
                     auto* value = blob.buf + current + key.len + 1;
-                    return {value, strlen(reinterpret_cast<char*>(value))};
+                    return {value, strlen(value)};
                 } else {
                     // jump to the next key!!
                     current += size;
@@ -77,7 +77,7 @@ void Blob::prune_user_keys() {
     }
 }
 
-void Blob::remove(const cb::const_byte_buffer& key) {
+void Blob::remove(const cb::const_char_buffer& key) {
     // Locate the old value
     const auto old = get(key);
     if (old.len == 0) {
@@ -92,8 +92,8 @@ void Blob::remove(const cb::const_byte_buffer& key) {
     remove_segment(offset, size);
 }
 
-void Blob::set(const cb::const_byte_buffer& key,
-               const cb::const_byte_buffer& value) {
+void Blob::set(const cb::const_char_buffer& key,
+               const cb::const_char_buffer& value) {
     if (value.len == 0) {
         remove(key);
         return;
@@ -119,7 +119,7 @@ void Blob::set(const cb::const_byte_buffer& key,
             // we can do an in-place removement
             remove_segment(old_offset, old_kv_size);
         } else {
-            std::unique_ptr<uint8_t[]> temp(new uint8_t[newsize]);
+            std::unique_ptr<char[]> temp(new char[newsize]);
             // copy everything up to the old one
             std::copy(blob.buf, blob.buf + old_offset, temp.get());
             // Skip the old value and copy the rest
@@ -137,7 +137,7 @@ void Blob::set(const cb::const_byte_buffer& key,
 void Blob::grow_buffer(uint32_t size) {
     if (blob.len < size) {
         if (alloc_size < size) {
-            std::unique_ptr<uint8_t[]> temp(new uint8_t[size]);
+            std::unique_ptr<char[]> temp(new char[size]);
             std::copy(blob.buf, blob.buf + blob.len, temp.get());
             allocator.swap(temp);
             blob = {allocator.get(), size};
@@ -149,8 +149,8 @@ void Blob::grow_buffer(uint32_t size) {
 }
 
 void Blob::write_kvpair(size_t offset,
-                        const cb::const_byte_buffer& key,
-                        const cb::const_byte_buffer& value) {
+                        const cb::const_char_buffer& key,
+                        const cb::const_char_buffer& value) {
     // offset points to where we want to inject the value
     write_length(offset, uint32_t(key.len + 1 + value.len + 1));
     offset += 4;
@@ -163,8 +163,8 @@ void Blob::write_kvpair(size_t offset,
     write_length(0, uint32_t(blob.len - 4));
 }
 
-void Blob::append_kvpair(const cb::const_byte_buffer& key,
-                         const cb::const_byte_buffer& value) {
+void Blob::append_kvpair(const cb::const_char_buffer& key,
+                         const cb::const_char_buffer& value) {
     auto offset = blob.len;
     if (offset == 0) {
         offset += 4;
@@ -259,7 +259,7 @@ unique_cJSON_ptr Blob::to_json() const {
             const auto size = read_length(current);
             current += 4;
 
-            auto* ptr = reinterpret_cast<const char*>(blob.buf + current);
+            auto* ptr = blob.data() + current;
             cJSON_AddItemToObject(ret.get(), ptr,
                                   cJSON_Parse(ptr + strlen(ptr) + 1));
 

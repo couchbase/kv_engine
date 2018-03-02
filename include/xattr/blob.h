@@ -44,8 +44,9 @@ public:
      * @param size The current allocated size in allocator_ (so that we may
      *             use that space before doing reallocations)
      */
-    Blob(std::unique_ptr<uint8_t[]>& allocator_, size_t size = 0)
-        : Blob({nullptr, 0}, allocator_, size) {}
+    Blob(std::unique_ptr<char[]>& allocator_, size_t size = 0)
+        : Blob({nullptr, 0}, allocator_, size) {
+    }
 
     /**
      * Create a Blob to operate on the given buffer. Note that the buffer
@@ -53,8 +54,8 @@ public:
      *
      * @param buffer an existing buffer to use
      */
-    Blob(cb::byte_buffer buffer)
-        : Blob(buffer, default_allocator, 0) {}
+    Blob(cb::char_buffer buffer) : Blob(buffer, default_allocator, 0) {
+    }
 
     /**
      * Create a Blob to operate on the given buffer by using the named
@@ -67,12 +68,11 @@ public:
      * @param size The current allocated size in allocator_ (so that we may
      *             use that space before doing reallocations)
      */
-    Blob(cb::byte_buffer buffer,
-            std::unique_ptr<uint8_t[]>& allocator_,
-            size_t size = 0)
-        : blob(buffer),
-          allocator(allocator_),
-          alloc_size(size) {}
+    Blob(cb::char_buffer buffer,
+         std::unique_ptr<char[]>& allocator_,
+         size_t size = 0)
+        : blob(buffer), allocator(allocator_), alloc_size(size) {
+    }
 
     /**
      * Create a (deep) copy of the Blob (allocate a new backing store)
@@ -86,27 +86,14 @@ public:
      * @return a buffer containing it's value. If not found the buffer length
      *         is 0
      */
-    cb::byte_buffer get(const cb::const_byte_buffer& key) const;
-
-    /**
-     * Helper method to use from tests to look up a value
-     *
-     * @param key The key to look up
-     * @return a buffer containing it's value. If not found the buffer length
-     *         is 0
-     */
-    cb::byte_buffer get(const std::string& key) const {
-        cb::const_byte_buffer k{reinterpret_cast<const uint8_t*>(key.data()),
-                                key.size()};
-        return get(k);
-    }
+    cb::char_buffer get(const cb::const_char_buffer& key) const;
 
     /**
      * Remove a given key (and its value) from the blob.
      *
      * @param key The key to remove
      */
-    void remove(const cb::const_byte_buffer& key);
+    void remove(const cb::const_char_buffer& key);
 
     /**
      * Set (add or replace) the given key with the specified value.
@@ -114,23 +101,8 @@ public:
      * @param key The key to set
      * @param value The new value for the key
      */
-    void set(const cb::const_byte_buffer& key,
-             const cb::const_byte_buffer& value);
-
-    /**
-     * Set (add or replace) the given key with the specified value.
-     *
-     * @param key The key to set
-     * @param value The new value for the key
-     */
-    void set(const std::string& key,
-             const std::string& value) {
-        cb::const_byte_buffer k{reinterpret_cast<const uint8_t*>(key.data()),
-                                key.size()};
-        cb::const_byte_buffer v{reinterpret_cast<const uint8_t*>(value.data()),
-                                value.size()};
-        set(k, v);
-    }
+    void set(const cb::const_char_buffer& key,
+             const cb::const_char_buffer& value);
 
     void prune_user_keys();
 
@@ -142,7 +114,7 @@ public:
      *
      * @return the encoded blob
      */
-    cb::byte_buffer finalize() {
+    cb::char_buffer finalize() {
         return blob;
     }
 
@@ -186,14 +158,13 @@ public:
             return rv;
         }
 
-        std::pair<cb::const_byte_buffer, cb::const_byte_buffer> operator*()
+        std::pair<cb::const_char_buffer, cb::const_char_buffer> operator*()
                 const {
             auto* ptr = blob.blob.buf + current + 4;
-            cb::const_byte_buffer key{
-                    ptr, strlen(reinterpret_cast<const char*>(ptr))};
-            ptr = ptr + strlen(reinterpret_cast<const char*>(ptr)) + 1;
-            cb::const_byte_buffer value{
-                    ptr, strlen(reinterpret_cast<const char*>(ptr))};
+            const auto keylen = strlen(ptr);
+            cb::const_char_buffer key{ptr, keylen};
+            ptr += (keylen + 1);
+            cb::const_char_buffer value{ptr, strlen(ptr)};
             return {key, value};
         }
 
@@ -223,8 +194,8 @@ protected:
      * @param key The key to append
      * @param value The value to store with the key
      */
-    void append_kvpair(const cb::const_byte_buffer& key,
-                       const cb::const_byte_buffer& value);
+    void append_kvpair(const cb::const_char_buffer& key,
+                       const cb::const_char_buffer& value);
 
     /**
      * Write a kv-paid at the given offset
@@ -234,8 +205,8 @@ protected:
      * @param value The value to insert
      */
     void write_kvpair(size_t offset,
-                      const cb::const_byte_buffer& key,
-                      const cb::const_byte_buffer& value);
+                      const cb::const_char_buffer& key,
+                      const cb::const_char_buffer& value);
 
     /**
      * Get the length stored at the given offset
@@ -271,10 +242,10 @@ protected:
     void remove_segment(const size_t offset, const size_t size);
 
 private:
-    cb::byte_buffer blob;
+    cb::char_buffer blob;
 
-    std::unique_ptr<uint8_t[]>& allocator;
-    std::unique_ptr<uint8_t[]> default_allocator;
+    std::unique_ptr<char[]>& allocator;
+    std::unique_ptr<char[]> default_allocator;
     size_t alloc_size;
 };
 

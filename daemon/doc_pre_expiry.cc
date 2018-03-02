@@ -32,7 +32,7 @@ bool document_pre_expiry(item_info& itm_info) {
         {static_cast<const char*>(itm_info.value[0].iov_base),
          itm_info.value[0].iov_len});
 
-    cb::byte_buffer payload{static_cast<uint8_t*>(itm_info.value[0].iov_base),
+    cb::char_buffer payload{static_cast<char*>(itm_info.value[0].iov_base),
                             xattr_size};
 
     cb::xattr::Blob blob(payload);

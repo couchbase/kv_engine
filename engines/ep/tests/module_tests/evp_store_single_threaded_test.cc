@@ -1692,18 +1692,17 @@ TEST_F(SingleThreadedEPBucketTest, pre_expiry_xattrs) {
     auto get_itm = gv.item.get();
     auto get_data = const_cast<char*>(get_itm->getData());
 
-    cb::byte_buffer value_buf{reinterpret_cast<uint8_t*>(get_data),
-                              get_itm->getNBytes()};
+    cb::char_buffer value_buf{get_data, get_itm->getNBytes()};
     cb::xattr::Blob new_blob(value_buf);
 
     const std::string& cas_str{"{\"cas\":\"0xdeadbeefcafefeed\"}"};
-    const std::string& sync_str = to_string(new_blob.get(to_const_byte_buffer("_sync")));
+    const std::string& sync_str = to_string(new_blob.get("_sync"));
 
     EXPECT_EQ(cas_str, sync_str) << "Unexpected system xattrs";
-    EXPECT_TRUE(new_blob.get(to_const_byte_buffer("user")).empty()) <<
-              "The user attribute should be gone";
-    EXPECT_TRUE(new_blob.get(to_const_byte_buffer("meta")).empty()) <<
-              "The meta attribute should be gone";
+    EXPECT_TRUE(new_blob.get("user").empty())
+            << "The user attribute should be gone";
+    EXPECT_TRUE(new_blob.get("meta").empty())
+            << "The meta attribute should be gone";
 
     kvbucket.getMetaData(makeStoredDocKey("key"), vbid, cookie, metadata,
                          deleted, datatype);
@@ -1988,10 +1987,8 @@ TEST_F(SingleThreadedEPBucketTest, mb25273) {
     // Manually manage the xattr blob - later we will prune user keys
     cb::xattr::Blob blob;
 
-    blob.set(to_const_byte_buffer("key1"),
-             to_const_byte_buffer("{\"author\":\"bubba\"}"));
-    blob.set(to_const_byte_buffer("_sync"),
-             to_const_byte_buffer("{\"cas\":\"0xdeadbeefcafefeed\"}"));
+    blob.set("key1", "{\"author\":\"bubba\"}");
+    blob.set("_sync", "{\"cas\":\"0xdeadbeefcafefeed\"}");
 
     auto xattr_value = blob.finalize();
 
@@ -2033,7 +2030,9 @@ TEST_F(SingleThreadedEPBucketTest, mb25273) {
     // Send deletion in a single seqno snapshot and send a doc with only system
     // xattrs to simulate what an active would send
     blob.prune_user_keys();
-    value = blob.finalize();
+    auto finalizedXttr = blob.finalize();
+    value = {reinterpret_cast<const uint8_t*>(finalizedXttr.data()),
+             finalizedXttr.size()};
     EXPECT_NE(0, value.size());
     EXPECT_EQ(ENGINE_SUCCESS,
               consumer->snapshotMarker(

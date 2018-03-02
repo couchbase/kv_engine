@@ -68,9 +68,8 @@ static inline ENGINE_ERROR_CODE do_dcp_mutation(Cookie& cookie) {
     if (mcbp::datatype::is_xattr(datatype)) {
         cb::const_char_buffer payload{reinterpret_cast<const char*>(value.buf),
                                       value.len};
-        cb::byte_buffer buffer{const_cast<uint8_t*>(value.buf),
-                               cb::xattr::get_body_offset(payload)};
-        cb::xattr::Blob blob(buffer);
+        cb::xattr::Blob blob({const_cast<char*>(payload.data()),
+                              cb::xattr::get_body_offset(payload)});
         priv_bytes = uint32_t(blob.get_system_size());
         if (priv_bytes > COUCHBASE_MAX_ITEM_PRIVILEGED_BYTES) {
             return ENGINE_E2BIG;

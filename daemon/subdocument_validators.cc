@@ -33,7 +33,7 @@ static inline bool validMutationSemantics(mcbp::subdoc::doc_flag a) {
     return !(hasAdd(a) && hasMkdoc(a));
 }
 
-static bool validate_macro(const cb::const_byte_buffer& value) {
+static bool validate_macro(const cb::const_char_buffer& value) {
     return ((value.len == cb::xattr::macros::CAS.len) &&
             std::memcmp(value.buf,
                         cb::xattr::macros::CAS.buf,
@@ -44,7 +44,7 @@ static bool validate_macro(const cb::const_byte_buffer& value) {
                         cb::xattr::macros::SEQNO.len) == 0);
 }
 
-static bool is_valid_virtual_xattr(cb::const_byte_buffer value) {
+static bool is_valid_virtual_xattr(cb::const_char_buffer value) {
     return (((value.len == cb::xattr::vattrs::DOCUMENT.size()) &&
              std::memcmp(value.data(),
                          cb::xattr::vattrs::DOCUMENT.data(),
@@ -77,9 +77,9 @@ static inline protocol_binary_response_status validate_xattr_section(
         bool mutator,
         protocol_binary_subdoc_flag flags,
         mcbp::subdoc::doc_flag doc_flags,
-        cb::const_byte_buffer path,
-        cb::const_byte_buffer value,
-        cb::const_byte_buffer& xattr_key) {
+        cb::const_char_buffer path,
+        cb::const_char_buffer value,
+        cb::const_char_buffer& xattr_key) {
     if ((flags & SUBDOC_FLAG_XATTR_PATH) == 0) {
         // XATTR flag isn't set... just bail out
         if ((flags & SUBDOC_FLAG_EXPAND_MACROS)) {
@@ -192,15 +192,17 @@ static protocol_binary_response_status subdoc_validator(const Cookie& cookie,
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    cb::const_byte_buffer path{req->message.header.bytes +
-                               sizeof(req->message.header.bytes) +
-                               keylen + extlen,
-                               pathlen};
-    cb::const_byte_buffer macro{req->message.header.bytes +
-                                sizeof(req->message.header.bytes) +
-                                keylen + extlen + pathlen,
-                                valuelen};
-    cb::const_byte_buffer xattr_key;
+    cb::const_char_buffer path{
+            reinterpret_cast<const char*>(req->message.header.bytes +
+                                          sizeof(req->message.header.bytes) +
+                                          keylen + extlen),
+            pathlen};
+    cb::const_char_buffer macro{
+            reinterpret_cast<const char*>(req->message.header.bytes +
+                                          sizeof(req->message.header.bytes) +
+                                          keylen + extlen + pathlen),
+            valuelen};
+    cb::const_char_buffer xattr_key;
 
     const auto status = validate_xattr_section(cookie,
                                                traits.is_mutator,
@@ -310,7 +312,7 @@ static protocol_binary_response_status is_valid_multipath_spec(
         const SubdocMultiCmdTraits traits,
         size_t& spec_len,
         bool& xattr,
-        cb::const_byte_buffer& xattr_key,
+        cb::const_char_buffer& xattr_key,
         mcbp::subdoc::doc_flag doc_flags,
         bool& is_singleton) {
     // Decode the operation spec from the body. Slightly different struct
@@ -372,12 +374,9 @@ static protocol_binary_response_status is_valid_multipath_spec(
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    cb::const_byte_buffer path{reinterpret_cast<const uint8_t*>(ptr) + headerlen,
-                               pathlen};
+    cb::const_char_buffer path{ptr + headerlen, pathlen};
 
-    cb::const_byte_buffer macro{reinterpret_cast<const uint8_t*>(ptr) +
-                                headerlen + pathlen,
-                                valuelen};
+    cb::const_char_buffer macro{ptr + headerlen + pathlen, valuelen};
 
     const auto status = validate_xattr_section(cookie,
                                                traits.is_mutator,
@@ -477,7 +476,7 @@ static protocol_binary_response_status subdoc_multi_validator(const Cookie& cook
     size_t body_validated = keylen + req->request.extlen;
     unsigned int path_index;
 
-    cb::const_byte_buffer xattr_key;
+    cb::const_char_buffer xattr_key;
 
     bool body_commands_allowed = true;
 

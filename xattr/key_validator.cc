@@ -39,8 +39,8 @@ static std::locale loc("C");
  * @throws std::underflow_error if the encoding require more bits to follow
  *
  */
-int get_utf8_char_width(const uint8_t* ptr, size_t avail) {
-    if (ptr[0] < 0x80) {
+int get_utf8_char_width(const char* ptr, size_t avail) {
+    if (static_cast<uint8_t>(ptr[0]) < 0x80) {
         return 1;
     }
 
@@ -82,7 +82,7 @@ int get_utf8_char_width(const uint8_t* ptr, size_t avail) {
     throw encoding_error("get_char_width: Invalid utf8 encoding");
 }
 
-bool is_valid_xattr_key(cb::const_byte_buffer path, size_t& key_length) {
+bool is_valid_xattr_key(cb::const_char_buffer path, size_t& key_length) {
     // Check for the random list of reserved leading characters.
     size_t dot = path.len;
     bool system = false;
@@ -90,14 +90,14 @@ bool is_valid_xattr_key(cb::const_byte_buffer path, size_t& key_length) {
     try {
         const auto length = path.len;
         size_t offset = 0;
-        const uint8_t* ptr = path.buf;
+        const char* ptr = path.buf;
 
         while (offset < length) {
             auto width = get_utf8_char_width(ptr, length - offset);
             if (width == 1) {
                 if (offset == 0) {
-                    if (std::ispunct(static_cast<char>(path.buf[0]), loc) ||
-                        std::iscntrl(static_cast<char>(path.buf[0]), loc)) {
+                    if (std::ispunct(path.buf[0], loc) ||
+                        std::iscntrl(path.buf[0], loc)) {
                         if (path.buf[0] == '_' || path.buf[0] == '$') {
                             system = true;
                         } else {

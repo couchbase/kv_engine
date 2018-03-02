@@ -87,7 +87,7 @@ bool validate(const cb::const_char_buffer& blob) {
             offset += keybuf.len + 1; // swallow the '\0'
 
             // Validate the key
-            if (!is_valid_xattr_key({(const uint8_t*)keybuf.buf, keybuf.len})) {
+            if (!is_valid_xattr_key({keybuf.buf, keybuf.len})) {
                 return false;
             }
 
@@ -156,7 +156,7 @@ size_t get_system_xattr_size(uint8_t datatype, const cb::const_char_buffer doc) 
         return 0;
     }
 
-    Blob blob({(uint8_t*)doc.data(), get_body_offset(doc)});
+    Blob blob({const_cast<char*>(doc.data()), get_body_offset(doc)});
     return blob.get_system_size();
 }
 

@@ -68,7 +68,7 @@ cb::const_char_buffer get_body(const cb::const_char_buffer& payload);
  *
  * @param attr the attribute to check (CAN'T BE EMPTY!)
  */
-static inline bool is_system_xattr(cb::const_byte_buffer& attr) {
+static inline bool is_system_xattr(cb::const_char_buffer& attr) {
     return *attr.data() == '_';
 }
 
@@ -77,7 +77,7 @@ static inline bool is_system_xattr(cb::const_byte_buffer& attr) {
  *
  * @param attr the attribute to check (CAN'T BE EMPTY!)
  */
-static inline bool is_vattr(cb::const_byte_buffer& attr) {
+static inline bool is_vattr(cb::const_char_buffer& attr) {
     return *attr.data() == '$';
 }
 namespace macros {

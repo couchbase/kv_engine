@@ -129,8 +129,8 @@ static void create_single_path_context(SubdocCmdContext& context,
 
     if (xattr) {
         size_t xattr_keylen;
-        is_valid_xattr_key({(const uint8_t*)path.buf, path.len}, xattr_keylen);
-        context.set_xattr_key({(const uint8_t*)path.buf, xattr_keylen});
+        is_valid_xattr_key({path.data(), path.size()}, xattr_keylen);
+        context.set_xattr_key({path.data(), xattr_keylen});
     }
 
     if (flags & SUBDOC_FLAG_EXPAND_MACROS) {
@@ -238,8 +238,8 @@ static void create_multi_path_context(SubdocCmdContext& context,
         const bool xattr = (flags & SUBDOC_FLAG_XATTR_PATH);
         if (xattr) {
             size_t xattr_keylen;
-            is_valid_xattr_key({(const uint8_t*)path.buf, path.len}, xattr_keylen);
-            context.set_xattr_key({(const uint8_t*)path.buf, xattr_keylen});
+            is_valid_xattr_key({path.data(), path.size()}, xattr_keylen);
+            context.set_xattr_key({path.data(), xattr_keylen});
         }
 
         const SubdocCmdContext::Phase phase = xattr ?
@@ -908,7 +908,7 @@ static ENGINE_ERROR_CODE validate_xattr_privilege(SubdocCmdContext& context) {
  * @param bodyoffset The offset in to the body of the xattr section
  * @param bodysize The size of the body (excludes xattrs)
  */
-static inline void replace_xattrs(const cb::byte_buffer& new_xattr,
+static inline void replace_xattrs(const cb::char_buffer& new_xattr,
                                   SubdocCmdContext& context,
                                   const size_t bodyoffset,
                                   const size_t bodysize) {
@@ -950,8 +950,7 @@ static bool do_xattr_delete_phase(SubdocCmdContext& context) {
     const auto bodyoffset = cb::xattr::get_body_offset(context.in_doc);
     const auto bodysize = context.in_doc.len - bodyoffset;
 
-    cb::byte_buffer blob_buffer{(uint8_t*)context.in_doc.buf,
-                                (size_t)bodyoffset};
+    cb::char_buffer blob_buffer{(char*)context.in_doc.buf, (size_t)bodyoffset};
 
     const cb::xattr::Blob xattr_blob(blob_buffer);
 
@@ -1022,24 +1021,23 @@ static bool do_xattr_phase(SubdocCmdContext& context) {
         bodysize -= bodyoffset;
     }
 
-    cb::byte_buffer blob_buffer{(uint8_t*)context.in_doc.buf,
-                                    (size_t)bodyoffset};
+    cb::char_buffer blob_buffer{(char*)context.in_doc.buf, (size_t)bodyoffset};
 
     const cb::xattr::Blob xattr_blob(blob_buffer);
     auto key = context.get_xattr_key();
     auto value_buf = xattr_blob.get(key);
 
     if (value_buf.len == 0) {
-        context.xattr_buffer.reset(new uint8_t[2]);
+        context.xattr_buffer.reset(new char[2]);
         context.xattr_buffer[0] = '{';
         context.xattr_buffer[1] = '}';
-        value_buf = { context.xattr_buffer.get(), 2};
+        value_buf = {context.xattr_buffer.get(), 2};
     } else {
         // To allow the subjson do it's thing with the full xattrs
         // create a full json doc looking like: {\"xattr_key\":\"value\"};
         size_t total = 5 + key.len + value_buf.len;
-        context.xattr_buffer.reset(new uint8_t[total]);
-        uint8_t* ptr = context.xattr_buffer.get();
+        context.xattr_buffer.reset(new char[total]);
+        char* ptr = context.xattr_buffer.get();
         memcpy(ptr, "{\"", 2);
         ptr += 2;
         memcpy(ptr, key.buf, key.len);
@@ -1053,7 +1051,7 @@ static bool do_xattr_phase(SubdocCmdContext& context) {
     }
 
     std::unique_ptr<char[]> temp_doc;
-    cb::const_char_buffer document{(const char*)value_buf.buf, value_buf.len};
+    cb::const_char_buffer document{value_buf.buf, value_buf.len};
 
     context.generate_macro_padding(document, cb::xattr::macros::CAS);
     context.generate_macro_padding(document, cb::xattr::macros::SEQNO);
@@ -1089,7 +1087,7 @@ static bool do_xattr_phase(SubdocCmdContext& context) {
         const char* start = strchr(document.buf, ':') + 1;
         const char* end = document.buf + document.len - 1;
 
-        copy.set(key, {(const uint8_t*)start, size_t(end - start)});
+        copy.set(key, {start, size_t(end - start)});
     } else {
         copy.remove(key);
     }

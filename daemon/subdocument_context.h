@@ -160,7 +160,7 @@ public:
 
     // Temporary buffer used to hold the xattrs in use, as a get request
     // may hold pointers into the repacked xattr buckets
-    std::unique_ptr<uint8_t[]> xattr_buffer;
+    std::unique_ptr<char[]> xattr_buffer;
 
     // CAS value of the input document. Required to ensure we only store a
     // new document which was derived from the same original input document.
@@ -271,7 +271,7 @@ public:
      *
      * @return the key
      */
-    cb::const_byte_buffer get_xattr_key() {
+    cb::const_char_buffer get_xattr_key() {
         return xattr_key;
     }
 
@@ -281,7 +281,7 @@ public:
      *
      * @param key the key to be accessed
      */
-    void set_xattr_key(const cb::const_byte_buffer& key) {
+    void set_xattr_key(const cb::const_char_buffer& key) {
         xattr_key = key;
     }
 
@@ -349,10 +349,10 @@ private:
 
     void substituteMacro(cb::const_char_buffer macroName,
                          const std::string& macroValue,
-                         cb::byte_buffer& value);
+                         cb::char_buffer& value);
 
     // The xattr key being accessed in this command
-    cb::const_byte_buffer xattr_key;
+    cb::const_char_buffer xattr_key;
 
     using MacroPair = std::pair<cb::const_char_buffer, std::string>;
     std::vector<MacroPair> paddedMacros;

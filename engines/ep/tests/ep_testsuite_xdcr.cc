@@ -48,12 +48,9 @@ static std::vector<char> createXattrValue(const std::string& body) {
     cb::xattr::Blob blob;
 
     //Add a few XAttrs
-    blob.set(to_const_byte_buffer("user"),
-             to_const_byte_buffer("{\"author\":\"bubba\"}"));
-    blob.set(to_const_byte_buffer("_sync"),
-             to_const_byte_buffer("{\"cas\":\"0xdeadbeefcafefeed\"}"));
-    blob.set(to_const_byte_buffer("meta"),
-             to_const_byte_buffer("{\"content-type\":\"text\"}"));
+    blob.set("user", "{\"author\":\"bubba\"}");
+    blob.set("_sync", "{\"cas\":\"0xdeadbeefcafefeed\"}");
+    blob.set("meta", "{\"content-type\":\"text\"}");
 
     auto xattr_value = blob.finalize();
 

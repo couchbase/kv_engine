@@ -84,9 +84,8 @@ ENGINE_ERROR_CODE SubdocCmdContext::pre_link_document(item_info& info) {
             {static_cast<const char*>(info.value[0].iov_base),
              info.value[0].iov_len});
 
-        cb::byte_buffer blob_buffer{
-            static_cast<uint8_t*>(info.value[0].iov_base),
-            bodyoffset};
+        cb::char_buffer blob_buffer{static_cast<char*>(info.value[0].iov_base),
+                                    bodyoffset};
 
         cb::xattr::Blob xattr_blob(blob_buffer);
         auto value = xattr_blob.get(xattr_key);
@@ -124,11 +123,11 @@ ENGINE_ERROR_CODE SubdocCmdContext::pre_link_document(item_info& info) {
 
 void SubdocCmdContext::substituteMacro(cb::const_char_buffer macroName,
                                        const std::string& macroValue,
-                                       cb::byte_buffer& value) {
+                                       cb::char_buffer& value) {
     // Do an in-place substitution of the real macro value where we
     // wrote the padded macro string.
-    uint8_t* root = value.buf;
-    uint8_t* end = value.buf + value.len;
+    char* root = value.buf;
+    char* end = value.buf + value.len;
     auto& macro = std::find_if(std::begin(paddedMacros),
                                std::end(paddedMacros),
                                [macroName](const MacroPair& m) {
@@ -280,14 +279,14 @@ cb::const_char_buffer SubdocCmdContext::get_xtoc_vattr() {
         unique_cJSON_ptr doc(cJSON_CreateObject());
 
         const auto bodyoffset = cb::xattr::get_body_offset(in_doc);
-        cb::byte_buffer blob_buffer{(uint8_t*)in_doc.buf, (size_t)bodyoffset};
+        cb::char_buffer blob_buffer{const_cast<char*>(in_doc.data()),
+                                    (size_t)bodyoffset};
         cb::xattr::Blob xattr_blob(blob_buffer);
 
         unique_cJSON_ptr array(cJSON_CreateArray());
-        for (const std::pair<cb::const_byte_buffer, cb::const_byte_buffer>&
-                     kvPair : xattr_blob) {
+        for (const auto& kvPair : xattr_blob) {
             bool isSystemXattr = cb::xattr::is_system_xattr(
-                    const_cast<cb::const_byte_buffer&>(kvPair.first));
+                    const_cast<cb::const_char_buffer&>(kvPair.first));
 
             if (xtocSemantics == XtocSemantics::All ||
                 (isSystemXattr && (xtocSemantics == XtocSemantics::System)) ||

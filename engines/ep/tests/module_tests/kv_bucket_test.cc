@@ -1115,8 +1115,8 @@ TEST_P(KVBucketParamTest, MB_25948) {
     }
     ASSERT_EQ(ENGINE_SUCCESS, result.getStatus());
 
-    auto p = reinterpret_cast<const uint8_t*>(result.item->getData());
-    cb::xattr::Blob blob({const_cast<uint8_t*>(p), result.item->getNBytes()});
+    cb::xattr::Blob blob({const_cast<char*>(result.item->getData()),
+                          result.item->getNBytes()});
 
     // user and meta gone, _sync remains.
     EXPECT_EQ(0, blob.get("user").size());

@@ -131,9 +131,7 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::allocateNewItem() {
     size_t priv_bytes = 0;
     if (mcbp::datatype::is_xattr(oldItemInfo.datatype)) {
         xattrsize = cb::xattr::get_body_offset({ptr, oldsize});
-        cb::byte_buffer xattr_blob{reinterpret_cast<uint8_t*>(ptr),
-                                   xattrsize};
-        cb::xattr::Blob blob(xattr_blob);
+        cb::xattr::Blob blob({ptr, xattrsize});
         priv_bytes = blob.get_system_size();
     }
     ptr += xattrsize;

@@ -148,11 +148,11 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::getItem() {
 }
 
 ENGINE_ERROR_CODE AppendPrependCommandContext::allocateNewItem() {
-    cb::byte_buffer old{(uint8_t*)oldItemInfo.value[0].iov_base,
+    cb::char_buffer old{static_cast<char*>(oldItemInfo.value[0].iov_base),
                         oldItemInfo.nbytes};
 
     if (buffer.size() != 0) {
-        old = {(uint8_t*)buffer.data(), buffer.size()};
+        old = {buffer.data(), buffer.size()};
     }
 
     // If we're operating on a document containing xattr's we need to
@@ -169,9 +169,8 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::allocateNewItem() {
         datatype |= PROTOCOL_BINARY_DATATYPE_XATTR;
 
         // Calculate the size of the system xattr's.
-        body_offset = cb::xattr::get_body_offset({(const char*)old.buf,
-                                                  old.len});
-        cb::byte_buffer xattr_blob{old.buf, body_offset};
+        body_offset = cb::xattr::get_body_offset({old.buf, old.len});
+        cb::char_buffer xattr_blob{old.buf, body_offset};
         cb::xattr::Blob blob(xattr_blob);
         priv_size = blob.get_system_size();
     }

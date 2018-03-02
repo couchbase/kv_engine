@@ -496,10 +496,8 @@ TEST_P(EPStoreEvictionTest, xattrExpiryOnFullyEvictedItem) {
     cb::xattr::Blob builder;
 
     //Add a few values
-    builder.set(to_const_byte_buffer("_meta"),
-                to_const_byte_buffer("{\"rev\":10}"));
-    builder.set(to_const_byte_buffer("foo"),
-                to_const_byte_buffer("{\"blob\":true}"));
+    builder.set("_meta", "{\"rev\":10}");
+    builder.set("foo", "{\"blob\":true}");
 
     auto blob = builder.finalize();
     auto blob_data = to_string(blob);
@@ -536,16 +534,15 @@ TEST_P(EPStoreEvictionTest, xattrExpiryOnFullyEvictedItem) {
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, get_itm->getDataType())
               << "Unexpected Datatype";
 
-    cb::byte_buffer value_buf{reinterpret_cast<uint8_t*>(get_data),
-                              get_itm->getNBytes()};
+    cb::char_buffer value_buf{get_data, get_itm->getNBytes()};
     cb::xattr::Blob new_blob(value_buf);
 
     const std::string& rev_str{"{\"rev\":10}"};
-    const std::string& meta_str = to_string(new_blob.get(to_const_byte_buffer("_meta")));
+    const std::string& meta_str = to_string(new_blob.get("_meta"));
 
     EXPECT_EQ(rev_str, meta_str) << "Unexpected system xattrs";
-    EXPECT_TRUE(new_blob.get(to_const_byte_buffer("foo")).empty()) <<
-                "The foo attribute should be gone";
+    EXPECT_TRUE(new_blob.get("foo").empty())
+            << "The foo attribute should be gone";
 }
 
 /**
