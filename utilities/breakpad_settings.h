@@ -28,7 +28,7 @@ namespace breakpad {
 /**
  * What information should breakpad minidumps contain?
  */
-enum class MCD_UTIL_PUBLIC_API Content {
+enum class Content {
     /**
      * Default content (threads+stack+env+arguments)
      */
