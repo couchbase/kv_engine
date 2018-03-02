@@ -213,13 +213,18 @@ Connection* conn_new(const SOCKET sfd, in_port_t parent_port,
         return nullptr;
     }
 
-    LOG_INFO("{}: Accepted new client", c->getId());
-
     stats.total_conns++;
 
     c->incrementRefcount();
 
     associate_initial_bucket(*c);
+
+    const auto& bucket = c->getBucket();
+    if (bucket.type != BucketType::NoBucket) {
+        LOG_INFO("{}: Accepted new client connected to bucket:[{}]",
+                 c->getId(),
+                 bucket.name);
+    }
 
     c->setThread(thread);
     MEMCACHED_CONN_ALLOCATE(c->getId());
