@@ -70,6 +70,10 @@ array of privileges allowed in that bucket. In addition to that the user
 have access to the `BucketManagement` privilege. The user is a `builtin`
 user.
 
+It is possible to specify "*" for the bucket name indicating all buckets.
+The system will first search for an exact match for a bucket and only
+use the wildcard entry if there isn't an exact match.
+
 ## Privilege debug
 
 It is possible to enter a mode called privilege debug which would cause

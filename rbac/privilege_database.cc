@@ -147,7 +147,11 @@ PrivilegeContext PrivilegeDatabase::createContext(
         // Add the bucket specific privileges
         auto iter = ue.getBuckets().find(bucket);
         if (iter == ue.getBuckets().cend()) {
-            throw NoSuchBucketException(bucket.c_str());
+            // No explicit match.. Is there a wildcard entry
+            iter = ue.getBuckets().find("*");
+            if (iter == ue.getBuckets().cend()) {
+                throw NoSuchBucketException(bucket.c_str());
+            }
         }
 
         mask |= iter->second;
