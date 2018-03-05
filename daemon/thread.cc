@@ -402,8 +402,14 @@ void notify_io_complete(gsl::not_null<const void*> void_cookie,
 
     auto* thr = cookie.getConnection().getThread();
     if (thr == nullptr) {
+        auto json = cookie.getConnection().toJSON();
+        LOG_ERROR(
+                "notify_io_complete: got a notification on a cookie which "
+                "isn't bound to a thread: {}",
+                to_string(json));
         throw std::runtime_error(
-            "notify_io_complete: connection should be bound to a thread");
+                "notify_io_complete: connection should be bound to a thread: " +
+                to_string(json));
     }
 
     int notify;
