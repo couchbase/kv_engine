@@ -756,7 +756,7 @@ static enum test_result test_expiry_with_xattr(ENGINE_HANDLE* h,
     cb::char_buffer value_buf{static_cast<char*>(info.value[0].iov_base),
                               info.value[0].iov_len};
 
-    cb::xattr::Blob new_blob(value_buf);
+    cb::xattr::Blob new_blob(value_buf, false);
 
     /* Only system extended attributes need to be present at this point.
      * Thus, check the blob length with the system size.

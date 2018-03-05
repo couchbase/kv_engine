@@ -225,7 +225,8 @@ ENGINE_ERROR_CODE RemoveCommandContext::rebuildXattr() {
         auto* ptr = static_cast<char*>(existing_info.value[0].iov_base);
         xattr_buffer.reset(new char[size]);
         std::copy(ptr, ptr + size, xattr_buffer.get());
-        cb::xattr::Blob blob({xattr_buffer.get(), size});
+        cb::xattr::Blob blob({xattr_buffer.get(), size},
+                             mcbp::datatype::is_snappy(existing_info.datatype));
         blob.prune_user_keys();
         xattr = blob.finalize();
         if (xattr.data() != xattr_buffer.get()) {

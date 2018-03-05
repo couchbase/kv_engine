@@ -156,7 +156,8 @@ size_t get_system_xattr_size(uint8_t datatype, const cb::const_char_buffer doc) 
         return 0;
     }
 
-    Blob blob({const_cast<char*>(doc.data()), get_body_offset(doc)});
+    Blob blob({const_cast<char*>(doc.data()), doc.size()},
+              ::mcbp::datatype::is_snappy(datatype));
     return blob.get_system_size();
 }
 

@@ -26,9 +26,38 @@ namespace xattr {
 Blob::Blob(const Blob& other)
     : allocator(default_allocator),
       alloc_size(other.blob.size()) {
+    decompressed.resize(other.decompressed.size());
+    std::copy_n(other.decompressed.data(),
+                other.decompressed.size(),
+                decompressed.data());
     allocator.reset(new char[alloc_size]);
     blob = { allocator.get(), alloc_size };
     std::copy(other.blob.begin(), other.blob.end(), blob.begin());
+}
+
+Blob::Blob(cb::char_buffer buffer,
+           std::unique_ptr<char[]>& allocator_,
+           bool compressed,
+           size_t size)
+    : blob(buffer), allocator(allocator_), alloc_size(size) {
+    if (compressed && blob.size()) {
+        // inflate and attach blob to the compression::buffer
+        if (!cb::compression::inflate(
+                    cb::compression::Algorithm::Snappy,
+                    {static_cast<const char*>(buffer.data()), buffer.size()},
+                    decompressed)) {
+            throw std::runtime_error("Blob::Blob failed to inflate");
+        }
+
+        // Connect blob to the decompressed xattrs after resizing which in
+        // theory /could/ release the now un-required non xattr data
+        decompressed.resize(cb::xattr::get_body_offset(decompressed));
+        blob = {decompressed.data(), decompressed.size()};
+    } else if (blob.size()) {
+        // incoming data is not compressed, just get the size and attach
+        blob = {blob.data(), cb::xattr::get_body_offset(blob)};
+    }
+    // else empty blob
 }
 
 cb::char_buffer Blob::get(const cb::const_char_buffer& key) const {

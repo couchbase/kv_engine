@@ -952,7 +952,8 @@ static bool do_xattr_delete_phase(SubdocCmdContext& context) {
 
     cb::char_buffer blob_buffer{(char*)context.in_doc.buf, (size_t)bodyoffset};
 
-    const cb::xattr::Blob xattr_blob(blob_buffer);
+    const cb::xattr::Blob xattr_blob(
+            blob_buffer, mcbp::datatype::is_snappy(context.in_datatype));
 
     // The backing store for the blob is currently witin the actual
     // document.. create a copy we can use for replace.
@@ -1023,7 +1024,8 @@ static bool do_xattr_phase(SubdocCmdContext& context) {
 
     cb::char_buffer blob_buffer{(char*)context.in_doc.buf, (size_t)bodyoffset};
 
-    const cb::xattr::Blob xattr_blob(blob_buffer);
+    const cb::xattr::Blob xattr_blob(
+            blob_buffer, mcbp::datatype::is_snappy(context.in_datatype));
     auto key = context.get_xattr_key();
     auto value_buf = xattr_blob.get(key);
 

@@ -1693,7 +1693,7 @@ TEST_F(SingleThreadedEPBucketTest, pre_expiry_xattrs) {
     auto get_data = const_cast<char*>(get_itm->getData());
 
     cb::char_buffer value_buf{get_data, get_itm->getNBytes()};
-    cb::xattr::Blob new_blob(value_buf);
+    cb::xattr::Blob new_blob(value_buf, false);
 
     const std::string& cas_str{"{\"cas\":\"0xdeadbeefcafefeed\"}"};
     const std::string& sync_str = to_string(new_blob.get("_sync"));

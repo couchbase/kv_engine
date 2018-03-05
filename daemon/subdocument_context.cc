@@ -87,7 +87,8 @@ ENGINE_ERROR_CODE SubdocCmdContext::pre_link_document(item_info& info) {
         cb::char_buffer blob_buffer{static_cast<char*>(info.value[0].iov_base),
                                     bodyoffset};
 
-        cb::xattr::Blob xattr_blob(blob_buffer);
+        cb::xattr::Blob xattr_blob(blob_buffer,
+                                   mcbp::datatype::is_snappy(info.datatype));
         auto value = xattr_blob.get(xattr_key);
         if (value.len == 0) {
             // The segment is no longer there (we may have had another
@@ -281,7 +282,8 @@ cb::const_char_buffer SubdocCmdContext::get_xtoc_vattr() {
         const auto bodyoffset = cb::xattr::get_body_offset(in_doc);
         cb::char_buffer blob_buffer{const_cast<char*>(in_doc.data()),
                                     (size_t)bodyoffset};
-        cb::xattr::Blob xattr_blob(blob_buffer);
+        cb::xattr::Blob xattr_blob(blob_buffer,
+                                   mcbp::datatype::is_snappy(in_datatype));
 
         unique_cJSON_ptr array(cJSON_CreateArray());
         for (const auto& kvPair : xattr_blob) {

@@ -535,7 +535,7 @@ TEST_P(EPStoreEvictionTest, xattrExpiryOnFullyEvictedItem) {
               << "Unexpected Datatype";
 
     cb::char_buffer value_buf{get_data, get_itm->getNBytes()};
-    cb::xattr::Blob new_blob(value_buf);
+    cb::xattr::Blob new_blob(value_buf, /*compressed?*/ false);
 
     const std::string& rev_str{"{\"rev\":10}"};
     const std::string& meta_str = to_string(new_blob.get("_meta"));

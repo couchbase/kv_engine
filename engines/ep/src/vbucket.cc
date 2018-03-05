@@ -2709,30 +2709,16 @@ std::chrono::seconds VBucket::getCheckpointFlushTimeout() {
 
 std::unique_ptr<Item> VBucket::pruneXattrDocument(
         StoredValue& v, const ItemMetaData& itemMeta) {
-    // Need to take a copy of the value, prune it, and add it back, however
-    // check for compressed
-    cb::compression::Buffer workspace;
-    if (mcbp::datatype::is_snappy(v.getDatatype())) {
-        if (!cb::compression::inflate(
-                    cb::compression::Algorithm::Snappy,
-                    {v.getValue()->getData(), v.getValue()->valueSize()},
-                    workspace)) {
-            throw std::logic_error(
-                    "VBucket::pruneXattrDocument failed to inflate");
-        }
+    // Need to take a copy of the value, prune it, and add it back
 
-    } else {
-        // Use the compression buffer without inflating, just copy-in
-        workspace.resize(v.getValue()->valueSize());
-        std::copy_n(v.getValue()->getData(),
-                    v.getValue()->valueSize(),
-                    workspace.data());
-    }
+    // Create work-space document
+    std::vector<char> workspace(
+            v.getValue()->getData(),
+            v.getValue()->getData() + v.getValue()->valueSize());
 
     // Now attach to the XATTRs in the document
-    auto sz = cb::xattr::get_body_offset(workspace);
-
-    cb::xattr::Blob xattr({workspace.data(), sz});
+    cb::xattr::Blob xattr({workspace.data(), workspace.size()},
+                          mcbp::datatype::is_snappy(v.getDatatype()));
     xattr.prune_user_keys();
 
     auto prunedXattrs = xattr.finalize();

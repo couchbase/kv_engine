@@ -169,9 +169,9 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::allocateNewItem() {
         datatype |= PROTOCOL_BINARY_DATATYPE_XATTR;
 
         // Calculate the size of the system xattr's.
-        body_offset = cb::xattr::get_body_offset({old.buf, old.len});
-        cb::char_buffer xattr_blob{old.buf, body_offset};
-        cb::xattr::Blob blob(xattr_blob);
+        cb::xattr::Blob blob(old,
+                             mcbp::datatype::is_snappy(oldItemInfo.datatype));
+        body_offset = blob.size();
         priv_size = blob.get_system_size();
     }
 

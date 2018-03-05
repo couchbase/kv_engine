@@ -130,9 +130,10 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::allocateNewItem() {
     size_t xattrsize = 0;
     size_t priv_bytes = 0;
     if (mcbp::datatype::is_xattr(oldItemInfo.datatype)) {
-        xattrsize = cb::xattr::get_body_offset({ptr, oldsize});
-        cb::xattr::Blob blob({ptr, xattrsize});
+        cb::xattr::Blob blob({ptr, oldsize},
+                             mcbp::datatype::is_snappy(oldItemInfo.datatype));
         priv_bytes = blob.get_system_size();
+        xattrsize = blob.size();
     }
     ptr += xattrsize;
     const std::string payload(ptr, oldsize - xattrsize);

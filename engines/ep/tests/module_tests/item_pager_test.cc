@@ -716,7 +716,8 @@ TEST_P(STExpiryPagerTest, MB_25650) {
     EXPECT_TRUE(mcbp::datatype::is_xattr(item.item->getDataType()));
     ASSERT_NE(0, item.item->getNBytes());
     cb::xattr::Blob blob(
-            {const_cast<char*>(item.item->getData()), item.item->getNBytes()});
+            {const_cast<char*>(item.item->getData()), item.item->getNBytes()},
+            false);
 
     EXPECT_EQ(0, blob.get("user").size());
     EXPECT_EQ(0, blob.get("meta").size());
@@ -791,7 +792,8 @@ TEST_P(STExpiryPagerTest, MB_25671) {
     ASSERT_NE(0, item.item->getNBytes()) << "No value " << *item.item;
 
     cb::xattr::Blob blob(
-            {const_cast<char*>(item.item->getData()), item.item->getNBytes()});
+            {const_cast<char*>(item.item->getData()), item.item->getNBytes()},
+            false);
 
     EXPECT_EQ(0, blob.get("user").size());
     EXPECT_EQ(0, blob.get("meta").size());
