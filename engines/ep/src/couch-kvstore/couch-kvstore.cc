@@ -761,7 +761,11 @@ static int notify_expired_item(DocInfo& info,
             return COUCHSTORE_COMPACT_NEED_BODY;
         }
 
-        if (info.content_meta | COUCH_DOC_IS_COMPRESSED) {
+        // A document on disk is marked snappy in two ways.
+        // 1) info.content_meta if the document was compressed by couchstore
+        // 2) datatype snappy if the document was already compressed when stored
+        if ((info.content_meta & COUCH_DOC_IS_COMPRESSED) ||
+            mcbp::datatype::is_snappy(metadata.getDataType())) {
             using namespace cb::compression;
 
             if (!inflate(Algorithm::Snappy, {item.buf, item.size}, inflated)) {
@@ -770,6 +774,9 @@ static int notify_expired_item(DocInfo& info,
                     "revno: %" PRIu64, info.db_seq, info.rev_seq);
                 return COUCHSTORE_ERROR_CORRUPT;
             }
+            // Now remove snappy bit
+            metadata.setDataType(metadata.getDataType() &
+                                 ~PROTOCOL_BINARY_DATATYPE_SNAPPY);
             data = inflated;
         }
     }

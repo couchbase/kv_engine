@@ -901,7 +901,7 @@ static enum test_result test_expiration_on_compaction(ENGINE_HANDLE *h,
             get_int_stat(h, h1, "vb_0:persistence:num_visits", "checkpoint"),
             "Cursor moved before item load");
 
-    for (int i = 0; i < 50; i++) {
+    for (int i = 0; i < 25; i++) {
         std::stringstream ss;
         ss << "key" << i;
         checkeq(ENGINE_SUCCESS,
@@ -917,6 +917,68 @@ static enum test_result test_expiration_on_compaction(ENGINE_HANDLE *h,
                       10,
                       PROTOCOL_BINARY_RAW_BYTES),
                 "Set failed.");
+    }
+
+    // Throw an xattr document in (and later compressed)
+    cb::xattr::Blob builder;
+    builder.set("_ep", "{\"foo\":\"bar\"}");
+    builder.set("key", "{\"foo\":\"bar\"}");
+    builder.set("_sync", "{\"foo\":\"bar\"}");
+    builder.set("stuff", "{\"foo\":\"bar\"}");
+    builder.set("misc", "{\"foo\":\"bar\"}");
+    builder.set("things", "{\"foo\":\"bar\"}");
+    builder.set("that", "{\"foo\":\"bar\"}");
+
+    auto blob = builder.finalize();
+    std::string data;
+    std::copy(blob.buf, blob.buf + blob.size(), std::back_inserter(data));
+    for (int i = 0; i < 12; i++) {
+        std::stringstream ss;
+        ss << "xattr_key" << i;
+
+        checkeq(cb::engine_errc::success,
+                storeCasVb11(h,
+                             h1,
+                             nullptr,
+                             OPERATION_SET,
+                             ss.str().c_str(),
+                             data.data(),
+                             data.size(),
+                             0,
+                             0,
+                             0,
+                             10,
+                             PROTOCOL_BINARY_DATATYPE_XATTR,
+                             DocumentState::Alive)
+                        .first,
+                "Unable to store item");
+    }
+
+    cb::compression::Buffer compressedDoc;
+    cb::compression::deflate(
+            cb::compression::Algorithm::Snappy, data, compressedDoc);
+
+    for (int i = 0; i < 13; i++) {
+        std::stringstream ss;
+        ss << "compressed_xattr_key" << i;
+
+        checkeq(cb::engine_errc::success,
+                storeCasVb11(h,
+                             h1,
+                             nullptr,
+                             OPERATION_SET,
+                             ss.str().c_str(),
+                             compressedDoc.data(),
+                             compressedDoc.size(),
+                             0,
+                             0,
+                             0,
+                             10,
+                             PROTOCOL_BINARY_DATATYPE_XATTR |
+                                     PROTOCOL_BINARY_DATATYPE_SNAPPY,
+                             DocumentState::Alive)
+                        .first,
+                "Unable to store item");
     }
 
     wait_for_flusher_to_settle(h, h1);
