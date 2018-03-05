@@ -121,6 +121,17 @@ std::string to_string(ClientJSONSupport json) {
     throw std::logic_error("Unknown JSON support");
 }
 
+std::string to_string(ClientSnappySupport snappy) {
+    switch (snappy) {
+    case ClientSnappySupport::Yes:
+        return "SnappyYes";
+    case ClientSnappySupport::No:
+        return "SnappyNo";
+    }
+    throw std::logic_error("Unknown ClientSnappySupport value: " +
+                           std::to_string(int(snappy)));
+}
+
 void TestappTest::CreateTestBucket()
 {
     auto& conn = connectionMap.getConnection(false);

@@ -7,9 +7,12 @@ ADD_LIBRARY(mc_client_connection STATIC
             client_mcbp_commands.h)
 
 TARGET_LINK_LIBRARIES(mc_client_connection
-                      mcbp
-                      cbsasl
-                      memcached_logger
-                      memcached_rbac
-                      ${COUCHBASE_NETWORK_LIBS}
-                      ${OPENSSL_LIBRARIES})
+  PUBLIC
+    mcbp
+    cbsasl
+    memcached_logger
+    memcached_rbac
+    ${COUCHBASE_NETWORK_LIBS}
+    ${OPENSSL_LIBRARIES}
+  PRIVATE
+    cbcompress)

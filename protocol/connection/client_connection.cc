@@ -22,6 +22,7 @@
 #include <cbsasl/cbsasl.h>
 #include <mcbp/mcbp.h>
 #include <memcached/protocol_binary.h>
+#include <platform/compress.h>
 #include <platform/dirutils.h>
 #include <platform/strerror.h>
 
@@ -47,6 +48,20 @@ static const bool packet_dump = getenv("COUCHBASE_PACKET_DUMP") != nullptr;
         os << int(v) << " ";
     }
     return os << std::dec << "]";
+}
+
+void Document::compress() {
+    if (mcbp::datatype::is_snappy(protocol_binary_datatype_t(info.datatype))) {
+        throw std::invalid_argument(
+                "Document::compress: Cannot compress already compressed "
+                "document.");
+    }
+
+    cb::compression::Buffer buf;
+    cb::compression::deflate(cb::compression::Algorithm::Snappy, value, buf);
+    value = {buf.data(), buf.size()};
+    info.datatype = cb::mcbp::Datatype(int(info.datatype) |
+                                       int(cb::mcbp::Datatype::Snappy));
 }
 
 /////////////////////////////////////////////////////////////////////////

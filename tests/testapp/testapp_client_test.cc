@@ -57,6 +57,12 @@ void TestappXattrClientTest::SetUp() {
         xattrOperationStatus = PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
 
+    // If the client has Snappy support, enable passive compression
+    // on the bucket.
+    if (::testing::get<3>(GetParam()) == ClientSnappySupport::Yes) {
+        setCompressionMode("passive");
+    }
+
     document.info.cas = mcbp::cas::Wildcard;
     document.info.flags = 0xcaffee;
     document.info.id = name;
@@ -86,6 +92,10 @@ void TestappXattrClientTest::createXattr(const std::string& path,
 
 ClientJSONSupport TestappXattrClientTest::hasJSONSupport() const {
     return ::testing::get<2>(GetParam());
+}
+
+ClientSnappySupport TestappXattrClientTest::hasSnappySupport() const {
+    return ::testing::get<3>(GetParam());
 }
 
 cb::mcbp::Datatype TestappXattrClientTest::expectedJSONDatatype() const {
@@ -160,10 +170,12 @@ std::string to_string(const XattrSupport& xattrSupport) {
 std::string PrintToStringCombinedName::operator()(
         const ::testing::TestParamInfo<::testing::tuple<TransportProtocols,
                                                         XattrSupport,
-                                                        ClientJSONSupport>>&
+                                                        ClientJSONSupport,
+                                                        ClientSnappySupport>>&
                 info) const {
     std::string rv = to_string(::testing::get<0>(info.param)) + "_" +
                      to_string(::testing::get<1>(info.param)) + "_" +
-                     to_string(::testing::get<2>(info.param));
+                     to_string(::testing::get<2>(info.param)) + "_" +
+                     to_string(::testing::get<3>(info.param));
     return rv;
 }

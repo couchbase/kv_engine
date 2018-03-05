@@ -29,7 +29,9 @@ INSTANTIATE_TEST_CASE_P(
                            ::testing::Values(XattrSupport::Yes,
                                              XattrSupport::No),
                            ::testing::Values(ClientJSONSupport::Yes,
-                                             ClientJSONSupport::No)),
+                                             ClientJSONSupport::No),
+                           ::testing::Values(ClientSnappySupport::Yes,
+                                             ClientSnappySupport::No)),
         PrintToStringCombinedName());
 
 // Tests which always need XATTR support (hence only instantiated with
@@ -43,7 +45,9 @@ INSTANTIATE_TEST_CASE_P(
                                              TransportProtocols::McbpIpv6Ssl),
                            ::testing::Values(XattrSupport::Yes),
                            ::testing::Values(ClientJSONSupport::Yes,
-                                             ClientJSONSupport::No)),
+                                             ClientJSONSupport::No),
+                           ::testing::Values(ClientSnappySupport::Yes,
+                                             ClientSnappySupport::No)),
         PrintToStringCombinedName());
 
 TEST_P(ArithmeticTest, TestArithmeticNoCreateOnNotFound) {
@@ -250,7 +254,8 @@ TEST_P(ArithmeticTest, TestOperateOnStoredDocument) {
     // To speed up CV, just run the test for a single parameterization.
     if (GetParam() != std::make_tuple(TransportProtocols::McbpPlain,
                                       XattrSupport::Yes,
-                                      ClientJSONSupport::Yes)) {
+                                      ClientJSONSupport::Yes,
+                                      ClientSnappySupport::Yes)) {
         return;
     }
 #endif

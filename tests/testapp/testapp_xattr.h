@@ -17,20 +17,25 @@
 #pragma once
 
 #include "testapp_client_test.h"
+#include "xattr/blob.h"
+
+#include <platform/cb_malloc.h>
 
 class XattrTest : public TestappXattrClientTest {
 public:
     void SetUp() override {
         TestappXattrClientTest::SetUp();
 
-        // Create the document to operate on
-        auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
-                           name,
-                           "couchbase.version",
-                           "\"spock\"",
-                           SUBDOC_FLAG_MKDIR_P,
-                           mcbp::subdoc::doc_flag::Mkdoc);
-        ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+        // Create the document to operate on (with some compressible data).
+        document.info.id = name;
+        document.info.datatype = cb::mcbp::Datatype::Raw;
+        document.value =
+                R"({"couchbase": {"version": "spock", "next_version": "vulcan"}})";
+        if (hasSnappySupport() == ClientSnappySupport::Yes) {
+            // Compress the complete body.
+            document.compress();
+        }
+        getConnection().mutate(document, 0, MutationType::Set);
     }
 
 protected:
@@ -219,27 +224,60 @@ protected:
         return multiResp;
     }
 
-    void setBodyAndXattr(
-            const std::string& startValue,
-            const std::string& xattrValue,
-            cb::mcbp::Datatype datatype = cb::mcbp::Datatype::Raw) {
-        Document document;
-        document.info.cas = mcbp::cas::Wildcard;
-        document.info.datatype = datatype;
+    /** Replaces document `name` with a document containing the given
+     * body and XATTR.
+     * If Snappy support is available, will store as a compressed document.
+     */
+    void setBodyAndXattr(const std::string& startValue,
+                         const std::string& xattrValue) {
         document.info.flags = 0xcaffee;
         document.info.id = name;
-        document.value = startValue;
-        getConnection().mutate(document, 0, MutationType::Set);
-        auto doc = getConnection().get(name, 0);
 
-        EXPECT_EQ(doc.value, document.value);
+        if (mcd_env->getTestBucket().supportsOp(
+                    PROTOCOL_BINARY_CMD_SET_WITH_META)) {
+            // Combine the body and Extended Attribute into a single value -
+            // this allows us to store already compressed documents which
+            // have XATTRs.
+            cb::xattr::Blob xattrs;
+            xattrs.set(sysXattr, xattrValue);
+            auto encoded = xattrs.finalize();
+            document.info.cas = 10; // withMeta requires a non-zero CAS.
+            document.info.datatype = cb::mcbp::Datatype::Xattr;
+            document.value = {reinterpret_cast<char*>(encoded.data()),
+                              encoded.size()};
+            document.value.append(startValue);
+            if (hasSnappySupport() == ClientSnappySupport::Yes) {
+                // Compress the complete body.
+                document.compress();
+            }
 
-        // Now add the xattr
-        xattr_upsert(sysXattr, xattrValue);
+            // As we are using setWithMeta; we need to explicitly set JSON
+            // if our connection supports it.
+            if (hasJSONSupport() == ClientJSONSupport::Yes) {
+                document.info.datatype =
+                        cb::mcbp::Datatype(int(document.info.datatype) |
+                                           int(cb::mcbp::Datatype::JSON));
+            }
+            getConnection().mutateWithMeta(document,
+                                           0,
+                                           mcbp::cas::Wildcard,
+                                           /*seqno*/ 1,
+                                           FORCE_WITH_META_OP);
+        } else {
+            // No SetWithMeta support, must construct the
+            // document+XATTR with primitives (and cannot compress
+            // it).
+            document.info.cas = mcbp::cas::Wildcard;
+            document.info.datatype = cb::mcbp::Datatype::Raw;
+            document.value = startValue;
+            getConnection().mutate(document, 0, MutationType::Set);
+            auto doc = getConnection().get(name, 0);
 
-        auto resp = subdoc_get(sysXattr, SUBDOC_FLAG_XATTR_PATH);
-        ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
-        ASSERT_EQ(xattrValue, resp.getValue());
+            EXPECT_EQ(doc.value, document.value);
+
+            // Now add the xattr
+            xattr_upsert(sysXattr, xattrValue);
+        }
     }
 
     void verify_xtoc_user_system_xattr() {
@@ -276,8 +314,8 @@ protected:
     }
 
     std::string value = "{\"Field\":56}";
-    const std::string sysXattr = "_sync.eg";
-    const std::string xattrVal = "99";
+    const std::string sysXattr = "_sync";
+    const std::string xattrVal = "{\"eg\":99}";
 };
 
 /// Explicit text fixutre for tests which want Xattr support disabled.

@@ -100,6 +100,12 @@ public:
         return (info == rhs.info) && (value == rhs.value);
     }
 
+    /**
+     * Compress this document using Snappy. Replaces the value with a compressed
+     * version, adds Snappy to the set of datatypes.
+     */
+    void compress();
+
     DocumentInfo info;
     std::string value;
 };

@@ -59,7 +59,8 @@ INSTANTIATE_TEST_CASE_P(
                            ::testing::Values(XattrSupport::Yes,
                                              XattrSupport::No),
                            ::testing::Values(ClientJSONSupport::Yes,
-                                             ClientJSONSupport::No)),
+                                             ClientJSONSupport::No),
+                           ::testing::Values(ClientSnappySupport::No)),
         PrintToStringCombinedName());
 
 TEST_P(GetSetTest, TestAdd) {

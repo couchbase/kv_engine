@@ -26,7 +26,9 @@ INSTANTIATE_TEST_CASE_P(
         ::testing::Combine(::testing::Values(TransportProtocols::McbpPlain),
                            ::testing::Values(XattrSupport::Yes),
                            ::testing::Values(ClientJSONSupport::Yes,
-                                             ClientJSONSupport::No)),
+                                             ClientJSONSupport::No),
+                           ::testing::Values(ClientSnappySupport::Yes,
+                                             ClientSnappySupport::No)),
         PrintToStringCombinedName());
 
 // Instantiation for tests which want XATTR support disabled.
@@ -36,7 +38,9 @@ INSTANTIATE_TEST_CASE_P(
         ::testing::Combine(::testing::Values(TransportProtocols::McbpPlain),
                            ::testing::Values(XattrSupport::No),
                            ::testing::Values(ClientJSONSupport::Yes,
-                                             ClientJSONSupport::No)),
+                                             ClientJSONSupport::No),
+                           ::testing::Values(ClientSnappySupport::Yes,
+                                             ClientSnappySupport::No)),
         PrintToStringCombinedName());
 
 TEST_P(XattrTest, GetXattrAndBody) {
@@ -829,8 +833,12 @@ TEST_P(XattrTest, MB_23882_VirtualXattrs) {
             found_xattr = true;
         } else if (tag == "json") {
             found_json = true;
+        } else if (tag == "snappy") {
+            // Not currently checked; default engine doesn't support
+            // storing as Snappy (will inflate) so not trivial to assert
+            // when this should be true.
         } else {
-            EXPECT_EQ(nullptr, tag.c_str());
+            EXPECT_EQ(nullptr, tag.c_str()) << "Unexpected datatype: " << tag;
         }
     }
     EXPECT_TRUE(found_json);
@@ -849,7 +857,7 @@ TEST_P(XattrTest, MB_23882_VirtualXattrs) {
 
     // Expect that we could find _sync.eg
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, results[3].status);
-    EXPECT_EQ(xattrVal, results[3].value);
+    EXPECT_EQ("99", results[3].value);
 }
 
 TEST_P(XattrTest, MB_23882_VirtualXattrs_GetXattrAndBody) {
@@ -1068,7 +1076,7 @@ TEST_P(XattrTest, MB24152_GetXattrAndBodyDeletedAndEmpty) {
 TEST_P(XattrTest, MB24152_GetXattrAndBodyNonJSON) {
     // Store a document with a non-JSON body + XATTR.
     value = "non-JSON value";
-    setBodyAndXattr(value, xattrVal, cb::mcbp::Datatype::Raw);
+    setBodyAndXattr(value, xattrVal);
 
     BinprotSubdocMultiLookupCommand cmd;
     cmd.setKey(name);

@@ -68,6 +68,10 @@ std::string to_string(const TransportProtocols& transport);
 enum class ClientJSONSupport { Yes, No };
 std::string to_string(ClientJSONSupport json);
 
+/// Should testapp client negotiate Snappy HELLO feature?
+enum class ClientSnappySupport { Yes, No };
+std::string to_string(ClientSnappySupport s);
+
 // Needed by subdocument tests in seperate .cc file.
 extern SOCKET sock;
 extern in_port_t port;

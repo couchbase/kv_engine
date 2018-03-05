@@ -40,13 +40,15 @@ std::string to_string(const XattrSupport& xattrSupport);
  * Parameterized on:
  * - TransportProtocol (IPv4, Ipv6); (Plain, SSL);
  * - XATTR On/Off
- * - JSON On/Off.
+ * - Client JSON On/Off.
+ * - Client SNAPPY On/Off.
  */
 class TestappXattrClientTest : public TestappTest,
                                public ::testing::WithParamInterface<
                                        ::testing::tuple<TransportProtocols,
                                                         XattrSupport,
-                                                        ClientJSONSupport>> {
+                                                        ClientJSONSupport,
+                                                        ClientSnappySupport>> {
 protected:
     TestappXattrClientTest()
         : xattrOperationStatus(PROTOCOL_BINARY_RESPONSE_SUCCESS) {
@@ -63,6 +65,8 @@ protected:
                      bool macro = false);
 
     ClientJSONSupport hasJSONSupport() const override;
+
+    virtual ClientSnappySupport hasSnappySupport() const;
 
     // What response datatype do we expect for documents which are JSON?
     // Will be JSON only if the client successfully negotiated JSON feature.
@@ -88,9 +92,9 @@ protected:
 };
 
 struct PrintToStringCombinedName {
-    std::string operator()(
-            const ::testing::TestParamInfo<::testing::tuple<TransportProtocols,
-                                                            XattrSupport,
-                                                            ClientJSONSupport>>&
-                    info) const;
+    std::string operator()(const ::testing::TestParamInfo<
+                           ::testing::tuple<TransportProtocols,
+                                            XattrSupport,
+                                            ClientJSONSupport,
+                                            ClientSnappySupport>>& info) const;
 };
