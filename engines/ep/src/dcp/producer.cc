@@ -27,6 +27,7 @@
 #include "dcp/dcpconnmap.h"
 #include "executorpool.h"
 #include "failover-table.h"
+#include "item_eviction.h"
 #include "kv_bucket.h"
 #include "snappy-c.h"
 
@@ -147,6 +148,7 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
     : ConnHandler(e, cookie, name),
       notifyOnly((flags & DCP_OPEN_NOTIFIER) != 0),
       sendStreamEndOnClientStreamClose(false),
+      supportsHifiMFU(false),
       lastSendTime(ep_current_time()),
       log(*this),
       itemsSent(0),
@@ -547,18 +549,39 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
             if (mutationResponse->getExtMetaData()) {
                 meta = mutationResponse->getExtMetaData()->getExtMeta();
             }
-            ret = producers->mutation(
-                    getCookie(),
-                    mutationResponse->getOpaque(),
-                    itmCpy.release(),
-                    mutationResponse->getVBucket(),
-                    *mutationResponse->getBySeqno(),
-                    mutationResponse->getRevSeqno(),
-                    0 /* lock time */,
-                    meta.first,
-                    meta.second,
-                    mutationResponse->getItem()->getNRUValue(),
-                    mutationResponse->getCollectionLen());
+
+            Configuration& config = engine_.getConfiguration();
+            uint8_t hotness;
+            if (config.getHtEvictionPolicy() == "statistical_counter") {
+                auto freqCount =
+                        mutationResponse->getItem()->getFreqCounterValue();
+                if (supportsHifiMFU) {
+                    // The consumer supports the statistical counter eviction
+                    // policy, therefore use the frequency counter.
+                    hotness = freqCount;
+                } else {
+                    // The consumer does not support the statistical counter
+                    // eviction policy, therefore map from the 8-bit
+                    // statistical counter (256 states) to NRU (4 states).
+                    hotness =
+                            ItemEviction::convertFreqCountToNRUValue(freqCount);
+                }
+            } else {
+                /* We are using the 2-bit_lru and therefore get the value */
+                hotness = mutationResponse->getItem()->getNRUValue();
+            }
+
+            ret = producers->mutation(getCookie(),
+                                      mutationResponse->getOpaque(),
+                                      itmCpy.release(),
+                                      mutationResponse->getVBucket(),
+                                      *mutationResponse->getBySeqno(),
+                                      mutationResponse->getRevSeqno(),
+                                      0 /* lock time */,
+                                      meta.first,
+                                      meta.second,
+                                      hotness,
+                                      mutationResponse->getCollectionLen());
             break;
         }
         case DcpResponse::Event::Deletion:
@@ -719,6 +742,9 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque, const void* key,
         } else {
             supportsCursorDropping = false;
         }
+        return ENGINE_SUCCESS;
+    } else if (strncmp(param, "supports_hifi_MFU", nkey) == 0) {
+        supportsHifiMFU = (valueStr == "true");
         return ENGINE_SUCCESS;
     } else if (strncmp(param, "set_noop_interval", nkey) == 0) {
         uint32_t noopInterval;

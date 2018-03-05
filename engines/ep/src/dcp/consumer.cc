@@ -39,6 +39,7 @@ const std::string DcpConsumer::forceCompressionCtrlMsg = "force_value_compressio
 const std::string DcpConsumer::cursorDroppingCtrlMsg = "supports_cursor_dropping";
 const std::string DcpConsumer::sendStreamEndOnClientStreamCloseCtrlMsg =
         "send_stream_end_on_client_close_stream";
+const std::string DcpConsumer::hifiMFUCtrlMsg = "supports_hifi_MFU";
 
 class DcpConsumerTask : public GlobalTask {
 public:
@@ -170,6 +171,8 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
     pendingSetPriority = true;
     pendingEnableExtMetaData = true;
     pendingSupportCursorDropping = true;
+    pendingSupportHifiMFU =
+            (config.getHtEvictionPolicy() == "statistical_counter");
 }
 
 DcpConsumer::~DcpConsumer() {
@@ -1274,6 +1277,28 @@ ENGINE_ERROR_CODE DcpConsumer::supportCursorDropping(struct dcp_message_producer
                                  val.c_str(), val.size());
         ObjectRegistry::onSwitchThread(epe);
         pendingSupportCursorDropping = false;
+        return ret;
+    }
+
+    return ENGINE_FAILED;
+}
+
+ENGINE_ERROR_CODE DcpConsumer::supportHifiMFU(
+        struct dcp_message_producers* producers) {
+    if (pendingSupportHifiMFU) {
+        ENGINE_ERROR_CODE ret;
+        uint32_t opaque = ++opaqueCounter;
+        std::string val("true");
+        EventuallyPersistentEngine* epe =
+                ObjectRegistry::onSwitchThread(NULL, true);
+        ret = producers->control(getCookie(),
+                                 opaque,
+                                 hifiMFUCtrlMsg.c_str(),
+                                 hifiMFUCtrlMsg.size(),
+                                 val.c_str(),
+                                 val.size());
+        ObjectRegistry::onSwitchThread(epe);
+        pendingSupportHifiMFU = false;
         return ret;
     }
 

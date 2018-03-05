@@ -16,6 +16,7 @@
  */
 
 #include "item_eviction.h"
+#include "item.h"
 
 #include <gsl/gsl>
 #include <limits>
@@ -49,4 +50,26 @@ void ItemEviction::reset() {
 uint16_t ItemEviction::getFreqThreshold(double percentage) const {
     return gsl::narrow<uint16_t>(
             hdr_value_at_percentile(freqHistogram.get(), percentage));
+}
+
+uint8_t ItemEviction::convertFreqCountToNRUValue(uint8_t statCounter) {
+    /*
+     * The statstical counter has a range form 0 to 255, however the
+     * increments are not linear - it gets more difficult to increment the
+     * counter as its increases value.  Therefore incrementing from 0 to 1 is
+     * much easier than incrementing from 254 to 255.
+     *
+     * Therefore when mapping to the 4 NRU values we do not simply want to
+     * map 0-63 => 3, 64-127 => 2 etc.  Instead we want to reflect the bias
+     * in the 4 NRU states.  Therefore we map as follows:
+     * 0-7 => 3 (coldest), 8-31 => 2, 32->63 => 1, 64->255 => 0 (hottest),
+     */
+    if (statCounter >= 64) {
+        return MIN_NRU_VALUE; /* 0 - the hottest */
+    } else if (statCounter >= 32) {
+        return 1;
+    } else if (statCounter >= 8) {
+        return INITIAL_NRU_VALUE; /* 2 */
+    }
+    return MAX_NRU_VALUE; /* 3 - the coldest */
 }

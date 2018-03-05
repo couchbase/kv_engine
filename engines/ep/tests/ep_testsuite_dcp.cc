@@ -152,7 +152,7 @@ public:
           disable_ack(false),
           h(h),
           h1(h1),
-          nruCounter(MAX_NRU_VALUE + 1) {
+          nruCounter(2) {
     }
 
     uint64_t getTotalBytes() {
@@ -175,7 +175,7 @@ public:
         stream_ctxs.push_back(ctx);
     }
 
-    void run();
+    void run(bool openConn = true);
 
     /**
      * This method just opens a DCP connection. Note it does not open a stream
@@ -266,11 +266,13 @@ ENGINE_ERROR_CODE TestDcpConsumer::sendControlMessage(
                            value.size());
 }
 
-void TestDcpConsumer::run() {
+void TestDcpConsumer::run(bool openConn) {
     check(stream_ctxs.size() >= 1, "No dcp_stream arguments provided!");
 
     /* Open the connection with the DCP producer */
-    openConnection();
+    if (openConn) {
+        openConnection();
+    }
 
     /* Open streams in the above open connection */
     openStreams();
@@ -332,10 +334,11 @@ void TestDcpConsumer::run() {
                                    dcp_last_opaque);
                     }
 
-                    check(dcp_last_nru <= MAX_NRU_VALUE,
-                          "NRU out of expected range");
-                    nruCounter[dcp_last_nru]++;
-
+                    if (dcp_last_nru > 0) {
+                        nruCounter[1]++;
+                    } else {
+                        nruCounter[0]++;
+                    }
                     if (!dcp_last_value.empty()) {
                         stats.num_values++;
                     }
@@ -2290,11 +2293,58 @@ static enum test_result test_dcp_producer_stream_req_dgm(ENGINE_HANDLE *h,
     tdc.addStreamCtx(ctx);
     tdc.run();
 
-    // Expect that we get the same or more cold items than we ejected. We may
-    // see more because the backfill may have pulled a cold item from memory
-    checkge(tdc.getNruCounters()[MAX_NRU_VALUE],
-            get_int_stat(h, h1, "ep_num_value_ejects"),
-            "should have the the same or more cold items then we ejected");
+    testHarness.destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
+/**
+ * Test that eviction hotness data is passed in DCP stream.
+ */
+static enum test_result test_dcp_producer_stream_req_coldness(
+        ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
+    const void* cookie = testHarness.create_cookie();
+
+    for (int ii = 0; ii < 10; ii++) {
+        std::stringstream ss;
+        ss << "key" << ii;
+        store(h, h1, cookie, OPERATION_SET, ss.str().c_str(), "somevalue");
+    }
+
+    wait_for_flusher_to_settle(h, h1);
+    verify_curr_items(h, h1, 10, "Wrong number of items");
+
+    for (int ii = 0; ii < 5; ii++) {
+        std::stringstream ss;
+        ss << "key" << ii;
+        evict_key(h, h1, ss.str().c_str(), 0, "Ejected.");
+    }
+    wait_for_flusher_to_settle(h, h1);
+    wait_for_stat_to_be(h, h1, "ep_num_value_ejects", 5);
+
+    TestDcpConsumer tdc("unittest", cookie, h, h1);
+    uint32_t flags = DCP_OPEN_PRODUCER;
+
+    tdc.openConnection(flags);
+
+    checkeq(ENGINE_SUCCESS,
+            tdc.sendControlMessage("supports_hifi_MFU",
+                                   true ? "true" : "false"),
+            "Failed to configure MFU");
+
+    DcpStreamCtx ctx;
+    ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    ctx.seqno = {0, get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno")};
+    ctx.exp_mutations = 10;
+    ctx.exp_markers = 1;
+
+    tdc.addStreamCtx(ctx);
+    tdc.run(false);
+
+    checkeq(tdc.getNruCounters()[1],
+            5, "unexpected number of hot items");
+    checkeq(tdc.getNruCounters()[0],
+            5, "unexpected number of cold items");
     testHarness.destroy_cookie(cookie);
 
     return SUCCESS;
@@ -6080,6 +6130,13 @@ BaseTestCase testsuite_testcases[] = {
                  /* not needed in ephemeral as it is DGM case */
                  /* TODO RDB: Relies on resident ratio - not valid yet */
                  prepare_ep_bucket_skip_broken_under_rocks,
+                 cleanup),
+        TestCase("test producer stream request coldness",
+                 test_dcp_producer_stream_req_coldness,
+                 test_setup,
+                 teardown,
+                 "chk_remover_stime=1;chk_max_items=2",
+                 prepare_skip_broken_under_ephemeral,
                  cleanup),
         TestCase("test producer stream request (latest flag)",
                  test_dcp_producer_stream_latest,

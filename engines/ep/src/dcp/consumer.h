@@ -275,6 +275,8 @@ protected:
 
     ENGINE_ERROR_CODE supportCursorDropping(struct dcp_message_producers* producers);
 
+    ENGINE_ERROR_CODE supportHifiMFU(struct dcp_message_producers* producers);
+
     ENGINE_ERROR_CODE sendStreamEndOnClientStreamClose(
             struct dcp_message_producers* producers);
 
@@ -394,6 +396,7 @@ protected:
     bool pendingEnableExtMetaData;
     bool pendingSupportCursorDropping;
     bool pendingSendStreamEndOnClientStreamClose;
+    bool pendingSupportHifiMFU;
 
     /* Indicates if the 'Processor' task is running */
     std::atomic<bool> processorTaskRunning;
@@ -422,6 +425,7 @@ protected:
     static const std::string forceCompressionCtrlMsg;
     static const std::string cursorDroppingCtrlMsg;
     static const std::string sendStreamEndOnClientStreamCloseCtrlMsg;
+    static const std::string hifiMFUCtrlMsg;
 };
 
 /*

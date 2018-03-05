@@ -97,6 +97,9 @@ public:
         requiredToUpdateInterval = interval;
     }
 
+    // Map from the 8-bit statistical counter (256 states) to NRU (4 states).
+    static uint8_t convertFreqCountToNRUValue(uint8_t statCounter);
+
     // The initial frequency count that items should be set to when first
     // added to the hash table.  It is not 0, as we want to ensure that we
     // do not immediately evict items that we have just added.

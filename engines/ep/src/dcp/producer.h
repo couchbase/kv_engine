@@ -352,6 +352,7 @@ protected:
     Couchbase::RelaxedAtomic<bool> forceValueCompression;
     Couchbase::RelaxedAtomic<bool> supportsCursorDropping;
     Couchbase::RelaxedAtomic<bool> sendStreamEndOnClientStreamClose;
+    Couchbase::RelaxedAtomic<bool> supportsHifiMFU;
 
     Couchbase::RelaxedAtomic<rel_time_t> lastSendTime;
     BufferLog log;
