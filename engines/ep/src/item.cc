@@ -309,12 +309,11 @@ void Item::pruneValueAndOrXattrs(IncludeValue includeVal,
 
     auto root = reinterpret_cast<const char*>(value->getData());
     const cb::const_char_buffer buffer{root, value->valueSize()};
-    const auto sz = cb::xattr::get_body_offset(buffer);
 
     if (includeXattrs == IncludeXattrs::Yes) {
         if (mcbp::datatype::is_xattr(getDataType())) {
             // Want just the xattributes
-            setData(value->getData(), sz);
+            setData(value->getData(), cb::xattr::get_body_offset(buffer));
             // Remove all other datatype flags as we're only sending the xattrs
             setDataType(PROTOCOL_BINARY_DATATYPE_XATTR);
         } else {
@@ -326,6 +325,7 @@ void Item::pruneValueAndOrXattrs(IncludeValue includeVal,
     } else if (includeVal == IncludeValue::Yes)  {
         // Want just the value, so remove xattributes if there are any
         if (mcbp::datatype::is_xattr(getDataType())) {
+            const auto sz = cb::xattr::get_body_offset(buffer);
             setData(value->getData() + sz, value->valueSize() - sz);
             // Clear the xattr datatype
             setDataType(getDataType() & ~PROTOCOL_BINARY_DATATYPE_XATTR);
