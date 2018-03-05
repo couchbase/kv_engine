@@ -161,5 +161,15 @@ size_t get_system_xattr_size(uint8_t datatype, const cb::const_char_buffer doc) 
     return blob.get_system_size();
 }
 
+std::pair<size_t, size_t> get_size_and_system_xattr_size(
+        uint8_t datatype, const cb::const_char_buffer doc) {
+    if (!::mcbp::datatype::is_xattr(datatype)) {
+        return {0, 0};
+    }
+
+    Blob blob({const_cast<char*>(doc.data()), doc.size()},
+              ::mcbp::datatype::is_snappy(datatype));
+    return {blob.size(), blob.get_system_size()};
+}
 }
 }

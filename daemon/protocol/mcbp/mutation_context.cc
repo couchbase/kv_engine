@@ -176,9 +176,10 @@ ENGINE_ERROR_CODE MutationCommandContext::getExistingItemToPreserveXattr() {
     cb::const_char_buffer payload{
         static_cast<const char*>(existing_info.value[0].iov_base),
         existing_info.value[0].iov_len};
-    xattr_size = cb::xattr::get_body_offset(payload);
-    system_xattr_size = cb::xattr::get_system_xattr_size(existing_info.datatype,
-                                                         payload);
+
+    std::tie(xattr_size, system_xattr_size) =
+            cb::xattr::get_size_and_system_xattr_size(existing_info.datatype,
+                                                      payload);
 
     state = State::AllocateNewItem;
 
