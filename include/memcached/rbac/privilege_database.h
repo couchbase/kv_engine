@@ -58,7 +58,7 @@ public:
      *         to the specification.
      * @throws std::bad_alloc if we run out of memory
      */
-    UserEntry(const cJSON& json);
+    explicit UserEntry(const cJSON& json);
 
     /**
      * Get a map containing all of the buckets and the privileges in those
@@ -201,7 +201,7 @@ protected:
  */
 class RBAC_PUBLIC_API Exception : public std::runtime_error {
 protected:
-    Exception(const char* msg) : std::runtime_error(msg) {
+    explicit Exception(const char* msg) : std::runtime_error(msg) {
     }
 };
 
@@ -211,7 +211,7 @@ protected:
  */
 class RBAC_PUBLIC_API NoSuchUserException : public Exception {
 public:
-    NoSuchUserException(const char* msg) : Exception(msg) {
+    explicit NoSuchUserException(const char* msg) : Exception(msg) {
     }
 };
 
@@ -221,7 +221,7 @@ public:
  */
 class RBAC_PUBLIC_API NoSuchBucketException : public Exception {
 public:
-    NoSuchBucketException(const char* msg) : Exception(msg) {
+    explicit NoSuchBucketException(const char* msg) : Exception(msg) {
     }
 };
 
@@ -240,7 +240,7 @@ public:
      * @throws std::invalid_argument for invalid syntax
      * @throws std::bad_alloc if we run out of memory
      */
-    PrivilegeDatabase(const cJSON* json);
+    explicit PrivilegeDatabase(const cJSON* json);
 
     /**
      * Try to look up a user in the privilege database
