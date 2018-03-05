@@ -306,33 +306,39 @@ void Item::pruneValueAndOrXattrs(IncludeValue includeVal,
         }
     }
 
-    auto root = reinterpret_cast<const char*>(value->getData());
-    const cb::const_char_buffer buffer{root, value->valueSize()};
-
-    if (includeXattrs == IncludeXattrs::Yes) {
-        if (mcbp::datatype::is_xattr(getDataType())) {
-            // Want just the xattributes
-            setData(value->getData(), cb::xattr::get_body_offset(buffer));
-            // Remove all other datatype flags as we're only sending the xattrs
-            setDataType(PROTOCOL_BINARY_DATATYPE_XATTR);
-        } else {
-            // We don't want the value and there are no xattributes,
-            // so just send the key
-            setData(nullptr, 0);
-            setDataType(PROTOCOL_BINARY_RAW_BYTES);
-        }
-    } else if (includeVal == IncludeValue::Yes)  {
-        // Want just the value, so remove xattributes if there are any
-        if (mcbp::datatype::is_xattr(getDataType())) {
-            const auto sz = cb::xattr::get_body_offset(buffer);
-            setData(value->getData() + sz, value->valueSize() - sz);
-            // Clear the xattr datatype
-            setDataType(getDataType() & ~PROTOCOL_BINARY_DATATYPE_XATTR);
-        }
-    } else {
+    if (includeXattrs == IncludeXattrs::No && includeVal == IncludeValue::No) {
         // Don't want the xattributes or value, so just send the key
         setData(nullptr, 0);
         setDataType(PROTOCOL_BINARY_RAW_BYTES);
+    } else {
+        // Call decompress before working on the value (a no-op for non-snappy)
+        decompressValue();
+
+        auto root = reinterpret_cast<const char*>(value->getData());
+        const cb::const_char_buffer buffer{root, value->valueSize()};
+
+        if (includeXattrs == IncludeXattrs::Yes) {
+            if (mcbp::datatype::is_xattr(getDataType())) {
+                // Want just the xattributes
+                setData(value->getData(), cb::xattr::get_body_offset(buffer));
+                // Remove all other datatype flags as we're only sending the
+                // xattrs
+                setDataType(PROTOCOL_BINARY_DATATYPE_XATTR);
+            } else {
+                // We don't want the value and there are no xattributes,
+                // so just send the key
+                setData(nullptr, 0);
+                setDataType(PROTOCOL_BINARY_RAW_BYTES);
+            }
+        } else if (includeVal == IncludeValue::Yes) {
+            // Want just the value, so remove xattributes if there are any
+            if (mcbp::datatype::is_xattr(getDataType())) {
+                const auto sz = cb::xattr::get_body_offset(buffer);
+                setData(value->getData() + sz, value->valueSize() - sz);
+                // Clear the xattr datatype
+                setDataType(getDataType() & ~PROTOCOL_BINARY_DATATYPE_XATTR);
+            }
+        }
     }
 }
 

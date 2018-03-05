@@ -87,44 +87,6 @@ protected:
         MemoryTracker::destroyInstance();
     }
 
-    /*
-     * Fake callback emulating dcp_add_failover_log
-     */
-    static ENGINE_ERROR_CODE fakeDcpAddFailoverLog(
-            vbucket_failover_t* entry,
-            size_t nentries,
-            gsl::not_null<const void*> cookie) {
-        callbackCount++;
-        return ENGINE_SUCCESS;
-    }
-
-    // callbackCount needs to be static as its used inside of the static
-    // function fakeDcpAddFailoverLog.
-    static int callbackCount;
-};
-int DCPTest::callbackCount = 0;
-
-class StreamTest : public DCPTest,
-                   public ::testing::WithParamInterface<std::string> {
-protected:
-    void SetUp() override {
-        bucketType = GetParam();
-        DCPTest::SetUp();
-        vb0 = engine->getVBucket(0);
-        EXPECT_TRUE(vb0) << "Failed to get valid VBucket object for id 0";
-    }
-
-    void TearDown() override {
-        if (producer) {
-            producer->cancelCheckpointCreatorTask();
-        }
-        // Destroy various engine objects
-        vb0.reset();
-        stream.reset();
-        producer.reset();
-        DCPTest::TearDown();
-    }
-
     // Setup a DCP producer and attach a stream and cursor to it.
     void setup_dcp_stream(int flags = 0,
                           IncludeValue includeVal = IncludeValue::Yes,
@@ -242,6 +204,44 @@ protected:
     std::shared_ptr<MockDcpProducer> producer;
     std::shared_ptr<MockActiveStream> stream;
     VBucketPtr vb0;
+
+    /*
+     * Fake callback emulating dcp_add_failover_log
+     */
+    static ENGINE_ERROR_CODE fakeDcpAddFailoverLog(
+            vbucket_failover_t* entry,
+            size_t nentries,
+            gsl::not_null<const void*> cookie) {
+        callbackCount++;
+        return ENGINE_SUCCESS;
+    }
+
+    // callbackCount needs to be static as its used inside of the static
+    // function fakeDcpAddFailoverLog.
+    static int callbackCount;
+};
+int DCPTest::callbackCount = 0;
+
+class StreamTest : public DCPTest,
+                   public ::testing::WithParamInterface<std::string> {
+protected:
+    void SetUp() override {
+        bucketType = GetParam();
+        DCPTest::SetUp();
+        vb0 = engine->getVBucket(0);
+        EXPECT_TRUE(vb0) << "Failed to get valid VBucket object for id 0";
+    }
+
+    void TearDown() override {
+        if (producer) {
+            producer->cancelCheckpointCreatorTask();
+        }
+        // Destroy various engine objects
+        vb0.reset();
+        stream.reset();
+        producer.reset();
+        DCPTest::TearDown();
+    }
 };
 
 /*
@@ -303,6 +303,48 @@ extern std::string dcp_last_value;
 extern uint32_t dcp_last_packet_size;
 extern protocol_binary_datatype_t dcp_last_datatype;
 
+class CompressionStreamTest : public DCPTest,
+                              public ::testing::WithParamInterface<
+                                      ::testing::tuple<std::string, bool>> {
+public:
+    void SetUp() override {
+        bucketType = ::testing::get<0>(GetParam());
+        DCPTest::SetUp();
+        vb0 = engine->getVBucket(0);
+        EXPECT_TRUE(vb0) << "Failed to get valid VBucket object for id 0";
+    }
+
+    void TearDown() override {
+        if (producer) {
+            producer->cancelCheckpointCreatorTask();
+        }
+        // Destroy various engine objects
+        vb0.reset();
+        stream.reset();
+        producer.reset();
+        DCPTest::TearDown();
+    }
+
+    bool isXattr() const {
+        return ::testing::get<1>(GetParam());
+    }
+
+    size_t getItemSize(Item& item) {
+        if (isXattr()) {
+            return MutationResponse::mutationBaseMsgBytes +
+                   item.getKey().size() +
+                   // DCP won't recompress the pruned document
+                   getXattrSize(false);
+        }
+        return MutationResponse::mutationBaseMsgBytes + item.getKey().size() +
+               item.getNBytes();
+    }
+
+    size_t getXattrSize(bool compressed) const {
+        return createXattrValue({}, true, compressed).size();
+    }
+};
+
 /**
  * Test to verify DCP compression/decompression. There are 4 cases that are being
  * tested
@@ -312,21 +354,38 @@ extern protocol_binary_datatype_t dcp_last_datatype;
  * 3. Add a compressed item and stream an uncompressed item
  * 4. Add an uncompressed item and stream an uncompressed item
  */
-TEST_P(StreamTest, test_verifyDCPCompression) {
+TEST_P(CompressionStreamTest, test_verifyDCPCompression) {
     VBucketPtr vb = engine->getKVBucket()->getVBucket(vbid);
     std::string valueData("{\"product\": \"car\",\"price\": \"100\"},"
                           "{\"product\": \"bus\",\"price\": \"1000\"},"
                           "{\"product\": \"Train\",\"price\": \"100000\"}");
-    auto item1 = makeCompressibleItem(vbid, makeStoredDocKey("key1"), valueData,
-                                      PROTOCOL_BINARY_DATATYPE_JSON, true);
-    auto item2 = makeCompressibleItem(vbid, makeStoredDocKey("key2"), valueData,
-                                      PROTOCOL_BINARY_DATATYPE_JSON, false);
-    auto item3 = makeCompressibleItem(vbid, makeStoredDocKey("key3"), valueData,
-                                      PROTOCOL_BINARY_DATATYPE_JSON, true);
-    auto item4 = makeCompressibleItem(vbid, makeStoredDocKey("key4"), valueData,
-                                      PROTOCOL_BINARY_DATATYPE_JSON, false);
+    auto item1 = makeCompressibleItem(vbid,
+                                      makeStoredDocKey("key1"),
+                                      valueData,
+                                      PROTOCOL_BINARY_DATATYPE_JSON,
+                                      true,
+                                      isXattr());
+    auto item2 = makeCompressibleItem(vbid,
+                                      makeStoredDocKey("key2"),
+                                      valueData,
+                                      PROTOCOL_BINARY_DATATYPE_JSON,
+                                      false,
+                                      isXattr());
+    auto item3 = makeCompressibleItem(vbid,
+                                      makeStoredDocKey("key3"),
+                                      valueData,
+                                      PROTOCOL_BINARY_DATATYPE_JSON,
+                                      true,
+                                      isXattr());
+    auto item4 = makeCompressibleItem(vbid,
+                                      makeStoredDocKey("key4"),
+                                      valueData,
+                                      PROTOCOL_BINARY_DATATYPE_JSON,
+                                      false,
+                                      isXattr());
 
-    setup_dcp_stream(0, IncludeValue::Yes, IncludeXattrs::Yes);
+    auto includeValue = isXattr() ? IncludeValue::No : IncludeValue::Yes;
+    setup_dcp_stream(0, includeValue, IncludeXattrs::Yes);
 
     std::string compressCtrlMsg("force_value_compression");
     std::string compressCtrlValue("true");
@@ -340,10 +399,12 @@ TEST_P(StreamTest, test_verifyDCPCompression) {
      * Sending a control message without actually enabling the SNAPPY
      * datatype should fail
      */
-    ASSERT_EQ(ENGINE_EINVAL, producer->control(0, compressCtrlMsg.c_str(),
-                                                compressCtrlMsg.size(),
-                                                compressCtrlValue.c_str(),
-                                                compressCtrlValue.size()));
+    ASSERT_EQ(ENGINE_EINVAL,
+              producer->control(0,
+                                compressCtrlMsg.c_str(),
+                                compressCtrlMsg.size(),
+                                compressCtrlValue.c_str(),
+                                compressCtrlValue.size()));
 
     auto producers = get_dcp_producers(reinterpret_cast<ENGINE_HANDLE*>(engine),
                                        reinterpret_cast<ENGINE_HANDLE_V1*>(engine));
@@ -352,19 +413,24 @@ TEST_P(StreamTest, test_verifyDCPCompression) {
     EXPECT_EQ(ENGINE_SUCCESS, engine->getKVBucket()->set(*item1, cookie));
     EXPECT_EQ(ENGINE_SUCCESS, engine->getKVBucket()->set(*item2, cookie));
 
-    uint32_t keyAndSnappyValueMessageSize = MutationResponse::mutationBaseMsgBytes +
-             item1->getKey().size() + item1->getNBytes();
+    auto keyAndSnappyValueMessageSize = getItemSize(*item1);
 
     /**
      * Create a DCP response and check that a new item isn't created and that
      * the size of the response message is greater than the size of the original
-     * message
+     * message (or equal for xattr stream)
      */
     queued_item qi(std::move(item1));
     std::unique_ptr<DcpResponse> dcpResponse = stream->public_makeResponseFromItem(qi);
     auto mutProdResponse = dynamic_cast<MutationProducerResponse*>(dcpResponse.get());
     ASSERT_NE(qi.get(), mutProdResponse->getItem().get());
-    EXPECT_LT(keyAndSnappyValueMessageSize, dcpResponse->getMessageSize());
+    if (isXattr()) {
+        // The same sizes. makeResponseFromItem will have inflated and not
+        // compressed as part of the value pruning
+        EXPECT_EQ(keyAndSnappyValueMessageSize, dcpResponse->getMessageSize());
+    } else {
+        EXPECT_LT(keyAndSnappyValueMessageSize, dcpResponse->getMessageSize());
+    }
 
     uint64_t rollbackSeqno;
     auto err = producer->streamRequest(/*flags*/ 0,
@@ -389,22 +455,35 @@ TEST_P(StreamTest, test_verifyDCPCompression) {
     EXPECT_EQ(0, producer->getItemsSent());
 
     /* Stream the first mutation */
+    protocol_binary_datatype_t expectedDataType =
+            isXattr() ? PROTOCOL_BINARY_DATATYPE_XATTR
+                      : PROTOCOL_BINARY_DATATYPE_JSON;
     EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
     std::string value(qi->getValue()->getData(), qi->getValue()->valueSize());
     EXPECT_STREQ(dcp_last_value.c_str(), decompressValue(value).c_str());
-    EXPECT_GT(dcp_last_packet_size, keyAndSnappyValueMessageSize);
-    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, dcp_last_datatype);
+
+    if (isXattr()) {
+        // The pruned packet won't be recompressed
+        EXPECT_EQ(dcp_last_packet_size, keyAndSnappyValueMessageSize);
+    } else {
+        EXPECT_GT(dcp_last_packet_size, keyAndSnappyValueMessageSize);
+    }
+
+    EXPECT_EQ(expectedDataType, dcp_last_datatype);
 
     /**
      * Create a DCP response and check that a new item is created and
      * the message size is less than the size of original item
      */
-    uint32_t keyAndValueMessageSize = MutationResponse::mutationBaseMsgBytes +
-             item2->getKey().size() + item2->getNBytes();
+    uint32_t keyAndValueMessageSize = getItemSize(*item2);
     qi.reset(std::move(item2));
     dcpResponse = stream->public_makeResponseFromItem(qi);
     mutProdResponse = dynamic_cast<MutationProducerResponse*>(dcpResponse.get());
-    ASSERT_EQ(qi.get(), mutProdResponse->getItem().get());
+
+    // A new pruned item will always be generated
+    if (!isXattr()) {
+        ASSERT_EQ(qi.get(), mutProdResponse->getItem().get());
+    }
     EXPECT_EQ(dcpResponse->getMessageSize(), keyAndValueMessageSize);
 
     /* Stream the second mutation */
@@ -413,7 +492,7 @@ TEST_P(StreamTest, test_verifyDCPCompression) {
     value.assign(qi->getValue()->getData(), qi->getValue()->valueSize());
     EXPECT_STREQ(value.c_str(), dcp_last_value.c_str());
     EXPECT_EQ(dcp_last_packet_size, keyAndValueMessageSize);
-    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, dcp_last_datatype);
+    EXPECT_EQ(expectedDataType, dcp_last_datatype);
 
     //Enable the snappy datatype on the connection
     mock_set_datatype_support(producer->getCookie(), PROTOCOL_BINARY_DATATYPE_SNAPPY);
@@ -438,19 +517,24 @@ TEST_P(StreamTest, test_verifyDCPCompression) {
      * Create a DCP response and check that a new item is created and
      * the message size is greater than the size of original item
      */
-    keyAndSnappyValueMessageSize = MutationResponse::mutationBaseMsgBytes +
-             item3->getKey().size() + item3->getNBytes();
+    keyAndSnappyValueMessageSize = getItemSize(*item3);
     qi.reset(std::move(item3));
     dcpResponse = stream->public_makeResponseFromItem(qi);
     mutProdResponse = dynamic_cast<MutationProducerResponse*>(dcpResponse.get());
-    ASSERT_EQ(qi.get(), mutProdResponse->getItem().get());
+    if (!isXattr()) {
+        ASSERT_EQ(qi.get(), mutProdResponse->getItem().get());
+        value.assign(qi->getValue()->getData(), qi->getValue()->valueSize());
+    }
+
+    EXPECT_STREQ(dcp_last_value.c_str(), value.c_str());
     EXPECT_EQ(dcpResponse->getMessageSize(), keyAndSnappyValueMessageSize);
 
-    value.assign(qi->getValue()->getData(), qi->getValue()->valueSize());
-    EXPECT_STREQ(dcp_last_value.c_str(), value.c_str());
     EXPECT_EQ(dcp_last_packet_size, keyAndSnappyValueMessageSize);
-    EXPECT_EQ((PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_SNAPPY),
-              dcp_last_datatype);
+
+    // When xattr streaming, we won't recompress
+    protocol_binary_datatype_t snappy =
+            isXattr() ? 0 : PROTOCOL_BINARY_DATATYPE_SNAPPY;
+    EXPECT_EQ((expectedDataType | snappy), dcp_last_datatype);
 
     // Now, send the control message to message to force value compression.
     // This should succeed because datatype snappy has already been
@@ -468,8 +552,7 @@ TEST_P(StreamTest, test_verifyDCPCompression) {
      * Create a DCP response and check that a new item is created and
      * the message size is less than the size of the original item
      */
-    keyAndValueMessageSize = MutationResponse::mutationBaseMsgBytes +
-            item4->getKey().size() + item4->getNBytes();
+    keyAndValueMessageSize = getItemSize(*item4);
     qi.reset(std::move(item4));
     dcpResponse = stream->public_makeResponseFromItem(qi);
     mutProdResponse = dynamic_cast<MutationProducerResponse*>(dcpResponse.get());
@@ -490,7 +573,7 @@ TEST_P(StreamTest, test_verifyDCPCompression) {
     value.assign(qi->getValue()->getData(), qi->getValue()->valueSize());
     EXPECT_STREQ(decompressValue(dcp_last_value).c_str(), value.c_str());
     EXPECT_LT(dcp_last_packet_size, keyAndValueMessageSize);
-    EXPECT_EQ((PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_SNAPPY),
+    EXPECT_EQ((expectedDataType | PROTOCOL_BINARY_DATATYPE_SNAPPY),
               dcp_last_datatype);
 
     destroy_dcp_stream();
@@ -3201,6 +3284,25 @@ INSTANTIATE_TEST_CASE_P(PersistentAndEphemeral,
                         [](const ::testing::TestParamInfo<std::string>& info) {
                             return info.param;
                         });
+
+struct PrintToStringCombinedNameXattrOnOff {
+    std::string operator()(
+            const ::testing::TestParamInfo<::testing::tuple<std::string, bool>>&
+                    info) const {
+        if (::testing::get<1>(info.param)) {
+            return ::testing::get<0>(info.param) + "_xattr";
+        }
+        return ::testing::get<0>(info.param);
+    }
+};
+
+// Test cases which run in both Full and Value eviction
+INSTANTIATE_TEST_CASE_P(CompressionStreamTest,
+                        CompressionStreamTest,
+                        ::testing::Combine(::testing::Values("persistent",
+                                                             "ephemeral"),
+                                           ::testing::Bool()),
+                        PrintToStringCombinedNameXattrOnOff());
 
 // Test cases which run in both Full and Value eviction
 INSTANTIATE_TEST_CASE_P(PersistentAndEphemeral,

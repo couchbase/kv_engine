@@ -42,21 +42,25 @@ std::unique_ptr<Item> makeCompressibleItem(uint16_t vbid,
                                            const StoredDocKey& key,
                                            const std::string& value,
                                            protocol_binary_datatype_t datatype,
-                                           bool shouldCompress) {
+                                           bool shouldCompress,
+                                           bool makeXattrBody) {
     protocol_binary_datatype_t itemDataType = datatype;
+    std::string v = value;
+    if (makeXattrBody) {
+        v = createXattrValue(value, true, false);
+        itemDataType |= PROTOCOL_BINARY_DATATYPE_XATTR;
+    }
     if (shouldCompress) {
         cb::compression::Buffer output;
-        cb::compression::deflate(cb::compression::Algorithm::Snappy,
-                                 value, output);
+        cb::compression::deflate(cb::compression::Algorithm::Snappy, v, output);
         itemDataType |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
         return std::make_unique<Item>(key, /*flags*/0, /*exp*/0,
                                       output.data(), output.size(),
                                       itemDataType);
     }
 
-    return std::make_unique<Item>(key, /*flags*/0, /*exp*/0,
-                                  value.c_str(), value.length(),
-                                  itemDataType);
+    return std::make_unique<Item>(
+            key, /*flags*/ 0, /*exp*/ 0, v.c_str(), v.length(), itemDataType);
 }
 
 std::chrono::microseconds decayingSleep(std::chrono::microseconds uSeconds) {
@@ -71,8 +75,14 @@ std::string createXattrValue(const std::string& body,
                              bool makeItSnappy) {
     cb::xattr::Blob blob;
 
-    // Add a few XAttrs
-    blob.set("ABCuser", "{\"author\":\"bubba\"}");
+    // Add enough XATTRs to be sure we would compress it if required
+    blob.set("ABCuser1", "{\"author\":\"bubba\"}");
+    blob.set("ABCuser2", "{\"author\":\"bubba\"}");
+    blob.set("ABCuser3", "{\"author\":\"bubba\"}");
+    blob.set("ABCuser4", "{\"author\":\"bubba\"}");
+    blob.set("ABCuser5", "{\"author\":\"bubba\"}");
+    blob.set("ABCuser6", "{\"author\":\"bubba\"}");
+
     if (withSystemKey) {
         blob.set("_sync", "{\"cas\":\"0xdeadbeefcafefeed\"}");
     }

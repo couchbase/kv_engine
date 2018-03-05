@@ -36,12 +36,12 @@ Item make_item(
         uint32_t exptime = 0,
         protocol_binary_datatype_t datatype = PROTOCOL_BINARY_DATATYPE_JSON);
 
-std::unique_ptr<Item> makeCompressibleItem(
-                          uint16_t vbid,
-                          const StoredDocKey& key,
-                          const std::string& value,
-                          protocol_binary_datatype_t datatype,
-                          bool shouldCompress);
+std::unique_ptr<Item> makeCompressibleItem(uint16_t vbid,
+                                           const StoredDocKey& key,
+                                           const std::string& value,
+                                           protocol_binary_datatype_t datatype,
+                                           bool shouldCompress,
+                                           bool makeXattrBody = false);
 
 /**
  * Create a StoredDocKey object from a std::string.
