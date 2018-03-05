@@ -78,7 +78,7 @@ int handle_pwconv(int argc, char** argv) {
         return EXIT_FAILURE;
     } catch (const std::bad_alloc&) {
         std::cerr << "Error: out of memory" << std::endl;
-        return EXIT_SUCCESS;
+        return EXIT_FAILURE;
     }
 
     return EXIT_SUCCESS;
