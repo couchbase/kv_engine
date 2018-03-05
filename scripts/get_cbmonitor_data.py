@@ -26,14 +26,15 @@ Usage: get_cbmonitor_data.py --job-list \
 '''
 
 import argparse
+import collections
 import csv
 import gzip
 import json
+import numpy
 import re
 from StringIO import StringIO
 import sys
 import urllib2
-import numpy
 
 
 # data format: [[timestamp1,value1],[timestamp2,value2],..]
@@ -221,55 +222,55 @@ for job in job_list:
         hasLatencyGet = (True if (springLatency.find("latency_get") != -1)
                          else False)
 
-    data = {
-        'job': project + ":" + number,
-        'label': label,
-        'snapshot': snapshot,
-        'ops': '{:.2f}'.format(getAverage(ops)),
-        'latency_set (ms)': '{:.2f}'.format(getAverage(latency_set))
-                            if hasLatencySet else 'N/A',
-        'latency_get (ms)': '{:.2f}'.format(getAverage(latency_get))
-                            if hasLatencyGet else 'N/A',
-        'latency_set P99 (ms)': '{:.2f}'.format(getP99(latency_set))
-                                if hasLatencySet else 'N/A',
-        'latency_get P99 (ms)': '{:.2f}'.format(getP99(latency_get))
-                                if hasLatencyGet else 'N/A',
-        'avg_disk_commit_time (ms)': '{:.2f}'
+    data = collections.OrderedDict([
+        ('job', project + ":" + number),
+        ('label', label),
+        ('snapshot', snapshot),
+        ('ops', '{:.2f}'.format(getAverage(ops))),
+        ('latency_set (ms)', '{:.2f}'.format(getAverage(latency_set))
+                            if hasLatencySet else 'N/A'),
+        ('latency_get (ms)', '{:.2f}'.format(getAverage(latency_get))
+                            if hasLatencyGet else 'N/A'),
+        ('latency_set P99 (ms)', '{:.2f}'.format(getP99(latency_set))
+                                if hasLatencySet else 'N/A'),
+        ('latency_get P99 (ms)', '{:.2f}'.format(getP99(latency_get))
+                                if hasLatencyGet else 'N/A'),
+        ('avg_disk_commit_time (ms)', '{:.2f}'
                                      .format(getAverage(avg_disk_commit_time) *
-                                             1000),
-        'avg_bg_wait_time (ms)': '{:.2f}'.format(getAverage(avg_bg_wait_time) /
-                                                 1000),
-        'avg_disk_commit_time P99 (ms)': '{:.2f}'
+                                             1000)),
+        ('avg_bg_wait_time (ms)', '{:.2f}'.format(getAverage(avg_bg_wait_time) /
+                                                 1000)),
+        ('avg_disk_commit_time P99 (ms)', '{:.2f}'
                                      .format(getP99(avg_disk_commit_time) *
-                                             1000),
-        'avg_bg_wait_time P99 (ms)': '{:.2f}'.format(getP99(avg_bg_wait_time) /
-                                                     1000),
-        'data_rps (iops)': '{:.2f}'.format(getAverageFromList(data_rps, True)),
-        'data_wps (iops)': '{:.2f}'.format(getAverageFromList(data_wps, True)),
-        'data_rbps (MB/s)': '{:.2f}'.format(
+                                             1000)),
+        ('avg_bg_wait_time P99 (ms)', '{:.2f}'.format(getP99(avg_bg_wait_time) /
+                                                     1000)),
+        ('data_rps (iops)', '{:.2f}'.format(getAverageFromList(data_rps, True))),
+        ('data_wps (iops)', '{:.2f}'.format(getAverageFromList(data_wps, True))),
+        ('data_rbps (MB/s)', '{:.2f}'.format(
                                         getAverageFromList(data_rbps, True) *
                                         byteToMBConversionFactor
-                                     ),
-        'data_wbps (MB/s)': '{:.2f}'.format(
+                                     )),
+        ('data_wbps (MB/s)', '{:.2f}'.format(
                                         getAverageFromList(data_wbps, True) *
                                         byteToMBConversionFactor
-                                    ),
-        'couch_total_disk_size (MB)': int(getAverage(couch_total_disk_size) *
-                                          byteToMBConversionFactor),
-        'max couch_total_disk_size (MB)': int(getMax(couch_total_disk_size) *
-                                              byteToMBConversionFactor),
-        'mem_used (MB)': '{:.2f}'.format(
+                                    )),
+        ('couch_total_disk_size (MB)', int(getAverage(couch_total_disk_size) *
+                                          byteToMBConversionFactor)),
+        ('max couch_total_disk_size (MB)', int(getMax(couch_total_disk_size) *
+                                              byteToMBConversionFactor)),
+        ('mem_used (MB)', '{:.2f}'.format(
                                      getAverage(mem_used) *
                                      byteToMBConversionFactor
-                                 ),
-        'memcached_rss (MB, all nodes)': '{:.2f}'.format(
+                                 )),
+        ('memcached_rss (MB, all nodes)', '{:.2f}'.format(
                                           getAverageFromList(memcached_rss,
                                                              False) *
                                           byteToMBConversionFactor
-                                      ),
-        'memcached_cpu': '{:.2f}'.format(getAverageFromList(memcached_cpu,
-                                                            True))
-    }
+                                      )),
+        ('memcached_cpu', '{:.2f}'.format(getAverageFromList(memcached_cpu,
+                                                            True)))
+    ])
 
     data_list.append(data)
 
