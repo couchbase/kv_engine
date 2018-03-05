@@ -53,7 +53,6 @@ bool validate(const cb::const_char_buffer& blob);
  */
 XATTR_PUBLIC_API
 uint32_t get_body_offset(const cb::const_char_buffer& payload);
-
 /**
  * Get the segment where the actual body lives
  *
@@ -62,15 +61,6 @@ uint32_t get_body_offset(const cb::const_char_buffer& payload);
  */
 XATTR_PUBLIC_API
 cb::const_char_buffer get_body(const cb::const_char_buffer& payload);
-
-/**
- * Get the segment where the xattr lives
- *
- * @param payload the document blob as it is stored in the engine
- * @return a buffer representing the xattr blob
- */
-XATTR_PUBLIC_API
-cb::const_char_buffer get_xattr(const cb::const_char_buffer& payload);
 
 /**
  * Check to see if the provided attribute represents a system

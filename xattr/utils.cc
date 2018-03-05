@@ -117,14 +117,28 @@ bool validate(const cb::const_char_buffer& blob) {
     return offset == size;
 }
 
+// Test that a len doesn't exceed size, the idea that len is the value read from
+// an xattr payload and size is the document size
+static void check_len(uint32_t len, size_t size) {
+    if (len > size) {
+        throw std::out_of_range("xattr::utils::check_len(" +
+                                std::to_string(len) + ") exceeds " +
+                                std::to_string(size));
+    }
+}
+
 uint32_t get_body_offset(const cb::const_char_buffer& payload) {
     const uint32_t* lenptr = reinterpret_cast<const uint32_t*>(payload.buf);
-    return ntohl(*lenptr) + sizeof(uint32_t);
+    auto len = ntohl(*lenptr);
+    check_len(len, payload.size());
+    return len + sizeof(uint32_t);
 }
 
 uint32_t get_body_offset(const cb::char_buffer& payload) {
     const uint32_t* lenptr = reinterpret_cast<const uint32_t*>(payload.buf);
-    return ntohl(*lenptr) + sizeof(uint32_t);
+    auto len = ntohl(*lenptr);
+    check_len(len, payload.size());
+    return len + sizeof(uint32_t);
 }
 
 const_char_buffer get_body(const cb::const_char_buffer& payload) {
@@ -135,16 +149,6 @@ const_char_buffer get_body(const cb::const_char_buffer& payload) {
 char_buffer get_body(const cb::char_buffer& payload) {
     auto offset = get_body_offset(payload);
     return {payload.buf + offset, payload.len - offset};
-}
-
-const_char_buffer get_xattr(const cb::const_char_buffer& payload) {
-    const uint32_t* lenptr = reinterpret_cast<const uint32_t*>(payload.buf);
-    return {payload.buf + sizeof(uint32_t), *lenptr};
-}
-
-char_buffer get_xattr(const cb::char_buffer& payload) {
-    const uint32_t* lenptr = reinterpret_cast<const uint32_t*>(payload.buf);
-    return {payload.buf + sizeof(uint32_t), *lenptr};
 }
 
 size_t get_system_xattr_size(uint8_t datatype, const cb::const_char_buffer doc) {
