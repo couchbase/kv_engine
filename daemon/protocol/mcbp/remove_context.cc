@@ -212,21 +212,27 @@ ENGINE_ERROR_CODE RemoveCommandContext::sendResponse() {
 
 ENGINE_ERROR_CODE RemoveCommandContext::rebuildXattr() {
     if (mcbp::datatype::is_xattr(existing_info.datatype)) {
-        const auto size = cb::xattr::get_body_offset({
-                static_cast<const char*>(existing_info.value[0].iov_base),
-                existing_info.value[0].iov_len
-            });
+        // Create a const blob of the incoming data, which may decompress it
+        // Note when writing back the xattrs (if any remain) the snappy bit is
+        // never reset, so no need to remember if we did decompress.
+        const cb::xattr::Blob existingData(
+                {static_cast<char*>(existing_info.value[0].iov_base),
+                 existing_info.value[0].iov_len},
+                mcbp::datatype::is_snappy(existing_info.datatype));
 
         // We can't modify the item as when we try to replace the item it
-        // may fail due to a race condition. Create a temporary copy of the
-        // current value. Given that we're only going to (potentially) remove
-        // data in the xattr blob, it will only _shrink_ in size so we
-        // don't need to pass on the allocator to the blob
-        auto* ptr = static_cast<char*>(existing_info.value[0].iov_base);
-        xattr_buffer.reset(new char[size]);
-        std::copy(ptr, ptr + size, xattr_buffer.get());
-        cb::xattr::Blob blob({xattr_buffer.get(), size},
-                             mcbp::datatype::is_snappy(existing_info.datatype));
+        // may fail due to a race condition (writing back into the existing
+        // item). Create a temporary copy of the current value and prune that.
+        // Given that we're only going to (potentially) remove data in the xattr
+        // blob, it will only _shrink_ in size so we  don't need to pass on the
+        // allocator to the blob
+        xattr_buffer.reset(new char[existingData.size()]);
+        std::copy_n(
+                existingData.data(), existingData.size(), xattr_buffer.get());
+
+        // Now prune the copy
+        cb::xattr::Blob blob({xattr_buffer.get(), existingData.size()},
+                             false /* data is not compressed*/);
         blob.prune_user_keys();
         xattr = blob.finalize();
         if (xattr.data() != xattr_buffer.get()) {

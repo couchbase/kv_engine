@@ -130,6 +130,13 @@ public:
     size_t get_system_size() const;
 
     /**
+     * Get pointer to the xattr data (raw data, including the len word)
+     */
+    const char* data() const {
+        return blob.data();
+    }
+
+    /**
      * Get the current size of the Blob
      */
     size_t size() const {
