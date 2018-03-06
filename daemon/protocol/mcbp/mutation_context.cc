@@ -110,16 +110,17 @@ ENGINE_ERROR_CODE MutationCommandContext::validateInput() {
 
             if (!cb::compression::inflate(cb::compression::Algorithm::Snappy,
                                           value_buf,
-                                          input_buffer)) {
+                                          decompressed_value)) {
                 return ENGINE_EINVAL;
             }
 
-            setDatatypeJSONFromValue(input_buffer, datatype);
+            setDatatypeJSONFromValue(decompressed_value, datatype);
 
             const auto mode = bucket_get_compression_mode(cookie);
             if (mode == BucketCompressionMode::Off) {
-                value.buf = reinterpret_cast<const uint8_t*>(input_buffer.data());
-                value.len = input_buffer.size();
+                value.buf = reinterpret_cast<const uint8_t*>(
+                        decompressed_value.data());
+                value.len = decompressed_value.size();
                 datatype &= ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
             }
         } else {
@@ -189,14 +190,24 @@ ENGINE_ERROR_CODE MutationCommandContext::getExistingItemToPreserveXattr() {
 ENGINE_ERROR_CODE MutationCommandContext::allocateNewItem() {
     auto dtype = datatype;
     if (xattr_size > 0) {
+        // We need to prepend the existing XATTRs - include XATTR bit
+        // in datatype:
         dtype |= PROTOCOL_BINARY_DATATYPE_XATTR;
+        // The result will also *not* be compressed - even if the
+        // input value was (as we combine the data uncompressed).
+        dtype &= ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
+    }
+
+    size_t total_size = value.size() + xattr_size;
+    if (xattr_size > 0 && mcbp::datatype::is_snappy(datatype)) {
+        total_size = decompressed_value.size() + xattr_size;
     }
 
     item_info newitem_info;
     try {
         auto ret = bucket_allocate_ex(cookie,
                                       key,
-                                      value.len + xattr_size,
+                                      total_size,
                                       system_xattr_size,
                                       flags,
                                       expiration,
@@ -230,8 +241,17 @@ ENGINE_ERROR_CODE MutationCommandContext::allocateNewItem() {
         root += xattr_size;
     }
 
-    // Copy the user supplied value over
-    std::copy(value.buf, value.buf + value.len, root);
+    // Copy the user supplied value over. If the user-supplied value
+    // was Snappy and we have XATTRs, we must use the decompressed
+    // version of it (compression is only applied to the complete
+    // value+XATTR pair, not to only part of it).
+    if (xattr_size > 0 && mcbp::datatype::is_snappy(datatype)) {
+        std::copy(decompressed_value.data(),
+                  decompressed_value.data() + decompressed_value.size(),
+                  root);
+    } else {
+        std::copy(value.begin(), value.end(), root);
+    }
     state = State::StoreItem;
 
     return ENGINE_SUCCESS;
