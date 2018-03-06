@@ -219,27 +219,26 @@ cb::const_char_buffer SubdocCmdContext::get_document_vattr() {
         cJSON_AddNumberToObject(
                 doc.get(), "flags", ntohl(input_item_info.flags));
 
-        if (mcbp::datatype::is_xattr(input_item_info.datatype)) {
+        // Calculate value_bytes (excluding XATTR). Note we use
+        // in_datatype / in_doc here as they have already been
+        // decompressed for us (see get_document_for_searching).
+        size_t value_bytes = in_doc.size();
+        if (mcbp::datatype::is_xattr(in_datatype)) {
             // strip off xattr
-            auto bodyoffset = cb::xattr::get_body_offset(
-                    {static_cast<const char*>(
-                             input_item_info.value[0].iov_base),
-                     input_item_info.value[0].iov_len});
-            cJSON_AddNumberToObject(doc.get(),
-                                    "value_bytes",
-                                    input_item_info.nbytes - bodyoffset);
-        } else {
-            cJSON_AddNumberToObject(
-                    doc.get(), "value_bytes", input_item_info.nbytes);
+            auto bodyoffset = cb::xattr::get_body_offset(in_doc);
+            value_bytes -= bodyoffset;
         }
+        cJSON_AddNumberToObject(doc.get(), "value_bytes", value_bytes);
 
+        // Calculate datatype[]. Note we use the original datatype
+        // (input_item_info.datatype), so if the document was
+        // originally compressed we'll report it here.
         unique_cJSON_ptr array(cJSON_CreateArray());
         auto datatypes = split_string(
             mcbp::datatype::to_string(input_item_info.datatype), ",");
         for (const auto& d : datatypes) {
             cJSON_AddItemToArray(array.get(), cJSON_CreateString(d.c_str()));
         }
-
         cJSON_AddItemToObject(doc.get(), "datatype", array.release());
 
         cJSON_AddBoolToObject(

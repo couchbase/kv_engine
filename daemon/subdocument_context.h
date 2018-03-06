@@ -145,13 +145,14 @@ public:
     //     inflated.
     // c). {intermediate_result} member of this object.
     // Either way, it should /not/ be cb_free()d.
+    // Note this is *always* in a decompressed form (and hence can safely be
+    // read / manipulated directly) - see get_document_for_searching().
     // TODO: Remove (b), and just use intermediate result.
     cb::const_char_buffer in_doc{};
 
     // Temporary buffer to hold the inflated content in case of the
     // document in the engine being compressed
     cb::compression::Buffer inflated_doc_buffer;
-
 
     // Temporary buffer used to hold the intermediate result document for
     // multi-path mutations. {in_doc} is then updated to point to this to use
@@ -172,6 +173,9 @@ public:
 
     // The datatype for the document currently held in `in_doc`. This
     // is used to set the new documents datatype.
+    // Note: If the original input was Snappy compressed; it will be
+    // decompressed during fetch (by get_document_for_searching()) - as such
+    // this field will never have the Snappy bit set.
     protocol_binary_datatype_t in_datatype = PROTOCOL_BINARY_RAW_BYTES;
 
     // The state of the document currently held in `in_doc`. This is used
