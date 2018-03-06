@@ -28,12 +28,8 @@ bool document_pre_expiry(item_info& itm_info) {
         return false;
     }
 
-    const auto xattr_size = cb::xattr::get_body_offset(
-        {static_cast<const char*>(itm_info.value[0].iov_base),
-         itm_info.value[0].iov_len});
-
     cb::char_buffer payload{static_cast<char*>(itm_info.value[0].iov_base),
-                            xattr_size};
+                            itm_info.value[0].iov_len};
 
     cb::xattr::Blob blob(payload, mcbp::datatype::is_snappy(itm_info.datatype));
     blob.prune_user_keys();
