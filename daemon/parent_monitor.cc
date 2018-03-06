@@ -26,7 +26,7 @@ ParentMonitor::ParentMonitor(int parent_id) : parent_pid(parent_id) {
     handle = OpenProcess(SYNCHRONIZE, FALSE, parent_id);
     if (handle == INVALID_HANDLE_VALUE) {
         FATAL_ERROR(EXIT_FAILURE,
-                    "Failed to open parent process: %s",
+                    "Failed to open parent process: {}",
                     cb_strerror(GetLastError()).c_str());
     }
 #endif

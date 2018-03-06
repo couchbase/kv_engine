@@ -2465,8 +2465,7 @@ extern "C" int memcached_main(int argc, char **argv) {
 
 #ifdef HAVE_LIBNUMA
     // Log the NUMA policy selected (now the logger is available).
-    settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
-            "NUMA: %s", numa_status.c_str());
+    logger->info("NUMA: {}", numa_status);
 #endif
 
     if (!settings.has.rbac_file) {

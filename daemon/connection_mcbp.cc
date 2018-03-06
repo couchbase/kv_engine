@@ -132,7 +132,7 @@ bool McbpConnection::updateEvent(const short new_flags) {
         }
     }
 
-    LOG_DEBUG("{}: Updated event to read={}, write={}\n",
+    LOG_DEBUG("{}: Updated event to read={}, write={}",
               getId(),
               (new_flags & EV_READ ? "yes" : "no"),
               (new_flags & EV_WRITE ? "yes" : "no"));

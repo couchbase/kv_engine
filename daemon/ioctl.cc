@@ -70,7 +70,7 @@ static ENGINE_ERROR_CODE setJemallocProfActive(Cookie& cookie,
     int res = AllocHooks::set_allocator_property(
             "prof.active", &enable, sizeof(enable));
     auto& c = cookie.getConnection();
-    LOG_INFO("{}: {} IOCTL_SET: setJemallocProfActive:%s called, result:{}",
+    LOG_INFO("{}: {} IOCTL_SET: setJemallocProfActive:{} called, result:{}",
              c.getId(),
              c.getDescription(),
              value,

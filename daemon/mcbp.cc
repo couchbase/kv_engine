@@ -114,7 +114,7 @@ void mcbp_add_header(Cookie& cookie,
                                    "Writing bin response:",
                                    reinterpret_cast<const char*>(wbuf.data()),
                                    wbuf.size()) != -1) {
-            LOG_DEBUG("%s", buffer);
+            LOG_DEBUG("{}", buffer);
         }
     }
 

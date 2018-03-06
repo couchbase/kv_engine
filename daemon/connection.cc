@@ -379,7 +379,7 @@ cb::rbac::PrivilegeAccess Connection::checkPrivilege(
             LOG_INFO(
                     "{} RBAC {} missing privilege {} for {} in bucket:[{}] "
                     "with context: "
-                    "%s UUID:[{}]",
+                    "{} UUID:[{}]",
                     getId(),
                     getDescription(),
                     privilege_string,
