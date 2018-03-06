@@ -419,9 +419,14 @@ static ENGINE_ERROR_CODE default_item_delete(
             }
         }
 
-        auto* deleted = item_alloc(engine, key.data(), key.size(), it->flags,
-                                   it->exptime, it->nbytes, cookie,
-                                   it->datatype);
+        auto* deleted = item_alloc(engine,
+                                   key.data(),
+                                   key.size(),
+                                   it->flags,
+                                   it->exptime,
+                                   0,
+                                   cookie,
+                                   PROTOCOL_BINARY_RAW_BYTES);
 
         if (deleted == NULL) {
             item_release(engine, it);
