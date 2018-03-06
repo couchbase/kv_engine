@@ -2451,6 +2451,7 @@ extern "C" int memcached_main(int argc, char **argv) {
         }
     }
     auto logger = cb::logger::get();
+    logger->set_level(cb::logger::convertToSpdSeverity(get_log_level()));
 
     /* File-based logging available from this point onwards... */
 

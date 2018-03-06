@@ -147,22 +147,41 @@ boost::optional<std::string> cb::logger::initialize(
     }
 
     try {
-        /* Initialise the loggers.
-         *
-         * The structure is as follows:
-         *
-         * file_logger = sends log messages to sink
-         *   |__dist_sink_mt = Distribute log messages to multiple sinks
-         *       |     |__custom_rotating_file_sink_mt = adds opening & closing
-         *       |                                       hooks to the file
-         *       |__ (color)__stderr_sink_mt = Send log messages to consloe
-         */
+        // Initialise the loggers.
+        //
+        // The structure is as follows:
+        //
+        // file_logger = sends log messages to sink
+        //   |__dist_sink_mt = Distribute log messages to multiple sinks
+        //       |     |__custom_rotating_file_sink_mt = adds opening & closing
+        //       |                                       hooks to the file
+        //       |__ (color)__stderr_sink_mt = Send log messages to consloe
+        //
+        // When a new log message is being submitted to the file_logger it
+        // is subject to the log level specified on the file_logger. If it
+        // is to be included it is passed down to the dist_sink which will
+        // evaluate if the message should be passed on based on its log level.
+        // It'll then try to pass the message to the file sink and the
+        // console sink and they will evaluate if the message should be
+        // logged or not. This means that we should set the file sink
+        // loglevel to TRACE so that all messages which goes all the way
+        // will end up in the file. Due to the fact that ns_server can't
+        // keep up with the rate we might produce log we want the console
+        // sink to drop everything below WARNING (unless we're running
+        // unit tests (through testapp).
+        //
+        // When the user change the verbosity level we'll modify the
+        // level for the file_logger object causing it to allow more
+        // messages to go down to the various sinks.
 
         auto sink = std::make_shared<spdlog::sinks::dist_sink_mt>();
+        sink->set_level(spdlog::level::trace);
 
         if (!fname.empty()) {
-            sink->add_sink(std::make_shared<custom_rotating_file_sink_mt>(
-                    fname, cyclesz, log_pattern));
+            auto fsink = std::make_shared<custom_rotating_file_sink_mt>(
+                    fname, cyclesz, log_pattern);
+            fsink->set_level(spdlog::level::trace);
+            sink->add_sink(fsink);
         }
 
         if (logger_settings.console) {
@@ -172,7 +191,11 @@ boost::optional<std::string> cb::logger::initialize(
             auto stderrsink =
                     std::make_shared<spdlog::sinks::ansicolor_stderr_sink_mt>();
 #endif
-            stderrsink->set_level(spdlog::level::warn);
+            if (logger_settings.unit_test) {
+                stderrsink->set_level(spdlog::level::trace);
+            } else {
+                stderrsink->set_level(spdlog::level::warn);
+            }
             sink->add_sink(stderrsink);
         }
 
