@@ -8,6 +8,7 @@ add_library(mcbp STATIC
             ${Memcached_SOURCE_DIR}/include/mcbp/protocol/request.h
             ${Memcached_SOURCE_DIR}/include/mcbp/protocol/response.h
             ${Memcached_SOURCE_DIR}/include/mcbp/protocol/status.h
+            datatype.cc
             dump.cc
             feature.cc
             gdb_dump_parser.cc
@@ -15,7 +16,8 @@ add_library(mcbp STATIC
             magic.cc
             opcode.cc
             request.cc
-	    header.cc
+            response.cc
+            header.cc
             sla.cc
             status.cc
             )

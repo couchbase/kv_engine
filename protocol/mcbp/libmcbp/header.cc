@@ -22,53 +22,28 @@
 namespace cb {
 namespace mcbp {
 
+bool Header::isValid() const {
+    if (isRequest()) {
+        return getRequest().isValid();
+    }
+
+    if (isResponse()) {
+        return getResponse().isValid();
+    }
+
+    return false;
+}
+
 unique_cJSON_ptr Header::toJSON() const {
-    if (!isRequest() && !isResponse()) {
-        throw std::logic_error("Header::toJSON(): Invalid packet");
-    }
-    unique_cJSON_ptr ret(cJSON_CreateObject());
-    auto m = cb::mcbp::Magic(magic);
-    cJSON_AddStringToObject(ret.get(), "magic", ::to_string(m).c_str());
-    switch (m) {
-    case Magic::ClientRequest: {
-        const auto& req = getRequest();
-        cJSON_AddStringToObject(ret.get(),
-                                "opcode",
-                                ::to_string(req.getClientOpcode()).c_str());
-        cJSON_AddNumberToObject(ret.get(), "vbucket", req.getVBucket());
-    } break;
-    case Magic::ClientResponse:
-    case Magic::AltClientResponse: {
-        const auto& res = getResponse();
-        cJSON_AddStringToObject(ret.get(),
-                                "opcode",
-                                ::to_string(res.getClientOpcode()).c_str());
-        cJSON_AddStringToObject(
-                ret.get(),
-                "status",
-                ::to_string(cb::mcbp::Status(res.getStatus())).c_str());
-    } break;
-
-    case Magic::ServerRequest: {
-        const auto& req = getRequest();
-        cJSON_AddStringToObject(ret.get(),
-                                "opcode",
-                                ::to_string(req.getServerOpcode()).c_str());
-        cJSON_AddNumberToObject(ret.get(), "vbucket", req.getVBucket());
-    } break;
-    case Magic::ServerResponse: {
-        const auto& res = getResponse();
-        cJSON_AddStringToObject(ret.get(),
-                                "opcode",
-                                ::to_string(res.getServerOpcode()).c_str());
-        cJSON_AddStringToObject(
-                ret.get(),
-                "status",
-                ::to_string(cb::mcbp::Status(res.getStatus())).c_str());
-    } break;
+    if (isRequest()) {
+        return getRequest().toJSON();
     }
 
-    return ret;
+    if (isResponse()) {
+        return getResponse().toJSON();
+    }
+
+    throw std::logic_error("Header::toJSON(): Invalid packet");
 }
 
 } // namespace mcbp

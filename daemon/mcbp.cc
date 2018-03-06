@@ -106,15 +106,24 @@ void mcbp_add_header(Cookie& cookie,
                                       cookie.getCas());
 
     if (settings.getVerbose() > 1) {
-        char buffer[1024];
-        if (bytes_to_output_string(buffer,
-                                   sizeof(buffer),
-                                   connection.getId(),
-                                   false,
-                                   "Writing bin response:",
-                                   reinterpret_cast<const char*>(wbuf.data()),
-                                   wbuf.size()) != -1) {
-            LOG_DEBUG("{}", buffer);
+        auto* header = reinterpret_cast<const cb::mcbp::Header*>(wbuf.data());
+        try {
+            LOG_DEBUG("<{} Sending: {}",
+                      connection.getId(),
+                      to_string(header->toJSON(), false));
+        } catch (const std::exception&) {
+            // Failed.. do a raw dump instead
+            char buffer[1024];
+            if (bytes_to_output_string(
+                        buffer,
+                        sizeof(buffer),
+                        connection.getId(),
+                        false,
+                        "Writing bin response:",
+                        reinterpret_cast<const char*>(wbuf.data()),
+                        wbuf.size()) != -1) {
+                LOG_DEBUG("{}", buffer);
+            }
         }
     }
 

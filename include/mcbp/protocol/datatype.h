@@ -16,6 +16,7 @@
  */
 #pragma once
 
+#include <cJSON_utils.h>
 #include <cstdint>
 
 namespace cb {
@@ -29,3 +30,6 @@ namespace mcbp {
 enum class Datatype : uint8_t { Raw = 0, JSON = 1, Snappy = 2, Xattr = 4 };
 } // namespace mcbp
 } // namespace cb
+
+std::string to_string(cb::mcbp::Datatype datatype);
+unique_cJSON_ptr toJSON(cb::mcbp::Datatype datatype);

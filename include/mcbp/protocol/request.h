@@ -19,6 +19,7 @@
 #include "config.h"
 #include "datatype.h"
 
+#include <cJSON_utils.h>
 #include <mcbp/protocol/magic.h>
 #include <mcbp/protocol/opcode.h>
 #include <platform/platform.h>
@@ -179,11 +180,13 @@ struct Request {
      */
     bool isQuiet() const;
 
+    unique_cJSON_ptr toJSON() const;
+
     /**
      * Validate that the header is "sane" (correct magic, and extlen+keylen
      * doesn't exceed the body size)
      */
-    bool validate() const {
+    bool isValid() const {
         auto m = Magic(magic);
         if (m != Magic::ClientRequest && m != Magic::ServerRequest) {
             return false;

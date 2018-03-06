@@ -90,8 +90,7 @@ public:
      * data for the object). The entire header is however available
      */
     const cb::mcbp::Request& getRequest() const {
-        const auto m = Magic(magic);
-        if (m == Magic::ClientRequest || m == Magic::ServerRequest) {
+        if (isRequest()) {
             return *reinterpret_cast<const cb::mcbp::Request*>(this);
         }
         throw std::logic_error("Header::getRequest(): Header is not a request");
@@ -102,7 +101,8 @@ public:
      */
     bool isResponse() const {
         const auto m = Magic(magic);
-        return (m == Magic::ClientResponse || m == Magic::ServerResponse);
+        return (m == Magic::ClientResponse || m == Magic::ServerResponse ||
+                m == Magic::AltClientResponse);
     }
 
     /**
@@ -111,25 +111,18 @@ public:
      * data for the object). The entire header is however available
      */
     const cb::mcbp::Response& getResponse() const {
-        auto m = Magic(magic);
-        if (m == Magic::ClientResponse || m == Magic::AltClientResponse ||
-            m == Magic::ServerResponse) {
+        if (isResponse()) {
             return *reinterpret_cast<const cb::mcbp::Response*>(this);
         }
         throw std::logic_error(
                 "Header::getResponse(): Header is not a response");
     }
 
-    bool isValid() const {
-        const auto m = Magic(magic);
-        if (m != Magic::ClientRequest && m != Magic::ServerRequest &&
-            m != Magic::ClientResponse && m != Magic::ServerResponse) {
-            return false;
-        }
+    bool isValid() const;
 
-        return (size_t(extlen) + size_t(getKeylen()) <= size_t(getBodylen()));
-    }
-
+    /**
+     * Create a JSON representation of the header
+     */
     unique_cJSON_ptr toJSON() const;
 
 protected:

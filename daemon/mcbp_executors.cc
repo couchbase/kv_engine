@@ -716,7 +716,7 @@ static void execute_request_packet(Cookie& cookie,
 
         return;
     case cb::rbac::PrivilegeAccess::Ok:
-        if (request.validate()) {
+        if (request.isValid()) {
             // The framing of the packet is valid...
             // Verify that the actual command is legal
             auto& bucket = cookie.getConnection().getBucket();
@@ -835,23 +835,30 @@ void try_read_mcbp_command(McbpConnection& c) {
     cookie.initialize(
             cb::const_byte_buffer{input.data(), sizeof(cb::mcbp::Request)});
 
+    const auto& header = cookie.getHeader();
     if (settings.getVerbose() > 1) {
-        /* Dump the packet before we convert it to host order */
-        char buffer[1024];
-        ssize_t nw;
-        nw = bytes_to_output_string(buffer,
-                                    sizeof(buffer),
-                                    c.getId(),
-                                    true,
-                                    "Read binary protocol data:",
-                                    (const char*)input.data(),
-                                    sizeof(cb::mcbp::Request));
-        if (nw != -1) {
-            LOG_DEBUG("{}", buffer);
+        try {
+            LOG_DEBUG(">{} Read command {}",
+                      c.getId(),
+                      to_string(header.toJSON(), false));
+        } catch (const std::exception&) {
+            // Failed to decode the header.. do a raw multiline dump
+            // instead
+            char buffer[1024];
+            ssize_t nw;
+            nw = bytes_to_output_string(buffer,
+                                        sizeof(buffer),
+                                        c.getId(),
+                                        true,
+                                        "Read binary protocol data:",
+                                        (const char*)input.data(),
+                                        sizeof(cb::mcbp::Request));
+            if (nw != -1) {
+                LOG_DEBUG("{}", buffer);
+            }
         }
     }
 
-    const auto& header = cookie.getHeader();
     if (!header.isResponse() && !header.isRequest()) {
         LOG_WARNING(
                 "{}: Invalid packet format detected (magic: {:x}), closing "

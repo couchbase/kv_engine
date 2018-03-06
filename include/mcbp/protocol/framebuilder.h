@@ -141,7 +141,7 @@ public:
      * Try to validate the underlying packet
      */
     void validate() {
-        getFrame()->validate();
+        getFrame()->isValid();
     }
 
 protected:

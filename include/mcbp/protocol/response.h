@@ -17,6 +17,8 @@
 #pragma once
 
 #include "config.h"
+
+#include <cJSON_utils.h>
 #include <mcbp/protocol/magic.h>
 #include <mcbp/protocol/opcode.h>
 #include <platform/sized_buffer.h>
@@ -204,11 +206,13 @@ struct Response {
         return {begin() + getValueOffset(), getValuelen()};
     }
 
+    unique_cJSON_ptr toJSON() const;
+
     /**
      * Validate that the header is "sane" (correct magic, and extlen+keylen
      * doesn't exceed the body size)
      */
-    bool validate() const {
+    bool isValid() const {
         auto m = Magic(magic);
         if (m != Magic::ClientResponse && m != Magic::ServerResponse &&
             m != Magic::AltClientResponse) {
