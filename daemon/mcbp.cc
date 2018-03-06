@@ -135,9 +135,11 @@ bool mcbp_response_handler(const void* key, uint16_t keylen,
     cb::compression::Buffer buffer;
     cb::const_char_buffer payload(static_cast<const char*>(body), bodylen);
 
-    if (!c->isSnappyEnabled() && mcbp::datatype::is_snappy(datatype)) {
+    if ((!c->isSnappyEnabled() && mcbp::datatype::is_snappy(datatype)) ||
+        (mcbp::datatype::is_snappy(datatype) &&
+         mcbp::datatype::is_xattr(datatype))) {
         // The client is not snappy-aware, and the content contains
-        // snappy encoded data.. We need to inflate it!
+        // snappy encoded data. Or it's xattr compressed. We need to inflate it!
         if (!cb::compression::inflate(cb::compression::Algorithm::Snappy,
                                       payload, buffer)) {
             std::string mykey(reinterpret_cast<const char*>(key), keylen);
