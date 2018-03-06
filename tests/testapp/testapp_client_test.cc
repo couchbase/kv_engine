@@ -57,17 +57,18 @@ void TestappXattrClientTest::SetUp() {
         xattrOperationStatus = PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
 
-    // If the client has Snappy support, enable passive compression
-    // on the bucket.
-    if (::testing::get<3>(GetParam()) == ClientSnappySupport::Yes) {
-        setCompressionMode("passive");
-    }
-
     document.info.cas = mcbp::cas::Wildcard;
     document.info.flags = 0xcaffee;
     document.info.id = name;
     document.info.expiration = 0;
     document.value = to_string(memcached_cfg, false);
+
+    // If the client has Snappy support, enable passive compression
+    // on the bucket and compress our initial document we work with.
+    if (hasSnappySupport() == ClientSnappySupport::Yes) {
+        setCompressionMode("passive");
+        document.compress();
+    }
 }
 
 MemcachedConnection& TestappXattrClientTest::getConnection() {
@@ -101,6 +102,21 @@ ClientSnappySupport TestappXattrClientTest::hasSnappySupport() const {
 cb::mcbp::Datatype TestappXattrClientTest::expectedJSONDatatype() const {
     return hasJSONSupport() == ClientJSONSupport::Yes ? cb::mcbp::Datatype::JSON
                                                       : cb::mcbp::Datatype::Raw;
+}
+
+cb::mcbp::Datatype TestappXattrClientTest::expectedJSONSnappyDatatype() const {
+    cb::mcbp::Datatype datatype = expectedJSONDatatype();
+    if (hasSnappySupport() == ClientSnappySupport::Yes) {
+        datatype = cb::mcbp::Datatype(int(datatype) |
+                                      int(cb::mcbp::Datatype::Snappy));
+    }
+    return datatype;
+}
+
+cb::mcbp::Datatype TestappXattrClientTest::expectedRawSnappyDatatype() const {
+    return hasSnappySupport() == ClientSnappySupport::Yes
+                   ? cb::mcbp::Datatype::Snappy
+                   : cb::mcbp::Datatype::Raw;
 }
 
 /**

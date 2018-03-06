@@ -228,7 +228,7 @@ TEST_P(GetSetTest, TestGetSuccess) {
 
     int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
     const auto stored = conn.get(name, 0);
-    EXPECT_TRUE(hasCorrectDatatype(stored, expectedJSONDatatype()));
+    EXPECT_TRUE(hasCorrectDatatype(stored, expectedJSONSnappyDatatype()));
 
     // Check that we correctly increment the status counter stat
     EXPECT_EQ(successCount + statResps() + 1,
@@ -267,6 +267,7 @@ TEST_P(GetSetTest, TestAppend) {
 TEST_P(GetSetTest, TestAppendJsonToJson) {
     // Create a documement which is a valid JSON number.
     MemcachedConnection& conn = getConnection();
+    document.info.datatype = cb::mcbp::Datatype::Raw;
     document.value = "10";
     conn.mutate(document, 0, MutationType::Set);
     auto stored = conn.get(name, 0);
@@ -285,6 +286,7 @@ TEST_P(GetSetTest, TestAppendJsonToJson) {
 TEST_P(GetSetTest, TestAppendRawToJson) {
     // Create a documement which is not valid JSON (yet).
     MemcachedConnection& conn = getConnection();
+    document.info.datatype = cb::mcbp::Datatype::Raw;
     document.value = "[1";
     conn.mutate(document, 0, MutationType::Set);
     auto stored = conn.get(name, 0);
@@ -303,6 +305,7 @@ TEST_P(GetSetTest, TestAppendRawToJson) {
 TEST_P(GetSetTest, TestPrependJsonToJson) {
     // Create a documement which is a valid JSON number.
     MemcachedConnection& conn = getConnection();
+    document.info.datatype = cb::mcbp::Datatype::Raw;
     document.value = "10";
     conn.mutate(document, 0, MutationType::Set);
     auto stored = conn.get(name, 0);
@@ -321,6 +324,7 @@ TEST_P(GetSetTest, TestPrependJsonToJson) {
 TEST_P(GetSetTest, TestPrependRawToJson) {
     // Create a documement which is not valid JSON (yet).
     MemcachedConnection& conn = getConnection();
+    document.info.datatype = cb::mcbp::Datatype::Raw;
     document.value = "1]";
     conn.mutate(document, 0, MutationType::Set);
     auto stored = conn.get(name, 0);
@@ -714,6 +718,7 @@ TEST_P(GetSetTest, TestCompressedJSONInActiveMode) {
 
 TEST_P(GetSetTest, TestInvalidCompressedData) {
     MemcachedConnection& conn = getConnection();
+    document.value = "uncompressed JSON string";
     document.info.datatype = cb::mcbp::Datatype::Snappy;
 
     std::vector<char> input(1024);
@@ -733,18 +738,21 @@ TEST_P(GetSetTest, TestInvalidCompressedData) {
     }
 }
 
+// Test appending uncompressed data to an compresssed/uncompressed existing
+// value (depending on test parameter).
 TEST_P(GetSetTest, TestAppendCompressedSource) {
     MemcachedConnection& conn = getConnection();
-    document.info.datatype = cb::mcbp::Datatype::Snappy;
-
-    std::vector<char> input(1024);
-    std::fill(input.begin(), input.end(), 'a');
-    compress_vector(input, document.value);
+    document.info.datatype = cb::mcbp::Datatype::Raw;
+    document.value.assign(1024, 'a');
+    if (hasSnappySupport() == ClientSnappySupport::Yes) {
+        document.compress();
+    }
 
     int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
     conn.mutate(document, 0, MutationType::Set);
-    document.value.assign(input.size(), 'b');
+
     document.info.datatype = cb::mcbp::Datatype::Raw;
+    document.value.assign(1024, 'b');
 
     conn.mutate(document, 0, MutationType::Append);
     const auto stored = conn.get(name, 0);
@@ -757,11 +765,13 @@ TEST_P(GetSetTest, TestAppendCompressedSource) {
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
 
-    std::string expected(input.size(), 'a');
-    expected.append(input.size(), 'b');
+    std::string expected(1024, 'a');
+    expected.append(1024, 'b');
     EXPECT_EQ(expected, stored.value);
 }
 
+// Test appending compressed/uncompressed data to an uncompressed existing
+// value (depending on test parameter).
 TEST_P(GetSetTest, TestAppendCompressedData) {
     MemcachedConnection& conn = getConnection();
     document.info.datatype = cb::mcbp::Datatype::Raw;
@@ -771,10 +781,11 @@ TEST_P(GetSetTest, TestAppendCompressedData) {
 
     conn.mutate(document, 0, MutationType::Set);
 
-    std::vector<char> input(1024);
-    std::fill(input.begin(), input.end(), 'b');
-    compress_vector(input, document.value);
-    document.info.datatype = cb::mcbp::Datatype::Snappy;
+    document.info.datatype = cb::mcbp::Datatype::Raw;
+    document.value.assign(1024, 'b');
+    if (hasSnappySupport() == ClientSnappySupport::Yes) {
+        document.compress();
+    }
     conn.mutate(document, 0, MutationType::Append);
 
     const auto stored = conn.get(name, 0);
@@ -787,8 +798,8 @@ TEST_P(GetSetTest, TestAppendCompressedData) {
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
 
-    std::string expected(input.size(), 'a');
-    expected.append(input.size(), 'b');
+    std::string expected(1024, 'a');
+    expected.append(1024, 'b');
 
     ASSERT_EQ(2048, stored.value.size());
 
@@ -797,7 +808,7 @@ TEST_P(GetSetTest, TestAppendCompressedData) {
 
 TEST_P(GetSetTest, TestAppendInvalidCompressedData) {
     MemcachedConnection& conn = getConnection();
-        document.info.datatype = cb::mcbp::Datatype::Raw;
+    document.info.datatype = cb::mcbp::Datatype::Raw;
     document.value.assign(1024, 'a');
 
     conn.mutate(document, 0, MutationType::Set);
@@ -819,20 +830,23 @@ TEST_P(GetSetTest, TestAppendInvalidCompressedData) {
     }
 }
 
+// Test appending compressed data to an compresssed/uncompressed existing
+// value (depending on test parameter).
 TEST_P(GetSetTest, TestAppendCompressedSourceAndData) {
     MemcachedConnection& conn = getConnection();
-    document.info.datatype = cb::mcbp::Datatype::Snappy;
-
-    std::vector<char> input(1024);
-    std::fill(input.begin(), input.end(), 'a');
-    compress_vector(input, document.value);
+    document.info.datatype = cb::mcbp::Datatype::Raw;
+    document.value.assign(1024, 'a');
+    if (hasSnappySupport() == ClientSnappySupport::Yes) {
+        document.compress();
+    }
 
     int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
     conn.mutate(document, 0, MutationType::Set);
 
-    std::vector<char> append(1024);
-    std::fill(append.begin(), append.end(), 'b');
-    compress_vector(append, document.value);
+    // Always append compressed data.
+    document.info.datatype = cb::mcbp::Datatype::Raw;
+    document.value.assign(1024, 'b');
+    document.compress();
     conn.mutate(document, 0, MutationType::Append);
     const auto stored = conn.get(name, 0);
     EXPECT_TRUE(hasCorrectDatatype(stored, cb::mcbp::Datatype::Raw));
@@ -844,23 +858,23 @@ TEST_P(GetSetTest, TestAppendCompressedSourceAndData) {
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
 
-    std::string expected(input.size(), 'a');
-    expected.append(append.size(), 'b');
+    std::string expected(1024, 'a');
+    expected.append(1024, 'b');
     EXPECT_EQ(expected, stored.value);
 }
 
 
 TEST_P(GetSetTest, TestPrependCompressedSource) {
     MemcachedConnection& conn = getConnection();
-    document.info.datatype = cb::mcbp::Datatype::Snappy;
-
-    std::vector<char> input(1024);
-    std::fill(input.begin(), input.end(), 'a');
-    compress_vector(input, document.value);
+    document.info.datatype = cb::mcbp::Datatype::Raw;
+    document.value.assign(1024, 'a');
+    if (hasSnappySupport() == ClientSnappySupport::Yes) {
+        document.compress();
+    }
 
     int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
     conn.mutate(document, 0, MutationType::Set);
-    document.value.assign(input.size(), 'b');
+    document.value.assign(1024, 'b');
     document.info.datatype = cb::mcbp::Datatype::Raw;
 
     conn.mutate(document, 0, MutationType::Prepend);
@@ -874,8 +888,8 @@ TEST_P(GetSetTest, TestPrependCompressedSource) {
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
 
-    std::string expected(input.size(), 'b');
-    expected.append(input.size(), 'a');
+    std::string expected(1024, 'b');
+    expected.append(1024, 'a');
     EXPECT_EQ(expected, stored.value);
 }
 
@@ -887,10 +901,11 @@ TEST_P(GetSetTest, TestPrependCompressedData) {
     int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
     conn.mutate(document, 0, MutationType::Set);
 
-    std::vector<char> input(1024);
-    std::fill(input.begin(), input.end(), 'b');
-    compress_vector(input, document.value);
-    document.info.datatype = cb::mcbp::Datatype::Snappy;
+    document.info.datatype = cb::mcbp::Datatype::Raw;
+    document.value.assign(1024, 'b');
+    if (hasSnappySupport() == ClientSnappySupport::Yes) {
+        document.compress();
+    }
     conn.mutate(document, 0, MutationType::Prepend);
 
     const auto stored = conn.get(name, 0);
@@ -903,8 +918,8 @@ TEST_P(GetSetTest, TestPrependCompressedData) {
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
 
-    std::string expected(input.size(), 'b');
-    expected.append(input.size(), 'a');
+    std::string expected(1024, 'b');
+    expected.append(1024, 'a');
     EXPECT_EQ(expected, stored.value);
 }
 
@@ -932,20 +947,23 @@ TEST_P(GetSetTest, TestPrependInvalidCompressedData) {
     }
 }
 
+// Test appending compressed data to an compresssed/uncompressed existing
+// value (depending on test parameter).
 TEST_P(GetSetTest, TestPrependCompressedSourceAndData) {
     MemcachedConnection& conn = getConnection();
-    document.info.datatype = cb::mcbp::Datatype::Snappy;
-
-    std::vector<char> input(1024);
-    std::fill(input.begin(), input.end(), 'a');
-    compress_vector(input, document.value);
+    document.info.datatype = cb::mcbp::Datatype::Raw;
+    document.value.assign(1024, 'a');
+    if (hasSnappySupport() == ClientSnappySupport::Yes) {
+        document.compress();
+    }
 
     int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
     conn.mutate(document, 0, MutationType::Set);
 
-    std::vector<char> append(1024);
-    std::fill(append.begin(), append.end(), 'b');
-    compress_vector(append, document.value);
+    // Always prepend compressed data.
+    document.info.datatype = cb::mcbp::Datatype::Raw;
+    document.value.assign(1024, 'b');
+    document.compress();
     conn.mutate(document, 0, MutationType::Prepend);
     const auto stored = conn.get(name, 0);
     EXPECT_TRUE(hasCorrectDatatype(stored, cb::mcbp::Datatype::Raw));
@@ -957,36 +975,52 @@ TEST_P(GetSetTest, TestPrependCompressedSourceAndData) {
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
 
-    std::string expected(input.size(), 'b');
-    expected.append(append.size(), 'a');
+    std::string expected(1024, 'b');
+    expected.append(1024, 'a');
     EXPECT_EQ(expected, stored.value);
 }
 
-TEST_P(GetSetTest, TestGetMeta) {
+TEST_P(GetSetTest, TestGetMetaValidJSON) {
     // Set the document value to valid JSON, so memcached sets the datatype
     // as such.
     document.value = R"("valid_json")";
+    document.info.datatype = cb::mcbp::Datatype::Raw;
+    auto expectedDatatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    if (hasSnappySupport() == ClientSnappySupport::Yes) {
+        document.compress();
+        expectedDatatype |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
+    }
     getConnection().mutate(document, 0, MutationType::Add);
     auto meta =
             getConnection().getMeta(document.info.id, 0, GetMetaVersion::V2);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, meta.first);
     EXPECT_EQ(0, meta.second.deleted);
-    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, meta.second.datatype);
+    EXPECT_EQ(expectedDatatype, meta.second.datatype);
     EXPECT_EQ(0, meta.second.expiry);
+
     meta = getConnection().getMeta(document.info.id, 0, GetMetaVersion::V1);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, meta.first);
     EXPECT_EQ(0, meta.second.deleted);
-    EXPECT_NE(PROTOCOL_BINARY_DATATYPE_JSON, meta.second.datatype);
+    EXPECT_NE(expectedDatatype, meta.second.datatype);
     EXPECT_EQ(0, meta.second.expiry);
+}
 
+TEST_P(GetSetTest, TestGetMetaInvalidJSON) {
     // Set the document value to not-JSON, so memcached sets the datatype
     // as such.
     document.value = "[Invalid;JSON}";
-    getConnection().mutate(document, 0, MutationType::Replace);
-    meta = getConnection().getMeta(document.info.id, 0, GetMetaVersion::V2);
+    document.info.datatype = cb::mcbp::Datatype::Raw;
+    auto expectedDatatype = PROTOCOL_BINARY_RAW_BYTES;
+    if (hasSnappySupport() == ClientSnappySupport::Yes) {
+        document.compress();
+        expectedDatatype |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
+    }
+    getConnection().mutate(document, 0, MutationType::Add);
+    auto meta =
+            getConnection().getMeta(document.info.id, 0, GetMetaVersion::V2);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, meta.first);
     EXPECT_EQ(0, meta.second.deleted);
-    EXPECT_EQ(PROTOCOL_BINARY_RAW_BYTES, meta.second.datatype);
+    EXPECT_EQ(expectedDatatype, meta.second.datatype);
 }
 
 TEST_P(GetSetTest, TestGetMetaExpiry) {
@@ -1032,12 +1066,15 @@ TEST_P(GetSetTest, ServerDetectsJSON) {
     auto& conn = getConnection();
     document.value = R"("valid_JSON_string")";
     document.info.datatype = cb::mcbp::Datatype::Raw;
+    if (hasSnappySupport() == ClientSnappySupport::Yes) {
+        document.compress();
+    }
     conn.mutate(document, 0, MutationType::Add);
 
     // Fetch the document to see what datatype is has. It should match
     // what our connection is capable of receiving.
     const auto stored = conn.get(name, 0);
-    EXPECT_TRUE(hasCorrectDatatype(stored, expectedJSONDatatype()));
+    EXPECT_TRUE(hasCorrectDatatype(stored, expectedJSONSnappyDatatype()));
 }
 
 // Test that memcached correctly detects documents are not JSON irrespective
@@ -1045,10 +1082,14 @@ TEST_P(GetSetTest, ServerDetectsJSON) {
 TEST_P(GetSetTest, ServerDetectsNonJSON) {
     auto& conn = getConnection();
     document.value = R"(not;valid{JSON)";
+    document.info.datatype = cb::mcbp::Datatype::Raw;
+    if (hasSnappySupport() == ClientSnappySupport::Yes) {
+        document.compress();
+    }
     conn.mutate(document, 0, MutationType::Add);
 
     // Fetch the document to see what datatype is has. It should always
     // be raw.
     const auto stored = conn.get(name, 0);
-    EXPECT_TRUE(hasCorrectDatatype(stored, cb::mcbp::Datatype::Raw));
+    EXPECT_TRUE(hasCorrectDatatype(stored, expectedRawSnappyDatatype()));
 }
