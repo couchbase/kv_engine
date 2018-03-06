@@ -128,7 +128,7 @@ struct LIBEVENT_THREAD {
     Connection* pending_io = nullptr;
 
     /// index of this thread in the threads array
-    int index = 0;
+    size_t index = 0;
 
     /// Type of IO this thread processes
     ThreadType type = ThreadType::GENERAL;
@@ -200,8 +200,9 @@ void associate_initial_bucket(Connection& connection);
  * also #define-d to directly call the underlying code in singlethreaded mode.
  */
 
-void thread_init(int nthreads, struct event_base *main_base,
-                 void (*dispatcher_callback)(evutil_socket_t, short, void *));
+void thread_init(size_t nthreads,
+                 struct event_base* main_base,
+                 void (*dispatcher_callback)(evutil_socket_t, short, void*));
 void threads_shutdown();
 void threads_cleanup();
 

@@ -66,6 +66,7 @@
 #include <atomic>
 #include <condition_variable>
 #include <cstring>
+#include <gsl/gsl>
 #include <iostream>
 #include <map>
 #include <memory>
@@ -726,10 +727,12 @@ public:
             item_info->vbucket_uuid = 0;
             item_info->seqno = 0;
             item_info->exptime = 0;
-            item_info->nbytes = ewb->dcp_mutation_item.value.size();
+            item_info->nbytes =
+                    gsl::narrow<uint32_t>(ewb->dcp_mutation_item.value.size());
             item_info->flags = 0;
             item_info->datatype = PROTOCOL_BINARY_DATATYPE_XATTR;
-            item_info->nkey = ewb->dcp_mutation_item.key.size();
+            item_info->nkey =
+                    gsl::narrow<uint16_t>(ewb->dcp_mutation_item.key.size());
             item_info->key = ewb->dcp_mutation_item.key.c_str();
             item_info->value[0].iov_base = &ewb->dcp_mutation_item.value[0];
             item_info->value[0].iov_len = item_info->nbytes;

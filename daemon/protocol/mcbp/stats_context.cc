@@ -33,6 +33,7 @@
 #include <platform/checked_snprintf.h>
 #include <platform/sized_buffer.h>
 #include <utilities/protocol2text.h>
+#include <gsl/gsl>
 
 #include <numeric>
 
@@ -508,11 +509,14 @@ static ENGINE_ERROR_CODE stat_reset_executor(const std::string& arg,
 static ENGINE_ERROR_CODE stat_sched_executor(const std::string& arg,
                                              Cookie& cookie) {
     if (arg.empty()) {
-        for (int ii = 0; ii < settings.getNumWorkerThreads(); ++ii) {
+        for (size_t ii = 0; ii < settings.getNumWorkerThreads(); ++ii) {
             auto hist = scheduler_info[ii].to_string();
             std::string key = std::to_string(ii);
-            append_stats(
-                    key.data(), key.size(), hist.data(), hist.size(), &cookie);
+            append_stats(key.data(),
+                         gsl::narrow<uint16_t>(key.size()),
+                         hist.data(),
+                         gsl::narrow<uint32_t>(hist.size()),
+                         &cookie);
         }
         return ENGINE_SUCCESS;
     } else if (arg == "aggregate") {
@@ -523,7 +527,11 @@ static ENGINE_ERROR_CODE stat_sched_executor(const std::string& arg,
         }
         // Add the stat
         auto hist = histogram.to_string();
-        append_stats(key.data(), key.size(), hist.data(), hist.size(), &cookie);
+        append_stats(key.data(),
+                     gsl::narrow<uint16_t>(key.size()),
+                     hist.data(),
+                     gsl::narrow<uint32_t>(hist.size()),
+                     &cookie);
         return ENGINE_SUCCESS;
     } else {
         return ENGINE_EINVAL;
@@ -711,7 +719,11 @@ static ENGINE_ERROR_CODE stat_subdoc_execute_executor(const std::string& arg,
             auto& bucket = all_buckets[cookie.getConnection().getBucketIndex()];
             json_str = bucket.subjson_operation_times.to_string();
         }
-        append_stats(nullptr, 0, json_str.c_str(), json_str.size(), &cookie);
+        append_stats(nullptr,
+                     0,
+                     json_str.c_str(),
+                     gsl::narrow<uint32_t>(json_str.size()),
+                     &cookie);
         return ENGINE_SUCCESS;
     } else {
         return ENGINE_EINVAL;
@@ -738,9 +750,9 @@ static ENGINE_ERROR_CODE stat_responses_json_executor(const std::string& arg,
         cJSON_Free(ptr);
         const std::string stat_name = "responses";
         append_stats(stat_name.c_str(),
-                     stat_name.size(),
+                     gsl::narrow<uint16_t>(stat_name.size()),
                      json_str.c_str(),
-                     json_str.size(),
+                     gsl::narrow<uint32_t>(json_str.size()),
                      &cookie);
         return ENGINE_SUCCESS;
     } catch (const std::bad_alloc&) {
@@ -757,33 +769,48 @@ static ENGINE_ERROR_CODE stat_tracing_executor(const std::string& arg,
 
         void operator()(gsl_p::cstring_span key,
                         gsl_p::cstring_span value) override {
-            append_stats(
-                    key.data(), key.size(), value.data(), value.size(), &c);
+            append_stats(key.data(),
+                         gsl::narrow<uint16_t>(key.size()),
+                         value.data(),
+                         gsl::narrow<uint32_t>(value.size()),
+                         &c);
         }
 
         void operator()(gsl_p::cstring_span key, bool value) override {
             const auto svalue = value ? "true"_ccb : "false"_ccb;
-            append_stats(
-                    key.data(), key.size(), svalue.data(), svalue.size(), &c);
+            append_stats(key.data(),
+                         gsl::narrow<uint16_t>(key.size()),
+                         svalue.data(),
+                         gsl::narrow<uint32_t>(svalue.size()),
+                         &c);
         }
 
         void operator()(gsl_p::cstring_span key, size_t value) override {
             const auto svalue = std::to_string(value);
-            append_stats(
-                    key.data(), key.size(), svalue.data(), svalue.size(), &c);
+            append_stats(key.data(),
+                         gsl::narrow<uint16_t>(key.size()),
+                         svalue.data(),
+                         gsl::narrow<uint32_t>(svalue.size()),
+                         &c);
         }
 
         void operator()(gsl_p::cstring_span key,
                         phosphor::ssize_t value) override {
             const auto svalue = std::to_string(value);
-            append_stats(
-                    key.data(), key.size(), svalue.data(), svalue.size(), &c);
+            append_stats(key.data(),
+                         gsl::narrow<uint16_t>(key.size()),
+                         svalue.data(),
+                         gsl::narrow<uint32_t>(svalue.size()),
+                         &c);
         }
 
         void operator()(gsl_p::cstring_span key, double value) override {
             const auto svalue = std::to_string(value);
-            append_stats(
-                    key.data(), key.size(), svalue.data(), svalue.size(), &c);
+            append_stats(key.data(),
+                         gsl::narrow<uint16_t>(key.size()),
+                         svalue.data(),
+                         gsl::narrow<uint32_t>(svalue.size()),
+                         &c);
         }
 
     private:

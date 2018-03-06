@@ -21,6 +21,8 @@
 #include <xattr/blob.h>
 #include <xattr/utils.h>
 
+#include <gsl/gsl>
+
 bool document_pre_expiry(item_info& itm_info) {
     if (!mcbp::datatype::is_xattr(itm_info.datatype)) {
         // The object does not contain any XATTRs so we should remove
@@ -56,7 +58,7 @@ bool document_pre_expiry(item_info& itm_info) {
     }
 
     // Update the length field of the item
-    itm_info.nbytes = pruned.len;
+    itm_info.nbytes = gsl::narrow<uint32_t>(pruned.len);
     itm_info.value[0].iov_len = pruned.len;
     // Clear all other datatype flags (we've stripped off everything)
     itm_info.datatype = PROTOCOL_BINARY_DATATYPE_XATTR;

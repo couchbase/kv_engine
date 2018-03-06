@@ -22,6 +22,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <array>
+#include <gsl/gsl>
 
 const char* cbpwfile = "cbsasl_test.pw";
 
@@ -75,7 +76,7 @@ static int sasl_get_cnonce(void* context,
 
     struct my_sasl_ctx* ctx = reinterpret_cast<my_sasl_ctx*>(context);
     *result = ctx->nonce.data();
-    *len = ctx->nonce.length();
+    *len = gsl::narrow<unsigned int>(ctx->nonce.length());
 
     return CBSASL_OK;
 }

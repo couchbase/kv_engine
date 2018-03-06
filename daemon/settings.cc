@@ -194,8 +194,11 @@ static void handle_threads(Settings& s, cJSON* obj) {
     if (obj->type != cJSON_Number) {
         throw std::invalid_argument("\"threads\" must be an integer");
     }
-
-    s.setNumWorkerThreads(gsl::narrow<int>(obj->valueint));
+    if (obj->valueint < 0) {
+        throw std::invalid_argument("\"threads\" must be non-negative");
+    } else {
+        s.setNumWorkerThreads(gsl::narrow_cast<size_t>(obj->valueint));
+    }
 }
 
 /**

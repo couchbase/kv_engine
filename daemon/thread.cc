@@ -63,14 +63,14 @@ static LIBEVENT_THREAD dispatcher_thread;
  * Each libevent instance has a wakeup pipe, which other threads
  * can use to signal that they've put a new connection on its queue.
  */
-static int nthreads;
+static size_t nthreads;
 static std::vector<LIBEVENT_THREAD> threads;
 std::vector<TimingHistogram> scheduler_info;
 
 /*
  * Number of worker threads that have finished setting themselves up.
  */
-static int init_count = 0;
+static size_t init_count = 0;
 static cb_mutex_t init_lock;
 static cb_cond_t init_cond;
 
@@ -437,9 +437,9 @@ static int last_thread = -1;
  * from the main thread, or because of an incoming connection.
  */
 void dispatch_conn_new(SOCKET sfd, int parent_port) {
-    int tid = (last_thread + 1) % settings.getNumWorkerThreads();
+    size_t tid = (last_thread + 1) % settings.getNumWorkerThreads();
     auto& thread = threads[tid];
-    last_thread = tid;
+    last_thread = gsl::narrow<int>(tid);
 
     try {
         std::unique_ptr<ConnectionQueueItem> item(
@@ -481,8 +481,9 @@ void threadlocal_stats_reset(std::vector<thread_stats>& thread_stats) {
  * nthreads  Number of worker event handler threads to spawn
  * main_base Event base for main thread
  */
-void thread_init(int nthr, struct event_base *main_base,
-                 void (*dispatcher_callback)(evutil_socket_t, short, void *)) {
+void thread_init(size_t nthr,
+                 struct event_base* main_base,
+                 void (*dispatcher_callback)(evutil_socket_t, short, void*)) {
     nthreads = nthr;
 
     cb_mutex_initialize(&init_lock);
@@ -498,7 +499,7 @@ void thread_init(int nthr, struct event_base *main_base,
 
     setup_dispatcher(main_base, dispatcher_callback);
 
-    for (int ii = 0; ii < nthreads; ii++) {
+    for (size_t ii = 0; ii < nthreads; ii++) {
         if (!create_notification_pipe(threads[ii])) {
             FATAL_ERROR(EXIT_FAILURE, "Cannot create notification pipe");
         }

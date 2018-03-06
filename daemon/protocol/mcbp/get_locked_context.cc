@@ -21,6 +21,7 @@
 #include <daemon/debug_helpers.h>
 #include <daemon/mcbp.h>
 #include <xattr/utils.h>
+#include <gsl/gsl>
 
 ENGINE_ERROR_CODE GetLockedCommandContext::getAndLockItem() {
     auto ret = bucket_get_locked(cookie, key, vbucket, lock_timeout);
@@ -86,7 +87,8 @@ ENGINE_ERROR_CODE GetLockedCommandContext::sendResponse() {
 
     datatype = connection.getEnabledDatatypes(datatype);
 
-    const uint32_t bodylength = sizeof(info.flags) + payload.len;
+    const uint32_t bodylength =
+            gsl::narrow<uint32_t>(sizeof(info.flags) + payload.len);
 
     // Set the CAS to add into the header
     cookie.setCas(info.cas);

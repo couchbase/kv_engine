@@ -69,11 +69,11 @@ bool McbpConnection::registerEvent() {
         tp = nullptr;
         ev_timeout_enabled = false;
     } else {
-        tv.tv_sec = settings.getConnectionIdleTime();
+        tv.tv_sec = gsl::narrow<long>(settings.getConnectionIdleTime());
         tv.tv_usec = 0;
         tp = &tv;
         ev_timeout_enabled = true;
-        ev_timeout = settings.getConnectionIdleTime();
+        ev_timeout = gsl::narrow<rel_time_t>(settings.getConnectionIdleTime());
     }
 
     ev_insert_time = mc_time_get_current_time();
@@ -119,7 +119,8 @@ bool McbpConnection::updateEvent(const short new_flags) {
                     getId());
         } else {
             rel_time_t now = mc_time_get_current_time();
-            const int reinsert_time = settings.getConnectionIdleTime() / 2;
+            const int reinsert_time =
+                    gsl::narrow<int>(settings.getConnectionIdleTime()) / 2;
 
             if ((ev_insert_time + reinsert_time) > now) {
                 return true;
@@ -690,7 +691,7 @@ void McbpConnection::addMsgHdr(bool reset) {
     msg.msg_iov = &iov.data()[iovused];
 
     msgbytes = 0;
-    STATS_MAX(this, msgused_high_watermark, msglist.size());
+    STATS_MAX(this, msgused_high_watermark, gsl::narrow<int>(msglist.size()));
 }
 
 void McbpConnection::addIov(const void* buf, size_t len) {
@@ -715,7 +716,7 @@ void McbpConnection::addIov(const void* buf, size_t len) {
 
     msgbytes += len;
     ++iovused;
-    STATS_MAX(this, iovused_high_watermark, getIovUsed());
+    STATS_MAX(this, iovused_high_watermark, gsl::narrow<int>(getIovUsed()));
     m->msg_iovlen++;
 }
 
@@ -1034,7 +1035,7 @@ void McbpConnection::propagateDisconnect() const {
     }
 }
 
-void McbpConnection::signalIfIdle(bool logbusy, int workerthread) {
+void McbpConnection::signalIfIdle(bool logbusy, size_t workerthread) {
     if (!isEwouldblock() && stateMachine.isIdleState()) {
         // Raise a 'fake' write event to ensure the connection has an
         // event delivered (for example if its sendQ is full).

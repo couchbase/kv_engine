@@ -208,7 +208,7 @@ bool associate_bucket(Connection& connection, const char* name) {
         std::lock_guard<std::mutex> guard(b.mutex);
         if (b.state == BucketState::Ready && strcmp(b.name, name) == 0) {
             b.clients++;
-            connection.setBucketIndex(ii);
+            connection.setBucketIndex(gsl::narrow<int>(ii));
             connection.setBucketEngine(b.engine);
             found = true;
         }
@@ -418,25 +418,24 @@ void stats_reset(Cookie& cookie) {
     bucket_reset_stats(cookie);
 }
 
-static int get_number_of_worker_threads(void) {
-    int ret;
+static size_t get_number_of_worker_threads(void) {
+    size_t ret;
     char *override = getenv("MEMCACHED_NUM_CPUS");
     if (override == NULL) {
         ret = Couchbase::get_available_cpu_count();
 
         if (ret > 4) {
-            ret = (int)(ret * 0.75f);
+            ret = gsl::narrow_cast<size_t>(ret * 0.75F);
         }
         if (ret < 4) {
             ret = 4;
         }
     } else {
-        ret = atoi(override);
+        ret = std::stoull(override);
         if (ret == 0) {
             ret = 4;
         }
     }
-
     return ret;
 }
 
@@ -800,7 +799,7 @@ static ENGINE_ERROR_CODE pre_link_document(
     return ENGINE_SUCCESS;
 }
 
-static cJSON *get_bucket_details_UNLOCKED(const Bucket& bucket, int idx) {
+static cJSON* get_bucket_details_UNLOCKED(const Bucket& bucket, size_t idx) {
     if (bucket.state == BucketState::None) {
         return nullptr;
     }
@@ -1956,7 +1955,7 @@ void notify_thread_bucket_deletion(LIBEVENT_THREAD& me) {
         }
 
         if (destroy) {
-            signal_idle_clients(&me, ii, false);
+            signal_idle_clients(&me, gsl::narrow<int>(ii), false);
         }
     }
 }
@@ -2113,7 +2112,7 @@ void DestroyBucketThread::run() {
 }
 
 static void initialize_buckets(void) {
-    int numthread = settings.getNumWorkerThreads() + 1;
+    size_t numthread = settings.getNumWorkerThreads() + 1;
     for (auto &b : all_buckets) {
         b.stats.resize(numthread);
     }
@@ -2538,7 +2537,7 @@ extern "C" int memcached_main(int argc, char **argv) {
     /* start up worker threads if MT mode */
     thread_init(settings.getNumWorkerThreads(), main_base, dispatch_event_handler);
 
-    executorPool.reset(new ExecutorPool(size_t(settings.getNumWorkerThreads())));
+    executorPool.reset(new ExecutorPool(settings.getNumWorkerThreads()));
 
     initializeTracing();
     TRACE_GLOBAL0("memcached", "Started");

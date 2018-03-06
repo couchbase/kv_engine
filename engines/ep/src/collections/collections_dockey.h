@@ -16,6 +16,7 @@
  */
 
 #include <memcached/dockey.h>
+#include <gsl/gsl>
 
 #pragma once
 
@@ -41,7 +42,9 @@ public:
     static DocKey make(const ::DocKey& key, const std::string& separator) {
         const uint8_t* collection = findCollection(key, separator);
         if (collection) {
-            return DocKey(key, collection - key.data(), separator.size());
+            return DocKey(key,
+                          gsl::narrow<uint8_t>(collection - key.data()),
+                          gsl::narrow<uint8_t>(separator.size()));
         } else {
             // No collection found, not an error - ok for DefaultNamespace.
             return DocKey(key, 0, 0);
@@ -79,7 +82,7 @@ public:
     }
 
 private:
-    DocKey(const ::DocKey& key, size_t _collectionLen, size_t _separatorLen)
+    DocKey(const ::DocKey& key, uint8_t _collectionLen, uint8_t _separatorLen)
         : ::DocKey(key),
           collectionLen(_collectionLen),
           separatorLen(_separatorLen) {

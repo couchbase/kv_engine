@@ -146,7 +146,6 @@ SOCKET new_socket(std::string& host, in_port_t port, sa_family_t family) {
                             next->ai_socktype,
                             next->ai_protocol);
         if (sfd != INVALID_SOCKET) {
-
 #ifdef WIN32
             // BIO_new_socket pass the socket as an int, but it is a SOCKET on
             // Windows.. On windows a socket is an unsigned value, and may
@@ -161,9 +160,12 @@ SOCKET new_socket(std::string& host, in_port_t port, sa_family_t family) {
                 throw std::runtime_error("Socket value too big "
                                              "(may trigger behavior openssl)");
             }
-#endif
 
-            if (connect(sfd, next->ai_addr, next->ai_addrlen) != SOCKET_ERROR) {
+            int socklen = gsl::narrow<int>(next->ai_addrlen);
+#else
+            socklen_t socklen = next->ai_addrlen;
+#endif
+            if (connect(sfd, next->ai_addr, socklen) != SOCKET_ERROR) {
                 freeaddrinfo(ai);
                 return sfd;
             }
@@ -232,7 +234,8 @@ void MemcachedConnection::sendBufferSsl(cb::const_byte_buffer buf) {
     cb::const_byte_buffer::size_type offset = 0;
 
     while (offset < nbytes) {
-        int nw = BIO_write(bio, data + offset, nbytes - offset);
+        int nw = BIO_write(
+                bio, data + offset, gsl::narrow<int>(nbytes - offset));
         if (nw <= 0) {
             if (BIO_should_retry(bio) == 0) {
                 throw std::runtime_error("Failed to write data");
@@ -268,7 +271,7 @@ void MemcachedConnection::readSsl(Frame& frame, size_t bytes) {
     size_t total = 0;
 
     while (total < bytes) {
-        int nr = BIO_read(bio, data + total, bytes - total);
+        int nr = BIO_read(bio, data + total, gsl::narrow<int>(bytes - total));
         if (nr <= 0) {
             if (BIO_should_retry(bio) == 0) {
                 throw std::runtime_error("Failed to read data");
@@ -570,7 +573,7 @@ void MemcachedConnection::authenticate(const std::string& username,
                                 password.length() + 10);
     context.secret = reinterpret_cast<cbsasl_secret_t*>(buffer.data());
     memcpy(context.secret->data, password.c_str(), password.length());
-    context.secret->len = password.length();
+    context.secret->len = gsl::narrow<unsigned long>(password.length());
 
     err = cbsasl_client_new(NULL, NULL, NULL, NULL, sasl_callbacks, 0, &client);
     if (err != CBSASL_OK) {
@@ -597,7 +600,7 @@ void MemcachedConnection::authenticate(const std::string& username,
         auto respdata = response.getData();
         err = cbsasl_client_step(client,
                                  reinterpret_cast<const char*>(respdata.data()),
-                                 respdata.size(),
+                                 gsl::narrow<unsigned int>(respdata.size()),
                                  NULL,
                                  &data,
                                  &len);
@@ -819,7 +822,8 @@ void MemcachedConnection::configureEwouldBlockEngine(const EWBEngineMode& mode,
     request.message.header.request.opcode = PROTOCOL_BINARY_CMD_EWOULDBLOCK_CTL;
     request.message.header.request.extlen = 12;
     request.message.header.request.keylen = ntohs((short)key.size());
-    request.message.header.request.bodylen = htonl(12 + key.size());
+    request.message.header.request.bodylen =
+            htonl(12 + gsl::narrow<unsigned long>(key.size()));
     request.message.body.inject_error = htonl(err_code);
     request.message.body.mode = htonl(static_cast<uint32_t>(mode));
     request.message.body.value = htonl(value);

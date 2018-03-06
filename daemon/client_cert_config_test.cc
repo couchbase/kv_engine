@@ -25,6 +25,7 @@
 #include <openssl/engine.h>
 #include <platform/dirutils.h>
 #include <platform/memorymap.h>
+#include <gsl/gsl>
 
 #include <string>
 
@@ -151,7 +152,7 @@ public:
                                  cb::MemoryMappedFile::Mode::RDONLY);
         map.open();
         auto* certbio = BIO_new_mem_buf(reinterpret_cast<char*>(map.getRoot()),
-                                        map.getSize());
+                                        gsl::narrow<int>(map.getSize()));
         cert.reset(PEM_read_bio_X509(certbio, NULL, 0, NULL));
         BIO_free(certbio);
         ASSERT_TRUE(cert.get()) << "Error in reading certificate file: "

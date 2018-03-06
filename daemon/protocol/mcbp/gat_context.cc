@@ -21,6 +21,7 @@
 #include <daemon/mcbp.h>
 #include <mcbp/protocol/header.h>
 #include <xattr/utils.h>
+#include <gsl/gsl>
 
 uint32_t GatCommandContext::getExptime(Cookie& cookie) {
     auto extras = cookie.getRequest(Cookie::PacketContent::Full).getExtdata();
@@ -112,7 +113,7 @@ ENGINE_ERROR_CODE GatCommandContext::sendResponse() {
     }
     datatype = connection.getEnabledDatatypes(datatype);
 
-    uint32_t bodylen = sizeof(info.flags) + payload.len;
+    uint32_t bodylen = gsl::narrow<uint32_t>(sizeof(info.flags) + payload.len);
     // Set the CAS to add into the header
     cookie.setCas(info.cas);
     mcbp_add_header(cookie,

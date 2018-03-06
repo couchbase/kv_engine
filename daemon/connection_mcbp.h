@@ -106,7 +106,7 @@ public:
      */
     void propagateDisconnect() const;
 
-    void signalIfIdle(bool logbusy, int workerthread) override;
+    void signalIfIdle(bool logbusy, size_t workerthread) override;
 
     void setPriority(const Priority& priority) override;
 
@@ -341,7 +341,7 @@ public:
     /**
      * Get the number of entries in use in the IO Vector
      */
-    int getIovUsed() const {
+    size_t getIovUsed() const {
         return iovused;
     }
 
@@ -725,7 +725,7 @@ protected:
     /** element in msglist[] being transmitted now */
     size_t msgcurr = 0;
     /** number of bytes in current msg */
-    int msgbytes = 0;
+    size_t msgbytes = 0;
 
     /**
      * List of items we've reserved during the command (should call

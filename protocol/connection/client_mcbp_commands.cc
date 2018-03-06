@@ -17,6 +17,7 @@
 #include "client_mcbp_commands.h"
 #include <mcbp/mcbp.h>
 #include <array>
+#include <gsl/gsl>
 #include "tracing/tracer.h"
 
 void BinprotCommand::encode(std::vector<uint8_t>& buf) const {
@@ -37,11 +38,12 @@ void BinprotCommand::fillHeader(protocol_binary_request_header& header,
                                 size_t extlen) const {
     header.request.magic = PROTOCOL_BINARY_REQ;
     header.request.opcode = opcode;
-    header.request.keylen = htons(key.size());
-    header.request.extlen = extlen;
+    header.request.keylen = htons(gsl::narrow<uint16_t>(key.size()));
+    header.request.extlen = gsl::narrow<uint8_t>(extlen);
     header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
     header.request.vbucket = htons(vbucket);
-    header.request.bodylen = htonl(key.size() + extlen + payload_len);
+    header.request.bodylen =
+            htonl(gsl::narrow<uint32_t>(key.size() + extlen + payload_len));
     header.request.opaque = 0xdeadbeef;
     header.request.cas = cas;
 }
@@ -109,7 +111,7 @@ void BinprotSubdocCommand::encode(std::vector<uint8_t>& buf) const {
     fillHeader(request.message.header, path.size() + value.size(), extlen);
 
     // Add extras: pathlen, flags, optional expiry
-    request.message.extras.pathlen = htons(path.size());
+    request.message.extras.pathlen = htons(gsl::narrow<uint16_t>(path.size()));
     request.message.extras.subdoc_flags = flags;
     buf.insert(buf.end(),
                request.bytes,
@@ -506,10 +508,10 @@ void BinprotSubdocMultiMutationCommand::encode(std::vector<uint8_t>& buf) const 
     for (const auto& spec : specs) {
         buf.push_back(uint8_t(spec.opcode));
         buf.push_back(uint8_t(spec.flags));
-        uint16_t pathlen = ntohs(spec.path.size());
+        uint16_t pathlen = ntohs(gsl::narrow<uint16_t>(spec.path.size()));
         const char* p = reinterpret_cast<const char*>(&pathlen);
         buf.insert(buf.end(), p, p + 2);
-        uint32_t vallen = ntohl(spec.value.size());
+        uint32_t vallen = ntohl(gsl::narrow<unsigned long>(spec.value.size()));
         p = reinterpret_cast<const char*>(&vallen);
         buf.insert(buf.end(), p, p + 4);
         buf.insert(buf.end(), spec.path.begin(), spec.path.end());
@@ -600,7 +602,7 @@ void BinprotSubdocMultiLookupCommand::encode(std::vector<uint8_t>& buf) const {
         buf.push_back(uint8_t(spec.opcode));
         buf.push_back(uint8_t(spec.flags));
 
-        uint16_t pathlen = ntohs(spec.path.size());
+        uint16_t pathlen = ntohs(gsl::narrow<uint16_t>(spec.path.size()));
         const char* p = reinterpret_cast<const char*>(&pathlen);
         buf.insert(buf.end(), p, p + 2);
         buf.insert(buf.end(), spec.path.begin(), spec.path.end());
@@ -815,7 +817,7 @@ void BinprotSetWithMetaCommand::encode(std::vector<uint8_t>& buf) const {
     }
 
     if (!meta.empty()) {
-        append(buf, uint16_t(htons(meta.size())));
+        append(buf, uint16_t(htons(gsl::narrow<uint16_t>(meta.size()))));
     }
 
     buf.insert(buf.end(), key.begin(), key.end());

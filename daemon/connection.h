@@ -113,8 +113,7 @@ public:
      *                if the connection isn't idle
      * @param workerthead the id of the workerthread (for logging purposes)
      */
-    virtual void signalIfIdle(bool logbusy, int workerthread) {
-
+    virtual void signalIfIdle(bool logbusy, size_t workerthread) {
     }
 
     /**

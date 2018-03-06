@@ -20,6 +20,7 @@
 #include <memcached/protocol_binary.h>
 #include <memcached/types.h>
 #include <xattr/blob.h>
+#include <gsl/gsl>
 
 TEST(PreExpiry, EmptyDocument) {
     item_info info{};
@@ -43,7 +44,7 @@ TEST(PreExpiry, DocumentWithUserXAttrOnly) {
     item_info info{};
     info.value[0].iov_base = static_cast<void*>(body.data());
     info.value[0].iov_len = body.size();
-    info.nbytes = body.size();
+    info.nbytes = gsl::narrow<uint32_t>(body.size());
     info.datatype = PROTOCOL_BINARY_DATATYPE_XATTR;
     EXPECT_FALSE(document_pre_expiry(info));
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, info.datatype);
@@ -56,7 +57,7 @@ TEST(PreExpiry, DocumentWithSystemXattrOnly) {
     item_info info{};
     info.value[0].iov_base = static_cast<void*>(body.data());
     info.value[0].iov_len = body.size();
-    info.nbytes = body.size();
+    info.nbytes = gsl::narrow<uint32_t>(body.size());
     info.datatype = PROTOCOL_BINARY_DATATYPE_XATTR;
     EXPECT_TRUE(document_pre_expiry(info));
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, info.datatype);
@@ -70,7 +71,7 @@ TEST(PreExpiry, DocumentWithUserAndSystemXattr) {
     item_info info{};
     info.value[0].iov_base = static_cast<void*>(body.data());
     info.value[0].iov_len = body.size();
-    info.nbytes = body.size();
+    info.nbytes = gsl::narrow<uint32_t>(body.size());
     info.datatype = PROTOCOL_BINARY_DATATYPE_XATTR;
     EXPECT_TRUE(document_pre_expiry(info));
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, info.datatype);
@@ -91,7 +92,7 @@ TEST(PreExpiry, DocumentWithJsonBodyAndXattrs) {
     item_info info{};
     info.value[0].iov_base = const_cast<char*>(body.data());
     info.value[0].iov_len = body.size();
-    info.nbytes = body.size();
+    info.nbytes = gsl::narrow<uint32_t>(body.size());
     info.datatype =
             PROTOCOL_BINARY_DATATYPE_XATTR | PROTOCOL_BINARY_DATATYPE_JSON;
     EXPECT_TRUE(document_pre_expiry(info));

@@ -18,9 +18,10 @@
 #include "get_context.h"
 
 #include <daemon/debug_helpers.h>
+#include <daemon/mcaudit.h>
 #include <daemon/mcbp.h>
 #include <xattr/utils.h>
-#include <daemon/mcaudit.h>
+#include <gsl/gsl>
 
 ENGINE_ERROR_CODE GetCommandContext::getItem() {
     const auto key = cookie.getRequestKey();
@@ -81,7 +82,7 @@ ENGINE_ERROR_CODE GetCommandContext::sendResponse() {
     datatype = connection.getEnabledDatatypes(datatype);
 
     uint16_t keylen = 0;
-    uint32_t bodylen = sizeof(info.flags) + payload.len;
+    uint32_t bodylen = gsl::narrow<uint32_t>(sizeof(info.flags) + payload.len);
 
     if (shouldSendKey()) {
         keylen = uint16_t(info.nkey);

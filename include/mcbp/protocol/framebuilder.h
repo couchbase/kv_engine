@@ -21,6 +21,8 @@
 #include <mcbp/protocol/response.h>
 #include <mcbp/protocol/status.h>
 
+#include <gsl/gsl>
+
 namespace cb {
 namespace mcbp {
 
@@ -91,7 +93,7 @@ public:
         // Insert the new extras:
         std::copy(extras.begin(), extras.end(), start);
         req->setExtlen(uint8_t(extras.size()));
-        req->setBodylen(old_body_size + extras.size());
+        req->setBodylen(gsl::narrow<uint32_t>(old_body_size + extras.size()));
     }
 
     /**
@@ -115,7 +117,8 @@ public:
         // Insert the new key:
         std::copy(key.begin(), key.end(), start);
         req->setKeylen(uint16_t(key.size()));
-        req->setBodylen(old_body_size + req->getExtlen() + key.size());
+        req->setBodylen(gsl::narrow<uint32_t>(old_body_size + req->getExtlen() +
+                                              key.size()));
     }
 
     /**
@@ -134,7 +137,8 @@ public:
         auto* start = buffer.data() + sizeof(*req) + req->getExtlen() +
                       req->getKeylen();
         std::copy(value.begin(), value.end(), start);
-        req->setBodylen(value.size() + req->getKeylen() + req->getExtlen());
+        req->setBodylen(gsl::narrow<uint32_t>(value.size() + req->getKeylen() +
+                                              req->getExtlen()));
     }
 
     /**

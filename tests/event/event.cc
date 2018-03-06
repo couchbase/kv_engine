@@ -18,9 +18,10 @@
 // This is a small test program used to test / experiment with libevent
 // functions and behavior. It is not needed by Couchbase
 #include <event2/event.h>
-#include <string.h>
-#include <iostream>
 #include <getopt.h>
+#include <string.h>
+#include <gsl/gsl>
+#include <iostream>
 #ifndef WIN32
 #include <netinet/in.h>
 #include <signal.h>
@@ -212,8 +213,12 @@ int client(const std::string &hostname, const std::string &port) {
              */
             continue;
         }
-
-        if (connect(sfd, ai->ai_addr, ai->ai_addrlen) == SOCKET_ERROR) {
+#ifdef WIN32
+        int ret = connect(sfd, ai->ai_addr, gsl::narrow<int>(ai->ai_addrlen));
+#else
+        int ret = connect(sfd, ai->ai_addr, ai->ai_addrlen);
+#endif
+        if (ret == SOCKET_ERROR) {
             std::cerr << "Failed to connect to server: " << strerror(errno) << std::endl;
             evutil_closesocket(sfd);
             continue;

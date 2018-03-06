@@ -118,7 +118,7 @@ public:
      *
      * @return the configured amount of worker threads
      */
-    int getNumWorkerThreads() const {
+    size_t getNumWorkerThreads() const {
         return num_threads;
     }
 
@@ -127,7 +127,7 @@ public:
      *
      * @param num_threads the new number of threads
      */
-    void setNumWorkerThreads(int num_threads) {
+    void setNumWorkerThreads(size_t num_threads) {
         has.threads = true;
         Settings::num_threads = num_threads;
         notify_changed("threads");
@@ -746,7 +746,7 @@ protected:
     /**
      * Number of worker (without dispatcher) libevent threads to run
      * */
-    int num_threads;
+    size_t num_threads;
 
     /**
      * Array of interface settings we are listening on

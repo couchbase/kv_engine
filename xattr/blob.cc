@@ -16,9 +16,10 @@
  */
 #include "config.h"
 
-#include <algorithm>
-#include <stdexcept>
 #include <xattr/blob.h>
+#include <algorithm>
+#include <gsl/gsl>
+#include <stdexcept>
 
 namespace cb {
 namespace xattr {
@@ -211,7 +212,7 @@ void Blob::append_kvpair(const cb::const_char_buffer& key,
                         key.len + 1 + // zero terminated key
                         value.len + 1; // zero terminated value
 
-    grow_buffer(needed);
+    grow_buffer(gsl::narrow<uint32_t>(needed));
     write_kvpair(offset, key, value);
 }
 
@@ -232,7 +233,7 @@ void Blob::remove_segment(const size_t offset, const size_t size) {
     }
 
     if (blob.len > 0) {
-        write_length(0, blob.len - 4);
+        write_length(0, gsl::narrow<uint32_t>(blob.len) - 4);
     }
 }
 
