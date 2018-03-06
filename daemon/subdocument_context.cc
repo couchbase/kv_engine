@@ -80,12 +80,8 @@ std::string SubdocCmdContext::macroToString(T macroValue) {
 
 ENGINE_ERROR_CODE SubdocCmdContext::pre_link_document(item_info& info) {
     if (do_macro_expansion) {
-        auto bodyoffset = cb::xattr::get_body_offset(
-            {static_cast<const char*>(info.value[0].iov_base),
-             info.value[0].iov_len});
-
         cb::char_buffer blob_buffer{static_cast<char*>(info.value[0].iov_base),
-                                    bodyoffset};
+                                    info.value[0].iov_len};
 
         cb::xattr::Blob xattr_blob(blob_buffer,
                                    mcbp::datatype::is_snappy(info.datatype));
