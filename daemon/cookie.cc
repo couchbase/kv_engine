@@ -395,19 +395,19 @@ void Cookie::logCommand() const {
     }
 
     const auto opcode = getRequest().getClientOpcode();
-    LOG_INFO("{}> {} {}",
-             connection.getId(),
-             to_string(opcode),
-             getPrintableRequestKey());
+    LOG_DEBUG("{}> {} {}",
+              connection.getId(),
+              to_string(opcode),
+              getPrintableRequestKey());
 }
 
 void Cookie::logResponse(const char* reason) const {
     const auto opcode = getRequest().getClientOpcode();
-    LOG_INFO("{}< {} {} - {}",
-             connection.getId(),
-             to_string(opcode),
-             getPrintableRequestKey(),
-             reason);
+    LOG_DEBUG("{}< {} {} - {}",
+              connection.getId(),
+              to_string(opcode),
+              getPrintableRequestKey(),
+              reason);
 }
 
 void Cookie::logResponse(ENGINE_ERROR_CODE code) const {
