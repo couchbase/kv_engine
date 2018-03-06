@@ -1528,6 +1528,8 @@ void McbpValidatorChains::initializeMcbpValidatorChains(McbpValidatorChains& cha
     chains.push_unique(PROTOCOL_BINARY_CMD_GET_LOCKED, get_locked_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_UNLOCK_KEY, unlock_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_RBAC_REFRESH, configuration_refresh_validator);
+    chains.push_unique(PROTOCOL_BINARY_CMD_GET_FAILOVER_LOG,
+                       dcp_get_failover_log_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_COLLECTIONS_SET_MANIFEST,
                        collections_set_manifest_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_COLLECTIONS_GET_MANIFEST,

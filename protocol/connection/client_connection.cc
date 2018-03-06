@@ -1096,6 +1096,17 @@ Document MemcachedConnection::get_and_lock(const std::string& id,
     return ret;
 }
 
+BinprotResponse MemcachedConnection::getFailoverLog(uint16_t vbucket) {
+    BinprotGetFailoverLogCommand command;
+    command.setVBucket(vbucket);
+    sendCommand(command);
+
+    BinprotResponse response;
+    recvResponse(response);
+
+    return response;
+}
+
 void MemcachedConnection::unlock(const std::string& id,
                                  uint16_t vbucket,
                                  uint64_t cas) {

@@ -270,3 +270,5 @@ add_unit_test_suite(NAME cluster-config
 
 # Unit test verifying different parts of hello
 add_unit_test_suite(NAME hello TIMEOUT 240 SOURCE testapp_hello.cc)
+
+add_unit_test_suite(ENGINE ep NAME misc TIMEOUT 30 SOURCE testapp_misc.cc)

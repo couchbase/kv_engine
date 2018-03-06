@@ -150,9 +150,6 @@ public:
     virtual ENGINE_ERROR_CODE setVBucketState(uint32_t opaque, uint16_t vbucket,
                                               vbucket_state_t state);
 
-    virtual ENGINE_ERROR_CODE getFailoverLog(uint32_t opaque, uint16_t vbucket,
-                                             dcp_add_failover_log callback);
-
     virtual ENGINE_ERROR_CODE streamRequest(uint32_t flags,
                                             uint32_t opaque,
                                             uint16_t vbucket,

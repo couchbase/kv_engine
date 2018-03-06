@@ -129,6 +129,7 @@ public:
             case PROTOCOL_BINARY_CMD_DELQ_WITH_META:
             case PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC:
             case PROTOCOL_BINARY_CMD_DISABLE_TRAFFIC:
+            case PROTOCOL_BINARY_CMD_GET_FAILOVER_LOG:
                 return false;
             default:
                 return true;

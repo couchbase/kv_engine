@@ -124,6 +124,7 @@ const std::map<cb::mcbp::ClientOpcode, std::string> client_blueprint = {
          {ClientOpcode::EvictKey, "EVICT_KEY"},
          {ClientOpcode::GetLocked, "GET_LOCKED"},
          {ClientOpcode::UnlockKey, "UNLOCK_KEY"},
+         {ClientOpcode::GetFailoverLog, "GET_FAILOVER_LOG"},
          {ClientOpcode::LastClosedCheckpoint, "LAST_CLOSED_CHECKPOINT"},
          {ClientOpcode::ResetReplicationChain, "RESET_REPLICATION_CHAIN"},
          {ClientOpcode::DeregisterTapClient, "DEREGISTER_TAP_CLIENT"},

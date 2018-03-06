@@ -1363,12 +1363,44 @@ static ENGINE_ERROR_CODE EvpDcpGetFailoverLog(
         uint32_t opaque,
         uint16_t vbucket,
         dcp_add_failover_log callback) {
+    // This function covers two commands:
+    // 1) DCP_GET_FAILOVER_LOG
+    //     It is valid only on a DCP Producer connection. Updates the
+    //     'lastReceiveTime' for the Producer.
+    // 2) GET_FAILOVER_LOG
+    //     It does not require a DCP connection (the client has opened
+    //     a regular MCBP connection).
     auto engine = acquireEngine(handle);
     ConnHandler* conn = engine->getConnHandler(cookie);
+    // Note: (conn != nullptr) only if conn is a DCP connection
     if (conn) {
-        return conn->getFailoverLog(opaque, vbucket, callback);
+        auto* producer = dynamic_cast<DcpProducer*>(conn);
+        // GetFailoverLog not supported for DcpConsumer
+        if (!producer) {
+            LOG(EXTENSION_LOG_WARNING,
+                "Disconnecting - This connection doesn't support the dcp get "
+                "failover log API");
+            return ENGINE_DISCONNECT;
+        }
+        producer->setLastReceiveTime(ep_current_time());
+        if (producer->doDisconnect()) {
+            return ENGINE_DISCONNECT;
+        }
     }
-    return ENGINE_DISCONNECT;
+    VBucketPtr vb = engine->getVBucket(vbucket);
+    if (!vb) {
+        LOG(EXTENSION_LOG_WARNING,
+            "%s (vb %d) Get Failover Log failed because this vbucket doesn't "
+            "exist",
+            conn->logHeader(),
+            vbucket);
+        return ENGINE_NOT_MY_VBUCKET;
+    }
+    auto failoverEntries = vb->failovers->getFailoverLog();
+    auto* epEngine = ObjectRegistry::onSwitchThread(NULL, true);
+    auto ret = callback(failoverEntries.data(), failoverEntries.size(), cookie);
+    ObjectRegistry::onSwitchThread(epEngine);
+    return ret;
 }
 
 static ENGINE_ERROR_CODE EvpDcpStreamEnd(gsl::not_null<ENGINE_HANDLE*> handle,

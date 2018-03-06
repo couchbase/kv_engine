@@ -649,6 +649,8 @@ void initialize_mbcp_lookup_map() {
     handlers[PROTOCOL_BINARY_CMD_GET_ERROR_MAP] = get_errmap_executor;
     handlers[PROTOCOL_BINARY_CMD_GET_LOCKED] = get_locked_executor;
     handlers[PROTOCOL_BINARY_CMD_UNLOCK_KEY] = unlock_executor;
+    handlers[PROTOCOL_BINARY_CMD_GET_FAILOVER_LOG] =
+            dcp_get_failover_log_executor;
     handlers[PROTOCOL_BINARY_CMD_DROP_PRIVILEGE] = drop_privilege_executor;
     handlers[PROTOCOL_BINARY_CMD_RBAC_REFRESH] = rbac_refresh_executor;
     handlers[PROTOCOL_BINARY_CMD_GET_CLUSTER_CONFIG] =

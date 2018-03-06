@@ -345,6 +345,8 @@ const uint8_t PROTOCOL_BINARY_CMD_GET_LOCKED =
         uint8_t(cb::mcbp::ClientOpcode::GetLocked);
 const uint8_t PROTOCOL_BINARY_CMD_UNLOCK_KEY =
         uint8_t(cb::mcbp::ClientOpcode::UnlockKey);
+const uint8_t PROTOCOL_BINARY_CMD_GET_FAILOVER_LOG =
+        uint8_t(cb::mcbp::ClientOpcode::GetFailoverLog);
 const uint8_t PROTOCOL_BINARY_CMD_LAST_CLOSED_CHECKPOINT =
         uint8_t(cb::mcbp::ClientOpcode::LastClosedCheckpoint);
 const uint8_t PROTOCOL_BINARY_CMD_GET_META =

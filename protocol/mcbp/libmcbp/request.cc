@@ -98,6 +98,7 @@ bool cb::mcbp::Request::isQuiet() const {
         case ClientOpcode::EvictKey:
         case ClientOpcode::GetLocked:
         case ClientOpcode::UnlockKey:
+        case ClientOpcode::GetFailoverLog:
         case ClientOpcode::LastClosedCheckpoint:
         case ClientOpcode::ResetReplicationChain:
         case ClientOpcode::DeregisterTapClient:

@@ -159,13 +159,6 @@ ENGINE_ERROR_CODE ConnHandler::streamRequest(uint32_t flags,
     return ENGINE_DISCONNECT;
 }
 
-ENGINE_ERROR_CODE ConnHandler::getFailoverLog(uint32_t opaque, uint16_t vbucket,
-                                              dcp_add_failover_log callback) {
-    logger.log(EXTENSION_LOG_WARNING, "Disconnecting - This connection doesn't "
-        "support the dcp get failover log API");
-    return ENGINE_DISCONNECT;
-}
-
 ENGINE_ERROR_CODE ConnHandler::noop(uint32_t opaque) {
     logger.log(EXTENSION_LOG_WARNING, "Disconnecting - This connection doesn't "
         "support the noop API");

@@ -155,6 +155,8 @@ enum class ClientOpcode : uint8_t {
     GetLocked = 0x94,
     UnlockKey = 0x95,
 
+    GetFailoverLog = 0x96,
+
     /**
      * Return the last closed checkpoint Id for a given VBucket.
      */

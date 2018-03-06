@@ -217,6 +217,8 @@ std::string to_string(cb::mcbp::ClientOpcode opcode) {
         return "GET_LOCKED";
     case ClientOpcode::UnlockKey:
         return "UNLOCK_KEY";
+    case ClientOpcode::GetFailoverLog:
+        return "GET_FAILOVER_LOG";
     case ClientOpcode::LastClosedCheckpoint:
         return "LAST_CLOSED_CHECKPOINT";
     case ClientOpcode::ResetReplicationChain:

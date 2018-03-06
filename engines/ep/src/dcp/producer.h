@@ -69,9 +69,6 @@ public:
                                     uint64_t *rollback_seqno,
                                     dcp_add_failover_log callback) override;
 
-    ENGINE_ERROR_CODE getFailoverLog(uint32_t opaque, uint16_t vbucket,
-                                     dcp_add_failover_log callback) override;
-
     ENGINE_ERROR_CODE step(struct dcp_message_producers* producers) override;
 
     ENGINE_ERROR_CODE bufferAcknowledgement(uint32_t opaque, uint16_t vbucket,
@@ -167,6 +164,10 @@ public:
     }
 
     void notifyPaused(bool schedule);
+
+    void setLastReceiveTime(const rel_time_t time) {
+        lastReceiveTime = time;
+    }
 
     /**
      * Tracks the amount of outstanding sent data for a Dcp Producer, alongside

@@ -1280,6 +1280,12 @@ private:
     uint8_t nru;
 };
 
+class BinprotGetFailoverLogCommand : public BinprotGenericCommand {
+public:
+    BinprotGetFailoverLogCommand()
+        : BinprotGenericCommand(PROTOCOL_BINARY_CMD_GET_FAILOVER_LOG){};
+};
+
 class BinprotSetParamCommand
     : public BinprotGenericCommand {
 public:

@@ -45,6 +45,7 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(PROTOCOL_BINARY_CMD_GETQ, require<Privilege::Read>);
     setup(PROTOCOL_BINARY_CMD_GETK, require<Privilege::Read>);
     setup(PROTOCOL_BINARY_CMD_GETKQ, require<Privilege::Read>);
+    setup(PROTOCOL_BINARY_CMD_GET_FAILOVER_LOG, require<Privilege::Read>);
     setup(PROTOCOL_BINARY_CMD_SET, require<Privilege::Upsert>);
     setup(PROTOCOL_BINARY_CMD_SETQ, require<Privilege::Upsert>);
     setup(PROTOCOL_BINARY_CMD_ADD, requireInsertOrUpsert);

@@ -393,6 +393,14 @@ public:
                           uint32_t lock_timeout);
 
     /**
+     * Get the Failover Log for a given VBucket
+     *
+     * @param vbucket
+     * @return the raw BinprotResponse
+     */
+    BinprotResponse getFailoverLog(uint16_t vbucket);
+
+    /**
      * Unlock a locked document
      *
      * @param id the name of the document

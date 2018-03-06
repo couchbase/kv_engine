@@ -475,33 +475,6 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
     return rv;
 }
 
-ENGINE_ERROR_CODE DcpProducer::getFailoverLog(uint32_t opaque, uint16_t vbucket,
-                                              dcp_add_failover_log callback) {
-    (void) opaque;
-    lastReceiveTime = ep_current_time();
-    if (doDisconnect()) {
-        return ENGINE_DISCONNECT;
-    }
-
-    VBucketPtr vb = engine_.getVBucket(vbucket);
-    if (!vb) {
-        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Get Failover Log failed "
-            "because this vbucket doesn't exist", logHeader(), vbucket);
-        return ENGINE_NOT_MY_VBUCKET;
-    }
-
-    std::vector<vbucket_failover_t> failoverEntries =
-            vb->failovers->getFailoverLog();
-
-    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL,
-                                                                     true);
-    ENGINE_ERROR_CODE rv = callback(failoverEntries.data(),
-                                    failoverEntries.size(),
-                                    getCookie());
-    ObjectRegistry::onSwitchThread(epe);
-    return rv;
-}
-
 ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
 
     if (doDisconnect()) {
