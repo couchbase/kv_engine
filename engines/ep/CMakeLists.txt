@@ -542,11 +542,7 @@ INSTALL(TARGETS ep
         ARCHIVE DESTINATION lib)
 
 if (COUCHBASE_KV_BUILD_UNIT_TESTS)
-    # Run the testapp get set tests against ep-engine
-    ADD_TEST(NAME ep-engine-getset-unit-tests.value_eviction
-             WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-             COMMAND memcached-get-set-tests -E ep)
-    SET_TESTS_PROPERTIES(ep-engine-getset-unit-tests.value_eviction PROPERTIES TIMEOUT 400)
+    # Run the testapp get set tests against ep-engine in full-eviction
     ADD_TEST(NAME ep-engine-getset-unit-tests.full_eviction
              WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
              COMMAND memcached-get-set-tests -E ep -c "item_eviction_policy=full_eviction")
