@@ -793,3 +793,52 @@ protected:
 
     Featureset effective_features;
 };
+
+namespace cb {
+namespace net {
+/**
+ * Create a new socket and connect it to the given host
+ *
+ * @param host The name of the host to try to connect to. If
+ *             empty (or set to localhost) it'll be replaced
+ *             with "127.0.0.1" or "::1" depending on the value
+ *             of family
+ * @param port The port number to connect to
+ * @param family The socket family to create (AF_INET/AF_INET6/AF_UNSPEC)
+ * @return The connected socket or INVALID_SOCKET if we failed to connect
+ *         to the socket
+ *
+ */
+SOCKET new_socket(const std::string& host, in_port_t port, sa_family_t family);
+
+/**
+ * Create a new socket and connect it to the given host
+ *
+ * @param host The name of the host to try to connect to. If
+ *             empty (or set to localhost) it'll be replaced
+ *             with "127.0.0.1" or "::1" depending on the value
+ *             of family
+ * @param port The port number to connect to
+ * @param family The socket family to create (AF_INET/AF_INET6/AF_UNSPEC)
+ * @param ssl_cert_file an optional filename containing the certificate
+ * @param ssl_key_file an optional filename containing the private key
+ * @return Tuple with:
+ *             SOCKET The connected socket or INVALID_SOCKET if we failed
+ *                    to connect to the socket
+ *             SSL_CTX The ssl context in use
+ *             BIO The BIO to use.
+ *
+ * The caller takes ownership of the socket, ssl_ctx and bio and must
+ * release the resources when done using them.
+ *
+ * @throws std::exception for SSL related problems
+ */
+std::tuple<SOCKET, SSL_CTX*, BIO*> new_ssl_socket(
+        const std::string& host,
+        in_port_t port,
+        sa_family_t family,
+        const std::string& ssl_cert_file = {},
+        const std::string& ssl_key_file = {});
+
+} // namespace net
+} // namespace cb

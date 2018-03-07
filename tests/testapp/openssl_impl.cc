@@ -29,27 +29,20 @@ static BIO *ssl_bio_r = nullptr;
 static BIO *ssl_bio_w = nullptr;
 
 SOCKET create_connect_ssl_socket(in_port_t port) {
-    char port_str[32];
-    snprintf(port_str, 32, "%d", port);
+    SOCKET sfd;
 
-    ssl_ctx = nullptr;
-    EXPECT_EQ(nullptr, bio);
-    if (create_ssl_connection(&ssl_ctx, &bio, "127.0.0.1", port_str,
-                                       NULL, NULL, 1) != 0) {
-        ADD_FAILURE() << "Failed to connect over ssl to port: " << port;
+    std::tie(sfd, ssl_ctx, bio) = cb::net::new_ssl_socket("", port, AF_INET);
+
+    if (sfd == INVALID_SOCKET) {
+        ADD_FAILURE() << "Failed to connect over ssl to 127.0.0.1:" << port;
         return INVALID_SOCKET;
     }
 
-    /* SSL "trickery". To ensure we have full control over send/receive of data.
-       create_ssl_connection will have negotiated the SSL connection, now:
-       1. steal the underlying FD
-       2. Switch out the BIO_ssl_connect BIO for a plain memory BIO
-
-       Now send/receive is done under our control. byte by byte, large chunks etc...
-    */
-    int sfd = BIO_get_fd(bio, NULL);
+    // SSL "trickery". To ensure we have full control over send/receive of data.
+    // Switch out the BIO_ssl_connect BIO for a plain memory BIO
+    // Now send/receive is done under our control. byte by byte, large chunks
+    // etc...
     BIO_get_ssl(bio, &ssl);
-
     EXPECT_EQ(nullptr, ssl_bio_r);
     ssl_bio_r = BIO_new(BIO_s_mem());
 
@@ -75,16 +68,6 @@ void destroy_ssl_socket() {
         sock_ssl = INVALID_SOCKET;
     }
 }
-
-void reset_bio_mem() {
-    ssl_bio_r = nullptr;
-    ssl_bio_w = nullptr;
-    if (bio) {
-        BIO_free_all(bio);
-        bio = nullptr;
-    }
-}
-
 
 ssize_t phase_send_ssl(const void *buf, size_t len) {
     ssize_t rv = 0, send_rv = 0;

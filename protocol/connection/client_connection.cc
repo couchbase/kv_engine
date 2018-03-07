@@ -112,9 +112,10 @@ void MemcachedConnection::close() {
     }
 }
 
-SOCKET new_socket(std::string& host, in_port_t port, sa_family_t family) {
-    struct addrinfo hints;
-    memset(&hints, 0, sizeof(hints));
+SOCKET cb::net::new_socket(const std::string& host,
+                           in_port_t port,
+                           sa_family_t family) {
+    struct addrinfo hints = {};
     hints.ai_flags = AI_PASSIVE;
     hints.ai_protocol = IPPROTO_TCP;
     hints.ai_socktype = SOCK_STREAM;
@@ -122,23 +123,26 @@ SOCKET new_socket(std::string& host, in_port_t port, sa_family_t family) {
 
     int error;
     struct addrinfo* ai;
+    std::string hostname{host};
 
-    if (host.empty() || host == "localhost") {
+    if (hostname.empty() || hostname == "localhost") {
         if (family == AF_INET) {
-            host.assign("127.0.0.1");
+            hostname.assign("127.0.0.1");
         } else if (family == AF_INET6){
-            host.assign("::1");
+            hostname.assign("::1");
         } else if (family == AF_UNSPEC) {
-            host.assign("localhost");
+            hostname.assign("localhost");
         }
     }
 
-    error = getaddrinfo(host.c_str(), std::to_string(port).c_str(), &hints,
-                        &ai);
+    error = getaddrinfo(
+            hostname.c_str(), std::to_string(port).c_str(), &hints, &ai);
 
     if (error != 0) {
-        throw std::system_error(error, std::system_category(),
-                                "Failed to resolve address \"" + host + "\"");
+        throw std::system_error(
+                error,
+                std::system_category(),
+                "Failed to resolve address \"" + hostname + "\"");
     }
 
     for (struct addrinfo* next = ai; next; next = next->ai_next) {
@@ -167,6 +171,21 @@ SOCKET new_socket(std::string& host, in_port_t port, sa_family_t family) {
 #endif
             if (connect(sfd, next->ai_addr, socklen) != SOCKET_ERROR) {
                 freeaddrinfo(ai);
+
+                // Try to set the nodelay mode on the socket (but ignore
+                // if we fail to do so..
+                int nodelay_flag = 1;
+#if defined(WIN32)
+                char* ptr = reinterpret_cast<char*>(&nodelay_flag);
+#else
+                void* ptr = reinterpret_cast<void*>(&nodelay_flag);
+#endif
+                setsockopt(sfd,
+                           IPPROTO_TCP,
+                           TCP_NODELAY,
+                           ptr,
+                           sizeof(nodelay_flag));
+
                 return sfd;
             }
             closesocket(sfd);
@@ -177,54 +196,89 @@ SOCKET new_socket(std::string& host, in_port_t port, sa_family_t family) {
     return INVALID_SOCKET;
 }
 
-void MemcachedConnection::connect() {
-    sock = new_socket(host, port, family);
+std::tuple<SOCKET, SSL_CTX*, BIO*> cb::net::new_ssl_socket(
+        const std::string& host,
+        in_port_t port,
+        sa_family_t family,
+        const std::string& ssl_cert_file,
+        const std::string& ssl_key_file) {
+    auto sock = cb::net::new_socket(host, port, family);
     if (sock == INVALID_SOCKET) {
-        std::string msg("Failed to connect to: ");
-        if (family == AF_INET || family == AF_UNSPEC) {
-            msg += host + ":";
-        } else {
-            msg += "[" + host + "]:";
-        }
-        msg.append(std::to_string(port));
-        throw std::runtime_error(msg);
+        return std::tuple<SOCKET, SSL_CTX*, BIO*>{
+                INVALID_SOCKET, nullptr, nullptr};
     }
 
     /* we're connected */
-    if (ssl) {
-        if ((context = SSL_CTX_new(SSLv23_client_method())) == NULL) {
-            BIO_free_all(bio);
-            throw std::runtime_error("Failed to create openssl client contex");
+    auto* context = SSL_CTX_new(SSLv23_client_method());
+    if (context == nullptr) {
+        throw std::runtime_error("Failed to create openssl client context");
+    }
+
+    if (!ssl_cert_file.empty() && !ssl_key_file.empty()) {
+        if (!SSL_CTX_use_certificate_file(
+                    context, ssl_cert_file.c_str(), SSL_FILETYPE_PEM) ||
+            !SSL_CTX_use_PrivateKey_file(
+                    context, ssl_key_file.c_str(), SSL_FILETYPE_PEM) ||
+            !SSL_CTX_check_private_key(context)) {
+            std::vector<char> ssl_err(1024);
+            ERR_error_string_n(ERR_get_error(), ssl_err.data(), ssl_err.size());
+            SSL_CTX_free(context);
+            throw std::runtime_error(
+                    std::string("Failed to use SSL cert and key: ") +
+                    ssl_err.data());
         }
-        if (!ssl_cert_file.empty() && !ssl_key_file.empty()) {
-            if (!SSL_CTX_use_certificate_file(
-                        context, ssl_cert_file.c_str(), SSL_FILETYPE_PEM) ||
-                !SSL_CTX_use_PrivateKey_file(
-                        context, ssl_key_file.c_str(), SSL_FILETYPE_PEM) ||
-                !SSL_CTX_check_private_key(context)) {
-                BIO_free_all(bio);
-                std::vector<char> ssl_err(1024);
-                ERR_error_string_n(ERR_get_error(), ssl_err.data(),
-                        ssl_err.size());
-                throw std::runtime_error(std::string("Failed to use SSL cert and key:") + ssl_err.data());
+    }
+
+    // Ensure read/write operations only return after the
+    // handshake and successful completion.
+    SSL_CTX_set_mode(context, SSL_MODE_AUTO_RETRY);
+
+    BIO* bio = BIO_new_ssl(context, 1);
+    BIO_push(bio, BIO_new_socket(gsl::narrow<int>(sock), 0));
+
+    if (BIO_do_handshake(bio) <= 0) {
+        BIO_free_all(bio);
+        SSL_CTX_free(context);
+        throw std::runtime_error("Failed to do SSL handshake!");
+    }
+
+    return std::tuple<SOCKET, SSL_CTX*, BIO*>{sock, context, bio};
+}
+
+void MemcachedConnection::connect() {
+    if (bio != nullptr) {
+        BIO_free_all(bio);
+        bio = nullptr;
+    }
+
+    if (context != nullptr) {
+        SSL_CTX_free(context);
+    }
+
+    if (ssl) {
+        std::tie(sock, context, bio) = cb::net::new_ssl_socket(
+                host, port, family, ssl_cert_file, ssl_key_file);
+    } else {
+        sock = cb::net::new_socket(host, port, family);
+    }
+
+    if (sock == INVALID_SOCKET) {
+        std::string msg("Failed to connect to: ");
+        if (family == AF_INET || family == AF_UNSPEC) {
+            if (host.empty()) {
+                msg += "localhost:";
+            } else {
+                msg += host + ":";
+            }
+        } else {
+            if (host.empty()) {
+                msg += "[::1]:";
+            } else {
+                msg += "[" + host + "]:";
             }
         }
-
-        /* Ensure read/write operations only return after the
-         * handshake and successful completion.
-         */
-        SSL_CTX_set_mode(context, SSL_MODE_AUTO_RETRY);
-
-        bio = BIO_new_ssl(context, 1);
-        BIO_push(bio, BIO_new_socket(gsl::narrow<int>(sock), 0));
-
-        if (BIO_do_handshake(bio) <= 0) {
-            BIO_free_all(bio);
-            SSL_CTX_free(context);
-            bio = nullptr;
-            context = nullptr;
-            throw std::runtime_error("Failed to do SSL handshake!");
-        }
+        msg.append(std::to_string(port));
+        throw std::runtime_error(msg);
     }
 }
 

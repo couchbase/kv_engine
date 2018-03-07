@@ -801,68 +801,12 @@ void TestappTest::start_external_server() {
 #endif // !WIN32
 }
 
-static struct addrinfo *lookuphost(const char *hostname, in_port_t port)
-{
-    struct addrinfo *ai = 0;
-    struct addrinfo hints;
-    char service[NI_MAXSERV];
-    int error;
-
-    memset(&hints, 0, sizeof(hints));
-    hints.ai_family = AF_UNSPEC;
-    hints.ai_protocol = IPPROTO_TCP;
-    hints.ai_socktype = SOCK_STREAM;
-
-    (void)snprintf(service, NI_MAXSERV, "%d", port);
-    if ((error = getaddrinfo(hostname, service, &hints, &ai)) != 0) {
-#ifdef WIN32
-        log_network_error("getaddrinfo(): %s\r\n");
-#else
-       if (error != EAI_SYSTEM) {
-          fprintf(stderr, "getaddrinfo(): %s\n", gai_strerror(error));
-       } else {
-          perror("getaddrinfo()");
-       }
-#endif
-    }
-
-    return ai;
-}
-
 SOCKET create_connect_plain_socket(in_port_t port)
 {
-    struct addrinfo *ai = lookuphost("127.0.0.1", port);
-    SOCKET sock = INVALID_SOCKET;
-    if (ai != NULL) {
-        for (auto* next = ai; next != nullptr && sock == INVALID_SOCKET;
-             next = next->ai_next) {
-            sock = socket(
-                    next->ai_family, next->ai_socktype, next->ai_protocol);
-            if (sock != INVALID_SOCKET) {
-                if (connect(sock, next->ai_addr, (socklen_t)next->ai_addrlen) ==
-                    SOCKET_ERROR) {
-                    closesocket(sock);
-                    sock = INVALID_SOCKET;
-                }
-            }
-        }
-        freeaddrinfo(ai);
-    }
-
+    auto sock = cb::net::new_socket("", port, AF_INET);
     if (sock == INVALID_SOCKET) {
-        ADD_FAILURE() << "Failed to connect socket to port: " << port;
-        return sock;
+        ADD_FAILURE() << "Failed to connect socket to 127.0.0.1:" << port;
     }
-
-    int nodelay_flag = 1;
-#if defined(WIN32)
-    char* ptr = reinterpret_cast<char*>(&nodelay_flag);
-#else
-    void* ptr = reinterpret_cast<void*>(&nodelay_flag);
-#endif
-    EXPECT_EQ(0, setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, ptr,
-                            sizeof(nodelay_flag)));
-
     return sock;
 }
 
