@@ -86,6 +86,17 @@ public:
     Blob(const Blob& other);
 
     /**
+     * Replace the contents of the Blob with the given buffer.
+     *
+     * If the incoming buffer is snappy compressed, it must contain a
+     * compressed xattr value.
+     *
+     * @param buffer an existing buffer to use
+     * @param compressed the buffer contains snappy compressed data
+     */
+    Blob& assign(cb::char_buffer buffer, bool compressed);
+
+    /**
      * Get the value for a given key located in the blob
      *
      * @param key The key to look up

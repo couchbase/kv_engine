@@ -174,13 +174,14 @@ ENGINE_ERROR_CODE MutationCommandContext::getExistingItemToPreserveXattr() {
         return ENGINE_LOCKED;
     }
 
-    cb::const_char_buffer payload{
-        static_cast<const char*>(existing_info.value[0].iov_base),
-        existing_info.value[0].iov_len};
-
-    std::tie(xattr_size, system_xattr_size) =
-            cb::xattr::get_size_and_system_xattr_size(existing_info.datatype,
-                                                      payload);
+    // Found the existing item (with it's XATTRs) - create a read-only
+    // view on them. Note in the case the existing item is compressed;
+    // we'll decompress as part of creating the Blob.
+    cb::char_buffer existingValue{
+            static_cast<char*>(existing_info.value[0].iov_base),
+            existing_info.value[0].iov_len};
+    existingXattrs.assign(existingValue,
+                          mcbp::datatype::is_snappy(existing_info.datatype));
 
     state = State::AllocateNewItem;
 
@@ -189,7 +190,7 @@ ENGINE_ERROR_CODE MutationCommandContext::getExistingItemToPreserveXattr() {
 
 ENGINE_ERROR_CODE MutationCommandContext::allocateNewItem() {
     auto dtype = datatype;
-    if (xattr_size > 0) {
+    if (existingXattrs.size() > 0) {
         // We need to prepend the existing XATTRs - include XATTR bit
         // in datatype:
         dtype |= PROTOCOL_BINARY_DATATYPE_XATTR;
@@ -198,9 +199,9 @@ ENGINE_ERROR_CODE MutationCommandContext::allocateNewItem() {
         dtype &= ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
     }
 
-    size_t total_size = value.size() + xattr_size;
-    if (xattr_size > 0 && mcbp::datatype::is_snappy(datatype)) {
-        total_size = decompressed_value.size() + xattr_size;
+    size_t total_size = value.size() + existingXattrs.size();
+    if (existingXattrs.size() > 0 && mcbp::datatype::is_snappy(datatype)) {
+        total_size = decompressed_value.size() + existingXattrs.size();
     }
 
     item_info newitem_info;
@@ -208,7 +209,7 @@ ENGINE_ERROR_CODE MutationCommandContext::allocateNewItem() {
         auto ret = bucket_allocate_ex(cookie,
                                       key,
                                       total_size,
-                                      system_xattr_size,
+                                      existingXattrs.get_system_size(),
                                       flags,
                                       expiration,
                                       dtype,
@@ -234,18 +235,19 @@ ENGINE_ERROR_CODE MutationCommandContext::allocateNewItem() {
     }
 
     auto* root = reinterpret_cast<uint8_t*>(newitem_info.value[0].iov_base);
-    if (xattr_size > 0) {
+    if (existingXattrs.size() > 0) {
         // Preserve the xattrs
-        auto* ex = reinterpret_cast<uint8_t*>(existing_info.value[0].iov_base);
-        std::copy(ex, ex + xattr_size, root);
-        root += xattr_size;
+        std::copy(existingXattrs.data(),
+                  existingXattrs.data() + existingXattrs.size(),
+                  root);
+        root += existingXattrs.size();
     }
 
     // Copy the user supplied value over. If the user-supplied value
     // was Snappy and we have XATTRs, we must use the decompressed
     // version of it (compression is only applied to the complete
     // value+XATTR pair, not to only part of it).
-    if (xattr_size > 0 && mcbp::datatype::is_snappy(datatype)) {
+    if (existingXattrs.size() > 0 && mcbp::datatype::is_snappy(datatype)) {
         std::copy(decompressed_value.data(),
                   decompressed_value.data() + decompressed_value.size(),
                   root);
@@ -331,7 +333,7 @@ ENGINE_ERROR_CODE MutationCommandContext::sendResponse() {
 ENGINE_ERROR_CODE MutationCommandContext::reset() {
     newitem.reset();
     existing.reset();
-    xattr_size = 0;
+    existingXattrs.assign({nullptr, 0}, false);
     state = State::GetExistingItemToPreserveXattr;
     return ENGINE_SUCCESS;
 }

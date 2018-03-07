@@ -21,6 +21,7 @@
 #include <memcached/engine.h>
 #include <memcached/protocol_binary.h>
 #include <platform/compress.h>
+#include <xattr/blob.h>
 
 /**
  * The MutationCommandContext is a state machine used by the memcached
@@ -142,11 +143,9 @@ private:
     // The metadata for the existing item
     item_info existing_info;
 
-    // The size of the xattr segment of the existing item
-    size_t xattr_size{0};
-
-    // The size of the system xattrs
-    size_t system_xattr_size {0};
+    /// The existing XATTRs. Empty if the existing item didn't exist; or
+    /// had no XATTRs.
+    cb::xattr::Blob existingXattrs;
 
     /**
      * The predicate function to use for the mutation store, if xattrs are
