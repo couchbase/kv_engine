@@ -27,8 +27,7 @@ INSTANTIATE_TEST_CASE_P(
                            ::testing::Values(XattrSupport::Yes),
                            ::testing::Values(ClientJSONSupport::Yes,
                                              ClientJSONSupport::No),
-                           ::testing::Values(ClientSnappySupport::Yes,
-                                             ClientSnappySupport::No)),
+                           ::testing::Values(ClientSnappySupport::Yes)),
         PrintToStringCombinedName());
 
 // Instantiation for tests which want XATTR support disabled.
@@ -39,8 +38,7 @@ INSTANTIATE_TEST_CASE_P(
                            ::testing::Values(XattrSupport::No),
                            ::testing::Values(ClientJSONSupport::Yes,
                                              ClientJSONSupport::No),
-                           ::testing::Values(ClientSnappySupport::Yes,
-                                             ClientSnappySupport::No)),
+                           ::testing::Values(ClientSnappySupport::No)),
         PrintToStringCombinedName());
 
 TEST_P(XattrTest, GetXattrAndBody) {

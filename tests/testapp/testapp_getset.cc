@@ -61,7 +61,7 @@ INSTANTIATE_TEST_CASE_P(
                                              XattrSupport::No),
                            ::testing::Values(ClientJSONSupport::Yes,
                                              ClientJSONSupport::No),
-                           ::testing::Values(ClientSnappySupport::No)),
+                           ::testing::Values(ClientSnappySupport::Yes)),
         PrintToStringCombinedName());
 
 TEST_P(GetSetTest, TestAdd) {
@@ -573,6 +573,8 @@ TEST_P(GetSetTest, TestCompressedData) {
     MemcachedConnection& conn = getConnection();
     document.info.datatype = cb::mcbp::Datatype::Snappy;
 
+    setCompressionMode("off");
+
     std::vector<char> input(1024);
     std::fill(input.begin(), input.end(), 'a');
     compress_vector(input, document.value);
@@ -596,6 +598,8 @@ TEST_P(GetSetTest, TestCompressedData) {
 TEST_P(GetSetTest, TestCompressedJSON) {
     MemcachedConnection& conn = getConnection();
     document.info.datatype = cb::mcbp::Datatype::Snappy;
+
+    setCompressionMode("off");
 
     std::string valueData{R"({"aaaaaaaaa":10000000000})"};
 

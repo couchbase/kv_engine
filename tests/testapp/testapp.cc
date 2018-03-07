@@ -1616,7 +1616,8 @@ MemcachedConnection& TestappTest::getAdminConnection() {
 
 MemcachedConnection& TestappTest::prepare(MemcachedConnection& connection) {
     connection.reconnect();
-    connection.setDatatypeCompressed(true);
+    connection.setDatatypeCompressed(hasSnappySupport() ==
+                                     ClientSnappySupport::Yes);
     connection.setDatatypeJson(hasJSONSupport() == ClientJSONSupport::Yes);
     connection.setMutationSeqnoSupport(true);
     connection.setXerrorSupport(true);

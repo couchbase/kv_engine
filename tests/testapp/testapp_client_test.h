@@ -66,7 +66,7 @@ protected:
 
     ClientJSONSupport hasJSONSupport() const override;
 
-    virtual ClientSnappySupport hasSnappySupport() const;
+    ClientSnappySupport hasSnappySupport() const override;
 
     // What response datatype do we expect for documents which are JSON?
     // Will be JSON only if the client successfully negotiated JSON feature.

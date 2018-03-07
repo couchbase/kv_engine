@@ -118,6 +118,11 @@ public:
         return ClientJSONSupport::No;
     }
 
+    /// Does this test/connection support Snappy?
+    virtual ClientSnappySupport hasSnappySupport() const {
+        return ClientSnappySupport::No;
+    }
+
     /**
      * What response datatype do we expect for documents which are JSON?
      * Will be JSON only if the client successfully negotiated JSON feature.
