@@ -112,6 +112,95 @@ void MemcachedConnection::close() {
     }
 }
 
+/**
+ * For some reason windows use const char* rather than const void
+ * for the option value. To avoid having to #ifdef that all over
+ * the place just create a wrapper
+ */
+#ifdef WIN32
+static void cb_setsockopt(SOCKET sock,
+                          int level,
+                          int option_name,
+                          const void* option_value,
+                          socklen_t option_len) {
+    setsockopt(sock,
+               level,
+               option_name,
+               reinterpret_cast<const char*>(option_value),
+               option_len);
+}
+
+#else
+#define cb_setsockopt(a, b, c, d, e) setsockopt(a, b, c, d, e)
+#endif
+
+SOCKET try_connect_socket(struct addrinfo* next,
+                          const std::string& hostname,
+                          in_port_t port) {
+    SOCKET sfd = socket(next->ai_family, next->ai_socktype, next->ai_protocol);
+    if (sfd == INVALID_SOCKET) {
+        throw std::system_error(get_socket_error(),
+                                std::system_category(),
+                                "socket() failed (" + hostname + " " +
+                                        std::to_string(port) + ")");
+    }
+
+#ifdef WIN32
+    // BIO_new_socket pass the socket as an int, but it is a SOCKET on
+    // Windows.. On windows a socket is an unsigned value, and may
+    // get an overflow inside openssl (I don't know the exact width of
+    // the SOCKET, and how openssl use the value internally). This
+    // class is mostly used from the test framework so let's throw
+    // an exception instead and treat it like a test failure (to be
+    // on the safe side). We'll be refactoring to SCHANNEL in the
+    // future anyway.
+    if (sfd > std::numeric_limits<int>::max()) {
+        closesocket(sfd);
+        throw std::runtime_error(
+                "Socket value too big "
+                "(may trigger behavior openssl)");
+    }
+    int socklen = gsl::narrow<int>(next->ai_addrlen);
+#else
+    socklen_t socklen = next->ai_addrlen;
+#endif
+
+    // When running unit tests on our Windows CV system we somtimes
+    // see connect fail with WSAEADDRINUSE. For a client socket
+    // we don't bind the socket as that's implicit from calling
+    // connect. Mark the socket reusable so that the kernel may
+    // reuse the socket earlier
+    const int flag = 1;
+    cb_setsockopt(sfd,
+                  SOL_SOCKET,
+                  SO_REUSEADDR,
+                  reinterpret_cast<const void*>(&flag),
+                  sizeof(flag));
+
+    // Try to set the nodelay mode on the socket (but ignore
+    // if we fail to do so..
+    cb_setsockopt(sfd,
+                  IPPROTO_TCP,
+                  TCP_NODELAY,
+                  reinterpret_cast<const void*>(&flag),
+                  sizeof(flag));
+
+    if (connect(sfd, next->ai_addr, socklen) == SOCKET_ERROR) {
+        auto error = get_socket_error();
+        closesocket(sfd);
+#ifdef WIN32
+        WSASetLastError(error);
+#endif
+        throw std::system_error(error,
+                                std::system_category(),
+                                "connect() failed (" + hostname + " " +
+                                        std::to_string(port) + ")");
+    }
+
+    // Socket is connected and ready to use
+    return sfd;
+}
+
 SOCKET cb::net::new_socket(const std::string& host,
                            in_port_t port,
                            sa_family_t family) {
@@ -139,57 +228,46 @@ SOCKET cb::net::new_socket(const std::string& host,
             hostname.c_str(), std::to_string(port).c_str(), &hints, &ai);
 
     if (error != 0) {
-        throw std::system_error(
-                error,
-                std::system_category(),
-                "Failed to resolve address \"" + hostname + "\"");
+        throw std::system_error(error,
+                                std::system_category(),
+                                "Failed to resolve address host: \"" +
+                                        hostname +
+                                        "\" Port: " + std::to_string(port));
     }
 
-    for (struct addrinfo* next = ai; next; next = next->ai_next) {
-        SOCKET sfd = socket(next->ai_family,
-                            next->ai_socktype,
-                            next->ai_protocol);
-        if (sfd != INVALID_SOCKET) {
-#ifdef WIN32
-            // BIO_new_socket pass the socket as an int, but it is a SOCKET on
-            // Windows.. On windows a socket is an unsigned value, and may
-            // get an overflow inside openssl (I don't know the exact width of
-            // the SOCKET, and how openssl use the value internally). This
-            // class is mostly used from the test framework so let's throw
-            // an exception instead and treat it like a test failure (to be
-            // on the safe side). We'll be refactoring to SCHANNEL in the
-            // future anyway.
-            if (sfd > std::numeric_limits<int>::max()) {
-                closesocket(sfd);
-                throw std::runtime_error("Socket value too big "
-                                             "(may trigger behavior openssl)");
-            }
+    bool unit_tests = getenv("MEMCACHED_UNIT_TESTS") != nullptr;
 
-            int socklen = gsl::narrow<int>(next->ai_addrlen);
-#else
-            socklen_t socklen = next->ai_addrlen;
-#endif
-            if (connect(sfd, next->ai_addr, socklen) != SOCKET_ERROR) {
+    // Iterate over all of the entries returned by getaddrinfo
+    // and try to connect to them. Depending on the input data we
+    // might get multiple returns (ex: localhost with AF_UNSPEC returns
+    // both IPv4 and IPv6 address, and IPv4 could fail while IPv6
+    // might succeed.
+    for (auto* next = ai; next; next = next->ai_next) {
+        int retry = unit_tests ? 200 : 0;
+        do {
+            try {
+                auto sfd = try_connect_socket(next, hostname, port);
                 freeaddrinfo(ai);
-
-                // Try to set the nodelay mode on the socket (but ignore
-                // if we fail to do so..
-                int nodelay_flag = 1;
-#if defined(WIN32)
-                char* ptr = reinterpret_cast<char*>(&nodelay_flag);
-#else
-                void* ptr = reinterpret_cast<void*>(&nodelay_flag);
-#endif
-                setsockopt(sfd,
-                           IPPROTO_TCP,
-                           TCP_NODELAY,
-                           ptr,
-                           sizeof(nodelay_flag));
-
                 return sfd;
+            } catch (const std::system_error& error) {
+                if (unit_tests) {
+                    std::cerr << "Failed building socket: " << error.what()
+                              << std::endl;
+#ifndef WIN32
+                    const int WSAEADDRINUSE = EADDRINUSE;
+#endif
+                    if (error.code().value() == WSAEADDRINUSE) {
+                        std::cerr << "EADDRINUSE.. backing off" << std::endl;
+                        std::this_thread::sleep_for(
+                                std::chrono::milliseconds(10));
+                    } else {
+                        // Not subject for backoff and retry
+                        retry = 0;
+                    }
+                }
             }
-            closesocket(sfd);
-        }
+        } while (retry-- > 0);
+        // Try next entry returned from getaddinfo
     }
 
     freeaddrinfo(ai);
