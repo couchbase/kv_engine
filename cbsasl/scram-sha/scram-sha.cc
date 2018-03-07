@@ -56,7 +56,7 @@ static std::string hex_encode_nonce(const std::array<char, 8>& nonce) {
  */
 static bool decodeAttributeList(cbsasl_conn_t& conn, const std::string& list,
                                 AttributeMap& attributes) {
-    unsigned long pos = 0;
+    size_t pos = 0;
 
     logging::log(conn,
                  logging::Level::Debug,
@@ -502,7 +502,7 @@ cbsasl_error_t ScramShaServerBackend::step(const char* input,
 
     server_final_message = out.str();
     (*output) = server_final_message.data();
-    (*outputlen) = server_final_message.length();
+    (*outputlen) = gsl::narrow<unsigned>(server_final_message.length());
 
     std::string clientproof = iter->second;
     std::string my_clientproof = Couchbase::Base64::encode(getClientProof());
@@ -713,7 +713,7 @@ cbsasl_error_t ScramShaClientBackend::step(const char* input,
         client_final_message = out.str();
 
         *output = client_final_message.data();
-        *outputlen = client_final_message.length();
+        *outputlen = gsl::narrow<unsigned>(client_final_message.length());
         logging::log(conn, logging::Level::Trace, client_final_message);
         return CBSASL_CONTINUE;
     } else {

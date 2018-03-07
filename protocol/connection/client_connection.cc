@@ -683,7 +683,7 @@ void MemcachedConnection::authenticate(const std::string& username,
                                 password.length() + 10);
     context.secret = reinterpret_cast<cbsasl_secret_t*>(buffer.data());
     memcpy(context.secret->data, password.c_str(), password.length());
-    context.secret->len = gsl::narrow<unsigned long>(password.length());
+    context.secret->len = gsl::narrow<uint32_t>(password.length());
 
     err = cbsasl_client_new(NULL, NULL, NULL, NULL, sasl_callbacks, 0, &client);
     if (err != CBSASL_OK) {
@@ -933,7 +933,7 @@ void MemcachedConnection::configureEwouldBlockEngine(const EWBEngineMode& mode,
     request.message.header.request.extlen = 12;
     request.message.header.request.keylen = ntohs((short)key.size());
     request.message.header.request.bodylen =
-            htonl(12 + gsl::narrow<unsigned long>(key.size()));
+            htonl(12 + gsl::narrow<uint32_t>(key.size()));
     request.message.body.inject_error = htonl(err_code);
     request.message.body.mode = htonl(static_cast<uint32_t>(mode));
     request.message.body.value = htonl(value);

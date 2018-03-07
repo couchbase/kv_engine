@@ -511,7 +511,7 @@ void BinprotSubdocMultiMutationCommand::encode(std::vector<uint8_t>& buf) const 
         uint16_t pathlen = ntohs(gsl::narrow<uint16_t>(spec.path.size()));
         const char* p = reinterpret_cast<const char*>(&pathlen);
         buf.insert(buf.end(), p, p + 2);
-        uint32_t vallen = ntohl(gsl::narrow<unsigned long>(spec.value.size()));
+        uint32_t vallen = ntohl(gsl::narrow<uint32_t>(spec.value.size()));
         p = reinterpret_cast<const char*>(&vallen);
         buf.insert(buf.end(), p, p + 4);
         buf.insert(buf.end(), spec.path.begin(), spec.path.end());

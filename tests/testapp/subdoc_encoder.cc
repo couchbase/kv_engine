@@ -24,6 +24,7 @@
 
 #include "subdoc_encoder.h"
 
+#include <gsl/gsl>
 #include <iterator>
 
 std::vector<char> SubdocMultiLookupCmd::encode() const {
@@ -38,7 +39,7 @@ std::vector<char> SubdocMultiLookupCmd::encode() const {
         } encoded;
         encoded.spec.opcode = s.opcode;
         encoded.spec.flags = s.flags;
-        encoded.spec.pathlen = htons(s.path.size());
+        encoded.spec.pathlen = htons(gsl::narrow<uint16_t>(s.path.size()));
 
         std::copy(&encoded.bytes[0],
                   &encoded.bytes[sizeof(encoded.spec)],
@@ -66,8 +67,8 @@ std::vector<char> SubdocMultiMutationCmd::encode() const {
         } encoded;
         encoded.spec.opcode = s.opcode;
         encoded.spec.flags = s.flags;
-        encoded.spec.pathlen = htons(s.path.size());
-        encoded.spec.valuelen = htonl(s.value.size());
+        encoded.spec.pathlen = htons(gsl::narrow<uint16_t>(s.path.size()));
+        encoded.spec.valuelen = htonl(gsl::narrow<uint32_t>(s.value.size()));
 
         std::copy(&encoded.bytes[0],
                   &encoded.bytes[sizeof(encoded.spec)],
@@ -135,14 +136,14 @@ void SubdocMultiCmd::populate_header(protocol_binary_request_header& header,
                                      size_t bodylen) const {
     header.request.magic = PROTOCOL_BINARY_REQ;
     header.request.opcode = command;
-    header.request.keylen = htons(key.size());
+    header.request.keylen = htons(gsl::narrow<uint16_t>(key.size()));
     header.request.extlen =
             ((expiry != 0 || encode_zero_expiry_on_wire) ? sizeof(uint32_t)
                                                          : 0) +
             (!isNone(doc_flags) ? sizeof(doc_flags) : 0);
     header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
     /* TODO: vbucket */
-    header.request.bodylen = htonl(bodylen);
+    header.request.bodylen = htonl(gsl::narrow<uint32_t>(bodylen));
     header.request.opaque = 0xdeadbeef;
     header.request.cas = cas;
 }

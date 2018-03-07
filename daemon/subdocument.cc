@@ -37,6 +37,7 @@
 #include <memcached/types.h>
 #include <platform/histogram.h>
 #include <xattr/blob.h>
+#include <gsl/gsl>
 
 static const std::array<SubdocCmdContext::Phase, 2> phases{{SubdocCmdContext::Phase::XATTR,
                                                             SubdocCmdContext::Phase::Body}};
@@ -67,10 +68,14 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
 static void subdoc_response(Cookie& cookie, SubdocCmdContext& context);
 
 // Debug - print details of the specified subdocument command.
-static void subdoc_print_command(Connection& c, protocol_binary_command cmd,
-                                 const char* key, const uint16_t keylen,
-                                 const char* path, const uint16_t pathlen,
-                                 const char* value, const uint32_t vallen) {
+static void subdoc_print_command(Connection& c,
+                                 protocol_binary_command cmd,
+                                 const char* key,
+                                 const uint16_t keylen,
+                                 const char* path,
+                                 const size_t pathlen,
+                                 const char* value,
+                                 const size_t vallen) {
     char clean_key[KEY_MAX_LENGTH + 32];
     char clean_path[SUBDOC_PATH_MAX_LENGTH];
     char clean_value[80]; // only print the first few characters of the value.
@@ -1406,7 +1411,8 @@ static size_t encode_multi_mutation_result_spec(uint8_t index,
     // Also encode resultlen if status is success.
     if (op.status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
         const auto& mloc = op.result.matchloc();
-        *reinterpret_cast<uint32_t*>(cursor) = htonl(mloc.length);
+        *reinterpret_cast<uint32_t*>(cursor) =
+                htonl(gsl::narrow<uint32_t>(mloc.length));
         cursor += sizeof(uint32_t);
     }
     return cursor - buffer;
@@ -1534,12 +1540,13 @@ static void subdoc_multi_mutation_response(Cookie& cookie,
     }
 
     // Allocated required resource - build the header.
-    mcbp_add_header(cookie,
-                    status_code,
-                    extlen,
-                    /*keylen*/ 0,
-                    extlen + response_buf_needed + iov_len,
-                    PROTOCOL_BINARY_RAW_BYTES);
+    mcbp_add_header(
+            cookie,
+            status_code,
+            gsl::narrow<uint8_t>(extlen),
+            /*keylen*/ 0,
+            gsl::narrow<uint32_t>(extlen + response_buf_needed + iov_len),
+            PROTOCOL_BINARY_RAW_BYTES);
 
     // Append extras if requested.
     if (extlen > 0) {
@@ -1547,7 +1554,7 @@ static void subdoc_multi_mutation_response(Cookie& cookie,
     }
 
     // Append the iovecs for each operation result.
-    size_t index = 0;
+    uint8_t index = 0;
     for (auto phase : phases) {
         for (size_t ii = 0; ii < context.getOperations(phase).size(); ii++, index++) {
             const auto& op = context.getOperations(phase)[ii];
@@ -1557,7 +1564,7 @@ static void subdoc_multi_mutation_response(Cookie& cookie,
                 if (op.traits.responseHasValue() && mloc.length > 0) {
                     char* header = response_buf.getCurrent();
                     size_t header_sz =
-                        encode_multi_mutation_result_spec(index, op, header);
+                            encode_multi_mutation_result_spec(index, op, header);
 
                     connection.addIov(reinterpret_cast<void*>(header),
                                       header_sz);
@@ -1570,7 +1577,7 @@ static void subdoc_multi_mutation_response(Cookie& cookie,
                 if (op.status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
                     char* header = response_buf.getCurrent();
                     size_t header_sz =
-                        encode_multi_mutation_result_spec(index, op, header);
+                            encode_multi_mutation_result_spec(index, op, header);
 
                     connection.addIov(reinterpret_cast<void*>(header),
                                       header_sz);
@@ -1641,7 +1648,7 @@ static void subdoc_multi_lookup_response(Cookie& cookie,
                     status_code,
                     /*extlen*/ 0, /*keylen*/
                     0,
-                    context.response_val_len,
+                    gsl::narrow<uint32_t>(context.response_val_len),
                     PROTOCOL_BINARY_RAW_BYTES);
 
     // Append the iovecs for each operation result.

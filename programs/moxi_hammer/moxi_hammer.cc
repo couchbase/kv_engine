@@ -132,7 +132,10 @@ SOCKET new_socket(std::string host,
         SOCKET sfd =
                 socket(next->ai_family, next->ai_socktype, next->ai_protocol);
         if (sfd != INVALID_SOCKET) {
-            if (connect(sfd, next->ai_addr, next->ai_addrlen) != SOCKET_ERROR) {
+            if (cb::net::connect(sfd,
+                                 next->ai_addr,
+                                 gsl::narrow<size_t>(next->ai_addrlen)) !=
+                SOCKET_ERROR) {
                 if (evutil_make_socket_nonblocking(sfd) != -1) {
                     freeaddrinfo(ai);
                     return sfd;

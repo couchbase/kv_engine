@@ -33,6 +33,7 @@
 #include <utilities/protocol2text.h>
 #include <cctype>
 #include <exception>
+#include <gsl/gsl>
 
 bool McbpConnection::unregisterEvent() {
     if (!registered_in_libevent) {

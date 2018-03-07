@@ -23,6 +23,7 @@
 #include <include/memcached/protocol_binary.h>
 #include <memcached/protocol_binary.h>
 #include <algorithm>
+#include <gsl/gsl>
 #include <vector>
 
 namespace mcbp {
@@ -98,14 +99,17 @@ protected:
             blob.data());
 
         req->message.header.request.magic = PROTOCOL_BINARY_REQ;
-        req->message.header.request.extlen = 3 + extlen;
-        req->message.header.request.keylen = ntohs(doc.length());
-        req->message.header.request.bodylen = ntohl(
-            3 + doc.length() + path.length() + value.length() + extlen);
+        req->message.header.request.extlen =
+                gsl::narrow_cast<uint8_t>(3 + extlen);
+        req->message.header.request.keylen =
+                ntohs(gsl::narrow<uint16_t>(doc.length()));
+        req->message.header.request.bodylen = ntohl(gsl::narrow<uint32_t>(
+                3 + doc.length() + path.length() + value.length() + extlen));
         req->message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
 
         req->message.extras.subdoc_flags = (flags);
-        req->message.extras.pathlen = ntohs(path.length());
+        req->message.extras.pathlen =
+                ntohs(gsl::narrow<uint16_t>(path.length()));
 
         auto* ptr = blob.data() + sizeof(req->bytes);
         if (extlen) {

@@ -21,6 +21,7 @@
 #include <event2/event.h>
 #include <mcbp/protocol/header.h>
 #include <memcached/protocol_binary.h>
+#include <gsl/gsl>
 
 /**
  * Test all of the command validators we've got to ensure that they
@@ -1806,7 +1807,7 @@ TEST_P(DcpMutationValidatorTest, InvalidExtlen) {
 
 TEST_P(DcpMutationValidatorTest, InvalidExtlenCollections) {
     request.message.header.request.extlen =
-        protocol_binary_request_dcp_mutation::getExtrasLength(!GetParam());
+            protocol_binary_request_dcp_mutation::getExtrasLength(!GetParam());
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
 

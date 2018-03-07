@@ -24,6 +24,7 @@
 #include <string.h>
 #include <algorithm>
 #include <array>
+#include <gsl/gsl>
 
 char envptr[1024]{"CBSASL_PWFILE=" SOURCE_ROOT "/cbsasl/sasl_server_test.json"};
 
@@ -40,7 +41,7 @@ static int sasl_getopt_callback(void*,
 
     if (strcmp(option, "sasl mechanisms") == 0) {
         *result = mechanisms.c_str();
-        *len = mechanisms.length();
+        *len = gsl::narrow<unsigned>(mechanisms.length());
         return CBSASL_OK;
     }
 

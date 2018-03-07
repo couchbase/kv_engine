@@ -39,6 +39,7 @@
 #include <memcached/vbucket.h>
 
 #include <cstdint>
+#include <gsl/gsl>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -1571,7 +1572,7 @@ union protocol_binary_request_dcp_mutation {
         req.vbucket = htons(vbucket);
         req.cas = htonll(cas);
         req.keylen = htons(keyLen);
-        req.extlen = getExtrasLength(collectionsAware);
+        req.extlen = gsl::narrow<uint8_t>(getExtrasLength(collectionsAware));
         req.bodylen = ntohl(req.extlen + keyLen + nmeta + valueLen);
         req.datatype = datatype;
 
@@ -1601,7 +1602,7 @@ union protocol_binary_request_dcp_mutation {
     } message;
     uint8_t bytes[sizeof(protocol_binary_request_header) + 32];
 
-    static size_t getExtrasLength(bool collectionAware) {
+    static uint8_t getExtrasLength(bool collectionAware) {
         if (collectionAware) {
             return (2 * sizeof(uint64_t)) + (3 * sizeof(uint32_t)) +
                    sizeof(uint16_t) + (2 * sizeof(uint8_t));
@@ -1716,7 +1717,7 @@ union protocol_binary_request_dcp_expiration {
         req.vbucket = htons(vbucket);
         req.cas = htonll(cas);
         req.keylen = htons(keyLen);
-        req.extlen = getExtrasLength(collectionsAware);
+        req.extlen = gsl::narrow<uint8_t>(getExtrasLength(collectionsAware));
         req.bodylen = ntohl(req.extlen + keyLen + nmeta + valueLen);
         req.datatype = datatype;
 
@@ -1842,7 +1843,8 @@ union protocol_binary_request_dcp_system_event {
         req.vbucket = htons(vbucket);
         req.keylen = htons(keyLen);
         req.extlen = getExtrasLength();
-        req.bodylen = htonl(req.extlen + valueLen + keyLen);
+        req.bodylen =
+                htonl(gsl::narrow<uint32_t>(req.extlen + valueLen + keyLen));
         req.datatype = PROTOCOL_BINARY_RAW_BYTES;
         message.body.event = htonl(uint32_t(event));
         message.body.by_seqno = htonll(bySeqno);

@@ -896,7 +896,8 @@ static void set_feature(cb::mcbp::Feature feature, bool enable) {
     buffer.request.message.header.request.magic = PROTOCOL_BINARY_REQ;
     buffer.request.message.header.request.opcode = PROTOCOL_BINARY_CMD_HELLO;
     buffer.request.message.header.request.keylen = htons((uint16_t)agentlen);
-    buffer.request.message.header.request.bodylen = htonl(bodylen);
+    buffer.request.message.header.request.bodylen =
+            htonl(gsl::narrow<uint32_t>(bodylen));
 
     safe_send(buffer.bytes,
               sizeof(buffer.request.message.header) + bodylen, false);

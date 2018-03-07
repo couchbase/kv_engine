@@ -20,6 +20,7 @@
 
 #include <JSON_checker.h>
 #include <cJSON_utils.h>
+#include <gsl/gsl>
 
 #include <cstring>
 #include <iostream>
@@ -54,7 +55,7 @@ Manifest::Manifest(const std::string& json, size_t maxNumberOfCollections)
     auto jsonCollections =
             getJsonObject(cjson.get(), CollectionsKey, CollectionsType);
 
-    size_t count = cJSON_GetArraySize(jsonCollections);
+    size_t count = gsl::narrow<size_t>(cJSON_GetArraySize(jsonCollections));
     if (count > maxNumberOfCollections) {
         throw std::invalid_argument(
                 "Manifest::Manifest too many collections count:" +
@@ -62,7 +63,8 @@ Manifest::Manifest(const std::string& json, size_t maxNumberOfCollections)
     }
 
     for (size_t ii = 0; ii < count; ii++) {
-        auto collection = cJSON_GetArrayItem(jsonCollections, ii);
+        auto collection =
+                cJSON_GetArrayItem(jsonCollections, gsl::narrow<int>(ii));
         throwIfNullOrWrongType(
                 std::string(CollectionsKey) + ":" + std::to_string(ii),
                 collection,

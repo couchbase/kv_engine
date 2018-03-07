@@ -1,12 +1,13 @@
 /* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #include "config.h"
-#include <fcntl.h>
 #include <errno.h>
-#include <stdlib.h>
+#include <fcntl.h>
+#include <inttypes.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <inttypes.h>
+#include <gsl/gsl>
 
 #include <logger/logger.h>
 #include <memcached/server_api.h>
@@ -1231,8 +1232,7 @@ static bool hash_key_create(hash_key* hkey,
                             const size_t nkey,
                             struct default_engine* engine,
                             const void* cookie) {
-
-    int hash_key_len = sizeof(bucket_id_t) + nkey;
+    uint16_t hash_key_len = gsl::narrow<uint16_t>(sizeof(bucket_id_t) + nkey);
     if (nkey > sizeof(hkey->key_storage.client_key)) {
         hkey->header.full_key =
             static_cast<hash_key_data*>(cb_malloc(hash_key_len));

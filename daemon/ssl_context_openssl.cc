@@ -134,10 +134,11 @@ void SslContext::disable() {
 bool SslContext::drainInputSocketBuf() {
     if (!inputPipe.empty()) {
         auto* bio = network;
-        auto n = inputPipe.consume(
-            [bio](cb::const_byte_buffer data) -> ssize_t {
-                return BIO_write(bio, data.data(), data.size());
-            });
+        auto n =
+                inputPipe.consume([bio](cb::const_byte_buffer data) -> ssize_t {
+                    return BIO_write(
+                            bio, data.data(), gsl::narrow<int>(data.size()));
+                });
 
         if (n > 0) {
             // We did move some data
@@ -229,7 +230,8 @@ void SslContext::drainBioSendPipe(SOCKET sfd) {
         if (!outputPipe.full()) {
             auto* bio = network;
             auto n = outputPipe.produce([bio](cb::byte_buffer data) -> ssize_t {
-                return BIO_read(bio, data.data(), data.size());
+                return BIO_read(
+                        bio, data.data(), gsl::narrow<int>(data.size()));
             });
 
             if (n > 0) {

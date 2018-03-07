@@ -21,6 +21,7 @@
 
 #include <cstdio>
 #include <cstring>
+#include <gsl/gsl>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
@@ -54,7 +55,8 @@ void process_stream(FILE* stream, const std::string& output, bool preserve) {
     const std::string end_marker{"---------- Closing logfile"};
 
     std::vector<char> line(2048); // we don't have lines that long
-    while (fgets(line.data(), line.size(), stream) != nullptr) {
+    while (fgets(line.data(), gsl::narrow<int>(line.size()), stream) !=
+           nullptr) {
         // Check if this is a begin line..
         const char* pos;
         if ((pos = std::strstr(line.data(), start_marker.c_str())) != nullptr) {

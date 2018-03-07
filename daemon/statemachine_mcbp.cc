@@ -26,6 +26,7 @@
 
 #include <mcbp/mcbp.h>
 #include <platform/strerror.h>
+#include <gsl/gsl>
 
 static bool conn_new_cmd(McbpConnection& connection);
 static bool conn_waiting(McbpConnection& connection);
@@ -372,7 +373,7 @@ bool conn_execute(McbpConnection& connection) {
             throw std::logic_error(
                     "conn_execute: Not enough data in input buffer");
         }
-        return size;
+        return gsl::narrow<ssize_t>(size);
     });
 
     return true;

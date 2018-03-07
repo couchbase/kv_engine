@@ -122,12 +122,12 @@ static inline uint8_t* hash_key_get_client_key(const hash_key* key) {
 
 static inline uint16_t hash_key_get_client_key_len(const hash_key* key) {
     return hash_key_get_key_len(key) -
-           sizeof(key->header.full_key->bucket_index);
+           gsl::narrow<uint16_t>(sizeof(key->header.full_key->bucket_index));
 }
 
 static inline void hash_key_set_client_key(hash_key* key,
                                            const void* client_key,
-                                           const ssize_t client_key_len) {
+                                           const size_t client_key_len) {
     memcpy(key->header.full_key->client_key, client_key, client_key_len);
 }
 

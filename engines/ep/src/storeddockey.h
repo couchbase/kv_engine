@@ -23,6 +23,8 @@
 
 #include <memcached/dockey.h>
 
+#include <gsl/gsl>
+
 #include "ep_types.h"
 
 class SerialisedDocKey;
@@ -262,13 +264,14 @@ protected:
      * @param key a DocKey to be stored
      */
     SerialisedDocKey(const DocKey key)
-        : length(key.size()), docNamespace(key.getDocNamespace()) {
-        if (length > std::numeric_limits<uint8_t>::max()) {
+        : length(0), docNamespace(key.getDocNamespace()) {
+        if (key.size() > std::numeric_limits<uint8_t>::max()) {
             throw std::length_error(
                     "SerialisedDocKey(const DocKey key) " +
                     std::to_string(length) +
                     "exceeds std::numeric_limits<uint8_t>::max()");
         }
+        length = gsl::narrow_cast<uint8_t>(key.size());
         // Copy the data into bytes, which should be allocated into a larger
         // buffer.
         std::memcpy(bytes, key.data(), key.size());

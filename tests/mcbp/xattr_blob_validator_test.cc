@@ -18,6 +18,7 @@
 
 #include <gtest/gtest.h>
 #include <xattr/utils.h>
+#include <gsl/gsl>
 
 class XattrValidatorTest : public ::testing::Test {
 public:
@@ -35,11 +36,11 @@ protected:
         std::copy(value.begin(), value.end(), std::back_inserter(blob));
         blob.push_back(0x00);
 
-        uint32_t len = htonl(uint32_t(blob.size() - (offset + 4)));
+        uint32_t len = htonl(gsl::narrow<uint32_t>(blob.size() - (offset + 4)));
         memcpy(blob.data() + offset, &len, 4);
 
         // Update the root block
-        len = htonl(blob.size() - 4);
+        len = htonl(gsl::narrow<uint32_t>(blob.size() - 4));
         memcpy(blob.data(), &len, 4);
     }
 
@@ -72,33 +73,33 @@ TEST_F(XattrValidatorTest, TestXattrMultipleKV) {
 
 TEST_F(XattrValidatorTest, TestXattrInvalidRootLength) {
     addKvPair("_sync", "{ \"foo\" : \"bar\" }");
-    size_t len;
+    uint32_t len;
 
     // One byte too long
-    memcpy(&len, blob.data(), 4);
+    memcpy(&len, blob.data(), sizeof(len));
     len = htonl(ntohl(len) + 1);
-    memcpy(blob.data(), &len, 4);
+    memcpy(blob.data(), &len, sizeof(len));
     EXPECT_FALSE(cb::xattr::validate(getBuffer()));
 
     // A byte too short
     len = htonl(ntohl(len) - 2);
-    memcpy(blob.data(), &len, 4);
+    memcpy(blob.data(), &len, sizeof(len));
     EXPECT_FALSE(cb::xattr::validate(getBuffer()));
 }
 
 TEST_F(XattrValidatorTest, TestXattrInvalidKeyLength) {
     addKvPair("_sync", "{ \"foo\" : \"bar\" }");
-    size_t len;
+    uint32_t len;
 
     // One byte too long
-    memcpy(&len, blob.data() + 4, 4);
+    memcpy(&len, blob.data() + 4, sizeof(len));
     len = htonl(ntohl(len) + 1);
-    memcpy(blob.data() + 4, &len, 4);
+    memcpy(blob.data() + 4, &len, sizeof(len));
     EXPECT_FALSE(cb::xattr::validate(getBuffer()));
 
     // A byte too short
     len = htonl(ntohl(len) - 2);
-    memcpy(blob.data() + 4, &len, 4);
+    memcpy(blob.data() + 4, &len, sizeof(len));
     EXPECT_FALSE(cb::xattr::validate(getBuffer()));
 }
 

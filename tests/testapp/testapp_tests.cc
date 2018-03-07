@@ -2029,9 +2029,13 @@ TEST_P(McdTestappTest, SetHuge) {
 }
 
 TEST_P(McdTestappTest, SetE2BIG) {
-    test_set_huge_impl("test_set_e2big", PROTOCOL_BINARY_CMD_SET,
-                       PROTOCOL_BINARY_RESPONSE_E2BIG, false, 1,
-                       GetTestBucket().getMaximumDocSize() + 1);
+    test_set_huge_impl(
+            "test_set_e2big",
+            PROTOCOL_BINARY_CMD_SET,
+            PROTOCOL_BINARY_RESPONSE_E2BIG,
+            false,
+            1,
+            gsl::narrow<int>(GetTestBucket().getMaximumDocSize()) + 1);
 }
 
 TEST_P(McdTestappTest, SetQHuge) {

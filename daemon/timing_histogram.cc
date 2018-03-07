@@ -24,6 +24,7 @@
 #include <atomic>
 #include <chrono>
 #include <functional>
+#include <gsl/gsl>
 #include <sstream>
 #include <string>
 
@@ -161,7 +162,7 @@ std::string TimingHistogram::to_string(void) {
     size_t len = msec.size();
     // element 0 isn't used
     for (size_t ii = 1; ii < len; ii++) {
-        cJSON *obj = cJSON_CreateNumber(get_msec(ii));
+        cJSON* obj = cJSON_CreateNumber(get_msec(gsl::narrow<uint8_t>(ii)));
         cJSON_AddItemToArray(array, obj);
     }
     cJSON_AddItemToObject(root, "ms", array);

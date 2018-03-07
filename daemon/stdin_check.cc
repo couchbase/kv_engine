@@ -19,7 +19,7 @@ std::function<void()> exit_function;
 
 static char* get_command(char* buffer, size_t buffsize) {
 #ifdef WIN32
-    if (fgets(buffer, buffsize, stdin) == NULL) {
+    if (fgets(buffer, gsl::narrow<int>(buffsize), stdin) == NULL) {
         return NULL;
     }
     return buffer;

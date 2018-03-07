@@ -15,15 +15,15 @@
  *   limitations under the License.
  */
 #include "config.h"
-#include <memcached/protocol_binary.h>
-#include "utilities/protocol2text.h"
 #include <cbsasl/cbsasl.h>
-#include <iostream>
 #include <mcbp/mcbp.h>
 #include <memcached/protocol_binary.h>
 #include <openssl/conf.h>
 #include <openssl/engine.h>
+#include <gsl/gsl>
+#include <iostream>
 #include <vector>
+#include "utilities/protocol2text.h"
 
 #include "utilities.h"
 
@@ -101,8 +101,10 @@ static void sendCommand(BIO* bio,
     memset(req.bytes, 0, sizeof(req.bytes));
     req.message.header.request.magic = PROTOCOL_BINARY_REQ;
     req.message.header.request.opcode = opcode;
-    req.message.header.request.keylen = htons(key.length());
-    req.message.header.request.bodylen = htonl(key.length() + value.length());
+    req.message.header.request.keylen =
+            htons(gsl::narrow<uint16_t>(key.length()));
+    req.message.header.request.bodylen =
+            htonl(gsl::narrow<uint32_t>(key.length() + value.length()));
 
     std::vector<uint8_t> buffer(
         sizeof(req.bytes) + key.length() + value.length());
@@ -114,7 +116,7 @@ static void sendCommand(BIO* bio,
 }
 
 void sendCommand(BIO* bio, const std::vector<uint8_t>& buffer) {
-    ensure_send(bio, buffer.data(), buffer.size());
+    ensure_send(bio, buffer.data(), gsl::narrow<int>(buffer.size()));
     if (packet_dump) {
         cb::mcbp::dump(buffer.data(), std::cerr);
     }
@@ -187,7 +189,7 @@ int do_sasl_auth(BIO* bio, const char* user, const char* pass) {
         // check if pwlen is 0 at the same time ;-) )
         memcpy(context.secret->data, pass, pwlen);
     }
-    context.secret->len = pwlen;
+    context.secret->len = gsl::narrow<uint32_t>(pwlen);
 
     cbsasl_conn_t* client;
     cbsasl_error_t err;

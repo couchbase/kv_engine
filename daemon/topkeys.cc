@@ -17,13 +17,14 @@
 
 #include "config.h"
 
-#include <algorithm>
-#include <cstring>
-#include <sys/types.h>
-#include <stdexcept>
-#include <stdlib.h>
 #include <inttypes.h>
 #include <platform/platform.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#include <algorithm>
+#include <cstring>
+#include <gsl/gsl>
+#include <stdexcept>
 
 #include "topkeys.h"
 
@@ -221,7 +222,11 @@ static void tk_iterfunc(const std::string& key, const topkey_item_t& it,
                         ",atime=%" PRIu32, it.ti_access_count,
                         created_time, created_time);
     if (vlen > 0 && vlen < int(sizeof(val_str) - 1)) {
-        c->add_stat(key.c_str(), key.size(), val_str, vlen, c->cookie);
+        c->add_stat(key.c_str(),
+                    gsl::narrow<uint16_t>(key.size()),
+                    val_str,
+                    vlen,
+                    c->cookie);
     }
 }
 
