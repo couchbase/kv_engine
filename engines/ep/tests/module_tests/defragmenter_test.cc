@@ -363,12 +363,20 @@ TEST_P(DefragmenterTest, testCompressionInActiveMode) {
 
     auto key1 = makeStoredDocKey("key1");
     auto key2 = makeStoredDocKey("key2");
+    auto evictedKey = makeStoredDocKey("evictme");
 
     auto item1 = make_item(vbucket->getId(), key1, compressibleValue, 0,
                            PROTOCOL_BINARY_DATATYPE_JSON);
 
     auto item2 = make_item(vbucket->getId(), key2, nonCompressibleValue, 0,
                            PROTOCOL_BINARY_DATATYPE_JSON);
+
+    // add an evicted item to be sure compression skips it
+    auto evictedItem = make_item(vbucket->getId(),
+                                 evictedKey,
+                                 nonCompressibleValue,
+                                 0,
+                                 PROTOCOL_BINARY_DATATYPE_JSON);
 
     auto compressible_item = makeCompressibleItem(vbucket->getId(), key1,
                              compressibleValue, PROTOCOL_BINARY_DATATYPE_JSON,
@@ -379,6 +387,20 @@ TEST_P(DefragmenterTest, testCompressionInActiveMode) {
 
     rv = public_processSet(item2, 0);
     ASSERT_EQ(MutationStatus::WasClean, rv);
+
+    rv = public_processSet(evictedItem, 0);
+    ASSERT_EQ(MutationStatus::WasClean, rv);
+
+    auto* stored_item = this->vbucket->ht.find(
+            evictedKey, TrackReference::Yes, WantsDeleted::No);
+    EXPECT_NE(nullptr, stored_item);
+    // Need to clear the dirty flag to allow it to be ejected.
+    stored_item->markClean();
+
+    const char* str;
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+              vbucket->evictKey(evictedKey, &str))
+            << str;
 
     // Save the datatype counts before and after compression. The test needs
     // to verify if the datatype counts are updated correctly after
