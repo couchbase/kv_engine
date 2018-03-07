@@ -44,6 +44,7 @@ bool DefragmentVisitor::visit(const HashTable::HashBucketLock& lh,
     if (!mcbp::datatype::is_snappy(v.getDatatype()) &&
         compressMode == BucketCompressionMode::Active && value_len > 0) {
         currentVb->ht.compressValue(v);
+        valueCompressed = true;
     }
 
     // value must be at least non-zero (also covers Items with null Blobs)
