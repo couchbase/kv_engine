@@ -153,6 +153,32 @@ protected:
 
     }
 
+    // Test replacing a compressed/uncompressed value (based on test
+    // variant) with an compressed/uncompressed value (based on input
+    // paramter). XATTRs should be correctly merged.
+    void doReplaceWithXattrTest(bool compress) {
+        // Set initial body+XATTR, compressed depending on test variant.
+        setBodyAndXattr(value, xattrVal);
+
+        // Replace body with new body.
+        const std::string replacedValue = "\"JSON string\"";
+        document.value = replacedValue;
+        document.info.cas = mcbp::cas::Wildcard;
+        document.info.datatype = cb::mcbp::Datatype::Raw;
+        if (compress) {
+            document.compress();
+        }
+        getConnection().mutate(document, 0, MutationType::Replace);
+
+        // Validate contents.
+        EXPECT_EQ(xattrVal, getXattr(sysXattr).getDataString());
+        auto response = getConnection().get(name, 0);
+        EXPECT_EQ(replacedValue, response.value);
+        // Combined result will not be compressed; so just check for
+        // JSON / not JSON.
+        EXPECT_EQ(expectedJSONDatatype(), response.info.datatype);
+    }
+
     BinprotSubdocResponse subdoc(
             protocol_binary_command opcode,
             const std::string& key,

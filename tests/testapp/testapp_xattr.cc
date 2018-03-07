@@ -356,6 +356,19 @@ TEST_P(XattrTest, TestMacroExpansionAndIsolation) {
     EXPECT_NE(first_cas, resp.getCas());
 }
 
+// Test that macro expansion only happens once if the value is replaced.
+TEST_P(XattrTest, TestMacroExpansionOccursOnce) {
+    getConnection().mutate(document, 0, MutationType::Set);
+
+    createXattr("meta.cas", "\"${Mutation.CAS}\"", true);
+    const auto mutation_cas = getXattr("meta.cas");
+    EXPECT_NE("\"${Mutation.CAS}\"", mutation_cas.getValue())
+            << "Macro expansion did not occur when requested";
+    getConnection().mutate(document, 0, MutationType::Replace);
+    EXPECT_EQ(mutation_cas, getXattr("meta.cas"))
+            << "'meta.cas' should be unchanged when value replaced";
+}
+
 TEST_P(XattrTest, OperateOnDeletedItem) {
     getConnection().remove(name, 0);
 
@@ -1376,4 +1389,16 @@ TEST_P(XattrTest, mb25928_SystemCantExceedSystemLimit) {
     EXPECT_FALSE(resp.isSuccess());
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_E2BIG, resp.getStatus())
                 << "The system space is max 1M";
+}
+
+// Test replacing a compressed/uncompressed value with an uncompressed
+// value. XATTRs should be correctly merged.
+TEST_P(XattrTest, MB_28524_TestReplaceWithXattrUncompressed) {
+    doReplaceWithXattrTest(false);
+}
+
+// Test replacing a compressed/uncompressed value with a compressed
+// value. XATTRs should be correctly merged.
+TEST_P(XattrTest, MB_28524_TestReplaceWithXattrCompressed) {
+    doReplaceWithXattrTest(true);
 }

@@ -390,19 +390,6 @@ TEST_P(GetSetTest, TestReplace) {
 
 }
 
-TEST_P(GetSetTest, TestReplaceWithXattr) {
-    // The current code does not preserve XATTRs yet
-    getConnection().mutate(document, 0, MutationType::Add);
-
-    createXattr("meta.cas", "\"${Mutation.CAS}\"", true);
-    const auto mutation_cas = getXattr("meta.cas");
-    EXPECT_NE("\"${Mutation.CAS}\"", mutation_cas.getValue());
-    getConnection().mutate(document, 0, MutationType::Replace);
-    // The xattr should have been preserved, and the macro should not
-    // be expanded more than once..
-    EXPECT_EQ(mutation_cas, getXattr("meta.cas"));
-}
-
 TEST_P(GetSetTest, TestSet) {
     MemcachedConnection& conn = getConnection();
     // Set should fail if the key doesn't exists and we're using CAS
