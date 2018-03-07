@@ -408,7 +408,12 @@ bool Audit::configure(void) {
         }
     }
 
-    if (!config.is_auditd_enabled()) {
+    if (config.is_auditd_enabled()) {
+        // If the write_event_to_disk function returns false then it is
+        // possible the audit file has been closed.  Therefore ensure
+        // the file is open.
+        auditfile.ensure_open();
+    } else {
         // Audit is disabled, ensure that the audit file is closed
         auditfile.close();
     }

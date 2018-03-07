@@ -263,6 +263,8 @@ bool AuditFile::write_event_to_disk(cJSON *output) {
     } else {
         log_error(AuditErrorCode::MEMORY_ALLOCATION_ERROR,
                   "failed to convert audit event");
+        // Failed to write event to disk.
+        return false;
     }
 
     return ret;

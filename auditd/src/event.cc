@@ -125,5 +125,10 @@ bool Event::process(Audit& audit) {
 
     Audit::log_error(AuditErrorCode::WRITE_EVENT_TO_DISK_ERROR,
                      to_string(json_payload, false));
+
+    // If the write_event_to_disk function returns false then it is
+    // possible the audit file has been closed.  Therefore ensure
+    // the file is open.
+    audit.auditfile.ensure_open();
     return false;
 }

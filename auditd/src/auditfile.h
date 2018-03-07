@@ -48,6 +48,13 @@ public:
      */
     bool maybe_rotate_files(void) {
         if (is_open() && time_to_rotate_log()) {
+            if (is_empty()) {
+                // Given the audit log is empty on rotation instead of
+                // closing and then re-opening we can just keep open and
+                // update the open_time.
+                open_time = auditd_time();
+                return true;
+            }
             close_and_rotate_log();
             return true;
         }
@@ -141,6 +148,10 @@ private:
     void close_and_rotate_log(void);
     void set_log_directory(const std::string &new_directory);
     bool is_timestamp_format_correct(std::string& str);
+
+    bool is_empty() const {
+        return (current_size == 0);
+    }
 
     static time_t auditd_time();
 

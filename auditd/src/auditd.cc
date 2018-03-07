@@ -52,7 +52,11 @@ static void consume_events(void* arg) {
                               audit.auditfile.get_seconds_to_rotation() * 1000);
             if (audit.filleventqueue->empty()) {
                 // We timed out, so just rotate the files
-                audit.auditfile.maybe_rotate_files();
+                if (audit.auditfile.maybe_rotate_files()) {
+                    // If the file was rotated then we need to open a new
+                    // audit.log file.
+                    audit.auditfile.ensure_open();
+                }
             }
         }
         /* now have producer_consumer lock!
