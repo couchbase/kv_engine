@@ -538,7 +538,7 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
         }
     }
 
-    const auto bytes = MutationResponse::mutationBaseMsgBytes + key.size() +
+    const auto bytes = MutationResponse::deletionBaseMsgBytes + key.size() +
                        meta.size() + value.size();
     flowControl.incrFreedBytes(uint32_t(bytes));
     notifyConsumerIfNecessary(true/*schedule*/);

@@ -4334,11 +4334,13 @@ static enum test_result test_dcp_consumer_delete(ENGINE_HANDLE *h, ENGINE_HANDLE
             "Failed dcp producer open connection.");
 
     std::string type = get_str_stat(h, h1, "eq_dcpq:unittest:type", "dcp");
+
     checkeq(0, type.compare("consumer"), "Consumer not found");
 
     opaque = add_stream_for_consumer(h, h1, cookie, opaque, 0, 0,
                                      PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
+    int exp_unacked_bytes = dcp_snapshot_marker_base_msg_bytes;
     checkeq(ENGINE_SUCCESS,
             h1->dcp.snapshot_marker(h, cookie, opaque, 0, 10, 10, 1),
             "Failed to send snapshot marker");
@@ -4351,6 +4353,7 @@ static enum test_result test_dcp_consumer_delete(ENGINE_HANDLE *h, ENGINE_HANDLE
                              PROTOCOL_BINARY_RAW_BYTES, cas, vbucket,
                              bySeqno, revSeqno, {}),
             "Failed to detect invalid DCP opaque value.");
+    exp_unacked_bytes += dcp_deletion_base_msg_bytes + key.length();
 
     // Consume an DCP deletion
     checkeq(ENGINE_SUCCESS,
@@ -4358,6 +4361,11 @@ static enum test_result test_dcp_consumer_delete(ENGINE_HANDLE *h, ENGINE_HANDLE
                              PROTOCOL_BINARY_RAW_BYTES, cas, vbucket,
                              bySeqno, revSeqno, {}),
             "Failed dcp delete.");
+
+    exp_unacked_bytes += dcp_deletion_base_msg_bytes + key.length();
+    checkeq(exp_unacked_bytes,
+            get_int_stat(h, h1, "eq_dcpq:unittest:unacked_bytes", "dcp"),
+            "Consumer flow ctl mutation bytes not accounted correctly");
 
     wait_for_stat_to_be(h, h1, "eq_dcpq:unittest:stream_0_buffer_items", 0,
                         "dcp");
