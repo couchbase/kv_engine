@@ -53,6 +53,7 @@
 #include <phosphor/phosphor.h>
 #include <platform/cb_malloc.h>
 #include <platform/dirutils.h>
+#include <platform/socket.h>
 #include <platform/strerror.h>
 #include <platform/sysinfo.h>
 #include <utilities/breakpad.h>
@@ -1060,7 +1061,7 @@ void listen_event_handler(evutil_socket_t, short which, void *arg) {
 
 static void dispatch_event_handler(evutil_socket_t fd, short, void *) {
     char buffer[80];
-    ssize_t nr = recv(fd, buffer, sizeof(buffer), 0);
+    ssize_t nr = cb::net::recv(fd, buffer, sizeof(buffer), 0);
 
     if (enable_common_ports.load()) {
         enable_common_ports.store(false);

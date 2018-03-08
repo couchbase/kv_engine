@@ -56,7 +56,6 @@ typedef HANDLE pid_t;
 
 #else
 
-#define closesocket(a) close(a)
 typedef int SOCKET;
 #define SOCKETPAIR_AF AF_UNIX
 #define SOCKET_ERROR -1

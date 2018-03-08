@@ -17,6 +17,8 @@
 
 // This is a small test program used to test / experiment with libevent
 // functions and behavior. It is not needed by Couchbase
+#include <platform/socket.h>
+
 #include <event2/event.h>
 #include <getopt.h>
 #include <string.h>
@@ -53,9 +55,9 @@ void client_callback(evutil_socket_t sock, short mask, void* arg) {
     char block[8192];
 
     // try to fill the pipe
-    int ret;
+    ssize_t ret;
     do {
-        ret = send(sock, block, sizeof(block), 0);
+        ret = cb::net::send(sock, block, sizeof(block), 0);
     } while (ret > 0);
 
     std::cout << "send return " << ret << std::endl;

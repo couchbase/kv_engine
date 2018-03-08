@@ -17,6 +17,8 @@
 
 #include "config.h"
 
+#include <platform/socket.h>
+
 #include <gtest/gtest.h>
 #include "ssl_impl.h"
 #include "utilities.h"
@@ -64,7 +66,7 @@ void destroy_ssl_socket() {
     SSL_CTX_free(ssl_ctx);
     ssl_ctx = nullptr;
     if (sock_ssl != INVALID_SOCKET) {
-        closesocket(sock_ssl);
+        cb::net::closesocket(sock_ssl);
         sock_ssl = INVALID_SOCKET;
     }
 }

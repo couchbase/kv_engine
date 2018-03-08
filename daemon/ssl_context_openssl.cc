@@ -19,6 +19,7 @@
 #include "memcached.h"
 #include "runtime.h"
 
+#include <platform/socket.h>
 #include <utilities/logtags.h>
 
 SslContext::~SslContext() {
@@ -157,10 +158,10 @@ void SslContext::drainBioRecvPipe(SOCKET sfd) {
         // try to read out as much as possible from the socket
         if (!inputPipe.full()) {
             auto n = inputPipe.produce([sfd](cb::byte_buffer data) -> ssize_t {
-                return ::recv(sfd,
-                              reinterpret_cast<char*>(data.data()),
-                              data.size(),
-                              0);
+                return cb::net::recv(sfd,
+                                     reinterpret_cast<char*>(data.data()),
+                                     data.size(),
+                                     0);
             });
             if (n > 0) {
                 totalRecv += n;
@@ -199,10 +200,11 @@ void SslContext::drainBioSendPipe(SOCKET sfd) {
         if (!outputPipe.empty()) {
             auto n = outputPipe.consume(
                     [sfd](cb::const_byte_buffer data) -> ssize_t {
-                        return ::send(sfd,
-                                      reinterpret_cast<const char*>(data.data()),
-                                      data.size(),
-                                      0);
+                        return cb::net::send(
+                                sfd,
+                                reinterpret_cast<const char*>(data.data()),
+                                data.size(),
+                                0);
                     });
 
             if (n > 0) {

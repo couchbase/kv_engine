@@ -24,9 +24,10 @@
 #include "testapp_subdoc_common.h"
 
 #include <cJSON.h>
-#include <platform/cb_malloc.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/util.h> // for memcached_protocol_errcode_2_text()
+#include <platform/cb_malloc.h>
+#include <platform/socket.h>
 
 #include "../utilities/protocol2text.h"
 
@@ -1968,7 +1969,7 @@ TEST_F(WorkerConcurrencyTest, SubdocArrayPushLast_Concurrent) {
 
     // Restore original socket; free second one.
     *current_sock = sock1;
-    closesocket(sock2);
+    cb::net::closesocket(sock2);
 
     delete_object("a");
     delete_object("b");

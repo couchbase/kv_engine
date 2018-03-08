@@ -6,20 +6,20 @@
 #include "memcached.h"
 #include "connections.h"
 
-#include <atomic>
-#include <stdio.h>
 #include <errno.h>
-#include <stdlib.h>
-#include <errno.h>
-#include <string.h>
-#include <stdint.h>
-#include <signal.h>
 #include <fcntl.h>
 #include <platform/cb_malloc.h>
 #include <platform/platform.h>
+#include <platform/socket.h>
 #include <platform/strerror.h>
-#include <queue>
+#include <signal.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <atomic>
 #include <memory>
+#include <queue>
 
 extern std::atomic<bool> memcached_shutdown;
 
@@ -232,11 +232,12 @@ static void drain_notification_channel(evutil_socket_t fd)
      * notification pipe, before we'll start draining the it again.
      */
 
-    int nread;
+    ssize_t nread;
     // Using a small size for devnull will avoid blowing up the stack
     char devnull[512];
 
-    while ((nread = recv(fd, devnull, sizeof(devnull), 0)) == (int)sizeof(devnull)) {
+    while ((nread = cb::net::recv(fd, devnull, sizeof(devnull), 0)) ==
+           (int)sizeof(devnull)) {
         /* empty */
     }
 
@@ -565,7 +566,7 @@ void threads_initiate_bucket_deletion() {
 }
 
 void notify_thread(LIBEVENT_THREAD& thread) {
-    if (send(thread.notify[1], "", 1, 0) != 1 &&
+    if (cb::net::send(thread.notify[1], "", 1, 0) != 1 &&
         !is_blocking(GetLastNetworkError())) {
         log_socket_error(EXTENSION_LOG_WARNING, NULL,
                          "Failed to notify thread: %s");

@@ -17,8 +17,9 @@
 #include "config.h"
 #include "saslauthd_mock.h"
 
-#include <system_error>
 #include <platform/dirutils.h>
+#include <platform/socket.h>
+#include <system_error>
 
 #ifdef WIN32
 #error "This file should not be included on windows"
@@ -69,8 +70,8 @@ SaslauthdMock::~SaslauthdMock() {
 static void fill(int client, std::vector<uint8_t>& data) {
     size_t offset = 0;
     do {
-        auto nr = ::recv(client, data.data() + offset,
-                         data.size() - offset, 0);
+        auto nr = cb::net::recv(
+                client, data.data() + offset, data.size() - offset, 0);
         if (nr == -1) {
             throw std::system_error(errno, std::system_category(),
                                     "fill(): Failed to receive data from"
@@ -150,8 +151,8 @@ void SaslauthdMock::sendResult(int client, const std::string& msg) {
 void SaslauthdMock::retrySend(int client, const std::vector<uint8_t>& bytes) {
     size_t offset = 0;
     do {
-        auto nw = send(client, bytes.data() + offset,
-                       bytes.size() - offset, 0);
+        auto nw = cb::net::send(
+                client, bytes.data() + offset, bytes.size() - offset, 0);
 
         if (nw == -1) {
             throw std::system_error(errno, std::system_category(),

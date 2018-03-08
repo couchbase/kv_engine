@@ -24,6 +24,7 @@
 #include <memcached/protocol_binary.h>
 #include <platform/compress.h>
 #include <platform/dirutils.h>
+#include <platform/socket.h>
 #include <platform/strerror.h>
 
 #include <cerrno>
@@ -107,7 +108,7 @@ void MemcachedConnection::close() {
     }
 
     if (sock != INVALID_SOCKET) {
-        ::closesocket(sock);
+        cb::net::closesocket(sock);
         sock = INVALID_SOCKET;
     }
 }
@@ -155,14 +156,11 @@ SOCKET try_connect_socket(struct addrinfo* next,
     // on the safe side). We'll be refactoring to SCHANNEL in the
     // future anyway.
     if (sfd > std::numeric_limits<int>::max()) {
-        closesocket(sfd);
+        cb::net::closesocket(sfd);
         throw std::runtime_error(
                 "Socket value too big "
                 "(may trigger behavior openssl)");
     }
-    int socklen = gsl::narrow<int>(next->ai_addrlen);
-#else
-    socklen_t socklen = next->ai_addrlen;
 #endif
 
     // When running unit tests on our Windows CV system we somtimes
@@ -185,9 +183,9 @@ SOCKET try_connect_socket(struct addrinfo* next,
                   reinterpret_cast<const void*>(&flag),
                   sizeof(flag));
 
-    if (connect(sfd, next->ai_addr, socklen) == SOCKET_ERROR) {
+    if (cb::net::connect(sfd, next->ai_addr, next->ai_addrlen) == SOCKET_ERROR) {
         auto error = get_socket_error();
-        closesocket(sfd);
+        cb::net::closesocket(sfd);
 #ifdef WIN32
         WSASetLastError(error);
 #endif
@@ -384,7 +382,7 @@ void MemcachedConnection::sendBufferPlain(cb::const_byte_buffer buf) {
     cb::const_byte_buffer::size_type offset = 0;
 
     while (offset < nbytes) {
-        auto nw = send(sock, data + offset, nbytes - offset, 0);
+        auto nw = cb::net::send(sock, data + offset, nbytes - offset, 0);
         if (nw <= 0) {
             throw std::system_error(get_socket_error(),
                                     std::system_category(),
@@ -422,7 +420,7 @@ void MemcachedConnection::readPlain(Frame& frame, size_t bytes) {
     size_t total = 0;
 
     while (total < bytes) {
-        auto nr = recv(sock, data + total, bytes - total, 0);
+        auto nr = cb::net::recv(sock, data + total, bytes - total, 0);
         if (nr <= 0) {
             auto error = get_socket_error();
             if (nr == 0) {

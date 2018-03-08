@@ -26,6 +26,7 @@
 #include <phosphor/phosphor.h>
 #include <platform/cb_malloc.h>
 #include <platform/checked_snprintf.h>
+#include <platform/socket.h>
 #include <platform/strerror.h>
 #include <platform/timeutils.h>
 #include <utilities/logtags.h>
@@ -333,7 +334,7 @@ int McbpConnection::recv(char* dest, size_t nbytes) {
             res = sslRead(dest, nbytes);
         }
     } else {
-        res = (int)::recv(socketDescriptor, dest, nbytes, 0);
+        res = (int)::cb::net::recv(socketDescriptor, dest, nbytes, 0);
         if (res > 0) {
             totalRecv += res;
         }

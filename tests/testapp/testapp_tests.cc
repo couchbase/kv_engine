@@ -44,6 +44,7 @@
 #include <platform/cb_malloc.h>
 #include <platform/dirutils.h>
 #include <platform/platform.h>
+#include <platform/socket.h>
 #include <fstream>
 #include <gsl/gsl>
 #include "daemon/topkeys.h"
@@ -2231,16 +2232,12 @@ TEST_P(McdTestappTest, MB_12762_SSLHandshakeHang) {
     /* Setup: Close the existing (handshaked) SSL connection, and create a
      * 'plain' TCP connection to the SSL port - i.e. without any SSL handshake.
      */
-    closesocket(sock_ssl);
+    cb::net::closesocket(sock_ssl);
     sock_ssl = create_connect_plain_socket(ssl_port);
 
     /* Send a payload which is NOT a valid SSL handshake: */
     char buf[] = {'a', '\n'};
-#if defined(WIN32)
-    ssize_t len = send(sock_ssl, buf, (int)sizeof(buf), 0);
-#else
-    ssize_t len = send(sock_ssl, buf, sizeof(buf), 0);
-#endif
+    ssize_t len = cb::net::send(sock_ssl, buf, sizeof(buf), 0);
     cb_assert(len == 2);
 
 /* Done writing, close the socket for writing. This triggers the bug: a
@@ -2270,7 +2267,7 @@ TEST_P(McdTestappTest, MB_12762_SSLHandshakeHang) {
     /* Verify that attempting to read from the socket returns 0 (peer has
      * indeed closed the connection).
      */
-    len = recv(sock_ssl, buf, 1, 0);
+    len = cb::net::recv(sock_ssl, buf, 1, 0);
     cb_assert(len == 0);
 
     /* Restore the SSL connection to a sane state :) */

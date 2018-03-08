@@ -10,6 +10,7 @@ TARGET_LINK_LIBRARIES(mc_client_connection
   PUBLIC
     mcbp
     cbsasl
+    cbsocket
     memcached_logger
     memcached_rbac
     ${COUCHBASE_NETWORK_LIBS}

@@ -16,6 +16,7 @@
  */
 #include "config.h"
 #include "saslauthd.h"
+#include <platform/socket.h>
 
 #include <cstring>
 #include <system_error>
@@ -98,7 +99,8 @@ cbsasl_error_t Saslauthd::check(const std::string& username,
 void Saslauthd::sendRequest(const std::vector<uint8_t>& data) {
     size_t offset = 0;
     do {
-        auto bw = send(sock, data.data() + offset, data.size() - offset, 0);
+        auto bw = cb::net::send(
+                sock, data.data() + offset, data.size() - offset, 0);
         if (bw == -1) {
             throw std::system_error(errno, std::system_category(),
                                     "Saslauthd::send((): Failed to send "
@@ -132,8 +134,8 @@ std::string Saslauthd::readResponse() {
 void Saslauthd::fillBufferFromNetwork(std::vector<uint8_t>& bytes) {
     size_t offset = 0;
     do {
-        auto nr = recv(sock, bytes.data() + offset,
-                       bytes.size() - offset, 0);
+        auto nr = cb::net::recv(
+                sock, bytes.data() + offset, bytes.size() - offset, 0);
         if (nr == -1) {
             throw std::system_error(errno, std::system_category(),
                                     "Saslauthd::readResponse(): Failed to "

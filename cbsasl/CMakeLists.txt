@@ -40,7 +40,7 @@ generate_export_header(cbsasl
                        EXPORT_MACRO_NAME CBSASL_PUBLIC_API
                        EXPORT_FILE_NAME ${PROJECT_BINARY_DIR}/include/cbsasl/visibility.h)
 set_target_properties(cbsasl PROPERTIES SOVERSION 1.1.1)
-target_link_libraries(cbsasl cbcrypto dirutils mcd_util cJSON platform)
+target_link_libraries(cbsasl cbcrypto cbsocket dirutils mcd_util cJSON platform)
 
 install(TARGETS cbsasl
         RUNTIME DESTINATION bin
@@ -57,6 +57,7 @@ ADD_EXECUTABLE(cbsasladm
                user.h)
 TARGET_LINK_LIBRARIES(cbsasladm
                       cbsasl
+                      cbsocket
                       mc_client_connection
                       mcd_util
                       mcutils

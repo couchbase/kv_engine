@@ -25,8 +25,9 @@
 #include "config.h"
 
 #include <event2/event.h>
-#include <getopt.h>
+#include <platform/socket.h>
 
+#include <getopt.h>
 #include <algorithm>
 #include <array>
 #include <gsl/gsl>
@@ -51,15 +52,15 @@ public:
     }
 
     void drain() {
-        while (recv(sfd, sink.data(), sink.size(), 0) > 0) {
+        while (cb::net::recv(sfd, sink.data(), sink.size(), 0) > 0) {
             // drop data;
         }
     }
 
     void fill() {
         do {
-            ssize_t nw =
-                    send(sfd, data.data() + offset, data.size() - offset, 0);
+            ssize_t nw = cb::net::send(
+                    sfd, data.data() + offset, data.size() - offset, 0);
             if (nw > 0) {
                 offset += nw;
                 if (offset == data.size()) {
@@ -137,7 +138,7 @@ SOCKET new_socket(std::string host,
                     return sfd;
                 }
             }
-            closesocket(sfd);
+            cb::net::closesocket(sfd);
         }
     }
 

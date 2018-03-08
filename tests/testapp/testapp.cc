@@ -9,6 +9,7 @@
 #include <platform/backtrace.h>
 #include <platform/cb_malloc.h>
 #include <platform/dirutils.h>
+#include <platform/socket.h>
 #include <platform/strerror.h>
 #include <snappy-c.h>
 #include <gsl/gsl>
@@ -201,7 +202,7 @@ void TestappTest::SetUpTestCase() {
 // Called after the last test in this test case.
 void TestappTest::TearDownTestCase() {
     if (sock != INVALID_SOCKET) {
-       closesocket(sock);
+        cb::net::closesocket(sock);
     }
 
     if (server_pid != reinterpret_cast<pid_t>(-1)) {
@@ -386,7 +387,7 @@ void TestappTest::SetUp() {
 
 // per test tear-down function.
 void TestappTest::TearDown() {
-    closesocket(sock);
+    cb::net::closesocket(sock);
 }
 
 const std::string TestappTest::bucketName = "default";
@@ -416,9 +417,9 @@ void McdTestappTest::SetUp() {
 // per test tear-down function.
 void McdTestappTest::TearDown() {
     if (getProtocolParam() == TransportProtocols::McbpPlain) {
-        closesocket(sock);
+        cb::net::closesocket(sock);
     } else {
-        closesocket(sock_ssl);
+        cb::net::closesocket(sock_ssl);
         sock_ssl = INVALID_SOCKET;
         destroy_ssl_socket();
     }
@@ -831,13 +832,13 @@ static SOCKET connect_to_server_ssl(in_port_t ssl_port) {
 */
 void reconnect_to_server() {
     if (current_phase == phase_ssl) {
-        closesocket(sock_ssl);
+        cb::net::closesocket(sock_ssl);
         destroy_ssl_socket();
 
         sock_ssl = connect_to_server_ssl(ssl_port);
         ASSERT_NE(INVALID_SOCKET, sock_ssl);
     } else {
-        closesocket(sock);
+        cb::net::closesocket(sock);
         sock = connect_to_server_plain(port);
         ASSERT_NE(INVALID_SOCKET, sock);
     }
@@ -1168,7 +1169,7 @@ void TestappTest::stop_memcached_server() {
 
     connectionMap.invalidate();
     if (sock != INVALID_SOCKET) {
-        closesocket(sock);
+        cb::net::closesocket(sock);
         sock = INVALID_SOCKET;
     }
 
@@ -1216,11 +1217,7 @@ void TestappTest::setControlToken(void) {
 
 ssize_t socket_send(SOCKET s, const char *buf, size_t len)
 {
-#ifdef WIN32
-    return send(s, buf, (int)len, 0);
-#else
-    return send(s, buf, len, 0);
-#endif
+    return cb::net::send(s, buf, len, 0);
 }
 
 static ssize_t phase_send(const void *buf, size_t len) {
@@ -1233,11 +1230,7 @@ static ssize_t phase_send(const void *buf, size_t len) {
 
 ssize_t socket_recv(SOCKET s, char *buf, size_t len)
 {
-#ifdef WIN32
-    return recv(s, buf, (int)len, 0);
-#else
-    return recv(s, buf, len, 0);
-#endif
+    return cb::net::recv(s, buf, len, 0);
 }
 
 ssize_t phase_recv(void *buf, size_t len) {
