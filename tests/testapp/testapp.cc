@@ -595,27 +595,41 @@ void TestappTest::verify_server_running() {
         return ;
     }
 
-    ASSERT_NE(reinterpret_cast<pid_t>(-1), server_pid);
+    if (reinterpret_cast<pid_t>(-1) == server_pid) {
+        std::cerr << "Server not running (server_pid == -1)" << std::endl;
+        exit(EXIT_FAILURE);
+    }
 
 #ifdef WIN32
     DWORD status;
-    ASSERT_TRUE(GetExitCodeProcess(server_pid, &status));
-    ASSERT_EQ(STILL_ACTIVE, status);
+    if (!GetExitCodeProcess(server_pid, &status)) {
+        std::cerr << "GetExitCodeProcess: failed: " << cb_strerror()
+                  << std::endl;
+        exit(EXIT_FAILURE);
+    }
+    if (status != STILL_ACTIVE) {
+        std::cerr << "memcached process is not active: Exit code " << status
+                  << std::endl;
+        exit(EXIT_FAILURE);
+    }
 #else
-
     int status;
     pid_t ret = waitpid(server_pid, &status, WNOHANG);
 
-    EXPECT_NE(static_cast<pid_t>(-1), ret)
-                << "waitpid() failed with: " << strerror(errno);
-    EXPECT_NE(server_pid, ret)
-                << "waitpid status     : " << status << std::endl
-                << "WIFEXITED(status)  : " << WIFEXITED(status) << std::endl
-                << "WEXITSTATUS(status): " << WEXITSTATUS(status) << std::endl
-                << "WIFSIGNALED(status): " << WIFSIGNALED(status) << std::endl
-                << "WTERMSIG(status)   : " << WTERMSIG(status) << std::endl
-                << "WCOREDUMP(status)  : " << WCOREDUMP(status) << std::endl;
-    ASSERT_EQ(0, ret) << "The server isn't running..";
+    if (ret == static_cast<pid_t>(-1)) {
+        std::cerr << "waitpid() failed with: " << strerror(errno) << std::endl;
+        exit(EXIT_FAILURE);
+    }
+
+    if (server_pid == ret) {
+        std::cerr << "waitpid status     : " << status << std::endl
+                  << "WIFEXITED(status)  : " << WIFEXITED(status) << std::endl
+                  << "WEXITSTATUS(status): " << WEXITSTATUS(status) << std::endl
+                  << "WIFSIGNALED(status): " << WIFSIGNALED(status) << std::endl
+                  << "WTERMSIG(status)   : " << WTERMSIG(status) << std::endl
+                  << "WCOREDUMP(status)  : " << WCOREDUMP(status) << std::endl;
+        exit(EXIT_FAILURE);
+    }
 #endif
 }
 
