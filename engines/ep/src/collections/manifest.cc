@@ -29,7 +29,7 @@
 namespace Collections {
 
 Manifest::Manifest(const std::string& json, size_t maxNumberOfCollections)
-    : defaultCollectionExists(false) {
+    : defaultCollectionExists(false), uid(0) {
     if (!checkUTF8JSON(reinterpret_cast<const unsigned char*>(json.data()),
                        json.size())) {
         throw std::invalid_argument("Manifest::Manifest input not valid json:" +
@@ -41,6 +41,11 @@ Manifest::Manifest(const std::string& json, size_t maxNumberOfCollections)
         throw std::invalid_argument(
                 "Manifest::Manifest cJSON cannot parse json:" + json);
     }
+
+    // Read the UID e.g. "uid" : "5fa1"
+    auto* jsonUid =
+            getJsonObject(cjson.get(), CollectionUidKey, CollectionUidType);
+    uid = makeUid(jsonUid->valuestring);
 
     auto* jsonSeparator =
             getJsonObject(cjson.get(), SeparatorKey, SeparatorType);
@@ -136,7 +141,8 @@ bool Manifest::validCollection(const char* collection) {
 
 std::string Manifest::toJson() const {
     std::stringstream json;
-    json << R"({"separator":")" << separator << R"(","collections":[)";
+    json << R"({"separator":")" << separator << R"(","uid":")" << std::hex
+         << uid << R"(","collections":[)";
     for (size_t ii = 0; ii < collections.size(); ii++) {
         json << R"({"name":")" << collections[ii].getName().data()
              << R"(","uid":")" << std::hex << collections[ii].getUid()

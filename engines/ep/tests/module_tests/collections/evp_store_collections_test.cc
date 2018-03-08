@@ -60,7 +60,7 @@ TEST_F(CollectionsTest, namespace_separation) {
     store_item(vbid, key, "value");
     VBucketPtr vb = store->getVBucket(vbid);
     // Add the meat collection
-    vb->updateFromManifest({R"({"separator":":",
+    vb->updateFromManifest({R"({"separator":":","uid":"0",
                  "collections":[{"name":"$default", "uid":"0"},
                                 {"name":"meat", "uid":"1"}]})"});
     // Trigger a flush to disk. Flushes the meat create event and 1 item
@@ -95,7 +95,7 @@ TEST_F(CollectionsTest, collections_basic) {
     VBucketPtr vb = store->getVBucket(vbid);
 
     // Add the meat collection
-    vb->updateFromManifest({R"({"separator":":",
+    vb->updateFromManifest({R"({"separator":":","uid":"0",
                  "collections":[{"name":"$default", "uid":"0"},
                                 {"name":"meat", "uid":"1"}]})"});
 
@@ -122,7 +122,7 @@ TEST_F(CollectionsTest, collections_basic) {
     EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
 
     // Begin the deletion
-    vb->updateFromManifest({R"({"separator":":",
+    vb->updateFromManifest({R"({"separator":":","uid":"0",
                  "collections":[{"name":"$default", "uid":"0"}]})"});
 
     // We should have deleted the create marker
@@ -142,7 +142,7 @@ TEST_F(CollectionsTest, collections_basic) {
 TEST_F(CollectionsTest, MB_25344) {
     VBucketPtr vb = store->getVBucket(vbid);
     // Add the dairy collection
-    vb->updateFromManifest({R"({"separator":":",
+    vb->updateFromManifest({R"({"separator":":","uid":"0",
                  "collections":[{"name":"$default", "uid":"0"},
                                 {"name":"dairy", "uid":"1"}]})"});
     // Trigger a flush to disk. Flushes the dairy create event.
@@ -159,11 +159,11 @@ TEST_F(CollectionsTest, MB_25344) {
     flush_vbucket_to_disk(vbid, 1);
 
     // Delete the dairy collection (so all dairy keys become logically deleted)
-    vb->updateFromManifest({R"({"separator":":",
+    vb->updateFromManifest({R"({"separator":":","uid":"0",
                  "collections":[{"name":"$default", "uid":"0"}]})"});
 
     // Re-add the dairy collection
-    vb->updateFromManifest({R"({"separator":":",
+    vb->updateFromManifest({R"({"separator":":","uid":"0",
                  "collections":[{"name":"$default", "uid":"0"},
                                 {"name":"dairy", "uid":"2"}]})"});
 
@@ -264,7 +264,7 @@ TEST_F(CollectionsTest, MB_25344) {
 TEST_F(CollectionsTest, MB_25344_get) {
     VBucketPtr vb = store->getVBucket(vbid);
     // Add the dairy collection
-    vb->updateFromManifest({R"({"separator":":",
+    vb->updateFromManifest({R"({"separator":":","uid":"0",
                  "collections":[{"name":"$default", "uid":"0"},
                                 {"name":"dairy", "uid":"1"}]})"});
     // Trigger a flush to disk. Flushes the dairy create event.
@@ -276,11 +276,11 @@ TEST_F(CollectionsTest, MB_25344_get) {
     flush_vbucket_to_disk(vbid, 1);
 
     // Delete the dairy collection (so all dairy keys become logically deleted)
-    vb->updateFromManifest({R"({"separator":":",
+    vb->updateFromManifest({R"({"separator":":","uid":"0",
                  "collections":[{"name":"$default", "uid":"0"}]})"});
 
     // Re-add the dairy collection
-    vb->updateFromManifest({R"({"separator":":",
+    vb->updateFromManifest({R"({"separator":":","uid":"0",
                  "collections":[{"name":"$default", "uid":"0"},
                                 {"name":"dairy", "uid":"2"}]})"});
 
@@ -434,7 +434,7 @@ void CollectionsFlushTest::collectionsFlusher(int items) {
             {// 0
              std::bind(&CollectionsFlushTest::createCollectionAndFlush,
                        this,
-                       R"({"separator":":",
+                       R"({"separator":":","uid":"0",
                          "collections":[{"name":"$default", "uid":"0"},
                                         {"name":"meat", "uid":"1"}]})",
                        "meat",
@@ -444,7 +444,7 @@ void CollectionsFlushTest::collectionsFlusher(int items) {
             {// 1
              std::bind(&CollectionsFlushTest::deleteCollectionAndFlush,
                        this,
-                       R"({"separator":":",
+                       R"({"separator":":","uid":"0",
                          "collections":[{"name":"$default", "uid":"0"}]})",
                        "meat",
                        items),
@@ -460,7 +460,7 @@ void CollectionsFlushTest::collectionsFlusher(int items) {
             {// 3
              std::bind(&CollectionsFlushTest::createCollectionAndFlush,
                        this,
-                       R"({"separator":":",
+                       R"({"separator":":","uid":"0",
                          "collections":[{"name":"$default", "uid":"0"},
                                         {"name":"fruit", "uid":"3"}]})",
                        "fruit",
@@ -469,7 +469,7 @@ void CollectionsFlushTest::collectionsFlusher(int items) {
             {// 4
              std::bind(&CollectionsFlushTest::deleteCollectionAndFlush,
                        this,
-                       R"({"separator":":",
+                       R"({"separator":":","uid":"0",
                          "collections":[{"name":"$default", "uid":"0"}]})",
                        "fruit",
                        items),
@@ -477,7 +477,7 @@ void CollectionsFlushTest::collectionsFlusher(int items) {
             {// 5
              std::bind(&CollectionsFlushTest::createCollectionAndFlush,
                        this,
-                       R"({"separator":":",
+                       R"({"separator":":","uid":"0",
                          "collections":[{"name":"$default", "uid":"0"},
                                         {"name":"fruit", "uid":"5"}]})",
                        "fruit",
@@ -530,7 +530,7 @@ TEST_F(CollectionsWarmupTest, warmup) {
         auto vb = store->getVBucket(vbid);
 
         // Add the meat collection *and* change the separator
-        vb->updateFromManifest({R"({"separator":"-+-",
+        vb->updateFromManifest({R"({"separator":"-+-","uid":"0",
               "collections":[{"name":"$default", "uid":"0"},
                              {"name":"meat","uid":"1"}]})"});
 
@@ -585,7 +585,7 @@ TEST_F(CollectionsWarmupTest, MB_25381) {
         auto vb = store->getVBucket(vbid);
 
         // Add the dairy collection *and* change the separator
-        vb->updateFromManifest({R"({"separator":"@",
+        vb->updateFromManifest({R"({"separator":"@","uid":"0",
               "collections":[{"name":"$default", "uid":"0"},
                              {"name":"dairy","uid":"1"}]})"});
 
@@ -597,7 +597,7 @@ TEST_F(CollectionsWarmupTest, MB_25381) {
         store_item(vbid, {"dairy@milk", DocNamespace::Collections}, "creamy");
 
         // Now delete the dairy collection
-        vb->updateFromManifest({R"({"separator":"@",
+        vb->updateFromManifest({R"({"separator":"@","uid":"0",
               "collections":[{"name":"$default", "uid":"0"}]})"});
 
         flush_vbucket_to_disk(vbid, 2);
@@ -624,7 +624,7 @@ TEST_F(CollectionsWarmupTest, warmupIgnoreLogicallyDeleted) {
         auto vb = store->getVBucket(vbid);
 
         // Add the meat collection
-        vb->updateFromManifest({R"({"separator":":",
+        vb->updateFromManifest({R"({"separator":":","uid":"0",
               "collections":[{"name":"$default", "uid":"0"},
                              {"name":"meat","uid":"1"}]})"});
 
@@ -640,7 +640,7 @@ TEST_F(CollectionsWarmupTest, warmupIgnoreLogicallyDeleted) {
         flush_vbucket_to_disk(vbid, nitems);
 
         // Remove the meat collection
-        vb->updateFromManifest({R"({"separator":":",
+        vb->updateFromManifest({R"({"separator":":","uid":"0",
               "collections":[{"name":"$default", "uid":"0"}]})"});
 
         flush_vbucket_to_disk(vbid, 1);
@@ -662,7 +662,7 @@ TEST_F(CollectionsWarmupTest, warmupIgnoreLogicallyDeletedDefault) {
         auto vb = store->getVBucket(vbid);
 
         // Add the meat collection
-        vb->updateFromManifest({R"({"separator":":",
+        vb->updateFromManifest({R"({"separator":":","uid":"0",
               "collections":[{"name":"$default", "uid":"0"},
                              {"name":"meat","uid":"1"}]})"});
 
@@ -677,7 +677,7 @@ TEST_F(CollectionsWarmupTest, warmupIgnoreLogicallyDeletedDefault) {
         flush_vbucket_to_disk(vbid, nitems);
 
         // Remove the default collection
-        vb->updateFromManifest({R"({"separator":":",
+        vb->updateFromManifest({R"({"separator":":","uid":"0",
               "collections":[{"name":"meat", "uid":"1"}]})"});
 
         flush_vbucket_to_disk(vbid, 1);
@@ -703,7 +703,7 @@ TEST_F(CollectionsManagerTest, basic) {
         store->setVBucketState(vb, vbucket_state_active, false);
     }
 
-    store->setCollections({R"({"separator": "@@",
+    store->setCollections({R"({"separator": "@@","uid":"0",
               "collections":[{"name":"$default", "uid":"0"},
                              {"name":"meat", "uid":"1"}]})"});
 
@@ -734,7 +734,7 @@ TEST_F(CollectionsManagerTest, basic2) {
         }
     }
 
-    store->setCollections({R"({"separator": "@@",
+    store->setCollections({R"({"separator": "@@","uid":"0",
               "collections":[{"name":"$default", "uid":"0"},
                              {"name":"meat", "uid":"1"}]})"});
 

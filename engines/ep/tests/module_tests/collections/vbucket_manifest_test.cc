@@ -504,7 +504,7 @@ public:
 
 TEST_F(VBucketManifestTest, collectionExists) {
     EXPECT_TRUE(manifest.update(
-            R"({"separator":":","collections":[{"name":"vegetable","uid":"1"}]})"));
+            R"({"separator":":","uid":"0","collections":[{"name":"vegetable","uid":"1"}]})"));
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
             {"vegetable:carrot", DocNamespace::Collections}));
     EXPECT_TRUE(manifest.isExclusiveOpen({"vegetable", 1}));
@@ -514,21 +514,21 @@ TEST_F(VBucketManifestTest, defaultCollectionExists) {
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
             {"anykey", DocNamespace::DefaultCollection}));
     EXPECT_TRUE(manifest.update(
-            R"({"separator":":","collections":[]})"));
+            R"({"separator":":","uid":"0","collections":[]})"));
     EXPECT_FALSE(manifest.doesKeyContainValidCollection(
             {"anykey", DocNamespace::DefaultCollection}));
 }
 
 TEST_F(VBucketManifestTest, add_delete_in_one_update) {
     EXPECT_TRUE(manifest.update(
-            R"({"separator":":",)"
+            R"({"separator":":","uid":"0",)"
             R"("collections":[{"name":"$default","uid":"0"},)"
             R"(               {"name":"vegetable","uid":"1"}]})"));
     EXPECT_TRUE(manifest.isOpen({"vegetable", 1}));
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
             {"vegetable:cucumber", DocNamespace::Collections}));
     EXPECT_TRUE(manifest.update(
-            R"({"separator":":",)"
+            R"({"separator":":","uid":"0",)"
             R"("collections":[{"name":"$default","uid":"0"},)"
             R"(               {"name":"vegetable","uid":"2"}]})"));
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
@@ -542,14 +542,14 @@ TEST_F(VBucketManifestTest, updates) {
     EXPECT_TRUE(manifest.isExclusiveOpen({"$default", 0}));
 
     EXPECT_TRUE(manifest.update(
-            R"({"separator":":",)"
+            R"({"separator":":","uid":"0",)"
             R"("collections":[{"name":"$default","uid":"0"},)"
             R"(               {"name":"vegetable","uid":"1"}]})"));
     EXPECT_TRUE(manifest.checkSize(2));
     EXPECT_TRUE(manifest.isExclusiveOpen({"vegetable", 1}));
 
     EXPECT_TRUE(manifest.update(
-            R"({"separator":":",)"
+            R"({"separator":":","uid":"0",)"
             R"("collections":[{"name":"$default","uid":"0"},)"
             R"(               {"name":"vegetable","uid":"1"},)"
             R"(               {"name":"fruit","uid":"2"}]})"));
@@ -557,7 +557,7 @@ TEST_F(VBucketManifestTest, updates) {
     EXPECT_TRUE(manifest.isExclusiveOpen({"fruit", 2}));
 
     EXPECT_TRUE(manifest.update(
-            R"({"separator":":",)"
+            R"({"separator":":","uid":"0",)"
             R"("collections":[{"name":"$default","uid":"0"},)"
             R"(               {"name":"vegetable","uid":"1"},)"
             R"(               {"name":"fruit","uid":"2"},)"
@@ -570,7 +570,7 @@ TEST_F(VBucketManifestTest, updates) {
 
 TEST_F(VBucketManifestTest, updates2) {
     EXPECT_TRUE(manifest.update(
-            R"({"separator":":",)"
+            R"({"separator":":","uid":"0",)"
             R"("collections":[{"name":"$default","uid":"0"},)"
             R"(               {"name":"vegetable","uid":"1"},)"
             R"(               {"name":"fruit","uid":"2"},)"
@@ -581,7 +581,7 @@ TEST_F(VBucketManifestTest, updates2) {
     // Remove meat and dairy, size is not affected because the delete is only
     // starting
     EXPECT_TRUE(manifest.update(
-            R"({"separator":":",)"
+            R"({"separator":":","uid":"0",)"
             R"("collections":[{"name":"$default","uid":"0"},)"
             R"(               {"name":"vegetable","uid":"1"},)"
             R"(               {"name":"fruit","uid":"2"}]})"));
@@ -602,7 +602,7 @@ TEST_F(VBucketManifestTest, updates2) {
 
 TEST_F(VBucketManifestTest, updates3) {
     EXPECT_TRUE(manifest.update(
-            R"({"separator":":",)"
+            R"({"separator":":","uid":"0",)"
             R"("collections":[{"name":"$default","uid":"0"},)"
             R"(               {"name":"vegetable","uid":"1"},)"
             R"(               {"name":"fruit","uid":"2"},)"
@@ -612,7 +612,7 @@ TEST_F(VBucketManifestTest, updates3) {
 
     // Remove everything
     EXPECT_TRUE(manifest.update(
-            R"({ "separator":":","collections":[]})"));
+            R"({ "separator":":","uid":"0","collections":[]})"));
     EXPECT_TRUE(manifest.checkSize(5));
     EXPECT_TRUE(manifest.isExclusiveDeleting({"$default", 0}));
     EXPECT_TRUE(manifest.isExclusiveDeleting({"vegetable", 1}));
@@ -636,7 +636,7 @@ TEST_F(VBucketManifestTest, updates3) {
 TEST_F(VBucketManifestTest, add_beginDelete_add) {
     // add vegetable
     EXPECT_TRUE(manifest.update(
-            R"({"separator":":","collections":[{"name":"vegetable","uid":"1"}]})"));
+            R"({"separator":":","uid":"0","collections":[{"name":"vegetable","uid":"1"}]})"));
     auto seqno = manifest.getLastSeqno(); // seqno of the vegetable addition
     EXPECT_TRUE(manifest.checkSize(2));
     EXPECT_TRUE(manifest.isExclusiveOpen({"vegetable", 1}));
@@ -653,7 +653,7 @@ TEST_F(VBucketManifestTest, add_beginDelete_add) {
 
     // remove vegetable
     EXPECT_TRUE(manifest.update(
-            R"({"separator":":","collections":[]})"));
+            R"({"separator":":","uid":"0","collections":[]})"));
     seqno = manifest.getLastSeqno();
     EXPECT_TRUE(manifest.checkSize(2));
     EXPECT_TRUE(manifest.isExclusiveDeleting({"vegetable", 1}));
@@ -666,7 +666,7 @@ TEST_F(VBucketManifestTest, add_beginDelete_add) {
 
     // add vegetable a second time
     EXPECT_TRUE(manifest.update(
-            R"({"separator":":","collections":[{"name":"vegetable","uid":"1"}]})"));
+            R"({"separator":":","uid":"0","collections":[{"name":"vegetable","uid":"1"}]})"));
     auto oldSeqno = seqno;
     auto newSeqno = manifest.getLastSeqno();
     EXPECT_TRUE(manifest.checkSize(2));
@@ -685,7 +685,7 @@ TEST_F(VBucketManifestTest, add_beginDelete_add) {
 TEST_F(VBucketManifestTest, add_beginDelete_delete) {
     // add vegetable
     EXPECT_TRUE(manifest.update(
-            R"({"separator":":","collections":[{"name":"vegetable","uid":"1"}]})"));
+            R"({"separator":":","uid":"0","collections":[{"name":"vegetable","uid":"1"}]})"));
     EXPECT_TRUE(manifest.checkSize(2));
     EXPECT_TRUE(manifest.checkSize(2));
     EXPECT_TRUE(manifest.isExclusiveOpen({"vegetable", 1}));
@@ -694,7 +694,7 @@ TEST_F(VBucketManifestTest, add_beginDelete_delete) {
 
     // remove vegetable
     EXPECT_TRUE(manifest.update(
-            R"({"separator":":","collections":[]})"));
+            R"({"separator":":","uid":"0","collections":[]})"));
     auto seqno = manifest.getLastSeqno();
     EXPECT_TRUE(manifest.checkSize(2));
     EXPECT_TRUE(manifest.isExclusiveDeleting({"vegetable", 1}));
@@ -713,7 +713,7 @@ TEST_F(VBucketManifestTest, add_beginDelete_delete) {
 TEST_F(VBucketManifestTest, add_beginDelete_add_delete) {
     // add vegetable:1
     EXPECT_TRUE(manifest.update(
-            R"({"separator":":","collections":[{"name":"vegetable","uid":"1"}]})"));
+            R"({"separator":":","uid":"0","collections":[{"name":"vegetable","uid":"1"}]})"));
     EXPECT_TRUE(manifest.checkSize(2));
     EXPECT_TRUE(manifest.isExclusiveOpen({"vegetable", 1}));
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
@@ -721,7 +721,7 @@ TEST_F(VBucketManifestTest, add_beginDelete_add_delete) {
 
     // remove vegetable
     EXPECT_TRUE(manifest.update(
-            R"({"separator":":","collections":[]})"));
+            R"({"separator":":","uid":"0","collections":[]})"));
     EXPECT_TRUE(manifest.checkSize(2));
     EXPECT_TRUE(manifest.isExclusiveDeleting({"vegetable", 1}));
     EXPECT_FALSE(manifest.doesKeyContainValidCollection(
@@ -729,7 +729,7 @@ TEST_F(VBucketManifestTest, add_beginDelete_add_delete) {
 
     // add vegetable:2
     EXPECT_TRUE(manifest.update(
-            R"({"separator":":","collections":[{"name":"vegetable","uid":"2"}]})"));
+            R"({"separator":":","uid":"0","collections":[{"name":"vegetable","uid":"2"}]})"));
     EXPECT_TRUE(manifest.checkSize(2));
     EXPECT_TRUE(manifest.isOpenAndDeleting({"vegetable", 2}));
 
@@ -750,12 +750,12 @@ TEST_F(VBucketManifestTest, add_beginDelete_add_delete) {
 TEST_F(VBucketManifestTest, invalidDeletes) {
     // add vegetable
     EXPECT_TRUE(manifest.update(
-            R"({"separator":":",)"
+            R"({"separator":":","uid":"0",)"
             R"("collections":[{"name":"$default","uid":"0"},)"
             R"(               {"name":"vegetable","uid":"1"}]})"));
     // Delete vegetable
     EXPECT_TRUE(manifest.update(
-            R"({"separator":":",)"
+            R"({"separator":":","uid":"0",)"
             R"("collections":[{"name":"$default","uid":"0"}]})"));
 
     // Invalid.
@@ -765,11 +765,11 @@ TEST_F(VBucketManifestTest, invalidDeletes) {
     EXPECT_TRUE(manifest.completeDeletion({"vegetable", 1}));
 
     // Delete $default
-    EXPECT_TRUE(manifest.update(R"({"separator":":",)"
+    EXPECT_TRUE(manifest.update(R"({"separator":":","uid":"0",)"
                                 R"("collections":[]})"));
     // Add $default
     EXPECT_TRUE(manifest.update(
-            R"({"separator":":",)"
+            R"({"separator":":","uid":"0",)"
             R"("collections":[{"name":"$default","uid":"0"}]})"));
     EXPECT_TRUE(manifest.completeDeletion({"$default", 1}));
 }
@@ -779,7 +779,7 @@ TEST_F(VBucketManifestTest, doubleDelete) {
     auto seqno = manifest.getActiveVB().getHighSeqno();
     // add vegetable
     EXPECT_TRUE(manifest.update(
-            R"({"separator":":",)"
+            R"({"separator":":","uid":"0",)"
             R"("collections":[{"name":"$default","uid":"0"},)"
             R"(               {"name":"vegetable","uid":"1"}]})"));
     EXPECT_LT(seqno, manifest.getActiveVB().getHighSeqno());
@@ -790,7 +790,7 @@ TEST_F(VBucketManifestTest, doubleDelete) {
     // complain about the lack of events
     manifest.getActiveManifest().wlock().update(
             manifest.getActiveVB(),
-            {R"({"separator":":",)"
+            {R"({"separator":":","uid":"0",)"
              R"("collections":[{"name":"$default","uid":"0"},)"
              R"(               {"name":"vegetable","uid":"1"}]})"});
 
@@ -799,7 +799,7 @@ TEST_F(VBucketManifestTest, doubleDelete) {
 
     // Now delete vegetable
     EXPECT_TRUE(manifest.update(
-            R"({"separator":":","collections":[{"name":"$default","uid":"0"}]})"));
+            R"({"separator":":","uid":"0","collections":[{"name":"$default","uid":"0"}]})"));
 
     EXPECT_LT(seqno, manifest.getActiveVB().getHighSeqno());
     seqno = manifest.getActiveVB().getHighSeqno();
@@ -807,7 +807,7 @@ TEST_F(VBucketManifestTest, doubleDelete) {
     // same again, should have be nothing created or deleted
     manifest.getActiveManifest().wlock().update(
             manifest.getActiveVB(),
-            {R"({"separator":":",)"
+            {R"({"separator":":","uid":"0",)"
              R"("collections":[{"name":"$default","uid":"0"}]})"});
 
     EXPECT_EQ(seqno, manifest.getActiveVB().getHighSeqno());
@@ -818,50 +818,50 @@ TEST_F(VBucketManifestTest, doubleDelete) {
 TEST_F(VBucketManifestTest, active_replica_separatorChanges) {
     // Can change separator to @ as only default exists
     EXPECT_TRUE(manifest.update(
-            R"({ "separator":"@", "collections":[{"name":"$default","uid":"0"}]})"));
+            R"({ "separator":"@","uid":"0","collections":[{"name":"$default","uid":"0"}]})"));
 
     // Can change separator to / and add first collection
     EXPECT_TRUE(manifest.update(
-            R"({ "separator":"/", "collections":[{"name":"$default","uid":"0"},)"
+            R"({ "separator":"/","uid":"0","collections":[{"name":"$default","uid":"0"},)"
             R"(                                  {"name":"vegetable","uid":"1"}]})"));
 
     // Cannot change separator to ## because non-default collections exist
     EXPECT_FALSE(manifest.update(
-            R"({ "separator":"##", "collections":[{"name":"$default","uid":"0"},)"
+            R"({ "separator":"##","uid":"0","collections":[{"name":"$default","uid":"0"},)"
             R"(                                   {"name":"vegetable","uid":"1"}]})"));
 
     // Now just remove vegetable
     EXPECT_TRUE(manifest.update(
-            R"({ "separator":"/", "collections":[{"name":"$default","uid":"0"}]})"));
+            R"({ "separator":"/","uid":"0","collections":[{"name":"$default","uid":"0"}]})"));
 
     // vegetable still exists (isDeleting), but change to ##
     EXPECT_TRUE(manifest.update(
-            R"({ "separator":"##", "collections":[{"name":"$default","uid":"0"}]})"));
+            R"({ "separator":"##","uid":"0","collections":[{"name":"$default","uid":"0"}]})"));
 
     // Finish removal of vegetable
     EXPECT_TRUE(manifest.completeDeletion({"vegetable", 1}));
 
     // Can change separator as only default exists
     EXPECT_TRUE(manifest.update(
-            R"({ "separator":"@", "collections":[{"name":"$default","uid":"0"}]})"));
+            R"({ "separator":"@","uid":"0","collections":[{"name":"$default","uid":"0"}]})"));
 
     // Remove default
     EXPECT_TRUE(manifest.update(
-            R"({ "separator":"/", "collections":[]})"));
+            R"({ "separator":"/","uid":"0","collections":[]})"));
 
     // $default still exists (isDeleting), so cannot change to ##
     EXPECT_TRUE(manifest.update(
-            R"({ "separator":"##", "collections":[{"name":"$default","uid":"0"}]})"));
+            R"({ "separator":"##","uid":"0","collections":[{"name":"$default","uid":"0"}]})"));
 
     EXPECT_TRUE(manifest.completeDeletion({"$default", 0}));
 
     // Can change separator as no collection exists
     EXPECT_TRUE(manifest.update(
-            R"({ "separator":"-=-=-=-", "collections":[]})"));
+            R"({ "separator":"-=-=-=-","uid":"0","collections":[]})"));
 
     // Add a collection and check the new separator
     EXPECT_TRUE(manifest.update(
-            R"({ "separator":"-=-=-=-", "collections":[{"name":"meat","uid":"3"}]})"));
+            R"({ "separator":"-=-=-=-","uid":"0","collections":[{"name":"meat","uid":"3"}]})"));
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
             {"meat-=-=-=-bacon", DocNamespace::Collections}));
 }
@@ -869,12 +869,12 @@ TEST_F(VBucketManifestTest, active_replica_separatorChanges) {
 TEST_F(VBucketManifestTest, replica_add_remove) {
     // add vegetable
     EXPECT_TRUE(manifest.update(
-            R"({"separator":":","collections":)"
+            R"({"separator":":","uid":"0","collections":)"
             R"([{"name":"$default","uid":"0"},{"name":"vegetable","uid":"1"}]})"));
 
     // add meat & dairy
     EXPECT_TRUE(manifest.update(
-            R"({"separator":":","collections":)"
+            R"({"separator":":","uid":"0","collections":)"
             R"([{"name":"$default","uid":"0"},)"
             R"( {"name":"vegetable","uid":"1"},)"
             R"( {"name":"meat","uid":"3"},)"
@@ -882,14 +882,14 @@ TEST_F(VBucketManifestTest, replica_add_remove) {
 
     // remove vegetable
     EXPECT_TRUE(manifest.update(
-            R"({"separator":":","collections":)"
+            R"({"separator":":","uid":"0","collections":)"
             R"([{"name":"$default","uid":"0"},)"
             R"( {"name":"meat","uid":"3"},)"
             R"( {"name":"dairy","uid":"4"}]})"));
 
     // remove $default
     EXPECT_TRUE(manifest.update(
-            R"({"separator":":","collections":)"
+            R"({"separator":":","uid":"0","collections":)"
             R"([{"name":"meat","uid":"3"},)"
             R"( {"name":"dairy","uid":"4"}]})"));
 
@@ -907,12 +907,12 @@ TEST_F(VBucketManifestTest, replica_add_remove) {
 TEST_F(VBucketManifestTest, replica_add_remove_completeDelete) {
     // add vegetable
     EXPECT_TRUE(manifest.update(
-            R"({"separator":":","collections":[{"name":"$default","uid":"0"},)"
+            R"({"separator":":","uid":"0","collections":[{"name":"$default","uid":"0"},)"
             R"(                                 {"name":"vegetable","uid":"1"}]})"));
 
     // remove vegetable
     EXPECT_TRUE(manifest.update(
-            R"({"separator":":","collections":[{"name":"$default","uid":"0"}]})"));
+            R"({"separator":":","uid":"0","collections":[{"name":"$default","uid":"0"}]})"));
 
     // Finish removal of vegetable
     EXPECT_TRUE(manifest.completeDeletion({"vegetable", 1}));
@@ -925,7 +925,7 @@ TEST_F(VBucketManifestTestEndSeqno, singleAdd) {
             manifest.checkGreatestEndSeqno(StoredValue::state_collection_open));
     EXPECT_TRUE(manifest.checkNumDeletingCollections(0));
     EXPECT_TRUE(manifest.update(
-            R"({"separator":":","collections":[{"name":"$default","uid":"0"},)"
+            R"({"separator":":","uid":"0","collections":[{"name":"$default","uid":"0"},)"
             R"(                                 {"name":"vegetable","uid":"1"}]})"));
     EXPECT_TRUE(
             manifest.checkGreatestEndSeqno(StoredValue::state_collection_open));
@@ -939,7 +939,7 @@ TEST_F(VBucketManifestTestEndSeqno, singleDelete) {
             manifest.checkGreatestEndSeqno(StoredValue::state_collection_open));
     EXPECT_TRUE(manifest.checkNumDeletingCollections(0));
     EXPECT_TRUE(manifest.update( // no collections left
-            R"({"separator":":","collections":[]})"));
+            R"({"separator":":","uid":"0","collections":[]})"));
     EXPECT_TRUE(manifest.checkGreatestEndSeqno(1));
     EXPECT_TRUE(manifest.checkNumDeletingCollections(1));
     EXPECT_TRUE(manifest.isLogicallyDeleted(
@@ -959,12 +959,12 @@ TEST_F(VBucketManifestTestEndSeqno, addDeleteAdd) {
 
     // Add
     EXPECT_TRUE(manifest.update(
-            R"({"separator":":","collections":[{"name":"$default","uid":"0"},)"
+            R"({"separator":":","uid":"0","collections":[{"name":"$default","uid":"0"},)"
             R"(                                 {"name":"vegetable","uid":"1"}]})"));
 
     // Delete
     EXPECT_TRUE(manifest.update(
-            R"({"separator":":","collections":[{"name":"$default","uid":"0"}]})"));
+            R"({"separator":":","uid":"0","collections":[{"name":"$default","uid":"0"}]})"));
 
     EXPECT_TRUE(manifest.checkGreatestEndSeqno(2));
     EXPECT_TRUE(manifest.checkNumDeletingCollections(1));
@@ -975,7 +975,7 @@ TEST_F(VBucketManifestTestEndSeqno, addDeleteAdd) {
             {"vegetable:sprout", DocNamespace::Collections}, 3));
 
     EXPECT_TRUE(manifest.update(
-            R"({"separator":":","collections":[{"name":"$default","uid":"0"},)"
+            R"({"separator":":","uid":"0","collections":[{"name":"$default","uid":"0"},)"
             R"(                                 {"name":"vegetable","uid":"2"}]})"));
 
     EXPECT_TRUE(manifest.checkGreatestEndSeqno(2));
@@ -997,7 +997,7 @@ class VBucketManifestCachingReadHandle : public VBucketManifestTest {};
 TEST_F(VBucketManifestCachingReadHandle, basic) {
     // Add
     EXPECT_TRUE(manifest.update(
-            R"({"separator":":","collections":[{"name":"$default","uid":"0"},)"
+            R"({"separator":":","uid":"0","collections":[{"name":"$default","uid":"0"},)"
             R"(                                 {"name":"vegetable","uid":"1"}]})"));
 
     {
@@ -1019,7 +1019,7 @@ TEST_F(VBucketManifestCachingReadHandle, basic) {
                      reinterpret_cast<const char*>(rh.getKey().data()));
     }
     EXPECT_TRUE(manifest.update(
-            R"({"separator":":","collections":[{"name":"$default","uid":"0"}]})"));
+            R"({"separator":":","uid":"0","collections":[{"name":"$default","uid":"0"}]})"));
 
     {
         auto rh = manifest.active.lock(

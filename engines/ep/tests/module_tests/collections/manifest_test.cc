@@ -25,90 +25,122 @@ TEST(ManifestTest, validation) {
     std::vector<std::string> invalidManifests = {
             "", // empty
             "not json", // definitely not json
-            "{separator}", // illegal json
             R"({"separator"})", // illegal json
-            R"({"separator":[]})", // illegal separator type
+            R"({"uid":"0", "separator":[]})", // illegal separator type
 
-            R"({"separator" : "::",
+            R"({"separator" : "::", "uid":"0"
                 "collections" : 0})", // illegal collections type
 
-            R"({"separator" : ":"})", // valid separator, no collections
-            R"({"collections" : []})", // valid collections type, no separator
+            // valid separator, valid uid, no collections
+            R"({"separator" : ":", "uid" : "0"})",
 
-            R"({"separator": ":",
-                "collections":[0]})", // illegal collection entry type
+            // valid uid, valid collections type, no separator
+            R"({"uid":"0", "collections" : []})",
 
-            R"({"separator" : ":",
-                "collections":[{"name":"beer"}]})", // valid name, no uid
+            //  valid separator, valid uid, invalid collections type
+            R"({"separator": ":", "uid" : "0",
+                "collections":[0]})",
 
-            R"({"separator" : ":",
-                "collections":[{"uid":"1"}]})", // valid uid, no name
+            // valid separator/uid valid name, no collection uid
+            R"({"separator" : ":", "uid" : "0",
+                "collections":[{"name":"beer"}]})",
 
-            // valid name, invalid uid
-            R"({"separator": ":",
+            // valid separator/uid, valid collection uid, no collection name
+            R"({"separator" : ":","uid":"0",
+                "collections":[{"uid":"1"}]})",
+
+            // valid name, invalid collection uid (wrong type)
+            R"({"separator": ":","uid":"0",
                 "collections":[{"name":"beer", "uid":1}]})",
 
-            // valid name, invalid uid
-            R"({"separator": ":",
+            // valid name, invalid collection uid (not hex)
+            R"({"separator": ":","uid":"0",
                 "collections":[{"name":"beer", "uid":"turkey"}]})",
 
-            // invalid name, valid uid
-            R"({"separator": ":",
+            // invalid name (wrong type), valid uid
+            R"({"separator": ":", "uid" : "0",
                 "collections":[{"name":1, "uid":"1"}]})",
 
             // invalid separator (empty)
-            R"({"separator" : "",
+            R"({"separator" : "", "uid" : "0",
                "collections":[{"name":"beer", "uid":"1"}]})",
 
             // invalid separator > 16
-            R"({"separator": "0123456789abcdef_",
+            R"({"separator": "0123456789abcdef_", "uid" : "0",
                 "collections":[{"name":"beer", "uid":"1"},
                                {"name":"brewery","uid":"2"}]})",
 
             // illegal $ prefixed  name
-            R"({"separator": ":",
+            R"({"separator": ":", "uid" : "0",
              "collections":[{"name":"$beer", "uid":"1"},
                             {"name":"brewery","uid":"2"}]})",
 
             // illegal _ prefixed  name
-            R"({"separator": ":",
+            R"({"separator": ":", "uid" : "0",
                "collections":[{"name":"_beer", "uid":"1"},
                               {"name":"brewery","uid":"2"}]})",
 
             // duplicate collections
-            R"({"separator":":",
+            R"({"separator":":", "uid" : "0",
                 "collections":[{"name":"beer", "uid":"1"},
                                {"name":"beer", "uid":"2"}]})",
-    };
+
+            // Invalid manifest UIDs
+            // Missing UID
+            R"({"separator":":",
+                "collections":[{"name":"beer", "uid":"1"}]})",
+
+            // UID wrong type
+            R"({"separator":":", "uid" : 0,
+                "collections":[{"name":"beer", "uid":"1"}]})",
+
+            // UID cannot be converted to a value
+            R"({"separator":":", "uid" : "thisiswrong",
+                "collections":[{"name":"beer", "uid":"1"}]})",
+
+            // UID cannot be converted to a value
+            R"({"separator":":", "uid" : "12345678901234567890112111",
+                "collections":[{"name":"beer", "uid":"1"}]})",
+
+            // UID cannot be 0x prefixed
+            R"({"separator":":", "uid" : "0x101",
+                "collections":[{"name":"beer", "uid":"1"}]})"};
 
     std::vector<std::string> validManifests = {
-            R"({"separator":":", "collections":[]})",
+            R"({"separator":":", "uid" : "0", "collections":[]})",
 
-            R"({"separator":":",
+            R"({"separator":":", "uid" : "0",
                 "collections":[{"name":"$default","uid":"0"},
                                {"name":"beer", "uid":"1"},
                                {"name":"brewery","uid":"2"}]})",
 
             // beer & brewery have same UID, valid
-            R"({"separator":":",
+            R"({"separator":":", "uid" : "0",
                 "collections":[{"name":"$default","uid":"0"},
                                {"name":"beer", "uid":"1"},
                                {"name":"brewery","uid":"1"}]})",
 
-            R"({"separator":":",
+            R"({"separator":":", "uid" : "0",
                 "collections":[{"name":"beer", "uid":"1"},
                                {"name":"brewery","uid":"2"}]})",
 
             // Max separator
-            R"({"separator":"0123456789abcdef",
+            R"({"separator":"0123456789abcdef", "uid" : "0",
                 "collections":[{"name":"beer", "uid":"1"},
                                {"name":"brewery","uid":"2"}]})",
 
             // Extra keys ignored at the moment
             R"({"extra":"key",
-                "separator":"_",
+                "separator":"_", "uid" : "0",
                 "collections":[{"name":"beer", "uid":"af"},
-                               {"name":"brewery","uid":"2"}]})"};
+                               {"name":"brewery","uid":"2"}]})",
+
+            // lower-case uid is fine
+            R"({"separator":":", "uid" : "abcd1", "collections":[]})",
+            // upper-case uid is fine
+            R"({"separator":":", "uid" : "ABCD1", "collections":[]})",
+            // mix-case uid is fine
+            R"({"separator":":", "uid" : "AbCd1", "collections":[]})"};
 
     for (auto& manifest : invalidManifests) {
         try {
@@ -135,11 +167,11 @@ TEST(ManifestTest, validation) {
 TEST(ManifestTest, getSeparator) {
     std::vector<std::pair<std::string, std::string> > validManifests = {
             {"_",
-             R"({"separator":"_",
+             R"({"separator":"_", "uid" : "0",
                 "collections":[{"name":"beer", "uid":"1"},
                                {"name":"brewery","uid":"2"}]})"},
             {"0123456789abcdef",
-             R"({"separator":"0123456789abcdef",
+             R"({"separator":"0123456789abcdef", "uid" : "0",
                 "collections":[{"name":"beer", "uid":"1"},
                                {"name":"brewery","uid":"2"}]})"},
     };
@@ -150,9 +182,34 @@ TEST(ManifestTest, getSeparator) {
     }
 }
 
+TEST(ManifestTest, getUid) {
+    std::vector<std::pair<Collections::uid_t, std::string> > validManifests = {
+            {0,
+             R"({"separator":"_", "uid" : "0",
+                "collections":[{"name":"beer", "uid":"1"},
+                               {"name":"brewery","uid":"2"}]})"},
+            {0xabcd,
+             R"({"separator":"_", "uid" : "ABCD",
+                "collections":[{"name":"beer", "uid":"1"},
+                               {"name":"brewery","uid":"2"}]})"},
+            {0xabcd,
+             R"({"separator":"_", "uid" : "abcd",
+                "collections":[{"name":"beer", "uid":"1"},
+                               {"name":"brewery","uid":"2"}]})"},
+            {0xabcd,
+             R"({"separator":"_", "uid" : "aBcD",
+                "collections":[{"name":"beer", "uid":"1"},
+                               {"name":"brewery","uid":"2"}]})"}};
+
+    for (auto& manifest : validManifests) {
+        Collections::Manifest m(manifest.second);
+        EXPECT_EQ(manifest.first, m.getUid());
+    }
+}
+
 TEST(ManifestTest, findCollection) {
     std::string manifest =
-            R"({"separator":"_",
+            R"({"separator":"_", "uid" : "0",
                 "collections":[{"name":"beer", "uid":"1"},
                                {"name":"brewery","uid":"2"},
                                {"name":"$default","uid":"0"}]})";
@@ -175,23 +232,23 @@ TEST(ManifestTest, findCollection) {
 TEST(ManifestTest, toJson) {
     // Inputs for testing are not whitespace formatted as toJson does not format
     std::vector<std::string> validManifests = {
-            R"({"separator":":","collections":[]})",
+            R"({"separator":":","uid":"abcd","collections":[]})",
 
-            R"({"separator":":","collections":[{"name":"$default","uid":"0"},)"
+            R"({"separator":":","uid":"abcd","collections":[{"name":"$default","uid":"0"},)"
             R"({"name":"beer","uid":"1"},{"name":"brewery","uid":"2"}]})",
 
             // beer & brewery have same UID, valid
-            R"({"separator":":","collections":[{"name":"$default","uid":"0"},)"
+            R"({"separator":":","uid":"abcd","collections":[{"name":"$default","uid":"0"},)"
             R"({"name":"beer","uid":"1"},{"name":"brewery","uid":"1"}]})",
 
-            R"({"separator":":","collections":[{"name":"beer","uid":"1"},)"
+            R"({"separator":":","uid":"abcd","collections":[{"name":"beer","uid":"1"},)"
             R"({"name":"brewery","uid":"2"}]})",
 
             // Max separator
-            R"({"separator":"0123456789abcdef","collections":)"
+            R"({"separator":"0123456789abcdef","uid":"abcd","collections":)"
             R"([{"name":"beer","uid":"1"},{"name":"brewery","uid":"2"}]})",
 
-            R"({"separator":"_","collections":[{"name":"beer","uid":"af"},)"
+            R"({"separator":"_","uid":"abcd","collections":[{"name":"beer","uid":"af"},)"
             R"({"name":"brewery","uid":"2"}]})"};
 
     for (auto& manifest : validManifests) {

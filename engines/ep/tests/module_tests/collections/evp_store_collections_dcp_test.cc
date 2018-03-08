@@ -263,7 +263,7 @@ TEST_F(CollectionsDcpTest, test_dcp) {
 
     // Add a collection, then remove it. This generated events into the CP which
     // we'll manually replicate with calls to step
-    vb->updateFromManifest({R"({"separator":":",
+    vb->updateFromManifest({R"({"separator":":","uid":"0",
               "collections":[{"name":"$default", "uid":"0"},
                              {"name":"meat","uid":"1"}]})"});
 
@@ -283,7 +283,7 @@ TEST_F(CollectionsDcpTest, test_dcp) {
             {"meat:bacon", DocNamespace::Collections}));
 
     // remove meat
-    vb->updateFromManifest({R"({"separator":":",
+    vb->updateFromManifest({R"({"separator":":","uid":"1",
               "collections":[{"name":"$default", "uid":"0"}]})"});
 
     notifyAndStepToCheckpoint();
@@ -343,7 +343,7 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete) {
     {
         VBucketPtr vb = store->getVBucket(vbid);
         // Create dairy
-        vb->updateFromManifest({R"({"separator":":",
+        vb->updateFromManifest({R"({"separator":":","uid":"0",
               "collections":[{"name":"$default", "uid":"0"},
                              {"name":"fruit","uid":"1"},
                              {"name":"dairy","uid":"1"}]})"});
@@ -361,7 +361,7 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete) {
         }
 
         // Delete dairy
-        vb->updateFromManifest({R"({"separator":":",
+        vb->updateFromManifest({R"({"separator":":","uid":"1",
               "collections":[{"name":"$default", "uid":"0"},
                              {"name":"fruit","uid":"1"}]})"});
 
@@ -392,7 +392,7 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_create) {
     {
         VBucketPtr vb = store->getVBucket(vbid);
         // Create dairy
-        vb->updateFromManifest({R"({"separator":":",
+        vb->updateFromManifest({R"({"separator":":","uid":"0",
               "collections":[{"name":"$default", "uid":"0"},
                              {"name":"dairy","uid":"1"}]})"});
 
@@ -405,10 +405,10 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_create) {
 
         // Delete dairy
         vb->updateFromManifest(
-                {R"({"separator":":","collections":[{"name":"$default", "uid":"0"}]})"});
+                {R"({"uid":"1","separator":":","collections":[{"name":"$default", "uid":"0"}]})"});
 
         // Create dairy (new uid)
-        vb->updateFromManifest({R"({"separator":":",
+        vb->updateFromManifest({R"({"separator":":","uid":"2",
               "collections":[{"name":"$default", "uid":"0"},
                              {"name":"dairy","uid":"2"}]})"});
 
@@ -437,7 +437,7 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_create2) {
     {
         VBucketPtr vb = store->getVBucket(vbid);
         // Create dairy
-        vb->updateFromManifest({R"({"separator":":",
+        vb->updateFromManifest({R"({"separator":":","uid":"0",
               "collections":[{"name":"$default", "uid":"0"},
                              {"name":"dairy","uid":"1"}]})"});
 
@@ -449,7 +449,7 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_create2) {
         }
 
         // Delete dairy/create dairy in one update
-        vb->updateFromManifest({R"({"separator":":",
+        vb->updateFromManifest({R"({"separator":":","uid":"1",
               "collections":[{"name":"$default", "uid":"0"},
                              {"name":"dairy","uid":"2"}]})"});
 
@@ -475,11 +475,11 @@ TEST_F(CollectionsDcpTest, test_dcp_separator) {
     VBucketPtr vb = store->getVBucket(vbid);
 
     // Change the separator
-    vb->updateFromManifest({R"({"separator":"@@",
+    vb->updateFromManifest({R"({"separator":"@@","uid":"0",
               "collections":[{"name":"$default", "uid":"0"}]})"});
 
     // Add a collection
-    vb->updateFromManifest({R"({"separator":"@@",
+    vb->updateFromManifest({R"({"separator":"@@","uid":"1",
               "collections":[{"name":"$default", "uid":"0"},
                              {"name":"meat","uid":"1"}]})"});
 
@@ -517,16 +517,16 @@ TEST_F(CollectionsDcpTest, test_dcp_separator_many) {
     auto vb = store->getVBucket(vbid);
 
     // Change the separator
-    vb->updateFromManifest({R"({"separator": "@@",
+    vb->updateFromManifest({R"({"separator": "@@","uid":"0",
               "collections":[{"name":"$default", "uid":"0"}]})"});
     // Change the separator
-    vb->updateFromManifest({R"({"separator": "-",
+    vb->updateFromManifest({R"({"separator": "-","uid":"1",
               "collections":[{"name":"$default", "uid":"0"}]})"});
     // Change the separator
-    vb->updateFromManifest({R"({"separator": ",",
+    vb->updateFromManifest({R"({"separator": ",","uid":"2",
               "collections":[{"name":"$default", "uid":"0"}]})"});
     // Add a collection
-    vb->updateFromManifest({R"({"separator": ",",
+    vb->updateFromManifest({R"({"separator": ",","uid":"3",
               "collections":[{"name":"$default", "uid":"0"},
                              {"name":"meat", "uid":"1"}]})"});
 
@@ -578,12 +578,12 @@ TEST_F(CollectionsDcpTest, MB_26455) {
         for (size_t n = 0; n < separators.size(); n++) {
             // change sep
             std::string manifest =
-                    R"({"separator":")" + separators.at(n) +
+                    R"({"uid":"0","separator":")" + separators.at(n) +
                     R"(","collections":[{"name":"$default", "uid":"0"}]})";
             vb->updateFromManifest({manifest});
 
             // add fruit
-            manifest = R"({"separator":")" + separators.at(n) +
+            manifest = R"({"uid":"1","separator":")" + separators.at(n) +
                        R"(","collections":[{"name":"$default", "uid":"0"},)" +
                        R"({"name":"fruit", "uid":")" + std::to_string(n) +
                        R"("}]})";
@@ -603,7 +603,7 @@ TEST_F(CollectionsDcpTest, MB_26455) {
             if (n < (separators.size() - 1)) {
                 // Drop fruit, except for the last 'generation'
                 manifest =
-                        R"({"separator":")" + separators.at(n) +
+                        R"({"uid":"2","separator":")" + separators.at(n) +
                         R"(","collections":[{"name":"$default", "uid":"0"}]})";
                 vb->updateFromManifest({manifest});
 
@@ -648,7 +648,7 @@ protected:
 
 TEST_F(CollectionsFilteredDcpErrorTest, error1) {
     // Set some collections
-    store->setCollections({R"({"separator": "@@",
+    store->setCollections({R"({"separator": "@@","uid":"0",
               "collections":[{"name":"$default", "uid":"0"},
                              {"name":"meat", "uid":"1"},
                              {"name":"dairy", "uid":"2"}]})"});
@@ -691,7 +691,7 @@ TEST_F(CollectionsFilteredDcpTest, filtering) {
 
     // Perform a create of meat/dairy via the bucket level (filters are
     // worked out from the bucket manifest)
-    store->setCollections({R"({"separator": ":",
+    store->setCollections({R"({"separator": ":","uid":"0",
               "collections":[{"name":"$default", "uid":"0"},
                              {"name":"meat", "uid":"1"},
                              {"name":"dairy", "uid":"2"}]})"});
@@ -736,7 +736,7 @@ TEST_F(CollectionsFilteredDcpTest, filtering) {
     resetEngineAndWarmup();
 
     // In order to create a filter, a manifest needs to be set
-    store->setCollections({R"({"separator": ":",
+    store->setCollections({R"({"separator": ":","uid":"0",
               "collections":[{"name":"$default", "uid":"0"},
                              {"name":"meat", "uid":"1"},
                              {"name":"dairy", "uid":"2"}]})"});
@@ -756,7 +756,7 @@ TEST_F(CollectionsFilteredDcpTest, MB_24572) {
 
     // Perform a create of meat/dairy via the bucket level (filters are
     // worked out from the bucket manifest)
-    store->setCollections({R"({"separator": ":",
+    store->setCollections({R"({"separator": ":","uid":"0",
               "collections":[{"name":"$default", "uid":"0"},
                              {"name":"meat", "uid":"1"},
                              {"name":"dairy", "uid":"2"}]})"});
@@ -790,7 +790,7 @@ TEST_F(CollectionsFilteredDcpTest, default_only) {
 
     // Perform a create of meat/dairy via the bucket level (filters are
     // worked out from the bucket manifest)
-    store->setCollections({R"({"separator": ":",
+    store->setCollections({R"({"separator": ":","uid":"0",
               "collections":[{"name":"$default", "uid":"0"},
                              {"name":"meat", "uid":"1"},
                              {"name":"dairy", "uid":"2"}]})"});
@@ -823,7 +823,7 @@ TEST_F(CollectionsFilteredDcpTest, stream_closes) {
 
     // Perform a create of meat via the bucket level (filters are worked out
     // from the bucket manifest)
-    store->setCollections({R"({"separator": ":",
+    store->setCollections({R"({"separator": ":","uid":"0",
               "collections":[{"name":"$default", "uid":"0"},
                              {"name":"meat", "uid":"1"}]})"});
     // Setup filtered DCP
@@ -845,7 +845,7 @@ TEST_F(CollectionsFilteredDcpTest, stream_closes) {
 
     // Perform a delete of meat via the bucket level (filters are worked out
     // from the bucket manifest)
-    store->setCollections({R"({"separator": ":",
+    store->setCollections({R"({"separator": ":","uid":"1",
               "collections":[{"name":"$default", "uid":"0"}]})"});
 
     notifyAndStepToCheckpoint();
@@ -872,7 +872,7 @@ TEST_F(CollectionsFilteredDcpTest, empty_filter_stream_closes) {
 
     // Perform a create of meat via the bucket level (filters are worked out
     // from the bucket manifest)
-    store->setCollections({R"({"separator": ":",
+    store->setCollections({R"({"separator": ":","uid":"0",
               "collections":[{"name":"$default", "uid":"0"},
                              {"name":"meat", "uid":"1"}]})"});
 
@@ -883,7 +883,7 @@ TEST_F(CollectionsFilteredDcpTest, empty_filter_stream_closes) {
     createDcpConsumer();
 
     // Perform a delete of meat
-    store->setCollections({R"({"separator": ":",
+    store->setCollections({R"({"separator": ":","uid":"1",
                             "collections":[{"name":"$default", "uid":"0"}]})"});
 
     createDcpStream();
@@ -897,7 +897,6 @@ TEST_F(CollectionsFilteredDcpTest, empty_filter_stream_closes) {
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpStreamEnd);
     EXPECT_EQ(END_STREAM_FILTER_EMPTY, dcp_last_flags);
 
-    // Done... collection deletion of default has closed the stream
     EXPECT_FALSE(vb0Stream->isActive());
 
     // And no more
@@ -909,7 +908,7 @@ TEST_F(CollectionsFilteredDcpTest, legacy_stream_closes) {
 
     // Perform a create of meat via the bucket level (filters are worked out
     // from the bucket manifest)
-    store->setCollections({R"({"separator": ":",
+    store->setCollections({R"({"separator": ":","uid":"0",
               "collections":[{"name":"$default", "uid":"0"},
                              {"name":"meat", "uid":"1"}]})"});
     // Make cookie look like a non-collection client
@@ -929,7 +928,7 @@ TEST_F(CollectionsFilteredDcpTest, legacy_stream_closes) {
     EXPECT_TRUE(vb0Stream->isActive());
 
     // Perform a delete of $default
-    store->setCollections({R"({"separator": ":",
+    store->setCollections({R"({"separator": ":","uid":"1",
               "collections":[{"name":"meat", "uid":"1"}]})"});
 
     // Expect a stream end marker

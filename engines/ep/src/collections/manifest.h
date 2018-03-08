@@ -96,6 +96,11 @@ public:
         return collections.size();
     }
 
+    /// return the UID of the Manifest
+    uid_t getUid() const {
+        return uid;
+    }
+
     /**
      * Try and find an identifier in this Manifest (name/uid match)
      * @return iterator to the matching entry or end() if not found.
@@ -176,6 +181,7 @@ private:
     bool defaultCollectionExists;
     std::string separator;
     container collections;
+    uid_t uid;
 
     // strings used in JSON parsing
     static constexpr char const* SeparatorKey = "separator";
