@@ -37,30 +37,17 @@ protected:
 };
 
 void RemoveTest::verify_MB_22553(const std::string& config) {
-    auto& conn = getAdminConnection();
-
-    std::string name = "bucket-1";
-    conn.createBucket(name, config, BucketType::Memcached);
-    conn.selectBucket("bucket-1");
-
-    // Create a document
-    conn.store(name, 0, std::string{"foobar"});
-
-    // Add an xattr
-    {
-        BinprotSubdocCommand cmd;
-        cmd.setOp(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD);
-        cmd.setKey(name);
-        cmd.setPath("_rbac.attribute");
-        cmd.setValue("\"read-only\"");
-        cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
-
-        conn.sendCommand(cmd);
-
-        BinprotResponse resp;
-        conn.recvResponse(resp);
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    // default (memcache) bucket only test.
+    if (mcd_env->getTestBucket().getName() != "default_engine") {
+        return;
     }
+
+    auto& conn = getAdminConnection();
+    conn.deleteBucket(bucketName);
+    mcd_env->getTestBucket().setUpBucket(bucketName, config, conn);
+
+    // Create a document with an XATTR.
+    setBodyAndXattr("foobar", {{"_rbac", "{\"attribute\": \"read-only\"}"}});
 
     // Delete the document
     conn.remove(name, 0);
@@ -74,25 +61,10 @@ void RemoveTest::verify_MB_22553(const std::string& config) {
                     << "MB-22553: doc with xattr is still accessible";
     }
 
-    {
-        // It should not be accessible over subdoc..
-        BinprotSubdocCommand cmd;
-        cmd.setOp(PROTOCOL_BINARY_CMD_SUBDOC_GET);
-        cmd.setKey(name);
-        cmd.setPath("verbosity");
-        cmd.addPathFlags(SUBDOC_FLAG_NONE);
-
-        conn.sendCommand(cmd);
-
-        BinprotSubdocResponse resp;
-        conn.recvResponse(resp);
-
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, resp.getStatus())
-                    << "MB-22553: doc with xattr is still accessible";
-    }
-
-    conn.deleteBucket("bucket-1");
-    conn.reconnect();
+    // It should not be accessible over subdoc.
+    auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_GET, name, "verbosity");
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, resp.getStatus())
+            << "MB-22553: doc with xattr is still accessible";
 }
 
 INSTANTIATE_TEST_CASE_P(
@@ -102,11 +74,11 @@ INSTANTIATE_TEST_CASE_P(
                                              TransportProtocols::McbpIpv6Plain,
                                              TransportProtocols::McbpSsl,
                                              TransportProtocols::McbpIpv6Ssl),
-                           ::testing::Values(XattrSupport::Yes,
-                                             XattrSupport::No),
+                           ::testing::Values(XattrSupport::Yes),
                            ::testing::Values(ClientJSONSupport::Yes,
                                              ClientJSONSupport::No),
-                           ::testing::Values(ClientSnappySupport::No)),
+                           ::testing::Values(ClientSnappySupport::Yes,
+                                             ClientSnappySupport::No)),
         PrintToStringCombinedName());
 
 /**
@@ -167,10 +139,11 @@ TEST_P(RemoveTest, RemoveWithCas) {
  * document, and that the user attributes will be nuked off
  */
 TEST_P(RemoveTest, RemoveWithXattr) {
-    createDocument();
-
-    createXattr("meta.content-type", "\"application/json; charset=utf-8\"");
-    createXattr("_rbac.attribute", "\"read-only\"");
+    setBodyAndXattr(
+            document.value,
+            {{"meta",
+              "{\"content-type\": \"application/json; charset=utf-8\"}"},
+             {"_rbac", "{\"attribute\": \"read-only\"}"}});
     getConnection().remove(name, 0, 0);
 
     // The system xattr should have been preserved

@@ -137,7 +137,7 @@ protected:
             protocol_binary_command opcode,
             const std::string& key,
             const std::string& path,
-            const std::string& value,
+            const std::string& value = {},
             protocol_binary_subdoc_flag flag = SUBDOC_FLAG_NONE,
             mcbp::subdoc::doc_flag docFlag = mcbp::subdoc::doc_flag::None);
 
