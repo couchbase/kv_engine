@@ -1052,12 +1052,6 @@ void TestappTest::start_memcached_server(cJSON* config) {
     ASSERT_EQ(0, write_config_to_file(config_string, config_file.c_str()));
     cJSON_Free(config_string);
 
-    // We need to set MEMCACHED_UNIT_TESTS to enable the use of
-    // the ewouldblock engine..
-    static char envvar[80];
-    snprintf(envvar, sizeof(envvar), "MEMCACHED_UNIT_TESTS=true");
-    putenv(envvar);
-
     server_start_time = time(0);
 
     if (embedded_memcached_server) {
@@ -1633,6 +1627,12 @@ uint64_t TestappTest::token;
 cb_thread_t TestappTest::memcached_server_thread;
 
 int main(int argc, char **argv) {
+    // We need to set MEMCACHED_UNIT_TESTS to enable the use of
+    // the ewouldblock engine..
+    static char envvar[80];
+    snprintf(envvar, sizeof(envvar), "MEMCACHED_UNIT_TESTS=true");
+    putenv(envvar);
+
     ::testing::InitGoogleTest(&argc, argv);
 
 #ifndef WIN32
