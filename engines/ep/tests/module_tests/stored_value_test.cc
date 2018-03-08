@@ -22,7 +22,6 @@
 #include "config.h"
 
 #include "../../daemon/alloc_hooks.h"
-#include "../mock/mock_stored_value.h"
 #include "hash_table.h"
 #include "item_eviction.h"
 #include "stats.h"
@@ -263,16 +262,6 @@ TYPED_TEST(ValueTest, initialFreqCounterForTemp) {
     EXPECT_EQ(0, storedVal->getFreqCounterValue());
 }
 
-TYPED_TEST(ValueTest, copyStoreValue) {
-    ASSERT_EQ(5, this->sv->getFreqCounterValue());
-    this->sv->setFreqCounterValue(100);
-    ASSERT_EQ(100, this->sv->getFreqCounterValue());
-    auto storedVal = MockStoredValue::UniquePtr(
-            new (::operator new(this->sv->getObjectSize()))
-                    MockStoredValue(*(this->sv.get()), {}, this->stats));
-    EXPECT_EQ(100, storedVal->getFreqCounterValue());
-}
-
 TYPED_TEST(ValueTest, replaceValue) {
     ASSERT_EQ(5, this->sv->getFreqCounterValue());
     this->sv->setFreqCounterValue(100);
@@ -325,11 +314,28 @@ TEST(StoredValueTest, expectedSize) {
             << item;
 }
 
-TEST(OrderedStoredValueTest, expectedSize) {
+/**
+ * Test fixture for OrderedStoredValue-only tests.
+ */
+class OrderedStoredValueTest : public ValueTest<OrderedStoredValueFactory> {};
+
+TEST_F(OrderedStoredValueTest, expectedSize) {
     EXPECT_EQ(72, sizeof(OrderedStoredValue))
             << "Unexpected change in OrderedStoredValue fixed size";
     auto item = make_item(0, makeStoredDocKey("k"), "v");
     EXPECT_EQ(75, OrderedStoredValue::getRequiredStorage(item))
             << "Unexpected change in OrderedStoredValue storage size for item: "
             << item;
+}
+
+// Check that when we copy a OSV, the freqCounter is also copied. (Cannot copy
+// StoredValues, hence no version for them).
+TEST_F(OrderedStoredValueTest, copyStoreValue) {
+    ASSERT_EQ(5, sv->getFreqCounterValue());
+    sv->setFreqCounterValue(100);
+    ASSERT_EQ(100, sv->getFreqCounterValue());
+
+    auto copy = factory.copyStoredValue(*sv, {});
+
+    EXPECT_EQ(100, copy->getFreqCounterValue());
 }
