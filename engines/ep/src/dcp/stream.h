@@ -227,6 +227,7 @@ public:
                  uint64_t snap_end_seqno,
                  IncludeValue includeVal,
                  IncludeXattrs includeXattrs,
+                 IncludeDeleteTime includeDeleteTime,
                  const Collections::Filter& filter,
                  const Collections::VB::Manifest& manifest);
 
@@ -497,6 +498,9 @@ private:
     // Whether the responses sent using the stream should contain the xattrs
     // (if any exist)
     IncludeXattrs includeXattributes;
+
+    // Will the stream send dcp deletions with delete-times?
+    IncludeDeleteTime includeDeleteTime;
 
     /**
      * A copy of the collections separator so we can generate MutationResponse

@@ -63,9 +63,16 @@ const char* DcpResponse::to_string() const {
         "DcpResponse::to_string(): " + std::to_string(int(event_)));
 }
 
+uint32_t MutationResponse::getDeleteLength() const {
+    if (includeDeleteTime == IncludeDeleteTime::Yes) {
+        return deletionV2BaseMsgBytes;
+    }
+    return deletionBaseMsgBytes;
+}
+
 uint32_t MutationResponse::getMessageSize() const {
-    const uint32_t header = item_->isDeleted() ? deletionBaseMsgBytes :
-                    mutationBaseMsgBytes;
+    const uint32_t header =
+            item_->isDeleted() ? getDeleteLength() : mutationBaseMsgBytes;
 
     uint32_t body = item_->getKey().size() + item_->getNBytes();
 

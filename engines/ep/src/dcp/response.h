@@ -368,16 +368,21 @@ private:
 
 class MutationResponse : public DcpResponse {
 public:
-    MutationResponse(queued_item item,
-                     uint32_t opaque,
-                     IncludeValue includeVal = IncludeValue::Yes,
-                     IncludeXattrs includeXattrs = IncludeXattrs::Yes,
-                     ExtendedMetaData *e = NULL)
-        : DcpResponse(item->isDeleted() ? Event::Deletion : Event::Mutation, opaque),
+    MutationResponse(
+            queued_item item,
+            uint32_t opaque,
+            IncludeValue includeVal = IncludeValue::Yes,
+            IncludeXattrs includeXattrs = IncludeXattrs::Yes,
+            IncludeDeleteTime includeDeleteTime = IncludeDeleteTime::No,
+            ExtendedMetaData* e = NULL)
+        : DcpResponse(item->isDeleted() ? Event::Deletion : Event::Mutation,
+                      opaque),
           item_(item),
           includeValue(includeVal),
           includeXattributes(includeXattrs),
-          emd(e) {}
+          includeDeleteTime(includeDeleteTime),
+          emd(e) {
+    }
 
     queued_item& getItem() {
         return item_;
@@ -421,14 +426,19 @@ public:
 
     static const uint32_t mutationBaseMsgBytes = 55;
     static const uint32_t deletionBaseMsgBytes = 42;
+    static const uint32_t deletionV2BaseMsgBytes = 45;
 
 protected:
+    uint32_t getDeleteLength() const;
+
     queued_item item_;
 
     // Whether the response should contain the value
     IncludeValue includeValue;
     // Whether the response should contain the xattributes, if they exist.
     IncludeXattrs includeXattributes;
+    // Whether the response should include delete-time (when a delete)
+    IncludeDeleteTime includeDeleteTime;
 
     std::unique_ptr<ExtendedMetaData> emd;
 };
@@ -443,12 +453,14 @@ public:
                              uint32_t opaque,
                              IncludeValue includeVal,
                              IncludeXattrs includeXattrs,
+                             IncludeDeleteTime includeDeleteTime,
                              uint8_t _collectionLen,
                              ExtendedMetaData* e = NULL)
         : MutationResponse(item,
                            opaque,
                            includeVal,
                            includeXattrs,
+                           includeDeleteTime,
                            e),
           collectionLen(_collectionLen) {
     }

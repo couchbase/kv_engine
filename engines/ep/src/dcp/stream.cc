@@ -240,6 +240,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
                            uint64_t snap_end_seqno,
                            IncludeValue includeVal,
                            IncludeXattrs includeXattrs,
+                           IncludeDeleteTime includeDeleteTime,
                            const Collections::Filter& filter,
                            const Collections::VB::Manifest& manifest)
     : Stream(n,
@@ -269,6 +270,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
       chkptItemsExtractionInProgress(false),
       includeValue(includeVal),
       includeXattributes(includeXattrs),
+      includeDeleteTime(includeDeleteTime),
       filter(filter, manifest) {
     const char* type = "";
     if (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER) {
@@ -1196,6 +1198,7 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
                 opaque_,
                 includeValue,
                 includeXattributes,
+                includeDeleteTime,
                 cKey.getCollectionLen());
     } else {
         return SystemEventProducerMessage::make(opaque_, item);

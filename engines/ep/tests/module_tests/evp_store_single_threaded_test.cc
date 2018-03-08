@@ -2158,6 +2158,10 @@ TEST_F(WarmupTest, produce_delete_times) {
     EXPECT_LE(dcp_last_delete_time, t2);
     EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_DELETION, dcp_last_op);
     EXPECT_EQ("KEY1", dcp_last_key);
+    size_t expectedBytes = SnapshotMarker::baseMsgBytes +
+                           MutationResponse::deletionV2BaseMsgBytes +
+                           (sizeof("KEY1") - 1);
+    EXPECT_EQ(expectedBytes, producer->getBytesOutstanding());
 
     // Now a new delete, in-memory will also have a delete time
     t1 = ep_real_time();
@@ -2172,6 +2176,10 @@ TEST_F(WarmupTest, produce_delete_times) {
     EXPECT_LE(dcp_last_delete_time, t2);
     EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_DELETION, dcp_last_op);
     EXPECT_EQ("KEY2", dcp_last_key);
+    expectedBytes += SnapshotMarker::baseMsgBytes +
+                     MutationResponse::deletionV2BaseMsgBytes +
+                     (sizeof("KEY2") - 1);
+    EXPECT_EQ(expectedBytes, producer->getBytesOutstanding());
 
     // Finally expire a key and check that the delete_time we receive is the
     // expiry time, not actually the time it was deleted.
@@ -2182,6 +2190,10 @@ TEST_F(WarmupTest, produce_delete_times) {
                expiryTime);
 
     step(true);
+    expectedBytes += SnapshotMarker::baseMsgBytes +
+                     MutationResponse::mutationBaseMsgBytes +
+                     (sizeof("value") - 1) + (sizeof("KEY3") - 1);
+    EXPECT_EQ(expectedBytes, producer->getBytesOutstanding());
 
     EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_MUTATION, dcp_last_op);
     TimeTraveller arron(64000);
@@ -2196,6 +2208,10 @@ TEST_F(WarmupTest, produce_delete_times) {
     EXPECT_EQ(expiryTime, dcp_last_delete_time);
     EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_DELETION, dcp_last_op);
     EXPECT_EQ("KEY3", dcp_last_key);
+    expectedBytes += SnapshotMarker::baseMsgBytes +
+                     MutationResponse::deletionV2BaseMsgBytes +
+                     (sizeof("KEY3") - 1);
+    EXPECT_EQ(expectedBytes, producer->getBytesOutstanding());
 
     destroy_mock_cookie(cookie);
     producer->closeAllStreams();

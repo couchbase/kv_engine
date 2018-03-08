@@ -323,7 +323,8 @@ protected:
                                uint64_t bySeqno,
                                uint64_t revSeqno,
                                cb::const_byte_buffer meta,
-                               uint32_t deleteTime);
+                               uint32_t deleteTime,
+                               IncludeDeleteTime includeDeleteTime);
 
     /**
      * RAII helper class to update the flowControl object with the number of

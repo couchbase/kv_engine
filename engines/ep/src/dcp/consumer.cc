@@ -413,6 +413,7 @@ ENGINE_ERROR_CODE DcpConsumer::mutation(uint32_t opaque,
                                                        opaque,
                                                        IncludeValue::Yes,
                                                        IncludeXattrs::Yes,
+                                                       IncludeDeleteTime::No,
                                                        emd.release()));
         } catch (const std::bad_alloc&) {
             return ENGINE_ENOMEM;
@@ -439,16 +440,30 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
                                         uint64_t bySeqno,
                                         uint64_t revSeqno,
                                         cb::const_byte_buffer meta) {
-    return deletion(opaque,
-                    key,
-                    value,
-                    datatype,
-                    cas,
-                    vbucket,
-                    bySeqno,
-                    revSeqno,
-                    meta,
-                    0);
+    UpdateFlowControl ufc(*this,
+                          MutationResponse::deletionBaseMsgBytes + key.size() +
+                                  meta.size() + value.size());
+    auto err = deletion(opaque,
+                        key,
+                        value,
+                        datatype,
+                        cas,
+                        vbucket,
+                        bySeqno,
+                        revSeqno,
+                        meta,
+                        0,
+                        IncludeDeleteTime::No);
+
+    // TMPFAIL means the stream has buffered the message for later processing
+    // so skip flowControl, success or any other error, we still need to ack
+    if (err == ENGINE_TMPFAIL) {
+        ufc.release();
+        // Mask the TMPFAIL
+        return ENGINE_SUCCESS;
+    }
+
+    return err;
 }
 
 ENGINE_ERROR_CODE DcpConsumer::deletionV2(uint32_t opaque,
@@ -461,16 +476,30 @@ ENGINE_ERROR_CODE DcpConsumer::deletionV2(uint32_t opaque,
                                           uint64_t bySeqno,
                                           uint64_t revSeqno,
                                           uint32_t deleteTime) {
-    return deletion(opaque,
-                    key,
-                    value,
-                    datatype,
-                    cas,
-                    vbucket,
-                    bySeqno,
-                    revSeqno,
-                    {},
-                    deleteTime);
+    UpdateFlowControl ufc(*this,
+                          MutationResponse::deletionV2BaseMsgBytes +
+                                  key.size() + value.size());
+    auto err = deletion(opaque,
+                        key,
+                        value,
+                        datatype,
+                        cas,
+                        vbucket,
+                        bySeqno,
+                        revSeqno,
+                        {},
+                        deleteTime,
+                        IncludeDeleteTime::Yes);
+
+    // TMPFAIL means the stream has buffered the message for later processing
+    // so skip flowControl, success or any other error, we still need to ack
+    if (err == ENGINE_TMPFAIL) {
+        ufc.release();
+        // Mask the TMPFAIL
+        return ENGINE_SUCCESS;
+    }
+
+    return err;
 }
 
 ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
@@ -482,11 +511,10 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
                                         uint64_t bySeqno,
                                         uint64_t revSeqno,
                                         cb::const_byte_buffer meta,
-                                        uint32_t deleteTime) {
+                                        uint32_t deleteTime,
+                                        IncludeDeleteTime includeDeleteTime) {
     lastMessageTime = ep_current_time();
-    UpdateFlowControl ufc(*this,
-                          MutationResponse::deletionBaseMsgBytes + key.size() +
-                                  meta.size() + value.size());
+
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
     }
@@ -526,6 +554,7 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
                                                        opaque,
                                                        IncludeValue::Yes,
                                                        IncludeXattrs::Yes,
+                                                       includeDeleteTime,
                                                        emd.release()));
         } catch (const std::bad_alloc&) {
             err = ENGINE_ENOMEM;
@@ -533,9 +562,7 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
 
         // The item was buffered and will be processed later
         if (err == ENGINE_TMPFAIL) {
-            ufc.release();
             notifyVbucketReady(vbucket);
-            return ENGINE_SUCCESS;
         }
     }
 

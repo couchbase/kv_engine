@@ -52,7 +52,7 @@ public:
                        snap_end_seqno,
                        includeValue,
                        includeXattrs,
-
+                       IncludeDeleteTime::No,
                        p->getFilter(),
                        vb.getManifest()) {
     }

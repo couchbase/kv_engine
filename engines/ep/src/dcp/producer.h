@@ -231,7 +231,11 @@ public:
         /// Unpause the producer if there's space (or disabled).
         void unpauseIfSpaceAvailable();
 
-private:
+        size_t getBytesOutstanding() const {
+            return bytesOutstanding;
+        }
+
+    private:
         bool isEnabled_UNLOCKED() {
             return maxBytes != 0;
         }

@@ -139,4 +139,8 @@ public:
     BackfillManager& getBFM() {
         return *backfill.manager;
     }
+
+    size_t getBytesOutstanding() const {
+        return log.getBytesOutstanding();
+    }
 };

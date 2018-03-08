@@ -414,6 +414,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
                                            snap_end_seqno,
                                            includeValue,
                                            includeXattrs,
+                                           includeDeleteTime,
                                            filter,
                                            vb->getManifest());
         /* We want to create the 'createCheckpointProcessorTask' here even if
