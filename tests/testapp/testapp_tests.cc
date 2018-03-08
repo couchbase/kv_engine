@@ -970,7 +970,7 @@ TEST_P(McdTestappTest, IOCTL_Set) {
 }
 
 TEST_P(McdTestappTest, IOCTL_Tracing) {
-    auto& conn = connectionMap.getConnection(sock_is_ssl(), AF_INET);
+    auto& conn = getAdminConnection();
     conn.authenticate("@admin", "password", "PLAIN");
 
     // Disable trace so that we start from a known status

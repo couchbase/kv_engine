@@ -108,7 +108,6 @@ void ConnectionMap::initialize(cJSON* ports) {
         }
 
         connection = new MemcachedConnection("", portval, family, useSsl);
-        connection->connect();
         connections.push_back(std::unique_ptr<MemcachedConnection>{connection});
     }
 }
