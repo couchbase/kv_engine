@@ -325,6 +325,39 @@ protected:
                                cb::const_byte_buffer meta,
                                uint32_t deleteTime);
 
+    /**
+     * RAII helper class to update the flowControl object with the number of
+     * bytes to free and trigger the consumer notify
+     */
+    class UpdateFlowControl {
+    public:
+        UpdateFlowControl(DcpConsumer& consumer, uint32_t bytes)
+            : consumer(consumer), bytes(bytes) {
+            if (bytes == 0) {
+                throw std::invalid_argument("UpdateFlowControl given 0 bytes");
+            }
+        }
+
+        ~UpdateFlowControl() {
+            if (bytes) {
+                consumer.flowControl.incrFreedBytes(bytes);
+                consumer.notifyConsumerIfNecessary(true /*schedule*/);
+            }
+        }
+
+        /**
+         * If the user no longer wants this instance to perform the update
+         * calling release() means this instance will skip the update.
+         */
+        void release() {
+            bytes = 0;
+        }
+
+    private:
+        DcpConsumer& consumer;
+        uint32_t bytes;
+    };
+
     /* Reference to the ep engine; need to create the 'Processor' task */
     EventuallyPersistentEngine& engine;
     uint64_t opaqueCounter;

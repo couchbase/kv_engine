@@ -321,6 +321,7 @@ ENGINE_ERROR_CODE DcpConsumer::closeStream(uint32_t opaque, uint16_t vbucket) {
 ENGINE_ERROR_CODE DcpConsumer::streamEnd(uint32_t opaque, uint16_t vbucket,
                                          uint32_t flags) {
     lastMessageTime = ep_current_time();
+    UpdateFlowControl ufc(*this, StreamEndResponse::baseMsgBytes);
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
     }
@@ -340,6 +341,7 @@ ENGINE_ERROR_CODE DcpConsumer::streamEnd(uint32_t opaque, uint16_t vbucket,
 
         // The item was buffered and will be processed later
         if (err == ENGINE_TMPFAIL) {
+            ufc.release();
             notifyVbucketReady(vbucket);
             return ENGINE_SUCCESS;
         }
@@ -349,9 +351,6 @@ ENGINE_ERROR_CODE DcpConsumer::streamEnd(uint32_t opaque, uint16_t vbucket,
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) End stream received with opaque "
             "%d but does not exist", logHeader(), vbucket, opaque);
     }
-
-    flowControl.incrFreedBytes(StreamEndResponse::baseMsgBytes);
-    notifyConsumerIfNecessary(true/*schedule*/);
 
     return err;
 }
@@ -371,6 +370,10 @@ ENGINE_ERROR_CODE DcpConsumer::mutation(uint32_t opaque,
                                         cb::const_byte_buffer meta,
                                         uint8_t nru) {
     lastMessageTime = ep_current_time();
+    UpdateFlowControl ufc(*this,
+                          MutationResponse::mutationBaseMsgBytes + key.size() +
+                                  meta.size() + value.size());
+
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
     }
@@ -396,11 +399,10 @@ ENGINE_ERROR_CODE DcpConsumer::mutation(uint32_t opaque,
                                   revSeqno));
         item->setNRUValue(nru);
 
-        ExtendedMetaData *emd = NULL;
+        std::unique_ptr<ExtendedMetaData> emd;
         if (meta.size() > 0) {
-            emd = new ExtendedMetaData(meta.data(), uint16_t(meta.size()));
+            emd = std::make_unique<ExtendedMetaData>(meta.data(), meta.size());
             if (emd->getStatus() == ENGINE_EINVAL) {
-                delete emd;
                 return ENGINE_EINVAL;
             }
         }
@@ -411,23 +413,18 @@ ENGINE_ERROR_CODE DcpConsumer::mutation(uint32_t opaque,
                                                        opaque,
                                                        IncludeValue::Yes,
                                                        IncludeXattrs::Yes,
-                                                       emd));
+                                                       emd.release()));
         } catch (const std::bad_alloc&) {
-            delete emd;
             return ENGINE_ENOMEM;
         }
 
         // The item was buffered and will be processed later
         if (err == ENGINE_TMPFAIL) {
+            ufc.release();
             notifyVbucketReady(vbucket);
             return ENGINE_SUCCESS;
         }
     }
-
-    const auto bytes = MutationResponse::mutationBaseMsgBytes + key.size() +
-        meta.size() + value.size();
-    flowControl.incrFreedBytes(uint32_t(bytes));
-    notifyConsumerIfNecessary(true/*schedule*/);
 
     return err;
 }
@@ -487,6 +484,9 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
                                         cb::const_byte_buffer meta,
                                         uint32_t deleteTime) {
     lastMessageTime = ep_current_time();
+    UpdateFlowControl ufc(*this,
+                          MutationResponse::deletionBaseMsgBytes + key.size() +
+                                  meta.size() + value.size());
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
     }
@@ -516,7 +516,7 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
         if (meta.size() > 0) {
             emd = std::make_unique<ExtendedMetaData>(meta.data(), meta.size());
             if (emd->getStatus() == ENGINE_EINVAL) {
-                return ENGINE_EINVAL;
+                err = ENGINE_EINVAL;
             }
         }
 
@@ -528,20 +528,16 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
                                                        IncludeXattrs::Yes,
                                                        emd.release()));
         } catch (const std::bad_alloc&) {
-            return ENGINE_ENOMEM;
+            err = ENGINE_ENOMEM;
         }
 
         // The item was buffered and will be processed later
         if (err == ENGINE_TMPFAIL) {
+            ufc.release();
             notifyVbucketReady(vbucket);
             return ENGINE_SUCCESS;
         }
     }
-
-    const auto bytes = MutationResponse::deletionBaseMsgBytes + key.size() +
-                       meta.size() + value.size();
-    flowControl.incrFreedBytes(uint32_t(bytes));
-    notifyConsumerIfNecessary(true/*schedule*/);
 
     return err;
 }
@@ -567,6 +563,8 @@ ENGINE_ERROR_CODE DcpConsumer::snapshotMarker(uint32_t opaque,
                                               uint64_t end_seqno,
                                               uint32_t flags) {
     lastMessageTime = ep_current_time();
+    UpdateFlowControl ufc(*this, SnapshotMarker::baseMsgBytes);
+
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
     }
@@ -592,12 +590,10 @@ ENGINE_ERROR_CODE DcpConsumer::snapshotMarker(uint32_t opaque,
         // The item was buffered and will be processed later
         if (err == ENGINE_TMPFAIL) {
             notifyVbucketReady(vbucket);
+            ufc.release();
             return ENGINE_SUCCESS;
         }
     }
-
-    flowControl.incrFreedBytes(SnapshotMarker::baseMsgBytes);
-    notifyConsumerIfNecessary(true/*schedule*/);
 
     return err;
 }
@@ -620,6 +616,7 @@ ENGINE_ERROR_CODE DcpConsumer::setVBucketState(uint32_t opaque,
                                                uint16_t vbucket,
                                                vbucket_state_t state) {
     lastMessageTime = ep_current_time();
+    UpdateFlowControl ufc(*this, SetVBucketState::baseMsgBytes);
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
     }
@@ -636,13 +633,11 @@ ENGINE_ERROR_CODE DcpConsumer::setVBucketState(uint32_t opaque,
 
         // The item was buffered and will be processed later
         if (err == ENGINE_TMPFAIL) {
+            ufc.release();
             notifyVbucketReady(vbucket);
             return ENGINE_SUCCESS;
         }
     }
-
-    flowControl.incrFreedBytes(SetVBucketState::baseMsgBytes);
-    notifyConsumerIfNecessary(true/*schedule*/);
 
     return err;
 }
