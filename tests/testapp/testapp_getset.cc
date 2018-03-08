@@ -41,26 +41,28 @@ protected:
 
 void GetSetTest::doTestAppend(bool compressedSource, bool compressedData) {
     MemcachedConnection& conn = getConnection();
-    document.info.datatype = cb::mcbp::Datatype::Raw;
-    document.value.assign(1024, 'a');
-    if (compressedSource) {
-        document.compress();
-    }
-    int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    conn.mutate(document, 0, MutationType::Set);
 
+    // Store an initial source value; along with an XATTR to check it's
+    // preserved correctly.
+    setBodyAndXattr(std::string(1024, 'a'),
+                    {{"xattr", "\"X-value\""}},
+                    compressedSource);
+
+    document.info.cas = mcbp::cas::Wildcard;
     document.info.datatype = cb::mcbp::Datatype::Raw;
     document.value.assign(1024, 'b');
     if (compressedData) {
         document.compress();
     }
 
+    int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
     conn.mutate(document, 0, MutationType::Append);
     const auto stored = conn.get(name, 0);
     EXPECT_TRUE(hasCorrectDatatype(stored, cb::mcbp::Datatype::Raw));
 
     // Check that we correctly increment the status counter stat
-    EXPECT_EQ(successCount + statResps() + 3,
+    EXPECT_EQ(successCount + statResps() + 2,
               getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
     EXPECT_EQ(document.info.flags, stored.info.flags);
@@ -69,6 +71,7 @@ void GetSetTest::doTestAppend(bool compressedSource, bool compressedData) {
     std::string expected(1024, 'a');
     expected.append(1024, 'b');
     EXPECT_EQ(expected, stored.value);
+    EXPECT_EQ("\"X-value\"", getXattr("xattr").getValue());
 }
 
 void GetSetTest::doTestGetMetaValidJSON(bool compressedSource) {
@@ -98,16 +101,17 @@ void GetSetTest::doTestGetMetaValidJSON(bool compressedSource) {
 
 void GetSetTest::doTestPrepend(bool compressedSource, bool compressedData) {
     MemcachedConnection& conn = getConnection();
-    document.info.datatype = cb::mcbp::Datatype::Raw;
-    document.value.assign(1024, 'a');
-    if (compressedSource) {
-        document.compress();
-    }
+
+    // Store an initial source value; along with an XATTR to check it's
+    // preserved correctly.
+    setBodyAndXattr(std::string(1024, 'a'),
+                    {{"xattr", "\"X-value\""}},
+                    compressedSource);
 
     int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    conn.mutate(document, 0, MutationType::Set);
 
     document.value.assign(1024, 'b');
+    document.info.cas = mcbp::cas::Wildcard;
     document.info.datatype = cb::mcbp::Datatype::Raw;
     if (compressedData) {
         document.compress();
@@ -117,7 +121,7 @@ void GetSetTest::doTestPrepend(bool compressedSource, bool compressedData) {
     EXPECT_TRUE(hasCorrectDatatype(stored, cb::mcbp::Datatype::Raw));
 
     // Check that we correctly increment the status counter stat
-    EXPECT_EQ(successCount + statResps() + 3,
+    EXPECT_EQ(successCount + statResps() + 2,
               getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
     EXPECT_EQ(document.info.flags, stored.info.flags);
@@ -126,6 +130,7 @@ void GetSetTest::doTestPrepend(bool compressedSource, bool compressedData) {
     std::string expected(1024, 'b');
     expected.append(1024, 'a');
     EXPECT_EQ(expected, stored.value);
+    EXPECT_EQ("\"X-value\"", getXattr("xattr").getValue());
 }
 
 void GetSetTest::doTestServerDetectsJSON(bool compressedSource) {
@@ -283,8 +288,7 @@ INSTANTIATE_TEST_CASE_P(
                                              TransportProtocols::McbpIpv6Plain,
                                              TransportProtocols::McbpSsl,
                                              TransportProtocols::McbpIpv6Ssl),
-                           ::testing::Values(XattrSupport::Yes,
-                                             XattrSupport::No),
+                           ::testing::Values(XattrSupport::Yes),
                            ::testing::Values(ClientJSONSupport::Yes,
                                              ClientJSONSupport::No),
                            ::testing::Values(ClientSnappySupport::Yes)),
@@ -297,8 +301,7 @@ INSTANTIATE_TEST_CASE_P(
                                              TransportProtocols::McbpIpv6Plain,
                                              TransportProtocols::McbpSsl,
                                              TransportProtocols::McbpIpv6Ssl),
-                           ::testing::Values(XattrSupport::Yes,
-                                             XattrSupport::No),
+                           ::testing::Values(XattrSupport::Yes),
                            ::testing::Values(ClientJSONSupport::Yes,
                                              ClientJSONSupport::No),
                            ::testing::Values(ClientSnappySupport::Yes,
