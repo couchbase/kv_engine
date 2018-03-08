@@ -17,6 +17,8 @@
 
 #include "collections/collections_dockey.h"
 
+#include <gsl/gsl>
+
 /**
  * Factory method to create a Collections::DocKey from a DocKey
  */
@@ -27,7 +29,7 @@ Collections::DocKey Collections::DocKey::make(const ::DocKey& key) {
     }
     const uint8_t* collection = findCollection(key, SystemSeparator);
     if (collection) {
-        return DocKey(key, collection - key.data(), 1);
+        return DocKey(key, gsl::narrow<uint8_t>(collection - key.data()), 1);
     } else {
         // No collection found, not an error - ok for DefaultNamespace.
         return DocKey(key, 0, 0);

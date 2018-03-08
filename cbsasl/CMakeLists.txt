@@ -5,6 +5,7 @@ list(APPEND CBSASL_SOURCES
      ${Memcached_SOURCE_DIR}/cbsasl/client.cc
      ${Memcached_SOURCE_DIR}/cbsasl/common.cc
      ${Memcached_SOURCE_DIR}/cbsasl/log.cc
+     ${Memcached_SOURCE_DIR}/cbsasl/log_callback.cc
      ${Memcached_SOURCE_DIR}/cbsasl/mechanismfactory.cc
      ${Memcached_SOURCE_DIR}/cbsasl/mechanismfactory.h
      ${Memcached_SOURCE_DIR}/cbsasl/plain/check_password.cc

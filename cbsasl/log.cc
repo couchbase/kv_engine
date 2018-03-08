@@ -17,7 +17,6 @@
 #include <cbsasl/cbsasl.h>
 #include "cbsasl/cbsasl_internal.h"
 
-#include <atomic>
 #include <iostream>
 #include <relaxed_atomic.h>
 
@@ -26,12 +25,6 @@ namespace sasl {
 namespace logging {
 
 Couchbase::RelaxedAtomic<LogCallback> callback;
-
-using LogCallback = void (*)(Level level, const std::string& message);
-
-void set_log_callback(LogCallback logCallback) {
-    callback.store(logCallback);
-}
 
 void log(cbsasl_conn_t& connection, Level level, const std::string& message) {
     auto logger = callback.load();
