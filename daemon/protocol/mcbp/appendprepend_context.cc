@@ -168,9 +168,10 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::allocateNewItem() {
     if (mcbp::datatype::is_xattr(oldItemInfo.datatype)) {
         datatype |= PROTOCOL_BINARY_DATATYPE_XATTR;
 
-        // Calculate the size of the system xattr's.
-        cb::xattr::Blob blob(old,
-                             mcbp::datatype::is_snappy(oldItemInfo.datatype));
+        // Calculate the size of the system xattr's. We know they arn't
+        // compressed as we are already using the decompression buffer as
+        // input (see head of function).
+        cb::xattr::Blob blob(old, false);
         body_offset = blob.size();
         priv_size = blob.get_system_size();
     }
