@@ -76,6 +76,10 @@ public:
                                     document.value.size()};
 
         document.info.datatype = cb::mcbp::Datatype::Xattr;
+
+        if (hasSnappySupport() == ClientSnappySupport::Yes) {
+            document.compress();
+        }
     }
 
 protected:
@@ -94,7 +98,8 @@ INSTANTIATE_TEST_CASE_P(
                                              XattrSupport::No),
                            ::testing::Values(ClientJSONSupport::Yes,
                                              ClientJSONSupport::No),
-                           ::testing::Values(ClientSnappySupport::No)),
+                           ::testing::Values(ClientSnappySupport::Yes,
+                                             ClientSnappySupport::No)),
         PrintToStringCombinedName());
 
 TEST_P(WithMetaTest, basicSet) {
