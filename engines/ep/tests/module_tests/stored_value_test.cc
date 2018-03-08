@@ -256,12 +256,9 @@ TYPED_TEST(ValueTest, initialFreqCounterForTemp) {
                          makeStoredDocKey(std::string("key").c_str()),
                          std::string("value").c_str());
     itm.setBySeqno(StoredValue::state_temp_init);
-    auto storedVal = MockStoredValue::UniquePtr(
-            new (::operator new(this->public_getRequiredStorage(itm)))
-                    MockStoredValue(itm,
-                                    {},
-                                    this->stats,
-                                    /*isOrdered*/ false));
+
+    auto storedVal = this->factory(itm, {});
+
     ASSERT_TRUE(storedVal->isTempItem());
     EXPECT_EQ(0, storedVal->getFreqCounterValue());
 }
