@@ -44,7 +44,7 @@ INSTANTIATE_TEST_CASE_P(
 TEST_P(XattrTest, GetXattrAndBody) {
     // Test to check that we can get both an xattr and the main body in
     // subdoc multi-lookup
-    setBodyAndXattr(value, xattrVal);
+    setBodyAndXattr(value, {{sysXattr, xattrVal}});
 
     // Sanity checks and setup done lets try the multi-lookup
 
@@ -113,7 +113,7 @@ TEST_P(XattrTest, SetXattrAndBodyNewDocWithExpiry) {
 
 TEST_P(XattrTest, SetXattrAndBodyExistingDoc) {
     // Ensure that a doc is already present
-    setBodyAndXattr("{\"TestField\":56788}", "4543");
+    setBodyAndXattr("{\"TestField\":56788}", {{sysXattr, "4543"}});
     BinprotSubdocMultiMutationCommand cmd;
     cmd.setKey(name);
     cmd.addMutation(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
@@ -223,7 +223,7 @@ TEST_P(XattrTest, AddBodyAndXattrAlreadyExistDoc) {
     // exists
 
     // Make sure a doc exists
-    setBodyAndXattr("{\"TestField\":56788}", "4543");
+    setBodyAndXattr("{\"TestField\":56788}", {{sysXattr, "4543"}});
 
     BinprotSubdocMultiMutationCommand cmd;
     cmd.setKey(name);
@@ -249,7 +249,7 @@ TEST_P(XattrTest, AddBodyAndXattrInvalidDocFlags) {
     // the document from the engine if these two flags are set.
 
     // Make sure a doc exists
-    setBodyAndXattr("{\"TestField\":56788}", "4543");
+    setBodyAndXattr("{\"TestField\":56788}", {{sysXattr, "4543"}});
 
     BinprotSubdocMultiMutationCommand cmd;
     cmd.setKey(name);
@@ -786,7 +786,7 @@ static void verify_vattr_entry(cJSON* root, const char* name, int type) {
 TEST_P(XattrTest, MB_23882_VirtualXattrs) {
     // Test to check that we can get both an xattr and the main body in
     // subdoc multi-lookup
-    setBodyAndXattr(value, xattrVal);
+    setBodyAndXattr(value, {{sysXattr, xattrVal}});
 
     // Sanity checks and setup done lets try the multi-lookup
 
@@ -874,7 +874,7 @@ TEST_P(XattrTest, MB_23882_VirtualXattrs) {
 TEST_P(XattrTest, MB_23882_VirtualXattrs_GetXattrAndBody) {
     // Test to check that we can get both an xattr and the main body in
     // subdoc multi-lookup
-    setBodyAndXattr(value, xattrVal);
+    setBodyAndXattr(value, {{sysXattr, xattrVal}});
 
     // Sanity checks and setup done lets try the multi-lookup
 
@@ -1003,7 +1003,7 @@ TEST_P(XattrTest, MB_25786_XTOC_VattrNoXattrs) {
 
 // Test that one can fetch both the body and an XATTR on a deleted document.
 TEST_P(XattrTest, MB24152_GetXattrAndBodyDeleted) {
-    setBodyAndXattr(value, xattrVal);
+    setBodyAndXattr(value, {{sysXattr, xattrVal}});
 
     BinprotSubdocMultiLookupCommand cmd;
     cmd.setKey(name);
@@ -1057,7 +1057,7 @@ TEST_P(XattrTest, MB24152_GetXattrAndBodyWithoutXattr) {
 TEST_P(XattrTest, MB24152_GetXattrAndBodyDeletedAndEmpty) {
     // Store a document with body+XATTR; then delete it (so the body
     // becomes empty).
-    setBodyAndXattr(value, xattrVal);
+    setBodyAndXattr(value, {{sysXattr, xattrVal}});
     getConnection().remove(name, 0);
 
     BinprotSubdocMultiLookupCommand cmd;
@@ -1087,7 +1087,7 @@ TEST_P(XattrTest, MB24152_GetXattrAndBodyDeletedAndEmpty) {
 TEST_P(XattrTest, MB24152_GetXattrAndBodyNonJSON) {
     // Store a document with a non-JSON body + XATTR.
     value = "non-JSON value";
-    setBodyAndXattr(value, xattrVal);
+    setBodyAndXattr(value, {{sysXattr, xattrVal}});
 
     BinprotSubdocMultiLookupCommand cmd;
     cmd.setKey(name);
@@ -1115,7 +1115,7 @@ TEST_P(XattrTest, MB24152_GetXattrAndBodyNonJSON) {
 // SUBDOC_MULTI_PATH_FAILURE_DELETED
 TEST_P(XattrTest, MB23808_MultiPathFailureDeleted) {
     // Store an initial body+XATTR; then delete it.
-    setBodyAndXattr(value, xattrVal);
+    setBodyAndXattr(value, {{sysXattr, xattrVal}});
     getConnection().remove(name, 0);
 
     // Lookup two XATTRs - one which exists and one which doesn't.
@@ -1143,7 +1143,7 @@ TEST_P(XattrTest, MB23808_MultiPathFailureDeleted) {
 }
 
 TEST_P(XattrTest, SetXattrAndDeleteBasic) {
-    setBodyAndXattr(value, "55");
+    setBodyAndXattr(value, {{sysXattr, "55"}});
     BinprotSubdocMultiMutationCommand cmd;
     cmd.setKey(name);
     cmd.addMutation(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
@@ -1196,7 +1196,7 @@ TEST_P(XattrTest, SetXattrAndDeleteBasic) {
 }
 
 TEST_P(XattrTest, SetXattrAndDeleteCheckUserXattrsDeleted) {
-    setBodyAndXattr(value, xattrVal);
+    setBodyAndXattr(value, {{sysXattr, xattrVal}});
     BinprotSubdocMultiMutationCommand cmd;
     cmd.setKey(name);
     cmd.addMutation(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
@@ -1263,7 +1263,7 @@ TEST_P(XattrTest, SetXattrAndDeleteJustUserXattrs) {
 TEST_P(XattrTest, TestXattrDeleteDatatypes) {
     // See MB-25422. We test to make sure that the datatype of a document is
     // correctly altered after a soft delete.
-    setBodyAndXattr(value, "55");
+    setBodyAndXattr(value, {{sysXattr, "55"}});
     BinprotSubdocMultiMutationCommand cmd;
     cmd.setKey(name);
     cmd.addMutation(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,

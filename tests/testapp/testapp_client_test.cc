@@ -17,6 +17,8 @@
 
 #include "testapp_client_test.h"
 
+#include <xattr/blob.h>
+
 MemcachedConnection& TestappClientTest::getConnection() {
     switch (GetParam()) {
     case TransportProtocols::McbpPlain:
@@ -29,6 +31,71 @@ MemcachedConnection& TestappClientTest::getConnection() {
         return prepare(connectionMap.getConnection(true, AF_INET6));
     }
     throw std::logic_error("Unknown transport");
+}
+
+void TestappXattrClientTest::setBodyAndXattr(
+        const std::string& startValue,
+        std::initializer_list<std::pair<std::string, std::string>> xattrList,
+        bool compressValue) {
+    document.info.flags = 0xcaffee;
+    document.info.id = name;
+
+    if (mcd_env->getTestBucket().supportsOp(
+                PROTOCOL_BINARY_CMD_SET_WITH_META)) {
+        // Combine the body and Extended Attribute into a single value -
+        // this allows us to store already compressed documents which
+        // have XATTRs.
+        cb::xattr::Blob xattrs;
+        for (auto& kv : xattrList) {
+            xattrs.set(kv.first, kv.second);
+        }
+        auto encoded = xattrs.finalize();
+        document.info.cas = 10; // withMeta requires a non-zero CAS.
+        document.info.datatype = cb::mcbp::Datatype::Xattr;
+        document.value = {reinterpret_cast<char*>(encoded.data()),
+                          encoded.size()};
+        document.value.append(startValue);
+        if (compressValue) {
+            // Compress the complete body.
+            document.compress();
+        }
+
+        // As we are using setWithMeta; we need to explicitly set JSON
+        // if our connection supports it.
+        if (hasJSONSupport() == ClientJSONSupport::Yes) {
+            document.info.datatype =
+                    cb::mcbp::Datatype(int(document.info.datatype) |
+                                       int(cb::mcbp::Datatype::JSON));
+        }
+        getConnection().mutateWithMeta(document,
+                                       0,
+                                       mcbp::cas::Wildcard,
+                                       /*seqno*/ 1,
+                                       FORCE_WITH_META_OP);
+    } else {
+        // No SetWithMeta support, must construct the
+        // document+XATTR with primitives (and cannot compress
+        // it).
+        document.info.cas = mcbp::cas::Wildcard;
+        document.info.datatype = cb::mcbp::Datatype::Raw;
+        document.value = startValue;
+        getConnection().mutate(document, 0, MutationType::Set);
+        auto doc = getConnection().get(name, 0);
+
+        EXPECT_EQ(doc.value, document.value);
+
+        // Now add the XATTRs
+        for (auto& kv : xattrList) {
+            xattr_upsert(kv.first, kv.second);
+        }
+    }
+}
+
+void TestappXattrClientTest::setBodyAndXattr(
+        const std::string& value,
+        std::initializer_list<std::pair<std::string, std::string>> xattrList) {
+    setBodyAndXattr(
+            value, xattrList, hasSnappySupport() == ClientSnappySupport::Yes);
 }
 
 void TestappXattrClientTest::setClusterSessionToken(uint64_t nval) {
@@ -44,6 +111,42 @@ void TestappXattrClientTest::setClusterSessionToken(uint64_t nval) {
     ASSERT_EQ(nval, ntohll(response.getCas()));
 
     token = nval;
+}
+
+BinprotSubdocResponse TestappXattrClientTest::subdoc(
+        protocol_binary_command opcode,
+        const std::string& key,
+        const std::string& path,
+        const std::string& value,
+        protocol_binary_subdoc_flag flag,
+        mcbp::subdoc::doc_flag docFlag) {
+    auto& conn = getConnection();
+
+    BinprotSubdocCommand cmd;
+    cmd.setOp(opcode);
+    cmd.setKey(key);
+    cmd.setPath(path);
+    cmd.setValue(value);
+    cmd.addPathFlags(flag);
+    cmd.addDocFlags(docFlag);
+
+    conn.sendCommand(cmd);
+
+    BinprotSubdocResponse resp;
+    conn.recvResponse(resp);
+
+    return resp;
+}
+
+protocol_binary_response_status TestappXattrClientTest::xattr_upsert(
+        const std::string& path, const std::string& value) {
+    auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+                       name,
+                       path,
+                       value,
+                       SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P,
+                       mcbp::subdoc::doc_flag::Mkdoc);
+    return resp.getStatus();
 }
 
 void TestappXattrClientTest::SetUp() {

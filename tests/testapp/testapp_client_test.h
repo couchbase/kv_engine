@@ -105,7 +105,44 @@ protected:
             cb::mcbp::Datatype actualType,
             cb::const_char_buffer value);
 
+    /**
+     * Replaces document `name` with a document containing the given
+     * body and XATTRs.
+     *
+     * @param xattrList list of XATTR key / value pairs to store.
+     * @param compressValue Should the value be compress before being sent?
+     */
+    void setBodyAndXattr(
+            const std::string& startValue,
+            std::initializer_list<std::pair<std::string, std::string>>
+                    xattrList,
+            bool compressValue);
+
+    /**
+     * Replaces document `name` with a document containing the given
+     * body and XATTRs.
+     * If Snappy support is available (hasSnappySupport), will store as a
+     * compressed document.
+     * @param xattrList list of XATTR key / value pairs to store.
+     */
+    void setBodyAndXattr(
+            const std::string& value,
+            std::initializer_list<std::pair<std::string, std::string>>
+                    xattrList);
+
     void setClusterSessionToken(uint64_t new_value);
+
+    /// Perform the specified subdoc command; returning the response.
+    BinprotSubdocResponse subdoc(
+            protocol_binary_command opcode,
+            const std::string& key,
+            const std::string& path,
+            const std::string& value,
+            protocol_binary_subdoc_flag flag = SUBDOC_FLAG_NONE,
+            mcbp::subdoc::doc_flag docFlag = mcbp::subdoc::doc_flag::None);
+
+    protocol_binary_response_status xattr_upsert(const std::string& path,
+                                                 const std::string& value);
 
 protected:
     Document document;

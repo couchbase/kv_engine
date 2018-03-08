@@ -158,7 +158,7 @@ protected:
     // paramter). XATTRs should be correctly merged.
     void doReplaceWithXattrTest(bool compress) {
         // Set initial body+XATTR, compressed depending on test variant.
-        setBodyAndXattr(value, xattrVal);
+        setBodyAndXattr(value, {{sysXattr, xattrVal}});
 
         // Replace body with new body.
         const std::string replacedValue = "\"JSON string\"";
@@ -179,49 +179,12 @@ protected:
         EXPECT_EQ(expectedJSONDatatype(), response.info.datatype);
     }
 
-    BinprotSubdocResponse subdoc(
-            protocol_binary_command opcode,
-            const std::string& key,
-            const std::string& path,
-            const std::string& value,
-            protocol_binary_subdoc_flag flag = SUBDOC_FLAG_NONE,
-            mcbp::subdoc::doc_flag docFlag = mcbp::subdoc::doc_flag::None) {
-        auto& conn = getConnection();
-
-        BinprotSubdocCommand cmd;
-        cmd.setOp(opcode);
-        cmd.setKey(key);
-        cmd.setPath(path);
-        cmd.setValue(value);
-        cmd.addPathFlags(flag);
-        cmd.addDocFlags(docFlag);
-
-        conn.sendCommand(cmd);
-
-        BinprotSubdocResponse resp;
-        conn.recvResponse(resp);
-
-        return resp;
-
-    }
-
     BinprotSubdocResponse subdoc_get(
             const std::string& path,
             protocol_binary_subdoc_flag flag = SUBDOC_FLAG_NONE,
             mcbp::subdoc::doc_flag docFlag = mcbp::subdoc::doc_flag::None) {
         return subdoc(
                 PROTOCOL_BINARY_CMD_SUBDOC_GET, name, path, {}, flag, docFlag);
-    }
-
-    protocol_binary_response_status xattr_upsert(const std::string& path,
-                                                 const std::string& value) {
-        auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
-                           name,
-                           path,
-                           value,
-                           SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P,
-                           mcbp::subdoc::doc_flag::Mkdoc);
-        return resp.getStatus();
     }
 
     /**
@@ -250,66 +213,10 @@ protected:
         return multiResp;
     }
 
-    /** Replaces document `name` with a document containing the given
-     * body and XATTR.
-     * If Snappy support is available, will store as a compressed document.
-     */
-    void setBodyAndXattr(const std::string& startValue,
-                         const std::string& xattrValue) {
-        document.info.flags = 0xcaffee;
-        document.info.id = name;
-
-        if (mcd_env->getTestBucket().supportsOp(
-                    PROTOCOL_BINARY_CMD_SET_WITH_META)) {
-            // Combine the body and Extended Attribute into a single value -
-            // this allows us to store already compressed documents which
-            // have XATTRs.
-            cb::xattr::Blob xattrs;
-            xattrs.set(sysXattr, xattrValue);
-            auto encoded = xattrs.finalize();
-            document.info.cas = 10; // withMeta requires a non-zero CAS.
-            document.info.datatype = cb::mcbp::Datatype::Xattr;
-            document.value = {reinterpret_cast<char*>(encoded.data()),
-                              encoded.size()};
-            document.value.append(startValue);
-            if (hasSnappySupport() == ClientSnappySupport::Yes) {
-                // Compress the complete body.
-                document.compress();
-            }
-
-            // As we are using setWithMeta; we need to explicitly set JSON
-            // if our connection supports it.
-            if (hasJSONSupport() == ClientJSONSupport::Yes) {
-                document.info.datatype =
-                        cb::mcbp::Datatype(int(document.info.datatype) |
-                                           int(cb::mcbp::Datatype::JSON));
-            }
-            getConnection().mutateWithMeta(document,
-                                           0,
-                                           mcbp::cas::Wildcard,
-                                           /*seqno*/ 1,
-                                           FORCE_WITH_META_OP);
-        } else {
-            // No SetWithMeta support, must construct the
-            // document+XATTR with primitives (and cannot compress
-            // it).
-            document.info.cas = mcbp::cas::Wildcard;
-            document.info.datatype = cb::mcbp::Datatype::Raw;
-            document.value = startValue;
-            getConnection().mutate(document, 0, MutationType::Set);
-            auto doc = getConnection().get(name, 0);
-
-            EXPECT_EQ(doc.value, document.value);
-
-            // Now add the xattr
-            xattr_upsert(sysXattr, xattrValue);
-        }
-    }
-
     void verify_xtoc_user_system_xattr() {
         // Test to check that we can get both an xattr and the main body in
         // subdoc multi-lookup
-        setBodyAndXattr(value, xattrVal);
+        setBodyAndXattr(value, {{sysXattr, xattrVal}});
 
         // Sanity checks and setup done lets try the multi-lookup
 
