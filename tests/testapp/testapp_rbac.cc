@@ -253,11 +253,15 @@ protected:
     }
 
     MemcachedConnection& prepare(MemcachedConnection& c) {
-        c.setDatatypeCompressed(true);
-        c.setDatatypeJson(true);
-        c.setMutationSeqnoSupport(true);
-        c.setXerrorSupport(true);
-        c.setXattrSupport(true);
+        c.setFeatures("rbac-test",
+                      {{cb::mcbp::Feature::MUTATION_SEQNO,
+                        cb::mcbp::Feature::XATTR,
+                        cb::mcbp::Feature::XERROR,
+                        cb::mcbp::Feature::SELECT_BUCKET,
+                        cb::mcbp::Feature::SNAPPY,
+                        cb::mcbp::Feature::JSON
+
+                      }});
         c.selectBucket("rbac_test");
         return c;
     }
@@ -517,13 +521,9 @@ TEST_P(RbacRoleTest, NoAccessToSystemXattrs) {
 TEST_P(RbacRoleTest, DontAutoselectBucket) {
     auto& conn = getAdminConnection();
     conn.createBucket("larry", "", BucketType::Memcached);
-    conn.authenticate("larry", "larrypassword", "PLAIN");
 
-    conn.setDatatypeCompressed(true);
-    conn.setDatatypeJson(true);
-    conn.setMutationSeqnoSupport(true);
-    conn.setXerrorSupport(true);
-    conn.setXattrSupport(true);
+    // Re-authenticate as larry
+    conn.authenticate("larry", "larrypassword", "PLAIN");
 
     // If we try to run a get request it should return no bucket
     BinprotSubdocCommand cmd;
@@ -536,7 +536,6 @@ TEST_P(RbacRoleTest, DontAutoselectBucket) {
     conn.recvResponse(resp);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_NO_BUCKET, resp.getStatus());
 
-    conn.reconnect();
     conn = getAdminConnection();
     conn.deleteBucket("larry");
 }

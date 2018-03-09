@@ -743,6 +743,16 @@ public:
         return traceData;
     }
 
+    /**
+     * Set the connection features to use
+     *
+     * @param agent the agent name to report to the server
+     * @param features a vector containing all of the features to try
+     *                 to enable on the server
+     */
+    void setFeatures(const std::string& agent,
+                     const std::vector<cb::mcbp::Feature>& features);
+
 protected:
     void read(Frame& frame, size_t bytes);
 

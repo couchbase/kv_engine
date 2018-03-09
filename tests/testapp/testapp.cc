@@ -1609,13 +1609,21 @@ MemcachedConnection& TestappTest::getAdminConnection() {
 }
 
 MemcachedConnection& TestappTest::prepare(MemcachedConnection& connection) {
+    std::vector<cb::mcbp::Feature> features = {
+            {cb::mcbp::Feature::MUTATION_SEQNO,
+             cb::mcbp::Feature::XATTR,
+             cb::mcbp::Feature::XERROR,
+             cb::mcbp::Feature::SELECT_BUCKET}};
+    if (hasSnappySupport() == ClientSnappySupport::Yes) {
+        features.push_back(cb::mcbp::Feature::SNAPPY);
+    }
+
+    if (hasJSONSupport() == ClientJSONSupport::Yes) {
+        features.push_back(cb::mcbp::Feature::JSON);
+    }
+
     connection.reconnect();
-    connection.setDatatypeCompressed(hasSnappySupport() ==
-                                     ClientSnappySupport::Yes);
-    connection.setDatatypeJson(hasJSONSupport() == ClientJSONSupport::Yes);
-    connection.setMutationSeqnoSupport(true);
-    connection.setXerrorSupport(true);
-    connection.setXattrSupport(true);
+    connection.setFeatures("testapp", features);
     return connection;
 }
 

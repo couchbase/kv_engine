@@ -951,6 +951,45 @@ void MemcachedConnection::applyFeatures(const std::string& agent,
     }
 }
 
+void MemcachedConnection::setFeatures(
+        const std::string& agent,
+        const std::vector<cb::mcbp::Feature>& features) {
+    BinprotHelloCommand command(agent);
+    for (const auto& feature : features) {
+        command.enableFeature(cb::mcbp::Feature(feature), true);
+    }
+
+    sendCommand(command);
+
+    BinprotHelloResponse response;
+    recvResponse(response);
+
+    if (!response.isSuccess()) {
+        throw ConnectionError("Failed to say hello", response);
+    }
+
+    effective_features.clear();
+    for (const auto& feature : response.getFeatures()) {
+        effective_features.insert(uint16_t(feature));
+    }
+
+    // Verify that I was able to set all of them
+    std::stringstream ss;
+    ss << "[";
+
+    for (const auto& feature : features) {
+        if (!hasFeature(feature)) {
+            ss << ::to_string(feature) << ",";
+        }
+    }
+
+    auto missing = ss.str();
+    if (missing.size() > 1) {
+        missing.back() = ']';
+        throw std::runtime_error("Failed to enable: " + missing);
+    }
+}
+
 void MemcachedConnection::setFeature(cb::mcbp::Feature feature, bool enabled) {
     Featureset currFeatures = effective_features;
     if (enabled) {
