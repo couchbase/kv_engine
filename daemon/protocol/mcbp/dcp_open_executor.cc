@@ -68,7 +68,7 @@ void dcp_open_executor(Cookie& cookie) {
         if (ret == ENGINE_SUCCESS) {
             ret = dcpOpen();
             if (settings.isCollectionsPrototypeEnabled() &&
-                ret != ENGINE_SUCCESS) {
+                ret == ENGINE_UNKNOWN_COLLECTION) {
                 flags |= DCP_OPEN_COLLECTIONS;
                 ret = dcpOpen();
                 LOG_INFO(

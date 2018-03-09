@@ -5523,8 +5523,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpOpen(
     if (getConfiguration().isCollectionsPrototypeEnabled() &&
         !connName.compare(0, replicationConnName.size(), replicationConnName) &&
         (flags & DCP_OPEN_COLLECTIONS) == 0) {
-        // Fail DCP open, we need to have replication streams with DCP enabled
-        return ENGINE_DISCONNECT;
+        // Fail DCP open, we need to have replication with collections enabled
+        // Use this specific collection error to get memcached to retry
+        return ENGINE_UNKNOWN_COLLECTION;
     }
 
     ConnHandler *handler = NULL;
