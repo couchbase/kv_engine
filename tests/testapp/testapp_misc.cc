@@ -33,19 +33,31 @@ TEST_P(MiscTest, GetFailoverLog) {
     TESTAPP_SKIP_IF_UNSUPPORTED(PROTOCOL_BINARY_CMD_GET_FAILOVER_LOG);
 
     auto& connection = getConnection();
+
+    // Test existing VBucket
     auto response = connection.getFailoverLog(0 /*vbid*/);
     auto header = response.getHeader().response;
-
     EXPECT_EQ(header.magic, PROTOCOL_BINARY_RES);
     EXPECT_EQ(header.opcode, PROTOCOL_BINARY_CMD_GET_FAILOVER_LOG);
     EXPECT_EQ(header.keylen, 0);
     EXPECT_EQ(header.extlen, 0);
     EXPECT_EQ(header.datatype, 0);
-    EXPECT_EQ(header.status, 0);
+    EXPECT_EQ(header.status, PROTOCOL_BINARY_RESPONSE_SUCCESS);
     // Note: We expect 1 entry in the failover log, which is the entry created
     // at VBucket creation (8 bytes for UUID + 8 bytes for SEQNO)
     EXPECT_EQ(ntohl(header.bodylen), 0x10);
     EXPECT_EQ(header.cas, 0);
-
     EXPECT_EQ(response.getData().len, 0x10);
+
+    // Test non-existing VBucket
+    response = connection.getFailoverLog(1 /*vbid*/);
+    header = response.getHeader().response;
+    EXPECT_EQ(header.magic, PROTOCOL_BINARY_RES);
+    EXPECT_EQ(header.opcode, PROTOCOL_BINARY_CMD_GET_FAILOVER_LOG);
+    EXPECT_EQ(header.keylen, 0);
+    EXPECT_EQ(header.extlen, 0);
+    EXPECT_EQ(header.datatype, 0);
+    EXPECT_EQ(header.status, PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET);
+    EXPECT_EQ(ntohl(header.bodylen), 0);
+    EXPECT_EQ(header.cas, 0);
 }

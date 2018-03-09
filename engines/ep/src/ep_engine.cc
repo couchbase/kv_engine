@@ -1392,7 +1392,7 @@ static ENGINE_ERROR_CODE EvpDcpGetFailoverLog(
         LOG(EXTENSION_LOG_WARNING,
             "%s (vb %d) Get Failover Log failed because this vbucket doesn't "
             "exist",
-            conn->logHeader(),
+            conn ? conn->logHeader() : "MCBP-Connection",
             vbucket);
         return ENGINE_NOT_MY_VBUCKET;
     }
