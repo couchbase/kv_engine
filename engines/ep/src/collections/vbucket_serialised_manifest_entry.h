@@ -190,13 +190,6 @@ public:
         return {getCollectionNamePtr(), size_t(collectionNameLen)};
     }
 
-    /**
-     * @return the entry's UID as a const byte buffer
-     */
-    cb::const_byte_buffer getUidBuffer() const {
-        return {reinterpret_cast<const uint8_t*>(&uid), sizeof(uid)};
-    }
-
     size_t getCollectionNameLen() const {
         return collectionNameLen;
     }

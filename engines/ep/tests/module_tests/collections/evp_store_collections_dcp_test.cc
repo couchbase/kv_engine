@@ -200,9 +200,12 @@ TEST_F(CollectionsDcpTest, test_dcp_consumer) {
     ASSERT_EQ(ENGINE_SUCCESS,
               consumer->addStream(/*opaque*/ 0, vbid, /*flags*/ 0));
 
+    // Create meat with uid 4 as if it came from manifest uid cafef00d
     std::string collection = "meat";
-
     Collections::uid_t uid = 4;
+    Collections::uid_t manifestUid = 0xcafef00d;
+    Collections::SystemEventDCPData eventData{htonll(manifestUid), htonll(uid)};
+
     ASSERT_EQ(ENGINE_SUCCESS,
               consumer->snapshotMarker(/*opaque*/ 1,
                                        vbid,
@@ -225,11 +228,14 @@ TEST_F(CollectionsDcpTest, test_dcp_consumer) {
                       /*seqno*/ 1,
                       {reinterpret_cast<const uint8_t*>(collection.data()),
                        collection.size()},
-                      {reinterpret_cast<const uint8_t*>(&uid), sizeof(uid)}));
+                      {reinterpret_cast<const uint8_t*>(&eventData),
+                       sizeof(eventData)}));
 
     // We can now access the collection
     EXPECT_TRUE(vb->lockCollections().doesKeyContainValidCollection(
             {"meat:bacon", DocNamespace::Collections}));
+    EXPECT_TRUE(vb->lockCollections().isCollectionOpen("meat"));
+    EXPECT_EQ(0xcafef00d, vb->lockCollections().getManifestUid());
 
     // Call the consumer function for handling DCP events
     // delete the meat collection
@@ -241,7 +247,8 @@ TEST_F(CollectionsDcpTest, test_dcp_consumer) {
                       /*seqno*/ 2,
                       {reinterpret_cast<const uint8_t*>(collection.data()),
                        collection.size()},
-                      {reinterpret_cast<const uint8_t*>(&uid), sizeof(uid)}));
+                      {reinterpret_cast<const uint8_t*>(&eventData),
+                       sizeof(eventData)}));
 
     // It's gone!
     EXPECT_FALSE(vb->lockCollections().doesKeyContainValidCollection(

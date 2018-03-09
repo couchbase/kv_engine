@@ -327,13 +327,16 @@ public:
          * seqno assigned.
          *
          * @param vb The vbucket to add the collection to.
+         * @param manifestUid the uid of the manifest which made the change
          * @param identifier Identifier of the new collection.
          * @param startSeqno The start-seqno assigned to the collection.
          */
         void replicaAdd(::VBucket& vb,
+                        uid_t manifestUid,
                         Identifier identifier,
                         int64_t startSeqno) {
-            manifest.addCollection(vb, identifier, OptionalSeqno{startSeqno});
+            manifest.addCollection(
+                    vb, manifestUid, identifier, OptionalSeqno{startSeqno});
         }
 
         /**
@@ -342,14 +345,16 @@ public:
          * seqno assigned.
          *
          * @param vb The vbucket to begin collection deletion on.
+         * @param manifestUid the uid of the manifest which made the change
          * @param identifier Identifier of the deleted collection.
          * @param endSeqno The end-seqno assigned to the end collection.
          */
         void replicaBeginDelete(::VBucket& vb,
+                                uid_t manifestUid,
                                 Identifier identifier,
                                 int64_t endSeqno) {
             manifest.beginCollectionDelete(
-                    vb, identifier, OptionalSeqno{endSeqno});
+                    vb, manifestUid, identifier, OptionalSeqno{endSeqno});
         }
 
         /**
@@ -358,14 +363,17 @@ public:
          * assigned.
          *
          * @param vb The vbucket to begin collection deletion on.
+         * @param manifestUid the uid of the manifest which made the change
          * @param separator The new separator.
          * @param seqno The seqno originally assigned to the active's system
          * event.
          */
         void replicaChangeSeparator(::VBucket& vb,
+                                    uid_t manifestUid,
                                     cb::const_char_buffer separator,
                                     int64_t seqno) {
-            manifest.changeSeparator(vb, separator, OptionalSeqno{seqno});
+            manifest.changeSeparator(
+                    vb, manifestUid, separator, OptionalSeqno{seqno});
         }
 
         /**
@@ -434,29 +442,34 @@ public:
     static std::string serialToJson(const Item& collectionsEventItem);
 
     /**
-     * Get the system event data from a SystemEvent, that is the information
-     * that DCP would require to send a SystemEvent to a client.
+     * Get the system event collection create/deleye data from a SystemEvent
+     * Item's value. This returns the information that DCP needs to create a
+     * DCPSystemEvent packet for the create/delete.
      *
      * @param serialisedManifest Serialised manifest data created by
      *        ::populateWithSerialisedData
-     * @returns a pair of buffers. The first buffer contains a pointer to
-     *          the collection name, the second buffer contains the revision.
-     *          Both buffers are pointing to data inside of the input param.
+     * @returns SystemEventData which carries all of the data which needs to be
+     *          marshalled into a DCP system event message. Inside the returned
+     *          object maybe sized_buffer objects which point into
+     *          serialisedManifest.
      */
-    static std::pair<cb::const_char_buffer, cb::const_byte_buffer>
-    getSystemEventData(cb::const_char_buffer serialisedManifest);
+    static SystemEventData getSystemEventData(
+            cb::const_char_buffer serialisedManifest);
 
     /**
-     * Get the system event data from a SystemEvent, that is the information
-     * that DCP would require to send a SystemEvent to a client.
-     *
-     * This particular function returns separator changed data.
+     * Get the system event separator change data from a SystemEvent Item's
+     * value. This returns the information that DCP needs to create a
+     * DCPSystemEvent packet for the separator change.
      *
      * @param serialisedManifest Serialised manifest data created by
      *        ::populateWithSerialisedData
      * @returns A buffer that contains a pointer/size to the separator.
+     * @returns SystemEventSeparatorData which carries all of the data which
+     *          needs to be marshalled into a DCP system event message. Inside
+     *          the returned object maybe sized_buffer objects which point into
+     *          serialisedManifest.
      */
-    static cb::const_char_buffer getSystemEventSeparatorData(
+    static SystemEventSeparatorData getSystemEventSeparatorData(
             cb::const_char_buffer serialisedManifest);
 
 private:
@@ -490,11 +503,13 @@ private:
      * Add a collection to the manifest.
      *
      * @param vb The vbucket to add the collection to.
+     * @param manifestUid the uid of the manifest which made the change
      * @param identifier Identifier of the new collection.
      * @param optionalSeqno Either a seqno to assign to the new collection or
      *        none (none means the checkpoint will assign a seqno).
      */
     void addCollection(::VBucket& vb,
+                       uid_t manifestUid,
                        Identifier identifier,
                        OptionalSeqno optionalSeqno);
 
@@ -502,12 +517,14 @@ private:
      * Begin a delete of the collection.
      *
      * @param vb The vbucket to begin collection deletion on.
+     * @param manifestUid the uid of the manifest which made the change
      * @param identifier Identifier of the deleted collection.
      * @param revision manifest revision which started the deletion.
      * @param optionalSeqno Either a seqno to assign to the delete of the
      *        collection or none (none means the checkpoint assigns the seqno).
      */
     void beginCollectionDelete(::VBucket& vb,
+                               uid_t manifestUid,
                                Identifier identifier,
                                OptionalSeqno optionalSeqno);
 
@@ -515,11 +532,13 @@ private:
      * Change the separator.
      *
      * @param vb The vbucket to begin collection deletion on.
+     * @param manifestUid the uid of the manifest which made the change
      * @param separator The new separator.
      * @param optionalSeqno Either a seqno to assign to the change event or none
      *        (none means the checkpoint assigns the seqno).
      */
     void changeSeparator(::VBucket& vb,
+                         uid_t manifestUid,
                          cb::const_char_buffer separator,
                          OptionalSeqno optionalSeqno);
 

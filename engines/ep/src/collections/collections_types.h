@@ -108,6 +108,41 @@ private:
     uid_t uid;
 };
 
+/**
+ * All of the data a DCP system event message will carry.
+ * This covers create and delete collection.
+ * This struct is not the layout of such data.
+ */
+struct SystemEventData {
+    /// UID of manifest which triggered the event
+    Collections::uid_t manifestUid;
+    /// Identifier of the affected collection (name and UID).
+    Identifier id;
+};
+
+/**
+ * All of the data a DCP system event message will carry (for create/delete).
+ * This is the layout of such data and the collection name is the key of the
+ * event packet.
+ */
+struct SystemEventDCPData {
+    /// The manifest uid stored in network byte order ready for sending
+    Collections::uid_t manifestUid;
+    /// The collection uid stored in network byte order ready for sending
+    Collections::uid_t collectionUid;
+};
+
+/**
+ * All of the data a DCP separator changed system event message will carry.
+ * This struct is not the layout of such data.
+ */
+struct SystemEventSeparatorData {
+    /// UID of manifest which triggered the change of separator
+    Collections::uid_t manifestUid;
+    /// The new separator
+    cb::const_char_buffer separator;
+};
+
 std::string to_string(const Identifier& identifier);
 
 std::ostream& operator<<(std::ostream& os, const Identifier& identifier);

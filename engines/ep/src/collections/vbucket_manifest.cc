@@ -94,10 +94,9 @@ void Manifest::update(::VBucket& vb, const Collections::Manifest& manifest) {
     std::vector<Collections::Manifest::Identifier> additions, deletions;
     std::tie(additions, deletions) = processManifest(manifest);
 
-    manifestUid = manifest.getUid();
-
     if (separator != manifest.getSeparator()) {
         changeSeparator(vb,
+                        manifest.getUid(),
                         manifest.getSeparator(),
                         OptionalSeqno{/*no-seqno*/});
     }
@@ -105,6 +104,7 @@ void Manifest::update(::VBucket& vb, const Collections::Manifest& manifest) {
     // Process deletions to the manifest
     for (const auto& collection : deletions) {
         beginCollectionDelete(vb,
+                              manifest.getUid(),
                               {collection.getName(), collection.getUid()},
                               OptionalSeqno{/*no-seqno*/});
     }
@@ -112,12 +112,14 @@ void Manifest::update(::VBucket& vb, const Collections::Manifest& manifest) {
     // Process additions to the manifest
     for (const auto& collection : additions) {
         addCollection(vb,
+                      manifest.getUid(),
                       {collection.getName(), collection.getUid()},
                       OptionalSeqno{/*no-seqno*/});
     }
 }
 
 void Manifest::addCollection(::VBucket& vb,
+                             uid_t manifestUid,
                              Identifier identifier,
                              OptionalSeqno optionalSeqno) {
     // 1. Update the manifest, adding or updating an entry in the map. Specify a
@@ -132,16 +134,20 @@ void Manifest::addCollection(::VBucket& vb,
                                   false /*deleted*/,
                                   optionalSeqno);
 
+    // record the uid of the manifest which is adding the collection
+    this->manifestUid = manifestUid;
+
     LOG(EXTENSION_LOG_NOTICE,
-        "collections: vb:%" PRIu16 " adding collection:%.*s, uid:%" PRIu64
-        ", replica:%s, backfill:%s, seqno:%" PRId64,
+        "collections: vb:%" PRIu16 " adding collection:%.*s, uid:%" PRIx64
+        ", replica:%s, backfill:%s, seqno:%" PRId64 ", manifest:%" PRIx64,
         vb.getId(),
         int(identifier.getName().size()),
         identifier.getName().data(),
         identifier.getUid(),
         optionalSeqno.is_initialized() ? "true" : "false",
         vb.isBackfillPhase() ? "true" : "false",
-        seqno);
+        seqno,
+        manifestUid);
 
     // 3. Now patch the entry with the seqno of the system event, note the copy
     //    of the manifest taken at step 1 gets the correct seqno when the system
@@ -195,6 +201,7 @@ ManifestEntry& Manifest::addNewCollectionEntry(Identifier identifier,
 }
 
 void Manifest::beginCollectionDelete(::VBucket& vb,
+                                     uid_t manifestUid,
                                      Identifier identifier,
                                      OptionalSeqno optionalSeqno) {
     auto& entry = beginDeleteCollectionEntry(identifier);
@@ -204,17 +211,21 @@ void Manifest::beginCollectionDelete(::VBucket& vb,
                                   true /*deleted*/,
                                   optionalSeqno);
 
+    // record the uid of the manifest which removed the collection
+    this->manifestUid = manifestUid;
+
     LOG(EXTENSION_LOG_NOTICE,
         "collections: vb:%" PRIu16
-        " begin delete of collection:%.*s, uid:%" PRIu64
-        ", replica:%s, backfill:%s, seqno:%" PRId64,
+        " begin delete of collection:%.*s, uid:%" PRIx64
+        ", replica:%s, backfill:%s, seqno:%" PRId64 ", manifest:%" PRIx64,
         vb.getId(),
         int(identifier.getName().size()),
         identifier.getName().data(),
         identifier.getUid(),
         optionalSeqno.is_initialized() ? "true" : "false",
         vb.isBackfillPhase() ? "true" : "false",
-        seqno);
+        seqno,
+        manifestUid);
 
     if (identifier.isDefaultCollection()) {
         defaultCollectionExists = false;
@@ -272,6 +283,7 @@ void Manifest::completeDeletion(::VBucket& vb,
 }
 
 void Manifest::changeSeparator(::VBucket& vb,
+                               uid_t manifestUid,
                                cb::const_char_buffer newSeparator,
                                OptionalSeqno optionalSeqno) {
     // Can we change the separator? Only allowed to change if there are no
@@ -285,13 +297,17 @@ void Manifest::changeSeparator(::VBucket& vb,
         LOG(EXTENSION_LOG_NOTICE,
             "collections: vb:%" PRIu16
             " changing collection separator from:%s, to:%.*s, replica:%s, "
-            "backfill:%s",
+            "backfill:%s, manifest:%" PRIx64,
             vb.getId(),
             separator.c_str(),
             int(newSeparator.size()),
             newSeparator.data(),
             optionalSeqno.is_initialized() ? "true" : "false",
-            vb.isBackfillPhase() ? "true" : "false");
+            vb.isBackfillPhase() ? "true" : "false",
+            manifestUid);
+
+        // record the uid of the manifest which changed the separator
+        this->manifestUid = manifestUid;
 
         std::string oldSeparator = separator;
         // Change the separator then queue the event so the new separator
@@ -714,19 +730,19 @@ bool Manifest::cannotChangeSeparator() const {
     return false;
 }
 
-std::pair<cb::const_char_buffer, cb::const_byte_buffer>
-Manifest::getSystemEventData(cb::const_char_buffer serialisedManifest) {
-    const auto* sm = reinterpret_cast<const SerialisedManifest*>(
-            serialisedManifest.data());
-    const auto* sme = sm->getFinalManifestEntry();
-    return std::make_pair(sme->getCollectionName(), sme->getUidBuffer());
-}
-
-cb::const_char_buffer Manifest::getSystemEventSeparatorData(
+SystemEventData Manifest::getSystemEventData(
         cb::const_char_buffer serialisedManifest) {
     const auto* sm = reinterpret_cast<const SerialisedManifest*>(
             serialisedManifest.data());
-    return sm->getSeparatorBuffer();
+    const auto* sme = sm->getFinalManifestEntry();
+    return {sm->getManifestUid(), {sme->getCollectionName(), sme->getUid()}};
+}
+
+SystemEventSeparatorData Manifest::getSystemEventSeparatorData(
+        cb::const_char_buffer serialisedManifest) {
+    const auto* sm = reinterpret_cast<const SerialisedManifest*>(
+            serialisedManifest.data());
+    return {sm->getManifestUid(), sm->getSeparatorBuffer()};
 }
 
 std::string Manifest::getExceptionString(const std::string& thrower,

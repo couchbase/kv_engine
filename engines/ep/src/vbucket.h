@@ -650,36 +650,44 @@ public:
      * Add a collection to this vbucket with a pre-assigned seqno. I.e.
      * this VB is a replica.
      *
+     * @param manifestUid the uid of the manifest which made the change
      * @param identifier Identifier for the collection to add.
      * @param bySeqno The seqno assigned to the collection create event.
      */
-    void replicaAddCollection(Collections::Identifier identifier,
+    void replicaAddCollection(Collections::uid_t manifestUid,
+                              Collections::Identifier identifier,
                               int64_t bySeqno) {
-        manifest.wlock().replicaAdd(*this, identifier, bySeqno);
+        manifest.wlock().replicaAdd(*this, manifestUid, identifier, bySeqno);
     }
 
     /**
      * Delete a collection from this vbucket with a pre-assigned seqno. I.e.
      * this VB is a replica.
      *
+     * @param manifestUid the uid of the manifest which made the change
      * @param identifier Identifier for the collection to begin deleting.
      * @param bySeqno The seqno assigned to the collection delete event.
      */
-    void replicaBeginDeleteCollection(Collections::Identifier identifier,
+    void replicaBeginDeleteCollection(Collections::uid_t manifestUid,
+                                      Collections::Identifier identifier,
                                       int64_t bySeqno) {
-        manifest.wlock().replicaBeginDelete(*this, identifier, bySeqno);
+        manifest.wlock().replicaBeginDelete(
+                *this, manifestUid, identifier, bySeqno);
     }
 
     /**
      * Delete a collection from this vbucket with a pre-assigned seqno. I.e.
      * this VB is a replica.
      *
+     * @param manifestUid the uid of the manifest which made the change
      * @param separator The new separator.
      * @param bySeqno The seqno assigned to the change separator event.
      */
-    void replicaChangeCollectionSeparator(cb::const_char_buffer separator,
+    void replicaChangeCollectionSeparator(Collections::uid_t manifestUid,
+                                          cb::const_char_buffer separator,
                                           int64_t bySeqno) {
-        manifest.wlock().replicaChangeSeparator(*this, separator, bySeqno);
+        manifest.wlock().replicaChangeSeparator(
+                *this, manifestUid, separator, bySeqno);
     }
 
     /**

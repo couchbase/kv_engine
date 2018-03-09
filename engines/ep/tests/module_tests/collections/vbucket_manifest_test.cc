@@ -422,19 +422,21 @@ public:
                 auto dcpData = Collections::VB::Manifest::getSystemEventData(
                         {qi->getData(), qi->getNBytes()});
 
-                // Extract the revision to a local
-                auto uid = *reinterpret_cast<const Collections::uid_t*>(
-                        dcpData.second.data());
-
                 switch (SystemEvent(qi->getFlags())) {
                 case SystemEvent::Collection: {
                     if (qi->isDeleted()) {
                         // A deleted create means beginDelete collection
                         replica.wlock().replicaBeginDelete(
-                                vbR, {dcpData.first, uid}, qi->getBySeqno());
+                                vbR,
+                                dcpData.manifestUid,
+                                {dcpData.id.getName(), dcpData.id.getUid()},
+                                qi->getBySeqno());
                     } else {
                         replica.wlock().replicaAdd(
-                                vbR, {dcpData.first, uid}, qi->getBySeqno());
+                                vbR,
+                                dcpData.manifestUid,
+                                {dcpData.id.getName(), dcpData.id.getUid()},
+                                qi->getBySeqno());
                     }
                     break;
                 }
@@ -442,8 +444,10 @@ public:
                     auto dcpData = Collections::VB::Manifest::
                             getSystemEventSeparatorData(
                                     {qi->getData(), qi->getNBytes()});
-                    replica.wlock().replicaChangeSeparator(
-                            vbR, dcpData, qi->getBySeqno());
+                    replica.wlock().replicaChangeSeparator(vbR,
+                                                           dcpData.manifestUid,
+                                                           dcpData.separator,
+                                                           qi->getBySeqno());
                     break;
                 }
                 case SystemEvent::DeleteCollectionSoft:

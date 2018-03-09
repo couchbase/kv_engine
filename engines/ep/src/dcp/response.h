@@ -630,40 +630,38 @@ class CollectionsProducerMessage : public SystemEventProducerMessage {
 public:
     CollectionsProducerMessage(uint32_t opaque,
                                queued_item& itm,
-                               cb::const_char_buffer key,
-                               cb::const_byte_buffer eventData)
-        : SystemEventProducerMessage(opaque, itm, key) {
-        if (eventData.size() != sizeof(uid)) {
-            throw std::invalid_argument(
-                    "CreateCollectionProducerMessage invalid eventData size:" +
-                    std::to_string(eventData.size()));
-        }
-
-        uid = htonll((*reinterpret_cast<const Collections::uid_t*>(
-                eventData.data())));
+                               const Collections::SystemEventData& data)
+        : SystemEventProducerMessage(opaque, itm, data.id.getName()),
+          eventData{htonll(data.manifestUid), htonll(data.id.getUid())} {
     }
 
     cb::const_byte_buffer getEventData() const override {
-        return {reinterpret_cast<const uint8_t*>(&uid), sizeof(uid)};
+        return {reinterpret_cast<const uint8_t*>(&eventData),
+                sizeof(eventData)};
     }
 
 private:
-    /// The uid stored in network byte order ready for sending
-    Collections::uid_t uid;
+    Collections::SystemEventDCPData eventData;
 };
 
 class ChangeSeparatorProducerMessage : public SystemEventProducerMessage {
 public:
-     ChangeSeparatorProducerMessage(uint32_t opaque,
-                                    queued_item& itm,
-                                    cb::const_char_buffer key)
-         : SystemEventProducerMessage(opaque, itm, key) {
+    ChangeSeparatorProducerMessage(uint32_t opaque,
+                                   queued_item& itm,
+                                   Collections::SystemEventSeparatorData data)
+        : SystemEventProducerMessage(opaque, itm, data.separator),
+          manifestUid(htonll(data.manifestUid)) {
      }
 
      cb::const_byte_buffer getEventData() const override {
          // no event data.
-         return {};
+         return {reinterpret_cast<const uint8_t*>(&manifestUid),
+                 sizeof(manifestUid)};
      }
+
+ private:
+     /// The manifest uid stored in network byte order ready for sending
+     Collections::uid_t manifestUid;
 };
 
 /**
@@ -691,18 +689,13 @@ protected:
         }
     }
 
-    Collections::uid_t getUid() const {
-        return ntohll(*reinterpret_cast<const Collections::uid_t*>(
-                event.getEventData().data()));
-    }
-
     const SystemEventMessage& event;
 };
 
 class CreateOrDeleteCollectionEvent : public CollectionsEvent {
 public:
     CreateOrDeleteCollectionEvent(const SystemEventMessage& e)
-        : CollectionsEvent(e, sizeof(Collections::uid_t)) {
+        : CollectionsEvent(e, sizeof(Collections::SystemEventDCPData)) {
     }
 
     /**
@@ -711,12 +704,29 @@ public:
     Collections::Identifier getCollection() const {
         return {event.getKey(), getUid()};
     }
+
+    /**
+     * @return manifest uid which triggered the create or delete
+     */
+    Collections::uid_t getManifestUid() const {
+        return ntohll(*reinterpret_cast<const Collections::uid_t*>(
+                event.getEventData().data()));
+    }
+
+protected:
+    /**
+     * @return collection uid of the created or deleted collection
+     */
+    Collections::uid_t getUid() const {
+        return ntohll(*reinterpret_cast<const Collections::uid_t*>(
+                event.getEventData().data() + sizeof(Collections::uid_t)));
+    }
 };
 
 class ChangeSeparatorCollectionEvent : public CollectionsEvent {
 public:
     ChangeSeparatorCollectionEvent(const SystemEventMessage& e)
-        : CollectionsEvent(e, 0) {
+        : CollectionsEvent(e, sizeof(Collections::uid_t)) {
     }
 
     /**
@@ -726,6 +736,13 @@ public:
         return event.getKey();
     }
 
+    /**
+     * @return manifest uid which triggered the change of separator
+     */
+    Collections::uid_t getManifestUid() const {
+        return ntohll(*reinterpret_cast<const Collections::uid_t*>(
+                event.getEventData().data()));
+    }
 };
 
 #endif  // SRC_DCP_RESPONSE_H_
