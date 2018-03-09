@@ -27,9 +27,12 @@ INCLUDE_DIRECTORIES(BEFORE ${CMAKE_INSTALL_PREFIX}/include
                            ${Memcached_SOURCE_DIR}/tracing
                            ${Memcached_SOURCE_DIR}/include
                            ${Couchstore_SOURCE_DIR}/include
-                           ${hdr_histogram_SOURCE_DIR}/src
                            ${phosphor_SOURCE_DIR}/include
                            ${CMAKE_CURRENT_BINARY_DIR})
+
+# Mark third-party libraries as 'system' so we skip any warnings they
+# generate.
+INCLUDE_DIRECTORIES(BEFORE SYSTEM ${hdr_histogram_SOURCE_DIR}/src)
 
 INCLUDE_DIRECTORIES(AFTER ${Memcached_BINARY_DIR}/include)
 
