@@ -23,8 +23,6 @@
 
 #include <memcached/engine.h>
 #include <memcached/extension.h>
-#include <phosphor/phosphor.h>
-#include <platform/processclock.h>
 #include <spdlog/sinks/dist_sink.h>
 #include <spdlog/sinks/null_sink.h>
 #include <spdlog/sinks/stdout_sinks.h>
