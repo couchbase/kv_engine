@@ -154,6 +154,11 @@ public:
             return manifest.exists(collection);
         }
 
+        /// @return the manifest UID that last updated this vb::manifest
+        uid_t getManifestUid() const {
+            return manifest.getManifestUid();
+        }
+
         /**
          * Dump the manifest to std::cerr
          */
@@ -237,6 +242,11 @@ public:
          */
         bool isLogicallyDeleted(int64_t seqno) const {
             return manifest.isLogicallyDeleted(itr, seqno);
+        }
+
+        /// @return the manifest UID that last updated this vb::manifest
+        uid_t getManifestUid() const {
+            return manifest.getManifestUid();
         }
 
         /**
@@ -632,6 +642,11 @@ private:
     container::const_iterator getManifestEntry(
             const ::DocKey& key, const std::string& separator) const;
 
+    /// @return the manifest UID that last updated this vb::manifest
+    uid_t getManifestUid() const {
+        return manifestUid;
+    }
+
 protected:
     /**
      * Add a collection entry to the manifest specifing the revision that it was
@@ -857,6 +872,9 @@ protected:
      */
     cb::NonNegativeCounter<size_t, cb::ThrowExceptionUnderflowPolicy>
             nDeletingCollections;
+
+    /// The manifest UID which updated this vb::manifest
+    uid_t manifestUid;
 
     /**
      * shared lock to allow concurrent readers and safe updates

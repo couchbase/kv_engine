@@ -56,6 +56,9 @@ Manifest::Manifest(const std::string& manifest)
                                               "cJSON cannot parse json");
     }
 
+    // Load the uid
+    manifestUid = makeUid(getJsonEntry(cjson.get(), "uid"));
+
     // Load the separator
     separator = getJsonEntry(cjson.get(), "separator");
 
@@ -90,6 +93,8 @@ Manifest::Manifest(const std::string& manifest)
 void Manifest::update(::VBucket& vb, const Collections::Manifest& manifest) {
     std::vector<Collections::Manifest::Identifier> additions, deletions;
     std::tie(additions, deletions) = processManifest(manifest);
+
+    manifestUid = manifest.getUid();
 
     if (separator != manifest.getSeparator()) {
         changeSeparator(vb,
@@ -549,7 +554,8 @@ size_t Manifest::getSerialisedDataSize() const {
 
 void Manifest::populateWithSerialisedData(cb::char_buffer out,
                                           Identifier identifier) const {
-    auto* sMan = SerialisedManifest::make(out.data(), separator, out);
+    auto* sMan = SerialisedManifest::make(
+            out.data(), separator, getManifestUid(), out);
     uint32_t itemCounter = 1; // always a final entry
     char* serial = sMan->getManifestEntryBuffer();
 
@@ -584,7 +590,8 @@ void Manifest::populateWithSerialisedData(cb::char_buffer out,
 }
 
 void Manifest::populateWithSerialisedData(cb::char_buffer out) const {
-    auto* sMan = SerialisedManifest::make(out.data(), separator, out);
+    auto* sMan = SerialisedManifest::make(
+            out.data(), separator, getManifestUid(), out);
     char* serial = sMan->getManifestEntryBuffer();
 
     for (const auto& collectionEntry : map) {
@@ -609,23 +616,26 @@ std::string Manifest::serialToJson(const Item& collectionsEventItem) {
             reinterpret_cast<const SerialisedManifest*>(buffer.data());
     const char* serial = sMan->getManifestEntryBuffer();
 
-    std::string json = R"({"separator":")" + sMan->getSeparator() + R"(","collections":[)";
+    std::stringstream json;
+    json << R"({"separator":")" << sMan->getSeparator() << R"(","uid":")"
+         << std::hex << sMan->getManifestUid() << R"(","collections":[)";
+
     if (sMan->getEntryCount() > 1) {
         // Iterate and produce an comma separated list
         for (uint32_t ii = 1; ii < sMan->getEntryCount(); ii++) {
             const auto* sme =
                     reinterpret_cast<const SerialisedManifestEntry*>(serial);
-            json += sme->toJson();
+            json << sme->toJson();
             serial = sme->nextEntry();
 
             if (ii < sMan->getEntryCount() - 1) {
-                json += ",";
+                json << ",";
             }
         }
 
         // DeleteCollectionHard removes this last entry so no comma
         if (se != SystemEvent::DeleteCollectionHard) {
-            json += ",";
+            json << ",";
         }
     }
 
@@ -633,15 +643,15 @@ std::string Manifest::serialToJson(const Item& collectionsEventItem) {
     // Last entry is the collection which changed. How did it change?
     if (se == SystemEvent::Collection) {
         // Collection start/end (create/delete)
-        json += sme->toJsonCreateOrDelete(collectionsEventItem.isDeleted(),
+        json << sme->toJsonCreateOrDelete(collectionsEventItem.isDeleted(),
                                           collectionsEventItem.getBySeqno());
     } else if (se == SystemEvent::DeleteCollectionSoft) {
         // Collection delete completed, but collection has been recreated
-        json += sme->toJsonResetEnd();
+        json << sme->toJsonResetEnd();
     }
 
-    json += "]}";
-    return json;
+    json << "]}";
+    return json.str();
 }
 
 std::string Manifest::serialToJson(cb::const_char_buffer buffer) {
@@ -649,22 +659,23 @@ std::string Manifest::serialToJson(cb::const_char_buffer buffer) {
             reinterpret_cast<const SerialisedManifest*>(buffer.data());
     const char* serial = sMan->getManifestEntryBuffer();
 
-    std::string json =
-            R"({"separator":")" + sMan->getSeparator() + R"(","collections":[)";
+    std::stringstream json;
+    json << R"({"separator":")" << sMan->getSeparator() << R"(","uid":")"
+         << std::hex << sMan->getManifestUid() << R"(","collections":[)";
 
     for (uint32_t ii = 0; ii < sMan->getEntryCount(); ii++) {
         const auto* sme =
                 reinterpret_cast<const SerialisedManifestEntry*>(serial);
-        json += sme->toJson();
+        json << sme->toJson();
         serial = sme->nextEntry();
 
         if (ii < sMan->getEntryCount() - 1) {
-            json += ",";
+            json << ",";
         }
     }
 
-    json += "]}";
-    return json;
+    json << "]}";
+    return json.str();
 }
 
 const char* Manifest::getJsonEntry(cJSON* cJson, const char* key) {
@@ -672,7 +683,7 @@ const char* Manifest::getJsonEntry(cJSON* cJson, const char* key) {
     if (!jsonEntry || jsonEntry->type != cJSON_String) {
         throwException<std::invalid_argument>(
                 __FUNCTION__,
-                "null or not string, key:" + std::string(key) + ") : " +
+                "null or not string, key:" + std::string(key) + " " +
                         (!jsonEntry ? "nullptr"
                                     : std::to_string(jsonEntry->type)));
     }

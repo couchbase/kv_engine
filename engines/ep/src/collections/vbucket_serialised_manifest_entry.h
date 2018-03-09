@@ -105,13 +105,18 @@ public:
                 getManifestEntryBuffer() + finalEntryOffset);
     }
 
+    uid_t getManifestUid() const {
+        return manifestUid;
+    }
+
 private:
 
     friend Collections::VB::Manifest;
     static SerialisedManifest* make(char* address,
                                     const std::string& separator,
+                                    uid_t manifestUid,
                                     cb::char_buffer out) {
-        return new (address) SerialisedManifest(separator, out);
+        return new (address) SerialisedManifest(separator, manifestUid, out);
     }
 
     /**
@@ -122,7 +127,12 @@ private:
      * @throws length_error if the consruction would access outside of out
      */
     SerialisedManifest(const std::string& separator,
-                       cb::char_buffer out) {
+                       uid_t manifestUid,
+                       cb::char_buffer out)
+        : itemCount(0),
+          separatorLen(separator.size()),
+          finalEntryOffset(0),
+          manifestUid(manifestUid) {
         if (!((out.data() + out.size()) >=
               (reinterpret_cast<char*>(this) +
                getObjectSize(separator.size())))) {
@@ -132,9 +142,6 @@ private:
                     " exceeds the buffer of size " +
                     std::to_string(out.size()));
         }
-        itemCount = 0;
-        separatorLen = separator.size();
-        finalEntryOffset = 0;
         std::copy_n(separator.data(), separator.size(), getSeparatorPtr());
     }
 
@@ -149,6 +156,7 @@ private:
     uint32_t itemCount;
     uint32_t separatorLen;
     uint32_t finalEntryOffset;
+    uid_t manifestUid;
 };
 
 class SerialisedManifestEntry {

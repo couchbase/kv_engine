@@ -530,7 +530,7 @@ TEST_F(CollectionsWarmupTest, warmup) {
         auto vb = store->getVBucket(vbid);
 
         // Add the meat collection *and* change the separator
-        vb->updateFromManifest({R"({"separator":"-+-","uid":"0",
+        vb->updateFromManifest({R"({"separator":"-+-","uid":"face1",
               "collections":[{"name":"$default", "uid":"0"},
                              {"name":"meat","uid":"1"}]})"});
 
@@ -551,6 +551,10 @@ TEST_F(CollectionsWarmupTest, warmup) {
     } // VBucketPtr scope ends
 
     resetEngineAndWarmup();
+
+    // validate the manifest uid comes back
+    EXPECT_EQ(0xface1,
+              store->getVBucket(vbid)->lockCollections().getManifestUid());
 
     {
         Item item({"meat-+-beef", DocNamespace::Collections},
