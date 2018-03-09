@@ -551,11 +551,6 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
              COMMAND memcached-get-set-tests -E ep -c "item_eviction_policy=full_eviction")
     SET_TESTS_PROPERTIES(ep-engine-getset-unit-tests.full_eviction PROPERTIES TIMEOUT 400)
 
-    ADD_TEST(NAME ep-engine-with-meta-unit-tests
-             WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-             COMMAND memcached-with-meta-tests -E ep)
-    SET_TESTS_PROPERTIES(ep-engine-with-meta-unit-tests PROPERTIES TIMEOUT 400)
-
     IF (EP_USE_ROCKSDB)
         ADD_TEST(NAME ep-engine-persistence-unit-tests.rocksdb
                  COMMAND memcached-persistence-tests -E ep -c "backend=rocksdb")
