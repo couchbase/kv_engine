@@ -32,7 +32,8 @@ bool ScanContext::manageSeparator(const ::DocKey& key) {
             // Make a new Collections::DocKey from cKey.getKey, which returns
             // <uid>:<new_sep>, thus getKey will return <new_sep>
             auto cKey2 = Collections::DocKey::make(
-                    {{cKey.getKey().data(), cKey.getKey().size()},
+                    {reinterpret_cast<const uint8_t*>(cKey.getKey().data()),
+                     cKey.getKey().size(),
                      DocNamespace::System});
             separator.assign(cKey2.getKey().data(), cKey2.getKey().size());
             return true; // return true because we've changed
