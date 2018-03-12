@@ -370,9 +370,13 @@ bool Audit::configure(void) {
         }
     }
 
-    if (is_enabled_before_reconfig != config.is_auditd_enabled()) {
-        notify_event_state_changed(0, config.is_auditd_enabled());
-    }
+    /*
+     * We need to notify if the audit daemon is turned on or off during a
+     * reconfigure.  It is also possible that particular audit events may
+     * have been enabled or disabled.  Therefore we want to notify all of the
+     * current event states whenever we do a reconfigure.
+     */
+    notify_all_event_states();
 
     // create event to say done reconfiguration
     if (is_enabled_before_reconfig || config.is_auditd_enabled()) {
