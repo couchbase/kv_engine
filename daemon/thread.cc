@@ -87,7 +87,7 @@ static void create_worker(void (*func)(void *), void *arg, cb_thread_t *id,
         FATAL_ERROR(EXIT_FAILURE,
                     "Can't create thread {}: {}",
                     name,
-                    cb_strerror(GetLastError()));
+                    cb_strerror());
     }
 }
 
@@ -114,8 +114,8 @@ static bool create_notification_pipe(LIBEVENT_THREAD& me) {
                           0,
                           reinterpret_cast<DATATYPE*>(me.notify)) ==
         SOCKET_ERROR) {
-        log_socket_error(EXTENSION_LOG_WARNING, NULL,
-                         "Can't create notify pipe: %s");
+        LOG_WARNING("Can't create notify pipe: {}",
+                    cb_strerror(cb::net::get_socket_error()));
         return false;
     }
 
@@ -138,8 +138,8 @@ static bool create_notification_pipe(LIBEVENT_THREAD& me) {
                    sizeof(flags));
 
         if (evutil_make_socket_nonblocking(me.notify[j]) == -1) {
-            log_socket_error(EXTENSION_LOG_WARNING, NULL,
-                             "Failed to enable non-blocking: %s");
+            LOG_WARNING("Failed to enable non-blocking: {}",
+                        cb_strerror(cb::net::get_socket_error()));
             return false;
         }
     }
@@ -242,8 +242,8 @@ static void drain_notification_channel(evutil_socket_t fd)
     }
 
     if (nread == -1) {
-        log_socket_error(EXTENSION_LOG_WARNING, NULL,
-                         "Can't read from libevent pipe: %s");
+        LOG_WARNING("Can't read from libevent pipe: {}",
+                    cb_strerror(cb::net::get_socket_error()));
     }
 }
 
@@ -567,9 +567,9 @@ void threads_initiate_bucket_deletion() {
 
 void notify_thread(LIBEVENT_THREAD& thread) {
     if (cb::net::send(thread.notify[1], "", 1, 0) != 1 &&
-        !is_blocking(GetLastNetworkError())) {
-        log_socket_error(EXTENSION_LOG_WARNING, NULL,
-                         "Failed to notify thread: %s");
+        !cb::net::is_blocking(cb::net::get_socket_error())) {
+        LOG_WARNING("Failed to notify thread: {}",
+                    cb_strerror(cb::net::get_socket_error()));
     }
 }
 

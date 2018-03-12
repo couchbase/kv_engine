@@ -233,23 +233,6 @@ void listen_event_handler(evutil_socket_t, short, void *);
 
 void mcbp_collect_timings(Cookie& cookie);
 
-void log_socket_error(EXTENSION_LOG_LEVEL severity,
-                      const void* client_cookie,
-                      const char* prefix);
-#ifdef WIN32
-void log_errcode_error(EXTENSION_LOG_LEVEL severity,
-                          const void* client_cookie,
-                          const char* prefix, DWORD err);
-#else
-void log_errcode_error(EXTENSION_LOG_LEVEL severity,
-                          const void* client_cookie,
-                          const char* prefix, int err);
-#endif
-void log_system_error(EXTENSION_LOG_LEVEL severity,
-                      const void* cookie,
-                      const char* prefix);
-
-
 void perform_callbacks(ENGINE_EVENT_TYPE type,
                        const void *data,
                        const void *c);
@@ -271,58 +254,6 @@ void notify_thread_bucket_deletion(LIBEVENT_THREAD& me);
 void threads_notify_bucket_deletion();
 void threads_complete_bucket_deletion();
 void threads_initiate_bucket_deletion();
-
-// This should probably go in a network-helper file..
-#ifdef WIN32
-#define GetLastNetworkError() WSAGetLastError()
-
-inline int is_blocking(DWORD dw) {
-    return (dw == WSAEWOULDBLOCK);
-}
-inline int is_interrupted(DWORD dw) {
-    return (dw == WSAEINTR);
-}
-inline int is_emfile(DWORD dw) {
-    return (dw == WSAEMFILE);
-}
-inline int is_closed_conn(DWORD dw) {
-    return (dw == WSAENOTCONN || dw == WSAECONNRESET);
-}
-inline int is_addrinuse(DWORD dw) {
-    return (dw == WSAEADDRINUSE);
-}
-inline void set_ewouldblock(void) {
-    WSASetLastError(WSAEWOULDBLOCK);
-}
-inline void set_econnreset(void) {
-    WSASetLastError(WSAECONNRESET);
-}
-#else
-#define GetLastNetworkError() errno
-#define GetLastError() errno
-
-inline int is_blocking(int dw) {
-    return (dw == EAGAIN || dw == EWOULDBLOCK);
-}
-inline int is_interrupted(int dw) {
-    return (dw == EINTR || dw == EAGAIN);
-}
-inline int is_emfile(int dw) {
-    return (dw == EMFILE);
-}
-inline int is_closed_conn(int dw) {
-    return  (dw == ENOTCONN || dw != ECONNRESET);
-}
-inline int is_addrinuse(int dw) {
-    return (dw == EADDRINUSE);
-}
-inline void set_ewouldblock(void) {
-    errno = EWOULDBLOCK;
-}
-inline void set_econnreset(void) {
-    errno = ECONNRESET;
-}
-#endif
 
 SERVER_HANDLE_V1* get_server_api();
 

@@ -27,7 +27,7 @@ ParentMonitor::ParentMonitor(int parent_id) : parent_pid(parent_id) {
     if (handle == INVALID_HANDLE_VALUE) {
         FATAL_ERROR(EXIT_FAILURE,
                     "Failed to open parent process: {}",
-                    cb_strerror(GetLastError()).c_str());
+                    cb_strerror());
     }
 #endif
     if (cb_create_named_thread(&thread,
@@ -35,7 +35,7 @@ ParentMonitor::ParentMonitor(int parent_id) : parent_pid(parent_id) {
                                this, 0, "mc:parent_mon") != 0) {
         FATAL_ERROR(EXIT_FAILURE,
                     "Failed to open parent process: {}",
-                    cb_strerror(GetLastError()));
+                    cb_strerror());
     }
 }
 

@@ -3,6 +3,8 @@
 #define CONFIG_H 1
 
 #include <platform/platform.h>
+#include <platform/socket.h>
+
 #include <event.h>
 
 #cmakedefine HAVE_MEMALIGN ${HAVE_MEMALIGN}
@@ -23,8 +25,6 @@
 #define COUCHBASE_MAX_ITEM_PRIVILEGED_BYTES (1024*1024)
 
 #ifdef WIN32
-#include <winsock2.h>
-#include <ws2tcpip.h>
 #include <windows.h>
 #include <io.h>
 
@@ -37,10 +37,7 @@
 /* @todo investigate this one.. */
 
 #define SOCKETPAIR_AF AF_INET
-#define get_socket_error() WSAGetLastError()
 
-typedef int in_port_t;
-typedef int sa_family_t;
 typedef HANDLE pid_t;
 
 #define snprintf _snprintf
@@ -56,11 +53,7 @@ typedef HANDLE pid_t;
 
 #else
 
-typedef int SOCKET;
 #define SOCKETPAIR_AF AF_UNIX
-#define SOCKET_ERROR -1
-#define INVALID_SOCKET -1
-#define get_socket_error() errno
 
 /* need this to get IOV_MAX on some platforms. */
 #ifndef __need_IOV_MAX
@@ -80,7 +73,6 @@ typedef int SOCKET;
 
 
 #include <sys/wait.h>
-#include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
 #include <unistd.h>
@@ -94,7 +86,6 @@ typedef int SOCKET;
 #include <sys/time.h>
 #include <signal.h>
 #include <sysexits.h>
-
 
 #endif
 

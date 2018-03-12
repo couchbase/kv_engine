@@ -697,7 +697,8 @@ void safe_close(SOCKET sfd) {
 
         do {
             rval = evutil_closesocket(sfd);
-        } while (rval == SOCKET_ERROR && is_interrupted(GetLastNetworkError()));
+        } while (rval == SOCKET_ERROR &&
+                 cb::net::is_interrupted(cb::net::get_socket_error()));
 
         if (rval == SOCKET_ERROR) {
             std::string error = cb_strerror();
@@ -864,14 +865,14 @@ cJSON *get_bucket_details(size_t idx)
 
 bool conn_listening(ListenConnection *c)
 {
-    struct sockaddr_storage addr;
+    sockaddr_storage addr;
     socklen_t addrlen = sizeof(addr);
-    SOCKET sfd = accept(c->getSocketDescriptor(), (struct sockaddr*)&addr,
-                        &addrlen);
+    SOCKET sfd = cb::net::accept(
+            c->getSocketDescriptor(), (struct sockaddr*)&addr, &addrlen);
 
     if (sfd == INVALID_SOCKET) {
-        auto error = GetLastNetworkError();
-        if (is_emfile(error)) {
+        auto error = cb::net::get_socket_error();
+        if (cb::net::is_emfile(error)) {
 #if defined(WIN32)
             LOG_WARNING("Too many open files.");
 #else
@@ -881,9 +882,8 @@ bool conn_listening(ListenConnection *c)
                         limit.rlim_cur);
 #endif
             disable_listen();
-        } else if (!is_blocking(error)) {
-            log_socket_error(EXTENSION_LOG_WARNING, c,
-                             "Failed to accept new client: %s");
+        } else if (!cb::net::is_blocking(error)) {
+            LOG_WARNING("Failed to accept new client: {}", cb_strerror(error));
         }
 
         return false;
@@ -1103,14 +1103,13 @@ static void maximize_sndbuf(const SOCKET sfd) {
     socklen_t intsize = sizeof(int);
     int last_good = 0;
     int old_size;
-#if defined(WIN32)
-    char* old_ptr = reinterpret_cast<char*>(&old_size);
-#else
-    void* old_ptr = reinterpret_cast<void*>(&old_size);
-#endif
 
     /* Start with the default size. */
-    if (getsockopt(sfd, SOL_SOCKET, SO_SNDBUF, old_ptr, &intsize) != 0) {
+    if (cb::net::getsockopt(sfd,
+                            SOL_SOCKET,
+                            SO_SNDBUF,
+                            reinterpret_cast<void*>(&old_size),
+                            &intsize) != 0) {
         LOG_WARNING("getsockopt(SO_SNDBUF): {}", strerror(errno));
         return;
     }
@@ -1121,12 +1120,11 @@ static void maximize_sndbuf(const SOCKET sfd) {
 
     while (min <= max) {
         int avg = ((unsigned int)(min + max)) / 2;
-#if defined(WIN32)
-        char* avg_ptr = reinterpret_cast<char*>(&avg);
-#else
-        void* avg_ptr = reinterpret_cast<void*>(&avg);
-#endif
-        if (setsockopt(sfd, SOL_SOCKET, SO_SNDBUF, avg_ptr, intsize) == 0) {
+        if (cb::net::setsockopt(sfd,
+                                SOL_SOCKET,
+                                SO_SNDBUF,
+                                reinterpret_cast<void*>(&avg),
+                                intsize) == 0) {
             last_good = avg;
             min = avg + 1;
         } else {
@@ -1140,7 +1138,7 @@ static void maximize_sndbuf(const SOCKET sfd) {
 static SOCKET new_server_socket(struct addrinfo *ai, bool tcp_nodelay) {
     SOCKET sfd;
 
-    sfd = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+    sfd = cb::net::socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
     if (sfd == INVALID_SOCKET) {
         return INVALID_SOCKET;
     }
@@ -1156,18 +1154,13 @@ static SOCKET new_server_socket(struct addrinfo *ai, bool tcp_nodelay) {
     const int flags = 1;
     int error;
 
-#if defined(WIN32)
-    const char* ling_ptr = reinterpret_cast<const char*>(&ling);
-    const char* flags_ptr = reinterpret_cast<const char*>(&flags);
-#else
-    const void* ling_ptr = reinterpret_cast<const char*>(&ling);
-    const void* flags_ptr = reinterpret_cast<const void*>(&flags);
-#endif
-
 #ifdef IPV6_V6ONLY
     if (ai->ai_family == AF_INET6) {
-        error = setsockopt(sfd, IPPROTO_IPV6, IPV6_V6ONLY, flags_ptr,
-                           sizeof(flags));
+        error = cb::net::setsockopt(sfd,
+                                    IPPROTO_IPV6,
+                                    IPV6_V6ONLY,
+                                    reinterpret_cast<const void*>(&flags),
+                                    sizeof(flags));
         if (error != 0) {
             LOG_WARNING("setsockopt(IPV6_V6ONLY): {}", strerror(errno));
             safe_close(sfd);
@@ -1176,23 +1169,41 @@ static SOCKET new_server_socket(struct addrinfo *ai, bool tcp_nodelay) {
     }
 #endif
 
-    setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, flags_ptr, sizeof(flags));
-    error = setsockopt(sfd, SOL_SOCKET, SO_KEEPALIVE, flags_ptr,
-                       sizeof(flags));
-    if (error != 0) {
-        LOG_WARNING("setsockopt(SO_KEEPALIVE): {}", strerror(errno));
+    if (cb::net::setsockopt(sfd,
+                            SOL_SOCKET,
+                            SO_REUSEADDR,
+                            reinterpret_cast<const void*>(&flags),
+                            sizeof(flags)) != 0) {
+        LOG_WARNING("setsockopt(SO_REUSEADDR): {}",
+                    cb_strerror(cb::net::get_socket_error()));
     }
 
-    error = setsockopt(sfd, SOL_SOCKET, SO_LINGER, ling_ptr, sizeof(ling));
-    if (error != 0) {
-        LOG_WARNING("setsockopt(SO_LINGER): {}", strerror(errno));
+    if (cb::net::setsockopt(sfd,
+                            SOL_SOCKET,
+                            SO_KEEPALIVE,
+                            reinterpret_cast<const void*>(&flags),
+                            sizeof(flags)) != 0) {
+        LOG_WARNING("setsockopt(SO_KEEPALIVE): {}",
+                    cb_strerror(cb::net::get_socket_error()));
+    }
+
+    if (cb::net::setsockopt(sfd,
+                            SOL_SOCKET,
+                            SO_LINGER,
+                            reinterpret_cast<const char*>(&ling),
+                            sizeof(ling)) != 0) {
+        LOG_WARNING("setsockopt(SO_LINGER): {}",
+                    cb_strerror(cb::net::get_socket_error()));
     }
 
     if (tcp_nodelay) {
-        error = setsockopt(sfd, IPPROTO_TCP, TCP_NODELAY, flags_ptr,
-                           sizeof(flags));
-        if (error != 0) {
-            LOG_WARNING("setsockopt(TCP_NODELAY): {}", strerror(errno));
+        if (cb::net::setsockopt(sfd,
+                                IPPROTO_TCP,
+                                TCP_NODELAY,
+                                reinterpret_cast<const void*>(&flags),
+                                sizeof(flags)) != 0) {
+            LOG_WARNING("setsockopt(TCP_NODELAY): {}",
+                        cb_strerror(cb::net::get_socket_error()));
         }
     }
 
@@ -1286,13 +1297,12 @@ static int server_socket(const NetworkInterface *interf) {
     int error = getaddrinfo(host, port_buf.c_str(), &hints, &ai);
     if (error != 0) {
 #ifdef WIN32
-        log_errcode_error(EXTENSION_LOG_WARNING, NULL,
-                          "getaddrinfo(): %s", error);
+        LOG_WARNING("getaddrinfo(): {}", cb_strerror(error));
 #else
         if (error != EAI_SYSTEM) {
             LOG_WARNING("getaddrinfo(): {}", gai_strerror(error));
         } else {
-            LOG_WARNING("getaddrinfo(): {}", strerror(error));
+            LOG_WARNING("getaddrinfo(): {}", cb_strerror(error));
         }
 #endif
         return 1;
@@ -1308,10 +1318,10 @@ static int server_socket(const NetworkInterface *interf) {
 
         in_port_t listenport = 0;
         if (bind(sfd, next->ai_addr, (socklen_t)next->ai_addrlen) == SOCKET_ERROR) {
-            error = GetLastNetworkError();
-            if (!is_addrinuse(error)) {
-                log_errcode_error(EXTENSION_LOG_WARNING, nullptr,
-                                  "Failed to bind to address: %s", error);
+            error = cb::net::get_socket_error();
+            if (!cb::net::is_addrinuse(error)) {
+                LOG_WARNING("Failed to bind to address: {}",
+                            cb_strerror(error));
                 safe_close(sfd);
                 freeaddrinfo(ai);
                 return 1;
@@ -2233,45 +2243,6 @@ void delete_all_buckets() {
             LOG_INFO("Bucket {} deleted", name);
         }
     } while (!done);
-}
-
-/**
- * Log a socket error message.
- *
- * @param severity the severity to put in the log
- * @param cookie cookie representing the client
- * @param prefix What to put as a prefix (MUST INCLUDE
- *               the %s for where the string should go)
- */
-void log_socket_error(EXTENSION_LOG_LEVEL severity,
-                      const void* cookie,
-                      const char* prefix)
-{
-    log_errcode_error(severity, cookie, prefix, GetLastNetworkError());
-}
-
-/**
- * Log a system error message.
- *
- * @param severity the severity to put in the log
- * @param cookie cookie representing the client
- * @param prefix What to put as a prefix (MUST INCLUDE
- *               the %s for where the string should go)
- */
-void log_system_error(EXTENSION_LOG_LEVEL severity,
-                      const void* cookie,
-                      const char* prefix)
-{
-    log_errcode_error(severity, cookie, prefix, GetLastError());
-}
-
-void log_errcode_error(EXTENSION_LOG_LEVEL severity,
-                       const void* cookie,
-                       const char* prefix,
-                       cb_os_error_t err)
-{
-    std::string errmsg = cb_strerror(err);
-    settings.extensions.logger->log(severity, cookie, prefix, errmsg.c_str());
 }
 
 static void set_max_filehandles(void) {

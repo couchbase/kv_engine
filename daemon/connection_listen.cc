@@ -69,9 +69,8 @@ void ListenConnection::enable() {
         }
 
         if (event_add(ev.get(), NULL) == -1) {
-            log_system_error(EXTENSION_LOG_WARNING,
-                             NULL,
-                             "Failed to add connection to libevent: %s");
+            LOG_WARNING("Failed to add connection to libevent: {}",
+                        cb_strerror());
         } else {
             registered_in_libevent = true;
         }
@@ -95,9 +94,8 @@ void ListenConnection::disable() {
             }
         }
         if (event_del(ev.get()) == -1) {
-            log_system_error(EXTENSION_LOG_WARNING,
-                             NULL,
-                             "Failed to remove connection to libevent: %s");
+            LOG_WARNING("Failed to remove connection to libevent: {}",
+                        cb_strerror());
         } else {
             registered_in_libevent = false;
         }

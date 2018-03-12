@@ -20,6 +20,7 @@
 #include "runtime.h"
 
 #include <platform/socket.h>
+#include <platform/strerror.h>
 #include <utilities/logtags.h>
 
 SslContext::~SslContext() {
@@ -171,7 +172,7 @@ void SslContext::drainBioRecvPipe(SOCKET sfd) {
                 if (n == 0) {
                     error = true; /* read end shutdown */
                 } else {
-                    if (!is_blocking(GetLastNetworkError())) {
+                    if (!cb::net::is_blocking(cb::net::get_socket_error())) {
                         error = true;
                     }
                 }
@@ -213,11 +214,11 @@ void SslContext::drainBioSendPipe(SOCKET sfd) {
                 stop = false;
             } else {
                 if (n == -1) {
-                    if (!is_blocking(GetLastNetworkError())) {
-                        log_socket_error(
-                                EXTENSION_LOG_WARNING,
-                                this,
-                                "Failed to write, and not due to blocking: %s");
+                    auto err = cb::net::get_socket_error();
+                    if (!cb::net::is_blocking(err)) {
+                        LOG_WARNING(
+                                "Failed to write, and not due to blocking: {}",
+                                cb_strerror(err));
                         error = true;
                     }
                 }

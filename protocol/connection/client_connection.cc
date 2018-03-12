@@ -113,34 +113,13 @@ void MemcachedConnection::close() {
     }
 }
 
-/**
- * For some reason windows use const char* rather than const void
- * for the option value. To avoid having to #ifdef that all over
- * the place just create a wrapper
- */
-#ifdef WIN32
-static void cb_setsockopt(SOCKET sock,
-                          int level,
-                          int option_name,
-                          const void* option_value,
-                          socklen_t option_len) {
-    setsockopt(sock,
-               level,
-               option_name,
-               reinterpret_cast<const char*>(option_value),
-               option_len);
-}
-
-#else
-#define cb_setsockopt(a, b, c, d, e) setsockopt(a, b, c, d, e)
-#endif
-
 SOCKET try_connect_socket(struct addrinfo* next,
                           const std::string& hostname,
                           in_port_t port) {
-    SOCKET sfd = socket(next->ai_family, next->ai_socktype, next->ai_protocol);
+    SOCKET sfd = cb::net::socket(
+            next->ai_family, next->ai_socktype, next->ai_protocol);
     if (sfd == INVALID_SOCKET) {
-        throw std::system_error(get_socket_error(),
+        throw std::system_error(cb::net::get_socket_error(),
                                 std::system_category(),
                                 "socket() failed (" + hostname + " " +
                                         std::to_string(port) + ")");
@@ -169,22 +148,22 @@ SOCKET try_connect_socket(struct addrinfo* next,
     // connect. Mark the socket reusable so that the kernel may
     // reuse the socket earlier
     const int flag = 1;
-    cb_setsockopt(sfd,
-                  SOL_SOCKET,
-                  SO_REUSEADDR,
-                  reinterpret_cast<const void*>(&flag),
-                  sizeof(flag));
+    cb::net::setsockopt(sfd,
+                        SOL_SOCKET,
+                        SO_REUSEADDR,
+                        reinterpret_cast<const void*>(&flag),
+                        sizeof(flag));
 
     // Try to set the nodelay mode on the socket (but ignore
     // if we fail to do so..
-    cb_setsockopt(sfd,
-                  IPPROTO_TCP,
-                  TCP_NODELAY,
-                  reinterpret_cast<const void*>(&flag),
-                  sizeof(flag));
+    cb::net::setsockopt(sfd,
+                        IPPROTO_TCP,
+                        TCP_NODELAY,
+                        reinterpret_cast<const void*>(&flag),
+                        sizeof(flag));
 
     if (cb::net::connect(sfd, next->ai_addr, next->ai_addrlen) == SOCKET_ERROR) {
-        auto error = get_socket_error();
+        auto error = cb::net::get_socket_error();
         cb::net::closesocket(sfd);
 #ifdef WIN32
         WSASetLastError(error);
@@ -384,9 +363,10 @@ void MemcachedConnection::sendBufferPlain(cb::const_byte_buffer buf) {
     while (offset < nbytes) {
         auto nw = cb::net::send(sock, data + offset, nbytes - offset, 0);
         if (nw <= 0) {
-            throw std::system_error(get_socket_error(),
-                                    std::system_category(),
-                                    "MemcachedConnection::sendFramePlain: failed to send data");
+            throw std::system_error(
+                    cb::net::get_socket_error(),
+                    std::system_category(),
+                    "MemcachedConnection::sendFramePlain: failed to send data");
         } else {
             offset += nw;
         }
@@ -422,7 +402,7 @@ void MemcachedConnection::readPlain(Frame& frame, size_t bytes) {
     while (total < bytes) {
         auto nr = cb::net::recv(sock, data + total, bytes - total, 0);
         if (nr <= 0) {
-            auto error = get_socket_error();
+            auto error = cb::net::get_socket_error();
             if (nr == 0) {
                 // nr == 0 means that the other end closed the connection.
                 // Given that we expected to read more data, let's throw

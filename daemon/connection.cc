@@ -190,19 +190,15 @@ bool Connection::setTcpNoDelay(bool enable) {
         return false;
     }
 
-    int flags = enable ? 1 : 0;
-
-#if defined(WIN32)
-    char* flags_ptr = reinterpret_cast<char*>(&flags);
-#else
-    void* flags_ptr = reinterpret_cast<void*>(&flags);
-#endif
-    int error = setsockopt(socketDescriptor, IPPROTO_TCP, TCP_NODELAY,
-                           flags_ptr,
-                           sizeof(flags));
+    const int flags = enable ? 1 : 0;
+    int error = cb::net::setsockopt(socketDescriptor,
+                                    IPPROTO_TCP,
+                                    TCP_NODELAY,
+                                    reinterpret_cast<const void*>(&flags),
+                                    sizeof(flags));
 
     if (error != 0) {
-        std::string errmsg = cb_strerror(GetLastNetworkError());
+        std::string errmsg = cb_strerror(cb::net::get_socket_error());
         LOG_WARNING("setsockopt(TCP_NODELAY): {}", errmsg);
         nodelay = false;
         return false;

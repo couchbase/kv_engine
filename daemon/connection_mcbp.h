@@ -284,7 +284,7 @@ public:
      * @param m the message header to send
      * @return the number of bytes sent, or -1 for an error
      */
-    int sendmsg(struct msghdr* m);
+    ssize_t sendmsg(struct msghdr* m);
 
     enum class TransmitResult {
         /** All done writing. */

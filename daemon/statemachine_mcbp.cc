@@ -419,8 +419,8 @@ bool conn_read_packet_body(McbpConnection& connection) {
         return true;
     }
 
-    auto error = GetLastNetworkError();
-    if (is_blocking(error)) {
+    auto error = cb::net::get_socket_error();
+    if (cb::net::is_blocking(error)) {
         if (!connection.updateEvent(EV_READ | EV_PERSIST)) {
             LOG_WARNING(
                     "{}: conn_read_packet_body - Unable to update libevent "

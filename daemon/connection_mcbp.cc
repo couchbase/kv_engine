@@ -45,9 +45,8 @@ bool McbpConnection::unregisterEvent() {
     cb_assert(socketDescriptor != INVALID_SOCKET);
 
     if (event_del(&event) == -1) {
-        log_system_error(EXTENSION_LOG_WARNING,
-                         NULL,
-                         "Failed to remove connection to libevent: %s");
+        LOG_WARNING("Failed to remove connection to libevent: {}",
+                    cb_strerror());
         return false;
     }
 
@@ -80,8 +79,7 @@ bool McbpConnection::registerEvent() {
     ev_insert_time = mc_time_get_current_time();
 
     if (event_add(&event, tp) == -1) {
-        log_system_error(EXTENSION_LOG_WARNING, nullptr,
-                         "Failed to add connection to libevent: %s");
+        LOG_WARNING("Failed to add connection to libevent: {}", cb_strerror());
         return false;
     }
 
@@ -269,7 +267,7 @@ int McbpConnection::sslPreConnection() {
             }
         }
         if (disconnect) {
-            set_econnreset();
+            cb::net::set_econnreset();
             if (!certResult.second.empty()) {
                 LOG_WARNING(
                         "{}: SslPreConnection: disconnection client due to"
@@ -282,7 +280,7 @@ int McbpConnection::sslPreConnection() {
     } else {
         if (ssl.getError(r) == SSL_ERROR_WANT_READ) {
             ssl.drainBioSendPipe(socketDescriptor);
-            set_ewouldblock();
+            cb::net::set_ewouldblock();
             return -1;
         } else {
             try {
@@ -300,7 +298,7 @@ int McbpConnection::sslPreConnection() {
                 // unable to print error message; continue.
             }
 
-            set_econnreset();
+            cb::net::set_econnreset();
             return -1;
         }
     }
@@ -318,7 +316,7 @@ int McbpConnection::recv(char* dest, size_t nbytes) {
         ssl.drainBioRecvPipe(socketDescriptor);
 
         if (ssl.hasError()) {
-            set_econnreset();
+            cb::net::set_econnreset();
             return -1;
         }
 
@@ -343,8 +341,8 @@ int McbpConnection::recv(char* dest, size_t nbytes) {
     return res;
 }
 
-int McbpConnection::sendmsg(struct msghdr* m) {
-    int res = 0;
+ssize_t McbpConnection::sendmsg(struct msghdr* m) {
+    ssize_t res = 0;
     if (ssl.isEnabled()) {
         for (int ii = 0; ii < int(m->msg_iovlen); ++ii) {
             int n = sslWrite(reinterpret_cast<char*>(m->msg_iov[ii].iov_base),
@@ -362,7 +360,7 @@ int McbpConnection::sendmsg(struct msghdr* m) {
         ssl.drainBioSendPipe(socketDescriptor);
         return res;
     } else {
-        res = int(::sendmsg(socketDescriptor, m, 0));
+        res = cb::net::sendmsg(socketDescriptor, m, 0);
         if (res > 0) {
             totalSend += res;
         }
@@ -436,7 +434,7 @@ McbpConnection::TransmitResult McbpConnection::transmit() {
         struct msghdr* m = &msglist[msgcurr];
 
         res = sendmsg(m);
-        auto error = GetLastNetworkError();
+        auto error = cb::net::get_socket_error();
         if (res > 0) {
             get_thread_stats(this)->bytes_written += res;
 
@@ -463,7 +461,7 @@ McbpConnection::TransmitResult McbpConnection::transmit() {
             return TransmitResult::Incomplete;
         }
 
-        if (res == -1 && is_blocking(error)) {
+        if (res == -1 && cb::net::is_blocking(error)) {
             if (!updateEvent(EV_WRITE | EV_PERSIST)) {
                 setState(McbpStateMachine::State::closing);
                 return TransmitResult::HardError;
@@ -474,12 +472,12 @@ McbpConnection::TransmitResult McbpConnection::transmit() {
         // if res == 0 or res == -1 and error is not EAGAIN or EWOULDBLOCK,
         // we have a real error, on which we close the connection
         if (res == -1) {
-            if (is_closed_conn(error)) {
+            if (cb::net::is_closed_conn(error)) {
                 LOG_INFO("{}: Failed to send data; peer closed the connection",
                          getId());
             } else {
-                log_socket_error(EXTENSION_LOG_WARNING, this,
-                                 "Failed to write, and not due to blocking: %s");
+                LOG_WARNING("Failed to write, and not due to blocking: {}",
+                            cb_strerror(error));
             }
         } else {
             // sendmsg should return the number of bytes written, but we
@@ -544,8 +542,8 @@ McbpConnection::TryReadResult McbpConnection::tryReadNetwork() {
         return TryReadResult::SocketClosed;
     }
 
-    const auto error = GetLastNetworkError();
-    if (is_blocking(error)) {
+    const auto error = cb::net::get_socket_error();
+    if (cb::net::is_blocking(error)) {
         return TryReadResult::NoDataReceived;
     }
 
@@ -570,7 +568,7 @@ int McbpConnection::sslRead(char* dest, size_t nbytes) {
         int n;
         ssl.drainBioRecvPipe(socketDescriptor);
         if (ssl.hasError()) {
-            set_econnreset();
+            cb::net::set_econnreset();
             return -1;
         }
         n = ssl.read(dest + ret, (int)(nbytes - ret));
@@ -593,7 +591,7 @@ int McbpConnection::sslRead(char* dest, size_t nbytes) {
                     /* nothing in our recv buf, return what we have */
                     return ret;
                 } else {
-                    set_ewouldblock();
+                    cb::net::set_ewouldblock();
                     return -1;
                 }
                 break;
@@ -610,7 +608,7 @@ int McbpConnection::sslRead(char* dest, size_t nbytes) {
                 LOG_WARNING("{}: ERROR: SSL_read returned -1 with error {}",
                             getId(),
                             error);
-                set_econnreset();
+                cb::net::set_econnreset();
                 return -1;
             }
         }
@@ -630,7 +628,7 @@ int McbpConnection::sslWrite(const char* src, size_t nbytes) {
 
         ssl.drainBioSendPipe(socketDescriptor);
         if (ssl.hasError()) {
-            set_econnreset();
+            cb::net::set_econnreset();
             return -1;
         }
 
@@ -652,7 +650,7 @@ int McbpConnection::sslWrite(const char* src, size_t nbytes) {
                 int error = ssl.getError(n);
                 switch (error) {
                 case SSL_ERROR_WANT_WRITE:
-                    set_ewouldblock();
+                    cb::net::set_ewouldblock();
                     return -1;
 
                 default:
@@ -664,7 +662,7 @@ int McbpConnection::sslWrite(const char* src, size_t nbytes) {
                             "{}: ERROR: SSL_write returned -1 with error {}",
                             getId(),
                             error);
-                    set_econnreset();
+                    cb::net::set_econnreset();
                     return -1;
                 }
             }
