@@ -1882,6 +1882,14 @@ protected:
         kvstore = setup_kv_store(*kvstoreConfig);
     }
 
+    void TearDown() override {
+        // Under RocksDB, removing the database folder (which is equivalent to
+        // calling rocksdb::DestroyDB()) for a live DB is an undefined
+        // behaviour. So, close the DB before destroying it.
+        kvstore.reset();
+        KVStoreTest::TearDown();
+    }
+
     std::unique_ptr<KVStoreConfig> kvstoreConfig;
     std::unique_ptr<KVStore> kvstore;
 };
@@ -2136,6 +2144,14 @@ protected:
         kvstoreConfig =
                 std::make_unique<RocksDBKVStoreConfig>(config, 0 /*shardId*/);
         kvstore = setup_kv_store(*kvstoreConfig);
+    }
+
+    void TearDown() override {
+        // Under RocksDB, removing the database folder (which is equivalent to
+        // calling rocksdb::DestroyDB()) for a live DB is an undefined
+        // behaviour. So, close the DB before destroying it.
+        kvstore.reset();
+        KVStoreTest::TearDown();
     }
 
     std::unique_ptr<KVStoreConfig> kvstoreConfig;
