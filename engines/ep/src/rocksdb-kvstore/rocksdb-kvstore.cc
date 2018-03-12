@@ -1251,18 +1251,8 @@ rocksdb::Status RocksDBKVStore::saveDocs(
     st.batchSize.add(reqsSize);
     st.docsCommitted = reqsSize;
 
-    // Check and update last seqno
-    auto lastSeqno = readHighSeqnoFromDisk(*vbh);
-    if (maxDBSeqno != lastSeqno) {
-        logger.log(EXTENSION_LOG_WARNING,
-                   "RocksDBKVStore::saveDocs: Seqno in db header (%" PRIu64
-                   ") is not matched with what was persisted (%" PRIu64
-                   ") for vb:%" PRIu16,
-                   lastSeqno,
-                   maxDBSeqno,
-                   vbid);
-    }
-    vbstate->highSeqno = lastSeqno;
+    // Update high seqno
+    vbstate->highSeqno = maxDBSeqno;
 
     return rocksdb::Status::OK();
 }

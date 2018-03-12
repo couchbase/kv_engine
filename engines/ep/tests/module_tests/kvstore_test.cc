@@ -2082,6 +2082,35 @@ TEST_P(KVStoreParamTest, CompactAndScan) {
     t3.join();
 }
 
+TEST_P(KVStoreParamTest, HighSeqnoCorrectlyStoredForCommitBatch) {
+    const std::string key = "key";
+    std::string value = "value";
+    WriteCallback wc;
+    uint16_t vbid = 0;
+
+    // Upsert an item 10 times in a single transaction (we want to test that
+    // the VBucket state is updated with the highest seqno found in a commit
+    // batch)
+    kvstore->begin(std::make_unique<TransactionContext>());
+    for (int i = 1; i <= 10; i++) {
+        Item item(makeStoredDocKey(key),
+                  0 /*flags*/,
+                  0 /*exptime*/,
+                  value.c_str(),
+                  value.size(),
+                  PROTOCOL_BINARY_RAW_BYTES,
+                  0 /*cas*/,
+                  i /*bySeqno*/,
+                  vbid);
+        kvstore->set(item, wc);
+    }
+    kvstore->commit(nullptr /*no collections manifest*/);
+
+    GetValue gv = kvstore->get(makeStoredDocKey(key), vbid);
+    checkGetValue(gv);
+    EXPECT_EQ(kvstore->getVBucketState(vbid)->highSeqno, 10);
+}
+
 std::string kvstoreTestParams[] = {
 #ifdef EP_USE_ROCKSDB
         "rocksdb",
