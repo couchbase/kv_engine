@@ -1266,31 +1266,38 @@ static void add_listening_port(const NetworkInterface *interf, in_port_t port, s
 /**
  * Create a socket and bind it to a specific port number
  * @param interface the interface to bind to
- * @param port the port number to bind to
+ * @param true if we was able to set up this interface
+ *        false if we failed to set up this interface
  */
-static int server_socket(const NetworkInterface *interf) {
+static bool server_socket(const NetworkInterface& interf) {
     SOCKET sfd;
-    struct addrinfo hints;
-    int success = 0;
-    const char *host = NULL;
+    addrinfo hints = {};
 
-    memset(&hints, 0, sizeof(hints));
+    // Set to true when we create an IPv4 interface
+    bool ipv4 = false;
+    // Set to true when we create an IPv6 interface
+    bool ipv6 = false;
+
     hints.ai_flags = AI_PASSIVE;
     hints.ai_protocol = IPPROTO_TCP;
     hints.ai_socktype = SOCK_STREAM;
 
-    if (interf->ipv4 && interf->ipv6) {
+    if (interf.ipv4 && interf.ipv6) {
         hints.ai_family = AF_UNSPEC;
-    } else if (interf->ipv4) {
+    } else if (interf.ipv4) {
         hints.ai_family = AF_INET;
-    } else if (interf->ipv6) {
+    } else if (interf.ipv6) {
         hints.ai_family = AF_INET6;
+    } else {
+        throw std::invalid_argument(
+                "server_socket: can't create a socket without IPv4 or IPv6");
     }
 
-    std::string port_buf = std::to_string(interf->port);
+    std::string port_buf = std::to_string(interf.port);
 
-    if (!interf->host.empty() && interf->host != "*") {
-        host = interf->host.c_str();
+    const char* host = nullptr;
+    if (!interf.host.empty() && interf.host != "*") {
+        host = interf.host.c_str();
     }
 
     struct addrinfo *ai;
@@ -1305,32 +1312,37 @@ static int server_socket(const NetworkInterface *interf) {
             LOG_WARNING("getaddrinfo(): {}", cb_strerror(error));
         }
 #endif
-        return 1;
+        return false;
     }
 
+    // getaddrinfo may return multiple entries for a given name/port pair.
+    // Iterate over all of them and try to set up a listen object.
+    // We need at least _one_ entry per requested configuration (IPv4/6) in
+    // order to call it a success.
     for (struct addrinfo* next = ai; next; next = next->ai_next) {
-        if ((sfd = new_server_socket(next, interf->tcp_nodelay)) == INVALID_SOCKET) {
-            /* getaddrinfo can return "junk" addresses,
-             * we make sure at least one works before erroring.
-             */
+        if ((sfd = new_server_socket(next, interf.tcp_nodelay)) ==
+            INVALID_SOCKET) {
+            // getaddrinfo can return "junk" addresses,
             continue;
         }
 
         in_port_t listenport = 0;
         if (bind(sfd, next->ai_addr, (socklen_t)next->ai_addrlen) == SOCKET_ERROR) {
-            error = cb::net::get_socket_error();
-            if (!cb::net::is_addrinuse(error)) {
-                LOG_WARNING("Failed to bind to address: {}",
-                            cb_strerror(error));
-                safe_close(sfd);
-                freeaddrinfo(ai);
-                return 1;
-            }
+            LOG_WARNING("Failed to bind to address: {}",
+                        cb_strerror(cb::net::get_socket_error()));
             safe_close(sfd);
             continue;
         }
 
-        success++;
+        // We've configured this port.
+        if (next->ai_addr->sa_family == AF_INET) {
+            // We have at least one entry
+            ipv4 = true;
+        } else if (next->ai_addr->sa_family == AF_INET6) {
+            // We have at least one entry
+            ipv6 = true;
+        }
+
         if (next->ai_addr->sa_family == AF_INET ||
              next->ai_addr->sa_family == AF_INET6) {
             union {
@@ -1347,10 +1359,15 @@ static int server_socket(const NetworkInterface *interf) {
             }
         }
 
-        auto* lconn = conn_new_server(sfd, listenport, next->ai_addr->sa_family,
-                                      *interf, main_base);
+        auto* lconn = conn_new_server(
+                sfd, listenport, next->ai_addr->sa_family, interf, main_base);
         if (lconn == nullptr) {
-            FATAL_ERROR(EXIT_FAILURE, "Failed to create listening connection");
+            FATAL_ERROR(
+                    EXIT_FAILURE,
+                    R"(Failed to create listening object: Host "{}" Port "{}" IPv{})",
+                    interf.host.empty() ? "*" : interf.host,
+                    interf.port,
+                    next->ai_addr->sa_family == AF_INET ? "4" : "6");
         }
 
         lconn->setNext(listen_conn);
@@ -1358,17 +1375,34 @@ static int server_socket(const NetworkInterface *interf) {
 
         stats.daemon_conns++;
         stats.curr_conns.fetch_add(1, std::memory_order_relaxed);
-        add_listening_port(interf, listenport, next->ai_addr->sa_family);
+        add_listening_port(&interf, listenport, next->ai_addr->sa_family);
     }
 
     freeaddrinfo(ai);
 
-    /* Return zero iff we detected no errors in starting up connections */
-    return success == 0;
+    bool ret = true;
+
+    if (interf.ipv4 && !ipv4) {
+        // Failed to create an IPv4 port
+        LOG_CRITICAL(R"(Failed to create IPv4 port for "{}:{}")",
+                     interf.host.empty() ? "*" : interf.host,
+                     interf.port);
+        ret = false;
+    }
+
+    if (interf.ipv6 && !ipv6) {
+        // Failed to create an IPv6 oprt
+        LOG_CRITICAL(R"(Failed to create IPv6 port for "{}:{}")",
+                     interf.host.empty() ? "*" : interf.host,
+                     interf.port);
+        ret = false;
+    }
+
+    return ret;
 }
 
-static int server_sockets(bool management) {
-    int ret = 0;
+static bool server_sockets(bool management) {
+    bool success = true;
 
     if (management) {
         LOG_INFO("Enable management port(s)");
@@ -1378,25 +1412,29 @@ static int server_sockets(bool management) {
 
     for (auto& interface : settings.getInterfaces()) {
         if (management && interface.management) {
-            ret |= server_socket(&interface);
+            if (!server_socket(interface)) {
+                success = false;
+            }
         } else if (!management && !interface.management) {
-            ret |= server_socket(&interface);
+            if (!server_socket(interface)) {
+                success = false;
+            }
         }
     }
 
-    return ret;
+    return success;
 }
 
 static void create_listen_sockets(bool management) {
-    if (server_sockets(management)) {
-        FATAL_ERROR(EX_OSERR, "Failed to create listening socket");
+    if (!server_sockets(management)) {
+        FATAL_ERROR(EX_OSERR, "Failed to create listening socket(s)");
     }
 
     if (management) {
         // the client is not expecting us to update the port set at
         // later time, so enable all ports immediately
-        if (server_sockets(false)) {
-            FATAL_ERROR(EX_OSERR, "Failed to create listening socket");
+        if (!server_sockets(false)) {
+            FATAL_ERROR(EX_OSERR, "Failed to create listening socket(s)");
         }
     }
 
