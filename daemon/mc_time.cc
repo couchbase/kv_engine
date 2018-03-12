@@ -51,7 +51,7 @@ const time_t memcached_check_system_time = 60;
 const time_t memcached_maximum_relative_time = 60*60*24*30;
 
 static std::atomic<rel_time_t> memcached_uptime(0);
-static volatile time_t memcached_epoch = 0;
+static std::atomic<time_t> memcached_epoch(0);
 static volatile uint64_t memcached_monotonic_start = 0;
 static struct event_base* main_ev_base = NULL;
 
@@ -114,7 +114,7 @@ static_assert(std::is_unsigned<rel_time_t>::value,
 rel_time_t mc_time_convert_to_real_time(rel_time_t t, cb::ExpiryLimit limit) {
     rel_time_t rv = 0;
 
-    int64_t epoch{memcached_epoch};
+    int64_t epoch{memcached_epoch.load()};
     int64_t uptime{memcached_uptime.load()};
 
     if (t > memcached_maximum_relative_time) { // t is absolute
@@ -245,14 +245,14 @@ void mc_time_clock_tick(void) {
                         "memcached_uptime = {}, new memcached_epoch = {}, "
                         "next check {}",
                         difference,
-                        memcached_epoch,
+                        memcached_epoch.load(),
                         memcached_uptime.load(),
                         (timeofday.tv_sec - memcached_uptime),
                         check_system_time + memcached_check_system_time);
             }
             /* adjust memcached_epoch to ensure correct timeofday can
                be calculated by clients*/
-            memcached_epoch = timeofday.tv_sec - memcached_uptime;
+            memcached_epoch.store(timeofday.tv_sec - memcached_uptime);
         }
 
         /* move our checksystem time marker to trigger the next check
