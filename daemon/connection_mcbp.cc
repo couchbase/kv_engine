@@ -972,10 +972,37 @@ void McbpConnection::runEventLoop(short which) {
     try {
         runStateMachinery();
     } catch (const std::exception& e) {
-        LOG_WARNING(
-                "{}: exception occurred in runloop - closing connection: {}",
-                getId(),
-                e.what());
+        bool logged = false;
+        if (getState() == McbpStateMachine::State::execute) {
+            try {
+                // Converting the cookie to json -> string could probably
+                // cause too much memory allcation. We don't want that to
+                // cause us to crash..
+                LOG_WARNING(
+                        "{}: exception occurred in runloop during packet "
+                        "execution. Cookie info: {} - closing connection: {}",
+                        getId(),
+                        to_string(getCookieObject().toJSON()),
+                        e.what());
+                logged = true;
+            } catch (const std::bad_alloc&) {
+                // none
+            }
+        }
+
+        if (!logged) {
+            try {
+                LOG_WARNING(
+                        "{}: exception occurred in runloop (state: \"{}\") - "
+                        "closing connection: {}",
+                        getId(),
+                        getStateName(),
+                        e.what());
+            } catch (const std::bad_alloc&) {
+                // Ditch logging.. just shut down the connection
+            }
+        }
+
         setState(McbpStateMachine::State::closing);
         /*
          * In addition to setting the state to conn_closing
@@ -986,11 +1013,15 @@ void McbpConnection::runEventLoop(short which) {
         try {
             runStateMachinery();
         } catch (const std::exception& e) {
-            LOG_WARNING(
-                    "{}: exception occurred in runloop whilst"
-                    " attempting to close connection: {}",
-                    getId(),
-                    e.what());
+            try {
+                LOG_WARNING(
+                        "{}: exception occurred in runloop whilst"
+                        " attempting to close connection: {}",
+                        getId(),
+                        e.what());
+            } catch (const std::bad_alloc&) {
+                // Drop logging
+            }
         }
     }
 
