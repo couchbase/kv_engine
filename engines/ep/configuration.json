@@ -485,7 +485,7 @@
             }
         },
         "max_checkpoints": {
-            "default": "100",
+            "default": "2",
             "type": "size_t"
         },
         "max_failover_entries": {
