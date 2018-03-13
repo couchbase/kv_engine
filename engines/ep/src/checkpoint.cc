@@ -1192,13 +1192,16 @@ bool CheckpointManager::queueDirty(
     uint64_t en = checkpointList.back()->getSnapshotEndSeqno();
     if (!(st <= static_cast<uint64_t>(lastBySeqno) &&
           static_cast<uint64_t>(lastBySeqno) <= en)) {
-        throw std::logic_error("CheckpointManager::queueDirty: lastBySeqno "
-                "not in snapshot range. vb:" + std::to_string(vb.getId()) +
-                " state:" + std::string(VBucket::toString(vb.getState())) +
-                " snapshotStart:" + std::to_string(st) +
-                " lastBySeqno:" + std::to_string(lastBySeqno) +
-                " snapshotEnd:" + std::to_string(en) +
-                " genSeqno:" + to_string(generateBySeqno));
+        throw std::logic_error(
+                "CheckpointManager::queueDirty: lastBySeqno "
+                "not in snapshot range. vb:" +
+                std::to_string(vb.getId()) + " state:" +
+                std::string(VBucket::toString(vb.getState())) +
+                " snapshotStart:" + std::to_string(st) + " lastBySeqno:" +
+                std::to_string(lastBySeqno) + " snapshotEnd:" +
+                std::to_string(en) + " genSeqno:" +
+                to_string(generateBySeqno) + " checkpointList.size():" +
+                std::to_string(checkpointList.size()));
     }
 
     // MB-27457: Timestamp deletes only when they don't already have a timestamp
