@@ -48,14 +48,7 @@ public:
      *         Stale - the authentication context is out of date
      */
     cb::rbac::PrivilegeAccess invoke(protocol_binary_command command,
-                                     Cookie& cookie) {
-        auto& chain = commandChains[command];
-        if (chain.empty()) {
-            return cb::rbac::PrivilegeAccess::Fail;
-        } else {
-            return chain.invoke(cookie);
-        }
-    }
+                                     Cookie& cookie);
 
 protected:
     /*

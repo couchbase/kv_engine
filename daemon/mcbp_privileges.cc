@@ -21,6 +21,27 @@
 
 using namespace cb::rbac;
 
+PrivilegeAccess McbpPrivilegeChains::invoke(protocol_binary_command command,
+                                            Cookie& cookie) {
+    auto& chain = commandChains[command];
+    if (chain.empty()) {
+        return cb::rbac::PrivilegeAccess::Fail;
+    } else {
+        try {
+            return chain.invoke(cookie);
+        } catch (const std::bad_function_call&) {
+            LOG_WARNING(
+                    "{}: bad_function_call caught while evaluating access "
+                    "control for opcode: {:x}",
+                    cookie.getConnection().getId(),
+                    command);
+            // Let the connection catch the exception and shut down the
+            // connection
+            throw;
+        }
+    }
+}
+
 template <Privilege T>
 static PrivilegeAccess require(Cookie& cookie) {
     return cookie.getConnection().checkPrivilege(T, cookie);
