@@ -66,6 +66,7 @@ function(add_unit_test_suite)
                      default_engine ep
                      ewouldblock_engine
                      memcached nobucket)
+    add_sanitizers(memcached-${arg_NAME}-tests)
 
     if (arg_ENGINE)
         add_test(NAME memcached-${arg_NAME}-${arg_ENGINE}-tests

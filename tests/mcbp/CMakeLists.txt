@@ -13,6 +13,8 @@ add_executable(memcached_mcbp_test
                xattr_key_validator_test.cc
                ${PROJECT_SOURCE_DIR}/protocol/connection/client_mcbp_commands.cc)
 target_link_libraries(memcached_mcbp_test memcached_daemon platform gtest)
+add_sanitizers(memcached_mcbp_test)
+
 add_test(NAME memcached_mcbp_test COMMAND memcached_mcbp_test)
 
 # GTest can be slow to compile (due to all the template / macro

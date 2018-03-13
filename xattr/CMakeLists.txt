@@ -11,6 +11,7 @@ TARGET_LINK_LIBRARIES(xattr cbcompress cJSON platform)
 GENERATE_EXPORT_HEADER(xattr
                        EXPORT_MACRO_NAME XATTR_PUBLIC_API
                        EXPORT_FILE_NAME ${PROJECT_BINARY_DIR}/include/xattr/visibility.h)
+add_sanitizers(xattr)
 
 INSTALL(TARGETS xattr
         RUNTIME DESTINATION bin

@@ -26,6 +26,7 @@ add_library(mcd_util SHARED
 target_link_libraries(mcd_util memcached_logger engine_utilities platform
                       ${BREAKPAD_LIBRARIES})
 set_target_properties(mcd_util PROPERTIES SOVERSION 1.0.0)
+add_sanitizers(mcd_util)
 
 generate_export_header(mcd_util
                        EXPORT_MACRO_NAME MCD_UTIL_PUBLIC_API

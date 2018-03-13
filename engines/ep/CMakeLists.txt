@@ -248,6 +248,7 @@ ADD_LIBRARY(ep_objs OBJECT
             ${ROCKSDB_KVSTORE_SOURCE}
             ${COLLECTIONS_SOURCE})
 SET_PROPERTY(TARGET ep_objs PROPERTY POSITION_INDEPENDENT_CODE 1)
+add_sanitizers(ep_objs)
 
 ADD_LIBRARY(ep SHARED $<TARGET_OBJECTS:ep_objs>)
 
@@ -256,6 +257,7 @@ TARGET_LINK_LIBRARIES(ep cJSON JSON_checker ${EP_STORAGE_LIBS}
                       engine_utilities dirutils cbcompress hdr_histogram_static
                       mcd_util platform phosphor xattr mcd_tracing
                       ${LIBEVENT_LIBRARIES})
+add_sanitizers(ep)
 
 if (COUCHBASE_KV_BUILD_UNIT_TESTS)
     # Single executable containing all class-level unit tests involving
@@ -330,6 +332,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                           dirutils engine_utilities gtest gmock hdr_histogram_static
                           JSON_checker memcached_logger mcd_util mcd_tracing platform
                           phosphor xattr cbcompress ${MALLOC_LIBRARIES})
+    add_sanitizers(ep-engine_ep_unit_tests)
 
     ADD_EXECUTABLE(ep-engine_atomic_ptr_test
                    tests/module_tests/atomic_ptr_test.cc
@@ -397,6 +400,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                                tests
                                benchmarks
                                ${Couchstore_SOURCE_DIR})
+    add_sanitizers(ep_engine_benchmarks)
 
     ADD_TEST(NAME ep-engine_atomic_ptr_test COMMAND ep-engine_atomic_ptr_test)
     ADD_TEST(NAME ep-engine_couch-fs-stats_test COMMAND ep-engine_couch-fs-stats_test)
@@ -412,6 +416,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
     TARGET_LINK_LIBRARIES(ep-engine_sizes cJSON JSON_checker hdr_histogram_static
                           engine_utilities ${EP_STORAGE_LIBS} dirutils cbcompress platform mcd_util
                           mcd_tracing phosphor xattr ${LIBEVENT_LIBRARIES})
+    add_sanitizers(ep-engine_sizes)
 
     ADD_LIBRARY(ep_testsuite SHARED
                 tests/ep_testsuite.cc

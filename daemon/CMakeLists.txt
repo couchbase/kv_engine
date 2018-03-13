@@ -223,9 +223,11 @@ TARGET_LINK_LIBRARIES(memcached_daemon
                       ${COUCHBASE_NETWORK_LIBS}
                       ${NUMA_LIBRARIES}
                       ${MEMCACHED_EXTRA_LIBS})
+add_sanitizers(memcached_daemon)
 
 ADD_EXECUTABLE(memcached main.cc)
 TARGET_LINK_LIBRARIES(memcached memcached_daemon)
+add_sanitizers(memcached)
 
 IF (ENABLE_DTRACE)
     ADD_DEPENDENCIES(memcached_daemon generate_memcached_dtrace_h)

@@ -10,6 +10,7 @@ set_target_properties(memcached_logger PROPERTIES SOVERSION 1.0.0)
 generate_export_header(memcached_logger
                        EXPORT_MACRO_NAME LOGGER_PUBLIC_API
                        EXPORT_FILE_NAME ${PROJECT_BINARY_DIR}/include/logger/visibility.h)
+add_sanitizers(memcached_logger)
 
 install(TARGETS memcached_logger
         RUNTIME DESTINATION bin
