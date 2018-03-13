@@ -145,6 +145,8 @@ public:
     Counter totalPersistVBState;
     //! Cumulative number of items added to the queue.
     Counter totalEnqueued;
+    //! Cumulative count of items de-duplicated when queued to CheckpointManager
+    Counter totalDeduplicated;
     //! Number of times an item flush failed.
     Counter flushFailed;
     //! Number of times an item is not flushed due to the item's expiry

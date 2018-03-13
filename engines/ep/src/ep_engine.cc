@@ -2661,6 +2661,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
 
     add_casted_stat("ep_total_enqueued",
                     epstats.totalEnqueued, add_stat, cookie);
+    add_casted_stat("ep_total_deduplicated",
+                    epstats.totalDeduplicated,
+                    add_stat,
+                    cookie);
     add_casted_stat("ep_expired_access", epstats.expired_access,
                     add_stat, cookie);
     add_casted_stat("ep_expired_compactor", epstats.expired_compactor,

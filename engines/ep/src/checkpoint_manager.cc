@@ -724,11 +724,17 @@ bool CheckpointManager::queueDirty(
         ++numItems;
     }
 
-    if (result != queue_dirty_t::EXISTING_ITEM) {
-        updateStatsForNewQueuedItem_UNLOCKED(lh, vb, qi);
+    switch (result) {
+        case queue_dirty_t::EXISTING_ITEM:
+            ++stats.totalDeduplicated;
+            return false;
+        case queue_dirty_t::PERSIST_AGAIN:
+        case queue_dirty_t::NEW_ITEM:
+            updateStatsForNewQueuedItem_UNLOCKED(lh, vb, qi);
+            return true;
     }
-
-    return result != queue_dirty_t::EXISTING_ITEM;
+    throw std::logic_error("queueDirty: Invalid value for queue_dirty_t: " +
+                           std::to_string(int(result)));
 }
 
 void CheckpointManager::queueSetVBState(VBucket& vb) {
