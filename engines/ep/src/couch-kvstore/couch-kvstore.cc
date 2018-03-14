@@ -269,12 +269,10 @@ CouchKVStore::CouchKVStore(KVStoreConfig& config)
 CouchKVStore::CouchKVStore(KVStoreConfig& config,
                            FileOpsInterface& ops,
                            bool readOnly,
-                           std::vector<MonotonicRevision>& dbFileRevMap,
-                           size_t fileRevMapSize)
+                           std::shared_ptr<RevisionMap> dbFileRevMap)
     : KVStore(config, readOnly),
       dbname(config.getDBName()),
       dbFileRevMap(dbFileRevMap),
-      fileRevMap(fileRevMapSize),
       intransaction(false),
       scanCounter(0),
       logger(config.getLogger()),
@@ -302,8 +300,7 @@ CouchKVStore::CouchKVStore(KVStoreConfig& config, FileOpsInterface& ops)
     : CouchKVStore(config,
                    ops,
                    false /*readonly*/,
-                   fileRevMap,
-                   config.getMaxVBuckets()) {
+                   std::make_shared<RevisionMap>(config.getMaxVBuckets())) {
 }
 
 /**
@@ -312,16 +309,15 @@ CouchKVStore::CouchKVStore(KVStoreConfig& config, FileOpsInterface& ops)
 std::unique_ptr<CouchKVStore> CouchKVStore::makeReadOnlyStore() {
     // Not using make_unique due to the private constructor we're calling
     return std::unique_ptr<CouchKVStore>(
-            new CouchKVStore(configuration, fileRevMap));
+            new CouchKVStore(configuration, dbFileRevMap));
 }
 
 CouchKVStore::CouchKVStore(KVStoreConfig& config,
-                           std::vector<MonotonicRevision>& dbFileRevMap)
+                           std::shared_ptr<RevisionMap> dbFileRevMap)
     : CouchKVStore(config,
                    *couchstore_get_default_file_ops(),
                    true /*readonly*/,
-                   dbFileRevMap,
-                   0) {
+                   dbFileRevMap) {
 }
 
 void CouchKVStore::initialize() {
@@ -381,7 +377,7 @@ void CouchKVStore::reset(uint16_t vbucketId) {
         // pending delete doesn't delete us. Note that the expectation is that
         // some higher level per VB lock is required to prevent data-races here.
         // KVBucket::vb_mutexes is used in this case.
-        unlinkCouchFile(vbucketId, dbFileRevMap[vbucketId]);
+        unlinkCouchFile(vbucketId, (*dbFileRevMap)[vbucketId]);
         incrementRevision(vbucketId);
 
         setVBucketState(
@@ -405,7 +401,7 @@ void CouchKVStore::set(const Item& itm,
 
     bool deleteItem = false;
     MutationRequestCallback requestcb;
-    uint64_t fileRev = dbFileRevMap[itm.getVBucketId()];
+    uint64_t fileRev = (*dbFileRevMap)[itm.getVBucketId()];
 
     // each req will be de-allocated after commit
     requestcb.setCb = &cb;
@@ -575,7 +571,7 @@ void CouchKVStore::del(const Item& itm, Callback<TransactionContext, int>& cb) {
                         "true to perform a delete operation.");
     }
 
-    uint64_t fileRev = dbFileRevMap[itm.getVBucketId()];
+    uint64_t fileRev = (*dbFileRevMap)[itm.getVBucketId()];
     MutationRequestCallback requestcb;
     requestcb.delCb = &cb;
     CouchRequest* req =
@@ -1477,7 +1473,7 @@ void CouchKVStore::updateDbFileMap(uint16_t vbucketId, uint64_t newFileRev) {
     // by the time it hits sys_open.
     std::lock_guard<cb::WriterLock> lg(openDbMutex);
 
-    dbFileRevMap[vbucketId] = newFileRev;
+    (*dbFileRevMap)[vbucketId] = newFileRev;
 }
 
 couchstore_error_t CouchKVStore::openDB(uint16_t vbucketId,
@@ -1488,7 +1484,7 @@ couchstore_error_t CouchKVStore::openDB(uint16_t vbucketId,
     // serialises on this mutex so we can be sure the fileRev we read should
     // still be a valid file once we hit sys_open
     std::lock_guard<cb::ReaderLock> lg(openDbMutex);
-    uint64_t fileRev = dbFileRevMap[vbucketId];
+    uint64_t fileRev = (*dbFileRevMap)[vbucketId];
     return openSpecificDB(vbucketId, fileRev, db, options, ops);
 }
 
@@ -1581,11 +1577,11 @@ void CouchKVStore::populateFileNameMap(std::vector<std::string> &filenames,
             if (vbids) {
                 vbids->push_back(static_cast<uint16_t>(vbId));
             }
-            uint64_t old_rev_num = dbFileRevMap[vbId];
+            uint64_t old_rev_num = (*dbFileRevMap)[vbId];
             if (old_rev_num == revNum) {
                 continue;
             } else if (old_rev_num < revNum) { // stale revision found
-                dbFileRevMap[vbId] = revNum;
+                (*dbFileRevMap)[vbId] = revNum;
             } else { // stale file found (revision id has rolled over)
                 old_rev_num = revNum;
             }
@@ -2770,7 +2766,7 @@ void CouchKVStore::unlinkCouchFile(uint16_t vbucket,
 }
 
 void CouchKVStore::removeCompactFile(const std::string& dbname, uint16_t vbid) {
-    std::string dbfile = getDBFileName(dbname, vbid, dbFileRevMap[vbid]);
+    std::string dbfile = getDBFileName(dbname, vbid, (*dbFileRevMap)[vbid]);
     std::string compact_file = dbfile + ".compact";
 
     if (!isReadOnly()) {
@@ -2821,7 +2817,7 @@ std::string CouchKVStore::getCollectionsManifest(uint16_t vbid) {
 }
 
 void CouchKVStore::incrementRevision(uint16_t vbid) {
-    dbFileRevMap[vbid]++;
+    (*dbFileRevMap)[vbid]++;
 }
 
 uint64_t CouchKVStore::prepareToDelete(uint16_t vbid) {
@@ -2831,7 +2827,7 @@ uint64_t CouchKVStore::prepareToDelete(uint16_t vbid) {
     cachedDeleteCount[vbid] = 0;
     cachedFileSize[vbid] = 0;
     cachedSpaceUsed[vbid] = 0;
-    return dbFileRevMap[vbid];
+    return (*dbFileRevMap)[vbid];
 }
 
 /* end of couch-kvstore.cc */

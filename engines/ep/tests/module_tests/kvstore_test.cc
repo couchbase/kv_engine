@@ -1168,7 +1168,7 @@ public:
 
         bool deleteItem = false;
         MutationRequestCallback requestcb;
-        uint64_t fileRev = dbFileRevMap[itm.getVBucketId()];
+        uint64_t fileRev = (*dbFileRevMap)[itm.getVBucketId()];
 
         // each req will be de-allocated after commit
         requestcb.setCb = &cb;

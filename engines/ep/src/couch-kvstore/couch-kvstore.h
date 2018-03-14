@@ -626,18 +626,16 @@ protected:
     const std::string dbname;
 
     using MonotonicRevision = AtomicMonotonic<uint64_t, ThrowExceptionPolicy>;
-    /**
-     * Per-vbucket file revision atomic to ensure writer threads see increments.
-     * This is a reference of the real vector which there should be one per
-     * RW/RO pair.
-     */
-    std::vector<MonotonicRevision>& dbFileRevMap;
+
+    using RevisionMap = std::vector<MonotonicRevision>;
 
     /**
-     * The RW couch-kvstore owns the fileRevMap and passes a reference to it's
-     * RO sibling.
+     * Per-vbucket file revision atomic to ensure writer threads see increments.
+     *
+     * Owned via a shared_ptr, as there should be a single RevisionMap per
+     * RW/RO pair.
      */
-    std::vector<MonotonicRevision> fileRevMap;
+    std::shared_ptr<RevisionMap> dbFileRevMap;
 
     /**
      * An internal rwlock used to keep openDB and compaction in sync
@@ -697,29 +695,24 @@ private:
      * @param config configuration data for the store
      * @param ops the file ops to use
      * @param readOnly true if the store can only do read functionality
-     * @param dbFileRevMap a reference to the map (which should be data owned by
+     * @param dbFileRevMap a revisionMap to use (which should be data owned by
      *        the RW store).
-     * @param fileRevMapSize how big to make the fileRevMap. E.g. when the
-     *        read-only constructor is called, it doesn't need to resize the map
-     *        as it will use a reference to the RW store's map, so 0 would be
-     *        passed.
      */
     CouchKVStore(KVStoreConfig& config,
                  FileOpsInterface& ops,
                  bool readOnly,
-                 std::vector<MonotonicRevision>& dbFileRevMap,
-                 size_t fileRevMapSize);
+                 std::shared_ptr<RevisionMap> dbFileRevMap);
 
     /**
      * Construct a read-only store - private as should be called via
      * CouchKVStore::makeReadOnlyStore
      *
      * @param config configuration data for the store
-     * @param dbFileRevMap a reference to the map (which should be data owned by
-     *        the RW store).
+     * @param dbFileRevMap The revisionMap to use (which should be intially
+     * created owned by the RW store).
      */
     CouchKVStore(KVStoreConfig& config,
-                 std::vector<MonotonicRevision>& dbFileRevMap);
+                 std::shared_ptr<RevisionMap> dbFileRevMap);
 
     /**
      * RAII holder for a couchstore LocalDoc object
