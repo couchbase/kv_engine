@@ -197,6 +197,8 @@ EPBucket::EPBucket(EventuallyPersistentEngine& theEngine)
     replicationThrottle = std::make_unique<ReplicationThrottle>(
             engine.getConfiguration(), stats);
 
+    vbMap.enablePersistence(*this);
+
     flusherBatchSplitTrigger = config.getFlusherBatchSplitTrigger();
     config.addValueChangedListener(
             "flusher_batch_split_trigger",

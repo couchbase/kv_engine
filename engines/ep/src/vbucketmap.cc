@@ -29,7 +29,7 @@ VBucketMap::VBucketMap(Configuration& config, KVBucket& store)
     : size(config.getMaxVbuckets()) {
     WorkLoadPolicy &workload = store.getEPEngine().getWorkLoadPolicy();
     for (size_t shardId = 0; shardId < workload.getNumShards(); shardId++) {
-        shards.push_back(std::make_unique<KVShard>(shardId, store));
+        shards.push_back(std::make_unique<KVShard>(shardId, config));
     }
 
     config.addValueChangedListener(
@@ -63,6 +63,12 @@ ENGINE_ERROR_CODE VBucketMap::addBucket(VBucketPtr vb) {
         vb->getId(),
         size);
     return ENGINE_ERANGE;
+}
+
+void VBucketMap::enablePersistence(EPBucket& ep) {
+    for (auto& shard : shards) {
+        shard->enablePersistence(ep);
+    }
 }
 
 void VBucketMap::dropVBucketAndSetupDeferredDeletion(id_type id,

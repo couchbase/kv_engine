@@ -31,20 +31,18 @@
 #endif
 
 /* [EPHE TODO]: Consider not using KVShard for ephemeral bucket */
-KVShard::KVShard(uint16_t id, KVBucket& kvBucket)
-    : vbuckets(kvBucket.getEPEngine().getConfiguration().getMaxVbuckets()),
-      highPriorityCount(0) {
-    auto& epConfig = kvBucket.getEPEngine().getConfiguration();
-    const std::string backend = epConfig.getBackend();
+KVShard::KVShard(uint16_t id, Configuration& config)
+    : vbuckets(config.getMaxVbuckets()), highPriorityCount(0) {
+    const std::string backend = config.getBackend();
     if (backend == "couchdb") {
-        kvConfig = std::make_unique<KVStoreConfig>(epConfig, id);
+        kvConfig = std::make_unique<KVStoreConfig>(config, id);
         auto stores = KVStoreFactory::create(*kvConfig);
         rwStore = std::move(stores.rw);
         roStore = std::move(stores.ro);
     }
 #ifdef EP_USE_ROCKSDB
     else if (backend == "rocksdb") {
-        kvConfig = std::make_unique<RocksDBKVStoreConfig>(epConfig, id);
+        kvConfig = std::make_unique<RocksDBKVStoreConfig>(config, id);
         auto stores = KVStoreFactory::create(*kvConfig);
         rwStore = std::move(stores.rw);
     }
@@ -55,16 +53,11 @@ KVShard::KVShard(uint16_t id, KVBucket& kvBucket)
                 "Invalid backend type '" +
                 backend + "'");
     }
+}
 
-    if (kvBucket.getEPEngine().getConfiguration().getBucketType() ==
-        "persistent") {
-        // Ideally this should be dynamic_cast; however when the KVShard
-        // constructor runs it's still in the context of EPBucket's constructor
-        // and hence we cannot dynamic_cast<> yet...
-        auto& ep = static_cast<EPBucket&>(kvBucket);
-        flusher = std::make_unique<Flusher>(&ep, this);
-        bgFetcher = std::make_unique<BgFetcher>(kvBucket, *this);
-    }
+void KVShard::enablePersistence(EPBucket& ep) {
+    flusher = std::make_unique<Flusher>(&ep, this);
+    bgFetcher = std::make_unique<BgFetcher>(ep, *this);
 }
 
 // Non-inline destructor so we can destruct
