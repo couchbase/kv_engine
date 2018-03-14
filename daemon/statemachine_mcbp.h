@@ -16,7 +16,7 @@
  */
 #pragma once
 
-class McbpConnection;
+class Connection;
 
 /**
  * The state machinery for the Memcached Binary Protocol.
@@ -155,7 +155,7 @@ public:
 
     McbpStateMachine() = delete;
 
-    explicit McbpStateMachine(McbpConnection& connection_)
+    explicit McbpStateMachine(Connection& connection_)
         : currentState(State::new_cmd), connection(connection_) {
     }
 
@@ -200,5 +200,5 @@ public:
 
 protected:
     State currentState;
-    McbpConnection& connection;
+    Connection& connection;
 };

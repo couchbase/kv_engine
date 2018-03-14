@@ -140,7 +140,7 @@ bool mcbp_response_handler(const void* key, uint16_t keylen,
     auto* ccookie = reinterpret_cast<const Cookie*>(void_cookie);
     auto* cookie = const_cast<Cookie*>(ccookie);
 
-    McbpConnection* c = &cookie->getConnection();
+    Connection* c = &cookie->getConnection();
     cb::compression::Buffer buffer;
     cb::const_char_buffer payload(static_cast<const char*>(body), bodylen);
 

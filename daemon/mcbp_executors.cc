@@ -825,7 +825,7 @@ void mcbp_execute_packet(Cookie& cookie) {
     }
 }
 
-void try_read_mcbp_command(McbpConnection& c) {
+void try_read_mcbp_command(Connection& c) {
     auto input = c.read->rdata();
     if (input.size() < sizeof(cb::mcbp::Request)) {
         throw std::logic_error(

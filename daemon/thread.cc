@@ -212,7 +212,7 @@ static void worker_libevent(void *arg) {
     ERR_remove_state(0);
 }
 
-static int number_of_pending(Connection *c, Connection *list) {
+static int number_of_pending(Connection* c, Connection* list) {
     int rv = 0;
     for (; list; list = list->getNext()) {
         if (list == c) {
@@ -299,23 +299,20 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
         pending = pending->getNext();
         c->setNext(nullptr);
 
-        auto *mcbp = dynamic_cast<McbpConnection*>(c);
-        if (mcbp != nullptr) {
-            if (c->getSocketDescriptor() != INVALID_SOCKET &&
-                !mcbp->isRegisteredInLibevent()) {
-                /* The socket may have been shut down while we're looping */
-                /* in delayed shutdown */
-                mcbp->registerEvent();
-            }
-
-            /*
-             * We don't want the thread to keep on serving all of the data
-             * from the context of the notification pipe, so just let it
-             * run one time to set up the correct mask in libevent
-             */
-            mcbp->setNumEvents(1);
+        if (c->getSocketDescriptor() != INVALID_SOCKET &&
+            !c->isRegisteredInLibevent()) {
+            /* The socket may have been shut down while we're looping */
+            /* in delayed shutdown */
+            c->registerEvent();
         }
-        run_event_loop(c, EV_READ|EV_WRITE);
+
+        /*
+         * We don't want the thread to keep on serving all of the data
+         * from the context of the notification pipe, so just let it
+         * run one time to set up the correct mask in libevent
+         */
+        c->setNumEvents(1);
+        run_event_loop(c, EV_READ | EV_WRITE);
     }
 
     /*
@@ -343,7 +340,7 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
 
 extern volatile rel_time_t current_time;
 
-static bool has_cycle(Connection *c) {
+static bool has_cycle(Connection* c) {
     Connection *slowNode, *fastNode1, *fastNode2;
 
     if (!c) {
@@ -360,7 +357,7 @@ static bool has_cycle(Connection *c) {
     return false;
 }
 
-bool list_contains(Connection *haystack, Connection *needle) {
+bool list_contains(Connection* haystack, Connection* needle) {
     for (; haystack; haystack = haystack->getNext()) {
         if (needle == haystack) {
             return true;
@@ -369,13 +366,13 @@ bool list_contains(Connection *haystack, Connection *needle) {
     return false;
 }
 
-Connection * list_remove(Connection *haystack, Connection *needle) {
+Connection* list_remove(Connection* haystack, Connection* needle) {
     if (!haystack) {
         return NULL;
     }
 
     if (haystack == needle) {
-        Connection *rv = needle->getNext();
+        Connection* rv = needle->getNext();
         needle->setNext(nullptr);
         return rv;
     }
@@ -385,7 +382,7 @@ Connection * list_remove(Connection *haystack, Connection *needle) {
     return haystack;
 }
 
-static void enlist_conn(Connection *c, Connection **list) {
+static void enlist_conn(Connection* c, Connection** list) {
     LIBEVENT_THREAD *thr = c->getThread();
     cb_assert(list == &thr->pending_io);
     cb_assert(!list_contains(thr->pending_io, c));
@@ -573,7 +570,7 @@ void notify_thread(LIBEVENT_THREAD& thread) {
     }
 }
 
-int add_conn_to_pending_io_list(Connection *c) {
+int add_conn_to_pending_io_list(Connection* c) {
     int notify = 0;
     auto thread = c->getThread();
     if (number_of_pending(c, thread->pending_io) == 0) {

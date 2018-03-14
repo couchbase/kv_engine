@@ -282,7 +282,7 @@ struct stats {
 };
 
 class Connection;
-struct thread_stats *get_thread_stats(Connection *c);
+struct thread_stats* get_thread_stats(Connection* c);
 
 /*
  *  Macros for managing statistics inside memcached

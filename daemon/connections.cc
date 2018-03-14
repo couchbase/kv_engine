@@ -46,18 +46,18 @@ enum class BufferLoan {
 
 /** Function prototypes ******************************************************/
 
-static BufferLoan loan_single_buffer(McbpConnection& c,
+static BufferLoan loan_single_buffer(Connection& c,
                                      std::unique_ptr<cb::Pipe>& thread_buf,
                                      std::unique_ptr<cb::Pipe>& conn_buf);
-static void maybe_return_single_buffer(McbpConnection& c,
+static void maybe_return_single_buffer(Connection& c,
                                        std::unique_ptr<cb::Pipe>& thread_buf,
                                        std::unique_ptr<cb::Pipe>& conn_buf);
-static void conn_destructor(Connection *c);
-static Connection *allocate_connection(SOCKET sfd,
-                                       event_base *base,
-                                       const ListeningPort &interface);
+static void conn_destructor(Connection* c);
+static Connection* allocate_connection(SOCKET sfd,
+                                       event_base* base,
+                                       const ListeningPort& interface);
 
-static void release_connection(Connection *c);
+static void release_connection(Connection* c);
 
 /** External functions *******************************************************/
 int signal_idle_clients(LIBEVENT_THREAD *me, int bucket_idx, bool logging)
@@ -93,8 +93,7 @@ void iterate_thread_connections(LIBEVENT_THREAD* thread,
     }
 }
 
-void destroy_connections(void)
-{
+void destroy_connections() {
     std::lock_guard<std::mutex> lock(connections.mutex);
     /* traverse the list of connections. */
     for (auto* c : connections.conns) {
@@ -103,8 +102,7 @@ void destroy_connections(void)
     connections.conns.clear();
 }
 
-void close_all_connections(void)
-{
+void close_all_connections() {
     /* traverse the list of connections. */
     {
         std::lock_guard<std::mutex> lock(connections.mutex);
@@ -115,12 +113,7 @@ void close_all_connections(void)
             }
 
             if (c->getRefcount() > 1) {
-                auto* mcbp = dynamic_cast<McbpConnection*>(c);
-                if (mcbp == nullptr) {
-                    abort();
-                } else {
-                    perform_callbacks(ON_DISCONNECT, NULL, mcbp);
-                }
+                perform_callbacks(ON_DISCONNECT, NULL, c);
             }
         }
     }
@@ -212,7 +205,7 @@ Connection* conn_new(const SOCKET sfd, in_port_t parent_port,
     return c;
 }
 
-void conn_close(McbpConnection& connection) {
+void conn_close(Connection& connection) {
     if (!connection.isSocketClosed()) {
         throw std::logic_error("conn_cleanup: socketDescriptor must be closed");
     }
@@ -291,9 +284,7 @@ void dump_connection_stat_signal_handler(evutil_socket_t, short, void *) {
 }
 #endif
 
-
-void conn_loan_buffers(Connection *connection) {
-    auto *c = dynamic_cast<McbpConnection*>(connection);
+void conn_loan_buffers(Connection* c) {
     if (c == nullptr) {
         return;
     }
@@ -324,8 +315,7 @@ void conn_loan_buffers(Connection *connection) {
     }
 }
 
-void conn_return_buffers(Connection *connection) {
-    auto *c = dynamic_cast<McbpConnection*>(connection);
+void conn_return_buffers(Connection* c) {
     if (c == nullptr) {
         return;
     }
@@ -351,7 +341,7 @@ void conn_return_buffers(Connection *connection) {
 /**
  * Destructor for all connection objects. Release all allocated resources.
  */
-static void conn_destructor(Connection *c) {
+static void conn_destructor(Connection* c) {
     delete c;
     stats.conn_structs--;
 }
@@ -360,13 +350,13 @@ static void conn_destructor(Connection *c) {
  *  list. Returns a pointer to the newly-allocated connection if successful,
  *  else NULL.
  */
-static Connection *allocate_connection(SOCKET sfd,
-                                       event_base *base,
-                                       const ListeningPort &interface) {
-    Connection *ret = nullptr;
+static Connection* allocate_connection(SOCKET sfd,
+                                       event_base* base,
+                                       const ListeningPort& interface) {
+    Connection* ret = nullptr;
 
     try {
-        ret = new McbpConnection(sfd, base, interface);
+        ret = new Connection(sfd, base, interface);
         std::lock_guard<std::mutex> lock(connections.mutex);
         connections.conns.push_back(ret);
         stats.conn_structs++;
@@ -386,7 +376,7 @@ static Connection *allocate_connection(SOCKET sfd,
 /** Release a connection; removing it from the connection list management
  *  and freeing the Connection object.
  */
-static void release_connection(Connection *c) {
+static void release_connection(Connection* c) {
     {
         std::lock_guard<std::mutex> lock(connections.mutex);
         auto iter = std::find(connections.conns.begin(), connections.conns.end(), c);
@@ -404,7 +394,7 @@ static void release_connection(Connection *c) {
  * it does by either loaning out the threads, or allocating a new one if
  * necessary.
  */
-static BufferLoan loan_single_buffer(McbpConnection& c,
+static BufferLoan loan_single_buffer(Connection& c,
                                      std::unique_ptr<cb::Pipe>& thread_buf,
                                      std::unique_ptr<cb::Pipe>& conn_buf) {
     /* Already have a (partial) buffer - nothing to do. */
@@ -437,7 +427,7 @@ static BufferLoan loan_single_buffer(McbpConnection& c,
     return BufferLoan::Allocated;
 }
 
-static void maybe_return_single_buffer(McbpConnection& c,
+static void maybe_return_single_buffer(Connection& c,
                                        std::unique_ptr<cb::Pipe>& thread_buf,
                                        std::unique_ptr<cb::Pipe>& conn_buf) {
     if (conn_buf && conn_buf->empty()) {

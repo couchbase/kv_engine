@@ -171,7 +171,6 @@ extern void notify_thread(LIBEVENT_THREAD& thread);
 extern void notify_dispatcher();
 
 #include "connection.h"
-#include "connection_mcbp.h"
 
 extern std::vector<TimingHistogram> scheduler_info;
 
@@ -216,10 +215,10 @@ void notify_io_complete(gsl::not_null<const void*> cookie,
 void safe_close(SOCKET sfd);
 
 /* Number of times this connection is in the given pending list */
-bool list_contains(Connection *h, Connection *n);
-Connection *list_remove(Connection *h, Connection *n);
+bool list_contains(Connection* h, Connection* n);
+Connection* list_remove(Connection* h, Connection* n);
 
-int add_conn_to_pending_io_list(Connection *c);
+int add_conn_to_pending_io_list(Connection* c);
 
 void event_handler(evutil_socket_t fd, short which, void *arg);
 void listen_event_handler(evutil_socket_t, short, void *);
@@ -250,13 +249,13 @@ void threads_initiate_bucket_deletion();
 
 SERVER_HANDLE_V1* get_server_api();
 
-void shutdown_server(void);
+void shutdown_server();
 bool associate_bucket(Connection& connection, const char* name);
 void disassociate_bucket(Connection& connection);
 
 void disable_listen();
-bool is_listen_disabled(void);
-uint64_t get_listen_disabled_num(void);
+bool is_listen_disabled();
+uint64_t get_listen_disabled_num();
 
 /**
  * The executor pool used to pick up the result for requests spawn by the

@@ -187,7 +187,6 @@ public:
     ClusterConfiguration clusterConfiguration;
 };
 
-class Connection;
 /**
  * Get the name of the associated bucket. Note that this function must
  * only be called while the current connection is being served (otherwise

@@ -403,7 +403,7 @@ static void stats_init(void) {
     stats.curr_conns.store(0, std::memory_order_relaxed);
 }
 
-struct thread_stats *get_thread_stats(Connection *c) {
+struct thread_stats* get_thread_stats(Connection* c) {
     cb_assert(c->getThread()->index < (settings.getNumWorkerThreads() + 1));
     auto& independent_stats = all_buckets[c->getBucketIndex()].stats;
     return &independent_stats.at(c->getThread()->index);
@@ -886,7 +886,7 @@ bool is_bucket_dying(Connection& c) {
 }
 
 void event_handler(evutil_socket_t fd, short which, void *arg) {
-    auto *c = reinterpret_cast<Connection *>(arg);
+    auto* c = reinterpret_cast<Connection*>(arg);
     if (c == nullptr) {
         LOG_WARNING("event_handler: connection must be non-NULL");
         return;
@@ -922,10 +922,7 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
     cb_assert(fd == c->getSocketDescriptor());
 
     if ((which & EV_TIMEOUT) == EV_TIMEOUT) {
-        auto* mcbp = dynamic_cast<McbpConnection*>(c);
-
-        if (mcbp != nullptr && (c->isInternal() || c->isDCP())) {
-            auto* mcbp = dynamic_cast<McbpConnection*>(c);
+        if (c->isInternal() || c->isDCP()) {
             if (c->isInternal()) {
                 LOG_INFO("{}: Timeout for admin connection. (ignore)",
                          c->getId());
@@ -933,7 +930,7 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
                 LOG_INFO("{}: Timeout for DCP connection. (ignore)",
                          c->getId());
             }
-            if (!mcbp->reapplyEventmask()) {
+            if (!c->reapplyEventmask()) {
                 c->initiateShutdown();
             }
         } else {
@@ -1536,7 +1533,7 @@ static ENGINE_ERROR_CODE release_cookie(
         gsl::not_null<const void*> void_cookie) {
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
 
-    Connection* c = &cookie->getConnection();
+    auto* c = &cookie->getConnection();
     int notify;
     LIBEVENT_THREAD *thr;
 
@@ -1916,7 +1913,7 @@ void DestroyBucketThread::destroy() {
     ENGINE_ERROR_CODE ret = ENGINE_KEY_ENOENT;
     std::unique_lock<std::mutex> all_bucket_lock(buckets_lock);
 
-    McbpConnection* connection = nullptr;
+    Connection* connection = nullptr;
     if (cookie != nullptr) {
         connection = &cookie->getConnection();
     }

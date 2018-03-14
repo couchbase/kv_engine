@@ -21,7 +21,7 @@
 
 #include "subdocument_validators.h"
 #include <include/memcached/protocol_binary.h>
-#include "connection_mcbp.h"
+#include "connection.h"
 #include "subdocument_traits.h"
 
 #include "xattr/key_validator.h"

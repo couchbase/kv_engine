@@ -23,7 +23,7 @@
 
 #include "config.h"
 
-#include <daemon/connection_mcbp.h>
+#include <daemon/connection.h>
 #include <daemon/mcbp_validators.h>
 #include <daemon/stats.h>
 #include <gtest/gtest.h>
@@ -52,9 +52,9 @@ protected:
      * Create a mock connection which doesn't own a socket and isn't bound
      * to libevent
      */
-    class MockConnection : public McbpConnection {
+    class MockConnection : public Connection {
     public:
-        MockConnection() : McbpConnection() {
+        MockConnection() : Connection() {
         }
     };
     MockConnection connection;

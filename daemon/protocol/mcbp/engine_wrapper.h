@@ -30,8 +30,8 @@
  * some point.
  */
 
+#include <daemon/connection.h>
 #include <memcached/engine_error.h>
-#include <daemon/connection_mcbp.h>
 
 ENGINE_ERROR_CODE bucket_unknown_command(Cookie& cookie, ADD_RESPONSE response);
 

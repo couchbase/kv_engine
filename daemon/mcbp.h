@@ -22,7 +22,7 @@
  */
 
 #include <memcached/protocol_binary.h>
-#include "connection_mcbp.h"
+#include "connection.h"
 #include "protocol/mcbp/engine_errc_2_mcbp.h"
 
 /**

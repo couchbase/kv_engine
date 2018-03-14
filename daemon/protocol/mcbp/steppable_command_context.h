@@ -23,7 +23,7 @@
 #include "command_context.h"
 
 // Forward declaration
-class McbpConnection;
+class Connection;
 class Cookie;
 
 /**
@@ -73,5 +73,5 @@ protected:
      * The connection this command context is bound to (deprecated, and
      * should be removed (it is part of the cookie))
      */
-    McbpConnection& connection;
+    Connection& connection;
 };

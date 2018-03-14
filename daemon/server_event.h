@@ -27,8 +27,7 @@ class Connection;
  */
 class ServerEvent {
 public:
-    virtual ~ServerEvent() {
-    }
+    virtual ~ServerEvent() = default;
 
     /**
      * Get a textual description of the event type (used for debugging

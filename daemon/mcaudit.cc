@@ -78,7 +78,7 @@ void setEnabled(uint32_t id, bool enable) {
  * @param c the connection object
  * @return the cJSON object containing the basic information
  */
-static unique_cJSON_ptr create_memcached_audit_object(const Connection *c) {
+static unique_cJSON_ptr create_memcached_audit_object(const Connection* c) {
     cJSON *root = cJSON_CreateObject();
 
     std::string timestamp = ISOTime::generatetimestamp();
@@ -115,7 +115,7 @@ static void do_audit(const Connection* c,
     }
 }
 
-void audit_auth_failure(const Connection *c, const char *reason) {
+void audit_auth_failure(const Connection* c, const char* reason) {
     if (!isEnabled(MEMCACHED_AUDIT_AUTHENTICATION_FAILED)) {
         return;
     }
@@ -126,7 +126,7 @@ void audit_auth_failure(const Connection *c, const char *reason) {
              "Failed to send AUTH FAILED audit event");
 }
 
-void audit_auth_success(const Connection *c) {
+void audit_auth_success(const Connection* c) {
     if (!isEnabled(MEMCACHED_AUDIT_AUTHENTICATION_SUCCEEDED)) {
         return;
     }
@@ -135,8 +135,7 @@ void audit_auth_success(const Connection *c) {
              "Failed to send AUTH SUCCESS audit event");
 }
 
-
-void audit_bucket_flush(const Connection *c, const char *bucket) {
+void audit_bucket_flush(const Connection* c, const char* bucket) {
     if (!isEnabled(MEMCACHED_AUDIT_BUCKET_FLUSH)) {
         return;
     }
@@ -147,8 +146,7 @@ void audit_bucket_flush(const Connection *c, const char *bucket) {
              "Failed to send BUCKET_FLUSH audit event");
 }
 
-
-void audit_dcp_open(const Connection *c) {
+void audit_dcp_open(const Connection* c) {
     if (!isEnabled(MEMCACHED_AUDIT_OPENED_DCP_CONNECTION)) {
         return;
     }

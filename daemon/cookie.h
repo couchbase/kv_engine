@@ -33,7 +33,7 @@
 
 // Forward decl
 
-class McbpConnection;
+class Connection;
 
 /**
  * The Cookie class represents the cookie passed from the memcached core
@@ -48,7 +48,7 @@ class McbpConnection;
  */
 class Cookie {
 public:
-    explicit Cookie(McbpConnection& conn) : connection(conn) {
+    explicit Cookie(Connection& conn) : connection(conn) {
     }
 
     /**
@@ -140,7 +140,7 @@ public:
      * A cookie is bound to the conneciton at create time, and will never
      * switch connections
      */
-    McbpConnection& getConnection() const {
+    Connection& getConnection() const {
         return connection;
     }
 
@@ -401,10 +401,9 @@ public:
         }
         auto* ret = dynamic_cast<ContextType*>(context);
         if (ret == nullptr) {
-            throw std::logic_error(
-                    std::string("McbpConnection::obtainContext<") +
-                    typeid(ContextType).name() +
-                    ">(): context is not the requested type");
+            throw std::logic_error(std::string("Connection::obtainContext<") +
+                                   typeid(ContextType).name() +
+                                   ">(): context is not the requested type");
         }
         return *ret;
     }
@@ -451,7 +450,7 @@ protected:
     /**
      * The connection object this cookie is bound to
      */
-    McbpConnection& connection;
+    Connection& connection;
 
     mutable std::string event_id;
     std::string error_context;

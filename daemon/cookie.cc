@@ -17,7 +17,7 @@
 
 #include "cookie.h"
 #include "buckets.h"
-#include "connection_mcbp.h"
+#include "connection.h"
 #include "mcbp.h"
 
 #include <mcbp/mcbp.h>

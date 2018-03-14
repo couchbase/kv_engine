@@ -15,7 +15,7 @@
  *   limitations under the License.
  */
 
-#include <daemon/connection_mcbp.h>
+#include <daemon/connection.h>
 #include <daemon/mcbp.h>
 
 void drop_privilege_executor(Cookie& cookie) {

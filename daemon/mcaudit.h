@@ -21,9 +21,8 @@
 #include <cstdint>
 #include <string>
 
-class Connection;
 class Cookie;
-class McbpConnection;
+class Connection;
 
 /**
  * Send an audit event for an authentication failure

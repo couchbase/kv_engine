@@ -16,7 +16,7 @@
  */
 #pragma once
 
-#include <daemon/connection_mcbp.h>
+#include <daemon/connection.h>
 
 /**
  * Implementation of the SELECT BUCKET command

@@ -25,10 +25,10 @@
 #include <functional>
 
 /* Destroy all connections and reset connection management */
-void destroy_connections(void);
+void destroy_connections();
 
 /* Run through all the connections and close them */
-void close_all_connections(void);
+void close_all_connections();
 
 /* Run the connection event loop; until an event handler returns false. */
 void run_event_loop(Connection* c, short which);
@@ -46,7 +46,7 @@ void run_event_loop(Connection* c, short which);
  * If there is a partial read/write, then the buffer is left loaned to that
  * connection and the worker thread will allocate a new one.
  */
-void conn_loan_buffers(Connection *c);
+void conn_loan_buffers(Connection* c);
 
 /**
  * Return any empty buffers back to the owning worker thread.
@@ -55,7 +55,7 @@ void conn_loan_buffers(Connection *c);
  * (have no partial data) then return the buffer back to the worker thread.
  * If there is partial data, then keep the buffer with the connection.
  */
-void conn_return_buffers(Connection *c);
+void conn_return_buffers(Connection* c);
 
 /**
  * Cerate a new client connection
@@ -76,7 +76,7 @@ Connection* conn_new(const SOCKET sfd,
  * be used), but it's memory is still allocated. See conn_destructor() to
  * actually free it's resources.
  */
-void conn_close(McbpConnection& connection);
+void conn_close(Connection& connection);
 
 /**
  * Return the TCP or domain socket listening_port structure that

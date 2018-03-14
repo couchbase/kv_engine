@@ -54,18 +54,16 @@ public:
     }
 
     bool execute(Connection& connection) override {
-        auto& conn = dynamic_cast<McbpConnection&>(connection);
-
         auto& bucket = connection.getBucket();
         auto payload = bucket.clusterConfiguration.getConfiguration();
-        if (payload.first < conn.getClustermapRevno()) {
+        if (payload.first < connection.getClustermapRevno()) {
             // Ignore.. we've already sent a newer cluster config
             return true;
         }
 
-        conn.setClustermapRevno(payload.first);
+        connection.setClustermapRevno(payload.first);
         LOG_INFO("{}: Sending Cluster map revision {}",
-                 conn.getId(),
+                 connection.getId(),
                  payload.first);
 
         std::string name = bucket.name;
@@ -76,8 +74,8 @@ public:
                         name.size() + // the name of the bucket
                         payload.second->size(); // The actual payload
 
-        conn.write->ensureCapacity(needed);
-        FrameBuilder<Request> builder(conn.write->wdata());
+        connection.write->ensureCapacity(needed);
+        FrameBuilder<Request> builder(connection.write->wdata());
         builder.setMagic(Magic::ServerRequest);
         builder.setDatatype(cb::mcbp::Datatype::JSON);
         builder.setOpcode(ServerOpcode::ClustermapChangeNotification);
@@ -93,12 +91,12 @@ public:
                  payload.second->size()});
 
         // Inject our packet into the stream!
-        conn.addMsgHdr(true);
-        conn.addIov(conn.write->wdata().data(), needed);
-        conn.write->produced(needed);
+        connection.addMsgHdr(true);
+        connection.addIov(connection.write->wdata().data(), needed);
+        connection.write->produced(needed);
 
-        conn.setState(McbpStateMachine::State::send_data);
-        conn.setWriteAndGo(McbpStateMachine::State::new_cmd);
+        connection.setState(McbpStateMachine::State::send_data);
+        connection.setWriteAndGo(McbpStateMachine::State::new_cmd);
         return true;
     }
 };
@@ -120,34 +118,28 @@ Task::Status CccpNotificationTask::execute() {
     // No one is using this task so we can safely release the lock
     getMutex().unlock();
     try {
-        iterate_all_connections([rev](Connection& c) -> void {
-            if (!c.isClustermapChangeNotificationSupported()) {
+        iterate_all_connections([rev](Connection& connection) -> void {
+            if (!connection.isClustermapChangeNotificationSupported()) {
                 // The client hasn't asked to be notified
                 return;
             }
 
-            auto* connection = dynamic_cast<McbpConnection*>(&c);
-            if (connection == nullptr) {
-                // Ignore listening connection objects
-                return;
-            }
-
-            if (rev <= connection->getClustermapRevno()) {
+            if (rev <= connection.getClustermapRevno()) {
                 LOG_INFO("{}: Client is using {}, no need to push {}",
-                         c.getId(),
-                         connection->getClustermapRevno(),
+                         connection.getId(),
+                         connection.getClustermapRevno(),
                          rev);
                 return;
             }
 
             LOG_INFO("{}: Client is using {}. Push {}",
-                     c.getId(),
-                     connection->getClustermapRevno(),
+                     connection.getId(),
+                     connection.getClustermapRevno(),
                      rev);
 
-            connection->enqueueServerEvent(
+            connection.enqueueServerEvent(
                     std::make_unique<CccpPushNotificationServerEvent>());
-            connection->signalIfIdle(false, 0);
+            connection.signalIfIdle(false, 0);
         });
     } catch (const std::exception& e) {
         LOG_WARNING("CccpNotificationTask::execute: received exception: {}",

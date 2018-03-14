@@ -28,20 +28,20 @@
 #include <platform/strerror.h>
 #include <gsl/gsl>
 
-static bool conn_new_cmd(McbpConnection& connection);
-static bool conn_waiting(McbpConnection& connection);
-static bool conn_read_packet_header(McbpConnection& connection);
-static bool conn_parse_cmd(McbpConnection& connection);
-static bool conn_read_packet_body(McbpConnection& connection);
-static bool conn_closing(McbpConnection& connection);
-static bool conn_pending_close(McbpConnection& connection);
-static bool conn_immediate_close(McbpConnection& connection);
-static bool conn_destroyed(McbpConnection& connection);
-static bool conn_execute(McbpConnection& connection);
-static bool conn_send_data(McbpConnection& connection);
-static bool conn_ship_log(McbpConnection& connection);
+static bool conn_new_cmd(Connection& connection);
+static bool conn_waiting(Connection& connection);
+static bool conn_read_packet_header(Connection& connection);
+static bool conn_parse_cmd(Connection& connection);
+static bool conn_read_packet_body(Connection& connection);
+static bool conn_closing(Connection& connection);
+static bool conn_pending_close(Connection& connection);
+static bool conn_immediate_close(Connection& connection);
+static bool conn_destroyed(Connection& connection);
+static bool conn_execute(Connection& connection);
+static bool conn_send_data(Connection& connection);
+static bool conn_ship_log(Connection& connection);
 
-typedef bool (*TaskFunction)(McbpConnection& connection);
+typedef bool (*TaskFunction)(Connection& connection);
 
 static TaskFunction stateToFunc(McbpStateMachine::State state) {
     switch (state) {
@@ -162,7 +162,7 @@ bool McbpStateMachine::execute() {
  * @return true if we should continue to process work for this connection, false
  *              if we should start processing events for other connections.
  */
-bool conn_ship_log(McbpConnection& connection) {
+bool conn_ship_log(Connection& connection) {
     if (is_bucket_dying(connection)) {
         return true;
     }
@@ -217,7 +217,7 @@ bool conn_ship_log(McbpConnection& connection) {
     return cont;
 }
 
-bool conn_waiting(McbpConnection& connection) {
+bool conn_waiting(Connection& connection) {
     if (is_bucket_dying(connection) || connection.processServerEvents()) {
         return true;
     }
@@ -236,27 +236,28 @@ bool conn_waiting(McbpConnection& connection) {
     return false;
 }
 
-bool conn_read_packet_header(McbpConnection& connection) {
+bool conn_read_packet_header(Connection& connection) {
     if (is_bucket_dying(connection) || connection.processServerEvents()) {
         return true;
     }
 
     switch (connection.tryReadNetwork()) {
-    case McbpConnection::TryReadResult::NoDataReceived:
+    case Connection::TryReadResult::NoDataReceived:
         connection.setState(McbpStateMachine::State::waiting);
         break;
-    case McbpConnection::TryReadResult::DataReceived:
+    case Connection::TryReadResult::DataReceived:
         if (connection.read->rsize() >= sizeof(cb::mcbp::Header)) {
             connection.setState(McbpStateMachine::State::parse_cmd);
         } else {
             connection.setState(McbpStateMachine::State::waiting);
         }
         break;
-    case McbpConnection::TryReadResult::SocketClosed:
-    case McbpConnection::TryReadResult::SocketError:
+    case Connection::TryReadResult::SocketClosed:
+    case Connection::TryReadResult::SocketError:
         connection.setState(McbpStateMachine::State::closing);
         break;
-    case McbpConnection::TryReadResult::MemoryError: /* Failed to allocate more memory */
+    case Connection::TryReadResult::MemoryError: /* Failed to allocate more
+                                                    memory */
         /* State already set by try_read_network */
         break;
     }
@@ -264,7 +265,7 @@ bool conn_read_packet_header(McbpConnection& connection) {
     return true;
 }
 
-bool conn_parse_cmd(McbpConnection& connection) {
+bool conn_parse_cmd(Connection& connection) {
     // Parse the data in the input pipe and prepare the cookie for execution.
     // If all data is available we'll move over to the execution phase,
     // otherwise we'll wait for the data to arrive
@@ -272,7 +273,7 @@ bool conn_parse_cmd(McbpConnection& connection) {
     return true;
 }
 
-bool conn_new_cmd(McbpConnection& connection) {
+bool conn_new_cmd(Connection& connection) {
     if (is_bucket_dying(connection)) {
         return true;
     }
@@ -332,7 +333,7 @@ bool conn_new_cmd(McbpConnection& connection) {
     return true;
 }
 
-bool conn_execute(McbpConnection& connection) {
+bool conn_execute(Connection& connection) {
     if (is_bucket_dying(connection)) {
         return true;
     }
@@ -379,7 +380,7 @@ bool conn_execute(McbpConnection& connection) {
     return true;
 }
 
-bool conn_read_packet_body(McbpConnection& connection) {
+bool conn_read_packet_body(Connection& connection) {
     if (is_bucket_dying(connection)) {
         return true;
     }
@@ -449,11 +450,11 @@ bool conn_read_packet_body(McbpConnection& connection) {
     return true;
 }
 
-bool conn_send_data(McbpConnection& connection) {
+bool conn_send_data(Connection& connection) {
     bool ret = true;
 
     switch (connection.transmit()) {
-    case McbpConnection::TransmitResult::Complete:
+    case Connection::TransmitResult::Complete:
         // Release all allocated resources
         connection.releaseTempAlloc();
         connection.releaseReservedItems();
@@ -463,15 +464,15 @@ bool conn_send_data(McbpConnection& connection) {
         connection.setState(connection.getWriteAndGo());
         break;
 
-    case McbpConnection::TransmitResult::Incomplete:
+    case Connection::TransmitResult::Incomplete:
         LOG_DEBUG("{} - Incomplete transfer. Will retry", connection.getId());
         break;
 
-    case McbpConnection::TransmitResult::HardError:
+    case Connection::TransmitResult::HardError:
         LOG_INFO("{} - Hard error, closing connection", connection.getId());
         break;
 
-    case McbpConnection::TransmitResult::SoftError:
+    case Connection::TransmitResult::SoftError:
         ret = false;
         break;
     }
@@ -483,7 +484,7 @@ bool conn_send_data(McbpConnection& connection) {
     return ret;
 }
 
-bool conn_pending_close(McbpConnection& connection) {
+bool conn_pending_close(Connection& connection) {
     if (!connection.isSocketClosed()) {
         throw std::logic_error("conn_pending_close: socketDescriptor must be closed");
     }
@@ -503,7 +504,7 @@ bool conn_pending_close(McbpConnection& connection) {
     return true;
 }
 
-bool conn_immediate_close(McbpConnection& connection) {
+bool conn_immediate_close(Connection& connection) {
     if (!connection.isSocketClosed()) {
         throw std::logic_error("conn_immediate_close: socketDescriptor must be closed");
     }
@@ -527,7 +528,7 @@ bool conn_immediate_close(McbpConnection& connection) {
     return false;
 }
 
-bool conn_closing(McbpConnection& connection) {
+bool conn_closing(Connection& connection) {
     connection.close();
     return true;
 }
@@ -535,6 +536,6 @@ bool conn_closing(McbpConnection& connection) {
 /** sentinal state used to represent a 'destroyed' connection which will
  *  actually be freed at the end of the event loop. Always returns false.
  */
-bool conn_destroyed(McbpConnection&) {
+bool conn_destroyed(Connection&) {
     return false;
 }

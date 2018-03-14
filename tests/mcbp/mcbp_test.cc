@@ -50,7 +50,7 @@ void ValidatorTest::SetUp() {
  */
 class MockCookie : public Cookie {
 public:
-    MockCookie(McbpConnection& connection, cb::const_byte_buffer buffer)
+    MockCookie(Connection& connection, cb::const_byte_buffer buffer)
         : Cookie(connection) {
         setPacket(PacketContent::Full, buffer);
     }

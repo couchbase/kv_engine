@@ -20,7 +20,7 @@
 #include <daemon/memcached.h>
 #include <daemon/mcbp.h>
 
-ENGINE_ERROR_CODE select_bucket(McbpConnection& connection,
+ENGINE_ERROR_CODE select_bucket(Connection& connection,
                                 const std::string& bucketname) {
     if (!connection.isAuthenticated()) {
         return ENGINE_EACCESS;

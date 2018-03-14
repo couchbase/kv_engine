@@ -21,12 +21,12 @@
  * callbacks for the memcached binary protocol.
  */
 
-#include <array>
 #include <memcached/protocol_binary.h>
-#include "connection_mcbp.h"
+#include <array>
+#include "connection.h"
 
 void mcbp_execute_packet(Cookie& cookie);
 
-void try_read_mcbp_command(McbpConnection& c);
+void try_read_mcbp_command(Connection& c);
 
 void initialize_mbcp_lookup_map();

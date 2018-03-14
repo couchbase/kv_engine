@@ -20,8 +20,7 @@
 #include <daemon/memcached.h>
 #include <daemon/mcbp.h>
 
-std::pair<ENGINE_ERROR_CODE, std::string> list_bucket(
-        McbpConnection& connection) {
+std::pair<ENGINE_ERROR_CODE, std::string> list_bucket(Connection& connection) {
     if (!connection.isAuthenticated()) {
         return std::make_pair(ENGINE_EACCESS, "");
     }

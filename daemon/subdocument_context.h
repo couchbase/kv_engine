@@ -134,7 +134,7 @@ public:
     // Cookie this command is associated with.
     Cookie& cookie;
 
-    McbpConnection& connection;
+    Connection& connection;
 
     // The traits for this command.
     SubdocCmdTraits traits;
