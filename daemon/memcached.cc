@@ -19,7 +19,6 @@
 #include "buckets.h"
 #include "cmdline.h"
 #include "config_parse.h"
-#include "connection_listen.h"
 #include "connections.h"
 #include "debug_helpers.h"
 #include "doc_pre_expiry.h"
@@ -39,6 +38,7 @@
 #include "parent_monitor.h"
 #include "protocol/mcbp/engine_wrapper.h"
 #include "runtime.h"
+#include "server_socket.h"
 #include "session_cas.h"
 #include "settings.h"
 #include "stats.h"
@@ -152,7 +152,7 @@ static void settings_init(void);
 struct stats stats;
 
 /** file scope variables **/
-std::vector<std::unique_ptr<ListenConnection>> listen_conn;
+std::vector<std::unique_ptr<ServerSocket>> listen_conn;
 static struct event_base *main_base;
 
 static engine_event_handler_array_t engine_event_handlers;
@@ -969,7 +969,7 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
  * listen thread
  */
 void listen_event_handler(evutil_socket_t, short which, void *arg) {
-    auto& c = *reinterpret_cast<ListenConnection*>(arg);
+    auto& c = *reinterpret_cast<ServerSocket*>(arg);
 
     if (memcached_shutdown) {
         // Someone requested memcached to shut down. The listen thread should
@@ -1279,7 +1279,7 @@ static bool server_socket(const NetworkInterface& interf) {
             }
         }
 
-        listen_conn.emplace_back(std::make_unique<ListenConnection>(
+        listen_conn.emplace_back(std::make_unique<ServerSocket>(
                 sfd, main_base, listenport, next->ai_addr->sa_family, interf));
         stats.daemon_conns++;
         stats.curr_conns.fetch_add(1, std::memory_order_relaxed);

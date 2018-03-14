@@ -15,24 +15,22 @@
  *   limitations under the License.
  */
 
-#include "connection_listen.h"
+#include "server_socket.h"
 
-#include "config.h"
 #include "connections.h"
 #include "memcached.h"
-#include "runtime.h"
 
-#include <exception>
-#include <utilities/protocol2text.h>
+#include <platform/socket.h>
 #include <platform/strerror.h>
-#include <string>
+#include <exception>
 #include <memory>
+#include <string>
 
-ListenConnection::ListenConnection(SOCKET fd,
-                                   event_base* b,
-                                   in_port_t port,
-                                   sa_family_t fam,
-                                   const NetworkInterface& interf)
+ServerSocket::ServerSocket(SOCKET fd,
+                           event_base* b,
+                           in_port_t port,
+                           sa_family_t fam,
+                           const NetworkInterface& interf)
     : sfd(fd),
       listen_port(port),
       family(fam),
@@ -52,11 +50,11 @@ ListenConnection::ListenConnection(SOCKET fd,
     enable();
 }
 
-ListenConnection::~ListenConnection() {
+ServerSocket::~ServerSocket() {
     disable();
 }
 
-void ListenConnection::enable() {
+void ServerSocket::enable() {
     if (!registered_in_libevent) {
         LOG_INFO("{} Listen on {}", sfd, sockname);
         if (cb::net::listen(sfd, backlog) == SOCKET_ERROR) {
@@ -75,7 +73,7 @@ void ListenConnection::enable() {
     }
 }
 
-void ListenConnection::disable() {
+void ServerSocket::disable() {
     if (registered_in_libevent) {
         if (sfd != INVALID_SOCKET) {
             /*
@@ -100,7 +98,7 @@ void ListenConnection::disable() {
     }
 }
 
-void ListenConnection::acceptNewClient() {
+void ServerSocket::acceptNewClient() {
     sockaddr_storage addr{};
     socklen_t addrlen = sizeof(addr);
     auto client = cb::net::accept(
@@ -168,7 +166,7 @@ void ListenConnection::acceptNewClient() {
     dispatch_conn_new(client, listen_port);
 }
 
-unique_cJSON_ptr ListenConnection::getDetails() {
+unique_cJSON_ptr ServerSocket::getDetails() {
     unique_cJSON_ptr ret(cJSON_CreateObject());
     cJSON* obj = ret.get();
 

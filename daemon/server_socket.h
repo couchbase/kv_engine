@@ -22,16 +22,12 @@
 #include <memory>
 
 /**
- * The ListenConnection class is used by the "server sockets" in memcached.
- * It is not really a connection object, but a server socket that is used to
- * accept new clients. It could have been called ServerConnection, but I think
- * it would be misleading given that it is not used in a server to server
- * communication which the name would imply.
+ * The ServerSocket represents the socket used to accept new clients.
  */
-class ListenConnection {
+class ServerSocket {
 public:
-    ListenConnection() = delete;
-    ListenConnection(const ListenConnection&) = delete;
+    ServerSocket() = delete;
+    ServerSocket(const ServerSocket&) = delete;
 
     /**
      * Create a new instance
@@ -43,13 +39,13 @@ public:
      * @param interf The interface object containing properties to use (backlog,
      *               ssl, management etc)
      */
-    ListenConnection(SOCKET sfd,
-                     event_base* b,
-                     in_port_t port,
-                     sa_family_t fam,
-                     const NetworkInterface &interf);
+    ServerSocket(SOCKET sfd,
+                 event_base* b,
+                 in_port_t port,
+                 sa_family_t fam,
+                 const NetworkInterface& interf);
 
-    ~ListenConnection();
+    ~ServerSocket();
 
     /**
      * Get the name of the socket in a human readable form (used for logging)
