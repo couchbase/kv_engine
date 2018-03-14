@@ -214,6 +214,7 @@ void ConnMap::notifyAllPausedConnections() {
     std::queue<std::shared_ptr<ConnHandler>> queue;
     pendingNotifications.getAll(queue);
 
+    LockHolder rlh(releaseLock);
     while (!queue.empty()) {
         auto& conn = queue.front();
         if (conn.get() && conn->isPaused() && conn->isReserved()) {

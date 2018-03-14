@@ -43,7 +43,7 @@ public:
                   theEngine.getKVBucket()->getCollectionsManager().makeFilter(
                           flags, jsonExtra),
                   startTask) {
-        backfill.manager.reset(new MockDcpBackfillManager(engine_));
+        backfillMgr.reset(new MockDcpBackfillManager(engine_));
     }
 
     ENGINE_ERROR_CODE maybeDisconnect() {
@@ -119,12 +119,12 @@ public:
      * Sets the backfill buffer size (max limit) to a particular value
      */
     void setBackfillBufferSize(size_t newSize) {
-        dynamic_cast<MockDcpBackfillManager*>(backfill.manager.get())
+        dynamic_cast<MockDcpBackfillManager*>(backfillMgr.get())
                 ->setBackfillBufferSize(newSize);
     }
 
     bool getBackfillBufferFullStatus() {
-        return dynamic_cast<MockDcpBackfillManager*>(backfill.manager.get())
+        return dynamic_cast<MockDcpBackfillManager*>(backfillMgr.get())
                 ->getBackfillBufferFullStatus();
     }
 
@@ -133,11 +133,11 @@ public:
     }
 
     void bytesForceRead(size_t bytes) {
-        backfill.manager->bytesForceRead(bytes);
+        backfillMgr->bytesForceRead(bytes);
     }
 
     BackfillManager& getBFM() {
-        return *backfill.manager;
+        return *backfillMgr;
     }
 
     size_t getBytesOutstanding() const {

@@ -356,15 +356,11 @@ protected:
     Couchbase::RelaxedAtomic<rel_time_t> lastSendTime;
     BufferLog log;
 
-    struct backfill {
-        // backfill manager object is owned by this class, but use a
-        // shared_ptr as the lifetime of the manager is shared between the
-        // producer (this class) and BackfillManagerTask (which has a
-        // weak_ptr) to this.
-        std::shared_ptr<BackfillManager> manager;
-        // Guard the reset of 'manager' in DcpProducer::closeAllStreams().
-        std::mutex resetMutex;
-    } backfill;
+    // backfill manager object is owned by this class, but use a
+    // shared_ptr as the lifetime of the manager is shared between the
+    // producer (this class) and BackfillManagerTask (which has a
+    // weak_ptr) to this.
+    std::shared_ptr<BackfillManager> backfillMgr;
 
     DcpReadyQueue ready;
 
