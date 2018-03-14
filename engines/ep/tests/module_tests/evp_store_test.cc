@@ -406,7 +406,8 @@ TEST_P(EPStoreEvictionTest, MB_21976) {
 
 TEST_P(EPStoreEvictionTest, TouchCmdDuringBgFetch) {
     const DocKey dockey("key", DocNamespace::DefaultCollection);
-    const int numTouchCmds = 2, expiryTime = (time(NULL) + 1000);
+    const int numTouchCmds = 2;
+    auto expiryTime = time(NULL) + 1000;
 
     // Store an item
     store_item(vbid, dockey, "value");

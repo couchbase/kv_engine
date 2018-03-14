@@ -73,9 +73,6 @@ TEST(StringTest, safe_strtoull) {
 
 TEST(StringTest, safe_strtoll) {
     int64_t val;
-    int64_t exp = 1;
-    exp <<= 63;
-    exp -= 1;
     EXPECT_TRUE(safe_strtoll("123", val));
     EXPECT_EQ(123, val);
     EXPECT_TRUE(safe_strtoll("+123", val));
@@ -90,7 +87,8 @@ TEST(StringTest, safe_strtoll) {
     EXPECT_FALSE(safe_strtoll("18446744073709551615", val)); /* 2**64 - 1 */
     EXPECT_TRUE(safe_strtoll("9223372036854775807", val)); /* 2**63 - 1 */
 
-    EXPECT_EQ(exp, val); /* 9223372036854775807LL); */
+    EXPECT_EQ(std::numeric_limits<int64_t>::max(),
+              val); /* 9223372036854775807LL); */
     /*
       EXPECT_EQ(safe_strtoll("-9223372036854775808", val)); // -2**63
       EXPECT_EQ(val, -9223372036854775808LL);

@@ -122,8 +122,8 @@ int parse_config(const char *str, struct config_item *items, FILE *error) {
             case DT_SSIZE:
                {
                   const char *sfx = "kmgt";
-                  int multiplier = 1;
-                  int m = 1;
+                  size_t multiplier = 1;
+                  size_t m = 1;
                   const char *p;
 
                   for (p = sfx; *p != '\0'; ++p) {

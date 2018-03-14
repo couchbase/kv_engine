@@ -2156,7 +2156,7 @@ VBCBAdaptor::VBCBAdaptor(KVBucket* s,
       visitor(std::move(v)),
       label(l),
       sleepTime(sleep),
-      maxDuration(std::chrono::seconds::max()),
+      maxDuration(std::chrono::microseconds::max()),
       currentvb(0) {
     updateDescription();
     const VBucketFilter& vbFilter = visitor->getVBucketFilter();
