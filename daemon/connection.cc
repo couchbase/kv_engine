@@ -101,38 +101,6 @@ Connection::~Connection() {
     }
 }
 
-/**
- * Convert a sockaddr_storage to a textual string (no name lookup).
- *
- * @param addr the sockaddr_storage received from getsockname or
- *             getpeername
- * @param addr_len the current length used by the sockaddr_storage
- * @return a textual string representing the connection. or NULL
- *         if an error occurs (caller takes ownership of the buffer and
- *         must call free)
- */
-static std::string sockaddr_to_string(const struct sockaddr_storage* addr,
-                                      socklen_t addr_len) {
-    char host[50];
-    char port[50];
-
-    int err = getnameinfo(reinterpret_cast<const struct sockaddr*>(addr),
-                          addr_len,
-                          host, sizeof(host),
-                          port, sizeof(port),
-                          NI_NUMERICHOST | NI_NUMERICSERV);
-    if (err != 0) {
-        LOG_WARNING("getnameinfo failed with error {}", err);
-        return nullptr;
-    }
-
-    if (addr->ss_family == AF_INET6) {
-        return "[" + std::string(host) + "]:" + std::string(port);
-    } else {
-        return std::string(host) + ":" + std::string(port);
-    }
-}
-
 void Connection::resolveConnectionName(bool listening) {
     if (socketDescriptor == INVALID_SOCKET) {
         // Our unit tests run without a socket connected, and we don't
@@ -142,35 +110,14 @@ void Connection::resolveConnectionName(bool listening) {
         return;
     }
 
-    int err;
     try {
         if (listening) {
             peername = "*";
         } else {
-            struct sockaddr_storage peer;
-            socklen_t peer_len = sizeof(peer);
-            if ((err = getpeername(socketDescriptor,
-                                   reinterpret_cast<struct sockaddr*>(&peer),
-                                   &peer_len)) != 0) {
-                LOG_WARNING("getpeername for socket {} with error {}",
-                            socketDescriptor,
-                            err);
-            } else {
-                peername = sockaddr_to_string(&peer, peer_len);
-            }
+            peername = cb::net::getpeername(socketDescriptor);
         }
 
-        struct sockaddr_storage sock;
-        socklen_t sock_len = sizeof(sock);
-        if ((err = getsockname(socketDescriptor,
-                               reinterpret_cast<struct sockaddr*>(&sock),
-                               &sock_len)) != 0) {
-            LOG_WARNING("getsockname for socket {} with error {}",
-                        socketDescriptor,
-                        err);
-        } else {
-            sockname = sockaddr_to_string(&sock, sock_len);
-        }
+        sockname = cb::net::getsockname(socketDescriptor);
         updateDescription();
     } catch (const std::bad_alloc& e) {
         LOG_WARNING(
