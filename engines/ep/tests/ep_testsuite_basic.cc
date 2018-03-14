@@ -1885,7 +1885,7 @@ static test_result get_if(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
 
     doc = h1->get_if(h,
                      cookie,
-                     DocKey(std::string{"no"}, testHarness.doc_namespace),
+                     DocKey("no", testHarness.doc_namespace),
                      0,
                      [](const item_info&) { return true; });
     check(!doc.second, "non-existing document should not be found");

@@ -404,8 +404,9 @@ std::string CollectionsFlushTest::completeDeletionAndFlush(
 bool CollectionsFlushTest::canWrite(const std::string& jsonManifest,
                                     const std::string& collection) {
     Collections::VB::Manifest manifest(jsonManifest);
+    std::string key = collection + ":";
     return manifest.lock().doesKeyContainValidCollection(
-            {collection + ":", DocNamespace::Collections});
+            {key, DocNamespace::Collections});
 }
 
 bool CollectionsFlushTest::cannotWrite(const std::string& jsonManifest,

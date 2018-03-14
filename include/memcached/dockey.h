@@ -104,14 +104,19 @@ struct DocKey : DocKeyInterface<DocKey> {
     }
 
     /**
-     * std::string constructor - creates a view onto the std::string internal
-     * C-string buffer - i.e. c_str() for size() bytes
+     * const_char_buffer constructor, views the data()/size() of the key
      */
-    DocKey(const std::string& key, DocNamespace ins)
+    DocKey(const cb::const_char_buffer& key, DocNamespace ins)
         : DocKey(reinterpret_cast<const uint8_t*>(key.data()),
                  key.size(),
                  ins) {
     }
+
+    /**
+     * Disallow rvalue strings as we would view something which would soon be
+     * out of scope.
+     */
+    DocKey(const std::string&& key, DocNamespace ins) = delete;
 
     template <class T>
     DocKey(const DocKeyInterface<T>& key) {

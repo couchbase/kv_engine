@@ -462,10 +462,10 @@ public:
     void createItems(int items, int flushes) {
         // Flush multiple checkpoints of unique keys
         for (int ii = 0; ii < flushes; ii++) {
+            std::string key = "anykey_" + std::to_string(ii) + "_";
             EXPECT_TRUE(store_items(items,
                                     vbid,
-                                    {"anykey_" + std::to_string(ii) + "_",
-                                     DocNamespace::DefaultCollection},
+                                    {key, DocNamespace::DefaultCollection},
                                     "value"));
             flush_vbucket_to_disk(vbid, items);
             // Add an entry for this seqno
