@@ -163,11 +163,7 @@ struct ExpectedThreadCounts {
 };
 
 ::std::ostream& operator<<(::std::ostream& os,
-                           const ExpectedThreadCounts& expected) {
-    return os << "CPU" << expected.maxThreads << "_W" << expected.writer << "_R"
-              << expected.reader << "_A" << expected.auxIO << "_N"
-              << expected.nonIO;
-}
+                           const ExpectedThreadCounts& expected);
 
 class ExecutorPoolTestWithParam
         : public ExecutorPoolTest,

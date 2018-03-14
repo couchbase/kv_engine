@@ -19,8 +19,8 @@
 
 class TestTask : public GlobalTask {
 public:
-    TestTask(EventuallyPersistentEngine* e, TaskId id, int o = 0)
-        : GlobalTask(e, id, 0.0, false),
+    TestTask(Taskable& t, TaskId id, int o = 0)
+        : GlobalTask(t, id, 0.0, false),
           order(o),
           description(std::string("TestTask ") +
                       GlobalTask::getTaskName(getTaskId())) {

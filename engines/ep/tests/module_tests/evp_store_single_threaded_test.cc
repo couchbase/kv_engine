@@ -1544,12 +1544,12 @@ TEST_F(MB20054_SingleThreadedEPStoreTest, MB20054_onDeleteItem_during_bucket_del
 TEST_F(SingleThreadedEPBucketTest, MB18953_taskWake) {
     auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
 
-    ExTask hpTask = std::make_shared<TestTask>(engine.get(),
+    ExTask hpTask = std::make_shared<TestTask>(engine->getTaskable(),
                                                TaskId::PendingOpsNotification);
     task_executor->schedule(hpTask);
 
-    ExTask lpTask =
-            std::make_shared<TestTask>(engine.get(), TaskId::DefragmenterTask);
+    ExTask lpTask = std::make_shared<TestTask>(engine->getTaskable(),
+                                               TaskId::DefragmenterTask);
     task_executor->schedule(lpTask);
 
     runNextTask(lpNonioQ, "TestTask PendingOpsNotification"); // hptask goes first
@@ -1583,8 +1583,7 @@ TEST_F(SingleThreadedEPBucketTest, MB20735_rescheduleWaketime) {
 
     class SnoozingTestTask : public TestTask {
     public:
-        SnoozingTestTask(EventuallyPersistentEngine* e, TaskId id)
-            : TestTask(e, id) {
+        SnoozingTestTask(Taskable& t, TaskId id) : TestTask(t, id) {
         }
 
         bool run() override {
@@ -1595,7 +1594,7 @@ TEST_F(SingleThreadedEPBucketTest, MB20735_rescheduleWaketime) {
     };
 
     auto task = std::make_shared<SnoozingTestTask>(
-            engine.get(), TaskId::PendingOpsNotification);
+            engine->getTaskable(), TaskId::PendingOpsNotification);
     ExTask hpTask = task;
     task_executor->schedule(hpTask);
 

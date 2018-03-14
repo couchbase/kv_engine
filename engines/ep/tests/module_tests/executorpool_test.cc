@@ -58,6 +58,13 @@ ExTask makeTask(Taskable& taskable, ThreadGate& tg, size_t i) {
             });
 }
 
+::std::ostream& operator<<(::std::ostream& os,
+                           const ExpectedThreadCounts& expected) {
+    return os << "CPU" << expected.maxThreads << "_W" << expected.writer << "_R"
+              << expected.reader << "_A" << expected.auxIO << "_N"
+              << expected.nonIO;
+}
+
 TEST_F(ExecutorPoolTest, register_taskable_test) {
     TestExecutorPool pool(10, // MaxThreads
                           NUM_TASK_GROUPS,
