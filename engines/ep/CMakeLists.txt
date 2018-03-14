@@ -371,7 +371,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                    ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_server.cc
                    ${Memcached_SOURCE_DIR}/daemon/doc_pre_expiry.cc
                    ${Memcached_SOURCE_DIR}/daemon/protocol/mcbp/engine_errc_2_mcbp.cc
-                   tests/module_tests/vbucket_test.cc)
+                   )
 
     TARGET_LINK_LIBRARIES(ep_engine_benchmarks PRIVATE
             benchmark

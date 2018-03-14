@@ -18,7 +18,6 @@
 #include <programs/engine_testapp/mock_server.h>
 
 #include <benchmark/benchmark.h>
-#include <gtest/gtest.h>
 
 #include "ep_time.h"
 
@@ -37,7 +36,11 @@ int main(int argc, char** argv) {
     init_mock_server(true);
     initialize_time_functions(get_mock_server_api()->core);
     ::benchmark::Initialize(&argc, argv);
-    ::benchmark::RunSpecifiedBenchmarks();
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    /*
+     * Run the benchmarks. From benchmark.cc, 0 gets returned if
+     * there is an error, else it returns the number of benchmark tests.
+     * If we get a 0 return, then return 1 from main to signal an error
+     * occurred.
+     */
+    return ::benchmark::RunSpecifiedBenchmarks() == 0 ? 1 : 0;
 }
