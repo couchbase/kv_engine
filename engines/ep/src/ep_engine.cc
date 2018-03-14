@@ -2894,11 +2894,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
         // for fetched documents. However this is potentially misleading given
         // we perform IO buffering and always read in 4K sized chunks, so it
         // would give very large values.
-        add_casted_stat(
-                "ep_bg_fetch_avg_read_amplification",
-                double(value) / (epstats.bg_fetched + epstats.bg_meta_fetched),
-                add_stat,
-                cookie);
+        auto fetched = epstats.bg_fetched + epstats.bg_meta_fetched;
+        double readAmp = fetched ? double(value) / double(fetched) : 0.0;
+        add_casted_stat("ep_bg_fetch_avg_read_amplification",
+                        readAmp,
+                        add_stat,
+                        cookie);
     }
 
     // Specific to RocksDB. Cumulative ep-engine stats.

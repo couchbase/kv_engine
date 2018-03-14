@@ -552,8 +552,11 @@ bool VBucket::isResidentRatioUnderThreshold(float threshold) {
     }
     size_t num_items = getNumItems();
     size_t num_non_resident_items = getNumNonResidentItems();
-    if (threshold >= ((float)(num_items - num_non_resident_items) /
-                                                                num_items)) {
+    float ratio =
+            num_items
+                    ? ((float)(num_items - num_non_resident_items) / num_items)
+                    : 0.0;
+    if (threshold >= ratio) {
         return true;
     } else {
         return false;
