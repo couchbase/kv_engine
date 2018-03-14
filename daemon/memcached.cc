@@ -19,6 +19,7 @@
 #include "buckets.h"
 #include "cmdline.h"
 #include "config_parse.h"
+#include "connection_listen.h"
 #include "connections.h"
 #include "debug_helpers.h"
 #include "doc_pre_expiry.h"
@@ -151,7 +152,7 @@ static void settings_init(void);
 struct stats stats;
 
 /** file scope variables **/
-Connection *listen_conn = NULL;
+std::vector<std::unique_ptr<ListenConnection>> listen_conn;
 static struct event_base *main_base;
 
 static engine_event_handler_array_t engine_event_handlers;
@@ -676,8 +677,7 @@ uint64_t get_listen_disabled_num(void) {
     return listen_state.num_disable;
 }
 
-static void disable_listen(void) {
-    Connection *next;
+void disable_listen() {
     {
         std::lock_guard<std::mutex> guard(listen_state.mutex);
         listen_state.disabled = true;
@@ -685,14 +685,7 @@ static void disable_listen(void) {
         ++listen_state.num_disable;
     }
 
-    for (next = listen_conn; next; next = next->getNext()) {
-        auto* connection = dynamic_cast<ListenConnection*>(next);
-        if (connection == nullptr) {
-            LOG_WARNING(
-                    "Internal error. Tried to disable listen on"
-                    " an illegal connection object");
-            continue;
-        }
+    for (auto& connection : listen_conn) {
         connection->disable();
     }
 }
@@ -869,76 +862,6 @@ cJSON *get_bucket_details(size_t idx)
     return ret;
 }
 
-bool conn_listening(ListenConnection *c)
-{
-    sockaddr_storage addr;
-    socklen_t addrlen = sizeof(addr);
-    SOCKET sfd = cb::net::accept(
-            c->getSocketDescriptor(), (struct sockaddr*)&addr, &addrlen);
-
-    if (sfd == INVALID_SOCKET) {
-        auto error = cb::net::get_socket_error();
-        if (cb::net::is_emfile(error)) {
-#if defined(WIN32)
-            LOG_WARNING("Too many open files.");
-#else
-            struct rlimit limit = {0};
-            getrlimit(RLIMIT_NOFILE, &limit);
-            LOG_WARNING("Too many open files. Current limit: {}",
-                        limit.rlim_cur);
-#endif
-            disable_listen();
-        } else if (!cb::net::is_blocking(error)) {
-            LOG_WARNING("Failed to accept new client: {}", cb_strerror(error));
-        }
-
-        return false;
-    }
-
-    int port_conns;
-    ListeningPort *port_instance;
-    int curr_conns = stats.curr_conns.fetch_add(1, std::memory_order_relaxed);
-    {
-        std::lock_guard<std::mutex> guard(stats_mutex);
-        port_instance = get_listening_port_instance(c->getParentPort());
-        cb_assert(port_instance);
-        port_conns = ++port_instance->curr_conns;
-    }
-
-    if (curr_conns >= settings.getMaxconns() || port_conns >= port_instance->maxconns) {
-        {
-            std::lock_guard<std::mutex> guard(stats_mutex);
-            --port_instance->curr_conns;
-        }
-        stats.rejected_conns++;
-        LOG_WARNING(
-                "Too many open connections. Current/Limit for port "
-                "{}: {}/{}; total: {}/{}",
-                port_instance->port,
-                port_conns,
-                port_instance->maxconns,
-                curr_conns,
-                settings.getMaxconns());
-
-        safe_close(sfd);
-        return false;
-    }
-
-    if (evutil_make_socket_nonblocking(sfd) == -1) {
-        {
-            std::lock_guard<std::mutex> guard(stats_mutex);
-            --port_instance->curr_conns;
-        }
-        LOG_WARNING("Failed to make socket non-blocking. closing it");
-        safe_close(sfd);
-        return false;
-    }
-
-    dispatch_conn_new(sfd, c->getParentPort());
-
-    return false;
-}
-
 /**
  * Check if the associated bucket is dying or not. There is two reasons
  * for why a bucket could be dying: It is currently being deleted, or
@@ -1046,23 +969,23 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
  * listen thread
  */
 void listen_event_handler(evutil_socket_t, short which, void *arg) {
-    auto *c = reinterpret_cast<ListenConnection *>(arg);
-    if (c == nullptr) {
-        LOG_WARNING(
-                "listen_event_handler: internal error, "
-                "arg must be non-NULL");
-        return;
-    }
+    auto& c = *reinterpret_cast<ListenConnection*>(arg);
 
     if (memcached_shutdown) {
         // Someone requested memcached to shut down. The listen thread should
-        // be stopped immediately.
+        // be stopped immediately to avoid new connections
         LOG_INFO("Stopping listen thread");
-        c->eventBaseLoopbreak();
+        event_base_loopbreak(main_base);
         return;
     }
 
-    run_event_loop(c, which);
+    try {
+        c.acceptNewClient();
+    } catch (std::invalid_argument& e) {
+        LOG_WARNING("{}: exception occurred while accepting clients: {}",
+                    c.getSocket(),
+                    e.what());
+    }
 }
 
 static void dispatch_event_handler(evutil_socket_t fd, short, void *) {
@@ -1086,16 +1009,7 @@ static void dispatch_event_handler(evutil_socket_t fd, short, void *) {
             }
         }
         if (enable) {
-            Connection *next;
-            for (next = listen_conn; next; next = next->getNext()) {
-                auto* connection = dynamic_cast<ListenConnection*>(next);
-                if (connection == nullptr) {
-                    LOG_WARNING(
-                            "Internal error: tried to enable listen "
-                            "on an incorrect connection object type");
-                    continue;
-                }
-
+            for (auto& connection : listen_conn) {
                 connection->enable();
             }
         }
@@ -1365,20 +1279,8 @@ static bool server_socket(const NetworkInterface& interf) {
             }
         }
 
-        auto* lconn = conn_new_server(
-                sfd, listenport, next->ai_addr->sa_family, interf, main_base);
-        if (lconn == nullptr) {
-            FATAL_ERROR(
-                    EXIT_FAILURE,
-                    R"(Failed to create listening object: Host "{}" Port "{}" IPv{})",
-                    interf.host.empty() ? "*" : interf.host,
-                    interf.port,
-                    next->ai_addr->sa_family == AF_INET ? "4" : "6");
-        }
-
-        lconn->setNext(listen_conn);
-        listen_conn = lconn;
-
+        listen_conn.emplace_back(std::make_unique<ListenConnection>(
+                sfd, main_base, listenport, next->ai_addr->sa_family, interf));
         stats.daemon_conns++;
         stats.curr_conns.fetch_add(1, std::memory_order_relaxed);
         add_listening_port(&interf, listenport, next->ai_addr->sa_family);
@@ -1461,14 +1363,9 @@ static void create_listen_sockets(bool management) {
 
         unique_cJSON_ptr array(cJSON_CreateArray());
 
-        for (auto* c = listen_conn; c!= nullptr; c = c->getNext()) {
-            auto* lc = dynamic_cast<ListenConnection*>(c);
-            if (lc == nullptr) {
-                throw std::logic_error("server_sockets: listen_conn contains"
-                                           " illegal objects: " +
-                                       to_string(c->toJSON(), false));
-            }
-            cJSON_AddItemToArray(array.get(), lc->getDetails().release());
+        for (const auto& connection : listen_conn) {
+            cJSON_AddItemToArray(array.get(),
+                                 connection->getDetails().release());
         }
 
         unique_cJSON_ptr root(cJSON_CreateObject());
@@ -2603,6 +2500,9 @@ extern "C" int memcached_main(int argc, char **argv) {
 
     logger->info("Shutting down client worker threads");
     threads_shutdown();
+
+    logger->info("Releasing server sockets");
+    listen_conn.clear();
 
     logger->info("Releasing client resources");
     close_all_connections();

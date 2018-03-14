@@ -14,11 +14,13 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+
+#include "connection_listen.h"
+
 #include "config.h"
+#include "connections.h"
 #include "memcached.h"
 #include "runtime.h"
-#include "server_event.h"
-#include "statemachine_mcbp.h"
 
 #include <exception>
 #include <utilities/protocol2text.h>
@@ -26,14 +28,15 @@
 #include <string>
 #include <memory>
 
-ListenConnection::ListenConnection(SOCKET sfd,
+ListenConnection::ListenConnection(SOCKET fd,
                                    event_base* b,
                                    in_port_t port,
                                    sa_family_t fam,
                                    const NetworkInterface& interf)
-    : Connection(sfd, b),
-      registered_in_libevent(false),
+    : sfd(fd),
+      listen_port(port),
       family(fam),
+      sockname(cb::net::getsockname(fd)),
       backlog(interf.backlog),
       ssl(!interf.ssl.cert.empty()),
       management(interf.management),
@@ -42,33 +45,28 @@ ListenConnection::ListenConnection(SOCKET sfd,
                    EV_READ | EV_PERSIST,
                    listen_event_handler,
                    reinterpret_cast<void*>(this))) {
-    if (ev.get() == nullptr) {
+    if (!ev) {
         throw std::bad_alloc();
     }
 
-    parent_port = port;
-    resolveConnectionName(true);
-    // Listen connections should not be associated with a bucket
-    setBucketIndex(-1);
     enable();
 }
 
 ListenConnection::~ListenConnection() {
     disable();
-
 }
 
 void ListenConnection::enable() {
     if (!registered_in_libevent) {
-        LOG_INFO("{} Listen on {}", getId(), getSockname());
-        if (listen(getSocketDescriptor(), backlog) == SOCKET_ERROR) {
+        LOG_INFO("{} Listen on {}", sfd, sockname);
+        if (cb::net::listen(sfd, backlog) == SOCKET_ERROR) {
             LOG_WARNING("{}: Failed to listen on {}: {}",
-                        getId(),
-                        getSockname(),
-                        strerror(errno));
+                        sfd,
+                        sockname,
+                        cb_strerror(cb::net::get_socket_error()));
         }
 
-        if (event_add(ev.get(), NULL) == -1) {
+        if (event_add(ev.get(), nullptr) == -1) {
             LOG_WARNING("Failed to add connection to libevent: {}",
                         cb_strerror());
         } else {
@@ -79,18 +77,18 @@ void ListenConnection::enable() {
 
 void ListenConnection::disable() {
     if (registered_in_libevent) {
-        if (getSocketDescriptor() != INVALID_SOCKET) {
+        if (sfd != INVALID_SOCKET) {
             /*
              * Try to reduce the backlog length so that clients
              * may get ECONNREFUSED instead of blocking. Note that the
              * backlog parameter is a hint, so the actual value being
              * used may be higher than what we try to set it.
              */
-            if (listen(getSocketDescriptor(), 1) == SOCKET_ERROR) {
+            if (cb::net::listen(sfd, 1) == SOCKET_ERROR) {
                 LOG_WARNING("{}: Failed to set backlog to 1 on {}: {}",
-                            getId(),
-                            getSockname(),
-                            strerror(errno));
+                            sfd,
+                            sockname,
+                            cb_strerror(cb::net::get_socket_error()));
             }
         }
         if (event_del(ev.get()) == -1) {
@@ -102,31 +100,72 @@ void ListenConnection::disable() {
     }
 }
 
-void ListenConnection::runEventLoop(short) {
-    auto logger = cb::logger::get();
+void ListenConnection::acceptNewClient() {
+    sockaddr_storage addr{};
+    socklen_t addrlen = sizeof(addr);
+    auto client = cb::net::accept(
+            sfd, reinterpret_cast<struct sockaddr*>(&addr), &addrlen);
 
-    if (!server_events.empty()) {
-        logger->warn(
-                "{}: ListenConnection::runEventLoop() - logic error. "
-                "Listen connections do not support server events",
-                getId());
-        while (!server_events.empty()) {
-            logger->info("{}: Dropping event: {}",
-                         getId(),
-                         server_events.front()->getDescription());
-            server_events.pop();
+    if (client == INVALID_SOCKET) {
+        auto error = cb::net::get_socket_error();
+        if (cb::net::is_emfile(error)) {
+#if defined(WIN32)
+            LOG_WARNING("Too many open files.");
+#else
+            struct rlimit limit = {0};
+            getrlimit(RLIMIT_NOFILE, &limit);
+            LOG_WARNING("Too many open files. Current limit: {}",
+                        limit.rlim_cur);
+#endif
+            disable_listen();
+        } else if (!cb::net::is_blocking(error)) {
+            LOG_WARNING("Failed to accept new client: {}", cb_strerror(error));
         }
+
+        return;
     }
 
-    try {
-        do {
-            logger->debug("{} - Running task: (conn_listening)", getId());
-        } while (conn_listening(this));
-    } catch (std::invalid_argument& e) {
-        logger->warn("{}: exception occurred while accepting clients: {}",
-                     getId(),
-                     e.what());
+    int port_conns;
+    ListeningPort* port_instance;
+    int curr_conns = stats.curr_conns.fetch_add(1, std::memory_order_relaxed);
+    {
+        std::lock_guard<std::mutex> guard(stats_mutex);
+        port_instance = get_listening_port_instance(listen_port);
+        cb_assert(port_instance);
+        port_conns = ++port_instance->curr_conns;
     }
+
+    if (curr_conns >= settings.getMaxconns() ||
+        port_conns >= port_instance->maxconns) {
+        {
+            std::lock_guard<std::mutex> guard(stats_mutex);
+            --port_instance->curr_conns;
+        }
+        stats.rejected_conns++;
+        LOG_WARNING(
+                "Too many open connections. Current/Limit for port "
+                "{}: {}/{}; total: {}/{}",
+                port_instance->port,
+                port_conns,
+                port_instance->maxconns,
+                curr_conns,
+                settings.getMaxconns());
+
+        safe_close(client);
+        return;
+    }
+
+    if (cb::net::set_socket_noblocking(client) == -1) {
+        {
+            std::lock_guard<std::mutex> guard(stats_mutex);
+            --port_instance->curr_conns;
+        }
+        LOG_WARNING("Failed to make socket non-blocking. closing it");
+        safe_close(client);
+        return;
+    }
+
+    dispatch_conn_new(client, listen_port);
 }
 
 unique_cJSON_ptr ListenConnection::getDetails() {
@@ -146,7 +185,7 @@ unique_cJSON_ptr ListenConnection::getDetails() {
         cJSON_AddStringToObject(obj, "family", "AF_INET6");
     }
 
-    cJSON_AddNumberToObject(obj, "port", parent_port);
+    cJSON_AddNumberToObject(obj, "port", listen_port);
     if (management) {
         cJSON_AddTrueToObject(obj, "management");
     } else {

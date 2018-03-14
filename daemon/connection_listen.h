@@ -28,29 +28,48 @@
  * it would be misleading given that it is not used in a server to server
  * communication which the name would imply.
  */
-class ListenConnection : public Connection {
+class ListenConnection {
 public:
     ListenConnection() = delete;
+    ListenConnection(const ListenConnection&) = delete;
 
+    /**
+     * Create a new instance
+     *
+     * @param sfd The socket to operate on
+     * @param b The event base to use (the caller owns the event base)
+     * @param port The port we're listening to
+     * @param fam The address family for the port (IPv4/6)
+     * @param interf The interface object containing properties to use (backlog,
+     *               ssl, management etc)
+     */
     ListenConnection(SOCKET sfd,
                      event_base* b,
                      in_port_t port,
                      sa_family_t fam,
                      const NetworkInterface &interf);
 
-    virtual ~ListenConnection();
+    ~ListenConnection();
 
-    ListenConnection(const ListenConnection&) = delete;
+    /**
+     * Get the name of the socket in a human readable form (used for logging)
+     */
+    const std::string& getSockname() {
+        return sockname;
+    }
+
+    /**
+     * Get the socket (used for logging)
+     */
+    SOCKET getSocket() {
+        return sfd;
+    }
 
     void enable();
 
     void disable();
 
-    void runEventLoop(short) override;
-
-    bool isManagement() const {
-        return management;
-    }
+    void acceptNewClient();
 
     /**
      * Get the details for this connection to put in the portnumber
@@ -59,10 +78,25 @@ public:
     unique_cJSON_ptr getDetails();
 
 protected:
-    bool registered_in_libevent;
+    /// The socket object to accept clients from
+    const SOCKET sfd;
+
+    /// The port number we're listening on
+    in_port_t listen_port;
+
+    /// The address family of this server socket (IPv4 / IPv6)
     const sa_family_t family;
+
+    /// The sockets name (used for debug)
+    const std::string sockname;
+
+    /// The backlog to specify to bind
     const int backlog;
+
+    /// Is this an SSL connection or not
     const bool ssl;
+
+    /// Is this socket supposed to be used for management traffic?
     const bool management;
 
     struct EventDeleter {
@@ -73,5 +107,9 @@ protected:
         }
     };
 
+    /// Are we currently registered in libevent or not
+    bool registered_in_libevent = {false};
+
+    /// The libevent object we're using
     std::unique_ptr<struct event, EventDeleter> ev;
 };

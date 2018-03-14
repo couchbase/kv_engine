@@ -71,21 +71,6 @@ Connection* conn_new(const SOCKET sfd,
                      struct event_base* base,
                      LIBEVENT_THREAD* thread);
 
-/**
- * Create a new server socket.
- *
- * @param sfd the socket descriptor
- * @param parent_port the port number
- * @param family the address family used for the port
- * @param interf the interface description
- * @param base the event base to use for the socket
- */
-ListenConnection* conn_new_server(SOCKET sfd,
-                                  in_port_t parent_port,
-                                  sa_family_t family,
-                                  const NetworkInterface& interf,
-                                  struct event_base* base);
-
 /*
  * Closes a connection. Afterwards the connection is invalid (can no longer
  * be used), but it's memory is still allocated. See conn_destructor() to

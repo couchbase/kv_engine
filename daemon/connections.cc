@@ -57,12 +57,6 @@ static Connection *allocate_connection(SOCKET sfd,
                                        event_base *base,
                                        const ListeningPort &interface);
 
-static ListenConnection* allocate_listen_connection(SOCKET sfd,
-                                                    event_base* base,
-                                                    in_port_t port,
-                                                    sa_family_t family,
-                                                    const NetworkInterface& interf);
-
 static void release_connection(Connection *c);
 
 /** External functions *******************************************************/
@@ -171,24 +165,6 @@ void run_event_loop(Connection* c, short which) {
     if (c->shouldDelete()) {
         release_connection(c);
     }
-}
-
-ListenConnection* conn_new_server(SOCKET sfd,
-                                  in_port_t parent_port,
-                                  sa_family_t family,
-                                  const NetworkInterface& interf,
-                                  struct event_base* base) {
-    auto* c = allocate_listen_connection(sfd, base, parent_port, family, interf);
-    if (c == nullptr) {
-        return nullptr;
-    }
-    c->incrementRefcount();
-
-    MEMCACHED_CONN_ALLOCATE(c->getId());
-    LOG_DEBUG("<{} server listening on {}", sfd, c->getSockname());
-
-    stats.total_conns++;
-    return c;
 }
 
 Connection* conn_new(const SOCKET sfd, in_port_t parent_port,
@@ -397,31 +373,6 @@ static Connection *allocate_connection(SOCKET sfd,
         return ret;
     } catch (const std::bad_alloc&) {
         LOG_WARNING("Failed to allocate memory for connection");
-    } catch (const std::exception& error) {
-        LOG_WARNING("Failed to create connection: {}", error.what());
-    } catch (...) {
-        LOG_WARNING("Failed to create connection");
-    }
-
-    delete ret;
-    return NULL;
-}
-
-static ListenConnection* allocate_listen_connection(SOCKET sfd,
-                                                    event_base* base,
-                                                    in_port_t port,
-                                                    sa_family_t family,
-                                                    const NetworkInterface& interf) {
-    ListenConnection *ret = nullptr;
-
-    try {
-        ret = new ListenConnection(sfd, base, port, family, interf);
-        std::lock_guard<std::mutex> lock(connections.mutex);
-        connections.conns.push_back(ret);
-        stats.conn_structs++;
-        return ret;
-    } catch (const std::bad_alloc&) {
-        LOG_WARNING("Failed to allocate memory for listen connection");
     } catch (const std::exception& error) {
         LOG_WARNING("Failed to create connection: {}", error.what());
     } catch (...) {

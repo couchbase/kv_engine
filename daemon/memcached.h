@@ -171,13 +171,9 @@ extern void notify_thread(LIBEVENT_THREAD& thread);
 extern void notify_dispatcher();
 
 #include "connection.h"
-#include "connection_listen.h"
 #include "connection_mcbp.h"
 
 extern std::vector<TimingHistogram> scheduler_info;
-
-/* list of listening connections */
-extern Connection *listen_conn;
 
 /*
  * Functions
@@ -225,9 +221,6 @@ Connection *list_remove(Connection *h, Connection *n);
 
 int add_conn_to_pending_io_list(Connection *c);
 
-/* connection state machine */
-bool conn_listening(ListenConnection *c);
-
 void event_handler(evutil_socket_t fd, short which, void *arg);
 void listen_event_handler(evutil_socket_t, short, void *);
 
@@ -261,6 +254,7 @@ void shutdown_server(void);
 bool associate_bucket(Connection& connection, const char* name);
 void disassociate_bucket(Connection& connection);
 
+void disable_listen();
 bool is_listen_disabled(void);
 uint64_t get_listen_disabled_num(void);
 
