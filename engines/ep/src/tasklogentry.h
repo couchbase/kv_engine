@@ -39,8 +39,8 @@ class TaskLogEntry {
 public:
 
     // This is useful for the ringbuffer to initialize
-    TaskLogEntry() : name("invalid"),
-                     duration(ProcessClock::duration::zero()) {}
+    TaskLogEntry() {
+    }
 
     TaskLogEntry(const std::string &n, task_type_t type,
                  const ProcessClock::duration d,
@@ -75,10 +75,10 @@ public:
     rel_time_t getTimestamp() const { return ts; }
 
 private:
-    std::string name;
-    task_type_t taskType;
-    rel_time_t ts;
-    ProcessClock::duration duration;
+    std::string name = "invalid";
+    task_type_t taskType = NO_TASK_TYPE;
+    rel_time_t ts = {};
+    ProcessClock::duration duration = {};
 };
 
 #endif  // SRC_TASKLOGENTRY_H_
