@@ -94,6 +94,7 @@ typedef std::list<std::pair<std::string, MustSendCheckpointEnd>>
 class Checkpoint;
 class CheckpointManager;
 class CheckpointConfig;
+class DebugCPM;
 class PreLinkDocumentContext;
 class VBucket;
 
@@ -589,6 +590,7 @@ typedef std::pair<uint64_t, bool> CursorRegResult;
  */
 class CheckpointManager {
     friend class Checkpoint;
+    friend class DebugCPM;
     friend class EventuallyPersistentEngine;
     friend class Consumer;
 public:
