@@ -2037,6 +2037,11 @@ TEST_P(ConnectionTest, test_mb17042_duplicate_cookie_producer_connections) {
 /* Checks that the DCP producer does an async stream close when the DCP client
    expects "DCP_STREAM_END" msg. */
 TEST_P(ConnectionTest, test_producer_stream_end_on_client_close_stream) {
+#ifdef UNDEFINED_SANITIZER
+    // See below MB-28739 comment for why this is skipped.
+    std::cerr << "MB-28739[UBsan] skipping test\n";
+    return;
+#endif
     const void* cookie = create_mock_cookie();
     /* Create a new Dcp producer */
     auto producer = std::make_shared<MockDcpProducer>(
@@ -2075,6 +2080,13 @@ TEST_P(ConnectionTest, test_producer_stream_end_on_client_close_stream) {
                                       &rollbackSeqno,
                                       DCPTest::fakeDcpAddFailoverLog));
 
+    // MB-28739[UBSan]: The following cast is undefined behaviour - the DCP
+    // connection map object is of type DcpConnMap; so it's undefined to cast
+    // to MockDcpConnMap.
+    // However, in this instance MockDcpConnMap has identical member variables
+    // to DcpConnMap - the mock just exposes normally private data - and so
+    // this /seems/ ok.
+    // As such allow it in general, but skip this test under UBSan.
     MockDcpConnMap& mockConnMap =
             static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
     mockConnMap.addConn(cookie, producer);
