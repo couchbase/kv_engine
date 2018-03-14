@@ -60,26 +60,8 @@ Connection::Connection(SOCKET sfd, event_base* b)
     : socketDescriptor(sfd),
       base(b),
       sasl_conn(create_new_cbsasl_server_t()),
-      internal(false),
-      authenticated(false),
-      username("unknown"),
-      domain(cb::sasl::Domain::Local),
-      nodelay(false),
-      refcount(0),
-      engine_storage(nullptr),
-      next(nullptr),
-      thread(nullptr),
-      parent_port(0),
-      bucketEngine(nullptr),
-      peername("unknown"),
-      sockname("unknown"),
-      priority(Priority::Medium),
-      clustermap_revno(-2),
-      trace_enabled(false),
-      xerror_support(false),
       collections_support(false) {
     MEMCACHED_CONN_CREATE(this);
-    bucketIndex.store(0);
     updateDescription();
 }
 

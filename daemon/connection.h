@@ -448,76 +448,76 @@ protected:
     unique_cbsasl_conn_t sasl_conn;
 
     /** Is this a system internal connection */
-    bool internal;
+    bool internal{false};
 
     /** Is the connection authenticated or not */
-    bool authenticated;
+    bool authenticated{false};
 
     /** The username authenticated as */
-    std::string username;
+    std::string username{"unknown"};
 
     /** The domain where the user is defined */
-    cb::sasl::Domain domain;
+    cb::sasl::Domain domain{cb::sasl::Domain::Local};
 
     /** The description of the connection */
     std::string description;
 
     /** Is tcp nodelay enabled or not? */
-    bool nodelay;
+    bool nodelay{false};
 
     /** number of references to the object */
-    uint8_t refcount;
+    uint8_t refcount{0};
 
     /**
      * Pointer to engine-specific data which the engine has requested the server
      * to persist for the life of the connection.
      * See SERVER_COOKIE_API::{get,store}_engine_specific()
      */
-    void* engine_storage;
+    void* engine_storage{nullptr};
 
     /* Used for generating a list of Connection structures */
-    Connection* next;
+    Connection* next{nullptr};
 
     /** Pointer to the thread object serving this connection */
-    std::atomic<LIBEVENT_THREAD*> thread;
+    std::atomic<LIBEVENT_THREAD*> thread{nullptr};
 
     /** Listening port that creates this connection instance */
-    in_port_t parent_port;
+    in_port_t parent_port{0};
 
     /**
      * The index of the connected bucket
      */
-    std::atomic_int bucketIndex;
+    std::atomic_int bucketIndex{0};
 
     /**
      * The engine interface for the connected bucket
      */
-    ENGINE_HANDLE_V1* bucketEngine;
+    ENGINE_HANDLE_V1* bucketEngine{nullptr};
 
     /** Name of the peer if known */
-    std::string peername;
+    std::string peername{"unknown"};
 
     /** Name of the local socket if known */
-    std::string sockname;
+    std::string sockname{"unknown"};
 
     /** The connections priority */
-    Priority priority;
+    Priority priority{Priority::Medium};
 
     /** The cluster map revision used by this client */
-    int clustermap_revno;
+    int clustermap_revno{-2};
 
     /**
      * is trace enabled for this connection or not. Initially we'll just
      * have an on/off switch.. We'll be refactoring this into multiple
      * subgroups at some point.
      */
-    bool trace_enabled;
+    bool trace_enabled{false};
 
     /**
      * Is XERROR supported for this connection or not (or should we just
      * silently disconnect the client)
      */
-    bool xerror_support;
+    bool xerror_support{false};
 
     /**
      * Is COLLECTIONS supported for this connection or not. Collection aware
@@ -529,7 +529,7 @@ protected:
      * default collection and receive no new errors. They also only ever see
      * default collection mutations/deletions etc... when subscribed to DCP.
      */
-    bool collections_support;
+    bool collections_support{false};
 
     /**
      * Is duplex mode supported by this client? (do the server allow sending
