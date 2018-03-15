@@ -52,8 +52,9 @@ const int MAX_SUBDOC_PATH_COMPONENTS = 32;
 #define ASSERT_SD_VALEQ(cmd, val) ASSERT_PRED_FORMAT2(subdoc_pred_value, cmd, val)
 
 // Ensure the path p in the document k is equal to v
-#define EXPECT_SD_GET(k, p, v) EXPECT_SD_VALEQ(\
-    BinprotSubdocCommand().setOp(PROTOCOL_BINARY_CMD_SUBDOC_GET).setKey(k).setPath(p), v)
+#define EXPECT_SD_GET(k, p, v) \
+    EXPECT_SD_VALEQ(           \
+            BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_GET, k, p), v)
 
 // Ensure that the given error AND value are returned
 #define EXPECT_SUBDOC_CMD(cmd, err, val) EXPECT_PRED_FORMAT3(subdoc_pred_compat, cmd, err, val)
@@ -938,8 +939,9 @@ TEST_P(SubdocTestappTest, SubdocReplace_ArrayDeep) {
 TEST_P(SubdocTestappTest, SubdocArrayPushLast_Simple) {
     // a). Empty array, append to it.
     store_document("a", "[]");
-    EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST)
-        .setKey("a").setPath("").setValue("0"));
+    BinprotSubdocCommand request(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST);
+    request.setPath("").setValue("0").setKey("a");
+    EXPECT_SD_OK(request);
     EXPECT_SD_GET("a", "[0]", "0");
     validate_object("a", "[0]");
 
@@ -948,10 +950,9 @@ TEST_P(SubdocTestappTest, SubdocArrayPushLast_Simple) {
     EXPECT_SD_GET("a", "[1]", "1");
     validate_object("a", "[0,1]");
 
+    request.setValue("2").setKey("a");
     BinprotSubdocResponse resp;
-    EXPECT_SUBDOC_CMD_RESP(
-        BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST)
-        .setKey("a").setValue("2"), PROTOCOL_BINARY_RESPONSE_SUCCESS, "", resp);
+    EXPECT_SUBDOC_CMD_RESP(request, PROTOCOL_BINARY_RESPONSE_SUCCESS, "", resp);
     EXPECT_SD_GET("a", "[2]", "2");
     validate_object("a", "[0,1,2]");
 

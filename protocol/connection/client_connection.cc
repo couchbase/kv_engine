@@ -1116,11 +1116,8 @@ uint64_t MemcachedConnection::incr_decr(protocol_binary_command opcode,
             (opcode == PROTOCOL_BINARY_CMD_INCREMENT) ? "incr" : "decr";
 
     BinprotIncrDecrCommand command;
-    command.setOp(opcode)
-            .setKey(key)
-            .setDelta(delta)
-            .setInitialValue(initial)
-            .setExpiry(exptime);
+    command.setOp(opcode).setKey(key);
+    command.setDelta(delta).setInitialValue(initial).setExpiry(exptime);
 
     sendCommand(command);
 

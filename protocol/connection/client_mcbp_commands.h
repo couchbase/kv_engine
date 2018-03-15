@@ -50,6 +50,26 @@ public:
         vbucket = 0;
     }
 
+    BinprotCommand& setKey(const std::string& key_) {
+        key = key_;
+        return *this;
+    }
+
+    BinprotCommand& setCas(uint64_t cas_) {
+        cas = cas_;
+        return *this;
+    }
+
+    BinprotCommand& setOp(protocol_binary_command cmd_) {
+        opcode = cmd_;
+        return *this;
+    }
+
+    BinprotCommand& setVBucket(uint16_t vbid) {
+        vbucket = vbid;
+        return *this;
+    }
+
     /**
      * Encode the command to a buffer.
      * @param buf The buffer
@@ -124,37 +144,6 @@ protected:
     };
 
     /**
-     * These functions are internal wrappers for use by the CRTP-style
-     * BinprotCommandT class, which has setKey, setCas, etc. which just calls
-     * the *Priv variants and returns this, thus e.g.
-     *
-     * @code{c}
-     * T& setKey(const std::string& key) {
-     *    return static_cast<T&>(setKeyPriv(key));
-     * }
-     * @endcode
-     */
-    BinprotCommand& setKeyPriv(const std::string& key_) {
-        key = key_;
-        return *this;
-    }
-
-    BinprotCommand& setCasPriv(uint64_t cas_) {
-        cas = cas_;
-        return *this;
-    }
-
-    BinprotCommand& setOpPriv(protocol_binary_command cmd_) {
-        opcode = cmd_;
-        return *this;
-    }
-
-    BinprotCommand& setVBucketPriv(uint16_t vbid) {
-        vbucket = vbid;
-        return *this;
-    }
-
-    /**
      * Fills the header with the current fields.
      *
      * @param[out] header header to write to
@@ -206,18 +195,6 @@ template <typename T,
           protocol_binary_command OpCode = PROTOCOL_BINARY_CMD_INVALID>
 class BinprotCommandT : public BinprotCommand {
 public:
-    T& setKey(const std::string& key_) {
-        return static_cast<T&>(setKeyPriv(key_));
-    }
-    T& setCas(uint64_t cas_) {
-        return static_cast<T&>(setCasPriv(cas_));
-    }
-    T& setOp(protocol_binary_command cmd_) {
-        return static_cast<T&>(setOpPriv(cmd_));
-    }
-    T& setVBucket(uint16_t vbid) {
-        return static_cast<T&>(setVBucketPriv(vbid));
-    }
     BinprotCommandT() {
         setOp(OpCode);
     }

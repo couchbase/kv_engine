@@ -297,9 +297,9 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_DictAddCAS) {
 
     // Use SUBDOC_EXISTS to obtain the current CAS.
     BinprotSubdocResponse resp;
-    subdoc_verify_cmd(
-        BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS).setKey("dict").setPath("int"),
-        PROTOCOL_BINARY_RESPONSE_SUCCESS, "", resp);
+    BinprotSubdocCommand request(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
+    request.setPath("int").setKey("dict");
+    subdoc_verify_cmd(request, PROTOCOL_BINARY_RESPONSE_SUCCESS, "", resp);
     auto cas = resp.getCas();
 
     // 1. Attempt to mutate with an incorrect CAS - should fail.
