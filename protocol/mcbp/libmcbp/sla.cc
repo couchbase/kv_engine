@@ -32,8 +32,6 @@ namespace cb {
 namespace mcbp {
 namespace sla {
 
-static std::chrono::nanoseconds parseThresholdEntry(const cJSON& doc);
-
 /**
  * Merge the content of document 2 into document 1 by overwriting
  * all values in document 1 with the value found in document 2.
@@ -53,6 +51,26 @@ static void merge_docs(cJSON& doc1, const cJSON& doc2);
  */
 static std::array<std::atomic<std::chrono::nanoseconds>, 0x100> threshold;
 
+/**
+ * Convert the time to a textual representation which may be used
+ * to generate the JSON representation of the SLAs
+ */
+static std::string time2text(std::chrono::nanoseconds time2convert) {
+    const char* const extensions[] = {" ns", " us", " ms", " s", nullptr};
+    int id = 0;
+    auto time = time2convert.count();
+
+    while (time > 999 && (time % 1000) == 0) {
+        ++id;
+        time /= 1000;
+        if (extensions[id + 1] == nullptr) {
+            break;
+        }
+    }
+
+    return std::to_string(time) + extensions[id];
+}
+
 unique_cJSON_ptr to_json() {
     unique_cJSON_ptr ret(cJSON_CreateObject());
     cJSON_AddNumberToObject(ret.get(), "version", 1);
@@ -64,10 +82,10 @@ unique_cJSON_ptr to_json() {
             auto opcode = cb::mcbp::ClientOpcode(ii);
             std::string cmd = ::to_string(opcode);
             unique_cJSON_ptr obj(cJSON_CreateObject());
-            auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-                    threshold[ii].load(std::memory_order_relaxed));
-            cJSON_AddNumberToObject(
-                    obj.get(), "slow", gsl::narrow_cast<double>(ms.count()));
+            cJSON_AddStringToObject(
+                    obj.get(),
+                    "slow",
+                    time2text(threshold[ii].load(std::memory_order_relaxed)));
             cJSON_AddItemToObject(ret.get(), cmd.c_str(), obj.release());
         } catch (const std::exception&) {
             // unknown command. ignore
@@ -223,7 +241,7 @@ void reconfigure(const cJSON& doc, bool apply) {
     cJSON* obj = cJSON_GetObjectItem(root, "default");
     if (obj != nullptr) {
         // Handle default entry
-        auto val = parseThresholdEntry(*obj);
+        auto val = getSlowOpThreshold(*obj);
         if (apply) {
             for (auto& t : threshold) {
                 t.store(val, std::memory_order_relaxed);
@@ -249,17 +267,17 @@ void reconfigure(const cJSON& doc, bool apply) {
                             "cb::mcbp::sla::reconfigure: Unknown command '"} +
                     obj->string + "'");
         }
-        auto value = parseThresholdEntry(*obj);
+        auto value = getSlowOpThreshold(*obj);
         if (apply) {
             threshold[uint8_t(opcode)].store(value, std::memory_order_relaxed);
         }
     }
 }
 
-static std::chrono::nanoseconds parseThresholdEntry(const cJSON& doc) {
+std::chrono::nanoseconds getSlowOpThreshold(const cJSON& doc) {
     if (doc.type != cJSON_Object) {
         throw std::invalid_argument(
-                "cb::mcbp::sla::parseThresholdEntry: Entry '" +
+                "cb::mcbp::sla::getSlowOpThreshold: Entry '" +
                 std::string{doc.string} + "' is not an object");
     }
 
@@ -267,7 +285,7 @@ static std::chrono::nanoseconds parseThresholdEntry(const cJSON& doc) {
     auto* val = cJSON_GetObjectItem(root, "slow");
     if (val == nullptr) {
         throw std::invalid_argument(
-                "cb::mcbp::sla::parseThresholdEntry: Entry '" +
+                "cb::mcbp::sla::getSlowOpThreshold: Entry '" +
                 std::string{doc.string} +
                 "' does not contain a mandatory 'slow' entry");
     }
@@ -278,7 +296,7 @@ static std::chrono::nanoseconds parseThresholdEntry(const cJSON& doc) {
 
     if (val->type != cJSON_String) {
         throw std::invalid_argument(
-                "cb::mcbp::sla::parseThresholdEntry: Entry '" +
+                "cb::mcbp::sla::getSlowOpThreshold: Entry '" +
                 std::string{doc.string} + "' is not a value or a string");
     }
 
@@ -332,7 +350,7 @@ static std::chrono::nanoseconds parseThresholdEntry(const cJSON& doc) {
         return std::chrono::hours(value);
     }
 
-    throw std::invalid_argument("cb::mcbp::sla::parseThresholdEntry: Entry '" +
+    throw std::invalid_argument("cb::mcbp::sla::getSlowOpThreshold: Entry '" +
                                 std::string{doc.valuestring} +
                                 "' contains an unknown specifier: '" +
                                 specifier + "'");

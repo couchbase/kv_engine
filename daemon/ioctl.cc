@@ -151,6 +151,8 @@ static ENGINE_ERROR_CODE ioctlSetMcbpSla(Cookie& cookie,
 
     try {
         cb::mcbp::sla::reconfigure(*doc);
+        LOG_INFO("SLA configuration changed to: {}",
+                 to_string(cb::mcbp::sla::to_json(), false));
     } catch (const std::invalid_argument& e) {
         cookie.getEventId();
         auto& c = cookie.getConnection();

@@ -69,7 +69,7 @@ TEST(McbpSlaReconfig, DefaultEntryNotAnObject) {
         FAIL() << "Default must be an object";
     } catch (const std::invalid_argument& e) {
         EXPECT_STREQ(
-                "cb::mcbp::sla::parseThresholdEntry: Entry 'default' is not an "
+                "cb::mcbp::sla::getSlowOpThreshold: Entry 'default' is not an "
                 "object",
                 e.what());
     }
@@ -83,7 +83,7 @@ TEST(McbpSlaReconfig, DefaultObjectMissingSlow) {
         FAIL() << "Default must contain 'slow'";
     } catch (const std::invalid_argument& e) {
         EXPECT_STREQ(
-                "cb::mcbp::sla::parseThresholdEntry: Entry 'default' does not "
+                "cb::mcbp::sla::getSlowOpThreshold: Entry 'default' does not "
                 "contain a mandatory 'slow' entry",
                 e.what());
     }
@@ -116,7 +116,7 @@ TEST(McbpSlaReconfig, GetEntryNotAnObject) {
         FAIL() << "Entries must be an object";
     } catch (const std::invalid_argument& e) {
         EXPECT_STREQ(
-                "cb::mcbp::sla::parseThresholdEntry: Entry 'get' is not an "
+                "cb::mcbp::sla::getSlowOpThreshold: Entry 'get' is not an "
                 "object",
                 e.what());
     }
@@ -130,7 +130,7 @@ TEST(McbpSlaReconfig, GetObjectMissingSlow) {
         FAIL() << "Entries must contain 'slow'";
     } catch (const std::invalid_argument& e) {
         EXPECT_STREQ(
-                "cb::mcbp::sla::parseThresholdEntry: Entry 'get' does not "
+                "cb::mcbp::sla::getSlowOpThreshold: Entry 'get' does not "
                 "contain a mandatory 'slow' entry",
                 e.what());
     }
@@ -245,4 +245,34 @@ TEST(McbpSlaReconfig, ReconfigureFiles) {
     EXPECT_EQ(std::chrono::hours(1),
               cb::mcbp::sla::getSlowOpThreshold(
                       cb::mcbp::ClientOpcode::SelectBucket));
+}
+
+TEST(McbpSlaReconfig, toJSON) {
+    // Verify that we try to print the number as easy to read for
+    // a human
+    unique_cJSON_ptr doc(cJSON_Parse(
+            R"({"version":1,"get": {"slow": "1000000 ns"}})"));
+    cb::mcbp::sla::reconfigure(*doc);
+    auto json = cb::mcbp::sla::to_json();
+    ASSERT_TRUE(json) << "Failed to generate JSON representation";
+    auto* obj = cJSON_GetObjectItem(json.get(), "GET");
+    ASSERT_NE(nullptr, obj) << "Expected GET to be present";
+    auto* slow = cJSON_GetObjectItem(obj, "slow");
+    ASSERT_NE(nullptr, slow) << "Expected slow to be present";
+    ASSERT_EQ(cJSON_String, slow->type) << "Slow should be a string";
+    ASSERT_EQ(std::string{"1 ms"}, slow->valuestring);
+
+    // Verify that we don't loose information when trying to
+    // make the number easier to read.
+    doc.reset(cJSON_Parse(
+            R"({"version":1,"get": {"slow": "1001 ns"}})"));
+    cb::mcbp::sla::reconfigure(*doc);
+    json = cb::mcbp::sla::to_json();
+    ASSERT_TRUE(json) << "Failed to generate JSON representation";
+    obj = cJSON_GetObjectItem(json.get(), "GET");
+    ASSERT_NE(nullptr, obj) << "Expected GET to be present";
+    slow = cJSON_GetObjectItem(obj, "slow");
+    ASSERT_NE(nullptr, slow) << "Expected slow to be present";
+    ASSERT_EQ(cJSON_String, slow->type) << "Slow should be a string";
+    ASSERT_EQ(std::string{"1001 ns"}, slow->valuestring);
 }

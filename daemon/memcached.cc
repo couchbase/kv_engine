@@ -473,6 +473,8 @@ static void opcode_attributes_override_changed_listener(const std::string&,
     } else {
         cb::mcbp::sla::reconfigure(settings.getRoot());
     }
+    LOG_INFO("SLA configuration changed to: {}",
+             to_string(cb::mcbp::sla::to_json(), false));
 }
 
 static void interfaces_changed_listener(const std::string&, Settings &s) {
@@ -2466,6 +2468,9 @@ extern "C" int memcached_main(int argc, char **argv) {
 
     /* Logging available now extensions have been loaded. */
     logger->info("Couchbase version {} starting.", get_server_version());
+
+    logger->info("Using SLA configuration: {}",
+                 to_string(cb::mcbp::sla::to_json(), false));
 
     if (settings.isStdinListenerEnabled()) {
         cb::logger::get()->info("Enable standard input listener");

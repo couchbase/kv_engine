@@ -14,6 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+#include <mcbp/mcbp.h>
 #include <cctype>
 #include <limits>
 #include <thread>
@@ -38,14 +39,7 @@ std::chrono::nanoseconds TuneMcbpSla::getSlowThreshold(
                                to_string(opcode));
     }
 
-    obj = cJSON_GetObjectItem(obj, "slow");
-    if (obj->type != cJSON_Number) {
-        throw std::runtime_error(
-                "TuneMcbpSla::getSlowThreshold: Only numbers supported for "
-                "now");
-    }
-
-    return std::chrono::milliseconds(obj->valueint);
+    return cb::mcbp::sla::getSlowOpThreshold(*obj);
 }
 
 INSTANTIATE_TEST_CASE_P(TransportProtocols,

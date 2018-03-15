@@ -148,6 +148,13 @@ std::chrono::nanoseconds getSlowOpThreshold(cb::mcbp::ClientOpcode opcode);
  * always report the threshold for all operations in ms.
  */
 unique_cJSON_ptr to_json();
+
+/**
+ * Get the slow operation threshold for the given doc (this should be
+ * the per-opcode section of the full SLA entry
+ */
+std::chrono::nanoseconds getSlowOpThreshold(const cJSON& doc);
+
 } // namespace sla
 }
 }
