@@ -2986,6 +2986,11 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
     dcp_step(h, h1, cookie);
     cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
+    cb_assert(dcp_last_key.compare("supports_hifi_MFU") == 0);
+    cb_assert(dcp_last_opaque != opaque);
+
+    dcp_step(h, h1, cookie);
+    cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
     cb_assert(dcp_last_key.compare("send_stream_end_on_client_close_stream") ==
               0);
     cb_assert(dcp_last_opaque != opaque);

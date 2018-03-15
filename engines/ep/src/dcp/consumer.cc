@@ -714,6 +714,13 @@ ENGINE_ERROR_CODE DcpConsumer::step(struct dcp_message_producers* producers) {
         return ret;
     }
 
+    if ((ret = supportHifiMFU(producers)) != ENGINE_FAILED) {
+        if (ret == ENGINE_SUCCESS) {
+            ret = ENGINE_WANT_MORE;
+        }
+        return ret;
+    }
+
     if ((ret = sendStreamEndOnClientStreamClose(producers)) != ENGINE_FAILED) {
         if (ret == ENGINE_SUCCESS) {
             ret = ENGINE_WANT_MORE;
