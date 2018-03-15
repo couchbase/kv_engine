@@ -423,7 +423,7 @@ public:
      *
      * @param elapsed the number of ms elapsed while executing the command
      */
-    void maybeLogSlowCommand(const std::chrono::milliseconds& elapsed) const;
+    void maybeLogSlowCommand(const std::chrono::nanoseconds& elapsed) const;
 
     /**
      * Get the start time for this command

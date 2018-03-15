@@ -426,7 +426,7 @@ void Cookie::logResponse(ENGINE_ERROR_CODE code) const {
 }
 
 void Cookie::maybeLogSlowCommand(
-        const std::chrono::milliseconds& elapsed) const {
+        const std::chrono::nanoseconds& elapsed) const {
     const auto opcode = getRequest().getClientOpcode();
     const auto limit = cb::mcbp::sla::getSlowOpThreshold(opcode);
 
