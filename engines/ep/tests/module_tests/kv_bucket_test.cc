@@ -1042,8 +1042,10 @@ TEST_P(KVBucketParamTest, validateKeyTempDeletedItemTest) {
 
     //Check that the temp item is removed for validateKey
     EXPECT_EQ(expTempItems, store->getVBucket(vbid)->getNumTempItems());
-    std::unique_ptr<Item> diskItem;
-    std::string result = store->validateKey(key, vbid, *diskItem);
+
+    // dummy item; don't expect to need it for deleted case.
+    auto dummy = make_item(vbid, key, {});
+    std::string result = store->validateKey(key, vbid, dummy);
     EXPECT_STREQ("item_deleted", result.c_str());
     EXPECT_EQ(0, store->getVBucket(vbid)->getNumTempItems());
 }
