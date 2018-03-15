@@ -16,8 +16,9 @@
 */
 
 #include "config.h"
+
+#include <memcached/visibility.h>
 #include <platform/cb_malloc.h>
-#include <platform/visibility.h>
 #include <string>
 
 /*
@@ -25,12 +26,12 @@
  * to verify memory tracking across shared objects.
  */
 
-extern "C" EXPORT_SYMBOL void* plugin_malloc(size_t size);
-extern "C" EXPORT_SYMBOL void plugin_free(void* ptr);
-extern "C" EXPORT_SYMBOL char* plugin_new_char_array(size_t len);
-extern "C" EXPORT_SYMBOL void plugin_delete_array(char* ptr);
-extern "C" EXPORT_SYMBOL std::string* plugin_new_string(const char* str);
-extern "C" EXPORT_SYMBOL void plugin_delete_string(std::string* ptr);
+extern "C" MEMCACHED_PUBLIC_API void* plugin_malloc(size_t size);
+extern "C" MEMCACHED_PUBLIC_API void plugin_free(void* ptr);
+extern "C" MEMCACHED_PUBLIC_API char* plugin_new_char_array(size_t len);
+extern "C" MEMCACHED_PUBLIC_API void plugin_delete_array(char* ptr);
+extern "C" MEMCACHED_PUBLIC_API std::string* plugin_new_string(const char* str);
+extern "C" MEMCACHED_PUBLIC_API void plugin_delete_string(std::string* ptr);
 
 void* plugin_malloc(size_t size) {
     return cb_malloc(size);

@@ -60,7 +60,7 @@ static char dummy;
  * Note: mutates a dummy global variable to prevent optimization
  * removing the recursion.
  */
-EXPORT_SYMBOL
+MEMCACHED_PUBLIC_API
 char recursive_crash_function(char depth, CrashMode mode) {
     if (depth == 0) {
         switch (mode) {
