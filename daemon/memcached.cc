@@ -2170,7 +2170,7 @@ void delete_all_buckets() {
                 LOG_INFO("Scheduling delete for bucket {}", name);
                 task = std::make_shared<DestroyBucketTask>(name);
                 std::lock_guard<std::mutex> guard(task->getMutex());
-                reinterpret_cast<McbpDestroyBucketTask*>(task.get())->start();
+                dynamic_cast<DestroyBucketTask&>(*task).start();
                 executorPool->schedule(task, false);
                 done = false;
             }
@@ -2178,9 +2178,9 @@ void delete_all_buckets() {
         all_bucket_lock.unlock();
 
         if (task.get() != nullptr) {
-            auto* dbt = reinterpret_cast<DestroyBucketTask*>(task.get());
+            auto& dbt = dynamic_cast<DestroyBucketTask&>(*task);
             LOG_INFO("Waiting for delete of {} to complete", name);
-            dbt->thread.waitForState(Couchbase::ThreadState::Zombie);
+            dbt.thread.waitForState(Couchbase::ThreadState::Zombie);
             LOG_INFO("Bucket {} deleted", name);
         }
     } while (!done);
