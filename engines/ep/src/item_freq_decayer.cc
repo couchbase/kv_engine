@@ -40,6 +40,8 @@ bool ItemFreqDecayerTask::run(void) {
     // Setup so that we will sleep before clearing notified.
     snooze(std::numeric_limits<int>::max());
 
+    ++(engine->getEpStats().freqDecayerRuns);
+
     // Get our pause/resume visitor. If we didn't finish the previous pass,
     // then resume from where we last were, otherwise create a new visitor
     // starting from the beginning.

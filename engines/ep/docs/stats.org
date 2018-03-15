@@ -141,6 +141,9 @@ For introductory information on stats within Couchbase, start with the
 | ep_num_expiry_pager_runs           | Number of times we ran expiry pager    |
 |                                    | loops to purge expired items from      |
 |                                    | memory/disk                            |
+| ep_num_freq_decayer_runs           | Number of times we ran the freq decayer|
+|                                    | task because a frequency counter has   |
+|                                    | become saturated                       |
 | ep_num_access_scanner_runs         | Number of times we ran accesss scanner |
 |                                    | to snapshot working set                |
 | ep_num_access_scanner_skips        | Number of times accesss scanner task   |

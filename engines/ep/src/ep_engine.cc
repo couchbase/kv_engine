@@ -2678,6 +2678,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     add_stat, cookie);
     add_casted_stat("ep_num_expiry_pager_runs", epstats.expiryPagerRuns,
                     add_stat, cookie);
+    add_casted_stat("ep_num_freq_decayer_runs",
+                    epstats.freqDecayerRuns,
+                    add_stat,
+                    cookie);
     add_casted_stat("ep_items_rm_from_checkpoints",
                     epstats.itemsRemovedFromCheckpoints,
                     add_stat, cookie);

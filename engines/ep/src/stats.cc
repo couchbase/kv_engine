@@ -64,6 +64,7 @@ EPStats::EPStats()
       cursorsDropped(0),
       pagerRuns(0),
       expiryPagerRuns(0),
+      freqDecayerRuns(0),
       itemsRemovedFromCheckpoints(0),
       numValueEjects(0),
       numFailedEjects(0),

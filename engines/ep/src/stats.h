@@ -196,6 +196,8 @@ public:
     Counter pagerRuns;
     //! Number of times the expiry pager runs for purging expired items
     Counter expiryPagerRuns;
+    //! Number of times the item frequency decayer runs
+    Counter freqDecayerRuns;
     //! Number of items removed from closed unreferenced checkpoints.
     Counter itemsRemovedFromCheckpoints;
     //! Number of times a value is ejected
@@ -446,6 +448,8 @@ public:
         commit_time.store(0);
         cursorsDropped.store(0);
         pagerRuns.store(0);
+        expiryPagerRuns.store(0);
+        freqDecayerRuns.store(0);
         itemsRemovedFromCheckpoints.store(0);
         numValueEjects.store(0);
         numFailedEjects.store(0);
