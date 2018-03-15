@@ -304,6 +304,11 @@ RocksDBKVStore::~RocksDBKVStore() {
     //     "Before delete DB, you have to close All column families by calling
     //      DestroyColumnFamilyHandle() with all the handles."
     vbHandles.clear();
+    // MB-28493: We need to destroy RocksDB instance before BlockCache and
+    // CFOptions are destroyed as a temporary workaround for some RocksDB
+    // open issues.
+    rdb.reset();
+
     in_transaction = false;
 }
 
