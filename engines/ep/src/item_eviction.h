@@ -103,7 +103,7 @@ public:
     // The initial frequency count that items should be set to when first
     // added to the hash table.  It is not 0, as we want to ensure that we
     // do not immediately evict items that we have just added.
-    static const uint8_t initialFreqCount = 5;
+    static const uint8_t initialFreqCount = 4;
 
     // StatCounter: The number of frequencies that need to be added to the
     // frequency histogram before it is not necessary to recalculate the
