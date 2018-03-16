@@ -1,7 +1,7 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #pragma once
 
-typedef enum {
+typedef enum : int {
     CONFIG_SUCCESS,
     CONFIG_INVALID_ARGUMENTS,
     CONFIG_NO_SUCH_FILE,

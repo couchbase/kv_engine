@@ -19,7 +19,7 @@
 
 #include <platform/bitset.h>
 
-typedef enum {
+typedef enum : int {
     vbucket_state_active = 1, /**< Actively servicing a vbucket. */
     vbucket_state_replica, /**< Servicing a vbucket as a replica only. */
     vbucket_state_pending, /**< Pending active. */

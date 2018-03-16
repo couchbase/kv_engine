@@ -787,12 +787,12 @@ typedef enum {
 /**
  * Definitions of sub-document path flags (this is a bitmap)
  */
-typedef enum {
+typedef enum : uint8_t {
     /** No flags set */
-        SUBDOC_FLAG_NONE = 0x0,
+    SUBDOC_FLAG_NONE = 0x0,
 
     /** (Mutation) Should non-existent intermediate paths be created? */
-        SUBDOC_FLAG_MKDIR_P = 0x01,
+    SUBDOC_FLAG_MKDIR_P = 0x01,
 
     /**
      * 0x02 is unused
@@ -802,7 +802,7 @@ typedef enum {
      * If set, the path refers to an Extended Attribute (XATTR).
      * If clear, the path refers to a path inside the document body.
      */
-        SUBDOC_FLAG_XATTR_PATH = 0x04,
+    SUBDOC_FLAG_XATTR_PATH = 0x04,
 
     /**
      * 0x08 is unused
@@ -813,7 +813,7 @@ typedef enum {
      * invalid if this flag is set without SUBDOC_FLAG_XATTR_PATH being
      * set.
      */
-        SUBDOC_FLAG_EXPAND_MACROS = 0x10,
+    SUBDOC_FLAG_EXPAND_MACROS = 0x10,
 
 } protocol_binary_subdoc_flag;
 
@@ -1913,7 +1913,7 @@ typedef protocol_binary_request_no_extras protocol_binary_request_select_bucket;
 /*
  * Parameter types of CMD_SET_PARAM command.
  */
-typedef enum {
+typedef enum : int {
     protocol_binary_engine_param_flush = 1, /* flusher-related param type */
     protocol_binary_engine_param_replication, /* replication param type */
     protocol_binary_engine_param_checkpoint, /* checkpoint-related param type */
