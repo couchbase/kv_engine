@@ -432,24 +432,6 @@ std::string McdTestappTest::PrintToStringCombinedName(
            to_string(::testing::get<1>(info.param));
 }
 
-#ifdef WIN32
-static void log_network_error(const char* prefix) {
-    LPVOID error_msg;
-    DWORD err = WSAGetLastError();
-
-    if (FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-                      FORMAT_MESSAGE_FROM_SYSTEM |
-                      FORMAT_MESSAGE_IGNORE_INSERTS,
-                      NULL, err, 0,
-                      (LPTSTR)&error_msg, 0, NULL) != 0) {
-        fprintf(stderr, prefix, error_msg);
-        LocalFree(error_msg);
-    } else {
-        fprintf(stderr, prefix, "unknown error");
-    }
-}
-#endif
-
 std::string CERTIFICATE_PATH(const std::string& file) {
 #ifdef WIN32
     return std::string("\\tests\\cert\\") + file;
