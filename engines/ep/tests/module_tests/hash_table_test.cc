@@ -535,6 +535,20 @@ TEST_P(HashTableStatsTest, EjectFlush) {
     ht.clear();
 }
 
+/*
+ * Test that when unlocked_ejectItem returns false indicating that it failed
+ * to eject an item, the stat numFailedEjects increases by one.
+ */
+TEST_P(HashTableStatsTest, numFailedEjects) {
+    EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
+    EXPECT_EQ(0, stats.numFailedEjects);
+    StoredValue* v(ht.find(key, TrackReference::Yes, WantsDeleted::No));
+    EXPECT_TRUE(v);
+    EXPECT_FALSE(ht.unlocked_ejectItem(v, evictionPolicy));
+    EXPECT_EQ(1, stats.numFailedEjects);
+    ht.clear();
+}
+
 /**
  * MB-26126: Check that NumNonResident item counts are correct when restoring
  * a Deleted value to an metadata-only StoredValue.

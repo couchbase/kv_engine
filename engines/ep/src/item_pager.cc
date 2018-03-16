@@ -128,33 +128,42 @@ public:
         case HashTable::EvictionPolicy::statisticalCounter:
         {
             /*
-             * If the storedValue is eligible for eviction then add its
-             * frequency counter value to the histogram, otherwise add the
-             * maximum (255) to indicate that the storedValue cannot be
-             * evicted.
-             *
-             * By adding the maximum value for each storedValue that cannot be
-             * evicted we ensure that the histogram is biased correctly so that
-             * we get a frequency threshold that will remove the correct number
-             * of storedValue items.
+             * We take a copy of the freqCounterValue because calling
+             * doEviction can modify the value, and when we want to
+             * add it to the histogram we want to use the original value.
              */
-            if (v.eligibleForEviction(store.getItemEvictionPolicy())) {
-                itemEviction.addValueToFreqHistogram(v.getFreqCounterValue());
+            auto storedValueFreqCounter = v.getFreqCounterValue();
+            if (storedValueFreqCounter <= freqCounterThreshold) {
+                /*
+                 * If the storedValue is eligible for eviction then add its
+                 * frequency counter value to the histogram, otherwise add the
+                 * maximum (255) to indicate that the storedValue cannot be
+                 * evicted.
+                 *
+                 * By adding the maximum value for each storedValue that cannot
+                 * be evicted we ensure that the histogram is biased correctly
+                 * so that we get a frequency threshold that will remove the
+                 * correct number of storedValue items.
+                 */
+                if (!doEviction(lh, &v)) {
+                    storedValueFreqCounter = std::numeric_limits<uint8_t>::max();
+                }
             } else {
-                itemEviction.addValueToFreqHistogram(
-                        std::numeric_limits<uint8_t>::max());
+                if (!v.eligibleForEviction(store.getItemEvictionPolicy())) {
+                    storedValueFreqCounter = std::numeric_limits<uint8_t>::max();
+                }
             }
-            // Whilst we are learning it is worth always updating the threshold.
-            // We also want to update the threshold at periodic intervals.
+            itemEviction.addValueToFreqHistogram(storedValueFreqCounter);
+
+            // Whilst we are learning it is worth always updating the
+            // threshold. We also want to update the threshold at periodic
+            // intervals.
             if (itemEviction.isLearning() ||
                 itemEviction.isRequiredToUpdate()) {
                 freqCounterThreshold =
                         itemEviction.getFreqThreshold(percent * 100.0);
             }
 
-            if (v.getFreqCounterValue() <= freqCounterThreshold) {
-                doEviction(lh, &v);
-            }
             return true;
         }
         }
@@ -321,7 +330,7 @@ private:
         }
     }
 
-    void doEviction(const HashTable::HashBucketLock& lh, StoredValue* v) {
+    bool doEviction(const HashTable::HashBucketLock& lh, StoredValue* v) {
         item_eviction_policy_t policy = store.getItemEvictionPolicy();
         StoredDocKey key(v->getKey());
 
@@ -335,7 +344,11 @@ private:
             if (policy == FULL_EVICTION) {
                 currentBucket->addToFilter(key);
             }
+            // performed eviction so return true
+            return true;
         }
+        // did not perform eviction so return false
+        return false;
     }
 
     std::list<Item> expired;
