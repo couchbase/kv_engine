@@ -541,22 +541,9 @@ void write_config_to_file(const std::string& config, const std::string& fname) {
  * @throw a string if something goes wrong
  */
 unique_cJSON_ptr loadJsonFile(const std::string &file) {
-    std::ifstream myfile(file, std::ios::in | std::ios::binary);
-    if (!myfile.is_open()) {
-        std::string msg("Failed to open file: ");
-        msg.append(file);
-        throw msg;
-    }
-
-    std::string str((std::istreambuf_iterator<char>(myfile)),
-                    std::istreambuf_iterator<char>());
-
-    myfile.close();
-    unique_cJSON_ptr ret(cJSON_Parse(str.c_str()));
+    unique_cJSON_ptr ret(cJSON_Parse(cb::io::loadFile(file).c_str()));
     if (ret.get() == nullptr) {
-        std::string msg("Failed to parse file: ");
-        msg.append(file);
-        throw msg;
+        throw std::logic_error("Failed to parse: " + file);
     }
 
     return ret;
