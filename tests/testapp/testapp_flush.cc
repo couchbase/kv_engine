@@ -22,7 +22,7 @@
 
 class FlushTest : public TestappClientTest {
 protected:
-    virtual void SetUp() {
+    void SetUp() override {
         TestappClientTest::SetUp();
 
         conn = &getAdminConnection();
@@ -37,7 +37,7 @@ protected:
         conn->mutate(doc, vbid, MutationType::Set);
     }
 
-    virtual void TearDown() {
+    void TearDown() override {
         try {
             conn->remove(key, vbid, 0);
         } catch (ConnectionError& err) {

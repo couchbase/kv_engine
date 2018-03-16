@@ -28,14 +28,15 @@ class MemcachedConnection;
  */
 class TestBucketImpl {
 public:
-    TestBucketImpl(std::string extraConfig = {}) : extraConfig(extraConfig) {
+    explicit TestBucketImpl(std::string extraConfig = {})
+        : extraConfig(std::move(extraConfig)) {
     }
 
     virtual void setUpBucket(const std::string& name,
                              const std::string& config,
                              MemcachedConnection& conn) = 0;
 
-    virtual ~TestBucketImpl() {}
+    virtual ~TestBucketImpl() = default;
 
     virtual std::string getName() const = 0;
 
@@ -90,7 +91,7 @@ public:
                    std::string engineName,
                    std::string engineConfig);
 
-    ~McdEnvironment();
+    ~McdEnvironment() override;
 
     /**
      * Create the test environment. This method is called automatically

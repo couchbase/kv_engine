@@ -134,10 +134,10 @@ public:
 
 protected:
     // per test setup function.
-    virtual void SetUp();
+    void SetUp() override;
 
     // per test tear-down function.
-    virtual void TearDown();
+    void TearDown() override;
 
     //per test compression mode configuration function
     void setCompressionMode(const std::string& compression_mode);
@@ -317,10 +317,10 @@ public:
 
 protected:
     // per test setup function.
-    virtual void SetUp() override;
+    void SetUp() override;
 
     // per test tear-down function.
-    virtual void TearDown() override;
+    void TearDown() override;
 
     /// return the TransportProtocol parameter for this test instance.
     TransportProtocols getProtocolParam() const {
