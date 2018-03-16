@@ -423,7 +423,7 @@ ClientJSONSupport McdTestappTest::hasJSONSupport() const {
     return getJSONParam();
 }
 
-void TestappTest::setCompressionMode(const std::string compression_mode) {
+void TestappTest::setCompressionMode(const std::string& compression_mode) {
     mcd_env->getTestBucket().setCompressionMode(
             getConnection(), bucketName, compression_mode);
 }

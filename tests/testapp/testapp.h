@@ -140,7 +140,7 @@ protected:
     virtual void TearDown();
 
     //per test compression mode configuration function
-    void setCompressionMode(const std::string compression_mode);
+    void setCompressionMode(const std::string& compression_mode);
 
     static unique_cJSON_ptr generate_config(uint16_t ssl_port);
     static unique_cJSON_ptr generate_config();
