@@ -1175,19 +1175,14 @@ TEST_P(McdTestappTest, Config_Reload) {
 
     /* Change max_conns on first interface. */
     {
-        cJSON *dynamic = generate_config(ssl_port);
-        char* dyn_string = NULL;
-        cJSON *iface_list = cJSON_GetObjectItem(dynamic, "interfaces");
+        unique_cJSON_ptr dynamic(generate_config(ssl_port));
+        cJSON* iface_list = cJSON_GetObjectItem(dynamic.get(), "interfaces");
         cJSON *iface = cJSON_GetArrayItem(iface_list, 0);
         cJSON_ReplaceItemInObject(iface, "maxconn",
                                   cJSON_CreateNumber(MAX_CONNECTIONS * 2));
-        dyn_string = cJSON_Print(dynamic);
-        cJSON_Delete(dynamic);
-        if (write_config_to_file(dyn_string, config_file.c_str()) == -1) {
-            cJSON_Free(dyn_string);
-            FAIL() << "Failed to write config to file";
-        }
-        cJSON_Free(dyn_string);
+        const auto dyn_string = to_string(dynamic);
+
+        write_config_to_file(dyn_string, config_file);
 
         size_t len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
                                       PROTOCOL_BINARY_CMD_CONFIG_RELOAD, NULL,
@@ -1203,19 +1198,14 @@ TEST_P(McdTestappTest, Config_Reload) {
 
     /* Change backlog on first interface. */
     {
-        cJSON *dynamic = generate_config(ssl_port);
-        char* dyn_string = NULL;
-        cJSON *iface_list = cJSON_GetObjectItem(dynamic, "interfaces");
+        unique_cJSON_ptr dynamic(generate_config(ssl_port));
+        cJSON* iface_list = cJSON_GetObjectItem(dynamic.get(), "interfaces");
         cJSON *iface = cJSON_GetArrayItem(iface_list, 0);
         cJSON_ReplaceItemInObject(iface, "backlog",
                                   cJSON_CreateNumber(BACKLOG * 2));
-        dyn_string = cJSON_Print(dynamic);
-        cJSON_Delete(dynamic);
-        if (write_config_to_file(dyn_string, config_file.c_str()) == -1) {
-            cJSON_Free(dyn_string);
-            FAIL() << "Failed to write config to file";
-        }
-        cJSON_Free(dyn_string);
+        const auto dyn_string = to_string(dynamic);
+
+        write_config_to_file(dyn_string, config_file);
 
         size_t len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
                                       PROTOCOL_BINARY_CMD_CONFIG_RELOAD, NULL,
@@ -1231,18 +1221,13 @@ TEST_P(McdTestappTest, Config_Reload) {
 
     /* Change tcp_nodelay on first interface. */
     {
-        cJSON *dynamic = generate_config(ssl_port);
-        char* dyn_string = NULL;
-        cJSON *iface_list = cJSON_GetObjectItem(dynamic, "interfaces");
+        unique_cJSON_ptr dynamic(generate_config(ssl_port));
+        cJSON* iface_list = cJSON_GetObjectItem(dynamic.get(), "interfaces");
         cJSON *iface = cJSON_GetArrayItem(iface_list, 0);
         cJSON_AddFalseToObject(iface, "tcp_nodelay");
-        dyn_string = cJSON_Print(dynamic);
-        cJSON_Delete(dynamic);
-        if (write_config_to_file(dyn_string, config_file.c_str()) == -1) {
-            cJSON_Free(dyn_string);
-            FAIL() << "Failed to write config to file";
-        }
-        cJSON_Free(dyn_string);
+        const auto dyn_string = to_string(dynamic);
+
+        write_config_to_file(dyn_string, config_file);
 
         size_t len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
                                       PROTOCOL_BINARY_CMD_CONFIG_RELOAD, NULL,
@@ -1259,19 +1244,13 @@ TEST_P(McdTestappTest, Config_Reload) {
     /* Check that invalid (corrupted) file is rejected (and we don't
        leak any memory in the process). */
     {
-        cJSON *dynamic = generate_config(ssl_port);
-        char* dyn_string = cJSON_Print(dynamic);
-        cJSON_Delete(dynamic);
+        unique_cJSON_ptr dynamic(generate_config(ssl_port));
+        auto dyn_string = to_string(dynamic);
         // Corrupt the JSON by replacing first opening brace '{' with
         // a closing '}'.
-        char* ptr = strchr(dyn_string, '{');
-        ASSERT_NE(nullptr, ptr);
-        *ptr = '}';
-        if (write_config_to_file(dyn_string, config_file.c_str()) == -1) {
-            cJSON_Free(dyn_string);
-            FAIL() << "Failed to write config to file";
-        }
-        cJSON_Free(dyn_string);
+        dyn_string.front() = '}';
+
+        write_config_to_file(dyn_string, config_file);
 
         size_t len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
                                       PROTOCOL_BINARY_CMD_CONFIG_RELOAD, NULL,
@@ -1286,14 +1265,10 @@ TEST_P(McdTestappTest, Config_Reload) {
     }
 
     /* Restore original configuration. */
-    cJSON *dynamic = generate_config(ssl_port);
-    char* dyn_string = cJSON_Print(dynamic);
-    cJSON_Delete(dynamic);
-    if (write_config_to_file(dyn_string, config_file.c_str()) == -1) {
-        cJSON_Free(dyn_string);
-        FAIL() << "Failed to write config to file";
-    }
-    cJSON_Free(dyn_string);
+    unique_cJSON_ptr dynamic(generate_config(ssl_port));
+    const auto dyn_string = to_string(dynamic);
+
+    write_config_to_file(dyn_string, config_file);
 
     size_t len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
                                   PROTOCOL_BINARY_CMD_CONFIG_RELOAD, NULL, 0,
@@ -1319,9 +1294,8 @@ TEST_P(McdTestappTest, Config_Reload_SSL) {
     sasl_auth("@admin", "password");
 
     /* Change ssl cert/key on second interface. */
-    cJSON *dynamic = generate_config(ssl_port);
-    char* dyn_string = NULL;
-    cJSON *iface_list = cJSON_GetObjectItem(dynamic, "interfaces");
+    unique_cJSON_ptr dynamic(generate_config(ssl_port));
+    cJSON* iface_list = cJSON_GetObjectItem(dynamic.get(), "interfaces");
     cJSON *iface = cJSON_GetArrayItem(iface_list, 1);
     cJSON *ssl = cJSON_GetObjectItem(iface, "ssl");
 
@@ -1331,13 +1305,8 @@ TEST_P(McdTestappTest, Config_Reload_SSL) {
 
     cJSON_ReplaceItemInObject(ssl, "key", cJSON_CreateString(pem_path.c_str()));
     cJSON_ReplaceItemInObject(ssl, "cert", cJSON_CreateString(cert_path.c_str()));
-    dyn_string = cJSON_Print(dynamic);
-    cJSON_Delete(dynamic);
-    if (write_config_to_file(dyn_string, config_file.c_str()) == -1) {
-        cJSON_Free(dyn_string);
-        FAIL() << "Failed to write config to file";
-    }
-    cJSON_Free(dyn_string);
+    const auto dyn_string = to_string(dynamic);
+    write_config_to_file(dyn_string, config_file);
 
     size_t len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
                                   PROTOCOL_BINARY_CMD_CONFIG_RELOAD, NULL, 0,

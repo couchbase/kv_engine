@@ -438,7 +438,7 @@ std::string CERTIFICATE_PATH(const std::string& in);
  */
 bool safe_do_command(const BinprotCommand& cmd, BinprotResponse& response, uint16_t status);
 
-int write_config_to_file(const std::string& config, const std::string& fname);
+void write_config_to_file(const std::string& config, const std::string& fname);
 
 // map of statistic key (name) -> value.
 typedef std::map<std::string, std::string> stats_response_t;

@@ -542,17 +542,17 @@ cJSON* TestappTest::generate_config() {
     return generate_config(ssl_port);
 }
 
-int write_config_to_file(const std::string& config, const std::string& fname) {
+void write_config_to_file(const std::string& config, const std::string& fname) {
     FILE *fp = fopen(fname.c_str(), "w");
 
     if (fp == nullptr) {
-        return -1;
+        throw std::system_error(errno,
+                                std::system_category(),
+                                "Failed to open file \"" + fname + "\"");
     } else {
         fprintf(fp, "%s", config.c_str());
         fclose(fp);
     }
-
-    return 0;
 }
 
 /**
@@ -1044,7 +1044,7 @@ void delete_object(const char* key, bool ignore_missing) {
 
 void TestappTest::start_memcached_server(cJSON* config) {
     config_file = cb::io::mktemp("memcached_testapp.json");
-    ASSERT_EQ(0, write_config_to_file(to_string(config), config_file));
+    write_config_to_file(to_string(config), config_file);
 
     server_start_time = time(0);
 
