@@ -19,7 +19,6 @@
 
 McdEnvironment* mcd_env = nullptr;
 
-#define CFG_FILE_PATTERN "memcached_testapp.json.XXXXXX"
 using Testapp::MAX_CONNECTIONS;
 using Testapp::BACKLOG;
 
@@ -1044,16 +1043,8 @@ void delete_object(const char* key, bool ignore_missing) {
 }
 
 void TestappTest::start_memcached_server(cJSON* config) {
-
-    char config_file_pattern [] = CFG_FILE_PATTERN;
-    strncpy(config_file_pattern, CFG_FILE_PATTERN, sizeof(config_file_pattern));
-    ASSERT_NE(cb_mktemp(config_file_pattern), nullptr);
-    config_file = config_file_pattern;
-
-    char* config_string = cJSON_Print(config);
-
-    ASSERT_EQ(0, write_config_to_file(config_string, config_file.c_str()));
-    cJSON_Free(config_string);
+    config_file = cb::io::mktemp("memcached_testapp.json");
+    ASSERT_EQ(0, write_config_to_file(to_string(config), config_file));
 
     server_start_time = time(0);
 
