@@ -49,7 +49,7 @@ class ConnectionTimeoutTest : public TestappTest {
 public:
 
     static void SetUpTestCase() {
-        memcached_cfg.reset(generate_config(0));
+        memcached_cfg = generate_config(0);
         cJSON_AddNumberToObject(memcached_cfg.get(),
                                 "connection_idle_time",
                                 idle_time);

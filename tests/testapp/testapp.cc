@@ -179,7 +179,7 @@ TestBucketImpl& TestappTest::GetTestBucket()
 // Called before the first test in this test case.
 void TestappTest::SetUpTestCase() {
     token = 0xdeadbeef;
-    memcached_cfg.reset(generate_config(0));
+    memcached_cfg = generate_config(0);
     start_memcached_server(memcached_cfg.get());
 
     if (HasFailure()) {
@@ -468,9 +468,9 @@ static std::string get_errmaps_dir() {
     return dir;
 }
 
-cJSON* TestappTest::generate_config(uint16_t ssl_port)
-{
-    cJSON *root = cJSON_CreateObject();
+unique_cJSON_ptr TestappTest::generate_config(uint16_t ssl_port) {
+    unique_cJSON_ptr object(cJSON_CreateObject());
+    cJSON* root = object.get();
     cJSON *array = cJSON_CreateArray();
     cJSON *obj = nullptr;
     cJSON *obj_ssl = nullptr;
@@ -535,10 +535,10 @@ cJSON* TestappTest::generate_config(uint16_t ssl_port)
 
     cJSON_AddFalseToObject(root, "dedupe_nmvb_maps");
 
-    return root;
+    return object;
 }
 
-cJSON* TestappTest::generate_config() {
+unique_cJSON_ptr TestappTest::generate_config() {
     return generate_config(ssl_port);
 }
 

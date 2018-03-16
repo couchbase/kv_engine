@@ -142,8 +142,8 @@ protected:
     //per test compression mode configuration function
     void setCompressionMode(const std::string compression_mode);
 
-    static cJSON* generate_config(uint16_t ssl_port);
-    static cJSON* generate_config();
+    static unique_cJSON_ptr generate_config(uint16_t ssl_port);
+    static unique_cJSON_ptr generate_config();
 
     static void start_memcached_server(cJSON* config);
 

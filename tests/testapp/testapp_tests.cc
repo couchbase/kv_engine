@@ -1127,18 +1127,20 @@ TEST_P(McdTestappTest, Config_ValidateInterface) {
     sasl_auth("@admin", "password");
 
     /* 'interfaces' - should be able to change max connections */
-    cJSON* dynamic = generate_config();
-    char* dyn_string = NULL;
-    cJSON* iface_list = cJSON_GetObjectItem(dynamic, "interfaces");
+    auto dynamic = generate_config();
+
+    cJSON* iface_list = cJSON_GetObjectItem(dynamic.get(), "interfaces");
     cJSON* iface = cJSON_GetArrayItem(iface_list, 0);
     cJSON_ReplaceItemInObject(iface, "maxconn",
                               cJSON_CreateNumber(MAX_CONNECTIONS * 2));
-    dyn_string = cJSON_Print(dynamic);
-    cJSON_Delete(dynamic);
-    size_t len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                                  PROTOCOL_BINARY_CMD_CONFIG_VALIDATE, NULL, 0,
-                                  dyn_string, strlen(dyn_string));
-    cJSON_Free(dyn_string);
+    const auto dyn_string = to_string(dynamic);
+    size_t len = mcbp_raw_command(buffer.bytes,
+                                  sizeof(buffer.bytes),
+                                  PROTOCOL_BINARY_CMD_CONFIG_VALIDATE,
+                                  NULL,
+                                  0,
+                                  dyn_string.data(),
+                                  dyn_string.size());
 
     safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
@@ -1175,7 +1177,7 @@ TEST_P(McdTestappTest, Config_Reload) {
 
     /* Change max_conns on first interface. */
     {
-        unique_cJSON_ptr dynamic(generate_config(ssl_port));
+        auto dynamic = generate_config(ssl_port);
         cJSON* iface_list = cJSON_GetObjectItem(dynamic.get(), "interfaces");
         cJSON *iface = cJSON_GetArrayItem(iface_list, 0);
         cJSON_ReplaceItemInObject(iface, "maxconn",
@@ -1198,7 +1200,7 @@ TEST_P(McdTestappTest, Config_Reload) {
 
     /* Change backlog on first interface. */
     {
-        unique_cJSON_ptr dynamic(generate_config(ssl_port));
+        auto dynamic = generate_config(ssl_port);
         cJSON* iface_list = cJSON_GetObjectItem(dynamic.get(), "interfaces");
         cJSON *iface = cJSON_GetArrayItem(iface_list, 0);
         cJSON_ReplaceItemInObject(iface, "backlog",
@@ -1221,7 +1223,7 @@ TEST_P(McdTestappTest, Config_Reload) {
 
     /* Change tcp_nodelay on first interface. */
     {
-        unique_cJSON_ptr dynamic(generate_config(ssl_port));
+        auto dynamic = generate_config(ssl_port);
         cJSON* iface_list = cJSON_GetObjectItem(dynamic.get(), "interfaces");
         cJSON *iface = cJSON_GetArrayItem(iface_list, 0);
         cJSON_AddFalseToObject(iface, "tcp_nodelay");
@@ -1244,7 +1246,7 @@ TEST_P(McdTestappTest, Config_Reload) {
     /* Check that invalid (corrupted) file is rejected (and we don't
        leak any memory in the process). */
     {
-        unique_cJSON_ptr dynamic(generate_config(ssl_port));
+        auto dynamic = generate_config(ssl_port);
         auto dyn_string = to_string(dynamic);
         // Corrupt the JSON by replacing first opening brace '{' with
         // a closing '}'.
@@ -1265,7 +1267,7 @@ TEST_P(McdTestappTest, Config_Reload) {
     }
 
     /* Restore original configuration. */
-    unique_cJSON_ptr dynamic(generate_config(ssl_port));
+    auto dynamic = generate_config(ssl_port);
     const auto dyn_string = to_string(dynamic);
 
     write_config_to_file(dyn_string, config_file);
@@ -1294,7 +1296,7 @@ TEST_P(McdTestappTest, Config_Reload_SSL) {
     sasl_auth("@admin", "password");
 
     /* Change ssl cert/key on second interface. */
-    unique_cJSON_ptr dynamic(generate_config(ssl_port));
+    auto dynamic = generate_config(ssl_port);
     cJSON* iface_list = cJSON_GetObjectItem(dynamic.get(), "interfaces");
     cJSON *iface = cJSON_GetArrayItem(iface_list, 1);
     cJSON *ssl = cJSON_GetObjectItem(iface, "ssl");
