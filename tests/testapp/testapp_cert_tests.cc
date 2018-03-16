@@ -62,7 +62,7 @@ public:
         cJSON_AddItemToObject(memcached_cfg.get(), "client_cert_auth", obj);
 
         // update the server to use this!
-        reconfigure(memcached_cfg);
+        reconfigure();
     }
 
     void setClientCertData(MemcachedConnection& connection) {

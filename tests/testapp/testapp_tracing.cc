@@ -28,7 +28,7 @@ public:
         cJSON_AddBoolToObject(memcached_cfg.get(), "tracing_enabled", enabled);
 
         // update the server to use this!
-        reconfigure(memcached_cfg);
+        reconfigure();
     }
 
     void SetUp() override {

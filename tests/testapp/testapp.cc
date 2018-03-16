@@ -1064,27 +1064,6 @@ void set_mutation_seqno_feature(bool enable) {
     set_feature(cb::mcbp::Feature::MUTATION_SEQNO, enable);
 }
 
-void TestappTest::reconfigure(unique_cJSON_ptr& memcached_cfg) {
-    current_phase = phase_plain;
-    sock = connect_to_server_plain(port);
-    write_config_to_file(to_string(memcached_cfg, true), config_file);
-
-    sasl_auth("@admin", "password");
-    Frame frame;
-    mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_CONFIG_RELOAD,
-                     nullptr, 0, nullptr, 0);
-
-    safe_send(frame.payload.data(), frame.payload.size(), false);
-    union {
-        protocol_binary_response_no_extras response;
-        char bytes[1024];
-    } buffer;
-    safe_recv_packet(&buffer, sizeof(buffer));
-    mcbp_validate_response_header(&buffer.response,
-                                  PROTOCOL_BINARY_CMD_CONFIG_RELOAD,
-                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
-}
-
 void TestappTest::waitForShutdown(bool killed) {
 #ifdef WIN32
     ASSERT_EQ(WAIT_OBJECT_0, WaitForSingleObject(server_pid, 60000));
@@ -1387,22 +1366,13 @@ void TestappTest::ewouldblock_engine_disable() {
 
 void TestappTest::reconfigure() {
     write_config_to_file(to_string(memcached_cfg, true), config_file);
+    auto& conn = getAdminConnection();
 
-    sasl_auth("@admin", "password");
-    Frame frame;
-    mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_CONFIG_RELOAD,
-                     nullptr, 0, nullptr, 0);
-
-    safe_send(frame.payload.data(), frame.payload.size(), false);
-    union {
-        protocol_binary_response_no_extras response;
-        char bytes[1024];
-    } buffer;
-    safe_recv_packet(&buffer, sizeof(buffer));
-    mcbp_validate_response_header(&buffer.response,
-                                  PROTOCOL_BINARY_CMD_CONFIG_RELOAD,
-                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    reconnect_to_server();
+    BinprotGenericCommand req{PROTOCOL_BINARY_CMD_CONFIG_RELOAD, {}, {}};
+    BinprotResponse resp;
+    conn.executeCommand(req, resp);
+    ASSERT_TRUE(resp.isSuccess()) << "Failed to reconfigure the server";
+    conn.reconnect();
 }
 
 void TestappTest::runCreateXattr(
