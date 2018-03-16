@@ -17,11 +17,6 @@
 #include <getopt.h>
 #include <fstream>
 
-#ifdef WIN32
-#include <process.h>
-#define getpid() _getpid()
-#endif
-
 McdEnvironment* mcd_env = nullptr;
 
 #define CFG_FILE_PATTERN "memcached_testapp.json.XXXXXX"
@@ -723,9 +718,11 @@ extern "C" void memcached_server_thread_main(void *arg) {
 
 void TestappTest::spawn_embedded_server() {
     char *filename= mcd_port_filename_env + strlen("MEMCACHED_PORT_FILENAME=");
-    snprintf(mcd_port_filename_env, sizeof(mcd_port_filename_env),
+    snprintf(mcd_port_filename_env,
+             sizeof(mcd_port_filename_env),
              "MEMCACHED_PORT_FILENAME=memcached_ports.%lu.%lu",
-             (long)getpid(), (unsigned long)time(NULL));
+             (long)cb_getpid(),
+             (unsigned long)time(NULL));
     remove(filename);
     portnumber_file.assign(filename);
     putenv(mcd_port_filename_env);
@@ -739,13 +736,17 @@ void TestappTest::spawn_embedded_server() {
 
 void TestappTest::start_external_server() {
     char *filename= mcd_port_filename_env + strlen("MEMCACHED_PORT_FILENAME=");
-    snprintf(mcd_parent_monitor_env, sizeof(mcd_parent_monitor_env),
-             "MEMCACHED_PARENT_MONITOR=%lu", (unsigned long)getpid());
+    snprintf(mcd_parent_monitor_env,
+             sizeof(mcd_parent_monitor_env),
+             "MEMCACHED_PARENT_MONITOR=%lu",
+             (unsigned long)cb_getpid());
     putenv(mcd_parent_monitor_env);
 
-    snprintf(mcd_port_filename_env, sizeof(mcd_port_filename_env),
+    snprintf(mcd_port_filename_env,
+             sizeof(mcd_port_filename_env),
              "MEMCACHED_PORT_FILENAME=memcached_ports.%lu.%lu",
-             (long)getpid(), (unsigned long)time(NULL));
+             (long)cb_getpid(),
+             (unsigned long)time(NULL));
     remove(filename);
     portnumber_file.assign(filename);
     static char topkeys_env[] = "MEMCACHED_TOP_KEYS=10";
@@ -1658,7 +1659,7 @@ int main(int argc, char **argv) {
         // created from the unit tests (of testapp or memcached) don't
         // overwrite each other
         std::string coreadm =
-            "coreadm -p core.%%f.%%p " + std::to_string(getpid());
+                "coreadm -p core.%%f.%%p " + std::to_string(cb_getpid());
         system(coreadm.c_str());
     }
 #endif
