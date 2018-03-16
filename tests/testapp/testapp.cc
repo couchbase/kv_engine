@@ -1243,9 +1243,7 @@ void safe_send(const void* buf, size_t len, bool hickup)
             }
         } else {
             if (hickup) {
-#ifndef WIN32
-                usleep(100);
-#endif
+                std::this_thread::sleep_for(std::chrono::microseconds(100));
             }
 
             if (dump_socket_traffic) {
