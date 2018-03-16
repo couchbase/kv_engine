@@ -246,6 +246,20 @@ TEST_F(FileRotationTest, HandleOpenFileErrors) {
         return;
     }
 
+#ifdef UNDEFINED_SANITIZER
+    // MB-28735: This test fails under UBSan, when spdlog fails to open a new
+    // file (in custom_rotating_file_sink::_sink_it):
+    //
+    //     common.h:139:9: runtime error: member access within address <ADDR>
+    //     which does not point to an object of type 'spdlog::spdlog_ex' <ADDR>:
+    //     note: object has invalid vptr
+    //
+    // examing <ADDR> in a debugger indicates a valid object. Therefore skipping
+    // this test under UBSan.
+    std::cerr << "Skipping test when running on UBSan (MB-28735)\n";
+    return;
+#endif
+
     LOG_DEBUG("Hey, this is a test");
     cb::logger::flush();
     files = cb::io::findFilesWithPrefix(filename);
