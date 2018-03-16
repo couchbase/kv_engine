@@ -189,11 +189,6 @@ protected:
     static void waitForShutdown(bool killed = false);
 
     static void stop_memcached_server();
-    /**
-     * Set the session control token in memcached (this token is used
-     * to validate the shutdown command)
-     */
-    static void setControlToken();
 
     // Create the bucket used for testing
     static void CreateTestBucket();
@@ -402,7 +397,6 @@ void set_mutation_seqno_feature(bool enable);
 
 /* Send the specified buffer+len to memcached. */
 void safe_send(const void* buf, size_t len, bool hickup);
-void safe_send(const BinprotCommand& cmd, bool hickup);
 
 /* Receive the specified len into buf from memcached */
 bool safe_recv(void *buf, size_t len);
@@ -411,7 +405,6 @@ bool safe_recv(void *buf, size_t len);
  */
 bool safe_recv_packet(void *buf, size_t size);
 bool safe_recv_packet(std::vector<uint8_t>& buf);
-bool safe_recv_packet(BinprotResponse& resp);
 
 /* Whether receiving an EOF during a read is considered an error */
 void set_allow_closed_read(bool enabled);
@@ -430,14 +423,6 @@ time_t get_server_start_time();
 
 std::string CERTIFICATE_PATH(const std::string& in);
 
-/**
- * Combines safe_send and safe_recv_packet
- * @param cmd Command to send
- * @param response Response to receive
- * @param status Expected status
- */
-bool safe_do_command(const BinprotCommand& cmd, BinprotResponse& response, uint16_t status);
-
 void write_config_to_file(const std::string& config, const std::string& fname);
 
 // map of statistic key (name) -> value.
@@ -455,10 +440,6 @@ uint64_t extract_single_stat(const stats_response_t& stats,
 
 unique_cJSON_ptr loadJsonFile(const std::string &file);
 
-/*
- * Set the current phase to ssl
- */
-void set_phase_ssl();
 ssize_t socket_recv(SOCKET s, char *buf, size_t len);
 ssize_t socket_send(SOCKET s, const char *buf, size_t len);
 void adjust_memcached_clock(int64_t clock_shift, TimeType timeType);

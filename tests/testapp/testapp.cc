@@ -69,10 +69,6 @@ bool sock_is_ssl() {
     return current_phase == phase_ssl;
 }
 
-void set_phase_ssl() {
-    current_phase = phase_ssl;
-}
-
 time_t get_server_start_time() {
     return server_start_time;
 }
@@ -1099,10 +1095,6 @@ void set_mutation_seqno_feature(bool enable) {
     set_feature(cb::mcbp::Feature::MUTATION_SEQNO, enable);
 }
 
-void set_xattr_feature(bool enable) {
-    set_feature(cb::mcbp::Feature::XATTR, enable);
-}
-
 void TestappTest::reconfigure(unique_cJSON_ptr& memcached_cfg) {
     current_phase = phase_plain;
     sock = connect_to_server_plain(port);
@@ -1188,25 +1180,6 @@ void TestappTest::stop_memcached_server() {
     }
 }
 
-
-/**
- * Set the session control token in memcached (this token is used
- * to validate the shutdown command)
- */
-void TestappTest::setControlToken(void) {
-    std::vector<char> message(32);
-    mcbp_raw_command(message.data(), message.size(),
-                     PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN,
-                     nullptr, 0, nullptr, 0);
-    char* ptr = reinterpret_cast<char*>(&token);
-    memcpy(message.data() + 24, ptr, sizeof(token));
-    safe_send(message.data(), message.size(), false);
-    uint8_t buffer[1024];
-    safe_recv_packet(buffer, sizeof(buffer));
-    auto* rsp = reinterpret_cast<protocol_binary_response_no_extras*>(buffer);
-    mcbp_validate_response_header(rsp, PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN,
-                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
-}
 
 ssize_t socket_send(SOCKET s, const char *buf, size_t len)
 {
@@ -1298,12 +1271,6 @@ void safe_send(const void* buf, size_t len, bool hickup)
             offset += nw;
         }
     } while (offset < len);
-}
-
-void safe_send(const BinprotCommand& cmd, bool hickup) {
-    std::vector<uint8_t> buf;
-    cmd.encode(buf);
-    safe_send(buf.data(), buf.size(), hickup);
 }
 
 bool safe_recv(void *buf, size_t len) {
@@ -1422,29 +1389,6 @@ bool safe_recv_packet(void *buf, size_t size) {
 
 bool safe_recv_packet(std::vector<uint8_t>& buf) {
     return safe_recv_packetT(buf);
-}
-
-bool safe_recv_packet(BinprotResponse& resp) {
-    resp.clear();
-
-    std::vector<uint8_t> buf;
-    if (!safe_recv_packet(buf)) {
-        return false;
-    }
-    resp.assign(std::move(buf));
-    return true;
-}
-
-bool safe_do_command(const BinprotCommand& cmd, BinprotResponse& resp, uint16_t status) {
-    safe_send(cmd, false);
-    if (!safe_recv_packet(resp)) {
-        return false;
-    }
-
-    protocol_binary_response_no_extras mcresp;
-    mcresp.message.header = const_cast<const BinprotResponse&>(resp).getHeader();
-    mcbp_validate_response_header(&mcresp, cmd.getOp(), status);
-    return !::testing::Test::HasFailure();
 }
 
 // Configues the ewouldblock_engine to use the given mode; value
