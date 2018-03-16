@@ -559,16 +559,10 @@ INSTALL(TARGETS ep
         ARCHIVE DESTINATION lib)
 
 if (COUCHBASE_KV_BUILD_UNIT_TESTS)
-    # Run the testapp get set tests against ep-engine in full-eviction
-    ADD_TEST(NAME ep-engine-getset-unit-tests.full_eviction
-             WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-             COMMAND memcached-get-set-tests -E ep -c "item_eviction_policy=full_eviction")
-    SET_TESTS_PROPERTIES(ep-engine-getset-unit-tests.full_eviction PROPERTIES TIMEOUT 400)
-
     IF (EP_USE_ROCKSDB)
         ADD_TEST(NAME ep-engine-persistence-unit-tests.rocksdb
-                 COMMAND memcached-persistence-tests -E ep -c "backend=rocksdb")
-        SET_TESTS_PROPERTIES(ep-engine-persistence-unit-tests.rocksdb PROPERTIES TIMEOUT 60)
+                 COMMAND memcached_testapp -E ep -c "backend=rocksdb" --gtest_filter=*PersistToTest*)
+        SET_TESTS_PROPERTIES(ep-engine-persistence-unit-tests.rocksdb PROPERTIES TIMEOUT 300)
     ENDIF (EP_USE_ROCKSDB)
 
     # Defines a testsuite which runs in full and value eviction
