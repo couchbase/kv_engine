@@ -1207,22 +1207,15 @@ ssize_t phase_recv(void *buf, size_t len) {
     }
 }
 
-char ssl_error_string[256];
-int ssl_error_string_len = 256;
-
 static const bool dump_socket_traffic =
         getenv("TESTAPP_PACKET_DUMP") != nullptr;
 
-static char* phase_get_errno() {
-    char * rv = 0;
+static const std::string phase_get_errno() {
     if (current_phase == phase_ssl) {
         /* could do with more work here, but so far this has sufficed */
-        snprintf(ssl_error_string, ssl_error_string_len, "SSL error\n");
-        rv = ssl_error_string;
-    } else {
-        rv = strerror(errno);
+        return "SSL error";
     }
-    return rv;
+    return cb_strerror();
 }
 
 void safe_send(const void* buf, size_t len, bool hickup)
@@ -1242,7 +1235,9 @@ void safe_send(const void* buf, size_t len, bool hickup)
 
         if (nw == -1) {
             if (errno != EINTR) {
-                fprintf(stderr, "Failed to write: %s\n", phase_get_errno());
+                fprintf(stderr,
+                        "Failed to write: %s\n",
+                        phase_get_errno().c_str());
                 print_backtrace_to_file(stderr);
                 abort();
             }
