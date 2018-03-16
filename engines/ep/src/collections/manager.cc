@@ -68,7 +68,11 @@ cb::engine_error Collections::Manager::update(KVBucket& bucket,
 
 cb::EngineErrorStringPair Collections::Manager::getManifest() const {
     std::unique_lock<std::mutex> ul(lock);
-    return {cb::engine_errc::success, current->toJson()};
+    if (current) {
+        return {cb::engine_errc::success, current->toJson()};
+    } else {
+        return {cb::engine_errc::no_collections_manifest, {}};
+    }
 }
 
 void Collections::Manager::update(VBucket& vb) const {
