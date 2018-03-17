@@ -1491,7 +1491,11 @@ cb::mcbp::Datatype TestappTest::expectedJSONDatatype() const {
 }
 
 MemcachedConnection& TestappTest::getConnection() {
-    return prepare(connectionMap.getConnection());
+    // The basic tests should use a plain IPv4 unless something else is
+    // required (this makes the return value of getConnection predictable
+    // (rather than returning whatever happened to be stored in "front" of
+    // the map.
+    return prepare(connectionMap.getConnection(false, AF_INET));
 }
 
 MemcachedConnection& TestappTest::getAdminConnection() {
