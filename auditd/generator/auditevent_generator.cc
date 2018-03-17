@@ -370,12 +370,12 @@ static void validate_modules(const std::list<Module *> &modules,
 
 static void create_master_file(const std::list<Module *> &modules,
                                const std::string &output_file) {
-    cJSON *output_json = cJSON_CreateObject();
-    if (output_json == NULL) {
+    unique_cJSON_ptr output_json(cJSON_CreateObject());
+    if (!output_json) {
         error_exit(CREATE_JSON_OBJECT_ERROR, NULL);
     }
 
-    cJSON_AddNumberToObject(output_json, "version", 2);
+    cJSON_AddNumberToObject(output_json.get(), "version", 2);
 
     cJSON *arr = cJSON_CreateArray();
     if (arr == NULL) {
@@ -387,21 +387,15 @@ static void create_master_file(const std::list<Module *> &modules,
         cb_assert(mod_ptr->json != NULL);
         cJSON_AddItemReferenceToArray(arr, mod_ptr->json);
     }
-    cJSON_AddItemToObject(output_json, "modules", arr);
-
-    char *data = cJSON_Print(output_json);
-    cb_assert(data != NULL);
+    cJSON_AddItemToObject(output_json.get(), "modules", arr);
 
     try {
         std::ofstream out(output_file);
-        out << data << std::endl;
+        out << to_string(output_json) << std::endl;
         out.close();
     } catch (...) {
         error_exit(FILE_OPEN_ERROR, output_file.c_str());
     }
-
-    cJSON_Delete(output_json);
-    cJSON_Free(data);
 }
 
 

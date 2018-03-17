@@ -248,10 +248,10 @@ void AuditFile::cleanup_old_logfile(const std::string& log_path) {
 
 
 bool AuditFile::write_event_to_disk(cJSON *output) {
-    char *content = cJSON_PrintUnformatted(output);
     bool ret = true;
-    if (content) {
-        current_size += fprintf(file, "%s\n", content);
+    try {
+        const auto content = to_string(output, false);
+        current_size += fprintf(file, "%s\n", content.c_str());
         if (ferror(file)) {
             log_error(AuditErrorCode::WRITING_TO_DISK_ERROR, strerror(errno));
             ret = false;
@@ -259,8 +259,7 @@ bool AuditFile::write_event_to_disk(cJSON *output) {
         } else if (!buffered) {
             ret = flush();
         }
-        cJSON_Free(content);
-    } else {
+    } catch (const std::bad_alloc&) {
         log_error(AuditErrorCode::MEMORY_ALLOCATION_ERROR,
                   "failed to convert audit event");
         // Failed to write event to disk.

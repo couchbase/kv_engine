@@ -30,7 +30,7 @@
 #include <ctype.h>
 #include <vector>
 
-#include "cJSON.h"
+#include <cJSON_utils.h>
 
 using namespace std;
 
@@ -167,9 +167,7 @@ static string getEnumValidatorCode(const std::string &key, cJSON *o) {
                  << ", all enum entries must be strings." << endl;
             exit(1);
         }
-        char *value = cJSON_Print(p);
-        ss << "\n\t\t->add(" << value << ")";
-        cJSON_Free(value);
+        ss << "\n\t\t->add(" << to_string(p) << ")";
     }
     return ss.str();
 }

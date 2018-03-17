@@ -45,10 +45,8 @@ void ConnectionMap::initialize(cJSON* ports) {
     invalidate();
     cJSON* array = cJSON_GetObjectItem(ports, "ports");
     if (array == nullptr) {
-        char* json = cJSON_PrintUnformatted(ports);
         std::string msg("ports not found in portnumber file: ");
-        msg.append(json);
-        cJSON_Free(json);
+        msg.append(to_string(ports, false));
         throw std::runtime_error(msg);
     }
 
@@ -62,37 +60,29 @@ void ConnectionMap::initialize(cJSON* ports) {
         } else if (strcmp(fam->valuestring, "AF_INET6") == 0) {
             family = AF_INET6;
         } else {
-            char* json = cJSON_PrintUnformatted(obj);
             std::string msg("Unsupported network family: ");
-            msg.append(json);
-            cJSON_Free(json);
+            msg.append(to_string(obj, false));
             throw std::runtime_error(msg);
         }
 
         auto ssl = cJSON_GetObjectItem(obj, "ssl");
         if (ssl == nullptr) {
-            char* json = cJSON_PrintUnformatted(obj);
             std::string msg("ssl missing for entry: ");
-            msg.append(json);
-            cJSON_Free(json);
+            msg.append(to_string(obj, false));
             throw std::runtime_error(msg);
         }
 
         auto port = cJSON_GetObjectItem(obj, "port");
         if (port == nullptr) {
-            char* json = cJSON_PrintUnformatted(obj);
             std::string msg("port missing for entry: ");
-            msg.append(json);
-            cJSON_Free(json);
+            msg.append(to_string(obj, false));
             throw std::runtime_error(msg);
         }
 
         auto protocol = cJSON_GetObjectItem(obj, "protocol");
         if (protocol == nullptr) {
-            char* json = cJSON_PrintUnformatted(obj);
             std::string msg("protocol missing for entry: ");
-            msg.append(json);
-            cJSON_Free(json);
+            msg.append(to_string(obj, false));
             throw std::runtime_error(msg);
         }
 

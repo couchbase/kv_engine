@@ -278,9 +278,7 @@ public:
 
         cJSON_AddItemToObject(root.get(), "users", array);
 
-        char* ptr = cJSON_Print(root.get());
-        json.assign(ptr);
-        cJSON_Free(ptr);
+        json = to_string(root);
     }
 
     std::string json;

@@ -78,9 +78,5 @@ unique_cJSON_ptr cb::sasl::PasswordDatabase::to_json() const {
 }
 
 std::string cb::sasl::PasswordDatabase::to_string() const {
-    auto json = to_json();
-    char* ptr = cJSON_Print(json.get());
-    std::string ret(ptr);
-    cJSON_Free(ptr);
-    return ret;
+    return ::to_string(to_json());
 }

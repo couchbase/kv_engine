@@ -1038,11 +1038,14 @@ TEST_P(McdTestappTest, Config_ValidateCurrentConfig) {
     sasl_auth("@admin", "password");
 
     /* identity config is valid. */
-    char* config_string = cJSON_Print(memcached_cfg.get());
-    size_t len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                                  PROTOCOL_BINARY_CMD_CONFIG_VALIDATE, NULL, 0,
-                                  config_string, strlen(config_string));
-    cJSON_Free(config_string);
+    const auto config_string = to_string(memcached_cfg);
+    size_t len = mcbp_raw_command(buffer.bytes,
+                                  sizeof(buffer.bytes),
+                                  PROTOCOL_BINARY_CMD_CONFIG_VALIDATE,
+                                  NULL,
+                                  0,
+                                  config_string.data(),
+                                  config_string.size());
 
     safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
@@ -1101,15 +1104,16 @@ TEST_P(McdTestappTest, Config_ValidateThreadsNotDynamic) {
     sasl_auth("@admin", "password");
 
     /* 'threads' cannot be changed */
-    cJSON* dynamic = cJSON_CreateObject();
-    char* dyn_string = NULL;
-    cJSON_AddNumberToObject(dynamic, "threads", 99);
-    dyn_string = cJSON_Print(dynamic);
-    cJSON_Delete(dynamic);
-    size_t len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                                  PROTOCOL_BINARY_CMD_CONFIG_VALIDATE, NULL, 0,
-                                  dyn_string, strlen(dyn_string));
-    cJSON_Free(dyn_string);
+    unique_cJSON_ptr dynamic(cJSON_CreateObject());
+    cJSON_AddNumberToObject(dynamic.get(), "threads", 99);
+    const auto dyn_string = to_string(dynamic);
+    size_t len = mcbp_raw_command(buffer.bytes,
+                                  sizeof(buffer.bytes),
+                                  PROTOCOL_BINARY_CMD_CONFIG_VALIDATE,
+                                  NULL,
+                                  0,
+                                  dyn_string.data(),
+                                  dyn_string.size());
 
     safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));

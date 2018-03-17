@@ -1025,9 +1025,7 @@ void RocksDBKVStore::readVBState(const VBHandle& vbh) {
             }
 
             if (failover_json) {
-                char* json = cJSON_PrintUnformatted(failover_json);
-                failovers.assign(json);
-                cJSON_Free(json);
+                failovers = to_string(failover_json, false);
             }
         }
         cJSON_Delete(jsonObj);

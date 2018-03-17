@@ -78,9 +78,8 @@ unique_cJSON_ptr make_flat_dict(int nelements) {
 
 static void test_subdoc_multi_lookup_getmulti() {
     auto dict = make_flat_dict(PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS + 1);
-    auto* dict_str = cJSON_Print(dict.get());
-    store_object("dict", dict_str);
-    cJSON_Free(dict_str);
+    const auto dict_str = to_string(dict);
+    store_object("dict", dict_str.c_str());
 
     // Lookup the maximum number of allowed paths - should succeed.
     SubdocMultiLookupCmd lookup;
@@ -141,9 +140,8 @@ TEST_P(SubdocTestappTest, SubdocMultiLookup_GetMultiInvalid) {
 // Test multi-path lookup - multiple EXISTS lookups
 TEST_P(SubdocTestappTest, SubdocMultiLookup_ExistsMulti) {
     auto dict = make_flat_dict(PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS + 1);
-    auto* dict_str = cJSON_Print(dict.get());
-    store_object("dict", dict_str);
-    cJSON_Free(dict_str);
+    const auto dict_str = to_string(dict);
+    store_object("dict", dict_str.c_str());
 
     // Lookup the maximum number of allowed paths - should succeed.
     SubdocMultiLookupCmd lookup;
@@ -226,9 +224,8 @@ static void test_subdoc_multi_mutation_dict_add_max() {
 
     // Check the update actually occurred.
     auto dict = make_flat_dict(PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS);
-    auto* expected_str = cJSON_PrintUnformatted(dict.get());
-    validate_object("dict", expected_str);
-    cJSON_Free(expected_str);
+    const auto expected_str = to_string(dict, false);
+    validate_object("dict", expected_str.c_str());
 
     delete_object("dict");
 

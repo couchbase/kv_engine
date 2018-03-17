@@ -182,11 +182,7 @@ std::string TimingHistogram::to_string(void) {
 
     // for backwards compatibility, add the old wayouts
     cJSON_AddNumberToObject(root, "wayout", aggregate_wayout());
-    char *ptr = cJSON_PrintUnformatted(root);
-    std::string ret(ptr);
-    cJSON_Free(ptr);
-
-    return ret;
+    return ::to_string(root, false);
 }
 
 /* get functions of Timings class */

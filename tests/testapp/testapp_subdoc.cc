@@ -256,11 +256,10 @@ void SubdocTestappTest::test_subdoc_fetch_dict_nested(
     }
     cJSON_AddItemToObject(dict.get(), "orders", orders);
 
-    char* dict_str = cJSON_PrintUnformatted(dict.get());
+    const auto dict_str = to_string(dict, false);
 
     // Store to Couchbase, optionally compressing first.
-    store_object("dict2", dict_str, compressed);
-    cJSON_Free(dict_str);
+    store_object("dict2", dict_str.c_str(), compressed);
 
     // a). Check successful access to individual nested components.
     EXPECT_SD_VALEQ(BinprotSubdocCommand(cmd, "dict2", "name.title"), "\"Mr\"");
@@ -268,14 +267,12 @@ void SubdocTestappTest::test_subdoc_fetch_dict_nested(
     EXPECT_SD_VALEQ(BinprotSubdocCommand(cmd, "dict2", "name.last"), "\"Bloggs\"");
 
     // b). Check successful access to a whole sub-dictionary.
-    char* name_str = cJSON_PrintUnformatted(name);
+    const auto name_str = to_string(name, false);
     EXPECT_SD_VALEQ(BinprotSubdocCommand(cmd, "dict2", "name"), name_str);
-    cJSON_Free(name_str);
 
     // c). Check successful access to a whole sub-array.
-    char* orders_str = cJSON_PrintUnformatted(orders);
+    const auto orders_str = to_string(orders, false);
     EXPECT_SD_VALEQ(BinprotSubdocCommand(cmd, "dict2", "orders"), orders_str);
-    cJSON_Free(orders_str);
 
     // d). Check access to dict in array.
     EXPECT_SD_VALEQ(BinprotSubdocCommand(cmd, "dict2", "orders[0].date"),
@@ -322,10 +319,8 @@ void SubdocTestappTest::test_subdoc_fetch_dict_deep(
     // a). Should be able to access a deeply nested document as long as the
     // path we ask for is no longer than MAX_SUBDOC_PATH_COMPONENTS.
     unique_cJSON_ptr max_dict(make_nested_dict(MAX_SUBDOC_PATH_COMPONENTS));
-    char* max_dict_str = cJSON_PrintUnformatted(max_dict.get());
-    store_object("max_dict", max_dict_str);
-
-    cJSON_Free(max_dict_str);
+    const auto max_dict_str = to_string(max_dict, false);
+    store_object("max_dict", max_dict_str.c_str());
 
     std::string valid_max_path(std::to_string(1));
     for (int depth = 2; depth < MAX_SUBDOC_PATH_COMPONENTS; depth++) {
@@ -337,9 +332,8 @@ void SubdocTestappTest::test_subdoc_fetch_dict_deep(
 
     // b). Accessing a deeper document should fail.
     unique_cJSON_ptr too_deep_dict(make_nested_dict(MAX_SUBDOC_PATH_COMPONENTS + 1));
-    char* too_deep_dict_str = cJSON_PrintUnformatted(too_deep_dict.get());
-    store_object("too_deep_dict", too_deep_dict_str);
-    cJSON_Free(too_deep_dict_str);
+    const auto too_deep_dict_str = to_string(too_deep_dict, false);
+    store_object("too_deep_dict", too_deep_dict_str.c_str());
 
     std::string too_long_path(std::to_string(1));
     for (int depth = 2; depth < MAX_SUBDOC_PATH_COMPONENTS + 1; depth++) {
@@ -387,9 +381,8 @@ void SubdocTestappTest::test_subdoc_fetch_array_deep(
     // path we ask for is no longer than MAX_SUBDOC_PATH_COMPONENTS.
 
     unique_cJSON_ptr max_array(make_nested_array(MAX_SUBDOC_PATH_COMPONENTS));
-    char* max_array_str = cJSON_PrintUnformatted(max_array.get());
-    store_object("max_array", max_array_str);
-    cJSON_Free(max_array_str);
+    const auto max_array_str = to_string(max_array, false);
+    store_object("max_array", max_array_str.c_str());
 
     std::string valid_max_path(make_nested_array_path(MAX_SUBDOC_PATH_COMPONENTS));
 
@@ -398,9 +391,8 @@ void SubdocTestappTest::test_subdoc_fetch_array_deep(
 
     // b). Accessing a deeper array should fail.
     unique_cJSON_ptr too_deep_array(make_nested_array(MAX_SUBDOC_PATH_COMPONENTS + 1));
-    char* too_deep_array_str = cJSON_PrintUnformatted(too_deep_array.get());
-    store_object("too_deep_array", too_deep_array_str);
-    cJSON_Free(too_deep_array_str);
+    const auto too_deep_array_str = to_string(too_deep_array, false);
+    store_object("too_deep_array", too_deep_array_str.c_str());
 
     std::string too_long_path(make_nested_array_path(MAX_SUBDOC_PATH_COMPONENTS + 1));
 
@@ -705,9 +697,8 @@ void SubdocTestappTest::test_subdoc_dict_add_upsert_deep(
     // level.
     unique_cJSON_ptr one_less_max_dict(
             make_nested_dict(MAX_SUBDOC_PATH_COMPONENTS - 1));
-    char* one_less_max_dict_str = cJSON_PrintUnformatted(one_less_max_dict.get());
-    store_object("dict", one_less_max_dict_str);
-    cJSON_Free(one_less_max_dict_str);
+    const auto one_less_max_dict_str = to_string(one_less_max_dict, false);
+    store_object("dict", one_less_max_dict_str.c_str());
 
     std::string one_less_max_path(std::to_string(1));
     for (int depth = 2; depth < MAX_SUBDOC_PATH_COMPONENTS - 1; depth++) {
@@ -920,9 +911,8 @@ TEST_P(SubdocTestappTest, SubdocReplace_ArrayDeep) {
 
     // Create an array at one less than the maximum depth and an associated path.
     unique_cJSON_ptr one_less_max(make_nested_array(MAX_SUBDOC_PATH_COMPONENTS));
-    char* one_less_max_str = cJSON_PrintUnformatted(one_less_max.get());
-    store_object("a", one_less_max_str);
-    cJSON_Free(one_less_max_str);
+    const auto one_less_max_str = to_string(one_less_max, false);
+    store_object("a", one_less_max_str.c_str());
 
     std::string valid_max_path(make_nested_array_path(MAX_SUBDOC_PATH_COMPONENTS));
     EXPECT_SD_GET("a", valid_max_path, "[]");

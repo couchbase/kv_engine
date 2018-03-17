@@ -444,7 +444,7 @@ static void append_stats(const char* key,
  * @param c the connection to return the details for
  */
 static void process_bucket_details(Cookie& cookie) {
-    cJSON* obj = cJSON_CreateObject();
+    unique_cJSON_ptr obj(cJSON_CreateObject());
 
     cJSON* array = cJSON_CreateArray();
     for (size_t ii = 0; ii < all_buckets.size(); ++ii) {
@@ -453,16 +453,14 @@ static void process_bucket_details(Cookie& cookie) {
             cJSON_AddItemToArray(array, o);
         }
     }
-    cJSON_AddItemToObject(obj, "buckets", array);
+    cJSON_AddItemToObject(obj.get(), "buckets", array);
 
-    char* stats_str = cJSON_PrintUnformatted(obj);
+    const auto stats_str = to_string(obj, false);
     append_stats("bucket details",
                  14,
-                 stats_str,
-                 uint32_t(strlen(stats_str)),
+                 stats_str.data(),
+                 uint32_t(stats_str.size()),
                  static_cast<void*>(&cookie));
-    cJSON_Free(stats_str);
-    cJSON_Delete(obj);
 }
 
 /**
@@ -662,32 +660,26 @@ static ENGINE_ERROR_CODE stat_topkeys_json_executor(const std::string& arg,
     if (arg.empty()) {
         ENGINE_ERROR_CODE ret;
 
-        cJSON* topkeys_doc = cJSON_CreateObject();
-        if (topkeys_doc == nullptr) {
+        unique_cJSON_ptr topkeys_doc(cJSON_CreateObject());
+        if (!topkeys_doc) {
             ret = ENGINE_ENOMEM;
         } else {
             auto& bucket = all_buckets[cookie.getConnection().getBucketIndex()];
             if (bucket.topkeys == nullptr) {
                 return ENGINE_NO_BUCKET;
             }
-            ret = bucket.topkeys->json_stats(topkeys_doc,
+            ret = bucket.topkeys->json_stats(topkeys_doc.get(),
                                              mc_time_get_current_time());
 
             if (ret == ENGINE_SUCCESS) {
                 char key[] = "topkeys_json";
-                char* topkeys_str = cJSON_PrintUnformatted(topkeys_doc);
-                if (topkeys_str != nullptr) {
-                    append_stats(key,
-                                 (uint16_t)strlen(key),
-                                 topkeys_str,
-                                 (uint32_t)strlen(topkeys_str),
-                                 &cookie);
-                    cJSON_Free(topkeys_str);
-                } else {
-                    ret = ENGINE_ENOMEM;
-                }
+                const auto topkeys_str = to_string(topkeys_doc, false);
+                append_stats(key,
+                             (uint16_t)strlen(key),
+                             topkeys_str.data(),
+                             uint32_t(topkeys_str.size()),
+                             &cookie);
             }
-            cJSON_Delete(topkeys_doc);
         }
         return ret;
     } else {
@@ -745,9 +737,7 @@ static ENGINE_ERROR_CODE stat_responses_json_executor(const std::string& arg,
                     jsonPtr.get(), stream.str().c_str(), value);
         }
 
-        char* ptr = cJSON_PrintUnformatted(jsonPtr.get());
-        std::string json_str(ptr);
-        cJSON_Free(ptr);
+        std::string json_str = to_string(jsonPtr, false);
         const std::string stat_name = "responses";
         append_stats(stat_name.c_str(),
                      gsl::narrow<uint16_t>(stat_name.size()),

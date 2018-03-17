@@ -167,10 +167,8 @@ TEST_F(AuditFileTest, TestSuccessfulCrashRecovery) {
     FILE *fp = fopen((testdir + "/audit.log").c_str(), "w");
     EXPECT_TRUE(fp != nullptr);
 
-    char *content = cJSON_PrintUnformatted(event);
-    fprintf(fp, "%s", content);
+    fprintf(fp, "%s", to_string(event, false).c_str());
     fclose(fp);
-    cJSON_Free(content);
 
     config.set_rotate_interval(3600);
     config.set_rotate_size(100);
@@ -234,12 +232,12 @@ TEST_F(AuditFileTest, TestCrashRecoveryGarbeledDate) {
     FILE *fp = fopen((testdir + "/audit.log").c_str(), "w");
     EXPECT_TRUE(fp != nullptr);
 
-    char *content = cJSON_PrintUnformatted(event);
-    char *ptr = strstr(content, "2015");
-    *ptr = '\0';
-    fprintf(fp, "%s", content);
+    auto content = to_string(event, false);
+    auto idx = content.find("2015");
+    ASSERT_NE(std::string::npos, idx);
+    content.resize(idx);
+    fprintf(fp, "%s", content.c_str());
     fclose(fp);
-    cJSON_Free(content);
 
     EXPECT_THROW(auditfile.cleanup_old_logfile(testdir), std::string);
     {

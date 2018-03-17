@@ -29,7 +29,7 @@
 #include <string>
 #include <ctype.h>
 
-#include "cJSON.h"
+#include <cJSON_utils.h>
 
 using namespace std;
 
@@ -38,7 +38,7 @@ using namespace std;
  */
 static ostream& operator <<(ostream &out, cJSON *json)
 {
-    char *data = cJSON_PrintUnformatted(json);
+    auto data = to_string(json, false);
     int ii = 0;
 
     out << '"';
@@ -51,7 +51,6 @@ static ostream& operator <<(ostream &out, cJSON *json)
     }
 
     out << '"';
-    cJSON_Free(data);
     return out;
 }
 

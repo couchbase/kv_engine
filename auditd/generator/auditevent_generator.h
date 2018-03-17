@@ -84,21 +84,15 @@ public:
         } else {
             filtering_permitted = false;
         }
-        char *ptr = cJSON_PrintUnformatted(cMand);
-        mandatory_fields.assign(ptr);
-        cJSON_Free(ptr);
-        ptr = cJSON_PrintUnformatted(cOpt);
-        optional_fields.assign(ptr);
-        cJSON_Free(ptr);
+        mandatory_fields = to_string(cMand, false);
+        optional_fields = to_string(cOpt, false);
 
         int num_elem = cJSON_GetArraySize(root);
         if ((cFilteringPermitted == nullptr && num_elem != 7) ||
                 (cFilteringPermitted != nullptr && num_elem != 8)) {
             std::stringstream ss;
-            char *bulk = cJSON_Print(root);
-            ss << "Unknown elements for " << name
-               << ": " << std::endl << bulk << std::endl;
-            cJSON_Free(bulk);
+            ss << "Unknown elements for " << name << ": " << std::endl
+               << to_string(root) << std::endl;
             throw ss.str();
         }
     }
@@ -155,10 +149,8 @@ public:
         int expected = (hfile == NULL) ? 2 : 3;
         if (num_elem != expected) {
             std::stringstream ss;
-            char *bulk = cJSON_Print(data);
-            ss << "Unknown elements for " << name
-               << ": " << std::endl << bulk << std::endl;
-            cJSON_Free(bulk);
+            ss << "Unknown elements for " << name << ": " << std::endl
+               << to_string(data) << std::endl;
             throw ss.str();
         }
     }
