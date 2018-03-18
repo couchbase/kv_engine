@@ -1558,9 +1558,9 @@ static void get_object_w_datatype(const char *key,
 }
 
 TEST_P(McdTestappTest, DatatypeJSON) {
-    const char body[] = "{ \"value\" : 1234123412 }";
+    const char body[] = R"({ "value" : 1234123412 })";
     set_datatype_feature(true);
-    store_object_w_datatype("myjson", body, strlen(body), false);
+    store_object_w_datatype("myjson", body, 0, 0, cb::mcbp::Datatype::Raw);
 
     get_object_w_datatype("myjson", body, strlen(body), false, true, false);
 
@@ -1569,9 +1569,9 @@ TEST_P(McdTestappTest, DatatypeJSON) {
 }
 
 TEST_P(McdTestappTest, DatatypeJSONWithoutSupport) {
-    const char body[] = "{ \"value\" : 1234123412 }";
+    const char body[] = R"({ "value" : 1234123412 })";
     set_datatype_feature(false);
-    store_object_w_datatype("myjson", body, strlen(body), false);
+    store_object_w_datatype("myjson", body, 0, 0, cb::mcbp::Datatype::Raw);
 
     get_object_w_datatype("myjson", body, strlen(body), false, false, false);
 
@@ -1589,9 +1589,10 @@ TEST_P(McdTestappTest, DatatypeCompressed) {
 
     set_datatype_feature(true);
     store_object_w_datatype("mycompressed",
-                            deflated,
-                            deflated_len,
-                            true);
+                            {deflated, deflated_len},
+                            0,
+                            0,
+                            cb::mcbp::Datatype::Snappy);
 
     get_object_w_datatype("mycompressed", deflated, deflated_len,
                           true, false, false);

@@ -353,7 +353,12 @@ void store_object(const std::string& key,
         payload = deflated;
     }
 
-    store_object_w_datatype(key.c_str(), payload, payload_len, compress);
+    store_object_w_datatype(
+            key.c_str(),
+            {payload, payload_len},
+            0,
+            0,
+            compress ? cb::mcbp::Datatype::Snappy : cb::mcbp::Datatype::Raw);
     if (compress) {
         cb_free(deflated);
     }

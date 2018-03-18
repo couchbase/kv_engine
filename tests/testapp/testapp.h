@@ -382,11 +382,20 @@ void store_object_with_flags(const char *key, const char *value, uint32_t flags)
  */
 void delete_object(const char *key, bool ignore_missing = false);
 
-/* Attempts to store an object with a datatype */
-void store_object_w_datatype(const char* key,
-                             const void* data,
-                             size_t datalen,
-                             bool deflate);
+/**
+ * Attempts to store an object with a datatype
+ *
+ * @param key The documents key
+ * @param value The documents value
+ * @param flags The documents flags
+ * @param expiration The documents expiration (0 == never)
+ * @param datatype The datatype to use
+ */
+void store_object_w_datatype(const std::string& key,
+                             cb::const_char_buffer value,
+                             uint32_t flags,
+                             uint32_t expiration,
+                             cb::mcbp::Datatype datatype);
 
 // Enables / disables the JSON feature.
 void set_json_feature(bool enable);

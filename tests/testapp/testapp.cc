@@ -1021,30 +1021,27 @@ void TestappTest::start_memcached_server(cJSON* config) {
     parse_portnumber_file(port, ssl_port);
 }
 
-void store_object_w_datatype(const char *key, const void *data, size_t datalen,
-                             bool deflate)
-{
-    protocol_binary_request_no_extras request;
-    int keylen = (int)strlen(key);
-    char extra[8] = { 0 };
-    uint8_t datatype = PROTOCOL_BINARY_RAW_BYTES;
-    if (deflate) {
-        datatype |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
-    }
+void store_object_w_datatype(const std::string& key,
+                             cb::const_char_buffer value,
+                             uint32_t flags,
+                             uint32_t expiration,
+                             cb::mcbp::Datatype datatype) {
+    protocol_binary_request_set request = {};
 
-    memset(request.bytes, 0, sizeof(request));
     request.message.header.request.magic = PROTOCOL_BINARY_REQ;
     request.message.header.request.opcode = PROTOCOL_BINARY_CMD_SET;
-    request.message.header.request.datatype = datatype;
+    request.message.header.request.datatype = uint8_t(datatype);
     request.message.header.request.extlen = 8;
-    request.message.header.request.keylen = htons((uint16_t)keylen);
-    request.message.header.request.bodylen = htonl((uint32_t)(keylen + datalen + 8));
+    request.message.header.request.keylen = htons(uint16_t(key.size()));
+    request.message.header.request.bodylen =
+            htonl((uint32_t)(key.size() + value.size() + 8));
     request.message.header.request.opaque = 0xdeadbeef;
+    request.message.body.expiration = htonl(expiration);
+    request.message.body.flags = htonl(flags);
 
     safe_send(&request.bytes, sizeof(request.bytes), false);
-    safe_send(extra, sizeof(extra), false);
-    safe_send(key, strlen(key), false);
-    safe_send(data, datalen, false);
+    safe_send(key.data(), key.size(), false);
+    safe_send(value.data(), value.size(), false);
 
     union {
         protocol_binary_response_no_extras response;
