@@ -1665,13 +1665,13 @@ TEST_P(SubdocTestappTest, SubdocArrayPushLast_NotMyVbucket) {
 TEST_P(SubdocTestappTest, SubdocFlags) {
     const char array[] = "[0]";
     const uint32_t flags = 0xcafebabe;
-    store_object_with_flags("array", array, flags);
+    store_object_w_datatype("array", array, flags, 0, cb::mcbp::Datatype::Raw);
 
     EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE, "array",
                            "[0]", "1"));
 
     validate_object("array", "[1]");
-    validate_flags("array", 0xcafebabe);
+    validate_flags("array", flags);
 
     delete_object("array");
 }

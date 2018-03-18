@@ -958,33 +958,11 @@ void validate_flags(const char *key, uint32_t expected_flags) {
 }
 
 void store_object(const char *key, const char *value, bool validate) {
-    store_object_with_flags(key, value, 0);
+    store_object_w_datatype(key, value, 0, 0, cb::mcbp::Datatype::Raw);
 
     if (validate) {
         validate_object(key, value);
     }
-}
-
-void store_object_with_flags(const char *key, const char *value,
-                             uint32_t flags) {
-    std::vector<char> send;
-    send.resize(sizeof(protocol_binary_request_set) + strlen(key) +
-                strlen(value));
-
-    size_t len = mcbp_storage_command(send.data(), send.size(),
-                                      PROTOCOL_BINARY_CMD_SET,
-                                      key, strlen(key), value, strlen(value),
-                                      flags, 0);
-
-    safe_send(send.data(), len, false);
-
-    union {
-        protocol_binary_response_no_extras response;
-        char bytes[1024];
-    } receive;
-    safe_recv_packet(receive.bytes, sizeof(receive.bytes));
-    mcbp_validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_SET,
-                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
 }
 
 void delete_object(const char* key, bool ignore_missing) {

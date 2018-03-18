@@ -532,7 +532,7 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_MaxResultSpecValue) {
 // Test that flags are preserved by subdoc multipath mutation operations.
 TEST_P(SubdocTestappTest, SubdocMultiMutation_Flags) {
     const uint32_t flags = 0xcafebabe;
-    store_object_with_flags("array", "[]", flags);
+    store_object_w_datatype("array", "[]", flags, 0, cb::mcbp::Datatype::Raw);
 
     SubdocMultiMutationCmd mutation;
     mutation.key = "array";
@@ -542,7 +542,7 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_Flags) {
 
     // Check the update actually occurred.
     validate_object("array", "[0]");
-    validate_flags("array", 0xcafebabe);
+    validate_flags("array", flags);
 
     delete_object("array");
 }

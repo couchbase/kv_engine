@@ -374,8 +374,6 @@ void validate_flags(const char *key, uint32_t expected_flags);
  */
 void store_object(const char *key, const char *value, bool validate = false);
 
-void store_object_with_flags(const char *key, const char *value, uint32_t flags);
-
 /* Attempts to delete the object with the given key.
  * @param key key to remove
  * @param ignore_missing do not fail if key did not exist
