@@ -419,14 +419,18 @@ void stats_reset(Cookie& cookie) {
     bucket_reset_stats(cookie);
 }
 
-static size_t get_number_of_worker_threads(void) {
+static size_t get_number_of_worker_threads() {
     size_t ret;
     char *override = getenv("MEMCACHED_NUM_CPUS");
     if (override == NULL) {
+        // No override specified; determine worker thread count based
+        // on the CPU count:
+        //     <5 cores: create 4 workers.
+        //    >5+ cores: create #CPUs * 7/8.
         ret = Couchbase::get_available_cpu_count();
 
         if (ret > 4) {
-            ret = gsl::narrow_cast<size_t>(ret * 0.75F);
+            ret = (ret * 7) / 8;
         }
         if (ret < 4) {
             ret = 4;
