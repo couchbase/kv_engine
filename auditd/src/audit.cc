@@ -179,7 +179,7 @@ bool Audit::create_audit_event(uint32_t event_id, cJSON *payload) {
     cJSON_AddStringToObject(payload, "timestamp",
                             ISOTime::generatetimestamp().c_str());
     cJSON *real_userid = cJSON_CreateObject();
-    cJSON_AddStringToObject(real_userid, "source", "internal");
+    cJSON_AddStringToObject(real_userid, "domain", "internal");
     cJSON_AddStringToObject(real_userid, "user", "couchbase");
     cJSON_AddItemToObject(payload, "real_userid", real_userid);
 

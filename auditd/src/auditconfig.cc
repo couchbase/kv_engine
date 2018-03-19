@@ -385,21 +385,28 @@ void AuditConfig::add_pair_string_array(
             throw std::invalid_argument(ss.str());
         }
         auto* source = cJSON_GetObjectItem(element, "source");
-        if (source != nullptr) {
-            if (source->type != cJSON_String) {
-                throw std::invalid_argument(
-                        "Incorrect type for source. Should be string.");
-            }
+        auto* domain = cJSON_GetObjectItem(element, "domain");
+        if (source != nullptr && source->type != cJSON_String) {
+            throw std::invalid_argument(
+                    "Incorrect type for source. Should be string.");
+        }
+        if (domain != nullptr && domain->type != cJSON_String) {
+            throw std::invalid_argument(
+                    "Incorrect type for domain. Should be string.");
+        }
+        if (source != nullptr || domain != nullptr) {
             auto* user = cJSON_GetObjectItem(element, "user");
             if (user != nullptr) {
                 if (user->type != cJSON_String) {
                     throw std::invalid_argument(
                             "Incorrect type for user. Should be string.");
                 }
-                // Have a source and user so build the pair and add to the
-                // vector
+                // Have a source/domain and user so build the pair and add to
+                // the vector
+                auto* sourceValueString = (source != nullptr) ?
+                        source->valuestring : domain->valuestring;
                 const auto& userid =
-                        std::make_pair(source->valuestring, user->valuestring);
+                        std::make_pair(sourceValueString, user->valuestring);
                 vec.push_back(userid);
             }
         }
@@ -467,11 +474,8 @@ unique_cJSON_ptr AuditConfig::to_json() const {
                     "AuditConfig::to_json - Error creating "
                     "cJSON object");
         }
-        std::string source;
-        std::string user;
-        std::tie(source, user) = v;
-        cJSON_AddStringToObject(userIdRoot, "source", source.c_str());
-        cJSON_AddStringToObject(userIdRoot, "user", user.c_str());
+        cJSON_AddStringToObject(userIdRoot, "domain", v.first.c_str());
+        cJSON_AddStringToObject(userIdRoot, "user", v.second.c_str());
         cJSON_AddItemToArray(array, userIdRoot);
     }
     cJSON_AddItemToObject(root, "disabled_userids", array);

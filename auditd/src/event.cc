@@ -28,13 +28,20 @@ bool Event::filterEventByUserid(cJSON* json_payload,
     auto* id = cJSON_GetObjectItem(json_payload, userid_type.c_str());
     if (id != nullptr) {
         auto* source = cJSON_GetObjectItem(id, "source");
-        if (source != nullptr) {
-            if (source->type != cJSON_String) {
-                std::stringstream ss;
-                ss << "Incorrect type for \"" << userid_type
-                   << "::source\". Should be string.";
-                throw std::invalid_argument(ss.str());
-            }
+        auto* domain = cJSON_GetObjectItem(id, "domain");
+        if (source != nullptr && source->type != cJSON_String) {
+            std::stringstream ss;
+            ss << "Incorrect type for \"" << userid_type
+                    << "::source\". Should be string.";
+            throw std::invalid_argument(ss.str());
+        }
+        if (domain != nullptr && domain->type != cJSON_String) {
+            std::stringstream ss;
+            ss << "Incorrect type for \"" << userid_type
+                    << "::domain\". Should be string.";
+            throw std::invalid_argument(ss.str());
+        }
+        if (source != nullptr || domain != nullptr) {
             auto* user = cJSON_GetObjectItem(id, "user");
             if (user != nullptr) {
                 if (user->type != cJSON_String) {
@@ -43,10 +50,12 @@ bool Event::filterEventByUserid(cJSON* json_payload,
                        << "::user\". Should be string.";
                     throw std::invalid_argument(ss.str());
                 }
-                // Have a source and user so build the tuple and check if the
+                // Have a source/domain and user so build the tuple and check if the
                 // event is filtered
+                auto* sourceValueString = (source != nullptr) ?
+                        source->valuestring : domain->valuestring;
                 const auto& userid =
-                        std::make_pair(source->valuestring, user->valuestring);
+                        std::make_pair(sourceValueString, user->valuestring);
                 if (config.is_event_filtered(userid)) {
                     return true;
                 }

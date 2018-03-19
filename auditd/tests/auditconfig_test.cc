@@ -418,7 +418,14 @@ TEST_F(AuditConfigTest, TestSpecifyDisabledUsers) {
                     "TestSpecifyDisabledUsers - Error "
                     "creating cJSON object");
         }
-        cJSON_AddStringToObject(userIdRoot, "source", "internal");
+        // In version 2 of the configuration we support domain or support
+        // however domain is the preferred notation.
+        // Have 10 users so make half use domain and half use source
+        if (ii < 5) {
+            cJSON_AddStringToObject(userIdRoot, "domain", "internal");
+        } else {
+            cJSON_AddStringToObject(userIdRoot, "source", "internal");
+        }
         auto user = "user" + std::to_string(ii);
         cJSON_AddStringToObject(userIdRoot, "user", user.c_str());
         cJSON_AddItemToArray(array, userIdRoot);
@@ -427,9 +434,9 @@ TEST_F(AuditConfigTest, TestSpecifyDisabledUsers) {
     EXPECT_NO_THROW(config.initialize_config(json));
 
     for (uint16_t ii = 0; ii < 100; ++ii) {
-        const auto& source = "internal";
+        const auto& domain = "internal";
         const auto& user = "user" + std::to_string(ii);
-        const auto& userid = std::make_pair(source, user);
+        const auto& userid = std::make_pair(domain, user);
         if (ii < 10) {
             EXPECT_TRUE(config.is_event_filtered(userid));
         } else {
@@ -471,7 +478,7 @@ TEST_F(AuditConfigTest, AuditConfigDisabledUsers) {
     if (userIdRoot == nullptr) {
         throw std::bad_alloc();
     }
-    cJSON_AddStringToObject(userIdRoot, "source", "internal");
+    cJSON_AddStringToObject(userIdRoot, "domain", "internal");
     cJSON_AddStringToObject(userIdRoot, "user", "johndoe");
     cJSON_AddItemToArray(disabledUserids.get(), userIdRoot);
 

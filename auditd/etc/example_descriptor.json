@@ -9,12 +9,12 @@
                    "enabled" : true,
                    "mandatory_fields" : {
                                           "timestamp" : "",
-                                          "real_userid" : {"source" : "", "user" : ""}
+                                          "real_userid" : {"domain" : "", "user" : ""}
                                          },
                    "optional_fields" : {
                                           "sessionid" : "",
                                           "remote" : {"ip" : "", "port" : 1},
-                                          "effective_userid" : {"source" : "", "user" : ""}
+                                          "effective_userid" : {"domain" : "", "user" : ""}
                                        }
                 }
                ]

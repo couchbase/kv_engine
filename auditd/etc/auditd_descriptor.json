@@ -10,7 +10,7 @@
                    "filtering_permitted" : false,
                    "mandatory_fields" : {
                                          "timestamp" : "",
-                                         "real_userid" : {"source" : "", "user" : ""},
+                                         "real_userid" : {"domain" : "", "user" : ""},
                                          "hostname" : "",
                                          "version" : 1,
                                          "auditd_enabled" : true,
@@ -29,7 +29,7 @@
                    "filtering_permitted" : false,
                    "mandatory_fields" : {
                                          "timestamp" : "",
-                                         "real_userid" : {"source" : "", "user" : ""}
+                                         "real_userid" : {"domain" : "", "user" : ""}
                                         },
                    "optional_fields" : {}
                 }

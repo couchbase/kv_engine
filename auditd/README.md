@@ -74,7 +74,7 @@ example event descriptor file for the auditd module is given below.
                     "enabled" : true,
                     "mandatory_fields" : {
                                           "timestamp" : "",
-                                          "real_userid" : {"source" : "", "user" : ""},
+                                          "real_userid" : {"domain" : "", "user" : ""},
                                           "hostname" : "",
                                           "version" : 1,
                                           "auditd_enabled" : true,
@@ -92,7 +92,7 @@ example event descriptor file for the auditd module is given below.
                     "enabled" : true,
                     "mandatory_fields" : {
                                           "timestamp" : "",
-                                          "real_userid" : {"source" : "", "user" : ""}
+                                          "real_userid" : {"domain" : "", "user" : ""}
                                          },
                     "optional_fields" : {}
                  },
@@ -104,7 +104,7 @@ example event descriptor file for the auditd module is given below.
                     "enabled" : true,
                     "mandatory_fields" : {
                                           "timestamp" : "",
-                                          "real_userid" : {"source" : "", "user" : ""}
+                                          "real_userid" : {"domain" : "", "user" : ""}
                                          },
                     "optional_fields" : {}
                  },
@@ -116,7 +116,7 @@ example event descriptor file for the auditd module is given below.
                     "enabled" : true,
                     "mandatory_fields" : {
                                           "timestamp" : "",
-                                          "real_userid" : {"source" : "", "user" : ""}
+                                          "real_userid" : {"domain" : "", "user" : ""}
                                          },
                     "optional_fields" : {}
                  }
@@ -168,12 +168,12 @@ pre-defined optional fields; *sessionID*, *remote* and
                    "enabled" : true,
                    "mandatory_fields" : {
                                          "timestamp" : "",
-                                         "real_userid" : {"source" : "", "user" : ""}
+                                         "real_userid" : {"domain" : "", "user" : ""}
                                         },
                    "optional_fields" : {
                                         "sessionid" : ""
                                         "remote" : {"ip" : "", "port" : 1}
-                                        "effective_userid" : {"source" : "", "user" : ""}
+                                        "effective_userid" : {"domain" : "", "user" : ""}
                                        }
                 }
                ]
@@ -193,12 +193,12 @@ below:
                    "filtering_permitted" : true,
                    "mandatory_fields" : {
                                          "timestamp" : "",
-                                         "real_userid" : {"source" : "", "user" : ""}
+                                         "real_userid" : {"domain" : "", "user" : ""}
                                         },
                    "optional_fields" : {
                                         "sessionid" : ""
                                         "remote" : {"ip" : "", "port" : 1}
-                                        "effective_userid" : {"source" : "", "user" : ""}
+                                        "effective_userid" : {"domain" : "", "user" : ""}
                                        }
                 }
                ]
@@ -207,13 +207,15 @@ below:
 #### Pre-defined Mandatory Fields
 
 * timestamp - Contains the date and time of the event, in ISO 8601 format.  Uses local time with timezone offset (from UTC) in hours and minutes.  Records microsecond granularity using 3 digits after decimal point.
-* real_userid - comprises of a "source", which states where the user is defined, e.g. internal, ldap or ad.  It then contains the user information, which is recorded differently, depending on the source; and hence is stored in a JSON object.
+* real_userid - comprises of a "domain", which states where the user is defined, e.g. internal, ldap or ad.  It then contains the user string.
+Note:  In version 2 the real_user_id has been changed from {"source" : "", "user" : ""} to {"domain" : "", "user" : ""}.
 
 #### Pre-defined Optional Fields
 
 * sessionid - Used to correlate activities i.e. user logs-in to Admin UI, sets up XDCR, tweaks a memory value etc.
 * remote - the IP address of the remote agent who is requesting this action.  Note there are sometimes more than one logical remote IP address, e.g. a client runs a query which scans a 2i index.  In 2i the remote IP could be the true client or the query process.  In this case we record the IP address where the query process is running and use the session ID (see above) to resolve to the ultimate client.
 * effective_userid - Can be best explained through an example; query node connects to an indexing node on behalf of an SDK client. real_userid is "_admin" (query auth's as the internal admin); effective user ID is what ever the client's ID is.
+Note: Similar to real_user_id the notation has changed from version 1 to version 2, to be {"domain" : "", "user" : ""}.
 
 ## How to define events
 
@@ -257,7 +259,7 @@ be as follows:
 
      {
       "timestamp" : "2014-11-05T13:15:30Z",
-      "real_userid" : {"source": "internal", "user" : "_admin"}
+      "real_userid" : {"domain": "internal", "user" : "_admin"}
      }
 
 If the event contained also contained the additional 3 pre-defined
@@ -265,10 +267,10 @@ optional fields then an example payload would be as follows:
 
     {
      "timestamp" : "2014-11-05T13:15:30Z",
-     "real_userid" : {"source": "internal", "user" : "_admin"},
+     "real_userid" : {"domain": "internal", "user" : "_admin"},
      "sessionID" : "SID:ANON:www.w3.org:j6oAOxCWZh/CD723LGeXlf-01:34",
      "remote" : {"ip": "127.0.0.1", "port" : 11210"},
-     "effective_userid" : {"source": "ldap", "user" : "joeblogs"},
+     "effective_userid" : {"domain": "ldap", "user" : "joeblogs"},
     }
 
 
@@ -326,7 +328,7 @@ An example verison 2 configuration is presented below.
         "log_path": "/var/lib/couchbase/logs",
         "descriptors_path" : "/path/to/directory/containing/audit_events.json/",
         "event_states" : {"1234" : "enabled", "5678" : "disabled"}
-        "disabled_userids": [{"source" : "internal, "user" : "joeblogs"}],
+        "disabled_userids": [{"domain" : "internal, "user" : "joeblogs"}],
         "sync": []
        }
 
@@ -337,17 +339,17 @@ user is supported.  For filtering to work the filtering_enabled setting in the
 auditd configuration file must be set to true.
 
 In addition the disabled_userids list must contain the userids that are to be
-filtered out.  The source must match the "source" component from a real_userid
+filtered out.  The domain must match the "domain" component from a real_userid
 or effective_userid, and the user must match the "user" component.
 For example given the following:
 
-        "real_userid" : {"source": "internal", "user" : "joeblogs"}
-        "effective_userid" : {"source": "ldap", "user" : "joeblogs"},
+        "real_userid" : {"domain": "internal", "user" : "joeblogs"}
+        "effective_userid" : {"domain": "ldap", "user" : "joeblogs"},
 
-If it was decided to filter out the events from {"source" : "internal",
+If it was decided to filter out the events from {"domain" : "internal",
 "user" : "joeblogs"} then the disabled_userids list would be as follows:
 
-        "disabled_userids": [{"source" : "internal", "user" : "joeblogs"}]
+        "disabled_userids": [{"domain" : "internal", "user" : "joeblogs"}]
 
 Finally, an event will only be filtered if its "filtering_permitted" attribute
 is set to true in the definition of the event.  If the event does not contain
@@ -388,7 +390,7 @@ example of a configuration event is given below:
         "filtering_permitted" : false,
         "mandatory_fields" : {
                               "timestamp" : "",
-                              "real_userid" : {"source" : "", "user" : ""},
+                              "real_userid" : {"domain" : "", "user" : ""},
                               "uuid" : ""
                              },
         "optional_fields" : {}
