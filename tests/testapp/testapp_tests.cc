@@ -1737,7 +1737,7 @@ TEST_P(McdTestappTest, MB_10114) {
     // Disable ewouldblock_engine - not wanted / needed for this MB regression test.
     ewouldblock_engine_disable();
 
-    store_object(key, "world");
+    store_document(key, "world");
     do {
         len = mcbp_raw_command(send.bytes, sizeof(send.bytes),
                                PROTOCOL_BINARY_CMD_APPEND,

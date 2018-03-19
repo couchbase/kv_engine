@@ -193,7 +193,3 @@ uint64_t expect_subdoc_cmd(
         const SubdocMultiMutationCmd& cmd,
         protocol_binary_response_status expected_status,
         const std::vector<SubdocMultiMutationResult>& expected_results);
-
-void store_object(const std::string& key,
-                  const std::string& value,
-                  bool compress);

@@ -69,7 +69,7 @@ protected:
  */
 void SubdocPerfTest::subdoc_perf_test_array(protocol_binary_command cmd,
                                             size_t iterations) {
-    store_object("list", "[]");
+    store_document("list", "[]");
 
     for (size_t i = 0; i < iterations; i++) {
         subdoc_verify_cmd(BinprotSubdocCommand(cmd, "list", "", std::to_string(i)));
@@ -118,8 +118,7 @@ static std::string subdoc_create_array(size_t elements) {
 // document with  elements to operate on. Can then subtract the runtime of
 // this from Array_Remove tests to see actual performance.
 TEST_P(SubdocPerfTest, Array_RemoveBaseline) {
-    std::string list(subdoc_create_array(iterations));
-    store_object("list", list.c_str());
+    store_document("list", subdoc_create_array(iterations));
     delete_object("list");
 }
 
@@ -127,8 +126,7 @@ TEST_P(SubdocPerfTest, Array_RemoveBaseline) {
 // Create an N-element array, then benchmark removing N elements individually
 // by removing the first element each time.
 TEST_P(SubdocPerfTest, Array_RemoveFirst) {
-    std::string list(subdoc_create_array(iterations));
-    store_object("list", list.c_str());
+    store_document("list", subdoc_create_array(iterations));
 
     for (size_t i = 0; i < iterations; i++) {
         subdoc_verify_cmd(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_DELETE,
@@ -140,8 +138,7 @@ TEST_P(SubdocPerfTest, Array_RemoveFirst) {
 // Create an N-element array, then benchmark removing N elements individually
 // by removing the last element each time.
 TEST_P(SubdocPerfTest, Array_RemoveLast) {
-    std::string list(subdoc_create_array(iterations));
-    store_object("list", list.c_str());
+    store_document("list", subdoc_create_array(iterations));
 
     for (size_t i = 0; i < iterations; i++) {
         subdoc_verify_cmd(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_DELETE,
@@ -153,8 +150,7 @@ TEST_P(SubdocPerfTest, Array_RemoveLast) {
 
 // Create an N-element array, then benchmark replacing the first element.
 TEST_P(SubdocPerfTest, Array_ReplaceFirst) {
-    std::string list(subdoc_create_array(iterations));
-    store_object("list", list.c_str());
+    store_document("list", subdoc_create_array(iterations));
 
     for (size_t i = 0; i < iterations; i++) {
         subdoc_verify_cmd(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
@@ -165,8 +161,7 @@ TEST_P(SubdocPerfTest, Array_ReplaceFirst) {
 
 // Create an N-element array, then benchmark replacing the middle element.
 TEST_P(SubdocPerfTest, Array_ReplaceMiddle) {
-    std::string list(subdoc_create_array(iterations));
-    store_object("list", list.c_str());
+    store_document("list", subdoc_create_array(iterations));
 
     std::string path(std::string("[") + std::to_string(iterations / 2) + "]");
     for (size_t i = 0; i < iterations; i++) {
@@ -178,8 +173,7 @@ TEST_P(SubdocPerfTest, Array_ReplaceMiddle) {
 
 // Create an N-element array, then benchmark replacing the first element.
 TEST_P(SubdocPerfTest, Array_ReplaceLast) {
-    std::string list(subdoc_create_array(iterations));
-    store_object("list", list, /*compress*/ false);
+    store_document("list", subdoc_create_array(iterations));
 
     for (size_t i = 0; i < iterations; i++) {
         subdoc_verify_cmd(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
@@ -189,7 +183,7 @@ TEST_P(SubdocPerfTest, Array_ReplaceLast) {
 }
 
 TEST_P(SubdocPerfTest, Dict_Add) {
-    store_object("dict", "{}");
+    store_document("dict", "{}");
 
     for (size_t i = 0; i < iterations; i++) {
         std::string key(std::to_string(i));
@@ -212,7 +206,7 @@ static void subdoc_create_dict(const std::string& name, size_t elements) {
     dict.pop_back();
     dict.push_back('}');
 
-    store_object(name, dict, /*compress*/ false);
+    store_document(name, dict);
 }
 
 // Baseline test case for Dict test; this 'test' just creates the document to
@@ -267,7 +261,7 @@ TEST_P(SubdocPerfTest, Dict_Exists) {
  ****************************************************************************/
 
 TEST_P(SubdocPerfTest, Array_PushFirst_Multipath) {
-    store_object("list", "[]");
+    store_document("list", "[]");
 
     SubdocMultiMutationCmd mutation;
     mutation.key = "list";
@@ -294,8 +288,7 @@ TEST_P(SubdocPerfTest, Array_PushFirst_Multipath) {
 // Create an N-element array, then benchmark removing N elements using
 // multi-path commands by removing the first element each time.
 TEST_P(SubdocPerfTest, Array_RemoveFirst_Multipath) {
-    std::string list(subdoc_create_array(iterations));
-    store_object("list", list.c_str());
+    store_document("list", subdoc_create_array(iterations));
 
     SubdocMultiMutationCmd mutation;
     mutation.key = "list";
@@ -322,8 +315,7 @@ TEST_P(SubdocPerfTest, Array_RemoveFirst_Multipath) {
 // Create an N-element array, then benchmark replacing the first element
 // using multi-path operations.
 TEST_P(SubdocPerfTest, Array_ReplaceFirst_Multipath) {
-    std::string list(subdoc_create_array(iterations));
-    store_object("list", list.c_str());
+    store_document("list", subdoc_create_array(iterations));
 
     SubdocMultiMutationCmd mutation;
     mutation.key = "list";
@@ -348,8 +340,7 @@ TEST_P(SubdocPerfTest, Array_ReplaceFirst_Multipath) {
 // Create an N-element array, then benchmark replacing the middle element
 // using multi-path operations.
 TEST_P(SubdocPerfTest, Array_ReplaceMiddle_Multipath) {
-    std::string list(subdoc_create_array(iterations));
-    store_object("list", list.c_str());
+    store_document("list", subdoc_create_array(iterations));
 
     SubdocMultiMutationCmd mutation;
     mutation.key = "list";
@@ -373,7 +364,7 @@ TEST_P(SubdocPerfTest, Array_ReplaceMiddle_Multipath) {
 }
 
 TEST_P(SubdocPerfTest, Dict_Add_Multipath) {
-    store_object("dict", "{}");
+    store_document("dict", "{}");
 
     SubdocMultiMutationCmd mutation;
     mutation.key = "dict";
@@ -410,7 +401,7 @@ TEST_P(SubdocPerfTest, Dict_Add_Multipath) {
  ****************************************************************************/
 
 TEST_P(SubdocPerfTest, Array_PushFirst_Fulldoc) {
-    store_object("list", "[]");
+    store_document("list", "[]");
 
     // At each iteration create a new document with one more element in it,
     // and store to the server.
@@ -425,14 +416,14 @@ TEST_P(SubdocPerfTest, Array_PushFirst_Fulldoc) {
         list.insert(0, std::to_string(i));
         list.insert(0, 1, '[');
 
-        store_object("list", list.c_str(), /*validate*/false);
+        store_document("list", list);
     }
 
     delete_object("list");
 }
 
 TEST_P(SubdocPerfTest, Array_PushLast_Fulldoc) {
-    store_object("list", "[]");
+    store_document("list", "[]");
 
     // At each iteration create a new document with one more element in it,
     // and store to the server.
@@ -447,14 +438,14 @@ TEST_P(SubdocPerfTest, Array_PushLast_Fulldoc) {
         list.append(std::to_string(i));
         list.push_back(']');
 
-        store_object("list", list.c_str(), /*validate*/false);
+        store_document("list", list);
     }
 
     delete_object("list");
 }
 
 TEST_P(SubdocPerfTest, Dict_Add_Fulldoc) {
-    store_object("dict", "{}");
+    store_document("dict", "{}");
 
     // At each iteration add another key to the dictionary, and SET the whole
     // thing.
@@ -472,7 +463,7 @@ TEST_P(SubdocPerfTest, Dict_Add_Fulldoc) {
         // Add the closing brace.
         dict.push_back('}');
 
-        store_object("dict", dict.c_str(), /*validate*/false);
+        store_document("dict", dict);
     }
 
     delete_object("dict");
@@ -482,13 +473,12 @@ TEST_P(SubdocPerfTest, Dict_Add_Fulldoc) {
 // fulldoc commands we are sending the whole document, so doesn't matter what
 // we replace).
 TEST_P(SubdocPerfTest, Array_Replace_Fulldoc) {
-    std::string list(subdoc_create_array(iterations));
-    store_object("list", list.c_str());
+    store_document("list", subdoc_create_array(iterations));
 
     // No point in actually 'replacing' anything, just send the same original
     // thing.
     for (size_t i = 0; i < iterations; i++) {
-        store_object("list", list.c_str(), /*validate*/false);
+        store_document("list", subdoc_create_array(iterations));
     }
 
     delete_object("list");

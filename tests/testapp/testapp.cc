@@ -15,6 +15,7 @@
 #include <gsl/gsl>
 
 #include <getopt.h>
+#include <platform/compress.h>
 #include <fstream>
 
 McdEnvironment* mcd_env = nullptr;
@@ -939,14 +940,6 @@ void validate_flags(const char *key, uint32_t expected_flags) {
     EXPECT_EQ(expected_flags, actual_flags);
 }
 
-void store_object(const char *key, const char *value, bool validate) {
-    store_object_w_datatype(key, value, 0, 0, cb::mcbp::Datatype::Raw);
-
-    if (validate) {
-        validate_object(key, value);
-    }
-}
-
 void delete_object(const char* key, bool ignore_missing) {
     union {
         protocol_binary_request_no_extras request;
@@ -1011,6 +1004,36 @@ void store_object_w_datatype(const std::string& key,
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     mcbp_validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_SET,
                                   PROTOCOL_BINARY_RESPONSE_SUCCESS);
+}
+
+void store_document(const std::string& key,
+                    const std::string& value,
+                    uint32_t flags,
+                    uint32_t exptime,
+                    bool compress) {
+    if (compress) {
+        bool disable_snappy = false;
+        if (enabled_hello_features.count(cb::mcbp::Feature::SNAPPY) == 0) {
+            // We need to enable snappy
+            set_feature(cb::mcbp::Feature::SNAPPY, true);
+            disable_snappy = true;
+        }
+        cb::compression::Buffer deflated;
+        cb::compression::deflate(
+                cb::compression::Algorithm::Snappy, value, deflated);
+
+        store_object_w_datatype(key.c_str(),
+                                deflated,
+                                flags,
+                                exptime,
+                                cb::mcbp::Datatype::Snappy);
+        if (disable_snappy) {
+            set_feature(cb::mcbp::Feature::SNAPPY, false);
+        }
+    } else {
+        store_object_w_datatype(
+                key.c_str(), value, flags, exptime, cb::mcbp::Datatype::Raw);
+    }
 }
 
 void set_json_feature(bool enable) {
