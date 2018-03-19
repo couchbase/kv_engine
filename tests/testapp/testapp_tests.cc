@@ -1504,35 +1504,26 @@ TEST_P(McdTestappTest, TapConnect) {
      EXPECT_EQ(0u, buffer.response.message.header.response.getBodylen());
 }
 
-static void get_object_w_datatype(const char *key,
-                                  const void *data, size_t datalen,
-                                  bool deflate, bool json,
-                                  bool conversion)
-{
+enum class Conversion { Yes, No };
+
+static void get_object_w_datatype(const std::string& key,
+                                  cb::const_char_buffer data,
+                                  cb::mcbp::Datatype datatype,
+                                  Conversion conversion) {
     protocol_binary_response_no_extras response;
     protocol_binary_request_no_extras request;
-    int keylen = (int)strlen(key);
     uint32_t flags;
-    uint8_t datatype = PROTOCOL_BINARY_RAW_BYTES;
     uint32_t len;
-
-    if (deflate) {
-        datatype |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
-    }
-
-    if (json) {
-        datatype |= PROTOCOL_BINARY_DATATYPE_JSON;
-    }
 
     memset(request.bytes, 0, sizeof(request));
     request.message.header.request.magic = PROTOCOL_BINARY_REQ;
     request.message.header.request.opcode = PROTOCOL_BINARY_CMD_GET;
     request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
-    request.message.header.request.keylen = htons((uint16_t)keylen);
-    request.message.header.request.bodylen = htonl(keylen);
+    request.message.header.request.keylen = htons((uint16_t)key.size());
+    request.message.header.request.bodylen = htonl((uint32_t)key.size());
 
     safe_send(&request.bytes, sizeof(request.bytes), false);
-    safe_send(key, strlen(key), false);
+    safe_send(key.data(), key.size(), false);
 
     safe_recv(&response.bytes, sizeof(response.bytes));
     if (ntohs(response.message.header.response.status != PROTOCOL_BINARY_RESPONSE_SUCCESS)) {
@@ -1548,36 +1539,45 @@ static void get_object_w_datatype(const char *key,
     std::vector<char> body(len);
     safe_recv(body.data(), len);
 
-    if (conversion) {
-        cb_assert(response.message.header.response.datatype == PROTOCOL_BINARY_RAW_BYTES);
+    if (conversion == Conversion::Yes) {
+        ASSERT_EQ(PROTOCOL_BINARY_RAW_BYTES,
+                  response.message.header.response.datatype);
     } else {
-        cb_assert(response.message.header.response.datatype == datatype);
+        ASSERT_EQ(
+                datatype,
+                cb::mcbp::Datatype(response.message.header.response.datatype));
     }
 
-    cb_assert(len == datalen);
-    cb_assert(memcmp(data, body.data(), body.size()) == 0);
+    ASSERT_EQ(len, data.size());
+    ASSERT_EQ(0, memcmp(data.data(), body.data(), body.size()));
 }
 
 TEST_P(McdTestappTest, DatatypeJSON) {
-    const char body[] = R"({ "value" : 1234123412 })";
+    const std::string body{R"({ "value" : 1234123412 })"};
     set_datatype_feature(true);
+    // The server will set the datatype to JSON
     store_object_w_datatype("myjson", body, 0, 0, cb::mcbp::Datatype::Raw);
 
-    get_object_w_datatype("myjson", body, strlen(body), false, true, false);
+    get_object_w_datatype(
+            "myjson", body, cb::mcbp::Datatype::JSON, Conversion::No);
 
     set_datatype_feature(false);
-    get_object_w_datatype("myjson", body, strlen(body), false, true, true);
+    get_object_w_datatype(
+            "myjson", body, cb::mcbp::Datatype::Raw, Conversion::Yes);
 }
 
 TEST_P(McdTestappTest, DatatypeJSONWithoutSupport) {
-    const char body[] = R"({ "value" : 1234123412 })";
+    const std::string body{R"({ "value" : 1234123412 })"};
     set_datatype_feature(false);
+    // The server will set the datatype to JSON
     store_object_w_datatype("myjson", body, 0, 0, cb::mcbp::Datatype::Raw);
 
-    get_object_w_datatype("myjson", body, strlen(body), false, false, false);
+    get_object_w_datatype(
+            "myjson", body, cb::mcbp::Datatype::Raw, Conversion::No);
 
     set_datatype_feature(true);
-    get_object_w_datatype("myjson", body, strlen(body), false, true, false);
+    get_object_w_datatype(
+            "myjson", body, cb::mcbp::Datatype::JSON, Conversion::No);
 }
 
 TEST_P(McdTestappTest, DatatypeCompressed) {
@@ -1593,19 +1593,13 @@ TEST_P(McdTestappTest, DatatypeCompressed) {
             "mycompressed", deflated, 0, 0, cb::mcbp::Datatype::Snappy);
 
     get_object_w_datatype("mycompressed",
-                          deflated.data(),
-                          deflated.size(),
-                          true,
-                          false,
-                          false);
+                          deflated,
+                          cb::mcbp::Datatype::Snappy,
+                          Conversion::No);
 
     set_datatype_feature(false);
-    get_object_w_datatype("mycompressed",
-                          inflated.data(),
-                          inflated.size(),
-                          true,
-                          false,
-                          true);
+    get_object_w_datatype(
+            "mycompressed", inflated, cb::mcbp::Datatype::Raw, Conversion::No);
 }
 
 TEST_P(McdTestappTest, DatatypeInvalid) {
