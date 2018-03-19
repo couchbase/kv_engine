@@ -809,24 +809,6 @@ void reconnect_to_server() {
     }
 }
 
-/* Compress the specified document, storing the compressed result in the
- * {deflated}.
- * Caller is responsible for cb_free()ing deflated when no longer needed.
- */
-size_t compress_document(const char* data, size_t datalen, char** deflated) {
-
-    // Calculate maximum compressed length and allocate a buffer of that size.
-    size_t deflated_len = snappy_max_compressed_length(datalen);
-    *deflated = (char*)cb_malloc(deflated_len);
-
-    snappy_status status = snappy_compress(data, datalen, *deflated,
-                                           &deflated_len);
-
-    cb_assert(status == SNAPPY_OK);
-
-    return deflated_len;
-}
-
 static void set_feature(cb::mcbp::Feature feature, bool enable) {
     // First update the currently enabled features.
     if (enable) {

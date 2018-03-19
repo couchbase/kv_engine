@@ -341,12 +341,6 @@ protected:
 SOCKET connect_to_server_plain(in_port_t port);
 void reconnect_to_server();
 
-/* Compress the given document. Returns the size of the compressed document,
- * and deflated is updated to point to the compressed buffer.
- * 'deflated' should be freed by the caller when no longer needed.
- */
-size_t compress_document(const char* data, size_t datalen, char** deflated);
-
 /* Set the datatype feature on the connection to the specified value */
 void set_datatype_feature(bool enable);
 

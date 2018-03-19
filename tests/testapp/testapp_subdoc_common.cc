@@ -22,6 +22,7 @@
 #include "testapp_subdoc_common.h"
 
 #include <platform/cb_malloc.h>
+#include <platform/compress.h>
 
 std::ostream& operator<<(std::ostream& os, const BinprotSubdocCommand& obj) {
     os << "[cmd:" << memcached_opcode_2_text(obj.getOp())
@@ -345,21 +346,19 @@ uint64_t expect_subdoc_cmd(
 void store_object(const std::string& key,
                   const std::string& value,
                   bool compress) {
-    const char* payload = value.c_str();
-    size_t payload_len = value.size();
-    char* deflated = NULL;
+    cb::const_char_buffer payload = value;
+    cb::compression::Buffer deflated;
+
     if (compress) {
-        payload_len = compress_document(payload, payload_len, &deflated);
+        cb::compression::deflate(
+                cb::compression::Algorithm::Snappy, payload, deflated);
         payload = deflated;
     }
 
     store_object_w_datatype(
             key.c_str(),
-            {payload, payload_len},
+            payload,
             0,
             0,
             compress ? cb::mcbp::Datatype::Snappy : cb::mcbp::Datatype::Raw);
-    if (compress) {
-        cb_free(deflated);
-    }
 }

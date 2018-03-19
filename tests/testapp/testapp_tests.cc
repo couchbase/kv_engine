@@ -42,6 +42,7 @@
 #include <memcached/util.h>
 #include <platform/backtrace.h>
 #include <platform/cb_malloc.h>
+#include <platform/compress.h>
 #include <platform/dirutils.h>
 #include <platform/platform.h>
 #include <platform/socket.h>
@@ -1580,28 +1581,31 @@ TEST_P(McdTestappTest, DatatypeJSONWithoutSupport) {
 }
 
 TEST_P(McdTestappTest, DatatypeCompressed) {
-    const char inflated[] = "aaaaaaaaabbbbbbbccccccdddddd";
-    size_t inflated_len = strlen(inflated);
-    char* deflated;
-    size_t deflated_len = compress_document(inflated, inflated_len, &deflated);
+    const std::string inflated{"aaaaaaaaabbbbbbbccccccdddddd"};
+    cb::compression::Buffer deflated;
+    cb::compression::deflate(
+            cb::compression::Algorithm::Snappy, inflated, deflated);
 
     setCompressionMode("passive");
 
     set_datatype_feature(true);
-    store_object_w_datatype("mycompressed",
-                            {deflated, deflated_len},
-                            0,
-                            0,
-                            cb::mcbp::Datatype::Snappy);
+    store_object_w_datatype(
+            "mycompressed", deflated, 0, 0, cb::mcbp::Datatype::Snappy);
 
-    get_object_w_datatype("mycompressed", deflated, deflated_len,
-                          true, false, false);
+    get_object_w_datatype("mycompressed",
+                          deflated.data(),
+                          deflated.size(),
+                          true,
+                          false,
+                          false);
 
     set_datatype_feature(false);
-    get_object_w_datatype("mycompressed", inflated, inflated_len,
-                          true, false, true);
-
-    cb_free(deflated);
+    get_object_w_datatype("mycompressed",
+                          inflated.data(),
+                          inflated.size(),
+                          true,
+                          false,
+                          true);
 }
 
 TEST_P(McdTestappTest, DatatypeInvalid) {
