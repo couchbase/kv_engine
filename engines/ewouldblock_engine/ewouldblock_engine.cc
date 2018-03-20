@@ -75,6 +75,7 @@
 #include <random>
 #include <sstream>
 #include <string>
+#include <utility>
 
 #include <logger/logger.h>
 #include <memcached/engine.h>
@@ -1245,8 +1246,12 @@ private:
     /**
      * The dcp_stream map is used to map a cookie to the count of objects
      * it should send on the stream.
+     *
+     * Each entry in here constists of a pair containing a boolean specifying
+     * if the stream is opened or not, and a count of how many times we should
+     * return data
      */
-    std::map<const void*, uint64_t> dcp_stream;
+    std::map<const void*, std::pair<bool, uint64_t>> dcp_stream;
 
     friend class BlockMonitorThread;
     std::map<uint32_t, const void*> suspended_map;
@@ -1419,8 +1424,9 @@ ENGINE_ERROR_CODE EWB_Engine::dcp_step(
     EWB_Engine* ewb = to_engine(handle);
     auto stream = ewb->dcp_stream.find(cookie);
     if (stream != ewb->dcp_stream.end()) {
-        auto& count = stream->second;
-        if (count > 0) {
+        auto& count = stream->second.second;
+        // If the stream is enabled and we have data to send..
+        if (stream->second.first && count > 0) {
             // This is using the internal dcp implementation which always
             // send the same item back
             auto ret = producers->mutation(cookie,
@@ -1440,7 +1446,7 @@ ENGINE_ERROR_CODE EWB_Engine::dcp_step(
             }
             return ret;
         }
-        return ENGINE_EWOULDBLOCK;
+        return ENGINE_SUCCESS;
     }
 
     if (ewb->real_engine->dcp.step == nullptr) {
@@ -1464,10 +1470,13 @@ ENGINE_ERROR_CODE EWB_Engine::dcp_open(gsl::not_null<ENGINE_HANDLE*> handle,
         // The user could specify the iteration count by adding a colon
         // at the end...
         auto idx = nm.rfind(":");
+
         if (idx != nm.npos) {
-            ewb->dcp_stream[cookie] = std::stoull(nm.substr(idx + 1));
+            ewb->dcp_stream[cookie] =
+                    std::make_pair(false, std::stoull(nm.substr(idx + 1)));
         } else {
-            ewb->dcp_stream[cookie] = std::numeric_limits<uint64_t>::max();
+            ewb->dcp_stream[cookie] =
+                    std::make_pair(false, std::numeric_limits<uint64_t>::max());
         }
         return ENGINE_SUCCESS;
     }
@@ -1499,13 +1508,15 @@ ENGINE_ERROR_CODE EWB_Engine::dcp_stream_req(
         uint64_t* rollback_seqno,
         dcp_add_failover_log callback) {
     EWB_Engine* ewb = to_engine(handle);
-    if (ewb->dcp_stream.find(cookie) != ewb->dcp_stream.end()) {
+    auto stream = ewb->dcp_stream.find(cookie.get());
+    if (stream != ewb->dcp_stream.end()) {
         // This is a client of our internal streams.. just let it pass
         if (start_seqno == 1) {
             *rollback_seqno = 0;
             return ENGINE_ROLLBACK;
         }
-
+        // Start the stream
+        stream->second.first = true;
         return ENGINE_SUCCESS;
     }
 
