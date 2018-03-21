@@ -167,7 +167,10 @@ public:
 
     ~EpBucketImpl() {
         // Cleanup any files created.
-        cb::io::rmrf(dbPath);
+        try {
+            cb::io::rmrf(dbPath);
+        } catch (...) { /* nothing exists */
+        }
     }
 
     void setUpBucket(const std::string& name,
