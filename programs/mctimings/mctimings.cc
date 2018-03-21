@@ -384,7 +384,7 @@ static void request_stat_timings(MemcachedConnection& connection,
 void usage() {
     std::cerr << "Usage mctimings [-h host[:port]] [-p port] [-u user]"
               << " [-P pass] [-S passFromStdin] [-b bucket] [-s]"
-              << "-v [opcode / stat_name]*" << std::endl
+              << " -v [opcode / stat_name]*" << std::endl
               << std::endl
               << "Example:" << std::endl
               << "    mctimings -h localhost:11210 -v GET SET"
