@@ -2608,12 +2608,3 @@ TEST_P(McdTestappTest, test_MB_16197) {
     mcbp_validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_SASL_AUTH,
                                   PROTOCOL_BINARY_RESPONSE_EINVAL);
 }
-
-INSTANTIATE_TEST_CASE_P(
-        Transport,
-        McdTestappTest,
-        ::testing::Combine(::testing::Values(TransportProtocols::McbpPlain,
-                                             TransportProtocols::McbpSsl),
-                           ::testing::Values(ClientJSONSupport::Yes,
-                                             ClientJSONSupport::No)),
-        McdTestappTest::PrintToStringCombinedName);
