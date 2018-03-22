@@ -1,5 +1,3 @@
-include(CouchbaseGoogleTest)
-
 INCLUDE_DIRECTORIES(AFTER ${Platform_SOURCE_DIR}/external)
 
 ADD_EXECUTABLE(generate_test_cbsaslpw generate_test_cbsaslpw.cc
@@ -113,15 +111,12 @@ add_sanitizers(memcached_testapp)
 # Roughly calibrated to be 2x what the expected time is on the
 # slowest Jenkins platform/config.
 
-gtest_discover_tests(memcached_testapp
+add_test(NAME memcached_testapp.default
     WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-    TEST_PREFIX memcached_testapp.default.
-    ONE_CTEST_PER_SUITE
-    PROPERTIES TIMEOUT 300)
+    COMMAND memcached_testapp)
+set_tests_properties(memcached_testapp.default PROPERTIES TIMEOUT 600)
 
-gtest_discover_tests(memcached_testapp
-    EXTRA_ARGS -E ep
+add_test(NAME memcached_testapp.ep
     WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-    TEST_PREFIX memcached_testapp.ep.
-    ONE_CTEST_PER_SUITE
-    PROPERTIES TIMEOUT 300)
+    COMMAND memcached_testapp -E ep)
+set_tests_properties(memcached_testapp.ep PROPERTIES TIMEOUT 600)
