@@ -74,7 +74,6 @@ ENGINE_ERROR_CODE GetMetaCommandContext::sendResponse() {
                         cb::mcbp::Datatype::Raw,
                         info.cas);
 
-    STATS_HIT(&connection, get);
     update_topkeys(cookie);
 
     state = State::Done;
@@ -82,7 +81,6 @@ ENGINE_ERROR_CODE GetMetaCommandContext::sendResponse() {
 }
 
 ENGINE_ERROR_CODE GetMetaCommandContext::noSuchItem() {
-    STATS_MISS(&connection, get);
 
     if (cookie.getRequest().isQuiet()) {
         auto& bucket = connection.getBucket();

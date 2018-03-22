@@ -48,19 +48,19 @@ TEST_P(StatsTest, TestGetMeta) {
     doc.value = to_string(memcached_cfg.get());
     conn.mutate(doc, 0, MutationType::Set);
 
-    // Send 10 GET_META, this should increase the `cmd_get` and `get_hits` stats
+    // Send 10 GET_META, this should not increase the `cmd_get` and `get_hits` stats
     for (int i = 0; i < 10; i++) {
         auto meta = conn.getMeta(doc.info.id, 0, GetMetaVersion::V1);
         EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, meta.first);
     }
     auto stats = conn.stats("");
     cJSON* cmd_get = cJSON_GetObjectItem(stats.get(), "cmd_get");
-    EXPECT_EQ(10, cmd_get->valueint);
+    EXPECT_EQ(0, cmd_get->valueint);
     cJSON* get_hits = cJSON_GetObjectItem(stats.get(), "get_hits");
-    EXPECT_EQ(10, get_hits->valueint);
+    EXPECT_EQ(0, get_hits->valueint);
 
     // Now, send 10 GET_META for a document that does not exist, this should
-    // increase the `cmd_get` and `get_misses` stats, but not the `get_hits`
+    // not increase the `cmd_get` and `get_misses` stats or the `get_hits`
     // stat
     for (int i = 0; i < 10; i++) {
         auto meta = conn.getMeta("no_key", 0, GetMetaVersion::V1);
@@ -68,11 +68,11 @@ TEST_P(StatsTest, TestGetMeta) {
     }
     stats = conn.stats("");
     cmd_get = cJSON_GetObjectItem(stats.get(), "cmd_get");
-    EXPECT_EQ(20, cmd_get->valueint);
+    EXPECT_EQ(0, cmd_get->valueint);
     cJSON* get_misses = cJSON_GetObjectItem(stats.get(), "get_misses");
-    EXPECT_EQ(10, get_misses->valueint);
+    EXPECT_EQ(0, get_misses->valueint);
     get_hits = cJSON_GetObjectItem(stats.get(), "get_hits");
-    EXPECT_EQ(10, get_hits->valueint);
+    EXPECT_EQ(0, get_hits->valueint);
 }
 
 TEST_P(StatsTest, StatsResetIsPrivileged) {
