@@ -172,6 +172,68 @@ TEST_P(StatsTest, Test_MB_17815) {
     EXPECT_EQ(1, count->valueint);
 }
 
+/**
+ * MB-17815: The cmd_set stat is incremented multiple times if the underlying
+ * engine returns EWOULDBLOCK (which would happen for all operations when
+ * the underlying engine is operating in full eviction mode and the document
+ * isn't resident). This test is specfically testing this error case with
+ * append (due to MB-28850) rather than the other MB-17815 test which tests
+ * Add.
+ */
+TEST_P(StatsTest, Test_MB_17815_Append) {
+    MemcachedConnection& conn = getConnection();
+
+    auto stats = conn.stats("");
+    auto* count = cJSON_GetObjectItem(stats.get(), "cmd_set");
+    ASSERT_NE(nullptr, count);
+    EXPECT_EQ(cJSON_Number, count->type);
+    EXPECT_EQ(0, count->valueint);
+
+    // Allow first SET to succeed and then return EWOULDBLOCK for
+    // the Append (2nd op). Set all other operations to fail too since we
+    // do not expect any further operations.
+    conn.configureEwouldBlockEngine(EWBEngineMode::Sequence,
+                                    ENGINE_EWOULDBLOCK,
+                                    0xfffffffe /* Set to 0b11 111 110 */);
+
+    // Set a document
+    Document doc;
+    doc.info.cas = mcbp::cas::Wildcard;
+    doc.info.flags = 0xcaffee;
+    doc.info.id = name;
+    doc.value = to_string(memcached_cfg.get());
+    conn.mutate(doc, 0, MutationType::Set);
+
+    // Now append to the same doc
+    conn.mutate(doc, 0, MutationType::Append);
+    stats = conn.stats("");
+    count = cJSON_GetObjectItem(stats.get(), "cmd_set");
+    ASSERT_NE(nullptr, count);
+    EXPECT_EQ(cJSON_Number, count->type);
+    EXPECT_EQ(2, count->valueint);
+}
+
+TEST_P(StatsTest, TestAppend) {
+    MemcachedConnection& conn = getConnection();
+
+    // Set a document
+    Document doc;
+    doc.info.cas = mcbp::cas::Wildcard;
+    doc.info.flags = 0xcaffee;
+    doc.info.id = name;
+    doc.value = to_string(memcached_cfg.get());
+    conn.mutate(doc, 0, MutationType::Set);
+
+    // Send 10 appends, this should increase the `cmd_set` stat by 10
+    for (int i = 0; i < 10; i++) {
+        conn.mutate(doc, 0, MutationType::Append);
+    }
+    auto stats = conn.stats("");
+    cJSON* cmd_set = cJSON_GetObjectItem(stats.get(), "cmd_set");
+    // In total we expect 11 sets, since there was the initial set
+    // and then 10 appends
+    EXPECT_EQ(11, cmd_set->valueint);
+}
 
 TEST_P(StatsTest, TestSettings) {
     MemcachedConnection& conn = getConnection();

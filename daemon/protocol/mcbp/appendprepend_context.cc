@@ -59,13 +59,10 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::step() {
             ret = reset();
             break;
         case State::Done:
+	    SLAB_INCR(&connection, cmd_set);
             return ENGINE_SUCCESS;
         }
     } while (ret == ENGINE_SUCCESS);
-
-    if (ret != ENGINE_EWOULDBLOCK) {
-        SLAB_INCR(&connection, cmd_set);
-    }
 
     if (ret == ENGINE_KEY_ENOENT) {
         // for some reason the return code for no key is not stored so we need
