@@ -48,8 +48,11 @@ void ItemEviction::reset() {
 }
 
 uint16_t ItemEviction::getFreqThreshold(double percentage) const {
-    return gsl::narrow<uint16_t>(
+    // We added one to the input value (see addValueToFreqHistogram).
+    // Therefore need to minus one before returning value from the histogram.
+    uint16_t freq = gsl::narrow<uint16_t>(
             hdr_value_at_percentile(freqHistogram.get(), percentage));
+    return (freq - 1);
 }
 
 uint8_t ItemEviction::convertFreqCountToNRUValue(uint8_t statCounter) {
