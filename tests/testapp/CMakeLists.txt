@@ -22,6 +22,7 @@ list(APPEND TESTAPP_SOURCES
      testapp_cert_tests.cc
      testapp_client_test.cc
      testapp_client_test.h
+     testapp_cmd_timers.cc
      testapp_dcp.cc
      testapp_environment.cc
      testapp_environment.h
@@ -250,3 +251,8 @@ ADD_TEST(NAME memcached-regression-tests
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_testapp --gtest_filter=TransportProtocols/RegressionTest.*)
 SET_TESTS_PROPERTIES(memcached-regression-tests PROPERTIES TIMEOUT 60)
+
+ADD_TEST(NAME memcached-cmd-timers
+         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+         COMMAND memcached_testapp --gtest_filter=CmdTimerTest.*)
+SET_TESTS_PROPERTIES(memcached-cmd-timers PROPERTIES TIMEOUT 200)

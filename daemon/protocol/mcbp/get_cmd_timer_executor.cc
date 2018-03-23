@@ -21,6 +21,105 @@
 #include <daemon/mcbp.h>
 #include <daemon/buckets.h>
 
+/**
+ * Get the timing histogram for the specified bucket if we've got access
+ * to the bucket.
+ *
+ * @param connection The connection executing the command
+ * @param bucket The bucket to get the timing data from
+ * @param opcode The opcode to get the timing histogram for
+ * @return A std::pair with the first being the error code for the operation
+ *         and the second being the histogram (only valid if the first
+ *         parameter is ENGINE_SUCCESS)
+ */
+static std::pair<ENGINE_ERROR_CODE, TimingHistogram> get_timings(
+        McbpConnection& connection, const Bucket& bucket, uint8_t opcode) {
+    // Don't creata a new privilege context if the one we've got is for the
+    // connected bucket:
+    if (bucket.name == connection.getBucket().name) {
+        auto ret = mcbp::checkPrivilege(connection,
+                                        cb::rbac::Privilege::SimpleStats);
+        if (ret != ENGINE_SUCCESS) {
+            return std::make_pair(ENGINE_EACCESS, TimingHistogram{});
+        }
+    } else {
+        // Check to see if we've got access to the bucket
+        bool access = false;
+        try {
+            auto context = cb::rbac::createContext(connection.getUsername(),
+                                                   bucket.name);
+            const auto check = context.check(cb::rbac::Privilege::SimpleStats);
+            if (check == cb::rbac::PrivilegeAccess::Ok) {
+                access = true;
+            }
+        } catch (const cb::rbac::Exception& e) {
+            // We don't have access to that bucket
+        }
+
+        if (!access) {
+            return std::make_pair(ENGINE_EACCESS, TimingHistogram{});
+        }
+    }
+
+    return std::make_pair(ENGINE_SUCCESS,
+                          bucket.timings.get_timing_histogram(opcode));
+}
+
+/**
+ * Get the command timings for the provided bucket if:
+ *    it's not NoBucket
+ *    it is running
+ *    it has the given name
+ *
+ * @param connection The connection requesting access
+ * @param bucket The bucket to look at
+ * @param opcode The opcode we're interested in
+ * @param bucketname The name of the bucket we want
+ */
+static std::pair<ENGINE_ERROR_CODE, TimingHistogram> maybe_get_timings(
+    McbpConnection& connection, const Bucket& bucket, uint8_t opcode, const std::string& bucketname) {
+
+    std::pair<ENGINE_ERROR_CODE, TimingHistogram> ret = std::make_pair(ENGINE_KEY_ENOENT, TimingHistogram{});
+
+    cb_mutex_enter(&bucket.mutex);
+    try {
+        if (bucket.type != BucketType::NoBucket &&
+            bucket.state == BucketState::Ready && bucketname == bucket.name) {
+            ret = get_timings(connection, bucket, opcode);
+        }
+    } catch (...) {
+        // we don't want to leave the mutex locked
+    }
+    cb_mutex_exit(&bucket.mutex);
+
+    return ret;
+}
+
+/**
+ * Get the aggregated timings across "all" buckets that the connected
+ * client has access to.
+ */
+static std::pair<ENGINE_ERROR_CODE, std::string> get_aggregated_timings(
+        McbpConnection& connection, uint8_t opcode) {
+    TimingHistogram timings;
+    bool found = false;
+
+    for (auto& bucket : all_buckets) {
+        auto bt = maybe_get_timings(connection, bucket, opcode, bucket.name);
+        if (bt.first == ENGINE_SUCCESS) {
+            timings += bt.second;
+            found = true;
+        }
+    }
+
+    if (found) {
+        return std::make_pair(ENGINE_SUCCESS, timings.to_string());
+    }
+
+    // We didn't have access to any buckets!
+    return std::make_pair(ENGINE_EACCESS, std::string{});
+}
+
 std::pair<ENGINE_ERROR_CODE, std::string> get_cmd_timer(
         McbpConnection& connection,
         const protocol_binary_request_get_cmd_timer* req) {
@@ -30,52 +129,44 @@ std::pair<ENGINE_ERROR_CODE, std::string> get_cmd_timer(
     const std::string bucket(key, keylen);
     const auto opcode = req->message.body.opcode;
 
-    if (keylen > 0 && bucket != all_buckets[index].name) {
-        // The user specified the current selected bucket
-        keylen = 0;
-    }
-
-    if (keylen > 0 || index == 0) {
-        // You need the Stats privilege in order to specify a bucket
-        auto ret = mcbp::checkPrivilege(connection, cb::rbac::Privilege::Stats);
-        if (ret != ENGINE_SUCCESS) {
-            return std::make_pair(ret, "");
-        }
-    }
-
-    // At this point we know that the user have the appropriate access
-    // and should be permitted to perform the action
     if (bucket == "/all/") {
-        // The aggregated timings is stored in index 0 (no bucket)
         index = 0;
-        keylen = 0;
     }
 
-    if (keylen == 0) {
-        return std::make_pair(ENGINE_SUCCESS,
-                              all_buckets[index].timings.generate(opcode));
+    if (index == 0) {
+        return get_aggregated_timings(connection, opcode);
+    }
+
+    if (bucket.empty() || bucket == all_buckets[index].name) {
+        // The current selected bucket
+        auto bt = get_timings(connection, connection.getBucket(), opcode);
+        if (bt.first == ENGINE_SUCCESS) {
+            return std::make_pair(ENGINE_SUCCESS, bt.second.to_string());
+        }
+
+        return std::make_pair(bt.first, std::string{});
     }
 
     // The user specified a bucket... let's locate the bucket
-    std::string str;
+    std::pair<ENGINE_ERROR_CODE, TimingHistogram> ret;
 
-    bool found = false;
-    for (size_t ii = 1; ii < all_buckets.size() && !found; ++ii) {
-        // Need the lock to get the bucket state and name
-        cb_mutex_enter(&all_buckets[ii].mutex);
-        if ((all_buckets[ii].state == BucketState::Ready) &&
-            (bucket == all_buckets[ii].name)) {
-            str = all_buckets[ii].timings.generate(opcode);
-            found = true;
+    for (auto& b : all_buckets) {
+        ret = maybe_get_timings(connection, b, opcode, bucket);
+        if (ret.first != ENGINE_KEY_ENOENT && ret.first != ENGINE_SUCCESS) {
+            break;
         }
-        cb_mutex_exit(&all_buckets[ii].mutex);
     }
 
-    if (found) {
-        return std::make_pair(ENGINE_SUCCESS, str);
+    if (ret.first == ENGINE_SUCCESS) {
+        return std::make_pair(ENGINE_SUCCESS, ret.second.to_string());
     }
 
-    return std::make_pair(ENGINE_KEY_ENOENT, "");
+    if (ret.first == ENGINE_KEY_ENOENT) {
+        // Don't tell the user that the bucket doesn't exist
+        ret.first = ENGINE_EACCESS;
+    }
+
+    return std::make_pair(ret.first, std::string{});
 }
 
 void get_cmd_timer_executor(McbpConnection* c, void* packet) {

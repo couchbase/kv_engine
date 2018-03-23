@@ -899,6 +899,15 @@ using BinprotTouchResponse = BinprotResponse;
 class BinprotGetCmdTimerCommand
     : public BinprotCommandT<BinprotGetCmdTimerCommand, PROTOCOL_BINARY_CMD_GET_CMD_TIMER> {
 public:
+    BinprotGetCmdTimerCommand() = default;
+    BinprotGetCmdTimerCommand(uint8_t opcode)
+        : BinprotCommandT(), opcode(opcode) {
+    }
+    BinprotGetCmdTimerCommand(const std::string& bucket, uint8_t opcode)
+        : BinprotCommandT(), opcode(opcode) {
+        setKey(bucket);
+    }
+
     void encode(std::vector<uint8_t>& buf) const override;
 
     void setOpcode(uint8_t opcode) {
