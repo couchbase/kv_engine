@@ -87,17 +87,7 @@ void EphemeralVBucket::completeStatsVKey(const DocKey& key,
 
 bool EphemeralVBucket::pageOut(const HashTable::HashBucketLock& lh,
                                StoredValue*& v) {
-    // We only delete from active vBuckets to ensure that replicas stay in
-    // sync with the active (the delete from active is sent via DCP to the
-    // the replicas as an explicit delete).
-    if (getState() != vbucket_state_active) {
-        return false;
-    }
-    if (v->isDeleted() && !v->getValue()) {
-        // If the item has already been deleted (and doesn't have a value
-        // associated with it) then there's no further deletion possible,
-        // until the deletion marker (tombstone) is later purged at the
-        // metadata purge internal.
+    if (!eligibleToPageOut(lh, *v)) {
         return false;
     }
     VBQueueItemCtx queueCtx(GenerateBySeqno::Yes,
@@ -115,6 +105,24 @@ bool EphemeralVBucket::pageOut(const HashTable::HashBucketLock& lh,
 
     autoDeleteCount++;
 
+    return true;
+}
+
+bool EphemeralVBucket::eligibleToPageOut(const HashTable::HashBucketLock& lh,
+                                         const StoredValue& v) const {
+    // We only delete from active vBuckets to ensure that replicas stay in
+    // sync with the active (the delete from active is sent via DCP to the
+    // the replicas as an explicit delete).
+    if (getState() != vbucket_state_active) {
+        return false;
+    }
+    if (v.isDeleted() && !v.getValue()) {
+        // If the item has already been deleted (and doesn't have a value
+        // associated with it) then there's no further deletion possible,
+        // until the deletion marker (tombstone) is later purged at the
+        // metadata purge internal.
+        return false;
+    }
     return true;
 }
 

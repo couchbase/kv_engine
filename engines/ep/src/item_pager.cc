@@ -149,7 +149,7 @@ public:
                     storedValueFreqCounter = std::numeric_limits<uint8_t>::max();
                 }
             } else {
-                if (!v.eligibleForEviction(store.getItemEvictionPolicy())) {
+                if (currentBucket->eligibleToPageOut(lh, v)) {
                     storedValueFreqCounter = std::numeric_limits<uint8_t>::max();
                 }
             }

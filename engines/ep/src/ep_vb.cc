@@ -433,6 +433,11 @@ bool EPVBucket::pageOut(const HashTable::HashBucketLock& lh, StoredValue*& v) {
     return ht.unlocked_ejectItem(v, eviction);
 }
 
+bool EPVBucket::eligibleToPageOut(const HashTable::HashBucketLock& lh,
+                                  const StoredValue& v) const {
+    return v.eligibleForEviction(eviction);
+}
+
 void EPVBucket::queueBackfillItem(queued_item& qi,
                                   const GenerateBySeqno generateBySeqno) {
     LockHolder lh(backfill.mutex);

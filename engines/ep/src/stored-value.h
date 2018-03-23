@@ -193,7 +193,7 @@ public:
         return bits.test(dirtyIndex);
     }
 
-    bool eligibleForEviction(item_eviction_policy_t policy) {
+    bool eligibleForEviction(item_eviction_policy_t policy) const {
         if (policy == VALUE_ONLY) {
             return isResident() && !isDirty() && !isDeleted();
         } else {

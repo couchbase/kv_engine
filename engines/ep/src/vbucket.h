@@ -982,6 +982,18 @@ public:
     virtual bool pageOut(const HashTable::HashBucketLock& lh,
                          StoredValue*& v) = 0;
 
+    /*
+     * Check to see if a StoredValue is eligible to be paged out of memory.
+     *
+     * @param lh Bucket lock associated with the StoredValue.
+     * @param v Reference to the StoredValue to be ejected.
+     *
+     * @return true if the StoredValue is eligible to be paged out.
+     *
+     */
+    virtual bool eligibleToPageOut(const HashTable::HashBucketLock& lh,
+                                   const StoredValue& v) const = 0;
+
     /**
      * Add an item in the store
      *
