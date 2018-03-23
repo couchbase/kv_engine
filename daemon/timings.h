@@ -46,6 +46,13 @@ public:
     cb::sampling::Interval get_interval_mutation_latency();
     cb::sampling::Interval get_interval_lookup_latency();
 
+    /**
+     * Get the underlying timings histogram for the specified opcode
+     */
+    TimingHistogram get_timing_histogram(uint8_t opcode) const {
+        return timings[opcode];
+    }
+
 private:
     // This lock is only held by sample() and some blocks within generate().
     // It guards the various IntervalSeries variables which internally

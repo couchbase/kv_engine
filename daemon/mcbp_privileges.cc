@@ -299,7 +299,7 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(PROTOCOL_BINARY_CMD_SSL_CERTS_REFRESH,
           require<Privilege::SecurityManagement>);
     /* Internal timer ioctl */
-    setup(PROTOCOL_BINARY_CMD_GET_CMD_TIMER, require<Privilege::NodeManagement>);
+    setup(PROTOCOL_BINARY_CMD_GET_CMD_TIMER, empty);
     /* ns_server - memcached session validation */
     setup(PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN, require<Privilege::SessionManagement>);
     setup(PROTOCOL_BINARY_CMD_GET_CTRL_TOKEN, require<Privilege::SessionManagement>);

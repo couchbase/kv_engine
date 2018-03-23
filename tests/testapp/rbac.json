@@ -24,7 +24,8 @@
     "buckets": {
       "rbac_test": [
         "Read",
-        "XattrRead"
+        "XattrRead",
+        "SimpleStats"
       ]
     },
     "privileges": [],
