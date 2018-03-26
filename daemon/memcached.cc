@@ -911,12 +911,11 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
         }
     }
 
-    /*
-     * Remove the list from the list of pending io's (in case the
-     * object was scheduled to run in the dispatcher before the
-     * callback for the worker thread is executed.
-     */
-    thr->pending_io = list_remove(thr->pending_io, c);
+    // Remove the list from the list of pending io's (in case the
+    // object was scheduled to run in the dispatcher before the
+    // callback for the worker thread is executed.
+    //
+    thr->pending_io.erase(c);
 
     /* sanity */
     cb_assert(fd == c->getSocketDescriptor());

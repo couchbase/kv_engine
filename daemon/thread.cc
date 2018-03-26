@@ -212,16 +212,6 @@ static void worker_libevent(void *arg) {
     ERR_remove_state(0);
 }
 
-static int number_of_pending(Connection* c, Connection* list) {
-    int rv = 0;
-    for (; list; list = list->getNext()) {
-        if (list == c) {
-            rv ++;
-        }
-    }
-    return rv;
-}
-
 static void drain_notification_channel(evutil_socket_t fd)
 {
     /* Every time we want to notify a thread, we send 1 byte to its
@@ -292,13 +282,8 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
 
     std::lock_guard<std::mutex> guard(me.mutex);
 
-    auto* pending = me.pending_io;
-    me.pending_io = nullptr;
-    while (pending != nullptr) {
-        auto* c = pending;
-        pending = pending->getNext();
-        c->setNext(nullptr);
-
+    auto pending = std::move(me.pending_io);
+    for (auto* c : pending) {
         if (c->getSocketDescriptor() != INVALID_SOCKET &&
             !c->isRegisteredInLibevent()) {
             /* The socket may have been shut down while we're looping */
@@ -339,59 +324,6 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
 }
 
 extern volatile rel_time_t current_time;
-
-static bool has_cycle(Connection* c) {
-    Connection *slowNode, *fastNode1, *fastNode2;
-
-    if (!c) {
-        return false;
-    }
-
-    slowNode = fastNode1 = fastNode2 = c;
-    while (slowNode && (fastNode1 = fastNode2->getNext()) && (fastNode2 = fastNode1->getNext())) {
-        if (slowNode == fastNode1 || slowNode == fastNode2) {
-            return true;
-        }
-        slowNode = slowNode->getNext();
-    }
-    return false;
-}
-
-bool list_contains(Connection* haystack, Connection* needle) {
-    for (; haystack; haystack = haystack->getNext()) {
-        if (needle == haystack) {
-            return true;
-        }
-    }
-    return false;
-}
-
-Connection* list_remove(Connection* haystack, Connection* needle) {
-    if (!haystack) {
-        return NULL;
-    }
-
-    if (haystack == needle) {
-        Connection* rv = needle->getNext();
-        needle->setNext(nullptr);
-        return rv;
-    }
-
-    haystack->setNext(list_remove(haystack->getNext(), needle));
-
-    return haystack;
-}
-
-static void enlist_conn(Connection* c, Connection** list) {
-    LIBEVENT_THREAD *thr = c->getThread();
-    cb_assert(list == &thr->pending_io);
-    cb_assert(!list_contains(thr->pending_io, c));
-    cb_assert(c->getNext() == nullptr);
-    c->setNext(*list);
-    *list = c;
-    cb_assert(list_contains(*list, c));
-    cb_assert(!has_cycle(*list));
-}
 
 void notify_io_complete(gsl::not_null<const void*> void_cookie,
                         ENGINE_ERROR_CODE status) {
@@ -572,12 +504,11 @@ void notify_thread(LIBEVENT_THREAD& thread) {
 
 int add_conn_to_pending_io_list(Connection* c) {
     int notify = 0;
-    auto thread = c->getThread();
-    if (number_of_pending(c, thread->pending_io) == 0) {
-        if (thread->pending_io == NULL) {
-            notify = 1;
-        }
-        enlist_conn(c, &thread->pending_io);
+    auto* thread = c->getThread();
+
+    if (thread->pending_io.count(c) == 0) {
+        thread->pending_io.insert(c);
+        notify = 1;
     }
 
     return notify;

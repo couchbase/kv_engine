@@ -4,6 +4,7 @@
 
 #include <functional>
 #include <mutex>
+#include <unordered_set>
 #include <vector>
 
 /** \file
@@ -125,7 +126,7 @@ struct LIBEVENT_THREAD {
     std::mutex mutex;
 
     /// List of connection with pending async io ops (not owning)
-    Connection* pending_io = nullptr;
+    std::unordered_set<Connection*> pending_io;
 
     /// index of this thread in the threads array
     size_t index = 0;
@@ -213,13 +214,7 @@ void threadlocal_stats_reset(std::vector<thread_stats>& thread_stats);
 void notify_io_complete(gsl::not_null<const void*> cookie,
                         ENGINE_ERROR_CODE status);
 void safe_close(SOCKET sfd);
-
-/* Number of times this connection is in the given pending list */
-bool list_contains(Connection* h, Connection* n);
-Connection* list_remove(Connection* h, Connection* n);
-
 int add_conn_to_pending_io_list(Connection* c);
-
 void event_handler(evutil_socket_t fd, short which, void *arg);
 void listen_event_handler(evutil_socket_t, short, void *);
 

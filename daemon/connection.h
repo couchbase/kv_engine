@@ -253,14 +253,6 @@ public:
         --refcount;
     }
 
-    Connection* getNext() const {
-        return next;
-    }
-
-    void setNext(Connection* next) {
-        Connection::next = next;
-    }
-
     LIBEVENT_THREAD* getThread() const {
         return thread.load(std::memory_order_relaxed);
     }
@@ -1059,9 +1051,6 @@ protected:
      * See SERVER_COOKIE_API::{get,store}_engine_specific()
      */
     void* engine_storage{nullptr};
-
-    /* Used for generating a list of Connection structures */
-    Connection* next{nullptr};
 
     /** Pointer to the thread object serving this connection */
     std::atomic<LIBEVENT_THREAD*> thread{nullptr};

@@ -219,13 +219,8 @@ void conn_close(Connection& connection) {
     if (thread == nullptr) {
         throw std::logic_error("conn_close: unable to obtain non-NULL thread from connection");
     }
-    /* remove from pending-io list */
-    if (settings.getVerbose() > 1 &&
-        list_contains(thread->pending_io, &connection)) {
-        LOG_WARNING(
-                "Current connection was in the pending-io list.. Nuking it");
-    }
-    thread->pending_io = list_remove(thread->pending_io, &connection);
+    // remove from pending-io list
+    thread->pending_io.erase(&connection);
 
     connection.read->clear();
     connection.write->clear();

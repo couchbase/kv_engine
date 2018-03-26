@@ -180,7 +180,6 @@ unique_cJSON_ptr Connection::toJSON() const {
 
         cJSON_AddUintPtrToObject(obj, "engine_storage",
                                    (uintptr_t)engine_storage);
-        cJSON_AddUintPtrToObject(obj, "next", (uintptr_t)next);
         cJSON_AddUintPtrToObject(obj, "thread", (uintptr_t)thread.load(
             std::memory_order::memory_order_relaxed));
         cJSON_AddStringToObject(obj, "priority", to_string(priority));
