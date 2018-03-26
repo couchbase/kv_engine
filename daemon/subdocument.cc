@@ -1062,6 +1062,7 @@ static bool do_xattr_phase(SubdocCmdContext& context) {
 
     context.generate_macro_padding(document, cb::xattr::macros::CAS);
     context.generate_macro_padding(document, cb::xattr::macros::SEQNO);
+    context.generate_macro_padding(document, cb::xattr::macros::BODY_CRC32C);
 
     bool modified;
     if (!operate_single_doc(context,

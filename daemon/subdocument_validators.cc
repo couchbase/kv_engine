@@ -41,7 +41,11 @@ static bool validate_macro(const cb::const_char_buffer& value) {
            ((value.len == cb::xattr::macros::SEQNO.len) &&
             std::memcmp(value.buf,
                         cb::xattr::macros::SEQNO.buf,
-                        cb::xattr::macros::SEQNO.len) == 0);
+                        cb::xattr::macros::SEQNO.len) == 0) ||
+           ((value.len == cb::xattr::macros::BODY_CRC32C.len) &&
+            std::memcmp(value.buf,
+                        cb::xattr::macros::BODY_CRC32C.buf,
+                        cb::xattr::macros::BODY_CRC32C.len) == 0);
 }
 
 static bool is_valid_virtual_xattr(cb::const_char_buffer value) {

@@ -1039,6 +1039,43 @@ TEST_P(XattrTest, MB_25562_IncludeBodyCrc32cInDocumentVAttr) {
     EXPECT_EQ(expectedBodyCrc32c, resp.getResults()[0].value);
 }
 
+TEST_P(XattrTest, MB_25562_StampBodyCrc32cInUserXAttr) {
+    // I want to test that the expansion of macro '${Mutation.body_crc32c}'
+    // sets the correct body checksum into the given user XAttr
+
+    // Store the macro and verify that it is not expanded without the
+    // SUBDOC_FLAG_EXPAND_MACROS flag
+    auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+                       name,
+                       "_sync.body_crc32c",
+                       "\"${Mutation.body_crc32c}\"",
+                       SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    resp = subdoc_get("_sync.body_crc32c", SUBDOC_FLAG_XATTR_PATH);
+    EXPECT_EQ("\"${Mutation.body_crc32c}\"", resp.getValue());
+
+    // Now change the user xattr to macro expansion
+    resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+                  name,
+                  "_sync.body_crc32c",
+                  "\"${Mutation.body_crc32c}\"",
+                  SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_EXPAND_MACROS);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+
+    // Compute the expected body_crc32c
+    auto body = getConnection().get(name, 0 /*vbid*/).value;
+    auto _crc32c = crc32c(reinterpret_cast<const unsigned char*>(body.c_str()),
+                          body.size(),
+                          0 /*crc_in*/);
+    auto expectedBodyCrc32c = "\"" + cb::to_hex(_crc32c) + "\"";
+
+    // Fetch the xattr and verify that the macro expanded to the
+    // expected body checksum
+    resp = subdoc_get("_sync.body_crc32c", SUBDOC_FLAG_XATTR_PATH);
+    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    EXPECT_EQ(expectedBodyCrc32c, resp.getValue());
+}
+
 // Test that one can fetch both the body and an XATTR on a deleted document.
 TEST_P(XattrTest, MB24152_GetXattrAndBodyDeleted) {
     setBodyAndXattr(value, {{sysXattr, xattrVal}});

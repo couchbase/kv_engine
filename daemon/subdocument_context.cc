@@ -106,6 +106,19 @@ ENGINE_ERROR_CODE SubdocCmdContext::pre_link_document(item_info& info) {
             substituteMacro(
                     cb::xattr::macros::SEQNO, macroToString(info.seqno), value);
         }
+
+        // Replace the Body CRC32C
+        if (containsMacro(cb::xattr::macros::BODY_CRC32C)) {
+            const auto bodyOffset = cb::xattr::get_body_offset(in_doc);
+            const auto bodyLength = in_doc.len - bodyOffset;
+            auto bodyCrc32c = crc32c(reinterpret_cast<const unsigned char*>(
+                                             in_doc.data() + bodyOffset),
+                                     bodyLength,
+                                     0 /*crc_in*/);
+            substituteMacro(cb::xattr::macros::BODY_CRC32C,
+                            macroToString(bodyCrc32c),
+                            value);
+        }
     }
 
     return ENGINE_SUCCESS;
