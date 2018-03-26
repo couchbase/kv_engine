@@ -109,12 +109,7 @@ ENGINE_ERROR_CODE SubdocCmdContext::pre_link_document(item_info& info) {
 
         // Replace the Body CRC32C
         if (containsMacro(cb::xattr::macros::BODY_CRC32C)) {
-            const auto bodyOffset = cb::xattr::get_body_offset(in_doc);
-            const auto bodyLength = in_doc.len - bodyOffset;
-            auto bodyCrc32c = crc32c(reinterpret_cast<const unsigned char*>(
-                                             in_doc.data() + bodyOffset),
-                                     bodyLength,
-                                     0 /*crc_in*/);
+            const auto bodyCrc32c = computeBodyCRC32C();
             substituteMacro(cb::xattr::macros::BODY_CRC32C,
                             macroToString(bodyCrc32c),
                             value);
@@ -273,10 +268,7 @@ cb::const_char_buffer SubdocCmdContext::get_document_vattr() {
                             .c_str());
         }
 
-        auto bodyCrc32c =
-                crc32c(reinterpret_cast<const unsigned char*>(in_doc.data()),
-                       in_doc.size(),
-                       0 /*crc_in*/);
+        const auto bodyCrc32c = computeBodyCRC32C();
         cJSON_AddStringToObject(
                 doc.get(), "body_crc32c", cb::to_hex(bodyCrc32c));
 
@@ -388,4 +380,17 @@ protocol_binary_response_status SubdocCmdContext::get_document_for_searching(
     }
 
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+}
+
+uint32_t SubdocCmdContext::computeBodyCRC32C() {
+    cb::const_char_buffer body;
+    if (mcbp::datatype::is_xattr(in_datatype)) {
+        // Note: in the XAttr naming, 'body' excludes XAttrs
+        body = cb::xattr::get_body(in_doc);
+    } else {
+        body = in_doc;
+    }
+    return crc32c(reinterpret_cast<const unsigned char*>(body.data()),
+                  body.size(),
+                  0 /*crc_in*/);
 }

@@ -1021,6 +1021,18 @@ TEST_P(XattrTest, MB_25562_IncludeBodyCrc32cInDocumentVAttr) {
     connection.mutate(document, vbid, MutationType::Set);
     EXPECT_EQ(document.value, connection.get(document.info.id, vbid).value);
 
+    // Add an XAttr to the document.
+    // We want to check that the checksum computed by the server takes in
+    // input only the document body (XAttrs excluded)
+    auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+                       name,
+                       "userXattr",
+                       R"({"a":1})",
+                       SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    resp = subdoc_get("userXattr", SUBDOC_FLAG_XATTR_PATH);
+    EXPECT_EQ(R"({"a":1})", resp.getValue());
+
     // Compute the expected body checksum
     auto _crc32c = crc32c(
             reinterpret_cast<const unsigned char*>(document.value.c_str()),
@@ -1032,11 +1044,12 @@ TEST_P(XattrTest, MB_25562_IncludeBodyCrc32cInDocumentVAttr) {
     BinprotSubdocMultiLookupCommand cmd;
     cmd.setKey(document.info.id);
     cmd.addGet("$document.body_crc32c", SUBDOC_FLAG_XATTR_PATH);
-    BinprotSubdocMultiLookupResponse resp;
-    connection.executeCommand(cmd, resp);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getResults()[0].status);
-    EXPECT_EQ(expectedBodyCrc32c, resp.getResults()[0].value);
+    BinprotSubdocMultiLookupResponse multiResp;
+    connection.executeCommand(cmd, multiResp);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+              multiResp.getResults()[0].status);
+    EXPECT_EQ(expectedBodyCrc32c, multiResp.getResults()[0].value);
 }
 
 TEST_P(XattrTest, MB_25562_StampBodyCrc32cInUserXAttr) {
@@ -1044,7 +1057,10 @@ TEST_P(XattrTest, MB_25562_StampBodyCrc32cInUserXAttr) {
     // sets the correct body checksum into the given user XAttr
 
     // Store the macro and verify that it is not expanded without the
-    // SUBDOC_FLAG_EXPAND_MACROS flag
+    // SUBDOC_FLAG_EXPAND_MACROS flag.
+    // Note: as the document will contain an XAttr, we prove also that the
+    // checksum computed by the server takes in input only the document
+    // body (XAttrs excluded).
     auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
                        name,
                        "_sync.body_crc32c",
