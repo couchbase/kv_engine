@@ -94,28 +94,28 @@ ENGINE_ERROR_CODE SubdocCmdContext::pre_link_document(item_info& info) {
         }
 
         // Replace the CAS
-        if (std::any_of(std::begin(paddedMacros),
-                        std::end(paddedMacros),
-                        [](const MacroPair& m) {
-                            return m.first == cb::xattr::macros::CAS;
-                        })) {
+        if (containsMacro(cb::xattr::macros::CAS)) {
             substituteMacro(cb::xattr::macros::CAS,
                             macroToString(htonll(info.cas)),
                             value);
         }
 
         // Replace the Seqno
-        if (std::any_of(std::begin(paddedMacros),
-                        std::end(paddedMacros),
-                        [](const MacroPair& m) {
-                            return m.first == cb::xattr::macros::SEQNO;
-                        })) {
+        if (containsMacro(cb::xattr::macros::SEQNO)) {
             substituteMacro(
                     cb::xattr::macros::SEQNO, macroToString(info.seqno), value);
         }
     }
 
     return ENGINE_SUCCESS;
+}
+
+bool SubdocCmdContext::containsMacro(const cb::const_char_buffer& macro) {
+    return std::any_of(std::begin(paddedMacros),
+                       std::end(paddedMacros),
+                       [&macro](const MacroPair& m) {
+                           return m.first == macro;
+                       });
 }
 
 void SubdocCmdContext::substituteMacro(cb::const_char_buffer macroName,

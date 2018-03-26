@@ -351,6 +351,13 @@ private:
     template <typename T>
     std::string macroToString(T macroValue);
 
+    /**
+     * Check whether or not the SubdocCmdContext contains a given macro
+     * @param macro The macro we are checking for
+     * @return True if the macro exists, False otherwise
+     */
+    bool containsMacro(const cb::const_char_buffer& macro);
+
     void substituteMacro(cb::const_char_buffer macroName,
                          const std::string& macroValue,
                          cb::char_buffer& value);
