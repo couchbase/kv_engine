@@ -125,13 +125,6 @@ public:
         return socketDescriptor == INVALID_SOCKET;
     }
 
-    /**
-     * Resolve the name of the local socket and the peer for the connected
-     * socket.
-     * @param listening True if the local socket is a listening socket.
-     */
-    void resolveConnectionName(bool listening);
-
     const std::string& getPeername() const {
         return peername;
     }
@@ -944,6 +937,13 @@ protected:
      * Protected constructor so that it may only be used by MockSubclasses
      */
     Connection();
+
+    /**
+     * Resolve the name of the local socket and the peer for the connected
+     * socket.
+     * @param listening True if the local socket is a listening socket.
+     */
+    void resolveConnectionName();
 
     /**
      * Update the description string for the connection. This

@@ -65,7 +65,7 @@ static cbsasl_conn_t* create_new_cbsasl_server_t() {
     return conn;
 }
 
-void Connection::resolveConnectionName(bool listening) {
+void Connection::resolveConnectionName() {
     if (socketDescriptor == INVALID_SOCKET) {
         // Our unit tests run without a socket connected, and we don't
         // want them to flood the console with error messages
@@ -75,12 +75,7 @@ void Connection::resolveConnectionName(bool listening) {
     }
 
     try {
-        if (listening) {
-            peername = "*";
-        } else {
-            peername = cb::net::getpeername(socketDescriptor);
-        }
-
+        peername = cb::net::getpeername(socketDescriptor);
         sockname = cb::net::getsockname(socketDescriptor);
         updateDescription();
     } catch (const std::bad_alloc& e) {
@@ -1301,7 +1296,7 @@ Connection::Connection(SOCKET sfd, event_base* b, const ListeningPort& ifc)
       parent_port(ifc.port),
       stateMachine(*this) {
     MEMCACHED_CONN_CREATE(this);
-    resolveConnectionName(false);
+    resolveConnectionName();
     setTcpNoDelay(ifc.tcp_nodelay);
     updateDescription();
     cookies.emplace_back(std::unique_ptr<Cookie>{new Cookie(*this)});
