@@ -422,13 +422,13 @@
             "type": "size_t"
         },
         "ht_eviction_policy": {
-            "default": "statistical_counter",
+            "default": "hifi_mfu",
             "descr": "The eviction policy for the hash table",
             "type": "std::string",
             "validator": {
                 "enum": [
                     "2-bit_lru",
-                    "statistical_counter"
+                    "hifi_mfu"
                 ]
             }
         },

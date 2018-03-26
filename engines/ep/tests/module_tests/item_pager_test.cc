@@ -373,10 +373,9 @@ TEST_P(STItemPagerTest, ReplicaItemsVisitedFirst) {
 // expired before any other items.
 TEST_P(STItemPagerTest, ExpiredItemsDeletedFirst) {
     // Test only works for the only 2-bit LRU eviction algorithm
-    // @todo Investigate converting the test to work with the new Statistical
-    // counter eviction algorithm.
-    if (engine->getConfiguration().getHtEvictionPolicy() ==
-        "statistical_counter") {
+    // @todo Investigate converting the test to work with the new hifi_mfu
+    // eviction algorithm.
+    if (engine->getConfiguration().getHtEvictionPolicy() == "hifi_mfu") {
         return;
     }
 
@@ -441,10 +440,9 @@ TEST_P(STItemPagerTest, ExpiredItemsDeletedFirst) {
 // racey
 TEST_P(STItemPagerTest, test_memory_limit) {
     // Test only works for the only 2-bit LRU eviction algorithm
-    // @todo Investigate converting the test to work with the new Statistical
-    // counter eviction algorithm.
-    if (engine->getConfiguration().getHtEvictionPolicy() ==
-        "statistical_counter") {
+    // @todo Investigate converting the test to work with the new hifi_mfu
+    // eviction algorithm.
+    if (engine->getConfiguration().getHtEvictionPolicy() == "hifi_mfu") {
         return;
     }
 

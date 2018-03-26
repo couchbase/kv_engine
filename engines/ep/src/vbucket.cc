@@ -157,9 +157,9 @@ VBucket::VBucket(id_type i,
          std::move(valFact),
          config.getHtSize(),
          config.getHtLocks(),
-         config.getHtEvictionPolicy() == "2-bit_lru" ?
-                       HashTable::EvictionPolicy::lru2Bit :
-                       HashTable::EvictionPolicy::statisticalCounter),
+         config.getHtEvictionPolicy() == "2-bit_lru"
+                 ? HashTable::EvictionPolicy::lru2Bit
+                 : HashTable::EvictionPolicy::hifi_mfu),
       checkpointManager(std::make_unique<CheckpointManager>(st,
                                                             i,
                                                             chkConfig,

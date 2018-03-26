@@ -172,7 +172,7 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
     pendingEnableExtMetaData = true;
     pendingSupportCursorDropping = true;
     pendingSupportHifiMFU =
-            (config.getHtEvictionPolicy() == "statistical_counter");
+            (config.getHtEvictionPolicy() == "hifi_mfu");
 }
 
 DcpConsumer::~DcpConsumer() {

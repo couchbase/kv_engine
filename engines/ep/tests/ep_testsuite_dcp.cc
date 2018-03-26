@@ -2237,9 +2237,9 @@ static enum test_result test_dcp_producer_stream_req_dgm(ENGINE_HANDLE *h,
                                                          ENGINE_HANDLE_V1 *h1) {
     // Test only works for the only 2-bit LRU eviction algorithm as it
     // relies on looking at the LRU state.
-    // @todo Investigate converting the test to work with the new Statistical
-    // counter eviction algorithm.
-    if (get_str_stat(h, h1, "ep_ht_eviction_policy") == "statistical_counter") {
+    // @todo Investigate converting the test to work with the new hifi_mfu
+    // eviction algorithm.
+    if (get_str_stat(h, h1, "ep_ht_eviction_policy") == "hifi_mfu") {
         return SUCCESS;
     }
 

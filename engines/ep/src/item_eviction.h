@@ -31,7 +31,7 @@
  * The algorithm is as follows:
  *
  * Each time a value is referenced in the hash table its frequency count
- * is incremented according to an 8 bit statistical counter.  The counter
+ * is incremented according to an 8 bit probabilistic counter.  The counter
  * behaviour is such that as the frequency increases (towards a maximum of
  * 255) it becomes increasingly harder to increment.  It is configured so
  * that a value must be referenced approximately 65K times before its
@@ -97,7 +97,7 @@ public:
         requiredToUpdateInterval = interval;
     }
 
-    // Map from the 8-bit statistical counter (256 states) to NRU (4 states).
+    // Map from the 8-bit probabilistic counter (256 states) to NRU (4 states).
     static uint8_t convertFreqCountToNRUValue(uint8_t statCounter);
 
     // The initial frequency count that items should be set to when first

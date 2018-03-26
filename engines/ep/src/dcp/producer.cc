@@ -552,17 +552,17 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
 
             Configuration& config = engine_.getConfiguration();
             uint8_t hotness;
-            if (config.getHtEvictionPolicy() == "statistical_counter") {
+            if (config.getHtEvictionPolicy() == "hifi_mfu") {
                 auto freqCount =
                         mutationResponse->getItem()->getFreqCounterValue();
                 if (supportsHifiMFU) {
-                    // The consumer supports the statistical counter eviction
+                    // The consumer supports the hifi_mfu eviction
                     // policy, therefore use the frequency counter.
                     hotness = freqCount;
                 } else {
-                    // The consumer does not support the statistical counter
+                    // The consumer does not support the hifi_mfu
                     // eviction policy, therefore map from the 8-bit
-                    // statistical counter (256 states) to NRU (4 states).
+                    // probabilistic counter (256 states) to NRU (4 states).
                     hotness =
                             ItemEviction::convertFreqCountToNRUValue(freqCount);
                 }

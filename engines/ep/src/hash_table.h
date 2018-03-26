@@ -106,8 +106,8 @@ public:
                                      mcbp::datatype::highest + 1>;
 
     enum class EvictionPolicy : uint8_t {
-        lru2Bit,  // The original 2-bit LRU policy
-        statisticalCounter // The new policy that uses a statistical counter
+        lru2Bit, // The original 2-bit LRU policy
+        hifi_mfu // The new hifi_mfu policy
     };
 
     /**

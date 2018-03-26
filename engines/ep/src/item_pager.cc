@@ -106,8 +106,7 @@ PagingVisitor::PagingVisitor(KVBucket& s,
             }
             return true;
         }
-        case HashTable::EvictionPolicy::statisticalCounter:
-        {
+        case HashTable::EvictionPolicy::hifi_mfu: {
             /*
              * We take a copy of the freqCounterValue because calling
              * doEviction can modify the value, and when we want to
@@ -190,7 +189,7 @@ PagingVisitor::PagingVisitor(KVBucket& s,
                 freqCounterThreshold = 0;
 
                 if (currentBucket->ht.getEvictionPolicy() ==
-                    HashTable::EvictionPolicy::statisticalCounter) {
+                    HashTable::EvictionPolicy::hifi_mfu) {
                     // Percent of items in the hash table to be visited
                     // between updating the interval.
                     const double percentOfItems = 0.1;
@@ -345,8 +344,7 @@ ItemPager::ItemPager(EventuallyPersistentEngine& e, EPStats& st)
       sleepTime(std::chrono::milliseconds(
               e.getConfiguration().getPagerSleepTimeMs())),
       notified(false) {
-    if (engine.getConfiguration().getHtEvictionPolicy() ==
-        "statistical_counter") {
+    if (engine.getConfiguration().getHtEvictionPolicy() == "hifi_mfu") {
         // For the hifi_mfu algorithm if a couchbase/persistent bucket we
         // want to start visiting the replica vbucket first.  However for
         // ephemeral we do not evict from replica vbuckets and therefore
@@ -405,8 +403,7 @@ bool ItemPager::run(void) {
         VBucketFilter filter;
         // For the hifi_mfu algorithm use the phase to filter which vbuckets
         // we want to visit (either replica or active/pending vbuckets).
-        if (engine.getConfiguration().getHtEvictionPolicy() ==
-            "statistical_counter") {
+        if (engine.getConfiguration().getHtEvictionPolicy() == "hifi_mfu") {
             vbucket_state_t state;
             if (phase == REPLICA_ONLY) {
                 state = vbucket_state_replica;
