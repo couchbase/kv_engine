@@ -22,6 +22,7 @@
 #include "protocol/mcbp/engine_wrapper.h"
 #include "subdocument.h"
 
+#include <platform/crc32c.h>
 #include <platform/string.h>
 #include <utilities/logtags.h>
 #include <xattr/blob.h>
@@ -258,6 +259,14 @@ cb::const_char_buffer SubdocCmdContext::get_document_vattr() {
                                                     .count()))
                             .c_str());
         }
+
+        auto bodyCrc32c =
+                crc32c(reinterpret_cast<const unsigned char*>(in_doc.data()),
+                       in_doc.size(),
+                       0 /*crc_in*/);
+        cJSON_AddStringToObject(
+                doc.get(), "body_crc32c", cb::to_hex(bodyCrc32c));
+
         unique_cJSON_ptr root(cJSON_CreateObject());
         cJSON_AddItemToObject(root.get(), "$document", doc.release());
         document_vattr = to_string(root, false);

@@ -16,6 +16,9 @@
  */
 #include "testapp_xattr.h"
 
+#include <platform/crc32c.h>
+#include <platform/string.h>
+
 #include <array>
 
 // @todo add the other transport protocols
@@ -999,6 +1002,41 @@ TEST_P(XattrTest, MB_25786_XTOC_VattrNoXattrs) {
     auto resp = subdoc_get("$XTOC", SUBDOC_FLAG_XATTR_PATH);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
     EXPECT_EQ("[]", resp.getValue());
+}
+
+TEST_P(XattrTest, MB_25562_IncludeBodyCrc32cInDocumentVAttr) {
+    // I want to test that the expected document body checksum is
+    // returned as part of the '$document' Virtual XAttr.
+
+    // Create a docuement with a given body
+    auto& connection = getConnection();
+    uint16_t vbid = 0;
+    if (std::tr1::get<2>(GetParam()) == ClientJSONSupport::Yes) {
+        document.info.datatype = cb::mcbp::Datatype::JSON;
+        document.value = R"({"Test":45})";
+    } else {
+        document.info.datatype = cb::mcbp::Datatype::Raw;
+        document.value = "raw value";
+    }
+    connection.mutate(document, vbid, MutationType::Set);
+    EXPECT_EQ(document.value, connection.get(document.info.id, vbid).value);
+
+    // Compute the expected body checksum
+    auto _crc32c = crc32c(
+            reinterpret_cast<const unsigned char*>(document.value.c_str()),
+            document.value.size(),
+            0 /*crc_in*/);
+    auto expectedBodyCrc32c = "\"" + cb::to_hex(_crc32c) + "\"";
+
+    // Get and verify the actual body checksum
+    BinprotSubdocMultiLookupCommand cmd;
+    cmd.setKey(document.info.id);
+    cmd.addGet("$document.body_crc32c", SUBDOC_FLAG_XATTR_PATH);
+    BinprotSubdocMultiLookupResponse resp;
+    connection.executeCommand(cmd, resp);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getResults()[0].status);
+    EXPECT_EQ(expectedBodyCrc32c, resp.getResults()[0].value);
 }
 
 // Test that one can fetch both the body and an XATTR on a deleted document.
