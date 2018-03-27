@@ -1004,11 +1004,11 @@ TEST_P(XattrTest, MB_25786_XTOC_VattrNoXattrs) {
     EXPECT_EQ("[]", resp.getValue());
 }
 
-TEST_P(XattrTest, MB_25562_IncludeBodyCrc32cInDocumentVAttr) {
-    // I want to test that the expected document body checksum is
+TEST_P(XattrTest, MB_25562_IncludeValueCrc32cInDocumentVAttr) {
+    // I want to test that the expected document value checksum is
     // returned as part of the '$document' Virtual XAttr.
 
-    // Create a docuement with a given body
+    // Create a docuement with a given value
     auto& connection = getConnection();
     uint16_t vbid = 0;
     if (std::tr1::get<2>(GetParam()) == ClientJSONSupport::Yes) {
@@ -1023,7 +1023,7 @@ TEST_P(XattrTest, MB_25562_IncludeBodyCrc32cInDocumentVAttr) {
 
     // Add an XAttr to the document.
     // We want to check that the checksum computed by the server takes in
-    // input only the document body (XAttrs excluded)
+    // input only the document value (XAttrs excluded)
     auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
                        name,
                        "userXattr",
@@ -1033,63 +1033,63 @@ TEST_P(XattrTest, MB_25562_IncludeBodyCrc32cInDocumentVAttr) {
     resp = subdoc_get("userXattr", SUBDOC_FLAG_XATTR_PATH);
     EXPECT_EQ(R"({"a":1})", resp.getValue());
 
-    // Compute the expected body checksum
+    // Compute the expected value checksum
     auto _crc32c = crc32c(
             reinterpret_cast<const unsigned char*>(document.value.c_str()),
             document.value.size(),
             0 /*crc_in*/);
-    auto expectedBodyCrc32c = "\"" + cb::to_hex(_crc32c) + "\"";
+    auto expectedValueCrc32c = "\"" + cb::to_hex(_crc32c) + "\"";
 
-    // Get and verify the actual body checksum
+    // Get and verify the actual value checksum
     BinprotSubdocMultiLookupCommand cmd;
     cmd.setKey(document.info.id);
-    cmd.addGet("$document.body_crc32c", SUBDOC_FLAG_XATTR_PATH);
+    cmd.addGet("$document.value_crc32c", SUBDOC_FLAG_XATTR_PATH);
     BinprotSubdocMultiLookupResponse multiResp;
     connection.executeCommand(cmd, multiResp);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
               multiResp.getResults()[0].status);
-    EXPECT_EQ(expectedBodyCrc32c, multiResp.getResults()[0].value);
+    EXPECT_EQ(expectedValueCrc32c, multiResp.getResults()[0].value);
 }
 
-TEST_P(XattrTest, MB_25562_StampBodyCrc32cInUserXAttr) {
-    // I want to test that the expansion of macro '${Mutation.body_crc32c}'
-    // sets the correct body checksum into the given user XAttr
+TEST_P(XattrTest, MB_25562_StampValueCrc32cInUserXAttr) {
+    // I want to test that the expansion of macro '${Mutation.value_crc32c}'
+    // sets the correct value checksum into the given user XAttr
 
     // Store the macro and verify that it is not expanded without the
     // SUBDOC_FLAG_EXPAND_MACROS flag.
     // Note: as the document will contain an XAttr, we prove also that the
     // checksum computed by the server takes in input only the document
-    // body (XAttrs excluded).
+    // value (XAttrs excluded).
     auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
                        name,
-                       "_sync.body_crc32c",
-                       "\"${Mutation.body_crc32c}\"",
+                       "_sync.value_crc32c",
+                       "\"${Mutation.value_crc32c}\"",
                        SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
-    resp = subdoc_get("_sync.body_crc32c", SUBDOC_FLAG_XATTR_PATH);
-    EXPECT_EQ("\"${Mutation.body_crc32c}\"", resp.getValue());
+    resp = subdoc_get("_sync.value_crc32c", SUBDOC_FLAG_XATTR_PATH);
+    EXPECT_EQ("\"${Mutation.value_crc32c}\"", resp.getValue());
 
     // Now change the user xattr to macro expansion
     resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
                   name,
-                  "_sync.body_crc32c",
-                  "\"${Mutation.body_crc32c}\"",
+                  "_sync.value_crc32c",
+                  "\"${Mutation.value_crc32c}\"",
                   SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_EXPAND_MACROS);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
 
-    // Compute the expected body_crc32c
-    auto body = getConnection().get(name, 0 /*vbid*/).value;
-    auto _crc32c = crc32c(reinterpret_cast<const unsigned char*>(body.c_str()),
-                          body.size(),
+    // Compute the expected value_crc32c
+    auto value = getConnection().get(name, 0 /*vbid*/).value;
+    auto _crc32c = crc32c(reinterpret_cast<const unsigned char*>(value.c_str()),
+                          value.size(),
                           0 /*crc_in*/);
-    auto expectedBodyCrc32c = "\"" + cb::to_hex(_crc32c) + "\"";
+    auto expectedValueCrc32c = "\"" + cb::to_hex(_crc32c) + "\"";
 
     // Fetch the xattr and verify that the macro expanded to the
     // expected body checksum
-    resp = subdoc_get("_sync.body_crc32c", SUBDOC_FLAG_XATTR_PATH);
+    resp = subdoc_get("_sync.value_crc32c", SUBDOC_FLAG_XATTR_PATH);
     ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
-    EXPECT_EQ(expectedBodyCrc32c, resp.getValue());
+    EXPECT_EQ(expectedValueCrc32c, resp.getValue());
 }
 
 // Test that one can fetch both the body and an XATTR on a deleted document.

@@ -365,10 +365,10 @@ private:
                          cb::char_buffer& value);
 
     /**
-     * Returns the body CRC32C of the document processed by the current
+     * Returns the value CRC32C of the document processed by the current
      * subdoc context
      */
-    uint32_t computeBodyCRC32C();
+    uint32_t computeValueCRC32C();
 
     // The xattr key being accessed in this command
     cb::const_char_buffer xattr_key;

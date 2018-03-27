@@ -107,11 +107,10 @@ ENGINE_ERROR_CODE SubdocCmdContext::pre_link_document(item_info& info) {
                     cb::xattr::macros::SEQNO, macroToString(info.seqno), value);
         }
 
-        // Replace the Body CRC32C
-        if (containsMacro(cb::xattr::macros::BODY_CRC32C)) {
-            const auto bodyCrc32c = computeBodyCRC32C();
-            substituteMacro(cb::xattr::macros::BODY_CRC32C,
-                            macroToString(bodyCrc32c),
+        // Replace the Value CRC32C
+        if (containsMacro(cb::xattr::macros::VALUE_CRC32C)) {
+            substituteMacro(cb::xattr::macros::VALUE_CRC32C,
+                            macroToString(computeValueCRC32C()),
                             value);
         }
     }
@@ -268,9 +267,8 @@ cb::const_char_buffer SubdocCmdContext::get_document_vattr() {
                             .c_str());
         }
 
-        const auto bodyCrc32c = computeBodyCRC32C();
         cJSON_AddStringToObject(
-                doc.get(), "body_crc32c", cb::to_hex(bodyCrc32c));
+                doc.get(), "value_crc32c", cb::to_hex(computeValueCRC32C()));
 
         unique_cJSON_ptr root(cJSON_CreateObject());
         cJSON_AddItemToObject(root.get(), "$document", doc.release());
@@ -382,15 +380,15 @@ protocol_binary_response_status SubdocCmdContext::get_document_for_searching(
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-uint32_t SubdocCmdContext::computeBodyCRC32C() {
-    cb::const_char_buffer body;
+uint32_t SubdocCmdContext::computeValueCRC32C() {
+    cb::const_char_buffer value;
     if (mcbp::datatype::is_xattr(in_datatype)) {
-        // Note: in the XAttr naming, 'body' excludes XAttrs
-        body = cb::xattr::get_body(in_doc);
+        // Note: in the XAttr naming, body/value excludes XAttrs
+        value = cb::xattr::get_body(in_doc);
     } else {
-        body = in_doc;
+        value = in_doc;
     }
-    return crc32c(reinterpret_cast<const unsigned char*>(body.data()),
-                  body.size(),
+    return crc32c(reinterpret_cast<const unsigned char*>(value.data()),
+                  value.size(),
                   0 /*crc_in*/);
 }

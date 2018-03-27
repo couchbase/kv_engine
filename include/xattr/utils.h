@@ -83,7 +83,8 @@ static inline bool is_vattr(cb::const_char_buffer& attr) {
 namespace macros {
 static cb::const_char_buffer CAS = {"\"${Mutation.CAS}\"", 17};
 static cb::const_char_buffer SEQNO = {"\"${Mutation.seqno}\"", 19};
-static cb::const_char_buffer BODY_CRC32C = {"\"${Mutation.body_crc32c}\"", 25};
+static cb::const_char_buffer VALUE_CRC32C = {"\"${Mutation.value_crc32c}\"",
+                                             26};
 }
 
 namespace vattrs {
