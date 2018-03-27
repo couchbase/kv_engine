@@ -14,11 +14,15 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include <daemon/mcbp.h>
-#include <daemon/sasl_tasks.h>
-#include <daemon/runtime.h>
-#include <daemon/mcaudit.h>
+
 #include "sasl_auth_command_context.h"
+
+#include <daemon/executorpool.h>
+#include <daemon/mcaudit.h>
+#include <daemon/mcbp.h>
+#include <daemon/memcached.h>
+#include <daemon/runtime.h>
+#include <daemon/sasl_tasks.h>
 
 ENGINE_ERROR_CODE SaslAuthCommandContext::initial() {
     if (!connection.isSaslAuthEnabled()) {

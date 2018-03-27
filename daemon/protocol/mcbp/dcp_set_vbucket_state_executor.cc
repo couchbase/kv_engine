@@ -17,6 +17,8 @@
 
 #include "executors.h"
 
+#include <daemon/cookie.h>
+
 void dcp_set_vbucket_state_executor(Cookie& cookie) {
     auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
 

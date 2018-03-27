@@ -15,7 +15,9 @@
  *   limitations under the License.
  */
 #include "create_remove_bucket_command_context.h"
+
 #include <daemon/enginemap.h>
+#include <daemon/executorpool.h>
 #include <daemon/mcbp.h>
 #include <daemon/mcbpdestroybuckettask.h>
 

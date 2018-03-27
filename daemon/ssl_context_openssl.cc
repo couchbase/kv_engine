@@ -18,6 +18,7 @@
 
 #include "memcached.h"
 #include "runtime.h"
+#include "settings.h"
 
 #include <platform/socket.h>
 #include <platform/strerror.h>

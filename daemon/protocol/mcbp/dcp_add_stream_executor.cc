@@ -15,8 +15,9 @@
  *   limitations under the License.
  */
 
-#include <daemon/mcbp.h>
 #include "executors.h"
+
+#include <daemon/cookie.h>
 
 void dcp_add_stream_executor(Cookie& cookie) {
     auto packet = cookie.getPacket(Cookie::PacketContent::Full);

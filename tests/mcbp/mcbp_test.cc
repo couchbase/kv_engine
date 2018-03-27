@@ -21,6 +21,7 @@
 #include <event2/event.h>
 #include <mcbp/protocol/header.h>
 #include <memcached/protocol_binary.h>
+#include <platform/make_unique.h>
 #include <gsl/gsl>
 
 /**

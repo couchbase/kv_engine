@@ -17,6 +17,7 @@
 
 #include "subdocument.h"
 
+#include "buckets.h"
 #include "connections.h"
 #include "debug_helpers.h"
 #include "mcaudit.h"

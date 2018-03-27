@@ -16,10 +16,10 @@
  */
 #pragma once
 
-
 #include "steppable_command_context.h"
 
-#include <daemon/memcached.h>
+#include <daemon/cookie.h>
+#include <daemon/task.h>
 
 /**
  * SaslAuthCommandContext is responsible for handling the
@@ -66,5 +66,4 @@ private:
     const cb::mcbp::Request& request;
     State state;
     std::shared_ptr<Task> task;
-
 };

@@ -15,9 +15,11 @@
  *   limitations under the License.
  */
 
-#include <daemon/mcbp.h>
-#include "executors.h"
 #include "dcp_add_failover_log.h"
+#include "executors.h"
+
+#include <daemon/cookie.h>
+#include <daemon/mcbp.h>
 
 void dcp_stream_req_executor(Cookie& cookie) {
     uint64_t rollback_seqno = 0;

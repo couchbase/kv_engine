@@ -1,8 +1,12 @@
 #include "config.h"
-#include <stdio.h>
 
-#include "daemon/memcached.h"
 #include "utilities/protocol2text.h"
+
+#include <daemon/connection.h>
+#include <daemon/cookie.h>
+#include <daemon/memcached.h>
+
+#include <cstdio>
 
 static void display(const char *name, size_t size) {
     printf("%s\t%d\n", name, (int)size);

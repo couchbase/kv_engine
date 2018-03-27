@@ -22,8 +22,10 @@
  */
 #pragma once
 
+#include <daemon/timing_histogram.h>
 #include <memcached/openssl.h>
 #include <string>
+#include <vector>
 
 void set_ssl_cipher_list(const std::string& new_list);
 
@@ -40,3 +42,5 @@ Audit* get_audit_handle(void);
 
 bool is_default_bucket_enabled();
 void set_default_bucket_enabled(bool enabled);
+
+extern std::vector<TimingHistogram> scheduler_info;

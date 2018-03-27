@@ -18,7 +18,7 @@
 
 #include "steppable_command_context.h"
 
-#include <daemon/memcached.h>
+#include <daemon/task.h>
 
 /**
  * RbacReloadCommandContext is responsible for handling the

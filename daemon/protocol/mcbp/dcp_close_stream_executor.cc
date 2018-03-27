@@ -15,9 +15,9 @@
  *   limitations under the License.
  */
 
-#include <daemon/mcbp.h>
-#include <mcbp/mcbp.h>
 #include "executors.h"
+
+#include <daemon/cookie.h>
 
 void dcp_close_stream_executor(Cookie& cookie) {
     auto ret = cookie.swapAiostat(ENGINE_SUCCESS);

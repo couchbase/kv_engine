@@ -22,13 +22,16 @@
  *     protocol - mc_time_convert_to_real_time()
  *
  */
-#include <signal.h>
-
 #include "config.h"
-#include "memcached.h"
 #include "mc_time.h"
 
+#include "buckets.h"
+#include "executorpool.h"
+#include "memcached.h"
+#include "settings.h"
+
 #include <atomic>
+#include <csignal>
 
 extern std::atomic<bool> memcached_shutdown;
 

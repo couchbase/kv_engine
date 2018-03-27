@@ -15,13 +15,16 @@
  *   limitations under the License.
  */
 
+#include "config.h"
+
 #include "ioctl.h"
 
-#include "config.h"
 #include "alloc_hooks.h"
+#include "connection.h"
 #include "connections.h"
-#include "utilities/string_utilities.h"
+#include "cookie.h"
 #include "tracing.h"
+#include "utilities/string_utilities.h"
 
 #include <mcbp/mcbp.h>
 

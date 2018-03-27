@@ -20,12 +20,15 @@
  */
 
 #include "subdocument_validators.h"
-#include <include/memcached/protocol_binary.h>
+
 #include "connection.h"
+#include "cookie.h"
 #include "subdocument_traits.h"
 
 #include "xattr/key_validator.h"
 #include "xattr/utils.h"
+
+#include <memcached/protocol_binary.h>
 
 static inline bool validMutationSemantics(mcbp::subdoc::doc_flag a) {
     // Can't have both the Add flag and Mkdoc flag set as this doesn't mean

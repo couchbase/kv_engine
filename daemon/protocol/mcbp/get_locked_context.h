@@ -16,10 +16,13 @@
  */
 #pragma once
 
-#include <platform/compress.h>
-#include <include/memcached/protocol_binary.h>
-#include "daemon/memcached.h"
 #include "steppable_command_context.h"
+
+#include <daemon/cookie.h>
+#include <memcached/dockey.h>
+#include <memcached/engine.h>
+#include <memcached/protocol_binary.h>
+#include <platform/compress.h>
 
 /**
  * The GetLockedCommandContext is a state machine used by the memcached

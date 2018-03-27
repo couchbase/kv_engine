@@ -16,7 +16,8 @@
  */
 #include "appendprepend_context.h"
 #include "engine_wrapper.h"
-#include "../../mcbp.h"
+
+#include <daemon/cookie.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>
 

@@ -16,9 +16,11 @@
  */
 #include "remove_context.h"
 #include "engine_wrapper.h"
+
+#include <daemon/buckets.h>
 #include <daemon/mcbp.h>
-#include <xattr/utils.h>
 #include <xattr/blob.h>
+#include <xattr/utils.h>
 
 ENGINE_ERROR_CODE RemoveCommandContext::step() {
     auto ret = ENGINE_SUCCESS;

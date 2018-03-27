@@ -15,7 +15,7 @@
  *   limitations under the License.
  */
 
-#include <daemon/mcbp.h>
+#include <daemon/cookie.h>
 #include "executors.h"
 
 void dcp_stream_end_executor(Cookie& cookie) {

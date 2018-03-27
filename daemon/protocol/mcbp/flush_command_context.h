@@ -18,6 +18,8 @@
 
 #include "steppable_command_context.h"
 
+#include <daemon/buckets.h>
+#include <daemon/connection.h>
 #include <daemon/memcached.h>
 #include <mcbp/protocol/opcode.h>
 #include <mcbp/protocol/request.h>

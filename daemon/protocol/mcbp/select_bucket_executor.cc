@@ -17,8 +17,9 @@
 
 #include "executors.h"
 
-#include <daemon/memcached.h>
+#include <daemon/buckets.h>
 #include <daemon/mcbp.h>
+#include <daemon/memcached.h>
 
 ENGINE_ERROR_CODE select_bucket(Connection& connection,
                                 const std::string& bucketname) {

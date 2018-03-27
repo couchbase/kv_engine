@@ -15,6 +15,8 @@
  *   limitations under the License.
  */
 #include "engine_wrapper.h"
+
+#include <daemon/cookie.h>
 #include <daemon/mcaudit.h>
 #include <daemon/memcached.h>
 #include <mcbp/protocol/header.h>

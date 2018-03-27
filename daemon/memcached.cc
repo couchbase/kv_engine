@@ -23,6 +23,7 @@
 #include "debug_helpers.h"
 #include "doc_pre_expiry.h"
 #include "enginemap.h"
+#include "executorpool.h"
 #include "ioctl.h"
 #include "libevent_locking.h"
 #include "logger/logger.h"
@@ -51,9 +52,11 @@
 #include "utilities/terminate_handler.h"
 
 #include <mcbp/mcbp.h>
+#include <memcached/util.h>
 #include <phosphor/phosphor.h>
 #include <platform/cb_malloc.h>
 #include <platform/dirutils.h>
+#include <platform/make_unique.h>
 #include <platform/socket.h>
 #include <platform/strerror.h>
 #include <platform/sysinfo.h>

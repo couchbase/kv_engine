@@ -16,6 +16,7 @@
  */
 #include "mcbp.h"
 
+#include "buckets.h"
 #include "debug_helpers.h"
 #include "memcached.h"
 #include "utilities/logtags.h"

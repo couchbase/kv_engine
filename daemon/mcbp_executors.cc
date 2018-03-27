@@ -51,6 +51,7 @@
 #include "sasl_tasks.h"
 #include "session_cas.h"
 #include "subdocument.h"
+#include "trace.h"
 
 #include <mcbp/protocol/header.h>
 #include <platform/string.h>

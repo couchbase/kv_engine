@@ -17,7 +17,7 @@
 #include "config.h"
 #include "mcbp_privileges.h"
 #include <memcached/protocol_binary.h>
-#include "memcached.h"
+#include "connection.h"
 
 using namespace cb::rbac;
 

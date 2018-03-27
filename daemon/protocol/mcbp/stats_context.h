@@ -16,10 +16,10 @@
  */
 #pragma once
 
-#include <memcached/protocol_binary.h>
-#include <platform/sized_buffer.h>
-
 #include "steppable_command_context.h"
+
+#include <daemon/cookie.h>
+#include <platform/sized_buffer.h>
 
 /**
  * The StatsCommandContext is responsible for implementing all of the

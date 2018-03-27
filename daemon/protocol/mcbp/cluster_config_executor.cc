@@ -17,6 +17,7 @@
 
 #include <daemon/buckets.h>
 #include <daemon/cccp_notification_task.h>
+#include <daemon/executorpool.h>
 #include <daemon/mcbp.h>
 #include <daemon/memcached.h>
 #include <daemon/session_cas.h>

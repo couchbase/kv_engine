@@ -17,9 +17,11 @@
 
 #include "config.h"
 
+#include <daemon/executorpool.h>
 #include <daemon/mc_time.h>
 #include <daemon/memcached.h>
 #include <gtest/gtest.h>
+#include <platform/make_unique.h>
 #include <gsl/gsl>
 
 class McTimeTest : public ::testing::Test {

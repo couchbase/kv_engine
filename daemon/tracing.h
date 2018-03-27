@@ -19,13 +19,19 @@
 
 #include "config.h"
 
+#include "task.h"
+#include "utilities/string_utilities.h"
+
 #include <memcached/types.h>
 #include <phosphor/phosphor.h>
 #include <phosphor/tools/export.h>
-#include <stddef.h>
+#include <platform/processclock.h>
+#include <platform/uuid.h>
 
-#include "memcached.h"
-#include "utilities/string_utilities.h"
+#include <cstddef>
+#include <map>
+
+class Cookie;
 
 /**
  * Initialises Tracing

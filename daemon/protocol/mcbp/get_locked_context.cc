@@ -20,6 +20,8 @@
 
 #include <daemon/debug_helpers.h>
 #include <daemon/mcbp.h>
+#include <daemon/memcached.h>
+#include <daemon/stats.h>
 #include <xattr/utils.h>
 #include <gsl/gsl>
 

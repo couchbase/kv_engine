@@ -15,6 +15,9 @@
  *   limitations under the License.
  */
 #include "config.h"
+#include "connection.h"
+
+#include "buckets.h"
 #include "connections.h"
 #include "mc_time.h"
 #include "mcaudit.h"
@@ -22,6 +25,7 @@
 #include "runtime.h"
 #include "server_event.h"
 #include "statemachine_mcbp.h"
+#include "trace.h"
 
 #include <mcbp/mcbp.h>
 #include <mcbp/protocol/header.h>

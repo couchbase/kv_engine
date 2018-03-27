@@ -15,7 +15,9 @@
  *   limitations under the License.
  */
 #include "steppable_command_context.h"
-#include <daemon/mcbp.h>
+
+#include <daemon/connection.h>
+#include <daemon/cookie.h>
 #include <daemon/memcached.h>
 #include <daemon/stats.h>
 

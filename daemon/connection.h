@@ -18,8 +18,6 @@
 
 #include "config.h"
 
-#include "connection.h"
-#include "cookie.h"
 #include "datatype.h"
 #include "dynamic_buffer.h"
 #include "log_macros.h"
@@ -31,12 +29,8 @@
 #include <cJSON.h>
 #include <cbsasl/cbsasl.h>
 #include <daemon/protocol/mcbp/command_context.h>
-#include <daemon/protocol/mcbp/steppable_command_context.h>
 #include <memcached/openssl.h>
 #include <memcached/rbac.h>
-#include <platform/cb_malloc.h>
-#include <platform/make_unique.h>
-#include <platform/pipe.h>
 #include <platform/sized_buffer.h>
 
 #include <array>
@@ -47,6 +41,7 @@
 #include <vector>
 
 struct LIBEVENT_THREAD;
+class Cookie;
 class ListeningPort;
 class Bucket;
 class ServerEvent;

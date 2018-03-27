@@ -16,7 +16,7 @@
  */
 
 #include <daemon/connection.h>
-#include <daemon/mcbp.h>
+#include <daemon/cookie.h>
 
 void drop_privilege_executor(Cookie& cookie) {
     cookie.logCommand();

@@ -15,8 +15,10 @@
  *   limitations under the License.
  */
 
-#include "../../mcbp.h"
+#include "engine_errc_2_mcbp.h"
 #include "executors.h"
+
+#include <daemon/cookie.h>
 
 void collections_get_manifest_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();

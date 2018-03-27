@@ -17,7 +17,8 @@
 
 #include "sasl_refresh_command_context.h"
 
-#include <daemon/mcbp.h>
+#include <daemon/connection.h>
+#include <daemon/cookie.h>
 #include <daemon/runtime.h>
 
 static void cbsasl_refresh_main(void* cookie) {

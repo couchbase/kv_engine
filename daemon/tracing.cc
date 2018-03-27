@@ -16,8 +16,13 @@
  */
 
 #include "tracing.h"
+
+#include "cookie.h"
+#include "executorpool.h"
+#include "memcached.h"
 #include "task.h"
 
+#include <platform/make_unique.h>
 #include <platform/processclock.h>
 
 #include <mutex>

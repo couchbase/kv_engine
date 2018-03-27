@@ -15,7 +15,11 @@
  *   limitations under the License.
  */
 #include "rbac_reload_command_context.h"
-#include <daemon/mcbp.h>
+
+#include <daemon/connection.h>
+#include <daemon/cookie.h>
+#include <daemon/executorpool.h>
+#include <daemon/memcached.h>
 
 /**
  * A small task used to reload the RBAC configuration data (it cannot run

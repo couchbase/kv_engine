@@ -15,11 +15,14 @@
  *   limitations under the License.
  */
 #include "get_meta_context.h"
+
 #include "engine_wrapper.h"
 
+#include <daemon/buckets.h>
 #include <daemon/debug_helpers.h>
 #include <daemon/mcaudit.h>
 #include <daemon/mcbp.h>
+#include <daemon/memcached.h>
 #include <xattr/utils.h>
 
 GetMetaCommandContext::GetMetaCommandContext(Cookie& cookie)

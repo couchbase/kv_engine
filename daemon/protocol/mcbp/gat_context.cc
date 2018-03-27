@@ -14,9 +14,11 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include "engine_wrapper.h"
 #include "gat_context.h"
 
+#include "engine_wrapper.h"
+
+#include <daemon/buckets.h>
 #include <daemon/mcaudit.h>
 #include <daemon/mcbp.h>
 #include <mcbp/protocol/header.h>

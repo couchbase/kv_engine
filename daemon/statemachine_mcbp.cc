@@ -17,12 +17,15 @@
 #include "config.h"
 #include "statemachine_mcbp.h"
 
+#include "buckets.h"
+#include "connection.h"
 #include "connections.h"
 #include "mcaudit.h"
 #include "mcbp.h"
 #include "mcbp_executors.h"
 #include "protocol/mcbp/ship_dcp_log.h"
 #include "sasl_tasks.h"
+#include "trace.h"
 
 #include <mcbp/mcbp.h>
 #include <platform/strerror.h>

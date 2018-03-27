@@ -16,9 +16,10 @@
  */
 #pragma once
 
-#include "../../memcached.h"
-
+#include <daemon/cookie.h>
 #include <memcached/rbac.h>
+
+#include <stdexcept>
 
 namespace mcbp {
 static inline ENGINE_ERROR_CODE checkPrivilege(Cookie& cookie,

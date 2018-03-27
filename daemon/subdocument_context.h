@@ -19,6 +19,8 @@
 
 #include "memcached.h"
 
+#include "connection.h"
+#include "cookie.h"
 #include "subdocument_traits.h"
 #include "xattr/utils.h"
 

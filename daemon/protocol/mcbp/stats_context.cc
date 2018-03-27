@@ -20,11 +20,13 @@
 #include "stats_context.h"
 #include "utilities.h"
 
+#include <daemon/buckets.h>
 #include <daemon/connections.h>
 #include <daemon/debug_helpers.h>
 #include <daemon/mc_time.h>
 #include <daemon/mcbp.h>
 #include <daemon/runtime.h>
+#include <daemon/stats.h>
 #include <mcbp/protocol/framebuilder.h>
 #include <mcbp/protocol/header.h>
 #include <memcached/audit_interface.h>

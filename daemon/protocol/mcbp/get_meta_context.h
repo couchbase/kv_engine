@@ -16,7 +16,7 @@
  */
 #pragma once
 
-#include "../../memcached.h"
+#include <memcached/dockey.h>
 #include "steppable_command_context.h"
 
 /**

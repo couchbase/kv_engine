@@ -17,8 +17,7 @@
 #include "engine_wrapper.h"
 #include "unlock_context.h"
 
-#include <daemon/debug_helpers.h>
-#include <daemon/mcbp.h>
+#include <daemon/memcached.h>
 
 ENGINE_ERROR_CODE UnlockCommandContext::unlock() {
     auto ret = bucket_unlock(cookie, key, vbucket, cas);

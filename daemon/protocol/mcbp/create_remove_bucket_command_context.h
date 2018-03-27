@@ -18,7 +18,9 @@
 
 #include "steppable_command_context.h"
 
+#include <daemon/cookie.h>
 #include <daemon/memcached.h>
+#include <daemon/task.h>
 
 /**
  * CreateBucketCommandContext is responsible for handling the

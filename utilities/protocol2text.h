@@ -17,6 +17,7 @@
 #pragma once
 
 #include <memcached/mcd_util-visibility.h>
+#include <memcached/protocol_binary.h>
 
 MCD_UTIL_PUBLIC_API
 const char* memcached_opcode_2_text(uint8_t opcode);

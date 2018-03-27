@@ -15,10 +15,13 @@
  *   limitations under the License.
  */
 #include "arithmetic_context.h"
+
+#include <daemon/buckets.h>
+#include <daemon/mcbp.h>
 #include <mcbp/protocol/header.h>
+#include <memcached/util.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>
-#include "../../mcbp.h"
 #include "engine_wrapper.h"
 
 ArithmeticCommandContext::ArithmeticCommandContext(Cookie& cookie,

@@ -16,15 +16,19 @@
  */
 
 #include "connections.h"
+#include "buckets.h"
+#include "connection.h"
 #include "runtime.h"
-#include "utilities/protocol2text.h"
 #include "settings.h"
 #include "stats.h"
+#include "trace.h"
+#include "utilities/protocol2text.h"
 
 #include <cJSON.h>
-#include <list>
-#include <algorithm>
 #include <platform/cb_malloc.h>
+#include <platform/make_unique.h>
+#include <algorithm>
+#include <list>
 
 /*
  * Free list management for connections.

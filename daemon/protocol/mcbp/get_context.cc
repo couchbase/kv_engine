@@ -14,12 +14,16 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include "engine_wrapper.h"
 #include "get_context.h"
 
+#include "engine_wrapper.h"
+#include "trace.h"
+
+#include <daemon/buckets.h>
 #include <daemon/debug_helpers.h>
 #include <daemon/mcaudit.h>
 #include <daemon/mcbp.h>
+#include <daemon/memcached.h>
 #include <xattr/utils.h>
 #include <gsl/gsl>
 

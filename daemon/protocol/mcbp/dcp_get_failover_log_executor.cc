@@ -15,10 +15,10 @@
  *   limitations under the License.
  */
 
-#include <daemon/mcbp.h>
-#include <mcbp/mcbp.h>
 #include "dcp_add_failover_log.h"
 #include "executors.h"
+
+#include <daemon/cookie.h>
 
 void dcp_get_failover_log_executor(Cookie& cookie) {
     auto ret = cookie.swapAiostat(ENGINE_SUCCESS);

@@ -18,9 +18,11 @@
 
 #include "steppable_command_context.h"
 
-#include <memcached/protocol_binary.h>
-#include <memcached/engine.h>
+#include <daemon/cookie.h>
 #include <daemon/memcached.h>
+#include <memcached/dockey.h>
+#include <memcached/engine.h>
+#include <memcached/protocol_binary.h>
 
 /**
  * The RemoveCommandContext is a state machine used by the memcached

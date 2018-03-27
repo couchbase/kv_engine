@@ -18,15 +18,11 @@
 /*
  * Configuration file parsing and handling.
  */
-
-#ifndef CONFIG_PARSE_H
-#define CONFIG_PARSE_H
+#pragma once
 
 #include <cJSON.h>
 
-#include "config.h"
-#include "memcached.h"
-
+class Settings;
 void load_config_file(const char *filename, Settings& settings);
 
 /* Given a new, proposed config, check if it can be applied to the running
@@ -42,5 +38,3 @@ bool validate_proposed_config_changes(const char* new_cfg, cJSON* errors);
  * changed, update the running memcached settings.
  */
 void reload_config_file();
-
-#endif /* CONFIG_PARSE_H */

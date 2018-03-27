@@ -15,8 +15,9 @@
  *   limitations under the License.
  */
 
-#include "../../mcbp.h"
 #include "executors.h"
+
+#include <daemon/cookie.h>
 
 void collections_set_manifest_executor(Cookie& cookie) {
     auto ret = cookie.swapAiostat(ENGINE_SUCCESS);

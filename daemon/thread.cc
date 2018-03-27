@@ -3,21 +3,25 @@
  * Thread management for memcached.
  */
 #include "config.h"
-#include "memcached.h"
+#include "connection.h"
 #include "connections.h"
+#include "cookie.h"
+#include "memcached.h"
+#include "trace.h"
 
-#include <errno.h>
 #include <fcntl.h>
+#include <memcached/openssl.h>
 #include <platform/cb_malloc.h>
 #include <platform/platform.h>
 #include <platform/socket.h>
 #include <platform/strerror.h>
-#include <signal.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <atomic>
+#include <cerrno>
+#include <csignal>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <memory>
 #include <queue>
 

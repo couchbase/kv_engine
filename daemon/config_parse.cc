@@ -15,14 +15,12 @@
  *   limitations under the License.
  */
 #include "config.h"
-#include "memcached.h"
-
 #include "config_parse.h"
-
-#include <sstream>
 #include "cmdline.h"
 #include "config_util.h"
-#include "config_parse.h"
+#include "settings.h"
+
+#include <sstream>
 
 /**
  * Load the configuration file from disk and parse it to JSON

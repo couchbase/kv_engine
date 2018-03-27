@@ -16,9 +16,10 @@
  */
 #include "audit_configure_context.h"
 
+#include <daemon/cookie.h>
 #include <daemon/runtime.h>
+#include <daemon/settings.h>
 #include <memcached/audit_interface.h>
-#include <daemon/mcbp.h>
 
 ENGINE_ERROR_CODE AuditConfigureCommandContext::configuring() {
     // We always want to move into the next state after calling the

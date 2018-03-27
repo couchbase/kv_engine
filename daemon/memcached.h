@@ -1,9 +1,19 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#ifndef MEMCACHED_H
-#define MEMCACHED_H
+#pragma once
+
+#include "log_macros.h"
+#include "stats.h"
+
+#include <JSON_checker.h>
+#include <event.h>
+#include <memcached/callback.h>
+#include <memcached/engine_error.h>
+#include <memcached/types.h>
+#include <subdoc/operations.h>
 
 #include <functional>
 #include <mutex>
+#include <queue>
 #include <unordered_set>
 #include <vector>
 
@@ -11,25 +21,6 @@
  * The main memcached header holding commonly used data
  * structures and function prototypes.
  */
-#include <cbsasl/cbsasl.h>
-#include <event.h>
-#include <platform/pipe.h>
-#include <platform/platform.h>
-#include <subdoc/operations.h>
-
-#include <memcached/openssl.h>
-
-#include <memcached/protocol_binary.h>
-#include <memcached/engine.h>
-#include <memcached/engine_error.h>
-#include <memcached/extension.h>
-#include <JSON_checker.h>
-
-#include "dynamic_buffer.h"
-#include "executorpool.h"
-#include "log_macros.h"
-#include "settings.h"
-#include "timing_histogram.h"
 
 /** Maximum length of a key. */
 #define KEY_MAX_LENGTH 250
@@ -70,6 +61,10 @@ enum class ThreadType {
     DISPATCHER = 15
 };
 
+// Forward decl
+namespace cb {
+class Pipe;
+}
 class Connection;
 struct ConnectionQueueItem;
 
@@ -171,22 +166,6 @@ struct LIBEVENT_THREAD {
 extern void notify_thread(LIBEVENT_THREAD& thread);
 extern void notify_dispatcher();
 
-#include "connection.h"
-
-extern std::vector<TimingHistogram> scheduler_info;
-
-/*
- * Functions
- */
-#include "stats.h"
-#include "trace.h"
-#include "buckets.h"
-#include <memcached/util.h>
-#include <include/memcached/types.h>
-
-/*
- * Functions to add / update the connection to libevent
- */
 void associate_initial_bucket(Connection& connection);
 
 /*
@@ -257,10 +236,9 @@ uint64_t get_listen_disabled_num();
  * client io threads and dispatched over to a background thread (in order
  * to allow for out of order replies).
  */
+class ExecutorPool;
 extern std::unique_ptr<ExecutorPool> executorPool;
 
 void iterate_all_connections(std::function<void(Connection&)> callback);
 
 void start_stdin_listener(std::function<void()> function);
-
-#endif

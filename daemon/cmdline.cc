@@ -1,8 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #include "config.h"
-#include "memcached.h"
 #include "cmdline.h"
 #include "config_parse.h"
+#include "memcached.h"
+#include "settings.h"
 
 #include <getopt.h>
 #include <logger/logger.h>

@@ -16,10 +16,13 @@
  */
 #include "config.h"
 #include "sasl_tasks.h"
-#include "mcaudit.h"
-#include "memcached.h"
+
 #include <memcached/rbac.h>
 #include <utilities/logtags.h>
+#include "connection.h"
+#include "cookie.h"
+#include "mcaudit.h"
+#include "memcached.h"
 
 StartSaslAuthTask::StartSaslAuthTask(Cookie& cookie_,
                                      Connection& connection_,
