@@ -46,6 +46,7 @@
 #include "failover-table.h"
 #include "flusher.h"
 #include "htresizer.h"
+#include "item_compressor.h"
 #include "kv_bucket.h"
 #include "kvshard.h"
 #include "kvstore.h"
@@ -239,6 +240,7 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
       stats(engine.getEpStats()),
       vbMap(theEngine.getConfiguration(), *this),
       defragmenterTask(NULL),
+      itemCompressorTask(nullptr),
       itemFreqDecayerTask(nullptr),
       vb_mutexes(engine.getConfiguration().getMaxVbuckets()),
       diskDeleteAll(false),
@@ -419,6 +421,9 @@ bool KVBucket::initialize() {
     ExecutorPool::get()->schedule(defragmenterTask);
 #endif
 
+    itemCompressorTask = std::make_shared<ItemCompressorTask>(&engine, stats);
+    ExecutorPool::get()->schedule(itemCompressorTask);
+
     /*
      * Creates the ItemFreqDecayer task which is used to ensure that the
      * frequency counters of items stored in the hash table do not all
@@ -467,6 +472,8 @@ KVBucket::~KVBucket() {
     LOG(EXTENSION_LOG_NOTICE, "Deleting vb_mutexes");
     LOG(EXTENSION_LOG_NOTICE, "Deleting defragmenterTask");
     defragmenterTask.reset();
+    LOG(EXTENSION_LOG_NOTICE, "Deleting itemCompressorTask");
+    itemCompressorTask.reset();
     LOG(EXTENSION_LOG_NOTICE, "Deleting itemFreqDecayerTask");
     itemFreqDecayerTask.reset();
     LOG(EXTENSION_LOG_NOTICE, "Deleted KvBucket.");

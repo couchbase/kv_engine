@@ -929,6 +929,7 @@ protected:
     ExTask                          chkTask;
     float                           bfilterResidencyThreshold;
     ExTask                          defragmenterTask;
+    ExTask itemCompressorTask;
     // The itemFreqDecayerTask is used to decay the frequency count of items
     // stored in the hash table.  This is required to ensure that all the
     // frequency counts do not become saturated.

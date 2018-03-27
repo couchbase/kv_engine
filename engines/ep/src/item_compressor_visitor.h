@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2014 Couchbase, Inc
+ *     Copyright 2018 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,17 +26,20 @@
 #include "vbucket.h"
 
 /**
- * Defragmentation visitor - visit all objects in a VBucket, compress the
- * documents and defragment any which have reached the specified age.
+ * Item Compressor visitor - visit all objects in a VBucket and compress
+ * the values
  */
-class DefragmentVisitor : public VBucketAwareHTVisitor {
+class ItemCompressorVisitor : public VBucketAwareHTVisitor {
 public:
-    DefragmentVisitor(uint8_t age_threshold_, size_t max_size_class);
+    ItemCompressorVisitor();
 
-    ~DefragmentVisitor();
+    ~ItemCompressorVisitor();
 
     // Set the deadline at which point the visitor will pause visiting.
     void setDeadline(ProcessClock::time_point deadline_);
+
+    // Set the current bucket compression mode
+    void setCompressionMode(const BucketCompressionMode compressionMode);
 
     // Implementation of HashTableVisitor interface:
     virtual bool visit(const HashTable::HashBucketLock& lh,
@@ -45,8 +48,8 @@ public:
     // Resets any held stats to zero.
     void clearStats();
 
-    // Returns the number of documents that have been defragmented.
-    size_t getDefragCount() const;
+    // Returns the number of documents that have been compressed.
+    size_t getCompressedCount() const;
 
     // Returns the number of documents that have been visited.
     size_t getVisitedCount() const;
@@ -54,24 +57,19 @@ public:
     void setCurrentVBucket(VBucket& vb) override;
 
 private:
-    /* Configuration parameters */
-
-    // Size of the largest size class from the allocator.
-    const size_t max_size_class;
-
-    // How old a blob must be to consider it for defragmentation.
-    const uint8_t age_threshold;
-
     /* Runtime state */
 
     // Estimates how far we have got, and when we should pause.
     ProgressTracker progressTracker;
 
     /* Statistics */
-    // Count of how many documents have been defrag'd.
-    size_t defrag_count;
+    // Count of how many documents have been compressed.
+    size_t compressed_count;
     // How many documents have been visited.
     size_t visited_count;
+
+    // Current compression mode of the bucket
+    BucketCompressionMode compressMode;
 
     // The current vbucket that is being processed
     VBucket* currentVb;

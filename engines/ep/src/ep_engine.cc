@@ -548,6 +548,15 @@ protocol_binary_response_status EventuallyPersistentEngine::setFlushParam(
             // to prevent setting defragmenter to constantly run
             validate(v, size_t(1), std::numeric_limits<size_t>::max());
             getConfiguration().setDefragmenterInterval(v);
+        } else if (strcmp(keyz, "item_compressor_interval") == 0) {
+            size_t v = std::stoull(valz);
+            // Adding separate validation as external limit is minimum 1
+            // to prevent setting item compressor to constantly run
+            validate(v, size_t(1), std::numeric_limits<size_t>::max());
+            getConfiguration().setItemCompressorInterval(v);
+        } else if (strcmp(keyz, "item_compressor_chunk_duration") == 0) {
+            getConfiguration().setItemCompressorChunkDuration(
+                    std::stoull(valz));
         } else if (strcmp(keyz, "defragmenter_age_threshold") == 0) {
             getConfiguration().setDefragmenterAgeThreshold(std::stoull(valz));
         } else if (strcmp(keyz, "defragmenter_chunk_duration") == 0) {
@@ -2841,6 +2850,15 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     add_stat, cookie);
     add_casted_stat("ep_defragmenter_num_moved", epstats.defragNumMoved,
                     add_stat, cookie);
+
+    add_casted_stat("ep_item_compressor_num_visited",
+                    epstats.compressorNumVisited,
+                    add_stat,
+                    cookie);
+    add_casted_stat("ep_item_compressor_num_compressed",
+                    epstats.compressorNumCompressed,
+                    add_stat,
+                    cookie);
 
     add_casted_stat("ep_cursor_dropping_lower_threshold",
                     epstats.cursorDroppingLThreshold, add_stat, cookie);

@@ -208,6 +208,8 @@ ADD_LIBRARY(ep_objs OBJECT
             src/hlc.cc
             src/htresizer.cc
             src/item.cc
+            src/item_compressor.cc
+            src/item_compressor_visitor.cc
             src/item_eviction.cc
             src/item_freq_decayer.cc
             src/item_freq_decayer_visitor.cc
@@ -297,6 +299,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                    tests/module_tests/hash_table_eviction_test.cc
                    tests/module_tests/hash_table_test.cc
                    tests/module_tests/hdrhistogram_test.cc
+                   tests/module_tests/item_compressor_test.cc
                    tests/module_tests/item_eviction_test.cc
                    tests/module_tests/item_pager_test.cc
                    tests/module_tests/item_test.cc
@@ -366,6 +369,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                    benchmarks/engine_fixture.cc
                    benchmarks/ep_engine_benchmarks_main.cc
                    benchmarks/item_bench.cc
+                   benchmarks/item_compressor_bench.cc
                    benchmarks/mem_allocator_stats_bench.cc
                    benchmarks/vbucket_bench.cc
                    tests/mock/mock_synchronous_ep_engine.cc
@@ -375,7 +379,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                    ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_server.cc
                    ${Memcached_SOURCE_DIR}/daemon/doc_pre_expiry.cc
                    ${Memcached_SOURCE_DIR}/daemon/protocol/mcbp/engine_errc_2_mcbp.cc
-                   )
+                   ${Memcached_SOURCE_DIR}/engines/ep/tests/module_tests/test_helpers.cc)
 
     TARGET_LINK_LIBRARIES(ep_engine_benchmarks PRIVATE
             benchmark

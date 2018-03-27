@@ -428,6 +428,21 @@
             "default": "",
             "type": "std::string"
         },
+        "item_compressor_interval": {
+            "default": "2000",
+            "descr": "How often the item compressor task should run (in milliseconds)",
+            "type": "size_t"
+        },
+        "item_compressor_chunk_duration": {
+            "default": "20",
+            "descr": "Maximum time (in ms) item compression task will run for before being paused (and resumed at the next item_compressor_interval).",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "min": 1
+                }
+            }
+        },
         "item_eviction_policy": {
             "default": "value_only",
             "descr": "Item eviction policy on cache, which is used by the item pager",

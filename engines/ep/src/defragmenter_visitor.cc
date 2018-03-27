@@ -38,20 +38,12 @@ void DefragmentVisitor::setDeadline(ProcessClock::time_point deadline) {
 bool DefragmentVisitor::visit(const HashTable::HashBucketLock& lh,
                               StoredValue& v) {
     const size_t value_len = v.valuelen();
-    bool valueCompressed = false;
-
-    // Check if the item can be compressed
-    if (!mcbp::datatype::is_snappy(v.getDatatype()) &&
-        compressMode == BucketCompressionMode::Active && value_len > 0) {
-        currentVb->ht.compressValue(v);
-        valueCompressed = true;
-    }
 
     // value must be at least non-zero (also covers Items with null Blobs)
     // and no larger than the biggest size class the allocator
     // supports, so it can be successfully reallocated to a run with other
     // objects of the same size.
-    if (!valueCompressed && value_len > 0 && value_len <= max_size_class) {
+    if (value_len > 0 && value_len <= max_size_class) {
         // If sufficiently old and if it looks like nothing else holds a
         // reference to the blob reallocate, otherwise increment it's age.
         // It may be possible to add a reference to the blob without holding
@@ -83,11 +75,6 @@ size_t DefragmentVisitor::getDefragCount() const {
 
 size_t DefragmentVisitor::getVisitedCount() const {
     return visited_count;
-}
-
-void DefragmentVisitor::setCompressionMode(
-        const BucketCompressionMode compressionMode) {
-    compressMode = compressionMode;
 }
 
 void DefragmentVisitor::setCurrentVBucket(VBucket& vb) {

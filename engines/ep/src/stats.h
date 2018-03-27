@@ -364,6 +364,9 @@ public:
      */
     Counter defragNumMoved;
 
+    Counter compressorNumVisited;
+    Counter compressorNumCompressed;
+
     //! Histogram of queue processing dirty age.
     MicrosecondHistogram dirtyAgeHisto;
 
@@ -475,6 +478,9 @@ public:
         accessScannerSkips.store(0),
         defragNumVisited.store(0),
         defragNumMoved.store(0);
+
+        compressorNumVisited.store(0);
+        compressorNumCompressed.store(0);
 
         pendingOpsHisto.reset();
         bgWaitHisto.reset();
