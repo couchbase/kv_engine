@@ -724,6 +724,10 @@ BucketCompressionMode mock_getCompressionMode(gsl::not_null<ENGINE_HANDLE*> hand
     return get_handle(handle)->the_engine->getCompressionMode(handle);
 }
 
+float mock_getMinCompressionRatio(gsl::not_null<ENGINE_HANDLE*> handle) {
+    return get_handle(handle)->the_engine->getMinCompressionRatio(handle);
+}
+
 static void usage(void) {
     printf("\n");
     printf("engine_testapp -E <path_to_engine_lib> -T <path_to_testlib>\n");
@@ -905,6 +909,7 @@ static ENGINE_HANDLE_V1* create_bucket(bool initialize, const char* cfg) {
                 mock_collections_set_manifest;
         mock_engine->me.isXattrEnabled = mock_isXattrEnabled;
         mock_engine->me.getCompressionMode = mock_getCompressionMode;
+        mock_engine->me.getMinCompressionRatio = mock_getMinCompressionRatio;
 
         mock_engine->the_engine = (ENGINE_HANDLE_V1*)handle;
 

@@ -445,6 +445,10 @@ private:
     static BucketCompressionMode getCompressionMode(gsl::not_null<ENGINE_HANDLE*> handle) {
         return BucketCompressionMode::Off;
     }
+
+    static float getMinCompressionRatio(gsl::not_null<ENGINE_HANDLE*> handle) {
+        return default_min_compression_ratio;
+    }
 };
 
 MEMCACHED_PUBLIC_API

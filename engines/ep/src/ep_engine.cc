@@ -593,6 +593,13 @@ protocol_binary_response_status EventuallyPersistentEngine::setFlushParam(
             getConfiguration().setXattrEnabled(cb_stob(valz));
         } else if (strcmp(keyz, "compression_mode") == 0) {
             getConfiguration().setCompressionMode(valz);
+        } else if (strcmp(keyz, "min_compression_ratio") == 0) {
+            float min_comp_ratio;
+            if (safe_strtof(valz, min_comp_ratio)) {
+                getConfiguration().setMinCompressionRatio(min_comp_ratio);
+            } else {
+                rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+            }
         } else if (strcmp(keyz, "max_ttl") == 0) {
             getConfiguration().setMaxTtl(std::stoull(valz));
         } else if (strcmp(keyz, "mem_used_merge_threshold_percent") == 0) {
@@ -1787,6 +1794,11 @@ static BucketCompressionMode EvpGetCompressionMode(gsl::not_null<ENGINE_HANDLE*>
     return engine->getCompressionMode();
 }
 
+static float EvpGetMinCompressionRatio(gsl::not_null<ENGINE_HANDLE*> handle) {
+    auto engine = acquireEngine(handle);
+    return engine->getMinCompressionRatio();
+}
+
 void LOG(EXTENSION_LOG_LEVEL severity, const char *fmt, ...) {
     va_list va;
     va_start(va, fmt);
@@ -1804,7 +1816,8 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
       trafficEnabled(false),
       startupTime(0),
       taskable(this),
-      compressionMode(BucketCompressionMode::Off) {
+      compressionMode(BucketCompressionMode::Off),
+      minCompressionRatio(default_min_compression_ratio) {
     interface.interface = 1;
     ENGINE_HANDLE_V1::initialize = EvpInitialize;
     ENGINE_HANDLE_V1::destroy = EvpDestroy;
@@ -1853,6 +1866,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
     ENGINE_HANDLE_V1::collections.get_manifest = EvpCollectionsGetManifest;
     ENGINE_HANDLE_V1::isXattrEnabled = EvpIsXattrEnabled;
     ENGINE_HANDLE_V1::getCompressionMode = EvpGetCompressionMode;
+    ENGINE_HANDLE_V1::getMinCompressionRatio = EvpGetMinCompressionRatio;
 
     serverApi = getServerApiFunc();
 }
@@ -2008,6 +2022,12 @@ public:
         }
     }
 
+    virtual void floatValueChanged(const std::string& key, float value) {
+        if (key == "min_compression_ratio") {
+            engine.setMinCompressionRatio(value);
+        }
+    }
+
 private:
     EventuallyPersistentEngine &engine;
 };
@@ -2129,6 +2149,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
 
     configuration.addValueChangedListener(
             "compression_mode",
+            std::make_unique<EpEngineValueChangeListener>(*this));
+
+    setMinCompressionRatio(configuration.getMinCompressionRatio());
+
+    configuration.addValueChangedListener(
+            "min_compression_ratio",
             std::make_unique<EpEngineValueChangeListener>(*this));
 
     return ENGINE_SUCCESS;

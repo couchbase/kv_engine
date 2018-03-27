@@ -62,6 +62,7 @@ struct config {
    bool keep_deleted;
    std::atomic<bool> xattr_enabled;
    std::atomic<BucketCompressionMode> compression_mode;
+   std::atomic<float> min_compression_ratio;
 };
 
 /**

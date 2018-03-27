@@ -97,6 +97,20 @@ ENGINE_ERROR_CODE MutationCommandContext::step() {
     return ret;
 }
 
+/**
+ * Computes the compression ratio and compares it to the
+ * minimum compression ratio supported by the bucket.
+ * Returns true if the ratio is smaller than the bucket
+ * minimum and false, otherwise
+ */
+static bool shouldStoreUncompressed(Cookie& cookie,
+                                    size_t compressed_len,
+                                    size_t uncompressed_len) {
+    auto comp_ratio =
+         static_cast<float>(uncompressed_len)/static_cast<float>(compressed_len);
+    return (comp_ratio < bucket_min_compression_ratio(cookie));
+}
+
 ENGINE_ERROR_CODE MutationCommandContext::validateInput() {
     if (!connection.isDatatypeEnabled(datatype)) {
         return ENGINE_EINVAL;
@@ -120,7 +134,9 @@ ENGINE_ERROR_CODE MutationCommandContext::validateInput() {
             setDatatypeJSONFromValue(decompressed_value, datatype);
 
             const auto mode = bucket_get_compression_mode(cookie);
-            if (mode == BucketCompressionMode::Off) {
+            if (mode == BucketCompressionMode::Off ||
+                shouldStoreUncompressed(cookie, value.len,
+                                        decompressed_value.size())) {
                 value.buf = reinterpret_cast<const uint8_t*>(
                         decompressed_value.data());
                 value.len = decompressed_value.size();

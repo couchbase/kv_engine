@@ -425,6 +425,11 @@ void TestappTest::setCompressionMode(const std::string& compression_mode) {
             getConnection(), bucketName, compression_mode);
 }
 
+void TestappTest::setMinCompressionRatio(float min_compression_ratio) {
+    mcd_env->getTestBucket().setMinCompressionRatio(
+            getConnection(), bucketName, std::to_string(min_compression_ratio));
+}
+
 std::string McdTestappTest::PrintToStringCombinedName(
         const ::testing::TestParamInfo<
                 ::testing::tuple<TransportProtocols, ClientJSONSupport>>&

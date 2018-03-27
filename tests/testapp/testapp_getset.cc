@@ -33,6 +33,7 @@ protected:
     void doTestPrepend(bool compressedSource, bool compressedData);
     void doTestServerDetectsJSON(bool compressedSource);
     void doTestServerDetectsNonJSON(bool compressedSource);
+    void doTestServerStoresUncompressed(bool compressedSource);
 
     void verifyData(MemcachedConnection& conn, int successCount,
                     int numOps, cb::mcbp::Datatype expectedDatatype,
@@ -175,6 +176,28 @@ void GetSetTest::doTestServerDetectsNonJSON(bool compressedSource) {
                                               int(cb::mcbp::Datatype::Snappy));
     }
     EXPECT_TRUE(hasCorrectDatatype(stored, expectedDatatype));
+}
+
+void GetSetTest::doTestServerStoresUncompressed(bool compressedSource) {
+
+    setMinCompressionRatio(2);
+
+    auto& conn = getConnection();
+
+    std::string stringToStore{"valid_string_to_store"};
+    document.value = stringToStore;
+    document.info.datatype = cb::mcbp::Datatype::Raw;
+    if (compressedSource) {
+        document.compress();
+    }
+
+    int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    conn.mutate(document, 0, MutationType::Set);
+
+    // Fetch the document to see what the data is stored as. It should be
+    // stored as Raw and the data is store as is
+    verifyData(conn, successCount, 1, cb::mcbp::Datatype::Raw, stringToStore);
 }
 
 void GetSetTest::verifyData(MemcachedConnection& conn,
@@ -996,4 +1019,9 @@ TEST_P(GetSetTest, ServerDetectsNonJSON) {
 }
 TEST_P(GetSetTest, ServerDetectsNonJSONCompressed) {
     doTestServerDetectsNonJSON(/*compressedSource*/ true);
+}
+
+// Test that memcached correctly stores documents as uncompressed
+TEST_P(GetSetTest, ServerStoresUncompressed) {
+    doTestServerStoresUncompressed(/*compressedSource*/true);
 }

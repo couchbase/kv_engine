@@ -196,6 +196,11 @@ BucketCompressionMode bucket_get_compression_mode(Cookie& cookie) {
     return c.getBucketEngine()->getCompressionMode(c.getBucketEngineAsV0());
 }
 
+float bucket_min_compression_ratio(Cookie& cookie) {
+    auto& c = cookie.getConnection();
+    return c.getBucketEngine()->getMinCompressionRatio(c.getBucketEngineAsV0());
+}
+
 cb::EngineErrorItemPair bucket_get_if(
         Cookie& cookie,
         const DocKey& key,

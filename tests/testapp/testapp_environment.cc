@@ -80,6 +80,24 @@ void TestBucketImpl::setCompressionMode(MemcachedConnection& conn,
     ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
 }
 
+void TestBucketImpl::setMinCompressionRatio(MemcachedConnection& conn,
+                                            const std::string& bucketName,
+                                            const std::string value) {
+    conn.authenticate("@admin", "password", "PLAIN");
+    conn.selectBucket(bucketName);
+
+    // Encode a set_flush_param (like cbepctl)
+    BinprotGenericCommand cmd;
+    BinprotResponse resp;
+    cmd.setOp(PROTOCOL_BINARY_CMD_SET_PARAM);
+    cmd.setKey("min_compression_ratio");
+    cmd.setExtrasValue<uint32_t>(htonl(protocol_binary_engine_param_flush));
+    cmd.setValue(value);
+
+    conn.executeCommand(cmd, resp);
+    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+}
+
 class DefaultBucketImpl : public TestBucketImpl {
 public:
     DefaultBucketImpl(std::string extraConfig = {})

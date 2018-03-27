@@ -172,6 +172,8 @@ void TestappXattrClientTest::SetUp() {
         setCompressionMode("passive");
         document.compress();
     }
+
+    setMinCompressionRatio(0);
 }
 
 MemcachedConnection& TestappXattrClientTest::getConnection() {

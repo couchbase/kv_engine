@@ -1035,6 +1035,8 @@ private:
 
     static BucketCompressionMode getCompressionMode(gsl::not_null<ENGINE_HANDLE*> handle);
 
+    static float getMinCompressionRatio(gsl::not_null<ENGINE_HANDLE*> handle);
+
     // Base class for all fault injection modes.
     struct FaultInjectMode {
         FaultInjectMode(ENGINE_ERROR_CODE injected_error_)
@@ -1391,6 +1393,7 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
 
     ENGINE_HANDLE_V1::isXattrEnabled = isXattrEnabled;
     ENGINE_HANDLE_V1::getCompressionMode = getCompressionMode;
+    ENGINE_HANDLE_V1::getMinCompressionRatio = getMinCompressionRatio;
 
     clustermap_revno = 1;
 
@@ -1880,6 +1883,15 @@ BucketCompressionMode EWB_Engine::getCompressionMode(gsl::not_null<ENGINE_HANDLE
         return BucketCompressionMode::Off;
     } else {
         return ewb->real_engine->getCompressionMode(ewb->real_handle);
+    }
+}
+
+float EWB_Engine::getMinCompressionRatio(gsl::not_null<ENGINE_HANDLE*> handle) {
+    EWB_Engine* ewb = to_engine(handle);
+    if (ewb->real_engine->getMinCompressionRatio == nullptr) {
+        return default_min_compression_ratio;
+    } else {
+        return ewb->real_engine->getMinCompressionRatio(ewb->real_handle);
     }
 }
 

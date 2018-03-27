@@ -173,6 +173,8 @@ static bool is_xattr_supported(gsl::not_null<ENGINE_HANDLE*> handle);
 static BucketCompressionMode get_compression_mode(
                                gsl::not_null<ENGINE_HANDLE*> handle);
 
+static float get_min_compression_ratio(gsl::not_null<ENGINE_HANDLE*> handle);
+
 /**
  * Given that default_engine is implemented in C and not C++ we don't have
  * a constructor for the struct to initialize the members to some sane
@@ -219,6 +221,7 @@ void default_engine_constructor(struct default_engine* engine, bucket_id_t id)
     engine->engine.set_item_info = set_item_info;
     engine->engine.isXattrEnabled = is_xattr_supported;
     engine->engine.getCompressionMode = get_compression_mode;
+    engine->engine.getMinCompressionRatio = get_min_compression_ratio;
     engine->config.verbose = 0;
     engine->config.oldest_live = 0;
     engine->config.evict_to_free = true;
@@ -228,6 +231,8 @@ void default_engine_constructor(struct default_engine* engine, bucket_id_t id)
     engine->config.chunk_size = 48;
     engine->config.item_size_max= 1024 * 1024;
     engine->config.xattr_enabled = true;
+    engine->config.compression_mode = BucketCompressionMode::Off;
+    engine->config.min_compression_ratio = default_min_compression_ratio;
 }
 
 extern "C" ENGINE_ERROR_CODE create_instance(uint64_t interface,
@@ -980,6 +985,14 @@ static bool set_param(struct default_engine* e,
             } catch (std::invalid_argument&) {
                 return false;
             }
+        } else if (key == "min_compression_ratio") {
+            std::string value_str{value.data(), value.size()};
+            float min_comp_ratio;
+            if (!safe_strtof(value_str.c_str(), min_comp_ratio)) {
+                return false;
+            }
+
+            e->config.min_compression_ratio = min_comp_ratio;
         }
 
         return response(NULL,
@@ -1142,4 +1155,9 @@ static bool is_xattr_supported(gsl::not_null<ENGINE_HANDLE*> handle) {
 static BucketCompressionMode get_compression_mode(
                               gsl::not_null<ENGINE_HANDLE*> handle) {
     return get_handle(handle)->config.compression_mode;
+}
+
+static float get_min_compression_ratio(
+                             gsl::not_null<ENGINE_HANDLE*> handle) {
+    return get_handle(handle)->config.min_compression_ratio;
 }

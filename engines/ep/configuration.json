@@ -873,6 +873,16 @@
             "descr": "Perform a file sync() operation after every N bytes written. Disabled if set to 0.",
             "type" : "size_t"
         },
+        "min_compression_ratio": {
+            "default": "1.2",
+            "descr": "specifies a minimum compression ratio below which storing the document will be stored as uncompressed.",
+            "type" : "float",
+            "validator": {
+                "range": {
+                    "min": 0.0
+                }
+            }
+        },
         "rocksdb_options": {
             "default": "bytes_per_sync=1048576,stats_dump_period_sec=600",
             "descr": "RocksDB Options, comma separated.",

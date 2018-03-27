@@ -422,8 +422,16 @@ public:
 
     void setCompressionMode(const std::string& compressModeStr);
 
+    void setMinCompressionRatio(float minCompressRatio) {
+        minCompressionRatio = minCompressRatio;
+    }
+
     BucketCompressionMode getCompressionMode() {
         return compressionMode;
+    }
+
+    float getMinCompressionRatio() {
+        return minCompressionRatio;
     }
 
     ConnHandler* getConnHandler(const void *cookie);
@@ -768,4 +776,5 @@ protected:
     std::atomic<time_t> startupTime;
     EpEngineTaskable taskable;
     std::atomic<BucketCompressionMode> compressionMode;
+    std::atomic<float> minCompressionRatio;
 };

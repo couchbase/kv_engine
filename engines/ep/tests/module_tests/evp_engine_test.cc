@@ -176,6 +176,37 @@ TEST_P(SetParamTest, compressionModeConfigTest) {
               engine->setFlushParam("compression_mode", "invalid", msg));
 }
 
+/**
+ * Test to verify if the min compression ratio in the configuration
+ * is updated then the min compression ratio in the engine is
+ * also updated correctly
+ */
+TEST_P(SetParamTest, minCompressionRatioConfigTest) {
+    Configuration& config = engine->getConfiguration();
+
+    config.setMinCompressionRatio(1.8f);
+    EXPECT_FLOAT_EQ(1.8f, engine->getMinCompressionRatio());
+
+    // The compressed length can be greater than the uncompressed length
+    config.setMinCompressionRatio(0.5f);
+    EXPECT_FLOAT_EQ(0.5f, engine->getMinCompressionRatio());
+
+    // Set a negative value, that should result in an error
+    EXPECT_THROW(config.setMinCompressionRatio(-1), std::range_error);
+
+    std::string msg;
+    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+              engine->setFlushParam("min_compression_ratio", "1.8", msg));
+    EXPECT_FLOAT_EQ(1.8f, engine->getMinCompressionRatio());
+
+    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+              engine->setFlushParam("min_compression_ratio", "0.5", msg));
+    EXPECT_FLOAT_EQ(0.5f, engine->getMinCompressionRatio());
+
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL,
+              engine->setFlushParam("min_compression_ratio", "-1", msg));
+}
+
 // Test cases which run for persistent and ephemeral buckets
 INSTANTIATE_TEST_CASE_P(EphemeralOrPersistent,
                         SetParamTest,

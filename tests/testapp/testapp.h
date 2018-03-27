@@ -142,6 +142,9 @@ protected:
     //per test compression mode configuration function
     void setCompressionMode(const std::string& compression_mode);
 
+    //per test min compression ratio configuration
+    void setMinCompressionRatio(const float min_compression_ratio);
+
     static unique_cJSON_ptr generate_config(uint16_t ssl_port);
     static unique_cJSON_ptr generate_config();
 

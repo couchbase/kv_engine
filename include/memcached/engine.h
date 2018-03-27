@@ -138,6 +138,9 @@ enum class BucketCompressionMode : uint8_t {
              //data
 };
 
+/* The default minimum compression ratio */
+static const float default_min_compression_ratio = 1.2f;
+
 /**
  * Definition of the first version of the engine interface
  */
@@ -575,6 +578,12 @@ typedef struct engine_interface_v1 {
      * @returns the compression mode of the bucket
      */
     BucketCompressionMode (*getCompressionMode)(gsl::not_null<ENGINE_HANDLE*> handle);
+
+    /**
+     * @param handle the engine handle
+     * @returns the minimum compression ratio defined in the bucket
+     */
+    float (*getMinCompressionRatio)(gsl::not_null<ENGINE_HANDLE*> handle);
 
 } ENGINE_HANDLE_V1;
 
