@@ -375,7 +375,7 @@
             "type": "bool"
         },
         "flusher_batch_split_trigger" : {
-            "default": "10000",
+            "default": "1000000",
             "descr": "Number of items to flush which triggers splitting the batch into multiple chunks. Individual batches may be larger than this value, as we cannot split checkpoints across multiple commits.",
             "type": "size_t"
         },
