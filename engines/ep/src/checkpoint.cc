@@ -29,41 +29,6 @@
 #include "statwriter.h"
 #include "vbucket.h"
 
-/**
- * Temporary debug code to check for the condition which is behind MB-28626
- * i.e. the snap start has become greater than snap end
- *
- * Using a RAII pattern, we will acquire a reference to the CheckpointManager
- * and check the condition on construction and destruction
- */
-class DebugCPM {
-public:
-    DebugCPM(const CheckpointManager& cp, const char* func)
-        : cp(cp), func(func) {
-        check("prologue");
-    }
-
-    ~DebugCPM() {
-        check("epilogue");
-    }
-
-    void check(const char* id) {
-        if (!cp.checkpointList.empty() &&
-            (cp.checkpointList.back()->getSnapshotStartSeqno() >
-             cp.checkpointList.back()->getSnapshotEndSeqno())) {
-            std::stringstream ss;
-            ss << cp << std::endl << *cp.checkpointList.back();
-            throw std::logic_error("Debug " + std::string(func) + " " +
-                                   std::string(id) + " condition failure " +
-                                   ss.str());
-        }
-    }
-
-private:
-    const CheckpointManager& cp;
-    const char* func;
-};
-
 const std::string CheckpointManager::pCursorName("persistence");
 
 const char* to_string(enum checkpoint_state s) {
@@ -476,7 +441,6 @@ CheckpointManager::CheckpointManager(EPStats& st,
 }
 
 uint64_t CheckpointManager::getOpenCheckpointId_UNLOCKED() {
-    DebugCPM dcpm(*this, __FUNCTION__);
     if (checkpointList.empty()) {
         return 0;
     }
@@ -504,7 +468,6 @@ uint64_t CheckpointManager::getLastClosedCheckpointId() {
 }
 
 void CheckpointManager::setOpenCheckpointId_UNLOCKED(uint64_t id) {
-    DebugCPM dcpm(*this, __FUNCTION__);
     if (!checkpointList.empty()) {
         // Update the checkpoint_start item with the new Id.
         const auto ckpt_start = ++(checkpointList.back()->begin());
@@ -544,8 +507,6 @@ bool CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id) {
 bool CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id,
                                                   uint64_t snapStartSeqno,
                                                   uint64_t snapEndSeqno) {
-    DebugCPM dcpm(*this, __FUNCTION__);
-
     // This is just for making sure that the current checkpoint should be
     // closed.
     if (!checkpointList.empty() &&
@@ -617,8 +578,6 @@ bool CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id,
 }
 
 bool CheckpointManager::closeOpenCheckpoint_UNLOCKED() {
-    DebugCPM dcpm(*this, __FUNCTION__);
-
     if (checkpointList.empty()) {
         return false;
     }
@@ -649,7 +608,6 @@ bool CheckpointManager::registerCursor(
                             bool alwaysFromBeginning,
                             MustSendCheckpointEnd needsCheckpointEndMetaItem) {
     LockHolder lh(queueLock);
-    DebugCPM dcpm(*this, __FUNCTION__);
     return registerCursor_UNLOCKED(name, checkpointId, alwaysFromBeginning,
                                    needsCheckpointEndMetaItem);
 }
@@ -663,7 +621,6 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
         throw std::logic_error("CheckpointManager::registerCursorBySeqno: "
                         "checkpointList is empty");
     }
-    DebugCPM dcpm(*this, __FUNCTION__);
     if (checkpointList.back()->getHighSeqno() < startBySeqno) {
         throw std::invalid_argument("CheckpointManager::registerCursorBySeqno:"
                         " startBySeqno (which is " +
@@ -751,7 +708,6 @@ bool CheckpointManager::registerCursor_UNLOCKED(
                             bool alwaysFromBeginning,
                             MustSendCheckpointEnd needsCheckpointEndMetaItem)
 {
-    DebugCPM dcpm(*this, __FUNCTION__);
     if (checkpointList.empty()) {
         throw std::logic_error("CheckpointManager::registerCursor_UNLOCKED: "
                         "checkpointList is empty");
@@ -865,8 +821,6 @@ bool CheckpointManager::removeCursor(const std::string &name) {
 }
 
 bool CheckpointManager::removeCursor_UNLOCKED(const std::string &name) {
-    DebugCPM dcpm(*this, __FUNCTION__);
-
     cursor_index::iterator it = connCursors.find(name);
     if (it == connCursors.end()) {
         return false;
@@ -894,8 +848,6 @@ bool CheckpointManager::removeCursor_UNLOCKED(const std::string &name) {
 
 uint64_t CheckpointManager::getCheckpointIdForCursor(const std::string &name) {
     LockHolder lh(queueLock);
-    DebugCPM dcpm(*this, __FUNCTION__);
-
     cursor_index::iterator it = connCursors.find(name);
     if (it == connCursors.end()) {
         return 0;
@@ -916,8 +868,6 @@ size_t CheckpointManager::getNumCheckpoints() const {
 
 checkpointCursorInfoList CheckpointManager::getAllCursors() {
     LockHolder lh(queueLock);
-    DebugCPM dcpm(*this, __FUNCTION__);
-
     checkpointCursorInfoList cursorInfo;
     for (auto& cur_it : connCursors) {
         cursorInfo.push_back(std::make_pair(
@@ -929,8 +879,6 @@ checkpointCursorInfoList CheckpointManager::getAllCursors() {
 
 bool CheckpointManager::isCheckpointCreationForHighMemUsage(
         const VBucket& vbucket) {
-    DebugCPM dcpm(*this, __FUNCTION__);
-
     bool forceCreation = false;
     double memoryUsed =
             static_cast<double>(stats.getEstimatedTotalMemoryUsed());
@@ -949,8 +897,6 @@ bool CheckpointManager::isCheckpointCreationForHighMemUsage(
 
 size_t CheckpointManager::removeClosedUnrefCheckpoints(
         VBucket& vbucket, bool& newOpenCheckpointCreated) {
-    DebugCPM dcpm(*this, __FUNCTION__);
-
     // This function is executed periodically by the non-IO dispatcher.
     std::unique_lock<std::mutex> lh(queueLock);
     uint64_t oldCheckpointId = 0;
@@ -1047,8 +993,6 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(
 
 void CheckpointManager::removeInvalidCursorsOnCheckpoint(
                                                      Checkpoint *pCheckpoint) {
-    DebugCPM dcpm(*this, __FUNCTION__);
-
     std::list<std::string> invalidCursorNames;
     const std::set<std::string> &cursors = pCheckpoint->getCursorNameList();
     std::set<std::string>::const_iterator cit = cursors.begin();
@@ -1068,8 +1012,6 @@ void CheckpointManager::removeInvalidCursorsOnCheckpoint(
 
 void CheckpointManager::collapseClosedCheckpoints(
         CheckpointList& collapsedChks) {
-    DebugCPM dcpm(*this, __FUNCTION__);
-
     // If there are one open checkpoint and more than one closed checkpoint,
     // collapse those
     // closed checkpoints into one checkpoint to reduce the memory overhead.
@@ -1148,7 +1090,6 @@ void CheckpointManager::collapseClosedCheckpoints(
 
 std::vector<std::string> CheckpointManager::getListOfCursorsToDrop() {
     LockHolder lh(queueLock);
-    DebugCPM dcpm(*this, __FUNCTION__);
 
     // List of cursor names whose streams will be closed
     std::vector<std::string> cursorsToDrop;
@@ -1180,8 +1121,6 @@ std::vector<std::string> CheckpointManager::getListOfCursorsToDrop() {
 void CheckpointManager::updateStatsForNewQueuedItem_UNLOCKED(const LockHolder&,
                                                              VBucket& vb,
                                                              const queued_item& qi) {
-    DebugCPM dcpm(*this, __FUNCTION__);
-
     ++stats.totalEnqueued;
     if (checkpointConfig.isPersistenceEnabled()) {
         ++stats.diskQueueSize;
@@ -1198,7 +1137,6 @@ bool CheckpointManager::queueDirty(
         const GenerateCas generateCas,
         PreLinkDocumentContext* preLinkDocumentContext) {
     LockHolder lh(queueLock);
-    DebugCPM dcpm(*this, __FUNCTION__);
 
     bool canCreateNewCheckpoint = false;
     if (checkpointList.size() < checkpointConfig.getMaxCheckpoints() ||
@@ -1291,7 +1229,6 @@ bool CheckpointManager::queueDirty(
 void CheckpointManager::queueSetVBState(VBucket& vb) {
     // Take lock to serialize use of {lastBySeqno} and to queue op.
     LockHolder lh(queueLock);
-    DebugCPM dcpm(*this, __FUNCTION__);
 
     // Create the setVBState operation, and enqueue it.
     queued_item item = createCheckpointItem(/*id*/0, vbucketId,
@@ -1311,8 +1248,6 @@ void CheckpointManager::queueSetVBState(VBucket& vb) {
 
 snapshot_range_t CheckpointManager::getAllItemsForCursor(
         const std::string& name, std::vector<queued_item>& items) {
-    DebugCPM dcpm(*this, __FUNCTION__);
-
     auto result =
             getItemsForCursor(name, items, std::numeric_limits<size_t>::max());
     return result.range;
@@ -1323,8 +1258,6 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
         std::vector<queued_item>& items,
         size_t approxLimit) {
     LockHolder lh(queueLock);
-    DebugCPM dcpm(*this, __FUNCTION__);
-
     cursor_index::iterator it = connCursors.find(name);
     if (it == connCursors.end()) {
         LOG(EXTENSION_LOG_WARNING,
@@ -1386,8 +1319,6 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
 queued_item CheckpointManager::nextItem(const std::string &name,
                                         bool &isLastMutationItem) {
     LockHolder lh(queueLock);
-    DebugCPM dcpm(*this, __FUNCTION__);
-
     cursor_index::iterator it = connCursors.find(name);
     if (it == connCursors.end()) {
         LOG(EXTENSION_LOG_WARNING,
@@ -1423,8 +1354,6 @@ queued_item CheckpointManager::nextItem(const std::string &name,
 }
 
 bool CheckpointManager::incrCursor(CheckpointCursor &cursor) {
-    DebugCPM dcpm(*this, __FUNCTION__);
-
     if (++(cursor.currentPos) != (*(cursor.currentCheckpoint))->end()) {
         ++(cursor.offset);
         if ((*cursor.currentPos)->isNonEmptyCheckpointMetaItem()) {
@@ -1445,8 +1374,6 @@ void CheckpointManager::dump() const {
 
 void CheckpointManager::clear(VBucket& vb, uint64_t seqno) {
     LockHolder lh(queueLock);
-    DebugCPM dcpm(*this, __FUNCTION__);
-
     clear_UNLOCKED(vb.getState(), seqno);
 
     // Reset the disk write queue size stat for the vbucket
@@ -1458,8 +1385,6 @@ void CheckpointManager::clear(VBucket& vb, uint64_t seqno) {
 }
 
 void CheckpointManager::clear_UNLOCKED(vbucket_state_t vbState, uint64_t seqno) {
-    DebugCPM dcpm(*this, __FUNCTION__);
-
     checkpointList.clear();
     numItems = 0;
     lastBySeqno.reset(seqno);
@@ -1472,8 +1397,6 @@ void CheckpointManager::clear_UNLOCKED(vbucket_state_t vbState, uint64_t seqno) 
 }
 
 void CheckpointManager::resetCursors(bool resetPersistenceCursor) {
-    DebugCPM dcpm(*this, __FUNCTION__);
-
     for (auto& cit : connCursors) {
         if (cit.second.name.compare(pCursorName) == 0) {
             if (!resetPersistenceCursor) {
@@ -1493,7 +1416,6 @@ void CheckpointManager::resetCursors(bool resetPersistenceCursor) {
 
 void CheckpointManager::resetCursors(checkpointCursorInfoList &cursors) {
     LockHolder lh(queueLock);
-    DebugCPM dcpm(*this, __FUNCTION__);
 
     for (auto& it : cursors) {
         registerCursor_UNLOCKED(it.first, getOpenCheckpointId_UNLOCKED(), true,
@@ -1502,8 +1424,6 @@ void CheckpointManager::resetCursors(checkpointCursorInfoList &cursors) {
 }
 
 bool CheckpointManager::moveCursorToNextCheckpoint(CheckpointCursor &cursor) {
-    DebugCPM dcpm(*this, __FUNCTION__);
-
     auto& it = cursor.currentCheckpoint;
     if ((*it)->getState() == CHECKPOINT_OPEN) {
         return false;
@@ -1528,8 +1448,6 @@ bool CheckpointManager::moveCursorToNextCheckpoint(CheckpointCursor &cursor) {
 }
 
 size_t CheckpointManager::getNumOpenChkItems() const {
-    DebugCPM dcpm(*this, __FUNCTION__);
-
     LockHolder lh(queueLock);
     if (checkpointList.empty()) {
         return 0;
@@ -1539,8 +1457,6 @@ size_t CheckpointManager::getNumOpenChkItems() const {
 
 uint64_t CheckpointManager::checkOpenCheckpoint_UNLOCKED(bool forceCreation,
                                                          bool timeBound) {
-    DebugCPM dcpm(*this, __FUNCTION__);
-
     int checkpoint_id = 0;
 
     timeBound = timeBound &&
@@ -1566,15 +1482,11 @@ uint64_t CheckpointManager::checkOpenCheckpoint_UNLOCKED(bool forceCreation,
 
 size_t CheckpointManager::getNumItemsForCursor(const std::string &name) const {
     LockHolder lh(queueLock);
-    DebugCPM dcpm(*this, __FUNCTION__);
-
     return getNumItemsForCursor_UNLOCKED(name);
 }
 
 size_t CheckpointManager::getNumItemsForCursor_UNLOCKED(
                                                 const std::string &name) const {
-    DebugCPM dcpm(*this, __FUNCTION__);
-
     size_t remains = 0;
     cursor_index::const_iterator it = connCursors.find(name);
     if (it != connCursors.end()) {
@@ -1601,8 +1513,6 @@ size_t CheckpointManager::getNumItemsForCursor_UNLOCKED(
 }
 
 size_t CheckpointManager::getNumOfMetaItemsFromCursor(const CheckpointCursor &cursor) const {
-    DebugCPM dcpm(*this, __FUNCTION__);
-
     // Get the number of meta items that can be skipped by a given cursor.
     size_t meta_items = 0;
 
@@ -1629,8 +1539,6 @@ size_t CheckpointManager::getNumOfMetaItemsFromCursor(const CheckpointCursor &cu
 }
 
 void CheckpointManager::decrCursorFromCheckpointEnd(const std::string &name) {
-    DebugCPM dcpm(*this, __FUNCTION__);
-
     LockHolder lh(queueLock);
     cursor_index::iterator it = connCursors.find(name);
     if (it != connCursors.end() &&
@@ -1642,8 +1550,6 @@ void CheckpointManager::decrCursorFromCheckpointEnd(const std::string &name) {
 
 bool CheckpointManager::isLastMutationItemInCheckpoint(
                                                    CheckpointCursor &cursor) {
-    DebugCPM dcpm(*this, __FUNCTION__);
-
     CheckpointQueue::iterator it = cursor.currentPos;
     ++it;
     if (it == (*(cursor.currentCheckpoint))->end() ||
@@ -1654,8 +1560,6 @@ bool CheckpointManager::isLastMutationItemInCheckpoint(
 }
 
 void CheckpointManager::setBackfillPhase(uint64_t start, uint64_t end) {
-    DebugCPM dcpm(*this, __FUNCTION__);
-
     LockHolder lh(queueLock);
     setOpenCheckpointId_UNLOCKED(0);
     checkpointList.back()->setSnapshotStartSeqno(start);
@@ -1664,8 +1568,6 @@ void CheckpointManager::setBackfillPhase(uint64_t start, uint64_t end) {
 
 void CheckpointManager::createSnapshot(uint64_t snapStartSeqno,
                                        uint64_t snapEndSeqno) {
-    DebugCPM dcpm(*this, __FUNCTION__);
-
     LockHolder lh(queueLock);
     if (checkpointList.empty()) {
         throw std::logic_error("CheckpointManager::createSnapshot: "
@@ -1689,8 +1591,6 @@ void CheckpointManager::createSnapshot(uint64_t snapStartSeqno,
 }
 
 void CheckpointManager::resetSnapshotRange() {
-    DebugCPM dcpm(*this, __FUNCTION__);
-
     LockHolder lh(queueLock);
     if (checkpointList.empty()) {
         throw std::logic_error("CheckpointManager::resetSnapshotRange: "
@@ -1714,8 +1614,6 @@ void CheckpointManager::resetSnapshotRange() {
 }
 
 snapshot_info_t CheckpointManager::getSnapshotInfo() {
-    DebugCPM dcpm(*this, __FUNCTION__);
-
     LockHolder lh(queueLock);
     if (checkpointList.empty()) {
         throw std::logic_error("CheckpointManager::getSnapshotInfo: "
@@ -1747,8 +1645,6 @@ snapshot_info_t CheckpointManager::getSnapshotInfo() {
 void CheckpointManager::updateDiskQueueStats(VBucket& vbucket,
                                              size_t curr_remains,
                                              size_t new_remains) {
-    DebugCPM dcpm(*this, __FUNCTION__);
-
     if (!checkpointConfig.isPersistenceEnabled()) {
         /* we do not have a disk and hence no disk stats to update */
         return;
@@ -1767,8 +1663,6 @@ void CheckpointManager::updateDiskQueueStats(VBucket& vbucket,
 
 void CheckpointManager::checkAndAddNewCheckpoint(uint64_t id,
                                                  VBucket& vbucket) {
-    DebugCPM dcpm(*this, __FUNCTION__);
-
     LockHolder lh(queueLock);
 
     // Ignore CHECKPOINT_START message with ID 0 as 0 is reserved for
@@ -1832,8 +1726,6 @@ void CheckpointManager::checkAndAddNewCheckpoint(uint64_t id,
 }
 
 void CheckpointManager::collapseCheckpoints(uint64_t id) {
-    DebugCPM dcpm(*this, __FUNCTION__);
-
     if (checkpointList.empty()) {
         throw std::logic_error("CheckpointManager::collapseCheckpoints: "
                         "checkpointList is empty");
@@ -1886,8 +1778,6 @@ void CheckpointManager::collapseCheckpoints(uint64_t id) {
 
 void CheckpointManager::putCursorsInCollapsedChk(
         CursorIdToPositionMap& cursors, const CheckpointList::iterator chkItr) {
-    DebugCPM dcpm(*this, __FUNCTION__);
-
     size_t i;
     auto& chk = *chkItr;
     auto cit = chk->begin();
@@ -1960,8 +1850,6 @@ void CheckpointManager::putCursorsInCollapsedChk(
 }
 
 bool CheckpointManager::hasNext(const std::string &name) {
-    DebugCPM dcpm(*this, __FUNCTION__);
-
     LockHolder lh(queueLock);
     cursor_index::iterator it = connCursors.find(name);
     if (it == connCursors.end() || getOpenCheckpointId_UNLOCKED() == 0) {
@@ -1980,8 +1868,6 @@ bool CheckpointManager::hasNext(const std::string &name) {
 
 queued_item CheckpointManager::createCheckpointItem(uint64_t id, uint16_t vbid,
                                                     queue_op checkpoint_op) {
-    DebugCPM dcpm(*this, __FUNCTION__);
-
     uint64_t bySeqno;
     std::string key;
 
@@ -2016,8 +1902,6 @@ queued_item CheckpointManager::createCheckpointItem(uint64_t id, uint16_t vbid,
 }
 
 uint64_t CheckpointManager::createNewCheckpoint() {
-    DebugCPM dcpm(*this, __FUNCTION__);
-
     LockHolder lh(queueLock);
     if (checkpointList.back()->getNumItems() > 0) {
         uint64_t chk_id = checkpointList.back()->getId();
@@ -2027,15 +1911,11 @@ uint64_t CheckpointManager::createNewCheckpoint() {
 }
 
 uint64_t CheckpointManager::getPersistenceCursorPreChkId() {
-    DebugCPM dcpm(*this, __FUNCTION__);
-
     LockHolder lh(queueLock);
     return pCursorPreCheckpointId;
 }
 
 void CheckpointManager::itemsPersisted() {
-    DebugCPM dcpm(*this, __FUNCTION__);
-
     LockHolder lh(queueLock);
     auto persistenceCursor = connCursors.find(pCursorName);
     if (persistenceCursor != connCursors.end()) {
@@ -2045,8 +1925,6 @@ void CheckpointManager::itemsPersisted() {
 }
 
 size_t CheckpointManager::getMemoryUsage_UNLOCKED() const {
-    DebugCPM dcpm(*this, __FUNCTION__);
-
     if (checkpointList.empty()) {
         return 0;
     }
@@ -2059,15 +1937,11 @@ size_t CheckpointManager::getMemoryUsage_UNLOCKED() const {
 }
 
 size_t CheckpointManager::getMemoryUsage() const {
-    DebugCPM dcpm(*this, __FUNCTION__);
-
     LockHolder lh(queueLock);
     return getMemoryUsage_UNLOCKED();
 }
 
 size_t CheckpointManager::getMemoryUsageOfUnrefCheckpoints() const {
-    DebugCPM dcpm(*this, __FUNCTION__);
-
     LockHolder lh(queueLock);
 
     if (checkpointList.empty()) {
@@ -2086,8 +1960,6 @@ size_t CheckpointManager::getMemoryUsageOfUnrefCheckpoints() const {
 }
 
 void CheckpointManager::addStats(ADD_STAT add_stat, const void *cookie) {
-    DebugCPM dcpm(*this, __FUNCTION__);
-
     LockHolder lh(queueLock);
     char buf[256];
 
