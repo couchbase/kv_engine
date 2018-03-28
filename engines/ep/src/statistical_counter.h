@@ -77,13 +77,7 @@ public:
         if (isSaturated(counter)) {
             return counter;
         }
-        double rand;
-        {
-            // The random number generator holds state.  Therefore grab
-            // a lock before generating a new random number.
-            std::lock_guard<std::mutex> guard(mutex);
-            rand = dis(gen);
-        }
+        double rand = generateRandom();
 
         // A power function is used to avoid incrementing the counter too
         // aggressively when the input value is low.
@@ -107,8 +101,33 @@ public:
     }
 
 private:
-    std::mutex mutex;
-    std::minstd_rand gen{std::random_device()()};
+    // Generate and return a random double value
+    double generateRandom() {
+/*
+ * Use a thread_local random number generator.  Based on the
+ * following: https://stackoverflow.com/a/21238187
+ */
+#if __APPLE__
+        /*
+         * Due to Apple's clang disabling the thread_local keyword
+         * support we have to have the code below.
+         * @todo Fixed in XCode 8 (MacOS 10.11.5 / 10.12 or later).
+         */
+        static __thread bool seeded = false;
+        static __thread std::minstd_rand::result_type generatorState = 0;
+        if (!seeded) {
+            seeded = true;
+            generatorState = std::random_device()();
+        }
+        std::minstd_rand gen(generatorState);
+        // Move the generator state forward
+        generatorState = gen();
+#else
+        static thread_local std::minstd_rand gen{std::random_device()()};
+#endif
+        return dis(gen);
+    }
+
     std::uniform_real_distribution<> dis{0.0, 1.0};
     double incFactor;
 };
