@@ -772,22 +772,6 @@ static protocol_binary_response_status engine_error2mcbp(
     return engine_error_2_mcbp_protocol_error(status);
 }
 
-// Begin -  Tracing api
-static void begin_trace(gsl::not_null<const void*> void_cookie,
-                        cb::tracing::TraceCode tracecode) {
-    auto* cookie =
-            reinterpret_cast<Cookie*>(const_cast<void*>(void_cookie.get()));
-    cookie->getTracer().begin(tracecode);
-}
-
-static void end_trace(gsl::not_null<const void*> void_cookie,
-                      cb::tracing::TraceCode tracecode) {
-    auto* cookie =
-            reinterpret_cast<Cookie*>(const_cast<void*>(void_cookie.get()));
-    cookie->getTracer().end(tracecode);
-}
-// End -  Tracing api
-
 static ENGINE_ERROR_CODE pre_link_document(
         gsl::not_null<const void*> void_cookie, item_info& info) {
     // Sanity check that people aren't calling the method with a bogus
@@ -1663,7 +1647,6 @@ SERVER_HANDLE_V1* get_server_api() {
     static ALLOCATOR_HOOKS_API hooks_api;
     static SERVER_HANDLE_V1 rv;
     static SERVER_DOCUMENT_API document_api;
-    static SERVER_TRACING_API tracing_api;
 
     if (!init) {
         init = 1;
@@ -1718,9 +1701,6 @@ SERVER_HANDLE_V1* get_server_api() {
         document_api.pre_link = pre_link_document;
         document_api.pre_expiry = document_pre_expiry;
 
-        tracing_api.begin_trace = begin_trace;
-        tracing_api.end_trace = end_trace;
-
         rv.interface = 1;
         rv.core = &core_api;
         rv.stat = &server_stat_api;
@@ -1729,7 +1709,6 @@ SERVER_HANDLE_V1* get_server_api() {
         rv.cookie = &server_cookie_api;
         rv.alloc_hooks = &hooks_api;
         rv.document = &document_api;
-        rv.tracing = &tracing_api;
     }
 
     return &rv;

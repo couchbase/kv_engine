@@ -330,20 +330,6 @@ struct SERVER_DOCUMENT_API {
     bool (*pre_expiry)(item_info& itm_info);
 };
 
-struct SERVER_TRACING_API {
-    /**
-     * begin tracing on the specified trace code
-     */
-    void (*begin_trace)(gsl::not_null<const void*> cookie,
-                        cb::tracing::TraceCode tracecode);
-
-    /**
-     * end trace on the specified trace code
-     */
-    void (*end_trace)(gsl::not_null<const void*> cookie,
-                      cb::tracing::TraceCode tracecode);
-};
-
 #ifdef WIN32
 #undef interface
 #endif

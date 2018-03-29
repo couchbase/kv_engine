@@ -343,28 +343,6 @@ void mock_init_alloc_hooks() {
     AllocHooks::initialize();
 }
 
-// Begin -  Tracing api
-static void begin_trace(gsl::not_null<const void*> void_cookie,
-                        cb::tracing::TraceCode tracecode) {
-    auto* cookie = reinterpret_cast<mock_connstruct*>(
-            const_cast<void*>(void_cookie.get()));
-    if (!cookie->isTracingEnabled()) {
-        return;
-    }
-    cookie->getTracer().begin(tracecode);
-}
-
-static void end_trace(gsl::not_null<const void*> void_cookie,
-                      cb::tracing::TraceCode tracecode) {
-    auto* cookie = reinterpret_cast<mock_connstruct*>(
-            const_cast<void*>(void_cookie.get()));
-    if (!cookie->isTracingEnabled()) {
-        return;
-    }
-    cookie->getTracer().end(tracecode);
-}
-// End -  Tracing api
-
 SERVER_HANDLE_V1 *get_mock_server_api(void)
 {
    static SERVER_CORE_API core_api;
@@ -375,7 +353,6 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
    static ALLOCATOR_HOOKS_API hooks_api;
    static SERVER_HANDLE_V1 rv;
    static SERVER_DOCUMENT_API document_api;
-   static SERVER_TRACING_API tracing_api;
    static int init;
    if (!init) {
       init = 1;
@@ -425,9 +402,6 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
       document_api.pre_link = mock_pre_link_document;
       document_api.pre_expiry = document_pre_expiry;
 
-      tracing_api.begin_trace = begin_trace;
-      tracing_api.end_trace = end_trace;
-
       rv.interface = 1;
       rv.core = &core_api;
       rv.stat = &server_stat_api;
@@ -436,7 +410,6 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
       rv.cookie = &server_cookie_api;
       rv.alloc_hooks = &hooks_api;
       rv.document = &document_api;
-      rv.tracing = &tracing_api;
    }
 
    return &rv;

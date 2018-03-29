@@ -4161,7 +4161,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(
                                        protocol_binary_request_header *request,
                                        ADD_RESPONSE response,
                                        DocNamespace docNamespace) {
-    TRACE_SCOPE(serverApi, cookie, TraceCode::OBSERVE);
+    TRACE_SCOPE(cookie, TraceCode::OBSERVE);
     protocol_binary_request_no_extras *req =
         (protocol_binary_request_no_extras*)request;
 
@@ -4662,7 +4662,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
                                 ADD_RESPONSE response,
                                 DocNamespace docNamespace)
 {
-    TRACE_SCOPE(serverApi, cookie, TraceCode::SETWITHMETA);
+    TRACE_SCOPE(cookie, TraceCode::SETWITHMETA);
     // revid_nbytes, flags and exptime is mandatory fields.. and we need a key
     uint8_t extlen = request->message.header.request.extlen;
     uint16_t keylen = ntohs(request->message.header.request.keylen);

@@ -18,9 +18,7 @@
 
 #include "tracer.h"
 
-// forward declaration
-struct server_handle_v1_t;
-typedef struct server_handle_v1_t SERVER_HANDLE_V1;
+#include "daemon/cookie.h"
 
 // #define DISABLE_SESSION_TRACING 1
 
@@ -30,43 +28,43 @@ typedef struct server_handle_v1_t SERVER_HANDLE_V1;
  * Traces a scope
  * Usage:
  *   {
- *     TRACE_SCOPE(api, cookie, "test1");
+ *     TRACE_SCOPE(cookie, "test1");
  *     ....
  *    }
  */
 class ScopedTracer {
 public:
-    ScopedTracer(SERVER_HANDLE_V1* api,
-                 const void* ck,
-                 const cb::tracing::TraceCode code)
-        : api(api), ck(ck), code(code) {
-        if (api && ck) {
-            api->tracing->begin_trace(ck, code);
-        } else {
-            api = nullptr;
-            ck = nullptr;
+    ScopedTracer(Cookie& cookie, const cb::tracing::TraceCode code)
+        : cookie(cookie), code(code) {
+        if (cookie.isTracingEnabled()) {
+            cookie.getTracer().begin(code);
         }
     }
 
+    /// Constructor from Cookie (void*)
+    ScopedTracer(const void* cookie, const cb::tracing::TraceCode code)
+        : ScopedTracer(*reinterpret_cast<Cookie*>(const_cast<void*>(cookie)),
+                       code) {
+    }
+
     ~ScopedTracer() {
-        if (api) {
-            api->tracing->end_trace(ck, code);
+        if (cookie.isTracingEnabled()) {
+            cookie.getTracer().end(code);
         }
     }
 
 protected:
-    SERVER_HANDLE_V1* api;
-    const void* ck;
+    Cookie& cookie;
     cb::tracing::TraceCode code;
 };
 
-#define TRACE_SCOPE(api, ck, code) ScopedTracer __st__##__LINE__(api, ck, code)
+#define TRACE_SCOPE(ck, code) ScopedTracer __st__##__LINE__(ck, code)
 
 #else
 /**
  * if DISABLE_SESSION_TRACING is set
  * unset all TRACE macros
  */
-#define TRACE_SCOPE(api, ck, code)
+#define TRACE_SCOPE(ck, code)
 
 #endif
