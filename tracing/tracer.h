@@ -101,7 +101,6 @@ public:
 
 protected:
     std::vector<Span> vecSpans;
-    std::mutex spanMutex;
 };
 
 struct MEMCACHED_PUBLIC_CLASS Traceable {

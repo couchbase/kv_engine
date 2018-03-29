@@ -35,14 +35,12 @@ Tracer::SpanId Tracer::invalidSpanId() {
 }
 
 Tracer::SpanId Tracer::begin(const TraceCode tracecode) {
-    std::lock_guard<std::mutex> lock(spanMutex);
     auto t = to_micros(ProcessClock::now());
     vecSpans.push_back(Span(tracecode, t));
     return vecSpans.size() - 1;
 }
 
 bool Tracer::end(SpanId spanId) {
-    std::lock_guard<std::mutex> lock(spanMutex);
     if (spanId >= vecSpans.size())
         return false;
     auto& span = vecSpans[spanId];
@@ -53,7 +51,6 @@ bool Tracer::end(SpanId spanId) {
 bool Tracer::end(const TraceCode tracecode) {
     SpanId spanId = 0;
     {
-        std::lock_guard<std::mutex> lock(spanMutex);
         for (const auto& span : vecSpans) {
             if (span.code == tracecode) {
                 break;
