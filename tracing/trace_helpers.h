@@ -60,43 +60,6 @@ protected:
     cb::tracing::TraceCode code;
 };
 
-/**
- * Trace a block of code
- * Usage:
- *     TRACE_BLOCK(api, cookie, "ht.lock.wait") {
- *         lock.lock();
- *     }
- */
-class BlockTracer : public ScopedTracer {
-public:
-    BlockTracer(SERVER_HANDLE_V1* api,
-                const void* ck,
-                const cb::tracing::TraceCode code)
-        : ScopedTracer(api, ck, code), justonce(true) {
-    }
-
-    // will return true only once
-    // used by TRACE_BLOCK to execute loop just once
-    bool once() volatile {
-        if (justonce) {
-            justonce = false;
-            return true;
-        }
-        return false;
-    }
-
-protected:
-    bool justonce;
-};
-
-#define TRACE_BLOCK(api, ck, code)                             \
-    for (volatile BlockTracer __bt__##__LINE__(api, ck, code); \
-         __bt__##__LINE__.once();)
-/**
- * Note: Had to make these variables volatile as we noticed
- * wierd behavior in Release builds but not in Debug.
- * Have not figured the root cause
- */
 #define TRACE_SCOPE(api, ck, code) ScopedTracer __st__##__LINE__(api, ck, code)
 
 #else
@@ -105,6 +68,5 @@ protected:
  * unset all TRACE macros
  */
 #define TRACE_SCOPE(api, ck, code)
-#define TRACE_BLOCK(api, ck, code)
 
 #endif
