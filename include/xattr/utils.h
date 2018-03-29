@@ -81,10 +81,13 @@ static inline bool is_vattr(cb::const_char_buffer& attr) {
     return *attr.data() == '$';
 }
 namespace macros {
-static cb::const_char_buffer CAS = {"\"${Mutation.CAS}\"", 17};
-static cb::const_char_buffer SEQNO = {"\"${Mutation.seqno}\"", 19};
-static cb::const_char_buffer VALUE_CRC32C = {"\"${Mutation.value_crc32c}\"",
-                                             26};
+struct macro {
+    cb::const_char_buffer name;
+    size_t expandedSize;
+};
+static macro CAS = {"\"${Mutation.CAS}\"", 8};
+static macro SEQNO = {"\"${Mutation.seqno}\"", 8};
+static macro VALUE_CRC32C = {"\"${Mutation.value_crc32c}\"", 4};
 }
 
 namespace vattrs {

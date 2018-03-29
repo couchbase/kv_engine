@@ -95,21 +95,22 @@ ENGINE_ERROR_CODE SubdocCmdContext::pre_link_document(item_info& info) {
         }
 
         // Replace the CAS
-        if (containsMacro(cb::xattr::macros::CAS)) {
-            substituteMacro(cb::xattr::macros::CAS,
+        if (containsMacro(cb::xattr::macros::CAS.name)) {
+            substituteMacro(cb::xattr::macros::CAS.name,
                             macroToString(htonll(info.cas)),
                             value);
         }
 
         // Replace the Seqno
-        if (containsMacro(cb::xattr::macros::SEQNO)) {
-            substituteMacro(
-                    cb::xattr::macros::SEQNO, macroToString(info.seqno), value);
+        if (containsMacro(cb::xattr::macros::SEQNO.name)) {
+            substituteMacro(cb::xattr::macros::SEQNO.name,
+                            macroToString(info.seqno),
+                            value);
         }
 
         // Replace the Value CRC32C
-        if (containsMacro(cb::xattr::macros::VALUE_CRC32C)) {
-            substituteMacro(cb::xattr::macros::VALUE_CRC32C,
+        if (containsMacro(cb::xattr::macros::VALUE_CRC32C.name)) {
+            substituteMacro(cb::xattr::macros::VALUE_CRC32C.name,
                             macroToString(computeValueCRC32C()),
                             value);
         }
@@ -161,7 +162,7 @@ cb::const_char_buffer SubdocCmdContext::get_padded_macro(
 }
 
 void SubdocCmdContext::generate_macro_padding(cb::const_char_buffer payload,
-                                              cb::const_char_buffer macro) {
+                                              cb::xattr::macros::macro macro) {
     if (!do_macro_expansion) {
         // macro expansion is not needed
         return;
@@ -175,7 +176,22 @@ void SubdocCmdContext::generate_macro_padding(cb::const_char_buffer payload,
     while (!unique) {
         unique = true;
         uint64_t ii = dis(gen);
-        const std::string candidate = "\"" + cb::to_hex(ii) + "\"";
+
+        std::string candidate;
+        switch (macro.expandedSize) {
+        case 8:
+            candidate = "\"" + cb::to_hex(ii) + "\"";
+            break;
+        case 4:
+            candidate =
+                    "\"" + cb::to_hex(gsl::narrow_cast<uint32_t>(ii)) + "\"";
+            break;
+        default:
+            throw std::logic_error(
+                    "generate_macro_padding: invalid macro expandedSize: " +
+                    std::to_string(macro.expandedSize));
+            break;
+        }
 
         for (auto& op : getOperations(Phase::XATTR)) {
             if (cb::strnstr(op.value.buf, candidate.c_str(), op.value.len)) {
@@ -188,7 +204,8 @@ void SubdocCmdContext::generate_macro_padding(cb::const_char_buffer payload,
             if (cb::strnstr(payload.buf, candidate.c_str(), payload.len)) {
                 unique = false;
             } else {
-                paddedMacros.push_back(std::make_pair(macro, candidate));
+                paddedMacros.push_back(
+                        std::make_pair(macro.name.buf, candidate));
             }
         }
     }

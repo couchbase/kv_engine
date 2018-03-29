@@ -1090,6 +1090,13 @@ TEST_P(XattrTest, MB_25562_StampValueCrc32cInUserXAttr) {
     resp = subdoc_get("_sync.value_crc32c", SUBDOC_FLAG_XATTR_PATH);
     ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
     EXPECT_EQ(expectedValueCrc32c, resp.getValue());
+
+    // Repeat the check fetching the entire '_sync' path. Differently from the
+    // check above, this check exposed issues in macro padding.
+    resp = subdoc_get("_sync", SUBDOC_FLAG_XATTR_PATH);
+    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    EXPECT_EQ("{\"value_crc32c\":" + expectedValueCrc32c + "}",
+              resp.getValue());
 }
 
 // Test that one can fetch both the body and an XATTR on a deleted document.

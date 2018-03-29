@@ -104,9 +104,12 @@ public:
      *
      * @param payload the JSON value for the xattr to perform macro
      *                substitution in
+     * @param macro the macro for which we want to generate the padding
+     *
+     * @throws std::logic_error if the macro expansion size is invalid
      */
     void generate_macro_padding(cb::const_char_buffer payload,
-                                cb::const_char_buffer macro);
+                                cb::xattr::macros::macro macro);
 
     Operations& getOperations(const Phase phase) {
         switch (phase) {

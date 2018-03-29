@@ -37,18 +37,18 @@ static inline bool validMutationSemantics(mcbp::subdoc::doc_flag a) {
 }
 
 static bool validate_macro(const cb::const_char_buffer& value) {
-    return ((value.len == cb::xattr::macros::CAS.len) &&
+    return ((value.len == cb::xattr::macros::CAS.name.len) &&
             std::memcmp(value.buf,
-                        cb::xattr::macros::CAS.buf,
-                        cb::xattr::macros::CAS.len) == 0) ||
-           ((value.len == cb::xattr::macros::SEQNO.len) &&
+                        cb::xattr::macros::CAS.name.buf,
+                        cb::xattr::macros::CAS.name.len) == 0) ||
+           ((value.len == cb::xattr::macros::SEQNO.name.len) &&
             std::memcmp(value.buf,
-                        cb::xattr::macros::SEQNO.buf,
-                        cb::xattr::macros::SEQNO.len) == 0) ||
-           ((value.len == cb::xattr::macros::VALUE_CRC32C.len) &&
+                        cb::xattr::macros::SEQNO.name.buf,
+                        cb::xattr::macros::SEQNO.name.len) == 0) ||
+           ((value.len == cb::xattr::macros::VALUE_CRC32C.name.len) &&
             std::memcmp(value.buf,
-                        cb::xattr::macros::VALUE_CRC32C.buf,
-                        cb::xattr::macros::VALUE_CRC32C.len) == 0);
+                        cb::xattr::macros::VALUE_CRC32C.name.buf,
+                        cb::xattr::macros::VALUE_CRC32C.name.len) == 0);
 }
 
 static bool is_valid_virtual_xattr(cb::const_char_buffer value) {
