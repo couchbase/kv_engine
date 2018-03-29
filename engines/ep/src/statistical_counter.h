@@ -74,14 +74,16 @@ public:
      * @returns new incremented value.
      */
     T generateValue(T counter) {
-        // Use a thread_local random number generator.  Based on the following:
-        // https://stackoverflow.com/a/21238187
-        static thread_local std::minstd_rand gen{std::random_device()()};
-
         if (isSaturated(counter)) {
             return counter;
         }
-        double rand = dis(gen);
+        double rand;
+        {
+            // The random number generator holds state.  Therefore grab
+            // a lock before generating a new random number.
+            std::lock_guard<std::mutex> guard(mutex);
+            rand = dis(gen);
+        }
 
         // A power function is used to avoid incrementing the counter too
         // aggressively when the input value is low.
@@ -105,6 +107,8 @@ public:
     }
 
 private:
+    std::mutex mutex;
+    std::minstd_rand gen{std::random_device()()};
     std::uniform_real_distribution<> dis{0.0, 1.0};
     double incFactor;
 };
