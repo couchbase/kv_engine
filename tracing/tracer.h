@@ -69,9 +69,16 @@ public:
 
     static SpanId invalidSpanId();
 
-    SpanId begin(const TraceCode tracecode);
-    bool end(SpanId spanId);
-    bool end(const TraceCode tracecode);
+    /// Begin a Span starting from the specified time point (defaults to now)
+    SpanId begin(const TraceCode tracecode,
+                 ProcessClock::time_point startTime = ProcessClock::now());
+
+    bool end(SpanId spanId,
+             ProcessClock::time_point endTime = ProcessClock::now());
+
+    /// End a Span, stopping at the specified time point (defaults to now).
+    bool end(const TraceCode tracecode,
+             ProcessClock::time_point endTime = ProcessClock::now());
 
     // get the tracepoints as ordered durations
     const std::vector<Span>& getDurations() const;

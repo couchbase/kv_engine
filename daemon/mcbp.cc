@@ -235,8 +235,9 @@ void mcbp_collect_timings(Cookie& cookie) {
         return;
     }
     const auto opcode = cookie.getHeader().getOpcode();
-    const auto elapsed_ns = ProcessClock::now() - cookie.getStart();
-    cookie.getTracer().end(cb::tracing::TraceCode::REQUEST);
+    const auto endTime = ProcessClock::now();
+    const auto elapsed_ns = endTime - cookie.getStart();
+    cookie.getTracer().end(cb::tracing::TraceCode::REQUEST, endTime);
 
     // aggregated timing for all buckets
     all_buckets[0].timings.collect(opcode, elapsed_ns);

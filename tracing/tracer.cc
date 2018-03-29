@@ -34,31 +34,31 @@ Tracer::SpanId Tracer::invalidSpanId() {
     return std::numeric_limits<SpanId>::max();
 }
 
-Tracer::SpanId Tracer::begin(const TraceCode tracecode) {
-    auto t = to_micros(ProcessClock::now());
-    vecSpans.push_back(Span(tracecode, t));
+Tracer::SpanId Tracer::begin(const TraceCode tracecode,
+                             ProcessClock::time_point startTime) {
+    auto t = to_micros(startTime);
+    vecSpans.emplace_back(tracecode, t);
     return vecSpans.size() - 1;
 }
 
-bool Tracer::end(SpanId spanId) {
+bool Tracer::end(SpanId spanId, ProcessClock::time_point endTime) {
     if (spanId >= vecSpans.size())
         return false;
     auto& span = vecSpans[spanId];
-    span.duration = to_micros(ProcessClock::now()) - span.start;
+    span.duration = to_micros(endTime - span.start);
     return true;
 }
 
-bool Tracer::end(const TraceCode tracecode) {
+bool Tracer::end(const TraceCode tracecode, ProcessClock::time_point endTime) {
+    // Locate the ID for this tracecode (when we begin the Span).
     SpanId spanId = 0;
-    {
-        for (const auto& span : vecSpans) {
-            if (span.code == tracecode) {
-                break;
-            }
-            spanId++;
+    for (const auto& span : vecSpans) {
+        if (span.code == tracecode) {
+            break;
         }
+        spanId++;
     }
-    return end(spanId);
+    return end(spanId, endTime);
 }
 
 const std::vector<Span>& Tracer::getDurations() const {

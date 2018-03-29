@@ -482,5 +482,5 @@ void Cookie::initialize(cb::const_byte_buffer header) {
     setPacket(Cookie::PacketContent::Header, header);
     setCas(0);
     start = ProcessClock::now();
-    tracer.begin(cb::tracing::TraceCode::REQUEST);
+    tracer.begin(cb::tracing::TraceCode::REQUEST, start);
 }
