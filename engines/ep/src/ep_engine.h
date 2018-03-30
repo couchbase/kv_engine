@@ -15,8 +15,7 @@
  *   limitations under the License.
  */
 
-#ifndef SRC_EP_ENGINE_H_
-#define SRC_EP_ENGINE_H_ 1
+#pragma once
 
 #include "config.h"
 
@@ -421,18 +420,7 @@ public:
     ENGINE_ERROR_CODE getRandomKey(const void *cookie,
                                    ADD_RESPONSE response);
 
-    void setCompressionMode(const std::string& compressModeStr) {
-        if (compressModeStr == "off") {
-            compressionMode = BucketCompressionMode::Off;
-        } else if (compressModeStr == "passive") {
-            compressionMode = BucketCompressionMode::Passive;
-        } else if (compressModeStr == "active") {
-            compressionMode = BucketCompressionMode::Active;
-        } else {
-            throw std::invalid_argument(
-                    "setCompressionMode: invalid mode specified");
-        }
-    }
+    void setCompressionMode(const std::string& compressModeStr);
 
     BucketCompressionMode getCompressionMode() {
         return compressionMode;
@@ -781,5 +769,3 @@ protected:
     EpEngineTaskable taskable;
     std::atomic<BucketCompressionMode> compressionMode;
 };
-
-#endif  // SRC_EP_ENGINE_H_

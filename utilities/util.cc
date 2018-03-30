@@ -1,12 +1,16 @@
 #include "config.h"
-#include <stdio.h>
-#include <ctype.h>
-#include <errno.h>
-#include <string.h>
-#include <stdlib.h>
-#include <stdarg.h>
 
-#include "memcached/util.h"
+#include <cctype>
+#include <cerrno>
+#include <cstdarg>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <stdexcept>
+#include <string>
+
+#include <memcached/engine.h>
+#include <memcached/util.h>
 
 /* Avoid warnings on solaris, where isspace() is an index into an array, and gcc uses signed chars */
 #define xisspace(c) isspace((unsigned char)c)
@@ -152,4 +156,32 @@ bool safe_strtof(const char* str, float& out) {
     }
     return false;
 #endif
+}
+
+std::string to_string(const BucketCompressionMode mode) {
+    switch (mode) {
+    case BucketCompressionMode::Off:
+        return "off";
+    case BucketCompressionMode::Passive:
+        return "passive";
+    case BucketCompressionMode::Active:
+        return "active";
+    }
+
+    throw std::invalid_argument(
+            "to_string(BucketCompressionMode): Invalid mode: " +
+            std::to_string(int(mode)));
+}
+
+BucketCompressionMode parseCompressionMode(const std::string& mode) {
+    if (mode == "off") {
+        return BucketCompressionMode::Off;
+    } else if (mode == "passive") {
+        return BucketCompressionMode::Passive;
+    } else if (mode == "active") {
+        return BucketCompressionMode::Active;
+    } else {
+        throw std::invalid_argument(
+                "setCompressionMode: invalid mode specified");
+    }
 }

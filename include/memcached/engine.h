@@ -2,12 +2,14 @@
 #pragma once
 #define MEMCACHED_ENGINE_H
 
+#include <sys/types.h>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <functional>
 #include <memory>
-#include <sys/types.h>
+#include <stdexcept>
+#include <string>
 #include <utility>
 
 #include <boost/optional/optional.hpp>

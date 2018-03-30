@@ -974,13 +974,10 @@ static bool set_param(struct default_engine* e,
                 return false;
             }
         } else if (key == "compression_mode") {
-            if (value == "off") {
-                e->config.compression_mode = BucketCompressionMode::Off;
-            } else if (value == "passive") {
-                e->config.compression_mode = BucketCompressionMode::Passive;
-            } else if (value == "active") {
-                e->config.compression_mode = BucketCompressionMode::Active;
-            } else {
+            try {
+                e->config.compression_mode = parseCompressionMode(
+                        std::string(value.data(), value.size()));
+            } catch (std::invalid_argument&) {
                 return false;
             }
         }

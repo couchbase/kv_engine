@@ -5919,3 +5919,20 @@ item_info EventuallyPersistentEngine::getItemInfo(const Item& item) {
 
     return item.toItemInfo(uuid, hlcEpoch);
 }
+
+void EventuallyPersistentEngine::setCompressionMode(
+        const std::string& compressModeStr) {
+    BucketCompressionMode oldCompressionMode = compressionMode;
+
+    try {
+        compressionMode = parseCompressionMode(compressModeStr);
+        if (oldCompressionMode != compressionMode) {
+            LOG(EXTENSION_LOG_WARNING,
+                R"(Transitioning from "%s"->"%s" compression mode)",
+                to_string(oldCompressionMode).c_str(),
+                compressModeStr.c_str());
+        }
+    } catch (const std::invalid_argument& e) {
+        LOG(EXTENSION_LOG_WARNING, "%s", e.what());
+    }
+}
