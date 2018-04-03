@@ -39,7 +39,7 @@ uint8_t counter{100}; // 100 is an arbitrary value between 0 and 255
 static void BM_SaturateCounter(benchmark::State& state) {
     while (state.KeepRunning()) {
         // benchmark generateValue
-        statisticalCounter.generateValue(counter);
+        benchmark::DoNotOptimize(statisticalCounter.generateValue(counter));
     }
 }
 
