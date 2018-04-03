@@ -335,6 +335,13 @@ public:
                               std::vector<bgfetched_item_t>& fetchedItems,
                               ProcessClock::time_point start);
 
+    /**
+     * Returns the number of vbuckets in a given state.
+     * @param state  the vbucket state to compare against
+     * @return  the number of vbuckets in the requested state
+     */
+    uint16_t getNumOfVBucketsInState(vbucket_state_t state) const;
+
     VBucketPtr getVBucket(uint16_t vbid) {
         return vbMap.getBucket(vbid);
     }

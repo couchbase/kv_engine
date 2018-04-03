@@ -26,6 +26,8 @@
 #include "kvshard.h"
 #include "utility.h"
 
+#include <platform/non_negative_counter.h>
+
 class VBucket;
 
 /**
@@ -91,11 +93,34 @@ public:
     void setHLCDriftAheadThreshold(std::chrono::microseconds threshold);
     void setHLCDriftBehindThreshold(std::chrono::microseconds threshold);
 
+    /**
+     * Decrement the vb count for the given state.
+     * @param state  the state for which the vb count is to be decremented.
+     */
+    void decVBStateCount(vbucket_state_t state) {
+        --vbStateCount[state];
+    }
+
+    /**
+     * Get the state count for the given state.
+     * @param state  the state for which the vb count is to be retrieved.
+     * @rturn  the current vb count in the given state.
+     */
+    uint16_t getVBStateCount(vbucket_state_t state) const {
+        return vbStateCount[state];
+    }
+
 private:
 
     std::vector<std::unique_ptr<KVShard>> shards;
 
     const id_type size;
+
+    /**
+     * Count of how many vbuckets in vbMap are in each of the four valid
+     * states of active, replica, pending or dead.
+     */
+    std::array<cb::NonNegativeCounter<uint16_t>, 4> vbStateCount{{0, 0, 0, 0}};
 
     DISALLOW_COPY_AND_ASSIGN(VBucketMap);
 };

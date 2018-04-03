@@ -1184,6 +1184,11 @@ TEST_P(KVBucketParamTest, MB_27162) {
      EXPECT_EQ(3, itemMeta.revSeqno);
 }
 
+TEST_P(KVBucketParamTest, numberOfVBucketsInState) {
+    EXPECT_EQ(1, store->getNumOfVBucketsInState(vbucket_state_active));
+    EXPECT_EQ(0, store->getNumOfVBucketsInState(vbucket_state_replica));
+}
+
 /***
  * Test class to expose the behaviour needed to create an ItemAccessVisitor
  */

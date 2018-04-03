@@ -781,7 +781,7 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(
 
     if (vb) {
         vbucket_state_t oldstate = vb->getState();
-
+        vbMap.decVBStateCount(oldstate);
         if (vbStateLock) {
             vb->setState_UNLOCKED(to, *vbStateLock);
         } else {
@@ -915,7 +915,7 @@ ENGINE_ERROR_CODE KVBucket::deleteVBucket(uint16_t vbid, const void* c) {
         // threads that are manipulating the VB (particularly ones which may
         // try and change the disk revision e.g. deleteAll and compaction).
         auto lockedVB = getLockedVBucket(vbid);
-
+        vbMap.decVBStateCount(lockedVB->getState());
         lockedVB->setState(vbucket_state_dead);
         engine.getDcpConnMap().vbucketStateChanged(vbid, vbucket_state_dead);
 
@@ -2514,4 +2514,8 @@ std::chrono::seconds KVBucket::getMaxTtl() const {
 
 void KVBucket::setMaxTtl(size_t max) {
     maxTtl = max;
+}
+
+uint16_t KVBucket::getNumOfVBucketsInState(vbucket_state_t state) const {
+    return vbMap.getVBStateCount(state);
 }

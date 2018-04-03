@@ -52,6 +52,7 @@ VBucketPtr VBucketMap::getBucket(id_type id) const {
 ENGINE_ERROR_CODE VBucketMap::addBucket(VBucketPtr vb) {
     if (vb->getId() < size) {
         getShardByVbId(vb->getId())->setBucket(vb);
+        ++vbStateCount[vb->getState()];
         LOG(EXTENSION_LOG_INFO,
             "Mapped new vbucket %d in state %s",
             vb->getId(),
