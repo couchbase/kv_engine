@@ -84,12 +84,13 @@ private:
 
 class STParameterizedEvictionTest
         : public SingleThreadedEPBucketTest,
-          public ::testing::WithParamInterface<std::tuple<
-                  /*max_size*/ std::string,
-                  /*mem_low_wat*/ std::string,
-                  /*mem_high_wat*/ std::string,
-                  /*skew*/ double,
-                  /*noOfAccesses*/ uint32_t>> {};
+          public ::testing::WithParamInterface<
+                  std::tuple</*bucket_type*/ std::string,
+                             /*max_size*/ std::string,
+                             /*mem_low_wat*/ std::string,
+                             /*mem_high_wat*/ std::string,
+                             /*skew*/ double,
+                             /*noOfAccesses*/ uint32_t>> {};
 
 class STHashTableEvictionTest : public STParameterizedEvictionTest {
 public:
@@ -108,11 +109,12 @@ protected:
         config_string +=
                 "ht_size=24571;"
                 "max_size=" +
-                std::get<0>(GetParam()) + ";mem_low_wat=" +
-                std::get<1>(GetParam()) + ";mem_high_wat=" +
-                std::get<2>(GetParam());
+                std::get<1>(GetParam()) + ";mem_low_wat=" +
+                std::get<2>(GetParam()) + ";mem_high_wat=" +
+                std::get<3>(GetParam());
 
-        config_string += ";bucket_type=ephemeral";
+        config_string += ";bucket_type=" + std::get<0>(GetParam());
+        isEphemeral = (std::get<0>(GetParam()) == "ephemeral");
         STParameterizedEvictionTest::SetUp();
 
         // Sanity check - need memory tracker to be able to check our memory
@@ -143,7 +145,8 @@ protected:
         // and two in futureQ EphTombstoneHTCleaner and ItemPager)
         auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
         EXPECT_EQ(0, lpNonioQ.getReadyQueueSize());
-        EXPECT_EQ(2, lpNonioQ.getFutureQueueSize());
+        auto expectedFutureQueueSize = isEphemeral ? 2 : 1;
+        EXPECT_EQ(expectedFutureQueueSize, lpNonioQ.getFutureQueueSize());
 
         // We shouldn't be able to schedule the Item Pager task yet as it's not
         // ready.
@@ -154,8 +157,8 @@ protected:
         } catch (std::logic_error&) {
         }
 
-        zipfScew = std::get<3>(GetParam());
-        noOfAccesses = std::get<4>(GetParam());
+        zipfScew = std::get<4>(GetParam());
+        noOfAccesses = std::get<5>(GetParam());
     }
 
     ENGINE_ERROR_CODE storeItem(Item& item) {
@@ -191,6 +194,14 @@ protected:
         EXPECT_EQ(ENGINE_TMPFAIL, result);
         // Fixup noOfDocs for last loop iteration.
         --noOfDocs;
+
+        if (!isEphemeral) {
+            for (int ii = 0; ii < noOfVBs; ii++) {
+                store->getVBucket(ii)->checkpointManager->createNewCheckpoint();
+                while (getEPBucket().flushVBucket(ii).second != 0)
+                    ;
+            }
+        }
 
         auto& stats = engine->getEpStats();
         EXPECT_GT(stats.getEstimatedTotalMemoryUsed(),
@@ -266,6 +277,10 @@ protected:
             int vbucketcount = 0;
             while ((current > lower) && vbucketcount < noOfVBs) {
                 runNextTask(lpNonioQ);
+                if (!isEphemeral) {
+                    while (getEPBucket().flushVBucket(vbucketcount).second != 0)
+                        ;
+                }
                 vbucketcount++;
                 current = static_cast<double>(
                         stats.getEstimatedTotalMemoryUsed());
@@ -332,6 +347,7 @@ protected:
     // map of document number to vbucket
     std::map<uint32_t, uint16_t> vbucketLookup;
     std::array<uint64_t, maxNoOfDocs> frequencies{};
+    bool isEphemeral{false};
 };
 
 #if defined(HAVE_JEMALLOC)
@@ -342,6 +358,11 @@ TEST_P(STHashTableEvictionTest, DISABLED_STHashTableEvictionItemPagerTest) {
     populateUntilTmpFail();
     printNoOfResidentDocs();
     accessPattern();
+
+    for (int ii = 0; ii < noOfVBs / 2; ii++) {
+        store->setVBucketState(ii, vbucket_state_replica, false);
+    }
+
     eviction();
     auto evictedCount = residentOrEvicted();
     std::cout << "evictedCount = " << evictedCount << std::endl;
@@ -352,13 +373,23 @@ TEST_P(STHashTableEvictionTest, DISABLED_STHashTableEvictionItemPagerTest) {
             << "Expected to be below low watermark after running item pager";
 }
 
-static auto testConfigValues = ::testing::Values(
+static auto parameters =
         std::make_tuple(/*max_size*/ std::to_string(200 * 1024 * 1024),
                         /*mem_low_wat*/ std::to_string(120 * 1024 * 1024),
                         /*mem_high_wat*/ std::to_string(160 * 1024 * 1024),
                         /*skew*/ 0.9,
-                        /*noOfAccesses*/ 20000000));
+                        /*noOfAccesses*/ 20000000);
 
-INSTANTIATE_TEST_CASE_P(Eviction, STHashTableEvictionTest, testConfigValues, );
+static auto persistentTestConfigValues = ::testing::Values(
+        std::tuple_cat(std::make_tuple(std::string("persistent")), parameters));
+static auto ephemeralTestConfigValues = ::testing::Values(
+        std::tuple_cat(std::make_tuple(std::string("ephemeral")), parameters));
+
+INSTANTIATE_TEST_CASE_P(EvictionPersistent,
+                        STHashTableEvictionTest,
+                        persistentTestConfigValues, );
+INSTANTIATE_TEST_CASE_P(EvictionEphemeral,
+                        STHashTableEvictionTest,
+                        ephemeralTestConfigValues, );
 
 #endif
