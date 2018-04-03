@@ -144,18 +144,11 @@ ADD_CUSTOM_COMMAND(OUTPUT
                      src/generated_configuration.h.temp
                   COMMENT "Copying code for configuration class")
 
-ADD_LIBRARY(ep_configuration STATIC
-  src/configuration.cc
-  src/configuration.h
-  ${CMAKE_CURRENT_BINARY_DIR}/src/generated_configuration.cc
-  ${CMAKE_CURRENT_BINARY_DIR}/src/generated_configuration.h)
-SET_PROPERTY(TARGET ep_configuration PROPERTY POSITION_INDEPENDENT_CODE 1)
-TARGET_INCLUDE_DIRECTORIES(ep_configuration
-  INTERFACE ${CMAKE_CURRENT_BINARY_DIR}/src)
-
 SET(COUCH_KVSTORE_SOURCE src/couch-kvstore/couch-kvstore.cc
             src/couch-kvstore/couch-fs-stats.cc)
 SET(OBJECTREGISTRY_SOURCE src/objectregistry.cc)
+SET(CONFIG_SOURCE src/configuration.cc
+  ${CMAKE_CURRENT_BINARY_DIR}/src/generated_configuration.cc)
 
 SET(COLLECTIONS_SOURCE src/collections/collections_callbacks.cc
                        src/collections/collections_dockey.cc
@@ -252,6 +245,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/warmup.cc
             ${OBJECTREGISTRY_SOURCE}
             ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.c
+            ${CONFIG_SOURCE}
             ${COUCH_KVSTORE_SOURCE}
             ${ROCKSDB_KVSTORE_SOURCE}
             ${COLLECTIONS_SOURCE})
@@ -261,21 +255,10 @@ add_sanitizers(ep_objs)
 ADD_LIBRARY(ep SHARED $<TARGET_OBJECTS:ep_objs>)
 
 SET_TARGET_PROPERTIES(ep PROPERTIES PREFIX "")
-TARGET_LINK_LIBRARIES(ep
-  ${EP_STORAGE_LIBS}
-  ${LIBEVENT_LIBRARIES}
-  JSON_checker
-  cJSON
-  cbcompress
-  dirutils
-  engine_utilities
-  ep_configuration
-  hdr_histogram_static
-  mcd_tracing
-  mcd_util
-  phosphor
-  platform
-  xattr)
+TARGET_LINK_LIBRARIES(ep cJSON JSON_checker ${EP_STORAGE_LIBS}
+                      engine_utilities dirutils cbcompress hdr_histogram_static
+                      mcd_util platform phosphor xattr mcd_tracing
+                      ${LIBEVENT_LIBRARIES})
 add_sanitizers(ep)
 
 if (COUCHBASE_KV_BUILD_UNIT_TESTS)
@@ -348,24 +331,10 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                                PUBLIC
                                ${Couchstore_SOURCE_DIR})
 
-    TARGET_LINK_LIBRARIES(ep-engine_ep_unit_tests
-      ${EP_STORAGE_LIBS}
-      ${MALLOC_LIBRARIES}
-      JSON_checker
-      cJSON
-      cbcompress
-      dirutils
-      engine_utilities
-      ep_configuration
-      gmock
-      gtest
-      hdr_histogram_static
-      mcd_tracing
-      mcd_util
-      memcached_logger
-      phosphor
-      platform
-      xattr)
+    TARGET_LINK_LIBRARIES(ep-engine_ep_unit_tests ${EP_STORAGE_LIBS} cJSON
+                          dirutils engine_utilities gtest gmock hdr_histogram_static
+                          JSON_checker memcached_logger mcd_util mcd_tracing platform
+                          phosphor xattr cbcompress ${MALLOC_LIBRARIES})
     add_sanitizers(ep-engine_ep_unit_tests)
 
     ADD_EXECUTABLE(ep-engine_atomic_ptr_test
@@ -414,24 +383,23 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                    ${Memcached_SOURCE_DIR}/engines/ep/tests/module_tests/test_helpers.cc)
 
     TARGET_LINK_LIBRARIES(ep_engine_benchmarks PRIVATE
-      ${EP_STORAGE_LIBS}
-      ${MALLOC_LIBRARIES}
-      JSON_checker
-      benchmark
-      cJSON
-      cbcompress
-      dirutils
-      engine_utilities
-      ep_configuration
-      gmock
-      gtest
-      hdr_histogram_static
-      mcd_tracing
-      mcd_util
-      memcached_logger
-      phosphor
-      platform
-      xattr)
+            benchmark
+            cbcompress
+            cJSON
+            dirutils
+            engine_utilities
+            gtest
+            gmock
+            hdr_histogram_static
+            JSON_checker
+            mcd_util
+            mcd_tracing
+            memcached_logger
+            phosphor
+            platform
+            xattr
+            ${MALLOC_LIBRARIES}
+            ${EP_STORAGE_LIBS})
     TARGET_INCLUDE_DIRECTORIES(ep_engine_benchmarks PUBLIC
                                ${benchmark_SOURCE_DIR}/include
                                tests
@@ -450,21 +418,9 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
 
     ADD_EXECUTABLE(ep-engine_sizes src/sizes.cc
                    $<TARGET_OBJECTS:ep_objs>)
-    TARGET_LINK_LIBRARIES(ep-engine_sizes
-      ${EP_STORAGE_LIBS}
-      ${LIBEVENT_LIBRARIES}
-      JSON_checker
-      cJSON
-      cbcompress
-      dirutils
-      engine_utilities
-      ep_configuration
-      hdr_histogram_static
-      mcd_tracing
-      mcd_util
-      phosphor
-      platform
-      xattr)
+    TARGET_LINK_LIBRARIES(ep-engine_sizes cJSON JSON_checker hdr_histogram_static
+                          engine_utilities ${EP_STORAGE_LIBS} dirutils cbcompress platform mcd_util
+                          mcd_tracing phosphor xattr ${LIBEVENT_LIBRARIES})
     add_sanitizers(ep-engine_sizes)
 
     ADD_LIBRARY(ep_testsuite SHARED
