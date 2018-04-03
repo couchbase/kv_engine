@@ -86,6 +86,16 @@ public:
     id_type getSize() const {return size;}
     std::vector<id_type> getBuckets(void) const;
     std::vector<id_type> getBucketsSortedByState(void) const;
+
+    /**
+     * Returns a vector containing the vbuckets from the map that are in the
+     * given state.
+     * @param state  the state used to filter which vbuckets to return
+     * @return  vector of vbuckets that are in the given state.
+     */
+    std::vector<VBucketMap::id_type> getBucketsInState(
+            vbucket_state_t state) const;
+
     std::vector<std::pair<id_type, size_t> > getActiveVBucketsSortedByChkMgrMem(void) const;
 
     /**

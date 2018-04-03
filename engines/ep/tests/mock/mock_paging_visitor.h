@@ -33,8 +33,19 @@ public:
                       pager_type_t caller,
                       bool pause,
                       double bias,
-                      std::atomic<item_pager_phase>* phase)
-        : PagingVisitor(s, st, pcnt, sfin, caller, pause, bias, phase) {
+                      const VBucketFilter& vbFilter,
+                      std::atomic<item_pager_phase>* phase,
+                      bool _isEphemeral)
+        : PagingVisitor(s,
+                        st,
+                        pcnt,
+                        sfin,
+                        caller,
+                        pause,
+                        bias,
+                        vbFilter,
+                        phase,
+                        _isEphemeral) {
     }
 
     ItemEviction& getItemEviction() {

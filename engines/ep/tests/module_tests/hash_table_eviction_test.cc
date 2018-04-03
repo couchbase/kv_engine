@@ -275,7 +275,11 @@ protected:
             current = static_cast<double>(stats.getEstimatedTotalMemoryUsed());
             lower = static_cast<double>(stats.mem_low_wat);
             int vbucketcount = 0;
-            while ((current > lower) && vbucketcount < noOfVBs) {
+            // Note:  The reason for the /2 in while condition below is that
+            // only half the vbuckets are active (the other half being
+            // replica).  We evict from these different types of vbuckets in
+            // separate runs of the ItemPager.
+            while ((current > lower) && vbucketcount < noOfVBs / 2) {
                 runNextTask(lpNonioQ);
                 if (!isEphemeral) {
                     while (getEPBucket().flushVBucket(vbucketcount).second != 0)

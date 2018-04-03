@@ -104,6 +104,18 @@ std::vector<VBucketMap::id_type> VBucketMap::getBucketsSortedByState(void) const
     return rv;
 }
 
+std::vector<VBucketMap::id_type> VBucketMap::getBucketsInState(
+        vbucket_state_t state) const {
+    std::vector<id_type> rv;
+    for (size_t i = 0; i < size; ++i) {
+        VBucketPtr b = getBucket(i);
+        if (b && b->getState() == state) {
+            rv.push_back(b->getId());
+        }
+    }
+    return rv;
+}
+
 std::vector<std::pair<VBucketMap::id_type, size_t> >
 VBucketMap::getActiveVBucketsSortedByChkMgrMem(void) const {
     std::vector<std::pair<id_type, size_t> > rv;

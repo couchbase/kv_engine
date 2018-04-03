@@ -50,8 +50,11 @@ PagingVisitor::PagingVisitor(KVBucket& s,
                              pager_type_t caller,
                              bool pause,
                              double bias,
-                             std::atomic<item_pager_phase>* phase)
-    : store(s),
+                             const VBucketFilter& vbFilter,
+                             std::atomic<item_pager_phase>* phase,
+                             bool _isEphemeral)
+    : VBucketVisitor(vbFilter),
+      store(s),
       stats(st),
       percent(pcnt),
       activeBias(bias),
@@ -64,6 +67,7 @@ PagingVisitor::PagingVisitor(KVBucket& s,
       wasHighMemoryUsage(s.isMemoryUsageTooHigh()),
       taskStart(ProcessClock::now()),
       pager_phase(phase),
+      isEphemeral(_isEphemeral),
       freqCounterThreshold(0) {
     }
 
@@ -252,8 +256,13 @@ PagingVisitor::PagingVisitor(KVBucket& s,
         if (pager_phase && completePhase) {
             if (*pager_phase == PAGING_UNREFERENCED) {
                 *pager_phase = PAGING_RANDOM;
-            } else {
+            } else if (*pager_phase == PAGING_RANDOM) {
                 *pager_phase = PAGING_UNREFERENCED;
+            } else if (*pager_phase == REPLICA_ONLY) {
+                *pager_phase = ACTIVE_AND_PENDING_ONLY;
+            } else if (*pager_phase == ACTIVE_AND_PENDING_ONLY &&
+                       !isEphemeral) {
+                *pager_phase = REPLICA_ONLY;
             }
         }
 
@@ -336,6 +345,16 @@ ItemPager::ItemPager(EventuallyPersistentEngine& e, EPStats& st)
       sleepTime(std::chrono::milliseconds(
               e.getConfiguration().getPagerSleepTimeMs())),
       notified(false) {
+    if (engine.getConfiguration().getHtEvictionPolicy() ==
+        "statistical_counter") {
+        // For the hifi_mfu algorithm if a couchbase/persistent bucket we
+        // want to start visiting the replica vbucket first.  However for
+        // ephemeral we do not evict from replica vbuckets and therefore
+        // we start with active and pending vbuckets.
+        phase = (engine.getConfiguration().getBucketType() == "persistent")
+                        ? REPLICA_ONLY
+                        : ACTIVE_AND_PENDING_ONLY;
+    }
 }
 
 bool ItemPager::run(void) {
@@ -383,6 +402,34 @@ bool ItemPager::run(void) {
         size_t activeEvictPerc = cfg.getPagerActiveVbPcnt();
         double bias = static_cast<double>(activeEvictPerc) / 50;
 
+        VBucketFilter filter;
+        // For the hifi_mfu algorithm use the phase to filter which vbuckets
+        // we want to visit (either replica or active/pending vbuckets).
+        if (engine.getConfiguration().getHtEvictionPolicy() ==
+            "statistical_counter") {
+            vbucket_state_t state;
+            if (phase == REPLICA_ONLY) {
+                state = vbucket_state_replica;
+            } else if (phase == ACTIVE_AND_PENDING_ONLY) {
+                state = vbucket_state_active;
+                auto acceptableVBs = kvBucket->getVBucketsInState(state);
+                for (auto vb : acceptableVBs) {
+                    filter.addVBucket(vb);
+                }
+                state = vbucket_state_pending;
+            } else {
+                throw std::invalid_argument(
+                        "ItemPager::run - "
+                        "phase is invalid for hifi_mfu eviction algorithm");
+            }
+            auto acceptableVBs = kvBucket->getVBucketsInState(state);
+            for (auto vb : acceptableVBs) {
+                filter.addVBucket(vb);
+            }
+        }
+
+        bool isEphemeral =
+                (engine.getConfiguration().getBucketType() == "ephemeral");
         auto pv = std::make_unique<PagingVisitor>(*kvBucket,
                                                   stats,
                                                   toKill,
@@ -390,7 +437,9 @@ bool ItemPager::run(void) {
                                                   ITEM_PAGER,
                                                   false,
                                                   bias,
-                                                  &phase);
+                                                  filter,
+                                                  &phase,
+                                                  isEphemeral);
 
         // p99.99 is ~200ms
         const auto maxExpectedDuration = std::chrono::milliseconds(200);
@@ -463,15 +512,19 @@ bool ExpiredItemPager::run(void) {
     if ((*available).compare_exchange_strong(inverse, false)) {
         ++stats.expiryPagerRuns;
 
-        auto pv = std::make_unique<PagingVisitor>(
-                *kvBucket,
-                stats,
-                -1,
-                available,
-                EXPIRY_PAGER,
-                true,
-                1,
-                /* pager_phase */ nullptr);
+        VBucketFilter filter;
+        bool isEphemeral =
+                (engine->getConfiguration().getBucketType() == "ephemeral");
+        auto pv = std::make_unique<PagingVisitor>(*kvBucket,
+                                                  stats,
+                                                  -1,
+                                                  available,
+                                                  EXPIRY_PAGER,
+                                                  true,
+                                                  1,
+                                                  filter,
+                                                  /* pager_phase */ nullptr,
+                                                  isEphemeral);
 
         // p99.99 is ~50ms (same as ItemPager).
         const auto maxExpectedDuration = std::chrono::milliseconds(50);

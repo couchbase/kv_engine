@@ -308,6 +308,67 @@ TEST_P(STItemPagerTest, HighWaterMarkTriggersPager) {
     runHighMemoryPager();
 }
 
+// Tests that for the hifi_mfu eviction algorithm we visit replica vbuckets
+// first.
+TEST_P(STItemPagerTest, ReplicaItemsVisitedFirst) {
+    // For the Expiry Pager we do not enforce the visiting of replica buckets
+    // first.
+    if ((std::get<1>(GetParam()) == "fail_new_data")) {
+        return;
+    }
+    auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+
+    const uint16_t activeVB = 0;
+    const uint16_t pendingVB = 1;
+    const uint16_t replicaVB = 2;
+    // Set pendingVB online, initially as active (so we can populate it).
+    store->setVBucketState(pendingVB, vbucket_state_active, false);
+    // Set replicaVB online, initially as active (so we can populate it).
+    store->setVBucketState(replicaVB, vbucket_state_active, false);
+
+    // Add a document to both the active and pending vbucket.
+    const std::string value(512, 'x'); // 512B value to use for documents.
+    for (int ii = 0; ii < 10; ii++) {
+        auto key = makeStoredDocKey("key_" + std::to_string(ii));
+        auto activeItem = make_item(activeVB, key, value);
+        auto pendingItem = make_item(pendingVB, key, value);
+        ASSERT_EQ(ENGINE_SUCCESS, storeItem(activeItem));
+        ASSERT_EQ(ENGINE_SUCCESS, storeItem(pendingItem));
+    }
+
+    store->setVBucketState(pendingVB, vbucket_state_pending, false);
+
+    auto count = populateUntilTmpFail(replicaVB);
+    store->setVBucketState(replicaVB, vbucket_state_replica, false);
+
+    runNextTask(lpNonioQ, "Paging out items.");
+    runNextTask(lpNonioQ, "Item pager on vb 0");
+
+    if (std::get<0>(GetParam()) == "ephemeral") {
+        // For ephemeral we do not evict from replicas and so they are
+        // not visited first.  This means there will be another Item
+        // pager task to run.
+        runNextTask(lpNonioQ, "Item pager on vb 0");
+        // We should have not evicted from replica vbuckets
+        EXPECT_EQ(count, store->getVBucket(replicaVB)->getNumItems());
+        // We should have evicted from the active/pending vbuckets
+        auto activeAndPendingItems =
+                store->getVBucket(activeVB)->getNumItems() +
+                store->getVBucket(pendingVB)->getNumItems();
+        EXPECT_NE(20, activeAndPendingItems);
+
+    } else {
+        // We should have evicted from replica vbuckets
+        EXPECT_NE(0, store->getVBucket(replicaVB)->getNumNonResidentItems());
+        auto evictedActiveAndPendingItems =
+                store->getVBucket(activeVB)->getNumNonResidentItems() +
+                store->getVBucket(pendingVB)->getNumNonResidentItems();
+        // We should not have evicted from active or pending vbuckets
+        EXPECT_EQ(0, evictedActiveAndPendingItems);
+    }
+    ASSERT_EQ(initialNonIoTasks, lpNonioQ.getFutureQueueSize());
+}
+
 // Test that when the server quota is reached, we delete items which have
 // expired before any other items.
 TEST_P(STItemPagerTest, ExpiredItemsDeletedFirst) {
@@ -487,6 +548,7 @@ TEST_P(STItemPagerTest, isEligible) {
     }
     std::shared_ptr<std::atomic<bool>> available;
     std::atomic<item_pager_phase> phase;
+    bool isEphemeral = std::get<0>(GetParam()) == "ephemeral";
     std::unique_ptr<MockPagingVisitor> pv =
             std::make_unique<MockPagingVisitor>(*engine->getKVBucket(),
                                                 engine->getEpStats(),
@@ -495,7 +557,9 @@ TEST_P(STItemPagerTest, isEligible) {
                                                 ITEM_PAGER,
                                                 false,
                                                 0.5,
-                                                &phase);
+                                                VBucketFilter(),
+                                                &phase,
+                                                isEphemeral);
 
     VBucketPtr vb = store->getVBucket(vbid);
     pv->visitBucket(vb);
@@ -548,8 +612,13 @@ TEST_P(STEphemeralItemPagerTest, ReplicaNotPaged) {
     // Flip vb 1 to be a replica (and hence should not be a candidate for
     // any paging out.
     store->setVBucketState(replica_vb, vbucket_state_replica, false);
-
-    runHighMemoryPager(2);
+    //  If ephemeral and not running the expiry Pager then only run for one
+    // vbucket (as we are skipping the replica vbucket).
+    auto vbCount = ((std::get<0>(GetParam()) == "ephemeral") &&
+                    (std::get<1>(GetParam()) != "fail_new_data"))
+                           ? 1
+                           : 2;
+    runHighMemoryPager(vbCount);
 
     EXPECT_EQ(replica_count, store->getVBucket(replica_vb)->getNumItems())
         << "Replica count should be unchanged after Item Pager";

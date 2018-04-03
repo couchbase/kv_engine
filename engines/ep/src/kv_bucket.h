@@ -342,6 +342,17 @@ public:
      */
     uint16_t getNumOfVBucketsInState(vbucket_state_t state) const;
 
+    /**
+     * Returns a vector containing the vbuckets from the vbMap that are in
+     * the given state.
+     * @param state  the state used to filter which vbuckets to return
+     * @return  vector of vbuckets that are in the given state.
+     */
+    std::vector<VBucketMap::id_type> getVBucketsInState(
+            vbucket_state_t state) const {
+        return vbMap.getBucketsInState(state);
+    }
+
     VBucketPtr getVBucket(uint16_t vbid) {
         return vbMap.getBucket(vbid);
     }

@@ -33,7 +33,9 @@ class EventuallyPersistentEngine;
  */
 enum item_pager_phase {
     PAGING_UNREFERENCED,
-    PAGING_RANDOM
+    PAGING_RANDOM,
+    REPLICA_ONLY, // Visit only replica vbuckets
+    ACTIVE_AND_PENDING_ONLY // Visit only active and pending vbuckets
 };
 
 /**
