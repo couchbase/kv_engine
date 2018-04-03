@@ -105,43 +105,25 @@ void iterate_all_connections(std::function<void(Connection&)> callback) {
 }
 
 static bool create_notification_pipe(LIBEVENT_THREAD& me) {
-    int j;
-
-#ifdef WIN32
-#define DATATYPE intptr_t
-#else
-#define DATATYPE int
-#endif
-
     if (evutil_socketpair(SOCKETPAIR_AF,
                           SOCK_STREAM,
                           0,
-                          reinterpret_cast<DATATYPE*>(me.notify)) ==
+                          reinterpret_cast<evutil_socket_t*>(me.notify)) ==
         SOCKET_ERROR) {
         LOG_WARNING("Can't create notify pipe: {}",
                     cb_strerror(cb::net::get_socket_error()));
         return false;
     }
 
-    for (j = 0; j < 2; ++j) {
+    for (auto sock : me.notify) {
         int flags = 1;
-#if defined(WIN32)
-        char* flag_ptr = reinterpret_cast<char*>(&flags);
-#else
-        void* flag_ptr = reinterpret_cast<void*>(&flags);
-#endif
-        setsockopt(me.notify[j],
-                   IPPROTO_TCP,
-                   TCP_NODELAY,
-                   flag_ptr,
-                   sizeof(flags));
-        setsockopt(me.notify[j],
-                   SOL_SOCKET,
-                   SO_REUSEADDR,
-                   flag_ptr,
-                   sizeof(flags));
+        const auto* flag_ptr = reinterpret_cast<const void*>(&flags);
+        cb::net::setsockopt(
+                sock, IPPROTO_TCP, TCP_NODELAY, flag_ptr, sizeof(flags));
+        cb::net::setsockopt(
+                sock, SOL_SOCKET, SO_REUSEADDR, flag_ptr, sizeof(flags));
 
-        if (evutil_make_socket_nonblocking(me.notify[j]) == -1) {
+        if (evutil_make_socket_nonblocking(sock) == -1) {
             LOG_WARNING("Failed to enable non-blocking: {}",
                         cb_strerror(cb::net::get_socket_error()));
             return false;
