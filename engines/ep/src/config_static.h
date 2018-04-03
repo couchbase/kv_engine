@@ -45,7 +45,7 @@
 #pragma warning(disable: 4996)
 
 #define sleep(a) Sleep(a * 1000)
-#define random() (long)rand()
+static inline long random() { return (long)rand(); }
 typedef unsigned int useconds_t;
 #endif // WIN32
 
