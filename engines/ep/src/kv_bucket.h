@@ -45,8 +45,8 @@ public:
                 TaskId id,
                 std::unique_ptr<VBucketVisitor> v,
                 const char* l,
-                double sleep = 0,
-                bool shutdown = false);
+                double sleep,
+                bool shutdown);
 
     cb::const_char_buffer getDescription() {
         std::unique_lock<std::mutex> lock(description.mutex);

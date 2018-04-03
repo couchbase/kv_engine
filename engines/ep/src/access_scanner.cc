@@ -364,7 +364,7 @@ void AccessScanner::createAndScheduleTask(const size_t shard) {
                                                   std::move(pv),
                                                   "Item Access Scanner",
                                                   sleepTime,
-                                                  true);
+                                                  /*shutdown*/ true);
 
         // p99.9 is typically ~200ms
         task->setMaxExpectedDuration(std::chrono::milliseconds(500));

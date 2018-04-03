@@ -2121,7 +2121,7 @@ size_t KVBucket::visit(std::unique_ptr<VBucketVisitor> visitor,
                        double sleepTime,
                        std::chrono::microseconds maxExpectedDuration) {
     auto task = std::make_shared<VBCBAdaptor>(
-            this, id, std::move(visitor), lbl, sleepTime);
+            this, id, std::move(visitor), lbl, sleepTime, /*shutdown*/ false);
     task->setMaxExpectedDuration(maxExpectedDuration);
     return ExecutorPool::get()->schedule(task);
 }
