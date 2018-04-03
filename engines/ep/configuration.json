@@ -429,7 +429,7 @@
             "type": "std::string"
         },
         "item_compressor_interval": {
-            "default": "2000",
+            "default": "250",
             "descr": "How often the item compressor task should run (in milliseconds)",
             "type": "size_t"
         },
