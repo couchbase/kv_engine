@@ -5908,7 +5908,7 @@ static enum test_result test_mb19982(ENGINE_HANDLE *h,
     add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
-    std::thread thread([h, h1, iterations]() {
+    std::thread thread([h, iterations]() {
         for (int ii = 0; ii < iterations; ii++) {
             checkeq(ENGINE_SUCCESS,
                     get_stats(h, "dcp"_ccb, &mb19982_add_stat),
