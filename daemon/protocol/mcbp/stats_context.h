@@ -36,6 +36,9 @@ public:
         CheckPrivilege,
         // Execute the stats command call
         DoStats,
+        // If DoStats invokes a background task, go to this state to handle the
+        // result of that
+        GetTaskResult,
         // Command completed, do any post complete tasks
         CommandComplete,
         // We are done :)
@@ -46,6 +49,10 @@ public:
         : SteppableCommandContext(cookie),
           key(cookie.getRequest().getKey()),
           state(State::ParseCommandKey) {
+    }
+
+    void setTask(std::shared_ptr<Task> t) {
+        task = t;
     }
 
 protected:
@@ -63,6 +70,8 @@ protected:
 
     ENGINE_ERROR_CODE doStats();
 
+    ENGINE_ERROR_CODE getTaskResult();
+
     ENGINE_ERROR_CODE commandComplete();
 
 private:
@@ -78,4 +87,6 @@ private:
      * The final ENGINE_ERROR_CODE returned from actually doing the stats call
      */
     ENGINE_ERROR_CODE command_exit_code;
+
+    std::shared_ptr<Task> task;
 };

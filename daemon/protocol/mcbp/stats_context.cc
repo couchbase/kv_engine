@@ -23,10 +23,12 @@
 #include <daemon/buckets.h>
 #include <daemon/connections.h>
 #include <daemon/debug_helpers.h>
+#include <daemon/executorpool.h>
 #include <daemon/mc_time.h>
 #include <daemon/mcbp.h>
 #include <daemon/runtime.h>
 #include <daemon/stats.h>
+#include <daemon/stats_tasks.h>
 #include <mcbp/protocol/framebuilder.h>
 #include <mcbp/protocol/header.h>
 #include <memcached/audit_interface.h>
@@ -627,8 +629,13 @@ static ENGINE_ERROR_CODE stat_connections_executor(const std::string& arg,
         }
     }
 
-    connection_stats(&append_stats, &cookie, fd);
-    return ENGINE_SUCCESS;
+    std::shared_ptr<Task> task = std::make_shared<StatsTaskConnectionStats>(
+            cookie.getConnection(), cookie, &append_stats, fd);
+    cookie.obtainContext<StatsCommandContext>(cookie).setTask(task);
+    std::lock_guard<std::mutex> guard(task->getMutex());
+    executorPool->schedule(task, true);
+
+    return ENGINE_EWOULDBLOCK;
 }
 
 /**
@@ -829,7 +836,8 @@ static ENGINE_ERROR_CODE stat_all_stats(const std::string& arg,
     return ret;
 }
 
-static ENGINE_ERROR_CODE stat_bucket_stats(const std::string& arg, Cookie& cookie) {
+static ENGINE_ERROR_CODE stat_bucket_stats(const std::string& arg,
+                                           Cookie& cookie) {
     return bucket_get_stats(cookie, arg, append_stats);
 }
 
@@ -897,6 +905,9 @@ ENGINE_ERROR_CODE StatsCommandContext::step() {
             break;
         case State::DoStats:
             ret = doStats();
+            break;
+        case State::GetTaskResult:
+            ret = getTaskResult();
             break;
         case State::CommandComplete:
             ret = commandComplete();
@@ -966,7 +977,23 @@ ENGINE_ERROR_CODE StatsCommandContext::doStats() {
         command_exit_code = handler_pair.first.handler(argument, cookie);
     }
 
+    // If stats command call returns ENGINE_EWOULDBLOCK and the task is not a
+    // nullptr (ie we have created a background task), then change the state to
+    // be GetTaskResult and return ENGINE_EWOULDBLOCK
+    if (command_exit_code == ENGINE_EWOULDBLOCK && task) {
+        state = State::GetTaskResult;
+        return ENGINE_EWOULDBLOCK;
+    }
+
     state = State::CommandComplete;
+    return ENGINE_SUCCESS;
+}
+
+ENGINE_ERROR_CODE StatsCommandContext::getTaskResult() {
+    auto& stats_task = dynamic_cast<StatsTask&>(*task);
+
+    state = State::CommandComplete;
+    command_exit_code = stats_task.getCommandError();
     return ENGINE_SUCCESS;
 }
 

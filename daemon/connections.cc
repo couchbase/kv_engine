@@ -248,19 +248,6 @@ ListeningPort *get_listening_port_instance(const in_port_t port) {
     return nullptr;
 }
 
-void connection_stats(ADD_STAT add_stats, const void* cookie, const int64_t fd) {
-    std::lock_guard<std::mutex> lock(connections.mutex);
-    for (auto *c : connections.conns) {
-        if (c->getSocketDescriptor() == fd || fd == -1) {
-            auto stats = c->toJSON();
-            // no key, JSON value contains all properties of the connection.
-            auto stats_str = to_string(stats, false);
-            add_stats(nullptr, 0, stats_str.data(), uint32_t(stats_str.size()),
-                      cookie);
-        }
-    }
-}
-
 #ifndef WIN32
 /**
  * NOTE: This is <b>not</b> intended to be called during normal situation,

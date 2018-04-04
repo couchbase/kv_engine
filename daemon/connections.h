@@ -84,12 +84,6 @@ void conn_close(Connection& connection);
  */
 ListeningPort *get_listening_port_instance(const in_port_t port);
 
-/* Dump stats for the connection with the given fd number, or all connections
- * if fd is -1.
- * Note: We hold the connections mutex for the duration of this function.
- */
-void connection_stats(ADD_STAT add_stats, const void *c, const int64_t fd);
-
 /**
  * Signal (set writable) all idle clients bound to either a specific
  * bucket specified by its index, or any bucket (specified as -1).
