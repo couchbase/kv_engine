@@ -232,6 +232,12 @@ public:
             return false;
         }
 
+        if (iter->second.first != cookie) {
+            // The cookie is different so it represents a different command
+            connection_map.erase(iter);
+            return false;
+        }
+
         const bool inject = iter->second.second->should_inject_error(cmd, err);
         const bool add_to_pending_io_ops = iter->second.second->add_to_pending_io_ops();
 
