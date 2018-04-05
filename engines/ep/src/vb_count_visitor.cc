@@ -32,6 +32,7 @@ void VBucketCountVisitor::visitBucket(VBucketPtr& vb) {
     if (desired_state != vbucket_state_dead) {
         htMemory += vb->ht.memorySize();
         htItemMemory += vb->ht.getItemMemory();
+        htUncompressedItemMemory += vb->ht.getUncompressedItemMemory();
         htCacheSize += vb->ht.getCacheSize();
         numEjects += vb->ht.getNumEjects();
         numExpiredItems += vb->numExpiredItems;

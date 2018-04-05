@@ -234,6 +234,10 @@ public:
             return memSize;
         }
 
+        size_t getUncompressedMemSize() const {
+            return uncompressedMemSize;
+        }
+
     private:
         /// Count of alive & deleted, in-memory non-resident and resident items.
         /// Excludes temporary items.
@@ -265,6 +269,9 @@ public:
 
         //! Memory consumed by items in this hashtable.
         std::atomic<size_t> memSize = {};
+
+        /// Memory consumed if the items were uncompressed.
+        std::atomic<size_t> uncompressedMemSize = {};
 
         EPStats& epStats;
     };
@@ -427,6 +434,10 @@ public:
      */
     size_t getMetadataMemory() const {
         return valueStats.getMetaDataMemory();
+    }
+
+    size_t getUncompressedItemMemory() const {
+        return valueStats.getUncompressedMemSize();
     }
 
     /**

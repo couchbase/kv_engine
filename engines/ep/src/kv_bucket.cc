@@ -1091,6 +1091,8 @@ void KVBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
     DO_STAT("vb_active_meta_data_disk", active.getMetaDataDisk());
     DO_STAT("vb_active_ht_memory", active.getHashtableMemory());
     DO_STAT("vb_active_itm_memory", active.getItemMemory());
+    DO_STAT("vb_active_itm_memory_uncompressed",
+            active.getUncompressedItemMemory());
     DO_STAT("vb_active_ops_create", active.getOpsCreate());
     DO_STAT("vb_active_ops_update", active.getOpsUpdate());
     DO_STAT("vb_active_ops_delete", active.getOpsDelete());
@@ -1116,6 +1118,8 @@ void KVBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
     DO_STAT("vb_replica_meta_data_disk", replica.getMetaDataDisk());
     DO_STAT("vb_replica_ht_memory", replica.getHashtableMemory());
     DO_STAT("vb_replica_itm_memory", replica.getItemMemory());
+    DO_STAT("vb_replica_itm_memory_uncompressed",
+            replica.getUncompressedItemMemory());
     DO_STAT("vb_replica_ops_create", replica.getOpsCreate());
     DO_STAT("vb_replica_ops_update", replica.getOpsUpdate());
     DO_STAT("vb_replica_ops_delete", replica.getOpsDelete());
@@ -1141,6 +1145,8 @@ void KVBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
     DO_STAT("vb_pending_meta_data_disk", pending.getMetaDataDisk());
     DO_STAT("vb_pending_ht_memory", pending.getHashtableMemory());
     DO_STAT("vb_pending_itm_memory", pending.getItemMemory());
+    DO_STAT("vb_pending_itm_memory_uncompressed",
+            pending.getUncompressedItemMemory());
     DO_STAT("vb_pending_ops_create", pending.getOpsCreate());
     DO_STAT("vb_pending_ops_update", pending.getOpsUpdate());
     DO_STAT("vb_pending_ops_delete", pending.getOpsDelete());

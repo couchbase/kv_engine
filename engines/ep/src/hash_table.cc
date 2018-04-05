@@ -23,6 +23,7 @@
 #include "stored_value_factories.h"
 
 #include <phosphor/phosphor.h>
+#include <platform/compress.h>
 
 #include <cstring>
 
@@ -347,6 +348,15 @@ void HashTable::Statistics::prologue(const StoredValue& v) {
     cacheSize.fetch_sub(v.size());
     memSize.fetch_sub(v.size());
 
+    if (mcbp::datatype::is_snappy(v.getDatatype())) {
+        size_t uncompressed_length = cb::compression::get_uncompressed_length(
+                cb::compression::Algorithm::Snappy,
+                {v.getValue()->getData(), v.valuelen()});
+        uncompressedMemSize.fetch_sub(v.metaDataSize() + uncompressed_length);
+    } else {
+        uncompressedMemSize.fetch_sub(v.size());
+    }
+
     if (!v.isResident() && !v.isDeleted() && !v.isTempItem()) {
         --numNonResidentItems;
     }
@@ -372,6 +382,15 @@ void HashTable::Statistics::epilogue(const StoredValue& v) {
     cacheSize.fetch_add(v.size());
     memSize.fetch_add(v.size());
 
+    if (mcbp::datatype::is_snappy(v.getDatatype())) {
+        size_t uncompressed_length = cb::compression::get_uncompressed_length(
+                cb::compression::Algorithm::Snappy,
+                {v.getValue()->getData(), v.valuelen()});
+        uncompressedMemSize.fetch_add(v.metaDataSize() + uncompressed_length);
+    } else {
+        uncompressedMemSize.fetch_add(v.size());
+    }
+
     if (!v.isResident() && !v.isDeleted() && !v.isTempItem()) {
         ++numNonResidentItems;
     }
@@ -395,6 +414,7 @@ void HashTable::Statistics::reset() {
     numNonResidentItems.store(0);
     memSize.store(0);
     cacheSize.store(0);
+    uncompressedMemSize.store(0);
 }
 
 std::pair<StoredValue*, StoredValue::UniquePtr>

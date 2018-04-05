@@ -361,6 +361,7 @@ protected:
         global_stats.reset();
         ASSERT_EQ(0, ht.getItemMemory());
         ASSERT_EQ(0, ht.getCacheSize());
+        ASSERT_EQ(0, ht.getUncompressedItemMemory());
         initialSize = stats.currentSize.load();
 
         EXPECT_EQ(0, ht.getNumItems());
@@ -375,6 +376,7 @@ protected:
 
     void TearDown() override {
         EXPECT_EQ(0, ht.getItemMemory());
+        EXPECT_EQ(0, ht.getUncompressedItemMemory());
         EXPECT_EQ(0, ht.getCacheSize());
         EXPECT_EQ(initialSize, stats.currentSize.load());
 
@@ -642,6 +644,46 @@ TEST_P(HashTableStatsTest, SoftDelete) {
 
     // Cleanup, all counts should become zero.
     del(ht, key);
+}
+
+/**
+ * Test to track if the size of the uncompressed item memory
+ * is updated correctly
+ */
+TEST_P(HashTableStatsTest, UncompressedMemorySizeTest) {
+    HashTable ht(
+            global_stats, makeFactory(true), 2, 1, defaultHtevictionPolicy);
+
+    std::string valueData(
+            "{\"product\": \"car\",\"price\": \"100\"},"
+            "{\"product\": \"bus\",\"price\": \"1000\"},"
+            "{\"product\": \"Train\",\"price\": \"100000\"}");
+
+    auto item = makeCompressibleItem(0,
+                                     makeStoredDocKey("key0"),
+                                     valueData,
+                                     PROTOCOL_BINARY_DATATYPE_JSON,
+                                     true);
+
+    ASSERT_EQ(MutationStatus::WasClean, ht.set(*item));
+
+    /**
+     * Ensure that length of the value stored is the same as the length
+     * of the compressed item
+     */
+    StoredValue* v = ht.find(
+            makeStoredDocKey("key0"), TrackReference::No, WantsDeleted::No);
+    EXPECT_NE(nullptr, v);
+    EXPECT_EQ(item->getNBytes(), v->valuelen());
+
+    EXPECT_EQ(1, ht.getNumItems());
+    EXPECT_EQ(ht.getUncompressedItemMemory(),
+              v->metaDataSize() + valueData.length());
+
+    ASSERT_TRUE(del(ht, makeStoredDocKey("key0")));
+
+    EXPECT_EQ(0, ht.getNumItems());
+    EXPECT_EQ(0, ht.getUncompressedItemMemory());
 }
 
 INSTANTIATE_TEST_CASE_P(

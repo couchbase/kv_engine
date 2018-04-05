@@ -2140,6 +2140,10 @@ void VBucket::_addStats(bool details, ADD_STAT add_stat, const void* c) {
         addStat("num_non_resident", getNumNonResidentItems(), add_stat, c);
         addStat("ht_memory", ht.memorySize(), add_stat, c);
         addStat("ht_item_memory", ht.getItemMemory(), add_stat, c);
+        addStat("ht_item_memory_uncompressed",
+                ht.getUncompressedItemMemory(),
+                add_stat,
+                c);
         addStat("ht_cache_size", ht.getCacheSize(), add_stat, c);
         addStat("ht_size", ht.getSize(), add_stat, c);
         addStat("num_ejects", ht.getNumEjects(), add_stat, c);

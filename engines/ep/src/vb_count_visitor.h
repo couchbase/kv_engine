@@ -41,6 +41,7 @@ public:
           numVbucket(0),
           htMemory(0),
           htItemMemory(0),
+          htUncompressedItemMemory(0),
           htCacheSize(0),
           numEjects(0),
           numExpiredItems(0),
@@ -116,6 +117,10 @@ public:
     size_t getItemMemory() {
         return htItemMemory;
     }
+
+    size_t getUncompressedItemMemory() {
+        return htUncompressedItemMemory;
+    }
     size_t getCacheSize() {
         return htCacheSize;
     }
@@ -190,6 +195,7 @@ private:
     size_t numVbucket;
     size_t htMemory;
     size_t htItemMemory;
+    size_t htUncompressedItemMemory;
     size_t htCacheSize;
     size_t numEjects;
     size_t numExpiredItems;

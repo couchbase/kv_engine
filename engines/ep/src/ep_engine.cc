@@ -3183,8 +3183,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashStats(const void *cookie,
 
     class StatVBucketVisitor : public VBucketVisitor {
     public:
-        StatVBucketVisitor(const void *c, ADD_STAT a) : cookie(c),
-                                                        add_stat(a) {}
+        StatVBucketVisitor(const void* c,
+                           ADD_STAT a,
+                           BucketCompressionMode compressMode)
+            : cookie(c), add_stat(a), compressionMode(compressMode) {
+        }
 
         void visitBucket(VBucketPtr &vb) override {
             uint16_t vbid = vb->getId();
@@ -3224,6 +3227,17 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashStats(const void *cookie,
                 add_casted_stat(buf, vb->ht.getNumResizes(), add_stat, cookie);
                 checked_snprintf(buf, sizeof(buf), "vb_%d:mem_size", vbid);
                 add_casted_stat(buf, vb->ht.getItemMemory(), add_stat, cookie);
+
+                if (compressionMode != BucketCompressionMode::Off) {
+                    checked_snprintf(buf,
+                                     sizeof(buf),
+                                     "vb_%d:mem_size_uncompressed",
+                                     vbid);
+                    add_casted_stat(buf,
+                                    vb->ht.getUncompressedItemMemory(),
+                                    add_stat,
+                                    cookie);
+                }
                 checked_snprintf(buf, sizeof(buf), "vb_%d:mem_size_counted",
                                  vbid);
                 add_casted_stat(buf, depthVisitor.memUsed, add_stat, cookie);
@@ -3236,9 +3250,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashStats(const void *cookie,
 
         const void *cookie;
         ADD_STAT add_stat;
+        BucketCompressionMode compressionMode;
     };
 
-    StatVBucketVisitor svbv(cookie, add_stat);
+    StatVBucketVisitor svbv(cookie, add_stat, getCompressionMode());
     kvBucket->visit(svbv);
 
     return ENGINE_SUCCESS;
