@@ -121,10 +121,9 @@ private:
     Logger* logger;
     bool buffered;
     bool persistDocNamespace;
-
-    /**
-     * If non-zero, tell storage layer to issue a sync() operation after every
-     * N bytes written.
-     */
-    uint64_t periodicSyncBytes;
+	/**
+	 * If non-zero, tell storage layer to issue a sync() operation after every
+	 * N bytes written.
+	 */
+	uint64_t periodicSyncBytes;
 };

@@ -10,8 +10,11 @@ INCLUDE(CheckTypeSize)
 INCLUDE(CMakeDependentOption)
 INCLUDE(CTest)
 
+OPTION(EP_USE_PLASMA "Enable support for Plasma" ON)
+
 CMAKE_DEPENDENT_OPTION(EP_USE_ROCKSDB "Enable support for RocksDB" ON
         "ROCKSDB_INCLUDE_DIR;ROCKSDB_LIBRARIES" OFF)
+
 
 INCLUDE_DIRECTORIES(BEFORE ${CMAKE_INSTALL_PREFIX}/include
                            ${CMAKE_CURRENT_SOURCE_DIR}
@@ -47,6 +50,19 @@ IF (EP_USE_ROCKSDB)
     ADD_DEFINITIONS(-DEP_USE_ROCKSDB=1)
     MESSAGE(STATUS "ep-engine: Using RocksDB")
 ENDIF (EP_USE_ROCKSDB)
+
+IF (EP_USE_PLASMA)
+    INCLUDE_DIRECTORIES(AFTER ${PLASMA_INCLUDE_DIR})
+    SET(PLASMA_KVSTORE_SOURCE src/plasma-kvstore/plasma-wrapper.c
+                              src/plasma-kvstore/plasma-kvstore.cc
+                              src/plasma-kvstore/plasma-kvstore_config.cc)
+    LIST(APPEND EP_STORAGE_LIBS plasma-core)
+    ADD_DEFINITIONS(-DEP_USE_PLASMA=1)
+    MESSAGE(STATUS "ep-engine: Using Plasma libs at " ${EP_STORAGE_LIBS})
+ELSE (EP_USE_PLASMA)
+    MESSAGE(STATUS "ep-engine: NOT using plasma!!!" ${EP_USE_PLASMA}
+        " dir=" ${PLASMA_CORE_LIB} "include=" ${PLASMA_INCLUDE_DIR})
+ENDIF (EP_USE_PLASMA)
 
 INCLUDE_DIRECTORIES(AFTER SYSTEM
                     ${gtest_SOURCE_DIR}/include
@@ -248,6 +264,7 @@ ADD_LIBRARY(ep_objs OBJECT
             ${CONFIG_SOURCE}
             ${COUCH_KVSTORE_SOURCE}
             ${ROCKSDB_KVSTORE_SOURCE}
+            ${PLASMA_KVSTORE_SOURCE}
             ${COLLECTIONS_SOURCE})
 SET_PROPERTY(TARGET ep_objs PROPERTY POSITION_INDEPENDENT_CODE 1)
 add_sanitizers(ep_objs)
@@ -257,7 +274,7 @@ ADD_LIBRARY(ep SHARED $<TARGET_OBJECTS:ep_objs>)
 SET_TARGET_PROPERTIES(ep PROPERTIES PREFIX "")
 TARGET_LINK_LIBRARIES(ep cJSON JSON_checker ${EP_STORAGE_LIBS}
                       engine_utilities dirutils cbcompress hdr_histogram_static
-                      mcd_util platform phosphor xattr mcd_tracing
+                      mcd_util platform phosphor xattr mcd_tracing sigar
                       ${LIBEVENT_LIBRARIES})
 add_sanitizers(ep)
 
@@ -334,7 +351,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
     TARGET_LINK_LIBRARIES(ep-engine_ep_unit_tests ${EP_STORAGE_LIBS} cJSON
                           dirutils engine_utilities gtest gmock hdr_histogram_static
                           JSON_checker memcached_logger mcd_util mcd_tracing platform
-                          phosphor xattr cbcompress ${MALLOC_LIBRARIES})
+                          phosphor sigar xattr cbcompress ${MALLOC_LIBRARIES})
     add_sanitizers(ep-engine_ep_unit_tests)
 
     ADD_EXECUTABLE(ep-engine_atomic_ptr_test
@@ -396,6 +413,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
             mcd_tracing
             memcached_logger
             phosphor
+            sigar
             platform
             xattr
             ${MALLOC_LIBRARIES}
@@ -420,7 +438,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                    $<TARGET_OBJECTS:ep_objs>)
     TARGET_LINK_LIBRARIES(ep-engine_sizes cJSON JSON_checker hdr_histogram_static
                           engine_utilities ${EP_STORAGE_LIBS} dirutils cbcompress platform mcd_util
-                          mcd_tracing phosphor xattr ${LIBEVENT_LIBRARIES})
+                          mcd_tracing phosphor sigar xattr ${LIBEVENT_LIBRARIES})
     add_sanitizers(ep-engine_sizes)
 
     ADD_LIBRARY(ep_testsuite SHARED
@@ -433,6 +451,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
     TARGET_LINK_LIBRARIES(ep_testsuite engine_utilities mcd_util
                           ${EP_STORAGE_LIBS} dirutils JSON_checker platform
                           xattr
+                          sigar
                           ${LIBEVENT_LIBRARIES})
     ADD_DEPENDENCIES(ep_testsuite engine_testapp)
 
@@ -445,6 +464,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                 )
     SET_TARGET_PROPERTIES(ep_testsuite_basic PROPERTIES PREFIX "")
     TARGET_LINK_LIBRARIES(ep_testsuite_basic engine_utilities JSON_checker dirutils
+		                  sigar
                           platform ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
     ADD_DEPENDENCIES(ep_testsuite engine_testapp)
 
@@ -456,7 +476,9 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                 tests/mock/mock_dcp.cc
                 )
     SET_TARGET_PROPERTIES(ep_testsuite_dcp PROPERTIES PREFIX "")
-    TARGET_LINK_LIBRARIES(ep_testsuite_dcp engine_utilities cbcompress JSON_checker dirutils platform ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
+    TARGET_LINK_LIBRARIES(ep_testsuite_dcp engine_utilities cbcompress JSON_checker dirutils platform
+		sigar
+		${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
     ADD_DEPENDENCIES(ep_testsuite_dcp engine_testapp)
 
     ADD_LIBRARY(ep_testsuite_checkpoint SHARED
@@ -465,7 +487,9 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                 tests/ep_test_apis.cc
                 src/ext_meta_parser.cc)
     SET_TARGET_PROPERTIES(ep_testsuite_checkpoint PROPERTIES PREFIX "")
-    TARGET_LINK_LIBRARIES(ep_testsuite_checkpoint engine_utilities JSON_checker dirutils platform ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
+    TARGET_LINK_LIBRARIES(ep_testsuite_checkpoint engine_utilities JSON_checker dirutils
+		sigar
+		platform ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
     ADD_DEPENDENCIES(ep_testsuite_checkpoint engine_testapp)
 
     ADD_LIBRARY(ep_testsuite_xdcr SHARED

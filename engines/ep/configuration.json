@@ -84,13 +84,14 @@
             }
         },
         "backend": {
-            "default": "couchdb",
+            "default": "plasma",
             "dynamic": false,
             "type": "std::string",
             "validator": {
                 "enum": [
                     "couchdb",
-                    "rocksdb"
+                    "rocksdb",
+                    "plasma"
                 ]
             }
         },
@@ -547,7 +548,7 @@
             "type": "size_t"
         },
         "max_num_shards": {
-            "default": "4",
+            "default": "16",
             "descr": "Maximum number of shards",
             "dynamic": false,
             "type": "size_t"
@@ -961,6 +962,56 @@
             "default": "200",
             "descr": "RocksDB Universal-Compaction 'max_size_amplification_percent' option. The default value is the RocksDB internal default (200).",
             "type": "size_t"
+        },
+        "plasma_mem_quota": {
+            "default": "2048",
+            "descr": "Plasma memory quota (in MB).",
+            "type": "size_t"
+        },
+        "plasma_enable_directio": {
+            "default": "true",
+            "descr": "Bypass OS page cache and do direct I/O.",
+            "type": "bool"
+        },
+        "plasma_kv_separation": {
+            "default": "true",
+            "descr": "Separate key and value blobs in plasma.",
+            "type": "bool"
+        },
+        "plasma_lss_clean_threshold": {
+            "default": "98",
+            "descr": "Log cleaning starts at this fragmentation threshold.",
+            "type": "size_t"
+        },
+        "plasma_lss_clean_max": {
+            "default": "99",
+            "descr": "Throttle incoming writes when fragmentation hits this threshold.",
+            "type": "size_t"
+        },
+        "plasma_delta_chain_len": {
+            "default": "50",
+            "descr": "Max number of items allowed in delta chain before page is compacted.",
+            "type": "size_t"
+        },
+        "plasma_base_page_items": {
+            "default": "50",
+            "descr": "Max number of items allowed in base page.",
+            "type": "size_t"
+        },
+        "plasma_lss_num_segments": {
+            "default": "4",
+            "descr": "Max number of segments a plasma page can be split in.",
+            "type": "size_t"
+        },
+        "plasma_sync_at": {
+            "default": "500",
+            "descr": "Time in milliseconds at which sync is forced (0 disables sync).",
+            "type": "size_t"
+        },
+        "plasma_enable_upsert": {
+            "default": "true",
+            "descr": "Allow updates to existing keys without a lookup & delete.",
+            "type": "bool"
         },
         "time_synchronization": {
             "default": "disabled",

@@ -29,6 +29,9 @@
 #ifdef EP_USE_ROCKSDB
 #include "rocksdb-kvstore/rocksdb-kvstore_config.h"
 #endif
+#ifdef EP_USE_PLASMA
+#include "plasma-kvstore/plasma-kvstore_config.h"
+#endif
 
 /* [EPHE TODO]: Consider not using KVShard for ephemeral bucket */
 KVShard::KVShard(uint16_t id, Configuration& config)
@@ -43,6 +46,13 @@ KVShard::KVShard(uint16_t id, Configuration& config)
 #ifdef EP_USE_ROCKSDB
     else if (backend == "rocksdb") {
         kvConfig = std::make_unique<RocksDBKVStoreConfig>(config, id);
+        auto stores = KVStoreFactory::create(*kvConfig);
+        rwStore = std::move(stores.rw);
+    }
+#endif
+#ifdef EP_USE_PLASMA
+    else if (backend == "plasma") {
+        kvConfig = std::make_unique<PlasmaKVStoreConfig>(config, id);
         auto stores = KVStoreFactory::create(*kvConfig);
         rwStore = std::move(stores.rw);
     }

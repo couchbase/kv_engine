@@ -121,6 +121,8 @@ size_t ExecutorPool::getNumReaders(void) {
     return count;
 }
 
+size_t numShards;
+
 ExecutorPool *ExecutorPool::get(void) {
     auto* tmp = instance.load();
     if (tmp == nullptr) {
@@ -140,6 +142,7 @@ ExecutorPool *ExecutorPool::get(void) {
                                    config.getNumWriterThreads(),
                                    config.getNumAuxioThreads(),
                                    config.getNumNonioThreads());
+			numShards = config.getMaxNumShards();
             ObjectRegistry::onSwitchThread(epe);
             instance.store(tmp);
         }
@@ -604,7 +607,8 @@ bool ExecutorPool::_startWorkers(void) {
 
     if (!numWorkers[WRITER_TASK_IDX]) {
         // MB-12279: Limit writers to 4 for faster bgfetches in DGM by default
-        numWriters = 4;
+        numWriters = numShards;
+        numReaders = numShards;
     }
 
     _adjustWorkers(READER_TASK_IDX, numReaders);
