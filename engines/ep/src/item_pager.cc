@@ -126,7 +126,9 @@ PagingVisitor::PagingVisitor(KVBucket& s,
                     storedValueFreqCounter = std::numeric_limits<uint8_t>::max();
                 }
             } else {
-                if (currentBucket->eligibleToPageOut(lh, v)) {
+                // If the storedValue is NOT eligible for eviction then
+                // we want to add the maximum value (255).
+                if (!currentBucket->eligibleToPageOut(lh, v)) {
                     storedValueFreqCounter = std::numeric_limits<uint8_t>::max();
                 }
             }

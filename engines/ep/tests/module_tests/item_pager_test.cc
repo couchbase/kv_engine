@@ -20,10 +20,13 @@
  */
 
 #include "../mock/mock_global_task.h"
+#include "../mock/mock_paging_visitor.h"
 #include "bgfetcher.h"
 #include "checkpoint.h"
 #include "ep_time.h"
 #include "evp_store_single_threaded_test.h"
+#include "item.h"
+#include "item_eviction.h"
 #include "memory_tracker.h"
 #include "test_helpers.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
@@ -461,6 +464,44 @@ TEST_P(STItemPagerTest, test_memory_limit) {
                                      vbid));
         engine->itemRelease(itm);
     }
+}
+
+/**
+ * MB-29236: Test that if an item is eligible to be evicted but exceeding the
+ * eviction threshold we do not add the maximum value (255) to the
+ * ItemEviction histogram.
+ */
+TEST_P(STItemPagerTest, isEligible) {
+    populateUntilTmpFail(vbid);
+
+    EventuallyPersistentEngine* epe =
+            ObjectRegistry::onSwitchThread(NULL, true);
+    get_options_t options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+            HIDE_LOCKED_CAS | TRACK_STATISTICS);
+
+    for (int ii = 0; ii < 10; ii++) {
+        auto key = makeStoredDocKey("xxx_0");
+        store->get(key, vbid, cookie, options);
+        ObjectRegistry::onSwitchThread(epe);
+    }
+    std::shared_ptr<std::atomic<bool>> available;
+    std::atomic<item_pager_phase> phase;
+    std::unique_ptr<MockPagingVisitor> pv =
+            std::make_unique<MockPagingVisitor>(*engine->getKVBucket(),
+                                                engine->getEpStats(),
+                                                1.0,
+                                                available,
+                                                ITEM_PAGER,
+                                                false,
+                                                0.5,
+                                                &phase);
+
+    VBucketPtr vb = store->getVBucket(vbid);
+    pv->visitBucket(vb);
+    auto initialCount = ItemEviction::initialFreqCount;
+    EXPECT_NE(initialCount, pv->getItemEviction().getFreqThreshold(100.0));
+    EXPECT_NE(255, pv->getItemEviction().getFreqThreshold(100.0));
 }
 
 /**

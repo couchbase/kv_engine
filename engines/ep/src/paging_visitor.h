@@ -77,6 +77,12 @@ public:
         return ejected;
     }
 
+protected:
+    // Protected for testing purposes
+    // Holds the data structures used during the selection of documents to
+    // evict from the hash table.
+    ItemEviction itemEviction;
+
 private:
     // Removes checkpoints that are both closed and unreferenced, thereby
     // freeing the associated memory.
@@ -103,10 +109,6 @@ private:
     ProcessClock::time_point taskStart;
     std::atomic<item_pager_phase>* pager_phase;
     VBucketPtr currentBucket;
-
-    // Holds the data structures used during the selection of documents to
-    // evict from the hash table.
-    ItemEviction itemEviction;
 
     // The frequency counter threshold that is used to determine whether we
     // should evict items from the hash table.
