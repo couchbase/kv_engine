@@ -39,6 +39,8 @@
 
 #include <numeric>
 
+/*************************** ADD STAT CALLBACKS ***************************/
+
 // Generic add_stat<T>. Uses std::to_string which requires heap allocation.
 template <typename T>
 void add_stat(Cookie& cookie,
@@ -818,53 +820,105 @@ static ENGINE_ERROR_CODE stat_tracing_executor(const std::string& arg,
     }
 }
 
-ENGINE_ERROR_CODE StatsCommandContext::step() {
-    struct stat_handler {
-        /**
-         * Is this a privileged stat or may it be requested by anyone
-         */
-        bool privileged;
-        /**
-         * The callback function to handle the stat request
-         */
-        ENGINE_ERROR_CODE (*handler)(const std::string& arg, Cookie& cookie);
-    };
+static ENGINE_ERROR_CODE stat_all_stats(const std::string& arg,
+                                        Cookie& cookie) {
+    auto ret = bucket_get_stats(cookie, arg, append_stats);
+    if (ret == ENGINE_SUCCESS) {
+        ret = server_stats(&append_stats, cookie);
+    }
+    return ret;
+}
+
+static ENGINE_ERROR_CODE stat_bucket_stats(const std::string& arg, Cookie& cookie) {
+    return bucket_get_stats(cookie, arg, append_stats);
+}
+
+/***************************** STAT HANDLERS *****************************/
+
+struct command_stat_handler {
+    /**
+     * Is this a privileged stat or may it be requested by anyone
+     */
+    bool privileged;
 
     /**
-     * A mapping from all stat subgroups to the callback providing the
-     * statistics
+     * The callback function to handle the stat request
      */
-    static std::unordered_map<std::string, struct stat_handler> handlers = {
-            {"reset", {true, stat_reset_executor}},
-            {"worker_thread_info", {false, stat_sched_executor}},
-            {"settings", {false, stat_settings_executor}},
-            {"audit", {true, stat_audit_executor}},
-            {"bucket_details", {true, stat_bucket_details_executor}},
-            {"aggregate", {false, stat_aggregate_executor}},
-            {"connections", {false, stat_connections_executor}},
-            {"topkeys", {false, stat_topkeys_executor}},
-            {"topkeys_json", {false, stat_topkeys_json_executor}},
-            {"subdoc_execute", {false, stat_subdoc_execute_executor}},
-            {"responses", {false, stat_responses_json_executor}},
-            {"tracing", {true, stat_tracing_executor}}};
+    ENGINE_ERROR_CODE (*handler)(const std::string& arg, Cookie& cookie);
+};
 
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+/**
+ * A mapping from all stat subgroups to the callback providing the
+ * statistics
+ */
+static std::unordered_map<std::string, struct command_stat_handler>
+        stat_handlers = {
+                {"", {false, stat_all_stats}},
+                {"reset", {true, stat_reset_executor}},
+                {"worker_thread_info", {false, stat_sched_executor}},
+                {"settings", {false, stat_settings_executor}},
+                {"audit", {true, stat_audit_executor}},
+                {"bucket_details", {true, stat_bucket_details_executor}},
+                {"aggregate", {false, stat_aggregate_executor}},
+                {"connections", {false, stat_connections_executor}},
+                {"topkeys", {false, stat_topkeys_executor}},
+                {"topkeys_json", {false, stat_topkeys_json_executor}},
+                {"subdoc_execute", {false, stat_subdoc_execute_executor}},
+                {"responses", {false, stat_responses_json_executor}},
+                {"tracing", {true, stat_tracing_executor}}};
 
-    if (key.empty()) {
-        /* request all statistics */
-        ret = bucket_get_stats(cookie, {}, append_stats);
-        if (ret == ENGINE_SUCCESS) {
-            ret = server_stats(&append_stats, cookie);
+/**
+ * For a given key, try and return the handler for it
+ * @param key The key we wish to handle
+ * @return std::pair<stat_handler, bool> returns the stat handler and a bool
+ * representing whether this is a key we recognise or not
+ */
+static std::pair<command_stat_handler, bool> getStatHandler(
+        const std::string& key) {
+    auto iter = stat_handlers.find(key);
+    if (iter == stat_handlers.end()) {
+        return std::make_pair(command_stat_handler{false, stat_bucket_stats}, false);
+    } else {
+        return std::make_pair(iter->second, true);
+    }
+}
+
+/************************* STATE MACHINE EXECUTION *************************/
+
+ENGINE_ERROR_CODE StatsCommandContext::step() {
+    auto ret = ENGINE_SUCCESS;
+    do {
+        switch (state) {
+        case State::ParseCommandKey:
+            ret = parseCommandKey();
+            break;
+        case State::CheckPrivilege:
+            ret = checkPrivilege();
+            break;
+        case State::DoStats:
+            ret = doStats();
+            break;
+        case State::CommandComplete:
+            ret = commandComplete();
+            break;
+        case State::Done:
+            return command_exit_code;
         }
+    } while (ret == ENGINE_SUCCESS);
+
+    return ret;
+}
+
+ENGINE_ERROR_CODE StatsCommandContext::parseCommandKey() {
+    if (key.empty()) {
+        command = "";
     } else {
         // The raw representing the key
-        const std::string statkey{ reinterpret_cast<const char*>(key.data()),
-                                   key.size() };
+        const std::string statkey{reinterpret_cast<const char*>(key.data()),
+                                  key.size()};
 
         // Split the key into a command and argument.
         auto index = statkey.find(' ');
-        std::string command;
-        std::string argument;
 
         if (index == key.npos) {
             command = statkey;
@@ -872,48 +926,76 @@ ENGINE_ERROR_CODE StatsCommandContext::step() {
             command = statkey.substr(0, index);
             argument = statkey.substr(++index);
         }
-
-        auto iter = handlers.find(command);
-        if (iter == handlers.end()) {
-            // This may be specific to the underlying engine
-            ret = bucket_get_stats(
-                    cookie,
-                    {reinterpret_cast<const char*>(key.data()), key.size()},
-                    append_stats);
-        } else {
-            if (iter->second.privileged) {
-                ret = mcbp::checkPrivilege(cookie, cb::rbac::Privilege::Stats);
-            }
-
-            if (ret == ENGINE_SUCCESS) {
-                ret = iter->second.handler(argument, cookie);
-            }
-        }
     }
 
-    if (ret == ENGINE_SUCCESS) {
+    state = State::CheckPrivilege;
+    return ENGINE_SUCCESS;
+}
+
+ENGINE_ERROR_CODE StatsCommandContext::checkPrivilege() {
+    auto ret = ENGINE_SUCCESS;
+
+    auto handler = getStatHandler(command).first;
+
+    if (handler.privileged) {
+        ret = mcbp::checkPrivilege(cookie, cb::rbac::Privilege::Stats);
+        switch (ret) {
+        case ENGINE_SUCCESS:
+            state = State::DoStats;
+            break;
+        default:
+            command_exit_code = ret;
+            state = State::CommandComplete;
+            break;
+        }
+    } else {
+        state = State::DoStats;
+    }
+
+    return ENGINE_SUCCESS;
+}
+
+ENGINE_ERROR_CODE StatsCommandContext::doStats() {
+    auto handler_pair = getStatHandler(command);
+
+    if (!handler_pair.second) {
+        command_exit_code = handler_pair.first.handler(
+                {reinterpret_cast<const char*>(key.data()), key.size()},
+                cookie);
+    } else {
+        command_exit_code = handler_pair.first.handler(argument, cookie);
+    }
+
+    state = State::CommandComplete;
+    return ENGINE_SUCCESS;
+}
+
+ENGINE_ERROR_CODE StatsCommandContext::commandComplete() {
+    switch (command_exit_code) {
+    case ENGINE_SUCCESS:
         append_stats(nullptr, 0, nullptr, 0, static_cast<void*>(&cookie));
 
         // We just want to record this once rather than for each packet sent
         ++connection.getBucket()
                   .responseCounters[PROTOCOL_BINARY_RESPONSE_SUCCESS];
         cookie.sendDynamicBuffer();
-
-    } else {
-        switch (ret) {
-        case ENGINE_DISCONNECT:
-        case ENGINE_EWOULDBLOCK:
-        case ENGINE_WANT_MORE:
-            // We don't send these responses back so we will not store
-            // stats for these.
-            break;
-        default:
-            ++connection.getBucket()
-                      .responseCounters[engine_error_2_mcbp_protocol_error(
-                              ret)];
-            break;
-        }
+        break;
+    case ENGINE_EWOULDBLOCK:
+        /* If the stats call returns ENGINE_EWOULDBLOCK then set the
+         * state to DoStats again and return this error code */
+        state = State::DoStats;
+        return command_exit_code;
+    case ENGINE_DISCONNECT:
+    case ENGINE_WANT_MORE:
+        // We don't send these responses back so we will not store
+        // stats for these.
+        break;
+    default:
+        ++connection.getBucket()
+                  .responseCounters[engine_error_2_mcbp_protocol_error(
+                          command_exit_code)];
+        break;
     }
-
-    return ret;
+    state = State::Done;
+    return ENGINE_SUCCESS;
 }

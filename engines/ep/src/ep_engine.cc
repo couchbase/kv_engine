@@ -4021,7 +4021,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
     const std::string statKey(stat_key, nkey);
 
     ENGINE_ERROR_CODE rv = ENGINE_KEY_ENOENT;
-    if (stat_key == NULL) {
+    if (statKey.empty()) {
         rv = doEngineStats(cookie, add_stat);
     } else if (nkey > 7 && cb_isPrefix(statKey, "dcpagg ")) {
         rv = doConnAggStats(cookie, add_stat, stat_key + 7, nkey - 7);

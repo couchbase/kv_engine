@@ -27,22 +27,43 @@
  */
 class StatsCommandContext : public SteppableCommandContext {
 public:
+    enum class State {
+        // Take the raw key from the cookie and turn it into a command key and
+        // any arguments
+        ParseCommandKey,
+        // Check whether the command requested requires a privileged user, and
+        // if so, whether the user has permissions to run it
+        CheckPrivilege,
+        // Execute the stats command call
+        DoStats,
+        // Command completed, do any post complete tasks
+        CommandComplete,
+        // We are done :)
+        Done
+    };
+
     explicit StatsCommandContext(Cookie& cookie)
-        : SteppableCommandContext(cookie), key(cookie.getRequest().getKey()) {
+        : SteppableCommandContext(cookie),
+          key(cookie.getRequest().getKey()),
+          state(State::ParseCommandKey) {
     }
 
 protected:
     /**
-     * In most cases we won't be returning EWOULDBLOCK, and there isn't any
-     * complex logic in the implementation of the stats commands so we can
-     * just do everything in a single state. This means that we could end
-     * up "parsing" the key into the key and sub command multiple times.
-     * If this ever turns up to be a bottleneck you should consider to
-     * stop polling stats that often ;-)
-     *
-     * @return ENGINE_SUCCESS if the command completed successfully
+     * All of the internal states return ENGINE_SUCCESS as even if for some
+     * reason the stat command fails, there is still work to be done after the
+     * fact. All code paths lead to State::Done which returns command_exit_code
+     * which is the actual expected return value.
      */
     ENGINE_ERROR_CODE step() override;
+
+    ENGINE_ERROR_CODE parseCommandKey();
+
+    ENGINE_ERROR_CODE checkPrivilege();
+
+    ENGINE_ERROR_CODE doStats();
+
+    ENGINE_ERROR_CODE commandComplete();
 
 private:
 
@@ -50,4 +71,11 @@ private:
      * The key as specified in the input buffer (it may contain a sub command)
      */
     const cb::const_byte_buffer key;
+    std::string command;
+    std::string argument;
+    State state;
+    /**
+     * The final ENGINE_ERROR_CODE returned from actually doing the stats call
+     */
+    ENGINE_ERROR_CODE command_exit_code;
 };
