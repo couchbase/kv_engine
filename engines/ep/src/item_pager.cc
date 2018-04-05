@@ -27,6 +27,7 @@
 #include "item_eviction.h"
 #include "kv_bucket.h"
 #include "kv_bucket_iface.h"
+#include "paging_visitor.h"
 
 #include <cmath>
 #include <cstdlib>
@@ -42,56 +43,32 @@
 
 static const size_t MAX_PERSISTENCE_QUEUE_SIZE = 1000000;
 
-enum pager_type_t {
-    ITEM_PAGER,
-    EXPIRY_PAGER
-};
-
-/**
- * As part of the ItemPager, visit all of the objects in memory and
- * eject some within a constrained probability
- */
-class PagingVisitor : public VBucketVisitor,
-                      public HashTableVisitor {
-public:
-    /**
-     * Construct a PagingVisitor that will attempt to evict the given
-     * percentage of objects.
-     *
-     * @param s the store that will handle the bulk removal
-     * @param st the stats where we'll track what we've done
-     * @param pcnt percentage of objects to attempt to evict (0-1)
-     * @param sfin pointer to a bool to be set to true after run completes
-     * @param pause flag indicating if PagingVisitor can pause between vbucket
-     *              visits
-     * @param bias active vbuckets eviction probability bias multiplier (0-1)
-     * @param phase pointer to an item_pager_phase to be set
-     */
-    PagingVisitor(KVBucket& s,
-                  EPStats& st,
-                  double pcnt,
-                  std::shared_ptr<std::atomic<bool>>& sfin,
-                  pager_type_t caller,
-                  bool pause,
-                  double bias,
-                  std::atomic<item_pager_phase>* phase)
-        : store(s),
-          stats(st),
-          percent(pcnt),
-          activeBias(bias),
-          ejected(0),
-          startTime(ep_real_time()),
-          stateFinalizer(sfin),
-          owner(caller),
-          canPause(pause),
-          completePhase(true),
-          wasHighMemoryUsage(s.isMemoryUsageTooHigh()),
-          taskStart(ProcessClock::now()),
-          pager_phase(phase),
-          freqCounterThreshold(0) {
+PagingVisitor::PagingVisitor(KVBucket& s,
+                             EPStats& st,
+                             double pcnt,
+                             std::shared_ptr<std::atomic<bool>>& sfin,
+                             pager_type_t caller,
+                             bool pause,
+                             double bias,
+                             std::atomic<item_pager_phase>* phase)
+    : store(s),
+      stats(st),
+      percent(pcnt),
+      activeBias(bias),
+      ejected(0),
+      startTime(ep_real_time()),
+      stateFinalizer(sfin),
+      owner(caller),
+      canPause(pause),
+      completePhase(true),
+      wasHighMemoryUsage(s.isMemoryUsageTooHigh()),
+      taskStart(ProcessClock::now()),
+      pager_phase(phase),
+      freqCounterThreshold(0) {
     }
 
-    bool visit(const HashTable::HashBucketLock& lh, StoredValue& v) override {
+    bool PagingVisitor::visit(const HashTable::HashBucketLock& lh,
+                              StoredValue& v) {
         // Delete expired items for an active vbucket.
         bool isExpired = (currentBucket->getState() == vbucket_state_active) &&
                          v.isExpired(startTime) && !v.isDeleted();
@@ -171,7 +148,7 @@ public:
                 "EvictionPolicy is invalid");
     }
 
-    void visitBucket(VBucketPtr &vb) override {
+    void PagingVisitor::visitBucket(VBucketPtr& vb) {
         update();
         removeClosedUnrefCheckpoints(vb);
 
@@ -234,7 +211,7 @@ public:
         }
     }
 
-    void update() {
+    void PagingVisitor::update() {
         store.deleteExpiredItems(expired, ExpireBy::Pager);
 
         if (numEjected() > 0) {
@@ -250,12 +227,12 @@ public:
         expired.clear();
     }
 
-    bool pauseVisitor() override {
+    bool PagingVisitor::pauseVisitor() {
         size_t queueSize = stats.diskQueueSize.load();
         return canPause && queueSize >= MAX_PERSISTENCE_QUEUE_SIZE;
     }
 
-    void complete() override {
+    void PagingVisitor::complete() {
         update();
 
         auto elapsed_time =
@@ -294,17 +271,11 @@ public:
         }
     }
 
-    /**
-     * Get the number of items ejected during the visit.
-     */
-    size_t numEjected() { return ejected; }
-
-private:
 
     // Removes checkpoints that are both closed and unreferenced, thereby
     // freeing the associated memory.
     // @param vb  The vbucket whose eligible checkpoints are removed from.
-    void removeClosedUnrefCheckpoints(VBucketPtr &vb) {
+    void PagingVisitor::removeClosedUnrefCheckpoints(VBucketPtr& vb) {
         bool newCheckpointCreated = false;
         size_t removed = vb->checkpointManager->removeClosedUnrefCheckpoints(
                 *vb, newCheckpointCreated);
@@ -317,7 +288,7 @@ private:
         }
     }
 
-    void adjustPercent(double prob, vbucket_state_t state) {
+    void PagingVisitor::adjustPercent(double prob, vbucket_state_t state) {
         if (state == vbucket_state_replica ||
             state == vbucket_state_dead)
         {
@@ -330,7 +301,8 @@ private:
         }
     }
 
-    bool doEviction(const HashTable::HashBucketLock& lh, StoredValue* v) {
+    bool PagingVisitor::doEviction(const HashTable::HashBucketLock& lh,
+                                   StoredValue* v) {
         item_eviction_policy_t policy = store.getItemEvictionPolicy();
         StoredDocKey key(v->getKey());
 
@@ -351,31 +323,6 @@ private:
         return false;
     }
 
-    std::list<Item> expired;
-
-    KVBucket& store;
-    EPStats &stats;
-    double percent;
-    double activeBias;
-    size_t ejected;
-    time_t startTime;
-    std::shared_ptr<std::atomic<bool>> stateFinalizer;
-    pager_type_t owner;
-    bool canPause;
-    bool completePhase;
-    bool wasHighMemoryUsage;
-    ProcessClock::time_point taskStart;
-    std::atomic<item_pager_phase>* pager_phase;
-    VBucketPtr currentBucket;
-
-    // Holds the data structures used during the selection of documents to
-    // evict from the hash table.
-    ItemEviction itemEviction;
-
-    // The frequency counter threshold that is used to determine whether we
-    // should evict items from the hash table.
-    uint16_t freqCounterThreshold;
-};
 
 ItemPager::ItemPager(EventuallyPersistentEngine& e, EPStats& st)
     : GlobalTask(&e, TaskId::ItemPager, 10, false),
