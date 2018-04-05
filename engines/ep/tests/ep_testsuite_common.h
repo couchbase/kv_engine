@@ -232,6 +232,11 @@ enum test_result prepare_ephemeral_bucket(engine_test_t* test);
 enum test_result prepare_full_eviction(engine_test_t *test);
 
 /**
+ * Prepare a test which is only applicable to full eviction mode and not rocksdb
+ */
+enum test_result prepare_full_eviction_skip_under_rocks(engine_test_t *test);
+
+/**
  * TODO TEMPORARY:
  * Prepare a test which currently is broken for Ephemeral buckets and so
  * should be skipped for them for now.

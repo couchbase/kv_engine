@@ -275,8 +275,10 @@ enum test_result prepare_ephemeral_bucket(engine_test_t* test) {
 }
 
 enum test_result prepare_full_eviction(engine_test_t *test) {
-    if (std::string(test->cfg).find("item_eviction_policy=full_eviction")
-            != std::string::npos) {
+
+    // If we cannot find FE in the config, skip the test
+    if (std::string(test->cfg).find("item_eviction_policy=full_eviction") ==
+        std::string::npos) {
         return SKIPPED;
     }
 
@@ -288,6 +290,18 @@ enum test_result prepare_full_eviction(engine_test_t *test) {
 
     // Perform whatever prep the "base class" function wants.
     return prepare(test);
+}
+
+enum test_result prepare_full_eviction_skip_under_rocks(engine_test_t *test) {
+
+    std::string cfg{test->cfg};
+    if (cfg.find("backend=rocksdb") != std::string::npos) {
+        return SKIPPED_UNDER_ROCKSDB;
+    }
+
+    // Perform whatever prep the "base class" function wants.
+    return prepare_full_eviction(test);
+
 }
 
 enum test_result prepare_skip_broken_under_ephemeral(engine_test_t *test) {

@@ -520,6 +520,15 @@ cb::EngineErrorItemPair gat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     auto ret = h1->get_and_touch(
             h, cookie, DocKey(key, testHarness.doc_namespace), vb, exp);
     testHarness.destroy_cookie(cookie);
+
+    if (ret.first == cb::engine_errc::success) {
+        item_info info;
+        check(h1->get_item_info(h, ret.second.get(), &info),
+              "gat Failed to get item info");
+
+        last_body.assign((const char*)info.value[0].iov_base,
+                         info.value[0].iov_len);
+    }
     return ret;
 }
 
