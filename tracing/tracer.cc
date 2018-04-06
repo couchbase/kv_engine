@@ -128,42 +128,18 @@ MEMCACHED_PUBLIC_API std::string to_string(
     case TraceCode::REQUEST:
         return "request";
 
-    case TraceCode::ALLOCATE:
-        return "allocate";
     case TraceCode::BGFETCH:
         return "bg.fetch";
-    case TraceCode::COMPRESS:
-        return "compress";
-    case TraceCode::FLUSH:
-        return "flush";
-    case TraceCode::GAT:
-        return "gat";
     case TraceCode::GET:
         return "get";
     case TraceCode::GETIF:
         return "get.if";
-    case TraceCode::GETLOCKED:
-        return "get.locked";
-    case TraceCode::GETMETA:
-        return "get.meta";
     case TraceCode::GETSTATS:
         return "get.stats";
-    case TraceCode::ITEMDELETE:
-        return "item.delete";
-    case TraceCode::LOCK:
-        return "lock";
-    case TraceCode::OBSERVE:
-        return "observe";
-    case TraceCode::REMOVE:
-        return "remove";
-    case TraceCode::SETITEMINFO:
-        return "set.item.info";
     case TraceCode::SETWITHMETA:
         return "set.with.meta";
     case TraceCode::STORE:
         return "store";
-    case TraceCode::UNLOCK:
-        return "unlock";
     }
     return "unknown tracecode";
 }

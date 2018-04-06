@@ -4215,7 +4215,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(
                                        protocol_binary_request_header *request,
                                        ADD_RESPONSE response,
                                        DocNamespace docNamespace) {
-    TRACE_SCOPE(cookie, TraceCode::OBSERVE);
     protocol_binary_request_no_extras *req =
         (protocol_binary_request_no_extras*)request;
 

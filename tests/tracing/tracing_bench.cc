@@ -33,7 +33,6 @@ void SessionTracingRecordMutationSpan(benchmark::State& state) {
     while (state.KeepRunning()) {
         // Representative set of TRACE_BLOCKS for recording a mutation's work.
         { TRACE_SCOPE(cookie, cb::tracing::TraceCode::REQUEST); }
-        { TRACE_SCOPE(cookie, cb::tracing::TraceCode::ALLOCATE); }
         { TRACE_SCOPE(cookie, cb::tracing::TraceCode::STORE); }
 
         mock_get_traceable(cookie).getTracer().clear();
@@ -51,10 +50,6 @@ void SessionTracingScopeTimer(benchmark::State& state) {
         {
             ScopeTimer1<TracerStopwatch> timer(
                     TracerStopwatch(cookie, cb::tracing::TraceCode::REQUEST));
-        }
-        {
-            ScopeTimer1<TracerStopwatch> timer(
-                    TracerStopwatch(cookie, cb::tracing::TraceCode::ALLOCATE));
         }
         {
             ScopeTimer1<TracerStopwatch> timer(

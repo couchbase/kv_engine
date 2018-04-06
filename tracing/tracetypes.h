@@ -26,24 +26,12 @@ namespace tracing {
 enum class TraceCode : uint8_t {
     REQUEST, /* Whole Request */
 
-    ALLOCATE,
     BGFETCH,
-    COMPRESS,
-    FLUSH,
-    GAT,
     GET,
     GETIF,
-    GETLOCKED,
-    GETMETA,
     GETSTATS,
-    ITEMDELETE,
-    LOCK,
-    OBSERVE,
-    REMOVE,
-    SETITEMINFO,
     SETWITHMETA,
     STORE,
-    UNLOCK,
 };
 } // namespace tracing
 } // namespace cb

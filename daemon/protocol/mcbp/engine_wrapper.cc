@@ -82,7 +82,6 @@ bool bucket_get_item_info(Cookie& cookie,
 cb::EngineErrorMetadataPair bucket_get_meta(Cookie& cookie,
                                             const DocKey& key,
                                             uint16_t vbucket) {
-    TRACE_SCOPE(&cookie, cb::tracing::TraceCode::GETMETA);
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine()->get_meta(
             c.getBucketEngineAsV0(), &cookie, key, vbucket);
@@ -154,7 +153,6 @@ ENGINE_ERROR_CODE bucket_remove(Cookie& cookie,
                                 uint64_t& cas,
                                 uint16_t vbucket,
                                 mutation_descr_t& mut_info) {
-    TRACE_SCOPE(&cookie, cb::tracing::TraceCode::REMOVE);
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine()->remove(
             c.getBucketEngineAsV0(), &cookie, key, cas, vbucket, mut_info);
@@ -188,7 +186,6 @@ cb::EngineErrorItemPair bucket_get(Cookie& cookie,
 }
 
 BucketCompressionMode bucket_get_compression_mode(Cookie& cookie) {
-    TRACE_SCOPE(&cookie, cb::tracing::TraceCode::COMPRESS);
     auto& c = cookie.getConnection();
     return c.getBucketEngine()->getCompressionMode(c.getBucketEngineAsV0());
 }
@@ -219,7 +216,6 @@ cb::EngineErrorItemPair bucket_get_and_touch(Cookie& cookie,
                                              const DocKey& key,
                                              uint16_t vbucket,
                                              uint32_t expiration) {
-    TRACE_SCOPE(&cookie, cb::tracing::TraceCode::GAT);
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine()->get_and_touch(
             c.getBucketEngineAsV0(), &cookie, key, vbucket, expiration);
@@ -236,7 +232,6 @@ cb::EngineErrorItemPair bucket_get_locked(Cookie& cookie,
                                           const DocKey& key,
                                           uint16_t vbucket,
                                           uint32_t lock_timeout) {
-    TRACE_SCOPE(&cookie, cb::tracing::TraceCode::GETLOCKED);
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine()->get_locked(
             c.getBucketEngineAsV0(), &cookie, key, vbucket, lock_timeout);
@@ -255,7 +250,6 @@ ENGINE_ERROR_CODE bucket_unlock(Cookie& cookie,
                                 const DocKey& key,
                                 uint16_t vbucket,
                                 uint64_t cas) {
-    TRACE_SCOPE(&cookie, cb::tracing::TraceCode::UNLOCK);
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine()->unlock(
             c.getBucketEngineAsV0(), &cookie, key, vbucket, cas);
@@ -276,7 +270,6 @@ std::pair<cb::unique_item_ptr, item_info> bucket_allocate_ex(
         const rel_time_t exptime,
         uint8_t datatype,
         uint16_t vbucket) {
-    TRACE_SCOPE(&cookie, cb::tracing::TraceCode::ALLOCATE);
     // MB-25650 - We've got a document of 0 byte value and claims to contain
     //            xattrs.. that's not possible.
     if (nbytes == 0 && !mcbp::datatype::is_raw(datatype)) {
@@ -316,8 +309,6 @@ std::pair<cb::unique_item_ptr, item_info> bucket_allocate_ex(
 }
 
 ENGINE_ERROR_CODE bucket_flush(Cookie& cookie) {
-    TRACE_SCOPE(&cookie, cb::tracing::TraceCode::FLUSH);
-
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine()->flush(c.getBucketEngineAsV0(), &cookie);
     if (ret == ENGINE_DISCONNECT) {
