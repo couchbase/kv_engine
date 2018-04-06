@@ -35,8 +35,14 @@ std::chrono::nanoseconds TuneMcbpSla::getSlowThreshold(
 
     cJSON* obj = cJSON_GetObjectItem(json.get(), to_string(opcode).c_str());
     if (obj == nullptr) {
-        throw std::logic_error("TuneMcbpSla::getSlowThreshold: No entry for " +
-                               to_string(opcode));
+        // There isn't an explicit entry for the opcode.. there might be
+        // default entry we should use instead
+        obj = cJSON_GetObjectItem(json.get(), "default");
+        if (obj == nullptr) {
+            throw std::logic_error(
+                    "TuneMcbpSla::getSlowThreshold: No entry for " +
+                    to_string(opcode));
+        }
     }
 
     return cb::mcbp::sla::getSlowOpThreshold(*obj);

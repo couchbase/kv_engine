@@ -27,6 +27,7 @@
 #include <atomic>
 #include <cctype>
 #include <gsl/gsl>
+#include <unordered_map>
 
 namespace cb {
 namespace mcbp {
@@ -71,22 +72,53 @@ static std::string time2text(std::chrono::nanoseconds time2convert) {
     return std::to_string(time) + extensions[id];
 }
 
+/**
+ * Determine what to use as the "default" value in the JSON.
+ *
+ * To do that we'll count the number of times each timeout is specified,
+ * and use the one with the highest count.
+ *
+ * Given that the functions is rarely called we don't care to try to optimize
+ * it ;)
+ */
+static std::chrono::nanoseconds getDefaultValue() {
+    std::unordered_map<uint64_t, size_t> counts;
+    for (auto& ts : threshold) {
+        counts[ts.load(std::memory_order_relaxed).count()]++;
+    }
+    auto result =
+            std::max_element(counts.begin(),
+                             counts.end(),
+                             [](std::pair<const uint64_t, size_t> a,
+                                std::pair<const uint64_t, size_t> b) -> bool {
+                                 return a.second < b.second;
+                             });
+    return std::chrono::nanoseconds(result->first);
+}
+
 unique_cJSON_ptr to_json() {
     unique_cJSON_ptr ret(cJSON_CreateObject());
     cJSON_AddNumberToObject(ret.get(), "version", 1);
     cJSON_AddStringToObject(
             ret.get(), "comment", "Current MCBP SLA configuration");
 
+    // Add a default entry:
+    const auto def = getDefaultValue();
+    unique_cJSON_ptr obj(cJSON_CreateObject());
+    cJSON_AddStringToObject(obj.get(), "slow", time2text(def));
+    cJSON_AddItemToObject(ret.get(), "default", obj.release());
+
     for (unsigned int ii = 0; ii < threshold.size(); ++ii) {
         try {
             auto opcode = cb::mcbp::ClientOpcode(ii);
             std::string cmd = ::to_string(opcode);
-            unique_cJSON_ptr obj(cJSON_CreateObject());
-            cJSON_AddStringToObject(
-                    obj.get(),
-                    "slow",
-                    time2text(threshold[ii].load(std::memory_order_relaxed)));
-            cJSON_AddItemToObject(ret.get(), cmd.c_str(), obj.release());
+            const auto ns = threshold[ii].load(std::memory_order_relaxed);
+            if (ns != def) {
+                // It differs from the default value
+                obj.reset(cJSON_CreateObject());
+                cJSON_AddStringToObject(obj.get(), "slow", time2text(ns));
+                cJSON_AddItemToObject(ret.get(), cmd.c_str(), obj.release());
+            }
         } catch (const std::exception&) {
             // unknown command. ignore
         }
