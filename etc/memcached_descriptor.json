@@ -166,7 +166,7 @@
     {
       "id": 20488,
       "name": "document read",
-      "description": "The named document was read",
+      "description": "Document was read",
       "sync": false,
       "enabled": false,
       "filtering_permitted": true,
@@ -187,7 +187,7 @@
     {
       "id": 20489,
       "name": "document locked",
-      "description": "The named document was locked",
+      "description": "Document was locked",
       "sync": false,
       "enabled": false,
       "filtering_permitted": true,
@@ -208,7 +208,7 @@
     {
       "id": 20490,
       "name": "document modify",
-      "description": "The named document was modified",
+      "description": "Document was modified",
       "sync": false,
       "enabled": false,
       "filtering_permitted": true,
@@ -229,7 +229,7 @@
     {
       "id": 20491,
       "name": "document delete",
-      "description": "The named document was deleted",
+      "description": "Document was deleted",
       "sync": false,
       "enabled": false,
       "filtering_permitted": true,
