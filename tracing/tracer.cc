@@ -36,8 +36,7 @@ Tracer::SpanId Tracer::invalidSpanId() {
 
 Tracer::SpanId Tracer::begin(const TraceCode tracecode,
                              ProcessClock::time_point startTime) {
-    auto t = to_micros(startTime);
-    vecSpans.emplace_back(tracecode, t);
+    vecSpans.emplace_back(tracecode, startTime);
     return vecSpans.size() - 1;
 }
 
@@ -45,7 +44,8 @@ bool Tracer::end(SpanId spanId, ProcessClock::time_point endTime) {
     if (spanId >= vecSpans.size())
         return false;
     auto& span = vecSpans[spanId];
-    span.duration = to_micros(endTime - span.start);
+    span.duration =
+            std::chrono::duration_cast<Span::Duration>(endTime - span.start);
     return true;
 }
 
@@ -65,13 +65,15 @@ const std::vector<Span>& Tracer::getDurations() const {
     return vecSpans;
 }
 
-std::chrono::microseconds Tracer::getTotalMicros() const {
+Span::Duration Tracer::getTotalMicros() const {
     if (vecSpans.empty()) {
         return std::chrono::microseconds(0);
     }
     const auto& top = vecSpans[0];
-    if (top.duration == std::chrono::microseconds::max()) {
-        return to_micros(ProcessClock::now()) - top.start;
+    // If the Span has not yet been closed; return the duration up to now.
+    if (top.duration == Span::Duration::max()) {
+        return std::chrono::duration_cast<Span::Duration>(ProcessClock::now() -
+                                                          top.start);
     }
     return top.duration;
 }
@@ -104,7 +106,8 @@ MEMCACHED_PUBLIC_API std::string to_string(const cb::tracing::Tracer& tracer,
     std::ostringstream os;
     auto size = vecSpans.size();
     for (const auto& span : vecSpans) {
-        os << to_string(span.code) << "=" << span.start.count() << ":";
+        os << to_string(span.code) << "="
+           << span.start.time_since_epoch().count() << ":";
         if (span.duration == std::chrono::microseconds::max()) {
             os << "--";
         } else {

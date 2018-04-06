@@ -49,14 +49,18 @@ namespace tracing {
 
 class MEMCACHED_PUBLIC_CLASS Span {
 public:
+    /// Type used for storing durations - 32bit microsecond.
+    /// gives maximum duration of 35.79minutes.
+    using Duration = std::chrono::duration<int32_t, std::micro>;
+
     Span(TraceCode code,
-         std::chrono::microseconds start,
-         std::chrono::microseconds duration = std::chrono::microseconds::max())
-        : code(code), start(start), duration(duration) {
+         ProcessClock::time_point start,
+         Duration duration = Duration::max())
+        : start(start), duration(duration), code(code) {
     }
+    ProcessClock::time_point start;
+    Duration duration;
     TraceCode code;
-    std::chrono::microseconds start;
-    std::chrono::microseconds duration;
 };
 
 /**
@@ -83,7 +87,7 @@ public:
     // get the tracepoints as ordered durations
     const std::vector<Span>& getDurations() const;
 
-    std::chrono::microseconds getTotalMicros() const;
+    Span::Duration getTotalMicros() const;
 
     uint16_t getEncodedMicros() const;
     /**

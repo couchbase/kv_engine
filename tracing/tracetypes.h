@@ -23,7 +23,7 @@
 namespace cb {
 namespace tracing {
 
-enum class TraceCode {
+enum class TraceCode : uint8_t {
     REQUEST, /* Whole Request */
 
     ALLOCATE,
