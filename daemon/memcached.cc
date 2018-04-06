@@ -654,7 +654,7 @@ static void update_settings_from_config(void)
     }
 
     try {
-        cb::mcbp::sla::reconfigure(settings.getRoot());
+        cb::mcbp::sla::reconfigure(root);
     } catch (const std::exception& e) {
         FATAL_ERROR(EXIT_FAILURE, e.what());
     }
