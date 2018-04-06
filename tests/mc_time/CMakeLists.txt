@@ -1,6 +1,4 @@
-ADD_EXECUTABLE(memcached_mc_time_test mc_time_test.cc
-               ${Memcached_SOURCE_DIR}/daemon/mc_time.cc
-               ${Memcached_SOURCE_DIR}/daemon/mc_time.h)
+ADD_EXECUTABLE(memcached_mc_time_test mc_time_test.cc)
 
 TARGET_LINK_LIBRARIES(memcached_mc_time_test
                       memcached_daemon

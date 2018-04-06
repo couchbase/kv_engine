@@ -15,12 +15,13 @@
  *   limitations under the License.
  */
 
-#include <system_error>
-#include <platform/platform.h>
-#include <gtest/gtest.h>
 #include <cJSON_utils.h>
 #include <daemon/settings.h>
+#include <getopt.h>
+#include <gtest/gtest.h>
 #include <platform/dirutils.h>
+#include <platform/platform.h>
+#include <system_error>
 
 class SettingsTest : public ::testing::Test {
 public:
@@ -1375,8 +1376,29 @@ TEST(SettingsUpdateTest, OpcodeAttributesMustBeValidFormat) {
 
 int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);
+    bool verbose = false;
 
-    cb::logger::createBlackholeLogger();
+    int cmd;
+    while ((cmd = getopt(argc, argv, "v")) != EOF) {
+        switch (cmd) {
+        case 'v':
+            verbose = true;
+            break;
+        default:
+            std::cerr << "Usage: " << argv[0] << " [-v]" << std::endl
+                      << std::endl
+                      << "  -v Verbose - Print verbose memcached output "
+                      << "to stderr." << std::endl;
+            return EXIT_FAILURE;
+        }
+    }
+
+    if (verbose) {
+        cb::logger::createConsoleLogger();
+    } else {
+        cb::logger::createBlackholeLogger();
+    }
+
     auto ret = RUN_ALL_TESTS();
     cb::logger::shutdown();
 
