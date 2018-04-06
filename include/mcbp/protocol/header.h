@@ -148,5 +148,7 @@ protected:
 
 static_assert(sizeof(Header) == 24, "Incorrect compiler padding");
 
+std::ostream& operator<<(std::ostream& os, const Header& header);
+
 } // namespace mcbp
 } // namespace cb

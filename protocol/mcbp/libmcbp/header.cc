@@ -46,5 +46,19 @@ unique_cJSON_ptr Header::toJSON() const {
     throw std::logic_error("Header::toJSON(): Invalid packet");
 }
 
+std::ostream& operator<<(std::ostream& os, const Header& header) {
+    os << "mcbp::header:"
+       << " magic:0x" << std::hex << int(header.getMagic()) << ", opcode:0x"
+       << std::hex << int(header.getOpcode()) << ", keylen:" << std::dec
+       << header.getKeylen() << ", extlen:" << std::dec
+       << int(header.getExtlen()) << ", datatype:0x" << std::hex
+       << int(header.getDatatype()) << ", specific:" << std::dec
+       << header.getSpecific() << ", bodylen:" << std::dec
+       << header.getBodylen() << ", opaque:0x" << std::hex
+       << header.getOpaque();
+
+    return os;
+}
+
 } // namespace mcbp
 } // namespace cb

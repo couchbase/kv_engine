@@ -729,12 +729,34 @@ static void execute_request_packet(Cookie& cookie,
         }
 
         if (result != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+            // Log the mcbp header and extras
+            const auto& header = cookie.getHeader();
+            std::stringstream ss;
+            ss << header;
+
+            // If extras, do a raw dump (a corrupt extlen could mean 255 bytes)
+            if (header.getExtlen()) {
+                auto packet = cookie.getPacket();
+                ss << ", rawextras:";
+                for (uint8_t index = 0; index < header.getExtlen(); index++) {
+                    const auto* byte =
+                            packet.data() + sizeof(cb::mcbp::Header) + index;
+                    // don't exceed the packet buffer
+                    if (byte < packet.data() + packet.size()) {
+                        ss << std::hex << int(*byte);
+                    } else {
+                        break;
+                    }
+                }
+            }
+
             LOG_INFO(
                     "{}: Invalid format specified for {} - {} - "
-                    "closing connection",
+                    "closing connection packet:{} ",
                     c->getId(),
                     memcached_opcode_2_text(opcode),
-                    result);
+                    result,
+                    ss.str());
             audit_invalid_packet(cookie);
             cookie.sendResponse(cb::mcbp::Status(result));
             c->setWriteAndGo(McbpStateMachine::State::closing);
