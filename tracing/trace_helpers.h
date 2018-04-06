@@ -35,9 +35,9 @@
 class ScopedTracer {
 public:
     ScopedTracer(Cookie& cookie, const cb::tracing::TraceCode code)
-        : cookie(cookie), code(code) {
+        : cookie(cookie) {
         if (cookie.isTracingEnabled()) {
-            cookie.getTracer().begin(code);
+            spanId = cookie.getTracer().begin(code);
         }
     }
 
@@ -49,13 +49,15 @@ public:
 
     ~ScopedTracer() {
         if (cookie.isTracingEnabled()) {
-            cookie.getTracer().end(code);
+            cookie.getTracer().end(spanId);
         }
     }
 
 protected:
     Cookie& cookie;
-    cb::tracing::TraceCode code;
+
+    /// ID of our Span.
+    cb::tracing::Tracer::SpanId spanId = {};
 };
 
 #define TRACE_SCOPE(ck, code) ScopedTracer __st__##__LINE__(ck, code)
