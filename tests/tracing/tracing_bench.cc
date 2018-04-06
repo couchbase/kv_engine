@@ -20,6 +20,7 @@
  */
 
 #include <benchmark/benchmark.h>
+#include <platform/scope_timer.h>
 
 #include "programs/engine_testapp/mock_server.h"
 #include "tracing/trace_helpers.h"
@@ -39,6 +40,32 @@ void SessionTracingRecordMutationSpan(benchmark::State& state) {
     }
 }
 
+// Benchmark the performance when using a ScopeTimer instead of the TRACE_SCOPE
+// macros.
+void SessionTracingScopeTimer(benchmark::State& state) {
+    auto* cookie = create_mock_cookie();
+    mock_get_traceable(cookie).setTracingEnabled(true);
+
+    while (state.KeepRunning()) {
+        // Representative set of scopes for recording a mutation's work.
+        {
+            ScopeTimer1<TracerStopwatch> timer(
+                    TracerStopwatch(cookie, cb::tracing::TraceCode::REQUEST));
+        }
+        {
+            ScopeTimer1<TracerStopwatch> timer(
+                    TracerStopwatch(cookie, cb::tracing::TraceCode::ALLOCATE));
+        }
+        {
+            ScopeTimer1<TracerStopwatch> timer(
+                    TracerStopwatch(cookie, cb::tracing::TraceCode::STORE));
+        }
+
+        mock_get_traceable(cookie).getTracer().clear();
+    }
+}
+
 BENCHMARK(SessionTracingRecordMutationSpan);
+BENCHMARK(SessionTracingScopeTimer);
 
 BENCHMARK_MAIN()

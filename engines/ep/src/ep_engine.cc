@@ -56,6 +56,7 @@
 #include <platform/make_unique.h>
 #include <platform/platform.h>
 #include <platform/processclock.h>
+#include <platform/scope_timer.h>
 #include <tracing/trace_helpers.h>
 #include <utilities/logtags.h>
 #include <xattr/utils.h>
@@ -2287,7 +2288,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::get(const void* cookie,
                                                   const DocKey& key,
                                                   uint16_t vbucket,
                                                   get_options_t options) {
-    BlockTimer timer(&stats.getCmdHisto);
+    ScopeTimer2<MicrosecondStopwatch, TracerStopwatch> timer(
+            MicrosecondStopwatch(stats.getCmdHisto),
+            TracerStopwatch(cookie, cb::tracing::TraceCode::GET));
+
     GetValue gv(kvBucket->get(key, vbucket, cookie, options));
     ENGINE_ERROR_CODE ret = gv.getStatus();
 
@@ -2357,6 +2361,10 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get_if(const void* cookie,
                                                        std::function<bool(const item_info&)>filter) {
     auto* handle = reinterpret_cast<ENGINE_HANDLE*>(this);
 
+    ScopeTimer2<MicrosecondStopwatch, TracerStopwatch> timer(
+            MicrosecondStopwatch(stats.getCmdHisto),
+            TracerStopwatch(cookie, cb::tracing::TraceCode::GETIF));
+
     // Fetch an item from the hashtable (without trying to schedule a bg-fetch
     // and pass it through the filter. If the filter accepts the document
     // based on the metadata, return the document. If the document's data
@@ -2379,7 +2387,6 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get_if(const void* cookie,
             options = static_cast<get_options_t>(int(options) | QUEUE_BG_FETCH);
         }
 
-        BlockTimer timer(&stats.getCmdHisto);
         GetValue gv(kvBucket->get(key, vbucket, cookie, options));
         ENGINE_ERROR_CODE status = gv.getStatus();
 
@@ -2468,7 +2475,10 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::store_if(
         uint64_t cas,
         ENGINE_STORE_OPERATION operation,
         cb::StoreIfPredicate predicate) {
-    BlockTimer timer(&stats.storeCmdHisto);
+    ScopeTimer2<MicrosecondStopwatch, TracerStopwatch> timer(
+            MicrosecondStopwatch(stats.storeCmdHisto),
+            TracerStopwatch(cookie, cb::tracing::TraceCode::STORE));
+
     ENGINE_ERROR_CODE status;
     switch (operation) {
     case OPERATION_CAS:
@@ -4026,7 +4036,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
                                                        const char* stat_key,
                                                        int nkey,
                                                        ADD_STAT add_stat) {
-    BlockTimer timer(&stats.getStatsCmdHisto);
+    ScopeTimer2<MicrosecondStopwatch, TracerStopwatch> timer(
+            MicrosecondStopwatch(stats.getStatsCmdHisto),
+            TracerStopwatch(cookie, cb::tracing::TraceCode::GETSTATS));
+
     if (stat_key != NULL) {
         LOG(EXTENSION_LOG_DEBUG, "stats %.*s", nkey, stat_key);
     } else {

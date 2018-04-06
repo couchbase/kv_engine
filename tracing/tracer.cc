@@ -162,8 +162,6 @@ MEMCACHED_PUBLIC_API std::string to_string(
         return "set.with.meta";
     case TraceCode::STORE:
         return "store";
-    case TraceCode::STOREIF:
-        return "store.if";
     case TraceCode::UNLOCK:
         return "unlock";
     }

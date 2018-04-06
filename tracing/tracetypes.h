@@ -43,7 +43,6 @@ enum class TraceCode : uint8_t {
     SETITEMINFO,
     SETWITHMETA,
     STORE,
-    STOREIF,
     UNLOCK,
 };
 } // namespace tracing

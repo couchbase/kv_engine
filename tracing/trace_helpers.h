@@ -60,6 +60,48 @@ protected:
     cb::tracing::Tracer::SpanId spanId = {};
 };
 
+/**
+ * Adapter class to assist in recording the duration of an event into
+ * Tracer objects, by storing the cookie and code in the object. To be used
+ * with ScopeTimer classes.
+ *
+ * It's stop() and start() methods (which only take a ProcessClock::time_point)
+ * use the stored cookie and TraceCode to record the times in the appropriate
+ * tracer object.
+ */
+class TracerStopwatch {
+public:
+    TracerStopwatch(Cookie& cookie, const cb::tracing::TraceCode code)
+        : cookie(cookie), code(code) {
+    }
+
+    /// Constructor from Cookie (void*)
+    TracerStopwatch(const void* cookie, const cb::tracing::TraceCode code)
+        : TracerStopwatch(*reinterpret_cast<Cookie*>(const_cast<void*>(cookie)),
+                          code) {
+    }
+
+    void start(ProcessClock::time_point startTime) {
+        if (cookie.isTracingEnabled()) {
+            spanId = cookie.getTracer().begin(code, startTime);
+        }
+    }
+
+    void stop(ProcessClock::time_point stopTime) {
+        if (cookie.isTracingEnabled()) {
+            cookie.getTracer().end(spanId, stopTime);
+        }
+    }
+
+protected:
+    Cookie& cookie;
+
+    /// ID of our Span.
+    cb::tracing::Tracer::SpanId spanId = {};
+
+    cb::tracing::TraceCode code;
+};
+
 #define TRACE_SCOPE(ck, code) ScopedTracer __st__##__LINE__(ck, code)
 
 #else

@@ -100,7 +100,6 @@ ENGINE_ERROR_CODE bucket_store(Cookie& cookie,
                                uint64_t& cas,
                                ENGINE_STORE_OPERATION operation,
                                DocumentState document_state) {
-    TRACE_SCOPE(&cookie, cb::tracing::TraceCode::STORE);
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine()->store(c.getBucketEngineAsV0(),
                                           &cookie,
@@ -128,7 +127,6 @@ cb::EngineErrorCasPair bucket_store_if(Cookie& cookie,
                                        ENGINE_STORE_OPERATION operation,
                                        cb::StoreIfPredicate predicate,
                                        DocumentState document_state) {
-    TRACE_SCOPE(&cookie, cb::tracing::TraceCode::STOREIF);
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine()->store_if(c.getBucketEngineAsV0(),
                                              &cookie,
@@ -175,7 +173,6 @@ cb::EngineErrorItemPair bucket_get(Cookie& cookie,
                                    const DocKey& key,
                                    uint16_t vbucket,
                                    DocStateFilter documentStateFilter) {
-    TRACE_SCOPE(&cookie, cb::tracing::TraceCode::GET);
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine()->get(c.getBucketEngineAsV0(),
                                         &cookie,
@@ -206,7 +203,6 @@ cb::EngineErrorItemPair bucket_get_if(
         const DocKey& key,
         uint16_t vbucket,
         std::function<bool(const item_info&)> filter) {
-    TRACE_SCOPE(&cookie, cb::tracing::TraceCode::GETIF);
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine()->get_if(
             c.getBucketEngineAsV0(), &cookie, key, vbucket, filter);
@@ -335,7 +331,6 @@ ENGINE_ERROR_CODE bucket_flush(Cookie& cookie) {
 ENGINE_ERROR_CODE bucket_get_stats(Cookie& cookie,
                                    cb::const_char_buffer key,
                                    ADD_STAT add_stat) {
-    TRACE_SCOPE(&cookie, cb::tracing::TraceCode::GETSTATS);
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine()->get_stats(
             c.getBucketEngineAsV0(), &cookie, key, add_stat);
