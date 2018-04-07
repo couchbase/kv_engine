@@ -209,6 +209,10 @@ Available params for "set":
                                    percentage of the RAM quota)
     mem_low_wat                  - Low water mark. (suffix with '%' to make it a
                                    percentage of the RAM quota)
+    min_compression_ratio        - Minimum compression ratio of uncompressed doc
+                                   against the compressed doc. If the ratio happens
+                                   to be lesser than this value, then a compressed
+                                   document will be stored as an uncompressed.
     mutation_mem_threshold       - Memory threshold (%) on the current bucket quota
                                    for accepting a new mutation.
     timing_log                   - path to log detailed timing stats.
