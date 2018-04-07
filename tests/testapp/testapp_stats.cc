@@ -371,20 +371,6 @@ TEST_P(StatsTest, TestAggregate) {
     EXPECT_NE(nullptr, cJSON_GetObjectItem(stats.get(), "pid"));
 }
 
-#ifndef THREAD_SANITIZER
-/**
- * We know that the code for stats connection cause thread sanitizer
- * to complain as we're doing "dirty reads" from one thread into
- * the connection objects "owned" by another thread. We've locked
- * the connections mutex so no connection objects can be created / deleted
- * at this time so we won't _crash_ (but may return stale information)
- *
- * Disable this test for the thread sanitizer while working on refactoring
- * the connections stats to use the iterate_all_connections which locks
- * each thread before inpecting the cookie. (and let thread sanitizer
- * test verify that we don't introduce regressions elsewhere)
- */
-
 TEST_P(StatsTest, TestConnections) {
     MemcachedConnection& conn = getConnection();
     conn.hello("TestConnections", "1.0", "test connections test");
@@ -429,7 +415,6 @@ TEST_P(StatsTest, TestConnections) {
     EXPECT_EQ(cJSON_Number, ptr->type);
     EXPECT_EQ(sock, ptr->valueint);
 }
-#endif
 
 TEST_P(StatsTest, TestConnectionsInvalidNumber) {
     MemcachedConnection& conn = getConnection();
