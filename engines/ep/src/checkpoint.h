@@ -250,7 +250,7 @@ typedef std::map<const std::string, CheckpointCursor> cursor_index;
 /**
  * Result from invoking queueDirty in the current open checkpoint.
  */
-enum queue_dirty_t {
+enum class queue_dirty_t {
     /*
      * The item exists on the right hand side of the persistence cursor - i.e.
      * the persistence cursor has not yet processed this key.
@@ -273,6 +273,8 @@ enum queue_dirty_t {
      */
     NEW_ITEM
 };
+
+std::string to_string(queue_dirty_t value);
 
 /**
  * Representation of a checkpoint used in the unified queue for persistence and

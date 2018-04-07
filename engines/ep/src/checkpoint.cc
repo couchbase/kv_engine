@@ -39,6 +39,20 @@ const char* to_string(enum checkpoint_state s) {
     return "<unknown>";
 }
 
+std::string to_string(queue_dirty_t value) {
+    switch (value) {
+    case queue_dirty_t::EXISTING_ITEM:
+        return "exitsting item";
+    case queue_dirty_t::PERSIST_AGAIN:
+        return "persist again";
+    case queue_dirty_t::NEW_ITEM:
+        return "new item";
+    }
+
+    throw std::invalid_argument("to_string(queue_dirty_t): Invalid value: " +
+                                std::to_string(int(value)));
+}
+
 void CheckpointCursor::decrOffset(size_t decr) {
     if (offset >= decr) {
         offset.fetch_sub(decr);
@@ -151,12 +165,12 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &qi,
         if (qi->isNonEmptyCheckpointMetaItem()) {
             ++numMetaItems;
         }
-        rv = NEW_ITEM;
+        rv = queue_dirty_t::NEW_ITEM;
         toWrite.push_back(qi);
     } else {
         // Check if this checkpoint already had an item for the same key
         if (it != keyIndex.end()) {
-            rv = EXISTING_ITEM;
+            rv = queue_dirty_t::EXISTING_ITEM;
             CheckpointQueue::iterator currPos = it->second.position;
             const int64_t currMutationId{it->second.mutation_id};
 
@@ -203,7 +217,7 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &qi,
                         // this key.
                         cursor.second.decrOffset(1);
                         if (cursor.second.name == CheckpointManager::pCursorName) {
-                            rv = PERSIST_AGAIN;
+                            rv = queue_dirty_t::PERSIST_AGAIN;
                         }
                     }
                     /* If an TAP cursor points to the existing item for the same
@@ -219,7 +233,7 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &qi,
             toWrite.erase(currPos);
         } else {
             ++numItems;
-            rv = NEW_ITEM;
+            rv = queue_dirty_t::NEW_ITEM;
             // Push the new item into the list
             toWrite.push_back(qi);
         }
@@ -237,7 +251,7 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &qi,
         } else {
             keyIndex[qi->getKey()] = entry;
         }
-        if (rv == NEW_ITEM) {
+        if (rv == queue_dirty_t::NEW_ITEM) {
             size_t newEntrySize = qi->getKey().size() +
                                   sizeof(index_entry) + sizeof(queued_item);
             memOverhead += newEntrySize;
@@ -1215,15 +1229,15 @@ bool CheckpointManager::queueDirty(
 
     queue_dirty_t result = checkpointList.back()->queueDirty(qi, this);
 
-    if (result == NEW_ITEM) {
+    if (result == queue_dirty_t::NEW_ITEM) {
         ++numItems;
     }
 
-    if (result != EXISTING_ITEM) {
+    if (result != queue_dirty_t::EXISTING_ITEM) {
         updateStatsForNewQueuedItem_UNLOCKED(lh, vb, qi);
     }
 
-    return result != EXISTING_ITEM;
+    return result != queue_dirty_t::EXISTING_ITEM;
 }
 
 void CheckpointManager::queueSetVBState(VBucket& vb) {
@@ -1236,12 +1250,14 @@ void CheckpointManager::queueSetVBState(VBucket& vb) {
 
     auto result = checkpointList.back()->queueDirty(item, this);
 
-    if (result == NEW_ITEM) {
+    if (result == queue_dirty_t::NEW_ITEM) {
         ++numItems;
         updateStatsForNewQueuedItem_UNLOCKED(lh, vb, item);
     } else {
-        throw std::logic_error("CheckpointManager::queueSetVBState: "
-                "expected: NEW_ITEM, got:" + std::to_string(result) +
+        throw std::logic_error(
+                "CheckpointManager::queueSetVBState: "
+                "expected: NEW_ITEM, got:" +
+                to_string(result) +
                 "after queueDirty. vbid:" + std::to_string(vbucketId));
     }
 }
