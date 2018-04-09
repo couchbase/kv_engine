@@ -51,13 +51,6 @@
 
 #include "mock/mock_dcp.h"
 
-#undef THREAD_SANITIZER
-#if __clang__
-#  if defined(__has_feature) && __has_feature(thread_sanitizer)
-#define THREAD_SANITIZER
-#  endif
-#endif
-
 // Default number of iterations for tests. Individual tests may
 // override this, but is generally desirable for them to scale the
 // default iteration count instead of blindly overriding it.
