@@ -447,8 +447,8 @@ public:
      * @param ck cookie used to notify connection of operation completion
      */
     virtual ENGINE_ERROR_CODE scheduleCompaction(uint16_t vbid,
-                                                 compaction_ctx c,
-                                                 const void *ck) = 0;
+                                                 const CompactionConfig& c,
+                                                 const void* ck) = 0;
 
     /**
      * Get the database file id for the compaction request

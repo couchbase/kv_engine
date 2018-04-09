@@ -37,7 +37,7 @@ public:
     bool initialize() override;
 
     ENGINE_ERROR_CODE scheduleCompaction(uint16_t vbid,
-                                         compaction_ctx c,
+                                         const CompactionConfig& c,
                                          const void* ck) override;
 
     /// Eviction not supported for Ephemeral buckets - without some backing

@@ -279,7 +279,7 @@ public:
     ENGINE_ERROR_CODE deleteVBucket(uint16_t vbid, const void* c = NULL);
 
     ENGINE_ERROR_CODE compactDB(uint16_t vbid,
-                                compaction_ctx c,
+                                const CompactionConfig& c,
                                 const void* cookie = NULL);
 
     bool resetVBucket(uint16_t vbid);

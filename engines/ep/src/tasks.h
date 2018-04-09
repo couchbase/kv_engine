@@ -71,7 +71,8 @@ private:
 class CompactTask : public GlobalTask {
 public:
     CompactTask(EPBucket& bucket,
-                compaction_ctx c,
+                const CompactionConfig& c,
+                uint64_t purgeSeqno,
                 const void* ck,
                 bool completeBeforeShutdown = false);
 
@@ -89,7 +90,8 @@ public:
 
 private:
     EPBucket& bucket;
-    compaction_ctx compactCtx;
+    CompactionConfig compactionConfig;
+    uint64_t purgeSeqno;
     const void* cookie;
     std::string desc;
 };

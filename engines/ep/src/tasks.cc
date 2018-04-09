@@ -37,7 +37,8 @@ bool FlusherTask::run() {
 }
 
 CompactTask::CompactTask(EPBucket& bucket,
-                         compaction_ctx c,
+                         const CompactionConfig& c,
+                         uint64_t purgeSeqno,
                          const void* ck,
                          bool completeBeforeShutdown)
     : GlobalTask(&bucket.getEPEngine(),
@@ -45,15 +46,18 @@ CompactTask::CompactTask(EPBucket& bucket,
                  0,
                  completeBeforeShutdown),
       bucket(bucket),
-      compactCtx(c),
+      compactionConfig(c),
+      purgeSeqno(purgeSeqno),
       cookie(ck) {
-    desc = "Compact DB file " + std::to_string(c.db_file_id);
+    desc = "Compact DB file " + std::to_string(compactionConfig.db_file_id);
 }
 
 bool CompactTask::run() {
-    TRACE_EVENT1(
-            "ep-engine/task", "CompactTask", "file_id", compactCtx.db_file_id);
-    return bucket.doCompact(&compactCtx, cookie);
+    TRACE_EVENT1("ep-engine/task",
+                 "CompactTask",
+                 "file_id",
+                 compactionConfig.db_file_id);
+    return bucket.doCompact(compactionConfig, purgeSeqno, cookie);
 }
 
 bool StatSnap::run() {

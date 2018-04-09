@@ -78,7 +78,7 @@ public:
     void stopBgFetcher();
 
     ENGINE_ERROR_CODE scheduleCompaction(uint16_t vbid,
-                                         compaction_ctx c,
+                                         const CompactionConfig& c,
                                          const void* ck) override;
 
     /**
@@ -90,7 +90,9 @@ public:
      * return true if the compaction needs to be rescheduled and false
      *             otherwise
      */
-    bool doCompact(compaction_ctx* ctx, const void* cookie);
+    bool doCompact(const CompactionConfig& config,
+                   uint64_t purgeSeq,
+                   const void* cookie);
 
     std::pair<uint64_t, bool> getLastPersistedCheckpointId(
             uint16_t vb) override;
@@ -153,9 +155,9 @@ protected:
     /**
      * Compaction of a database file
      *
-     * @param ctx Context for compaction hooks
+     * @param config the configuration to use for running compaction
      */
-    void compactInternal(compaction_ctx* ctx);
+    void compactInternal(const CompactionConfig& config, uint64_t purgeSeqno);
 
     /**
      * Remove completed compaction tasks or wake snoozed tasks

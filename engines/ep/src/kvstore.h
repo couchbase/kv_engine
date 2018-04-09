@@ -96,14 +96,22 @@ struct CompactionStats {
     FileInfo post;
 };
 
-typedef struct {
-    uint64_t purge_before_ts;
-    uint64_t purge_before_seq;
-    //mapping of <key: vbucket id, value: max purged sequence number>
-    std::unordered_map<uint16_t, uint64_t> max_purged_seq;
+struct CompactionConfig {
+    uint64_t purge_before_ts = 0;
+    uint64_t purge_before_seq = 0;
+    uint8_t drop_deletes = 0;
+    DBFileId db_file_id = 0;
+    uint64_t purgeSeq = 0;
+};
+
+struct compaction_ctx {
+    compaction_ctx(const CompactionConfig& config, uint64_t purgeSeq)
+        : compactConfig(config), max_purged_seq(purgeSeq) {
+    }
+
+    CompactionConfig compactConfig;
+    uint64_t max_purged_seq;
     const KVStoreConfig* config;
-    uint8_t  drop_deletes;
-    DBFileId db_file_id;
     uint32_t curr_time;
     BloomFilterCBPtr bloomFilterCallback;
     ExpiredItemsCBPtr expiryCallback;
@@ -112,7 +120,7 @@ typedef struct {
     std::function<bool(
             const DocKey, int64_t, bool, Collections::VB::EraserContext&)>
             collectionsEraser;
-} compaction_ctx;
+};
 
 /**
  * State associated with a KVStore transaction (begin() / commit() pair).

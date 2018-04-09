@@ -786,7 +786,7 @@ static int notify_expired_item(DocInfo& info,
             metadata.getDataType(),
             metadata.getCas(),
             info.db_seq,
-            ctx.db_file_id,
+            ctx.compactConfig.db_file_id,
             info.rev_seq);
 
     it.setRevSeqno(info.rev_seq);
@@ -797,11 +797,10 @@ static int notify_expired_item(DocInfo& info,
 
 static int time_purge_hook(Db* d, DocInfo* info, sized_buf item, void* ctx_p) {
     compaction_ctx* ctx = static_cast<compaction_ctx*>(ctx_p);
-    const uint16_t vbid = ctx->db_file_id;
 
     if (info == nullptr) {
         // Compaction finished
-        return couchstore_set_purge_seq(d, ctx->max_purged_seq[vbid]);
+        return couchstore_set_purge_seq(d, ctx->max_purged_seq);
     }
 
     DbInfo infoDb;
@@ -813,14 +812,7 @@ static int time_purge_hook(Db* d, DocInfo* info, sized_buf item, void* ctx_p) {
         return err;
     }
 
-    uint64_t max_purge_seq = 0;
-    auto it = ctx->max_purged_seq.find(vbid);
-
-    if (it == ctx->max_purged_seq.end()) {
-        ctx->max_purged_seq[vbid] = 0;
-    } else {
-        max_purge_seq = it->second;
-    }
+    uint64_t max_purge_seq = ctx->max_purged_seq;
 
     if (info->rev_meta.size >= MetaData::getMetaDataSize(MetaData::Version::V0)) {
         auto metadata = MetaDataFactory::createMetaData(info->rev_meta);
@@ -840,18 +832,20 @@ static int time_purge_hook(Db* d, DocInfo* info, sized_buf item, void* ctx_p) {
 
         if (info->deleted) {
             if (info->db_seq != infoDb.last_sequence) {
-                if (ctx->drop_deletes) { // all deleted items must be dropped ...
+                if (ctx->compactConfig.drop_deletes) { // all deleted items must
+                                                       // be dropped ...
                     if (max_purge_seq < info->db_seq) {
-                        ctx->max_purged_seq[vbid] = info->db_seq; // track max_purged_seq
+                        ctx->max_purged_seq =
+                                info->db_seq; // track max_purged_seq
                     }
                     ctx->stats.tombstonesPurged++;
                     return COUCHSTORE_COMPACT_DROP_ITEM;      // ...unconditionally
                 }
-                if (exptime < ctx->purge_before_ts &&
-                        (!ctx->purge_before_seq ||
-                         info->db_seq <= ctx->purge_before_seq)) {
+                if (exptime < ctx->compactConfig.purge_before_ts &&
+                    (!ctx->compactConfig.purge_before_seq ||
+                     info->db_seq <= ctx->compactConfig.purge_before_seq)) {
                     if (max_purge_seq < info->db_seq) {
-                        ctx->max_purged_seq[vbid] = info->db_seq;
+                        ctx->max_purged_seq = info->db_seq;
                     }
                     ctx->stats.tombstonesPurged++;
                     return COUCHSTORE_COMPACT_DROP_ITEM;
@@ -882,7 +876,8 @@ static int time_purge_hook(Db* d, DocInfo* info, sized_buf item, void* ctx_p) {
         // Collections: TODO: Permanently restore to stored namespace
         DocKey key = makeDocKey(
                 info->id, ctx->config->shouldPersistDocNamespace());
-        ctx->bloomFilterCallback->callback(ctx->db_file_id, key, deleted);
+        ctx->bloomFilterCallback->callback(
+                ctx->compactConfig.db_file_id, key, deleted);
     }
 
     return COUCHSTORE_COMPACT_KEEP_ITEM;
@@ -918,7 +913,7 @@ bool CouchKVStore::compactDBInternal(compaction_ctx* hook_ctx,
     std::string           compact_file;
     std::string               new_file;
     DbInfo                        info;
-    uint16_t                      vbid = hook_ctx->db_file_id;
+    uint16_t vbid = hook_ctx->compactConfig.db_file_id;
     hook_ctx->config = &configuration;
 
     TRACE_EVENT1("CouchKVStore", "compactDB", "vbid", vbid);

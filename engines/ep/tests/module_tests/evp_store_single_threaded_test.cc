@@ -272,12 +272,12 @@ void SingleThreadedKVBucketTest::createDcpStream(MockDcpProducer& producer) {
 }
 
 void SingleThreadedKVBucketTest::runCompaction() {
-    compaction_ctx compactreq;
-    compactreq.purge_before_ts = ep_real_time();
-    compactreq.purge_before_seq = 0;
-    compactreq.drop_deletes = false;
-    compactreq.db_file_id = vbid;
-    store->scheduleCompaction(vbid, compactreq, nullptr);
+    CompactionConfig compactConfig;
+    compactConfig.purge_before_ts = ep_real_time();
+    compactConfig.purge_before_seq = 0;
+    compactConfig.drop_deletes = false;
+    compactConfig.db_file_id = vbid;
+    store->scheduleCompaction(vbid, compactConfig, nullptr);
     // run the compaction task
     runNextTask(*task_executor->getLpTaskQ()[WRITER_TASK_IDX],
                 "Compact DB file 0");

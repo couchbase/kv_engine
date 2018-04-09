@@ -574,7 +574,7 @@ void EPBucket::stopBgFetcher() {
 }
 
 ENGINE_ERROR_CODE EPBucket::scheduleCompaction(uint16_t vbid,
-                                               compaction_ctx c,
+                                               const CompactionConfig& c,
                                                const void* cookie) {
     ENGINE_ERROR_CODE errCode = checkForDBExistence(c.db_file_id);
     if (errCode != ENGINE_SUCCESS) {
@@ -587,11 +587,9 @@ ENGINE_ERROR_CODE EPBucket::scheduleCompaction(uint16_t vbid,
         return ENGINE_NOT_MY_VBUCKET;
     }
 
-    /* Update the compaction ctx with the previous purge seqno */
-    c.max_purged_seq[vbid] = vb->getPurgeSeqno();
-
     LockHolder lh(compactionLock);
-    ExTask task = std::make_shared<CompactTask>(*this, c, cookie);
+    ExTask task = std::make_shared<CompactTask>(
+            *this, c, vb->getPurgeSeqno(), cookie);
     compactionTasks.push_back(std::make_pair(c.db_file_id, task));
     if (compactionTasks.size() > 1) {
         if ((stats.diskQueueSize > compactionWriteQueueCap &&
@@ -675,45 +673,46 @@ std::unique_ptr<PersistenceCallback> EPBucket::flushOneDelOrSet(
     }
 }
 
-void EPBucket::compactInternal(compaction_ctx* ctx) {
+void EPBucket::compactInternal(const CompactionConfig& config,
+                               uint64_t purgeSeqno) {
+    compaction_ctx ctx(config, purgeSeqno);
+
     BloomFilterCBPtr filter(new BloomFilterCallback(*this));
-    ctx->bloomFilterCallback = filter;
+    ctx.bloomFilterCallback = filter;
 
     ExpiredItemsCBPtr expiry(new ExpiredItemsCallback(*this));
-    ctx->expiryCallback = expiry;
+    ctx.expiryCallback = expiry;
 
-    ctx->collectionsEraser = std::bind(&KVBucket::collectionsEraseKey,
-                                       this,
-                                       uint16_t(ctx->db_file_id),
-                                       std::placeholders::_1,
-                                       std::placeholders::_2,
-                                       std::placeholders::_3,
-                                       std::placeholders::_4);
+    ctx.collectionsEraser = std::bind(&KVBucket::collectionsEraseKey,
+                                      this,
+                                      uint16_t(config.db_file_id),
+                                      std::placeholders::_1,
+                                      std::placeholders::_2,
+                                      std::placeholders::_3,
+                                      std::placeholders::_4);
 
-    KVShard* shard = vbMap.getShardByVbId(ctx->db_file_id);
+    KVShard* shard = vbMap.getShardByVbId(config.db_file_id);
     KVStore* store = shard->getRWUnderlying();
-    bool result = store->compactDB(ctx);
+    bool result = store->compactDB(&ctx);
 
-    Configuration& config = getEPEngine().getConfiguration();
     /* Iterate over all the vbucket ids set in max_purged_seq map. If there is
      * an entry
      * in the map for a vbucket id, then it was involved in compaction and thus
      * can
      * be used to update the associated bloom filters and purge sequence numbers
      */
-    for (auto& it : ctx->max_purged_seq) {
-        const uint16_t vbid = it.first;
-        VBucketPtr vb = getVBucket(vbid);
-        if (!vb) {
-            continue;
-        }
-
-        if (config.isBfilterEnabled() && result) {
+    VBucketPtr vb = getVBucket(config.db_file_id);
+    if (vb) {
+        if (getEPEngine().getConfiguration().isBfilterEnabled() && result) {
             vb->swapFilter();
         } else {
             vb->clearFilter();
         }
-        vb->setPurgeSeqno(it.second);
+        vb->setPurgeSeqno(ctx.max_purged_seq);
+
+        // The collections eraser may have gathered some garbage keys which can
+        // now be released.
+        ctx.eraserContext.processKeys(*vb);
     }
 
     LOG(EXTENSION_LOG_NOTICE,
@@ -722,32 +721,27 @@ void EPBucket::compactInternal(compaction_ctx* ctx) {
         ", pre{size:%" PRIu64 ", items:%" PRIu64 ", deleted_items:%" PRIu64
         ", purge_seqno:%" PRIu64 "}, post{size:%" PRIu64 ", items:%" PRIu64
         ", deleted_items:%" PRIu64 ", purge_seqno:%" PRIu64 "}",
-        ctx->db_file_id,
+        config.db_file_id,
         result ? "ok" : "failed",
-        ctx->stats.tombstonesPurged,
-        ctx->stats.collectionsItemsPurged,
-        ctx->stats.pre.size,
-        ctx->stats.pre.items,
-        ctx->stats.pre.deletedItems,
-        ctx->stats.pre.purgeSeqno,
-        ctx->stats.post.size,
-        ctx->stats.post.items,
-        ctx->stats.post.deletedItems,
-        ctx->stats.post.purgeSeqno);
-
-    // The collections eraser may have gathered some garbage keys which can now
-    // be released.
-    auto vb = getVBucket(uint16_t(ctx->db_file_id));
-    if (vb) {
-        ctx->eraserContext.processKeys(*vb);
-    }
+        ctx.stats.tombstonesPurged,
+        ctx.stats.collectionsItemsPurged,
+        ctx.stats.pre.size,
+        ctx.stats.pre.items,
+        ctx.stats.pre.deletedItems,
+        ctx.stats.pre.purgeSeqno,
+        ctx.stats.post.size,
+        ctx.stats.post.items,
+        ctx.stats.post.deletedItems,
+        ctx.stats.post.purgeSeqno);
 }
 
-bool EPBucket::doCompact(compaction_ctx* ctx, const void* cookie) {
+bool EPBucket::doCompact(const CompactionConfig& config,
+                         uint64_t purgeSeqno,
+                         const void* cookie) {
     ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
     StorageProperties storeProp = getStorageProperties();
     bool concWriteCompact = storeProp.hasConcWriteCompact();
-    uint16_t vbid = ctx->db_file_id;
+    uint16_t vbid = config.db_file_id;
 
     /**
      * Check if the underlying storage engine allows writes concurrently
@@ -771,13 +765,13 @@ bool EPBucket::doCompact(compaction_ctx* ctx, const void* cookie) {
              */
             engine.decrementSessionCtr();
         } else {
-            compactInternal(ctx);
+            compactInternal(config, purgeSeqno);
         }
     } else {
-        compactInternal(ctx);
+        compactInternal(config, purgeSeqno);
     }
 
-    updateCompactionTasks(ctx->db_file_id);
+    updateCompactionTasks(vbid);
 
     if (cookie) {
         engine.notifyIOComplete(cookie, err);

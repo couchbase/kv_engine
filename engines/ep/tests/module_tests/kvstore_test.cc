@@ -305,12 +305,13 @@ TEST_F(CouchKVStoreTest, CompactStatsTest) {
 
     EXPECT_TRUE(kvstore->commit(nullptr /*no collections manifest*/));
 
-    compaction_ctx cctx;
-    cctx.purge_before_seq = 0;
-    cctx.purge_before_ts = 0;
+    CompactionConfig compactionConfig;
+    compactionConfig.purge_before_seq = 0;
+    compactionConfig.purge_before_ts = 0;
+    compactionConfig.drop_deletes = 0;
+    compactionConfig.db_file_id = 0;
+    compaction_ctx cctx(compactionConfig, 0);
     cctx.curr_time = 0;
-    cctx.drop_deletes = 0;
-    cctx.db_file_id = 0;
 
     EXPECT_TRUE(kvstore->compactDB(&cctx));
     // Check statistics are correct.
@@ -764,12 +765,13 @@ TEST_F(CouchKVStoreErrorInjectionTest, getMulti_open_doc_with_docinfo) {
 TEST_F(CouchKVStoreErrorInjectionTest, compactDB_compact_db_ex) {
     populate_items(1);
 
-    compaction_ctx cctx;
-    cctx.purge_before_seq = 0;
-    cctx.purge_before_ts = 0;
+    CompactionConfig config;
+    config.purge_before_seq = 0;
+    config.purge_before_ts = 0;
+    config.drop_deletes = 0;
+    config.db_file_id = 0;
+    compaction_ctx cctx(config, 0);
     cctx.curr_time = 0;
-    cctx.drop_deletes = 0;
-    cctx.db_file_id = 0;
 
     {
         /* Establish Logger expectation */
@@ -1085,12 +1087,10 @@ TEST_F(CouchKVStoreErrorInjectionTest, closeDB_close_file) {
 TEST_F(CouchKVStoreErrorInjectionTest, CompactFailedStatsTest) {
     populate_items(1);
 
-    compaction_ctx cctx;
-    cctx.purge_before_seq = 0;
-    cctx.purge_before_ts = 0;
+    CompactionConfig config;
+    compaction_ctx cctx(config, 0);
     cctx.curr_time = 0;
-    cctx.drop_deletes = 0;
-    cctx.db_file_id = 0;
+
     {
         /* Establish FileOps expectation */
         EXPECT_CALL(ops, open(_, _, _, _)).WillOnce(
@@ -1576,12 +1576,9 @@ TEST_F(CouchstoreTest, testV0CompactionUpgrade) {
     // Commit it
     kvstore->commit(nullptr /*no collections manifest*/);
 
-    compaction_ctx cctx;
-    cctx.purge_before_seq = 0;
-    cctx.purge_before_ts = 0;
+    CompactionConfig config;
+    compaction_ctx cctx(config, 0);
     cctx.curr_time = 0;
-    cctx.drop_deletes = 0;
-    cctx.db_file_id = 0;
     cctx.expiryCallback = std::make_shared<ExpiryCallback>();
     EXPECT_TRUE(kvstore->compactDB(&cctx));
 
@@ -1632,12 +1629,10 @@ TEST_F(CouchstoreTest, testV2CompactionUpgrade) {
     // Commit it
     kvstore->commit(nullptr /*no collections manifest*/);
 
-    compaction_ctx cctx;
-    cctx.purge_before_seq = 0;
-    cctx.purge_before_ts = 0;
+    CompactionConfig config;
+    compaction_ctx cctx(config, 0);
     cctx.curr_time = 0;
-    cctx.drop_deletes = 0;
-    cctx.db_file_id = 0;
+
     cctx.expiryCallback = std::make_shared<ExpiryCallback>();
     EXPECT_TRUE(kvstore->compactDB(&cctx));
 
@@ -2071,12 +2066,14 @@ TEST_P(KVStoreParamTest, CompactAndScan) {
     };
     auto compact = [this, &tg] {
         tg.threadUp();
-        compaction_ctx cctx;
-        cctx.purge_before_seq = 0;
-        cctx.purge_before_ts = 0;
+        CompactionConfig config;
+        config.purge_before_seq = 0;
+        config.purge_before_ts = 0;
+
+        config.drop_deletes = 0;
+        config.db_file_id = 0;
+        compaction_ctx cctx(config, 0);
         cctx.curr_time = 0;
-        cctx.drop_deletes = 0;
-        cctx.db_file_id = 0;
         for (int i = 0; i < 10; i++) {
             EXPECT_TRUE(kvstore->compactDB(&cctx));
         }

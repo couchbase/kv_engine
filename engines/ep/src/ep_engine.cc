@@ -1016,7 +1016,7 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
                                    ADD_RESPONSE response) {
 
     protocol_binary_response_status res = PROTOCOL_BINARY_RESPONSE_SUCCESS;
-    compaction_ctx compactreq;
+    CompactionConfig compactionConfig;
     uint64_t cas = ntohll(req->message.header.request.cas);
 
     if (ntohs(req->message.header.request.keylen) > 0 ||
@@ -1032,11 +1032,12 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
                             PROTOCOL_BINARY_RESPONSE_EINVAL, cas, cookie);
     }
     EPStats& stats = e->getEpStats();
-    compactreq.purge_before_ts = ntohll(req->message.body.purge_before_ts);
-    compactreq.purge_before_seq =
-        ntohll(req->message.body.purge_before_seq);
-    compactreq.drop_deletes = req->message.body.drop_deletes;
-    compactreq.db_file_id = e->getKVBucket()->getDBFileId(*req);
+    compactionConfig.purge_before_ts =
+            ntohll(req->message.body.purge_before_ts);
+    compactionConfig.purge_before_seq =
+            ntohll(req->message.body.purge_before_seq);
+    compactionConfig.drop_deletes = req->message.body.drop_deletes;
+    compactionConfig.db_file_id = e->getKVBucket()->getDBFileId(*req);
     uint16_t vbid = ntohs(req->message.header.request.vbucket);
 
     ENGINE_ERROR_CODE err;
@@ -1044,7 +1045,7 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
     if (es == NULL) {
         ++stats.pendingCompactions;
         e->storeEngineSpecific(cookie, e);
-        err = e->compactDB(vbid, compactreq, cookie);
+        err = e->compactDB(vbid, compactionConfig, cookie);
     } else {
         e->storeEngineSpecific(cookie, NULL);
         err = ENGINE_SUCCESS;
@@ -1055,26 +1056,32 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
         break;
     case ENGINE_NOT_MY_VBUCKET:
         --stats.pendingCompactions;
-        LOG(EXTENSION_LOG_WARNING, "Compaction of db file id: %d failed "
-            "because the db file doesn't exist!!!", compactreq.db_file_id);
+        LOG(EXTENSION_LOG_WARNING,
+            "Compaction of db file id: %d failed "
+            "because the db file doesn't exist!!!",
+            compactionConfig.db_file_id);
         res = PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
         break;
     case ENGINE_EINVAL:
         --stats.pendingCompactions;
-        LOG(EXTENSION_LOG_WARNING, "Compaction of db file id: %d failed "
-            "because of an invalid argument", compactreq.db_file_id);
+        LOG(EXTENSION_LOG_WARNING,
+            "Compaction of db file id: %d failed "
+            "because of an invalid argument",
+            compactionConfig.db_file_id);
         res = PROTOCOL_BINARY_RESPONSE_EINVAL;
         break;
     case ENGINE_EWOULDBLOCK:
         LOG(EXTENSION_LOG_NOTICE,
             "Compaction of db file id: %d scheduled "
-                "(awaiting completion).", compactreq.db_file_id);
+            "(awaiting completion).",
+            compactionConfig.db_file_id);
         e->storeEngineSpecific(cookie, req);
         return ENGINE_EWOULDBLOCK;
     case ENGINE_TMPFAIL:
-        LOG(EXTENSION_LOG_WARNING, "Request to compact db file id: %d hit"
-                " a temporary failure and may need to be retried",
-            compactreq.db_file_id);
+        LOG(EXTENSION_LOG_WARNING,
+            "Request to compact db file id: %d hit"
+            " a temporary failure and may need to be retried",
+            compactionConfig.db_file_id);
         e->setErrorContext(cookie, "Temporary failure in compacting db file.");
         res = PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
         break;
@@ -1083,7 +1090,7 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
         LOG(EXTENSION_LOG_WARNING,
             "Compaction of db file id: %d failed "
             "because of unknown reasons",
-            compactreq.db_file_id);
+            compactionConfig.db_file_id);
         e->setErrorContext(cookie, "Failed to compact db file.  Unknown reason.");
         res = PROTOCOL_BINARY_RESPONSE_EINTERNAL;
         break;
@@ -5762,9 +5769,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteVBucket(uint16_t vbid,
     return kvBucket->deleteVBucket(vbid, c);
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::compactDB(uint16_t vbid,
-                                                        compaction_ctx c,
-                                                        const void* cookie) {
+ENGINE_ERROR_CODE EventuallyPersistentEngine::compactDB(
+        uint16_t vbid, const CompactionConfig& c, const void* cookie) {
     return kvBucket->scheduleCompaction(vbid, c, cookie);
 }
 
