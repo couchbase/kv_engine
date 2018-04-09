@@ -370,6 +370,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                    benchmarks/ep_engine_benchmarks_main.cc
                    benchmarks/item_bench.cc
                    benchmarks/item_compressor_bench.cc
+                   benchmarks/kvstore_bench.cc
                    benchmarks/mem_allocator_stats_bench.cc
                    benchmarks/vbucket_bench.cc
                    benchmarks/statistical_counter_bench.cc
