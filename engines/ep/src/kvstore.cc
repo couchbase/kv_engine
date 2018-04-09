@@ -383,6 +383,13 @@ void KVStore::addStats(ADD_STAT add_stat, const void *c) {
     if (getStat("seqno_kTotalSstFilesSize", value)) {
         addStat(prefix, "rocksdb_seqno_kTotalSstFilesSize", value, add_stat, c);
     }
+    // Scan stats
+    if (getStat("scan_totalSeqnoHits", value)) {
+        addStat(prefix, "rocksdb_scan_totalSeqnoHits", value, add_stat, c);
+    }
+    if (getStat("scan_oldSeqnoHits", value)) {
+        addStat(prefix, "rocksdb_scan_oldSeqnoHits", value, add_stat, c);
+    }
 }
 
 void KVStore::addTimingStats(ADD_STAT add_stat, const void *c) {

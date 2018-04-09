@@ -24,6 +24,7 @@
 #pragma once
 
 #include <platform/dirutils.h>
+#include <platform/non_negative_counter.h>
 #include <map>
 #include <vector>
 
@@ -474,6 +475,15 @@ private:
     std::unique_ptr<TransactionContext> transactionCtx;
 
     std::atomic<size_t> scanCounter; // atomic counter for generating scan id
+
+    // The number of total hits in the SeqnoCF when executing 'scan()'.
+    // Note that it is equal to number of times we perform a point lookup from
+    // the DefaultCF.
+    cb::NonNegativeCounter<size_t> scanTotalSeqnoHits;
+    // The number of hits of old seqnos in the SeqnoCF when executing 'scan()'.
+    // This is the number of times we perform a "useless" point lookup from the
+    // DefaultCF (caused by old seqnos never deleted from the SeqnoCF).
+    cb::NonNegativeCounter<size_t> scanOldSeqnoHits;
 
     struct SnapshotDeleter {
         SnapshotDeleter(rocksdb::DB& db) : db(db) {

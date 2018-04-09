@@ -2196,6 +2196,10 @@ TEST_F(RocksDBKVStoreTest, StatsTest) {
     // Disk Usage per-CF
     EXPECT_TRUE(kvstore->getStat("default_kTotalSstFilesSize", value));
     EXPECT_TRUE(kvstore->getStat("seqno_kTotalSstFilesSize", value));
+
+    // Scan stats
+    EXPECT_TRUE(kvstore->getStat("scan_totalSeqnoHits", value));
+    EXPECT_TRUE(kvstore->getStat("scan_oldSeqnoHits", value));
 }
 
 // Verify that a wrong value of 'rocksdb_statistics_option' is caught

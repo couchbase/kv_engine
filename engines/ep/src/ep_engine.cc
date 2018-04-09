@@ -3052,6 +3052,17 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
         add_casted_stat(
                 "ep_rocksdb_seqno_kTotalSstFilesSize", value, add_stat, cookie);
     }
+    // Scan stats
+    if (kvBucket->getKVStoreStat(
+                "scan_totalSeqnoHits", value, KVBucketIface::KVSOption::RW)) {
+        add_casted_stat(
+                "ep_rocksdb_scan_totalSeqnoHits", value, add_stat, cookie);
+    }
+    if (kvBucket->getKVStoreStat(
+                "scan_oldSeqnoHits", value, KVBucketIface::KVSOption::RW)) {
+        add_casted_stat(
+                "ep_rocksdb_scan_oldSeqnoHits", value, add_stat, cookie);
+    }
 
     return ENGINE_SUCCESS;
 }

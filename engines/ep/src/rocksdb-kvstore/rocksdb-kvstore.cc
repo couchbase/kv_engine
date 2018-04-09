@@ -809,6 +809,15 @@ bool RocksDBKVStore::getStat(const char* name_, size_t& value) {
                 value);
     }
 
+    // Scan stats
+    else if (name == "scan_totalSeqnoHits") {
+        value = scanTotalSeqnoHits.load();
+        return true;
+    } else if (name == "scan_oldSeqnoHits") {
+        value = scanOldSeqnoHits.load();
+        return true;
+    }
+
     return false;
 }
 
@@ -1406,6 +1415,7 @@ scan_error_t RocksDBKVStore::scan(ScanContext* ctx) {
     };
 
     for (; it->Valid() && !isPastEnd(it->key()); it->Next()) {
+        scanTotalSeqnoHits++;
         auto seqno = getNumericSeqno(it->key());
         rocksdb::Slice keySlice = it->value();
         std::string valueStr;
@@ -1417,6 +1427,14 @@ scan_error_t RocksDBKVStore::scan(ScanContext* ctx) {
             // If the item does not exist (s.isNotFound())
             // the seqno => key mapping could be removed; not even
             // a tombstone remains of that item.
+
+            // Note: I account also the hits for deleted documents because it
+            // is logically correct. But, we switch on the RocksDB built-in
+            // Bloom Filter by default and we try to keep all the Filter blocks
+            // in the BlockCache. So, I expect that the impact of old-seqno hits
+            // is minimum in this case.
+            scanOldSeqnoHits++;
+
             continue;
         }
 
@@ -1434,6 +1452,7 @@ scan_error_t RocksDBKVStore::scan(ScanContext* ctx) {
             // TODO RDB: Old seqnos are never removed from the db!
             // If the item has a newer seqno now, the stale
             // seqno => key mapping could be removed
+            scanOldSeqnoHits++;
             continue;
         } else if (itm->getBySeqno() < seqno) {
             throw std::logic_error(
