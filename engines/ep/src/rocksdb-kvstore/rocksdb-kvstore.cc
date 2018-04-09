@@ -24,6 +24,7 @@
 
 #include "kvstore_priv.h"
 
+#include <phosphor/phosphor.h>
 #include <platform/sysinfo.h>
 #include <rocksdb/convenience.h>
 #include <rocksdb/filter_policy.h>
@@ -1368,6 +1369,13 @@ scan_error_t RocksDBKVStore::scan(ScanContext* ctx) {
     if (ctx->lastReadSeqno != 0) {
         startSeqno = ctx->lastReadSeqno + 1;
     }
+
+    TRACE_EVENT2("RocksDBKVStore",
+                 "scan",
+                 "vbid",
+                 ctx->vbid,
+                 "startSeqno",
+                 startSeqno);
 
     GetMetaOnly isMetaOnly = ctx->valFilter == ValueFilter::KEYS_ONLY
                                      ? GetMetaOnly::Yes
