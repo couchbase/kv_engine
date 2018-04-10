@@ -855,7 +855,8 @@ static enum test_result test_expiry_with_xattr(ENGINE_HANDLE* h,
             get_meta(h, h1, "test_expiry", false, GetMetaVersion::V1, cookie),
             "Get meta command failed");
 
-    checkeq(last_meta.revSeqno, prev_revseqno + 1,
+    checkeq(uint64_t(last_meta.revSeqno),
+            prev_revseqno + 1,
             "rev seqno must have incremented by 1");
 
     /* Retrieve the item info and create a new blob out of the data */
@@ -4165,7 +4166,7 @@ static enum test_result test_revid(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 
         checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
                 "Expected success");
-        checkeq(ii, last_meta.revSeqno, "Unexpected sequence number");
+        checkeq(ii, uint64_t(last_meta.revSeqno), "Unexpected sequence number");
     }
 
     return SUCCESS;
@@ -4993,7 +4994,7 @@ static enum test_result test_set_ret_meta(ENGINE_HANDLE *h,
     check(last_meta.flags == 0, "Invalid result for flags");
     check(last_meta.exptime == 0, "Invalid result for expiration");
     check(last_meta.cas != 0, "Invalid result for cas");
-    check(last_meta.revSeqno == 1, "Invalid result for seqno");
+    check(last_meta.revSeqno == 1ull, "Invalid result for seqno");
 
     // Check that set with correct cas succeeds
     set_ret_meta(h, h1, "key", 3, "value", 5, 0, last_meta.cas, 10, 1735689600);
@@ -5005,7 +5006,7 @@ static enum test_result test_set_ret_meta(ENGINE_HANDLE *h,
     check(last_meta.flags == 10, "Invalid result for flags");
     check(last_meta.exptime == 1735689600, "Invalid result for expiration");
     check(last_meta.cas != 0, "Invalid result for cas");
-    check(last_meta.revSeqno == 2, "Invalid result for seqno");
+    check(last_meta.revSeqno == 2ull, "Invalid result for seqno");
 
     // Check that updating an item with no cas succeeds
     set_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 5, 0);
@@ -5017,7 +5018,7 @@ static enum test_result test_set_ret_meta(ENGINE_HANDLE *h,
     check(last_meta.flags == 5, "Invalid result for flags");
     check(last_meta.exptime == 0, "Invalid result for expiration");
     check(last_meta.cas != 0, "Invalid result for cas");
-    check(last_meta.revSeqno == 3, "Invalid result for seqno");
+    check(last_meta.revSeqno == 3ull, "Invalid result for seqno");
 
     // Check that updating an item with the wrong cas fails
     set_ret_meta(h, h1, "key", 3, "value", 5, 0, last_meta.cas + 1, 5, 0);
@@ -5091,7 +5092,7 @@ static enum test_result test_add_ret_meta(ENGINE_HANDLE *h,
     check(last_meta.flags == 0, "Invalid result for flags");
     check(last_meta.exptime == 0, "Invalid result for expiration");
     check(last_meta.cas != 0, "Invalid result for cas");
-    check(last_meta.revSeqno == 1, "Invalid result for seqno");
+    check(last_meta.revSeqno == 1ull, "Invalid result for seqno");
 
     // Check that re-adding a key fails
     add_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 0, 0);
@@ -5108,7 +5109,7 @@ static enum test_result test_add_ret_meta(ENGINE_HANDLE *h,
     check(last_meta.flags == 10, "Invalid result for flags");
     check(last_meta.exptime == 1735689600, "Invalid result for expiration");
     check(last_meta.cas != 0, "Invalid result for cas");
-    check(last_meta.revSeqno == 1, "Invalid result for seqno");
+    check(last_meta.revSeqno == 1ull, "Invalid result for seqno");
 
     return SUCCESS;
 }
@@ -5178,7 +5179,7 @@ static enum test_result test_del_ret_meta(ENGINE_HANDLE *h,
     check(last_meta.flags == 0, "Invalid result for flags");
     check(last_meta.exptime == 0, "Invalid result for expiration");
     check(last_meta.cas != 0, "Invalid result for cas");
-    check(last_meta.revSeqno == 1, "Invalid result for seqno");
+    check(last_meta.revSeqno == 1ull, "Invalid result for seqno");
 
     del_ret_meta(h, h1, "key", 3, 0, 0);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
@@ -5189,7 +5190,7 @@ static enum test_result test_del_ret_meta(ENGINE_HANDLE *h,
     check(last_meta.flags == 0, "Invalid result for flags");
     check(last_meta.exptime == 0, "Invalid result for expiration");
     check(last_meta.cas != 0, "Invalid result for cas");
-    check(last_meta.revSeqno == 2, "Invalid result for seqno");
+    check(last_meta.revSeqno == 2ull, "Invalid result for seqno");
 
     // Check that deleting a key with a cas succeeds.
     add_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 10, 1735689600);
@@ -5199,7 +5200,7 @@ static enum test_result test_del_ret_meta(ENGINE_HANDLE *h,
     check(last_meta.flags == 10, "Invalid result for flags");
     check(last_meta.exptime == 1735689600, "Invalid result for expiration");
     check(last_meta.cas != 0, "Invalid result for cas");
-    check(last_meta.revSeqno == 3, "Invalid result for seqno");
+    check(last_meta.revSeqno == 3ull, "Invalid result for seqno");
 
     del_ret_meta(h, h1, "key", 3, 0, last_meta.cas);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
@@ -5210,7 +5211,7 @@ static enum test_result test_del_ret_meta(ENGINE_HANDLE *h,
     check(last_meta.flags == 10, "Invalid result for flags");
     check(last_meta.exptime == 1735689600, "Invalid result for expiration");
     check(last_meta.cas != 0, "Invalid result for cas");
-    check(last_meta.revSeqno == 4, "Invalid result for seqno");
+    check(last_meta.revSeqno == 4ull, "Invalid result for seqno");
 
     // Check that deleting a key with the wrong cas fails
     add_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 0, 0);
@@ -5220,7 +5221,7 @@ static enum test_result test_del_ret_meta(ENGINE_HANDLE *h,
     check(last_meta.flags == 0, "Invalid result for flags");
     check(last_meta.exptime == 0, "Invalid result for expiration");
     check(last_meta.cas != 0, "Invalid result for cas");
-    check(last_meta.revSeqno == 5, "Invalid result for seqno");
+    check(last_meta.revSeqno == 5ull, "Invalid result for seqno");
 
     del_ret_meta(h, h1, "key", 3, 0, last_meta.cas + 1);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),

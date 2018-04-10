@@ -152,6 +152,28 @@ private:
     useconds_t totalSleepTime;
 };
 
+/**
+ * Raw meta-data allowing 64-bit rev-seqno
+ */
+class RawItemMetaData {
+public:
+    RawItemMetaData()
+        : cas(0), revSeqno(DEFAULT_REV_SEQ_NUM), flags(0), exptime(0) {
+    }
+
+    RawItemMetaData(uint64_t c, uint64_t s, uint32_t f, time_t e)
+        : cas(c),
+          revSeqno(s == 0 ? DEFAULT_REV_SEQ_NUM : s),
+          flags(f),
+          exptime(e) {
+    }
+
+    uint64_t cas;
+    uint64_t revSeqno;
+    uint32_t flags;
+    time_t exptime;
+};
+
 void decayingSleep(useconds_t *sleepTime);
 
 
@@ -457,6 +479,20 @@ void del_with_meta(ENGINE_HANDLE* h,
                    const size_t keylen,
                    const uint32_t vb,
                    ItemMetaData* itemMeta,
+                   uint64_t cas_for_delete = 0,
+                   uint32_t options = 0,
+                   const void* cookie = nullptr,
+                   const std::vector<char>& nmeta = {},
+                   protocol_binary_datatype_t datatype = 0,
+                   const std::vector<char>& value = {} /*optional value*/);
+
+// This version takes a RawItemMetaData allowing for 64-bit rev-seqno tests
+void del_with_meta(ENGINE_HANDLE* h,
+                   ENGINE_HANDLE_V1* h1,
+                   const char* key,
+                   const size_t keylen,
+                   const uint32_t vb,
+                   RawItemMetaData* itemMeta,
                    uint64_t cas_for_delete = 0,
                    uint32_t options = 0,
                    const void* cookie = nullptr,

@@ -186,8 +186,9 @@ bool add_response_get_meta(const void *key, uint16_t keylen, const void *ext,
         memcpy(&last_meta.flags, ext_bytes + 4, 4);
         memcpy(&last_meta.exptime, ext_bytes + 8, 4);
         last_meta.exptime = ntohl(last_meta.exptime);
-        memcpy(&last_meta.revSeqno, ext_bytes + 12, 8);
-        last_meta.revSeqno = ntohll(last_meta.revSeqno);
+        uint64_t revId = 0;
+        memcpy(&revId, ext_bytes + 12, 8);
+        last_meta.revSeqno = ntohll(revId);
         last_meta.cas = cas;
         if (extlen > 20) {
             memcpy(&meta_datatype, ext_bytes + 20, 1);
@@ -227,8 +228,9 @@ bool add_response_ret_meta(const void *key, uint16_t keylen, const void *ext,
         memcpy(&last_meta.flags, ext_bytes, 4);
         memcpy(&last_meta.exptime, ext_bytes + 4, 4);
         last_meta.exptime = ntohl(last_meta.exptime);
-        memcpy(&last_meta.revSeqno, ext_bytes + 8, 8);
-        last_meta.revSeqno = ntohll(last_meta.revSeqno);
+        uint64_t revId = 0;
+        memcpy(&revId, ext_bytes + 8, 8);
+        last_meta.revSeqno = ntohll(revId);
         last_meta.cas = cas;
     }
     return add_response(key, keylen, ext, extlen, body, bodylen, datatype,
@@ -302,16 +304,31 @@ void encodeExt(char *buffer, uint32_t val) {
     memcpy(buffer, (char*)&val, sizeof(val));
 }
 
-void encodeWithMetaExt(char *buffer, ItemMetaData *meta) {
+void encodeWithMetaExt(char* buffer,
+                       uint64_t cas,
+                       uint64_t revSeqno,
+                       uint32_t flags,
+                       uint32_t exp) {
+    memcpy(buffer, (char*)&flags, sizeof(flags));
+    memcpy(buffer + 4, (char*)&exp, sizeof(exp));
+    memcpy(buffer + 8, (char*)&revSeqno, sizeof(revSeqno));
+    memcpy(buffer + 16, (char*)&cas, sizeof(cas));
+}
+
+void encodeWithMetaExt(char* buffer, RawItemMetaData* meta) {
     uint32_t flags = meta->flags;
     uint32_t exp = htonl(meta->exptime);
     uint64_t seqno = htonll(meta->revSeqno);
     uint64_t cas = htonll(meta->cas);
+    encodeWithMetaExt(buffer, cas, seqno, flags, exp);
+}
 
-    memcpy(buffer, (char*)&flags, sizeof(flags));
-    memcpy(buffer + 4, (char*)&exp, sizeof(exp));
-    memcpy(buffer + 8, (char*)&seqno, sizeof(seqno));
-    memcpy(buffer + 16, (char*)&cas, sizeof(cas));
+void encodeWithMetaExt(char* buffer, ItemMetaData* meta) {
+    uint32_t flags = meta->flags;
+    uint32_t exp = htonl(meta->exptime);
+    uint64_t seqno = htonll(meta->revSeqno);
+    uint64_t cas = htonll(meta->cas);
+    encodeWithMetaExt(buffer, cas, seqno, flags, exp);
 }
 
 protocol_binary_request_header* createPacket(uint8_t opcode,
@@ -416,6 +433,36 @@ void del_with_meta(ENGINE_HANDLE* h,
                    const size_t keylen,
                    const uint32_t vb,
                    ItemMetaData* itemMeta,
+                   uint64_t cas_for_delete,
+                   uint32_t options,
+                   const void* cookie,
+                   const std::vector<char>& nmeta,
+                   protocol_binary_datatype_t datatype,
+                   const std::vector<char>& value) {
+    RawItemMetaData meta{itemMeta->cas,
+                         itemMeta->revSeqno,
+                         itemMeta->flags,
+                         itemMeta->exptime};
+    del_with_meta(h,
+                  h1,
+                  key,
+                  keylen,
+                  vb,
+                  &meta,
+                  cas_for_delete,
+                  options,
+                  cookie,
+                  nmeta,
+                  datatype,
+                  value);
+}
+
+void del_with_meta(ENGINE_HANDLE* h,
+                   ENGINE_HANDLE_V1* h1,
+                   const char* key,
+                   const size_t keylen,
+                   const uint32_t vb,
+                   RawItemMetaData* itemMeta,
                    uint64_t cas_for_delete,
                    uint32_t options,
                    const void* cookie,

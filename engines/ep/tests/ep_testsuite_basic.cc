@@ -1289,7 +1289,8 @@ static enum test_result test_delete_with_value_cas(ENGINE_HANDLE *h,
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
             last_status.load(), "Get meta failed");
 
-    checkeq(last_meta.revSeqno, curr_revseqno + 1,
+    checkeq(uint64_t(last_meta.revSeqno),
+            curr_revseqno + 1,
             "rev seqno should have incremented");
 
     item *i = nullptr;
@@ -1321,7 +1322,8 @@ static enum test_result test_delete_with_value_cas(ENGINE_HANDLE *h,
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
             last_status.load(), "Get meta failed");
 
-    checkeq(last_meta.revSeqno, curr_revseqno + 1,
+    checkeq(uint64_t(last_meta.revSeqno),
+            curr_revseqno + 1,
             "rev seqno should have incremented");
 
     curr_revseqno = last_meta.revSeqno;
@@ -1345,7 +1347,8 @@ static enum test_result test_delete_with_value_cas(ENGINE_HANDLE *h,
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
             last_status.load(), "Get meta failed");
 
-    checkeq(last_meta.revSeqno, curr_revseqno + 1,
+    checkeq(uint64_t(last_meta.revSeqno),
+            curr_revseqno + 1,
             "rev seqno should have incremented");
 
     curr_revseqno = last_meta.revSeqno;
@@ -1373,7 +1376,8 @@ static enum test_result test_delete_with_value_cas(ENGINE_HANDLE *h,
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
             last_status.load(), "Get meta failed");
 
-    checkeq(last_meta.revSeqno, curr_revseqno + 1,
+    checkeq(uint64_t(last_meta.revSeqno),
+            curr_revseqno + 1,
             "rev seqno should have incremented");
 
     check(h1->get_item_info(h, nullptr, ret.second.get(), &info),

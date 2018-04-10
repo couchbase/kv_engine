@@ -25,6 +25,7 @@
 #include "utility.h"
 
 #include <memcached/3rd_party/folly/AtomicBitSet.h>
+#include <platform/n_byte_integer.h>
 
 #include <boost/intrusive/list.hpp>
 
@@ -722,12 +723,12 @@ protected:
     // only the newer version if so.
     UniquePtr chain_next_or_replacement; // 8 bytes
     uint64_t           cas;            //!< CAS identifier.
-    uint64_t           revSeqno;       //!< Revision id sequence number
     int64_t            bySeqno;        //!< By sequence id number
     /// For alive items: GETL lock expiration. For deleted items: delete time.
     rel_time_t         lock_expiry_or_delete_time;
     uint32_t           exptime;        //!< Expiration time of this item.
     uint32_t           flags;          // 4 bytes
+    cb::uint48_t revSeqno; //!< Revision id sequence number
     protocol_binary_datatype_t datatype; // 1 byte
 
     /**
