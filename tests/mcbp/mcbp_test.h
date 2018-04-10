@@ -23,6 +23,8 @@
 
 #include "config.h"
 
+#include "mock_connection.h"
+
 #include <daemon/connection.h>
 #include <daemon/mcbp_validators.h>
 #include <daemon/stats.h>
@@ -48,15 +50,6 @@ protected:
 
     McbpValidatorChains validatorChains;
 
-    /**
-     * Create a mock connection which doesn't own a socket and isn't bound
-     * to libevent
-     */
-    class MockConnection : public Connection {
-    public:
-        MockConnection() : Connection() {
-        }
-    };
     MockConnection connection;
 
     // backing store which may be used for the request

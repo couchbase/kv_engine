@@ -61,6 +61,40 @@ protected:
 };
 
 /**
+ * Simple helper class which adds a trace begin or end event instantly
+ * when it is created.
+ * For use when the start & stop times are not inside the same scope; and hence
+ * need the ability to specify them individually.
+ */
+class InstantTracer {
+public:
+    InstantTracer(Cookie& cookie,
+                  const cb::tracing::TraceCode code,
+                  bool begin,
+                  ProcessClock::time_point time = ProcessClock::now()) {
+        if (cookie.isTracingEnabled()) {
+            auto& tracer = cookie.getTracer();
+            if (begin) {
+                tracer.begin(code, time);
+            } else {
+                tracer.end(code, time);
+            }
+        }
+    }
+
+    /// Constructor from Cookie (void*)
+    InstantTracer(const void* cookie,
+                  const cb::tracing::TraceCode code,
+                  bool begin,
+                  ProcessClock::time_point time = ProcessClock::now())
+        : InstantTracer(*reinterpret_cast<Cookie*>(const_cast<void*>(cookie)),
+                        code,
+                        begin,
+                        time) {
+    }
+};
+
+/**
  * Adapter class to assist in recording the duration of an event into
  * Tracer objects, by storing the cookie and code in the object. To be used
  * with ScopeTimer classes.
@@ -104,11 +138,27 @@ protected:
 
 #define TRACE_SCOPE(ck, code) ScopedTracer __st__##__LINE__(ck, code)
 
+/**
+ * Begin a trace. Accepts a single optional argument - the time_point to use
+ * as the starting time instead of the default ProcessClock::now().
+ */
+#define TRACE_BEGIN(ck, code, ...) \
+    InstantTracer(ck, code, /*begin*/ true, __VA_ARGS__)
+
+/**
+ * End a trace. Accepts a single optional argument - the time_point to use
+ * as the ending time instead of the default ProcessClock::now().
+ */
+#define TRACE_END(ck, code, ...) \
+    InstantTracer(ck, code, /*begin*/ false, __VA_ARGS__)
+
 #else
 /**
  * if DISABLE_SESSION_TRACING is set
  * unset all TRACE macros
  */
 #define TRACE_SCOPE(ck, code)
+#define TRACE_BEGIN(ck, code)
+#define TRACE_END(ck, code)
 
 #endif

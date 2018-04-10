@@ -4726,7 +4726,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
                                 ADD_RESPONSE response,
                                 DocNamespace docNamespace)
 {
-    TRACE_SCOPE(cookie, TraceCode::SETWITHMETA);
     // revid_nbytes, flags and exptime is mandatory fields.. and we need a key
     uint8_t extlen = request->message.header.request.extlen;
     uint16_t keylen = ntohs(request->message.header.request.keylen);
@@ -4815,6 +4814,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     } else {
         startTime = ProcessClock::now();
     }
+    TRACE_BEGIN(cookie, TraceCode::SETWITHMETA, startTime);
 
     bool allowExisting = (opcode == PROTOCOL_BINARY_CMD_SET_WITH_META ||
                           opcode == PROTOCOL_BINARY_CMD_SETQ_WITH_META);
@@ -4850,9 +4850,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     if (ret == ENGINE_SUCCESS) {
         ++stats.numOpsSetMeta;
         auto endTime = ProcessClock::now();
+        TRACE_END(cookie, TraceCode::SETWITHMETA, endTime);
         auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(
                 endTime - startTime);
         stats.setWithMetaHisto.add(elapsed);
+
         cas = commandCas;
     } else if (ret == ENGINE_ENOMEM) {
         ret = memoryCondition();

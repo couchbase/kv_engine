@@ -17,6 +17,9 @@
 
 #include "config.h"
 
+#include "tests/mcbp/mock_connection.h"
+#include "tracing/trace_helpers.h"
+
 #include <unistd.h>
 #include <algorithm>
 #include <iostream>
@@ -71,4 +74,56 @@ TEST_F(TracingTest, ErrorRate) {
         // check if the error is less than 0.5%
         EXPECT_LE((micros - decoded) * 100.0 / micros, 0.5);
     }
+}
+
+/// Text fixture for session tracing associated with a Cookie object.
+class TracingCookieTest : public ::testing::Test {
+protected:
+    TracingCookieTest() : cookie(connection) {
+        cookie.setTracingEnabled(true);
+    }
+
+    void SetUp() {
+        // Record initial time as an epoch (all subsequent times should be
+        // greater or equal to this).
+        epoch = ProcessClock::now();
+    }
+
+    MockConnection connection;
+    Cookie cookie;
+    ProcessClock::time_point epoch;
+};
+
+TEST_F(TracingCookieTest, InstantTracerBegin) {
+    InstantTracer(cookie, cb::tracing::TraceCode::REQUEST, /*start*/ true);
+
+    const auto& durations = cookie.getTracer().getDurations();
+    EXPECT_EQ(1u, durations.size());
+    EXPECT_GT(durations[0].start, epoch);
+    EXPECT_EQ(cb::tracing::Span::Duration::max(), durations[0].duration)
+            << "Span should be half-open when we have not yet ended it.";
+}
+
+TEST_F(TracingCookieTest, InstantTracerBeginEnd) {
+    InstantTracer(cookie, cb::tracing::TraceCode::REQUEST, /*start*/ true);
+    // Ensure we have a non-zero span duration
+    std::this_thread::sleep_for(std::chrono::microseconds(1));
+    InstantTracer(cookie, cb::tracing::TraceCode::REQUEST, /*start*/ false);
+
+    const auto& durations = cookie.getTracer().getDurations();
+    EXPECT_EQ(1u, durations.size());
+    EXPECT_GT(durations[0].start, epoch);
+    EXPECT_LT(durations[0].duration, cb::tracing::Span::Duration::max())
+            << "Span should be closed once we have ended it.";
+    EXPECT_GE(durations[0].duration, std::chrono::microseconds(1))
+            << "Span should have non-zero duration once we have ended it.";
+}
+
+/// Test that omitting a begin all (and only ending) doesn't create a trace
+/// span.
+TEST_F(TracingCookieTest, InstantTracerEnd) {
+    InstantTracer(cookie, cb::tracing::TraceCode::REQUEST, /*start*/ false);
+
+    const auto& durations = cookie.getTracer().getDurations();
+    EXPECT_EQ(0u, durations.size());
 }
