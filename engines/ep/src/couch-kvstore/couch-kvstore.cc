@@ -824,7 +824,8 @@ static int time_purge_hook(Db* d, DocInfo* info, sized_buf item, void* ctx_p) {
                     makeDocKey(info->id,
                                ctx->config->shouldPersistDocNamespace()),
                     int64_t(info->db_seq),
-                    info->deleted)) {
+                    info->deleted,
+                    *ctx->eraserContext)) {
             ctx->stats.collectionsItemsPurged++;
             return COUCHSTORE_COMPACT_DROP_ITEM;
         }
@@ -961,6 +962,9 @@ bool CouchKVStore::compactDBInternal(compaction_ctx* hook_ctx,
                 compactdb.getFileRev());
         return false;
     }
+
+    hook_ctx->eraserContext = std::make_unique<Collections::VB::ScanContext>(
+            readCollectionsManifest(*compactdb));
 
     uint64_t new_rev = compactdb.getFileRev() + 1;
 
@@ -1314,6 +1318,8 @@ ScanContext* CouchKVStore::initScanContext(
 
     size_t scanId = scanCounter++;
 
+    auto collectionsManifest = readCollectionsManifest(*db);
+
     {
         LockHolder lh(scanLock);
         scans[scanId] = db.releaseDb();
@@ -1329,7 +1335,8 @@ ScanContext* CouchKVStore::initScanContext(
                                         options,
                                         valOptions,
                                         count,
-                                        configuration);
+                                        configuration,
+                                        collectionsManifest);
     sctx->logger = &logger;
     return sctx;
 }
@@ -1772,7 +1779,10 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
     DocKey docKey = makeDocKey(
             docinfo->id, sctx->config.shouldPersistDocNamespace());
 
-    CacheLookup lookup(docKey, byseqno, vbucketId);
+    auto collectionsRHandle = sctx->collectionsContext.lockCollections(
+            docKey, true /*system allowed*/);
+    CacheLookup lookup(docKey, byseqno, vbucketId, collectionsRHandle);
+
     cl->callback(lookup);
     if (cl->getStatus() == ENGINE_KEY_EEXISTS) {
         sctx->lastReadSeqno = byseqno;

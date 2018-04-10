@@ -397,6 +397,81 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete) {
             CollectionEntry::fruit));
 }
 
+// Test that a backfill stream is consistent over failure.
+// 1) do some collection changes and flush then delete a collection but do not
+//    flush the delete
+// 2) DCP stream from 0
+// 3) reset/warmup
+// 4) DCP stream from 0 - we must get the same items as step 2.
+// Previously, a backfill would perform isLogicallyDeleted using the in-memory
+// Vbucket manifest, which loses changes if we fail before flushing
+// (so 4 would receive items which 2 did not send). The test ensures that the
+//  stream is consistent, because it should be doing backfill isLogically checks
+// against the persisted collections state.
+TEST_F(CollectionsDcpTest, test_dcp_create_delete_warmup) {
+    const int items = 3;
+    CollectionsManifest cm;
+    {
+        VBucketPtr vb = store->getVBucket(vbid);
+        // Create dairy & fruit
+        vb->updateFromManifest(
+                {cm.add(CollectionEntry::fruit).add(CollectionEntry::dairy)});
+
+        // Mutate dairy
+        for (int ii = 0; ii < items; ii++) {
+            std::string key = "dairy:" + std::to_string(ii);
+            store_item(vbid, {key, CollectionEntry::dairy}, "value");
+        }
+
+        // Mutate fruit
+        for (int ii = 0; ii < items; ii++) {
+            std::string key = "fruit:" + std::to_string(ii);
+            store_item(vbid, {key, CollectionEntry::fruit}, "value");
+        }
+
+        // Flush the creates and the items, but do not flush the next delete
+        flush_vbucket_to_disk(0, (2 * items) + 2);
+    }
+
+    // To force the first full backfill, kill the engine
+    resetEngineAndWarmup();
+
+    // Now delete the dairy collection
+    {
+        store->getVBucket(vbid)->updateFromManifest(
+                {cm.remove(CollectionEntry::dairy)});
+
+        // Front-end will be stopping dairy mutations...
+        EXPECT_TRUE(store->getVBucket(vbid)->lockCollections().isCollectionOpen(
+                CollectionEntry::fruit));
+        EXPECT_FALSE(
+                store->getVBucket(vbid)->lockCollections().isCollectionOpen(
+                        CollectionEntry::dairy));
+    }
+
+    createDcpObjects({{nullptr, 0}}); // from disk
+
+    // Now read from DCP. We will see:
+    // * 2 creates (from the disk backfill)
+    // * 2*items, basically all items from all collections
+    testDcpCreateDelete(2, 0, (2 * items), false);
+
+    resetEngineAndWarmup();
+
+    createDcpObjects({{nullptr, 0}}); // from disk
+
+    // Now read from DCP. We will see:
+    // * 2 creates (from the disk backfill)
+    // * 2*items, basically all items from all collections
+    // The important part is we see the same creates/items as before the warmup
+    testDcpCreateDelete(2, 0, (2 * items), false);
+
+    EXPECT_TRUE(store->getVBucket(vbid)->lockCollections().isCollectionOpen(
+            CollectionEntry::fruit));
+    EXPECT_TRUE(store->getVBucket(vbid)->lockCollections().isCollectionOpen(
+            CollectionEntry::dairy));
+}
+
 // Test that a create/delete don't dedup (collections creates new checkpoints)
 TEST_F(CollectionsDcpTest, test_dcp_create_delete_create) {
     {

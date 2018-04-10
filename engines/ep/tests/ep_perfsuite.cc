@@ -1260,13 +1260,13 @@ static enum test_result perf_dcp_consumer_snap_end_mutation_latency(
                 "dcp.snapshot_marker failed");
 
         auto begin = ProcessClock::now();
-
+        std::string key = "key_" + std::to_string(seqno);
         // 2) snapshot-end mutation
         checkeq(ENGINE_SUCCESS,
                 dcp.mutation(
                         passiveCookie,
                         opaque,
-                        makeStoredDocKey("key_" + std::to_string(seqno)),
+                        DocKey(key, CollectionID::DefaultCollection),
                         cb::const_byte_buffer(
                                 reinterpret_cast<const uint8_t*>("value"), 5),
                         0 /*priv_bytes*/,

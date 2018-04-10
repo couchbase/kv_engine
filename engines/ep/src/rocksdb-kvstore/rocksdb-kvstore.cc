@@ -1365,7 +1365,8 @@ ScanContext* RocksDBKVStore::initScanContext(
                            options,
                            valOptions,
                            /* documentCount */ endSeqno - startSeqno + 1,
-                           configuration);
+                           configuration,
+                           {/*no collections in rocksdb*/});
 }
 
 scan_error_t RocksDBKVStore::scan(ScanContext* ctx) {
@@ -1472,7 +1473,9 @@ scan_error_t RocksDBKVStore::scan(ScanContext* ctx) {
             continue;
         }
         int64_t byseqno = itm->getBySeqno();
-        CacheLookup lookup(key, byseqno, ctx->vbid);
+        auto collectionsRHandle = ctx->collectionsContext.lockCollections(
+                key, true /*allow system*/);
+        CacheLookup lookup(key, byseqno, ctx->vbid, collectionsRHandle);
         ctx->lookup->callback(lookup);
 
         int status = ctx->lookup->getStatus();

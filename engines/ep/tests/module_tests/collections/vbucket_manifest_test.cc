@@ -859,3 +859,12 @@ TEST_F(VBucketManifestCachingReadHandle, basic) {
                      reinterpret_cast<const char*>(rh.getKey().data()));
     }
 }
+
+TEST_F(VBucketManifestCachingReadHandle, deleted_default) {
+    // Check we can still get an iterator into the map when the default
+    // collection is logically deleted only (i.e marked deleted, but in the map)
+    EXPECT_TRUE(manifest.update(cm.remove(CollectionEntry::defaultC)));
+
+    auto rh = manifest.active.lock({"fruit:v1", CollectionEntry::defaultC});
+    EXPECT_TRUE(rh.isLogicallyDeleted(0));
+}

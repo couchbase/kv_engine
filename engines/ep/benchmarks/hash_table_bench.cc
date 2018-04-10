@@ -17,6 +17,7 @@
 
 #include "configuration.h"
 #include "hash_table.h"
+#include "item.h"
 #include "module_tests/test_helpers.h"
 #include "stats.h"
 #include "stored_value_factories.h"

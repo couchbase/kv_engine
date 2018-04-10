@@ -3460,7 +3460,11 @@ TEST_F(SingleThreadedEPBucketTest, testRetainErroneousTombstones) {
     ASSERT_TRUE(itm->isDeleted());
     itm->setExpTime(0);
 
-    DeleteCallback dc;
+    class DummyCallback : public Callback<TransactionContext, int> {
+    public:
+        void callback(TransactionContext&, int&) {
+        }
+    } dc;
     kvstore->begin(std::make_unique<TransactionContext>());
     kvstore->del(*(itm.get()), dc);
     Collections::VB::Flush f(epstore.getVBucket(vbid)->getManifest());

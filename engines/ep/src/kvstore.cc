@@ -48,7 +48,8 @@ ScanContext::ScanContext(std::shared_ptr<StatusCallback<GetValue>> cb,
                          DocumentFilter _docFilter,
                          ValueFilter _valFilter,
                          uint64_t _documentCount,
-                         const KVStoreConfig& _config)
+                         const KVStoreConfig& _config,
+                         const std::string& collectionsManifest)
     : callback(cb),
       lookup(cl),
       lastReadSeqno(0),
@@ -61,7 +62,8 @@ ScanContext::ScanContext(std::shared_ptr<StatusCallback<GetValue>> cb,
       valFilter(_valFilter),
       documentCount(_documentCount),
       logger(globalBucketLogger.get()),
-      config(_config) {
+      config(_config),
+      collectionsContext(collectionsManifest) {
 }
 
 void FileStats::reset() {

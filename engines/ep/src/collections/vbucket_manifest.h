@@ -106,19 +106,6 @@ public:
         }
 
         /**
-         * Function intended for use by the collection's eraser code, i.e. when
-         * processing the by-seqno index
-         *
-         * @return if the key indicates that we've now hit the end of
-         *         a deleted collection seqno-span the return value tells the
-         *         caller to call completeDeletion, an ID is returned. else
-         *         return uninitialised
-         */
-        boost::optional<CollectionID> shouldCompleteDeletion(DocKey key) const {
-            return manifest.shouldCompleteDeletion(key);
-        }
-
-        /**
          * @returns true/false if $default exists
          */
         bool doesDefaultCollectionExist() const {
@@ -230,7 +217,15 @@ public:
             return manifest.getManifestUid();
         }
 
-        /// increment the key's collection item count
+        /**
+         * This increment is possible via this CachingReadHandle, which has
+         * shared access to the Manifest, because the read-lock only ensures
+         * that the underlying collection map doesn't change. Data inside the
+         * collection entry maybe mutable, such as the item count, hence this
+         * method is marked const because the manifest is const.
+         *
+         * increment the key's collection item count by 1
+         */
         void incrementDiskCount() const {
             // We don't include system events when counting
             if (key.getDocNamespace() == DocNamespace::System) {
@@ -239,13 +234,35 @@ public:
             return manifest.incrementDiskCount(itr);
         }
 
-        /// decrement the key's collection item count
+        /**
+         * This decrement is possible via this CachingReadHandle, which has
+         * shared access to the Manifest, because the read-lock only ensures
+         * that the underlying collection map doesn't change. Data inside the
+         * collection entry maybe mutable, such as the item count, hence this
+         * method is marked const because the manifest is const.
+         *
+         * decrement the key's collection item count by 1
+         */
         void decrementDiskCount() const {
             // We don't include system events when counting
             if (key.getDocNamespace() == DocNamespace::System) {
                 return;
             }
             return manifest.decrementDiskCount(itr);
+        }
+
+        /**
+         * Function intended for use by the KVBucket collection's eraser code.
+         *
+         * @return if the key@seqno indicates that we've now hit the end of
+         *         a deleted collection and should call completeDeletion, then
+         *         the return value is initialised with the collection which is
+         *         to be deleted. If the key does not indicate the end, the
+         *         return value is an empty char buffer.
+         */
+        boost::optional<CollectionID> shouldCompleteDeletion(
+                int64_t bySeqno) const {
+            return manifest.shouldCompleteDeletion(key, bySeqno, itr);
         }
 
         /**
@@ -575,14 +592,23 @@ private:
     }
 
     /**
-     * Function intended for use by the collection's eraser code.
+     * Function intended for use by the collection eraser code, checking
+     * keys@seqno status as we walk the by-seqno index.
      *
-     * @return if the key indicates that we've now hit the end of
-     *         a deleted collection and should call completeDeletion the
-     *         collectionId, else return uninitialised
+     * @param key Collections::DocKey
+     * @param bySeqno Seqno assigned to the key
+     * @param entry the manifest entry associated with key
+     * @return if the key@seqno indicates that we've now hit the real end of a
+     *         deleted collection (because the key is a system event) and the
+     *         manifest entry determines we should call completeDeletion, then
+     *         the return value is initialised with the collection which is to
+     *         be deleted. If the key does not indicate the end, the return
+     *         value is an empty buffer.
      */
     boost::optional<CollectionID> shouldCompleteDeletion(
-            const DocKey& key) const;
+            const DocKey& key,
+            int64_t bySeqno,
+            const container::const_iterator entry) const;
 
     /**
      * @returns true/false if $default exists

@@ -2484,10 +2484,12 @@ void KVBucket::setXattrEnabled(bool value) {
     xattrEnabled = value;
 }
 
-bool KVBucket::collectionsEraseKey(uint16_t vbid,
-                                   const DocKey key,
-                                   int64_t bySeqno,
-                                   bool deleted) {
+bool KVBucket::collectionsEraseKey(
+        uint16_t vbid,
+        const DocKey key,
+        int64_t bySeqno,
+        bool deleted,
+        Collections::VB::ScanContext& eraserContext) {
     auto vb = getVBucket(vbid);
     boost::optional<CollectionID> completedCollection;
     if (!vb) {
@@ -2495,8 +2497,9 @@ bool KVBucket::collectionsEraseKey(uint16_t vbid,
     }
 
     { // collections read lock scope
-        auto collectionsRHandle = vb->lockCollections();
-        if (collectionsRHandle.isLogicallyDeleted(key, bySeqno)) {
+        auto collectionsRHandle =
+                eraserContext.lockCollections(key, true /* allow system */);
+        if (collectionsRHandle.isLogicallyDeleted(bySeqno)) {
             vb->removeKey(key, bySeqno);
 
             // Update item count for real collections (System is not a
@@ -2508,13 +2511,14 @@ bool KVBucket::collectionsEraseKey(uint16_t vbid,
             return false;
         }
 
-        // Now determine if the key represents the end of a collection
-        completedCollection = collectionsRHandle.shouldCompleteDeletion(key);
+        // Now determine if the key@seqno represents the end of a collection
+        completedCollection =
+                collectionsRHandle.shouldCompleteDeletion(bySeqno);
     } // read lock dropped as we may need the write lock in next block
 
     // If a collection was returned, notify that all keys have been removed
     if (completedCollection.is_initialized()) {
-        // completeDeletion obtains write access to the manifest
+        // completeDeletion obtains write access to the in-memory manifest
         vb->completeDeletion(completedCollection.get());
     }
     return true;

@@ -22,24 +22,26 @@
 #pragma once
 
 #include "config.h"
-#include "callbacks.h"
 #include "item.h"
-#include "kvstore.h"
+#include "storeddockey.h"
+
+#include <memcached/protocol_binary.h>
 
 #include <chrono>
 
+class Item;
 class VBucket;
 
 /// Creates an item with the given vbucket id, key and value.
 Item make_item(
         uint16_t vbid,
-        const StoredDocKey& key,
+        const DocKey& key,
         const std::string& value,
         uint32_t exptime = 0,
         protocol_binary_datatype_t datatype = PROTOCOL_BINARY_DATATYPE_JSON);
 
 std::unique_ptr<Item> makeCompressibleItem(uint16_t vbid,
-                                           const StoredDocKey& key,
+                                           const DocKey& key,
                                            const std::string& value,
                                            protocol_binary_datatype_t datatype,
                                            bool shouldCompress,
@@ -50,11 +52,9 @@ std::unique_ptr<Item> makeCompressibleItem(uint16_t vbid,
  * By default places the key in the default namespace,
  * DocNamespace::DefaultCollection.
  */
-inline StoredDocKey makeStoredDocKey(
+StoredDocKey makeStoredDocKey(
         const std::string& string,
-        DocNamespace ns = DocNamespace::DefaultCollection) {
-    return StoredDocKey(string, ns);
-}
+        DocNamespace ns = DocNamespace::DefaultCollection);
 
 // Creates a new item with the given key and queues it into the given VBucket.
 // manager.
@@ -97,18 +97,3 @@ private:
  */
 std::chrono::microseconds decayingSleep(std::chrono::microseconds uSeconds);
 
-class WriteCallback : public Callback<TransactionContext, mutation_result> {
-public:
-    WriteCallback() {}
-
-    void callback(TransactionContext&, mutation_result& result) {
-    }
-};
-
-class DeleteCallback : public Callback<TransactionContext, int> {
-public:
-    DeleteCallback() {}
-
-    void callback(TransactionContext&, int&) {
-    }
-};

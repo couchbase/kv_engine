@@ -851,13 +851,15 @@ public:
      * @param key the key to examine.
      * @param bySeqno the seqno for the key.
      * @param deleted is the key marked as deleted.
+     * @param eraserContext context for processing keys against
      * @return true if the collection manifest for the vbucket determines the
      *         key at bySeqno is part of a deleted collection.
      */
     bool collectionsEraseKey(uint16_t vbid,
                              const DocKey key,
                              int64_t bySeqno,
-                             bool deleted);
+                             bool deleted,
+                             Collections::VB::ScanContext& eraserContext);
 
     /// return the buckets maxTtl value
     std::chrono::seconds getMaxTtl() const;

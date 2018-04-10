@@ -715,7 +715,8 @@ void EPBucket::compactInternal(const CompactionConfig& config,
                                       uint16_t(config.db_file_id),
                                       std::placeholders::_1,
                                       std::placeholders::_2,
-                                      std::placeholders::_3);
+                                      std::placeholders::_3,
+                                      std::placeholders::_4);
 
     KVShard* shard = vbMap.getShardByVbId(config.db_file_id);
     KVStore* store = shard->getRWUnderlying();

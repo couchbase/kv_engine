@@ -20,6 +20,7 @@
 #include "config.h"
 
 #include "callbacks.h"
+#include "collections/scan_context.h"
 #include "storeddockey.h"
 
 #include <memcached/engine_common.h>
@@ -121,7 +122,11 @@ struct compaction_ctx {
     BloomFilterCBPtr bloomFilterCallback;
     ExpiredItemsCBPtr expiryCallback;
     struct CompactionStats stats;
-    std::function<bool(const DocKey, int64_t, bool)> collectionsEraser;
+    /// pointer as context cannot be constructed until deeper inside storage
+    std::unique_ptr<Collections::VB::ScanContext> eraserContext;
+    std::function<bool(
+            const DocKey, int64_t, bool, Collections::VB::ScanContext&)>
+            collectionsEraser;
 };
 
 /**
@@ -236,7 +241,8 @@ public:
                 DocumentFilter _docFilter,
                 ValueFilter _valFilter,
                 uint64_t _documentCount,
-                const KVStoreConfig& _config);
+                const KVStoreConfig& _config,
+                const std::string& collectionsManifest);
 
     const std::shared_ptr<StatusCallback<GetValue>> callback;
     const std::shared_ptr<StatusCallback<CacheLookup>> lookup;
@@ -253,6 +259,7 @@ public:
 
     BucketLogger* logger;
     const KVStoreConfig& config;
+    Collections::VB::ScanContext collectionsContext;
 };
 
 struct FileStats {

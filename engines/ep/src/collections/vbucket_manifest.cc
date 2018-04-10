@@ -349,22 +349,13 @@ bool Manifest::isLogicallyDeleted(const container::const_iterator entry,
 }
 
 boost::optional<CollectionID> Manifest::shouldCompleteDeletion(
-        const DocKey& key) const {
+        const DocKey& key,
+        int64_t bySeqno,
+        const container::const_iterator entry) const {
     // If this is a SystemEvent key then...
     if (key.getCollectionID() == CollectionID::System) {
-        // A system generated DocKey will have the affected collection ID in the
-        // key bytes
-        auto lookup = getCollectionIDFromKey(key);
-        auto itr = map.find(lookup);
-        if (itr == map.end()) {
-            throwException<std::logic_error>(
-                    __FUNCTION__,
-                    "SystemEvent found which didn't match a collection " +
-                            std::to_string(lookup));
-        }
-
-        if (itr->second.isDeleting()) {
-            return lookup;
+        if (entry->second.isDeleting()) {
+            return entry->first; // returning CID
         }
     }
     return {};

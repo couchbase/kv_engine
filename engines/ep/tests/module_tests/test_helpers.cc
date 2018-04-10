@@ -27,8 +27,12 @@
 #include "checkpoint_manager.h"
 #include "vbucket.h"
 
+StoredDocKey makeStoredDocKey(const std::string& string, DocNamespace ns) {
+    return StoredDocKey(string, ns);
+}
+
 Item make_item(uint16_t vbid,
-               const StoredDocKey& key,
+               const DocKey& key,
                const std::string& value,
                uint32_t exptime,
                protocol_binary_datatype_t datatype) {
@@ -43,7 +47,7 @@ Item make_item(uint16_t vbid,
 }
 
 std::unique_ptr<Item> makeCompressibleItem(uint16_t vbid,
-                                           const StoredDocKey& key,
+                                           const DocKey& key,
                                            const std::string& value,
                                            protocol_binary_datatype_t datatype,
                                            bool shouldCompress,

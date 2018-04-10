@@ -88,6 +88,24 @@ private:
     ENGINE_ERROR_CODE expectedErrorCode;
 };
 
+class WriteCallback : public Callback<TransactionContext, mutation_result> {
+public:
+    WriteCallback() {
+    }
+
+    void callback(TransactionContext&, mutation_result& result) {
+    }
+};
+
+class DeleteCallback : public Callback<TransactionContext, int> {
+public:
+    DeleteCallback() {
+    }
+
+    void callback(TransactionContext&, int&) {
+    }
+};
+
 void checkGetValue(GetValue& result,
                    ENGINE_ERROR_CODE expectedErrorCode = ENGINE_SUCCESS,
                    bool expectCompressed = false) {
