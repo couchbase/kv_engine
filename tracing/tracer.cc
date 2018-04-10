@@ -128,8 +128,10 @@ MEMCACHED_PUBLIC_API std::string to_string(
     case TraceCode::REQUEST:
         return "request";
 
-    case TraceCode::BGFETCH:
-        return "bg.fetch";
+    case TraceCode::BG_WAIT:
+        return "bg.wait";
+    case TraceCode::BG_LOAD:
+        return "bg.load";
     case TraceCode::GET:
         return "get";
     case TraceCode::GETIF:

@@ -1244,7 +1244,6 @@ void KVBucket::completeBGFetch(const DocKey& key,
                                const void* cookie,
                                ProcessClock::time_point init,
                                bool isMeta) {
-    TRACE_SCOPE(cookie, cb::tracing::TraceCode::BGFETCH);
     ProcessClock::time_point startTime(ProcessClock::now());
     // Go find the data
     GetValue gcb = getROUnderlying(vbucket)->get(key, vbucket, isMeta);

@@ -98,6 +98,7 @@ protected:
     EPStats global_stats;
     CheckpointConfig checkpoint_config;
     Configuration config;
+    const void* cookie = {};
 };
 
 class EPVBucketTest : public VBucketTest {

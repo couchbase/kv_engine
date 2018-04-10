@@ -20,23 +20,23 @@
 #include "config.h"
 
 #include "item.h"
+#include "trace_helpers.h"
 
 class VBucketBGFetchItem {
 public:
     VBucketBGFetchItem(const void* c, bool meta_only)
-        : cookie(c), initTime(ProcessClock::now()), metaDataOnly(meta_only) {
+        : VBucketBGFetchItem(nullptr, c, ProcessClock::now(), meta_only) {
     }
+
     VBucketBGFetchItem(GetValue* value_,
                        const void* c,
-                       const ProcessClock::time_point& init_time,
+                       ProcessClock::time_point init_time,
                        bool meta_only)
         : value(value_),
           cookie(c),
           initTime(init_time),
           metaDataOnly(meta_only) {
-    }
-
-    ~VBucketBGFetchItem() {
+        TRACE_BEGIN(cookie, cb::tracing::TraceCode::BG_WAIT, init_time);
     }
 
     GetValue* value;

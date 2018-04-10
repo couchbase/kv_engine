@@ -126,7 +126,7 @@ public:
             ENGINE_ERROR_CODE expectedGetReturnValue = ENGINE_SUCCESS) {
         auto result = store->get({key, DocNamespace::DefaultCollection},
                                  vbid,
-                                 nullptr,
+                                 cookie,
                                  GET_DELETED_VALUE);
 
         ASSERT_EQ(expectedGetReturnValue, result.getStatus());
@@ -476,7 +476,7 @@ TEST_P(AllWithMetaTest, regenerateCAS) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, getAddResponseStatus());
     auto result = store->get({"mykey", DocNamespace::DefaultCollection},
                              vbid,
-                             nullptr,
+                             cookie,
                              GET_DELETED_VALUE);
     ASSERT_EQ(ENGINE_SUCCESS, result.getStatus());
     EXPECT_NE(cas, result.item->getCas()) << "CAS didn't change";
@@ -1177,7 +1177,7 @@ TEST_P(AllWithMetaTest, markJSON) {
 
     auto result = store->get({"json", DocNamespace::DefaultCollection},
                              vbid,
-                             nullptr,
+                             cookie,
                              GET_DELETED_VALUE);
     ASSERT_EQ(ENGINE_SUCCESS, result.getStatus());
     EXPECT_EQ(0,
@@ -1222,7 +1222,7 @@ TEST_P(SnappyWithMetaTest, xattrPruneUserKeysOnDelete1) {
               getEPBucket().flushVBucket(vbid));
 
     auto options = get_options_t(QUEUE_BG_FETCH | GET_DELETED_VALUE);
-    auto result = store->get(key, vbid, nullptr, options);
+    auto result = store->get(key, vbid, cookie, options);
     ASSERT_EQ(ENGINE_SUCCESS, result.getStatus());
 
     // Now reconstruct a XATTR Blob and validate the user keys are gone
@@ -1284,7 +1284,7 @@ TEST_P(XattrWithMetaTest, xattrPruneUserKeysOnDelete2) {
               getEPBucket().flushVBucket(vbid));
 
     auto options = get_options_t(QUEUE_BG_FETCH | GET_DELETED_VALUE);
-    auto result = store->get(key, vbid, nullptr, options);
+    auto result = store->get(key, vbid, cookie, options);
     EXPECT_EQ(ENGINE_EWOULDBLOCK, result.getStatus());
 
     // Run the BGFetcher task
@@ -1294,7 +1294,7 @@ TEST_P(XattrWithMetaTest, xattrPruneUserKeysOnDelete2) {
     options = get_options_t(options & (~GET_DELETED_VALUE));
 
     // K/V is gone
-    result = store->get(key, vbid, nullptr, options);
+    result = store->get(key, vbid, cookie, options);
     EXPECT_EQ(ENGINE_KEY_ENOENT, result.getStatus());
 }
 

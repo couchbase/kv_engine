@@ -677,7 +677,7 @@ TEST_P(KVBucketParamTest, MB_28078_SetWithMeta_tempDeleted) {
     get_options_t options =
             static_cast<get_options_t>(QUEUE_BG_FETCH | GET_DELETED_VALUE);
 
-    auto doGet = [&]() { return store->get(key, vbid, nullptr, options); };
+    auto doGet = [&]() { return store->get(key, vbid, cookie, options); };
     GetValue result = doGet();
 
     flushVBucketToDiskIfPersistent(vbid, 1);
@@ -1074,7 +1074,7 @@ TEST_P(KVBucketParamTest, MB_25948) {
     // 2. Force expiry of the item and flush the delete
     get_options_t options =
             static_cast<get_options_t>(QUEUE_BG_FETCH | GET_DELETED_VALUE);
-    auto doGet = [&]() { return store->get(key, vbid, nullptr, options); };
+    auto doGet = [&]() { return store->get(key, vbid, cookie, options); };
     GetValue result = doGet();
 
     flushVBucketToDiskIfPersistent(vbid, 1);

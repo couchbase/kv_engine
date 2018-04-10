@@ -46,10 +46,12 @@ void VBucketTest::SetUp() {
                                 /*newSeqnoCb*/ nullptr,
                                 config,
                                 eviction_policy));
+    cookie = create_mock_cookie();
 }
 
 void VBucketTest::TearDown() {
     vbucket.reset();
+    destroy_mock_cookie(cookie);
 }
 
 std::vector<StoredDocKey> VBucketTest::generateKeys(int num, int start) {
@@ -257,9 +259,8 @@ TEST_P(EPVBucketTest, GetBGFetchItemsPerformance) {
     BgFetcher fetcher(/*store*/ nullptr, /*shard*/ nullptr, this->global_stats);
 
     for (unsigned int ii = 0; ii < 100000; ii++) {
-        auto fetchItem = std::make_unique<VBucketBGFetchItem>(
-                /*cookie*/ nullptr,
-                /*isMeta*/ false);
+        auto fetchItem = std::make_unique<VBucketBGFetchItem>(cookie,
+                                                              /*isMeta*/ false);
         this->public_queueBGFetchItem(
                 makeStoredDocKey(std::to_string(ii)),
                 std::move(fetchItem),

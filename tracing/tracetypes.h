@@ -26,7 +26,10 @@ namespace tracing {
 enum class TraceCode : uint8_t {
     REQUEST, /* Whole Request */
 
-    BGFETCH,
+    /// Time spent waiting for a background fetch operation to be scheduled.
+    BG_WAIT,
+    /// Time spent performing the actual background load from disk.
+    BG_LOAD,
     GET,
     GETIF,
     GETSTATS,
