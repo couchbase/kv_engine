@@ -86,10 +86,10 @@ static unique_cJSON_ptr create_memcached_audit_object(const Connection* c) {
 
     cJSON_AddStringToObject(root, "peername", c->getPeername().c_str());
     cJSON_AddStringToObject(root, "sockname", c->getSockname().c_str());
-    cJSON *source = cJSON_CreateObject();
-    cJSON_AddStringToObject(source, "source", "memcached");
-    cJSON_AddStringToObject(source, "user", c->getUsername());
-    cJSON_AddItemToObject(root, "real_userid", source);
+    cJSON *domain = cJSON_CreateObject();
+    cJSON_AddStringToObject(domain, "domain", "memcached");
+    cJSON_AddStringToObject(domain, "user", c->getUsername());
+    cJSON_AddItemToObject(root, "real_userid", domain);
 
     return unique_cJSON_ptr(root);
 }
