@@ -1275,7 +1275,7 @@ static enum test_result perf_stat_latency_baseline(ENGINE_HANDLE *h,
 /* Benchmark the stats with 100 active vbuckets */
 static enum test_result perf_stat_latency_100vb(ENGINE_HANDLE *h,
                                               ENGINE_HANDLE_V1 *h1) {
-    return perf_stat_latency(h, h1, "With 100 vbuckets",
+    return perf_stat_latency(h, h1, "Stats with 100 vbuckets",
                              StatRuntime::Fast, BackgroundWork::None, 100);
 }
 
@@ -1285,7 +1285,7 @@ static enum test_result perf_stat_latency_100vb(ENGINE_HANDLE *h,
  */
 static enum test_result perf_stat_latency_100vb_sets_and_dcp(ENGINE_HANDLE *h,
                                               ENGINE_HANDLE_V1 *h1) {
-    return perf_stat_latency(h, h1, "With 100 vbuckets & background sets & DCP",
+    return perf_stat_latency(h, h1, "Stats with 100 vbuckets and background sets and DCP",
                              StatRuntime::Fast, (BackgroundWork::Sets |
                                      BackgroundWork::Dcp), 100);
 }
@@ -1300,7 +1300,7 @@ static enum test_result perf_slow_stat_latency_baseline(ENGINE_HANDLE *h,
 /* Benchmark the slow stats with 100 active vbuckets */
 static enum test_result perf_slow_stat_latency_100vb(ENGINE_HANDLE *h,
                                               ENGINE_HANDLE_V1 *h1) {
-    return perf_stat_latency(h, h1, "With 100 vbuckets",
+    return perf_stat_latency(h, h1, "Slow Stats with 100 vbuckets",
                              StatRuntime::Slow, BackgroundWork::None, 100);
 }
 
@@ -1310,7 +1310,7 @@ static enum test_result perf_slow_stat_latency_100vb(ENGINE_HANDLE *h,
  */
 static enum test_result perf_slow_stat_latency_100vb_sets_and_dcp(
                                       ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    return perf_stat_latency(h, h1, "With 100 vbuckets & background sets & DCP",
+    return perf_stat_latency(h, h1, "Slow Stats with 100 vbuckets and background sets and DCP",
                              StatRuntime::Slow, (BackgroundWork::Sets |
                                      BackgroundWork::Dcp), 100);
 }

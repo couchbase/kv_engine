@@ -13,6 +13,10 @@
     - "output.With_constant_defragmention.xml"
     - "output.Baseline_Stats.xml"
     - "output.Baseline_Slow_Stats.xml"
+    - "output.Stats_with_100_vbuckets.xml"
+    - "output.Stats_with_100_vbuckets_and_background_sets_and_DCP.xml"
+    - "output.Slow_Stats_with_100_vbuckets.xml"
+    - "output.Slow_Stats_with_100_vbuckets_and_background_sets_and_DCP.xml"
 - test: perfsuite_ephemeral
   command: 'build/kv_engine/engine_testapp -E build/kv_engine/ep.so -T build/kv_engine/ep_perfsuite.so -v -e "bucket_type=ephemeral;dbname=./ep_perfsuite.ephemeral.db" -f xml'
   output:
@@ -28,6 +32,10 @@
     - "output.With_constant_defragmention.xml"
     - "output.Baseline_Stats.xml"
     - "output.Baseline_Slow_Stats.xml"
+    - "output.Stats_with_100_vbuckets.xml"
+    - "output.Stats_with_100_vbuckets_and_background_sets_and_DCP.xml"
+    - "output.Slow_Stats_with_100_vbuckets.xml"
+    - "output.Slow_Stats_with_100_vbuckets_and_background_sets_and_DCP.xml"
 - test: subdoc_perf
   command: "build/kv_engine/memcached-subdoc-perf-tests -e --gtest_output=xml"
   output:
