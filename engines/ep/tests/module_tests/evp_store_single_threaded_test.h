@@ -87,6 +87,11 @@ public:
      */
     void createDcpStream(MockDcpProducer& producer);
 
+    /**
+     * Run the compaction task
+     */
+    void runCompaction();
+
 protected:
     void SetUp() override;
 

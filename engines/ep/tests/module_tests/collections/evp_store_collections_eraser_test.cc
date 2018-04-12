@@ -36,15 +36,7 @@ public:
     }
 
     void runEraser() {
-        compaction_ctx compactreq;
-        compactreq.purge_before_ts = 0;
-        compactreq.purge_before_seq = 0;
-        compactreq.drop_deletes = false;
-        compactreq.db_file_id = vbid;
-        store->scheduleCompaction(vbid, compactreq, nullptr);
-        // run the eraser task
-        runNextTask(*task_executor->getLpTaskQ()[WRITER_TASK_IDX],
-                    "Compact DB file 0");
+        runCompaction();
     }
 
     bool isFullEviction() const {

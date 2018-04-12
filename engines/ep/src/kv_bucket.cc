@@ -550,11 +550,14 @@ void KVBucket::deleteExpiredItem(Item& it,
                                       vb->getHLCEpochSeqno());
             if (engine.getServerApi()->document->pre_expiry(info)) {
                 // The payload is modified and contains data we should use
-                value_t value(
+                it.replaceValue(
                         Blob::New(static_cast<char*>(info.value[0].iov_base),
                                   info.value[0].iov_len));
-                it.replaceValue(value.get());
                 it.setDataType(info.datatype);
+            } else {
+                // Make the document empty and raw
+                it.replaceValue(Blob::New(0));
+                it.setDataType(PROTOCOL_BINARY_RAW_BYTES);
             }
         }
 

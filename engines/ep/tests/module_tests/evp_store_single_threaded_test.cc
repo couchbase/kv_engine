@@ -269,6 +269,19 @@ void SingleThreadedKVBucketTest::createDcpStream(MockDcpProducer& producer) {
                                      &rollbackSeqno,
                                      &dcpAddFailoverLog));
 }
+
+void SingleThreadedKVBucketTest::runCompaction() {
+    compaction_ctx compactreq;
+    compactreq.purge_before_ts = ep_real_time();
+    compactreq.purge_before_seq = 0;
+    compactreq.drop_deletes = false;
+    compactreq.db_file_id = vbid;
+    store->scheduleCompaction(vbid, compactreq, nullptr);
+    // run the compaction task
+    runNextTask(*task_executor->getLpTaskQ()[WRITER_TASK_IDX],
+                "Compact DB file 0");
+}
+
 /*
  * The following test checks to see if we call handleSlowStream when in a
  * backfilling state, but the backfillTask is not running, we
@@ -1654,12 +1667,16 @@ TEST_F(SingleThreadedEPBucketTest, stream_from_active_vbucket_only) {
     }
 }
 
-TEST_F(SingleThreadedEPBucketTest, pre_expiry_xattrs) {
+class XattrSystemUserTest : public SingleThreadedEPBucketTest,
+                            public ::testing::WithParamInterface<bool> {
+};
+
+TEST_P(XattrSystemUserTest, pre_expiry_xattrs) {
     auto& kvbucket = *engine->getKVBucket();
 
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
-    auto xattr_data = createXattrValue("value");
+    auto xattr_data = createXattrValue("value", GetParam());
 
     auto itm = store_item(vbid,
                           makeStoredDocKey("key"),
@@ -1694,10 +1711,13 @@ TEST_F(SingleThreadedEPBucketTest, pre_expiry_xattrs) {
     cb::char_buffer value_buf{get_data, get_itm->getNBytes()};
     cb::xattr::Blob new_blob(value_buf, false);
 
-    const std::string& cas_str{"{\"cas\":\"0xdeadbeefcafefeed\"}"};
-    const std::string& sync_str = to_string(new_blob.get("_sync"));
+    // If testing with system xattrs
+    if (GetParam()) {
+        const std::string& cas_str{"{\"cas\":\"0xdeadbeefcafefeed\"}"};
+        const std::string& sync_str = to_string(new_blob.get("_sync"));
 
-    EXPECT_EQ(cas_str, sync_str) << "Unexpected system xattrs";
+        EXPECT_EQ(cas_str, sync_str) << "Unexpected system xattrs";
+    }
     EXPECT_TRUE(new_blob.get("user").empty())
             << "The user attribute should be gone";
     EXPECT_TRUE(new_blob.get("meta").empty())
@@ -2217,3 +2237,65 @@ TEST_F(WarmupTest, produce_delete_times) {
     producer->cancelCheckpointCreatorTask();
     producer.reset();
 }
+
+TEST_P(XattrSystemUserTest, MB_29040) {
+    auto& kvbucket = *engine->getKVBucket();
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    store_item(vbid,
+               {"key", DocNamespace::DefaultCollection},
+               createXattrValue("{}", GetParam()),
+               ep_real_time() + 1 /*1 second TTL*/,
+               {cb::engine_errc::success},
+
+               PROTOCOL_BINARY_DATATYPE_XATTR | PROTOCOL_BINARY_DATATYPE_JSON);
+
+    EXPECT_EQ(std::make_pair(false, size_t(1)),
+              getEPBucket().flushVBucket(vbid));
+    TimeTraveller ted(64000);
+    runCompaction();
+    // An expired item should of been pushed to the checkpoint
+    EXPECT_EQ(std::make_pair(false, size_t(1)),
+              getEPBucket().flushVBucket(vbid));
+    get_options_t options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+            HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
+    GetValue gv = kvbucket.get(
+            {"key", DocNamespace::DefaultCollection}, vbid, cookie, options);
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
+
+    MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
+    store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+
+    gv = kvbucket.get(
+            {"key", DocNamespace::DefaultCollection}, vbid, cookie, options);
+    ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus());
+
+    auto get_itm = gv.item.get();
+    auto get_data = const_cast<char*>(get_itm->getData());
+
+    cb::char_buffer value_buf{get_data, get_itm->getNBytes()};
+    cb::xattr::Blob new_blob(value_buf, false);
+
+    // If testing with system xattrs
+    if (GetParam()) {
+        const std::string& cas_str{"{\"cas\":\"0xdeadbeefcafefeed\"}"};
+        const std::string& sync_str = to_string(new_blob.get("_sync"));
+
+        EXPECT_EQ(cas_str, sync_str) << "Unexpected system xattrs";
+        EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, get_itm->getDataType())
+                << "Wrong datatype Item:" << *get_itm;
+    } else {
+        EXPECT_EQ(PROTOCOL_BINARY_RAW_BYTES, get_itm->getDataType())
+                << "Wrong datatype Item:" << *get_itm;
+    }
+
+    // Non-system xattrs should be removed
+    EXPECT_TRUE(new_blob.get("user").empty())
+            << "The user attribute should be gone";
+    EXPECT_TRUE(new_blob.get("meta").empty())
+            << "The meta attribute should be gone";
+}
+
+INSTANTIATE_TEST_CASE_P(XattrSystemUserTest,
+                        XattrSystemUserTest,
+                        ::testing::Bool(), );
