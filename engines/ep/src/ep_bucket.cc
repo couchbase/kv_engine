@@ -328,7 +328,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(uint16_t vbid) {
                     vbstate.maxCas = std::max(vbstate.maxCas, item->getCas());
                     if (item->isDeleted()) {
                         vbstate.maxDeletedSeqno =
-                                std::max(vbstate.maxDeletedSeqno,
+                                std::max(uint64_t(vbstate.maxDeletedSeqno),
                                          item->getRevSeqno());
                     }
                     ++stats.flusher_todo;

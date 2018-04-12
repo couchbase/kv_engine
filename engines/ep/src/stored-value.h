@@ -28,6 +28,7 @@
 #include <memcached/3rd_party/folly/AtomicBitSet.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/types.h>
+#include <platform/n_byte_integer.h>
 
 #include <boost/intrusive/list.hpp>
 #include <relaxed_atomic.h>
@@ -766,7 +767,6 @@ protected:
     // only the newer version if so.
     UniquePtr chain_next_or_replacement; // 8 bytes
     uint64_t           cas;            //!< CAS identifier.
-    uint64_t           revSeqno;       //!< Revision id sequence number
     // bySeqno is atomic primarily for TSAN, which would flag that we write/read
     // this in ephemeral backfills with different locks (which is true, but the
     // access is we believe actually safe)
@@ -775,6 +775,7 @@ protected:
     rel_time_t         lock_expiry_or_delete_time;
     uint32_t           exptime;        //!< Expiration time of this item.
     uint32_t           flags;          // 4 bytes
+    cb::uint48_t revSeqno; //!< Revision id sequence number
     protocol_binary_datatype_t datatype; // 1 byte
 
     /**
