@@ -27,6 +27,7 @@
 #include <memcached/engine_common.h>
 #include <memcached/protocol_binary.h>
 #include <platform/histogram.h>
+#include <platform/n_byte_integer.h>
 #include <platform/processclock.h>
 
 #include <relaxed_atomic.h>
@@ -168,7 +169,7 @@ struct vbucket_state {
 
     vbucket_state_t state;
     uint64_t checkpointId;
-    uint64_t maxDeletedSeqno;
+    cb::uint48_t maxDeletedSeqno;
     int64_t highSeqno;
     uint64_t purgeSeqno;
     uint64_t lastSnapStart;

@@ -40,11 +40,11 @@ StoredValue::StoredValue(const Item& itm,
     : value(itm.getValue()),
       chain_next_or_replacement(std::move(n)),
       cas(itm.getCas()),
-      revSeqno(itm.getRevSeqno()),
       bySeqno(itm.getBySeqno()),
       lock_expiry_or_delete_time(0),
       exptime(itm.getExptime()),
       flags(itm.getFlags()),
+      revSeqno(itm.getRevSeqno()),
       datatype(itm.getDataType()) {
     // Initialise bit fields
     setDeletedPriv(itm.isDeleted());
@@ -80,11 +80,11 @@ StoredValue::StoredValue(const StoredValue& other, UniquePtr n, EPStats& stats)
     : value(other.value), // Implicitly also copies the frequency counter
       chain_next_or_replacement(std::move(n)),
       cas(other.cas),
-      revSeqno(other.revSeqno),
       bySeqno(other.bySeqno),
       lock_expiry_or_delete_time(other.lock_expiry_or_delete_time),
       exptime(other.exptime),
       flags(other.flags),
+      revSeqno(other.revSeqno),
       datatype(other.datatype) {
     setDirty(other.isDirty());
     setDeletedPriv(other.isDeleted());

@@ -32,7 +32,7 @@
 // Helper functions ///////////////////////////////////////////////////////////
 
 static void verifyMetaData(const ItemMetaData& imd, const item_info& metadata) {
-    checkeq(imd.revSeqno, metadata.seqno, "Seqno didn't match");
+    checkeq(uint64_t(imd.revSeqno), metadata.seqno, "Seqno didn't match");
     checkeq(imd.cas, metadata.cas, "Cas didn't match");
     checkeq(imd.exptime,
             static_cast<time_t>(metadata.exptime),
@@ -2535,6 +2535,60 @@ static enum test_result test_cas_options_and_nmeta(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+// A delete_with_meta with a large seqno (upper 16-bits dirty) should trigger
+// a conflict if evicted and a second identical delete_with_meta occurs
+static enum test_result test_MB29119(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
+    const char* key1 = "delete_with_meta_key1";
+    const size_t keylen = strlen(key1);
+    RawItemMetaData itemMeta;
+
+    // Overflow seqno from 48-bits
+    itemMeta.revSeqno = 0x0080a80000000001;
+    itemMeta.cas = 0xdeadbeef;
+    itemMeta.exptime = 0;
+    itemMeta.flags = 0xdeadbeef;
+
+    const void* cookie = testHarness.create_cookie();
+
+    // delete an item with meta data
+    del_with_meta(h,
+                  h1,
+                  key1,
+                  keylen,
+                  0,
+                  &itemMeta,
+                  0 /*cas*/,
+                  0 /*options*/,
+                  cookie);
+
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+            last_status.load(),
+            "Expected success");
+
+    wait_for_flusher_to_settle(h, h1);
+    // evict the key
+    evict_key(h, h1, key1);
+
+    // Same key
+    del_with_meta(h,
+                  h1,
+                  key1,
+                  keylen,
+                  0,
+                  &itemMeta,
+                  0 /*cas*/,
+                  0 /*options*/,
+                  cookie);
+
+    // Conflict resolution must stop the second delete
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
+            last_status.load(),
+            "Expected EEXISTS");
+
+    testHarness.destroy_cookie(cookie);
+    return SUCCESS;
+}
+
 // Test manifest //////////////////////////////////////////////////////////////
 
 const char *default_dbname = "./ep_testsuite_xdcr";
@@ -2846,6 +2900,14 @@ BaseTestCase testsuite_testcases[] = {
                  teardown,
                  nullptr,
                  prepare_ep_bucket,
+                 cleanup),
+
+        TestCase("MB29119",
+                 test_MB29119,
+                 test_setup,
+                 teardown,
+                 nullptr,
+                 prepare_full_eviction,
                  cleanup),
 
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)};
