@@ -62,6 +62,7 @@ EPStats::EPStats()
       cursorDroppingLThreshold(0),
       cursorDroppingUThreshold(0),
       cursorsDropped(0),
+      cursorMemoryFreed(0),
       pagerRuns(0),
       expiryPagerRuns(0),
       freqDecayerRuns(0),

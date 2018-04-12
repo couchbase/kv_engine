@@ -1092,6 +1092,9 @@ void KVBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
     DO_STAT("vb_active_expired", active.getExpired());
     DO_STAT("vb_active_meta_data_memory", active.getMetaDataMemory());
     DO_STAT("vb_active_meta_data_disk", active.getMetaDataDisk());
+    DO_STAT("vb_active_checkpoint_memory", active.getCheckpointMemory());
+    DO_STAT("vb_active_checkpoint_memory_unreferenced",
+            active.getCheckpointMemoryUnreferenced());
     DO_STAT("vb_active_ht_memory", active.getHashtableMemory());
     DO_STAT("vb_active_itm_memory", active.getItemMemory());
     DO_STAT("vb_active_itm_memory_uncompressed",
@@ -1119,6 +1122,9 @@ void KVBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
     DO_STAT("vb_replica_expired", replica.getExpired());
     DO_STAT("vb_replica_meta_data_memory", replica.getMetaDataMemory());
     DO_STAT("vb_replica_meta_data_disk", replica.getMetaDataDisk());
+    DO_STAT("vb_replica_checkpoint_memory", replica.getCheckpointMemory());
+    DO_STAT("vb_replica_checkpoint_memory_unreferenced",
+            replica.getCheckpointMemoryUnreferenced());
     DO_STAT("vb_replica_ht_memory", replica.getHashtableMemory());
     DO_STAT("vb_replica_itm_memory", replica.getItemMemory());
     DO_STAT("vb_replica_itm_memory_uncompressed",
@@ -1146,6 +1152,9 @@ void KVBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
     DO_STAT("vb_pending_expired", pending.getExpired());
     DO_STAT("vb_pending_meta_data_memory", pending.getMetaDataMemory());
     DO_STAT("vb_pending_meta_data_disk", pending.getMetaDataDisk());
+    DO_STAT("vb_pending_checkpoint_memory", pending.getCheckpointMemory());
+    DO_STAT("vb_pending_checkpoint_memory_unreferenced",
+            pending.getCheckpointMemoryUnreferenced());
     DO_STAT("vb_pending_ht_memory", pending.getHashtableMemory());
     DO_STAT("vb_pending_itm_memory", pending.getItemMemory());
     DO_STAT("vb_pending_itm_memory_uncompressed",
@@ -1193,6 +1202,13 @@ void KVBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
     DO_STAT("ep_meta_data_disk",
             active.getMetaDataDisk() + replica.getMetaDataDisk() +
                     pending.getMetaDataDisk());
+    DO_STAT("ep_checkpoint_memory",
+            active.getCheckpointMemory() + replica.getCheckpointMemory() +
+                    pending.getCheckpointMemory());
+    DO_STAT("ep_checkpoint_memory_unreferenced",
+            active.getCheckpointMemoryUnreferenced() +
+                    replica.getCheckpointMemoryUnreferenced() +
+                    pending.getCheckpointMemoryUnreferenced());
     DO_STAT("ep_total_cache_size",
             active.getCacheSize() + replica.getCacheSize() +
                     pending.getCacheSize());

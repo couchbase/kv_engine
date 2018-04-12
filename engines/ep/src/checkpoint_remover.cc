@@ -156,9 +156,11 @@ void ClosedUnrefCheckpointRemoverTask::cursorDroppingIfNeeded(void) {
                             if (engine->getDcpConnMap().handleSlowStream(vbid,
                                                                         *itr))
                             {
+                                auto memoryFreed =
+                                        vb->getChkMgrMemUsageOfUnrefCheckpoints();
                                 ++stats.cursorsDropped;
-                                memoryCleared +=
-                                      vb->getChkMgrMemUsageOfUnrefCheckpoints();
+                                stats.cursorMemoryFreed += memoryFreed;
+                                memoryCleared += memoryFreed;
                             }
                         } else {
                             break;

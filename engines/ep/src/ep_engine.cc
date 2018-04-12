@@ -2915,7 +2915,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     epstats.cursorDroppingUThreshold, add_stat, cookie);
     add_casted_stat("ep_cursors_dropped",
                     epstats.cursorsDropped, add_stat, cookie);
-
+    add_casted_stat("ep_cursor_memory_freed",
+                    epstats.cursorMemoryFreed,
+                    add_stat,
+                    cookie);
 
     // Note: These are also reported per-shard in 'kvstore' stats, however
     // we want to be able to graph these over time, and hence need to expose

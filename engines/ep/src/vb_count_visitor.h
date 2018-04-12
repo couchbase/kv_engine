@@ -47,6 +47,8 @@ public:
           numExpiredItems(0),
           metaDataMemory(0),
           metaDataDisk(0),
+          checkpointMemory(0),
+          checkpointMemoryUnreferenced(0),
           opsCreate(0),
           opsUpdate(0),
           opsDelete(0),
@@ -108,6 +110,14 @@ public:
 
     size_t getMetaDataDisk() {
         return metaDataDisk;
+    }
+
+    size_t getCheckpointMemory() {
+        return checkpointMemory;
+    }
+
+    size_t getCheckpointMemoryUnreferenced() {
+        return checkpointMemoryUnreferenced;
     }
 
     size_t getHashtableMemory() {
@@ -201,6 +211,8 @@ private:
     size_t numExpiredItems;
     size_t metaDataMemory;
     size_t metaDataDisk;
+    size_t checkpointMemory;
+    size_t checkpointMemoryUnreferenced;
 
     size_t opsCreate;
     size_t opsUpdate;

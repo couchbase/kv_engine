@@ -38,6 +38,9 @@ void VBucketCountVisitor::visitBucket(VBucketPtr& vb) {
         numExpiredItems += vb->numExpiredItems;
         metaDataMemory += vb->ht.getMetadataMemory();
         metaDataDisk += vb->metaDataDisk;
+        checkpointMemory += vb->getChkMgrMemUsage();
+        checkpointMemoryUnreferenced +=
+                vb->getChkMgrMemUsageOfUnrefCheckpoints();
         opsCreate += vb->opsCreate;
         opsUpdate += vb->opsUpdate;
         opsDelete += vb->opsDelete;

@@ -192,6 +192,9 @@ public:
     //! Number of cursors dropped by checkpoint remover
     Counter cursorsDropped;
 
+    //! Amount of memory we have freed by dropping cursors
+    std::atomic<size_t> cursorMemoryFreed;
+
     //! Number of times we needed to kick in the pager
     Counter pagerRuns;
     //! Number of times the expiry pager runs for purging expired items
@@ -450,6 +453,7 @@ public:
         dirtyAgeHighWat.store(0);
         commit_time.store(0);
         cursorsDropped.store(0);
+        cursorMemoryFreed.store(0);
         pagerRuns.store(0);
         expiryPagerRuns.store(0);
         freqDecayerRuns.store(0);
