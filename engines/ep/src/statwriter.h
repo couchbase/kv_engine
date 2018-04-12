@@ -19,6 +19,7 @@
 
 #include "config.h"
 
+#include "hdrhistogram.h"
 #include "objectregistry.h"
 
 #include <memcached/engine_common.h>
@@ -65,6 +66,21 @@ inline void add_casted_stat(const char* k,
     EventuallyPersistentEngine* e = ObjectRegistry::onSwitchThread(NULL, true);
     add_stat(k, static_cast<uint16_t>(strlen(k)), v.data(), v.size(), cookie);
     ObjectRegistry::onSwitchThread(e);
+}
+
+template <>
+inline void add_casted_stat(const char* k,
+                            const HdrHistogram& v,
+                            ADD_STAT add_stat,
+                            const void* cookie) {
+    HdrHistogram::Iterator iter{v.makeLinearIterator(1)};
+    while (auto result = v.getNextValueAndCount(iter)) {
+        if (result->second > 0) {
+            std::stringstream ss;
+            ss << k << "_" << result->first << "," << result->first;
+            add_casted_stat(ss.str().c_str(), result->second, add_stat, cookie);
+        }
+    }
 }
 
 /// @cond DETAILS

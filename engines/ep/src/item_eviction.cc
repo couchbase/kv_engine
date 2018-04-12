@@ -63,3 +63,11 @@ uint8_t ItemEviction::convertFreqCountToNRUValue(uint8_t probCounter) {
     }
     return MAX_NRU_VALUE; /* 3 - the coldest */
 }
+
+void ItemEviction::copyToHistogram(HdrHistogram& hist) {
+    HdrHistogram::Iterator iter{
+            freqHistogram.makeLinearIterator(valueUnitsPerBucket)};
+    while (auto result = freqHistogram.getNextValueAndCount(iter)) {
+        hist.addValueAndCount(result->first, result->second);
+    }
+}
