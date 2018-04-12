@@ -421,6 +421,19 @@ protocol_binary_response_status EventuallyPersistentEngine::setCheckpointParam(
             getConfiguration().setKeepClosedChks(cb_stob(valz));
         } else if (strcmp(keyz, "enable_chk_merge") == 0) {
             getConfiguration().setEnableChkMerge(cb_stob(valz));
+        } else if (strcmp(keyz, "cursor_dropping_checkpoint_mem_upper_mark") ==
+                   0) {
+            size_t v = std::stoull(valz);
+            validate(v,
+                     getConfiguration().getCursorDroppingCheckpointMemLowerMark(),
+                     size_t(100));
+            getConfiguration().setCursorDroppingCheckpointMemUpperMark(v);
+        } else if (strcmp(keyz, "cursor_dropping_checkpoint_mem_lower_mark") ==
+                   0) {
+            size_t v = std::stoull(valz);
+            validate(
+                    v, size_t(0), getConfiguration().getCursorDroppingCheckpointMemUpperMark());
+            getConfiguration().setCursorDroppingCheckpointMemLowerMark(v);
         } else {
             msg = "Unknown config param";
             rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;

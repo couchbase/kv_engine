@@ -126,6 +126,17 @@ VBucketMap::getActiveVBucketsSortedByChkMgrMem(void) const {
     return rv;
 }
 
+size_t VBucketMap::getActiveVBucketsTotalCheckpointMemoryUsage() const {
+    size_t checkpointMemoryUsage = 0;
+    for (id_type i = 0; i < size; ++i) {
+        VBucketPtr b = getBucket(i);
+        if (b && b->getState() == vbucket_state_active) {
+            checkpointMemoryUsage += b->getChkMgrMemUsage();
+        }
+    }
+    return checkpointMemoryUsage;
+}
+
 KVShard* VBucketMap::getShardByVbId(id_type id) const {
     return shards[id % shards.size()].get();
 }

@@ -92,17 +92,48 @@ private:
 
 void ClosedUnrefCheckpointRemoverTask::cursorDroppingIfNeeded(void) {
     /**
-     * Cursor dropping will commence only if the total memory used is
-     * greater than the upper threshold which is a percentage of the
-     * quota, specified by cursor_dropping_upper_mark. Once cursor
-     * dropping starts, it will continue until memory usage is projected
-     * to go under the lower threshold which is a percentage of the quota,
-     * specified by cursor_dropping_lower_mark.
+     * Cursor dropping will commence if one of the following conditions is met:
+     * 1. if the total memory used is greater than the upper threshold which is
+     * a percentage of the quota, specified by cursor_dropping_upper_mark
+     * 2. if the overall checkpoint memory usage goes above a certain % of the
+     * bucket quota, specified by cursor_dropping_checkpoint_mem_upper_mark
+     *
+     * Once cursor dropping starts, it will continue until memory usage is
+     * projected to go under the lower threshold, either
+     * cursor_dropping_lower_mark or cursor_dropping_checkpoint_mem_lower_mark
+     * based on the trigger condition.
      */
+    const auto bucketQuota = engine->getConfiguration().getMaxSize();
+
+    const bool aboveLowWatermark =
+            stats.getEstimatedTotalMemoryUsed() >= stats.mem_low_wat.load();
+    const bool hitCheckpointMemoryThreshold =
+            engine->getKVBucket()
+                    ->getVBuckets()
+                    .getActiveVBucketsTotalCheckpointMemoryUsage() >=
+            bucketQuota * (engine->getConfiguration()
+                                   .getCursorDroppingCheckpointMemUpperMark() /
+                           100);
+
     if (stats.getEstimatedTotalMemoryUsed() >
-        stats.cursorDroppingUThreshold.load()) {
-        size_t amountOfMemoryToClear = stats.getEstimatedTotalMemoryUsed() -
-                                       stats.cursorDroppingLThreshold.load();
+                stats.cursorDroppingUThreshold.load() ||
+        (aboveLowWatermark && hitCheckpointMemoryThreshold)) {
+        size_t amountOfMemoryToClear;
+        if (aboveLowWatermark && hitCheckpointMemoryThreshold) {
+            // If we were triggered by the fact we hit the low watermark and we
+            // are over the threshold of allowed checkpoint memory usage, then
+            // try to clear memory down to the lower limit of the allowable
+            // memory usage threshold.
+            amountOfMemoryToClear =
+                    stats.getEstimatedTotalMemoryUsed() -
+                    (bucketQuota *
+                     (engine->getConfiguration()
+                              .getCursorDroppingCheckpointMemLowerMark() /
+                      100));
+        } else {
+            amountOfMemoryToClear = stats.getEstimatedTotalMemoryUsed() -
+                                    stats.cursorDroppingLThreshold.load();
+        }
         size_t memoryCleared = 0;
         KVBucketIface* kvBucket = engine->getKVBucket();
         // Get a list of active vbuckets sorted by memory usage

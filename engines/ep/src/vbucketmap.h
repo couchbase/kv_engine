@@ -87,6 +87,12 @@ public:
     std::vector<id_type> getBuckets(void) const;
     std::vector<id_type> getBucketsSortedByState(void) const;
     std::vector<std::pair<id_type, size_t> > getActiveVBucketsSortedByChkMgrMem(void) const;
+
+    /**
+     * Get the memory usage by checkpoints for all active vbuckets.
+     * @return Total checkpoint memory usage
+     */
+    size_t getActiveVBucketsTotalCheckpointMemoryUsage() const;
     KVShard* getShardByVbId(id_type id) const;
     KVShard* getShard(KVShard::id_type shardId) const;
     size_t getNumShards() const;
