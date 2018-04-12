@@ -38,6 +38,8 @@ creates audit events from 0x1000 and the events definitions for this
 module are found in "memcached/auditd/etc/auditd_descriptor.json".
 Each module can specify a maximum of 4095 events (i.e. for the
 auditd module this is from 0x1000 to 0x1FFF).
+It also sets the enterprise flag to true, which means that it
+is ignored when building community edition.
 
 
     {
@@ -45,7 +47,8 @@ auditd module this is from 0x1000 to 0x1FFF).
                   {
                    "auditd" : {
                                  "startid" : 4096,
-                                 "file" : "memcached/auditd/etc/auditd_descriptor.json"
+                                 "file" : "memcached/auditd/etc/auditd_descriptor.json",
+                                 "enterprise" : true
                                 }
                   }
                  ]

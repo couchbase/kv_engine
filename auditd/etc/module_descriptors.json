@@ -42,7 +42,8 @@
                {
                 "eventing" :  {
                                "startid" : 32768,
-                               "file" : "goproj/src/github.com/couchbase/eventing/audit/audit_descriptor.json"
+                               "file" : "goproj/src/github.com/couchbase/eventing/audit/audit_descriptor.json",
+                               "enterprise" : true
                               }
                 }
              ]

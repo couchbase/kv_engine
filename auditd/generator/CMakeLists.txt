@@ -1,6 +1,6 @@
 ADD_EXECUTABLE(auditevent_generator auditevent_generator.cc
                                     auditevent_generator.h)
-TARGET_LINK_LIBRARIES(auditevent_generator cJSON platform)
+TARGET_LINK_LIBRARIES(auditevent_generator cJSON platform dirutils)
 
 # When we're running the commit validation for memcached we don't
 # download all of the external modules so we'll just use a

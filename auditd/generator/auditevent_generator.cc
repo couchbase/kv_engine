@@ -17,26 +17,34 @@
 
 #include "config.h"
 
-#include <limits.h>
-#include <algorithm>
-#include <fstream>
-#include <sstream>
-#include <iostream>
-#include <list>
-#include <string>
+#include <cJSON.h>
+#include <cJSON_utils.h>
 #include <errno.h>
 #include <getopt.h>
 #include <inttypes.h>
+#include <limits.h>
+#include <platform/make_unique.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
-#include <cJSON.h>
-#include <cJSON_utils.h>
 #include <strings.h>
-#include <getopt.h>
+#include <sys/stat.h>
+#include <algorithm>
+#include <fstream>
+#include <iostream>
+#include <list>
+#include <sstream>
+#include <string>
 #include "auditevent_generator.h"
+
+static bool is_enterprise_edition() {
+#ifdef COUCHBASE_ENTERPRISE_EDITION
+    return true;
+#else
+    return false;
+#endif
+}
 
 /* Events types are defined as a hexidecimal number.
  * The event ids starts at 0x1000.
@@ -262,8 +270,13 @@ static void validate_module_descriptors(const cJSON *ptr,
             error_exit(AUDIT_DESCRIPTORS_KEY_ERROR, NULL);
         }
 
-        Module *new_module = new Module(module_ptr->child, srcroot, objroot);
-        modules.push_back(new_module);
+        auto new_module =
+                std::make_unique<Module>(module_ptr->child, srcroot, objroot);
+        if (new_module->enterprise && !is_enterprise_edition()) {
+            // Community edition should ignore modules from enterprise Edition
+        } else {
+            modules.push_back(new_module.release());
+        }
         module_ptr = module_ptr->next;
     }
 }

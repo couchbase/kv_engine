@@ -14,10 +14,9 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+#pragma once
 
-#ifndef AUDIT_DESCRIPTORS_H
-#define AUDIT_DESCRIPTORS_H
-
+#include <platform/dirutils.h>
 #include <gsl/gsl>
 #include <string>
 
@@ -109,12 +108,8 @@ public:
 
 class Module {
 public:
-    Module(cJSON *data,
-           const std::string &srcRoot,
-           const std::string &objRoot)
-        : name(data->string),
-          json(NULL)
-    {
+    Module(cJSON* data, const std::string& srcRoot, const std::string& objRoot)
+        : name(data->string) {
         // Each module contains:
         //   startid - mandatory
         //   file - mandatory
@@ -122,15 +117,15 @@ public:
         cJSON *sid = getMandatoryObject(data, "startid", cJSON_Number);
         cJSON *fname = getMandatoryObject(data, "file", cJSON_String);
         cJSON *hfile = getOptionalObject(data, "header", cJSON_String);
+        auto* ent = getOptionalObject(data, "enterprise", cJSON_True);
 
         start = gsl::narrow<int>(sid->valueint);
         file.assign(srcRoot);
         file.append("/");
         file.append(fname->valuestring);
+        cb::io::sanitizePath(file);
 
-        if (DIRECTORY_SEPARATOR_CHARACTER == '\\') {
-            std::replace(file.begin(), file.end(), '/', '\\');
-        }
+        int expected = 2;
 
         if (hfile) {
             std::string hp = hfile->valuestring;
@@ -138,16 +133,17 @@ public:
                 header.assign(objRoot);
                 header.append("/");
                 header.append(hp);
-
-                if (DIRECTORY_SEPARATOR_CHARACTER == '\\') {
-                    std::replace(header.begin(), header.end(), '/', '\\');
-                }
+                cb::io::sanitizePath(header);
             }
+            ++expected;
         }
 
-        int num_elem = cJSON_GetArraySize(data);
-        int expected = (hfile == NULL) ? 2 : 3;
-        if (num_elem != expected) {
+        if (ent) {
+            enterprise = ent->type == cJSON_True;
+            ++expected;
+        }
+
+        if (cJSON_GetArraySize(data) != expected) {
             std::stringstream ss;
             ss << "Unknown elements for " << name << ": " << std::endl
                << to_string(data) << std::endl;
@@ -218,7 +214,12 @@ public:
     /**
      * The JSON data describing the audit descriptors for this module
      */
-    cJSON *json;
+    cJSON* json = nullptr;
+    /**
+     * Is this module enterprise only?
+     */
+    bool enterprise = false;
+
 private:
     /**
      * If present this is the name of a C headerfile to generate with
@@ -230,5 +231,3 @@ private:
      */
     std::list<Event *> events;
 };
-
-#endif
