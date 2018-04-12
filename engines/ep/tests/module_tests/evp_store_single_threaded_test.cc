@@ -2521,6 +2521,102 @@ TEST_F(MB_29287, dataloss_hole) {
     EXPECT_EQ(1, vb->checkpointManager->getNumOfCursors());
 }
 
+class XattrCompressedTest
+    : public SingleThreadedEPBucketTest,
+      public ::testing::WithParamInterface<::testing::tuple<bool, bool>> {
+public:
+    bool isXattrSystem() const {
+        return ::testing::get<0>(GetParam());
+    }
+    bool isSnappy() const {
+        return ::testing::get<1>(GetParam());
+    }
+};
+
+// Create a replica VB and consumer, then send it an xattr value which should
+// of been stripped at the source, but wasn't because of MB29040. Then check
+// the consumer sanitises the document. Run the test with user/system xattrs
+// and snappy on/off
+TEST_P(XattrCompressedTest, MB_29040_sanitise_input) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+
+    auto consumer = std::make_shared<MockDcpConsumer>(
+            *engine, cookie, "MB_29040_sanitise_input");
+    int opaque = 1;
+    ASSERT_EQ(ENGINE_SUCCESS, consumer->addStream(opaque, vbid, /*flags*/ 0));
+
+    std::string body;
+    if (!isXattrSystem()) {
+        body.assign("value");
+    }
+    auto value = createXattrValue(body, isXattrSystem(), isSnappy());
+
+    // Send deletion in a single seqno snapshot
+    int64_t bySeqno = 1;
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->snapshotMarker(
+                      opaque, vbid, bySeqno, bySeqno, MARKER_FLAG_CHK));
+
+    cb::const_byte_buffer valueBuf{
+            reinterpret_cast<const uint8_t*>(value.data()), value.size()};
+    EXPECT_EQ(
+            ENGINE_SUCCESS,
+            consumer->deletion(
+                    opaque,
+                    {"key", DocNamespace::DefaultCollection},
+                    valueBuf,
+                    /*priv_bytes*/ 0,
+                    PROTOCOL_BINARY_DATATYPE_XATTR |
+                            (isSnappy() ? PROTOCOL_BINARY_DATATYPE_SNAPPY : 0),
+                    /*cas*/ 3,
+                    vbid,
+                    bySeqno,
+                    /*revSeqno*/ 0,
+                    /*meta*/ {}));
+
+    EXPECT_EQ(std::make_pair(false, size_t(1)),
+              getEPBucket().flushVBucket(vbid));
+
+    ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(opaque, vbid));
+
+    // Switch to active
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    get_options_t options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+            HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
+    auto gv = store->get(
+            {"key", DocNamespace::DefaultCollection}, vbid, cookie, options);
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
+
+    // Manually run the bgfetch task.
+    MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
+    store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+    gv = store->get({"key", DocNamespace::DefaultCollection},
+                    vbid,
+                    cookie,
+                    GET_DELETED_VALUE);
+    ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus());
+
+    // This is the only system key test_helpers::createXattrValue gives us
+    cb::xattr::Blob blob;
+    blob.set("_sync", "{\"cas\":\"0xdeadbeefcafefeed\"}");
+
+    EXPECT_TRUE(gv.item->isDeleted());
+    EXPECT_EQ(0, gv.item->getFlags());
+    EXPECT_EQ(3, gv.item->getCas());
+    EXPECT_EQ(isXattrSystem() ? blob.size() : 0,
+              gv.item->getValue()->valueSize());
+    EXPECT_EQ(isXattrSystem() ? PROTOCOL_BINARY_DATATYPE_XATTR
+                              : PROTOCOL_BINARY_RAW_BYTES,
+              gv.item->getDataType());
+}
+
 INSTANTIATE_TEST_CASE_P(XattrSystemUserTest,
                         XattrSystemUserTest,
                         ::testing::Bool(), );
+
+INSTANTIATE_TEST_CASE_P(XattrCompressedTest,
+                        XattrCompressedTest,
+                        ::testing::Combine(::testing::Bool(),
+                                           ::testing::Bool()), );

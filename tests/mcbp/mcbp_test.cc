@@ -1956,13 +1956,10 @@ TEST_P(DcpDeletionValidatorTest, ValidDatatype) {
 
 TEST_P(DcpDeletionValidatorTest, InvalidDatatype) {
     using cb::mcbp::Datatype;
-    const std::array<uint8_t, 5> datatypes = {
+    const std::array<uint8_t, 3> datatypes = {
             {uint8_t(Datatype::JSON),
              uint8_t(Datatype::Snappy),
-             uint8_t(Datatype::Snappy) | uint8_t(Datatype::JSON),
-             uint8_t(Datatype::Xattr) | uint8_t(Datatype::JSON),
-             (uint8_t(Datatype::Xattr) | uint8_t(Datatype::Snappy) |
-              uint8_t(Datatype::JSON))}};
+             uint8_t(Datatype::Snappy) | uint8_t(Datatype::JSON)}};
 
     for (auto invalid : datatypes) {
         header.request.datatype = invalid;
