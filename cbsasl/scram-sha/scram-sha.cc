@@ -219,10 +219,8 @@ void ScramShaBackend::addAttribute(std::ostream& out, char key, int value,
     }
 }
 
-static std::vector<uint8_t> string2vector(const std::string& str) {
-    std::vector<uint8_t> ret(str.length());
-    std::memcpy(ret.data(), str.data(), ret.size());
-    return ret;
+static cb::const_byte_buffer string_to_byte_buffer(const std::string& str) {
+    return {reinterpret_cast<const uint8_t*>(str.data()), str.size()};
 }
 
 /**
@@ -235,12 +233,12 @@ static std::vector<uint8_t> string2vector(const std::string& str) {
 std::string ScramShaBackend::getServerSignature() {
     std::vector<uint8_t> saltedPassword;
     getSaltedPassword(saltedPassword);
-    auto serverKey = cb::crypto::HMAC(algorithm, saltedPassword,
-                                      string2vector("Server Key"));
+    auto serverKey = cb::crypto::HMAC(
+            algorithm, saltedPassword, string_to_byte_buffer("Server Key"));
 
     std::string authMessage = getAuthMessage();
-    auto serverSignature = cb::crypto::HMAC(algorithm, serverKey,
-                                            string2vector(authMessage));
+    auto serverSignature = cb::crypto::HMAC(
+            algorithm, serverKey, string_to_byte_buffer(authMessage));
 
     return std::string(reinterpret_cast<const char*>(serverSignature.data()),
                        serverSignature.size());
@@ -263,12 +261,12 @@ std::string ScramShaBackend::getClientProof() {
 
     getSaltedPassword(saltedPassword);
 
-    auto clientKey = cb::crypto::HMAC(algorithm, saltedPassword,
-                                             string2vector("Client Key"));
+    auto clientKey = cb::crypto::HMAC(
+            algorithm, saltedPassword, string_to_byte_buffer("Client Key"));
     auto storedKey = cb::crypto::digest(algorithm, clientKey);
     std::string authMessage = getAuthMessage();
-    auto clientSignature = cb::crypto::HMAC(algorithm, storedKey,
-                                                   string2vector(authMessage));
+    auto clientSignature = cb::crypto::HMAC(
+            algorithm, storedKey, string_to_byte_buffer(authMessage));
 
     // Client Proof is ClientKey XOR ClientSignature
     uint8_t* ck = clientKey.data();
@@ -756,9 +754,8 @@ cbsasl_error_t ScramShaClientBackend::step(const char* input,
 bool ScramShaClientBackend::generateSaltedPassword(const char* ptr, int len) {
     std::string secret(ptr, len);
     try {
-        saltedPassword = cb::crypto::PBKDF2_HMAC(algorithm, secret,
-                                                 string2vector(salt),
-                                                 iterationCount);
+        saltedPassword = cb::crypto::PBKDF2_HMAC(
+                algorithm, secret, string_to_byte_buffer(salt), iterationCount);
         return true;
     } catch (...) {
         return false;

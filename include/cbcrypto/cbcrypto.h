@@ -16,14 +16,13 @@
  */
 #pragma once
 
+#include <cbcrypto/visibility.h>
+
 #include <cJSON_utils.h>
-#include <cbsasl/visibility.h>
+#include <platform/sized_buffer.h>
 #include <cstdint>
 #include <string>
 #include <vector>
-
-#include <cbcrypto/visibility.h>
-
 
 namespace cb {
 namespace crypto {
@@ -46,8 +45,8 @@ const int SHA512_DIGEST_SIZE = 64;
  */
 CBCRYPTO_PUBLIC_API
 std::vector<uint8_t> HMAC(const Algorithm algorithm,
-                          const std::vector<uint8_t>& key,
-                          const std::vector<uint8_t>& data);
+                          cb::const_byte_buffer key,
+                          cb::const_byte_buffer data);
 
 /**
  * Generate a PBKDF2_HMAC digest of the key and data by using the given
@@ -59,7 +58,7 @@ std::vector<uint8_t> HMAC(const Algorithm algorithm,
 CBCRYPTO_PUBLIC_API
 std::vector<uint8_t> PBKDF2_HMAC(const Algorithm algorithm,
                                  const std::string& pass,
-                                 const std::vector<uint8_t>& salt,
+                                 cb::const_byte_buffer salt,
                                  unsigned int iterationCount);
 
 /**
@@ -67,7 +66,7 @@ std::vector<uint8_t> PBKDF2_HMAC(const Algorithm algorithm,
  */
 CBCRYPTO_PUBLIC_API
 std::vector<uint8_t> digest(const Algorithm algorithm,
-                            const std::vector<uint8_t>& data);
+                            cb::const_byte_buffer data);
 
 enum class Cipher { AES_256_cbc };
 
@@ -79,31 +78,14 @@ Cipher to_cipher(const std::string& str);
  * @param cipher The cipher to use
  * @param key The key used for encryption
  * @param ivec The IV to use for encryption
- * @param data Pointer to the data to encrypt
- * @param length the length of the data to encrypt
+ * @param data The Pointer to the data to encrypt
  * @return The encrypted data
  */
 CBCRYPTO_PUBLIC_API
-std::vector<uint8_t> encrypt(const Cipher& cipher,
-                             const std::vector<uint8_t>& key,
-                             const std::vector<uint8_t>& iv,
-                             const uint8_t* data,
-                             size_t length);
-
-/**
- * Encrypt the specified data by using a given cipher
- *
- * @param cipher The cipher to use
- * @param key The key used for encryption
- * @param ivec The IV to use for encryption
- * @param data The data to encrypt
- * @return The encrypted data
- */
-CBCRYPTO_PUBLIC_API
-std::vector<uint8_t> encrypt(const Cipher& cipher,
-                             const std::vector<uint8_t>& key,
-                             const std::vector<uint8_t>& iv,
-                             const std::vector<uint8_t>& data);
+std::vector<uint8_t> encrypt(const Cipher cipher,
+                             cb::const_byte_buffer key,
+                             cb::const_byte_buffer iv,
+                             cb::const_byte_buffer data);
 
 /**
  * Encrypt the specified data
@@ -120,26 +102,7 @@ std::vector<uint8_t> encrypt(const Cipher& cipher,
  * @return The encrypted data
  */
 CBCRYPTO_PUBLIC_API
-std::vector<uint8_t> encrypt(const cJSON* json,
-                             const uint8_t* data,
-                             size_t length);
-
-/**
- * Decrypt the specified data by using a given cipher
- *
- * @param cipher The cipher to use
- * @param key The key used for encryption
- * @param ivec The IV to use for encryption
- * @param data pointer to the data to decrypt
- * @param length the length of the data to decrypt
- * @return The decrypted data
- */
-CBCRYPTO_PUBLIC_API
-std::vector<uint8_t> decrypt(const Cipher& cipher,
-                             const std::vector<uint8_t>& key,
-                             const std::vector<uint8_t>& iv,
-                             const uint8_t* data,
-                             size_t length);
+std::vector<uint8_t> encrypt(const cJSON* json, cb::const_byte_buffer data);
 
 /**
  * Decrypt the specified data by using a given cipher
@@ -151,10 +114,10 @@ std::vector<uint8_t> decrypt(const Cipher& cipher,
  * @return The decrypted data
  */
 CBCRYPTO_PUBLIC_API
-std::vector<uint8_t> decrypt(const Cipher& cipher,
-                             const std::vector<uint8_t>& key,
-                             const std::vector<uint8_t>& iv,
-                             const std::vector<uint8_t>& data);
+std::vector<uint8_t> decrypt(const Cipher cipher,
+                             cb::const_byte_buffer key,
+                             cb::const_byte_buffer iv,
+                             cb::const_byte_buffer data);
 
 /**
  * Decrypt the specified data
@@ -171,9 +134,7 @@ std::vector<uint8_t> decrypt(const Cipher& cipher,
  * @return The decrypted data
  */
 CBCRYPTO_PUBLIC_API
-std::vector<uint8_t> decrypt(const cJSON* json,
-                             const uint8_t* data,
-                             size_t length);
+std::vector<uint8_t> decrypt(const cJSON* json, cb::const_byte_buffer data);
 
 /**
  * Generate a digest of the provided string by using the specified
@@ -186,5 +147,5 @@ std::vector<uint8_t> decrypt(const cJSON* json,
  */
 CBCRYPTO_PUBLIC_API
 std::string digest(const Algorithm algorithm, const std::string& data);
-}
-}
+} // namespace crypto
+} // namespace cb

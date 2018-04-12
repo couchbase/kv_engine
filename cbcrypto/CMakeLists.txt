@@ -1,7 +1,7 @@
 ADD_LIBRARY(cbcrypto SHARED
             cbcrypto.cc
             ${PROJECT_SOURCE_DIR}/include/cbcrypto/cbcrypto.h)
-SET_TARGET_PROPERTIES(cbcrypto PROPERTIES SOVERSION 1.0.0)
+SET_TARGET_PROPERTIES(cbcrypto PROPERTIES SOVERSION 2.0.0)
 
 if (APPLE)
     # Apple is using the Common Crypto Framework for all crypto functions

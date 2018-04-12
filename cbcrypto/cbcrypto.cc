@@ -17,20 +17,19 @@
 #include "config.h"
 #include <cbcrypto/cbcrypto.h>
 
-#include <iomanip>
-#include <memory>
 #include <phosphor/phosphor.h>
 #include <platform/base64.h>
+#include <iomanip>
+#include <memory>
 #include <sstream>
 #include <stdexcept>
+
+namespace internal {
 
 #ifdef _MSC_VER
 
 #include <bcrypt.h>
 #include <windows.h>
-
-namespace cb {
-namespace crypto {
 
 struct HeapAllocDeleter {
     void operator()(PBYTE bytes) {
@@ -40,8 +39,8 @@ struct HeapAllocDeleter {
 
 using uniqueHeapPtr = std::unique_ptr<BYTE, HeapAllocDeleter>;
 
-static inline std::vector<uint8_t> hash(const std::vector<uint8_t>& key,
-                                        const std::vector<uint8_t>& data,
+static inline std::vector<uint8_t> hash(cb::const_byte_buffer key,
+                                        cb::const_byte_buffer data,
                                         LPCWSTR algorithm,
                                         int flags) {
     BCRYPT_ALG_HANDLE hAlg;
@@ -130,30 +129,30 @@ static inline std::vector<uint8_t> hash(const std::vector<uint8_t>& key,
     return ret;
 }
 
-static std::vector<uint8_t> HMAC_MD5(const std::vector<uint8_t>& key,
-                                     const std::vector<uint8_t>& data) {
+static std::vector<uint8_t> HMAC_MD5(cb::const_byte_buffer key,
+                                     cb::const_byte_buffer data) {
     return hash(key, data, BCRYPT_MD5_ALGORITHM, BCRYPT_ALG_HANDLE_HMAC_FLAG);
 }
 
-static std::vector<uint8_t> HMAC_SHA1(const std::vector<uint8_t>& key,
-                                      const std::vector<uint8_t>& data) {
+static std::vector<uint8_t> HMAC_SHA1(cb::const_byte_buffer key,
+                                      cb::const_byte_buffer data) {
     return hash(key, data, BCRYPT_SHA1_ALGORITHM, BCRYPT_ALG_HANDLE_HMAC_FLAG);
 }
 
-static std::vector<uint8_t> HMAC_SHA256(const std::vector<uint8_t>& key,
-                                        const std::vector<uint8_t>& data) {
+static std::vector<uint8_t> HMAC_SHA256(cb::const_byte_buffer key,
+                                        cb::const_byte_buffer data) {
     return hash(
             key, data, BCRYPT_SHA256_ALGORITHM, BCRYPT_ALG_HANDLE_HMAC_FLAG);
 }
 
-static std::vector<uint8_t> HMAC_SHA512(const std::vector<uint8_t>& key,
-                                        const std::vector<uint8_t>& data) {
+static std::vector<uint8_t> HMAC_SHA512(cb::const_byte_buffer key,
+                                        cb::const_byte_buffer data) {
     return hash(
             key, data, BCRYPT_SHA512_ALGORITHM, BCRYPT_ALG_HANDLE_HMAC_FLAG);
 }
 
 static inline std::vector<uint8_t> PBKDF2(const std::string& pass,
-                                          const std::vector<uint8_t>& salt,
+                                          cb::const_byte_buffer salt,
                                           unsigned int iterationCount,
                                           LPCWSTR algorithm) {
     // open an algorithm handle
@@ -209,44 +208,43 @@ static inline std::vector<uint8_t> PBKDF2(const std::string& pass,
 }
 
 static std::vector<uint8_t> PBKDF2_HMAC_SHA1(const std::string& pass,
-                                             const std::vector<uint8_t>& salt,
+                                             cb::const_byte_buffer salt,
                                              unsigned int iterationCount) {
     return PBKDF2(pass, salt, iterationCount, BCRYPT_SHA1_ALGORITHM);
 }
 
 static std::vector<uint8_t> PBKDF2_HMAC_SHA256(const std::string& pass,
-                                               const std::vector<uint8_t>& salt,
+                                               cb::const_byte_buffer salt,
                                                unsigned int iterationCount) {
     return PBKDF2(pass, salt, iterationCount, BCRYPT_SHA256_ALGORITHM);
 }
 
 static std::vector<uint8_t> PBKDF2_HMAC_SHA512(const std::string& pass,
-                                               const std::vector<uint8_t>& salt,
+                                               cb::const_byte_buffer salt,
                                                unsigned int iterationCount) {
     return PBKDF2(pass, salt, iterationCount, BCRYPT_SHA512_ALGORITHM);
 }
 
-static std::vector<uint8_t> digest_md5(const std::vector<uint8_t>& data) {
+static std::vector<uint8_t> digest_md5(cb::const_byte_buffer data) {
     return hash({}, data, BCRYPT_MD5_ALGORITHM, 0);
 }
 
-static std::vector<uint8_t> digest_sha1(const std::vector<uint8_t>& data) {
+static std::vector<uint8_t> digest_sha1(cb::const_byte_buffer data) {
     return hash({}, data, BCRYPT_SHA1_ALGORITHM, 0);
 }
 
-static std::vector<uint8_t> digest_sha256(const std::vector<uint8_t>& data) {
+static std::vector<uint8_t> digest_sha256(cb::const_byte_buffer data) {
     return hash({}, data, BCRYPT_SHA256_ALGORITHM, 0);
 }
 
-static std::vector<uint8_t> digest_sha512(const std::vector<uint8_t>& data) {
+static std::vector<uint8_t> digest_sha512(cb::const_byte_buffer data) {
     return hash({}, data, BCRYPT_SHA512_ALGORITHM, 0);
 }
 
 std::vector<uint8_t> AES_256_cbc(bool encrypt,
-                                 const std::vector<uint8_t>& key,
-                                 const std::vector<uint8_t>& iv,
-                                 const uint8_t* data,
-                                 size_t length) {
+                                 cb::const_byte_buffer key,
+                                 cb::const_byte_buffer iv,
+                                 cb::const_byte_buffer data) {
     BCRYPT_ALG_HANDLE hAlg;
     NTSTATUS status = BCryptOpenAlgorithmProvider(
             &hAlg, BCRYPT_AES_ALGORITHM, nullptr, 0);
@@ -310,13 +308,14 @@ std::vector<uint8_t> AES_256_cbc(bool encrypt,
 
     // For some reason the API will modify the input vector.. just create a
     // copy.. it's small anyway
-    std::vector<uint8_t> civ{iv};
+    std::vector<uint8_t> civ;
+    std::copy(iv.begin(), iv.end(), std::back_inserter(civ));
 
-    std::vector<uint8_t> ret(length + iv.size());
+    std::vector<uint8_t> ret(data.size() + iv.size());
     if (encrypt) {
         status = BCryptEncrypt(hKey,
-                               (PUCHAR)data,
-                               ULONG(length),
+                               (PUCHAR)data.data(),
+                               ULONG(data.size()),
                                NULL,
                                (PBYTE)civ.data(),
                                ULONG(civ.size()),
@@ -326,8 +325,8 @@ std::vector<uint8_t> AES_256_cbc(bool encrypt,
                                BCRYPT_BLOCK_PADDING);
     } else {
         status = BCryptDecrypt(hKey,
-                               (PUCHAR)data,
-                               ULONG(length),
+                               (PUCHAR)data.data(),
+                               ULONG(data.size()),
                                nullptr,
                                (PBYTE)civ.data(),
                                ULONG(civ.size()),
@@ -350,23 +349,19 @@ std::vector<uint8_t> AES_256_cbc(bool encrypt,
     return ret;
 }
 
-std::vector<uint8_t> encrypt(const Cipher& cipher,
-                             const std::vector<uint8_t>& key,
-                             const std::vector<uint8_t>& iv,
-                             const uint8_t* data,
-                             size_t length) {
-    return AES_256_cbc(true, key, iv, data, length);
+std::vector<uint8_t> encrypt(const cb::crypto::Cipher cipher,
+                             cb::const_byte_buffer key,
+                             cb::const_byte_buffer iv,
+                             cb::const_byte_buffer data) {
+    return AES_256_cbc(true, key, iv, data);
 }
 
-std::vector<uint8_t> decrypt(const Cipher& cipher,
-                             const std::vector<uint8_t>& key,
-                             const std::vector<uint8_t>& iv,
-                             const uint8_t* data,
-                             size_t length) {
-    return AES_256_cbc(false, key, iv, data, length);
+std::vector<uint8_t> decrypt(const cb::crypto::Cipher cipher,
+                             cb::const_byte_buffer key,
+                             cb::const_byte_buffer iv,
+                             cb::const_byte_buffer data) {
+    return AES_256_cbc(false, key, iv, data);
 }
-} // namespace crypto
-} // namespace cb
 
 #elif defined(__APPLE__)
 
@@ -375,116 +370,143 @@ std::vector<uint8_t> decrypt(const Cipher& cipher,
 #include <CommonCrypto/CommonHMAC.h>
 #include <CommonCrypto/CommonKeyDerivation.h>
 
-static std::vector<uint8_t> HMAC_MD5(const std::vector<uint8_t>& key,
-                                     const std::vector<uint8_t>& data) {
+static std::vector<uint8_t> HMAC_MD5(cb::const_byte_buffer key,
+                                     cb::const_byte_buffer data) {
     std::vector<uint8_t> ret(cb::crypto::MD5_DIGEST_SIZE);
-    CCHmac(kCCHmacAlgMD5, key.data(), key.size(), data.data(), data.size(),
+    CCHmac(kCCHmacAlgMD5,
+           key.data(),
+           key.size(),
+           data.data(),
+           data.size(),
            ret.data());
     return ret;
 }
 
-static std::vector<uint8_t> HMAC_SHA1(const std::vector<uint8_t>& key,
-                                      const std::vector<uint8_t>& data) {
+static std::vector<uint8_t> HMAC_SHA1(cb::const_byte_buffer key,
+                                      cb::const_byte_buffer data) {
     std::vector<uint8_t> ret(cb::crypto::SHA1_DIGEST_SIZE);
-    CCHmac(kCCHmacAlgSHA1, key.data(), key.size(), data.data(), data.size(),
+    CCHmac(kCCHmacAlgSHA1,
+           key.data(),
+           key.size(),
+           data.data(),
+           data.size(),
            ret.data());
     return ret;
 }
 
-static std::vector<uint8_t> HMAC_SHA256(const std::vector<uint8_t>& key,
-                                        const std::vector<uint8_t>& data) {
+static std::vector<uint8_t> HMAC_SHA256(cb::const_byte_buffer key,
+                                        cb::const_byte_buffer data) {
     std::vector<uint8_t> ret(cb::crypto::SHA256_DIGEST_SIZE);
-    CCHmac(kCCHmacAlgSHA256, key.data(), key.size(), data.data(), data.size(),
+    CCHmac(kCCHmacAlgSHA256,
+           key.data(),
+           key.size(),
+           data.data(),
+           data.size(),
            ret.data());
     return ret;
 }
 
-static std::vector<uint8_t> HMAC_SHA512(const std::vector<uint8_t>& key,
-                                        const std::vector<uint8_t>& data) {
+static std::vector<uint8_t> HMAC_SHA512(cb::const_byte_buffer key,
+                                        cb::const_byte_buffer data) {
     std::vector<uint8_t> ret(cb::crypto::SHA512_DIGEST_SIZE);
-    CCHmac(kCCHmacAlgSHA512, key.data(), key.size(), data.data(), data.size(),
+    CCHmac(kCCHmacAlgSHA512,
+           key.data(),
+           key.size(),
+           data.data(),
+           data.size(),
            ret.data());
     return ret;
 }
 
 static std::vector<uint8_t> PBKDF2_HMAC_SHA1(const std::string& pass,
-                                             const std::vector<uint8_t>& salt,
+                                             cb::const_byte_buffer salt,
                                              unsigned int iterationCount) {
     std::vector<uint8_t> ret(cb::crypto::SHA1_DIGEST_SIZE);
     auto err = CCKeyDerivationPBKDF(kCCPBKDF2,
-                                    pass.data(), pass.size(),
-                                    salt.data(), salt.size(),
-                                    kCCPRFHmacAlgSHA1, iterationCount,
-                                    ret.data(), ret.size());
+                                    pass.data(),
+                                    pass.size(),
+                                    salt.data(),
+                                    salt.size(),
+                                    kCCPRFHmacAlgSHA1,
+                                    iterationCount,
+                                    ret.data(),
+                                    ret.size());
 
     if (err != 0) {
         throw std::runtime_error(
-            "cb::crypto::PBKDF2_HMAC(SHA1): CCKeyDerivationPBKDF failed: " +
-            std::to_string(err));
+                "cb::crypto::PBKDF2_HMAC(SHA1): CCKeyDerivationPBKDF failed: " +
+                std::to_string(err));
     }
     return ret;
 }
 
 static std::vector<uint8_t> PBKDF2_HMAC_SHA256(const std::string& pass,
-                                               const std::vector<uint8_t>& salt,
+                                               cb::const_byte_buffer salt,
                                                unsigned int iterationCount) {
     std::vector<uint8_t> ret(cb::crypto::SHA256_DIGEST_SIZE);
     auto err = CCKeyDerivationPBKDF(kCCPBKDF2,
-                                    pass.data(), pass.size(),
-                                    salt.data(), salt.size(),
-                                    kCCPRFHmacAlgSHA256, iterationCount,
-                                    ret.data(), ret.size());
+                                    pass.data(),
+                                    pass.size(),
+                                    salt.data(),
+                                    salt.size(),
+                                    kCCPRFHmacAlgSHA256,
+                                    iterationCount,
+                                    ret.data(),
+                                    ret.size());
     if (err != 0) {
         throw std::runtime_error(
-            "cb::crypto::PBKDF2_HMAC(SHA256): CCKeyDerivationPBKDF failed: " +
-            std::to_string(err));
+                "cb::crypto::PBKDF2_HMAC(SHA256): CCKeyDerivationPBKDF "
+                "failed: " +
+                std::to_string(err));
     }
     return ret;
 }
 
 static std::vector<uint8_t> PBKDF2_HMAC_SHA512(const std::string& pass,
-                                               const std::vector<uint8_t>& salt,
+                                               cb::const_byte_buffer salt,
                                                unsigned int iterationCount) {
     std::vector<uint8_t> ret(cb::crypto::SHA512_DIGEST_SIZE);
     auto err = CCKeyDerivationPBKDF(kCCPBKDF2,
-                                    pass.data(), pass.size(),
-                                    salt.data(), salt.size(),
-                                    kCCPRFHmacAlgSHA512, iterationCount,
-                                    ret.data(), ret.size());
+                                    pass.data(),
+                                    pass.size(),
+                                    salt.data(),
+                                    salt.size(),
+                                    kCCPRFHmacAlgSHA512,
+                                    iterationCount,
+                                    ret.data(),
+                                    ret.size());
     if (err != 0) {
         throw std::runtime_error(
-            "cb::crypto::PBKDF2_HMAC(SHA512): CCKeyDerivationPBKDF failed: " +
-            std::to_string(err));
+                "cb::crypto::PBKDF2_HMAC(SHA512): CCKeyDerivationPBKDF "
+                "failed: " +
+                std::to_string(err));
     }
     return ret;
 }
 
-static std::vector<uint8_t> digest_md5(const std::vector<uint8_t>& data) {
+static std::vector<uint8_t> digest_md5(cb::const_byte_buffer data) {
     std::vector<uint8_t> ret(cb::crypto::MD5_DIGEST_SIZE);
     CC_MD5(data.data(), data.size(), ret.data());
     return ret;
 }
 
-static std::vector<uint8_t> digest_sha1(const std::vector<uint8_t>& data) {
+static std::vector<uint8_t> digest_sha1(cb::const_byte_buffer data) {
     std::vector<uint8_t> ret(cb::crypto::SHA1_DIGEST_SIZE);
     CC_SHA1(data.data(), data.size(), ret.data());
     return ret;
 }
 
-static std::vector<uint8_t> digest_sha256(const std::vector<uint8_t>& data) {
+static std::vector<uint8_t> digest_sha256(cb::const_byte_buffer data) {
     std::vector<uint8_t> ret(cb::crypto::SHA256_DIGEST_SIZE);
     CC_SHA256(data.data(), data.size(), ret.data());
     return ret;
 }
 
-static std::vector<uint8_t> digest_sha512(const std::vector<uint8_t>& data) {
+static std::vector<uint8_t> digest_sha512(cb::const_byte_buffer data) {
     std::vector<uint8_t> ret(cb::crypto::SHA512_DIGEST_SIZE);
     CC_SHA512(data.data(), data.size(), ret.data());
     return ret;
 }
-
-namespace cb {
-namespace crypto {
 
 /**
  * Validate that the input parameters for the encryption cipher specified
@@ -492,11 +514,11 @@ namespace crypto {
  *
  * Currently only AES_256_cbc is supported
  */
-static void validateEncryptionCipher(const Cipher& cipher,
-                                     const std::vector<uint8_t>& key,
-                                     const std::vector<uint8_t>& iv) {
+static void validateEncryptionCipher(const cb::crypto::Cipher cipher,
+                                     cb::const_byte_buffer key,
+                                     cb::const_byte_buffer iv) {
     switch (cipher) {
-    case Cipher::AES_256_cbc:
+    case cb::crypto::Cipher::AES_256_cbc:
         if (key.size() != kCCKeySizeAES256) {
             throw std::invalid_argument(
                     "cb::crypto::validateEncryptionCipher: Cipher requires a "
@@ -516,18 +538,19 @@ static void validateEncryptionCipher(const Cipher& cipher,
         return;
     }
 
-    throw std::invalid_argument("cb::crypto::validateEncryptionCipher: Unknown Cipher " +
-                                std::to_string(int(cipher)));
+    throw std::invalid_argument(
+            "cb::crypto::validateEncryptionCipher: Unknown Cipher " +
+            std::to_string(int(cipher)));
 }
 
-std::vector<uint8_t> encrypt(const Cipher& cipher,
-                             const std::vector<uint8_t>& key,
-                             const std::vector<uint8_t>& iv,
-                             const uint8_t* data,
-                             size_t length) {
-    TRACE_EVENT2("cbcrypto", "encrypt", "cipher", int(cipher), "size", length);
+std::vector<uint8_t> encrypt(const cb::crypto::Cipher cipher,
+                             cb::const_byte_buffer key,
+                             cb::const_byte_buffer iv,
+                             cb::const_byte_buffer data) {
+    TRACE_EVENT2(
+            "cbcrypto", "encrypt", "cipher", int(cipher), "size", data.size());
     size_t outputsize = 0;
-    std::vector<uint8_t> ret(length + kCCBlockSizeAES128);
+    std::vector<uint8_t> ret(data.size() + kCCBlockSizeAES128);
 
     validateEncryptionCipher(cipher, key, iv);
 
@@ -537,8 +560,8 @@ std::vector<uint8_t> encrypt(const Cipher& cipher,
                           key.data(),
                           kCCKeySizeAES256,
                           iv.data(),
-                          data,
-                          length,
+                          data.data(),
+                          data.size(),
                           ret.data(),
                           ret.size(),
                           &outputsize);
@@ -552,14 +575,14 @@ std::vector<uint8_t> encrypt(const Cipher& cipher,
     return ret;
 }
 
-std::vector<uint8_t> decrypt(const Cipher& cipher,
-                             const std::vector<uint8_t>& key,
-                             const std::vector<uint8_t>& iv,
-                             const uint8_t* data,
-                             size_t length) {
-    TRACE_EVENT2("cbcrypto", "decrypt", "cipher", int(cipher), "size", length);
+std::vector<uint8_t> decrypt(const cb::crypto::Cipher cipher,
+                             cb::const_byte_buffer key,
+                             cb::const_byte_buffer iv,
+                             cb::const_byte_buffer data) {
+    TRACE_EVENT2(
+            "cbcrypto", "decrypt", "cipher", int(cipher), "size", data.size());
     size_t outputsize = 0;
-    std::vector<uint8_t> ret(length);
+    std::vector<uint8_t> ret(data.size());
 
     validateEncryptionCipher(cipher, key, iv);
 
@@ -569,8 +592,8 @@ std::vector<uint8_t> decrypt(const Cipher& cipher,
                           key.data(),
                           kCCKeySizeAES256,
                           iv.data(),
-                          data,
-                          length,
+                          data.data(),
+                          data.size(),
                           ret.data(),
                           ret.size(),
                           &outputsize);
@@ -584,9 +607,6 @@ std::vector<uint8_t> decrypt(const Cipher& cipher,
     return ret;
 }
 
-} // namespace crypto
-} // namespace cb
-
 #else
 
 #include <openssl/evp.h>
@@ -596,55 +616,75 @@ std::vector<uint8_t> decrypt(const Cipher& cipher,
 
 // OpenSSL
 
-static std::vector<uint8_t> HMAC_MD5(const std::vector<uint8_t>& key,
-                                     const std::vector<uint8_t>& data) {
+static std::vector<uint8_t> HMAC_MD5(cb::const_byte_buffer key,
+                                     cb::const_byte_buffer data) {
     std::vector<uint8_t> ret(cb::crypto::MD5_DIGEST_SIZE);
-    if (HMAC(EVP_md5(), key.data(), key.size(), data.data(), data.size(),
-             ret.data(), nullptr) == nullptr) {
+    if (HMAC(EVP_md5(),
+             key.data(),
+             key.size(),
+             data.data(),
+             data.size(),
+             ret.data(),
+             nullptr) == nullptr) {
         throw std::runtime_error("cb::crypto::HMAC(MD5): HMAC failed");
     }
     return ret;
 }
 
-static std::vector<uint8_t> HMAC_SHA1(const std::vector<uint8_t>& key,
-                                      const std::vector<uint8_t>& data) {
+static std::vector<uint8_t> HMAC_SHA1(cb::const_byte_buffer key,
+                                      cb::const_byte_buffer data) {
     std::vector<uint8_t> ret(cb::crypto::SHA1_DIGEST_SIZE);
-    if (HMAC(EVP_sha1(), key.data(), key.size(), data.data(), data.size(),
-             ret.data(), nullptr) == nullptr) {
+    if (HMAC(EVP_sha1(),
+             key.data(),
+             key.size(),
+             data.data(),
+             data.size(),
+             ret.data(),
+             nullptr) == nullptr) {
         throw std::runtime_error("cb::crypto::HMAC(SHA1): HMAC failed");
     }
     return ret;
 }
 
-static std::vector<uint8_t> HMAC_SHA256(const std::vector<uint8_t>& key,
-                                        const std::vector<uint8_t>& data) {
+static std::vector<uint8_t> HMAC_SHA256(cb::const_byte_buffer key,
+                                        cb::const_byte_buffer data) {
     std::vector<uint8_t> ret(cb::crypto::SHA256_DIGEST_SIZE);
-    if (HMAC(EVP_sha256(), key.data(), key.size(), data.data(), data.size(),
-             ret.data(), nullptr) == nullptr) {
-        throw std::runtime_error(
-            "cb::crypto::HMAC(SHA256): HMAC failed");
+    if (HMAC(EVP_sha256(),
+             key.data(),
+             key.size(),
+             data.data(),
+             data.size(),
+             ret.data(),
+             nullptr) == nullptr) {
+        throw std::runtime_error("cb::crypto::HMAC(SHA256): HMAC failed");
     }
     return ret;
 }
 
-static std::vector<uint8_t> HMAC_SHA512(const std::vector<uint8_t>& key,
-                                        const std::vector<uint8_t>& data) {
+static std::vector<uint8_t> HMAC_SHA512(cb::const_byte_buffer key,
+                                        cb::const_byte_buffer data) {
     std::vector<uint8_t> ret(cb::crypto::SHA512_DIGEST_SIZE);
-    if (HMAC(EVP_sha512(), key.data(), key.size(), data.data(), data.size(),
-             ret.data(), nullptr) == nullptr) {
-        throw std::runtime_error(
-            "cb::crypto::HMAC(SHA512): HMAC failed");
+    if (HMAC(EVP_sha512(),
+             key.data(),
+             key.size(),
+             data.data(),
+             data.size(),
+             ret.data(),
+             nullptr) == nullptr) {
+        throw std::runtime_error("cb::crypto::HMAC(SHA512): HMAC failed");
     }
     return ret;
 }
 
 static std::vector<uint8_t> PBKDF2_HMAC_SHA1(const std::string& pass,
-                                             const std::vector<uint8_t>& salt,
+                                             cb::const_byte_buffer salt,
                                              unsigned int iterationCount) {
     std::vector<uint8_t> ret(cb::crypto::SHA1_DIGEST_SIZE);
 #if defined(HAVE_PKCS5_PBKDF2_HMAC)
-    auto err = PKCS5_PBKDF2_HMAC(pass.data(), int(pass.size()),
-                                 salt.data(), int(salt.size()),
+    auto err = PKCS5_PBKDF2_HMAC(pass.data(),
+                                 int(pass.size()),
+                                 salt.data(),
+                                 int(salt.size()),
                                  iterationCount,
                                  EVP_sha1(),
                                  cb::crypto::SHA1_DIGEST_SIZE,
@@ -652,19 +692,22 @@ static std::vector<uint8_t> PBKDF2_HMAC_SHA1(const std::string& pass,
 
     if (err != 1) {
         throw std::runtime_error(
-            "cb::crypto::PBKDF2_HMAC(SHA1): PKCS5_PBKDF2_HMAC_SHA1 failed: " +
-            std::to_string(err));
+                "cb::crypto::PBKDF2_HMAC(SHA1): PKCS5_PBKDF2_HMAC_SHA1 "
+                "failed: " +
+                std::to_string(err));
     }
 #elif defined(HAVE_PKCS5_PBKDF2_HMAC_SHA1)
-    auto err = PKCS5_PBKDF2_HMAC_SHA1(pass.data(), int(pass.size()),
-                                      salt.data(), int(salt.size()),
+    auto err = PKCS5_PBKDF2_HMAC_SHA1(pass.data(),
+                                      int(pass.size()),
+                                      salt.data(),
+                                      int(salt.size()),
                                       iterationCount,
                                       cb::crypto::SHA1_DIGEST_SIZE,
                                       ret.data());
     if (err != 1) {
         throw std::runtime_error(
-            "cb::crypto::PBKDF2_HMAC(SHA1): PKCS5_PBKDF2_HMAC_SHA1 failed" +
-            std::to_string(err));
+                "cb::crypto::PBKDF2_HMAC(SHA1): PKCS5_PBKDF2_HMAC_SHA1 failed" +
+                std::to_string(err));
     }
 #else
     throw std::runtime_error("cb::crypto::PBKDF2_HMAC(SHA1): Not supported");
@@ -674,70 +717,72 @@ static std::vector<uint8_t> PBKDF2_HMAC_SHA1(const std::string& pass,
 }
 
 static std::vector<uint8_t> PBKDF2_HMAC_SHA256(const std::string& pass,
-                                               const std::vector<uint8_t>& salt,
+                                               cb::const_byte_buffer salt,
                                                unsigned int iterationCount) {
     std::vector<uint8_t> ret(cb::crypto::SHA256_DIGEST_SIZE);
 #if defined(HAVE_PKCS5_PBKDF2_HMAC)
-    auto err = PKCS5_PBKDF2_HMAC(pass.data(), int(pass.size()),
-                                 salt.data(), int(salt.size()),
+    auto err = PKCS5_PBKDF2_HMAC(pass.data(),
+                                 int(pass.size()),
+                                 salt.data(),
+                                 int(salt.size()),
                                  iterationCount,
                                  EVP_sha256(),
                                  cb::crypto::SHA256_DIGEST_SIZE,
                                  ret.data());
     if (err != 1) {
         throw std::runtime_error(
-            "cb::crypto::PBKDF2_HMAC(SHA256): PKCS5_PBKDF2_HMAC failed" +
-            std::to_string(err));
+                "cb::crypto::PBKDF2_HMAC(SHA256): PKCS5_PBKDF2_HMAC failed" +
+                std::to_string(err));
     }
 #else
-    throw std::runtime_error(
-        "cb::crypto::PBKDF2_HMAC(SHA256): Not supported");
+    throw std::runtime_error("cb::crypto::PBKDF2_HMAC(SHA256): Not supported");
 #endif
     return ret;
 }
 
 static std::vector<uint8_t> PBKDF2_HMAC_SHA512(const std::string& pass,
-                                               const std::vector<uint8_t>& salt,
+                                               cb::const_byte_buffer salt,
                                                unsigned int iterationCount) {
     std::vector<uint8_t> ret(cb::crypto::SHA512_DIGEST_SIZE);
 #if defined(HAVE_PKCS5_PBKDF2_HMAC)
-    auto err = PKCS5_PBKDF2_HMAC(pass.data(), int(pass.size()),
-                                 salt.data(), int(salt.size()),
+    auto err = PKCS5_PBKDF2_HMAC(pass.data(),
+                                 int(pass.size()),
+                                 salt.data(),
+                                 int(salt.size()),
                                  iterationCount,
                                  EVP_sha512(),
                                  cb::crypto::SHA512_DIGEST_SIZE,
                                  ret.data());
-     if (err != 1) {
+    if (err != 1) {
         throw std::runtime_error(
-            "cb::crypto::PBKDF2_HMAC(SHA512): PKCS5_PBKDF2_HMAC failed" +
-            std::to_string(err));
+                "cb::crypto::PBKDF2_HMAC(SHA512): PKCS5_PBKDF2_HMAC failed" +
+                std::to_string(err));
     }
 #else
-    throw std::runtime_error(
-        "cb::crypto::PBKDF2_HMAC(SHA512): Not supported");
+    throw std::runtime_error("cb::crypto::PBKDF2_HMAC(SHA512): Not supported");
 #endif
     return ret;
 }
 
-static std::vector<uint8_t> digest_md5(const std::vector<uint8_t>& data) {
+static std::vector<uint8_t> digest_md5(cb::const_byte_buffer data) {
     std::vector<uint8_t> ret(cb::crypto::MD5_DIGEST_SIZE);
     MD5(data.data(), data.size(), ret.data());
     return ret;
 }
 
-static std::vector<uint8_t> digest_sha1(const std::vector<uint8_t>& data) {
+static std::vector<uint8_t> digest_sha1(cb::const_byte_buffer data) {
     std::vector<uint8_t> ret(cb::crypto::SHA1_DIGEST_SIZE);
     SHA1(data.data(), data.size(), ret.data());
     return ret;
 }
 
-static std::vector<uint8_t> digest_sha256(const std::vector<uint8_t>& data) {
+static std::vector<uint8_t> digest_sha256(cb::const_byte_buffer data) {
     std::vector<uint8_t> ret(cb::crypto::SHA256_DIGEST_SIZE);
     SHA256(data.data(), data.size(), ret.data());
     return ret;
 }
 
-static std::vector<uint8_t> digest_sha512(const std::vector<uint8_t>& data) {
+static std::vector<uint8_t> digest_sha512(cb::const_byte_buffer data) {
     std::vector<uint8_t> ret(cb::crypto::SHA512_DIGEST_SIZE);
     SHA512(data.data(), data.size(), ret.data());
     return ret;
@@ -754,16 +799,13 @@ struct EVP_CIPHER_CTX_Deleter {
 using unique_EVP_CIPHER_CTX_ptr =
         std::unique_ptr<EVP_CIPHER_CTX, EVP_CIPHER_CTX_Deleter>;
 
-namespace cb {
-namespace crypto {
-
 /**
  * Get the OpenSSL Cipher to use for the encryption, and validate
  * the input key and iv sizes
  */
-static const EVP_CIPHER* getCipher(const Cipher& cipher,
-                                   const std::vector<uint8_t>& key,
-                                   const std::vector<uint8_t>& iv) {
+static const EVP_CIPHER* getCipher(const cb::crypto::Cipher cipher,
+                                   cb::const_byte_buffer key,
+                                   cb::const_byte_buffer iv) {
     const EVP_CIPHER* cip = nullptr;
 
     switch (cipher) {
@@ -796,12 +838,12 @@ static const EVP_CIPHER* getCipher(const Cipher& cipher,
     return cip;
 }
 
-std::vector<uint8_t> encrypt(const Cipher& cipher,
-                             const std::vector<uint8_t>& key,
-                             const std::vector<uint8_t>& iv,
-                             const uint8_t* data,
-                             size_t length) {
-    TRACE_EVENT2("cbcrypto", "encrypt", "cipher", int(cipher), "size", length);
+std::vector<uint8_t> encrypt(const cb::crypto::Cipher cipher,
+                             cb::const_byte_buffer key,
+                             cb::const_byte_buffer iv,
+                             cb::const_byte_buffer data) {
+    TRACE_EVENT2(
+            "cbcrypto", "encrypt", "cipher", int(cipher), "size", data.size());
     unique_EVP_CIPHER_CTX_ptr ctx(EVP_CIPHER_CTX_new());
 
     auto* cip = getCipher(cipher, key, iv);
@@ -811,10 +853,11 @@ std::vector<uint8_t> encrypt(const Cipher& cipher,
                 "cb::crypto::encrypt: EVP_EncryptInit_ex failed");
     }
 
-    std::vector<uint8_t> ret(length + EVP_CIPHER_block_size(cip));
+    std::vector<uint8_t> ret(data.size() + EVP_CIPHER_block_size(cip));
     int len1 = int(ret.size());
 
-    if (EVP_EncryptUpdate(ctx.get(), ret.data(), &len1, data, int(length)) !=
+    if (EVP_EncryptUpdate(
+                ctx.get(), ret.data(), &len1, data.data(), int(data.size())) !=
         1) {
         throw std::runtime_error(
                 "cb::crypto::encrypt: EVP_EncryptUpdate failed");
@@ -831,12 +874,12 @@ std::vector<uint8_t> encrypt(const Cipher& cipher,
     return ret;
 }
 
-std::vector<uint8_t> decrypt(const Cipher& cipher,
-                             const std::vector<uint8_t>& key,
-                             const std::vector<uint8_t>& iv,
-                             const uint8_t* data,
-                             size_t length) {
-    TRACE_EVENT2("cbcrypto", "decrypt", "cipher", int(cipher), "size", length);
+std::vector<uint8_t> decrypt(const cb::crypto::Cipher cipher,
+                             cb::const_byte_buffer key,
+                             cb::const_byte_buffer iv,
+                             cb::const_byte_buffer data) {
+    TRACE_EVENT2(
+            "cbcrypto", "decrypt", "cipher", int(cipher), "size", data.size());
     unique_EVP_CIPHER_CTX_ptr ctx(EVP_CIPHER_CTX_new());
     auto* cip = getCipher(cipher, key, iv);
 
@@ -846,16 +889,17 @@ std::vector<uint8_t> decrypt(const Cipher& cipher,
                 "cb::crypto::decrypt: EVP_DecryptInit_ex failed");
     }
 
-    std::vector<uint8_t> ret(length);
+    std::vector<uint8_t> ret(data.size());
     int len1 = int(ret.size());
 
-    if (EVP_DecryptUpdate(ctx.get(), ret.data(), &len1, data, int(length)) !=
+    if (EVP_DecryptUpdate(
+                ctx.get(), ret.data(), &len1, data.data(), int(data.size())) !=
         1) {
         throw std::runtime_error(
                 "cb::crypto::decrypt: EVP_DecryptUpdate failed");
     }
 
-    int len2 = int(length) - len1;
+    int len2 = int(data.size()) - len1;
     if (EVP_DecryptFinal_ex(ctx.get(), ret.data() + len1, &len2) != 1) {
         throw std::runtime_error(
                 "cb::crypto::decrypt: EVP_DecryptFinal_ex failed");
@@ -866,24 +910,23 @@ std::vector<uint8_t> decrypt(const Cipher& cipher,
     return ret;
 }
 
-} // namespace crypto
-} // namespace cb
-
 #endif
 
+} // namespace internal
+
 std::vector<uint8_t> cb::crypto::HMAC(const Algorithm algorithm,
-                                      const std::vector<uint8_t>& key,
-                                      const std::vector<uint8_t>& data) {
+                                      cb::const_byte_buffer key,
+                                      cb::const_byte_buffer data) {
     TRACE_EVENT1("cbcrypto", "HMAC", "algorithm", int(algorithm));
     switch (algorithm) {
     case Algorithm::MD5:
-        return HMAC_MD5(key, data);
+        return internal::HMAC_MD5(key, data);
     case Algorithm::SHA1:
-        return HMAC_SHA1(key, data);
+        return internal::HMAC_SHA1(key, data);
     case Algorithm::SHA256:
-        return HMAC_SHA256(key, data);
+        return internal::HMAC_SHA256(key, data);
     case Algorithm::SHA512:
-        return HMAC_SHA512(key, data);
+        return internal::HMAC_SHA512(key, data);
     }
 
     throw std::invalid_argument("cb::crypto::HMAC: Unknown Algorithm: " +
@@ -892,25 +935,27 @@ std::vector<uint8_t> cb::crypto::HMAC(const Algorithm algorithm,
 
 std::vector<uint8_t> cb::crypto::PBKDF2_HMAC(const Algorithm algorithm,
                                              const std::string& pass,
-                                             const std::vector<uint8_t>& salt,
+                                             cb::const_byte_buffer salt,
                                              unsigned int iterationCount) {
-    TRACE_EVENT2("cbcrypto", "PBKDF2_HMAC", "algorithm", int(algorithm),
-                 "iteration", iterationCount);
+    TRACE_EVENT2("cbcrypto",
+                 "PBKDF2_HMAC",
+                 "algorithm",
+                 int(algorithm),
+                 "iteration",
+                 iterationCount);
     switch (algorithm) {
     case Algorithm::MD5:
-        throw std::invalid_argument(
-            "cb::crypto::PBKDF2_HMAC: Can't use MD5");
+        throw std::invalid_argument("cb::crypto::PBKDF2_HMAC: Can't use MD5");
     case Algorithm::SHA1:
-        return PBKDF2_HMAC_SHA1(pass, salt, iterationCount);
+        return internal::PBKDF2_HMAC_SHA1(pass, salt, iterationCount);
     case Algorithm::SHA256:
-        return PBKDF2_HMAC_SHA256(pass, salt, iterationCount);
+        return internal::PBKDF2_HMAC_SHA256(pass, salt, iterationCount);
     case Algorithm::SHA512:
-        return PBKDF2_HMAC_SHA512(pass, salt, iterationCount);
+        return internal::PBKDF2_HMAC_SHA512(pass, salt, iterationCount);
     }
 
-    throw std::invalid_argument(
-        "cb::crypto::PBKDF2_HMAC: Unknown Algorithm: " +
-        std::to_string((int)algorithm));
+    throw std::invalid_argument("cb::crypto::PBKDF2_HMAC: Unknown Algorithm: " +
+                                std::to_string((int)algorithm));
 }
 
 static inline void verifyLegalAlgorithm(const cb::crypto::Algorithm al) {
@@ -921,8 +966,8 @@ static inline void verifyLegalAlgorithm(const cb::crypto::Algorithm al) {
     case cb::crypto::Algorithm::SHA512:
         return;
     }
-    throw std::invalid_argument(
-        "verifyLegalAlgorithm: Unknown Algorithm: " + std::to_string((int)al));
+    throw std::invalid_argument("verifyLegalAlgorithm: Unknown Algorithm: " +
+                                std::to_string((int)al));
 }
 
 bool cb::crypto::isSupported(const Algorithm algorithm) {
@@ -944,77 +989,74 @@ bool cb::crypto::isSupported(const Algorithm algorithm) {
 }
 
 std::vector<uint8_t> cb::crypto::digest(const Algorithm algorithm,
-                                        const std::vector<uint8_t>& data) {
+                                        cb::const_byte_buffer data) {
     TRACE_EVENT1("cbcrypto", "digest", "algorithm", int(algorithm));
     switch (algorithm) {
     case Algorithm::MD5:
-        return digest_md5(data);
+        return internal::digest_md5(data);
     case Algorithm::SHA1:
-        return digest_sha1(data);
+        return internal::digest_sha1(data);
     case Algorithm::SHA256:
-        return digest_sha256(data);
+        return internal::digest_sha256(data);
     case Algorithm::SHA512:
-        return digest_sha512(data);
+        return internal::digest_sha512(data);
     }
 
-    throw std::invalid_argument(
-        "cb::crypto::digest: Unknown Algorithm" +
-        std::to_string((int)algorithm));
+    throw std::invalid_argument("cb::crypto::digest: Unknown Algorithm" +
+                                std::to_string((int)algorithm));
 }
 
 namespace cb {
-    namespace crypto {
+namespace crypto {
 
-
-        /**
-         * decode the META information for the encryption bits.
-         *
-         * @param meta the input json data (not const to avoid all of the const
-         *             casts, and this is a private helper function not visible
-         *             outside this file
-         * @param cipher the cipher to use (out)
-         * @param key the key to use (out)
-         * @param iv the iv to use (out)
-         */
-        static void decodeJsonMeta(cJSON* meta,
-                                   Cipher& cipher,
-                                   std::vector<uint8_t>& key,
-                                   std::vector<uint8_t>& iv) {
-
-            auto* obj = cJSON_GetObjectItem(meta, "cipher");
-            if (obj == nullptr) {
-                throw std::runtime_error(
-                    "cb::crypto::decodeJsonMeta: cipher not specified");
-            }
-
-            cipher = crypto::to_cipher(obj->valuestring);
-            obj = cJSON_GetObjectItem(meta, "key");
-            if (obj == nullptr) {
-                throw std::runtime_error(
-                    "cb::crypto::decodeJsonMeta: key not specified");
-            }
-
-            auto str = Couchbase::Base64::decode(obj->valuestring);
-            key.resize(str.size());
-            memcpy(key.data(), str.data(), key.size());
-
-            obj = cJSON_GetObjectItem(meta, "iv");
-            if (obj == nullptr) {
-                throw std::runtime_error(
-                    "cb::crypto::decodeJsonMeta: iv not specified");
-            }
-
-            str = Couchbase::Base64::decode(obj->valuestring);
-            iv.resize(str.size());
-            memcpy(iv.data(), str.data(), iv.size());
-        }
+/**
+ * decode the META information for the encryption bits.
+ *
+ * @param meta the input json data (not const to avoid all of the const
+ *             casts, and this is a private helper function not visible
+ *             outside this file
+ * @param cipher the cipher to use (out)
+ * @param key the key to use (out)
+ * @param iv the iv to use (out)
+ */
+static void decodeJsonMeta(cJSON* meta,
+                           Cipher& cipher,
+                           std::vector<uint8_t>& key,
+                           std::vector<uint8_t>& iv) {
+    auto* obj = cJSON_GetObjectItem(meta, "cipher");
+    if (obj == nullptr) {
+        throw std::runtime_error(
+                "cb::crypto::decodeJsonMeta: cipher not specified");
     }
-}
 
-std::vector<uint8_t> cb::crypto::encrypt(const Cipher& cipher,
-                                         const std::vector<uint8_t>& key,
-                                         const std::vector<uint8_t>& iv,
-                                         const std::vector<uint8_t>& data) {
+    cipher = crypto::to_cipher(obj->valuestring);
+    obj = cJSON_GetObjectItem(meta, "key");
+    if (obj == nullptr) {
+        throw std::runtime_error(
+                "cb::crypto::decodeJsonMeta: key not specified");
+    }
+
+    auto str = Couchbase::Base64::decode(obj->valuestring);
+    key.resize(str.size());
+    memcpy(key.data(), str.data(), key.size());
+
+    obj = cJSON_GetObjectItem(meta, "iv");
+    if (obj == nullptr) {
+        throw std::runtime_error(
+                "cb::crypto::decodeJsonMeta: iv not specified");
+    }
+
+    str = Couchbase::Base64::decode(obj->valuestring);
+    iv.resize(str.size());
+    memcpy(iv.data(), str.data(), iv.size());
+}
+} // namespace crypto
+} // namespace cb
+
+std::vector<uint8_t> cb::crypto::encrypt(const Cipher cipher,
+                                         cb::const_byte_buffer key,
+                                         cb::const_byte_buffer iv,
+                                         cb::const_byte_buffer data) {
     // We only support a single encryption scheme right now.
     // Verify the input parameters (no need of calling the internal library
     // functions in order to fetch these details)
@@ -1035,24 +1077,24 @@ std::vector<uint8_t> cb::crypto::encrypt(const Cipher& cipher,
                                     " (expected 16)");
     }
 
-    return encrypt(cipher, key, iv, data.data(), data.size());
+    return internal::encrypt(cipher, key, iv, data);
 }
 
 std::vector<uint8_t> cb::crypto::encrypt(const cJSON* json,
-                                         const uint8_t* data,
-                                         size_t length) {
+                                         cb::const_byte_buffer data) {
     Cipher cipher;
     std::vector<uint8_t> key;
     std::vector<uint8_t> iv;
 
     decodeJsonMeta(const_cast<cJSON*>(json), cipher, key, iv);
-    return encrypt(cipher, key, iv, data, length);
+    return internal::encrypt(
+            cipher, {key.data(), key.size()}, {iv.data(), iv.size()}, data);
 }
 
-std::vector<uint8_t> cb::crypto::decrypt(const Cipher& cipher,
-                                         const std::vector<uint8_t>& key,
-                                         const std::vector<uint8_t>& iv,
-                                         const std::vector<uint8_t>& data) {
+std::vector<uint8_t> cb::crypto::decrypt(const Cipher cipher,
+                                         cb::const_byte_buffer key,
+                                         cb::const_byte_buffer iv,
+                                         cb::const_byte_buffer data) {
     // We only support a single decryption scheme right now.
     // Verify the input parameters (no need of calling the internal library
     // functions in order to fetch these details)
@@ -1073,27 +1115,26 @@ std::vector<uint8_t> cb::crypto::decrypt(const Cipher& cipher,
                                     " (expected 16)");
     }
 
-    return decrypt(cipher, key, iv, data.data(), data.size());
-}
-
-cb::crypto::Cipher cb::crypto::to_cipher(const std::string& str) {
-
-    if (str == "AES_256_cbc") {
-        return Cipher::AES_256_cbc;
-    }
-
-    throw std::invalid_argument("to_cipher: Unknown cipher: " + str);
+    return internal::decrypt(cipher, key, iv, data);
 }
 
 std::vector<uint8_t> cb::crypto::decrypt(const cJSON* json,
-                                         const uint8_t* data,
-                                         size_t length) {
+                                         cb::const_byte_buffer data) {
     Cipher cipher;
     std::vector<uint8_t> key;
     std::vector<uint8_t> iv;
 
     decodeJsonMeta(const_cast<cJSON*>(json), cipher, key, iv);
-    return decrypt(cipher, key, iv, data, length);
+    return internal::decrypt(
+            cipher, {key.data(), key.size()}, {iv.data(), iv.size()}, data);
+}
+
+cb::crypto::Cipher cb::crypto::to_cipher(const std::string& str) {
+    if (str == "AES_256_cbc") {
+        return Cipher::AES_256_cbc;
+    }
+
+    throw std::invalid_argument("to_cipher: Unknown cipher: " + str);
 }
 
 std::string cb::crypto::digest(const Algorithm algorithm,
