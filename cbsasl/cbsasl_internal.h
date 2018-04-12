@@ -300,5 +300,14 @@ void log(cbsasl_conn_t& connection, Level level, const std::string& message);
 void log(Level level, const std::string& message);
 
 } // namespace logging
+
+// To work around DLL linkage problems on windows for our unit tests
+// (which statically links some of the source code) we'll implement
+// the function in there..
+namespace internal {
+void set_scramsha_fallback_salt(const std::string& salt);
+
+} // namespace internal
+
 } // namespace sasl
 } // namespace cb

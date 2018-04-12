@@ -731,6 +731,20 @@ public:
         notify_changed("tracing_enabled");
     }
 
+    void setScramshaFallbackSalt(std::string value) {
+        {
+            std::lock_guard<std::mutex> guard(scramsha_fallback_salt.mutex);
+            has.scramsha_fallback_salt = true;
+            scramsha_fallback_salt.value = std::move(value);
+        }
+        notify_changed("scramsha_fallback_salt");
+    }
+
+    std::string getScramshaFallbackSalt() const {
+        std::lock_guard<std::mutex> guard(scramsha_fallback_salt.mutex);
+        return std::string{scramsha_fallback_salt.value};
+    }
+
 protected:
 
     /**
@@ -938,9 +952,16 @@ public:
         bool topkeys_enabled;
         bool tracing_enabled;
         bool stdin_listener;
+        bool scramsha_fallback_salt;
     } has;
 
 protected:
+
+    struct {
+        mutable std::mutex mutex;
+        std::string value;
+    } scramsha_fallback_salt;
+
     /**
      * Note that it is not safe to add new listeners after we've spun up
      * new threads as we don't try to lock the object.

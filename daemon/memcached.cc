@@ -473,6 +473,11 @@ static void saslauthd_socketpath_changed_listener(const std::string&, Settings &
     cb::sasl::saslauthd::set_socketpath(s.getSaslauthdSocketpath());
 }
 
+static void scramsha_fallback_salt_changed_listener(const std::string&,
+                                                    Settings& s) {
+    cb::sasl::set_scramsha_fallback_salt(s.getScramshaFallbackSalt());
+}
+
 static void opcode_attributes_override_changed_listener(const std::string&,
                                                         Settings& s) {
     unique_cJSON_ptr json(cJSON_Parse(s.getOpcodeAttributesOverride().c_str()));
@@ -548,6 +553,8 @@ static void settings_init(void) {
     settings.addChangeListener("interfaces", interfaces_changed_listener);
     settings.addChangeListener("saslauthd_socketpath",
                                saslauthd_socketpath_changed_listener);
+    settings.addChangeListener("scramsha_fallback_salt",
+                               scramsha_fallback_salt_changed_listener);
     NetworkInterface default_interface;
     settings.addInterface(default_interface);
 

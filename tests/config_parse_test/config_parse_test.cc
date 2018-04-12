@@ -873,6 +873,20 @@ TEST_F(SettingsTest, TracingEnabled) {
     }
 }
 
+TEST_F(SettingsTest, ScramshaFallbackSalt) {
+    nonStringValuesShouldFail("scramsha_fallback_salt");
+    unique_cJSON_ptr obj(cJSON_CreateObject());
+    cJSON_AddStringToObject(
+            obj.get(), "scramsha_fallback_salt", "JKouEmqRFI+Re/AA");
+    try {
+        Settings settings(obj);
+        EXPECT_EQ("JKouEmqRFI+Re/AA", settings.getScramshaFallbackSalt());
+        EXPECT_TRUE(settings.has.scramsha_fallback_salt);
+    } catch (std::exception& exception) {
+        FAIL() << exception.what();
+    }
+}
+
 TEST(SettingsUpdateTest, EmptySettingsShouldWork) {
     Settings updated;
     Settings settings;
@@ -1372,6 +1386,23 @@ TEST(SettingsUpdateTest, OpcodeAttributesMustBeValidFormat) {
     // Setting to an empty value means drop the previous content
     settings.setOpcodeAttributesOverride("");
     EXPECT_EQ("", settings.getOpcodeAttributesOverride());
+}
+
+TEST_F(SettingsTest, ScramshaFallbackSaltIsDynamic) {
+    Settings settings;
+    Settings updated;
+
+    // setting it to the same value should work
+    settings.setScramshaFallbackSalt("Original");
+    updated.setScramshaFallbackSalt("New");
+    EXPECT_NO_THROW(settings.updateSettings(updated, true));
+
+    try {
+        EXPECT_EQ("New", settings.getScramshaFallbackSalt());
+        EXPECT_TRUE(settings.has.scramsha_fallback_salt);
+    } catch (std::exception& exception) {
+        FAIL() << exception.what();
+    }
 }
 
 int main(int argc, char** argv) {

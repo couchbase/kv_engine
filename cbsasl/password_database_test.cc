@@ -249,6 +249,26 @@ TEST_F(UserTest, InvalidLabel) {
                  std::runtime_error);
 }
 
+/**
+ * Make sure that we generate the dummy salts the same way as ns_server does.
+ *
+ * The fallback salt and the resulting salt were reported back from the
+ * ns_server team so we can verify that we generate the same salt by using
+ * the same input data
+ */
+TEST_F(UserTest, CreateDummy) {
+    using namespace cb::sasl;
+    // set the fallback salt to something we know about ;)
+    cb::sasl::internal::set_scramsha_fallback_salt("WyulJ+YpKKZn+y9f");
+    auto u = UserFactory::createDummy("foobar", Mechanism::SCRAM_SHA512);
+    EXPECT_TRUE(u.isDummy());
+    auto meta = u.getPassword(Mechanism::SCRAM_SHA512);
+    EXPECT_EQ(
+            "ZLBvongMC+gVSc8JsnCmK8CE+KJrCdS/8fT4cvb3IkJJGTgaGQ+HGuQaXKTN9829l/"
+            "8eoUUpiI2Cyk/CRnULtw==",
+            meta.getSalt());
+}
+
 class PasswordDatabaseTest : public ::testing::Test {
 public:
     void SetUp() {

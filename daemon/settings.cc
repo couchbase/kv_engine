@@ -17,6 +17,7 @@
 
 #include "config.h"
 
+#include <platform/base64.h>
 #include <platform/dirutils.h>
 #include <platform/strerror.h>
 
@@ -218,6 +219,18 @@ static void handle_topkeys_enabled(Settings& s, cJSON* obj) {
         throw std::invalid_argument(
                 "\"topkeys_enabled\" must be a boolean value");
     }
+}
+
+static void handle_scramsha_fallback_salt(Settings&s, cJSON* obj) {
+    if (obj->type == cJSON_String) {
+        // Try to base64 decode it to validate that it is a legal value..
+        cb::base64::decode(obj->valuestring);
+        s.setScramshaFallbackSalt(obj->valuestring);
+    } else {
+        throw std::invalid_argument(
+            R"("scramsha_fallback_salt" must be a string value)");
+    }
+
 }
 
 /**
@@ -691,7 +704,8 @@ void Settings::reconfigure(const unique_cJSON_ptr& json) {
             {"collections_prototype", handle_collections_prototype},
             {"opcode_attributes_override", handle_opcode_attributes_override},
             {"topkeys_enabled", handle_topkeys_enabled},
-            {"tracing_enabled", handle_tracing_enabled}};
+            {"tracing_enabled", handle_tracing_enabled},
+            {"scramsha_fallback_salt", handle_scramsha_fallback_salt}};
 
     cJSON* obj = json->child;
     while (obj != nullptr) {
@@ -1128,6 +1142,16 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                      other.isTracingEnabled() ? "Enable" : "Disable");
         }
         setTracingEnabled(other.isTracingEnabled());
+    }
+
+    if (other.has.scramsha_fallback_salt) {
+        const auto o = other.getScramshaFallbackSalt();
+        const auto m = getScramshaFallbackSalt();
+
+        if (o != m) {
+            LOG_INFO(R"(Change scram fallback salt from {} to {})", m, o);
+            setScramshaFallbackSalt(o);
+        }
     }
 }
 

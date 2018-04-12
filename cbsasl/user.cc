@@ -25,15 +25,39 @@
 #include <gsl/gsl>
 #include <iterator>
 #include <memory>
+#include <mutex>
 #include <stdexcept>
 #include <string>
 
 std::atomic<int> IterationCount(4096);
 
+class ScamShaFallbackSalt {
+public:
+    ScamShaFallbackSalt();
+
+    void set(const std::string& salt) {
+        std::lock_guard<std::mutex> guard(mutex);
+        data = cb::base64::decode(salt);
+    }
+
+    std::vector<uint8_t> get() {
+        std::lock_guard<std::mutex> guard(mutex);
+        return std::vector<uint8_t>{data};
+    }
+
+protected:
+    mutable std::mutex mutex;
+    std::vector<uint8_t> data;
+} scramsha_fallback_salt;
+
+void cb::sasl::internal::set_scramsha_fallback_salt(const std::string& salt) {
+    scramsha_fallback_salt.set(salt);
+}
+
 /**
  * Generate a salt and store it base64 encoded into the salt
  */
-void generateSalt(std::vector<uint8_t>& bytes, std::string& salt) {
+static void generateSalt(std::vector<uint8_t>& bytes, std::string& salt) {
     Couchbase::RandomGenerator randomGenerator(true);
 
     if (!randomGenerator.getBytes(bytes.data(), bytes.size())) {
@@ -44,6 +68,12 @@ void generateSalt(std::vector<uint8_t>& bytes, std::string& salt) {
 
     salt = encode(std::string(reinterpret_cast<char*>(bytes.data()),
                               bytes.size()));
+}
+
+ScamShaFallbackSalt::ScamShaFallbackSalt()
+    : data(cb::crypto::SHA512_DIGEST_SIZE) {
+    std::string ignore;
+    generateSalt(data, ignore);
 }
 
 cb::sasl::User cb::sasl::UserFactory::create(const std::string& unm,
@@ -93,6 +123,7 @@ cb::sasl::User cb::sasl::UserFactory::createDummy(const std::string& unm,
                                                     const Mechanism& mech) {
     User ret{unm};
 
+    // Generate a random password
     std::vector<uint8_t> salt;
     std::string passwd;
 
@@ -108,14 +139,15 @@ cb::sasl::User cb::sasl::UserFactory::createDummy(const std::string& unm,
         break;
     case Mechanism::PLAIN:
     case Mechanism::UNKNOWN:
-        throw std::logic_error("cb::cbsasl::UserFactory::createDummy invalid algorithm");
+        throw std::logic_error(
+                "cb::cbsasl::UserFactory::createDummy invalid algorithm");
     }
 
     if (salt.empty()) {
-        throw std::logic_error("cb::cbsasl::UserFactory::createDummy invalid algorithm");
+        throw std::logic_error(
+                "cb::cbsasl::UserFactory::createDummy invalid algorithm");
     }
 
-    // Generate a random password
     generateSalt(salt, passwd);
 
     // Generate the secrets by using that random password
@@ -201,15 +233,42 @@ void cb::sasl::User::generateSecrets(const Mechanism& mech,
 
     switch (mech) {
     case Mechanism::SCRAM_SHA512:
-        salt.resize(cb::crypto::SHA512_DIGEST_SIZE);
+        if (dummy) {
+            auto fallback = scramsha_fallback_salt.get();
+            salt = cb::crypto::HMAC(
+                    cb::crypto::Algorithm::SHA512,
+                    {reinterpret_cast<const uint8_t*>(username.data()),
+                     username.size()},
+                    {fallback.data(), fallback.size()});
+        } else {
+            salt.resize(cb::crypto::SHA512_DIGEST_SIZE);
+        }
         algorithm = cb::crypto::Algorithm::SHA512;
         break;
     case Mechanism::SCRAM_SHA256:
-        salt.resize(cb::crypto::SHA256_DIGEST_SIZE);
+        if (dummy) {
+            auto fallback = scramsha_fallback_salt.get();
+            salt = cb::crypto::HMAC(
+                    cb::crypto::Algorithm::SHA256,
+                    {reinterpret_cast<const uint8_t*>(username.data()),
+                     username.size()},
+                    {fallback.data(), fallback.size()});
+        } else {
+            salt.resize(cb::crypto::SHA256_DIGEST_SIZE);
+        }
         algorithm = cb::crypto::Algorithm::SHA256;
         break;
     case Mechanism::SCRAM_SHA1:
-        salt.resize(cb::crypto::SHA1_DIGEST_SIZE);
+        if (dummy) {
+            auto fallback = scramsha_fallback_salt.get();
+            salt = cb::crypto::HMAC(
+                    cb::crypto::Algorithm::SHA1,
+                    {reinterpret_cast<const uint8_t*>(username.data()),
+                     username.size()},
+                    {fallback.data(), fallback.size()});
+        } else {
+            salt.resize(cb::crypto::SHA1_DIGEST_SIZE);
+        }
         algorithm = cb::crypto::Algorithm::SHA1;
         break;
     case Mechanism::PLAIN:
@@ -230,7 +289,14 @@ void cb::sasl::User::generateSecrets(const Mechanism& mech,
         throw std::logic_error("cb::cbsasl::User::generateSecrets invalid algorithm");
     }
 
-    generateSalt(salt, encodedSalt);
+    if (dummy) {
+        using Couchbase::Base64::encode;
+        encodedSalt = encode(
+                std::string{reinterpret_cast<char*>(salt.data()), salt.size()});
+    } else {
+        generateSalt(salt, encodedSalt);
+    }
+
     auto digest = cb::crypto::PBKDF2_HMAC(algorithm, passwd, salt, IterationCount);
 
     password[mech] =

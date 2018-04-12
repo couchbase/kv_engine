@@ -333,6 +333,16 @@ Domain get_domain(cbsasl_conn_t* conn);
  */
 CBSASL_PUBLIC_API
 std::string& get_uuid(cbsasl_conn_t* conn);
+
+/**
+ * Set the salt to use for unknown users trying to log in. We dont' want
+ * to reveal that the user doesn't exist by always returning a random
+ * salt. Instead we're using a HMAC of the username and this salt as
+ * the salt we're reporting back to the user.
+ */
+CBSASL_PUBLIC_API
+void set_scramsha_fallback_salt(const std::string& salt);
+
 } // namespace sasl
 } // namespace cb
 

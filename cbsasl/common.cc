@@ -56,3 +56,8 @@ std::string& cb::sasl::get_uuid(cbsasl_conn_t* conn) {
     }
     return conn->uuid;
 }
+
+CBSASL_PUBLIC_API
+void cb::sasl::set_scramsha_fallback_salt(const std::string& salt) {
+    cb::sasl::internal::set_scramsha_fallback_salt(salt);
+}

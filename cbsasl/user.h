@@ -53,12 +53,8 @@ public:
          * @param s the salt used (Base64 encoded)
          * @param i iteration count
          */
-        PasswordMetaData(const std::string& h,
-                         const std::string& s = "",
-                         int i = 0)
-            : salt(s),
-              password(h),
-              iteration_count(i) {
+        explicit PasswordMetaData(std::string h, std::string s = "", int i = 0)
+            : salt(std::move(s)), password(std::move(h)), iteration_count(i) {
         }
 
         /**
@@ -74,7 +70,7 @@ public:
          *
          * @param obj pointer to the cJSON structure
          */
-        PasswordMetaData(cJSON* obj);
+        explicit PasswordMetaData(cJSON* obj);
 
         /**
          * This is a helper function used from the unit tests
@@ -118,9 +114,8 @@ public:
       * @param unm the username for the object (potentially empty)
       * @param dmy should we create a dummy object or not
       */
-    User(const std::string& unm = "", const bool dmy = true)
-        : username(unm),
-          dummy(dmy) {
+    explicit User(std::string unm = "", const bool dmy = true)
+        : username(std::move(unm)), dummy(dmy) {
     }
 
     /**
