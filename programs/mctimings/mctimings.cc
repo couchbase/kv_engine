@@ -382,12 +382,28 @@ static void request_stat_timings(MemcachedConnection& connection,
 }
 
 void usage() {
-    std::cerr << "Usage mctimings [-h host[:port]] [-p port] [-u user]"
-              << " [-P pass] [-S passFromStdin] [-b bucket] [-s]"
-              << " -v [opcode / stat_name]*" << std::endl
+    std::cerr << "Usage mctimings [options] [opcode / statname]\n"
+              << R"(Options:
+
+  -h or --host hostname[:port]   The host (with an optional port) to connect to
+  -p or --port port              The port number to connect to
+  -b or --bucket bucketname      The name of the bucket to operate on
+  -u or --user username          The name of the user to authenticate as
+  -P or --password password      The passord to use for authentication
+                                 (use '-' to read from standard input)
+  -s or --ssl                    Connect to the server over SSL
+  -4 or --ipv4                   Connect over IPv4
+  -6 or --ipv6                   Connect over IPv6
+  -v or --verbose                Use verbose output
+  -S                             Read password from standard input
+  --help                         This help text
+
+)" << std::endl
+
               << std::endl
               << "Example:" << std::endl
-              << "    mctimings -h localhost:11210 -v GET SET"
+              << "    mctimings --user operator --bucket /all/ --password - "
+                 "--verbose GET SET"
               << std::endl;
 }
 
@@ -408,7 +424,22 @@ int main(int argc, char** argv) {
     /* Initialize the socket subsystem */
     cb_initialize_sockets();
 
-    while ((cmd = getopt(argc, argv, "46h:p:u:b:P:Ssv")) != EOF) {
+    struct option long_options[] = {
+            {"ipv4", no_argument, nullptr, '4'},
+            {"ipv6", no_argument, nullptr, '6'},
+            {"host", required_argument, nullptr, 'h'},
+            {"port", required_argument, nullptr, 'p'},
+            {"bucket", required_argument, nullptr, 'b'},
+            {"password", required_argument, nullptr, 'P'},
+            {"user", required_argument, nullptr, 'u'},
+            {"ssl", no_argument, nullptr, 's'},
+            {"verbose", no_argument, nullptr, 'v'},
+            {"help", no_argument, nullptr, 0},
+            {nullptr, 0, nullptr, 0}};
+
+    while ((cmd = getopt_long(
+                    argc, argv, "46h:p:u:b:P:S", long_options, nullptr)) !=
+           EOF) {
         switch (cmd) {
         case '6' :
             family = AF_INET6;
@@ -423,7 +454,7 @@ int main(int argc, char** argv) {
             port.assign(optarg);
             break;
         case 'S':
-            password.assign(getpass());
+            password.assign("-");
             break;
         case 'b' :
             bucket.assign(optarg);
@@ -442,7 +473,7 @@ int main(int argc, char** argv) {
             break;
         default:
             usage();
-            return EXIT_FAILURE;
+            return cmd == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
         }
     }
 
@@ -451,6 +482,10 @@ int main(int argc, char** argv) {
         if (env_password) {
             password = env_password;
         }
+    }
+
+    if (password == "-") {
+        password.assign(getpass());
     }
 
     try {

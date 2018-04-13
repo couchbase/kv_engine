@@ -19,7 +19,9 @@
 
 #include <iostream>
 
-#ifndef WIN32
+#ifdef WIN32
+#define isatty(a) true
+#else
 #include <termios.h>
 #include <unistd.h>
 #endif
@@ -52,13 +54,17 @@ static void setEcho(bool enable) {
 }
 
 std::string getpass(std::string prompt) {
-    std::cerr << prompt << std::flush;
-    setEcho(false);
     std::string password;
-    std::cin >> password;
-    setEcho(true);
+    if (isatty(STDIN_FILENO)) {
+        std::cerr << prompt << std::flush;
+        setEcho(false);
+        std::cin >> password;
+        setEcho(true);
 
-    std::cout << std::endl;
+        std::cout << std::endl;
+    } else {
+        std::cin >> password;
+    }
 
     return password;
 }
