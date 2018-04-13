@@ -73,10 +73,12 @@ TEST(HMAC_MD5, Test1) {
                                  0xfc,
                                  0x9d}};
 
-    auto new_digest =
-            crypto::HMAC(crypto::Algorithm::MD5, key, string2vector(data));
+    auto new_digest = crypto::HMAC(
+            crypto::Algorithm::MD5,
+            {reinterpret_cast<const char*>(key.data()), key.size()},
+            data);
 
-    EXPECT_EQ(digest, new_digest);
+    EXPECT_EQ(digest, string2vector(new_digest));
 }
 
 TEST(HMAC_MD5, Test2) {
@@ -100,10 +102,9 @@ TEST(HMAC_MD5, Test2) {
                                  0xb7,
                                  0x38}};
 
-    auto new_digest = crypto::HMAC(
-            crypto::Algorithm::MD5, string2vector(key), string2vector(data));
+    auto new_digest = crypto::HMAC(crypto::Algorithm::MD5, key, data);
 
-    EXPECT_EQ(digest, new_digest);
+    EXPECT_EQ(digest, string2vector(new_digest));
 }
 
 TEST(HMAC_MD5, Test3) {
@@ -147,9 +148,12 @@ TEST(HMAC_MD5, Test3) {
                                  0xb3,
                                  0xf6}};
 
-    auto new_digest = crypto::HMAC(crypto::Algorithm::MD5, key, data);
+    auto new_digest = crypto::HMAC(
+            crypto::Algorithm::MD5,
+            {reinterpret_cast<const char*>(key.data()), key.size()},
+            {reinterpret_cast<const char*>(data.data()), data.size()});
 
-    EXPECT_EQ(digest, new_digest);
+    EXPECT_EQ(digest, string2vector(new_digest));
 }
 
 TEST(HMAC_MD5, Test4) {
@@ -181,9 +185,12 @@ TEST(HMAC_MD5, Test4) {
                                  0xaa,
                                  0x79}};
 
-    auto new_digest = crypto::HMAC(crypto::Algorithm::MD5, key, data);
+    auto new_digest = crypto::HMAC(
+            crypto::Algorithm::MD5,
+            {reinterpret_cast<const char*>(key.data()), key.size()},
+            {reinterpret_cast<const char*>(data.data()), data.size()});
 
-    EXPECT_EQ(digest, new_digest);
+    EXPECT_EQ(digest, string2vector(new_digest));
 }
 
 TEST(HMAC_MD5, Test5) {
@@ -221,9 +228,12 @@ TEST(HMAC_MD5, Test5) {
                                  0xfd,
                                  0x4c}};
 
-    auto new_digest =
-            crypto::HMAC(crypto::Algorithm::MD5, key, string2vector(data));
-    EXPECT_EQ(digest, new_digest);
+    auto new_digest = crypto::HMAC(
+            crypto::Algorithm::MD5,
+            {reinterpret_cast<const char*>(key.data()), key.size()},
+            data);
+
+    EXPECT_EQ(digest, string2vector(new_digest));
 }
 
 TEST(HMAC_MD5, Test6) {
@@ -254,10 +264,12 @@ TEST(HMAC_MD5, Test6) {
                                  0xb9,
                                  0xd0,
                                  0xcd}};
-    auto new_digest =
-            crypto::HMAC(crypto::Algorithm::MD5, key, string2vector(data));
+    auto new_digest = crypto::HMAC(
+            crypto::Algorithm::MD5,
+            {reinterpret_cast<const char*>(key.data()), key.size()},
+            data);
 
-    EXPECT_EQ(digest, new_digest);
+    EXPECT_EQ(digest, string2vector(new_digest));
 }
 
 TEST(HMAC_MD5, Test7) {
@@ -290,9 +302,12 @@ TEST(HMAC_MD5, Test7) {
                                  0x3a,
                                  0xa5,
                                  0x3e}};
-    auto new_digest =
-            crypto::HMAC(crypto::Algorithm::MD5, key, string2vector(data));
-    EXPECT_EQ(digest, new_digest);
+    auto new_digest = crypto::HMAC(
+            crypto::Algorithm::MD5,
+            {reinterpret_cast<const char*>(key.data()), key.size()},
+            data);
+
+    EXPECT_EQ(digest, string2vector(new_digest));
 }
 
 /*
@@ -307,10 +322,12 @@ TEST(HMAC_SHA1, Test1) {
                                  0x64, 0xe2, 0x8b, 0xc0, 0xb6, 0xfb, 0x37,
                                  0x8c, 0x8e, 0xf1, 0x46, 0xbe, 0x00}};
 
-    auto new_digest =
-            crypto::HMAC(crypto::Algorithm::SHA1, key, string2vector(data));
+    auto new_digest = crypto::HMAC(
+            crypto::Algorithm::SHA1,
+            {reinterpret_cast<const char*>(key.data()), key.size()},
+            data);
 
-    EXPECT_EQ(digest, new_digest);
+    EXPECT_EQ(digest, string2vector(new_digest));
 }
 
 TEST(HMAC_SHA1, Test2) {
@@ -320,10 +337,9 @@ TEST(HMAC_SHA1, Test2) {
                                  0xa2, 0xd2, 0x74, 0x16, 0xd5, 0xf1, 0x84,
                                  0xdf, 0x9c, 0x25, 0x9a, 0x7c, 0x79}};
 
-    auto new_digest = crypto::HMAC(
-            crypto::Algorithm::SHA1, string2vector(key), string2vector(data));
+    auto new_digest = crypto::HMAC(crypto::Algorithm::SHA1, key, data);
 
-    EXPECT_EQ(digest, new_digest);
+    EXPECT_EQ(digest, string2vector(new_digest));
 }
 
 TEST(HMAC_SHA1, Test3) {
@@ -336,9 +352,12 @@ TEST(HMAC_SHA1, Test3) {
                                  0xcd, 0x91, 0xa3, 0x9a, 0xf4, 0x8a, 0xa1,
                                  0x7b, 0x4f, 0x63, 0xf1, 0x75, 0xd3}};
 
-    auto new_digest = crypto::HMAC(crypto::Algorithm::SHA1, key, data);
+    auto new_digest = crypto::HMAC(
+            crypto::Algorithm::SHA1,
+            {reinterpret_cast<const char*>(key.data()), key.size()},
+            {reinterpret_cast<const char*>(data.data()), data.size()});
 
-    EXPECT_EQ(digest, new_digest);
+    EXPECT_EQ(digest, string2vector(new_digest));
 }
 
 TEST(HMAC_SHA1, Test4) {
@@ -352,9 +371,12 @@ TEST(HMAC_SHA1, Test4) {
                                  0xc6, 0xbc, 0x84, 0x14, 0xf9, 0xbf, 0x50,
                                  0xc8, 0x6c, 0x2d, 0x72, 0x35, 0xda}};
 
-    auto new_digest = crypto::HMAC(crypto::Algorithm::SHA1, key, data);
+    auto new_digest = crypto::HMAC(
+            crypto::Algorithm::SHA1,
+            {reinterpret_cast<const char*>(key.data()), key.size()},
+            {reinterpret_cast<const char*>(data.data()), data.size()});
 
-    EXPECT_EQ(digest, new_digest);
+    EXPECT_EQ(digest, string2vector(new_digest));
 }
 
 TEST(HMAC_SHA1, Test5) {
@@ -366,10 +388,12 @@ TEST(HMAC_SHA1, Test5) {
                                  0x7f, 0xe7, 0xf2, 0x7b, 0xe1, 0xd5, 0x8b,
                                  0xb9, 0x32, 0x4a, 0x9a, 0x5a, 0x04}};
 
-    auto new_digest =
-            crypto::HMAC(crypto::Algorithm::SHA1, key, string2vector(data));
+    auto new_digest = crypto::HMAC(
+            crypto::Algorithm::SHA1,
+            {reinterpret_cast<const char*>(key.data()), key.size()},
+            data);
 
-    EXPECT_EQ(digest, new_digest);
+    EXPECT_EQ(digest, string2vector(new_digest));
 }
 
 TEST(HMAC_SHA1, Test6) {
@@ -380,10 +404,12 @@ TEST(HMAC_SHA1, Test6) {
                                  0x0e, 0x95, 0x70, 0x56, 0x37, 0xce, 0x8a,
                                  0x3b, 0x55, 0xed, 0x40, 0x21, 0x12}};
 
-    auto new_digest =
-            crypto::HMAC(crypto::Algorithm::SHA1, key, string2vector(data));
+    auto new_digest = crypto::HMAC(
+            crypto::Algorithm::SHA1,
+            {reinterpret_cast<const char*>(key.data()), key.size()},
+            data);
 
-    EXPECT_EQ(digest, new_digest);
+    EXPECT_EQ(digest, string2vector(new_digest));
 }
 
 TEST(HMAC_SHA1, Test7) {
@@ -397,10 +423,12 @@ TEST(HMAC_SHA1, Test7) {
                                  0x78, 0x6d, 0x6b, 0xba, 0xa7, 0x96, 0x5c,
                                  0x78, 0x08, 0xbb, 0xff, 0x1a, 0x91}};
 
-    auto new_digest =
-            crypto::HMAC(crypto::Algorithm::SHA1, key, string2vector(data));
+    auto new_digest = crypto::HMAC(
+            crypto::Algorithm::SHA1,
+            {reinterpret_cast<const char*>(key.data()), key.size()},
+            data);
 
-    EXPECT_EQ(digest, new_digest);
+    EXPECT_EQ(digest, string2vector(new_digest));
 }
 
 TEST(HMAC_SHA1, Test6_1) {
@@ -414,10 +442,12 @@ TEST(HMAC_SHA1, Test6_1) {
                                  0x0e, 0x95, 0x70, 0x56, 0x37, 0xce, 0x8a,
                                  0x3b, 0x55, 0xed, 0x40, 0x21, 0x12}};
 
-    auto new_digest =
-            crypto::HMAC(crypto::Algorithm::SHA1, key, string2vector(data));
+    auto new_digest = crypto::HMAC(
+            crypto::Algorithm::SHA1,
+            {reinterpret_cast<const char*>(key.data()), key.size()},
+            data);
 
-    EXPECT_EQ(digest, new_digest);
+    EXPECT_EQ(digest, string2vector(new_digest));
 }
 
 TEST(HMAC_SHA1, Test7_1) {
@@ -431,124 +461,112 @@ TEST(HMAC_SHA1, Test7_1) {
                                  0x78, 0x6d, 0x6b, 0xba, 0xa7, 0x96, 0x5c,
                                  0x78, 0x08, 0xbb, 0xff, 0x1a, 0x91}};
 
-    auto new_digest =
-            crypto::HMAC(crypto::Algorithm::SHA1, key, string2vector(data));
+    auto new_digest = crypto::HMAC(
+            crypto::Algorithm::SHA1,
+            {reinterpret_cast<const char*>(key.data()), key.size()},
+            data);
 
-    EXPECT_EQ(digest, new_digest);
+    EXPECT_EQ(digest, string2vector(new_digest));
 }
 
 TEST(PBKDF2_HMAC, MD5) {
-    EXPECT_THROW(crypto::PBKDF2_HMAC(
-                         crypto::Algorithm::MD5, "", std::vector<uint8_t>(), 1),
+    EXPECT_THROW(crypto::PBKDF2_HMAC(crypto::Algorithm::MD5, "", "", 1),
                  std::invalid_argument);
 }
 
 TEST(PBKDF2_HMAC, SHA1) {
     if (crypto::isSupported(crypto::Algorithm::SHA1)) {
-        std::string hash("ujVC+2T7EKQbOJopX5IzPgSx3m0=");
-        std::string salt("ZWglX9gQEpMZqYXlzzlGjs2dqMo=");
+        const std::string hash("ujVC+2T7EKQbOJopX5IzPgSx3m0=");
+        const std::string salt("ZWglX9gQEpMZqYXlzzlGjs2dqMo=");
 
-        auto ret = crypto::PBKDF2_HMAC(crypto::Algorithm::SHA1,
-                                       "password",
-                                       string2vector(Base64::decode(salt)),
-                                       4096);
-        auto digest = string2vector(Base64::decode(hash));
-        EXPECT_EQ(digest, ret);
+        EXPECT_EQ(Base64::decode(hash),
+                  crypto::PBKDF2_HMAC(crypto::Algorithm::SHA1,
+                                      "password",
+                                      Base64::decode(salt),
+                                      4096));
     } else {
-        EXPECT_THROW(
-                crypto::PBKDF2_HMAC(
-                        crypto::Algorithm::SHA1, "", std::vector<uint8_t>(), 1),
-                std::runtime_error);
+        EXPECT_THROW(crypto::PBKDF2_HMAC(crypto::Algorithm::SHA1, "", "", 1),
+                     std::runtime_error);
     }
 }
 
 TEST(PBKDF2_HMAC, SHA256) {
     if (crypto::isSupported(crypto::Algorithm::SHA256)) {
-        std::string hash("Gg48JSpr1ACwm2sNNfFqlCII7LzkvFaehBDX920nGvE=");
-        std::string salt("K3WUInsELbeaNOpy9jp8nKE907tshZmZq71uw8ExaDs=");
-        auto ret = crypto::PBKDF2_HMAC(crypto::Algorithm::SHA256,
-                                       "password",
-                                       string2vector(Base64::decode(salt)),
-                                       4096);
-        auto digest = string2vector(Base64::decode(hash));
-        EXPECT_EQ(digest, ret);
+        const std::string hash("Gg48JSpr1ACwm2sNNfFqlCII7LzkvFaehBDX920nGvE=");
+        const std::string salt("K3WUInsELbeaNOpy9jp8nKE907tshZmZq71uw8ExaDs=");
+        EXPECT_EQ(Base64::decode(hash),
+                  crypto::PBKDF2_HMAC(crypto::Algorithm::SHA256,
+                                      "password",
+                                      Base64::decode(salt),
+                                      4096));
     } else {
-        EXPECT_THROW(crypto::PBKDF2_HMAC(crypto::Algorithm::SHA256,
-                                         "",
-                                         std::vector<uint8_t>(),
-                                         1),
+        EXPECT_THROW(crypto::PBKDF2_HMAC(crypto::Algorithm::SHA256, "", "", 1),
                      std::runtime_error);
     }
 }
 
 TEST(PBKDF2_HMAC, SHA512) {
     if (crypto::isSupported(crypto::Algorithm::SHA512)) {
-        std::string hash(
+        const std::string hash(
                 "gI8135FS74/RbI+wFpofDCqccxNRCpp4d8oEge+/lrJlnPhHDs"
                 "1JWzmI+5GD+K5n57/hreh0el+lPRWRuRotGw==");
-        std::string salt(
+        const std::string salt(
                 "rOa3n53kC5VnpxvrUBgHUlRQ3BG1YYkXaL1S31OBv7oUj66jTR"
                 "cBU9FerGh+SlbS0kjyBes2eOMe8+2Oi3/BMQ==");
-        auto ret = crypto::PBKDF2_HMAC(crypto::Algorithm::SHA512,
-                                       "password",
-                                       string2vector(Base64::decode(salt)),
-                                       4096);
-        auto digest = string2vector(Base64::decode(hash));
-        EXPECT_EQ(digest, ret);
+
+        EXPECT_EQ(Base64::decode(hash),
+                  crypto::PBKDF2_HMAC(crypto::Algorithm::SHA512,
+                                      "password",
+                                      Base64::decode(salt),
+                                      4096));
     } else {
-        EXPECT_THROW(crypto::PBKDF2_HMAC(crypto::Algorithm::SHA512,
-                                         "",
-                                         std::vector<uint8_t>(),
-                                         1),
+        EXPECT_THROW(crypto::PBKDF2_HMAC(crypto::Algorithm::SHA512, "", "", 1),
                      std::runtime_error);
     }
 }
 
 TEST(PBKDF2_HMAC, UnknownAlgorithm) {
-    EXPECT_THROW(crypto::PBKDF2_HMAC(
-                         (crypto::Algorithm)100, "", std::vector<uint8_t>(), 1),
+    EXPECT_THROW(crypto::PBKDF2_HMAC((crypto::Algorithm)100, "", "", 1),
                  std::invalid_argument);
 }
 
 TEST(Digest, MD5) {
-    std::vector<uint8_t> data(50);
-    memset(data.data(), 0xdd, data.size());
-    auto digest = crypto::digest(crypto::Algorithm::MD5, data);
+    std::string data;
+    data.resize(50);
+    std::fill(data.begin(), data.end(), 0xdd);
     EXPECT_EQ("s69JQLO3oOdEjL+7arBMyA==",
-              Base64::encode(
-                      std::string((const char*)digest.data(), digest.size())));
+              Base64::encode(crypto::digest(crypto::Algorithm::MD5, data)));
 }
 
 TEST(Digest, SHA1) {
-    std::vector<uint8_t> data(50);
-    memset(data.data(), 0xdd, data.size());
-    auto digest = crypto::digest(crypto::Algorithm::SHA1, data);
+    std::string data;
+    data.resize(50);
+    std::fill(data.begin(), data.end(), 0xdd);
     EXPECT_EQ("a/eYGUZs797W4yYH3kxoypn+dnQ=",
-              Base64::encode(
-                      std::string((const char*)digest.data(), digest.size())));
+              Base64::encode(crypto::digest(crypto::Algorithm::SHA1, data)));
 }
 
 TEST(Digest, SHA256) {
     if (crypto::isSupported(crypto::Algorithm::SHA256)) {
-        std::vector<uint8_t> data(50);
-        memset(data.data(), 0xdd, data.size());
+        std::string data;
+        data.resize(50);
+        std::fill(data.begin(), data.end(), 0xdd);
         auto digest = crypto::digest(crypto::Algorithm::SHA256, data);
         EXPECT_EQ("XPYYtbbTi9FsLlWO701LbVKChFR/1KCdoqu28JjsYZM=",
-                  Base64::encode(std::string((const char*)digest.data(),
-                                             digest.size())));
+                  Base64::encode(digest));
     }
 }
 
 TEST(Digest, SHA512) {
     if (crypto::isSupported(crypto::Algorithm::SHA512)) {
-        std::vector<uint8_t> data(50);
-        memset(data.data(), 0xdd, data.size());
+        std::string data;
+        data.resize(50);
+        std::fill(data.begin(), data.end(), 0xdd);
         auto digest = crypto::digest(crypto::Algorithm::SHA512, data);
         EXPECT_EQ(
                 "ocK90Gck7GOlN3GIBrL76aaf6yUuLl3/HXcSB93FlouYyPN+Dgi+NKIg"
                 "Lvr+LtJgKvVDrw2aQ4EXTgOFEvt4MA==",
-                Base64::encode(std::string((const char*)digest.data(),
-                                           digest.size())));
+                Base64::encode(digest));
     }
 }
 
@@ -557,26 +575,24 @@ static const int AES_256_CBC_KEY_LENGTH = 32;
 static const int AES_256_CBC_IV_LENGTH = 16;
 
 TEST(Crypt, AES_256_cbc) {
-    std::vector<uint8_t> data;
     const std::string input("All work and no play makes Jack a dull boy");
-    std::copy(input.begin(), input.end(), std::back_inserter(data));
 
-    std::vector<uint8_t> key(AES_256_CBC_KEY_LENGTH);
-    std::vector<uint8_t> ivec(AES_256_CBC_IV_LENGTH);
+    std::string key;
+    key.resize(AES_256_CBC_KEY_LENGTH);
+    std::string ivec;
+    ivec.resize(AES_256_CBC_IV_LENGTH);
 
     auto encrypted =
-            crypto::encrypt(crypto::Cipher::AES_256_cbc, key, ivec, data);
+            crypto::encrypt(crypto::Cipher::AES_256_cbc, key, ivec, input);
 
     EXPECT_EQ(
             "Oc1dvAWyPz0gQkxsVE6C0sAXalH4A/WUBsktK0UQo65m7vrfn63yqikVgGkm+ych",
-            Couchbase::Base64::encode(std::string{(const char*)encrypted.data(),
-                                                  encrypted.size()}));
+            Couchbase::Base64::encode(encrypted));
 
     auto decrypted =
             crypto::decrypt(crypto::Cipher::AES_256_cbc, key, ivec, encrypted);
 
-    const std::string text((const char*)decrypted.data(), decrypted.size());
-    EXPECT_EQ(input, text);
+    EXPECT_EQ(input, decrypted);
 }
 
 TEST(Crypt, AES_256_cbc_with_meta) {
@@ -591,53 +607,43 @@ TEST(Crypt, AES_256_cbc_with_meta) {
             root.get(), "iv", Couchbase::Base64::encode(blob).c_str());
 
     const std::string input("All work and no play makes Jack a dull boy\n");
-    auto encrypted = crypto::encrypt(
-            root.get(),
-            {reinterpret_cast<const uint8_t*>(input.data()), input.size()});
+    const auto encrypted = crypto::encrypt(root.get(), input);
 
     // The following text is generated by running:
     //   echo "All work and no play makes Jack a dull boy" |
     //      openssl enc -e -aes-256-cbc -K 0 -iv 0 | base64
     EXPECT_EQ(
             "Oc1dvAWyPz0gQkxsVE6C0sAXalH4A/WUBsktK0UQo64vgnjplg9cauBwNa7wx3y1",
-            Couchbase::Base64::encode(std::string{(const char*)encrypted.data(),
-                                                  encrypted.size()}));
+            Couchbase::Base64::encode(encrypted));
 
-    auto decrypted =
-            crypto::decrypt(root.get(),
-                            {reinterpret_cast<const uint8_t*>(encrypted.data()),
-                             encrypted.size()});
+    const auto decrypted = crypto::decrypt(root.get(), encrypted);
 
-    const std::string text((const char*)decrypted.data(), decrypted.size());
-    EXPECT_EQ(input, text);
+    EXPECT_EQ(input, decrypted);
 }
 
 TEST(Crypt, AES_256_cbc_invalid_key_length) {
-    std::vector<uint8_t> key(AES_256_CBC_KEY_LENGTH - 1);
-    std::vector<uint8_t> ivec(AES_256_CBC_IV_LENGTH);
-    std::vector<uint8_t> data(0);
+    std::string key;
+    key.resize(AES_256_CBC_KEY_LENGTH - 1);
+    std::string ivec;
+    ivec.resize(AES_256_CBC_IV_LENGTH);
 
-    EXPECT_THROW(crypto::encrypt(crypto::Cipher::AES_256_cbc, key, ivec, data),
+    EXPECT_THROW(crypto::encrypt(crypto::Cipher::AES_256_cbc, key, ivec, ""),
                  std::invalid_argument);
 }
 
 TEST(Crypt, AES_256_cbc_invalid_iv_length) {
-    std::vector<uint8_t> key(AES_256_CBC_KEY_LENGTH);
-    std::vector<uint8_t> ivec(AES_256_CBC_IV_LENGTH - 1);
-    std::vector<uint8_t> data(0);
+    std::string key;
+    key.resize(AES_256_CBC_KEY_LENGTH);
+    std::string ivec;
+    ivec.resize(AES_256_CBC_IV_LENGTH - 1);
 
-    EXPECT_THROW(crypto::encrypt(crypto::Cipher::AES_256_cbc, key, ivec, data),
+    EXPECT_THROW(crypto::encrypt(crypto::Cipher::AES_256_cbc, key, ivec, ""),
                  std::invalid_argument);
 }
 
 TEST(Crypt, InvalidAlgorithm) {
-    std::vector<uint8_t> key(0);
-    std::vector<uint8_t> ivec(0);
-    std::vector<uint8_t> data(0);
-
-    EXPECT_THROW(
-            crypto::encrypt(static_cast<crypto::Cipher>(10), key, ivec, data),
-            std::invalid_argument);
+    EXPECT_THROW(crypto::encrypt(static_cast<crypto::Cipher>(10), {}, {}, {}),
+                 std::invalid_argument);
 }
 
 /**
@@ -656,9 +662,11 @@ TEST(Crypt, ns_server_password_encoding) {
                                         140, 137, 190, 11, 93, 234}};
 
     auto generated_hmac = cb::crypto::HMAC(
-            cb::crypto::Algorithm::SHA1, salt, string2vector(password));
+            cb::crypto::Algorithm::SHA1,
+            {reinterpret_cast<const char*>(salt.data()), salt.size()},
+            password);
 
-    EXPECT_EQ(hmac, generated_hmac);
+    EXPECT_EQ(hmac, string2vector(generated_hmac));
 
     // The format of the password encoding is that we're appending
     // the generated hmac to the salt (which should be 16 bytes).

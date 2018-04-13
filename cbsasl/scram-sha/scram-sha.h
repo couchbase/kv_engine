@@ -88,7 +88,7 @@ protected:
 
     std::string getClientProof();
 
-    virtual void getSaltedPassword(std::vector<uint8_t>& dest) = 0;
+    virtual std::string getSaltedPassword() = 0;
 
     /**
      * Get the AUTH message (as specified in the RFC)
@@ -133,9 +133,8 @@ public:
                         unsigned inputlen, const char** output,
                         unsigned* outputlen) override;
 
-    void getSaltedPassword(std::vector<uint8_t>& dest) override {
-        const auto& pw = user.getPassword(mechanism).getPassword();
-        std::copy(pw.begin(), pw.end(), std::back_inserter(dest));
+    std::string getSaltedPassword() override {
+        return user.getPassword(mechanism).getPassword();
     }
 
     cb::sasl::User user;
@@ -200,16 +199,15 @@ protected:
 
     bool generateSaltedPassword(const char *ptr, int len);
 
-    void getSaltedPassword(std::vector<uint8_t>& dest) override {
+    std::string getSaltedPassword() override {
         if (saltedPassword.empty()) {
             throw std::logic_error("getSaltedPassword called before salted "
                                        "password is initialized");
         }
-        std::copy(saltedPassword.begin(), saltedPassword.end(),
-                  std::back_inserter(dest));
+        return saltedPassword;
     }
 
-    std::vector<uint8_t> saltedPassword;
+    std::string saltedPassword;
     std::string salt;
     unsigned int iterationCount;
 };

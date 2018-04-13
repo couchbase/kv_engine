@@ -50,28 +50,23 @@ cbsasl_error_t check_password(cbsasl_conn_t* conn,
         return CBSASL_FAIL;
     }
 
-    // cb::crypto::HMAC operates on a std::vector, so copy our
-    // std::string into the vector
-    std::vector<uint8_t> supplied_password;
-    std::copy(password.begin(), password.end(),
-              std::back_inserter(supplied_password));
 
     // Copy out the resulting HMAC stored in the password
-    std::vector<uint8_t> stored_hmac;
+    std::string stored_hmac;
     std::copy(storedPassword.data() + SALT_SIZE,
               storedPassword.data() + PASSWORD_SIZE,
               std::back_inserter(stored_hmac));
 
     // Use the same salt as stored with the password
-    std::vector<uint8_t> salt;
+    std::string salt;
     std::copy(storedPassword.data(),
               storedPassword.data() + SALT_SIZE,
               std::back_inserter(salt));
 
     // Try to generate the same HMAC as we've got stored by using the
     // same salt and the users provided password
-    auto generated_hmac = cb::crypto::HMAC(cb::crypto::Algorithm::SHA1,
-                                           salt, supplied_password);
+    auto generated_hmac =
+            cb::crypto::HMAC(cb::crypto::Algorithm::SHA1, salt, password);
 
     // Compare the entire generated HMAC with the user provided HMAC
     bool same = !user.isDummy();

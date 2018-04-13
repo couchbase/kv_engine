@@ -104,7 +104,11 @@ cb::sasl::User cb::sasl::UserFactory::create(const std::string& unm,
     generateSalt(pwentry, saltstring);
     std::vector<uint8_t> pw;
     std::copy(passwd.begin(), passwd.end(), std::back_inserter(pw));
-    const auto hmac = cb::crypto::HMAC(cb::crypto::Algorithm::SHA1, pwentry, pw);
+
+    const auto hmac = cb::crypto::HMAC(
+            cb::crypto::Algorithm::SHA1,
+            {reinterpret_cast<const char*>(pwentry.data()), pwentry.size()},
+            {reinterpret_cast<const char*>(pw.data()), pw.size()});
     std::copy(hmac.begin(), hmac.end(), std::back_inserter(pwentry));
     std::string hash{(const char*)pwentry.data(), pwentry.size()};
 
@@ -235,11 +239,12 @@ void cb::sasl::User::generateSecrets(const Mechanism& mech,
     case Mechanism::SCRAM_SHA512:
         if (dummy) {
             auto fallback = scramsha_fallback_salt.get();
-            salt = cb::crypto::HMAC(
-                    cb::crypto::Algorithm::SHA512,
-                    {reinterpret_cast<const uint8_t*>(username.data()),
-                     username.size()},
-                    {fallback.data(), fallback.size()});
+            auto hs_salt =
+                    cb::crypto::HMAC(cb::crypto::Algorithm::SHA512,
+                                     username,
+                                     {reinterpret_cast<char*>(fallback.data()),
+                                      fallback.size()});
+            std::copy(hs_salt.begin(), hs_salt.end(), std::back_inserter(salt));
         } else {
             salt.resize(cb::crypto::SHA512_DIGEST_SIZE);
         }
@@ -248,11 +253,12 @@ void cb::sasl::User::generateSecrets(const Mechanism& mech,
     case Mechanism::SCRAM_SHA256:
         if (dummy) {
             auto fallback = scramsha_fallback_salt.get();
-            salt = cb::crypto::HMAC(
-                    cb::crypto::Algorithm::SHA256,
-                    {reinterpret_cast<const uint8_t*>(username.data()),
-                     username.size()},
-                    {fallback.data(), fallback.size()});
+            auto hs_salt =
+                    cb::crypto::HMAC(cb::crypto::Algorithm::SHA256,
+                                     username,
+                                     {reinterpret_cast<char*>(fallback.data()),
+                                      fallback.size()});
+            std::copy(hs_salt.begin(), hs_salt.end(), std::back_inserter(salt));
         } else {
             salt.resize(cb::crypto::SHA256_DIGEST_SIZE);
         }
@@ -261,11 +267,12 @@ void cb::sasl::User::generateSecrets(const Mechanism& mech,
     case Mechanism::SCRAM_SHA1:
         if (dummy) {
             auto fallback = scramsha_fallback_salt.get();
-            salt = cb::crypto::HMAC(
-                    cb::crypto::Algorithm::SHA1,
-                    {reinterpret_cast<const uint8_t*>(username.data()),
-                     username.size()},
-                    {fallback.data(), fallback.size()});
+            auto hs_salt =
+                    cb::crypto::HMAC(cb::crypto::Algorithm::SHA1,
+                                     username,
+                                     {reinterpret_cast<char*>(fallback.data()),
+                                      fallback.size()});
+            std::copy(hs_salt.begin(), hs_salt.end(), std::back_inserter(salt));
         } else {
             salt.resize(cb::crypto::SHA1_DIGEST_SIZE);
         }
@@ -297,11 +304,13 @@ void cb::sasl::User::generateSecrets(const Mechanism& mech,
         generateSalt(salt, encodedSalt);
     }
 
-    auto digest = cb::crypto::PBKDF2_HMAC(algorithm, passwd, salt, IterationCount);
+    auto digest = cb::crypto::PBKDF2_HMAC(
+            algorithm,
+            passwd,
+            {reinterpret_cast<const char*>(salt.data()), salt.size()},
+            IterationCount);
 
-    password[mech] =
-        PasswordMetaData(std::string((const char*)digest.data(), digest.size()),
-                         encodedSalt, IterationCount);
+    password[mech] = PasswordMetaData(digest, encodedSalt, IterationCount);
 }
 
 cb::sasl::User::PasswordMetaData::PasswordMetaData(cJSON* obj) {
