@@ -581,8 +581,7 @@ TEST_F(CollectionsDcpTest, MB_26455) {
     {
         auto vb = store->getVBucket(vbid);
 
-        std::vector<std::string> separators = {
-                "::", "*", "**", "***", "-=-=-=-=-="};
+        std::vector<std::string> separators = {"::", "*", "**", "***", "-=-=-"};
 
         for (size_t n = 0; n < separators.size(); n++) {
             // change sep

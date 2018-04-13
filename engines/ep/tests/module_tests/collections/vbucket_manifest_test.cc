@@ -861,13 +861,13 @@ TEST_F(VBucketManifestTest, active_replica_separatorChanges) {
 
     // Can change separator as no collection exists
     EXPECT_TRUE(manifest.update(
-            R"({ "separator":"-=-=-=-","uid":"0","collections":[]})"));
+            R"({ "separator":"-=-=-","uid":"0","collections":[]})"));
 
     // Add a collection and check the new separator
     EXPECT_TRUE(manifest.update(
-            R"({ "separator":"-=-=-=-","uid":"0","collections":[{"name":"meat","uid":"3"}]})"));
+            R"({ "separator":"-=-=-","uid":"0","collections":[{"name":"meat","uid":"3"}]})"));
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
-            {"meat-=-=-=-bacon", DocNamespace::Collections}));
+            {"meat-=-=-bacon", DocNamespace::Collections}));
 }
 
 TEST_F(VBucketManifestTest, replica_add_remove) {

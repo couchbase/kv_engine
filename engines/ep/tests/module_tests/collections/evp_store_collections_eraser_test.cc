@@ -240,8 +240,7 @@ TEST_P(CollectionsEraserTest, default_Destroy) {
 // collection they belong too and fails to remove the items
 TEST_P(CollectionsEraserTest, MB_26455) {
     const int items = 3;
-    std::vector<std::string> separators = {
-            "::", "*", "**", "***", "-=-=-=-=-="};
+    std::vector<std::string> separators = {"::", "*", "**", "***", "-=-=-"};
 
     for (size_t n = 0; n < separators.size(); n++) {
         // change sep

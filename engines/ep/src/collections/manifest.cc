@@ -125,7 +125,7 @@ void Manifest::enableDefaultCollection(const char* name) {
 
 bool Manifest::validSeparator(const char* separator) {
     size_t size = std::strlen(separator);
-    return size > 0 && size <= 16;
+    return size > 0 && size <= MaxSeparatorLength;
 }
 
 bool Manifest::validCollection(const char* collection) {

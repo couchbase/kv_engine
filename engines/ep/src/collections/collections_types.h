@@ -46,6 +46,8 @@ const size_t CouchstoreManifestLen = sizeof(CouchstoreManifest) - 1;
 
 using uid_t = uint64_t;
 
+const size_t MaxSeparatorLength = 5;
+
 /**
  * Return a uid from a C-string.
  * A valid uid is a C-string where each character satisfies std::isxdigit

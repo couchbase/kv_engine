@@ -104,7 +104,10 @@ TEST(ManifestTest, validation) {
 
             // UID cannot be 0x prefixed
             R"({"separator":":", "uid" : "0x101",
-                "collections":[{"name":"beer", "uid":"1"}]})"};
+                "collections":[{"name":"beer", "uid":"1"}]})",
+
+            // separator too large
+            R"({"separator":"012345", "uid" : "0", "collections":[]})"};
 
     std::vector<std::string> validManifests = {
             R"({"separator":":", "uid" : "0", "collections":[]})",
@@ -125,7 +128,7 @@ TEST(ManifestTest, validation) {
                                {"name":"brewery","uid":"2"}]})",
 
             // Max separator
-            R"({"separator":"0123456789abcdef", "uid" : "0",
+            R"({"separator":"01234", "uid" : "0",
                 "collections":[{"name":"beer", "uid":"1"},
                                {"name":"brewery","uid":"2"}]})",
 
@@ -170,8 +173,8 @@ TEST(ManifestTest, getSeparator) {
              R"({"separator":"_", "uid" : "0",
                 "collections":[{"name":"beer", "uid":"1"},
                                {"name":"brewery","uid":"2"}]})"},
-            {"0123456789abcdef",
-             R"({"separator":"0123456789abcdef", "uid" : "0",
+            {"01234",
+             R"({"separator":"01234", "uid" : "0",
                 "collections":[{"name":"beer", "uid":"1"},
                                {"name":"brewery","uid":"2"}]})"},
     };
@@ -245,7 +248,7 @@ TEST(ManifestTest, toJson) {
             R"({"name":"brewery","uid":"2"}]})",
 
             // Max separator
-            R"({"separator":"0123456789abcdef","uid":"abcd","collections":)"
+            R"({"separator":"01234","uid":"abcd","collections":)"
             R"([{"name":"beer","uid":"1"},{"name":"brewery","uid":"2"}]})",
 
             R"({"separator":"_","uid":"abcd","collections":[{"name":"beer","uid":"af"},)"
