@@ -26,6 +26,7 @@
 #include <protocol/connection/client_mcbp_commands.h>
 #include <utilities/terminate_handler.h>
 
+#include <strings.h>
 #include <array>
 #include <cstdlib>
 #include <gsl/gsl>
@@ -271,7 +272,8 @@ static void request_cmd_timings(MemcachedConnection& connection,
                                 const std::string bucket,
                                 uint8_t opcode,
                                 bool verbose,
-                                bool skip) {
+                                bool skip,
+                                bool json) {
     BinprotGetCmdTimerCommand cmd;
     cmd.setBucket(bucket);
     cmd.setOpcode(opcode);
@@ -307,21 +309,33 @@ static void request_cmd_timings(MemcachedConnection& connection,
     }
 
     try {
-        Timings timings(resp.getTimings());
-
-        auto cmd = opcode2string(opcode);
-
-        if (timings.getTotal() == 0) {
-            if (skip == 0) {
-                std::cout << "The server don't have information about \""
-                          << cmd << "\"" << std::endl;
+        auto command = opcode2string(opcode);
+        if (json) {
+            auto* timings = resp.getTimings();
+            if (timings == nullptr) {
+                if (!skip) {
+                    std::cerr << "The server doesn't have information about \""
+                              << command << "\"" << std::endl;
+                }
+            } else {
+                cJSON_AddStringToObject(timings, "command", command.c_str());
+                std::cout << to_string(timings, verbose) << std::endl;
             }
         } else {
-            if (verbose) {
-                timings.dumpHistogram(cmd);
+            Timings timings(resp.getTimings());
+
+            if (timings.getTotal() == 0) {
+                if (skip == 0) {
+                    std::cout << "The server doesn't have information about \""
+                              << command << "\"" << std::endl;
+                }
             } else {
-                std::cout << cmd << " " << timings.getTotal() << " operations"
-                          << std::endl;
+                if (verbose) {
+                    timings.dumpHistogram(command);
+                } else {
+                    std::cout << command << " " << timings.getTotal()
+                              << " operations" << std::endl;
+                }
             }
         }
     } catch (const std::exception& e) {
@@ -332,7 +346,8 @@ static void request_cmd_timings(MemcachedConnection& connection,
 
 static void request_stat_timings(MemcachedConnection& connection,
                                  const std::string& key,
-                                 bool verbose) {
+                                 bool verbose,
+                                 bool json_output) {
     std::map<std::string, std::string> map;
     try {
         map = connection.statsMap(key);
@@ -368,12 +383,17 @@ static void request_stat_timings(MemcachedConnection& connection,
         exit(EXIT_FAILURE);
     }
     try {
-        Timings timings(json.get());
-        if (verbose) {
-            timings.dumpHistogram(key);
+        if (json_output) {
+            cJSON_AddStringToObject(json.get(), "command", key.c_str());
+            std::cout << to_string(json, verbose) << std::endl;
         } else {
-            std::cout << key << " " << timings.getTotal() << " operations"
-                      << std::endl;
+            Timings timings(json.get());
+            if (verbose) {
+                timings.dumpHistogram(key);
+            } else {
+                std::cout << key << " " << timings.getTotal() << " operations"
+                          << std::endl;
+            }
         }
     } catch (const std::exception& e) {
         std::cerr << "Fatal error: " << e.what() << std::endl;
@@ -396,6 +416,7 @@ void usage() {
   -6 or --ipv6                   Connect over IPv6
   -v or --verbose                Use verbose output
   -S                             Read password from standard input
+  -j or --json[=pretty]          Print JSON instead of histograms
   --help                         This help text
 
 )" << std::endl
@@ -420,6 +441,7 @@ int main(int argc, char** argv) {
     sa_family_t family = AF_UNSPEC;
     bool verbose = false;
     bool secure = false;
+    bool json = false;
 
     /* Initialize the socket subsystem */
     cb_initialize_sockets();
@@ -434,11 +456,12 @@ int main(int argc, char** argv) {
             {"user", required_argument, nullptr, 'u'},
             {"ssl", no_argument, nullptr, 's'},
             {"verbose", no_argument, nullptr, 'v'},
+            {"json", optional_argument, nullptr, 'j'},
             {"help", no_argument, nullptr, 0},
             {nullptr, 0, nullptr, 0}};
 
     while ((cmd = getopt_long(
-                    argc, argv, "46h:p:u:b:P:S", long_options, nullptr)) !=
+                    argc, argv, "46h:p:u:b:P:Sj", long_options, nullptr)) !=
            EOF) {
         switch (cmd) {
         case '6' :
@@ -470,6 +493,12 @@ int main(int argc, char** argv) {
             break;
         case 'v' :
             verbose = true;
+            break;
+        case 'j':
+            json = true;
+            if (optarg && strcasecmp(optarg, "pretty") == 0) {
+                verbose = true;
+            }
             break;
         default:
             usage();
@@ -517,18 +546,19 @@ int main(int argc, char** argv) {
 
         if (optind == argc) {
             for (int ii = 0; ii < 256; ++ii) {
-                request_cmd_timings(connection, bucket, (uint8_t)ii, verbose,
-                                    true);
+                request_cmd_timings(
+                        connection, bucket, (uint8_t)ii, verbose, true, json);
             }
         } else {
             for (; optind < argc; ++optind) {
                 const uint8_t opcode = memcached_text_2_opcode(argv[optind]);
                 if (opcode != PROTOCOL_BINARY_CMD_INVALID) {
-                    request_cmd_timings(connection, bucket, opcode, verbose,
-                                        false);
+                    request_cmd_timings(
+                            connection, bucket, opcode, verbose, false, json);
                 } else {
                     // Not a command timing, try as statistic timing.
-                    request_stat_timings(connection, argv[optind], verbose);
+                    request_stat_timings(
+                            connection, argv[optind], verbose, json);
                 }
             }
         }
