@@ -35,18 +35,18 @@ static const ssize_t prime_size_table[] = {
 };
 
 /**
- * Define the increment factor for the statisticalCounter being used for
+ * Define the increment factor for the ProbabilisticCounter being used for
  * the frequency counter.  The value is set such that it allows an 8-bit
- * StatisticalCounter to mimic a uint16 counter.
+ * ProbabilisticCounter to mimic a uint16 counter.
  *
  * The value was reached by running the following code using a variety of
  * incFactor values.
  *
- * StatisticalCounter<uint8_t> statisticalCounter(incFactor);
+ * ProbabilisticCounter<uint8_t> probabilisticCounter(incFactor);
  * uint64_t iterationCount{0};
  * uint8_t counter{0};
  *     while (counter != std::numeric_limits<uint8_t>::max()) {
- *         counter = statisticalCounter.generateValue(counter);
+ *         counter = probabilisticCounter.generateValue(counter);
  *         iterationCount++;
  *     }
  * std::cerr << "iterationCount=" <<  iterationCount << std::endl;
@@ -78,7 +78,7 @@ HashTable::HashTable(EPStats& st,
       numEjects(0),
       numResizes(0),
       maxDeletedRevSeqno(0),
-      statisticalCounter(freqCounterIncFactor),
+      probabilisticCounter(freqCounterIncFactor),
       evictionPolicy(policy) {
     values.resize(size);
     activeState = true;
@@ -469,7 +469,7 @@ StoredValue* HashTable::unlocked_find(const DocKey& key,
         if (v->hasKey(key)) {
             if (trackReference == TrackReference::Yes && !v->isDeleted()) {
                 // Attempt to increment the storedValue frequency counter
-                // value.  Because a statistical counter is used the new
+                // value.  Because a probabilistic counter is used the new
                 // value will either be the same or an increment of the
                 // current value.
                 auto updatedFreqCounterValue =
@@ -849,7 +849,7 @@ void HashTable::unlocked_restoreMeta(const std::unique_lock<std::mutex>& htLock,
 }
 
 uint8_t HashTable::generateFreqValue(uint8_t counter) {
-    return statisticalCounter.generateValue(counter);
+    return probabilisticCounter.generateValue(counter);
 }
 
 std::ostream& operator<<(std::ostream& os, const HashTable& ht) {

@@ -18,9 +18,9 @@
 #pragma once
 
 #include "config.h"
-#include "statistical_counter.h"
-#include "storeddockey.h"
+#include "probabilistic_counter.h"
 #include "stored-value.h"
+#include "storeddockey.h"
 
 #include <platform/histogram.h>
 #include <platform/non_negative_counter.h>
@@ -830,7 +830,7 @@ private:
     // Used by generateFreqCounter to provide an incrementing value for the
     // frequency counter of storedValues.  The frequency counter is used to
     // identify which hash table entries should be evicted first.
-    StatisticalCounter<uint8_t> statisticalCounter;
+    ProbabilisticCounter<uint8_t> probabilisticCounter;
 
     // The policy used by the hash table to evict items.  The item pager uses
     // this to determine what eviction policy to apply.

@@ -25,7 +25,7 @@
  * becomes increasingly more difficult to increment.  This enables a high
  * granularity counter to be implemented using only a small number of bits.
  *
- * It is based on the statistical counter described at
+ * It is based on the logarithmic counter described at
  * http://antirez.com/news/109
  *
  * uint8_t LFULogIncr(uint8_t counter) {
@@ -45,24 +45,24 @@
  * - approx 800 to mimic a u32int counter (max value of 4,294,967,295)
  * - approx 0.012 to mimic a u16int counter (max value of 65,535)
  *
- * For example to replace a u16int counter with a statistical counter that
+ * For example to replace a u16int counter with a probabilistic counter that
  * only requires 8-bits of storage, you would need to construct a
- * StatisticalCounter as follows:
- * StatisticalCounter<uint8_t> statisticalCounter(2.0);
+ * ProbabilisticCounter as follows:
+ * ProbabilisticCounter<uint8_t> probabilisticCounter(2.0);
  *
  * It would be used as follows:
  *
  * uint8_t counter{0};
- * counter = statisticalCounter.generateValue(counter);
+ * counter = probabilisticCounter.generateValue(counter);
  *
  * The generateValue can be called approximately 65,000 times before the counter
  * becomes saturated at 255.
  *
  */
 template <class T>
-class StatisticalCounter {
+class ProbabilisticCounter {
 public:
-    StatisticalCounter(double incFac = 0.0) : incFactor(incFac) {
+    ProbabilisticCounter(double incFac = 0.0) : incFactor(incFac) {
     }
 
     /**

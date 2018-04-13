@@ -29,7 +29,7 @@
 #include "dcp/stream.h"
 #include "item.h"
 #include "persistence_callback.h"
-#include "statistical_counter.h"
+#include "probabilistic_counter.h"
 #include "stored-value.h"
 #include "vbucket.h"
 #include "vbucketmap.h"
@@ -81,7 +81,8 @@ int main(int, char **) {
     display("PersistenceCallback", sizeof(PersistenceCallback));
     display("AtomicUnorderedMap<uint32_t, SingleThreadedRCPtr<Stream>>",
             sizeof(AtomicUnorderedMap<uint32_t, SingleThreadedRCPtr<Stream>>));
-    display("StatisticalCounter<uint8_t>", sizeof(StatisticalCounter<uint8_t>));
+    display("ProbabilisticCounter<uint8_t>",
+            sizeof(ProbabilisticCounter<uint8_t>));
 
     std::cout << std::endl << "Histogram Ranges" << std::endl << std::endl;
 

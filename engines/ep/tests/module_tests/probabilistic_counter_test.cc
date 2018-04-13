@@ -17,37 +17,37 @@
 
 #include "config.h"
 
-#include "statistical_counter.h"
+#include "probabilistic_counter.h"
 
 #include <gtest/gtest.h>
 #include <limits>
 
 /**
- * Define the increment factor for the statisticalCounter being used for
- * the tests. 0.012 allows an 8-bit StatisticalCounter to mimic a uint16
+ * Define the increment factor for the ProbabilisticCounter being used for
+ * the tests. 0.012 allows an 8-bit ProbabilisticCounter to mimic a uint16
  * counter.
  */
 static const double incFactor = 0.012;
 
 /*
- * Unit tests for the StatisticalCounter class.
+ * Unit tests for the ProbabilisticCounter class.
  */
 
-// Test that we can construct a StatisticalCounter and when we first call
+// Test that we can construct a ProbabilisticCounter and when we first call
 // generateCounterValue on a counter initialised to zero it will return one.
-TEST(StatisticalCounterTest, initialInc) {
-    StatisticalCounter<uint8_t> statisticalCounter(incFactor);
+TEST(ProbabilisticCounterTest, initialInc) {
+    ProbabilisticCounter<uint8_t> probabilisticCounter(incFactor);
     uint8_t counter{0};
-    EXPECT_EQ(1, statisticalCounter.generateValue(counter));
+    EXPECT_EQ(1, probabilisticCounter.generateValue(counter));
 }
 
 // Test the a u16int_t counter is considered saturated when it reaches the max
 // of uint8_t.
-TEST(StatisticalCounterTest, saturateCounter) {
-    StatisticalCounter<uint8_t> statisticalCounter(incFactor);
+TEST(ProbabilisticCounterrTest, saturateCounter) {
+    ProbabilisticCounter<uint8_t> probabilisticCounter(incFactor);
     uint16_t counter{0};
     while (counter != std::numeric_limits<uint8_t>::max()) {
-        counter = statisticalCounter.generateValue(counter);
+        counter = probabilisticCounter.generateValue(counter);
     }
-    EXPECT_TRUE(statisticalCounter.isSaturated(counter));
+    EXPECT_TRUE(probabilisticCounter.isSaturated(counter));
 }

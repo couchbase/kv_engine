@@ -311,7 +311,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                    tests/module_tests/mutation_log_test.cc
                    tests/module_tests/objectregistry_test.cc
                    tests/module_tests/mutex_test.cc
-                   tests/module_tests/statistical_counter_test.cc
+                   tests/module_tests/probabilistic_counter_test.cc
                    tests/module_tests/stats_test.cc
                    tests/module_tests/storeddockey_test.cc
                    tests/module_tests/stored_value_test.cc
@@ -373,7 +373,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                    benchmarks/kvstore_bench.cc
                    benchmarks/mem_allocator_stats_bench.cc
                    benchmarks/vbucket_bench.cc
-                   benchmarks/statistical_counter_bench.cc
+                   benchmarks/probabilistic_counter_bench.cc
                    tests/mock/mock_synchronous_ep_engine.cc
                    $<TARGET_OBJECTS:ep_objs>
                    $<TARGET_OBJECTS:memory_tracking>
