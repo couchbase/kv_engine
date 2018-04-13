@@ -1136,17 +1136,3 @@ cb::crypto::Cipher cb::crypto::to_cipher(const std::string& str) {
 
     throw std::invalid_argument("to_cipher: Unknown cipher: " + str);
 }
-
-std::string cb::crypto::digest(const Algorithm algorithm,
-                               const std::string& passwd) {
-    std::vector<uint8_t> data(passwd.size());
-    memcpy(data.data(), passwd.data(), passwd.size());
-    auto digest = cb::crypto::digest(algorithm, data);
-    std::stringstream ss;
-    ss << std::hex << std::setfill('0');
-    for (const auto& c : digest) {
-        ss << std::setw(2) << uint32_t(c);
-    }
-
-    return ss.str();
-}
