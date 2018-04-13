@@ -740,7 +740,7 @@ static std::string PBKDF2_HMAC_SHA1(const std::string& pass,
 #elif defined(HAVE_PKCS5_PBKDF2_HMAC_SHA1)
     auto err = PKCS5_PBKDF2_HMAC_SHA1(pass.data(),
                                       int(pass.size()),
-                                      reinterpret_cast<const uint8_t*>(salt.data()),,
+                                      reinterpret_cast<const uint8_t*>(salt.data()),
                                       int(salt.size()),
                                       iterationCount,
                                       cb::crypto::SHA1_DIGEST_SIZE,
