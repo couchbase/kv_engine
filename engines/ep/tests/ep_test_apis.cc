@@ -158,6 +158,8 @@ bool add_response(const void *key, uint16_t keylen, const void *ext,
                   uint8_t datatype, uint16_t status, uint64_t cas,
                   const void *cookie) {
     (void)cookie;
+    static std::mutex m;
+    std::lock_guard<std::mutex> lg(m);
     last_status.store(static_cast<protocol_binary_response_status>(status));
     last_body.assign(static_cast<const char*>(body), bodylen);
     last_ext.assign(static_cast<const char*>(ext), extlen);
