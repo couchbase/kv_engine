@@ -34,6 +34,8 @@ protected:
     void doTestServerDetectsJSON(bool compressedSource);
     void doTestServerDetectsNonJSON(bool compressedSource);
     void doTestServerStoresUncompressed(bool compressedSource);
+    void doTestServerRejectsLargeSize(bool compressedSource);
+    void doTestServerRejectsLargeSizeWithXattr(bool compressedSource);
 
     void verifyData(MemcachedConnection& conn, int successCount,
                     int numOps, cb::mcbp::Datatype expectedDatatype,
@@ -198,6 +200,120 @@ void GetSetTest::doTestServerStoresUncompressed(bool compressedSource) {
     // Fetch the document to see what the data is stored as. It should be
     // stored as Raw and the data is store as is
     verifyData(conn, successCount, 1, cb::mcbp::Datatype::Raw, stringToStore);
+}
+
+void GetSetTest::doTestServerRejectsLargeSize(bool compressedSource) {
+    auto& conn = getConnection();
+
+    std::string valueToStore(GetTestBucket().getMaximumDocSize() + 1, 'a');
+    document.value = valueToStore;
+    document.info.datatype = cb::mcbp::Datatype::Raw;
+    if (compressedSource) {
+        document.compress();
+    }
+
+    int e2bigCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_E2BIG);
+    try {
+        conn.mutate(document, 0, MutationType::Set);
+        FAIL() << "It should not be possible to add a document whose size is "
+                  "greater than the max item size";
+    } catch (ConnectionError& error) {
+        EXPECT_TRUE(error.isTooBig()) << error.what();
+        // Check that we correctly increment the status counter stat
+        EXPECT_EQ(e2bigCount + 1,
+                  getResponseCount(PROTOCOL_BINARY_RESPONSE_E2BIG));
+    }
+}
+
+void GetSetTest::doTestServerRejectsLargeSizeWithXattr(bool compressedSource) {
+    auto& conn = getConnection();
+
+    // Add a document with size 1KB of user data and with 1 user xattr
+    setBodyAndXattr(std::string(1024, 'a'),
+                    {{"xattr", "\"X-value\""}});
+
+    // Now add a value of size that is 10 bytes less than the maximum
+    // permitted value. This would ideally succeed if there was no
+    // existing user xattr but given that there is already one user xattr,
+    // this should fail with E2BIG
+    std::string userdata(GetTestBucket().getMaximumDocSize() - 10, 'a');
+    document.value = userdata;
+    document.info.cas = mcbp::cas::Wildcard;
+    document.info.datatype = cb::mcbp::Datatype::Raw;
+
+    if (compressedSource) {
+        document.compress();
+    }
+
+    int e2bigCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_E2BIG);
+    try {
+        conn.mutate(document, 0, MutationType::Set);
+        FAIL() << "It should not be possible to add a document whose size is "
+                "greater than the max item size";
+    } catch (ConnectionError& error) {
+        EXPECT_TRUE(error.isTooBig()) << error.what();
+        // Check that we correctly increment the status counter stat
+        EXPECT_EQ(e2bigCount + 1,
+                  getResponseCount(PROTOCOL_BINARY_RESPONSE_E2BIG));
+    }
+
+    // Now add a document with system xattrs
+    std::string sysXattr = "_sync";
+    std::string xattrVal = "{\"eg\":";
+    xattrVal.append("\"X-value\"}");
+    setBodyAndXattr(std::string(1024, 'a'),
+                    {{sysXattr, xattrVal}});
+
+    userdata.assign(GetTestBucket().getMaximumDocSize() - 250, 'a');
+    // Now add a document with value size that is 250 bytes less than the
+    // maximum permitted limit. This should succeed because system xattrs
+    // doesn't fall into the quota for a regular document
+    document.value = userdata;
+    document.info.cas = mcbp::cas::Wildcard;
+    document.info.datatype = cb::mcbp::Datatype::Raw;
+
+    if (compressedSource) {
+        document.compress();
+    }
+
+    int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    conn.mutate(document, 0, MutationType::Set);
+    EXPECT_EQ(successCount + statResps() + 1,
+              getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
+
+    // Add a system xattr that exceeds the 1MB quota limit
+    xattrVal.assign("{\"eg\":\"");
+    xattrVal.append(std::string(1048586, 'a'));
+    xattrVal.append(std::string("\"}"));
+
+    setBodyAndXattr(userdata,
+                    {{sysXattr, xattrVal}});
+
+    // Add a document value that is exactly the size of the
+    // maximum allowed size. This will fail because this will
+    // exceed the limit of maximum allowed doc size + system
+    // xattrs size
+    userdata.assign(GetTestBucket().getMaximumDocSize(), 'a');
+
+    document.value = userdata;
+    document.info.cas = mcbp::cas::Wildcard;
+    document.info.datatype = cb::mcbp::Datatype::Raw;
+
+    if (compressedSource) {
+        document.compress();
+    }
+
+    e2bigCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_E2BIG);
+    try {
+        conn.mutate(document, 0, MutationType::Set);
+        FAIL() << "It should not be possible to add a document whose size is "
+                "greater than the max item size";
+    } catch (ConnectionError& error) {
+        EXPECT_TRUE(error.isTooBig()) << error.what();
+        // Check that we correctly increment the status counter stat
+        EXPECT_EQ(e2bigCount + 1,
+                  getResponseCount(PROTOCOL_BINARY_RESPONSE_E2BIG));
+    }
 }
 
 void GetSetTest::verifyData(MemcachedConnection& conn,
@@ -1024,4 +1140,27 @@ TEST_P(GetSetTest, ServerDetectsNonJSONCompressed) {
 // Test that memcached correctly stores documents as uncompressed
 TEST_P(GetSetTest, ServerStoresUncompressed) {
     doTestServerStoresUncompressed(/*compressedSource*/true);
+}
+
+// Test that memcached rejects documents of size greater than
+// max item size
+TEST_P(GetSetTest, ServerRejectsLargeSize) {
+    doTestServerRejectsLargeSize(/*compressedSource*/false);
+}
+// Test that memcached rejects compressed documents whose
+// uncompressed size is greater than max item size
+TEST_P(GetSetTest, ServerRejectsLargeSizeCompressed) {
+    doTestServerRejectsLargeSize(/*compressedSource*/true);
+}
+
+// Test that memcached rejects documents with xattrs whose size
+// is greater than max item size
+TEST_P(GetSetTest, ServerRejectsLargeSizeWithXattr) {
+    doTestServerRejectsLargeSizeWithXattr(/*compressedSource*/false);
+}
+
+// Test that memcached rejects compressed documents with xattrs of size
+// greater than maximum item size
+TEST_P(GetSetTest, ServerRejectsLargeSizeWithXattrCompressed) {
+    doTestServerRejectsLargeSizeWithXattr(/*compressedSource*/true);
 }

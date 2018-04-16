@@ -131,6 +131,14 @@ ENGINE_ERROR_CODE MutationCommandContext::validateInput() {
                 return ENGINE_EINVAL;
             }
 
+            /* Check if the size of the decompressed value is greater than
+             * the maximum item size supported by the underlying engine
+             */
+            auto& bucket = connection.getBucket();
+            if (decompressed_value.size() > bucket.max_document_size) {
+                return ENGINE_E2BIG;
+            }
+
             setDatatypeJSONFromValue(decompressed_value, datatype);
 
             const auto mode = bucket_get_compression_mode(cookie);

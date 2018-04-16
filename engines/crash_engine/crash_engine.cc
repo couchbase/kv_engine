@@ -250,6 +250,10 @@ static bool is_xattr_enabled(gsl::not_null<ENGINE_HANDLE*> handle) {
     return true;
 }
 
+static size_t get_max_item_size(gsl::not_null<ENGINE_HANDLE*> handle) {
+    return default_max_item_size;
+}
+
 ENGINE_ERROR_CODE create_instance(uint64_t interface,
                                   GET_SERVER_API gsa,
                                   ENGINE_HANDLE **handle)
@@ -287,6 +291,7 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
     engine->engine.get_item_info = get_item_info;
     engine->engine.set_item_info = set_item_info;
     engine->engine.isXattrEnabled = is_xattr_enabled;
+    engine->engine.getMaxItemSize = get_max_item_size;
     *handle = reinterpret_cast<ENGINE_HANDLE*>(&engine->engine);
     return ENGINE_SUCCESS;
 }

@@ -175,6 +175,8 @@ static BucketCompressionMode get_compression_mode(
 
 static float get_min_compression_ratio(gsl::not_null<ENGINE_HANDLE*> handle);
 
+static size_t get_max_item_size(gsl::not_null<ENGINE_HANDLE*> handle);
+
 /**
  * Given that default_engine is implemented in C and not C++ we don't have
  * a constructor for the struct to initialize the members to some sane
@@ -221,6 +223,7 @@ void default_engine_constructor(struct default_engine* engine, bucket_id_t id)
     engine->engine.set_item_info = set_item_info;
     engine->engine.isXattrEnabled = is_xattr_supported;
     engine->engine.getCompressionMode = get_compression_mode;
+    engine->engine.getMaxItemSize = get_max_item_size;
     engine->engine.getMinCompressionRatio = get_min_compression_ratio;
     engine->config.verbose = 0;
     engine->config.oldest_live = 0;
@@ -1160,4 +1163,9 @@ static BucketCompressionMode get_compression_mode(
 static float get_min_compression_ratio(
                              gsl::not_null<ENGINE_HANDLE*> handle) {
     return get_handle(handle)->config.min_compression_ratio;
+}
+
+static size_t get_max_item_size(
+                             gsl::not_null<ENGINE_HANDLE*> handle) {
+    return get_handle(handle)->config.item_size_max;
 }

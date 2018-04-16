@@ -246,6 +246,11 @@ cb::EngineErrorItemPair bucket_get_locked(Cookie& cookie,
     return ret;
 }
 
+size_t bucket_get_max_item_size(Cookie& cookie) {
+    auto& c = cookie.getConnection();
+    return c.getBucketEngine()->getMaxItemSize(c.getBucketEngineAsV0());
+}
+
 ENGINE_ERROR_CODE bucket_unlock(Cookie& cookie,
                                 const DocKey& key,
                                 uint16_t vbucket,

@@ -141,6 +141,9 @@ enum class BucketCompressionMode : uint8_t {
 /* The default minimum compression ratio */
 static const float default_min_compression_ratio = 1.2f;
 
+/* The default maximum size for a value */
+static const size_t default_max_item_size = 20 * 1024 * 1024;
+
 /**
  * Definition of the first version of the engine interface
  */
@@ -578,6 +581,12 @@ typedef struct engine_interface_v1 {
      * @returns the compression mode of the bucket
      */
     BucketCompressionMode (*getCompressionMode)(gsl::not_null<ENGINE_HANDLE*> handle);
+
+    /**
+     * @param handle the engine handle
+     * @returns the maximum item size supported by the bucket
+     */
+    size_t (*getMaxItemSize)(gsl::not_null<ENGINE_HANDLE*> handle);
 
     /**
      * @param handle the engine handle

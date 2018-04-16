@@ -299,6 +299,11 @@ static cb::EngineErrorItemPair EvpGetLocked(
     return cb::makeEngineErrorItemPair(cb::engine_errc(ret), itm, handle);
 }
 
+static size_t EvpGetMaxItemSize(
+        gsl::not_null<ENGINE_HANDLE*> handle) {
+    return acquireEngine(handle)->getMaxItemSize();
+}
+
 static ENGINE_ERROR_CODE EvpUnlock(gsl::not_null<ENGINE_HANDLE*> handle,
                                    gsl::not_null<const void*> cookie,
                                    const DocKey& key,
@@ -1880,6 +1885,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
     ENGINE_HANDLE_V1::collections.get_manifest = EvpCollectionsGetManifest;
     ENGINE_HANDLE_V1::isXattrEnabled = EvpIsXattrEnabled;
     ENGINE_HANDLE_V1::getCompressionMode = EvpGetCompressionMode;
+    ENGINE_HANDLE_V1::getMaxItemSize = EvpGetMaxItemSize;
     ENGINE_HANDLE_V1::getMinCompressionRatio = EvpGetMinCompressionRatio;
 
     serverApi = getServerApiFunc();
