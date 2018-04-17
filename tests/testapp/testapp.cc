@@ -293,6 +293,8 @@ uint16_t TestappTest::sasl_auth(const char *username, const char *password) {
     EXPECT_EQ(CBSASL_OK, err);
     if (::testing::Test::HasFailure()) {
         // Can't continue if we didn't suceed in starting SASL auth.
+        cb_free(context.secret);
+        cbsasl_dispose(&client);
         return PROTOCOL_BINARY_RESPONSE_EINTERNAL;
     }
 
