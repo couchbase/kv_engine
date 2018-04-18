@@ -60,7 +60,33 @@ void SessionTracingScopeTimer(benchmark::State& state) {
     }
 }
 
+// Benchmark the performance of encoding a duration into a 2-byte compressed
+// format.
+void SessionTracingEncode(benchmark::State& state) {
+    auto* cookie = create_mock_cookie();
+
+    // Record a single span so we have something to encode. Don't care what
+    // the value is, but want it runtime-calculated so we don't constant-fold
+    // away the encoding below.
+    auto& traceable = mock_get_traceable(cookie);
+    traceable.setTracingEnabled(true);
+    {
+        ScopeTimer1<TracerStopwatch> timer(
+                TracerStopwatch(cookie, cb::tracing::TraceCode::REQUEST));
+    }
+
+    while (state.KeepRunning()) {
+        // Unroll 5x to amortise KeepRunning() overhead.
+        benchmark::DoNotOptimize(traceable.getTracer().getEncodedMicros());
+        benchmark::DoNotOptimize(traceable.getTracer().getEncodedMicros());
+        benchmark::DoNotOptimize(traceable.getTracer().getEncodedMicros());
+        benchmark::DoNotOptimize(traceable.getTracer().getEncodedMicros());
+        benchmark::DoNotOptimize(traceable.getTracer().getEncodedMicros());
+    }
+}
+
 BENCHMARK(SessionTracingRecordMutationSpan);
 BENCHMARK(SessionTracingScopeTimer);
+BENCHMARK(SessionTracingEncode);
 
 BENCHMARK_MAIN()
