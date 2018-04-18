@@ -1,0 +1,56 @@
+#!/usr/bin/env python
+
+#   Copyright 2018 Couchbase, Inc
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
+#
+
+"""Parses a memcached log file for 'Slow op' warnings, and converts
+into a Google Trace Event Format file
+(https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU/preview#heading=h.yr4qxyxotyw).
+
+Usage:
+    cat memcached.log | slow_ops_2_gtrace.py > trace.json
+    <open Chrome -> chrome://tracing -> Load 'trace.json'
+"""
+
+import fileinput
+import json
+import re
+
+print '['
+first = True
+for line in fileinput.input():
+    m = re.search("Slow operation. (.*)", line)
+    if m:
+        slow_op = json.loads(m.group(1))
+
+        # Set the common fields for all events for this operation
+        common = dict()
+        common['cat'] = slow_op['command']
+        common['ph'] = 'X'
+        common['pid'] = slow_op['cid']
+
+        # Build a trace event from each span in the slow op.
+        for span in slow_op['trace'].split():
+            (name, value) = span.split('=')
+            (start_us, dur) = value.split(':')
+            event = common
+            event['name'] = name
+            event['ts'] = int(start_us) / 1000
+            event['dur'] = dur
+            if not first:
+                print ',',
+            first = False
+            print json.dumps(event)
+print ']'
