@@ -43,7 +43,8 @@ public:
     std::chrono::microseconds maxExpectedDuration() override;
 
     // Request that the temFreqDecayerTask is woken up to run
-    void wakeup();
+    // Made virtual so can be overridden in mock version used in testing.
+    virtual void wakeup();
 
 protected:
     // bool used to indicate whether the task's visitor has finished visiting

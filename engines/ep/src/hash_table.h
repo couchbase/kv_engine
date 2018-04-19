@@ -399,6 +399,15 @@ public:
     }
 
     /**
+     * Gets a reference to the frequencyCounterSaturated function.
+     * Currently used for testing purposes.
+     *
+     */
+    std::function<void()>& getFreqSaturatedCallback() {
+        return frequencyCounterSaturated;
+    }
+
+    /**
      * Remove in case of a temporary item
      *
      * @param hbl Hash table lock
@@ -838,7 +847,13 @@ private:
 
     // Used to hold the function to invoke when a storedValue's frequency
     // counter becomes saturated.
-    std::function<void()> frequencyCounterSaturated;
+    // It is initialised to a function that does nothing.  This ensure
+    // that if we call the function it will not cause an exception to
+    // be raised.  However this is a "safety net" because when creating a
+    // vbucket either via KVBucket::setVBucketState_UNLOCKED or
+    // Warmup::createVBuckets we should set the function to the task
+    // responsible for waking the ItemFreqDecayer task.
+    std::function<void()> frequencyCounterSaturated{[]() {}};
 
     int getBucketForHash(int h) {
         return abs(h % static_cast<int>(size));
