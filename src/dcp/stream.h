@@ -139,6 +139,8 @@ public:
     /// @Returns true if state_ is InMemory
     bool isInMemory() const;
 
+    bool isInTakeoverSend() const;
+
     void clear() {
         LockHolder lh(streamMutex);
         clear_UNLOCKED();

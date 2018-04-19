@@ -70,6 +70,10 @@ bool Stream::isInMemory() const {
     return state_.load() == STREAM_IN_MEMORY;
 }
 
+bool Stream::isInTakeoverSend() const {
+    return state_.load() == STREAM_TAKEOVER_SEND;
+}
+
 void Stream::clear_UNLOCKED() {
     while (!readyQ.empty()) {
         DcpResponse* resp = readyQ.front();
