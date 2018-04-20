@@ -103,7 +103,7 @@ protected:
         vb0 = engine->getVBucket(0);
         EXPECT_TRUE(vb0) << "Failed to get valid VBucket object for id 0";
         EXPECT_FALSE(vb0->checkpointManager.registerCursor(
-                                                           producer->getName(),
+                                                           static_cast<ActiveStream*>(stream.get())->getCursorName(),
                                                            1, false,
                                                            MustSendCheckpointEnd::NO))
             << "Found an existing TAP cursor when attempting to register ours";

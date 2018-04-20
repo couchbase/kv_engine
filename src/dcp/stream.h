@@ -257,6 +257,11 @@ public:
        in-memory to backfilling */
     void handleSlowStream();
 
+    /// @return a const reference to the streams cursor name
+    const std::string& getCursorName() const {
+        return cursorName;
+    }
+
 protected:
     // Returns the outstanding items for the stream's checkpoint cursor.
     void getOutstandingItems(RCPtr<VBucket> &vb, std::vector<queued_item> &items);
@@ -380,6 +385,17 @@ private:
        extracted for given checkpoint cursor, and is unset after all retrieved
        items are added to the readyQ */
     AtomicValue<bool> chkptItemsExtractionInProgress;
+
+    /**
+     * The name which uniquely identifies this stream's checkpoint cursor
+     */
+    std::string cursorName;
+
+    /**
+     * To ensure each stream gets a unique cursorName, we maintain a 'uid'
+     * which is really just an incrementing uint64
+     */
+    static std::atomic<uint64_t> cursorUID;
 
 };
 
