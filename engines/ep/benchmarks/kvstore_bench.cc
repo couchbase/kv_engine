@@ -87,6 +87,7 @@ protected:
         Configuration config;
         uint16_t shardId = 0;
         config.setDbname("KVStoreBench.db");
+        config.setMaxSize(536870912);
         switch (storage) {
         case COUCHSTORE:
             state.SetLabel("Couchstore");
