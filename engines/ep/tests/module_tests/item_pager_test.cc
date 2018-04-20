@@ -567,6 +567,46 @@ TEST_P(STItemPagerTest, isEligible) {
 }
 
 /**
+ * MB-29333:  Test that if a vbucket contains a single document with an
+ * execution frequency of ItemEviction::initialFreqCount, the document will
+ * be evicted if the paging visitor is run a sufficient number of times.
+ */
+TEST_P(STItemPagerTest, decayByOne) {
+    const std::string value(512, 'x'); // 512B value to use for documents.
+    auto key = makeStoredDocKey("xxx_0");
+    auto item = make_item(vbid, key, value, time_t(0));
+    storeItem(item);
+
+    std::shared_ptr<std::atomic<bool>> available;
+    std::atomic<item_pager_phase> phase{ACTIVE_AND_PENDING_ONLY};
+    bool isEphemeral = std::get<0>(GetParam()) == "ephemeral";
+    std::unique_ptr<MockPagingVisitor> pv =
+            std::make_unique<MockPagingVisitor>(*engine->getKVBucket(),
+                                                engine->getEpStats(),
+                                                10.0,
+                                                available,
+                                                ITEM_PAGER,
+                                                false,
+                                                0.5,
+                                                VBucketFilter(),
+                                                &phase,
+                                                isEphemeral);
+
+    pv->setCurrentBucket(engine->getKVBucket()->getVBucket(vbid));
+    if (std::get<0>(GetParam()) == "persistent") {
+        getEPBucket().flushVBucket(vbid);
+    }
+    int iterationCount = 0;
+    while ((pv->getEjected() == 0) &&
+           iterationCount < ItemEviction::initialFreqCount) {
+        VBucketPtr vb = store->getVBucket(vbid);
+        vb->ht.visit(*pv);
+        iterationCount++;
+    }
+    EXPECT_EQ(1, pv->getEjected());
+}
+
+/**
  * Test fixture for Ephemeral-only item pager tests.
  */
 class STEphemeralItemPagerTest : public STItemPagerTest {
