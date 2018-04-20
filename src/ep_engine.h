@@ -1025,6 +1025,7 @@ protected:
                               int& keyOffset);
 
     SERVER_HANDLE_V1 *serverApi;
+    // epstore is an owning pointer.
     EventuallyPersistentStore *epstore;
     WorkLoadPolicy *workload;
     bucket_priority_t workloadPriority;
