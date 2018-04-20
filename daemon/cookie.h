@@ -101,7 +101,7 @@ public:
         return event_id;
     }
 
-    void setEventId(std::string& uuid) {
+    void setEventId(std::string uuid) {
         event_id = std::move(uuid);
     }
 

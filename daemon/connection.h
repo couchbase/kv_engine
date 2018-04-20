@@ -27,7 +27,8 @@
 #include "task.h"
 
 #include <cJSON.h>
-#include <cbsasl/cbsasl.h>
+#include <cbsasl/client.h>
+#include <cbsasl/server.h>
 #include <daemon/protocol/mcbp/command_context.h>
 #include <memcached/openssl.h>
 #include <memcached/rbac.h>
@@ -229,8 +230,8 @@ public:
         return domain;
     }
 
-    cbsasl_conn_t* getSaslConn() const {
-        return sasl_conn.get();
+    cb::sasl::server::ServerContext& getSaslConn() {
+        return sasl_conn;
     }
 
     /**
@@ -1009,7 +1010,7 @@ protected:
     /**
      * The SASL object used to do sasl authentication
      */
-    unique_cbsasl_conn_t sasl_conn;
+    cb::sasl::server::ServerContext sasl_conn;
 
     /** Is this a system internal connection */
     bool internal{false};

@@ -18,32 +18,34 @@
 
 #include <cJSON_utils.h>
 #include <cbcrypto/cbcrypto.h>
+#include <cbsasl/mechanism.h>
+#include <cbsasl/pwdb.h>
 #include <cstdint>
 #include <map>
 #include <string>
 #include <vector>
-#include "cbsasl_internal.h"
 
 namespace cb {
 namespace sasl {
+namespace pwdb {
 
 class UserFactory;
 
-class User {
+class CBSASL_PUBLIC_API User {
 public:
     /**
      * To allow multiple authentication schemes we need to store
      * some metadata for each of the different scheme.
      */
-    class PasswordMetaData {
+    class CBSASL_PUBLIC_API PasswordMetaData {
     public:
         /**
          * Create a new instance of the PasswordMetaData
          */
         PasswordMetaData()
-            : iteration_count(0) {
+            : iteration_count(0){
 
-        };
+              };
 
         /**
          * Create a new instance of the PasswordMetaData with
@@ -102,18 +104,18 @@ public:
     };
 
     /**
-      * Create an empty user object
-      *
-      * A dummy user object is used by SCRAM sasl authentication
-      * so that the "attacking" client would need to perform the
-      * full authentication step in order to authenticate towards
-      * the server instead of returning "no such user" if we failed
-      * to look up the user (to respond with the SALT and iteration
-      * count).
-      *
-      * @param unm the username for the object (potentially empty)
-      * @param dmy should we create a dummy object or not
-      */
+     * Create an empty user object
+     *
+     * A dummy user object is used by SCRAM sasl authentication
+     * so that the "attacking" client would need to perform the
+     * full authentication step in order to authenticate towards
+     * the server instead of returning "no such user" if we failed
+     * to look up the user (to respond with the SALT and iteration
+     * count).
+     *
+     * @param unm the username for the object (potentially empty)
+     * @param dmy should we create a dummy object or not
+     */
     explicit User(std::string unm = "", const bool dmy = true)
         : username(std::move(unm)), dummy(dmy) {
     }
@@ -126,8 +128,8 @@ public:
     }
 
     /**
-      * Is this a dummy object or not?
-      */
+     * Is this a dummy object or not?
+     */
     bool isDummy() const {
         return dummy;
     }
@@ -168,7 +170,7 @@ protected:
  * The UserFactory class is used to generate a User Object from a
  * username and plain text password.
  */
-class UserFactory {
+class CBSASL_PUBLIC_API UserFactory {
 public:
     /**
      * Construct a new user object
@@ -227,6 +229,9 @@ public:
      * @param count the new iteration count to use
      */
     static void setDefaultHmacIterationCount(int count);
+
+    static void setScramshaFallbackSalt(const std::string& salt);
 };
-}
-}
+} // namespace pwdb
+} // namespace sasl
+} // namespace cb

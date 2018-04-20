@@ -16,6 +16,8 @@
  */
 
 #include "check_password.h"
+
+#include <cbsasl/logging.h>
 #include <cbsasl/util.h>
 #include <utilities/logtags.h>
 #include <iterator>
@@ -33,21 +35,17 @@ static const int SALT_SIZE = 16;
 static const int HASH_SIZE = 20;
 static const std::string::size_type PASSWORD_SIZE = 36;
 
-cbsasl_error_t check_password(cbsasl_conn_t* conn,
-                              const cb::sasl::User& user,
-                              const std::string& password) {
+Error check_password(Context* context,
+                     const cb::sasl::pwdb::User& user,
+                     const std::string& password) {
     const auto storedPassword = user.getPassword(Mechanism::PLAIN).getPassword();
     const auto size = storedPassword.size();
     if (size != PASSWORD_SIZE) {
         std::string message{
                 "cb::cbsasl::check_password: Invalid password entry for [" +
                 cb::logtags::tagUserData(user.getUsername()) + "]"};
-        if (conn) {
-            logging::log(*conn, logging::Level::Error, message);
-        } else {
-            logging::log(logging::Level::Error, message);
-        }
-        return CBSASL_FAIL;
+        logging::log(context, logging::Level::Error, message);
+        return Error::FAIL;
     }
 
 
@@ -78,9 +76,9 @@ cbsasl_error_t check_password(cbsasl_conn_t* conn,
     }
 
     if (same) {
-        return CBSASL_OK;
+        return Error::OK;
     }
-    return CBSASL_PWERR;
+    return Error::PASSWORD_ERROR;
 }
 
 }

@@ -1,5 +1,5 @@
 /*
- *     Copyright 2015 Couchbase, Inc.
+ *     Copyright 2018 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -15,37 +15,56 @@
  */
 #pragma once
 
-#include "cbsasl/cbsasl.h"
-#include "cbsasl/cbsasl_internal.h"
-#include "cbsasl/user.h"
+#include <cbsasl/client.h>
+#include <cbsasl/server.h>
 #include <vector>
 
-#define MECH_NAME_PLAIN "PLAIN"
+namespace cb {
+namespace sasl {
+namespace mechanism {
+namespace plain {
 
-class PlainServerBackend : public MechanismBackend {
+class ServerBackend : public server::MechanismBackend {
 public:
-    PlainServerBackend(cbsasl_conn_t& conn)
-        : MechanismBackend(MECH_NAME_PLAIN, conn) {
+    explicit ServerBackend(server::ServerContext& ctx)
+        : MechanismBackend(ctx){};
 
+    std::pair<Error, const_char_buffer> start(
+            cb::const_char_buffer input) override;
+    std::pair<Error, const_char_buffer> step(
+            cb::const_char_buffer input) override {
+        throw std::logic_error(
+                "cb::sasl::mechanism::plain::ServerBackend::step(): Plain auth "
+                "should not call step");
+    }
+    std::string getName() const override {
+        return "PLAIN";
     }
 
-    virtual cbsasl_error_t start(const char* input,
-                                 unsigned inputlen,
-                                 const char** output,
-                                 unsigned* outputlen) override;
+protected:
+    bool try_legacy_user(const std::string& password);
 };
 
-class PlainClientBackend : public MechanismBackend {
+class ClientBackend : public client::MechanismBackend {
 public:
-    PlainClientBackend(cbsasl_conn_t& conn)
-        : MechanismBackend(MECH_NAME_PLAIN, conn) {
-
+    ClientBackend(client::GetUsernameCallback& user_cb,
+                  client::GetPasswordCallback& password_cb,
+                  client::ClientContext& ctx)
+        : MechanismBackend(user_cb, password_cb, ctx) {
     }
 
-    virtual cbsasl_error_t start(const char* input,
-                                 unsigned inputlen,
-                                 const char** output,
-                                 unsigned* outputlen) override;
+    std::string getName() const override {
+        return "PLAIN";
+    }
+
+    std::pair<Error, const_char_buffer> start() override;
+
+    std::pair<Error, const_char_buffer> step(
+            cb::const_char_buffer input) override {
+        throw std::logic_error(
+                "cb::sasl::mechanism::plain::ClientBackend::step(): Plain auth "
+                "should not call step");
+    }
 
 private:
     /**
@@ -54,3 +73,8 @@ private:
      */
     std::vector<char> buffer;
 };
+
+} // namespace plain
+} // namespace mechanism
+} // namespace sasl
+} // namespace cb

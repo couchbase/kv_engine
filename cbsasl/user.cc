@@ -17,7 +17,6 @@
 
 #include "config.h"
 #include "user.h"
-#include "cbsasl_internal.h"
 
 #include <platform/base64.h>
 #include <platform/random.h>
@@ -28,6 +27,10 @@
 #include <mutex>
 #include <stdexcept>
 #include <string>
+
+namespace cb {
+namespace sasl {
+namespace pwdb {
 
 std::atomic<int> IterationCount(4096);
 
@@ -50,10 +53,6 @@ protected:
     std::vector<uint8_t> data;
 } scramsha_fallback_salt;
 
-void cb::sasl::internal::set_scramsha_fallback_salt(const std::string& salt) {
-    scramsha_fallback_salt.set(salt);
-}
-
 /**
  * Generate a salt and store it base64 encoded into the salt
  */
@@ -66,8 +65,8 @@ static void generateSalt(std::vector<uint8_t>& bytes, std::string& salt) {
 
     using Couchbase::Base64::encode;
 
-    salt = encode(std::string(reinterpret_cast<char*>(bytes.data()),
-                              bytes.size()));
+    salt = encode(
+            std::string(reinterpret_cast<char*>(bytes.data()), bytes.size()));
 }
 
 ScamShaFallbackSalt::ScamShaFallbackSalt()
@@ -76,25 +75,15 @@ ScamShaFallbackSalt::ScamShaFallbackSalt()
     generateSalt(data, ignore);
 }
 
-cb::sasl::User cb::sasl::UserFactory::create(const std::string& unm,
-                                               const std::string& passwd) {
+User UserFactory::create(const std::string& unm, const std::string& passwd) {
     User ret{unm, false};
 
     struct {
         cb::crypto::Algorithm algoritm;
         Mechanism mech;
-    } algo_info[] = {
-        {
-            cb::crypto::Algorithm::SHA1,
-            Mechanism::SCRAM_SHA1
-        }, {
-            cb::crypto::Algorithm::SHA256,
-            Mechanism::SCRAM_SHA256
-        }, {
-            cb::crypto::Algorithm::SHA512,
-            Mechanism::SCRAM_SHA512
-        }
-    };
+    } algo_info[] = {{cb::crypto::Algorithm::SHA1, Mechanism::SCRAM_SHA1},
+                     {cb::crypto::Algorithm::SHA256, Mechanism::SCRAM_SHA256},
+                     {cb::crypto::Algorithm::SHA512, Mechanism::SCRAM_SHA512}};
 
     // The format of the plain password encoding is that we're appending the
     // generated hmac to the salt (which should be 16 bytes). This makes
@@ -123,8 +112,7 @@ cb::sasl::User cb::sasl::UserFactory::create(const std::string& unm,
     return ret;
 }
 
-cb::sasl::User cb::sasl::UserFactory::createDummy(const std::string& unm,
-                                                    const Mechanism& mech) {
+User UserFactory::createDummy(const std::string& unm, const Mechanism& mech) {
     User ret{unm};
 
     // Generate a random password
@@ -142,7 +130,6 @@ cb::sasl::User cb::sasl::UserFactory::createDummy(const std::string& unm,
         salt.resize(cb::crypto::SHA1_DIGEST_SIZE);
         break;
     case Mechanism::PLAIN:
-    case Mechanism::UNKNOWN:
         throw std::logic_error(
                 "cb::cbsasl::UserFactory::createDummy invalid algorithm");
     }
@@ -160,21 +147,25 @@ cb::sasl::User cb::sasl::UserFactory::createDummy(const std::string& unm,
     return ret;
 }
 
-cb::sasl::User cb::sasl::UserFactory::create(const cJSON* obj) {
+User UserFactory::create(const cJSON* obj) {
     if (obj == nullptr) {
-        throw std::runtime_error("cb::cbsasl::UserFactory::create: obj cannot be null");
+        throw std::runtime_error(
+                "cb::cbsasl::UserFactory::create: obj cannot be null");
     }
 
     if (obj->type != cJSON_Object) {
-        throw std::runtime_error("cb::cbsasl::UserFactory::create: Invalid object type");
+        throw std::runtime_error(
+                "cb::cbsasl::UserFactory::create: Invalid object type");
     }
 
     auto* o = cJSON_GetObjectItem(const_cast<cJSON*>(obj), "n");
     if (o == nullptr) {
-        throw std::runtime_error("cb::cbsasl::UserFactory::create: missing mandatory label 'n'");
+        throw std::runtime_error(
+                "cb::cbsasl::UserFactory::create: missing mandatory label 'n'");
     }
     if (o->type != cJSON_String) {
-        throw std::runtime_error("cb::cbsasl::UserFactory::create: 'n' must be a string");
+        throw std::runtime_error(
+                "cb::cbsasl::UserFactory::create: 'n' must be a string");
     }
 
     User ret{o->valuestring, false};
@@ -193,44 +184,29 @@ cb::sasl::User cb::sasl::UserFactory::create(const cJSON* obj) {
             User::PasswordMetaData pd(o);
             ret.password[Mechanism::SCRAM_SHA1] = pd;
         } else if (label == "plain") {
-            User::PasswordMetaData pd(Couchbase::Base64::decode(o->valuestring));
+            User::PasswordMetaData pd(
+                    Couchbase::Base64::decode(o->valuestring));
             ret.password[Mechanism::PLAIN] = pd;
         } else {
-            throw std::runtime_error("cb::cbsasl::UserFactory::create: Invalid "
-                                         "label \"" + label + "\" specified");
+            throw std::runtime_error(
+                    "cb::cbsasl::UserFactory::create: Invalid "
+                    "label \"" +
+                    label + "\" specified");
         }
     }
 
     return ret;
 }
 
-void cb::sasl::UserFactory::setDefaultHmacIterationCount(int count) {
+void UserFactory::setDefaultHmacIterationCount(int count) {
     IterationCount.store(count);
 }
 
-void cbsasl_set_hmac_iteration_count(cbsasl_getopt_fn getopt_fn,
-                                     void* context) {
-
-    const char* result = nullptr;
-    unsigned int result_len;
-
-    if (getopt_fn(context, nullptr, "hmac iteration count", &result,
-                  &result_len) == CBSASL_OK) {
-        if (result != nullptr) {
-            std::string val(result, result_len);
-            try {
-                IterationCount.store(std::stoi(val));
-            } catch (...) {
-                logging::log(logging::Level::Error,
-                             "Failed to update HMAC iteration count");
-            }
-        }
-    }
+void UserFactory::setScramshaFallbackSalt(const std::string& salt) {
+    scramsha_fallback_salt.set(salt);
 }
 
-void cb::sasl::User::generateSecrets(const Mechanism& mech,
-                                      const std::string& passwd) {
-
+void User::generateSecrets(const Mechanism& mech, const std::string& passwd) {
     std::vector<uint8_t> salt;
     std::string encodedSalt;
     cb::crypto::Algorithm algorithm = cb::crypto::Algorithm::MD5;
@@ -279,8 +255,8 @@ void cb::sasl::User::generateSecrets(const Mechanism& mech,
         algorithm = cb::crypto::Algorithm::SHA1;
         break;
     case Mechanism::PLAIN:
-    case Mechanism::UNKNOWN:
-        throw std::logic_error("cb::cbsasl::User::generateSecrets invalid algorithm");
+        throw std::logic_error(
+                "cb::cbsasl::User::generateSecrets invalid algorithm");
     }
 
     if (algorithm == cb::crypto::Algorithm::MD5) {
@@ -293,7 +269,8 @@ void cb::sasl::User::generateSecrets(const Mechanism& mech,
     }
 
     if (salt.empty()) {
-        throw std::logic_error("cb::cbsasl::User::generateSecrets invalid algorithm");
+        throw std::logic_error(
+                "cb::cbsasl::User::generateSecrets invalid algorithm");
     }
 
     if (dummy) {
@@ -313,10 +290,11 @@ void cb::sasl::User::generateSecrets(const Mechanism& mech,
     password[mech] = PasswordMetaData(digest, encodedSalt, IterationCount);
 }
 
-cb::sasl::User::PasswordMetaData::PasswordMetaData(cJSON* obj) {
+User::PasswordMetaData::PasswordMetaData(cJSON* obj) {
     if (obj->type != cJSON_Object) {
-        throw std::runtime_error("cb::cbsasl::User::PasswordMetaData: invalid"
-                                     " object type");
+        throw std::runtime_error(
+                "cb::cbsasl::User::PasswordMetaData: invalid"
+                " object type");
     }
 
     auto* h = cJSON_GetObjectItem(obj, "h");
@@ -324,28 +302,33 @@ cb::sasl::User::PasswordMetaData::PasswordMetaData(cJSON* obj) {
     auto* i = cJSON_GetObjectItem(obj, "i");
 
     if (h == nullptr || s == nullptr || i == nullptr) {
-        throw std::runtime_error("cb::cbsasl::User::PasswordMetaData: missing "
-                                     "mandatory attributes");
+        throw std::runtime_error(
+                "cb::cbsasl::User::PasswordMetaData: missing "
+                "mandatory attributes");
     }
 
     if (h->type != cJSON_String) {
-        throw std::runtime_error("cb::cbsasl::User::PasswordMetaData: hash"
-                                     " should be a string");
+        throw std::runtime_error(
+                "cb::cbsasl::User::PasswordMetaData: hash"
+                " should be a string");
     }
 
     if (s->type != cJSON_String) {
-        throw std::runtime_error("cb::cbsasl::User::PasswordMetaData: salt"
-                                     " should be a string");
+        throw std::runtime_error(
+                "cb::cbsasl::User::PasswordMetaData: salt"
+                " should be a string");
     }
 
     if (i->type != cJSON_Number) {
-        throw std::runtime_error("cb::cbsasl::User::PasswordMetaData: iteration"
-                                     " count should be a number");
+        throw std::runtime_error(
+                "cb::cbsasl::User::PasswordMetaData: iteration"
+                " count should be a number");
     }
 
     if (cJSON_GetArraySize(obj) != 3) {
-        throw std::runtime_error("cb::cbsasl::User::PasswordMetaData: invalid "
-                                     "number of labels specified");
+        throw std::runtime_error(
+                "cb::cbsasl::User::PasswordMetaData: invalid "
+                "number of labels specified");
     }
 
     salt.assign(s->valuestring);
@@ -354,12 +337,13 @@ cb::sasl::User::PasswordMetaData::PasswordMetaData(cJSON* obj) {
     password.assign(Couchbase::Base64::decode(h->valuestring));
     iteration_count = gsl::narrow<int>(i->valueint);
     if (iteration_count < 0) {
-        throw std::runtime_error("cb::cbsasl::User::PasswordMetaData: iteration "
-                                     "count must be positive");
+        throw std::runtime_error(
+                "cb::cbsasl::User::PasswordMetaData: iteration "
+                "count must be positive");
     }
 }
 
-cJSON* cb::sasl::User::PasswordMetaData::to_json() const {
+cJSON* User::PasswordMetaData::to_json() const {
     auto* ret = cJSON_CreateObject();
     std::string s((char*)password.data(), password.size());
     cJSON_AddStringToObject(ret, "h", Couchbase::Base64::encode(s).c_str());
@@ -369,7 +353,7 @@ cJSON* cb::sasl::User::PasswordMetaData::to_json() const {
     return ret;
 }
 
-unique_cJSON_ptr cb::sasl::User::to_json() const {
+unique_cJSON_ptr User::to_json() const {
     auto* ret = cJSON_CreateObject();
 
     cJSON_AddStringToObject(ret, "n", username.c_str());
@@ -377,8 +361,8 @@ unique_cJSON_ptr cb::sasl::User::to_json() const {
         auto* obj = e.second.to_json();
         switch (e.first) {
         case Mechanism::PLAIN:
-            cJSON_AddStringToObject(ret, "plain",
-                                    cJSON_GetObjectItem(obj, "h")->valuestring);
+            cJSON_AddStringToObject(
+                    ret, "plain", cJSON_GetObjectItem(obj, "h")->valuestring);
             cJSON_Delete(obj);
             break;
 
@@ -394,26 +378,29 @@ unique_cJSON_ptr cb::sasl::User::to_json() const {
             break;
         default:
             throw std::runtime_error(
-                "cb::cbsasl::User::toJSON(): Unsupported mech");
+                    "cb::cbsasl::User::toJSON(): Unsupported mech");
         }
     }
 
     return unique_cJSON_ptr(ret);
 }
 
-std::string cb::sasl::User::to_string() const {
+std::string User::to_string() const {
     return ::to_string(to_json(), false);
 }
 
-const cb::sasl::User::PasswordMetaData& cb::sasl::User::getPassword(
-    const Mechanism& mech) const {
-
+const User::PasswordMetaData& User::getPassword(const Mechanism& mech) const {
     const auto iter = password.find(mech);
 
     if (iter == password.end()) {
-        throw std::invalid_argument("cb::cbsasl::User::getPassword: requested "
-                                        "mechanism not available");
+        throw std::invalid_argument(
+                "cb::cbsasl::User::getPassword: requested "
+                "mechanism not available");
     } else {
         return iter->second;
     }
 }
+
+} // namespace pwdb
+} // namespace sasl
+} // namespace cb

@@ -1,5 +1,6 @@
+/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2016 Couchbase, Inc.
+ *     Copyright 2018 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -13,18 +14,19 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#pragma once
 
-#include <string>
-#include "user.h"
+#include <cbsasl/context.h>
+#include <platform/uuid.h>
 
-/**
- * Searches for a user entry for the specified user.
- *
- * @param user the username to search for
- * @param user updated with the user information if found
- * @return true if user exists, false otherwise
- */
-bool find_user(const std::string& username, cb::sasl::pwdb::User& user);
+namespace cb {
+namespace sasl {
 
-cb::sasl::Error load_user_db();
+std::string Context::getUuid() {
+    if (uuid.empty()) {
+        uuid = ::to_string(cb::uuid::random());
+    }
+
+    return uuid;
+}
+} // namespace sasl
+} // namespace cb

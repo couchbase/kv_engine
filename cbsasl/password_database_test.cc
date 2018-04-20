@@ -15,11 +15,11 @@
  */
 
 #include "password_database.h"
-#include "pwconv.h"
 #include "user.h"
 
 #include <cbcrypto/cbcrypto.h>
-#include <cbsasl/cbsasl.h>
+#include <cbsasl/pwdb.h>
+#include <cbsasl/server.h>
 #include <gtest/gtest.h>
 #include <openssl/evp.h>
 #include <platform/base64.h>
@@ -27,9 +27,9 @@
 #include <platform/dirutils.h>
 #include <platform/platform.h>
 #include <platform/random.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 
 class PasswordMetaTest : public ::testing::Test {
 public:
@@ -46,8 +46,8 @@ public:
 };
 
 TEST_F(PasswordMetaTest, TestNormalInit) {
-    cb::sasl::User::PasswordMetaData md;
-    EXPECT_NO_THROW(md = cb::sasl::User::PasswordMetaData(root.get()));
+    cb::sasl::pwdb::User::PasswordMetaData md;
+    EXPECT_NO_THROW(md = cb::sasl::pwdb::User::PasswordMetaData(root.get()));
     EXPECT_EQ("iiU7hLv7l3yOoEgXusJvT2i1J2A=", md.getSalt());
     EXPECT_EQ("NP0b1Ji5jWG/ZV6hPzOIk3lmTmw=",
               Couchbase::Base64::encode(md.getPassword()));
@@ -56,60 +56,60 @@ TEST_F(PasswordMetaTest, TestNormalInit) {
 
 TEST_F(PasswordMetaTest, UnknownLabel) {
     cJSON_AddStringToObject(root.get(), "extra", "foo");
-    EXPECT_THROW(cb::sasl::User::PasswordMetaData md(root.get()),
+    EXPECT_THROW(cb::sasl::pwdb::User::PasswordMetaData md(root.get()),
                  std::runtime_error);
 }
 
 TEST_F(PasswordMetaTest, TestMissingHash) {
     cJSON_DeleteItemFromObject(root.get(), "h");
-    EXPECT_THROW(cb::sasl::User::PasswordMetaData md(root.get()),
+    EXPECT_THROW(cb::sasl::pwdb::User::PasswordMetaData md(root.get()),
                  std::runtime_error);
 }
 
 TEST_F(PasswordMetaTest, TestInvalidDatatypeForHash) {
     cJSON_DeleteItemFromObject(root.get(), "h");
     cJSON_AddNumberToObject(root.get(), "h", 5);
-    EXPECT_THROW(cb::sasl::User::PasswordMetaData md(root.get()),
+    EXPECT_THROW(cb::sasl::pwdb::User::PasswordMetaData md(root.get()),
                  std::runtime_error);
 }
 
 TEST_F(PasswordMetaTest, TestMissingSalt) {
     cJSON_DeleteItemFromObject(root.get(), "s");
-    EXPECT_THROW(cb::sasl::User::PasswordMetaData md(root.get()),
+    EXPECT_THROW(cb::sasl::pwdb::User::PasswordMetaData md(root.get()),
                  std::runtime_error);
 }
 
 TEST_F(PasswordMetaTest, TestInvalidDatatypeForSalt) {
     cJSON_DeleteItemFromObject(root.get(), "s");
     cJSON_AddNumberToObject(root.get(), "s", 5);
-    EXPECT_THROW(cb::sasl::User::PasswordMetaData md(root.get()),
+    EXPECT_THROW(cb::sasl::pwdb::User::PasswordMetaData md(root.get()),
                  std::runtime_error);
 }
 
 TEST_F(PasswordMetaTest, TestMissingIterationCount) {
     cJSON_DeleteItemFromObject(root.get(), "i");
-    EXPECT_THROW(cb::sasl::User::PasswordMetaData md(root.get()),
+    EXPECT_THROW(cb::sasl::pwdb::User::PasswordMetaData md(root.get()),
                  std::runtime_error);
 }
 
 TEST_F(PasswordMetaTest, TestInvalidDatatypeForIterationCount) {
     cJSON_DeleteItemFromObject(root.get(), "i");
     cJSON_AddStringToObject(root.get(), "i", "foo");
-    EXPECT_THROW(cb::sasl::User::PasswordMetaData md(root.get()),
+    EXPECT_THROW(cb::sasl::pwdb::User::PasswordMetaData md(root.get()),
                  std::runtime_error);
 }
 
 TEST_F(PasswordMetaTest, TestInvalidBase64EncodingForHash) {
     cJSON_DeleteItemFromObject(root.get(), "h");
     cJSON_AddStringToObject(root.get(), "h", "!@#$%^&*");
-    EXPECT_THROW(cb::sasl::User::PasswordMetaData md(root.get()),
+    EXPECT_THROW(cb::sasl::pwdb::User::PasswordMetaData md(root.get()),
                  std::invalid_argument);
 }
 
 TEST_F(PasswordMetaTest, TestInvalidBase64EncodingForSalt) {
     cJSON_DeleteItemFromObject(root.get(), "s");
     cJSON_AddStringToObject(root.get(), "s", "!@#$%^&*");
-    EXPECT_THROW(cb::sasl::User::PasswordMetaData md(root.get()),
+    EXPECT_THROW(cb::sasl::pwdb::User::PasswordMetaData md(root.get()),
                  std::invalid_argument);
 }
 
@@ -156,8 +156,9 @@ public:
 };
 
 TEST_F(UserTest, TestNormalInit) {
-    cb::sasl::User u;
-    EXPECT_NO_THROW(u = cb::sasl::UserFactory::create(root.get()));
+    using namespace cb::sasl;
+    pwdb::User u;
+    EXPECT_NO_THROW(u = pwdb::UserFactory::create(root.get()));
     EXPECT_EQ("username", u.getUsername());
     EXPECT_NO_THROW(u.getPassword(Mechanism::SCRAM_SHA512));
     EXPECT_NO_THROW(u.getPassword(Mechanism::SCRAM_SHA256));
@@ -204,9 +205,11 @@ TEST_F(UserTest, TestNormalInit) {
 }
 
 TEST_F(UserTest, TestNoPlaintext) {
+    using namespace cb::sasl;
+
     cJSON_DeleteItemFromObject(root.get(), "plain");
-    cb::sasl::User u;
-    EXPECT_NO_THROW(u = cb::sasl::UserFactory::create(root.get()));
+    pwdb::User u;
+    EXPECT_NO_THROW(u = pwdb::UserFactory::create(root.get()));
     EXPECT_NO_THROW(u.getPassword(Mechanism::SCRAM_SHA512));
     EXPECT_NO_THROW(u.getPassword(Mechanism::SCRAM_SHA256));
     EXPECT_NO_THROW(u.getPassword(Mechanism::SCRAM_SHA1));
@@ -214,9 +217,11 @@ TEST_F(UserTest, TestNoPlaintext) {
 }
 
 TEST_F(UserTest, TestNoSha512) {
+    using namespace cb::sasl;
+
     cJSON_DeleteItemFromObject(root.get(), "sha512");
-    cb::sasl::User u;
-    EXPECT_NO_THROW(u = cb::sasl::UserFactory::create(root.get()));
+    pwdb::User u;
+    EXPECT_NO_THROW(u = pwdb::UserFactory::create(root.get()));
     EXPECT_THROW(u.getPassword(Mechanism::SCRAM_SHA512), std::invalid_argument);
     EXPECT_NO_THROW(u.getPassword(Mechanism::SCRAM_SHA256));
     EXPECT_NO_THROW(u.getPassword(Mechanism::SCRAM_SHA1));
@@ -224,9 +229,11 @@ TEST_F(UserTest, TestNoSha512) {
 }
 
 TEST_F(UserTest, TestNoSha256) {
+    using namespace cb::sasl;
+
     cJSON_DeleteItemFromObject(root.get(), "sha256");
-    cb::sasl::User u;
-    EXPECT_NO_THROW(u = cb::sasl::UserFactory::create(root.get()));
+    pwdb::User u;
+    EXPECT_NO_THROW(u = pwdb::UserFactory::create(root.get()));
     EXPECT_THROW(u.getPassword(Mechanism::SCRAM_SHA256), std::invalid_argument);
     EXPECT_NO_THROW(u.getPassword(Mechanism::SCRAM_SHA512));
     EXPECT_NO_THROW(u.getPassword(Mechanism::SCRAM_SHA1));
@@ -234,9 +241,11 @@ TEST_F(UserTest, TestNoSha256) {
 }
 
 TEST_F(UserTest, TestNoSha1) {
+    using namespace cb::sasl;
+
     cJSON_DeleteItemFromObject(root.get(), "sha1");
-    cb::sasl::User u;
-    EXPECT_NO_THROW(u = cb::sasl::UserFactory::create(root.get()));
+    pwdb::User u;
+    EXPECT_NO_THROW(u = pwdb::UserFactory::create(root.get()));
     EXPECT_THROW(u.getPassword(Mechanism::SCRAM_SHA1), std::invalid_argument);
     EXPECT_NO_THROW(u.getPassword(Mechanism::SCRAM_SHA512));
     EXPECT_NO_THROW(u.getPassword(Mechanism::SCRAM_SHA256));
@@ -245,7 +254,7 @@ TEST_F(UserTest, TestNoSha1) {
 
 TEST_F(UserTest, InvalidLabel) {
     cJSON_AddStringToObject(root.get(), "gssapi", "foo");
-    EXPECT_THROW(auto u = cb::sasl::UserFactory::create(root.get()),
+    EXPECT_THROW(auto u = cb::sasl::pwdb::UserFactory::create(root.get()),
                  std::runtime_error);
 }
 
@@ -259,8 +268,8 @@ TEST_F(UserTest, InvalidLabel) {
 TEST_F(UserTest, CreateDummy) {
     using namespace cb::sasl;
     // set the fallback salt to something we know about ;)
-    cb::sasl::internal::set_scramsha_fallback_salt("WyulJ+YpKKZn+y9f");
-    auto u = UserFactory::createDummy("foobar", Mechanism::SCRAM_SHA512);
+    cb::sasl::server::set_scramsha_fallback_salt("WyulJ+YpKKZn+y9f");
+    auto u = pwdb::UserFactory::createDummy("foobar", Mechanism::SCRAM_SHA512);
     EXPECT_TRUE(u.isDummy());
     auto meta = u.getPassword(Mechanism::SCRAM_SHA512);
     EXPECT_EQ(
@@ -275,26 +284,31 @@ public:
         unique_cJSON_ptr root(cJSON_CreateObject());
         auto* array = cJSON_CreateArray();
 
-        cJSON_AddItemToArray(array,
-                             cb::sasl::UserFactory::create("trond", "secret1")
-                                     .to_json()
-                                     .release());
-        cJSON_AddItemToArray(array,
-                             cb::sasl::UserFactory::create("mike", "secret2")
-                                     .to_json()
-                                     .release());
-        cJSON_AddItemToArray(array,
-                             cb::sasl::UserFactory::create("anne", "secret3")
-                                     .to_json()
-                                     .release());
-        cJSON_AddItemToArray(array,
-                             cb::sasl::UserFactory::create("will", "secret4")
-                                     .to_json()
-                                     .release());
-        cJSON_AddItemToArray(array,
-                             cb::sasl::UserFactory::create("dave", "secret5")
-                                     .to_json()
-                                     .release());
+        cJSON_AddItemToArray(
+                array,
+                cb::sasl::pwdb::UserFactory::create("trond", "secret1")
+                        .to_json()
+                        .release());
+        cJSON_AddItemToArray(
+                array,
+                cb::sasl::pwdb::UserFactory::create("mike", "secret2")
+                        .to_json()
+                        .release());
+        cJSON_AddItemToArray(
+                array,
+                cb::sasl::pwdb::UserFactory::create("anne", "secret3")
+                        .to_json()
+                        .release());
+        cJSON_AddItemToArray(
+                array,
+                cb::sasl::pwdb::UserFactory::create("will", "secret4")
+                        .to_json()
+                        .release());
+        cJSON_AddItemToArray(
+                array,
+                cb::sasl::pwdb::UserFactory::create("dave", "secret5")
+                        .to_json()
+                        .release());
 
         cJSON_AddItemToObject(root.get(), "users", array);
 
@@ -305,8 +319,8 @@ public:
 };
 
 TEST_F(PasswordDatabaseTest, TestNormalInit) {
-    cb::sasl::PasswordDatabase db;
-    EXPECT_NO_THROW(db = cb::sasl::PasswordDatabase(json, false));
+    cb::sasl::pwdb::PasswordDatabase db;
+    EXPECT_NO_THROW(db = cb::sasl::pwdb::PasswordDatabase(json, false));
 
     EXPECT_FALSE(db.find("trond").isDummy());
     EXPECT_FALSE(db.find("mike").isDummy());
@@ -317,31 +331,32 @@ TEST_F(PasswordDatabaseTest, TestNormalInit) {
 }
 
 TEST_F(PasswordDatabaseTest, EmptyConstructor) {
-    EXPECT_NO_THROW(cb::sasl::PasswordDatabase db);
+    EXPECT_NO_THROW(cb::sasl::pwdb::PasswordDatabase db);
 }
 
 TEST_F(PasswordDatabaseTest, DetectIllegalLabel) {
-    EXPECT_THROW(cb::sasl::PasswordDatabase db("{ \"foo\": [] }", false),
+    EXPECT_THROW(cb::sasl::pwdb::PasswordDatabase db("{ \"foo\": [] }", false),
                  std::runtime_error);
 }
 
 TEST_F(PasswordDatabaseTest, DetectIllegalUsersType) {
-    EXPECT_THROW(cb::sasl::PasswordDatabase db("{ \"users\": 24 }", false),
-                 std::runtime_error);
+    EXPECT_THROW(
+            cb::sasl::pwdb::PasswordDatabase db("{ \"users\": 24 }", false),
+            std::runtime_error);
 }
 
 TEST_F(PasswordDatabaseTest, CreateFromJsonDatabaseNoUsers) {
-    cb::sasl::PasswordDatabase db;
+    cb::sasl::pwdb::PasswordDatabase db;
     EXPECT_NO_THROW(
-            db = cb::sasl::PasswordDatabase("{ \"users\": [] }", false));
+            db = cb::sasl::pwdb::PasswordDatabase("{ \"users\": [] }", false));
 
     EXPECT_TRUE(db.find("trond").isDummy());
     EXPECT_TRUE(db.find("unknown").isDummy());
 }
 
 TEST_F(PasswordDatabaseTest, CreateFromJsonDatabaseExtraLabel) {
-    EXPECT_THROW(cb::sasl::PasswordDatabase db("{ \"users\": [], \"foo\", 2 }",
-                                               false),
+    EXPECT_THROW(cb::sasl::pwdb::PasswordDatabase db(
+                         "{ \"users\": [], \"foo\", 2 }", false),
                  std::runtime_error);
 }
 
@@ -416,16 +431,16 @@ protected:
 TEST_F(EncryptedDatabaseTest, WriteReadFilePlain) {
     EXPECT_EQ(nullptr, getenv("COUCHBASE_CBSASL_SECRETS"));
     const std::string input{"All work and no play makes Jack a dull boy"};
-    cbsasl_write_password_file(filename, input);
-    auto content = cbsasl_read_password_file(filename);
+    cb::sasl::pwdb::write_password_file(filename, input);
+    auto content = cb::sasl::pwdb::read_password_file(filename);
     EXPECT_EQ(input, content);
 }
 
 TEST_F(EncryptedDatabaseTest, WriteReadFileEncrypted) {
     putenv(environment);
     const std::string input{"All work and no play makes Jack a dull boy"};
-    cbsasl_write_password_file(filename, input);
-    auto content = cbsasl_read_password_file(filename);
+    cb::sasl::pwdb::write_password_file(filename, input);
+    auto content = cb::sasl::pwdb::read_password_file(filename);
     EXPECT_EQ(input, content);
 }
 
@@ -433,7 +448,7 @@ int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);
 
     // Reduce the iteration cycles in HMAC to be nicer to valgrind ;-)
-    cb::sasl::UserFactory::setDefaultHmacIterationCount(10);
+    cb::sasl::pwdb::UserFactory::setDefaultHmacIterationCount(10);
 
     return RUN_ALL_TESTS();
 }

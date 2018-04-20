@@ -5,6 +5,7 @@
 #include "ssl_impl.h"
 
 #include <JSON_checker.h>
+#include <cbsasl/client.h>
 #include <gtest/gtest.h>
 #include <platform/backtrace.h>
 #include <platform/cb_malloc.h>
@@ -225,76 +226,16 @@ std::string get_sasl_mechs(void) {
     return ret;
 }
 
-struct my_sasl_ctx {
-    const char *username;
-    cbsasl_secret_t *secret;
-};
-
-static int sasl_get_username(void *context, int id, const char **result,
-                             unsigned int *len)
-{
-    struct my_sasl_ctx *ctx = reinterpret_cast<struct my_sasl_ctx *>(context);
-    if (!context || !result || (id != CBSASL_CB_USER && id != CBSASL_CB_AUTHNAME)) {
-        return CBSASL_BADPARAM;
-    }
-
-    *result = ctx->username;
-    if (len) {
-        *len = (unsigned int)strlen(*result);
-    }
-
-    return CBSASL_OK;
-}
-
-static int sasl_get_password(cbsasl_conn_t *conn, void *context, int id,
-                             cbsasl_secret_t **psecret)
-{
-    struct my_sasl_ctx *ctx = reinterpret_cast<struct my_sasl_ctx *>(context);
-    if (!conn || ! psecret || id != CBSASL_CB_PASS || ctx == NULL) {
-        return CBSASL_BADPARAM;
-    }
-
-    *psecret = ctx->secret;
-    return CBSASL_OK;
-}
-
 uint16_t TestappTest::sasl_auth(const char *username, const char *password) {
-    cbsasl_error_t err;
-    const char *data;
-    unsigned int len;
-    const char *chosenmech;
+    cb::sasl::client::ClientContext client(
+            [username]() -> std::string { return username; },
+            [password]() -> std::string { return password; },
+            get_sasl_mechs());
 
-    struct my_sasl_ctx context;
-    cbsasl_callback_t sasl_callbacks[4];
-    cbsasl_conn_t *client;
-    std::string mech(get_sasl_mechs());
-
-    sasl_callbacks[0].id = CBSASL_CB_USER;
-    sasl_callbacks[0].proc = (int( *)(void)) &sasl_get_username;
-    sasl_callbacks[0].context = &context;
-    sasl_callbacks[1].id = CBSASL_CB_AUTHNAME;
-    sasl_callbacks[1].proc = (int( *)(void)) &sasl_get_username;
-    sasl_callbacks[1].context = &context;
-    sasl_callbacks[2].id = CBSASL_CB_PASS;
-    sasl_callbacks[2].proc = (int( *)(void)) &sasl_get_password;
-    sasl_callbacks[2].context = &context;
-    sasl_callbacks[3].id = CBSASL_CB_LIST_END;
-    sasl_callbacks[3].proc = NULL;
-    sasl_callbacks[3].context = NULL;
-
-    context.username = username;
-    context.secret = reinterpret_cast<cbsasl_secret_t*>(cb_calloc(1, 100));
-    memcpy(context.secret->data, password, strlen(password));
-    context.secret->len = (unsigned long)strlen(password);
-
-    err = cbsasl_client_new(NULL, NULL, NULL, NULL, sasl_callbacks, 0, &client);
-    EXPECT_EQ(CBSASL_OK, err);
-    err = cbsasl_client_start(client, mech.c_str(), NULL, &data, &len, &chosenmech);
-    EXPECT_EQ(CBSASL_OK, err);
+    auto client_data = client.start();
+    EXPECT_EQ(cb::sasl::Error::OK, client_data.first);
     if (::testing::Test::HasFailure()) {
         // Can't continue if we didn't suceed in starting SASL auth.
-        cb_free(context.secret);
-        cbsasl_dispose(&client);
         return PROTOCOL_BINARY_RESPONSE_EINTERNAL;
     }
 
@@ -304,10 +245,13 @@ uint16_t TestappTest::sasl_auth(const char *username, const char *password) {
         char bytes[1024];
     } buffer;
 
-    size_t plen = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
+    size_t plen = mcbp_raw_command(buffer.bytes,
+                                   sizeof(buffer.bytes),
                                    PROTOCOL_BINARY_CMD_SASL_AUTH,
-                                   chosenmech, strlen(chosenmech),
-                                   data, len);
+                                   client.getName().data(),
+                                   client.getName().size(),
+                                   client_data.second.data(),
+                                   client_data.second.size());
 
     safe_send(buffer.bytes, plen, false);
     safe_recv_packet(&buffer, sizeof(buffer));
@@ -316,21 +260,26 @@ uint16_t TestappTest::sasl_auth(const char *username, const char *password) {
 
     while (buffer.response.message.header.response.status == PROTOCOL_BINARY_RESPONSE_AUTH_CONTINUE) {
         stepped = true;
-        int datalen = buffer.response.message.header.response.getBodylen() -
-                      buffer.response.message.header.response.getKeylen() -
-                      buffer.response.message.header.response.extlen;
-
-        int dataoffset = sizeof(buffer.response.bytes) +
-                         buffer.response.message.header.response.getKeylen() +
+        size_t datalen = buffer.response.message.header.response.getBodylen() -
+                         buffer.response.message.header.response.getKeylen() -
                          buffer.response.message.header.response.extlen;
 
-        err = cbsasl_client_step(client, buffer.bytes + dataoffset, datalen,
-                                 NULL, &data, &len);
-        EXPECT_EQ(CBSASL_CONTINUE, err);
+        size_t dataoffset =
+                sizeof(buffer.response.bytes) +
+                buffer.response.message.header.response.getKeylen() +
+                buffer.response.message.header.response.extlen;
 
-        plen = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
+        client_data = client.step(
+                cb::const_char_buffer{buffer.bytes + dataoffset, datalen});
+        EXPECT_EQ(cb::sasl::Error::CONTINUE, client_data.first);
+
+        plen = mcbp_raw_command(buffer.bytes,
+                                sizeof(buffer.bytes),
                                 PROTOCOL_BINARY_CMD_SASL_STEP,
-                                chosenmech, strlen(chosenmech), data, len);
+                                client.getName().data(),
+                                client.getName().size(),
+                                client_data.second.data(),
+                                client_data.second.size());
 
         safe_send(buffer.bytes, plen, false);
 
@@ -346,8 +295,6 @@ uint16_t TestappTest::sasl_auth(const char *username, const char *password) {
                                       PROTOCOL_BINARY_CMD_SASL_AUTH,
                                       buffer.response.message.header.response.status);
     }
-    cb_free(context.secret);
-    cbsasl_dispose(&client);
 
     return buffer.response.message.header.response.status;
 }

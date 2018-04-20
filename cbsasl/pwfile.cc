@@ -16,74 +16,65 @@
  */
 #include "pwfile.h"
 #include "password_database.h"
-#include "pwconv.h"
 
-#include <mutex>
+#include <cbsasl/logging.h>
 #include <platform/processclock.h>
 #include <platform/timeutils.h>
+#include <mutex>
 #include <sstream>
 
 class PasswordDatabaseManager {
 public:
-    PasswordDatabaseManager()
-        : db(new cb::sasl::PasswordDatabase) {
-
+    PasswordDatabaseManager() : db(new cb::sasl::pwdb::PasswordDatabase) {
     }
 
-    void swap(std::unique_ptr<cb::sasl::PasswordDatabase>& ndb) {
+    void swap(std::unique_ptr<cb::sasl::pwdb::PasswordDatabase>& ndb) {
         std::lock_guard<std::mutex> lock(dbmutex);
         db.swap(ndb);
     }
 
-    cb::sasl::User find(const std::string& username) {
+    cb::sasl::pwdb::User find(const std::string& username) {
         std::lock_guard<std::mutex> lock(dbmutex);
         return db->find(username);
     }
 
 private:
     std::mutex dbmutex;
-    std::unique_ptr<cb::sasl::PasswordDatabase> db;
+    std::unique_ptr<cb::sasl::pwdb::PasswordDatabase> db;
 };
 
 static PasswordDatabaseManager pwmgr;
 
-void free_user_ht(void) {
-    std::unique_ptr<cb::sasl::PasswordDatabase> ndb(
-        new cb::sasl::PasswordDatabase);
-    pwmgr.swap(ndb);
-}
-
-bool find_user(const std::string& username, cb::sasl::User& user) {
+bool find_user(const std::string& username, cb::sasl::pwdb::User& user) {
     user = pwmgr.find(username);
     return !user.isDummy();
 }
 
-cbsasl_error_t parse_user_db(const std::string content, bool file) {
+cb::sasl::Error parse_user_db(const std::string content, bool file) {
     try {
         auto start = cb::ProcessClock::now();
-        std::unique_ptr<cb::sasl::PasswordDatabase> db(
-            new cb::sasl::PasswordDatabase(content, file));
+        std::unique_ptr<cb::sasl::pwdb::PasswordDatabase> db(
+                new cb::sasl::pwdb::PasswordDatabase(content, file));
 
-        std::string logmessage(
-            "Loading [" + content + "] took " +
-            cb::time2text(ProcessClock::now() - start));
-        logging::log(logging::Level::Debug, logmessage);
+        std::string logmessage("Loading [" + content + "] took " +
+                               cb::time2text(ProcessClock::now() - start));
+        cb::sasl::logging::log(cb::sasl::logging::Level::Debug, logmessage);
         pwmgr.swap(db);
     } catch (std::exception& e) {
         std::string message("Failed loading [");
         message.append(content);
         message.append("]: ");
         message.append(e.what());
-        logging::log(logging::Level::Error, message);
-        return CBSASL_FAIL;
+        cb::sasl::logging::log(cb::sasl::logging::Level::Error, message);
+        return cb::sasl::Error::FAIL;
     } catch (...) {
         std::string message("Failed loading [");
         message.append(content);
         message.append("]: Unknown error");
-        logging::log(logging::Level::Error, message);
+        cb::sasl::logging::log(cb::sasl::logging::Level::Error, message);
     }
 
-    return CBSASL_OK;
+    return cb::sasl::Error::OK;
 }
 
 /**
@@ -92,27 +83,29 @@ cbsasl_error_t parse_user_db(const std::string content, bool file) {
  * Let's just parse it and build up the JSON needed from the
  * new style password database as documented in CBSASL.md
  */
-static cbsasl_error_t load_isasl_user_db(void) {
+static cb::sasl::Error load_isasl_user_db(void) {
     const char* filename = getenv("ISASL_PWFILE");
 
     if (!filename) {
-        logging::log(logging::Level::Debug, "No password file specified");
-        return CBSASL_OK;
+        cb::sasl::logging::log(cb::sasl::logging::Level::Debug,
+                               "No password file specified");
+        return cb::sasl::Error::OK;
     }
 
     std::string content;
 
     try {
-        std::stringstream input(cbsasl_read_password_file(filename));
+        std::stringstream input(cb::sasl::pwdb::read_password_file(filename));
         std::stringstream output;
 
-        cbsasl_pwconv(input, output);
+        cb::sasl::pwdb::convert(input, output);
         content = output.str();
-    } catch (std::runtime_error &e) {
-        logging::log(logging::Level::Error,
-                     std::string{"load_isasl_user_db() received exception: "} +
-                             e.what());
-        return CBSASL_FAIL;
+    } catch (std::runtime_error& e) {
+        cb::sasl::logging::log(
+                cb::sasl::logging::Level::Error,
+                std::string{"load_isasl_user_db() received exception: "} +
+                        e.what());
+        return cb::sasl::Error::FAIL;
     }
 
     auto ret = parse_user_db(content, false);
@@ -120,7 +113,7 @@ static cbsasl_error_t load_isasl_user_db(void) {
     return ret;
 }
 
-cbsasl_error_t load_user_db(void) {
+cb::sasl::Error load_user_db(void) {
     try {
         const char* filename = getenv("CBSASL_PWFILE");
 
@@ -130,6 +123,6 @@ cbsasl_error_t load_user_db(void) {
 
         return load_isasl_user_db();
     } catch (std::bad_alloc&) {
-        return CBSASL_NOMEM;
+        return cb::sasl::Error::NO_MEM;
     }
 }

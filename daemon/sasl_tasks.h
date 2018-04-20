@@ -16,11 +16,10 @@
  */
 #pragma once
 
-#include "task.h"
-#include <cbsasl/cbsasl.h>
-#include <string>
+#include <cbsasl/server.h>
 #include <platform/sized_buffer.h>
-
+#include <string>
+#include "task.h"
 
 class Connection;
 class Cookie;
@@ -42,13 +41,12 @@ public:
 
     void notifyExecutionComplete() override;
 
-
-    cbsasl_error_t getError() const {
-        return error;
+    cb::sasl::Error getError() const {
+        return response.first;
     }
 
     cb::const_char_buffer getResponse() const {
-        return {response, response_length};
+        return response.second;
     }
 
 protected:
@@ -56,9 +54,8 @@ protected:
     Connection& connection;
     std::string mechanism;
     std::string challenge;
-    cbsasl_error_t error;
-    const char* response;
-    unsigned int response_length;
+    std::pair<cb::sasl::Error, cb::const_char_buffer> response{
+            cb::sasl::Error::FAIL, {}};
 };
 
 /**

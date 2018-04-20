@@ -19,7 +19,7 @@
 #include "cJSON_utils.h"
 #include "client_mcbp_commands.h"
 
-#include <cbsasl/cbsasl.h>
+#include <cbsasl/client.h>
 #include <mcbp/mcbp.h>
 #include <memcached/protocol_binary.h>
 #include <platform/compress.h>
@@ -27,6 +27,8 @@
 #include <platform/socket.h>
 #include <platform/strerror.h>
 
+#include <include/cbsasl/client.h>
+#include <platform/make_unique.h>
 #include <cerrno>
 #include <gsl/gsl>
 #include <iostream>
@@ -511,45 +513,6 @@ void MemcachedConnection::setSslKeyFile(const std::string& file) {
     ssl_key_file = path;
 }
 
-/////////////////////////////////////////////////////////////////////////
-// SASL related functions
-/////////////////////////////////////////////////////////////////////////
-struct my_sasl_ctx {
-    const char* username;
-    cbsasl_secret_t* secret;
-};
-
-static int sasl_get_username(void* context,
-                             int id,
-                             const char** result,
-                             unsigned int* len) {
-    struct my_sasl_ctx* ctx = reinterpret_cast<struct my_sasl_ctx*>(context);
-    if (!context || !result ||
-        (id != CBSASL_CB_USER && id != CBSASL_CB_AUTHNAME)) {
-        return CBSASL_BADPARAM;
-    }
-
-    *result = ctx->username;
-    if (len) {
-        *len = (unsigned int)strlen(*result);
-    }
-
-    return CBSASL_OK;
-}
-
-static int sasl_get_password(cbsasl_conn_t* conn,
-                             void* context,
-                             int id,
-                             cbsasl_secret_t** psecret) {
-    struct my_sasl_ctx* ctx = reinterpret_cast<struct my_sasl_ctx*>(context);
-    if (!conn || !psecret || id != CBSASL_CB_PASS || ctx == NULL) {
-        return CBSASL_BADPARAM;
-    }
-
-    *psecret = ctx->secret;
-    return CBSASL_OK;
-}
-
 static Frame to_frame(const BinprotCommand& command) {
     Frame frame;
     command.encode(frame.payload);
@@ -657,50 +620,22 @@ void MemcachedConnection::recvResponse(BinprotResponse& response) {
 void MemcachedConnection::authenticate(const std::string& username,
                                        const std::string& password,
                                        const std::string& mech) {
-    cbsasl_error_t err;
-    const char* data;
-    unsigned int len;
-    const char* chosenmech;
-    struct my_sasl_ctx context;
-    cbsasl_callback_t sasl_callbacks[4];
-    cbsasl_conn_t* client;
+    cb::sasl::client::ClientContext client(
+            [username]() -> std::string { return username; },
+            [password]() -> std::string { return password; },
+            mech);
+    auto client_data = client.start();
 
-    sasl_callbacks[0].id = CBSASL_CB_USER;
-    sasl_callbacks[0].proc = (int (*)(void)) & sasl_get_username;
-    sasl_callbacks[0].context = &context;
-    sasl_callbacks[1].id = CBSASL_CB_AUTHNAME;
-    sasl_callbacks[1].proc = (int (*)(void)) & sasl_get_username;
-    sasl_callbacks[1].context = &context;
-    sasl_callbacks[2].id = CBSASL_CB_PASS;
-    sasl_callbacks[2].proc = (int (*)(void)) & sasl_get_password;
-    sasl_callbacks[2].context = &context;
-    sasl_callbacks[3].id = CBSASL_CB_LIST_END;
-    sasl_callbacks[3].proc = NULL;
-    sasl_callbacks[3].context = NULL;
-
-    context.username = username.c_str();
-    std::vector<uint8_t> buffer(sizeof(context.secret->len) +
-                                password.length() + 10);
-    context.secret = reinterpret_cast<cbsasl_secret_t*>(buffer.data());
-    memcpy(context.secret->data, password.c_str(), password.length());
-    context.secret->len = gsl::narrow<uint32_t>(password.length());
-
-    err = cbsasl_client_new(NULL, NULL, NULL, NULL, sasl_callbacks, 0, &client);
-    if (err != CBSASL_OK) {
-        throw std::runtime_error(std::string("cbsasl_client_new: ") +
-                                 std::to_string(err));
-    }
-    err = cbsasl_client_start(
-            client, mech.c_str(), NULL, &data, &len, &chosenmech);
-    if (err != CBSASL_OK) {
+    if (client_data.first != cb::sasl::Error::OK) {
         throw std::runtime_error(std::string("cbsasl_client_start (") +
-                                 std::string(chosenmech) + std::string("): ") +
-                                 std::to_string(err));
+                                 std::string(client.getName()) +
+                                 std::string("): ") +
+                                 ::to_string(client_data.first));
     }
 
     BinprotSaslAuthCommand authCommand;
-    authCommand.setChallenge(data, len);
-    authCommand.setMechanism(chosenmech);
+    authCommand.setChallenge(client_data.second);
+    authCommand.setMechanism(client.getName());
     sendCommand(authCommand);
 
     BinprotResponse response;
@@ -708,26 +643,22 @@ void MemcachedConnection::authenticate(const std::string& username,
 
     while (response.getStatus() == PROTOCOL_BINARY_RESPONSE_AUTH_CONTINUE) {
         auto respdata = response.getData();
-        err = cbsasl_client_step(client,
-                                 reinterpret_cast<const char*>(respdata.data()),
-                                 gsl::narrow<unsigned int>(respdata.size()),
-                                 NULL,
-                                 &data,
-                                 &len);
-        if (err != CBSASL_OK && err != CBSASL_CONTINUE) {
+        client_data =
+                client.step({reinterpret_cast<const char*>(respdata.data()),
+                             respdata.size()});
+        if (client_data.first != cb::sasl::Error::OK &&
+            client_data.first != cb::sasl::Error::CONTINUE) {
             reconnect();
             throw std::runtime_error(std::string("cbsasl_client_step: ") +
-                                     std::to_string(err));
+                                     ::to_string(client_data.first));
         }
 
         BinprotSaslStepCommand stepCommand;
-        stepCommand.setMechanism(chosenmech);
-        stepCommand.setChallengeResponse(data, len);
+        stepCommand.setMechanism(client.getName());
+        stepCommand.setChallenge(client_data.second);
         sendCommand(stepCommand);
         recvResponse(response);
     }
-
-    cbsasl_dispose(&client);
 
     if (!response.isSuccess()) {
         throw ConnectionError("Authentication failed", response);

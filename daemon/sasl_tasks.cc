@@ -17,6 +17,7 @@
 #include "config.h"
 #include "sasl_tasks.h"
 
+#include <cbsasl/mechanism.h>
 #include <memcached/rbac.h>
 #include <utilities/logtags.h>
 #include "connection.h"
@@ -34,22 +35,27 @@ StartSaslAuthTask::StartSaslAuthTask(Cookie& cookie_,
 
 Task::Status StartSaslAuthTask::execute() {
     connection.restartAuthentication();
+    auto& server = connection.getSaslConn();
+
     try {
-        error = cbsasl_server_start(connection.getSaslConn(),
-                                    mechanism.c_str(),
-                                    challenge.data(),
-                                    static_cast<unsigned int>(challenge.length()),
-                                    &response, &response_length);
+        if (connection.isSslEnabled()) {
+            response = server.start(
+                    mechanism, settings.getSslSaslMechanisms(), challenge);
+        } else {
+            response = server.start(
+                    mechanism, settings.getSaslMechanisms(), challenge);
+        }
+    } catch (const cb::sasl::unknown_mechanism&) {
+        response.first = cb::sasl::Error::NO_MECH;
     } catch (const std::bad_alloc&) {
         LOG_WARNING("{}: StartSaslAuthTask::execute(): std::bad_alloc",
                     connection.getId());
-        error = CBSASL_NOMEM;
+        response.first = cb::sasl::Error::NO_MEM;
     } catch (const std::exception& exception) {
         // If we generated an error as part of SASL, we should
         // return that back to the client
-        auto& uuid = cb::sasl::get_uuid(connection.getSaslConn());
-        if (!uuid.empty()) {
-            cookie.setEventId(uuid);
+        if (server.containsUuid()) {
+            cookie.setEventId(server.getUuid());
         }
         LOG_WARNING(
                 "{}: StartSaslAuthTask::execute(): UUID:[{}] An exception "
@@ -58,7 +64,7 @@ Task::Status StartSaslAuthTask::execute() {
                 cookie.getEventId(),
                 exception.what());
         cookie.setErrorContext("An exception occurred");
-        error = CBSASL_FAIL;
+        response.first = cb::sasl::Error::FAIL;
     }
 
     return Status::Finished;
@@ -73,20 +79,19 @@ StepSaslAuthTask::StepSaslAuthTask(Cookie& cookie_,
 }
 
 Task::Status StepSaslAuthTask::execute() {
+    auto& server = connection.getSaslConn();
+
     try {
-        error = cbsasl_server_step(connection.getSaslConn(), challenge.data(),
-                                   static_cast<unsigned int>(challenge.length()),
-                                   &response, &response_length);
+        response = server.step(challenge);
     } catch (const std::bad_alloc&) {
         LOG_WARNING("{}: StepSaslAuthTask::execute(): std::bad_alloc",
                     connection.getId());
-        error = CBSASL_NOMEM;
+        response.first = cb::sasl::Error::NO_MEM;
     } catch (const std::exception& exception) {
         // If we generated an error as part of SASL, we should
         // return that back to the client
-        auto& uuid = cb::sasl::get_uuid(connection.getSaslConn());
-        if (!uuid.empty()) {
-            cookie.setEventId(uuid);
+        if (server.containsUuid()) {
+            cookie.setEventId(server.getUuid());
         }
         LOG_WARNING(
                 "{}: StepSaslAuthTask::execute(): UUID:[{}] An exception "
@@ -95,11 +100,10 @@ Task::Status StepSaslAuthTask::execute() {
                 cookie.getEventId(),
                 exception.what());
         cookie.setErrorContext("An exception occurred");
-        error = CBSASL_FAIL;
+        response.first = cb::sasl::Error::FAIL;
     }
     return Status::Finished;
 }
-
 
 SaslAuthTask::SaslAuthTask(Cookie& cookie_,
                            Connection& connection_,
@@ -108,10 +112,7 @@ SaslAuthTask::SaslAuthTask(Cookie& cookie_,
     : cookie(cookie_),
       connection(connection_),
       mechanism(mechanism_),
-      challenge(challenge_),
-      error(CBSASL_FAIL),
-      response(nullptr),
-      response_length(0) {
+      challenge(challenge_) {
     // no more init needed
 }
 
@@ -120,64 +121,25 @@ void SaslAuthTask::notifyExecutionComplete() {
     std::pair<cb::rbac::PrivilegeContext, bool> context;
 
     // If CBSASL generated a UUID, we should continue to use that UUID
-    auto& uuid = cb::sasl::get_uuid(connection.getSaslConn());
-    if (!uuid.empty()) {
-        cookie.setEventId(uuid);
+    if (connection.getSaslConn().containsUuid()) {
+        cookie.setEventId(connection.getSaslConn().getUuid());
     }
 
-    if (error == CBSASL_OK) {
+    if (response.first == cb::sasl::Error::OK) {
         // Authentication successful, but it still has to be defined in
         // our system
         try {
             context = cb::rbac::createInitialContext(connection.getUsername(),
                                                      connection.getDomain());
         } catch (const cb::rbac::NoSuchUserException&) {
-            error = CBSASL_NO_RBAC_PROFILE;
+            response.first = cb::sasl::Error::NO_RBAC_PROFILE;
         }
     }
 
     // Perform the appropriate logging for each error code
-    switch (error) {
-    case CBSASL_OK:
-        break;
-    case CBSASL_CONTINUE:
-        LOG_DEBUG("{}: SASL CONTINUE", connection.getId());
-        break;
-    case CBSASL_FAIL:
-        // Should already have been logged
-        break;
-    case CBSASL_NOMEM:
-        // Should already have been logged
-        break;
-    case CBSASL_BADPARAM:
-        // May have been logged by cbsasl
-        break;
-    case CBSASL_NOMECH:
-        // Should already have been logged
-        break;
-    case CBSASL_NOUSER:
-        LOG_WARNING("{}: User [{}] not found. UUID:[{}]",
-                    connection.getId(),
-                    cb::logtags::tagUserData(connection.getUsername()),
-                    cookie.getEventId());
-        break;
-    case CBSASL_PWERR:
-        LOG_WARNING("{}: Invalid password specified for [{}] UUID:[{}]",
-                    connection.getId(),
-                    cb::logtags::tagUserData(connection.getUsername()),
-                    cookie.getEventId());
-        break;
-    case CBSASL_NO_RBAC_PROFILE:
-        LOG_WARNING(
-                "{}: User [{}] is not defined as a user in Couchbase. "
-                "UUID:[{}]",
-                connection.getId(),
-                cb::logtags::tagUserData(connection.getUsername()),
-                cookie.getEventId());
-        break;
-    }
-
-    if (error == CBSASL_OK) {
+    switch (response.first) {
+    case cb::sasl::Error::OK:
+        // Success
         connection.setAuthenticated(true);
         connection.setInternal(context.second);
         audit_auth_success(&connection);
@@ -187,19 +149,53 @@ void SaslAuthTask::notifyExecutionComplete() {
                  cb::logtags::tagUserData(connection.getUsername()));
 
         /* associate the connection with the appropriate bucket */
-        std::string username = connection.getUsername();
-        auto idx = username.find(";legacy");
-        if (idx != username.npos) {
-            username.resize(idx);
-        }
+        {
+            std::string username = connection.getUsername();
+            auto idx = username.find(";legacy");
+            if (idx != username.npos) {
+                username.resize(idx);
+            }
 
-        if (cb::rbac::mayAccessBucket(connection.getUsername(), username)) {
-            associate_bucket(connection, username.c_str());
-        } else {
-            // the user don't have access to that bucket, move the
-            // connection to the "no bucket"
-            associate_bucket(connection, "");
+            if (cb::rbac::mayAccessBucket(connection.getUsername(), username)) {
+                associate_bucket(connection, username.c_str());
+            } else {
+                // the user don't have access to that bucket, move the
+                // connection to the "no bucket"
+                associate_bucket(connection, "");
+            }
         }
+        break;
+    case cb::sasl::Error::CONTINUE:
+        LOG_DEBUG("{}: SASL CONTINUE", connection.getId());
+        break;
+    case cb::sasl::Error::FAIL:
+    case cb::sasl::Error::BAD_PARAM:
+    case cb::sasl::Error::NO_MEM:
+    case cb::sasl::Error::NO_MECH:
+        // Should already have been logged
+        break;
+
+    case cb::sasl::Error::NO_USER:
+        LOG_WARNING("{}: User [{}] not found. UUID:[{}]",
+                    connection.getId(),
+                    cb::logtags::tagUserData(connection.getUsername()),
+                    cookie.getEventId());
+        break;
+
+    case cb::sasl::Error::PASSWORD_ERROR:
+        LOG_WARNING("{}: Invalid password specified for [{}] UUID:[{}]",
+                    connection.getId(),
+                    cb::logtags::tagUserData(connection.getUsername()),
+                    cookie.getEventId());
+        break;
+    case cb::sasl::Error::NO_RBAC_PROFILE:
+        LOG_WARNING(
+                "{}: User [{}] is not defined as a user in Couchbase. "
+                "UUID:[{}]",
+                connection.getId(),
+                cb::logtags::tagUserData(connection.getUsername()),
+                cookie.getEventId());
+        break;
     }
 
     notify_io_complete(static_cast<void*>(&cookie), ENGINE_SUCCESS);

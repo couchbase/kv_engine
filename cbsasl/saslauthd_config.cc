@@ -14,7 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include <cbsasl/cbsasl.h>
+#include <cbsasl/saslauthd_config.h>
 #include <platform/dirutils.h>
 #include <platform/rwlock.h>
 #include <mutex>

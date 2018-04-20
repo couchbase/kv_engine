@@ -16,22 +16,23 @@
  */
 #pragma once
 
+#include <cbsasl/visibility.h>
+
 #include <string>
 #include <unordered_map>
 #include "user.h"
 
 namespace cb {
 namespace sasl {
+namespace pwdb {
 
-class PasswordDatabase {
+class CBSASL_PUBLIC_API PasswordDatabase {
 public:
     /**
      * Create an instance of the password database without any
      * entries.
      */
-    PasswordDatabase() {
-        // Empty
-    }
+    PasswordDatabase() = default;
 
     /**
      * Create an instance of the password database and initialize
@@ -42,7 +43,7 @@ public:
      *             of the file to parse
      * @throws std::runtime_error if an error occurs
      */
-    PasswordDatabase(const std::string& content, bool file = true);
+    explicit PasswordDatabase(const std::string& content, bool file = true);
 
     /**
      * Try to locate the user in the password database
@@ -50,7 +51,7 @@ public:
      * @param username the username to look up
      * @return a copy of the user object
      */
-    cb::sasl::User find(const std::string& username) {
+    User find(const std::string& username) {
         auto it = db.find(username);
         if (it != db.end()) {
             return it->second;
@@ -58,7 +59,7 @@ public:
             // Return a dummy user (allow the authentication to go
             // through the entire authentication phase but fail with
             // incorrect password ;-)
-            return cb::sasl::User();
+            return User();
         }
     }
 
@@ -76,7 +77,8 @@ private:
     /**
      * The actual user database
      */
-    std::unordered_map<std::string, cb::sasl::User> db;
+    std::unordered_map<std::string, User> db;
 };
-}
-}
+} // namespace pwdb
+} // namespace sasl
+} // namespace cb

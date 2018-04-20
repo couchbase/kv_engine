@@ -15,35 +15,33 @@
  *   limitations under the License.
  */
 
-#include <cbsasl/cbsasl.h>
-#include "cbsasl_internal.h"
+#include <cbsasl/error.h>
+#include <stdexcept>
 
-
-CBSASL_PUBLIC_API
-const char* cbsasl_strerror(cbsasl_conn_t* conn,
-                            cbsasl_error_t error)
-{
+std::string to_string(cb::sasl::Error error) {
+    using Error = cb::sasl::Error;
     switch (error) {
-    case CBSASL_OK:
+    case Error::OK:
         return "Success";
-    case CBSASL_CONTINUE:
+    case Error::CONTINUE:
         return "Continue";
-    case CBSASL_FAIL:
+    case Error::FAIL:
         return "Fail";
-    case CBSASL_NOMEM:
-        return "No memory";
-    case CBSASL_BADPARAM:
+    case Error::BAD_PARAM:
         return "Invalid parameters";
-    case CBSASL_NOMECH:
+    case Error::NO_MEM:
+        return "No memory";
+    case Error::NO_MECH:
         return "No such mechanism";
-    case CBSASL_NOUSER:
+    case Error::NO_USER:
         return "No such user";
-    case CBSASL_PWERR:
+    case Error::PASSWORD_ERROR:
         return "Invalid password";
-    case CBSASL_NO_RBAC_PROFILE:
+    case Error::NO_RBAC_PROFILE:
         return "User not defined in Couchbase";
     }
 
-    conn->errormsg.assign("Unknown error: " + std::to_string(error));
-    return conn->errormsg.c_str();
+    throw std::invalid_argument(
+            "to_string(cb::sasl::Error error): Unknown error: " +
+            std::to_string(int(error)));
 }

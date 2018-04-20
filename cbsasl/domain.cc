@@ -1,5 +1,5 @@
 /*
- *     Copyright 2013 Couchbase, Inc.
+ *     Copyright 2018 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -14,17 +14,9 @@
  *   limitations under the License.
  */
 
-#include "cbsasl/cbsasl_internal.h"
+#include <cbsasl/domain.h>
 
 #include <stdexcept>
-
-CBSASL_PUBLIC_API
-void cbsasl_dispose(cbsasl_conn_t** conn) {
-    if (conn != nullptr) {
-        delete *conn;
-        *conn = nullptr;
-    }
-}
 
 CBSASL_PUBLIC_API
 cb::sasl::Domain cb::sasl::to_domain(const std::string& domain) {
@@ -38,7 +30,7 @@ cb::sasl::Domain cb::sasl::to_domain(const std::string& domain) {
 }
 
 CBSASL_PUBLIC_API
-std::string cb::sasl::to_string(cb::sasl::Domain domain) {
+std::string to_string(cb::sasl::Domain domain) {
     switch (domain) {
     case cb::sasl::Domain::Local:
         return "local";
@@ -47,17 +39,4 @@ std::string cb::sasl::to_string(cb::sasl::Domain domain) {
     }
     throw std::invalid_argument("cb::sasl::to_string: invalid domain " +
                                 std::to_string(int(domain)));
-}
-
-CBSASL_PUBLIC_API
-std::string& cb::sasl::get_uuid(cbsasl_conn_t* conn) {
-    if (conn == nullptr) {
-        throw std::invalid_argument("cb::sasl::get_uuid: conn can't be null");
-    }
-    return conn->uuid;
-}
-
-CBSASL_PUBLIC_API
-void cb::sasl::set_scramsha_fallback_salt(const std::string& salt) {
-    cb::sasl::internal::set_scramsha_fallback_salt(salt);
 }

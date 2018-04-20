@@ -24,7 +24,9 @@ extern "C" {
 #endif
 
 /* Compare a and b without revealing their content by short-circuiting */
-int cbsasl_secure_compare(const char* a, size_t alen, const char* b,
+int cbsasl_secure_compare(const char* a,
+                          size_t alen,
+                          const char* b,
                           size_t blen);
 
 #ifdef __cplusplus

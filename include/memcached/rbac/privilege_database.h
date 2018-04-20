@@ -24,7 +24,7 @@
 #include <cJSON.h>
 #include <memcached/rbac/privileges.h>
 
-#include <cbsasl/cbsasl.h>
+#include <cbsasl/domain.h>
 #include <bitset>
 #include <cstdint>
 #include <limits>

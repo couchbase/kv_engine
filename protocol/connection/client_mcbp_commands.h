@@ -727,12 +727,12 @@ class BinprotSaslAuthCommand
         : public BinprotCommandT<BinprotSaslAuthCommand,
                                  PROTOCOL_BINARY_CMD_SASL_AUTH> {
 public:
-    void setMechanism(const char* mech_) {
+    void setMechanism(const std::string& mech_) {
         setKey(mech_);
     }
 
-    void setChallenge(const char* data, size_t n) {
-        challenge.assign(data, n);
+    void setChallenge(cb::const_char_buffer data) {
+        challenge.assign(data.begin(), data.size());
     }
 
     void encode(std::vector<uint8_t>&) const override;
@@ -745,16 +745,18 @@ class BinprotSaslStepCommand
         : public BinprotCommandT<BinprotSaslStepCommand,
                                  PROTOCOL_BINARY_CMD_SASL_STEP> {
 public:
-    void setMechanism(const char* mech) {
+    void setMechanism(const std::string& mech) {
         setKey(mech);
     }
-    void setChallengeResponse(const char* resp, size_t len) {
-        challenge_response.assign(resp, len);
+
+    void setChallenge(cb::const_char_buffer data) {
+        challenge.assign(data.begin(), data.size());
     }
+
     void encode(std::vector<uint8_t>&) const override;
 
 private:
-    std::string challenge_response;
+    std::string challenge;
 };
 
 class BinprotHelloCommand : public BinprotCommandT<BinprotHelloCommand,

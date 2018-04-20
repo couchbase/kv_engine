@@ -51,6 +51,9 @@
 #include "utilities/protocol2text.h"
 #include "utilities/terminate_handler.h"
 
+#include <cbsasl/logging.h>
+#include <cbsasl/mechanism.h>
+#include <cbsasl/saslauthd_config.h>
 #include <mcbp/mcbp.h>
 #include <memcached/util.h>
 #include <phosphor/phosphor.h>
@@ -476,7 +479,7 @@ static void saslauthd_socketpath_changed_listener(const std::string&, Settings &
 
 static void scramsha_fallback_salt_changed_listener(const std::string&,
                                                     Settings& s) {
-    cb::sasl::set_scramsha_fallback_salt(s.getScramshaFallbackSalt());
+    cb::sasl::server::set_scramsha_fallback_salt(s.getScramshaFallbackSalt());
 }
 
 static void opcode_attributes_override_changed_listener(const std::string&,
@@ -608,17 +611,6 @@ static void settings_init(void) {
     }
 
     settings.setSslMinimumProtocol("tlsv1");
-    /*
-     * MB-22586
-     * When connecting over SSL there isn't much point of using SCRAM or
-     * any other CPU intensive (and multiple packets exchange between
-     * client and server) to avoid sending the password in clear text as
-     * everything going over SSL should be encrypted anyway.
-     */
-    if (getenv("COUCHBASE_I_DONT_TRUST_SSL") == nullptr) {
-        settings.setSslSaslMechanisms("PLAIN");
-    }
-
     if (getenv("COUCHBASE_ENABLE_PRIVILEGE_DEBUG") != nullptr) {
         settings.setPrivilegeDebug(true);
     }
@@ -2215,57 +2207,19 @@ static void sasl_log_callback(cb::sasl::logging::Level level,
     }
 }
 
-static int sasl_getopt_callback(void*, const char*,
-                                const char* option,
-                                const char** result,
-                                unsigned* len) {
-    if (option == nullptr || result == nullptr || len == nullptr) {
-        return CBSASL_BADPARAM;
-    }
-
-    std::string key(option);
-
-    if (key == "hmac iteration count") {
-        // Speed up the test suite by reducing the SHA1 hmac calculations
-        // from 4k to 10
-        if (getenv("MEMCACHED_UNIT_TESTS") != nullptr) {
-            *result = "10";
-            *len = 2;
-            return CBSASL_OK;
-        }
-    } else if (key == "sasl mechanisms") {
-        const auto& value = settings.getSaslMechanisms();
-        if (!value.empty()) {
-            *result = value.data();
-            *len = static_cast<unsigned int>(value.size());
-            return CBSASL_OK;
-        }
-    }
-
-    return CBSASL_FAIL;
-}
-
 static void initialize_sasl() {
-    cb::sasl::logging::set_log_callback(sasl_log_callback);
-
-    cbsasl_callback_t sasl_callbacks[2];
-    int ii = 0;
-
-    sasl_callbacks[ii].id = CBSASL_CB_GETOPT;
-    sasl_callbacks[ii].proc = (int (*)(void))&sasl_getopt_callback;
-    sasl_callbacks[ii].context = nullptr;
-    sasl_callbacks[++ii].id = CBSASL_CB_LIST_END;
-    sasl_callbacks[ii].proc = nullptr;
-    sasl_callbacks[ii].context = nullptr;
-
-    if (cbsasl_server_init(sasl_callbacks, "memcached") != CBSASL_OK) {
-        FATAL_ERROR(EXIT_FAILURE, "Failed to initialize SASL server");
-    }
-
-    if (cb::sasl::plain::authenticate("default", "") == CBSASL_OK) {
+    using namespace cb::sasl;
+    logging::set_log_callback(sasl_log_callback);
+    server::initialize();
+    if (mechanism::plain::authenticate("default", "") == Error::OK) {
         set_default_bucket_enabled(true);
     } else {
         set_default_bucket_enabled(false);
+    }
+
+    if (getenv("MEMCACHED_UNIT_TESTS") != nullptr) {
+        // Speed up the unit tests ;)
+        server::set_hmac_iteration_count(10);
     }
 }
 
@@ -2497,7 +2451,7 @@ extern "C" int memcached_main(int argc, char **argv) {
     release_signal_handlers();
 
     LOG_INFO("Shutting down SASL server");
-    cbsasl_server_term();
+    cb::sasl::server::shutdown();
 
     LOG_INFO("Releasing connection objects");
     destroy_connections();

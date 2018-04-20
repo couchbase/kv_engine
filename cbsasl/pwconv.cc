@@ -14,16 +14,17 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include "pwconv.h"
+#include <cbsasl/logging.h>
+#include <cbsasl/pwdb.h>
 #include "user.h"
 
+#include <platform/memorymap.h>
 #include <fstream>
 #include <iostream>
 #include <iterator>
-#include <platform/memorymap.h>
 #include <sstream>
 
-void cbsasl_pwconv(std::istream& is, std::ostream& os) {
+void cb::sasl::pwdb::convert(std::istream& is, std::ostream& os) {
     unique_cJSON_ptr root(cJSON_CreateObject());
     if (root.get() == nullptr) {
         throw std::bad_alloc();
@@ -66,26 +67,27 @@ void cbsasl_pwconv(std::istream& is, std::ostream& os) {
             username.resize(index);
         }
 
-        logging::log(logging::Level::Trace,
-                     "Create user entry for [" + username + "]");
+        cb::sasl::logging::log(cb::sasl::logging::Level::Trace,
+                               "Create user entry for [" + username + "]");
 
-        auto u = cb::sasl::UserFactory::create(username, password);
+        auto u = UserFactory::create(username, password);
         cJSON_AddItemToArray(users, u.to_json().release());
     }
 
     os << to_string(root, true) << std::endl;
 }
 
-void cbsasl_pwconv(const std::string& ifile, const std::string& ofile) {
-    std::stringstream inputstream(cbsasl_read_password_file(ifile));
+void cb::sasl::pwdb::convert(const std::string& ifile,
+                             const std::string& ofile) {
+    std::stringstream inputstream(read_password_file(ifile));
     std::stringstream outputstream;
 
-    cbsasl_pwconv(inputstream, outputstream);
+    convert(inputstream, outputstream);
 
-    cbsasl_write_password_file(ofile, outputstream.str());
+    write_password_file(ofile, outputstream.str());
 }
 
-std::string cbsasl_read_password_file(const std::string& filename) {
+std::string cb::sasl::pwdb::read_password_file(const std::string& filename) {
     if (filename == "-") {
         std::string contents;
         try {
@@ -102,8 +104,7 @@ std::string cbsasl_read_password_file(const std::string& filename) {
     cb::MemoryMappedFile map(filename.c_str(),
                              cb::MemoryMappedFile::Mode::RDONLY);
     map.open();
-    std::string ret(reinterpret_cast<char*>(map.getRoot()),
-                    map.getSize());
+    std::string ret(reinterpret_cast<char*>(map.getRoot()), map.getSize());
     map.close();
 
     // The password file may be encrypted
@@ -122,8 +123,8 @@ std::string cbsasl_read_password_file(const std::string& filename) {
     return cb::crypto::decrypt(json.get(), ret);
 }
 
-void cbsasl_write_password_file(const std::string& filename,
-                                const std::string& content) {
+void cb::sasl::pwdb::write_password_file(const std::string& filename,
+                                         const std::string& content) {
     if (filename == "-") {
         std::cout.write(content.data(), content.size());
         std::cout.flush();
@@ -138,8 +139,9 @@ void cbsasl_write_password_file(const std::string& filename,
     } else {
         unique_cJSON_ptr json(cJSON_Parse(env));
         if (json.get() == nullptr) {
-            throw std::runtime_error("cbsasl_write_password_file: Invalid json"
-                                         " specified in COUCHBASE_CBSASL_SECRETS");
+            throw std::runtime_error(
+                    "cbsasl_write_password_file: Invalid json"
+                    " specified in COUCHBASE_CBSASL_SECRETS");
         }
         auto enc = cb::crypto::encrypt(json.get(), content);
         of.write(enc.data(), enc.size());

@@ -1,5 +1,6 @@
+/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2016 Couchbase, Inc.
+ *     Copyright 2018 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -13,18 +14,31 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+
 #pragma once
 
+#include <cbsasl/visibility.h>
 #include <string>
-#include "user.h"
+
+namespace cb {
+namespace sasl {
 
 /**
- * Searches for a user entry for the specified user.
- *
- * @param user the username to search for
- * @param user updated with the user information if found
- * @return true if user exists, false otherwise
+ * The error values used in CBSASL
  */
-bool find_user(const std::string& username, cb::sasl::pwdb::User& user);
+enum class Error {
+    OK,
+    CONTINUE,
+    FAIL,
+    BAD_PARAM,
+    NO_MEM,
+    NO_MECH,
+    NO_USER,
+    PASSWORD_ERROR,
+    NO_RBAC_PROFILE
+};
+}
+} // namespace cb
 
-cb::sasl::Error load_user_db();
+CBSASL_PUBLIC_API
+std::string to_string(cb::sasl::Error error);

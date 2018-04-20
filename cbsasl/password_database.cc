@@ -15,19 +15,20 @@
  *   limitations under the License.
  */
 #include "password_database.h"
-#include "pwconv.h"
 
 #include <cJSON_utils.h>
 #include <memory>
 #include <string>
 
+namespace cb {
+namespace sasl {
+namespace pwdb {
 
-cb::sasl::PasswordDatabase::PasswordDatabase(const std::string& content,
-                                              bool file) {
+PasswordDatabase::PasswordDatabase(const std::string& content, bool file) {
     unique_cJSON_ptr unique_json;
 
     if (file) {
-        auto c = cbsasl_read_password_file(content);
+        auto c = read_password_file(content);
         unique_json.reset(cJSON_Parse(c.c_str()));
     } else {
         unique_json.reset(cJSON_Parse(content.c_str()));
@@ -37,11 +38,10 @@ cb::sasl::PasswordDatabase::PasswordDatabase(const std::string& content,
     if (json == nullptr) {
         if (file) {
             throw std::runtime_error(
-                "PasswordDatabase: Failed to parse the JSON in " +
-                content);
+                    "PasswordDatabase: Failed to parse the JSON in " + content);
         } else {
             throw std::runtime_error(
-                "PasswordDatabase: Failed to parse the supplied JSON");
+                    "PasswordDatabase: Failed to parse the supplied JSON");
         }
     }
 
@@ -51,32 +51,38 @@ cb::sasl::PasswordDatabase::PasswordDatabase(const std::string& content,
 
     auto* users = cJSON_GetObjectItem(json, "users");
     if (users == nullptr) {
-        throw std::runtime_error("PasswordDatabase: format error. users not"
-                                     " present");
+        throw std::runtime_error(
+                "PasswordDatabase: format error. users not"
+                " present");
     }
     if (users->type != cJSON_Array) {
-        throw std::runtime_error("PasswordDatabase: Illegal type for "
-                                "\"users\". Expected Array");
+        throw std::runtime_error(
+                "PasswordDatabase: Illegal type for "
+                "\"users\". Expected Array");
     }
 
     // parse all of the users
     for (auto* u = users->child; u != nullptr; u = u->next) {
-        auto user = cb::sasl::UserFactory::create(u);
+        auto user = UserFactory::create(u);
         db[user.getUsername()] = user;
     }
 }
 
-unique_cJSON_ptr cb::sasl::PasswordDatabase::to_json() const {
+unique_cJSON_ptr PasswordDatabase::to_json() const {
     auto* json = cJSON_CreateObject();
     auto* array = cJSON_CreateArray();
 
-    for (const auto &u : db) {
+    for (const auto& u : db) {
         cJSON_AddItemToArray(array, u.second.to_json().release());
     }
     cJSON_AddItemToObject(json, "users", array);
     return unique_cJSON_ptr(json);
 }
 
-std::string cb::sasl::PasswordDatabase::to_string() const {
+std::string PasswordDatabase::to_string() const {
     return ::to_string(to_json());
 }
+
+} // namespace pwdb
+} // namespace sasl
+} // namespace cb

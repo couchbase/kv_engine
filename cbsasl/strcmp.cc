@@ -15,12 +15,12 @@
  *   limitations under the License.
  */
 
-#include <cbsasl/cbsasl.h>
 #include "util.h"
 
-int cbsasl_secure_compare(const char *a, size_t alen,
-                          const char *b, size_t blen)
-{
+int cbsasl_secure_compare(const char* a,
+                          size_t alen,
+                          const char* b,
+                          size_t blen) {
     size_t xx;
     size_t yi = 0;
     size_t bi = 0;

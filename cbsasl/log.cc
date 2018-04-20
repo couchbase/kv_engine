@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2016 Couchbase, Inc.
+ *     Copyright 2018 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -14,11 +14,11 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include <cbsasl/cbsasl.h>
-#include "cbsasl/cbsasl_internal.h"
+#include <cbsasl/context.h>
+#include <cbsasl/logging.h>
 
-#include <iostream>
 #include <relaxed_atomic.h>
+#include <iostream>
 
 namespace cb {
 namespace sasl {
@@ -26,18 +26,20 @@ namespace logging {
 
 Couchbase::RelaxedAtomic<LogCallback> callback;
 
-void log(cbsasl_conn_t& connection, Level level, const std::string& message) {
+void log(Context* context, Level level, const std::string& message) {
     auto logger = callback.load();
     if (logger == nullptr) {
         return;
     }
 
+    if (context == nullptr) {
+        log(level, message);
+        return;
+    }
+
     if (level == Level::Error) {
         // We need to generate UUID
-        auto& uuid = connection.get_uuid();
-        std::string full;
-        full.reserve(message.size() + uuid.size() + 10);
-        full = "UUID:[" + uuid + "] " + message;
+        std::string full = "UUID:[" + context->getUuid() + "] " + message;
         callback.load()(level, full);
     } else {
         callback.load()(level, message);

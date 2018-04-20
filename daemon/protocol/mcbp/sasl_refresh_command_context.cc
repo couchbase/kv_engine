@@ -17,19 +17,18 @@
 
 #include "sasl_refresh_command_context.h"
 
+#include <cbsasl/mechanism.h>
 #include <daemon/connection.h>
 #include <daemon/cookie.h>
 #include <daemon/runtime.h>
 
 static void cbsasl_refresh_main(void* cookie) {
-    ENGINE_ERROR_CODE rv = ENGINE_FAILED;
+    ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
     try {
-        auto status = cbsasl_server_refresh();
-        if (status == CBSASL_OK) {
-            set_default_bucket_enabled(
-                    cb::sasl::plain::authenticate("default", "") == CBSASL_OK);
-            rv = ENGINE_SUCCESS;
-        }
+        using namespace cb::sasl;
+        server::refresh();
+        set_default_bucket_enabled(
+                mechanism::plain::authenticate("default", "") == Error::OK);
     } catch (...) {
         rv = ENGINE_FAILED;
     }

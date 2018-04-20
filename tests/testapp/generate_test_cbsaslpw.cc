@@ -15,14 +15,12 @@
  *   limitations under the License.
  */
 
-#include <cbsasl/cbsasl_internal.h>
-#include <cbsasl/pwconv.h>
 #include <cbsasl/user.h>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 
-int main(void) {
+int main() {
     std::ofstream isaslpw("isasl.pw");
 
     isaslpw << "@admin password" << std::endl
@@ -37,12 +35,12 @@ int main(void) {
 
     isaslpw.close();
 
-    cb::sasl::UserFactory::setDefaultHmacIterationCount(10);
+    cb::sasl::pwdb::UserFactory::setDefaultHmacIterationCount(10);
 
     int exitcode = EXIT_SUCCESS;
 
     try {
-        cbsasl_pwconv("isasl.pw", "cbsaslpw.json");
+        cb::sasl::pwdb::convert("isasl.pw", "cbsaslpw.json");
     } catch (const std::exception &e) {
         std::cerr << "FATAL: Failed to write cbsaslpw.json: " << e.what()
                   << std::endl;

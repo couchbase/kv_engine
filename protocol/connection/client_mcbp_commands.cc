@@ -190,13 +190,13 @@ void BinprotSaslStepCommand::encode(std::vector<uint8_t>& buf) const {
     if (key.empty()) {
         throw std::logic_error("BinprotSaslStepCommand::encode: Missing mechanism (setMechanism");
     }
-    if (challenge_response.empty()) {
+    if (challenge.empty()) {
         throw std::logic_error("BinprotSaslStepCommand::encode: Missing challenge response");
     }
 
-    writeHeader(buf, challenge_response.size(), 0);
+    writeHeader(buf, challenge.size(), 0);
     buf.insert(buf.end(), key.begin(), key.end());
-    buf.insert(buf.end(), challenge_response.begin(), challenge_response.end());
+    buf.insert(buf.end(), challenge.begin(), challenge.end());
 }
 
 void BinprotCreateBucketCommand::setConfig(const std::string& module,

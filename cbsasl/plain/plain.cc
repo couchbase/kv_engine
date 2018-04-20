@@ -1,5 +1,5 @@
 /*
- *     Copyright 2016 Couchbase, Inc.
+ *     Copyright 2018 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -13,45 +13,53 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+
 #include "plain.h"
 
 #include "cbsasl/pwfile.h"
 #include "check_password.h"
 
+#include <cbsasl/logging.h>
+#include <cbsasl/saslauthd_config.h>
 #include <platform/dirutils.h>
 #include <cstring>
 
 #ifdef WIN32
 #include <stdexcept>
-static cbsasl_error_t check(cbsasl_conn_t& conn,
-                            const std::string& username,
-                            const std::string &passwd) {
-    return CBSASL_NOUSER;
+static cb::sasl::Error check(cb::sasl::Context* context,
+                             const std::string& username,
+                             const std::string& passwd) {
+    return cb::sasl::Error::NO_USER;
 }
 #else
 #include <unistd.h>
 #include "saslauthd.h"
-static cbsasl_error_t check(cbsasl_conn_t& conn,
-                            const std::string& username,
-                            const std::string &passwd) {
+static cb::sasl::Error check(cb::sasl::Context* context,
+                             const std::string& username,
+                             const std::string& passwd) {
     const auto socketfile = cb::sasl::saslauthd::get_socketpath();
     if (socketfile.empty() || access(socketfile.c_str(), F_OK) == -1) {
         // No saslauthd path
-        return CBSASL_NOUSER;
+        return cb::sasl::Error::NO_USER;
     } else {
         try {
             Saslauthd saslauthd(socketfile);
             return saslauthd.check(username, passwd);
         } catch (const std::exception& e) {
-            logging::log(conn,
-                         logging::Level::Error,
-                         "Failed to validate [" + username +
-                                 "] through saslauthd: " + e.what());
-            return CBSASL_FAIL;
+            cb::sasl::logging::log(context,
+                                   cb::sasl::logging::Level::Error,
+                                   "Failed to validate [" + username +
+                                           "] through saslauthd: " + e.what());
+            return cb::sasl::Error::FAIL;
         }
     }
 }
 #endif
+
+namespace cb {
+namespace sasl {
+namespace mechanism {
+namespace plain {
 
 /**
  * ns_server creates a legacy bucket user as part of the upgrade
@@ -61,136 +69,104 @@ static cbsasl_error_t check(cbsasl_conn_t& conn,
  * If it exists and we have a matching password we're good to go,
  * otherwise we'll have to try the "normal" user.
  */
-static bool try_legacy_user(cbsasl_conn_t& conn,
-                            const std::string& username,
-                            const std::string& password) {
+bool ServerBackend::try_legacy_user(const std::string& password) {
     const std::string lecacy_username{username + ";legacy"};
-    cb::sasl::User user;
+    cb::sasl::pwdb::User user;
     if (!find_user(lecacy_username, user)) {
         return false;
     }
 
-    if (cb::sasl::plain::check_password(&conn, user, password) == CBSASL_OK) {
-        conn.server->username.assign(lecacy_username);
+    if (cb::sasl::plain::check_password(&context, user, password) ==
+        Error::OK) {
+        username.assign(lecacy_username);
         return true;
     }
 
     return false;
 }
 
-cbsasl_error_t PlainServerBackend::start(const char* input,
-                                         unsigned inputlen,
-                                         const char** output,
-                                         unsigned* outputlen) {
-    if (inputlen == 0 || input == nullptr) {
-        logging::log(conn,
-                     logging::Level::Error,
-                     "PlainServerBackend::start(): Invalid arguments");
-        return CBSASL_BADPARAM;
+std::pair<Error, cb::const_char_buffer> ServerBackend::start(
+        cb::const_char_buffer input) {
+    if (input.empty()) {
+        return std::make_pair<Error, cb::const_char_buffer>(Error::BAD_PARAM,
+                                                            {});
     }
 
-    if (output != nullptr) {
-        *output = nullptr;
-    }
-
-    if (outputlen != nullptr) {
-        *outputlen = 0;
-    }
-
+    // Skip everything up to the first \0
     size_t inputpos = 0;
-    while (inputpos < inputlen && input[inputpos] != '\0') {
+    while (inputpos < input.size() && input[inputpos] != '\0') {
         inputpos++;
     }
     inputpos++;
 
-    if (inputpos >= inputlen) {
-        logging::log(conn,
-                     logging::Level::Error,
-                     "PlainServerBackend::start(): Invalid encoded packet");
-        return CBSASL_BADPARAM;
+    if (inputpos >= input.size()) {
+        return std::make_pair<Error, cb::const_char_buffer>(Error::BAD_PARAM,
+                                                            {});
     }
 
     size_t pwlen = 0;
-    const char* username = input + inputpos;
+    const char* username = input.data() + inputpos;
     const char* password = nullptr;
-    while (inputpos < inputlen && input[inputpos] != '\0') {
+    while (inputpos < input.size() && input[inputpos] != '\0') {
         inputpos++;
     }
     inputpos++;
 
-    if (inputpos > inputlen) {
-        logging::log(conn,
-                     logging::Level::Error,
-                     "PlainServerBackend::start(): Invalid encoded packet");
-        return CBSASL_BADPARAM;
-    } else if (inputpos != inputlen) {
-        password = input + inputpos;
-        while (inputpos < inputlen && input[inputpos] != '\0') {
+    if (inputpos > input.size()) {
+        return std::make_pair<Error, cb::const_char_buffer>(Error::BAD_PARAM,
+                                                            {});
+    } else if (inputpos != input.size()) {
+        password = input.data() + inputpos;
+        while (inputpos < input.size() && input[inputpos] != '\0') {
             inputpos++;
             pwlen++;
         }
     }
 
-    conn.server->username.assign(username);
+    this->username.assign(username);
     const std::string userpw(password, pwlen);
 
-    if (try_legacy_user(conn, username, userpw)) {
-        return CBSASL_OK;
+    if (try_legacy_user(userpw)) {
+        return std::make_pair<Error, cb::const_char_buffer>(Error::OK, {});
     }
 
-    cb::sasl::User user;
+    cb::sasl::pwdb::User user;
     if (!find_user(username, user)) {
-        auto ret = check(conn, username, userpw);
-        if (ret == CBSASL_OK) {
-            conn.server->domain = cb::sasl::Domain::External;
+        const auto error = check(&context, username, userpw);
+        if (error == Error::OK) {
+            domain = Domain::External;
         }
-        return ret;
+        return std::pair<Error, cb::const_char_buffer>{error, {}};
     }
 
-    return cb::sasl::plain::check_password(&conn, user, userpw);
+    return std::make_pair<Error, cb::const_char_buffer>(
+            cb::sasl::plain::check_password(&context, user, userpw), {});
 }
 
-cbsasl_error_t PlainClientBackend::start(const char* input,
-                                         unsigned inputlen, const char** output,
-                                         unsigned* outputlen) {
+std::pair<Error, cb::const_char_buffer> ClientBackend::start() {
+    auto usernm = usernameCallback();
+    auto passwd = passwordCallback();
 
-    auto* client = conn.client.get();
+    buffer.push_back(0);
+    std::copy(usernm.begin(), usernm.end(), std::back_inserter(buffer));
+    buffer.push_back(0);
+    std::copy(passwd.begin(), passwd.end(), std::back_inserter(buffer));
 
-    const char* usernm = nullptr;
-    unsigned int usernmlen;
-
-    if (cbsasl_get_username(client->get_username, client->get_username_ctx,
-                            &usernm, &usernmlen) != CBSASL_OK) {
-        return CBSASL_FAIL;
-    }
-
-    cbsasl_secret_t* pass;
-    if (cbsasl_get_password(client->get_password, &conn,
-                            client->get_password_ctx, &pass) != CBSASL_OK) {
-        return CBSASL_FAIL;
-    }
-
-    try {
-        buffer.resize(usernmlen + 1 + pass->len + 1);
-    } catch (std::bad_alloc&) {
-        return CBSASL_NOMEM;
-    }
-
-    std::memcpy(buffer.data() + 1, usernm, usernmlen);
-    std::memcpy(buffer.data() + usernmlen + 2, pass->data, pass->len);
-
-    *output = buffer.data();
-    *outputlen = unsigned(buffer.size());
-    return CBSASL_OK;
+    return std::make_pair<Error, cb::const_char_buffer>(
+            Error::OK, {buffer.data(), buffer.size()});
 }
 
 CBSASL_PUBLIC_API
-cbsasl_error_t cb::sasl::plain::authenticate(const std::string& username,
-                                             const std::string& passwd) {
-    cb::sasl::User user;
+Error authenticate(const std::string& username, const std::string& passwd) {
+    cb::sasl::pwdb::User user;
     if (!find_user(username, user)) {
-        return CBSASL_NOUSER;
+        return Error::NO_USER;
     }
 
-    return check_password(nullptr, user, passwd);
+    return cb::sasl::plain::check_password(nullptr, user, passwd);
+}
+
+} // namespace plain
+} // namespace mechanism
+} // namespace sasl
 }

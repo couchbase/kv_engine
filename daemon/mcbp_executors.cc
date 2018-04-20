@@ -267,32 +267,13 @@ static void sasl_list_mech_executor(Cookie& cookie) {
          * The administrator did not configure any SASL mechanisms.
          * Go ahead and use whatever we've got in cbsasl
          */
-        const char* result_string = nullptr;
-        unsigned int string_length = 0;
-
-        auto ret = cbsasl_listmech(connection.getSaslConn(),
-                                   nullptr,
-                                   nullptr,
-                                   " ",
-                                   nullptr,
-                                   &result_string,
-                                   &string_length,
-                                   nullptr);
-
-        if (ret == CBSASL_OK) {
-            cookie.sendResponse(cb::mcbp::Status::Success,
-                                {},
-                                {},
-                                {result_string, string_length},
-                                cb::mcbp::Datatype::Raw,
-                                0);
-        } else {
-            /* Perhaps there's a better error for this... */
-            LOG_WARNING("{}: Failed to list SASL mechanisms: {}",
-                        connection.getId(),
-                        cbsasl_strerror(connection.getSaslConn(), ret));
-            cookie.sendResponse(cb::mcbp::Status::AuthError);
-        }
+        const auto mechs = cb::sasl::server::listmech();
+        cookie.sendResponse(cb::mcbp::Status::Success,
+                            {},
+                            {},
+                            mechs,
+                            cb::mcbp::Datatype::Raw,
+                            0);
     }
 }
 

@@ -15,26 +15,38 @@
  *   limitations under the License.
  */
 
-/*
- *   Due to log.cc being used both in libraries and executables, the file was
- *   not able to be compiled on Windows due to the usage of the API header
- *   linkage. This file was created to allow for the correct API header to be
- *   specified, and so that log.cc can be build into both libraries and
- *   executables.
- */
-#include <cbsasl/logging.h>
-#include <relaxed_atomic.h>
+#pragma once
+
+#include <cbsasl/visibility.h>
+#include <string>
 
 namespace cb {
 namespace sasl {
-namespace logging {
 
-extern Couchbase::RelaxedAtomic<LogCallback> callback;
+/**
+ * An abstract context class to allow a common base class for the
+ * client and server context.
+ */
+class CBSASL_PUBLIC_API Context {
+public:
+    virtual ~Context() = default;
 
-CBSASL_PUBLIC_API
-void set_log_callback(LogCallback logCallback) {
-    callback.store(logCallback);
-}
-} // namespace logging
+    /**
+     * Get the UUID used for errors by this connection. If none
+     * is created a new one is generated.
+     */
+    std::string getUuid();
+
+    /**
+     * Do this context contain a UUID?
+     */
+    bool containsUuid() const {
+        return !uuid.empty();
+    }
+
+protected:
+    std::string uuid;
+};
+
 } // namespace sasl
 } // namespace cb

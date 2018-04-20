@@ -2,12 +2,7 @@ include(CouchbaseGoogleTest)
 
 INCLUDE_DIRECTORIES(AFTER ${Platform_SOURCE_DIR}/external)
 
-ADD_EXECUTABLE(generate_test_cbsaslpw generate_test_cbsaslpw.cc
-               ${Memcached_SOURCE_DIR}/cbsasl/log.cc
-               ${Memcached_SOURCE_DIR}/cbsasl/pwconv.cc
-               ${Memcached_SOURCE_DIR}/cbsasl/pwconv.h
-               ${Memcached_SOURCE_DIR}/cbsasl/user.cc
-               ${Memcached_SOURCE_DIR}/cbsasl/user.h)
+ADD_EXECUTABLE(generate_test_cbsaslpw generate_test_cbsaslpw.cc)
 TARGET_LINK_LIBRARIES(generate_test_cbsaslpw cbsasl cJSON platform
                       ${OPENSSL_LIBRARIES})
 

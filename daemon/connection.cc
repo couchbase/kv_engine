@@ -54,21 +54,6 @@ const char* to_string(const Connection::Priority& priority) {
                                 std::to_string(int(priority)));
 }
 
-static cbsasl_conn_t* create_new_cbsasl_server_t() {
-    cbsasl_conn_t *conn;
-    if (cbsasl_server_new("memcached", // service
-                          nullptr, // Server DQDN
-                          nullptr, // user realm
-                          nullptr, // iplocalport
-                          nullptr, // ipremoteport
-                          nullptr, // callbacks
-                          0, // flags
-                          &conn) != CBSASL_OK) {
-        throw std::bad_alloc();
-    }
-    return conn;
-}
-
 void Connection::resolveConnectionName() {
     if (socketDescriptor == INVALID_SOCKET) {
         // Our unit tests run without a socket connected, and we don't
@@ -167,10 +152,6 @@ unique_cJSON_ptr Connection::toJSON() const {
     cJSON_AddBoolToObject(obj, "internal", isInternal());
     if (authenticated) {
         cJSON_AddStringToObject(obj, "username", username.c_str());
-        }
-        if (sasl_conn != NULL) {
-            cJSON_AddUintPtrToObject(obj, "sasl_conn",
-                                       (uintptr_t)sasl_conn.get());
         }
         cJSON_AddBoolToObject(obj, "nodelay", nodelay);
         cJSON_AddNumberToObject(obj, "refcount", refcount);
@@ -284,7 +265,7 @@ unique_cJSON_ptr Connection::toJSON() const {
 }
 
 void Connection::restartAuthentication() {
-    sasl_conn.reset(create_new_cbsasl_server_t());
+    sasl_conn.reset();
     internal = false;
     authenticated = false;
     username = "";
@@ -470,17 +451,13 @@ ENGINE_ERROR_CODE Connection::remapErrorCode(ENGINE_ERROR_CODE code) const {
 }
 
 void Connection::resetUsernameCache() {
-    static const char unknown[] = "unknown";
-    const void* unm = unknown;
-
-    if (cbsasl_getprop(sasl_conn.get(),
-                       CBSASL_USERNAME, &unm) != CBSASL_OK) {
-        unm = unknown;
+    if (sasl_conn.isInitialized()) {
+        username = sasl_conn.getUsername();
+        domain = sasl_conn.getDomain();
+    } else {
+        username = "unknown";
+        domain = cb::sasl::Domain::Local;
     }
-
-    username.assign(reinterpret_cast<const char*>(unm));
-
-    domain = cb::sasl::get_domain(sasl_conn.get());
 
     updateDescription();
 }
@@ -1230,7 +1207,6 @@ void Connection::ensureIovSpace() {
 Connection::Connection()
     : socketDescriptor(INVALID_SOCKET),
       base(nullptr),
-      sasl_conn(create_new_cbsasl_server_t()),
       stateMachine(*this) {
     MEMCACHED_CONN_CREATE(this);
     updateDescription();
@@ -1241,7 +1217,6 @@ Connection::Connection()
 Connection::Connection(SOCKET sfd, event_base* b, const ListeningPort& ifc)
     : socketDescriptor(sfd),
       base(b),
-      sasl_conn(create_new_cbsasl_server_t()),
       parent_port(ifc.port),
       stateMachine(*this) {
     MEMCACHED_CONN_CREATE(this);

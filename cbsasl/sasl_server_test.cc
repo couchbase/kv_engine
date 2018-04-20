@@ -14,203 +14,103 @@
  *   limitations under the License.
  */
 #include "config.h"
-#include <cbsasl/cbsasl.h>
 
+#include <cbcrypto/cbcrypto.h>
+#include <cbsasl/client.h>
+#include <cbsasl/mechanism.h>
+#include <cbsasl/server.h>
 #include <gtest/gtest.h>
 #include <platform/cb_malloc.h>
 #include <platform/platform.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <algorithm>
 #include <array>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <gsl/gsl>
 
 char envptr[1024]{"CBSASL_PWFILE=" SOURCE_ROOT "/cbsasl/sasl_server_test.json"};
 
 static std::string mechanisms;
 
-static int sasl_getopt_callback(void*,
-                                const char*,
-                                const char* option,
-                                const char** result,
-                                unsigned* len) {
-    if (option == nullptr || result == nullptr || len == nullptr) {
-        return CBSASL_BADPARAM;
-    }
-
-    if (strcmp(option, "sasl mechanisms") == 0) {
-        *result = mechanisms.c_str();
-        *len = gsl::narrow<unsigned>(mechanisms.length());
-        return CBSASL_OK;
-    }
-
-    return CBSASL_FAIL;
-}
-
 class SaslServerTest : public ::testing::Test {
 protected:
-    void SetUp() {
-        std::array<cbsasl_callback_t, 3> server_sasl_callback;
-        int ii = 0;
-        server_sasl_callback[ii].id = CBSASL_CB_GETOPT;
-        server_sasl_callback[ii].proc = (int (*)(void))sasl_getopt_callback;
-        server_sasl_callback[ii++].context = nullptr;
-        server_sasl_callback[ii].id = CBSASL_CB_LIST_END;
-        server_sasl_callback[ii].proc = nullptr;
-        server_sasl_callback[ii].context = nullptr;
-
-        ASSERT_EQ(CBSASL_OK,
-                  cbsasl_server_init(server_sasl_callback.data(),
-                                     "cbsasl_server_test"));
-        ASSERT_EQ(CBSASL_OK,
-                  cbsasl_server_new(nullptr,
-                                    nullptr,
-                                    nullptr,
-                                    nullptr,
-                                    nullptr,
-                                    nullptr,
-                                    0,
-                                    &conn));
-    }
-
-    void TearDown() {
-        cbsasl_dispose(&conn);
-        ASSERT_EQ(CBSASL_OK, cbsasl_server_term());
-    }
-
     static void SetUpTestCase() {
         putenv(envptr);
 
-#ifdef HAVE_PKCS5_PBKDF2_HMAC
-        mechanisms.append("SCRAM-SHA512 SCRAM-SHA256 ");
-#endif
+        using namespace cb::crypto;
+        if (isSupported(Algorithm::SHA512)) {
+            mechanisms.append("SCRAM-SHA512 ");
+        }
 
-#ifdef HAVE_PKCS5_PBKDF2_HMAC_SHA1
-        mechanisms.append("SCRAM-SHA1 ");
-#endif
+        if (isSupported(Algorithm::SHA256)) {
+            mechanisms.append("SCRAM-SHA256 ");
+        }
+
+        if (isSupported(Algorithm::SHA1)) {
+            mechanisms.append("SCRAM-SHA1 ");
+        }
+
         mechanisms.append("PLAIN");
+        cb::sasl::server::initialize();
+    }
+
+    static void TearDownTestCase() {
+        cb::sasl::server::shutdown();
     }
 
 protected:
-    cbsasl_conn_t* conn;
+    cb::sasl::server::ServerContext context;
 };
 
 TEST_F(SaslServerTest, ListMechs) {
-    const char* mechs = nullptr;
-    unsigned len = 0;
-    cbsasl_error_t err = cbsasl_listmech(
-            conn, nullptr, nullptr, " ", nullptr, &mechs, &len, nullptr);
-    ASSERT_EQ(CBSASL_OK, err);
-    EXPECT_EQ(mechanisms, std::string(mechs, len));
-}
-
-TEST_F(SaslServerTest, ListMechsBadParam) {
-    const char* mechs = nullptr;
-    unsigned len = 0;
-    cbsasl_error_t err = cbsasl_listmech(
-            conn, nullptr, nullptr, ",", nullptr, nullptr, &len, nullptr);
-    ASSERT_EQ(CBSASL_BADPARAM, err);
-
-    err = cbsasl_listmech(
-            nullptr, nullptr, nullptr, ",", nullptr, &mechs, &len, nullptr);
-    ASSERT_EQ(CBSASL_BADPARAM, err);
-}
-
-TEST_F(SaslServerTest, ListMechsSpecialized) {
-    const char* mechs = nullptr;
-    unsigned len = 0;
-    int num;
-    cbsasl_error_t err =
-            cbsasl_listmech(conn, nullptr, "(", ",", ")", &mechs, &len, &num);
-    ASSERT_EQ(CBSASL_OK, err);
-    std::string mechlist(mechs, len);
-    std::string expected("(" + mechanisms + ")");
-    std::replace(expected.begin(), expected.end(), ' ', ',');
-    EXPECT_EQ(expected, mechlist);
+    EXPECT_EQ(mechanisms, cb::sasl::server::listmech());
 }
 
 TEST_F(SaslServerTest, BadMech) {
-    cbsasl_error_t err =
-            cbsasl_server_start(conn, "bad_mech", nullptr, 0, nullptr, nullptr);
-    ASSERT_EQ(CBSASL_NOMECH, err);
+    EXPECT_THROW(context.start("bad_mech", "", "foobar"),
+                 cb::sasl::unknown_mechanism);
 }
 
 TEST_F(SaslServerTest, PlainCorrectPassword) {
     /* Normal behavior */
-    const char* output = nullptr;
-    unsigned outputlen = 0;
-    cbsasl_error_t err = cbsasl_server_start(
-            conn, "PLAIN", "\0mikewied\0mikepw", 16, &output, &outputlen);
-    ASSERT_EQ(CBSASL_OK, err);
-    cb_free((void*)output);
+    auto data = context.start("PLAIN", "", {"\0mikewied\0mikepw", 16});
+    EXPECT_EQ(cb::sasl::Error::OK, data.first);
+    EXPECT_TRUE(data.second.empty());
 }
 
 TEST_F(SaslServerTest, PlainWrongPassword) {
-    const char* output = nullptr;
-    unsigned outputlen = 0;
-
-    cbsasl_error_t err = cbsasl_server_start(
-            conn, "PLAIN", "\0mikewied\0badpPW", 16, &output, &outputlen);
-    ASSERT_EQ(CBSASL_PWERR, err);
-    cb_free((void*)output);
+    auto data = context.start("PLAIN", "", {"\0mikewied\0badpPW", 16});
+    EXPECT_EQ(cb::sasl::Error::PASSWORD_ERROR, data.first);
+    EXPECT_TRUE(data.second.empty());
 }
 
 TEST_F(SaslServerTest, PlainNoPassword) {
-    const char* output = nullptr;
-    unsigned outputlen = 0;
-
-    cbsasl_error_t err = cbsasl_server_start(
-            conn, "PLAIN", "\0nopass\0", 8, &output, &outputlen);
-    ASSERT_EQ(CBSASL_OK, err);
-    cb_free((void*)output);
+    auto data = context.start("PLAIN", "", {"\0nopass\0", 8});
+    EXPECT_EQ(cb::sasl::Error::OK, data.first);
+    EXPECT_TRUE(data.second.empty());
 }
 
 TEST_F(SaslServerTest, PlainWithAuthzid) {
-    const char* output = nullptr;
-    unsigned outputlen = 0;
-
-    cbsasl_error_t err = cbsasl_server_start(
-            conn, "PLAIN", "funzid\0mikewied\0mikepw", 22, &output, &outputlen);
-    ASSERT_EQ(CBSASL_OK, err);
-    cb_free((void*)output);
+    auto data = context.start("PLAIN", "", {"funzid\0mikewied\0mikepw", 22});
+    EXPECT_EQ(cb::sasl::Error::OK, data.first);
+    EXPECT_TRUE(data.second.empty());
 }
 
 TEST_F(SaslServerTest, PlainWithNoPwOrUsernameEndingNull) {
-    const char* output = nullptr;
-    unsigned outputlen = 0;
-
-    cbsasl_error_t err = cbsasl_server_start(
-            conn, "PLAIN", "funzid\0mikewied", 15, &output, &outputlen);
-    ASSERT_NE(CBSASL_OK, err);
-    cb_free((void*)output);
+    auto data = context.start("PLAIN", "", {"funzid\0mikewied", 15});
+    EXPECT_EQ(cb::sasl::Error::BAD_PARAM, data.first);
+    EXPECT_TRUE(data.second.empty());
 }
 
 TEST_F(SaslServerTest, PlainNoNullAtAll) {
-    const char* output = nullptr;
-    unsigned outputlen = 0;
-
-    cbsasl_error_t err = cbsasl_server_start(
-            conn, "PLAIN", "funzidmikewied", 14, &output, &outputlen);
-    ASSERT_NE(CBSASL_OK, err);
-    cb_free((void*)output);
+    auto data = context.start("PLAIN", "", {"funzidmikewied", 14});
+    EXPECT_EQ(cb::sasl::Error::BAD_PARAM, data.first);
+    EXPECT_TRUE(data.second.empty());
 }
 
-class SaslLimitMechServerTest : public SaslServerTest {
-protected:
-    void SetUp() {
-        mechanisms = "PLAIN";
-        SaslServerTest::SetUp();
-    }
-};
-
-TEST_F(SaslLimitMechServerTest, TestDisableMechList) {
-    const char* mechs = nullptr;
-    unsigned len = 0;
-    int num;
-    cbsasl_error_t err =
-            cbsasl_listmech(conn, nullptr, "(", ",", ")", &mechs, &len, &num);
-    ASSERT_EQ(CBSASL_OK, err);
-    std::string mechlist(mechs, len);
-    EXPECT_EQ(std::string("(PLAIN)"), mechlist);
+TEST_F(SaslServerTest, CantPickUnsupportedMechanism) {
+    EXPECT_THROW(
+            context.start("PLAIN", "SCRAM-SHA512", {"\0mikewied\0mikepw", 16}),
+            cb::sasl::unknown_mechanism);
 }

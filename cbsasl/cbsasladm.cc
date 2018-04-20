@@ -16,8 +16,8 @@
  */
 #include "config.h"
 
-#include "pwconv.h"
-#include "user.h"
+#include <cbsasl/pwdb.h>
+#include <cbsasl/server.h>
 
 #include <getopt.h>
 #include <memcached/protocol_binary.h>
@@ -72,7 +72,7 @@ int handle_pwconv(int argc, char** argv) {
     }
 
     try {
-        cbsasl_pwconv(argv[optind + 1], argv[optind + 2]);
+        cb::sasl::pwdb::convert(argv[optind + 1], argv[optind + 2]);
     } catch (std::runtime_error& e) {
         std::cerr << e.what() << std::endl;
         return EXIT_FAILURE;
@@ -155,8 +155,7 @@ int main(int argc, char** argv) {
             break;
         case 'i':
             try {
-                using namespace cb::sasl;
-                UserFactory::setDefaultHmacIterationCount(std::stoi(optarg));
+                cb::sasl::server::set_hmac_iteration_count(std::stoi(optarg));
             } catch (...) {
                 std::cerr << "Error: iteration count must be an integer"
                           << std::endl;

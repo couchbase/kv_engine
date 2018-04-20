@@ -15,7 +15,7 @@
  *   limitations under the License.
  */
 #include "config.h"
-#include <cbsasl/cbsasl.h>
+#include <cbsasl/client.h>
 #include <mcbp/mcbp.h>
 #include <memcached/protocol_binary.h>
 #include <openssl/conf.h>
@@ -61,38 +61,6 @@ void ensure_recv(BIO* bio, void* data, int nbytes) {
     }
 }
 
-struct my_sasl_ctx {
-    const char* username;
-    cbsasl_secret_t* secret;
-};
-
-static int sasl_get_username(void* context, int id, const char** result,
-                             unsigned int* len) {
-    struct my_sasl_ctx* ctx = reinterpret_cast<struct my_sasl_ctx*>(context);
-    if (!context || !result ||
-        (id != CBSASL_CB_USER && id != CBSASL_CB_AUTHNAME)) {
-        return CBSASL_BADPARAM;
-    }
-
-    *result = ctx->username;
-    if (len) {
-        *len = (unsigned int)strlen(*result);
-    }
-
-    return CBSASL_OK;
-}
-
-static int sasl_get_password(cbsasl_conn_t* conn, void* context, int id,
-                             cbsasl_secret_t** psecret) {
-    struct my_sasl_ctx* ctx = reinterpret_cast<struct my_sasl_ctx*>(context);
-    if (!conn || !psecret || id != CBSASL_CB_PASS || ctx == NULL) {
-        return CBSASL_BADPARAM;
-    }
-
-    *psecret = ctx->secret;
-    return CBSASL_OK;
-}
-
 static void sendCommand(BIO* bio,
                         uint8_t opcode,
                         const std::string& key,
@@ -136,84 +104,51 @@ void readResponse(BIO* bio, std::vector<uint8_t>& buffer) {
     r->response.status = ntohs(r->response.status);
 }
 
-static bool sasl_listmech(BIO* bio, std::vector<char>& mecs) {
+static std::string sasl_listmech(BIO* bio) {
     sendCommand(bio, PROTOCOL_BINARY_CMD_SASL_LIST_MECHS, "", "");
 
     std::vector<uint8_t> response;
     readResponse(bio, response);
     auto* r = reinterpret_cast<protocol_binary_response_header*>(response.data());
     if (r->response.status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        mecs.resize(r->response.getBodylen());
-        memcpy(mecs.data(),
-               response.data() + sizeof(r->bytes),
-               r->response.getBodylen());
-        return true;
-    } else {
-        auto status = (protocol_binary_response_status)r->response.status;
-        std::cerr << "SASL LIST MECHS failed: "
-                  << memcached_status_2_text(status)
-                  << std::endl;
-        return false;
+        auto value = r->response.getValue();
+        return std::string{reinterpret_cast<const char*>(value.data()),
+                           value.size()};
     }
+
+    std::stringstream ss;
+
+    auto status = (protocol_binary_response_status)r->response.status;
+    ss << "SASL LIST MECHS failed: " << memcached_status_2_text(status);
+    throw std::runtime_error(ss.str());
 }
 
 int do_sasl_auth(BIO* bio, const char* user, const char* pass) {
-    std::vector<char> mechs;
-    if (!sasl_listmech(bio, mechs)) {
-        // error message already printed
+    std::string mecs;
+    try {
+        mecs = sasl_listmech(bio);
+    } catch (const std::runtime_error& error) {
+        std::cerr << error.what() << std::endl;
         return -1;
     }
 
-    cbsasl_callback_t sasl_callbacks[4];
-    struct my_sasl_ctx context;
+    cb::sasl::client::ClientContext client(
+            [user]() -> std::string { return user; },
+            [pass]() -> std::string { return pass; },
+            mecs);
 
-    sasl_callbacks[0].id = CBSASL_CB_USER;
-    sasl_callbacks[0].proc = (int (*)(void))&sasl_get_username;
-    sasl_callbacks[0].context = &context;
-    sasl_callbacks[1].id = CBSASL_CB_AUTHNAME;
-    sasl_callbacks[1].proc = (int (*)(void))&sasl_get_username;
-    sasl_callbacks[1].context = &context;
-    sasl_callbacks[2].id = CBSASL_CB_PASS;
-    sasl_callbacks[2].proc = (int (*)(void))&sasl_get_password;
-    sasl_callbacks[2].context = &context;
-    sasl_callbacks[3].id = CBSASL_CB_LIST_END;
-    sasl_callbacks[3].proc = NULL;
-    sasl_callbacks[3].context = NULL;
-
-    context.username = user;
-    size_t pwlen = (pass == nullptr) ? 0 : strlen(pass);
-    std::vector<uint8_t> buffer(sizeof(context.secret->len) + pwlen + 10);
-    context.secret = reinterpret_cast<cbsasl_secret_t*>(buffer.data());
-    if (pwlen > 0) {
-        // Mute code analyzers who detects that pass may be null (but don't
-        // check if pwlen is 0 at the same time ;-) )
-        memcpy(context.secret->data, pass, pwlen);
-    }
-    context.secret->len = gsl::narrow<uint32_t>(pwlen);
-
-    cbsasl_conn_t* client;
-    cbsasl_error_t err;
-    err = cbsasl_client_new(NULL, NULL, NULL, NULL, sasl_callbacks, 0, &client);
-    if (err != CBSASL_OK) {
-        std::cerr << "Failed to create a new sasl instance: " << err <<
-        std::endl;
+    auto client_data = client.start();
+    if (client_data.first != cb::sasl::Error::OK) {
+        std::cerr << "Failed to start sasl client: "
+                  << to_string(client_data.first) << std::endl;
         return -1;
     }
 
-    const char* data;
-    unsigned int len;
-    const char* chosenmech;
-    err = cbsasl_client_start(client, mechs.data(), NULL, &data, &len,
-                              &chosenmech);
-
-    if (err != CBSASL_OK) {
-        std::cerr << "Failed to start sasl client: " << err << std::endl;
-        return -1;
-    }
-
-    sendCommand(bio, PROTOCOL_BINARY_CMD_SASL_AUTH,
-                std::string(chosenmech, strlen(chosenmech)),
-                std::string(data, len));
+    sendCommand(
+            bio,
+            PROTOCOL_BINARY_CMD_SASL_AUTH,
+            client.getName(),
+            std::string(client_data.second.data(), client_data.second.size()));
 
     std::vector<uint8_t> response;
     readResponse(bio, response);
@@ -222,31 +157,31 @@ int do_sasl_auth(BIO* bio, const char* user, const char* pass) {
 
     while (rsp->response.status ==
            PROTOCOL_BINARY_RESPONSE_AUTH_CONTINUE) {
-        int datalen = rsp->response.getBodylen() - rsp->response.getKeylen() -
-                      rsp->response.extlen;
+        size_t datalen = rsp->response.getBodylen() -
+                         rsp->response.getKeylen() - rsp->response.extlen;
 
-        int dataoffset = sizeof(rsp->bytes) + rsp->response.getKeylen() +
-                         rsp->response.extlen;
+        size_t dataoffset = sizeof(rsp->bytes) + rsp->response.getKeylen() +
+                            rsp->response.extlen;
 
-        err = cbsasl_client_step(client,
-                                 reinterpret_cast<char*>(rsp->bytes +
-                                                         dataoffset),
-                                 datalen,
-                                 NULL, &data, &len);
-        if (err != CBSASL_OK && err != CBSASL_CONTINUE) {
-            std::cerr << "Authentication failed: " << err << std::endl;
+        client_data = client.step(
+                {reinterpret_cast<char*>(rsp->bytes + dataoffset), datalen});
+
+        if (client_data.first != cb::sasl::Error::OK &&
+            client_data.first != cb::sasl::Error::CONTINUE) {
+            std::cerr << "Authentication failed: "
+                      << to_string(client_data.first) << std::endl;
             return -1;
         }
 
-        sendCommand(bio, PROTOCOL_BINARY_CMD_SASL_STEP,
-                    std::string(chosenmech, strlen(chosenmech)),
-                    std::string(data, len));
+        sendCommand(bio,
+                    PROTOCOL_BINARY_CMD_SASL_STEP,
+                    client.getName(),
+                    std::string(client_data.second.data(),
+                                client_data.second.size()));
 
         readResponse(bio, response);
         rsp = reinterpret_cast<protocol_binary_response_header*>(response.data());
     }
-
-    cbsasl_dispose(&client);
 
     if (rsp->response.status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
         auto status = (protocol_binary_response_status)rsp->response.status;

@@ -62,19 +62,29 @@ ENGINE_ERROR_CODE SaslAuthCommandContext::parseAuthTaskResult() {
     auto auth_task = reinterpret_cast<SaslAuthTask*>(task.get());
 
     switch (auth_task->getError()) {
-    case CBSASL_OK:
+    case cb::sasl::Error::OK:
         state = State::AuthOk;
         return ENGINE_SUCCESS;
-    case CBSASL_CONTINUE:
+
+    case cb::sasl::Error::CONTINUE:
         state = State::AuthContinue;
         return ENGINE_SUCCESS;
-    case CBSASL_BADPARAM:
+
+    case cb::sasl::Error::BAD_PARAM:
         state = State::AuthBadParameters;
         return ENGINE_SUCCESS;
-    default:
+
+    case cb::sasl::Error::FAIL:
+    case cb::sasl::Error::NO_MEM:
+    case cb::sasl::Error::NO_MECH:
+    case cb::sasl::Error::NO_USER:
+    case cb::sasl::Error::PASSWORD_ERROR:
+    case cb::sasl::Error::NO_RBAC_PROFILE:
         state = State::AuthFailure;
         return ENGINE_SUCCESS;
     }
+    throw std::logic_error(
+            "SaslAuthCommandContext::parseAuthTaskResult: Unknown sasl error");
 }
 
 ENGINE_ERROR_CODE SaslAuthCommandContext::step() {
@@ -147,12 +157,12 @@ ENGINE_ERROR_CODE SaslAuthCommandContext::authFailure() {
     state = State::Done;
 
     auto auth_task = reinterpret_cast<SaslAuthTask*>(task.get());
-    if (auth_task->getError() == CBSASL_NOUSER ||
-        auth_task->getError() == CBSASL_PWERR) {
+    if (auth_task->getError() == cb::sasl::Error::NO_USER ||
+        auth_task->getError() == cb::sasl::Error::PASSWORD_ERROR) {
         audit_auth_failure(&connection,
-                           auth_task->getError() == CBSASL_NOUSER
-                           ? "Unknown user"
-                           : "Incorrect password");
+                           auth_task->getError() == cb::sasl::Error::NO_USER
+                                   ? "Unknown user"
+                                   : "Incorrect password");
     }
     cookie.sendResponse(cb::mcbp::Status::AuthError);
 

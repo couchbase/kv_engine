@@ -37,7 +37,6 @@
 #include "testapp.h"
 #include "testapp_subdoc_common.h"
 
-#include <cbsasl/cbsasl.h>
 #include <memcached/config_parser.h>
 #include <memcached/util.h>
 #include <platform/backtrace.h>

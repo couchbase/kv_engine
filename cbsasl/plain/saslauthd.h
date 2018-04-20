@@ -16,8 +16,8 @@
  */
 #pragma once
 
+#include <cbsasl/error.h>
 #include <string>
-#include <include/cbsasl/cbsasl.h>
 #include <vector>
 
 #ifdef WIN32
@@ -70,8 +70,8 @@ public:
      * @throws std::system_error for socket errors
      *         std::logic_error if saslauth replies with more than 1k data
      */
-    cbsasl_error_t check(const std::string& username,
-                         const std::string& passwd);
+    cb::sasl::Error check(const std::string& username,
+                          const std::string& passwd);
 
 protected:
     /**

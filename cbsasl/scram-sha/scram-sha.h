@@ -26,28 +26,22 @@
  * don't advertise the -PLUS)
  */
 
+#include <cbsasl/client.h>
+#include <cbsasl/server.h>
 #include <array>
-#include <vector>
 #include <iostream>
-#include "cbsasl/cbsasl.h"
-#include "cbsasl/cbsasl_internal.h"
+#include <vector>
 #include "cbsasl/user.h"
 
-#define MECH_NAME_SCRAM_SHA512 "SCRAM-SHA512"
-#define MECH_NAME_SCRAM_SHA256 "SCRAM-SHA256"
-#define MECH_NAME_SCRAM_SHA1 "SCRAM-SHA1"
+namespace cb {
+namespace sasl {
+namespace mechanism {
+namespace scram {
 
-class ScramShaBackend : public MechanismBackend {
+class ScramShaBackend {
 protected:
-    ScramShaBackend(const std::string& mech_name,
-                    cbsasl_conn_t& conn,
-                    const Mechanism& mech,
-                    const cb::crypto::Algorithm algo)
-        : MechanismBackend(mech_name, conn),
-          mechanism(mech),
-          algorithm(algo)
-    {
-
+    ScramShaBackend(const Mechanism& mech, const cb::crypto::Algorithm algo)
+        : mechanism(mech), algorithm(algo) {
     }
 
     /**
@@ -64,7 +58,9 @@ protected:
      * @param more set to true if we should add a trailing comma (more data
      *             follows)
      */
-    void addAttribute(std::ostream& out, char key, const std::string& value,
+    void addAttribute(std::ostream& out,
+                      char key,
+                      const std::string& value,
                       bool more);
 
     /**
@@ -81,8 +77,7 @@ protected:
      * @param more set to true if we should add a trailing comma (more data
      *             follows)
      */
-    void addAttribute(std::ostream& out, char key, int value,
-                      bool more);
+    void addAttribute(std::ostream& out, char key, int value, bool more);
 
     std::string getServerSignature();
 
@@ -102,8 +97,6 @@ protected:
     std::string server_first_message;
     std::string server_final_message;
 
-    std::string username;
-
     std::string clientNonce;
     std::string serverNonce;
     std::string nonce;
@@ -112,129 +105,149 @@ protected:
     const cb::crypto::Algorithm algorithm;
 };
 
-/**
- * The base class responsible for SCRAM-SHA authentication on the server.
- * To make it easy to add support for multiple SHA versions (1, 256, 512)
- * this is an abstract class with pure virtual functions for all methods
- * needed to get the data who needs the underlying SHA stuff
- */
-class ScramShaServerBackend : public ScramShaBackend {
+class ServerBackend : public cb::sasl::server::MechanismBackend,
+                      public ScramShaBackend {
 public:
-    ScramShaServerBackend(const std::string& mech_name,
-                          cbsasl_conn_t& conn,
-                          const Mechanism& mech,
-                          const cb::crypto::Algorithm algo);
+    ServerBackend(server::ServerContext& ctx,
+                  Mechanism mechanism,
+                  cb::crypto::Algorithm algo);
 
-    cbsasl_error_t start(const char* input,
-                         unsigned inputlen, const char** output,
-                         unsigned* outputlen) override;
+    std::pair<Error, const_char_buffer> start(
+            cb::const_char_buffer input) override;
 
-    cbsasl_error_t step(const char* input,
-                        unsigned inputlen, const char** output,
-                        unsigned* outputlen) override;
+    std::pair<Error, const_char_buffer> step(
+            cb::const_char_buffer input) override;
 
+protected:
     std::string getSaltedPassword() override {
         return user.getPassword(mechanism).getPassword();
     }
 
-    cb::sasl::User user;
+    pwdb::User user;
 };
 
-/**
- * Concrete implementation of the class that provides SCRAM-SHA1
- */
-class ScramSha1ServerBackend : public ScramShaServerBackend {
+class Sha512ServerBackend : public ServerBackend {
 public:
-    ScramSha1ServerBackend(cbsasl_conn_t& conn)
-        : ScramShaServerBackend(MECH_NAME_SCRAM_SHA1,
-                                conn,
-                                Mechanism::SCRAM_SHA1,
-                                cb::crypto::Algorithm::SHA1) { }
+    explicit Sha512ServerBackend(server::ServerContext& ctx)
+        : ServerBackend(
+                  ctx, Mechanism::SCRAM_SHA512, cb::crypto::Algorithm::SHA512) {
+    }
+
+    std::string getName() const override {
+        return "SCRAM-SHA512";
+    }
 };
 
-/**
- * Concrete implementation of the class that provides SCRAM-SHA256
- */
-class ScramSha256ServerBackend : public ScramShaServerBackend {
+class Sha256ServerBackend : public ServerBackend {
 public:
-    ScramSha256ServerBackend(cbsasl_conn_t& conn)
-        : ScramShaServerBackend(MECH_NAME_SCRAM_SHA256,
-                                conn,
-                                Mechanism::SCRAM_SHA256,
-                                cb::crypto::Algorithm::SHA256) { }
+    explicit Sha256ServerBackend(server::ServerContext& ctx)
+        : ServerBackend(
+                  ctx, Mechanism::SCRAM_SHA256, cb::crypto::Algorithm::SHA256) {
+    }
+
+    std::string getName() const override {
+        return "SCRAM-SHA256";
+    }
 };
 
-/**
- * Concrete implementation of the class that provides SCRAM-SHA512
- */
-class ScramSha512ServerBackend : public ScramShaServerBackend {
+class Sha1ServerBackend : public ServerBackend {
 public:
-    ScramSha512ServerBackend(cbsasl_conn_t& conn)
-        : ScramShaServerBackend(MECH_NAME_SCRAM_SHA512,
-                                conn,
-                                Mechanism::SCRAM_SHA512,
-                                cb::crypto::Algorithm::SHA512) { }
+    explicit Sha1ServerBackend(server::ServerContext& ctx)
+        : ServerBackend(
+                  ctx, Mechanism::SCRAM_SHA1, cb::crypto::Algorithm::SHA1) {
+    }
+
+    std::string getName() const override {
+        return "SCRAM-SHA1";
+    }
 };
 
 /**
  * Implementation of the class that provides the client side implementation
  * of the SCRAM-SHA[1,256,512]
  */
-class ScramShaClientBackend : public ScramShaBackend {
+class ClientBackend : public cb::sasl::client::MechanismBackend,
+                      public ScramShaBackend {
 public:
-    ScramShaClientBackend(const std::string& mech_name,
-                          cbsasl_conn_t& conn,
-                          const Mechanism& mech,
-                          const cb::crypto::Algorithm algo);
+    ClientBackend(client::GetUsernameCallback& user_cb,
+                  client::GetPasswordCallback& password_cb,
+                  client::ClientContext& ctx,
+                  Mechanism mechanism,
+                  cb::crypto::Algorithm algo);
 
-    cbsasl_error_t start(const char* input,
-                         unsigned inputlen, const char** output,
-                         unsigned* outputlen) override;
-
-    cbsasl_error_t step(const char* input,
-                        unsigned inputlen, const char** output,
-                        unsigned* outputlen) override;
+    std::pair<Error, const_char_buffer> start() override;
+    std::pair<Error, const_char_buffer> step(
+            cb::const_char_buffer input) override;
 
 protected:
-
-    bool generateSaltedPassword(const char *ptr, int len);
+    bool generateSaltedPassword(const std::string& secret);
 
     std::string getSaltedPassword() override {
         if (saltedPassword.empty()) {
-            throw std::logic_error("getSaltedPassword called before salted "
-                                       "password is initialized");
+            throw std::logic_error(
+                    "getSaltedPassword called before salted "
+                    "password is initialized");
         }
         return saltedPassword;
     }
 
     std::string saltedPassword;
     std::string salt;
-    unsigned int iterationCount;
+    unsigned int iterationCount = 4096;
 };
 
-class ScramSha1ClientBackend : public ScramShaClientBackend {
+class Sha512ClientBackend : public ClientBackend {
 public:
-    ScramSha1ClientBackend(cbsasl_conn_t& conn)
-        : ScramShaClientBackend(MECH_NAME_SCRAM_SHA1,
-                                conn,
-                                Mechanism::SCRAM_SHA1,
-                                cb::crypto::Algorithm::SHA1) { }
+    Sha512ClientBackend(client::GetUsernameCallback& user_cb,
+                        client::GetPasswordCallback& password_cb,
+                        client::ClientContext& ctx)
+        : ClientBackend(user_cb,
+                        password_cb,
+                        ctx,
+                        Mechanism::SCRAM_SHA512,
+                        cb::crypto::Algorithm::SHA512) {
+    }
+
+    std::string getName() const override {
+        return "SCRAM-SHA512";
+    }
 };
 
-class ScramSha256ClientBackend : public ScramShaClientBackend {
+class Sha256ClientBackend : public ClientBackend {
 public:
-    ScramSha256ClientBackend(cbsasl_conn_t& conn)
-        : ScramShaClientBackend(MECH_NAME_SCRAM_SHA256,
-                                conn,
-                                Mechanism::SCRAM_SHA256,
-                                cb::crypto::Algorithm::SHA256) { }
+    Sha256ClientBackend(client::GetUsernameCallback& user_cb,
+                        client::GetPasswordCallback& password_cb,
+                        client::ClientContext& ctx)
+        : ClientBackend(user_cb,
+                        password_cb,
+                        ctx,
+                        Mechanism::SCRAM_SHA256,
+                        cb::crypto::Algorithm::SHA256) {
+    }
+
+    std::string getName() const override {
+        return "SCRAM-SHA256";
+    }
 };
 
-class ScramSha512ClientBackend : public ScramShaClientBackend {
+class Sha1ClientBackend : public ClientBackend {
 public:
-    ScramSha512ClientBackend(cbsasl_conn_t& conn)
-        : ScramShaClientBackend(MECH_NAME_SCRAM_SHA512,
-                                conn,
-                                Mechanism::SCRAM_SHA512,
-                                cb::crypto::Algorithm::SHA512) { }
+    Sha1ClientBackend(client::GetUsernameCallback& user_cb,
+                      client::GetPasswordCallback& password_cb,
+                      client::ClientContext& ctx)
+        : ClientBackend(user_cb,
+                        password_cb,
+                        ctx,
+                        Mechanism::SCRAM_SHA1,
+                        cb::crypto::Algorithm::SHA1) {
+    }
+
+    std::string getName() const override {
+        return "SCRAM-SHA1";
+    }
 };
+
+} // namespace scram
+} // namespace mechanism
+} // namespace sasl
+} // namespace cb

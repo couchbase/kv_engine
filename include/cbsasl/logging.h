@@ -21,6 +21,8 @@
 
 namespace cb {
 namespace sasl {
+// Forward decl
+class Context;
 namespace logging {
 
 enum class Level {
@@ -63,6 +65,23 @@ using LogCallback = void (*)(Level level, const std::string& message);
  */
 CBSASL_PUBLIC_API
 void set_log_callback(LogCallback callback);
+
+/**
+ * Perform logging within the CBSASL library for components which isn't bound
+ * to a given client.
+ *
+ * @param level
+ * @param message
+ */
+void log(Level level, const std::string& message);
+
+/**
+ * Perform logging related to a given client.
+ *
+ * @param level
+ * @param message
+ */
+void log(Context* server, Level level, const std::string& message);
 
 } // namespace logging
 } // namespace sasl

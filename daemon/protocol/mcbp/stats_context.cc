@@ -20,6 +20,7 @@
 #include "stats_context.h"
 #include "utilities.h"
 
+#include <cbsasl/saslauthd_config.h>
 #include <daemon/buckets.h>
 #include <daemon/connections.h>
 #include <daemon/debug_helpers.h>
@@ -358,18 +359,6 @@ static void process_stat_settings(ADD_STAT add_stat_callback, Cookie& cookie) {
              settings.getRequestsPerEventNotification(EventPriority::Default));
     add_stat(cookie, add_stat_callback, "auth_enabled_sasl", "yes");
     add_stat(cookie, add_stat_callback, "auth_sasl_engine", "cbsasl");
-
-    const char *sasl_mechs = nullptr;
-    if (cbsasl_listmech(cookie.getConnection().getSaslConn(),
-                        nullptr,
-                        "(",
-                        ",",
-                        ")",
-                        &sasl_mechs,
-                        nullptr,
-                        nullptr) == CBSASL_OK) {
-        add_stat(cookie, add_stat_callback, "auth_sasl_mechanisms", sasl_mechs);
-    }
 
     add_stat(cookie, add_stat_callback, "audit",
              settings.getAuditFile().c_str());

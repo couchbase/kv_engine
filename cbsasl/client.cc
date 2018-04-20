@@ -1,5 +1,6 @@
+/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2016 Couchbase, Inc.
+ *     Copyright 2018 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -14,163 +15,42 @@
  *   limitations under the License.
  */
 
-#include "cbsasl/cbsasl.h"
-#include "cbsasl/cbsasl_internal.h"
+#include <cbsasl/client.h>
+#include <cbsasl/plain/plain.h>
+#include <cbsasl/scram-sha/scram-sha.h>
+#include <platform/make_unique.h>
 
-#include "util.h"
-#include "mechanismfactory.h"
-#include <time.h>
-#include <stdlib.h>
-#include <string.h>
-
-CBSASL_PUBLIC_API
-cbsasl_error_t cbsasl_client_new(const char*,
-                                 const char*,
-                                 const char*,
-                                 const char*,
-                                 const cbsasl_callback_t* prompt_supp,
-                                 unsigned,
-                                 cbsasl_conn_t** pconn) {
-    cbsasl_callback_t* callbacks = (cbsasl_callback_t*)prompt_supp;
-
-    if (prompt_supp == nullptr || pconn == nullptr) {
-        return CBSASL_BADPARAM;
+namespace cb {
+namespace sasl {
+namespace client {
+ClientContext::ClientContext(GetUsernameCallback user_cb,
+                             GetPasswordCallback password_cb,
+                             const std::string& mechanisms) {
+    switch (selectMechanism(mechanisms)) {
+    case Mechanism::SCRAM_SHA512:
+        backend = std::make_unique<mechanism::scram::Sha512ClientBackend>(
+                user_cb, password_cb, *this);
+        break;
+    case Mechanism::SCRAM_SHA256:
+        backend = std::make_unique<mechanism::scram::Sha256ClientBackend>(
+                user_cb, password_cb, *this);
+        break;
+    case Mechanism::SCRAM_SHA1:
+        backend = std::make_unique<mechanism::scram::Sha1ClientBackend>(
+                user_cb, password_cb, *this);
+        break;
+    case Mechanism::PLAIN:
+        backend = std::make_unique<mechanism::plain::ClientBackend>(
+                user_cb, password_cb, *this);
     }
 
-    cbsasl_conn_t* conn = nullptr;
-    try {
-        conn = new cbsasl_conn_t;
-        conn->client.reset(new ClientConnection);
-    } catch (std::bad_alloc&) {
-        delete conn;
-        *pconn = nullptr;
-        return CBSASL_NOMEM;
+    if (!backend) {
+        throw unknown_mechanism(
+                "cb::sasl::client::ClientContext(): Failed to create "
+                "mechanism");
     }
-
-    int ii = 0;
-    /* Locate the callbacks */
-    while (callbacks[ii].id != CBSASL_CB_LIST_END) {
-        union {
-            cbsasl_get_authname_fn get_authname_fn;
-            cbsasl_get_username_fn get_username_fn;
-            cbsasl_get_password_fn get_password_fn;
-            cbsasl_get_cnonce_fn get_cnonce_fn;
-            cbsasl_getopt_fn getopt_fn;
-            int (* proc)(void);
-        } hack;
-        hack.proc = callbacks[ii].proc;
-
-        switch (callbacks[ii].id) {
-        case CBSASL_CB_USER:
-        case CBSASL_CB_AUTHNAME:
-            conn->client->get_username = hack.get_username_fn;
-            conn->client->get_username_ctx = callbacks[ii].context;
-            break;
-        case CBSASL_CB_PASS:
-            conn->client->get_password = hack.get_password_fn;
-            conn->client->get_password_ctx = callbacks[ii].context;
-            break;
-        case CBSASL_CB_CNONCE:
-            conn->get_cnonce_fn = hack.get_cnonce_fn;
-            conn->get_cnonce_ctx = callbacks[ii].context;
-            break;
-        case CBSASL_CB_GETOPT:
-            conn->getopt_fn = hack.getopt_fn;
-            conn->getopt_ctx = callbacks[ii].context;
-            break;
-        default:
-            /* Ignore unknown */
-            ;
-        }
-        ++ii;
-    }
-
-    if (conn->client->get_username == nullptr ||
-        conn->client->get_password == nullptr) {
-        cbsasl_dispose(&conn);
-        return CBSASL_NOUSER;
-    }
-
-    *pconn = conn;
-
-    return CBSASL_OK;
 }
 
-CBSASL_PUBLIC_API
-cbsasl_error_t cbsasl_client_start(cbsasl_conn_t* conn,
-                                   const char* mechlist,
-                                   void**,
-                                   const char** clientout,
-                                   unsigned int* clientoutlen,
-                                   const char** mech) {
-    ClientConnection* client;
-
-    if (conn == nullptr || (client = conn->client.get()) == nullptr) {
-        return CBSASL_BADPARAM;
-    }
-
-    conn->mechanism = MechanismFactory::selectMechanism(mechlist);
-    if (conn->mechanism == Mechanism::UNKNOWN) {
-        logging::log(*conn,
-                     logging::Level::Debug,
-                     "Failed to select a mechanism from from [" +
-                             std::string(mechlist) + "]");
-        return CBSASL_NOMECH;
-    }
-
-    logging::log(*conn,
-                 logging::Level::Debug,
-                 "Selected mechanism " +
-                         MechanismFactory::toString(conn->mechanism) +
-                         " from [" + std::string(mechlist) + "]");
-
-    client->mech = MechanismFactory::createClientBackend(*conn);
-    if (client->mech.get() == nullptr) {
-        logging::log(*conn,
-                     logging::Level::Debug,
-                     "Failed to select a mechanism from [" +
-                             std::string(mechlist) + "]");
-        return CBSASL_NOMEM;
-    }
-
-    if (mech != nullptr) {
-        *mech = client->mech->getName().c_str();
-    }
-
-    return client->mech->start(nullptr, 0, clientout, clientoutlen);
-}
-
-CBSASL_PUBLIC_API
-cbsasl_error_t cbsasl_client_step(cbsasl_conn_t* conn,
-                                  const char* serverin,
-                                  unsigned int serverinlen,
-                                  void**,
-                                  const char** clientout,
-                                  unsigned int* clientoutlen) {
-    ClientConnection* client;
-
-    if (conn == nullptr || (client = conn->client.get()) == nullptr) {
-        return CBSASL_BADPARAM;
-    }
-
-    return client->mech->step(serverin, serverinlen, clientout, clientoutlen);
-}
-
-cbsasl_error_t cbsasl_get_username(cbsasl_get_username_fn function, void* context,
-                                   const char** username,
-                                   unsigned int* usernamelen) {
-    if (function(context, CBSASL_CB_USER, username, usernamelen) != 0) {
-        return CBSASL_FAIL;
-    }
-    return CBSASL_OK;
-}
-
-cbsasl_error_t cbsasl_get_password(cbsasl_get_password_fn function,
-                                   cbsasl_conn_t* conn,
-                                   void* context,
-                                   cbsasl_secret_t** psecret) {
-    if (function(conn, context, CBSASL_CB_PASS, psecret) != 0) {
-        return CBSASL_FAIL;
-    }
-    return CBSASL_OK;
-}
+} // namespace client
+} // namespace sasl
+} // namespace cb

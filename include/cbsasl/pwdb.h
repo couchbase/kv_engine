@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2016 Couchbase, Inc.
+ *     Copyright 2018 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -14,11 +14,16 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+
 #pragma once
 
-#include <istream>
-#include <ostream>
+#include <cbsasl/visibility.h>
+#include <iostream>
 #include <string>
+
+namespace cb {
+namespace sasl {
+namespace pwdb {
 
 /**
  * Convert an isasl.pw style password file to the json-style
@@ -29,7 +34,8 @@
  * @throws std::runtime_error if we're failing to open files
  * @throws std::bad_alloc for memory issues
  */
-void cbsasl_pwconv(const std::string& ifile, const std::string& ofile);
+CBSASL_PUBLIC_API
+void convert(const std::string& ifile, const std::string& ofile);
 
 /**
  * Convert an isasl.pw style password stream to the json-style
@@ -39,7 +45,8 @@ void cbsasl_pwconv(const std::string& ifile, const std::string& ofile);
  * @param ofile output stream
  * @throws std::bad_alloc for memory issues
  */
-void cbsasl_pwconv(std::istream& is, std::ostream& os);
+CBSASL_PUBLIC_API
+void convert(std::istream& is, std::ostream& os);
 
 /**
  * Read the password file from the specified filename.
@@ -52,7 +59,8 @@ void cbsasl_pwconv(std::istream& is, std::ostream& os);
  * @throws std::exception if an error occurs while reading or decrypting
  *                        the content
  */
-std::string cbsasl_read_password_file(const std::string& filename);
+CBSASL_PUBLIC_API
+std::string read_password_file(const std::string& filename);
 
 /**
  * Write the password data to the specified filename.
@@ -65,5 +73,10 @@ std::string cbsasl_read_password_file(const std::string& filename);
  * @throws std::exception if an error occurs while reading or encrypting
  *                        the content
  */
-void cbsasl_write_password_file(const std::string& filename,
-                                const std::string& content);
+CBSASL_PUBLIC_API
+void write_password_file(const std::string& filename,
+                         const std::string& content);
+
+} // namespace pwdb
+} // namespace sasl
+} // namespace cb

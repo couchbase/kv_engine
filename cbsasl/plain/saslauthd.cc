@@ -76,8 +76,8 @@ Saslauthd::~Saslauthd() {
     }
 }
 
-cbsasl_error_t Saslauthd::check(const std::string& username,
-                                const std::string& passwd) {
+cb::sasl::Error Saslauthd::check(const std::string& username,
+                                 const std::string& passwd) {
     std::vector<uint8_t> request;
     encode_and_append_string(request, username);
     encode_and_append_string(request, passwd);
@@ -88,11 +88,11 @@ cbsasl_error_t Saslauthd::check(const std::string& username,
 
     const auto response = readResponse();
     if (response.find("OK") == 0) {
-        return CBSASL_OK;
+        return cb::sasl::Error::OK;
     } else if (response.find("NO") == 0) {
-        return CBSASL_PWERR;
+        return cb::sasl::Error::PASSWORD_ERROR;
     } else {
-        return CBSASL_FAIL;
+        return cb::sasl::Error::FAIL;
     }
 }
 
