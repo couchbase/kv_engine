@@ -99,12 +99,12 @@ protected:
 
     // Stores an item into the given vbucket. Returns the item stored.
     Item store_item(uint16_t vbid, const std::string& key,
-                    const std::string& value);
+                    const std::string& value, ENGINE_ERROR_CODE expectedError = ENGINE_SUCCESS);
 
     /* Flush the given vbucket to disk, so any outstanding dirty items are
      * written (and are clean).
      */
-    void flush_vbucket_to_disk(uint16_t vbid);
+    void flush_vbucket_to_disk(uint16_t vbid, size_t expected = 1);
 
     static const char test_dbname[];
 

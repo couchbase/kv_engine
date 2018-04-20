@@ -237,7 +237,7 @@ protected:
 
     ExTask checkpointCreatorTask;
 
-private:
+protected:
 
 
     DcpResponse* getNextItem();

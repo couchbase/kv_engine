@@ -973,21 +973,8 @@ public:
     }
 
     void notifyAndStepToCheckpoint() {
-        auto vb = store->getVBucket(vbid);
-        ASSERT_NE(nullptr, vb.get());
-
-        producer->notifySeqnoAvailable(vbid, vb->getHighSeqno());
-
-        /* Step which will notify the checkpoint processor task */
-        EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
-        EXPECT_EQ(1, producer->getCheckpointSnapshotTask().queueSize());
-
-        /* Run the task */
-        producer->getCheckpointSnapshotTask().run();
-
-        /* This time the step should return something that is read from the
-         checkpoint processor */
-        EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+        SingleThreadedEPStoreTest::notifyAndStepToCheckpoint(*producer,
+                                                              producers.get());
     }
 
     const void* cookie;

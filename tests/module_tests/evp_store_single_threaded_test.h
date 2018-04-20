@@ -21,6 +21,8 @@
 
 #include <thread>
 
+class MockDcpProducer;
+
 /*
  * A subclass of EventuallyPersistentStoreTest which uses a fake ExecutorPool,
  * which will not spawn ExecutorThreads and hence not run any tasks
@@ -113,6 +115,9 @@ protected:
                                                    const void *cookie) {
         return ENGINE_SUCCESS;
     }
+
+    void notifyAndStepToCheckpoint(MockDcpProducer& producer,
+                                   dcp_message_producers* producers);
 
     SingleThreadedExecutorPool* task_executor;
 };
