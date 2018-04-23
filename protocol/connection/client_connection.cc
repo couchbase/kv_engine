@@ -971,18 +971,6 @@ void MemcachedConnection::hello(const std::string& userAgent,
                                 const std::string& userAgentVersion,
                                 const std::string& comment) {
     applyFeatures(userAgent + " " + userAgentVersion, effective_features);
-
-    BinprotGenericCommand command(PROTOCOL_BINARY_CMD_SASL_LIST_MECHS);
-    sendCommand(command);
-
-    BinprotResponse response;
-    recvResponse(response);
-    if (!response.isSuccess()) {
-        throw ConnectionError("Failed to fetch sasl mechanisms", response);
-    }
-
-    saslMechanisms.assign(reinterpret_cast<const char*>(response.getPayload()),
-                          response.getBodylen());
 }
 
 void MemcachedConnection::applyFeatures(const std::string& agent,
@@ -1061,6 +1049,19 @@ void MemcachedConnection::setFeature(cb::mcbp::Feature feature, bool enabled) {
     } else if (!enabled && hasFeature(feature)) {
         throw std::runtime_error("Failed to disable " + ::to_string(feature));
     }
+}
+
+std::string MemcachedConnection::getSaslMechanisms() {
+    BinprotGenericCommand command(PROTOCOL_BINARY_CMD_SASL_LIST_MECHS);
+    sendCommand(command);
+
+    BinprotResponse response;
+    recvResponse(response);
+    if (!response.isSuccess()) {
+        throw ConnectionError("Failed to fetch sasl mechanisms", response);
+    }
+
+    return response.getDataString();
 }
 
 std::string MemcachedConnection::ioctl_get(const std::string& key) {

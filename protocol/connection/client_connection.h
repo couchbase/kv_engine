@@ -540,10 +540,8 @@ public:
         configureEwouldBlockEngine(EWBEngineMode::Next_N, ENGINE_SUCCESS, 0);
     }
 
-
     /**
-     * Identify ourself to the server and fetch the available SASL mechanisms
-     * (available by calling `getSaslMechanisms()`
+     * Identify ourself to the server.
      *
      * @throws std::runtime_error if an error occurs
      */
@@ -552,12 +550,11 @@ public:
                const std::string& comment);
 
     /**
-     * Get the servers SASL mechanisms. This is only valid after running a
-     * successful `hello()`
+     * Get the servers SASL mechanisms.
+     *
+     * @throws std::runtime_error if an error occurs
      */
-    const std::string& getSaslMechanisms() const {
-        return saslMechanisms;
-    }
+    std::string getSaslMechanisms();
 
     /**
      * Request the IOCTL value from the server
@@ -790,7 +787,6 @@ protected:
     BIO* bio;
     SOCKET sock;
     bool synchronous;
-    std::string saslMechanisms;
     boost::optional<std::chrono::microseconds> traceData;
 
     typedef std::unordered_set<uint16_t> Featureset;
