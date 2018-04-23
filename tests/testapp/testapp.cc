@@ -1416,7 +1416,7 @@ MemcachedConnection& TestappTest::getConnection() {
 
 MemcachedConnection& TestappTest::getAdminConnection() {
     auto& conn = getConnection();
-    conn.authenticate("@admin", "password", "PLAIN");
+    conn.authenticate("@admin", "password", conn.getSaslMechanisms());
     return conn;
 }
 

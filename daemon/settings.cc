@@ -792,18 +792,6 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                 "topkeys_size can't be changed dynamically");
         }
     }
-    if (other.has.sasl_mechanisms) {
-        if (other.sasl_mechanisms != sasl_mechanisms) {
-            throw std::invalid_argument(
-                "sasl_mechanisms can't be changed dynamically");
-        }
-    }
-    if (other.has.ssl_sasl_mechanisms) {
-        if (other.ssl_sasl_mechanisms != ssl_sasl_mechanisms) {
-            throw std::invalid_argument(
-                "ssl_sasl_mechanisms can't be changed dynamically");
-        }
-    }
 
     if (other.has.interfaces) {
         if (other.interfaces.size() != interfaces.size()) {
@@ -1156,6 +1144,30 @@ void Settings::updateSettings(const Settings& other, bool apply) {
             setScramshaFallbackSalt(o);
         }
     }
+
+    if (other.has.sasl_mechanisms) {
+        auto mine = getSaslMechanisms();
+        auto others = other.getSaslMechanisms();
+        if (mine != others) {
+            LOG_INFO(
+                    R"(Change SASL mechanisms on normal connections from "{}" to "{}")",
+                    mine,
+                    others);
+            setSaslMechanisms(others);
+        }
+    }
+
+    if (other.has.ssl_sasl_mechanisms) {
+        auto mine = getSslSaslMechanisms();
+        auto others = other.getSslSaslMechanisms();
+        if (mine != others) {
+            LOG_INFO(
+                    R"(Change SASL mechanisms on SSL connections from "{}" to "{}")",
+                    mine,
+                    others);
+            setSslSaslMechanisms(others);
+        }
+    }
 }
 
 /**
@@ -1277,4 +1289,32 @@ void Settings::notify_changed(const std::string& key) {
             listener(key, *this);
         }
     }
+}
+
+std::string Settings::getSaslMechanisms() const {
+    std::lock_guard<std::mutex> guard(sasl_mechanisms.mutex);
+    return sasl_mechanisms.value;
+}
+
+void Settings::setSaslMechanisms(const std::string& sasl_mechanisms) {
+    {
+        std::lock_guard<std::mutex> guard(Settings::sasl_mechanisms.mutex);
+        Settings::sasl_mechanisms.value = sasl_mechanisms;
+        has.sasl_mechanisms = true;
+    }
+    notify_changed("sasl_mechanisms");
+}
+
+std::string Settings::getSslSaslMechanisms() const {
+    std::lock_guard<std::mutex> guard(ssl_sasl_mechanisms.mutex);
+    return ssl_sasl_mechanisms.value;
+}
+
+void Settings::setSslSaslMechanisms(const std::string& ssl_sasl_mechanisms) {
+    {
+        std::lock_guard<std::mutex> guard(Settings::ssl_sasl_mechanisms.mutex);
+        Settings::ssl_sasl_mechanisms.value = ssl_sasl_mechanisms;
+        has.ssl_sasl_mechanisms = true;
+    }
+    notify_changed("ssl_sasl_mechanisms");
 }

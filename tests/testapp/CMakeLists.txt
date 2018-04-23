@@ -43,7 +43,6 @@ set(memcached_testapp_SOURCES
     testapp_regression.cc
     testapp_remove.cc
     testapp_sasl.cc
-    testapp_sasl.h
     testapp_shutdown.cc
     testapp_ssl_utils.cc
     testapp_stats.cc

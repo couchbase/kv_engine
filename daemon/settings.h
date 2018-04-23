@@ -559,40 +559,28 @@ public:
      *
      * @return all SASL mechanisms the client may use
      */
-    const std::string& getSaslMechanisms() const {
-        return sasl_mechanisms;
-    }
+    std::string getSaslMechanisms() const;
 
     /**
      * Set the list of available SASL Mechanisms
      *
      * @param sasl_mechanisms the new list of sasl mechanisms
      */
-    void setSaslMechanisms(const std::string& sasl_mechanisms) {
-        Settings::sasl_mechanisms = sasl_mechanisms;
-        has.sasl_mechanisms = true;
-        notify_changed("sasl_mechanisms");
-    }
+    void setSaslMechanisms(const std::string& sasl_mechanisms);
 
     /**
      * Get the list of available SASL Mechanisms to use for SSL
      *
      * @return all SASL mechanisms the client may use
      */
-    const std::string& getSslSaslMechanisms() const {
-        return ssl_sasl_mechanisms;
-    }
+    std::string getSslSaslMechanisms() const;
 
     /**
      * Set the list of available SASL Mechanisms to use for SSL connections
      *
      * @param sasl_mechanisms the new list of sasl mechanisms
      */
-    void setSslSaslMechanisms(const std::string& ssl_sasl_mechanisms) {
-        Settings::ssl_sasl_mechanisms = ssl_sasl_mechanisms;
-        has.ssl_sasl_mechanisms = true;
-        notify_changed("ssl_sasl_mechanisms");
-    }
+    void setSslSaslMechanisms(const std::string& ssl_sasl_mechanisms);
 
     /**
      * Should the server return the cluster map it has already sent a
@@ -853,12 +841,18 @@ protected:
     /**
      * The available sasl mechanism list
      */
-    std::string sasl_mechanisms;
+    struct {
+        mutable std::mutex mutex;
+        std::string value;
+    } sasl_mechanisms;
 
     /**
      * The available sasl mechanism list to use over SSL
      */
-    std::string ssl_sasl_mechanisms;
+    struct {
+        mutable std::mutex mutex;
+        std::string value;
+    } ssl_sasl_mechanisms;
 
     /**
      * The socket path where saslauthd may connect to

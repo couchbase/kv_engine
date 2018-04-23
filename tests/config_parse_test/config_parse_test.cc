@@ -1318,18 +1318,32 @@ TEST(SettingsUpdateTest, MaxPacketSizeIsDynamic) {
               settings.getMaxPacketSize());
 }
 
-TEST(SettingsUpdateTest, SaslMechanismsIsNotDynamic) {
+TEST(SettingsUpdateTest, SaslMechanismsIsDynamic) {
     Settings settings;
     Settings updated;
     // setting it to the same value should work
     settings.setSaslMechanisms("SCRAM-SHA1");
     updated.setSaslMechanisms(settings.getSaslMechanisms());
-    EXPECT_NO_THROW(settings.updateSettings(updated, false));
+    settings.updateSettings(updated, false);
 
-    // changing it should not work
+    // changing it should work
     updated.setSaslMechanisms("PLAIN");
-    EXPECT_THROW(settings.updateSettings(updated, false),
-                 std::invalid_argument);
+    settings.updateSettings(updated);
+    EXPECT_EQ("PLAIN", settings.getSaslMechanisms());
+}
+
+TEST(SettingsUpdateTest, SslSaslMechanismsIsDynamic) {
+    Settings settings;
+    Settings updated;
+    // setting it to the same value should work
+    settings.setSslSaslMechanisms("SCRAM-SHA1");
+    updated.setSslSaslMechanisms(settings.getSslSaslMechanisms());
+    settings.updateSettings(updated, false);
+
+    // changing it should work
+    updated.setSslSaslMechanisms("PLAIN");
+    settings.updateSettings(updated);
+    EXPECT_EQ("PLAIN", settings.getSslSaslMechanisms());
 }
 
 TEST(SettingsUpdateTest, DedupeNmvbMapsIsDynamic) {

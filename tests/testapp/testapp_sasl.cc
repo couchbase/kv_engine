@@ -14,8 +14,108 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+
+#include "testapp.h"
+#include "testapp_client_test.h"
+
 #include <cbcrypto/cbcrypto.h>
-#include "testapp_sasl.h"
+#include <algorithm>
+
+class SaslTest : public TestappClientTest {
+public:
+    /**
+     * Create a vector containing all of the supported mechanisms we
+     * need to test.
+     */
+    SaslTest() {
+        using namespace cb::crypto;
+        mechanisms.emplace_back("PLAIN");
+        if (isSupported(Algorithm::SHA1)) {
+            mechanisms.emplace_back("SCRAM-SHA1");
+        }
+
+        if (isSupported(Algorithm::SHA256)) {
+            mechanisms.emplace_back("SCRAM-SHA256");
+        }
+
+        if (isSupported(Algorithm::SHA512)) {
+            mechanisms.emplace_back("SCRAM-SHA512");
+        }
+    }
+
+    void SetUp() override {
+        auto& connection = getConnection();
+        const auto mechs = connection.getSaslMechanisms();
+        connection.authenticate("@admin", "password", mechs);
+        ASSERT_NO_THROW(
+                connection.createBucket(bucket1, "", BucketType::Memcached));
+        ASSERT_NO_THROW(
+                connection.createBucket(bucket2, "", BucketType::Memcached));
+        connection.reconnect();
+    }
+
+    void TearDown() override {
+        auto& connection = getConnection();
+        const auto mechs = connection.getSaslMechanisms();
+        connection.authenticate("@admin", "password", mechs);
+        ASSERT_NO_THROW(connection.deleteBucket(bucket1));
+        ASSERT_NO_THROW(connection.deleteBucket(bucket2));
+        connection.reconnect();
+    }
+
+protected:
+    void testMixStartingFrom(const std::string& mechanism) {
+        MemcachedConnection& conn = getConnection();
+
+        for (const auto& mech : mechanisms) {
+            conn.reconnect();
+            conn.authenticate(bucket1, password1, mechanism);
+            conn.authenticate(bucket2, password2, mech);
+        }
+    }
+
+    void testIllegalLogin(const std::string& user, const std::string& mech) {
+        MemcachedConnection& conn = getConnection();
+        try {
+            conn.authenticate(user, "wtf", mech);
+            FAIL() << "incorrect authentication should fail for user \"" << user
+                   << "\" with mech \"" << mech << "\"";
+        } catch (const ConnectionError& e) {
+            EXPECT_TRUE(e.isAuthError()) << e.what();
+        }
+        conn.reconnect();
+    }
+
+    void testUnknownUser(const std::string& mech) {
+        testIllegalLogin("wtf", mech);
+    }
+    void testWrongPassword(const std::string& mech) {
+        testIllegalLogin("@admin", mech);
+    }
+
+    /**
+     * Update the list of supported authentication mechanisms
+     *
+     * @param mechanisms The new set of supported mechanisms
+     * @param ssl Is the list for ssl connections or not
+     */
+    void setSupportedMechanisms(const std::string& mechanisms, bool ssl) {
+        std::string key{"sasl_mechanisms"};
+        if (ssl) {
+            key.insert(0, "ssl_");
+        }
+
+        cJSON_DeleteItemFromObject(memcached_cfg.get(), key.c_str());
+        cJSON_AddStringToObject(memcached_cfg.get(), key.c_str(), mechanisms);
+        reconfigure();
+    }
+
+    std::vector<std::string> mechanisms;
+    const std::string bucket1{"bucket-1"};
+    const std::string password1{"1S|=,%#x1"};
+    const std::string bucket2{"bucket-2"};
+    const std::string password2{"secret"};
+};
 
 INSTANTIATE_TEST_CASE_P(TransportProtocols,
                         SaslTest,
@@ -25,11 +125,6 @@ INSTANTIATE_TEST_CASE_P(TransportProtocols,
                                           TransportProtocols::McbpIpv6Ssl
                                          ),
                         ::testing::PrintToStringParamName());
-
-static const std::string bucket1("bucket-1");
-static const std::string password1("1S|=,%#x1");
-static const std::string bucket2("bucket-2");
-static const std::string password2("secret");
 
 TEST_P(SaslTest, SinglePLAIN) {
     MemcachedConnection& conn = getConnection();
@@ -55,19 +150,6 @@ TEST_P(SaslTest, SingleSCRAM_SHA512) {
         MemcachedConnection& conn = getConnection();
         conn.authenticate(bucket1, password1, "SCRAM-SHA512");
     }
-}
-
-void SaslTest::testIllegalLogin(const std::string &user,
-                                const std::string& mech) {
-    MemcachedConnection& conn = getConnection();
-    try {
-        conn.authenticate(user, "wtf", mech);
-        FAIL() << "incorrect authentication should fail for user \""
-               << user << "\" with mech \"" << mech << "\"";
-    } catch (const ConnectionError &e) {
-        EXPECT_TRUE(e.isAuthError()) << e.what();
-    }
-    conn.reconnect();
 }
 
 TEST_P(SaslTest, UnknownUserPlain) {
@@ -114,16 +196,6 @@ TEST_P(SaslTest, IncorrectSCRAM_SHA512) {
     }
 }
 
-void SaslTest::testMixStartingFrom(const std::string& mechanism) {
-    MemcachedConnection& conn = getConnection();
-
-    for (const auto &mech : mechanisms) {
-        conn.reconnect();
-        conn.authenticate(bucket1, password1, mechanism);
-        conn.authenticate(bucket2, password2, mech);
-    }
-}
-
 TEST_P(SaslTest, TestSaslMixFrom_PLAIN) {
     testMixStartingFrom("PLAIN");
 }
@@ -146,21 +218,54 @@ TEST_P(SaslTest, TestSaslMixFrom_SCRAM_SHA512) {
     }
 }
 
+TEST_P(SaslTest, TestDisablePLAIN) {
+    if (!cb::crypto::isSupported(cb::crypto::Algorithm::SHA1)) {
+        std::cerr << "Skipping test as I need an alternative to PLAIN auth"
+                  << std::endl;
+        return;
+    }
 
-void SaslTest::SetUp() {
-    auto& connection = getConnection();
-    connection.authenticate("@admin", "password", "PLAIN");
-    ASSERT_NO_THROW(
-            connection.createBucket(bucket1, "", BucketType::Memcached));
-    ASSERT_NO_THROW(
-            connection.createBucket(bucket2, "", BucketType::Memcached));
-    connection.reconnect();
-}
+    auto& conn = getConnection();
 
-void SaslTest::TearDown() {
-    auto& connection = getConnection();
-    connection.authenticate("@admin", "password", "PLAIN");
-    ASSERT_NO_THROW(connection.deleteBucket(bucket1));
-    ASSERT_NO_THROW(connection.deleteBucket(bucket2));
-    connection.reconnect();
+    const auto before = conn.getSaslMechanisms();
+
+    auto& c = connectionMap.getConnection(!conn.isSsl(), conn.getFamily());
+    c.reconnect();
+
+    const auto otherMechs = c.getSaslMechanisms();
+
+    setSupportedMechanisms("SCRAM-SHA1", conn.isSsl());
+
+    c.reconnect();
+    conn.reconnect();
+
+    // We should only support SCRAM-SHA1
+    EXPECT_EQ("SCRAM-SHA1", conn.getSaslMechanisms());
+    EXPECT_EQ(otherMechs, c.getSaslMechanisms());
+
+    // It should not be possible to select any other mechanisms:
+    for (const auto& mech : mechanisms) {
+        // get a fresh connection
+        conn = getConnection();
+        if (mech == "SCRAM-SHA1") {
+            // This should work
+            conn.authenticate(bucket1, password1, mech);
+        } else {
+            // All other should fail
+            try {
+                conn.authenticate(bucket1, password1, mech);
+                FAIL() << "Mechanism " << mech << " should be disabled";
+            } catch (const ConnectionError& e) {
+                EXPECT_TRUE(e.isAuthError());
+            }
+        }
+    }
+
+    // verify that we didn't change the setting for the other connection
+    c.reconnect();
+    // And PLAIN auth should work
+    c.authenticate(bucket1, password1, "PLAIN");
+
+    // Restore the sasl mechanisms
+    setSupportedMechanisms(before, conn.isSsl());
 }
