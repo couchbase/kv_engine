@@ -177,6 +177,42 @@ TEST_P(StatsTest, Test_MB_17815_Append) {
     EXPECT_EQ(2, count->valueint);
 }
 
+/**
+ * Verify that cmd_set is updated when we fail to perform the
+ * append operation.
+ */
+TEST_P(StatsTest, Test_MB_29259_Append) {
+    MemcachedConnection& conn = getConnection();
+
+    auto stats = conn.stats("");
+    auto* count = cJSON_GetObjectItem(stats.get(), "cmd_set");
+    ASSERT_NE(nullptr, count);
+    EXPECT_EQ(cJSON_Number, count->type);
+    EXPECT_EQ(0, count->valueint);
+
+
+    Document doc;
+    doc.info.cas = mcbp::cas::Wildcard;
+    doc.info.datatype = cb::mcbp::Datatype::Raw;
+    doc.info.flags = 0xcaffee;
+    doc.info.id = name;
+    doc.value.assign(10, static_cast<uint8_t>('x'));
+
+    // Try to append to non-existing document
+    try {
+        conn.mutate(doc, 0, MutationType::Append);
+        FAIL() << "Append on non-existing document should fail";
+    } catch (const ConnectionError& error) {
+        EXPECT_TRUE(error.isNotStored()) << error.what();
+    }
+
+    stats = conn.stats("");
+    count = cJSON_GetObjectItem(stats.get(), "cmd_set");
+    ASSERT_NE(nullptr, count);
+    EXPECT_EQ(cJSON_Number, count->type);
+    EXPECT_EQ(1, count->valueint);
+}
+
 TEST_P(StatsTest, TestAppend) {
     MemcachedConnection& conn = getConnection();
 

@@ -51,6 +51,10 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::step() {
         ret = ENGINE_NOT_STORED;
     }
 
+    if (ret != ENGINE_EWOULDBLOCK) {
+        SLAB_INCR(&connection, cmd_set);
+    }
+
     return ret;
 }
 
