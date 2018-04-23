@@ -862,6 +862,9 @@ void Warmup::createVBuckets(uint16_t shardId) {
                     vb->failovers->createEntry(vbs.lastSnapStart);
                 }
             }
+            KVBucket* bucket = &this->store;
+            vb->setFreqSaturatedCallback(
+                    [bucket]() { bucket->wakeItemFreqDecayerTask(); });
 
             store.vbMap.addBucket(vb);
         }

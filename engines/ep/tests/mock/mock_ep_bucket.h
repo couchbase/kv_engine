@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include "../mock/mock_item_freq_decayer.h"
 #include "ep_bucket.h"
 #include "ep_engine.h"
 
@@ -30,11 +31,16 @@ public:
 
     void createItemFreqDecayerTask() {
         Configuration& config = engine.getConfiguration();
-        itemFreqDecayerTask = std::make_shared<ItemFreqDecayerTask>(
+        itemFreqDecayerTask = std::make_shared<MockItemFreqDecayerTask>(
                 &engine, config.getItemFreqDecayerPercent());
     }
 
     void disableItemFreqDecayerTask() {
         ExecutorPool::get()->cancel(itemFreqDecayerTask->getId());
+    }
+
+    MockItemFreqDecayerTask* getMockItemFreqDecayerTask() {
+        return dynamic_cast<MockItemFreqDecayerTask*>(
+                itemFreqDecayerTask.get());
     }
 };

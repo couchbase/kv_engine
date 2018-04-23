@@ -33,10 +33,17 @@ public:
         return completed;
     }
 
+    void wakeup() override {
+        wakeupCalled = true;
+        ItemFreqDecayerTask::wakeup();
+    }
+
     // Set the ChunkDuration to 0ms so that it ensures that assuming there
     // are more than ProgressTracker:INITIAL_VISIT_COUNT_CHECK documents in
     // the hash table it will require multiple passes to visit all items.
     std::chrono::milliseconds getChunkDuration() const override {
         return std::chrono::milliseconds(0);
     }
+
+    bool wakeupCalled{false};
 };

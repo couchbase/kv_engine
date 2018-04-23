@@ -1799,6 +1799,38 @@ public:
     }
 };
 
+// Test that the FreqSaturatedCallback of a vbucket is initialized and after
+// warmup is set to the "wakeup" function of ItemFreqDecayerTask.
+TEST_F(WarmupTest, setFreqSaturatedCallback) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    // The FreqSaturatedCallback should be initialised
+    {
+        auto vb = engine->getKVBucket()->getVBucket(vbid);
+        EXPECT_TRUE(vb->ht.getFreqSaturatedCallback());
+    }
+    // Store an item, then make the VB appear old ready for warmup
+    store_item(vbid, makeStoredDocKey("key1"), "value");
+    flush_vbucket_to_disk(vbid);
+    rewriteVBStateAs25x(vbid);
+
+    // Resetting the engine and running warmup will result in the
+    // Warmup::createVBuckets being invoked for vbid.
+    resetEngineAndWarmup();
+
+    dynamic_cast<MockEPBucket*>(store)->createItemFreqDecayerTask();
+    auto itemFreqTask =
+            dynamic_cast<MockEPBucket*>(store)->getMockItemFreqDecayerTask();
+    auto vb = engine->getKVBucket()->getVBucket(vbid);
+    // The FreqSaturatedCallback should be initialised
+    EXPECT_TRUE(vb->ht.getFreqSaturatedCallback());
+    ASSERT_FALSE(itemFreqTask->wakeupCalled);
+    // We now invoke the FreqSaturatedCallback function.
+    vb->ht.getFreqSaturatedCallback()();
+    // This should have resulted in calling the wakeup function of the
+    // MockItemFreqDecayerTask.
+    EXPECT_TRUE(itemFreqTask->wakeupCalled);
+}
+
 TEST_F(WarmupTest, hlcEpoch) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
