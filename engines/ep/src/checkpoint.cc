@@ -1554,16 +1554,6 @@ size_t CheckpointManager::getNumOfMetaItemsFromCursor(const CheckpointCursor &cu
     return result;
 }
 
-void CheckpointManager::decrCursorFromCheckpointEnd(const std::string &name) {
-    LockHolder lh(queueLock);
-    cursor_index::iterator it = connCursors.find(name);
-    if (it != connCursors.end() &&
-        (*(it->second.currentPos))->getOperation() ==
-        queue_op::checkpoint_end) {
-        it->second.decrPos();
-    }
-}
-
 bool CheckpointManager::isLastMutationItemInCheckpoint(
                                                    CheckpointCursor &cursor) {
     CheckpointQueue::iterator it = cursor.currentPos;
@@ -1863,23 +1853,6 @@ void CheckpointManager::putCursorsInCollapsedChk(
         }
         chk->registerCursorName(cc->second.name);
     }
-}
-
-bool CheckpointManager::hasNext(const std::string &name) {
-    LockHolder lh(queueLock);
-    cursor_index::iterator it = connCursors.find(name);
-    if (it == connCursors.end() || getOpenCheckpointId_UNLOCKED() == 0) {
-        return false;
-    }
-
-    bool hasMore = true;
-    CheckpointQueue::iterator curr = it->second.currentPos;
-    ++curr;
-    if (curr == (*(it->second.currentCheckpoint))->end() &&
-        (*(it->second.currentCheckpoint)) == checkpointList.back()) {
-        hasMore = false;
-    }
-    return hasMore;
 }
 
 queued_item CheckpointManager::createCheckpointItem(uint64_t id, uint16_t vbid,

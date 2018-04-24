@@ -795,16 +795,6 @@ public:
      */
     void clear(VBucket& vb, uint64_t seqno);
 
-    /**
-     * If a given cursor currently points to the checkpoint_end dummy item,
-     * decrease its current position by 1. This function is mainly used for
-     * checkpoint synchronization between the master and slave nodes.
-     * @param name the name of a given connection
-     */
-    void decrCursorFromCheckpointEnd(const std::string &name);
-
-    bool hasNext(const std::string &name);
-
     const CheckpointConfig &getCheckpointConfig() const {
         return checkpointConfig;
     }
