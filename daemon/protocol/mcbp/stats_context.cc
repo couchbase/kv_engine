@@ -741,11 +741,13 @@ static ENGINE_ERROR_CODE stat_responses_json_executor(const std::string& arg,
         unique_cJSON_ptr jsonPtr(cJSON_CreateObject());
 
         for (uint16_t resp = 0; resp < respCounters.size(); ++resp) {
-            const uint64_t value = respCounters[resp].load();
-            std::stringstream stream;
-            stream << std::hex << resp;
-            cJSON_AddNumberToObject(
-                    jsonPtr.get(), stream.str().c_str(), value);
+            const auto value = respCounters[resp].load();
+            if (value > 0) {
+                std::stringstream stream;
+                stream << std::hex << resp;
+                cJSON_AddNumberToObject(
+                        jsonPtr.get(), stream.str().c_str(), value);
+            }
         }
 
         std::string json_str = to_string(jsonPtr, false);

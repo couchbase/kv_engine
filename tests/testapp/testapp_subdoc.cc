@@ -70,12 +70,9 @@ void SubdocTestappTest::test_subdoc_get_binary(bool compress,
     const std::string not_JSON{"not; json"};
     store_document("binary", not_JSON);
 
-    unique_cJSON_ptr stats(cJSON_Parse(
-            cJSON_GetObjectItem(conn.stats("responses detailed").get(),
-                                "responses")
-                    ->valuestring));
     int notJsonCount =
-            gsl::narrow<int>(cJSON_GetObjectItem(stats.get(), "c6")->valueint);
+            getResponseCount(PROTOCOL_BINARY_RESPONSE_SUBDOC_DOC_NOTJSON);
+
     // a). Check that access fails with DOC_NOTJSON
     EXPECT_SD_ERR(BinprotSubdocCommand(cmd, "binary", "[0]"), PROTOCOL_BINARY_RESPONSE_SUBDOC_DOC_NOTJSON);
 
@@ -83,7 +80,7 @@ void SubdocTestappTest::test_subdoc_get_binary(bool compress,
             cJSON_GetObjectItem(conn.stats("responses").get(), "responses")
                     ->valuestring));
     EXPECT_EQ(notJsonCount + 1,
-              cJSON_GetObjectItem(statsNew.get(), "c6")->valueint);
+              getResponseCount(PROTOCOL_BINARY_RESPONSE_SUBDOC_DOC_NOTJSON));
 
     delete_object("binary");
 }

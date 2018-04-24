@@ -1438,8 +1438,12 @@ int TestappTest::getResponseCount(protocol_binary_response_status statusCode) {
                     ->valuestring));
     std::stringstream stream;
     stream << std::hex << statusCode;
-    return gsl::narrow<int>(
-            cJSON_GetObjectItem(stats.get(), stream.str().c_str())->valueint);
+    const auto *obj = cJSON_GetObjectItem(stats.get(), stream.str().c_str());
+    if (obj == nullptr) {
+        return 0;
+    }
+
+    return gsl::narrow<int>(obj->valueint);
 }
 
 cb::mcbp::Datatype TestappTest::expectedJSONDatatype() const {
