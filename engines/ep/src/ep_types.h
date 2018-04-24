@@ -59,8 +59,6 @@ typedef struct {
     snapshot_range_t range;
 } snapshot_info_t;
 
-typedef std::pair<uint64_t, bool> CursorRegResult;
-
 /**
  * Flag indicating that we must send checkpoint end meta item for the cursor
  */
@@ -69,21 +67,9 @@ enum class MustSendCheckpointEnd {
     YES
 };
 
-/**
- * List of pairs containing checkpoint cursor name and corresponding flag
- * indicating whether we must send checkpoint end meta item for the cursor
- */
-typedef std::list<std::pair<std::string, MustSendCheckpointEnd>>
-        checkpointCursorInfoList;
-
 // List of Checkpoints used by class CheckpointManager to store Checkpoints for
 // a given vBucket.
 using CheckpointList = std::list<std::unique_ptr<Checkpoint>>;
-
-/**
- * The cursor index maps checkpoint cursor names to checkpoint cursors
- */
-typedef std::map<const std::string, CheckpointCursor> cursor_index;
 
 /**
  * The following options can be specified

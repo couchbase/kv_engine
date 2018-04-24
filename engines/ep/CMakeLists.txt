@@ -283,6 +283,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                    tests/mock/mock_dcp.cc
                    tests/mock/mock_dcp_producer.cc
                    tests/mock/mock_ephemeral_vb.cc
+                   tests/mock/mock_stream.cc
                    tests/mock/mock_synchronous_ep_engine.cc
                    tests/module_tests/atomic_unordered_map_test.cc
                    tests/module_tests/basic_ll_test.cc

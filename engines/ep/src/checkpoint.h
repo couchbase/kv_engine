@@ -181,6 +181,9 @@ public:
      */
     size_t getCurrentCkptMetaItemsRead() const;
 
+    /// @returns the id of the current checkpoint the cursor is on
+    uint64_t getId() const;
+
 protected:
     void incrMetaItemOffset(size_t incr) {
         ckptMetaItemsRead += incr;

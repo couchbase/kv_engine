@@ -154,8 +154,10 @@ protected:
                                                     includeVal,
                                                     includeXattrs);
 
-        vb0->checkpointManager->registerCursorBySeqno(
-                stream->getCursorName(), 0, MustSendCheckpointEnd::NO);
+        stream->public_registerCursor(*vb0->checkpointManager,
+                                      producer->getName(),
+                                      0,
+                                      MustSendCheckpointEnd::NO);
         stream->setActive();
     }
 
@@ -1484,8 +1486,6 @@ TEST_P(StreamTest, CursorDroppingBasicInMemoryState) {
 
     /* Transition stream to in-memory state and expect cursor dropping call to
        succeed */
-    stream->transitionStateToBackfilling();
-    stream->transitionStateToInMemory();
     EXPECT_TRUE(stream->public_handleSlowStream());
     destroy_dcp_stream();
 }

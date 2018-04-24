@@ -978,8 +978,6 @@ bool KVBucket::resetVBucket_UNLOCKED(LockedVBucketPtr& vb,
         vbMap.dropVBucketAndSetupDeferredDeletion(vb->getId(),
                                                   nullptr /*no cookie*/);
 
-        checkpointCursorInfoList cursors =
-                vb->checkpointManager->getAllCursors();
         // Delete and recreate the vbucket database file
         setVBucketState_UNLOCKED(vb->getId(),
                                  vbstate,
@@ -987,10 +985,9 @@ bool KVBucket::resetVBucket_UNLOCKED(LockedVBucketPtr& vb,
                                  true /*notifyDcp*/,
                                  vbset);
 
-        // Copy the all cursors from the old vbucket into the new vbucket
+        // Move the cursors from the old vbucket into the new vbucket
         VBucketPtr newvb = vbMap.getBucket(vb->getId());
-        newvb->checkpointManager->resetCursors(cursors);
-
+        newvb->checkpointManager->takeAndResetCursors(*vb->checkpointManager);
         rv = true;
     }
     return rv;

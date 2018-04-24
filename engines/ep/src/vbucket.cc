@@ -343,8 +343,8 @@ VBucket::ItemsToFlush VBucket::getItemsToPersist(size_t approxLimit) {
     CheckpointManager::ItemsForCursor ckptItems;
     if (ckptMgrLimit > 0) {
         auto _begin_ = ProcessClock::now();
-        ckptItems = checkpointManager->getItemsForCursor(
-                CheckpointManager::pCursorName, result.items, ckptMgrLimit);
+        ckptItems = checkpointManager->getItemsForPersistence(result.items,
+                                                              ckptMgrLimit);
         result.range = ckptItems.range;
         stats.persistenceCursorGetItemsHisto.add(
                 std::chrono::duration_cast<std::chrono::microseconds>(

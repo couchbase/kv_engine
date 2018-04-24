@@ -136,7 +136,7 @@ TEST_F(CheckpointRemoverEPTest, CursorsEligibleToDrop) {
     ASSERT_EQ(1, cursors.size());
     ActiveStream& activeStream =
             reinterpret_cast<ActiveStream&>(*producer->findStream(vbid));
-    ASSERT_EQ(activeStream.getCursorName(), cursors[0]);
+    ASSERT_EQ(activeStream.getCursor().lock(), cursors[0].lock());
 }
 
 /**
@@ -182,12 +182,13 @@ TEST_F(CheckpointRemoverEPTest, CursorDropMemoryFreed) {
     ASSERT_EQ(1, cursors.size());
     ActiveStream& activeStream =
             reinterpret_cast<ActiveStream&>(*producer->findStream(vbid));
-    ASSERT_EQ(activeStream.getCursorName(), cursors[0]);
+    ASSERT_EQ(activeStream.getCursor().lock(), cursors[0].lock());
 
     // Manually handle the slow stream, this is the same logic as the checkpoint
     // remover task uses, just without the overhead of setting up the task
     auto memoryOverhead = checkpointManager->getMemoryOverhead();
-    if (engine->getDcpConnMap().handleSlowStream(vbid, cursors[0])) {
+    if (engine->getDcpConnMap().handleSlowStream(vbid,
+                                                 cursors[0].lock().get())) {
         ASSERT_EQ(expectedFreedMemoryFromItems + initialSize,
                   checkpointManager->getMemoryUsageOfUnrefCheckpoints());
         // Check that the memory of unreferenced checkpoints is greater than or

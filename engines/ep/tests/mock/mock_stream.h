@@ -25,6 +25,8 @@
 #include "dcp/stream.h"
 #include "tests/mock/mock_dcp_producer.h"
 
+class CheckpointManager;
+
 /*
  * Mock of the ActiveStream class. Wraps the real ActiveStream, but exposes
  * normally protected methods publically for test purposes.
@@ -166,6 +168,12 @@ public:
 
     /// A callback to allow tests to inject code before we access the checkpoint
     std::function<void()> preGetOutstandingItemsCallback = [] { return; };
+
+    void public_registerCursor(
+            CheckpointManager& manager,
+            const std::string& name,
+            int64_t seqno,
+            MustSendCheckpointEnd needsCheckpointEndMetaItem);
 };
 
 /**

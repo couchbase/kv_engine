@@ -64,6 +64,10 @@ void CheckpointCursor::decrPos() {
     }
 }
 
+uint64_t CheckpointCursor::getId() const {
+    return (*currentCheckpoint)->getId();
+}
+
 MustSendCheckpointEnd CheckpointCursor::shouldSendCheckpointEndMetaItem() const
 {
     return sendCheckpointEndMetaItem;
@@ -168,10 +172,8 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &qi,
             // we correctly account for the updated item which will need to be
             // iterated over.
             for (auto& cursor : checkpointManager->connCursors) {
-
-                if ((*(cursor.second.currentCheckpoint)).get() == this) {
-
-                    queued_item& cursor_item = *(cursor.second.currentPos);
+                if ((*(cursor.second->currentCheckpoint)).get() == this) {
+                    queued_item& cursor_item = *(cursor.second->currentPos);
 
                     auto& index =
                             cursor_item->isCheckPointMetaItem() ? metaKeyIndex
@@ -179,11 +181,15 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &qi,
 
                     auto cursor_item_idx = index.find(cursor_item->getKey());
                     if (cursor_item_idx == index.end()) {
-                        throw std::logic_error("Checkpoint::queueDirty: Unable "
+                        throw std::logic_error(
+                                "Checkpoint::queueDirty: Unable "
                                 "to find key with"
-                                " op:" + to_string(cursor_item->getOperation()) +
-                                " seqno:" + std::to_string(cursor_item->getBySeqno()) +
-                                "for cursor:" + cursor.first + " in current checkpoint.");
+                                " op:" +
+                                to_string(cursor_item->getOperation()) +
+                                " seqno:" +
+                                std::to_string(cursor_item->getBySeqno()) +
+                                "for cursor:" + cursor.second->name +
+                                " in current checkpoint.");
                     }
 
                     // If the cursor item is non-meta, then we need to decrement
@@ -202,15 +208,16 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &qi,
                         // this key - need to logically move the cursor
                         // backwards one so it will pick up the new value for
                         // this key.
-                        cursor.second.decrOffset(1);
-                        if (cursor.second.name == CheckpointManager::pCursorName) {
+                        cursor.second->decrOffset(1);
+                        if (cursor.second->name ==
+                            CheckpointManager::pCursorName) {
                             rv = queue_dirty_t::PERSIST_AGAIN;
                         }
                     }
                     /* If an TAP cursor points to the existing item for the same
                        key, shift it left by 1 */
-                    if (cursor.second.currentPos == currPos) {
-                        cursor.second.decrPos();
+                    if (cursor.second->currentPos == currPos) {
+                        cursor.second->decrPos();
                     }
                 }
             }

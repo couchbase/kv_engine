@@ -1112,12 +1112,12 @@ void DcpProducer::closeStreamDueToRollback(uint16_t vbucket) {
 }
 
 bool DcpProducer::handleSlowStream(uint16_t vbid,
-                                   const std::string& cursorName) {
+                                   const CheckpointCursor* cursor) {
     if (supportsCursorDropping) {
         auto stream = findStream(vbid);
         if (stream) {
-            ActiveStream* as = static_cast<ActiveStream*>(stream.get());
-            if (as->getCursorName() == cursorName) {
+            if (stream->getCursor().lock().get() == cursor) {
+                ActiveStream* as = static_cast<ActiveStream*>(stream.get());
                 return as->handleSlowStream();
             }
         }

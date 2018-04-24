@@ -150,14 +150,12 @@ void ClosedUnrefCheckpointRemoverTask::cursorDroppingIfNeeded(void) {
                     // Get a list of cursors that can be dropped from the
                     // vbucket's checkpoint manager, so as to unreference
                     // an estimated number of checkpoints.
-                    std::vector<std::string> cursors =
+                    auto cursors =
                             vb->checkpointManager->getListOfCursorsToDrop();
-                    std::vector<std::string>::iterator itr = cursors.begin();
-                    for (; itr != cursors.end(); ++itr) {
+                    for (const auto& cursor : cursors) {
                         if (memoryCleared < amountOfMemoryToClear) {
-                            if (engine->getDcpConnMap().handleSlowStream(vbid,
-                                                                        *itr))
-                            {
+                            if (engine->getDcpConnMap().handleSlowStream(
+                                        vbid, cursor.lock().get())) {
                                 auto memoryFreed =
                                         vb->getChkMgrMemUsageOfUnrefCheckpoints();
                                 ++stats.cursorsDropped;

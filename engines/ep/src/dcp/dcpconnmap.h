@@ -29,6 +29,7 @@
 #include <list>
 #include <string>
 
+class CheckpointCursor;
 class DcpProducer;
 class DcpConsumer;
 
@@ -99,7 +100,7 @@ public:
      * Returns true if the stream dropped its cursors on the
      * checkpoint.
      */
-    bool handleSlowStream(uint16_t vbid, const std::string &name);
+    bool handleSlowStream(uint16_t vbid, const CheckpointCursor* cursor);
 
     void disconnect(const void *cookie);
 

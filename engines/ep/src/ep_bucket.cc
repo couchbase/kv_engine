@@ -1041,8 +1041,7 @@ RollbackResult EPBucket::doRollback(uint16_t vbid, uint64_t rollbackSeqno) {
 
 void EPBucket::rollbackUnpersistedItems(VBucket& vb, int64_t rollbackSeqno) {
     std::vector<queued_item> items;
-    vb.checkpointManager->getAllItemsForCursor(CheckpointManager::pCursorName,
-                                               items);
+    vb.checkpointManager->getAllItemsForPersistence(items);
     for (const auto& item : items) {
         if (item->getBySeqno() > rollbackSeqno &&
             !item->isCheckPointMetaItem()) {

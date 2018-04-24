@@ -31,6 +31,7 @@
 #include "monotonic.h"
 
 class BackfillManager;
+class CheckpointCursor;
 class DcpResponse;
 
 class DcpProducer : public ConnHandler,
@@ -109,11 +110,11 @@ public:
      * to backfilling.
      *
      * @param vbid vbucket the checkpoint-remover is processing
-     * @param cursorName the cursor name registered in the checkpoint manager
-     *        which is slow.
+     * @param cursor the cursor registered in the checkpoint manager which is
+     *        slow.
      * @return true if the cursor was removed from the checkpoint manager
      */
-    bool handleSlowStream(uint16_t vbid, const std::string& cursorName);
+    bool handleSlowStream(uint16_t vbid, const CheckpointCursor* cursor);
 
     void closeAllStreams();
 

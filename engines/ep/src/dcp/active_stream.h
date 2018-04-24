@@ -17,9 +17,9 @@
 
 #pragma once
 
-#include "dcp/stream.h"
-
+#include "checkpoint.h"
 #include "collections/vbucket_filter.h"
+#include "dcp/stream.h"
 #include "vbucket.h"
 
 class ActiveStream : public Stream,
@@ -117,9 +117,8 @@ public:
                (includeXattributes == IncludeXattrs::No);
     }
 
-    /// @return a const reference to the streams cursor name
-    const std::string& getCursorName() const {
-        return cursorName;
+    const Cursor& getCursor() const override {
+        return cursor;
     }
 
 protected:
@@ -199,6 +198,8 @@ protected:
     std::atomic<size_t> backfillRemaining;
 
     std::unique_ptr<DcpResponse> backfillPhase(std::lock_guard<std::mutex>& lh);
+
+    Cursor cursor;
 
 private:
     std::unique_ptr<DcpResponse> next(std::lock_guard<std::mutex>& lh);
@@ -326,18 +327,4 @@ private:
      * The filter the stream will use to decide which keys should be transmitted
      */
     Collections::VB::Filter filter;
-
-    /**
-     * The name which uniquely identifies this stream's checkpoint cursor
-     */
-    std::string cursorName;
-
-    /// True if cursorName is registered in CheckpointManager.
-    std::atomic<bool> cursorRegistered{false};
-
-    /**
-     * To ensure each stream gets a unique cursorName, we maintain a 'uid'
-     * which is really just an incrementing uint64
-     */
-    static std::atomic<uint64_t> cursorUID;
 };

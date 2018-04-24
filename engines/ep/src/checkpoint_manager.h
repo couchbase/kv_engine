@@ -20,6 +20,7 @@
 #include "config.h"
 
 #include "callbacks.h"
+#include "cursor.h"
 #include "ep_types.h"
 #include "item.h"
 #include "monotonic.h"
@@ -104,31 +105,12 @@ public:
 
     /**
      * Remove the cursor for a given connection.
-     * @param name the name of a given connection
+     * @param const pointer to the clients cursor, can be null
      * @return true if the cursor is removed successfully.
      */
-    bool removeCursor(const std::string &name);
-
-    /**
-     * Get the Id of the checkpoint where the given connections cursor is currently located.
-     * If the cursor is not found, return 0 as a checkpoint Id.
-     * @param name the name of a given connection
-     * @return the checkpoint Id for a given connections cursor.
-     */
-    uint64_t getCheckpointIdForCursor(const std::string &name);
+    bool removeCursor(const CheckpointCursor* cursor);
 
     size_t getNumOfCursors();
-
-    /**
-     * Get info about all the cursors in this checkpoint manager.
-     * Cursor names and corresponding MustSendCheckpointEnd flag are returned
-     * as a list.
-     * Note that return of info by copy is intended because after this call the
-     * the chkpt manager can be deleted or reset
-     *
-     * @return std list of pair (name, MustSendCheckpointEnd)
-     */
-    checkpointCursorInfoList getAllCursors();
 
     /**
      * Queue an item to be written to persistent layer.
@@ -156,23 +138,38 @@ public:
 
     /**
      * Return the next item to be sent to a given connection
-     * @param name the name of a given connection
+     *
+     * *** currently only in use by test code ***
+     *
+     * @param const pointer to the clients cursor, can be null
      * @param isLastMutationItem flag indicating if the item to be returned is
      * the last mutation one in the closed checkpoint.
      * @return the next item to be sent to a given connection.
      */
-    queued_item nextItem(const std::string &name, bool &isLastMutationItem);
+    queued_item nextItem(CheckpointCursor* cursor, bool& isLastMutationItem);
 
     /**
      * Add all outstanding items for the given cursor name to the vector.
      *
-     * @param name Cursor to advance.
+     * @param cursor CheckpointCursor to read items from and advance
      * @param items container which items will be appended to.
      * @return The low/high sequence number added to `items` on success,
      *         or (0,0) if no items were added.
      */
-    snapshot_range_t getAllItemsForCursor(const std::string& name,
+    snapshot_range_t getAllItemsForCursor(CheckpointCursor* cursor,
                                           std::vector<queued_item>& items);
+
+    /**
+     * Add all outstanding items for persistence to the vector
+     *
+     * @param items container which items will be appended to.
+     * @return The low/high sequence number added to `items` on success,
+     *         or (0,0) if no items were added.
+     */
+    snapshot_range_t getAllItemsForPersistence(
+            std::vector<queued_item>& items) {
+        return getAllItemsForCursor(persistenceCursor, items);
+    }
 
     /**
      * Add items for the given cursor to the vector, stopping on a checkpoint
@@ -182,7 +179,7 @@ public:
      * Note: It is only valid to fetch complete checkpoints; as such we cannot
      * limit to a precise number of items.
      *
-     * @param name Cursor to advance.
+     * @param cursor CheckpointCursor to read items from and advance
      * @param[in/out] items container which items will be appended to.
      * @param approxLimit Approximate number of items to add.
      * @return An ItemsForCursor object containing:
@@ -191,9 +188,30 @@ public:
      * moreAvailable: true if there are still items available for this
      * checkpoint (i.e. the limit was hit).
      */
-    ItemsForCursor getItemsForCursor(const std::string& name,
+    ItemsForCursor getItemsForCursor(CheckpointCursor* cursor,
                                      std::vector<queued_item>& items,
                                      size_t approxLimit);
+
+    /**
+     * Add items for persistence to the vector, stopping on a checkpoint
+     * boundary which is greater or equal to `approxLimit`. The persistence
+     * cursor is advanced to point after the items fetched.
+     *
+     * Note: It is only valid to fetch complete checkpoints; as such we cannot
+     * limit to a precise number of items.
+     *
+     * @param[in/out] items container which items will be appended to.
+     * @param approxLimit Approximate number of items to add.
+     * @return An ItemsForCursor object containing:
+     * range: the low/high sequence number of the checkpoints(s) added to
+     * `items`;
+     * moreAvailable: true if there are still items available for this
+     * checkpoint (i.e. the limit was hit).
+     */
+    ItemsForCursor getItemsForPersistence(std::vector<queued_item>& items,
+                                          size_t approxLimit) {
+        return getItemsForCursor(persistenceCursor, items, approxLimit);
+    }
 
     /**
      * Return the total number of items (including meta items) that belong to
@@ -220,7 +238,21 @@ public:
      * has yet to process (i.e. between the cursor's current position and the
      * end of the last checkpoint).
      */
-    size_t getNumItemsForCursor(const std::string &name) const;
+    size_t getNumItemsForCursor(const CheckpointCursor* cursor) const;
+
+    /* WARNING! This method can return inaccurate counts - see MB-28431. It
+     * at *least* can suffer from overcounting by at least 1 (in scenarios as
+     * yet not clear).
+     * As such it is *not* safe to use when a precise count of remaining
+     * items is needed.
+     *
+     * Returns the count of Items (excluding meta items) that the persistence
+     * cursor has yet to process (i.e. between the cursor's current position and
+     * the end of the last checkpoint).
+     */
+    size_t getNumItemsForPersistence() const {
+        return getNumItemsForCursor(persistenceCursor);
+    }
 
     void clear(vbucket_state_t vbState) {
         LockHolder lh(queueLock);
@@ -243,8 +275,6 @@ public:
      * @return the new open checkpoint id
      */
     uint64_t createNewCheckpoint();
-
-    void resetCursors(checkpointCursorInfoList &cursors);
 
     /**
      * Get id of the previous checkpoint that is followed by the checkpoint
@@ -282,8 +312,9 @@ public:
     /**
      * Function returns a list of cursors to drop so as to unreference
      * certain checkpoints within the manager, invoked by the cursor-dropper.
+     * @return a container of weak_ptr to cursors
      */
-    std::vector<std::string> getListOfCursorsToDrop();
+    std::vector<Cursor> getListOfCursorsToDrop();
 
     /**
      * @return True if at least one checkpoint is unreferenced and can
@@ -336,9 +367,19 @@ public:
         return ++lastBySeqno;
     }
 
+    /// @return the persistence cursor which can be null
+    CheckpointCursor* getPersistenceCursor() const {
+        return persistenceCursor;
+    }
+
     void dump() const;
 
-    static const std::string pCursorName;
+    /**
+     * Take the cursors from another checkpoint manager and reset them in the
+     * process - used as part of vbucket reset.
+     * @param other the manager we are taking cursors from
+     */
+    void takeAndResetCursors(CheckpointManager& other);
 
 protected:
 
@@ -364,8 +405,6 @@ protected:
 
     CheckpointList checkpointList;
 
-private:
-
     // Pair of {sequence number, cursor at checkpoint start} used when
     // updating cursor positions when collapsing checkpoints.
     struct CursorPosition {
@@ -377,14 +416,14 @@ private:
     // when collapsing checkpoints.
     using CursorIdToPositionMap = std::map<std::string, CursorPosition>;
 
-    bool removeCursor_UNLOCKED(const std::string &name);
+    bool removeCursor_UNLOCKED(const CheckpointCursor* cursor);
 
     CursorRegResult registerCursorBySeqno_UNLOCKED(
             const std::string& name,
             uint64_t startBySeqno,
             MustSendCheckpointEnd needsCheckpointEndMetaItem);
 
-    size_t getNumItemsForCursor_UNLOCKED(const std::string &name) const;
+    size_t getNumItemsForCursor_UNLOCKED(const CheckpointCursor* cursor) const;
 
     void clear_UNLOCKED(vbucket_state_t vbState, uint64_t seqno);
 
@@ -449,9 +488,22 @@ private:
     bool                     isCollapsedCheckpoint;
     uint64_t                 lastClosedCheckpointId;
     uint64_t                 pCursorPreCheckpointId;
-    cursor_index             connCursors;
+
+    /**
+     * connCursors: stores all known CheckpointCursor objects which are held via
+     * shared_ptr. When a client creates a cursor we store the shared_ptr and
+     * give out a weak_ptr allowing cursors to be simply de-registered. We use
+     * the client's chosen name as the key
+     */
+    using cursor_index =
+            std::unordered_map<std::string, std::shared_ptr<CheckpointCursor>>;
+    cursor_index connCursors;
 
     FlusherCallback          flusherCB;
+
+    static constexpr const char* pCursorName = "persistence";
+    Cursor pCursor;
+    CheckpointCursor* persistenceCursor = nullptr;
 
     friend std::ostream& operator<<(std::ostream& os, const CheckpointManager& m);
 };

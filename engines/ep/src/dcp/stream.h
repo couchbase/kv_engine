@@ -18,7 +18,8 @@
 #pragma once
 
 #include "config.h"
-
+#include "checkpoint.h"
+#include "cursor.h"
 #include "dcp/dcp-types.h"
 
 #include <memcached/engine_common.h>
@@ -30,11 +31,12 @@
 #include <queue>
 #include <string>
 
+class CheckpointCursor;
+class DcpResponse;
 class EventuallyPersistentEngine;
 class MutationResponse;
 class SetVBucketState;
 class SnapshotMarker;
-class DcpResponse;
 
 enum backfill_source_t {
     BACKFILL_FROM_MEMORY,
@@ -95,6 +97,10 @@ public:
 
     const std::string& getName() {
         return name_;
+    }
+
+    virtual const Cursor& getCursor() const {
+        return noCursor;
     }
 
     virtual void setActive() {
@@ -165,7 +171,7 @@ protected:
                      const char* fmt,
                      ...) const = 0;
 
-    const std::string &name_;
+    std::string name_;
     uint32_t flags_;
     uint32_t opaque_;
     uint16_t vb_;
@@ -194,6 +200,8 @@ protected:
     std::atomic<size_t> readyQ_non_meta_items;
 
     const static uint64_t dcpMaxSeqno;
+
+    Cursor noCursor;
 
 private:
     /* readyQueueMemory tracks the memory occupied by elements

@@ -237,13 +237,13 @@ void DcpConnMap::closeStreamsDueToRollback(uint16_t vbucket) {
 }
 
 bool DcpConnMap::handleSlowStream(uint16_t vbid,
-                                  const std::string &name) {
+                                  const CheckpointCursor* cursor) {
     size_t lock_num = vbid % vbConnLockNum;
     std::lock_guard<std::mutex> lh(vbConnLocks[lock_num]);
 
     for (const auto& connection : vbConns[vbid]) {
         auto* producer = dynamic_cast<DcpProducer*>(connection.get());
-        if (producer && producer->handleSlowStream(vbid, name)) {
+        if (producer && producer->handleSlowStream(vbid, cursor)) {
             return true;
         }
     }
