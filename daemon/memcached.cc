@@ -1723,21 +1723,20 @@ SERVER_HANDLE_V1* get_server_api() {
 
 /* BUCKET FUNCTIONS */
 void CreateBucketThread::create() {
-    auto logger = cb::logger::get();
-    logger->info("{} Create bucket [{}]", connection.getId(), name);
+    LOG_INFO("{} Create bucket [{}]", connection.getId(), name);
 
     if (!BucketValidator::validateBucketName(name, error)) {
-        logger->info("{} Create bucket [{}] failed - Invalid bucket name",
-                     connection.getId(),
-                     name);
+        LOG_WARNING("{} Create bucket [{}] failed - Invalid bucket name",
+                    connection.getId(),
+                    name);
         result = ENGINE_EINVAL;
         return;
     }
 
     if (!BucketValidator::validateBucketType(type, error)) {
-        logger->info("{} Create bucket [{}] failed - Invalid bucket type",
-                     connection.getId(),
-                     name);
+        LOG_WARNING("{} Create bucket [{}] failed - Invalid bucket type",
+                    connection.getId(),
+                    name);
         result = ENGINE_EINVAL;
         return;
     }
@@ -1761,14 +1760,14 @@ void CreateBucketThread::create() {
 
     if (found) {
         result = ENGINE_KEY_EEXISTS;
-        logger->info("{} Create bucket [{}] failed - Already exists",
-                     connection.getId(),
-                     name);
+        LOG_WARNING("{} Create bucket [{}] failed - Already exists",
+                    connection.getId(),
+                    name);
     } else if (first_free == all_buckets.size()) {
         result = ENGINE_E2BIG;
-        logger->warn("{} Create bucket [{}] failed - Too many buckets",
-                     connection.getId(),
-                     name);
+        LOG_WARNING("{} Create bucket [{}] failed - Too many buckets",
+                    connection.getId(),
+                    name);
     } else {
         result = ENGINE_SUCCESS;
         ii = first_free;
@@ -1784,9 +1783,9 @@ void CreateBucketThread::create() {
             all_buckets[ii].topkeys = new TopKeys(settings.getTopkeysSize());
         } catch (const std::bad_alloc &) {
             result = ENGINE_ENOMEM;
-            logger->warn("{} Create bucket [{}] failed - out of memory",
-                         connection.getId(),
-                         name);
+            LOG_WARNING("{} Create bucket [{}] failed - out of memory",
+                        connection.getId(),
+                        name);
         }
     }
     all_bucket_lock.unlock();
@@ -1815,16 +1814,16 @@ void CreateBucketThread::create() {
             result = engine->initialize(v1_handle_2_handle(engine),
                                         config.c_str());
         } catch (const std::runtime_error& e) {
-            logger->warn("{} - Failed to create bucket [{}]: {}",
-                         connection.getId(),
-                         name,
-                         e.what());
+            LOG_WARNING("{} - Failed to create bucket [{}]: {}",
+                        connection.getId(),
+                        name,
+                        e.what());
             result = ENGINE_FAILED;
         } catch (const std::bad_alloc& e) {
-            logger->warn("{} - Failed to create bucket [{}]: {}",
-                         connection.getId(),
-                         name,
-                         e.what());
+            LOG_WARNING("{} - Failed to create bucket [{}]: {}",
+                        connection.getId(),
+                        name,
+                        e.what());
             result = ENGINE_ENOMEM;
         }
 
@@ -1833,9 +1832,9 @@ void CreateBucketThread::create() {
                 std::lock_guard<std::mutex> guard(bucket.mutex);
                 bucket.state = BucketState::Ready;
             }
-            logger->info("{} - Bucket [{}] created successfully",
-                         connection.getId(),
-                         name);
+            LOG_INFO("{} - Bucket [{}] created successfully",
+                     connection.getId(),
+                     name);
             bucket.max_document_size =
                  engine->getMaxItemSize(reinterpret_cast<ENGINE_HANDLE*>(engine));
         } else {
@@ -1863,9 +1862,9 @@ void CreateBucketThread::create() {
             bucket.topkeys = nullptr;
         }
 
-        logger->warn(
-                "{} - Failed to create bucket [{}]: failed to create a "
-                "new engine instance",
+        LOG_WARNING(
+                "{} - Failed to create bucket [{}]: failed to "
+                "create a new engine instance",
                 connection.getId(),
                 name);
         result = ENGINE_FAILED;
@@ -1937,19 +1936,17 @@ void DestroyBucketThread::destroy() {
     }
     all_bucket_lock.unlock();
 
-    auto logger = cb::logger::get();
-
     if (ret != ENGINE_SUCCESS) {
         auto code = engine_error_2_mcbp_protocol_error(ret);
-        logger->info("{} Delete bucket [{}]: {}",
-                     connection_id,
-                     name,
-                     memcached_status_2_text(code));
+        LOG_INFO("{} Delete bucket [{}]: {}",
+                 connection_id,
+                 name,
+                 memcached_status_2_text(code));
         result = ret;
         return;
     }
 
-    logger->info(
+    LOG_INFO(
             "{} Delete bucket [{}]. Notifying all registered "
             "ON_DELETE_BUCKET callbacks",
             connection_id,
@@ -1957,9 +1954,9 @@ void DestroyBucketThread::destroy() {
 
     perform_callbacks(ON_DELETE_BUCKET, nullptr, &all_buckets[idx]);
 
-    logger->info("{} Delete bucket [{}]. Wait for clients to disconnect",
-                 connection_id,
-                 name);
+    LOG_INFO("{} Delete bucket [{}]. Wait for clients to disconnect",
+             connection_id,
+             name);
 
     /* If this thread is connected to the requested bucket... release it */
     if (connection != nullptr && idx == size_t(connection->getBucketIndex())) {
@@ -1976,7 +1973,7 @@ void DestroyBucketThread::destroy() {
         std::unique_lock<std::mutex> guard(bucket.mutex);
 
         while (bucket.clients > 0) {
-            logger->info(
+            LOG_INFO(
                     "{} Delete bucket [{}]. Still waiting: {} clients "
                     "connected",
                     connection_id.c_str(),
@@ -2010,14 +2007,14 @@ void DestroyBucketThread::destroy() {
      * BucketState != Ready.  See associate_bucket() for more details.
      */
 
-    logger->info(
+    LOG_INFO(
             "{} Delete bucket [{}]. Shut down the bucket", connection_id, name);
 
     bucket.engine->destroy(v1_handle_2_handle(bucket.engine), force);
 
-    logger->info("{} Delete bucket [{}]. Clean up allocated resources ",
-                 connection_id,
-                 name);
+    LOG_INFO("{} Delete bucket [{}]. Clean up allocated resources ",
+             connection_id,
+             name);
 
     /* Clean up the stats... */
     threadlocal_stats_reset(bucket.stats);
@@ -2039,7 +2036,7 @@ void DestroyBucketThread::destroy() {
     // don't need lock because all timing data uses atomics
     bucket.timings.reset();
 
-    logger->info("{} Delete bucket [{}] complete", connection_id, name);
+    LOG_INFO("{} Delete bucket [{}] complete", connection_id, name);
     result = ENGINE_SUCCESS;
 }
 
@@ -2349,25 +2346,23 @@ extern "C" int memcached_main(int argc, char **argv) {
                     EXIT_FAILURE, "Failed to initialize logger: {}", ret.get());
         }
     }
-    auto logger = cb::logger::get();
-    logger->set_level(cb::logger::convertToSpdSeverity(get_log_level()));
 
     /* File-based logging available from this point onwards... */
 
     /* Logging available now extensions have been loaded. */
-    logger->info("Couchbase version {} starting.", get_server_version());
+    LOG_INFO("Couchbase version {} starting.", get_server_version());
 
-    logger->info("Using SLA configuration: {}",
-                 to_string(cb::mcbp::sla::to_json(), false));
+    LOG_INFO("Using SLA configuration: {}",
+             to_string(cb::mcbp::sla::to_json(), false));
 
     if (settings.isStdinListenerEnabled()) {
-        cb::logger::get()->info("Enable standard input listener");
+        LOG_INFO("Enable standard input listener");
         start_stdin_listener(shutdown_server);
     }
 
 #ifdef HAVE_LIBNUMA
     // Log the NUMA policy selected (now the logger is available).
-    logger->info("NUMA: {}", numa_status);
+    LOG_INFO("NUMA: {}", numa_status);
 #endif
 
     if (!settings.has.rbac_file) {
@@ -2380,11 +2375,10 @@ extern "C" int memcached_main(int argc, char **argv) {
                     settings.getRbacFile());
     }
 
-    logger->info("Loading RBAC configuration from [{}]",
-                 settings.getRbacFile());
+    LOG_INFO("Loading RBAC configuration from [{}]", settings.getRbacFile());
     cb::rbac::loadPrivilegeDatabase(settings.getRbacFile());
 
-    logger->info("Loading error maps from [{}]", settings.getErrorMapsDir());
+    LOG_INFO("Loading error maps from [{}]", settings.getErrorMapsDir());
     try {
         settings.loadErrorMaps(settings.getErrorMapsDir());
     } catch (const std::exception& e) {
@@ -2461,81 +2455,81 @@ extern "C" int memcached_main(int argc, char **argv) {
     /* Optional parent monitor */
     char *env = getenv("MEMCACHED_PARENT_MONITOR");
     if (env != NULL) {
-        logger->info("Starting parent monitor");
+        LOG_INFO("Starting parent monitor");
         parent_monitor.reset(new ParentMonitor(std::stoi(env)));
     }
 
     if (!memcached_shutdown) {
         /* enter the event loop */
-        logger->info("Initialization complete. Accepting clients.");
+        LOG_INFO("Initialization complete. Accepting clients.");
         service_online = true;
         event_base_loop(main_base, 0);
         service_online = false;
     }
 
-    logger->info("Initiating graceful shutdown.");
+    LOG_INFO("Initiating graceful shutdown.");
     delete_all_buckets();
 
     if (parent_monitor.get() != nullptr) {
-        logger->info("Shutting down parent monitor");
+        LOG_INFO("Shutting down parent monitor");
         parent_monitor.reset();
     }
 
-    logger->info("Shutting down audit daemon");
+    LOG_INFO("Shutting down audit daemon");
     /* Close down the audit daemon cleanly */
     shutdown_auditdaemon(get_audit_handle());
 
-    logger->info("Shutting down client worker threads");
+    LOG_INFO("Shutting down client worker threads");
     threads_shutdown();
 
-    logger->info("Releasing server sockets");
+    LOG_INFO("Releasing server sockets");
     listen_conn.clear();
 
-    logger->info("Releasing client resources");
+    LOG_INFO("Releasing client resources");
     close_all_connections();
 
-    logger->info("Releasing bucket resources");
+    LOG_INFO("Releasing bucket resources");
     cleanup_buckets();
 
-    logger->info("Shutting down RBAC subsystem");
+    LOG_INFO("Shutting down RBAC subsystem");
     cb::rbac::destroy();
 
-    logger->info("Releasing thread resources");
+    LOG_INFO("Releasing thread resources");
     threads_cleanup();
 
-    logger->info("Shutting down executor pool");
+    LOG_INFO("Shutting down executor pool");
     executorPool.reset();
 
-    logger->info("Releasing signal handlers");
+    LOG_INFO("Releasing signal handlers");
     release_signal_handlers();
 
-    logger->info("Shutting down SASL server");
+    LOG_INFO("Shutting down SASL server");
     cbsasl_server_term();
 
-    logger->info("Releasing connection objects");
+    LOG_INFO("Releasing connection objects");
     destroy_connections();
 
-    logger->info("Deinitialising tracing");
+    LOG_INFO("Deinitialising tracing");
     deinitializeTracing();
 
-    logger->info("Shutting down engine map");
+    LOG_INFO("Shutting down engine map");
     shutdown_engine_map();
 
-    logger->info("Removing breakpad");
+    LOG_INFO("Removing breakpad");
     cb::breakpad::destroy();
 
-    logger->info("Releasing callbacks");
+    LOG_INFO("Releasing callbacks");
     free_callbacks();
 
-    logger->info("Shutting down OpenSSL");
+    LOG_INFO("Shutting down OpenSSL");
     shutdown_openssl();
 
-    logger->info("Shutting down libevent");
+    LOG_INFO("Shutting down libevent");
     event_base_free(main_base);
 
-    logger->info("Shutting down logger extension");
+    LOG_INFO("Shutting down logger extension");
     // drop my handle to the logger
-    logger.reset();
+    cb::logger::get().reset();
     cb::logger::shutdown();
 
     return EXIT_SUCCESS;

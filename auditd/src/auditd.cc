@@ -103,7 +103,7 @@ AUDIT_ERROR_CODE start_auditdaemon(const AUDIT_EXTENSION_DATA* extension_data,
             "start_auditdaemon: extension_data can't be null");
     }
 
-    if (!cb::logger::get()) {
+    if (!cb::logger::isInitialized()) {
         throw std::invalid_argument(
                 "start_auditdaemon: logger must have been created");
     }

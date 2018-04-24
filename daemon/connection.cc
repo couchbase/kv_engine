@@ -1284,11 +1284,10 @@ void Connection::setState(McbpStateMachine::State next_state) {
 
 void Connection::runStateMachinery() {
     if (settings.getVerbose() > 1) {
-        auto logger = cb::logger::get();
         do {
-            logger->info("{} - Running task: {}",
-                         getId(),
-                         stateMachine.getCurrentStateName());
+            LOG_INFO("{} - Running task: {}",
+                     getId(),
+                     stateMachine.getCurrentStateName());
         } while (stateMachine.execute());
     } else {
         while (stateMachine.execute()) {

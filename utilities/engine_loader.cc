@@ -53,7 +53,7 @@ engine_reference* load_engine(const char* soname,
     cb_dlhandle_t handle = cb_dlopen(soname, &errmsg);
 
     if (handle == NULL) {
-        cb::logger::get()->warn(
+        LOG_WARNING(
                 R"(Failed to open library "{}": {})", soname, errmsg);
         cb_free(errmsg);
         return NULL;
@@ -78,7 +78,7 @@ engine_reference* load_engine(const char* soname,
     }
 
     if (create_symbol == NULL) {
-        cb::logger::get()->warn(
+        LOG_WARNING(
                 "Could not find the function to create an engine instance in "
                 "{}: {}",
                 soname,
@@ -88,7 +88,7 @@ engine_reference* load_engine(const char* soname,
     }
 
     if (destroy_symbol == NULL) {
-        cb::logger::get()->warn(
+        LOG_WARNING(
                 "Could not find the function to destroy the engine in {}: {}",
                 soname,
                 destroy_errmsg);
@@ -114,8 +114,7 @@ bool create_engine_instance(engine_reference* engine_ref,
     ENGINE_ERROR_CODE error = (*engine_ref->my_create_instance.create)(1, get_server_api, &engine);
 
     if (error != ENGINE_SUCCESS || engine == NULL) {
-        cb::logger::get()->warn("Failed to create instance. Error code: {}",
-                                error);
+        LOG_WARNING("Failed to create instance. Error code: {}", error);
         return false;
     }
     *engine_handle = engine;
@@ -123,9 +122,8 @@ bool create_engine_instance(engine_reference* engine_ref,
 }
 
 static void logit(const char* field) {
-    cb::logger::get()->warn(
-            "Failed to initialize engine, missing implementation for {}",
-            field);
+    LOG_WARNING("Failed to initialize engine, missing implementation for {}",
+                field);
 }
 
 static bool validate_engine_interface(const ENGINE_HANDLE_V1* v1) {
@@ -177,12 +175,11 @@ bool init_engine_instance(ENGINE_HANDLE* engine, const char* config_str) {
             engine_v1->destroy(engine, false);
             cb::engine_error err{cb::engine_errc(error),
                                  "Failed to initialize instance"};
-            cb::logger::get()->warn("{}", err.what());
+            LOG_WARNING("{}", err.what());
             return false;
         }
     } else {
-        cb::logger::get()->warn("Unsupported interface level {}",
-                                engine->interface);
+        LOG_WARNING("Unsupported interface level {}", engine->interface);
         return false;
     }
     return true;
