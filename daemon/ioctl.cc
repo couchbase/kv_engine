@@ -95,19 +95,6 @@ static ENGINE_ERROR_CODE setJemallocProfDump(Cookie& cookie,
     return (res == 0) ? ENGINE_SUCCESS : ENGINE_EINVAL;
 }
 
-/**
- * Callback for setting the trace status of a specific connection
- */
-static ENGINE_ERROR_CODE setTraceConnection(Cookie& cookie,
-                                            const StrToStrMap& arguments,
-                                            const std::string& value) {
-    auto id = arguments.find("id");
-    if (id == arguments.end()) {
-        return ENGINE_EINVAL;
-    }
-    return apply_connection_trace_mask(id->second, value);
-}
-
 ENGINE_ERROR_CODE ioctlGetMcbpSla(Cookie& cookie,
                                   const StrToStrMap& arguments,
                                   std::string& value) {
@@ -173,7 +160,6 @@ static const std::unordered_map<std::string, SetCallbackFunc> ioctl_set_map{
         {"jemalloc.prof.active", setJemallocProfActive},
         {"jemalloc.prof.dump", setJemallocProfDump},
         {"release_free_memory", setReleaseFreeMemory},
-        {"trace.connection", setTraceConnection},
         {"trace.config", ioctlSetTracingConfig},
         {"trace.start", ioctlSetTracingStart},
         {"trace.stop", ioctlSetTracingStop},

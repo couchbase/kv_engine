@@ -1336,19 +1336,17 @@ void Connection::setState(McbpStateMachine::State next_state) {
 }
 
 void Connection::runStateMachinery() {
-    auto logger = cb::logger::get();
-    if (isTraceEnabled()) {
+    if (settings.getVerbose() > 1) {
+        auto logger = cb::logger::get();
         do {
             logger->info("{} - Running task: {}",
                          getId(),
                          stateMachine.getCurrentStateName());
         } while (stateMachine.execute());
     } else {
-        do {
-            logger->debug("{} - Running task: {}",
-                          getId(),
-                          stateMachine.getCurrentStateName());
-        } while (stateMachine.execute());
+        while (stateMachine.execute()) {
+            // empty
+        }
     }
 }
 
