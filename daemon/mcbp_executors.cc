@@ -463,7 +463,7 @@ static void audit_put_executor(Cookie& cookie) {
     if (mc_audit_event(ntohl(id), request.getValue())) {
         cookie.sendResponse(cb::mcbp::Status::Success);
     } else {
-        cookie.sendResponse(cb::mcbp::Status::Einternal);
+        cookie.sendResponse(cb::mcbp::Status::Ebusy);
     }
 }
 
