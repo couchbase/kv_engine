@@ -341,13 +341,6 @@ bool conn_execute(Connection& connection) {
         return true;
     }
 
-    if (!connection.isPacketAvailable()) {
-        throw std::logic_error(
-                "conn_execute: Internal error.. the input packet is not "
-                "completely in memory");
-    }
-
-
     auto& cookie = connection.getCookieObject();
     cookie.setEwouldblock(false);
 
