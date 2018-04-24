@@ -858,7 +858,8 @@ void try_read_mcbp_command(Connection& c) {
     }
     auto& cookie = c.getCookieObject();
     cookie.initialize(
-            cb::const_byte_buffer{input.data(), sizeof(cb::mcbp::Request)});
+            cb::const_byte_buffer{input.data(), sizeof(cb::mcbp::Request)},
+            c.isTracingEnabled());
 
     const auto& header = cookie.getHeader();
     if (settings.getVerbose() > 1) {
@@ -884,7 +885,17 @@ void try_read_mcbp_command(Connection& c) {
         }
     }
 
-    if (!header.isResponse() && !header.isRequest()) {
+    if (header.isResponse()) {
+        if (response_handlers[header.getOpcode()] == nullptr) {
+            LOG_WARNING(
+                    "{}: Unsupported response packet received: {:x}, "
+                    "closing connection",
+                    c.getId(),
+                    header.getOpcode());
+            c.setState(McbpStateMachine::State::closing);
+            return;
+        }
+    } else if (!header.isRequest()) {
         LOG_WARNING(
                 "{}: Invalid packet format detected (magic: {:x}), closing "
                 "connection",
@@ -894,25 +905,9 @@ void try_read_mcbp_command(Connection& c) {
         return;
     }
 
-    if (header.isResponse() && response_handlers[header.getOpcode()] == nullptr) {
-        LOG_WARNING(
-                "{}: Unsupported response packet received: {:x}, "
-                "closing connection",
-                c.getId(),
-                header.getOpcode());
-        c.setState(McbpStateMachine::State::closing);
-        return;
-    }
-
-    if (c.getBucketEngine() == nullptr) {
-        throw std::logic_error(
-                "try_read_mcbp_command: Not connected to a bucket");
-    }
-
     c.addMsgHdr(true);
     MEMCACHED_PROCESS_COMMAND_START(
             c.getId(), input.data(), sizeof(cb::mcbp::Request));
-    c.getCookieObject().setTracingEnabled(c.isTracingEnabled());
 
     auto reason = validate_packet_execusion_constraints(cookie);
     if (reason != cb::mcbp::Status::Success) {
