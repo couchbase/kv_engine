@@ -75,6 +75,7 @@ public:
         ENGINE_HANDLE_V1::collections.set_manifest = collections_set_manifest;
         ENGINE_HANDLE_V1::collections.get_manifest = collections_get_manifest;
         ENGINE_HANDLE_V1::isXattrEnabled = isXattrEnabled;
+        ENGINE_HANDLE_V1::getMaxItemSize = getMaxItemSize;
     };
 
 private:
@@ -444,6 +445,10 @@ private:
 
     static BucketCompressionMode getCompressionMode(gsl::not_null<ENGINE_HANDLE*> handle) {
         return BucketCompressionMode::Off;
+    }
+
+    static size_t getMaxItemSize(gsl::not_null<ENGINE_HANDLE*> handle) {
+        return default_max_item_size;
     }
 
     static float getMinCompressionRatio(gsl::not_null<ENGINE_HANDLE*> handle) {

@@ -316,14 +316,6 @@ public:
         Connection::clustermap_revno = clustermap_revno;
     }
 
-    bool isTraceEnabled() const {
-        return trace_enabled;
-    }
-
-    void setTraceEnabled(bool trace_enabled) {
-        Connection::trace_enabled = trace_enabled;
-    }
-
     /**
      * Restart the authentication (this clears all of the authentication
      * data...)
@@ -1074,13 +1066,6 @@ protected:
 
     /** The cluster map revision used by this client */
     int clustermap_revno{-2};
-
-    /**
-     * is trace enabled for this connection or not. Initially we'll just
-     * have an on/off switch.. We'll be refactoring this into multiple
-     * subgroups at some point.
-     */
-    bool trace_enabled{false};
 
     /**
      * Is XERROR supported for this connection or not (or should we just

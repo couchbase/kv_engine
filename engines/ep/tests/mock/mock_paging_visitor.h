@@ -51,4 +51,12 @@ public:
     ItemEviction& getItemEviction() {
         return itemEviction;
     }
+
+    size_t getEjected() const {
+        return ejected;
+    }
+
+    void setCurrentBucket(VBucketPtr _currentBucket) {
+        currentBucket = _currentBucket;
+    }
 };

@@ -477,8 +477,9 @@ void Cookie::maybeLogSlowCommand(
     }
 }
 
-void Cookie::initialize(cb::const_byte_buffer header) {
+void Cookie::initialize(cb::const_byte_buffer header, bool tracing_enabled) {
     reset();
+    enableTracing = tracing_enabled;
     setPacket(Cookie::PacketContent::Header, header);
     setCas(0);
     start = ProcessClock::now();

@@ -62,8 +62,9 @@ public:
      * this method should be the constructor).
      *
      * @param header the packet header
+     * @param tracing_enabled if tracing is enabled for this request
      */
-    void initialize(cb::const_byte_buffer header);
+    void initialize(cb::const_byte_buffer header, bool tacing_enabled);
 
     /**
      * Reset the Cookie object to allow it to be reused in the same

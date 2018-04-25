@@ -91,6 +91,8 @@ cb::EngineErrorItemPair bucket_get_and_touch(Cookie& cookie,
 
 BucketCompressionMode bucket_get_compression_mode(Cookie& cookie);
 
+size_t bucket_get_max_item_size(Cookie& cookie);
+
 float bucket_min_compression_ratio(Cookie& cookie);
 
 cb::EngineErrorItemPair bucket_get_locked(Cookie& cookie,

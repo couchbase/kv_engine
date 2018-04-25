@@ -1836,6 +1836,8 @@ void CreateBucketThread::create() {
             logger->info("{} - Bucket [{}] created successfully",
                          connection.getId(),
                          name);
+            bucket.max_document_size =
+                 engine->getMaxItemSize(reinterpret_cast<ENGINE_HANDLE*>(engine));
         } else {
             {
                 std::lock_guard<std::mutex> guard(bucket.mutex);

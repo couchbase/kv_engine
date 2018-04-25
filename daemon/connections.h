@@ -110,22 +110,6 @@ void dump_connection_stat_signal_handler(evutil_socket_t, short, void *);
 #endif
 
 /**
- * Apply the requested mask specified by the key. All connection related
- * trace masks for connections is located under: "trace.connection."
- *
- * The full spec for the key is:
- *    "trace.connection.<connectionid>[.field]"
- *
- * (field is currently ignored)
- *
- * @param key the requested key
- * @param mask the mask for the key.
- * @return result of the operation
- */
-ENGINE_ERROR_CODE apply_connection_trace_mask(const std::string &key,
-                                              const std::string &mask);
-
-/**
  * Iterate over all of the connections and call the callback function
  * for each of the connections.
  *

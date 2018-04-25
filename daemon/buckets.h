@@ -93,7 +93,8 @@ public:
         : clients(0),
           state(BucketState::None),
           type(BucketType::Unknown),
-          topkeys(nullptr)
+          topkeys(nullptr),
+          max_document_size(default_max_item_size)
     {
         std::memset(name, 0, sizeof(name));
 
@@ -185,6 +186,11 @@ public:
      * The cluster configuration for this bucket
      */
     ClusterConfiguration clusterConfiguration;
+
+    /**
+     * The maximum document size for this bucket
+     */
+    size_t max_document_size;
 };
 
 /**

@@ -87,6 +87,12 @@ protected:
     // evict from the hash table.
     ItemEviction itemEviction;
 
+    // The number of documents that were evicted.
+    size_t ejected;
+
+    // The current vbucket that the eviction algorithm is operating on.
+    VBucketPtr currentBucket;
+
 private:
     // Removes checkpoints that are both closed and unreferenced, thereby
     // freeing the associated memory.
@@ -103,7 +109,6 @@ private:
     EPStats& stats;
     double percent;
     double activeBias;
-    size_t ejected;
     time_t startTime;
     std::shared_ptr<std::atomic<bool>> stateFinalizer;
     pager_type_t owner;
@@ -112,7 +117,6 @@ private:
     bool wasHighMemoryUsage;
     ProcessClock::time_point taskStart;
     std::atomic<item_pager_phase>* pager_phase;
-    VBucketPtr currentBucket;
 
     // Indicates whether the vbucket we are visiting is from an ephemeral
     // bucket.

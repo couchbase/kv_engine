@@ -403,6 +403,10 @@ public:
         return maxFailoverEntries;
     }
 
+    size_t getMaxItemSize() const {
+        return maxItemSize;
+    }
+
     bool isDegradedMode() const;
 
     WorkLoadPolicy& getWorkLoadPolicy() {

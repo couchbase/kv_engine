@@ -200,6 +200,10 @@ public:
         return reason == PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
     }
 
+    bool isTooBig() const {
+        return reason == PROTOCOL_BINARY_RESPONSE_E2BIG;
+    }
+
 private:
     uint16_t reason;
 };

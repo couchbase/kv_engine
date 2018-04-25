@@ -756,7 +756,7 @@ void TestappTest::start_external_server() {
         int arg = 0;
         putenv(mcd_port_filename_env);
 
-        if (getenv("RUN_UNDER_VALGRIND") != NULL) {
+        if (getenv("RUN_UNDER_VALGRIND") != nullptr) {
             argv[arg++] = "valgrind";
             argv[arg++] = "--log-file=valgrind.%p.log";
             argv[arg++] = "--leak-check=full";
@@ -765,11 +765,19 @@ void TestappTest::start_external_server() {
             argv[arg++] = "--dsymutil=yes";
     #endif
         }
+
+        if (getenv("RUN_UNDER_PERF") != nullptr) {
+            argv[arg++] = "perf";
+            argv[arg++] = "record";
+            argv[arg++] = "--call-graph";
+            argv[arg++] = "dwarf";
+        }
+
         argv[arg++] = "./memcached";
         argv[arg++] = "-C";
         argv[arg++] = config_file.c_str();
 
-        argv[arg++] = NULL;
+        argv[arg++] = nullptr;
         cb_assert(execvp(argv[0], const_cast<char **>(argv)) != -1);
     }
 #endif // !WIN32
@@ -1438,8 +1446,12 @@ int TestappTest::getResponseCount(protocol_binary_response_status statusCode) {
                     ->valuestring));
     std::stringstream stream;
     stream << std::hex << statusCode;
-    return gsl::narrow<int>(
-            cJSON_GetObjectItem(stats.get(), stream.str().c_str())->valueint);
+    const auto *obj = cJSON_GetObjectItem(stats.get(), stream.str().c_str());
+    if (obj == nullptr) {
+        return 0;
+    }
+
+    return gsl::narrow<int>(obj->valueint);
 }
 
 cb::mcbp::Datatype TestappTest::expectedJSONDatatype() const {
