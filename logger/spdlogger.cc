@@ -126,6 +126,11 @@ void cb::logger::shutdown() {
     spdlog::drop_all();
 }
 
+LOGGER_PUBLIC_API
+const bool cb::logger::isInitialized() {
+    return file_logger != nullptr;
+}
+
 /**
  * Initialises the loggers. Called if the logger configuration is
  * specified in a separate settings object.
@@ -212,7 +217,7 @@ boost::optional<std::string> cb::logger::initialize(
     }
 
     file_logger->set_pattern(log_pattern);
-    file_logger->set_level(spdlog::level::level_enum::info);
+    file_logger->set_level(logger_settings.log_level);
     return {};
 }
 

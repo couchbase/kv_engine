@@ -231,17 +231,6 @@ unique_cJSON_ptr Connection::toJSON() const {
             cJSON_AddBoolToObject(o, "registered", isRegisteredInLibevent());
             cJSON_AddItemToObject(o, "ev_flags", event_mask_to_json(ev_flags));
             cJSON_AddItemToObject(o, "which", event_mask_to_json(currentEvent));
-
-            if (ev_timeout_enabled) {
-                cJSON* timeout = cJSON_CreateObject();
-                cJSON_AddNumberToObject(timeout, "value", ev_timeout);
-                cJSON_AddNumberToObject(timeout,
-                                        "remaining",
-                                        ev_insert_time + ev_timeout -
-                                                mc_time_get_current_time());
-                cJSON_AddItemToObject(o, "timeout", timeout);
-            }
-
             cJSON_AddItemToObject(obj, "libevent", o);
         }
 
@@ -600,23 +589,7 @@ bool Connection::registerEvent() {
         return false;
     }
 
-    struct timeval tv;
-    struct timeval* tp = nullptr;
-
-    if (settings.getConnectionIdleTime() == 0 || isInternal() || isDCP()) {
-        tp = nullptr;
-        ev_timeout_enabled = false;
-    } else {
-        tv.tv_sec = gsl::narrow<long>(settings.getConnectionIdleTime());
-        tv.tv_usec = 0;
-        tp = &tv;
-        ev_timeout_enabled = true;
-        ev_timeout = gsl::narrow<rel_time_t>(settings.getConnectionIdleTime());
-    }
-
-    ev_insert_time = mc_time_get_current_time();
-
-    if (event_add(&event, tp) == -1) {
+    if (event_add(&event, nullptr) == -1) {
         LOG_WARNING("Failed to add connection to libevent: {}", cb_strerror());
         return false;
     }
@@ -645,35 +618,9 @@ bool Connection::updateEvent(const short new_flags) {
     if (ev_flags == new_flags) {
         // We do "cache" the current libevent state (using EV_PERSIST) to avoid
         // having to re-register it when it doesn't change (which it mostly
-        // don't). In order to avoid having clients to falsely "time out" due to
-        // that they never update their libevent state we'll forcibly re-enter
-        // it half way into the timeout.
-
-        if (ev_timeout_enabled && (isInternal() || isDCP())) {
-            LOG_DEBUG(
-                    "{}: Forcibly reset the event connection flags to"
-                    " disable timeout",
-                    getId());
-        } else {
-            rel_time_t now = mc_time_get_current_time();
-            const int reinsert_time =
-                    gsl::narrow<int>(settings.getConnectionIdleTime()) / 2;
-
-            if ((ev_insert_time + reinsert_time) > now) {
-                return true;
-            } else {
-                LOG_DEBUG(
-                        "{}: Forcibly reset the event connection flags to"
-                        " avoid premature timeout",
-                        getId());
-            }
-        }
+        // don't).
+        return true;
     }
-
-    LOG_DEBUG("{}: Updated event to read={}, write={}",
-              getId(),
-              (new_flags & EV_READ ? "yes" : "no"),
-              (new_flags & EV_WRITE ? "yes" : "no"));
 
     if (!unregisterEvent()) {
         LOG_WARNING(
@@ -1337,11 +1284,10 @@ void Connection::setState(McbpStateMachine::State next_state) {
 
 void Connection::runStateMachinery() {
     if (settings.getVerbose() > 1) {
-        auto logger = cb::logger::get();
         do {
-            logger->info("{} - Running task: {}",
-                         getId(),
-                         stateMachine.getCurrentStateName());
+            LOG_INFO("{} - Running task: {}",
+                     getId(),
+                     stateMachine.getCurrentStateName());
         } while (stateMachine.execute());
     } else {
         while (stateMachine.execute()) {

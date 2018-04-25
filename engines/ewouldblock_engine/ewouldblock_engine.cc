@@ -242,10 +242,9 @@ public:
         const bool add_to_pending_io_ops = iter->second.second->add_to_pending_io_ops();
 
         if (inject) {
-            auto logger = cb::logger::get();
-            logger->debug("EWB_Engine: injecting error:{} for cmd:{}",
-                          err,
-                          to_string(cmd));
+            LOG_DEBUG("EWB_Engine: injecting error:{} for cmd:{}",
+                      err,
+                      to_string(cmd));
 
             if (err == ENGINE_EWOULDBLOCK && add_to_pending_io_ops) {
                 // The server expects that if EWOULDBLOCK is returned then the
@@ -263,7 +262,6 @@ public:
     static ENGINE_ERROR_CODE initialize(gsl::not_null<ENGINE_HANDLE*> handle,
                                         const char* config_str) {
         EWB_Engine* ewb = to_engine(handle);
-        auto logger = cb::logger::get();
 
         // Extract the name of the real engine we will be proxying; then
         // create and initialize it.
@@ -277,7 +275,7 @@ public:
 
         if ((ewb->real_engine_ref = load_engine(
                      real_engine_name.c_str(), NULL, NULL)) == NULL) {
-            logger->warn(
+            LOG_CRITICAL(
                     "ERROR: EWB_Engine::initialize(): Failed to load real "
                     "engine '{}'",
                     real_engine_name);
@@ -286,7 +284,7 @@ public:
 
         if (!create_engine_instance(
                     ewb->real_engine_ref, get_wrapped_gsa, &ewb->real_handle)) {
-            logger->warn(
+            LOG_CRITICAL(
                     "ERROR: EWB_Engine::initialize(): Failed create "
                     "engine instance '{}'",
                     real_engine_name);
@@ -294,7 +292,7 @@ public:
         }
 
         if (ewb->real_handle->interface != 1) {
-            logger->warn(
+            LOG_CRITICAL(
                     "ERROR: EWB_Engine::initialize(): Only support engine "
                     "with interface v1 - got v{}.",
                     ewb->real_engine->interface.interface);
@@ -403,8 +401,7 @@ public:
     static void release(gsl::not_null<ENGINE_HANDLE*> handle,
                         gsl::not_null<item*> item) {
         EWB_Engine* ewb = to_engine(handle);
-        auto logger = cb::logger::get();
-        logger->debug("EWB_Engine: release");
+        LOG_DEBUG("EWB_Engine: release");
 
         if (item == &ewb->dcp_mutation_item) {
             // Ignore the DCP mutation, we own it (and don't track
@@ -597,7 +594,6 @@ public:
         EWB_Engine* ewb = to_engine(handle);
 
         if (request->request.opcode == PROTOCOL_BINARY_CMD_EWOULDBLOCK_CTL) {
-            auto logger = cb::logger::get();
             auto* req =
                     reinterpret_cast<request_ewouldblock_ctl*>(request.get());
             const EWBEngineMode mode = static_cast<EWBEngineMode>(ntohl(req->message.body.mode));
@@ -657,7 +653,7 @@ public:
             }
 
             if (new_mode == nullptr) {
-                logger->warn(
+                LOG_WARNING(
                         "EWB_Engine::unknown_command(): "
                         "Got unexpected mode={} for EWOULDBLOCK_CTL, ",
                         (unsigned int)mode);
@@ -667,7 +663,7 @@ public:
                 return ENGINE_FAILED;
             } else {
                 try {
-                    logger->debug(
+                    LOG_DEBUG(
                             "EWB_Engine::unknown_command(): Setting EWB mode "
                             "to "
                             "{} for cookie {}",
@@ -724,8 +720,7 @@ public:
                               gsl::not_null<const item*> item,
                               gsl::not_null<item_info*> item_info) {
         EWB_Engine* ewb = to_engine(handle);
-        auto logger = cb::logger::get();
-        logger->debug("EWB_Engine: get_item_info");
+        LOG_DEBUG("EWB_Engine: get_item_info");
 
         // This function cannot return EWOULDBLOCK - just chain to the real
         // engine's function, unless it is a request for our special DCP item.
@@ -764,8 +759,7 @@ public:
         cb_assert(event_data == NULL);
         EWB_Engine* ewb =
                 reinterpret_cast<EWB_Engine*>(const_cast<void*>(cb_data));
-        auto logger = cb::logger::get();
-        logger->debug("EWB_Engine::handle_disconnect");
+        LOG_DEBUG("EWB_Engine::handle_disconnect");
 
         uint64_t id = ewb->get_connection_id(cookie);
         {
@@ -1301,8 +1295,7 @@ private:
         std::lock_guard<std::mutex> guard(suspended_map_mutex);
         for (const auto c : suspended_map) {
             if (c.second == cookie) {
-                auto logger = cb::logger::get();
-                logger->debug(
+                LOG_DEBUG(
                         "Connection {} with id {} should be suspended for "
                         "engine {}",
                         c.second,
@@ -1320,11 +1313,9 @@ private:
             std::lock_guard<std::mutex> guard(mutex);
             pending_io_ops.push(cookie);
         }
-        auto logger = cb::logger::get();
-        logger->debug(
-                "EWB_Engine: connection {} should be resumed for engine {}",
-                (void*)cookie,
-                (void*)this);
+        LOG_DEBUG("EWB_Engine: connection {} should be resumed for engine {}",
+                  (void*)cookie,
+                  (void*)this);
 
         condvar.notify_one();
     }
@@ -1969,9 +1960,8 @@ const char* EWB_Engine::to_string(const Cmd cmd) {
 
 void EWB_Engine::process_notifications() {
     SERVER_HANDLE_V1* server = gsa();
-    auto logger = cb::logger::get();
-    logger->debug("EWB_Engine: notification thread running for engine {}",
-                  (void*)this);
+    LOG_DEBUG("EWB_Engine: notification thread running for engine {}",
+              (void*)this);
     std::unique_lock<std::mutex> lk(mutex);
     while (!stop_notification_thread) {
         condvar.wait(lk);
@@ -1979,14 +1969,14 @@ void EWB_Engine::process_notifications() {
             const void* cookie = pending_io_ops.front();
             pending_io_ops.pop();
             lk.unlock();
-            logger->debug("EWB_Engine: notify {}", cookie);
+            LOG_DEBUG("EWB_Engine: notify {}", cookie);
             server->cookie->notify_io_complete(cookie, ENGINE_SUCCESS);
             lk.lock();
         }
     }
 
-    logger->debug("EWB_Engine: notification thread stopping for engine {}",
-                  (void*)this);
+    LOG_DEBUG("EWB_Engine: notification thread stopping for engine {}",
+              (void*)this);
 }
 
 void NotificationThread::run() {
@@ -1998,8 +1988,6 @@ ENGINE_ERROR_CODE EWB_Engine::handleBlockMonitorFile(const void* cookie,
                                                      uint32_t id,
                                                      const std::string& file,
                                                      ADD_RESPONSE response) {
-    auto logger = cb::logger::get();
-
     if (file.empty()) {
         return ENGINE_EINVAL;
     }
@@ -2009,7 +1997,7 @@ ENGINE_ERROR_CODE EWB_Engine::handleBlockMonitorFile(const void* cookie,
     }
 
     if (!suspend(cookie, id)) {
-        logger->warn(
+        LOG_WARNING(
                 "EWB_Engine::handleBlockMonitorFile(): "
                 "Id {} already registered",
                 id);
@@ -2023,14 +2011,14 @@ ENGINE_ERROR_CODE EWB_Engine::handleBlockMonitorFile(const void* cookie,
         std::lock_guard<std::mutex> guard(threads_mutex);
         threads.emplace_back(thread.release());
     } catch (std::exception& e) {
-        logger->warn(
+        LOG_WARNING(
                 "EWB_Engine::handleBlockMonitorFile(): Failed to create "
                 "block monitor thread: {}",
                 e.what());
         return ENGINE_FAILED;
     }
 
-    logger->debug(
+    LOG_DEBUG(
             "Registered connection {} (engine {}) as {} to be"
             " suspended. Monitor file {}",
             cookie,
@@ -2047,34 +2035,29 @@ ENGINE_ERROR_CODE EWB_Engine::handleBlockMonitorFile(const void* cookie,
 ENGINE_ERROR_CODE EWB_Engine::handleSuspend(const void* cookie,
                                             uint32_t id,
                                             ADD_RESPONSE response) {
-    auto logger = cb::logger::get();
-
     if (suspend(cookie, id)) {
-        logger->debug(
-                "Registered connection {} as {} to be suspended", cookie, id);
+        LOG_DEBUG("Registered connection {} as {} to be suspended", cookie, id);
         response(nullptr, 0, nullptr, 0, nullptr, 0,
                  PROTOCOL_BINARY_RAW_BYTES,
                  PROTOCOL_BINARY_RESPONSE_SUCCESS, /*cas*/0, cookie);
         return ENGINE_SUCCESS;
     } else {
-        logger->warn("EWB_Engine::handleSuspend(): Id {} already registered",
-                     id);
+        LOG_WARNING("EWB_Engine::handleSuspend(): Id {} already registered",
+                    id);
         return ENGINE_KEY_EEXISTS;
     }
 }
 
 ENGINE_ERROR_CODE EWB_Engine::handleResume(const void* cookie, uint32_t id,
                                            ADD_RESPONSE response) {
-    auto logger = cb::logger::get();
-
     if (resume(id)) {
-        logger->debug("Connection with id {} will be resumed", id);
+        LOG_DEBUG("Connection with id {} will be resumed", id);
         response(nullptr, 0, nullptr, 0, nullptr, 0,
                  PROTOCOL_BINARY_RAW_BYTES,
                  PROTOCOL_BINARY_RESPONSE_SUCCESS, /*cas*/0, cookie);
         return ENGINE_SUCCESS;
     } else {
-        logger->warn(
+        LOG_WARNING(
                 "EWB_Engine::unknown_command(): No "
                 "connection registered with id {}",
                 id);
@@ -2111,14 +2094,13 @@ ENGINE_ERROR_CODE EWB_Engine::setItemCas(const void *cookie,
 void BlockMonitorThread::run() {
     setRunning();
 
-    auto logger = cb::logger::get();
-    logger->debug("Block monitor for file {} started", file);
+    LOG_DEBUG("Block monitor for file {} started", file);
 
     // @todo Use the file monitoring API's to avoid this "busy" loop
     while (cb::io::isFile(file)) {
         usleep(100);
     }
 
-    logger->debug("Block monitor for file {} stopping (file is gone)", file);
+    LOG_DEBUG("Block monitor for file {} stopping (file is gone)", file);
     engine.resume(id);
 }

@@ -604,7 +604,7 @@ static void handle_opcode_attributes_override(Settings& s, cJSON* obj) {
 }
 
 static void handle_extensions(Settings& s, cJSON* obj) {
-    cb::logger::get()->info("Extensions ignored");
+    LOG_INFO("Extensions ignored");
 }
 
 static void handle_logger(Settings& s, cJSON* obj) {

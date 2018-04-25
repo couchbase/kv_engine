@@ -48,6 +48,8 @@ struct LOGGER_PUBLIC_API Config {
     bool unit_test = false;
     /// Should messages be passed on to the console via stderr
     bool console = true;
+    /// The default log level to initialize the logger to
+    spdlog::level::level_enum log_level = spdlog::level::level_enum::info;
 };
 
 /**
@@ -115,6 +117,11 @@ void flush();
  */
 LOGGER_PUBLIC_API
 void shutdown();
+
+/**
+ * @return whether or not the logger has been initialized
+ */
+LOGGER_PUBLIC_API const bool isInitialized();
 
 } // namespace logger
 } // namespace cb
