@@ -41,8 +41,8 @@ CheckpointManager::CheckpointManager(EPStats& st,
     LockHolder lh(queueLock);
     addNewCheckpoint_UNLOCKED(1, lastSnapStart, lastSnapEnd);
     if (checkpointConfig.isPersistenceEnabled()) {
-        registerCursor_UNLOCKED(
-                "persistence", 1, false, MustSendCheckpointEnd::NO);
+        registerCursorBySeqno_UNLOCKED(
+                pCursorName, lastBySeqno, MustSendCheckpointEnd::NO);
     }
 }
 
@@ -210,21 +210,19 @@ bool CheckpointManager::closeOpenCheckpoint_UNLOCKED() {
     return true;
 }
 
-bool CheckpointManager::registerCursor(
-                            const std::string& name,
-                            uint64_t checkpointId,
-                            bool alwaysFromBeginning,
-                            MustSendCheckpointEnd needsCheckpointEndMetaItem) {
-    LockHolder lh(queueLock);
-    return registerCursor_UNLOCKED(name, checkpointId, alwaysFromBeginning,
-                                   needsCheckpointEndMetaItem);
-}
-
 CursorRegResult CheckpointManager::registerCursorBySeqno(
                             const std::string &name,
                             uint64_t startBySeqno,
                             MustSendCheckpointEnd needsCheckPointEndMetaItem) {
     LockHolder lh(queueLock);
+    return registerCursorBySeqno_UNLOCKED(
+            name, startBySeqno, needsCheckPointEndMetaItem);
+}
+
+CursorRegResult CheckpointManager::registerCursorBySeqno_UNLOCKED(
+        const std::string& name,
+        uint64_t startBySeqno,
+        MustSendCheckpointEnd needsCheckPointEndMetaItem) {
     if (checkpointList.empty()) {
         throw std::logic_error("CheckpointManager::registerCursorBySeqno: "
                         "checkpointList is empty");
@@ -308,119 +306,6 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
                 "is higher than anything currently assigned");
     }
     return result;
-}
-
-bool CheckpointManager::registerCursor_UNLOCKED(
-                            const std::string &name,
-                            uint64_t checkpointId,
-                            bool alwaysFromBeginning,
-                            MustSendCheckpointEnd needsCheckpointEndMetaItem)
-{
-    if (checkpointList.empty()) {
-        throw std::logic_error("CheckpointManager::registerCursor_UNLOCKED: "
-                        "checkpointList is empty");
-    }
-
-    bool resetOnCollapse = true;
-    if (name.compare(pCursorName) == 0) {
-        resetOnCollapse = false;
-    }
-
-    bool found = false;
-    auto it = checkpointList.begin();
-    for (; it != checkpointList.end(); ++it) {
-        if (checkpointId == (*it)->getId()) {
-            found = true;
-            break;
-        }
-    }
-
-    LOG(EXTENSION_LOG_INFO,
-        "Register the cursor with name \"%s\" for vbucket %d",
-        name.c_str(), vbucketId);
-
-    // If the cursor exists, remove its name from the checkpoint that is
-    // currently referenced by it.
-    cursor_index::iterator map_it = connCursors.find(name);
-    if (map_it != connCursors.end()) {
-        (*(map_it->second.currentCheckpoint))->removeCursorName(name);
-    }
-
-    if (!found) {
-        for (it = checkpointList.begin(); it != checkpointList.end(); ++it) {
-            if (pCursorPreCheckpointId < (*it)->getId() ||
-                pCursorPreCheckpointId == 0) {
-                break;
-            }
-        }
-
-        LOG(EXTENSION_LOG_DEBUG,
-            "Checkpoint %" PRIu64
-            " for vbucket %d doesn't exist in memory. "
-            "Set the cursor with the name \"%s\" to checkpoint %" PRIu64 ".",
-            checkpointId,
-            vbucketId,
-            name.c_str(),
-            (*it)->getId());
-
-        if (it == checkpointList.end()) {
-            throw std::logic_error("CheckpointManager::registerCursor_UNLOCKED: "
-                            "failed to find checkpoint with "
-                            "Id >= pCursorPreCheckpointId (which is" +
-                            std::to_string(pCursorPreCheckpointId) + ")");
-        }
-
-        size_t offset = 0;
-        for (auto pos = checkpointList.begin(); pos != it; ++pos) {
-            // Increment offset for all previous (closed) checkpoints, adding
-            // in the meta items.
-            offset += (*pos)->getNumItems() + (*pos)->getNumMetaItems();
-        }
-
-        connCursors[name] = CheckpointCursor(name, it, (*it)->begin(), offset,
-                                             /*meta_offset*/0,
-                                             resetOnCollapse,
-                                             needsCheckpointEndMetaItem);
-        (*it)->registerCursorName(name);
-    } else {
-        size_t offset = 0, meta_offset = 0;
-        CheckpointQueue::iterator curr;
-
-        LOG(EXTENSION_LOG_DEBUG,
-            "Checkpoint %" PRIu64 " for vbucket %d exists in memory. "
-            "Set the cursor with the name \"%s\" to the checkpoint %" PRIu64,
-            checkpointId, vbucketId, name.c_str(), checkpointId);
-
-        if (!alwaysFromBeginning &&
-            map_it != connCursors.end() &&
-            (*(map_it->second.currentCheckpoint))->getId() == (*it)->getId()) {
-            // If the cursor is currently in the checkpoint to start with,
-            // simply start from
-            // its current position.
-            curr = map_it->second.currentPos;
-            offset = map_it->second.offset;
-            meta_offset = map_it->second.ckptMetaItemsRead;
-        } else {
-            // Set the cursor's position to the beginning of the checkpoint to
-            // start with
-            curr = (*it)->begin();
-            auto pos = checkpointList.begin();
-            for (; pos != it; ++pos) {
-                // Increment offset for all previous (closed) checkpoints, adding
-                // in the meta items.
-                offset += (*pos)->getNumItems() + (*pos)->getNumMetaItems();
-            }
-        }
-
-        connCursors[name] = CheckpointCursor(name, it, curr, offset,
-                                             meta_offset,
-                                             resetOnCollapse,
-                                             needsCheckpointEndMetaItem);
-        // Register the cursor's name to the checkpoint.
-        (*it)->registerCursorName(name);
-    }
-
-    return found;
 }
 
 bool CheckpointManager::removeCursor(const std::string &name) {
@@ -1028,8 +913,7 @@ void CheckpointManager::resetCursors(checkpointCursorInfoList &cursors) {
     LockHolder lh(queueLock);
 
     for (auto& it : cursors) {
-        registerCursor_UNLOCKED(it.first, getOpenCheckpointId_UNLOCKED(), true,
-                                it.second);
+        registerCursorBySeqno_UNLOCKED(it.first, lastBySeqno, it.second);
     }
 }
 

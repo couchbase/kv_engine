@@ -234,8 +234,8 @@ TYPED_TEST(CheckpointTest, basic_chk_test) {
         std::string name(DCP_CURSOR_PREFIX + std::to_string(i));
         dcp_t_args.emplace_back(thread_args{
                 this->vbucket.get(), this->manager.get(), name, gate});
-        this->manager->registerCursor(
-                name, 1, false, MustSendCheckpointEnd::YES);
+        this->manager->registerCursorBySeqno(
+                name, 0, MustSendCheckpointEnd::YES);
     }
 
     rc = cb_create_thread(&persistence_thread, launch_persistence_thread, &t_args, 0);

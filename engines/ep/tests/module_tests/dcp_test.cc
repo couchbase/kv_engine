@@ -144,10 +144,8 @@ protected:
                                                     includeVal,
                                                     includeXattrs);
 
-        EXPECT_FALSE(vb0->checkpointManager->registerCursor(
-                stream->getCursorName(), 1, false, MustSendCheckpointEnd::NO))
-                << "Found an existing TAP cursor when attempting to register "
-                   "ours";
+        vb0->checkpointManager->registerCursorBySeqno(
+                stream->getCursorName(), 0, MustSendCheckpointEnd::NO);
         stream->setActive();
     }
 

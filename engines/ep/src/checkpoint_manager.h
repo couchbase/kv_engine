@@ -104,21 +104,6 @@ public:
                             MustSendCheckpointEnd needsCheckpointEndMetaItem);
 
     /**
-     * Register the new cursor for a given connection
-     * @param name the name of a given connection
-     * @param checkpointId the checkpoint Id to start with.
-     * @param alwaysFromBeginning the flag indicating if a cursor should be set
-     *        to the beginning of checkpoint to start with, even if the cursor
-     *        is currently in that checkpoint.
-     * @param needsCheckpointEndMetaItem indicates the CheckpointEndMetaItem
-     *        must not be skipped for the cursor.
-     * @return true if the checkpoint to start with exists in the queue.
-     */
-    bool registerCursor(const std::string &name, uint64_t checkpointId,
-                        bool alwaysFromBeginning,
-                        MustSendCheckpointEnd needsCheckpointEndMetaItem);
-
-    /**
      * Remove the cursor for a given connection.
      * @param name the name of a given connection
      * @return true if the cursor is removed successfully.
@@ -389,11 +374,10 @@ private:
 
     bool removeCursor_UNLOCKED(const std::string &name);
 
-    bool registerCursor_UNLOCKED(
-                            const std::string &name,
-                            uint64_t checkpointId,
-                            bool alwaysFromBeginning,
-                            MustSendCheckpointEnd needsCheckpointEndMetaItem);
+    CursorRegResult registerCursorBySeqno_UNLOCKED(
+            const std::string& name,
+            uint64_t startBySeqno,
+            MustSendCheckpointEnd needsCheckpointEndMetaItem);
 
     size_t getNumItemsForCursor_UNLOCKED(const std::string &name) const;
 
