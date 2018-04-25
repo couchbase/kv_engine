@@ -670,11 +670,6 @@ bool Connection::updateEvent(const short new_flags) {
         }
     }
 
-    LOG_DEBUG("{}: Updated event to read={}, write={}",
-              getId(),
-              (new_flags & EV_READ ? "yes" : "no"),
-              (new_flags & EV_WRITE ? "yes" : "no"));
-
     if (!unregisterEvent()) {
         LOG_WARNING(
                 "{}: Failed to remove connection from event notification "
