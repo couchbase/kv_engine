@@ -4,6 +4,8 @@ ADD_EXECUTABLE(tracing_test
 TARGET_LINK_LIBRARIES(tracing_test
   mcd_tracing memcached_daemon gtest gtest_main)
 
+ADD_SANITIZERS(tracing_test)
+
 ADD_TEST(NAME tracing-test
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND tracing_test)
