@@ -1167,12 +1167,6 @@ protected:
     short ev_flags = 0;
     /** which events were just triggered */
     short currentEvent = 0;
-    /** When we inserted the object in libevent */
-    rel_time_t ev_insert_time;
-    /** Do we have an event timeout or not */
-    bool ev_timeout_enabled = false;
-    /** If ev_timeout_enabled is true, the current timeout in libevent */
-    rel_time_t ev_timeout;
 
     /** which state to go into after finishing current write */
     McbpStateMachine::State write_and_go = McbpStateMachine::State::new_cmd;
