@@ -221,8 +221,12 @@ boost::optional<std::string> cb::logger::initialize(
     return {};
 }
 
-std::shared_ptr<spdlog::logger> cb::logger::get() {
-    return file_logger;
+spdlog::logger* cb::logger::get() {
+    return file_logger.get();
+}
+
+void cb::logger::reset() {
+    file_logger.reset();
 }
 
 void cb::logger::createBlackholeLogger() {
