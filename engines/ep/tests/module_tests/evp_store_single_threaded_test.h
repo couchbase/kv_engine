@@ -27,6 +27,8 @@
 class MockActiveStreamWithOverloadedRegisterCursor;
 class MockDcpProducer;
 
+class MockDcpProducer;
+
 /*
  * A subclass of KVBucketTest which uses a fake ExecutorPool,
  * which will not spawn ExecutorThreads and hence not run any tasks
@@ -133,6 +135,9 @@ protected:
             gsl::not_null<const void*> cookie) {
         return ENGINE_SUCCESS;
     }
+
+    void notifyAndStepToCheckpoint(MockDcpProducer& producer,
+                                   dcp_message_producers* producers);
 
     SingleThreadedExecutorPool* task_executor;
 };

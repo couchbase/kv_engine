@@ -271,7 +271,8 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
       includeValue(includeVal),
       includeXattributes(includeXattrs),
       includeDeleteTime(includeDeleteTime),
-      filter(filter, manifest) {
+      filter(filter, manifest),
+      cursorName(n + std::to_string(cursorUID.fetch_add(1))) {
     const char* type = "";
     if (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER) {
         type = "takeover ";
@@ -376,7 +377,7 @@ void ActiveStream::registerCursor(CheckpointManager& chkptmgr,
                                   uint64_t lastProcessedSeqno) {
     try {
         CursorRegResult result = chkptmgr.registerCursorBySeqno(
-                name_, lastProcessedSeqno, MustSendCheckpointEnd::NO);
+                cursorName, lastProcessedSeqno, MustSendCheckpointEnd::NO);
         /*
          * MB-22960:  Due to cursor dropping we re-register the replication
          * cursor only during backfill when we mark the disk snapshot.  However
@@ -885,8 +886,9 @@ void ActiveStream::addTakeoverStats(ADD_STAT add_stat, const void *cookie,
 
     size_t vb_items = vb.getNumItems();
     size_t chk_items =
-            vb_items > 0 ? vb.checkpointManager->getNumItemsForCursor(name_)
-                         : 0;
+            vb_items > 0
+                    ? vb.checkpointManager->getNumItemsForCursor(cursorName)
+                    : 0;
 
     size_t del_items = 0;
     try {
@@ -945,7 +947,7 @@ std::unique_ptr<DcpResponse> ActiveStream::nextQueuedItem() {
 bool ActiveStream::nextCheckpointItem() {
     VBucketPtr vbucket = engine->getVBucket(vb_);
     if (vbucket &&
-        vbucket->checkpointManager->getNumItemsForCursor(name_) > 0) {
+        vbucket->checkpointManager->getNumItemsForCursor(cursorName) > 0) {
         // schedule this stream to build the next checkpoint
         auto producer = producerPtr.lock();
         if (!producer) {
@@ -1092,7 +1094,7 @@ std::vector<queued_item> ActiveStream::getOutstandingItems(VBucket& vb) {
     chkptItemsExtractionInProgress.store(true);
 
     auto _begin_ = ProcessClock::now();
-    vb.checkpointManager->getAllItemsForCursor(name_, items);
+    vb.checkpointManager->getAllItemsForCursor(cursorName, items);
     engine->getEpStats().dcpCursorsGetItemsHisto.add(
             std::chrono::duration_cast<std::chrono::microseconds>(
                     ProcessClock::now() - _begin_));
@@ -1451,7 +1453,7 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
         try {
             std::tie(curChkSeqno, tryBackfill) =
                     vbucket->checkpointManager->registerCursorBySeqno(
-                            name_,
+                            cursorName,
                             lastReadSeqno.load(),
                             MustSendCheckpointEnd::NO);
         } catch(std::exception& error) {
@@ -1553,7 +1555,7 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
             try {
                 CursorRegResult result =
                         vbucket->checkpointManager->registerCursorBySeqno(
-                                name_,
+                                cursorName,
                                 lastReadSeqno.load(),
                                 MustSendCheckpointEnd::NO);
 
@@ -1777,7 +1779,7 @@ size_t ActiveStream::getItemsRemaining() {
     // Items remaining is the sum of:
     // (a) Items outstanding in checkpoints
     // (b) Items pending in our readyQ, excluding any meta items.
-    return vbucket->checkpointManager->getNumItemsForCursor(name_) +
+    return vbucket->checkpointManager->getNumItemsForCursor(cursorName) +
            readyQ_non_meta_items;
 }
 
@@ -1826,7 +1828,7 @@ bool ActiveStream::dropCheckpointCursor_UNLOCKED() {
         notifyStreamReady();
     }
     /* Drop the existing cursor */
-    return vbucket->checkpointManager->removeCursor(name_);
+    return vbucket->checkpointManager->removeCursor(cursorName);
 }
 
 EXTENSION_LOG_LEVEL ActiveStream::getTransitionStateLogLevel(
@@ -1864,9 +1866,11 @@ void ActiveStream::notifyStreamReady(bool force) {
 void ActiveStream::removeCheckpointCursor() {
     VBucketPtr vb = engine->getVBucket(vb_);
     if (vb) {
-        vb->checkpointManager->removeCursor(name_);
+        vb->checkpointManager->removeCursor(cursorName);
     }
 }
+
+std::atomic<uint64_t> ActiveStream::cursorUID;
 
 NotifierStream::NotifierStream(EventuallyPersistentEngine* e,
                                std::shared_ptr<DcpProducer> p,

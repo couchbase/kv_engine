@@ -93,6 +93,10 @@ protected:
     // The current vbucket that the eviction algorithm is operating on.
     VBucketPtr currentBucket;
 
+    // The frequency counter threshold that is used to determine whether we
+    // should evict items from the hash table.
+    uint16_t freqCounterThreshold;
+
 private:
     // Removes checkpoints that are both closed and unreferenced, thereby
     // freeing the associated memory.
@@ -121,8 +125,4 @@ private:
     // Indicates whether the vbucket we are visiting is from an ephemeral
     // bucket.
     bool isEphemeral;
-
-    // The frequency counter threshold that is used to determine whether we
-    // should evict items from the hash table.
-    uint16_t freqCounterThreshold;
 };

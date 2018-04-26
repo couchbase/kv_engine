@@ -307,13 +307,18 @@ public:
         return currentSeparator;
     }
 
+    /// @return a const reference to the streams cursor name
+    const std::string& getCursorName() const {
+        return cursorName;
+    }
+
 protected:
     /**
      * @param vb reference to the associated vbucket
      *
      * @return the outstanding items for the stream's checkpoint cursor.
      */
-    std::vector<queued_item> getOutstandingItems(VBucket& vb);
+    virtual std::vector<queued_item> getOutstandingItems(VBucket& vb);
 
     // Given a set of queued items, create mutation responses for each item,
     // and pass onto the producer associated with this stream.
@@ -516,6 +521,17 @@ private:
      * The filter the stream will use to decide which keys should be transmitted
      */
     Collections::VB::Filter filter;
+
+    /**
+     * The name which uniquely identifies this stream's checkpoint cursor
+     */
+    std::string cursorName;
+
+    /**
+     * To ensure each stream gets a unique cursorName, we maintain a 'uid'
+     * which is really just an incrementing uint64
+     */
+    static std::atomic<uint64_t> cursorUID;
 };
 
 

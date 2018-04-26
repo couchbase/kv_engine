@@ -101,10 +101,17 @@ public:
 
     void closeStreamDueToRollback(uint16_t vbucket);
 
-    /* This function handles a stream that is detected as slow by the checkpoint
-       remover. Currently we handle the slow stream by switching from in-memory
-       to backfilling */
-    bool handleSlowStream(uint16_t vbid, const std::string &name);
+    /**
+     * This function handles a stream that is detected as slow by the checkpoint
+     * remover. Currently we handle the slow stream by switching from in-memory
+     * to backfilling.
+     *
+     * @param vbid vbucket the checkpoint-remover is processing
+     * @param cursorName the cursor name registered in the checkpoint manager
+     *        which is slow.
+     * @return true if the cursor was removed from the checkpoint manager
+     */
+    bool handleSlowStream(uint16_t vbid, const std::string& cursorName);
 
     void closeAllStreams();
 
