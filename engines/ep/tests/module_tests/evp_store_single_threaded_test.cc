@@ -16,6 +16,7 @@
  */
 
 #include "evp_store_single_threaded_test.h"
+#include "../mock/mock_dcp.h"
 #include "../mock/mock_dcp_consumer.h"
 #include "../mock/mock_dcp_producer.h"
 #include "../mock/mock_global_task.h"
@@ -24,6 +25,7 @@
 #include "dcp/dcpconnmap.h"
 #include "ep_time.h"
 #include "evp_store_test.h"
+#include "failover-table.h"
 #include "fakes/fake_executorpool.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "taskqueue.h"
@@ -133,6 +135,25 @@ void SingleThreadedKVBucketTest::runReadersUntilWarmedUp() {
     while (engine->getKVBucket()->isWarmingUp()) {
         runNextTask(readerQueue);
     }
+}
+
+void SingleThreadedKVBucketTest::notifyAndStepToCheckpoint(
+        MockDcpProducer& producer, dcp_message_producers* producers) {
+    auto vb = store->getVBucket(vbid);
+    ASSERT_NE(nullptr, vb.get());
+
+    producer.notifySeqnoAvailable(vbid, vb->getHighSeqno());
+
+    /* Step which will notify the checkpoint processor task */
+    EXPECT_EQ(ENGINE_SUCCESS, producer.step(producers));
+    EXPECT_EQ(1, producer.getCheckpointSnapshotTask().queueSize());
+
+    /* Run the task */
+    producer.getCheckpointSnapshotTask().run();
+
+    /* This time the step should return something that is read from the
+       checkpoint processor */
+    EXPECT_EQ(ENGINE_WANT_MORE, producer.step(producers));
 }
 
 /*
@@ -1750,4 +1771,195 @@ TEST_F(SingleThreadedEPBucketTest, mb25273) {
     EXPECT_EQ(0, gv.item->getFlags()); // flags also still zero
     EXPECT_EQ(3, gv.item->getCas());
     EXPECT_EQ(value.size(), gv.item->getValue()->vlength());
+}
+
+extern uint8_t dcp_last_op;
+extern std::string dcp_last_key;
+
+class MB_29287 : public SingleThreadedEPBucketTest {
+public:
+    void SetUp() override {
+        SingleThreadedEPBucketTest::SetUp();
+        cookie = create_mock_cookie();
+        setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+        // 1. Mock producer
+        producer = new MockDcpProducer(*engine, cookie, "test_producer", 0, {});
+
+        producers = get_dcp_producers(
+                reinterpret_cast<ENGINE_HANDLE*>(engine.get()),
+                reinterpret_cast<ENGINE_HANDLE_V1*>(engine.get()));
+        auto vb = store->getVBuckets().getBucket(vbid);
+        ASSERT_NE(nullptr, vb.get());
+        // 2. Mock active stream
+        producer->mockActiveStreamRequest(0, // flags
+                                          1, // opaque
+                                          *vb,
+                                          0, // start_seqno
+                                          ~0, // end_seqno
+                                          0, // vbucket_uuid,
+                                          0, // snap_start_seqno,
+                                          0); // snap_end_seqno,
+
+        store_item(vbid, makeStoredDocKey("1"), "value1");
+        store_item(vbid, makeStoredDocKey("2"), "value2");
+        store_item(vbid, makeStoredDocKey("3"), "value3");
+        flush_vbucket_to_disk(vbid, 3);
+        notifyAndStepToCheckpoint(*producer, producers.get());
+
+        for (int i = 0; i < 3; i++) { // 1, 2 and 3
+            EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+            EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_MUTATION, dcp_last_op);
+        }
+
+        store_item(vbid, makeStoredDocKey("4"), "value4");
+
+        auto stream = producer->findStream(vbid);
+        auto* mockStream = static_cast<MockActiveStream*>(stream.get());
+        mockStream->preGetOutstandingItemsCallback =
+                std::bind(&MB_29287::closeAndRecreateStream, this);
+
+        // call next - get success (nothing ready, but task has been scheduled)
+        EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+
+        // Run the snapshot task and step (triggering
+        // preGetOutstandingItemsCallback)
+        notifyAndStepToCheckpoint(*producer, producers.get());
+    }
+
+    void TearDown() override {
+        destroy_mock_cookie(cookie);
+        producer->closeAllStreams();
+        producer->cancelCheckpointCreatorTask();
+        producer.reset();
+        SingleThreadedEPBucketTest::TearDown();
+    }
+
+    void closeAndRecreateStream() {
+        // Without the fix, 5 will be lost
+        store_item(vbid, makeStoredDocKey("5"), "don't lose me");
+        producer->closeStream(1, 0);
+        auto vb = store->getVBuckets().getBucket(vbid);
+        ASSERT_NE(nullptr, vb.get());
+        producer->mockActiveStreamRequest(DCP_ADD_STREAM_FLAG_TAKEOVER,
+                                          1, // opaque
+                                          *vb,
+                                          3, // start_seqno
+                                          ~0, // end_seqno
+                                          vb->failovers->getLatestUUID(),
+                                          3, // snap_start_seqno
+                                          ~0); // snap_end_seqno
+    }
+
+    const void* cookie = nullptr;
+    mock_dcp_producer_t producer;
+    std::unique_ptr<dcp_message_producers> producers;
+};
+
+// Stream takeover with no more writes
+TEST_F(MB_29287, dataloss_end) {
+    auto stream = producer->findStream(vbid);
+    auto* as = static_cast<ActiveStream*>(stream.get());
+
+    EXPECT_TRUE(stream->isTakeoverSend());
+    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_MUTATION, dcp_last_op);
+    dcp_last_op = 0;
+    EXPECT_EQ("4", dcp_last_key);
+
+    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_MUTATION, dcp_last_op);
+    dcp_last_op = 0;
+    EXPECT_EQ("5", dcp_last_key);
+
+    // Snapshot received
+    as->snapshotMarkerAckReceived();
+
+    // set-vb-state now underway
+    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE, dcp_last_op);
+
+    // Move stream to pending and vb to dead
+    as->setVBucketStateAckRecieved();
+
+    // Cannot store anymore items
+    store_item(vbid,
+               makeStoredDocKey("K6"),
+               "value6",
+               0,
+               {cb::engine_errc::not_my_vbucket});
+
+    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE, dcp_last_op);
+    as->setVBucketStateAckRecieved();
+    EXPECT_TRUE(!stream->isActive());
+
+    auto vb = store->getVBuckets().getBucket(vbid);
+    ASSERT_NE(nullptr, vb.get());
+    // Have persistence cursor only (dcp now closed down)
+    EXPECT_EQ(1, vb->checkpointManager.getNumOfCursors());
+}
+
+// takeover when more writes occur
+TEST_F(MB_29287, dataloss_hole) {
+    auto stream = producer->findStream(vbid);
+    auto* as = static_cast<ActiveStream*>(stream.get());
+
+    store_item(vbid, makeStoredDocKey("6"), "value6");
+
+    EXPECT_TRUE(stream->isTakeoverSend());
+    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_MUTATION, dcp_last_op);
+    dcp_last_op = 0;
+    EXPECT_EQ("4", dcp_last_key);
+
+    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_MUTATION, dcp_last_op);
+    dcp_last_op = 0;
+    EXPECT_EQ("5", dcp_last_key);
+
+    // Snapshot received
+    as->snapshotMarkerAckReceived();
+
+    // More data in the checkpoint (key 6)
+
+    // call next - get success (nothing ready, but task has been scheduled)
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+
+    // Run the snapshot task and step
+    notifyAndStepToCheckpoint(*producer, producers.get());
+
+    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_MUTATION, dcp_last_op);
+    EXPECT_EQ("6", dcp_last_key);
+
+    // Snapshot received
+    as->snapshotMarkerAckReceived();
+
+    // Now send
+    EXPECT_TRUE(stream->isTakeoverSend());
+
+    // set-vb-state now underway
+    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE, dcp_last_op);
+    dcp_last_op = 0;
+
+    // Move stream to pending and vb to dead
+    as->setVBucketStateAckRecieved();
+
+    // Cannot store anymore items
+    store_item(vbid,
+               makeStoredDocKey("K6"),
+               "value6",
+               0,
+               {cb::engine_errc::not_my_vbucket});
+
+    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE, dcp_last_op);
+    as->setVBucketStateAckRecieved();
+    EXPECT_TRUE(!stream->isActive());
+
+    auto vb = store->getVBuckets().getBucket(vbid);
+    ASSERT_NE(nullptr, vb.get());
+    // Have persistence cursor only (dcp now closed down)
+    EXPECT_EQ(1, vb->checkpointManager.getNumOfCursors());
 }

@@ -129,6 +129,18 @@ public:
     BackfillManager& getBFM() {
         return *backfillMgr;
     }
+
+    /**
+     * Place a mock active stream into the producer
+     */
+    void mockActiveStreamRequest(uint32_t flags,
+                                 uint32_t opaque,
+                                 VBucket& vb,
+                                 uint64_t start_seqno,
+                                 uint64_t end_seqno,
+                                 uint64_t vbucket_uuid,
+                                 uint64_t snap_start_seqno,
+                                 uint64_t snap_end_seqno);
 };
 
 using mock_dcp_producer_t = SingleThreadedRCPtr<MockDcpProducer>;
