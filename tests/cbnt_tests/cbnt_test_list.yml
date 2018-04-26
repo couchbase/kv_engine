@@ -61,3 +61,10 @@
            -o benchmark_results.xml -t ns -i -c"
   output:
     - "benchmark_results.xml"
+- test: topkeys_bench
+  command: "build/kv_engine/memcached_topkeys_benchmark --benchmark_out_format=json
+           --benchmark_out=benchmark_output.json &&
+           python kv_engine/scripts/benchmark2xml.py -b benchmark_output.json
+           -o benchmark_results.xml -t ns -i -c"
+  output:
+    - "benchmark_results.xml"

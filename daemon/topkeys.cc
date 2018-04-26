@@ -177,7 +177,8 @@ void TopKeys::doUpdateKey(const void* key,
                           size_t nkey,
                           rel_time_t operation_time) {
     if (key == nullptr || nkey == 0) {
-        throw std::invalid_argument("TopKeys::doUpdateKey: must be specified");
+        throw std::invalid_argument(
+                "TopKeys::doUpdateKey: key must be specified");
     }
 
     try {
