@@ -55,6 +55,7 @@ PagingVisitor::PagingVisitor(KVBucket& s,
                              bool _isEphemeral)
     : VBucketVisitor(vbFilter),
       ejected(0),
+      freqCounterThreshold(0),
       store(s),
       stats(st),
       percent(pcnt),
@@ -67,8 +68,7 @@ PagingVisitor::PagingVisitor(KVBucket& s,
       wasHighMemoryUsage(s.isMemoryUsageTooHigh()),
       taskStart(ProcessClock::now()),
       pager_phase(phase),
-      isEphemeral(_isEphemeral),
-      freqCounterThreshold(0) {
+      isEphemeral(_isEphemeral) {
     }
 
     bool PagingVisitor::visit(const HashTable::HashBucketLock& lh,
@@ -113,7 +113,6 @@ PagingVisitor::PagingVisitor(KVBucket& s,
              * add it to the histogram we want to use the original value.
              */
             auto storedValueFreqCounter = v.getFreqCounterValue();
-            bool evicted = true;
 
             if (storedValueFreqCounter <= freqCounterThreshold) {
                 /*
@@ -129,27 +128,27 @@ PagingVisitor::PagingVisitor(KVBucket& s,
                  */
                 if (!doEviction(lh, &v)) {
                     storedValueFreqCounter = std::numeric_limits<uint8_t>::max();
-                    evicted = false;
                 }
             } else {
                 // If the storedValue is NOT eligible for eviction then
                 // we want to add the maximum value (255).
                 if (!currentBucket->eligibleToPageOut(lh, v)) {
                     storedValueFreqCounter = std::numeric_limits<uint8_t>::max();
-                    evicted = false;
+                } else {
+                    /*
+                     * MB-29333 - For items that we have visited and did not
+                     * evict just because their frequency counter was too high,
+                     * the frequency counter must be decayed by 1 to
+                     * ensure that they will get evicted if repeatedly
+                     * visited (and assuming their frequency counter is not
+                     * incremented in between visits of the item pager).
+                     */
+                    if (storedValueFreqCounter > 0) {
+                        v.setFreqCounterValue(storedValueFreqCounter - 1);
+                    }
                 }
             }
             itemEviction.addValueToFreqHistogram(storedValueFreqCounter);
-
-            /*
-             * MB-29333 - For items that we have visited but not evicted the
-             * storedValue frequency counter must be decayed by 1 to ensure
-             * that an item will get evicted if it is repeatedly visited (and
-             * is eligible to be evicted).
-             */
-            if (!evicted && storedValueFreqCounter > 0) {
-                v.setFreqCounterValue(storedValueFreqCounter - 1);
-            }
 
             // Whilst we are learning it is worth always updating the
             // threshold. We also want to update the threshold at periodic

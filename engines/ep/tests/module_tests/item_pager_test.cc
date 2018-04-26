@@ -598,12 +598,68 @@ TEST_P(STItemPagerTest, decayByOne) {
     }
     int iterationCount = 0;
     while ((pv->getEjected() == 0) &&
-           iterationCount < ItemEviction::initialFreqCount) {
+           iterationCount <= ItemEviction::initialFreqCount) {
+        pv->setFreqCounterThreshold(0);
         VBucketPtr vb = store->getVBucket(vbid);
         vb->ht.visit(*pv);
         iterationCount++;
     }
     EXPECT_EQ(1, pv->getEjected());
+}
+
+/**
+ * MB-29333:  Test that if a vbucket contains a single document with an
+ * execution frequency of ItemEviction::initialFreqCount, but the document
+ * is not eligible for eviction (due to being replica in ephemeral case and
+ * not flushed in the persistent case) check that its frequency count is not
+ * decremented.
+ */
+TEST_P(STItemPagerTest, doNotDecayIfCannotEvict) {
+    const std::string value(512, 'x'); // 512B value to use for documents.
+    auto key = makeStoredDocKey("xxx_0");
+    auto item = make_item(vbid, key, value, time_t(0));
+    storeItem(item);
+
+    std::shared_ptr<std::atomic<bool>> available;
+    std::atomic<item_pager_phase> phase{ACTIVE_AND_PENDING_ONLY};
+    bool isEphemeral = std::get<0>(GetParam()) == "ephemeral";
+    std::unique_ptr<MockPagingVisitor> pv =
+            std::make_unique<MockPagingVisitor>(*engine->getKVBucket(),
+                                                engine->getEpStats(),
+                                                10.0,
+                                                available,
+                                                ITEM_PAGER,
+                                                false,
+                                                0.5,
+                                                VBucketFilter(),
+                                                &phase,
+                                                isEphemeral);
+
+    pv->setCurrentBucket(engine->getKVBucket()->getVBucket(vbid));
+    store->setVBucketState(vbid, vbucket_state_replica, false);
+    for (int ii = 0; ii <= ItemEviction::initialFreqCount; ii++) {
+        pv->setFreqCounterThreshold(0);
+        pv->getItemEviction().reset();
+        VBucketPtr vb = store->getVBucket(vbid);
+        vb->ht.visit(*pv);
+    }
+
+    // Now make the document eligible for eviction.
+    store->setVBucketState(vbid, vbucket_state_active, false);
+    if (std::get<0>(GetParam()) == "persistent") {
+        getEPBucket().flushVBucket(vbid);
+    }
+
+    // Check still not be able to evict, because the frequency count is still
+    // at ItemEviction::initialFreqCount
+    pv->setFreqCounterThreshold(0);
+    pv->getItemEviction().reset();
+    VBucketPtr vb = store->getVBucket(vbid);
+    vb->ht.visit(*pv);
+    auto initialFreqCount = ItemEviction::initialFreqCount;
+    EXPECT_EQ(initialFreqCount, pv->getItemEviction().getFreqThreshold(100.0));
+    EXPECT_EQ(0, pv->getEjected());
+
 }
 
 /**

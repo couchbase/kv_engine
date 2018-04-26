@@ -56,6 +56,10 @@ public:
         return ejected;
     }
 
+    void setFreqCounterThreshold(uint16_t threshold) {
+        freqCounterThreshold = threshold;
+    }
+
     void setCurrentBucket(VBucketPtr _currentBucket) {
         currentBucket = _currentBucket;
     }
