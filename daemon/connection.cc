@@ -571,7 +571,7 @@ bool Connection::unregisterEvent() {
 
     cb_assert(socketDescriptor != INVALID_SOCKET);
 
-    if (event_del(&event) == -1) {
+    if (event_del(event.get()) == -1) {
         LOG_WARNING("Failed to remove connection to libevent: {}",
                     cb_strerror());
         return false;
@@ -589,7 +589,7 @@ bool Connection::registerEvent() {
         return false;
     }
 
-    if (event_add(&event, nullptr) == -1) {
+    if (event_add(event.get(), nullptr) == -1) {
         LOG_WARNING("Failed to add connection to libevent: {}", cb_strerror());
         return false;
     }
@@ -599,8 +599,6 @@ bool Connection::registerEvent() {
 }
 
 bool Connection::updateEvent(const short new_flags) {
-    struct event_base* base = event.ev_base;
-
     if (ssl.isEnabled() && ssl.isConnected() && (new_flags & EV_READ)) {
         /*
          * If we want more data and we have SSL, that data might be inside
@@ -610,7 +608,7 @@ bool Connection::updateEvent(const short new_flags) {
          */
         if (ssl.havePendingInputData()) {
             // signal a call to the handler
-            event_active(&event, EV_READ, 0);
+            event_active(event.get(), EV_READ, 0);
             return true;
         }
     }
@@ -631,7 +629,7 @@ bool Connection::updateEvent(const short new_flags) {
         return false;
     }
 
-    if (event_assign(&event,
+    if (event_assign(event.get(),
                      base,
                      socketDescriptor,
                      new_flags,
@@ -665,13 +663,14 @@ bool Connection::reapplyEventmask() {
 bool Connection::initializeEvent() {
     short event_flags = (EV_READ | EV_PERSIST);
 
-    if (event_assign(&event,
-                     base,
-                     socketDescriptor,
-                     event_flags,
-                     event_handler,
-                     reinterpret_cast<void*>(this)) == -1) {
-        return false;
+    event.reset(event_new(base,
+                          socketDescriptor,
+                          event_flags,
+                          event_handler,
+                          reinterpret_cast<void*>(this)));
+
+    if (!event) {
+        throw std::bad_alloc();
     }
     ev_flags = event_flags;
 
@@ -1463,7 +1462,7 @@ void Connection::signalIfIdle(bool logbusy, size_t workerthread) {
                     getId());
             setState(McbpStateMachine::State::closing);
         }
-        event_active(&event, EV_WRITE, 0);
+        event_active(event.get(), EV_WRITE, 0);
     } else if (logbusy) {
         unique_cJSON_ptr json(toJSON());
         auto details = to_string(json, false);

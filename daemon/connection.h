@@ -1161,8 +1161,15 @@ protected:
 
     /** Is the connection currently registered in libevent? */
     bool registered_in_libevent = false;
+
+    struct EventDeleter {
+        void operator()(struct event* e) {
+            event_free(e);
+        }
+    };
+
     /** The libevent object */
-    struct event event = {};
+    std::unique_ptr<struct event, EventDeleter> event;
     /** The current flags we've registered in libevent */
     short ev_flags = 0;
     /** which events were just triggered */
