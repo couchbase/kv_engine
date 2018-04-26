@@ -60,6 +60,30 @@ public:
         return *static_cast<ActiveStreamCheckpointProcessorTask*>(
                         checkpointCreatorTask.get());
     }
+
+    /**
+     * Finds the stream for a given vbucket
+     */
+    SingleThreadedRCPtr<Stream> findStream(uint16_t vbid) {
+        auto it = streams.find(vbid);
+        if (it != streams.end()) {
+            return it->second;
+        } else {
+            return SingleThreadedRCPtr<Stream>();
+        }
+    }
+
+    /**
+     * Place a mock active stream into the producer
+     */
+    void mockActiveStreamRequest(uint32_t flags,
+                                 uint32_t opaque,
+                                 uint16_t vbucket,
+                                 uint64_t start_seqno,
+                                 uint64_t end_seqno,
+                                 uint64_t vbucket_uuid,
+                                 uint64_t snap_start_seqno,
+                                 uint64_t snap_end_seqno);
 };
 
 using mock_dcp_producer_t = SingleThreadedRCPtr<MockDcpProducer>;

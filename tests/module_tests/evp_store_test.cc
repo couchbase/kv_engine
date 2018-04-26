@@ -152,18 +152,19 @@ void EventuallyPersistentStoreTest::TearDown() {
 
 Item EventuallyPersistentStoreTest::store_item(uint16_t vbid,
                                                const std::string& key,
-                                               const std::string& value) {
+                                               const std::string& value,
+                                               ENGINE_ERROR_CODE expectedResult) {
     uint8_t ext_meta[EXT_META_LEN] = {PROTOCOL_BINARY_DATATYPE_JSON};
 
     Item item(key.c_str(), key.size(), /*flags*/0, /*exp*/0, value.c_str(),
               value.size(), ext_meta, sizeof(ext_meta));
     item.setVBucketId(vbid);
-    EXPECT_EQ(ENGINE_SUCCESS, store->set(item, nullptr));
+    EXPECT_EQ(expectedResult, store->set(item, nullptr));
 
     return item;
 }
 
-void EventuallyPersistentStoreTest::flush_vbucket_to_disk(uint16_t vbid) {
+void EventuallyPersistentStoreTest::flush_vbucket_to_disk(uint16_t vbid, size_t expected) {
     int result;
     const auto time_limit = std::chrono::seconds(10);
     const auto deadline = std::chrono::steady_clock::now() + time_limit;
@@ -183,7 +184,7 @@ void EventuallyPersistentStoreTest::flush_vbucket_to_disk(uint16_t vbid) {
         << "Hit timeout (" << time_limit.count() << " seconds) waiting for "
            "warmup to complete while flushing VBucket.";
 
-    ASSERT_EQ(1, result) << "Failed to flush the one item we have stored.";
+    ASSERT_EQ(expected, result) << "Failed to flush the items we have stored.";
 
     /**
      * Although a flushVBucket writes the item to the underlying store,

@@ -17,6 +17,8 @@
 
 #pragma once
 
+#include "dcp/consumer.h"
+#include "dcp/producer.h"
 #include "dcp/stream.h"
 
 /*
@@ -90,4 +92,13 @@ public:
     void transitionStateToBackfilling() {
         transitionState(STREAM_BACKFILLING);
     }
+
+    virtual void getOutstandingItems(RCPtr<VBucket>& vb,
+                                     std::vector<queued_item>& items) override {
+        preGetOutstandingItemsCallback();
+        ActiveStream::getOutstandingItems(vb, items);
+    }
+
+    /// A callback to allow tests to inject code before we access the checkpoint
+    std::function<void()> preGetOutstandingItemsCallback = [] { return; };
 };

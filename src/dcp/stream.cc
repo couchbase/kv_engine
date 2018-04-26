@@ -182,8 +182,8 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e, dcp_producer_t p,
        engine(e), producer(p),
        payloadType((flags & DCP_ADD_STREAM_FLAG_NO_VALUE) ? KEY_ONLY :
                                                             KEY_VALUE),
-       lastSentSnapEndSeqno(0), chkptItemsExtractionInProgress(false) {
-
+       lastSentSnapEndSeqno(0), chkptItemsExtractionInProgress(false),
+       cursorName(n + std::to_string(cursorUID.fetch_add(1))) {
     const char* type = "";
     if (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER) {
         type = "takeover ";
@@ -338,7 +338,7 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
         try {
             CursorRegResult result =
                     vb->checkpointManager.registerCursorBySeqno(
-                            name_, chkCursorSeqno,
+                            cursorName, chkCursorSeqno,
                             MustSendCheckpointEnd::NO);
 
             curChkSeqno = result.first;
@@ -696,7 +696,7 @@ void ActiveStream::addTakeoverStats(ADD_STAT add_stat, const void *cookie) {
     item_eviction_policy_t iep = engine->getEpStore()->getItemEvictionPolicy();
     size_t vb_items = vb->getNumItems(iep);
     size_t chk_items = vb_items > 0 ?
-                vb->checkpointManager.getNumItemsForCursor(name_) : 0;
+                vb->checkpointManager.getNumItemsForCursor(cursorName) : 0;
 
     size_t del_items = 0;
     try {
@@ -747,7 +747,7 @@ DcpResponse* ActiveStream::nextQueuedItem() {
 
 bool ActiveStream::nextCheckpointItem() {
     RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
-    if (vbucket && vbucket->checkpointManager.getNumItemsForCursor(name_) > 0) {
+    if (vbucket && vbucket->checkpointManager.getNumItemsForCursor(cursorName) > 0) {
         // schedule this stream to build the next checkpoint
         producer->scheduleCheckpointProcessorTask(this);
         return true;
@@ -837,7 +837,7 @@ void ActiveStream::getOutstandingItems(RCPtr<VBucket> &vb,
     // Commencing item processing - set guard flag.
     chkptItemsExtractionInProgress.store(true);
 
-    vb->checkpointManager.getAllItemsForCursor(name_, items);
+    vb->checkpointManager.getAllItemsForCursor(cursorName, items);
     if (vb->checkpointManager.getNumCheckpoints() > 1) {
         engine->getEpStore()->wakeUpCheckpointRemover();
     }
@@ -1047,7 +1047,8 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
         try {
             std::tie(curChkSeqno, tryBackfill) =
                     vbucket->checkpointManager.registerCursorBySeqno(
-                            name_, lastReadSeqno.load(),
+                            cursorName,
+                            lastReadSeqno.load(),
                             MustSendCheckpointEnd::NO);
         } catch(std::exception& error) {
             producer->getLogger().log(EXTENSION_LOG_WARNING,
@@ -1125,11 +1126,12 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
              */
             try {
                 CursorRegResult result =
-                            vbucket->checkpointManager.registerCursorBySeqno(
-                            name_, lastReadSeqno.load(),
-                            MustSendCheckpointEnd::NO);
+                        vbucket->checkpointManager.registerCursorBySeqno(
+                                cursorName,
+                                lastReadSeqno.load(),
+                                MustSendCheckpointEnd::NO);
 
-                    curChkSeqno = result.first;
+                curChkSeqno = result.first;
             } catch (std::exception& error) {
                 producer->getLogger().log(EXTENSION_LOG_WARNING,
                                           "(vb %" PRIu16 ") Failed to register "
@@ -1307,7 +1309,7 @@ void ActiveStream::transitionState(stream_state_t newState) {
             {
                 RCPtr<VBucket> vb = engine->getVBucket(vb_);
                 if (vb) {
-                    vb->checkpointManager.removeCursor(name_);
+                    vb->checkpointManager.removeCursor(cursorName);
                 }
                 break;
             }
@@ -1330,8 +1332,8 @@ size_t ActiveStream::getItemsRemaining() {
     // Items remaining is the sum of:
     // (a) Items outstanding in checkpoints
     // (b) Items pending in our readyQ, excluding any meta items.
-    return vbucket->checkpointManager.getNumItemsForCursor(name_) +
-            readyQ_non_meta_items;
+    return vbucket->checkpointManager.getNumItemsForCursor(cursorName) +
+           readyQ_non_meta_items;
 }
 
 uint64_t ActiveStream::getLastReadSeqno() const {
@@ -1377,8 +1379,10 @@ void ActiveStream::dropCheckpointCursor_UNLOCKED()
         }
     }
     /* Drop the existing cursor */
-    vbucket->checkpointManager.removeCursor(name_);
+    vbucket->checkpointManager.removeCursor(cursorName);
 }
+
+std::atomic<uint64_t> ActiveStream::cursorUID;
 
 NotifierStream::NotifierStream(EventuallyPersistentEngine* e, dcp_producer_t p,
                                const std::string &name, uint32_t flags,

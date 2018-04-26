@@ -24,10 +24,17 @@
 #include "programs/engine_testapp/mock_server.h"
 
 class RollbackTest : public EventuallyPersistentStoreTest,
-                     public ::testing::WithParamInterface<std::string>
+                     public ::testing::WithParamInterface<
+                             std::tuple<std::string, std::string>>
 {
     void SetUp() override {
         EventuallyPersistentStoreTest::SetUp();
+        if (std::get<1>(GetParam()) == "pending") {
+            vbStateAtRollback = vbucket_state_pending;
+        } else {
+            vbStateAtRollback = vbucket_state_replica;
+        }
+
         // Start vbucket as active to allow us to store items directly to it.
         store->setVBucketState(vbid, vbucket_state_active, false);
 
@@ -86,11 +93,11 @@ protected:
 
         // Test - rollback to seqno of item_v1 and verify that the previous value
         // of the item has been restored.
-        store->setVBucketState(vbid, vbucket_state_replica, false);
+        store->setVBucketState(vbid, vbStateAtRollback, false);
         ASSERT_EQ(TaskStatus::Complete,
                   store->rollback(vbid, item_v1.getBySeqno()));
         auto result = store->public_getInternal(a, vbid, /*cookie*/nullptr,
-                                                vbucket_state_replica, {});
+                                                vbStateAtRollback, {});
         ASSERT_EQ(ENGINE_SUCCESS, result.getStatus());
         EXPECT_EQ(item_v1, *result.getValue())
             << "Fetched item after rollback should match item_v1";
@@ -122,7 +129,7 @@ protected:
 
         // Test - rollback to seqno of item_v1 and verify that the previous value
         // of the item has been restored.
-        store->setVBucketState(vbid, vbucket_state_replica, false);
+        store->setVBucketState(vbid, vbStateAtRollback, false);
         ASSERT_EQ(TaskStatus::Complete,
                   store->rollback(vbid, item_v1.getBySeqno()));
         ASSERT_EQ(item_v1.getBySeqno(), store->getVBucket(vbid)->getHighSeqno());
@@ -182,7 +189,7 @@ protected:
 
 
         // Rollback should succeed, but rollback to 0
-        store->setVBucketState(vbid, vbucket_state_replica, false);
+        store->setVBucketState(vbid, vbStateAtRollback, false);
         EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, rollback));
 
         // These keys should be gone after the rollback
@@ -208,6 +215,7 @@ protected:
 
 protected:
     int64_t initial_seqno;
+    vbucket_state_t vbStateAtRollback;
 };
 
 TEST_P(RollbackTest, RollbackAfterMutation) {
@@ -259,7 +267,7 @@ TEST_P(RollbackTest, RollbackToMiddleOfAnUnPersistedSnapshot) {
     auto item_v2 = store_item(vbid, "rollback-cp-2", "gone");
 
     /* do rollback */
-    store->setVBucketState(vbid, vbucket_state_replica, false);
+    store->setVBucketState(vbid, vbStateAtRollback, false);
     EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, rollbackReqSeqno));
 
     /* confirm that we have rolled back to the disk snapshot */
@@ -333,10 +341,14 @@ TEST_P(RollbackTest, RollbackOnActive) {
     EXPECT_EQ(TaskStatus::Abort, store->rollback(vbid, 0 /*rollbackReqSeqno*/));
 }
 
-// Test cases which run in both Full and Value eviction
-INSTANTIATE_TEST_CASE_P(FullAndValueEviction,
+static auto allConfigValues = ::testing::Values(
+        std::make_tuple(std::string("value_only"), std::string("replica")),
+        std::make_tuple(std::string("full_eviction"), std::string("replica")),
+        std::make_tuple(std::string("value_only"), std::string("pending")),
+        std::make_tuple(std::string("full_eviction"), std::string("pending")));
+
+// Test cases which run in both Full and Value eviction on replica and pending
+// vbucket states
+INSTANTIATE_TEST_CASE_P(FullAndValueEvictionOnReplicaAndPending,
                         RollbackTest,
-                        ::testing::Values("value_only", "full_eviction"),
-                        [] (const ::testing::TestParamInfo<std::string>& info) {
-                            return info.param;
-                        });
+                        allConfigValues, );
