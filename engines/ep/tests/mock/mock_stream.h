@@ -18,6 +18,8 @@
 #pragma once
 
 #include "collections/vbucket_filter.h"
+#include "dcp/consumer.h"
+#include "dcp/producer.h"
 #include "dcp/stream.h"
 #include "tests/mock/mock_dcp_producer.h"
 
@@ -148,6 +150,15 @@ public:
     void setState(StreamState state) {
         state_ = state;
     }
+
+    virtual void getOutstandingItems(VBucketPtr& vb,
+                                     std::vector<queued_item>& items) override {
+        preGetOutstandingItemsCallback();
+        ActiveStream::getOutstandingItems(vb, items);
+    }
+
+    /// A callback to allow tests to inject code before we access the checkpoint
+    std::function<void()> preGetOutstandingItemsCallback = [] { return; };
 };
 
 /**
