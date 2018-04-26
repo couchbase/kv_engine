@@ -1,7 +1,7 @@
-ADD_EXECUTABLE(memcached_topkeys_bench topkeys_bench.cc)
-TARGET_LINK_LIBRARIES(memcached_topkeys_bench memcached_daemon gtest gtest_main)
-add_sanitizers(memcached_topkeys_bench)
+add_executable(memcached_topkeys_test topkeys_test.cc)
+target_link_libraries(memcached_topkeys_test memcached_daemon gtest gtest_main)
+add_sanitizers(memcached_topkeys_test)
 
-ADD_TEST(NAME memcached_topkeys_bench
+add_test(NAME memcached_topkeys_test
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-         COMMAND memcached_topkeys_bench)
+         COMMAND memcached_topkeys_test)

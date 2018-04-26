@@ -19,7 +19,6 @@
 #include <gtest/gtest.h>
 #include <memory>
 
-
 class TopKeysTest : public ::testing::Test {
 protected:
     void SetUp() {
