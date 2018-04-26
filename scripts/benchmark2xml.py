@@ -70,19 +70,30 @@ def main():
                              dest='consume', default=False,
                              help='Edit the input file in place. '
                                   '(Note, destroys the original file)')
+    optional_args.add_option('-n', '--name', action='store', dest='suite_name',
+                             type='string', default="",
+                             help='An optional string which gets added to the '
+                                  'start of each test suite name. For example'
+                                  '"Logger/".')
     parser.add_option_group(optional_args)
     (options, args) = parser.parse_args()
 
+    # Check no arguments were passed to the script,
+    # everything is done through options parsing
     if len(args) != 0:
+        print('benchmark2xml does not take any direct arguments')
         parser.print_help()
         sys.exit(-2)
 
+    # Check that all options have a setting, even the
+    # optional ones. Optional args should all have default values.
     for option in options.__dict__:
         if options.__dict__[option] is None:
             print('Some required arguments were not set')
             parser.print_help()
             sys.exit(-2)
 
+    # Open the specified input file
     try:
         input_file = open(options.input_file.strip(), 'r')
     except IOError as e:
@@ -90,27 +101,34 @@ def main():
               format(e))
         sys.exit(-1)
 
+    # Load the json data from the file so we can use it.
+    # If we encounter an error, then exit.
     try:
         json_data = json.load(input_file)
     except Exception as e:
         print('Failed to load JSON data from input file:\n\t {}'.format(e))
         sys.exit(-1)
+    input_file.close()
 
     timestamp = json_data['context']['date'].replace(' ', 'T')
 
     test_suites = collections.defaultdict(list)
 
+    # Dictionary containing the names of the stats we want to include in the
+    # final result. The dictionary is in the form { Name->string : Flag->bool }
+    # The flag represents whether we need to append the stat name to the result
+    # in order to differentiate them.
     test_cases = {'real_time': False}
 
     if options.cpu_time:
         test_cases['cpu_time'] = True
 
+    # Get the base names of the test suite
     for test in json_data['benchmarks']:
         name = test['name'].split(options.separator.strip())[0]
         test_suites[name].append(test)
 
-    input_file.close()
-
+    # If we are consuming the input file, delete it
     if options.consume:
         try:
             os.remove(options.input_file.strip())
@@ -118,15 +136,18 @@ def main():
             print('Failed to remove the input file:\n\t {}'.format(e))
             sys.exit(-1)
 
+    # Create the output file, if we encounter an error then exit
     try:
         output_file = open(options.output_file.strip(), 'w')
     except IOError as e:
         print('Output file could not be created:\n\t{}'.format(e))
         sys.exit(-1)
 
+    # Write the XML data to the output file in the format used within CBNT.
     output_file.write('<testsuites timestamp="{}">\n'.format(timestamp))
     for test_suite in test_suites:
-        output_file.write('  <testsuite name="{}">\n'.format(test_suite))
+        output_file.write('  <testsuite name="{}{}">\n'.
+                          format(options.suite_name, test_suite))
         for test in test_suites[test_suite]:
             for stat in test_cases:
                 if stat not in test:
@@ -140,8 +161,9 @@ def main():
                 time = float(convert_time(test[stat], test['time_unit'],
                                           options.time_format.strip()))
                 output_file.write('    <testcase name="{}" time="%f" '
-                                  'classname="{}"/>\n'.format(name,
-                                                              test_suite) % time)
+                                  'classname="{}{}"/>\n'.
+                                  format(name, options.suite_name, test_suite)
+                                  % time)
         output_file.write('  </testsuite>\n')
     output_file.write('</testsuites>\n')
 
