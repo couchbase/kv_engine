@@ -128,10 +128,12 @@ protected:
                                       includeXattrs);
 
         EXPECT_FALSE(vb0->checkpointManager.registerCursor(
-                                                           producer->getName(),
-                                                           1, false,
-                                                           MustSendCheckpointEnd::NO))
-            << "Found an existing TAP cursor when attempting to register ours";
+                static_cast<ActiveStream*>(stream.get())->getCursorName(),
+                1,
+                false,
+                MustSendCheckpointEnd::NO))
+                << "Found an existing TAP cursor when attempting to register "
+                   "ours";
     }
 
     void destroy_dcp_stream() {
