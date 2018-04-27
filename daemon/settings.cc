@@ -32,6 +32,7 @@
 #include "ssl_utils.h"
 
 #include <mcbp/mcbp.h>
+#include <utilities/logtags.h>
 
 // the global entry of the settings object
 Settings settings;
@@ -1149,7 +1150,9 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         const auto m = getScramshaFallbackSalt();
 
         if (o != m) {
-            LOG_INFO(R"(Change scram fallback salt from {} to {})", m, o);
+            LOG_INFO(R"(Change scram fallback salt from {} to {})",
+                     cb::logtags::tagUserData(m),
+                     cb::logtags::tagUserData(o));
             setScramshaFallbackSalt(o);
         }
     }
