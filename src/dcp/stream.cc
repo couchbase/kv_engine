@@ -183,7 +183,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e, dcp_producer_t p,
        payloadType((flags & DCP_ADD_STREAM_FLAG_NO_VALUE) ? KEY_ONLY :
                                                             KEY_VALUE),
        lastSentSnapEndSeqno(0), chkptItemsExtractionInProgress(false),
-       cursorName(n + std::to_string(cursorUID.fetch_add(1))) {
+       cursorName(n + '/' + std::to_string(cursorUID.fetch_add(1))) {
     const char* type = "";
     if (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER) {
         type = "takeover ";
