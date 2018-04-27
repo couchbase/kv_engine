@@ -182,6 +182,14 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
         logger.min_log_level = EXTENSION_LOG_WARNING;
     }
 
+    // MB-28468: Reduce the minimum log level of FTS DCP streams as they are
+    // very noisy due to creating streams for non-existing vBuckets. Future
+    // development of FTS should remedy this, however for now, we need to
+    // reduce their verbosity as they cause the memcached log to rotate early.
+    if (name.find("eq_dcpq:fts") != std::string::npos) {
+        logger.min_log_level = EXTENSION_LOG_FATAL;
+    }
+
     engine_.setDCPPriority(getCookie(), CONN_PRIORITY_MED);
     priority.assign("medium");
 
