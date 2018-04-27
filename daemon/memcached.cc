@@ -56,6 +56,7 @@
 #include <phosphor/phosphor.h>
 #include <platform/cb_malloc.h>
 #include <platform/dirutils.h>
+#include <platform/interrupt.h>
 #include <platform/make_unique.h>
 #include <platform/socket.h>
 #include <platform/strerror.h>
@@ -1373,6 +1374,10 @@ static void create_listen_sockets(bool management) {
     }
 }
 
+static void sigint_handler() {
+    shutdown_server();
+}
+
 #ifdef WIN32
 // Unfortunately we don't have signal handlers on windows
 static bool install_signal_handlers() {
@@ -1403,7 +1408,6 @@ static void sigterm_handler(evutil_socket_t, short, void *) {
 
 static struct event* sigusr1_event;
 static struct event* sigterm_event;
-static struct event* sigint_event;
 
 static bool install_signal_handlers() {
     // SIGUSR1 - Used to dump connection stats
@@ -1433,24 +1437,11 @@ static bool install_signal_handlers() {
         return false;
     }
 
-    // SIGINT - Used to shut down memcached cleanly
-    sigint_event = evsignal_new(main_base, SIGINT, sigterm_handler, NULL);
-    if (sigint_event == NULL) {
-        LOG_WARNING("Failed to allocate SIGINT handler");
-        return false;
-    }
-
-    if (event_add(sigint_event, NULL) < 0) {
-        LOG_WARNING("Failed to install SIGINT handler");
-        return false;
-    }
-
     return true;
 }
 
 static void release_signal_handlers() {
     event_free(sigusr1_event);
-    event_free(sigint_event);
     event_free(sigterm_event);
 }
 #endif
@@ -2412,6 +2403,8 @@ extern "C" int memcached_main(int argc, char **argv) {
 
     /* initialize main thread libevent instance */
     main_base = event_base_new();
+
+    cb::console::set_sigint_handler(sigint_handler);
 
     /* Initialize signal handlers (requires libevent). */
     if (!install_signal_handlers()) {
