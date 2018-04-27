@@ -272,7 +272,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
       includeXattributes(includeXattrs),
       includeDeleteTime(includeDeleteTime),
       filter(filter, manifest),
-      cursorName(n + std::to_string(cursorUID.fetch_add(1))) {
+      cursorName(n + '/' + std::to_string(cursorUID.fetch_add(1))) {
     const char* type = "";
     if (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER) {
         type = "takeover ";
