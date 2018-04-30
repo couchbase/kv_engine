@@ -1602,11 +1602,14 @@ bool ActiveStream::handleSlowStream() {
         ", "
         "lastSentSeqno : %" PRIu64
         ", "
+        "vBucketHighSeqno : %" PRIu64
+        ", "
         "isBackfillTaskRunning : %s",
         vb_,
         to_string(state_.load()).c_str(),
         lastReadSeqno.load(),
         lastSentSeqno.load(),
+        engine->getVBucket(vb_)->getHighSeqno(),
         isBackfillTaskRunning.load() ? "True" : "False");
 
     bool status = false;
