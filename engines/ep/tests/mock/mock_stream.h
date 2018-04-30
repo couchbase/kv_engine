@@ -65,7 +65,8 @@ public:
     }
 
     void public_processItems(std::vector<queued_item>& items) {
-        processItems(items);
+        LockHolder lh(streamMutex);
+        processItems(items, lh);
     }
 
     bool public_nextCheckpointItem() {

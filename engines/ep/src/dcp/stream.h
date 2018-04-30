@@ -322,7 +322,8 @@ protected:
 
     // Given a set of queued items, create mutation responses for each item,
     // and pass onto the producer associated with this stream.
-    void processItems(std::vector<queued_item>& items);
+    void processItems(std::vector<queued_item>& items,
+                      const LockHolder& streamMutex);
 
     bool nextCheckpointItem();
 
@@ -359,6 +360,12 @@ protected:
     virtual void registerCursor(CheckpointManager& chkptmgr,
                                 uint64_t lastProcessedSeqno);
 
+    /**
+     * Unlocked variant of nextCheckpointItemTask caller must obtain
+     * streamMutex and pass a reference to it
+     * @param streamMutex reference to lockholder
+     */
+    void nextCheckpointItemTask(const LockHolder& streamMutex);
 
     /* Indicates that a backfill has been scheduled and has not yet completed.
      * Is protected (as opposed to private) for testing purposes.
