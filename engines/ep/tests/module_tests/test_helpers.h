@@ -28,6 +28,8 @@
 
 #include <chrono>
 
+class VBucket;
+
 /// Creates an item with the given vbucket id, key and value.
 Item make_item(
         uint16_t vbid,
@@ -46,6 +48,10 @@ inline StoredDocKey makeStoredDocKey(
         DocNamespace ns = DocNamespace::DefaultCollection) {
     return StoredDocKey(string, ns);
 }
+
+// Creates a new item with the given key and queues it into the given VBucket.
+// manager.
+bool queueNewItem(VBucket& vbucket, const std::string& key);
 
 /**
  * Create an XATTR document using the supplied string as the body

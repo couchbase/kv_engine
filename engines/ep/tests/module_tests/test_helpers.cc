@@ -21,6 +21,9 @@
 #include <string_utilities.h>
 #include <xattr/blob.h>
 
+#include "checkpoint.h"
+#include "vbucket.h"
+
 Item make_item(uint16_t vbid,
                const StoredDocKey& key,
                const std::string& value,
@@ -31,6 +34,19 @@ Item make_item(uint16_t vbid,
               ext_meta, sizeof(ext_meta));
     item.setVBucketId(vbid);
     return item;
+}
+
+bool queueNewItem(VBucket& vbucket, const std::string& key) {
+    queued_item qi{new Item(makeStoredDocKey(key),
+                            vbucket.getId(),
+                            queue_op::set,
+                            /*revSeq*/ 0,
+                            /*bySeq*/ 0)};
+    return vbucket.checkpointManager.queueDirty(vbucket,
+                                                qi,
+                                                GenerateBySeqno::Yes,
+                                                GenerateCas::Yes,
+                                                /*preLinkDocCtx*/ nullptr);
 }
 
 std::chrono::microseconds decayingSleep(std::chrono::microseconds uSeconds) {

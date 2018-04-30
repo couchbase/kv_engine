@@ -135,6 +135,7 @@ protected:
                 MustSendCheckpointEnd::NO))
                 << "Found an existing TAP cursor when attempting to register "
                    "ours";
+        stream->setActive();
     }
 
     void destroy_dcp_stream() {
@@ -563,40 +564,6 @@ TEST_P(StreamTest, MB17653_ItemsRemaining) {
     destroy_dcp_stream();
 }
 
-TEST_P(StreamTest, test_mb18625) {
-    // Add an item.
-    store_item(vbid, "key", "value");
-
-    setup_dcp_stream();
-
-    // Should start with nextCheckpointItem() returning true.
-    MockActiveStream* mock_stream = static_cast<MockActiveStream*>(stream.get());
-    EXPECT_TRUE(mock_stream->public_nextCheckpointItem())
-        << "nextCheckpointItem() should initially be true.";
-
-    std::vector<queued_item> items;
-
-    // Get the set of outstanding items
-    mock_stream->public_getOutstandingItems(vb0, items);
-
-    // Set stream to DEAD to simulate a close stream request
-    mock_stream->setDead(END_STREAM_CLOSED);
-
-    // Process the set of items retrieved from checkpoint queues previously
-    mock_stream->public_processItems(items);
-
-    // Retrieve the next message in the stream's readyQ
-    DcpResponse *op = mock_stream->public_nextQueuedItem();
-    EXPECT_EQ(DcpResponse::Event::StreamEnd, op->getEvent())
-        << "Expected the STREAM_END message";
-    delete op;
-
-    // Expect no other message to be queued after stream end message
-    EXPECT_EQ(0, (mock_stream->public_readyQ()).size())
-        << "Expected no more messages in the readyQ";
-    destroy_dcp_stream();
-}
-
 /* Stream items from a DCP backfill */
 TEST_P(StreamTest, BackfillOnly) {
     /* Add 3 items */
@@ -800,7 +767,6 @@ TEST_P(StreamTest, CursorDroppingBasicNotAllowedStates) {
 
     /* Transition stream to takeoverSend state and expect cursor dropping call
        to fail */
-    mock_stream->transitionStateToBackfilling();
     mock_stream->transitionStateToTakeoverSend();
     EXPECT_FALSE(mock_stream->public_handleSlowStream());
 
