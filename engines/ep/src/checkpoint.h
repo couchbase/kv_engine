@@ -593,6 +593,8 @@ class CheckpointManager {
     friend class Checkpoint;
     friend class EventuallyPersistentEngine;
     friend class Consumer;
+    friend class CheckpointManagerTestIntrospector;
+
 public:
 
     typedef std::shared_ptr<Callback<uint16_t> > FlusherCallback;
@@ -922,6 +924,8 @@ protected:
     void updateDiskQueueStats(VBucket& vbucket, size_t curr_remains,
                               size_t new_remains);
 
+    CheckpointList checkpointList;
+
 private:
 
     // Pair of {sequence number, cursor at checkpoint start} used when
@@ -1005,7 +1009,6 @@ private:
     // by this object.
     std::atomic<size_t>      numItems;
     Monotonic<int64_t>       lastBySeqno;
-    CheckpointList checkpointList;
     bool                     isCollapsedCheckpoint;
     uint64_t                 lastClosedCheckpointId;
     uint64_t                 pCursorPreCheckpointId;
