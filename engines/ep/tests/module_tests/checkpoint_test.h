@@ -1,0 +1,63 @@
+/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+/*
+ *     Copyright 2018 Couchbase, Inc
+ *
+ *   Licensed under the Apache License, Version 2.0 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *       http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+
+#pragma once
+
+#include "config.h"
+
+#include "checkpoint_config.h"
+#include "configuration.h"
+
+#include <gtest/gtest.h>
+
+/**
+ * Dummy callback to replace the flusher callback.
+ */
+class DummyCB : public Callback<uint16_t> {
+public:
+    DummyCB() {
+    }
+
+    void callback(uint16_t& dummy) {
+        (void)dummy;
+    }
+};
+
+/**
+ * Test fixture for Checkpoint tests. Once constructed provides a checkpoint
+ * manager and single vBucket (VBID 0).
+ *
+ *@tparam V The VBucket class to use for the vbucket object.
+ */
+template <typename V>
+class CheckpointTest : public ::testing::Test {
+protected:
+    CheckpointTest();
+
+    void createManager(int64_t last_seqno = 1000);
+
+    // Creates a new item with the given key and queues it into the checkpoint
+    // manager.
+    bool queueNewItem(const std::string& key);
+
+    EPStats global_stats;
+    CheckpointConfig checkpoint_config;
+    Configuration config;
+    std::shared_ptr<Callback<uint16_t> > callback;
+    std::unique_ptr<V> vbucket;
+    std::unique_ptr<CheckpointManager> manager;
+};
