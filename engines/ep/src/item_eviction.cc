@@ -19,45 +19,32 @@
 #include "item.h"
 
 #include <gsl/gsl>
-#include <limits>
 
-#include <hdr_histogram.h>
-
-ItemEviction::ItemEviction() : requiredToUpdateInterval(learningPopulation) {
-    struct hdr_histogram* hist;
-    hdr_init(minFreqValue,
-             maxFreqValue,
-             3, // Number of significant figures
-             &hist); // Pointer to initialise
-    freqHistogram.reset(hist);
+ItemEviction::ItemEviction() {
 }
 
 void ItemEviction::addValueToFreqHistogram(uint8_t v) {
-    //  A hdr_histogram cannot store 0.  Therefore we add one so the
-    // range moves from 0 -> 255 to 1 -> 256.
-    int64_t vBiased = v + 1;
-    hdr_record_value(freqHistogram.get(), vBiased);
+    freqHistogram.addValue(v);
 }
 
 uint64_t ItemEviction::getFreqHistogramValueCount() const {
-    return freqHistogram->total_count;
+    return freqHistogram.getValueCount();
 }
 
 void ItemEviction::reset() {
-    hdr_reset(freqHistogram.get());
+    freqHistogram.reset();
+    requiredToUpdateInterval = 1;
 }
 
 uint16_t ItemEviction::getFreqThreshold(double percentage) const {
-    // We added one to the input value (see addValueToFreqHistogram).
-    // Therefore need to minus one before returning value from the histogram.
     uint16_t freq = gsl::narrow<uint16_t>(
-            hdr_value_at_percentile(freqHistogram.get(), percentage));
-    return (freq - 1);
+            freqHistogram.getValueAtPercentile(percentage));
+    return freq;
 }
 
-uint8_t ItemEviction::convertFreqCountToNRUValue(uint8_t statCounter) {
+uint8_t ItemEviction::convertFreqCountToNRUValue(uint8_t probCounter) {
     /*
-     * The statstical counter has a range form 0 to 255, however the
+     * The probabilistic counter has a range form 0 to 255, however the
      * increments are not linear - it gets more difficult to increment the
      * counter as its increases value.  Therefore incrementing from 0 to 1 is
      * much easier than incrementing from 254 to 255.
@@ -67,11 +54,11 @@ uint8_t ItemEviction::convertFreqCountToNRUValue(uint8_t statCounter) {
      * in the 4 NRU states.  Therefore we map as follows:
      * 0-3 => 3 (coldest), 4-31 => 2, 32->63 => 1, 64->255 => 0 (hottest),
      */
-    if (statCounter >= 64) {
+    if (probCounter >= 64) {
         return MIN_NRU_VALUE; /* 0 - the hottest */
-    } else if (statCounter >= 32) {
+    } else if (probCounter >= 32) {
         return 1;
-    } else if (statCounter >= 4) {
+    } else if (probCounter >= 4) {
         return INITIAL_NRU_VALUE; /* 2 */
     }
     return MAX_NRU_VALUE; /* 3 - the coldest */
