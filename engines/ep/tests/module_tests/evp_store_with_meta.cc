@@ -515,6 +515,11 @@ TEST_P(AllWithMetaTest, invalid_extlen) {
 // Test to verify that a set with meta will store the data
 // as uncompressed in the hash table
 TEST_F(WithMetaTest, storeUncompressedInOffMode) {
+
+    // Return if the bucket compression mode is not 'off'
+    if (engine->getCompressionMode() != BucketCompressionMode::Off) {
+         return;
+    }
     std::string valueData{R"({"aaaaaaaaa":10000000000})"};
     auto item = makeCompressibleItem(vbid, makeStoredDocKey("key"), valueData,
                                      PROTOCOL_BINARY_RAW_BYTES, true);

@@ -1889,7 +1889,7 @@ TEST_F(WarmupTest, fetchDocInDifferentCompressionModes) {
     store_item(vbid, makeStoredDocKey("key1"), valueData);
     flush_vbucket_to_disk(vbid);
 
-    resetEngineAndWarmup();
+    resetEngineAndWarmup("compression_mode=off");
     auto item1 = store->get(makeStoredDocKey("key1"), vbid, nullptr, {});
     ASSERT_EQ(ENGINE_SUCCESS, item1.getStatus());
     auto info1 = engine->getItemInfo(*item1.item);
