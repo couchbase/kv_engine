@@ -123,7 +123,8 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,
     pendingSetPriority = true;
     pendingEnableExtMetaData = true;
     pendingEnableValueCompression = config.isDcpValueCompressionEnabled();
-    pendingSupportCursorDropping = true;
+    // MB-29369: Don't request cursor dropping.
+    pendingSupportCursorDropping = false;
 
     ExTask task = new Processor(&engine, this, 1);
     processorTaskId = ExecutorPool::get()->schedule(task, NONIO_TASK_IDX);

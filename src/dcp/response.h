@@ -35,6 +35,7 @@ enum dcp_event_t {
     DCP_ADD_STREAM
 };
 
+std::string to_string(dcp_event_t event);
 
 enum dcp_marker_flag_t {
     MARKER_FLAG_MEMORY = 0x01,
@@ -59,7 +60,7 @@ public:
         return opaque_;
     }
 
-    dcp_event_t getEvent() {
+    dcp_event_t getEvent() const {
         return event_;
     }
 
@@ -94,6 +95,8 @@ private:
     uint32_t opaque_;
     dcp_event_t event_;
 };
+
+std::ostream& operator<<(std::ostream& os, const DcpResponse& r);
 
 class StreamRequest : public DcpResponse {
 public:

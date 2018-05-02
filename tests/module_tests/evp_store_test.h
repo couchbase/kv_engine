@@ -49,6 +49,11 @@ public:
 
     void setEPStore(EventuallyPersistentStore* store);
 
+    /// Constructs a SynchronousEPEngine instance, along with the necessary
+    /// sub-components.
+    static std::unique_ptr<SynchronousEPEngine> build(
+            const std::string& config);
+
     /* Allow us to call normally protected methods */
 
     ENGINE_ERROR_CODE public_doTapVbTakeoverStats(const void *cookie,

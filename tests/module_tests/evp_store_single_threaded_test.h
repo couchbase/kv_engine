@@ -63,7 +63,7 @@ protected:
     }
 
     void TearDown() {
-        shutdownAndPurgeTasks();
+        shutdownAndPurgeTasks(engine.get());
         EventuallyPersistentStoreTest::TearDown();
     }
 
@@ -83,10 +83,11 @@ protected:
     }
 
     /*
-     * Set the stats isShutdown and attempt to drive all tasks to cancel
+     * Set the stats isShutdown and attempt to drive all tasks to cancel for
+     * the specified engine.
      */
-    void shutdownAndPurgeTasks() {
-        engine->getEpStats().isShutdown = true;
+    void shutdownAndPurgeTasks(EventuallyPersistentEngine* ep) {
+        ep->getEpStats().isShutdown = true;
         task_executor->cancelAll();
 
         for (task_type_t t :
@@ -102,8 +103,9 @@ protected:
                 }
             };
             runTasks(*task_executor->getLpTaskQ()[t]);
-            task_executor->stopTaskGroup(engine->getTaskable().getGID(), t,
-                                         engine->getEpStats().forceShutdown);
+            task_executor->stopTaskGroup(ep->getTaskable().getGID(),
+                                         t,
+                                         ep->getEpStats().forceShutdown);
         }
     }
 

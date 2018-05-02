@@ -81,6 +81,27 @@ void SynchronousEPEngine::setEPStore(EventuallyPersistentStore* store) {
     epstore = store;
 }
 
+std::unique_ptr<SynchronousEPEngine> SynchronousEPEngine::build(
+        const std::string& config) {
+    std::unique_ptr<SynchronousEPEngine> engine(
+            new SynchronousEPEngine(config));
+
+    // switch current thread to this new engine, so all sub-created objects
+    // are accounted in it's mem_used.
+    ObjectRegistry::onSwitchThread(engine.get());
+
+    engine->setEPStore(new MockEPStore(*engine));
+
+    // Ensure that EPEngine is told about necessary server callbacks
+    // (client disconnect, bucket delete).
+    engine->public_initializeEngineCallbacks();
+
+    // Swtich current thread off this engine.
+    ObjectRegistry::onSwitchThread(nullptr);
+
+    return engine;
+}
+
 MockEPStore::MockEPStore(EventuallyPersistentEngine &theEngine)
     : EventuallyPersistentStore(theEngine) {
     // Perform a limited set of setup (normally done by EPStore::initialize) -
@@ -114,6 +135,9 @@ void EventuallyPersistentStoreTest::SetUp() {
     // from a previous run.
     CouchbaseDirectoryUtilities::rmrf(test_dbname);
 
+    // Need to initialize ep_real_time and friends.
+    initialize_time_functions(get_mock_server_api()->core);
+
     // Add dbname to config string.
     std::string config = config_string;
     if (config.size() > 0) {
@@ -121,24 +145,16 @@ void EventuallyPersistentStoreTest::SetUp() {
     }
     config += "dbname=" + std::string(test_dbname);
 
-    engine.reset(new SynchronousEPEngine(config));
-    ObjectRegistry::onSwitchThread(engine.get());
-
-    store = new MockEPStore(*engine);
-    engine->setEPStore(store);
-
-    // Ensure that EPEngine is hold about necessary server callbacks
-    // (client disconnect, bucket delete).
-    engine->public_initializeEngineCallbacks();
-
-    // Need to initialize ep_real_time and friends.
-    initialize_time_functions(get_mock_server_api()->core);
+    engine = SynchronousEPEngine::build(config);
+    store = reinterpret_cast<MockEPStore*>(engine->getEpStore());
 
     cookie = create_mock_cookie();
 }
 
 void EventuallyPersistentStoreTest::TearDown() {
-    destroy_mock_cookie(cookie);
+    if (cookie) {
+        destroy_mock_cookie(cookie);
+    }
     destroy_mock_event_callbacks();
     engine->getDcpConnMap().manageConnections();
     engine.reset();
