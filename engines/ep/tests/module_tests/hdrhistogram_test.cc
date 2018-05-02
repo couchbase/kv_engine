@@ -17,44 +17,75 @@
 
 #include "config.h"
 
-#include "hdr_histogram.h"
+#include "hdrhistogram.h"
 
 #include <gtest/gtest.h>
 #include <cmath>
 #include <memory>
+#include <utility>
 
 /*
- * Unit tests for the HdrHistogram_c library
+ * Unit tests for the HdrHistogram
  */
 
-// Custom deleter for struct hdr_histogram.
-struct Deleter {
-    void operator()(struct hdr_histogram* val) {
-        free(val);
+// Test can add minimum value (0)
+TEST(HdrHistogramTest, addMin) {
+    HdrHistogram histogram{0, 255, 3};
+    histogram.addValue(0);
+    EXPECT_EQ(1, histogram.getValueCount());
+    EXPECT_EQ(0, histogram.getValueAtPercentile(100.0));
+}
+
+// Test can add maximum value (255)
+TEST(HdrHistogramTest, addMax) {
+    HdrHistogram histogram{0, 255, 3};
+    histogram.addValue(255);
+    EXPECT_EQ(1, histogram.getValueCount());
+    EXPECT_EQ(255, histogram.getValueAtPercentile(100.0));
+}
+
+// Test the bias of +1 used by the underlying hdr_histogram data structure
+// does not affect the overall behaviour.
+TEST(HdrHistogramTest, biasTest) {
+    HdrHistogram histogram{0, 255, 3};
+
+    for (int ii = 0; ii < 256; ii++) {
+        histogram.addValue(ii);
     }
-};
 
-using hdrHistogramUniquePtr = std::unique_ptr<struct hdr_histogram, Deleter>;
+    EXPECT_EQ(0, histogram.getValueAtPercentile(0.1));
+    EXPECT_EQ(2, histogram.getValueAtPercentile(1.0));
+    EXPECT_EQ(127, histogram.getValueAtPercentile(50.0));
+    EXPECT_EQ(255, histogram.getValueAtPercentile(100.0));
+}
 
-TEST(HdrHistogramTest, functionTest) {
-    struct hdr_histogram* hist;
-    hdrHistogramUniquePtr histogram;
+// Test the iterator
+TEST(HdrHistogramTest, iteratorTest) {
+    HdrHistogram histogram{0, 255, 3};
 
-    // Initialise the histogram
-    hdr_init(1, // Minimum value
-             INT64_C(3600000000), // Maximum value
-             3, // Number of significant figures
-             &hist); // Pointer to initialise
-
-    histogram.reset(std::move(hist));
-
-    for (int ii = 10; ii <= 100; ii += 10) {
-        hdr_record_values(histogram.get(), ii, 1000);
+    for (int ii = 0; ii < 256; ii++) {
+        histogram.addValue(ii);
     }
 
-    EXPECT_EQ(20, hdr_value_at_percentile(histogram.get(), 11.0));
-    EXPECT_EQ(55, hdr_mean(histogram.get()));
-    EXPECT_EQ(10, hdr_min(histogram.get()));
-    EXPECT_EQ(100, hdr_max(histogram.get()));
-    EXPECT_EQ(29, std::ceil(hdr_stddev(histogram.get())));
+    // Need to create the iterator after we have added the data
+    HdrHistogram::Iterator iter{
+            histogram.makeLinearIterator(/* valueUnitsPerBucket */ 1)};
+    uint64_t valueCount = 0;
+    while (auto result = histogram.getNextValueAndCount(iter)) {
+        EXPECT_TRUE(valueCount == result->first);
+        ++valueCount;
+    }
+}
+
+// Test the addValueAndCount method
+TEST(HdrHistogramTest, addValueAndCountTest) {
+    HdrHistogram histogram{0, 255, 3};
+
+    histogram.addValueAndCount(0, 100);
+    // Need to create the iterator after we have added the data
+    HdrHistogram::Iterator iter{histogram.makeLinearIterator(1)};
+    while (auto result = histogram.getNextValueAndCount(iter)) {
+        EXPECT_EQ(0, result->first);
+        EXPECT_EQ(100, result->second);
+    }
 }

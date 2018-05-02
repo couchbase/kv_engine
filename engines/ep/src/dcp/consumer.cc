@@ -543,6 +543,16 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
                                   revSeqno));
         item->setDeleted();
 
+        // MB-29040: Producer may send deleted doc with value that still has
+        // the user xattrs and the body. Fix up that mistake by running the
+        // expiry hook which will correctly process the document
+        if (mcbp::datatype::is_xattr(datatype) && value.size()) {
+            auto vb = engine_.getVBucket(vbucket);
+            if (vb) {
+                engine_.getKVBucket()->runPreExpiryHook(*vb, *item);
+            }
+        }
+
         std::unique_ptr<ExtendedMetaData> emd;
         if (meta.size() > 0) {
             emd = std::make_unique<ExtendedMetaData>(meta.data(), meta.size());

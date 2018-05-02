@@ -383,24 +383,38 @@ static protocol_binary_response_status dcp_mutation_validator(const Cookie& cook
     return verify_common_dcp_restrictions(cookie);
 }
 
+/// @return true if the datatype is valid for a deletion
+static bool valid_dcp_delete_datatype(protocol_binary_datatype_t datatype) {
+    // MB-29040: Allowing xattr + JSON. A bug in the producer means
+    // it may send XATTR|JSON (with snappy possible). These are now allowed
+    // so rebalance won't be failed and the consumer will sanitise the faulty
+    // documents.
+    std::array<const protocol_binary_datatype_t, 5> valid = {
+            {PROTOCOL_BINARY_RAW_BYTES,
+             PROTOCOL_BINARY_DATATYPE_XATTR,
+             PROTOCOL_BINARY_DATATYPE_XATTR | PROTOCOL_BINARY_DATATYPE_SNAPPY,
+             PROTOCOL_BINARY_DATATYPE_XATTR | PROTOCOL_BINARY_DATATYPE_JSON,
+             PROTOCOL_BINARY_DATATYPE_XATTR | PROTOCOL_BINARY_DATATYPE_SNAPPY |
+                     PROTOCOL_BINARY_DATATYPE_JSON}};
+    for (auto d : valid) {
+        if (datatype == d) {
+            return true;
+        }
+    }
+    return false;
+}
+
 static protocol_binary_response_status dcp_deletion_validator(const Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_dcp_deletion*>(
             cookie.getPacketAsVoidPtr());
-    const auto datatype = req->message.header.request.datatype;
 
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.keylen == 0) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    // Check datatype - only allow raw, or iff XATTRs are enabled XATTR (with or
-    // without snappy)
-    if (!(mcbp::datatype::is_raw(datatype) ||
-          ((datatype == PROTOCOL_BINARY_DATATYPE_XATTR ||
-            datatype == (PROTOCOL_BINARY_DATATYPE_XATTR |
-                         PROTOCOL_BINARY_DATATYPE_SNAPPY)) &&
-           may_accept_xattr(cookie)))) {
+    if (!valid_dcp_delete_datatype(req->message.header.request.datatype)) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 

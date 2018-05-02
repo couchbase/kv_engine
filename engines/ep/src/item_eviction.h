@@ -17,12 +17,10 @@
 
 #pragma once
 
-#include <atomic>
+#include "hdrhistogram.h"
+
 #include <cstdlib> // Required due to the use of free
 #include <limits>
-#include <memory>
-
-#include <hdr_histogram.h>
 
 /**
  * A container for data structures that are used in the algorithm for
@@ -73,7 +71,8 @@ public:
     // Returns the number of values added to the frequency histogram.
     uint64_t getFreqHistogramValueCount() const;
 
-    // Clears the frequency histogram.
+    // Clears the frequency histogram and sets the requiredToUpdateInterval
+    // back to 1.
     void reset();
 
     // StatCounter: Returns the value held in the frequency histogram at the
@@ -111,22 +110,26 @@ public:
     static const uint64_t learningPopulation = 100;
 
 private:
-    // unique_ptr to a hdr_histogram structure, used to record a
-    // histogram of key reference frequencies.  For example, if two keys
-    // are referenced 10 times, whilst three keys are referenced 20 times,
-    // the histogram would contain 2 at the 10 entry and 3 at the 20
-    // entry.
-    HdrHistogramUniquePtr freqHistogram;
-
     //  The minimum value that can be added to the frequency histogram
-    const int64_t minFreqValue = 1; // hdr_histogram cannot take 0
+    static const uint64_t minFreqValue = 0;
+
     // The maximum value that can be added to the frequency histogram
-    // Because we cannot store 0 we have to offset by 1 so we have a maximum
-    // of 256, instead of 255.
-    const int64_t maxFreqValue = std::numeric_limits<uint8_t>::max() + 1;
+    static const uint64_t maxFreqValue = std::numeric_limits<uint8_t>::max();
+
+    // The level of precision for the histogram.  The value must be between 1
+    // and 5 (inclusive).
+    static const int significantFigures = 3;
+
+    // The value units per bucket that we use when creating the iterator
+    // that traverses over the frequency histogram in the copyToHistogram
+    // method.
+    static const int valueUnitsPerBucket = 1;
+
+    // The execution frequency histogram
+    HdrHistogram freqHistogram{minFreqValue, maxFreqValue, significantFigures};
 
     // StatCounter: The number of frequencies that need to be added to the
     // frequency histogram before it is necessary to update the frequency
     // threshold.
-    uint64_t requiredToUpdateInterval;
+    uint64_t requiredToUpdateInterval{1};
 };

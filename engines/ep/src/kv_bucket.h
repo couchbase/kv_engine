@@ -572,6 +572,18 @@ public:
                                              VBucket::id_type vbucket,
                                              const char** msg);
 
+    /**
+     * Run the server-api pre-expiry hook against the Item - the function
+     * may (if the pre-expiry hook dictates) mutate the Item value so that
+     * xattrs and the value are removed. The method doesn't care for the Item
+     * state (i.e. isDeleted) and the callers should be passing expired/deleted
+     * items only.
+     *
+     * @param vb The vbucket it belongs to
+     * @param it A reference to the Item to run the hook against and possibly
+     *        mutate.
+     */
+    void runPreExpiryHook(VBucket& vb, Item& it);
     void deleteExpiredItem(Item& it, time_t startTime, ExpireBy source);
     void deleteExpiredItems(std::list<Item>&, ExpireBy);
 
