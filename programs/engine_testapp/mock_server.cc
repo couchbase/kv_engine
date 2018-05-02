@@ -497,6 +497,9 @@ const void *create_mock_cookie(void) {
 }
 
 void destroy_mock_cookie(const void *cookie) {
+    if (cookie == nullptr) {
+        return;
+    }
     cb_mutex_enter(&(ref_mutex));
     struct mock_connstruct *c = (struct mock_connstruct *)cookie;
     disconnect_mock_connection(c);

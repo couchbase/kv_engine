@@ -152,7 +152,8 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,
     pendingSetPriority = true;
     pendingEnableExtMetaData = true;
     pendingEnableValueCompression = config.isDcpValueCompressionEnabled();
-    pendingSupportCursorDropping = true;
+    // MB-29369: Don't request cursor dropping.
+    pendingSupportCursorDropping = false;
 
     ExTask task = std::make_shared<DcpConsumerTask>(&engine, this, 1);
     processorTaskId = ExecutorPool::get()->schedule(task);
