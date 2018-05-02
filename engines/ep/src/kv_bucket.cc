@@ -531,6 +531,22 @@ void KVBucket::getValue(Item& it) {
     }
 }
 
+void KVBucket::runPreExpiryHook(VBucket& vb, Item& it) {
+    it.decompressValue(); // A no-op for already decompressed items
+    auto info =
+            it.toItemInfo(vb.failovers->getLatestUUID(), vb.getHLCEpochSeqno());
+    if (engine.getServerApi()->document->pre_expiry(info)) {
+        // The payload is modified and contains data we should use
+        it.replaceValue(Blob::New(static_cast<char*>(info.value[0].iov_base),
+                                  info.value[0].iov_len));
+        it.setDataType(info.datatype);
+    } else {
+        // Make the document empty and raw
+        it.replaceValue(Blob::New(0));
+        it.setDataType(PROTOCOL_BINARY_RAW_BYTES);
+    }
+}
+
 void KVBucket::deleteExpiredItem(Item& it,
                                  time_t startTime,
                                  ExpireBy source) {
@@ -546,19 +562,7 @@ void KVBucket::deleteExpiredItem(Item& it,
         // Process positive seqnos (ignoring special *temp* items) and only
         // those items with a value
         if (it.getBySeqno() >= 0 && it.getNBytes()) {
-            auto info = it.toItemInfo(vb->failovers->getLatestUUID(),
-                                      vb->getHLCEpochSeqno());
-            if (engine.getServerApi()->document->pre_expiry(info)) {
-                // The payload is modified and contains data we should use
-                it.replaceValue(
-                        Blob::New(static_cast<char*>(info.value[0].iov_base),
-                                  info.value[0].iov_len));
-                it.setDataType(info.datatype);
-            } else {
-                // Make the document empty and raw
-                it.replaceValue(Blob::New(0));
-                it.setDataType(PROTOCOL_BINARY_RAW_BYTES);
-            }
+            runPreExpiryHook(*vb, it);
         }
 
         // Obtain reader access to the VB state change lock so that
