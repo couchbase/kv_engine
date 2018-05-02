@@ -74,24 +74,17 @@ void KVBucketTest::initialise(std::string config) {
     }
     config += "dbname=" + std::string(test_dbname);
 
-    engine.reset(new SynchronousEPEngine(config));
-    ObjectRegistry::onSwitchThread(engine.get());
+    // Need to initialize ep_real_time and friends.
+    initialize_time_functions(get_mock_server_api()->core);
 
-    engine->setKVBucket(
-            engine->public_makeMockBucket(engine->getConfiguration()));
+    engine = SynchronousEPEngine::build(config);
+
     store = engine->getKVBucket();
 
     store->chkTask = std::make_shared<ClosedUnrefCheckpointRemoverTask>(
             engine.get(),
             engine->getEpStats(),
             engine->getConfiguration().getChkRemoverStime());
-
-    // Ensure that EPEngine is hold about necessary server callbacks
-    // (client disconnect, bucket delete).
-    engine->public_initializeEngineCallbacks();
-
-    // Need to initialize ep_real_time and friends.
-    initialize_time_functions(get_mock_server_api()->core);
 
     cookie = create_mock_cookie();
 }

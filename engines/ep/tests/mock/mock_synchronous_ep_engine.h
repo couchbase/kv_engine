@@ -41,6 +41,11 @@ public:
     void setKVBucket(std::unique_ptr<KVBucket> store);
     void setDcpConnMap(std::unique_ptr<DcpConnMap> dcpConnMap);
 
+    /// Constructs a SynchronousEPEngine instance, along with the necessary
+    /// sub-components.
+    static std::unique_ptr<SynchronousEPEngine> build(
+            const std::string& config);
+
     /* Allow us to call normally protected methods */
 
     ENGINE_ERROR_CODE public_doDcpVbTakeoverStats(const void* cookie,

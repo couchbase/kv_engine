@@ -286,6 +286,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                    tests/module_tests/collections/vbucket_manifest_entry_test.cc
                    tests/module_tests/configuration_test.cc
                    tests/module_tests/defragmenter_test.cc
+                   tests/module_tests/dcp_reflection_test.cc
                    tests/module_tests/dcp_test.cc
                    tests/module_tests/ep_unit_tests_main.cc
                    tests/module_tests/ephemeral_bucket_test.cc
