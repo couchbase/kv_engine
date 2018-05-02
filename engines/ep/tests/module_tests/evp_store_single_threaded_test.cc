@@ -73,7 +73,7 @@ void SingleThreadedKVBucketTest::SetUp() {
 }
 
 void SingleThreadedKVBucketTest::TearDown() {
-    shutdownAndPurgeTasks();
+    shutdownAndPurgeTasks(engine.get());
     KVBucketTest::TearDown();
 }
 
@@ -92,8 +92,8 @@ void SingleThreadedKVBucketTest::setVBucketStateAndRunPersistTask(uint16_t vbid,
     }
 }
 
-void SingleThreadedKVBucketTest::shutdownAndPurgeTasks() {
-    engine->getEpStats().isShutdown = true;
+void SingleThreadedKVBucketTest::shutdownAndPurgeTasks(EventuallyPersistentEngine* ep) {
+    ep->getEpStats().isShutdown = true;
     task_executor->cancelAndClearAll();
 
     for (task_type_t t :
@@ -107,8 +107,8 @@ void SingleThreadedKVBucketTest::shutdownAndPurgeTasks() {
             }
         };
         runTasks(*task_executor->getLpTaskQ()[t]);
-        task_executor->stopTaskGroup(engine->getTaskable().getGID(), t,
-                                     engine->getEpStats().forceShutdown);
+        task_executor->stopTaskGroup(ep->getTaskable().getGID(), t,
+                                     ep->getEpStats().forceShutdown);
     }
 }
 
@@ -1494,7 +1494,7 @@ public:
      * Finally, run warmup.
      */
     void resetEngineAndEnableWarmup() {
-        shutdownAndPurgeTasks();
+        shutdownAndPurgeTasks(engine.get());
         std::string config = config_string;
 
         // check if warmup=false needs replacing with warmup=true

@@ -76,7 +76,7 @@ public:
         return opaque_;
     }
 
-    Event getEvent() {
+    Event getEvent() const {
         return event_;
     }
 
@@ -141,6 +141,8 @@ private:
     uint32_t opaque_;
     Event event_;
 };
+
+std::ostream& operator<<(std::ostream& os, const DcpResponse& r);
 
 class StreamRequest : public DcpResponse {
 public:

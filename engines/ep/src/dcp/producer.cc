@@ -192,15 +192,10 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
     enableExtMetaData = false;
     enableValueCompression = false;
 
-    // Cursor dropping is disabled for replication connections by default,
-    // but will be enabled through a control message to support backward
-    // compatibility. For all other type of DCP connections, cursor dropping
-    // will be enabled by default.
-    if (name.find("replication") < name.length()) {
-        supportsCursorDropping = false;
-    } else {
-        supportsCursorDropping = true;
-    }
+    // MB-29369: Cursor dropping is currently disabled for all
+    // connections due to race condition which can result in skipping
+    // mutations.
+    supportsCursorDropping = false;
 
     backfillMgr.reset(new BackfillManager(engine_));
 
@@ -724,11 +719,8 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque, const void* key,
         }
         return ENGINE_SUCCESS;
     } else if (strncmp(param, "supports_cursor_dropping", nkey) == 0) {
-        if (valueStr == "true") {
-            supportsCursorDropping = true;
-        } else {
-            supportsCursorDropping = false;
-        }
+        // MB-29369: Cursor dropping currently disabled. Ignore requests
+        // to enable.
         return ENGINE_SUCCESS;
     } else if (strncmp(param, "set_noop_interval", nkey) == 0) {
         uint32_t noopInterval;

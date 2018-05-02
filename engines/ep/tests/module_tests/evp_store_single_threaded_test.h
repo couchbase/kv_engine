@@ -61,9 +61,10 @@ protected:
                                           vbucket_state_t newState);
 
     /*
-     * Set the stats isShutdown and attempt to drive all tasks to cancel
+     * Set the stats isShutdown and attempt to drive all tasks to cancel for
+     * the specified engine.
      */
-    void shutdownAndPurgeTasks();
+    void shutdownAndPurgeTasks(EventuallyPersistentEngine* ep);
 
     void cancelAndPurgeTasks();
 
