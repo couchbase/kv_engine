@@ -354,9 +354,7 @@ bool conn_execute(Connection& connection) {
     auto& cookie = connection.getCookieObject();
     cookie.setEwouldblock(false);
 
-    mcbp_execute_packet(cookie);
-
-    if (cookie.isEwouldblock()) {
+    if (!cookie.execute()) {
         connection.unregisterEvent();
         return false;
     }

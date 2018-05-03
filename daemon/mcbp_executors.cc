@@ -711,8 +711,7 @@ void initialize_mbcp_lookup_map() {
     handlers[PROTOCOL_BINARY_CMD_ADJUST_TIMEOFDAY] = adjust_timeofday_executor;
 }
 
-static void execute_request_packet(Cookie& cookie,
-                                   const cb::mcbp::Request& request) {
+void execute_request_packet(Cookie& cookie, const cb::mcbp::Request& request) {
     auto* c = &cookie.getConnection();
 
     static McbpPrivilegeChains privilegeChains;
@@ -806,8 +805,8 @@ static void execute_request_packet(Cookie& cookie,
  * @param cookie the current command context
  * @param response the actual response packet
  */
-static void execute_response_packet(Cookie& cookie,
-                                    const cb::mcbp::Response& response) {
+void execute_response_packet(Cookie& cookie,
+                             const cb::mcbp::Response& response) {
     auto handler = response_handlers[response.opcode];
     if (handler) {
         handler(cookie);
@@ -853,17 +852,6 @@ static cb::mcbp::Status validate_packet_execusion_constraints(Cookie& cookie) {
     }
 
     return cb::mcbp::Status::Success;
-}
-
-void mcbp_execute_packet(Cookie& cookie) {
-    const auto& header = cookie.getHeader();
-    if (header.isResponse()) {
-        execute_response_packet(cookie, header.getResponse());
-    } else {
-        // We've already verified that the packet is a legal packet
-        // so it must be a request
-        execute_request_packet(cookie, header.getRequest());
-    }
 }
 
 void try_read_mcbp_command(Connection& c) {

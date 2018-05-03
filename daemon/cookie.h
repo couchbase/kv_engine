@@ -164,6 +164,20 @@ public:
     DynamicBuffer& getDynamicBuffer() {
         return dynamicBuffer;
     }
+
+    /**
+     * Execute the current packet
+     *
+     * Given that the method calls down into the engine it may throw a wide
+     * range of exceptions, but they should all be based off std::exception
+     * which is caught by the state machinery causing the connection to be
+     * closed
+     *
+     * @return true if the command executed completely
+     *         false if the command blocked (ewouldblock)
+     */
+    bool execute();
+
     /**
      * The cookie is created for every command we want to execute, but in
      * some cases we don't want to (or can't) get the entire packet content

@@ -19,6 +19,7 @@
 #include "buckets.h"
 #include "connection.h"
 #include "mcbp.h"
+#include "mcbp_executors.h"
 
 #include <mcbp/mcbp.h>
 #include <mcbp/protocol/framebuilder.h>
@@ -74,6 +75,21 @@ const std::string& Cookie::getErrorJson() {
     cJSON_AddItemToObject(root.get(), "error", error.release());
     json_message = to_string(root, false);
     return json_message;
+}
+
+bool Cookie::execute() {
+    // Reset ewouldblock state!
+    setEwouldblock(false);
+    const auto& header = getHeader();
+    if (header.isResponse()) {
+        execute_response_packet(*this, header.getResponse());
+    } else {
+        // We've already verified that the packet is a legal packet
+        // so it must be a request
+        execute_request_packet(*this, header.getRequest());
+    }
+
+    return !isEwouldblock();
 }
 
 void Cookie::setPacket(PacketContent content,
