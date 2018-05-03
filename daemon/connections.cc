@@ -209,35 +209,6 @@ Connection* conn_new(const SOCKET sfd, in_port_t parent_port,
     return c;
 }
 
-void conn_close(Connection& connection) {
-    if (!connection.isSocketClosed()) {
-        throw std::logic_error("conn_cleanup: socketDescriptor must be closed");
-    }
-    if (connection.getState() != McbpStateMachine::State::immediate_close) {
-        throw std::logic_error("conn_cleanup: Connection:state (which is " +
-                               std::string(connection.getStateName()) +
-                               ") must be conn_immediate_close");
-    }
-
-    auto thread = connection.getThread();
-    if (thread == nullptr) {
-        throw std::logic_error("conn_close: unable to obtain non-NULL thread from connection");
-    }
-    // remove from pending-io list
-    thread->pending_io.erase(&connection);
-
-    connection.read->clear();
-    connection.write->clear();
-    /* Return any buffers back to the thread; before we disassociate the
-     * connection from the thread. Note we clear DCP status first, so
-     * conn_return_buffers() will actually free the buffers.
-     */
-    connection.setDCP(false);
-    conn_return_buffers(&connection);
-
-    connection.setState(McbpStateMachine::State::destroyed);
-}
-
 ListeningPort *get_listening_port_instance(const in_port_t port) {
     for (auto &instance : stats.listening_ports) {
         if (instance.port == port) {

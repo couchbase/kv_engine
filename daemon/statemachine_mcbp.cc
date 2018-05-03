@@ -519,7 +519,25 @@ bool conn_immediate_close(Connection& connection) {
     connection.propagateDisconnect();
 
     disassociate_bucket(connection);
-    conn_close(connection);
+
+    // Do the final cleanup of the connection:
+    auto thread = connection.getThread();
+    if (thread == nullptr) {
+        // There isn't any point of throwing an exception here, as it would
+        // just put us back in the "closing path" of the connection.
+        // Instead just log it
+        LOG_WARNING(
+                "conn_immediate_close: unable to obtain non-NULL thread from "
+                "connection");
+    } else {
+        // remove from pending-io list
+        thread->pending_io.erase(&connection);
+    }
+
+    // Set the connection to the sentinal state destroyed and return
+    // false to break out of the event loop (and have the the framework
+    // delete the connection object).
+    connection.setState(McbpStateMachine::State::destroyed);
 
     return false;
 }

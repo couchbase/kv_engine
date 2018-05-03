@@ -71,13 +71,6 @@ Connection* conn_new(const SOCKET sfd,
                      struct event_base* base,
                      LIBEVENT_THREAD* thread);
 
-/*
- * Closes a connection. Afterwards the connection is invalid (can no longer
- * be used), but it's memory is still allocated. See conn_destructor() to
- * actually free it's resources.
- */
-void conn_close(Connection& connection);
-
 /**
  * Return the TCP or domain socket listening_port structure that
  * has a given port number
