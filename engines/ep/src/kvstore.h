@@ -222,6 +222,7 @@ public:
                 size_t id,
                 int64_t start,
                 int64_t end,
+                uint64_t purgeSeqno,
                 DocumentFilter _docFilter,
                 ValueFilter _valFilter,
                 uint64_t _documentCount,
@@ -233,6 +234,7 @@ public:
     int64_t lastReadSeqno;
     const int64_t startSeqno;
     const int64_t maxSeqno;
+    const uint64_t purgeSeqno;
     const size_t scanId;
     const uint16_t vbid;
     const DocumentFilter docFilter;

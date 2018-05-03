@@ -1296,6 +1296,7 @@ ScanContext* CouchKVStore::initScanContext(
                                         scanId,
                                         startSeqno,
                                         info.last_sequence,
+                                        info.purge_seq,
                                         options,
                                         valOptions,
                                         count,

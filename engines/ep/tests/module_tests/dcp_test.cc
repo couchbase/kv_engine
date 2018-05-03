@@ -1146,7 +1146,6 @@ TEST_P(StreamTest, BackfillOnly) {
        updated correctly */
     EXPECT_EQ(numItems, stream->getNumBackfillItemsRemaining());
 
-
     destroy_dcp_stream();
     /* [TODO]: Expand the testcase to check if snapshot marker, all individual
                items are read correctly */
