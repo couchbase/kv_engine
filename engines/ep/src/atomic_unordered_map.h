@@ -42,6 +42,7 @@
  * Implements a relatively simple set of operations modeled on
  * std::unordered_map:
  *
+ *   - empty() returns true if the map is empty.
  *   - size() to return the number of elements in the map.
  *   - insert() to add an element
  *   - find() to search for an element
@@ -127,6 +128,11 @@ public:
     using mapped_type = typename base_map_type::mapped_type;
     using value_type = typename base_map_type::value_type;
     using size_type = typename base_map_type::size_type;
+
+    bool empty() const {
+        std::lock_guard<std::mutex> guard(this->mutex); // internally locked
+        return map.empty();
+    }
 
     size_type size() const {
         std::lock_guard<std::mutex> guard(this->mutex); // internally locked
