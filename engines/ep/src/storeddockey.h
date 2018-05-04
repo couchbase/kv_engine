@@ -274,7 +274,7 @@ protected:
         length = gsl::narrow_cast<uint8_t>(key.size());
         // Copy the data into bytes, which should be allocated into a larger
         // buffer.
-        std::memcpy(bytes, key.data(), key.size());
+        std::copy(key.data(), key.data() + key.size(), bytes);
     }
 
     /**
