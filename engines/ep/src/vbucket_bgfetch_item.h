@@ -36,7 +36,9 @@ public:
           cookie(c),
           initTime(init_time),
           metaDataOnly(meta_only) {
-        TRACE_BEGIN(cookie, cb::tracing::TraceCode::BG_WAIT, init_time);
+        if (cookie) {
+            TRACE_BEGIN(cookie, cb::tracing::TraceCode::BG_WAIT, init_time);
+        }
     }
 
     GetValue* value;
