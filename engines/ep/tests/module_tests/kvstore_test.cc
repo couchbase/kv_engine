@@ -1943,6 +1943,7 @@ TEST_P(KVStoreParamTest, TestPersistenceCallbacksForDel) {
     int delCount = 1;
     EXPECT_CALL(mpc, callback(_, delCount)).Times(0);
 
+    item.setDeleted();
     kvstore->del(item, mpc);
 
     // Expect that the DEL callback will be called once after `commit`
