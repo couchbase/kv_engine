@@ -68,6 +68,25 @@ void SynchronousEPEngine::setDcpConnMap(
     dcpConnMap_ = std::move(dcpConnMap);
 }
 
+std::unique_ptr<SynchronousEPEngine> SynchronousEPEngine::build(
+        const std::string& config) {
+    std::unique_ptr<SynchronousEPEngine> engine(
+            new SynchronousEPEngine(config));
+
+    // switch current thread to this new engine, so all sub-created objects
+    // are accounted in it's mem_used.
+    ObjectRegistry::onSwitchThread(engine.get());
+
+    engine->setKVBucket(
+            engine->public_makeMockBucket(engine->getConfiguration()));
+
+    // Ensure that EPEngine is told about necessary server callbacks
+    // (client disconnect, bucket delete).
+    engine->public_initializeEngineCallbacks();
+
+    return engine;
+}
+
 void SynchronousEPEngine::initializeConnmap() {
     dcpConnMap_->initialize();
 }

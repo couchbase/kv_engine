@@ -83,3 +83,9 @@ uint32_t MutationResponse::getMessageSize() const {
 
     return header + body;
 }
+
+std::ostream& operator<<(std::ostream& os, const DcpResponse& r) {
+    os << "DcpResponse[" << &r << "] with"
+       << " event:" << r.to_string();
+    return os;
+}

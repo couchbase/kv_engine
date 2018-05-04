@@ -2686,6 +2686,9 @@ static test_result test_dcp_agg_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
 static test_result test_dcp_cursor_dropping(ENGINE_HANDLE *h,
                                             ENGINE_HANDLE_V1 *h1) {
+    // MB-29369: Cursor dropping currently disabled
+    return SKIPPED;
+
     /* Initially write a few items */
     int num_items = 25;
     const int initialSnapshotSize = num_items;
@@ -2783,6 +2786,9 @@ static test_result test_dcp_cursor_dropping(ENGINE_HANDLE *h,
 
 static test_result test_dcp_cursor_dropping_backfill(ENGINE_HANDLE *h,
                                                      ENGINE_HANDLE_V1 *h1) {
+    // MB-29369: Cursor dropping currently disabled
+    return SKIPPED;
+
     /* Initially write a few items */
     int num_items = 50;
     const int initialSnapshotSize = num_items;
@@ -2979,10 +2985,13 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     cb_assert(dcp_last_key.compare("enable_ext_metadata") == 0);
     cb_assert(dcp_last_opaque != opaque);
 
+// MB-29369: Cursor dropping currently disabled.
+#if 0
     dcp_step(h, h1, cookie);
     cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
     cb_assert(dcp_last_key.compare("supports_cursor_dropping") == 0);
     cb_assert(dcp_last_opaque != opaque);
+#endif
 
     dcp_step(h, h1, cookie);
     cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);

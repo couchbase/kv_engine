@@ -52,7 +52,7 @@ ENGINE_ERROR_CODE FlowControl::handleFlowCtl(
     if (enabled) {
         ENGINE_ERROR_CODE ret;
         uint32_t ackable_bytes = freedBytes.load();
-        std::unique_lock<SpinLock> lh(bufferSizeLock);
+        std::unique_lock<std::mutex> lh(bufferSizeLock);
         if (pendingControl) {
             pendingControl = false;
             std::string buf_size(std::to_string(bufferSize));
@@ -109,13 +109,12 @@ void FlowControl::incrFreedBytes(uint32_t bytes)
 
 uint32_t FlowControl::getFlowControlBufSize(void)
 {
-    std::lock_guard<SpinLock> lh(bufferSizeLock);
     return bufferSize;
 }
 
 void FlowControl::setFlowControlBufSize(uint32_t newSize)
 {
-    std::lock_guard<SpinLock> lh(bufferSizeLock);
+    std::lock_guard<std::mutex> lh(bufferSizeLock);
     if (newSize != bufferSize) {
         bufferSize = newSize;
         pendingControl = true;
@@ -123,7 +122,7 @@ void FlowControl::setFlowControlBufSize(uint32_t newSize)
 }
 
 bool FlowControl::isBufferSufficientlyDrained() {
-    std::lock_guard<SpinLock> lh(bufferSizeLock);
+    std::lock_guard<std::mutex> lh(bufferSizeLock);
     return isBufferSufficientlyDrained_UNLOCKED(freedBytes.load());
 }
 

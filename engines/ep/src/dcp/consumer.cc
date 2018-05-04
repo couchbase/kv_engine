@@ -170,7 +170,8 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
     pendingSendNoopInterval = config.isDcpEnableNoop();
     pendingSetPriority = true;
     pendingEnableExtMetaData = true;
-    pendingSupportCursorDropping = true;
+    // MB-29369: Don't request cursor dropping.
+    pendingSupportCursorDropping = false;
     pendingSupportHifiMFU =
             (config.getHtEvictionPolicy() == "hifi_mfu");
 }

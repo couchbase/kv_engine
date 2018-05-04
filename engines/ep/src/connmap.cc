@@ -230,7 +230,7 @@ void ConnMap::addVBConnByVBId(std::shared_ptr<ConnHandler> conn, int16_t vbid) {
     }
 
     size_t lock_num = vbid % vbConnLockNum;
-    std::lock_guard<SpinLock> lh(vbConnLocks[lock_num]);
+    std::lock_guard<std::mutex> lh(vbConnLocks[lock_num]);
     vbConns[vbid].push_back(conn);
 }
 
@@ -247,6 +247,6 @@ void ConnMap::removeVBConnByVBId_UNLOCKED(const void* connCookie,
 
 void ConnMap::removeVBConnByVBId(const void* connCookie, int16_t vbid) {
     size_t lock_num = vbid % vbConnLockNum;
-    std::lock_guard<SpinLock> lh(vbConnLocks[lock_num]);
+    std::lock_guard<std::mutex> lh(vbConnLocks[lock_num]);
     removeVBConnByVBId_UNLOCKED(connCookie, vbid);
 }

@@ -75,7 +75,7 @@ private:
     Couchbase::RelaxedAtomic<uint32_t> bufferSize;
 
     /* Lock while updating buffersize and pendingControl */
-    SpinLock bufferSizeLock;
+    std::mutex bufferSizeLock;
 
     /* To keep track of when last buffer ack was sent */
     rel_time_t lastBufferAck;

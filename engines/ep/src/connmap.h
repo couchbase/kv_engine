@@ -104,7 +104,7 @@ protected:
             std::unordered_map<const void*, std::shared_ptr<ConnHandler>>;
     CookieToConnectionMap map_;
 
-    std::vector<SpinLock> vbConnLocks;
+    std::vector<std::mutex> vbConnLocks;
     std::vector<std::list<std::shared_ptr<ConnHandler>>> vbConns;
 
     /* Handle to the engine who owns us */
