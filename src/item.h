@@ -21,6 +21,7 @@
 #include "config.h"
 
 #include <memcached/engine.h>
+#include <platform/n_byte_integer.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -346,7 +347,7 @@ public:
     }
 
     uint64_t cas;
-    uint64_t revSeqno;
+    cb::uint48_t revSeqno;
     uint32_t flags;
     time_t exptime;
 };
