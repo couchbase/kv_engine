@@ -773,7 +773,7 @@ static bool operate_single_doc(SubdocCmdContext& context,
 
                 size_t offset = 0;
                 for (auto& loc : op->result.newdoc()) {
-                    std::memcpy(temp.get() + offset, loc.at, loc.length);
+                    std::copy(loc.at, loc.at + loc.length, temp.get() + offset);
                     offset += loc.length;
                 }
 

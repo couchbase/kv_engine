@@ -23,6 +23,9 @@
 #include <platform/compress.h>
 #include <platform/make_unique.h>
 
+#include "checkpoint.h"
+#include "vbucket.h"
+
 Item make_item(uint16_t vbid,
                const StoredDocKey& key,
                const std::string& value,
@@ -61,6 +64,19 @@ std::unique_ptr<Item> makeCompressibleItem(uint16_t vbid,
 
     return std::make_unique<Item>(
             key, /*flags*/ 0, /*exp*/ 0, v.c_str(), v.length(), itemDataType);
+}
+
+bool queueNewItem(VBucket& vbucket, const std::string& key) {
+    queued_item qi{new Item(makeStoredDocKey(key),
+                            vbucket.getId(),
+                            queue_op::mutation,
+                            /*revSeq*/ 0,
+                            /*bySeq*/ 0)};
+    return vbucket.checkpointManager->queueDirty(vbucket,
+                                                 qi,
+                                                 GenerateBySeqno::Yes,
+                                                 GenerateCas::Yes,
+                                                 /*preLinkDocCtx*/ nullptr);
 }
 
 std::chrono::microseconds decayingSleep(std::chrono::microseconds uSeconds) {

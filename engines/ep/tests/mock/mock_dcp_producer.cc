@@ -19,14 +19,15 @@
 
 #include "mock_stream.h"
 
-void MockDcpProducer::mockActiveStreamRequest(uint32_t flags,
-                                              uint32_t opaque,
-                                              VBucket& vb,
-                                              uint64_t start_seqno,
-                                              uint64_t end_seqno,
-                                              uint64_t vbucket_uuid,
-                                              uint64_t snap_start_seqno,
-                                              uint64_t snap_end_seqno) {
+std::shared_ptr<MockActiveStream> MockDcpProducer::mockActiveStreamRequest(
+        uint32_t flags,
+        uint32_t opaque,
+        VBucket& vb,
+        uint64_t start_seqno,
+        uint64_t end_seqno,
+        uint64_t vbucket_uuid,
+        uint64_t snap_start_seqno,
+        uint64_t snap_end_seqno) {
     auto stream = std::make_shared<MockActiveStream>(
             static_cast<EventuallyPersistentEngine*>(&engine_),
             std::static_pointer_cast<MockDcpProducer>(shared_from_this()),
@@ -45,4 +46,5 @@ void MockDcpProducer::mockActiveStreamRequest(uint32_t flags,
                 "failed to insert requested stream");
     }
     notifyStreamReady(vb.getId());
+    return stream;
 }

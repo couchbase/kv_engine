@@ -638,6 +638,10 @@ void RocksDBKVStore::reset(uint16_t vbucketId) {
 
 void RocksDBKVStore::del(const Item& item,
                          Callback<TransactionContext, int>& cb) {
+    if (!item.isDeleted()) {
+        throw std::invalid_argument(
+                "RocksDBKVStore::del item to delete is not marked as deleted.");
+    }
     if (!in_transaction) {
         throw std::logic_error(
                 "RocksDBKVStore::del: in_transaction must be true to perform a "

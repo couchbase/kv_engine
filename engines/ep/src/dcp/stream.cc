@@ -1075,10 +1075,20 @@ void ActiveStreamCheckpointProcessorTask::addStats(const std::string& name,
 }
 
 void ActiveStream::nextCheckpointItemTask() {
+    // MB-29369: Obtain stream mutex here
+    LockHolder lh(streamMutex);
+    nextCheckpointItemTask(lh);
+}
+
+void ActiveStream::nextCheckpointItemTask(const LockHolder& streamMutex) {
     VBucketPtr vbucket = engine->getVBucket(vb_);
     if (vbucket) {
-        auto items = getOutstandingItems(*vbucket);
-        processItems(items);
+        // MB-29369: only run the task's work if the stream is in an in-memory
+        // phase (of which takeover is a variant).
+        if (isInMemory() || isTakeoverSend()) {
+            auto items = getOutstandingItems(*vbucket);
+            processItems(items, streamMutex);
+        }
     } else {
         /* The entity deleting the vbucket must set stream to dead,
            calling setDead(END_STREAM_STATE) will cause deadlock because
@@ -1207,7 +1217,8 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
     }
 }
 
-void ActiveStream::processItems(std::vector<queued_item>& items) {
+void ActiveStream::processItems(std::vector<queued_item>& items,
+                                const LockHolder& streamMutex) {
     if (!items.empty()) {
         bool mark = false;
         if (items.front()->getOperation() == queue_op::checkpoint_start) {
@@ -1243,7 +1254,7 @@ void ActiveStream::processItems(std::vector<queued_item>& items) {
         if (mutations.empty()) {
             // If we only got checkpoint start or ends check to see if there are
             // any more snapshots before pausing the stream.
-            nextCheckpointItemTask();
+            nextCheckpointItemTask(streamMutex);
         } else {
             snapshot(mutations, mark);
         }
@@ -1264,19 +1275,6 @@ void ActiveStream::processItems(std::vector<queued_item>& items) {
 void ActiveStream::snapshot(std::deque<std::unique_ptr<DcpResponse>>& items,
                             bool mark) {
     if (items.empty()) {
-        return;
-    }
-
-    LockHolder lh(streamMutex);
-
-    if (!isActive() || isBackfilling()) {
-        // If stream was closed forcefully by the time the checkpoint items
-        // retriever task completed, or if we decided to switch the stream to
-        // backfill state from in-memory state, none of the acquired mutations
-        // should be added on the stream's readyQ. We must drop items in case
-        // we switch state from in-memory to backfill because we schedule
-        // backfill from lastReadSeqno + 1
-        items.clear();
         return;
     }
 
