@@ -1089,7 +1089,7 @@ cb::EngineErrorItemPair storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     }
 
     cb_assert(info.value[0].iov_len == vlen);
-    memcpy(info.value[0].iov_base, value, vlen);
+    std::copy(value, value + vlen, reinterpret_cast<char*>(info.value[0].iov_base));
     h1->item_set_cas(h, rv.second.get(), casIn);
 
     bool create_cookie = false;

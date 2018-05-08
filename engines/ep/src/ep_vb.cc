@@ -187,10 +187,12 @@ ENGINE_ERROR_CODE EPVBucket::completeBGFetchForSingleItem(
     updateBGStats(fetched_item.initTime, startTime, fetchEnd);
 
     // Close the BG_WAIT span; and add a BG_LOAD span
-    TRACE_END(fetched_item.cookie, cb::tracing::TraceCode::BG_WAIT, startTime);
-    TRACE_BEGIN(
-            fetched_item.cookie, cb::tracing::TraceCode::BG_LOAD, startTime);
-    TRACE_END(fetched_item.cookie, cb::tracing::TraceCode::BG_LOAD, fetchEnd);
+    if (fetched_item.cookie) {
+        TRACE_END(fetched_item.cookie, cb::tracing::TraceCode::BG_WAIT, startTime);
+        TRACE_BEGIN(
+                  fetched_item.cookie, cb::tracing::TraceCode::BG_LOAD, startTime);
+        TRACE_END(fetched_item.cookie, cb::tracing::TraceCode::BG_LOAD, fetchEnd);
+    }
 
     return status;
 }

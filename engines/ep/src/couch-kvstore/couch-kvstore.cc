@@ -2661,7 +2661,9 @@ RollbackResult CouchKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,
         return RollbackResult(false, 0, 0, 0);
     }
 
-    readVBState(newdb, vbid);
+    if (readVBState(newdb, vbid) != ENGINE_SUCCESS) {
+        return RollbackResult(false, 0, 0, 0);
+    }
     cachedDeleteCount[vbid] = info.deleted_count;
     cachedDocCount[vbid] = info.doc_count;
 
