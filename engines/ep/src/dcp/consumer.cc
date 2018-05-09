@@ -36,7 +36,9 @@ const std::string DcpConsumer::connBufferCtrlMsg = "connection_buffer_size";
 const std::string DcpConsumer::priorityCtrlMsg = "set_priority";
 const std::string DcpConsumer::extMetadataCtrlMsg = "enable_ext_metadata";
 const std::string DcpConsumer::forceCompressionCtrlMsg = "force_value_compression";
-const std::string DcpConsumer::cursorDroppingCtrlMsg = "supports_cursor_dropping";
+// from vulcan onwards we only use the _vulcan control message
+const std::string DcpConsumer::cursorDroppingCtrlMsg =
+        "supports_cursor_dropping_vulcan";
 const std::string DcpConsumer::sendStreamEndOnClientStreamCloseCtrlMsg =
         "send_stream_end_on_client_close_stream";
 const std::string DcpConsumer::hifiMFUCtrlMsg = "supports_hifi_MFU";
@@ -173,8 +175,7 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
     pendingSendNoopInterval = config.isDcpEnableNoop();
     pendingSetPriority = true;
     pendingEnableExtMetaData = true;
-    // MB-29369: Don't request cursor dropping.
-    pendingSupportCursorDropping = false;
+    pendingSupportCursorDropping = true;
     pendingSupportHifiMFU =
             (config.getHtEvictionPolicy() == "hifi_mfu");
 }

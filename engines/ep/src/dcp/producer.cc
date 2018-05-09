@@ -215,10 +215,15 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
     enableExtMetaData = false;
     forceValueCompression = false;
 
-    // MB-29369: Cursor dropping is currently disabled for all
-    // connections due to race condition which can result in skipping
-    // mutations.
-    supportsCursorDropping = false;
+    // Cursor dropping is disabled for replication connections by default,
+    // but will be enabled through a control message to support backward
+    // compatibility. For all other type of DCP connections, cursor dropping
+    // will be enabled by default.
+    if (name.find("replication") < name.length()) {
+        supportsCursorDropping = false;
+    } else {
+        supportsCursorDropping = true;
+    }
 
     backfillMgr.reset(new BackfillManager(engine_));
 }
@@ -739,9 +744,14 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque, const void* key,
             forceValueCompression = false;
         }
         return ENGINE_SUCCESS;
-    } else if (strncmp(param, "supports_cursor_dropping", nkey) == 0) {
-        // MB-29369: Cursor dropping currently disabled. Ignore requests
-        // to enable.
+        // vulcan onwards we accept two cursor_dropping control keys.
+    } else if (keyStr == "supports_cursor_dropping_vulcan" ||
+               keyStr == "supports_cursor_dropping") {
+        if (valueStr == "true") {
+            supportsCursorDropping = true;
+        } else {
+            supportsCursorDropping = false;
+        }
         return ENGINE_SUCCESS;
     } else if (strncmp(param, "supports_hifi_MFU", nkey) == 0) {
         supportsHifiMFU = (valueStr == "true");

@@ -2696,11 +2696,9 @@ static test_result test_dcp_agg_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
-static test_result test_dcp_cursor_dropping(ENGINE_HANDLE *h,
-                                            ENGINE_HANDLE_V1 *h1) {
-    // MB-29369: Cursor dropping currently disabled
-    return SKIPPED;
-
+static test_result test_dcp_cursor_dropping(ENGINE_HANDLE* h,
+                                            ENGINE_HANDLE_V1* h1,
+                                            bool replicationStream) {
     /* Initially write a few items */
     int num_items = 25;
     const int initialSnapshotSize = num_items;
@@ -2719,7 +2717,7 @@ static test_result test_dcp_cursor_dropping(ENGINE_HANDLE *h,
     std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(h, h1));
 
     const void *cookie = testHarness.create_cookie();
-    std::string conn_name("unittest");
+    std::string conn_name = replicationStream ? "replication" : "unittest";
     uint32_t opaque = 1;
     uint64_t last_seqno_streamed = 0;
 
@@ -2733,6 +2731,11 @@ static test_result test_dcp_cursor_dropping(ENGINE_HANDLE *h,
     tdc.addStreamCtx(ctx);
 
     tdc.openConnection();
+
+    if (replicationStream) {
+        tdc.sendControlMessage("supports_cursor_dropping_vulcan", "true");
+    }
+
     tdc.openStreams();
 
     /* Stream (from in-memory state) less than the number of items written.
@@ -2796,11 +2799,17 @@ static test_result test_dcp_cursor_dropping(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static test_result test_dcp_cursor_dropping(ENGINE_HANDLE* h,
+                                            ENGINE_HANDLE_V1* h1) {
+    return test_dcp_cursor_dropping(h, h1, false);
+}
+
+static test_result test_dcp_cursor_dropping_replication(ENGINE_HANDLE* h,
+                                                        ENGINE_HANDLE_V1* h1) {
+    return test_dcp_cursor_dropping(h, h1, true);
+}
 static test_result test_dcp_cursor_dropping_backfill(ENGINE_HANDLE *h,
                                                      ENGINE_HANDLE_V1 *h1) {
-    // MB-29369: Cursor dropping currently disabled
-    return SKIPPED;
-
     /* Initially write a few items */
     int num_items = 50;
     const int initialSnapshotSize = num_items;
@@ -3010,13 +3019,10 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     cb_assert(dcp_last_key.compare("enable_ext_metadata") == 0);
     cb_assert(dcp_last_opaque != opaque);
 
-// MB-29369: Cursor dropping currently disabled.
-#if 0
     dcp_step(h, h1, cookie);
     cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
-    cb_assert(dcp_last_key.compare("supports_cursor_dropping") == 0);
+    cb_assert(dcp_last_key.compare("supports_cursor_dropping_vulcan") == 0);
     cb_assert(dcp_last_opaque != opaque);
-#endif
 
     dcp_step(h, h1, cookie);
     cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
@@ -6217,6 +6223,21 @@ BaseTestCase testsuite_testcases[] = {
                  cleanup),
         TestCase("test dcp cursor dropping",
                  test_dcp_cursor_dropping,
+                 test_setup,
+                 teardown,
+                 /* max_size set so that it's big enough that we can
+                    create at least 1000 items when our residency
+                    ratio gets to 90%. See test body for more details. */
+                 "cursor_dropping_lower_mark=60;cursor_dropping_upper_mark=70;"
+                 "chk_remover_stime=1;max_size=6291456;chk_max_items=8000;",
+
+                 // TODO RDB: Cannot store any item (ENGINE_ENOMEM).
+                 // Needs to resize 'max_size' to consider RocksDB
+                 // pre-allocations.
+                 prepare_skip_broken_under_rocks,
+                 cleanup),
+        TestCase("test dcp cursor dropping (replication)",
+                 test_dcp_cursor_dropping_replication,
                  test_setup,
                  teardown,
                  /* max_size set so that it's big enough that we can
