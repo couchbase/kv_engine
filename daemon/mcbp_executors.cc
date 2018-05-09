@@ -563,6 +563,8 @@ void initialize_mbcp_lookup_map() {
             process_bin_dcp_response;
     response_handlers[PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT] =
             process_bin_dcp_response;
+    response_handlers[PROTOCOL_BINARY_CMD_GET_ERROR_MAP] =
+            process_bin_dcp_response;
 
     for (auto& handler : handlers) {
         handler = process_bin_unknown_packet;

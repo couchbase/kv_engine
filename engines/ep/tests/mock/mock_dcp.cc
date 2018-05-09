@@ -376,6 +376,14 @@ static ENGINE_ERROR_CODE mock_system_event(gsl::not_null<const void*> cookie,
     clear_dcp_data();
     return ENGINE_SUCCESS;
 }
+
+static ENGINE_ERROR_CODE mock_get_error_map(gsl::not_null<const void*> cookie,
+                                            uint32_t opaque,
+                                            uint16_t version) {
+    clear_dcp_data();
+    dcp_last_op = PROTOCOL_BINARY_CMD_GET_ERROR_MAP;
+    return ENGINE_SUCCESS;
+}
 }
 
 void clear_dcp_data() {
@@ -421,6 +429,7 @@ std::unique_ptr<dcp_message_producers> get_dcp_producers(ENGINE_HANDLE *_h,
     producers->buffer_acknowledgement = mock_buffer_acknowledgement;
     producers->control = mock_control;
     producers->system_event = mock_system_event;
+    producers->get_error_map = mock_get_error_map;
 
     engine_handle = _h;
     engine_handle_v1 = _h1;
