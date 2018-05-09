@@ -23,6 +23,7 @@
 #include "dcp/dcpconnmap.h"
 #include "dcp/producer.h"
 #include "dcp/stream.h"
+#include "dcp_utils.h"
 #include "evp_store_single_threaded_test.h"
 #include "evp_store_test.h"
 #include "failover-table.h"
@@ -438,6 +439,7 @@ public:
 
     void stepForStreamRequest(uint64_t startSeqno, uint64_t vbUUID) {
         while (consumer->step(producers.get()) == ENGINE_WANT_MORE) {
+            handleProducerResponseIfStepBlocked(*consumer);
         }
         EXPECT_TRUE(streamRequestData.called);
         EXPECT_EQ(startSeqno, streamRequestData.start_seqno);

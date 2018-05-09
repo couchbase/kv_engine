@@ -651,6 +651,36 @@ static ENGINE_ERROR_CODE dcp_message_control(const void* void_cookie,
     return ENGINE_SUCCESS;
 }
 
+static ENGINE_ERROR_CODE dcp_message_get_error_map(const void* cookie,
+                                                   uint32_t opaque,
+                                                   uint16_t version) {
+    auto* c = cookie2mcbp(cookie, __func__);
+    c->setCmd(PROTOCOL_BINARY_CMD_GET_ERROR_MAP);
+
+    // Check if we have room in the write buffer
+    protocol_binary_request_get_errmap packet;
+    if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
+        return ENGINE_E2BIG;
+    }
+
+    memset(packet.bytes, 0, sizeof(packet.bytes));
+    packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
+    packet.message.header.request.opcode =
+            (uint8_t)PROTOCOL_BINARY_CMD_GET_ERROR_MAP;
+    packet.message.header.request.opaque = opaque;
+    packet.message.header.request.extlen = 0;
+    packet.message.header.request.keylen = 0;
+    packet.message.header.request.bodylen = htonl(2);
+    packet.message.body.version = htons(version);
+
+    memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
+    c->addIov(c->write.curr, sizeof(packet.bytes));
+    c->write.curr += sizeof(packet.bytes);
+    c->write.bytes += sizeof(packet.bytes);
+
+    return ENGINE_SUCCESS;
+}
+
 void ship_mcbp_dcp_log(McbpConnection* c) {
     static struct dcp_message_producers producers = {
         dcp_message_get_failover_log,
@@ -668,7 +698,8 @@ void ship_mcbp_dcp_log(McbpConnection* c) {
         dcp_message_noop,
         dcp_message_buffer_acknowledgement,
         dcp_message_control,
-        dcp_message_system_event
+        dcp_message_system_event,
+        dcp_message_get_error_map
     };
     ENGINE_ERROR_CODE ret;
 
@@ -1296,6 +1327,8 @@ void initialize_mbcp_lookup_map(void) {
     response_handlers[PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT] = process_bin_dcp_response;
     response_handlers[PROTOCOL_BINARY_CMD_DCP_CONTROL] = process_bin_dcp_response;
     response_handlers[PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT] =
+            process_bin_dcp_response;
+    response_handlers[PROTOCOL_BINARY_CMD_GET_ERROR_MAP] =
             process_bin_dcp_response;
 }
 

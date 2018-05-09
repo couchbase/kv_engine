@@ -136,6 +136,7 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,
       dcpIdleTimeout(engine.getConfiguration().getDcpIdleTimeout()),
       dcpNoopTxInterval(engine.getConfiguration().getDcpNoopTxInterval()),
       taskAlreadyCancelled(false),
+      producerIsVersion5orHigher(false),
       flowControl(engine, this),
       processBufferedMessagesYieldThreshold(engine.getConfiguration().
                                                 getDcpConsumerProcessBufferedMessagesYieldLimit()),
@@ -148,6 +149,8 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,
     setReserved(true);
 
     pendingEnableNoop = config.isDcpEnableNoop();
+    getErrorMapState = pendingEnableNoop ? GetErrorMapState::PendingRequest
+                                         : GetErrorMapState::Skip;
     pendingSendNoopInterval = config.isDcpEnableNoop();
     pendingSetPriority = true;
     pendingEnableExtMetaData = true;
@@ -593,6 +596,17 @@ ENGINE_ERROR_CODE DcpConsumer::step(struct dcp_message_producers* producers) {
         return ret;
     }
 
+    // MB-29441: Send a GetErrorMap to the producer to determine if it
+    // is a pre-5.0.0 node. The consumer will set the producer's noop-interval
+    // accordingly in 'handleNoop()', so 'handleGetErrorMap()' *must* execute
+    // before 'handleNoop()'.
+    if ((ret = handleGetErrorMap(producers)) != ENGINE_FAILED) {
+        if (ret == ENGINE_SUCCESS) {
+            ret = ENGINE_WANT_MORE;
+        }
+        return ret;
+    }
+
     if ((ret = handleNoop(producers)) != ENGINE_FAILED) {
         if (ret == ENGINE_SUCCESS) {
             ret = ENGINE_WANT_MORE;
@@ -749,6 +763,14 @@ bool DcpConsumer::handleResponse(protocol_binary_response_header* resp) {
         return true;
     } else if (opcode == PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT ||
                opcode == PROTOCOL_BINARY_CMD_DCP_CONTROL) {
+        return true;
+    } else if (opcode == PROTOCOL_BINARY_CMD_GET_ERROR_MAP) {
+        uint16_t status = ntohs(resp->response.status);
+        // GetErrorMap is supported on versions >= 5.0.0.
+        // "Unknown Command" is returned on pre-5.0.0 versions.
+        producerIsVersion5orHigher =
+                status != PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND;
+        getErrorMapState = GetErrorMapState::Skip;
         return true;
     }
 
@@ -1112,7 +1134,15 @@ ENGINE_ERROR_CODE DcpConsumer::handleNoop(struct dcp_message_producers* producer
     if (pendingSendNoopInterval) {
         ENGINE_ERROR_CODE ret;
         uint32_t opaque = ++opaqueCounter;
-        std::string interval = std::to_string(dcpNoopTxInterval.count());
+
+        // MB-29441: Set the noop-interval on the producer:
+        //     - dcpNoopTxInterval, if the producer is a >=5.0.0 node
+        //     - 180 seconds, if the producer is a pre-5.0.0 node
+        //         (this is the expected value on a pre-5.0.0 producer)
+        auto intervalCount =
+                producerIsVersion5orHigher ? dcpNoopTxInterval.count() : 180;
+        std::string interval = std::to_string(intervalCount);
+
         EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
         ret = producers->control(getCookie(), opaque,
                                  noopIntervalCtrlMsg.c_str(),
@@ -1132,6 +1162,30 @@ ENGINE_ERROR_CODE DcpConsumer::handleNoop(struct dcp_message_producers* producer
             uint64_t(dcpIdleTimeout.count()),
             (now - lastMessageTime));
         return ENGINE_DISCONNECT;
+    }
+
+    return ENGINE_FAILED;
+}
+
+ENGINE_ERROR_CODE DcpConsumer::handleGetErrorMap(
+        struct dcp_message_producers* producers) {
+    if (getErrorMapState == GetErrorMapState::PendingRequest) {
+        ENGINE_ERROR_CODE ret;
+        uint32_t opaque = ++opaqueCounter;
+        EventuallyPersistentEngine* epe =
+                ObjectRegistry::onSwitchThread(NULL, true);
+        // Note: just send 0 as version to get the default error map loaded
+        //     from file at startup. The error map returned is not used, we
+        //     just want to issue a valid request.
+        ret = producers->get_error_map(getCookie(), opaque, 0 /*version*/);
+        ObjectRegistry::onSwitchThread(epe);
+        getErrorMapState = GetErrorMapState::PendingResponse;
+        return ret;
+    }
+
+    // We have to wait for the GetErrorMap response before proceeding
+    if (getErrorMapState == GetErrorMapState::PendingResponse) {
+        return ENGINE_SUCCESS;
     }
 
     return ENGINE_FAILED;
