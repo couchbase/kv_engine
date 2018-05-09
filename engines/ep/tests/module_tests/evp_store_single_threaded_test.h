@@ -90,6 +90,11 @@ public:
     void createDcpStream(MockDcpProducer& producer);
 
     /**
+     * Create a DCP stream on the producer for vbid
+     */
+    void createDcpStream(MockDcpProducer& producer, uint16_t vbid);
+
+    /**
      * Run the compaction task
      * @param purgeBeforeTime purge tombstones with timestamps less than this
      * @param purgeBeforeSeq purge tombstones with seqnos less than this
