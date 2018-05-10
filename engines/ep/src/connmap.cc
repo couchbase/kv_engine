@@ -50,7 +50,6 @@ public:
     }
 
     bool run(void) {
-        TRACE_EVENT0("ep-engine/task", "ConnNotifierCallback");
         auto connNotifier = connNotifierPtr.lock();
         if (connNotifier) {
             return connNotifier->notifyConnections();
@@ -215,6 +214,11 @@ void ConnMap::notifyPausedConnection(std::shared_ptr<ConnHandler> conn,
 void ConnMap::notifyAllPausedConnections() {
     std::queue<std::shared_ptr<ConnHandler>> queue;
     pendingNotifications.getAll(queue);
+
+    TRACE_EVENT1("ep-engine/ConnMap",
+                 "notifyAllPausedConnections",
+                 "#pending",
+                 queue.size());
 
     TRACE_LOCKGUARD_TIMED(releaseLock,
                           "mutex",
