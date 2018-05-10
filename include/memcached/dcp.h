@@ -311,18 +311,6 @@ struct dcp_message_producers {
      uint64_t bySeqno,
      cb::const_byte_buffer key,
      cb::const_byte_buffer eventData);
-
-    /*
-     * Send a GetErrorMap message to the other end
-     *
-     * @param cookie The cookie provided by step
-     * @param opaque The opaque to send over
-     * @param version The version of the error map
-     *
-     * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
-     */
-    ENGINE_ERROR_CODE(*get_error_map)
-    (gsl::not_null<const void*> cookie, uint32_t opaque, uint16_t version);
 };
 
 typedef ENGINE_ERROR_CODE (*dcp_add_failover_log)(
