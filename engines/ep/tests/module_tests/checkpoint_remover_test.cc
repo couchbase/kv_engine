@@ -76,10 +76,12 @@ TEST_F(CheckpointRemoverEPTest, CheckpointManagerMemoryUsage) {
 
     // Check that the expected memory usage of the checkpoints is correct
     size_t expected_size = 0;
-    for (const auto& checkpoint :
+    for (auto& checkpoint :
          CheckpointManagerTestIntrospector::public_getCheckpointList(
                  *checkpointManager)) {
-        expected_size += checkpoint->getMemConsumption();
+        for (auto itr = checkpoint->begin(); itr != checkpoint->end(); ++itr) {
+            expected_size += (*itr)->size();
+        }
     }
     ASSERT_EQ(expected_size, checkpointManager->getMemoryUsage());
 
