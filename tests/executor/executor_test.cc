@@ -17,10 +17,13 @@
 #include <daemon/executorpool.h>
 #include <daemon/task.h>
 #include <daemon/tracing.h>
+#include <daemon/tracing_types.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include <phosphor/phosphor.h>
 #include <platform/backtrace.h>
 #include <platform/make_unique.h>
+
 #include <atomic>
 #include <memory>
 

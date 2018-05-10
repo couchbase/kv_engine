@@ -21,6 +21,7 @@
 #include "executorpool.h"
 #include "memcached.h"
 #include "task.h"
+#include "tracing_types.h"
 
 #include <platform/make_unique.h>
 #include <platform/processclock.h>

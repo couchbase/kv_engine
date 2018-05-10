@@ -18,7 +18,8 @@
 
 #include <memcached/engine_utilities_visibility.h>
 #include <platform/platform.h>
-#include <ostream>
+
+#include <iosfwd>
 #include <system_error>
 
 #ifdef _MSC_VER
