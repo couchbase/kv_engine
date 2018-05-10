@@ -631,39 +631,6 @@ static ENGINE_ERROR_CODE dcp_message_system_event(
     return ret;
 }
 
-static ENGINE_ERROR_CODE dcp_message_get_error_map(
-        gsl::not_null<const void*> cookie, uint32_t opaque, uint16_t version) {
-    auto* c = cookie2connection(cookie, __func__);
-
-    protocol_binary_request_get_errmap packet = {};
-    packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
-    packet.message.header.request.opcode =
-            (uint8_t)PROTOCOL_BINARY_CMD_GET_ERROR_MAP;
-    packet.message.header.request.opaque = opaque;
-    packet.message.header.request.extlen = 0;
-    packet.message.header.request.keylen = 0;
-    packet.message.header.request.bodylen = htonl(2);
-    packet.message.body.version = htons(version);
-
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    c->write->produce([&c, &packet, &ret](cb::byte_buffer buffer) -> size_t {
-        if (buffer.size() < sizeof(packet.bytes)) {
-            // We don't have room in the buffer
-            ret = ENGINE_E2BIG;
-            return 0;
-        }
-
-        std::copy(packet.bytes,
-                  packet.bytes + sizeof(packet.bytes),
-                  buffer.begin());
-
-        c->addIov(buffer.begin(), sizeof(packet.bytes));
-        return sizeof(packet.bytes);
-    });
-
-    return ret;
-}
-
 void ship_dcp_log(Cookie& cookie) {
     static struct dcp_message_producers producers = {
             dcp_message_get_failover_log,
@@ -682,8 +649,7 @@ void ship_dcp_log(Cookie& cookie) {
             dcp_message_noop,
             dcp_message_buffer_acknowledgement,
             dcp_message_control,
-            dcp_message_system_event,
-            dcp_message_get_error_map};
+            dcp_message_system_event};
     ENGINE_ERROR_CODE ret;
 
     auto& c = cookie.getConnection();

@@ -267,16 +267,6 @@ protected:
                         const uint8_t* body,
                         uint32_t bodylen);
 
-    /*
-     * Sends a GetErrorMap request to the other side
-     *
-     * @param producers Pointers to message producers
-     *
-     * @return ENGINE_FAILED if the step has completed, ENGINE_SUCCESS otherwise
-     */
-    ENGINE_ERROR_CODE handleGetErrorMap(
-            struct dcp_message_producers* producers);
-
     ENGINE_ERROR_CODE handleNoop(struct dcp_message_producers* producers);
 
     ENGINE_ERROR_CODE handlePriority(struct dcp_message_producers* producers);
@@ -407,23 +397,6 @@ protected:
     bool pendingSupportCursorDropping;
     bool pendingSendStreamEndOnClientStreamClose;
     bool pendingSupportHifiMFU;
-
-    /*
-     * MB-29441: The following variables are used to set the the proper
-     * noop-interval on the producer depending on the producer version:
-     * 1) if state::PendingRequest, then the consumer sends a GetErrorMap
-     *     request to the producer
-     * 2) we wait until state!=PendingResponse (i.e., response ready)
-     * 3) the GetErrorMap command is available from version >= 5.0.0, so
-     *     - producerIsVersion5orHigher=true, if GetErrorMap succeeds
-     *     - producerIsVersion5orHigher=false, if GetErrorMap fails
-     */
-    enum class GetErrorMapState : uint8_t {
-        Skip = 0, // Covers "do not send request" and "response ready"
-        PendingRequest,
-        PendingResponse
-    } getErrorMapState;
-    bool producerIsVersion5orHigher;
 
     /* Indicates if the 'Processor' task is running */
     std::atomic<bool> processorTaskRunning;

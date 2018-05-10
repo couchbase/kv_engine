@@ -258,6 +258,11 @@ static ENGINE_ERROR_CODE dcpAddFailoverLog(vbucket_failover_t* entry,
     return ENGINE_SUCCESS;
 }
 void SingleThreadedKVBucketTest::createDcpStream(MockDcpProducer& producer) {
+    createDcpStream(producer, vbid);
+}
+
+void SingleThreadedKVBucketTest::createDcpStream(MockDcpProducer& producer,
+                                                 uint16_t vbid) {
     uint64_t rollbackSeqno;
     ASSERT_EQ(ENGINE_SUCCESS,
               producer.streamRequest(0, // flags
