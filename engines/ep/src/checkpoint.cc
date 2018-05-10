@@ -1956,6 +1956,18 @@ size_t CheckpointManager::getMemoryUsage_UNLOCKED() const {
     return memUsage;
 }
 
+size_t CheckpointManager::getMemoryOverhead_UNLOCKED() const {
+    if (checkpointList.empty()) {
+        return 0;
+    }
+
+    size_t memUsage = 0;
+    for (const auto& checkpoint : checkpointList) {
+        memUsage += checkpoint->getMemoryOverhead();
+    }
+    return memUsage;
+}
+
 size_t CheckpointManager::getMemoryUsage() const {
     LockHolder lh(queueLock);
     return getMemoryUsage_UNLOCKED();
@@ -1977,6 +1989,11 @@ size_t CheckpointManager::getMemoryUsageOfUnrefCheckpoints() const {
         }
     }
     return memUsage;
+}
+
+size_t CheckpointManager::getMemoryOverhead() const {
+    LockHolder lh(queueLock);
+    return getMemoryOverhead_UNLOCKED();
 }
 
 void CheckpointManager::addStats(ADD_STAT add_stat, const void *cookie) {

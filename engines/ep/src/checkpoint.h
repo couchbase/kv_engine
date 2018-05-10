@@ -552,6 +552,17 @@ public:
         return effectiveMemUsage;
     }
 
+    /**
+     * Returns the overhead of the checkpoint. For each item in the checkpoint,
+     * this is the sum of key size + sizeof(index_entry) + sizeof(queued_item).
+     * When it comes to cursor dropping, this is the theoretical guaranteed
+     * memory which can be freed, as the checkpoint contains the only references
+     * to them.
+     */
+    size_t getMemoryOverhead() const {
+        return memOverhead;
+    }
+
     static const StoredDocKey DummyKey;
     static const StoredDocKey CheckpointStartKey;
     static const StoredDocKey CheckpointEndKey;
@@ -838,6 +849,16 @@ public:
     size_t getMemoryUsage_UNLOCKED() const;
 
     size_t getMemoryUsage() const;
+
+    /**
+     * Return memory overhead of all the checkpoints managed
+     */
+    size_t getMemoryOverhead_UNLOCKED() const;
+
+    /**
+     * Return memory overhead of all the checkpoints managed
+     */
+    size_t getMemoryOverhead() const;
 
     /**
      * Return memory consumption of unreferenced checkpoints

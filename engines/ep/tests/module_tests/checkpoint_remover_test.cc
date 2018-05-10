@@ -190,9 +190,17 @@ TEST_F(CheckpointRemoverEPTest, CursorDropMemoryFreed) {
 
     // Manually handle the slow stream, this is the same logic as the checkpoint
     // remover task uses, just without the overhead of setting up the task
+    auto memoryOverhead = checkpointManager->getMemoryOverhead();
     if (engine->getDcpConnMap().handleSlowStream(vbid, cursors[0])) {
         ASSERT_EQ(expectedFreedMemoryFromItems + initialSize,
                   checkpointManager->getMemoryUsageOfUnrefCheckpoints());
+        // Check that the memory of unreferenced checkpoints is greater than or
+        // equal to the pre-cursor-dropped memory overhead.
+        //
+        // This is the least amount of memory we expect to be able to free,
+        // as it is all internal and independent from the HashTable.
+        ASSERT_GE(checkpointManager->getMemoryUsageOfUnrefCheckpoints(),
+                  memoryOverhead);
     } else {
         ASSERT_FALSE(producer->isCursorDroppingEnabled());
     }
