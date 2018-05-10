@@ -224,21 +224,41 @@ backfill_status_t DCPBackfillDisk::create() {
     scanCtx = kvstore->initScanContext(
             cb, cl, vbid, startSeqno, DocumentFilter::ALL_ITEMS, valFilter);
 
-    if (scanCtx) {
+    // Check startSeqno against the purge-seqno of the opened datafile.
+    // 1) A normal stream request would of checked inside streamRequest, but
+    //    compaction may have changed the purgeSeqno
+    // 2) Cursor dropping can also schedule backfills and they must not re-start
+    //    behind the current purge-seqno
+    // If the startSeqno != 1 (a client 0 to n request becomes 1 to n) then
+    // start-seqno must be above purge-seqno
+    if (!scanCtx || (startSeqno != 1 && (startSeqno <= scanCtx->purgeSeqno))) {
+        auto vb = engine.getVBucket(vbid);
+        std::stringstream log;
+        log << "DCPBackfillDisk::create(): (vb:" << getVBucketId()
+            << ") cannot be scanned. Associated stream is set to dead state.";
+        end_stream_status_t status = END_STREAM_BACKFILL_FAIL;
+        if (scanCtx) {
+            log << " startSeqno:" << startSeqno
+                << " < purgeSeqno:" << scanCtx->purgeSeqno;
+            kvstore->destroyScanContext(scanCtx);
+            status = END_STREAM_ROLLBACK;
+        } else {
+            log << " failed to create scan";
+        }
+        log << ". The vbucket state:";
+        if (vb) {
+            log << VBucket::toString(vb->getState());
+        } else {
+            log << "vb not found!!";
+        }
+
+        stream->log(EXTENSION_LOG_WARNING, "%s", log.str().c_str());
+        stream->setDead(status);
+        transitionState(backfill_state_done);
+    } else {
         stream->incrBackfillRemaining(scanCtx->documentCount);
         stream->markDiskSnapshot(startSeqno, scanCtx->maxSeqno);
         transitionState(backfill_state_scanning);
-    } else {
-        auto vb = engine.getVBucket(vbid);
-        stream->log(EXTENSION_LOG_WARNING,
-                    "DCPBackfillDisk::create(): "
-                    "(vb:%d) backfill create ended prematurely as the disk "
-                    "cannot be scanned. Associated stream is set to dead state"
-                    ". The vbucket state: %s",
-                    getVBucketId(),
-                    vb ? VBucket::toString(vb->getState()) : "vb not found!!");
-        stream->setDead(END_STREAM_BACKFILL_FAIL);
-        transitionState(backfill_state_done);
     }
 
     return backfill_success;

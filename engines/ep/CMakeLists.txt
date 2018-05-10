@@ -275,6 +275,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                    tests/module_tests/atomic_unordered_map_test.cc
                    tests/module_tests/basic_ll_test.cc
                    tests/module_tests/bloomfilter_test.cc
+                   tests/module_tests/checkpoint_test.h
                    tests/module_tests/checkpoint_test.cc
                    tests/module_tests/collections/collection_dockey_test.cc
                    tests/module_tests/collections/evp_store_collections_dcp_test.cc
@@ -288,6 +289,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                    tests/module_tests/defragmenter_test.cc
                    tests/module_tests/dcp_reflection_test.cc
                    tests/module_tests/dcp_test.cc
+                   tests/module_tests/dcp_utils.cc
                    tests/module_tests/ep_unit_tests_main.cc
                    tests/module_tests/ephemeral_bucket_test.cc
                    tests/module_tests/ephemeral_vb_test.cc

@@ -1363,6 +1363,7 @@ ScanContext* RocksDBKVStore::initScanContext(
                            scanId,
                            startSeqno,
                            endSeqno,
+                           0, /*TODO RDB: pass the real purge-seqno*/
                            options,
                            valOptions,
                            /* documentCount */ endSeqno - startSeqno + 1,

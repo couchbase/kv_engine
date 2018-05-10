@@ -559,6 +559,7 @@ protected:
                                        ADD_STAT addStat,
                                        cb::const_char_buffer keyArgs);
     ENGINE_ERROR_CODE doDcpStats(const void *cookie, ADD_STAT add_stat);
+    ENGINE_ERROR_CODE doEvictionStats(const void* cookie, ADD_STAT add_stat);
     ENGINE_ERROR_CODE doConnAggStats(const void *cookie, ADD_STAT add_stat,
                                      const char *sep, size_t nsep);
     ENGINE_ERROR_CODE doTimingStats(const void *cookie, ADD_STAT add_stat);

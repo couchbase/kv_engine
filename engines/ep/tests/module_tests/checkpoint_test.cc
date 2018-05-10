@@ -23,13 +23,14 @@
 #include <vector>
 
 #include "checkpoint.h"
+#include "checkpoint_test.h"
 #include "configuration.h"
+#include "ep_vb.h"
 #include "failover-table.h"
 #include "item_pager.h"
 #include "stats.h"
 #include "tests/module_tests/test_helpers.h"
 #include "thread_gate.h"
-#include "ep_vb.h"
 
 #include <engines/ep/src/ep_types.h>
 #include <gmock/gmock.h>
@@ -46,84 +47,54 @@
 
 #define DCP_CURSOR_PREFIX "dcp-client-"
 
-/**
- * Dummy callback to replace the flusher callback.
- */
-class DummyCB: public Callback<uint16_t> {
-public:
-    DummyCB() {}
-
-    void callback(uint16_t &dummy) {
-        (void) dummy;
-    }
-};
-
-/**
- * Test fixture for Checkpoint tests. Once constructed provides a checkpoint
- * manager and single vBucket (VBID 0).
- *
- *@tparam V The VBucket class to use for the vbucket object.
- */
 template <typename V>
-class CheckpointTest : public ::testing::Test {
-protected:
-    CheckpointTest()
-        : callback(new DummyCB()),
-          vbucket(new V(0,
-                        vbucket_state_active,
-                        global_stats,
-                        checkpoint_config,
-                        /*kvshard*/ NULL,
-                        /*lastSeqno*/ 1000,
-                        /*lastSnapStart*/ 0,
-                        /*lastSnapEnd*/ 0,
-                        /*table*/ NULL,
-                        callback,
-                        /*newSeqnoCb*/ nullptr,
-                        config,
-                        item_eviction_policy_t::VALUE_ONLY)) {
-        createManager();
-    }
+CheckpointTest<V>::CheckpointTest()
+    : callback(new DummyCB()),
+      vbucket(new V(0,
+                    vbucket_state_active,
+                    global_stats,
+                    checkpoint_config,
+                    /*kvshard*/ NULL,
+                    /*lastSeqno*/ 1000,
+                    /*lastSnapStart*/ 0,
+                    /*lastSnapEnd*/ 0,
+                    /*table*/ NULL,
+                    callback,
+                    /*newSeqnoCb*/ nullptr,
+                    config,
+                    item_eviction_policy_t::VALUE_ONLY)) {
+    createManager();
+}
 
-    void createManager(int64_t last_seqno = 1000) {
-        manager.reset(new CheckpointManager(global_stats,
-                                            this->vbucket->getId(),
-                                            checkpoint_config,
-                                            last_seqno,
-                                            /*lastSnapStart*/ 0,
-                                            /*lastSnapEnd*/ 0,
-                                            callback));
+template <typename V>
+void CheckpointTest<V>::createManager(int64_t last_seqno) {
+    manager.reset(new CheckpointManager(global_stats,
+                                        this->vbucket->getId(),
+                                        checkpoint_config,
+                                        last_seqno,
+                                        /*lastSnapStart*/ 0,
+                                        /*lastSnapEnd*/ 0,
+                                        callback));
 
-        // Sanity check initial state.
-        ASSERT_EQ(1, this->manager->getNumOfCursors());
-        ASSERT_EQ(0, this->manager->getNumOpenChkItems());
-        ASSERT_EQ(1, this->manager->getNumCheckpoints());
-    }
+    // Sanity check initial state.
+    ASSERT_EQ(1, this->manager->getNumOfCursors());
+    ASSERT_EQ(0, this->manager->getNumOpenChkItems());
+    ASSERT_EQ(1, this->manager->getNumCheckpoints());
+}
 
-    // Creates a new item with the given key and queues it into the checkpoint
-    // manager.
-    bool queueNewItem(const std::string& key) {
-        queued_item qi{new Item(makeStoredDocKey(key),
-                                this->vbucket->getId(),
-                                queue_op::mutation,
-                                /*revSeq*/ 0,
-                                /*bySeq*/ 0)};
-        return this->manager->queueDirty(*this->vbucket,
-                                         qi,
-                                         GenerateBySeqno::Yes,
-                                         GenerateCas::Yes,
-                                         /*preLinkDocCtx*/ nullptr);
-    }
-
-
-    EPStats global_stats;
-    CheckpointConfig checkpoint_config;
-    Configuration config;
-    std::shared_ptr<Callback<uint16_t> > callback;
-    std::unique_ptr<V> vbucket;
-    std::unique_ptr<CheckpointManager> manager;
-};
-
+template <typename V>
+bool CheckpointTest<V>::queueNewItem(const std::string& key) {
+    queued_item qi{new Item(makeStoredDocKey(key),
+                            this->vbucket->getId(),
+                            queue_op::mutation,
+                            /*revSeq*/ 0,
+                            /*bySeq*/ 0)};
+    return this->manager->queueDirty(*this->vbucket,
+                                     qi,
+                                     GenerateBySeqno::Yes,
+                                     GenerateCas::Yes,
+                                     /*preLinkDocCtx*/ nullptr);
+}
 
 struct thread_args {
     VBucket* vbucket;

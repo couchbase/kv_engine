@@ -114,6 +114,8 @@ PagingVisitor::PagingVisitor(KVBucket& s,
              */
             auto storedValueFreqCounter = v.getFreqCounterValue();
 
+            bool evicted = true;
+
             if (storedValueFreqCounter <= freqCounterThreshold) {
                 /*
                  * If the storedValue is eligible for eviction then add its
@@ -127,9 +129,11 @@ PagingVisitor::PagingVisitor(KVBucket& s,
                  * correct number of storedValue items.
                  */
                 if (!doEviction(lh, &v)) {
+                    evicted = false;
                     storedValueFreqCounter = std::numeric_limits<uint8_t>::max();
                 }
             } else {
+                evicted = false;
                 // If the storedValue is NOT eligible for eviction then
                 // we want to add the maximum value (255).
                 if (!currentBucket->eligibleToPageOut(lh, v)) {
@@ -149,6 +153,22 @@ PagingVisitor::PagingVisitor(KVBucket& s,
                 }
             }
             itemEviction.addValueToFreqHistogram(storedValueFreqCounter);
+
+            if (evicted) {
+                /**
+                 * Note: We are not taking a reader lock on the vbucket state.
+                 * Therefore it is possible that the stats could be slightly
+                 * out.  However given that its just for stats we don't want
+                 * to incur any performance cost associated with taking the
+                 * lock.
+                 */
+                auto& frequencyValuesEvictedHisto =
+                        ((currentBucket->getState() == vbucket_state_active) ||
+                         (currentBucket->getState() == vbucket_state_pending))
+                                ? stats.activeOrPendingFrequencyValuesEvictedHisto
+                                : stats.replicaFrequencyValuesEvictedHisto;
+                frequencyValuesEvictedHisto.addValue(storedValueFreqCounter);
+            }
 
             // Whilst we are learning it is worth always updating the
             // threshold. We also want to update the threshold at periodic
@@ -217,6 +237,28 @@ PagingVisitor::PagingVisitor(KVBucket& s,
                     itemEviction.setUpdateInterval(interval);
                 }
                 vb->ht.visit(*this);
+                /**
+                 * Note: We are not taking a reader lock on the vbucket state.
+                 * Therefore it is possible that the stats could be slightly
+                 * out.  However given that its just for stats we don't want
+                 * to incur any performance cost associated with taking the
+                 * lock.
+                 */
+                const bool isActiveOrPending =
+                        ((currentBucket->getState() == vbucket_state_active) ||
+                         (currentBucket->getState() == vbucket_state_pending));
+
+                // Take a snapshot of the latest frequency histogram
+                if (isActiveOrPending) {
+                    stats.activeOrPendingFrequencyValuesSnapshotHisto.reset();
+                    itemEviction.copyToHistogram(
+                            stats.activeOrPendingFrequencyValuesSnapshotHisto);
+                } else {
+                    stats.replicaFrequencyValuesSnapshotHisto.reset();
+                    itemEviction.copyToHistogram(
+                            stats.replicaFrequencyValuesSnapshotHisto);
+                }
+
                 // We have just evicted all eligible items from the hash table
                 // so we now want to reclaim the memory being used to hold
                 // closed and unreferenced checkpoints in the vbucket, before
