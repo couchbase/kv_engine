@@ -224,7 +224,10 @@ void conn_close(Connection& connection) {
         throw std::logic_error("conn_close: unable to obtain non-NULL thread from connection");
     }
     // remove from pending-io list
-    thread->pending_io.erase(&connection);
+    {
+        std::lock_guard<std::mutex> lock(thread->pending_io.mutex);
+        thread->pending_io.map.erase(&connection);
+    }
 
     connection.read->clear();
     connection.write->clear();

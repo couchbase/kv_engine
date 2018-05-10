@@ -271,13 +271,20 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
 
     dispatch_new_connections(me);
 
+    LIBEVENT_THREAD::PendingIoMap pending;
+    {
+        std::lock_guard<std::mutex> lock(me.pending_io.mutex);
+        me.pending_io.map.swap(pending);
+    }
+
     TRACE_LOCKGUARD_TIMED(me.mutex,
                           "mutex",
                           "thread_libevent_process::threadLock",
                           SlowMutexThreshold);
 
-    auto pending = std::move(me.pending_io);
-    for (auto* c : pending) {
+    for (auto io : pending) {
+        auto* c = io.first;
+        auto status = io.second;
         if (c->getSocketDescriptor() != INVALID_SOCKET &&
             !c->isRegisteredInLibevent()) {
             /* The socket may have been shut down while we're looping */
@@ -290,6 +297,7 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
          * from the context of the notification pipe, so just let it
          * run one time to set up the correct mask in libevent
          */
+        c->setAiostat(status);
         c->setNumEvents(1);
         run_event_loop(c, EV_READ | EV_WRITE);
     }
@@ -342,15 +350,7 @@ void notify_io_complete(gsl::not_null<const void*> void_cookie,
               cookie.getConnection().getId(),
               status);
 
-    {
-        TRACE_LOCKGUARD_TIMED(thr->mutex,
-                              "mutex",
-                              "notify_io_complete::threadLock",
-                              SlowMutexThreshold);
-
-        cookie.setAiostat(status);
-        notify = add_conn_to_pending_io_list(&cookie.getConnection());
-    }
+    notify = add_conn_to_pending_io_list(&cookie.getConnection(), status);
 
     /* kick the thread in the butt */
     if (notify) {
@@ -507,14 +507,14 @@ void notify_thread(LIBEVENT_THREAD& thread) {
     }
 }
 
-int add_conn_to_pending_io_list(Connection* c) {
-    int notify = 0;
+int add_conn_to_pending_io_list(Connection* c, ENGINE_ERROR_CODE status) {
     auto* thread = c->getThread();
 
-    if (thread->pending_io.count(c) == 0) {
-        thread->pending_io.insert(c);
-        notify = 1;
+    std::pair<LIBEVENT_THREAD::PendingIoMap::iterator, bool> result;
+    {
+        std::lock_guard<std::mutex> lock(thread->pending_io.mutex);
+        result = thread->pending_io.map.emplace(c, status);
     }
-
+    int notify = result.second ? 1 : 0;
     return notify;
 }
