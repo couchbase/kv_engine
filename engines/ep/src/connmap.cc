@@ -24,6 +24,7 @@
 #include <string>
 #include <vector>
 
+#include <daemon/tracing.h>
 #include <phosphor/phosphor.h>
 
 #include "connhandler.h"
@@ -49,6 +50,7 @@ public:
     }
 
     bool run(void) {
+        TRACE_EVENT0("ep-engine/task", "ConnNotifierCallback");
         auto connNotifier = connNotifierPtr.lock();
         if (connNotifier) {
             return connNotifier->notifyConnections();
@@ -214,7 +216,11 @@ void ConnMap::notifyAllPausedConnections() {
     std::queue<std::shared_ptr<ConnHandler>> queue;
     pendingNotifications.getAll(queue);
 
-    LockHolder rlh(releaseLock);
+    TRACE_LOCKGUARD_TIMED(releaseLock,
+                          "mutex",
+                          "ConnMap::notifyAllPausedConnections::releaseLock",
+                          SlowMutexThreshold);
+
     while (!queue.empty()) {
         auto& conn = queue.front();
         if (conn.get() && conn->isPaused() && conn->isReserved()) {

@@ -28,6 +28,12 @@ class Cookie;
 struct DumpContext;
 
 /**
+ * When measuring mutex wait / lock durations, what is considered a default
+ * "slow" wait/lock time and trace events should be logged?
+ */
+constexpr auto SlowMutexThreshold = std::chrono::milliseconds(10);
+
+/**
  * Initialises Tracing
  */
 void initializeTracing();

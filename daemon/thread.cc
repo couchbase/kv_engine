@@ -8,9 +8,11 @@
 #include "cookie.h"
 #include "memcached.h"
 #include "trace.h"
+#include "tracing.h"
 
 #include <fcntl.h>
 #include <memcached/openssl.h>
+#include <phosphor/phosphor.h>
 #include <platform/cb_malloc.h>
 #include <platform/platform.h>
 #include <platform/socket.h>
@@ -99,7 +101,10 @@ static void create_worker(void (*func)(void *), void *arg, cb_thread_t *id,
 
 void iterate_all_connections(std::function<void(Connection&)> callback) {
     for (auto& thr : threads) {
-        std::lock_guard<std::mutex> guard(thr.mutex);
+        TRACE_LOCKGUARD_TIMED(thr.mutex,
+                              "mutex",
+                              "iterate_all_connections::threadLock",
+                              SlowMutexThreshold);
         iterate_thread_connections(&thr, callback);
     }
 }
@@ -266,7 +271,10 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
 
     dispatch_new_connections(me);
 
-    std::lock_guard<std::mutex> guard(me.mutex);
+    TRACE_LOCKGUARD_TIMED(me.mutex,
+                          "mutex",
+                          "thread_libevent_process::threadLock",
+                          SlowMutexThreshold);
 
     auto pending = std::move(me.pending_io);
     for (auto* c : pending) {
@@ -334,10 +342,15 @@ void notify_io_complete(gsl::not_null<const void*> void_cookie,
               cookie.getConnection().getId(),
               status);
 
-    LOCK_THREAD(thr);
-    cookie.setAiostat(status);
-    notify = add_conn_to_pending_io_list(&cookie.getConnection());
-    UNLOCK_THREAD(thr);
+    {
+        TRACE_LOCKGUARD_TIMED(thr->mutex,
+                              "mutex",
+                              "notify_io_complete::threadLock",
+                              SlowMutexThreshold);
+
+        cookie.setAiostat(status);
+        notify = add_conn_to_pending_io_list(&cookie.getConnection());
+    }
 
     /* kick the thread in the butt */
     if (notify) {
@@ -468,14 +481,20 @@ void threads_notify_bucket_deletion() {
 
 void threads_complete_bucket_deletion() {
     for (auto& thr : threads) {
-        std::lock_guard<std::mutex> guard(thr.mutex);
+        TRACE_LOCKGUARD_TIMED(thr.mutex,
+                              "mutex",
+                              "threads_complete_bucket_deletion::threadLock",
+                              SlowMutexThreshold);
         thr.deleting_buckets--;
     }
 }
 
 void threads_initiate_bucket_deletion() {
     for (auto& thr : threads) {
-        std::lock_guard<std::mutex> guard(thr.mutex);
+        TRACE_LOCKGUARD_TIMED(thr.mutex,
+                              "mutex",
+                              "threads_initiate_bucket_deletion::threadLock",
+                              SlowMutexThreshold);
         thr.deleting_buckets++;
     }
 }

@@ -159,10 +159,6 @@ struct LIBEVENT_THREAD {
     JSON_checker::Validator validator;
 };
 
-#define LOCK_THREAD(t) t->mutex.lock();
-
-#define UNLOCK_THREAD(t) t->mutex.unlock();
-
 extern void notify_thread(LIBEVENT_THREAD& thread);
 extern void notify_dispatcher();
 
