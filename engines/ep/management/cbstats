@@ -342,6 +342,10 @@ def histograms(mc, raw_stats):
 
     special_labels = {'item_alloc_sizes': size_label,
                       'bg_batch_size' : no_label,
+                      'ep_active_or_pending_eviction_values_evicted' : no_label,
+                      'ep_replica_eviction_values_evicted' : no_label,
+                      'ep_active_or_pending_eviction_values_snapshot' : no_label,
+                      'ep_replica_eviction_values_snapshot' : no_label,
                       'paged_out_time': sec_label}
 
     histodata = {}
@@ -630,6 +634,15 @@ def stats_diskinfo(mc, with_detail=None):
     stats_formatter(stats_perform(mc, cmd_str))
 
 @cmd
+def stats_eviction(mc):
+    if output_json:
+        print 'Json output not supported for eviction stats'
+        return
+    h = stats_perform(mc, 'eviction')
+    if h:
+        histograms(mc, h)
+
+@cmd
 def stats_hash(mc, with_detail=None):
     h = stats_perform(mc,'hash')
     if not h:
@@ -764,6 +777,7 @@ def main():
     c.addCommand('checkpoint', stats_checkpoint, 'checkpoint [vbid]')
     c.addCommand('config', stats_config, 'config')
     c.addCommand('diskinfo', stats_diskinfo, 'diskinfo [detail]')
+    c.addCommand('eviction', stats_eviction, 'eviction')
     c.addCommand('scheduler', stats_scheduler, 'scheduler')
     c.addCommand('runtimes', stats_runtimes, 'runtimes')
     c.addCommand('dispatcher', stats_dispatcher, 'dispatcher [logs]')

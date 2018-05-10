@@ -52,15 +52,6 @@
  *
  */
 class ItemEviction {
-    // Custom deleter for the hdr_histogram struct.
-    struct HdrDeleter {
-        void operator()(struct hdr_histogram* val) {
-            free(val);
-        }
-    };
-
-    using HdrHistogramUniquePtr =
-            std::unique_ptr<struct hdr_histogram, HdrDeleter>;
 
 public:
     ItemEviction();
@@ -108,6 +99,11 @@ public:
     // frequency histogram before it is not necessary to recalculate the
     // threshold every time we visit an item in the hash table.
     static const uint64_t learningPopulation = 100;
+
+    // StatCounter:: Copies the contents of the frequency histogram into
+    // the histogram given as an input parameter
+    // @param hist  the destination histogram for the copy
+    void copyToHistogram(HdrHistogram& hist);
 
 private:
     //  The minimum value that can be added to the frequency histogram

@@ -18,6 +18,7 @@
 #pragma once
 
 #include "config.h"
+#include "hdrhistogram.h"
 #include "objectregistry.h"
 
 #include <memcached/types.h>
@@ -381,6 +382,35 @@ public:
      */
     Histogram<size_t> getMultiBatchSizeHisto;
 
+    static const uint64_t minHdrValue = 0;
+    static const uint64_t maxHdrValue = std::numeric_limits<uint8_t>::max();
+    static const int significantFigures = 3; // Precision for the histogram.
+    /**
+     * Histogram of frequency counts for items evicted from active or pending
+     * vbuckets.
+     */
+    HdrHistogram activeOrPendingFrequencyValuesEvictedHisto{
+            minHdrValue, maxHdrValue, significantFigures};
+
+    /**
+     * Histogram of frequency counts for items evicted from replica vbuckets.
+     */
+    HdrHistogram replicaFrequencyValuesEvictedHisto{
+            minHdrValue, maxHdrValue, significantFigures};
+
+    /**
+     * Histogram of eviction thresholds when evicting from active or pending
+     * vbuckets.
+     */
+    HdrHistogram activeOrPendingFrequencyValuesSnapshotHisto{
+            minHdrValue, maxHdrValue, significantFigures};
+
+    /**
+     * Histogram of eviction thresholds when evicting from replica vbuckets.
+     */
+    HdrHistogram replicaFrequencyValuesSnapshotHisto{
+            minHdrValue, maxHdrValue, significantFigures};
+
     //
     // Command timers
     //
@@ -514,6 +544,11 @@ public:
         getMultiHisto.reset();
         persistenceCursorGetItemsHisto.reset();
         dcpCursorsGetItemsHisto.reset();
+
+        activeOrPendingFrequencyValuesEvictedHisto.reset();
+        replicaFrequencyValuesEvictedHisto.reset();
+        activeOrPendingFrequencyValuesSnapshotHisto.reset();
+        replicaFrequencyValuesSnapshotHisto.reset();
     }
 
     // Used by stats logging infrastructure.

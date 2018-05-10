@@ -272,10 +272,11 @@ void SingleThreadedKVBucketTest::createDcpStream(MockDcpProducer& producer) {
                                      &dcpAddFailoverLog));
 }
 
-void SingleThreadedKVBucketTest::runCompaction() {
+void SingleThreadedKVBucketTest::runCompaction(uint64_t purgeBeforeTime,
+                                               uint64_t purgeBeforeSeq) {
     CompactionConfig compactConfig;
-    compactConfig.purge_before_ts = ep_real_time();
-    compactConfig.purge_before_seq = 0;
+    compactConfig.purge_before_ts = purgeBeforeTime;
+    compactConfig.purge_before_seq = purgeBeforeSeq;
     compactConfig.drop_deletes = false;
     compactConfig.db_file_id = vbid;
     store->scheduleCompaction(vbid, compactConfig, nullptr);
@@ -2803,6 +2804,183 @@ TEST_P(XattrCompressedTest, MB_29040_sanitise_input) {
     EXPECT_EQ(isXattrSystem() ? PROTOCOL_BINARY_DATATYPE_XATTR
                               : PROTOCOL_BINARY_RAW_BYTES,
               gv.item->getDataType());
+}
+
+// Test highlighting MB_29480 - this is not demonstrating the issue is fixed.
+TEST_F(SingleThreadedEPBucketTest, MB_29480) {
+    // Make vbucket active.
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    auto vb = store->getVBuckets().getBucket(vbid);
+    ASSERT_NE(nullptr, vb.get());
+
+    // Create a Mock Dcp producer
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine,
+            cookie,
+            "test_producer",
+            /*flags*/ 0,
+            cb::const_byte_buffer() /*no json*/);
+
+    producer->createCheckpointProcessorTask();
+
+    auto producers = get_dcp_producers(
+            reinterpret_cast<ENGINE_HANDLE*>(engine.get()),
+            reinterpret_cast<ENGINE_HANDLE_V1*>(engine.get()));
+
+    producer->mockActiveStreamRequest(0, // flags
+                                      1, // opaque
+                                      *vb,
+                                      0, // start_seqno
+                                      ~0, // end_seqno
+                                      0, // vbucket_uuid,
+                                      0, // snap_start_seqno,
+                                      0); // snap_end_seqno,
+
+    // 1) First store 5 keys
+    std::array<std::string, 2> initialKeys = {{"k1", "k2"}};
+    for (const auto& key : initialKeys) {
+        store_item(vbid, makeStoredDocKey(key), key);
+    }
+    flush_vbucket_to_disk(vbid, initialKeys.size());
+
+    // 2) And receive them, client knows of k1,k2,k3,k4,k5
+    notifyAndStepToCheckpoint(*producer, *producers);
+    for (const auto& key : initialKeys) {
+        EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+        EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_MUTATION, dcp_last_op);
+        EXPECT_EQ(key, dcp_last_key);
+        dcp_last_op = 0;
+    }
+
+    auto stream = producer->findStream(vbid);
+    auto* mock_stream = static_cast<MockActiveStream*>(stream.get());
+
+    // 3) Next delete k1/k2, compact (purging the tombstone)
+    // NOTE: compaction will not purge a tombstone if it is the highest item
+    // in the seqno index, hence why k1 will be purged but k2 won't
+    for (const auto& key : initialKeys) {
+        delete_item(vbid, makeStoredDocKey(key));
+    }
+    flush_vbucket_to_disk(vbid, initialKeys.size());
+
+    // 4) Compact drop tombstones less than time=maxint and below seqno 3
+    // as per earlier comment, only seqno 1 will be purged...
+    runCompaction(~0, 3);
+
+    // 5) Begin cursor dropping
+    mock_stream->handleSlowStream();
+
+    // Kick the stream into backfill
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+
+    // 6) Store more items (don't flush these)
+    std::array<std::string, 2> extraKeys = {{"k3", "k4"}};
+    for (const auto& key : extraKeys) {
+        store_item(vbid, makeStoredDocKey(key), key);
+    }
+
+    auto vb0Stream = producer->findStream(0);
+    ASSERT_NE(nullptr, vb0Stream.get());
+
+    EXPECT_TRUE(vb0Stream->isBackfilling());
+
+    // 7) Backfill now starts up, but should quickly cancel
+    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX]);
+
+    // Stream is now dead
+    EXPECT_FALSE(vb0Stream->isActive());
+
+    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_STREAM_END, dcp_last_op);
+
+    // Stop Producer checkpoint processor task
+    producer->cancelCheckpointCreatorTask();
+}
+
+// MB-29512: Ensure if compaction ran in between stream-request and backfill
+// starting, we don't backfill from before the purge-seqno.
+TEST_F(SingleThreadedEPBucketTest, MB_29512) {
+    // Make vbucket active.
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    auto vb = store->getVBuckets().getBucket(vbid);
+    ASSERT_NE(nullptr, vb.get());
+
+    // Create a Mock Dcp producer
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine,
+            cookie,
+            "test_producer",
+            /*flags*/ 0,
+            cb::const_byte_buffer() /*no json*/);
+
+    producer->createCheckpointProcessorTask();
+
+    auto producers = get_dcp_producers(
+            reinterpret_cast<ENGINE_HANDLE*>(engine.get()),
+            reinterpret_cast<ENGINE_HANDLE_V1*>(engine.get()));
+
+    // 1) First store k1/k2 (creating seq 1 and seq 2)
+    std::array<std::string, 2> initialKeys = {{"k1", "k2"}};
+    for (const auto& key : initialKeys) {
+        store_item(vbid, makeStoredDocKey(key), key);
+    }
+    flush_vbucket_to_disk(vbid, initialKeys.size());
+
+    // Assume the DCP client connects here and receives seq 1 and 2 then drops
+
+    // 2) delete k1/k2 (creating seq 3 and seq 4)
+    for (const auto& key : initialKeys) {
+        delete_item(vbid, makeStoredDocKey(key));
+    }
+    flush_vbucket_to_disk(vbid, initialKeys.size());
+
+    // Disk index now has two items, seq3 and seq4 (deletes of k1/k2)
+
+    // 3) Force all memory items out so DCP will definitely go to disk and
+    //    not memory.
+    bool newcp;
+    vb->checkpointManager->createNewCheckpoint();
+    // Force persistence into new CP
+    store_item(vbid, makeStoredDocKey("k3"), "k3");
+    flush_vbucket_to_disk(vbid, 1);
+    EXPECT_EQ(2,
+              vb->checkpointManager->removeClosedUnrefCheckpoints(*vb, newcp));
+
+    // 4) Stream request picking up where we left off.
+    uint64_t rollbackSeqno = 0;
+    EXPECT_EQ(ENGINE_SUCCESS,
+              producer->streamRequest(0, // flags
+                                      1, // opaque
+                                      vb->getId(),
+                                      2, // start_seqno
+                                      ~0, // end_seqno
+                                      vb->failovers->getLatestUUID(),
+                                      0, // snap_start_seqno,
+                                      2,
+                                      &rollbackSeqno,
+                                      &dcpAddFailoverLog)); // snap_end_seqno,
+
+    // 5) Now compaction kicks in, which will purge the deletes of k1/k2 setting
+    //    the purgeSeqno to seq 4 (the last purged seqno)
+    runCompaction(~0, 5);
+
+    EXPECT_EQ(vb->getPurgeSeqno(), 4);
+
+    auto vb0Stream = producer->findStream(0);
+    ASSERT_NE(nullptr, vb0Stream.get());
+
+    EXPECT_TRUE(vb0Stream->isBackfilling());
+
+    // 6) Backfill now starts up, but should quickly cancel
+    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX]);
+
+    EXPECT_FALSE(vb0Stream->isActive());
+
+    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_STREAM_END, dcp_last_op);
+
+    // Stop Producer checkpoint processor task
+    producer->cancelCheckpointCreatorTask();
 }
 
 INSTANTIATE_TEST_CASE_P(XattrSystemUserTest,

@@ -3679,6 +3679,37 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doDcpStats(const void *cookie,
     return ENGINE_SUCCESS;
 }
 
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doEvictionStats(
+        const void* cookie, ADD_STAT add_stat) {
+    /**
+     * The "evicted" histogram stats provide an aggregated view of what the
+     * execution frequencies are for all the items that evicted when running
+     * the hifi_mfu algorithm.
+     */
+    add_casted_stat("ep_active_or_pending_eviction_values_evicted",
+                    stats.activeOrPendingFrequencyValuesEvictedHisto,
+                    add_stat,
+                    cookie);
+    add_casted_stat("ep_replica_eviction_values_evicted",
+                    stats.replicaFrequencyValuesEvictedHisto,
+                    add_stat,
+                    cookie);
+    /**
+     * The "snapshot" histogram stats provide a view of what the contents of
+     * the frequency histogram is like during the running of the hifi_mfu
+     * algorithm.
+     */
+    add_casted_stat("ep_active_or_pending_eviction_values_snapshot",
+                    stats.activeOrPendingFrequencyValuesSnapshotHisto,
+                    add_stat,
+                    cookie);
+    add_casted_stat("ep_replica_eviction_values_snapshot",
+                    stats.replicaFrequencyValuesSnapshotHisto,
+                    add_stat,
+                    cookie);
+    return ENGINE_SUCCESS;
+}
+
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(const void *cookie,
                                                          ADD_STAT add_stat,
                                                          uint16_t vbid,
@@ -4095,6 +4126,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         rv = doConnAggStats(cookie, add_stat, stat_key + 7, nkey - 7);
     } else if (statKey == "dcp") {
         rv = doDcpStats(cookie, add_stat);
+    } else if (statKey == "eviction") {
+        // Only return eviction stats if hifi_mfu eviction policy is used.
+        rv = (configuration.getHtEvictionPolicy() == "hifi_mfu")
+                     ? doEvictionStats(cookie, add_stat)
+                     : ENGINE_EINVAL;
     } else if (statKey == "hash") {
         rv = doHashStats(cookie, add_stat);
     } else if (statKey == "vbucket") {

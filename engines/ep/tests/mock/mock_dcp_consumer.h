@@ -51,6 +51,14 @@ public:
         return backoffs.load();
     }
 
+    GetErrorMapState getGetErrorMapState() {
+        return getErrorMapState;
+    }
+
+    bool getProducerIsVersion5orHigher() {
+        return producerIsVersion5orHigher;
+    }
+
     /*
      * Creates a PassiveStream.
      * @return a SingleThreadedRCPtr to the newly created MockPassiveStream.
