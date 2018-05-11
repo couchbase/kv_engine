@@ -1,11 +1,5 @@
 /* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#ifndef CONFIG_H
-#define CONFIG_H 1
-
-#include <platform/platform.h>
-#include <platform/socket.h>
-
-#include <event.h>
+#pragma once
 
 #cmakedefine HAVE_MEMALIGN 1
 #cmakedefine HAVE_LIBNUMA 1
@@ -25,6 +19,10 @@
 #define COUCHBASE_MAX_ITEM_PRIVILEGED_BYTES (1024 * 1024)
 
 #ifdef WIN32
+// We need to make sure that we include winsock2.h before
+// ws2tcpip.h before windows.h... if we end up with windows.h
+// before those files we're getting compile errors.
+#include <platform/socket.h>
 #include <windows.h>
 
 #include <io.h>
@@ -33,28 +31,12 @@
 #define F_OK 0
 #endif
 
-#define PATH_MAX 1024
-
-/* @todo investigate this one.. */
-
-#define SOCKETPAIR_AF AF_INET
-
 typedef HANDLE pid_t;
-
-#define snprintf _snprintf
-#define strtoull(a, b, c) _strtoui64(a, b, c)
-#define strtoll(a, b, c) _strtoi64(a, b, c)
-/* to stop the stupid compiler to whine about this.. */
-#ifndef __cplusplus
-#define putenv(a) _putenv(a)
-#endif
 
 #define EX_OSERR EXIT_FAILURE
 #define EX_USAGE EXIT_FAILURE
 
 #else
-
-#define SOCKETPAIR_AF AF_UNIX
 
 /* need this to get IOV_MAX on some platforms. */
 #ifndef __need_IOV_MAX
@@ -63,11 +45,6 @@ typedef HANDLE pid_t;
 
 #ifndef _POSIX_PTHREAD_SEMANTICS
 #define _POSIX_PTHREAD_SEMANTICS
-#endif
-
-#ifdef __sun
-#include <priv.h>
-#define HAVE_DROP_PRIVILEGES 1
 #endif
 
 #define HAVE_SIGIGNORE 1
@@ -123,5 +100,3 @@ typedef HANDLE pid_t;
 #undef htons
 #undef htonl
 #endif
-
-#endif // CONFIG_H

@@ -18,8 +18,9 @@
 #include "memcached_openssl.h"
 
 #include <memcached/openssl.h>
-#include <openssl/engine.h>
 #include <openssl/conf.h>
+#include <openssl/engine.h>
+#include <platform/platform.h>
 
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
 

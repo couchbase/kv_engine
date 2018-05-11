@@ -107,10 +107,10 @@ void iterate_all_connections(std::function<void(Connection&)> callback) {
 }
 
 static bool create_notification_pipe(LIBEVENT_THREAD& me) {
-    if (evutil_socketpair(SOCKETPAIR_AF,
-                          SOCK_STREAM,
-                          0,
-                          reinterpret_cast<evutil_socket_t*>(me.notify)) ==
+    if (cb::net::socketpair(SOCKETPAIR_AF,
+                            SOCK_STREAM,
+                            0,
+                            reinterpret_cast<SOCKET*>(me.notify)) ==
         SOCKET_ERROR) {
         LOG_WARNING("Can't create notify pipe: {}",
                     cb_strerror(cb::net::get_socket_error()));

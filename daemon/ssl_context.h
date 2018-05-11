@@ -23,6 +23,7 @@
 #include <cJSON.h>
 #include <memcached/openssl.h>
 #include <platform/pipe.h>
+#include <platform/socket.h>
 #include <cstdint>
 #include <vector>
 

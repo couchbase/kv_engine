@@ -30,9 +30,11 @@
 #include <cbsasl/client.h>
 #include <cbsasl/server.h>
 #include <daemon/protocol/mcbp/command_context.h>
+#include <event.h>
 #include <memcached/openssl.h>
 #include <memcached/rbac.h>
 #include <platform/sized_buffer.h>
+#include <platform/socket.h>
 
 #include <array>
 #include <chrono>

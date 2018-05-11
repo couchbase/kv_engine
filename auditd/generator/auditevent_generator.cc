@@ -24,6 +24,7 @@
 #include <inttypes.h>
 #include <limits.h>
 #include <platform/make_unique.h>
+#include <platform/platform.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
