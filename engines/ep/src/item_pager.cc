@@ -17,7 +17,7 @@
 
 #include "item_pager.h"
 
-#include "checkpoint.h"
+#include "checkpoint_manager.h"
 #include "connmap.h"
 #include "dcp/dcpconnmap.h"
 #include "ep_engine.h"

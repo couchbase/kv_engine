@@ -17,7 +17,7 @@
 
 #include "config.h"
 
-#include "checkpoint.h"
+#include "checkpoint_manager.h"
 #include "checkpoint_remover.h"
 #include "connmap.h"
 #include "dcp/dcpconnmap.h"

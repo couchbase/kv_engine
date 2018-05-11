@@ -22,7 +22,7 @@
 #include "../mock/mock_global_task.h"
 #include "../mock/mock_paging_visitor.h"
 #include "bgfetcher.h"
-#include "checkpoint.h"
+#include "checkpoint_manager.h"
 #include "ep_time.h"
 #include "evp_store_single_threaded_test.h"
 #include "item.h"

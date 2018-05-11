@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "checkpoint.h"
+#include "checkpoint_manager.h"
 #include "checkpoint_test.h"
 #include "configuration.h"
 #include "ep_vb.h"

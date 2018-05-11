@@ -24,7 +24,7 @@
 #include "../mock/mock_item_freq_decayer.h"
 #include "../mock/mock_stream.h"
 #include "bgfetcher.h"
-#include "checkpoint.h"
+#include "checkpoint_manager.h"
 #include "dcp/dcpconnmap.h"
 #include "ep_time.h"
 #include "evp_store_test.h"

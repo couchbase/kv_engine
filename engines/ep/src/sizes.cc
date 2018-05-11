@@ -25,6 +25,7 @@
 #include <platform/timeutils.h>
 #include "atomic_unordered_map.h"
 #include "checkpoint.h"
+#include "checkpoint_manager.h"
 #include "common.h"
 #include "dcp/stream.h"
 #include "item.h"

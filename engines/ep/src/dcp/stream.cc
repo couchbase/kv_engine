@@ -17,7 +17,7 @@
 
 #include "config.h"
 
-#include "checkpoint.h"
+#include "checkpoint_manager.h"
 #include "collections/vbucket_filter.h"
 #include "dcp/backfill-manager.h"
 #include "dcp/backfill.h"

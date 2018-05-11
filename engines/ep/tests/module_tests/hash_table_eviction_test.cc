@@ -21,7 +21,7 @@
  * tool - see kv_engine/engines/ep/scripts/evictionVisualiser.py
  */
 
-#include "checkpoint.h"
+#include "checkpoint_manager.h"
 #include "evp_store_single_threaded_test.h"
 #include "memory_tracker.h"
 #include "test_helpers.h"

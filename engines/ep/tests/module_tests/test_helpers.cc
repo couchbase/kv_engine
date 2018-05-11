@@ -23,7 +23,7 @@
 #include <platform/compress.h>
 #include <platform/make_unique.h>
 
-#include "checkpoint.h"
+#include "checkpoint_manager.h"
 #include "vbucket.h"
 
 Item make_item(uint16_t vbid,

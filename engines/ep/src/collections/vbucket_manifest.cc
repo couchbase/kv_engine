@@ -16,7 +16,7 @@
  */
 
 #include "collections/vbucket_manifest.h"
-#include "checkpoint.h"
+#include "checkpoint_manager.h"
 #include "collections/manifest.h"
 #include "collections/vbucket_serialised_manifest_entry.h"
 #include "item.h"

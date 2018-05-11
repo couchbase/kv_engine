@@ -21,7 +21,7 @@
 #include "../mock/mock_dcp.h"
 #include "../mock/mock_dcp_consumer.h"
 #include "../mock/mock_dcp_producer.h"
-#include "checkpoint.h"
+#include "checkpoint_manager.h"
 #include "test_helpers.h"
 
 size_t CheckpointRemoverTest::getMaxCheckpointItems(VBucket& vb) {

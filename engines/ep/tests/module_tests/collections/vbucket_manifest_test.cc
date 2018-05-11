@@ -15,7 +15,7 @@
  *   limitations under the License.
  */
 
-#include "checkpoint.h"
+#include "checkpoint_manager.h"
 #include "collections/manifest.h"
 #include "collections/vbucket_manifest.h"
 #include "collections/vbucket_serialised_manifest_entry.h"

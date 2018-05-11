@@ -20,7 +20,7 @@
  */
 
 #include "benchmark_memory_tracker.h"
-#include "checkpoint.h"
+#include "checkpoint_manager.h"
 #include "engine_fixture.h"
 
 #include <mock/mock_synchronous_ep_engine.h>

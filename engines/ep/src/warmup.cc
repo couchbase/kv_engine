@@ -17,7 +17,7 @@
 
 #include "warmup.h"
 
-#include "checkpoint.h"
+#include "checkpoint_manager.h"
 #include "collections/collections_callbacks.h"
 #include "common.h"
 #include "connmap.h"

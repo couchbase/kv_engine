@@ -25,7 +25,7 @@
 #include <tests/mock/mock_dcp_producer.h>
 #include <tests/mock/mock_stream.h>
 
-#include "checkpoint.h"
+#include "checkpoint_manager.h"
 #include "evp_store_single_threaded_test.h"
 #include "test_helpers.h"
 

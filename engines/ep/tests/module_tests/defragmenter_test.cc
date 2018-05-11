@@ -17,7 +17,7 @@
 
 #include "defragmenter_test.h"
 
-#include "checkpoint.h"
+#include "checkpoint_manager.h"
 #include "daemon/alloc_hooks.h"
 #include "defragmenter.h"
 #include "defragmenter_visitor.h"

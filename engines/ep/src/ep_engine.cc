@@ -21,6 +21,7 @@
 #include "kv_bucket.h"
 
 #include "checkpoint.h"
+#include "checkpoint_manager.h"
 #include "collections/manager.h"
 #include "common.h"
 #include "connmap.h"

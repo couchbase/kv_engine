@@ -20,6 +20,7 @@
 #include "atomic.h"
 #include "bgfetcher.h"
 #include "checkpoint.h"
+#include "checkpoint_manager.h"
 #include "conflict_resolution.h"
 #include "ep_engine.h"
 #include "ep_time.h"

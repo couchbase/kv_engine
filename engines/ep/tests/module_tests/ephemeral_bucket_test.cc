@@ -17,7 +17,7 @@
 
 #include "ephemeral_bucket_test.h"
 
-#include "checkpoint.h"
+#include "checkpoint_manager.h"
 #include "ephemeral_bucket.h"
 #include "test_helpers.h"
 
