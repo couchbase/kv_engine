@@ -20,6 +20,7 @@
 #include "config.h"
 
 #include <cJSON.h>
+#include <platform/socket.h>
 #include <gsl/gsl>
 
 class NetworkInterface {

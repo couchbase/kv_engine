@@ -52,10 +52,17 @@
 #include "utilities/protocol2text.h"
 #include "utilities/terminate_handler.h"
 
+#include <JSON_checker.h>
+#include <cJSON.h>
+#include <cJSON_utils.h>
 #include <cbsasl/logging.h>
 #include <cbsasl/mechanism.h>
 #include <cbsasl/saslauthd_config.h>
+#include <engines/default_engine.h>
 #include <mcbp/mcbp.h>
+#include <memcached/audit_interface.h>
+#include <memcached/rbac.h>
+#include <memcached/server_api.h>
 #include <memcached/util.h>
 #include <phosphor/phosphor.h>
 #include <platform/cb_malloc.h>
@@ -65,38 +72,31 @@
 #include <platform/socket.h>
 #include <platform/strerror.h>
 #include <platform/sysinfo.h>
-#include <utilities/breakpad.h>
-
-#include <signal.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <time.h>
-#include <limits.h>
-#include <ctype.h>
-#include <memcached/rbac.h>
-#include <stdarg.h>
-#include <stddef.h>
 #include <snappy-c.h>
-#include <cJSON.h>
-#include <JSON_checker.h>
-#include <engines/default_engine.h>
-#include <vector>
-#include <algorithm>
-#include <cJSON_utils.h>
-
-// MB-14649: log crashing on windows..
-#include <math.h>
-#include <memcached/audit_interface.h>
-#include <memcached/server_api.h>
-
+#include <utilities/breakpad.h>
 #include <gsl/gsl>
 
+#include <ctype.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <algorithm>
 #if HAVE_LIBNUMA
 #include <numa.h>
 #endif
+#include <limits.h>
+#include <math.h>
+#ifndef WIN32
+#include <netinet/tcp.h> // For TCP_NODELAY etc
+#include <sysexits.h>
+#endif
+#include <signal.h>
+#include <stdarg.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+#include <vector>
 
 static EXTENSION_LOG_LEVEL get_log_level(void);
 

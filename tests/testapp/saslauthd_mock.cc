@@ -17,8 +17,10 @@
 #include "config.h"
 #include "saslauthd_mock.h"
 
+#include <arpa/inet.h>
 #include <platform/dirutils.h>
 #include <platform/socket.h>
+#include <sys/un.h>
 #include <system_error>
 
 #ifdef WIN32
@@ -60,7 +62,7 @@ SaslauthdMock::SaslauthdMock()
 
 SaslauthdMock::~SaslauthdMock() {
     if (sock != -1) {
-        close(sock);
+        cb::net::closesocket(sock);
     }
     if (!sockfile.empty()) {
         std::remove(sockfile.c_str());
@@ -123,16 +125,16 @@ void SaslauthdMock::processOne() {
 
     if (service != "couchbase") {
         sendResult(client, "NO invalid service");
-        close(client);
+        cb::net::closesocket(client);
     } else if (!realm.empty()) {
         sendResult(client, "NO unknown realm");
-        close(client);
+        cb::net::closesocket(client);
     } else if (username == "superman" && passwd == "<3LoisLane<3") {
         sendResult(client, "OK welcome \"@admin\"");
-        close(client);
+        cb::net::closesocket(client);
     } else {
         sendResult(client, "NO I don't like you");
-        close(client);
+        cb::net::closesocket(client);
     }
 }
 

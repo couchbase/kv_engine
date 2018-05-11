@@ -22,7 +22,8 @@
 // We need to make sure that we include winsock2.h before
 // ws2tcpip.h before windows.h... if we end up with windows.h
 // before those files we're getting compile errors.
-#include <platform/socket.h>
+#include <winsock2.h>
+
 #include <windows.h>
 
 #include <io.h>
@@ -36,7 +37,7 @@ typedef HANDLE pid_t;
 #define EX_OSERR EXIT_FAILURE
 #define EX_USAGE EXIT_FAILURE
 
-#else
+#else // !WIN32
 
 /* need this to get IOV_MAX on some platforms. */
 #ifndef __need_IOV_MAX
@@ -49,27 +50,10 @@ typedef HANDLE pid_t;
 
 #define HAVE_SIGIGNORE 1
 
-#include <arpa/inet.h>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <signal.h>
-#include <sys/mman.h>
-#include <sys/resource.h>
-#include <sys/stat.h>
-#include <sys/time.h>
-#include <sys/uio.h>
-#include <sys/un.h>
-#include <sys/wait.h>
-#include <sysexits.h>
-#include <unistd.h>
-
-#endif
+#endif // WIN32
 
 /* Common section */
 #include <inttypes.h>
-#include <stdlib.h>
-#include <sys/types.h>
 
 #ifndef IOV_MAX
 #define IOV_MAX 1024

@@ -20,7 +20,11 @@
 #include "memcached.h"
 
 #include <platform/strerror.h>
+
 #include <iostream>
+#ifndef WIN32
+#include <signal.h>
+#endif
 
 ParentMonitor::ParentMonitor(int parent_id) : parent_pid(parent_id) {
     active = true;

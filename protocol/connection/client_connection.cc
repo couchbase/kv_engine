@@ -15,6 +15,7 @@
  *   limitations under the License.
  */
 #include "config.h"
+
 #include "client_connection.h"
 #include "cJSON_utils.h"
 #include "client_mcbp_commands.h"
@@ -33,6 +34,10 @@
 #include <gsl/gsl>
 #include <iostream>
 #include <limits>
+#ifndef WIN32
+#include <netdb.h>
+#include <netinet/tcp.h> // For TCP_NODELAY etc
+#endif
 #include <sstream>
 #include <stdexcept>
 #include <string>

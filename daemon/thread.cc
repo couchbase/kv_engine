@@ -13,13 +13,14 @@
 #include "trace.h"
 #include "tracing.h"
 
-#include <fcntl.h>
 #include <memcached/openssl.h>
 #include <phosphor/phosphor.h>
 #include <platform/cb_malloc.h>
 #include <platform/platform.h>
 #include <platform/socket.h>
 #include <platform/strerror.h>
+
+#include <fcntl.h>
 #include <atomic>
 #include <cerrno>
 #include <csignal>
@@ -27,6 +28,9 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#ifndef WIN32
+#include <netinet/tcp.h> // For TCP_NODELAY etc
+#endif
 #include <memory>
 #include <queue>
 

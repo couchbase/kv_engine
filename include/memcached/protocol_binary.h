@@ -37,9 +37,13 @@
 #include "config.h"
 
 #include <memcached/vbucket.h>
-
-#include <cstdint>
+#include <platform/socket.h>
 #include <gsl/gsl>
+
+#ifndef WIN32
+#include <arpa/inet.h>
+#endif
+#include <cstdint>
 #include <sstream>
 #include <stdexcept>
 #include <string>

@@ -16,15 +16,12 @@
  */
 #pragma once
 
+#include "config.h"
+
+#include <platform/socket.h>
+
 #include <string>
 #include <tuple>
-
-#ifdef WIN32
-#include <winsock.h>
-#else
-#include <sys/socket.h> // sa_family_t
-#include <netinet/in.h> // in_port_t
-#endif
 
 namespace cb {
 namespace inet {

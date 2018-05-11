@@ -16,6 +16,8 @@
  */
 #pragma once
 
+#include <platform/socket.h>
+
 /*
  * This file hides the #ifdef's and select the appropriate SSL
  * implementation to use. All of the different backends MUST provide

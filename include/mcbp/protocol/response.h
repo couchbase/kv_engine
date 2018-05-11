@@ -18,12 +18,16 @@
 
 #include "config.h"
 
+#include "datatype.h"
+
 #include <cJSON_utils.h>
 #include <mcbp/protocol/magic.h>
 #include <mcbp/protocol/opcode.h>
 #include <platform/sized_buffer.h>
 #include <cstdint>
-#include "datatype.h"
+#ifndef WIN32
+#include <arpa/inet.h>
+#endif
 
 namespace cb {
 namespace mcbp {

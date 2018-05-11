@@ -37,9 +37,13 @@
 #include <platform/timeutils.h>
 #include <utilities/logtags.h>
 #include <utilities/protocol2text.h>
+#include <gsl/gsl>
+
 #include <cctype>
 #include <exception>
-#include <gsl/gsl>
+#ifndef WIN32
+#include <netinet/tcp.h> // For TCP_NODELAY etc
+#endif
 
 const char* to_string(const Connection::Priority& priority) {
     switch (priority) {

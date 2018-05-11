@@ -25,6 +25,10 @@
 #include <platform/memorymap.h>
 #include <valgrind/valgrind.h>
 
+#ifndef WIN32
+#include <sys/resource.h>
+#endif
+
 class SpdloggerTest : public ::testing::Test {
 protected:
 /*

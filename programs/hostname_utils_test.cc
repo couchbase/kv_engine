@@ -17,6 +17,8 @@
 #include "config.h"
 #include "hostname_utils.h"
 
+#include <platform/socket.h>
+
 #include <gtest/gtest.h>
 #include <platform/platform.h>
 

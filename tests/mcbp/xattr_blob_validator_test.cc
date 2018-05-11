@@ -19,6 +19,9 @@
 #include <gtest/gtest.h>
 #include <xattr/utils.h>
 #include <gsl/gsl>
+#ifndef WIN32
+#include <arpa/inet.h>
+#endif
 
 class XattrValidatorTest : public ::testing::Test {
 public:

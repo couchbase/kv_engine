@@ -16,8 +16,12 @@
  */
 #include "config.h"
 #include "hostname_utils.h"
+
 #include <iostream>
 #include <stdexcept>
+#ifndef WIN32
+#include <netdb.h>
+#endif
 
 cb::inet::HostSpec cb::inet::parse_hostname(const std::string& host,
                                             const std::string& port) {

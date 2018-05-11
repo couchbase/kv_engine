@@ -23,6 +23,7 @@
 #include "generator_utilities.h"
 
 #include <cJSON_utils.h>
+#include <errno.h>
 #include <getopt.h>
 #include <cstdlib>
 #include <iostream>

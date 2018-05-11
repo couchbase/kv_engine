@@ -25,6 +25,9 @@
 #include <platform/platform.h>
 #include <platform/sized_buffer.h>
 
+#ifndef WIN32
+#include <arpa/inet.h>
+#endif
 #include <cctype>
 #include <cstdint>
 

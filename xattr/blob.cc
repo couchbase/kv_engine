@@ -17,8 +17,12 @@
 #include "config.h"
 
 #include <xattr/blob.h>
-#include <algorithm>
 #include <gsl/gsl>
+
+#ifndef WIN32
+#include <arpa/inet.h>
+#endif
+#include <algorithm>
 #include <stdexcept>
 
 namespace cb {

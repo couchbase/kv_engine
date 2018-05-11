@@ -18,6 +18,8 @@
 #include "saslauthd.h"
 #include <platform/socket.h>
 
+#include <arpa/inet.h>
+#include <sys/un.h>
 #include <cstring>
 #include <system_error>
 
@@ -72,7 +74,7 @@ Saslauthd::Saslauthd(const std::string& socketfile)
 Saslauthd::~Saslauthd() {
     if (sock != -1) {
         // There is not much we can do if we fail to close the socket
-        (void)close(sock);
+        cb::net::closesocket(sock);
     }
 }
 

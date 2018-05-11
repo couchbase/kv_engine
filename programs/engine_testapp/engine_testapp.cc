@@ -33,6 +33,8 @@ static bool color_enabled;
 static bool log_to_stderr = false;
 
 #ifndef WIN32
+#include <sys/wait.h>
+
 static sig_atomic_t alarmed;
 
 static void alarm_handler(int sig) {

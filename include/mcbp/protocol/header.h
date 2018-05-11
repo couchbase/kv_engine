@@ -21,6 +21,11 @@
 #include "magic.h"
 
 #include <cJSON_utils.h>
+#include <platform/platform.h>
+
+#ifndef WIN32
+#include <arpa/inet.h>
+#endif
 #include <stdexcept>
 
 namespace cb {
