@@ -1,17 +1,14 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #pragma once
 
-#include "log_macros.h"
-#include "stats.h"
-
 #include <JSON_checker.h>
 #include <event.h>
 #include <memcached/callback.h>
 #include <memcached/engine_error.h>
 #include <memcached/types.h>
+#include <platform/socket.h>
 #include <subdoc/operations.h>
 
-#include <functional>
 #include <mutex>
 #include <queue>
 #include <unordered_set>
@@ -65,8 +62,10 @@ enum class ThreadType {
 namespace cb {
 class Pipe;
 }
+class Cookie;
 class Connection;
 struct ConnectionQueueItem;
+struct thread_stats;
 
 /**
  * The dispatcher accepts new clients and needs to dispatch them

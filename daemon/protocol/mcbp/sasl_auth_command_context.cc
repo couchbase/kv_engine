@@ -23,6 +23,7 @@
 #include <daemon/memcached.h>
 #include <daemon/runtime.h>
 #include <daemon/sasl_tasks.h>
+#include <daemon/stats.h>
 
 ENGINE_ERROR_CODE SaslAuthCommandContext::initial() {
     if (!connection.isSaslAuthEnabled()) {

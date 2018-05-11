@@ -19,6 +19,7 @@
 
 #include "connections.h"
 #include "memcached.h"
+#include "stats.h"
 
 #include <platform/socket.h>
 #include <platform/strerror.h>

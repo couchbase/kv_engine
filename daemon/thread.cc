@@ -7,6 +7,8 @@
 #include "connections.h"
 #include "cookie.h"
 #include "memcached.h"
+#include "stats.h"
+#include "timing_histogram.h"
 #include "trace.h"
 
 #include <fcntl.h>

@@ -16,9 +16,11 @@
  */
 #include "parent_monitor.h"
 
+#include "log_macros.h"
 #include "memcached.h"
-#include <iostream>
+
 #include <platform/strerror.h>
+#include <iostream>
 
 ParentMonitor::ParentMonitor(int parent_id) : parent_pid(parent_id) {
     active = true;

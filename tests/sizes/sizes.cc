@@ -5,6 +5,7 @@
 #include <daemon/connection.h>
 #include <daemon/cookie.h>
 #include <daemon/memcached.h>
+#include <daemon/stats.h>
 
 #include <cstdio>
 

@@ -24,6 +24,8 @@
 
 #include <functional>
 
+class ListeningPort;
+
 /* Destroy all connections and reset connection management */
 void destroy_connections();
 

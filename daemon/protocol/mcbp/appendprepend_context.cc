@@ -18,6 +18,7 @@
 #include "engine_wrapper.h"
 
 #include <daemon/cookie.h>
+#include <daemon/stats.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>
 
