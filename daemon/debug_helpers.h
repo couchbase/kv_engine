@@ -23,10 +23,6 @@
 
 #include "config.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /* Insert a char* into a buffer, but replace all non-printable characters with
  * a '.'
  *
@@ -72,8 +68,4 @@ ssize_t bytes_to_output_string(char *dest, size_t destsz,
                                uint32_t client, bool from_client,
                                const char *prefix, const char *data,
                                size_t size);
-
-#ifdef __cplusplus
-} // extern "C"
-#endif
 
