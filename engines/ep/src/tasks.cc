@@ -32,7 +32,6 @@
 static const double WORKLOAD_MONITOR_FREQ(5.0);
 
 bool FlusherTask::run() {
-    TRACE_EVENT0("ep-engine/task", "FlusherTask");
     return flusher->step(this);
 }
 

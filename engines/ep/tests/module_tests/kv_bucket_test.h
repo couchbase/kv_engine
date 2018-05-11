@@ -77,7 +77,7 @@ public:
     /* Flush the given vbucket to disk, so any outstanding dirty items are
      * written (and are clean).
      */
-    void flush_vbucket_to_disk(uint16_t vbid, int expected = 1);
+    void flush_vbucket_to_disk(uint16_t vbid, size_t expected = 1);
 
     /**
      * Flush the given vBucket to disk if the bucket is peristent, otherwise

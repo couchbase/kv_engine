@@ -170,6 +170,10 @@ public:
                                            PROTOCOL_BINARY_DATATYPE_SNAPPY);
     }
 
+    bool isCursorDroppingEnabled() const {
+        return supportsCursorDropping.load();
+    }
+
     void notifyPaused(bool schedule);
 
     void setLastReceiveTime(const rel_time_t time) {
