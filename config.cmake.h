@@ -7,8 +7,8 @@
 
 #include <event.h>
 
-#cmakedefine HAVE_MEMALIGN ${HAVE_MEMALIGN}
-#cmakedefine HAVE_LIBNUMA ${HAVE_LIBNUMA}
+#cmakedefine HAVE_MEMALIGN 1
+#cmakedefine HAVE_LIBNUMA 1
 #cmakedefine HAVE_PKCS5_PBKDF2_HMAC 1
 #cmakedefine HAVE_PKCS5_PBKDF2_HMAC_SHA1 1
 #cmakedefine HAVE_SSL_OP_NO_TLSv1_1 1
@@ -22,10 +22,11 @@
 #endif
 
 #define COUCHBASE_MAX_NUM_BUCKETS 100
-#define COUCHBASE_MAX_ITEM_PRIVILEGED_BYTES (1024*1024)
+#define COUCHBASE_MAX_ITEM_PRIVILEGED_BYTES (1024 * 1024)
 
 #ifdef WIN32
 #include <windows.h>
+
 #include <io.h>
 
 #ifndef F_OK
@@ -71,31 +72,30 @@ typedef HANDLE pid_t;
 
 #define HAVE_SIGIGNORE 1
 
-
-#include <sys/wait.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <unistd.h>
-#include <sys/stat.h>
-#include <sys/un.h>
-#include <sys/resource.h>
-#include <sys/uio.h>
-#include <netinet/tcp.h>
 #include <arpa/inet.h>
-#include <sys/mman.h>
-#include <sys/time.h>
+#include <netdb.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <signal.h>
+#include <sys/mman.h>
+#include <sys/resource.h>
+#include <sys/stat.h>
+#include <sys/time.h>
+#include <sys/uio.h>
+#include <sys/un.h>
+#include <sys/wait.h>
 #include <sysexits.h>
+#include <unistd.h>
 
 #endif
 
 /* Common section */
-#include <stdlib.h>
 #include <inttypes.h>
+#include <stdlib.h>
 #include <sys/types.h>
 
 #ifndef IOV_MAX
-# define IOV_MAX 1024
+#define IOV_MAX 1024
 #endif
 
 #define MEMCACHED_VERSION "${MEMCACHED_VERSION}"
@@ -108,7 +108,8 @@ typedef HANDLE pid_t;
  * 2) cb_assert() prints extra info (backtraces).
  */
 #undef assert
-#define assert #error "assert() is forbidden. Use cb_assert() from <platform/cbassert.h instead."
+#define assert \
+    #error "assert() is forbidden. Use cb_assert() from <platform/cbassert.h instead."
 
 /*
  * Using the ntoh-methods on Linux thread sanitizer builder cause
@@ -123,4 +124,4 @@ typedef HANDLE pid_t;
 #undef htonl
 #endif
 
-#endif //CONFIG_H
+#endif // CONFIG_H
