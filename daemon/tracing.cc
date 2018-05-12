@@ -102,9 +102,6 @@ void initializeTracing() {
     // and begin tracing.
     {
         std::lock_guard<std::mutex> lh(configMutex);
-        // 'mutex' category is too costly to enable by default
-        // (3x steady_clock::now() calls per mutex lock / unlock pair).
-        lastConfig.setCategories({"*"}, {"mutex"});
         PHOSPHOR_INSTANCE.start(lastConfig);
     }
 }
