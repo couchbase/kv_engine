@@ -19,6 +19,8 @@
 #define COUCHBASE_MAX_ITEM_PRIVILEGED_BYTES (1024 * 1024)
 
 #ifdef WIN32
+#define WIN32_LEAN_AND_MEAN 1
+
 // We need to make sure that we include winsock2.h before
 // ws2tcpip.h before windows.h... if we end up with windows.h
 // before those files we're getting compile errors.
