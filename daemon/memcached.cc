@@ -915,26 +915,6 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
     /* sanity */
     cb_assert(fd == c->getSocketDescriptor());
 
-    if ((which & EV_TIMEOUT) == EV_TIMEOUT) {
-        if (c->isInternal() || c->isDCP()) {
-            if (c->isInternal()) {
-                LOG_INFO("{}: Timeout for admin connection. (ignore)",
-                         c->getId());
-            } else if (c->isDCP()) {
-                LOG_INFO("{}: Timeout for DCP connection. (ignore)",
-                         c->getId());
-            }
-            if (!c->reapplyEventmask()) {
-                c->initiateShutdown();
-            }
-        } else {
-            LOG_INFO("{}: Shutting down idle client {}",
-                     c->getId(),
-                     c->getDescription());
-            c->initiateShutdown();
-        }
-    }
-
     run_event_loop(c, which);
 
     if (memcached_shutdown) {
