@@ -62,8 +62,10 @@ uint64_t HdrHistogram::getValueAtPercentile(double percentage) const {
     // We added the bias of +1 to the input value (see
     // addValueToFreqHistogram).  Therefore need to minus the bias
     // before returning the value from the histogram.
+    // Note: If the histogram is empty we just want to return 0;
     uint64_t value = hdr_value_at_percentile(histogram.get(), percentage);
-    return (value - 1);
+    uint64_t result = getValueCount() > 0 ? (value - 1) : 0;
+    return result;
 }
 
 HdrHistogram::Iterator HdrHistogram::makeLinearIterator(

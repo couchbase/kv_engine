@@ -89,3 +89,12 @@ TEST(HdrHistogramTest, addValueAndCountTest) {
         EXPECT_EQ(100, result->second);
     }
 }
+
+// Test that when histogram is empty getValueAtPercentile returns 0.
+TEST(HdrHistogramTest, percentileWhenEmptyTest) {
+    HdrHistogram histogram{0, 255, 3};
+    ASSERT_EQ(0, histogram.getValueCount());
+    EXPECT_EQ(0, histogram.getValueAtPercentile(0.0));
+    EXPECT_EQ(0, histogram.getValueAtPercentile(50.0));
+    EXPECT_EQ(0, histogram.getValueAtPercentile(100.0));
+}
