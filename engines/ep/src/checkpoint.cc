@@ -425,7 +425,9 @@ std::ostream& operator <<(std::ostream& os, const Checkpoint& c) {
     for (const auto& e : c.toWrite) {
         os << "\t{" << e->getBySeqno() << "," << to_string(e->getOperation());
         e->isDeleted() ? os << "[d]," : os << ",";
-        os  << e->getKey().c_str() << "}" << std::endl;
+        os << e->getKey().c_str() << "," << e->size() << ",";
+        e->isCheckPointMetaItem() ? os << "[m]}" : os << "}";
+        os << std::endl;
     }
     os << "]";
     return os;
@@ -542,11 +544,13 @@ bool CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id,
     // and pushed into the tail.
     queued_item qi = createCheckpointItem(0, 0xffff, queue_op::empty);
     checkpoint->queueDirty(qi, this);
+    checkpoint->incrementMemConsumption(qi->size());
     // Note: We explicitly do /not/ include {empty} ops in numItems.
 
     // This item represents the start of the new checkpoint and is also sent to the slave node.
     qi = createCheckpointItem(id, vbucketId, queue_op::checkpoint_start);
     checkpoint->queueDirty(qi, this);
+    checkpoint->incrementMemConsumption(qi->size());
     ++numItems;
     checkpointList.push_back(std::move(checkpoint));
 

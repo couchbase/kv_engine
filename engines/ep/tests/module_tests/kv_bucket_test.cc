@@ -149,7 +149,7 @@ Item KVBucketTest::store_item(uint16_t vbid,
     return ::testing::AssertionSuccess();
 }
 
-void KVBucketTest::flush_vbucket_to_disk(uint16_t vbid, int expected) {
+void KVBucketTest::flush_vbucket_to_disk(uint16_t vbid, size_t expected) {
     size_t actualFlushed = 0;
     const auto time_limit = std::chrono::seconds(10);
     const auto deadline = std::chrono::steady_clock::now() + time_limit;

@@ -1,9 +1,9 @@
 # Event Tracing in KV-Engine
 
-Memcached utilises [Phosphor](http://github.com/couchbase/phosphor) to achieve
+KV-Engine utilises [Phosphor](http://github.com/couchbase/phosphor) to achieve
 high performance event tracing.
 
-Memcached is explicitly tooled using trace macros which log timestamps and
+KV-Engine is explicitly tooled using trace macros which log timestamps and
 some associated metadata (categories, names, arguments). An example of such a
 trace macro is given below:
 
@@ -11,6 +11,11 @@ trace macro is given below:
 
 The full selection of trace macros is documented in the
 [Phosphor header file](https://github.com/couchbase/phosphor/blob/master/include/phosphor/phosphor.h).
+
+These events are stored into a fixed size in-memory ringbuffer which can be
+dumped to JSON via [`kv_trace_dump`](../engines/ep/management/kv_trace_dump),
+and then viewed usng the Trace Viewer built into Google Chrome
+ ([chrome://tracing](chrome://tracing)).
 
 ## Enabling Tracing
 
@@ -84,7 +89,12 @@ categories enabled except for the memcached 'state_machine' category.
 
 ## Tracing Categories
 
-The convention is followed that memcached categories are prefixed with
-'memcached/' and ep-engine categories are prefixed with 'ep-engine/'. This
-ensures no collisions and allows all categories in a component to be enabled
-with a wild card (e.g. 'memcached/*').
+Categories are free-form strings, however a number of standard categories are
+defined:
+
+* `memcached/*` - Memcached related events.
+* `ep-engine/*` - ep-engine related events.
+    * `ep-engine/task` - ep-engine Task executions
+* `mutex` - Mutex wait and lock events. Can be costly to record as each mutex
+  `lock()` / `unlock()` pair requires 3 calls to `clock_gettime()`. Disabled
+  by default.
