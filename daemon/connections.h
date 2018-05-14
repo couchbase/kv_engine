@@ -24,6 +24,7 @@
 
 #include <functional>
 
+struct FrontEndThread;
 class ListeningPort;
 
 /* Destroy all connections and reset connection management */
@@ -71,7 +72,7 @@ void conn_return_buffers(Connection* c);
 Connection* conn_new(const SOCKET sfd,
                      in_port_t parent_port,
                      struct event_base* base,
-                     LIBEVENT_THREAD* thread);
+                     FrontEndThread* thread);
 
 /**
  * Return the TCP or domain socket listening_port structure that
@@ -90,7 +91,7 @@ ListeningPort *get_listening_port_instance(const in_port_t port);
  *                   all buckets)
  * @return the number of client connections bound to this thread.
  */
-int signal_idle_clients(LIBEVENT_THREAD *me, int bucket_idx, bool logging);
+int signal_idle_clients(FrontEndThread* me, int bucket_idx, bool logging);
 
 #ifndef WIN32
 /**
@@ -112,5 +113,5 @@ void dump_connection_stat_signal_handler(evutil_socket_t, short, void *);
  * @param callback the callback function to be called for each of the
  *                 connections
  */
-void iterate_thread_connections(LIBEVENT_THREAD* thread,
+void iterate_thread_connections(FrontEndThread* thread,
                                 std::function<void(Connection&)> callback);

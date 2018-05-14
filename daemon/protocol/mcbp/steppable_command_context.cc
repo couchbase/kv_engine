@@ -18,6 +18,7 @@
 
 #include <daemon/connection.h>
 #include <daemon/cookie.h>
+#include <daemon/front_end_thread.h>
 #include <daemon/memcached.h>
 #include <daemon/stats.h>
 

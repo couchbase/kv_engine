@@ -31,7 +31,7 @@ StatsTaskConnectionStats::StatsTaskConnectionStats(Connection& connection_,
 
 Task::Status StatsTaskConnectionStats::execute() {
     // This feels a bit dirty, but the problem is that when we had
-    // the task being created we did hold the LIBEVENT_THREAD mutex
+    // the task being created we did hold the FrontEndThread mutex
     // when we locked the task in order to schedule it.
     // Now we want to iterate over all of the connections, and in
     // order to do that we need to lock the libevent thread so that

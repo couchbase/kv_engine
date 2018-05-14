@@ -6,6 +6,7 @@
 #include "connection.h"
 #include "connections.h"
 #include "cookie.h"
+#include "front_end_thread.h"
 #include "memcached.h"
 #include "stats.h"
 #include "timing_histogram.h"
@@ -65,14 +66,14 @@ void ConnectionQueue::push(std::unique_ptr<ConnectionQueueItem> item) {
     connections.push(std::move(item));
 }
 
-static LIBEVENT_THREAD dispatcher_thread;
+static FrontEndThread dispatcher_thread;
 
 /*
  * Each libevent instance has a wakeup pipe, which other threads
  * can use to signal that they've put a new connection on its queue.
  */
 static size_t nthreads;
-static std::vector<LIBEVENT_THREAD> threads;
+static std::vector<FrontEndThread> threads;
 std::vector<TimingHistogram> scheduler_info;
 
 /*
@@ -111,7 +112,7 @@ void iterate_all_connections(std::function<void(Connection&)> callback) {
     }
 }
 
-static bool create_notification_pipe(LIBEVENT_THREAD& me) {
+static bool create_notification_pipe(FrontEndThread& me) {
     if (cb::net::socketpair(SOCKETPAIR_AF,
                             SOCK_STREAM,
                             0,
@@ -164,7 +165,7 @@ static void setup_dispatcher(struct event_base *main_base,
 /*
  * Set up a thread's information.
  */
-static void setup_thread(LIBEVENT_THREAD& me) {
+static void setup_thread(FrontEndThread& me) {
     me.type = ThreadType::GENERAL;
     me.base = event_base_new();
 
@@ -188,7 +189,7 @@ static void setup_thread(LIBEVENT_THREAD& me) {
  * Worker thread: main event loop
  */
 static void worker_libevent(void *arg) {
-    LIBEVENT_THREAD *me = reinterpret_cast<LIBEVENT_THREAD *>(arg);
+    FrontEndThread* me = reinterpret_cast<FrontEndThread*>(arg);
 
     /* Any per-thread setup can happen here; thread_init() will block until
      * all threads have finished initializing.
@@ -230,7 +231,7 @@ static void drain_notification_channel(evutil_socket_t fd)
     }
 }
 
-static void dispatch_new_connections(LIBEVENT_THREAD& me) {
+static void dispatch_new_connections(FrontEndThread& me) {
     std::unique_ptr<ConnectionQueueItem> item;
     while ((item = me.new_conn_queue.pop()) != nullptr) {
         if (conn_new(item->sfd, item->parent_port, me.base, &me) == nullptr) {
@@ -246,7 +247,7 @@ static void dispatch_new_connections(LIBEVENT_THREAD& me) {
  * input arrives on the libevent wakeup pipe.
  */
 static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) {
-    auto& me = *reinterpret_cast<LIBEVENT_THREAD*>(arg);
+    auto& me = *reinterpret_cast<FrontEndThread*>(arg);
 
     // Start by draining the notification channel before doing any work.
     // By doing so we know that we'll be notified again if someone
@@ -273,7 +274,7 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
 
     dispatch_new_connections(me);
 
-    LIBEVENT_THREAD::PendingIoMap pending;
+    FrontEndThread::PendingIoMap pending;
     {
         std::lock_guard<std::mutex> lock(me.pending_io.mutex);
         me.pending_io.map.swap(pending);
@@ -423,7 +424,7 @@ void thread_init(size_t nthr,
     scheduler_info.resize(nthreads);
 
     try {
-        threads = std::vector<LIBEVENT_THREAD>(nthreads);
+        threads = std::vector<FrontEndThread>(nthreads);
     } catch (const std::bad_alloc&) {
         FATAL_ERROR(EXIT_FAILURE, "Can't allocate thread descriptors");
     }
@@ -467,7 +468,7 @@ void threads_cleanup() {
     }
 }
 
-LIBEVENT_THREAD::~LIBEVENT_THREAD() {
+FrontEndThread::~FrontEndThread() {
     for (auto& sock : notify) {
         if (sock != INVALID_SOCKET) {
             safe_close(sock);
@@ -501,7 +502,7 @@ void threads_initiate_bucket_deletion() {
     }
 }
 
-void notify_thread(LIBEVENT_THREAD& thread) {
+void notify_thread(FrontEndThread& thread) {
     if (cb::net::send(thread.notify[1], "", 1, 0) != 1 &&
         !cb::net::is_blocking(cb::net::get_socket_error())) {
         LOG_WARNING("Failed to notify thread: {}",
@@ -512,7 +513,7 @@ void notify_thread(LIBEVENT_THREAD& thread) {
 int add_conn_to_pending_io_list(Connection* c, ENGINE_ERROR_CODE status) {
     auto* thread = c->getThread();
 
-    std::pair<LIBEVENT_THREAD::PendingIoMap::iterator, bool> result;
+    std::pair<FrontEndThread::PendingIoMap::iterator, bool> result;
     {
         std::lock_guard<std::mutex> lock(thread->pending_io.mutex);
         result = thread->pending_io.map.emplace(c, status);

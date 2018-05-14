@@ -43,7 +43,7 @@
 #include <string>
 #include <vector>
 
-struct LIBEVENT_THREAD;
+struct FrontEndThread;
 class Cookie;
 class ListeningPort;
 class Bucket;
@@ -251,11 +251,11 @@ public:
         --refcount;
     }
 
-    LIBEVENT_THREAD* getThread() const {
+    FrontEndThread* getThread() const {
         return thread.load(std::memory_order_relaxed);
     }
 
-    void setThread(LIBEVENT_THREAD* thread) {
+    void setThread(FrontEndThread* thread) {
         Connection::thread.store(thread,
                                  std::memory_order::memory_order_relaxed);
     }
@@ -1043,7 +1043,7 @@ protected:
     void* engine_storage{nullptr};
 
     /** Pointer to the thread object serving this connection */
-    std::atomic<LIBEVENT_THREAD*> thread{nullptr};
+    std::atomic<FrontEndThread*> thread{nullptr};
 
     /** Listening port that creates this connection instance */
     const in_port_t parent_port{0};

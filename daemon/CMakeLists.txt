@@ -55,6 +55,7 @@ ADD_LIBRARY(memcached_daemon STATIC
             executorpool.h
             extension_settings.cc
             extension_settings.h
+            front_end_thread.h
             ioctl.cc
             ioctl.h
             libevent_locking.cc

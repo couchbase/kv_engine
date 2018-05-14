@@ -24,6 +24,7 @@
 #include "doc_pre_expiry.h"
 #include "enginemap.h"
 #include "executorpool.h"
+#include "front_end_thread.h"
 #include "ioctl.h"
 #include "libevent_locking.h"
 #include "logger/logger.h"
@@ -1516,7 +1517,7 @@ static ENGINE_ERROR_CODE release_cookie(
 
     auto* c = &cookie->getConnection();
     int notify;
-    LIBEVENT_THREAD *thr;
+    FrontEndThread* thr;
 
     thr = c->getThread();
     cb_assert(thr);
@@ -1876,7 +1877,7 @@ void CreateBucketThread::run()
     task->makeRunnable();
 }
 
-void notify_thread_bucket_deletion(LIBEVENT_THREAD& me) {
+void notify_thread_bucket_deletion(FrontEndThread& me) {
     for (size_t ii = 0; ii < all_buckets.size(); ++ii) {
         bool destroy = false;
         {

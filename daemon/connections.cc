@@ -18,6 +18,7 @@
 #include "connections.h"
 #include "buckets.h"
 #include "connection.h"
+#include "front_end_thread.h"
 #include "runtime.h"
 #include "settings.h"
 #include "stats.h"
@@ -64,8 +65,7 @@ static Connection* allocate_connection(SOCKET sfd,
 static void release_connection(Connection* c);
 
 /** External functions *******************************************************/
-int signal_idle_clients(LIBEVENT_THREAD *me, int bucket_idx, bool logging)
-{
+int signal_idle_clients(FrontEndThread* me, int bucket_idx, bool logging) {
     // We've got a situation right now where we're seeing that
     // some of the connections is "stuck". Let's dump all
     // information until we solve the bug.
@@ -85,7 +85,7 @@ int signal_idle_clients(LIBEVENT_THREAD *me, int bucket_idx, bool logging)
     return connected;
 }
 
-void iterate_thread_connections(LIBEVENT_THREAD* thread,
+void iterate_thread_connections(FrontEndThread* thread,
                                 std::function<void(Connection&)> callback) {
     // Deny modifications to the connection map while we're iterating
     // over it
@@ -164,10 +164,10 @@ void run_event_loop(Connection* c, short which) {
     }
 }
 
-Connection* conn_new(const SOCKET sfd, in_port_t parent_port,
+Connection* conn_new(const SOCKET sfd,
+                     in_port_t parent_port,
                      struct event_base* base,
-                     LIBEVENT_THREAD* thread) {
-
+                     FrontEndThread* thread) {
     Connection* c;
     {
         std::lock_guard<std::mutex> guard(stats_mutex);

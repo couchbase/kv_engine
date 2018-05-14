@@ -20,6 +20,7 @@
 #include "buckets.h"
 #include "connection.h"
 #include "connections.h"
+#include "front_end_thread.h"
 #include "mcaudit.h"
 #include "mcbp.h"
 #include "mcbp_executors.h"

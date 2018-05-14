@@ -4,6 +4,7 @@
 
 #include <daemon/connection.h>
 #include <daemon/cookie.h>
+#include <daemon/front_end_thread.h>
 #include <daemon/memcached.h>
 #include <daemon/stats.h>
 
@@ -51,13 +52,11 @@ int main(int argc, char **argv) {
     display("Thread stats", sizeof(struct thread_stats));
     display("Global stats", sizeof(struct stats));
     display("Settings", sizeof(Settings));
-    display("Libevent thread",
-            sizeof(LIBEVENT_THREAD));
+    display("Libevent thread", sizeof(FrontEndThread));
     display("Connection", calc_conn_size());
 
     printf("----------------------------------------\n");
 
-    display("libevent thread cumulative", sizeof(LIBEVENT_THREAD));
     display("Thread stats cumulative\t", sizeof(struct thread_stats));
     printf("Binary protocol opcodes used\t%u / %u\n",
            count_used_opcodes(), 256);
