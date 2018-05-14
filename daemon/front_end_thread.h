@@ -20,8 +20,6 @@
 #include <JSON_checker.h>
 #include <subdoc/operations.h>
 
-enum class ThreadType { GENERAL = 11, DISPATCHER = 15 };
-
 // Forward decl
 namespace cb {
 class Pipe;
@@ -98,9 +96,6 @@ struct FrontEndThread {
 
     /// index of this thread in the threads array
     size_t index = 0;
-
-    /// Type of IO this thread processes
-    ThreadType type = ThreadType::GENERAL;
 
     /// Shared read buffer for all connections serviced by this thread.
     std::unique_ptr<cb::Pipe> read;

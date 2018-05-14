@@ -143,7 +143,6 @@ static bool create_notification_pipe(FrontEndThread& me) {
 static void setup_dispatcher(struct event_base *main_base,
                              void (*dispatcher_callback)(evutil_socket_t, short, void *))
 {
-    dispatcher_thread.type = ThreadType::DISPATCHER;
     dispatcher_thread.base = main_base;
 	dispatcher_thread.thread_id = cb_thread_self();
         if (!create_notification_pipe(dispatcher_thread)) {
@@ -166,7 +165,6 @@ static void setup_dispatcher(struct event_base *main_base,
  * Set up a thread's information.
  */
 static void setup_thread(FrontEndThread& me) {
-    me.type = ThreadType::GENERAL;
     me.base = event_base_new();
 
     if (!me.base) {
