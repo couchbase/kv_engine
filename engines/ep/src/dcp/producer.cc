@@ -1178,6 +1178,7 @@ void DcpProducer::setDisconnect() {
 
 void DcpProducer::notifyStreamReady(uint16_t vbucket) {
     if (ready.pushUnique(vbucket)) {
+        // Transitioned from empty to non-empty readyQ - unpause the Producer.
         log.unpauseIfSpaceAvailable();
     }
 }
