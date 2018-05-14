@@ -53,13 +53,10 @@ protected:
     // You may set addNonce to true to have it use a fixed nonce
     // for debugging purposes
     void test_auth(const char* mech) {
-        auto getUsernameCallback{
-                []() -> std::string { return std::string{"mikewied"}; }};
-        auto getPasswordCallback{
-                []() -> std::string { return std::string{" mik epw "}; }};
-
         cb::sasl::client::ClientContext client(
-                getUsernameCallback, getPasswordCallback, mech);
+                []() -> std::string { return std::string{"mikewied"}; },
+                []() -> std::string { return std::string{" mik epw "}; },
+                mech);
 
         auto client_data = client.start();
         ASSERT_EQ(cb::sasl::Error::OK, client_data.first);
