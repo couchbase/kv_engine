@@ -72,7 +72,6 @@ static FrontEndThread dispatcher_thread;
  * Each libevent instance has a wakeup pipe, which other threads
  * can use to signal that they've put a new connection on its queue.
  */
-static size_t nthreads;
 static std::vector<FrontEndThread> threads;
 std::vector<TimingHistogram> scheduler_info;
 
@@ -414,22 +413,20 @@ void threadlocal_stats_reset(std::vector<thread_stats>& thread_stats) {
 void thread_init(size_t nthr,
                  struct event_base* main_base,
                  void (*dispatcher_callback)(evutil_socket_t, short, void*)) {
-    nthreads = nthr;
-
     cb_mutex_initialize(&init_lock);
     cb_cond_initialize(&init_cond);
 
-    scheduler_info.resize(nthreads);
+    scheduler_info.resize(nthr);
 
     try {
-        threads = std::vector<FrontEndThread>(nthreads);
+        threads = std::vector<FrontEndThread>(nthr);
     } catch (const std::bad_alloc&) {
         FATAL_ERROR(EXIT_FAILURE, "Can't allocate thread descriptors");
     }
 
     setup_dispatcher(main_base, dispatcher_callback);
 
-    for (size_t ii = 0; ii < nthreads; ii++) {
+    for (size_t ii = 0; ii < nthr; ii++) {
         if (!create_notification_pipe(threads[ii])) {
             FATAL_ERROR(EXIT_FAILURE, "Cannot create notification pipe");
         }
@@ -447,7 +444,7 @@ void thread_init(size_t nthr,
 
     /* Wait for all the threads to set themselves up before returning. */
     cb_mutex_enter(&init_lock);
-    while (init_count < nthreads) {
+    while (init_count < nthr) {
         cb_cond_wait(&init_cond, &init_lock);
     }
     cb_mutex_exit(&init_lock);
