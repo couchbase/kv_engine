@@ -21,7 +21,6 @@
 #include "globaltask.h"
 #include "objectregistry.h"
 #include "task_type.h"
-#include "tasklogentry.h"
 
 #include <platform/ring_buffer.h>
 #include <platform/processclock.h>
@@ -138,20 +137,6 @@ public:
 
     const std::string getStateName();
 
-    void addLogEntry(const std::string &desc, const task_type_t taskType,
-                     const ProcessClock::duration runtime,
-                     rel_time_t startRelTime, bool isSlowJob);
-
-    const std::vector<TaskLogEntry> getLog() {
-        LockHolder lh(logMutex);
-        return std::vector<TaskLogEntry>{tasklog.begin(), tasklog.end()};
-    }
-
-    const std::vector<TaskLogEntry> getSlowLog() {
-        LockHolder lh(logMutex);
-        return std::vector<TaskLogEntry>{slowjobs.begin(), slowjobs.end()};
-    }
-
     ProcessClock::time_point getWaketime() const {
         return waketime.getTimePoint();
     }
@@ -184,8 +169,4 @@ protected:
 
     std::mutex currentTaskMutex; // Protects currentTask
     ExTask currentTask;
-
-    std::mutex logMutex;
-    cb::RingBuffer<TaskLogEntry, TASK_LOG_SIZE> tasklog;
-    cb::RingBuffer<TaskLogEntry, TASK_LOG_SIZE> slowjobs;
 };

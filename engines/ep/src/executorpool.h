@@ -79,7 +79,6 @@
 // Forward decl
 class TaskQueue;
 class ExecutorThread;
-class TaskLogEntry;
 
 typedef std::vector<ExecutorThread *> ThreadQ;
 typedef std::pair<ExTask, TaskQueue *> TaskQpair;

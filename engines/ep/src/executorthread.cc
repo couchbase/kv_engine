@@ -132,7 +132,6 @@ void ExecutorThread::run() {
                     cb::time2text(scheduleOverhead).c_str());
             }
             updateTaskStart();
-            rel_time_t startReltime = ep_current_time();
 
             const auto curTaskDescr = currentTask->getDescription();
             LOG(EXTENSION_LOG_DEBUG,
@@ -164,19 +163,6 @@ void ExecutorThread::run() {
                     description.data(),
                     getName().c_str(),
                     cb::time2text(runtime).c_str());
-            }
-
-            if (engine) {
-                ObjectRegistry::onSwitchThread(NULL);
-            }
-
-            addLogEntry(currentTask->getTaskable().getName() +
-                        to_string(currentTask->getDescription()),
-                       q->getQueueType(), runtime, startReltime,
-                       (runtime > currentTask->maxExpectedDuration()));
-
-            if (engine) {
-                ObjectRegistry::onSwitchThread(engine);
             }
 
             // Check if task is run once or needs to be rescheduled..
@@ -252,19 +238,6 @@ const std::string ExecutorThread::getTaskableName() {
         return currentTask->getTaskable().getName();
     } else {
         return std::string();
-    }
-}
-
-void ExecutorThread::addLogEntry(const std::string &desc,
-                                 const task_type_t taskType,
-                                 const ProcessClock::duration runtime,
-                                 rel_time_t t, bool isSlowJob) {
-    LockHolder lh(logMutex);
-    TaskLogEntry tle(desc, taskType, runtime, t);
-    if (isSlowJob) {
-        slowjobs.push_back(tle);
-    } else {
-        tasklog.push_back(tle);
     }
 }
 
