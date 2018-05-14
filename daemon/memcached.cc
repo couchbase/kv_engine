@@ -887,7 +887,20 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
         return;
     }
 
-    LOCK_THREAD(thr);
+    // Remove the list from the list of pending io's (in case the
+    // object was scheduled to run in the dispatcher before the
+    // callback for the worker thread is executed.
+    //
+    {
+        std::lock_guard<std::mutex> lock(thr->pending_io.mutex);
+        thr->pending_io.map.erase(c);
+    }
+
+    TRACE_LOCKGUARD_TIMED(thr->mutex,
+                          "mutex",
+                          "event_handler::threadLock",
+                          SlowMutexThreshold);
+
     if (memcached_shutdown) {
         // Someone requested memcached to shut down.
         if (signal_idle_clients(thr, -1, false) == 0) {
@@ -897,12 +910,6 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
             return;
         }
     }
-
-    // Remove the list from the list of pending io's (in case the
-    // object was scheduled to run in the dispatcher before the
-    // callback for the worker thread is executed.
-    //
-    thr->pending_io.erase(c);
 
     /* sanity */
     cb_assert(fd == c->getSocketDescriptor());
@@ -942,8 +949,6 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
                      thr->index);
         }
     }
-
-    UNLOCK_THREAD(thr);
 }
 
 /**
@@ -1515,17 +1520,23 @@ static ENGINE_ERROR_CODE release_cookie(
 
     thr = c->getThread();
     cb_assert(thr);
-    LOCK_THREAD(thr);
-    c->decrementRefcount();
 
-    /* Releasing the refererence to the object may cause it to change
-     * state. (NOTE: the release call shall never be called from the
-     * worker threads), so should put the connection in the pool of
-     * pending IO and have the system retry the operation for the
-     * connection
-     */
-    notify = add_conn_to_pending_io_list(c);
-    UNLOCK_THREAD(thr);
+    {
+        TRACE_LOCKGUARD_TIMED(thr->mutex,
+                              "mutex",
+                              "release_cookie::threadLock",
+                              SlowMutexThreshold);
+
+        c->decrementRefcount();
+
+        /* Releasing the refererence to the object may cause it to change
+         * state. (NOTE: the release call shall never be called from the
+         * worker threads), so should put the connection in the pool of
+         * pending IO and have the system retry the operation for the
+         * connection
+         */
+        notify = add_conn_to_pending_io_list(c, ENGINE_SUCCESS);
+    }
 
     /* kick the thread in the butt */
     if (notify) {

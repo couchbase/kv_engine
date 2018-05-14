@@ -531,7 +531,8 @@ bool conn_immediate_close(Connection& connection) {
                 "connection");
     } else {
         // remove from pending-io list
-        thread->pending_io.erase(&connection);
+        std::lock_guard<std::mutex> lock(thread->pending_io.mutex);
+        thread->pending_io.map.erase(&connection);
     }
 
     // Set the connection to the sentinal state destroyed and return

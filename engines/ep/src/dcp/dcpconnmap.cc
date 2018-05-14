@@ -16,6 +16,8 @@
  */
 
 #include "config.h"
+#include <daemon/tracing.h>
+#include <phosphor/phosphor.h>
 
 #include "configuration.h"
 #include "dcp/consumer.h"
@@ -347,7 +349,11 @@ void DcpConnMap::manageConnections() {
         }
     }
 
-    LockHolder rlh(releaseLock);
+    TRACE_LOCKGUARD_TIMED(releaseLock,
+                          "mutex",
+                          "DcpConnMap::manageConnections::releaseLock",
+                          SlowMutexThreshold);
+
     for (auto it = toNotify.begin(); it != toNotify.end(); ++it) {
         if ((*it).get() && (*it)->isReserved()) {
             engine.notifyIOComplete((*it)->getCookie(), ENGINE_SUCCESS);

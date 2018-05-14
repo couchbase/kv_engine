@@ -10,9 +10,11 @@
 #include "stats.h"
 #include "timing_histogram.h"
 #include "trace.h"
+#include "tracing.h"
 
 #include <fcntl.h>
 #include <memcached/openssl.h>
+#include <phosphor/phosphor.h>
 #include <platform/cb_malloc.h>
 #include <platform/platform.h>
 #include <platform/socket.h>
@@ -101,7 +103,10 @@ static void create_worker(void (*func)(void *), void *arg, cb_thread_t *id,
 
 void iterate_all_connections(std::function<void(Connection&)> callback) {
     for (auto& thr : threads) {
-        std::lock_guard<std::mutex> guard(thr.mutex);
+        TRACE_LOCKGUARD_TIMED(thr.mutex,
+                              "mutex",
+                              "iterate_all_connections::threadLock",
+                              SlowMutexThreshold);
         iterate_thread_connections(&thr, callback);
     }
 }
@@ -268,10 +273,20 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
 
     dispatch_new_connections(me);
 
-    std::lock_guard<std::mutex> guard(me.mutex);
+    LIBEVENT_THREAD::PendingIoMap pending;
+    {
+        std::lock_guard<std::mutex> lock(me.pending_io.mutex);
+        me.pending_io.map.swap(pending);
+    }
 
-    auto pending = std::move(me.pending_io);
-    for (auto* c : pending) {
+    TRACE_LOCKGUARD_TIMED(me.mutex,
+                          "mutex",
+                          "thread_libevent_process::threadLock",
+                          SlowMutexThreshold);
+
+    for (auto io : pending) {
+        auto* c = io.first;
+        auto status = io.second;
         if (c->getSocketDescriptor() != INVALID_SOCKET &&
             !c->isRegisteredInLibevent()) {
             /* The socket may have been shut down while we're looping */
@@ -284,6 +299,7 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
          * from the context of the notification pipe, so just let it
          * run one time to set up the correct mask in libevent
          */
+        c->setAiostat(status);
         c->setNumEvents(1);
         run_event_loop(c, EV_READ | EV_WRITE);
     }
@@ -336,10 +352,7 @@ void notify_io_complete(gsl::not_null<const void*> void_cookie,
               cookie.getConnection().getId(),
               status);
 
-    LOCK_THREAD(thr);
-    cookie.setAiostat(status);
-    notify = add_conn_to_pending_io_list(&cookie.getConnection());
-    UNLOCK_THREAD(thr);
+    notify = add_conn_to_pending_io_list(&cookie.getConnection(), status);
 
     /* kick the thread in the butt */
     if (notify) {
@@ -470,14 +483,20 @@ void threads_notify_bucket_deletion() {
 
 void threads_complete_bucket_deletion() {
     for (auto& thr : threads) {
-        std::lock_guard<std::mutex> guard(thr.mutex);
+        TRACE_LOCKGUARD_TIMED(thr.mutex,
+                              "mutex",
+                              "threads_complete_bucket_deletion::threadLock",
+                              SlowMutexThreshold);
         thr.deleting_buckets--;
     }
 }
 
 void threads_initiate_bucket_deletion() {
     for (auto& thr : threads) {
-        std::lock_guard<std::mutex> guard(thr.mutex);
+        TRACE_LOCKGUARD_TIMED(thr.mutex,
+                              "mutex",
+                              "threads_initiate_bucket_deletion::threadLock",
+                              SlowMutexThreshold);
         thr.deleting_buckets++;
     }
 }
@@ -490,14 +509,14 @@ void notify_thread(LIBEVENT_THREAD& thread) {
     }
 }
 
-int add_conn_to_pending_io_list(Connection* c) {
-    int notify = 0;
+int add_conn_to_pending_io_list(Connection* c, ENGINE_ERROR_CODE status) {
     auto* thread = c->getThread();
 
-    if (thread->pending_io.count(c) == 0) {
-        thread->pending_io.insert(c);
-        notify = 1;
+    std::pair<LIBEVENT_THREAD::PendingIoMap::iterator, bool> result;
+    {
+        std::lock_guard<std::mutex> lock(thread->pending_io.mutex);
+        result = thread->pending_io.map.emplace(c, status);
     }
-
+    int notify = result.second ? 1 : 0;
     return notify;
 }

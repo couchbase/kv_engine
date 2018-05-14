@@ -11,7 +11,7 @@
 
 #include <mutex>
 #include <queue>
-#include <unordered_set>
+#include <unordered_map>
 #include <vector>
 
 /** \file
@@ -89,6 +89,12 @@ private:
 
 struct LIBEVENT_THREAD {
     /**
+     * Pending IO requests for this thread. Maps each pending Connection to
+     * the IO status to be notified.
+     */
+    using PendingIoMap = std::unordered_map<Connection*, ENGINE_ERROR_CODE>;
+
+    /**
      * Destructor.
      *
      * Close the notification pipe (if open)
@@ -116,11 +122,14 @@ struct LIBEVENT_THREAD {
     /// queue of new connections to handle
     ConnectionQueue new_conn_queue;
 
-    /// Mutex to lock protect access to the pending_io
+    /// Mutex to lock protect access to this object.
     std::mutex mutex;
 
-    /// List of connection with pending async io ops (not owning)
-    std::unordered_set<Connection*> pending_io;
+    /// Set of connections with pending async io ops.
+    struct {
+        std::mutex mutex;
+        PendingIoMap map;
+    } pending_io;
 
     /// index of this thread in the threads array
     size_t index = 0;
@@ -158,10 +167,6 @@ struct LIBEVENT_THREAD {
     JSON_checker::Validator validator;
 };
 
-#define LOCK_THREAD(t) t->mutex.lock();
-
-#define UNLOCK_THREAD(t) t->mutex.unlock();
-
 extern void notify_thread(LIBEVENT_THREAD& thread);
 extern void notify_dispatcher();
 
@@ -192,7 +197,7 @@ void threadlocal_stats_reset(std::vector<thread_stats>& thread_stats);
 void notify_io_complete(gsl::not_null<const void*> cookie,
                         ENGINE_ERROR_CODE status);
 void safe_close(SOCKET sfd);
-int add_conn_to_pending_io_list(Connection* c);
+int add_conn_to_pending_io_list(Connection* c, ENGINE_ERROR_CODE status);
 void event_handler(evutil_socket_t fd, short which, void *arg);
 void listen_event_handler(evutil_socket_t, short, void *);
 

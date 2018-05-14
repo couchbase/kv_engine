@@ -35,6 +35,7 @@
 #include "dcp/dcpconnmap.h"
 #include "dcp/producer.h"
 #include "dcp/stream.h"
+#include "dcp_utils.h"
 #include "ep_time.h"
 #include "evp_engine_test.h"
 #include "evp_store_single_threaded_test.h"
@@ -2309,6 +2310,56 @@ TEST_P(ConnectionTest, test_consumer_add_stream) {
     destroy_mock_cookie(cookie);
 }
 
+TEST_P(ConnectionTest, consumer_get_error_map) {
+    // We want to test that the Consumer processes the GetErrorMap negotiation
+    // with the Producer correctly. I.e., the Consumer must check the
+    // Producer's version and set internal flags accordingly.
+    // Note: we test both the cases of pre-5.0.0 and post-5.0.0 Producer
+    for (auto prodIsV5orHigher : {true, false}) {
+        const void* cookie = create_mock_cookie();
+        // GetErrorMap negotiation performed only if NOOP is enabled
+        engine->getConfiguration().setDcpEnableNoop(true);
+        auto producers = get_dcp_producers(handle, engine_v1);
+
+        // Create a mock DcpConsumer
+        MockDcpConsumer consumer(*engine, cookie, "test_consumer");
+        ASSERT_EQ(1 /*PendingRequest*/,
+                  static_cast<uint8_t>(consumer.getGetErrorMapState()));
+        ASSERT_EQ(false, consumer.getProducerIsVersion5orHigher());
+
+        // If a Flow Control Policy is enabled, then the first call to step()
+        // will handle the Flow Control negotiation. We do not want to test that
+        // here, so this is just to let the test to work with all EP
+        // configurations.
+        if (engine->getConfiguration().getDcpFlowControlPolicy() != "none") {
+            ASSERT_EQ(ENGINE_WANT_MORE, consumer.step(producers.get()));
+        }
+
+        // The next call to step() is expected to start the GetErrorMap
+        // negotiation
+        ASSERT_EQ(ENGINE_WANT_MORE, consumer.step(producers.get()));
+        ASSERT_EQ(2 /*PendingResponse*/,
+                  static_cast<uint8_t>(consumer.getGetErrorMapState()));
+
+        // At this point the consumer is waiting for a response from the
+        // producer. I simulate the producer's response with a call to
+        // handleResponse()
+        protocol_binary_response_header resp{};
+        resp.response.opcode = PROTOCOL_BINARY_CMD_GET_ERROR_MAP;
+        resp.response.status =
+                prodIsV5orHigher
+                        ? htons(PROTOCOL_BINARY_RESPONSE_SUCCESS)
+                        : htons(PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND);
+        ASSERT_TRUE(consumer.handleResponse(&resp));
+        ASSERT_EQ(0 /*Skip*/,
+                  static_cast<uint8_t>(consumer.getGetErrorMapState()));
+        ASSERT_EQ(prodIsV5orHigher ? true : false,
+                  consumer.getProducerIsVersion5orHigher());
+
+        destroy_mock_cookie(cookie);
+    }
+}
+
 // Regression test for MB 20645 - ensure that a call to addStats after a
 // connection has been disconnected (and closeAllStreams called) doesn't crash.
 TEST_P(ConnectionTest, test_mb20645_stats_after_closeAllStreams) {
@@ -2403,6 +2454,7 @@ TEST_P(ConnectionTest, test_mb20716_connmap_notify_on_delete_consumer) {
     ENGINE_ERROR_CODE result;
     do {
         result = consumer->step(producers.get());
+        handleProducerResponseIfStepBlocked(*consumer);
     } while (result == ENGINE_WANT_MORE);
     EXPECT_EQ(ENGINE_SUCCESS, result);
 

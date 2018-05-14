@@ -43,6 +43,18 @@ void dcp_step(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const void* cookie) {
     }
 }
 
+void dcpHandleResponse(ENGINE_HANDLE* h,
+                       ENGINE_HANDLE_V1* h1,
+                       const void* cookie,
+                       protocol_binary_response_header* response) {
+    auto erroCode = h1->dcp.response_handler(h, cookie, response);
+    check(erroCode == ENGINE_SUCCESS || erroCode == ENGINE_WANT_MORE,
+          "Expected 'success' or 'engine want more'");
+    if (erroCode == ENGINE_SUCCESS) {
+        clear_dcp_data();
+    }
+}
+
 /* This is a flag that indicates the continuous dcp thread to come out of
    loop that keeps calling dcp->step().
    To be set only by the (parent) thread spawning the continuous_dcp_thread.
@@ -2971,6 +2983,19 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     cb_assert(dcp_last_opaque != opaque);
 
     if (get_bool_stat(h, h1, "ep_dcp_enable_noop")) {
+        // MB-29441: Check that the GetErrorMap message is sent
+        dcp_step(h, h1, cookie);
+        cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_GET_ERROR_MAP);
+        cb_assert(dcp_last_key.empty());
+        // Simulate that the GetErrorMap response has been received.
+        // This step is necessary, as a pending GetErrorMap response would
+        // not let the next dcp_step() to execute the
+        // DcpControl/set_noop_interval call.
+        protocol_binary_response_header resp{};
+        resp.response.opcode = PROTOCOL_BINARY_CMD_GET_ERROR_MAP;
+        resp.response.status = ntohs(PROTOCOL_BINARY_RESPONSE_SUCCESS);
+        dcpHandleResponse(h, h1, cookie, &resp);
+
         // Check that the enable noop message is sent
         dcp_step(h, h1, cookie);
         cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
