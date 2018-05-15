@@ -271,6 +271,11 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
       includeValue(includeVal),
       includeXattributes(includeXattrs),
       includeDeleteTime(includeDeleteTime),
+      snappyEnabled(p->isSnappyEnabled() ? SnappyEnabled::Yes
+                                         : SnappyEnabled::No),
+      forceValueCompression(p->isForceValueCompressionEnabled()
+                                    ? ForceValueCompression::Yes
+                                    : ForceValueCompression::No),
       filter(filter, manifest),
       cursorName(n + '/' + std::to_string(cursorUID.fetch_add(1))) {
     const char* type = "";
@@ -769,24 +774,6 @@ bool ActiveStream::isCompressionEnabled() {
     auto producer = producerPtr.lock();
     if (producer) {
         return producer->isCompressionEnabled();
-    }
-    /* If the 'producer' is deleted, what we return doesn't matter */
-    return false;
-}
-
-bool ActiveStream::isForceValueCompressionEnabled() {
-    auto producer = producerPtr.lock();
-    if (producer) {
-        return producer->isForceValueCompressionEnabled();
-    }
-    /* If the 'producer' is deleted, what we return doesn't matter */
-    return false;
-}
-
-bool ActiveStream::isSnappyEnabled() {
-    auto producer = producerPtr.lock();
-    if (producer) {
-        return producer->isSnappyEnabled();
     }
     /* If the 'producer' is deleted, what we return doesn't matter */
     return false;
