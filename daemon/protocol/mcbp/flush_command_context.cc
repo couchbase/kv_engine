@@ -26,7 +26,9 @@ ENGINE_ERROR_CODE FlushCommandContext::flushing() {
 }
 
 void FlushCommandContext::done() {
-    audit_bucket_flush(&connection, connection.getBucket().name);
+    if (!connection.isInternal()) {
+        audit_bucket_flush(&connection, connection.getBucket().name);
+    }
     get_thread_stats(&connection)->cmd_flush++;
     cookie.sendResponse(cb::mcbp::Status::Success);
 }
