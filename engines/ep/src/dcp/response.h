@@ -379,7 +379,7 @@ public:
             ExtendedMetaData* e = NULL)
         : DcpResponse(item->isDeleted() ? Event::Deletion : Event::Mutation,
                       opaque),
-          item_(item),
+          item_(std::move(item)),
           includeValue(includeVal),
           includeXattributes(includeXattrs),
           includeDeleteTime(includeDeleteTime),
@@ -458,7 +458,7 @@ public:
                              IncludeDeleteTime includeDeleteTime,
                              uint8_t _collectionLen,
                              ExtendedMetaData* e = NULL)
-        : MutationResponse(item,
+        : MutationResponse(std::move(item),
                            opaque,
                            includeVal,
                            includeXattrs,
@@ -571,8 +571,8 @@ public:
      * @return a SystemEventMessage unique pointer constructed from the
      *         queued_item data.
      */
-    static std::unique_ptr<SystemEventProducerMessage> make(uint32_t opaque,
-                                                            queued_item& item);
+    static std::unique_ptr<SystemEventProducerMessage> make(
+            uint32_t opaque, const queued_item& item);
 
     uint32_t getMessageSize() const override {
         return SystemEventMessage::baseMsgBytes + getKey().size() +
@@ -617,7 +617,7 @@ public:
 
 protected:
     SystemEventProducerMessage(uint32_t opaque,
-                               queued_item& itm,
+                               const queued_item& itm,
                                cb::const_char_buffer _key)
         : SystemEventMessage(opaque), key(_key), item(itm) {
     }
@@ -631,7 +631,7 @@ protected:
 class CollectionsProducerMessage : public SystemEventProducerMessage {
 public:
     CollectionsProducerMessage(uint32_t opaque,
-                               queued_item& itm,
+                               const queued_item& itm,
                                const Collections::SystemEventData& data)
         : SystemEventProducerMessage(opaque, itm, data.id.getName()),
           eventData{htonll(data.manifestUid), htonll(data.id.getUid())} {
@@ -649,7 +649,7 @@ private:
 class ChangeSeparatorProducerMessage : public SystemEventProducerMessage {
 public:
     ChangeSeparatorProducerMessage(uint32_t opaque,
-                                   queued_item& itm,
+                                   const queued_item& itm,
                                    Collections::SystemEventSeparatorData data)
         : SystemEventProducerMessage(opaque, itm, data.separator),
           manifestUid(htonll(data.manifestUid)) {

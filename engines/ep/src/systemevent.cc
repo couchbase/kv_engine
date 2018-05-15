@@ -148,7 +148,7 @@ ProcessStatus SystemEventReplicate::process(const Item& item) {
 }
 
 std::unique_ptr<SystemEventProducerMessage> SystemEventProducerMessage::make(
-        uint32_t opaque, queued_item& item) {
+        uint32_t opaque, const queued_item& item) {
     switch (SystemEvent(item->getFlags())) {
     case SystemEvent::Collection: {
         // Note: constructor is private and make_unique is a pain to make friend
