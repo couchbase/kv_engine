@@ -38,7 +38,7 @@ public:
 
     void stop();
 
-    cb::const_char_buffer getDescription();
+    std::string getDescription();
 
     std::chrono::microseconds maxExpectedDuration();
 

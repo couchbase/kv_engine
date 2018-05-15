@@ -137,7 +137,7 @@ bool EphTombstoneHTCleaner::run() {
     return true;
 }
 
-cb::const_char_buffer EphTombstoneHTCleaner::getDescription() {
+std::string EphTombstoneHTCleaner::getDescription() {
     return "Eph tombstone hashtable cleaner";
 }
 
@@ -283,7 +283,7 @@ bool EphTombstoneStaleItemDeleter::run() {
     return true;
 }
 
-cb::const_char_buffer EphTombstoneStaleItemDeleter::getDescription() {
+std::string EphTombstoneStaleItemDeleter::getDescription() {
     return "Eph tombstone stale item deleter";
 }
 

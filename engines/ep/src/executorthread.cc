@@ -223,7 +223,7 @@ void ExecutorThread::resetCurrentTask() {
     resetThisObject.reset();
 }
 
-cb::const_char_buffer ExecutorThread::getTaskName() {
+std::string ExecutorThread::getTaskName() {
     LockHolder lh(currentTaskMutex);
     if (currentTask) {
         return currentTask->getDescription();

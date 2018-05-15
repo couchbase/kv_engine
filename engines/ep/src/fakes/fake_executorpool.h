@@ -96,7 +96,7 @@ public:
     void cancelByName(cb::const_char_buffer name) {
         LockHolder lh(tMutex);
         for (auto& it : taskLocator) {
-            if (it.second.first->getDescription() == name) {
+            if (name == it.second.first->getDescription().c_str()) {
                 it.second.first->cancel();
                 // And force awake so he is "runnable"
                 it.second.second->wake(it.second.first);
@@ -110,7 +110,8 @@ public:
     bool isTaskScheduled(task_type_t queueType, cb::const_char_buffer name) {
         LockHolder lh(tMutex);
         for (auto& it : taskLocator) {
-            if (it.second.first->getDescription() != name) {
+            auto description = it.second.first->getDescription();
+            if (name != cb::const_char_buffer(description.c_str())) {
                 continue;
             }
             if (it.second.second->getQueueType() != queueType) {
@@ -179,7 +180,7 @@ public:
     }
 
     void runCurrentTask(cb::const_char_buffer expectedTask) {
-        EXPECT_EQ(to_string(expectedTask), to_string(getTaskName()));
+        EXPECT_EQ(to_string(expectedTask), getTaskName());
         run();
     }
 

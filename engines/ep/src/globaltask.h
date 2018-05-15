@@ -91,7 +91,7 @@ public:
      *
      * @return A description of this task
      */
-    virtual cb::const_char_buffer getDescription() = 0;
+    virtual std::string getDescription() = 0;
 
     /**
      * The maximum expected duration of a single execution of this task - i.e.

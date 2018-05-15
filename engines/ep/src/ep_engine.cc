@@ -3434,7 +3434,7 @@ public:
         return false;
     }
 
-    cb::const_char_buffer getDescription() {
+    std::string getDescription() {
         return "checkpoint stats for all vbuckets";
     }
 
@@ -5496,7 +5496,7 @@ public:
           count(count_) {
     }
 
-    cb::const_char_buffer getDescription() {
+    std::string getDescription() {
         return description;
     }
 

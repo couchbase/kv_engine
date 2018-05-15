@@ -1263,7 +1263,7 @@ TEST_F(SingleThreadedEPBucketTest, MB20235_wake_and_work_count) {
             return false;
         }
 
-        cb::const_char_buffer getDescription() {
+        std::string getDescription() {
             return "Test MB20235";
         }
 

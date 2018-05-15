@@ -547,7 +547,7 @@ public:
     ActiveStreamCheckpointProcessorTask(EventuallyPersistentEngine& e,
                                         std::shared_ptr<DcpProducer> p);
 
-    cb::const_char_buffer getDescription() {
+    std::string getDescription() {
         return description;
     }
 

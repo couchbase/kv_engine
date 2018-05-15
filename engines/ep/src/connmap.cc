@@ -45,8 +45,7 @@ public:
     ConnNotifierCallback(EventuallyPersistentEngine* e,
                          std::shared_ptr<ConnNotifier> notifier)
         : GlobalTask(e, TaskId::ConnNotifierCallback),
-          connNotifierPtr(notifier),
-          description("DCP connection notifier") {
+          connNotifierPtr(notifier) {
     }
 
     bool run(void) {
@@ -58,8 +57,8 @@ public:
         return false;
     }
 
-    cb::const_char_buffer getDescription() {
-        return description;
+    std::string getDescription() {
+        return "DCP connection notifier";
     }
 
     std::chrono::microseconds maxExpectedDuration() {
@@ -73,7 +72,6 @@ public:
 
 private:
     const std::weak_ptr<ConnNotifier> connNotifierPtr;
-    const cb::const_char_buffer description;
 };
 
 void ConnNotifier::start() {
@@ -144,7 +142,7 @@ public:
                !connmap->isDeadConnectionsEmpty();
     }
 
-    cb::const_char_buffer getDescription() {
+    std::string getDescription() {
         return "Connection Manager";
     }
 

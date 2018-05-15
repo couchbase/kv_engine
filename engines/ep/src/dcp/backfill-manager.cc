@@ -45,7 +45,7 @@ public:
 
     bool run();
 
-    cb::const_char_buffer getDescription();
+    std::string getDescription();
 
     std::chrono::microseconds maxExpectedDuration();
 
@@ -85,7 +85,7 @@ bool BackfillManagerTask::run() {
     return true;
 }
 
-cb::const_char_buffer BackfillManagerTask::getDescription() {
+std::string BackfillManagerTask::getDescription() {
     return "Backfilling items for a DCP Connection";
 }
 
