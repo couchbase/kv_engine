@@ -133,6 +133,11 @@ size_t Checkpoint::getNumMetaItems() const {
 }
 
 void Checkpoint::setState(checkpoint_state state) {
+    LockHolder lh(lock);
+    setState_UNLOCKED(state);
+}
+
+void Checkpoint::setState_UNLOCKED(checkpoint_state state) {
     checkpointState = state;
 }
 
@@ -1134,6 +1139,15 @@ std::vector<std::string> CheckpointManager::getListOfCursorsToDrop() {
         ++it;
     }
     return cursorsToDrop;
+}
+
+bool CheckpointManager::hasClosedCheckpointWhichCanBeRemoved() const {
+    // Check oldest checkpoint; if closed and contains no cursors then
+    // we can remove it (and possibly additional old-but-not-oldest
+    // checkpoints).
+    const auto& oldestCkpt = checkpointList.front();
+    return (oldestCkpt->getState() == CHECKPOINT_CLOSED) &&
+        (oldestCkpt->getNumberOfCursors() == 0);
 }
 
 void CheckpointManager::updateStatsForNewQueuedItem_UNLOCKED(const LockHolder&,
