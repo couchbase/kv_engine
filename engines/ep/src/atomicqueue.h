@@ -43,9 +43,19 @@ public:
     /**
      * Place an item in the queue.
      */
-    void push(T &value) {
+    void push(const T& value) {
         std::queue<T> *q = swapQueue(); // steal our queue
         q->push(value);
+        ++numItems;
+        q = swapQueue(q);
+    }
+
+    /**
+     * Place an item in the queue.
+     */
+    void push(T&& value) {
+        std::queue<T>* q = swapQueue(); // steal our queue
+        q->push(std::move(value));
         ++numItems;
         q = swapQueue(q);
     }

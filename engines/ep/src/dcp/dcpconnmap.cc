@@ -82,7 +82,7 @@ DcpConsumer *DcpConnMap::newConsumer(const void* cookie,
      *  If we request a connection of the same name then
      *  mark the existing connection as "want to disconnect".
      */
-    for (const auto cookieToConn : map_) {
+    for (const auto& cookieToConn : map_) {
         if (cookieToConn.second->getName() == conn_name) {
             LOG(EXTENSION_LOG_NOTICE,
                 "%s Disconnecting existing Dcp Consumer %p as it has the same "
@@ -94,15 +94,16 @@ DcpConsumer *DcpConnMap::newConsumer(const void* cookie,
 
     std::shared_ptr<DcpConsumer> dc =
             std::make_shared<DcpConsumer>(engine, cookie, conn_name);
+    auto* result = dc.get();
     LOG(EXTENSION_LOG_INFO, "%s Connection created", dc->logHeader());
-    map_[cookie] = dc;
-    return dc.get();
+    map_[cookie] = std::move(dc);
+    return result;
 }
 
 bool DcpConnMap::isPassiveStreamConnected_UNLOCKED(uint16_t vbucket) {
-    for (const auto cookieToConn : map_) {
-        auto dcpConsumer =
-                dynamic_pointer_cast<DcpConsumer>(cookieToConn.second);
+    for (const auto& cookieToConn : map_) {
+        auto* dcpConsumer =
+                dynamic_cast<DcpConsumer*>(cookieToConn.second.get());
         if (dcpConsumer && dcpConsumer->isStreamPresent(vbucket)) {
             LOG(EXTENSION_LOG_DEBUG, "(vb %d) A DCP passive stream "
                 "is already exists for the vbucket in connection: %s",
@@ -152,7 +153,7 @@ DcpProducer* DcpConnMap::newProducer(const void* cookie,
      *  If we request a connection of the same name then
      *  mark the existing connection as "want to disconnect".
      */
-    for (const auto cookieToConn : map_) {
+    for (const auto& cookieToConn : map_) {
         if (cookieToConn.second->getName() == conn_name) {
             LOG(EXTENSION_LOG_NOTICE,
                 "%s Disconnecting existing Dcp Producer %p as it has the same "
@@ -169,9 +170,10 @@ DcpProducer* DcpConnMap::newProducer(const void* cookie,
                                                   std::move(filter),
                                                   true /*startTask*/);
     LOG(EXTENSION_LOG_INFO, "%s Connection created", producer->logHeader());
-    map_[cookie] = producer;
+    auto* result = producer.get();
+    map_[cookie] = std::move(producer);
 
-    return producer.get();
+    return result;
 }
 
 void DcpConnMap::shutdownAllConnections() {
@@ -201,21 +203,21 @@ void DcpConnMap::shutdownAllConnections() {
 void DcpConnMap::vbucketStateChanged(uint16_t vbucket, vbucket_state_t state,
                                      bool closeInboundStreams) {
     LockHolder lh(connsLock);
-    for (auto itr = map_.begin(); itr != map_.end(); ++itr) {
-        auto producer = dynamic_pointer_cast<DcpProducer>(itr->second);
+    for (const auto& cookieToConn : map_) {
+        auto* producer = dynamic_cast<DcpProducer*>(cookieToConn.second.get());
         if (producer) {
             producer->closeStreamDueToVbStateChange(vbucket, state);
         } else if (closeInboundStreams) {
-            static_cast<DcpConsumer *>(itr->second.get())->closeStreamDueToVbStateChange(
-                    vbucket, state);
+            static_cast<DcpConsumer*>(cookieToConn.second.get())
+                    ->closeStreamDueToVbStateChange(vbucket, state);
         }
     }
 }
 
 void DcpConnMap::closeStreamsDueToRollback(uint16_t vbucket) {
     LockHolder lh(connsLock);
-    for (auto& pair : map_) {
-        auto producer = dynamic_pointer_cast<DcpProducer>(pair.second);
+    for (const auto& cookieToConn : map_) {
+        auto* producer = dynamic_cast<DcpProducer*>(cookieToConn.second.get());
         if (producer) {
             producer->closeStreamDueToRollback(vbucket);
         }
@@ -226,10 +228,9 @@ bool DcpConnMap::handleSlowStream(uint16_t vbid,
                                   const std::string &name) {
     size_t lock_num = vbid % vbConnLockNum;
     std::lock_guard<std::mutex> lh(vbConnLocks[lock_num]);
-    std::list<std::shared_ptr<ConnHandler>>& vb_conns = vbConns[vbid];
 
-    for (auto itr = vb_conns.begin(); itr != vb_conns.end(); ++itr) {
-        auto producer = dynamic_pointer_cast<DcpProducer>(*itr);
+    for (const auto& connection : vbConns[vbid]) {
+        auto* producer = dynamic_cast<DcpProducer*>(connection.get());
         if (producer && producer->handleSlowStream(vbid, name)) {
             return true;
         }
@@ -238,7 +239,7 @@ bool DcpConnMap::handleSlowStream(uint16_t vbid,
 }
 
 void DcpConnMap::closeStreams(CookieToConnectionMap& map) {
-    for (auto itr : map) {
+    for (const auto& itr : map) {
         auto producer = dynamic_pointer_cast<DcpProducer>(itr.second);
         if (producer) {
             producer->closeAllStreams();
@@ -333,8 +334,8 @@ void DcpConnMap::manageConnections() {
         }
 
         // Collect the list of connections that need to be signaled.
-        for (auto iter = map_.begin(); iter != map_.end(); ++iter) {
-            auto& conn = iter->second;
+        for (const auto& cookieToConn : map_) {
+            const auto& conn = cookieToConn.second;
             if (conn && (conn->isPaused() || conn->doDisconnect()) &&
                 conn->isReserved()) {
                 /**
@@ -344,7 +345,7 @@ void DcpConnMap::manageConnections() {
                  * second.  This results in the step function being invoked,
                  * which in turn may result in a dcp noop message being sent.
                  */
-                toNotify.push_back(iter->second);
+                toNotify.push_back(conn);
             }
         }
     }
@@ -389,19 +390,18 @@ void DcpConnMap::notifyVBConnections(uint16_t vbid, uint64_t bySeqno) {
     size_t lock_num = vbid % vbConnLockNum;
     std::lock_guard<std::mutex> lh(vbConnLocks[lock_num]);
 
-    std::list<std::shared_ptr<ConnHandler>>& conns = vbConns[vbid];
-    for (auto it = conns.begin(); it != conns.end(); ++it) {
-        auto conn = dynamic_pointer_cast<DcpProducer>(*it);
-        if (conn) {
-            conn->notifySeqnoAvailable(vbid, bySeqno);
+    for (auto& connection : vbConns[vbid]) {
+        auto* producer = dynamic_cast<DcpProducer*>(connection.get());
+        if (producer) {
+            producer->notifySeqnoAvailable(vbid, bySeqno);
         }
     }
 }
 
 void DcpConnMap::notifyBackfillManagerTasks() {
     LockHolder lh(connsLock);
-    for (auto itr = map_.begin(); itr != map_.end(); ++itr) {
-        auto producer = dynamic_pointer_cast<DcpProducer>(itr->second);
+    for (const auto& cookieToConn : map_) {
+        auto* producer = dynamic_cast<DcpProducer*>(cookieToConn.second.get());
         if (producer) {
             producer->notifyBackfillManager();
         }
@@ -480,9 +480,9 @@ void DcpConnMap::DcpConfigChangeListener::sizeValueChanged(const std::string &ke
  */
 void DcpConnMap::consumerYieldConfigChanged(size_t newValue) {
     LockHolder lh(connsLock);
-    for (const auto cookieToConn : map_) {
-        auto dcpConsumer =
-                dynamic_pointer_cast<DcpConsumer>(cookieToConn.second);
+    for (const auto& cookieToConn : map_) {
+        auto* dcpConsumer =
+                dynamic_cast<DcpConsumer*>(cookieToConn.second.get());
         if (dcpConsumer) {
             dcpConsumer->setProcessorYieldThreshold(newValue);
         }
@@ -494,9 +494,9 @@ void DcpConnMap::consumerYieldConfigChanged(size_t newValue) {
  */
 void DcpConnMap::consumerBatchSizeConfigChanged(size_t newValue) {
     LockHolder lh(connsLock);
-    for (const auto cookieToConn : map_) {
-        auto dcpConsumer =
-                dynamic_pointer_cast<DcpConsumer>(cookieToConn.second);
+    for (const auto& cookieToConn : map_) {
+        auto* dcpConsumer =
+                dynamic_cast<DcpConsumer*>(cookieToConn.second.get());
         if (dcpConsumer) {
             dcpConsumer->setProcessBufferedMessagesBatchSize(newValue);
         }
@@ -505,7 +505,7 @@ void DcpConnMap::consumerBatchSizeConfigChanged(size_t newValue) {
 
 std::shared_ptr<ConnHandler> DcpConnMap::findByName(const std::string& name) {
     LockHolder lh(connsLock);
-    for (const auto cookieToConn : map_) {
+    for (const auto& cookieToConn : map_) {
         // If the connection is NOT about to be disconnected
         // and the names match
         if (!cookieToConn.second->doDisconnect() &&

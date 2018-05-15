@@ -65,6 +65,12 @@ public:
      */
     virtual bool isConnections() = 0;
 
+    /**
+     * Adds the given connection to the set of connections associated
+     * with the given vbucket.
+     * @param conn Connection to add to the set. Refcount is retained.
+     * @param vbid vBucket to add to.
+     */
     void addVBConnByVBId(std::shared_ptr<ConnHandler> conn, int16_t vbid);
 
     void removeVBConnByVBId_UNLOCKED(const void* connCookie, int16_t vbid);
@@ -74,11 +80,12 @@ public:
     /**
      * Notify a given paused connection.
      *
-     * @param tc connection to be notified
+     * @param conn connection to be notified. Will retain refcount if
+     *        connection needs notifying and schedule is true.
      * @param schedule true if a notification event is pushed into a queue.
      *        Otherwise, directly notify the paused connection.
      */
-    void notifyPausedConnection(std::shared_ptr<ConnHandler> conn,
+    void notifyPausedConnection(const std::shared_ptr<ConnHandler>& conn,
                                 bool schedule = false);
 
     void notifyAllPausedConnections();

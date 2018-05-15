@@ -1315,7 +1315,7 @@ void DcpProducer::scheduleCheckpointProcessorTask(
 std::shared_ptr<Stream> DcpProducer::findStream(uint16_t vbid) {
     auto it = streams.find(vbid);
     if (it.second) {
-        return it.first;
+        return std::move(it.first);
     } else {
         return nullptr;
     }
