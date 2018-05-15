@@ -354,10 +354,12 @@ bool Manifest::doesKeyContainValidCollection(const ::DocKey& key) const {
         return true;
     } else if (key.getDocNamespace() == DocNamespace::Collections) {
         const auto cKey = Collections::DocKey::make(key, separator);
-        auto itr = map.find({reinterpret_cast<const char*>(cKey.data()),
-                             cKey.getCollectionLen()});
-        if (itr != map.end()) {
-            return itr->second->isOpen();
+        if (cKey.getCollectionLen()) {
+            auto itr = map.find({reinterpret_cast<const char*>(cKey.data()),
+                                 cKey.getCollectionLen()});
+            if (itr != map.end()) {
+                return itr->second->isOpen();
+            }
         }
     }
     return false;

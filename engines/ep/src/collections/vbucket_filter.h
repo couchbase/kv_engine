@@ -17,6 +17,8 @@
 
 #pragma once
 
+#include "item.h"
+
 #include <memcached/dockey.h>
 #include <memcached/engine_common.h>
 #include <platform/sized_buffer.h>
@@ -26,7 +28,6 @@
 #include <unordered_map>
 
 class SystemEventMessage;
-class Item;
 
 namespace Collections {
 
@@ -79,7 +80,21 @@ public:
      * @param item an Item to be processed.
      * @return if the Item is allowed to be sent on the DcpStream
      */
-    bool checkAndUpdate(const Item& item);
+    bool checkAndUpdate(const Item& item) {
+        // passthrough, everything is allowed.
+        if (passthrough) {
+            return true;
+        }
+
+        // The presence of $default is a simple check against defaultAllowed
+        if (item.getKey().getDocNamespace() ==
+                    DocNamespace::DefaultCollection &&
+            defaultAllowed) {
+            return true;
+        }
+        // More complex checks needed...
+        return checkAndUpdateSlow(item);
+    }
 
     /**
      * @return if the filter is empty
@@ -108,6 +123,9 @@ protected:
      * @param return true if the filter says this event should be allowed
      */
     bool allowSystemEvent(const Item& item) const;
+
+    /// Non-inline, slow path of checkAndUpdate().
+    bool checkAndUpdateSlow(const Item& item);
 
     /**
      * Remove the collection of the item from the filter

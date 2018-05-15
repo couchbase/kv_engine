@@ -42,19 +42,25 @@ public:
      * Factory method to create a Collections::DocKey from a DocKey
      */
     static DocKey make(const ::DocKey& key, const std::string& separator) {
-        if (key.getDocNamespace() == DocNamespace::System) {
+        switch (key.getDocNamespace()) {
+        case DocNamespace::DefaultCollection:
+            return DocKey(key, 0, 0);
+        case DocNamespace::Collections: {
+            const uint8_t* collection = findCollection(key, separator);
+            if (collection) {
+                return DocKey(key,
+                              gsl::narrow<uint8_t>(collection - key.data()),
+                              gsl::narrow<uint8_t>(separator.size()));
+            }
+            // No collection found in this key, so return empty (len 0)
+            return DocKey(key, 0, 0);
+        }
+        case DocNamespace::System:
             throw std::invalid_argument(
                     "DocKey::make incorrect use of SystemKey");
         }
-        const uint8_t* collection = findCollection(key, separator);
-        if (collection) {
-            return DocKey(key,
-                          gsl::narrow<uint8_t>(collection - key.data()),
-                          gsl::narrow<uint8_t>(separator.size()));
-        } else {
-            // No collection found, not an error - ok for DefaultNamespace.
-            return DocKey(key, 0, 0);
-        }
+        throw std::invalid_argument("DocKey::make invalid key.namespace: " +
+                                    std::to_string(int(key.getDocNamespace())));
     }
 
     /**

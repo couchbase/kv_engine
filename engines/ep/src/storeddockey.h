@@ -58,7 +58,7 @@ public:
         keydata.resize(nkey + namespaceBytes);
         keydata.replace(
                 namespaceBytes, nkey, reinterpret_cast<const char*>(key), nkey);
-        keydata.at(0) = static_cast<std::underlying_type<DocNamespace>::type>(
+        keydata[0] = static_cast<std::underlying_type<DocNamespace>::type>(
                 docNamespace);
     }
 
@@ -103,7 +103,7 @@ public:
     }
 
     DocNamespace getDocNamespace() const {
-        return DocNamespace(keydata.at(0));
+        return DocNamespace(keydata[0]);
     }
 
     const char* c_str() const {

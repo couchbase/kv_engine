@@ -85,19 +85,10 @@ Collections::VB::Filter::Filter(const Collections::Filter& filter,
     }
 }
 
-bool Collections::VB::Filter::checkAndUpdate(const Item& item) {
-    // passthrough, everything is allowed.
-    if (passthrough) {
-        return true;
-    }
-
+bool Collections::VB::Filter::checkAndUpdateSlow(const Item& item) {
     bool allowed = false;
-    // The presence of $default is a simple check against defaultAllowed
-    if (item.getKey().getDocNamespace() == DocNamespace::DefaultCollection &&
-        defaultAllowed) {
-        allowed = true;
-    } else if (item.getKey().getDocNamespace() == DocNamespace::Collections &&
-               !filter.empty()) {
+    if (item.getKey().getDocNamespace() == DocNamespace::Collections &&
+        !filter.empty()) {
         // Collections require a look up in the filter
         const auto cKey = Collections::DocKey::make(item.getKey(), separator);
         allowed = filter.count(cKey.getCollection());
