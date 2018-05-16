@@ -562,6 +562,7 @@ std::unique_ptr<MemcachedConnection> MemcachedConnection::clone() {
     result->setSslCertFile(this->ssl_cert_file);
     result->setSslKeyFile(this->ssl_key_file);
     result->connect();
+    result->applyFeatures("", this->effective_features);
     return std::unique_ptr<MemcachedConnection>{result};
 }
 
