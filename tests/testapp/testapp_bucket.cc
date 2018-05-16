@@ -393,6 +393,223 @@ TEST_P(BucketTest, MB19748TestDeleteWhileConnShipLogAndFullWriteBuffer) {
 }
 #endif
 
+intptr_t getConnectionId(MemcachedConnection& conn) {
+    const std::string agent_name{"getConnectionId 1.0"};
+    conn.hello("getConnectionId", "1.0", "test connections test");
+    unique_cJSON_ptr stats;
+    stats = conn.stats("connections");
+    if (!stats) {
+        throw std::runtime_error("getConnectionId: stats connections failed");
+    }
+
+    // Unfortuately they're all mapped as a " " : "json" pairs, so lets
+    // validate that at least thats true:
+    for (auto* conn = stats.get()->child; conn != nullptr; conn = conn->next) {
+        unique_cJSON_ptr json(cJSON_Parse(conn->valuestring));
+        if (!json) {
+            throw std::runtime_error(
+                    std::string{"getConnectionId: Failed to decode json ["} +
+                    conn->valuestring + "]");
+        }
+
+        auto* ptr = cJSON_GetObjectItem(json.get(), "agent_name");
+        if (ptr != nullptr) {
+            if (ptr->type != cJSON_String) {
+                throw std::runtime_error(
+                        "getConnectionId: Invalid type for agent_name: " +
+                        std::to_string(ptr->type));
+            }
+
+            if (agent_name == std::string{ptr->valuestring}) {
+                ptr = cJSON_GetObjectItem(json.get(), "socket");
+                if (ptr == nullptr) {
+                    throw std::runtime_error(
+                            "getConnectionId: Socket element is not there");
+                }
+
+                if (ptr->type != cJSON_Number) {
+                    throw std::runtime_error(
+                            "getConnectionId: Invalid type for socket: " +
+                            std::to_string(ptr->type));
+                }
+
+                return gsl::narrow<intptr_t>(ptr->valueint);
+            }
+        }
+    }
+
+    throw std::runtime_error(
+            "getConnectionId: Failed to locate the connection");
+}
+
+int64_t getTotalSent(cJSON* payload) {
+    auto* ptr = cJSON_GetObjectItem(payload, "ssl");
+    if (ptr == nullptr) {
+        throw std::runtime_error("getTotalSent(): missing tag ssl");
+    }
+    auto* enabled = cJSON_GetObjectItem(ptr, "enabled");
+    if (enabled == nullptr) {
+        throw std::runtime_error("getTotalSent(): missing tag ssl::enabled");
+    }
+    if (enabled->type == cJSON_True) {
+        ptr = cJSON_GetObjectItem(ptr, "total_send");
+        if (ptr == nullptr) {
+            throw std::runtime_error(
+                    "getTotalSent(): missing tag ssl::total_send");
+        }
+        if (ptr->type != cJSON_Number) {
+            throw std::runtime_error(
+                    "getTotalSent(): Invalid type for tag ssl::total_send");
+        }
+    } else if (enabled->type == cJSON_False) {
+        ptr = cJSON_GetObjectItem(payload, "total_send");
+        if (ptr == nullptr) {
+            throw std::runtime_error("getTotalSent(): missing tag total_send");
+        }
+        if (ptr->type != cJSON_Number) {
+            throw std::runtime_error(
+                    "getTotalSent(): Invalid type for tag total_send");
+        }
+    } else {
+        throw std::runtime_error(
+                "getTotalSent(): Invalid type for tag ssl::enabled");
+    }
+
+    return ptr->valueint;
+}
+
+static unique_cJSON_ptr getConnectionStats(MemcachedConnection& conn,
+                                           intptr_t id) {
+    const auto stats = conn.stats("connections " + std::to_string(id));
+    if (!stats) {
+        throw std::runtime_error("getConnectionStats(): nothing returned");
+    }
+
+    if (cJSON_GetArraySize(stats.get()) != 1) {
+        throw std::runtime_error(
+                "getConnectionStats(): Expected a single entry");
+    }
+
+    unique_cJSON_ptr ret(cJSON_Parse(stats.get()->child->valuestring));
+    if (!ret) {
+        throw std::runtime_error(
+                "getConnectionStats(): Failed to parse payload");
+    }
+    return ret;
+}
+
+/**
+ * Verify that we nuke connections stuck in sending the data back to
+ * the client due to the client not draining their socket buffer
+ *
+ * The test tries to store a 20MB document in the cache, then
+ * tries to fetch that document until the socket buffer is full
+ * (because we never try to read the data)
+ */
+TEST_P(BucketTest, MB29639TestDeleteWhileSendDataAndFullWriteBuffer) {
+    auto& conn = getAdminConnection();
+    const auto id = getConnectionId(conn);
+    conn.createBucket("MB29639",
+                      "cache_size=67108864;item_size_max=22020096",
+                      BucketType::Memcached);
+    conn.selectBucket("MB29639");
+
+    auto second_conn = conn.clone();
+    second_conn->authenticate("@admin", "password", "PLAIN");
+    second_conn->selectBucket("MB29639");
+
+    // Store the document I want to fetch
+    Document document;
+    document.info.id = name;
+    document.info.flags = 0xdeadbeef;
+    document.info.cas = mcbp::cas::Wildcard;
+    document.info.datatype = cb::mcbp::Datatype::Raw;
+    // Store a 20MB value in the cache
+    document.value.assign(20 * 1024 * 1024, 'b');
+
+    const auto info = conn.mutate(document, 0, MutationType::Set);
+    EXPECT_NE(0, info.cas);
+
+    BinprotGetCommand cmd;
+    cmd.setKey(name);
+
+    std::atomic_bool blocked{false};
+
+    // I've seen cases where send() is being blocked due to the
+    // clients receive buffer is full...
+    std::thread client{[&conn, &blocked, &cmd]() {
+        // Fill up the send buffer on the memcached server:
+        try {
+            do {
+                conn.sendCommand(cmd);
+            } while (!blocked.load());
+        } catch (const std::exception& e) {
+            std::cerr << e.what() << std::endl;
+        }
+    }};
+
+    do {
+        // Is the server currently blocked?
+        auto json = getConnectionStats(*second_conn, id);
+        auto* ptr = cJSON_GetObjectItem(json.get(), "state");
+        ASSERT_NE(nullptr, ptr);
+        ASSERT_EQ(cJSON_String, ptr->type);
+        if (strcmp(ptr->valuestring, "send_data") == 0) {
+            int64_t totalSend = getTotalSent(json.get());
+
+            // We're in the send_data state, but we might not be blocked
+            // yet.. take a quick pause and check that we're still in
+            // send_data and that we haven't sent any data!
+            std::this_thread::sleep_for(std::chrono::microseconds(100));
+
+            json = getConnectionStats(*second_conn, id);
+            ptr = cJSON_GetObjectItem(json.get(), "state");
+            ASSERT_NE(nullptr, ptr);
+            ASSERT_EQ(cJSON_String, ptr->type);
+            if (strcmp(ptr->valuestring, "send_data") == 0) {
+                if (totalSend == getTotalSent(json.get())) {
+                    blocked.store(true);
+                }
+            }
+        }
+    } while (!blocked);
+
+    // Once we call deleteBucket below, it will hang forever (if the bug is
+    // present), so we need a watchdog thread which will close the connection
+    // if the bucket was not deleted.
+    std::mutex cv_m;
+    std::condition_variable cv;
+    std::atomic<bool> bucket_deleted{false};
+    std::atomic<bool> watchdog_fired{false};
+    std::thread watchdog{
+            [&conn, &cv_m, &cv, &bucket_deleted, &watchdog_fired]() {
+                std::unique_lock<std::mutex> lock(cv_m);
+                cv.wait_for(lock, std::chrono::seconds(5), [&bucket_deleted]() {
+                    return bucket_deleted == true;
+                });
+
+                if (!bucket_deleted) {
+                    watchdog_fired = true;
+                    conn.close();
+                }
+            }};
+
+    // Now try to delete the bucket
+    second_conn->deleteBucket("MB29639");
+
+    // Cleanup - stop the watchdog (if it hasn't already fired).
+    bucket_deleted = true;
+    cv.notify_one();
+    watchdog.join();
+
+    // Check that the watchdog didn't fire.
+    EXPECT_FALSE(watchdog_fired)
+            << "Bucket deletion (with connected client blocked in send_data "
+               "due to full send buffer) only completed after watchdog fired";
+
+    client.join();
+}
+
 TEST_P(BucketTest, TestListBucket) {
     auto& conn = getAdminConnection();
     auto buckets = conn.listBuckets();
