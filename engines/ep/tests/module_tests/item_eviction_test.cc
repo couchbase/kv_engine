@@ -37,7 +37,7 @@ TEST(ItemEvictionClassTest, initialisation) {
 TEST(ItemEvictionClassTest, addValue) {
     ItemEviction itemEv;
     for (uint16_t ii = 0; ii < 256; ii++) {
-        itemEv.addValueToFreqHistogram(ii);
+        itemEv.addFreqAndAgeToHistograms(ii, ii);
     }
     EXPECT_EQ(256, itemEv.getFreqHistogramValueCount());
 }
@@ -46,8 +46,13 @@ TEST(ItemEvictionClassTest, addValue) {
 TEST(ItemEvictionClassTest, freqThreshold) {
     ItemEviction itemEv;
     for (uint16_t ii = 0; ii < 256; ii++) {
-        itemEv.addValueToFreqHistogram(ii);
+        itemEv.addFreqAndAgeToHistograms(ii, ii * 2);
     }
     ASSERT_EQ(256, itemEv.getFreqHistogramValueCount());
-    EXPECT_EQ(127, itemEv.getFreqThreshold(50.0));
+    auto result50 = itemEv.getThresholds(50.0, 50.0);
+    EXPECT_EQ(127, result50.first);
+    EXPECT_EQ(254, result50.second);
+    auto result100 = itemEv.getThresholds(100.0, 100.0);
+    EXPECT_EQ(255, result100.first);
+    EXPECT_EQ(510, result100.second);
 }

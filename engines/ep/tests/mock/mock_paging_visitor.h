@@ -35,7 +35,9 @@ public:
                       double bias,
                       const VBucketFilter& vbFilter,
                       std::atomic<item_pager_phase>* phase,
-                      bool _isEphemeral)
+                      bool _isEphemeral,
+                      size_t agePercentage,
+                      size_t freqCounterAgeThreshold)
         : PagingVisitor(s,
                         st,
                         pcnt,
@@ -45,7 +47,9 @@ public:
                         bias,
                         vbFilter,
                         phase,
-                        _isEphemeral) {
+                        _isEphemeral,
+                        agePercentage,
+                        freqCounterAgeThreshold) {
     }
 
     ItemEviction& getItemEviction() {

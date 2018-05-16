@@ -21,6 +21,7 @@
 
 #include <cstdlib> // Required due to the use of free
 #include <limits>
+#include <utility>
 
 /**
  * A container for data structures that are used in the algorithm for
@@ -56,8 +57,8 @@ class ItemEviction {
 public:
     ItemEviction();
 
-    // Adds a value to the frequency histogram.
-    void addValueToFreqHistogram(uint8_t v);
+    // Adds a frequency and age to the respective histograms.
+    void addFreqAndAgeToHistograms(uint8_t freq, uint64_t age);
 
     // Returns the number of values added to the frequency histogram.
     uint64_t getFreqHistogramValueCount() const;
@@ -66,9 +67,10 @@ public:
     // back to 1.
     void reset();
 
-    // StatCounter: Returns the value held in the frequency histogram at the
-    // percentile defined by the input parameter percentage.
-    uint16_t getFreqThreshold(double percentage) const;
+    // StatCounter: Returns the values held in the frequency and age
+    // histograms at the percentiles defined by the input parameters.
+    std::pair<uint16_t, uint64_t> getThresholds(double freqPercentage,
+                                                double agePercentage) const;
 
     // StatCounter: Return true if learning what the frequency counter
     // threshold should be for eviction, else return false.
@@ -87,6 +89,11 @@ public:
         requiredToUpdateInterval = interval;
     }
 
+    // StatCounter:: Copies the contents of the frequency histogram into
+    // the histogram given as an input parameter
+    // @param hist  the destination histogram for the copy
+    void copyFreqHistogram(HdrHistogram& hist);
+
     // Map from the 8-bit probabilistic counter (256 states) to NRU (4 states).
     static uint8_t convertFreqCountToNRUValue(uint8_t statCounter);
 
@@ -100,21 +107,28 @@ public:
     // threshold every time we visit an item in the hash table.
     static const uint64_t learningPopulation = 100;
 
-    // StatCounter:: Copies the contents of the frequency histogram into
-    // the histogram given as an input parameter
-    // @param hist  the destination histogram for the copy
-    void copyToHistogram(HdrHistogram& hist);
+    static const uint64_t casBitsNotTime = 16;
 
 private:
     //  The minimum value that can be added to the frequency histogram
     static const uint64_t minFreqValue = 0;
 
+    //  The minimum value that can be added to the age histogram
+    static const uint64_t minAgeValue = 0;
+
     // The maximum value that can be added to the frequency histogram
     static const uint64_t maxFreqValue = std::numeric_limits<uint8_t>::max();
 
-    // The level of precision for the histogram.  The value must be between 1
-    // and 5 (inclusive).
-    static const int significantFigures = 3;
+    // The maximum value that can be added to the age histogram
+    static const uint64_t maxAgeValue = std::numeric_limits<uint64_t>::max() >> casBitsNotTime;
+
+    // The level of precision for the frequency histogram.  The value must be
+    // between 1 and 5 (inclusive).
+    static const int freqSignificantFigures = 3;
+
+    // The level of precision for the age histogram.  The value must be
+    // between 1 and 5 (inclusive).
+    static const int ageSignificantFigures = 1;
 
     // The value units per bucket that we use when creating the iterator
     // that traverses over the frequency histogram in the copyToHistogram
@@ -122,7 +136,16 @@ private:
     static const int valueUnitsPerBucket = 1;
 
     // The execution frequency histogram
-    HdrHistogram freqHistogram{minFreqValue, maxFreqValue, significantFigures};
+    HdrHistogram freqHistogram{minFreqValue, maxFreqValue, freqSignificantFigures};
+
+    // The age histogram.  Age is measured by taking the item's current cas
+    // from the maxCas (which is the maximum cas value of the associated
+    // vbucket).
+    // The time in nanoseconds is stored in the top 48 bits of the cas
+    // therefore we shift the age by casBitsNotTime.  This allows us
+    // to have an age histogram with a reduced maximum value and
+    // therefore reduces the memory requirements.
+    HdrHistogram ageHistogram{minAgeValue, maxAgeValue, ageSignificantFigures};
 
     // StatCounter: The number of frequencies that need to be added to the
     // frequency histogram before it is necessary to update the frequency
