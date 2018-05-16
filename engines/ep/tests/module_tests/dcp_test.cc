@@ -1173,7 +1173,6 @@ TEST_P(StreamTest, DiskBackfillFail) {
 
     /* Run the backfill task in a background thread */
     ExecutorPool::get()->setNumAuxIO(1);
-    stream->transitionStateToBackfilling();
 
     /* Wait for the backfill task to fail and stream to transition to dead
        state */

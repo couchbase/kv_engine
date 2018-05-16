@@ -786,40 +786,6 @@ void ExecutorPool::doTaskQStat(EventuallyPersistentEngine *engine,
     ObjectRegistry::onSwitchThread(epe);
 }
 
-static void showJobLog(const char *logname, const char *prefix,
-                       const std::vector<TaskLogEntry> &log,
-                       const void *cookie, ADD_STAT add_stat) {
-    char statname[80] = {0};
-    for (size_t i = 0;i < log.size(); ++i) {
-        try {
-            checked_snprintf(statname, sizeof(statname), "%s:%s:%d:task",
-                             prefix,
-                             logname, static_cast<int>(i));
-            add_casted_stat(statname, log[i].getName().c_str(), add_stat,
-                            cookie);
-            checked_snprintf(statname, sizeof(statname), "%s:%s:%d:type",
-                             prefix,
-                             logname, static_cast<int>(i));
-            add_casted_stat(statname,
-                            TaskQueue::taskType2Str(
-                                log[i].getTaskType()).c_str(),
-                            add_stat, cookie);
-            checked_snprintf(statname, sizeof(statname), "%s:%s:%d:starttime",
-                             prefix, logname, static_cast<int>(i));
-            add_casted_stat(statname, log[i].getTimestamp(), add_stat,
-                            cookie);
-            checked_snprintf(statname, sizeof(statname), "%s:%s:%d:runtime",
-                             prefix, logname, static_cast<int>(i));
-            const auto duration_ms = std::chrono::duration_cast
-                    <std::chrono::microseconds>(log[i].getDuration()).count();
-            add_casted_stat(statname, duration_ms, add_stat, cookie);
-        } catch (std::exception& error) {
-            LOG(EXTENSION_LOG_WARNING,
-                "showJobLog: Failed to build stats: %s", error.what());
-        }
-    }
-}
-
 static void addWorkerStats(const char *prefix, ExecutorThread *t,
                            const void *cookie, ADD_STAT add_stat) {
     char statname[80] = {0};
@@ -867,10 +833,6 @@ void ExecutorPool::doWorkerStat(EventuallyPersistentEngine *engine,
     for (size_t tidx = 0; tidx < threadQ.size(); ++tidx) {
         addWorkerStats(threadQ[tidx]->getName().c_str(), threadQ[tidx],
                      cookie, add_stat);
-        showJobLog("log", threadQ[tidx]->getName().c_str(),
-                   threadQ[tidx]->getLog(), cookie, add_stat);
-        showJobLog("slow", threadQ[tidx]->getName().c_str(),
-                   threadQ[tidx]->getSlowLog(), cookie, add_stat);
     }
     ObjectRegistry::onSwitchThread(epe);
 }
