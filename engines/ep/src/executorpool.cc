@@ -302,9 +302,8 @@ bool ExecutorPool::_cancel(size_t taskId, bool eraseTask) {
 
     ExTask task = itr->second.first;
     LOG(EXTENSION_LOG_DEBUG,
-        "Cancel task %.*s id %" PRIu64 " on bucket %s %s",
-        int(task->getDescription().size()),
-        task->getDescription().data(),
+        "Cancel task %s id %" PRIu64 " on bucket %s %s",
+        task->getDescription().c_str(),
         uint64_t(task->getId()),
         task->getTaskable().getName().c_str(),
         eraseTask ? "final erase" : "!");
@@ -314,7 +313,7 @@ bool ExecutorPool::_cancel(size_t taskId, bool eraseTask) {
     if (eraseTask) { // only internal threads can erase tasks
         if (!task->isdead()) {
             throw std::logic_error("ExecutorPool::_cancel: task '" +
-                                   to_string(task->getDescription()) +
+                                   task->getDescription() +
                                    "' is not dead after calling "
                                    "cancel() on it");
         }
@@ -632,11 +631,10 @@ bool ExecutorPool::_stopTaskGroup(task_gid_t taskGID,
             if (task->getTaskable().getGID() == taskGID &&
                 (taskType == NO_TASK_TYPE || q->queueType == taskType)) {
                 LOG(EXTENSION_LOG_NOTICE,
-                    "Stopping Task id %" PRIu64 " %s %.*s",
+                    "Stopping Task id %" PRIu64 " %s %s",
                     uint64_t(task->getId()),
                     task->getTaskable().getName().c_str(),
-                    int(task->getDescription().size()),
-                    task->getDescription().data());
+                    task->getDescription().c_str());
                 // If force flag is set during shutdown, cancel all tasks
                 // without considering the blockShutdown status of the task.
                 if (force || !task->blockShutdown) {
@@ -881,7 +879,7 @@ void ExecutorPool::doTasksStat(EventuallyPersistentEngine* engine,
         cJSON_AddStringToObject(
                 obj.get(), "bucket", task->getTaskable().getName().c_str());
         cJSON_AddStringToObject(
-                obj.get(), "description", task->getDescription().data());
+                obj.get(), "description", task->getDescription().c_str());
         cJSON_AddNumberToObject(
                 obj.get(), "priority", task->getQueuePriority());
         cJSON_AddNumberToObject(obj.get(),

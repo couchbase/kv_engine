@@ -476,7 +476,7 @@ public:
           cons(conn) {
     }
 
-    cb::const_char_buffer getDescription() {
+    std::string getDescription() {
         return description;
     }
 

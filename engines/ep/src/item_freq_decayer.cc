@@ -54,7 +54,7 @@ bool ItemFreqDecayerTask::run(void) {
 
     // Print start status.
     std::stringstream ss;
-    ss << to_string(getDescription()) << " for bucket '" << engine->getName()
+    ss << getDescription() << " for bucket '" << engine->getName()
        << "'";
     if (epstore_position == engine->getKVBucket()->startPosition()) {
         ss << " starting. ";
@@ -82,7 +82,7 @@ bool ItemFreqDecayerTask::run(void) {
 
     // Print status.
     ss.str("");
-    ss << to_string(getDescription()) << " for bucket '" << engine->getName()
+    ss << getDescription() << " for bucket '" << engine->getName()
        << "'";
     if (completed) {
         ss << " finished.";
@@ -125,7 +125,7 @@ void ItemFreqDecayerTask::wakeup() {
     }
 }
 
-cb::const_char_buffer ItemFreqDecayerTask::getDescription() {
+std::string ItemFreqDecayerTask::getDescription() {
     return "Item frequency count decayer task";
 }
 

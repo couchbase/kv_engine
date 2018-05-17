@@ -31,7 +31,7 @@ public:
         return func();
     }
 
-    cb::const_char_buffer getDescription() override {
+    std::string getDescription() override {
         return "Lambda Task";
     }
 

@@ -59,7 +59,7 @@ public:
         _warmup->addToTaskSet(uid);
     }
 
-    cb::const_char_buffer getDescription() {
+    std::string getDescription() {
         return "Warmup - initialize";
     }
 
@@ -90,7 +90,7 @@ public:
         _warmup->addToTaskSet(uid);
     }
 
-    cb::const_char_buffer getDescription() {
+    std::string getDescription() {
         return _description;
     }
 
@@ -126,7 +126,7 @@ public:
         _warmup->addToTaskSet(uid);
     }
 
-    cb::const_char_buffer getDescription() {
+    std::string getDescription() {
         return _description;
     }
 
@@ -159,7 +159,7 @@ public:
         _warmup->addToTaskSet(uid);
     }
 
-    cb::const_char_buffer getDescription() {
+    std::string getDescription() {
         return _description;
     }
 
@@ -193,7 +193,7 @@ public:
         _warmup->addToTaskSet(uid);
     }
 
-    cb::const_char_buffer getDescription() {
+    std::string getDescription() {
         return "Warmup - check for access log";
     }
 
@@ -226,7 +226,7 @@ public:
         _warmup->addToTaskSet(uid);
     }
 
-    cb::const_char_buffer getDescription() {
+    std::string getDescription() {
         return _description;
     }
 
@@ -262,7 +262,7 @@ public:
         _warmup->addToTaskSet(uid);
     }
 
-    cb::const_char_buffer getDescription() {
+    std::string getDescription() {
         return _description;
     }
 
@@ -299,7 +299,7 @@ public:
         _warmup->addToTaskSet(uid);
     }
 
-    cb::const_char_buffer getDescription() {
+    std::string getDescription() {
         return _description;
     }
 
@@ -333,7 +333,7 @@ public:
         _warmup->addToTaskSet(uid);
     }
 
-    cb::const_char_buffer getDescription() {
+    std::string getDescription() {
         return "Warmup - completion";
     }
 

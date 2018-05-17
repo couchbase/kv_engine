@@ -46,8 +46,7 @@ bool ItemCompressorTask::run(void) {
 
         // Print start status.
         std::stringstream ss;
-        ss << to_string(getDescription()) << " for bucket '"
-           << engine->getName() << "'";
+        ss << getDescription() << " for bucket '" << engine->getName() << "'";
         if (epstore_position == engine->getKVBucket()->startPosition()) {
             ss << " starting. ";
         } else {
@@ -81,8 +80,7 @@ bool ItemCompressorTask::run(void) {
 
         // Print status.
         ss.str("");
-        ss << to_string(getDescription()) << " for bucket '"
-           << engine->getName() << "'";
+        ss << getDescription() << " for bucket '" << engine->getName() << "'";
         if (completed) {
             ss << " finished.";
         } else {
@@ -117,7 +115,7 @@ void ItemCompressorTask::stop(void) {
     }
 }
 
-cb::const_char_buffer ItemCompressorTask::getDescription() {
+std::string ItemCompressorTask::getDescription() {
     return "Item Compressor";
 }
 

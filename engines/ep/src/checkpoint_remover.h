@@ -46,7 +46,7 @@ public:
 
     bool run(void);
 
-    cb::const_char_buffer getDescription() {
+    std::string getDescription() {
         return "Removing closed unreferenced checkpoints from memory";
     }
 

@@ -29,7 +29,7 @@ public:
     // returning true will also drive the ExecutorPool::reschedule path.
     bool run() { return true; }
 
-    cb::const_char_buffer getDescription() {
+    std::string getDescription() {
         return description;
     }
 

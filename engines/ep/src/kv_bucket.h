@@ -48,10 +48,7 @@ public:
                 double sleep,
                 bool shutdown);
 
-    cb::const_char_buffer getDescription() {
-        std::unique_lock<std::mutex> lock(description.mutex);
-        return description.text;
-    }
+    std::string getDescription();
 
     /// Set the maximum expected duration for this task.
     void setMaxExpectedDuration(std::chrono::microseconds duration) {
@@ -72,14 +69,6 @@ private:
     double                      sleepTime;
     std::chrono::microseconds maxDuration;
     std::atomic<uint16_t>       currentvb;
-
-    struct {
-        std::mutex mutex;
-        std::string text;
-    } description;
-
-    /// re-calculate the description (when the currentVB changes).
-    void updateDescription();
 
     DISALLOW_COPY_AND_ASSIGN(VBCBAdaptor);
 };

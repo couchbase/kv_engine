@@ -123,7 +123,7 @@ public:
         return true;
     }
 
-    cb::const_char_buffer getDescription() {
+    std::string getDescription() {
         return description;
     }
 

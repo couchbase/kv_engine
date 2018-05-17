@@ -349,7 +349,7 @@ bool EphemeralBucket::NotifyHighPriorityReqTask::run() {
     for (auto& notify : notifyQ) {
         LOG(EXTENSION_LOG_NOTICE,
             "%s for cookie :%p and status %d",
-            to_string(getDescription()).c_str(),
+            getDescription().c_str(),
             notify.first,
             notify.second);
         engine->notifyIOComplete(notify.first, notify.second);
@@ -376,7 +376,7 @@ bool EphemeralBucket::NotifyHighPriorityReqTask::run() {
     return true;
 }
 
-cb::const_char_buffer
+std::string
 EphemeralBucket::NotifyHighPriorityReqTask::getDescription() {
     return "Ephemeral: Notify HighPriority Request";
 }

@@ -329,7 +329,7 @@ void AccessScanner::updateAlogTime(double sleepSecs) {
     stats.alogTime.store(_waketime.tv_sec);
 }
 
-cb::const_char_buffer AccessScanner::getDescription() {
+std::string AccessScanner::getDescription() {
     return "Generating access log";
 }
 

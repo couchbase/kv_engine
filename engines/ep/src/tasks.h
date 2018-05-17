@@ -46,7 +46,7 @@ public:
 
     bool run();
 
-    cb::const_char_buffer getDescription() {
+    std::string getDescription() {
         return desc;
     }
 
@@ -78,7 +78,7 @@ public:
 
     bool run();
 
-    cb::const_char_buffer getDescription() {
+    std::string getDescription() {
         return desc;
     }
 
@@ -109,7 +109,7 @@ public:
 
     bool run();
 
-    cb::const_char_buffer getDescription() {
+    std::string getDescription() {
         return "Updating stat snapshot on disk";
     }
 
@@ -137,7 +137,7 @@ public:
 
     bool run();
 
-    cb::const_char_buffer getDescription() {
+    std::string getDescription() {
         return "Batching background fetch";
     }
 
@@ -176,7 +176,7 @@ public:
 
     bool run();
 
-    cb::const_char_buffer getDescription() {
+    std::string getDescription() {
         return description;
     }
 
@@ -227,7 +227,7 @@ public:
 
     bool run();
 
-    cb::const_char_buffer getDescription() {
+    std::string getDescription() {
         return description;
     }
 
@@ -266,7 +266,7 @@ public:
         return std::chrono::milliseconds(1);
     }
 
-    cb::const_char_buffer getDescription() {
+    std::string getDescription() {
         return "Monitoring a workload pattern";
     }
 

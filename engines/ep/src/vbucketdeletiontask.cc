@@ -36,7 +36,7 @@ VBucketMemoryDeletionTask::VBucketMemoryDeletionTask(
                   " from memory";
 }
 
-cb::const_char_buffer VBucketMemoryDeletionTask::getDescription() {
+std::string VBucketMemoryDeletionTask::getDescription() {
     return description;
 }
 

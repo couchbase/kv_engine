@@ -39,7 +39,7 @@ public:
                               VBucket* vbucket,
                               TaskId tid = TaskId::VBucketMemoryDeletionTask);
 
-    cb::const_char_buffer getDescription();
+    std::string getDescription();
 
     std::chrono::microseconds maxExpectedDuration();
 

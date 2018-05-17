@@ -41,7 +41,7 @@ public:
                   bool completeBeforeShutdown = false);
 
     bool run();
-    cb::const_char_buffer getDescription();
+    std::string getDescription();
     std::chrono::microseconds maxExpectedDuration();
 
     std::atomic<size_t> completedCount;

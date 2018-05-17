@@ -210,7 +210,7 @@ public:
                       std::to_string(vbucket->getId())) {
     }
 
-    cb::const_char_buffer getDescription() {
+    std::string getDescription() {
         return description;
     }
 
@@ -2193,7 +2193,6 @@ VBCBAdaptor::VBCBAdaptor(KVBucket* s,
       sleepTime(sleep),
       maxDuration(std::chrono::microseconds::max()),
       currentvb(0) {
-    updateDescription();
     const VBucketFilter& vbFilter = visitor->getVBucketFilter();
     for (auto vbid : store->getVBuckets().getBuckets()) {
         if (vbFilter(vbid)) {
@@ -2202,10 +2201,13 @@ VBCBAdaptor::VBCBAdaptor(KVBucket* s,
     }
 }
 
+std::string VBCBAdaptor::getDescription() {
+    return std::string(label) + " on vb " + std::to_string(currentvb.load());
+}
+
 bool VBCBAdaptor::run(void) {
     if (!vbList.empty()) {
         currentvb.store(vbList.front());
-        updateDescription();
         VBucketPtr vb = store->getVBucket(currentvb);
         if (vb) {
             if (visitor->pauseVisitor()) {
@@ -2222,12 +2224,6 @@ bool VBCBAdaptor::run(void) {
         visitor->complete();
     }
     return !isdone;
-}
-
-void VBCBAdaptor::updateDescription() {
-    std::unique_lock<std::mutex> lock(description.mutex);
-    description.text =
-            std::string(label) + " on vb " + std::to_string(currentvb.load());
 }
 
 void KVBucket::resetUnderlyingStats(void)
