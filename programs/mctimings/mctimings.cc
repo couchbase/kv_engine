@@ -461,7 +461,7 @@ int main(int argc, char** argv) {
             {nullptr, 0, nullptr, 0}};
 
     while ((cmd = getopt_long(
-                    argc, argv, "46h:p:u:b:P:Sj", long_options, nullptr)) !=
+                    argc, argv, "46h:p:u:b:P:sSvj", long_options, nullptr)) !=
            EOF) {
         switch (cmd) {
         case '6' :

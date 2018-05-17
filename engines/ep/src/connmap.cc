@@ -186,7 +186,7 @@ ConnMap::~ConnMap() {
     }
 }
 
-void ConnMap::notifyPausedConnection(std::shared_ptr<ConnHandler> conn,
+void ConnMap::notifyPausedConnection(const std::shared_ptr<ConnHandler>& conn,
                                      bool schedule) {
     if (engine.getEpStats().isShutdown) {
         return;
@@ -239,7 +239,7 @@ void ConnMap::addVBConnByVBId(std::shared_ptr<ConnHandler> conn, int16_t vbid) {
 
     size_t lock_num = vbid % vbConnLockNum;
     std::lock_guard<std::mutex> lh(vbConnLocks[lock_num]);
-    vbConns[vbid].push_back(conn);
+    vbConns[vbid].emplace_back(std::move(conn));
 }
 
 void ConnMap::removeVBConnByVBId_UNLOCKED(const void* connCookie,

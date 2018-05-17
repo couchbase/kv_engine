@@ -333,7 +333,7 @@ protected:
      * @return a DcpResponse to represent the item. This will be either a
      *         MutationResponse or SystemEventProducerMessage.
      */
-    std::unique_ptr<DcpResponse> makeResponseFromItem(queued_item& item);
+    std::unique_ptr<DcpResponse> makeResponseFromItem(const queued_item& item);
 
     /* The transitionState function is protected (as opposed to private) for
      * testing purposes.

@@ -1124,11 +1124,8 @@ static bool shouldModifyItem(const queued_item& item,
                              IncludeXattrs includeXattrs,
                              bool isForceValueCompressionEnabled,
                              bool isSnappyEnabled) {
-    value_t value = item->getValue();
-    /**
-     * If there is no value, no modification needs to be done
-     */
-    if (value) {
+    // If there is no value, no modification needs to be done
+    if (item->getValue()) {
         /**
          * If value needs to be included
          */
@@ -1167,10 +1164,11 @@ static bool shouldModifyItem(const queued_item& item,
 }
 
 std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
-        queued_item& item) {
+        const queued_item& item) {
+    // Note: This function is hot - it is called for every item to be
+    // sent over the DCP connection.
     if (item->getOperation() != queue_op::system_event) {
         auto cKey = Collections::DocKey::make(item->getKey(), currentSeparator);
-        queued_item finalQueuedItem(item);
         if (shouldModifyItem(item, includeValue, includeXattributes,
                              isForceValueCompressionEnabled(),
                              isSnappyEnabled())) {
@@ -1195,26 +1193,28 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
                 }
             }
 
-            finalQueuedItem = std::move(finalItem);
+            /**
+             * Create a mutation response to be placed in the ready queue.
+             */
+            return std::make_unique<MutationProducerResponse>(
+                    std::move(finalItem),
+                    opaque_,
+                    includeValue,
+                    includeXattributes,
+                    includeDeleteTime,
+                    cKey.getCollectionLen());
         }
 
-        /**
-         * Create a mutation response to be placed in the ready queue.
-         * Note that once an item has been placed in the ready queue
-         * as compressed, it will be sent out as compressed even if the
-         * client explicitly changes the setting to request uncompressed
-         * values.
-         */
+        // Item unmodified - construct response from original.
         return std::make_unique<MutationProducerResponse>(
-                finalQueuedItem,
+                item,
                 opaque_,
                 includeValue,
                 includeXattributes,
                 includeDeleteTime,
                 cKey.getCollectionLen());
-    } else {
-        return SystemEventProducerMessage::make(opaque_, item);
     }
+    return SystemEventProducerMessage::make(opaque_, item);
 }
 
 void ActiveStream::processItems(std::vector<queued_item>& items,
