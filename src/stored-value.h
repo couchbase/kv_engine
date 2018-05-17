@@ -25,6 +25,7 @@
 
 #include "daemon/buffer.h"
 #include <platform/cb_malloc.h>
+#include <platform/n_byte_integer.h>
 
 // Forward declaration for StoredValue
 class HashTable;
@@ -544,11 +545,11 @@ private:
     value_t            value;          // 8 bytes
     StoredValue        *next;          // 8 bytes
     uint64_t           cas;            //!< CAS identifier.
-    uint64_t           revSeqno;       //!< Revision id sequence number
     int64_t            bySeqno;        //!< By sequence id number
     rel_time_t         lock_expiry;    //!< getl lock expiration
     uint32_t           exptime;        //!< Expiration time of this item.
     uint32_t           flags;          // 4 bytes
+    cb::uint48_t revSeqno; //!< Revision id sequence number
     bool               _isDirty  :  1; // 1 bit
     bool               deleted   :  1;
     bool               newCacheItem : 1;

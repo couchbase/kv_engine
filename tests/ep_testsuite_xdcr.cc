@@ -836,7 +836,7 @@ static enum test_result test_set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     // get metadata again to verify that set with meta was successful
     check(get_meta(h, h1, key), "Expected to get meta");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
-    check(last_meta.revSeqno == 10, "Expected seqno to match");
+    check(last_meta.revSeqno == 10ull, "Expected seqno to match");
     check(last_meta.cas == 0xdeadbeef, "Expected cas to match");
     check(last_meta.flags == 0xdeadbeef, "Expected flags to match");
 
@@ -889,7 +889,7 @@ static enum test_result test_set_with_meta_by_force(ENGINE_HANDLE *h,
     // get metadata again to verify that the warmup loads an item correctly.
     check(get_meta(h, h1, key), "Expected to get meta");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
-    check(last_meta.revSeqno == 10, "Expected seqno to match");
+    check(last_meta.revSeqno == 10ull, "Expected seqno to match");
     check(last_meta.cas == 0xdeadbeef, "Expected cas to match");
     check(last_meta.flags == 0xdeadbeef, "Expected flags to match");
 
@@ -1203,7 +1203,7 @@ static enum test_result test_exp_persisted_set_del(ENGINE_HANDLE *h,
 
     check(get_meta(h, h1, "key3"), "Expected to get meta");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
-    check(last_meta.revSeqno == 4, "Expected seqno to match");
+    check(last_meta.revSeqno == 4ull, "Expected seqno to match");
     check(last_meta.cas != 3, "Expected cas to be different");
     check(last_meta.flags == 0, "Expected flags to match");
 
@@ -2047,6 +2047,60 @@ static enum test_result test_cas_options_and_nmeta(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+// A delete_with_meta with a large seqno (upper 16-bits dirty) should trigger
+// a conflict if evicted and a second identical delete_with_meta occurs
+static enum test_result test_MB29119(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
+    const char* key1 = "delete_with_meta_key1";
+    const size_t keylen = strlen(key1);
+    RawItemMetaData itemMeta;
+
+    // Overflow seqno from 48-bits
+    itemMeta.revSeqno = 0x0080a80000000001;
+    itemMeta.cas = 0xdeadbeef;
+    itemMeta.exptime = 0;
+    itemMeta.flags = 0xdeadbeef;
+
+    const void* cookie = testHarness.create_cookie();
+
+    // delete an item with meta data
+    del_with_meta(h,
+                  h1,
+                  key1,
+                  keylen,
+                  0,
+                  &itemMeta,
+                  0 /*cas*/,
+                  0 /*options*/,
+                  cookie);
+
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+            last_status.load(),
+            "Expected success");
+
+    wait_for_flusher_to_settle(h, h1);
+    // evict the key
+    evict_key(h, h1, key1);
+
+    // Same key
+    del_with_meta(h,
+                  h1,
+                  key1,
+                  keylen,
+                  0,
+                  &itemMeta,
+                  0 /*cas*/,
+                  0 /*options*/,
+                  cookie);
+
+    // Conflict resolution must stop the second delete
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
+            last_status.load(),
+            "Expected EEXISTS");
+
+    testHarness.destroy_cookie(cookie);
+    return SUCCESS;
+}
+
 // Test manifest //////////////////////////////////////////////////////////////
 
 const char *default_dbname = "./ep_testsuite_xdcr";
@@ -2158,6 +2212,14 @@ BaseTestCase testsuite_testcases[] = {
                  test_cas_options_and_nmeta, test_setup, teardown,
                  "conflict_resolution_type=seqno",
                  prepare, cleanup),
+
+        TestCase("MB29119",
+                 test_MB29119,
+                 test_setup,
+                 teardown,
+                 "item_eviction_policy=full_eviction",
+                 prepare,
+                 cleanup),
 
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
 };
