@@ -297,12 +297,18 @@ void conn_close(McbpConnection *c) {
     if (thread == nullptr) {
         throw std::logic_error("conn_close: unable to obtain non-NULL thread from connection");
     }
-    /* remove from pending-io list */
-    if (settings.getVerbose() > 1 && list_contains(thread->pending_io, c)) {
-        LOG_WARNING(c,
-                    "Current connection was in the pending-io list.. Nuking it");
+
+    // remove from pending-io list
+    {
+        std::lock_guard<std::mutex> lock(*thread->pending_io.mutex);
+        /* remove from pending-io list */
+        if (settings.getVerbose() > 1 && thread->pending_io.map->count(c)) {
+            LOG_WARNING(c,
+                        "Current connection was in the pending-io list.. "
+                        "Nuking it");
+        }
+        thread->pending_io.map->erase(c);
     }
-    thread->pending_io = list_remove(thread->pending_io, c);
 
     conn_cleanup(c);
 

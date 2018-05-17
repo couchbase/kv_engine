@@ -205,6 +205,9 @@ static void setup_thread(LIBEVENT_THREAD *me) {
 
     cb_mutex_initialize(&me->mutex);
 
+    me->pending_io.mutex = new std::mutex();
+    me->pending_io.map = new LIBEVENT_THREAD::PendingIoMap();
+
     // Initialize threads' sub-document parser / handler
     me->subdoc_op = subdoc_op_alloc();
 
@@ -234,16 +237,6 @@ static void worker_libevent(void *arg) {
 
     // Event loop exited; cleanup before thread exits.
     ERR_remove_state(0);
-}
-
-static int number_of_pending(Connection *c, Connection *list) {
-    int rv = 0;
-    for (; list; list = list->getNext()) {
-        if (list == c) {
-            rv ++;
-        }
-    }
-    return rv;
 }
 
 static void drain_notification_channel(evutil_socket_t fd)
@@ -309,14 +302,19 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
 
     dispatch_new_connections(me);
 
+    LIBEVENT_THREAD::PendingIoMap pending;
+    {
+        std::lock_guard<std::mutex> lock(*me->pending_io.mutex);
+        me->pending_io.map->swap(pending);
+    }
+
     LOCK_THREAD(me);
-    Connection* pending = me->pending_io;
-    me->pending_io = NULL;
-    while (pending != NULL) {
-        Connection *c = pending;
+
+    for (auto io : pending) {
+        auto* c = io.first;
+        auto status = io.second;
+
         cb_assert(me == c->getThread());
-        pending = pending->getNext();
-        c->setNext(nullptr);
 
         auto *mcbp = dynamic_cast<McbpConnection*>(c);
         if (mcbp != nullptr) {
@@ -332,6 +330,7 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
              * from the context of the notification pipe, so just let it
              * run one time to set up the correct mask in libevent
              */
+            mcbp->setAiostat(status);
             mcbp->setNumEvents(1);
         }
         run_event_loop(c, EV_READ|EV_WRITE);
@@ -364,23 +363,6 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
 
 extern volatile rel_time_t current_time;
 
-static bool has_cycle(Connection *c) {
-    Connection *slowNode, *fastNode1, *fastNode2;
-
-    if (!c) {
-        return false;
-    }
-
-    slowNode = fastNode1 = fastNode2 = c;
-    while (slowNode && (fastNode1 = fastNode2->getNext()) && (fastNode2 = fastNode1->getNext())) {
-        if (slowNode == fastNode1 || slowNode == fastNode2) {
-            return true;
-        }
-        slowNode = slowNode->getNext();
-    }
-    return false;
-}
-
 bool list_contains(Connection *haystack, Connection *needle) {
     for (; haystack; haystack = haystack->getNext()) {
         if (needle == haystack) {
@@ -404,17 +386,6 @@ Connection * list_remove(Connection *haystack, Connection *needle) {
     haystack->setNext(list_remove(haystack->getNext(), needle));
 
     return haystack;
-}
-
-static void enlist_conn(Connection *c, Connection **list) {
-    LIBEVENT_THREAD *thr = c->getThread();
-    cb_assert(list == &thr->pending_io);
-    cb_assert(!list_contains(thr->pending_io, c));
-    cb_assert(c->getNext() == nullptr);
-    c->setNext(*list);
-    *list = c;
-    cb_assert(list_contains(*list, c));
-    cb_assert(!has_cycle(*list));
 }
 
 void notify_io_complete(const void *void_cookie, ENGINE_ERROR_CODE status)
@@ -445,10 +416,7 @@ void notify_io_complete(const void *void_cookie, ENGINE_ERROR_CODE status)
     LOG_DEBUG(NULL, "Got notify from %u, status 0x%x",
               connection->getId(), status);
 
-    LOCK_THREAD(thr);
-    reinterpret_cast<McbpConnection*>(connection)->setAiostat(status);
-    notify = add_conn_to_pending_io_list(connection);
-    UNLOCK_THREAD(thr);
+    notify = add_conn_to_pending_io_list(connection, status);
 
     /* kick the thread in the butt */
     if (notify) {
@@ -578,6 +546,8 @@ void threads_cleanup(void)
         subdoc_op_free(threads[ii].subdoc_op);
         delete threads[ii].validator;
         delete threads[ii].new_conn_queue;
+        delete threads[ii].pending_io.mutex;
+        delete threads[ii].pending_io.map;
     }
 
     cb_free(thread_ids);
@@ -620,15 +590,13 @@ void notify_thread(LIBEVENT_THREAD *thread) {
     }
 }
 
-int add_conn_to_pending_io_list(Connection *c) {
-    int notify = 0;
+int add_conn_to_pending_io_list(Connection* c, ENGINE_ERROR_CODE status) {
     auto thread = c->getThread();
-    if (number_of_pending(c, thread->pending_io) == 0) {
-        if (thread->pending_io == NULL) {
-            notify = 1;
-        }
-        enlist_conn(c, &thread->pending_io);
+    std::pair<LIBEVENT_THREAD::PendingIoMap::iterator, bool> result;
+    {
+        std::lock_guard<std::mutex> lock(*thread->pending_io.mutex);
+        result = thread->pending_io.map->emplace(c, status);
     }
-
+    int notify = result.second ? 1 : 0;
     return notify;
 }

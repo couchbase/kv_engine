@@ -72,14 +72,28 @@ class Connection;
 class ConnectionQueue;
 
 struct LIBEVENT_THREAD {
+    /**
+     * Pending IO requests for this thread. Maps each pending Connection to
+     * the IO status to be notified.
+     */
+    using PendingIoMap = std::unordered_map<Connection*, ENGINE_ERROR_CODE>;
+
     cb_thread_t thread_id;      /* unique ID of this thread */
     struct event_base *base;    /* libevent handle this thread uses */
     struct event notify_event;  /* listen event for notify pipe */
     SOCKET notify[2];           /* notification pipes */
     ConnectionQueue *new_conn_queue; /* queue of new connections to handle */
-    cb_mutex_t mutex;      /* Mutex to lock protect access to the pending_io */
+    cb_mutex_t mutex;      /* Mutex for access to this structure */
     bool is_locked;
-    Connection *pending_io;    /* List of connection with pending async io ops */
+
+    struct {
+        // Note: these are pointers as this struct is calloc'd and we need to
+        // ensure correct construct/destruct of these objects on all platforms
+        // which is much simpler if we new/delete these two objects
+        std::mutex* mutex; /// Mutex for access to the PendingIoMap
+        PendingIoMap* map; /// map of connection with pending async io ops
+    } pending_io;
+
     int index;                  /* index of this thread in the threads array */
     ThreadType type;      /* Type of IO this thread processes */
 
@@ -171,7 +185,7 @@ Connection *list_remove(Connection *h, Connection *n);
 
 bool load_extension(const char *soname, const char *config);
 
-int add_conn_to_pending_io_list(Connection *c);
+int add_conn_to_pending_io_list(Connection* c, ENGINE_ERROR_CODE status);
 
 /* connection state machine */
 bool conn_listening(ListenConnection *c);

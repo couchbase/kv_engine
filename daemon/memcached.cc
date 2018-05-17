@@ -1025,6 +1025,16 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
         return;
     }
 
+    // Remove the list from the list of pending io's (in case the
+    // object was scheduled to run in the dispatcher before the
+    // callback for the worker thread is executed.
+    //
+    {
+        std::lock_guard<std::mutex> lock(*thr->pending_io.mutex);
+        thr->pending_io.map->erase(c);
+    }
+
+
     LOCK_THREAD(thr);
     if (memcached_shutdown) {
         // Someone requested memcached to shut down.
@@ -1035,13 +1045,6 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
             return;
         }
     }
-
-    /*
-     * Remove the list from the list of pending io's (in case the
-     * object was scheduled to run in the dispatcher before the
-     * callback for the worker thread is executed.
-     */
-    thr->pending_io = list_remove(thr->pending_io, c);
 
     /* sanity */
     cb_assert(fd == c->getSocketDescriptor());
@@ -1684,7 +1687,7 @@ static ENGINE_ERROR_CODE release_cookie(const void *void_cookie) {
     }
 
     Connection *c = cookie->connection;
-    int notify;
+    int notify = 0;
     LIBEVENT_THREAD *thr;
 
     thr = c->getThread();
@@ -1698,7 +1701,7 @@ static ENGINE_ERROR_CODE release_cookie(const void *void_cookie) {
      * pending IO and have the system retry the operation for the
      * connection
      */
-    notify = add_conn_to_pending_io_list(c);
+    notify = add_conn_to_pending_io_list(c, ENGINE_SUCCESS);
     UNLOCK_THREAD(thr);
 
     /* kick the thread in the butt */
