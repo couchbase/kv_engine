@@ -132,17 +132,21 @@ public:
     }
 
     /**
-     * Push the vbucket only if it's not already in the queue
-     * Return true if the vbucket was added to the queue.
+     * Push the vbucket only if it's not already in the queue.
+     * @return true if the queue was previously empty (i.e. we have
+     * transitioned from zero -> one elements in the queue).
      */
     bool pushUnique(uint16_t vbucket) {
-        LockHolder lh(lock);
-        if (queuedValues.count(vbucket) == 0) {
-            readyQueue.push(vbucket);
-            queuedValues.insert(vbucket);
-            return true;
+        bool wasEmpty;
+        {
+            LockHolder lh(lock);
+            wasEmpty = queuedValues.empty();
+            const bool inserted = queuedValues.emplace(vbucket).second;
+            if (inserted) {
+                readyQueue.push(vbucket);
+            }
         }
-        return false;
+        return wasEmpty;
     }
 
     /**
