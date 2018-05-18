@@ -53,6 +53,9 @@ unique_cJSON_ptr Cookie::toJSON() const {
         cJSON_AddStringToObject(ret.get(), "cas", str.c_str());
     }
 
+    cJSON_AddStringToObject(
+            ret.get(), "connection", connection.getDescription());
+
     return ret;
 }
 
