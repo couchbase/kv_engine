@@ -121,10 +121,6 @@ struct item_info {
     bool cas_is_hlc;
 };
 
-typedef struct {
-    const char *username;
-} auth_data_t;
-
 /* Forward declaration of the server handle -- to be filled in later */
 typedef struct server_handle_v1_t SERVER_HANDLE_V1;
 
