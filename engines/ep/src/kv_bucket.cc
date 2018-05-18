@@ -1099,6 +1099,8 @@ void KVBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
     DO_STAT("vb_active_checkpoint_memory", active.getCheckpointMemory());
     DO_STAT("vb_active_checkpoint_memory_unreferenced",
             active.getCheckpointMemoryUnreferenced());
+    DO_STAT("vb_active_checkpoint_memory_overhead",
+            active.getCheckpointMemoryOverhead());
     DO_STAT("vb_active_ht_memory", active.getHashtableMemory());
     DO_STAT("vb_active_itm_memory", active.getItemMemory());
     DO_STAT("vb_active_itm_memory_uncompressed",
@@ -1129,6 +1131,8 @@ void KVBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
     DO_STAT("vb_replica_checkpoint_memory", replica.getCheckpointMemory());
     DO_STAT("vb_replica_checkpoint_memory_unreferenced",
             replica.getCheckpointMemoryUnreferenced());
+    DO_STAT("vb_replica_checkpoint_memory_overhead",
+            replica.getCheckpointMemoryOverhead());
     DO_STAT("vb_replica_ht_memory", replica.getHashtableMemory());
     DO_STAT("vb_replica_itm_memory", replica.getItemMemory());
     DO_STAT("vb_replica_itm_memory_uncompressed",
@@ -1159,6 +1163,8 @@ void KVBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
     DO_STAT("vb_pending_checkpoint_memory", pending.getCheckpointMemory());
     DO_STAT("vb_pending_checkpoint_memory_unreferenced",
             pending.getCheckpointMemoryUnreferenced());
+    DO_STAT("vb_pending_checkpoint_memory_overhead",
+            pending.getCheckpointMemoryOverhead());
     DO_STAT("vb_pending_ht_memory", pending.getHashtableMemory());
     DO_STAT("vb_pending_itm_memory", pending.getItemMemory());
     DO_STAT("vb_pending_itm_memory_uncompressed",
@@ -1213,6 +1219,10 @@ void KVBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
             active.getCheckpointMemoryUnreferenced() +
                     replica.getCheckpointMemoryUnreferenced() +
                     pending.getCheckpointMemoryUnreferenced());
+    DO_STAT("ep_checkpoint_memory_overhead",
+            active.getCheckpointMemoryOverhead() +
+                    replica.getCheckpointMemoryOverhead() +
+                    pending.getCheckpointMemoryOverhead());
     DO_STAT("ep_total_cache_size",
             active.getCacheSize() + replica.getCacheSize() +
                     pending.getCacheSize());

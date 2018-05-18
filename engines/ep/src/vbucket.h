@@ -157,6 +157,8 @@ public:
 
     size_t getChkMgrMemUsageOfUnrefCheckpoints() const;
 
+    size_t getChkMgrMemUsageOverhead() const;
+
     uint64_t getPurgeSeqno() const {
         return purge_seqno;
     }

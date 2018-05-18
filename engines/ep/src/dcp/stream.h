@@ -264,9 +264,13 @@ public:
 
     bool isCompressionEnabled();
 
-    bool isForceValueCompressionEnabled();
+    bool isForceValueCompressionEnabled() const {
+        return forceValueCompression == ForceValueCompression::Yes;
+    }
 
-    bool isSnappyEnabled();
+    bool isSnappyEnabled() const {
+        return snappyEnabled == SnappyEnabled::Yes;
+    }
 
     void addStats(ADD_STAT add_stat, const void* c) override;
 
@@ -513,6 +517,12 @@ private:
 
     // Will the stream send dcp deletions with delete-times?
     IncludeDeleteTime includeDeleteTime;
+
+    /// Is Snappy compression supported on this connection?
+    SnappyEnabled snappyEnabled;
+
+    /// Should items be forcefully compressed on this stream?
+    ForceValueCompression forceValueCompression;
 
     /**
      * A copy of the collections separator so we can generate MutationResponse

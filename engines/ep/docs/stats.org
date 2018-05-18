@@ -415,6 +415,7 @@ The following ratios are encoded as 4-digit integers, e.g.:
 | ep_meta_data_disk                 | Total disk used by meta data                   |
 | ep_checkpoint_memory              | Total memory used for checkpoints              |
 | ep_checkpoint_memory_unreferenced | Memory used for unreferenced checkpoints       |
+| ep_checkpoint_memory_overhead     | Memory overhead for checkpoints                |
 
 *** Active vBucket class stats
 
@@ -434,6 +435,7 @@ The following ratios are encoded as 4-digit integers, e.g.:
 | vb_active_meta_data_disk                 | Total metadata disk                        |
 | vb_active_checkpoint_memory              | Total memory taken by checkpoints          |
 | vb_active_checkpoint_memory_unreferenced | Memory taken by unreferenced checkpoints   |
+| vb_active_checkpoint_memory_overhead     | Memory overhead for checkpoints            |
 | vb_active_ops_create                     | Number of create operations                |
 | vb_active_ops_update                     | Number of update operations                |
 | vb_active_ops_delete                     | Number of delete operations                |
@@ -466,6 +468,7 @@ The following ratios are encoded as 4-digit integers, e.g.:
 | vb_replica_meta_data_disk                 | Total metadata disk                        |
 | vb_replica_checkpoint_memory              | Total memory taken by checkpoints          |
 | vb_replica_checkpoint_memory_unreferenced | Memory taken by unreferenced checkpoints   |
+| vb_replica_checkpoint_memory_overhead     | Memory overhead for checkpoints            |
 | vb_replica_ops_create                     | Number of create operations                |
 | vb_replica_ops_update                     | Number of update operations                |
 | vb_replica_ops_delete                     | Number of delete operations                |
@@ -498,6 +501,7 @@ The following ratios are encoded as 4-digit integers, e.g.:
 | vb_pending_meta_data_disk                 | Total metadata disk                        |
 | vb_pending_checkpoint_memory              | Total memory taken by checkpoints          |
 | vb_pending_checkpoint_memory_unreferenced | Memory taken by unreferenced checkpoints   |
+| vb_pending_checkpoint_memory_overhead     | Memory overhead for checkpoints            |
 | vb_pending_ops_create                     | Number of create operations                |
 | vb_pending_ops_update                     | Number of update operations                |
 | vb_pending_ops_delete                     | Number of delete operations                |

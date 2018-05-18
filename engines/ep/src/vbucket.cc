@@ -265,6 +265,10 @@ size_t VBucket::getChkMgrMemUsageOfUnrefCheckpoints() const {
     return checkpointManager->getMemoryUsageOfUnrefCheckpoints();
 }
 
+size_t VBucket::getChkMgrMemUsageOverhead() const {
+    return checkpointManager->getMemoryOverhead();
+}
+
 void VBucket::fireAllOps(EventuallyPersistentEngine &engine,
                          ENGINE_ERROR_CODE code) {
     std::unique_lock<std::mutex> lh(pendingOpLock);

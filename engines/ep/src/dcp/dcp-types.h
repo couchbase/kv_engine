@@ -86,6 +86,24 @@ enum class IncludeDeleteTime {
 };
 
 /**
+ * SnappyEnabled is used to state whether an active stream supports snappy
+ * compressed documents.
+ */
+enum class SnappyEnabled {
+    Yes,
+    No,
+};
+
+/**
+ * ForceValueCompression is used to state whether an active stream
+ * should forcefully compress all items.
+ */
+enum class ForceValueCompression {
+    Yes,
+    No,
+};
+
+/**
  * DcpReadyQueue is a std::queue wrapper for managing a
  * queue of vbuckets that are ready for a DCP producer/consumer to process.
  * The queue does not allow duplicates and the push_unique method enforces

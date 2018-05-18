@@ -49,6 +49,7 @@ public:
           metaDataDisk(0),
           checkpointMemory(0),
           checkpointMemoryUnreferenced(0),
+          checkpointMemoryOverhead(0),
           opsCreate(0),
           opsUpdate(0),
           opsDelete(0),
@@ -118,6 +119,10 @@ public:
 
     size_t getCheckpointMemoryUnreferenced() {
         return checkpointMemoryUnreferenced;
+    }
+
+    size_t getCheckpointMemoryOverhead() const {
+        return checkpointMemoryOverhead;
     }
 
     size_t getHashtableMemory() {
@@ -213,6 +218,7 @@ private:
     size_t metaDataDisk;
     size_t checkpointMemory;
     size_t checkpointMemoryUnreferenced;
+    size_t checkpointMemoryOverhead;
 
     size_t opsCreate;
     size_t opsUpdate;
