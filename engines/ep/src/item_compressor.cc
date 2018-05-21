@@ -64,6 +64,7 @@ bool ItemCompressorTask::run(void) {
         visitor.setDeadline(deadline);
         visitor.clearStats();
         visitor.setCompressionMode(engine->getCompressionMode());
+        visitor.setMinCompressionRatio(engine->getMinCompressionRatio());
 
         // Do it - set off the visitor.
         epstore_position = engine->getKVBucket()->pauseResumeVisit(

@@ -95,6 +95,7 @@ TEST_P(ItemCompressorTest, testCompressionInActiveMode) {
     auto& visitor =
             dynamic_cast<ItemCompressorVisitor&>(prAdapter.getHTVisitor());
     visitor.setCompressionMode(BucketCompressionMode::Active);
+    visitor.setMinCompressionRatio(config.getMinCompressionRatio());
     prAdapter.visit(*vbucket);
 
     std::string compressed_str(compressible_item->getData(),
@@ -113,6 +114,41 @@ TEST_P(ItemCompressorTest, testCompressionInActiveMode) {
     EXPECT_EQ(new_datatype_count + 1,
               vbucket->ht.getDatatypeCounts()[new_datatype]);
     EXPECT_EQ(itemCount, vbucket->ht.getNumItems());
+}
+
+// Test that an item will be left as uncompressed if the
+// ratio between its uncompressed and compressed size doesn't
+// exceed the configured compression ratio
+TEST_P(ItemCompressorTest, testStoreUncompressedInActiveMode) {
+    std::string nonCompressibleValue(
+            "{\"user\": \"scott\", \"user\": \"tiger\"}");
+
+    auto key = makeStoredDocKey("key");
+    auto item = make_item(vbucket->getId(),
+                          key,
+                          nonCompressibleValue,
+                          0,
+                          PROTOCOL_BINARY_DATATYPE_JSON);
+    auto rv = public_processSet(item, 0);
+    ASSERT_EQ(MutationStatus::WasClean, rv);
+
+    auto* stored_item =
+            this->vbucket->ht.find(key, TrackReference::Yes, WantsDeleted::No);
+    EXPECT_NE(nullptr, stored_item);
+
+    PauseResumeVBAdapter prAdapter(std::make_unique<ItemCompressorVisitor>());
+
+    auto& visitor =
+            dynamic_cast<ItemCompressorVisitor&>(prAdapter.getHTVisitor());
+    visitor.setCompressionMode(BucketCompressionMode::Active);
+    visitor.setMinCompressionRatio(config.getMinCompressionRatio());
+    prAdapter.visit(*vbucket);
+
+    std::string uncompressed_str(item.getData(), item.getNBytes());
+    StoredValue* v = findValue(key);
+
+    EXPECT_EQ(uncompressed_str, v->getValue()->to_s());
+    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, v->getDatatype());
 }
 
 INSTANTIATE_TEST_CASE_P(

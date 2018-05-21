@@ -521,6 +521,16 @@ public:
     void compressValue(StoredValue& v);
 
     /**
+     * Store the given compressed buffer as a value in the
+     * given StoredValue
+     *
+     * @param buf buffer holding compressed data
+     * @param v   StoredValue in which compressed data has
+     *            to be stored
+     */
+    void storeCompressedBuffer(cb::const_char_buffer buf, StoredValue& v);
+
+    /**
      * Updates an existing StoredValue in the HT.
      * Assumes that HT bucket lock is grabbed.
      *

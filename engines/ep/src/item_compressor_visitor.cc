@@ -16,11 +16,15 @@
  */
 
 #include "item_compressor_visitor.h"
+#include <platform/compress.h>
 
 // ItemCompressorVisitor implementation //////////////////////////////
 
 ItemCompressorVisitor::ItemCompressorVisitor()
-    : compressed_count(0), visited_count(0), currentVb(nullptr) {
+    : compressed_count(0),
+      visited_count(0),
+      currentVb(nullptr),
+      currentMinCompressionRatio(0.0) {
 }
 
 ItemCompressorVisitor::~ItemCompressorVisitor() {
@@ -32,17 +36,27 @@ void ItemCompressorVisitor::setDeadline(ProcessClock::time_point deadline) {
 
 bool ItemCompressorVisitor::visit(const HashTable::HashBucketLock& lh,
                                   StoredValue& v) {
-    const size_t value_len = v.valuelen();
 
     // Check if the item can be compressed
-    if (!mcbp::datatype::is_snappy(v.getDatatype()) &&
-        compressMode == BucketCompressionMode::Active && value_len > 0) {
-        currentVb->ht.compressValue(v);
+    if (compressMode == BucketCompressionMode::Active && v.isCompressible()) {
+        cb::compression::Buffer deflated;
+        if (cb::compression::deflate(cb::compression::Algorithm::Snappy,
+                                     {v.getValue()->getData(), v.valuelen()},
+                                     deflated)) {
+            auto comp_ratio = static_cast<float>(v.valuelen()) /
+                              static_cast<float>(deflated.size());
 
-        // If the value was compressed, increment the count of number
-        // of compressed documents
-        if (mcbp::datatype::is_snappy(v.getDatatype())) {
-            compressed_count++;
+            // Compress the document only if the compression ratio is greater
+            // than or equal to the current minium compression ratio
+            if (comp_ratio >= currentMinCompressionRatio) {
+                currentVb->ht.storeCompressedBuffer(deflated, v);
+
+                // If the value was compressed, increment the count of number
+                // of compressed documents
+                compressed_count++;
+            } else {
+                v.setUncompressible();
+            }
         }
     }
 
@@ -73,4 +87,8 @@ void ItemCompressorVisitor::setCompressionMode(
 
 void ItemCompressorVisitor::setCurrentVBucket(VBucket& vb) {
     currentVb = &vb;
+}
+
+void ItemCompressorVisitor::setMinCompressionRatio(float minCompressionRatio) {
+    currentMinCompressionRatio = minCompressionRatio;
 }

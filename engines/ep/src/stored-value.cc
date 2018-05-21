@@ -356,6 +356,12 @@ bool StoredValue::compressValue() {
     return true;
 }
 
+void StoredValue::storeCompressedBuffer(cb::const_char_buffer deflated) {
+    Blob* data = Blob::New(deflated.data(), deflated.size());
+    datatype |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
+    replaceValue(TaggedPtr<Blob>(data));
+}
+
 /**
  * Get an item_info from the StoredValue
  */

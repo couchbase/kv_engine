@@ -41,6 +41,9 @@ public:
     // Set the current bucket compression mode
     void setCompressionMode(const BucketCompressionMode compressionMode);
 
+    // Set the minimum compression ratio
+    void setMinCompressionRatio(float minCompressionRatio);
+
     // Implementation of HashTableVisitor interface:
     virtual bool visit(const HashTable::HashBucketLock& lh,
                        StoredValue& v) override;
@@ -73,4 +76,7 @@ private:
 
     // The current vbucket that is being processed
     VBucket* currentVb;
+
+    // The current minimum compression ratio supported by the bucket
+    float currentMinCompressionRatio;
 };
