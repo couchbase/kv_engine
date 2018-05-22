@@ -1333,7 +1333,7 @@ void Connection::runEventLoop(short which) {
                         "{}: exception occurred in runloop during packet "
                         "execution. Cookie info: {} - closing connection: {}",
                         getId(),
-                        to_string(getCookieObject().toJSON()),
+                        to_string(getCookieObject().toJSON(), false),
                         e.what());
                 logged = true;
             } catch (const std::bad_alloc&) {
