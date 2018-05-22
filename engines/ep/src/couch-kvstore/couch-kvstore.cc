@@ -882,14 +882,32 @@ static int time_purge_hook(Db* d, DocInfo* info, sized_buf item, void* ctx_p) {
         // Collections: TODO: Permanently restore to stored namespace
         DocKey key = makeDocKey(
                 info->id, ctx->config->shouldPersistDocNamespace());
-        ctx->bloomFilterCallback->callback(ctx->db_file_id, key, deleted);
+
+        try {
+            ctx->bloomFilterCallback->callback(
+                    ctx->db_file_id, key, deleted);
+        } catch (std::runtime_error& re) {
+            LOG(EXTENSION_LOG_WARNING,
+                "time_purge_hook: exception occurred when invoking the "
+                "bloomfilter callback on vbucket:%" PRIu16
+                " - Details: %s", vbid, re.what());
+        }
     }
 
     return COUCHSTORE_COMPACT_KEEP_ITEM;
 }
 
 bool CouchKVStore::compactDB(compaction_ctx *hook_ctx) {
-    auto result = compactDBInternal(hook_ctx, edit_docinfo_hook);
+    bool result = false;
+
+    try {
+        result = compactDBInternal(hook_ctx, edit_docinfo_hook);
+    } catch(std::logic_error& le) {
+        LOG(EXTENSION_LOG_WARNING,
+            "CouchKVStore::compactDB: exception while performing "
+            "compaction for vbucket:%" PRIu16
+            " - Details: %s", hook_ctx->db_file_id, le.what());
+    }
     if (!result) {
         ++st.numCompactionFailure;
     }

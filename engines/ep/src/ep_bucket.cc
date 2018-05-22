@@ -99,8 +99,17 @@ bool BloomFilterCallback::initTempFilter(uint16_t vbucketId) {
 
     size_t initial_estimation = config.getBfilterKeyCount();
     size_t estimated_count;
-    size_t num_deletes =
-            store.getROUnderlying(vbucketId)->getNumPersistedDeletes(vbucketId);
+    size_t num_deletes = 0;
+    try {
+        num_deletes = store.getROUnderlying(vbucketId)->getNumPersistedDeletes(vbucketId);
+    } catch (std::runtime_error& re) {
+        LOG(EXTENSION_LOG_WARNING,
+            "BloomFilterCallback::initTempFilter: runtime error while getting "
+            "number of persisted deletes for vbucket: %" PRIu16
+            "Details: %s", vbucketId, re.what());
+        return false;
+    }
+
     item_eviction_policy_t eviction_policy = store.getItemEvictionPolicy();
     if (eviction_policy == VALUE_ONLY) {
         /**
