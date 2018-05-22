@@ -1742,7 +1742,9 @@ void ActiveStream::transitionState(StreamState newState) {
             break;
         case StreamState::TakeoverSend:
             takeoverStart = ep_current_time();
-            nextCheckpointItem();
+            if (!nextCheckpointItem()) {
+                notifyStreamReady(true);
+            }
             break;
         case StreamState::Dead:
             removeCheckpointCursor();
