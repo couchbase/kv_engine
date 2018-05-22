@@ -2988,6 +2988,107 @@ TEST_F(SingleThreadedEPBucketTest, MB_29512) {
     producer->cancelCheckpointCreatorTask();
 }
 
+TEST_F(SingleThreadedEPBucketTest, MB_29541) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // 1) First store 2 keys which we will backfill
+    std::array<std::string, 2> keys = {{"k1", "k2"}};
+    for (const auto& key : keys) {
+        store_item(vbid, makeStoredDocKey(key), key);
+    }
+    flush_vbucket_to_disk(vbid, keys.size());
+
+    // Simplest way to ensure DCP has todo a backfill - 'wipe memory'
+    resetEngineAndWarmup();
+
+    // Setup DCP, 1 producer and we will do a takeover of the vbucket
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine,
+            cookie,
+            "mb-29541",
+            /*flags*/ 0,
+            cb::const_byte_buffer() /*no json*/);
+
+    producer->createCheckpointProcessorTask();
+
+    auto producers = get_dcp_producers(
+            reinterpret_cast<ENGINE_HANDLE*>(engine.get()),
+            reinterpret_cast<ENGINE_HANDLE_V1*>(engine.get()));
+
+    uint64_t rollbackSeqno = 0;
+    auto vb = store->getVBuckets().getBucket(vbid);
+    ASSERT_NE(nullptr, vb.get());
+    EXPECT_EQ(ENGINE_SUCCESS,
+              producer->streamRequest(DCP_ADD_STREAM_FLAG_TAKEOVER, // flags
+                                      1, // opaque
+                                      vbid,
+                                      0, // start_seqno
+                                      vb->getHighSeqno(), // end_seqno
+                                      vb->failovers->getLatestUUID(),
+                                      0, // snap_start_seqno
+                                      vb->getHighSeqno(), // snap_end_seqno
+                                      &rollbackSeqno,
+                                      &dcpAddFailoverLog));
+
+    // This MB also relies on the consumer draining the stream as the backfill
+    // runs, rather than running the backfill then sequentially then draining
+    // the readyQ, basically when backfill complete occurs we should have
+    // shipped all items to ensure the state transition to takeover-send would
+    // indeed block (unless we have the fix applied...)
+
+    // Manually drive the backfill (not using notifyAndStepToCheckpoint)
+
+    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+    // backfill:create()
+    runNextTask(lpAuxioQ);
+    // backfill:scan()
+    runNextTask(lpAuxioQ);
+
+    // Now drain all items before we proceed to complete
+    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER, dcp_last_op);
+    for (const auto& key : keys) {
+        EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+        EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_MUTATION, dcp_last_op);
+        EXPECT_EQ(key, dcp_last_key);
+    }
+
+    // backfill:complete()
+    runNextTask(lpAuxioQ);
+    // backfill:finished()
+    runNextTask(lpAuxioQ);
+
+    dcp_last_op = 0;
+
+    // Next the backfill should switch to takeover-send and progress to close
+    // with the correct sequence of step/ack
+
+    auto vb0Stream = producer->findStream(0);
+    ASSERT_NE(nullptr, vb0Stream.get());
+    // However without the fix from MB-29541 this would return success, meaning
+    // the front-end thread should sleep until notified the stream is ready.
+    // However no notify will ever come if MB-29541 is not applied
+    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE, dcp_last_op);
+
+    EXPECT_TRUE(vb0Stream->isTakeoverWait());
+
+    // For completeness step to end
+    // we must ack the VB state
+    protocol_binary_response_header message;
+    message.response.opcode = PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE;
+    message.response.opaque = 1;
+    EXPECT_TRUE(producer->handleResponse(&message));
+
+    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE, dcp_last_op);
+
+    EXPECT_TRUE(producer->handleResponse(&message));
+    EXPECT_FALSE(vb0Stream->isActive());
+    // Stop Producer checkpoint processor task
+    producer->cancelCheckpointCreatorTask();
+}
+
 INSTANTIATE_TEST_CASE_P(XattrSystemUserTest,
                         XattrSystemUserTest,
                         ::testing::Bool(), );

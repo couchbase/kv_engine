@@ -44,8 +44,8 @@
     },
     {
       "id": 20482,
-      "name": "bucket flush",
-      "description": "Flushed the content of a bucket",
+      "name": "external memcached bucket flush",
+      "description": "External user flushed the content of a memcached bucket",
       "sync": false,
       "enabled": true,
       "filtering_permitted": true,
