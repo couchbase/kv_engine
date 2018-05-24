@@ -446,7 +446,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(uint16_t vbid) {
 
         rwUnderlying->pendingTasks();
 
-        if (vb->checkpointManager->getNumCheckpoints() > 1) {
+        if (vb->checkpointManager->hasClosedCheckpointWhichCanBeRemoved()) {
             wakeUpCheckpointRemover();
         }
 

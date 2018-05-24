@@ -128,6 +128,11 @@ size_t Checkpoint::getNumMetaItems() const {
 }
 
 void Checkpoint::setState(checkpoint_state state) {
+    LockHolder lh(lock);
+    setState_UNLOCKED(state);
+}
+
+void Checkpoint::setState_UNLOCKED(checkpoint_state state) {
     checkpointState = state;
 }
 

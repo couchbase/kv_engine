@@ -360,6 +360,11 @@ public:
      * Return the current state of this checkpoint.
      */
     checkpoint_state getState() const {
+        LockHolder lh(lock);
+        return getState_UNLOCKED();
+    }
+
+    checkpoint_state getState_UNLOCKED() const {
         return checkpointState;
     }
 
@@ -369,12 +374,19 @@ public:
      */
     void setState(checkpoint_state state);
 
+    /**
+     * Set the current state of this checkpoint.
+     * @param state the checkpoint's new state
+     */
+    void setState_UNLOCKED(checkpoint_state state);
+
     void popBackCheckpointEndItem();
 
     /**
      * Return the number of cursors that are currently walking through this checkpoint.
      */
     size_t getNumberOfCursors() const {
+        LockHolder lh(lock);
         return cursors.size();
     }
 
@@ -382,6 +394,7 @@ public:
      * Register a cursor's name to this checkpoint
      */
     void registerCursorName(const std::string &name) {
+        LockHolder lh(lock);
         cursors.insert(name);
     }
 
@@ -389,6 +402,7 @@ public:
      * Remove a cursor's name from this checkpoint
      */
     void removeCursorName(const std::string &name) {
+        LockHolder lh(lock);
         cursors.erase(name);
     }
 
@@ -396,6 +410,7 @@ public:
      * Return true if the cursor with a given name exists in this checkpoint
      */
     bool hasCursorName(const std::string &name) const {
+        LockHolder lh(lock);
         return cursors.find(name) != cursors.end();
     }
 
@@ -557,6 +572,7 @@ private:
     // The following stat is to contain the memory consumption of all
     // the queued items in the given checkpoint.
     size_t                         effectiveMemUsage;
+    mutable std::mutex lock;
 
     friend std::ostream& operator <<(std::ostream& os, const Checkpoint& m);
 };

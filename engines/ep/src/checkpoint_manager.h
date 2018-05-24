@@ -287,6 +287,12 @@ public:
     std::vector<std::string> getListOfCursorsToDrop();
 
     /**
+     * @return True if at least one checkpoint is unreferenced and can
+     * be removed.
+     */
+    bool hasClosedCheckpointWhichCanBeRemoved() const;
+
+    /**
      * This method performs the following steps for creating a new checkpoint with a given ID i1:
      * 1) Check if the checkpoint manager contains any checkpoints with IDs >= i1.
      * 2) If exists, collapse all checkpoints and set the open checkpoint id to a given ID.

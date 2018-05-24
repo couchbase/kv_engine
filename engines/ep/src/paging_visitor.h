@@ -62,7 +62,9 @@ public:
                   double bias,
                   const VBucketFilter& vbFilter,
                   std::atomic<item_pager_phase>* phase,
-                  bool isEphemeral);
+                  bool _isEphemeral,
+                  size_t _agePercentage,
+                  size_t _freqCounterAgeThreshold);
 
     bool visit(const HashTable::HashBucketLock& lh, StoredValue& v) override;
 
@@ -97,6 +99,10 @@ protected:
     // should evict items from the hash table.
     uint16_t freqCounterThreshold;
 
+    // The age threshold that is used to determine whether we should evict
+    // items from the hash table.
+    uint64_t ageThreshold;
+
 private:
     // Removes checkpoints that are both closed and unreferenced, thereby
     // freeing the associated memory.
@@ -125,4 +131,17 @@ private:
     // Indicates whether the vbucket we are visiting is from an ephemeral
     // bucket.
     bool isEphemeral;
+
+    // The age percent used to select the age threshold.  The value is
+    // read by the ItemPager from a configuration parameter.
+    size_t agePercentage;
+
+    // The threshold for determining at what execution frequency should we
+    // consider age when selecting items for eviction.  The value is
+    // read by the ItemPager from a configuration parameter.
+    uint16_t freqCounterAgeThreshold;
+
+    // Holds the current vbucket's maxCas value at the point just before we
+    // visit all items in the vbucket.
+    uint64_t maxCas;
 };

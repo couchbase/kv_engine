@@ -52,10 +52,13 @@ PagingVisitor::PagingVisitor(KVBucket& s,
                              double bias,
                              const VBucketFilter& vbFilter,
                              std::atomic<item_pager_phase>* phase,
-                             bool _isEphemeral)
+                             bool _isEphemeral,
+                             size_t agePercentage,
+                             size_t freqCounterAgeThreshold)
     : VBucketVisitor(vbFilter),
       ejected(0),
       freqCounterThreshold(0),
+      ageThreshold(0),
       store(s),
       stats(st),
       percent(pcnt),
@@ -68,7 +71,10 @@ PagingVisitor::PagingVisitor(KVBucket& s,
       wasHighMemoryUsage(s.isMemoryUsageTooHigh()),
       taskStart(ProcessClock::now()),
       pager_phase(phase),
-      isEphemeral(_isEphemeral) {
+      isEphemeral(_isEphemeral),
+      agePercentage(agePercentage),
+      freqCounterAgeThreshold(freqCounterAgeThreshold),
+      maxCas(0) {
     }
 
     bool PagingVisitor::visit(const HashTable::HashBucketLock& lh,
@@ -113,10 +119,29 @@ PagingVisitor::PagingVisitor(KVBucket& s,
              * add it to the histogram we want to use the original value.
              */
             auto storedValueFreqCounter = v.getFreqCounterValue();
-
             bool evicted = true;
 
-            if (storedValueFreqCounter <= freqCounterThreshold) {
+            /*
+             * Calculate the age when the item was last stored / modified.
+             * We do this by taking the item's current cas from the maxCas
+             * (which is the maximum cas value of the current vbucket just
+             * before we begin visiting all the items in the hash table).
+             *
+             * The time is actually stored in the top 48 bits of the cas
+             * therefore we shift the age by casBitsNotTime.
+             *
+             * Note: If the item was written before we switched over to the
+             * hybrid logical clock (HLC) (i.e. the item was written when the
+             * bucket was 4.0/3.x etc...) then the cas value will be low and
+             * so the item will appear very old.  However, this does not
+             * matter as it just means that is likely to be evicted.
+             */
+            uint64_t age = (maxCas > v.getCas()) ? (maxCas - v.getCas()) : 0;
+            age = age >> ItemEviction::casBitsNotTime;
+
+            if ((storedValueFreqCounter <= freqCounterThreshold) &&
+                    ((storedValueFreqCounter < freqCounterAgeThreshold)
+                            || (age >= ageThreshold))) {
                 /*
                  * If the storedValue is eligible for eviction then add its
                  * frequency counter value to the histogram, otherwise add the
@@ -152,7 +177,7 @@ PagingVisitor::PagingVisitor(KVBucket& s,
                     }
                 }
             }
-            itemEviction.addValueToFreqHistogram(storedValueFreqCounter);
+            itemEviction.addFreqAndAgeToHistograms(storedValueFreqCounter, age);
 
             if (evicted) {
                 /**
@@ -175,8 +200,10 @@ PagingVisitor::PagingVisitor(KVBucket& s,
             // intervals.
             if (itemEviction.isLearning() ||
                 itemEviction.isRequiredToUpdate()) {
-                freqCounterThreshold =
-                        itemEviction.getFreqThreshold(percent * 100.0);
+                auto thresholds = itemEviction.getThresholds(percent * 100.0,
+                                                             agePercentage);
+                freqCounterThreshold = thresholds.first;
+                ageThreshold = thresholds.second;
             }
 
             return true;
@@ -218,6 +245,7 @@ PagingVisitor::PagingVisitor(KVBucket& s,
             adjustPercent(p, vb->getState());
             if (vBucketFilter(vb->getId())) {
                 currentBucket = vb;
+                maxCas = currentBucket->getMaxCas();
                 itemEviction.reset();
                 freqCounterThreshold = 0;
 
@@ -251,11 +279,11 @@ PagingVisitor::PagingVisitor(KVBucket& s,
                 // Take a snapshot of the latest frequency histogram
                 if (isActiveOrPending) {
                     stats.activeOrPendingFrequencyValuesSnapshotHisto.reset();
-                    itemEviction.copyToHistogram(
+                    itemEviction.copyFreqHistogram(
                             stats.activeOrPendingFrequencyValuesSnapshotHisto);
                 } else {
                     stats.replicaFrequencyValuesSnapshotHisto.reset();
-                    itemEviction.copyToHistogram(
+                    itemEviction.copyFreqHistogram(
                             stats.replicaFrequencyValuesSnapshotHisto);
                 }
 
@@ -482,16 +510,20 @@ bool ItemPager::run(void) {
 
         bool isEphemeral =
                 (engine.getConfiguration().getBucketType() == "ephemeral");
-        auto pv = std::make_unique<PagingVisitor>(*kvBucket,
-                                                  stats,
-                                                  toKill,
-                                                  available,
-                                                  ITEM_PAGER,
-                                                  false,
-                                                  bias,
-                                                  filter,
-                                                  &phase,
-                                                  isEphemeral);
+        auto pv = std::make_unique<PagingVisitor>(
+                *kvBucket,
+                stats,
+                toKill,
+                available,
+                ITEM_PAGER,
+                false,
+                bias,
+                filter,
+                &phase,
+                isEphemeral,
+                engine.getConfiguration().getItemEvictionAgePercentage(),
+                engine.getConfiguration()
+                        .getItemEvictionFreqCounterAgeThreshold());
 
         // p99.99 is ~200ms
         const auto maxExpectedDuration = std::chrono::milliseconds(200);
@@ -567,16 +599,20 @@ bool ExpiredItemPager::run(void) {
         VBucketFilter filter;
         bool isEphemeral =
                 (engine->getConfiguration().getBucketType() == "ephemeral");
-        auto pv = std::make_unique<PagingVisitor>(*kvBucket,
-                                                  stats,
-                                                  -1,
-                                                  available,
-                                                  EXPIRY_PAGER,
-                                                  true,
-                                                  1,
-                                                  filter,
-                                                  /* pager_phase */ nullptr,
-                                                  isEphemeral);
+        auto pv = std::make_unique<PagingVisitor>(
+                *kvBucket,
+                stats,
+                -1,
+                available,
+                EXPIRY_PAGER,
+                true,
+                1,
+                filter,
+                /* pager_phase */ nullptr,
+                isEphemeral,
+                engine->getConfiguration().getItemEvictionAgePercentage(),
+                engine->getConfiguration()
+                        .getItemEvictionFreqCounterAgeThreshold());
 
         // p99.99 is ~50ms (same as ItemPager).
         const auto maxExpectedDuration = std::chrono::milliseconds(50);

@@ -144,6 +144,7 @@ protected:
             // Set NRU of item to maximum; so will be a candidate for paging out
             // straight away.
             item.setNRUValue(MAX_NRU_VALUE);
+            item.setFreqCounterValue(0);
             result = storeItem(item);
         }
         EXPECT_EQ(ENGINE_TMPFAIL, result);
@@ -547,23 +548,26 @@ TEST_P(STItemPagerTest, isEligible) {
     std::shared_ptr<std::atomic<bool>> available;
     std::atomic<item_pager_phase> phase;
     bool isEphemeral = std::get<0>(GetParam()) == "ephemeral";
-    std::unique_ptr<MockPagingVisitor> pv =
-            std::make_unique<MockPagingVisitor>(*engine->getKVBucket(),
-                                                engine->getEpStats(),
-                                                1.0,
-                                                available,
-                                                ITEM_PAGER,
-                                                false,
-                                                0.5,
-                                                VBucketFilter(),
-                                                &phase,
-                                                isEphemeral);
+    std::unique_ptr<MockPagingVisitor> pv = std::make_unique<MockPagingVisitor>(
+            *engine->getKVBucket(),
+            engine->getEpStats(),
+            1.0,
+            available,
+            ITEM_PAGER,
+            false,
+            0.5,
+            VBucketFilter(),
+            &phase,
+            isEphemeral,
+            engine->getConfiguration().getItemEvictionAgePercentage(),
+            engine->getConfiguration().getItemEvictionFreqCounterAgeThreshold());
 
     VBucketPtr vb = store->getVBucket(vbid);
     pv->visitBucket(vb);
     auto initialCount = ItemEviction::initialFreqCount;
-    EXPECT_NE(initialCount, pv->getItemEviction().getFreqThreshold(100.0));
-    EXPECT_NE(255, pv->getItemEviction().getFreqThreshold(100.0));
+    EXPECT_NE(initialCount,
+              pv->getItemEviction().getThresholds(100.0, 0.0).first);
+    EXPECT_NE(255, pv->getItemEviction().getThresholds(100.0, 0.0).first);
 }
 
 /**
@@ -580,17 +584,19 @@ TEST_P(STItemPagerTest, decayByOne) {
     std::shared_ptr<std::atomic<bool>> available;
     std::atomic<item_pager_phase> phase{ACTIVE_AND_PENDING_ONLY};
     bool isEphemeral = std::get<0>(GetParam()) == "ephemeral";
-    std::unique_ptr<MockPagingVisitor> pv =
-            std::make_unique<MockPagingVisitor>(*engine->getKVBucket(),
-                                                engine->getEpStats(),
-                                                10.0,
-                                                available,
-                                                ITEM_PAGER,
-                                                false,
-                                                0.5,
-                                                VBucketFilter(),
-                                                &phase,
-                                                isEphemeral);
+    std::unique_ptr<MockPagingVisitor> pv = std::make_unique<MockPagingVisitor>(
+            *engine->getKVBucket(),
+            engine->getEpStats(),
+            10.0,
+            available,
+            ITEM_PAGER,
+            false,
+            0.5,
+            VBucketFilter(),
+            &phase,
+            isEphemeral,
+            engine->getConfiguration().getItemEvictionAgePercentage(),
+            engine->getConfiguration().getItemEvictionFreqCounterAgeThreshold());
 
     pv->setCurrentBucket(engine->getKVBucket()->getVBucket(vbid));
     if (std::get<0>(GetParam()) == "persistent") {
@@ -623,17 +629,19 @@ TEST_P(STItemPagerTest, doNotDecayIfCannotEvict) {
     std::shared_ptr<std::atomic<bool>> available;
     std::atomic<item_pager_phase> phase{ACTIVE_AND_PENDING_ONLY};
     bool isEphemeral = std::get<0>(GetParam()) == "ephemeral";
-    std::unique_ptr<MockPagingVisitor> pv =
-            std::make_unique<MockPagingVisitor>(*engine->getKVBucket(),
-                                                engine->getEpStats(),
-                                                10.0,
-                                                available,
-                                                ITEM_PAGER,
-                                                false,
-                                                0.5,
-                                                VBucketFilter(),
-                                                &phase,
-                                                isEphemeral);
+    std::unique_ptr<MockPagingVisitor> pv = std::make_unique<MockPagingVisitor>(
+            *engine->getKVBucket(),
+            engine->getEpStats(),
+            10.0,
+            available,
+            ITEM_PAGER,
+            false,
+            0.5,
+            VBucketFilter(),
+            &phase,
+            isEphemeral,
+            engine->getConfiguration().getItemEvictionAgePercentage(),
+            engine->getConfiguration().getItemEvictionFreqCounterAgeThreshold());
 
     pv->setCurrentBucket(engine->getKVBucket()->getVBucket(vbid));
     store->setVBucketState(vbid, vbucket_state_replica, false);
@@ -657,7 +665,8 @@ TEST_P(STItemPagerTest, doNotDecayIfCannotEvict) {
     VBucketPtr vb = store->getVBucket(vbid);
     vb->ht.visit(*pv);
     auto initialFreqCount = ItemEviction::initialFreqCount;
-    EXPECT_EQ(initialFreqCount, pv->getItemEviction().getFreqThreshold(100.0));
+    EXPECT_EQ(initialFreqCount,
+              pv->getItemEviction().getThresholds(100.0, 0.0).first);
     EXPECT_EQ(0, pv->getEjected());
 
 }
@@ -691,6 +700,7 @@ TEST_P(STEphemeralItemPagerTest, ReplicaNotPaged) {
         // Set NRU of item to maximum; so will be a candidate for paging out
         // straight away.
         item.setNRUValue(MAX_NRU_VALUE);
+        item.setFreqCounterValue(0);
         ASSERT_EQ(ENGINE_SUCCESS, storeItem(item));
         active_count++;
     } while (stats.getEstimatedTotalMemoryUsed() < stats.mem_low_wat.load());

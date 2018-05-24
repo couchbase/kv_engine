@@ -1096,7 +1096,7 @@ std::vector<queued_item> ActiveStream::getOutstandingItems(VBucket& vb) {
             std::chrono::duration_cast<std::chrono::microseconds>(
                     ProcessClock::now() - _begin_));
 
-    if (vb.checkpointManager->getNumCheckpoints() > 1) {
+    if (vb.checkpointManager->hasClosedCheckpointWhichCanBeRemoved()) {
         engine->getKVBucket()->wakeUpCheckpointRemover();
     }
     return items;

@@ -23,8 +23,9 @@
 ItemEviction::ItemEviction() {
 }
 
-void ItemEviction::addValueToFreqHistogram(uint8_t v) {
-    freqHistogram.addValue(v);
+void ItemEviction::addFreqAndAgeToHistograms(uint8_t freq, uint64_t age) {
+    freqHistogram.addValue(freq);
+    ageHistogram.addValue(age);
 }
 
 uint64_t ItemEviction::getFreqHistogramValueCount() const {
@@ -33,13 +34,16 @@ uint64_t ItemEviction::getFreqHistogramValueCount() const {
 
 void ItemEviction::reset() {
     freqHistogram.reset();
+    ageHistogram.reset();
     requiredToUpdateInterval = 1;
 }
 
-uint16_t ItemEviction::getFreqThreshold(double percentage) const {
-    uint16_t freq = gsl::narrow<uint16_t>(
-            freqHistogram.getValueAtPercentile(percentage));
-    return freq;
+std::pair<uint16_t, uint64_t> ItemEviction::getThresholds(
+        double freqPercentage, double agePercentage) const {
+    uint16_t freqThreshold = gsl::narrow<uint16_t>(
+            freqHistogram.getValueAtPercentile(freqPercentage));
+    uint64_t ageThreshold = ageHistogram.getValueAtPercentile(agePercentage);
+    return std::make_pair(freqThreshold, ageThreshold);
 }
 
 uint8_t ItemEviction::convertFreqCountToNRUValue(uint8_t probCounter) {
@@ -64,7 +68,7 @@ uint8_t ItemEviction::convertFreqCountToNRUValue(uint8_t probCounter) {
     return MAX_NRU_VALUE; /* 3 - the coldest */
 }
 
-void ItemEviction::copyToHistogram(HdrHistogram& hist) {
+void ItemEviction::copyFreqHistogram(HdrHistogram& hist) {
     HdrHistogram::Iterator iter{
             freqHistogram.makeLinearIterator(valueUnitsPerBucket)};
     while (auto result = freqHistogram.getNextValueAndCount(iter)) {
