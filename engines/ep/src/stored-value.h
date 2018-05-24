@@ -138,6 +138,13 @@ public:
      */
     bool compressValue();
 
+    /**
+     * Replace the existing value with the given compressed buffer.
+     *
+     * @param deflated the input buffer holding compressed data
+     */
+    void storeCompressedBuffer(cb::const_char_buffer deflated);
+
     // Custom deleter for StoredValue objects.
     struct Deleter {
         void operator()(StoredValue* val);
@@ -192,6 +199,21 @@ public:
      */
     bool isDirty() const {
         return bits.test(dirtyIndex);
+    }
+
+    /**
+     * Check if the value is compressible
+     *
+     * @return true if the data is compressible
+     *         false if data is already compressed
+     *                  value doesn't exist
+     *                  value exists but has zero length
+     */
+    bool isCompressible() {
+        if (mcbp::datatype::is_snappy(datatype) || !valuelen()) {
+            return false;
+        }
+        return value->isCompressible();
     }
 
     bool eligibleForEviction(item_eviction_policy_t policy) const {
@@ -282,6 +304,12 @@ public:
      */
     void setDatatype(protocol_binary_datatype_t type) {
         datatype = type;
+    }
+
+    void setUncompressible() {
+        if (value) {
+            value->setUncompressible();
+        }
     }
 
     /**

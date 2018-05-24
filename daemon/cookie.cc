@@ -334,8 +334,11 @@ void Cookie::sendResponse(cb::mcbp::Status status,
                                  : cb::mcbp::Datatype::JSON;
     }
 
-    const size_t needed = sizeof(cb::mcbp::Header) + value.size() + key.size() +
-                          extras.size();
+    size_t needed = sizeof(cb::mcbp::Header) + value.size() + key.size() +
+                    extras.size();
+    if (isTracingEnabled()) {
+        needed += MCBP_TRACING_RESPONSE_SIZE;
+    }
     connection.write->ensureCapacity(needed);
 
     mcbp_add_header(*this,

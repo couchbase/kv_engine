@@ -67,14 +67,14 @@ public:
      * Get the size of this Blob's value.
      */
     size_t valueSize() const {
-        return size;
+        return size & ~(0x80000000);
     }
 
     /**
      * Get the size of this Blob instance.
      */
     size_t getSize() const {
-        return size + sizeof(Blob) - paddingSize;
+        return valueSize() + sizeof(Blob) - paddingSize;
     }
 
 
@@ -95,6 +95,21 @@ public:
         if (age == 0) {
             age = 255;
         }
+    }
+
+    /**
+     * Check if the given data is compressible
+     */
+    bool isCompressible() {
+        return ~(size & 0x80000000);
+    }
+
+    /**
+     * Set the highest bit in size to mark the given data as uncompressible.
+     * This should be fine given that the maximum value we support is 20 MiB
+     */
+    void setUncompressible() {
+        size |= 0x80000000;
     }
 
     /**
@@ -144,7 +159,10 @@ protected:
         return sizeof(Blob) + len - sizeof(Blob(0, 0).data);
     }
 
-    const uint32_t size;
+    // Size of the value. The highest bit is used to represent if the
+    // value is compressible or not. If set, then the value is not
+    // compressible.
+    uint32_t size;
 
     // The age of this Blob, in terms of some unspecified units of time.
     uint8_t age;

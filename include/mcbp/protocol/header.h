@@ -26,6 +26,8 @@
 namespace cb {
 namespace mcbp {
 
+#define MCBP_TRACING_RESPONSE_SIZE 0x03
+
 struct Request;
 struct Response;
 

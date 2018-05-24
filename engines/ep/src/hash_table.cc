@@ -590,6 +590,15 @@ void HashTable::dump() const {
     std::cerr << *this << std::endl;
 }
 
+void HashTable::storeCompressedBuffer(cb::const_char_buffer buf,
+                                      StoredValue& v) {
+    valueStats.prologue(v);
+
+    v.storeCompressedBuffer(buf);
+
+    valueStats.epilogue(v);
+}
+
 void HashTable::visit(HashTableVisitor& visitor) {
     if ((valueStats.getNumItems() + valueStats.getNumTempItems()) == 0 ||
         !isActive()) {
