@@ -1236,3 +1236,28 @@ TYPED_TEST(CheckpointTest,
     // Test - second item (duplicate key) should return false.
     EXPECT_FALSE(this->queueNewItem("key"));
 }
+
+TYPED_TEST(CheckpointTest, CheckpointManagerItemsDeduped) {
+    // Add two items to the initial (open) checkpoint.
+    for (auto i : {1, 2}) {
+        EXPECT_TRUE(this->queueNewItem("key" + std::to_string(i)));
+    }
+    EXPECT_EQ(1, this->manager->getNumCheckpoints());
+    // 2x op_set
+    EXPECT_EQ(2, this->manager->getNumOpenChkItems());
+    // All items inserted should be unique, so de-dupe should be 0
+    EXPECT_EQ(0, this->global_stats.totalDeduplicated);
+
+    // Check de-dupe counting.
+    for (auto i : {1, 2}) {
+        EXPECT_FALSE(this->queueNewItem("key" + std::to_string(i)))
+                << "Adding a duplicate key to "
+                   "open checkpoint should not "
+                   "increase queue size";
+    }
+
+    // 2x op_set
+    EXPECT_EQ(2, this->manager->getNumOpenChkItems());
+    // Expect to see 2 de-duped items
+    EXPECT_EQ(2, this->global_stats.totalDeduplicated);
+}
