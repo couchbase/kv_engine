@@ -35,7 +35,8 @@ namespace mcbp {
 struct Response {
     uint8_t magic;
     uint8_t opcode;
-    uint16_t keylen;
+    uint8_t frame_extlen;
+    uint8_t keylen;
     uint8_t extlen;
     uint8_t datatype;
     uint16_t status;
@@ -98,10 +99,7 @@ struct Response {
     }
 
     uint16_t getKeylen() const {
-        if (isAltClientResponse()) {
-            return begin()[3];
-        }
-        return ntohs(keylen);
+        return keylen;
     }
 
     void setKeylen(uint16_t value) {
@@ -109,7 +107,15 @@ struct Response {
             throw std::invalid_argument(
                     "Response::setKeylen: key cannot exceed 1 byte");
         }
-        keylen = htons(value);
+        keylen = uint8_t(value);
+    }
+
+    uint8_t getFrameExtlen() const {
+        return frame_extlen;
+    }
+
+    void setFrameExtlen(uint8_t len) {
+        frame_extlen = len;
     }
 
     uint8_t getExtlen() const {
