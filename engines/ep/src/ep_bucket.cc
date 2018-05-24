@@ -289,6 +289,8 @@ std::pair<bool, size_t> EPBucket::flushVBucket(uint16_t vbid) {
             Item *prev = NULL;
             auto vbstate = vb->getVBucketState();
             uint64_t maxSeqno = 0;
+            auto minSeqno = std::numeric_limits<uint64_t>::max();
+
             range.start = std::max(range.start, vbstate.lastSnapStart);
 
             bool mustCheckpointVBState = false;
@@ -334,6 +336,9 @@ std::pair<bool, size_t> EPBucket::flushVBucket(uint16_t vbid) {
                     }
 
                     maxSeqno = std::max(maxSeqno, (uint64_t)item->getBySeqno());
+
+                    // Track the lowest seqno, so we can set the HLC epoch
+                    minSeqno = std::min(minSeqno, (uint64_t)item->getBySeqno());
                     vbstate.maxCas = std::max(vbstate.maxCas, item->getCas());
                     if (item->isDeleted()) {
                         vbstate.maxDeletedSeqno =
@@ -376,9 +381,10 @@ std::pair<bool, size_t> EPBucket::flushVBucket(uint16_t vbid) {
                 // the HLC epoch, a seqno which we can be sure the value has a
                 // HLC CAS.
                 vbstate.hlcCasEpochSeqno = vb->getHLCEpochSeqno();
-                if (vbstate.hlcCasEpochSeqno == HlcCasSeqnoUninitialised) {
-                    vbstate.hlcCasEpochSeqno = range.start;
-                    vb->setHLCEpochSeqno(range.start);
+                if (vbstate.hlcCasEpochSeqno == HlcCasSeqnoUninitialised &&
+                    minSeqno != std::numeric_limits<uint64_t>::max()) {
+                    vbstate.hlcCasEpochSeqno = minSeqno;
+                    vb->setHLCEpochSeqno(vbstate.hlcCasEpochSeqno);
                 }
 
                 // Track if the VB has xattrs present
