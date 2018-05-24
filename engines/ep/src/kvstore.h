@@ -712,10 +712,6 @@ public:
      */
     virtual DBFileInfo getAggrDbFileInfo() = 0;
 
-    virtual size_t getNumItems(uint16_t, uint64_t, uint64_t) {
-        return 0;
-    }
-
     /**
      * This method will return the total number of items in the vbucket
      *

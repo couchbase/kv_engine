@@ -372,15 +372,6 @@ public:
     DBFileInfo getAggrDbFileInfo() override;
 
     /**
-     * Get the number of non-deleted items from a vbucket database file
-     *
-     * @param vbid The vbucket of the file to get the number of docs for
-     * @param min_seq The sequence number to start the count from
-     * @param max_seq The sequence number to stop the count at
-     */
-    size_t getNumItems(uint16_t vbid, uint64_t min_seq, uint64_t max_seq) override;
-
-    /**
      * This method will return the total number of items in the vbucket. Unlike
      * the getNumItems function that returns items within a specified range of
      * sequence numbers, this will return all the items in the vbucket.

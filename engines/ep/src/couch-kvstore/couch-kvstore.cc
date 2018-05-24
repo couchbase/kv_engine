@@ -2514,32 +2514,6 @@ DBFileInfo CouchKVStore::getAggrDbFileInfo() {
     return kvsFileInfo;
 }
 
-size_t CouchKVStore::getNumItems(uint16_t vbid, uint64_t min_seq,
-                                 uint64_t max_seq) {
-    DbHolder db(*this);
-    uint64_t count = 0;
-    couchstore_error_t errCode = openDB(vbid, db, COUCHSTORE_OPEN_FLAG_RDONLY);
-    if (errCode == COUCHSTORE_SUCCESS) {
-        errCode = couchstore_changes_count(db, min_seq, max_seq, &count);
-        if (errCode != COUCHSTORE_SUCCESS) {
-            throw std::runtime_error(
-                    "CouchKVStore::getNumItems: Failed to "
-                    "get changes count for vBucket = " +
-                    std::to_string(vbid) + " rev = " +
-                    std::to_string(db.getFileRev()) + " with error:" +
-                    couchstore_strerror(errCode));
-        }
-    } else {
-        throw std::invalid_argument(
-                "CouchKVStore::getNumItems: Failed to "
-                "open database file for vBucket = " +
-                std::to_string(vbid) + " rev = " +
-                std::to_string(db.getFileRev()) + " with error:" +
-                couchstore_strerror(errCode));
-    }
-    return count;
-}
-
 size_t CouchKVStore::getItemCount(uint16_t vbid) {
     if (!isReadOnly()) {
         return cachedDocCount.at(vbid);

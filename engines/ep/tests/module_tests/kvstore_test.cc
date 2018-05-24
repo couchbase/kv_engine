@@ -789,27 +789,6 @@ TEST_F(CouchKVStoreErrorInjectionTest, compactDB_compact_db_ex) {
 }
 
 /**
- * Injects error during CouchKVStore::getNumItems/couchstore_changes_count
- */
-TEST_F(CouchKVStoreErrorInjectionTest, getNumItems_changes_count) {
-    populate_items(1);
-    {
-        /* Establish FileOps expectation */
-        EXPECT_CALL(ops, pread(_, _, _, _, _))
-            .WillOnce(Return(COUCHSTORE_ERROR_READ)).RetiresOnSaturation();
-        EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(3).RetiresOnSaturation();
-        try {
-            kvstore->getNumItems(0, 0, 100000);
-            EXPECT_TRUE(false) << "kvstore->getNumItems(0, 0, 100000); should "
-                                  "have thrown a runtime_error";
-        } catch (const std::runtime_error& e) {
-            EXPECT_THAT(std::string(e.what()), VCE(COUCHSTORE_ERROR_READ));
-        }
-
-    }
-}
-
-/**
  * Injects error during CouchKVStore::reset/couchstore_commit
  */
 TEST_F(CouchKVStoreErrorInjectionTest, reset_commit) {
