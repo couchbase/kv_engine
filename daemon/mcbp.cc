@@ -60,7 +60,7 @@ static cb::const_byte_buffer mcbp_add_header(Cookie& cookie,
         // The framing extras when we just include the tracing information
         // is 3 bytes. 1 byte with id and length, then the 2 bytes
         // containing the actual data.
-        const uint8_t framing_extras_size = 0x03;
+        const uint8_t framing_extras_size = MCBP_TRACING_RESPONSE_SIZE;
         const uint8_t tracing_framing_id = 0x02;
 
         header->bytes[2] = framing_extras_size; // framing header extras 3 bytes
