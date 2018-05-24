@@ -533,8 +533,25 @@ protocol_binary_response_status EventuallyPersistentEngine::setFlushParam(
         } else if (strcmp(keyz, "alog_task_time") == 0) {
             getConfiguration().requirementsMetOrThrow("alog_task_time");
             getConfiguration().setAlogTaskTime(std::stoull(valz));
+            /* Start of ItemPager parameters */
         } else if (strcmp(keyz, "pager_active_vb_pcnt") == 0) {
             getConfiguration().setPagerActiveVbPcnt(std::stoull(valz));
+        } else if (strcmp(keyz, "pager_sleep_time_ms") == 0) {
+            getConfiguration().setPagerSleepTimeMs(std::stoull(valz));
+        } else if (strcmp(keyz, "ht_eviction_policy") == 0) {
+            getConfiguration().setHtEvictionPolicy(valz);
+        } else if (strcmp(keyz, "item_eviction_age_percentage") == 0) {
+            getConfiguration().setItemEvictionAgePercentage(std::stoull(valz));
+        } else if (strcmp(keyz, "item_eviction_freq_counter_age_threshold") ==
+                   0) {
+            getConfiguration().setItemEvictionFreqCounterAgeThreshold(
+                    std::stoull(valz));
+        } else if (strcmp(keyz, "item_freq_decayer_chunk_duration") == 0) {
+            getConfiguration().setItemFreqDecayerChunkDuration(
+                    std::stoull(valz));
+        } else if (strcmp(keyz, "item_freq_decayer_percent") == 0) {
+            getConfiguration().setItemFreqDecayerPercent(std::stoull(valz));
+            /* End of ItemPager parameters */
         } else if (strcmp(keyz, "warmup_min_memory_threshold") == 0) {
             getConfiguration().setWarmupMinMemoryThreshold(std::stoull(valz));
         } else if (strcmp(keyz, "warmup_min_items_threshold") == 0) {

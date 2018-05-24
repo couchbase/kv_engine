@@ -2447,6 +2447,86 @@ static enum test_result test_warmup_conf(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     return SUCCESS;
 }
 
+// Test that all the configuration parameters associated with the ItemPager,
+// can be set.
+static enum test_result test_itempager_conf(ENGINE_HANDLE* h,
+                                            ENGINE_HANDLE_V1* h1) {
+    check(set_param(h,
+                    h1,
+                    protocol_binary_engine_param_flush,
+                    "pager_active_vb_pcnt",
+                    "50"),
+          "Setting pager_active_vb_pcnt should have worked");
+    checkeq(50,
+            get_int_stat(h, h1, "ep_pager_active_vb_pcnt"),
+            "pager_active_vb_pcnt did not get set to the correct value");
+
+    check(set_param(h,
+                    h1,
+                    protocol_binary_engine_param_flush,
+                    "pager_sleep_time_ms",
+                    "1000"),
+          "Setting pager_sleep_time_ms should have worked");
+    checkeq(1000,
+            get_int_stat(h, h1, "ep_pager_sleep_time_ms"),
+            "pager_sleep_time_ms did not get set to the correct value");
+
+    check(set_param(h,
+                    h1,
+                    protocol_binary_engine_param_flush,
+                    "ht_eviction_policy",
+                    "2-bit_lru"),
+          "Setting ht_eviction_policy should have worked");
+    checkeq(std::string("2-bit_lru"),
+            get_str_stat(h, h1, "ep_ht_eviction_policy"),
+            "ht_eviction_policy did not get set to the correct value");
+
+    check(set_param(h,
+                    h1,
+                    protocol_binary_engine_param_flush,
+                    "item_eviction_age_percentage",
+                    "100"),
+          "Set item_eviction_age_percentage should have worked");
+    checkeq(100,
+            get_int_stat(h, h1, "ep_item_eviction_age_percentage"),
+            "item_eviction_age_percentage did not get set to the correct "
+            "value");
+
+    check(set_param(h,
+                    h1,
+                    protocol_binary_engine_param_flush,
+                    "item_eviction_freq_counter_age_threshold",
+                    "10"),
+          "Set item_eviction_freq_counter_age_threshold should have worked");
+    checkeq(10,
+            get_int_stat(h, h1, "ep_item_eviction_freq_counter_age_threshold"),
+            "item_eviction_freq_counter_age_threshold did not get set to the "
+            "correct value");
+
+    check(set_param(h,
+                    h1,
+                    protocol_binary_engine_param_flush,
+                    "item_freq_decayer_chunk_duration",
+                    "1000"),
+          "Set item_freq_decayer_chunk_duration should have worked");
+    checkeq(1000,
+            get_int_stat(h, h1, "ep_item_freq_decayer_chunk_duration"),
+            "item_freq_decayer_chunk_duration did not get set to the correct "
+            "value");
+
+    check(set_param(h,
+                    h1,
+                    protocol_binary_engine_param_flush,
+                    "item_freq_decayer_percent",
+                    "100"),
+          "Set item_freq_decayer_percent should have worked");
+    checkeq(100,
+            get_int_stat(h, h1, "ep_item_freq_decayer_percent"),
+            "item_freq_decayer_percent did not get set to the correct value");
+
+    return SUCCESS;
+}
+
 static enum test_result test_bloomfilter_conf(ENGINE_HANDLE *h,
                                               ENGINE_HANDLE_V1 *h1) {
 
@@ -7513,6 +7593,13 @@ BaseTestCase testsuite_testcases[] = {
                  cleanup),
         TestCase("warmup conf", test_warmup_conf, test_setup,
                  teardown, NULL, prepare, cleanup),
+        TestCase("itempager conf",
+                 test_itempager_conf,
+                 test_setup,
+                 teardown,
+                 NULL,
+                 prepare,
+                 cleanup),
         TestCase("bloomfilter conf", test_bloomfilter_conf, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("test bloomfilters",
