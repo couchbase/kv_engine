@@ -26,30 +26,24 @@
  *
  * @param void_cookie this is the void pointer passed to all of the engine
  *                    methods
- * @param function the name of the function trying to convert the cookie. This
- *                 is used purely for error reporting (if void_cookie is null)
  * @return The connection object
  */
-static Connection* cookie2connection(const void *void_cookie, const char *function) {
-    const auto * cookie = reinterpret_cast<const Cookie *>(void_cookie);
-    if (cookie == nullptr) {
-        throw std::invalid_argument(std::string(function) +
-                                    ": cookie is nullptr");
-    }
-    return &cookie->getConnection();
+static Connection& cookie2connection(gsl::not_null<const void*> void_cookie) {
+    const auto& cookie = *reinterpret_cast<const Cookie*>(void_cookie.get());
+    return cookie.getConnection();
 }
 
-static ENGINE_ERROR_CODE add_packet_to_pipe(Connection* c,
+static ENGINE_ERROR_CODE add_packet_to_pipe(Connection& c,
                                             cb::const_byte_buffer packet) {
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    c->write->produce([c, packet, &ret](cb::byte_buffer buffer) -> size_t {
+    c.write->produce([&c, packet, &ret](cb::byte_buffer buffer) -> size_t {
         if (buffer.size() < packet.size()) {
             ret = ENGINE_E2BIG;
             return 0;
         }
 
         std::copy(packet.begin(), packet.end(), buffer.begin());
-        c->addIov(buffer.data(), packet.size());
+        c.addIov(buffer.data(), packet.size());
         return packet.size();
     });
 
@@ -60,7 +54,7 @@ static ENGINE_ERROR_CODE dcp_message_get_failover_log(
         gsl::not_null<const void*> void_cookie,
         uint32_t opaque,
         uint16_t vbucket) {
-    auto* c = cookie2connection(void_cookie, __func__);
+    auto& c = cookie2connection(void_cookie);
 
     protocol_binary_request_dcp_get_failover_log packet = {};
     packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
@@ -82,7 +76,7 @@ static ENGINE_ERROR_CODE dcp_message_stream_req(
         uint64_t vbucket_uuid,
         uint64_t snap_start_seqno,
         uint64_t snap_end_seqno) {
-    auto* c = cookie2connection(void_cookie, __func__);
+    auto& c = cookie2connection(void_cookie);
     protocol_binary_request_dcp_stream_req packet = {};
     packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
     packet.message.header.request.opcode =
@@ -106,7 +100,7 @@ static ENGINE_ERROR_CODE dcp_message_add_stream_response(
         uint32_t opaque,
         uint32_t dialogopaque,
         uint8_t status) {
-    auto* c = cookie2connection(void_cookie, __func__);
+    auto& c = cookie2connection(void_cookie);
 
     protocol_binary_response_dcp_add_stream packet = {};
     packet.message.header.response.magic = (uint8_t)PROTOCOL_BINARY_RES;
@@ -125,7 +119,7 @@ static ENGINE_ERROR_CODE dcp_message_marker_response(
         gsl::not_null<const void*> void_cookie,
         uint32_t opaque,
         uint8_t status) {
-    auto* c = cookie2connection(void_cookie, __func__);
+    auto& c = cookie2connection(void_cookie);
 
     protocol_binary_response_dcp_snapshot_marker packet = {};
     packet.message.header.response.magic = (uint8_t)PROTOCOL_BINARY_RES;
@@ -143,7 +137,7 @@ static ENGINE_ERROR_CODE dcp_message_set_vbucket_state_response(
         gsl::not_null<const void*> void_cookie,
         uint32_t opaque,
         uint8_t status) {
-    auto* c = cookie2connection(void_cookie, __func__);
+    auto& c = cookie2connection(void_cookie);
 
     protocol_binary_response_dcp_set_vbucket_state packet = {};
     packet.message.header.response.magic = (uint8_t)PROTOCOL_BINARY_RES;
@@ -162,7 +156,7 @@ static ENGINE_ERROR_CODE dcp_message_stream_end(
         uint32_t opaque,
         uint16_t vbucket,
         uint32_t flags) {
-    auto* c = cookie2connection(void_cookie, __func__);
+    auto& c = cookie2connection(void_cookie);
 
     protocol_binary_request_dcp_stream_end packet = {};
     packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
@@ -184,7 +178,7 @@ static ENGINE_ERROR_CODE dcp_message_marker(
         uint64_t start_seqno,
         uint64_t end_seqno,
         uint32_t flags) {
-    auto* c = cookie2connection(void_cookie, __func__);
+    auto& c = cookie2connection(void_cookie);
 
     protocol_binary_request_dcp_snapshot_marker packet = {};
     packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
@@ -213,10 +207,6 @@ static ENGINE_ERROR_CODE dcp_message_mutation(
         uint16_t nmeta,
         uint8_t nru,
         uint8_t collection_len) {
-    if (void_cookie == nullptr) {
-        throw std::invalid_argument(
-                "dcp_message_deletion: void_cookie can't be nullptr");
-    }
     const auto& ccookie = *static_cast<const Cookie*>(void_cookie.get());
     auto& cookie = const_cast<Cookie&>(ccookie);
     auto* c = &cookie.getConnection();
@@ -353,11 +343,6 @@ static ENGINE_ERROR_CODE dcp_message_deletion_v1(
         uint64_t rev_seqno,
         const void* meta,
         uint16_t nmeta) {
-    if (void_cookie == nullptr) {
-        throw std::invalid_argument(
-                "dcp_message_deletion_v1: void_cookie can't be nullptr");
-    }
-
     const auto& ccookie = *static_cast<const Cookie*>(void_cookie.get());
     auto& cookie = const_cast<Cookie&>(ccookie);
     auto& c = cookie.getConnection();
@@ -408,11 +393,6 @@ static ENGINE_ERROR_CODE dcp_message_deletion_v2(
         uint64_t rev_seqno,
         uint32_t delete_time,
         uint8_t collection_len) {
-    if (void_cookie == nullptr) {
-        throw std::invalid_argument(
-                "dcp_message_deletion_v2: void_cookie can't be nullptr");
-    }
-
     const auto& ccookie = *static_cast<const Cookie*>(void_cookie.get());
     auto& cookie = const_cast<Cookie&>(ccookie);
     auto& c = cookie.getConnection();
@@ -469,8 +449,8 @@ static ENGINE_ERROR_CODE dcp_message_expiration(
      * EP engine don't use expiration, so we won't have tests for this
      * code. Add it back once we have people calling the method
      */
-    auto* c = cookie2connection(void_cookie, __func__);
-    cb::unique_item_ptr item(it, cb::ItemDeleter{c->getBucketEngineAsV0()});
+    auto& c = cookie2connection(void_cookie);
+    cb::unique_item_ptr item(it, cb::ItemDeleter{c.getBucketEngineAsV0()});
     return ENGINE_ENOTSUP;
 }
 
@@ -478,7 +458,7 @@ static ENGINE_ERROR_CODE dcp_message_flush(
         gsl::not_null<const void*> void_cookie,
         uint32_t opaque,
         uint16_t vbucket) {
-    auto* c = cookie2connection(void_cookie, __func__);
+    auto& c = cookie2connection(void_cookie);
     protocol_binary_request_dcp_flush packet = {};
     packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
     packet.message.header.request.opcode =
@@ -494,7 +474,7 @@ static ENGINE_ERROR_CODE dcp_message_set_vbucket_state(
         uint32_t opaque,
         uint16_t vbucket,
         vbucket_state_t state) {
-    auto* c = cookie2connection(void_cookie, __func__);
+    auto& c = cookie2connection(void_cookie);
     protocol_binary_request_dcp_set_vbucket_state packet = {};
 
     if (!is_valid_vbucket_state_t(state)) {
@@ -515,7 +495,7 @@ static ENGINE_ERROR_CODE dcp_message_set_vbucket_state(
 
 static ENGINE_ERROR_CODE dcp_message_noop(
         gsl::not_null<const void*> void_cookie, uint32_t opaque) {
-    auto* c = cookie2connection(void_cookie, __func__);
+    auto& c = cookie2connection(void_cookie);
     protocol_binary_request_dcp_noop packet = {};
     packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
     packet.message.header.request.opcode =
@@ -530,7 +510,7 @@ static ENGINE_ERROR_CODE dcp_message_buffer_acknowledgement(
         uint32_t opaque,
         uint16_t vbucket,
         uint32_t buffer_bytes) {
-    auto* c = cookie2connection(void_cookie, __func__);
+    auto& c = cookie2connection(void_cookie);
     protocol_binary_request_dcp_buffer_acknowledgement packet = {};
     packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
     packet.message.header.request.opcode =
@@ -551,7 +531,7 @@ static ENGINE_ERROR_CODE dcp_message_control(
         uint16_t nkey,
         const void* value,
         uint32_t nvalue) {
-    auto* c = cookie2connection(void_cookie, __func__);
+    auto& c = cookie2connection(void_cookie);
     protocol_binary_request_dcp_control packet = {};
     packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
     packet.message.header.request.opcode =
@@ -561,8 +541,8 @@ static ENGINE_ERROR_CODE dcp_message_control(
     packet.message.header.request.bodylen = ntohl(nvalue + nkey);
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    c->write->produce([&c, &packet, &key, &nkey, &value, &nvalue, &ret](
-                              void* ptr, size_t size) -> size_t {
+    c.write->produce([&c, &packet, &key, &nkey, &value, &nvalue, &ret](
+                             void* ptr, size_t size) -> size_t {
         if (size < (sizeof(packet.bytes) + nkey + nvalue)) {
             ret = ENGINE_E2BIG;
             return 0;
@@ -580,7 +560,7 @@ static ENGINE_ERROR_CODE dcp_message_control(
                   static_cast<const uint8_t*>(value) + nvalue,
                   static_cast<uint8_t*>(ptr) + sizeof(packet.bytes) + nkey);
 
-        c->addIov(ptr, sizeof(packet.bytes) + nkey + nvalue);
+        c.addIov(ptr, sizeof(packet.bytes) + nkey + nvalue);
         return sizeof(packet.bytes) + nkey + nvalue;
     });
 
@@ -595,7 +575,7 @@ static ENGINE_ERROR_CODE dcp_message_system_event(
         uint64_t bySeqno,
         cb::const_byte_buffer key,
         cb::const_byte_buffer eventData) {
-    auto* c = cookie2connection(cookie, __func__);
+    auto& c = cookie2connection(cookie);
 
     protocol_binary_request_dcp_system_event packet(
             opaque,
@@ -606,8 +586,8 @@ static ENGINE_ERROR_CODE dcp_message_system_event(
             bySeqno);
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    c->write->produce([&c, &packet, &key, &eventData, &ret](
-                              cb::byte_buffer buffer) -> size_t {
+    c.write->produce([&c, &packet, &key, &eventData, &ret](
+                             cb::byte_buffer buffer) -> size_t {
         if (buffer.size() <
             (sizeof(packet.bytes) + key.size() + eventData.size())) {
             ret = ENGINE_E2BIG;
@@ -624,7 +604,7 @@ static ENGINE_ERROR_CODE dcp_message_system_event(
                   eventData.end(),
                   buffer.begin() + sizeof(packet.bytes) + key.size());
 
-        c->addIov(buffer.begin(), sizeof(packet.bytes) + key.size() + eventData.size());
+        c.addIov(buffer.begin(), sizeof(packet.bytes) + key.size() + eventData.size());
         return sizeof(packet.bytes) + key.size() + eventData.size();
     });
 
@@ -633,7 +613,7 @@ static ENGINE_ERROR_CODE dcp_message_system_event(
 
 static ENGINE_ERROR_CODE dcp_message_get_error_map(
         gsl::not_null<const void*> cookie, uint32_t opaque, uint16_t version) {
-    auto* c = cookie2connection(cookie, __func__);
+    auto& c = cookie2connection(cookie);
 
     protocol_binary_request_get_errmap packet = {};
     packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
@@ -646,7 +626,7 @@ static ENGINE_ERROR_CODE dcp_message_get_error_map(
     packet.message.body.version = htons(version);
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    c->write->produce([&c, &packet, &ret](cb::byte_buffer buffer) -> size_t {
+    c.write->produce([&c, &packet, &ret](cb::byte_buffer buffer) -> size_t {
         if (buffer.size() < sizeof(packet.bytes)) {
             // We don't have room in the buffer
             ret = ENGINE_E2BIG;
@@ -657,7 +637,7 @@ static ENGINE_ERROR_CODE dcp_message_get_error_map(
                   packet.bytes + sizeof(packet.bytes),
                   buffer.begin());
 
-        c->addIov(buffer.begin(), sizeof(packet.bytes));
+        c.addIov(buffer.begin(), sizeof(packet.bytes));
         return sizeof(packet.bytes);
     });
 
