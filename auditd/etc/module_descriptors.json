@@ -45,6 +45,13 @@
                                "file" : "goproj/src/github.com/couchbase/eventing/audit/audit_descriptor.json",
                                "enterprise" : true
                               }
+                },
+                {
+                  "analytics" :  {
+                               "startid" : 36864,
+                               "file" : "analytics/cbas/cbas-server/src/main/resources/com/couchbase/analytics/audit/audit_descriptor.json",
+                               "enterprise" : true
+                              }
                 }
              ]
 }
