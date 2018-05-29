@@ -105,11 +105,6 @@ public:
     using DatatypeCombo = std::array<cb::NonNegativeCounter<size_t>,
                                      mcbp::datatype::highest + 1>;
 
-    enum class EvictionPolicy : uint8_t {
-        lru2Bit, // The original 2-bit LRU policy
-        hifi_mfu // The new hifi_mfu policy
-    };
-
     /**
      * Represents a position within the hashtable.
      *
@@ -326,8 +321,7 @@ public:
     HashTable(EPStats& st,
               std::unique_ptr<AbstractStoredValueFactory> svFactory,
               size_t initialSize,
-              size_t locks,
-              EvictionPolicy policy);
+              size_t locks);
 
     ~HashTable();
 
@@ -335,13 +329,6 @@ public:
         return sizeof(HashTable)
             + (size * sizeof(StoredValue*))
             + (mutexes.size() * sizeof(std::mutex));
-    }
-
-    /**
-     * Get the eviction policy being used by the hash table.
-     */
-    EvictionPolicy getEvictionPolicy() const {
-        return evictionPolicy;
     }
 
     /**
@@ -850,10 +837,6 @@ private:
     // frequency counter of storedValues.  The frequency counter is used to
     // identify which hash table entries should be evicted first.
     ProbabilisticCounter<uint8_t> probabilisticCounter;
-
-    // The policy used by the hash table to evict items.  The item pager uses
-    // this to determine what eviction policy to apply.
-    EvictionPolicy evictionPolicy;
 
     // Used to hold the function to invoke when a storedValue's frequency
     // counter becomes saturated.

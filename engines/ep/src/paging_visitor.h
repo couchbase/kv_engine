@@ -38,6 +38,11 @@ enum pager_type_t { ITEM_PAGER, EXPIRY_PAGER };
  */
 class PagingVisitor : public VBucketVisitor, public HashTableVisitor {
 public:
+    enum class EvictionPolicy : uint8_t {
+        lru2Bit, // The original 2-bit LRU policy
+        hifi_mfu // The new hifi_mfu policy
+    };
+
     /**
      * Construct a PagingVisitor that will attempt to evict the given
      * percentage of objects.
@@ -64,7 +69,8 @@ public:
                   std::atomic<item_pager_phase>* phase,
                   bool _isEphemeral,
                   size_t _agePercentage,
-                  size_t _freqCounterAgeThreshold);
+                  size_t _freqCounterAgeThreshold,
+                  EvictionPolicy evictionPolicy);
 
     bool visit(const HashTable::HashBucketLock& lh, StoredValue& v) override;
 
@@ -144,4 +150,7 @@ private:
     // Holds the current vbucket's maxCas value at the point just before we
     // visit all items in the vbucket.
     uint64_t maxCas;
+
+    // The policy used to evict items from the hash table.
+    EvictionPolicy evictionPolicy;
 };

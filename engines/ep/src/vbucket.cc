@@ -153,13 +153,7 @@ VBucket::VBucket(id_type i,
                  int64_t hlcEpochSeqno,
                  bool mightContainXattrs,
                  const std::string& collectionsManifest)
-    : ht(st,
-         std::move(valFact),
-         config.getHtSize(),
-         config.getHtLocks(),
-         config.getHtEvictionPolicy() == "2-bit_lru"
-                 ? HashTable::EvictionPolicy::lru2Bit
-                 : HashTable::EvictionPolicy::hifi_mfu),
+    : ht(st, std::move(valFact), config.getHtSize(), config.getHtLocks()),
       checkpointManager(std::make_unique<CheckpointManager>(st,
                                                             i,
                                                             chkConfig,

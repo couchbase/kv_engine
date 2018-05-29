@@ -547,7 +547,12 @@ TEST_P(STItemPagerTest, isEligible) {
     }
     std::shared_ptr<std::atomic<bool>> available;
     std::atomic<item_pager_phase> phase;
+    Configuration& cfg = engine->getConfiguration();
     bool isEphemeral = std::get<0>(GetParam()) == "ephemeral";
+    PagingVisitor::EvictionPolicy evictionPolicy =
+            (cfg.getHtEvictionPolicy() == "2-bit_lru")
+                    ? PagingVisitor::EvictionPolicy::lru2Bit
+                    : PagingVisitor::EvictionPolicy::hifi_mfu;
     std::unique_ptr<MockPagingVisitor> pv = std::make_unique<MockPagingVisitor>(
             *engine->getKVBucket(),
             engine->getEpStats(),
@@ -559,8 +564,9 @@ TEST_P(STItemPagerTest, isEligible) {
             VBucketFilter(),
             &phase,
             isEphemeral,
-            engine->getConfiguration().getItemEvictionAgePercentage(),
-            engine->getConfiguration().getItemEvictionFreqCounterAgeThreshold());
+            cfg.getItemEvictionAgePercentage(),
+            cfg.getItemEvictionFreqCounterAgeThreshold(),
+            evictionPolicy);
 
     VBucketPtr vb = store->getVBucket(vbid);
     pv->visitBucket(vb);
@@ -583,7 +589,12 @@ TEST_P(STItemPagerTest, decayByOne) {
 
     std::shared_ptr<std::atomic<bool>> available;
     std::atomic<item_pager_phase> phase{ACTIVE_AND_PENDING_ONLY};
+    Configuration& cfg = engine->getConfiguration();
     bool isEphemeral = std::get<0>(GetParam()) == "ephemeral";
+    PagingVisitor::EvictionPolicy evictionPolicy =
+            (cfg.getHtEvictionPolicy() == "2-bit_lru")
+                    ? PagingVisitor::EvictionPolicy::lru2Bit
+                    : PagingVisitor::EvictionPolicy::hifi_mfu;
     std::unique_ptr<MockPagingVisitor> pv = std::make_unique<MockPagingVisitor>(
             *engine->getKVBucket(),
             engine->getEpStats(),
@@ -595,8 +606,9 @@ TEST_P(STItemPagerTest, decayByOne) {
             VBucketFilter(),
             &phase,
             isEphemeral,
-            engine->getConfiguration().getItemEvictionAgePercentage(),
-            engine->getConfiguration().getItemEvictionFreqCounterAgeThreshold());
+            cfg.getItemEvictionAgePercentage(),
+            cfg.getItemEvictionFreqCounterAgeThreshold(),
+            evictionPolicy);
 
     pv->setCurrentBucket(engine->getKVBucket()->getVBucket(vbid));
     if (std::get<0>(GetParam()) == "persistent") {
@@ -628,7 +640,12 @@ TEST_P(STItemPagerTest, doNotDecayIfCannotEvict) {
 
     std::shared_ptr<std::atomic<bool>> available;
     std::atomic<item_pager_phase> phase{ACTIVE_AND_PENDING_ONLY};
+    Configuration& cfg = engine->getConfiguration();
     bool isEphemeral = std::get<0>(GetParam()) == "ephemeral";
+    PagingVisitor::EvictionPolicy evictionPolicy =
+            (cfg.getHtEvictionPolicy() == "2-bit_lru")
+                    ? PagingVisitor::EvictionPolicy::lru2Bit
+                    : PagingVisitor::EvictionPolicy::hifi_mfu;
     std::unique_ptr<MockPagingVisitor> pv = std::make_unique<MockPagingVisitor>(
             *engine->getKVBucket(),
             engine->getEpStats(),
@@ -640,8 +657,9 @@ TEST_P(STItemPagerTest, doNotDecayIfCannotEvict) {
             VBucketFilter(),
             &phase,
             isEphemeral,
-            engine->getConfiguration().getItemEvictionAgePercentage(),
-            engine->getConfiguration().getItemEvictionFreqCounterAgeThreshold());
+            cfg.getItemEvictionAgePercentage(),
+            cfg.getItemEvictionFreqCounterAgeThreshold(),
+            evictionPolicy);
 
     pv->setCurrentBucket(engine->getKVBucket()->getVBucket(vbid));
     store->setVBucketState(vbid, vbucket_state_replica, false);
