@@ -128,7 +128,8 @@ void HashTable::clear_UNLOCKED(bool deactivate) {
         }
     }
 
-    stats.currentSize.fetch_sub(clearedMemSize - clearedValSize);
+    stats.coreLocal.get()->currentSize.fetch_sub(clearedMemSize -
+                                                 clearedValSize);
 
     valueStats.reset();
 }
@@ -209,7 +210,7 @@ void HashTable::resize(size_t newSize) {
     // Get a place for the new items.
     table_type newValues(newSize);
 
-    stats.memOverhead->fetch_sub(memorySize());
+    stats.coreLocal.get()->memOverhead.fetch_sub(memorySize());
     ++numResizes;
 
     // Set the new size so all the hashy stuff works.
@@ -233,7 +234,7 @@ void HashTable::resize(size_t newSize) {
     // Finally assign the new table to values.
     values = std::move(newValues);
 
-    stats.memOverhead->fetch_add(memorySize());
+    stats.coreLocal.get()->memOverhead.fetch_add(memorySize());
 }
 
 StoredValue* HashTable::find(const DocKey& key,
@@ -341,7 +342,7 @@ void HashTable::Statistics::prologue(const StoredValue& v) {
     // Decrease all statistics which sv matches.
 
     metaDataMemory.fetch_sub(v.metaDataSize());
-    epStats.currentSize.fetch_sub(v.metaDataSize());
+    epStats.coreLocal.get()->currentSize.fetch_sub(v.metaDataSize());
 
     cacheSize.fetch_sub(v.size());
     memSize.fetch_sub(v.size());
@@ -375,7 +376,7 @@ void HashTable::Statistics::epilogue(const StoredValue& v) {
     // After performing updates to sv; increase all statistics which sv matches.
 
     metaDataMemory.fetch_add(v.metaDataSize());
-    epStats.currentSize.fetch_add(v.metaDataSize());
+    epStats.coreLocal.get()->currentSize.fetch_add(v.metaDataSize());
 
     cacheSize.fetch_add(v.size());
     memSize.fetch_add(v.size());

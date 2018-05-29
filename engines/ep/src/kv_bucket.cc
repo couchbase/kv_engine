@@ -273,7 +273,11 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
 
     ExecutorPool::get()->registerTaskable(ObjectRegistry::getCurrentEngine()->getTaskable());
 
-    *stats.memOverhead = sizeof(KVBucket);
+    // Reset memory overhead when bucket is created.
+    for (auto& core : stats.coreLocal) {
+        core->memOverhead = 0;
+    }
+    stats.coreLocal.get()->memOverhead = sizeof(KVBucket);
 
     // Set memUsedThresholdPercent before setting max_size
     stats.setMemUsedMergeThresholdPercent(

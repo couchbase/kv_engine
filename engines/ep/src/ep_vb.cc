@@ -461,7 +461,7 @@ void EPVBucket::queueBackfillItem(queued_item& qi,
     ++stats.vbBackfillQueueSize;
     ++stats.totalEnqueued;
     doStatsForQueueing(*qi, qi->size());
-    stats.memOverhead->fetch_add(sizeof(queued_item));
+    stats.coreLocal.get()->memOverhead.fetch_add(sizeof(queued_item));
 }
 
 size_t EPVBucket::queueBGFetchItem(const DocKey& key,

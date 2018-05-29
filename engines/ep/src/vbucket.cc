@@ -206,8 +206,8 @@ VBucket::VBucket(id_type i,
 
     backfill.isBackfillPhase = false;
     pendingOpsStart = ProcessClock::time_point();
-    stats.memOverhead->fetch_add(sizeof(VBucket)
-                                + ht.memorySize() + sizeof(CheckpointManager));
+    stats.coreLocal.get()->memOverhead.fetch_add(
+            sizeof(VBucket) + ht.memorySize() + sizeof(CheckpointManager));
     LOG(EXTENSION_LOG_NOTICE,
         "VBucket: created vbucket:%" PRIu16
         " with state:%s "
@@ -240,8 +240,8 @@ VBucket::~VBucket() {
     // Clear out the bloomfilter(s)
     clearFilter();
 
-    stats.memOverhead->fetch_sub(sizeof(VBucket) + ht.memorySize() +
-                                sizeof(CheckpointManager));
+    stats.coreLocal.get()->memOverhead.fetch_sub(
+            sizeof(VBucket) + ht.memorySize() + sizeof(CheckpointManager));
 
     LOG(EXTENSION_LOG_NOTICE, "Destroying vbucket %d", id);
 }
@@ -334,7 +334,8 @@ VBucket::ItemsToFlush VBucket::getItemsToPersist(size_t approxLimit) {
         }
         backfillEmpty = backfill.items.empty();
         stats.vbBackfillQueueSize.fetch_sub(num_items);
-        stats.memOverhead->fetch_sub(num_items * sizeof(queued_item));
+        stats.coreLocal.get()->memOverhead.fetch_sub(num_items *
+                                                     sizeof(queued_item));
     }
 
     // Append up to approxLimit checkpoint items outstanding for the persistence

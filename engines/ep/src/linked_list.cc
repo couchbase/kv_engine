@@ -45,7 +45,8 @@ BasicLinkedList::~BasicLinkedList() {
                 return v.isStale(writeGuard);
             },
             [this](OrderedStoredValue* v) {
-                this->st.currentSize.fetch_sub(v->metaDataSize());
+                this->st.coreLocal.get()->currentSize.fetch_sub(
+                        v->metaDataSize());
                 delete v;
             });
 
@@ -225,7 +226,7 @@ void BasicLinkedList::markItemStale(std::lock_guard<std::mutex>& listWriteLg,
     /* Update the stats tracking the memory owned by the list */
     staleSize.fetch_add(v->size());
     staleMetaDataSize.fetch_add(v->metaDataSize());
-    st.currentSize.fetch_add(v->metaDataSize());
+    st.coreLocal.get()->currentSize.fetch_add(v->metaDataSize());
 
     ++numStaleItems;
     v->toOrderedStoredValue()->markStale(listWriteLg, newSv);
@@ -428,7 +429,7 @@ OrderedLL::iterator BasicLinkedList::purgeListElem(OrderedLL::iterator it) {
     /* Update the stats tracking the memory owned by the list */
     staleSize.fetch_sub(purged->size());
     staleMetaDataSize.fetch_sub(purged->metaDataSize());
-    st.currentSize.fetch_sub(purged->metaDataSize());
+    st.coreLocal.get()->currentSize.fetch_sub(purged->metaDataSize());
 
     // Similary for the item counts:
     --numStaleItems;

@@ -467,7 +467,7 @@ TEST_P(VBucketTest, SizeStatsSoftDel) {
     this->global_stats.reset();
     ASSERT_EQ(0, this->vbucket->ht.getItemMemory());
     ASSERT_EQ(0, this->vbucket->ht.getCacheSize());
-    size_t initialSize = this->global_stats.currentSize.load();
+    size_t initialSize = this->global_stats.getCurrentSize();
 
     const StoredDocKey k = makeStoredDocKey("somekey");
     const size_t itemSize(16 * 1024);
@@ -485,7 +485,7 @@ TEST_P(VBucketTest, SizeStatsSoftDel) {
 
     EXPECT_EQ(0, this->vbucket->ht.getItemMemory());
     EXPECT_EQ(0, this->vbucket->ht.getCacheSize());
-    EXPECT_EQ(initialSize, this->global_stats.currentSize.load());
+    EXPECT_EQ(initialSize, this->global_stats.getCurrentSize());
 
     cb_free(someval);
 }
@@ -494,7 +494,7 @@ TEST_P(VBucketTest, SizeStatsSoftDelFlush) {
     this->global_stats.reset();
     ASSERT_EQ(0, this->vbucket->ht.getItemMemory());
     ASSERT_EQ(0, this->vbucket->ht.getCacheSize());
-    size_t initialSize = this->global_stats.currentSize.load();
+    size_t initialSize = this->global_stats.getCurrentSize();
 
     StoredDocKey k = makeStoredDocKey("somekey");
     const size_t itemSize(16 * 1024);
@@ -512,7 +512,7 @@ TEST_P(VBucketTest, SizeStatsSoftDelFlush) {
 
     EXPECT_EQ(0, this->vbucket->ht.getItemMemory());
     EXPECT_EQ(0, this->vbucket->ht.getCacheSize());
-    EXPECT_EQ(initialSize, this->global_stats.currentSize.load());
+    EXPECT_EQ(initialSize, this->global_stats.getCurrentSize());
 
     cb_free(someval);
 }

@@ -310,7 +310,7 @@ void EphemeralVBucket::queueBackfillItem(
         checkpointManager->setBySeqno(qi->getBySeqno());
     }
     ++stats.totalEnqueued;
-    stats.memOverhead->fetch_add(sizeof(queued_item));
+    stats.coreLocal.get()->memOverhead.fetch_add(sizeof(queued_item));
 }
 
 size_t EphemeralVBucket::purgeStaleItems(std::function<bool()> shouldPauseCbk) {

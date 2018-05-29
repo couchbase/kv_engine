@@ -2594,7 +2594,7 @@ void EventuallyPersistentEngine::initializeEngineCallbacks() {
 ENGINE_ERROR_CODE EventuallyPersistentEngine::memoryCondition() {
     // Do we think it's possible we could free something?
     bool haveEvidenceWeCanFreeMemory =
-        (stats.getMaxDataSize() > stats.memOverhead->load());
+            (stats.getMaxDataSize() > stats.getMemOverhead());
     if (haveEvidenceWeCanFreeMemory) {
         // Look for more evidence by seeing if we have resident items.
         VBucketCountVisitor countVisitor(vbucket_state_active);
@@ -2721,24 +2721,28 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_mem_high_wat_percent", stats.mem_high_wat_percent,
                     add_stat, cookie);
     add_casted_stat("bytes", memUsed, add_stat, cookie);
-    add_casted_stat("ep_kv_size", stats.currentSize, add_stat, cookie);
-    add_casted_stat("ep_blob_num", stats.numBlob, add_stat, cookie);
+    add_casted_stat("ep_kv_size", stats.getCurrentSize(), add_stat, cookie);
+    add_casted_stat("ep_blob_num", stats.getNumBlob(), add_stat, cookie);
 #if defined(HAVE_JEMALLOC) || defined(HAVE_TCMALLOC)
-    add_casted_stat("ep_blob_overhead", stats.blobOverhead, add_stat, cookie);
+    add_casted_stat(
+            "ep_blob_overhead", stats.getBlobOverhead(), add_stat, cookie);
 #else
     add_casted_stat("ep_blob_overhead", "unknown", add_stat, cookie);
 #endif
-    add_casted_stat("ep_value_size", stats.totalValueSize, add_stat, cookie);
-    add_casted_stat("ep_storedval_size", stats.totalStoredValSize,
-                    add_stat, cookie);
+    add_casted_stat(
+            "ep_value_size", stats.getTotalValueSize(), add_stat, cookie);
+    add_casted_stat(
+            "ep_storedval_size", stats.getStoredValSize(), add_stat, cookie);
 #if defined(HAVE_JEMALLOC) || defined(HAVE_TCMALLOC)
-    add_casted_stat("ep_storedval_overhead", stats.blobOverhead, add_stat, cookie);
+    add_casted_stat(
+            "ep_storedval_overhead", stats.getBlobOverhead(), add_stat, cookie);
 #else
     add_casted_stat("ep_storedval_overhead", "unknown", add_stat, cookie);
 #endif
-    add_casted_stat("ep_storedval_num", stats.numStoredVal, add_stat, cookie);
-    add_casted_stat("ep_overhead", stats.memOverhead, add_stat, cookie);
-    add_casted_stat("ep_item_num", stats.numItem, add_stat, cookie);
+    add_casted_stat(
+            "ep_storedval_num", stats.getNumStoredVal(), add_stat, cookie);
+    add_casted_stat("ep_overhead", stats.getMemOverhead(), add_stat, cookie);
+    add_casted_stat("ep_item_num", stats.getNumItem(), add_stat, cookie);
 
     add_casted_stat("ep_oom_errors", stats.oom_errors, add_stat, cookie);
     add_casted_stat("ep_tmp_oom_errors", stats.tmp_oom_errors,
@@ -3121,9 +3125,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doMemoryStats(const void *cookie,
                     add_stat,
                     cookie);
 
-    add_casted_stat("ep_kv_size", stats.currentSize, add_stat, cookie);
-    add_casted_stat("ep_value_size", stats.totalValueSize, add_stat, cookie);
-    add_casted_stat("ep_overhead", stats.memOverhead, add_stat, cookie);
+    add_casted_stat("ep_kv_size", stats.getCurrentSize(), add_stat, cookie);
+    add_casted_stat(
+            "ep_value_size", stats.getTotalValueSize(), add_stat, cookie);
+    add_casted_stat("ep_overhead", stats.getMemOverhead(), add_stat, cookie);
     add_casted_stat("ep_max_size", stats.getMaxDataSize(), add_stat, cookie);
     add_casted_stat("ep_mem_low_wat", stats.mem_low_wat, add_stat, cookie);
     add_casted_stat("ep_mem_low_wat_percent", stats.mem_low_wat_percent,
@@ -3135,21 +3140,24 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doMemoryStats(const void *cookie,
     add_casted_stat("ep_tmp_oom_errors", stats.tmp_oom_errors,
                     add_stat, cookie);
 
-    add_casted_stat("ep_blob_num", stats.numBlob, add_stat, cookie);
+    add_casted_stat("ep_blob_num", stats.getNumBlob(), add_stat, cookie);
 #if defined(HAVE_JEMALLOC) || defined(HAVE_TCMALLOC)
-    add_casted_stat("ep_blob_overhead", stats.blobOverhead, add_stat, cookie);
+    add_casted_stat(
+            "ep_blob_overhead", stats.getBlobOverhead(), add_stat, cookie);
 #else
     add_casted_stat("ep_blob_overhead", "unknown", add_stat, cookie);
 #endif
-    add_casted_stat("ep_storedval_size", stats.totalStoredValSize,
-                    add_stat, cookie);
+    add_casted_stat(
+            "ep_storedval_size", stats.getStoredValSize(), add_stat, cookie);
 #if defined(HAVE_JEMALLOC) || defined(HAVE_TCMALLOC)
-    add_casted_stat("ep_storedval_overhead", stats.blobOverhead, add_stat, cookie);
+    add_casted_stat(
+            "ep_storedval_overhead", stats.getBlobOverhead(), add_stat, cookie);
 #else
     add_casted_stat("ep_storedval_overhead", "unknown", add_stat, cookie);
 #endif
-    add_casted_stat("ep_storedval_num", stats.numStoredVal, add_stat, cookie);
-    add_casted_stat("ep_item_num", stats.numItem, add_stat, cookie);
+    add_casted_stat(
+            "ep_storedval_num", stats.getNumStoredVal(), add_stat, cookie);
+    add_casted_stat("ep_item_num", stats.getNumItem(), add_stat, cookie);
 
     std::map<std::string, size_t> alloc_stats;
     MemoryTracker::getInstance(*getServerApiFunc()->alloc_hooks)->

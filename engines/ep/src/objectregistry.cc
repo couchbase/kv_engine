@@ -81,16 +81,17 @@ void ObjectRegistry::onCreateBlob(const Blob *blob)
 {
    EventuallyPersistentEngine *engine = th->get();
    if (verifyEngine(engine)) {
-       EPStats &stats = engine->getEpStats();
+       auto& coreLocalStats = engine->getEpStats().coreLocal.get();
+
        size_t size = getAllocSize(blob);
        if (size == 0) {
            size = blob->getSize();
        } else {
-           stats.blobOverhead.fetch_add(size - blob->getSize());
+           coreLocalStats->blobOverhead.fetch_add(size - blob->getSize());
        }
-       stats.currentSize.fetch_add(size);
-       stats.totalValueSize.fetch_add(size);
-       stats.numBlob++;
+       coreLocalStats->currentSize.fetch_add(size);
+       coreLocalStats->totalValueSize.fetch_add(size);
+       coreLocalStats->numBlob++;
    }
 }
 
@@ -98,16 +99,17 @@ void ObjectRegistry::onDeleteBlob(const Blob *blob)
 {
    EventuallyPersistentEngine *engine = th->get();
    if (verifyEngine(engine)) {
-       EPStats &stats = engine->getEpStats();
+       auto& coreLocalStats = engine->getEpStats().coreLocal.get();
+
        size_t size = getAllocSize(blob);
        if (size == 0) {
            size = blob->getSize();
        } else {
-           stats.blobOverhead.fetch_sub(size - blob->getSize());
+           coreLocalStats->blobOverhead.fetch_sub(size - blob->getSize());
        }
-       stats.currentSize.fetch_sub(size);
-       stats.totalValueSize.fetch_sub(size);
-       stats.numBlob--;
+       coreLocalStats->currentSize.fetch_sub(size);
+       coreLocalStats->totalValueSize.fetch_sub(size);
+       coreLocalStats->numBlob--;
    }
 }
 
@@ -115,15 +117,17 @@ void ObjectRegistry::onCreateStoredValue(const StoredValue *sv)
 {
    EventuallyPersistentEngine *engine = th->get();
    if (verifyEngine(engine)) {
-       EPStats &stats = engine->getEpStats();
+       auto& coreLocalStats = engine->getEpStats().coreLocal.get();
+
        size_t size = getAllocSize(sv);
        if (size == 0) {
            size = sv->getObjectSize();
        } else {
-           stats.storedValOverhead.fetch_add(size - sv->getObjectSize());
+           coreLocalStats->storedValOverhead.fetch_add(size -
+                                                       sv->getObjectSize());
        }
-       stats.numStoredVal++;
-       stats.totalStoredValSize.fetch_add(size);
+       coreLocalStats->numStoredVal++;
+       coreLocalStats->totalStoredValSize.fetch_add(size);
    }
 }
 
@@ -131,15 +135,17 @@ void ObjectRegistry::onDeleteStoredValue(const StoredValue *sv)
 {
    EventuallyPersistentEngine *engine = th->get();
    if (verifyEngine(engine)) {
-       EPStats &stats = engine->getEpStats();
+       auto& coreLocalStats = engine->getEpStats().coreLocal.get();
+
        size_t size = getAllocSize(sv);
        if (size == 0) {
            size = sv->getObjectSize();
        } else {
-           stats.storedValOverhead.fetch_sub(size - sv->getObjectSize());
+           coreLocalStats->storedValOverhead.fetch_sub(size -
+                                                       sv->getObjectSize());
        }
-       stats.totalStoredValSize.fetch_sub(size);
-       stats.numStoredVal--;
+       coreLocalStats->totalStoredValSize.fetch_sub(size);
+       coreLocalStats->numStoredVal--;
    }
 }
 
@@ -148,9 +154,10 @@ void ObjectRegistry::onCreateItem(const Item *pItem)
 {
    EventuallyPersistentEngine *engine = th->get();
    if (verifyEngine(engine)) {
-       EPStats &stats = engine->getEpStats();
-       stats.memOverhead->fetch_add(pItem->size() - pItem->getValMemSize());
-       ++(*stats.numItem);
+       auto& coreLocalStats = engine->getEpStats().coreLocal.get();
+       coreLocalStats->memOverhead.fetch_add(pItem->size() -
+                                             pItem->getValMemSize());
+       ++coreLocalStats->numItem;
    }
 }
 
@@ -158,9 +165,10 @@ void ObjectRegistry::onDeleteItem(const Item *pItem)
 {
    EventuallyPersistentEngine *engine = th->get();
    if (verifyEngine(engine)) {
-       EPStats &stats = engine->getEpStats();
-       stats.memOverhead->fetch_sub(pItem->size() - pItem->getValMemSize());
-       --(*stats.numItem);
+       auto& coreLocalStats = engine->getEpStats().coreLocal.get();
+       coreLocalStats->memOverhead.fetch_sub(pItem->size() -
+                                             pItem->getValMemSize());
+       --coreLocalStats->numItem;
    }
 }
 

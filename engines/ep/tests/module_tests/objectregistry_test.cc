@@ -40,25 +40,25 @@ protected:
 // Check that constructing & destructing an Item is correctly tracked in
 // EpStats::numItem via ObjectRegistry::on{Create,Delete}Item.
 TEST_F(ObjectRegistryTest, NumItem) {
-    ASSERT_EQ(0, *engine.getEpStats().numItem);
+    ASSERT_EQ(0, engine.getEpStats().getNumItem());
 
     {
         auto item = make_item(0, makeStoredDocKey("key"), "value");
-        EXPECT_EQ(1, *engine.getEpStats().numItem);
+        EXPECT_EQ(1, engine.getEpStats().getNumItem());
     }
-    EXPECT_EQ(0, *engine.getEpStats().numItem);
+    EXPECT_EQ(0, engine.getEpStats().getNumItem());
 }
 
 // Check that constructing & destructing an Item is correctly tracked in
 // EpStats::memOverhead via ObjectRegistry::on{Create,Delete}Item.
 TEST_F(ObjectRegistryTest, MemOverhead) {
-    ASSERT_EQ(0, *engine.getEpStats().memOverhead);
+    ASSERT_EQ(0, engine.getEpStats().getMemOverhead());
 
     {
         auto item = make_item(0, makeStoredDocKey("key"), "value");
         // Currently just checking the overhead is non-zero; could expand
         // to calculate expected size based on the Item's size.
-        EXPECT_NE(0, *engine.getEpStats().memOverhead);
+        EXPECT_NE(0, engine.getEpStats().getMemOverhead());
     }
-    EXPECT_EQ(0, *engine.getEpStats().memOverhead);
+    EXPECT_EQ(0, engine.getEpStats().getMemOverhead());
 }
