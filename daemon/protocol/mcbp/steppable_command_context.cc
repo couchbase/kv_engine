@@ -49,18 +49,25 @@ void SteppableCommandContext::drive() {
     }
 
     cookie.logResponse(ret);
-    ret = connection.remapErrorCode(ret);
-    switch (ret) {
+    auto remapErr = connection.remapErrorCode(ret);
+    switch (remapErr) {
     case ENGINE_SUCCESS:
         break;
     case ENGINE_EWOULDBLOCK:
         cookie.setEwouldblock(true);
         return;
     case ENGINE_DISCONNECT:
+        if (ret == ENGINE_DISCONNECT) {
+            LOG_WARNING(
+                    "{}: SteppableCommandContext::drive - step returned "
+                    "ENGINE_DISCONNECT - closing connection {}",
+                    connection.getId(),
+                    connection.getDescription());
+        }
         connection.setState(McbpStateMachine::State::closing);
         return;
     default:
-        cookie.sendResponse(cb::engine_errc(ret));
+        cookie.sendResponse(cb::engine_errc(remapErr));
         return;
     }
 }

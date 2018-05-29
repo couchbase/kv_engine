@@ -232,11 +232,19 @@ static void version_executor(Cookie& cookie) {
 
 static void quit_executor(Cookie& cookie) {
     cookie.sendResponse(cb::mcbp::Status::Success);
-    cookie.getConnection().setWriteAndGo(McbpStateMachine::State::closing);
+    auto& connection = cookie.getConnection();
+    LOG_DEBUG("{}: quit_executor - closing connection {}",
+              connection.getId(),
+              connection.getDescription());
+    connection.setWriteAndGo(McbpStateMachine::State::closing);
 }
 
 static void quitq_executor(Cookie& cookie) {
-    cookie.getConnection().setState(McbpStateMachine::State::closing);
+    auto& connection = cookie.getConnection();
+    LOG_DEBUG("{}: quitq_executor - closing connection {}",
+              connection.getId(),
+              connection.getDescription());
+    connection.setState(McbpStateMachine::State::closing);
 }
 
 static void sasl_list_mech_executor(Cookie& cookie) {
@@ -364,8 +372,8 @@ static void ioctl_get_executor(Cookie& cookie) {
         ret = ioctl_get_property(cookie, key, value);
     }
 
-    ret = connection.remapErrorCode(ret);
-    switch (ret) {
+    auto remapErr = connection.remapErrorCode(ret);
+    switch (remapErr) {
     case ENGINE_SUCCESS:
         cookie.sendResponse(cb::mcbp::Status::Success,
                             {},
@@ -378,10 +386,17 @@ static void ioctl_get_executor(Cookie& cookie) {
         cookie.setEwouldblock(true);
         break;
     case ENGINE_DISCONNECT:
+        if (ret == ENGINE_DISCONNECT) {
+            LOG_WARNING(
+                    "{}: ioctl_get_executor - ioctl_get_property returned "
+                    "ENGINE_DISCONNECT - closing connection {}",
+                    connection.getId(),
+                    connection.getDescription());
+        }
         connection.setState(McbpStateMachine::State::closing);
         break;
     default:
-        cookie.sendResponse(cb::mcbp::to_status(cb::engine_errc(ret)));
+        cookie.sendResponse(cb::mcbp::to_status(cb::engine_errc(remapErr)));
     }
 }
 
@@ -404,17 +419,24 @@ static void ioctl_set_executor(Cookie& cookie) {
 
         ret = ioctl_set_property(cookie, key, value);
     }
-    ret = connection.remapErrorCode(ret);
+    auto remapErr = connection.remapErrorCode(ret);
 
-    switch (ret) {
+    switch (remapErr) {
     case ENGINE_EWOULDBLOCK:
         cookie.setEwouldblock(true);
         break;
     case ENGINE_DISCONNECT:
+        if (ret == ENGINE_DISCONNECT) {
+            LOG_WARNING(
+                    "{}: ioctl_set_executor - ioctl_set_property returned "
+                    "ENGINE_DISCONNECT - closing connection {}",
+                    connection.getId(),
+                    connection.getDescription());
+        }
         connection.setState(McbpStateMachine::State::closing);
         break;
     default:
-        cookie.sendResponse(cb::mcbp::to_status(cb::engine_errc(ret)));
+        cookie.sendResponse(cb::mcbp::to_status(cb::engine_errc(remapErr)));
     }
 }
 
@@ -507,24 +529,37 @@ static void no_support_executor(Cookie& cookie) {
 }
 
 static void process_bin_dcp_response(Cookie& cookie) {
-    ENGINE_ERROR_CODE ret = ENGINE_DISCONNECT;
-
     auto& c = cookie.getConnection();
 
     c.enableDatatype(cb::mcbp::Feature::JSON);
 
-    if (c.getBucketEngine()->dcp.response_handler != nullptr) {
-        auto packet = cookie.getPacket(Cookie::PacketContent::Full);
-        const auto* header =
-                reinterpret_cast<const protocol_binary_response_header*>(
-                        packet.data());
-
-        ret = c.getBucketEngine()->dcp.response_handler(
-                c.getBucketEngineAsV0(), &cookie, header);
-        ret = c.remapErrorCode(ret);
+    if (!c.getBucketEngine()->dcp.response_handler) {
+        LOG_WARNING(
+                "{}: process_bin_dcp_response - response_handler is nullptr - "
+                "closing connection {}",
+                c.getId(),
+                c.getDescription());
+        c.setState(McbpStateMachine::State::closing);
+        return;
     }
 
-    if (ret == ENGINE_DISCONNECT) {
+    auto packet = cookie.getPacket(Cookie::PacketContent::Full);
+    const auto* header =
+            reinterpret_cast<const protocol_binary_response_header*>(
+                    packet.data());
+
+    auto ret = c.getBucketEngine()->dcp.response_handler(
+            c.getBucketEngineAsV0(), &cookie, header);
+    auto remapErr = c.remapErrorCode(ret);
+
+    if (remapErr == ENGINE_DISCONNECT) {
+        if (ret == ENGINE_DISCONNECT) {
+            LOG_WARNING(
+                    "{}: process_bin_dcp_response - response_handler returned "
+                    "ENGINE_DISCONNECT - closing connection {}",
+                    c.getId(),
+                    c.getDescription());
+        }
         c.setState(McbpStateMachine::State::closing);
     } else {
         c.setState(McbpStateMachine::State::ship_log);
@@ -752,7 +787,7 @@ static void execute_request_packet(Cookie& cookie,
                 }
             }
 
-            LOG_INFO(
+            LOG_WARNING(
                     "{}: Invalid format specified for {} - {} - "
                     "closing connection packet:{} ",
                     c->getId(),
@@ -914,6 +949,13 @@ void try_read_mcbp_command(Connection& c) {
     auto reason = validate_packet_execusion_constraints(cookie);
     if (reason != cb::mcbp::Status::Success) {
         cookie.sendResponse(reason);
+        LOG_WARNING(
+                "{}: try_read_mcbp_command - "
+                "validate_packet_execusion_constraints returned {} - closing "
+                "connection {}",
+                c.getId(),
+                std::to_string(static_cast<uint16_t>(reason)),
+                c.getDescription());
         c.setWriteAndGo(McbpStateMachine::State::closing);
         return;
     }

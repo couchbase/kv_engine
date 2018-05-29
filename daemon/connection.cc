@@ -459,7 +459,7 @@ ENGINE_ERROR_CODE Connection::remapErrorCode(ENGINE_ERROR_CODE code) const {
     // prepared to receive access denied or authentincation stale.
     // For now we should just disconnect them
     auto errc = cb::make_error_condition(cb::engine_errc(code));
-    LOG_INFO(
+    LOG_WARNING(
             "{} - Client {} not aware of extended error code ({}). "
             "Disconnecting",
             getId(),
@@ -1403,10 +1403,6 @@ void Connection::runEventLoop(short which) {
     }
 
     conn_return_buffers(this);
-}
-
-void Connection::initiateShutdown() {
-    setState(McbpStateMachine::State::closing);
 }
 
 void Connection::close() {

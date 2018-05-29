@@ -176,15 +176,22 @@ void get_cmd_timer_executor(Cookie& cookie) {
         ret.first = ENGINE_ENOMEM;
     }
 
-    ret.first = connection.remapErrorCode(ret.first);
-    cookie.logResponse(ret.first);
+    auto remapErr = connection.remapErrorCode(ret.first);
+    cookie.logResponse(remapErr);
 
-    if (ret.first == ENGINE_DISCONNECT) {
+    if (remapErr == ENGINE_DISCONNECT) {
+        if (ret.first == ENGINE_DISCONNECT) {
+            LOG_WARNING(
+                    "{}: get_cmd_timer_executor - get_cmd_timer returned "
+                    "ENGINE_DISCONNECT - closing connection {}",
+                    connection.getId(),
+                    connection.getDescription());
+        }
         connection.setState(McbpStateMachine::State::closing);
         return;
     }
 
-    if (ret.first == ENGINE_SUCCESS) {
+    if (remapErr == ENGINE_SUCCESS) {
         cookie.sendResponse(cb::mcbp::Status::Success,
                             {},
                             {},
@@ -192,6 +199,6 @@ void get_cmd_timer_executor(Cookie& cookie) {
                             cb::mcbp::Datatype::JSON,
                             0);
     } else {
-        cookie.sendResponse(cb::engine_errc(ret.first));
+        cookie.sendResponse(cb::engine_errc(remapErr));
     }
 }

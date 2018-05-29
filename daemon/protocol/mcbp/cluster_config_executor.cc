@@ -32,7 +32,7 @@ void get_cluster_config_executor(Cookie& cookie) {
             cookie.setErrorContext("No bucket selected");
             cookie.sendResponse(cb::mcbp::Status::NoBucket);
         } else {
-            LOG_INFO(
+            LOG_WARNING(
                     "{}: Can't get cluster configuration without "
                     "selecting a bucket. Disconnecting {}",
                     connection.getId(),
@@ -64,7 +64,7 @@ void set_cluster_config_executor(Cookie& cookie) {
             cookie.setErrorContext("No bucket selected");
             cookie.sendResponse(cb::mcbp::Status::NoBucket);
         } else {
-            LOG_INFO(
+            LOG_WARNING(
                     "{}: Can't set cluster configuration without "
                     "selecting a bucket. Disconnecting {}",
                     connection.getId(),

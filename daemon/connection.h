@@ -138,11 +138,6 @@ public:
     }
 
     /**
-     * Tell the connection to initiate it's shutdown logic
-     */
-    void initiateShutdown();
-
-    /**
      * Signal a connection if it's idle
      *
      * @param logbusy set to true if you want to log the connection details

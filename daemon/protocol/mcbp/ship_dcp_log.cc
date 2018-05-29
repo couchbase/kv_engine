@@ -704,6 +704,11 @@ void ship_dcp_log(Cookie& cookie) {
     }
 
     if (ret != ENGINE_SUCCESS) {
+        LOG_WARNING(
+                "{}: ship_dcp_log - step returned {} - closing connection {}",
+                c.getId(),
+                std::to_string(ret),
+                c.getDescription());
         c.setState(McbpStateMachine::State::closing);
     }
 }

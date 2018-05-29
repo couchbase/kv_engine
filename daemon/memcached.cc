@@ -870,9 +870,12 @@ bool is_bucket_dying(Connection& c) {
     }
 
     if (disconnect) {
-        LOG_INFO("{} The connected bucket is being deleted.. disconnecting",
-                 c.getId());
-        c.initiateShutdown();
+        LOG_INFO(
+                "{}: The connected bucket is being deleted.. closing "
+                "connection {}",
+                c.getId(),
+                c.getDescription());
+        c.setState(McbpStateMachine::State::closing);
         return true;
     }
 
@@ -931,13 +934,13 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
                          c->getId());
             }
             if (!c->reapplyEventmask()) {
-                c->initiateShutdown();
+                c->setState(McbpStateMachine::State::closing);
             }
         } else {
             LOG_INFO("{}: Shutting down idle client {}",
                      c->getId(),
                      c->getDescription());
-            c->initiateShutdown();
+            c->setState(McbpStateMachine::State::closing);
         }
     }
 
@@ -1582,10 +1585,11 @@ static void cookie_set_priority(gsl::not_null<const void*> void_cookie,
 
     LOG_WARNING(
             "{}: cookie_set_priority: priority (which is {}) is not a "
-            "valid CONN_PRIORITY - closing connection",
+            "valid CONN_PRIORITY - closing connection {}",
             c->getId(),
-            priority);
-    c->initiateShutdown();
+            priority,
+            c->getDescription());
+    c->setState(McbpStateMachine::State::closing);
 }
 
 static void count_eviction(gsl::not_null<const void*>, const void*, int) {
