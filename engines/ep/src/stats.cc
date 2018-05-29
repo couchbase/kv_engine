@@ -157,7 +157,7 @@ void EPStats::calculateMemUsedMergeThreshold() {
     // elements, i.e. nCpu)
     memUsedMergeThreshold =
             maxDataSize * (memUsedMergeThresholdPercent / 100.0);
-    memUsedMergeThreshold = memUsedMergeThreshold / coreTotalMemory.size();
+    memUsedMergeThreshold = memUsedMergeThreshold / coreLocal.size();
 }
 
 void EPStats::memAllocated(size_t sz) {
@@ -169,13 +169,13 @@ void EPStats::memAllocated(size_t sz) {
         return;
     }
 
-    auto& coreMemory = coreTotalMemory.get();
+    auto& coreMemory = coreLocal.get()->totalMemory;
 
     // Update the coreMemory and also create a local copy of the old value + sz
     // This value will be used to check the threshold
-    auto value = coreMemory->fetch_add(sz) + sz;
+    auto value = coreMemory.fetch_add(sz) + sz;
 
-    maybeUpdateEstimatedTotalMemUsed(*coreMemory, value);
+    maybeUpdateEstimatedTotalMemUsed(coreMemory, value);
 }
 
 void EPStats::memDeallocated(size_t sz) {
@@ -187,13 +187,13 @@ void EPStats::memDeallocated(size_t sz) {
         return;
     }
 
-    auto& coreMemory = coreTotalMemory.get();
+    auto& coreMemory = coreLocal.get()->totalMemory;
 
     // Update the coreMemory and also create a local copy of the old value - sz
     // This value will be used to check the threshold
-    auto value = coreMemory->fetch_sub(sz) - sz;
+    auto value = coreMemory.fetch_sub(sz) - sz;
 
-    maybeUpdateEstimatedTotalMemUsed(*coreMemory, value);
+    maybeUpdateEstimatedTotalMemUsed(coreMemory, value);
 }
 
 void EPStats::maybeUpdateEstimatedTotalMemUsed(
@@ -207,8 +207,9 @@ void EPStats::maybeUpdateEstimatedTotalMemUsed(
 
 size_t EPStats::getPreciseTotalMemoryUsed() {
     if (memoryTrackerEnabled.load()) {
-        for (auto& core : coreTotalMemory) {
-            estimatedTotalMemory->fetch_add(core->exchange(0));
+        for (auto& core : coreLocal) {
+            estimatedTotalMemory->fetch_add(
+                    core.get()->totalMemory.exchange(0));
         }
         // This still could become negative, e.g. core 0 allocated X after we
         // read it, then core n deallocated X and we read -X.

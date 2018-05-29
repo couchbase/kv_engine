@@ -18,6 +18,7 @@
 #pragma once
 
 #include "config.h"
+
 #include "hdrhistogram.h"
 #include "objectregistry.h"
 
@@ -30,6 +31,8 @@
 
 #include <algorithm>
 #include <atomic>
+
+class CoreLocalStats;
 
 /**
  * Global engine stats container.
@@ -232,9 +235,10 @@ public:
     // This is a signed variable as depending on how/when the thread-local
     // counters merge their info, this could be negative
     cb::CachelinePadded<Couchbase::RelaxedAtomic<int64_t>> estimatedTotalMemory;
-    //! The memory tracking by core
-    CoreStore<cb::CachelinePadded<Couchbase::RelaxedAtomic<int64_t>>>
-            coreTotalMemory;
+
+    //! Core-local statistics
+    CoreStore<cb::CachelinePadded<CoreLocalStats>> coreLocal;
+
     //! True if the memory usage tracker is enabled.
     std::atomic<bool> memoryTrackerEnabled;
     //! Whether or not to force engine shutdown.
@@ -585,6 +589,28 @@ protected:
 
     /// percentage used in calculating the memUsedMergeThreshold
     float memUsedMergeThresholdPercent;
+};
+
+/**
+ * Core-local statistics
+ *
+ * For statistics which are updated frequently by multiple cores, there can be
+ * signifcant cost in maintaining a single bucket-level counter, due to cache
+ * line thrashing.
+ * This class contains core-local statistics which are signicantly cheaper
+ * to update. They are then summed into a bucket-level when read.
+ */
+class CoreLocalStats {
+public:
+    // Thread-safe type for counting occurances of discrete,
+    // non-negative entities (# events, sizes).  Relaxed memory
+    // ordering (no ordering or synchronization).
+    // This is a signed variable as depending on how/when the core-local
+    // counters merge their info, this could be negative.
+    using Counter = Couchbase::RelaxedAtomic<int64_t>;
+
+    //! The total amount of memory used by this bucket (From memory tracking)
+    Counter totalMemory;
 };
 
 /**
