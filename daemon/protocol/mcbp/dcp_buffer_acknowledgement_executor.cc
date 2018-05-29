@@ -15,8 +15,10 @@
  *   limitations under the License.
  */
 
-#include <daemon/mcbp.h>
 #include "executors.h"
+
+#include <daemon/mcbp.h>
+#include "engine_wrapper.h"
 #include "utilities.h"
 
 void dcp_buffer_acknowledgement_executor(Cookie& cookie) {
@@ -34,12 +36,10 @@ void dcp_buffer_acknowledgement_executor(Cookie& cookie) {
 
             uint32_t bbytes;
             memcpy(&bbytes, &req->message.body.buffer_bytes, 4);
-            ret = connection.getBucketEngine()->dcp.buffer_acknowledgement(
-                    connection.getBucketEngineAsV0(),
-                    &cookie,
-                    header.getOpaque(),
-                    header.getVBucket(),
-                    ntohl(bbytes));
+            ret = dcpBufferAcknowledgement(cookie,
+                                           header.getOpaque(),
+                                           header.getVBucket(),
+                                           ntohl(bbytes));
         }
     }
 

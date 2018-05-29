@@ -15,8 +15,10 @@
  *   limitations under the License.
  */
 
-#include "dcp_add_failover_log.h"
 #include "executors.h"
+
+#include "dcp_add_failover_log.h"
+#include "engine_wrapper.h"
 
 #include <daemon/cookie.h>
 
@@ -26,12 +28,10 @@ void dcp_get_failover_log_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
     if (ret == ENGINE_SUCCESS) {
         auto& header = cookie.getHeader().getRequest();
-        ret = connection.getBucketEngine()->dcp.get_failover_log(
-                connection.getBucketEngineAsV0(),
-                &cookie,
-                header.getOpaque(),
-                header.getVBucket(),
-                add_failover_log);
+        ret = dcpGetFailoverLog(cookie,
+                                header.getOpaque(),
+                                header.getVBucket(),
+                                add_failover_log);
     }
 
     ret = connection.remapErrorCode(ret);

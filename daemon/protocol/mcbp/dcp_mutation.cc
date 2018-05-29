@@ -75,23 +75,21 @@ static inline ENGINE_ERROR_CODE do_dcp_mutation(Cookie& cookie) {
         }
     }
 
-    auto engine = connection.getBucketEngine();
-    return engine->dcp.mutation(connection.getBucketEngineAsV0(),
-                                &cookie,
-                                opaque,
-                                key,
-                                value,
-                                priv_bytes,
-                                datatype,
-                                cas,
-                                vbucket,
-                                flags,
-                                by_seqno,
-                                rev_seqno,
-                                expiration,
-                                lock_time,
-                                meta,
-                                req->message.body.nru);
+    return dcpMutation(cookie,
+                       opaque,
+                       key,
+                       value,
+                       priv_bytes,
+                       datatype,
+                       cas,
+                       vbucket,
+                       flags,
+                       by_seqno,
+                       rev_seqno,
+                       expiration,
+                       lock_time,
+                       meta,
+                       req->message.body.nru);
 }
 
 void dcp_mutation_executor(Cookie& cookie) {

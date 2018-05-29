@@ -15,9 +15,11 @@
  *   limitations under the License.
  */
 
+#include "executors.h"
+
 #include <daemon/mcbp.h>
 #include <mcbp/protocol/header.h>
-#include "executors.h"
+#include "engine_wrapper.h"
 #include "utilities.h"
 
 void dcp_control_executor(Cookie& cookie) {
@@ -35,14 +37,8 @@ void dcp_control_executor(Cookie& cookie) {
             uint16_t nkey = ntohs(req->message.header.request.keylen);
             const uint8_t* value = key + nkey;
             uint32_t nvalue = ntohl(req->message.header.request.bodylen) - nkey;
-            ret = connection.getBucketEngine()->dcp.control(
-                    connection.getBucketEngineAsV0(),
-                    &cookie,
-                    header.getOpaque(),
-                    key,
-                    nkey,
-                    value,
-                    nvalue);
+            ret = dcpControl(
+                    cookie, header.getOpaque(), key, nkey, value, nvalue);
         }
     }
 

@@ -15,9 +15,11 @@
  *   limitations under the License.
  */
 
-#include <daemon/mcbp.h>
-#include <mcbp/protocol/header.h>
 #include "executors.h"
+
+#include <daemon/mcbp.h>
+#include "engine_wrapper.h"
+#include <mcbp/protocol/header.h>
 #include "utilities.h"
 
 void dcp_noop_executor(Cookie& cookie) {
@@ -29,10 +31,7 @@ void dcp_noop_executor(Cookie& cookie) {
         ret = mcbp::haveDcpPrivilege(cookie);
         if (ret == ENGINE_SUCCESS) {
             const auto& header = cookie.getHeader();
-            ret = connection.getBucketEngine()->dcp.noop(
-                    connection.getBucketEngineAsV0(),
-                    &cookie,
-                    header.getOpaque());
+            ret = dcpNoop(cookie, header.getOpaque());
         }
     }
 
