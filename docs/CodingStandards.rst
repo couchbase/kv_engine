@@ -447,11 +447,15 @@ listed.  We prefer these ``#include``\s to be listed in this order:
 
 #. Project configuration header (``"config.h"``)
 #. Main Module Header
-#. Local/Private Headers
-#. subproject headers (``platform/...``, ``memcached/...``, etc)
-#. System ``#include``\s
+#. Local/Private Headers (``"other_class.h"``, ``"other_class2.h"``)
+#. Subproject headers (``<platform/...>``, ``<memcached/...>``, etc)
+#. System ``#include``\s (``<iostream>``)
 
 and each category should be sorted lexicographically by the full path.
+
+This ordering is enforced via our `Clang Format`_ config file; however if that
+needs to be overridden then you can add a blank line between sets of headers as
+clang-format only sorts within a single paragraph of headers.
 
 The `Main Module Header`_ file applies to ``.cc`` files which implement an
 interface defined by a ``.h`` file.  This ``#include`` should always be included
