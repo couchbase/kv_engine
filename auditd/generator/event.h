@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include <gsl.h>
 #include <cstdint>
 #include <string>
 
@@ -24,7 +25,7 @@ struct cJSON;
 
 class Event {
 public:
-    Event(cJSON* root);
+    Event(gsl::not_null<const cJSON*> entry);
 
     uint32_t id;
     std::string name;

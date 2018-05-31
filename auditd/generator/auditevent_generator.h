@@ -16,6 +16,7 @@
  */
 #pragma once
 
+#include <gsl/gsl>
 #include <string>
 
 #define eventid_modulus 4096
@@ -56,5 +57,9 @@ typedef enum {
 } ReturnCode;
 
 struct cJSON;
-cJSON *getMandatoryObject(cJSON *root, const std::string &name, int type);
-cJSON *getOptionalObject(cJSON *root, const std::string &name, int type);
+cJSON* getMandatoryObject(gsl::not_null<const cJSON*> root,
+                          const std::string& name,
+                          int type);
+cJSON* getOptionalObject(gsl::not_null<const cJSON*> root,
+                         const std::string& name,
+                         int type);

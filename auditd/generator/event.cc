@@ -21,7 +21,7 @@
 #include <cJSON_utils.h>
 #include <sstream>
 
-Event::Event(cJSON* root) {
+Event::Event(gsl::not_null<const cJSON*> root) {
     cJSON* cId = getMandatoryObject(root, "id", cJSON_Number);
     cJSON* cName = getMandatoryObject(root, "name", cJSON_String);
     cJSON* cDescr = getMandatoryObject(root, "description", cJSON_String);
@@ -45,12 +45,12 @@ Event::Event(cJSON* root) {
     mandatory_fields = to_string(cMand, false);
     optional_fields = to_string(cOpt, false);
 
-    int num_elem = cJSON_GetArraySize(root);
+    int num_elem = cJSON_GetArraySize(const_cast<cJSON*>(root.get()));
     if ((cFilteringPermitted == nullptr && num_elem != 7) ||
         (cFilteringPermitted != nullptr && num_elem != 8)) {
         std::stringstream ss;
         ss << "Unknown elements for " << name << ": " << std::endl
-           << to_string(root) << std::endl;
+           << to_string(root.get()) << std::endl;
         throw std::logic_error(ss.str());
     }
 }

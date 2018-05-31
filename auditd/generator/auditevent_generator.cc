@@ -188,7 +188,9 @@ static void error_exit(const ReturnCode return_code, const char *string) {
     exit(EXIT_FAILURE);
 }
 
-cJSON *getMandatoryObject(cJSON *root, const std::string &name, int type) {
+cJSON* getMandatoryObject(gsl::not_null<const cJSON*> root,
+                          const std::string& name,
+                          int type) {
     cJSON *ret = getOptionalObject(root, name, type);
     if (ret == nullptr) {
         throw std::logic_error("Mandatory element \"" + name + "\" is missing");
@@ -196,9 +198,11 @@ cJSON *getMandatoryObject(cJSON *root, const std::string &name, int type) {
     return ret;
 }
 
-cJSON *getOptionalObject(cJSON *root, const std::string &name, int type)
-{
-    cJSON *ret = cJSON_GetObjectItem(root, name.c_str());
+cJSON* getOptionalObject(gsl::not_null<const cJSON*> root,
+                         const std::string& name,
+                         int type) {
+    cJSON* ret =
+            cJSON_GetObjectItem(const_cast<cJSON*>(root.get()), name.c_str());
     if (ret && ret->type != type) {
         if (type == -1) {
             if (ret->type == cJSON_True || ret->type == cJSON_False) {
