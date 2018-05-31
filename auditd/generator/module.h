@@ -27,9 +27,7 @@ class Module {
 public:
     Module(cJSON* data, const std::string& srcRoot, const std::string& objRoot);
 
-    ~Module();
-
-    void addEvent(Event* event);
+    void addEvent(std::unique_ptr<Event> event);
 
     void createHeaderFile(void);
 
@@ -66,5 +64,5 @@ private:
     /**
      * A list of all of the events defined for this module
      */
-    std::list<Event*> events;
+    std::list<std::unique_ptr<Event>> events;
 };

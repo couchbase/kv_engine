@@ -67,14 +67,8 @@ Module::Module(cJSON* data,
     }
 }
 
-Module::~Module() {
-    for (auto iter = events.begin(); iter != events.end(); ++iter) {
-        delete *iter;
-    }
-}
-
-void Module::addEvent(Event* event) {
-    events.push_back(event);
+void Module::addEvent(std::unique_ptr<Event> event) {
+    events.push_back(std::move(event));
 }
 
 void Module::createHeaderFile(void) {
@@ -92,10 +86,9 @@ void Module::createHeaderFile(void) {
     headerfile << "// This is a generated file, do not edit" << std::endl
                << "#pragma once" << std::endl;
 
-    for (auto iter = events.begin(); iter != events.end(); ++iter) {
+    for (const auto& ev : events) {
         std::string nm(name);
         nm.append("_AUDIT_");
-        auto ev = *iter;
         nm.append(ev->name);
         std::replace(nm.begin(), nm.end(), ' ', '_');
         std::transform(nm.begin(), nm.end(), nm.begin(), toupper);

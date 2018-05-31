@@ -345,10 +345,9 @@ static void validate_modules(const std::list<Module *> &modules,
                         }
 
                         try {
-                            Event *ev = new Event(event_data);
+                            auto ev = std::make_unique<Event>(event_data);
                             validate_events(*ev, mod_ptr, event_id_arr);
-                            mod_ptr->addEvent(ev);
-
+                            mod_ptr->addEvent(std::move(ev));
                         } catch (const std::exception& error) {
                             std::cerr << error.what() << std::endl;;
                             exit(EXIT_FAILURE);
