@@ -612,6 +612,7 @@ std::vector<std::string> CheckpointManager::getListOfCursorsToDrop() {
 }
 
 bool CheckpointManager::hasClosedCheckpointWhichCanBeRemoved() const {
+    LockHolder lh(queueLock);
     if (checkpointList.empty()) {
         return false;
     }
