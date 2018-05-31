@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2014 Couchbase, Inc.
+ *     Copyright 2018 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -16,8 +16,6 @@
  */
 #pragma once
 
-#include <platform/dirutils.h>
-#include <gsl/gsl>
 #include <string>
 
 #define eventid_modulus 4096
@@ -57,177 +55,6 @@ typedef enum {
     MODULE_DESCRIPTOR_UNKNOWN_FIELD_ERROR
 } ReturnCode;
 
+struct cJSON;
 cJSON *getMandatoryObject(cJSON *root, const std::string &name, int type);
 cJSON *getOptionalObject(cJSON *root, const std::string &name, int type);
-
-class Event {
-public:
-    Event(cJSON *root) {
-        cJSON *cId = getMandatoryObject(root, "id", cJSON_Number);
-        cJSON *cName = getMandatoryObject(root, "name", cJSON_String);
-        cJSON *cDescr = getMandatoryObject(root, "description", cJSON_String);
-        cJSON *cSync = getMandatoryObject(root, "sync", -1);
-        cJSON *cEnabled = getMandatoryObject(root, "enabled", -1);
-        cJSON *cFilteringPermitted = getOptionalObject(
-                root, "filtering_permitted", -1);
-        cJSON *cMand = getMandatoryObject(root, "mandatory_fields", cJSON_Object);
-        cJSON *cOpt = getMandatoryObject(root, "optional_fields", cJSON_Object);
-
-        id = uint32_t(cId->valueint);
-        name.assign(cName->valuestring);
-        description.assign(cDescr->valuestring);
-        sync = cSync->type == cJSON_True;
-        enabled = cEnabled->type == cJSON_True;
-        if (cFilteringPermitted != nullptr) {
-            filtering_permitted = cFilteringPermitted->type == cJSON_True;
-        } else {
-            filtering_permitted = false;
-        }
-        mandatory_fields = to_string(cMand, false);
-        optional_fields = to_string(cOpt, false);
-
-        int num_elem = cJSON_GetArraySize(root);
-        if ((cFilteringPermitted == nullptr && num_elem != 7) ||
-                (cFilteringPermitted != nullptr && num_elem != 8)) {
-            std::stringstream ss;
-            ss << "Unknown elements for " << name << ": " << std::endl
-               << to_string(root) << std::endl;
-            throw ss.str();
-        }
-    }
-
-    uint32_t id;
-    std::string name;
-    std::string description;
-    bool sync;
-    bool enabled;
-    bool filtering_permitted;
-    std::string mandatory_fields;
-    std::string optional_fields;
-};
-
-class Module {
-public:
-    Module(cJSON* data, const std::string& srcRoot, const std::string& objRoot)
-        : name(data->string) {
-        // Each module contains:
-        //   startid - mandatory
-        //   file - mandatory
-        //   header - optional
-        cJSON *sid = getMandatoryObject(data, "startid", cJSON_Number);
-        cJSON *fname = getMandatoryObject(data, "file", cJSON_String);
-        cJSON *hfile = getOptionalObject(data, "header", cJSON_String);
-        auto* ent = getOptionalObject(data, "enterprise", cJSON_True);
-
-        start = gsl::narrow<int>(sid->valueint);
-        file.assign(srcRoot);
-        file.append("/");
-        file.append(fname->valuestring);
-        cb::io::sanitizePath(file);
-
-        int expected = 2;
-
-        if (hfile) {
-            std::string hp = hfile->valuestring;
-            if (!hp.empty()) {
-                header.assign(objRoot);
-                header.append("/");
-                header.append(hp);
-                cb::io::sanitizePath(header);
-            }
-            ++expected;
-        }
-
-        if (ent) {
-            enterprise = ent->type == cJSON_True;
-            ++expected;
-        }
-
-        if (cJSON_GetArraySize(data) != expected) {
-            std::stringstream ss;
-            ss << "Unknown elements for " << name << ": " << std::endl
-               << to_string(data) << std::endl;
-            throw ss.str();
-        }
-    }
-
-    ~Module() {
-        if (json) {
-            cJSON_Delete(json);
-        }
-
-        for (auto iter = events.begin(); iter != events.end(); ++iter) {
-            delete *iter;
-        }
-    }
-
-    void addEvent(Event *event) {
-        events.push_back(event);
-    }
-
-    void createHeaderFile(void) {
-        if (header.empty()) {
-            return;
-        }
-
-        std::ofstream headerfile;
-        headerfile.open(header);
-        if (!headerfile.is_open()) {
-            std::stringstream ss;
-            ss << "Failed to open " << header;
-            throw ss.str();
-        }
-
-        headerfile << "// This is a generated file, do not edit" << std::endl
-                   << "#pragma once" << std::endl;
-
-        for (auto iter = events.begin(); iter != events.end(); ++iter) {
-            std::string nm(name);
-            nm.append("_AUDIT_");
-            auto ev = *iter;
-            nm.append(ev->name);
-            std::replace(nm.begin(), nm.end(), ' ', '_');
-            std::transform(nm.begin(), nm.end(), nm.begin(), toupper);
-
-            headerfile << "#define " << nm << " "
-                       << ev->id << std::endl;
-        }
-
-        headerfile.close();
-    }
-
-    /**
-     * The name of the module
-     */
-    std::string name;
-    /**
-     * The lowest identifier for the audit events in this module. All
-     * audit descriptor defined for this module MUST be within the range
-     * [start, start + max_events_per_module]
-     */
-    uint32_t start;
-    /**
-     * The name of the file containing the audit descriptors for this
-     * module.
-     */
-    std::string file;
-    /**
-     * The JSON data describing the audit descriptors for this module
-     */
-    cJSON* json = nullptr;
-    /**
-     * Is this module enterprise only?
-     */
-    bool enterprise = false;
-
-private:
-    /**
-     * If present this is the name of a C headerfile to generate with
-     * #defines for all audit identifiers for the module.
-     */
-    std::string header;
-    /**
-     * A list of all of the events defined for this module
-     */
-    std::list<Event *> events;
-};
