@@ -57,19 +57,17 @@ void dcp_expiration_executor(Cookie& cookie) {
         if (priv_bytes > COUCHBASE_MAX_ITEM_PRIVILEGED_BYTES) {
             ret = ENGINE_E2BIG;
         } else {
-            ret = connection.getBucketEngine()->dcp.expiration(
-                    connection.getBucketEngineAsV0(),
-                    &cookie,
-                    opaque,
-                    key,
-                    value,
-                    priv_bytes,
-                    datatype,
-                    cas,
-                    vbucket,
-                    by_seqno,
-                    rev_seqno,
-                    meta);
+            ret = dcpExpiration(cookie,
+                                opaque,
+                                key,
+                                value,
+                                priv_bytes,
+                                datatype,
+                                cas,
+                                vbucket,
+                                by_seqno,
+                                rev_seqno,
+                                meta);
         }
     }
 

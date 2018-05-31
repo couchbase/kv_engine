@@ -17,6 +17,8 @@
 
 #include "executors.h"
 
+#include "engine_wrapper.h"
+
 #include <daemon/cookie.h>
 
 void dcp_add_stream_executor(Cookie& cookie) {
@@ -30,12 +32,10 @@ void dcp_add_stream_executor(Cookie& cookie) {
 
     auto& connection = cookie.getConnection();
     if (ret == ENGINE_SUCCESS) {
-        ret = connection.getBucketEngine()->dcp.add_stream(
-                connection.getBucketEngineAsV0(),
-                &cookie,
-                req->message.header.request.opaque,
-                ntohs(req->message.header.request.vbucket),
-                flags);
+        ret = dcpAddStream(cookie,
+                           req->message.header.request.opaque,
+                           ntohs(req->message.header.request.vbucket),
+                           flags);
     }
 
     ret = connection.remapErrorCode(ret);

@@ -45,20 +45,17 @@ static ENGINE_ERROR_CODE dcp_deletion_v1_executor(
         priv_bytes = valuelen;
     }
     if (priv_bytes <= COUCHBASE_MAX_ITEM_PRIVILEGED_BYTES) {
-        auto& connection = cookie.getConnection();
-        return connection.getBucketEngine()->dcp.deletion(
-                connection.getBucketEngineAsV0(),
-                &cookie,
-                opaque,
-                key,
-                value,
-                priv_bytes,
-                datatype,
-                cas,
-                vbucket,
-                by_seqno,
-                rev_seqno,
-                meta);
+        return dcpDeletion(cookie,
+                           opaque,
+                           key,
+                           value,
+                           priv_bytes,
+                           datatype,
+                           cas,
+                           vbucket,
+                           by_seqno,
+                           rev_seqno,
+                           meta);
     } else {
         return ENGINE_E2BIG;
     }
@@ -94,19 +91,17 @@ static ENGINE_ERROR_CODE dcp_deletion_v2_executor(
     }
 
     if (priv_bytes <= COUCHBASE_MAX_ITEM_PRIVILEGED_BYTES) {
-        return connection.getBucketEngine()->dcp.deletion_v2(
-                connection.getBucketEngineAsV0(),
-                &cookie,
-                opaque,
-                key,
-                value,
-                priv_bytes,
-                datatype,
-                cas,
-                vbucket,
-                by_seqno,
-                rev_seqno,
-                delete_time);
+        return dcpDeletionV2(cookie,
+                             opaque,
+                             key,
+                             value,
+                             priv_bytes,
+                             datatype,
+                             cas,
+                             vbucket,
+                             by_seqno,
+                             rev_seqno,
+                             delete_time);
     } else {
         return ENGINE_E2BIG;
     }

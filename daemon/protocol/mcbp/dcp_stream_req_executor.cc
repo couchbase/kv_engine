@@ -15,8 +15,10 @@
  *   limitations under the License.
  */
 
-#include "dcp_add_failover_log.h"
 #include "executors.h"
+
+#include "dcp_add_failover_log.h"
+#include "engine_wrapper.h"
 
 #include <daemon/cookie.h>
 #include <daemon/mcbp.h>
@@ -48,19 +50,17 @@ void dcp_stream_req_executor(Cookie& cookie) {
         uint64_t vbucket_uuid = ntohll(req->message.body.vbucket_uuid);
         uint64_t snap_start_seqno = ntohll(req->message.body.snap_start_seqno);
         uint64_t snap_end_seqno = ntohll(req->message.body.snap_end_seqno);
-        ret = connection.getBucketEngine()->dcp.stream_req(
-                connection.getBucketEngineAsV0(),
-                &cookie,
-                flags,
-                request.getOpaque(),
-                request.getVBucket(),
-                start_seqno,
-                end_seqno,
-                vbucket_uuid,
-                snap_start_seqno,
-                snap_end_seqno,
-                &rollback_seqno,
-                add_failover_log);
+        ret = dcpStreamReq(cookie,
+                           flags,
+                           request.getOpaque(),
+                           request.getVBucket(),
+                           start_seqno,
+                           end_seqno,
+                           vbucket_uuid,
+                           snap_start_seqno,
+                           snap_end_seqno,
+                           &rollback_seqno,
+                           add_failover_log);
     }
 
     ret = connection.remapErrorCode(ret);

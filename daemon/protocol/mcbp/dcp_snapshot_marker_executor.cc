@@ -15,8 +15,10 @@
  *   limitations under the License.
  */
 
-#include <daemon/cookie.h>
 #include "executors.h"
+
+#include <daemon/cookie.h>
+#include "engine_wrapper.h"
 
 void dcp_snapshot_marker_executor(Cookie& cookie) {
     auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
@@ -34,14 +36,8 @@ void dcp_snapshot_marker_executor(Cookie& cookie) {
         uint64_t start_seqno = ntohll(req->message.body.start_seqno);
         uint64_t end_seqno = ntohll(req->message.body.end_seqno);
 
-        ret = connection.getBucketEngine()->dcp.snapshot_marker(
-                connection.getBucketEngineAsV0(),
-                &cookie,
-                opaque,
-                vbucket,
-                start_seqno,
-                end_seqno,
-                flags);
+        ret = dcpSnapshotMarker(
+                cookie, opaque, vbucket, start_seqno, end_seqno, flags);
     }
 
     ret = connection.remapErrorCode(ret);

@@ -18,6 +18,7 @@
 #include "executors.h"
 
 #include <daemon/cookie.h>
+#include "engine_wrapper.h"
 
 void dcp_close_stream_executor(Cookie& cookie) {
     auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
@@ -25,11 +26,7 @@ void dcp_close_stream_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
     if (ret == ENGINE_SUCCESS) {
         const auto& header = cookie.getHeader().getRequest();
-        ret = connection.getBucketEngine()->dcp.close_stream(
-                connection.getBucketEngineAsV0(),
-                &cookie,
-                header.getOpaque(),
-                header.getVBucket());
+        ret = dcpCloseStream(cookie, header.getOpaque(), header.getVBucket());
     }
 
     ret = connection.remapErrorCode(ret);

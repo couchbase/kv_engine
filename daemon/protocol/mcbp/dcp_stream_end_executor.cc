@@ -15,8 +15,10 @@
  *   limitations under the License.
  */
 
-#include <daemon/cookie.h>
 #include "executors.h"
+
+#include <daemon/cookie.h>
+#include "engine_wrapper.h"
 
 void dcp_stream_end_executor(Cookie& cookie) {
     auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
@@ -27,12 +29,10 @@ void dcp_stream_end_executor(Cookie& cookie) {
         const auto* req =
                 reinterpret_cast<const protocol_binary_request_dcp_stream_end*>(
                         packet.data());
-        ret = connection.getBucketEngine()->dcp.stream_end(
-                connection.getBucketEngineAsV0(),
-                static_cast<void*>(&cookie),
-                req->message.header.request.opaque,
-                ntohs(req->message.header.request.vbucket),
-                ntohl(req->message.body.flags));
+        ret = dcpStreamEnd(cookie,
+                           req->message.header.request.opaque,
+                           ntohs(req->message.header.request.vbucket),
+                           ntohl(req->message.body.flags));
     }
 
     ret = connection.remapErrorCode(ret);

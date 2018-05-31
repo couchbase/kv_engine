@@ -17,6 +17,8 @@
 
 #include "executors.h"
 
+#include "engine_wrapper.h"
+
 #include <daemon/cookie.h>
 
 void dcp_set_vbucket_state_executor(Cookie& cookie) {
@@ -28,12 +30,8 @@ void dcp_set_vbucket_state_executor(Cookie& cookie) {
         const auto* req = reinterpret_cast<
                 const protocol_binary_request_dcp_set_vbucket_state*>(&request);
         auto state = (vbucket_state_t)req->message.body.state;
-        ret = connection.getBucketEngine()->dcp.set_vbucket_state(
-                connection.getBucketEngineAsV0(),
-                &cookie,
-                request.getOpaque(),
-                request.getVBucket(),
-                state);
+        ret = dcpSetVbucketState(
+                cookie, request.getOpaque(), request.getVBucket(), state);
     }
 
     ret = connection.remapErrorCode(ret);

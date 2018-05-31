@@ -15,9 +15,11 @@
  *   limitations under the License.
  */
 
+#include "executors.h"
+
 #include <daemon/mcaudit.h>
 #include <daemon/mcbp.h>
-#include "executors.h"
+#include "engine_wrapper.h"
 #include "utilities.h"
 
 void dcp_open_executor(Cookie& cookie) {
@@ -48,17 +50,13 @@ void dcp_open_executor(Cookie& cookie) {
         const auto* name =
                 reinterpret_cast<const char*>(req->bytes + sizeof(req->bytes));
 
-        auto* c = &connection;
-        auto* theCookie = &cookie;
-        auto dcpOpen = [=, &flags, &theCookie]() -> ENGINE_ERROR_CODE {
-            return c->getBucketEngine()->dcp.open(
-                    c->getBucketEngineAsV0(),
-                    theCookie,
-                    req->message.header.request.opaque,
-                    ntohl(req->message.body.seqno),
-                    flags,
-                    {name, nkey},
-                    {req->bytes + sizeof(req->bytes) + nkey, valuelen});
+        auto dcpOpenFunc = [&]() -> ENGINE_ERROR_CODE {
+            return dcpOpen(cookie,
+                           req->message.header.request.opaque,
+                           ntohl(req->message.body.seqno),
+                           flags,
+                           {name, nkey},
+                           {req->bytes + sizeof(req->bytes) + nkey, valuelen});
         };
 
         // Collections Prototype: The following code allows the bucket to decide
@@ -66,11 +64,11 @@ void dcp_open_executor(Cookie& cookie) {
         // run with collections enabled, but with a non-collection bucket and a
         // collection bucket. This is only whilst collections are in development
         if (ret == ENGINE_SUCCESS) {
-            ret = dcpOpen();
+            ret = dcpOpenFunc();
             if (settings.isCollectionsPrototypeEnabled() &&
                 ret == ENGINE_UNKNOWN_COLLECTION) {
                 flags |= DCP_OPEN_COLLECTIONS;
-                ret = dcpOpen();
+                ret = dcpOpenFunc();
                 LOG_INFO(
                         "{}: Retried DCP open with DCP_OPEN_COLLECTIONS ret:{}",
                         connection.getId(),

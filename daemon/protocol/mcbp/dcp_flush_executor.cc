@@ -17,6 +17,8 @@
 
 #include "executors.h"
 
+#include "engine_wrapper.h"
+
 #include <daemon/cookie.h>
 
 void dcp_flush_executor(Cookie& cookie) {
@@ -25,11 +27,7 @@ void dcp_flush_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
     if (ret == ENGINE_SUCCESS) {
         const auto& header = cookie.getHeader().getRequest();
-        ret = connection.getBucketEngine()->dcp.flush(
-                connection.getBucketEngineAsV0(),
-                &cookie,
-                header.getOpaque(),
-                header.getVBucket());
+        ret = dcpFlush(cookie, header.getOpaque(), header.getVBucket());
     }
 
     ret = connection.remapErrorCode(ret);

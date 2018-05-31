@@ -612,6 +612,9 @@ std::vector<std::string> CheckpointManager::getListOfCursorsToDrop() {
 }
 
 bool CheckpointManager::hasClosedCheckpointWhichCanBeRemoved() const {
+    if (checkpointList.empty()) {
+        return false;
+    }
     // Check oldest checkpoint; if closed and contains no cursors then
     // we can remove it (and possibly additional old-but-not-oldest
     // checkpoints).

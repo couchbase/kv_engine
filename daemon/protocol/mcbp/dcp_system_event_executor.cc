@@ -35,9 +35,8 @@ void dcp_system_event_executor(Cookie& cookie) {
         cb::const_byte_buffer eventData{req->bytes + sizeof(req->bytes) + nkey,
                                         bodylen};
 
-        ret = connection.getBucketEngine()->dcp.system_event(
-                connection.getBucketEngineAsV0(),
-                &cookie,
+        ret = dcpSystemEvent(
+                cookie,
                 req->message.header.request.opaque,
                 ntohs(req->message.header.request.vbucket),
                 mcbp::systemevent::id(ntohl(req->message.body.event)),
