@@ -51,7 +51,7 @@ public:
     /**
      * The JSON data describing the audit descriptors for this module
      */
-    cJSON* json = nullptr;
+    unique_cJSON_ptr json;
     /**
      * Is this module enterprise only?
      */

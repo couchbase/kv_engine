@@ -68,30 +68,17 @@ static bool is_enterprise_edition() {
  * event in the module.
  */
 
-static cJSON *load_file(const std::string fname) {
-    std::ifstream file(fname, std::ios::in | std::ios::binary);
-    if (!file.is_open()) {
-        std::stringstream ss;
-        ss << "Failed to open: " << fname;
-        throw ss.str();
-    }
-
-    std::string str((std::istreambuf_iterator<char>(file)),
-                    std::istreambuf_iterator<char>());
-    file.close();
+static unique_cJSON_ptr load_file(const std::string fname) {
+    auto str = cb::io::loadFile(fname);
     if (str.empty()) {
-        std::stringstream ss;
-        ss << fname << " contained no data";
-        throw ss.str();
+        throw std::logic_error(fname + " contained no data");
     }
 
-    cJSON *ret = cJSON_Parse(str.c_str());
-    if (ret == NULL) {
-        std::stringstream ss;
-        ss << "Failed to parse " << fname << " containing: " << std::endl
-           << str << std::endl;
-        throw ss.str();
+    unique_cJSON_ptr ret(cJSON_Parse(str.c_str()));
+    if (!ret) {
+        throw std::logic_error("Failed to parse " + fname + " containing: [" + str + "]");
     }
+
     return ret;
 }
 
@@ -203,10 +190,8 @@ static void error_exit(const ReturnCode return_code, const char *string) {
 
 cJSON *getMandatoryObject(cJSON *root, const std::string &name, int type) {
     cJSON *ret = getOptionalObject(root, name, type);
-    if (ret == NULL) {
-        std::stringstream ss;
-        ss << "Mandatory element \"" << name << "\" is missing ";
-        throw ss.str();
+    if (ret == nullptr) {
+        throw std::logic_error("Mandatory element \"" + name + "\" is missing");
     }
     return ret;
 }
@@ -234,7 +219,7 @@ cJSON *getOptionalObject(cJSON *root, const std::string &name, int type)
             ss << type;
         }
 
-        throw ss.str();
+        throw std::logic_error(ss.str());
     }
 
     return ret;
@@ -295,7 +280,7 @@ static void validate_events(const Event &ev,
         ss << "Event identifier " << ev.id << " outside the legal range for "
            << "module " << module->name << "s legal range: "
            << module->start << " - " << module->start + max_events_per_module;
-        throw ss.str();
+        throw std::logic_error(ss.str());
     }
 
     if (!ev.enabled) {
@@ -308,7 +293,7 @@ static void validate_modules(const std::list<Module *> &modules,
 
     for (auto iter = modules.begin(); iter != modules.end(); ++iter) {
         auto mod_ptr = *iter;
-        cJSON *ptr = mod_ptr->json;
+        cJSON *ptr = mod_ptr->json.get();
         cb_assert(ptr != NULL);
         if (ptr->type != cJSON_Object) {
             error_exit(MODULE_DESCRIPTOR_MISSING_JSON_OBJECT_ERROR, NULL);
@@ -364,8 +349,8 @@ static void validate_modules(const std::list<Module *> &modules,
                             validate_events(*ev, mod_ptr, event_id_arr);
                             mod_ptr->addEvent(ev);
 
-                        } catch (std::string error) {
-                            std::cerr << error << std::endl;;
+                        } catch (const std::exception& error) {
+                            std::cerr << error.what() << std::endl;;
                             exit(EXIT_FAILURE);
                         }
 
@@ -402,7 +387,7 @@ static void create_master_file(const std::list<Module *> &modules,
     for (auto iter = modules.begin(); iter != modules.end(); ++iter) {
         auto mod_ptr = *iter;;
         cb_assert(mod_ptr->json != NULL);
-        cJSON_AddItemReferenceToArray(arr, mod_ptr->json);
+        cJSON_AddItemReferenceToArray(arr, mod_ptr->json.get());
     }
     cJSON_AddItemToObject(output_json.get(), "modules", arr);
 
@@ -444,9 +429,9 @@ int main(int argc, char **argv) {
 
     unique_cJSON_ptr ptr;
     try {
-        ptr.reset(load_file(input_file));
-    } catch (std::string err) {
-        std::cerr << err;
+        ptr = load_file(input_file);
+    } catch (const std::exception& exception) {
+        std::cerr << exception.what();
         exit(EXIT_FAILURE);
     }
 
@@ -458,9 +443,9 @@ int main(int argc, char **argv) {
             auto module = *iter;
             module->json = load_file(module->file);
         }
-    } catch (std::string error) {
+    } catch (const std::exception& error) {
         std::cerr << "Failed to load " << input_file << ":" << std::endl
-                  << error << std::endl;
+                  << error.what() << std::endl;
         exit(EXIT_FAILURE);
     }
 
@@ -476,9 +461,9 @@ int main(int argc, char **argv) {
         auto module = *iter;
         try {
             module->createHeaderFile();
-        } catch (std::string error) {
+        } catch (const std::exception& error) {
             std::cerr << "Failed to write header file for " << module->name
-                      << ":" << std::endl << error << std::endl;
+                      << ":" << std::endl << error.what() << std::endl;
             exit(EXIT_FAILURE);
         }
         delete module;

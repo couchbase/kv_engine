@@ -63,15 +63,11 @@ Module::Module(cJSON* data,
         std::stringstream ss;
         ss << "Unknown elements for " << name << ": " << std::endl
            << to_string(data) << std::endl;
-        throw ss.str();
+        throw std::logic_error(ss.str());
     }
 }
 
 Module::~Module() {
-    if (json) {
-        cJSON_Delete(json);
-    }
-
     for (auto iter = events.begin(); iter != events.end(); ++iter) {
         delete *iter;
     }
@@ -89,9 +85,8 @@ void Module::createHeaderFile(void) {
     std::ofstream headerfile;
     headerfile.open(header);
     if (!headerfile.is_open()) {
-        std::stringstream ss;
-        ss << "Failed to open " << header;
-        throw ss.str();
+        throw std::system_error(
+                errno, std::system_category(), "Failed to open " + header);
     }
 
     headerfile << "// This is a generated file, do not edit" << std::endl

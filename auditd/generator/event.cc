@@ -51,6 +51,6 @@ Event::Event(cJSON* root) {
         std::stringstream ss;
         ss << "Unknown elements for " << name << ": " << std::endl
            << to_string(root) << std::endl;
-        throw ss.str();
+        throw std::logic_error(ss.str());
     }
 }
