@@ -15,17 +15,18 @@
  *   limitations under the License.
  */
 #include "module.h"
-
-#include "auditevent_generator.h"
 #include "event.h"
+#include "utilities.h"
 
 #include <fstream>
 #include <sstream>
 
-Module::Module(cJSON* data,
+Module::Module(gsl::not_null<const cJSON*> object,
                const std::string& srcRoot,
                const std::string& objRoot)
-    : name(data->string) {
+    : name(object->string) {
+    auto* data = const_cast<cJSON*>(object.get());
+
     // Each module contains:
     //   startid - mandatory
     //   file - mandatory
@@ -33,7 +34,7 @@ Module::Module(cJSON* data,
     cJSON* sid = getMandatoryObject(data, "startid", cJSON_Number);
     cJSON* fname = getMandatoryObject(data, "file", cJSON_String);
     cJSON* hfile = getOptionalObject(data, "header", cJSON_String);
-    auto* ent = getOptionalObject(data, "enterprise", cJSON_True);
+    auto* ent = getOptionalObject(data, "enterprise", -1);
 
     start = gsl::narrow<int>(sid->valueint);
     file.assign(srcRoot);
@@ -65,13 +66,26 @@ Module::Module(cJSON* data,
            << to_string(data) << std::endl;
         throw std::logic_error(ss.str());
     }
+
+    // Try to load the referenced audit descriptor file if it's there
+    if (cb::io::isFile(file)) {
+        auto content = cb::io::loadFile(file);
+        if (content.empty()) {
+            throw std::logic_error("\"" + file + "\" is empty");
+        }
+        json.reset(cJSON_Parse(content.c_str()));
+        if (!json) {
+            throw std::logic_error("Failed to parse \"" + file +
+                                   "\". Invalid JSON?");
+        }
+    }
 }
 
 void Module::addEvent(std::unique_ptr<Event> event) {
     events.push_back(std::move(event));
 }
 
-void Module::createHeaderFile(void) {
+void Module::createHeaderFile() {
     if (header.empty()) {
         return;
     }

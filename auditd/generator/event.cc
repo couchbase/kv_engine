@@ -15,8 +15,7 @@
  *   limitations under the License.
  */
 #include "event.h"
-
-#include "auditevent_generator.h"
+#include "utilities.h"
 
 #include <cJSON_utils.h>
 #include <sstream>

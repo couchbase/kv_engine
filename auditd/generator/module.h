@@ -23,13 +23,20 @@
 
 class Event;
 
+/**
+ * The Module class represents the configuration for a single module.
+ * See ../README.md for more information.
+ */
 class Module {
 public:
-    Module(cJSON* data, const std::string& srcRoot, const std::string& objRoot);
+    Module() = delete;
+    Module(gsl::not_null<const cJSON*> object,
+           const std::string& srcRoot,
+           const std::string& objRoot);
 
     void addEvent(std::unique_ptr<Event> event);
 
-    void createHeaderFile(void);
+    void createHeaderFile();
 
     /**
      * The name of the module

@@ -16,16 +16,6 @@
  */
 #pragma once
 
-#include <gsl/gsl>
-#include <string>
-
 #define eventid_modulus 4096
 #define max_events_per_module (eventid_modulus - 1)
 
-struct cJSON;
-cJSON* getMandatoryObject(gsl::not_null<const cJSON*> root,
-                          const std::string& name,
-                          int type);
-cJSON* getOptionalObject(gsl::not_null<const cJSON*> root,
-                         const std::string& name,
-                         int type);

@@ -1,23 +1,28 @@
-ADD_EXECUTABLE(auditevent_generator
-			   auditevent_generator.cc
-			   auditevent_generator.h
-			   event.cc
-			   event.h
-			   module.cc
-			   module.h)
-TARGET_LINK_LIBRARIES(auditevent_generator cJSON platform dirutils)
+# Most of the source is used both in the unit test and the actual program
+# Build a static archive of the source to avoid compiling it twice
+add_library(audit_generator_utilities STATIC
+            event.cc
+            event.h
+            module.cc
+            module.h utilities.cc utilities.h)
+target_link_libraries(audit_generator_utilities cJSON)
+
+add_executable(auditevent_generator
+               auditevent_generator.cc
+               auditevent_generator.h)
+target_link_libraries(auditevent_generator audit_generator_utilities cJSON platform dirutils)
 
 # When we're running the commit validation for memcached we don't
 # download all of the external modules so we'll just use a
 # subset of the audit descriptors.
-IF (COUCHBASE_KV_COMMIT_VALIDATION)
+if (COUCHBASE_KV_COMMIT_VALIDATION)
     SET(MODULE_DESCRIPTION ${Memcached_SOURCE_DIR}/auditd/etc/kv_commit_validation_module_descriptors.json)
-ELSE ()
+else ()
     SET(MODULE_DESCRIPTION ${Memcached_SOURCE_DIR}/auditd/etc/module_descriptors.json)
-ENDIF (COUCHBASE_KV_COMMIT_VALIDATION)
+endif (COUCHBASE_KV_COMMIT_VALIDATION)
 
 
-ADD_CUSTOM_COMMAND(OUTPUT
+add_custom_command(OUTPUT
                      ${Memcached_BINARY_DIR}/auditd/audit_events.json
                      ${Memcached_BINARY_DIR}/auditd/auditd_audit_events.h
                   COMMAND
@@ -34,9 +39,9 @@ ADD_CUSTOM_COMMAND(OUTPUT
                   COMMENT "Generating audit descriptor definitions"
                   VERBATIM)
 
-ADD_CUSTOM_TARGET(generate_audit_descriptors ALL
+add_custom_target(generate_audit_descriptors ALL
                   DEPENDS ${Memcached_BINARY_DIR}/auditd/audit_events.json)
 
-INSTALL(FILES
+install(FILES
         ${Memcached_BINARY_DIR}/auditd/audit_events.json
         DESTINATION etc/security)
