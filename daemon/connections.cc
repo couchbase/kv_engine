@@ -371,12 +371,11 @@ static BufferLoan loan_single_buffer(Connection& c,
     } catch (const std::bad_alloc&) {
         // Unable to alloc a buffer for the thread. Not much we can do here
         // other than terminate the current connection.
-        if (settings.getVerbose()) {
-            LOG_WARNING(
-                    "{}: Failed to allocate new network buffer.. closing"
-                    " connection",
-                    c.getId());
-        }
+        LOG_WARNING(
+                "{}: Failed to allocate new network buffer.. closing "
+                "connection {}",
+                c.getId(),
+                c.getDescription());
         c.setState(McbpStateMachine::State::closing);
         return BufferLoan::Existing;
     }

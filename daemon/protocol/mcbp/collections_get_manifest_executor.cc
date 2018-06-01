@@ -33,6 +33,11 @@ void collections_get_manifest_executor(Cookie& cookie) {
                             cb::mcbp::Datatype::Raw,
                             0);
     } else if (rv.first == cb::engine_errc::disconnect) {
+        LOG_WARNING(
+                "{}: collections_get_manifest_executor - get_manifest returned "
+                "ENGINE_DISCONNECT - closing connection {}",
+                connection.getId(),
+                connection.getDescription());
         connection.setState(McbpStateMachine::State::closing);
     } else {
         cookie.sendResponse(cb::mcbp::to_status(rv.first));

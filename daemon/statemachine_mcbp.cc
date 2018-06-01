@@ -245,7 +245,8 @@ bool conn_read_packet_header(Connection& connection) {
         return true;
     }
 
-    switch (connection.tryReadNetwork()) {
+    auto res = connection.tryReadNetwork();
+    switch (res) {
     case Connection::TryReadResult::NoDataReceived:
         connection.setState(McbpStateMachine::State::waiting);
         break;
@@ -258,6 +259,15 @@ bool conn_read_packet_header(Connection& connection) {
         break;
     case Connection::TryReadResult::SocketClosed:
     case Connection::TryReadResult::SocketError:
+        // Note: we log only in case of SocketError, we do not log a clean
+        // connection shutdown
+        if (res == Connection::TryReadResult::SocketError) {
+            LOG_WARNING(
+                    "{}: conn_read_packet_header - tryReadNetwork returned "
+                    "SocketError - closing connection {}",
+                    connection.getId(),
+                    connection.getDescription());
+        }
         connection.setState(McbpStateMachine::State::closing);
         break;
     case Connection::TryReadResult::MemoryError: /* Failed to allocate more
@@ -414,6 +424,7 @@ bool conn_read_packet_body(Connection& connection) {
     }
 
     if (res == 0) { /* end of stream */
+        // Note: we do not log a clean connection shutdown
         connection.setState(McbpStateMachine::State::closing);
         return true;
     }

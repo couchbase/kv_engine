@@ -1701,7 +1701,12 @@ static void subdoc_response(Cookie& cookie, SubdocCmdContext& context) {
 
     // Shouldn't get here - invalid traits.path
     cookie.sendResponse(cb::mcbp::Status::Einternal);
-    cookie.getConnection().setWriteAndGo(McbpStateMachine::State::closing);
+    auto& connection = cookie.getConnection();
+    LOG_WARNING(
+            "{}: subdoc_response - invalid traits.path - closing connection {}",
+            connection.getId(),
+            connection.getDescription());
+    connection.setWriteAndGo(McbpStateMachine::State::closing);
 }
 
 void subdoc_get_executor(Cookie& cookie) {
