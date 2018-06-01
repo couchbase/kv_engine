@@ -231,7 +231,7 @@ private:
 
     size_t estimateNewMemoryUsage(EPStats& st, const Item& item) override {
         return st.getEstimatedTotalMemoryUsed() +
-               StoredValue::getRequiredStorage(item);
+               StoredValue::getRequiredStorage(item.getKey());
     }
 
     /**

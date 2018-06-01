@@ -62,7 +62,10 @@ int main(int, char **) {
     std::string s;
 
     display("GIGANTOR", GIGANTOR);
-    display("Stored Value", sizeof(StoredValue));
+    display("StoredValue", sizeof(StoredValue));
+    display("StoredValue with 15 byte key",
+            StoredValue::getRequiredStorage(DocKey(
+                    "1234567890abcde", DocNamespace::DefaultCollection)));
     display("Ordered Stored Value", sizeof(OrderedStoredValue));
     display("Blob", sizeof(Blob));
     display("value_t", sizeof(value_t));

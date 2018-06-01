@@ -59,8 +59,8 @@ public:
     }
 
     /// Allow testing access to StoredValue::getRequiredStorage
-    static size_t public_getRequiredStorage(const Item& item) {
-        return Factory::value_type::getRequiredStorage(item);
+    static size_t public_getRequiredStorage(const DocKey& key) {
+        return Factory::value_type::getRequiredStorage(key);
     }
 
 protected:
@@ -176,7 +176,7 @@ TYPED_TEST(ValueTest, size) {
 
 TYPED_TEST(ValueTest, getRequiredStorage) {
     EXPECT_EQ(this->sv->getObjectSize(),
-              this->public_getRequiredStorage(this->item))
+              this->public_getRequiredStorage(this->item.getKey()))
             << "Actual object size doesn't match what getRequiredStorage "
                "predicted";
 }
@@ -307,10 +307,9 @@ TYPED_TEST(ValueTest, restoreMeta) {
 TEST(StoredValueTest, expectedSize) {
     EXPECT_EQ(56, sizeof(StoredValue))
             << "Unexpected change in StoredValue fixed size";
-    auto item = make_item(0, makeStoredDocKey("k"), "v");
-    EXPECT_EQ(59, StoredValue::getRequiredStorage(item))
-            << "Unexpected change in StoredValue storage size for item: "
-            << item;
+    auto key = makeStoredDocKey("k");
+    EXPECT_EQ(59, StoredValue::getRequiredStorage(key))
+            << "Unexpected change in StoredValue storage size for key: " << key;
 }
 
 /**
@@ -321,10 +320,11 @@ class OrderedStoredValueTest : public ValueTest<OrderedStoredValueFactory> {};
 TEST_F(OrderedStoredValueTest, expectedSize) {
     EXPECT_EQ(72, sizeof(OrderedStoredValue))
             << "Unexpected change in OrderedStoredValue fixed size";
-    auto item = make_item(0, makeStoredDocKey("k"), "v");
-    EXPECT_EQ(75, OrderedStoredValue::getRequiredStorage(item))
-            << "Unexpected change in OrderedStoredValue storage size for item: "
-            << item;
+
+    auto key = makeStoredDocKey("k");
+    EXPECT_EQ(75, OrderedStoredValue::getRequiredStorage(key))
+            << "Unexpected change in OrderedStoredValue storage size for key: "
+            << key;
 }
 
 // Check that when we copy a OSV, the freqCounter is also copied. (Cannot copy

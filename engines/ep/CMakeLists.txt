@@ -237,6 +237,8 @@ ADD_LIBRARY(ep_objs OBJECT
             src/string_utils.cc
             src/storeddockey.cc
             src/stored-value.cc
+            src/stored_value_factories.cc
+            src/stored_value_factories.h
             src/systemevent.cc
             src/tasks.cc
             src/taskqueue.cc

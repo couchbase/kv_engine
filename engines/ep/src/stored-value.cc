@@ -193,9 +193,8 @@ bool StoredValue::del() {
     }
 }
 
-size_t StoredValue::getRequiredStorage(const Item& item) {
-    return sizeof(StoredValue) +
-           SerialisedDocKey::getObjectSize(item.getKey().size());
+size_t StoredValue::getRequiredStorage(const DocKey& key) {
+    return sizeof(StoredValue) + SerialisedDocKey::getObjectSize(key.size());
 }
 
 std::unique_ptr<Item> StoredValue::toItem(bool lck, uint16_t vbucket) const {
@@ -449,9 +448,8 @@ bool OrderedStoredValue::operator==(const OrderedStoredValue& other) const {
     return StoredValue::operator==(other);
 }
 
-size_t OrderedStoredValue::getRequiredStorage(const Item& item) {
-    return sizeof(OrderedStoredValue) +
-           SerialisedDocKey::getObjectSize(item.getKey());
+size_t OrderedStoredValue::getRequiredStorage(const DocKey& key) {
+    return sizeof(OrderedStoredValue) + SerialisedDocKey::getObjectSize(key);
 }
 
 /**

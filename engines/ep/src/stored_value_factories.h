@@ -70,16 +70,7 @@ public:
      * Create an concrete StoredValue object.
      */
     StoredValue::UniquePtr operator()(const Item& itm,
-                                      StoredValue::UniquePtr next) override {
-        // Allocate a buffer to store the StoredValue and any trailing bytes
-        // that maybe required.
-        return StoredValue::UniquePtr(
-                new (::operator new(StoredValue::getRequiredStorage(itm)))
-                        StoredValue(itm,
-                                    std::move(next),
-                                    *stats,
-                                    /*isOrdered*/ false));
-    }
+                                      StoredValue::UniquePtr next) override;
 
     StoredValue::UniquePtr copyStoredValue(const StoredValue& other,
                                            StoredValue::UniquePtr next) override {
@@ -104,26 +95,13 @@ public:
      * Create a new OrderedStoredValue with the given item.
      */
     StoredValue::UniquePtr operator()(const Item& itm,
-                                      StoredValue::UniquePtr next) override {
-        // Allocate a buffer to store the OrderStoredValue and any trailing
-        // bytes required for the key.
-        return StoredValue::UniquePtr(
-                new (::operator new(
-                        OrderedStoredValue::getRequiredStorage(itm)))
-                        OrderedStoredValue(itm, std::move(next), *stats));
-    }
+                                      StoredValue::UniquePtr next) override;
 
     /**
      * Create a copy of OrderedStoredValue from the given one.
      */
-    StoredValue::UniquePtr copyStoredValue(const StoredValue& other,
-                                           StoredValue::UniquePtr next) override {
-        // Allocate a buffer to store the copy ofOrderStoredValue and any
-        // trailing bytes required for the key.
-        return StoredValue::UniquePtr(
-                new (::operator new(other.getObjectSize()))
-                        OrderedStoredValue(other, std::move(next), *stats));
-    }
+    StoredValue::UniquePtr copyStoredValue(
+            const StoredValue& other, StoredValue::UniquePtr next) override;
 
 private:
     EPStats* stats;

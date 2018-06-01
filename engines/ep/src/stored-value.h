@@ -691,8 +691,8 @@ public:
      */
     bool operator==(const StoredValue& other) const;
 
-    /// Return how many bytes are need to store Item as a StoredValue
-    static size_t getRequiredStorage(const Item& item);
+    /// Return how many bytes are need to store item given key as a StoredValue
+    static size_t getRequiredStorage(const DocKey& key);
 
 protected:
     /**
@@ -914,8 +914,9 @@ public:
      */
     bool operator==(const OrderedStoredValue& other) const;
 
-    /// Return how many bytes are need to store Item as an OrderedStoredValue
-    static size_t getRequiredStorage(const Item& item);
+    /// Return how many bytes are need to store item with given key as an
+    /// OrderedStoredValue
+    static size_t getRequiredStorage(const DocKey& key);
 
     /**
      * Return the time the item was deleted. Only valid for deleted items.
