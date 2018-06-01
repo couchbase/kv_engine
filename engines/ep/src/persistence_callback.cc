@@ -51,7 +51,8 @@ void PersistenceCallback::callback(TransactionContext& txCtx,
                     ++vbucket.opsCreate;
                     vbucket.incrNumTotalItems();
                     vbucket.incrMetaDataDisk(*queuedItem);
-                } else { // Update in full eviction mode.
+                } else {
+                    // Update for non-resident item in full eviction mode.
                     ++vbucket.opsUpdate;
                 }
 
