@@ -15,6 +15,7 @@
  *   limitations under the License.
  */
 #include "module.h"
+#include "auditevent_generator.h"
 #include "event.h"
 #include "utilities.h"
 
@@ -82,7 +83,16 @@ Module::Module(gsl::not_null<const cJSON*> object,
 }
 
 void Module::addEvent(std::unique_ptr<Event> event) {
-    events.push_back(std::move(event));
+    if (event->id >= start && event->id < (start + max_events_per_module)) {
+        events.push_back(std::move(event));
+    } else {
+        std::stringstream ss;
+        ss << "Event identifier " << event->id
+           << " outside the legal range for "
+           << "module " << name << "s legal range: " << start << " - "
+           << start + max_events_per_module;
+        throw std::invalid_argument(ss.str());
+    }
 }
 
 void Module::createHeaderFile() {

@@ -76,8 +76,7 @@ int main(int argc, char **argv) {
     }
 
     try {
-        unique_cJSON_ptr event_id_arr(cJSON_CreateArray());
-        validate_modules(modules, event_id_arr.get());
+        validate_modules(modules);
         create_master_file(modules, output_file);
 
         for (const auto& module : modules) {

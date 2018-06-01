@@ -34,6 +34,13 @@ public:
            const std::string& srcRoot,
            const std::string& objRoot);
 
+    /**
+     * Add the event to the list of events for the module
+     *
+     * @param event the event to add
+     * @throws std::invalid_argument if the event is outside the legal range
+     *                               for the module
+     */
     void addEvent(std::unique_ptr<Event> event);
 
     void createHeaderFile();

@@ -90,28 +90,12 @@ void validate_module_descriptors(gsl::not_null<const cJSON*> ptr,
                                  const std::string& objroot);
 
 /**
- * Validate that the provided event belongs to the provided module, and
- * if everything is OK add it to the event_id_arr
- *
- * @param ev The event to check
- * @param module The module it belongs to
- * @param event_id_arr Where to store the event if it is accepted
- * @throws std::logic_error if the event is outside the legal range for the
- *                          module
- */
-void validate_events(const Event& ev,
-                     const Module* module,
-                     cJSON* event_id_arr);
-
-/**
  * Iterate over all of the modules and parse the provided audit descriptors
  *
  * @param modules The list of modules to parse
- * @param event_id_arr Where to store the resulting id's of the events
  * @throws std::invalid_argument if the provided JSON is of an unexpected format
  */
-void validate_modules(const std::list<std::unique_ptr<Module>>& modules,
-                      cJSON* event_id_arr);
+void validate_modules(const std::list<std::unique_ptr<Module>>& modules);
 
 /**
  * Build the master event file

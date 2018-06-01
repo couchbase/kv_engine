@@ -159,25 +159,7 @@ void validate_module_descriptors(gsl::not_null<const cJSON*> ptr,
     }
 }
 
-void validate_events(const Event& ev,
-                     const Module* module,
-                     cJSON* event_id_arr) {
-    if (ev.id < module->start ||
-        ev.id > (module->start + max_events_per_module)) {
-        std::stringstream ss;
-        ss << "Event identifier " << ev.id << " outside the legal range for "
-           << "module " << module->name << "s legal range: " << module->start
-           << " - " << module->start + max_events_per_module;
-        throw std::logic_error(ss.str());
-    }
-
-    if (!ev.enabled) {
-        cJSON_AddItemToArray(event_id_arr, cJSON_CreateNumber(ev.id));
-    }
-}
-
-void validate_modules(const std::list<std::unique_ptr<Module>>& modules,
-                      cJSON* event_id_arr) {
+void validate_modules(const std::list<std::unique_ptr<Module>>& modules) {
     for (const auto& mod_ptr : modules) {
         cJSON* ptr = mod_ptr->json.get();
         if (ptr == nullptr || ptr->type != cJSON_Object) {
@@ -238,7 +220,6 @@ void validate_modules(const std::list<std::unique_ptr<Module>>& modules,
                     }
 
                     auto ev = std::make_unique<Event>(event_data);
-                    validate_events(*ev, mod_ptr.get(), event_id_arr);
                     mod_ptr->addEvent(std::move(ev));
 
                     event_data = event_data->next;
