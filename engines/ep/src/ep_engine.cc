@@ -579,10 +579,7 @@ protocol_binary_response_status EventuallyPersistentEngine::setFlushParam(
         } else if (strcmp(keyz, "defragmenter_enabled") == 0) {
             getConfiguration().setDefragmenterEnabled(cb_stob(valz));
         } else if (strcmp(keyz, "defragmenter_interval") == 0) {
-            size_t v = std::stoull(valz);
-            // Adding separate validation as external limit is minimum 1
-            // to prevent setting defragmenter to constantly run
-            validate(v, size_t(1), std::numeric_limits<size_t>::max());
+            auto v = std::stod(valz);
             getConfiguration().setDefragmenterInterval(v);
         } else if (strcmp(keyz, "item_compressor_interval") == 0) {
             size_t v = std::stoull(valz);
