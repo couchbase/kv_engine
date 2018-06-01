@@ -87,7 +87,7 @@ unique_cJSON_ptr load_file(const std::string fname);
  *       error occurs
  */
 void validate_module_descriptors(gsl::not_null<const cJSON*> ptr,
-                                 std::list<Module*>& modules,
+                                 std::list<std::unique_ptr<Module>>& modules,
                                  const std::string& srcroot,
                                  const std::string& objroot);
 
@@ -114,7 +114,8 @@ void validate_events(const Event& ev,
  * NOTE: The program prints an error message to stderr and terminates if an
  *       error occurs
  */
-void validate_modules(const std::list<Module*>& modules, cJSON* event_id_arr);
+void validate_modules(const std::list<std::unique_ptr<Module>>& modules,
+                      cJSON* event_id_arr);
 
 /**
  * Build the master event file
@@ -125,5 +126,5 @@ void validate_modules(const std::list<Module*>& modules, cJSON* event_id_arr);
  * NOTE: The program prints an error message to stderr and terminates if an
  *       error occurs
  */
-void create_master_file(const std::list<Module*>& modules,
+void create_master_file(const std::list<std::unique_ptr<Module>>& modules,
                         const std::string& output_file);

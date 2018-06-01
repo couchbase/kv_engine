@@ -62,12 +62,11 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    std::list<Module*> modules;
+    std::list<std::unique_ptr<Module>> modules;
 
     try {
         validate_module_descriptors(ptr.get(), modules, srcroot, objroot);
-        for (auto iter = modules.begin(); iter != modules.end(); ++iter) {
-            auto module = *iter;
+        for (const auto& module : modules) {
             module->json = load_file(module->file);
         }
     } catch (const std::exception& error) {
@@ -80,8 +79,7 @@ int main(int argc, char **argv) {
     validate_modules(modules, event_id_arr.get());
     create_master_file(modules, output_file);
 
-    for (auto iter = modules.begin(); iter != modules.end(); ++iter) {
-        auto module = *iter;
+    for (const auto& module : modules) {
         try {
             module->createHeaderFile();
         } catch (const std::exception& error) {
@@ -89,7 +87,6 @@ int main(int argc, char **argv) {
                       << ":" << std::endl << error.what() << std::endl;
             exit(EXIT_FAILURE);
         }
-        delete module;
     }
     exit(EXIT_SUCCESS);
 }

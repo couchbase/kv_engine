@@ -111,7 +111,7 @@ unique_cJSON_ptr load_file(const std::string fname) {
 }
 
 void validate_module_descriptors(gsl::not_null<const cJSON*> ptr,
-                                 std::list<Module*>& modules,
+                                 std::list<std::unique_ptr<Module>>& modules,
                                  const std::string& srcroot,
                                  const std::string& objroot) {
     if (ptr->type != cJSON_Object) {
@@ -154,7 +154,7 @@ void validate_module_descriptors(gsl::not_null<const cJSON*> ptr,
         if (new_module->enterprise && !is_enterprise_edition()) {
             // Community edition should ignore modules from enterprise Edition
         } else {
-            modules.push_back(new_module.release());
+            modules.emplace_back(std::move(new_module));
         }
         module_ptr = module_ptr->next;
     }
@@ -177,9 +177,9 @@ void validate_events(const Event& ev,
     }
 }
 
-void validate_modules(const std::list<Module*>& modules, cJSON* event_id_arr) {
-    for (auto iter = modules.begin(); iter != modules.end(); ++iter) {
-        auto mod_ptr = *iter;
+void validate_modules(const std::list<std::unique_ptr<Module>>& modules,
+                      cJSON* event_id_arr) {
+    for (const auto& mod_ptr : modules) {
         cJSON* ptr = mod_ptr->json.get();
         if (ptr == nullptr || ptr->type != cJSON_Object) {
             fprintf(stderr, "module descriptor: missing JSON object\n");
@@ -246,7 +246,7 @@ void validate_modules(const std::list<Module*>& modules, cJSON* event_id_arr) {
 
                     try {
                         auto ev = std::make_unique<Event>(event_data);
-                        validate_events(*ev, mod_ptr, event_id_arr);
+                        validate_events(*ev, mod_ptr.get(), event_id_arr);
                         mod_ptr->addEvent(std::move(ev));
                     } catch (const std::exception& error) {
                         std::cerr << error.what() << std::endl;
@@ -272,16 +272,14 @@ void validate_modules(const std::list<Module*>& modules, cJSON* event_id_arr) {
     }
 }
 
-void create_master_file(const std::list<Module*>& modules,
+void create_master_file(const std::list<std::unique_ptr<Module>>& modules,
                         const std::string& output_file) {
     unique_cJSON_ptr output_json(cJSON_CreateObject());
 
     cJSON_AddNumberToObject(output_json.get(), "version", 2);
 
     cJSON* arr = cJSON_CreateArray();
-    for (auto iter = modules.begin(); iter != modules.end(); ++iter) {
-        auto mod_ptr = *iter;
-        ;
+    for (const auto& mod_ptr : modules) {
         if (mod_ptr->json) {
             cJSON_AddItemReferenceToArray(arr, mod_ptr->json.get());
         }
