@@ -90,14 +90,6 @@ void validate_module_descriptors(gsl::not_null<const cJSON*> ptr,
                                  const std::string& objroot);
 
 /**
- * Iterate over all of the modules and parse the provided audit descriptors
- *
- * @param modules The list of modules to parse
- * @throws std::invalid_argument if the provided JSON is of an unexpected format
- */
-void validate_modules(const std::list<std::unique_ptr<Module>>& modules);
-
-/**
  * Build the master event file
  *
  * @param modules The modules to include

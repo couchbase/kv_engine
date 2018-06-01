@@ -19,8 +19,11 @@
 #include "event.h"
 #include "utilities.h"
 
+#include <platform/make_unique.h>
+
 #include <fstream>
 #include <sstream>
+#include <system_error>
 
 Module::Module(gsl::not_null<const cJSON*> object,
                const std::string& srcRoot,
@@ -37,7 +40,7 @@ Module::Module(gsl::not_null<const cJSON*> object,
     cJSON* hfile = getOptionalObject(data, "header", cJSON_String);
     auto* ent = getOptionalObject(data, "enterprise", -1);
 
-    start = gsl::narrow<int>(sid->valueint);
+    start = sid->valueint;
     file.assign(srcRoot);
     file.append("/");
     file.append(fname->valuestring);
@@ -68,18 +71,7 @@ Module::Module(gsl::not_null<const cJSON*> object,
         throw std::logic_error(ss.str());
     }
 
-    // Try to load the referenced audit descriptor file if it's there
-    if (cb::io::isFile(file)) {
-        auto content = cb::io::loadFile(file);
-        if (content.empty()) {
-            throw std::logic_error("\"" + file + "\" is empty");
-        }
-        json.reset(cJSON_Parse(content.c_str()));
-        if (!json) {
-            throw std::logic_error("Failed to parse \"" + file +
-                                   "\". Invalid JSON?");
-        }
-    }
+    parseEventDescriptorFile();
 }
 
 void Module::addEvent(std::unique_ptr<Event> event) {
@@ -121,4 +113,36 @@ void Module::createHeaderFile() {
     }
 
     headerfile.close();
+}
+void Module::parseEventDescriptorFile() {
+    if (!cb::io::isFile(file)) {
+        // This is fatal for enterprise edition or if the file isn't
+        // for an enterprise feature.
+        if (is_enterprise_edition() || !enterprise) {
+            throw std::system_error(int(std::errc::no_such_file_or_directory),
+                                    std::system_category(),
+                                    file);
+        }
+        return;
+    }
+
+    json = load_file(file);
+    auto* obj = getMandatoryObject(json.get(), "version", cJSON_Number);
+    if (obj->valueint != 1 && obj->valueint != 2) {
+        throw std::invalid_argument("Invalid version in " + file + ": " +
+                                    std::to_string(obj->valueint));
+    }
+
+    obj = getMandatoryObject(json.get(), "module", cJSON_String);
+    if (name != obj->valuestring) {
+        throw std::invalid_argument(name + " can't load a module named " +
+                                    obj->valuestring);
+    }
+
+    obj = getMandatoryObject(json.get(), "events", cJSON_Array);
+    // Parse all of the individual events
+    for (auto* ev = obj->child; ev != nullptr; ev = ev->next) {
+        auto event = std::make_unique<Event>(ev);
+        addEvent(std::move(event));
+    }
 }

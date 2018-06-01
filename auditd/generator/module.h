@@ -34,15 +34,6 @@ public:
            const std::string& srcRoot,
            const std::string& objRoot);
 
-    /**
-     * Add the event to the list of events for the module
-     *
-     * @param event the event to add
-     * @throws std::invalid_argument if the event is outside the legal range
-     *                               for the module
-     */
-    void addEvent(std::unique_ptr<Event> event);
-
     void createHeaderFile();
 
     /**
@@ -54,7 +45,7 @@ public:
      * audit descriptor defined for this module MUST be within the range
      * [start, start + max_events_per_module]
      */
-    uint32_t start;
+    int64_t start;
     /**
      * The name of the file containing the audit descriptors for this
      * module.
@@ -68,6 +59,20 @@ public:
      * Is this module enterprise only?
      */
     bool enterprise = false;
+
+protected:
+    /**
+     * Add the event to the list of events for the module
+     *
+     * @param event the event to add
+     * @throws std::invalid_argument if the event is outside the legal range
+     *                               for the module
+     */
+    void addEvent(std::unique_ptr<Event> event);
+
+    /// Parse the event descriptor file and add all of the events into
+    /// the list of events
+    void parseEventDescriptorFile();
 
 private:
     /**
