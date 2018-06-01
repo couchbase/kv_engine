@@ -84,10 +84,10 @@ unique_cJSON_ptr load_file(const std::string& fname);
  * @param objroot The object root to prepend to all of the paths in the spec
  * @throws std::invalid_argument if the provided JSON is of an unexpected format
  */
-void validate_module_descriptors(gsl::not_null<const cJSON*> ptr,
-                                 std::list<std::unique_ptr<Module>>& modules,
-                                 const std::string& srcroot,
-                                 const std::string& objroot);
+void parse_module_descriptors(gsl::not_null<const cJSON*> ptr,
+                              std::list<std::unique_ptr<Module>>& modules,
+                              const std::string& srcroot,
+                              const std::string& objroot);
 
 /**
  * Build the master event file

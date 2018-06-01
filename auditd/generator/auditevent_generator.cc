@@ -58,7 +58,7 @@ int main(int argc, char **argv) {
         unique_cJSON_ptr ptr;
         ptr = load_file(input_file);
         std::list<std::unique_ptr<Module>> modules;
-        validate_module_descriptors(ptr.get(), modules, srcroot, objroot);
+        parse_module_descriptors(ptr.get(), modules, srcroot, objroot);
         create_master_file(modules, output_file);
 
         for (const auto& module : modules) {

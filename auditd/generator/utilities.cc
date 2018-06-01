@@ -110,52 +110,19 @@ unique_cJSON_ptr load_file(const std::string& fname) {
     return ret;
 }
 
-void validate_module_descriptors(gsl::not_null<const cJSON*> ptr,
-                                 std::list<std::unique_ptr<Module>>& modules,
-                                 const std::string& srcroot,
-                                 const std::string& objroot) {
-    auto* root = const_cast<cJSON*>(ptr.get());
-    if (root->type != cJSON_Object) {
-        throw std::invalid_argument(
-                "The root element of the module is not an object");
-    }
-
-    cJSON* modulelist_ptr = cJSON_GetObjectItem(root, "modules");
-    if (modulelist_ptr == nullptr) {
-        throw std::invalid_argument(
-                R"(The provided module object does not contain a "modules" attribute)");
-    }
-
-    if (modulelist_ptr->type != cJSON_Array) {
-        throw std::invalid_argument(
-                R"("modules" is supposed to be an array; it's not")");
-    }
-
-    cJSON* module_ptr = modulelist_ptr->child;
-    while (module_ptr != nullptr) {
-        if (module_ptr->type != cJSON_Object) {
-            throw std::invalid_argument(
-                    R"(Element in "modules" should be objects; it's not )");
-        }
-
-        if (module_ptr->child == nullptr) {
-            throw std::invalid_argument(
-                    R"(Element in "modules" don't contain any attributes )");
-        }
-        if ((module_ptr->child->type != cJSON_Object ||
-             module_ptr->child->string == nullptr)) {
-            throw std::invalid_argument(
-                    R"(Each object in "modules" should contain a named object; it's not)");
-        }
-
+void parse_module_descriptors(gsl::not_null<const cJSON*> ptr,
+                              std::list<std::unique_ptr<Module>>& modules,
+                              const std::string& srcroot,
+                              const std::string& objroot) {
+    auto* mod = getMandatoryObject(ptr, "modules", cJSON_Array);
+    for (auto* obj = mod->child; obj != nullptr; obj = obj->next) {
         auto new_module =
-                std::make_unique<Module>(module_ptr->child, srcroot, objroot);
+                std::make_unique<Module>(obj->child, srcroot, objroot);
         if (new_module->enterprise && !is_enterprise_edition()) {
             // Community edition should ignore modules from enterprise Edition
         } else {
             modules.emplace_back(std::move(new_module));
         }
-        module_ptr = module_ptr->next;
     }
 }
 
