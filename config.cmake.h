@@ -79,6 +79,7 @@ typedef HANDLE pid_t;
 #define PRODUCT_VERSION "${PRODUCT_VERSION}"
 #define DESTINATION_ROOT "${CMAKE_INSTALL_PREFIX}"
 #define SOURCE_ROOT "${Memcached_SOURCE_DIR}"
+#define OBJECT_ROOT "${Memcached_BINARY_DIR}"
 
 /* We don't use assert() for two main reasons:
  * 1) It's disabled on non-debug builds, which we don't want.

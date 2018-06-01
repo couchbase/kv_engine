@@ -60,6 +60,17 @@ public:
      */
     bool enterprise = false;
 
+    /**
+     * If present this is the name of a C headerfile to generate with
+     * #defines for all audit identifiers for the module.
+     */
+    std::string header;
+
+    /**
+     * A list of all of the events defined for this module
+     */
+    std::vector<std::unique_ptr<Event>> events;
+
 protected:
     /**
      * Add the event to the list of events for the module
@@ -73,15 +84,4 @@ protected:
     /// Parse the event descriptor file and add all of the events into
     /// the list of events
     void parseEventDescriptorFile();
-
-private:
-    /**
-     * If present this is the name of a C headerfile to generate with
-     * #defines for all audit identifiers for the module.
-     */
-    std::string header;
-    /**
-     * A list of all of the events defined for this module
-     */
-    std::vector<std::unique_ptr<Event>> events;
 };

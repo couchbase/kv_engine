@@ -1,0 +1,36 @@
+{
+  "version": 2,
+  "module": "module2",
+  "events": [
+    {
+      "id": 4096,
+      "name": "event 1",
+      "description": "the first event",
+      "sync": true,
+      "enabled": true,
+      "filtering_permitted": true,
+      "mandatory_fields": {},
+      "optional_fields": {}
+    },
+    {
+      "id": 4097,
+      "name": "event 2",
+      "description": "the second event",
+      "sync": true,
+      "enabled": true,
+      "filtering_permitted": true,
+      "mandatory_fields": {},
+      "optional_fields": {}
+    },
+    {
+      "id": 4098,
+      "name": "event 3",
+      "description": "the third event",
+      "sync": true,
+      "enabled": true,
+      "filtering_permitted": true,
+      "mandatory_fields": {},
+      "optional_fields": {}
+    }
+  ]
+}

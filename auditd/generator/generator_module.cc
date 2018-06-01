@@ -115,14 +115,8 @@ void Module::createHeaderFile() {
     headerfile.close();
 }
 void Module::parseEventDescriptorFile() {
-    if (!cb::io::isFile(file)) {
-        // This is fatal for enterprise edition or if the file isn't
-        // for an enterprise feature.
-        if (is_enterprise_edition() || !enterprise) {
-            throw std::system_error(int(std::errc::no_such_file_or_directory),
-                                    std::system_category(),
-                                    file);
-        }
+    if (!is_enterprise_edition() && enterprise) {
+        // enterprise files should only be loaded for enterprise builds
         return;
     }
 

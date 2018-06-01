@@ -65,6 +65,12 @@ cJSON* getOptionalObject(gsl::not_null<const cJSON*> root,
 bool is_enterprise_edition();
 
 /**
+ * In order to allow making unit tests we want to be able to mock the
+ * enterprise edition settings dynamically
+ */
+void set_enterprise_edition(bool enable);
+
+/**
  * Load the requested file and parse it as JSON
  *
  * @param fname the name of the file

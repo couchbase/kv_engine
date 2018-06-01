@@ -47,3 +47,15 @@ add_custom_target(generate_audit_descriptors ALL
 install(FILES
         ${Memcached_BINARY_DIR}/auditd/audit_events.json
         DESTINATION etc/security)
+
+if (COUCHBASE_KV_BUILD_UNIT_TESTS)
+    add_executable(audit_generator_unit_test
+                   generator_event_test.cc
+                   generator_module_test.cc
+                   $<TARGET_OBJECTS:audit_generator_utilities>)
+    add_sanitizers(audit_generator_unit_test)
+    target_link_libraries(audit_generator_unit_test cJSON dirutils gtest gtest_main)
+    add_test(NAME audit_generator_unit_test
+             WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+             COMMAND audit_generator_unit_test)
+endif()

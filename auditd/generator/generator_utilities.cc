@@ -70,12 +70,18 @@ cJSON* getOptionalObject(gsl::not_null<const cJSON*> root,
     return ret;
 }
 
-bool is_enterprise_edition() {
 #ifdef COUCHBASE_ENTERPRISE_EDITION
-    return true;
+static bool enterprise_edition = true;
 #else
-    return false;
+static bool enterprise_edition = false;
 #endif
+
+void set_enterprise_edition(bool enable) {
+    enterprise_edition = enable;
+}
+
+bool is_enterprise_edition() {
+    return enterprise_edition;
 }
 
 /* Events types are defined as a hexidecimal number.
