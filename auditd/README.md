@@ -33,25 +33,41 @@ module has a name, start event id (which must be a multiple of 0x1000)
 and path to a file that defines the event descriptions for that
 module.
 
+The `modules` attribute is an array of objects where each object
+defines a single object module. The module is identified by it's
+name as the attribute and the value is an object with the following
+attributes:
+
+* `startid` - startid specifies the first identifier used by the
+  module. The module may only define audit events within the range
+  of the `[ startid, startid+4096 >`
+
+* `file` - The file (relative to the source root) containing the
+  modules various audit event descriptors
+
+* `header` - An optional attribute, and if present it names
+  a file relative to the "object root" which will be generated
+  containing `#define` of all of the audit descriptor identifiers
+
+* `enterprise` - An optional boolean attribute. If set to true
+  the module is only included when building the enterprise edition.
+
+
 In the example below, a single module is defined (auditd).  It
 creates audit events from 0x1000 and the events definitions for this
-module are found in "memcached/auditd/etc/auditd_descriptor.json".
-Each module can specify a maximum of 4095 events (i.e. for the
-auditd module this is from 0x1000 to 0x1FFF).
-It also sets the enterprise flag to true, which means that it
-is ignored when building community edition.
-
+module are found in `kv_engine/auditd/etc/auditd_descriptor.json`.
 
     {
-     "modules" : [
-                  {
-                   "auditd" : {
-                                 "startid" : 4096,
-                                 "file" : "memcached/auditd/etc/auditd_descriptor.json",
-                                 "enterprise" : true
-                                }
-                  }
-                 ]
+       "modules" : [
+         {
+           "auditd" : {
+             "startid" : 4096,
+             "file": "kv_engine/auditd/etc/auditd_descriptor.json",
+             "header": "kv_engine/auditd/auditd_audit_events.h"
+             "enterprise" : true
+           }
+         }
+       ]
     }
 
 ## The Per Module Events Descriptor File
