@@ -43,8 +43,7 @@ public:
           ht(stats,
              std::make_unique<Factory>(stats),
              /*size*/ 47,
-             /*locks*/ 1,
-             /*eviction policy*/ HashTable::EvictionPolicy::lru2Bit),
+             /*locks*/ 1),
           item(make_item(0, makeStoredDocKey("key"), "value")) {
     }
 

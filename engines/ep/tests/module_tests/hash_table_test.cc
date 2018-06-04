@@ -141,16 +141,13 @@ protected:
         return std::make_unique<StoredValueFactory>(global_stats);
     }
     const size_t defaultHtSize = Configuration().getHtSize();
-    const HashTable::EvictionPolicy defaultHtevictionPolicy =
-            HashTable::EvictionPolicy::lru2Bit;
 };
 
 TEST_F(HashTableTest, Size) {
     HashTable h(global_stats,
                 makeFactory(),
                 defaultHtSize,
-                /*locks*/ 1,
-                defaultHtevictionPolicy);
+                /*locks*/ 1);
     ASSERT_EQ(0, count(h));
 
     store(h, makeStoredDocKey("testkey"));
@@ -162,8 +159,7 @@ TEST_F(HashTableTest, SizeTwo) {
     HashTable h(global_stats,
                 makeFactory(),
                 defaultHtSize,
-                /*locks*/ 1,
-                defaultHtevictionPolicy);
+                /*locks*/ 1);
     ASSERT_EQ(0, count(h));
 
     auto keys = generateKeys(5);
@@ -176,7 +172,7 @@ TEST_F(HashTableTest, SizeTwo) {
 
 TEST_F(HashTableTest, ReverseDeletions) {
     size_t initialSize = global_stats.currentSize.load();
-    HashTable h(global_stats, makeFactory(), 5, 1, defaultHtevictionPolicy);
+    HashTable h(global_stats, makeFactory(), 5, 1);
     ASSERT_EQ(0, count(h));
     const int nkeys = 1000;
 
@@ -196,7 +192,7 @@ TEST_F(HashTableTest, ReverseDeletions) {
 
 TEST_F(HashTableTest, ForwardDeletions) {
     size_t initialSize = global_stats.currentSize.load();
-    HashTable h(global_stats, makeFactory(), 5, 1, defaultHtevictionPolicy);
+    HashTable h(global_stats, makeFactory(), 5, 1);
     ASSERT_EQ(5, h.getSize());
     ASSERT_EQ(1, h.getNumLocks());
     ASSERT_EQ(0, count(h));
@@ -234,12 +230,12 @@ static void testFind(HashTable &h) {
 }
 
 TEST_F(HashTableTest, Find) {
-    HashTable h(global_stats, makeFactory(), 5, 1, defaultHtevictionPolicy);
+    HashTable h(global_stats, makeFactory(), 5, 1);
     testFind(h);
 }
 
 TEST_F(HashTableTest, Resize) {
-    HashTable h(global_stats, makeFactory(), 5, 3, defaultHtevictionPolicy);
+    HashTable h(global_stats, makeFactory(), 5, 3);
 
     auto keys = generateKeys(1000);
     storeMany(h, keys);
@@ -293,7 +289,7 @@ private:
 };
 
 TEST_F(HashTableTest, ConcurrentAccessResize) {
-    HashTable h(global_stats, makeFactory(), 5, 3, defaultHtevictionPolicy);
+    HashTable h(global_stats, makeFactory(), 5, 3);
 
     auto keys = generateKeys(2000);
     h.resize(keys.size());
@@ -307,7 +303,7 @@ TEST_F(HashTableTest, ConcurrentAccessResize) {
 }
 
 TEST_F(HashTableTest, AutoResize) {
-    HashTable h(global_stats, makeFactory(), 5, 3, defaultHtevictionPolicy);
+    HashTable h(global_stats, makeFactory(), 5, 3);
 
     ASSERT_EQ(5, h.getSize());
 
@@ -322,7 +318,7 @@ TEST_F(HashTableTest, AutoResize) {
 }
 
 TEST_F(HashTableTest, DepthCounting) {
-    HashTable h(global_stats, makeFactory(), 5, 1, defaultHtevictionPolicy);
+    HashTable h(global_stats, makeFactory(), 5, 1);
     const int nkeys = 5000;
 
     auto keys = generateKeys(nkeys);
@@ -335,7 +331,7 @@ TEST_F(HashTableTest, DepthCounting) {
 }
 
 TEST_F(HashTableTest, PoisonKey) {
-    HashTable h(global_stats, makeFactory(), 5, 1, defaultHtevictionPolicy);
+    HashTable h(global_stats, makeFactory(), 5, 1);
 
     store(h, makeStoredDocKey("A\\NROBs_oc)$zqJ1C.9?XU}Vn^(LW\"`+K/4lykF[ue0{ram;fvId6h=p&Zb3T~SQ]82'ixDP"));
     EXPECT_EQ(1, count(h));
@@ -347,7 +343,7 @@ class HashTableStatsTest
           public ::testing::WithParamInterface<item_eviction_policy_t> {
 protected:
     HashTableStatsTest()
-        : ht(stats, makeFactory(), 5, 1, defaultHtevictionPolicy),
+        : ht(stats, makeFactory(), 5, 1),
           initialSize(0),
           key(makeStoredDocKey("somekey")),
           itemSize(16 * 1024),
@@ -651,8 +647,7 @@ TEST_P(HashTableStatsTest, SoftDelete) {
  * is updated correctly
  */
 TEST_P(HashTableStatsTest, UncompressedMemorySizeTest) {
-    HashTable ht(
-            global_stats, makeFactory(true), 2, 1, defaultHtevictionPolicy);
+    HashTable ht(global_stats, makeFactory(true), 2, 1);
 
     std::string valueData(
             "{\"product\": \"car\",\"price\": \"100\"},"
@@ -703,7 +698,7 @@ INSTANTIATE_TEST_CASE_P(
 
 TEST_F(HashTableTest, ItemAge) {
     // Setup
-    HashTable ht(global_stats, makeFactory(), 5, 1, defaultHtevictionPolicy);
+    HashTable ht(global_stats, makeFactory(), 5, 1);
     StoredDocKey key = makeStoredDocKey("key");
     Item item(key, 0, 0, "value", strlen("value"));
     EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
@@ -735,7 +730,7 @@ TEST_F(HashTableTest, ItemAge) {
 // Check not specifying results in the INITIAL_NRU_VALUE.
 TEST_F(HashTableTest, NRUDefault) {
     // Setup
-    HashTable ht(global_stats, makeFactory(), 5, 1, defaultHtevictionPolicy);
+    HashTable ht(global_stats, makeFactory(), 5, 1);
     StoredDocKey key = makeStoredDocKey("key");
 
     Item item(key, 0, 0, "value", strlen("value"));
@@ -755,7 +750,7 @@ TEST_F(HashTableTest, NRUDefault) {
 // Check a specific NRU value (minimum)
 TEST_F(HashTableTest, NRUMinimum) {
     // Setup
-    HashTable ht(global_stats, makeFactory(), 5, 1, defaultHtevictionPolicy);
+    HashTable ht(global_stats, makeFactory(), 5, 1);
     StoredDocKey key = makeStoredDocKey("key");
 
     Item item(key, 0, 0, "value", strlen("value"));
@@ -772,7 +767,7 @@ TEST_F(HashTableTest, NRUMinimum) {
 // item
 TEST_F(HashTableTest, NRUMinimumExistingItem) {
     // Setup
-    HashTable ht(global_stats, makeFactory(), 5, 1, defaultHtevictionPolicy);
+    HashTable ht(global_stats, makeFactory(), 5, 1);
     StoredDocKey key = makeStoredDocKey("key");
 
     Item item(key, 0, 0, "value", strlen("value"));
@@ -790,7 +785,7 @@ TEST_F(HashTableTest, NRUMinimumExistingItem) {
 /* Test release from HT (but not deletion) of an (HT) element */
 TEST_F(HashTableTest, ReleaseItem) {
     /* Setup with 2 hash buckets and 1 lock */
-    HashTable ht(global_stats, makeFactory(), 2, 1, defaultHtevictionPolicy);
+    HashTable ht(global_stats, makeFactory(), 2, 1);
 
     /* Write 5 items (there are 2 hash buckets, we want to test removing a head
        element and a non-head element) */
@@ -859,11 +854,7 @@ TEST_F(HashTableTest, CopyItem) {
     /* Setup with 2 hash buckets and 1 lock. Note: Copying is allowed only on
        OrderedStoredValues and hence hash table must have
        OrderedStoredValueFactory */
-    HashTable ht(global_stats,
-                 makeFactory(true),
-                 2,
-                 1,
-                 defaultHtevictionPolicy);
+    HashTable ht(global_stats, makeFactory(true), 2, 1);
 
     /* Write 3 items */
     const int numItems = 3;
@@ -907,11 +898,7 @@ TEST_F(HashTableTest, CopyDeletedItem) {
     /* Setup with 2 hash buckets and 1 lock. Note: Copying is allowed only on
        OrderedStoredValues and hence hash table must have
        OrderedStoredValueFactory */
-    HashTable ht(global_stats,
-                 makeFactory(true),
-                 2,
-                 1,
-                 defaultHtevictionPolicy);
+    HashTable ht(global_stats, makeFactory(true), 2, 1);
 
     /* Write 3 items */
     const int numItems = 3;
@@ -963,11 +950,7 @@ TEST_F(HashTableTest, CopyDeletedItem) {
 // deleted time).
 TEST_F(HashTableTest, LockAfterDelete) {
     /* Setup OSVFactory with 2 hash buckets and 1 lock. */
-    HashTable ht(global_stats,
-                 makeFactory(true),
-                 2,
-                 1,
-                 defaultHtevictionPolicy);
+    HashTable ht(global_stats, makeFactory(true), 2, 1);
 
     // Delete a key, giving it a non-zero delete time.
     auto key = makeStoredDocKey("key");
@@ -997,11 +980,7 @@ TEST_F(HashTableTest, LockAfterDelete) {
 // Check that pauseResumeVisit calls with the correct Hash bucket.
 TEST_F(HashTableTest, PauseResumeHashBucket) {
     // Two buckets, one lock.
-    HashTable ht(global_stats,
-                 makeFactory(true),
-                 2,
-                 1,
-                 defaultHtevictionPolicy);
+    HashTable ht(global_stats, makeFactory(true), 2, 1);
 
     // Store keys to both hash buckets - need keys which hash to bucket 0 and 1.
     StoredDocKey key0("c", DocNamespace::DefaultCollection);
@@ -1041,21 +1020,17 @@ TEST_F(HashTableTest, PauseResumeHashBucket) {
 // then visit each document and decay it by 50%.  The test checks that the
 // frequency count of each document has been decayed by 50%.
 TEST_F(HashTableTest, ItemFreqDecayerVisitorTest) {
-       HashTable ht(global_stats,
-                    makeFactory(true),
-                    128,
-                    1,
-                    defaultHtevictionPolicy);
-       auto keys = generateKeys(256);
-       // Add 256 documents to the hash table
-       storeMany(ht, keys);
-       StoredValue* v;
+    HashTable ht(global_stats, makeFactory(true), 128, 1);
+    auto keys = generateKeys(256);
+    // Add 256 documents to the hash table
+    storeMany(ht, keys);
+    StoredValue* v;
 
-       // Set the frequency count of each document in the range 0 to 255.
-       for (int ii = 0; ii < 256; ii++) {
-           auto key = makeStoredDocKey(std::to_string(ii));
-           v = ht.find(key, TrackReference::No, WantsDeleted::No);
-           v->setFreqCounterValue(ii);
+    // Set the frequency count of each document in the range 0 to 255.
+    for (int ii = 0; ii < 256; ii++) {
+        auto key = makeStoredDocKey(std::to_string(ii));
+        v = ht.find(key, TrackReference::No, WantsDeleted::No);
+        v->setFreqCounterValue(ii);
        }
 
        ItemFreqDecayerVisitor itemFreqDecayerVisitor(

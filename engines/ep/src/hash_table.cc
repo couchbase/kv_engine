@@ -66,8 +66,7 @@ std::ostream& operator<<(std::ostream& os, const HashTable::Position& pos) {
 HashTable::HashTable(EPStats& st,
                      std::unique_ptr<AbstractStoredValueFactory> svFactory,
                      size_t initialSize,
-                     size_t locks,
-                     EvictionPolicy policy)
+                     size_t locks)
     : initialSize(initialSize),
       size(initialSize),
       mutexes(locks),
@@ -78,8 +77,7 @@ HashTable::HashTable(EPStats& st,
       numEjects(0),
       numResizes(0),
       maxDeletedRevSeqno(0),
-      probabilisticCounter(freqCounterIncFactor),
-      evictionPolicy(policy) {
+      probabilisticCounter(freqCounterIncFactor) {
     values.resize(size);
     activeState = true;
 }
