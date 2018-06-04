@@ -152,116 +152,117 @@ unique_cJSON_ptr Connection::toJSON() const {
     cJSON_AddBoolToObject(obj, "internal", isInternal());
     if (authenticated) {
         cJSON_AddStringToObject(obj, "username", username.c_str());
-        }
-        cJSON_AddBoolToObject(obj, "nodelay", nodelay);
-        cJSON_AddNumberToObject(obj, "refcount", refcount);
+    }
+    cJSON_AddBoolToObject(obj, "nodelay", nodelay);
+    cJSON_AddNumberToObject(obj, "refcount", refcount);
 
-        cJSON* features = cJSON_CreateObject();
-        cJSON_AddBoolToObject(features, "mutation_extras",
-                                isSupportsMutationExtras());
-        cJSON_AddBoolToObject(features, "xerror", isXerrorSupport());
+    cJSON* features = cJSON_CreateObject();
+    cJSON_AddBoolToObject(
+            features, "mutation_extras", isSupportsMutationExtras());
+    cJSON_AddBoolToObject(features, "xerror", isXerrorSupport());
 
-        cJSON_AddItemToObject(obj, "features", features);
+    cJSON_AddItemToObject(obj, "features", features);
 
-        cJSON_AddUintPtrToObject(obj, "engine_storage",
-                                   (uintptr_t)engine_storage);
-        cJSON_AddUintPtrToObject(obj, "thread", (uintptr_t)thread.load(
-            std::memory_order::memory_order_relaxed));
-        cJSON_AddStringToObject(obj, "priority", to_string(priority));
+    cJSON_AddUintPtrToObject(obj, "engine_storage", (uintptr_t)engine_storage);
+    cJSON_AddUintPtrToObject(
+            obj,
+            "thread",
+            (uintptr_t)thread.load(std::memory_order::memory_order_relaxed));
+    cJSON_AddStringToObject(obj, "priority", to_string(priority));
 
-        if (clustermap_revno == -2) {
-            cJSON_AddStringToObject(obj, "clustermap_revno", "unknown");
-        } else {
-            cJSON_AddNumberToObject(obj, "clustermap_revno", clustermap_revno);
-        }
+    if (clustermap_revno == -2) {
+        cJSON_AddStringToObject(obj, "clustermap_revno", "unknown");
+    } else {
+        cJSON_AddNumberToObject(obj, "clustermap_revno", clustermap_revno);
+    }
 
-        cJSON_AddStringToObject(obj,
-                                "total_cpu_time",
-                                std::to_string(total_cpu_time.count()).c_str());
-        cJSON_AddStringToObject(obj,
-                                "min_sched_time",
-                                std::to_string(min_sched_time.count()).c_str());
-        cJSON_AddStringToObject(obj,
-                                "max_sched_time",
-                                std::to_string(max_sched_time.count()).c_str());
+    cJSON_AddStringToObject(obj,
+                            "total_cpu_time",
+                            std::to_string(total_cpu_time.count()).c_str());
+    cJSON_AddStringToObject(obj,
+                            "min_sched_time",
+                            std::to_string(min_sched_time.count()).c_str());
+    cJSON_AddStringToObject(obj,
+                            "max_sched_time",
+                            std::to_string(max_sched_time.count()).c_str());
 
-        unique_cJSON_ptr arr(cJSON_CreateArray());
-        for (const auto& c : cookies) {
-            cJSON_AddItemToArray(arr.get(), c->toJSON().release());
-        }
-        cJSON_AddItemToObject(obj, "cookies", arr.release());
+    unique_cJSON_ptr arr(cJSON_CreateArray());
+    for (const auto& c : cookies) {
+        cJSON_AddItemToArray(arr.get(), c->toJSON().release());
+    }
+    cJSON_AddItemToObject(obj, "cookies", arr.release());
 
-        if (agentName.front() != '\0') {
-            cJSON_AddStringToObject(obj, "agent_name", agentName.data());
-        }
-        if (connectionId.front() != '\0') {
-            cJSON_AddStringToObject(obj, "connection_id", connectionId.data());
-        }
+    if (agentName.front() != '\0') {
+        cJSON_AddStringToObject(obj, "agent_name", agentName.data());
+    }
+    if (connectionId.front() != '\0') {
+        cJSON_AddStringToObject(obj, "connection_id", connectionId.data());
+    }
 
-        cJSON_AddBoolToObject(obj, "tracing", tracingEnabled);
-        cJSON_AddBoolToObject(obj, "sasl_enabled", saslAuthEnabled);
-        cJSON_AddBoolToObject(obj, "dcp", isDCP());
-        cJSON_AddBoolToObject(obj, "dcp_xattr_aware", isDcpXattrAware());
-        cJSON_AddBoolToObject(obj, "dcp_no_value", isDcpNoValue());
-        cJSON_AddNumberToObject(obj, "max_reqs_per_event", max_reqs_per_event);
-        cJSON_AddNumberToObject(obj, "nevents", numEvents);
-        cJSON_AddStringToObject(obj, "state", getStateName());
+    cJSON_AddBoolToObject(obj, "tracing", tracingEnabled);
+    cJSON_AddBoolToObject(obj, "sasl_enabled", saslAuthEnabled);
+    cJSON_AddBoolToObject(obj, "dcp", isDCP());
+    cJSON_AddBoolToObject(obj, "dcp_xattr_aware", isDcpXattrAware());
+    cJSON_AddBoolToObject(obj, "dcp_no_value", isDcpNoValue());
+    cJSON_AddNumberToObject(obj, "max_reqs_per_event", max_reqs_per_event);
+    cJSON_AddNumberToObject(obj, "nevents", numEvents);
+    cJSON_AddStringToObject(obj, "state", getStateName());
 
-        {
-            cJSON* o = cJSON_CreateObject();
-            cJSON_AddBoolToObject(o, "registered", isRegisteredInLibevent());
-            cJSON_AddItemToObject(o, "ev_flags", event_mask_to_json(ev_flags));
-            cJSON_AddItemToObject(o, "which", event_mask_to_json(currentEvent));
-            cJSON_AddItemToObject(obj, "libevent", o);
-        }
+    {
+        cJSON* o = cJSON_CreateObject();
+        cJSON_AddBoolToObject(o, "registered", isRegisteredInLibevent());
+        cJSON_AddItemToObject(o, "ev_flags", event_mask_to_json(ev_flags));
+        cJSON_AddItemToObject(o, "which", event_mask_to_json(currentEvent));
+        cJSON_AddItemToObject(obj, "libevent", o);
+    }
 
-        if (read) {
-            cJSON_AddItemToObject(obj, "read", read->to_json().release());
-        }
+    if (read) {
+        cJSON_AddItemToObject(obj, "read", read->to_json().release());
+    }
 
-        if (write) {
-            cJSON_AddItemToObject(obj, "write", write->to_json().release());
-        }
+    if (write) {
+        cJSON_AddItemToObject(obj, "write", write->to_json().release());
+    }
 
-        cJSON_AddStringToObject(
-                obj, "write_and_go", stateMachine.getStateName(write_and_go));
+    cJSON_AddStringToObject(
+            obj, "write_and_go", stateMachine.getStateName(write_and_go));
 
-        {
-            cJSON* iovobj = cJSON_CreateObject();
-            cJSON_AddNumberToObject(iovobj, "size", iov.size());
-            cJSON_AddNumberToObject(iovobj, "used", iovused);
-            cJSON_AddItemToObject(obj, "iov", iovobj);
-        }
+    {
+        cJSON* iovobj = cJSON_CreateObject();
+        cJSON_AddNumberToObject(iovobj, "size", iov.size());
+        cJSON_AddNumberToObject(iovobj, "used", iovused);
+        cJSON_AddItemToObject(obj, "iov", iovobj);
+    }
 
-        {
-            cJSON* msg = cJSON_CreateObject();
-            cJSON_AddNumberToObject(msg, "used", msglist.size());
-            cJSON_AddNumberToObject(msg, "curr", msgcurr);
-            cJSON_AddNumberToObject(msg, "bytes", msgbytes);
-            cJSON_AddItemToObject(obj, "msglist", msg);
-        }
-        {
-            cJSON* ilist = cJSON_CreateObject();
-            cJSON_AddNumberToObject(ilist, "size", reservedItems.size());
-            cJSON_AddItemToObject(obj, "itemlist", ilist);
-        }
-        {
-            cJSON* talloc = cJSON_CreateObject();
-            cJSON_AddNumberToObject(talloc, "size", temp_alloc.size());
-            cJSON_AddItemToObject(obj, "temp_alloc_list", talloc);
-        }
+    {
+        cJSON* msg = cJSON_CreateObject();
+        cJSON_AddNumberToObject(msg, "used", msglist.size());
+        cJSON_AddNumberToObject(msg, "curr", msgcurr);
+        cJSON_AddNumberToObject(msg, "bytes", msgbytes);
+        cJSON_AddItemToObject(obj, "msglist", msg);
+    }
+    {
+        cJSON* ilist = cJSON_CreateObject();
+        cJSON_AddNumberToObject(ilist, "size", reservedItems.size());
+        cJSON_AddItemToObject(obj, "itemlist", ilist);
+    }
+    {
+        cJSON* talloc = cJSON_CreateObject();
+        cJSON_AddNumberToObject(talloc, "size", temp_alloc.size());
+        cJSON_AddItemToObject(obj, "temp_alloc_list", talloc);
+    }
 
-        /* @todo we should decode the binary header */
-        cJSON_AddNumberToObject(obj, "aiostat", aiostat);
-        cJSON_AddBoolToObject(obj, "ewouldblock", ewouldblock);
-        cJSON_AddItemToObject(obj, "ssl", ssl.toJSON());
-        cJSON_AddNumberToObject(obj, "total_recv", totalRecv);
-        cJSON_AddNumberToObject(obj, "total_send", totalSend);
-        cJSON_AddStringToObject(
-                obj,
-                "datatype",
-                mcbp::datatype::to_string(datatype.getRaw()).c_str());
-        return ret;
+    /* @todo we should decode the binary header */
+    cJSON_AddNumberToObject(obj, "aiostat", aiostat);
+    cJSON_AddBoolToObject(obj, "ewouldblock", ewouldblock);
+    cJSON_AddItemToObject(obj, "ssl", ssl.toJSON());
+    cJSON_AddNumberToObject(obj, "total_recv", totalRecv);
+    cJSON_AddNumberToObject(obj, "total_send", totalSend);
+    cJSON_AddStringToObject(
+            obj,
+            "datatype",
+            mcbp::datatype::to_string(datatype.getRaw()).c_str());
+    return ret;
 }
 
 void Connection::restartAuthentication() {
