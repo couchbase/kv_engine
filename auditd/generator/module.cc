@@ -68,7 +68,7 @@ Module::Module(gsl::not_null<const cJSON*> object,
         std::stringstream ss;
         ss << "Unknown elements for " << name << ": " << std::endl
            << to_string(data) << std::endl;
-        throw std::logic_error(ss.str());
+        throw std::runtime_error(ss.str());
     }
 
     parseEventDescriptorFile();
@@ -129,14 +129,14 @@ void Module::parseEventDescriptorFile() {
     json = load_file(file);
     auto* obj = getMandatoryObject(json.get(), "version", cJSON_Number);
     if (obj->valueint != 1 && obj->valueint != 2) {
-        throw std::invalid_argument("Invalid version in " + file + ": " +
-                                    std::to_string(obj->valueint));
+        throw std::runtime_error("Invalid version in " + file + ": " +
+                                 std::to_string(obj->valueint));
     }
 
     obj = getMandatoryObject(json.get(), "module", cJSON_String);
     if (name != obj->valuestring) {
-        throw std::invalid_argument(name + " can't load a module named " +
-                                    obj->valuestring);
+        throw std::runtime_error(name + " can't load a module named " +
+                                 obj->valuestring);
     }
 
     obj = getMandatoryObject(json.get(), "events", cJSON_Array);

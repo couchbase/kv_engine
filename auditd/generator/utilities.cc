@@ -33,7 +33,8 @@ cJSON* getMandatoryObject(gsl::not_null<const cJSON*> root,
                           int type) {
     cJSON* ret = getOptionalObject(root, name, type);
     if (ret == nullptr) {
-        throw std::logic_error("Mandatory element \"" + name + "\" is missing");
+        throw std::runtime_error("Mandatory element \"" + name +
+                                 "\" is missing");
     }
     return ret;
 }
@@ -63,7 +64,7 @@ cJSON* getOptionalObject(gsl::not_null<const cJSON*> root,
             ss << type;
         }
 
-        throw std::logic_error(ss.str());
+        throw std::runtime_error(ss.str());
     }
 
     return ret;
@@ -98,13 +99,13 @@ bool is_enterprise_edition() {
 unique_cJSON_ptr load_file(const std::string& fname) {
     auto str = cb::io::loadFile(fname);
     if (str.empty()) {
-        throw std::logic_error(fname + " contained no data");
+        throw std::runtime_error(fname + " contained no data");
     }
 
     unique_cJSON_ptr ret(cJSON_Parse(str.c_str()));
     if (!ret) {
-        throw std::logic_error("Failed to parse " + fname + " containing: [" +
-                               str + "]");
+        throw std::runtime_error("Failed to parse " + fname + " containing: [" +
+                                 str + "]");
     }
 
     return ret;

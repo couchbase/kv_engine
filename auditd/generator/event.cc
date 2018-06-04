@@ -50,6 +50,6 @@ Event::Event(gsl::not_null<const cJSON*> root) {
         std::stringstream ss;
         ss << "Unknown elements for " << name << ": " << std::endl
            << to_string(root.get()) << std::endl;
-        throw std::logic_error(ss.str());
+        throw std::runtime_error(ss.str());
     }
 }

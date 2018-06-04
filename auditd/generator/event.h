@@ -37,6 +37,8 @@ public:
      * layout of the JSON element.
      *
      * @param entry
+     * @throws std::runtime_error for errors accessing the expected
+     *                            elements
      */
     explicit Event(gsl::not_null<const cJSON*> entry);
 

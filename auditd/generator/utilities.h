@@ -35,7 +35,8 @@ class Event;
  * @param type The expected type (or -1 for a boolean type as cJSON
  *             use two different types for boolean values)
  * @return The object
- * @throws std::logic_error if the requested attribute isn't found / wrong type
+ * @throws std::runtime_error if the requested attribute isn't found / wrong
+ *                            type
  */
 cJSON* getMandatoryObject(gsl::not_null<const cJSON*> root,
                           const std::string& name,
@@ -50,7 +51,7 @@ cJSON* getMandatoryObject(gsl::not_null<const cJSON*> root,
  * @param type The expected type (or -1 for a boolean type as cJSON
  *             use two different types for boolean values)
  * @return The object or nullptr if the object isn't found
- * @throws std::logic_error if the requested attribute has the wrong type
+ * @throws std::runtime_error if the requested attribute has the wrong type
  */
 cJSON* getOptionalObject(gsl::not_null<const cJSON*> root,
                          const std::string& name,
@@ -69,7 +70,7 @@ bool is_enterprise_edition();
  * @param fname the name of the file
  * @return the cJSON representation of the file
  * @throws std::system_error if we fail to read the file
- *         std::logic_error if we fail to parse the content of the file
+ *         std::runtime_error if we fail to parse the content of the file
  */
 unique_cJSON_ptr load_file(const std::string& fname);
 
