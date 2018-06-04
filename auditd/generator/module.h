@@ -19,7 +19,7 @@
 #include <cJSON_utils.h>
 #include <gsl.h>
 #include <platform/dirutils.h>
-#include <list>
+#include <vector>
 
 class Event;
 
@@ -83,5 +83,5 @@ private:
     /**
      * A list of all of the events defined for this module
      */
-    std::list<std::unique_ptr<Event>> events;
+    std::vector<std::unique_ptr<Event>> events;
 };
