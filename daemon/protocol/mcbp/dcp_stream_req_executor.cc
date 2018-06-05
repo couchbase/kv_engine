@@ -67,7 +67,6 @@ void dcp_stream_req_executor(Cookie& cookie) {
     switch (ret) {
     case ENGINE_SUCCESS:
         connection.setDCP(true);
-        connection.setPriority(Connection::Priority::Medium);
         if (cookie.getDynamicBuffer().getRoot() != nullptr) {
             cookie.sendDynamicBuffer();
         } else {
