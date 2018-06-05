@@ -355,6 +355,12 @@ void MemcachedConnection::sendBufferSsl(cb::const_byte_buffer buf) {
     }
 }
 
+void MemcachedConnection::sendBufferSsl(const std::vector<iovec>& list) {
+    for (auto buf : list) {
+        sendBufferSsl({reinterpret_cast<uint8_t*>(buf.iov_base), buf.iov_len});
+    }
+}
+
 void MemcachedConnection::sendBufferPlain(cb::const_byte_buffer buf) {
     const char* data = reinterpret_cast<const char*>(buf.data());
     cb::const_byte_buffer::size_type nbytes = buf.size();
@@ -369,6 +375,60 @@ void MemcachedConnection::sendBufferPlain(cb::const_byte_buffer buf) {
                     "MemcachedConnection::sendFramePlain: failed to send data");
         } else {
             offset += nw;
+        }
+    }
+}
+
+void MemcachedConnection::sendBufferPlain(const std::vector<iovec>& iov) {
+    // Calculate total size.
+    int bytes_remaining = 0;
+    for (const auto& io : iov) {
+        bytes_remaining += int(io.iov_len);
+    }
+
+    // Encode sendmsg() message header.
+    msghdr msg;
+    std::memset(&msg, 0, sizeof(msg));
+    // sendmsg() doesn't actually change the value of msg_iov; but as
+    // it's a C API it doesn't have a const modifier. Therefore need
+    // to cast away const.
+    msg.msg_iov = const_cast<iovec*>(iov.data());
+    msg.msg_iovlen = int(iov.size());
+
+    // repeatedly call sendmsg() until the complete payload has been
+    // transmitted.
+    for (;;) {
+        auto bytes_sent = cb::net::sendmsg(sock, &msg, 0);
+        if (bytes_sent < 0) {
+            throw std::system_error(cb::net::get_socket_error(),
+                                    std::system_category(),
+                                    "MemcachedConnection::sendBufferPlain: "
+                                    "sendmsg() failed to send data");
+        }
+
+        bytes_remaining -= bytes_sent;
+        if (bytes_remaining == 0) {
+            // All data sent.
+            return;
+        }
+
+        // Partial send. Remove the completed iovec entries from the
+        // list of pending writes.
+        while ((msg.msg_iovlen > 0) &&
+               (bytes_sent >= ssize_t(msg.msg_iov->iov_len))) {
+            // Complete element consumed; update msg_iov / iovlen to next
+            // element.
+            bytes_sent -= (ssize_t)msg.msg_iov->iov_len;
+            msg.msg_iovlen--;
+            msg.msg_iov++;
+        }
+
+        // Might have written just part of the last iovec entry;
+        // adjust it so the next write will do the rest.
+        if (bytes_sent > 0) {
+            msg.msg_iov->iov_base =
+                    (void*)((unsigned char*)msg.msg_iov->iov_base + bytes_sent);
+            msg.msg_iov->iov_len -= bytes_sent;
         }
     }
 }
@@ -430,10 +490,18 @@ void MemcachedConnection::sendFrame(const Frame& frame) {
 }
 
 void MemcachedConnection::sendBuffer(cb::const_byte_buffer& buf) {
+    iovec iov;
+    iov.iov_base = const_cast<uint8_t*>(buf.data());
+    iov.iov_len = buf.size();
+    std::vector<iovec> list(1, iov);
+    sendBuffer(list);
+}
+
+void MemcachedConnection::sendBuffer(const std::vector<iovec>& list) {
     if (ssl) {
-        sendBufferSsl(buf);
+        sendBufferSsl(list);
     } else {
-        sendBufferPlain(buf);
+        sendBufferPlain(list);
     }
 }
 
@@ -614,37 +682,36 @@ void MemcachedConnection::recvFrame(Frame& frame,
 
 void MemcachedConnection::sendCommand(const BinprotCommand& command) {
     traceData.reset();
-    auto bufs = command.encode();
 
-    // Construct a Frame for this command, then send the complete
-    // frame in one syscall.
-    //
+    auto encoded = command.encode();
+
+    // encoded contains the message header (as owning vector<uint8_t>),
+    // plus a variable number of (non-owning) byte buffers. Create
+    // a single vector of byte buffers for all; then send in a single
+    // sendmsg() call (to avoid copying any data), with a single syscall.
+
     // Perf: this function previously used multiple calls to
     // sendBuffer() (one per header / buffer) to send the data without
-    // copying it. While this does reduce copying cost; it requires
+    // copying / re-forming it. While this does reduce copying cost; it requires
     // one send() syscall per chunk. Benchmarks show that is actually
     // *more* expensive overall (particulary when measuring server
     // performance) as the server can read the first header chunk;
     // then attempts to read the body which hasn't been delievered yet
     // and hence has to go around the libevent loop again to read the
     // body.
-    // If we find we are sending large amounts of data (and the copy
-    // cost becomes noticable) then suggest adding a sendmsg() based
-    // send method which can send multiple iovectors in a single
-    // syscall.
-    Frame frame;
 
-    if (!bufs.header.empty()) {
-        std::copy(bufs.header.begin(),
-                  bufs.header.end(),
-                  std::back_inserter(frame.payload));
+    std::vector<iovec> message;
+    iovec iov;
+    iov.iov_base = encoded.header.data();
+    iov.iov_len = encoded.header.size();
+    message.push_back(iov);
+    for (auto buf : encoded.bufs) {
+        iov.iov_base = const_cast<uint8_t*>(buf.data());
+        iov.iov_len = buf.size();
+        message.push_back(iov);
     }
 
-    for (auto& buf : bufs.bufs) {
-        std::copy(buf.begin(), buf.end(), std::back_inserter(frame.payload));
-    }
-
-    sendFrame(frame);
+    sendBuffer(message);
 }
 
 void MemcachedConnection::recvResponse(BinprotResponse& response) {
