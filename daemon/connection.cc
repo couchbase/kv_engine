@@ -159,6 +159,7 @@ unique_cJSON_ptr Connection::toJSON() const {
     }
 
     cJSON_AddNumberToObject(obj, "socket", socketDescriptor);
+    cJSON_AddNumberToObject(obj, "yields", yields.load());
     cJSON_AddStringToObject(obj, "protocol", "memcached");
     cJSON_AddStringToObject(obj, "peername", getPeername().c_str());
     cJSON_AddStringToObject(obj, "sockname", getSockname().c_str());
