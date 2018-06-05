@@ -75,18 +75,18 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    unique_cJSON_ptr event_id_arr(cJSON_CreateArray());
-    validate_modules(modules, event_id_arr.get());
-    create_master_file(modules, output_file);
+    try {
+        unique_cJSON_ptr event_id_arr(cJSON_CreateArray());
+        validate_modules(modules, event_id_arr.get());
+        create_master_file(modules, output_file);
 
-    for (const auto& module : modules) {
-        try {
+        for (const auto& module : modules) {
             module->createHeaderFile();
-        } catch (const std::exception& error) {
-            std::cerr << "Failed to write header file for " << module->name
-                      << ":" << std::endl << error.what() << std::endl;
-            exit(EXIT_FAILURE);
         }
+    } catch (const std::exception& e) {
+        std::cerr << e.what() << std::endl;
+        exit(EXIT_FAILURE);
     }
+
     exit(EXIT_SUCCESS);
 }

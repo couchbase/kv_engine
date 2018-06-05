@@ -95,7 +95,7 @@ bool is_enterprise_edition() {
  * event in the module.
  */
 
-unique_cJSON_ptr load_file(const std::string fname) {
+unique_cJSON_ptr load_file(const std::string& fname) {
     auto str = cb::io::loadFile(fname);
     if (str.empty()) {
         throw std::logic_error(fname + " contained no data");
@@ -114,39 +114,38 @@ void validate_module_descriptors(gsl::not_null<const cJSON*> ptr,
                                  std::list<std::unique_ptr<Module>>& modules,
                                  const std::string& srcroot,
                                  const std::string& objroot) {
-    if (ptr->type != cJSON_Object) {
-        fprintf(stderr, "audit descriptors: missing JSON object\n");
-        exit(EXIT_FAILURE);
+    auto* root = const_cast<cJSON*>(ptr.get());
+    if (root->type != cJSON_Object) {
+        throw std::invalid_argument(
+                "The root element of the module is not an object");
     }
 
-    cJSON* modulelist_ptr = ptr->child;
-    if (modulelist_ptr == NULL) {
-        fprintf(stderr, "audit descriptors: missing JSON data\n");
-        exit(EXIT_FAILURE);
+    cJSON* modulelist_ptr = cJSON_GetObjectItem(root, "modules");
+    if (modulelist_ptr == nullptr) {
+        throw std::invalid_argument(
+                R"(The provided module object does not contain a "modules" attribute)");
     }
+
     if (modulelist_ptr->type != cJSON_Array) {
-        fprintf(stderr, "audit descriptors: missing JSON array\n");
-        exit(EXIT_FAILURE);
-    }
-    if (strcmp("modules", modulelist_ptr->string) != 0) {
-        fprintf(stderr, "audit descriptors: key \"modules\" error\n");
-        exit(EXIT_FAILURE);
+        throw std::invalid_argument(
+                R"("modules" is supposed to be an array; it's not")");
     }
 
     cJSON* module_ptr = modulelist_ptr->child;
-    while (module_ptr != NULL) {
-        if (module_ptr->child == NULL) {
-            fprintf(stderr, "audit descriptors: missing JSON data\n");
-            exit(EXIT_FAILURE);
+    while (module_ptr != nullptr) {
+        if (module_ptr->type != cJSON_Object) {
+            throw std::invalid_argument(
+                    R"(Element in "modules" should be objects; it's not )");
         }
-        if ((module_ptr->type != cJSON_Object) ||
-            (module_ptr->child->type != cJSON_Object)) {
-            fprintf(stderr, "audit descriptors: missing JSON object\n");
-            exit(EXIT_FAILURE);
+
+        if (module_ptr->child == nullptr) {
+            throw std::invalid_argument(
+                    R"(Element in "modules" don't contain any attributes )");
         }
-        if (module_ptr->child->string == NULL) {
-            fprintf(stderr, "audit descriptors: key cannot be nullptr");
-            exit(EXIT_FAILURE);
+        if ((module_ptr->child->type != cJSON_Object ||
+             module_ptr->child->string == nullptr)) {
+            throw std::invalid_argument(
+                    R"(Each object in "modules" should contain a named object; it's not)");
         }
 
         auto new_module =
@@ -182,92 +181,78 @@ void validate_modules(const std::list<std::unique_ptr<Module>>& modules,
     for (const auto& mod_ptr : modules) {
         cJSON* ptr = mod_ptr->json.get();
         if (ptr == nullptr || ptr->type != cJSON_Object) {
-            fprintf(stderr, "module descriptor: missing JSON object\n");
-            exit(EXIT_FAILURE);
+            throw std::invalid_argument(
+                    "module descriptor: missing JSON object");
         }
         ptr = ptr->child;
-        if (ptr == NULL) {
-            fprintf(stderr, "module descriptor: missing JSON data\n");
-            exit(EXIT_FAILURE);
+        if (ptr == nullptr) {
+            throw std::invalid_argument("module descriptor: missing JSON data");
         }
         bool version_found = false;
         bool module_found = false;
         bool events_found = false;
 
-        while (ptr != NULL) {
+        while (ptr != nullptr) {
             cJSON* event_data = 0;
 
             switch (ptr->type) {
             case cJSON_Number:
                 if (strcmp("version", ptr->string) != 0) {
-                    fprintf(stderr,
-                            "module descriptor: key \"version\" error\n");
-                    exit(EXIT_FAILURE);
+                    throw std::invalid_argument(
+                            R"(module descriptor: key "version" error)");
                 }
                 version_found = true;
                 break;
 
             case cJSON_String:
                 if (strcmp("module", ptr->string) != 0) {
-                    fprintf(stderr,
-                            "module descriptor: key \"module\" error\n");
-                    exit(EXIT_FAILURE);
+                    throw std::invalid_argument(
+                            R"(module descriptor: key "module" error)");
                 }
                 if (strcmp(mod_ptr->name.c_str(), ptr->valuestring) != 0) {
-                    fprintf(stderr,
-                            "module descriptor: valuestring error: %s\n",
-                            mod_ptr->name.c_str());
-                    exit(EXIT_FAILURE);
+                    throw std::invalid_argument(
+                            "module descriptor: valuestring error: " +
+                            mod_ptr->name);
                 }
                 module_found = true;
                 break;
 
             case cJSON_Array:
                 if (strcmp("events", ptr->string) != 0) {
-                    fprintf(stderr,
-                            "module descriptor: key \"events\" error\n");
-                    exit(EXIT_FAILURE);
+                    throw std::invalid_argument(
+                            R"(module descriptor: key "events" error)");
                 }
                 if (ptr->child->type != cJSON_Object) {
-                    fprintf(stderr, "module descriptor: missing JSON object\n");
-                    exit(EXIT_FAILURE);
+                    throw std::invalid_argument(
+                            "module descriptor: missing JSON object");
                 }
                 event_data = ptr->child;
-                if (event_data == NULL) {
-                    fprintf(stderr, "module descriptor: missing JSON data\n");
-                    exit(EXIT_FAILURE);
+                if (event_data == nullptr) {
+                    throw std::invalid_argument(
+                            "module descriptor: missing JSON data");
                 }
-                while (event_data != NULL) {
-                    if (event_data->child == NULL) {
-                        fprintf(stderr,
-                                "module descriptor: missing JSON data\n");
-                        exit(EXIT_FAILURE);
+                while (event_data != nullptr) {
+                    if (event_data->child == nullptr) {
+                        throw std::invalid_argument(
+                                "module descriptor: missing JSON data");
                     }
 
-                    try {
-                        auto ev = std::make_unique<Event>(event_data);
-                        validate_events(*ev, mod_ptr.get(), event_id_arr);
-                        mod_ptr->addEvent(std::move(ev));
-                    } catch (const std::exception& error) {
-                        std::cerr << error.what() << std::endl;
-                        ;
-                        exit(EXIT_FAILURE);
-                    }
+                    auto ev = std::make_unique<Event>(event_data);
+                    validate_events(*ev, mod_ptr.get(), event_id_arr);
+                    mod_ptr->addEvent(std::move(ev));
 
                     event_data = event_data->next;
                 }
                 events_found = true;
                 break;
             default:
-                fprintf(stderr, "audit descriptors: unknown field\n");
-                exit(EXIT_FAILURE);
+                throw std::invalid_argument("audit descriptors: unknown field");
             }
             ptr = ptr->next;
         }
 
         if (!(version_found && module_found && events_found)) {
-            fprintf(stderr, "module descriptor: missing JSON data\n");
-            exit(EXIT_FAILURE);
+            throw std::invalid_argument("module descriptor: missing JSON data");
         }
     }
 }
@@ -291,10 +276,8 @@ void create_master_file(const std::list<std::unique_ptr<Module>>& modules,
         out << to_string(output_json) << std::endl;
         out.close();
     } catch (...) {
-        fprintf(stderr,
-                "open error on file %s: %s\n",
-                output_file.c_str(),
-                cb_strerror().c_str());
-        exit(EXIT_FAILURE);
+        throw std::system_error(errno,
+                                std::system_category(),
+                                "Failed to write \"" + output_file + "\"");
     }
 }

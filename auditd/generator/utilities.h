@@ -71,7 +71,7 @@ bool is_enterprise_edition();
  * @throws std::system_error if we fail to read the file
  *         std::logic_error if we fail to parse the content of the file
  */
-unique_cJSON_ptr load_file(const std::string fname);
+unique_cJSON_ptr load_file(const std::string& fname);
 
 /**
  * Iterate over the module descriptor json and populate each entry
@@ -82,9 +82,7 @@ unique_cJSON_ptr load_file(const std::string fname);
  * @param modules Where to store the list of all of the entries found
  * @param srcroot The source root to prepend to all of the paths in the spec
  * @param objroot The object root to prepend to all of the paths in the spec
- *
- * NOTE: The program prints an error message to stderr and terminates if an
- *       error occurs
+ * @throws std::invalid_argument if the provided JSON is of an unexpected format
  */
 void validate_module_descriptors(gsl::not_null<const cJSON*> ptr,
                                  std::list<std::unique_ptr<Module>>& modules,
@@ -110,9 +108,7 @@ void validate_events(const Event& ev,
  *
  * @param modules The list of modules to parse
  * @param event_id_arr Where to store the resulting id's of the events
- *
- * NOTE: The program prints an error message to stderr and terminates if an
- *       error occurs
+ * @throws std::invalid_argument if the provided JSON is of an unexpected format
  */
 void validate_modules(const std::list<std::unique_ptr<Module>>& modules,
                       cJSON* event_id_arr);
@@ -122,9 +118,7 @@ void validate_modules(const std::list<std::unique_ptr<Module>>& modules,
  *
  * @param modules The modules to include
  * @param output_file Where to store the result
- *
- * NOTE: The program prints an error message to stderr and terminates if an
- *       error occurs
+ * @throws std::system_error if we fail to write the file
  */
 void create_master_file(const std::list<std::unique_ptr<Module>>& modules,
                         const std::string& output_file);
