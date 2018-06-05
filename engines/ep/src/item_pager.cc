@@ -54,7 +54,8 @@ PagingVisitor::PagingVisitor(KVBucket& s,
                              std::atomic<item_pager_phase>* phase,
                              bool _isEphemeral,
                              size_t agePercentage,
-                             size_t freqCounterAgeThreshold)
+                             size_t freqCounterAgeThreshold,
+                             EvictionPolicy evictionPolicy)
     : VBucketVisitor(vbFilter),
       ejected(0),
       freqCounterThreshold(0),
@@ -74,7 +75,8 @@ PagingVisitor::PagingVisitor(KVBucket& s,
       isEphemeral(_isEphemeral),
       agePercentage(agePercentage),
       freqCounterAgeThreshold(freqCounterAgeThreshold),
-      maxCas(0) {
+      maxCas(0),
+      evictionPolicy(evictionPolicy) {
     }
 
     bool PagingVisitor::visit(const HashTable::HashBucketLock& lh,
@@ -93,8 +95,8 @@ PagingVisitor::PagingVisitor(KVBucket& s,
             return true;
         }
 
-        switch (currentBucket->ht.getEvictionPolicy()) {
-        case HashTable::EvictionPolicy::lru2Bit: {
+        switch (evictionPolicy) {
+        case EvictionPolicy::lru2Bit: {
             // always evict unreferenced items, or randomly evict referenced
             // item
             double r =
@@ -112,7 +114,7 @@ PagingVisitor::PagingVisitor(KVBucket& s,
             }
             return true;
         }
-        case HashTable::EvictionPolicy::hifi_mfu: {
+        case EvictionPolicy::hifi_mfu: {
             /*
              * We take a copy of the freqCounterValue because calling
              * doEviction can modify the value, and when we want to
@@ -249,8 +251,7 @@ PagingVisitor::PagingVisitor(KVBucket& s,
                 itemEviction.reset();
                 freqCounterThreshold = 0;
 
-                if (currentBucket->ht.getEvictionPolicy() ==
-                    HashTable::EvictionPolicy::hifi_mfu) {
+                if (evictionPolicy == EvictionPolicy::hifi_mfu) {
                     // Percent of items in the hash table to be visited
                     // between updating the interval.
                     const double percentOfItems = 0.1;
@@ -486,7 +487,7 @@ bool ItemPager::run(void) {
         VBucketFilter filter;
         // For the hifi_mfu algorithm use the phase to filter which vbuckets
         // we want to visit (either replica or active/pending vbuckets).
-        if (engine.getConfiguration().getHtEvictionPolicy() == "hifi_mfu") {
+        if (cfg.getHtEvictionPolicy() == "hifi_mfu") {
             vbucket_state_t state;
             if (phase == REPLICA_ONLY) {
                 state = vbucket_state_replica;
@@ -508,8 +509,12 @@ bool ItemPager::run(void) {
             }
         }
 
-        bool isEphemeral =
-                (engine.getConfiguration().getBucketType() == "ephemeral");
+        bool isEphemeral = (cfg.getBucketType() == "ephemeral");
+        PagingVisitor::EvictionPolicy evictionPolicy =
+                (cfg.getHtEvictionPolicy() == "2-bit_lru")
+                        ? PagingVisitor::EvictionPolicy::lru2Bit
+                        : PagingVisitor::EvictionPolicy::hifi_mfu;
+
         auto pv = std::make_unique<PagingVisitor>(
                 *kvBucket,
                 stats,
@@ -521,9 +526,9 @@ bool ItemPager::run(void) {
                 filter,
                 &phase,
                 isEphemeral,
-                engine.getConfiguration().getItemEvictionAgePercentage(),
-                engine.getConfiguration()
-                        .getItemEvictionFreqCounterAgeThreshold());
+                cfg.getItemEvictionAgePercentage(),
+                cfg.getItemEvictionFreqCounterAgeThreshold(),
+                evictionPolicy);
 
         // p99.99 is ~200ms
         const auto maxExpectedDuration = std::chrono::milliseconds(200);
@@ -597,8 +602,13 @@ bool ExpiredItemPager::run(void) {
         ++stats.expiryPagerRuns;
 
         VBucketFilter filter;
+        Configuration& cfg = engine->getConfiguration();
         bool isEphemeral =
                 (engine->getConfiguration().getBucketType() == "ephemeral");
+        PagingVisitor::EvictionPolicy evictionPolicy =
+                (cfg.getHtEvictionPolicy() == "2-bit_lru")
+                        ? PagingVisitor::EvictionPolicy::lru2Bit
+                        : PagingVisitor::EvictionPolicy::hifi_mfu;
         auto pv = std::make_unique<PagingVisitor>(
                 *kvBucket,
                 stats,
@@ -610,9 +620,9 @@ bool ExpiredItemPager::run(void) {
                 filter,
                 /* pager_phase */ nullptr,
                 isEphemeral,
-                engine->getConfiguration().getItemEvictionAgePercentage(),
-                engine->getConfiguration()
-                        .getItemEvictionFreqCounterAgeThreshold());
+                cfg.getItemEvictionAgePercentage(),
+                cfg.getItemEvictionFreqCounterAgeThreshold(),
+                evictionPolicy);
 
         // p99.99 is ~50ms (same as ItemPager).
         const auto maxExpectedDuration = std::chrono::milliseconds(50);

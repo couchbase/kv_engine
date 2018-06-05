@@ -37,7 +37,8 @@ public:
                       std::atomic<item_pager_phase>* phase,
                       bool _isEphemeral,
                       size_t agePercentage,
-                      size_t freqCounterAgeThreshold)
+                      size_t freqCounterAgeThreshold,
+                      EvictionPolicy evictionPolicy)
         : PagingVisitor(s,
                         st,
                         pcnt,
@@ -49,7 +50,8 @@ public:
                         phase,
                         _isEphemeral,
                         agePercentage,
-                        freqCounterAgeThreshold) {
+                        freqCounterAgeThreshold,
+                        evictionPolicy) {
     }
 
     ItemEviction& getItemEviction() {
