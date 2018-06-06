@@ -22,6 +22,7 @@
 #include <access_scanner.h>
 #include <fakes/fake_executorpool.h>
 #include <mock/mock_synchronous_ep_engine.h>
+#include <programs/engine_testapp/mock_server.h>
 
 #include "benchmark_memory_tracker.h"
 
@@ -30,6 +31,10 @@
 class AccessLogBenchEngine : public EngineFixture {
 protected:
     void SetUp(const benchmark::State& state) override {
+        memoryTracker = BenchmarkMemoryTracker::getInstance(
+                *get_mock_server_api()->alloc_hooks);
+        memoryTracker->reset();
+
         // If the access scanner is running then it will always scan
         varConfig = "alog_resident_ratio_threshold=100;";
         varConfig += "alog_max_stored_items=" +
@@ -37,7 +42,16 @@ protected:
         EngineFixture::SetUp(state);
     }
 
+    void TearDown(const benchmark::State& state) override {
+        EngineFixture::TearDown(state);
+        if (state.thread_index == 0) {
+            memoryTracker->destroyInstance();
+        }
+    }
+
     const size_t alog_max_stored_items = 2048;
+
+    BenchmarkMemoryTracker* memoryTracker;
 };
 
 ProcessClock::time_point runNextTask(SingleThreadedExecutorPool* pool,

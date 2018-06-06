@@ -20,38 +20,47 @@
 #include <fakes/fake_executorpool.h>
 #include <mock/mock_synchronous_ep_engine.h>
 #include <programs/engine_testapp/mock_server.h>
+#include <thread>
 
 #include "benchmark_memory_tracker.h"
 #include "ep_time.h"
 
 void EngineFixture::SetUp(const benchmark::State& state) {
-    SingleThreadedExecutorPool::replaceExecutorPoolWithFake();
-    executorPool =
-            reinterpret_cast<SingleThreadedExecutorPool*>(ExecutorPool::get());
-    memoryTracker = BenchmarkMemoryTracker::getInstance(
-            *get_mock_server_api()->alloc_hooks);
-    memoryTracker->reset();
-    std::string config = "dbname=benchmarks-test;ht_locks=47;" + varConfig;
+    if (state.thread_index == 0) {
+        SingleThreadedExecutorPool::replaceExecutorPoolWithFake();
+        executorPool = reinterpret_cast<SingleThreadedExecutorPool*>(
+                ExecutorPool::get());
+        std::string config = "dbname=benchmarks-test;ht_locks=47;" + varConfig;
 
-    engine.reset(new SynchronousEPEngine(config));
-    ObjectRegistry::onSwitchThread(engine.get());
+        engine.reset(new SynchronousEPEngine(config));
 
-    engine->setKVBucket(engine->public_makeBucket(engine->getConfiguration()));
+        ObjectRegistry::onSwitchThread(engine.get());
 
-    engine->public_initializeEngineCallbacks();
-    initialize_time_functions(get_mock_server_api()->core);
-    cookie = create_mock_cookie();
+        engine->setKVBucket(
+                engine->public_makeBucket(engine->getConfiguration()));
+
+        engine->public_initializeEngineCallbacks();
+        initialize_time_functions(get_mock_server_api()->core);
+        cookie = create_mock_cookie();
+    } else {
+        // 'engine' setup by thread:0; wait until it has completed.
+        while (!engine.get()) {
+            std::this_thread::yield();
+        }
+        ObjectRegistry::onSwitchThread(engine.get());
+    }
 }
 
 void EngineFixture::TearDown(const benchmark::State& state) {
-    executorPool->cancelAndClearAll();
-    destroy_mock_cookie(cookie);
-    destroy_mock_event_callbacks();
-    engine->getDcpConnMap().manageConnections();
-    engine.reset();
+    if (state.thread_index == 0) {
+        executorPool->cancelAndClearAll();
+        destroy_mock_cookie(cookie);
+        destroy_mock_event_callbacks();
+        engine->getDcpConnMap().manageConnections();
+        engine.reset();
+        ExecutorPool::shutdown();
+    }
     ObjectRegistry::onSwitchThread(nullptr);
-    ExecutorPool::shutdown();
-    memoryTracker->destroyInstance();
 }
 
 Item EngineFixture::make_item(uint16_t vbid,

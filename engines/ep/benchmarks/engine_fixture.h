@@ -44,6 +44,5 @@ protected:
 
     // Allows subclasses to add stuff to the config
     std::string varConfig;
-    BenchmarkMemoryTracker* memoryTracker;
     SingleThreadedExecutorPool* executorPool;
 };
