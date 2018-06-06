@@ -35,11 +35,11 @@ public:
     // Special version for the benchmark which ensures memory tracking begins
     // at zero for each KeepRunning iteration, ensuring consistent entry state.
     void memAllocatedClear(size_t sz) {
-        auto& coreMemory = coreTotalMemory.get();
-        coreMemory->store(0);
-        auto value = coreMemory->fetch_add(sz) + sz;
+        auto& coreMemory = coreLocal.get()->totalMemory;
+        coreMemory.store(0);
+        auto value = coreMemory.fetch_add(sz) + sz;
 
-        maybeUpdateEstimatedTotalMemUsed(*coreMemory, value);
+        maybeUpdateEstimatedTotalMemUsed(coreMemory, value);
     }
 };
 

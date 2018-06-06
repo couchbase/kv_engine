@@ -18,6 +18,7 @@
 #pragma once
 
 #include "config.h"
+
 #include "hdrhistogram.h"
 #include "objectregistry.h"
 
@@ -30,6 +31,8 @@
 
 #include <algorithm>
 #include <atomic>
+
+class CoreLocalStats;
 
 /**
  * Global engine stats container.
@@ -82,7 +85,7 @@ public:
         if (memoryTrackerEnabled.load()) {
             rv = estimatedTotalMemory->load();
         } else {
-            rv = currentSize.load() + memOverhead->load();
+            rv = getCurrentSize() + getMemOverhead();
         }
         // Don't allow a negative result to be exposed as a size_t
         return size_t(std::max(int64_t(0), rv));
@@ -98,6 +101,30 @@ public:
      * loop has not accounted for) we return 0
      */
     size_t getPreciseTotalMemoryUsed();
+
+    /// @returns total size of stored objects.
+    size_t getCurrentSize() const;
+
+    /// @returns number of Blob objects which exist.
+    size_t getNumBlob() const;
+
+    /// @returns size of blob memory overhead in bytes.
+    size_t getBlobOverhead() const;
+
+    /// @returns total memory overhead to store values for resident keys.
+    size_t getTotalValueSize() const;
+
+    /// @returns number of StoredValue objects which exist.
+    size_t getNumStoredVal() const;
+
+    /// @returns size of all StoredValue objects.
+    size_t getStoredValSize() const;
+
+    /// @returns amount of memory used to track items and what-not.
+    size_t getMemOverhead() const;
+
+    /// @returns number of Item objects which exist.
+    size_t getNumItem() const;
 
     // account for allocated mem
     void memAllocated(size_t sz);
@@ -212,31 +239,15 @@ public:
     Counter numFailedEjects;
     //! Number of times "Not my bucket" happened
     Counter numNotMyVBuckets;
-    //! Total size of stored objects.
-    Counter currentSize;
-    //! Total number of blob objects
-    Counter numBlob;
-    //! Total size of blob memory overhead
-    Counter blobOverhead;
-    //! Total memory overhead to store values for resident keys.
-    Counter totalValueSize;
-    //! The number of storedVal object
-    Counter numStoredVal;
-    //! Total memory for stored values
-    Counter totalStoredValSize;
-    //! Total size of StoredVal memory overhead
-    Counter storedValOverhead;
-    //! Amount of memory used to track items and what-not.
-    cb::CachelinePadded<Counter> memOverhead;
-    //! Total number of Item objects
-    cb::CachelinePadded<Counter> numItem;
+
     //! The total amount of memory used by this bucket (From memory tracking)
     // This is a signed variable as depending on how/when the thread-local
     // counters merge their info, this could be negative
     cb::CachelinePadded<Couchbase::RelaxedAtomic<int64_t>> estimatedTotalMemory;
-    //! The memory tracking by core
-    CoreStore<cb::CachelinePadded<Couchbase::RelaxedAtomic<int64_t>>>
-            coreTotalMemory;
+
+    //! Core-local statistics
+    CoreStore<cb::CachelinePadded<CoreLocalStats>> coreLocal;
+
     //! True if the memory usage tracker is enabled.
     std::atomic<bool> memoryTrackerEnabled;
     //! Whether or not to force engine shutdown.
@@ -587,6 +598,55 @@ protected:
 
     /// percentage used in calculating the memUsedMergeThreshold
     float memUsedMergeThresholdPercent;
+};
+
+/**
+ * Core-local statistics
+ *
+ * For statistics which are updated frequently by multiple cores, there can be
+ * signifcant cost in maintaining a single bucket-level counter, due to cache
+ * line thrashing.
+ * This class contains core-local statistics which are signicantly cheaper
+ * to update. They are then summed into a bucket-level when read.
+ */
+class CoreLocalStats {
+public:
+    // Thread-safe type for counting occurances of discrete,
+    // non-negative entities (# events, sizes).  Relaxed memory
+    // ordering (no ordering or synchronization).
+    // This is a signed variable as depending on how/when the core-local
+    // counters merge their info, this could be negative.
+    using Counter = Couchbase::RelaxedAtomic<int64_t>;
+
+    //! The total amount of memory used by this bucket (From memory tracking)
+    Counter totalMemory;
+
+    //! Total size of stored objects.
+    Counter currentSize;
+
+    //! Total number of blob objects
+    Counter numBlob;
+
+    //! Total size of blob memory overhead
+    Counter blobOverhead;
+
+    //! Total memory overhead to store values for resident keys.
+    Counter totalValueSize;
+
+    //! The number of storedVal object
+    Counter numStoredVal;
+
+    //! Total memory for stored values
+    Counter totalStoredValSize;
+
+    //! Total size of StoredVal memory overhead
+    Counter storedValOverhead;
+
+    //! Amount of memory used to track items and what-not.
+    Counter memOverhead;
+
+    //! Total number of Item objects
+    Counter numItem;
 };
 
 /**

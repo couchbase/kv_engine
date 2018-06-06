@@ -544,6 +544,9 @@ private:
      */
     std::string cursorName;
 
+    /// True if cursorName is registered in CheckpointManager.
+    std::atomic<bool> cursorRegistered{false};
+
     /**
      * To ensure each stream gets a unique cursorName, we maintain a 'uid'
      * which is really just an incrementing uint64

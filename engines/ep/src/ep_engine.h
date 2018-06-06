@@ -754,6 +754,10 @@ protected:
     time_t processExpiryTime(time_t in) const;
 
     SERVER_HANDLE_V1 *serverApi;
+
+    // Engine statistics. First concrete member as a number of other members
+    // refer to it so needs to be constructed first (and destructed last).
+    EPStats stats;
     std::unique_ptr<KVBucket> kvBucket;
     WorkLoadPolicy *workload;
     bucket_priority_t workloadPriority;
@@ -772,7 +776,6 @@ protected:
     size_t getlDefaultTimeout;
     size_t getlMaxTimeout;
     size_t maxFailoverEntries;
-    EPStats stats;
     Configuration configuration;
     std::atomic<bool> trafficEnabled;
 

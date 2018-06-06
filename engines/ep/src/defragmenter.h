@@ -117,7 +117,7 @@ public:
 private:
 
     /// Duration (in seconds) defragmenter should sleep for between iterations.
-    size_t getSleepTime() const;
+    double getSleepTime() const;
 
     // Minimum age (measured in defragmenter task passes) that a document
     // must be to be considered for defragmentation.

@@ -383,6 +383,8 @@ void ActiveStream::registerCursor(CheckpointManager& chkptmgr,
     try {
         CursorRegResult result = chkptmgr.registerCursorBySeqno(
                 cursorName, lastProcessedSeqno, MustSendCheckpointEnd::NO);
+        cursorRegistered = true;
+
         /*
          * MB-22960:  Due to cursor dropping we re-register the replication
          * cursor only during backfill when we mark the disk snapshot.  However
@@ -872,10 +874,10 @@ void ActiveStream::addTakeoverStats(ADD_STAT add_stat, const void *cookie,
                     add_stat, cookie);
 
     size_t vb_items = vb.getNumItems();
-    size_t chk_items =
-            vb_items > 0
-                    ? vb.checkpointManager->getNumItemsForCursor(cursorName)
-                    : 0;
+    size_t chk_items = 0;
+    if (vb_items > 0 && cursorRegistered) {
+        chk_items = vb.checkpointManager->getNumItemsForCursor(cursorName);
+    }
 
     size_t del_items = 0;
     try {
@@ -1441,6 +1443,7 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
                             cursorName,
                             lastReadSeqno.load(),
                             MustSendCheckpointEnd::NO);
+            cursorRegistered = true;
         } catch(std::exception& error) {
             log(EXTENSION_LOG_WARNING,
                 "(vb %" PRIu16
@@ -1543,7 +1546,7 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
                                 cursorName,
                                 lastReadSeqno.load(),
                                 MustSendCheckpointEnd::NO);
-
+                cursorRegistered = true;
                 curChkSeqno = result.first;
             } catch (std::exception& error) {
                 log(EXTENSION_LOG_WARNING,
@@ -1769,8 +1772,12 @@ size_t ActiveStream::getItemsRemaining() {
     // Items remaining is the sum of:
     // (a) Items outstanding in checkpoints
     // (b) Items pending in our readyQ, excluding any meta items.
-    return vbucket->checkpointManager->getNumItemsForCursor(cursorName) +
-           readyQ_non_meta_items;
+    size_t ckptItems = 0;
+    if (cursorRegistered) {
+        ckptItems =
+                vbucket->checkpointManager->getNumItemsForCursor(cursorName);
+    }
+    return ckptItems + readyQ_non_meta_items;
 }
 
 uint64_t ActiveStream::getLastReadSeqno() const {
@@ -1818,6 +1825,7 @@ bool ActiveStream::dropCheckpointCursor_UNLOCKED() {
         notifyStreamReady();
     }
     /* Drop the existing cursor */
+    cursorRegistered = false;
     return vbucket->checkpointManager->removeCursor(cursorName);
 }
 
@@ -1856,6 +1864,7 @@ void ActiveStream::notifyStreamReady(bool force) {
 void ActiveStream::removeCheckpointCursor() {
     VBucketPtr vb = engine->getVBucket(vb_);
     if (vb) {
+        cursorRegistered = false;
         vb->checkpointManager->removeCursor(cursorName);
     }
 }
