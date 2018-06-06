@@ -236,11 +236,11 @@ void mcbp_collect_timings(Cookie& cookie) {
     }
     const auto opcode = cookie.getHeader().getOpcode();
     const auto endTime = ProcessClock::now();
-    const auto elapsed_ns = endTime - cookie.getStart();
+    const auto elapsed = endTime - cookie.getStart();
     cookie.getTracer().end(cb::tracing::TraceCode::REQUEST, endTime);
 
     // aggregated timing for all buckets
-    all_buckets[0].timings.collect(opcode, elapsed_ns);
+    all_buckets[0].timings.collect(opcode, elapsed);
 
     // timing for current bucket
     const auto bucketid = c->getBucketIndex();
@@ -249,9 +249,9 @@ void mcbp_collect_timings(Cookie& cookie) {
      * to delete the bucket you're associated with and your're idle.
      */
     if (bucketid != 0) {
-        all_buckets[bucketid].timings.collect(opcode, elapsed_ns);
+        all_buckets[bucketid].timings.collect(opcode, elapsed);
     }
 
-    // Log operations taking longer than 0.5s
-    cookie.maybeLogSlowCommand(elapsed_ns);
+    // Log operations taking longer than the "slow" threshold for the opcode.
+    cookie.maybeLogSlowCommand(elapsed);
 }
