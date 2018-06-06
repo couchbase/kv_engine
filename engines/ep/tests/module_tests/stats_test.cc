@@ -373,9 +373,10 @@ TEST_F(EpStatsTest, memoryNegativeUntracked) {
     TestEpStat stats;
     stats.memoryTrackerEnabled = false;
 
-    stats.memOverhead->fetch_sub(100);
+    stats.coreLocal.get()->memOverhead.fetch_sub(100);
+    ASSERT_EQ(-100, stats.coreLocal.get()->memOverhead.load());
+
     EXPECT_EQ(0, stats.getEstimatedTotalMemoryUsed());
-    EXPECT_EQ(-100, stats.memOverhead->load());
 }
 
 // Create n threads who all allocate the same amount of memory in very different

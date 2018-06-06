@@ -301,9 +301,9 @@
             "type": "bool"
         },
         "defragmenter_interval": {
-            "default": "10",
+            "default": "10.0",
             "descr": "How often defragmenter task should be run (in seconds).",
-            "type": "size_t"
+            "type": "float"
         },
         "defragmenter_age_threshold": {
             "default": "10",

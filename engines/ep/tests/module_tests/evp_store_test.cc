@@ -783,7 +783,7 @@ TEST_P(EPStoreEvictionTest, memOverheadMemoryCondition) {
 
     //Ensure the memOverhead is greater than the bucket quota
     auto& stats = engine->getEpStats();
-    stats.memOverhead->store(config.getMaxSize() + 1);
+    stats.coreLocal.get()->memOverhead.store(config.getMaxSize() + 1);
 
     // Fill bucket until we hit ENOMEM - note storing via external
     // API (epstore) so we trigger the memoryCondition() code in the event of

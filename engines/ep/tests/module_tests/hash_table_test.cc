@@ -171,7 +171,7 @@ TEST_F(HashTableTest, SizeTwo) {
 }
 
 TEST_F(HashTableTest, ReverseDeletions) {
-    size_t initialSize = global_stats.currentSize.load();
+    size_t initialSize = global_stats.getCurrentSize();
     HashTable h(global_stats, makeFactory(), 5, 1);
     ASSERT_EQ(0, count(h));
     const int nkeys = 1000;
@@ -187,11 +187,11 @@ TEST_F(HashTableTest, ReverseDeletions) {
     }
 
     EXPECT_EQ(0, count(h));
-    EXPECT_EQ(initialSize, global_stats.currentSize.load());
+    EXPECT_EQ(initialSize, global_stats.getCurrentSize());
 }
 
 TEST_F(HashTableTest, ForwardDeletions) {
-    size_t initialSize = global_stats.currentSize.load();
+    size_t initialSize = global_stats.getCurrentSize();
     HashTable h(global_stats, makeFactory(), 5, 1);
     ASSERT_EQ(5, h.getSize());
     ASSERT_EQ(1, h.getNumLocks());
@@ -207,7 +207,7 @@ TEST_F(HashTableTest, ForwardDeletions) {
     }
 
     EXPECT_EQ(0, count(h));
-    EXPECT_EQ(initialSize, global_stats.currentSize.load());
+    EXPECT_EQ(initialSize, global_stats.getCurrentSize());
 }
 
 static void verifyFound(HashTable &h, const std::vector<StoredDocKey> &keys) {
@@ -358,7 +358,7 @@ protected:
         ASSERT_EQ(0, ht.getItemMemory());
         ASSERT_EQ(0, ht.getCacheSize());
         ASSERT_EQ(0, ht.getUncompressedItemMemory());
-        initialSize = stats.currentSize.load();
+        initialSize = stats.getCurrentSize();
 
         EXPECT_EQ(0, ht.getNumItems());
         EXPECT_EQ(0, ht.getNumInMemoryItems());
@@ -374,7 +374,7 @@ protected:
         EXPECT_EQ(0, ht.getItemMemory());
         EXPECT_EQ(0, ht.getUncompressedItemMemory());
         EXPECT_EQ(0, ht.getCacheSize());
-        EXPECT_EQ(initialSize, stats.currentSize.load());
+        EXPECT_EQ(initialSize, stats.getCurrentSize());
 
         if (evictionPolicy == VALUE_ONLY) {
             // Only check is zero for ValueOnly; under full eviction getNumItems
@@ -872,7 +872,7 @@ TEST_F(HashTableTest, CopyItem) {
     auto datatypeCountsBeforeCopy = ht.getDatatypeCounts();
     auto cacheSizeBeforeCopy = ht.getCacheSize();
     auto memSizeBeforeCopy = ht.getItemMemory();
-    auto statsCurrSizeBeforeCopy = global_stats.currentSize.load();
+    auto statsCurrSizeBeforeCopy = global_stats.getCurrentSize();
 
     auto res = ht.unlocked_replaceByCopy(hbl, *replaceSv);
 
@@ -890,7 +890,7 @@ TEST_F(HashTableTest, CopyItem) {
     EXPECT_EQ(datatypeCountsBeforeCopy, ht.getDatatypeCounts());
     EXPECT_EQ(cacheSizeBeforeCopy, ht.getCacheSize());
     EXPECT_EQ(memSizeBeforeCopy, ht.getItemMemory());
-    EXPECT_EQ(statsCurrSizeBeforeCopy, global_stats.currentSize.load());
+    EXPECT_EQ(statsCurrSizeBeforeCopy, global_stats.getCurrentSize());
 }
 
 /* Test copying a deleted element in HT */
@@ -922,7 +922,7 @@ TEST_F(HashTableTest, CopyDeletedItem) {
     auto datatypeCountsBeforeCopy = ht.getDatatypeCounts();
     auto cacheSizeBeforeCopy = ht.getCacheSize();
     auto memSizeBeforeCopy = ht.getItemMemory();
-    auto statsCurrSizeBeforeCopy = global_stats.currentSize.load();
+    auto statsCurrSizeBeforeCopy = global_stats.getCurrentSize();
 
     /* Replace the StoredValue in the HT by its copy */
     auto res = ht.unlocked_replaceByCopy(hbl, *replaceSv);
@@ -942,7 +942,7 @@ TEST_F(HashTableTest, CopyDeletedItem) {
     EXPECT_EQ(datatypeCountsBeforeCopy, ht.getDatatypeCounts());
     EXPECT_EQ(cacheSizeBeforeCopy, ht.getCacheSize());
     EXPECT_EQ(memSizeBeforeCopy, ht.getItemMemory());
-    EXPECT_EQ(statsCurrSizeBeforeCopy, global_stats.currentSize.load());
+    EXPECT_EQ(statsCurrSizeBeforeCopy, global_stats.getCurrentSize());
 }
 
 // Check that an OSV which was deleted and then made alive again has the

@@ -70,15 +70,6 @@ EPStats::EPStats()
       numValueEjects(0),
       numFailedEjects(0),
       numNotMyVBuckets(0),
-      currentSize(0),
-      numBlob(0),
-      blobOverhead(0),
-      totalValueSize(0),
-      numStoredVal(0),
-      totalStoredValSize(0),
-      storedValOverhead(0),
-      memOverhead(0),
-      numItem(0),
       estimatedTotalMemory(0),
       memoryTrackerEnabled(false),
       forceShutdown(false),
@@ -157,7 +148,7 @@ void EPStats::calculateMemUsedMergeThreshold() {
     // elements, i.e. nCpu)
     memUsedMergeThreshold =
             maxDataSize * (memUsedMergeThresholdPercent / 100.0);
-    memUsedMergeThreshold = memUsedMergeThreshold / coreTotalMemory.size();
+    memUsedMergeThreshold = memUsedMergeThreshold / coreLocal.size();
 }
 
 void EPStats::memAllocated(size_t sz) {
@@ -169,13 +160,13 @@ void EPStats::memAllocated(size_t sz) {
         return;
     }
 
-    auto& coreMemory = coreTotalMemory.get();
+    auto& coreMemory = coreLocal.get()->totalMemory;
 
     // Update the coreMemory and also create a local copy of the old value + sz
     // This value will be used to check the threshold
-    auto value = coreMemory->fetch_add(sz) + sz;
+    auto value = coreMemory.fetch_add(sz) + sz;
 
-    maybeUpdateEstimatedTotalMemUsed(*coreMemory, value);
+    maybeUpdateEstimatedTotalMemUsed(coreMemory, value);
 }
 
 void EPStats::memDeallocated(size_t sz) {
@@ -187,13 +178,13 @@ void EPStats::memDeallocated(size_t sz) {
         return;
     }
 
-    auto& coreMemory = coreTotalMemory.get();
+    auto& coreMemory = coreLocal.get()->totalMemory;
 
     // Update the coreMemory and also create a local copy of the old value - sz
     // This value will be used to check the threshold
-    auto value = coreMemory->fetch_sub(sz) - sz;
+    auto value = coreMemory.fetch_sub(sz) - sz;
 
-    maybeUpdateEstimatedTotalMemUsed(*coreMemory, value);
+    maybeUpdateEstimatedTotalMemUsed(coreMemory, value);
 }
 
 void EPStats::maybeUpdateEstimatedTotalMemUsed(
@@ -207,12 +198,77 @@ void EPStats::maybeUpdateEstimatedTotalMemUsed(
 
 size_t EPStats::getPreciseTotalMemoryUsed() {
     if (memoryTrackerEnabled.load()) {
-        for (auto& core : coreTotalMemory) {
-            estimatedTotalMemory->fetch_add(core->exchange(0));
+        for (auto& core : coreLocal) {
+            estimatedTotalMemory->fetch_add(
+                    core.get()->totalMemory.exchange(0));
         }
         // This still could become negative, e.g. core 0 allocated X after we
         // read it, then core n deallocated X and we read -X.
         return size_t(std::max(int64_t(0), estimatedTotalMemory->load()));
     }
-    return currentSize.load() + memOverhead->load();
+    return getCurrentSize() + getMemOverhead();
+}
+
+size_t EPStats::getCurrentSize() const {
+    int64_t result = 0;
+    for (const auto& core : coreLocal) {
+        result += core->currentSize;
+    }
+    return std::max(int64_t(0), result);
+}
+
+size_t EPStats::getNumBlob() const {
+    int64_t result = 0;
+    for (const auto& core : coreLocal) {
+        result += core->numBlob;
+    }
+    return std::max(int64_t(0), result);
+}
+
+size_t EPStats::getBlobOverhead() const {
+    int64_t result = 0;
+    for (const auto& core : coreLocal) {
+        result += core->blobOverhead;
+    }
+    return std::max(int64_t(0), result);
+}
+
+size_t EPStats::getTotalValueSize() const {
+    int64_t result = 0;
+    for (const auto& core : coreLocal) {
+        result += core->totalValueSize;
+    }
+    return std::max(int64_t(0), result);
+}
+
+size_t EPStats::getNumStoredVal() const {
+    int64_t result = 0;
+    for (const auto& core : coreLocal) {
+        result += core->numStoredVal;
+    }
+    return std::max(int64_t(0), result);
+}
+
+size_t EPStats::getStoredValSize() const {
+    int64_t result = 0;
+    for (const auto& core : coreLocal) {
+        result += core->totalStoredValSize;
+    }
+    return std::max(int64_t(0), result);
+}
+
+size_t EPStats::getMemOverhead() const {
+    int64_t result = 0;
+    for (const auto& core : coreLocal) {
+        result += core->memOverhead;
+    }
+    return std::max(int64_t(0), result);
+}
+
+size_t EPStats::getNumItem() const {
+    int64_t result = 0;
+    for (const auto& core : coreLocal) {
+        result += core->numItem;
+    }
+    return std::max(int64_t(0), result);
 }

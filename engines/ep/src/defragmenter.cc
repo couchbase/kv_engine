@@ -145,7 +145,7 @@ std::chrono::microseconds DefragmenterTask::maxExpectedDuration() {
     return getChunkDuration() * 10;
 }
 
-size_t DefragmenterTask::getSleepTime() const {
+double DefragmenterTask::getSleepTime() const {
     return engine->getConfiguration().getDefragmenterInterval();
 }
 
