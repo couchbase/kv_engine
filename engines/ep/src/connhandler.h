@@ -19,18 +19,21 @@
 
 #include "config.h"
 
-#include <string>
-
-#include "kv_bucket_iface.h"
 #include "logger.h"
 #include "statwriter.h"
 #include "utility.h"
-#include "vb_filter.h"
-#include "vbucket.h"
+
+#include <memcached/engine.h>
+#include <memcached/engine_error.h>
+#include <memcached/vbucket.h>
+
+#include <mutex>
+#include <string>
 
 // forward decl
+struct DocKey;
+class EPStats;
 class EventuallyPersistentEngine;
-
 
 /**
  * Aggregator object to count stats.

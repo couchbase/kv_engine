@@ -23,11 +23,17 @@
 #include "atomic_unordered_map.h"
 
 #include "connhandler.h"
+#include "dcp/dcp-types.h"
 #include "dcp/flow-control.h"
+#include "globaltask.h"
 
 #include <relaxed_atomic.h>
 
+#include <list>
+#include <map>
+
 class DcpResponse;
+class PassiveStream;
 class StreamEndResponse;
 
 class DcpConsumer : public ConnHandler,

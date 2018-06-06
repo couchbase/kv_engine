@@ -27,6 +27,7 @@
 #include "dcp/dcp-types.h"
 #include "dcp/response.h"
 #include "ep_engine.h"
+#include "monotonic.h"
 
 class BackfillManager;
 class DcpResponse;

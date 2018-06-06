@@ -21,6 +21,7 @@
 
 #include "configuration.h"
 #include "connhandler.h"
+#include "item.h"
 #include "stats.h"
 #include "storeddockey.h"
 #include "taskable.h"
@@ -31,9 +32,12 @@
 
 #include <string>
 
-class StoredValue;
+class CheckpointConfig;
+struct CompactionConfig;
 class DcpConnMap;
 class DcpFlowControlManager;
+class KVBucket;
+class StoredValue;
 class VBucketCountVisitor;
 
 extern "C" {
