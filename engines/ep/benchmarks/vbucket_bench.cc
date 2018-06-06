@@ -22,8 +22,10 @@
 #include "benchmark_memory_tracker.h"
 #include "checkpoint_manager.h"
 #include "engine_fixture.h"
+#include "stored_value_factories.h"
 
 #include <mock/mock_synchronous_ep_engine.h>
+#include <programs/engine_testapp/mock_server.h>
 
 #include <gtest/gtest.h>
 
@@ -33,11 +35,16 @@ class VBucketBench : public EngineFixture {
 protected:
     void SetUp(const benchmark::State& state) override {
         EngineFixture::SetUp(state);
-        engine->getKVBucket()->setVBucketState(0, vbucket_state_active, false);
+        if (state.thread_index == 0) {
+            engine->getKVBucket()->setVBucketState(
+                    0, vbucket_state_active, false);
+        }
     }
 
     void TearDown(const benchmark::State& state) override {
-        engine->getKVBucket()->deleteVBucket(vbid, this);
+        if (state.thread_index == 0) {
+            engine->getKVBucket()->deleteVBucket(vbid, this);
+        }
         EngineFixture::TearDown(state);
     }
 
@@ -56,11 +63,37 @@ protected:
 };
 
 /**
+ * Benchmark fixture for VBucket tests which includes a memoryTracker to
+ * allow monitoring of current/peak memory usage.
+ */
+class MemTrackingVBucketBench : public VBucketBench {
+protected:
+    void SetUp(const benchmark::State& state) override {
+        if (state.thread_index == 0) {
+            memoryTracker = BenchmarkMemoryTracker::getInstance(
+                    *get_mock_server_api()->alloc_hooks);
+            memoryTracker->reset();
+        }
+        VBucketBench::SetUp(state);
+    }
+
+    void TearDown(const benchmark::State& state) override {
+        if (state.thread_index == 0) {
+            engine->getKVBucket()->deleteVBucket(vbid, this);
+        }
+        EngineFixture::TearDown(state);
+    }
+
+    BenchmarkMemoryTracker* memoryTracker;
+};
+
+/**
  * Benchmark queueing items into a vBucket.
  * Items have a 10% chance of being a duplicate key of a previous item (to
  * model de-dupe).
  */
-BENCHMARK_DEFINE_F(VBucketBench, QueueDirty)(benchmark::State& state) {
+BENCHMARK_DEFINE_F(MemTrackingVBucketBench, QueueDirty)
+(benchmark::State& state) {
     const auto itemCount = state.range(0);
 
     std::default_random_engine gen;
@@ -113,7 +146,8 @@ BENCHMARK_DEFINE_F(VBucketBench, QueueDirty)(benchmark::State& state) {
     state.counters["PeakBytesPerItem"] = (peakBytes - baseBytes) / itemCount;
 }
 
-BENCHMARK_DEFINE_F(VBucketBench, FlushVBucket)(benchmark::State& state) {
+BENCHMARK_DEFINE_F(MemTrackingVBucketBench, FlushVBucket)
+(benchmark::State& state) {
     const auto itemCount = state.range(0);
     int itemsFlushedTotal = 0;
 
@@ -151,13 +185,28 @@ BENCHMARK_DEFINE_F(VBucketBench, FlushVBucket)(benchmark::State& state) {
     state.counters["PeakBytesPerItem"] = (peakBytes - baseBytes) / itemCount;
 }
 
+BENCHMARK_DEFINE_F(VBucketBench, CreateDeleteStoredValue)
+(benchmark::State& state) {
+    auto factory = std::make_unique<StoredValueFactory>(engine->getEpStats());
+
+    const std::string value(1, 'x');
+    while (state.KeepRunning()) {
+        auto item = make_item(vbid, "key", value);
+        benchmark::DoNotOptimize(item);
+        auto sv = (*factory)(item, nullptr);
+        benchmark::DoNotOptimize(sv);
+    }
+}
+
 // Run with item counts from 1..10,000,000.
-BENCHMARK_REGISTER_F(VBucketBench, QueueDirty)
+BENCHMARK_REGISTER_F(MemTrackingVBucketBench, QueueDirty)
         ->Args({1})
         ->Args({100})
         ->Args({10000})
         ->Args({1000000});
 
-BENCHMARK_REGISTER_F(VBucketBench, FlushVBucket)
+BENCHMARK_REGISTER_F(MemTrackingVBucketBench, FlushVBucket)
         ->RangeMultiplier(10)
         ->Range(1, 1000000);
+
+BENCHMARK_REGISTER_F(VBucketBench, CreateDeleteStoredValue)->Threads(16);

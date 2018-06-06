@@ -67,6 +67,7 @@ size_t BenchmarkMemoryTracker::getCurrentAlloc() {
 BenchmarkMemoryTracker::BenchmarkMemoryTracker(
         const ALLOCATOR_HOOKS_API& hooks_api)
     : hooks_api(hooks_api) {
+    ObjectRegistry::initialize(hooks_api.get_allocation_size);
 }
 void BenchmarkMemoryTracker::connectHooks() {
     if (hooks_api.add_new_hook(&NewHook)) {
