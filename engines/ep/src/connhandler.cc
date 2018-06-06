@@ -216,3 +216,29 @@ void ConnHandler::releaseReference()
         engine_.releaseCookie(cookie);
     }
 }
+
+void ConnHandler::addStats(ADD_STAT add_stat, const void* c) {
+    addStat("type", getType(), add_stat, c);
+    addStat("created", created.load(), add_stat, c);
+    addStat("pending_disconnect", disconnect.load(), add_stat, c);
+    addStat("supports_ack", supportAck.load(), add_stat, c);
+    addStat("reserved", reserved.load(), add_stat, c);
+    addStat("paused", isPaused(), add_stat, c);
+    if (isPaused()) {
+        addStat("paused_reason", getPausedReason(), add_stat, c);
+    }
+    const auto priority = engine_.getDCPPriority(c);
+    const char* priString = "<INVALID>";
+    switch (priority) {
+    case CONN_PRIORITY_HIGH:
+        priString = "high";
+        break;
+    case CONN_PRIORITY_MED:
+        priString = "medium";
+        break;
+    case CONN_PRIORITY_LOW:
+        priString = "low";
+        break;
+    }
+    addStat("priority", priString, add_stat, c);
+}

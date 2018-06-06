@@ -352,8 +352,6 @@ protected:
     end_stream_status_t mapEndStreamStatus(const void* cookie,
                                            end_stream_status_t status) const;
 
-    std::string priority;
-
     // stash response for retry if E2BIG was hit
     std::unique_ptr<DcpResponse> rejectResp;
 

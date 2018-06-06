@@ -5637,6 +5637,14 @@ EventuallyPersistentEngine::getAllKeys(const void* cookie,
     return ENGINE_EWOULDBLOCK;
 }
 
+CONN_PRIORITY EventuallyPersistentEngine::getDCPPriority(const void* cookie) {
+    EventuallyPersistentEngine* epe =
+            ObjectRegistry::onSwitchThread(NULL, true);
+    auto priority = serverApi->cookie->get_priority(cookie);
+    ObjectRegistry::onSwitchThread(epe);
+    return priority;
+}
+
 void EventuallyPersistentEngine::setDCPPriority(const void* cookie,
                                                 CONN_PRIORITY priority) {
     EventuallyPersistentEngine* epe =

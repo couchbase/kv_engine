@@ -170,6 +170,10 @@ static ENGINE_ERROR_CODE mock_cookie_release(
     return ENGINE_SUCCESS;
 }
 
+static CONN_PRIORITY mock_get_priority(gsl::not_null<const void*> cookie) {
+    return CONN_PRIORITY_MED;
+}
+
 static void mock_set_priority(gsl::not_null<const void*> cookie,
                               CONN_PRIORITY priority) {
     (void) cookie;
@@ -373,6 +377,7 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
       server_cookie_api.notify_io_complete = mock_notify_io_complete;
       server_cookie_api.reserve = mock_cookie_reserve;
       server_cookie_api.release = mock_cookie_release;
+      server_cookie_api.get_priority = mock_get_priority;
       server_cookie_api.set_priority = mock_set_priority;
       server_cookie_api.check_privilege = mock_check_privilege;
       server_cookie_api.engine_error2mcbp = mock_engine_error2mcbp;

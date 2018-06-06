@@ -197,6 +197,10 @@ public:
         }
     }
 
+    Priority getPriority() const {
+        return priority;
+    }
+
     void setPriority(const Priority& priority);
 
     /**

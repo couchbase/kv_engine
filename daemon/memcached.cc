@@ -1530,6 +1530,30 @@ static ENGINE_ERROR_CODE release_cookie(
     return ENGINE_SUCCESS;
 }
 
+static CONN_PRIORITY cookie_get_priority(
+        gsl::not_null<const void*> void_cookie) {
+    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
+
+    auto& conn = cookie->getConnection();
+    const auto priority = conn.getPriority();
+    switch (priority) {
+    case Connection::Priority::High:
+        return CONN_PRIORITY_HIGH;
+    case Connection::Priority::Medium:
+        return CONN_PRIORITY_MED;
+    case Connection::Priority::Low:
+        return CONN_PRIORITY_LOW;
+    }
+
+    LOG_WARNING(
+            "{}: cookie_get_priority: priority (which is {}) is not a "
+            "valid CONN_PRIORITY - closing connection {}",
+            conn.getId(),
+            int(priority),
+            conn.getDescription());
+    return CONN_PRIORITY_MED;
+}
+
 static void cookie_set_priority(gsl::not_null<const void*> void_cookie,
                                 CONN_PRIORITY priority) {
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
@@ -1655,6 +1679,7 @@ SERVER_HANDLE_V1* get_server_api() {
         server_cookie_api.notify_io_complete = notify_io_complete;
         server_cookie_api.reserve = reserve_cookie;
         server_cookie_api.release = release_cookie;
+        server_cookie_api.get_priority = cookie_get_priority;
         server_cookie_api.set_priority = cookie_set_priority;
         server_cookie_api.get_bucket_id = get_bucket_id;
         server_cookie_api.get_connection_id = get_connection_id;

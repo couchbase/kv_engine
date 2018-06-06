@@ -191,7 +191,6 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
     }
 
     engine_.setDCPPriority(getCookie(), CONN_PRIORITY_MED);
-    priority.assign("medium");
 
     // The consumer assigns opaques starting at 0 so lets have the producer
     //start using opaques at 10M to prevent any opaque conflicts.
@@ -793,15 +792,12 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque, const void* key,
     } else if(strncmp(param, "set_priority", nkey) == 0) {
         if (valueStr == "high") {
             engine_.setDCPPriority(getCookie(), CONN_PRIORITY_HIGH);
-            priority.assign("high");
             return ENGINE_SUCCESS;
         } else if (valueStr == "medium") {
             engine_.setDCPPriority(getCookie(), CONN_PRIORITY_MED);
-            priority.assign("medium");
             return ENGINE_SUCCESS;
         } else if (valueStr == "low") {
             engine_.setDCPPriority(getCookie(), CONN_PRIORITY_LOW);
-            priority.assign("low");
             return ENGINE_SUCCESS;
         }
     } else if (keyStr == "send_stream_end_on_client_close_stream") {
@@ -950,7 +946,6 @@ void DcpProducer::addStats(ADD_STAT add_stat, const void *c) {
     addStat("last_receive_time", lastReceiveTime, add_stat, c);
     addStat("noop_enabled", noopCtx.enabled, add_stat, c);
     addStat("noop_wait", noopCtx.pendingRecv, add_stat, c);
-    addStat("priority", priority.c_str(), add_stat, c);
     addStat("enable_ext_metadata", enableExtMetaData ? "enabled" : "disabled",
             add_stat, c);
     addStat("force_value_compression",

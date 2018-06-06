@@ -233,6 +233,8 @@ public:
                                 ADD_RESPONSE response,
                                 DocNamespace docNamespace);
 
+    CONN_PRIORITY getDCPPriority(const void* cookie);
+
     void setDCPPriority(const void* cookie, CONN_PRIORITY priority);
 
     void notifyIOComplete(const void* cookie, ENGINE_ERROR_CODE status);

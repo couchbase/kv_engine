@@ -208,6 +208,11 @@ typedef struct {
                          CONN_PRIORITY priority);
 
     /**
+     * Get the priority for this connection
+     */
+    CONN_PRIORITY (*get_priority)(gsl::not_null<const void*> cookie);
+
+    /**
      * Get the bucket the connection is bound to
      *
      * @cookie The connection object

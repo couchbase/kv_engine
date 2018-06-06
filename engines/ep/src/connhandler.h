@@ -19,12 +19,7 @@
 
 #include "config.h"
 
-#include <list>
-#include <map>
-#include <queue>
-#include <set>
 #include <string>
-#include <vector>
 
 #include "kv_bucket_iface.h"
 #include "logger.h"
@@ -222,17 +217,7 @@ public:
         addStat(nm, val ? "true" : "false", add_stat, c);
     }
 
-    virtual void addStats(ADD_STAT add_stat, const void *c) {
-        addStat("type", getType(), add_stat, c);
-        addStat("created", created.load(), add_stat, c);
-        addStat("pending_disconnect", disconnect.load(), add_stat, c);
-        addStat("supports_ack", supportAck.load(), add_stat, c);
-        addStat("reserved", reserved.load(), add_stat, c);
-        addStat("paused", isPaused(), add_stat, c);
-        if (isPaused()) {
-            addStat("paused_reason", getPausedReason(), add_stat, c);
-        }
-    }
+    virtual void addStats(ADD_STAT add_stat, const void* c);
 
     virtual void aggregateQueueStats(ConnCounter& stats_aggregator) {
         // Empty
