@@ -604,6 +604,159 @@ TEST_F(SingleThreadedEPBucketTest,
     producer->cancelCheckpointCreatorTask();
 }
 
+// Test is demonstrating that if a checkpoint processor scheduled by a stream
+// that is subsequently closed/re-created, if that checkpoint processor runs
+// whilst the new stream is backfilling, it can't interfere with the new stream.
+// This issue was raised by MB-29585 but is fixed by MB-29369
+TEST_F(SingleThreadedEPBucketTest, MB29585_backfilling_whilst_snapshot_runs) {
+    auto producer =
+            createDcpProducer(cookie, {}, false, IncludeDeleteTime::Yes);
+    producer->scheduleCheckpointProcessorTask();
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+    EXPECT_EQ(1, lpAuxioQ.getFutureQueueSize()) << "Expected to have "
+                                                   "ActiveStreamCheckpointProce"
+                                                   "ssorTask in AuxIO Queue";
+
+    // Create first stream
+    auto vb = store->getVBucket(vbid);
+    auto stream = producer->mockActiveStreamRequest(/*flags*/ 0,
+                                                    /*opaque*/ 0,
+                                                    *vb,
+                                                    /*st_seqno*/ 0,
+                                                    /*en_seqno*/ ~0,
+                                                    /*vb_uuid*/ 0xabcd,
+                                                    /*snap_start_seqno*/ 0,
+                                                    /*snap_end_seqno*/ ~0);
+
+    // Write an item
+    EXPECT_TRUE(queueNewItem(*vb, "key1"));
+    EXPECT_EQ(std::make_pair(false, size_t(1)),
+              getEPBucket().flushVBucket(vbid));
+
+    // Request an item from the stream, so it advances from to in-memory
+    auto result = stream->next();
+    EXPECT_FALSE(result);
+    EXPECT_TRUE(stream->isInMemory());
+
+    // Now step the in-memory stream to schedule the checkpoint task
+    result = stream->next();
+    EXPECT_FALSE(result);
+    EXPECT_EQ(1, producer->getCheckpointSnapshotTask().queueSize());
+
+    // Now close the stream
+    EXPECT_EQ(ENGINE_SUCCESS, producer->closeStream(vbid, 0 /*opaque*/));
+
+    // Next we to ensure the recreated stream really does a backfill, so drop
+    // in-memory items
+    bool newcp;
+    vb->checkpointManager->createNewCheckpoint();
+    // Force persistence into new CP
+    queueNewItem(*vb, "key2");
+    EXPECT_EQ(std::make_pair(false, size_t(1)),
+              getEPBucket().flushVBucket(vbid));
+    EXPECT_EQ(1,
+              vb->checkpointManager->removeClosedUnrefCheckpoints(*vb, newcp));
+
+    // Now store another item, without MB-29369 fix we would lose this item
+    store_item(vbid, makeStoredDocKey("key3"), "value");
+
+    // Re-create the new stream
+    stream = producer->mockActiveStreamRequest(/*flags*/ 0,
+                                               /*opaque*/ 0,
+                                               *vb,
+                                               /*st_seqno*/ 0,
+                                               /*en_seqno*/ ~0,
+                                               /*vb_uuid*/ 0xabcd,
+                                               /*snap_start_seqno*/ 0,
+                                               /*snap_end_seqno*/ ~0);
+
+    // Step the stream which will now schedule a backfill
+    result = stream->next();
+    EXPECT_FALSE(result);
+    EXPECT_TRUE(stream->isBackfilling());
+
+    // Next we must deque, but not run the snapshot task, we will interleave it
+    // with backfill later
+    CheckedExecutor checkpointTask(task_executor, lpAuxioQ);
+    EXPECT_STREQ("Process checkpoint(s) for DCP producer test_producer",
+                 checkpointTask.getTaskName().data());
+
+    // Now start the backfilling task.
+    runNextTask(lpAuxioQ, "Backfilling items for a DCP Connection");
+
+    // After Backfilltask scheduled create(); should have received a disk
+    // snapshot; which in turn calls markDiskShapshot to re-register cursor.
+    EXPECT_EQ(2, vb->checkpointManager->getNumOfCursors())
+            << "Expected persistence + replication cursors after "
+               "markDiskShapshot";
+
+    result = stream->next();
+    ASSERT_TRUE(result);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, result->getEvent())
+            << "Expected Snapshot marker after running backfill task.";
+
+    // Let the backfill task complete running through its various states
+    runNextTask(lpAuxioQ, "Backfilling items for a DCP Connection");
+    runNextTask(lpAuxioQ, "Backfilling items for a DCP Connection");
+    runNextTask(lpAuxioQ, "Backfilling items for a DCP Connection");
+
+    // Now run the checkpoint processor task, whilst still backfilling
+    // With MB-29369 this should be safe
+    checkpointTask.runCurrentTask(
+            "Process checkpoint(s) for DCP producer test_producer");
+    checkpointTask.completeCurrentTask();
+
+    // Poke another item in
+    store_item(vbid, makeStoredDocKey("key4"), "value");
+
+    // Finally read back all the items and we should get two snapshots and
+    // key1/key2 key3/key4
+    result = stream->next();
+    if (result && result->getEvent() == DcpResponse::Event::Mutation) {
+        auto* mutation = dynamic_cast<MutationResponse*>(result.get());
+        EXPECT_STREQ("key1", mutation->getItem()->getKey().c_str());
+    } else {
+        FAIL() << "Expected Event::Mutation named 'key1'";
+    }
+
+    result = stream->next();
+    if (result && result->getEvent() == DcpResponse::Event::Mutation) {
+        auto* mutation = dynamic_cast<MutationResponse*>(result.get());
+        EXPECT_STREQ("key2", mutation->getItem()->getKey().c_str());
+    } else {
+        FAIL() << "Expected Event::Mutation named 'key2'";
+    }
+
+    runNextTask(lpAuxioQ,
+                "Process checkpoint(s) for DCP producer test_producer");
+
+    result = stream->next();
+    ASSERT_TRUE(result);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, result->getEvent())
+            << "Expected Snapshot marker after running snapshot task.";
+
+    result = stream->next();
+    if (result && result->getEvent() == DcpResponse::Event::Mutation) {
+        auto* mutation = dynamic_cast<MutationResponse*>(result.get());
+        EXPECT_STREQ("key3", mutation->getItem()->getKey().c_str());
+    } else {
+        FAIL() << "Expected Event::Mutation named 'key3'";
+    }
+
+    result = stream->next();
+    if (result && result->getEvent() == DcpResponse::Event::Mutation) {
+        auto* mutation = dynamic_cast<MutationResponse*>(result.get());
+        EXPECT_STREQ("key4", mutation->getItem()->getKey().c_str());
+    } else {
+        FAIL() << "Expected Event::Mutation named 'key4'";
+    }
+
+    // Stop Producer checkpoint processor task
+    producer->cancelCheckpointCreatorTask();
+}
+
 /*
  * The following test checks to see if data is lost after a cursor is
  * re-registered after being dropped.
