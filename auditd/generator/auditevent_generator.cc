@@ -18,9 +18,9 @@
 #include "config.h"
 
 #include "auditevent_generator.h"
-#include "event.h"
-#include "module.h"
-#include "utilities.h"
+#include "generator_event.h"
+#include "generator_module.h"
+#include "generator_utilities.h"
 
 #include <cJSON_utils.h>
 #include <getopt.h>

@@ -14,8 +14,8 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include "event.h"
-#include "utilities.h"
+#include "generator_event.h"
+#include "generator_utilities.h"
 
 #include <cJSON_utils.h>
 #include <sstream>

@@ -1,12 +1,12 @@
 # Most of the source is used both in the unit test and the actual program
 # Build a static archive of the source to avoid compiling it twice
 add_library(audit_generator_utilities OBJECT
-            event.cc
-            event.h
-            module.cc
-            module.h
-            utilities.cc
-            utilities.h)
+            generator_event.cc
+            generator_event.h
+            generator_module.cc
+            generator_module.h
+            generator_utilities.cc
+            generator_utilities.h)
 
 add_executable(auditevent_generator
                auditevent_generator.cc

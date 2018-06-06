@@ -14,10 +14,10 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include "utilities.h"
+#include "generator_utilities.h"
 #include "auditevent_generator.h"
-#include "event.h"
-#include "module.h"
+#include "generator_event.h"
+#include "generator_module.h"
 
 #include <cJSON.h>
 #include <platform/dirutils.h>
