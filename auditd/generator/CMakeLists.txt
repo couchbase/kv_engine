@@ -1,16 +1,18 @@
 # Most of the source is used both in the unit test and the actual program
 # Build a static archive of the source to avoid compiling it twice
-add_library(audit_generator_utilities STATIC
+add_library(audit_generator_utilities OBJECT
             event.cc
             event.h
             module.cc
-            module.h utilities.cc utilities.h)
-target_link_libraries(audit_generator_utilities cJSON)
+            module.h
+            utilities.cc
+            utilities.h)
 
 add_executable(auditevent_generator
                auditevent_generator.cc
-               auditevent_generator.h)
-target_link_libraries(auditevent_generator audit_generator_utilities cJSON platform dirutils)
+               auditevent_generator.h
+               $<TARGET_OBJECTS:audit_generator_utilities>)
+target_link_libraries(auditevent_generator cJSON platform dirutils)
 
 # When we're running the commit validation for memcached we don't
 # download all of the external modules so we'll just use a
