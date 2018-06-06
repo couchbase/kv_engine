@@ -148,14 +148,26 @@ The module defines 4 events; for each event 7 fields must be specified:
 * id (number) - the event id; it must be >= startid and <= startid + 0xFFF
 * name (string) - short textual name of the event
 * description (string) - longer name / description of the event
-* sync (bool) - whether the event is synchronous.  Currently only async events are supported
-* enabled (bool) - whether the event should be outputted in the audit log.  This feature can be used to depreciate an event, if required.
-* mandatory_fields (object) - field(s) required for a valid instance of the event.  In version 1 of the audit format *timestamp* and *real_userid* fields are required (see below).  Other bespoke fields can be added.
-*  optional_fields - optional field(s) valid in an instance of the event.  Three standard optional_fields are defined in version 1; *sessionID*, *remote* and *effective_userid*.  However additional bespoke fields can be added, if required.  Note: it is valid to have an empty optional_fields, i.e. {}.
+* sync (bool) - whether the event is synchronous.  Currently only async events
+  are supported
+* enabled (bool) - whether the event should be outputted in the audit log.
+  This feature can be used to depreciate an event, if required.
+* mandatory_fields (object) - field(s) required for a valid instance of the
+  event.  In version 1 of the audit format *timestamp* and *real_userid*
+  fields are required (see below).  Other bespoke fields can be added.
+* optional_fields - optional field(s) valid in an instance of the event.
+  Three standard optional_fields are defined in version 1; *sessionID*,
+  *remote* and *effective_userid*.  However additional bespoke fields can
+  be added, if required.  Note: it is valid to have an empty optional_fields,
+  i.e. {}.
 
 Version 2 of the audit configuration supports the filtering of events by user.
 Therefore with Version 2 an additional optional attribute is permitted.
-* filtering_permiited (bool) - whether the event can be filtered or not.  If the attribute is not defined then it is defaulted that the event cannot be filtered.  Note: we don't want to permit any ns_server or audit events from being filtered. 
+
+* filtering_permiited (bool) - whether the event can be filtered or not.
+  If the attribute is not defined then it is defaulted that the event
+  cannot be filtered.  Note: we don't want to permit any ns_server or audit
+  events from being filtered.
 
 ### Defining the format for mandatory and optional fields
 
@@ -225,16 +237,32 @@ below:
 
 #### Pre-defined Mandatory Fields
 
-* timestamp - Contains the date and time of the event, in ISO 8601 format.  Uses local time with timezone offset (from UTC) in hours and minutes.  Records microsecond granularity using 3 digits after decimal point.
-* real_userid - comprises of a "domain", which states where the user is defined, e.g. internal, ldap or ad.  It then contains the user string.
-Note:  In version 2 the real_user_id has been changed from {"source" : "", "user" : ""} to {"domain" : "", "user" : ""}.
+* timestamp - Contains the date and time of the event, in ISO 8601 format.
+  Uses local time with timezone offset (from UTC) in hours and minutes.
+  Records microsecond granularity using 3 digits after decimal point.
+* real_userid - comprises of a "domain", which states where the user is
+  defined, e.g. internal, ldap or ad.  It then contains the user string.
+
+Note:  In version 2 the real_user_id has been changed from
+`{"source" : "", "user" : ""}` to `{"domain" : "", "user" : ""}`.
 
 #### Pre-defined Optional Fields
 
-* sessionid - Used to correlate activities i.e. user logs-in to Admin UI, sets up XDCR, tweaks a memory value etc.
-* remote - the IP address of the remote agent who is requesting this action.  Note there are sometimes more than one logical remote IP address, e.g. a client runs a query which scans a 2i index.  In 2i the remote IP could be the true client or the query process.  In this case we record the IP address where the query process is running and use the session ID (see above) to resolve to the ultimate client.
-* effective_userid - Can be best explained through an example; query node connects to an indexing node on behalf of an SDK client. real_userid is "_admin" (query auth's as the internal admin); effective user ID is what ever the client's ID is.
-Note: Similar to real_user_id the notation has changed from version 1 to version 2, to be {"domain" : "", "user" : ""}.
+* sessionid - Used to correlate activities i.e. user logs-in to Admin UI,
+  sets up XDCR, tweaks a memory value etc.
+* remote - the IP address of the remote agent who is requesting this action.
+  Note there are sometimes more than one logical remote IP address, e.g. a
+  client runs a query which scans a 2i index. In 2i the remote IP could be
+  the true client or the query process. In this case we record the IP address
+  where the query process is running and use the session ID (see above) to
+  resolve to the ultimate client.
+* effective_userid - Can be best explained through an example; query node
+  connects to an indexing node on behalf of an SDK client. real_userid is
+  "_admin" (query auth's as the internal admin); effective user ID is what
+  ever the client's ID is.
+
+Note: Similar to real_user_id the notation has changed from version 1 to
+version 2, to be {"domain" : "", "user" : ""}.
 
 ## How to define events
 
@@ -303,23 +331,35 @@ PROTOCOL_BINARY_CMD_AUDIT_CONFIG_RELOAD.
 The configuration file is a JSON structured document that comprises of
 the following fields:
 
-* version - states which format of the auditd to use.  Currently only "1" or "2" is valid
+* version - states which format of the auditd to use.  Currently only "1" or
+  "2" is valid
 * daemon enabled - boolean stating whether the daemon should be running.
-* rotate interval - number of minutes between log file rotation.  (Default is one day.  Minimum is 15 minutes)
-* rotate_size - number of bytes written to the file before rotating to a new file
+* rotate interval - number of minutes between log file rotation. (Default is
+  one day.  Minimum is 15 minutes)
+* rotate_size - number of bytes written to the file before rotating to a new
+  file
 * buffered - should buffered file IO be used or not
-* disabled - list of event ids (numbers) containing those events that are NOT to be outputted to the audit log.  This is depreciated in version 2 and has no affect.
-* sync - list of event ids containing those events that are synchronous.  Synchronous events are not supported in Sherlock and so this should be the empty list.
+* disabled - list of event ids (numbers) containing those events that are NOT
+  to be outputted to the audit log.  This is depreciated in version 2 and has
+  no affect.
+* sync - list of event ids containing those events that are synchronous.
+  Synchronous events are not supported in Sherlock and so this should be the
+  empty list.
 
 With the introduction of Version 2 of the auditd configuration the following
 additional fields are required:
 
-* uuid - identifies which auditd configuration is being used.  The value is provided by ns_server
-* disabled_userids - a list of userids.  Each entry corresponds to a userid that we want to be filtered out.  Note: The list can be empty.
-* filtering_enabled - boolean stating whether filtering is enabled.  This configuration overrides all other filtering options. i.e. if set to false, then regardless of other filter settings, no filtering will be performed.
-* event_states - map of eventids to states (either enabled or disabled).  This configuration is used
-to override the "enabled" attribute of an event defined in its module definition.  The map is optional
-and if omitted the configuration will still be parsed correctly.
+* uuid - identifies which auditd configuration is being used. The value is
+  provided by ns_server
+* disabled_userids - a list of userids. Each entry corresponds to a userid
+  that we want to be filtered out. Note: The list can be empty.
+* filtering_enabled - boolean stating whether filtering is enabled. This
+  configuration overrides all other filtering options. i.e. if set to false,
+  then regardless of other filter settings, no filtering will be performed.
+* event_states - map of eventids to states (either enabled or disabled).
+  This configuration is used to override the "enabled" attribute of an
+   event defined in its module definition. The map is optional and if
+    omitted the configuration will still be parsed correctly.
 
 An example verison 1 configuration is presented below.
 
