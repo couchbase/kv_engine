@@ -21,7 +21,16 @@
 #include <memory>
 #include <utility>
 
+// hdr_histogram.h emits a warning on windows
+#ifdef WIN32
+#pragma warning(push, 0)
+#endif
+
 #include <hdr_histogram.h>
+
+#ifdef WIN32
+#pragma warning(pop)
+#endif
 
 /**
  * A container for the c hdr_histogram data structure.
