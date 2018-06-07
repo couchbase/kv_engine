@@ -1590,6 +1590,79 @@ TEST_F(SingleThreadedEPBucketTest, MB18452_yield_dcp_processor) {
     consumer->closeStream(/*opaque*/0, vbid);
 }
 
+/**
+ * MB-29861: Ensure that a delete time is generated for a document
+ * that is received on the consumer side as a result of a disk
+ * backfill
+ */
+TEST_F(SingleThreadedEPBucketTest, MB_29861) {
+    // We need a replica VB
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+
+    // Create a MockDcpConsumer
+    auto consumer = std::make_shared<MockDcpConsumer>(*engine, cookie, "test");
+
+    // Add the stream
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->addStream(/*opaque*/ 0, vbid, /*flags*/ 0));
+
+    // 1. Add the first message, a snapshot marker to ensure that the
+    //    vbucket goes to the backfill state
+    consumer->snapshotMarker(/*opaque*/ 1,
+                             vbid,
+                             /*startseq*/ 0,
+                             /*endseq*/ 2,
+                             /*flags*/ MARKER_FLAG_DISK);
+    std::string data = R"({"json":"yes"})";
+    cb::const_byte_buffer value{reinterpret_cast<const uint8_t*>(data.data()),
+                                data.size()};
+
+    // 2. Now add a deletion.
+    consumer->deletion(/*opaque*/ 1,
+                       {"key1", DocNamespace::DefaultCollection},
+                       /*values*/ value,
+                       /*priv_bytes*/ 0,
+                       /*datatype*/ PROTOCOL_BINARY_DATATYPE_JSON,
+                       /*cas*/ 0,
+                       /*vbucket*/ vbid,
+                       /*bySeqno*/ 1,
+                       /*revSeqno*/ 0,
+                       /*meta*/ {});
+
+    EXPECT_EQ(std::make_pair(false, size_t(1)),
+              getEPBucket().flushVBucket(vbid));
+
+    // Drop the stream
+    consumer->closeStream(/*opaque*/ 0, vbid);
+
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    // Now read back and verify key1 has a non-zero delete time
+    ItemMetaData metadata;
+    uint32_t deleted = 0;
+    uint8_t datatype = 0;
+    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+              store->getMetaData(makeStoredDocKey("key1"),
+                                 vbid,
+                                 cookie,
+                                 metadata,
+                                 deleted,
+                                 datatype));
+
+    // Manually run the bgfetch task.
+    MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
+    store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+    EXPECT_EQ(ENGINE_SUCCESS,
+              store->getMetaData(makeStoredDocKey("key1"),
+                                 vbid,
+                                 cookie,
+                                 metadata,
+                                 deleted,
+                                 datatype));
+    EXPECT_EQ(1, deleted);
+    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, datatype);
+    EXPECT_NE(0, metadata.exptime); // A locally created deleteTime
+}
+
 /*
  * Test that the DCP processor returns a 'yield' return code when
  * working on a large enough buffer size.

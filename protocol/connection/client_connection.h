@@ -773,10 +773,13 @@ protected:
     }
 
     void sendBuffer(cb::const_byte_buffer& buf);
+    void sendBuffer(const std::vector<iovec>& buf);
 
     void sendBufferPlain(cb::const_byte_buffer buf);
+    void sendBufferPlain(const std::vector<iovec>& list);
 
     void sendBufferSsl(cb::const_byte_buffer buf);
+    void sendBufferSsl(const std::vector<iovec>& list);
 
     std::string host;
     in_port_t port;

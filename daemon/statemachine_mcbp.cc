@@ -315,7 +315,7 @@ bool conn_new_cmd(Connection& connection) {
             connection.setState(McbpStateMachine::State::waiting);
         }
     } else {
-        get_thread_stats(&connection)->conn_yields++;
+        connection.yield();
 
         /*
          * If we've got data in the input buffer we might get "stuck"

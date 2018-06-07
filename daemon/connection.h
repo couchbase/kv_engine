@@ -24,6 +24,7 @@
 #include "settings.h"
 #include "ssl_context.h"
 #include "statemachine_mcbp.h"
+#include "stats.h"
 #include "task.h"
 
 #include <cJSON.h>
@@ -913,6 +914,14 @@ public:
      */
     void setConnectionId(cb::const_char_buffer uuid);
 
+    /// Notify that this connection is going to yield the CPU to allow
+    /// other connections to perform operations
+    void yield() {
+        yields++;
+        // Update the aggregated stat
+        get_thread_stats(this)->conn_yields++;
+    }
+
 protected:
     /**
      * Protected constructor so that it may only be used by MockSubclasses
@@ -997,6 +1006,10 @@ protected:
      * The actual socket descriptor used by this connection
      */
     SOCKET socketDescriptor;
+
+    // The number of times we've been backing off and yielding
+    // to allow other threads to run
+    Couchbase::RelaxedAtomic<uint64_t> yields;
 
     /**
      * The event base this connection is bound to

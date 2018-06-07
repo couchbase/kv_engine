@@ -716,6 +716,15 @@ VBNotifyCtx VBucket::queueDirty(
 
     queued_item qi(v.toItem(false, getId()));
 
+    // MB-27457: Timestamp deletes only when they don't already have a timestamp
+    // assigned. This is here to ensure all deleted items have a timestamp which
+    // our tombstone purger can use to determine which tombstones to purge. A
+    // DCP replicated or deleteWithMeta created delete may already have a time
+    // assigned to it.
+    if (qi->isDeleted() && qi->getDeleteTime() == 0) {
+        qi->setExpTime(ep_real_time());
+    }
+
     if (!mightContainXattrs() && mcbp::datatype::is_xattr(v.getDatatype())) {
         setMightContainXattrs();
     }
