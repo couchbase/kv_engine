@@ -279,11 +279,11 @@ MutationStatus HashTable::set(Item& val) {
 }
 
 void HashTable::compressValue(StoredValue& v) {
-    valueStats.prologue(v);
+    const auto preProps = valueStats.prologue(&v);
 
     v.compressValue();
 
-    valueStats.epilogue(v);
+    valueStats.epilogue(preProps, &v);
 }
 
 MutationStatus HashTable::unlocked_updateStoredValue(
@@ -305,12 +305,12 @@ MutationStatus HashTable::unlocked_updateStoredValue(
     MutationStatus status =
             v.isDirty() ? MutationStatus::WasDirty : MutationStatus::WasClean;
 
-    valueStats.prologue(v);
+    const auto preProps = valueStats.prologue(&v);
 
     /* setValue() will mark v as undeleted if required */
     v.setValue(itm);
 
-    valueStats.epilogue(v);
+    valueStats.epilogue(preProps, &v);
 
     return status;
 }
@@ -329,80 +329,102 @@ StoredValue* HashTable::unlocked_addNewStoredValue(const HashBucketLock& hbl,
                 "call on a non-active HT object");
     }
 
+    const auto emptyProperties = valueStats.prologue(nullptr);
+
     // Create a new StoredValue and link it into the head of the bucket chain.
     auto v = (*valFact)(itm, std::move(values[hbl.getBucketNum()]));
 
-    valueStats.epilogue(*v.get());
+    valueStats.epilogue(emptyProperties, v.get().get());
 
     values[hbl.getBucketNum()] = std::move(v);
     return values[hbl.getBucketNum()].get().get();
 }
 
-void HashTable::Statistics::prologue(const StoredValue& v) {
-    // Decrease all statistics which sv matches.
+HashTable::Statistics::StoredValueProperties::StoredValueProperties(
+        const StoredValue* sv) {
+    // If no previous StoredValue exists; return default constructed object.
+    if (sv == nullptr) {
+        return;
+    }
 
-    metaDataMemory.fetch_sub(v.metaDataSize());
-    epStats.coreLocal.get()->currentSize.fetch_sub(v.metaDataSize());
-
-    cacheSize.fetch_sub(v.size());
-    memSize.fetch_sub(v.size());
-
-    if (mcbp::datatype::is_snappy(v.getDatatype())) {
-        size_t uncompressed_length = cb::compression::get_uncompressed_length(
-                cb::compression::Algorithm::Snappy,
-                {v.getValue()->getData(), v.valuelen()});
-        uncompressedMemSize.fetch_sub(v.metaDataSize() + uncompressed_length);
+    // Record all properties of the stored value which statistics require.
+    isValid = true;
+    size = sv->size();
+    metaDataSize = sv->metaDataSize();
+    datatype = sv->getDatatype();
+    if (mcbp::datatype::is_snappy(datatype)) {
+        uncompressedSize =
+                cb::compression::get_uncompressed_length(
+                        cb::compression::Algorithm::Snappy,
+                        {sv->getValue()->getData(), sv->valuelen()}) +
+                metaDataSize;
     } else {
-        uncompressedMemSize.fetch_sub(v.size());
+        uncompressedSize = size;
     }
-
-    if (!v.isResident() && !v.isDeleted() && !v.isTempItem()) {
-        --numNonResidentItems;
-    }
-
-    if (v.isTempItem()) {
-        --numTempItems;
-    } else {
-        --numItems;
-        if (v.isDeleted()) {
-            --numDeletedItems;
-        } else {
-            --datatypeCounts[v.getDatatype()];
-        }
-    }
+    isResident = sv->isResident();
+    isDeleted = sv->isDeleted();
+    isTempItem = sv->isTempItem();
 }
 
-void HashTable::Statistics::epilogue(const StoredValue& v) {
-    // After performing updates to sv; increase all statistics which sv matches.
+HashTable::Statistics::StoredValueProperties HashTable::Statistics::prologue(
+        const StoredValue* v) const {
+    return StoredValueProperties(v);
+}
 
-    metaDataMemory.fetch_add(v.metaDataSize());
-    epStats.coreLocal.get()->currentSize.fetch_add(v.metaDataSize());
+void HashTable::Statistics::epilogue(StoredValueProperties pre,
+                                     const StoredValue* v) {
+    // After performing updates to sv; compare with the previous properties and
+    // update all statistics for all properties which have changed.
 
-    cacheSize.fetch_add(v.size());
-    memSize.fetch_add(v.size());
+    const auto post = StoredValueProperties(v);
 
-    if (mcbp::datatype::is_snappy(v.getDatatype())) {
-        size_t uncompressed_length = cb::compression::get_uncompressed_length(
-                cb::compression::Algorithm::Snappy,
-                {v.getValue()->getData(), v.valuelen()});
-        uncompressedMemSize.fetch_add(v.metaDataSize() + uncompressed_length);
-    } else {
-        uncompressedMemSize.fetch_add(v.size());
+    // Update size, metadataSize & uncompressed size if pre/post differ.
+    if (pre.size != post.size) {
+        cacheSize.fetch_add(post.size - pre.size);
+        memSize.fetch_add(post.size - pre.size);
+    }
+    if (pre.metaDataSize != post.metaDataSize) {
+        metaDataMemory.fetch_add(post.metaDataSize - pre.metaDataSize);
+        epStats.coreLocal.get()->currentSize.fetch_add(post.metaDataSize -
+                                                       pre.metaDataSize);
+    }
+    if (pre.uncompressedSize != post.uncompressedSize) {
+        uncompressedMemSize.fetch_add(post.uncompressedSize -
+                                      pre.uncompressedSize);
     }
 
-    if (!v.isResident() && !v.isDeleted() && !v.isTempItem()) {
-        ++numNonResidentItems;
+    // Determine if valid, non resident; and update numNonResidentItems if
+    // differ.
+    bool preNonResident = pre.isValid && (!pre.isResident && !pre.isDeleted &&
+                                          !pre.isTempItem);
+    bool postNonResident =
+            post.isValid &&
+            (!post.isResident && !post.isDeleted && !post.isTempItem);
+    if (preNonResident != postNonResident) {
+        numNonResidentItems.fetch_add(postNonResident - preNonResident);
     }
 
-    if (v.isTempItem()) {
-        ++numTempItems;
-    } else {
-        ++numItems;
-        if (v.isDeleted()) {
-            ++numDeletedItems;
-        } else {
-            ++datatypeCounts[v.getDatatype()];
-        }
+    if (pre.isTempItem != post.isTempItem) {
+        numTempItems.fetch_add(post.isTempItem - pre.isTempItem);
+    }
+
+    // nonItems only considers valid; non-temporary items:
+    bool preNonTemp = pre.isValid && !pre.isTempItem;
+    bool postNonTemp = post.isValid && !post.isTempItem;
+    if (preNonTemp != postNonTemp) {
+        numItems.fetch_add(postNonTemp - preNonTemp);
+    }
+
+    if (pre.isDeleted != post.isDeleted) {
+        numDeletedItems.fetch_add(post.isDeleted - pre.isDeleted);
+    }
+
+    // Update datatypes. These are only tracked for non-temp, non-deleted items.
+    if (preNonTemp && !pre.isDeleted) {
+        --datatypeCounts[pre.datatype];
+    }
+    if (postNonTemp && !post.isDeleted) {
+        ++datatypeCounts[post.datatype];
     }
 }
 
@@ -439,7 +461,8 @@ HashTable::unlocked_replaceByCopy(const HashBucketLock& hbl,
             vToCopy, std::move(values[hbl.getBucketNum()]));
 
     // Adding a new item into the HashTable; update stats.
-    valueStats.epilogue(*newSv.get());
+    const auto emptyProperties = valueStats.prologue(nullptr);
+    valueStats.epilogue(emptyProperties, newSv.get().get());
 
     values[hbl.getBucketNum()] = std::move(newSv);
     return {values[hbl.getBucketNum()].get().get(), std::move(releasedSv)};
@@ -448,7 +471,7 @@ HashTable::unlocked_replaceByCopy(const HashBucketLock& hbl,
 void HashTable::unlocked_softDelete(const std::unique_lock<std::mutex>& htLock,
                                     StoredValue& v,
                                     bool onlyMarkDeleted) {
-    valueStats.prologue(v);
+    const auto preProps = valueStats.prologue(&v);
 
     if (onlyMarkDeleted) {
         v.markDeleted();
@@ -456,7 +479,7 @@ void HashTable::unlocked_softDelete(const std::unique_lock<std::mutex>& htLock,
         v.del();
     }
 
-    valueStats.epilogue(v);
+    valueStats.epilogue(preProps, &v);
 }
 
 StoredValue* HashTable::unlocked_find(const DocKey& key,
@@ -528,7 +551,8 @@ StoredValue::UniquePtr HashTable::unlocked_release(
     }
 
     // Update statistics for the item which is now gone.
-    valueStats.prologue(*released.get());
+    const auto preProps = valueStats.prologue(released.get().get());
+    valueStats.epilogue(preProps, nullptr);
 
     return released;
 }
@@ -551,9 +575,9 @@ MutationStatus HashTable::insertFromWarmup(
         // first place instead of adding it to the Item and then discarding it
         // in markNotResident.
         if (keyMetaDataOnly) {
-            valueStats.prologue(*v);
+            const auto preProps = valueStats.prologue(v);
             v->markNotResident();
-            valueStats.epilogue(*v);
+            valueStats.epilogue(preProps, v);
         }
         v->setNewCacheItem(false);
     } else {
@@ -591,11 +615,11 @@ void HashTable::dump() const {
 
 void HashTable::storeCompressedBuffer(cb::const_char_buffer buf,
                                       StoredValue& v) {
-    valueStats.prologue(v);
+    const auto preProps = valueStats.prologue(&v);
 
     v.storeCompressedBuffer(buf);
 
-    valueStats.epilogue(v);
+    valueStats.epilogue(preProps, &v);
 }
 
 void HashTable::visit(HashTableVisitor& visitor) {
@@ -761,13 +785,13 @@ bool HashTable::unlocked_ejectItem(StoredValue*& vptr,
     switch (policy) {
     case VALUE_ONLY:
         if (vptr->eligibleForEviction(policy)) {
-            valueStats.prologue(*vptr);
+            const auto preProps = valueStats.prologue(vptr);
 
             vptr->ejectValue();
             ++stats.numValueEjects;
             ++numEjects;
 
-            valueStats.epilogue(*vptr);
+            valueStats.epilogue(preProps, vptr);
 
             return true;
         }
@@ -776,7 +800,7 @@ bool HashTable::unlocked_ejectItem(StoredValue*& vptr,
 
     case FULL_EVICTION:
         if (vptr->eligibleForEviction(policy)) {
-            valueStats.prologue(*vptr);
+            const auto preProps = valueStats.prologue(vptr);
 
             // Remove the item from the hash table.
             int bucket_num = getBucketForHash(vptr->getKey().hash());
@@ -788,6 +812,8 @@ bool HashTable::unlocked_ejectItem(StoredValue*& vptr,
                 ++stats.numValueEjects;
             }
             ++numEjects;
+            valueStats.epilogue(preProps, nullptr);
+
             updateMaxDeletedRevSeqno(vptr->getRevSeqno());
 
             return true;
@@ -819,7 +845,7 @@ bool HashTable::unlocked_restoreValue(
         return false;
     }
 
-    valueStats.prologue(v);
+    const auto preProps = valueStats.prologue(&v);
 
     if (v.isTempItem()) {
         /* set it back to false as we created a temp item by setting it to true
@@ -829,7 +855,7 @@ bool HashTable::unlocked_restoreValue(
 
     v.restoreValue(itm);
 
-    valueStats.epilogue(v);
+    valueStats.epilogue(preProps, &v);
 
     return true;
 }
@@ -849,11 +875,11 @@ void HashTable::unlocked_restoreMeta(const std::unique_lock<std::mutex>& htLock,
                 "call on a non-active HT object");
     }
 
-    valueStats.prologue(v);
+    const auto preProps = valueStats.prologue(&v);
 
     v.restoreMeta(itm);
 
-    valueStats.epilogue(v);
+    valueStats.epilogue(preProps, &v);
 }
 
 uint8_t HashTable::generateFreqValue(uint8_t counter) {

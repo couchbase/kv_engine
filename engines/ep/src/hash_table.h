@@ -164,22 +164,48 @@ public:
         }
 
         /**
-         * Update HashTable statistics before modifying a StoredValue.
+         * Set of properties on a StoredValue which are considerd by statistics
+         * tracking.
+         * Used by prologue() / epilogue() to update HashTable statistics.
+         */
+        struct StoredValueProperties {
+            StoredValueProperties(const StoredValue* sv);
+
+            // Following members are set to the equivilent property of the
+            // // given StoredValue.
+            int size = 0;
+            int metaDataSize = 0;
+            int uncompressedSize = 0;
+            protocol_binary_datatype_t datatype = PROTOCOL_BINARY_RAW_BYTES;
+            bool isValid = false;
+            bool isResident = false;
+            bool isDeleted = false;
+            bool isTempItem = false;
+        };
+
+        /**
+         * Snapshot the "pre" StoredValue statistics-related properties before
+         * modifying a StoredValue.
          *
          * This function should be called before modifying *any* StoredValue
          * object, if modifying it may affect any of the HashTable counts. For
-         * example, before we remove a StoredValue we must decrement any counts
-         * which it matches; or before we change its datatype we must decrement
-         * the count of the old datatype.
+         * example, when we remove a StoredValue we must decrement any counts
+         * which it matches; or when we change its datatype we must decrement
+         * the count of the old datatype and increment the new count.
          *
-         * It is typically paired with statsPrologue if modifying an existing
-         * SV. It will be used by itself if removing a SV (as there will be no
-         * SV after to call statsEpilogue() with).
+         * It returns a StoredValueProperties object which records all
+         * StoredValue properties which affect HashTable statistics. For example
+         * it records the value size, datatype, temp flag, ...
+         *
+         * After modifying the StoredValue, the StoredValueProperties object
+         * should be passed into epilogue() which compares the "post" state of
+         * the StoredValue with the "pre" properties and updates statistics as
+         * appropriate.
          *
          * See also: epilogue().
          * @param sv StoredValue which is about to be modified.
          */
-        void prologue(const StoredValue& sv);
+        StoredValueProperties prologue(const StoredValue* sv) const;
 
         /**
          * Update HashTable statistics after modifying a StoredValue.
@@ -189,10 +215,11 @@ public:
          * example, if the datatype of a StoredValue may have changed; then
          * datatypeCounts needs to be updated.
          *
-         * See also: prologue().
-         * @param sv StoredValue which has just been modified.
+         * @param pre StoredValueProperties from before the StoredValue
+         *                   was modified.
+         * @param post StoredValue which has just been modified.
          */
-        void epilogue(const StoredValue& sv);
+        void epilogue(StoredValueProperties pre, const StoredValue* post);
 
         /// Reset the values of all statistics to zero.
         void reset();
