@@ -144,6 +144,14 @@ public:
         return true;
     }
 
+    void setRetainErroneousTombstones(bool value) {
+        retainErroneousTombstones = value;
+    }
+
+    bool isRetainErroneousTombstones() const {
+        return retainErroneousTombstones.load();
+    }
+
 protected:
     class ValueChangedListener;
 
@@ -171,4 +179,10 @@ protected:
      * into multiple batches.
      */
     size_t flusherBatchSplitTrigger;
+
+    /**
+     * Indicates whether erroneous tombstones need to retained or not during
+     * compaction
+     */
+    Couchbase::RelaxedAtomic<bool> retainErroneousTombstones;
 };

@@ -3447,6 +3447,145 @@ TEST_F(SingleThreadedEPBucketTest, ProducerReadyQConnectionLimitOnBackfill) {
     producerReadyQLimitOnBackfill(BackfillBufferLimit::ConnectionByte);
 }
 
+/*
+ * Test to verify that if retain_erroneous_tombstones is set to
+ * true, then the compactor will retain the tombstones, and if
+ * it is set to false, they get purged
+ */
+TEST_F(SingleThreadedEPBucketTest, testRetainErroneousTombstones) {
+    // Make vbucket active.
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    auto& epstore = getEPBucket();
+    epstore.setRetainErroneousTombstones(true);
+    ASSERT_TRUE(epstore.isRetainErroneousTombstones());
+
+    auto key1 = makeStoredDocKey("key1");
+    store_item(vbid, key1, "value");
+    flush_vbucket_to_disk(vbid);
+
+    delete_item(vbid, key1);
+    flush_vbucket_to_disk(vbid);
+
+    // In order to simulate an erroneous tombstone, use the
+    // KVStore layer to set the delete time to 0.
+    auto* kvstore = epstore.getVBucket(vbid)->getShard()
+                                            ->getRWUnderlying();
+    GetValue gv = kvstore->get(key1, 0);
+    std::unique_ptr<Item> itm = std::move(gv.item);
+    ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    ASSERT_TRUE(itm->isDeleted());
+    itm->setExpTime(0);
+
+    DeleteCallback dc;
+    kvstore->begin(std::make_unique<TransactionContext>());
+    kvstore->del(*(itm.get()), dc);
+    kvstore->commit(nullptr);
+
+    // Add another item to ensure that seqno of the deleted item
+    // gets purged. KV-engine doesn't purge a deleted item with
+    // the highest seqno
+    auto key2 = makeStoredDocKey("key2");
+    store_item(vbid, key2, "value");
+    flush_vbucket_to_disk(vbid);
+
+    // Now read back and verify key1 has a non-zero delete time
+    ItemMetaData metadata;
+    uint32_t deleted = 0;
+    uint8_t datatype = 0;
+    ASSERT_EQ(ENGINE_EWOULDBLOCK,
+              store->getMetaData(key1,
+                                 vbid,
+                                 cookie,
+                                 metadata,
+                                 deleted,
+                                 datatype));
+
+    auto vb = store->getVBucket(vbid);
+
+    // Manually run the bgfetch task.
+    MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
+    vb->getShard()->getBgFetcher()->run(&mockTask);
+    ASSERT_EQ(ENGINE_SUCCESS,
+              store->getMetaData(key1,
+                                 vbid,
+                                 cookie,
+                                 metadata,
+                                 deleted,
+                                 datatype));
+    ASSERT_EQ(1, deleted);
+    ASSERT_EQ(0, metadata.exptime);
+
+    // Run compaction. Ensure that compaction hasn't purged the tombstone
+    runCompaction(~0, 3);
+    EXPECT_EQ(0, vb->getPurgeSeqno());
+
+    // Now, make sure erroneous tombstones get purged by the compactor
+    epstore.setRetainErroneousTombstones(false);
+    ASSERT_FALSE(epstore.isRetainErroneousTombstones());
+
+    // Run compaction and verify that the tombstone is purged
+    runCompaction(~0, 3);
+    EXPECT_EQ(2, vb->getPurgeSeqno());
+}
+
+/**
+ * Test to verify that in case retain_erroneous_tombstones is set to true, then
+ * a tombstone with a valid expiry time will get purged
+ */
+TEST_F(SingleThreadedEPBucketTest, testValidTombstonePurgeOnRetainErroneousTombstones) {
+    // Make vbucket active.
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    auto& epstore = getEPBucket();
+    epstore.setRetainErroneousTombstones(true);
+    ASSERT_TRUE(epstore.isRetainErroneousTombstones());
+
+    auto key1 = makeStoredDocKey("key1");
+    store_item(vbid, key1, "value");
+    flush_vbucket_to_disk(vbid);
+
+    delete_item(vbid, key1);
+    flush_vbucket_to_disk(vbid);
+
+    // Add another item to ensure that seqno of the deleted item
+    // gets purged. KV-engine doesn't purge a deleted item with
+    // the highest seqno
+    auto key2 = makeStoredDocKey("key2");
+    store_item(vbid, key2, "value");
+    flush_vbucket_to_disk(vbid);
+
+    // Now read back and verify key1 has a non-zero delete time
+    ItemMetaData metadata;
+    uint32_t deleted = 0;
+    uint8_t datatype = 0;
+    ASSERT_EQ(ENGINE_EWOULDBLOCK,
+              store->getMetaData(key1,
+                                 vbid,
+                                 cookie,
+                                 metadata,
+                                 deleted,
+                                 datatype));
+
+    // Manually run the bgfetch task.
+    MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
+    store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+    ASSERT_EQ(ENGINE_SUCCESS,
+              store->getMetaData(key1,
+                                 vbid,
+                                 cookie,
+                                 metadata,
+                                 deleted,
+                                 datatype));
+    ASSERT_EQ(1, deleted);
+    ASSERT_NE(0, metadata.exptime); // A locally created deleteTime
+
+    // deleted key1 should be purged
+    runCompaction(~0, 3);
+
+    EXPECT_EQ(2, store->getVBucket(vbid)->getPurgeSeqno());
+}
+
 INSTANTIATE_TEST_CASE_P(XattrSystemUserTest,
                         XattrSystemUserTest,
                         ::testing::Bool(), );

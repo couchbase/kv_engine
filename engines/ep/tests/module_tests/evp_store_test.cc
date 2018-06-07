@@ -82,6 +82,29 @@ TEST_F(EPBucketTest, test_mb20751_deadlock_on_disconnect_delete) {
     frontend_thread_handling_disconnect.join();
 }
 
+/**
+ * MB-30015: Test to check the config parameter "retain_erroneous_tombstones"
+ */
+TEST_F(EPBucketTest, testRetainErroneousTombstonesConfig) {
+    Configuration& config = engine->getConfiguration();
+
+    config.setRetainErroneousTombstones(true);
+    auto& store = getEPBucket();
+    EXPECT_TRUE(store.isRetainErroneousTombstones());
+
+    config.setRetainErroneousTombstones(false);
+    EXPECT_FALSE(store.isRetainErroneousTombstones());
+
+    std::string msg;
+    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+              engine->setFlushParam("retain_erroneous_tombstones", "true", msg));
+    EXPECT_TRUE(store.isRetainErroneousTombstones());
+
+    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+              engine->setFlushParam("retain_erroneous_tombstones", "false", msg));
+    EXPECT_FALSE(store.isRetainErroneousTombstones());
+}
+
 class EPStoreEvictionTest : public EPBucketTest,
                              public ::testing::WithParamInterface<std::string> {
     void SetUp() override {

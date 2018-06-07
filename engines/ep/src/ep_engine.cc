@@ -633,6 +633,8 @@ protocol_binary_response_status EventuallyPersistentEngine::setFlushParam(
             getConfiguration().setMaxTtl(std::stoull(valz));
         } else if (strcmp(keyz, "mem_used_merge_threshold_percent") == 0) {
             getConfiguration().setMemUsedMergeThresholdPercent(std::stof(valz));
+        } else if (strcmp(keyz, "retain_erroneous_tombstones") == 0) {
+            getConfiguration().setRetainErroneousTombstones(cb_stob(valz));
         } else {
             msg = "Unknown config param";
             rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;

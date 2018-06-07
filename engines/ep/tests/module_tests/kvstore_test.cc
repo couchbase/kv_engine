@@ -19,7 +19,6 @@
 
 #include <platform/dirutils.h>
 
-#include "callbacks.h"
 #include "couch-kvstore/couch-kvstore.h"
 #include "kvstore.h"
 #include "kvstore_config.h"
@@ -38,15 +37,6 @@
 #include <thread>
 #include <unordered_map>
 #include <vector>
-
-class WriteCallback : public Callback<TransactionContext, mutation_result> {
-public:
-    WriteCallback() {}
-
-    void callback(TransactionContext&, mutation_result& result) {
-    }
-
-};
 
 class KVStoreTestCacheCallback : public StatusCallback<CacheLookup> {
 public:

@@ -56,6 +56,15 @@ bool CompactTask::run() {
                  "CompactTask",
                  "file_id",
                  compactionConfig.db_file_id);
+
+    /**
+     * MB-30015: Check to see if tombstones that have invalid
+     * data needs to be retained. The goal is to try and retain
+     * the erroneous tombstones especially in customer environments
+     * for further analysis
+     */
+    compactionConfig.retain_erroneous_tombstones =
+                             bucket.isRetainErroneousTombstones();
     return bucket.doCompact(compactionConfig, purgeSeqno, cookie);
 }
 

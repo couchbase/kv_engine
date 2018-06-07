@@ -841,9 +841,21 @@ static int time_purge_hook(Db* d, DocInfo* info, sized_buf item, void* ctx_p) {
                     ctx->stats.tombstonesPurged++;
                     return COUCHSTORE_COMPACT_DROP_ITEM;      // ...unconditionally
                 }
+
+                /**
+                 * MB-30015: Found a tombstone whose expiry time is 0. Log this
+                 * message because tombstones are expected to have a non-zero
+                 * expiry time
+                 */
+                if (!exptime) {
+                    LOG(EXTENSION_LOG_WARNING,
+                        "time_purge_hook: tombstone found with an expiry time of 0");
+                }
+
                 if (exptime < ctx->compactConfig.purge_before_ts &&
-                    (!ctx->compactConfig.purge_before_seq ||
-                     info->db_seq <= ctx->compactConfig.purge_before_seq)) {
+                    (exptime || !ctx->compactConfig.retain_erroneous_tombstones) &&
+                     (!ctx->compactConfig.purge_before_seq ||
+                      info->db_seq <= ctx->compactConfig.purge_before_seq)) {
                     if (max_purge_seq < info->db_seq) {
                         ctx->max_purged_seq = info->db_seq;
                     }

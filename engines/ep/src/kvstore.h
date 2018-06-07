@@ -102,6 +102,7 @@ struct CompactionConfig {
     uint8_t drop_deletes = 0;
     DBFileId db_file_id = 0;
     uint64_t purgeSeq = 0;
+    bool retain_erroneous_tombstones = false;
 };
 
 struct compaction_ctx {

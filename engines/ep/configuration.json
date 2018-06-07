@@ -928,6 +928,11 @@
                 }
             }
         },
+        "retain_erroneous_tombstones": {
+            "default": "true",
+            "descr": "whether erroneous tombstones need to be retain during compaction. Erroneous tombstones are those that have invalid meta data in it. For example, a delete time of 0.",
+            "type": "bool"
+        },
         "rocksdb_options": {
             "default": "bytes_per_sync=1048576,stats_dump_period_sec=600",
             "descr": "RocksDB Options, comma separated.",

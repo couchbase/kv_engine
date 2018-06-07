@@ -190,6 +190,17 @@ public:
         }
     }
 
+    virtual void booleanValueChanged(const std::string& key,
+                                     bool value) override {
+        if (key == "retain_erroneous_tombstones") {
+            bucket.setRetainErroneousTombstones(value);
+        } else  {
+            LOG(EXTENSION_LOG_WARNING,
+                "Failed to change value for unknown variable, %s\n",
+                key.c_str());
+        }
+    }
+
 private:
     EPBucket& bucket;
 };
@@ -212,6 +223,11 @@ EPBucket::EPBucket(EventuallyPersistentEngine& theEngine)
     config.addValueChangedListener(
             "flusher_batch_split_trigger",
             std::make_unique<ValueChangedListener>(*this));
+
+    retainErroneousTombstones = config.isRetainErroneousTombstones();
+    config.addValueChangedListener(
+           "retain_erroneous_tombstones",
+           std::make_unique<ValueChangedListener>(*this));
 }
 
 bool EPBucket::initialize() {

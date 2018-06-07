@@ -21,8 +21,9 @@
 
 #pragma once
 
+#include "callbacks.h"
 #include "config.h"
-
+#include "kvstore.h"
 #include "item.h"
 #include "programs/engine_testapp/mock_server.h"
 
@@ -102,3 +103,19 @@ private:
  * @return indicates the next sleep time (doubled from the current value)
  */
 std::chrono::microseconds decayingSleep(std::chrono::microseconds uSeconds);
+
+class WriteCallback : public Callback<TransactionContext, mutation_result> {
+public:
+    WriteCallback() {}
+
+    void callback(TransactionContext&, mutation_result& result) {
+    }
+};
+
+class DeleteCallback : public Callback<TransactionContext, int> {
+public:
+    DeleteCallback() {}
+
+    void callback(TransactionContext&, int&) {
+    }
+};
