@@ -440,16 +440,6 @@ public:
                     }
                     break;
                 }
-                case SystemEvent::CollectionsSeparatorChanged: {
-                    auto dcpData = Collections::VB::Manifest::
-                            getSystemEventSeparatorData(
-                                    {qi->getData(), qi->getNBytes()});
-                    replica.wlock().replicaChangeSeparator(vbR,
-                                                           dcpData.manifestUid,
-                                                           dcpData.separator,
-                                                           qi->getBySeqno());
-                    break;
-                }
                 case SystemEvent::DeleteCollectionSoft:
                 case SystemEvent::DeleteCollectionHard:
                     // DCP doesn't transmit these events, but to improve test
@@ -815,59 +805,6 @@ TEST_F(VBucketManifestTest, doubleDelete) {
              R"("collections":[{"name":"$default","uid":"0"}]})"});
 
     EXPECT_EQ(seqno, manifest.getActiveVB().getHighSeqno());
-}
-
-// This test changes the separator and propagates to the replica (all done
-// via the noThrow helper functions).
-TEST_F(VBucketManifestTest, active_replica_separatorChanges) {
-    // Can change separator to @ as only default exists
-    EXPECT_TRUE(manifest.update(
-            R"({ "separator":"@","uid":"0","collections":[{"name":"$default","uid":"0"}]})"));
-
-    // Can change separator to / and add first collection
-    EXPECT_TRUE(manifest.update(
-            R"({ "separator":"/","uid":"0","collections":[{"name":"$default","uid":"0"},)"
-            R"(                                  {"name":"vegetable","uid":"1"}]})"));
-
-    // Cannot change separator to ## because non-default collections exist
-    EXPECT_FALSE(manifest.update(
-            R"({ "separator":"##","uid":"0","collections":[{"name":"$default","uid":"0"},)"
-            R"(                                   {"name":"vegetable","uid":"1"}]})"));
-
-    // Now just remove vegetable
-    EXPECT_TRUE(manifest.update(
-            R"({ "separator":"/","uid":"0","collections":[{"name":"$default","uid":"0"}]})"));
-
-    // vegetable still exists (isDeleting), but change to ##
-    EXPECT_TRUE(manifest.update(
-            R"({ "separator":"##","uid":"0","collections":[{"name":"$default","uid":"0"}]})"));
-
-    // Finish removal of vegetable
-    EXPECT_TRUE(manifest.completeDeletion({"vegetable", 1}));
-
-    // Can change separator as only default exists
-    EXPECT_TRUE(manifest.update(
-            R"({ "separator":"@","uid":"0","collections":[{"name":"$default","uid":"0"}]})"));
-
-    // Remove default
-    EXPECT_TRUE(manifest.update(
-            R"({ "separator":"/","uid":"0","collections":[]})"));
-
-    // $default still exists (isDeleting), so cannot change to ##
-    EXPECT_TRUE(manifest.update(
-            R"({ "separator":"##","uid":"0","collections":[{"name":"$default","uid":"0"}]})"));
-
-    EXPECT_TRUE(manifest.completeDeletion({"$default", 0}));
-
-    // Can change separator as no collection exists
-    EXPECT_TRUE(manifest.update(
-            R"({ "separator":"-=-=-","uid":"0","collections":[]})"));
-
-    // Add a collection and check the new separator
-    EXPECT_TRUE(manifest.update(
-            R"({ "separator":"-=-=-","uid":"0","collections":[{"name":"meat","uid":"3"}]})"));
-    EXPECT_TRUE(manifest.doesKeyContainValidCollection(
-            {"meat-=-=-bacon", DocNamespace::Collections}));
 }
 
 TEST_F(VBucketManifestTest, replica_add_remove) {

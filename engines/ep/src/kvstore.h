@@ -20,8 +20,6 @@
 #include "config.h"
 
 #include "callbacks.h"
-#include "collections/eraser_context.h"
-#include "collections/scan_context.h"
 #include "storeddockey.h"
 
 #include <memcached/engine_common.h>
@@ -117,10 +115,7 @@ struct compaction_ctx {
     BloomFilterCBPtr bloomFilterCallback;
     ExpiredItemsCBPtr expiryCallback;
     struct CompactionStats stats;
-    Collections::VB::EraserContext eraserContext;
-    std::function<bool(
-            const DocKey, int64_t, bool, Collections::VB::EraserContext&)>
-            collectionsEraser;
+    std::function<bool(const DocKey, int64_t, bool)> collectionsEraser;
 };
 
 /**
@@ -252,7 +247,6 @@ public:
 
     Logger* logger;
     const KVStoreConfig& config;
-    Collections::VB::ScanContext collectionsContext;
 };
 
 struct FileStats {

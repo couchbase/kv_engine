@@ -75,11 +75,6 @@ std::string SystemEventFactory::makeKey(SystemEvent se,
         key = Collections::DeleteKey + keyExtra;
         break;
     }
-    case SystemEvent::CollectionsSeparatorChanged: {
-        // $collections_separator:<key-extra>
-        key = Collections::SeparatorChangePrefixWithSeparator + keyExtra;
-        break;
-    }
     }
     return key;
 }
@@ -92,12 +87,6 @@ ProcessStatus SystemEventFlush::process(const queued_item& item) {
     switch (SystemEvent(item->getFlags())) {
     case SystemEvent::Collection: {
         saveCollectionsManifestItem(item); // Updates manifest
-        return ProcessStatus::Continue; // And flushes an item
-    }
-    case SystemEvent::CollectionsSeparatorChanged: {
-        if (!item->isDeleted()) {
-            saveCollectionsManifestItem(item); // Updates manifest
-        }
         return ProcessStatus::Continue; // And flushes an item
     }
     case SystemEvent::DeleteCollectionHard:
@@ -133,8 +122,6 @@ ProcessStatus SystemEventReplicate::process(const Item& item) {
         } else {
             switch (SystemEvent(item.getFlags())) {
             case SystemEvent::Collection:
-            case SystemEvent::CollectionsSeparatorChanged:
-                // Collection and change separator events both replicate
                 return ProcessStatus::Continue;
             case SystemEvent::DeleteCollectionHard:
             case SystemEvent::DeleteCollectionSoft: {
@@ -157,15 +144,6 @@ std::unique_ptr<SystemEventProducerMessage> SystemEventProducerMessage::make(
                         opaque,
                         item,
                         Collections::VB::Manifest::getSystemEventData(
-                                {item->getData(), item->getNBytes()}))};
-    }
-    case SystemEvent::CollectionsSeparatorChanged: {
-        // Note: constructor is private and make_unique is a pain to make friend
-        return std::unique_ptr<ChangeSeparatorProducerMessage>{
-                new ChangeSeparatorProducerMessage(
-                        opaque,
-                        item,
-                        Collections::VB::Manifest::getSystemEventSeparatorData(
                                 {item->getData(), item->getNBytes()}))};
     }
     case SystemEvent::DeleteCollectionHard:

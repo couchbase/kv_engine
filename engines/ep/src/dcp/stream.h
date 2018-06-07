@@ -345,14 +345,6 @@ protected:
     void transitionState(StreamState newState);
 
     /**
-     * Check to see if the response is a SystemEvent and if so, apply any
-     * actions to the stream.
-     *
-     * @param response A DcpResponse that is about to be sent to a client
-     */
-    void processSystemEvent(DcpResponse* response);
-
-    /**
      * Registers a cursor with a given CheckpointManager.
      * The result of calling the function is that it sets the pendingBackfill
      * flag, if another backfill is required.  It also sets the curChkSeqno to
@@ -528,9 +520,6 @@ private:
      * A copy of the collections separator so we can generate MutationResponse
      * instances that embed the collection/document-name data so we can
      * replicate that collection information (as a length).
-     *
-     * As checkpoints/backfills are processed, we will monitor for
-     * CollectionsSeparatorChanged events and update the copy accordingly.
      */
     std::string currentSeparator;
 
@@ -771,14 +760,6 @@ protected:
     ENGINE_ERROR_CODE processBeginDeleteCollection(
             VBucket& vb, const CreateOrDeleteCollectionEvent& event);
 
-    /**
-     * Process a collections change separator event.
-     *
-     * @param vb Vbucket which we apply the delete on.
-     * @param event The collection system event changing the separator.
-     */
-    ENGINE_ERROR_CODE processSeparatorChanged(
-            VBucket& vb, const ChangeSeparatorCollectionEvent& event);
 
     void handleSnapshotEnd(VBucketPtr& vb, uint64_t byseqno);
 

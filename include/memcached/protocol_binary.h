@@ -1809,11 +1809,7 @@ typedef protocol_binary_response_no_extras protocol_binary_response_dcp_control;
 namespace mcbp {
 namespace systemevent {
 
-enum class id : uint32_t {
-    CreateCollection = 0,
-    DeleteCollection = 1,
-    CollectionsSeparatorChanged = 2
-};
+enum class id : uint32_t { CreateCollection = 0, DeleteCollection = 1 };
 
 /**
  * Validate that the uint32_t represents a valid systemevent::id
@@ -1822,7 +1818,6 @@ static inline bool validate(uint32_t event) {
     switch (id(event)) {
         case id::CreateCollection:
         case id::DeleteCollection:
-        case id::CollectionsSeparatorChanged:
             return true;
     }
     return false;

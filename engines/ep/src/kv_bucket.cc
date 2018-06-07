@@ -2503,28 +2503,20 @@ void KVBucket::setXattrEnabled(bool value) {
     xattrEnabled = value;
 }
 
-bool KVBucket::collectionsEraseKey(
-        uint16_t vbid,
-        const DocKey key,
-        int64_t bySeqno,
-        bool deleted,
-        Collections::VB::EraserContext& eraserContext) {
+bool KVBucket::collectionsEraseKey(uint16_t vbid,
+                                   const DocKey key,
+                                   int64_t bySeqno,
+                                   bool deleted) {
     auto vb = getVBucket(vbid);
     boost::optional<cb::const_char_buffer> completedCollection;
     if (!vb) {
         return false;
     }
 
-    // If the eraserContext consumes the key - just return
-    // deleted keys can be ignored at this point
-    if (!deleted && eraserContext.manageSeparator(key)) {
-        return false;
-    }
-
     { // collections read lock scope
         auto collectionsRHandle = vb->lockCollections();
         if (collectionsRHandle.isLogicallyDeleted(
-                    key, bySeqno, eraserContext.getSeparator())) {
+                    key, bySeqno, Collections::DefaultSeparator)) {
             vb->removeKey(key, bySeqno);
 
             // Update item count for non-system collections.

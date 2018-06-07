@@ -932,8 +932,6 @@ std::unique_ptr<DcpResponse> ActiveStream::nextQueuedItem() {
                 }
             }
 
-            // See if the response is a system-event
-            processSystemEvent(response.get());
             return popFromReadyQ();
         }
     }
@@ -1845,17 +1843,6 @@ EXTENSION_LOG_LEVEL ActiveStream::getTransitionStateLogLevel(
     return EXTENSION_LOG_NOTICE;
 }
 
-void ActiveStream::processSystemEvent(DcpResponse* response) {
-    if (response->getEvent() == DcpResponse::Event::SystemEvent) {
-        auto se = static_cast<SystemEventProducerMessage*>(response);
-        if (se->getSystemEvent() == mcbp::systemevent::id::CollectionsSeparatorChanged) {
-            currentSeparator =
-                    std::string(se->getKey().data(), se->getKey().size());
-            // filter needs new separator?
-        }
-    }
-}
-
 void ActiveStream::notifyStreamReady(bool force) {
     auto producer = producerPtr.lock();
     if (!producer) {
@@ -2608,10 +2595,6 @@ ENGINE_ERROR_CODE PassiveStream::processSystemEvent(
         rv = processBeginDeleteCollection(*vb, {event});
         break;
     }
-    case mcbp::systemevent::id::CollectionsSeparatorChanged: {
-        rv = processSeparatorChanged(*vb, {event});
-        break;
-    }
     default: {
         rv = ENGINE_EINVAL;
         break;
@@ -2656,21 +2639,6 @@ ENGINE_ERROR_CODE PassiveStream::processBeginDeleteCollection(
     } catch (std::exception& e) {
         LOG(EXTENSION_LOG_WARNING,
             "PassiveStream::processBeginDeleteCollection exception %s",
-            e.what());
-        return ENGINE_EINVAL;
-    }
-    return ENGINE_SUCCESS;
-}
-
-ENGINE_ERROR_CODE PassiveStream::processSeparatorChanged(
-        VBucket& vb, const ChangeSeparatorCollectionEvent& event) {
-    try {
-        vb.replicaChangeCollectionSeparator(event.getManifestUid(),
-                                            event.getSeparator(),
-                                            event.getBySeqno());
-    } catch (std::exception& e) {
-        LOG(EXTENSION_LOG_WARNING,
-            "PassiveStream::processSeparatorChanged exception %s",
             e.what());
         return ENGINE_EINVAL;
     }

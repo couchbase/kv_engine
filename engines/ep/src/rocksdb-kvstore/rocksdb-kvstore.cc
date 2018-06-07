@@ -1479,10 +1479,8 @@ scan_error_t RocksDBKVStore::scan(ScanContext* ctx) {
             continue;
         }
         int64_t byseqno = itm->getBySeqno();
-        CacheLookup lookup(key,
-                           byseqno,
-                           ctx->vbid,
-                           ctx->collectionsContext.getSeparator());
+        CacheLookup lookup(
+                key, byseqno, ctx->vbid, Collections::DefaultSeparator);
         ctx->lookup->callback(lookup);
 
         int status = ctx->lookup->getStatus();

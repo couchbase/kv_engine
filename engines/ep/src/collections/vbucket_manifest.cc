@@ -59,8 +59,7 @@ Manifest::Manifest(const std::string& manifest)
     // Load the uid
     manifestUid = makeUid(getJsonEntry(cjson.get(), "uid"));
 
-    // Load the separator
-    separator = getJsonEntry(cjson.get(), "separator");
+    separator = DefaultSeparator;
 
     // Load the collections array
     auto jsonCollections = cJSON_GetObjectItem(cjson.get(), "collections");
@@ -93,13 +92,6 @@ Manifest::Manifest(const std::string& manifest)
 void Manifest::update(::VBucket& vb, const Collections::Manifest& manifest) {
     std::vector<Collections::Manifest::Identifier> additions, deletions;
     std::tie(additions, deletions) = processManifest(manifest);
-
-    if (separator != manifest.getSeparator()) {
-        changeSeparator(vb,
-                        manifest.getUid(),
-                        manifest.getSeparator(),
-                        OptionalSeqno{/*no-seqno*/});
-    }
 
     // Process deletions to the manifest
     for (const auto& collection : deletions) {
@@ -136,7 +128,6 @@ void Manifest::addCollection(::VBucket& vb,
                                   identifier,
                                   false /*deleted*/,
                                   optionalSeqno);
-
 
     LOG(EXTENSION_LOG_NOTICE,
         "collections: vb:%" PRIu16 " adding collection:%.*s, uid:%" PRIx64
@@ -282,44 +273,6 @@ void Manifest::completeDeletion(::VBucket& vb,
                      {collection, uid},
                      false /*delete*/,
                      OptionalSeqno{/*none*/});
-}
-
-void Manifest::changeSeparator(::VBucket& vb,
-                               uid_t manifestUid,
-                               cb::const_char_buffer newSeparator,
-                               OptionalSeqno optionalSeqno) {
-    // Can we change the separator? Only allowed to change if there are no
-    // collections or the only collection is the default collection
-    if (cannotChangeSeparator()) {
-        throwException<std::logic_error>(__FUNCTION__,
-                                         "cannot change "
-                                         "separator to " +
-                                                 cb::to_string(newSeparator));
-    } else {
-        LOG(EXTENSION_LOG_NOTICE,
-            "collections: vb:%" PRIu16
-            " changing collection separator from:%s, to:%.*s, replica:%s, "
-            "backfill:%s, manifest:%" PRIx64,
-            vb.getId(),
-            separator.c_str(),
-            int(newSeparator.size()),
-            newSeparator.data(),
-            optionalSeqno.is_initialized() ? "true" : "false",
-            vb.isBackfillPhase() ? "true" : "false",
-            manifestUid);
-
-        // record the uid of the manifest which changed the separator
-        this->manifestUid = manifestUid;
-
-        std::string oldSeparator = separator;
-        // Change the separator then queue the event so the new separator
-        // is recorded in the serialised manifest
-        separator = std::string(newSeparator.data(), newSeparator.size());
-
-        // Queue an event so that the manifest is flushed and DCP can
-        // replicate the change.
-        (void)queueSeparatorChanged(vb, oldSeparator, optionalSeqno);
-    }
 }
 
 Manifest::processResult Manifest::processManifest(
@@ -500,26 +453,6 @@ std::unique_ptr<Item> Manifest::createSystemEvent(SystemEvent se,
     return item;
 }
 
-std::unique_ptr<Item> Manifest::createSeparatorChangedEvent(
-        int64_t highSeqno,
-        OptionalSeqno seqno) const {
-    // Create an item (to be queued and written to disk) that represents
-    // the change of the separator. The item always has the same key.
-    // We serialise the state of this object  into the Item's value.
-    auto item = SystemEventFactory::make(
-            SystemEvent::CollectionsSeparatorChanged,
-            std::to_string(highSeqno) + SystemSeparator + separator,
-            getSerialisedDataSize(),
-            seqno);
-
-    // Quite rightly an Item's value is const, but in this case the Item is
-    // owned only by the local scope so is safe to mutate (by const_cast force)
-    populateWithSerialisedData(
-            {const_cast<char*>(item->getData()), item->getNBytes()});
-
-    return item;
-}
-
 int64_t Manifest::queueSystemEvent(::VBucket& vb,
                                    SystemEvent se,
                                    Identifier identifier,
@@ -535,15 +468,6 @@ int64_t Manifest::queueSystemEvent(::VBucket& vb,
         vb.checkpointManager->createNewCheckpoint();
     }
     return rv;
-}
-
-int64_t Manifest::queueSeparatorChanged(::VBucket& vb,
-                                        const std::string& oldSeparator,
-                                        OptionalSeqno seqno) const {
-    // Create and transfer Item ownership to the VBucket
-    return vb.queueItem(
-            createSeparatorChangedEvent(vb.getHighSeqno(), seqno).release(),
-            seqno);
 }
 
 size_t Manifest::getSerialisedDataSize(cb::const_char_buffer collection) const {
@@ -609,28 +533,10 @@ void Manifest::populateWithSerialisedData(cb::char_buffer out,
     sMan->calculateFinalEntryOffest(finalSme);
 }
 
-void Manifest::populateWithSerialisedData(cb::char_buffer out) const {
-    auto* sMan = SerialisedManifest::make(
-            out.data(), separator, getManifestUid(), out);
-    char* serial = sMan->getManifestEntryBuffer();
-
-    for (const auto& collectionEntry : map) {
-        auto* sme = SerialisedManifestEntry::make(
-                serial, *collectionEntry.second, out);
-        serial = sme->nextEntry();
-    }
-
-    sMan->setEntryCount(map.size());
-}
-
 std::string Manifest::serialToJson(const Item& collectionsEventItem) {
     cb::const_char_buffer buffer(collectionsEventItem.getData(),
                                  collectionsEventItem.getNBytes());
     const auto se = SystemEvent(collectionsEventItem.getFlags());
-
-    if (se == SystemEvent::CollectionsSeparatorChanged) {
-        return serialToJson(buffer);
-    }
 
     const auto* sMan =
             reinterpret_cast<const SerialisedManifest*>(buffer.data());
@@ -718,35 +624,12 @@ void Manifest::trackEndSeqno(int64_t seqno) {
     }
 }
 
-bool Manifest::cannotChangeSeparator() const {
-    // If any non-default collection exists that isOpen, cannot change separator
-    for (const auto& manifestEntry : map) {
-        // If the manifestEntry is open and not found in the new manifest it
-        // must be deleted.
-        if (manifestEntry.second->isOpen() &&
-            manifestEntry.second->getCharBuffer() !=
-                    DefaultCollectionIdentifier) {
-            // Collection is open and is not $default - cannot change
-            return true;
-        }
-    }
-
-    return false;
-}
-
 SystemEventData Manifest::getSystemEventData(
         cb::const_char_buffer serialisedManifest) {
     const auto* sm = reinterpret_cast<const SerialisedManifest*>(
             serialisedManifest.data());
     const auto* sme = sm->getFinalManifestEntry();
     return {sm->getManifestUid(), {sme->getCollectionName(), sme->getUid()}};
-}
-
-SystemEventSeparatorData Manifest::getSystemEventSeparatorData(
-        cb::const_char_buffer serialisedManifest) {
-    const auto* sm = reinterpret_cast<const SerialisedManifest*>(
-            serialisedManifest.data());
-    return {sm->getManifestUid(), sm->getSeparatorBuffer()};
 }
 
 std::string Manifest::getExceptionString(const std::string& thrower,

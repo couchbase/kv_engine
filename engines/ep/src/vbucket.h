@@ -678,21 +678,6 @@ public:
     }
 
     /**
-     * Delete a collection from this vbucket with a pre-assigned seqno. I.e.
-     * this VB is a replica.
-     *
-     * @param manifestUid the uid of the manifest which made the change
-     * @param separator The new separator.
-     * @param bySeqno The seqno assigned to the change separator event.
-     */
-    void replicaChangeCollectionSeparator(Collections::uid_t manifestUid,
-                                          cb::const_char_buffer separator,
-                                          int64_t bySeqno) {
-        manifest.wlock().replicaChangeSeparator(
-                *this, manifestUid, separator, bySeqno);
-    }
-
-    /**
      * Get the collection manifest
      *
      * @return const reference to the manifest

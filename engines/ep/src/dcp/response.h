@@ -585,9 +585,6 @@ public:
         if (SystemEvent(item->getFlags()) == SystemEvent::Collection) {
             rv = item->isDeleted() ? mcbp::systemevent::id::DeleteCollection
                                    : mcbp::systemevent::id::CreateCollection;
-        } else if (SystemEvent(item->getFlags()) ==
-                   SystemEvent::CollectionsSeparatorChanged) {
-            rv = mcbp::systemevent::id::CollectionsSeparatorChanged;
         } else {
             throw std::logic_error("getSystemEvent incorrect event:" +
                                    std::to_string(item->getFlags()));
@@ -646,25 +643,6 @@ private:
     Collections::SystemEventDCPData eventData;
 };
 
-class ChangeSeparatorProducerMessage : public SystemEventProducerMessage {
-public:
-    ChangeSeparatorProducerMessage(uint32_t opaque,
-                                   const queued_item& itm,
-                                   Collections::SystemEventSeparatorData data)
-        : SystemEventProducerMessage(opaque, itm, data.separator),
-          manifestUid(htonll(data.manifestUid)) {
-     }
-
-     cb::const_byte_buffer getEventData() const override {
-         // no event data.
-         return {reinterpret_cast<const uint8_t*>(&manifestUid),
-                 sizeof(manifestUid)};
-     }
-
- private:
-     /// The manifest uid stored in network byte order ready for sending
-     Collections::uid_t manifestUid;
-};
 
 /**
  * CollectionsEvent provides a shim on top of SystemEventMessage for
@@ -722,28 +700,6 @@ protected:
     Collections::uid_t getUid() const {
         return ntohll(*reinterpret_cast<const Collections::uid_t*>(
                 event.getEventData().data() + sizeof(Collections::uid_t)));
-    }
-};
-
-class ChangeSeparatorCollectionEvent : public CollectionsEvent {
-public:
-    ChangeSeparatorCollectionEvent(const SystemEventMessage& e)
-        : CollectionsEvent(e, sizeof(Collections::uid_t)) {
-    }
-
-    /**
-     * @return separator from the event
-     */
-    const cb::const_char_buffer getSeparator() const {
-        return event.getKey();
-    }
-
-    /**
-     * @return manifest uid which triggered the change of separator
-     */
-    Collections::uid_t getManifestUid() const {
-        return ntohll(*reinterpret_cast<const Collections::uid_t*>(
-                event.getEventData().data()));
     }
 };
 

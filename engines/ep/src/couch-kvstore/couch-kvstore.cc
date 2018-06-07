@@ -824,8 +824,7 @@ static int time_purge_hook(Db* d, DocInfo* info, sized_buf item, void* ctx_p) {
                     makeDocKey(info->id,
                                ctx->config->shouldPersistDocNamespace()),
                     int64_t(info->db_seq),
-                    info->deleted,
-                    ctx->eraserContext)) {
+                    info->deleted)) {
             ctx->stats.collectionsItemsPurged++;
             return COUCHSTORE_COMPACT_DROP_ITEM;
         }
@@ -1768,15 +1767,8 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
     DocKey docKey = makeDocKey(
             docinfo->id, sctx->config.shouldPersistDocNamespace());
 
-    if (sctx->collectionsContext.manageSeparator(docKey)) {
-        sctx->lastReadSeqno = byseqno;
-        return COUCHSTORE_SUCCESS;
-    }
-
-    CacheLookup lookup(docKey,
-                       byseqno,
-                       vbucketId,
-                       sctx->collectionsContext.getSeparator());
+    CacheLookup lookup(
+            docKey, byseqno, vbucketId, Collections::DefaultSeparator);
     cl->callback(lookup);
     if (cl->getStatus() == ENGINE_KEY_EEXISTS) {
         sctx->lastReadSeqno = byseqno;

@@ -719,8 +719,7 @@ void EPBucket::compactInternal(const CompactionConfig& config,
                                       uint16_t(config.db_file_id),
                                       std::placeholders::_1,
                                       std::placeholders::_2,
-                                      std::placeholders::_3,
-                                      std::placeholders::_4);
+                                      std::placeholders::_3);
 
     KVShard* shard = vbMap.getShardByVbId(config.db_file_id);
     KVStore* store = shard->getRWUnderlying();
@@ -740,10 +739,6 @@ void EPBucket::compactInternal(const CompactionConfig& config,
             vb->clearFilter();
         }
         vb->setPurgeSeqno(ctx.max_purged_seq);
-
-        // The collections eraser may have gathered some garbage keys which can
-        // now be released.
-        ctx.eraserContext.processKeys(*vb);
     }
 
     LOG(EXTENSION_LOG_NOTICE,

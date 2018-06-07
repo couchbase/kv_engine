@@ -134,17 +134,6 @@ struct SystemEventDCPData {
     Collections::uid_t collectionUid;
 };
 
-/**
- * All of the data a DCP separator changed system event message will carry.
- * This struct is not the layout of such data.
- */
-struct SystemEventSeparatorData {
-    /// UID of manifest which triggered the change of separator
-    Collections::uid_t manifestUid;
-    /// The new separator
-    cb::const_char_buffer separator;
-};
-
 std::string to_string(const Identifier& identifier);
 
 std::ostream& operator<<(std::ostream& os, const Identifier& identifier);

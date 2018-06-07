@@ -529,20 +529,19 @@ TEST_F(CollectionsWarmupTest, warmup) {
     {
         auto vb = store->getVBucket(vbid);
 
-        // Add the meat collection *and* change the separator
-        vb->updateFromManifest({R"({"separator":"-+-","uid":"face1",
+        // Add the meat collection
+        vb->updateFromManifest({R"({"separator":":","uid":"face1",
               "collections":[{"name":"$default", "uid":"0"},
                              {"name":"meat","uid":"1"}]})"});
 
-        // Trigger a flush to disk. Flushes the meat create event and a separator
-        // changed event.
-        flush_vbucket_to_disk(vbid, 2);
+        // Trigger a flush to disk. Flushes the meat create event
+        flush_vbucket_to_disk(vbid, 1);
 
         // Now we can write to beef
-        store_item(vbid, {"meat-+-beef", DocNamespace::Collections}, "value");
+        store_item(vbid, {"meat:beef", DocNamespace::Collections}, "value");
         // But not dairy
         store_item(vbid,
-                   {"dairy-+-milk", DocNamespace::Collections},
+                   {"dairy:milk", DocNamespace::Collections},
                    "value",
                    0,
                    {cb::engine_errc::unknown_collection});
@@ -557,7 +556,7 @@ TEST_F(CollectionsWarmupTest, warmup) {
               store->getVBucket(vbid)->lockCollections().getManifestUid());
 
     {
-        Item item({"meat-+-beef", DocNamespace::Collections},
+        Item item({"meat:beef", DocNamespace::Collections},
                   /*flags*/ 0,
                   /*exp*/ 0,
                   "rare",
@@ -568,7 +567,7 @@ TEST_F(CollectionsWarmupTest, warmup) {
                   engine->store(cookie, &item, cas, OPERATION_SET));
     }
     {
-        Item item({"dairy-+-milk", DocNamespace::Collections},
+        Item item({"dairy:milk", DocNamespace::Collections},
                   /*flags*/ 0,
                   /*exp*/ 0,
                   "skimmed",
@@ -588,20 +587,19 @@ TEST_F(CollectionsWarmupTest, MB_25381) {
     {
         auto vb = store->getVBucket(vbid);
 
-        // Add the dairy collection *and* change the separator
-        vb->updateFromManifest({R"({"separator":"@","uid":"0",
+        // Add the dairy collection
+        vb->updateFromManifest({R"({"separator":":","uid":"0",
               "collections":[{"name":"$default", "uid":"0"},
                              {"name":"dairy","uid":"1"}]})"});
 
-        // Trigger a flush to disk. Flushes the dairy create event and a separator
-        // changed event.
-        flush_vbucket_to_disk(vbid, 2);
+        // Trigger a flush to disk. Flushes the dairy create event
+        flush_vbucket_to_disk(vbid, 1);
 
         // Now we can write to dairy
-        store_item(vbid, {"dairy@milk", DocNamespace::Collections}, "creamy");
+        store_item(vbid, {"dairy:milk", DocNamespace::Collections}, "creamy");
 
         // Now delete the dairy collection
-        vb->updateFromManifest({R"({"separator":"@","uid":"0",
+        vb->updateFromManifest({R"({"separator":":","uid":"0",
               "collections":[{"name":"$default", "uid":"0"}]})"});
 
         flush_vbucket_to_disk(vbid, 2);
@@ -744,16 +742,16 @@ TEST_F(CollectionsManagerTest, basic) {
         store->setVBucketState(vb, vbucket_state_active, false);
     }
 
-    store->setCollections({R"({"separator": "@@","uid":"0",
+    store->setCollections({R"({"separator": ":","uid":"0",
               "collections":[{"name":"$default", "uid":"0"},
                              {"name":"meat", "uid":"1"}]})"});
 
     // Check all vbuckets got the collections
     for (int vb = vbid; vb <= (vbid + extraVbuckets); vb++) {
         auto vbp = store->getVBucket(vb);
-        EXPECT_EQ("@@", vbp->lockCollections().getSeparator());
+        EXPECT_EQ(":", vbp->lockCollections().getSeparator());
         EXPECT_TRUE(vbp->lockCollections().doesKeyContainValidCollection(
-                {"meat@@bacon", DocNamespace::Collections}));
+                {"meat:bacon", DocNamespace::Collections}));
         EXPECT_TRUE(vbp->lockCollections().doesKeyContainValidCollection(
                 {"anykey", DocNamespace::DefaultCollection}));
     }
@@ -775,7 +773,7 @@ TEST_F(CollectionsManagerTest, basic2) {
         }
     }
 
-    store->setCollections({R"({"separator": "@@","uid":"0",
+    store->setCollections({R"({"separator": ":","uid":"0",
               "collections":[{"name":"$default", "uid":"0"},
                              {"name":"meat", "uid":"1"}]})"});
 
@@ -783,9 +781,9 @@ TEST_F(CollectionsManagerTest, basic2) {
     for (int vb = vbid; vb <= (vbid + extraVbuckets); vb++) {
         auto vbp = store->getVBucket(vb);
         if (vbp->getState() == vbucket_state_active) {
-            EXPECT_EQ("@@", vbp->lockCollections().getSeparator());
+            EXPECT_EQ(":", vbp->lockCollections().getSeparator());
             EXPECT_TRUE(vbp->lockCollections().doesKeyContainValidCollection(
-                    {"meat@@bacon", DocNamespace::Collections}));
+                    {"meat:bacon", DocNamespace::Collections}));
             EXPECT_TRUE(vbp->lockCollections().doesKeyContainValidCollection(
                     {"anykey", DocNamespace::DefaultCollection}));
         } else {
@@ -793,7 +791,7 @@ TEST_F(CollectionsManagerTest, basic2) {
             EXPECT_EQ(Collections::DefaultSeparator,
                       vbp->lockCollections().getSeparator());
             EXPECT_FALSE(vbp->lockCollections().doesKeyContainValidCollection(
-                    {"meat@@bacon", DocNamespace::Collections}));
+                    {"meat:bacon", DocNamespace::Collections}));
             EXPECT_TRUE(vbp->lockCollections().doesKeyContainValidCollection(
                     {"anykey", DocNamespace::DefaultCollection}));
         }

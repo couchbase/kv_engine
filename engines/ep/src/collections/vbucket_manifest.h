@@ -365,25 +365,6 @@ public:
         }
 
         /**
-         * Change the separator for a replica VB, this is for receiving
-         * collection updates via DCP and the event already has an end seqno
-         * assigned.
-         *
-         * @param vb The vbucket to begin collection deletion on.
-         * @param manifestUid the uid of the manifest which made the change
-         * @param separator The new separator.
-         * @param seqno The seqno originally assigned to the active's system
-         * event.
-         */
-        void replicaChangeSeparator(::VBucket& vb,
-                                    uid_t manifestUid,
-                                    cb::const_char_buffer separator,
-                                    int64_t seqno) {
-            manifest.changeSeparator(
-                    vb, manifestUid, separator, OptionalSeqno{seqno});
-        }
-
-        /**
          * Dump the manifest to std::cerr
          */
         void dump() {
@@ -463,21 +444,6 @@ public:
     static SystemEventData getSystemEventData(
             cb::const_char_buffer serialisedManifest);
 
-    /**
-     * Get the system event separator change data from a SystemEvent Item's
-     * value. This returns the information that DCP needs to create a
-     * DCPSystemEvent packet for the separator change.
-     *
-     * @param serialisedManifest Serialised manifest data created by
-     *        ::populateWithSerialisedData
-     * @returns A buffer that contains a pointer/size to the separator.
-     * @returns SystemEventSeparatorData which carries all of the data which
-     *          needs to be marshalled into a DCP system event message. Inside
-     *          the returned object maybe sized_buffer objects which point into
-     *          serialisedManifest.
-     */
-    static SystemEventSeparatorData getSystemEventSeparatorData(
-            cb::const_char_buffer serialisedManifest);
 
 private:
 
@@ -534,20 +500,6 @@ private:
                                uid_t manifestUid,
                                Identifier identifier,
                                OptionalSeqno optionalSeqno);
-
-    /**
-     * Change the separator.
-     *
-     * @param vb The vbucket to begin collection deletion on.
-     * @param manifestUid the uid of the manifest which made the change
-     * @param separator The new separator.
-     * @param optionalSeqno Either a seqno to assign to the change event or none
-     *        (none means the checkpoint assigns the seqno).
-     */
-    void changeSeparator(::VBucket& vb,
-                         uid_t manifestUid,
-                         cb::const_char_buffer separator,
-                         OptionalSeqno optionalSeqno);
 
     /**
      * Complete the deletion of a collection.
@@ -758,20 +710,6 @@ protected:
                                             OptionalSeqno seqno) const;
 
     /**
-     * Create a SystemEvent Item for a Separator Changed. The Item's
-     * value will contain data for later consumption by serialToJson.
-     *
-     * @param highSeqno the current high-seqno which gets mixed into the items
-     *        key
-     * @param seqno optional-seqno, defined when event is driven by DCP
-     * @returns unique_ptr to a new Item that represents the requested
-     *          SystemEvent.
-     */
-    std::unique_ptr<Item> createSeparatorChangedEvent(
-            int64_t highSeqno,
-            OptionalSeqno seqno) const;
-
-    /**
      * Create an Item that carries a system event and queue it to the vb
      * checkpoint.
      *
@@ -789,18 +727,6 @@ protected:
                              Identifier identifier,
                              bool deleted,
                              OptionalSeqno seqno) const;
-
-    /**
-     * Create an Item that carries a CollectionsSeparatorChanged system event
-     * and queue it to the vb checkpoint.
-     *
-     * @param vb The vbucket onto which the Item is queued.
-     * @param seqno An optional seqno which if set will be assigned to the
-     *        system event
-     */
-    int64_t queueSeparatorChanged(::VBucket& vb,
-                                  const std::string& oldSeparator,
-                                  OptionalSeqno seqno) const;
 
     /**
      * Obtain how many bytes of storage are needed for a serialised copy
@@ -834,21 +760,9 @@ protected:
                                     Identifier identifier) const;
 
     /**
-     * Populate a buffer with the serialised state of this object.
-     *
-     * @param out A buffer for the data to be written into.
-     */
-    void populateWithSerialisedData(cb::char_buffer out) const;
-
-    /**
      * @returns the string for the given key from the cJSON object.
      */
     const char* getJsonEntry(cJSON* cJson, const char* key);
-
-    /**
-     * @returns true if the separator cannot be changed.
-     */
-    bool cannotChangeSeparator() const;
 
     /**
      * Update greatestEndSeqno if the seqno is larger

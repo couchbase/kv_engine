@@ -140,10 +140,6 @@ bool Collections::VB::Filter::allowSystemEvent(const Item& item) const {
     case SystemEvent::DeleteCollectionSoft: {
         return false;
     }
-    case SystemEvent::CollectionsSeparatorChanged: {
-        // The separator changed event is sent if system events are allowed
-        return systemEventsAllowed;
-    }
     default: {
         throw std::invalid_argument(
                 "VB::Filter::allowSystemEvent:: event unknown:" +

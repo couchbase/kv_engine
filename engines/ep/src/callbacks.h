@@ -51,7 +51,7 @@ private:
     DocKey key;
     int64_t bySeqno;
     uint16_t vbid;
-    const std::string& separator;
+    const std::string separator;
 };
 
 /**

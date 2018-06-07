@@ -327,10 +327,11 @@ void CollectionsDcpTest::testDcpCreateDelete(int expectedCreates,
             case mcbp::systemevent::id::DeleteCollection:
                 deletes++;
                 break;
-            case mcbp::systemevent::id::CollectionsSeparatorChanged: {
-                EXPECT_FALSE(true);
-                break;
-            }
+            default:
+                throw std::logic_error(
+                        "CollectionsDcpTest::testDcpCreateDelete unknown "
+                        "event:" +
+                        std::to_string(int(dcp_last_system_event)));
             }
         } else if (dcp_last_op == PROTOCOL_BINARY_CMD_DCP_MUTATION) {
             mutations++;
@@ -481,139 +482,42 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_create2) {
             "dairy"));
 }
 
-TEST_F(CollectionsDcpTest, test_dcp_separator) {
-    VBucketPtr vb = store->getVBucket(vbid);
-
-    // Change the separator
-    vb->updateFromManifest({R"({"separator":"@@","uid":"0",
-              "collections":[{"name":"$default", "uid":"0"}]})"});
-
-    // Add a collection
-    vb->updateFromManifest({R"({"separator":"@@","uid":"1",
-              "collections":[{"name":"$default", "uid":"0"},
-                             {"name":"meat","uid":"1"}]})"});
-
-    // The producer should start with the old separator
-    EXPECT_EQ(":", producer->getCurrentSeparatorForStream(vbid));
-
-    notifyAndStepToCheckpoint();
-
-    VBucketPtr replica = store->getVBucket(replicaVB);
-
-    // The replica should have the old : separator
-    EXPECT_EQ(":", replica->lockCollections().getSeparator());
-
-    // Now step the producer to transfer the separator
-    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
-
-    // The producer should now have the new separator
-    EXPECT_EQ("@@", producer->getCurrentSeparatorForStream(vbid));
-
-    // The replica should now have the new separator
-    EXPECT_EQ("@@", replica->lockCollections().getSeparator());
-
-    // Now step the producer to transfer the collection
-    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
-
-    // Collection should now be live on the replica
-    EXPECT_TRUE(replica->lockCollections().doesKeyContainValidCollection(
-            {"meat@@bacon", DocNamespace::Collections}));
-
-    // And done
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
-}
-
-TEST_F(CollectionsDcpTest, test_dcp_separator_many) {
-    auto vb = store->getVBucket(vbid);
-
-    // Change the separator
-    vb->updateFromManifest({R"({"separator": "@@","uid":"0",
-              "collections":[{"name":"$default", "uid":"0"}]})"});
-    // Change the separator
-    vb->updateFromManifest({R"({"separator": "-","uid":"1",
-              "collections":[{"name":"$default", "uid":"0"}]})"});
-    // Change the separator
-    vb->updateFromManifest({R"({"separator": ",","uid":"2",
-              "collections":[{"name":"$default", "uid":"0"}]})"});
-    // Add a collection
-    vb->updateFromManifest({R"({"separator": ",","uid":"3",
-              "collections":[{"name":"$default", "uid":"0"},
-                             {"name":"meat", "uid":"1"}]})"});
-
-    // All the changes will be collapsed into one update and we will expect
-    // to see , as the separator once DCP steps through the checkpoint
-
-    // The producer should start with the initial separator
-    EXPECT_EQ(":", producer->getCurrentSeparatorForStream(vbid));
-
-    notifyAndStepToCheckpoint();
-
-    auto replica = store->getVBucket(replicaVB);
-
-    // The replica should have the old separator
-    EXPECT_EQ(":", replica->lockCollections().getSeparator());
-
-    std::array<std::string, 3> expectedData = {{"@@", "-", ","}};
-    for (auto expected : expectedData) {
-        // Now step the producer to transfer the separator
-        EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
-
-        // The producer should now have the new separator
-        EXPECT_EQ(expected, producer->getCurrentSeparatorForStream(vbid));
-
-        // The replica should now have the new separator
-        EXPECT_EQ(expected, replica->lockCollections().getSeparator());
-    }
-
-    // Now step the producer to transfer the create "meat"
-    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
-
-    // Collection should now be live on the replica with the final separator
-    EXPECT_TRUE(replica->lockCollections().doesKeyContainValidCollection(
-            {"meat,bacon", DocNamespace::Collections}));
-
-    // And done
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
-}
-
 // Test that a create/delete don't dedup (collections creates new checkpoints)
 TEST_F(CollectionsDcpTest, MB_26455) {
     const int items = 3;
     {
         auto vb = store->getVBucket(vbid);
 
-        std::vector<std::string> separators = {"::", "*", "**", "***", "-=-=-"};
-
-        for (size_t n = 0; n < separators.size(); n++) {
+        size_t m = 5;
+        for (size_t n = 0; n < m; n++) {
             // change sep
             std::string manifest =
-                    R"({"uid":"0","separator":")" + separators.at(n) +
-                    R"(","collections":[{"name":"$default", "uid":"0"}]})";
+                    R"({"uid":"0","separator":":","collections":[{"name":"$default", "uid":"0"}]})";
             vb->updateFromManifest({manifest});
 
             // add fruit
-            manifest = R"({"uid":"1","separator":")" + separators.at(n) +
-                       R"(","collections":[{"name":"$default", "uid":"0"},)" +
-                       R"({"name":"fruit", "uid":")" + std::to_string(n) +
+            manifest = R"({"uid":"1","separator":":",)"
+                       R"("collections":[{"name":"$default", "uid":"0"},)"
+                       R"({"name":"fruit", "uid":")" +
+                       std::to_string(n) +
                        R"("}]})";
 
             vb->updateFromManifest({manifest});
 
             // Mutate fruit
             for (int ii = 0; ii < items; ii++) {
-                std::string key =
-                        "fruit" + separators.at(n) + std::to_string(ii);
+                std::string key = "fruit:" + std::to_string(ii);
                 store_item(vbid, {key, DocNamespace::Collections}, "value");
             }
 
-            // expect change_separator + create_collection + items
-            flush_vbucket_to_disk(vbid, 2 + items);
+            // expect create_collection + items
+            flush_vbucket_to_disk(vbid, 1 + items);
 
-            if (n < (separators.size() - 1)) {
+            if (n < m - 1) {
                 // Drop fruit, except for the last 'generation'
                 manifest =
-                        R"({"uid":"2","separator":")" + separators.at(n) +
-                        R"(","collections":[{"name":"$default", "uid":"0"}]})";
+                        R"({"uid":"2","separator":":",)"
+                        R"("collections":[{"name":"$default", "uid":"0"}]})";
                 vb->updateFromManifest({manifest});
 
                 flush_vbucket_to_disk(vbid, 1);

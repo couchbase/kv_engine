@@ -395,7 +395,7 @@ TEST_F(CollectionsVBFilterTest, deleted_collection) {
  */
 TEST_F(CollectionsVBFilterTest, basic_allow) {
     Collections::Manifest m(
-            R"({"separator":"$","uid":"0",)"
+            R"({"separator":":","uid":"0",)"
             R"("collections":[{"name":"$default","uid":"0"},
                               {"name":"vegetable","uid":"1"},
                               {"name":"meat","uid":"3"},
@@ -415,15 +415,15 @@ TEST_F(CollectionsVBFilterTest, basic_allow) {
     EXPECT_TRUE(vbf.checkAndUpdate(
             {{"anykey", DocNamespace::DefaultCollection}, 0, 0, nullptr, 0}));
     EXPECT_TRUE(vbf.checkAndUpdate(
-            {{"fruit$apple", DocNamespace::Collections}, 0, 0, nullptr, 0}));
+            {{"fruit:apple", DocNamespace::Collections}, 0, 0, nullptr, 0}));
     EXPECT_TRUE(vbf.checkAndUpdate(
-            {{"meat$bacon", DocNamespace::Collections}, 0, 0, nullptr, 0}));
+            {{"meat:bacon", DocNamespace::Collections}, 0, 0, nullptr, 0}));
 
     // No to these keys
     EXPECT_FALSE(vbf.checkAndUpdate(
-            {{"dairy$milk", DocNamespace::Collections}, 0, 0, nullptr, 0}));
+            {{"dairy:milk", DocNamespace::Collections}, 0, 0, nullptr, 0}));
     EXPECT_FALSE(vbf.checkAndUpdate(
-            {{"vegetable$cabbage", DocNamespace::Collections},
+            {{"vegetable:cabbage", DocNamespace::Collections},
              0,
              0,
              nullptr,
@@ -436,7 +436,7 @@ TEST_F(CollectionsVBFilterTest, basic_allow) {
  */
 TEST_F(CollectionsVBFilterTest, legacy_filter) {
     Collections::Manifest m(
-            R"({"separator":"$","uid":"0",)"
+            R"({"separator":":","uid":"0",)"
             R"("collections":[{"name":"$default","uid":"0"},
                               {"name":"meat","uid":"3"}]})");
 
@@ -451,7 +451,7 @@ TEST_F(CollectionsVBFilterTest, legacy_filter) {
     EXPECT_TRUE(vbf.checkAndUpdate(
             {{"anykey", DocNamespace::DefaultCollection}, 0, 0, nullptr, 0}));
     EXPECT_FALSE(vbf.checkAndUpdate(
-            {{"fruit$apple", DocNamespace::Collections}, 0, 0, nullptr, 0}));
+            {{"fruit:apple", DocNamespace::Collections}, 0, 0, nullptr, 0}));
 }
 
 /**
@@ -459,7 +459,7 @@ TEST_F(CollectionsVBFilterTest, legacy_filter) {
  */
 TEST_F(CollectionsVBFilterTest, passthrough) {
     Collections::Manifest m(
-            R"({"separator":"$","uid":"0",)"
+            R"({"separator":":","uid":"0",)"
             R"("collections":[{"name":"meat","uid":"3"}]})");
     std::string filterJson; // empty string
     boost::optional<const std::string&> json(filterJson);
@@ -473,11 +473,11 @@ TEST_F(CollectionsVBFilterTest, passthrough) {
     EXPECT_TRUE(vbf.checkAndUpdate(
             {{"anykey", DocNamespace::DefaultCollection}, 0, 0, nullptr, 0}));
     EXPECT_TRUE(vbf.checkAndUpdate(
-            {{"fruit$apple", DocNamespace::Collections}, 0, 0, nullptr, 0}));
+            {{"fruit:apple", DocNamespace::Collections}, 0, 0, nullptr, 0}));
     EXPECT_TRUE(vbf.checkAndUpdate(
-            {{"meat$steak", DocNamespace::Collections}, 0, 0, nullptr, 0}));
+            {{"meat:steak", DocNamespace::Collections}, 0, 0, nullptr, 0}));
     EXPECT_TRUE(vbf.checkAndUpdate(
-            {{"dairy$milk", DocNamespace::Collections}, 0, 0, nullptr, 0}));
+            {{"dairy:milk", DocNamespace::Collections}, 0, 0, nullptr, 0}));
     EXPECT_TRUE(vbf.checkAndUpdate(
             {{"JUNK!!", DocNamespace::Collections}, 0, 0, nullptr, 0}));
 }
@@ -487,7 +487,7 @@ TEST_F(CollectionsVBFilterTest, passthrough) {
  */
 TEST_F(CollectionsVBFilterTest, no_default) {
     Collections::Manifest m(
-            R"({"separator":"$","uid":"0",)"
+            R"({"separator":":","uid":"0",)"
             R"("collections":[{"name":"$default","uid":"0"},
                               {"name":"vegetable","uid":"1"},
                               {"name":"meat","uid":"3"},
@@ -505,11 +505,11 @@ TEST_F(CollectionsVBFilterTest, no_default) {
     EXPECT_FALSE(vbf.checkAndUpdate(
             {{"anykey", DocNamespace::DefaultCollection}, 0, 0, nullptr, 0}));
     EXPECT_TRUE(vbf.checkAndUpdate(
-            {{"fruit$apple", DocNamespace::Collections}, 0, 0, nullptr, 0}));
+            {{"fruit:apple", DocNamespace::Collections}, 0, 0, nullptr, 0}));
     EXPECT_TRUE(vbf.checkAndUpdate(
-            {{"meat$steak", DocNamespace::Collections}, 0, 0, nullptr, 0}));
+            {{"meat:steak", DocNamespace::Collections}, 0, 0, nullptr, 0}));
     EXPECT_FALSE(vbf.checkAndUpdate(
-            {{"dairy$milk", DocNamespace::Collections}, 0, 0, nullptr, 0}));
+            {{"dairy:milk", DocNamespace::Collections}, 0, 0, nullptr, 0}));
     EXPECT_FALSE(vbf.checkAndUpdate(
             {{"JUNK!!", DocNamespace::Collections}, 0, 0, nullptr, 0}));
 }
@@ -520,7 +520,7 @@ TEST_F(CollectionsVBFilterTest, no_default) {
  */
 TEST_F(CollectionsVBFilterTest, remove1) {
     Collections::Manifest m(
-            R"({"separator":"$","uid":"0",)"
+            R"({"separator":":","uid":"0",)"
             R"("collections":[{"name":"vegetable","uid":"1"},
                               {"name":"meat","uid":"3"},
                               {"name":"fruit", "uid":"4"},
@@ -534,7 +534,7 @@ TEST_F(CollectionsVBFilterTest, remove1) {
     Collections::Filter f(json, &m);
     Collections::VB::Filter vbf(f, vbm);
     EXPECT_TRUE(vbf.checkAndUpdate(
-            {{"fruit$apple", DocNamespace::Collections}, 0, 0, nullptr, 0}));
+            {{"fruit:apple", DocNamespace::Collections}, 0, 0, nullptr, 0}));
 
     // Process a deletion of fruit
     Item deleteFruit{
@@ -543,10 +543,10 @@ TEST_F(CollectionsVBFilterTest, remove1) {
     EXPECT_TRUE(vbf.checkAndUpdate(deleteFruit));
 
     EXPECT_FALSE(vbf.checkAndUpdate(
-            {{"fruit$apple", DocNamespace::Collections}, 0, 0, nullptr, 0}));
+            {{"fruit:apple", DocNamespace::Collections}, 0, 0, nullptr, 0}));
 
     EXPECT_TRUE(vbf.checkAndUpdate(
-            {{"meat$steak", DocNamespace::Collections}, 0, 0, nullptr, 0}));
+            {{"meat:steak", DocNamespace::Collections}, 0, 0, nullptr, 0}));
 
     // Process a deletion of meat
     Item deleteMeat{
@@ -564,7 +564,7 @@ TEST_F(CollectionsVBFilterTest, remove1) {
  */
 TEST_F(CollectionsVBFilterTest, remove2) {
     Collections::Manifest m(
-            R"({"separator":"$","uid":"0",)"
+            R"({"separator":":","uid":"0",)"
             R"("collections":[{"name":"$default","uid":"0"},
                               {"name":"meat","uid":"3"},
                               {"name":"fruit", "uid":"4"},
@@ -588,18 +588,18 @@ TEST_F(CollectionsVBFilterTest, remove2) {
             {{"anykey", DocNamespace::DefaultCollection}, 0, 0, nullptr, 0}));
 
     EXPECT_TRUE(vbf.checkAndUpdate(
-            {{"meat$steak", DocNamespace::Collections}, 0, 0, nullptr, 0}));
+            {{"meat:steak", DocNamespace::Collections}, 0, 0, nullptr, 0}));
     // Process a deletion of meat
     Item deleteMeat{
             {"$collections:meat", DocNamespace::System}, 0, 0, nullptr, 0};
     deleteMeat.setDeleted();
     EXPECT_TRUE(vbf.checkAndUpdate(deleteMeat));
     EXPECT_FALSE(vbf.checkAndUpdate(
-            {{"meat$apple", DocNamespace::Collections}, 0, 0, nullptr, 0}));
+            {{"meat:apple", DocNamespace::Collections}, 0, 0, nullptr, 0}));
     EXPECT_TRUE(vbf.empty()); // now empty
     EXPECT_FALSE(vbf.checkAndUpdate(deleteMeat)); // no more meat for you
     EXPECT_FALSE(vbf.checkAndUpdate(
-            {{"meat$steak", DocNamespace::Collections}, 0, 0, nullptr, 0}));
+            {{"meat:steak", DocNamespace::Collections}, 0, 0, nullptr, 0}));
 }
 
 /**
@@ -634,10 +634,6 @@ TEST_F(CollectionsVBFilterTest, system_events1) {
     // but this just shows the passthrough interface at work.
     EXPECT_TRUE(vbf.checkAndUpdate(*SystemEventFactory::make(
             SystemEvent::Collection, "dairy", 0, {})));
-
-    // A change of separator is also allowed
-    EXPECT_TRUE(vbf.checkAndUpdate(*SystemEventFactory::make(
-            SystemEvent::CollectionsSeparatorChanged, "::", 0, {})));
 }
 
 /**
@@ -673,9 +669,6 @@ TEST_F(CollectionsVBFilterTest, system_events2) {
     EXPECT_FALSE(vbf.checkAndUpdate(*SystemEventFactory::make(
             SystemEvent::Collection, "dairy", 0, {})));
 
-    // A change of separator is also allowed
-    EXPECT_TRUE(vbf.checkAndUpdate(*SystemEventFactory::make(
-            SystemEvent::CollectionsSeparatorChanged, "::", 0, {})));
 }
 
 /**
@@ -705,6 +698,4 @@ TEST_F(CollectionsVBFilterTest, system_events3) {
             SystemEvent::Collection, "$default", 0, {})));
     EXPECT_FALSE(vbf.checkAndUpdate(*SystemEventFactory::make(
             SystemEvent::Collection, "dairy", 0, {})));
-    EXPECT_FALSE(vbf.checkAndUpdate(*SystemEventFactory::make(
-            SystemEvent::CollectionsSeparatorChanged, "::", 0, {})));
 }
