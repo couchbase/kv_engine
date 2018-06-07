@@ -329,12 +329,24 @@ protected:
     struct {
         rel_time_t sendTime;
         uint32_t opaque;
+        /**
+         * How long this DCP connection can be idle for (no response received)
+         * before it is disconnected.
+         */
         std::chrono::seconds dcpIdleTimeout;
+
+        /// How often are DCP noop messages transmitted?
         std::chrono::seconds dcpNoopTxInterval;
+
+        /**
+         * True if a DCP NOOP request has been sent and we are waiting for a
+         * response.
+         */
         Couchbase::RelaxedAtomic<bool> pendingRecv;
         Couchbase::RelaxedAtomic<bool> enabled;
     } noopCtx;
 
+    /// Timestamp of when we last recieved a message from our peer.
     Couchbase::RelaxedAtomic<rel_time_t> lastReceiveTime;
 
     std::unique_ptr<DcpResponse> getNextItem();
@@ -365,6 +377,7 @@ protected:
     Couchbase::RelaxedAtomic<bool> sendStreamEndOnClientStreamClose;
     Couchbase::RelaxedAtomic<bool> supportsHifiMFU;
 
+    /// Timestamp of when we last transmitted a message to our peer.
     Couchbase::RelaxedAtomic<rel_time_t> lastSendTime;
     BufferLog log;
 

@@ -1193,9 +1193,12 @@ ENGINE_ERROR_CODE DcpProducer::maybeDisconnect() {
     std::chrono::seconds elapsedTime(now - lastReceiveTime);
     if (noopCtx.enabled && elapsedTime > noopCtx.dcpIdleTimeout) {
         LOG(EXTENSION_LOG_NOTICE,
-            "%s Disconnecting because a message has not been received for "
-            "%" PRIu64 "s. lastSendTime:%" PRIu32 ", lastReceiveTime:%" PRIu64
-            ", noopCtx {sendTime:%" PRIu32 ", opaque: %" PRIu32 ", pendingRecv:%s}",
+            "%s Disconnecting because a message has not been received for DCP "
+            "idle timeout (which is"
+            "%" PRIu64 "s). Sent last message %" PRIu32
+            "s ago, received last message %" PRIu64
+            "s ago. noopCtx {now - sendTime:%" PRIu32 ", opaque: %" PRIu32
+            ", pendingRecv:%s}",
             logHeader(),
             uint64_t(noopCtx.dcpIdleTimeout.count()),
             (now - lastSendTime),
