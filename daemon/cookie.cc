@@ -431,8 +431,7 @@ void Cookie::logResponse(ENGINE_ERROR_CODE code) const {
     logResponse(cb::to_string(cb::engine_errc(code)).c_str());
 }
 
-void Cookie::maybeLogSlowCommand(
-        const std::chrono::nanoseconds& elapsed) const {
+void Cookie::maybeLogSlowCommand(ProcessClock::duration elapsed) const {
     const auto opcode = getRequest().getClientOpcode();
     const auto limit = cb::mcbp::sla::getSlowOpThreshold(opcode);
 
@@ -463,12 +462,14 @@ void Cookie::maybeLogSlowCommand(
 
         auto& c = getConnection();
 
-        TRACE_INSTANT2("memcached/slow",
-                       "Slow cmd",
-                       "opcode",
-                       getHeader().getOpcode(),
-                       "connection_id",
-                       c.getId());
+        TRACE_COMPLETE2("memcached/slow",
+                        "Slow cmd",
+                        getStart(),
+                        getStart() + elapsed,
+                        "opcode",
+                        getHeader().getOpcode(),
+                        "connection_id",
+                        c.getId());
 
         const std::string traceData = to_string(tracer);
         LOG_WARNING(

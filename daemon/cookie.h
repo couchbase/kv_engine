@@ -421,9 +421,9 @@ public:
      * Log the current connection if its execution time exceeds the
      * threshold for the command
      *
-     * @param elapsed the number of ms elapsed while executing the command
+     * @param elapsed the time elapsed while executing the command
      */
-    void maybeLogSlowCommand(const std::chrono::nanoseconds& elapsed) const;
+    void maybeLogSlowCommand(ProcessClock::duration elapsed) const;
 
     /**
      * Get the start time for this command
