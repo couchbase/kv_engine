@@ -617,9 +617,11 @@ extern "C" void memcached_server_thread_main(void *arg) {
     argv[argc++] = const_cast<char*>("-C");
     argv[argc++] = reinterpret_cast<char*>(arg);
 
+    // Reset getopt()'s optind so memcached_main starts from the first
+    // argument.
+    optind = 1;
+
     memcached_main(argc, argv);
-
-
 }
 
 void TestappTest::spawn_embedded_server() {
