@@ -334,30 +334,53 @@ ENGINE_ERROR_CODE DcpConsumer::streamEnd(uint32_t opaque, uint16_t vbucket,
         return ENGINE_DISCONNECT;
     }
 
-    ENGINE_ERROR_CODE err = ENGINE_KEY_ENOENT;
     auto stream = findStream(vbucket);
-    if (stream && stream->getOpaque() == opaque && stream->isActive()) {
-        LOG(EXTENSION_LOG_INFO, "%s (vb %d) End stream received with reason %d",
-            logHeader(), vbucket, flags);
-
-        try {
-            err = stream->messageReceived(std::make_unique<StreamEndResponse>(
-                    opaque, static_cast<end_stream_status_t>(flags), vbucket));
-        } catch (const std::bad_alloc&) {
-            return ENGINE_ENOMEM;
-        }
-
-        // The item was buffered and will be processed later
-        if (err == ENGINE_TMPFAIL) {
-            ufc.release();
-            notifyVbucketReady(vbucket);
-            return ENGINE_SUCCESS;
-        }
+    if (!stream) {
+        LOG(EXTENSION_LOG_WARNING,
+            "%s (vb %d) End stream received but no such stream for this "
+            "vBucket",
+            logHeader(),
+            vbucket);
+        return ENGINE_KEY_ENOENT;
     }
 
-    if (err != ENGINE_SUCCESS) {
-        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) End stream received with opaque "
-            "%d but does not exist", logHeader(), vbucket, opaque);
+    if (!stream->isActive()) {
+        LOG(EXTENSION_LOG_WARNING,
+            "%s (vb %d) End stream received but stream is not active",
+            logHeader(),
+            vbucket);
+        return ENGINE_KEY_ENOENT;
+    }
+
+    if (stream->getOpaque() != opaque) {
+        LOG(EXTENSION_LOG_WARNING,
+            "%s (vb %d) End stream received with opaque %d but expected %d",
+            logHeader(),
+            vbucket,
+            opaque,
+            stream->getOpaque());
+        return ENGINE_KEY_ENOENT;
+    }
+
+    LOG(EXTENSION_LOG_NOTICE,
+        "%s (vb %d) End stream received with reason %d",
+        logHeader(),
+        vbucket,
+        flags);
+
+    ENGINE_ERROR_CODE err = ENGINE_KEY_ENOENT;
+    try {
+        err = stream->messageReceived(std::make_unique<StreamEndResponse>(
+                opaque, static_cast<end_stream_status_t>(flags), vbucket));
+    } catch (const std::bad_alloc&) {
+        return ENGINE_ENOMEM;
+    }
+
+    // The item was buffered and will be processed later
+    if (err == ENGINE_TMPFAIL) {
+        ufc.release();
+        notifyVbucketReady(vbucket);
+        return ENGINE_SUCCESS;
     }
 
     return err;
