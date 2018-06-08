@@ -142,30 +142,17 @@ void TestappTest::CreateTestBucket()
 }
 
 void TestappTest::DeleteTestBucket() {
-    current_phase = phase_plain;
-    sock = connect_to_server_plain(port);
-    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, sasl_auth("@admin",
-                                                          "password"));
-    union {
-        protocol_binary_request_delete_bucket request;
-        protocol_binary_response_no_extras response;
-        char bytes[1024];
-    } buffer;
-
-    size_t plen = mcbp_raw_command(buffer.bytes,
-                                   sizeof(buffer.bytes),
-                                   PROTOCOL_BINARY_CMD_DELETE_BUCKET,
-                                   bucketName.c_str(),
-                                   bucketName.size(),
-                                   NULL,
-                                   0);
-
-    safe_send(buffer.bytes, plen, false);
-    safe_recv_packet(&buffer, sizeof(buffer));
-
-    mcbp_validate_response_header(&buffer.response,
-                                  PROTOCOL_BINARY_CMD_DELETE_BUCKET,
-                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    auto& conn = connectionMap.getConnection(false);
+    conn.reconnect();
+    conn.authenticate("@admin", "password", "PLAIN");
+    try {
+        conn.deleteBucket(bucketName);
+    } catch (const ConnectionError& error) {
+        EXPECT_FALSE(error.isNotFound()) << "Delete bucket ["
+        << bucketName
+        << "] failed with: "
+                                         << error.what();
+    }
 }
 
 TestBucketImpl& TestappTest::GetTestBucket()
