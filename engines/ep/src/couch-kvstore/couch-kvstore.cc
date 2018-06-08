@@ -1941,6 +1941,9 @@ static int readDocInfos(Db *db, DocInfo *docinfo, void *ctx) {
     if (ctx == nullptr) {
         throw std::invalid_argument("readDocInfos: ctx must be non-NULL");
     }
+    if (!docinfo) {
+        throw std::invalid_argument("readDocInfos: docInfo must be non-NULL");
+    }
     kvstats_ctx* cbCtx = static_cast<kvstats_ctx*>(ctx);
     if(docinfo) {
         // An item exists in the VB DB file.
@@ -1994,12 +1997,22 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid,
                         ids[idx], configuration.shouldPersistDocNamespace());
                 kvctx.keyStats[key] = false;
             }
-            couchstore_docinfos_by_id(db,
-                                      ids.data(),
-                                      (unsigned)ids.size(),
-                                      0,
-                                      readDocInfos,
-                                      &kvctx);
+            errCode = couchstore_docinfos_by_id(db,
+                                                ids.data(),
+                                                (unsigned)ids.size(),
+                                                0,
+                                                readDocInfos,
+                                                &kvctx);
+            if (errCode != COUCHSTORE_SUCCESS) {
+                logger.log(EXTENSION_LOG_WARNING,
+                           "CouchKVStore::saveDocs: couchstore_docinfos_by_id "
+                           "error:%s [%s], vb:%" PRIu16 ", numdocs:%" PRIu64,
+                           couchstore_strerror(errCode),
+                           couchkvstore_strerrno(db, errCode).c_str(),
+                           vbid,
+                           uint64_t(docs.size()));
+                return errCode;
+            }
 
             auto cs_begin = ProcessClock::now();
             uint64_t flags = COMPRESS_DOC_BODIES | COUCHSTORE_SEQUENCE_AS_IS;
@@ -2053,7 +2066,15 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid,
         st.batchSize.add(docs.size());
 
         // retrieve storage system stats for file fragmentation computation
-        couchstore_db_info(db, &info);
+        errCode = couchstore_db_info(db, &info);
+        if (errCode) {
+            logger.log(
+                    EXTENSION_LOG_WARNING,
+                    "CouchKVStore::saveDocs: couchstore_db_info error:%s [%s]",
+                    couchstore_strerror(errCode),
+                    couchkvstore_strerrno(db, errCode).c_str());
+            return errCode;
+        }
         cachedSpaceUsed[vbid] = info.space_used;
         cachedFileSize[vbid] = info.file_size;
         cachedDeleteCount[vbid] = info.deleted_count;

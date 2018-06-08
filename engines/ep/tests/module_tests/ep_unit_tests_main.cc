@@ -22,7 +22,7 @@
 #include "programs/engine_testapp/mock_server.h"
 
 #include <getopt.h>
-#include <gtest/gtest.h>
+#include <gmock/gmock.h>
 #include <logger/logger.h>
 
 #include "configuration.h"
@@ -67,6 +67,6 @@ int main(int argc, char **argv) {
     // Need to initialize ep_real_time and friends.
     initialize_time_functions(get_mock_server_api()->core);
 
-    ::testing::InitGoogleTest(&argc, argv);
+    ::testing::InitGoogleMock(&argc, argv);
     return RUN_ALL_TESTS();
 }

@@ -1080,6 +1080,48 @@ TEST_F(CouchKVStoreErrorInjectionTest, closeDB_close_file) {
 }
 
 /**
+ * Injects error during CouchKVStore::saveDocs/couchstore_docinfos_by_id
+ */
+TEST_F(CouchKVStoreErrorInjectionTest, savedocs_doc_infos_by_id) {
+    // Insert some items into the B-Tree
+    generate_items(6);
+    CustomCallback<TransactionContext, mutation_result> set_callback;
+
+    for (const auto item : items) {
+        kvstore->begin(std::make_unique<TransactionContext>());
+        kvstore->set(item, set_callback);
+        kvstore->commit(nullptr /*no collections manifest*/);
+    }
+
+    {
+        generate_items(1);
+        CustomCallback<TransactionContext, mutation_result> set_callback;
+
+        kvstore->begin(std::make_unique<TransactionContext>());
+        kvstore->set(items.front(), set_callback);
+        {
+            /* Establish Logger expectation */
+            EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
+            EXPECT_CALL(
+                    logger,
+                    mlog(Ge(EXTENSION_LOG_WARNING), VCE(COUCHSTORE_ERROR_READ)))
+                    .Times(1)
+                    .RetiresOnSaturation();
+
+            /* Establish FileOps expectation */
+            EXPECT_CALL(ops, pread(_, _, _, _, _))
+                    .WillOnce(Return(COUCHSTORE_ERROR_READ))
+                    .RetiresOnSaturation();
+            EXPECT_CALL(ops, pread(_, _, _, _, _))
+                    .Times(4)
+                    .RetiresOnSaturation();
+
+            kvstore->commit(nullptr /*no collections manifest*/);
+        }
+    }
+}
+
+/**
  * Verify the failed compaction statistic is accurate.
  */
 TEST_F(CouchKVStoreErrorInjectionTest, CompactFailedStatsTest) {
