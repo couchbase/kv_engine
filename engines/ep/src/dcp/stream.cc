@@ -830,6 +830,13 @@ void ActiveStream::addStats(ADD_STAT add_stat, const void *c) {
                          name_.c_str(), vb_);
         add_casted_stat(buffer, bufferedBackfill.items, add_stat, c);
 
+        checked_snprintf(buffer,
+                         bsize,
+                         "%s:stream_%d_cursor_registered",
+                         name_.c_str(),
+                         vb_);
+        add_casted_stat(buffer, cursorRegistered, add_stat, c);
+
         if (isTakeoverSend() && takeoverStart != 0) {
             checked_snprintf(buffer, bsize, "%s:stream_%d_takeover_since",
                              name_.c_str(), vb_);
