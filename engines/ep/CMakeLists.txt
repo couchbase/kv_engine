@@ -377,6 +377,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                    benchmarks/defragmenter_bench.cc
                    benchmarks/engine_fixture.cc
                    benchmarks/ep_engine_benchmarks_main.cc
+                   benchmarks/hash_table_bench.cc
                    benchmarks/item_bench.cc
                    benchmarks/item_compressor_bench.cc
                    benchmarks/kvstore_bench.cc
