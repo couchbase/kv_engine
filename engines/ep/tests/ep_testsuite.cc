@@ -6905,6 +6905,12 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                                            "ep_warmup_thread"});
     }
 
+    if (isCompressionEnabled(h, h1)) {
+        auto& vb0_hash_stats = statsKeys.at("hash");
+        vb0_hash_stats.insert(vb0_hash_stats.end(),
+                              {"vb_0:mem_size_uncompressed"});
+    }
+
     if (isPersistentBucket(h, h1)) {
         // Add data_size and file_size stats to toplevel group.
         auto& eng_stats = statsKeys.at("");
