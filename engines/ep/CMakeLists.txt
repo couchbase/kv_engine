@@ -610,9 +610,18 @@ $<SEMICOLON>dbname=./${name}.full_eviction.comp_active.db")
         SET_TESTS_PROPERTIES(${name}.full_eviction.comp_active PROPERTIES TIMEOUT ${timeout})
 
         IF (NOT arg_SKIP_EPHEMERAL)
-            ADD_TEST(NAME ${name}.ephemeral
-                     COMMAND ${_cmdline} -v -e "bucket_type=ephemeral$<SEMICOLON>dbname=./${name}.ephemeral.db")
-            SET_TESTS_PROPERTIES(${name}.ephemeral PROPERTIES TIMEOUT ${timeout})
+            ADD_TEST(NAME ${name}.ephemeral.comp_off
+                     COMMAND ${_cmdline} -v -e "compression_mode=off$<SEMICOLON>bucket_type=ephemeral\
+$<SEMICOLON>dbname=./${name}.ephemeral.comp_off.db")
+            ADD_TEST(NAME ${name}.ephemeral.comp_passive
+                     COMMAND ${_cmdline} -v -e "compression_mode=passive$<SEMICOLON>bucket_type=ephemeral\
+$<SEMICOLON>dbname=./${name}.ephemeral.comp_passive.db")
+            ADD_TEST(NAME ${name}.ephemeral.comp_active
+                     COMMAND ${_cmdline} -v -e "compression_mode=active$<SEMICOLON>bucket_type=ephemeral\
+$<SEMICOLON>dbname=./${name}.ephemeral.comp_active.db")
+            SET_TESTS_PROPERTIES(${name}.ephemeral.comp_off PROPERTIES TIMEOUT ${timeout})
+            SET_TESTS_PROPERTIES(${name}.ephemeral.comp_passive PROPERTIES TIMEOUT ${timeout})
+            SET_TESTS_PROPERTIES(${name}.ephemeral.comp_active PROPERTIES TIMEOUT ${timeout})
         ENDIF ()
 
         IF (EP_USE_ROCKSDB)
