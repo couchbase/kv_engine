@@ -591,11 +591,16 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                  COMMAND ${_cmdline} -v -e "compression_mode=off$<SEMICOLON>dbname=./${name}.value_eviction.comp_off.db")
         ADD_TEST(NAME ${name}.value_eviction.comp_passive
                  COMMAND ${_cmdline} -v -e "compression_mode=passive$<SEMICOLON>dbname=./${name}.value_eviction.comp_passive.db")
-        ADD_TEST(NAME ${name}.full_eviction
-                 COMMAND ${_cmdline} -v -e "item_eviction_policy=full_eviction$<SEMICOLON>dbname=./${name}.full_eviction.db")
+        ADD_TEST(NAME ${name}.full_eviction.comp_off
+                 COMMAND ${_cmdline} -v -e "compression_mode=off$<SEMICOLON>item_eviction_policy=full_eviction\
+$<SEMICOLON>dbname=./${name}.full_eviction.comp_off.db")
+        ADD_TEST(NAME ${name}.full_eviction.comp_passive
+                 COMMAND ${_cmdline} -v -e "compression_mode=passive$<SEMICOLON>item_eviction_policy=full_eviction\
+$<SEMICOLON>dbname=./${name}.full_eviction.comp_passive.db")
         SET_TESTS_PROPERTIES(${name}.value_eviction.comp_off PROPERTIES TIMEOUT ${timeout})
         SET_TESTS_PROPERTIES(${name}.value_eviction.comp_passive PROPERTIES TIMEOUT ${timeout})
-        SET_TESTS_PROPERTIES(${name}.full_eviction PROPERTIES TIMEOUT ${timeout})
+        SET_TESTS_PROPERTIES(${name}.full_eviction.comp_off PROPERTIES TIMEOUT ${timeout})
+        SET_TESTS_PROPERTIES(${name}.full_eviction.comp_passive PROPERTIES TIMEOUT ${timeout})
 
         IF (NOT arg_SKIP_EPHEMERAL)
             ADD_TEST(NAME ${name}.ephemeral
