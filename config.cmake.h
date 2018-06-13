@@ -41,21 +41,12 @@ typedef HANDLE pid_t;
 
 #else // !WIN32
 
-/* need this to get IOV_MAX on some platforms. */
-#ifndef __need_IOV_MAX
-#define __need_IOV_MAX
-#endif
-
 #define HAVE_SIGIGNORE 1
 
 #endif // WIN32
 
 /* Common section */
 #include <inttypes.h>
-
-#ifndef IOV_MAX
-#define IOV_MAX 1024
-#endif
 
 #define MEMCACHED_VERSION "${MEMCACHED_VERSION}"
 #define PRODUCT_VERSION "${PRODUCT_VERSION}"
