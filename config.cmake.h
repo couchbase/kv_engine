@@ -46,10 +46,6 @@ typedef HANDLE pid_t;
 #define __need_IOV_MAX
 #endif
 
-#ifndef _POSIX_PTHREAD_SEMANTICS
-#define _POSIX_PTHREAD_SEMANTICS
-#endif
-
 #define HAVE_SIGIGNORE 1
 
 #endif // WIN32
