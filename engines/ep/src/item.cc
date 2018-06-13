@@ -205,7 +205,7 @@ std::ostream& operator<<(std::ostream& os, const Blob& b) {
        << " age:" << int(b.age)
        << " data: <" << std::hex;
     // Print at most 40 bytes of the body.
-    auto bytes_to_print = std::min(uint32_t(40), b.size);
+    auto bytes_to_print = std::min(uint32_t(40), b.size.load());
     for (size_t ii = 0; ii < bytes_to_print; ii++) {
         if (ii != 0) {
             os << ' ';

@@ -135,6 +135,24 @@ TYPED_TEST(ValueTest, DISABLED_StoredValueReallocateGivesSameSize) {
     }
 }
 
+/* MB-30097: Set the stored value as uncompressible and ensure that
+ * the size of the Blob doesn't change on a reallocation
+ */
+TYPED_TEST(ValueTest, StoredValueUncompressibleReallocateGivesSameSize) {
+    auto sv = this->factory(
+            make_item(0,
+                      makeStoredDocKey(std::string(10, 'k').c_str()),
+                      std::string(182, 'v').c_str()),
+            {});
+
+    auto blob = sv->getValue();
+    int beforeValueSize = blob->valueSize();
+    sv->setUncompressible();
+    sv->reallocate();
+    blob = sv->getValue();
+    EXPECT_EQ(beforeValueSize, blob->valueSize());
+}
+
 TYPED_TEST(ValueTest, metaDataSize) {
     // Check metadata size reports correctly.
     EXPECT_EQ(this->getFixedSize() + /*key*/ 3 + /*len*/ 1 +
