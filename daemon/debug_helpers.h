@@ -24,6 +24,7 @@
 #include "config.h"
 
 #include <platform/platform.h>
+#include <sys/types.h>
 
 /* Insert a char* into a buffer, but replace all non-printable characters with
  * a '.'
