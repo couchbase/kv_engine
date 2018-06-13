@@ -23,7 +23,7 @@
 #include "custom_rotating_file_sink.h"
 
 #include <platform/dirutils.h>
-#include <platform/make_unique.h>
+#include <memory>
 
 static unsigned long find_first_logfile_id(const std::string& basename) {
     unsigned long id = 0;

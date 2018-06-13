@@ -54,7 +54,6 @@
 #include <platform/cb_malloc.h>
 #include <platform/checked_snprintf.h>
 #include <platform/compress.h>
-#include <platform/make_unique.h>
 #include <platform/platform.h>
 #include <platform/processclock.h>
 #include <platform/scope_timer.h>
@@ -62,14 +61,15 @@
 #include <utilities/logtags.h>
 #include <xattr/utils.h>
 
+#include <fcntl.h>
+#include <stdarg.h>
 #include <cstdio>
 #include <cstring>
-#include <fcntl.h>
 #include <fstream>
 #include <iostream>
 #include <limits>
+#include <memory>
 #include <mutex>
-#include <stdarg.h>
 #include <string>
 #include <vector>
 

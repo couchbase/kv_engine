@@ -25,7 +25,7 @@
 #include <JSON_checker.h>
 #include <cJSON.h>
 #include <cJSON_utils.h>
-#include <platform/make_unique.h>
+#include <memory>
 
 namespace Collections {
 namespace VB {

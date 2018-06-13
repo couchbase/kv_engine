@@ -3,14 +3,14 @@
 
 #include <memcached/engine_testapp.h>
 
-#include <cstdlib>
 #include <getopt.h>
+#include <cstdlib>
+#include <functional>
 #include <map>
-#include <platform/make_unique.h>
+#include <memory>
 #include <regex>
 #include <string>
 #include <vector>
-#include <functional>
 
 #include "utilities/engine_loader.h"
 #include "utilities/terminate_handler.h"

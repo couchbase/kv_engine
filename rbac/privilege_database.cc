@@ -17,13 +17,13 @@
 #include <memcached/rbac.h>
 
 #include <cJSON_utils.h>
-#include <platform/make_unique.h>
 #include <platform/memorymap.h>
 #include <platform/rwlock.h>
 #include <strings.h>
 #include <atomic>
 #include <fstream>
 #include <iostream>
+#include <memory>
 #include <mutex>
 #include <streambuf>
 #include <string>

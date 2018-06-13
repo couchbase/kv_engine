@@ -29,14 +29,14 @@
 #include "statwriter.h"
 #include "vbucket_bgfetch_item.h"
 
-#include <platform/make_unique.h>
 #include <platform/timeutils.h>
 
+#include <array>
 #include <limits>
+#include <memory>
+#include <random>
 #include <string>
 #include <utility>
-#include <array>
-#include <random>
 
 struct WarmupCookie {
     WarmupCookie(KVBucket* s, StatusCallback<GetValue>& c)

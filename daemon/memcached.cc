@@ -68,7 +68,6 @@
 #include <platform/cb_malloc.h>
 #include <platform/dirutils.h>
 #include <platform/interrupt.h>
-#include <platform/make_unique.h>
 #include <platform/socket.h>
 #include <platform/strerror.h>
 #include <platform/sysinfo.h>
@@ -80,6 +79,8 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <algorithm>
+#include <memory>
+
 #if HAVE_LIBNUMA
 #include <numa.h>
 #endif

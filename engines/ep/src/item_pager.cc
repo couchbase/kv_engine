@@ -38,8 +38,7 @@
 #include <utility>
 
 #include <phosphor/phosphor.h>
-#include <platform/make_unique.h>
-
+#include <memory>
 
 static const size_t MAX_PERSISTENCE_QUEUE_SIZE = 1000000;
 

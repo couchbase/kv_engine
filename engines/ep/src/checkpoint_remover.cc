@@ -26,7 +26,7 @@
 #include "vbucket.h"
 
 #include <phosphor/phosphor.h>
-#include <platform/make_unique.h>
+#include <memory>
 
 /**
  * Remove all the closed unreferenced checkpoints for each vbucket.

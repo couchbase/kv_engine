@@ -23,10 +23,9 @@
 #include <cbsasl/scram-sha/scram-sha.h>
 #include <cbsasl/server.h>
 
-#include <platform/make_unique.h>
 #include <platform/random.h>
 
-#include <memory.h>
+#include <memory>
 #include <string>
 
 namespace cb {

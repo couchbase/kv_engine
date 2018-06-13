@@ -17,11 +17,11 @@
 
 #include "test_helpers.h"
 
-#include <thread>
+#include <platform/compress.h>
 #include <string_utilities.h>
 #include <xattr/blob.h>
-#include <platform/compress.h>
-#include <platform/make_unique.h>
+#include <memory>
+#include <thread>
 
 #include "checkpoint_manager.h"
 #include "vbucket.h"

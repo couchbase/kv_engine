@@ -24,7 +24,7 @@
 
 #include <gtest/gtest.h>
 #include <memcached/protocol_binary.h>
-#include <platform/make_unique.h>
+#include <memory>
 
 class ItemNoValuePruneTest : public ::testing::TestWithParam<
                              std::tuple<IncludeValue, IncludeXattrs>> {

@@ -19,9 +19,8 @@
 #include "generator_event.h"
 #include "generator_utilities.h"
 
-#include <platform/make_unique.h>
-
 #include <fstream>
+#include <memory>
 #include <sstream>
 #include <system_error>
 

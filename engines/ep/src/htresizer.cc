@@ -22,7 +22,6 @@
 #include "kv_bucket_iface.h"
 
 #include <phosphor/phosphor.h>
-#include <platform/make_unique.h>
 
 #include <memory>
 

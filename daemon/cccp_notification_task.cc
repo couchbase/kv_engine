@@ -20,7 +20,7 @@
 #include "server_event.h"
 
 #include <mcbp/protocol/framebuilder.h>
-#include <platform/make_unique.h>
+#include <memory>
 
 CccpNotificationTask::CccpNotificationTask(int bucket_, int revision_)
     : Task(),

@@ -20,12 +20,12 @@
 #include <cbsasl/server.h>
 #include <gtest/gtest.h>
 #include <platform/cb_malloc.h>
-#include <platform/make_unique.h>
 #include <array>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <gsl/gsl>
+#include <memory>
 
 const char* cbpwfile = "cbsasl_test.pw";
 

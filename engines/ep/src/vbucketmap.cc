@@ -17,8 +17,7 @@
 
 #include "config.h"
 
-#include <platform/make_unique.h>
-
+#include <memory>
 #include <vector>
 
 #include "ep_engine.h"

@@ -22,7 +22,6 @@
 #include <gtest/gtest.h>
 #include <phosphor/phosphor.h>
 #include <platform/backtrace.h>
-#include <platform/make_unique.h>
 
 #include <atomic>
 #include <memory>

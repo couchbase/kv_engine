@@ -18,8 +18,7 @@
 #include "config.h"
 
 #include <functional>
-
-#include <platform/make_unique.h>
+#include <memory>
 
 #include "bgfetcher.h"
 #include "ep_bucket.h"

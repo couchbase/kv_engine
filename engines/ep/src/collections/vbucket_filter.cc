@@ -23,7 +23,7 @@
 #include "statwriter.h"
 
 #include <platform/checked_snprintf.h>
-#include <platform/make_unique.h>
+#include <memory>
 
 Collections::VB::Filter::Filter(const Collections::Filter& filter,
                                 const Collections::VB::Manifest& manifest)

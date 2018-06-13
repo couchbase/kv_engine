@@ -21,7 +21,6 @@
 #include "stored-value.h"
 #include "systemevent.h"
 
-#include <platform/make_unique.h>
 #include <platform/sized_buffer.h>
 
 #include <memory>

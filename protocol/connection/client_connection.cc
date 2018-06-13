@@ -29,11 +29,11 @@
 #include <platform/strerror.h>
 
 #include <include/cbsasl/client.h>
-#include <platform/make_unique.h>
 #include <cerrno>
 #include <gsl/gsl>
 #include <iostream>
 #include <limits>
+#include <memory>
 #ifndef WIN32
 #include <netdb.h>
 #include <netinet/tcp.h> // For TCP_NODELAY etc

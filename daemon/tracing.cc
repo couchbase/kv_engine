@@ -23,9 +23,9 @@
 #include "task.h"
 #include "tracing_types.h"
 
-#include <platform/make_unique.h>
 #include <platform/processclock.h>
 
+#include <memory>
 #include <mutex>
 
 // TODO: MB-20640 The default config should be configurable from memcached.json

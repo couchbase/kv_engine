@@ -21,8 +21,8 @@
 #include <event2/event.h>
 #include <mcbp/protocol/header.h>
 #include <memcached/protocol_binary.h>
-#include <platform/make_unique.h>
 #include <gsl/gsl>
+#include <memory>
 
 /**
  * Test all of the command validators we've got to ensure that they

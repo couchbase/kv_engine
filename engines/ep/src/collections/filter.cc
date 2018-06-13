@@ -23,9 +23,8 @@
 #include <cJSON.h>
 #include <cJSON_utils.h>
 #include <memcached/engine_error.h>
-#include <platform/make_unique.h>
-
 #include <iostream>
+#include <memory>
 
 /**
  * Construct a Collections::Filter, optionally using a JSON document with the

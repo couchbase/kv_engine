@@ -27,9 +27,9 @@
 
 #include <cJSON.h>
 #include <platform/cb_malloc.h>
-#include <platform/make_unique.h>
 #include <algorithm>
 #include <list>
+#include <memory>
 
 /*
  * Free list management for connections.

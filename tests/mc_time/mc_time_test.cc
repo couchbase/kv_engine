@@ -21,8 +21,8 @@
 #include <daemon/mc_time.h>
 #include <daemon/memcached.h>
 #include <gtest/gtest.h>
-#include <platform/make_unique.h>
 #include <gsl/gsl>
+#include <memory>
 
 class McTimeTest : public ::testing::Test {
 public:

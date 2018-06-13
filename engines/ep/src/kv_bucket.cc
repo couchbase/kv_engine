@@ -24,13 +24,13 @@
 #include <functional>
 #include <iostream>
 #include <map>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include <phosphor/phosphor.h>
-#include <platform/make_unique.h>
 
 #include "access_scanner.h"
 #include "checkpoint_manager.h"

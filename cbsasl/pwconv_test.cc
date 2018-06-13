@@ -20,7 +20,7 @@
  * convert an "isasl-style" password file to a cbsasl style
  */
 #include <gtest/gtest.h>
-#include <platform/make_unique.h>
+#include <memory>
 
 #include "password_database.h"
 #include "plain/check_password.h"

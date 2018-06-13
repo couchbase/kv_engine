@@ -21,11 +21,11 @@
 
 #include <cJSON.h>
 #include <platform/dirutils.h>
-#include <platform/make_unique.h>
 #include <platform/strerror.h>
 #include <cstring>
 #include <fstream>
 #include <iostream>
+#include <memory>
 #include <sstream>
 
 cJSON* getMandatoryObject(gsl::not_null<const cJSON*> root,

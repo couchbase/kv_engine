@@ -20,7 +20,6 @@
 #include <iostream>
 
 #include <phosphor/phosphor.h>
-#include <platform/make_unique.h>
 
 #include "access_scanner.h"
 #include "ep_time.h"
@@ -30,6 +29,7 @@
 #include "stats.h"
 #include "vb_count_visitor.h"
 
+#include <memory>
 #include <numeric>
 
 class ItemAccessVisitor : public VBucketVisitor, public HashTableVisitor {

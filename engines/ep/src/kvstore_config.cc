@@ -17,7 +17,7 @@
 
 #include "kvstore_config.h"
 
-#include <platform/make_unique.h>
+#include <memory>
 
 /// A listener class to update KVStore related configs at runtime.
 class KVStoreConfig::ConfigChangeListener : public ValueChangedListener {

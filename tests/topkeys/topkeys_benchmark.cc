@@ -17,10 +17,10 @@
 
 #include <benchmark/benchmark.h>
 #include <daemon/topkeys.h>
-#include <platform/make_unique.h>
 
 #include <algorithm>
 #include <iostream>
+#include <memory>
 
 /**
  * A fixture for performing topkeys updates

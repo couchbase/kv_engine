@@ -23,10 +23,10 @@
 
 #include <cJSON_utils.h>
 #include <platform/dirutils.h>
-#include <platform/make_unique.h>
 #include <platform/memorymap.h>
 #include <platform/strerror.h>
 #include <fstream>
+#include <memory>
 
 void TestBucketImpl::createEwbBucket(const std::string& name,
                                      const std::string& plugin,

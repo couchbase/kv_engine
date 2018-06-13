@@ -21,7 +21,7 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-#include <platform/make_unique.h>
+#include <memory>
 
 /* Like EXPECT_THROW except you can check the exception's `what()` */
 # define CB_EXPECT_THROW_MSG(EXPR, ETYPE, MSG) \

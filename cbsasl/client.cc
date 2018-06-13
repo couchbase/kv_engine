@@ -18,7 +18,7 @@
 #include <cbsasl/client.h>
 #include <cbsasl/plain/plain.h>
 #include <cbsasl/scram-sha/scram-sha.h>
-#include <platform/make_unique.h>
+#include <memory>
 
 namespace cb {
 namespace sasl {

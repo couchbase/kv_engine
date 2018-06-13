@@ -27,7 +27,7 @@
 #include "item.h"
 #include "systemevent.h"
 
-#include <platform/make_unique.h>
+#include <memory>
 
 enum end_stream_status_t {
     //! The stream ended due to all items being streamed
