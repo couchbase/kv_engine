@@ -16,6 +16,8 @@
  */
 #include <string.h>
 #include <cerrno>
+#include <csignal>
+
 #include "testapp_shutdown.h"
 
 /// The different types of shutdown we can trigger.

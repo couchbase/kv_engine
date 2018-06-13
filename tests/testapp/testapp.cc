@@ -19,6 +19,8 @@
 #include <platform/compress.h>
 #include <fstream>
 
+#include <csignal>
+
 McdEnvironment* mcd_env = nullptr;
 
 using Testapp::MAX_CONNECTIONS;
