@@ -115,6 +115,8 @@ void BackfillManager::addStats(DcpProducer& conn,
                                const void* c) {
     LockHolder lh(lock);
     conn.addStat("backfill_buffer_bytes_read", buffer.bytesRead, add_stat, c);
+    conn.addStat(
+            "backfill_buffer_next_read_size", buffer.nextReadSize, add_stat, c);
     conn.addStat("backfill_buffer_max_bytes", buffer.maxBytes, add_stat, c);
     conn.addStat("backfill_buffer_full", buffer.full, add_stat, c);
     conn.addStat("backfill_num_active", activeBackfills.size(), add_stat, c);
