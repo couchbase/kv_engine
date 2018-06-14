@@ -996,6 +996,46 @@ TEST_P(EPStoreEvictionBloomOnOffTest, store_if_fe_interleave) {
                     .status);
 }
 
+// Run in FE only with bloom filter off, so all gets turn into bgFetches
+class EPStoreFullEvictionNoBloomFIlterTest : public EPBucketTest {
+    void SetUp() override {
+        config_string += std::string{"item_eviction_policy=full_eviction;"
+                                     "bfilter_enabled=false"};
+        EPBucketTest::SetUp();
+
+        // Have all the objects, activate vBucket zero so we can store data.
+        store->setVBucketState(vbid, vbucket_state_active, false);
+    }
+};
+
+// Demonstrate the couchstore issue affects get - if we have multiple gets in
+// one batch and the keys are crafted in such a way, we will skip out the get
+// of the one key which really does exist.
+TEST_F(EPStoreFullEvictionNoBloomFIlterTest, MB_29816) {
+    auto key = makeStoredDocKey("005");
+    store_item(vbid, key, "value");
+    flush_vbucket_to_disk(vbid);
+    evict_key(vbid, key);
+
+    auto key2 = makeStoredDocKey("004");
+    get_options_t options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+            HIDE_LOCKED_CAS | TRACK_STATISTICS);
+    auto gv = store->get(key, vbid, cookie, options);
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
+    gv = store->get(key2, vbid, cookie, options);
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
+
+    runBGFetcherTask();
+
+    // Get the keys again
+    gv = store->get(key, vbid, cookie, options);
+    ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus()) << "key:005 should of been found";
+
+    gv = store->get(key2, vbid, cookie, options);
+    ASSERT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+}
+
 struct PrintToStringCombinedName {
     std::string operator()(
             const ::testing::TestParamInfo<::testing::tuple<std::string, bool>>&
