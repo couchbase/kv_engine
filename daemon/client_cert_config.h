@@ -116,6 +116,7 @@ public:
     struct Mapping {
         Mapping() = default;
         Mapping(std::string& path_, cJSON* obj);
+        virtual ~Mapping() = default;
         virtual std::pair<Status, std::string> match(X509* cert) const;
 
         std::string matchPattern(const std::string& input) const;

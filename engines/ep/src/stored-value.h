@@ -126,6 +126,16 @@ class OrderedStoredValue;
  */
 class StoredValue {
 public:
+    /**
+     * C++14 will call the sized delete version, but we
+     * allocate the object by using the new operator with a custom
+     * size (the key is packed after the object). We need to use
+     * the non-sized delete variant as the runtime don't know
+     * the size of the allocated object.
+     */
+    static void operator delete(void* ptr) {
+        ::operator delete(ptr);
+    }
 
     /**
      * Compress the value part of stored value. If the compressed document
@@ -837,6 +847,17 @@ std::ostream& operator<<(std::ostream& os, const StoredValue& sv);
  */
 class OrderedStoredValue : public StoredValue {
 public:
+    /**
+     * C++14 will call the sized delete version, but we
+     * allocate the object by using the new operator with a custom
+     * size (the key is packed after the object). We need to use
+     * the non-sized delete variant as the runtime don't know
+     * the size of the allocated object.
+     */
+    static void operator delete(void* ptr) {
+        ::operator delete(ptr);
+    }
+
     // Intrusive linked-list for sequence number ordering.
     // Guarded by the SequenceList's writeLock.
     boost::intrusive::list_member_hook<> seqno_hook;

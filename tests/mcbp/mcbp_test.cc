@@ -1848,6 +1848,7 @@ protected:
 
     class Request {
     public:
+        virtual ~Request() = default;
         virtual protocol_binary_request_header& getHeader() = 0;
 
         virtual uint8_t* getBytes() = 0;

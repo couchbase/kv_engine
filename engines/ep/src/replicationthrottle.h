@@ -37,6 +37,8 @@ public:
 
     ReplicationThrottle(const Configuration& config, EPStats& s);
 
+    virtual ~ReplicationThrottle() = default;
+
     /**
      * @ return status of the replication throttle
      */
