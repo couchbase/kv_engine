@@ -742,7 +742,7 @@ protected:
 
     bool transitionState(StreamState newState);
 
-    ENGINE_ERROR_CODE processMutation(MutationResponse* mutation);
+    virtual ENGINE_ERROR_CODE processMutation(MutationResponse* mutation);
 
     ENGINE_ERROR_CODE processDeletion(MutationResponse* deletion);
 
@@ -782,7 +782,7 @@ protected:
 
     void handleSnapshotEnd(VBucketPtr& vb, uint64_t byseqno);
 
-    void processMarker(SnapshotMarker* marker);
+    virtual void processMarker(SnapshotMarker* marker);
 
     void processSetVBucketState(SetVBucketState* state);
 
