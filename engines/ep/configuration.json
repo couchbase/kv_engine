@@ -563,8 +563,9 @@
             "type": "size_t"
         },
         "max_size": {
-            "default": "0",
+            "default": "(100 * 1024 * 1024)",
             "type": "size_t",
+            "descr": "Memory quota (in bytes) for this bucket.",
             "aliases":["cache_size"]
         },
         "max_ttl":{

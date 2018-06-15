@@ -2099,7 +2099,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
             configuration.getMutationMemThreshold());
 
     if (configuration.getMaxSize() == 0) {
-        configuration.setMaxSize(std::numeric_limits<size_t>::max());
+        LOG(EXTENSION_LOG_WARNING,
+            "Invalid configuration: max_size must be a non-zero value");
+        return ENGINE_FAILED;
     }
 
     if (configuration.getMemLowWat() == std::numeric_limits<size_t>::max()) {

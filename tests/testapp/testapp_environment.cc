@@ -192,6 +192,10 @@ public:
                      const std::string& config,
                      MemcachedConnection& conn) override {
         std::string settings = "dbname=" + dbPath + "/" + name;
+        // Increase bucket quota from 100MB to 200MB as there are some
+        // testapp tests requiring more than the default.
+        settings += ";max_size=200000000";
+
         if (!config.empty()) {
             settings += ";" + config;
         }

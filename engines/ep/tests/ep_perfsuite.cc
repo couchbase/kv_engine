@@ -784,10 +784,18 @@ static void perf_load_client(ENGINE_HANDLE* h,
             genVectorOfValues(typeOfData, count, ITERATIONS);
 
     for (int i = 0; i < count; ++i) {
-        checkeq(storeCasVb11(h, h1, NULL, OPERATION_SET, keys[i].c_str(),
-                             vals[i].data(), vals[i].size(), /*flags*/9258,
-                             0, vbid).first,
-                cb::engine_errc::success,
+        checkeq(cb::engine_errc::success,
+                storeCasVb11(h,
+                             h1,
+                             NULL,
+                             OPERATION_SET,
+                             keys[i].c_str(),
+                             vals[i].data(),
+                             vals[i].size(),
+                             /*flags*/ 9258,
+                             0,
+                             vbid)
+                        .first,
                 "Failed set.");
         insertTimes.push_back(ProcessClock::now().time_since_epoch().count());
     }
@@ -1346,18 +1354,32 @@ BaseTestCase testsuite_testcases[] = {
                    NULL, NULL,
                    "backend=couchdb;ht_size=393209",
                    prepare, cleanup),
-        TestCase("DCP latency (Padded JSON)", perf_dcp_latency_with_padded_json,
-                 test_setup, teardown,
-                 "backend=couchdb;ht_size=393209",
-                 prepare, cleanup),
+
+        TestCase("DCP latency (Padded JSON)",
+                 perf_dcp_latency_with_padded_json,
+                 test_setup,
+                 teardown,
+                 "backend=couchdb;ht_size=393209"
+                 // Test requires ~1GB bucket quota
+                 ";max_size=1000000000",
+                 prepare,
+                 cleanup),
+
         TestCase("DCP latency (Random JSON)", perf_dcp_latency_with_random_json,
                  test_setup, teardown,
                  "backend=couchdb;ht_size=393209",
                  prepare, cleanup),
-        TestCase("DCP latency (Random BIN)", perf_dcp_latency_with_random_binary,
-                 test_setup, teardown,
-                 "backend=couchdb;ht_size=393209",
-                 prepare, cleanup),
+
+        TestCase("DCP latency (Random BIN)",
+                 perf_dcp_latency_with_random_binary,
+                 test_setup,
+                 teardown,
+                 "backend=couchdb;ht_size=393209"
+                 // Test requires ~1GB bucket quota
+                 ";max_size=1000000000",
+                 prepare,
+                 cleanup),
+
         TestCaseV2("Multi thread latency", perf_multi_thread_latency,
                    NULL, NULL,
                    "backend=couchdb;ht_size=393209",
@@ -1372,26 +1394,52 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup, teardown,
                  "backend=couchdb;ht_size=393209",
                  prepare, cleanup),
+
         TestCase("Stat latency with 100 active vbuckets",
-                 perf_stat_latency_100vb, test_setup, teardown,
-                 "backend=couchdb;ht_size=393209",
-                 prepare, cleanup),
+                 perf_stat_latency_100vb,
+                 test_setup,
+                 teardown,
+                 "backend=couchdb;ht_size=393209"
+                 // Test requires ~1GB bucket quota
+                 ";max_size=1000000000",
+                 prepare,
+                 cleanup),
+
         TestCase("Stat latency with 100 vbuckets. Also sets & DCP traffic on "
                  "separate thread",
-                 perf_stat_latency_100vb_sets_and_dcp, test_setup, teardown,
-                 "backend=couchdb;ht_size=393209",
-                 prepare, cleanup),
+                 perf_stat_latency_100vb_sets_and_dcp,
+                 test_setup,
+                 teardown,
+                 "backend=couchdb;ht_size=393209"
+                 // Test requires ~1GB bucket quota
+                 ";max_size=1000000000",
+                 prepare,
+                 cleanup),
+
         TestCase("Baseline Slow Stat latency", perf_slow_stat_latency_baseline,
                  test_setup, teardown, "backend=couchdb;ht_size=393209",
                  prepare, cleanup),
+
         TestCase("Stat latency with 100 active vbuckets",
                  perf_slow_stat_latency_100vb,
-                 test_setup, teardown, "backend=couchdb;ht_size=393209",
-                 prepare, cleanup),
+                 test_setup,
+                 teardown,
+                 "backend=couchdb;ht_size=393209"
+                 // Test requires ~1GB bucket quota
+                 ";max_size=1000000000",
+                 prepare,
+                 cleanup),
+
         TestCase("Stat latency with 100 vbuckets. Also sets & DCP traffic on "
                  "separate thread",
-                 perf_slow_stat_latency_100vb_sets_and_dcp, test_setup,
-                 teardown, "backend=couchdb;ht_size=393209", prepare, cleanup),
+                 perf_slow_stat_latency_100vb_sets_and_dcp,
+                 test_setup,
+                 teardown,
+                 "backend=couchdb;ht_size=393209"
+                 // Test requires ~1GB bucket quota
+                 ";max_size=1000000000",
+                 prepare,
+                 cleanup),
 
         TestCase(NULL, NULL, NULL, NULL,
                  "backend=couchdb", prepare, cleanup)

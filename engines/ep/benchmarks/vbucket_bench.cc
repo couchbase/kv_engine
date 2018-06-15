@@ -34,6 +34,10 @@
 class VBucketBench : public EngineFixture {
 protected:
     void SetUp(const benchmark::State& state) override {
+        // A number of benchmarks require more than the default 100MB bucket
+        // quota - bump to ~1GB.
+        varConfig = "max_size=1000000000";
+
         EngineFixture::SetUp(state);
         if (state.thread_index == 0) {
             engine->getKVBucket()->setVBucketState(
