@@ -45,7 +45,7 @@
 #include <netinet/tcp.h> // For TCP_NODELAY etc
 #endif
 
-const char* to_string(const Connection::Priority& priority) {
+std::string to_string(Connection::Priority priority) {
     switch (priority) {
     case Connection::Priority::High:
         return "High";
@@ -1428,7 +1428,7 @@ void Connection::signalIfIdle(bool logbusy, size_t workerthread) {
     }
 }
 
-void Connection::setPriority(const Connection::Priority& priority) {
+void Connection::setPriority(Connection::Priority priority) {
     Connection::priority = priority;
     switch (priority) {
     case Priority::High:

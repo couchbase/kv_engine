@@ -202,7 +202,7 @@ public:
         return priority;
     }
 
-    void setPriority(const Priority& priority);
+    void setPriority(const Priority priority);
 
     /**
      * Create a cJSON representation of the members of the connection
@@ -1261,4 +1261,4 @@ protected:
 /**
  * Convert a priority to a textual representation
  */
-const char* to_string(const Connection::Priority& priority);
+std::string to_string(Connection::Priority priority);
