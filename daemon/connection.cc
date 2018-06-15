@@ -58,28 +58,6 @@ const char* to_string(const Connection::Priority& priority) {
                                 std::to_string(int(priority)));
 }
 
-void Connection::resolveConnectionName() {
-    if (socketDescriptor == INVALID_SOCKET) {
-        // Our unit tests run without a socket connected, and we don't
-        // want them to flood the console with error messages
-        peername = "[invalid]";
-        sockname = "[invalid]";
-        return;
-    }
-
-    try {
-        peername = cb::net::getpeername(socketDescriptor);
-        sockname = cb::net::getsockname(socketDescriptor);
-        updateDescription();
-    } catch (const std::bad_alloc& e) {
-        LOG_WARNING(
-                "Connection::resolveConnectionName: failed to allocate "
-                "memory: "
-                "{}",
-                e.what());
-    }
-}
-
 bool Connection::setTcpNoDelay(bool enable) {
     if (socketDescriptor == INVALID_SOCKET) {
         // Our unit test run without a connected socket (and there is
@@ -1213,6 +1191,8 @@ void Connection::ensureIovSpace() {
 Connection::Connection()
     : socketDescriptor(INVALID_SOCKET),
       base(nullptr),
+      peername("unknown"),
+      sockname("unknown"),
       stateMachine(*this) {
     MEMCACHED_CONN_CREATE(this);
     updateDescription();
@@ -1224,9 +1204,10 @@ Connection::Connection(SOCKET sfd, event_base* b, const ListeningPort& ifc)
     : socketDescriptor(sfd),
       base(b),
       parent_port(ifc.port),
+      peername(cb::net::getpeername(socketDescriptor)),
+      sockname(cb::net::getsockname(socketDescriptor)),
       stateMachine(*this) {
     MEMCACHED_CONN_CREATE(this);
-    resolveConnectionName();
     setTcpNoDelay(ifc.tcp_nodelay);
     updateDescription();
     cookies.emplace_back(std::unique_ptr<Cookie>{new Cookie(*this)});

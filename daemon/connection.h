@@ -929,13 +929,6 @@ protected:
     Connection();
 
     /**
-     * Resolve the name of the local socket and the peer for the connected
-     * socket.
-     * @param listening True if the local socket is a listening socket.
-     */
-    void resolveConnectionName();
-
-    /**
      * Update the description string for the connection. This
      * method should be called every time the authentication data
      * (or the sockname/peername) changes
@@ -1071,10 +1064,10 @@ protected:
     ENGINE_HANDLE_V1* bucketEngine{nullptr};
 
     /** Name of the peer if known */
-    std::string peername{"unknown"};
+    const std::string peername;
 
     /** Name of the local socket if known */
-    std::string sockname{"unknown"};
+    const std::string sockname;
 
     /** The connections priority */
     Priority priority{Priority::Medium};
