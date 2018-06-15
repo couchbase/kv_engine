@@ -21,10 +21,7 @@
 INSTANTIATE_TEST_CASE_P(TransportProtocols,
                         StatsTest,
                         ::testing::Values(TransportProtocols::McbpPlain,
-                                          TransportProtocols::McbpIpv6Plain,
-                                          TransportProtocols::McbpSsl,
-                                          TransportProtocols::McbpIpv6Ssl
-                                         ),
+                                          TransportProtocols::McbpSsl),
                         ::testing::PrintToStringParamName());
 
 TEST_P(StatsTest, TestDefaultStats) {
@@ -599,8 +596,5 @@ TEST_P(NoBucketStatsTest, TestTopkeysNoBucket) {
 INSTANTIATE_TEST_CASE_P(TransportProtocols,
                         NoBucketStatsTest,
                         ::testing::Values(TransportProtocols::McbpPlain,
-                                          TransportProtocols::McbpIpv6Plain,
-                                          TransportProtocols::McbpSsl,
-                                          TransportProtocols::McbpIpv6Ssl
-                                         ),
+                                          TransportProtocols::McbpSsl),
                         ::testing::PrintToStringParamName());

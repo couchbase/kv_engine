@@ -68,12 +68,9 @@ public:
 
 INSTANTIATE_TEST_CASE_P(TransportProtocols,
                         SaslauthdTest,
-    ::testing::Values(TransportProtocols::McbpPlain,
-                      TransportProtocols::McbpIpv6Plain,
-                      TransportProtocols::McbpSsl,
-                      TransportProtocols::McbpIpv6Ssl
-                     ),
-    ::testing::PrintToStringParamName());
+                        ::testing::Values(TransportProtocols::McbpPlain,
+                                          TransportProtocols::McbpSsl),
+                        ::testing::PrintToStringParamName());
 
 TEST_P(SaslauthdTest, TestSuccessfulSaslauthd) {
     MemcachedConnection& conn = getConnection();

@@ -51,9 +51,7 @@ std::chrono::nanoseconds TuneMcbpSla::getSlowThreshold(
 INSTANTIATE_TEST_CASE_P(TransportProtocols,
                         TuneMcbpSla,
                         ::testing::Values(TransportProtocols::McbpPlain,
-                                          TransportProtocols::McbpIpv6Plain,
-                                          TransportProtocols::McbpSsl,
-                                          TransportProtocols::McbpIpv6Ssl),
+                                          TransportProtocols::McbpSsl),
                         ::testing::PrintToStringParamName());
 
 TEST_P(TuneMcbpSla, NoAccess) {

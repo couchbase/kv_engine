@@ -34,6 +34,7 @@ set(memcached_testapp_SOURCES
     testapp_flush.cc
     testapp_getset.cc
     testapp_hello.cc
+    testapp_ipv6.cc
     testapp_legacy_users.cc
     testapp_lock.cc
     testapp_misc.cc

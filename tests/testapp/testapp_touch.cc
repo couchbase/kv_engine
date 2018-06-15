@@ -45,10 +45,7 @@ protected:
 INSTANTIATE_TEST_CASE_P(TransportProtocols,
                         TouchTest,
                         ::testing::Values(TransportProtocols::McbpPlain,
-                                          TransportProtocols::McbpIpv6Plain,
-                                          TransportProtocols::McbpSsl,
-                                          TransportProtocols::McbpIpv6Ssl
-                                         ),
+                                          TransportProtocols::McbpSsl),
                         ::testing::PrintToStringParamName());
 
 size_t TouchTest::get_cmd_counter(const std::string& name,
