@@ -1008,6 +1008,12 @@ void DcpConsumer::addStats(ADD_STAT add_stat, const void *c) {
     addStat("total_backoffs", backoffs, add_stat, c);
     addStat("processor_task_state", getProcessorTaskStatusStr(), add_stat, c);
     flowControl.addStats(add_stat, c);
+
+    vbReady.addStats(getName() + ":dcp_buffered_ready_queue_", add_stat, c);
+    addStat("processor_notification",
+            processorNotification.load(),
+            add_stat,
+            c);
 }
 
 void DcpConsumer::aggregateQueueStats(ConnCounter& aggregator) {

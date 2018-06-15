@@ -180,7 +180,7 @@ public:
         return readyQueue.empty();
     }
 
-    void addStats(const std::string& name, ADD_STAT add_stat, const void* c) {
+    void addStats(const std::string& prefix, ADD_STAT add_stat, const void* c) {
         // Take a copy of the queue data under lock; then format it to stats.
         std::queue<uint16_t> qCopy;
         std::unordered_set<uint16_t> qMapCopy;
@@ -190,7 +190,6 @@ public:
             qMapCopy = queuedValues;
         }
 
-        auto prefix = name + ":dcp_ready_queue_";
         add_casted_stat(
                 (prefix + "size").c_str(), qCopy.size(), add_stat, c);
         add_casted_stat((prefix + "map_size").c_str(),

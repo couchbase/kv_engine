@@ -977,7 +977,7 @@ void DcpProducer::addStats(ADD_STAT add_stat, const void *c) {
                 ->addStats(getName(), add_stat, c);
     }
 
-    ready.addStats(getName(), add_stat, c);
+    ready.addStats(getName() + ":dcp_ready_queue_", add_stat, c);
 
     addStat("num_streams", streams.size(), add_stat, c);
 
