@@ -43,7 +43,6 @@ void TestBucketImpl::createEwbBucket(const std::string& name,
 void TestBucketImpl::setXattrEnabled(MemcachedConnection& conn,
                                      const std::string& bucketName,
                                      bool value) {
-    conn.authenticate("@admin", "password", "PLAIN");
     conn.selectBucket(bucketName);
 
     // Encode a set_flush_param (like cbepctl)
@@ -64,8 +63,7 @@ void TestBucketImpl::setXattrEnabled(MemcachedConnection& conn,
 
 void TestBucketImpl::setCompressionMode(MemcachedConnection& conn,
                                         const std::string& bucketName,
-                                        const std::string value) {
-    conn.authenticate("@admin", "password", "PLAIN");
+                                        const std::string& value) {
     conn.selectBucket(bucketName);
 
     // Encode a set_flush_param (like cbepctl)
@@ -82,8 +80,7 @@ void TestBucketImpl::setCompressionMode(MemcachedConnection& conn,
 
 void TestBucketImpl::setMinCompressionRatio(MemcachedConnection& conn,
                                             const std::string& bucketName,
-                                            const std::string value) {
-    conn.authenticate("@admin", "password", "PLAIN");
+                                            const std::string& value) {
     conn.selectBucket(bucketName);
 
     // Encode a set_flush_param (like cbepctl)

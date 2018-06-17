@@ -360,12 +360,14 @@ ClientJSONSupport McdTestappTest::hasJSONSupport() const {
 
 void TestappTest::setCompressionMode(const std::string& compression_mode) {
     mcd_env->getTestBucket().setCompressionMode(
-            getConnection(), bucketName, compression_mode);
+            getAdminConnection(), bucketName, compression_mode);
 }
 
 void TestappTest::setMinCompressionRatio(float min_compression_ratio) {
     mcd_env->getTestBucket().setMinCompressionRatio(
-            getConnection(), bucketName, std::to_string(min_compression_ratio));
+            getAdminConnection(),
+            bucketName,
+            std::to_string(min_compression_ratio));
 }
 
 std::string McdTestappTest::PrintToStringCombinedName(

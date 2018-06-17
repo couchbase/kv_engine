@@ -47,17 +47,38 @@ public:
     virtual bool supportsLastModifiedVattr() const = 0;
     virtual bool supportsPersistence() const = 0;
 
+    /**
+     * Make sure that xattr is enabled / disabled in the named bucket
+     *
+     * @param conn The connection to use (must have admin privileges)
+     * @param bucketName The name of the bucket to modify
+     * @param value set to true to enable, false to disable
+     */
     void setXattrEnabled(MemcachedConnection& conn,
                          const std::string& bucketName,
                          bool value);
 
+    /**
+     * Set the compression mode for the named bucket.
+     *
+     * @param conn The connection to use (must have admin privileges)
+     * @param bucketName The name of the bucket to modify
+     * @param value The mode the bucket should use
+     */
     void setCompressionMode(MemcachedConnection& conn,
                             const std::string& bucketName,
-                            const std::string value);
+                            const std::string& value);
 
+    /**
+     * Set the minimum compression ratio for the named bucket.
+     *
+     * @param conn The connection to use (must have admin privileges)
+     * @param bucketName The name of the bucket to modify
+     * @param value The the minimum compression ratio to use
+     */
     void setMinCompressionRatio(MemcachedConnection& conn,
                                 const std::string& bucketName,
-                                const std::string value);
+                                const std::string& value);
 
 protected:
     static void createEwbBucket(const std::string& name,

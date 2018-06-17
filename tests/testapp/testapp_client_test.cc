@@ -153,7 +153,7 @@ void TestappXattrClientTest::SetUp() {
     TestappTest::SetUp();
 
     mcd_env->getTestBucket().setXattrEnabled(
-            getConnection(),
+            getAdminConnection(),
             bucketName,
             ::testing::get<1>(GetParam()) == XattrSupport::Yes);
     if (::testing::get<1>(GetParam()) == XattrSupport::No) {
