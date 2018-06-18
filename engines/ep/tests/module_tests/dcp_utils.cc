@@ -15,7 +15,12 @@
  *   limitations under the License.
  */
 
+#include "test_helpers.h"
+
+#include "../mock/mock_stream.h"
 #include "dcp/consumer.h"
+
+#include <gtest/gtest.h>
 
 extern uint8_t dcp_last_op;
 
@@ -30,5 +35,35 @@ void handleProducerResponseIfStepBlocked(DcpConsumer& consumer) {
         resp.response.opcode = PROTOCOL_BINARY_CMD_GET_ERROR_MAP;
         resp.response.status = ntohs(PROTOCOL_BINARY_RESPONSE_SUCCESS);
         consumer.handleResponse(&resp);
+    }
+}
+
+void processMutations(MockPassiveStream& stream,
+                      const int64_t seqnoStart,
+                      const int64_t seqnoEnd) {
+    ASSERT_GE(seqnoEnd, seqnoStart);
+    for (auto i = seqnoStart; i <= seqnoEnd; i++) {
+        // Queue item
+        queued_item qi(new Item(makeStoredDocKey("key_" + std::to_string(i)),
+                                0 /*flags*/,
+                                0 /*expiry*/,
+                                "value",
+                                5 /*valueSize*/,
+                                PROTOCOL_BINARY_RAW_BYTES,
+                                0 /*cas*/,
+                                i /*bySeqno*/,
+                                stream.getVBucket()));
+
+        MutationResponse mutation(std::move(qi), 0 /* opaque */);
+
+        // PassiveStream::processMutation does 2 things:
+        //     1) setWithMeta; that enqueues the item into the
+        //         - checkpoint; if the item is from a memory-snapshot, or from
+        //             a disk-snapshot and vbHighSeqno > 0
+        //         - backfill queue; if the item is from a disl-snapshot and
+        //             vbHighSeqno = 0
+        //     2) calls PassiveStream::handleSnapshotEnd (which must close the
+        //         open checkpoint if the current mutation is the snapshot-end)
+        ASSERT_EQ(ENGINE_SUCCESS, stream.processMutation(&mutation));
     }
 }

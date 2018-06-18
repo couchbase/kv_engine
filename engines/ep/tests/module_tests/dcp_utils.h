@@ -16,6 +16,7 @@
  */
 
 class DcpConsumer;
+class MockPassiveStream;
 
 /*
  * Calls DcpConsumer::handleResponse() when it is necessary for the
@@ -25,3 +26,15 @@ class DcpConsumer;
  * @param connection The connection
  */
 void handleProducerResponseIfStepBlocked(DcpConsumer& connection);
+
+/*
+ * Calls PassiveStream::processMutation() for the number of mutations
+ * in [seqnoStart, seqnoEnd]
+ *
+ * @param stream The passive stream
+ * @param seqnoStart
+ * @param seqnoEnd
+ */
+void processMutations(MockPassiveStream& stream,
+                      const int64_t seqnoStart,
+                      const int64_t seqnoEnd);
