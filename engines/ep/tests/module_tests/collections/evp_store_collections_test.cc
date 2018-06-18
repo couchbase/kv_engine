@@ -694,6 +694,43 @@ TEST_F(CollectionsWarmupTest, warmupIgnoreLogicallyDeletedDefault) {
     EXPECT_EQ(0, store->getVBucket(vbid)->ht.getNumInMemoryItems());
 }
 
+TEST_F(CollectionsWarmupTest, warmupManifestUidLoadsOnCreate) {
+    {
+        auto vb = store->getVBucket(vbid);
+
+        // Add the meat collection
+        vb->updateFromManifest({R"({"separator":":","uid":"face2",
+              "collections":[{"name":"$default", "uid":"0"},
+                             {"name":"meat","uid":"1"}]})"});
+
+        flush_vbucket_to_disk(vbid, 1);
+    } // VBucketPtr scope ends
+
+    resetEngineAndWarmup();
+
+    // validate the manifest uid comes back
+    EXPECT_EQ(0xface2,
+              store->getVBucket(vbid)->lockCollections().getManifestUid());
+}
+
+TEST_F(CollectionsWarmupTest, warmupManifestUidLoadsOnDelete) {
+    {
+        auto vb = store->getVBucket(vbid);
+
+        // Delete the $default collection
+        vb->updateFromManifest({R"({"separator":":","uid":"face2",
+              "collections":[]})"});
+
+        flush_vbucket_to_disk(vbid, 1);
+    } // VBucketPtr scope ends
+
+    resetEngineAndWarmup();
+
+    // validate the manifest uid comes back
+    EXPECT_EQ(0xface2,
+              store->getVBucket(vbid)->lockCollections().getManifestUid());
+}
+
 class CollectionsManagerTest : public CollectionsTest {};
 
 /**

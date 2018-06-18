@@ -126,6 +126,9 @@ void Manifest::addCollection(::VBucket& vb,
     //    non-zero start
     auto& entry = addCollectionEntry(identifier);
 
+    // 1.1 record the uid of the manifest which is adding the collection
+    this->manifestUid = manifestUid;
+
     // 2. Queue a system event, this will take a copy of the manifest ready
     //    for persistence into the vb state file.
     auto seqno = queueSystemEvent(vb,
@@ -134,8 +137,6 @@ void Manifest::addCollection(::VBucket& vb,
                                   false /*deleted*/,
                                   optionalSeqno);
 
-    // record the uid of the manifest which is adding the collection
-    this->manifestUid = manifestUid;
 
     LOG(EXTENSION_LOG_NOTICE,
         "collections: vb:%" PRIu16 " adding collection:%.*s, uid:%" PRIx64
@@ -205,14 +206,15 @@ void Manifest::beginCollectionDelete(::VBucket& vb,
                                      Identifier identifier,
                                      OptionalSeqno optionalSeqno) {
     auto& entry = beginDeleteCollectionEntry(identifier);
+
+    // record the uid of the manifest which removed the collection
+    this->manifestUid = manifestUid;
+
     auto seqno = queueSystemEvent(vb,
                                   SystemEvent::Collection,
                                   identifier,
                                   true /*deleted*/,
                                   optionalSeqno);
-
-    // record the uid of the manifest which removed the collection
-    this->manifestUid = manifestUid;
 
     LOG(EXTENSION_LOG_NOTICE,
         "collections: vb:%" PRIu16
